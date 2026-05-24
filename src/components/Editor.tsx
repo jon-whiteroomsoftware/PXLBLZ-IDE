@@ -21,6 +21,7 @@ const EDITOR_OPTIONS = {
 
 export function Editor() {
   const source = useEditorStore((s) => s.source)
+  const isReadOnly = useEditorStore((s) => s.isReadOnly)
   const setSource = useEditorStore((s) => s.setSource)
   const setCompileStatus = useEditorStore((s) => s.setCompileStatus)
 
@@ -48,6 +49,12 @@ export function Editor() {
     const model = editor.getModel()
     if (!model) return
 
+    // Library files are not user-authored patterns — skip validation
+    if (isReadOnly) {
+      monaco.editor.setModelMarkers(model, 'pixelblaze', [])
+      return
+    }
+
     const errors = validateSource(source)
     setCompileStatus(errors.length === 0 ? 'good' : 'broken')
 
@@ -67,7 +74,7 @@ export function Editor() {
         }
       }),
     )
-  }, [source, setCompileStatus])
+  }, [source, isReadOnly, setCompileStatus])
 
   return (
     <MonacoEditor
@@ -78,7 +85,7 @@ export function Editor() {
       beforeMount={handleBeforeMount}
       onMount={handleMount}
       onChange={handleChange}
-      options={EDITOR_OPTIONS}
+      options={{ ...EDITOR_OPTIONS, readOnly: isReadOnly }}
     />
   )
 }

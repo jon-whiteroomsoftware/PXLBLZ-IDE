@@ -1,13 +1,13 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { usePatternStore, patternInitialState } from './patternStore'
+import { usePatternStore, patternInitialState, SEED_PATTERN_ID } from './patternStore'
 
 beforeEach(() => {
   usePatternStore.setState(patternInitialState)
 })
 
 describe('patternStore', () => {
-  it('starts with no active pattern', () => {
-    expect(usePatternStore.getState().activePatternId).toBeNull()
+  it('starts with the seed pattern selected', () => {
+    expect(usePatternStore.getState().activePatternId).toBe(SEED_PATTERN_ID)
   })
 
   it('setActivePattern updates activePatternId', () => {

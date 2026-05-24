@@ -1,10 +1,12 @@
 import { useEffect, useRef } from 'react'
 import { usePreviewStore } from '@/store/previewStore'
+import { useEditorStore } from '@/store/editorStore'
 import { createShim } from '@/engine/shim'
 import { loadPattern } from '@/engine/loadPattern'
+import { bundle } from '@/engine/bundle'
 import { createRenderer } from '@/engine/renderer'
 import { createRenderLoop, type RenderLoop } from '@/engine/renderLoop'
-import { SEED_PATTERN } from '@/pixelblaze/seedPattern'
+import { LIBRARIES } from '@/pixelblaze/libs'
 
 export function Preview() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -19,7 +21,9 @@ export function Preview() {
     const grid = usePreviewStore.getState().grid
 
     const shim = createShim({ grid, getVirtualTime: () => Date.now() })
-    const handle = loadPattern(SEED_PATTERN, { exportedVars: [], controls: [] }, shim.builtins)
+    const src = useEditorStore.getState().source
+    const { code, metadata } = bundle(src, LIBRARIES)
+    const handle = loadPattern(code, metadata, shim.builtins)
     const renderer = createRenderer(canvas, grid)
 
     const loop = createRenderLoop({

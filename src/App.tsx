@@ -1,6 +1,7 @@
 import { Button } from '@/components/ui/button'
 import { Editor } from '@/components/Editor'
 import { CompileStatusBadge } from '@/components/CompileStatusBadge'
+import { PatternList } from '@/components/PatternList'
 import { Preview } from '@/components/Preview'
 import { usePreviewStore } from '@/store/previewStore'
 
@@ -18,7 +19,9 @@ export default function App() {
         </Button>
       </header>
       <div className="flex flex-1 min-h-0">
-        <aside data-testid="left-pane" className="w-56 border-r border-zinc-800 shrink-0" />
+        <aside data-testid="left-pane" className="w-56 border-r border-zinc-800 shrink-0 overflow-y-auto">
+          <PatternList />
+        </aside>
         <main data-testid="editor-pane" className="flex-1 min-w-0 overflow-hidden">
           <Editor />
         </main>
