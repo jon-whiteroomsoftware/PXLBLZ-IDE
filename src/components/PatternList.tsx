@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { LIBRARIES } from '@/pixelblaze/libs'
 import { DEMOS } from '@/pixelblaze/demos'
+import { NEW_PATTERN_SRC } from '@/pixelblaze/newPattern'
 import { uniquePatternName, nameConflicts } from '@/engine/patternName'
 import { useEditorStore } from '@/store/editorStore'
 import { usePatternStore, PatternRecord } from '@/store/patternStore'
@@ -8,13 +9,6 @@ import { usePatternStore, PatternRecord } from '@/store/patternStore'
 const LIBRARY_NAMES = Object.keys(LIBRARIES).sort()
 const DEMO_NAMES = Object.keys(DEMOS).sort()
 
-const NEW_PATTERN_SRC = `export function beforeRender(delta) {
-}
-
-export function render2D(index, x, y) {
-  hsv(x, 1, 1)
-}
-`
 
 function generateId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
