@@ -20,4 +20,14 @@ describe('editorStore', () => {
     useEditorStore.getState().setCompileStatus('good')
     expect(useEditorStore.getState().compileStatus).toBe('good')
   })
+
+  it('starts with empty previewSource', () => {
+    expect(useEditorStore.getState().previewSource).toBe('')
+  })
+
+  it('setPreviewSource updates previewSource', () => {
+    const src = 'export function render2D(i,x,y){}'
+    useEditorStore.getState().setPreviewSource(src)
+    expect(useEditorStore.getState().previewSource).toBe(src)
+  })
 })

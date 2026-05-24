@@ -27,6 +27,7 @@ export function Editor() {
   const isReadOnly = useEditorStore((s) => s.isReadOnly)
   const setSource = useEditorStore((s) => s.setSource)
   const setCompileStatus = useEditorStore((s) => s.setCompileStatus)
+  const setPreviewSource = useEditorStore((s) => s.setPreviewSource)
   const compileStatus = useEditorStore((s) => s.compileStatus)
   const activePatternId = usePatternStore((s) => s.activePatternId)
   const updatePatternSrc = usePatternStore((s) => s.updatePatternSrc)
@@ -40,16 +41,17 @@ export function Editor() {
     syncRef.current = { source, compileStatus, activePatternId }
   }, [source, compileStatus, activePatternId])
 
-  // Sync tick: auto-save clean source to IndexedDB every SYNC_TICK_MS
+  // Sync tick: auto-save clean source to IndexedDB and push to preview every SYNC_TICK_MS
   useEffect(() => {
     const id = setInterval(() => {
       const { source: s, compileStatus: status, activePatternId: pid } = syncRef.current
       if (status === 'good' && pid) {
         updatePatternSrc(pid, s)
+        setPreviewSource(s)
       }
     }, SYNC_TICK_MS)
     return () => clearInterval(id)
-  }, [updatePatternSrc])
+  }, [updatePatternSrc, setPreviewSource])
 
   const handleBeforeMount: BeforeMount = (monaco) => {
     registerPixelblazeLanguage(monaco)

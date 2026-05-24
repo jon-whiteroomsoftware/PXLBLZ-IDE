@@ -6,15 +6,18 @@ interface EditorState {
   compileStatus: CompileStatus
   source: string
   isReadOnly: boolean
+  previewSource: string
   setCompileStatus: (status: CompileStatus) => void
   setSource: (source: string) => void
   setIsReadOnly: (value: boolean) => void
+  setPreviewSource: (src: string) => void
 }
 
 export const editorInitialState = {
   compileStatus: 'good' as CompileStatus,
   source: '',
   isReadOnly: true,
+  previewSource: '',
 }
 
 export const useEditorStore = create<EditorState>()((set) => ({
@@ -22,4 +25,5 @@ export const useEditorStore = create<EditorState>()((set) => ({
   setCompileStatus: (compileStatus) => set({ compileStatus }),
   setSource: (source) => set({ source }),
   setIsReadOnly: (isReadOnly) => set({ isReadOnly }),
+  setPreviewSource: (previewSource) => set({ previewSource }),
 }))

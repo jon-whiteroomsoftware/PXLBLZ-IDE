@@ -13,18 +13,18 @@ export function Preview() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const loopRef = useRef<RenderLoop | null>(null)
   const isRunning = usePreviewStore((s) => s.isRunning)
+  const previewSource = useEditorStore((s) => s.previewSource)
 
-  // Build loop on mount; rebuild if source changes (sync tick will do this later)
+  // Rebuild the loop whenever a new clean source is pushed (pattern switch or sync tick)
   useEffect(() => {
     const canvas = canvasRef.current
-    if (!canvas) return
+    if (!canvas || !previewSource) return
 
     const grid = usePreviewStore.getState().grid
 
     const clock = createVirtualClock()
     const shim = createShim({ grid, getVirtualTime: () => clock.getTime() })
-    const src = useEditorStore.getState().source
-    const { code, metadata } = bundle(src, LIBRARIES)
+    const { code, metadata } = bundle(previewSource, LIBRARIES)
     const handle = loadPattern(code, metadata, shim.builtins)
     const renderer = createRenderer(canvas, grid)
 
@@ -42,8 +42,13 @@ export function Preview() {
     loopRef.current = loop
     loop.tick(0) // render one frozen frame immediately
 
+    // Preserve running state across pattern switches and sync-tick reloads
+    if (usePreviewStore.getState().isRunning) {
+      loop.start()
+    }
+
     return () => loop.stop()
-  }, [])
+  }, [previewSource])
 
   // Start / stop when isRunning changes
   useEffect(() => {

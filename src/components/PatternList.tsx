@@ -160,6 +160,7 @@ function UserPatternItem({
 export function PatternList() {
   const setSource = useEditorStore((s) => s.setSource)
   const setIsReadOnly = useEditorStore((s) => s.setIsReadOnly)
+  const setPreviewSource = useEditorStore((s) => s.setPreviewSource)
   const activeLibraryName = usePatternStore((s) => s.activeLibraryName)
   const activePatternId = usePatternStore((s) => s.activePatternId)
   const userPatterns = usePatternStore((s) => s.userPatterns)
@@ -183,6 +184,7 @@ export function PatternList() {
   function openUserPattern(pattern: PatternRecord) {
     setActivePattern(pattern.id)
     setSource(pattern.src)
+    setPreviewSource(pattern.src)
     setIsReadOnly(false)
   }
 
