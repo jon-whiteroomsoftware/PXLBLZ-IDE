@@ -12,11 +12,6 @@ if [ -z "$ISSUE_NUMS" ]; then
   exit 0
 fi
 
-if [ -z "${ANTHROPIC_API_KEY:-}" ]; then
-  echo "⚠️  ANTHROPIC_API_KEY not set — skipping issue update"
-  exit 0
-fi
-
 for ISSUE_NUM in $ISSUE_NUMS; do
   echo "🔍 Checking issue #$ISSUE_NUM..."
 
@@ -51,25 +46,15 @@ Respond with JSON only (no markdown fences):
 - {\"action\":\"comment\",\"message\":\"<progress comment>\"} if the commit partially addresses it
 - {\"action\":\"nothing\"} if the commit only references the issue for context or is unrelated"
 
-  REQUEST=$(jq -n \
-    --arg model "claude-haiku-4-5-20251001" \
-    --arg content "$PROMPT" \
-    '{model: $model, max_tokens: 256, messages: [{role: "user", content: $content}]}')
+  TEXT=$(claude -p "$PROMPT" --model claude-haiku-4-5-20251001 2>/dev/null || true)
 
-  RESPONSE=$(curl -sf https://api.anthropic.com/v1/messages \
-    -H "x-api-key: $ANTHROPIC_API_KEY" \
-    -H "anthropic-version: 2023-06-01" \
-    -H "content-type: application/json" \
-    -d "$REQUEST" 2>/dev/null || true)
-
-  if [ -z "$RESPONSE" ]; then
-    echo "   ⚠️  Claude API call failed — skipping issue #$ISSUE_NUM"
+  if [ -z "$TEXT" ]; then
+    echo "   ⚠️  Claude call failed — skipping issue #$ISSUE_NUM"
     continue
   fi
 
-  # Extract the text content, stripping any markdown fences Claude may add
-  TEXT=$(echo "$RESPONSE" | jq -r '.content[0].text // ""' 2>/dev/null | \
-    sed 's/^```json//' | sed 's/^```//' | sed 's/```$//' | xargs)
+  # Strip any markdown fences Claude may add
+  TEXT=$(echo "$TEXT" | sed 's/^```json//' | sed 's/^```//' | sed 's/```$//' | xargs)
 
   ACTION=$(echo "$TEXT" | jq -r '.action // "nothing"' 2>/dev/null || echo "nothing")
   MESSAGE=$(echo "$TEXT" | jq -r '.message // ""' 2>/dev/null || echo "")
