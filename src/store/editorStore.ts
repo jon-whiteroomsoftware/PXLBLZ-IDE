@@ -1,5 +1,4 @@
 import { create } from 'zustand'
-import { SEED_PATTERN } from '@/pixelblaze/seedPattern'
 
 export type CompileStatus = 'good' | 'broken'
 
@@ -14,8 +13,8 @@ interface EditorState {
 
 export const editorInitialState = {
   compileStatus: 'good' as CompileStatus,
-  source: SEED_PATTERN,
-  isReadOnly: false,
+  source: '',
+  isReadOnly: true,
 }
 
 export const useEditorStore = create<EditorState>()((set) => ({

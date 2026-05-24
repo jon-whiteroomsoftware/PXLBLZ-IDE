@@ -2,8 +2,11 @@ import MonacoEditor, { BeforeMount, OnChange, OnMount } from '@monaco-editor/rea
 import type * as monacoType from 'monaco-editor'
 import { useEffect, useRef } from 'react'
 import { useEditorStore } from '@/store/editorStore'
+import { usePatternStore } from '@/store/patternStore'
 import { registerPixelblazeLanguage, PIXELBLAZE_LANG_ID } from './monaco/pixelblazeLanguage'
 import { validateSource } from '@/engine/validate'
+
+const SYNC_TICK_MS = 4000
 
 const EDITOR_OPTIONS = {
   minimap: { enabled: false },
@@ -24,9 +27,29 @@ export function Editor() {
   const isReadOnly = useEditorStore((s) => s.isReadOnly)
   const setSource = useEditorStore((s) => s.setSource)
   const setCompileStatus = useEditorStore((s) => s.setCompileStatus)
+  const compileStatus = useEditorStore((s) => s.compileStatus)
+  const activePatternId = usePatternStore((s) => s.activePatternId)
+  const updatePatternSrc = usePatternStore((s) => s.updatePatternSrc)
 
   const editorRef = useRef<monacoType.editor.IStandaloneCodeEditor | null>(null)
   const monacoRef = useRef<typeof monacoType | null>(null)
+  const syncRef = useRef({ source, compileStatus, activePatternId })
+
+  // Keep a ref current so the interval closure always reads the latest values
+  useEffect(() => {
+    syncRef.current = { source, compileStatus, activePatternId }
+  }, [source, compileStatus, activePatternId])
+
+  // Sync tick: auto-save clean source to IndexedDB every SYNC_TICK_MS
+  useEffect(() => {
+    const id = setInterval(() => {
+      const { source: s, compileStatus: status, activePatternId: pid } = syncRef.current
+      if (status === 'good' && pid) {
+        updatePatternSrc(pid, s)
+      }
+    }, SYNC_TICK_MS)
+    return () => clearInterval(id)
+  }, [updatePatternSrc])
 
   const handleBeforeMount: BeforeMount = (monaco) => {
     registerPixelblazeLanguage(monaco)
