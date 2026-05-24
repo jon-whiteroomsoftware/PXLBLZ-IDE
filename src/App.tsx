@@ -77,8 +77,10 @@ export default function App() {
         <Splitter onDrag={handleLeftDrag} />
         <main data-testid="editor-pane" className="flex-1 min-w-0 flex flex-col overflow-hidden">
           <PaneHeader>
-            <span className="flex-1 truncate">{activeFileName}</span>
-            {activePatternId !== null && <CompileStatusBadge />}
+            <span className="flex-1 min-w-0 flex items-center gap-1.5">
+              <span className="truncate">{activeFileName}</span>
+              {activePatternId !== null && <CompileStatusBadge />}
+            </span>
           </PaneHeader>
           <div className="flex-1 overflow-hidden">
             <Editor />
