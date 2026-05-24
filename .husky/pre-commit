@@ -1,1 +1,21 @@
 npm run lint && npm test
+
+# If src/ files are staged but docs/prd/ is not, prompt to confirm the PRD
+# is still accurate before the commit lands.
+SRC_CHANGED=$(git diff --cached --name-only | grep -c "^src/" || true)
+PRD_CHANGED=$(git diff --cached --name-only | grep -c "^docs/prd/" || true)
+
+if [ "$SRC_CHANGED" -gt 0 ] && [ "$PRD_CHANGED" -eq 0 ]; then
+  echo ""
+  echo "⚠️  Source files are staged but docs/prd/ has no changes."
+  echo "   Staged src/ files:"
+  git diff --cached --name-only | grep "^src/" | sed 's/^/     /'
+  echo ""
+  printf "   Does the PRD still accurately reflect these changes? (y/n) "
+  read -r answer < /dev/tty
+  if [ "$answer" != "y" ] && [ "$answer" != "Y" ]; then
+    echo ""
+    echo "   Aborting. Update docs/prd/Pixelblaze IDE v2 PRD.md and re-commit."
+    exit 1
+  fi
+fi

@@ -49,6 +49,30 @@ A **Vite + React single-page application**, served locally with no backend. All 
 
 The engine (transpiler, runtime shim, eval loop, canvas renderer, storage) is a pure TypeScript module layer with **no React imports**. It exposes functions and Zustand store slices. React components only call engine functions and read from the store. This boundary is enforced by convention and verified by the absence of React imports in engine files.
 
+### Validator design
+
+`validateSource(source)` lives in `src/engine/validate.ts` as a pure function with no framework imports. It is the authoritative check run on every source change.
+
+**Two-pass approach:**
+
+1. **Syntax parse** — Acorn parses with `{ ecmaVersion: 2020, sourceType: 'module', locations: true }`. The `sourceType: 'module'` setting is required so top-level `export var` and `export function` declarations are accepted as legal syntax rather than rejected. If Acorn throws, one `ParseError` is returned immediately with the line and column stripped of Acorn's `(line:col)` suffix.
+
+2. **AST rule walk** — if parsing succeeds, a generic recursive walker checks every node for Pixelblaze rule violations and collects all of them (not just the first). Forbidden constructs and their AST node types:
+
+| Pixelblaze violation | AST node(s) |
+|---|---|
+| `let` / `const` | `VariableDeclaration` where `kind !== 'var'` |
+| `class` / `extends` | `ClassDeclaration`, `ClassExpression` |
+| `switch` / `case` | `SwitchStatement` |
+| `new` | `NewExpression` |
+| `try` / `catch` / `finally` | `TryStatement` |
+| `throw` | `ThrowStatement` |
+| `import` | `ImportDeclaration` |
+
+**Monaco wiring** — `Editor.tsx` captures the editor and monaco instances via `onMount` refs. A `useEffect` on `source` runs `validateSource`, converts each `ParseError` to a Monaco model marker (severity Error, range from error column to end of line, minimum 1 character wide), and updates `editorStore.compileStatus`. Monaco's built-in hover renders the error message with no additional code needed.
+
+**What is not flagged** — objects/named properties (`{ key: value }`) appear in the ElectroMage language limitations but are not in the PRD's violation list and are not flagged. Closure semantics (functions nested inside functions don't see the outer scope's locals on hardware) are a runtime divergence and are not statically detectable.
+
 ### Transpiler design
 
 Library files are written as **global-scope flat functions** — no object wrappers, no ES module exports. The filename determines the namespace: `sdf.js` → `sdf` namespace.
