@@ -14,6 +14,7 @@ const EDITOR_OPTIONS = {
   lineHeight: 20,
   fontFamily: "'Geist Mono', 'Cascadia Code', 'Fira Code', monospace",
   fontLigatures: true,
+  automaticLayout: true,
   scrollBeyondLastLine: false,
   wordWrap: 'off' as const,
   renderLineHighlight: 'all' as const,

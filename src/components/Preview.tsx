@@ -59,7 +59,7 @@ export function Preview() {
   }, [isRunning])
 
   return (
-    <div className="flex items-center justify-center h-full bg-zinc-950">
+    <div className="h-full bg-zinc-950 pt-3 pl-3">
       <canvas ref={canvasRef} className="rounded-sm" />
     </div>
   )

@@ -1,3 +1,4 @@
+import { useState, useCallback, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { Editor } from '@/components/Editor'
 import { CompileStatusBadge } from '@/components/CompileStatusBadge'
@@ -7,6 +8,35 @@ import { PaneHeader } from '@/components/PaneHeader'
 import { usePreviewStore } from '@/store/previewStore'
 import { usePatternStore } from '@/store/patternStore'
 import { useEditorStore } from '@/store/editorStore'
+
+function Splitter({ onDrag }: { onDrag: (dx: number) => void }) {
+  const lastX = useRef(0)
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    lastX.current = e.clientX
+
+    const onMove = (ev: MouseEvent) => {
+      onDrag(ev.clientX - lastX.current)
+      lastX.current = ev.clientX
+    }
+
+    const onUp = () => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+    }
+
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+    e.preventDefault()
+  }
+
+  return (
+    <div
+      className="w-1 shrink-0 bg-zinc-800 hover:bg-zinc-600 cursor-col-resize transition-colors select-none"
+      onMouseDown={handleMouseDown}
+    />
+  )
+}
 
 export default function App() {
   const isRunning = usePreviewStore((s) => s.isRunning)
@@ -18,8 +48,19 @@ export default function App() {
   const userPatterns = usePatternStore((s) => s.userPatterns)
   const previewPatternName = useEditorStore((s) => s.previewPatternName)
 
+  const [leftWidth, setLeftWidth] = useState(224)
+  const [rightWidth, setRightWidth] = useState(320)
+
   const activeFileName =
     activeLibraryName ?? activeDemoName ?? userPatterns.find((p) => p.id === activePatternId)?.name ?? '—'
+
+  const handleLeftDrag = useCallback((dx: number) => {
+    setLeftWidth((w) => Math.max(120, w + dx))
+  }, [])
+
+  const handleRightDrag = useCallback((dx: number) => {
+    setRightWidth((w) => Math.max(200, w - dx))
+  }, [])
 
   return (
     <div className="flex flex-col h-screen bg-zinc-950 text-zinc-100">
@@ -27,12 +68,13 @@ export default function App() {
         <span className="text-sm font-semibold tracking-wide">Pixelblaze IDE</span>
       </header>
       <div className="flex flex-1 min-h-0">
-        <aside data-testid="left-pane" className="w-56 border-r border-zinc-800 shrink-0 flex flex-col">
+        <aside data-testid="left-pane" className="shrink-0 flex flex-col" style={{ width: leftWidth }}>
           <PaneHeader>Patterns</PaneHeader>
           <div className="flex-1 overflow-y-auto">
             <PatternList />
           </div>
         </aside>
+        <Splitter onDrag={handleLeftDrag} />
         <main data-testid="editor-pane" className="flex-1 min-w-0 flex flex-col overflow-hidden">
           <PaneHeader>
             <span className="flex-1 truncate">{activeFileName}</span>
@@ -42,7 +84,8 @@ export default function App() {
             <Editor />
           </div>
         </main>
-        <aside data-testid="preview-pane" className="w-80 border-l border-zinc-800 shrink-0 flex flex-col">
+        <Splitter onDrag={handleRightDrag} />
+        <aside data-testid="preview-pane" className="shrink-0 flex flex-col" style={{ width: rightWidth }}>
           <PaneHeader>
             <span className="flex-1 truncate">{previewPatternName || '—'}</span>
             <Button size="sm" variant="outline" data-testid="shadcn-button" onClick={toggle}>
