@@ -60,13 +60,15 @@ User patterns reference library functions using dot notation: `sdf.circle(px, py
 3. For each referenced function, uses Acorn to extract the function body from the library source.
 4. Recursively collects transitive dependencies within the same library.
 5. Mangles names to avoid collisions: `sdf.circle` → `_sdf_circle`.
-6. Produces a **single flat artifact**: all inlined functions prepended, all `namespace.fn()` calls rewritten to `_namespace_fn()`, `export` keywords preserved.
+6. Produces a **flat artifact**: all inlined functions prepended, all `namespace.fn()` calls rewritten to `_namespace_fn()`, `export` keywords preserved.
 
-The same artifact is used for browser preview and hardware upload. For browser eval, `export` is stripped by the runtime wrapper. For hardware upload, the artifact is sent verbatim.
+`bundle(patternSrc)` returns `{ code, metadata }`, not just a string. `code` is the flat artifact above — the single file used for both browser preview and hardware upload. `metadata` is a preview-side companion derived from the same AST pass: `exportedVars` (names of `export var` declarations → var watcher), `controls` (each exported control function as `{ exportName, kind, label }`), and `renderFns` (which of `render2D` / `beforeRender` are present). The metadata never reaches the hardware file — only `code` is downloaded or copied.
+
+For browser eval, `export` is stripped by the runtime wrapper. For hardware upload, `code` is sent verbatim.
 
 ### Runtime shim
 
-The browser runtime injects all Pixelblaze built-in functions (`hsv`, `rgb`, `time`, `wave`, `sin`, `abs`, etc.) as parameters to a `new Function()` call. This avoids polluting the global scope and makes the shim fully injectable for testing.
+The browser runtime injects the Pixelblaze built-in functions and constants as parameters to a `new Function()` call. This avoids polluting the global scope and makes the shim fully injectable for testing. Built-ins are defined in a single manifest module (`builtins.ts`) that is the source of truth for three subsystems: the runtime shim (implementations), the editor autocomplete and signature hints (names + parameter names), and the reference validator (which names are built-in vs. unknown). The manifest is maintained by hand against the ElectroMage language reference — there is no auto-sync with the firmware.
 
 `hsv(h, s, v)` and `rgb(r, g, b)` capture the current pixel's color as a side effect into a frame-scoped variable that the render loop reads after each `render2D(index, x, y)` call.
 
@@ -83,12 +85,22 @@ The pattern is wrapped to return a live handle:
 }
 ```
 
+The runtime builds this handle from the transpiler's `metadata` without re-parsing: it strips `export`, appends a generated epilogue that returns the handle object, and evaluates via `new Function(...builtins, body)`. `getExports` is generated as a **live closure** over the evaluated scope, so each call re-reads the current values of the exported vars — the var watcher samples it after every rendered frame rather than getting a one-time snapshot.
+
+### Built-in coverage (v1)
+
+The built-in surface (~80 functions and constants) is implemented in tiers:
+
+- **Fully implemented:** math, trig, waveform, interpolation, and noise functions (`sin`, `clamp`, `wave`, `triangle`, `mix`, `smoothstep`, `perlin*`, …); all constants (`PI`, `PI2`, `E`, …); per-pixel color (`hsv`, `hsv24`, `rgb`); palette (`setPalette`, `paint`); pixel-map introspection (`has2DMap`, `pixelMapDimensions`, `mapPixels`) over the configured preview grid; clock functions (read from the browser clock). `array(n)` is implemented, returning a native JavaScript array.
+- **Inert stubs** (defined so patterns don't throw a reference error, but do nothing): hardware I/O (`analogRead`, `digitalWrite`, `digitalRead`, `touchRead`, `pinMode`, `readAdc`); sensor-expansion globals exposed as zero-filled defaults (`frequencyData`, `energyAverage`, `accelerometer`, `light`, `analogInputs`, `maxFrequency`, `maxFrequencyMagnitude`); sync (`nodeId` → 0). Sound- and sensor-reactive patterns run without error but produce no motion.
+- **Deferred** (see the Deferred section): the 2D coordinate-transform stack and a Pixelblaze-accurate array type. In v1 the transform functions (`resetTransform`, `translate`, `scale`, `rotate`, `transform`, and the 3D variants) are inert no-ops, and `array(n)` returns a plain JS array — so patterns that animate via transforms, or that rely on Pixelblaze-specific array methods/semantics, will preview differently than they run on hardware.
+
 ### Pattern execution
 
 Render loop (requestAnimationFrame):
 1. Compute scaled `delta` using the virtual clock.
 2. Call `handle.beforeRender(delta)`.
-3. For each LED at grid position `(col, row)`, compute normalised `x = col / cols`, `y = row / rows`.
+3. For each LED at grid position `(col, row)`, compute normalised coordinates inclusive of the endpoints: `x = col / (cols - 1)`, `y = row / (rows - 1)`, so the first pixel is at 0 and the last is at exactly 1.0 (matching the hardware mapper's normalized matrix map). Guard the degenerate single-column/single-row case (`cols === 1` → `x = 0`; `rows === 1` → `y = 0`) to avoid divide-by-zero.
 4. Call `handle.render2D(index, x, y)`.
 5. Capture the pixel color set by `hsv()`/`rgb()` into the pixel array.
 6. Paint the pixel array to the Canvas 2D context.
@@ -97,7 +109,9 @@ The app starts **paused**. Running state is preserved across pattern switches.
 
 ### User pattern storage
 
-User patterns are stored in **IndexedDB** under a dedicated object store. Each record: `{ id: string, name: string, src: string, updatedAt: number }`. A separate key-value store holds app settings (grid config, speed, brightness).
+User patterns are stored in **IndexedDB** under a dedicated object store. Each record: `{ id: string, name: string, src: string, controls: Record<string, number | number[]>, updatedAt: number }`. The `controls` map holds persisted control values keyed by export name — a single `number` for `slider`/`toggle`, a 3-element array for `hsvPicker`/`rgbPicker` (matching the shape the hardware websocket API uses for `getControls`/`setControls`, which eases the deferred hardware-upload feature). Control values are therefore per-pattern, saved/loaded/deleted atomically with the pattern.
+
+A separate key-value store holds **global** app settings (grid config, speed, brightness) — these are not per-pattern.
 
 ---
 
@@ -118,7 +132,7 @@ The IDE operates entirely without a network connection or hardware controller. P
 ### Code Library
 
 - Libraries ship with the IDE as read-only source files under `src/pixelblaze/lib/`.
-- Each library is one TypeScript file of global-scope flat functions. The filename is the namespace: `sdf.ts` → `sdf.*`.
+- Each library is one JavaScript file of global-scope flat functions, written in Pixelblaze's language dialect (the same dialect as user patterns). The filename is the namespace: `sdf.js` → `sdf.*`. Library files are `.js`, not `.ts`, because Acorn parses JavaScript directly and the bundled artifact must be valid Pixelblaze code; only the IDE application code (transpiler, runtime, React) is TypeScript.
 - Library code is focused on performance, given the strict memory and CPU constraints of the Pixelblaze hardware (256-variable limit, fixed-point arithmetic).
 - Libraries do not duplicate any built-in Pixelblaze functionality.
 - Libraries may reference functions in other libraries using the same `libname.fn()` dot-notation that user patterns use. These cross-library references are resolved by the transpiler.
@@ -136,14 +150,14 @@ The IDE operates entirely without a network connection or hardware controller. P
 - **Autocomplete**: all Pixelblaze built-in functions and constants + all functions from all loaded libraries.
 - **Signature hints**: typing `(` after a known function shows parameter names with the active parameter highlighted; advances as commas are typed.
 - **Good/Broken compile status indicator** displayed near the editor — updates in real time as the user types.
-- **Periodic auto-save** triggered while code compiles cleanly. Broken code is not auto-saved.
+- **Periodic sync tick** — a timer (every few seconds) checks whether the editor's current source compiles cleanly (parses + passes Pixelblaze rule validation). On a clean compile it both (a) auto-saves the source to IndexedDB and (b) pushes the new code to the preview by reloading the eval engine. Broken code is neither saved nor pushed — the last clean version keeps running. This periodic tick is the **only** mechanism that propagates edits of the active pattern to the preview; there is no per-keystroke re-eval. On push, the eval engine reloads exactly as on a pattern switch: control callbacks are re-invoked with their saved values and pattern state resets, so a running animation will restart from its initial state. (Note: "compiles cleanly" cannot detect an infinite loop, so a syntactically valid runaway loop will still be pushed and can freeze the tab — see ADR-0002.)
 
 ### Transpiler
 
 - Acorn-based AST parsing for reliable function extraction and dependency analysis.
 - Function-level tree-shaking: only referenced functions (and their transitive dependencies) are inlined — critical for keeping uploaded file sizes within hardware memory limits.
 - Resolves cross-library references transitively (library A calling library B).
-- Single artifact output: the same transpiled file is used for browser preview and hardware download.
+- Single artifact output: `bundle()` returns `{ code, metadata }`; `code` is the one transpiled file used for both browser preview and hardware download, while `metadata` (export and control names) is a preview-side companion that never reaches the hardware file.
 - `export` keywords stripped for browser eval; preserved in the download artifact (the hardware understands `export`).
 
 ### Pattern Preview
@@ -152,10 +166,10 @@ The right pane shows a configurable grid of LED dots rendered on a Canvas 2D ele
 
 **Play/pause state machine:**
 - The app always starts **paused** when loaded.
-- The run-status **pill toggle** sits next to the pattern file name. It shows one of three states: Running / Paused / Error. Clicking it toggles between Running and Paused.
+- The run-status **pill toggle** sits next to the pattern file name. It shows one of two states: Running / Paused. Clicking it toggles between them.
 - When a pattern is loaded, a single preview frame is rendered immediately so the frozen state is visible even while paused.
 - **Running state is preserved across pattern switches**: if the app is running when the user switches patterns, the new pattern starts playing immediately; if paused, the new pattern loads and shows a single frozen frame.
-- **Error state always pauses.** The pill shows Error and the pattern stops running until the code is fixed and reloaded.
+- **Runtime exceptions are not surfaced as an error state.** If pattern code throws while rendering, the render loop catches it, quietly stops (the pill returns to Paused), and logs to the console. There is no dedicated error UI — runtime throws are expected to be rare, and compile errors are caught earlier (see below). Compile problems are shown only in the editor (Monaco squiggles + the Good/Broken compile indicator), never via the pill.
 - **Pattern dims visually when paused** to reinforce the stopped state.
 
 **User controls in the preview pane:**
@@ -174,7 +188,9 @@ A pattern can export specially-named functions that cause the IDE to render inte
 | `hsvPickerX` | HSV colour picker | `fn(h, s, v: number)` |
 | `rgbPickerX` | RGB colour picker | `fn(r, g, b: number)` |
 
-When a pattern is loaded, each control function is called immediately with its saved value so pattern state is consistent before the first frame renders. Control values are persisted across pattern reloads and app restarts.
+v1 supports only these four **input** control types. The remaining Pixelblaze control prefixes — `trigger`, `inputNumber`, `showNumber`, `gauge` — are deferred (see Deferred section); the last two are *output* controls that the IDE would poll for a return value, a separate path. Any exported function whose prefix is not one of the four supported kinds is **ignored** by the controls renderer — no widget, no error, no squiggle. It remains an ordinary exported function (callable internally by the pattern), so patterns authored on hardware that use a `gauge` or `trigger` still load and run, just without that widget.
+
+When a pattern is loaded, each supported control function is called immediately with its saved value so pattern state is consistent before the first frame renders. Control values are persisted per-pattern across reloads and app restarts.
 
 ### Var Watcher
 
@@ -188,15 +204,24 @@ Arrays are shown with each element and its index. The data is sampled at the end
 ### Pattern Management
 
 - Pattern list in the left pane shows library files (read-only, grouped at top) and user patterns (below).
-- **Create** new user pattern from a blank template.
-- **Rename** user pattern inline.
+- **Create** new user pattern from a runnable starter skeleton. The IndexedDB record is written immediately on create (generated `id`, default name `"Untitled Pattern"`, skeleton `src`) and loaded into the editor, so the sync-tick has a target and the pattern persists before any edit. The skeleton renders an immediate hue gradient so the pipeline is visibly working:
+
+  ```js
+  export function beforeRender(delta) {
+  }
+
+  export function render2D(index, x, y) {
+    hsv(x, 1, 1)
+  }
+  ```
+- **Rename** user pattern inline. Names need not be unique — the `id` is the identity (mirroring the hardware, where pattern IDs identify a pattern and names may collide).
 - **Delete** user pattern.
 - Switching patterns loads the selected source into the editor and reloads the eval engine.
 
 ### Export / Download
 
-- **Download single pattern**: transpiles the current pattern into a self-contained flat `.js` file with all library dependencies inlined, ready to upload to a Pixelblaze controller via the ElectroMage web UI.
-- **Download all patterns**: packages every user pattern as individual transpiled `.js` files into a single `.tar.gz` archive.
+- **Download current pattern**: transpiles the pattern currently open in the editor into a self-contained flat `.js` file — all referenced library functions inlined, `export` keywords preserved — saved as `<sanitized-name>.js`. This is the literal code that runs on the hardware: the user uploads it to a Pixelblaze controller via the ElectroMage web UI, or copy-pastes its contents into the ElectroMage editor. There is no bulk/all-patterns export.
+- **Copy transpiled code to clipboard**: the same transpiled artifact as the download, written to the clipboard (`navigator.clipboard.writeText`) for direct paste into the ElectroMage editor — skipping the download/open/copy round-trip.
 
 ---
 
@@ -226,7 +251,7 @@ Arrays are shown with each element and its index. The data is sampled at the end
 5. Acorn-based function extractor — `extractFn(libSrc, fnName)` with unit tests
 6. Transitive dependency collector — `collectDeps(fnSrc, libSrc)` recursive walk, unit tested
 7. Name mangler — `munge(libName, fnName)` → `_lib_fn`, unit tested
-8. Full bundler — `bundle(patternSrc)` → flat artifact, integration tested
+8. Full bundler — `bundle(patternSrc)` → `{ code, metadata }`, integration tested
 9. Seed libraries — port `anim.js` and `sdf.js`; bundler tests against them
 
 ### Phase 3 — Runtime shim and pattern eval
@@ -258,7 +283,7 @@ Arrays are shown with each element and its index. The data is sampled at the end
 27. Playback speed control — virtual clock scaling (0.1×–2×)
 28. Brightness control (0–1)
 29. Grid config controls — rows, cols, spacing, glow amount, glow on/off
-30. Periodic auto-save — saves while code compiles cleanly
+30. Periodic sync tick — on clean compile, auto-save to IndexedDB and push new code to the preview
 
 ### Phase 8 — Pattern controls and var watcher
 31. Pattern controls UI — sliders, toggles, hsvPicker, rgbPicker
@@ -271,14 +296,12 @@ Arrays are shown with each element and its index. The data is sampled at the end
 36. Library files visible in pattern list as read-only, openable in editor
 
 ### Phase 10 — Export
-37. Download single pattern — bundled `.js` for hardware
-38. Download all patterns — tar.gz archive
+37. Download current pattern — bundled `.js` for hardware; Copy transpiled code to clipboard
 
 ### Phase 11 — Polish
 39. Vertical splitter — drag to resize editor/preview panes
 40. Good/Broken compile status indicator
 41. Pattern preview dims when paused
-42. Error state auto-pauses
 
 ---
 
@@ -290,6 +313,20 @@ Find and connect to a Pixelblaze controller on the local network. Use the contro
 - Read the list of existing patterns stored on the device.
 - Upload a transpiled pattern to the controller.
 - Interact with the controller's other APIs, including setting pattern variables remotely.
+
+### Runtime built-ins deferred from v1
+
+- **2D coordinate-transform stack** — `translate`, `scale`, `rotate`, `transform`, `resetTransform` applied to pixel-map coordinates before each `render2D` call, via a per-frame matrix stack (the hardware supports up to 31 transforms). In v1 these functions are inert no-ops, so patterns that animate by transforming coordinates will appear static in the preview. The 3D transform variants (`rotateX/Y/Z`, `translate3D`, `scale3D`) are deferred with the rest of 3D support.
+- **Pixelblaze-accurate array type** — the array function/method duality (`arraySort`/`a.sort()`, `mapTo`, `mutate`, `replace`, `sum`, `sortBy`, …) with Pixelblaze's numeric semantics (e.g. numeric rather than lexicographic sort). In v1 `array(n)` returns a native JS array: native methods (`forEach`, `reduce`, `length`) behave as in JS, but the Pixelblaze-only method forms are unavailable and array-heavy patterns may diverge.
+
+### Pattern control types deferred from v1
+
+- **`trigger`** — fire-once button (no value, not called on load).
+- **`inputNumber`** — free numeric entry, not constrained to 0–1.
+- **`showNumber`** — output display; the IDE polls the function and shows its returned number.
+- **`gauge`** — output display; returned 0–1 shown as a bar.
+
+`showNumber` and `gauge` are output controls requiring a poll-and-display path distinct from the four input controls. Until these ship, patterns using these prefixes load and run with the widgets simply absent.
 
 ### Other deferred features
 
