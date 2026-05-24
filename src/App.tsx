@@ -4,6 +4,7 @@ import { Editor } from '@/components/Editor'
 import { CompileStatusBadge } from '@/components/CompileStatusBadge'
 import { PatternList } from '@/components/PatternList'
 import { Preview } from '@/components/Preview'
+import { PreviewSettings } from '@/components/PreviewSettings'
 import { PaneHeader } from '@/components/PaneHeader'
 import { usePreviewStore } from '@/store/previewStore'
 import { usePatternStore } from '@/store/patternStore'
@@ -117,6 +118,7 @@ export default function App() {
         <aside data-testid="preview-pane" className="shrink-0 flex flex-col" style={{ width: rightWidth }}>
           <PaneHeader>
             <span className="flex-1 truncate">{previewPatternName || '—'}</span>
+            <PreviewSettings />
             <Button size="sm" variant="outline" data-testid="shadcn-button" onClick={toggle}>
               {isRunning ? 'Pause' : 'Run'}
             </Button>

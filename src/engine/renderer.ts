@@ -2,8 +2,6 @@ export interface RendererGridConfig {
   rows: number
   cols: number
   spacing: number
-  glow: boolean
-  glowAmount: number
 }
 
 export interface Renderer {
@@ -35,7 +33,7 @@ export function createRenderer(canvas: HTMLCanvasElement, initialGrid: RendererG
   const ctx2d: CanvasRenderingContext2D = ctx
 
   function paint(pixels: [number, number, number][], brightness: number, dimmed: boolean): void {
-    const { rows, cols, spacing, glow, glowAmount } = grid
+    const { rows, cols, spacing } = grid
     const radius = spacing / 2 - 3
     const dimScale = dimmed ? DIM_FACTOR : 1
 
@@ -56,21 +54,12 @@ export function createRenderer(canvas: HTMLCanvasElement, initialGrid: RendererG
       const bb = Math.round(clamp01(b * scale) * 255)
       const color = `rgb(${rr},${gg},${bb})`
 
-      if (glow) {
-        ctx2d.shadowBlur = glowAmount
-        ctx2d.shadowColor = color
-      } else {
-        ctx2d.shadowBlur = 0
-      }
-
       ctx2d.fillStyle = color
       ctx2d.beginPath()
       ctx2d.arc(cx, cy, radius, 0, Math.PI * 2)
       ctx2d.fill()
     }
 
-    // Reset shadow so it doesn't leak
-    ctx2d.shadowBlur = 0
   }
 
   function updateGrid(newGrid: RendererGridConfig): void {

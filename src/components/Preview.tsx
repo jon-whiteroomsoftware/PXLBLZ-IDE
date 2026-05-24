@@ -11,9 +11,12 @@ import { LIBRARIES } from '@/pixelblaze/libs'
 
 export function Preview() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const glowCanvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const loopRef = useRef<RenderLoop | null>(null)
+  const rendererRef = useRef<ReturnType<typeof createRenderer> | null>(null)
   const isRunning = usePreviewStore((s) => s.isRunning)
+  const grid = usePreviewStore((s) => s.grid)
   const previewSource = useEditorStore((s) => s.previewSource)
   const [canvasDims, setCanvasDims] = useState<{ spacing: number } | null>(null)
 
@@ -35,35 +38,49 @@ export function Preview() {
     const canvas = canvasRef.current
     if (!canvas || !previewSource || !canvasDims) return
 
-    const grid = { ...usePreviewStore.getState().grid, ...canvasDims }
+    const gridWithDims = { ...usePreviewStore.getState().grid, ...canvasDims }
 
     const clock = createVirtualClock()
-    const shim = createShim({ grid, getVirtualTime: () => clock.getTime() })
+    const shim = createShim({ grid: gridWithDims, getVirtualTime: () => clock.getTime() })
     const { code, metadata } = bundle(previewSource, LIBRARIES)
     const handle = loadPattern(code, metadata, shim.builtins)
-    const renderer = createRenderer(canvas, grid)
+    const renderer = createRenderer(canvas, gridWithDims)
+    rendererRef.current = renderer
+
+    // After each paint, copy the sharp frame to the glow canvas so the
+    // screen-blend overlay stays in sync without rebuilding the loop
+    const paint = (pixels: [number, number, number][], brightness: number, dimmed: boolean) => {
+      renderer.paint(pixels, brightness, dimmed)
+      const gc = glowCanvasRef.current
+      if (gc) {
+        if (gc.width !== canvas.width) gc.width = canvas.width
+        if (gc.height !== canvas.height) gc.height = canvas.height
+        gc.getContext('2d')?.drawImage(canvas, 0, 0)
+      }
+    }
 
     const loop = createRenderLoop({
-      handle,
-      shim,
-      clock,
-      grid,
+      handle, shim, clock,
+      grid: gridWithDims,
       getSpeed: () => usePreviewStore.getState().speed,
       getBrightness: () => usePreviewStore.getState().brightness,
       isDimmed: () => !usePreviewStore.getState().isRunning,
-      paint: renderer.paint.bind(renderer),
+      paint,
     })
 
     loopRef.current = loop
     loop.renderPreviewFrame()
 
-    // Preserve running state across pattern switches and resizes
-    if (usePreviewStore.getState().isRunning) {
-      loop.start()
-    }
+    if (usePreviewStore.getState().isRunning) loop.start()
 
     return () => loop.stop()
   }, [previewSource, canvasDims])
+
+  // Push grid changes to the renderer without rebuilding the loop
+  useEffect(() => {
+    if (!canvasDims) return
+    rendererRef.current?.updateGrid({ ...grid, ...canvasDims })
+  }, [grid, canvasDims])
 
   // Start / stop when isRunning changes
   useEffect(() => {
@@ -75,8 +92,22 @@ export function Preview() {
 
   return (
     <div className="h-full bg-zinc-950 pt-3 pl-3">
-      <div ref={containerRef} className="w-full h-full">
+      <div ref={containerRef} className="relative w-full h-full">
         <canvas ref={canvasRef} className="rounded-sm" />
+        {grid.glowAmount > 0 && (
+          <canvas
+            ref={glowCanvasRef}
+            className="rounded-sm"
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              filter: `blur(${grid.glowAmount}px) brightness(1.5)`,
+              mixBlendMode: 'screen',
+              pointerEvents: 'none',
+            }}
+          />
+        )}
       </div>
     </div>
   )

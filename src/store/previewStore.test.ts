@@ -40,7 +40,6 @@ describe('previewStore', () => {
     expect(grid.rows).toBe(16)
     expect(grid.cols).toBe(16)
     expect(grid.spacing).toBe(20)
-    expect(grid.glow).toBe(true)
     expect(grid.glowAmount).toBe(8)
   })
 

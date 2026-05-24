@@ -4,7 +4,6 @@ export interface GridConfig {
   rows: number
   cols: number
   spacing: number
-  glow: boolean
   glowAmount: number
 }
 
@@ -27,7 +26,6 @@ export const previewInitialState = {
     rows: 16,
     cols: 16,
     spacing: 20,
-    glow: true,
     glowAmount: 8,
   },
 }
