@@ -44,8 +44,17 @@ export function Preview() {
 
     const clock = createVirtualClock()
     const shim = createShim({ grid: gridWithDims, getVirtualTime: () => clock.getTime() })
-    const { code, metadata } = bundle(previewSource, LIBRARIES)
-    const handle = loadPattern(code, metadata, shim.builtins)
+
+    let handle: ReturnType<typeof loadPattern>
+    try {
+      const { code, metadata } = bundle(previewSource, LIBRARIES)
+      handle = loadPattern(code, metadata, shim.builtins)
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      queueMicrotask(() => setRuntimeError(msg))
+      return
+    }
+
     const renderer = createRenderer(canvas, gridWithDims)
     rendererRef.current = renderer
 
