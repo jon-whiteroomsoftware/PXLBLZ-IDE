@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { usePreviewStore, previewInitialState } from './previewStore'
+import { usePreviewStore, previewInitialState, mergePersistedPreview } from './previewStore'
 
 beforeEach(() => {
   usePreviewStore.setState(previewInitialState)
@@ -68,5 +68,23 @@ describe('previewStore', () => {
   it('setWatchValues updates watch values', () => {
     usePreviewStore.getState().setWatchValues({ delta: 16.7, t: 0.42 })
     expect(usePreviewStore.getState().watchValues).toEqual({ delta: 16.7, t: 0.42 })
+  })
+})
+
+describe('mergePersistedPreview', () => {
+  it('fills in a missing grid field from defaults (pre-rename persisted state)', () => {
+    const current = usePreviewStore.getState()
+    // Simulate a blob saved before `diffusion` existed (had `glowAmount` instead)
+    const persisted = { grid: { rows: 8, cols: 8, spacing: 20, glowAmount: 8 } }
+    const merged = mergePersistedPreview(persisted, current)
+    expect(merged.grid.diffusion).toBe(previewInitialState.grid.diffusion)
+    expect(merged.grid.rows).toBe(8)
+    expect(merged.grid.cols).toBe(8)
+  })
+
+  it('preserves a persisted diffusion value', () => {
+    const current = usePreviewStore.getState()
+    const persisted = { grid: { rows: 16, cols: 16, spacing: 20, diffusion: 0.6 } }
+    expect(mergePersistedPreview(persisted, current).grid.diffusion).toBe(0.6)
   })
 })
