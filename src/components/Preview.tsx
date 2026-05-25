@@ -139,6 +139,9 @@ export function Preview() {
   useEffect(() => {
     if (!canvasDims) return
     rendererRef.current?.updateGrid({ ...grid, ...canvasDims })
+    if (!usePreviewStore.getState().isRunning) {
+      loopRef.current?.renderPreviewFrame()
+    }
   }, [grid, canvasDims])
 
   // Start / stop when isRunning changes
@@ -158,7 +161,7 @@ export function Preview() {
               ref={canvasRef}
               className="rounded-sm"
               style={grid.diffusion > 0 ? {
-                filter: `blur(${(grid.diffusion * (canvasDims?.spacing ?? grid.spacing)).toFixed(1)}px) brightness(${(1 + grid.diffusion * 2).toFixed(2)})`,
+                filter: `blur(${(grid.diffusion * (canvasDims?.spacing ?? grid.spacing) * 0.7).toFixed(1)}px)`,
               } : undefined}
             />
             {runtimeError && (

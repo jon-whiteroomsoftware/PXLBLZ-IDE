@@ -2,6 +2,7 @@ export interface RendererGridConfig {
   rows: number
   cols: number
   spacing: number
+  diffusion?: number
 }
 
 export interface Renderer {
@@ -34,7 +35,14 @@ export function createRenderer(canvas: HTMLCanvasElement, initialGrid: RendererG
 
   function paint(pixels: [number, number, number][], brightness: number, dimmed: boolean): void {
     const { rows, cols, spacing } = grid
-    const radius = spacing / 2 - 3
+    // Grow the dot radius with diffusion so the lit area closes its gaps:
+    // at diffusion 0 we draw distinct dots, at 1 the dots overlap and fully
+    // cover the grid, leaving no black for the blur to average toward (which
+    // is what otherwise causes brightness to fall off as diffusion rises).
+    const diffusion = grid.diffusion ?? 0
+    const baseRadius = spacing / 2 - 3
+    const fullRadius = spacing * 0.62
+    const radius = baseRadius + diffusion * (fullRadius - baseRadius)
     const dimScale = dimmed ? DIM_FACTOR : 1
 
     ctx2d.clearRect(0, 0, canvas.width, canvas.height)
