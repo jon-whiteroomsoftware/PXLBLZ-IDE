@@ -3,9 +3,8 @@ import { Settings } from 'lucide-react'
 import { usePreviewStore } from '@/store/previewStore'
 import { useEditorStore } from '@/store/editorStore'
 
-const BUILTIN_WATCH_VARS = [
-  'delta',
-  'pixelCount',
+const PRIMARY_BUILTIN_VARS = ['delta', 'pixelCount']
+const ADVANCED_BUILTIN_VARS = [
   'energyAverage',
   'light',
   'maxFrequency',
@@ -39,6 +38,7 @@ function WatchCheckbox({
 
 export function PreviewSettings() {
   const [isOpen, setIsOpen] = useState(false)
+  const [advancedOpen, setAdvancedOpen] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
 
   const brightness = usePreviewStore((s) => s.brightness)
@@ -181,8 +181,8 @@ export function PreviewSettings() {
             </h3>
 
             <p className="text-[10px] text-zinc-600 uppercase tracking-wider mb-1">Built-ins</p>
-            <div className="grid grid-cols-2 gap-x-2 gap-y-1 mb-3">
-              {BUILTIN_WATCH_VARS.map((name) => (
+            <div className="grid grid-cols-2 gap-x-2 gap-y-1 mb-2">
+              {PRIMARY_BUILTIN_VARS.map((name) => (
                 <WatchCheckbox
                   key={name}
                   name={name}
@@ -191,6 +191,25 @@ export function PreviewSettings() {
                 />
               ))}
             </div>
+            <button
+              onClick={() => setAdvancedOpen((o) => !o)}
+              className="flex items-center gap-1 text-[10px] text-zinc-600 hover:text-zinc-400 mb-1 transition-colors"
+            >
+              <span>{advancedOpen ? '▾' : '▸'}</span>
+              <span>Advanced</span>
+            </button>
+            {advancedOpen && (
+              <div className="grid grid-cols-2 gap-x-2 gap-y-1 mb-3 pl-2">
+                {ADVANCED_BUILTIN_VARS.map((name) => (
+                  <WatchCheckbox
+                    key={name}
+                    name={name}
+                    checked={watchedBuiltins.includes(name)}
+                    onChange={() => toggleBuiltin(name)}
+                  />
+                ))}
+              </div>
+            )}
 
             <p className="text-[10px] text-zinc-600 uppercase tracking-wider mb-1">Variables</p>
             {patternVars.length > 0 ? (

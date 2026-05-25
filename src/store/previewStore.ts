@@ -34,7 +34,7 @@ export const previewInitialState = {
     spacing: 20,
     glowAmount: 8,
   },
-  watchedBuiltins: [] as string[],
+  watchedBuiltins: ['delta', 'pixelCount'] as string[],
   watchedPatternVars: [] as string[],
   watchValues: {} as Record<string, unknown>,
 }

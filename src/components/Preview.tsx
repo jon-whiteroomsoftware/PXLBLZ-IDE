@@ -129,38 +129,42 @@ export function Preview() {
   return (
     <div className="h-full bg-zinc-950 pt-3 pl-3 flex flex-col">
       <div ref={containerRef} className="relative w-full flex-1 min-h-0">
-        <div className="relative inline-block">
-          <canvas
-            ref={canvasRef}
-            className="rounded-sm"
-            style={{ opacity: (1 - Math.pow(grid.glowAmount / 30, 2) * 0.65).toFixed(2) }}
-          />
-          {runtimeError && (
-            <div className="absolute inset-0 flex items-center justify-center p-4 pointer-events-none">
-              <div className="bg-zinc-900/80 rounded-lg px-4 py-3 max-w-[90%]">
-                <span className="text-red-400 text-sm font-mono break-words">
-                  {runtimeError}
-                </span>
-              </div>
-            </div>
-          )}
-          {grid.glowAmount > 0 && (
+        <div className="flex flex-col">
+          <div className="relative inline-block">
             <canvas
-              ref={glowCanvasRef}
+              ref={canvasRef}
               className="rounded-sm"
-              style={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                filter: `blur(${Math.min(grid.glowAmount, 25)}px) brightness(${(1 + Math.pow(grid.glowAmount / 30, 2) * 5).toFixed(2)})`,
-                mixBlendMode: 'screen',
-                pointerEvents: 'none',
-              }}
+              style={{ opacity: (1 - Math.pow(grid.glowAmount / 30, 2) * 0.65).toFixed(2) }}
             />
-          )}
+            {runtimeError && (
+              <div className="absolute inset-0 flex items-center justify-center p-4 pointer-events-none">
+                <div className="bg-zinc-900/80 rounded-lg px-4 py-3 max-w-[90%]">
+                  <span className="text-red-400 text-sm font-mono break-words">
+                    {runtimeError}
+                  </span>
+                </div>
+              </div>
+            )}
+            {grid.glowAmount > 0 && (
+              <canvas
+                ref={glowCanvasRef}
+                className="rounded-sm"
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  filter: `blur(${Math.min(grid.glowAmount, 25)}px) brightness(${(1 + Math.pow(grid.glowAmount / 30, 2) * 5).toFixed(2)})`,
+                  mixBlendMode: 'screen',
+                  pointerEvents: 'none',
+                }}
+              />
+            )}
+          </div>
+          <div className="mt-2">
+            <WatchPanel />
+          </div>
         </div>
       </div>
-      <WatchPanel />
     </div>
   )
 }
