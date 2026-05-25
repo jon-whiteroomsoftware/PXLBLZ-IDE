@@ -163,8 +163,8 @@ export default function App() {
 
   return (
     <div className="flex flex-col h-screen bg-zinc-950 text-zinc-100">
-      <header data-testid="top-bar" className="h-10 flex items-center px-4 border-b border-zinc-800 shrink-0">
-        <span className="text-sm font-semibold tracking-wide">Pixelblaze IDE</span>
+      <header data-testid="top-bar" className="h-10 flex items-center px-4 border-b border-zinc-800 shrink-0 bg-zinc-900">
+        <span className="text-sm font-mono uppercase tracking-widest text-amber-500/70">Pixelblaze IDE</span>
       </header>
       <div className="flex flex-1 min-h-0">
         <aside data-testid="left-pane" className="shrink-0 flex flex-col" style={{ width: leftWidth }}>
@@ -180,8 +180,8 @@ export default function App() {
               ? <span className="flex-1 min-w-0 truncate text-red-400 text-xs">{importError}</span>
               : <span className="flex-1">Patterns</span>
             }
-            <Button size="sm" variant="outline" onClick={() => fileInputRef.current?.click()}>Open</Button>
-            <Button size="sm" variant="outline" onClick={handleCreate}>New</Button>
+            <Button size="sm" variant="ghost" className="text-xs text-zinc-400 bg-zinc-800/70 hover:bg-zinc-700/70 hover:text-zinc-300" onClick={() => fileInputRef.current?.click()}>Open</Button>
+            <Button size="sm" variant="ghost" className="text-xs text-zinc-400 bg-zinc-800/70 hover:bg-zinc-700/70 hover:text-zinc-300" onClick={handleCreate}>New</Button>
           </PaneHeader>
           <div className="flex-1 overflow-y-auto">
             <PatternList />
@@ -202,7 +202,8 @@ export default function App() {
             {activePatternId !== null && (
               <Button
                 size="sm"
-                variant="outline"
+                variant="ghost"
+                className="text-xs text-zinc-400 bg-zinc-800/70 hover:bg-zinc-700/70 hover:text-zinc-300 disabled:opacity-30"
                 disabled={compileStatus === 'broken'}
                 onClick={handleCopy}
               >
@@ -219,7 +220,7 @@ export default function App() {
           <PaneHeader>
             <span className="flex-1 truncate">{previewPatternName || '—'}</span>
             <PreviewSettings />
-            <Button size="sm" variant="outline" data-testid="shadcn-button" onClick={toggle}>
+            <Button size="sm" variant="ghost" className="text-xs text-zinc-400 bg-zinc-800/70 hover:bg-zinc-700/70 hover:text-zinc-300" data-testid="shadcn-button" onClick={toggle}>
               {isRunning ? 'Pause' : 'Run'}
             </Button>
           </PaneHeader>

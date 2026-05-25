@@ -22,7 +22,7 @@ const DEMO_NAMES = Object.keys(DEMOS).sort()
 
 function SectionHeader({ label }: { label: string }) {
   return (
-    <div className="px-3 py-2 text-xs font-semibold text-zinc-500 uppercase tracking-wider">
+    <div className="mt-1 px-3 py-1.5 text-[10px] font-mono font-semibold text-amber-500/60 uppercase tracking-wider border-t border-zinc-800 bg-zinc-950/60">
       {label}
     </div>
   )
@@ -49,9 +49,9 @@ function ListItem({
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
       className={[
-        'px-3 py-1.5 cursor-pointer truncate select-none flex items-center gap-1.5',
-        'hover:text-zinc-100 hover:bg-zinc-800',
-        active ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-400',
+        'pl-6 pr-3 py-1.5 cursor-pointer truncate select-none flex items-center gap-1.5',
+        'hover:text-zinc-300 hover:bg-zinc-800/60',
+        active ? 'bg-zinc-800/60 text-amber-400' : 'text-zinc-500',
       ].join(' ')}
     >
       {label}
@@ -116,9 +116,9 @@ function UserPatternItem({
       <li
         onClick={onSelect}
         className={[
-          'px-3 py-1.5 cursor-pointer select-none flex items-center gap-1',
-          'hover:text-zinc-100 hover:bg-zinc-800 group',
-          active ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-400',
+          'pl-6 pr-3 py-1.5 cursor-pointer select-none flex items-center gap-1',
+          'hover:text-zinc-300 hover:bg-zinc-800/60 group',
+          active ? 'bg-zinc-800/60 text-amber-400' : 'text-zinc-500',
         ].join(' ')}
       >
         {editing ? (
@@ -296,7 +296,7 @@ export function PatternList() {
   }
 
   return (
-    <div className="flex flex-col h-full text-sm">
+    <div className="flex flex-col h-full text-xs font-mono">
       <SectionHeader label="Your Patterns" />
 
       <ul>
@@ -331,7 +331,7 @@ export function PatternList() {
         <li
           onMouseEnter={(e) => startShow('PixelBlaze', e.currentTarget)}
           onMouseLeave={startHide}
-          className="px-3 py-1.5 select-none flex items-center gap-1.5 cursor-default hover:text-zinc-100 hover:bg-zinc-800 text-zinc-400"
+          className="pl-6 pr-3 py-1.5 select-none flex items-center gap-1.5 cursor-default hover:text-zinc-300 hover:bg-zinc-800/60 text-zinc-500"
         >
           PixelBlaze
         </li>
