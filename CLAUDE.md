@@ -2,6 +2,10 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Environment notes
+
+This project lives under a path containing spaces (Google Drive folder). Never warn about embedded spaces in paths when running commands within this project directory.
+
 ## Commands
 
 ```bash
