@@ -1,7 +1,8 @@
 import * as React from 'react'
 import { AlertDialog } from 'radix-ui'
 import { cn } from '@/lib/utils'
-import { buttonVariants } from '@/components/ui/button'
+
+const dialogButton = 'px-3 py-1 text-xs rounded transition-colors'
 
 const AlertDialogRoot = AlertDialog.Root
 const AlertDialogTrigger = AlertDialog.Trigger
@@ -29,7 +30,7 @@ const AlertDialogContent = React.forwardRef<
       ref={ref}
       className={cn(
         'fixed left-1/2 top-1/2 z-50 w-full max-w-sm -translate-x-1/2 -translate-y-1/2',
-        'rounded-lg border border-zinc-700 bg-zinc-900 p-6 shadow-xl',
+        'rounded-lg border border-zinc-800 bg-zinc-900 p-6 shadow-xl',
         className,
       )}
       {...props}
@@ -54,7 +55,11 @@ const AlertDialogCancel = React.forwardRef<
   React.ComponentRef<typeof AlertDialog.Cancel>,
   React.ComponentPropsWithoutRef<typeof AlertDialog.Cancel>
 >(({ className, ...props }, ref) => (
-  <AlertDialog.Cancel ref={ref} className={cn(buttonVariants({ variant: 'outline', size: 'sm' }), className)} {...props} />
+  <AlertDialog.Cancel
+    ref={ref}
+    className={cn(dialogButton, 'border border-zinc-600 text-zinc-300 hover:bg-zinc-800', className)}
+    {...props}
+  />
 ))
 AlertDialogCancel.displayName = 'AlertDialogCancel'
 
@@ -62,7 +67,11 @@ const AlertDialogAction = React.forwardRef<
   React.ComponentRef<typeof AlertDialog.Action>,
   React.ComponentPropsWithoutRef<typeof AlertDialog.Action>
 >(({ className, ...props }, ref) => (
-  <AlertDialog.Action ref={ref} className={cn(buttonVariants({ variant: 'destructive', size: 'sm' }), className)} {...props} />
+  <AlertDialog.Action
+    ref={ref}
+    className={cn(dialogButton, 'border border-amber-500 text-amber-400 hover:bg-amber-500/10', className)}
+    {...props}
+  />
 ))
 AlertDialogAction.displayName = 'AlertDialogAction'
 
