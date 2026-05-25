@@ -66,6 +66,17 @@ export default function App() {
   const setPreviewSource = useEditorStore((s) => s.setPreviewSource)
   const setPreviewPatternName = useEditorStore((s) => s.setPreviewPatternName)
 
+  // If source becomes empty while a pattern is active (e.g. after a store hot-reload),
+  // restore it from the pattern record so the editor doesn't go blank.
+  useEffect(() => {
+    if (source !== '' || !activePatternId) return
+    const p = userPatterns.find((p) => p.id === activePatternId)
+    if (!p) return
+    setSource(p.src)
+    setPreviewSource(p.src)
+    setIsReadOnly(false)
+  }, [source, activePatternId, userPatterns, setSource, setPreviewSource, setIsReadOnly])
+
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [importError, setImportError] = useState<string | null>(null)
   const importErrorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)

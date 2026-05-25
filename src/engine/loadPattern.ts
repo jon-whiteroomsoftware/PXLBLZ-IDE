@@ -1,5 +1,6 @@
 export interface PatternMetadata {
   exportedVars: string[]
+  patternVars: string[]  // all top-level var declarations, exported or not
   controls: { exportName: string; kind: string; label: string }[]
 }
 
@@ -24,7 +25,8 @@ export function loadPattern(
 }
 
 function buildEpilogue(metadata: PatternMetadata): string {
-  const getExportsEntries = metadata.exportedVars
+  // getExports reads all top-level vars so the watcher can inspect any of them
+  const getExportsEntries = metadata.patternVars
     .map(v => `${JSON.stringify(v)}:(typeof ${v}!=='undefined'?${v}:undefined)`)
     .join(',')
 

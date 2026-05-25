@@ -39,4 +39,13 @@ describe('editorStore', () => {
     useEditorStore.getState().setPreviewPatternName('Rainbow Waves')
     expect(useEditorStore.getState().previewPatternName).toBe('Rainbow Waves')
   })
+
+  it('starts with empty patternVars', () => {
+    expect(useEditorStore.getState().patternVars).toEqual([])
+  })
+
+  it('setPatternVars updates patternVars', () => {
+    useEditorStore.getState().setPatternVars(['t', 'width', 'height'])
+    expect(useEditorStore.getState().patternVars).toEqual(['t', 'width', 'height'])
+  })
 })

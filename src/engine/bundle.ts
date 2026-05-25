@@ -36,29 +36,45 @@ function labelFromSuffix(suffix: string): string {
   return suffix.replace(/([A-Z])/g, ' $1').trim()
 }
 
+const SKIP_VAR_NAMES = new Set([...['beforeRender', 'render2D', 'render']])
+
 function extractMetadata(ast: unknown): BundleMetadata {
   const exportedVars: string[] = []
+  const patternVars: string[] = []
   const controls: PatternMetadata['controls'] = []
   const renderFns = { hasBeforeRender: false, hasRender2D: false, hasRender: false }
+  const seen = new Set<string>()
 
-  walkAst(ast, (node) => {
+  function addVar(name: string): void {
+    if (!seen.has(name) && !SKIP_VAR_NAMES.has(name)) {
+      seen.add(name)
+      patternVars.push(name)
+    }
+  }
+
+  const topLevel = (ast as { body: Record<string, unknown>[] }).body ?? []
+
+  for (const node of topLevel) {
     const n = node as Record<string, unknown>
 
-    // Exported declarations
     if (n['type'] === 'ExportNamedDeclaration') {
       const decl = n['declaration'] as Record<string, unknown> | null
-      if (!decl) return
+      if (!decl) continue
 
       if (decl['type'] === 'VariableDeclaration') {
         for (const d of (decl['declarations'] as Record<string, unknown>[]) ?? []) {
           const id = d['id'] as Record<string, unknown>
-          if (id?.['type'] === 'Identifier') exportedVars.push(id['name'] as string)
+          if (id?.['type'] === 'Identifier') {
+            const name = id['name'] as string
+            exportedVars.push(name)
+            addVar(name)
+          }
         }
       }
 
       if (decl['type'] === 'FunctionDeclaration') {
         const name = (decl['id'] as Record<string, unknown>)?.['name'] as string
-        if (!name) return
+        if (!name) continue
         markRenderFn(name, renderFns)
         for (const prefix of CONTROL_PREFIXES) {
           if (name.startsWith(prefix) && name.length > prefix.length) {
@@ -70,14 +86,22 @@ function extractMetadata(ast: unknown): BundleMetadata {
       }
     }
 
+    // Non-exported top-level var declarations
+    if (n['type'] === 'VariableDeclaration') {
+      for (const d of (n['declarations'] as Record<string, unknown>[]) ?? []) {
+        const id = d['id'] as Record<string, unknown>
+        if (id?.['type'] === 'Identifier') addVar(id['name'] as string)
+      }
+    }
+
     // Non-exported function declarations (render fns don't need to be exported)
     if (n['type'] === 'FunctionDeclaration') {
       const name = (n['id'] as Record<string, unknown>)?.['name'] as string
       if (name && RENDER_FN_NAMES.has(name)) markRenderFn(name, renderFns)
     }
-  })
+  }
 
-  return { exportedVars, controls, renderFns }
+  return { exportedVars, patternVars, controls, renderFns }
 }
 
 function markRenderFn(name: string, fns: BundleMetadata['renderFns']): void {

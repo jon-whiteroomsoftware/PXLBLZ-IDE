@@ -12,10 +12,16 @@ interface PreviewState {
   speed: number
   brightness: number
   grid: GridConfig
+  watchedBuiltins: string[]
+  watchedPatternVars: string[]
+  watchValues: Record<string, unknown>
   toggle: () => void
   setSpeed: (speed: number) => void
   setBrightness: (brightness: number) => void
   setGrid: (partial: Partial<GridConfig>) => void
+  setWatchedBuiltins: (vars: string[]) => void
+  setWatchedPatternVars: (vars: string[]) => void
+  setWatchValues: (values: Record<string, unknown>) => void
 }
 
 export const previewInitialState = {
@@ -28,6 +34,9 @@ export const previewInitialState = {
     spacing: 20,
     glowAmount: 8,
   },
+  watchedBuiltins: [] as string[],
+  watchedPatternVars: [] as string[],
+  watchValues: {} as Record<string, unknown>,
 }
 
 export const usePreviewStore = create<PreviewState>()((set) => ({
@@ -36,4 +45,7 @@ export const usePreviewStore = create<PreviewState>()((set) => ({
   setSpeed: (speed) => set({ speed }),
   setBrightness: (brightness) => set({ brightness }),
   setGrid: (partial) => set((s) => ({ grid: { ...s.grid, ...partial } })),
+  setWatchedBuiltins: (watchedBuiltins) => set({ watchedBuiltins }),
+  setWatchedPatternVars: (watchedPatternVars) => set({ watchedPatternVars }),
+  setWatchValues: (watchValues) => set({ watchValues }),
 }))

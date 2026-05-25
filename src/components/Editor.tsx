@@ -48,7 +48,7 @@ export function Editor() {
   useEffect(() => {
     const id = setInterval(() => {
       const { source: s, compileStatus: status, activePatternId: pid } = syncRef.current
-      if (status === 'good' && pid) updatePatternSrc(pid, s)
+      if (status === 'good' && pid && s !== '') updatePatternSrc(pid, s)
     }, SYNC_TICK_MS)
     return () => clearInterval(id)
   }, [updatePatternSrc])

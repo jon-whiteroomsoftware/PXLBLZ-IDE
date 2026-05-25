@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { usePreviewStore } from '@/store/previewStore'
 import { useEditorStore } from '@/store/editorStore'
+import { WatchPanel } from '@/components/WatchPanel'
 import { createShim } from '@/engine/shim'
 import { loadPattern } from '@/engine/loadPattern'
 import { bundle } from '@/engine/bundle'
@@ -57,6 +58,7 @@ export function Preview() {
     try {
       const { code, metadata } = bundle(previewSource, LIBRARIES)
       handle = loadPattern(code, metadata, shim.builtins)
+      useEditorStore.getState().setPatternVars(metadata.patternVars)
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
       queueMicrotask(() => setRuntimeError(msg))
@@ -86,6 +88,20 @@ export function Preview() {
       isDimmed: () => !usePreviewStore.getState().isRunning,
       paint,
       onError: (err) => setRuntimeError(err.message),
+      onFrame: (delta, builtins) => {
+        const { watchedBuiltins, watchedPatternVars } = usePreviewStore.getState()
+        if (watchedBuiltins.length === 0 && watchedPatternVars.length === 0) return
+        const values: Record<string, unknown> = {}
+        if (watchedBuiltins.includes('delta')) values['delta'] = delta
+        for (const name of watchedBuiltins) {
+          if (name !== 'delta') values[name] = builtins[name]
+        }
+        const exports = handle.getExports()
+        for (const name of watchedPatternVars) {
+          values[name] = exports[name]
+        }
+        usePreviewStore.getState().setWatchValues(values)
+      },
     })
 
     loopRef.current = loop
@@ -111,8 +127,8 @@ export function Preview() {
   }, [isRunning])
 
   return (
-    <div className="h-full bg-zinc-950 pt-3 pl-3">
-      <div ref={containerRef} className="relative w-full h-full">
+    <div className="h-full bg-zinc-950 pt-3 pl-3 flex flex-col">
+      <div ref={containerRef} className="relative w-full flex-1 min-h-0">
         <div className="relative inline-block">
           <canvas
             ref={canvasRef}
@@ -144,6 +160,7 @@ export function Preview() {
           )}
         </div>
       </div>
+      <WatchPanel />
     </div>
   )
 }

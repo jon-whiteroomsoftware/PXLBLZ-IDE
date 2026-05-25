@@ -16,7 +16,7 @@ describe('NEW_PATTERN_SRC', () => {
       time: () => timeVal,
     }
 
-    const handle = loadPattern(NEW_PATTERN_SRC, { exportedVars: ['t'], controls: [] }, builtins)
+    const handle = loadPattern(NEW_PATTERN_SRC, { exportedVars: ['t'], patternVars: ['t'], controls: [] }, builtins)
 
     timeVal = 0.0
     handle.beforeRender(16)

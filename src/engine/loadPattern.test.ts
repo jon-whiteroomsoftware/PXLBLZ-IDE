@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { loadPattern } from './loadPattern'
+import type { PatternMetadata } from './loadPattern'
 
 // Minimal built-ins that let patterns run without reference errors
 const minimalBuiltins: Record<string, unknown> = {
@@ -13,6 +14,10 @@ const minimalBuiltins: Record<string, unknown> = {
   PI2: Math.PI * 2,
 }
 
+function meta(patternVars: string[], controls: PatternMetadata['controls'] = []): PatternMetadata {
+  return { exportedVars: patternVars, patternVars, controls }
+}
+
 // ── handle shape ──────────────────────────────────────────────────────────────
 
 describe('loadPattern handle', () => {
@@ -22,32 +27,28 @@ describe('loadPattern handle', () => {
       export function beforeRender(delta) { x += delta; }
       export function render2D(index, px, py) {}
     `
-    const handle = loadPattern(code, { exportedVars: ['x'], controls: [] }, minimalBuiltins)
+    const handle = loadPattern(code, meta(['x']), minimalBuiltins)
     expect(() => handle.beforeRender(16)).not.toThrow()
     expect(() => handle.render2D(0, 0, 0)).not.toThrow()
   })
 
   it('provides no-op beforeRender when the pattern does not define it', () => {
     const code = `export var x = 0;`
-    const handle = loadPattern(code, { exportedVars: ['x'], controls: [] }, minimalBuiltins)
+    const handle = loadPattern(code, meta(['x']), minimalBuiltins)
     expect(() => handle.beforeRender(16)).not.toThrow()
   })
 
   it('falls back to render(index) when render2D is not defined', () => {
     const calls: number[] = []
     const code = `function render(index) { calls.push(index); }`
-    const handle = loadPattern(
-      code,
-      { exportedVars: [], controls: [] },
-      { ...minimalBuiltins, calls },
-    )
+    const handle = loadPattern(code, meta([]), { ...minimalBuiltins, calls })
     handle.render2D(3, 0.5, 0.5)
     expect(calls).toEqual([3])
   })
 
   it('provides no-op render2D when the pattern does not define it', () => {
     const code = `export var x = 0;`
-    const handle = loadPattern(code, { exportedVars: ['x'], controls: [] }, minimalBuiltins)
+    const handle = loadPattern(code, meta(['x']), minimalBuiltins)
     expect(() => handle.render2D(0, 0.5, 0.5)).not.toThrow()
   })
 })
@@ -57,7 +58,7 @@ describe('loadPattern handle', () => {
 describe('getExports', () => {
   it('reads the initial value of an exported var', () => {
     const code = `export var counter = 7;`
-    const handle = loadPattern(code, { exportedVars: ['counter'], controls: [] }, minimalBuiltins)
+    const handle = loadPattern(code, meta(['counter']), minimalBuiltins)
     expect(handle.getExports().counter).toBe(7)
   })
 
@@ -66,26 +67,33 @@ describe('getExports', () => {
       export var counter = 0;
       export function beforeRender(delta) { counter += 1; }
     `
-    const handle = loadPattern(code, { exportedVars: ['counter'], controls: [] }, minimalBuiltins)
+    const handle = loadPattern(code, meta(['counter']), minimalBuiltins)
     handle.beforeRender(16)
     expect(handle.getExports().counter).toBe(1)
     handle.beforeRender(16)
     expect(handle.getExports().counter).toBe(2)
   })
 
-  it('returns only exported vars listed in metadata', () => {
+  it('reads non-exported top-level vars listed in patternVars', () => {
+    const code = `
+      var internal = 42;
+      export var exported = 1;
+    `
+    const handle = loadPattern(code, meta(['internal', 'exported']), minimalBuiltins)
+    const exports = handle.getExports()
+    expect(exports.internal).toBe(42)
+    expect(exports.exported).toBe(1)
+  })
+
+  it('does not expose vars absent from patternVars', () => {
     const code = `
       export var exported = 1;
-      var internal = 99;
+      var hidden = 99;
     `
-    const handle = loadPattern(
-      code,
-      { exportedVars: ['exported'], controls: [] },
-      minimalBuiltins,
-    )
+    const handle = loadPattern(code, meta(['exported']), minimalBuiltins)
     const exports = handle.getExports()
     expect(exports.exported).toBe(1)
-    expect('internal' in exports).toBe(false)
+    expect('hidden' in exports).toBe(false)
   })
 })
 
@@ -101,6 +109,7 @@ describe('controls', () => {
       code,
       {
         exportedVars: ['brightness'],
+        patternVars: ['brightness'],
         controls: [{ exportName: 'sliderBrightness', kind: 'slider', label: 'Brightness' }],
       },
       minimalBuiltins,
@@ -112,7 +121,7 @@ describe('controls', () => {
 
   it('returns an empty controls object when metadata has no controls', () => {
     const code = `export var x = 0;`
-    const handle = loadPattern(code, { exportedVars: ['x'], controls: [] }, minimalBuiltins)
+    const handle = loadPattern(code, meta(['x']), minimalBuiltins)
     expect(Object.keys(handle.controls)).toHaveLength(0)
   })
 })

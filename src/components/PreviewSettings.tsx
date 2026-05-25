@@ -1,6 +1,41 @@
 import { useState, useRef, useEffect } from 'react'
 import { Settings } from 'lucide-react'
 import { usePreviewStore } from '@/store/previewStore'
+import { useEditorStore } from '@/store/editorStore'
+
+const BUILTIN_WATCH_VARS = [
+  'delta',
+  'pixelCount',
+  'energyAverage',
+  'light',
+  'maxFrequency',
+  'maxFrequencyMagnitude',
+  'frequencyData',
+  'accelerometer',
+  'analogInputs',
+]
+
+function WatchCheckbox({
+  name,
+  checked,
+  onChange,
+}: {
+  name: string
+  checked: boolean
+  onChange: () => void
+}) {
+  return (
+    <label className="flex items-center gap-1.5 cursor-pointer min-w-0">
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={onChange}
+        className="accent-amber-500 shrink-0"
+      />
+      <span className="text-xs text-zinc-300 truncate" title={name}>{name}</span>
+    </label>
+  )
+}
 
 export function PreviewSettings() {
   const [isOpen, setIsOpen] = useState(false)
@@ -12,6 +47,11 @@ export function PreviewSettings() {
   const gridRows = usePreviewStore((s) => s.grid.rows)
   const gridCols = usePreviewStore((s) => s.grid.cols)
   const setGrid = usePreviewStore((s) => s.setGrid)
+  const watchedBuiltins = usePreviewStore((s) => s.watchedBuiltins)
+  const setWatchedBuiltins = usePreviewStore((s) => s.setWatchedBuiltins)
+  const watchedPatternVars = usePreviewStore((s) => s.watchedPatternVars)
+  const setWatchedPatternVars = usePreviewStore((s) => s.setWatchedPatternVars)
+  const patternVars = useEditorStore((s) => s.patternVars)
 
   const [draftRows, setDraftRows] = useState(String(gridRows))
   const [draftCols, setDraftCols] = useState(String(gridCols))
@@ -22,6 +62,22 @@ export function PreviewSettings() {
     setDraftRows(String(rows))
     setDraftCols(String(cols))
     setGrid({ rows, cols })
+  }
+
+  function toggleBuiltin(name: string) {
+    setWatchedBuiltins(
+      watchedBuiltins.includes(name)
+        ? watchedBuiltins.filter((v) => v !== name)
+        : [...watchedBuiltins, name]
+    )
+  }
+
+  function togglePatternVar(name: string) {
+    setWatchedPatternVars(
+      watchedPatternVars.includes(name)
+        ? watchedPatternVars.filter((v) => v !== name)
+        : [...watchedPatternVars, name]
+    )
   }
 
   useEffect(() => {
@@ -49,8 +105,9 @@ export function PreviewSettings() {
         <div
           role="dialog"
           aria-label="Preview settings panel"
-          className="absolute top-full right-0 mt-1 w-56 bg-zinc-900 border border-zinc-800 rounded-md shadow-xl z-50 p-3 font-mono"
+          className="absolute top-full right-0 mt-1 w-72 bg-zinc-900 border border-zinc-800 rounded-md shadow-xl z-50 p-3 font-mono"
         >
+          {/* Display */}
           <section>
             <h3 className="text-[10px] font-semibold text-amber-500/60 uppercase tracking-wider mb-3">
               Display
@@ -83,6 +140,7 @@ export function PreviewSettings() {
             </div>
           </section>
 
+          {/* Grid Size */}
           <section className="mt-4">
             <h3 className="text-[10px] font-semibold text-amber-500/60 uppercase tracking-wider mb-3">
               Grid Size
@@ -114,6 +172,41 @@ export function PreviewSettings() {
                 OK
               </button>
             </div>
+          </section>
+
+          {/* Watch */}
+          <section className="mt-4">
+            <h3 className="text-[10px] font-semibold text-amber-500/60 uppercase tracking-wider mb-2">
+              Watch
+            </h3>
+
+            <p className="text-[10px] text-zinc-600 uppercase tracking-wider mb-1">Built-ins</p>
+            <div className="grid grid-cols-2 gap-x-2 gap-y-1 mb-3">
+              {BUILTIN_WATCH_VARS.map((name) => (
+                <WatchCheckbox
+                  key={name}
+                  name={name}
+                  checked={watchedBuiltins.includes(name)}
+                  onChange={() => toggleBuiltin(name)}
+                />
+              ))}
+            </div>
+
+            <p className="text-[10px] text-zinc-600 uppercase tracking-wider mb-1">Variables</p>
+            {patternVars.length > 0 ? (
+              <div className="grid grid-cols-2 gap-x-2 gap-y-1">
+                {patternVars.map((name) => (
+                  <WatchCheckbox
+                    key={name}
+                    name={name}
+                    checked={watchedPatternVars.includes(name)}
+                    onChange={() => togglePatternVar(name)}
+                  />
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-zinc-600 italic">No exported variables</p>
+            )}
           </section>
         </div>
       )}

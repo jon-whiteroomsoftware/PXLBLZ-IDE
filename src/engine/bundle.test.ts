@@ -12,11 +12,32 @@ describe('bundle — no library refs', () => {
   it('extracts exported vars from the pattern', () => {
     const { metadata } = bundle('export var speed = 0.5\nexport var hue = 0', {})
     expect(metadata.exportedVars).toEqual(['speed', 'hue'])
+    expect(metadata.patternVars).toEqual(['speed', 'hue'])
   })
 
   it('extracts all vars from a multi-declarator export', () => {
     const { metadata } = bundle('export var x = 0, y = 0, z = 0', {})
     expect(metadata.exportedVars).toEqual(['x', 'y', 'z'])
+    expect(metadata.patternVars).toEqual(['x', 'y', 'z'])
+  })
+
+  it('includes non-exported top-level vars in patternVars but not exportedVars', () => {
+    const src = 'export var exported = 1\nvar internal = 2'
+    const { metadata } = bundle(src, {})
+    expect(metadata.exportedVars).toEqual(['exported'])
+    expect(metadata.patternVars).toEqual(['exported', 'internal'])
+  })
+
+  it('excludes render function names from patternVars', () => {
+    const src = `
+      var width = 16
+      export function beforeRender(delta) {}
+      function render(index) {}
+    `
+    const { metadata } = bundle(src, {})
+    expect(metadata.patternVars).toEqual(['width'])
+    expect(metadata.patternVars).not.toContain('beforeRender')
+    expect(metadata.patternVars).not.toContain('render')
   })
 
   it('detects render functions', () => {
@@ -172,6 +193,7 @@ describe('bundle — metadata extraction with library code', () => {
     ].join('\n')
     const { metadata } = bundle(src, { sdf: lib })
     expect(metadata.exportedVars).toEqual(['hue'])
+    expect(metadata.patternVars).toEqual(['hue'])
     expect(metadata.renderFns.hasRender2D).toBe(true)
   })
 })

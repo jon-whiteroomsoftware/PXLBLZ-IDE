@@ -49,4 +49,24 @@ describe('previewStore', () => {
     expect(grid.rows).toBe(8)
     expect(grid.cols).toBe(16)
   })
+
+  it('starts with no watched builtins or pattern vars', () => {
+    expect(usePreviewStore.getState().watchedBuiltins).toEqual([])
+    expect(usePreviewStore.getState().watchedPatternVars).toEqual([])
+  })
+
+  it('setWatchedBuiltins replaces the list', () => {
+    usePreviewStore.getState().setWatchedBuiltins(['delta', 'energyAverage'])
+    expect(usePreviewStore.getState().watchedBuiltins).toEqual(['delta', 'energyAverage'])
+  })
+
+  it('setWatchedPatternVars replaces the list', () => {
+    usePreviewStore.getState().setWatchedPatternVars(['t', 'width'])
+    expect(usePreviewStore.getState().watchedPatternVars).toEqual(['t', 'width'])
+  })
+
+  it('setWatchValues updates watch values', () => {
+    usePreviewStore.getState().setWatchValues({ delta: 16.7, t: 0.42 })
+    expect(usePreviewStore.getState().watchValues).toEqual({ delta: 16.7, t: 0.42 })
+  })
 })

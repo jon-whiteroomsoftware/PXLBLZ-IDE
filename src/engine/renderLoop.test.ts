@@ -21,6 +21,7 @@ function makeMockShim(): ShimContext {
   return {
     builtins: {},
     capturedPixel: vi.fn(() => [0, 0, 0] as [number, number, number]),
+    getBuiltin: vi.fn(() => undefined),
   }
 }
 

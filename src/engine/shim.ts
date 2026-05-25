@@ -8,6 +8,7 @@ export interface ShimConfig {
 export interface ShimContext {
   builtins: Record<string, unknown>
   capturedPixel: () => [number, number, number]
+  getBuiltin: (name: string) => unknown
 }
 
 export function createShim(config: ShimConfig): ShimContext {
@@ -249,7 +250,7 @@ export function createShim(config: ShimConfig): ShimContext {
     arrayReplaceAt: (a: number[], offset: number, ...args: number[]) => { args.forEach((v, i) => { a[offset + i] = v }); return a },
   }
 
-  return { builtins, capturedPixel }
+  return { builtins, capturedPixel, getBuiltin: (name: string) => builtins[name] }
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
