@@ -98,13 +98,15 @@ export function Preview() {
       isDimmed: () => !usePreviewStore.getState().isRunning,
       paint,
       onError: (err) => setRuntimeError(err.message),
-      onFrame: (delta, builtins) => {
-        const { watchedBuiltins, watchedPatternVars } = usePreviewStore.getState()
+      onFrame: (_delta, builtins, elapsedMs) => {
+        const { watchedBuiltins, watchedPatternVars, speed } = usePreviewStore.getState()
         if (watchedBuiltins.length === 0 && watchedPatternVars.length === 0) return
         const values: Record<string, unknown> = {}
-        if (watchedBuiltins.includes('delta')) values['delta'] = delta
+        if (watchedBuiltins.includes('elapsed')) {
+          values['elapsed'] = `${(elapsedMs / 1000).toFixed(1)} s (${speed}×)`
+        }
         for (const name of watchedBuiltins) {
-          if (name !== 'delta') values[name] = builtins[name]
+          if (name !== 'elapsed') values[name] = builtins[name]
         }
         const exports = handle.getExports()
         for (const name of watchedPatternVars) {

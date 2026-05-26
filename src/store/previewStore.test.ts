@@ -50,8 +50,8 @@ describe('previewStore', () => {
     expect(grid.cols).toBe(16)
   })
 
-  it('starts with delta and pixelCount watched by default', () => {
-    expect(usePreviewStore.getState().watchedBuiltins).toEqual(['delta', 'pixelCount'])
+  it('starts with elapsed and pixelCount watched by default', () => {
+    expect(usePreviewStore.getState().watchedBuiltins).toEqual(['elapsed', 'pixelCount'])
     expect(usePreviewStore.getState().watchedPatternVars).toEqual([])
   })
 

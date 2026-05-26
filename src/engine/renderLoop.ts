@@ -12,7 +12,7 @@ export interface RenderLoopConfig {
   isDimmed: () => boolean
   paint: (pixels: [number, number, number][], brightness: number, dimmed: boolean) => void
   onError?: (err: Error) => void
-  onFrame?: (delta: number, builtins: Record<string, unknown>) => void
+  onFrame?: (delta: number, builtins: Record<string, unknown>, elapsedMs: number) => void
 }
 
 export interface RenderLoop {
@@ -48,7 +48,7 @@ export function createRenderLoop(config: RenderLoopConfig): RenderLoop {
     }
 
     paint(pixels, getBrightness(), dimmed)
-    config.onFrame?.(scaledDelta, shim.builtins)
+    config.onFrame?.(scaledDelta, shim.builtins, clock.getTime())
   }
 
   function tick(realDelta: number): void {

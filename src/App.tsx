@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
+import { Play, Pause } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Editor } from '@/components/Editor'
 import { CompileStatusBadge } from '@/components/CompileStatusBadge'
@@ -236,9 +237,16 @@ export default function App() {
           <PaneHeader>
             <span className="flex-1 truncate">{previewPatternName || '—'}</span>
             <PreviewSettings />
-            <Button size="sm" variant="ghost" className="text-xs text-zinc-400 bg-zinc-800/70 hover:bg-zinc-700/70 hover:text-zinc-300" data-testid="shadcn-button" onClick={toggle}>
-              {isRunning ? 'Pause' : 'Run'}
-            </Button>
+            <button
+              aria-label={isRunning ? 'Pause' : 'Run'}
+              data-testid="shadcn-button"
+              onClick={toggle}
+              className={`flex items-center justify-center w-6 h-6 rounded hover:bg-zinc-800 transition-colors ${
+                isRunning ? 'text-green-500 hover:text-green-400' : 'text-red-500 hover:text-red-400'
+              }`}
+            >
+              {isRunning ? <Play size={18} /> : <Pause size={18} />}
+            </button>
           </PaneHeader>
           <div className="flex-1 overflow-hidden">
             <Preview />

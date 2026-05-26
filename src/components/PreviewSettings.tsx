@@ -3,7 +3,25 @@ import { Settings } from 'lucide-react'
 import { usePreviewStore } from '@/store/previewStore'
 import { useEditorStore } from '@/store/editorStore'
 
-const PRIMARY_BUILTIN_VARS = ['delta', 'pixelCount']
+const PRIMARY_BUILTIN_VARS = ['elapsed', 'pixelCount']
+
+const TIME_SCALES: { value: number; label: string }[] = [
+  { value: 0.01, label: '0.01×' },
+  { value: 0.1, label: '0.1×' },
+  { value: 0.5, label: '0.5×' },
+  { value: 1, label: '1×' },
+  { value: 2, label: '2×' },
+  { value: 4, label: '4×' },
+  { value: 10, label: '10×' },
+]
+
+function nearestTimeScaleIndex(speed: number): number {
+  let best = 0
+  for (let i = 1; i < TIME_SCALES.length; i++) {
+    if (Math.abs(TIME_SCALES[i].value - speed) < Math.abs(TIME_SCALES[best].value - speed)) best = i
+  }
+  return best
+}
 const ADVANCED_BUILTIN_VARS = [
   'energyAverage',
   'light',
@@ -43,6 +61,8 @@ export function PreviewSettings() {
 
   const brightness = usePreviewStore((s) => s.brightness)
   const setBrightness = usePreviewStore((s) => s.setBrightness)
+  const speed = usePreviewStore((s) => s.speed)
+  const setSpeed = usePreviewStore((s) => s.setSpeed)
   const diffusion = usePreviewStore((s) => s.grid.diffusion)
   const gridRows = usePreviewStore((s) => s.grid.rows)
   const gridCols = usePreviewStore((s) => s.grid.cols)
@@ -98,7 +118,7 @@ export function PreviewSettings() {
         onClick={() => setIsOpen((o) => !o)}
         className="flex items-center justify-center w-6 h-6 rounded text-zinc-500 hover:text-amber-400/70 hover:bg-zinc-800 transition-colors"
       >
-        <Settings size={13} />
+        <Settings size={18} />
       </button>
 
       {isOpen && (
@@ -138,6 +158,28 @@ export function PreviewSettings() {
                 />
               </label>
             </div>
+          </section>
+
+          {/* Speed */}
+          <section className="mt-4">
+            <div className="flex justify-between mb-3">
+              <h3 className="text-[10px] font-semibold text-amber-500/60 uppercase tracking-wider">
+                Speed
+              </h3>
+              <span className="text-xs text-amber-400 tabular-nums leading-none">
+                {TIME_SCALES[nearestTimeScaleIndex(speed)].label}
+              </span>
+            </div>
+            <input
+              aria-label="Speed"
+              type="range"
+              min={0}
+              max={TIME_SCALES.length - 1}
+              step={1}
+              value={nearestTimeScaleIndex(speed)}
+              onChange={(e) => setSpeed(TIME_SCALES[Number(e.target.value)].value)}
+              className="w-full accent-amber-500"
+            />
           </section>
 
           {/* Grid Size */}
