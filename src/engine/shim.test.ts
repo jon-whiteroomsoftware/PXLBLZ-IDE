@@ -205,6 +205,77 @@ describe('hardware stubs', () => {
   })
 })
 
+// ── coordinate transforms ─────────────────────────────────────────────────────
+
+describe('coordinate transforms', () => {
+  const fn = (builtins: Record<string, unknown>, name: string) =>
+    builtins[name] as (...args: number[]) => void
+
+  it('identity transform leaves points unchanged', () => {
+    const { transformPoint } = makeShim()
+    expect(transformPoint(0.3, 0.7, 0)).toEqual([0.3, 0.7, 0])
+  })
+
+  it('translate offsets the point', () => {
+    const { builtins, transformPoint } = makeShim()
+    fn(builtins, 'translate')(0.1, 0.2)
+    const [x, y] = transformPoint(0.5, 0.5, 0)
+    expect(x).toBeCloseTo(0.6)
+    expect(y).toBeCloseTo(0.7)
+  })
+
+  it('scale multiplies coordinates (so shapes appear smaller)', () => {
+    const { builtins, transformPoint } = makeShim()
+    fn(builtins, 'scale')(2, 2)
+    const [x, y] = transformPoint(0.25, 0.25, 0)
+    expect(x).toBeCloseTo(0.5)
+    expect(y).toBeCloseTo(0.5)
+  })
+
+  it('rotate turns the point about the origin', () => {
+    const { builtins, transformPoint } = makeShim()
+    fn(builtins, 'rotate')(Math.PI / 2)
+    const [x, y] = transformPoint(1, 0, 0)
+    expect(x).toBeCloseTo(0)
+    expect(y).toBeCloseTo(1)
+  })
+
+  it('composes transforms in call order: rotate about a centre', () => {
+    const { builtins, transformPoint } = makeShim()
+    // classic centre-rotation idiom; a 180° turn about (0.5,0.5)
+    fn(builtins, 'translate')(-0.5, -0.5)
+    fn(builtins, 'rotate')(Math.PI)
+    fn(builtins, 'translate')(0.5, 0.5)
+    const [x, y] = transformPoint(0.5, 0.5, 0) // centre maps to itself
+    expect(x).toBeCloseTo(0.5)
+    expect(y).toBeCloseTo(0.5)
+    const [x2, y2] = transformPoint(1, 1, 0) // corner reflects to (0,0)
+    expect(x2).toBeCloseTo(0)
+    expect(y2).toBeCloseTo(0)
+  })
+
+  it('resetTransform clears accumulated transforms', () => {
+    const { builtins, transformPoint } = makeShim()
+    fn(builtins, 'translate')(0.3, 0.3)
+    fn(builtins, 'resetTransform')()
+    expect(transformPoint(0.4, 0.6, 0)).toEqual([0.4, 0.6, 0])
+  })
+
+  it('transform() applies a column-major 4x4 matrix (translation column)', () => {
+    const { builtins, transformPoint } = makeShim()
+    // identity rotation/scale with translation (0.2, 0.4, 0) in the 4th column
+    fn(builtins, 'transform')(
+      1, 0, 0, 0,
+      0, 1, 0, 0,
+      0, 0, 1, 0,
+      0.2, 0.4, 0, 1,
+    )
+    const [x, y] = transformPoint(0.1, 0.1, 0)
+    expect(x).toBeCloseTo(0.3)
+    expect(y).toBeCloseTo(0.5)
+  })
+})
+
 // ── pixel map queries ─────────────────────────────────────────────────────────
 
 describe('pixel map queries', () => {
@@ -229,13 +300,37 @@ describe('hsv24', () => {
 // ── setPalette / paint ───────────────────────────────────────────────────────
 
 describe('setPalette / paint', () => {
-  it('paint after setPalette captures a non-black color', () => {
+  it('paint after setPalette captures the stop color (0..1 convention)', () => {
     const { builtins, capturedPixel } = makeShim()
-    // palette: pos=0 → red (255,0,0), pos=255 → blue (0,0,255)
-    ;(builtins.setPalette as (p: number[]) => void)([0, 255, 0, 0, 255, 0, 0, 255])
+    // palette: pos=0 → red (1,0,0), pos=1 → blue (0,0,1)
+    ;(builtins.setPalette as (p: number[]) => void)([0, 1, 0, 0, 1, 0, 0, 1])
     ;(builtins.paint as (pos: number) => void)(0)
-    const [r] = capturedPixel()
-    expect(r).toBeCloseTo(1)
+    expect(capturedPixel()).toEqual([1, 0, 0])
+  })
+
+  it('paint interpolates between stops at the midpoint', () => {
+    const { builtins, capturedPixel } = makeShim()
+    ;(builtins.setPalette as (p: number[]) => void)([0, 1, 0, 0, 1, 0, 0, 1])
+    ;(builtins.paint as (pos: number) => void)(0.5)
+    const [r, g, b] = capturedPixel()
+    expect(r).toBeCloseTo(0.5)
+    expect(g).toBeCloseTo(0)
+    expect(b).toBeCloseTo(0.5)
+  })
+
+  it('paint applies brightness scaling', () => {
+    const { builtins, capturedPixel } = makeShim()
+    ;(builtins.setPalette as (p: number[]) => void)([0, 1, 0, 0, 1, 0, 0, 1])
+    ;(builtins.paint as (pos: number, b: number) => void)(0, 0.5)
+    expect(capturedPixel()).toEqual([0.5, 0, 0])
+  })
+
+  it('paint holds the last stop color beyond its position', () => {
+    const { builtins, capturedPixel } = makeShim()
+    // last stop at 0.75 → magenta; querying 0.9 should hold magenta
+    ;(builtins.setPalette as (p: number[]) => void)([0, 0, 0, 0, 0.75, 1, 0, 1])
+    ;(builtins.paint as (pos: number) => void)(0.9)
+    expect(capturedPixel()).toEqual([1, 0, 1])
   })
 
   it('paint without palette does not throw', () => {

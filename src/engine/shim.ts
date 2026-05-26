@@ -9,6 +9,10 @@ export interface ShimContext {
   builtins: Record<string, unknown>
   capturedPixel: () => [number, number, number]
   getBuiltin: (name: string) => unknown
+  // Applies the current transform matrix to a map coordinate. The render loop
+  // calls this before render2D/render3D so transform()/translate()/etc. behave
+  // as they do on hardware (the transformed coords are handed to the pattern).
+  transformPoint: (x: number, y: number, z: number) => [number, number, number]
 }
 
 export function createShim(config: ShimConfig): ShimContext {
@@ -17,6 +21,21 @@ export function createShim(config: ShimConfig): ShimContext {
   let palette: number[] = []
   let perlinWrapX = 256, perlinWrapY = 256, perlinWrapZ = 256
   let prngState = 0
+
+  // ── Coordinate transform stack ────────────────────────────────────────────
+  // A 4x4 homogeneous matrix (row-major). Each transform call pre-multiplies a
+  // new matrix so transforms apply to a point in call order — e.g. the classic
+  // translate(-.5,-.5); rotate(a); translate(.5,.5) rotates about the centre.
+  // The CTM persists across frames until resetTransform() (hardware behaviour).
+  let ctm = mat4Identity()
+  function compose(m: number[]) { ctm = mat4Mul(m, ctm) }
+  function transformPoint(x: number, y: number, z: number): [number, number, number] {
+    return [
+      ctm[0] * x + ctm[1] * y + ctm[2] * z + ctm[3],
+      ctm[4] * x + ctm[5] * y + ctm[6] * z + ctm[7],
+      ctm[8] * x + ctm[9] * y + ctm[10] * z + ctm[11],
+    ]
+  }
 
   function capturedPixel(): [number, number, number] {
     const out: [number, number, number] = [captR, captG, captB]
@@ -137,27 +156,33 @@ export function createShim(config: ShimConfig): ShimContext {
         const y = rows === 1 ? 0 : row / (rows - 1)
         for (let col = 0; col < cols; col++) {
           const x = cols === 1 ? 0 : col / (cols - 1)
-          fn(row * cols + col, x, y, 0)
+          // Current coordinate transforms apply before fn is called.
+          const [tx, ty, tz] = transformPoint(x, y, 0)
+          fn(row * cols + col, tx, ty, tz)
         }
       }
     },
 
     // ── Palette ────────────────────────────────────────────────────────────
+    // Pixelblaze palettes are flat [pos, r, g, b, ...] groups, all in 0..1.
     setPalette(pal: number[]) { palette = pal },
     paint(pos: number, brightness: number = 1) {
-      if (palette.length < 8) return
-      const p = (((pos % 1) + 1) % 1) * 255
-      // find surrounding stops (entries are [pos, r, g, b] groups of 4)
-      let lo = 0, hi = palette.length - 4
-      for (let i = 0; i < palette.length - 4; i += 4) {
-        if (palette[i] <= p) lo = i
-        if (palette[i + 4] >= p) { hi = i + 4; break }
+      const pal = palette
+      if (pal.length < 8) return // need at least two stops
+      const p = (((pos % 1) + 1) % 1)
+      const stops = Math.floor(pal.length / 4)
+      // find the last stop whose position is <= p
+      let lo = 0
+      for (let s = 0; s < stops - 1; s++) {
+        if (pal[s * 4] <= p) lo = s
       }
-      const loPos = palette[lo], hiPos = palette[hi]
-      const t = loPos === hiPos ? 0 : (p - loPos) / (hiPos - loPos)
-      captR = lerp(palette[lo + 1], palette[hi + 1], t) / 255 * brightness
-      captG = lerp(palette[lo + 2], palette[hi + 2], t) / 255 * brightness
-      captB = lerp(palette[lo + 3], palette[hi + 3], t) / 255 * brightness
+      const hi = Math.min(lo + 1, stops - 1)
+      const loPos = pal[lo * 4], hiPos = pal[hi * 4]
+      const span = hiPos - loPos
+      const t = span <= 0 ? 0 : Math.min(1, Math.max(0, (p - loPos) / span))
+      captR = lerp(pal[lo * 4 + 1], pal[hi * 4 + 1], t) * brightness
+      captG = lerp(pal[lo * 4 + 2], pal[hi * 4 + 2], t) * brightness
+      captB = lerp(pal[lo * 4 + 3], pal[hi * 4 + 3], t) * brightness
     },
 
     // ── Hardware I/O stubs ─────────────────────────────────────────────────
@@ -178,13 +203,42 @@ export function createShim(config: ShimConfig): ShimContext {
     maxFrequencyMagnitude: 0,
     nodeId: () => 0,
 
-    // ── Coordinate transform no-ops ────────────────────────────────────────
-    // 2D and 3D transforms are deferred (preview renders raw map coords).
-    resetTransform: noop,
-    translate: noop, translate3D: noop,
-    scale: noop,     scale3D: noop,
-    rotate: noop,    rotateX: noop, rotateY: noop, rotateZ: noop,
-    transform: noop,
+    // ── Coordinate transforms ──────────────────────────────────────────────
+    resetTransform() { ctm = mat4Identity() },
+    translate(x: number, y: number) {
+      compose([1, 0, 0, x, 0, 1, 0, y, 0, 0, 1, 0, 0, 0, 0, 1])
+    },
+    translate3D(x: number, y: number, z: number) {
+      compose([1, 0, 0, x, 0, 1, 0, y, 0, 0, 1, z, 0, 0, 0, 1])
+    },
+    scale(x: number, y: number) {
+      compose([x, 0, 0, 0, 0, y, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1])
+    },
+    scale3D(x: number, y: number, z: number) {
+      compose([x, 0, 0, 0, 0, y, 0, 0, 0, 0, z, 0, 0, 0, 0, 1])
+    },
+    rotate(a: number) {
+      const c = Math.cos(a), s = Math.sin(a)
+      compose([c, -s, 0, 0, s, c, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1])
+    },
+    rotateZ(a: number) {
+      const c = Math.cos(a), s = Math.sin(a)
+      compose([c, -s, 0, 0, s, c, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1])
+    },
+    rotateX(a: number) {
+      const c = Math.cos(a), s = Math.sin(a)
+      compose([1, 0, 0, 0, 0, c, -s, 0, 0, s, c, 0, 0, 0, 0, 1])
+    },
+    rotateY(a: number) {
+      const c = Math.cos(a), s = Math.sin(a)
+      compose([c, 0, s, 0, 0, 1, 0, 0, -s, 0, c, 0, 0, 0, 0, 1])
+    },
+    // Args are column-major (m11,m21,m31,m41, m12,...): m{row}{col} = a[col*4+row].
+    transform(...a: number[]) {
+      const m = new Array<number>(16)
+      for (let r = 0; r < 4; r++) for (let col = 0; col < 4; col++) m[r * 4 + col] = a[col * 4 + r]
+      compose(m)
+    },
     move: noop,
 
     // ── Perlin noise ──────────────────────────────────────────────────────────
@@ -250,10 +304,27 @@ export function createShim(config: ShimConfig): ShimContext {
     arrayReplaceAt: (a: number[], offset: number, ...args: number[]) => { args.forEach((v, i) => { a[offset + i] = v }); return a },
   }
 
-  return { builtins, capturedPixel, getBuiltin: (name: string) => builtins[name] }
+  return { builtins, capturedPixel, getBuiltin: (name: string) => builtins[name], transformPoint }
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
+
+function mat4Identity(): number[] {
+  return [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]
+}
+
+// Row-major 4x4 product a*b.
+function mat4Mul(a: number[], b: number[]): number[] {
+  const o = new Array<number>(16)
+  for (let r = 0; r < 4; r++) {
+    for (let c = 0; c < 4; c++) {
+      let s = 0
+      for (let k = 0; k < 4; k++) s += a[r * 4 + k] * b[k * 4 + c]
+      o[r * 4 + c] = s
+    }
+  }
+  return o
+}
 
 function pbArray(n: number): number[] {
   const raw: number[] = new Array(Math.floor(n)).fill(0)

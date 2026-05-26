@@ -39,7 +39,10 @@ export function createRenderLoop(config: RenderLoopConfig): RenderLoop {
       const y = rows === 1 ? 0 : row / (rows - 1)
       for (let col = 0; col < cols; col++) {
         const x = cols === 1 ? 0 : col / (cols - 1)
-        handle.render2D(row * cols + col, x, y)
+        // Apply the pattern's coordinate transform stack before render2D, so
+        // translate/rotate/scale behave as on hardware.
+        const [tx, ty] = shim.transformPoint(x, y, 0)
+        handle.render2D(row * cols + col, tx, ty)
         pixels.push(shim.capturedPixel())
       }
     }
