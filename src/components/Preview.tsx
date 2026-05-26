@@ -99,11 +99,11 @@ export function Preview() {
       paint,
       onError: (err) => setRuntimeError(err.message),
       onFrame: (_delta, builtins, elapsedMs) => {
-        const { watchedBuiltins, watchedPatternVars, speed } = usePreviewStore.getState()
+        const { watchedBuiltins, watchedPatternVars } = usePreviewStore.getState()
         if (watchedBuiltins.length === 0 && watchedPatternVars.length === 0) return
         const values: Record<string, unknown> = {}
         if (watchedBuiltins.includes('elapsed')) {
-          values['elapsed'] = `${(elapsedMs / 1000).toFixed(1)} s (${speed}×)`
+          values['elapsed'] = `${(elapsedMs / 1000).toFixed(1)}s`
         }
         for (const name of watchedBuiltins) {
           if (name !== 'elapsed') values[name] = builtins[name]

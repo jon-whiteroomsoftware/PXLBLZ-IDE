@@ -6,6 +6,7 @@ import { CompileStatusBadge } from '@/components/CompileStatusBadge'
 import { PatternList } from '@/components/PatternList'
 import { Preview } from '@/components/Preview'
 import { PreviewSettings } from '@/components/PreviewSettings'
+import { SpeedSelector } from '@/components/SpeedSelector'
 import { PaneHeader } from '@/components/PaneHeader'
 import { usePreviewStore } from '@/store/previewStore'
 import { usePatternStore, PatternRecord } from '@/store/patternStore'
@@ -237,11 +238,12 @@ export default function App() {
           <PaneHeader>
             <span className="flex-1 truncate">{previewPatternName || '—'}</span>
             <PreviewSettings />
+            <SpeedSelector />
             <button
               aria-label={isRunning ? 'Pause' : 'Run'}
               data-testid="shadcn-button"
               onClick={toggle}
-              className={`flex items-center justify-center w-6 h-6 rounded hover:bg-zinc-800 transition-colors ${
+              className={`flex items-center justify-center w-6 h-6 rounded hover:bg-zinc-700 transition-colors ${
                 isRunning ? 'text-green-500 hover:text-green-400' : 'text-red-500 hover:text-red-400'
               }`}
             >
