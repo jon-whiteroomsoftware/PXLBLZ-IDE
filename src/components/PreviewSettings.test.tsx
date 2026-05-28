@@ -77,8 +77,8 @@ describe('PreviewSettings', () => {
     const user = userEvent.setup()
     render(<PreviewSettings />)
     await user.click(screen.getByRole('button', { name: /preview settings/i }))
-    expect(screen.getByRole('spinbutton', { name: /grid columns/i })).toHaveValue(16)
-    expect(screen.getByRole('spinbutton', { name: /grid rows/i })).toHaveValue(16)
+    expect(screen.getByRole('spinbutton', { name: /grid columns/i })).toHaveValue(32)
+    expect(screen.getByRole('spinbutton', { name: /grid rows/i })).toHaveValue(32)
   })
 
   it('clicking OK commits grid size to the store', async () => {

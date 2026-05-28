@@ -37,17 +37,17 @@ describe('previewStore', () => {
 
   it('has default grid config', () => {
     const { grid } = usePreviewStore.getState()
-    expect(grid.rows).toBe(16)
-    expect(grid.cols).toBe(16)
+    expect(grid.rows).toBe(32)
+    expect(grid.cols).toBe(32)
     expect(grid.spacing).toBe(20)
-    expect(grid.diffusion).toBe(0)
+    expect(grid.diffusion).toBe(0.5)
   })
 
   it('setGrid merges partial grid updates', () => {
     usePreviewStore.getState().setGrid({ rows: 8 })
     const { grid } = usePreviewStore.getState()
     expect(grid.rows).toBe(8)
-    expect(grid.cols).toBe(16)
+    expect(grid.cols).toBe(32)
   })
 
   it('starts with elapsed and pixelCount watched by default', () => {

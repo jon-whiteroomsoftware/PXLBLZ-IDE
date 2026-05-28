@@ -30,10 +30,10 @@ export const previewInitialState = {
   speed: 1,
   brightness: 1,
   grid: {
-    rows: 16,
-    cols: 16,
+    rows: 32,
+    cols: 32,
     spacing: 20,
-    diffusion: 0,
+    diffusion: 0.5,
   },
   watchedBuiltins: ['elapsed', 'pixelCount'] as string[],
   watchedPatternVars: [] as string[],
