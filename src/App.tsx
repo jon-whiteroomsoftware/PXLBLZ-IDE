@@ -147,6 +147,26 @@ export default function App() {
     setPreviewPatternName(record.name)
   }, [userPatterns, addPattern, setActivePattern, setSource, setIsReadOnly, setPreviewSource, setPreviewPatternName])
 
+  const handleForkDemo = useCallback(async () => {
+    if (!activeDemoName) return
+    const id = generateId()
+    const existingNames = userPatterns.map((p) => p.name)
+    const name = uniquePatternName(activeDemoName, existingNames)
+    const record: PatternRecord = {
+      id,
+      name,
+      src: source,
+      controls: {},
+      updatedAt: Date.now(),
+    }
+    await addPattern(record)
+    setActivePattern(id)
+    setSource(record.src)
+    setIsReadOnly(false)
+    setPreviewSource(record.src)
+    setPreviewPatternName(record.name)
+  }, [activeDemoName, source, userPatterns, addPattern, setActivePattern, setSource, setIsReadOnly, setPreviewSource, setPreviewPatternName])
+
   const [copied, setCopied] = useState(false)
   const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -217,6 +237,16 @@ export default function App() {
                 </span>
               )}
             </span>
+            {activeDemoName !== null && (
+              <Button
+                size="sm"
+                variant="ghost"
+                className="text-xs text-zinc-400 bg-zinc-800/70 hover:bg-zinc-700/70 hover:text-zinc-300"
+                onClick={handleForkDemo}
+              >
+                Edit
+              </Button>
+            )}
             {activePatternId !== null && (
               <Button
                 size="sm"
