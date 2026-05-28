@@ -64,19 +64,25 @@ export function Preview() {
       handleRef.current = handle
       useEditorStore.getState().setPatternVars(metadata.patternVars)
       useEditorStore.getState().setControls(metadata.controls)
-      // Seed controlStore with defaults and invoke each control callback once
+      // Seed slider/toggle UI from the pattern's own initialised vars.
+      // Convention: `sliderFoo` ↔ `foo`, `toggleFoo` ↔ `foo` (lowercase first
+      // remaining char). The exported var's value already ran via the pattern's
+      // own initialiser, so we don't invoke the callback on mount — that would
+      // overwrite hand-picked defaults. Pickers are intentionally not seeded
+      // (no naming convention for triplets); their vars stand at init values
+      // and the swatch shows white until the user touches it.
+      const exports = handle.getExports()
       const defaults: Record<string, number | [number, number, number]> = {}
       for (const c of metadata.controls) {
-        if (c.kind === 'slider') defaults[c.exportName] = 0.5
-        else if (c.kind === 'toggle') defaults[c.exportName] = 0
-        else if (c.kind === 'hsvPicker') defaults[c.exportName] = [0, 1, 1]
-        else if (c.kind === 'rgbPicker') defaults[c.exportName] = [1, 1, 1]
+        if (c.kind !== 'slider' && c.kind !== 'toggle') continue
+        const stem = c.exportName.slice(c.kind.length)
+        const varName = stem.charAt(0).toLowerCase() + stem.slice(1)
+        const v = exports[varName]
+        if (typeof v !== 'number') continue
+        if (c.kind === 'slider') defaults[c.exportName] = Math.max(0, Math.min(1, v))
+        else defaults[c.exportName] = v !== 0 ? 1 : 0
       }
       useControlStore.getState().resetControls(defaults)
-      for (const [name, value] of Object.entries(defaults)) {
-        if (Array.isArray(value)) handle.controls[name]?.(...(value as number[]))
-        else handle.controls[name]?.(value)
-      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
       queueMicrotask(() => setRuntimeError(msg))
