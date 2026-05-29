@@ -114,13 +114,14 @@ describe('fx.mod', () => {
   it('1.5 mod 1.0 = 0.5', () => expect(fx.mod(98304, 65536)).toBe(32768))
   it('mod(b, 0) = 0 (guard)', () => expect(fx.mod(65536, 0)).toBe(0))
 
-  it('floored: mod(-1.5, 1.0) = 0.5 (sign follows b)', () => {
-    expect(fx.mod(-98304, 65536)).toBe(32768)
+  // Truncated: sign follows the dividend a (matches hardware %, firmware 3.67)
+  it('truncated: mod(-1.5, 1.0) = -0.5 (sign follows a)', () => {
+    expect(fx.mod(-98304, 65536)).toBe(-32768)
   })
-  it('floored: mod(1.5, -1.0) = -0.5 (sign follows b)', () => {
-    expect(fx.mod(98304, -65536)).toBe(-32768)
+  it('truncated: mod(1.5, -1.0) = 0.5 (sign follows a)', () => {
+    expect(fx.mod(98304, -65536)).toBe(32768)
   })
-  it('floored: mod(-1.5, -1.0) = -0.5', () => {
+  it('truncated: mod(-1.5, -1.0) = -0.5', () => {
     expect(fx.mod(-98304, -65536)).toBe(-32768)
   })
 
@@ -157,43 +158,53 @@ describe('fx.frac', () => {
 
 // ── bitwise ───────────────────────────────────────────────────────────────────
 
+// Operands are integer-coerced (raw >> 16) before the op, then re-scaled —
+// matching hardware (firmware 3.67). Inputs below are raw 16.16 values.
+
 describe('fx.and', () => {
-  it('65536 & 65536 = 65536', () => expect(fx.and(65536, 65536)).toBe(65536))
-  it('0xFFFF0000 & 0x0000FFFF = 0', () => expect(fx.and(0xFFFF0000 | 0, 0x0000FFFF)).toBe(0))
+  it('3.0 & 6.0 = 2.0', () => expect(fx.and(3 * 65536, 6 * 65536)).toBe(2 * 65536))
+  it('coerces fractional operands to integer first: 3.9 & 6.9 = 2.0', () => {
+    expect(fx.and(fx.fromFloat(3.9), fx.fromFloat(6.9))).toBe(2 * 65536)
+  })
+  it('-1.0 & 0xFFFF-as-int(0.99) → -1 & 0 = 0', () => {
+    expect(fx.and(-65536, 65535)).toBe(0)
+  })
 })
 
 describe('fx.or', () => {
-  it('65536 | 32768 = 98304', () => expect(fx.or(65536, 32768)).toBe(98304))
+  it('1.0 | 2.0 = 3.0', () => expect(fx.or(65536, 131072)).toBe(3 * 65536))
   it('0 | 0 = 0', () => expect(fx.or(0, 0)).toBe(0))
+  it('coerces fractional operand: 1.0 | 0.5 → 1 | 0 = 1.0', () => {
+    expect(fx.or(65536, 32768)).toBe(65536)
+  })
 })
 
 describe('fx.xor', () => {
-  it('65536 ^ 65536 = 0', () => expect(fx.xor(65536, 65536)).toBe(0))
-  it('65536 ^ 32768 = 98304', () => expect(fx.xor(65536, 32768)).toBe(98304))
+  it('1.0 ^ 1.0 = 0', () => expect(fx.xor(65536, 65536)).toBe(0))
+  it('1.0 ^ 2.0 = 3.0', () => expect(fx.xor(65536, 131072)).toBe(3 * 65536))
 })
 
 describe('fx.not', () => {
-  // ~x zeros the low 16 bits (fractional component), matches firmware behavior
-  it('~1.0 = -2.0 (integer ~1 = -2)', () => {
-    expect(fx.not(65536)).toBe(-131072)
+  // Operand integer-coerced first: ~2.5 → ~trunc(2.5) = ~2 = -3 (hardware)
+  it('~2.5 = -3.0 (integer-coerces operand)', () => {
+    expect(fx.not(fx.fromFloat(2.5))).toBe(-3 * 65536)
   })
-  it('~0 = -1.0 (integer ~0 = -1)', () => {
-    expect(fx.not(0)).toBe(-65536)
-  })
-  it('~(-1.0) = 0 (integer ~-1 = 0)', () => {
-    expect(fx.not(-65536)).toBe(0)
-  })
+  it('~1.0 = -2.0', () => expect(fx.not(65536)).toBe(-131072))
+  it('~0 = -1.0', () => expect(fx.not(0)).toBe(-65536))
+  it('~(-1.0) = 0', () => expect(fx.not(-65536)).toBe(0))
   it('zeros the fractional bits of the result', () => {
-    // not(0.5) — fractional input: result should have zero fractional bits
-    const result = fx.not(32768)
-    expect(result & 0xFFFF).toBe(0)
+    expect(fx.not(32768) & 0xFFFF).toBe(0)
   })
 })
 
 describe('fx.shl / fx.shr', () => {
-  it('shl(1, 16) = 65536 (1.0)', () => expect(fx.shl(1, 16)).toBe(65536))
-  it('shr(65536, 1) = 32768 (0.5)', () => expect(fx.shr(65536, 1)).toBe(32768))
-  it('shr is arithmetic (sign-extends)', () => expect(fx.shr(-65536, 1)).toBe(-32768))
+  it('shl(1.0, 2.0) = 4.0 (shift count integer-coerced)', () => {
+    expect(fx.shl(65536, 131072)).toBe(4 * 65536)
+  })
+  it('shr(4.0, 1.0) = 2.0', () => expect(fx.shr(4 * 65536, 65536)).toBe(2 * 65536))
+  it('shr is arithmetic (sign-extends): shr(-4.0, 1.0) = -2.0', () => {
+    expect(fx.shr(-4 * 65536, 65536)).toBe(-2 * 65536)
+  })
 })
 
 // ── comparisons ───────────────────────────────────────────────────────────────

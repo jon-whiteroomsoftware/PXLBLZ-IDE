@@ -43,11 +43,10 @@ export const fx = {
     return Math.round(a * SCALE / b) | 0;
   },
 
-  // Floored remainder — sign follows b (matches firmware mod)
+  // Truncated remainder — sign follows a (matches firmware %, identical to JS %)
   mod(a: number, b: number): number {
     if (b === 0) return 0;
-    const r = a % b;
-    return r !== 0 && (r < 0) !== (b < 0) ? (r + b) | 0 : r | 0;
+    return (a % b) | 0;
   },
 
   // Truncate-based: a − trunc(a), sign follows a (matches firmware frac, NOT floor-based)
@@ -57,31 +56,37 @@ export const fx = {
     return (lo - SCALE) | 0;
   },
 
-  // ── Bitwise (operate on raw int32) ────────────────────────────────────────
+  // ── Bitwise ───────────────────────────────────────────────────────────────
+  //
+  // Hardware coerces every operand to its integer part *before* the bitwise op,
+  // then returns the integer result (firmware 3.67, confirmed by the divergence
+  // harness — e.g. ~2.5 → -3, not the raw-16.16 bit-flip). We mirror that by
+  // taking the integer part (`raw >> 16`), operating, then re-scaling (`<< 16`).
+  // Shift counts are also coerced, which incidentally cancels the fixed-point
+  // shift-count-scaling trap (a literal `2` arrives as raw 131072 → 2).
 
   and(a: number, b: number): number {
-    return (a & b) | 0;
+    return ((a >> 16) & (b >> 16)) << 16;
   },
 
   or(a: number, b: number): number {
-    return (a | b) | 0;
+    return ((a >> 16) | (b >> 16)) << 16;
   },
 
   xor(a: number, b: number): number {
-    return (a ^ b) | 0;
+    return ((a >> 16) ^ (b >> 16)) << 16;
   },
 
-  // Firmware NOT: flips integer bits, zeros fractional bits
   not(a: number): number {
-    return (~a) & 0xFFFF0000;
+    return (~(a >> 16)) << 16;
   },
 
   shl(a: number, b: number): number {
-    return (a << b) | 0;
+    return ((a >> 16) << (b >> 16)) << 16;
   },
 
   shr(a: number, b: number): number {
-    return (a >> b) | 0;
+    return ((a >> 16) >> (b >> 16)) << 16;
   },
 
   // ── Comparisons (compare raw ints; return 0 or 1.0 in raw = 65536) ────────
