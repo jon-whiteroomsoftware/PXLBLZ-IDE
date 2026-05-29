@@ -336,6 +336,8 @@ Arrays are shown with each element and its index. The data is sampled at the end
 
 ### Hardware upload
 
+> **Now specified separately.** This bullet is superseded by the feature PRD `Feature — Hardware Connectivity.md`, which connects to a controller over its WebSocket API and is sequenced validate → discover → decide-UI. Its Phase 1 (a Node comms layer + manual divergence harness) is committed because it unblocks the hardware-fidelity feature's divergence harness; the rest (automated pattern push, the local bridge, and the IDE integration UI) is captured there as vision, not yet greenlit.
+
 Find and connect to a Pixelblaze controller on the local network. Use the controller's WebSocket API to:
 - Read the list of existing patterns stored on the device.
 - Upload a transpiled pattern to the controller.

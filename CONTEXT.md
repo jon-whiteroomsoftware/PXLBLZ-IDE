@@ -22,6 +22,15 @@ _Avoid_: native function, intrinsic.
 **Control**:
 An interactive preview-pane widget (slider, toggle, HSV/RGB picker) generated when a pattern exports a specially-named function (`sliderX`, `toggleX`, `hsvPickerX`, `rgbPickerX`). Its value is persisted per-pattern.
 _Avoid_: input, knob, parameter, setting.
+_Note_: distinct from **Controller** (the physical box). One letter apart, so never abbreviate — code and UI always spell out `control` vs `controller` (a "Controls" panel is the widgets; a "Controllers" list is the devices).
+
+**Controller**:
+A physical Pixelblaze reachable over the network via its WebSocket API (port 81, JSON + binary frames). The thing the IDE connects to, lists patterns from, pushes patterns to, and reads/writes variables and controls on. There may be more than one on a network, though typically one.
+_Avoid_: device, board, unit, node — though the ElectroMage WebSocket API itself says "board," the IDE's canonical term is Controller. Never shorten to "control."
+
+**Local bridge** (or **bridge**):
+A small Node process the user runs on their own LAN that lets the deployed (GitHub Pages, https) IDE reach a Controller. The browser cannot open the Controller's `ws://` socket directly (mixed-content blocking), but it can reach the bridge at `ws://127.0.0.1` (localhost is mixed-content-exempt); the bridge, running outside the browser sandbox, talks to the Controller and handles discovery. Optional, local-only, and purely additive — authoring/preview/export work with no bridge installed. The IDE never launches the bridge; the user runs it and the IDE detects it.
+_Avoid_: server, backend, daemon, proxy — it is a bridge.
 
 **Transpiled artifact** (or **artifact**):
 The single flat JavaScript file the transpiler produces for a pattern — referenced library functions inlined, namespace calls rewritten. Valid for both browser preview and hardware upload. The downloadable/copyable output.
