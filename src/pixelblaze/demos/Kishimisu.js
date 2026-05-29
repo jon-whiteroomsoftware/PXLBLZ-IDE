@@ -45,39 +45,38 @@ export function render2D(index, x, y) {
   var sharpnessM   = 0.5   + sharpness * 2.5
   var octavesM     = clamp(floor(octaves * 6) + 1, 1, 6)
 
-  // Centre on (0,0); engine normalises (x,y) to [0,1]² so aspect is implicit.
-  var cx = x * 2 - 1
-  var cy = y * 2 - 1
-  var ux = cx, uy = cy
-  var len0 = sqrt(cx * cx + cy * cy)
+  // Centred uv (short axis = unit). Engine normalises (x,y) to [0,1]², so a
+  // square aspect (1) reproduces the original's direct 2x-1 / 2y-1.
+  Shader.toUV(x, y, 1)
+  var px = ux, py = uy          // Shader.toUV writes the ux/uy out-vars
+  var len0 = hypot(px, py)
   var exp0 = exp(-len0)
 
   var finalR = 0, finalG = 0, finalB = 0
 
   for (var i = 0; i < octavesM; i = i + 1) {
-    // GLSL-style fract (always in [0,1)) — Pixelblaze frac() is truncate-based
-    // so it returns negatives for negative inputs, which breaks the fold.
-    var ax = ux * zoomM
-    var ay = uy * zoomM
-    ux = (ax - floor(ax)) - 0.5
-    uy = (ay - floor(ay)) - 0.5
+    // Shader.fract is floor-based (always [0,1)) — built-in frac() is
+    // truncate-based and returns negatives, which breaks the fold.
+    px = Shader.fract(px * zoomM) - 0.5
+    py = Shader.fract(py * zoomM) - 0.5
 
-    var luv = sqrt(ux * ux + uy * uy)
+    var luv = hypot(px, py)
     var d = luv * exp0
 
-    // IQ palette per channel: cos(2π·(t + d_ch))
-    var phase = (len0 + i * 0.4 + t * 0.4) * PI2
-    var colR  = paletteAr + paletteBr * cos(phase + paletteDr * PI2)
-    var colG  = paletteAg + paletteBg * cos(phase + paletteDg * PI2)
-    var colB  = paletteAb + paletteBb * cos(phase + paletteDb * PI2)
+    // IQ cosine palette (c hard-coded to 1,1,1) → cr/cg/cb out-vars.
+    Shader.iqPalette(len0 + i * 0.4 + t * 0.4,
+                     paletteAr, paletteAg, paletteAb,
+                     paletteBr, paletteBg, paletteBb,
+                     1, 1, 1,
+                     paletteDr, paletteDg, paletteDb)
 
     d = sin(d * ringDensityM + t) / ringDensityM
     d = abs(d)
     d = pow(glowM / d, sharpnessM)
 
-    finalR = finalR + colR * d
-    finalG = finalG + colG * d
-    finalB = finalB + colB * d
+    finalR = finalR + cr * d
+    finalG = finalG + cg * d
+    finalB = finalB + cb * d
   }
 
   rgb(finalR, finalG, finalB)

@@ -342,4 +342,40 @@ export const CHEATSHEETS: Record<string, Cheatsheet> = {
       },
     ],
   },
+
+  Shader: {
+    sections: [
+      {
+        header: 'Scalar Gap-fillers',
+        entries: [
+          { sig: 'fract(x)', desc: 'floor-based x − floor(x), always 0..1 (frac() is truncate-based)' },
+          { sig: 'step(edge, x)', desc: 'GLSL step: 0 below edge, 1 at/above' },
+          { sig: 'sign(x)', desc: '−1 / 0 / 1' },
+          { sig: 'saturate(x)', desc: 'clamp(x, 0, 1)' },
+          { sig: 'dot2(ax, ay, bx, by)', desc: '2D dot product' },
+          { sig: 'dot3(ax, ay, az, bx, by, bz)', desc: '3D dot product' },
+          { sig: 'distance2(ax, ay, bx, by)', desc: 'Euclidean distance between two 2D points' },
+        ],
+      },
+      {
+        header: 'Out-var Helpers (read globals immediately after)',
+        entries: [
+          { sig: 'toUV(x, y, aspect)', desc: 'centred UVs → ux, uy; aspect = cols/rows, short axis = unit' },
+          { sig: 'normalize2(x, y)', desc: 'unit vector → nx, ny (+ len)' },
+          { sig: 'normalize3(x, y, z)', desc: 'unit vector → nx, ny, nz (+ len)' },
+          { sig: 'rot2(x, y, angle)', desc: '2D rotation about origin → rx, ry' },
+          { sig: 'reflect2(ix, iy, nx, ny)', desc: 'reflect across normalized normal → rx, ry' },
+          { sig: 'reflect3(ix, iy, iz, nx, ny, nz)', desc: 'reflect across normalized normal → rx, ry, rz' },
+        ],
+      },
+      {
+        header: 'Palette & Hash',
+        entries: [
+          { sig: 'iqPalette(t, ar,ag,ab, br,bg,bb, cr,cg,cb, dr,dg,db)', desc: 'IQ cosine palette a+b·cos(2π(c·t+d)) → cr, cg, cb' },
+          { sig: 'hash21(ix, iy)', desc: 'hardware-safe pseudo-random 0..1 from integer cell coords' },
+          { sig: 'hash11(n)', desc: 'hardware-safe pseudo-random 0..1 from one integer' },
+        ],
+      },
+    ],
+  },
 }

@@ -16,28 +16,28 @@ export function beforeRender(delta) {
 }
 
 export function render2D(index, x, y) {
-  var ux = x * 2 - 1
-  var uy = y * 2 - 1
+  // Centred uv (short axis = unit); square aspect matches the original 2x-1.
+  Shader.toUV(x, y, 1)
+  var px = ux, py = uy          // Shader.toUV writes the ux/uy out-vars
 
   var mt = t % 2
   var finalR = 0, finalG = 0, finalB = 0
 
   for (var i = 0; i < 20; i = i + 1) {
-    // Body: rotate with pre-increment i (0..19)
+    // Body: rotate with pre-increment i (0..19). The GLSL mat2(rot(i)) folds
+    // by -angle, which Shader.rot2(.., -angle) reproduces → rx/ry out-vars.
     var angle = (t + i) * 0.03
-    var ca = cos(angle), sa = sin(angle)
-    var nx = ca * ux + sa * uy
-    var ny = -sa * ux + ca * uy
-    ux = nx
-    uy = ny
+    Shader.rot2(px, py, -angle)
+    px = rx
+    py = ry
 
     // Post: glow + color with post-increment index (1..20)
     var ic = i + 1
 
-    // Squircle (L4) distance: sqrt(ux^4 + uy^4)
-    var ux2 = ux * ux, uy2 = uy * uy
-    var len = sqrt(ux2 * ux2 + uy2 * uy2)
-    var gv = 0.004 / (abs(len - ic * 0.04) + 0.005)
+    // Squircle (L4) distance: sqrt(px^4 + py^4) == hypot(px², py²)
+    var ux2 = px * px, uy2 = py * py
+    var l4 = hypot(ux2, uy2)
+    var gv = 0.004 / (abs(l4 - ic * 0.04) + 0.005)
 
     // Per-ring animation: stagger by ic*0.1 so the pulse sweeps across rings
     var anim = smoothstep(0.35, 0.4, abs(abs(mt - ic * 0.1) - 1))
