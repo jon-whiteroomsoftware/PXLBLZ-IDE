@@ -1,6 +1,6 @@
 import { bundle } from '../../engine/bundle'
 import { loadPattern } from '../../engine/loadPattern'
-import { createFxShim, createShim, type ShimContext } from '../../engine/shim'
+import { createFxShim, createShim, planeShimConfig, type ShimContext } from '../../engine/shim'
 import { LIBRARIES } from '../libs'
 
 // Fidelity sweep for SDF.js (#93). The shape primitives, boolean ops, and
@@ -16,8 +16,8 @@ function probe(expr: string, mode: 'fast' | 'fidelity') {
   const { code, fxCode, metadata } = bundle(src, LIBRARIES)
   const shim: ShimContext =
     mode === 'fidelity'
-      ? createFxShim({ grid, getVirtualTime: () => 0 })
-      : createShim({ grid, getVirtualTime: () => 0 })
+      ? createFxShim({ ...planeShimConfig(grid), getVirtualTime: () => 0 })
+      : createShim({ ...planeShimConfig(grid), getVirtualTime: () => 0 })
   const handle = loadPattern(mode === 'fidelity' ? fxCode : code, metadata, shim.builtins)
   return (x: number, y: number) => {
     handle.render2D(shim.encodeScalar(0), shim.encodeScalar(x), shim.encodeScalar(y))

@@ -1,9 +1,16 @@
 import { fx } from './fixedpoint'
+import { createPlaneMap, type MapPoint } from './maps'
 
 const PI2 = Math.PI * 2
 
 export interface ShimConfig {
-  grid: { rows: number; cols: number }
+  // Resolved active-map points (length === pixelCount), the modeled pixel count,
+  // and the active layout's display dimensionality. These replace the old
+  // grid-index spatial source: the map-introspection builtins and pixelCount are
+  // sourced from here, so the shim is map-driven rather than grid-driven.
+  mapPoints: MapPoint[]
+  pixelCount: number
+  dimensions: 1 | 2 | 3
   getVirtualTime: () => number
 }
 
@@ -22,8 +29,21 @@ export interface ShimContext {
   transformPoint: (x: number, y: number, z: number) => [number, number, number]
 }
 
+// Reveal-2D convenience: build the spatial section of a ShimConfig from a
+// uniform plane grid (the default stock 2D map). Used by the preview and tests
+// until per-pattern map selection lands. The plane's row-major points reproduce
+// the legacy grid loop's coordinates exactly.
+export function planeShimConfig(grid: { rows: number; cols: number }): Omit<ShimConfig, 'getVirtualTime'> {
+  const { rows, cols } = grid
+  return {
+    mapPoints: createPlaneMap({ rows, cols }).resolve(rows * cols),
+    pixelCount: rows * cols,
+    dimensions: 2,
+  }
+}
+
 export function createShim(config: ShimConfig): ShimContext {
-  const { grid, getVirtualTime } = config
+  const { mapPoints, pixelCount, dimensions, getVirtualTime } = config
   let captR = 0, captG = 0, captB = 0
   let palette: number[] = []
   let perlinWrapX = 256, perlinWrapY = 256, perlinWrapZ = 256
@@ -153,20 +173,19 @@ export function createShim(config: ShimConfig): ShimContext {
     clockWeekday: () => new Date().getDay() + 1,
 
     // ── Pixel map ──────────────────────────────────────────────────────────
-    pixelCount: grid.rows * grid.cols,
-    has2DMap: () => true,
-    has3DMap: () => false,
-    pixelMapDimensions: () => 2,
+    pixelCount,
+    has2DMap: () => dimensions >= 2,
+    has3DMap: () => dimensions >= 3,
+    pixelMapDimensions: () => dimensions,
     mapPixels(fn: (index: number, x: number, y: number, z: number) => void) {
-      const { rows, cols } = grid
-      for (let row = 0; row < rows; row++) {
-        const y = rows === 1 ? 0 : row / (rows - 1)
-        for (let col = 0; col < cols; col++) {
-          const x = cols === 1 ? 0 : col / (cols - 1)
-          // Current coordinate transforms apply before fn is called.
-          const [tx, ty, tz] = transformPoint(x, y, 0)
-          fn(row * cols + col, tx, ty, tz)
-        }
+      // Iterate the active map's points, using each point's drawn position
+      // (`pos`) — falling back to its `sample` when a map carries no intrinsic
+      // position (e.g. a uniform plane, where the two coincide). Current
+      // coordinate transforms apply before fn is called, as before.
+      for (let i = 0; i < mapPoints.length; i++) {
+        const coord = mapPoints[i].pos ?? mapPoints[i].sample
+        const [tx, ty, tz] = transformPoint(coord[0] ?? 0, coord[1] ?? 0, coord[2] ?? 0)
+        fn(i, tx, ty, tz)
       }
     },
 

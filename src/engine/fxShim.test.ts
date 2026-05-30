@@ -1,12 +1,21 @@
 import { createFxShim } from './shim'
 import { fx } from './fixedpoint'
+import { createPlaneMap } from './maps'
 
-const defaultGrid = { rows: 4, cols: 4 }
 const SCALE = 65536
 const TOLERANCE = 1 / SCALE
 
+// Reveal-2D plane spatial config for the shim (resolved points + count + dim).
+function planeConfig(rows: number, cols: number) {
+  return {
+    mapPoints: createPlaneMap({ rows, cols }).resolve(rows * cols),
+    pixelCount: rows * cols,
+    dimensions: 2 as const,
+  }
+}
+
 function makeShim(getVirtualTime: () => number = () => 0) {
-  return createFxShim({ grid: defaultGrid, getVirtualTime })
+  return createFxShim({ ...planeConfig(4, 4), getVirtualTime })
 }
 
 // ── Scalar math built-ins: raw in → raw out ───────────────────────────────────
@@ -299,7 +308,7 @@ describe('fx shim: time', () => {
   it('time(raw_1.0) returns raw 0.5 when virtual time is half the period', () => {
     // At virtualTime=32768 and interval=1, float shim returns 0.5.
     // With raw interval = fx.fromFloat(1) = 65536, fx shim should return fx.fromFloat(0.5) = 32768.
-    const { builtins } = createFxShim({ grid: defaultGrid, getVirtualTime: () => 32768 })
+    const { builtins } = createFxShim({ ...planeConfig(4, 4), getVirtualTime: () => 32768 })
     const result = (builtins.time as (i: number) => number)(SCALE)
     expect(Math.abs(fx.toFloat(result) - 0.5)).toBeLessThanOrEqual(TOLERANCE)
   })

@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { bundle } from '../../engine/bundle'
 import { loadPattern } from '../../engine/loadPattern'
-import { createShim, createFxShim } from '../../engine/shim'
+import { createShim, createFxShim, planeShimConfig } from '../../engine/shim'
 import { LIBRARIES } from '../libs'
 
 const here = join(process.cwd(), 'src/pixelblaze/demos')
@@ -14,8 +14,8 @@ function runDemo(file: string, mode: 'fast' | 'fidelity' = 'fast') {
   let vt = 0
   const shim =
     mode === 'fidelity'
-      ? createFxShim({ grid: { rows: 16, cols: 16 }, getVirtualTime: () => vt })
-      : createShim({ grid: { rows: 16, cols: 16 }, getVirtualTime: () => vt })
+      ? createFxShim({ ...planeShimConfig({ rows: 16, cols: 16 }), getVirtualTime: () => vt })
+      : createShim({ ...planeShimConfig({ rows: 16, cols: 16 }), getVirtualTime: () => vt })
   const handle = loadPattern(mode === 'fidelity' ? fxCode : code, metadata, shim.builtins)
 
   // Exercise every detected control across its range. Pickers take (r,g,b),

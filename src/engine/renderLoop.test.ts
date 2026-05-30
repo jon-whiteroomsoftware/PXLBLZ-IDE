@@ -3,6 +3,13 @@ import { createRenderLoop } from './renderLoop'
 import type { PatternHandle } from './loadPattern'
 import type { ShimContext } from './shim'
 import type { VirtualClock } from './virtualClock'
+import { createPlaneMap } from './maps'
+
+// The reveal-2D spatial source: a uniform plane resolved to row-major points,
+// whose `sample` reproduces the legacy grid loop's `x = col/(cols-1)` coords.
+function planeCfg(rows: number, cols: number) {
+  return { mapPoints: createPlaneMap({ rows, cols }).resolve(rows * cols), pixelCount: rows * cols }
+}
 
 function makeMockClock(): VirtualClock {
   return { advance: vi.fn(), getTime: vi.fn(() => 0), reset: vi.fn() }
@@ -39,7 +46,7 @@ describe('tick sequencing', () => {
     const handle = makeMockHandle()
     const loop = createRenderLoop({
       handle, shim: makeMockShim(), clock: makeMockClock(),
-      grid: { rows: 2, cols: 2 },
+      ...planeCfg(2, 2),
       getSpeed: () => 1, getBrightness: () => 1, isDimmed: () => false,
       paint: vi.fn(),
     })
@@ -51,7 +58,7 @@ describe('tick sequencing', () => {
     const handle = makeMockHandle()
     const loop = createRenderLoop({
       handle, shim: makeMockShim(), clock: makeMockClock(),
-      grid: { rows: 3, cols: 4 },
+      ...planeCfg(3, 4),
       getSpeed: () => 1, getBrightness: () => 1, isDimmed: () => false,
       paint: vi.fn(),
     })
@@ -66,7 +73,7 @@ describe('tick sequencing', () => {
     ;(handle.render2D as ReturnType<typeof vi.fn>).mockImplementation(() => callOrder.push('r2d'))
     const loop = createRenderLoop({
       handle, shim: makeMockShim(), clock: makeMockClock(),
-      grid: { rows: 1, cols: 2 },
+      ...planeCfg(1, 2),
       getSpeed: () => 1, getBrightness: () => 1, isDimmed: () => false,
       paint: vi.fn(),
     })
@@ -82,7 +89,7 @@ describe('pixel coordinates', () => {
     const handle = makeMockHandle()
     const loop = createRenderLoop({
       handle, shim: makeMockShim(), clock: makeMockClock(),
-      grid: { rows: 3, cols: 3 },
+      ...planeCfg(3, 3),
       getSpeed: () => 1, getBrightness: () => 1, isDimmed: () => false,
       paint: vi.fn(),
     })
@@ -94,7 +101,7 @@ describe('pixel coordinates', () => {
     const handle = makeMockHandle()
     const loop = createRenderLoop({
       handle, shim: makeMockShim(), clock: makeMockClock(),
-      grid: { rows: 3, cols: 3 },
+      ...planeCfg(3, 3),
       getSpeed: () => 1, getBrightness: () => 1, isDimmed: () => false,
       paint: vi.fn(),
     })
@@ -106,7 +113,7 @@ describe('pixel coordinates', () => {
     const handle = makeMockHandle()
     const loop = createRenderLoop({
       handle, shim: makeMockShim(), clock: makeMockClock(),
-      grid: { rows: 3, cols: 1 },
+      ...planeCfg(3, 1),
       getSpeed: () => 1, getBrightness: () => 1, isDimmed: () => false,
       paint: vi.fn(),
     })
@@ -119,7 +126,7 @@ describe('pixel coordinates', () => {
     const handle = makeMockHandle()
     const loop = createRenderLoop({
       handle, shim: makeMockShim(), clock: makeMockClock(),
-      grid: { rows: 1, cols: 3 },
+      ...planeCfg(1, 3),
       getSpeed: () => 1, getBrightness: () => 1, isDimmed: () => false,
       paint: vi.fn(),
     })
@@ -132,7 +139,7 @@ describe('pixel coordinates', () => {
     const handle = makeMockHandle()
     const loop = createRenderLoop({
       handle, shim: makeMockShim(), clock: makeMockClock(),
-      grid: { rows: 1, cols: 3 },
+      ...planeCfg(1, 3),
       getSpeed: () => 1, getBrightness: () => 1, isDimmed: () => false,
       paint: vi.fn(),
     })
@@ -149,7 +156,7 @@ describe('pixel array', () => {
     const paint = vi.fn()
     const loop = createRenderLoop({
       handle: makeMockHandle(), shim: makeMockShim(), clock: makeMockClock(),
-      grid: { rows: 4, cols: 5 },
+      ...planeCfg(4, 5),
       getSpeed: () => 1, getBrightness: () => 1, isDimmed: () => false,
       paint,
     })
@@ -167,7 +174,7 @@ describe('pixel array', () => {
     const paint = vi.fn()
     const loop = createRenderLoop({
       handle: makeMockHandle(), shim, clock: makeMockClock(),
-      grid: { rows: 1, cols: 3 },
+      ...planeCfg(1, 3),
       getSpeed: () => 1, getBrightness: () => 1, isDimmed: () => false,
       paint,
     })
@@ -182,7 +189,7 @@ describe('pixel array', () => {
     const paint = vi.fn()
     const loop = createRenderLoop({
       handle: makeMockHandle(), shim: makeMockShim(), clock: makeMockClock(),
-      grid: { rows: 1, cols: 1 },
+      ...planeCfg(1, 1),
       getSpeed: () => 1, getBrightness: () => 0.6, isDimmed: () => true,
       paint,
     })
@@ -198,7 +205,7 @@ describe('delta scaling', () => {
     const handle = makeMockHandle()
     const loop = createRenderLoop({
       handle, shim: makeMockShim(), clock: makeMockClock(),
-      grid: { rows: 1, cols: 1 },
+      ...planeCfg(1, 1),
       getSpeed: () => 2, getBrightness: () => 1, isDimmed: () => false,
       paint: vi.fn(),
     })
@@ -214,7 +221,7 @@ describe('renderPreviewFrame', () => {
     const paint = vi.fn()
     const loop = createRenderLoop({
       handle: makeMockHandle(), shim: makeMockShim(), clock: makeMockClock(),
-      grid: { rows: 1, cols: 1 },
+      ...planeCfg(1, 1),
       getSpeed: () => 1, getBrightness: () => 0.8, isDimmed: () => true,
       paint,
     })
@@ -226,7 +233,7 @@ describe('renderPreviewFrame', () => {
     const handle = makeMockHandle()
     const loop = createRenderLoop({
       handle, shim: makeMockShim(), clock: makeMockClock(),
-      grid: { rows: 1, cols: 1 },
+      ...planeCfg(1, 1),
       getSpeed: () => 5, getBrightness: () => 1, isDimmed: () => false,
       paint: vi.fn(),
     })
@@ -245,7 +252,7 @@ describe('error handling', () => {
     })
     const loop = createRenderLoop({
       handle, shim: makeMockShim(), clock: makeMockClock(),
-      grid: { rows: 1, cols: 1 },
+      ...planeCfg(1, 1),
       getSpeed: () => 1, getBrightness: () => 1, isDimmed: () => false,
       paint: vi.fn(),
     })
@@ -260,7 +267,7 @@ describe('error handling', () => {
     const onError = vi.fn()
     const loop = createRenderLoop({
       handle, shim: makeMockShim(), clock: makeMockClock(),
-      grid: { rows: 1, cols: 1 },
+      ...planeCfg(1, 1),
       getSpeed: () => 1, getBrightness: () => 1, isDimmed: () => false,
       paint: vi.fn(),
       onError,
@@ -275,7 +282,7 @@ describe('error handling', () => {
     const onError = vi.fn()
     const loop = createRenderLoop({
       handle, shim: makeMockShim(), clock: makeMockClock(),
-      grid: { rows: 1, cols: 1 },
+      ...planeCfg(1, 1),
       getSpeed: () => 1, getBrightness: () => 1, isDimmed: () => false,
       paint: vi.fn(),
       onError,
@@ -292,7 +299,7 @@ describe('virtual clock', () => {
     const clock = makeMockClock()
     const loop = createRenderLoop({
       handle: makeMockHandle(), shim: makeMockShim(), clock,
-      grid: { rows: 1, cols: 1 },
+      ...planeCfg(1, 1),
       getSpeed: () => 2, getBrightness: () => 1, isDimmed: () => false,
       paint: vi.fn(),
     })
@@ -304,7 +311,7 @@ describe('virtual clock', () => {
     const clock = makeMockClock()
     const loop = createRenderLoop({
       handle: makeMockHandle(), shim: makeMockShim(), clock,
-      grid: { rows: 1, cols: 1 },
+      ...planeCfg(1, 1),
       getSpeed: () => 1, getBrightness: () => 1, isDimmed: () => false,
       paint: vi.fn(),
     })
@@ -335,7 +342,7 @@ describe('onFps', () => {
     const { frame } = driveLoop()
     const loop = createRenderLoop({
       handle: makeMockHandle(), shim: makeMockShim(), clock: makeMockClock(),
-      grid: { rows: 1, cols: 1 },
+      ...planeCfg(1, 1),
       getSpeed: () => 1, getBrightness: () => 1, isDimmed: () => false,
       paint: vi.fn(), onFps,
     })
@@ -353,7 +360,7 @@ describe('onFps', () => {
     const { frame } = driveLoop()
     const loop = createRenderLoop({
       handle: makeMockHandle(), shim: makeMockShim(), clock: makeMockClock(),
-      grid: { rows: 1, cols: 1 },
+      ...planeCfg(1, 1),
       getSpeed: () => 1, getBrightness: () => 1, isDimmed: () => false,
       paint: vi.fn(), onFps,
     })
@@ -362,5 +369,41 @@ describe('onFps', () => {
     frame(100)
     frame(400)
     expect(onFps).not.toHaveBeenCalled()
+  })
+})
+
+// ── dimensionality dispatch (sample-arity → fallback chain) ───────────────────
+
+describe('dispatch by sample arity', () => {
+  function loopWith(points: { sample: number[] }[], handle: PatternHandle) {
+    return createRenderLoop({
+      handle, shim: makeMockShim(), clock: makeMockClock(),
+      mapPoints: points as never, pixelCount: points.length,
+      getSpeed: () => 1, getBrightness: () => 1, isDimmed: () => false,
+      paint: vi.fn(),
+    })
+  }
+
+  it('1D layout (empty sample) dispatches to render with index only', () => {
+    const handle = makeMockHandle()
+    loopWith([{ sample: [] }, { sample: [] }], handle).tick(16)
+    expect(handle.render).toHaveBeenCalledTimes(2)
+    expect(handle.render).toHaveBeenNthCalledWith(1, 0)
+    expect(handle.render).toHaveBeenNthCalledWith(2, 1)
+    expect(handle.render2D).not.toHaveBeenCalled()
+    expect(handle.render3D).not.toHaveBeenCalled()
+  })
+
+  it('2D layout (arity-2 sample) dispatches to render2D', () => {
+    const handle = makeMockHandle()
+    loopWith([{ sample: [0.5, 0.25] }], handle).tick(16)
+    expect(handle.render2D).toHaveBeenCalledWith(0, 0.5, 0.25)
+    expect(handle.render3D).not.toHaveBeenCalled()
+  })
+
+  it('3D layout (arity-3 sample) dispatches to render3D', () => {
+    const handle = makeMockHandle()
+    loopWith([{ sample: [0.1, 0.2, 0.3] }], handle).tick(16)
+    expect(handle.render3D).toHaveBeenCalledWith(0, 0.1, 0.2, 0.3)
   })
 })

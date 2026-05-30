@@ -10,6 +10,7 @@ import { bundle } from '@/engine/bundle'
 import { createRenderer } from '@/engine/renderer'
 import { createRenderLoop, type RenderLoop } from '@/engine/renderLoop'
 import { createVirtualClock } from '@/engine/virtualClock'
+import { createPlaneMap } from '@/engine/maps'
 import { LIBRARIES } from '@/pixelblaze/libs'
 
 export function Preview() {
@@ -64,8 +65,24 @@ export function Preview() {
 
     const gridWithDims = { ...usePreviewStore.getState().grid, ...canvasDims }
 
+    // Reveal-2D: the active map is the stock uniform plane, its rows/cols taken
+    // from the global grid seed (per-pattern map selection lands in a later
+    // slice). Resolve it once per rebuild into the points the loop and shim
+    // iterate; the plane's row-major `sample` reproduces the old grid loop's
+    // `x = col/(cols-1)` coordinates exactly (no-regression).
+    const pixelCount = gridWithDims.rows * gridWithDims.cols
+    const mapPoints = createPlaneMap({
+      rows: gridWithDims.rows,
+      cols: gridWithDims.cols,
+    }).resolve(pixelCount)
+
     const clock = createVirtualClock()
-    const shimConfig = { grid: gridWithDims, getVirtualTime: () => clock.getTime() }
+    const shimConfig = {
+      mapPoints,
+      pixelCount,
+      dimensions: 2 as const,
+      getVirtualTime: () => clock.getTime(),
+    }
     // The Precise renderer runs the 16.16 fixed-point emit + shim; the Fast
     // renderer runs the plain float64 emit + shim. The hardware `code` artifact
     // is unaffected.
@@ -128,7 +145,7 @@ export function Preview() {
 
     const loop = createRenderLoop({
       handle, shim, clock,
-      grid: gridWithDims,
+      mapPoints, pixelCount,
       getSpeed: () => usePreviewStore.getState().speed,
       getBrightness: () => usePreviewStore.getState().brightness,
       isDimmed: () => !usePreviewStore.getState().isRunning,

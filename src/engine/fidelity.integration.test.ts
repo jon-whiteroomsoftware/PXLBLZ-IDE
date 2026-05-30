@@ -1,6 +1,6 @@
 import { bundle } from './bundle'
 import { loadPattern } from './loadPattern'
-import { createShim, createFxShim, type ShimContext } from './shim'
+import { createShim, createFxShim, planeShimConfig, type ShimContext } from './shim'
 import { fx } from './fixedpoint'
 
 // A magic-constant hash whose multiplier (43758.5453) far exceeds the 16.16
@@ -19,8 +19,8 @@ const grid = { rows: 4, cols: 4 }
 function runProbe(useFidelity: boolean): number {
   const { code, fxCode, metadata } = bundle(HASH_PATTERN, {})
   const shim: ShimContext = useFidelity
-    ? createFxShim({ grid, getVirtualTime: () => 0 })
-    : createShim({ grid, getVirtualTime: () => 0 })
+    ? createFxShim({ ...planeShimConfig(grid), getVirtualTime: () => 0 })
+    : createShim({ ...planeShimConfig(grid), getVirtualTime: () => 0 })
   const handle = loadPattern(useFidelity ? fxCode : code, metadata, shim.builtins)
 
   const x = 0.37

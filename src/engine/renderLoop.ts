@@ -1,12 +1,16 @@
 import type { PatternHandle } from './loadPattern'
 import type { ShimContext } from './shim'
 import type { VirtualClock } from './virtualClock'
+import type { MapPoint } from './maps'
 
 export interface RenderLoopConfig {
   handle: PatternHandle
   shim: ShimContext
   clock: VirtualClock
-  grid: { rows: number; cols: number }
+  // Resolved active-map points (the spatial source) and the modeled pixel count.
+  // The loop iterates 0 .. pixelCount-1, reading each point's `sample`.
+  mapPoints: MapPoint[]
+  pixelCount: number
   getSpeed: () => number
   getBrightness: () => number
   isDimmed: () => boolean
@@ -33,7 +37,7 @@ export interface RenderLoop {
 }
 
 export function createRenderLoop(config: RenderLoopConfig): RenderLoop {
-  const { handle, shim, clock, grid, getSpeed, getBrightness, isDimmed, paint } = config
+  const { handle, shim, clock, mapPoints, pixelCount, getSpeed, getBrightness, isDimmed, paint } = config
   let rafId: number | null = null
   let lastTs: number | null = null
   let fpsWindowStart: number | null = null
@@ -46,19 +50,29 @@ export function createRenderLoop(config: RenderLoopConfig): RenderLoop {
     // must be encoded to the active numeric domain (raw int32 in fidelity mode).
     handle.beforeRender(shim.encodeScalar(scaledDelta))
 
-    const { rows, cols } = grid
     const pixels: [number, number, number][] = []
 
-    for (let row = 0; row < rows; row++) {
-      const y = rows === 1 ? 0 : row / (rows - 1)
-      for (let col = 0; col < cols; col++) {
-        const x = cols === 1 ? 0 : col / (cols - 1)
-        // Apply the pattern's coordinate transform stack before render2D, so
+    // Iterate the modeled pixel count, reading each pixel's `sample` from the
+    // active map, and dispatch by the layout's sample-arity through the pattern
+    // handle's fallback chain (render3D -> render2D -> render -> noop). 1D
+    // layouts carry an empty `sample`, so they feed index only.
+    for (let index = 0; index < pixelCount; index++) {
+      const sample = mapPoints[index]?.sample ?? []
+      // index crosses the engine->pattern boundary as a scalar, so it must be
+      // encoded to the active numeric domain (raw int32 in fidelity mode).
+      const encIndex = shim.encodeScalar(index)
+      if (sample.length >= 3) {
+        // Apply the pattern's coordinate transform stack before render, so
         // translate/rotate/scale behave as on hardware.
-        const [tx, ty] = shim.transformPoint(x, y, 0)
-        handle.render2D(shim.encodeScalar(row * cols + col), tx, ty)
-        pixels.push(shim.capturedPixel())
+        const [tx, ty, tz] = shim.transformPoint(sample[0], sample[1], sample[2])
+        handle.render3D(encIndex, tx, ty, tz)
+      } else if (sample.length === 2) {
+        const [tx, ty] = shim.transformPoint(sample[0], sample[1], 0)
+        handle.render2D(encIndex, tx, ty)
+      } else {
+        handle.render(encIndex)
       }
+      pixels.push(shim.capturedPixel())
     }
 
     paint(pixels, getBrightness(), dimmed)

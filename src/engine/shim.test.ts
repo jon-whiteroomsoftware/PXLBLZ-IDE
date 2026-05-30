@@ -1,10 +1,18 @@
 import { describe, it, expect } from 'vitest'
 import { createShim } from './shim'
+import { createPlaneMap } from './maps'
 
-const defaultGrid = { rows: 8, cols: 8 }
+// Reveal-2D plane spatial config for the shim (resolved points + count + dim).
+function planeConfig(rows: number, cols: number) {
+  return {
+    mapPoints: createPlaneMap({ rows, cols }).resolve(rows * cols),
+    pixelCount: rows * cols,
+    dimensions: 2 as const,
+  }
+}
 
 function makeShim(getVirtualTime: () => number = () => 0) {
-  return createShim({ grid: defaultGrid, getVirtualTime })
+  return createShim({ ...planeConfig(8, 8), getVirtualTime })
 }
 
 // ── hsv ─────────────────────────────────────────────────────────────────────
@@ -53,12 +61,12 @@ describe('rgb', () => {
 
 describe('time', () => {
   it('returns 0.5 when virtual time is half the period', () => {
-    const { builtins } = createShim({ grid: defaultGrid, getVirtualTime: () => 32768 })
+    const { builtins } = createShim({ ...planeConfig(8, 8), getVirtualTime: () => 32768 })
     expect((builtins.time as (i: number) => number)(1)).toBeCloseTo(0.5)
   })
 
   it('wraps to 0 at a full period', () => {
-    const { builtins } = createShim({ grid: defaultGrid, getVirtualTime: () => 65536 })
+    const { builtins } = createShim({ ...planeConfig(8, 8), getVirtualTime: () => 65536 })
     expect((builtins.time as (i: number) => number)(1)).toBeCloseTo(0)
   })
 })
@@ -129,7 +137,7 @@ describe('map', () => {
 
 describe('pixelCount', () => {
   it('equals rows * cols from grid config', () => {
-    const { builtins } = createShim({ grid: { rows: 4, cols: 8 }, getVirtualTime: () => 0 })
+    const { builtins } = createShim({ ...planeConfig(4, 8), getVirtualTime: () => 0 })
     expect(builtins.pixelCount).toBe(32)
   })
 })
@@ -284,6 +292,50 @@ describe('pixel map queries', () => {
     expect((builtins.has2DMap as () => boolean)()).toBe(true)
     expect((builtins.has3DMap as () => boolean)()).toBe(false)
     expect((builtins.pixelMapDimensions as () => number)()).toBe(2)
+  })
+
+  it('reports the active map dimensionality (3D)', () => {
+    const { builtins } = createShim({
+      mapPoints: [{ sample: [0, 0, 0], pos: [0, 0, 0] }],
+      pixelCount: 1,
+      dimensions: 3,
+      getVirtualTime: () => 0,
+    })
+    expect((builtins.has2DMap as () => boolean)()).toBe(true)
+    expect((builtins.has3DMap as () => boolean)()).toBe(true)
+    expect((builtins.pixelMapDimensions as () => number)()).toBe(3)
+  })
+
+  it('reports the active map dimensionality (1D)', () => {
+    const { builtins } = createShim({
+      mapPoints: [{ sample: [] }],
+      pixelCount: 1,
+      dimensions: 1,
+      getVirtualTime: () => 0,
+    })
+    expect((builtins.has2DMap as () => boolean)()).toBe(false)
+    expect((builtins.has3DMap as () => boolean)()).toBe(false)
+    expect((builtins.pixelMapDimensions as () => number)()).toBe(1)
+  })
+
+  it('mapPixels iterates the active map points using their pos', () => {
+    const { builtins } = createShim({
+      mapPoints: [
+        { sample: [0, 0], pos: [0.1, 0.2] },
+        { sample: [1, 0], pos: [0.3, 0.4] },
+      ],
+      pixelCount: 2,
+      dimensions: 2,
+      getVirtualTime: () => 0,
+    })
+    const seen: number[][] = []
+    ;(builtins.mapPixels as (fn: (i: number, x: number, y: number, z: number) => void) => void)(
+      (i, x, y, z) => seen.push([i, x, y, z]),
+    )
+    expect(seen).toEqual([
+      [0, 0.1, 0.2, 0],
+      [1, 0.3, 0.4, 0],
+    ])
   })
 })
 
