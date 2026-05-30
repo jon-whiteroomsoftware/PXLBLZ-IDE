@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import { clampGridDim } from '../engine/renderer'
+import { clampGridDim } from '../engine/camera'
 
 export interface GridConfig {
   rows: number
