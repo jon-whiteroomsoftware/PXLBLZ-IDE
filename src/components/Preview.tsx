@@ -79,25 +79,38 @@ export function Preview() {
       handleRef.current = handle
       useEditorStore.getState().setPatternVars(metadata.patternVars)
       useEditorStore.getState().setControls(metadata.controls)
-      // Seed slider/toggle UI from the pattern's own initialised vars.
-      // Convention: `sliderFoo` ↔ `foo`, `toggleFoo` ↔ `foo` (lowercase first
-      // remaining char). The exported var's value already ran via the pattern's
-      // own initialiser, so we don't invoke the callback on mount — that would
-      // overwrite hand-picked defaults. Pickers are intentionally not seeded
-      // (no naming convention for triplets); their vars stand at init values
-      // and the swatch shows white until the user touches it.
+      // Seed control UI from the pattern's own initialised vars so swatches and
+      // sliders show the real starting values on mount. The vars already ran via
+      // the pattern's own initialiser, so we read them rather than invoking the
+      // callback (which would overwrite hand-picked defaults).
+      //   sliders/toggles: convention `sliderFoo`/`toggleFoo` ↔ `foo` (lowercase
+      //     first remaining char).
+      //   pickers: metadata.pickerVars lists the vars backing each h/s/v or
+      //     r/g/b arg (recovered from the picker function body by the bundler).
       const exports = handle.getExports()
+      // Exports are raw int32 in fidelity mode; decode to the float UI domain.
+      const decode = (raw: unknown): number | undefined =>
+        typeof raw === 'number' ? shim.decodeScalar(raw) : undefined
       const defaults: Record<string, number | [number, number, number]> = {}
       for (const c of metadata.controls) {
-        if (c.kind !== 'slider' && c.kind !== 'toggle') continue
-        const stem = c.exportName.slice(c.kind.length)
-        const varName = stem.charAt(0).toLowerCase() + stem.slice(1)
-        const rawV = exports[varName]
-        if (typeof rawV !== 'number') continue
-        // Exports are raw int32 in fidelity mode; decode to the float UI domain.
-        const v = shim.decodeScalar(rawV)
-        if (c.kind === 'slider') defaults[c.exportName] = Math.max(0, Math.min(1, v))
-        else defaults[c.exportName] = v !== 0 ? 1 : 0
+        if (c.kind === 'slider' || c.kind === 'toggle') {
+          const stem = c.exportName.slice(c.kind.length)
+          const varName = stem.charAt(0).toLowerCase() + stem.slice(1)
+          const v = decode(exports[varName])
+          if (v === undefined) continue
+          if (c.kind === 'slider') defaults[c.exportName] = Math.max(0, Math.min(1, v))
+          else defaults[c.exportName] = v !== 0 ? 1 : 0
+        } else if (c.kind === 'hsvPicker' || c.kind === 'rgbPicker') {
+          const vars = c.pickerVars
+          if (!vars || vars.length !== 3) continue
+          const comps = vars.map((name) => decode(exports[name]))
+          if (comps.some((v) => v === undefined)) continue
+          defaults[c.exportName] = comps.map((v) => Math.max(0, Math.min(1, v as number))) as [
+            number,
+            number,
+            number,
+          ]
+        }
       }
       useControlStore.getState().resetControls(defaults)
     } catch (err) {

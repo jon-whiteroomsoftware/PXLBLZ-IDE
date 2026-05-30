@@ -1,7 +1,14 @@
 export interface PatternMetadata {
   exportedVars: string[]
   patternVars: string[]  // all top-level var declarations, exported or not
-  controls: { exportName: string; kind: string; label: string }[]
+  controls: {
+    exportName: string
+    kind: string
+    label: string
+    // For pickers only: the top-level vars backing each arg (h,s,v or r,g,b),
+    // in arg order. Lets the UI seed the swatch from the pattern's init values.
+    pickerVars?: string[]
+  }[]
 }
 
 export interface PatternHandle {

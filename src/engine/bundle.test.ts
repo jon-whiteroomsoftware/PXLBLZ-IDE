@@ -77,7 +77,7 @@ describe('bundle — no library refs', () => {
     const src = `export function hsvPickerColor(h, s, v) {}`
     const { metadata } = bundle(src, {})
     expect(metadata.controls).toEqual([
-      { exportName: 'hsvPickerColor', kind: 'hsvPicker', label: 'Color' },
+      { exportName: 'hsvPickerColor', kind: 'hsvPicker', label: 'Color', pickerVars: ['', '', ''] },
     ])
   })
 
@@ -85,8 +85,26 @@ describe('bundle — no library refs', () => {
     const src = `export function rgbPickerColor(r, g, b) {}`
     const { metadata } = bundle(src, {})
     expect(metadata.controls).toEqual([
-      { exportName: 'rgbPickerColor', kind: 'rgbPicker', label: 'Color' },
+      { exportName: 'rgbPickerColor', kind: 'rgbPicker', label: 'Color', pickerVars: ['', '', ''] },
     ])
+  })
+
+  it('recovers the backing vars a picker assigns its args to, in arg order', () => {
+    const src = `
+      var hue = 0, saturation = 1, brightness = 1
+      export function hsvPickerColor(h, s, v) { hue = h; saturation = s; brightness = v }
+    `
+    const { metadata } = bundle(src, {})
+    expect(metadata.controls[0].pickerVars).toEqual(['hue', 'saturation', 'brightness'])
+  })
+
+  it('recovers picker vars regardless of assignment order in the body', () => {
+    const src = `
+      var ar = 0.5, ag = 0.5, ab = 0.5
+      export function rgbPickerA(r, g, b) { ab = b; ar = r; ag = g }
+    `
+    const { metadata } = bundle(src, {})
+    expect(metadata.controls[0].pickerVars).toEqual(['ar', 'ag', 'ab'])
   })
 
   it('ignores exported functions with unrecognized prefixes', () => {

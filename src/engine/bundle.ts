@@ -80,7 +80,11 @@ function extractMetadata(ast: unknown): BundleMetadata {
         for (const prefix of CONTROL_PREFIXES) {
           if (name.startsWith(prefix) && name.length > prefix.length) {
             const label = labelFromSuffix(name.slice(prefix.length))
-            controls.push({ exportName: name, kind: prefix, label })
+            const control: PatternMetadata['controls'][number] = { exportName: name, kind: prefix, label }
+            if (prefix === 'hsvPicker' || prefix === 'rgbPicker') {
+              control.pickerVars = extractPickerVars(decl)
+            }
+            controls.push(control)
             break
           }
         }
@@ -103,6 +107,31 @@ function extractMetadata(ast: unknown): BundleMetadata {
   }
 
   return { exportedVars, patternVars, controls, renderFns }
+}
+
+// A picker function maps its parameters to top-level vars via simple
+// `someVar = param` assignments, e.g. `rgbPickerA(r,g,b){ ar=r; ag=g; ab=b }`.
+// Recover the backing var for each parameter (in param order) so the UI can
+// seed the swatch from those vars' initial values. Parameters with no matching
+// assignment yield an empty slot (filtered out by the caller via length check).
+function extractPickerVars(decl: Record<string, unknown>): string[] {
+  const params = (decl['params'] as Record<string, unknown>[]) ?? []
+  const paramNames = params.map((p) => (p?.['type'] === 'Identifier' ? (p['name'] as string) : ''))
+
+  // param name → assigned var name
+  const assigned = new Map<string, string>()
+  walkAst(decl['body'], (n) => {
+    const node = n as Record<string, unknown>
+    if (node?.['type'] !== 'AssignmentExpression' || node['operator'] !== '=') return
+    const left = node['left'] as Record<string, unknown>
+    const right = node['right'] as Record<string, unknown>
+    if (left?.['type'] === 'Identifier' && right?.['type'] === 'Identifier') {
+      const rightName = right['name'] as string
+      if (!assigned.has(rightName)) assigned.set(rightName, left['name'] as string)
+    }
+  })
+
+  return paramNames.map((p) => assigned.get(p) ?? '')
 }
 
 function markRenderFn(name: string, fns: BundleMetadata['renderFns']): void {
