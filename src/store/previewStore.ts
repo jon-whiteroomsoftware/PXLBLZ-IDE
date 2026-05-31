@@ -130,10 +130,13 @@ export const usePreviewStore = create<PreviewState>()(
     }),
     {
       name: 'pixelblaze-preview',
+      // `grid` is no longer persisted: rows/cols are derived from the active
+      // pixel count (ADR-0004 — the count is the knob, the map arranges it), and
+      // spacing is fit to the container each resize. Only true viewport prefs
+      // ride in localStorage.
       partialize: (s) => ({
         brightness: s.brightness,
         speed: s.speed,
-        grid: s.grid,
         lightSize: s.lightSize,
         diffusion: s.diffusion,
       }),

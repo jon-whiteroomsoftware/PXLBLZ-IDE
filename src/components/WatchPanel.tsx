@@ -1,4 +1,25 @@
 import { usePreviewStore } from '@/store/previewStore'
+import { useMapStore, defaultPixelCountForDim } from '@/store/mapStore'
+import { useEditorStore } from '@/store/editorStore'
+import { clampPixelCount, cubeSideForCount } from '@/engine/camera'
+import { squarePlaneDims } from '@/engine/maps'
+
+// How the active count is laid out for display: 1D has no grid (null); 2D is the
+// squared-up plane (width×height); 3D is the count-derived cube lattice
+// (width×height×depth). Reflects the realized arrangement, so the 3D value is
+// side³ even when the count snapped to the nearest cube.
+function layoutFor(dim: 1 | 2 | 3, count: number): string | null {
+  const n = clampPixelCount(count)
+  if (dim === 2) {
+    const { rows, cols } = squarePlaneDims(n)
+    return `${cols}×${rows}`
+  }
+  if (dim === 3) {
+    const side = cubeSideForCount(n)
+    return `${side}×${side}×${side}`
+  }
+  return null
+}
 
 function formatValue(v: unknown): string {
   if (v === undefined || v === null) return '—'
@@ -18,28 +39,37 @@ export function WatchPanel() {
   const watchValues = usePreviewStore((s) => s.watchValues)
   const fps = usePreviewStore((s) => s.fps)
   const fidelity = usePreviewStore((s) => s.fidelity)
-  const grid = usePreviewStore((s) => s.grid)
+  const displayDim = useEditorStore((s) => s.displayDim)
+  const activePixelCount = useMapStore((s) => s.activePixelCount)
 
   const hasPatternVars = watchedPatternVars.length > 0
-  // The built-ins area always shows the fps / size / renderer readout. fps and
-  // size hold the left column for rows 1–2 with renderer in the right column of
-  // row 2; the watched built-ins flow into the remaining cells, so the default
+  // The built-ins area always shows the fps + renderer readout. fps holds the
+  // top-left cell and renderer the second-row-left cell; the watched built-ins
+  // flow into the remaining cells, so the default (elapsed, pixelCount watched)
   // reads:
   //   fps        elapsed
-  //   size       renderer
-  //   pixelCount
-  // Any further watched built-ins wrap onto the rows below.
-  const sizeValue = `${grid.cols}×${grid.rows}`
+  //   renderer   pixelCount
+  // Any further watched built-ins wrap onto the rows below. (Dimension-agnostic
+  // now — the old width×height "size" cell is gone; pixel count is the knob.)
   const fpsValue = fps === null ? '—' : fps.toFixed(1)
   const rendererValue = fidelity === 'fast' ? 'fast' : 'precise'
   const builtinCells: { name: string; value: string }[] = [{ name: 'fps', value: fpsValue }]
   if (watchedBuiltins[0] !== undefined) {
     builtinCells.push({ name: watchedBuiltins[0], value: formatValue(watchValues[watchedBuiltins[0]]) })
   }
-  builtinCells.push({ name: 'size', value: sizeValue })
   builtinCells.push({ name: 'renderer', value: rendererValue })
   for (let i = 1; i < watchedBuiltins.length; i++) {
     builtinCells.push({ name: watchedBuiltins[i], value: formatValue(watchValues[watchedBuiltins[i]]) })
+  }
+  // Read-only grid layout, shown right after pixelCount (1D has none). It maps
+  // the count to its realized arrangement so the field reads how the pixels are
+  // laid out — width×height in 2D, width×height×depth in 3D.
+  const layoutValue = layoutFor(displayDim, activePixelCount ?? defaultPixelCountForDim(displayDim))
+  if (layoutValue) {
+    const pixelCountIdx = builtinCells.findIndex((c) => c.name === 'pixelCount')
+    const layoutCell = { name: 'layout', value: layoutValue }
+    if (pixelCountIdx === -1) builtinCells.push(layoutCell)
+    else builtinCells.splice(pixelCountIdx + 1, 0, layoutCell)
   }
 
   return (

@@ -29,6 +29,18 @@ export function clampPixelCount(n: number): number {
   return Math.max(1, Math.min(MAX_PIXEL_COUNT, Math.floor(n) || 1))
 }
 
+// Derive a cube lattice side (points per axis) from a bare pixel count: the
+// stock cube has no aspect to honour, so it cubes up to the side nearest the
+// count's cube root (ADR-0004 — the count is the knob, the map arranges it).
+// Floored at 2 (a single-point cube has no extent) and capped so side³ stays
+// under the freeze guard. The realized count is side³, which may differ from
+// the requested count (e.g. 500 → side 8 → 512).
+export function cubeSideForCount(n: number): number {
+  const maxSide = Math.floor(Math.cbrt(MAX_PIXEL_COUNT))
+  const side = Math.round(Math.cbrt(Math.max(1, Math.floor(n) || 1)))
+  return Math.max(2, Math.min(maxSide, side))
+}
+
 export interface Locked2DGrid {
   rows: number
   cols: number

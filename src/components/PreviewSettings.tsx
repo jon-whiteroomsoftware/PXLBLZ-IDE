@@ -2,7 +2,8 @@ import { useState, useRef, useEffect } from 'react'
 import { Settings } from 'lucide-react'
 import { usePreviewStore } from '@/store/previewStore'
 import { useEditorStore } from '@/store/editorStore'
-import { MAX_GRID_AXIS } from '@/engine/camera'
+import { useMapStore, defaultPixelCountForDim } from '@/store/mapStore'
+import { MAX_PIXEL_COUNT, clampPixelCount } from '@/engine/camera'
 import { MIN_LIGHT_SIZE, MAX_LIGHT_SIZE } from '@/store/previewStore'
 
 const PRIMARY_BUILTIN_VARS = ['elapsed', 'pixelCount']
@@ -52,25 +53,33 @@ export function PreviewSettings() {
   const setLightSize = usePreviewStore((s) => s.setLightSize)
   const fidelity = usePreviewStore((s) => s.fidelity)
   const setFidelity = usePreviewStore((s) => s.setFidelity)
-  const gridRows = usePreviewStore((s) => s.grid.rows)
-  const gridCols = usePreviewStore((s) => s.grid.cols)
-  const setGrid = usePreviewStore((s) => s.setGrid)
+  const activePixelCount = useMapStore((s) => s.activePixelCount)
+  const setActivePixelCount = useMapStore((s) => s.setActivePixelCount)
+  const displayDim = useEditorStore((s) => s.displayDim)
   const watchedBuiltins = usePreviewStore((s) => s.watchedBuiltins)
   const setWatchedBuiltins = usePreviewStore((s) => s.setWatchedBuiltins)
   const watchedPatternVars = usePreviewStore((s) => s.watchedPatternVars)
   const setWatchedPatternVars = usePreviewStore((s) => s.setWatchedPatternVars)
   const patternVars = useEditorStore((s) => s.patternVars)
 
-  const [draftRows, setDraftRows] = useState(String(gridRows))
-  const [draftCols, setDraftCols] = useState(String(gridCols))
+  // The effective count: the per-pattern value, or the dimension's default when
+  // the pattern carries none. The draft tracks edits until committed.
+  const effectiveCount = activePixelCount ?? defaultPixelCountForDim(displayDim)
+  const [draftCount, setDraftCount] = useState(String(effectiveCount))
 
-  function commitGridSize() {
-    const clamp = (n: number) => Math.min(MAX_GRID_AXIS, Math.max(1, n))
-    const rows = clamp(parseInt(draftRows, 10) || gridRows)
-    const cols = clamp(parseInt(draftCols, 10) || gridCols)
-    setDraftRows(String(rows))
-    setDraftCols(String(cols))
-    setGrid({ rows, cols })
+  // Reflect external count changes (pattern switch, default per dimension) into
+  // the draft by adjusting state during render (React's recommended pattern over
+  // an effect): when the effective count moves on its own, re-seed the draft.
+  const [lastCount, setLastCount] = useState(effectiveCount)
+  if (effectiveCount !== lastCount) {
+    setLastCount(effectiveCount)
+    setDraftCount(String(effectiveCount))
+  }
+
+  function commitPixelCount() {
+    const n = clampPixelCount(parseInt(draftCount, 10) || effectiveCount)
+    setDraftCount(String(n))
+    setActivePixelCount(n)
   }
 
   function toggleBuiltin(name: string) {
@@ -189,35 +198,25 @@ export function PreviewSettings() {
             </div>
           </section>
 
-          {/* Grid Size */}
+          {/* Pixel Count */}
           <section className="mt-4">
             <h3 className="text-[10px] font-semibold text-amber-500/60 uppercase tracking-wider mb-3">
-              Grid Size
+              Pixel Count
             </h3>
             <div className="flex items-center gap-2">
               <input
-                aria-label="Grid columns"
+                aria-label="Pixel count"
                 type="number"
                 min={1}
-                max={MAX_GRID_AXIS}
-                value={draftCols}
-                onChange={(e) => setDraftCols(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && commitGridSize()}
-                className="w-14 bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-xs text-zinc-200 text-center focus:outline-none focus:border-amber-500"
-              />
-              <span className="text-xs text-zinc-500">×</span>
-              <input
-                aria-label="Grid rows"
-                type="number"
-                min={1}
-                max={MAX_GRID_AXIS}
-                value={draftRows}
-                onChange={(e) => setDraftRows(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && commitGridSize()}
-                className="w-14 bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-xs text-zinc-200 text-center focus:outline-none focus:border-amber-500"
+                max={MAX_PIXEL_COUNT}
+                value={draftCount}
+                onChange={(e) => setDraftCount(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && commitPixelCount()}
+                onBlur={commitPixelCount}
+                className="w-24 bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-xs text-zinc-200 text-center focus:outline-none focus:border-amber-500"
               />
               <button
-                onClick={commitGridSize}
+                onClick={commitPixelCount}
                 className="px-2 py-1 text-xs rounded border border-amber-500 text-amber-500 hover:bg-amber-500/10 transition-colors"
               >
                 OK

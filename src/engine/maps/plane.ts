@@ -5,6 +5,18 @@ export interface PlaneParams {
   cols: number
 }
 
+// Lay a bare pixel count out as the most-square plane that holds it (ADR-0004:
+// the count is the knob; the map decides the arrangement, and the stock plane
+// has no aspect to honour, so it squares up). `cols = ceil(sqrt(n))` then
+// `rows = ceil(n/cols)`, so the grid is always wide-enough and at most one row
+// is partial (e.g. 99 → 10×10 with the last cell unused).
+export function squarePlaneDims(pixelCount: number): PlaneParams {
+  const n = Math.max(1, Math.floor(pixelCount) || 1)
+  const cols = Math.ceil(Math.sqrt(n))
+  const rows = Math.ceil(n / cols)
+  return { rows, cols }
+}
+
 // Normalize an integer position on [0, n) into [0, 1], matching the legacy grid
 // loop's per-axis normalization (`x = col/(cols-1)`). A single-cell axis maps to
 // 0 (avoids divide-by-zero), as the old renderer did.

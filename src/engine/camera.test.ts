@@ -2,6 +2,7 @@ import {
   canvasSize,
   clampGridDim,
   clampPixelCount,
+  cubeSideForCount,
   fitSpacing,
   MAX_GRID_AXIS,
   MAX_PIXEL_COUNT,
@@ -34,6 +35,19 @@ describe('camera — freeze guard', () => {
     expect(MAX_PIXEL_COUNT).toBe(65536)
     expect(clampPixelCount(1_000_000)).toBe(65536)
     expect(clampPixelCount(100)).toBe(100)
+  })
+
+  it('derives a cube side from a pixel count (nearest cube root)', () => {
+    expect(cubeSideForCount(512)).toBe(8)
+    expect(cubeSideForCount(500)).toBe(8)
+    expect(cubeSideForCount(1000)).toBe(10)
+  })
+
+  it('floors the cube side at 2 and caps it so side³ stays under the guard', () => {
+    expect(cubeSideForCount(1)).toBe(2)
+    expect(cubeSideForCount(0)).toBe(2)
+    const maxSide = cubeSideForCount(1_000_000)
+    expect(maxSide ** 3).toBeLessThanOrEqual(MAX_PIXEL_COUNT)
   })
 
   it('keeps a sane per-axis generator cap at 256', () => {

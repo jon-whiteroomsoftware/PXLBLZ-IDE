@@ -110,7 +110,7 @@ dependency resolution) be unit-tested without a DOM.
 
 | Store | Holds |
 |---|---|
-| `previewStore` | `isRunning`, `speed`, `brightness`, `grid` (rows/cols/spacing), `lightSize`, `diffusion`, `fidelity` mode, watch config + values, `fps`. Persisted (subset) to `localStorage` via `persist`. |
+| `previewStore` | `isRunning`, `speed`, `brightness`, `grid` (rows/cols/spacing — derived from the active pixel count for 2D, not user-edited), `lightSize`, `diffusion`, `fidelity` mode, watch config + values, `fps`. Persisted (subset) to `localStorage` via `persist`. |
 | `patternStore` | `activePatternId` / `activeLibraryName` / `activeDemoName` (mutually exclusive selection), `userPatterns` list, CRUD + layout-persist actions. |
 | `editorStore` | `source`, `previewSource`, `compileStatus`, `isReadOnly`, `previewPatternName`, `patternVars`, `controls`, `nativeDim`, `displayDim`. |
 | `mapStore` | `activeMapId`, `activeShapeId`, `activePixelCount`, `userMaps`; stock-map catalogue + resolution helpers. |
@@ -118,8 +118,9 @@ dependency resolution) be unit-tested without a DOM.
 | `cameraStore` | Ephemeral orbit camera angle + auto-orbit armed flag (never persisted). |
 
 Each store exports its `*InitialState`; tests reset with `setState(initialState)`
-(merge mode). `previewStore` persists only `brightness`, `speed`, `grid`, `lightSize`,
-`diffusion` and deep-merges them on load (`mergePersistedPreview`) so a stale blob
+(merge mode). `previewStore` persists only `brightness`, `speed`, `lightSize`,
+`diffusion` (grid dims are derived from the count, not persisted) and deep-merges them
+on load (`mergePersistedPreview`) so a stale blob
 missing newer fields falls back to defaults rather than `undefined`. Notably,
 **`fidelity` is transient** (defaults to `fast` each load) — per-pattern persistence
 of the renderer choice is not yet wired.
@@ -428,7 +429,8 @@ The preview pane is a WebGL viewport plus a small, dimension-gated control set.
 
 - **Layout build.** On source/spacing/fidelity/layout change, the pane bundles the
   pattern, derives native dimensionality, resolves the active layout, builds the map
-  points (1D shape embedding / 2D plane at grid dims / 3D cube lattice), constructs the
+  points (1D shape embedding / 2D plane squared up from the pixel count / 3D cube
+  lattice whose side is derived from the count), constructs the
   Fast or Precise shim, loads the handle, seeds the control UI from the pattern's own
   initialized vars (decoded from raw in Precise mode), and starts the loop.
 - **Auto-fit.** A `ResizeObserver` derives `spacing` from the container width so the
@@ -437,7 +439,9 @@ The preview pane is a WebGL viewport plus a small, dimension-gated control set.
 - **Run/pause.** The header pill toggles `isRunning`; the app starts running by default
   (`previewInitialState.isRunning = true`). Paused patterns dim and show a single
   frozen frame.
-- **Controls** (`PreviewSettings.tsx`): brightness (0–1), grid rows/cols, **preview
+- **Controls** (`PreviewSettings.tsx`): brightness (0–1), **pixel count** (a single
+  numeric input clamped to `MAX_PIXEL_COUNT`; the map arranges it — the stock plane
+  squares it up, the stock cube cubes it — so there is no width×height knob), **preview
   light size** (`0.15–0.95`, default 0.5 — source diameter as a fraction of pitch),
   **diffusion** (0–1 blur merging sources), playback **speed** (`SpeedSelector`,
   0.1×–2× via the virtual clock), the **Shape** dropdown (`ShapeSelector`), and the
@@ -452,7 +456,9 @@ The preview pane is a WebGL viewport plus a small, dimension-gated control set.
   opaque draw make the orbit legible; no scroll-dolly.
 - **Var watcher** (`WatchPanel.tsx`): a live table of selected pattern vars and
   built-ins (`elapsed`, `pixelCount`, …), refreshed each frame via `onFrame`, decoded
-  from raw in Precise mode. Arrays show per element.
+  from raw in Precise mode. Arrays show per element. A fixed readout always shows
+  `fps`/`renderer`, and a read-only `layout` cell after `pixelCount` (W×H in 2D,
+  W×H×D in 3D, none in 1D).
 - **Pattern UI controls** (`ControlsPanel.tsx`): renders sliders / toggles / HSV / RGB
   pickers from `metadata.controls`; values live in `controlStore` (transient, reset on
   reload), encoded to the pattern domain before each callback. Unsupported control

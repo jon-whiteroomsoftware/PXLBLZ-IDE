@@ -11,6 +11,7 @@ import {
   DEFAULT_SHAPE_ID,
   DEFAULT_SHAPE_PIXEL_COUNT,
   DEFAULT_CUBE_SIDE,
+  defaultPixelCountForDim,
   resolveMap,
 } from '@/store/mapStore'
 import { useCameraStore } from '@/store/cameraStore'
@@ -20,9 +21,10 @@ import { bundle } from '@/engine/bundle'
 import { createRenderer } from '@/engine/renderer'
 import { createRenderLoop, type RenderLoop } from '@/engine/renderLoop'
 import { createVirtualClock } from '@/engine/virtualClock'
-import { createPlaneMap, cubePixelCount } from '@/engine/maps'
+import { createPlaneMap, createCubeMap, cubePixelCount, squarePlaneDims } from '@/engine/maps'
 import {
   clampPixelCount,
+  cubeSideForCount,
   advanceAutoOrbit,
   lattice3DPitchPx,
   diffusionBlurStdDev,
@@ -64,6 +66,9 @@ export function Preview() {
   // The square 3D viewport size (CSS px) when a 3D layout is active, else null.
   // Drives the diffusion blur in 3D, where there is no locked-2D `spacing`.
   const [canvas3DPx, setCanvas3DPx] = useState<number | null>(null)
+  // The active cube lattice side when a 3D layout is live; drives the diffusion
+  // blur's projected-pitch calc, which must match the count-derived lattice.
+  const [cube3DSide, setCube3DSide] = useState<number>(DEFAULT_CUBE_SIDE)
   const [runtimeError, setRuntimeError] = useState<string | null>(null)
 
   // Derive spacing from container width so cols always fill the available width.
@@ -105,6 +110,9 @@ export function Preview() {
     setRuntimeError(null)
 
     const gridWithDims = { ...usePreviewStore.getState().grid, ...canvasDims }
+    // The derived cube side for a 3D layout (set in the 3D branch), so the
+    // diffusion blur and renderer use the count-derived lattice, not a fixed one.
+    let cubeSide = DEFAULT_CUBE_SIDE
 
     // Bundle first so the pattern's native dimensionality (highest render fn) is
     // known before resolving its layout — the dropdown filters by it (ADR-0005).
@@ -155,24 +163,37 @@ export function Preview() {
     } else {
       const map = resolveMap(selection.mapId ?? DEFAULT_MAP_ID, userMaps)
       if (map.dim === 3) {
-        // 3D cube lattice: side³ pixels, each carrying a [0,1]³ `pos` the orbit
-        // camera projects. The render loop dispatches render3D on the 3-arity
-        // sample; the renderer draws via the camera path.
-        pixelCount = clampPixelCount(cubePixelCount(DEFAULT_CUBE_SIDE))
-        mapPoints = map.resolve(pixelCount)
+        // 3D cube lattice: the pixel count is the knob (ADR-0004), so the stock
+        // cube cubes the count up to a side³ lattice (count → nearest cube). Each
+        // point carries a [0,1]³ `pos` the orbit camera projects; the render loop
+        // dispatches render3D on the 3-arity sample.
+        const count = activePixelCount ?? defaultPixelCountForDim(3)
+        cubeSide = cubeSideForCount(count)
+        pixelCount = clampPixelCount(cubePixelCount(cubeSide))
+        mapPoints = createCubeMap({ side: cubeSide }).resolve(pixelCount)
         positions3D = mapPoints.map((p) => p.pos as [number, number, number])
         displayDim = 3
       } else {
-        // 1a stock plane: tracks the global grid seed (per-pattern map params land
-        // in a later slice). Build it AT the grid dims so the sampled coordinates
-        // line up with the renderer's locked-2D grid layout exactly — a fixed-size
-        // stock plane would tile/overflow against a differently-sized grid. count
-        // is therefore rows×cols, not the persisted pixelCount.
-        pixelCount = gridWithDims.rows * gridWithDims.cols
-        mapPoints = createPlaneMap({
-          rows: gridWithDims.rows,
-          cols: gridWithDims.cols,
-        }).resolve(pixelCount)
+        // 2D stock plane: the pixel count is the knob (ADR-0004); with no aspect
+        // to honour the plane squares the count up to the most-square grid that
+        // holds it. The renderer's locked-2D layout is driven by these derived
+        // dims (synced to the store below) so sampled coords and drawn dots line
+        // up exactly. count is the user's count, not rows×cols (the last grid row
+        // may be partial).
+        pixelCount = clampPixelCount(activePixelCount ?? defaultPixelCountForDim(2))
+        const planeDims = squarePlaneDims(pixelCount)
+        // Sync the renderer's locked-2D grid to the derived dims so the spacing
+        // (fit-to-container) and projection machinery downstream uses them. Guard
+        // on a change so re-running this effect doesn't churn the store needlessly.
+        const cur = usePreviewStore.getState().grid
+        if (cur.rows !== planeDims.rows || cur.cols !== planeDims.cols) {
+          usePreviewStore.getState().setGrid(planeDims)
+        }
+        gridWithDims.rows = planeDims.rows
+        gridWithDims.cols = planeDims.cols
+        // Keep spacing fit to the container for the (possibly new) column count.
+        gridWithDims.spacing = Math.max(1, canvasDims.spacing * cur.cols / planeDims.cols)
+        mapPoints = createPlaneMap(planeDims).resolve(pixelCount)
         displayDim = 2
       }
     }
@@ -247,9 +268,10 @@ export function Preview() {
     if (positions3D) {
       const containerWidth = containerRef.current?.getBoundingClientRect().width ?? 400
       const px = cube3DCanvasPx(containerWidth)
-      renderer.set3DPositions(positions3D, { canvasPx: px, side: DEFAULT_CUBE_SIDE })
+      renderer.set3DPositions(positions3D, { canvasPx: px, side: cubeSide })
       renderer.setCamera(useCameraStore.getState().camera)
       setCanvas3DPx(px)
+      setCube3DSide(cubeSide)
     } else {
       renderer.set3DPositions(null)
       setCanvas3DPx(null)
@@ -417,7 +439,7 @@ export function Preview() {
   // `spacing`; in 3D it's the projected lattice pitch — uniform across dimensions.
   const diffusionPitch =
     displayDim === 3
-      ? lattice3DPitchPx(canvas3DPx ?? 0, DEFAULT_CUBE_SIDE)
+      ? lattice3DPitchPx(canvas3DPx ?? 0, cube3DSide)
       : canvasDims?.spacing ?? grid.spacing
   const diffusionFactor =
     displayDim === 3 ? DIFFUSION_BLUR_PITCH_FACTOR_3D : DIFFUSION_BLUR_PITCH_FACTOR_2D

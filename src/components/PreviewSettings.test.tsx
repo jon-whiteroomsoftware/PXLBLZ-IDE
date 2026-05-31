@@ -3,9 +3,13 @@ import { render, screen, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { PreviewSettings } from './PreviewSettings'
 import { usePreviewStore, previewInitialState } from '@/store/previewStore'
+import { useMapStore, mapInitialState } from '@/store/mapStore'
+import { useEditorStore, editorInitialState } from '@/store/editorStore'
 
 beforeEach(() => {
   usePreviewStore.setState(previewInitialState)
+  useMapStore.setState(mapInitialState)
+  useEditorStore.setState(editorInitialState)
 })
 
 describe('PreviewSettings', () => {
@@ -103,46 +107,41 @@ describe('PreviewSettings', () => {
     expect(screen.getByRole('radio', { name: 'Precise' })).toHaveAttribute('aria-checked', 'true')
   })
 
-  it('grid size inputs show current rows and cols', async () => {
+  it('pixel count input shows the dimension default when no pattern count is set', async () => {
     const user = userEvent.setup()
     render(<PreviewSettings />)
     await user.click(screen.getByRole('button', { name: /preview settings/i }))
-    expect(screen.getByRole('spinbutton', { name: /grid columns/i })).toHaveValue(32)
-    expect(screen.getByRole('spinbutton', { name: /grid rows/i })).toHaveValue(32)
+    // displayDim defaults to 2 → 1024 (the 32×32 plane default).
+    expect(screen.getByRole('spinbutton', { name: /pixel count/i })).toHaveValue(1024)
   })
 
-  it('clicking OK commits grid size to the store', async () => {
+  it('clicking OK commits the pixel count to the map store', async () => {
     const user = userEvent.setup()
     render(<PreviewSettings />)
     await user.click(screen.getByRole('button', { name: /preview settings/i }))
-    await user.clear(screen.getByRole('spinbutton', { name: /grid columns/i }))
-    await user.type(screen.getByRole('spinbutton', { name: /grid columns/i }), '8')
-    await user.clear(screen.getByRole('spinbutton', { name: /grid rows/i }))
-    await user.type(screen.getByRole('spinbutton', { name: /grid rows/i }), '4')
+    await user.clear(screen.getByRole('spinbutton', { name: /pixel count/i }))
+    await user.type(screen.getByRole('spinbutton', { name: /pixel count/i }), '256')
     await user.click(screen.getByRole('button', { name: /ok/i }))
-    const { rows, cols } = usePreviewStore.getState().grid
-    expect(cols).toBe(8)
-    expect(rows).toBe(4)
+    expect(useMapStore.getState().activePixelCount).toBe(256)
   })
 
-  it('pressing Enter in a grid input commits the size', async () => {
+  it('pressing Enter in the pixel count input commits it', async () => {
     const user = userEvent.setup()
     render(<PreviewSettings />)
     await user.click(screen.getByRole('button', { name: /preview settings/i }))
-    await user.clear(screen.getByRole('spinbutton', { name: /grid columns/i }))
-    await user.type(screen.getByRole('spinbutton', { name: /grid columns/i }), '10{Enter}')
-    expect(usePreviewStore.getState().grid.cols).toBe(10)
+    await user.clear(screen.getByRole('spinbutton', { name: /pixel count/i }))
+    await user.type(screen.getByRole('spinbutton', { name: /pixel count/i }), '300{Enter}')
+    expect(useMapStore.getState().activePixelCount).toBe(300)
   })
 
-  it('clamps an oversized grid entry to 256 on commit', async () => {
+  it('clamps an oversized pixel count to the freeze guard on commit', async () => {
     const user = userEvent.setup()
     render(<PreviewSettings />)
     await user.click(screen.getByRole('button', { name: /preview settings/i }))
-    await user.clear(screen.getByRole('spinbutton', { name: /grid columns/i }))
-    await user.type(screen.getByRole('spinbutton', { name: /grid columns/i }), '99999')
+    await user.clear(screen.getByRole('spinbutton', { name: /pixel count/i }))
+    await user.type(screen.getByRole('spinbutton', { name: /pixel count/i }), '999999')
     await user.click(screen.getByRole('button', { name: /ok/i }))
-    expect(usePreviewStore.getState().grid.cols).toBe(256)
-    // Draft input is corrected to the clamped value too
-    expect(screen.getByRole('spinbutton', { name: /grid columns/i })).toHaveValue(256)
+    expect(useMapStore.getState().activePixelCount).toBe(65536)
+    expect(screen.getByRole('spinbutton', { name: /pixel count/i })).toHaveValue(65536)
   })
 })

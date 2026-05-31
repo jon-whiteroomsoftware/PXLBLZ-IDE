@@ -1,5 +1,31 @@
 import { describe, it, expect } from 'vitest'
-import { createPlaneMap } from './plane'
+import { createPlaneMap, squarePlaneDims } from './plane'
+
+describe('squarePlaneDims', () => {
+  it('returns an exact square for a perfect-square count', () => {
+    expect(squarePlaneDims(1024)).toEqual({ rows: 32, cols: 32 })
+    expect(squarePlaneDims(100)).toEqual({ rows: 10, cols: 10 })
+  })
+
+  it('is wide-enough with at most one partial row for a non-square count', () => {
+    const { rows, cols } = squarePlaneDims(99)
+    expect(cols).toBe(10)
+    expect(rows).toBe(10)
+    expect(rows * cols).toBeGreaterThanOrEqual(99)
+  })
+
+  it('always holds the count and stays near-square', () => {
+    for (const n of [1, 2, 7, 50, 513, 65536]) {
+      const { rows, cols } = squarePlaneDims(n)
+      expect(rows * cols).toBeGreaterThanOrEqual(n)
+      expect(Math.abs(cols - rows)).toBeLessThanOrEqual(1)
+    }
+  })
+
+  it('floors a degenerate count to a single cell', () => {
+    expect(squarePlaneDims(0)).toEqual({ rows: 1, cols: 1 })
+  })
+})
 
 describe('createPlaneMap', () => {
   it('produces exactly pixelCount points', () => {
