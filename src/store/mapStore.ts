@@ -7,7 +7,7 @@ import {
   deleteMap,
 } from '@/engine/storage'
 import { createPlaneMap, createCubeMap, createCylinderMap, createCustomMap, type PixelMap } from '@/engine/maps'
-import { seedMapRecords } from '@/engine/maps/seeds'
+import { SEED_STOCK_MAPS, SEED_MAP_IDS } from '@/engine/maps/seeds'
 import { SHAPES, type ShapeId } from '@/engine/shapes'
 import type { LayoutSource } from '@/engine/layout'
 
@@ -69,6 +69,9 @@ export const STOCK_MAPS: PixelMap[] = [
   createPlaneMap({ rows: 32, cols: 32 }),
   createCylinderMap({ rows: 32, cols: 32 }),
   createCubeMap({ side: DEFAULT_CUBE_SIDE }),
+  // The relocated #140 example clouds (helix/sphere/ring): stock by provenance,
+  // never listed in "Your Maps" (#141). Baked replay, not live regeneration.
+  ...SEED_STOCK_MAPS,
 ]
 
 // Resolve a map id to its runtime PixelMap (stock or user). Falls back to the
@@ -137,14 +140,14 @@ export const useMapStore = create<MapState>()((set, get) => ({
   setActivePixelCount: (count) => set({ activePixelCount: count }),
 
   loadMaps: async () => {
-    // Seed the stock custom maps (#140) on first run via the production createMap
-    // path, so the existing loadMaps → selector flow is exercised end to end.
-    // Idempotent: only rows whose id is absent are written.
+    // "Your Maps" lists user-authored maps only (#141). The #140 example clouds
+    // are now stock (in STOCK_MAPS), so prune any rows an earlier build seeded
+    // into the IDB `maps` store before they were relocated — otherwise they'd
+    // show up duplicated under "Your Maps".
     const existing = await listMaps()
-    const haveIds = new Set(existing.map((m) => m.id))
-    const seeds = seedMapRecords().filter((s) => !haveIds.has(s.id))
-    for (const s of seeds) await createMap(s)
-    const maps = seeds.length ? await listMaps() : existing
+    const stale = existing.filter((m) => SEED_MAP_IDS.includes(m.id))
+    for (const m of stale) await deleteMap(m.id)
+    const maps = stale.length ? existing.filter((m) => !SEED_MAP_IDS.includes(m.id)) : existing
     set({ userMaps: maps.sort((a, b) => b.updatedAt - a.updatedAt) })
   },
 

@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
-import { ChevronDown } from 'lucide-react'
+import { ChevronDown, Plus, FolderOpen } from 'lucide-react'
 import { LIBRARIES } from '@/pixelblaze/libs'
 import { DEMOS } from '@/pixelblaze/demos'
 import { nameConflicts, uniquePatternName } from '@/engine/patternName'
 import { NEW_PATTERN_SRC } from '@/pixelblaze/newPattern'
+import { parseEpe } from '@/engine/epeImport'
 import { getSetting } from '@/engine/storage'
 import { useEditorStore } from '@/store/editorStore'
 import { usePatternStore, PatternRecord, LastActive, LAST_ACTIVE_KEY } from '@/store/patternStore'
-import { useMapStore } from '@/store/mapStore'
+import { useMapStore, MapRecord } from '@/store/mapStore'
 import { LibraryHoverCard } from '@/components/LibraryHoverCard'
 import {
   AlertDialogRoot,
@@ -56,14 +57,46 @@ function CollapseChevron({ collapsed }: { collapsed: boolean }) {
   )
 }
 
+// An icon action button for a section header (e.g. "+" new, or open-from-disk).
+// Stops propagation so clicking it acts without toggling the section's collapse.
+// `title` doubles as the hover tooltip and the accessible label.
+function HeaderAction({
+  icon,
+  title,
+  onClick,
+  disabled,
+}: {
+  icon: React.ReactNode
+  title: string
+  onClick?: () => void
+  disabled?: boolean
+}) {
+  return (
+    <button
+      onClick={(e) => {
+        e.stopPropagation()
+        onClick?.()
+      }}
+      disabled={disabled}
+      title={title}
+      aria-label={title}
+      className="shrink-0 text-zinc-400 hover:text-amber-400 disabled:opacity-30 disabled:hover:text-zinc-400"
+    >
+      {icon}
+    </button>
+  )
+}
+
 function SectionHeader({
   label,
   collapsed,
   onToggle,
+  action,
 }: {
   label: string
   collapsed: boolean
   onToggle: () => void
+  action?: React.ReactNode
 }) {
   return (
     <div
@@ -71,7 +104,10 @@ function SectionHeader({
       className="mt-1 px-3 py-1.5 flex items-center justify-between gap-1 cursor-pointer select-none text-[11px] font-mono font-semibold text-amber-500/60 uppercase tracking-wider border-t border-zinc-800 bg-zinc-950/60 hover:text-amber-500/90"
     >
       <span className="truncate">{label}</span>
-      <CollapseChevron collapsed={collapsed} />
+      <div className="flex items-center gap-1.5">
+        {action}
+        <CollapseChevron collapsed={collapsed} />
+      </div>
     </div>
   )
 }
@@ -128,15 +164,19 @@ function ListItem({
   )
 }
 
-function UserPatternItem({
-  pattern,
+// A selectable, in-place-renamable, deletable list row shared by "Your Patterns"
+// and "Your Maps" (#141). `noun` only varies the rename-conflict / delete copy.
+function EditableListItem({
+  name,
+  noun,
   active,
   takenNames,
   onSelect,
   onRename,
   onDelete,
 }: {
-  pattern: PatternRecord
+  name: string
+  noun: 'pattern' | 'map'
   active: boolean
   takenNames: string[]
   onSelect: () => void
@@ -145,13 +185,13 @@ function UserPatternItem({
 }) {
   const [editing, setEditing] = useState(false)
   const [hovered, setHovered] = useState(false)
-  const [draft, setDraft] = useState(pattern.name)
+  const [draft, setDraft] = useState(name)
   const [conflict, setConflict] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
   function startEdit(e: React.MouseEvent) {
     e.stopPropagation()
-    setDraft(pattern.name)
+    setDraft(name)
     setConflict(false)
     setEditing(true)
     setTimeout(() => inputRef.current?.select(), 0)
@@ -160,7 +200,7 @@ function UserPatternItem({
   function commitRename() {
     const trimmed = draft.trim()
     if (!trimmed) { setEditing(false); return }
-    if (trimmed === pattern.name) { setEditing(false); return }
+    if (trimmed === name) { setEditing(false); return }
     if (nameConflicts(trimmed, takenNames)) {
       setConflict(true)
       inputRef.current?.select()
@@ -207,11 +247,11 @@ function UserPatternItem({
                 ? 'bg-red-900/60 text-red-200 ring-1 ring-red-500'
                 : 'bg-zinc-700 text-zinc-100',
             ].join(' ')}
-            title={conflict ? 'A pattern with that name already exists' : undefined}
+            title={conflict ? `A ${noun} with that name already exists` : undefined}
           />
         ) : hovered ? (
           <>
-            <span className="flex-1 min-w-0 truncate">{pattern.name}</span>
+            <span className="flex-1 min-w-0 truncate">{name}</span>
             <button
               onClick={startEdit}
               className="text-zinc-500 hover:text-zinc-300 text-xs px-1 shrink-0"
@@ -230,13 +270,13 @@ function UserPatternItem({
             </AlertDialogTrigger>
           </>
         ) : (
-          <span>{pattern.name}</span>
+          <span>{name}</span>
         )}
       </li>
       <AlertDialogContent>
-        <AlertDialogTitle>Delete pattern?</AlertDialogTitle>
+        <AlertDialogTitle>Delete {noun}?</AlertDialogTitle>
         <AlertDialogDescription>
-          "{pattern.name}" will be permanently deleted and cannot be recovered.
+          "{name}" will be permanently deleted and cannot be recovered.
         </AlertDialogDescription>
         <AlertDialogFooter>
           <AlertDialogCancel>Cancel</AlertDialogCancel>
@@ -262,6 +302,57 @@ export function PatternList() {
   const loadPatterns = usePatternStore((s) => s.loadPatterns)
   const renamePattern = usePatternStore((s) => s.renamePattern)
   const removePattern = usePatternStore((s) => s.removePattern)
+  const addPattern = usePatternStore((s) => s.addPattern)
+
+  const userMaps = useMapStore((s) => s.userMaps)
+  const renameMap = useMapStore((s) => s.renameMap)
+  const removeMap = useMapStore((s) => s.removeMap)
+
+  // Which custom map is selected in "Your Maps". UI-local highlight for now;
+  // opening it in the editor (map mode) is wired by #151.
+  const [selectedMapId, setSelectedMapId] = useState<string | null>(null)
+
+  // Open-from-disk (.epe import) lives next to "New pattern" (#141): both create
+  // a pattern, so they sit together on the "Your Patterns" header.
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [importError, setImportError] = useState<string | null>(null)
+  const importErrorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => () => { if (importErrorTimerRef.current) clearTimeout(importErrorTimerRef.current) }, [])
+
+  function showImportError(msg: string) {
+    setImportError(msg)
+    if (importErrorTimerRef.current) clearTimeout(importErrorTimerRef.current)
+    importErrorTimerRef.current = setTimeout(() => setImportError(null), 4000)
+  }
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    e.target.value = ''
+    const reader = new FileReader()
+    reader.onload = async (ev) => {
+      const text = ev.target?.result
+      if (typeof text !== 'string') return
+      let parsed
+      try {
+        parsed = parseEpe(text)
+      } catch (err) {
+        showImportError(err instanceof Error ? err.message : 'Failed to import EPE file')
+        return
+      }
+      const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+      const name = uniquePatternName(parsed.name, userPatterns.map((p) => p.name))
+      const record: PatternRecord = { id, name, src: parsed.src, controls: {}, updatedAt: Date.now() }
+      await addPattern(record)
+      setActivePattern(id)
+      setSource(record.src)
+      setPreviewSource(record.src)
+      setPreviewPatternName(record.name)
+      setIsReadOnly(false)
+    }
+    reader.readAsText(file)
+  }
 
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({})
   const [hoveredLib, setHoveredLib] = useState<string | null>(null)
@@ -386,23 +477,64 @@ export function PatternList() {
     setIsReadOnly(false)
   }
 
+  // Create a fresh "Untitled Pattern" and open it. Lives next to "Your Patterns"
+  // (#141) so a new pattern is created right by its list.
+  async function handleCreatePattern() {
+    const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+    const name = uniquePatternName('Untitled Pattern', userPatterns.map((p) => p.name))
+    const record: PatternRecord = { id, name, src: NEW_PATTERN_SRC, controls: {}, updatedAt: Date.now() }
+    await addPattern(record)
+    setActivePattern(id)
+    setSource(record.src)
+    setPreviewSource(record.src)
+    setPreviewPatternName(record.name)
+    setIsReadOnly(false)
+  }
+
+  // Selecting a custom map marks it active; opening it in the editor (map mode)
+  // is wired by #151.
+  function openUserMap(map: MapRecord) {
+    setSelectedMapId(map.id)
+  }
+
   const isCollapsed = (label: string) => !!collapsedSections[label]
   const toggleCollapsed = (label: string) =>
     setCollapsedSections((c) => ({ ...c, [label]: !c[label] }))
 
   return (
     <div className="flex flex-col h-full text-xs font-mono">
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".epe"
+        className="hidden"
+        onChange={handleFileChange}
+      />
       <SectionHeader
         label="Your Patterns"
         collapsed={isCollapsed('Your Patterns')}
         onToggle={() => toggleCollapsed('Your Patterns')}
+        action={
+          <>
+            <HeaderAction
+              icon={<FolderOpen size={14} />}
+              title="Open pattern from .epe file"
+              onClick={() => fileInputRef.current?.click()}
+            />
+            <HeaderAction icon={<Plus size={14} />} title="New pattern" onClick={handleCreatePattern} />
+          </>
+        }
       />
+      {importError && (
+        <p className="pl-6 pr-3 py-1 text-red-400 truncate" title={importError}>{importError}</p>
+      )}
       {!isCollapsed('Your Patterns') && (
         <ul>
           {userPatterns.map((pattern) => (
-            <UserPatternItem
+            <EditableListItem
               key={pattern.id}
-              pattern={pattern}
+              name={pattern.name}
+              noun="pattern"
               active={activePatternId === pattern.id}
               takenNames={userPatterns.filter((p) => p.id !== pattern.id).map((p) => p.name)}
               onSelect={() => openUserPattern(pattern)}
@@ -411,6 +543,36 @@ export function PatternList() {
             />
           ))}
         </ul>
+      )}
+
+      <SectionHeader
+        label="Your Maps"
+        collapsed={isCollapsed('Your Maps')}
+        onToggle={() => toggleCollapsed('Your Maps')}
+        action={<HeaderAction icon={<Plus size={14} />} title="New map (coming soon)" disabled />}
+      />
+      {!isCollapsed('Your Maps') && (
+        userMaps.length === 0 ? (
+          <p className="pl-6 pr-3 py-1.5 text-zinc-600 italic select-none">No custom maps yet</p>
+        ) : (
+          <ul>
+            {userMaps.map((map) => (
+              <EditableListItem
+                key={map.id}
+                name={map.name}
+                noun="map"
+                active={selectedMapId === map.id}
+                takenNames={userMaps.filter((m) => m.id !== map.id).map((m) => m.name)}
+                onSelect={() => openUserMap(map)}
+                onRename={(name) => renameMap(map.id, name)}
+                onDelete={() => {
+                  removeMap(map.id)
+                  if (selectedMapId === map.id) setSelectedMapId(null)
+                }}
+              />
+            ))}
+          </ul>
+        )
       )}
 
       <SectionHeader

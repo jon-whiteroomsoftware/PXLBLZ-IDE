@@ -9,9 +9,7 @@ import { usePatternStore, PatternRecord } from '@/store/patternStore'
 import { useEditorStore } from '@/store/editorStore'
 import { bundle } from '@/engine/bundle'
 import { LIBRARIES } from '@/pixelblaze/libs'
-import { NEW_PATTERN_SRC } from '@/pixelblaze/newPattern'
 import { uniquePatternName } from '@/engine/patternName'
-import { parseEpe } from '@/engine/epeImport'
 
 function generateId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
@@ -70,74 +68,6 @@ export default function App() {
     setPreviewSource(p.src)
     setIsReadOnly(false)
   }, [source, activePatternId, userPatterns, setSource, setPreviewSource, setIsReadOnly])
-
-  const fileInputRef = useRef<HTMLInputElement>(null)
-  const [importError, setImportError] = useState<string | null>(null)
-  const importErrorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  useEffect(() => () => { if (importErrorTimerRef.current) clearTimeout(importErrorTimerRef.current) }, [])
-
-  const showImportError = useCallback((msg: string) => {
-    setImportError(msg)
-    if (importErrorTimerRef.current) clearTimeout(importErrorTimerRef.current)
-    importErrorTimerRef.current = setTimeout(() => setImportError(null), 4000)
-  }, [])
-
-  const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    e.target.value = ''
-    const reader = new FileReader()
-    reader.onload = async (ev) => {
-      const text = ev.target?.result
-      if (typeof text !== 'string') return
-      let parsed
-      try {
-        parsed = parseEpe(text)
-      } catch (err) {
-        showImportError(err instanceof Error ? err.message : 'Failed to import EPE file')
-        return
-      }
-      const { userPatterns, addPattern, setActivePattern } = usePatternStore.getState()
-      const { setSource, setIsReadOnly, setPreviewSource, setPreviewPatternName } = useEditorStore.getState()
-      const id = generateId()
-      const existingNames = userPatterns.map((p) => p.name)
-      const name = uniquePatternName(parsed.name, existingNames)
-      const record: PatternRecord = {
-        id,
-        name,
-        src: parsed.src,
-        controls: {},
-        updatedAt: Date.now(),
-      }
-      await addPattern(record)
-      setActivePattern(id)
-      setSource(record.src)
-      setIsReadOnly(false)
-      setPreviewSource(record.src)
-      setPreviewPatternName(record.name)
-    }
-    reader.readAsText(file)
-  }, [showImportError])
-
-  const handleCreate = useCallback(async () => {
-    const id = generateId()
-    const existingNames = userPatterns.map((p) => p.name)
-    const name = uniquePatternName('Untitled Pattern', existingNames)
-    const record: PatternRecord = {
-      id,
-      name,
-      src: NEW_PATTERN_SRC,
-      controls: {},
-      updatedAt: Date.now(),
-    }
-    await addPattern(record)
-    setActivePattern(id)
-    setSource(record.src)
-    setIsReadOnly(false)
-    setPreviewSource(record.src)
-    setPreviewPatternName(record.name)
-  }, [userPatterns, addPattern, setActivePattern, setSource, setIsReadOnly, setPreviewSource, setPreviewPatternName])
 
   const handleForkDemo = useCallback(async () => {
     if (!activeDemoName) return
@@ -198,21 +128,6 @@ export default function App() {
       </header>
       <div className="flex flex-1 min-h-0">
         <aside data-testid="left-pane" className="shrink-0 flex flex-col" style={{ width: leftWidth }}>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".epe"
-            className="hidden"
-            onChange={handleFileChange}
-          />
-          <PaneHeader>
-            {importError
-              ? <span className="flex-1 min-w-0 truncate text-red-400 text-xs">{importError}</span>
-              : <span className="flex-1">Patterns</span>
-            }
-            <Button size="sm" variant="ghost" className="text-xs text-zinc-400 bg-zinc-800/70 hover:bg-zinc-700/70 hover:text-zinc-300" onClick={() => fileInputRef.current?.click()}>Open</Button>
-            <Button size="sm" variant="ghost" className="text-xs text-zinc-400 bg-zinc-800/70 hover:bg-zinc-700/70 hover:text-zinc-300" onClick={handleCreate}>New</Button>
-          </PaneHeader>
           <div className="flex-1 overflow-y-auto">
             <PatternList />
           </div>

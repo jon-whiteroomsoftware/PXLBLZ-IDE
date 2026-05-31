@@ -1,11 +1,13 @@
-import type { MapRecord } from '../storage'
-import { inferDim } from './custom'
+import type { PixelMap } from './types'
+import { createCustomMap } from './custom'
 
-// Seeded stock custom maps (issue #140): genuinely irregular geometry — a 3D
-// point cloud and a non-rectangular 2D arrangement — baked as real `maps`-store
-// rows via the production createMap path, before any authoring UI exists. They
-// prove the custom-map consume path end to end and double as the eventual
-// builder templates. All coords are normalized to [0,1] per axis (map space).
+// Stock example clouds (originally seeded into the `maps` IDB store by #140,
+// relocated to the stock catalogue by #141): genuinely irregular geometry — two
+// 3D point clouds and a non-rectangular 2D arrangement. They ship with the IDE
+// (stock provenance per CONTEXT.md), so they are NOT listed in "Your Maps"; they
+// replay a baked coordinate array rather than regenerate, but that mechanism is
+// internal. They double as the eventual builder templates. All coords are
+// normalized to [0,1] per axis (map space).
 
 function round(n: number): number {
   return Math.round(n * 1e4) / 1e4
@@ -63,16 +65,13 @@ const SEED_SPECS: SeedSpec[] = [
   { id: 'seed-ring-2d', name: 'Ring (2D)', points: ringPoints(60) },
 ]
 
-// The seed maps as ready-to-persist MapRecords. `updatedAt` is stamped at seed
-// time so freshly seeded rows sort to the top of the map list like any new map.
-export function seedMapRecords(now: number = Date.now()): MapRecord[] {
-  return SEED_SPECS.map((s) => ({
-    id: s.id,
-    name: s.name,
-    dim: inferDim(s.points),
-    generator: 'custom',
-    params: {},
-    points: s.points,
-    updatedAt: now,
-  }))
-}
+// The example clouds as stock PixelMaps — baked replay (ADR-0007), appended to
+// STOCK_MAPS. They are stock by provenance, so the consume path still treats
+// them as custom (non-builtin) point clouds for drawing.
+export const SEED_STOCK_MAPS: PixelMap[] = SEED_SPECS.map((s) =>
+  createCustomMap(s.points, { id: s.id, name: s.name }),
+)
+
+// The ids of the relocated clouds — used to prune rows that the #140 seeder
+// persisted into the `maps` IDB store before they became stock (migration).
+export const SEED_MAP_IDS: string[] = SEED_SPECS.map((s) => s.id)

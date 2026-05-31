@@ -100,16 +100,34 @@ describe('mapFromRecord', () => {
   })
 })
 
-describe('loadMaps seeding (#140)', () => {
-  it('seeds the stock custom maps idempotently', async () => {
+describe('seed clouds relocated to stock (#141)', () => {
+  it('exposes the example clouds as stock maps, not user maps', () => {
+    expect(STOCK_MAPS.some((m) => m.id === 'seed-ring-2d')).toBe(true)
+    expect(STOCK_MAPS.some((m) => m.id === 'seed-helix-3d')).toBe(true)
+    expect(STOCK_MAPS.some((m) => m.id === 'seed-sphere-3d')).toBe(true)
+  })
+
+  it('starts "Your Maps" empty on a fresh profile', async () => {
     await useMapStore.getState().loadMaps()
-    const first = useMapStore.getState().userMaps
-    expect(first.some((m) => m.id === 'seed-ring-2d')).toBe(true)
-    expect(first.some((m) => m.generator === 'custom' && m.dim === 3)).toBe(true)
-    const countAfterFirst = first.length
-    // A second load must not duplicate the seeded rows.
+    expect(useMapStore.getState().userMaps).toHaveLength(0)
+  })
+
+  it('prunes any stale seed rows a prior build persisted into the maps store', async () => {
+    const seedRow: MapRecord = {
+      id: 'seed-ring-2d',
+      name: 'Ring (2D)',
+      dim: 2,
+      generator: 'custom',
+      params: {},
+      points: [[0.5, 0.5]],
+      updatedAt: 1000,
+    }
+    await useMapStore.getState().addMap(seedRow)
+    await useMapStore.getState().addMap(USER_MAP)
     await useMapStore.getState().loadMaps()
-    expect(useMapStore.getState().userMaps).toHaveLength(countAfterFirst)
+    const ids = useMapStore.getState().userMaps.map((m) => m.id)
+    expect(ids).not.toContain('seed-ring-2d')
+    expect(ids).toContain('u1')
   })
 })
 

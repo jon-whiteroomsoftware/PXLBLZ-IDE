@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { PatternList } from './PatternList'
 import { useEditorStore, editorInitialState } from '@/store/editorStore'
 import { usePatternStore, patternInitialState } from '@/store/patternStore'
+import { useMapStore, mapInitialState, type MapRecord } from '@/store/mapStore'
 import { DEMOS } from '@/pixelblaze/demos'
 
 vi.mock('@/engine/storage', async (importOriginal) => {
@@ -16,13 +17,28 @@ vi.mock('@/engine/storage', async (importOriginal) => {
     getSetting: vi.fn().mockResolvedValue(undefined),
     setSetting: vi.fn().mockResolvedValue(undefined),
     createPattern: vi.fn().mockResolvedValue(undefined),
+    listMaps: vi.fn().mockResolvedValue([]),
+    deleteMap: vi.fn().mockResolvedValue(undefined),
   }
 })
+
+import { listMaps } from '@/engine/storage'
 
 beforeEach(() => {
   useEditorStore.setState(editorInitialState)
   usePatternStore.setState(patternInitialState)
+  useMapStore.setState(mapInitialState)
 })
+
+const CUSTOM_MAP: MapRecord = {
+  id: 'm1',
+  name: 'My Tree',
+  dim: 3,
+  generator: 'custom',
+  params: {},
+  points: [[0.1, 0.2, 0.3]],
+  updatedAt: 1000,
+}
 
 describe('PatternList', () => {
   it('clicking a demo sets previewSource to the demo source', async () => {
@@ -43,5 +59,16 @@ describe('PatternList', () => {
     await user.click(screen.getByText(new RegExp(`^${demoName}`)))
 
     expect(useEditorStore.getState().previewPatternName).toBe(demoName)
+  })
+
+  it('shows the empty state when there are no custom maps', async () => {
+    render(<PatternList />)
+    expect(await screen.findByText('No custom maps yet')).toBeInTheDocument()
+  })
+
+  it('lists user-authored custom maps under "Your Maps"', async () => {
+    vi.mocked(listMaps).mockResolvedValueOnce([CUSTOM_MAP])
+    render(<PatternList />)
+    expect(await screen.findByText('My Tree')).toBeInTheDocument()
   })
 })
