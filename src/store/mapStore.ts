@@ -6,7 +6,7 @@ import {
   updateMap,
   deleteMap,
 } from '@/engine/storage'
-import { createPlaneMap, createCubeMap, createCustomMap, type PixelMap } from '@/engine/maps'
+import { createPlaneMap, createCubeMap, createCylinderMap, createCustomMap, type PixelMap } from '@/engine/maps'
 import { seedMapRecords } from '@/engine/maps/seeds'
 import { SHAPES, type ShapeId } from '@/engine/shapes'
 import type { LayoutSource } from '@/engine/layout'
@@ -46,6 +46,8 @@ export function buildMap(
   switch (generator) {
     case 'cube':
       return createCubeMap({ side: params.side ?? DEFAULT_CUBE_SIDE }, { id, name })
+    case 'cylinder':
+      return createCylinderMap({ rows: params.rows ?? 32, cols: params.cols ?? 32 }, { id, name })
     case 'plane':
     default:
       return createPlaneMap({ rows: params.rows ?? 32, cols: params.cols ?? 32 }, { id, name })
@@ -65,6 +67,7 @@ export function mapFromRecord(r: MapRecord): PixelMap {
 // global grid seed defaults; per-pattern params are threaded in later slices.
 export const STOCK_MAPS: PixelMap[] = [
   createPlaneMap({ rows: 32, cols: 32 }),
+  createCylinderMap({ rows: 32, cols: 32 }),
   createCubeMap({ side: DEFAULT_CUBE_SIDE }),
 ]
 

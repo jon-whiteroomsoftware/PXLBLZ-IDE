@@ -21,7 +21,7 @@ import { bundle } from '@/engine/bundle'
 import { createRenderer } from '@/engine/renderer'
 import { createRenderLoop, type RenderLoop } from '@/engine/renderLoop'
 import { createVirtualClock } from '@/engine/virtualClock'
-import { createPlaneMap, createCubeMap, cubePixelCount, squarePlaneDims } from '@/engine/maps'
+import { createPlaneMap, createCubeMap, createCylinderMap, cylinderDims, cubePixelCount, squarePlaneDims } from '@/engine/maps'
 import {
   clampPixelCount,
   cubeSideForCount,
@@ -162,7 +162,20 @@ export function Preview() {
       displayDim = shape.displayDim
     } else {
       const map = resolveMap(selection.mapId ?? DEFAULT_MAP_ID, userMaps)
-      if (map.dim === 3) {
+      if (map.id === 'cylinder') {
+        // Cylinder: a 2D grid wrapped onto a 3D surface. The pattern samples flat
+        // [u,v] grid coords (render2D runs unchanged), but each pixel is drawn in
+        // 3D on the cylinder wall, so it gets the orbit camera like the cube. The
+        // count is the knob (ADR-0004): squared up to a grid, then wrapped.
+        pixelCount = clampPixelCount(activePixelCount ?? defaultPixelCountForDim(2))
+        // Non-square grid (cols ≈ π·rows) so the wrapped dots stay square on the
+        // visible surface instead of bunching vertically.
+        const dims = cylinderDims(pixelCount)
+        mapPoints = createCylinderMap(dims).resolve(pixelCount)
+        positions3D = mapPoints.map((p) => p.pos as [number, number, number])
+        cubeSide = cubeSideForCount(pixelCount) // dot-size reference only
+        displayDim = 3
+      } else if (map.dim === 3) {
         if (map.builtin) {
           // 3D cube lattice: the pixel count is the knob (ADR-0004), so the stock
           // cube cubes the count up to a side³ lattice (count → nearest cube). Each
