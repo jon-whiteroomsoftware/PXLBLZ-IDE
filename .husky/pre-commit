@@ -1,21 +1,24 @@
 npm run lint && npm test
 
-# If src/ files are staged but docs/prd/ is not, prompt to confirm the PRD
-# is still accurate before the commit lands.
-SRC_CHANGED=$(git diff --cached --name-only | grep -c "^src/" || true)
-PRD_CHANGED=$(git diff --cached --name-only | grep -c "^docs/prd/" || true)
+# If *significant* (non-test) src/ files are staged but docs/REFERENCE.md is not,
+# prompt to confirm the system reference is still accurate before the commit lands.
+# Test-only changes (*.test.* / *.bench.*) don't alter the described behaviour, so
+# they're excluded to avoid nag fatigue.
+STAGED_SRC=$(git diff --cached --name-only | grep "^src/" || true)
+SIGNIFICANT_SRC=$(echo "$STAGED_SRC" | grep -vE '\.(test|bench)\.[tj]sx?$' | grep -v '^$' || true)
+REFERENCE_CHANGED=$(git diff --cached --name-only | grep -c "^docs/REFERENCE.md$" || true)
 
-if [ "$SRC_CHANGED" -gt 0 ] && [ "$PRD_CHANGED" -eq 0 ]; then
+if [ -n "$SIGNIFICANT_SRC" ] && [ "$REFERENCE_CHANGED" -eq 0 ]; then
   echo ""
-  echo "⚠️  Source files are staged but docs/prd/ has no changes."
-  echo "   Staged src/ files:"
-  git diff --cached --name-only | grep "^src/" | sed 's/^/     /'
+  echo "⚠️  Source files are staged but docs/REFERENCE.md has no changes."
+  echo "   Staged non-test src/ files:"
+  echo "$SIGNIFICANT_SRC" | sed 's/^/     /'
   echo ""
-  printf "   Does the PRD still accurately reflect these changes? (y/n) "
+  printf "   Does docs/REFERENCE.md still accurately reflect these changes? (y/n) "
   { read -r answer < /dev/tty; } 2>/dev/null || answer="y"
   if [ "$answer" != "y" ] && [ "$answer" != "Y" ]; then
     echo ""
-    echo "   Aborting. Update docs/prd/Pixelblaze IDE v2 PRD.md and re-commit."
+    echo "   Aborting. Update docs/REFERENCE.md and re-commit."
     exit 1
   fi
 fi
