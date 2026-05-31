@@ -9,12 +9,12 @@ import {
 } from '@/engine/layout'
 import type { ShapeId } from '@/engine/shapes'
 
-// The "Shape" dropdown (ADR-0005): one knob over two code owners. It lists the
+// The "Layout" dropdown (ADR-0005): one knob over two code owners. It lists the
 // layouts the active pattern can consume — filtered by `sample`-arity — and
 // routes the choice to the right store (1D shapes → shapeId, 2D/3D maps → mapId).
 // All routing/filter logic is the pure `@/engine/layout` helpers; this is a thin
 // wrapper that reads state and dispatches.
-export function ShapeSelector() {
+export function LayoutSelector() {
   const [isOpen, setIsOpen] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -52,17 +52,17 @@ export function ShapeSelector() {
   return (
     <div ref={containerRef} className="relative">
       <button
-        aria-label="Shape"
+        aria-label="Layout"
         onClick={() => setIsOpen((o) => !o)}
         className="flex items-center justify-center h-6 px-1.5 rounded text-xs font-mono text-zinc-400 hover:text-amber-400/70 hover:bg-zinc-700 transition-colors"
       >
-        {current?.name ?? 'Shape'}
+        {current?.name ?? 'Layout'}
       </button>
 
       {isOpen && (
         <div
           role="listbox"
-          aria-label="Shape"
+          aria-label="Layout"
           className="absolute top-full right-0 mt-1 w-28 bg-zinc-900 border border-zinc-800 rounded-md shadow-xl z-50 py-1 font-mono"
         >
           {options.map((opt) => (

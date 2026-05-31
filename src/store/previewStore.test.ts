@@ -73,19 +73,20 @@ describe('previewStore', () => {
     expect(grid.cols).toBe(1)
   })
 
-  it('starts with elapsed and pixelCount watched by default', () => {
-    expect(usePreviewStore.getState().watchedBuiltins).toEqual(['elapsed', 'pixelCount'])
-    expect(usePreviewStore.getState().watchedPatternVars).toEqual([])
+  it('does not watch pattern variables by default (all-or-nothing, collapsed)', () => {
+    expect(usePreviewStore.getState().watchPatternVars).toBe(false)
   })
 
-  it('setWatchedBuiltins replaces the list', () => {
-    usePreviewStore.getState().setWatchedBuiltins(['delta', 'energyAverage'])
-    expect(usePreviewStore.getState().watchedBuiltins).toEqual(['delta', 'energyAverage'])
+  it('setWatchPatternVars toggles the all-or-nothing watch', () => {
+    usePreviewStore.getState().setWatchPatternVars(true)
+    expect(usePreviewStore.getState().watchPatternVars).toBe(true)
+    usePreviewStore.getState().setWatchPatternVars(false)
+    expect(usePreviewStore.getState().watchPatternVars).toBe(false)
   })
 
-  it('setWatchedPatternVars replaces the list', () => {
-    usePreviewStore.getState().setWatchedPatternVars(['t', 'width'])
-    expect(usePreviewStore.getState().watchedPatternVars).toEqual(['t', 'width'])
+  it('setElapsed updates the elapsed telemetry', () => {
+    usePreviewStore.getState().setElapsed(1234)
+    expect(usePreviewStore.getState().elapsed).toBe(1234)
   })
 
   it('setWatchValues updates watch values', () => {

@@ -114,7 +114,7 @@ export function OrbitControls({ canvasRef }: { canvasRef: RefObject<HTMLCanvasEl
   }, [canvasRef])
 
   return (
-    <div className="absolute bottom-2 left-2 flex gap-1">
+    <div className="absolute top-2 right-2 flex gap-1">
       <button
         aria-label={autoOrbit ? 'Pause auto-orbit' : 'Resume auto-orbit'}
         title={autoOrbit ? 'Pause auto-orbit' : 'Resume auto-orbit'}

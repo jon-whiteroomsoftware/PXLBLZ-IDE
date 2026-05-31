@@ -1,15 +1,10 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
-import { Play, Pause } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Editor } from '@/components/Editor'
 import { CompileStatusBadge } from '@/components/CompileStatusBadge'
 import { PatternList } from '@/components/PatternList'
 import { Preview } from '@/components/Preview'
-import { PreviewSettings } from '@/components/PreviewSettings'
-import { ShapeSelector } from '@/components/ShapeSelector'
-import { SpeedSelector } from '@/components/SpeedSelector'
 import { PaneHeader } from '@/components/PaneHeader'
-import { usePreviewStore } from '@/store/previewStore'
 import { usePatternStore, PatternRecord } from '@/store/patternStore'
 import { useEditorStore } from '@/store/editorStore'
 import { bundle } from '@/engine/bundle'
@@ -52,17 +47,12 @@ function Splitter({ onDrag }: { onDrag: (dx: number) => void }) {
 }
 
 export default function App() {
-  const isRunning = usePreviewStore((s) => s.isRunning)
-  const toggle = usePreviewStore((s) => s.toggle)
-
   const activePatternId = usePatternStore((s) => s.activePatternId)
   const activeLibraryName = usePatternStore((s) => s.activeLibraryName)
   const activeDemoName = usePatternStore((s) => s.activeDemoName)
   const userPatterns = usePatternStore((s) => s.userPatterns)
   const addPattern = usePatternStore((s) => s.addPattern)
   const setActivePattern = usePatternStore((s) => s.setActivePattern)
-  const previewPatternName = useEditorStore((s) => s.previewPatternName)
-  const nativeDim = useEditorStore((s) => s.nativeDim)
   const source = useEditorStore((s) => s.source)
   const compileStatus = useEditorStore((s) => s.compileStatus)
   const setSource = useEditorStore((s) => s.setSource)
@@ -266,36 +256,10 @@ export default function App() {
           </div>
         </main>
         <Splitter onDrag={handleRightDrag} />
-        <aside data-testid="preview-pane" className="shrink-0 flex flex-col" style={{ width: rightWidth }}>
-          <PaneHeader>
-            <span className="flex-1 min-w-0 flex items-center gap-1.5">
-              <span className="truncate">{previewPatternName || '—'}</span>
-              {previewPatternName && (
-                <span
-                  title={`Native dimensionality: ${nativeDim}D (highest render fn)`}
-                  className="shrink-0 px-1.5 py-0.5 rounded text-[9px] font-medium tracking-wide uppercase text-zinc-500 border border-zinc-700 leading-none tabular-nums"
-                >
-                  {nativeDim}D
-                </span>
-              )}
-            </span>
-            <ShapeSelector />
-            <PreviewSettings />
-            <SpeedSelector />
-            <button
-              aria-label={isRunning ? 'Pause' : 'Run'}
-              data-testid="shadcn-button"
-              onClick={toggle}
-              className={`flex items-center justify-center w-6 h-6 rounded hover:bg-zinc-700 transition-colors ${
-                isRunning ? 'text-green-500 hover:text-green-400' : 'text-red-500 hover:text-red-400'
-              }`}
-            >
-              {isRunning ? <Play size={18} /> : <Pause size={18} />}
-            </button>
-          </PaneHeader>
-          <div className="flex-1 overflow-hidden">
-            <Preview />
-          </div>
+        {/* The preview is an output/instrument surface (#150): no header strip — the
+            canvas sits flush at the top and all controls live in the deck below it. */}
+        <aside data-testid="preview-pane" className="shrink-0 flex flex-col min-h-0" style={{ width: rightWidth }}>
+          <Preview />
         </aside>
       </div>
     </div>

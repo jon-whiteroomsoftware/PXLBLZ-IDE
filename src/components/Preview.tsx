@@ -2,8 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { usePreviewStore } from '@/store/previewStore'
 import { useEditorStore } from '@/store/editorStore'
 import { useControlStore } from '@/store/controlStore'
-import { WatchPanel } from '@/components/WatchPanel'
-import { ControlsPanel } from '@/components/ControlsPanel'
+import { PreviewDeck } from '@/components/PreviewDeck'
 import { usePatternStore } from '@/store/patternStore'
 import {
   useMapStore,
@@ -338,8 +337,12 @@ export function Preview() {
     // 3D layout: hand the orbit renderer the cube's [0,1]³ positions, a square
     // canvas, and a base dot size; seed the camera from the ephemeral store.
     if (positions3D) {
+      // The canvas container now wraps only the canvas (deck sits below), so its
+      // height is circular with the canvas size. Size the square 3D viewport off
+      // the pane width alone — the dominant constraint for the narrow preview pane.
       const rect = containerRef.current?.getBoundingClientRect()
-      const px = cube3DCanvasPx(rect?.width ?? 400, rect?.height ?? 400)
+      const width = rect?.width ?? 400
+      const px = cube3DCanvasPx(width, width)
       renderer.set3DPositions(positions3D, { canvasPx: px, side: cubeSide })
       renderer.setCamera(useCameraStore.getState().camera)
       setCanvas3DPx(px)
@@ -369,9 +372,11 @@ export function Preview() {
       paint,
       onError: (err) => setRuntimeError(err.message),
       onFps: (fps) => usePreviewStore.getState().setFps(fps),
-      onFrame: (_delta, builtins, elapsedMs) => {
-        const { watchedBuiltins, watchedPatternVars } = usePreviewStore.getState()
-        if (watchedBuiltins.length === 0 && watchedPatternVars.length === 0) return
+      onFrame: (_delta, _builtins, elapsedMs) => {
+        // Telemetry is unconditional (#150): publish elapsed every frame so the
+        // readout's elapsed cell always tracks, independent of variable watching.
+        usePreviewStore.getState().setElapsed(elapsedMs)
+        if (!usePreviewStore.getState().watchPatternVars) return
         // Watched values live in the pattern's numeric domain (raw int32 in
         // fidelity mode); decode scalars and array elements to the float UI
         // domain so the panel reads the same in fast and fidelity modes.
@@ -384,14 +389,8 @@ export function Preview() {
               ? (v as unknown[]).map((n) => (typeof n === 'number' ? dec(n) : n))
               : v
         const values: Record<string, unknown> = {}
-        if (watchedBuiltins.includes('elapsed')) {
-          values['elapsed'] = `${(elapsedMs / 1000).toFixed(1)}s`
-        }
-        for (const name of watchedBuiltins) {
-          if (name !== 'elapsed') values[name] = decode(builtins[name])
-        }
         const exports = handle.getExports()
-        for (const name of watchedPatternVars) {
+        for (const name of useEditorStore.getState().patternVars) {
           values[name] = decode(exports[name])
         }
         usePreviewStore.getState().setWatchValues(values)
@@ -467,6 +466,7 @@ export function Preview() {
     else {
       loop.stop()
       usePreviewStore.getState().setFps(null)
+      usePreviewStore.getState().setElapsed(null)
     }
   }, [isRunning])
 
@@ -549,7 +549,7 @@ export function Preview() {
     diffusionStdDev > 0 ? { filter: 'url(#preview-diffusion)' } : undefined
 
   return (
-    <div className="h-full bg-zinc-950 pt-3 pl-3 flex flex-col">
+    <div className="h-full bg-zinc-950 flex flex-col overflow-y-auto">
       {/* Linear-light Gaussian blur for diffusion. SVG filters default to
           color-interpolation-filters: linearRGB (set explicitly here), so the
           blur conserves energy and does not dim, unlike CSS blur() in sRGB. The
@@ -568,33 +568,31 @@ export function Preview() {
           </filter>
         </defs>
       </svg>
-      <div ref={containerRef} className="relative w-full flex-1 min-h-0">
-        <div className="flex flex-col">
-          <div className="relative inline-block">
-            <canvas
-              ref={canvasRef}
-              className="rounded-sm"
-              style={diffusionFilter}
-            />
-            {/* Orbit viewport controls — gated on the active layout's display
-                dimension (#129), so a 1D pattern on a 3D shape still gets them. */}
-            {displayDim === 3 && <OrbitControls canvasRef={canvasRef} />}
-            {runtimeError && (
-              <div className="absolute inset-0 flex items-center justify-center p-4 pointer-events-none">
-                <div className="bg-zinc-900/80 rounded-lg px-4 py-3 max-w-[90%]">
-                  <span className="text-red-400 text-sm font-mono break-words">
-                    {runtimeError}
-                  </span>
-                </div>
+      {/* Canvas flush at the top of the pane (#150): no header strip above it. The
+          container drives the ResizeObserver fit; the deck stacks below. */}
+      <div ref={containerRef} className="relative w-full shrink-0">
+        <div className="relative inline-block">
+          <canvas
+            ref={canvasRef}
+            className="rounded-sm"
+            style={diffusionFilter}
+          />
+          {/* Orbit viewport controls — gated on the active layout's display
+              dimension (#129), so a 1D pattern on a 3D shape still gets them. Now
+              at the top-right, clear of the navigation deck below the canvas. */}
+          {displayDim === 3 && <OrbitControls canvasRef={canvasRef} />}
+          {runtimeError && (
+            <div className="absolute inset-0 flex items-center justify-center p-4 pointer-events-none">
+              <div className="bg-zinc-900/80 rounded-lg px-4 py-3 max-w-[90%]">
+                <span className="text-red-400 text-sm font-mono break-words">
+                  {runtimeError}
+                </span>
               </div>
-            )}
-          </div>
-          <div className="mt-2">
-            <WatchPanel />
-            <ControlsPanel />
-          </div>
+            </div>
+          )}
         </div>
       </div>
+      <PreviewDeck />
     </div>
   )
 }

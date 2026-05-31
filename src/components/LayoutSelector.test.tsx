@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { ShapeSelector } from './ShapeSelector'
+import { LayoutSelector } from './LayoutSelector'
 import { useMapStore, mapInitialState } from '@/store/mapStore'
 import { useEditorStore, editorInitialState } from '@/store/editorStore'
 
@@ -10,18 +10,18 @@ beforeEach(() => {
   useEditorStore.setState(editorInitialState)
 })
 
-describe('ShapeSelector (smoke)', () => {
+describe('LayoutSelector (smoke)', () => {
   it('shows the active map name for a 2D pattern', () => {
     useEditorStore.setState({ nativeDim: 2 })
-    render(<ShapeSelector />)
-    expect(screen.getByRole('button', { name: /shape/i })).toHaveTextContent('Plane')
+    render(<LayoutSelector />)
+    expect(screen.getByRole('button', { name: /layout/i })).toHaveTextContent('Plane')
   })
 
   it('lists 1D shapes and routes a choice to the shape store', async () => {
     const user = userEvent.setup()
     useEditorStore.setState({ nativeDim: 1 })
-    render(<ShapeSelector />)
-    await user.click(screen.getByRole('button', { name: /shape/i }))
+    render(<LayoutSelector />)
+    await user.click(screen.getByRole('button', { name: /layout/i }))
     await user.click(screen.getByRole('option', { name: 'Ring' }))
     expect(useMapStore.getState().activeShapeId).toBe('ring')
   })
@@ -29,8 +29,8 @@ describe('ShapeSelector (smoke)', () => {
   it('selecting a map for a 2D pattern routes to the map store', async () => {
     const user = userEvent.setup()
     useEditorStore.setState({ nativeDim: 2 })
-    render(<ShapeSelector />)
-    await user.click(screen.getByRole('button', { name: /shape/i }))
+    render(<LayoutSelector />)
+    await user.click(screen.getByRole('button', { name: /layout/i }))
     await user.click(screen.getByRole('option', { name: 'Plane' }))
     expect(useMapStore.getState().activeMapId).toBe('plane')
   })
