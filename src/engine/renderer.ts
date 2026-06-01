@@ -5,6 +5,7 @@ import {
   MAX_PIXEL_COUNT,
   pointSize,
   point3DSize,
+  diffusionGlow,
   nearestNeighborSpacing,
   projectIndex,
   projectPos,
@@ -53,6 +54,11 @@ export interface Renderer {
   ): void
   // Update the orbit camera (auto-orbit advance, drag, reset). No-op in 2D mode.
   setCamera(camera: OrbitCamera): void
+  // Set the diffusion amount (0–1). Diffusion grows a soft glow tail around each
+  // light source's solid core to merge neighbours like a physical diffuser, never
+  // resizing the core and never dimming (ADR-0006). Recomputes 2D quad sizes in
+  // place; 3D consumes it per paint.
+  setDiffusion(diffusion: number): void
 }
 
 const DIM_FACTOR = 0.15
@@ -70,15 +76,38 @@ void main() {
 }
 `
 
-// Circular dot: discard fragments outside the point's inscribed circle so the
-// gl.POINTS quad reads as a round LED, matching the legacy ctx.arc() output.
+// Per-source light kernel (ADR-0006). The gl.POINTS quad is grown beyond the solid
+// core to hold a soft diffusion glow tail; `q` is the fragment's radius as a
+// fraction of the quad half-width (0 at centre, 1 at the inscribed-circle rim).
+//   - q > 1                discarded (outside the round LED).
+//   - q <= u_coreFrac      the solid core, full intensity (the crisp light source).
+//   - otherwise            the glow tail: u_glowStrength at the core edge, easing
+//                          to 0 at the rim (a physical diffuser's spread).
+// u_mode selects the draw pass so 3D can render opaque cores then add the tail:
+//   0 = full (2D/1D, one additive pass)   1 = core only   2 = tail only.
+// At diffusion 0, coreFrac is 1 and glowStrength 0, so this is a solid disc —
+// bit-for-bit the legacy ctx.arc() / inscribed-circle output.
 const FRAG_SRC = `
 precision mediump float;
 varying vec3 v_color;
+uniform float u_coreFrac;
+uniform float u_glowStrength;
+uniform int u_mode;
 void main() {
   vec2 d = gl_PointCoord - vec2(0.5);
-  if (dot(d, d) > 0.25) discard;
-  gl_FragColor = vec4(v_color, 1.0);
+  float q = length(d) * 2.0;
+  if (q > 1.0) discard;
+  float intensity;
+  if (q <= u_coreFrac) {
+    if (u_mode == 2) discard; // tail pass skips the solid core
+    intensity = 1.0;
+  } else {
+    if (u_mode == 1) discard; // core pass skips the tail
+    float t = (q - u_coreFrac) / max(1e-4, 1.0 - u_coreFrac);
+    float f = (1.0 - t) * (1.0 - t);
+    intensity = u_glowStrength * f;
+  }
+  gl_FragColor = vec4(v_color * intensity, 1.0);
 }
 `
 
@@ -122,6 +151,7 @@ export function createRenderer(canvas: HTMLCanvasElement, initialGrid: RendererG
       setShapePositions: () => undefined,
       set3DPositions: () => undefined,
       setCamera: () => undefined,
+      setDiffusion: () => undefined,
     }
   }
 
@@ -134,6 +164,9 @@ export function createRenderer(canvas: HTMLCanvasElement, initialGrid: RendererG
   const aColor = gl.getAttribLocation(program, 'a_color')
   const aSize = gl.getAttribLocation(program, 'a_size')
   const aDepth = gl.getAttribLocation(program, 'a_depth')
+  const uCoreFrac = gl.getUniformLocation(program, 'u_coreFrac')
+  const uGlowStrength = gl.getUniformLocation(program, 'u_glowStrength')
+  const uMode = gl.getUniformLocation(program, 'u_mode')
 
   // 2D positions depend only on the grid, not the frame, so they're rebuilt on
   // grid change rather than per paint. `positions` is the clip-space (x,y) per
@@ -152,6 +185,13 @@ export function createRenderer(canvas: HTMLCanvasElement, initialGrid: RendererG
   // per paint from `pos3D` + `camera`. Takes precedence over the 2D paths.
   let pos3D: [number, number, number][] | null = null
   let camera: OrbitCamera = DEFAULT_ORBIT
+  // Diffusion amount (0–1) and the kernel params it resolves to for the active
+  // mode. `coreFrac`/`glowStrength` are frame-uniform (one diffusion + one pitch
+  // per layout), so the shader reads them as uniforms; only the per-vertex quad
+  // size differs (depth-cued in 3D). Updated by setDiffusion (2D) / project3D (3D).
+  let diffusion = 0
+  let coreFrac = 1
+  let glowStrength = 0
   // Measured normalized nearest-neighbour spacing of the active 3D layout, used
   // to anchor the light-source diameter to the real on-screen neighbour gap (so
   // it is right for a cube, sphere, helix, or pole alike). Set by set3DPositions.
@@ -179,9 +219,20 @@ export function createRenderer(canvas: HTMLCanvasElement, initialGrid: RendererG
     }
     positions = new Float32Array(coords)
     drawCount = coords.length / 2
-    sizes = new Float32Array(drawCount).fill(pointSize(grid, grid.lightSize ?? 1))
     gl!.bindBuffer(gl!.ARRAY_BUFFER, posBuffer)
     gl!.bufferData(gl!.ARRAY_BUFFER, positions, gl!.STATIC_DRAW)
+    apply2DGlow()
+  }
+
+  // Resolve the 2D glow kernel from the current diffusion + pitch and upload the
+  // (uniform) per-vertex quad size. The solid core is the light-size disc; the
+  // diffusion tail grows the quad around it without moving the core (ADR-0006).
+  function apply2DGlow(): void {
+    const core = pointSize(grid, grid.lightSize ?? 1)
+    const glow = diffusionGlow(diffusion, core, grid.spacing)
+    coreFrac = glow.coreFrac
+    glowStrength = glow.glowStrength
+    sizes = new Float32Array(drawCount).fill(glow.quadDiameterPx)
     gl!.bindBuffer(gl!.ARRAY_BUFFER, sizeBuffer)
     gl!.bufferData(gl!.ARRAY_BUFFER, sizes, gl!.STATIC_DRAW)
   }
@@ -211,14 +262,22 @@ export function createRenderer(canvas: HTMLCanvasElement, initialGrid: RendererG
     // scales it per-dot (nearer = larger). Diffusion never touches it — the blur
     // that merges sources is a CSS filter applied by the UI layer.
     const scale = fit3DScale(FIT_3D_MARGIN, lattice3DHalfExtent)
-    const baseSize = point3DSize(canvas.width, lattice3DSpacing, grid.lightSize ?? 1, scale)
+    const ls = grid.lightSize ?? 1
+    const baseSize = point3DSize(canvas.width, lattice3DSpacing, ls, scale)
+    // Grow the orb quad to hold the diffusion glow tail (the core stays baseSize);
+    // pitch = baseSize / lightSize is the measured on-screen neighbour gap. Drawn
+    // as opaque cores + an additive tail pass (paint), so 3D never washes out.
+    const pitch = ls > 0 ? baseSize / ls : baseSize
+    const glow = diffusionGlow(diffusion, baseSize, pitch)
+    coreFrac = glow.coreFrac
+    glowStrength = glow.glowStrength
     for (let i = 0; i < cap; i++) {
       const { clip, depth } = projectOrbit(pos3D[i], camera, scale)
       const cue = depthCue(depth, {}, lattice3DHalfExtent)
       positions[i * 2] = clip[0]
       positions[i * 2 + 1] = clip[1]
       depths[i] = orbitDepthToClipZ(depth, lattice3DHalfExtent)
-      sizes[i] = Math.max(1, baseSize * cue.sizeMul)
+      sizes[i] = Math.max(1, glow.quadDiameterPx * cue.sizeMul)
       bright[i] = cue.brightnessMul
     }
     gl!.bindBuffer(gl!.ARRAY_BUFFER, posBuffer)
@@ -257,20 +316,7 @@ export function createRenderer(canvas: HTMLCanvasElement, initialGrid: RendererG
 
     const ctx = gl as WebGLRenderingContext
     ctx.viewport(0, 0, canvas.width, canvas.height)
-    // 3D draws OPAQUE light sources: depth test on (nearer occludes farther),
-    // additive blend off — so overlapping orbs read as solid, crisp sources
-    // instead of summing into a translucent, washed-out field. 2D/1D is a single
-    // non-overlapping layer with no depth, so it keeps the order-independent
-    // additive blend and skips the depth test.
-    if (pos3D) {
-      ctx.disable(ctx.BLEND)
-      ctx.enable(ctx.DEPTH_TEST)
-      ctx.clear(ctx.COLOR_BUFFER_BIT | ctx.DEPTH_BUFFER_BIT)
-    } else {
-      ctx.disable(ctx.DEPTH_TEST)
-      ctx.enable(ctx.BLEND)
-      ctx.clear(ctx.COLOR_BUFFER_BIT)
-    }
+    ctx.clear(ctx.COLOR_BUFFER_BIT | ctx.DEPTH_BUFFER_BIT)
     ctx.useProgram(program)
 
     ctx.bindBuffer(ctx.ARRAY_BUFFER, posBuffer)
@@ -297,7 +343,38 @@ export function createRenderer(canvas: HTMLCanvasElement, initialGrid: RendererG
     ctx.enableVertexAttribArray(aColor)
     ctx.vertexAttribPointer(aColor, 3, ctx.FLOAT, false, 0, 0)
 
-    ctx.drawArrays(ctx.POINTS, 0, count)
+    ctx.uniform1f(uCoreFrac, coreFrac)
+    ctx.uniform1f(uGlowStrength, glowStrength)
+
+    if (pos3D) {
+      // 3D in two passes (ADR-0006): opaque cores first (depth test on, blend off)
+      // so nearer orbs occlude farther — crisp, solid sources, never a washed-out
+      // additive haze at diffusion 0. Then, when diffusing, an ADDITIVE glow-tail
+      // pass on top (depth-test read-only, no depth write) fills the inter-orb gaps
+      // to merge them — light is only ADDED into the dark gaps, so the field never
+      // dims and the solid cores stay put.
+      ctx.disable(ctx.BLEND)
+      ctx.enable(ctx.DEPTH_TEST)
+      ctx.depthMask(true)
+      ctx.uniform1i(uMode, 1)
+      ctx.drawArrays(ctx.POINTS, 0, count)
+      if (glowStrength > 0) {
+        ctx.enable(ctx.BLEND)
+        ctx.blendFunc(ctx.ONE, ctx.ONE)
+        ctx.depthMask(false)
+        ctx.uniform1i(uMode, 2)
+        ctx.drawArrays(ctx.POINTS, 0, count)
+        ctx.depthMask(true)
+      }
+    } else {
+      // 2D/1D is a single non-overlapping layer with no depth: one additive,
+      // order-independent pass draws core + glow tail together.
+      ctx.disable(ctx.DEPTH_TEST)
+      ctx.enable(ctx.BLEND)
+      ctx.blendFunc(ctx.ONE, ctx.ONE)
+      ctx.uniform1i(uMode, 0)
+      ctx.drawArrays(ctx.POINTS, 0, count)
+    }
   }
 
   function updateGrid(newGrid: RendererGridConfig): void {
@@ -343,7 +420,15 @@ export function createRenderer(canvas: HTMLCanvasElement, initialGrid: RendererG
     camera = c
   }
 
-  return { paint, updateGrid, setShapePositions, set3DPositions, setCamera }
+  function setDiffusion(d: number): void {
+    diffusion = d < 0 ? 0 : d > 1 ? 1 : d
+    // 2D resolves the glow once here (pitch is the static grid spacing); 3D
+    // recomputes it per paint from the live projected pitch, so this only needs
+    // to refresh the 2D quad sizes.
+    if (!pos3D) apply2DGlow()
+  }
+
+  return { paint, updateGrid, setShapePositions, set3DPositions, setCamera, setDiffusion }
 }
 
 function clamp01(v: number): number {

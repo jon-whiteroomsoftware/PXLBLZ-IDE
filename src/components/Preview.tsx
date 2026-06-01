@@ -23,14 +23,6 @@ import {
   clampPixelCount,
   cubeSideForCount,
   advanceAutoOrbit,
-  neighborPitchPx,
-  nearestNeighborSpacing,
-  fit3DScale,
-  modelHalfExtent,
-  FIT_3D_MARGIN,
-  diffusionBlurStdDev,
-  DIFFUSION_BLUR_PITCH_FACTOR_2D,
-  DIFFUSION_BLUR_PITCH_FACTOR_3D,
 } from '@/engine/camera'
 import { layoutSource as buildLayoutSource } from '@/store/mapStore'
 import { resolveLayoutSelection } from '@/engine/layout'
@@ -75,15 +67,9 @@ export function Preview() {
   const shimRef = useRef<ShimContext | null>(null)
   const [canvasDims, setCanvasDims] = useState<{ spacing: number; lightSize: number } | null>(null)
   // The square 3D viewport size (CSS px) when a 3D layout is active, else null.
-  // Drives the diffusion blur in 3D, where there is no locked-2D `spacing`.
+  // Sizes the square 3D canvas; the renderer owns the diffusion glow internally
+  // (it measures the projected neighbour pitch from the layout it was handed).
   const [canvas3DPx, setCanvas3DPx] = useState<number | null>(null)
-  // The active 3D layout's measured normalized nearest-neighbour spacing; drives
-  // the diffusion blur's projected-pitch calc, so the blur tracks the same real
-  // neighbour gap the orb sizing uses (#63), for any layout (cube/sphere/pole).
-  const [lattice3DSpacing, setLattice3DSpacing] = useState<number>(0)
-  // The active 3D model's bounding-sphere radius about the rotation centre, so the
-  // diffusion blur's projected pitch tracks the same zoom the renderer fits to.
-  const [model3DHalfExtent, setModel3DHalfExtent] = useState<number | null>(null)
   const [runtimeError, setRuntimeError] = useState<string | null>(null)
 
   // Derive spacing from container width so cols always fill the available width.
@@ -348,13 +334,11 @@ export function Preview() {
       renderer.set3DPositions(positions3D, { canvasPx: px })
       renderer.setCamera(useCameraStore.getState().camera)
       setCanvas3DPx(px)
-      setLattice3DSpacing(nearestNeighborSpacing(positions3D))
-      setModel3DHalfExtent(modelHalfExtent(positions3D))
     } else {
       renderer.set3DPositions(null)
       setCanvas3DPx(null)
-      setModel3DHalfExtent(null)
     }
+    renderer.setDiffusion(usePreviewStore.getState().diffusion)
 
     // 3D paint wrapper: push the live camera angle before drawing. The angle is
     // advanced by an independent rAF (the auto-orbit effect below) so the viewport
@@ -499,10 +483,9 @@ export function Preview() {
     const cols = poleCols ?? defaultPoleCols(count)
     const positions = polePositions(count, cols)
     renderer.set3DPositions(positions, { canvasPx: canvas3DPx })
-    // A shorter pole has a smaller extent → the renderer zooms in further; keep
-    // the diffusion pitch and orb spacing in step with the new geometry.
-    setLattice3DSpacing(nearestNeighborSpacing(positions))
-    setModel3DHalfExtent(modelHalfExtent(positions))
+    // set3DPositions re-measures the layout's neighbour pitch + extent, so the orb
+    // sizing and diffusion glow track the new geometry; reassert the diffusion.
+    renderer.setDiffusion(usePreviewStore.getState().diffusion)
     if (!usePreviewStore.getState().isRunning) loopRef.current?.renderPreviewFrame()
   }, [poleCols, activeShapeId, displayDim, canvas3DPx, activePixelCount])
 
@@ -526,57 +509,25 @@ export function Preview() {
     return () => cancelAnimationFrame(raf)
   }, [displayDim])
 
-  // Diffusion blur (ADR-0006): a Gaussian blur that merges the sources, applied
-  // via an SVG feGaussianBlur (below) which runs in LINEAR light. CSS `blur()`
-  // runs in gamma-encoded sRGB, where averaging a bright pixel with black lands
-  // below the true midpoint — so it systematically dims (the #75 regression).
-  // Linear-light blur conserves energy: peaks soften and gaps fill, but the
-  // overall level holds, and it never resizes the sources. Scaled to the inter-
-  // dot pitch so it reads the same at any size: in 2D the pitch is the grid
-  // `spacing`; in 3D it's the projected lattice pitch — uniform across dimensions.
-  const diffusionPitch =
-    displayDim === 3
-      ? neighborPitchPx(
-          canvas3DPx ?? 0,
-          lattice3DSpacing,
-          fit3DScale(FIT_3D_MARGIN, model3DHalfExtent ?? undefined),
-        )
-      : canvasDims?.spacing ?? grid.spacing
-  const diffusionFactor =
-    displayDim === 3 ? DIFFUSION_BLUR_PITCH_FACTOR_3D : DIFFUSION_BLUR_PITCH_FACTOR_2D
-  const diffusionStdDev = diffusionBlurStdDev(diffusion, diffusionPitch, diffusionFactor)
-  const diffusionFilter =
-    diffusionStdDev > 0 ? { filter: 'url(#preview-diffusion)' } : undefined
+  // Diffusion (ADR-0006, per-source glow): pushed into the WebGL renderer, which
+  // grows a soft glow tail around each source's solid core to merge neighbours
+  // like a physical diffuser — no whole-frame blur, so cores stay crisp, the array
+  // edge never goes furry, and the 3D silhouette never smears. Repaint while paused
+  // so the change shows immediately.
+  useEffect(() => {
+    const renderer = rendererRef.current
+    if (!renderer) return
+    renderer.setDiffusion(diffusion)
+    if (!usePreviewStore.getState().isRunning) loopRef.current?.renderPreviewFrame()
+  }, [diffusion])
 
   return (
     <div className="h-full bg-zinc-950 flex flex-col overflow-y-auto">
-      {/* Linear-light Gaussian blur for diffusion. SVG filters default to
-          color-interpolation-filters: linearRGB (set explicitly here), so the
-          blur conserves energy and does not dim, unlike CSS blur() in sRGB. The
-          generous filter region keeps a wide blur from clipping at the edges. */}
-      <svg className="absolute w-0 h-0" aria-hidden="true">
-        <defs>
-          <filter
-            id="preview-diffusion"
-            x="-50%"
-            y="-50%"
-            width="200%"
-            height="200%"
-            colorInterpolationFilters="linearRGB"
-          >
-            <feGaussianBlur stdDeviation={diffusionStdDev} />
-          </filter>
-        </defs>
-      </svg>
       {/* Canvas flush at the top of the pane (#150): no header strip above it. The
           container drives the ResizeObserver fit; the deck stacks below. */}
       <div ref={containerRef} className="relative w-full shrink-0">
         <div className="relative inline-block">
-          <canvas
-            ref={canvasRef}
-            className="rounded-sm"
-            style={diffusionFilter}
-          />
+          <canvas ref={canvasRef} className="rounded-sm" />
           {/* Orbit viewport controls — gated on the active layout's display
               dimension (#129), so a 1D pattern on a 3D shape still gets them. Now
               at the top-right, clear of the navigation deck below the canvas. */}

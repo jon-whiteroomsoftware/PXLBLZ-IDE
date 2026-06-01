@@ -302,30 +302,45 @@ export function point3DSize(
 // Default preview light size, and the store's initial value (ADR-0006).
 export const DEFAULT_LIGHT_SIZE = 0.5
 
-// Diffusion blur radius (Gaussian std-dev, px). The blur scales with the inter-
-// dot pitch and a per-dimension factor, then is applied in linear light (SVG
-// feGaussianBlur, linearRGB) so it conserves energy and never dims — peaks may
-// soften and gaps fill, but the overall level holds (ADR-0006).
+// Per-source diffusion glow (ADR-0006, revised). Diffusion is modelled as each
+// light source's point-spread *widening* — a soft radial glow tail grown around
+// the solid core — NOT a Gaussian blur of the whole rendered frame. A frame blur
+// is a low-pass filter: it drains the bright cores, bleeds light past the array
+// edge (the "furry" halo), and in 3D smears the orbiting silhouette. A per-source
+// kernel instead keeps each core crisp and in place, never paints outside a
+// source's own footprint, and only fills the inter-source GAPS — which is what a
+// physical diffuser sheet actually does. The core stays at full intensity (so the
+// field never dims); the tail merges neighbours.
 //
-// Calibrated against the std-dev/pitch ratio that merges a grid: a Gaussian
-// flattens a period-`pitch` grid by exp(-2π²(σ/pitch)²), so σ ≈ 0.5·pitch is a
-// fully-merged field (no individual source visible) and σ ≈ 0.25·pitch leaves
-// the sources clearly visible but ~half-obscured. With diffusion sweeping 0→1
-// linearly, a factor of ~0.5 puts "fully merged" at 100% and "half-obscured" at
-// 50%, with 0% perfectly crisp.
-//
-// The factor is per-dimension because "pitch" reads differently on screen (the
-// ADR mandates uniform *feel*, not a shared code path). In 2D/1D the grid pitch
-// IS the on-screen neighbour distance. In 3D the orbs now render OPAQUE (front
-// layer only — no additive depth-layer stacking), so the lattice axis pitch is
-// again a clean on-screen grid; it only needs a slightly smaller factor because
-// the orbiting cube is foreshortened, shrinking the on-screen pitch below the
-// raw lattice pitch.
-export const DIFFUSION_BLUR_PITCH_FACTOR_2D = 0.5
-export const DIFFUSION_BLUR_PITCH_FACTOR_3D = 0.4
-export function diffusionBlurStdDev(diffusion: number, pitchPx: number, factor: number): number {
-  if (diffusion <= 0 || pitchPx <= 0) return 0
-  return diffusion * pitchPx * factor
+// Given the drawn core diameter and the inter-source pitch (both px), this returns
+// the enlarged quad to draw (the WebGL gl_PointSize) plus the two kernel params the
+// fragment shader needs:
+//   - `coreFrac`    — the solid core radius as a fraction of the quad's half-width.
+//   - `glowStrength`— the tail's peak intensity at the core edge (fades to 0 at the
+//                     quad rim).
+// At diffusion 0 the quad equals the core and the tail vanishes, so the draw is
+// bit-for-bit the pre-diffusion solid disc. `DIFFUSION_GLOW_REACH` is how far (in
+// pitches) the tail extends beyond the core edge at diffusion 1; ~0.9 reaches into
+// the neighbours' cores so the field reads fully merged at 100% without ballooning
+// so far that distant sources bleed together.
+export const DIFFUSION_GLOW_REACH = 0.9
+export interface DiffusionGlow {
+  quadDiameterPx: number
+  coreFrac: number
+  glowStrength: number
+}
+export function diffusionGlow(
+  diffusion: number,
+  coreDiameterPx: number,
+  pitchPx: number,
+): DiffusionGlow {
+  const d = diffusion <= 0 ? 0 : diffusion >= 1 ? 1 : diffusion
+  if (d === 0 || pitchPx <= 0 || coreDiameterPx <= 0) {
+    return { quadDiameterPx: Math.max(1, coreDiameterPx), coreFrac: 1, glowStrength: 0 }
+  }
+  const reachPx = d * pitchPx * DIFFUSION_GLOW_REACH
+  const quadDiameterPx = coreDiameterPx + 2 * reachPx
+  return { quadDiameterPx, coreFrac: coreDiameterPx / quadDiameterPx, glowStrength: d }
 }
 
 export interface DepthCue {

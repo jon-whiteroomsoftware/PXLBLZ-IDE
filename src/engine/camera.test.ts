@@ -20,9 +20,8 @@ import {
   neighborPitchPx,
   nearestNeighborSpacing,
   point3DSize,
-  diffusionBlurStdDev,
-  DIFFUSION_BLUR_PITCH_FACTOR_2D,
-  DIFFUSION_BLUR_PITCH_FACTOR_3D,
+  diffusionGlow,
+  DIFFUSION_GLOW_REACH,
   projectOrbit,
   orbitDepthToClipZ,
   depthCue,
@@ -197,25 +196,36 @@ describe('camera — 3D light size (ADR-0006)', () => {
   })
 })
 
-describe('camera — diffusion blur radius (ADR-0006)', () => {
-  it('scales with diffusion, the inter-dot pitch, and the per-dimension factor', () => {
-    expect(diffusionBlurStdDev(1, 20, DIFFUSION_BLUR_PITCH_FACTOR_2D)).toBeCloseTo(
-      20 * DIFFUSION_BLUR_PITCH_FACTOR_2D,
-      6,
-    )
-    expect(diffusionBlurStdDev(0.5, 20, DIFFUSION_BLUR_PITCH_FACTOR_3D)).toBeCloseTo(
-      10 * DIFFUSION_BLUR_PITCH_FACTOR_3D,
-      6,
-    )
+describe('camera — per-source diffusion glow (ADR-0006)', () => {
+  it('at diffusion 0 is bit-for-bit the solid core disc (quad == core, no tail)', () => {
+    const g = diffusionGlow(0, 20, 25)
+    expect(g.quadDiameterPx).toBe(20)
+    expect(g.coreFrac).toBe(1)
+    expect(g.glowStrength).toBe(0)
   })
 
-  it('blurs 3D slightly less per unit pitch than 2D (orbit foreshortens on-screen pitch)', () => {
-    expect(DIFFUSION_BLUR_PITCH_FACTOR_3D).toBeLessThan(DIFFUSION_BLUR_PITCH_FACTOR_2D)
+  it('grows the quad by the glow reach so the tail clears the core on both sides', () => {
+    const pitch = 25
+    const core = 20
+    const g = diffusionGlow(1, core, pitch)
+    // Tail reaches DIFFUSION_GLOW_REACH pitches beyond the core edge, each side.
+    expect(g.quadDiameterPx).toBeCloseTo(core + 2 * pitch * DIFFUSION_GLOW_REACH, 6)
+    // coreFrac is the core's share of the (now larger) quad — strictly inside it.
+    expect(g.coreFrac).toBeCloseTo(core / g.quadDiameterPx, 6)
+    expect(g.coreFrac).toBeLessThan(1)
   })
 
-  it('is zero (no filter) at zero diffusion or zero pitch', () => {
-    expect(diffusionBlurStdDev(0, 20, DIFFUSION_BLUR_PITCH_FACTOR_2D)).toBe(0)
-    expect(diffusionBlurStdDev(0.5, 0, DIFFUSION_BLUR_PITCH_FACTOR_2D)).toBe(0)
+  it('scales the tail reach and strength with diffusion', () => {
+    const half = diffusionGlow(0.5, 20, 25)
+    const full = diffusionGlow(1, 20, 25)
+    expect(half.quadDiameterPx).toBeLessThan(full.quadDiameterPx)
+    expect(half.glowStrength).toBeCloseTo(0.5, 6)
+    expect(full.glowStrength).toBeCloseTo(1, 6)
+  })
+
+  it('degenerates to the solid core when pitch or core is zero', () => {
+    expect(diffusionGlow(1, 20, 0)).toMatchObject({ quadDiameterPx: 20, coreFrac: 1, glowStrength: 0 })
+    expect(diffusionGlow(1, 0, 25).coreFrac).toBe(1)
   })
 })
 
