@@ -88,16 +88,20 @@ function SectionHeader({
   collapsed,
   onToggle,
   action,
+  first,
 }: {
   label: string
   collapsed: boolean
   onToggle: () => void
   action?: React.ReactNode
+  // The topmost header has nothing above it to separate from, so it drops the
+  // gap + rule that divide later sections (otherwise they float above the list).
+  first?: boolean
 }) {
   return (
     <div
       onClick={onToggle}
-      className="mt-1 px-3 py-1.5 flex items-center justify-between gap-1 cursor-pointer select-none text-[11px] font-mono font-semibold text-amber-500/60 uppercase tracking-wider border-t border-zinc-800 bg-zinc-950/60 hover:text-amber-500/90"
+      className={`${first ? '' : 'mt-1 border-t border-zinc-800'} px-3 py-1.5 flex items-center justify-between gap-1 cursor-pointer select-none text-[11px] font-mono font-semibold text-amber-500/60 uppercase tracking-wider bg-zinc-950/60 hover:text-amber-500/90`}
     >
       <span className="truncate">{label}</span>
       <div className="flex items-center gap-1.5">
@@ -522,6 +526,7 @@ export function PatternList() {
       />
       <SectionHeader
         label="Your Patterns"
+        first
         collapsed={isCollapsed('Your Patterns')}
         onToggle={() => toggleCollapsed('Your Patterns')}
         action={
