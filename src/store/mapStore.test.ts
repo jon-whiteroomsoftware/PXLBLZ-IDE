@@ -5,6 +5,7 @@ import {
   selectActiveMap,
   mapFromRecord,
   layoutSource,
+  isMapWrappable,
   canDeployMap,
   DEFAULT_MAP_BAKE_COUNT,
   STOCK_MAPS,
@@ -155,6 +156,43 @@ describe('layoutSource', () => {
     expect(src.shapes.map((s) => s.id)).toEqual(['line', 'ring', 'pole'])
     expect(src.maps.map((m) => m.id)).toContain(STOCK_MAPS[0].id)
     expect(src.maps.map((m) => m.id)).toContain('u1')
+  })
+
+  it('marks a regular-lattice custom map wrappable, an irregular one not (#158)', () => {
+    const grid: MapRecord = {
+      id: 'cm-grid',
+      name: 'My Grid',
+      dim: 2,
+      generator: 'custom',
+      params: {},
+      points: [[0, 0], [1, 0], [0, 1], [1, 1]],
+      gridDims: { cols: 2, rows: 2 },
+      updatedAt: 1,
+    }
+    const cloud: MapRecord = {
+      id: 'cm-cloud',
+      name: 'My Cloud',
+      dim: 2,
+      generator: 'custom',
+      params: {},
+      points: [[0, 0], [0.3, 0.7], [0.9, 0.1]],
+      updatedAt: 1,
+    }
+    const src = layoutSource({ userMaps: [grid, cloud] })
+    expect(src.maps.find((m) => m.id === 'cm-grid')?.wrappable).toBe(true)
+    expect(src.maps.find((m) => m.id === 'cm-cloud')?.wrappable).toBe(false)
+  })
+})
+
+describe('isMapWrappable (gridDims gate, #158)', () => {
+  it('offers a surface to the stock Square but not to a 3D map', () => {
+    expect(isMapWrappable({ id: 'plane', dim: 2 })).toBe(true)
+    expect(isMapWrappable({ id: 'cube', dim: 3 })).toBe(false)
+  })
+
+  it('gates a custom 2D map on its recorded gridDims', () => {
+    expect(isMapWrappable({ id: 'cm', dim: 2, gridDims: { cols: 20, rows: 10 } })).toBe(true)
+    expect(isMapWrappable({ id: 'cm', dim: 2 })).toBe(false)
   })
 })
 

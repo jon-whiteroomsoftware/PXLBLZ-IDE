@@ -47,7 +47,12 @@ export function LayoutSelector() {
     if (next.surfaceId) setActiveSurface(next.surfaceId as SurfaceId)
   }
 
-  if (maps.length === 0 && embeddings.length === 0) return null
+  // The embedding control shows only when it carries a real choice: a single
+  // option (an irregular cloud's Flat-only set) is not a choice, so it is hidden
+  // and the Map control stands alone (ADR-0010, "show only when needed").
+  const showEmbedding = embeddings.length > 1
+
+  if (maps.length === 0 && !showEmbedding) return null
 
   return (
     <div className="flex items-center gap-1.5">
@@ -60,7 +65,7 @@ export function LayoutSelector() {
           menuWidthClass="w-28"
         />
       )}
-      {embeddings.length > 0 && (
+      {showEmbedding && (
         <DeckSelect
           ariaLabel={nativeDim === 1 ? 'Shape' : 'Surface'}
           value={embeddingValue ?? embeddings[0].id}

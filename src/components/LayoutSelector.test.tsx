@@ -24,6 +24,51 @@ describe('LayoutSelector (smoke)', () => {
     expect(screen.getByRole('button', { name: 'Surface' })).toBeInTheDocument()
   })
 
+  it('offers the Surface control for a regular-lattice custom map', () => {
+    useEditorStore.setState({ nativeDim: 2 })
+    useMapStore.setState({
+      activeMapId: 'cm-grid',
+      userMaps: [
+        {
+          id: 'cm-grid',
+          name: 'My Grid',
+          dim: 2,
+          generator: 'custom',
+          params: {},
+          points: [[0, 0], [1, 0], [0, 1], [1, 1]],
+          gridDims: { cols: 2, rows: 2 },
+          source: '',
+          updatedAt: 1,
+        },
+      ],
+    })
+    render(<LayoutSelector />)
+    expect(screen.getByRole('button', { name: 'Map' })).toHaveTextContent('My Grid')
+    expect(screen.getByRole('button', { name: 'Surface' })).toBeInTheDocument()
+  })
+
+  it('hides the embedding control for an irregular custom map (Flat only)', () => {
+    useEditorStore.setState({ nativeDim: 2 })
+    useMapStore.setState({
+      activeMapId: 'cm-cloud',
+      userMaps: [
+        {
+          id: 'cm-cloud',
+          name: 'My Cloud',
+          dim: 2,
+          generator: 'custom',
+          params: {},
+          points: [[0, 0], [0.3, 0.7], [0.9, 0.1]],
+          source: '',
+          updatedAt: 1,
+        },
+      ],
+    })
+    render(<LayoutSelector />)
+    expect(screen.getByRole('button', { name: 'Map' })).toHaveTextContent('My Cloud')
+    expect(screen.queryByRole('button', { name: 'Surface' })).not.toBeInTheDocument()
+  })
+
   it('shows only the Shape control for a 1D pattern', () => {
     useEditorStore.setState({ nativeDim: 1 })
     render(<LayoutSelector />)
