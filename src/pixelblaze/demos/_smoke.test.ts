@@ -100,6 +100,46 @@ describe('demo smoke tests', () => {
     })
   }
 
+  // AuroraSphere is a self-calibrating 3D pattern: it scans the map via
+  // mapPixels to learn center + radius, then paints over render3D. Run it on a
+  // synthetic Fibonacci-ish sphere so calibration has real geometry to read.
+  it('AuroraSphere bundles, calibrates, runs render3D, and lights pixels', () => {
+    const N = 200
+    const mapPoints = Array.from({ length: N }, (_, i) => {
+      const y = 1 - (i / (N - 1)) * 2 // -1..1
+      const r = Math.sqrt(1 - y * y)
+      const theta = i * 2.399963 // golden angle
+      const pos: [number, number, number] = [
+        0.5 + 0.5 * r * Math.cos(theta),
+        0.5 + 0.5 * y,
+        0.5 + 0.5 * r * Math.sin(theta),
+      ]
+      return { sample: pos, pos }
+    })
+
+    const src = readFileSync(join(here, 'AuroraSphere.js'), 'utf8')
+    const { code, metadata } = bundle(src, LIBRARIES)
+    expect(metadata.renderFns.hasRender3D).toBe(true)
+    expect(metadata.controls.length).toBeGreaterThanOrEqual(3)
+
+    const shim = createShim({ mapPoints, pixelCount: N, dimensions: 3, getVirtualTime: () => 0 })
+    const handle = loadPattern(code, metadata, shim.builtins)
+    const enc = shim.encodeScalar
+
+    let anyLit = false
+    for (let frame = 0; frame < 3; frame++) {
+      handle.beforeRender(enc(33))
+      for (let i = 0; i < N; i++) {
+        const [x, y, z] = mapPoints[i].pos
+        const [tx, ty, tz] = shim.transformPoint(x, y, z)
+        handle.render3D(enc(i), tx, ty, tz)
+        const [r, g, b] = shim.capturedPixel()
+        if (r + g + b > 0.01) anyLit = true
+      }
+    }
+    expect(anyLit).toBe(true)
+  })
+
   // Shader-library demos with fewer than 4 controls sit outside the loop above
   // (NeonSquircles has 1 slider; ShaderShowcase has 2) — still guard the ports.
   for (const file of ['NeonSquircles.js', 'ShaderShowcase.js', 'ZippyZaps.js', 'IQPalettes.js']) {

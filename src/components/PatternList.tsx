@@ -26,7 +26,7 @@ const LIBRARY_NAMES = Object.keys(LIBRARIES).sort()
 const DEMO_NAMES = Object.keys(DEMOS).sort()
 
 const OPENGL_DEMOS = ['Kishimisu', 'NeonSquircles', 'ShaderShowcase', 'ZippyZaps', 'IQPalettes', 'PhantomStar']
-const BRAND_NEW_DEMOS = ['PlasmaNebula', 'Caustics', 'KaleidoBloom']
+const BRAND_NEW_DEMOS = ['PlasmaNebula', 'Caustics', 'KaleidoBloom', 'AuroraSphere']
 // Minimal patterns — one per render dimensionality — for visually verifying
 // 1D / 2D / 3D preview behavior.
 const TEST_PATTERNS = ['TestPattern1D', 'TestPattern2D', 'TestPattern3D']

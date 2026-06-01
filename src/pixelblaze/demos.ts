@@ -10,3 +10,34 @@ export const DEMOS: Record<string, string> = Object.fromEntries(
     return [name, src as string]
   }),
 )
+
+// Recommended maps (IDE-side, preview-only). A geometry-aware demo points at the
+// stock map it's meant to be seen on, so opening it lands on that map instead of
+// the bare first dim-matched default. This is purely a preview convenience: it
+// must never reach pattern source or the transpiled artifact — the physical
+// Pixelblaze knows only patterns and maps. The map stays freely switchable; this
+// only sets the on-open default (see resolveLayoutSelection).
+export const DEMO_RECOMMENDED_MAPS: Record<string, string> = {
+  AuroraSphere: 'seed-sphere-3d',
+}
+
+// The map a demo recommends opening on, or undefined for demos without one (and
+// for user patterns, which carry their own persisted layout).
+export function recommendedMapFor(demoName: string | null | undefined): string | undefined {
+  return demoName ? DEMO_RECOMMENDED_MAPS[demoName] : undefined
+}
+
+// Recommended pixel counts (IDE-side, preview-only) — the same category as the
+// recommended map above. A geometry-aware demo whose look needs a denser cloud
+// than the bare per-dimension default (3D → the 8³ cube's 512) names the count it
+// wants to open at, since a demo carries no persisted PatternRecord to remember
+// one. Preview-only: it sets the on-open default ahead of the dim default, never
+// reaches the artifact, and leaves the count box freely editable.
+export const DEMO_RECOMMENDED_PIXEL_COUNTS: Record<string, number> = {
+  AuroraSphere: 4096,
+}
+
+// The pixel count a demo recommends opening at, or undefined for demos without one.
+export function recommendedPixelCountFor(demoName: string | null | undefined): number | undefined {
+  return demoName ? DEMO_RECOMMENDED_PIXEL_COUNTS[demoName] : undefined
+}

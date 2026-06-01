@@ -139,16 +139,26 @@ export function selectedEmbeddingId(
 //     offered, else the first/default — Flat for 2D, the first shape for 1D.
 // A stale cylinder on a now-irregular map falls back to Flat (cylinder drops out
 // of the offered set), so selecting a wrappable map never surprise-wraps.
+//
+// `recommendedMapId` is an IDE-side, preview-only default supplied by a
+// geometry-aware demo (see demos.ts): when a pattern carries NO persisted map it
+// overrides the bare first-match default, so the demo opens on the map it was
+// built for. It is ignored the moment a pattern persists its own `mapId`, and is
+// honoured only when it is still a valid dim-matched option.
 export function resolveLayoutSelection(
   persisted: LayoutSelection,
   nativeDim: 1 | 2 | 3,
   source: LayoutSource,
+  recommendedMapId?: string,
 ): LayoutSelection {
   const sel: LayoutSelection = {}
 
   if (nativeDim !== 1) {
     const maps = mapOptions(nativeDim, source)
-    const map = maps.find((m) => m.id === persisted.mapId) ?? maps[0]
+    // A valid persisted map wins outright. Otherwise the recommendation (if a
+    // valid dim-matched option) is the default, ahead of the bare first match.
+    const recommended = maps.find((m) => m.id === recommendedMapId)
+    const map = maps.find((m) => m.id === persisted.mapId) ?? recommended ?? maps[0]
     if (map) sel.mapId = map.id
   }
 

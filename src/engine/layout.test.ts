@@ -150,4 +150,27 @@ describe('resolveLayoutSelection (open / restore)', () => {
   it('returns empty when no options exist for the dimension', () => {
     expect(resolveLayoutSelection({}, 3, { shapes: [], surfaces: [], maps: [] })).toEqual({})
   })
+
+  it('opens on a recommended map when nothing is persisted', () => {
+    // A demo recommending the second 3D map opens on it, not the first match.
+    const source: LayoutSource = {
+      ...SOURCE,
+      maps: [...SOURCE.maps, { id: 'sphere', name: 'Sphere', dim: 3 }],
+    }
+    expect(resolveLayoutSelection({}, 3, source, 'sphere')).toEqual({ mapId: 'sphere' })
+  })
+
+  it('falls back to the first match when the recommendation is not a valid option', () => {
+    // A recommendation of the wrong dimension (or a missing id) is ignored.
+    expect(resolveLayoutSelection({}, 3, SOURCE, 'plane')).toEqual({ mapId: 'cube' })
+    expect(resolveLayoutSelection({}, 3, SOURCE, 'nope')).toEqual({ mapId: 'cube' })
+  })
+
+  it('ignores a recommendation once a valid map is persisted', () => {
+    const source: LayoutSource = {
+      ...SOURCE,
+      maps: [...SOURCE.maps, { id: 'sphere', name: 'Sphere', dim: 3 }],
+    }
+    expect(resolveLayoutSelection({ mapId: 'cube' }, 3, source, 'sphere')).toEqual({ mapId: 'cube' })
+  })
 })

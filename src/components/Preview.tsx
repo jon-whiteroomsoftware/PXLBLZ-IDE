@@ -40,6 +40,7 @@ import { cylinderSurfacePositions, type SurfaceId } from '@/engine/surfaces'
 import type { MapPoint } from '@/engine/maps'
 import { OrbitControls } from '@/components/OrbitControls'
 import { LIBRARIES } from '@/pixelblaze/libs'
+import { recommendedMapFor, recommendedPixelCountFor } from '@/pixelblaze/demos'
 
 // Square 3D viewport size (CSS px): fill the available pane edge-to-edge (the
 // smaller of its two sides), so the 3D canvas is exactly as tall as a square 2D
@@ -141,10 +142,20 @@ export function Preview() {
     // helper corrects a stale persisted selection to the dimension's default, and
     // we reflect any correction back so the "Shape" dropdown stays in sync.
     const { userMaps } = useMapStore.getState()
+    // A read-only demo has no PatternRecord, so it persists no map; honour its
+    // recommended map (if any) as the on-open default instead of the bare
+    // first-match. Preview-only — never reaches pattern source or hardware.
+    const activeDemoName = usePatternStore.getState().activeDemoName
+    const recommendedMapId = recommendedMapFor(activeDemoName)
+    // A demo persists no count either; honour its recommended pixel count (if any)
+    // as the on-open default, ahead of the per-dimension default. Preview-only and
+    // freely overridable from the count box.
+    const recommendedPixelCount = recommendedPixelCountFor(activeDemoName)
     const selection = resolveLayoutSelection(
       { mapId: activeMapId, shapeId: activeShapeId, surfaceId: activeSurfaceId },
       nativeDim,
       buildLayoutSource({ userMaps }),
+      recommendedMapId,
     )
     if (selection.mapId && selection.mapId !== activeMapId) {
       useMapStore.getState().setActiveMap(selection.mapId)
@@ -195,7 +206,7 @@ export function Preview() {
           // source-backed map (ADR-0008) regenerates the lattice live for the
           // squared-up count; each point carries a [0,1]³ `pos` the orbit camera
           // projects and the render loop dispatches render3D on the 3-arity sample.
-          const count = activePixelCount ?? defaultPixelCountForDim(3)
+          const count = activePixelCount ?? recommendedPixelCount ?? defaultPixelCountForDim(3)
           const cubeSide = cubeSideForCount(count)
           pixelCount = clampPixelCount(cubePixelCount(cubeSide))
           mapPoints = map.resolve(pixelCount)
@@ -206,7 +217,9 @@ export function Preview() {
           // count (ADR-0007). The count is a free knob (defaulting to a custom
           // map's baked length); over-count pixels fall to the origin, surplus
           // points go unvisited. `cubeSide` is only a dot-size reference here.
-          pixelCount = clampPixelCount(activePixelCount ?? map.bakedCount ?? defaultPixelCountForDim(3))
+          pixelCount = clampPixelCount(
+            activePixelCount ?? recommendedPixelCount ?? map.bakedCount ?? defaultPixelCountForDim(3),
+          )
           mapPoints = map.resolve(pixelCount)
         }
         positions3D = mapPoints.map((p) => p.pos as [number, number, number])
@@ -218,7 +231,9 @@ export function Preview() {
         // channel (the same seam 1D ring/helix embeddings use) rather than the
         // locked plane. A custom replay is index-aligned to the count (ADR-0007
         // drift), defaulting to the baked length.
-        pixelCount = clampPixelCount(activePixelCount ?? map.bakedCount ?? defaultPixelCountForDim(2))
+        pixelCount = clampPixelCount(
+          activePixelCount ?? recommendedPixelCount ?? map.bakedCount ?? defaultPixelCountForDim(2),
+        )
         mapPoints = map.resolve(pixelCount)
         shapePositions = mapPoints.map((p) => p.pos as [number, number])
         displayDim = 2
@@ -231,7 +246,7 @@ export function Preview() {
         // grid. `squarePlaneDims` survives only as the generator's private
         // dims, used here purely for the layout readout. count is the user's
         // count, not rows×cols (the last grid row may be partial).
-        pixelCount = clampPixelCount(activePixelCount ?? defaultPixelCountForDim(2))
+        pixelCount = clampPixelCount(activePixelCount ?? recommendedPixelCount ?? defaultPixelCountForDim(2))
         const planeDims = squarePlaneDims(pixelCount)
         mapPoints = map.resolve(pixelCount)
         shapePositions = mapPoints.map((p) => p.pos as [number, number])

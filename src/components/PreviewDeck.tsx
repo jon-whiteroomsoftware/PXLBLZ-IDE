@@ -3,6 +3,8 @@ import { Play, Pause } from 'lucide-react'
 import { usePreviewStore, MIN_LIGHT_SIZE, MAX_LIGHT_SIZE } from '@/store/previewStore'
 import { useEditorStore } from '@/store/editorStore'
 import { useMapStore, defaultPixelCountForDim } from '@/store/mapStore'
+import { usePatternStore } from '@/store/patternStore'
+import { recommendedPixelCountFor } from '@/pixelblaze/demos'
 import { clampPixelCount } from '@/engine/camera'
 import { LayoutSelector } from '@/components/LayoutSelector'
 import { SpeedSelector } from '@/components/SpeedSelector'
@@ -60,10 +62,14 @@ function PixelCountInput() {
   const activePixelCount = useMapStore((s) => s.activePixelCount)
   const setActivePixelCount = useMapStore((s) => s.setActivePixelCount)
   const nativeDim = useEditorStore((s) => s.nativeDim)
+  const activeDemoName = usePatternStore((s) => s.activeDemoName)
 
-  // The effective count: the per-pattern value, or the dimension's default. Keyed off
-  // the layout's coordinate dimension (nativeDim), not the viewport dimension.
-  const effectiveCount = activePixelCount ?? defaultPixelCountForDim(nativeDim)
+  // The effective count: the per-pattern value, else a demo's recommended count, else
+  // the dimension's default. Keyed off the layout's coordinate dimension (nativeDim),
+  // not the viewport dimension — and mirrors the same fallback the renderer uses, so
+  // the box reads the count actually rendered.
+  const effectiveCount =
+    activePixelCount ?? recommendedPixelCountFor(activeDemoName) ?? defaultPixelCountForDim(nativeDim)
   const [draftCount, setDraftCount] = useState(String(effectiveCount))
 
   // Reflect external count changes (pattern switch, default per dimension) into the
