@@ -140,6 +140,53 @@ describe('demo smoke tests', () => {
     expect(anyLit).toBe(true)
   })
 
+  // NebulaSphere is a coordinate-driven 3D pattern (no self-calibration): it
+  // feeds real (x,y,z) straight into 3D perlinFbm over render3D. Run it on the
+  // same synthetic sphere so the volumetric slice has real geometry to sample.
+  for (const mode of ['fast', 'fidelity'] as const) {
+    it(`NebulaSphere bundles, runs render3D, lights pixels, and exposes sliders (${mode})`, () => {
+      const N = 200
+      const mapPoints = Array.from({ length: N }, (_, i) => {
+        const y = 1 - (i / (N - 1)) * 2 // -1..1
+        const r = Math.sqrt(1 - y * y)
+        const theta = i * 2.399963 // golden angle
+        const pos: [number, number, number] = [
+          0.5 + 0.5 * r * Math.cos(theta),
+          0.5 + 0.5 * y,
+          0.5 + 0.5 * r * Math.sin(theta),
+        ]
+        return { sample: pos, pos }
+      })
+
+      const src = readFileSync(join(here, 'NebulaSphere.js'), 'utf8')
+      const { code, fxCode, metadata } = bundle(src, LIBRARIES)
+      expect(metadata.renderFns.hasRender3D).toBe(true)
+      expect(metadata.controls.length).toBeGreaterThanOrEqual(4)
+
+      let vt = 0
+      const shim =
+        mode === 'fidelity'
+          ? createFxShim({ mapPoints, pixelCount: N, dimensions: 3, getVirtualTime: () => vt })
+          : createShim({ mapPoints, pixelCount: N, dimensions: 3, getVirtualTime: () => vt })
+      const handle = loadPattern(mode === 'fidelity' ? fxCode : code, metadata, shim.builtins)
+      const enc = shim.encodeScalar
+
+      let anyLit = false
+      for (let frame = 0; frame < 3; frame++) {
+        vt += 33 * 65.536
+        handle.beforeRender(enc(33))
+        for (let i = 0; i < N; i++) {
+          const [x, y, z] = mapPoints[i].pos
+          const [tx, ty, tz] = shim.transformPoint(x, y, z)
+          handle.render3D(enc(i), tx, ty, tz)
+          const [r, g, b] = shim.capturedPixel()
+          if (r + g + b > 0.01) anyLit = true
+        }
+      }
+      expect(anyLit).toBe(true)
+    })
+  }
+
   // Shader-library demos with fewer than 4 controls sit outside the loop above
   // (NeonSquircles has 1 slider; ShaderShowcase has 2) — still guard the ports.
   for (const file of ['NeonSquircles.js', 'ShaderShowcase.js', 'ZippyZaps.js', 'IQPalettes.js']) {

@@ -19,6 +19,7 @@ export const DEMOS: Record<string, string> = Object.fromEntries(
 // only sets the on-open default (see resolveLayoutSelection).
 export const DEMO_RECOMMENDED_MAPS: Record<string, string> = {
   AuroraSphere: 'seed-sphere-3d',
+  NebulaSphere: 'seed-sphere-3d',
 }
 
 // The map a demo recommends opening on, or undefined for demos without one (and
@@ -35,6 +36,7 @@ export function recommendedMapFor(demoName: string | null | undefined): string |
 // reaches the artifact, and leaves the count box freely editable.
 export const DEMO_RECOMMENDED_PIXEL_COUNTS: Record<string, number> = {
   AuroraSphere: 4096,
+  NebulaSphere: 8192,
 }
 
 // The pixel count a demo recommends opening at, or undefined for demos without one.
