@@ -68,7 +68,9 @@ npm run build    # type-check + production build
 
 ## Learn more
 
-- **[System Reference](docs/REFERENCE.md)** — the authoritative, detailed description of how everything actually works: transpiler, validator, fixed-point engine, maps, camera, render loop.
+- **[Feature Guide](docs/IDE%20Feature%20Guide.md)** — what the IDE does, for someone who uses Pixelblaze: the preview, maps, controls, and getting code onto hardware.
+- **[Technical Reference](docs/IDE%20Technical%20Reference.md)** — the authoritative, detailed description of how everything actually works: transpiler, validator, fixed-point engine, maps, camera, render loop.
+- **[Pixelblaze Ecosystem Primer](docs/Pixelblaze%20Ecosystem%20Primer.md)** — the mental model of Pixelblaze itself: device vs. browser, fixed-point, the pattern and mapper dialects, the WebSocket API.
 - **PRDs and ADRs** under [`docs/`](docs/) — the *why* behind the design and the not-yet-built direction.
 - **[Pixelblaze docs](https://electromage.com/docs/)** — the hardware, firmware, and language itself.
 </content>
