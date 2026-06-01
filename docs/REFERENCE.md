@@ -346,7 +346,7 @@ the legacy grid loop exactly — the 2D no-regression baseline) and `cube` (3D
 `side×side×side` lattice, default side 8 = 512 pixels). Both are generated, never
 persisted. (Per-axis normalization is current-code; ADR-0009 retargets it to
 aspect-preserving longest-axis anchoring — tracked in #116 / #154. The `plane`'s
-Layout label is being renamed "Plain 2D" → "Square", #155.)
+Layout label is **"Square"** (id stays `plane`), #155.)
 
 ### 9.2 Viewport shapes (`src/engine/shapes.ts`)
 

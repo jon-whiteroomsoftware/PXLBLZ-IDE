@@ -14,7 +14,7 @@ describe('LayoutSelector (smoke)', () => {
   it('shows the active map name for a 2D pattern', () => {
     useEditorStore.setState({ nativeDim: 2 })
     render(<LayoutSelector />)
-    expect(screen.getByRole('button', { name: /layout/i })).toHaveTextContent('Plane')
+    expect(screen.getByRole('button', { name: /layout/i })).toHaveTextContent('Square')
   })
 
   it('lists 1D shapes and routes a choice to the shape store', async () => {
@@ -31,7 +31,7 @@ describe('LayoutSelector (smoke)', () => {
     useEditorStore.setState({ nativeDim: 2 })
     render(<LayoutSelector />)
     await user.click(screen.getByRole('button', { name: /layout/i }))
-    await user.click(screen.getByRole('option', { name: 'Plane' }))
+    await user.click(screen.getByRole('option', { name: 'Square' }))
     expect(useMapStore.getState().activeMapId).toBe('plane')
   })
 })

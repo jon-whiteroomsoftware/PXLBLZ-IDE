@@ -22,7 +22,7 @@ function source(name: string): string {
 // (ADR-0008 exception). The example clouds (helix/sphere/ring) are live builtin
 // generators here, no longer baked arrays.
 export const STOCK_MAP_SPECS: SourceMapSpec[] = [
-  { id: 'plane', name: 'Plane', dim: 2, source: source('plane') },
+  { id: 'plane', name: 'Square', dim: 2, source: source('plane') },
   { id: 'cube', name: 'Cube', dim: 3, source: source('cube') },
   { id: 'seed-helix-3d', name: 'Helix (cloud)', dim: 3, source: source('helix') },
   { id: 'seed-sphere-3d', name: 'Sphere (cloud)', dim: 3, source: source('sphere') },
