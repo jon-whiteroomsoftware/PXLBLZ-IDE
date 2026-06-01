@@ -22,10 +22,13 @@ This IDE fixes all three:
 
 The preview isn't just a quick approximation — it's built to match the hardware.
 
-- **1D, 2D, and 3D.** Render your pattern on a strip, a ring, a pole, a flat grid, an orbiting 3D cube, or a sphere or helix point cloud you can drag and spin. The IDE picks the dimensionality from your render functions; the shape is a display choice, so a 1D pattern can be wrapped onto any of them.
-- **The map is yours, not the device's.** A pixel map says where each LED physically sits, decoupled from its position in the chain. Pick a stock map or **write your own** — New Map opens an editor on a plain `function(pixelCount)`, the very thing a real Pixelblaze Mapper tab evaluates, so you can preview a pattern against the actual geometry of your tree, sphere, or sculpture. Load any stock map as an editable template to start from; every stock map is real, pasteable Mapper code, no hidden magic.
+- **1D, 2D, and 3D.** Render your pattern on a strip, a ring, a pole, a flat grid, a wrapped cylinder, or a 3D cube, sphere, star, or helix you can drag and spin — each as a hollow **shell** or a filled **volume**. The IDE reads your render functions to pick the dimensionality; the shape is a display choice, so a 1D pattern can wrap onto any of them.
+- **The map is yours, not the device's.** A pixel map says where each LED physically sits, decoupled from its position in the chain. Pick a stock map or **write your own** — New Map opens an editor on a plain `function(pixelCount)`, the very thing a real Pixelblaze Mapper tab evaluates, so you can preview against the actual geometry of your tree, sphere, or sculpture. Load any stock map as an editable template; every one is real, pasteable Mapper code, no hidden magic.
 - **Hardware-faithful math.** Pixelblaze runs 16.16 fixed-point arithmetic, not floats. Flip the preview to **Precise** mode and it emulates that exact arithmetic — overflow, precision loss, and all — validated against a real controller. So what you see in the browser is what the device will actually do. A **Fast** float64 mode is the default for smooth everyday editing.
+- **Tune how it looks, not what it computes.** Preview-only viewing controls — **light size**, **diffusion** (a virtual diffuser sheet that merges the dots into a gap-free field), and **solidity** (fade a shell's back so it occludes itself) — shape the render without ever touching your pattern's math or reaching hardware.
 - **Live controls and var watching.** Export a `sliderX`, `toggleX`, or color-picker function and the IDE renders the matching widget — the same controls the hardware shows. The Var Watcher tracks every exported variable, refreshed each frame.
+
+The control deck keeps the two worlds visibly separate: a **Pixelblaze group** (pixel count, brightness, Fill/Contain fit — settings that would round-trip to a device) and a **Preview group** (light size, diffusion, renderer, speed, solidity — things the IDE invents that the device never sees).
 
 This makes the IDE a comfortable home for porting GPU-style shaders (ShaderToy and friends) onto LEDs, where trusting the preview really matters. There's a `Shader` library and a [porting guide](docs/guides/Porting%20ShaderToy%20shaders%20to%20Pixelblaze.md) for exactly that.
 
@@ -66,12 +69,14 @@ npm run build    # type-check + production build
 - **`perlin` and the random functions diverge slightly** from firmware even in Precise mode; they're different algorithms, not reverse-engineered. Pure integer math is bit-identical on both sides.
 - **Sound- and sensor-reactive patterns** load and run, but the sensor inputs are inert stubs, so they won't animate from audio here.
 
-## Learn more
+## Where to read next
 
-- **[Feature Guide](docs/IDE%20Feature%20Guide.md)** — what the IDE does, for someone who uses Pixelblaze: the preview, maps, controls, and getting code onto hardware.
-- **[Technical Reference](docs/IDE%20Technical%20Reference.md)** — the authoritative, detailed description of how everything actually works: transpiler, validator, fixed-point engine, maps, camera, render loop.
-- **[Pixelblaze Ecosystem Primer](docs/Pixelblaze%20Ecosystem%20Primer.md)** — the mental model of Pixelblaze itself: device vs. browser, fixed-point, the pattern and mapper dialects, the WebSocket API.
-- **PRDs and ADRs** under [`docs/`](docs/) — the *why* behind the design and the not-yet-built direction.
-- **[Pixelblaze docs](https://electromage.com/docs/)** — the hardware, firmware, and language itself.
+Three documents go deeper, each for a different reader — pick the one that matches why you're here:
+
+- **[IDE Feature Guide](docs/IDE%20Feature%20Guide.md)** — *for someone who uses Pixelblaze.* What every control on the screen does: the preview, maps, the control deck, live controls, and getting code onto hardware. Start here if you just want to use the IDE.
+- **[IDE Technical Reference](docs/IDE%20Technical%20Reference.md)** — *for someone building the IDE.* The authoritative as-built description of how it works: transpiler, validator, fixed-point engine, maps and embeddings, camera, render loop, storage. Start here to contribute.
+- **[Pixelblaze Ecosystem Primer](docs/Pixelblaze%20Ecosystem%20Primer.md)** — *for someone new to Pixelblaze itself.* The mental model the other two assume: device vs. browser, 16.16 fixed-point, the pattern and mapper dialects, the WebSocket API. Start here if "fixed-point" or "pixel map" needs unpacking.
+
+Beyond those: the **PRDs and ADRs** under [`docs/`](docs/) record the *why* behind the design and the not-yet-built direction, and the official **[Pixelblaze docs](https://electromage.com/docs/)** cover the hardware, firmware, and language itself.
 </content>
 </invoke>
