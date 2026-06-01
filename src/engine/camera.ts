@@ -124,7 +124,13 @@ export function projectPosInBounds(
 // space — the real inter-source pitch for any 2D layout, the z-free analogue of
 // `nearestNeighborSpacing`. Sampled the same way (stride-selected queries, exact
 // NN over the full set, median) so it is cheap and robust to a lone far point.
-// Returns 0 for fewer than two points.
+// Coincident duplicates (distance 0) are NOT counted as neighbours: a baked
+// custom map rendered above its bakedCount piles surplus indices on the origin
+// (ADR-0007), and a pile of zero-distance points would otherwise drag the median
+// pitch to 0 — collapsing the measured pitch and ballooning the light size into a
+// whole-frame bloom. Excluding zeros keeps the pitch the spacing among DISTINCT
+// positions, so the honest degraded render (a bright origin overlap + correctly
+// sized spread points) shows instead. Returns 0 for fewer than two points.
 export function nearestNeighborSpacing2D(
   positions: readonly (readonly [number, number])[],
 ): number {
@@ -140,7 +146,7 @@ export function nearestNeighborSpacing2D(
       const dx = positions[j][0] - xi
       const dy = positions[j][1] - yi
       const d2 = dx * dx + dy * dy
-      if (d2 < best) best = d2
+      if (d2 > 0 && d2 < best) best = d2
     }
     if (best < Infinity) dists.push(Math.sqrt(best))
   }
@@ -345,7 +351,10 @@ export function neighborPitchPx(
 // Sampled for cost: for up to NN_SAMPLE_LIMIT stride-selected query points we
 // take the exact nearest neighbour over the FULL set, then return the median of
 // those — robust to a lone far point or a wrap seam. O(sample × N), run once per
-// layout change (never per frame). Returns 0 for fewer than two points.
+// layout change (never per frame). Coincident duplicates (distance 0) are not
+// counted as neighbours, so an origin pile from an over-count custom map replay
+// (ADR-0007) can't collapse the pitch to 0 — see `nearestNeighborSpacing2D`.
+// Returns 0 for fewer than two points.
 export const NN_SAMPLE_LIMIT = 1024
 export function nearestNeighborSpacing(
   positions: readonly (readonly [number, number, number])[],
@@ -363,7 +372,7 @@ export function nearestNeighborSpacing(
       const dy = positions[j][1] - yi
       const dz = positions[j][2] - zi
       const d2 = dx * dx + dy * dy + dz * dz
-      if (d2 < best) best = d2
+      if (d2 > 0 && d2 < best) best = d2
     }
     if (best < Infinity) dists.push(Math.sqrt(best))
   }

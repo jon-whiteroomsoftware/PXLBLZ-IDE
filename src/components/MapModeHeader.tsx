@@ -11,7 +11,7 @@ import {
   AlertDialogAction,
 } from '@/components/ui/alert-dialog'
 import { useEditorStore } from '@/store/editorStore'
-import { useMapStore } from '@/store/mapStore'
+import { useMapStore, canDeployMap } from '@/store/mapStore'
 import { mapTemplates, isPristineToBaseline, type MapTemplate } from '@/engine/maps'
 
 // The editor header strip in map mode (#151): the map's name, a parse-only
@@ -24,7 +24,24 @@ export function MapModeHeader() {
   const userMaps = useMapStore((s) => s.userMaps)
   const mapBaseline = useMapStore((s) => s.mapBaseline)
   const loadMapTemplate = useMapStore((s) => s.loadMapTemplate)
+  const deployEditingMap = useMapStore((s) => s.deployEditingMap)
+  const mapEvalError = useMapStore((s) => s.mapEvalError)
   const source = useEditorStore((s) => s.source)
+  const nativeDim = useEditorStore((s) => s.nativeDim)
+  const previewSource = useEditorStore((s) => s.previewSource)
+
+  const openRecord =
+    editingMap?.kind === 'existing' ? userMaps.find((m) => m.id === editingMap.id) : undefined
+  // Deploy is gated on a clean bake whose dim matches the running preview pattern
+  // (canDeployMap), and on the latest edit having baked cleanly (no eval error).
+  const deployable =
+    mapEvalError === null &&
+    canDeployMap({
+      hasBakedPoints: (openRecord?.points?.length ?? 0) > 0,
+      mapDim: openRecord?.dim,
+      nativeDim,
+      hasPreviewPattern: previewSource !== '',
+    })
 
   // Pending template awaiting overwrite confirmation (buffer was edited).
   const [pending, setPending] = useState<MapTemplate | null>(null)
@@ -57,7 +74,27 @@ export function MapModeHeader() {
         <span className="shrink-0 px-1.5 py-0.5 rounded text-[9px] font-medium tracking-wide uppercase text-zinc-400 border border-zinc-700 leading-none">
           map
         </span>
+        {mapEvalError && (
+          <span
+            title={mapEvalError}
+            className="min-w-0 truncate text-[10px] text-red-400/90"
+          >
+            {mapEvalError}
+          </span>
+        )}
       </span>
+      <button
+        onClick={deployEditingMap}
+        disabled={!deployable}
+        title={
+          deployable
+            ? 'Render the current pattern through this map'
+            : "Compiles when the map's dimensions match the previewed pattern"
+        }
+        className="shrink-0 h-6 px-2 rounded border text-[11px] transition-colors disabled:opacity-40 disabled:cursor-not-allowed border-zinc-700 text-zinc-300 enabled:hover:border-amber-500 enabled:hover:text-amber-400/90"
+      >
+        Deploy to preview
+      </button>
       <LoadTemplateMenu onSelect={chooseTemplate} />
 
       <AlertDialogRoot open={pending !== null} onOpenChange={(o) => { if (!o) setPending(null) }}>

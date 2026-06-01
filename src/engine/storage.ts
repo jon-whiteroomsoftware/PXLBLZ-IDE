@@ -37,6 +37,11 @@ export interface MapRecord {
   // a record with no `source` (every stock map) is not openable in the editor.
   // Schemaless add — no DB_VERSION bump needed.
   source?: string
+  // The custom map's recorded grid shape (ADR-0009), when its baked points form
+  // a regular lattice: { cols, rows, depth? }. Captured at bake so the preview's
+  // layout readout shows e.g. `20×10`; absent for an irregular point cloud.
+  // Schemaless add — no DB_VERSION bump needed.
+  gridDims?: { cols: number; rows: number; depth?: number }
   updatedAt: number
 }
 

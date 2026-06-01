@@ -1,4 +1,4 @@
-import type { MapPoint, PixelMap } from './types'
+import type { GridDims, MapPoint, PixelMap } from './types'
 
 // A baked custom map (ADR-0007): a coordinate array authored once and frozen
 // into the record. Unlike stock generators (which regenerate live for any
@@ -33,7 +33,7 @@ export function inferDim(points: number[][]): 2 | 3 {
 // expected normalized to [0,1] per axis (firmware-normalized map space).
 export function createCustomMap(
   points: number[][],
-  opts: { id: string; name: string },
+  opts: { id: string; name: string; gridDims?: GridDims },
 ): PixelMap {
   const dim = inferDim(points)
   // Freeze the baked array so resolve replays (never regenerates) from it.
@@ -44,6 +44,9 @@ export function createCustomMap(
     name: opts.name,
     builtin: false,
     dim,
+    // Carry recorded grid dims through for the layout readout (ADR-0009); absent
+    // when the baked points are an irregular cloud.
+    ...(opts.gridDims ? { gridDims: opts.gridDims } : {}),
     bakedCount: baked.length,
     resolve(pixelCount: number): MapPoint[] {
       const out: MapPoint[] = []

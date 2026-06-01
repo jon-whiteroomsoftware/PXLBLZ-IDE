@@ -15,6 +15,16 @@ export interface MapPoint {
   pos?: [number, number] | [number, number, number]
 }
 
+// The intended integer grid shape of a regular-lattice map (ADR-0009): cols
+// (x-axis), rows (y-axis), and depth (z-axis) for a 3D lattice. Recorded at bake
+// for a custom map that resolves to a clean lattice, so the layout readout can
+// show `cols×rows(×depth)`. Absent for irregular point clouds.
+export interface GridDims {
+  cols: number
+  rows: number
+  depth?: number
+}
+
 export interface PixelMap {
   id: string
   name: string
@@ -33,6 +43,10 @@ export interface PixelMap {
   // correctly out of the gate — it stays a free knob, so changing it surfaces the
   // count/map drift. Absent for live-regenerating stock maps.
   bakedCount?: number
+  // For a regular-lattice custom map: its intended integer grid dims, recorded
+  // at bake (ADR-0009) so the layout readout shows `cols×rows(×depth)`. Absent
+  // for irregular clouds and for stock generators (which derive dims live).
+  gridDims?: GridDims
   // Stock maps store their generator params (re-derivable/editable). Handed the
   // modeled pixelCount; returns one MapPoint per index, 0 .. pixelCount-1.
   resolve(pixelCount: number): MapPoint[]

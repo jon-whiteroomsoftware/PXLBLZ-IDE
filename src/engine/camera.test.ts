@@ -141,6 +141,15 @@ describe('camera — pos-bounds 2D extent & sizing', () => {
     expect(nearestNeighborSpacing2D([[0.5, 0.5]])).toBe(0)
   })
 
+  it('ignores coincident origin-pile points (over-count custom replay, ADR-0007)', () => {
+    // A baked 9×9 grid rendered above its bakedCount piles surplus indices on the
+    // origin; the pile must NOT collapse the measured pitch (else light size blooms
+    // to fill the frame). The honest pitch stays the grid spacing among distinct pts.
+    const grid = planePositions(9, 9)
+    const piled = [...grid, ...Array.from({ length: 200 }, () => [0, 0] as [number, number])]
+    expect(nearestNeighborSpacing2D(piled)).toBeCloseTo(1 / 8, 10)
+  })
+
   it('derives an on-screen px pitch from the measured spacing (square plane ≈ width/cols)', () => {
     const cols = 32
     const positions = planePositions(cols, cols)

@@ -341,12 +341,12 @@ where each pixel lives, decoupled from how many pixels exist. The preview render
   modeled `pixelCount` (it does **not** own the count) and returns one `MapPoint` per
   index.
 
-**Stock maps:** `plane` (2D, row-major, `sample` = `pos`, normalized per-axis to match
-the legacy grid loop exactly — the 2D no-regression baseline) and `cube` (3D
+**Stock maps:** `plane` (2D, row-major, `sample` = `pos`) and `cube` (3D
 `side×side×side` lattice, default side 8 = 512 pixels). Both are generated, never
-persisted. (Per-axis normalization is current-code; ADR-0009 retargets it to
-aspect-preserving longest-axis anchoring — tracked in #116 / #154. The `plane`'s
-Layout label is **"Square"** (id stays `plane`), #155.)
+persisted. Normalization is **aspect-preserving, longest-axis anchored** (ADR-0009,
+`normalizeAspect`): a squared count (`cols = ceil(sqrt(n))`) stays square when the
+count is a perfect square and draws its true N×M rectangle otherwise. The `plane`'s
+Layout label is **"Square"** (id stays `plane`), #155.
 
 ### 9.2 Viewport shapes (`src/engine/shapes.ts`)
 
@@ -379,9 +379,9 @@ Pure, fully unit-tested, no DOM:
 - **Locked-2D camera (pos-bounds driven, ADR-0009):** the active layout's resolved
   `pos` is the single source of the preview's extent and aspect — there is no global
   rows/cols grid. `posBounds2D` measures the layout's bounds; `canvasSizeForBounds`
-  fits the canvas to the bounds' aspect (square today, since `pos` is per-axis
-  normalized to `[0,1]²`; the true rectangle once #116 flips normalization, and a
-  degenerate 1D-line axis falls back to square); `projectPosInBounds` maps each `pos`
+  fits the canvas to the bounds' aspect — the map's true rectangle, since `pos` is
+  aspect-preserving normalized (ADR-0009, longest axis → `[0,1]`); a degenerate
+  1D-line axis falls back to square; `projectPosInBounds` maps each `pos`
   to clip space, inset by half the measured neighbour pitch so the extreme dots sit a
   half-cell from the rim — bit-for-bit the legacy `(col+0.5)/cols` cell centring for
   the stock plane. The plane, rings, clouds, and 1D shape embeddings all flow through
@@ -439,8 +439,23 @@ inscribed circle.
 `PatternRecord` carries an optional per-pattern layout selection `{ mapId, params,
 pixelCount, shapeId }` (schemaless — no DB bump; missing fields default on read). A
 `maps` IndexedDB object store exists for user maps (DB version bumped 1→2), with full
-CRUD in `mapStore` — though **custom-map authoring UI is not yet built**, so only stock
-maps are currently used. `lightSize` and `diffusion` are global viewport prefs in
+CRUD in `mapStore`. A custom `MapRecord` carries its `source`, the baked `points`, and —
+when those points form a regular lattice — its integer `gridDims` `{cols, rows, depth?}`
+(ADR-0009, for the layout readout). Map-mode authoring (#143): the open map's source
+auto-bakes on the editor sync tick when it parses (`bakeMapSource` — plain-JS `new
+Function`, float64, no shim, ADR-0008; aspect-preserving normalize per ADR-0009, so a
+2:1 map bakes a 2:1 rectangle), and a **"Deploy to preview"** action selects it as the active layout so the running
+pattern re-renders through it — enabled only when the bake is clean and its dim matches the
+previewed pattern (`canDeployMap`). Eval failures surface in the header without crashing.
+The source bakes at the active modeled `pixelCount`, or — with none set — the fresh-2D
+default (`DEFAULT_MAP_BAKE_COUNT = DEFAULT_PLANE_PIXEL_COUNT`), so a map authored against
+the common default isn't gratuitously sparse; deploy never pins or overrides `pixelCount`
+(ADR-0004). A baked custom map replayed above its `bakedCount` piles surplus indices on the
+origin (ADR-0007); the nearest-neighbour pitch measures ignore those zero-distance
+coincidents so the honest degraded render (bright origin overlap + correctly sized spread
+points) shows, instead of the pile collapsing the pitch into a whole-frame light bloom. The
+stale-vs-`pixelCount` cue itself is #144.
+`lightSize` and `diffusion` are global viewport prefs in
 `previewStore`; the camera angle is ephemeral in `cameraStore`.
 
 ---
@@ -600,12 +615,13 @@ The toolkit reflects a few design decisions worth recording:
   recognised as a non-candidate early. Porting stays **human-driven with library
   support** — automated GLSL→Pixelblaze rewrite is a non-goal (a research idea tracked
   in the main PRD's Deferred section).
-- **Aspect ratio is a known limitation (direction now decided — ADR-0009).** As built,
-  `Shader.toUV(x, y, aspect)` hardcodes `aspect = 1`: the preview normalises per-axis and
-  exposes no `cols`/`rows` built-in, while firmware fits the longest axis to 0..1 — both a
-  porting gap and a hardware divergence. **ADR-0009** commits the fix (aspect-preserving,
-  longest-axis-anchored normalization applied to both `sample` and `pos`); implementation
-  is tracked in **#116**. This section describes the current per-axis code, not the target.
+- **Aspect ratio (resolved — ADR-0009, implemented).** The preview normalises
+  **aspect-preserving, longest-axis-anchored** (`normalizeAspect`), applied identically to
+  both `sample` and `pos` — matching how firmware fits the longest axis to 0..1, so a
+  non-square map draws its true rectangle and a circle pattern stays a circle. The one
+  residual GLSL-porting seam: `Shader.toUV(x, y, aspect)` still hardcodes `aspect = 1` and
+  there is no `cols`/`rows` built-in, so a shader that wants the map's aspect can't read it
+  yet — a narrower follow-up than the old whole-pipeline per-axis gap.
 
 ---
 

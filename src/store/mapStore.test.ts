@@ -5,6 +5,8 @@ import {
   selectActiveMap,
   mapFromRecord,
   layoutSource,
+  canDeployMap,
+  DEFAULT_MAP_BAKE_COUNT,
   STOCK_MAPS,
   DEFAULT_MAP_ID,
   DEFAULT_SHAPE_ID,
@@ -232,5 +234,96 @@ describe('editor map mode (#151)', () => {
     await useMapStore.getState().removeMap('cm1')
     expect(useMapStore.getState().editingMap).toBeNull()
     expect(useEditorStore.getState().editorFlavor).toBe('pattern')
+  })
+})
+
+const GRID_SRC = `function(pixelCount) {
+  var coords = []
+  for (var i = 0; i < pixelCount; i++) coords.push([i % 4, Math.floor(i / 4)])
+  return coords
+}`
+
+describe('map eval/bake/deploy (#143)', () => {
+  it('bakeEditingMap evaluates the buffer and bakes points/dim/gridDims into the record', async () => {
+    await useMapStore.getState().createNewMap()
+    const id = useMapStore.getState().editingMap!.kind === 'existing'
+      ? (useMapStore.getState().editingMap as { id: string }).id
+      : ''
+    useEditorStore.getState().setSource(GRID_SRC)
+    useMapStore.setState({ activePixelCount: 8 }) // 4 cols × 2 rows
+    await useMapStore.getState().bakeEditingMap()
+
+    const rec = useMapStore.getState().userMaps.find((m) => m.id === id)!
+    expect(rec.points).toHaveLength(8)
+    expect(rec.dim).toBe(2)
+    expect(rec.gridDims).toEqual({ cols: 4, rows: 2 })
+    expect(rec.source).toBe(GRID_SRC)
+    expect(useMapStore.getState().mapEvalError).toBeNull()
+  })
+
+  it('bakes at the modeled-2D default when no pixel count is set (matches a fresh 2D pattern)', async () => {
+    await useMapStore.getState().createNewMap()
+    useEditorStore.getState().setSource(GRID_SRC)
+    useMapStore.setState({ activePixelCount: null })
+    await useMapStore.getState().bakeEditingMap()
+    // No active count → bake at the count a fresh 2D pattern carries, so a map
+    // authored against the common default isn't gratuitously sparse (no override).
+    expect(useMapStore.getState().userMaps[0].points).toHaveLength(DEFAULT_MAP_BAKE_COUNT)
+  })
+
+  it('a baked custom map becomes selectable in the layout catalogue', async () => {
+    await useMapStore.getState().createNewMap()
+    useEditorStore.getState().setSource(GRID_SRC)
+    useMapStore.setState({ activePixelCount: 8 })
+    await useMapStore.getState().bakeEditingMap()
+    const { userMaps } = useMapStore.getState()
+    const ls = layoutSource({ userMaps })
+    expect(ls.maps.some((m) => m.id === userMaps[0].id)).toBe(true)
+  })
+
+  it('an irregular cloud bakes with no gridDims', async () => {
+    await useMapStore.getState().createNewMap()
+    useEditorStore.getState().setSource(
+      `function(n){ var c=[]; for(var i=0;i<n;i++){var a=i/n*6.283; c.push([Math.cos(a),Math.sin(a)]);} return c }`,
+    )
+    useMapStore.setState({ activePixelCount: 12 })
+    await useMapStore.getState().bakeEditingMap()
+    expect(useMapStore.getState().userMaps[0].gridDims).toBeUndefined()
+  })
+
+  it('bakeEditingMap surfaces an eval error and keeps the prior bake', async () => {
+    await useMapStore.getState().createNewMap()
+    useEditorStore.getState().setSource(GRID_SRC)
+    useMapStore.setState({ activePixelCount: 8 })
+    await useMapStore.getState().bakeEditingMap()
+
+    // Now a parse-clean source that throws when run: prior points stay, error set.
+    useEditorStore.getState().setSource(`function(n){ throw new Error('boom') }`)
+    await useMapStore.getState().bakeEditingMap()
+    const rec = useMapStore.getState().userMaps[0]
+    expect(useMapStore.getState().mapEvalError).toMatch(/boom/)
+    expect(rec.points).toHaveLength(8) // prior good bake intact
+  })
+
+  it('deployEditingMap selects the open map as the active layout', async () => {
+    await useMapStore.getState().createNewMap()
+    const id = (useMapStore.getState().editingMap as { id: string }).id
+    useMapStore.getState().deployEditingMap()
+    expect(useMapStore.getState().activeMapId).toBe(id)
+  })
+})
+
+describe('canDeployMap', () => {
+  it('allows deploy when baked and dims match the previewed pattern', () => {
+    expect(canDeployMap({ hasBakedPoints: true, mapDim: 2, nativeDim: 2, hasPreviewPattern: true })).toBe(true)
+  })
+  it('blocks on dimensionality mismatch', () => {
+    expect(canDeployMap({ hasBakedPoints: true, mapDim: 3, nativeDim: 2, hasPreviewPattern: true })).toBe(false)
+  })
+  it('blocks when the map has not baked yet', () => {
+    expect(canDeployMap({ hasBakedPoints: false, mapDim: 2, nativeDim: 2, hasPreviewPattern: true })).toBe(false)
+  })
+  it('blocks when there is no pattern in the preview', () => {
+    expect(canDeployMap({ hasBakedPoints: true, mapDim: 2, nativeDim: 2, hasPreviewPattern: false })).toBe(false)
   })
 })

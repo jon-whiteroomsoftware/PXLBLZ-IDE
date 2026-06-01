@@ -3,6 +3,7 @@ import type * as monacoType from 'monaco-editor'
 import { useEffect, useRef } from 'react'
 import { useEditorStore } from '@/store/editorStore'
 import { usePatternStore } from '@/store/patternStore'
+import { useMapStore } from '@/store/mapStore'
 import { registerPixelblazeLanguage, PIXELBLAZE_LANG_ID } from './monaco/pixelblazeLanguage'
 import { validateSource } from '@/engine/validate'
 import { parseMapSource } from '@/engine/maps'
@@ -54,19 +55,25 @@ export function Editor() {
 
   const editorRef = useRef<monacoType.editor.IStandaloneCodeEditor | null>(null)
   const monacoRef = useRef<typeof monacoType | null>(null)
-  const syncRef = useRef({ source, compileStatus, activePatternId })
+  const syncRef = useRef({ source, compileStatus, activePatternId, editorFlavor })
   const previewDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Keep a ref current so the interval closure always reads the latest values
   useEffect(() => {
-    syncRef.current = { source, compileStatus, activePatternId }
-  }, [source, compileStatus, activePatternId])
+    syncRef.current = { source, compileStatus, activePatternId, editorFlavor }
+  }, [source, compileStatus, activePatternId, editorFlavor])
 
-  // Persistence tick: auto-save clean source to IndexedDB every SYNC_TICK_MS
+  // Persistence tick: every SYNC_TICK_MS, auto-save the clean editor buffer to
+  // IndexedDB. For a pattern that's clean source → the pattern record. For an open
+  // map (flavor 'map'), a clean (parse-good) buffer is evaluated + baked into the
+  // map record (#143, ADR-0008) — once per tick, never per keystroke (a runaway
+  // map loop would freeze the tab, ADR-0002). Bake failures surface via the store.
   useEffect(() => {
     const id = setInterval(() => {
-      const { source: s, compileStatus: status, activePatternId: pid } = syncRef.current
-      if (status === 'good' && pid && s !== '') updatePatternSrc(pid, s)
+      const { source: s, compileStatus: status, activePatternId: pid, editorFlavor: flavor } = syncRef.current
+      if (status !== 'good' || s === '') return
+      if (flavor === 'map') void useMapStore.getState().bakeEditingMap()
+      else if (pid) updatePatternSrc(pid, s)
     }, SYNC_TICK_MS)
     return () => clearInterval(id)
   }, [updatePatternSrc])

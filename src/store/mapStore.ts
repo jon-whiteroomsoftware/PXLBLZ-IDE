@@ -14,6 +14,7 @@ import {
   SEED_MAP_IDS,
   stockMapSpec,
   MAP_SKELETON,
+  bakeMapSource,
   type PixelMap,
 } from '@/engine/maps'
 import { SHAPES, type ShapeId } from '@/engine/shapes'
@@ -34,6 +35,15 @@ export const DEFAULT_CUBE_SIDE = 8
 // Default modeled pixel count for a 2D plane when a pattern carries no persisted
 // count: a 64×64 square.
 export const DEFAULT_PLANE_PIXEL_COUNT = 4096
+// The pixel count a custom map's source is evaluated at when baking (ADR-0008),
+// used only when no count is modeled. A map's geometry is authored for a snapshot
+// count; lacking a dedicated map-count control yet, bake at the active modeled
+// count when present, else the count a fresh 2D pattern carries — so a map authored
+// against the common 64×64 default bakes dense and matches by default, without ever
+// pinning or overriding the count (ADR-0004). The function's own return length
+// becomes `bakedCount`; the modeled count stays a free knob and a genuine count/map
+// mismatch still renders honestly + warns (#144), the intentional drift of ADR-0007.
+export const DEFAULT_MAP_BAKE_COUNT = DEFAULT_PLANE_PIXEL_COUNT
 
 // The pixel count a freshly-opened pattern of the given display dimensionality
 // defaults to when it carries no persisted count. 1D → a short strip; 2D → a
@@ -65,9 +75,9 @@ export function buildMap(
 
 export function mapFromRecord(r: MapRecord): PixelMap {
   // A custom map replays its baked coordinate array (ADR-0007); stock generators
-  // rebuild live from params.
+  // rebuild live from params. The recorded grid dims ride along for the readout.
   if (r.generator === 'custom') {
-    return createCustomMap(r.points ?? [], { id: r.id, name: r.name })
+    return createCustomMap(r.points ?? [], { id: r.id, name: r.name, gridDims: r.gridDims })
   }
   return buildMap(r.id, r.name, r.generator, r.params)
 }
@@ -113,6 +123,21 @@ export function layoutSource(state: Pick<MapState, 'userMaps'>): LayoutSource {
   }
 }
 
+// Pure gate for the map editor's "Deploy to preview" action (#143). The map's
+// source compiling (green badge) is independent of the preview; deploy is only
+// allowed when the open map has baked cleanly AND its sample dimensionality
+// matches the native dim of the pattern currently running in the preview — a 2D
+// map can only be pushed onto a 2D pattern, 3D onto 3D. With no pattern in the
+// preview there is nothing to deploy onto.
+export function canDeployMap(args: {
+  hasBakedPoints: boolean
+  mapDim: 1 | 2 | 3 | undefined
+  nativeDim: 1 | 2 | 3
+  hasPreviewPattern: boolean
+}): boolean {
+  return args.hasBakedPoints && args.hasPreviewPattern && args.mapDim === args.nativeDim
+}
+
 interface MapState {
   activeMapId: string
   // The active 1D viewport shape embedding (ADR-0005). Lives alongside
@@ -130,6 +155,10 @@ interface MapState {
   // The last-loaded source baseline (skeleton or a "Load template" selection) the
   // dirty-guard compares the buffer against before overwriting (#151).
   mapBaseline: string
+  // The latest bake error for the open map: parses (green badge) but throws or
+  // returns bad coords when evaluated (#143). Null when the last bake succeeded.
+  // Surfaced in the map header; disables "Deploy to preview".
+  mapEvalError: string | null
   setActiveMap: (id: string) => void
   setActiveShape: (id: ShapeId) => void
   setActivePixelCount: (count: number | null) => void
@@ -142,6 +171,16 @@ interface MapState {
   // Replace the editor buffer with a template's verbatim source and reset the
   // dirty-guard baseline to it ("Load template").
   loadMapTemplate: (source: string) => void
+  // Evaluate + bake the open map's current source (ADR-0008): persist the source
+  // (re-editable) and, on a clean eval, the baked points/dim/gridDims into the
+  // record so it becomes a usable layout. Driven by the editor's periodic sync
+  // tick when the parse badge is green. An eval failure persists source only,
+  // records mapEvalError, and leaves any prior bake intact — never crashes.
+  bakeEditingMap: () => Promise<void>
+  // Push the open map onto the running preview: select it as the active layout so
+  // the currently-running pattern re-renders through its geometry. The UI gates
+  // this on canDeployMap (dim match); no-op when no map is open.
+  deployEditingMap: () => void
   // Leave map mode (selecting a pattern/demo/library). Clears editingMap and
   // restores the pattern editor flavor.
   closeMapEditor: () => void
@@ -160,6 +199,7 @@ export const mapInitialState = {
   userMaps: [] as MapRecord[],
   editingMap: null as EditingMap,
   mapBaseline: '',
+  mapEvalError: null as string | null,
 }
 
 // Resolve the active map id against stock maps first, then user maps, falling
@@ -221,6 +261,7 @@ export const useMapStore = create<MapState>()((set, get) => ({
     set({
       editingMap: { kind: 'existing', id: record.id },
       mapBaseline: record.source,
+      mapEvalError: null,
     })
   },
 
@@ -231,8 +272,50 @@ export const useMapStore = create<MapState>()((set, get) => ({
     set({ mapBaseline: source })
   },
 
+  bakeEditingMap: async () => {
+    const { editingMap } = get()
+    if (editingMap?.kind !== 'existing') return
+    const id = editingMap.id
+    const source = useEditorStore.getState().source
+    const updatedAt = Date.now()
+    try {
+      const baked = bakeMapSource(source, get().activePixelCount ?? DEFAULT_MAP_BAKE_COUNT)
+      // gridDims explicitly cleared (set undefined) when the points are an
+      // irregular cloud, so a prior lattice's dims don't linger on the record.
+      const patch = {
+        source,
+        points: baked.points,
+        dim: baked.dim,
+        gridDims: baked.gridDims ?? undefined,
+        updatedAt,
+      }
+      await updateMap(id, patch)
+      set((s) => ({
+        mapEvalError: null,
+        userMaps: s.userMaps.map((m) => (m.id === id ? { ...m, ...patch } : m)),
+      }))
+    } catch (e) {
+      // Parses but fails to evaluate: keep the edits (persist source), keep any
+      // prior good bake, and surface the error rather than crashing the preview.
+      await updateMap(id, { source, updatedAt }).catch(() => {})
+      set((s) => ({
+        mapEvalError: (e as Error).message,
+        userMaps: s.userMaps.map((m) => (m.id === id ? { ...m, source, updatedAt } : m)),
+      }))
+    }
+  },
+
+  deployEditingMap: () => {
+    const { editingMap } = get()
+    if (editingMap?.kind !== 'existing') return
+    // Select the open map as the active layout; the still-running preview pattern
+    // rebuilds against it (Preview's effect keys on activeMapId). Enablement
+    // (dim match) is the UI's job via canDeployMap.
+    set({ activeMapId: editingMap.id })
+  },
+
   closeMapEditor: () => {
-    set({ editingMap: null, mapBaseline: '' })
+    set({ editingMap: null, mapBaseline: '', mapEvalError: null })
     useEditorStore.getState().setEditorFlavor('pattern')
   },
 
