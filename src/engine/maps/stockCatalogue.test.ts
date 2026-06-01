@@ -11,7 +11,9 @@ describe('stock catalogue', () => {
   it('pairs each stock id with metadata and a non-empty raw source', () => {
     expect(STOCK_MAP_SPECS.map((s) => s.id)).toEqual([
       'plane',
+      'wide',
       'cube',
+      'star',
       'seed-helix-3d',
       'seed-sphere-3d',
       'seed-ring-2d',
@@ -85,6 +87,57 @@ describe('plane no-regression (byte-stable 2D baseline)', () => {
         expect(pts[i].sample).toEqual([x, y])
       }
     }
+  })
+})
+
+describe('wide grid', () => {
+  it('lays out roughly twice as wide as it is tall', () => {
+    const wide = mapById('wide')
+    for (const count of [200, 512, 1024]) {
+      const pts = wide.resolve(count)
+      const xs = pts.map((p) => p.sample[0])
+      const ys = pts.map((p) => p.sample[1])
+      const wSpan = Math.max(...xs) - Math.min(...xs)
+      const hSpan = Math.max(...ys) - Math.min(...ys)
+      // Normalize anchors the longest (wide) axis to 1.0; the short axis lands near
+      // 0.5, i.e. the grid is about 2:1.
+      expect(wSpan).toBeCloseTo(1, 5)
+      expect(hSpan).toBeGreaterThan(0.4)
+      expect(hSpan).toBeLessThan(0.65)
+    }
+  })
+})
+
+describe('star (stellated polyhedron)', () => {
+  it('is a 3D map whose points lie on the star wireframe', () => {
+    const star = mapById('star')
+    expect(star.dim).toBe(3)
+    const pts = star.resolve(360)
+    expect(pts).toHaveLength(360)
+    // Every point is a real 3D coordinate in [0,1] (normalize), pos == sample.
+    for (const p of pts) {
+      expect(p.sample).toHaveLength(3)
+      expect(p.pos).toEqual(p.sample)
+    }
+  })
+
+  it('reaches 20 spike tips standing out beyond the body', () => {
+    const star = mapById('star')
+    const pts = star.resolve(2000)
+    // The spike tips are the farthest points from the centre; the body corners sit
+    // closer in. Collect the distinct outward directions of the farthest points and
+    // confirm there are 20 (one per icosahedron face).
+    const c = [0.5, 0.5, 0.5]
+    const radius = (p: number[]) => Math.hypot(p[0] - c[0], p[1] - c[1], p[2] - c[2])
+    const maxR = Math.max(...pts.map((p) => radius(p.sample)))
+    const tips = new Set<string>()
+    for (const p of pts) {
+      const r = radius(p.sample)
+      if (r < maxR - 1e-6) continue
+      const dir = [p.sample[0] - c[0], p.sample[1] - c[1], p.sample[2] - c[2]].map((v) => v / r)
+      tips.add(dir.map((v) => v.toFixed(2)).join(','))
+    }
+    expect(tips.size).toBe(20)
   })
 })
 

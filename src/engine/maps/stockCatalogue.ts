@@ -23,7 +23,9 @@ function source(name: string): string {
 // generators here, no longer baked arrays.
 export const STOCK_MAP_SPECS: SourceMapSpec[] = [
   { id: 'plane', name: 'Square', dim: 2, source: source('plane') },
+  { id: 'wide', name: 'Wide 2:1', dim: 2, source: source('wide') },
   { id: 'cube', name: 'Cube', dim: 3, source: source('cube') },
+  { id: 'star', name: 'Star', dim: 3, source: source('star') },
   { id: 'seed-helix-3d', name: 'Helix (cloud)', dim: 3, source: source('helix') },
   { id: 'seed-sphere-3d', name: 'Sphere (cloud)', dim: 3, source: source('sphere') },
   { id: 'seed-ring-2d', name: 'Ring', dim: 2, source: source('ring') },
