@@ -9,6 +9,7 @@
 // sample/position divergence, made first-class for 2D). No DOM/React imports.
 
 import type { GridDims } from './maps/types'
+import { cylinderWallRadius, cylinderWallDiameter } from './cylinderWall'
 
 export type SurfaceId = 'flat' | 'cylinder'
 
@@ -58,18 +59,15 @@ const TAU = Math.PI * 2
 // (cols=rows) wraps to a tall slender tube (~π:1 height:diameter); a 2:1 map to
 // a fatter, shorter one.
 //
-// The cell stays square the same way the Pole does (see `shapes.ts`): the
-// vertical pitch between rows (height/(rows-1), height normalized to 1) is set
-// equal to the horizontal arc pitch between columns (circumference/cols =
-// 2π·rho/cols), giving radius rho = cols / (2π(rows-1)).
+// The square-cell radius/diameter come from the shared `cylinderWall` helper the
+// Pole also consumes (ADR-0010, #159).
 
 // The diameter of the wrapped tube (in height units, height normalized to 1) for
-// a cols×rows grid: 2·rho = cols/(π(rows-1)). Drives the slender/fat readout and
-// is the geometry the tests assert on. A single-row grid degenerates to a ring,
-// reported here as 0 height (diameter is meaningless).
+// a cols×rows grid. Drives the slender/fat readout and is the geometry the tests
+// assert on. A single-row grid degenerates to a ring (diameter meaningless).
 export function cylinderDiameter(gridDims: GridDims): number {
   const { cols, rows } = gridDims
-  return rows > 1 ? cols / (Math.PI * (rows - 1)) : Infinity
+  return cylinderWallDiameter(cols, rows)
 }
 
 // One pixel of a cols×rows grid wrapped around a cylinder centred in the unit
@@ -86,7 +84,7 @@ export function cylinderSurfacePoint(
   const row = Math.floor(index / cols)
   const a = cols > 0 ? (col / cols) * TAU : 0
   const v = rows > 1 ? row / (rows - 1) : 0 // height fraction 0..1 (bottom-anchored single row)
-  const rho = rows > 1 ? cols / (TAU * (rows - 1)) : 0.5
+  const rho = cylinderWallRadius(cols, rows) ?? 0.5
   return [0.5 + rho * Math.cos(a), v, 0.5 + rho * Math.sin(a)]
 }
 

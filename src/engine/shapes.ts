@@ -10,6 +10,8 @@
 // as a map's intrinsic `pos` (see maps/plane.ts). The locked-2D camera turns that
 // into clip space via `projectPos`. No DOM/React imports: this is pure engine.
 
+import { cylinderWallRadius, cylinderWallDiameter } from './cylinderWall'
+
 export type ShapeId = 'line' | 'ring' | 'pole'
 
 export interface Shape {
@@ -74,15 +76,12 @@ export const POLE: Shape = {
 
 export const SHAPES: Record<ShapeId, Shape> = { line: LINE, ring: RING, pole: POLE }
 
-// --- Pole wrap geometry (the reused Cylinder pi-math, inverted) -------------
+// --- Pole wrap geometry (shared Cylinder pi-cell math) ----------------------
 //
 // The strip wraps a cylinder as stacked rings (x-fastest, like the Cylinder
 // map). `cols` pixels go around each wrap; `rows = ceil(N/cols)` wraps stack up
-// the height. To keep each pixel's surface cell SQUARE, the diameter is derived
-// from the same pi relationship the Cylinder surface uses, here solved the other
-// way: the horizontal arc pitch between adjacent columns (circumference/cols =
-// 2π·rho/cols) is set equal to the vertical pitch between wraps (height/(rows-1),
-// with height normalized to 1) — giving radius rho = cols / (2π(rows-1)).
+// the height. Each surface cell is kept SQUARE by the same pi-cell relationship
+// the Cylinder surface uses — both call the shared `cylinderWall` helper (#159).
 //
 // Sliding `cols` therefore trades diameter for length while the cell stays
 // square: more cols → fatter & shorter, fewer → thinner & taller. The slider is
@@ -92,10 +91,8 @@ export const SHAPES: Record<ShapeId, Shape> = { line: LINE, ring: RING, pole: PO
 const POLE_MIN_COLS = 2
 
 // The diameter (in height units) of a pole of `cols` columns over `n` pixels.
-// rho = cols/(2π(rows-1)); diameter = 2·rho = cols/(π(rows-1)).
 function poleDiameter(n: number, cols: number): number {
-  const rows = Math.ceil(n / cols)
-  return rows > 1 ? cols / (Math.PI * (rows - 1)) : Infinity
+  return cylinderWallDiameter(cols, Math.ceil(n / cols))
 }
 
 // The most columns that still leave the pole taller than wide (diameter ≤ 1).
@@ -160,7 +157,7 @@ export function polePoint(
   const col = index % c
   const row = Math.floor(index / c)
   const a = (col / c) * TAU // around: one-step seam gap, like the ring
-  const rho = rows > 1 ? c / (TAU * (rows - 1)) : 0.25
+  const rho = cylinderWallRadius(c, rows) ?? 0.25
   const v = rows > 1 ? row / (rows - 1) : 0.5 // height fraction: 0..1
   const cu = rho * Math.cos(a)
   const cv = rho * Math.sin(a)
