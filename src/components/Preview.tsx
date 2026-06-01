@@ -36,7 +36,7 @@ import {
   defaultPoleCols,
   type ShapeId,
 } from '@/engine/shapes'
-import { cylinderSurfacePositions, type SurfaceId } from '@/engine/surfaces'
+import { cylinderSurfacePositions, surfaceCubePositions, type SurfaceId } from '@/engine/surfaces'
 import type { MapPoint } from '@/engine/maps'
 import { OrbitControls } from '@/components/OrbitControls'
 import { LIBRARIES } from '@/pixelblaze/libs'
@@ -269,6 +269,16 @@ export function Preview() {
           layoutLabel = `${gridDims.cols}×${gridDims.rows}`
           displayDim = 3
         }
+      }
+      // Surface cube (ADR-0011): the same 2D map wrapped onto the six faces of a
+      // cube shell, drawn in 3D. Needs no map grid — the pixel count alone splits
+      // across the faces. The map still owns `sample`; the surface owns `pos`.
+      if (selection.surfaceId === 'surface-cube' && displayDim === 2) {
+        positions3D = surfaceCubePositions(pixelCount)
+        mapPoints = mapPoints.map((p, i) => ({ sample: p.sample, pos: positions3D![i] }))
+        shapePositions = null
+        layoutLabel = `cube · ${pixelCount}`
+        displayDim = 3
       }
     }
     useEditorStore.getState().setDisplayDim(displayDim)
