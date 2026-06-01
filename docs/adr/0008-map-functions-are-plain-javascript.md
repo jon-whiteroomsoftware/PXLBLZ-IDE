@@ -29,7 +29,7 @@ This ADR originally spoke only of *custom* map source. It now extends to **stock
 - **Hardware-Mapper-faithful, self-contained.** The source reads like a function pasteable into a real Pixelblaze Mapper tab: `Math.*` and language built-ins only, no IDE helpers, no library imports, no namespacing. (Maps deliberately don't get the pattern library system — matching hardware.)
 - **Raw geometry; engine normalizes.** The source returns natural-unit coordinates; a single shared engine pass normalizes per-axis into `[0,1]`, mirroring firmware's bake-time normalization. The per-axis-vs-aspect question (#116) lives in that one pass.
 - **Templates.** Loading a stock map's source into the New Map editor is the only way to view stock-map code; it forks an editable custom copy (source text only — name and `dim` are not carried).
-- **One exception: the drape cylinder.** Its `sample ≠ pos` divergence has no single faithful Mapper function, so it carries no source and is neither viewable nor copyable — an IDE-only preview construct.
+- **One exception: the drape cylinder.** Its `sample ≠ pos` divergence has no single faithful Mapper function, so it carries no source and is neither viewable nor copyable — an IDE-only preview construct. **(Superseded by [ADR-0010](0010-surfaces-are-2d-viewport-embeddings.md): the cylinder is no longer a stock map but a 2D viewport *surface* composed with an ordinary `gridDims` map, so this no-source stock-map exception dissolves — every stock map is source-backed again.)**
 
 ## Consequences
 
