@@ -37,6 +37,10 @@ export const STOCK_MAP_SPECS: SourceMapSpec[] = [
   // normals would be wrong) and the volumetric Cube has no per-point normal, so
   // neither is flagged.
   { id: 'seed-sphere-3d', name: 'Sphere (shell)', dim: 3, source: source('sphere'), solidEligible: true },
+  // The solid sibling of the Sphere shell (ADR-0012): points fill the interior of
+  // the ball. A volume has no per-point boundary normal, so it is NOT solid-
+  // eligible — it relies on the renderer's depth-tested opaque cores instead.
+  { id: 'sphere-volume', name: 'Sphere (volume)', dim: 3, source: source('sphere-volume') },
   { id: 'seed-ring-2d', name: 'Ring', dim: 2, source: source('ring') },
 ]
 

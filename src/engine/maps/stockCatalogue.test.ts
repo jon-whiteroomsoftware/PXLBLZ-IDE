@@ -17,6 +17,7 @@ describe('stock catalogue', () => {
       'star',
       'seed-helix-3d',
       'seed-sphere-3d',
+      'sphere-volume',
       'seed-ring-2d',
     ])
     for (const s of STOCK_MAP_SPECS) {
@@ -49,6 +50,9 @@ describe('stock catalogue', () => {
     expect(mapById('seed-helix-3d').solidEligible).toBeUndefined()
     expect(mapById('cube').solidEligible).toBeUndefined()
     expect(mapById('plane').solidEligible).toBeUndefined()
+    // A volume has no per-point boundary normal, so the solid ball is never solid-
+    // eligible — it leans on the renderer's depth-tested opaque cores (ADR-0012).
+    expect(mapById('sphere-volume').solidEligible).toBeUndefined()
   })
 
   it('exposes the relocated cloud ids for IDB pruning', () => {
@@ -209,6 +213,54 @@ describe('cube shell (faceted 3D shell, ADR-0012)', () => {
         expect(c).toBeGreaterThan(0)
         expect(c).toBeLessThan(1)
       }
+    }
+  })
+})
+
+describe('sphere volume (solid ball, ADR-0012)', () => {
+  // The cloud's own centroid is the ball centre; radius is the distance from it.
+  function centroidOf(pts: number[][]) {
+    const c = [0, 0, 0]
+    for (const p of pts) for (let a = 0; a < 3; a++) c[a] += p[a]
+    return c.map((v) => v / pts.length)
+  }
+  const radiusFrom = (c: number[]) => (p: number[]) =>
+    Math.hypot(p[0] - c[0], p[1] - c[1], p[2] - c[2])
+
+  it('is a distinct 3D map from the Sphere shell', () => {
+    expect(mapById('sphere-volume').dim).toBe(3)
+    expect(mapById('sphere-volume').id).not.toBe(mapById('seed-sphere-3d').id)
+  })
+
+  it('fills the interior: points span a range of radii, not just the shell', () => {
+    const samples = mapById('sphere-volume').resolve(2000).map((p) => p.sample)
+    const radius = radiusFrom(centroidOf(samples))
+    const radii = samples.map(radius)
+    const maxR = Math.max(...radii)
+    const minR = Math.min(...radii)
+    // A genuine fill reaches the centre and the rim — the shell would pin every
+    // radius near the max.
+    expect(minR).toBeLessThan(maxR * 0.1)
+    // Points are spread across radii, not bunched at the surface: a healthy
+    // fraction sit inside the outer half-radius.
+    const inner = radii.filter((r) => r < maxR * 0.5).length
+    expect(inner / radii.length).toBeGreaterThan(0.1)
+  })
+
+  it('stays within the unit ball after normalization', () => {
+    const pts = mapById('sphere-volume').resolve(500)
+    const radius = radiusFrom(centroidOf(pts.map((p) => p.sample)))
+    for (const { sample, pos } of pts) {
+      // radius from the ball centre stays near the normalized half-extent; the
+      // slack absorbs per-axis offsets from aspect normalization anchoring to the
+      // single longest axis (finite sampling makes the ball's extents slightly
+      // non-cubic). The hard guarantee is the [0,1] per-axis bound checked below.
+      expect(radius(sample)).toBeLessThanOrEqual(0.55)
+      for (const c of sample) {
+        expect(c).toBeGreaterThanOrEqual(0)
+        expect(c).toBeLessThanOrEqual(1)
+      }
+      expect(pos).toEqual(sample)
     }
   })
 })
