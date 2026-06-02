@@ -23,30 +23,11 @@ import { bundle } from '@/engine/bundle'
 import { createRenderer } from '@/engine/renderer'
 import { createRenderLoop, type RenderLoop } from '@/engine/renderLoop'
 import { createVirtualClock } from '@/engine/virtualClock'
-import { cubePixelCount, squarePlaneDims, applyNormalizeMode } from '@/engine/maps'
-import {
-  clampPixelCount,
-  cubeSideForCount,
-  advanceAutoOrbit,
-} from '@/engine/camera'
+import { clampPixelCount, advanceAutoOrbit } from '@/engine/camera'
 import { layoutSource as buildLayoutSource } from '@/store/mapStore'
-import { resolveLayoutSelection, resolveSolidity } from '@/engine/layout'
-import { centroidNormals, faceNormals } from '@/engine/centroidNormals'
-import { starShellNormals } from '@/engine/maps/starGeometry'
-import {
-  SHAPES,
-  embedPositions,
-  polePositions,
-  poleNormals,
-  defaultPoleCols,
-  type ShapeId,
-} from '@/engine/shapes'
-import {
-  cylinderSurfacePositions,
-  cylinderSurfaceNormals,
-  type SurfaceId,
-} from '@/engine/surfaces'
-import type { MapPoint } from '@/engine/maps'
+import { resolveLayout, resolveSolidity } from '@/engine/layout'
+import { polePositions, poleNormals, defaultPoleCols, type ShapeId } from '@/engine/shapes'
+import { type SurfaceId } from '@/engine/surfaces'
 import { OrbitControls } from '@/components/OrbitControls'
 import { LIBRARIES } from '@/pixelblaze/libs'
 import {
@@ -167,153 +148,55 @@ export function Preview() {
     // as the on-open default, ahead of the per-dimension default. Preview-only and
     // freely overridable from the count box.
     const recommendedPixelCount = recommendedPixelCountFor(activeDemoName)
-    const selection = resolveLayoutSelection(
-      { mapId: activeMapId, shapeId: activeShapeId, surfaceId: activeSurfaceId },
-      nativeDim,
-      buildLayoutSource({ userMaps }),
-      recommendedMapId,
+    // Resolve the full layout in one engine query (src/engine/layout.ts):
+    // selection-correction + map/shape/surface resolution + normalization +
+    // positions + solid-eligible normals + the grid readout. Store-coupled
+    // lookups are injected so the resolver stays engine-pure and table-tested.
+    const layout = resolveLayout(
+      {
+        selection: { mapId: activeMapId, shapeId: activeShapeId, surfaceId: activeSurfaceId },
+        nativeDim,
+        source: buildLayoutSource({ userMaps }),
+        persistedCount: activePixelCount,
+        normalizeMode: activeNormalizeMode,
+        recommendedMapId,
+        recommendedCount: recommendedPixelCount,
+        poleCols: useCameraStore.getState().poleCols,
+        shapeDefaultCount: DEFAULT_SHAPE_PIXEL_COUNT,
+      },
+      {
+        resolveMap: (mapId) => resolveMap(mapId ?? DEFAULT_MAP_ID, userMaps),
+        mapGridDims,
+        defaultCountForDim: defaultPixelCountForDim,
+      },
     )
-    if (selection.mapId && selection.mapId !== activeMapId) {
-      useMapStore.getState().setActiveMap(selection.mapId)
+
+    // Reflect any dimension-correction back onto the store so the dropdowns stay
+    // in sync with what was actually drawn.
+    const { correctedSelection } = layout
+    if (correctedSelection.mapId && correctedSelection.mapId !== activeMapId) {
+      useMapStore.getState().setActiveMap(correctedSelection.mapId)
     }
-    if (selection.shapeId && selection.shapeId !== activeShapeId) {
-      useMapStore.getState().setActiveShape(selection.shapeId as ShapeId)
+    if (correctedSelection.shapeId && correctedSelection.shapeId !== activeShapeId) {
+      useMapStore.getState().setActiveShape(correctedSelection.shapeId as ShapeId)
     }
-    if (selection.surfaceId && selection.surfaceId !== activeSurfaceId) {
-      useMapStore.getState().setActiveSurface(selection.surfaceId)
+    if (correctedSelection.surfaceId && correctedSelection.surfaceId !== activeSurfaceId) {
+      useMapStore.getState().setActiveSurface(correctedSelection.surfaceId)
     }
 
-    // 1D shape: pos-only embedding over an empty sample (count from the persisted
-    // value or a 1D default). 2D map: row-major plane reproducing the legacy grid
-    // loop's coordinates exactly (no-regression), count = rows×cols. 3D map: a
-    // cube lattice whose `pos` feeds the orbit renderer (#129), count = side³.
-    let pixelCount: number
-    let mapPoints: MapPoint[]
-    let shapePositions: [number, number][] | null = null
-    let positions3D: [number, number, number][] | null = null
-    // Per-point outward normals for a solid-eligible 3D embedding (ADR-0011),
-    // parallel to positions3D. Stays null for layouts with no normal (volumetric
-    // cube, cloud, flat 2D); its presence is exactly the solidity eligibility.
-    let normals3D: [number, number, number][] | null = null
-    let displayDim: 1 | 2 | 3
-    // The realized grid readout, or null when there's no regular grid (a 1D strip
-    // or an irregular custom point cloud). Reflects the actual arrangement, NOT
-    // the viewport dimension — a 2D cylinder stays a 2D layout readout.
-    let layoutLabel: string | null = null
-    if (selection.shapeId) {
-      const shape = SHAPES[selection.shapeId as ShapeId]
-      pixelCount = clampPixelCount(activePixelCount ?? DEFAULT_SHAPE_PIXEL_COUNT)
-      if (shape.displayDim === 3) {
-        // Pole: a 1D strip wrapped onto a cylinder, drawn in 3D (orbit camera).
-        // `sample` stays empty (1D dispatch); only `pos` differs from line/ring.
-        // Wrap density comes from the ephemeral camera store, clamped to the
-        // taller-than-wide range for the current count; null → the shape default.
-        const cols = useCameraStore.getState().poleCols ?? defaultPoleCols(pixelCount)
-        positions3D = polePositions(pixelCount, cols)
-        normals3D = poleNormals(pixelCount, cols)
-        mapPoints = positions3D.map((pos) => ({ sample: [], pos }))
-        displayDim = 3
-      } else {
-        shapePositions = embedPositions(shape, pixelCount)
-        mapPoints = shapePositions.map((pos) => ({ sample: [], pos }))
-        displayDim = shape.displayDim
-      }
-    } else {
-      const map = resolveMap(selection.mapId ?? DEFAULT_MAP_ID, userMaps)
-      if (map.dim === 3) {
-        if (map.id === 'cube') {
-          // 3D cube lattice: the pixel count is the knob (ADR-0004), so the stock
-          // cube cubes the count up to a side³ lattice (count → nearest cube). The
-          // source-backed map (ADR-0008) regenerates the lattice live for the
-          // squared-up count; each point carries a [0,1]³ `pos` the orbit camera
-          // projects and the render loop dispatches render3D on the 3-arity sample.
-          const count = activePixelCount ?? recommendedPixelCount ?? defaultPixelCountForDim(3)
-          const cubeSide = cubeSideForCount(count)
-          pixelCount = clampPixelCount(cubePixelCount(cubeSide))
-          mapPoints = applyNormalizeMode(map.resolve(pixelCount), activeNormalizeMode)
-          layoutLabel = `${cubeSide}×${cubeSide}×${cubeSide}`
-        } else {
-          // 3D point cloud: stock sphere/helix regenerate live for any count
-          // (ADR-0008); a custom cloud replays its baked array index-aligned to the
-          // count (ADR-0007). The count is a free knob (defaulting to a custom
-          // map's baked length); over-count pixels fall to the origin, surplus
-          // points go unvisited. `cubeSide` is only a dot-size reference here.
-          pixelCount = clampPixelCount(
-            activePixelCount ?? recommendedPixelCount ?? map.bakedCount ?? defaultPixelCountForDim(3),
-          )
-          mapPoints = applyNormalizeMode(map.resolve(pixelCount), activeNormalizeMode)
-        }
-        positions3D = mapPoints.map((p) => p.pos as [number, number, number])
-        // A solid-eligible stock 3D map (ADR-0011) carries no baked normal, so the
-        // preview re-derives one, offered ONLY because the catalogue flags the map.
-        // The faceted Cube shell uses per-face normals (dominant axis of pos −
-        // centre, ADR-0012); the Star shell uses its stellation faces' normals
-        // (starShellNormals); a convex cloud shell (the Sphere) uses the generic
-        // centroid radial. The Helix / volumetric Cube/Star set no flag and stay
-        // see-through. Preview-only: never written to the map record.
-        if (map.solidEligible) {
-          normals3D =
-            map.id === 'cube-shell'
-              ? faceNormals(positions3D)
-              : map.id === 'star-shell'
-                ? starShellNormals(positions3D)
-                : centroidNormals(positions3D)
-        }
-        displayDim = 3
-      } else if (map.id !== 'plane') {
-        // 2D point cloud: the stock ring regenerates live (ADR-0008); a custom 2D
-        // map replays its baked array. Irregular, non-grid positions — the 2D
-        // consume path draws each point's [0,1]² `pos` through the shape-position
-        // channel (the same seam 1D ring/helix embeddings use) rather than the
-        // locked plane. A custom replay is index-aligned to the count (ADR-0007
-        // drift), defaulting to the baked length.
-        pixelCount = clampPixelCount(
-          activePixelCount ?? recommendedPixelCount ?? map.bakedCount ?? defaultPixelCountForDim(2),
-        )
-        mapPoints = applyNormalizeMode(map.resolve(pixelCount), activeNormalizeMode)
-        shapePositions = mapPoints.map((p) => p.pos as [number, number])
-        displayDim = 2
-      } else {
-        // 2D stock plane: the pixel count is the knob (ADR-0004); with no aspect
-        // to honour the plane squares the count up to the most-square grid that
-        // holds it. Its per-axis-normalized `pos` flows through the same 2D pos
-        // channel as every other layout (ADR-0009) — the renderer measures the
-        // extent and neighbour pitch from those points, so there is no preview-wide
-        // grid. `squarePlaneDims` survives only as the generator's private
-        // dims, used here purely for the layout readout. count is the user's
-        // count, not rows×cols (the last grid row may be partial).
-        pixelCount = clampPixelCount(activePixelCount ?? recommendedPixelCount ?? defaultPixelCountForDim(2))
-        const planeDims = squarePlaneDims(pixelCount)
-        mapPoints = applyNormalizeMode(map.resolve(pixelCount), activeNormalizeMode)
-        shapePositions = mapPoints.map((p) => p.pos as [number, number])
-        layoutLabel = `${planeDims.cols}×${planeDims.rows}`
-        displayDim = 2
-      }
+    const { mapPoints, pixelCount, draw } = layout
+    // Split the draw channel back into the prior locals so the renderer wiring
+    // below is unchanged: the 3D channel carries positions + (solid-eligible)
+    // normals; the 2D channel a single pos list.
+    const positions3D = draw.kind === '3d' ? draw.positions : null
+    const normals3D = draw.kind === '3d' ? draw.normals : null
+    const shapePositions = draw.kind === '2d' ? draw.positions : null
 
-      // 2D surface embedding (ADR-0010): the Cylinder wraps the map's grid onto a
-      // 3D tube. The map still owns `sample` (the pattern reads flat [u,v] and
-      // can't observe the wrap — only `pos` differs from the Flat case); the
-      // surface owns `pos`, derived from the map's RAW cols×rows grid so the
-      // unrolled tube is the map rectangle. Drawn in 3D, so it gets the orbit
-      // camera like the cube. Flat needs no work — the map's intrinsic pos stands.
-      if (selection.surfaceId === 'cylinder' && displayDim === 2) {
-        const gridDims = mapGridDims(map, pixelCount)
-        if (gridDims) {
-          positions3D = cylinderSurfacePositions(pixelCount, gridDims)
-          normals3D = cylinderSurfaceNormals(pixelCount, gridDims)
-          mapPoints = mapPoints.map((p, i) => ({ sample: p.sample, pos: positions3D![i] }))
-          shapePositions = null
-          layoutLabel = `${gridDims.cols}×${gridDims.rows}`
-          displayDim = 3
-        }
-      }
-    }
-    useEditorStore.getState().setDisplayDim(displayDim)
-    useEditorStore.getState().setLayoutLabel(layoutLabel)
+    useEditorStore.getState().setDisplayDim(layout.displayDim)
+    useEditorStore.getState().setLayoutLabel(layout.layoutLabel)
     // A normal array is fed exactly for a solid-eligible embedding (Pole, Cylinder,
     // Sphere shell, Cube shell), so its presence IS the eligibility the deck's
-    // solidity slider keys on (ADR-0011). Volume cube / non-shell clouds / flat 2D
-    // carry none.
+    // solidity slider keys on (ADR-0011).
     useEditorStore.getState().setSolidEligible(normals3D !== null)
 
     const clock = createVirtualClock()

@@ -15,6 +15,19 @@
 
 import type { ShapeId } from './shapes'
 import type { SurfaceId } from './surfaces'
+import type { MapPoint, PixelMap, GridDims, NormalizeMode } from './maps'
+import { cubePixelCount, squarePlaneDims, applyNormalizeMode } from './maps'
+import {
+  SHAPES,
+  embedPositions,
+  polePositions,
+  poleNormals,
+  defaultPoleCols,
+} from './shapes'
+import { cylinderSurfacePositions, cylinderSurfaceNormals } from './surfaces'
+import { clampPixelCount, cubeSideForCount } from './camera'
+import { centroidNormals, faceNormals } from './centroidNormals'
+import { starShellNormals } from './maps/starGeometry'
 
 export type LayoutKind = 'shape' | 'surface' | 'map'
 
@@ -187,4 +200,190 @@ export function resolveLayoutSelection(
   }
 
   return sel
+}
+
+// ---------------------------------------------------------------------------
+// resolveLayout — the single seam from a Layout *selection* to its *resolved*
+// drawn realization (ADR-0004/0005/0008/0009/0010/0011/0012).
+//
+// Given the persisted selection, the pattern's native dimensionality, the
+// modeled pixel count and normalize mode, this corrects the selection (via
+// resolveLayoutSelection), resolves the chosen map/shape/surface, applies the
+// shared aspect normalization, computes draw positions + any solid-eligible
+// surface normals, and reports the realized grid label. The component that
+// consumes it is pure wiring: it writes correctedSelection back to the store,
+// feeds `draw`/`mapPoints` to the renderer and render loop, and surfaces
+// `displayDim`/`layoutLabel`/`solidEligible` to the editor store.
+//
+// Store-coupled lookups are INJECTED (`deps`) so this stays engine-pure (no
+// store/React import, no import cycle) and table-testable with fakes: a test
+// supplies a stub `resolveMap` returning a controlled PixelMap.
+
+// The 3D channel carries per-point normals (present ⇔ solid-eligible, ADR-0011);
+// the 2D channel never does. `displayDim` (1|2|3) is the LOGICAL display
+// dimension for UI gating, distinct from the draw channel — a 1D line and a 2D
+// ring both draw through the 2D channel.
+export type ResolvedDraw =
+  | { kind: '2d'; positions: [number, number][] }
+  | { kind: '3d'; positions: [number, number, number][]; normals: [number, number, number][] | null }
+
+export interface ResolvedLayout {
+  // The selection after dimension-correction — the component writes this back so
+  // the dropdowns stay in sync with what was actually drawn.
+  correctedSelection: LayoutSelection
+  // Per-index sample+pos, feeding the shim and render loop.
+  mapPoints: MapPoint[]
+  pixelCount: number
+  displayDim: 1 | 2 | 3
+  // The `cols×rows(×depth)` readout, or null for a 1D strip / irregular cloud.
+  layoutLabel: string | null
+  draw: ResolvedDraw
+}
+
+export interface ResolveLayoutDeps {
+  // Resolve a map id to its PixelMap (applies the store's DEFAULT_MAP_ID
+  // fallback at the injection site so this module stays constant-free).
+  resolveMap: (mapId: string | undefined) => PixelMap
+  // The integer grid of a map at a count, or null for an irregular cloud.
+  mapGridDims: (map: PixelMap, pixelCount: number) => GridDims | null
+  // Per-dimension default modeled count.
+  defaultCountForDim: (dim: 1 | 2 | 3) => number
+}
+
+export interface ResolveLayoutInput {
+  selection: LayoutSelection
+  nativeDim: 1 | 2 | 3
+  source: LayoutSource
+  // The persisted modeled count (null ⇒ use a default / recommendation).
+  persistedCount: number | null
+  normalizeMode: NormalizeMode
+  // IDE-side, preview-only on-open defaults for a demo (see demos.ts).
+  recommendedMapId?: string
+  recommendedCount?: number
+  // The ephemeral pole-wrap density (null ⇒ the shape default).
+  poleCols: number | null
+  // The 1D-shape on-open count (DEFAULT_SHAPE_PIXEL_COUNT), injected to keep
+  // this module free of store constants.
+  shapeDefaultCount: number
+}
+
+export function resolveLayout(
+  input: ResolveLayoutInput,
+  deps: ResolveLayoutDeps,
+): ResolvedLayout {
+  const {
+    selection,
+    nativeDim,
+    source,
+    persistedCount,
+    normalizeMode,
+    recommendedMapId,
+    recommendedCount,
+    poleCols,
+    shapeDefaultCount,
+  } = input
+  const { resolveMap, mapGridDims, defaultCountForDim } = deps
+
+  const correctedSelection = resolveLayoutSelection(
+    selection,
+    nativeDim,
+    source,
+    recommendedMapId,
+  )
+
+  let pixelCount: number
+  let mapPoints: MapPoint[]
+  let displayDim: 1 | 2 | 3
+  let layoutLabel: string | null = null
+  let positions2D: [number, number][] | null = null
+  let positions3D: [number, number, number][] | null = null
+  let normals3D: [number, number, number][] | null = null
+
+  if (correctedSelection.shapeId) {
+    // 1D shape: pos-only embedding over an empty sample.
+    const shape = SHAPES[correctedSelection.shapeId as ShapeId]
+    pixelCount = clampPixelCount(persistedCount ?? shapeDefaultCount)
+    if (shape.displayDim === 3) {
+      // Pole: a 1D strip wrapped onto a cylinder, drawn in 3D.
+      const cols = poleCols ?? defaultPoleCols(pixelCount)
+      positions3D = polePositions(pixelCount, cols)
+      normals3D = poleNormals(pixelCount, cols)
+      mapPoints = positions3D.map((pos) => ({ sample: [], pos }))
+      displayDim = 3
+    } else {
+      positions2D = embedPositions(shape, pixelCount)
+      mapPoints = positions2D.map((pos) => ({ sample: [], pos }))
+      displayDim = shape.displayDim
+    }
+  } else {
+    const map = resolveMap(correctedSelection.mapId)
+    if (map.dim === 3) {
+      if (map.id === 'cube') {
+        // 3D cube lattice: the count squares up to a side³ lattice (ADR-0004/0008).
+        const count = persistedCount ?? recommendedCount ?? defaultCountForDim(3)
+        const cubeSide = cubeSideForCount(count)
+        pixelCount = clampPixelCount(cubePixelCount(cubeSide))
+        mapPoints = applyNormalizeMode(map.resolve(pixelCount), normalizeMode)
+        layoutLabel = `${cubeSide}×${cubeSide}×${cubeSide}`
+      } else {
+        // 3D point cloud: stock regenerates live; a custom replays its baked
+        // array index-aligned to the count (ADR-0007/0008).
+        pixelCount = clampPixelCount(
+          persistedCount ?? recommendedCount ?? map.bakedCount ?? defaultCountForDim(3),
+        )
+        mapPoints = applyNormalizeMode(map.resolve(pixelCount), normalizeMode)
+      }
+      positions3D = mapPoints.map((p) => p.pos as [number, number, number])
+      // A solid-eligible stock 3D map (ADR-0011/0012) carries no baked normal,
+      // so the preview re-derives one — the faceted Cube shell uses per-face
+      // normals, the Star shell its stellation faces, a convex shell the generic
+      // centroid radial. (Candidate 2 will move this recipe onto the map.)
+      if (map.solidEligible) {
+        normals3D =
+          map.id === 'cube-shell'
+            ? faceNormals(positions3D)
+            : map.id === 'star-shell'
+              ? starShellNormals(positions3D)
+              : centroidNormals(positions3D)
+      }
+      displayDim = 3
+    } else if (map.id !== 'plane') {
+      // 2D point cloud: irregular positions drawn through the 2D pos channel.
+      pixelCount = clampPixelCount(
+        persistedCount ?? recommendedCount ?? map.bakedCount ?? defaultCountForDim(2),
+      )
+      mapPoints = applyNormalizeMode(map.resolve(pixelCount), normalizeMode)
+      positions2D = mapPoints.map((p) => p.pos as [number, number])
+      displayDim = 2
+    } else {
+      // 2D stock plane: the count squares up to the most-square grid (ADR-0004/0009).
+      pixelCount = clampPixelCount(persistedCount ?? recommendedCount ?? defaultCountForDim(2))
+      const planeDims = squarePlaneDims(pixelCount)
+      mapPoints = applyNormalizeMode(map.resolve(pixelCount), normalizeMode)
+      positions2D = mapPoints.map((p) => p.pos as [number, number])
+      layoutLabel = `${planeDims.cols}×${planeDims.rows}`
+      displayDim = 2
+    }
+
+    // 2D surface embedding (ADR-0010): the Cylinder wraps the map's grid onto a
+    // 3D tube. The map still owns `sample`; the surface owns `pos`.
+    if (correctedSelection.surfaceId === 'cylinder' && displayDim === 2) {
+      const gridDims = mapGridDims(map, pixelCount)
+      if (gridDims) {
+        positions3D = cylinderSurfacePositions(pixelCount, gridDims)
+        normals3D = cylinderSurfaceNormals(pixelCount, gridDims)
+        mapPoints = mapPoints.map((p, i) => ({ sample: p.sample, pos: positions3D![i] }))
+        positions2D = null
+        layoutLabel = `${gridDims.cols}×${gridDims.rows}`
+        displayDim = 3
+      }
+    }
+  }
+
+  const draw: ResolvedDraw =
+    positions3D !== null
+      ? { kind: '3d', positions: positions3D, normals: normals3D }
+      : { kind: '2d', positions: positions2D ?? [] }
+
+  return { correctedSelection, mapPoints, pixelCount, displayDim, layoutLabel, draw }
 }
