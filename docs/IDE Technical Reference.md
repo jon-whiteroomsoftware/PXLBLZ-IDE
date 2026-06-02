@@ -284,7 +284,11 @@ volume** scheme (ADR-0012): `cube` ("Cube (volume)"), `cube-shell` ("Cube (shell
 `star-shell`/`star-volume`, `seed-sphere-3d` ("Sphere (shell)"), `sphere-volume`,
 plus `seed-helix-3d` ("Helix (cloud)"). Shell entries carry a `normals` recipe
 (`'face' | 'star' | 'centroid'`), whose presence is the solid-eligibility gate
-(§9). The old wireframe `star` and the no-source "drape cylinder" are both retired.
+(§9). A lattice entry carries a `grid` recipe (`'square' | 'wide' | 'cube'`),
+which `createSourceMap` maps to the live count→dims derivation backing
+`PixelMap.gridDims` — `plane`/`wide` to their plane dims, `cube` to its side³
+dims; absent ⇒ `gridDims` returns null (the irregular clouds and shells).
+The old wireframe `star` and the no-source "drape cylinder" are both retired.
 
 ### Custom maps bake on save (ADR-0007)
 
