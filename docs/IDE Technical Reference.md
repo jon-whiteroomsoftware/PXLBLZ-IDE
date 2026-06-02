@@ -339,6 +339,22 @@ restores a persisted selection if still valid, else a default, optionally honour
 demo's `recommendedMapId`. `LayoutSelector.tsx` hides a control with no real choice
 (so a 1D pattern shows one, a 2D pattern with a wrappable map two, a 3D pattern one).
 
+`resolveLayout(input, deps): ResolvedLayout` is the single seam from a Layout
+*selection* to its **resolved layout** — the drawn realization. It folds together
+selection-correction (`resolveLayoutSelection`), map/shape/surface resolution, the
+shared aspect normalization, draw positions, solid-eligible surface normals, the modeled
+`pixelCount`, and the `cols×rows(×depth)` readout label. The result is
+`{ correctedSelection, mapPoints, pixelCount, displayDim, layoutLabel, draw }`, where
+`draw` is a discriminated union — `{ kind:'2d', positions }` or
+`{ kind:'3d', positions, normals }` (3D normals present ⇔ solidity-eligible). The
+preview's render effect (`Preview.tsx`) is pure wiring over this: it writes
+`correctedSelection` back to `mapStore`, surfaces `displayDim`/`layoutLabel`/`normals !==
+null` to `editorStore`, and feeds `mapPoints`/`draw` to the renderer and render loop — it
+holds no layout branching itself. To stay engine-pure (no store/React import, no import
+cycle), `resolveLayout` takes its store-coupled lookups as injected `deps`
+(`resolveMap`, `mapGridDims`, `defaultCountForDim`); this is also what makes every branch
+table-testable with fake maps (`resolveLayout.test.ts`).
+
 ### Recommendation registries (`demos.ts`)
 
 Read-only demos carry no `PatternRecord`, so three preview-only, IDE-side registries
