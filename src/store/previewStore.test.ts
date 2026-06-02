@@ -76,33 +76,55 @@ describe('mergePersistedPreview', () => {
     expect('grid' in merged).toBe(false)
   })
 
-  it('migrates a pre-ADR-0006 blob: legacy grid.diffusion lifts to the top level', () => {
+  it('drops legacy per-pattern fields (brightness/speed) from the persisted blob (ADR-0013)', () => {
     const current = usePreviewStore.getState()
-    // Simulate a blob saved before diffusion was hoisted out of `grid`.
+    const persisted = { brightness: 0.3, speed: 4 }
+    const merged = mergePersistedPreview(persisted, current)
+    // brightness/speed are per-pattern cascaded now; the blob's stale values must
+    // not land back on the live state — they stay at their initial defaults.
+    expect(merged.brightness).toBe(previewInitialState.brightness)
+    expect(merged.speed).toBe(previewInitialState.speed)
+  })
+
+  it('migrates a pre-ADR-0013 blob: legacy live lightSize/diffusion lift to the sticky baselines', () => {
+    const current = usePreviewStore.getState()
+    const persisted = { lightSize: 0.7, diffusion: 0.6 }
+    const merged = mergePersistedPreview(persisted, current)
+    expect(merged.lightSizeSticky).toBe(0.7)
+    expect(merged.diffusionSticky).toBe(0.6)
+  })
+
+  it('migrates a pre-ADR-0006 blob: legacy grid.diffusion lifts to the diffusion baseline', () => {
+    const current = usePreviewStore.getState()
     const persisted = { grid: { rows: 16, cols: 16, spacing: 20, diffusion: 0.6 } }
     const merged = mergePersistedPreview(persisted, current)
-    expect(merged.diffusion).toBe(0.6)
+    expect(merged.diffusionSticky).toBe(0.6)
     expect('grid' in merged).toBe(false)
   })
 
-  it('prefers a top-level persisted diffusion over a legacy grid.diffusion', () => {
+  it('prefers a persisted diffusionSticky over the legacy live diffusion and grid.diffusion', () => {
     const current = usePreviewStore.getState()
-    const persisted = { diffusion: 0.2, grid: { rows: 16, cols: 16, spacing: 20, diffusion: 0.6 } }
-    expect(mergePersistedPreview(persisted, current).diffusion).toBe(0.2)
+    const persisted = { diffusionSticky: 0.2, diffusion: 0.5, grid: { diffusion: 0.6 } }
+    expect(mergePersistedPreview(persisted, current).diffusionSticky).toBe(0.2)
   })
 
-  it('defaults lightSize and diffusion when absent from a pre-feature blob', () => {
+  it('persists fidelity across the blob', () => {
+    const current = usePreviewStore.getState()
+    expect(mergePersistedPreview({ fidelity: 'fidelity' }, current).fidelity).toBe('fidelity')
+  })
+
+  it('defaults the sticky baselines when absent from a pre-feature blob', () => {
     const current = usePreviewStore.getState()
     const merged = mergePersistedPreview({}, current)
-    expect(merged.lightSize).toBe(previewInitialState.lightSize)
-    expect(merged.diffusion).toBe(previewInitialState.diffusion)
+    expect(merged.lightSizeSticky).toBe(previewInitialState.lightSizeSticky)
+    expect(merged.diffusionSticky).toBe(previewInitialState.diffusionSticky)
   })
 
-  it('preserves and clamps a persisted lightSize to the 0.15–0.95 range', () => {
+  it('clamps a migrated lightSize baseline to the 0.15–0.95 range', () => {
     const current = usePreviewStore.getState()
-    expect(mergePersistedPreview({ lightSize: 0.7 }, current).lightSize).toBe(0.7)
-    expect(mergePersistedPreview({ lightSize: 99 }, current).lightSize).toBe(0.95)
-    expect(mergePersistedPreview({ lightSize: 0 }, current).lightSize).toBe(0.15)
+    expect(mergePersistedPreview({ lightSizeSticky: 0.7 }, current).lightSizeSticky).toBe(0.7)
+    expect(mergePersistedPreview({ lightSizeSticky: 99 }, current).lightSizeSticky).toBe(0.95)
+    expect(mergePersistedPreview({ lightSizeSticky: 0 }, current).lightSizeSticky).toBe(0.15)
   })
 })
 
@@ -129,5 +151,23 @@ describe('diffusion', () => {
     expect(usePreviewStore.getState().diffusion).toBe(1)
     usePreviewStore.getState().setDiffusion(-1)
     expect(usePreviewStore.getState().diffusion).toBe(0)
+  })
+})
+
+describe('global-sticky baselines (ADR-0013)', () => {
+  it('default to the same values as the live working copies', () => {
+    const s = usePreviewStore.getState()
+    expect(s.lightSizeSticky).toBe(0.5)
+    expect(s.diffusionSticky).toBe(0.5)
+  })
+
+  it('setLightSizeSticky clamps to the 0.15–0.95 range', () => {
+    usePreviewStore.getState().setLightSizeSticky(100)
+    expect(usePreviewStore.getState().lightSizeSticky).toBe(0.95)
+  })
+
+  it('setDiffusionSticky clamps to the 0–1 range', () => {
+    usePreviewStore.getState().setDiffusionSticky(-1)
+    expect(usePreviewStore.getState().diffusionSticky).toBe(0)
   })
 })

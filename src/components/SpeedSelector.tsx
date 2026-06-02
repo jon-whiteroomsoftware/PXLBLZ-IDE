@@ -1,4 +1,5 @@
 import { usePreviewStore } from '@/store/previewStore'
+import { writeCascadedOverride } from '@/store/settingsCascade'
 import { DeckSelect } from '@/components/DeckSelect'
 
 const TIME_SCALES: { value: number; label: string }[] = [
@@ -28,7 +29,10 @@ export function SpeedSelector() {
       ariaLabel="Speed"
       value={nearestTimeScale(speed)}
       options={TIME_SCALES}
-      onChange={setSpeed}
+      onChange={(v) => {
+        setSpeed(v)
+        writeCascadedOverride('speed', v)
+      }}
     />
   )
 }

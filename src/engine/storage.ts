@@ -1,3 +1,5 @@
+import type { Settings } from './settings'
+
 const DB_NAME = 'pixelblaze-ide'
 const DB_VERSION = 2
 const STORE_PATTERNS = 'patterns'
@@ -10,16 +12,16 @@ export interface PatternRecord {
   src: string
   controls: Record<string, number | number[]>
   updatedAt: number
-  // Per-pattern layout selection (ADR-0004/0005). Optional and schemaless:
-  // a record without these derives defaults on read (native dimensionality +
-  // the global grid seed), so adding them needs no DB_VERSION bump.
-  mapId?: string
-  params?: Record<string, number>  // the active map's generator params
-  pixelCount?: number
-  shapeId?: string                 // 1D viewport shape embedding, if wrapped
-  surfaceId?: string               // 2D viewport surface embedding (ADR-0010); 'flat' default
-  solidity?: number                // preview-only back-face fade 0–1 (ADR-0011); 1.0 default, never shipped
-  normalize?: 'contain' | 'fill'   // Mapper map-coordinate normalization (#174); 'contain' default, real hardware
+  // The active map's generator params. Not a cascaded setting (it rides with the
+  // map, not the four-layer settings cascade), so it stays a flat field.
+  params?: Record<string, number>
+  // Sparse per-pattern settings overrides — cascade layer 1 (ADR-0013). Written
+  // only on genuine user manipulation of a control; a field absent here flows from
+  // a lower cascade layer (recommended / global-sticky / dev-default). Supersedes
+  // the former flat layout fields (mapId/shapeId/surfaceId/pixelCount/solidity/
+  // normalize), now lifted in here, plus the newly-cascaded brightness/speed and the
+  // hybrid lightSize/diffusion. Optional + schemaless — no DB_VERSION bump.
+  settings?: Partial<Settings>
 }
 
 // A persisted user map (Phase 2 writes these; stock maps are generated, never
@@ -48,23 +50,54 @@ export interface MapRecord {
   updatedAt: number
 }
 
-// Normalize a pattern record read from IDB against the live embedding catalogue
-// (schemaless, no DB_VERSION bump — #170). The retired `surface-cube` Surface
-// (ADR-0012) maps to Flat, the safe identity default, so no pattern references a
-// dead embedding. Pure over the record; returns the same object when nothing
-// changed, a corrected copy otherwise.
+// The former flat layout fields, now lifted into the nested `settings` bag
+// (ADR-0013). A pre-0013 record carries these on the top level; the migration moves
+// them into `settings` and strips them from the root.
+const LEGACY_FLAT_SETTING_KEYS = [
+  'mapId',
+  'shapeId',
+  'surfaceId',
+  'pixelCount',
+  'solidity',
+  'normalize',
+] as const
+
+// Normalize a pattern record read from IDB (schemaless, no DB_VERSION bump). Two
+// concerns, in order:
+//   1. ADR-0013: lift the former flat layout fields into the nested `settings` bag,
+//      stripping them from the root, so the override set is one cohesive Partial.
+//   2. #170/#173: correct stale embedding ids inside `settings` — the retired
+//      `surface-cube` Surface (ADR-0012) maps to Flat, and the retired wireframe
+//      `star` map splits into Star (shell), the faceted default.
+// Pure over the record; idempotent (an already-migrated record is untouched).
 export function migratePatternRecord(record: PatternRecord): PatternRecord {
-  let next = record
-  if (next.surfaceId === 'surface-cube') {
-    next = { ...next, surfaceId: 'flat' }
+  const raw = record as unknown as PatternRecord &
+    Partial<Record<(typeof LEGACY_FLAT_SETTING_KEYS)[number], unknown>>
+
+  // 1. Lift any legacy flat fields into `settings`.
+  let settings: Partial<Settings> = { ...(raw.settings ?? {}) }
+  let strippedAny = false
+  const stripped: PatternRecord = { ...record }
+  for (const key of LEGACY_FLAT_SETTING_KEYS) {
+    if (key in raw && raw[key] !== undefined) {
+      // Legacy flat value seeds the bag only when the bag doesn't already cover it
+      // (a nested value, if present, is the newer source of truth).
+      if (settings[key] === undefined) settings = { ...settings, [key]: raw[key] }
+      delete (stripped as unknown as Record<string, unknown>)[key]
+      strippedAny = true
+    }
   }
-  // The retired wireframe `star` map (ADR-0012, #173) splits into Star (shell) /
-  // Star (volume); a pattern that pointed at it lands on the shell, the sensible
-  // faceted default.
-  if (next.mapId === 'star') {
-    next = { ...next, mapId: 'star-shell' }
-  }
-  return next
+
+  // 2. Correct stale embedding ids inside the bag.
+  if (settings.surfaceId === 'surface-cube') settings = { ...settings, surfaceId: 'flat' }
+  if (settings.mapId === 'star') settings = { ...settings, mapId: 'star-shell' }
+
+  // Return the same object when nothing changed.
+  const settingsChanged =
+    JSON.stringify(settings) !== JSON.stringify(record.settings ?? {})
+  if (!strippedAny && !settingsChanged) return record
+
+  return { ...stripped, settings }
 }
 
 let _db: IDBDatabase | null = null

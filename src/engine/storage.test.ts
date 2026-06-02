@@ -89,53 +89,74 @@ describe('storage — patterns', () => {
     expect(result?.controls).toEqual(withControls.controls)
   })
 
-  it('round-trips the per-pattern layout selection', async () => {
+  it('round-trips the per-pattern settings overrides (ADR-0013)', async () => {
     const db = await makeDb()
-    const withLayout: PatternRecord = {
+    const withSettings: PatternRecord = {
       ...PATTERN,
-      mapId: 'cube',
       params: { rows: 8, cols: 8 },
-      pixelCount: 512,
-      shapeId: 'helix',
+      settings: { mapId: 'cube', pixelCount: 512, shapeId: 'helix' },
     }
-    await createPattern(withLayout, db)
+    await createPattern(withSettings, db)
     const result = await getPattern('p1', db)
-    expect(result).toEqual(withLayout)
+    expect(result).toEqual(withSettings)
   })
 
-  it('reads a record without layout fields (schemaless defaults)', async () => {
+  it('reads a record without settings (schemaless defaults)', async () => {
     const db = await makeDb()
     await createPattern(PATTERN, db)
     const result = await getPattern('p1', db)
-    expect(result?.mapId).toBeUndefined()
-    expect(result?.pixelCount).toBeUndefined()
-    expect(result?.shapeId).toBeUndefined()
+    expect(result?.settings).toBeUndefined()
   })
 
-  it('migrates a retired surface-cube surfaceId to Flat on read (ADR-0012, #170)', async () => {
+  it('lifts legacy flat layout fields into settings on read (ADR-0013)', async () => {
     const db = await makeDb()
-    await createPattern({ ...PATTERN, surfaceId: 'surface-cube' }, db)
-    expect((await getPattern('p1', db))?.surfaceId).toBe('flat')
-    expect((await listPatterns(db))[0].surfaceId).toBe('flat')
+    // A pre-0013 record carried the layout selection on the top level.
+    const legacy = {
+      ...PATTERN,
+      mapId: 'cube',
+      pixelCount: 512,
+      shapeId: 'helix',
+      solidity: 0.5,
+      normalize: 'fill',
+    } as unknown as PatternRecord
+    await createPattern(legacy, db)
+    const result = await getPattern('p1', db)
+    expect(result?.settings).toEqual({
+      mapId: 'cube',
+      pixelCount: 512,
+      shapeId: 'helix',
+      solidity: 0.5,
+      normalize: 'fill',
+    })
+    // The flat keys are stripped from the root.
+    expect((result as unknown as Record<string, unknown>).mapId).toBeUndefined()
+    expect((result as unknown as Record<string, unknown>).pixelCount).toBeUndefined()
+  })
+
+  it('migrates a retired surface-cube surfaceId to Flat inside settings (ADR-0012, #170)', async () => {
+    const db = await makeDb()
+    await createPattern({ ...PATTERN, settings: { surfaceId: 'surface-cube' } }, db)
+    expect((await getPattern('p1', db))?.settings?.surfaceId).toBe('flat')
+    expect((await listPatterns(db))[0].settings?.surfaceId).toBe('flat')
   })
 
   it('leaves a live surfaceId untouched on read', async () => {
     const db = await makeDb()
-    await createPattern({ ...PATTERN, surfaceId: 'cylinder' }, db)
-    expect((await getPattern('p1', db))?.surfaceId).toBe('cylinder')
+    await createPattern({ ...PATTERN, settings: { surfaceId: 'cylinder' } }, db)
+    expect((await getPattern('p1', db))?.settings?.surfaceId).toBe('cylinder')
   })
 
-  it('migrates the retired wireframe star mapId to Star (shell) on read (ADR-0012, #173)', async () => {
+  it('migrates the retired wireframe star mapId to Star (shell) inside settings (ADR-0012, #173)', async () => {
     const db = await makeDb()
-    await createPattern({ ...PATTERN, mapId: 'star' }, db)
-    expect((await getPattern('p1', db))?.mapId).toBe('star-shell')
-    expect((await listPatterns(db))[0].mapId).toBe('star-shell')
+    await createPattern({ ...PATTERN, settings: { mapId: 'star' } }, db)
+    expect((await getPattern('p1', db))?.settings?.mapId).toBe('star-shell')
+    expect((await listPatterns(db))[0].settings?.mapId).toBe('star-shell')
   })
 
   it('leaves a live mapId untouched on read', async () => {
     const db = await makeDb()
-    await createPattern({ ...PATTERN, mapId: 'star-volume' }, db)
-    expect((await getPattern('p1', db))?.mapId).toBe('star-volume')
+    await createPattern({ ...PATTERN, settings: { mapId: 'star-volume' } }, db)
+    expect((await getPattern('p1', db))?.settings?.mapId).toBe('star-volume')
   })
 })
 

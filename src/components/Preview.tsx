@@ -7,14 +7,11 @@ import { usePatternStore } from '@/store/patternStore'
 import {
   useMapStore,
   DEFAULT_MAP_ID,
-  DEFAULT_SHAPE_ID,
-  DEFAULT_SURFACE_ID,
-  DEFAULT_SOLIDITY,
-  DEFAULT_NORMALIZE_MODE,
   DEFAULT_SHAPE_PIXEL_COUNT,
   defaultPixelCountForDim,
   resolveMap,
 } from '@/store/mapStore'
+import { seedActiveSettings } from '@/store/settingsCascade'
 import { useCameraStore } from '@/store/cameraStore'
 import { createShim, createFxShim, type ShimContext } from '@/engine/shim'
 import { loadPattern, nativeDimension } from '@/engine/loadPattern'
@@ -24,16 +21,10 @@ import { createRenderLoop, type RenderLoop } from '@/engine/renderLoop'
 import { createVirtualClock } from '@/engine/virtualClock'
 import { clampPixelCount, advanceAutoOrbit } from '@/engine/camera'
 import { layoutSource as buildLayoutSource } from '@/store/mapStore'
-import { resolveLayout, resolveSolidity } from '@/engine/layout'
+import { resolveLayout } from '@/engine/layout'
 import { resolvePole, type ShapeId } from '@/engine/shapes'
-import { type SurfaceId } from '@/engine/surfaces'
 import { OrbitControls } from '@/components/OrbitControls'
 import { LIBRARIES } from '@/pixelblaze/libs'
-import {
-  recommendedMapFor,
-  recommendedPixelCountFor,
-  recommendedSolidityFor,
-} from '@/pixelblaze/demos'
 
 // Square 3D viewport size (CSS px): fill the available pane edge-to-edge (the
 // smaller of its two sides), so the 3D canvas is exactly as tall as a square 2D
@@ -138,15 +129,10 @@ export function Preview() {
     // helper corrects a stale persisted selection to the dimension's default, and
     // we reflect any correction back so the "Shape" dropdown stays in sync.
     const { userMaps } = useMapStore.getState()
-    // A read-only demo has no PatternRecord, so it persists no map; honour its
-    // recommended map (if any) as the on-open default instead of the bare
-    // first-match. Preview-only — never reaches pattern source or hardware.
-    const activeDemoName = usePatternStore.getState().activeDemoName
-    const recommendedMapId = recommendedMapFor(activeDemoName)
-    // A demo persists no count either; honour its recommended pixel count (if any)
-    // as the on-open default, ahead of the per-dimension default. Preview-only and
-    // freely overridable from the count box.
-    const recommendedPixelCount = recommendedPixelCountFor(activeDemoName)
+    // The active map/shape/surface/count already carry any demo recommendation —
+    // the settings cascade seeded them on open (seedActiveSettings, ADR-0013) — so
+    // resolveLayout needs no separate recommended* inputs: the seeded selection IS
+    // the recommendation when a demo opens, freely overridable thereafter.
     // Resolve the full layout in one engine query (src/engine/layout.ts):
     // selection-correction + map/shape/surface resolution + normalization +
     // positions + solid-eligible normals + the grid readout. Store-coupled
@@ -158,8 +144,6 @@ export function Preview() {
         source: buildLayoutSource({ userMaps }),
         persistedCount: activePixelCount,
         normalizeMode: activeNormalizeMode,
-        recommendedMapId,
-        recommendedCount: recommendedPixelCount,
         poleCols: useCameraStore.getState().poleCols,
         shapeDefaultCount: DEFAULT_SHAPE_PIXEL_COUNT,
       },
@@ -331,54 +315,18 @@ export function Preview() {
     return () => loop.stop()
   }, [previewSource, viewport, fidelity, activeMapId, activeShapeId, activeSurfaceId, activePixelCount, activeNormalizeMode])
 
-  // Hydrate the per-pattern layout on open (ADR-0004/0005): restore the record's
-  // persisted mapId/shapeId/pixelCount, falling back to defaults when absent so a
-  // freshly-opened pattern doesn't inherit the previous one's selection. The
-  // build effect's resolveLayoutSelection then validates these against the
-  // pattern's native dimensionality. Camera/spacing are global, not restored here.
+  // Seed the live working state from the resolved settings cascade on open (ADR-0013):
+  // one pass that composes per-pattern override → recommended (demos) → global-sticky
+  // → dev-default for every field and pushes the result into mapStore.active* +
+  // previewStore live values. Replaces the former separate hydrate/solidity effects.
+  // Fires on a pattern OR demo switch so a read-only demo opens on its recommendation.
+  // The renderer then reads the seeded live values per frame as before — the resolver
+  // never runs on a frame. Manipulation (deck handlers) writes the matching layer; we
+  // no longer reactively persist the whole layout, so a dimension-correction in the
+  // build effect is display-only and never written back as a spurious override.
   useEffect(() => {
-    if (!activePatternId) return
-    const rec = usePatternStore.getState().userPatterns.find((p) => p.id === activePatternId)
-    const m = useMapStore.getState()
-    m.setActiveMap(rec?.mapId ?? DEFAULT_MAP_ID)
-    m.setActiveShape((rec?.shapeId as ShapeId) ?? DEFAULT_SHAPE_ID)
-    m.setActiveSurface((rec?.surfaceId as SurfaceId) ?? DEFAULT_SURFACE_ID)
-    m.setActivePixelCount(rec?.pixelCount ?? null)
-    m.setActiveNormalizeMode(rec?.normalize ?? DEFAULT_NORMALIZE_MODE)
-  }, [activePatternId])
-
-  // Resolve the on-open solidity (ADR-0011) for a pattern OR a demo: a user
-  // pattern restores its persisted solidity; a demo (no PatternRecord) opens at
-  // its recommended-solidity ahead of the global 1.0 default, then persists
-  // nothing so the slider stays freely editable. Kept separate from the layout
-  // hydrate above so it also fires when switching to a read-only demo.
-  useEffect(() => {
-    const rec = activePatternId
-      ? usePatternStore.getState().userPatterns.find((p) => p.id === activePatternId)
-      : undefined
-    useMapStore
-      .getState()
-      .setActiveSolidity(
-        resolveSolidity(rec?.solidity, recommendedSolidityFor(activeDemoName), DEFAULT_SOLIDITY),
-      )
+    seedActiveSettings()
   }, [activePatternId, activeDemoName])
-
-  // Persist the active layout back onto the PatternRecord whenever it changes, so
-  // reopening restores the layout the pattern was authored against. The knobs and
-  // the count ride along; the pure resolver picks the right one per native
-  // dimensionality on the next open. The square-plane dims are derived from the
-  // count (ADR-0009), not stored. No-op without an active user pattern.
-  useEffect(() => {
-    if (!activePatternId) return
-    usePatternStore.getState().updatePatternLayout(activePatternId, {
-      mapId: activeMapId,
-      shapeId: activeShapeId,
-      surfaceId: activeSurfaceId,
-      pixelCount: activePixelCount ?? undefined,
-      solidity: activeSolidity,
-      normalize: activeNormalizeMode,
-    })
-  }, [activePatternId, activeMapId, activeShapeId, activeSurfaceId, activePixelCount, activeSolidity, activeNormalizeMode])
 
   // Forward control value changes to the live pattern handle
   useEffect(() => {

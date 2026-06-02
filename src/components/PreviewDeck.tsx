@@ -4,7 +4,7 @@ import { usePreviewStore, MIN_LIGHT_SIZE, MAX_LIGHT_SIZE } from '@/store/preview
 import { useEditorStore } from '@/store/editorStore'
 import { useMapStore, defaultPixelCountForDim } from '@/store/mapStore'
 import { usePatternStore } from '@/store/patternStore'
-import { recommendedPixelCountFor } from '@/pixelblaze/demos'
+import { writeCascadedOverride, writeHybrid, resetActiveSettings } from '@/store/settingsCascade'
 import { clampPixelCount } from '@/engine/camera'
 import { effectivePixelCount } from '@/engine/layout'
 import { LayoutSelector } from '@/components/LayoutSelector'
@@ -63,16 +63,15 @@ function PixelCountInput() {
   const activePixelCount = useMapStore((s) => s.activePixelCount)
   const setActivePixelCount = useMapStore((s) => s.setActivePixelCount)
   const nativeDim = useEditorStore((s) => s.nativeDim)
-  const activeDemoName = usePatternStore((s) => s.activeDemoName)
 
   // The effective modeled count, via the same `effectivePixelCount` selector the
-  // renderer feeds every layout branch through (ADR-0004) — the per-pattern value,
-  // else a demo's recommended count, else the dimension's default. Keyed off the
-  // layout's coordinate dimension (nativeDim), not the viewport dimension, so the box
-  // reads the count actually rendered. (No `baked` slot: the deck has no resolved map.)
+  // renderer feeds every layout branch through (ADR-0004) — the per-pattern value
+  // (already seeded with any demo recommendation by the cascade, ADR-0013), else the
+  // dimension's default. Keyed off the layout's coordinate dimension (nativeDim), not
+  // the viewport dimension, so the box reads the count actually rendered. (No `baked`
+  // slot: the deck has no resolved map.)
   const effectiveCount = effectivePixelCount({
     persisted: activePixelCount,
-    recommended: recommendedPixelCountFor(activeDemoName),
     fallback: defaultPixelCountForDim(nativeDim),
   })
   const [draftCount, setDraftCount] = useState(String(effectiveCount))
@@ -89,6 +88,7 @@ function PixelCountInput() {
     const n = clampPixelCount(parseInt(draftCount, 10) || effectiveCount)
     setDraftCount(String(n))
     setActivePixelCount(n)
+    writeCascadedOverride('pixelCount', n)
   }
 
   return (
@@ -134,6 +134,9 @@ function SecondaryBand() {
   const solidEligible = useEditorStore((s) => s.solidEligible)
   const solidity = useMapStore((s) => s.activeSolidity)
   const setSolidity = useMapStore((s) => s.setActiveSolidity)
+  // "Reset to defaults" (ADR-0013) clears this pattern's layer-1 overrides; only a
+  // user pattern carries overrides, so the action is hidden for a read-only demo.
+  const activePatternId = usePatternStore((s) => s.activePatternId)
 
   return (
     <div className="text-xs pr-3">
@@ -149,7 +152,11 @@ function SecondaryBand() {
             max={1}
             step={0.01}
             value={brightness}
-            onChange={(e) => setBrightness(Number(e.target.value))}
+            onChange={(e) => {
+              const v = Number(e.target.value)
+              setBrightness(v)
+              writeCascadedOverride('brightness', v)
+            }}
             className="w-12 accent-live"
           />
         </Cell>
@@ -161,7 +168,10 @@ function SecondaryBand() {
               { value: 'contain', label: 'Contain', title: 'Contain — keep aspect ratio, fit the longest axis' },
               { value: 'fill', label: 'Fill', title: 'Fill — stretch each axis to fill the unit square' },
             ]}
-            onChange={setNormalizeMode}
+            onChange={(mode) => {
+              setNormalizeMode(mode)
+              writeCascadedOverride('normalize', mode)
+            }}
             menuWidthClass="w-28"
           />
         </Cell>
@@ -175,7 +185,11 @@ function SecondaryBand() {
             max={MAX_LIGHT_SIZE}
             step={0.05}
             value={lightSize}
-            onChange={(e) => setLightSize(Number(e.target.value))}
+            onChange={(e) => {
+              const v = Number(e.target.value)
+              setLightSize(v)
+              writeHybrid('lightSize', v)
+            }}
             className="w-12 accent-live"
           />
         </Cell>
@@ -187,7 +201,11 @@ function SecondaryBand() {
             max={1}
             step={0.01}
             value={diffusion}
-            onChange={(e) => setDiffusion(Number(e.target.value))}
+            onChange={(e) => {
+              const v = Number(e.target.value)
+              setDiffusion(v)
+              writeHybrid('diffusion', v)
+            }}
             className="w-12 accent-live"
           />
         </Cell>
@@ -215,12 +233,27 @@ function SecondaryBand() {
               max={1}
               step={0.01}
               value={solidity}
-              onChange={(e) => setSolidity(Number(e.target.value))}
+              onChange={(e) => {
+                const v = Number(e.target.value)
+                setSolidity(v)
+                writeCascadedOverride('solidity', v)
+              }}
               className="w-12 accent-live"
             />
           </Cell>
         )}
       </Group>
+      {activePatternId && (
+        <div className="pb-2">
+          <button
+            type="button"
+            onClick={() => void resetActiveSettings()}
+            className="text-[11px] text-zinc-500 hover:text-zinc-300 transition-colors"
+          >
+            Reset to defaults
+          </button>
+        </div>
+      )}
     </div>
   )
 }

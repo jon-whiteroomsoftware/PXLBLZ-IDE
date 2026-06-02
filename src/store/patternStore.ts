@@ -7,6 +7,7 @@ import {
   deletePattern,
   setSetting,
 } from '@/engine/storage'
+import type { Settings } from '@/engine/settings'
 
 export type { PatternRecord }
 
@@ -30,12 +31,14 @@ interface PatternState {
   renamePattern: (id: string, name: string) => Promise<void>
   removePattern: (id: string) => Promise<void>
   updatePatternSrc: (id: string, src: string) => Promise<void>
-  // Persist the per-pattern layout selection (ADR-0004/0005) onto the record, in
-  // both IndexedDB and the in-memory list, so reopening restores it this session.
-  updatePatternLayout: (
-    id: string,
-    layout: Pick<PatternRecord, 'mapId' | 'shapeId' | 'surfaceId' | 'pixelCount' | 'solidity' | 'normalize'>,
-  ) => Promise<void>
+  // Sparse-merge per-pattern settings overrides (cascade layer 1, ADR-0013) onto the
+  // record, in both IndexedDB and the in-memory list, so reopening restores them this
+  // session. Called from a control's own change handler on genuine manipulation —
+  // never inferred by comparing a stored value to a default.
+  updatePatternSettings: (id: string, patch: Partial<Settings>) => Promise<void>
+  // Clear a pattern's layer-1 overrides ("Reset to defaults", ADR-0013), dropping it
+  // back to recommended + global-sticky + dev-default on the next resolve.
+  resetPatternSettings: (id: string) => Promise<void>
 }
 
 export const patternInitialState = {
@@ -103,13 +106,26 @@ export const usePatternStore = create<PatternState>()((set, get) => ({
     }))
   },
 
-  updatePatternLayout: async (id, layout) => {
+  updatePatternSettings: async (id, patch) => {
+    // Sparse merge over any existing overrides; the src/updatedAt bump is
+    // intentionally skipped: a settings override is a display-side concern, not an
+    // edit to the pattern's code, so it shouldn't reorder the recents list.
+    let merged: Partial<Settings> | undefined
     set((s) => ({
-      userPatterns: s.userPatterns.map((p) => (p.id === id ? { ...p, ...layout } : p)),
+      userPatterns: s.userPatterns.map((p) => {
+        if (p.id !== id) return p
+        merged = { ...p.settings, ...patch }
+        return { ...p, settings: merged }
+      }),
     }))
-    // The src/updatedAt bump is intentionally skipped: layout is a display-side
-    // concern, not an edit to the pattern's code, so it shouldn't reorder the
-    // recents list. Persist the layout fields only.
-    await updatePattern(id, layout).catch(() => {})
+    if (merged === undefined) return
+    await updatePattern(id, { settings: merged }).catch(() => {})
+  },
+
+  resetPatternSettings: async (id) => {
+    set((s) => ({
+      userPatterns: s.userPatterns.map((p) => (p.id === id ? { ...p, settings: {} } : p)),
+    }))
+    await updatePattern(id, { settings: {} }).catch(() => {})
   },
 }))

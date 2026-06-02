@@ -1,5 +1,6 @@
 import { useMapStore, layoutSource } from '@/store/mapStore'
 import { useEditorStore } from '@/store/editorStore'
+import { writeCascadedOverride } from '@/store/settingsCascade'
 import {
   mapOptions,
   embeddingOptions,
@@ -38,13 +39,25 @@ export function LayoutSelector() {
   const mapValue = selectedMapId(sel, nativeDim)
   const embeddingValue = selectedEmbeddingId(sel, nativeDim)
 
+  // Route a chosen option to its live setter AND write a per-pattern cascaded
+  // override (ADR-0013): a map/shape/surface change is genuine manipulation, so it
+  // persists on the active pattern (no-op for a read-only demo).
   function route(id: string, options: ReturnType<typeof mapOptions>) {
     const opt = options.find((o) => o.id === id)
     if (!opt) return
     const next = selectionForOption(opt)
-    if (next.mapId) setActiveMap(next.mapId)
-    if (next.shapeId) setActiveShape(next.shapeId as ShapeId)
-    if (next.surfaceId) setActiveSurface(next.surfaceId as SurfaceId)
+    if (next.mapId) {
+      setActiveMap(next.mapId)
+      writeCascadedOverride('mapId', next.mapId)
+    }
+    if (next.shapeId) {
+      setActiveShape(next.shapeId as ShapeId)
+      writeCascadedOverride('shapeId', next.shapeId)
+    }
+    if (next.surfaceId) {
+      setActiveSurface(next.surfaceId as SurfaceId)
+      writeCascadedOverride('surfaceId', next.surfaceId)
+    }
   }
 
   // The embedding control shows only when it carries a real choice: a single

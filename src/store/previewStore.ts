@@ -8,16 +8,25 @@ interface PreviewState {
   isRunning: boolean
   speed: number
   brightness: number
-  // Preview light size (ADR-0006): the drawn diameter of each light source as a
+  // Preview light size (ADR-0006/0013): the drawn diameter of each light source as a
   // fraction of the inter-dot pitch (diameter = pitch × lightSize). Grows the
   // sources in place — never moves dots or resizes the canvas. A preview-only
-  // viewing-comfort pref, persisted globally; never written to a map/controller.
+  // viewing-comfort pref; never written to a map/controller. A HYBRID cascade field
+  // (ADR-0013): this live value is the working copy seeded from the resolver on open;
+  // its global baseline lives in `lightSizeSticky` below.
   lightSize: number
-  // Diffusion (ADR-0006): a blur that merges the light sources. A sibling
+  // Diffusion (ADR-0006/0013): a blur that merges the light sources. A sibling
   // viewport pref alongside lightSize — deliberately NOT inside `grid`, so no
   // preview construct lives in anything that could serialize toward a map. Hard
-  // invariants: it never changes source size, and it never dims the field.
+  // invariants: it never changes source size, and it never dims the field. Hybrid
+  // cascade field; baseline in `diffusionSticky`.
   diffusion: number
+  // The user global-sticky baselines (cascade layer 3, ADR-0013) for the hybrid
+  // comfort prefs: a single persisted value the user sets once that applies to any
+  // pattern without its own recommendation or override. Distinct from the live
+  // `lightSize`/`diffusion` working copies above, which the resolver seeds per open.
+  lightSizeSticky: number
+  diffusionSticky: number
   fidelity: FidelityMode
   // All-or-nothing pattern-variable watch (#150): when on, the readout shows every
   // exported pattern variable; when off, none. Replaces the per-variable + sensor-
@@ -36,6 +45,8 @@ interface PreviewState {
   setBrightness: (brightness: number) => void
   setLightSize: (lightSize: number) => void
   setDiffusion: (diffusion: number) => void
+  setLightSizeSticky: (lightSize: number) => void
+  setDiffusionSticky: (diffusion: number) => void
   setWatchPatternVars: (on: boolean) => void
   setWatchValues: (values: Record<string, unknown>) => void
 }
@@ -46,10 +57,13 @@ export const previewInitialState = {
   brightness: 1,
   lightSize: DEFAULT_LIGHT_SIZE,
   diffusion: 0.5,
-  // The Fast renderer (float64) is the default on load: it's the smoother,
+  lightSizeSticky: DEFAULT_LIGHT_SIZE,
+  diffusionSticky: 0.5,
+  // The Fast renderer (float64) is the default on first load: it's the smoother,
   // good-enough preview. The Precise renderer (16.16 fixed-point) is an opt-in
   // for checking hardware-accurate behaviour — and even it isn't bit-exact
-  // without the device. Transient session state for now — persistence is #90.
+  // without the device. The pure-global cascade field (ADR-0013): persisted in the
+  // localStorage blob, never recommended, never per-pattern.
   fidelity: 'fast' as FidelityMode,
   watchPatternVars: false,
   watchValues: {} as Record<string, unknown>,
@@ -76,22 +90,29 @@ function clampDiffusion(d: number): number {
   return Math.max(0, Math.min(1, d))
 }
 
-// Merge persisted state over the live state. The preview-wide `grid` is retired
-// (ADR-0009 — the active map's resolved `pos` is the single source of extent and
-// aspect), so a legacy blob's `grid` is explicitly destructured OUT and dropped:
-// it can never land back on state. `diffusion` migrated out of `grid` (ADR-0006),
-// so a pre-rework blob's `grid.diffusion` is still honoured as the fallback for
-// the top-level field before the grid is discarded.
+// Merge persisted state over the live state. Only true global prefs are persisted
+// now (ADR-0013): `fidelity` plus the hybrid global-sticky baselines. The live
+// `brightness`/`speed` are per-pattern cascaded (seeded by the resolver on open), so
+// they are NOT persisted; a legacy blob's `brightness`/`speed`/`grid` are explicitly
+// destructured OUT and dropped — they can never land back on state.
+//
+// Migration: a pre-0013 blob persisted the live `lightSize`/`diffusion`. Lift those
+// into the new global-sticky baselines so a returning user keeps their dialled-in
+// comfort prefs as the global baseline (`grid.diffusion` is the even older home,
+// ADR-0006, still honoured as a fallback). The live working copies stay at their
+// initial defaults until the resolver seeds them per pattern.
 export function mergePersistedPreview(persisted: unknown, current: PreviewState): PreviewState {
   const raw = (persisted ?? {}) as Partial<
-    Pick<PreviewState, 'brightness' | 'speed' | 'lightSize' | 'diffusion'>
-  > & { grid?: { diffusion?: number } }
-  const { grid: legacyGrid, ...p } = raw
+    Pick<PreviewState, 'fidelity' | 'lightSizeSticky' | 'diffusionSticky' | 'lightSize' | 'diffusion'>
+  > & { grid?: { diffusion?: number }; brightness?: number; speed?: number }
+  const { grid: legacyGrid, brightness: _b, speed: _s, lightSize, diffusion, ...p } = raw
   return {
     ...current,
     ...p,
-    lightSize: clampLightSize(p.lightSize ?? current.lightSize),
-    diffusion: clampDiffusion(p.diffusion ?? legacyGrid?.diffusion ?? current.diffusion),
+    lightSizeSticky: clampLightSize(p.lightSizeSticky ?? lightSize ?? current.lightSizeSticky),
+    diffusionSticky: clampDiffusion(
+      p.diffusionSticky ?? diffusion ?? legacyGrid?.diffusion ?? current.diffusionSticky,
+    ),
   }
 }
 
@@ -107,19 +128,22 @@ export const usePreviewStore = create<PreviewState>()(
       setBrightness: (brightness) => set({ brightness }),
       setLightSize: (lightSize) => set({ lightSize: clampLightSize(lightSize) }),
       setDiffusion: (diffusion) => set({ diffusion: clampDiffusion(diffusion) }),
+      setLightSizeSticky: (lightSize) => set({ lightSizeSticky: clampLightSize(lightSize) }),
+      setDiffusionSticky: (diffusion) => set({ diffusionSticky: clampDiffusion(diffusion) }),
       setWatchPatternVars: (watchPatternVars) => set({ watchPatternVars }),
       setWatchValues: (watchValues) => set({ watchValues }),
     }),
     {
       name: 'pixelblaze-preview',
-      // No grid is persisted: the preview's extent/aspect derive from the active
-      // map's resolved `pos` (ADR-0009) and the pitch is fit to the container each
-      // resize. Only true viewport prefs ride in localStorage.
+      // Only true GLOBAL prefs ride in localStorage now (ADR-0013): the renderer
+      // choice `fidelity` and the hybrid global-sticky baselines. Per-pattern
+      // cascaded fields (brightness/speed) and the live hybrid working copies
+      // (lightSize/diffusion) are NOT persisted here — they live on the
+      // PatternRecord's sparse overrides and are seeded by the resolver on open.
       partialize: (s) => ({
-        brightness: s.brightness,
-        speed: s.speed,
-        lightSize: s.lightSize,
-        diffusion: s.diffusion,
+        fidelity: s.fidelity,
+        lightSizeSticky: s.lightSizeSticky,
+        diffusionSticky: s.diffusionSticky,
       }),
       merge: mergePersistedPreview,
     }

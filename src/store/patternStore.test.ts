@@ -34,16 +34,36 @@ describe('patternStore', () => {
   })
 })
 
-describe('updatePatternLayout', () => {
-  it('merges the layout selection onto the in-memory record', async () => {
+describe('updatePatternSettings', () => {
+  beforeEach(() => {
     usePatternStore.setState({
       userPatterns: [{ id: 'p1', name: 'P1', src: '', controls: {}, updatedAt: 1 }],
     })
-    await usePatternStore.getState().updatePatternLayout('p1', {
-      shapeId: 'ring',
-      pixelCount: 64,
+  })
+
+  it('sparse-merges overrides into the record settings bag', async () => {
+    await usePatternStore.getState().updatePatternSettings('p1', { shapeId: 'ring', pixelCount: 64 })
+    expect(usePatternStore.getState().userPatterns[0].settings).toEqual({ shapeId: 'ring', pixelCount: 64 })
+  })
+
+  it('accumulates across calls without dropping earlier fields', async () => {
+    await usePatternStore.getState().updatePatternSettings('p1', { shapeId: 'ring' })
+    await usePatternStore.getState().updatePatternSettings('p1', { brightness: 0.5 })
+    expect(usePatternStore.getState().userPatterns[0].settings).toEqual({ shapeId: 'ring', brightness: 0.5 })
+  })
+
+  it('does not bump updatedAt (settings are display-side, not a code edit)', async () => {
+    await usePatternStore.getState().updatePatternSettings('p1', { brightness: 0.5 })
+    expect(usePatternStore.getState().userPatterns[0].updatedAt).toBe(1)
+  })
+})
+
+describe('resetPatternSettings', () => {
+  it('clears the record settings bag', async () => {
+    usePatternStore.setState({
+      userPatterns: [{ id: 'p1', name: 'P1', src: '', controls: {}, updatedAt: 1, settings: { brightness: 0.5 } }],
     })
-    const rec = usePatternStore.getState().userPatterns[0]
-    expect(rec).toMatchObject({ id: 'p1', shapeId: 'ring', pixelCount: 64 })
+    await usePatternStore.getState().resetPatternSettings('p1')
+    expect(usePatternStore.getState().userPatterns[0].settings).toEqual({})
   })
 })
