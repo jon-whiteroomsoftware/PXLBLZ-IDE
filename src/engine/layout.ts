@@ -15,8 +15,8 @@
 
 import type { ShapeId } from './shapes'
 import type { SurfaceId } from './surfaces'
-import type { MapPoint, PixelMap, NormalizeMode, NormalRecipe } from './maps'
-import { cubePixelCount, squarePlaneDims, applyNormalizeMode } from './maps'
+import type { MapPoint, PixelMap, NormalizeMode, NormalRecipe, GridDims } from './maps'
+import { cubePixelCount, applyNormalizeMode } from './maps'
 import {
   SHAPES,
   embedPositions,
@@ -265,6 +265,17 @@ export interface ResolvedLayout {
   draw: ResolvedDraw
 }
 
+// Format a map's grid dims as the readout layout label (`cols×rows` or, for a
+// volumetric lattice, `cols×rows×depth`). Null dims ⇒ no clean lattice ⇒ no label,
+// so the readout cell stays hidden. This is the single rule gating the layout
+// readout: a map shows dims exactly when its `gridDims` is non-null.
+function formatGridDims(dims: GridDims | null): string | null {
+  if (!dims) return null
+  return dims.depth !== undefined
+    ? `${dims.cols}×${dims.rows}×${dims.depth}`
+    : `${dims.cols}×${dims.rows}`
+}
+
 export interface ResolveLayoutDeps {
   // Resolve a map id to its PixelMap (applies the store's DEFAULT_MAP_ID
   // fallback at the injection site so this module stays constant-free).
@@ -356,7 +367,9 @@ export function resolveLayout(
         const cubeSide = cubeSideForCount(modeledCount)
         pixelCount = clampPixelCount(cubePixelCount(cubeSide))
         mapPoints = applyNormalizeMode(map.resolve(pixelCount), normalizeMode)
-        layoutLabel = `${cubeSide}×${cubeSide}×${cubeSide}`
+        // The cube owns its lattice dims (grid: 'cube'); read them back like any
+        // other grid map so the `label iff gridDims` rule has no exception.
+        layoutLabel = formatGridDims(map.gridDims(pixelCount))
       } else {
         // 3D point cloud: stock regenerates live; a custom replays its baked
         // array index-aligned to the count (ADR-0007/0008).
@@ -372,19 +385,16 @@ export function resolveLayout(
         normals3D = NORMAL_FNS[map.normals](positions3D)
       }
       displayDim = 3
-    } else if (map.id !== 'plane') {
-      // 2D point cloud: irregular positions drawn through the 2D pos channel.
-      pixelCount = clampPixelCount(modeledCount)
-      mapPoints = applyNormalizeMode(map.resolve(pixelCount), normalizeMode)
-      positions2D = mapPoints.map((p) => p.pos as [number, number])
-      displayDim = 2
     } else {
-      // 2D stock plane: the count squares up to the most-square grid (ADR-0004/0009).
+      // 2D map drawn through the pos channel. The map itself owns whether it has a
+      // clean lattice: a grid-recipe generator (Square, Wide 2:1) or a baked custom
+      // map whose points fall on a regular lattice returns non-null `gridDims`, so
+      // the readout shows `cols×rows`; an irregular cloud (Ring, blob) returns null
+      // and the readout cell stays hidden (ADR-0009/0010).
       pixelCount = clampPixelCount(modeledCount)
-      const planeDims = squarePlaneDims(pixelCount)
       mapPoints = applyNormalizeMode(map.resolve(pixelCount), normalizeMode)
       positions2D = mapPoints.map((p) => p.pos as [number, number])
-      layoutLabel = `${planeDims.cols}×${planeDims.rows}`
+      layoutLabel = formatGridDims(map.gridDims(pixelCount))
       displayDim = 2
     }
 
@@ -397,7 +407,7 @@ export function resolveLayout(
         normals3D = cylinderSurfaceNormals(pixelCount, gridDims)
         mapPoints = mapPoints.map((p, i) => ({ sample: p.sample, pos: positions3D![i] }))
         positions2D = null
-        layoutLabel = `${gridDims.cols}×${gridDims.rows}`
+        layoutLabel = formatGridDims(gridDims)
         displayDim = 3
       }
     }

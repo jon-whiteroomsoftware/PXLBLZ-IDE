@@ -3,14 +3,24 @@ import { evalMapSource } from './evalMapSource'
 import { normalizeAspect } from './normalize'
 import { squarePlaneDims, widePlaneDims } from './plane'
 
-// A wrappable stock generator's count→dims recipe (ADR-0010): the catalogue tags
-// the entry; createSourceMap maps the tag to the live derivation. Absent ⇒ the map
-// exposes no clean grid (a 3D map, an irregular cloud), so `gridDims` returns null.
-export type GridRecipe = 'square' | 'wide'
+// A stock generator's count→dims recipe (ADR-0010): the catalogue tags the entry;
+// createSourceMap maps the tag to the live derivation. Absent ⇒ the map exposes no
+// clean grid (an irregular cloud, a shell), so `gridDims` returns null. The 2D
+// recipes back a wrappable plane; `cube` describes the volumetric side³ lattice.
+export type GridRecipe = 'square' | 'wide' | 'cube'
+
+// The cube source cubes the count up to a side³ lattice with side = round(cbrt(n))
+// (sources/cube.js). By the time dims are read the count is the realized side³, so
+// the same formula recovers the side exactly — no clamp needed here.
+function cubeGridDims(pixelCount: number): GridDims {
+  const side = Math.max(1, Math.round(Math.cbrt(Math.max(1, Math.floor(pixelCount) || 1))))
+  return { cols: side, rows: side, depth: side }
+}
 
 const GRID_FNS: Record<GridRecipe, (pixelCount: number) => GridDims> = {
   square: squarePlaneDims,
   wide: widePlaneDims,
+  cube: cubeGridDims,
 }
 
 // Metadata pairing a stock map's identity with its raw `.js` source (ADR-0008).

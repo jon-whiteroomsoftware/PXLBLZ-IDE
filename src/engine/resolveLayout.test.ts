@@ -57,7 +57,18 @@ function makeMap(opts: Partial<PixelMap> & Pick<PixelMap, 'id' | 'dim'>): PixelM
 const MAPS: Record<string, PixelMap> = {
   plane: makeMap({ id: 'plane', dim: 2, gridDims: (count) => ({ cols: count, rows: 1 }) }),
   ring2d: makeMap({ id: 'ring2d', dim: 2, bakedCount: 60 }),
-  cube: makeMap({ id: 'cube', dim: 3 }),
+  // A non-`plane` 2D map that still resolves to a clean lattice (the Wide 2:1 case):
+  // its label must come from its own gridDims, not from a hard-coded id check.
+  wide: makeMap({ id: 'wide', dim: 2, gridDims: (count) => ({ cols: count, rows: 2 }) }),
+  // Mirrors the real cube: a side³ lattice that reports cols×rows×depth from count.
+  cube: makeMap({
+    id: 'cube',
+    dim: 3,
+    gridDims: (count) => {
+      const side = Math.round(Math.cbrt(count))
+      return { cols: side, rows: side, depth: side }
+    },
+  }),
   'cube-shell': makeMap({ id: 'cube-shell', dim: 3, normals: 'face' }),
   'star-shell': makeMap({ id: 'star-shell', dim: 3, normals: 'star' }),
   sphere: makeMap({ id: 'sphere', dim: 3, normals: 'centroid' }),
@@ -136,6 +147,13 @@ describe('resolveLayout — 2D maps', () => {
     expect(r.displayDim).toBe(2)
     expect(r.layoutLabel).toMatch(/^\d+×\d+$/)
     expect(r.pixelCount).toBe(256) // dim-2 default
+  })
+
+  it('a non-plane 2D grid map (Wide) still reports its cols×rows label', () => {
+    const r = resolveLayout(input({ selection: { mapId: 'wide', surfaceId: 'flat' } }), deps)
+    expect(r.draw.kind).toBe('2d')
+    expect(r.displayDim).toBe(2)
+    expect(r.layoutLabel).toMatch(/^\d+×\d+$/)
   })
 
   it('a 2D cloud defaults its count to the baked length', () => {

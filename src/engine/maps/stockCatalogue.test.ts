@@ -67,8 +67,9 @@ describe('stock catalogue', () => {
     // off the map with no provenance switch.
     expect(mapById('plane').gridDims(100)).toEqual(squarePlaneDims(100))
     expect(mapById('wide').gridDims(100)).toEqual(widePlaneDims(100))
-    // A 3D map and an irregular 2D cloud expose no clean lattice.
-    expect(mapById('cube').gridDims(512)).toBeNull()
+    // The volumetric cube is a regular side³ lattice, so it reports cols×rows×depth
+    // (512 = 8³). An irregular 2D cloud and the shells still expose no clean lattice.
+    expect(mapById('cube').gridDims(512)).toEqual({ cols: 8, rows: 8, depth: 8 })
     expect(mapById('seed-ring-2d').gridDims(60)).toBeNull()
   })
 
