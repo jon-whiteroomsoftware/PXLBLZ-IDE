@@ -13,7 +13,12 @@ import {
   type ControllerStatus,
   type ControllerTarget,
   type ControllerConfig,
+  type ControllerCapabilities,
+  type ProgramListEntry,
 } from '@/engine/ControllerProvider'
+import { usePatternStore, patternInitialState } from '@/store/patternStore'
+import { useEditorStore, editorInitialState } from '@/store/editorStore'
+import { getControllerBindings, setControllerBindings } from '@/engine/storage'
 
 // A fake per-Controller provider with a real (if minimal) status machine, so we
 // can assert the keyed store's orchestration end-to-end. detectHelper acks true
@@ -65,14 +70,43 @@ class FakeProvider extends NullControllerProvider {
   getPixelMap(): Promise<number[][] | null> {
     return Promise.resolve(this.pixelMap)
   }
+
+  // ── push surface (#202) ─────────────────────────────────────────────────────
+  readonly capabilities: ControllerCapabilities = { push: true, compile: true }
+  /** A header-reconciling 16-byte blob (opcode 8, export 0): 8 + 8 + 0 === 16. */
+  compileResult: Uint8Array = makeReconcilingBytecode()
+  compileError: Error | null = null
+  programs: ProgramListEntry[] = []
+  pushed: { bytecode: Uint8Array; opts: { id: string; name?: string } }[] = []
+
+  compile(_source: string): Promise<Uint8Array> {
+    if (this.compileError) return Promise.reject(this.compileError)
+    return Promise.resolve(this.compileResult)
+  }
+  listPrograms(): Promise<ProgramListEntry[]> {
+    return Promise.resolve(this.programs)
+  }
+  pushBytecode(bytecode: Uint8Array, opts: { id: string; name?: string }): Promise<void> {
+    this.pushed.push({ bytecode, opts })
+    return Promise.resolve()
+  }
+}
+
+function makeReconcilingBytecode(): Uint8Array {
+  const bytes = new Uint8Array(16)
+  new DataView(bytes.buffer).setUint32(0, 8, true) // opcodeBytes = 8 → 8 + 8 + 0 = 16
+  return bytes
 }
 
 const created = new Map<string, FakeProvider>()
 
-beforeEach(() => {
+beforeEach(async () => {
   localStorage.clear()
   __resetControllerProviders()
   useControllerStore.setState(controllerInitialState)
+  usePatternStore.setState(patternInitialState)
+  useEditorStore.setState(editorInitialState)
+  await setControllerBindings({})
   created.clear()
   setControllerProviderFactory((ip) => {
     const p = new FakeProvider()
@@ -180,5 +214,53 @@ describe('controllerStore (keyed)', () => {
   it('autoConnect with nothing remembered does nothing', async () => {
     await store().autoConnect()
     expect(Object.keys(store().controllers)).toHaveLength(0)
+  })
+
+  describe('pushActivePattern (#202)', () => {
+    const PATTERN_SRC = 'export function render(index) {\n  hsv(index, 1, 1)\n}\n'
+
+    it('compiles + pushes the active pattern and records a created binding', async () => {
+      await store().addController('10.0.0.5')
+      usePatternStore.setState({ activePatternId: 'pat-1' })
+      useEditorStore.setState({ previewSource: PATTERN_SRC, previewPatternName: 'Twinkle' })
+
+      await store().pushActivePattern()
+
+      const provider = created.get('10.0.0.5')!
+      expect(provider.pushed).toHaveLength(1)
+      expect(provider.pushed[0].opts.name).toBe('Twinkle')
+      expect(store().pushing).toBe(false)
+      expect(store().pushResult).toEqual({ ok: true, created: true })
+      // The pushed source is remembered (dirty gate) so a re-push is a no-op.
+      expect(store().lastPushedSource['10.0.0.5']['pat-1']).toBe(PATTERN_SRC)
+      // The freshly-minted binding is persisted for overwrite-in-place next time.
+      const bindings = await getControllerBindings()
+      expect(bindings['10.0.0.5']['pat-1']).toBe(provider.pushed[0].opts.id)
+    })
+
+    it('is a no-op when no pattern is active', async () => {
+      await store().addController('10.0.0.5')
+      useEditorStore.setState({ previewSource: PATTERN_SRC })
+      // activePatternId stays null.
+
+      await store().pushActivePattern()
+
+      expect(created.get('10.0.0.5')!.pushed).toHaveLength(0)
+      expect(store().pushing).toBe(false)
+      expect(store().pushResult).toBeNull()
+    })
+
+    it('surfaces a compile failure as an error result without pushing', async () => {
+      await store().addController('10.0.0.5')
+      created.get('10.0.0.5')!.compileError = new Error('compiler offline')
+      usePatternStore.setState({ activePatternId: 'pat-1' })
+      useEditorStore.setState({ previewSource: PATTERN_SRC })
+
+      await store().pushActivePattern()
+
+      expect(created.get('10.0.0.5')!.pushed).toHaveLength(0)
+      expect(store().pushing).toBe(false)
+      expect(store().pushResult).toEqual({ ok: false, message: 'compiler offline' })
+    })
   })
 })

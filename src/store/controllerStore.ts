@@ -4,10 +4,17 @@ import {
   createControllerProvider,
   setControllerProvider,
   detectControllerExtension,
+  getControllerProvider,
 } from '@/engine/controllerProviderRegistry'
 import { NullControllerProvider, type ControllerProvider, type ControllerStatus } from '@/engine/ControllerProvider'
 import { mapDimension, type MapDimension } from '@/engine/sendToController'
 import type { ControllerPhase } from '@/engine/controllerPillView'
+import { pushPattern } from '@/engine/pushPattern'
+import { getControllerBindings, setControllerBindings } from '@/engine/storage'
+import { bundle } from '@/engine/bundle'
+import { LIBRARIES } from '@/pixelblaze/libs'
+import { usePatternStore } from '@/store/patternStore'
+import { useEditorStore } from '@/store/editorStore'
 
 // Keyed connection orchestration for the live Controller surface (#210).
 //
@@ -49,6 +56,14 @@ interface ControllerConnectionState {
   /** The last Controller to reach `live`, persisted so it alone auto-connects on
    *  reload. Cleared when that Controller is explicitly removed. */
   lastConnectedIp: string | null
+  /** True while a Send-to-Controller push is in flight (#202) — disables the button. */
+  pushing: boolean
+  /** Last push outcome, surfaced transiently on the Send button. `null` = idle. */
+  pushResult: PushResult | null
+  /** The pattern source last successfully pushed, keyed controllerId → patternId.
+   *  Drives the dirty gate: Send is inert until the source differs from this. Not
+   *  persisted — a fresh session re-enables a push (the device may have changed). */
+  lastPushedSource: Record<string, Record<string, string>>
 
   /** Probe extension presence and record it (global). */
   detectExtension: () => Promise<boolean>
@@ -63,13 +78,27 @@ interface ControllerConnectionState {
   setActive: (ip: string) => void
   /** Startup auto-reconnect: try only the remembered last-connected Controller. */
   autoConnect: () => Promise<void>
+  /** Compile + push the active pattern to the active Controller, overwrite-in-place
+   *  (#202). Reads the last-clean preview source and active pattern id; a no-op when
+   *  nothing is active. Sets `pushing`/`pushResult` for the button to reflect. */
+  pushActivePattern: () => Promise<void>
+  /** Clear the transient push result (e.g. after the toast/badge times out). */
+  clearPushResult: () => void
 }
+
+/** The outcome of a single Send-to-Controller push, surfaced on the button. */
+export type PushResult =
+  | { ok: true; created: boolean }
+  | { ok: false; message: string }
 
 export const controllerInitialState = {
   extensionPresent: false,
   controllers: {} as Record<string, ControllerEntry>,
   activeIp: null as string | null,
   lastConnectedIp: null as string | null,
+  pushing: false,
+  pushResult: null as PushResult | null,
+  lastPushedSource: {} as Record<string, Record<string, string>>,
 }
 
 // Live provider per Controller IP, plus each one's status unsubscribe. Kept
@@ -198,6 +227,47 @@ export const useControllerStore = create<ControllerConnectionState>()(
           const remembered = get().lastConnectedIp?.trim()
           if (!remembered) return
           await get().addController(remembered)
+        },
+
+        clearPushResult: () => set({ pushResult: null }),
+
+        pushActivePattern: async () => {
+          const controllerId = get().activeIp
+          const patternId = usePatternStore.getState().activePatternId
+          const { previewSource, previewPatternName } = useEditorStore.getState()
+          // The button's gate already guarantees a connected Controller + a matching
+          // active pattern, but guard anyway so a stray call is an inert no-op.
+          if (!controllerId || !patternId || !previewSource) return
+
+          set({ pushing: true, pushResult: null })
+          try {
+            // Push the bundled artifact (library-inlined) — the same code Copy/Download
+            // emit — never raw editor source. Use the last *clean* preview source so a
+            // broken edit is never compiled and pushed.
+            const { code } = bundle(previewSource, LIBRARIES)
+            const { created } = await pushPattern({
+              provider: getControllerProvider(),
+              controllerId,
+              patternId,
+              source: code,
+              name: previewPatternName,
+              loadBindings: getControllerBindings,
+              saveBindings: setControllerBindings,
+            })
+            // Remember the clean source we just pushed so the dirty gate disables a
+            // redundant re-push until the pattern is edited again.
+            set((s) => ({
+              pushing: false,
+              pushResult: { ok: true, created },
+              lastPushedSource: {
+                ...s.lastPushedSource,
+                [controllerId]: { ...s.lastPushedSource[controllerId], [patternId]: previewSource },
+              },
+            }))
+          } catch (err) {
+            const message = err instanceof Error ? err.message : String(err)
+            set({ pushing: false, pushResult: { ok: false, message } })
+          }
         },
       }
     },

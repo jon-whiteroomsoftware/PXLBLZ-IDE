@@ -16,6 +16,7 @@
 // device and the resulting capability report.
 
 import LZString from 'lz-string'
+import { crc32 } from './bytecodePush'
 
 /** The slice of the WebSocket API this module needs — satisfied by both the
  *  browser's native `WebSocket` and the Node `ws` package. We use the `on*`
@@ -396,6 +397,33 @@ export class PixelblazeConnection {
     for (const frame of encodeBinaryFrames(MessageType.putSourceCode, compressed)) {
       this.sendBinary(frame)
     }
+  }
+
+  /** Push compiled bytecode to the device as the save-and-run sequence (H10,
+   *  issue #202): `{pause:true, setCode:{size,crc,name,id}}`, then the bytecode as
+   *  chunked `putByteCode` binary frames, then `{setControls:{}}` and
+   *  `{pause:false}` to save + run. The frames cross a single ordered socket, so no
+   *  inter-step delay or ack-wait is needed.
+   *
+   *  Overwrite-in-place is the caller's choice of `id`: reuse the program id last
+   *  pushed for this pattern to replace it, mint a new one to create. Control
+   *  values are deliberately NOT part of the payload (`setControls:{}` clears the
+   *  push of any) — the IDE pushes the pattern only, never tuned values.
+   *
+   *  Fire-and-forget at the protocol level: resolves once every frame is sent, not
+   *  when the device has applied them (the firmware acks `setCode` but not the
+   *  rest). */
+  pushByteCode(bytecode: Uint8Array, opts: { id: string; name?: string }): void {
+    const crc = crc32(bytecode)
+    this.sendJson({
+      pause: true,
+      setCode: { size: bytecode.length, crc, name: opts.name ?? '', id: opts.id },
+    })
+    for (const frame of encodeBinaryFrames(MessageType.putByteCode, bytecode)) {
+      this.sendBinary(frame)
+    }
+    this.sendJson({ setControls: {} })
+    this.sendJson({ pause: false })
   }
 
   /** Close the socket and reject any in-flight requests. */

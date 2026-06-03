@@ -1,4 +1,5 @@
 import type { Settings } from './settings'
+import type { BindingStore } from './controllerBinding'
 
 const DB_NAME = 'pixelblaze-ide'
 const DB_VERSION = 2
@@ -238,6 +239,30 @@ export async function setSetting<T>(
 ): Promise<void> {
   const d = db ?? (await openDb())
   await wrap(tx(d, STORE_SETTINGS, 'readwrite').put(value, key))
+}
+
+// ── Controller push bindings (H10, issue #202) ───────────────────────────────
+//
+// Per-Controller pattern→program bindings for overwrite-in-place push, persisted
+// as one blob in the settings store under a fixed key. Durable device-association
+// data (matches the issue's "remembered binding"), kept in the app's IndexedDB
+// layer rather than UI localStorage. The decision logic over this blob is pure —
+// see controllerBinding.ts.
+
+const CONTROLLER_BINDINGS_KEY = 'controller-bindings'
+
+export async function getControllerBindings(
+  db?: IDBDatabase,
+): Promise<BindingStore> {
+  const stored = await getSetting<BindingStore>(CONTROLLER_BINDINGS_KEY, db)
+  return stored ?? {}
+}
+
+export async function setControllerBindings(
+  bindings: BindingStore,
+  db?: IDBDatabase,
+): Promise<void> {
+  await setSetting(CONTROLLER_BINDINGS_KEY, bindings, db)
 }
 
 export function resetDbCache(): void {

@@ -42,6 +42,33 @@ chrome.runtime.onConnect.addListener((port) => {
   port.onMessage.addListener((msg) => {
     if (!msg || msg.source !== RELAY_SOURCE || msg.dir !== 'to-helper') return
 
+    // Compile request (#202): correlated by reqId, independent of any socket. The
+    // device's own compiler is fetched, extracted, and eval'd in a sandboxed iframe
+    // (MV3 CSP forbids eval in the SW), then the bytecode crosses back as base64.
+    if (msg.type === 'compile') {
+      handleCompile(msg).then(
+        (bytecode) =>
+          send({
+            source: RELAY_SOURCE,
+            dir: 'from-helper',
+            type: 'compile-result',
+            reqId: msg.reqId,
+            ok: true,
+            bytecode: bytesToBase64(bytecode.buffer),
+          }),
+        (e) =>
+          send({
+            source: RELAY_SOURCE,
+            dir: 'from-helper',
+            type: 'compile-result',
+            reqId: msg.reqId,
+            ok: false,
+            error: e && e.message ? e.message : String(e),
+          }),
+      )
+      return
+    }
+
     if (msg.type === 'connect') {
       let ws
       try {
@@ -99,3 +126,120 @@ chrome.runtime.onConnect.addListener((port) => {
     sockets.clear()
   })
 })
+
+// ── compile-in-extension (#202) ──────────────────────────────────────────────
+//
+// Fetch the device web UI, extract its embedded compiler, eval it in a sandboxed
+// iframe (hosted by an offscreen doc — the SW can't eval under MV3 CSP), and
+// return the bytecode. Returns a Uint8Array; the caller base64s it for the relay.
+//
+// The extraction helpers below (getSubstring / extractCompiler / v3AdapterV3 /
+// buildCompilerEnv) are a DELIBERATE DUPLICATE of src/engine/compilerExtraction.ts.
+// The SW is plain JS outside the Vite bundle and cannot import the tested module,
+// so the two must be kept in sync by hand — that engine module is the tested
+// mirror (its tests pin this logic). Change one, change the other.
+
+async function handleCompile(msg) {
+  const webUI = await fetchWebUI(msg.address)
+  const components = v3AdapterV3(webUI)
+  for (const k of ['hardwareVariant', 'extendedOperators', 'constants', 'compiler']) {
+    if (!components[k]) throw new Error(`compiler extraction miss: ${k} empty — firmware adapter mismatch?`)
+  }
+  const compilerEnv = buildCompilerEnv(components)
+  const result = await compileInSandbox(compilerEnv, msg.patternSrc)
+  if (!result.ok) throw new Error(result.error || 'compile failed')
+  return new Uint8Array(result.bytecode)
+}
+
+// Fetch + gunzip + decode the device web UI (utf-8-sig: strip BOM).
+async function fetchWebUI(ip) {
+  const resp = await fetch(`http://${ip}/index.html.gz`)
+  if (!resp.ok) throw new Error(`GET index.html.gz -> ${resp.status}`)
+  const gzBuf = await resp.arrayBuffer()
+  const stream = new Response(gzBuf).body.pipeThrough(new DecompressionStream('gzip'))
+  let text = await new Response(stream).text()
+  if (text.charCodeAt(0) === 0xfeff) text = text.slice(1) // strip BOM
+  return text
+}
+
+function getSubstring(text, startValue, endValue) {
+  const start = text.indexOf(startValue)
+  if (start === -1) return ''
+  const finish = text.indexOf(endValue, start)
+  if (finish === -1) return ''
+  return text.slice(start, finish)
+}
+
+function extractCompiler(webUI) {
+  let rest = webUI
+  while (rest.length > 0) {
+    const i = rest.indexOf('<script>')
+    if (i === -1) break
+    const after = rest.slice(i + '<script>'.length)
+    const j = after.indexOf('</script>')
+    const script = j === -1 ? after : after.slice(0, j)
+    rest = j === -1 ? '' : after.slice(j + '</script>'.length)
+    if (script.indexOf('window.compile') !== -1) return script
+  }
+  return ''
+}
+
+// fw > 3.4 adapter. Older firmwares need v2 / v3v1 / v3v2 (see pixelblaze-client).
+function v3AdapterV3(webUI) {
+  return {
+    hardwareVariant: 'var ' + getSubstring(webUI, 'hardwareVariant=', ',varWatcherPoller') + ';',
+    extendedOperators: getSubstring(webUI, 'extendedOperators={', ',lastErrorMarkers=') + ';',
+    constants:
+      'var constants;' + getSubstring(webUI, '"ESP8266"===hardwareVariant&&', ',[])') + ';',
+    compiler: extractCompiler(webUI) + ';',
+  }
+}
+
+// Assemble the string the sandboxed iframe will eval. NOTE: unlike the Python
+// PoC we DO NOT prepend `window = {}` — in a browser host `window` is read-only
+// and already present, and the compiler attaches itself to the real window.
+function buildCompilerEnv(c) {
+  return (
+    'var predefinedGlobals = ["pixelCount"];\n' +
+    c.hardwareVariant +
+    '\n' +
+    c.constants +
+    '\n' +
+    c.extendedOperators +
+    '\n' +
+    c.compiler +
+    '\n' +
+    `
+    var compilePattern = function (src) {
+      try {
+        var compilerOptions = { predefinedGlobals: predefinedGlobals, extendedOperators: extendedOperators, constants: constants };
+        var program = window.compile(src, compilerOptions);
+        function surfaceList(list) { return Object.keys(list).reduce(function (r, k) { return r.concat(list[k]); }, []); }
+        return { status: "OK", exports: surfaceList(program.exports), compiled: program.compiled };
+      } catch (ex) {
+        return { status: (ex && ex.description ? ex.description : String(ex)) };
+      }
+    };
+    `
+  )
+}
+
+async function compileInSandbox(compilerEnv, patternSrc) {
+  await ensureOffscreen()
+  return await chrome.runtime.sendMessage({
+    target: 'offscreen',
+    type: 'compile',
+    compilerEnv,
+    patternSrc,
+  })
+}
+
+async function ensureOffscreen() {
+  const existing = await chrome.runtime.getContexts({ contextTypes: ['OFFSCREEN_DOCUMENT'] })
+  if (existing.length > 0) return
+  await chrome.offscreen.createDocument({
+    url: 'offscreen.html',
+    reasons: ['IFRAME_SCRIPTING'],
+    justification: 'Host a sandboxed iframe that evaluates the device compiler (remote code).',
+  })
+}

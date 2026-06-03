@@ -20,5 +20,15 @@
       "run_at": "document_start"
     }
   ],
-  "host_permissions": ["ws://*/*", "http://*/*"]
+  "permissions": ["offscreen"],
+  "host_permissions": ["ws://*/*", "http://*/*"],
+  "sandbox": {
+    "pages": ["sandbox.html"]
+  },
+  "content_security_policy": {
+    "sandbox": "sandbox allow-scripts; script-src 'self' 'unsafe-inline' 'unsafe-eval'; child-src 'none';"
+  },
+  "web_accessible_resources": [
+    { "resources": ["sandbox.html"], "matches": ["<all_urls>"] }
+  ]
 }

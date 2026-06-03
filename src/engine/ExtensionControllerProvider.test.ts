@@ -6,16 +6,35 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { ExtensionControllerProvider } from './ExtensionControllerProvider'
-import { RELAY_SOURCE, type RelayMessage, type RelayTransport } from './RelayWebSocket'
+import {
+  RELAY_SOURCE,
+  bytesToBase64,
+  base64ToBytes,
+  type RelayMessage,
+  type RelayTransport,
+} from './RelayWebSocket'
+import { encodeBinaryFrames, MessageType } from './PixelblazeConnection'
 import type { ControllerStatus } from './ControllerProvider'
 
 /** A fake relay that plays both the extension and a Pixelblaze device. Replies
  *  are delivered on a microtask so the page-side promise machinery runs first,
  *  mirroring the real async hop. */
-function makeDeviceTransport(opts: { detectAck?: boolean; failConnect?: boolean } = {}) {
+function makeDeviceTransport(
+  opts: {
+    detectAck?: boolean
+    failConnect?: boolean
+    /** Bytecode the fake helper returns from a `compile` request. */
+    compileBytecode?: Uint8Array
+    /** When set, the fake helper fails compile with this error. */
+    compileError?: string
+    /** Program ids the fake device reports from listPrograms. */
+    programIds?: string[]
+  } = {},
+) {
   const detectAck = opts.detectAck ?? true
   const listeners = new Set<(m: RelayMessage) => void>()
   const writes: Record<string, unknown>[] = []
+  const binaryWrites: Uint8Array[] = []
   let lastConnId = ''
   let openSocket = false
   // When silent, the device stops answering frames and never emits a socket
@@ -48,8 +67,19 @@ function makeDeviceTransport(opts: { detectAck?: boolean; failConnect?: boolean 
         case 'close':
           openSocket = false
           return
+        case 'compile':
+          if (opts.compileError) {
+            emit({ source: RELAY_SOURCE, dir: 'from-helper', type: 'compile-result', reqId: msg.reqId, ok: false, error: opts.compileError })
+          } else {
+            const blob = opts.compileBytecode ?? new Uint8Array(8) // header reconciles (0+0+8)
+            emit({ source: RELAY_SOURCE, dir: 'from-helper', type: 'compile-result', reqId: msg.reqId, ok: true, bytecode: bytesToBase64(blob) })
+          }
+          return
         case 'send': {
-          if (!('text' in msg.payload)) return
+          if ('binary' in msg.payload) {
+            binaryWrites.push(base64ToBytes(msg.payload.binary))
+            return
+          }
           const cmd = JSON.parse(msg.payload.text) as Record<string, unknown>
           if (cmd.getVars) reply(msg.connId, { vars: { speed: 0.5 } })
           if (cmd.getConfig) {
@@ -57,8 +87,14 @@ function makeDeviceTransport(opts: { detectAck?: boolean; failConnect?: boolean 
             reply(msg.connId, { activeProgram: { activeProgramId: 'P1', controls: { sliderX: 0.7 } } })
           }
           if (cmd.ping) reply(msg.connId, { ack: 1 })
+          if (cmd.listPrograms) {
+            const text = (opts.programIds ?? []).map((id) => `${id}\t${id}-name`).join('\n')
+            const frame = encodeBinaryFrames(MessageType.getProgramList, new TextEncoder().encode(text))[0]
+            emit({ source: RELAY_SOURCE, dir: 'from-helper', type: 'message', connId: msg.connId, payload: { binary: bytesToBase64(frame) } })
+          }
           if ('brightness' in cmd) writes.push(cmd)
           if ('setControls' in cmd) writes.push(cmd)
+          if ('setCode' in cmd) writes.push(cmd)
           return
         }
       }
@@ -72,6 +108,7 @@ function makeDeviceTransport(opts: { detectAck?: boolean; failConnect?: boolean 
   return {
     transport,
     writes,
+    binaryWrites,
     isOpen: () => openSocket,
     pushFrame: (obj: object) => reply(lastConnId, obj),
     dropSocket: () => emit({ source: RELAY_SOURCE, dir: 'from-helper', type: 'close', connId: lastConnId }),
@@ -90,7 +127,8 @@ describe('ExtensionControllerProvider', () => {
   it('starts in no-helper', () => {
     const p = new ExtensionControllerProvider({ transport: makeDeviceTransport().transport })
     expect(p.getStatus()).toEqual({ kind: 'no-extension' })
-    expect(p.capabilities).toEqual({ push: false, compile: false })
+    // Push + compile are GO since the H8 spike (#200).
+    expect(p.capabilities).toEqual({ push: true, compile: true })
   })
 
   it('detectHelper resolves true and moves to helper-present when the relay acks', async () => {
@@ -130,6 +168,59 @@ describe('ExtensionControllerProvider', () => {
     const p = new ExtensionControllerProvider({ transport: makeDeviceTransport({ failConnect: true }).transport })
     await expect(p.connect(TARGET)).rejects.toThrow()
     expect(p.getStatus().kind).toBe('error')
+  })
+
+  describe('push surface (H10)', () => {
+    it('compile round-trips a reqId-keyed request and returns the helper bytecode', async () => {
+      const d = makeDeviceTransport({ compileBytecode: new Uint8Array([1, 2, 3, 4]) })
+      const p = new ExtensionControllerProvider({ transport: d.transport })
+      await p.connect(TARGET)
+      await expect(p.compile('export function render(i){}')).resolves.toEqual(
+        new Uint8Array([1, 2, 3, 4]),
+      )
+    })
+
+    it('compile rejects with the helper error message', async () => {
+      const d = makeDeviceTransport({ compileError: 'syntax error at line 1' })
+      const p = new ExtensionControllerProvider({ transport: d.transport })
+      await p.connect(TARGET)
+      await expect(p.compile('garbage')).rejects.toThrow(/syntax error/)
+    })
+
+    it('compile rejects when not connected (no target to fetch the compiler from)', async () => {
+      const p = new ExtensionControllerProvider({ transport: makeDeviceTransport().transport })
+      await expect(p.compile('x')).rejects.toThrow(/Not connected/)
+    })
+
+    it('compile times out when the helper never answers', async () => {
+      const d = makeDeviceTransport()
+      // Swallow the compile request so no result ever comes back.
+      const orig = d.transport.post
+      d.transport.post = (m) => {
+        if (m.type !== 'compile') orig(m)
+      }
+      const p = new ExtensionControllerProvider({ transport: d.transport, compileTimeoutMs: 10 })
+      await p.connect(TARGET)
+      await expect(p.compile('x')).rejects.toThrow(/timed out/)
+    })
+
+    it('pushBytecode sends the save-and-run sequence over the live connection', async () => {
+      const d = makeDeviceTransport()
+      const p = new ExtensionControllerProvider({ transport: d.transport })
+      await p.connect(TARGET)
+      await p.pushBytecode(new Uint8Array([9, 9, 9]), { id: 'PROG1', name: 'demo' })
+      // setCode JSON captured, plus the binary putByteCode frame.
+      const setCode = d.writes.find((w) => 'setCode' in w)
+      expect(setCode?.setCode).toMatchObject({ size: 3, id: 'PROG1', name: 'demo' })
+      expect(d.binaryWrites).toHaveLength(1)
+      expect(d.binaryWrites[0][0]).toBe(MessageType.putByteCode)
+      expect([...d.binaryWrites[0].subarray(2)]).toEqual([9, 9, 9])
+    })
+
+    it('pushBytecode rejects when not connected', async () => {
+      const p = new ExtensionControllerProvider({ transport: makeDeviceTransport().transport })
+      await expect(p.pushBytecode(new Uint8Array([0]), { id: 'X' })).rejects.toThrow(/Not connected/)
+    })
   })
 
   it('reads vars and config across the bridge once connected', async () => {

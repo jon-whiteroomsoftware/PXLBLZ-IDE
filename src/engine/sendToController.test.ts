@@ -51,4 +51,26 @@ describe('describeSendToController', () => {
       describeSendToController({ status: connected, patternDim: 3, mapDim: null }).enabled,
     ).toBe(true)
   })
+
+  it('disables when the pattern does not compile cleanly', () => {
+    const gate = describeSendToController({
+      status: connected,
+      patternDim: 2,
+      mapDim: 2,
+      compileStatus: 'broken',
+    })
+    expect(gate.enabled).toBe(false)
+    expect(gate.reason).toMatch(/errors/i)
+  })
+
+  it('disables when the source already matches the last push (nothing to send)', () => {
+    const gate = describeSendToController({
+      status: connected,
+      patternDim: 2,
+      mapDim: 2,
+      alreadyPushed: true,
+    })
+    expect(gate.enabled).toBe(false)
+    expect(gate.reason).toMatch(/no changes/i)
+  })
 })

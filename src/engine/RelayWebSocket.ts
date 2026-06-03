@@ -31,8 +31,32 @@ export type RelayMessage =
       payload: RelayPayload
     }
   | { source: typeof RELAY_SOURCE; dir: 'to-helper'; type: 'close'; connId: string }
+  // Compile request (H10, issue #202): the device's own compiler runs inside the
+  // helper (an offscreen-hosted sandboxed iframe, the only MV3-legal place to eval
+  // remote code), not over a ws socket — so this is a one-off request/response
+  // correlated by `reqId`, independent of any connection. `address` is the device
+  // IP the helper fetches the compiler from.
+  | {
+      source: typeof RELAY_SOURCE
+      dir: 'to-helper'
+      type: 'compile'
+      reqId: string
+      address: string
+      patternSrc: string
+    }
   // helper → page
   | { source: typeof RELAY_SOURCE; dir: 'from-helper'; type: 'detect-ack' }
+  | {
+      source: typeof RELAY_SOURCE
+      dir: 'from-helper'
+      type: 'compile-result'
+      reqId: string
+      ok: boolean
+      /** Compiled bytecode as base64 (binary can't cross chrome messaging raw). */
+      bytecode?: string
+      /** Failure reason when `ok` is false. */
+      error?: string
+    }
   | { source: typeof RELAY_SOURCE; dir: 'from-helper'; type: 'open'; connId: string }
   | {
       source: typeof RELAY_SOURCE

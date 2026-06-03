@@ -1,5 +1,5 @@
-import { render, screen } from '@testing-library/react'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { render, screen, fireEvent } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SendToController } from './SendToController'
 import { useControllerStore, controllerInitialState } from '@/store/controllerStore'
 import { useEditorStore, editorInitialState } from '@/store/editorStore'
@@ -55,6 +55,36 @@ describe('SendToController', () => {
     expect(button).toHaveAttribute('title', expect.stringMatching(/2D.*1D/))
   })
 
+  it('calls pushActivePattern on click when enabled', () => {
+    setControllerProvider(new ConnectedProvider())
+    useEditorStore.setState({ nativeDim: 2 })
+    const pushActivePattern = vi.fn()
+    useControllerStore.setState({
+      activeIp: '10.0.0.9',
+      controllers: { '10.0.0.9': { ip: '10.0.0.9', phase: 'live', mapDim: 2 } },
+      pushActivePattern,
+    })
+    render(<SendToController />)
+    fireEvent.click(screen.getByTestId('send-to-controller'))
+    expect(pushActivePattern).toHaveBeenCalledOnce()
+  })
+
+  it('keeps the full label and disables while a push is in flight', () => {
+    setControllerProvider(new ConnectedProvider())
+    useEditorStore.setState({ nativeDim: 2 })
+    useControllerStore.setState({
+      activeIp: '10.0.0.9',
+      controllers: { '10.0.0.9': { ip: '10.0.0.9', nickname: 'Burner Bag', phase: 'live', mapDim: 2 } },
+      pushing: true,
+    })
+    render(<SendToController />)
+    const button = screen.getByTestId('send-to-controller')
+    // The name is held (no collapse); only the leading glyph (spinner) shows.
+    expect(button).toHaveTextContent('Burner Bag')
+    expect(button.querySelector('svg')).toBeTruthy()
+    expect(button).toBeDisabled()
+  })
+
   it('names the action after the active Controller', () => {
     setControllerProvider(new ConnectedProvider())
     useEditorStore.setState({ nativeDim: 2 })
@@ -63,6 +93,6 @@ describe('SendToController', () => {
       controllers: { '10.0.0.9': { ip: '10.0.0.9', nickname: 'Desk', phase: 'live', mapDim: 2 } },
     })
     render(<SendToController />)
-    expect(screen.getByTestId('send-to-controller')).toHaveTextContent('Send to Desk')
+    expect(screen.getByTestId('send-to-controller')).toHaveTextContent('Desk')
   })
 })

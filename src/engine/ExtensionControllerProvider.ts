@@ -22,10 +22,14 @@ import {
   type ControllerConfig,
   type ControllerTelemetry,
   type ProgramListEntry,
-  NO_CAPABILITIES,
 } from './ControllerProvider'
 import { PixelblazeConnection } from './PixelblazeConnection'
-import { RelayWebSocket, RELAY_SOURCE, type RelayTransport } from './RelayWebSocket'
+import {
+  RelayWebSocket,
+  RELAY_SOURCE,
+  base64ToBytes,
+  type RelayTransport,
+} from './RelayWebSocket'
 
 export interface ExtensionControllerProviderOptions {
   transport: RelayTransport
@@ -52,13 +56,19 @@ export interface ExtensionControllerProviderOptions {
   maxReconnectAttempts?: number
   /** Delay between reconnect attempts. Default 1000ms. */
   reconnectDelayMs?: number
+  /** How long a compile round-trip waits for the helper's result before failing.
+   *  The helper fetches + gunzips the ~1.2MB device web UI and evals the ~170k-char
+   *  compiler, so this is generous. Default 20000ms. */
+  compileTimeoutMs?: number
   /** Injectable timers (tests). Default to globals. */
   setTimeout?: (fn: () => void, ms: number) => unknown
   clearTimeout?: (handle: unknown) => void
 }
 
 export class ExtensionControllerProvider implements ControllerProvider {
-  readonly capabilities: ControllerCapabilities = NO_CAPABILITIES
+  // Push + compile are GO: the H8 spike proved the device's compiler runs in the
+  // helper (offscreen-hosted sandboxed iframe) and the bytecode renders live (#200).
+  readonly capabilities: ControllerCapabilities = { push: true, compile: true }
 
   private status: ControllerStatus = { kind: 'no-extension' }
   private readonly listeners = new Set<(status: ControllerStatus) => void>()
@@ -76,6 +86,8 @@ export class ExtensionControllerProvider implements ControllerProvider {
   private readonly livenessTimeoutMs: number
   private readonly maxReconnectAttempts: number
   private readonly reconnectDelayMs: number
+  private readonly compileTimeoutMs: number
+  private compileSeq = 0
   private readonly _setTimeout: (fn: () => void, ms: number) => unknown
   private readonly _clearTimeout: (h: unknown) => void
 
@@ -87,6 +99,7 @@ export class ExtensionControllerProvider implements ControllerProvider {
     this.livenessTimeoutMs = options.livenessTimeoutMs ?? 4000
     this.maxReconnectAttempts = options.maxReconnectAttempts ?? Infinity
     this.reconnectDelayMs = options.reconnectDelayMs ?? 1000
+    this.compileTimeoutMs = options.compileTimeoutMs ?? 20000
     this._setTimeout = options.setTimeout ?? ((fn, ms) => setTimeout(fn, ms))
     this._clearTimeout =
       options.clearTimeout ?? ((h) => clearTimeout(h as ReturnType<typeof setTimeout>))
@@ -251,6 +264,62 @@ export class ExtensionControllerProvider implements ControllerProvider {
 
   setBrightness(value: number, save = false): Promise<void> {
     return this.fireAndForget((conn) => conn.setBrightness(value, save))
+  }
+
+  // ── push surface (H10, issue #202) ──────────────────────────────────────────
+
+  /** Compile pattern source to bytecode helper-side. The device's own compiler can
+   *  only be eval'd inside the helper's offscreen-hosted sandboxed iframe (MV3 CSP),
+   *  so this is a one-off relay round-trip — post a `compile` request keyed by a
+   *  fresh reqId, resolve on the matching `compile-result`. Needs a live target so
+   *  the helper knows which device to fetch the compiler from; rejects otherwise. */
+  compile(source: string): Promise<Uint8Array> {
+    const target = this.target
+    if (!target) return Promise.reject(new Error('Not connected to a Controller'))
+    const reqId = `compile-${this.compileSeq++}`
+    return new Promise<Uint8Array>((resolve, reject) => {
+      let settled = false
+      const finish = (fn: () => void) => {
+        if (settled) return
+        settled = true
+        unsubscribe()
+        this._clearTimeout(timer)
+        fn()
+      }
+      const unsubscribe = this.transport.subscribe((msg) => {
+        if (
+          msg.source === RELAY_SOURCE &&
+          msg.dir === 'from-helper' &&
+          msg.type === 'compile-result' &&
+          msg.reqId === reqId
+        ) {
+          if (msg.ok && msg.bytecode != null) {
+            const bytecode = base64ToBytes(msg.bytecode)
+            finish(() => resolve(bytecode))
+          } else {
+            finish(() => reject(new Error(msg.error || 'Compile failed in helper')))
+          }
+        }
+      })
+      const timer = this._setTimeout(
+        () => finish(() => reject(new Error('Compile timed out'))),
+        this.compileTimeoutMs,
+      )
+      this.transport.post({
+        source: RELAY_SOURCE,
+        dir: 'to-helper',
+        type: 'compile',
+        reqId,
+        address: target.address,
+        patternSrc: source,
+      })
+    })
+  }
+
+  /** Push compiled bytecode over the live connection (save + run, overwrite-in-
+   *  place at `id`). Fire-and-forget at the protocol level. */
+  pushBytecode(bytecode: Uint8Array, opts: { id: string; name?: string }): Promise<void> {
+    return this.fireAndForget((conn) => conn.pushByteCode(bytecode, opts))
   }
 
   // ── internals ───────────────────────────────────────────────────────────────

@@ -34,6 +34,12 @@ export interface SendGateInput {
   patternDim: 1 | 2 | 3
   /** The connected Controller's installed-map dimensionality, or null if unknown. */
   mapDim: MapDimension
+  /** Editor compile state — a broken pattern can't be compiled or pushed. Defaults
+   *  to 'good' when omitted (the H9 gate predates this). */
+  compileStatus?: 'good' | 'broken'
+  /** True when the open pattern's current source already matches what was last
+   *  pushed to this Controller — nothing to send until it's edited. Defaults false. */
+  alreadyPushed?: boolean
 }
 
 export interface SendGate {
@@ -48,15 +54,23 @@ export function describeSendToController({
   status,
   patternDim,
   mapDim,
+  compileStatus = 'good',
+  alreadyPushed = false,
 }: SendGateInput): SendGate {
   if (status.kind !== 'connected') {
     return { enabled: false, reason: 'Connect a Controller to send' }
+  }
+  if (compileStatus !== 'good') {
+    return { enabled: false, reason: "Fix the pattern's errors before sending" }
   }
   if (mapDim !== null && mapDim !== patternDim) {
     return {
       enabled: false,
       reason: `Pattern is ${patternDim}D but the Controller's map is ${mapDim}D`,
     }
+  }
+  if (alreadyPushed) {
+    return { enabled: false, reason: 'No changes since the last send' }
   }
   return { enabled: true }
 }

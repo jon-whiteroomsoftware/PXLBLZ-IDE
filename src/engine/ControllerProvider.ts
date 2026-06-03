@@ -142,6 +142,19 @@ export interface ControllerProvider {
   /** Set global brightness (0..1). `save` persists to flash — default false.
    *  Resolves once the command is sent. */
   setBrightness(value: number, save?: boolean): Promise<void>
+
+  // ── push surface (H10, issue #202; gated by `capabilities`) ─────────────────
+
+  /** Compile pattern source to runnable bytecode (the device's own compiler, run
+   *  helper-side). Rejects on a compile error or when the backend lacks the
+   *  `compile` capability. The orchestrator (sendPatternToController) frames +
+   *  pushes the result. */
+  compile(source: string): Promise<Uint8Array>
+
+  /** Push already-compiled bytecode to the connected Controller as the
+   *  save-and-run sequence, overwriting the program at `id` in place (reuse an id
+   *  to overwrite, mint one to create). Resolves once the frames are sent. */
+  pushBytecode(bytecode: Uint8Array, opts: { id: string; name?: string }): Promise<void>
 }
 
 /** A backend reports no push and no compile until those capabilities ship. */
@@ -204,6 +217,14 @@ export class NullControllerProvider implements ControllerProvider {
   }
 
   setBrightness(_value: number, _save = false): Promise<void> {
+    return Promise.reject(new Error('Not connected to a Controller'))
+  }
+
+  compile(_source: string): Promise<Uint8Array> {
+    return Promise.reject(new Error('Not connected to a Controller'))
+  }
+
+  pushBytecode(_bytecode: Uint8Array, _opts: { id: string; name?: string }): Promise<void> {
     return Promise.reject(new Error('Not connected to a Controller'))
   }
 }

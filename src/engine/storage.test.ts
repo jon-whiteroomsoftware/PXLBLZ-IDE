@@ -8,6 +8,8 @@ import {
   deletePattern,
   getSetting,
   setSetting,
+  getControllerBindings,
+  setControllerBindings,
   resetDbCache,
   createMap,
   listMaps,
@@ -250,5 +252,25 @@ describe('storage — settings', () => {
     await setSetting('brightness', 0.8, db)
     const val = await getSetting<number>('brightness', db)
     expect(val).toBe(0.8)
+  })
+})
+
+describe('storage — controller bindings', () => {
+  it('returns an empty store when nothing is persisted', async () => {
+    const db = await makeDb()
+    expect(await getControllerBindings(db)).toEqual({})
+  })
+
+  it('round-trips a binding store', async () => {
+    const db = await makeDb()
+    await setControllerBindings({ 'ctrl-A': { 'pat-1': 'DEVPROG1' } }, db)
+    expect(await getControllerBindings(db)).toEqual({ 'ctrl-A': { 'pat-1': 'DEVPROG1' } })
+  })
+
+  it('overwrites the whole store on a subsequent write', async () => {
+    const db = await makeDb()
+    await setControllerBindings({ 'ctrl-A': { 'pat-1': 'D1' } }, db)
+    await setControllerBindings({ 'ctrl-B': { 'pat-2': 'D2' } }, db)
+    expect(await getControllerBindings(db)).toEqual({ 'ctrl-B': { 'pat-2': 'D2' } })
   })
 })

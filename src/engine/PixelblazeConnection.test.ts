@@ -479,6 +479,40 @@ describe('PixelblazeConnection', () => {
     })
   })
 
+  describe('pushByteCode', () => {
+    it('sends the save-and-run sequence in order: setCode → putByteCode → setControls → unpause', async () => {
+      const { conn, socket } = await connected()
+      const bytecode = new Uint8Array([1, 2, 3, 4, 5])
+      conn.pushByteCode(bytecode, { id: 'PROG00000000000AB', name: 'demo' })
+
+      // First JSON frame: pause + setCode with size/crc/name/id.
+      const setCode = JSON.parse(socket.sent[0])
+      expect(setCode.pause).toBe(true)
+      expect(setCode.setCode).toMatchObject({
+        size: 5,
+        name: 'demo',
+        id: 'PROG00000000000AB',
+      })
+      expect(typeof setCode.setCode.crc).toBe('number')
+
+      // One binary putByteCode frame (type 3), first|last for this small blob.
+      expect(socket.sentBinary).toHaveLength(1)
+      expect(socket.sentBinary[0][0]).toBe(MessageType.putByteCode)
+      expect(socket.sentBinary[0][1]).toBe(FrameFlag.first | FrameFlag.last)
+      expect([...socket.sentBinary[0].subarray(2)]).toEqual([1, 2, 3, 4, 5])
+
+      // Trailing JSON frames: clear controls, then unpause to run.
+      expect(JSON.parse(socket.sent[1])).toEqual({ setControls: {} })
+      expect(JSON.parse(socket.sent[2])).toEqual({ pause: false })
+    })
+
+    it('defaults the name to empty string', async () => {
+      const { conn, socket } = await connected()
+      conn.pushByteCode(new Uint8Array([0]), { id: 'X' })
+      expect(JSON.parse(socket.sent[0]).setCode.name).toBe('')
+    })
+  })
+
   it('ignores binary/non-string and malformed frames without crashing', async () => {
     const { conn, socket } = await connected()
     expect(() => socket.simulateMessage(new Uint8Array([7, 0, 0]))).not.toThrow()
