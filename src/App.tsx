@@ -5,6 +5,7 @@ import { CompileStatusBadge } from '@/components/CompileStatusBadge'
 import { PatternList } from '@/components/PatternList'
 import { Preview } from '@/components/Preview'
 import { PaneHeader } from '@/components/PaneHeader'
+import { ConnectionStatus } from '@/components/ConnectionStatus'
 import { MapModeHeader } from '@/components/MapModeHeader'
 import { usePatternStore, PatternRecord } from '@/store/patternStore'
 import { useEditorStore } from '@/store/editorStore'
@@ -148,6 +149,9 @@ export default function App() {
               </span>
             ))}
           </span>
+        </span>
+        <span className="ml-auto flex items-center">
+          <ConnectionStatus />
         </span>
       </header>
       <div className="flex flex-1 min-h-0">
