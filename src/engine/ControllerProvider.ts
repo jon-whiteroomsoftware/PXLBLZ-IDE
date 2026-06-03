@@ -71,6 +71,13 @@ export interface ControllerConfig {
   activeControls?: Record<string, number>
 }
 
+/** Live runtime metrics the device reports while running — distinct from stored
+ *  config (firmware `getConfig` carries none of this). The panel polls it for the
+ *  FPS readout. `fps` is `null` when the device hasn't reported a frame rate yet. */
+export interface ControllerTelemetry {
+  fps: number | null
+}
+
 /**
  * The one interface the app sees. Every method is async: reaching a Controller
  * through a helper is message-passing, never an in-process call — even the
@@ -104,6 +111,10 @@ export interface ControllerProvider {
 
   /** Read device config (brightness, active program, live controls). */
   getConfig(): Promise<ControllerConfig>
+
+  /** Read live runtime telemetry (reported FPS). Polled by the Controller panel
+   *  while connected; cheap and read-only. */
+  getTelemetry(): Promise<ControllerTelemetry>
 
   /** List the patterns stored on the Controller. */
   listPrograms(): Promise<ProgramListEntry[]>
@@ -153,6 +164,10 @@ export class NullControllerProvider implements ControllerProvider {
   }
 
   getConfig(): Promise<ControllerConfig> {
+    return Promise.reject(new Error('Not connected to a Controller'))
+  }
+
+  getTelemetry(): Promise<ControllerTelemetry> {
     return Promise.reject(new Error('Not connected to a Controller'))
   }
 

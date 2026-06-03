@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useState } from 'react'
 import { Play, Pause, RotateCcw } from 'lucide-react'
 import { usePreviewStore, MIN_LIGHT_SIZE, MAX_LIGHT_SIZE } from '@/store/previewStore'
 import { useEditorStore } from '@/store/editorStore'
@@ -18,38 +18,19 @@ import { DeckSelect } from '@/components/DeckSelect'
 import { DeckSlider } from '@/components/DeckSlider'
 import { ControlsPanel } from '@/components/ControlsPanel'
 import { Variables } from '@/components/Variables'
-import { HelpHint } from '@/components/HelpHint'
-
-// A help card for a deck section: a one-line framing of what the section *is*,
-// then a label-keyed list of its controls. Kept brief and aimed at someone who
-// already knows Pixelblaze — what each control does, not how it's implemented.
-function SectionHint({
-  intro,
-  items,
-}: {
-  intro: string
-  items: [string, string][]
-}) {
-  return (
-    <div className="flex flex-col gap-2 normal-case tracking-normal">
-      <p className="text-zinc-300 leading-snug">{intro}</p>
-      <div className="flex flex-col gap-1.5">
-        {items.map(([label, desc]) => (
-          <div key={label} className="leading-snug">
-            <span className="text-zinc-200">{label}</span>
-            <span className="text-zinc-400"> — {desc}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
+import {
+  DeckSection,
+  DeckSectionHint,
+  DeckGrid,
+  DeckCell,
+  DeckTelemetry,
+} from '@/components/Deck'
 
 // Card content for the two viewport sections. The contrast is the point: the
 // Pixelblaze section is real device state that travels to hardware; the Preview
 // section is renderer-only and never leaves the browser.
 const PIXELBLAZE_HINT = (
-  <SectionHint
+  <DeckSectionHint
     intro="Real Pixelblaze device settings — these live on the controller and carry over to hardware."
     items={[
       ['pixels', 'how many LEDs the pattern drives'],
@@ -60,7 +41,7 @@ const PIXELBLAZE_HINT = (
 )
 
 const PREVIEW_HINT = (
-  <SectionHint
+  <DeckSectionHint
     intro="Preview-only — these shape how the pattern looks in the browser and are never sent to a Pixelblaze."
     items={[
       ['light size', 'on-screen size of each rendered LED'],
@@ -226,13 +207,13 @@ function SecondaryBand() {
 
   return (
     <div className="text-xs pr-3">
-      <Section label="Pixelblaze" hint={PIXELBLAZE_HINT}>
-        <Grid gapY="gap-y-1">
+      <DeckSection label="Pixelblaze" hint={PIXELBLAZE_HINT}>
+        <DeckGrid gapY="gap-y-1">
           {/* pixels + fit on top, brightness in the bottom-left column below pixels. */}
-          <Cell label="pixels">
+          <DeckCell label="pixels">
             <PixelCountInput />
-          </Cell>
-          <Cell label="fit">
+          </DeckCell>
+          <DeckCell label="fit">
             <DeckSelect
               ariaLabel="Map normalization (Fill / Contain)"
               value={normalizeMode}
@@ -246,7 +227,7 @@ function SecondaryBand() {
               }}
               menuWidthClass="w-28"
             />
-          </Cell>
+          </DeckCell>
           <DeckSlider
             label="brightness"
             ariaLabel="Brightness"
@@ -259,12 +240,12 @@ function SecondaryBand() {
               writeCascadedOverride('brightness', v)
             }}
           />
-        </Grid>
-      </Section>
-      <Section label="Preview" hint={PREVIEW_HINT}>
+        </DeckGrid>
+      </DeckSection>
+      <DeckSection label="Preview" hint={PREVIEW_HINT}>
         {/* Sliders on top, then renderer/speed dropdowns, then read-only telemetry at
             the bottom of the section (#63). */}
-        <Grid className="mb-2">
+        <DeckGrid className="mb-2">
           <DeckSlider
             label="light size"
             ariaLabel="Light size"
@@ -303,9 +284,9 @@ function SecondaryBand() {
               }}
             />
           )}
-        </Grid>
-        <Grid gapY="gap-y-1" className="mb-2">
-          <Cell label="renderer">
+        </DeckGrid>
+        <DeckGrid gapY="gap-y-1" className="mb-2">
+          <DeckCell label="renderer">
             <DeckSelect
               ariaLabel="Renderer"
               value={fidelity}
@@ -316,98 +297,23 @@ function SecondaryBand() {
               onChange={setFidelity}
               menuWidthClass="w-28"
             />
-          </Cell>
-          <Cell label="speed">
+          </DeckCell>
+          <DeckCell label="speed">
             <SpeedSelector />
-          </Cell>
-        </Grid>
+          </DeckCell>
+        </DeckGrid>
         {/* Pull the telemetry text up (#63): the dropdown row above is 20px tall (text
             vertically centered), so without this the renderer→fps text baselines sit
             farther apart than the pure-text telemetry rows below. The negative top
             margin cancels the prior grid's mb-2 plus the dropdown's centering slack, so
             the fps baseline lands the same distance below renderer as elapsed/layout is
             below fps — keeping the text-line rhythm even. */}
-        <Grid gapY="gap-y-1" className="mb-2 -mt-1.5">
-          <Telemetry label="fps" value={fps === null ? '—' : fps.toFixed(1)} />
-          <Telemetry label="elapsed" value={elapsed === null ? '—' : `${(elapsed / 1000).toFixed(1)}s`} />
-          {layoutLabel && <Telemetry label="layout" value={layoutLabel} />}
-        </Grid>
-      </Section>
+        <DeckGrid gapY="gap-y-1" className="mb-2 -mt-1.5">
+          <DeckTelemetry label="fps" value={fps === null ? '—' : fps.toFixed(1)} />
+          <DeckTelemetry label="elapsed" value={elapsed === null ? '—' : `${(elapsed / 1000).toFixed(1)}s`} />
+          {layoutLabel && <DeckTelemetry label="layout" value={layoutLabel} />}
+        </DeckGrid>
+      </DeckSection>
     </div>
-  )
-}
-
-// A labeled deck section (#174): the same amber section header the Controls / Variables
-// sections use. Sections own their own header + spacing; the grids inside set the
-// columns.
-function Section({
-  label,
-  hint,
-  children,
-}: {
-  label: string
-  hint?: ReactNode
-  children: ReactNode
-}) {
-  return (
-    <div className="mt-1 pt-1.5 pb-2">
-      <div className="flex items-center gap-1.5 mb-1.5 h-5">
-        <h4 className="text-[11px] font-semibold text-structural uppercase tracking-wider">
-          {label}
-        </h4>
-        {hint && (
-          <HelpHint label={`About the ${label} section`} width={320}>
-            {hint}
-          </HelpHint>
-        )}
-      </div>
-      {children}
-    </div>
-  )
-}
-
-// The deck's shared 2-col label/value grid. Slider cells (label above) and label/value
-// cells share the same columns so the whole deck stays aligned. Slider rows keep a
-// roomier `gap-y-1.5`; compact label/value rows tighten to `gap-y-1`.
-function Grid({
-  gapY = 'gap-y-1.5',
-  className = '',
-  children,
-}: {
-  gapY?: string
-  className?: string
-  children: ReactNode
-}) {
-  return (
-    <div className={`grid grid-cols-2 gap-x-4 ${gapY} items-center ${className}`}>{children}</div>
-  )
-}
-
-// One label/value cell on the deck's shared grid: label flush left, the control flush
-// right.
-function Cell({
-  label,
-  className = '',
-  children,
-}: {
-  label: string
-  className?: string
-  children: ReactNode
-}) {
-  return (
-    <div className={`flex justify-between items-center gap-2 min-w-0 ${className}`}>
-      <span className="text-zinc-400 truncate">{label}</span>
-      {children}
-    </div>
-  )
-}
-
-// A read-only telemetry cell (fps/elapsed/layout): a Cell whose value is the live amber
-// readout. Merged in from the retired standalone Readout section.
-function Telemetry({ label, value }: { label: string; value: string }) {
-  return (
-    <Cell label={label}>
-      <span className="text-live tabular-nums truncate">{value}</span>
-    </Cell>
   )
 }
