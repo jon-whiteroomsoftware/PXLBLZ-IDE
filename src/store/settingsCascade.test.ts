@@ -9,6 +9,8 @@ import {
   writeHybrid,
   forkSettingsSnapshot,
   forkSettingsSnapshotForDemo,
+  resetActiveSettings,
+  hasActiveOverrides,
 } from './settingsCascade'
 
 beforeEach(() => {
@@ -72,10 +74,12 @@ describe('writeCascadedOverride', () => {
     expect(usePatternStore.getState().userPatterns[0].settings).toEqual({ brightness: 0.3 })
   })
 
-  it('is a no-op for a read-only demo (no record to hold an override)', () => {
+  it('persists a per-demo override in the keyed demoOverrides bag', () => {
     usePatternStore.setState({ activePatternId: null, activeDemoName: 'AuroraSphere', userPatterns: [] })
-    expect(() => writeCascadedOverride('brightness', 0.3)).not.toThrow()
-    expect(usePatternStore.getState().userPatterns).toHaveLength(0)
+    writeCascadedOverride('brightness', 0.3)
+    expect(usePatternStore.getState().demoOverrides.AuroraSphere).toEqual({ brightness: 0.3 })
+    // The override outranks the recommendation on the next resolve.
+    expect(resolveActiveSettings().brightness).toBe(0.3)
   })
 })
 
@@ -115,9 +119,79 @@ describe('writeHybrid', () => {
     expect(usePreviewStore.getState().lightSizeSticky).toBe(previewInitialState.lightSizeSticky)
   })
 
-  it('falls back to the global-sticky for a read-only demo (no record)', () => {
+  it('writes the global-sticky for a demo with no recommendation or override for the field', () => {
+    // AuroraSphere recommends no diffusion, so a first drag is a plain comfort pref.
     usePatternStore.setState({ activePatternId: null, activeDemoName: 'AuroraSphere', userPatterns: [] })
     writeHybrid('diffusion', 0.25)
     expect(usePreviewStore.getState().diffusionSticky).toBe(0.25)
+    expect(usePatternStore.getState().demoOverrides.AuroraSphere ?? {}).toEqual({})
+  })
+
+  it('writes a per-demo override once the demo already has one for the field', () => {
+    usePatternStore.setState({
+      activePatternId: null,
+      activeDemoName: 'AuroraSphere',
+      userPatterns: [],
+      demoOverrides: { AuroraSphere: { lightSize: 0.4 } },
+    })
+    writeHybrid('lightSize', 0.6)
+    expect(usePatternStore.getState().demoOverrides.AuroraSphere).toEqual({ lightSize: 0.6 })
+    expect(usePreviewStore.getState().lightSizeSticky).toBe(previewInitialState.lightSizeSticky)
+  })
+})
+
+describe('resolveActiveSettings — demo overrides', () => {
+  it('layers a persisted demo override over the recommendation', () => {
+    usePatternStore.setState({
+      activePatternId: null,
+      activeDemoName: 'AuroraSphere',
+      userPatterns: [],
+      demoOverrides: { AuroraSphere: { pixelCount: 1000 } },
+    })
+    const eff = resolveActiveSettings()
+    expect(eff.pixelCount).toBe(1000) // override beats recommended 4096
+    expect(eff.mapId).toBe('seed-sphere-3d') // unspecified field still from recommendation
+  })
+})
+
+describe('resetActiveSettings', () => {
+  it('clears a user pattern back to dev-defaults', async () => {
+    seedPattern({ brightness: 0.2, mapId: 'cube' })
+    await resetActiveSettings()
+    expect(usePatternStore.getState().userPatterns[0].settings).toEqual({})
+    expect(usePreviewStore.getState().brightness).toBe(1)
+    expect(useMapStore.getState().activeMapId).toBe('plane')
+  })
+
+  it('reverts a demo to its recommendation, leaving the global-sticky comfort prefs alone', async () => {
+    usePreviewStore.setState({ lightSizeSticky: 0.7 })
+    usePatternStore.setState({
+      activePatternId: null,
+      activeDemoName: 'AuroraSphere',
+      userPatterns: [],
+      demoOverrides: { AuroraSphere: { pixelCount: 1000, lightSize: 0.3 } },
+    })
+    await resetActiveSettings()
+    expect(usePatternStore.getState().demoOverrides.AuroraSphere).toBeUndefined()
+    // Back to the recommendation…
+    expect(useMapStore.getState().activePixelCount).toBe(4096)
+    // …but the personal light-size baseline (global-sticky) is untouched.
+    expect(usePreviewStore.getState().lightSize).toBe(0.7)
+  })
+})
+
+describe('hasActiveOverrides', () => {
+  it('is false for a clean pattern and true once an override exists', () => {
+    seedPattern()
+    expect(hasActiveOverrides()).toBe(false)
+    seedPattern({ brightness: 0.5 })
+    expect(hasActiveOverrides()).toBe(true)
+  })
+
+  it('tracks a demo override bag', () => {
+    usePatternStore.setState({ activePatternId: null, activeDemoName: 'AuroraSphere', userPatterns: [] })
+    expect(hasActiveOverrides()).toBe(false)
+    usePatternStore.setState({ demoOverrides: { AuroraSphere: { brightness: 0.5 } } })
+    expect(hasActiveOverrides()).toBe(true)
   })
 })

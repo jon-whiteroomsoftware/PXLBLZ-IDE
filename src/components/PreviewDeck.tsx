@@ -1,10 +1,15 @@
 import { useState, type ReactNode } from 'react'
-import { Play, Pause } from 'lucide-react'
+import { Play, Pause, RotateCcw } from 'lucide-react'
 import { usePreviewStore, MIN_LIGHT_SIZE, MAX_LIGHT_SIZE } from '@/store/previewStore'
 import { useEditorStore } from '@/store/editorStore'
 import { useMapStore, defaultPixelCountForDim } from '@/store/mapStore'
 import { usePatternStore } from '@/store/patternStore'
-import { writeCascadedOverride, writeHybrid, resetActiveSettings } from '@/store/settingsCascade'
+import {
+  writeCascadedOverride,
+  writeHybrid,
+  resetActiveSettings,
+  hasActiveOverrides,
+} from '@/store/settingsCascade'
 import { clampPixelCount } from '@/engine/camera'
 import { effectivePixelCount } from '@/engine/layout'
 import { LayoutSelector } from '@/components/LayoutSelector'
@@ -135,9 +140,17 @@ function SecondaryBand() {
   const solidEligible = useEditorStore((s) => s.solidEligible)
   const solidity = useMapStore((s) => s.activeSolidity)
   const setSolidity = useMapStore((s) => s.setActiveSolidity)
-  // "Reset to defaults" (ADR-0013) clears this pattern's layer-1 overrides; only a
-  // user pattern carries overrides, so the action is hidden for a read-only demo.
-  const activePatternId = usePatternStore((s) => s.activePatternId)
+  // The layer-1 reset affordance (ADR-0013): a rewind icon by the Preview header that
+  // pops in only when the active pattern/demo carries overrides to clear (so it's never
+  // a no-op). One "Reset preview" action for both — a demo reverts to its developer
+  // recommendation, a user pattern to the app defaults (resetActiveSettings picks the
+  // floor). We subscribe to the override sources so it appears/disappears live as
+  // controls are touched; the divergence check itself is `hasActiveOverrides()`.
+  usePatternStore((s) => s.activePatternId)
+  usePatternStore((s) => s.activeDemoName)
+  usePatternStore((s) => s.userPatterns)
+  usePatternStore((s) => s.demoOverrides)
+  const showReset = hasActiveOverrides()
 
   return (
     <div className="text-xs pr-3">
@@ -176,7 +189,22 @@ function SecondaryBand() {
           />
         </Grid>
       </Section>
-      <Section label="Preview">
+      <Section
+        label="Preview"
+        action={
+          showReset && (
+            <button
+              type="button"
+              aria-label="Reset preview"
+              title="Reset preview"
+              onClick={() => void resetActiveSettings()}
+              className="flex items-center justify-center h-5 w-5 rounded text-zinc-500 hover:text-amber-400 hover:bg-zinc-800/80 transition-colors translate-y-[1.5px]"
+            >
+              <RotateCcw size={14} />
+            </button>
+          )
+        }
+      >
         {/* Read-only telemetry on top, then renderer/speed, then all three sliders at
             the bottom of the section (#150 follow-up). */}
         <Grid gapY="gap-y-1" className="mb-2">
@@ -241,17 +269,6 @@ function SecondaryBand() {
             />
           )}
         </Grid>
-        {activePatternId && (
-          <div className="pt-1">
-            <button
-              type="button"
-              onClick={() => void resetActiveSettings()}
-              className="text-[11px] text-zinc-500 hover:text-zinc-300 transition-colors"
-            >
-              Reset to defaults
-            </button>
-          </div>
-        )}
       </Section>
     </div>
   )
@@ -260,12 +277,25 @@ function SecondaryBand() {
 // A labeled deck section (#174): the same amber section header the Controls / Variables
 // sections use. Sections own their own header + spacing; the grids inside set the
 // columns.
-function Section({ label, children }: { label: string; children: ReactNode }) {
+function Section({
+  label,
+  action,
+  children,
+}: {
+  label: string
+  action?: ReactNode
+  children: ReactNode
+}) {
   return (
     <div className="mt-1 pt-1.5 pb-2">
-      <h4 className="text-[11px] font-semibold text-structural uppercase tracking-wider mb-1.5">
-        {label}
-      </h4>
+      {/* Fixed header height (h-5) so an action icon that pops in/out (the reset
+          rewind) never reflows the rows below it — the slot is always reserved. */}
+      <div className="flex items-center gap-1.5 mb-1.5 h-5">
+        <h4 className="text-[11px] font-semibold text-structural uppercase tracking-wider">
+          {label}
+        </h4>
+        {action}
+      </div>
       {children}
     </div>
   )

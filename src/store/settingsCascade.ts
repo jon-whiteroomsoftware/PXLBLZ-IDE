@@ -19,13 +19,33 @@ import { usePatternStore } from './patternStore'
 import { usePreviewStore } from './previewStore'
 import { useMapStore } from './mapStore'
 
-// The active pattern's persisted overrides (layer 1) — empty for a read-only demo,
-// which carries no PatternRecord.
+// The active pattern's persisted overrides (layer 1). A user pattern stores them on
+// its PatternRecord; a demo stores them in the keyed demoOverrides map (ADR-0013
+// amendment) — both are layer-1 override bags, so they resolve identically.
 function activeOverrides(): Partial<Settings> {
   const ps = usePatternStore.getState()
+  if (ps.activeDemoName) return ps.demoOverrides[ps.activeDemoName] ?? {}
   const id = ps.activePatternId
   const record = id ? ps.userPatterns.find((p) => p.id === id) : undefined
   return record?.settings ?? {}
+}
+
+// Persist a single layer-1 override field for whatever is active — routed to the user
+// pattern's record or the active demo's override bag. A no-op when neither is active.
+function persistOverride<K extends keyof Settings>(field: K, value: Settings[K]): void {
+  const ps = usePatternStore.getState()
+  if (ps.activeDemoName) {
+    void ps.updateDemoSettings(ps.activeDemoName, { [field]: value })
+  } else if (ps.activePatternId) {
+    void ps.updatePatternSettings(ps.activePatternId, { [field]: value })
+  }
+}
+
+// Whether the active pattern/demo carries any layer-1 overrides. Drives the
+// "Reset to defaults" / "Revert to recommended" affordance: the action clears layer 1,
+// so it is offered exactly when there is something there to clear (ADR-0013).
+export function hasActiveOverrides(): boolean {
+  return Object.keys(activeOverrides()).length > 0
 }
 
 // The live global-sticky layer (layer 3) read from previewStore.
@@ -68,29 +88,28 @@ export function seedActiveSettings(): void {
   pv.setDiffusion(eff.diffusion)
 }
 
-// Write a per-pattern cascaded override (layer 1) for the active pattern. A demo has
-// no record, so the override is simply skipped — the live store already reflects the
-// value and a demo persists nothing (matching the pre-0013 behaviour).
+// Write a cascaded override (layer 1) for whatever is active. Routes to the user
+// pattern's record or, for a demo, its keyed override bag (ADR-0013 amendment) — both
+// persist, so a reopen restores the change.
 export function writeCascadedOverride<K extends keyof Settings>(field: K, value: Settings[K]): void {
-  const id = usePatternStore.getState().activePatternId
-  if (id) void usePatternStore.getState().updatePatternSettings(id, { [field]: value })
+  persistOverride(field, value)
 }
 
 // Route a hybrid comfort-pref drag (lightSize/diffusion) to the correct layer
-// (ADR-0013): a per-pattern override when the pattern already has a recommendation or
-// existing override, else the global-sticky baseline (set-once-stays-set). A demo
-// (no record) always falls back to the global-sticky.
+// (ADR-0013): a per-pattern/per-demo override when the active item already has a
+// recommendation or existing override for the field, else the global-sticky baseline
+// (set-once-stays-set). A demo now has a persistent override home too, so it follows
+// the same rule as a user pattern.
 export function writeHybrid(field: 'lightSize' | 'diffusion', value: number): void {
   const ps = usePatternStore.getState()
-  const id = ps.activePatternId
-  const record = id ? ps.userPatterns.find((p) => p.id === id) : undefined
+  const hasHome = !!(ps.activePatternId || ps.activeDemoName)
   const target = hybridWriteTarget({
-    hasRecord: !!record,
-    hasExistingOverride: record?.settings?.[field] !== undefined,
+    hasRecord: hasHome,
+    hasExistingOverride: activeOverrides()[field] !== undefined,
     hasRecommendation: recommendedSettingsFor(ps.activeDemoName)[field] !== undefined,
   })
-  if (target === 'override' && id) {
-    void ps.updatePatternSettings(id, { [field]: value })
+  if (target === 'override') {
+    persistOverride(field, value)
   } else if (field === 'lightSize') {
     usePreviewStore.getState().setLightSizeSticky(value)
   } else {
@@ -115,12 +134,19 @@ export function forkSettingsSnapshotForDemo(demoName: string): Partial<Settings>
   return rest
 }
 
-// "Reset to defaults" (ADR-0013): clear the active pattern's layer-1 overrides, then
-// re-seed so the live preview drops back to recommended + global + dev-default. No-op
-// without an active user pattern.
+// "Reset to defaults" (user pattern) / "Revert to recommended" (demo), ADR-0013:
+// clear the active item's layer-1 overrides, then re-seed so the live preview drops to
+// the next layer down — recommended (demos) or global + dev-default (user patterns).
+// Hybrid comfort prefs that live in global-sticky are read, not cleared, so a personal
+// light-size/diffusion baseline survives the revert. No-op when nothing is active.
 export async function resetActiveSettings(): Promise<void> {
-  const id = usePatternStore.getState().activePatternId
-  if (!id) return
-  await usePatternStore.getState().resetPatternSettings(id)
+  const ps = usePatternStore.getState()
+  if (ps.activeDemoName) {
+    await ps.resetDemoSettings(ps.activeDemoName)
+  } else if (ps.activePatternId) {
+    await ps.resetPatternSettings(ps.activePatternId)
+  } else {
+    return
+  }
   seedActiveSettings()
 }

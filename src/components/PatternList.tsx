@@ -459,6 +459,7 @@ export function PatternList() {
   }, [])
 
   useEffect(() => {
+    void usePatternStore.getState().loadDemoOverrides()
     loadPatterns().then(async () => {
       const last = await getSetting<LastActive>(LAST_ACTIVE_KEY).catch(() => undefined)
       const { userPatterns, setActivePattern, setActiveLibrary, setActiveDemo } = usePatternStore.getState()

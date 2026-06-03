@@ -19,8 +19,11 @@ export const DEMOS: Record<string, string> = Object.fromEntries(
 // names the map / count / solidity it's meant to be seen on, so it opens looking its
 // best without forcing anything: every value is just the on-open default ahead of
 // the user global-sticky and dev-default, freely overridable from the controls, and
-// never reaches pattern source, the transpiled artifact, or a controller. A demo
-// carries no PatternRecord, so these recommendations are its only non-default layer.
+// never reaches pattern source, the transpiled artifact, or a controller. A demo has
+// no PatternRecord, but it does carry its own persisted layer-1 override bag (keyed by
+// demo name, in patternStore.demoOverrides — ADR-0013 amendment), so a user's tweaks
+// outrank these recommendations and survive a reopen; "Revert to recommended" clears
+// that bag to fall back to this layer.
 export const RECOMMENDED_SETTINGS: Record<string, Partial<Settings>> = {
   AuroraSphere: { mapId: 'seed-sphere-3d', pixelCount: 4096, solidity: 1 },
   NebulaSphere: { mapId: 'seed-sphere-3d', pixelCount: 8192, solidity: 1 },

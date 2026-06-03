@@ -4,11 +4,13 @@ import { PreviewDeck } from './PreviewDeck'
 import { usePreviewStore, previewInitialState } from '@/store/previewStore'
 import { useMapStore, mapInitialState } from '@/store/mapStore'
 import { useEditorStore, editorInitialState } from '@/store/editorStore'
+import { usePatternStore, patternInitialState } from '@/store/patternStore'
 
 beforeEach(() => {
   usePreviewStore.setState(previewInitialState)
   useMapStore.setState(mapInitialState)
   useEditorStore.setState(editorInitialState)
+  usePatternStore.setState(patternInitialState)
 })
 
 describe('PreviewDeck (smoke)', () => {
@@ -56,5 +58,28 @@ describe('PreviewDeck (smoke)', () => {
     useEditorStore.setState({ solidEligible: true })
     rerender(<PreviewDeck />)
     expect(screen.getByRole('slider', { name: /Solidity/ })).toBeInTheDocument()
+  })
+
+  it('hides the reset-preview icon until the active item carries overrides', () => {
+    const { rerender } = render(<PreviewDeck />)
+    expect(screen.queryByRole('button', { name: 'Reset preview' })).not.toBeInTheDocument()
+
+    // A user pattern with an override surfaces the icon.
+    usePatternStore.setState({
+      activePatternId: 'p1',
+      userPatterns: [{ id: 'p1', name: 'P1', src: '', controls: {}, updatedAt: 1, settings: { brightness: 0.5 } }],
+    })
+    rerender(<PreviewDeck />)
+    expect(screen.getByRole('button', { name: 'Reset preview' })).toBeInTheDocument()
+  })
+
+  it('surfaces the same reset-preview icon for a demo with overrides', () => {
+    usePatternStore.setState({
+      activePatternId: null,
+      activeDemoName: 'AuroraSphere',
+      demoOverrides: { AuroraSphere: { brightness: 0.5 } },
+    })
+    render(<PreviewDeck />)
+    expect(screen.getByRole('button', { name: 'Reset preview' })).toBeInTheDocument()
   })
 })

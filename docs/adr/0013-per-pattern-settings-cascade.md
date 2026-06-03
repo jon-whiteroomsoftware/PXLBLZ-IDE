@@ -25,7 +25,7 @@ The effective value of every tunable preview setting is resolved through a **fou
 
 - **Dirty detection is per-field and manipulation-gated.** An override is written from the control's own change handler when the user moves it — never inferred by comparing a stored value to a default (a stored value equal to the default is indistinguishable from "untouched", so equality can't drive dirtiness).
 - **Forking a demo snapshots its *effective* settings** into the new `PatternRecord` as explicit layer-1 overrides — a frozen copy. The fork carries no live pointer back to the demo; later changes to the demo's recommendations do not reach the fork.
-- **Reset to defaults** is a per-pattern action that clears that pattern's layer-1 overrides, dropping it back to recommended + global + dev-default. (Per-field reset and an overridden-vs-inherited visual tell are possible later additions the sparse model already supports; not built now.)
+- **Reset to defaults** clears the active item's layer-1 overrides, dropping it back to recommended + global + dev-default. (Per-field reset and an overridden-vs-inherited visual tell are possible later additions the sparse model already supports; not built now.) *See the 2026-06-02 amendment below: this now applies to demos too, where it is labelled "Revert to recommended", and is shown only when overrides exist.*
 - A user's own pattern has no recommendation layer — it is dev-default + global-sticky + their overrides.
 
 ## Considered options
@@ -42,3 +42,18 @@ The effective value of every tunable preview setting is resolved through a **fou
 - `PatternRecord` gains a sparse settings-override field covering the per-pattern cascaded set (extending today's `mapId`/`shapeId`/`surfaceId`/`pixelCount`/`solidity`/`normalize`).
 - A pure resolver (`resolveSettings(id, overrides, recommended, globalSticky, devDefaults)`) becomes the single seam the preview reads effective settings from — engine-pure, table-testable.
 - Supersedes the "viewing-comfort pref, persisted globally, not per-pattern" language in [ADR-0006](0006-preview-light-size-and-diffusion.md) and in the CONTEXT.md **Preview light size** / **Diffusion** entries.
+
+## Amendment (2026-06-02): demos carry a persisted layer-1 override bag
+
+The original decision left demos without a layer-1 home: a demo had no `PatternRecord`, so `writeCascadedOverride` was a no-op and hybrid drags fell to the global-sticky. Consequences: a user's tweaks to a demo evaporated on reopen (the one thing in the app that *didn't* persist), and dragging light size/diffusion on a demo silently rewrote the *global* comfort baseline — surprising, and inconsistent with how a user pattern behaves.
+
+We now give demos their **own persisted layer-1 override bag**, keyed by demo name, stored in the settings KV store under `demoOverrides` (`patternStore.demoOverrides: Record<demoName, Partial<Settings>>`). This is the demo analogue of `PatternRecord.settings`. The four-layer cascade and the field partition are unchanged; only the *source* of layer 1 changes — `activeOverrides()` returns the demo's bag when a demo is active. Consequently:
+
+- **Cascaded and hybrid writes on a demo persist** to its bag and survive a reopen, identical to a user pattern. The hybrid write rule is now uniform: a drag writes a per-item override when the item already has a recommendation or existing override for the field, else the global-sticky (so a *first* light-size/diffusion drag on a demo with no such recommendation is still a global comfort pref, as before).
+- **"Read-only" still means the code.** Only the pattern *source* is read-only for a demo; persisting *settings* does not touch it.
+- **Demo identity is the demo name.** Renaming or removing a demo orphans its stored overrides harmlessly (they never resolve again). Re-shipping a demo with a changed recommendation is fine — overrides layer cleanly on top of whatever the new recommendation is; no versioning machinery.
+
+This also generalises the **reset affordance** (was "Reset to defaults", user-patterns-only):
+
+- It clears the active item's layer-1 bag and re-seeds. For a **demo** it falls back to the *recommendation* — surfaced as **"Revert to recommended"**; for a **user pattern** it falls back to dev-default + global-sticky — **"Reset to defaults"**. The global-sticky comfort prefs are *read, not cleared*, so a personal light-size/diffusion baseline survives a revert.
+- The link is shown **only when the active item carries layer-1 overrides** (`hasActiveOverrides()`), so it is never a no-op. Override presence is the divergence signal — overrides are only written on genuine manipulation, and the action's whole job is to clear them.

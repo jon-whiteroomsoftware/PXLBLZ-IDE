@@ -84,7 +84,7 @@ A hard split, enforced by convention and load-bearing for the test strategy:
 | Store | Holds |
 |---|---|
 | `previewStore` | `isRunning`, `speed`, `brightness`, `lightSize`, `diffusion` (live working copies), `lightSizeSticky`/`diffusionSticky` (global-sticky baselines), `fidelity`, `watchPatternVars`, `watchValues`, `fps`, `elapsed`. Persists only `fidelity` + the two `*Sticky` baselines to `localStorage` (ADR-0013); the cascaded `speed`/`brightness` and the live `lightSize`/`diffusion` are seeded per-pattern by the resolver, not persisted here. |
-| `patternStore` | tri-state selection: `activePatternId` / `activeLibraryName` / `activeDemoName`; `userPatterns`; CRUD. |
+| `patternStore` | tri-state selection: `activePatternId` / `activeLibraryName` / `activeDemoName`; `userPatterns`; `demoOverrides` (per-demo cascade layer-1 bag, keyed by demo name, ADR-0013); CRUD. |
 | `editorStore` | `source`, `previewSource`, `compileStatus`, `isReadOnly`, `previewPatternName`, `patternVars`, `controls`, `nativeDim`, `displayDim`, `solidEligible`, `editorFlavor` (`'pattern' \| 'map'`). |
 | `mapStore` | `activeMapId`, `activeShapeId`, `activeSurfaceId`, `activePixelCount`, `activeNormalizeMode` (Fill/Contain), `activeSolidity`, `userMaps`, stock catalogue. |
 | `controlStore` | current pattern UI control values (transient). |
@@ -105,9 +105,15 @@ The preview-wide grid is retired (ADR-0009; §8).
 > over the `Settings` vocabulary + `DEV_DEFAULTS` (`src/engine/settings.ts`); the
 > store orchestration seam is `src/store/settingsCascade.ts` (`seedActiveSettings`
 > on open, `writeCascadedOverride`/`writeHybrid` per control, `forkSettingsSnapshot`,
-> `resetActiveSettings`). Per-pattern overrides live sparsely on
-> `PatternRecord.settings` and are written only on genuine user manipulation.
-> `fidelity` is the one **pure-global** field — never cascaded, persisted as before.
+> `resetActiveSettings`, `hasActiveOverrides`). Layer-1 overrides live sparsely and are
+> written only on genuine user manipulation: a **user pattern** stores them on
+> `PatternRecord.settings`; a **demo** stores them in `patternStore.demoOverrides`
+> (keyed by demo name, persisted under the `demoOverrides` settings-KV key — ADR-0013
+> amendment), so a demo's tweaks survive a reopen and `writeHybrid` treats it like a
+> pattern. `resetActiveSettings` clears whichever layer-1 bag is active (demo → reverts
+> to recommended; user pattern → app defaults) and is offered (`hasActiveOverrides`)
+> only when that bag is non-empty. `fidelity` is the one **pure-global** field — never
+> cascaded, persisted as before.
 
 ---
 

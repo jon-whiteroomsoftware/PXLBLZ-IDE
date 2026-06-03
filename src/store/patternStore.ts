@@ -5,6 +5,7 @@ import {
   listPatterns,
   updatePattern,
   deletePattern,
+  getSetting,
   setSetting,
 } from '@/engine/storage'
 import type { Settings } from '@/engine/settings'
@@ -12,6 +13,13 @@ import type { Settings } from '@/engine/settings'
 export type { PatternRecord }
 
 export const LAST_ACTIVE_KEY = 'lastActive'
+
+// The persisted demo-override layer (ADR-0013 amendment). A demo carries no
+// PatternRecord — its code is read-only and shipped in the app — but it still gets a
+// persistent cascade layer-1 override bag so the user's tweaks survive a reopen, just
+// like a user pattern. The whole map (demo name → sparse overrides) lives under one
+// key in the settings KV store.
+export const DEMO_OVERRIDES_KEY = 'demoOverrides'
 
 export type LastActive =
   | { type: 'pattern'; id: string }
@@ -23,10 +31,17 @@ interface PatternState {
   activeLibraryName: string | null
   activeDemoName: string | null
   userPatterns: PatternRecord[]
+  // Persisted per-demo settings overrides (cascade layer 1, ADR-0013 amendment),
+  // keyed by demo name. Parallel to PatternRecord.settings for user patterns; a demo
+  // has no record so its bag lives here instead.
+  demoOverrides: Record<string, Partial<Settings>>
   setActivePattern: (id: string | null) => void
   setActiveLibrary: (name: string | null) => void
   setActiveDemo: (name: string | null) => void
   loadPatterns: () => Promise<void>
+  // Hydrate the persisted demo-override map from the settings KV store at startup,
+  // alongside loadPatterns.
+  loadDemoOverrides: () => Promise<void>
   addPattern: (record: PatternRecord) => Promise<void>
   renamePattern: (id: string, name: string) => Promise<void>
   removePattern: (id: string) => Promise<void>
@@ -39,6 +54,12 @@ interface PatternState {
   // Clear a pattern's layer-1 overrides ("Reset to defaults", ADR-0013), dropping it
   // back to recommended + global-sticky + dev-default on the next resolve.
   resetPatternSettings: (id: string) => Promise<void>
+  // Sparse-merge per-demo settings overrides (cascade layer 1) — the demo equivalent
+  // of updatePatternSettings, persisted into the demoOverrides KV map.
+  updateDemoSettings: (name: string, patch: Partial<Settings>) => Promise<void>
+  // Clear a demo's layer-1 overrides ("Revert to recommended"), dropping it back to
+  // recommended + global-sticky + dev-default on the next resolve.
+  resetDemoSettings: (name: string) => Promise<void>
 }
 
 export const patternInitialState = {
@@ -46,6 +67,7 @@ export const patternInitialState = {
   activeLibraryName: null as string | null,
   activeDemoName: null as string | null,
   userPatterns: [] as PatternRecord[],
+  demoOverrides: {} as Record<string, Partial<Settings>>,
 }
 
 export const usePatternStore = create<PatternState>()((set, get) => ({
@@ -67,6 +89,13 @@ export const usePatternStore = create<PatternState>()((set, get) => ({
   loadPatterns: async () => {
     const patterns = await listPatterns()
     set({ userPatterns: patterns.sort((a, b) => b.updatedAt - a.updatedAt) })
+  },
+
+  loadDemoOverrides: async () => {
+    const stored = await getSetting<Record<string, Partial<Settings>>>(DEMO_OVERRIDES_KEY).catch(
+      () => undefined,
+    )
+    if (stored) set({ demoOverrides: stored })
   },
 
   addPattern: async (record) => {
@@ -127,5 +156,25 @@ export const usePatternStore = create<PatternState>()((set, get) => ({
       userPatterns: s.userPatterns.map((p) => (p.id === id ? { ...p, settings: {} } : p)),
     }))
     await updatePattern(id, { settings: {} }).catch(() => {})
+  },
+
+  updateDemoSettings: async (name, patch) => {
+    // Sparse merge over any existing demo overrides, then persist the whole map.
+    let next: Record<string, Partial<Settings>> | undefined
+    set((s) => {
+      next = { ...s.demoOverrides, [name]: { ...s.demoOverrides[name], ...patch } }
+      return { demoOverrides: next }
+    })
+    if (next) await setSetting(DEMO_OVERRIDES_KEY, next).catch(() => {})
+  },
+
+  resetDemoSettings: async (name) => {
+    let next: Record<string, Partial<Settings>> | undefined
+    set((s) => {
+      const { [name]: _drop, ...rest } = s.demoOverrides
+      next = rest
+      return { demoOverrides: next }
+    })
+    if (next) await setSetting(DEMO_OVERRIDES_KEY, next).catch(() => {})
   },
 }))

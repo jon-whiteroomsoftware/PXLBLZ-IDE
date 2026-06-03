@@ -67,3 +67,37 @@ describe('resetPatternSettings', () => {
     expect(usePatternStore.getState().userPatterns[0].settings).toEqual({})
   })
 })
+
+describe('demo overrides', () => {
+  it('updateDemoSettings sparse-merges per demo name', async () => {
+    await usePatternStore.getState().updateDemoSettings('AuroraSphere', { brightness: 0.5 })
+    await usePatternStore.getState().updateDemoSettings('AuroraSphere', { pixelCount: 256 })
+    expect(usePatternStore.getState().demoOverrides.AuroraSphere).toEqual({
+      brightness: 0.5,
+      pixelCount: 256,
+    })
+  })
+
+  it('keeps each demo bag independent', async () => {
+    await usePatternStore.getState().updateDemoSettings('AuroraSphere', { brightness: 0.5 })
+    await usePatternStore.getState().updateDemoSettings('NebulaSphere', { brightness: 0.2 })
+    expect(usePatternStore.getState().demoOverrides).toEqual({
+      AuroraSphere: { brightness: 0.5 },
+      NebulaSphere: { brightness: 0.2 },
+    })
+  })
+
+  it('resetDemoSettings drops only that demo bag', async () => {
+    await usePatternStore.getState().updateDemoSettings('AuroraSphere', { brightness: 0.5 })
+    await usePatternStore.getState().updateDemoSettings('NebulaSphere', { brightness: 0.2 })
+    await usePatternStore.getState().resetDemoSettings('AuroraSphere')
+    expect(usePatternStore.getState().demoOverrides).toEqual({ NebulaSphere: { brightness: 0.2 } })
+  })
+
+  it('loadDemoOverrides rehydrates the persisted map', async () => {
+    await usePatternStore.getState().updateDemoSettings('AuroraSphere', { brightness: 0.5 })
+    usePatternStore.setState({ demoOverrides: {} })
+    await usePatternStore.getState().loadDemoOverrides()
+    expect(usePatternStore.getState().demoOverrides.AuroraSphere).toEqual({ brightness: 0.5 })
+  })
+})

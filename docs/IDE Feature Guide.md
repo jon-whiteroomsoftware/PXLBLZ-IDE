@@ -150,15 +150,18 @@ makes visible:
 
 - **Pixelblaze group** — settings that exist on real hardware and would round-trip to
   a controller: **pixels** (the count — a single number; the map arranges it, e.g.
-  the Square map squares it up), **brightness**, and **fit** (Fill/Contain).
-- **Preview group** — things the IDE's renderer invents and the device never sees:
-  **light size**, **diffusion**, **renderer** (Fast/Precise), **speed** (0.1×–2×
-  playback via a virtual clock), and **solidity** (when applicable).
-- **Readout** — live, read-only: frames per second, elapsed time, and the active
-  layout's dimensions.
+  the Square map squares it up) and **fit** (Fill/Contain) on top, with **brightness**
+  below.
+- **Preview group** — things the IDE's renderer invents and the device never sees,
+  with the live read-only telemetry folded in at the top: **fps**, **elapsed** time,
+  and the active **layout**'s dimensions, then **renderer** (Fast/Precise) and
+  **speed** (0.1×–2× playback via a virtual clock), then the viewing sliders **light
+  size**, **diffusion**, and **solidity** (when applicable). A **rewind icon** next to
+  the section title pops in whenever you've changed a setting from its default, and
+  resets the preview with one click (see below).
 - **Pattern controls** — the sliders, toggles, and colour pickers your pattern
   exports (see below).
-- **Variables** — the var watcher (see below).
+- **Watch variables** — the var watcher (see below).
 
 A play/pause toggle sits by the pattern name; the preview runs by default.
 
@@ -173,7 +176,7 @@ These reproduce two things you'd see on the device's own UI:
   shows — and feeds your function the values live. (The output-style controls
   `showNumber`, `gauge`, plus `trigger` and `inputNumber`, are recognised but don't
   yet render a widget; the pattern still loads and runs.)
-- **Variables.** Turn on the var watcher to see the live value of every `export var`
+- **Watch variables.** Turn on the var watcher to see the live value of every `export var`
   in your pattern, refreshed each frame — arrays shown element by element, just like
   the on-device Var Watcher.
 
@@ -217,17 +220,21 @@ The left rail holds three kinds of things:
   | `Noise` | Value noise, organic variation (hashes made hardware-safe) |
   | `Shader` | GLSL gap-fillers (`fract`, `step`, `dot`, `reflect`, palettes, integer hashes) for shader ports |
 - **Demos** — ready-to-run examples: shader ports, eased sweeps, noise fields, and
-  per-dimension test patterns. They're read-only, but **Edit** forks any demo into
-  your own editable copy. Some demos open on a recommended map, pixel count, and
+  per-dimension test patterns. The *code* is read-only, but **Edit** forks any demo
+  into your own editable copy. Some demos open on a recommended map, pixel count, and
   solidity (e.g. the sphere demos open as dense, solid spheres) — defaults only;
-  everything stays switchable. Forking takes a snapshot of how the demo looks *right
-  now* into your copy, with no live link back: later tweaks to the demo's recommended
-  look won't change your fork.
+  everything stays switchable, and your changes to a demo's preview settings are
+  remembered for that demo (its code stays read-only). Forking takes a snapshot of how
+  the demo looks *right now* into your copy, with no live link back: later tweaks to
+  the demo's recommended look won't change your fork.
 
-Once you adjust a pattern's preview settings, those tweaks are remembered with that
-pattern and restored next time you open it. A **Reset to defaults** action on the deck
-clears a pattern's own adjustments, dropping it back to its recommended (or default)
-look.
+Once you adjust a pattern's *or a demo's* preview settings, those tweaks are remembered
+with that pattern (or demo) and restored next time you open it. The **rewind icon** by
+the Preview section header appears once you've changed anything from its default; click
+it to reset the whole preview at once — a user pattern drops back to the app defaults, a
+demo reverts to how its author recommended it. Your personal light-size and diffusion
+comfort baseline isn't touched by a reset (that's a global preference, not part of the
+pattern).
 
 ---
 
