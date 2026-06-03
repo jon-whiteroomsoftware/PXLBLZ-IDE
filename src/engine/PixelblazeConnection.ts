@@ -196,9 +196,20 @@ export class PixelblazeConnection {
       options.clearInterval ?? ((h) => clearInterval(h as ReturnType<typeof setInterval>))
   }
 
+  // Last frame rate the device reported. Pixelblaze emits `fps` in its periodic
+  // JSON status frames while connected; we passively capture the most recent
+  // value rather than issuing a request (there is no `getFps` command). Null
+  // until the device has reported one.
+  private _lastFps: number | null = null
+
   /** True once the socket handshake is open and frames can flow. */
   get isConnected(): boolean {
     return this.ws != null && this.ws.readyState === OPEN
+  }
+
+  /** The most recently reported frame rate, or null if none seen yet. */
+  get fps(): number | null {
+    return this._lastFps
   }
 
   /** Subscribe to lifecycle events. Returns an unsubscribe function. */
@@ -418,6 +429,8 @@ export class PixelblazeConnection {
     } catch {
       return // ignore malformed frames rather than crash the connection
     }
+    // Passively capture the reported frame rate from any status frame.
+    if ('fps' in msg && typeof msg.fps === 'number') this._lastFps = msg.fps
     // Resolve the first matching pending request by response field.
     if ('vars' in msg) this.fulfil('vars', msg.vars)
     if ('ack' in msg) this.fulfil('ack', msg.ack)

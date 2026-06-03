@@ -1,0 +1,24 @@
+{
+  "manifest_version": 3,
+  "name": "Pixelblaze IDE Controller Bridge",
+  "version": "0.1.0",
+  "description": "Relays ws://LAN Pixelblaze traffic to the Pixelblaze IDE web app, which is served over https and cannot open a LAN websocket directly (mixed content).",
+  "icons": {
+    "16": "icons/icon-16.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
+  "background": { "service_worker": "background.js" },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://*.github.io/*",
+        "http://localhost/*",
+        "http://127.0.0.1/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_start"
+    }
+  ],
+  "host_permissions": ["ws://*/*", "http://*/*"]
+}

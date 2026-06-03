@@ -1,0 +1,148 @@
+// A WebSocketLike that tunnels a ws:// connection through a relay helper
+// (H3, issue #195). A page served over https cannot open ws://<LAN-IP> directly
+// (mixed content), but a Chrome extension can — so the real socket lives in the
+// extension's service worker and this class is a *proxy* for it: send() and the
+// on* handlers cross a postMessage seam to that socket and back.
+//
+// The point of this proxy is reuse: because it satisfies the same WebSocketLike
+// the browser/Node sockets do, the existing PixelblazeConnection protocol engine
+// drives it unchanged across the bridge. The extension packaging (manifest,
+// service worker, content script) stays entirely on the far side of the seam.
+//
+// Pure TypeScript, zero React. The transport is injected, so tests drive a fake
+// relay with no DOM and no real extension. The browser wiring builds a window-
+// backed transport (windowRelayTransport) in main.tsx.
+
+import type { WebSocketLike } from './PixelblazeConnection'
+
+/** One message crossing the relay seam, in either direction. `connId` ties a
+ *  message to a specific RelayWebSocket instance (the helper may bridge several
+ *  at once). Binary frames travel as base64 because chrome.runtime messaging is
+ *  JSON-only and silently drops ArrayBuffers. */
+export type RelayMessage =
+  // page → helper
+  | { source: typeof RELAY_SOURCE; dir: 'to-helper'; type: 'detect' }
+  | { source: typeof RELAY_SOURCE; dir: 'to-helper'; type: 'connect'; connId: string; url: string }
+  | {
+      source: typeof RELAY_SOURCE
+      dir: 'to-helper'
+      type: 'send'
+      connId: string
+      payload: RelayPayload
+    }
+  | { source: typeof RELAY_SOURCE; dir: 'to-helper'; type: 'close'; connId: string }
+  // helper → page
+  | { source: typeof RELAY_SOURCE; dir: 'from-helper'; type: 'detect-ack' }
+  | { source: typeof RELAY_SOURCE; dir: 'from-helper'; type: 'open'; connId: string }
+  | {
+      source: typeof RELAY_SOURCE
+      dir: 'from-helper'
+      type: 'message'
+      connId: string
+      payload: RelayPayload
+    }
+  | { source: typeof RELAY_SOURCE; dir: 'from-helper'; type: 'close'; connId: string; code?: number }
+  | { source: typeof RELAY_SOURCE; dir: 'from-helper'; type: 'error'; connId: string; message?: string }
+
+/** A frame payload across the seam: text frames as-is, binary as base64. */
+export type RelayPayload = { text: string } | { binary: string }
+
+/** Discriminates this app's relay traffic from any other postMessage chatter. */
+export const RELAY_SOURCE = 'pblz-relay' as const
+
+/** The seam RelayWebSocket talks through. `post` sends a message to the helper;
+ *  `subscribe` registers a listener for messages coming back, returning an
+ *  unsubscribe. The window-backed implementation lives in main.tsx; tests pass a
+ *  fake. */
+export interface RelayTransport {
+  post(message: RelayMessage): void
+  subscribe(listener: (message: RelayMessage) => void): () => void
+}
+
+// readyState values per the WebSocket spec.
+const CONNECTING = 0
+const OPEN = 1
+const CLOSED = 3
+
+let nextConnId = 0
+
+export class RelayWebSocket implements WebSocketLike {
+  readyState = CONNECTING
+  onopen: ((ev: unknown) => void) | null = null
+  onclose: ((ev: unknown) => void) | null = null
+  onerror: ((ev: unknown) => void) | null = null
+  onmessage: ((ev: { data: unknown }) => void) | null = null
+
+  private readonly connId = `c${nextConnId++}`
+  private readonly transport: RelayTransport
+  private readonly unsubscribe: () => void
+
+  constructor(url: string, transport: RelayTransport) {
+    this.transport = transport
+    this.unsubscribe = transport.subscribe((msg) => this.handle(msg))
+    this.transport.post({ source: RELAY_SOURCE, dir: 'to-helper', type: 'connect', connId: this.connId, url })
+  }
+
+  send(data: string | Uint8Array): void {
+    const payload: RelayPayload =
+      typeof data === 'string' ? { text: data } : { binary: bytesToBase64(data) }
+    this.transport.post({ source: RELAY_SOURCE, dir: 'to-helper', type: 'send', connId: this.connId, payload })
+  }
+
+  close(): void {
+    if (this.readyState === CLOSED) return
+    this.readyState = CLOSED
+    this.transport.post({ source: RELAY_SOURCE, dir: 'to-helper', type: 'close', connId: this.connId })
+    this.unsubscribe()
+  }
+
+  private handle(msg: RelayMessage): void {
+    if (msg.source !== RELAY_SOURCE || msg.dir !== 'from-helper') return
+    if (!('connId' in msg) || msg.connId !== this.connId) return
+
+    switch (msg.type) {
+      case 'open':
+        if (this.readyState === CONNECTING) {
+          this.readyState = OPEN
+          this.onopen?.({})
+        }
+        break
+      case 'message':
+        this.onmessage?.({ data: decodePayload(msg.payload) })
+        break
+      case 'error':
+        this.onerror?.({ message: msg.message })
+        break
+      case 'close':
+        if (this.readyState !== CLOSED) {
+          this.readyState = CLOSED
+          this.onclose?.({ code: msg.code })
+          this.unsubscribe()
+        }
+        break
+    }
+  }
+}
+
+/** Decode a relay payload back to what onmessage handlers expect: a string for
+ *  text frames, a Uint8Array for binary (PixelblazeConnection.toUint8Array
+ *  accepts it). */
+function decodePayload(payload: RelayPayload): string | Uint8Array {
+  return 'text' in payload ? payload.text : base64ToBytes(payload.binary)
+}
+
+// ── base64 <-> bytes (uses the platform atob/btoa; present in browser, jsdom,
+//    and modern Node) ──────────────────────────────────────────────────────────
+
+export function bytesToBase64(bytes: Uint8Array): string {
+  let binary = ''
+  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i])
+  return btoa(binary)
+}
+
+export function base64ToBytes(b64: string): Uint8Array {
+  const binary = atob(b64)
+  const bytes = new Uint8Array(binary.length)
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+  return bytes
+}
