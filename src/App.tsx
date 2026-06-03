@@ -6,6 +6,8 @@ import { PatternList } from '@/components/PatternList'
 import { Preview } from '@/components/Preview'
 import { PaneHeader } from '@/components/PaneHeader'
 import { ConnectionStatus } from '@/components/ConnectionStatus'
+import { ControllerConnect } from '@/components/ControllerConnect'
+import { useControllerStore } from '@/store/controllerStore'
 import { MapModeHeader } from '@/components/MapModeHeader'
 import { usePatternStore, PatternRecord } from '@/store/patternStore'
 import { useEditorStore } from '@/store/editorStore'
@@ -62,6 +64,13 @@ export default function App() {
   const setIsReadOnly = useEditorStore((s) => s.setIsReadOnly)
   const setPreviewSource = useEditorStore((s) => s.setPreviewSource)
   const setPreviewPatternName = useEditorStore((s) => s.setPreviewPatternName)
+
+  // On startup, if a Controller IP was remembered from a previous session, try to
+  // reconnect. Silent on failure (#197): a missing Controller just stays disconnected.
+  const autoConnectController = useControllerStore((s) => s.autoConnect)
+  useEffect(() => {
+    void autoConnectController()
+  }, [autoConnectController])
 
   // If source becomes empty while a pattern is active (e.g. after a store hot-reload),
   // restore it from the pattern record so the editor doesn't go blank.
@@ -150,7 +159,8 @@ export default function App() {
             ))}
           </span>
         </span>
-        <span className="ml-auto flex items-center">
+        <span className="ml-auto flex items-center gap-2.5">
+          <ControllerConnect />
           <ConnectionStatus />
         </span>
       </header>
