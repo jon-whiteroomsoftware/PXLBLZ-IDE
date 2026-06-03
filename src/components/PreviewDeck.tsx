@@ -18,6 +18,60 @@ import { DeckSelect } from '@/components/DeckSelect'
 import { DeckSlider } from '@/components/DeckSlider'
 import { ControlsPanel } from '@/components/ControlsPanel'
 import { Variables } from '@/components/Variables'
+import { HelpHint } from '@/components/HelpHint'
+
+// A help card for a deck section: a one-line framing of what the section *is*,
+// then a label-keyed list of its controls. Kept brief and aimed at someone who
+// already knows Pixelblaze — what each control does, not how it's implemented.
+function SectionHint({
+  intro,
+  items,
+}: {
+  intro: string
+  items: [string, string][]
+}) {
+  return (
+    <div className="flex flex-col gap-2 normal-case tracking-normal">
+      <p className="text-zinc-300 leading-snug">{intro}</p>
+      <div className="flex flex-col gap-1.5">
+        {items.map(([label, desc]) => (
+          <div key={label} className="leading-snug">
+            <span className="text-zinc-200">{label}</span>
+            <span className="text-zinc-400"> — {desc}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// Card content for the two viewport sections. The contrast is the point: the
+// Pixelblaze section is real device state that travels to hardware; the Preview
+// section is renderer-only and never leaves the browser.
+const PIXELBLAZE_HINT = (
+  <SectionHint
+    intro="Real Pixelblaze device settings — these live on the controller and carry over to hardware."
+    items={[
+      ['pixels', 'how many LEDs the pattern drives'],
+      ['fit', 'how the pixel map is normalized into pattern space — Contain keeps the aspect ratio, Fill stretches each axis to fill it'],
+      ['brightness', 'master output level applied to every pixel'],
+    ]}
+  />
+)
+
+const PREVIEW_HINT = (
+  <SectionHint
+    intro="Preview-only — these shape how the pattern looks in the browser and are never sent to a Pixelblaze."
+    items={[
+      ['light size', 'on-screen size of each rendered LED'],
+      ['diffusion', 'soft glow and blending between neighbouring lights'],
+      ['solidity', 'for surface maps, how opaque it reads — transparent through solid'],
+      ['renderer', 'Fast (plain float math) or Precise (hardware-accurate fixed-point)'],
+      ['speed', 'playback rate of the preview clock'],
+      ['fps / elapsed / layout', 'live readouts — frame rate, run time, and the active map'],
+    ]}
+  />
+)
 
 // The preview control deck (#150): everything below the canvas, stacked by visual
 // prominence. Primary band = the pattern name, layout, and play/pause; secondary
@@ -172,7 +226,7 @@ function SecondaryBand() {
 
   return (
     <div className="text-xs pr-3">
-      <Section label="Pixelblaze">
+      <Section label="Pixelblaze" hint={PIXELBLAZE_HINT}>
         <Grid gapY="gap-y-1">
           {/* pixels + fit on top, brightness in the bottom-left column below pixels. */}
           <Cell label="pixels">
@@ -207,7 +261,7 @@ function SecondaryBand() {
           />
         </Grid>
       </Section>
-      <Section label="Preview">
+      <Section label="Preview" hint={PREVIEW_HINT}>
         {/* Sliders on top, then renderer/speed dropdowns, then read-only telemetry at
             the bottom of the section (#63). */}
         <Grid className="mb-2">
@@ -288,9 +342,11 @@ function SecondaryBand() {
 // columns.
 function Section({
   label,
+  hint,
   children,
 }: {
   label: string
+  hint?: ReactNode
   children: ReactNode
 }) {
   return (
@@ -299,6 +355,11 @@ function Section({
         <h4 className="text-[11px] font-semibold text-structural uppercase tracking-wider">
           {label}
         </h4>
+        {hint && (
+          <HelpHint label={`About the ${label} section`} width={320}>
+            {hint}
+          </HelpHint>
+        )}
       </div>
       {children}
     </div>

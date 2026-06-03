@@ -41,6 +41,16 @@ describe('PreviewDeck (smoke)', () => {
     expect(screen.queryByRole('button', { name: /preview settings/i })).not.toBeInTheDocument()
   })
 
+  it('offers an info hint on both the Pixelblaze and Preview sections', () => {
+    render(<PreviewDeck />)
+    expect(
+      screen.getByRole('button', { name: 'About the Pixelblaze section' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'About the Preview section' }),
+    ).toBeInTheDocument()
+  })
+
   it('shows the layout telemetry cell only when a regular grid is live', () => {
     const { rerender } = render(<PreviewDeck />)
     expect(screen.queryByText('layout')).not.toBeInTheDocument()
