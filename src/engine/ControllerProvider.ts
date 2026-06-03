@@ -123,6 +123,14 @@ export interface ControllerProvider {
    *  watches these read-only; backend-forwarded from the documented `getVars`. */
   getVars(): Promise<Record<string, number>>
 
+  /** Read back the Controller's installed pixel map as coordinate tuples —
+   *  `[[x],…]` (1D), `[[x,y],…]` (2D) or `[[x,y,z],…]` (3D) — or `null` when the
+   *  device reports no map. Map read-back is an unconfirmed firmware capability
+   *  (the H13 spike) that the Send-to-Controller gate pulls forward to check
+   *  dimensionality: a backend that cannot read it resolves `null`, so the gate
+   *  degrades to connected-only rather than blocking on an unknowable mismatch. */
+  getPixelMap(): Promise<number[][] | null>
+
   /** Set UI control values on the active pattern. `save` persists to flash
    *  (wear cost) — default false. Resolves once the command is sent. */
   setControls(controls: Record<string, number>, save?: boolean): Promise<void>
@@ -180,6 +188,10 @@ export class NullControllerProvider implements ControllerProvider {
   }
 
   getVars(): Promise<Record<string, number>> {
+    return Promise.reject(new Error('Not connected to a Controller'))
+  }
+
+  getPixelMap(): Promise<number[][] | null> {
     return Promise.reject(new Error('Not connected to a Controller'))
   }
 

@@ -8,6 +8,10 @@ class RecordingProvider extends NullControllerProvider {
   connects: ControllerTarget[] = []
   disconnects = 0
   shouldFailConnect = false
+  pixelMap: number[][] | null = [
+    [0, 0],
+    [1, 1],
+  ]
   connect(target: ControllerTarget): Promise<void> {
     this.connects.push(target)
     return this.shouldFailConnect
@@ -17,6 +21,9 @@ class RecordingProvider extends NullControllerProvider {
   disconnect(): Promise<void> {
     this.disconnects++
     return Promise.resolve()
+  }
+  getPixelMap(): Promise<number[][] | null> {
+    return Promise.resolve(this.pixelMap)
   }
 }
 
@@ -72,6 +79,29 @@ describe('controllerStore', () => {
     expect(provider.disconnects).toBe(1)
     // ip is retained for a later retry
     expect(useControllerStore.getState().ip).toBe('10.0.0.5')
+  })
+
+  it('reads the installed map dimensionality on connect', async () => {
+    await useControllerStore.getState().connect('10.0.0.5')
+    expect(useControllerStore.getState().mapDim).toBe(2)
+  })
+
+  it('leaves mapDim null when the map cannot be read', async () => {
+    provider.getPixelMap = () => Promise.reject(new Error('no read-back'))
+    await useControllerStore.getState().connect('10.0.0.5')
+    expect(useControllerStore.getState().mapDim).toBeNull()
+  })
+
+  it('clears mapDim on disconnect', async () => {
+    await useControllerStore.getState().connect('10.0.0.5')
+    await useControllerStore.getState().disconnect()
+    expect(useControllerStore.getState().mapDim).toBeNull()
+  })
+
+  it('reads the map on a successful autoConnect', async () => {
+    useControllerStore.setState({ ip: '10.0.0.5' })
+    await useControllerStore.getState().autoConnect()
+    expect(useControllerStore.getState().mapDim).toBe(2)
   })
 
   it('persists the ip to localStorage', async () => {

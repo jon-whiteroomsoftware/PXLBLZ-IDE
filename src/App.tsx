@@ -7,6 +7,7 @@ import { Preview } from '@/components/Preview'
 import { PaneHeader } from '@/components/PaneHeader'
 import { ConnectionStatus } from '@/components/ConnectionStatus'
 import { ControllerConnect } from '@/components/ControllerConnect'
+import { SendToController } from '@/components/SendToController'
 import { ControllerPanel } from '@/components/ControllerPanel'
 import { useControllerStore } from '@/store/controllerStore'
 import { MapModeHeader } from '@/components/MapModeHeader'
@@ -222,6 +223,7 @@ export default function App() {
                 {copied ? 'Copied!' : 'Copy Code'}
               </Button>
             )}
+            {activePatternId !== null && <SendToController />}
               </>
             )}
           </PaneHeader>
