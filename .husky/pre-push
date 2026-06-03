@@ -1,0 +1,9 @@
+#!/bin/sh
+# Run the E2E smoke test before any push to origin.
+#
+# Why pre-push (not pre-commit): the smoke test drives a real browser and takes a
+# few seconds — too heavy per commit, but exactly right as the last gate before code
+# leaves the machine. If it fails here, the regression is in one of the commits you
+# haven't pushed yet, so you know where to look.
+echo "▶ Running E2E smoke test before push…"
+npm run test:e2e
