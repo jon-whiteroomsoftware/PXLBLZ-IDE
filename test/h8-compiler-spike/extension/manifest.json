@@ -1,0 +1,19 @@
+{
+  "manifest_version": 3,
+  "name": "H8 spike: compiler-in-extension",
+  "version": "0.1.0",
+  "description": "Proves the device's own minified JS compiler can run inside an MV3 extension (sandboxed iframe, not the service worker) and emit bytecode the Controller accepts and renders. Click the toolbar icon to run; watch the service-worker console.",
+  "background": { "service_worker": "background.js" },
+  "action": { "default_title": "Run H8 compiler spike" },
+  "permissions": ["offscreen"],
+  "host_permissions": ["http://*/*", "ws://*/*"],
+  "sandbox": {
+    "pages": ["sandbox.html"]
+  },
+  "content_security_policy": {
+    "sandbox": "sandbox allow-scripts; script-src 'self' 'unsafe-inline' 'unsafe-eval'; child-src 'none';"
+  },
+  "web_accessible_resources": [
+    { "resources": ["sandbox.html"], "matches": ["<all_urls>"] }
+  ]
+}

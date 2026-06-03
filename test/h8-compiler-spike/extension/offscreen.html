@@ -1,0 +1,14 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+  </head>
+  <body>
+    <!-- The sandboxed iframe runs under the relaxed `sandbox` CSP (declared in
+         manifest content_security_policy.sandbox) and is the ONLY context here
+         allowed to eval the device's remote compiler code. This offscreen page
+         itself runs under the strict extension CSP and only relays messages. -->
+    <iframe id="sandbox" src="sandbox.html"></iframe>
+    <script src="offscreen.js"></script>
+  </body>
+</html>
