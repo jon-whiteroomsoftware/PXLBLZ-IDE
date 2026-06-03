@@ -67,7 +67,7 @@ export function HelpHint({ label, children, width = 320 }: Props) {
         onKeyDown={(e) => {
           if (e.key === 'Escape') close()
         }}
-        className="inline-flex h-[18px] w-[18px] items-center justify-center rounded-full border border-zinc-600 text-[11px] font-semibold leading-none text-zinc-400 hover:border-zinc-400 hover:text-zinc-200 focus:outline-none focus:border-zinc-300 focus:text-zinc-100 cursor-help"
+        className="inline-flex h-[15px] w-[15px] items-center justify-center rounded-full border border-zinc-600 text-[11px] font-semibold leading-none text-zinc-400 hover:border-zinc-400 hover:text-zinc-200 focus:outline-none focus:border-zinc-300 focus:text-zinc-100 cursor-help"
       >
         ?
       </button>
