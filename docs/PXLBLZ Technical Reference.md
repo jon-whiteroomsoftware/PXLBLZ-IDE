@@ -10,8 +10,10 @@ itself (see the **Pixelblaze Ecosystem Primer**).
 > **Relationship to other docs.** This is the authoritative as-built description of
 > the implementation (it replaced an earlier `docs/REFERENCE.md`), organised around
 > *why it's built this way* and the Pixelblaze-interfacing decisions, and current as
-> of the shell/volume maps (ADR-0012), solidity (ADR-0011), and Fill/Contain (#174)
-> work. The **ADRs** (`docs/adr/`) are the authoritative record of individual
+> of the live-Controller arc (extension relay, in-app connection UI, pattern/map
+> push and read-back — ADR-0014, §13), the per-pattern settings cascade (ADR-0013),
+> the shell/volume maps (ADR-0012), and solidity (ADR-0011). The **ADRs**
+> (`docs/adr/`) are the authoritative record of individual
 > decisions; this doc summarises and connects them. Where any doc disagrees with the
 > code, the code wins.
 
@@ -32,10 +34,12 @@ itself (see the **Pixelblaze Ecosystem Primer**).
 | Tests | **Vitest** | Fast; jsdom for light component smoke tests. |
 | Commit gate | **Husky** | Runs `npm run lint && npm test` pre-commit. |
 
-The overarching stance, from the PRD and ADR-0002/0003/0004: **offline-first, no
+The overarching stance (ADR-0002/0003/0004): **offline-first, no
 backend.** Everything — editing, transpiling, running, previewing — happens in the
-browser. The single deliberate exception is the out-of-band hardware connectivity
-layer (§13), which is additive and never required for authoring.
+browser. The single deliberate exception is the live-Controller connectivity layer
+(§13) — additive, optional, and never required for authoring. It reaches a device
+through a Chrome-extension relay (not a server), so even the exception runs no
+backend of our own (ADR-0014).
 
 ---
 
@@ -72,9 +76,11 @@ A hard split, enforced by convention and load-bearing for the test strategy:
 
 - **Engine** (`src/engine/`) — pure TypeScript, **zero React imports**: transpiler,
   validator, runtime shim, fixed-point engine, map generators, shapes/surfaces,
-  camera projection, render loop, storage, normals, and the hardware connection
-  layer. This is the primary test target; the tricky math is unit-testable with no
-  DOM.
+  camera projection, render loop, storage, normals, and the whole Controller
+  connectivity stack (provider seam, extension backend, relay socket, push/preflight
+  /binding/map-push logic, view-models — §13). This is the primary test target; the
+  tricky math and the transport-agnostic connectivity logic are unit-testable with
+  no DOM (a fake relay emulates a device end-to-end).
 - **UI** (`src/components/`, `src/App.tsx`) — React components that call engine
   functions and read Zustand stores. Logic beyond rendering and event delegation
   belongs in the engine.
@@ -89,6 +95,8 @@ A hard split, enforced by convention and load-bearing for the test strategy:
 | `mapStore` | `activeMapId`, `activeShapeId`, `activeSurfaceId`, `activePixelCount`, `activeNormalizeMode` (Fill/Contain), `activeSolidity`, `userMaps`, stock catalogue. |
 | `controlStore` | current pattern UI control values (transient). |
 | `cameraStore` | ephemeral orbit angle, auto-orbit flag, pole wrap density (`poleCols`). |
+| `controllerStore` | live-Controller connectivity (§13): keyed map of connected Controllers (IP → phase/nickname/installed-map dim), the active one, extension presence, last-connected IP (auto-reconnect), and the Send/preflight/push slices. Persists only the last-connected IP. |
+| `controllerPanelStore` | the connected Controller's polled live slice: active program (+ program list), reported FPS, device `pixelCount`, installed-map point count, and the volatile panel-owned brightness + live controls. |
 
 Zustand is chosen specifically because the **render loop and other engine code read
 and write state outside React**. Each store exports `*InitialState`; tests reset with
@@ -540,63 +548,144 @@ CRUD helpers accept an injectable `IDBFactory` for tests (`fake-indexeddb`).
 
 ---
 
-## 13. Hardware connectivity (out-of-band)
+## 13. Live Controller connectivity (ADR-0014)
 
-A framework-free, **isomorphic** `PixelblazeConnection` (injected WebSocket factory:
-browser `WebSocket` or Node `ws`) speaking `ws://host:81`. It is **not used by any
-in-app UI** — from an https GitHub Pages deployment the browser cannot reach a `ws://`
-device (mixed content, see Ecosystem Primer §7) — so it exists to serve Node-side
-tooling:
+The IDE can connect to a **real Pixelblaze** and mirror/drive it live: a status
+surface, a live panel, and **Send to Controller** for patterns and maps. The whole
+stack sits behind one provider seam (ADR-0014), so no UI imports a transport.
 
-- **Phase 1 (shipped):** the documented JSON API + the **divergence harness**
+### The constraint that shapes everything
+
+From an **https** GitHub Pages deployment the browser cannot open `ws://<LAN-IP>:81`
+directly — mixed *active* content, blocked outright (Ecosystem Primer §7). So a helper
+outside the browser sandbox must relay. The v1 helper is a **Chrome extension**
+(ADR-0014, superseding the Node "local bridge" originally
+anticipated): the page cannot reach the device, but the extension's service worker can.
+
+### The isomorphic protocol core (`PixelblazeConnection`)
+
+A framework-free, **isomorphic** `PixelblazeConnection` (injected `WebSocketLike`
+factory) speaks the documented JSON + binary protocol on `ws://host:81`. It is the
+shared engine across every transport — Node `ws` for tooling, browser `WebSocket`, or
+the extension relay — because each is just a different `WebSocketLike`. It still serves
+the original Node-side tooling:
+
+- **Phase 1:** the documented JSON API + the **divergence harness**
   (`test/divergence-harness/`, `npm run harness`) that sweeps a probe pattern against
   a real device and writes the committed divergence report gating the fidelity engine.
   Unit-tested against a fake in-memory WebSocket (in the commit gate); the live tier
   runs out-of-band.
-- **Phase 2 (spike landed):** the binary-frame protocol — `listPrograms` decode,
+- **Phase 2:** the binary-frame protocol — `listPrograms` decode,
   `getControls`/`setControls`/`brightness`/`activeProgramId`, and the *undocumented*
   chunked pattern-push. The capability report records a bytecode-push GO on a proven
   path (#112).
-- **Phase 3+ (in progress):** a browser extension + in-app connection UI (epic #208),
-  plus device map push/pull, captured as direction only (`Feature - Hardware
-  Connectivity.md`). On hardware a Pixelblaze stores one shared map per device, so a
-  map push is a guarded device-configuration action, never part of routine deploy.
-  **A pushed map must contain exactly `pixelCount` coordinates or the device will not
-  apply it.** A freshly pushed count-mismatched map produced *no* visible change on
-  hardware in testing (#204) — the `putPixelMap`/`savePixelMap` frames are accepted and
-  report success, but the map is dropped — and the reference client enforces the same
-  rule on read-back (`numElements != pixelCount → ValueError`, pixelblaze-client
-  `pixelblaze.py` ~L1723). `resolveMapPushPoints` (`mapPush.ts`) re-bakes the map source
-  to the device `pixelCount` before encoding (mirroring the reference `setMapFunction`,
-  which calls the map function with `getPixelCount()`), which conforms any map whose
-  `function(pixelCount)` honours its argument. A map with a hard-coded point count
-  cannot conform; the planned remedy couples the push with `setPixelCount` (#213). This
-  is a *push-time* constraint, distinct from the post-hoc stale-map drift of ADR-0004
-  (changing `pixelCount` after a valid save).
 
-Two read-back facts that shape what the live **Controller panel** can mirror:
+### The provider seam (`ControllerProvider`)
 
-- **`pixelCount` rides in the `getConfig` settings packet** (top-level, alongside
-  `brightness`/`name`), so it is cheap to read — surfaced as the panel's `pixels` row.
-  The row is **editable**: committing a value sends `setPixelCount(n, save:true)` to the
-  device (saved so it survives a reboot). Bench setups re-wire and re-map constantly, and
-  setting the count is also the only way to make a hard-coded-count map apply (#213), so
-  the panel treats it as live device config, not read-only telemetry. (Earlier the count
-  was deliberately read-only on the Controller; that decision was reversed.)
-- **The Fill/Contain fit mode is *map-bound*, not a standalone settings field.** It is
-  chosen in the Mapper and saved *with the map*, so reading it back requires **map
-  read-back** — the unconfirmed capability the H13 spike (#205) gates and the H11
-  preflight (#203) defers its map-mismatch warning behind. A `fit` panel row therefore
-  cannot be shown faithfully until map read-back is proven; it is not free telemetry
-  the way `pixelCount` is.
-- **Map read-back is an HTTP GET of `/pixelmap.dat`, not a WebSocket call.** There is no
-  WS "get map" message (`putPixelMap` type 8 is send-only) and the `getConfig` packet
-  carries no map data, so the H13 read-back (#205) needs the extension helper to fetch
-  the file over HTTP (the same helper already fetches the device compiler for H8). The
-  blob's 12-byte header is three LE uint32 `[formatVersion, numDimensions, bodyBytes]`,
-  and `numPixels = bodyBytes / numDimensions / formatVersion` — so even a map's point
-  count is a cheap header parse. Surfacing that point count beside the panel's `pixels`
-  row is a follow-on of #205.
+`ControllerProvider` (`src/engine/ControllerProvider.ts`) is the **firewall** that
+contains the entire "how do we reach a Controller" decision (ADR-0014). It exposes
+`connect`/`disconnect`, a `ControllerStatus` subscription (a discriminated union:
+`no-extension | extension-present | connecting | connected | error`), the read/monitor
+surface (`getConfig`, telemetry, `listPrograms`, `getControls`/`setControls`,
+`brightness`, `setPixelCount`), and the capability-gated `compile`/`pushBytecode`/
+`getPixelMap`/`pushPixelMap`. **The app imports only this module and its types** —
+never an extension API, `PixelblazeConnection`, or `RelayWebSocket`. A
+`NullControllerProvider` (permanently `no-extension`) lets the whole UI render against
+the seam before any backend is installed. The `controllerProviderRegistry` holds the
+*active* provider (what the panel and Send drive) plus a per-IP *factory* and a global
+extension `detect` — `main.tsx` installs the real ones, tests inject fakes.
+
+### The extension backend (`ExtensionControllerProvider`, `RelayWebSocket`)
+
+The v1 backend owns a `PixelblazeConnection` whose socket is a `RelayWebSocket` — a
+`WebSocketLike` proxy that tunnels frames across a `window.postMessage` →
+content-script → service-worker seam to a real `ws://` socket living in the extension.
+Because it satisfies the same `WebSocketLike` as the browser/Node sockets, **the entire
+protocol engine drives it unchanged** — the relay adds transport, not protocol. Binary
+frames cross the seam as base64 (`chrome.runtime` messaging is JSON-only).
+`windowRelayTransport` is the one module that touches `window`; everything above it is
+transport-agnostic and unit-tested with a fake relay that emulates a device end-to-end.
+The extension itself (`extension/`: manifest, `background.js` service worker owning the
+sockets, `content.js`, an offscreen-hosted sandbox) stays entirely on the far side of
+the seam. The provider adds the extension-present handshake (`detectHelper`), the status
+state machine, a keepalive ping, a **liveness watchdog** (declare the device gone after
+~4s of inbound silence even with no socket close), and bounded auto-reconnect (MV3 can
+evict the service worker; a powered-off Controller is expected back, so it keeps
+probing).
+
+### The in-app surface (status pills, panel)
+
+- **Status + connect** live in the top-right `ControllerBar` (#210): one interactive
+  **pill per connected Controller** (status dot folded *into* the pill — no standalone
+  dot) plus one adaptive entry affordance whose dropdown adapts to extension presence.
+  The pure view-models are `controllerStatusView` (the nav-tone vocabulary) and
+  `controllerPillView`. Connection state is **keyed and multi-Controller** in
+  `controllerStore`: extension presence is global, each Controller is keyed by IP with
+  its own isolated provider/socket/reconnect, exactly one active; the last-connected IP
+  alone auto-reconnects on reload.
+- **The live panel** is a pinned popover under the active pill (#211). `controllerPanelStore`
+  polls (`CONTROLLER_POLL_INTERVAL_MS`, 1s) a small live slice; `controllerPanelView`
+  renders it: the active pattern (id resolved to a name via the program list), reported
+  FPS, the device `pixelCount`, the installed-map point count, and the live controls.
+  **Brightness is panel-owned and volatile** — seeded once from the device's first
+  reported value, then slider-owned (later polls don't overwrite it), always `save:false`
+  (flash wear). Control writes are likewise volatile.
+
+### Send to Controller — pattern push (`pushPattern`, `controllerBinding`)
+
+`compile`/`pushBytecode` are capability-gated (the H8 in-extension compiler spike,
+#200, returned GO): the device's own compiler runs inside the helper's offscreen
+sandbox (the only MV3-legal place to eval the remote compiler), turning source into
+bytecode; `pushBytecode` sends it over the socket. `pushPattern` owns the *policy* —
+**overwrite-in-place** (`controllerBinding`): each `(Controller, IDE pattern)` pair
+remembers the device program id it last pushed to and reuses it; a remembered id the
+user deleted on the device is silently re-minted. Control values are never in the push;
+the binding is identity only, persisted in IndexedDB. `sendToController` is the pure
+gate for the editor-header button: enabled only when a Controller is connected, the
+pattern compiles, and — *when known* — its dimensionality matches the installed map
+(an unknown map dim never blocks; a permanently-disabled Send would be worse). Before a
+push, `preflight` reconciles the pattern's modeled pixel count against the device count
+and surfaces a non-blocking, acknowledgeable warning (the push sends bytecode only and
+keeps the device's existing map, so a mismatch is "this won't look right", not an error).
+
+### Send map to Controller, and map read-back
+
+A Pixelblaze stores **one shared map per device**, so a map push is a guarded
+device-configuration act (always routed through the preflight dialog — never a silent
+one-click), distinct from routine pattern deploy. `mapPush.ts` encodes the binary
+`mapData` blob (mirroring `createMapData`/`setMapData` in pixelblaze-client
+[`pixelblaze.py`](https://github.com/zranger1/pixelblaze-client/blob/9be84700248fa17f0123c702a2939213ba69800a/pixelblaze/pixelblaze.py#L1641)):
+a 12-byte header of three LE uint32 `[formatVersion, numDimensions, bodyBytes]` then
+each coordinate as a `formatVersion`-byte LE uint. **Deliberate divergence from the
+reference:** our `points` are already firmware-normalized to `[0,1]` by the preview
+layout (Contain/Fill, the user's per-map choice — ADR-0009), so we scale straight
+through and only clamp, rather than re-running the reference's per-axis Fill stretch
+(which would silently break aspect). What the preview shows is exactly what the device
+receives.
+
+Two firmware facts gate the rest:
+
+- **The exact-count rule.** A pushed map must contain *exactly* `pixelCount`
+  coordinates or firmware silently **drops** it — the frames report success but no
+  visible change (#204); the reference client refuses to even parse such a map on
+  read-back (`numElements != pixelCount → ValueError`). So `resolveMapPushPoints`
+  **re-bakes the map source to the device `pixelCount`** before encoding (mirroring the
+  reference `setMapFunction`, which calls the map function with `getPixelCount()`),
+  conforming any map whose `function(pixelCount)` honours its argument. A hard-coded
+  point count can't conform that way — the remedy is to set the device count to match,
+  which is why the panel's **`pixels` row is editable** (`setPixelCount(n, save:true)`,
+  #213). This is a *push-time* constraint, distinct from ADR-0004's post-hoc stale-map
+  drift (changing `pixelCount` after a valid save).
+- **Map read-back is an HTTP GET of `/pixelmap.dat`, not a WS call** (#205). There is no
+  "get map" WS message (`putPixelMap` type 8 is send-only) and `getConfig` carries no
+  map data, so the helper fetches the file over HTTP (the same helper that fetches the
+  device compiler). `numPixels = bodyBytes / numDimensions / formatVersion` from the
+  header, so even the map's point count is a cheap parse — surfaced beside the panel's
+  `pixels` row so a count mismatch (the silently-dropped-map footgun) is visible.
+  Read-back also unblocks the map *dimensionality* the Send gate uses. (The Fill/Contain
+  **fit** mode, by contrast, is *map-bound* — saved with the map, not a standalone
+  settings field — so it cannot be shown faithfully as a panel row from `getConfig`
+  alone; it rides map read-back too.)
 
 ---
 
@@ -654,7 +743,6 @@ out-of-band.
   independence; 0005 sample/pos; 0006 light size + diffusion; 0007 bake-on-save; 0008
   map functions are plain JS; 0009 maps authoritative / Fill+Contain; 0010 surfaces;
   0011 solidity; 0012 shell/volume + three embedding mechanisms; 0013 per-pattern
-  settings cascade).
+  settings cascade; 0014 Controller via extension relay).
 - **Domain glossary** — `CONTEXT.md`.
-- **PRDs** (rationale + deferred direction) — `docs/prd/`.
 - **Porting guide** — `docs/guides/Porting ShaderToy shaders to Pixelblaze.md`.

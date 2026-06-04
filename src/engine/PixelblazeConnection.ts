@@ -4,8 +4,9 @@
 //
 // The module is *isomorphic*: it never references a global `WebSocket`. Instead
 // the host injects a factory — the browser passes native `WebSocket`, Node
-// passes `ws` — so the same protocol code serves the Node divergence harness
-// today and a local bridge later. See docs/prd/Feature - Hardware Connectivity.md.
+// passes `ws` — so the same protocol code serves the Node divergence harness and
+// the browser extension relay unchanged. See docs/PXLBLZ Technical Reference.md §13
+// and ADR-0014.
 //
 // Phase 1 covered the documented JSON text-frame API only: getVars / setVars /
 // ping keepalive / connection lifecycle. Phase 2 (the capability-exploration

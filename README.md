@@ -1,6 +1,6 @@
 # PXLBLZ
 
-A browser-based pattern editor for [Pixelblaze](https://electromage.com/) LED controllers — write, preview, and tune patterns entirely offline, then paste the result straight onto your device.
+A browser-based pattern editor for [Pixelblaze](https://electromage.com/) LED controllers — write, preview, and tune patterns entirely offline, then copy the result onto your device or push it live to a controller on your network.
 
 **[Open PXLBLZ →](https://jon-whiteroomsoftware.github.io/pixelblaze-v2/)**
 
@@ -49,10 +49,15 @@ The **Demos** section has ready-to-run examples — animated SDFs, eased sweeps,
 
 ## Getting patterns on and off hardware
 
+By hand, with no device or network:
+
 - **Copy Code / Download** — the editor emits a single flat `.js` file with every library function inlined and `export` keywords preserved, exactly the format the device expects. Paste it into the built-in Pixelblaze editor, or save it to upload. (Disabled while your code has a compile error.)
 - **Import** — open `.epe` files exported from the Pixelblaze hardware editor; they land as new editable patterns.
 
-Direct upload to a controller over the network isn't wired into the app yet — for now, Copy Code is the bridge.
+Or live, when a Pixelblaze is on your LAN:
+
+- **Connect to a controller.** A small Chrome extension relays the connection a deployed web page can't open itself. Once installed, enter the controller's IP to connect; a live panel mirrors its running pattern, frame rate, pixel count, brightness, and installed map, and drives its controls in real time.
+- **Send to Controller** compiles the open pattern with the *device's own compiler* and pushes it over the wire — overwriting in place rather than piling up copies. A separate action writes a custom map to the device. None of the preview-only settings ever ride along; only the pattern, and the map when you ask.
 
 ## Running locally
 
@@ -77,6 +82,6 @@ Three documents go deeper, each for a different reader — pick the one that mat
 - **[PXLBLZ Technical Reference](docs/PXLBLZ%20Technical%20Reference.md)** — *for someone building the IDE.* The authoritative as-built description of how it works: transpiler, validator, fixed-point engine, maps and embeddings, camera, render loop, storage. Start here to contribute.
 - **[Pixelblaze Ecosystem Primer](docs/Pixelblaze%20Ecosystem%20Primer.md)** — *for someone new to Pixelblaze itself.* The mental model the other two assume: device vs. browser, 16.16 fixed-point, the pattern and mapper dialects, the WebSocket API. Start here if "fixed-point" or "pixel map" needs unpacking.
 
-Beyond those: the **PRDs and ADRs** under [`docs/`](docs/) record the *why* behind the design and the not-yet-built direction, and the official **[Pixelblaze docs](https://electromage.com/docs/)** cover the hardware, firmware, and language itself.
+Beyond those: the **[ADRs](docs/adr/)** record the *why* behind the design decisions, and the official **[Pixelblaze docs](https://electromage.com/docs/)** cover the hardware, firmware, and language itself.
 </content>
 </invoke>

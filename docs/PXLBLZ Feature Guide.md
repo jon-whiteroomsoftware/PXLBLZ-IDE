@@ -36,9 +36,11 @@ fix three specific limitations:
    bundled library, and the IDE inlines only what you actually use into the exported
    file, keeping it small enough for the device.
 
-Everything is offline-first. The only thing the IDE can't do without a device is talk
-*to* the device — and even that is bridged by Copy/Download (see "Getting patterns on
-and off hardware").
+Everything is offline-first: editing, compiling, and previewing never need a device or
+a network. When you *do* have a Pixelblaze on your LAN, the IDE can also **connect to
+it live** — read its state, drive its controls, and push patterns and maps straight to
+it — through a small browser extension (see "Connecting to a Controller"). And with no
+device at all, Copy/Download still bridges your work onto hardware by hand.
 
 ---
 
@@ -255,7 +257,47 @@ Porting is human-driven with library support — there's no automatic GLSL conve
 
 ---
 
-## Getting patterns on and off hardware
+## Connecting to a Controller
+
+When a Pixelblaze is on your LAN, the IDE can talk to it live. A deployed web page can't
+reach a `ws://` device by itself (see the Ecosystem Primer §7), so this works through a
+small **Chrome extension** that relays the connection. Install it once (unpacked, from
+the `extension/` folder — see its README), and a connection surface appears top-right.
+
+- **Connect.** The top-right shows a status dot: grey when no helper is installed, idle
+  once the extension is present. Enter your Controller's LAN IP to connect; it turns
+  amber ("live") when connected, and reconnects on its own if the device blips off and
+  back. Each connected Controller gets its own **pill**; click one to make it active and
+  open its panel. You can keep more than one connected.
+- **The live panel** (a pinned popover under the active pill) mirrors the device in real
+  time: its **active pattern**, **frame rate**, **pixel count**, and the installed
+  **map's point count** — with the map-points figure flagged amber when it disagrees
+  with the pixel count (a mismatched map is silently ignored by the firmware, so this
+  makes the footgun visible). The **pixel count is editable** — committing a new value
+  saves it to the device (it's the only way to make a fixed-size map apply). A
+  **brightness** slider and the running pattern's **live controls** drive the device
+  directly; these are volatile (not written to flash, to spare it).
+- **Send to Controller** (a button in the editor header) compiles the open pattern with
+  the *device's own compiler* and pushes the result to the Controller, then runs it. It
+  **overwrites in place** — repeated Sends update the same on-device program instead of
+  piling up copies. It's enabled only when a Controller is connected and the pattern
+  compiles cleanly; if the IDE can tell the pattern's dimensionality won't match the
+  device's installed map, it says so. Before pushing it shows a heads-up if your
+  pattern's pixel count differs from the device's (you can acknowledge and proceed).
+- **Send map to Controller** (in the map editor) writes the open custom map to the
+  device's single shared map slot — a deliberate, confirm-first action, since one map is
+  shared by every pattern on the device. The IDE re-bakes the map to the device's exact
+  pixel count first, because the firmware drops any map whose point count doesn't match.
+
+This is all **additive** — nothing about connecting changes the offline workflow, and
+nothing the preview invents (light size, diffusion, solidity, the fast/precise choice)
+is ever sent to the device; only the pattern and, when you ask, the map.
+
+---
+
+## Getting patterns on and off hardware by hand
+
+When you don't have a live connection (no device, no extension, or just by preference):
 
 - **Copy Code / Download.** The IDE emits a single flat `.js` file — every library
   function you used inlined, `export`s preserved — in exactly the format the device
@@ -263,10 +305,6 @@ Porting is human-driven with library support — there's no automatic GLSL conve
   (Disabled while your code has a compile error.)
 - **Import.** Open `.epe` files exported from the Pixelblaze hardware editor; they
   land as new editable patterns.
-
-Direct over-the-network upload to a controller isn't wired into the app — a deployed
-web page can't reach a `ws://` device directly (see the Ecosystem Primer §7) — so for
-now **Copy Code is the bridge**.
 
 ---
 

@@ -401,11 +401,13 @@ use CORS, so the socket *handshake* itself would be fine; it's the https→ws
 downgrade that's the wall.
 
 The practical consequence: a deployed (https) web app cannot talk to a Pixelblaze on
-its own. It needs a **local helper process** running outside the browser sandbox
-(on the LAN) that the page can reach at `ws://127.0.0.1` (localhost is exempt from
-mixed-content blocking) and which in turn reaches the device. ElectroMage's own
-Firestorm is exactly such a local process. (PXLBLZ's stance on that is in the IDE
-Technical Reference §Hardware connectivity.)
+its own. It needs a **helper running outside the browser sandbox** that the page can
+reach and which in turn reaches the device. Two shapes of helper qualify: a **local
+process** the page reaches at `ws://127.0.0.1` (localhost is exempt from mixed-content
+blocking) — ElectroMage's own Firestorm is exactly this — or a **browser extension**,
+whose service worker can open the LAN `ws://` socket the page can't and relay frames
+back over `postMessage`. (PXLBLZ takes the extension route; see the IDE Technical
+Reference §13.)
 
 ### Discovery
 

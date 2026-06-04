@@ -68,9 +68,10 @@ Library files go under `src/pixelblaze/lib/` as plain `.js` (not `.ts`) — Acor
 
 ## Key docs
 
-- **PRD**: `docs/prd/Pixelblaze IDE v2 PRD.md` — full feature list, phased build order, architecture decisions, and deferred scope
+- **As-built reference**: `docs/PXLBLZ Technical Reference.md` — authoritative description of how the system is built (engine internals, maps, fidelity, connectivity)
+- **Feature guide**: `docs/PXLBLZ Feature Guide.md` — the user-facing view of what the IDE does
 - **Domain glossary**: `CONTEXT.md`
-- **ADRs**: `docs/adr/`
+- **ADRs**: `docs/adr/` — the *why* behind individual design decisions
 
 ## Agent skills
 
