@@ -101,6 +101,16 @@ class FakeProvider extends NullControllerProvider {
     this.pushedMaps.push({ points, opts })
     return Promise.resolve()
   }
+
+  // ── coupled set-pixel-count remedy (#213) ───────────────────────────────────
+  setPixelCounts: number[] = []
+  setPixelCountError: Error | null = null
+  setPixelCount(value: number): Promise<void> {
+    if (this.setPixelCountError) return Promise.reject(this.setPixelCountError)
+    this.setPixelCounts.push(value)
+    this.pixelCount = value
+    return Promise.resolve()
+  }
 }
 
 function makeReconcilingBytecode(): Uint8Array {
@@ -362,10 +372,61 @@ describe('controllerStore (keyed)', () => {
       expect(created.get('10.0.0.5')!.pushedMaps).toHaveLength(0)
     })
 
-    it('surfaces a count-fit warning alongside the overwrite warning', async () => {
-      await armMap(256) // device has 256 pixels, map only 2 points
+    it('blocks an unconformable count mismatch and arms the coupled remedy (#213)', async () => {
+      await armMap(256) // device has 256 pixels, map hard-coded to 2 points
       await store().requestMapPush()
-      expect(store().preflight?.map((w) => w.kind)).toEqual(['fewer-than-device', 'map-overwrite'])
+      // The fixed-count map can't re-bake to 256, so the firmware would silently drop
+      // it: a blocking map-count mismatch, not a non-blocking pattern-fit warning.
+      expect(store().preflight?.map((w) => w.kind)).toEqual(['map-count-mismatch', 'map-overwrite'])
+      // Remedy armed: set the Controller to the map's own point count (2).
+      expect(store().mapPushRemedyCount).toBe(2)
+    })
+
+    it('confirmMapPush couples setPixelCount(N) then the map write for a blocked map (#213)', async () => {
+      await armMap(256)
+      await store().requestMapPush()
+      await store().confirmMapPush()
+
+      const provider = created.get('10.0.0.5')!
+      // Pixel count set to the map's point count first, then the map written.
+      expect(provider.setPixelCounts).toEqual([2])
+      expect(provider.pushedMaps).toHaveLength(1)
+      expect(provider.pushedMaps[0].points).toEqual(MAP.points)
+      expect(store().preflight).toBeNull()
+      expect(store().mapPushRemedyCount).toBeNull()
+      expect(store().pushResult).toEqual({ ok: true, created: false })
+    })
+
+    it('confirmMapPushOnly writes the map without touching the pixel count (#213)', async () => {
+      await armMap(256)
+      await store().requestMapPush()
+      await store().confirmMapPushOnly()
+
+      const provider = created.get('10.0.0.5')!
+      // The escape hatch: map written, pixel count left alone (firmware may drop it).
+      expect(provider.setPixelCounts).toEqual([])
+      expect(provider.pushedMaps).toHaveLength(1)
+      expect(store().preflight).toBeNull()
+      expect(store().mapPushRemedyCount).toBeNull()
+    })
+
+    it('aborts the coupled push when setPixelCount fails — no dropped map (#213)', async () => {
+      await armMap(256)
+      created.get('10.0.0.5')!.setPixelCountError = new Error('socket closed')
+      await store().requestMapPush()
+      await store().confirmMapPush()
+
+      const provider = created.get('10.0.0.5')!
+      expect(provider.pushedMaps).toHaveLength(0)
+      expect(store().pushResult).toEqual({ ok: false, message: 'socket closed' })
+    })
+
+    it('does not set pixel count for a clean (conformable) map push', async () => {
+      await armMap(2) // counts already match
+      await store().requestMapPush()
+      expect(store().mapPushRemedyCount).toBeNull()
+      await store().confirmMapPush()
+      expect(created.get('10.0.0.5')!.setPixelCounts).toEqual([])
     })
 
     it('confirmMapPush clears the dialog and writes the baked coords', async () => {

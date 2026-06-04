@@ -27,7 +27,7 @@ const PANEL_HINT = (
     items={[
       ['pattern', 'the pattern the Controller is currently running'],
       ['fps', 'frame rate the device reports'],
-      ['pixels', 'pixel count configured on the device — editable; saved to the device so it survives a reboot'],
+      ['pixel count', 'number of pixels configured on the device — editable; saved to the device so it survives a reboot'],
       ['brightness', 'master output level on the device — applied live'],
     ]}
   />
@@ -150,7 +150,7 @@ export function ControllerPanel() {
         <DeckGrid gapY="gap-y-1" className="mb-2">
           <DeckTelemetry label="pattern" value={patternName} />
           <DeckTelemetry label="fps" value={fpsLabel} />
-          <DeckCell label="pixels">
+          <DeckCell label="pixel count">
             <ControllerPixelCountInput />
           </DeckCell>
           <DeckCell label="map points">

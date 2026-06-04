@@ -47,8 +47,10 @@ export function SendMapToController() {
   const lastPushedMap = useControllerStore((s) => s.lastPushedMap)
   const requestMapPush = useControllerStore((s) => s.requestMapPush)
   const confirmMapPush = useControllerStore((s) => s.confirmMapPush)
+  const confirmMapPushOnly = useControllerStore((s) => s.confirmMapPushOnly)
   const cancelPush = useControllerStore((s) => s.cancelPush)
   const preflight = useControllerStore((s) => s.preflight)
+  const mapPushRemedyCount = useControllerStore((s) => s.mapPushRemedyCount)
   const clearPushResult = useControllerStore((s) => s.clearPushResult)
 
   // Hold the just-pushed check on screen briefly, then settle back to the idle arrow.
@@ -127,7 +129,23 @@ export function SendMapToController() {
           </AlertDialogDescription>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => void confirmMapPush()}>Send anyway</AlertDialogAction>
+            {/* On a blocking count mismatch (#213) the firmware would silently drop the
+                map. We offer both: a de-emphasized "Push map only" escape hatch, and the
+                recommended coupled remedy (set the device's pixel count to the map's
+                point count, then push). Without a mismatch it's a plain "Send anyway". */}
+            {mapPushRemedyCount !== null && (
+              <AlertDialogAction
+                className="border-zinc-600 text-zinc-300 hover:bg-zinc-800"
+                onClick={() => void confirmMapPushOnly()}
+              >
+                Push map only
+              </AlertDialogAction>
+            )}
+            <AlertDialogAction onClick={() => void confirmMapPush()}>
+              {mapPushRemedyCount !== null
+                ? `Push map and set pixel count to ${mapPushRemedyCount}`
+                : 'Send anyway'}
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialogRoot>

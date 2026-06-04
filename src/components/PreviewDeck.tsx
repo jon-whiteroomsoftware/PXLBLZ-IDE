@@ -33,7 +33,7 @@ const PIXELBLAZE_HINT = (
   <DeckSectionHint
     intro="Real Pixelblaze device settings — these live on the controller and carry over to hardware."
     items={[
-      ['pixels', 'how many LEDs the pattern drives'],
+      ['pixel count', 'how many LEDs the pattern drives'],
       ['fit', 'how the pixel map is normalized into pattern space — Contain keeps the aspect ratio, Fill stretches each axis to fill it'],
       ['brightness', 'master output level applied to every pixel'],
     ]}
@@ -209,8 +209,8 @@ function SecondaryBand() {
     <div className="text-xs pr-3">
       <DeckSection label="Pixelblaze" hint={PIXELBLAZE_HINT}>
         <DeckGrid gapY="gap-y-1">
-          {/* pixels + fit on top, brightness in the bottom-left column below pixels. */}
-          <DeckCell label="pixels">
+          {/* pixel count + fit on top, brightness in the bottom-left column below it. */}
+          <DeckCell label="pixel count">
             <PixelCountInput />
           </DeckCell>
           <DeckCell label="fit">

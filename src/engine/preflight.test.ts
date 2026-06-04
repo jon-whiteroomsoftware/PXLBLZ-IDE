@@ -39,15 +39,6 @@ describe('describePreflight', () => {
     expect(overwrite?.message).toBe('This replaces the Controller’s single shared map.')
   })
 
-  it('orders the fit warning before the map-overwrite warning', () => {
-    const pf = describePreflight({
-      localPixelCount: 100,
-      devicePixelCount: 256,
-      pushingMap: true,
-    })
-    expect(pf.warnings.map((w) => w.kind)).toEqual(['fewer-than-device', 'map-overwrite'])
-  })
-
   it('skips the pixel-fit warnings when the device count is unknown', () => {
     const pf = describePreflight({ localPixelCount: 100, devicePixelCount: null })
     expect(pf.warnings.some((w) => w.kind.endsWith('-device'))).toBe(false)
@@ -60,15 +51,49 @@ describe('describePreflight', () => {
       pushingMap: true,
     })
     expect(pf.warnings.map((w) => w.kind)).toEqual(['map-overwrite'])
+    expect(pf.blocking).toBe(false)
+    expect(pf.remedyPixelCount).toBeNull()
   })
 
-  it('is never blocking — every warning is acknowledgeable', () => {
+  it('keeps pattern-push count mismatches non-blocking', () => {
+    const fewer = describePreflight({ localPixelCount: 100, devicePixelCount: 256 })
+    expect(fewer.blocking).toBe(false)
+    expect(fewer.remedyPixelCount).toBeNull()
+
+    const more = describePreflight({ localPixelCount: 400, devicePixelCount: 256 })
+    expect(more.blocking).toBe(false)
+    expect(more.remedyPixelCount).toBeNull()
+  })
+
+  // ── map-push count mismatch is a hard, blocking failure (#213) ──────────────
+  it('blocks a map push whose point count does not match the device, with a remedy', () => {
     const pf = describePreflight({
-      localPixelCount: 400,
+      localPixelCount: 16,
+      devicePixelCount: 256,
+      pushingMap: true,
+    })
+    expect(pf.blocking).toBe(true)
+    // The Controller must be set to the map's own point count for it to apply.
+    expect(pf.remedyPixelCount).toBe(16)
+    // map-count-mismatch comes first, then the overwrite guard.
+    expect(pf.warnings.map((w) => w.kind)).toEqual(['map-count-mismatch', 'map-overwrite'])
+    const [mismatch] = pf.warnings
+    expect(mismatch.message).toContain('16 points')
+    expect(mismatch.message).toContain('256 pixels')
+    expect(mismatch.message).toContain('silently drops')
+    // No misleading pattern-oriented copy about partial application.
+    expect(mismatch.message).not.toContain('will light up')
+    expect(mismatch.message).not.toContain('ignored')
+  })
+
+  it('does not block a map push whose re-baked count already matches the device', () => {
+    const pf = describePreflight({
+      localPixelCount: 256,
       devicePixelCount: 256,
       pushingMap: true,
     })
     expect(pf.blocking).toBe(false)
-    expect(pf.warnings.length).toBeGreaterThan(0)
+    expect(pf.remedyPixelCount).toBeNull()
+    expect(pf.warnings.map((w) => w.kind)).toEqual(['map-overwrite'])
   })
 })

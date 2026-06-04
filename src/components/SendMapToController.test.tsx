@@ -86,6 +86,37 @@ describe('SendMapToController', () => {
     expect(await screen.findByTestId('map-preflight-dialog')).toBeInTheDocument()
   })
 
+  it('offers three choices when the map push is blocked (#213)', () => {
+    connect()
+    openBakedMap()
+    // A blocking map-count mismatch: the dialog is open with the remedy armed.
+    useControllerStore.setState({
+      preflight: [
+        { kind: 'map-count-mismatch', message: 'mismatch' },
+        { kind: 'map-overwrite', message: 'overwrite' },
+      ],
+      mapPushRemedyCount: 16,
+    })
+    render(<SendMapToController />)
+    // Cancel, the de-emphasized push-only escape hatch, and the recommended remedy.
+    expect(screen.getByText('Cancel')).toBeInTheDocument()
+    expect(screen.getByText('Push map only')).toBeInTheDocument()
+    expect(screen.getByText('Push map and set pixel count to 16')).toBeInTheDocument()
+    // The non-blocking "Send anyway" label is not used in the blocked case.
+    expect(screen.queryByText('Send anyway')).not.toBeInTheDocument()
+  })
+
+  it('offers a plain "Send anyway" when the map push is not blocked', () => {
+    connect()
+    openBakedMap()
+    useControllerStore.setState({
+      preflight: [{ kind: 'map-overwrite', message: 'overwrite' }],
+      mapPushRemedyCount: null,
+    })
+    render(<SendMapToController />)
+    expect(screen.getByText('Send anyway')).toBeInTheDocument()
+  })
+
   it('is disabled once the open map matches the last push', () => {
     connect()
     openBakedMap()

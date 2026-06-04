@@ -77,6 +77,11 @@ interface ControllerConnectionState {
    *  no dialog. An empty array never appears here — a clean preflight pushes
    *  straight through. */
   preflight: PreflightWarning[] | null
+  /** When the open map's point count can't conform to the device's `pixelCount`, the
+   *  count the Controller must be set to for the map to apply (#213). Non-null marks the
+   *  current map preflight as **blocking**: the plain "Send anyway" path is withheld and
+   *  the dialog offers only the coupled remedy (set pixel count to this, then push). */
+  mapPushRemedyCount: number | null
 
   /** Probe extension presence and record it (global). */
   detectExtension: () => Promise<boolean>
@@ -110,8 +115,17 @@ interface ControllerConnectionState {
    *  dialog (`preflight`), deferring the write to confirmMapPush. A no-op when no map
    *  is open or no Controller is active. */
   requestMapPush: () => Promise<void>
-  /** Acknowledge the map preflight dialog and write the map to the Controller. */
+  /** Acknowledge the map preflight dialog and write the map to the Controller. When the
+   *  preflight is blocking (`mapPushRemedyCount` set — the map can't conform to the
+   *  device count), this first sets the Controller's pixel count to that remedy count,
+   *  then pushes; otherwise it's a plain write. The coupled set-count-then-push is the
+   *  only thing that makes a fixed-count map apply (#213). */
   confirmMapPush: () => Promise<void>
+  /** Push the map *without* the coupled setPixelCount — the escape hatch offered
+   *  alongside the remedy on a blocking mismatch (#213). The firmware will silently drop
+   *  a count-mismatched map, so this is the deliberate "I know, push it anyway" path; the
+   *  remedy (`confirmMapPush`) stays the recommended default. */
+  confirmMapPushOnly: () => Promise<void>
   /** Write the open map's baked coordinates to the active Controller's single shared
    *  map slot (#204). Reuses `pushing`/`pushResult` for the button animation; a no-op
    *  when nothing is open/active. */
@@ -135,6 +149,7 @@ export const controllerInitialState = {
   lastPushedSource: {} as Record<string, Record<string, string>>,
   lastPushedMap: {} as Record<string, Record<string, string>>,
   preflight: null as PreflightWarning[] | null,
+  mapPushRemedyCount: null as number | null,
 }
 
 // Live provider per Controller IP, plus each one's status unsubscribe. Kept
@@ -320,7 +335,7 @@ export const useControllerStore = create<ControllerConnectionState>()(
           await get().pushActivePattern()
         },
 
-        cancelPush: () => set({ preflight: null }),
+        cancelPush: () => set({ preflight: null, mapPushRemedyCount: null }),
 
         requestMapPush: async () => {
           const controllerId = get().activeIp
@@ -332,10 +347,11 @@ export const useControllerStore = create<ControllerConnectionState>()(
           const config = await getControllerProvider().getConfig().catch(() => null)
           const devicePixelCount = config?.pixelCount ?? null
           // Reconcile against what we will *actually* send: the map re-baked to the
-          // device count (#204), not the preview-baked array. After the re-bake the
-          // counts normally match, so the only warning left is the overwrite guard.
+          // device count (#204), not the preview-baked array. A map whose source honours
+          // its `pixelCount` argument conforms here and the counts match; a hard-coded
+          // point count can't, leaving a mismatch the firmware would silently drop (#213).
           const points = resolveMapPushPoints(map.source, map.points, devicePixelCount)
-          const { warnings } = describePreflight({
+          const { warnings, blocking, remedyPixelCount } = describePreflight({
             localPixelCount: points.length,
             devicePixelCount,
             // A map send always overwrites the device's single shared map, so the
@@ -343,11 +359,33 @@ export const useControllerStore = create<ControllerConnectionState>()(
             // act, never a silent one-click like a clean pattern push).
             pushingMap: true,
           })
-          set({ preflight: warnings })
+          // A blocking mismatch arms the coupled remedy; otherwise the dialog offers the
+          // plain "Send anyway" path.
+          set({ preflight: warnings, mapPushRemedyCount: blocking ? remedyPixelCount : null })
         },
 
         confirmMapPush: async () => {
-          set({ preflight: null })
+          const remedy = get().mapPushRemedyCount
+          set({ preflight: null, mapPushRemedyCount: null })
+          // Blocking mismatch: the map can't conform, so couple the push with a
+          // setPixelCount that makes the device match the map's fixed point count. Order
+          // matters — the firmware validates a saved map against the *current* pixelCount,
+          // so the count must be set first. If that fails, abort rather than push a map
+          // the firmware would silently drop (#213).
+          if (remedy != null) {
+            try {
+              await getControllerProvider().setPixelCount(remedy)
+            } catch (err) {
+              const message = err instanceof Error ? err.message : String(err)
+              set({ pushResult: { ok: false, message } })
+              return
+            }
+          }
+          await get().pushActiveMap()
+        },
+
+        confirmMapPushOnly: async () => {
+          set({ preflight: null, mapPushRemedyCount: null })
           await get().pushActiveMap()
         },
 
