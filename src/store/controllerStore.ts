@@ -126,6 +126,10 @@ interface ControllerConnectionState {
    *  a count-mismatched map, so this is the deliberate "I know, push it anyway" path; the
    *  remedy (`confirmMapPush`) stays the recommended default. */
   confirmMapPushOnly: () => Promise<void>
+  /** Set the Controller's pixel count to the remedy count *without* pushing the map —
+   *  the combination chosen when the map-push popover's "Push map" box is unchecked but
+   *  "Push pixel count" is left on. No-op when there's no armed remedy (#213). */
+  confirmSetPixelCountOnly: () => Promise<void>
   /** Write the open map's baked coordinates to the active Controller's single shared
    *  map slot (#204). Reuses `pushing`/`pushResult` for the button animation; a no-op
    *  when nothing is open/active. */
@@ -387,6 +391,22 @@ export const useControllerStore = create<ControllerConnectionState>()(
         confirmMapPushOnly: async () => {
           set({ preflight: null, mapPushRemedyCount: null })
           await get().pushActiveMap()
+        },
+
+        confirmSetPixelCountOnly: async () => {
+          const remedy = get().mapPushRemedyCount
+          set({ preflight: null, mapPushRemedyCount: null })
+          if (remedy == null) return
+          // Set the count alone — no map write. Surfaces success/failure through the same
+          // pushResult slice the button reads, so the check/Send-failed states still apply.
+          set({ pushing: true, pushResult: null })
+          try {
+            await getControllerProvider().setPixelCount(remedy)
+            set({ pushing: false, pushResult: { ok: true, created: false } })
+          } catch (err) {
+            const message = err instanceof Error ? err.message : String(err)
+            set({ pushing: false, pushResult: { ok: false, message } })
+          }
         },
 
         pushActiveMap: async () => {

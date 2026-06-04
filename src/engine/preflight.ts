@@ -31,8 +31,11 @@ export type PreflightWarningKind =
 
 export interface PreflightWarning {
   kind: PreflightWarningKind
-  /** Human-readable, ready to render in the reconciliation dialog. */
+  /** Human-readable headline, ready to render in the reconciliation popover. */
   message: string
+  /** Optional secondary explanation, shown behind an info-hover rather than inline so
+   *  the popover body stays short (the map-count-mismatch firmware rule, #213). */
+  detail?: string
 }
 
 export interface PreflightInput {
@@ -79,8 +82,8 @@ export function describePreflight({
     if (devicePixelCount !== null && localPixelCount !== devicePixelCount) {
       warnings.push({
         kind: 'map-count-mismatch',
-        message:
-          `This map has ${localPixelCount} points but the Controller is set to ${devicePixelCount} pixels. ` +
+        message: `This map has ${localPixelCount} points but the Controller is set to ${devicePixelCount} pixels.`,
+        detail:
           `The firmware silently drops a map whose point count doesn’t match, so it won’t apply ` +
           `until the Controller is set to ${localPixelCount} pixels.`,
       })

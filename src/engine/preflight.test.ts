@@ -80,7 +80,8 @@ describe('describePreflight', () => {
     const [mismatch] = pf.warnings
     expect(mismatch.message).toContain('16 points')
     expect(mismatch.message).toContain('256 pixels')
-    expect(mismatch.message).toContain('silently drops')
+    // The firmware-drop rule lives in the info-hover detail, not the headline.
+    expect(mismatch.detail).toContain('silently drops')
     // No misleading pattern-oriented copy about partial application.
     expect(mismatch.message).not.toContain('will light up')
     expect(mismatch.message).not.toContain('ignored')

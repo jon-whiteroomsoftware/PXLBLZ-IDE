@@ -6,15 +6,7 @@ import { useControllerStore } from '@/store/controllerStore'
 import { useEditorStore } from '@/store/editorStore'
 import { usePatternStore } from '@/store/patternStore'
 import { describeSendToController } from '@/engine/sendToController'
-import {
-  AlertDialogRoot,
-  AlertDialogContent,
-  AlertDialogTitle,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogCancel,
-  AlertDialogAction,
-} from '@/components/ui/alert-dialog'
+import { PushConfirmPopover, pushPopoverButton } from '@/components/PushConfirmPopover'
 
 // The editor-header "Send to Controller" action (H9 #201 → H10 #202 → H11 #203). One
 // verb that runs *and* stores the open pattern on the connected Controller,
@@ -24,8 +16,8 @@ import {
 //
 // A thin shell over the pure gates: `describeSendToController` decides enablement;
 // `requestPush` runs the #203 preflight (pixel-count reconciliation) and either
-// pushes straight through (clean) or opens the reconciliation dialog (any warning),
-// deferring the push to `confirmPush`. The store's `preflight` slice drives the dialog.
+// pushes straight through (clean) or opens the reconciliation popover (any warning),
+// deferring the push to `confirmPush`. The store's `preflight` slice drives the popover.
 
 export function SendToController() {
   const provider = getControllerProvider()
@@ -111,46 +103,44 @@ export function SendToController() {
   const working = pushing || !!pushResult?.ok
   const dimClass = working ? 'opacity-95' : 'disabled:opacity-30'
 
+  // Preflight reconciliation (#203): the popover only opens when the push surfaced a
+  // warning. Closing it any way (Cancel, Escape, click-away) cancels the push; only
+  // the explicit action proceeds.
   return (
-    <>
-      <Button
-        size="sm"
-        variant="ghost"
-        className={`text-xs text-zinc-400 bg-zinc-800/70 hover:bg-zinc-700/70 hover:text-zinc-300 ${dimClass}`}
-        disabled={!enabled || working}
-        title={title}
-        onClick={() => void requestPush()}
-        data-testid="send-to-controller"
-      >
-        {content}
-      </Button>
-
-      {/* Preflight reconciliation (#203): only mounted when the push surfaced a
-          warning. Closing it any way (Cancel, Escape, overlay) cancels the push;
-          only the explicit action proceeds. */}
-      <AlertDialogRoot
-        open={preflight !== null}
-        onOpenChange={(open) => {
-          if (!open) cancelPush()
-        }}
-      >
-        <AlertDialogContent data-testid="preflight-dialog">
-          <AlertDialogTitle>Send to {name}?</AlertDialogTitle>
-          <AlertDialogDescription asChild>
-            <ul className="mt-1 space-y-1.5">
-              {(preflight ?? []).map((w) => (
-                <li key={w.kind} className="text-sm text-zinc-400">
-                  {w.message}
-                </li>
-              ))}
-            </ul>
-          </AlertDialogDescription>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => void confirmPush()}>Send anyway</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialogRoot>
-    </>
+    <PushConfirmPopover
+      open={preflight !== null}
+      onCancel={cancelPush}
+      title={`Send to ${name}?`}
+      testId="preflight-dialog"
+      anchor={
+        <Button
+          size="sm"
+          variant="ghost"
+          className={`text-xs text-zinc-400 bg-zinc-800/70 hover:bg-zinc-700/70 hover:text-zinc-300 ${dimClass}`}
+          disabled={!enabled || working}
+          title={title}
+          onClick={() => void requestPush()}
+          data-testid="send-to-controller"
+        >
+          {content}
+        </Button>
+      }
+    >
+      <ul className="mt-2 space-y-1.5">
+        {(preflight ?? []).map((w) => (
+          <li key={w.kind} className="text-zinc-400">
+            {w.message}
+          </li>
+        ))}
+      </ul>
+      <div className="mt-3 flex justify-end gap-2">
+        <button type="button" className={pushPopoverButton.cancel} onClick={() => cancelPush()}>
+          Cancel
+        </button>
+        <button type="button" className={pushPopoverButton.action} onClick={() => void confirmPush()}>
+          Send anyway
+        </button>
+      </div>
+    </PushConfirmPopover>
   )
 }

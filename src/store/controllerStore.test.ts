@@ -410,6 +410,20 @@ describe('controllerStore (keyed)', () => {
       expect(store().mapPushRemedyCount).toBeNull()
     })
 
+    it('confirmSetPixelCountOnly sets the count without writing the map (#213)', async () => {
+      await armMap(256)
+      await store().requestMapPush()
+      await store().confirmSetPixelCountOnly()
+
+      const provider = created.get('10.0.0.5')!
+      // The pixel-count-only combination: count set to the map's point count, no map write.
+      expect(provider.setPixelCounts).toEqual([2])
+      expect(provider.pushedMaps).toHaveLength(0)
+      expect(store().preflight).toBeNull()
+      expect(store().mapPushRemedyCount).toBeNull()
+      expect(store().pushResult).toEqual({ ok: true, created: false })
+    })
+
     it('aborts the coupled push when setPixelCount fails — no dropped map (#213)', async () => {
       await armMap(256)
       created.get('10.0.0.5')!.setPixelCountError = new Error('socket closed')
