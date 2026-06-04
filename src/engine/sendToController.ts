@@ -74,3 +74,41 @@ export function describeSendToController({
   }
   return { enabled: true }
 }
+
+// ── map send (H12, issue #204) ────────────────────────────────────────────────
+//
+// The map editor's own Send-to-Controller action, the map analogue of the pattern
+// gate above. Pushing a map writes the device's single shared map slot — it
+// "configures the installation, not the pattern" — so it is gated independently of
+// any pattern: a Controller must be connected, the open map must have baked points
+// to send, and (the dirty gate) the current bake must differ from the last push.
+// Map *dimensionality* is irrelevant here — we are replacing the device map, not
+// matching it — so there is no dim check.
+
+export interface SendMapGateInput {
+  /** Current Controller connection status. */
+  status: ControllerStatus
+  /** Whether the open map has baked coordinates to send (an unbaked map can't push). */
+  hasBakedPoints: boolean
+  /** True when the open map's current bake already matches what was last pushed to
+   *  this Controller — nothing to send until it's edited/re-baked. Defaults false. */
+  alreadyPushed?: boolean
+}
+
+/** Decide whether the map editor's Send-to-Controller is enabled, and why not. */
+export function describeSendMap({
+  status,
+  hasBakedPoints,
+  alreadyPushed = false,
+}: SendMapGateInput): SendGate {
+  if (status.kind !== 'connected') {
+    return { enabled: false, reason: 'Connect a Controller to send' }
+  }
+  if (!hasBakedPoints) {
+    return { enabled: false, reason: 'Bake the map before sending' }
+  }
+  if (alreadyPushed) {
+    return { enabled: false, reason: 'No changes since the last send' }
+  }
+  return { enabled: true }
+}

@@ -95,6 +95,7 @@ function makeDeviceTransport(
           if ('brightness' in cmd) writes.push(cmd)
           if ('setControls' in cmd) writes.push(cmd)
           if ('setCode' in cmd) writes.push(cmd)
+          if ('savePixelMap' in cmd) writes.push(cmd)
           return
         }
       }
@@ -220,6 +221,27 @@ describe('ExtensionControllerProvider', () => {
     it('pushBytecode rejects when not connected', async () => {
       const p = new ExtensionControllerProvider({ transport: makeDeviceTransport().transport })
       await expect(p.pushBytecode(new Uint8Array([0]), { id: 'X' })).rejects.toThrow(/Not connected/)
+    })
+
+    it('setPixelMap encodes the coords and writes a type-8 map frame then persists', async () => {
+      const d = makeDeviceTransport()
+      const p = new ExtensionControllerProvider({ transport: d.transport })
+      await p.connect(TARGET)
+      await p.setPixelMap([
+        [0, 0],
+        [1, 1],
+      ])
+      // One binary putPixelMap frame carrying the 12-byte header + 4 uint16 coords.
+      expect(d.binaryWrites).toHaveLength(1)
+      expect(d.binaryWrites[0][0]).toBe(MessageType.putPixelMap)
+      expect(d.binaryWrites[0].length).toBe(2 + 12 + 4 * 2)
+      // Persisted to flash by default.
+      expect(d.writes.some((w) => 'savePixelMap' in w)).toBe(true)
+    })
+
+    it('setPixelMap rejects when not connected', async () => {
+      const p = new ExtensionControllerProvider({ transport: makeDeviceTransport().transport })
+      await expect(p.setPixelMap([[0, 0]])).rejects.toThrow(/Not connected/)
     })
   })
 

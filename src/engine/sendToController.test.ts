@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { mapDimension, describeSendToController } from './sendToController'
+import { mapDimension, describeSendToController, describeSendMap } from './sendToController'
 import type { ControllerStatus } from './ControllerProvider'
 
 const connected: ControllerStatus = {
@@ -70,6 +70,30 @@ describe('describeSendToController', () => {
       mapDim: 2,
       alreadyPushed: true,
     })
+    expect(gate.enabled).toBe(false)
+    expect(gate.reason).toMatch(/no changes/i)
+  })
+})
+
+describe('describeSendMap', () => {
+  it('enables when connected and the map has baked points', () => {
+    expect(describeSendMap({ status: connected, hasBakedPoints: true })).toEqual({ enabled: true })
+  })
+
+  it('disables when no Controller is connected', () => {
+    const gate = describeSendMap({ status: { kind: 'extension-present' }, hasBakedPoints: true })
+    expect(gate.enabled).toBe(false)
+    expect(gate.reason).toMatch(/connect a controller/i)
+  })
+
+  it('disables when the map has no baked points yet', () => {
+    const gate = describeSendMap({ status: connected, hasBakedPoints: false })
+    expect(gate.enabled).toBe(false)
+    expect(gate.reason).toMatch(/bake/i)
+  })
+
+  it('disables when the map already matches the last push', () => {
+    const gate = describeSendMap({ status: connected, hasBakedPoints: true, alreadyPushed: true })
     expect(gate.enabled).toBe(false)
     expect(gate.reason).toMatch(/no changes/i)
   })

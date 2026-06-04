@@ -18,6 +18,7 @@ import {
 } from '@/engine/ControllerProvider'
 import { usePatternStore, patternInitialState } from '@/store/patternStore'
 import { useEditorStore, editorInitialState } from '@/store/editorStore'
+import { useMapStore, mapInitialState, type MapRecord } from '@/store/mapStore'
 import { getControllerBindings, setControllerBindings } from '@/engine/storage'
 
 // A fake per-Controller provider with a real (if minimal) status machine, so we
@@ -91,6 +92,15 @@ class FakeProvider extends NullControllerProvider {
     this.pushed.push({ bytecode, opts })
     return Promise.resolve()
   }
+
+  // ── map push surface (#204) ─────────────────────────────────────────────────
+  pushedMaps: { points: number[][]; opts?: { save?: boolean } }[] = []
+  setPixelMapError: Error | null = null
+  setPixelMap(points: number[][], opts?: { save?: boolean }): Promise<void> {
+    if (this.setPixelMapError) return Promise.reject(this.setPixelMapError)
+    this.pushedMaps.push({ points, opts })
+    return Promise.resolve()
+  }
 }
 
 function makeReconcilingBytecode(): Uint8Array {
@@ -107,6 +117,7 @@ beforeEach(async () => {
   useControllerStore.setState(controllerInitialState)
   usePatternStore.setState(patternInitialState)
   useEditorStore.setState(editorInitialState)
+  useMapStore.setState(mapInitialState)
   await setControllerBindings({})
   created.clear()
   setControllerProviderFactory((ip) => {
@@ -318,6 +329,83 @@ describe('controllerStore (keyed)', () => {
       await store().requestPush()
       expect(store().preflight).toBeNull()
       expect(created.get('10.0.0.5')!.pushed).toHaveLength(1)
+    })
+  })
+
+  describe('map push (#204)', () => {
+    const MAP: MapRecord = {
+      id: 'm1',
+      name: 'My Map',
+      dim: 2,
+      generator: 'custom',
+      params: {},
+      source: 'function(c){ return [[0,0],[1,1]] }',
+      points: [
+        [0, 0],
+        [1, 1],
+      ],
+      updatedAt: 0,
+    }
+
+    async function armMap(devicePixelCount?: number) {
+      await store().addController('10.0.0.5')
+      created.get('10.0.0.5')!.pixelCount = devicePixelCount
+      useMapStore.setState({ editingMap: { kind: 'existing', id: 'm1' }, userMaps: [MAP] })
+    }
+
+    it('requestMapPush always opens the dialog with the map-overwrite warning', async () => {
+      await armMap(2)
+      await store().requestMapPush()
+      // Counts match (2 == 2), but the map-overwrite warning always shows.
+      expect(store().preflight?.map((w) => w.kind)).toEqual(['map-overwrite'])
+      // The map has NOT been written yet — it waits on confirmMapPush.
+      expect(created.get('10.0.0.5')!.pushedMaps).toHaveLength(0)
+    })
+
+    it('surfaces a count-fit warning alongside the overwrite warning', async () => {
+      await armMap(256) // device has 256 pixels, map only 2 points
+      await store().requestMapPush()
+      expect(store().preflight?.map((w) => w.kind)).toEqual(['fewer-than-device', 'map-overwrite'])
+    })
+
+    it('confirmMapPush clears the dialog and writes the baked coords', async () => {
+      await armMap(2)
+      await store().requestMapPush()
+      await store().confirmMapPush()
+
+      expect(store().preflight).toBeNull()
+      const provider = created.get('10.0.0.5')!
+      expect(provider.pushedMaps).toHaveLength(1)
+      expect(provider.pushedMaps[0].points).toEqual(MAP.points)
+      expect(store().pushing).toBe(false)
+      expect(store().pushResult).toEqual({ ok: true, created: false })
+      // The pushed map signature is remembered (dirty gate).
+      expect(store().lastPushedMap['10.0.0.5']['m1']).toBe(MAP.source)
+    })
+
+    it('cancelPush dismisses the map dialog without writing', async () => {
+      await armMap(2)
+      await store().requestMapPush()
+      store().cancelPush()
+      expect(store().preflight).toBeNull()
+      expect(created.get('10.0.0.5')!.pushedMaps).toHaveLength(0)
+    })
+
+    it('is a no-op when no map is open for editing', async () => {
+      await store().addController('10.0.0.5')
+      // editingMap stays null.
+      await store().requestMapPush()
+      expect(store().preflight).toBeNull()
+      expect(created.get('10.0.0.5')!.pushedMaps).toHaveLength(0)
+    })
+
+    it('surfaces a write failure as an error result', async () => {
+      await armMap(2)
+      created.get('10.0.0.5')!.setPixelMapError = new Error('socket closed')
+      await store().requestMapPush()
+      await store().confirmMapPush()
+      expect(store().pushing).toBe(false)
+      expect(store().pushResult).toEqual({ ok: false, message: 'socket closed' })
     })
   })
 })

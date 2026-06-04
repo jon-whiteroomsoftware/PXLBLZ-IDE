@@ -155,6 +155,14 @@ export interface ControllerProvider {
    *  save-and-run sequence, overwriting the program at `id` in place (reuse an id
    *  to overwrite, mint one to create). Resolves once the frames are sent. */
   pushBytecode(bytecode: Uint8Array, opts: { id: string; name?: string }): Promise<void>
+
+  /** Write a baked coordinate array to the Controller's single shared pixel map
+   *  (H12, issue #204) — the map every pattern on the device reads. `points` are
+   *  firmware-normalized `[x,y(,z)]` tuples (the preview's resolved map points); the
+   *  backend encodes them to the binary mapData blob and pushes it as a type-8 frame.
+   *  `save` persists to flash (default true). Guarded + explicit at the UI layer:
+   *  this configures the *installation*, not the pattern. Resolves once sent. */
+  setPixelMap(points: number[][], opts?: { save?: boolean }): Promise<void>
 }
 
 /** A backend reports no push and no compile until those capabilities ship. */
@@ -225,6 +233,10 @@ export class NullControllerProvider implements ControllerProvider {
   }
 
   pushBytecode(_bytecode: Uint8Array, _opts: { id: string; name?: string }): Promise<void> {
+    return Promise.reject(new Error('Not connected to a Controller'))
+  }
+
+  setPixelMap(_points: number[][], _opts?: { save?: boolean }): Promise<void> {
     return Promise.reject(new Error('Not connected to a Controller'))
   }
 }

@@ -16,6 +16,7 @@ import { bundle } from '@/engine/bundle'
 import { LIBRARIES } from '@/pixelblaze/libs'
 import { usePatternStore } from '@/store/patternStore'
 import { useEditorStore } from '@/store/editorStore'
+import { useMapStore } from '@/store/mapStore'
 
 // Keyed connection orchestration for the live Controller surface (#210).
 //
@@ -65,6 +66,11 @@ interface ControllerConnectionState {
    *  Drives the dirty gate: Send is inert until the source differs from this. Not
    *  persisted — a fresh session re-enables a push (the device may have changed). */
   lastPushedSource: Record<string, Record<string, string>>
+  /** The map source last successfully pushed, keyed controllerId → mapId (#204). The
+   *  map analogue of `lastPushedSource`: drives the map editor's dirty gate so its Send
+   *  is inert until the open map's bake changes. Not persisted (a fresh session re-enables
+   *  a push — the device's shared map may have changed under us). */
+  lastPushedMap: Record<string, Record<string, string>>
   /** Pending preflight warnings (#203): non-null opens the reconciliation dialog,
    *  which Send must clear (confirm or cancel) before the push proceeds. `null` =
    *  no dialog. An empty array never appears here — a clean preflight pushes
@@ -97,6 +103,18 @@ interface ControllerConnectionState {
   confirmPush: () => Promise<void>
   /** Dismiss the preflight dialog without pushing. */
   cancelPush: () => void
+  /** Run the map-send preflight (#204): reconcile the open map's baked point count
+   *  against the Controller's fixed pixel count and always surface the map-overwrite
+   *  warning (writing the shared map is a deliberate act). Opens the reconciliation
+   *  dialog (`preflight`), deferring the write to confirmMapPush. A no-op when no map
+   *  is open or no Controller is active. */
+  requestMapPush: () => Promise<void>
+  /** Acknowledge the map preflight dialog and write the map to the Controller. */
+  confirmMapPush: () => Promise<void>
+  /** Write the open map's baked coordinates to the active Controller's single shared
+   *  map slot (#204). Reuses `pushing`/`pushResult` for the button animation; a no-op
+   *  when nothing is open/active. */
+  pushActiveMap: () => Promise<void>
   /** Clear the transient push result (e.g. after the toast/badge times out). */
   clearPushResult: () => void
 }
@@ -114,6 +132,7 @@ export const controllerInitialState = {
   pushing: false,
   pushResult: null as PushResult | null,
   lastPushedSource: {} as Record<string, Record<string, string>>,
+  lastPushedMap: {} as Record<string, Record<string, string>>,
   preflight: null as PreflightWarning[] | null,
 }
 
@@ -147,6 +166,18 @@ function phaseFromStatus(status: ControllerStatus): Partial<ControllerEntry> | n
 export const useControllerStore = create<ControllerConnectionState>()(
   persist(
     (set, get) => {
+      // Resolve the map currently open in the editor's map mode into the bits a push
+      // needs: its stable id, baked coordinate array, and a change signature (its
+      // source) for the dirty gate. Returns null unless a custom map is open AND has
+      // baked points — a stock map (no source) or an unbaked map can't be pushed.
+      const openMapForPush = (): { id: string; points: number[][]; signature: string } | null => {
+        const { editingMap, userMaps } = useMapStore.getState()
+        if (editingMap?.kind !== 'existing') return null
+        const record = userMaps.find((m) => m.id === editingMap.id)
+        if (!record || !record.points || record.points.length === 0) return null
+        return { id: record.id, points: record.points, signature: record.source ?? '' }
+      }
+
       // Fold a per-Controller patch into the keyed map without dropping siblings.
       const patchController = (ip: string, patch: Partial<ControllerEntry>) =>
         set((s) => {
@@ -279,6 +310,54 @@ export const useControllerStore = create<ControllerConnectionState>()(
         },
 
         cancelPush: () => set({ preflight: null }),
+
+        requestMapPush: async () => {
+          const controllerId = get().activeIp
+          const map = openMapForPush()
+          if (!controllerId || !map) return
+
+          // Fresh device count (best-effort) for the count-fit reconciliation; a read
+          // failure leaves it unknown and only the overwrite warning shows.
+          const config = await getControllerProvider().getConfig().catch(() => null)
+          const { warnings } = describePreflight({
+            localPixelCount: map.points.length,
+            devicePixelCount: config?.pixelCount ?? null,
+            // A map send always overwrites the device's single shared map, so the
+            // overwrite warning always fires — the dialog always opens (a deliberate
+            // act, never a silent one-click like a clean pattern push).
+            pushingMap: true,
+          })
+          set({ preflight: warnings })
+        },
+
+        confirmMapPush: async () => {
+          set({ preflight: null })
+          await get().pushActiveMap()
+        },
+
+        pushActiveMap: async () => {
+          const controllerId = get().activeIp
+          const map = openMapForPush()
+          if (!controllerId || !map) return
+
+          set({ pushing: true, pushResult: null })
+          try {
+            await getControllerProvider().setPixelMap(map.points)
+            set((s) => ({
+              pushing: false,
+              // A Controller has one map slot — a push always overwrites it in place,
+              // so `created` is always false (unlike a pattern, which can mint a new id).
+              pushResult: { ok: true, created: false },
+              lastPushedMap: {
+                ...s.lastPushedMap,
+                [controllerId]: { ...s.lastPushedMap[controllerId], [map.id]: map.signature },
+              },
+            }))
+          } catch (err) {
+            const message = err instanceof Error ? err.message : String(err)
+            set({ pushing: false, pushResult: { ok: false, message } })
+          }
+        },
 
         pushActivePattern: async () => {
           const controllerId = get().activeIp

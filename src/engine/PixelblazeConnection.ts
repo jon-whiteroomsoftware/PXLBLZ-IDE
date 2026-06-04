@@ -37,7 +37,9 @@ export interface WebSocketLike {
 
 /** Binary message types, byte[0] of every binary frame. Values are the
  *  reverse-engineered constants the ElectroMage editor and pixelblaze-client
- *  use; only a subset is exercised here. */
+ *  use; only a subset is exercised here. Reference: zranger1/pixelblaze-client
+ *  `pixelblaze.py` `messageTypes` (commit 9be8470):
+ *  https://github.com/zranger1/pixelblaze-client/blob/9be84700248fa17f0123c702a2939213ba69800a/pixelblaze/pixelblaze.py#L460 */
 export const MessageType = {
   putSourceCode: 1,
   putByteCode: 3,
@@ -424,6 +426,23 @@ export class PixelblazeConnection {
     }
     this.sendJson({ setControls: {} })
     this.sendJson({ pause: false })
+  }
+
+  /** Push a binary pixel-map blob to the device's single shared map slot (H12, issue
+   *  #204): the `mapData` is sent as chunked `putPixelMap` (type-8) binary frames,
+   *  then `{savePixelMap:true}` persists it to flash (the Mapper tab's "Save"). The
+   *  blob is produced by `encodeMapData` (see mapPush.ts) — this method owns only the
+   *  framing + persist, exactly as the reference client's `setMapData` does:
+   *  zranger1/pixelblaze-client `pixelblaze.py` `setMapData` (commit 9be8470):
+   *  https://github.com/zranger1/pixelblaze-client/blob/9be84700248fa17f0123c702a2939213ba69800a/pixelblaze/pixelblaze.py#L1683
+   *
+   *  Fire-and-forget at the protocol level: resolves once every frame is sent, not
+   *  when the device has applied them. `save` defaults true (persist). */
+  putPixelMap(mapData: Uint8Array, opts: { save?: boolean } = {}): void {
+    for (const frame of encodeBinaryFrames(MessageType.putPixelMap, mapData)) {
+      this.sendBinary(frame)
+    }
+    if (opts.save ?? true) this.sendJson({ savePixelMap: true })
   }
 
   /** Close the socket and reject any in-flight requests. */

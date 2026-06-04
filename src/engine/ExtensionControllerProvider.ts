@@ -24,6 +24,7 @@ import {
   type ProgramListEntry,
 } from './ControllerProvider'
 import { PixelblazeConnection } from './PixelblazeConnection'
+import { encodeMapData } from './mapPush'
 import {
   RelayWebSocket,
   RELAY_SOURCE,
@@ -320,6 +321,14 @@ export class ExtensionControllerProvider implements ControllerProvider {
    *  place at `id`). Fire-and-forget at the protocol level. */
   pushBytecode(bytecode: Uint8Array, opts: { id: string; name?: string }): Promise<void> {
     return this.fireAndForget((conn) => conn.pushByteCode(bytecode, opts))
+  }
+
+  /** Encode the baked coordinate array to the firmware mapData blob and write it to
+   *  the device's single shared map slot over the live connection (H12, #204).
+   *  Fire-and-forget at the protocol level. */
+  setPixelMap(points: number[][], opts: { save?: boolean } = {}): Promise<void> {
+    const mapData = encodeMapData(points)
+    return this.fireAndForget((conn) => conn.putPixelMap(mapData, opts))
   }
 
   // ── internals ───────────────────────────────────────────────────────────────

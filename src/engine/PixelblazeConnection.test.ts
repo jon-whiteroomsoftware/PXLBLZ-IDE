@@ -513,6 +513,30 @@ describe('PixelblazeConnection', () => {
     })
   })
 
+  describe('putPixelMap', () => {
+    it('sends the mapData as type-8 binary frames then {savePixelMap:true}', async () => {
+      const { conn, socket } = await connected()
+      const mapData = new Uint8Array([2, 0, 0, 0, 9, 9])
+      conn.putPixelMap(mapData)
+
+      // One binary putPixelMap frame (type 8), first|last for this small blob.
+      expect(socket.sentBinary).toHaveLength(1)
+      expect(socket.sentBinary[0][0]).toBe(MessageType.putPixelMap)
+      expect(socket.sentBinary[0][1]).toBe(FrameFlag.first | FrameFlag.last)
+      expect([...socket.sentBinary[0].subarray(2)]).toEqual([2, 0, 0, 0, 9, 9])
+
+      // Then persist to flash (the Mapper-tab "Save").
+      expect(JSON.parse(socket.sent[socket.sent.length - 1])).toEqual({ savePixelMap: true })
+    })
+
+    it('omits the savePixelMap persist frame when save is false', async () => {
+      const { conn, socket } = await connected()
+      conn.putPixelMap(new Uint8Array([0]), { save: false })
+      expect(socket.sent.some((f) => f.includes('savePixelMap'))).toBe(false)
+      expect(socket.sentBinary).toHaveLength(1)
+    })
+  })
+
   it('ignores binary/non-string and malformed frames without crashing', async () => {
     const { conn, socket } = await connected()
     expect(() => socket.simulateMessage(new Uint8Array([7, 0, 0]))).not.toThrow()

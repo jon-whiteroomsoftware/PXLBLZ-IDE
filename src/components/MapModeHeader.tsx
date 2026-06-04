@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { useEditorStore } from '@/store/editorStore'
 import { useMapStore, canDeployMap } from '@/store/mapStore'
+import { SendMapToController } from '@/components/SendMapToController'
 import { mapTemplates, isPristineToBaseline, type MapTemplate } from '@/engine/maps'
 
 // The editor header strip in map mode (#151): the map's name, a parse-only
@@ -100,6 +101,7 @@ export function MapModeHeader() {
       >
         Deploy to preview
       </button>
+      <SendMapToController />
       <LoadTemplateMenu onSelect={chooseTemplate} />
 
       <AlertDialogRoot open={pending !== null} onOpenChange={(o) => { if (!o) setPending(null) }}>
