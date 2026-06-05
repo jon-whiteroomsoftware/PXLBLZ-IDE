@@ -7,7 +7,7 @@ export default defineConfig({
   fullyParallel: true,
   reporter: 'list',
   use: {
-    baseURL: 'http://localhost:5174/pixelblaze-v2/',
+    baseURL: 'http://localhost:5174/PXLBLZ-IDE/',
     trace: 'on-first-retry',
   },
   projects: [
@@ -15,7 +15,7 @@ export default defineConfig({
   ],
   webServer: {
     command: 'npm run dev',
-    url: 'http://localhost:5174/pixelblaze-v2/',
+    url: 'http://localhost:5174/PXLBLZ-IDE/',
     reuseExistingServer: true,
     timeout: 120_000,
   },
