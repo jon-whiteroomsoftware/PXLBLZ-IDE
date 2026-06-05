@@ -613,6 +613,28 @@ state machine, a keepalive ping, a **liveness watchdog** (declare the device gon
 evict the service worker; a powered-off Controller is expected back, so it keeps
 probing).
 
+### Per-IP just-in-time host permissions (ADR-0015)
+
+The extension must reach `ws://<LAN-IP>:81` and `http://<LAN-IP>/…` (compiler fetch,
+`/pixelmap.dat` read-back) at *runtime-discovered* IPs, but Chrome match patterns can't
+express "the local network" (no CIDR, no partial octets) and a static broad
+`ws://*/*` + `http://*/*` grant reads as a network-sniffing surface that fails Web Store
+review (#229). So the LAN reach lives in **`optional_host_permissions`**, granted **per
+device IP, just-in-time** (ADR-0015). Only `https://discover.electromage.com/*` is a
+required host permission — discovery must work before any device IP is known. When the
+app connects to an IP not yet granted, the service worker opens the extension's action
+popup (`chrome.action.openPopup()`), which calls
+`chrome.permissions.request({ origins: ['http://<ip>/*', 'ws://<ip>/*'] })`; Chrome's
+native *"Allow access to `<ip>`?"* dialog is the actual grant. The popup batches all
+discovered IPs into one request, so onboarding a fleet is a single dialog. The grant
+gates **every** device-bound call (connect, compile fetch, map read-back), all of which
+hit `http://<ip>`. The reconnect path must distinguish "socket failed" from "permission
+missing for this (new) IP" — a DHCP reassignment re-triggers the popup rather than
+silently retry-failing. The provider surfaces a declined grant as a typed
+`ControllerPermissionDeniedError` so the store drops the half-created pill back to idle
+instead of dwelling on it. The build is **distribution-agnostic**: the identical manifest
+works from the Web Store or loaded unpacked.
+
 ### Auto-discovery (cloud, via the helper)
 
 You can't reach a Controller you haven't typed an IP for, so the entry affordance
@@ -632,7 +654,12 @@ reuses the ambient detector provider, no Controller need be connected). The seam
 `discover()` on `ControllerProvider` (Null returns `[]`; any failure/timeout also `[]`),
 maps `localIp` → connect `address` and `id` → stable key, and surfaces candidates in the
 `ControllerBar` as clickable rows that drive the existing keyed `addController(address)`.
-This tracer bullet proves the cloud→helper→seam→UI→connect pipe; the full
+A discovered row carries its `name` into `addController` as a **seed nickname**, so the
+pill is born named rather than flashing the bare IP until the device's config lands.
+Discovery **runs automatically when the connect dropdown opens** and refreshes on a
+periodic timer while it's open; a manual **rescan** affordance (spinner while in flight)
+forces a fresh sweep, and already-connected Controllers are filtered out of the candidate
+list (#228). This tracer bullet proves the cloud→helper→seam→UI→connect pipe; the full
 multi-Controller list/select model is deferred.
 
 ### The in-app surface (status pills, panel)
@@ -644,11 +671,23 @@ multi-Controller list/select model is deferred.
   `controllerPillView`. Connection state is **keyed and multi-Controller** in
   `controllerStore`: extension presence is global, each Controller is keyed by IP with
   its own isolated provider/socket/reconnect, exactly one active; the last-connected IP
-  alone auto-reconnects on reload.
+  alone auto-reconnects on reload. The dot tones are the shared traffic-light vocabulary
+  (`StatusDot`): dark-grey *absent* (no extension), grey *idle*, **amber fast-blink**
+  *connecting*, green *live*, red *error*.
+- **The name is cached and sticky** (#215, #230). The store persists the last-connected
+  IP *and* its nickname, so on reload the pill is born with the name rather than the bare
+  IP. The name only ever *upgrades*: a fresh `getConfig` name wins (a device rename lands
+  here), but a transient read that returns nothing must **not** clobber a known name back
+  to the IP — both the live patch and the persisted value guard on "did we actually read
+  a name." A discovery row and a same-IP reconnect both seed the pending pill from the
+  known/cached name, so there is no point in the connect flow where a named Controller
+  flashes its IP.
 - **The live panel** is a pinned popover under the active pill (#211). `controllerPanelStore`
   polls (`CONTROLLER_POLL_INTERVAL_MS`, 1s) a small live slice; `controllerPanelView`
   renders it: the active pattern (id resolved to a name via the program list), reported
-  FPS, the device `pixelCount`, the installed-map point count, and the live controls.
+  FPS, the device `pixelCount`, the installed-map point count, and the live controls. On
+  connect the panel is **warm-seeded** once (#225) so it opens populated rather than
+  empty-then-jumping as the first poll lands.
   **Brightness is panel-owned and volatile** — seeded once from the device's first
   reported value, then slider-owned (later polls don't overwrite it), always `save:false`
   (flash wear). Control writes are likewise volatile.

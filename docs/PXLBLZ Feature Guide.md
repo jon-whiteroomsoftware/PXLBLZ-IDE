@@ -264,11 +264,27 @@ reach a `ws://` device by itself (see the Ecosystem Primer §7), so this works t
 small **Chrome extension** that relays the connection. Install it once (unpacked, from
 the `extension/` folder — see its README), and a connection surface appears top-right.
 
-- **Connect.** The top-right shows a status dot: grey when no helper is installed, idle
-  once the extension is present. Enter your Controller's LAN IP to connect; it turns
-  amber ("live") when connected, and reconnects on its own if the device blips off and
-  back. Each connected Controller gets its own **pill**; click one to make it active and
-  open its panel. You can keep more than one connected.
+- **Find your Controller.** Open the connect dropdown (top-right) and you get two ways in:
+  - **Discover.** The dropdown lists Pixelblazes it found on your network, by name. A
+    browser can't scan the LAN itself, so discovery goes through Pixelblaze's cloud
+    finder (the same service the official tools use) — your devices just need to have
+    reached the internet at least once. The list runs automatically when you open the
+    dropdown and refreshes itself periodically; a **rescan** button (it spins while
+    working) forces a fresh look. Click a device to connect to it.
+  - **By IP.** If you know the Controller's LAN address, type it in and connect. This
+    always works, even if cloud discovery can't see the device.
+- **Grant access, once per device.** The first time you connect to a given Pixelblaze,
+  the extension surfaces Chrome's native **"Allow access to `<ip>`?"** prompt — approve
+  it once and that device is remembered. (Connecting to several discovered devices can
+  batch their prompts into one.) This per-device grant is what lets the extension be
+  least-privilege rather than asking for blanket network access.
+- **Connect and status.** The status dot reads at a glance: **dark grey** = the extension
+  isn't installed; **grey** = installed but nothing connected; **amber, blinking** =
+  connecting; **green** = connected; **red** = a connection error. Each connected
+  Controller gets its own **pill** showing its **name** — the IDE remembers the name, so
+  the pill reads "burner-bag" rather than a bare IP, even mid-connect or right after a
+  reload. The connection **reconnects on its own** if the device blips off and back.
+  Click a pill to make it active and open its panel; you can keep more than one connected.
 - **The live panel** (a pinned popover under the active pill) mirrors the device in real
   time: its **active pattern**, **frame rate**, **pixel count**, and the installed
   **map's point count** — with the map-points figure flagged amber when it disagrees
