@@ -43,8 +43,12 @@ interface ControllerPanelState {
   /** The running pattern's exported variables (name → value), read-only. Refreshed
    *  every poll. */
   vars: Record<string, number>
-  /** Begin polling (idempotent). Fetches the program list once, then polls config
-   *  + telemetry + vars on the interval. */
+  /** One-shot warm fetch: program list + installed map + a single poll, without
+   *  starting the interval. Called on connect (#225) so the panel opens populated
+   *  instead of empty-then-jumping, and reused by `start()` as its first tick. */
+  seed: () => void
+  /** Begin polling (idempotent). Seeds once, then polls config + telemetry + vars
+   *  on the interval. */
   start: () => void
   /** Stop polling and reset to the disconnected baseline. */
   stop: () => void
@@ -83,8 +87,7 @@ let controlsSeededFor: string | undefined
 export const useControllerPanelStore = create<ControllerPanelState>()((set, get) => ({
   ...controllerPanelInitialState,
 
-  start: () => {
-    if (pollTimer !== null) return
+  seed: () => {
     controlsSeededFor = undefined
     // Program names rarely change; fetch the list once and tolerate failure.
     getControllerProvider()
@@ -92,12 +95,17 @@ export const useControllerPanelStore = create<ControllerPanelState>()((set, get)
       .then((programs) => set({ programs }))
       .catch(() => {})
     // The installed map rarely changes and read-back is a one-off HTTP fetch, so
-    // read it once on start (not every poll) to surface its point count (#205).
+    // read it once (not every poll) to surface its point count (#205).
     getControllerProvider()
       .getPixelMap()
       .then((map) => set({ mapPointCount: map ? map.length : null }))
       .catch(() => {})
     void get().poll()
+  },
+
+  start: () => {
+    if (pollTimer !== null) return
+    get().seed()
     pollTimer = setInterval(() => void get().poll(), CONTROLLER_POLL_INTERVAL_MS)
   },
 

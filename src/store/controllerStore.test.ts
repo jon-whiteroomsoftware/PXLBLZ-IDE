@@ -162,6 +162,14 @@ describe('controllerStore (keyed)', () => {
     expect(created.get('10.0.0.5')!.connects).toEqual([{ address: '10.0.0.5' }])
   })
 
+  it('warms the panel store on connect so it opens populated (#225)', async () => {
+    await store().addController('10.0.0.5')
+    // seed() fires the program-list/map/poll fetches; let their promises settle.
+    await new Promise((r) => setTimeout(r, 0))
+    // The installed map (2 coords on the fake) lands without the panel ever opening.
+    expect(useControllerPanelStore.getState().mapPointCount).toBe(2)
+  })
+
   it('a nameless device leaves the nickname unset (pill falls back to IP)', async () => {
     setControllerProviderFactory((ip) => {
       const p = new FakeProvider()
