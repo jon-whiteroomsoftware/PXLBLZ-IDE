@@ -28,13 +28,13 @@ The preview isn't just a quick approximation — it's built to match the hardwar
 - **Tune how it looks, not what it computes.** Preview-only viewing controls — **light size**, **diffusion** (a virtual diffuser sheet that merges the dots into a gap-free field), and **solidity** (fade a shell's back so it occludes itself) — shape the render without ever touching your pattern's math or reaching hardware.
 - **Live controls and var watching.** Export a `sliderX`, `toggleX`, or color-picker function and the IDE renders the matching widget — the same controls the hardware shows. The Var Watcher tracks every exported variable, refreshed each frame.
 
-The control deck keeps the two worlds visibly separate: a **Pixelblaze group** (pixel count, brightness, Fill/Contain fit — settings that would round-trip to a device) and a **Preview group** (light size, diffusion, renderer, speed, solidity — things the IDE invents that the device never sees).
+The control deck keeps the two worlds visibly separate: a **Pixelblaze group** (the map, pixel count, brightness, Fill/Contain fit — settings that would round-trip to a device) and a **Preview group** (light size, diffusion, renderer, speed, solidity — things the IDE invents that the device never sees).
 
 This makes PXLBLZ a comfortable home for porting GPU-style shaders (ShaderToy and friends) onto LEDs, where trusting the preview really matters. There's a `Shader` library and a [porting guide](docs/guides/Porting%20ShaderToy%20shaders%20to%20Pixelblaze.md) for exactly that.
 
 ## Bundled libraries
 
-Hover any library in the left pane for a summary; click to open its source.
+Open the **Libraries** menu in the header for a summary on hover; click any to open its source.
 
 | Library  | What it provides |
 | -------- | ---------------- |
@@ -45,7 +45,7 @@ Hover any library in the left pane for a summary; click to open its source.
 | `Noise`  | Value noise, Voronoi distance, organic variation |
 | `Shader` | GLSL gap-fillers (`fract`, `step`, `dot`, `reflect`, palettes) for shader ports |
 
-The **Demos** section has ready-to-run examples — animated SDFs, eased sweeps, noise flow fields, and several shader ports. They're read-only, but "Edit" forks any demo into your own editable copy.
+The **Demos** section has ready-to-run examples — animated SDFs, eased sweeps, noise flow fields, and several shader ports. They're read-only, but "Edit" forks any demo into your own editable copy. The left pane filters by dimension (1D / 2D / 3D) and has a type-down name search to find things fast.
 
 ## Getting patterns on and off hardware
 
@@ -57,7 +57,7 @@ By hand, with no device or network:
 Or live, when a Pixelblaze is on your LAN:
 
 - **Connect to a controller.** A small Chrome extension relays the connection a deployed web page can't open itself. Once installed, enter the controller's IP to connect; a live panel mirrors its running pattern, frame rate, pixel count, brightness, and installed map, and drives its controls in real time.
-- **Send to Controller** compiles the open pattern with the *device's own compiler* and pushes it over the wire — overwriting in place rather than piling up copies. A separate action writes a custom map to the device. None of the preview-only settings ever ride along; only the pattern, and the map when you ask.
+- **Send to Controller** compiles the open pattern with the *device's own compiler* and pushes it over the wire. A toggle picks the mode: **Run** plays it transiently, while **Save** persists it to the device's saved patterns and activates it — overwriting in place rather than piling up copies. You can send demos directly, without forking first. A separate action writes a custom map to the device. None of the preview-only settings ever ride along; only the pattern, and the map when you ask.
 
 ## Running locally
 
