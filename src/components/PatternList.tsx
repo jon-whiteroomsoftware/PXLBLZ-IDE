@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
-import { ChevronDown, Plus, FolderOpen } from 'lucide-react'
+import { ChevronDown, Plus, FolderOpen, Search, X } from 'lucide-react'
 import { LIBRARIES } from '@/pixelblaze/libs'
 import { DEMOS } from '@/pixelblaze/demos'
 import { nameConflicts, uniquePatternName } from '@/engine/patternName'
 import { NEW_PATTERN_SRC } from '@/pixelblaze/newPattern'
 import { parseEpe } from '@/engine/epeImport'
-import { nativeDim, matchesLens, type DimLens } from '@/engine/dimLens'
+import { nativeDim, matchesLens, matchesQuery, type DimLens } from '@/engine/dimLens'
 import { getSetting } from '@/engine/storage'
 import { useEditorStore } from '@/store/editorStore'
 import { usePatternStore, PatternRecord, LastActive, LAST_ACTIVE_KEY } from '@/store/patternStore'
@@ -178,9 +178,7 @@ function DimPill({ dim }: { dim: string }) {
   )
 }
 
-// The dimension lens (#251): a segmented single-select `All | 1D | 2D | 3D` at the
-// top of the rail. Ephemeral by design — it lives in component state and resets to
-// All on reload (no persistence).
+// The dimension lens (#251): a segmented single-select `All | 1D | 2D | 3D`.
 const DIM_LENS_OPTIONS: { label: string; value: DimLens }[] = [
   { label: 'All', value: 'all' },
   { label: '1D', value: 1 },
@@ -188,38 +186,109 @@ const DIM_LENS_OPTIONS: { label: string; value: DimLens }[] = [
   { label: '3D', value: 3 },
 ]
 
-function DimLensControl({
+// The rail filter bar (#252): the dimension lens and the type-down name search share
+// ONE row to conserve scarce vertical real estate. Collapsed, it shows the pills and a
+// magnifier at the right. Hovering or clicking the magnifier scrolls the search input
+// out (animated) and tucks the pills tighter so both fit. Both controls are ephemeral
+// (component state, reset on reload). The search stays open while it holds text or has
+// focus, so it won't snap shut mid-type when the cursor drifts off.
+function RailFilterBar({
   lens,
-  onChange,
+  onLensChange,
+  query,
+  onQueryChange,
 }: {
   lens: DimLens
-  onChange: (lens: DimLens) => void
+  onLensChange: (lens: DimLens) => void
+  query: string
+  onQueryChange: (query: string) => void
 }) {
+  const [pinned, setPinned] = useState(false)
+  const [hovered, setHovered] = useState(false)
+  const [focused, setFocused] = useState(false)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const expanded = pinned || hovered || focused || query !== ''
+
+  function toggle() {
+    if (expanded) {
+      // Collapsing: clear the query and drop focus so it doesn't immediately reopen.
+      setPinned(false)
+      onQueryChange('')
+      inputRef.current?.blur()
+    } else {
+      setPinned(true)
+      setTimeout(() => inputRef.current?.focus(), 0)
+    }
+  }
+
   return (
-    <div
-      role="radiogroup"
-      aria-label="Dimension filter"
-      className="flex gap-0.5 px-3 pt-1.5 pb-1"
-    >
-      {DIM_LENS_OPTIONS.map((opt) => {
-        const active = lens === opt.value
-        return (
-          <button
-            key={String(opt.value)}
-            role="radio"
-            aria-checked={active}
-            onClick={() => onChange(opt.value)}
-            className={[
-              'flex-1 rounded py-0.5 text-[10px] font-mono uppercase tracking-wide transition-colors',
-              active
-                ? 'bg-live/15 text-live'
-                : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/60',
-            ].join(' ')}
-          >
-            {opt.label}
-          </button>
-        )
-      })}
+    <div className="flex items-center gap-1 px-3 pt-1.5 pb-1">
+      <div
+        role="radiogroup"
+        aria-label="Dimension filter"
+        // Tighten the inter-pill gap too when expanded, ceding every spare pixel to
+        // the search box.
+        className={`flex shrink-0 transition-all ${expanded ? 'gap-px' : 'gap-0.5'}`}
+      >
+        {DIM_LENS_OPTIONS.map((opt) => {
+          const active = lens === opt.value
+          return (
+            <button
+              key={String(opt.value)}
+              role="radio"
+              aria-checked={active}
+              onClick={() => onLensChange(opt.value)}
+              className={[
+                'rounded py-0.5 text-[10px] font-mono uppercase tracking-wide transition-all',
+                // Tuck tighter once the search field claims its share of the row.
+                expanded ? 'px-1' : 'px-2.5',
+                active
+                  ? 'bg-live/15 text-live'
+                  : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/60',
+              ].join(' ')}
+            >
+              {opt.label}
+            </button>
+          )
+        })}
+      </div>
+
+      <div
+        className="flex flex-1 items-center justify-end gap-1"
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+      >
+        <div
+          className={[
+            'flex-1 overflow-hidden transition-all duration-200',
+            expanded ? 'max-w-full opacity-100' : 'max-w-0 opacity-0',
+          ].join(' ')}
+        >
+          <input
+            ref={inputRef}
+            type="text"
+            value={query}
+            onChange={(e) => onQueryChange(e.target.value)}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setFocused(false)}
+            placeholder="Search by name"
+            aria-label="Search patterns by name"
+            tabIndex={expanded ? 0 : -1}
+            className="w-full rounded bg-zinc-800/60 py-0.5 px-2 text-[11px] text-zinc-200 placeholder:text-zinc-500 outline-none focus:bg-zinc-800 focus:ring-1 focus:ring-zinc-600"
+          />
+        </div>
+        <button
+          onClick={toggle}
+          title={expanded ? 'Close search' : 'Search by name'}
+          aria-label={expanded ? 'Close search' : 'Search by name'}
+          className={[
+            'shrink-0 transition-colors',
+            expanded ? 'text-zinc-300 hover:text-live' : 'text-zinc-500 hover:text-zinc-300',
+          ].join(' ')}
+        >
+          {expanded && query ? <X size={13} /> : <Search size={13} />}
+        </button>
+      </div>
     </div>
   )
 }
@@ -463,6 +532,8 @@ export function PatternList() {
 
   // The dimension lens (#251). Ephemeral: component state, resets to All on reload.
   const [dimLens, setDimLens] = useState<DimLens>('all')
+  // The type-down name search (#252). Ephemeral too: resets to '' on reload.
+  const [query, setQuery] = useState('')
 
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({})
   const [hoveredLib, setHoveredLib] = useState<string | null>(null)
@@ -643,7 +714,12 @@ export function PatternList() {
         className="hidden"
         onChange={handleFileChange}
       />
-      <DimLensControl lens={dimLens} onChange={setDimLens} />
+      <RailFilterBar
+        lens={dimLens}
+        onLensChange={setDimLens}
+        query={query}
+        onQueryChange={setQuery}
+      />
       <SectionHeader
         label="Your Patterns"
         first
@@ -666,7 +742,10 @@ export function PatternList() {
       {!isCollapsed('Your Patterns') && (
         <ul>
           {userPatterns
-            .filter((pattern) => matchesLens(nativeDim(pattern.src), dimLens))
+            .filter(
+              (pattern) =>
+                matchesLens(nativeDim(pattern.src), dimLens) && matchesQuery(pattern.name, query),
+            )
             .map((pattern) => (
             <EditableListItem
               key={pattern.id}
@@ -686,7 +765,9 @@ export function PatternList() {
       {/* Your Maps is mapless by construction under the 1D lens (1D is reached via
           viewport shapes, not maps), so the whole section is hidden there (#251). */}
       {dimLens !== 1 && (() => {
-        const visibleMaps = userMaps.filter((map) => matchesLens(map.dim, dimLens))
+        const visibleMaps = userMaps.filter(
+          (map) => matchesLens(map.dim, dimLens) && matchesQuery(map.name, query),
+        )
         return (
           <>
             <SectionHeader
@@ -696,8 +777,13 @@ export function PatternList() {
               action={<HeaderAction icon={<Plus size={14} />} title="New map" onClick={createNewMap} />}
             />
             {!isCollapsed('Your Maps') && (
+              // The "no maps yet" empty state only fits when the user genuinely has no
+              // maps. If a filter (lens or query) merely emptied the list, leave just
+              // the header — the message would misread as "you have none" (#252).
               visibleMaps.length === 0 ? (
-                <p className="pl-3 pr-3 py-1 text-zinc-600 italic select-none">No custom maps yet</p>
+                userMaps.length === 0 ? (
+                  <p className="pl-3 pr-3 py-1 text-zinc-600 italic select-none">No custom maps yet</p>
+                ) : null
               ) : (
                 <ul>
                   {visibleMaps.map((map) => (
@@ -757,8 +843,9 @@ export function PatternList() {
         DEMO_SECTIONS.map((section) => {
           // Under a dimension lens, drop non-matching demos and hide any subsection
           // that ends up empty — no empty headers (#251).
-          const names = section.names.filter((name) =>
-            matchesLens(nativeDim(DEMOS[name] ?? ''), dimLens),
+          const names = section.names.filter(
+            (name) =>
+              matchesLens(nativeDim(DEMOS[name] ?? ''), dimLens) && matchesQuery(name, query),
           )
           if (names.length === 0) return null
           const collapsed = isCollapsed(section.label)

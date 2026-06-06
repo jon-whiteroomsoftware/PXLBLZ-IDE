@@ -84,6 +84,50 @@ describe('PatternList', () => {
     expect(screen.queryByText('My Tree')).not.toBeInTheDocument()
   })
 
+  it('filters maps by name via the type-down search box', async () => {
+    vi.mocked(listMaps).mockResolvedValueOnce([CUSTOM_MAP])
+    const user = userEvent.setup()
+    render(<PatternList />)
+    expect(await screen.findByText('My Tree')).toBeInTheDocument()
+
+    const search = screen.getByRole('textbox', { name: /search patterns by name/i })
+    await user.type(search, 'tree')
+    expect(screen.getByText('My Tree')).toBeInTheDocument()
+
+    await user.clear(search)
+    await user.type(search, 'xyz')
+    expect(screen.queryByText('My Tree')).not.toBeInTheDocument()
+  })
+
+  it('does not show the "no maps yet" empty state when a filter merely empties the list', async () => {
+    vi.mocked(listMaps).mockResolvedValueOnce([CUSTOM_MAP])
+    const user = userEvent.setup()
+    render(<PatternList />)
+    expect(await screen.findByText('My Tree')).toBeInTheDocument()
+
+    await user.type(screen.getByRole('textbox', { name: /search patterns by name/i }), 'nope')
+    expect(screen.queryByText('My Tree')).not.toBeInTheDocument()
+    // Header stays, but the genuine-empty message must not appear.
+    expect(screen.getByText('Your Maps')).toBeInTheDocument()
+    expect(screen.queryByText('No custom maps yet')).not.toBeInTheDocument()
+  })
+
+  it('AND-combines the search query with the dimension lens', async () => {
+    vi.mocked(listMaps).mockResolvedValueOnce([CUSTOM_MAP])
+    const user = userEvent.setup()
+    render(<PatternList />)
+    expect(await screen.findByText('My Tree')).toBeInTheDocument()
+
+    // Query matches but lens (2D) does not -> hidden.
+    await user.type(screen.getByRole('textbox', { name: /search patterns by name/i }), 'tree')
+    await user.click(screen.getByRole('radio', { name: '2D' }))
+    expect(screen.queryByText('My Tree')).not.toBeInTheDocument()
+
+    // Both match -> visible.
+    await user.click(screen.getByRole('radio', { name: '3D' }))
+    expect(screen.getByText('My Tree')).toBeInTheDocument()
+  })
+
   it('shows a 3D custom map under the 3D lens but not the 2D lens', async () => {
     vi.mocked(listMaps).mockResolvedValueOnce([CUSTOM_MAP])
     const user = userEvent.setup()

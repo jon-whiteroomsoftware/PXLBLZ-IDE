@@ -1,4 +1,4 @@
-import { nativeDim, matchesLens } from './dimLens'
+import { nativeDim, matchesLens, matchesQuery } from './dimLens'
 
 describe('nativeDim', () => {
   it('returns the highest render fn a source defines', () => {
@@ -30,5 +30,26 @@ describe('matchesLens', () => {
     expect(matchesLens(2, 1)).toBe(false)
     expect(matchesLens(3, 2)).toBe(false)
     expect(matchesLens(1, 1)).toBe(true)
+  })
+})
+
+describe('matchesQuery', () => {
+  it('matches everything on an empty or whitespace query', () => {
+    expect(matchesQuery('Plasma', '')).toBe(true)
+    expect(matchesQuery('Plasma', '   ')).toBe(true)
+  })
+
+  it('matches case-insensitive substrings of the name', () => {
+    expect(matchesQuery('PlasmaNebula', 'plasma')).toBe(true)
+    expect(matchesQuery('PlasmaNebula', 'NEBULA')).toBe(true)
+    expect(matchesQuery('PlasmaNebula', 'aNe')).toBe(true)
+  })
+
+  it('rejects names that do not contain the query', () => {
+    expect(matchesQuery('PlasmaNebula', 'fire')).toBe(false)
+  })
+
+  it('trims surrounding whitespace from the query', () => {
+    expect(matchesQuery('PlasmaNebula', '  plasma  ')).toBe(true)
   })
 })

@@ -23,3 +23,12 @@ export function nativeDim(src: string): 1 | 2 | 3 {
 export function matchesLens(dim: 1 | 2 | 3, lens: DimLens): boolean {
   return lens === 'all' || dim === lens
 }
+
+// Type-down name search (#252): does `name` match the rail's text query? Matching is
+// case-insensitive substring, name-only (never source). An empty/whitespace query
+// matches everything so the dimension lens governs alone. AND-combines with
+// `matchesLens` at the call site.
+export function matchesQuery(name: string, query: string): boolean {
+  const q = query.trim().toLowerCase()
+  return q === '' || name.toLowerCase().includes(q)
+}
