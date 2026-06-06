@@ -26,6 +26,7 @@ export function DeckSelect<T extends string | number>({
   options,
   onChange,
   menuWidthClass = 'w-24',
+  menuAlign = 'right',
   block = false,
 }: {
   ariaLabel: string
@@ -33,6 +34,11 @@ export function DeckSelect<T extends string | number>({
   options: DeckOption<T>[]
   onChange: (value: T) => void
   menuWidthClass?: string
+  // Which trigger edge the menu's matching edge pins to. 'right' (default) opens
+  // leftward — correct when the control sits on a right rail. 'left' opens
+  // rightward — use when the control is near the viewport's left edge, where a
+  // right-pinned menu would overflow and clip off-screen.
+  menuAlign?: 'left' | 'right'
   // When true the trigger fills its container's width (chevron pinned right, long
   // label truncates) instead of shrinking to its content. Lets a caller cap the width
   // with a wrapper and right-align it — e.g. the stacked `map` cell, which grows to
@@ -81,7 +87,9 @@ export function DeckSelect<T extends string | number>({
         <div
           role="listbox"
           aria-label={ariaLabel}
-          className={`absolute top-full right-0 mt-1 ${menuWidthClass} bg-zinc-900 border border-zinc-800 rounded-md shadow-xl z-50 py-1`}
+          // Cap the menu at ~14 rows (max-h-72 ≈ 18rem) and scroll past that, so a
+          // long list (e.g. many user maps) never runs off the deck.
+          className={`absolute top-full ${menuAlign === 'left' ? 'left-0' : 'right-0'} mt-1 ${menuWidthClass} max-h-72 overflow-y-auto bg-zinc-900 border border-zinc-800 rounded-md shadow-xl z-50 py-1`}
         >
           {options.map((opt, i) => {
             const header =

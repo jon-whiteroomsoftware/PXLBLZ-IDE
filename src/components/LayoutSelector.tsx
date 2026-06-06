@@ -79,6 +79,8 @@ export function MapSelect() {
   // Block-mode + a max-width cap, right-aligned (self-end) within the stacked map cell:
   // the dropdown grows with the column until it hits the cap, keeping its right edge
   // pinned to the column edge so it lines up with the `fit` dropdown directly below.
+  // The pop-up menu opens leftward (menuAlign="left") since the deck now lives on the
+  // left rail — a right-pinned menu would overflow and clip off the viewport edge.
   return (
     <div className="self-end w-full max-w-[11rem]">
       <DeckSelect
@@ -90,7 +92,8 @@ export function MapSelect() {
           group: o.group === 'user' ? 'User' : 'Stock',
         }))}
         onChange={(id) => route(id, maps)}
-        menuWidthClass="w-44"
+        menuWidthClass="w-full"
+        menuAlign="left"
         block
       />
     </div>
