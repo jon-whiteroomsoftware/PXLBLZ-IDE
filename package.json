@@ -15,6 +15,7 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "harness": "tsx test/divergence-harness/harness.ts",
+    "profile": "tsx test/perf-harness/profiler.ts",
     "spike": "tsx test/capability-spike/spike.ts",
     "prepare": "husky"
   },

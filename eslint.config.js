@@ -14,6 +14,7 @@ export default tseslint.config(
       'src/pixelblaze/demos',
       'src/engine/maps/sources/**',
       'test/divergence-harness/probe.js',
+      'test/perf-harness/profiler.js',
       // Throwaway hardware spikes: MV3 extension code (browser/SW globals,
       // `eval`'d remote compiler), human-in-the-loop, excluded from the gate.
       'test/h1-extension-spike/**',
