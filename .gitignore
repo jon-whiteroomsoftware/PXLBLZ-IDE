@@ -8,3 +8,6 @@ coverage/
 test-results/
 playwright-report/
 e2e/screenshots/
+
+# Packaged extension zips (npm run pack:extension)
+/build/
