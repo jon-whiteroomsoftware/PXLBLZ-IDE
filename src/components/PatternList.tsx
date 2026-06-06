@@ -5,7 +5,7 @@ import { DEMOS } from '@/pixelblaze/demos'
 import { nameConflicts, uniquePatternName } from '@/engine/patternName'
 import { NEW_PATTERN_SRC } from '@/pixelblaze/newPattern'
 import { parseEpe } from '@/engine/epeImport'
-import { dimLabel } from '@/engine/exportedDims'
+import { nativeDim, matchesLens, type DimLens } from '@/engine/dimLens'
 import { getSetting } from '@/engine/storage'
 import { useEditorStore } from '@/store/editorStore'
 import { usePatternStore, PatternRecord, LastActive, LAST_ACTIVE_KEY } from '@/store/patternStore'
@@ -175,6 +175,52 @@ function DimPill({ dim }: { dim: string }) {
     >
       {dim}
     </span>
+  )
+}
+
+// The dimension lens (#251): a segmented single-select `All | 1D | 2D | 3D` at the
+// top of the rail. Ephemeral by design — it lives in component state and resets to
+// All on reload (no persistence).
+const DIM_LENS_OPTIONS: { label: string; value: DimLens }[] = [
+  { label: 'All', value: 'all' },
+  { label: '1D', value: 1 },
+  { label: '2D', value: 2 },
+  { label: '3D', value: 3 },
+]
+
+function DimLensControl({
+  lens,
+  onChange,
+}: {
+  lens: DimLens
+  onChange: (lens: DimLens) => void
+}) {
+  return (
+    <div
+      role="radiogroup"
+      aria-label="Dimension filter"
+      className="flex gap-0.5 px-3 pt-1.5 pb-1"
+    >
+      {DIM_LENS_OPTIONS.map((opt) => {
+        const active = lens === opt.value
+        return (
+          <button
+            key={String(opt.value)}
+            role="radio"
+            aria-checked={active}
+            onClick={() => onChange(opt.value)}
+            className={[
+              'flex-1 rounded py-0.5 text-[10px] font-mono uppercase tracking-wide transition-colors',
+              active
+                ? 'bg-live/15 text-live'
+                : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/60',
+            ].join(' ')}
+          >
+            {opt.label}
+          </button>
+        )
+      })}
+    </div>
   )
 }
 
@@ -415,6 +461,9 @@ export function PatternList() {
     reader.readAsText(file)
   }
 
+  // The dimension lens (#251). Ephemeral: component state, resets to All on reload.
+  const [dimLens, setDimLens] = useState<DimLens>('all')
+
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({})
   const [hoveredLib, setHoveredLib] = useState<string | null>(null)
   const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null)
@@ -594,6 +643,7 @@ export function PatternList() {
         className="hidden"
         onChange={handleFileChange}
       />
+      <DimLensControl lens={dimLens} onChange={setDimLens} />
       <SectionHeader
         label="Your Patterns"
         first
@@ -615,13 +665,15 @@ export function PatternList() {
       )}
       {!isCollapsed('Your Patterns') && (
         <ul>
-          {userPatterns.map((pattern) => (
+          {userPatterns
+            .filter((pattern) => matchesLens(nativeDim(pattern.src), dimLens))
+            .map((pattern) => (
             <EditableListItem
               key={pattern.id}
               name={pattern.name}
               noun="pattern"
               active={activePatternId === pattern.id}
-              dim={dimLabel(pattern.src)}
+              dim={dimLens === 'all' ? `${nativeDim(pattern.src)}D` : undefined}
               takenNames={userPatterns.filter((p) => p.id !== pattern.id).map((p) => p.name)}
               onSelect={() => openUserPattern(pattern)}
               onRename={(name) => renamePattern(pattern.id, name)}
@@ -631,33 +683,42 @@ export function PatternList() {
         </ul>
       )}
 
-      <SectionHeader
-        label="Your Maps"
-        collapsed={isCollapsed('Your Maps')}
-        onToggle={() => toggleCollapsed('Your Maps')}
-        action={<HeaderAction icon={<Plus size={14} />} title="New map" onClick={createNewMap} />}
-      />
-      {!isCollapsed('Your Maps') && (
-        userMaps.length === 0 ? (
-          <p className="pl-3 pr-3 py-1 text-zinc-600 italic select-none">No custom maps yet</p>
-        ) : (
-          <ul>
-            {userMaps.map((map) => (
-              <EditableListItem
-                key={map.id}
-                name={map.name}
-                noun="map"
-                active={editingMap?.kind === 'existing' && editingMap.id === map.id}
-                dim={`${map.dim}D`}
-                takenNames={userMaps.filter((m) => m.id !== map.id).map((m) => m.name)}
-                onSelect={() => openUserMap(map)}
-                onRename={(name) => renameMap(map.id, name)}
-                onDelete={() => removeMap(map.id)}
-              />
-            ))}
-          </ul>
+      {/* Your Maps is mapless by construction under the 1D lens (1D is reached via
+          viewport shapes, not maps), so the whole section is hidden there (#251). */}
+      {dimLens !== 1 && (() => {
+        const visibleMaps = userMaps.filter((map) => matchesLens(map.dim, dimLens))
+        return (
+          <>
+            <SectionHeader
+              label="Your Maps"
+              collapsed={isCollapsed('Your Maps')}
+              onToggle={() => toggleCollapsed('Your Maps')}
+              action={<HeaderAction icon={<Plus size={14} />} title="New map" onClick={createNewMap} />}
+            />
+            {!isCollapsed('Your Maps') && (
+              visibleMaps.length === 0 ? (
+                <p className="pl-3 pr-3 py-1 text-zinc-600 italic select-none">No custom maps yet</p>
+              ) : (
+                <ul>
+                  {visibleMaps.map((map) => (
+                    <EditableListItem
+                      key={map.id}
+                      name={map.name}
+                      noun="map"
+                      active={editingMap?.kind === 'existing' && editingMap.id === map.id}
+                      dim={dimLens === 'all' ? `${map.dim}D` : undefined}
+                      takenNames={userMaps.filter((m) => m.id !== map.id).map((m) => m.name)}
+                      onSelect={() => openUserMap(map)}
+                      onRename={(name) => renameMap(map.id, name)}
+                      onDelete={() => removeMap(map.id)}
+                    />
+                  ))}
+                </ul>
+              )
+            )}
+          </>
         )
-      )}
+      })()}
 
       <SectionHeader
         label="Libraries"
@@ -694,6 +755,12 @@ export function PatternList() {
       />
       {!isCollapsed('Demos') &&
         DEMO_SECTIONS.map((section) => {
+          // Under a dimension lens, drop non-matching demos and hide any subsection
+          // that ends up empty — no empty headers (#251).
+          const names = section.names.filter((name) =>
+            matchesLens(nativeDim(DEMOS[name] ?? ''), dimLens),
+          )
+          if (names.length === 0) return null
           const collapsed = isCollapsed(section.label)
           return (
             <div key={section.label}>
@@ -704,12 +771,12 @@ export function PatternList() {
               />
               {!collapsed && (
                 <ul>
-                  {section.names.map((name) => (
+                  {names.map((name) => (
                     <ListItem
                       key={name}
                       label={name}
                       subItem
-                      dim={dimLabel(DEMOS[name] ?? '')}
+                      dim={dimLens === 'all' ? `${nativeDim(DEMOS[name] ?? '')}D` : undefined}
                       active={activeDemoName === name}
                       onClick={() => openDemo(name)}
                       onFork={() => handleForkDemo(name)}

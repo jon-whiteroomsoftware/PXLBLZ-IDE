@@ -71,4 +71,29 @@ describe('PatternList', () => {
     render(<PatternList />)
     expect(await screen.findByText('My Tree')).toBeInTheDocument()
   })
+
+  it('hides "Your Maps" and non-matching maps under the 1D dimension lens', async () => {
+    vi.mocked(listMaps).mockResolvedValueOnce([CUSTOM_MAP])
+    const user = userEvent.setup()
+    render(<PatternList />)
+    expect(await screen.findByText('My Tree')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('radio', { name: '1D' }))
+
+    expect(screen.queryByText('Your Maps')).not.toBeInTheDocument()
+    expect(screen.queryByText('My Tree')).not.toBeInTheDocument()
+  })
+
+  it('shows a 3D custom map under the 3D lens but not the 2D lens', async () => {
+    vi.mocked(listMaps).mockResolvedValueOnce([CUSTOM_MAP])
+    const user = userEvent.setup()
+    render(<PatternList />)
+    expect(await screen.findByText('My Tree')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('radio', { name: '2D' }))
+    expect(screen.queryByText('My Tree')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('radio', { name: '3D' }))
+    expect(screen.getByText('My Tree')).toBeInTheDocument()
+  })
 })

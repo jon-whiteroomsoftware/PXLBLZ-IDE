@@ -27,11 +27,3 @@ function definesFn(src: string, name: string): boolean {
 export function exportedDims(src: string): (1 | 2 | 3)[] {
   return DIM_FNS.filter((f) => definesFn(src, f.name)).map((f) => f.dim)
 }
-
-// The list cue for a source: "2D", or "1D | 3D" when several. Empty string when
-// the source defines no render fn (nothing to show).
-export function dimLabel(src: string): string {
-  return exportedDims(src)
-    .map((d) => `${d}D`)
-    .join(' | ')
-}

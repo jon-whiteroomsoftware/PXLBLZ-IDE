@@ -1,4 +1,4 @@
-import { exportedDims, dimLabel } from './exportedDims'
+import { exportedDims } from './exportedDims'
 
 describe('exportedDims', () => {
   it('detects a single render fn', () => {
@@ -24,11 +24,5 @@ describe('exportedDims', () => {
 
   it('returns empty when no render fn is defined', () => {
     expect(exportedDims('export function beforeRender(delta) {}')).toEqual([])
-  })
-
-  it('formats a list cue', () => {
-    expect(dimLabel('export function render2D(){}')).toBe('2D')
-    expect(dimLabel('function render(){} function render3D(){}')).toBe('1D | 3D')
-    expect(dimLabel('var t = 0')).toBe('')
   })
 })
