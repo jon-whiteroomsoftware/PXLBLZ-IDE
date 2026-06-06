@@ -5,7 +5,7 @@ export type CompileStatus = 'good' | 'broken'
 
 // Which flavor of content the editor surface holds (#151). 'pattern' covers the
 // existing pattern/demo/library flavors (Pixelblaze dialect, dialect-validated);
-// 'map' is the custom-map authoring mode (plain JS, parse-only badge, ADR-0008).
+// 'map' is the custom-map authoring mode (plain JS, parse-only badge).
 // The flavor selects the Monaco language and which validator feeds the badge.
 export type EditorFlavor = 'pattern' | 'map'
 
@@ -23,7 +23,7 @@ interface EditorState {
   nativeDim: 1 | 2 | 3
   // The active LAYOUT's display dimensionality (the shape/map being drawn), which
   // can differ from `nativeDim` (a 1D pattern on a 3D shape displays as 3D). Gates
-  // the viewport's camera control set (#129, ADR-0005). This is a VIEWPORT concern
+  // the viewport's camera control set (#129). This is a VIEWPORT concern
   // only — it is not the layout's coordinate dimension (that's `nativeDim`), so a
   // 2D pattern wrapped onto a 3D cylinder has displayDim 3 but stays a 2D layout.
   displayDim: 1 | 2 | 3
@@ -32,7 +32,7 @@ interface EditorState {
   // strip, or an irregular custom point cloud). Reflects the true geometry rather
   // than re-deriving it from the viewport dimension.
   layoutLabel: string | null
-  // Whether the active embedding is solid-eligible (ADR-0011): it supplies a
+  // Whether the active embedding is solid-eligible: it supplies a
   // per-point normal, so the preview deck offers the solidity slider. Published
   // by Preview from the resolved layout (true exactly when a normal array is fed
   // to the renderer); the slider appears/disappears as a unit with it.

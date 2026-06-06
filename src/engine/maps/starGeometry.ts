@@ -1,5 +1,5 @@
 // Stellated-icosahedron geometry, shared by the Star shell/volume normal
-// derivation (ADR-0012, preview-only). An icosahedron body with a pyramidal
+// derivation (preview-only). An icosahedron body with a pyramidal
 // spike erected over each of its 20 triangular faces; each spike contributes 3
 // slanted triangular faces, so the stellated SURFACE is 60 triangles. This
 // module reconstructs those 60 faces — vertices, outward unit normal, and the

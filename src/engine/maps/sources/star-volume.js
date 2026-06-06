@@ -1,11 +1,11 @@
 // Stock 3D star VOLUME: LEDs filling the INTERIOR of the stellated icosahedron
-// (ADR-0012), distinct from the surface-only star-shell. The solid is star-
+//, distinct from the surface-only star-shell. The solid is star-
 // shaped about its centre, so a ray from the origin exits the surface exactly
 // once: along each Fibonacci-lattice direction we find that exit radius R (the
 // one stellation triangle the ray passes through, Möller–Trumbore) and place the
 // point at r = R·cbrt(u) for a van der Corput u, so points are evenly distributed
 // by VOLUME out to the real spiky boundary instead of clustering at the centre.
-// The pixel count is the only knob (ADR-0004). Emits raw coords; the shared
+// The pixel count is the only knob. Emits raw coords; the shared
 // normalize pass maps each axis to [0,1]. A volume carries no per-point boundary
 // normal, so it is not solid-eligible.
 function(pixelCount) {

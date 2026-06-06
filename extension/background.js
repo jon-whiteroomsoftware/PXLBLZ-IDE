@@ -26,7 +26,7 @@ function base64ToBytes(b64) {
   return bytes
 }
 
-// ── per-IP just-in-time host permissions (#229, ADR-0015) ────────────────────
+// ── per-IP just-in-time host permissions (#229) ────────────────────
 //
 // The LAN reach (http://*, ws://*) is OPTIONAL now; we hold it per device IP and
 // request it just-in-time. `chrome.permissions.request` can only run in an

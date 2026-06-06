@@ -12,7 +12,7 @@ import type { ShapeId } from '@/engine/shapes'
 import type { SurfaceId } from '@/engine/surfaces'
 import { DeckSelect } from '@/components/DeckSelect'
 
-// The Layout controls (ADR-0010): two orthogonal knobs over the layout's two
+// The Layout controls: two orthogonal knobs over the layout's two
 // code owners — a MAP control (owns `sample`) and an EMBEDDING control (owns
 // `pos`, populated with shapes for 1D and surfaces for 2D). Issue #253 splits the
 // two across the deck so the real-vs-viewport boundary reads structurally: the
@@ -25,7 +25,7 @@ import { DeckSelect } from '@/components/DeckSelect'
 // Shared layout-control state + routing for the two split controls. Reads the live
 // stores, resolves the available map/embedding options through the pure engine
 // helpers, and exposes a single `route` that dispatches a chosen option to its
-// setter and persists it as a per-pattern cascaded override (ADR-0013).
+// setter and persists it as a per-pattern cascaded override.
 function useLayoutControls() {
   const nativeDim = useEditorStore((s) => s.nativeDim)
   const activeMapId = useMapStore((s) => s.activeMapId)
@@ -46,7 +46,7 @@ function useLayoutControls() {
   const embeddingValue = selectedEmbeddingId(sel, nativeDim)
 
   // Route a chosen option to its live setter AND write a per-pattern cascaded
-  // override (ADR-0013): a map/shape/surface change is genuine manipulation, so it
+  // override: a map/shape/surface change is genuine manipulation, so it
   // persists on the active pattern (no-op for a read-only demo).
   function route(id: string, options: ReturnType<typeof mapOptions>) {
     const opt = options.find((o) => o.id === id)
@@ -100,7 +100,7 @@ export function MapSelect() {
 // The EMBEDDING control (#253): a pure viewport affordance — shapes for 1D, surfaces
 // for 2D — that stays in the play-button row. Shows only when it carries a real
 // choice: a single option (an irregular cloud's Flat-only set, or 3D with none) is
-// not a choice, so it is hidden (ADR-0010, "show only when needed").
+// not a choice, so it is hidden ("show only when needed").
 export function EmbeddingSelect() {
   const { nativeDim, embeddings, embeddingValue, route } = useLayoutControls()
   const showEmbedding = embeddings.length > 1

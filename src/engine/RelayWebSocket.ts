@@ -107,7 +107,7 @@ export type RelayMessage =
       /** Failure reason when `ok` is false. */
       error?: string
     }
-  // Per-IP JIT host permission (#229, ADR-0015). The LAN reach is an optional
+  // Per-IP JIT host permission (#229). The LAN reach is an optional
   // permission granted per device IP from the helper's action popup. These two are
   // address-keyed (not conn/req-keyed) because the grant is per IP, not per call:
   //  - `permission-needed` — the helper found no grant for `address` and opened the

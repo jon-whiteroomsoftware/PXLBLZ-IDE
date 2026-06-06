@@ -19,7 +19,7 @@ function distinctSorted(values: number[]): number[] {
 }
 
 // Detect whether a raw coordinate array forms a regular axis-aligned lattice and,
-// if so, return its integer dims (ADR-0009). A lattice is recognised when the
+// if so, return its integer dims. A lattice is recognised when the
 // product of each axis's distinct-value count equals the point count AND every
 // lattice cell is occupied exactly once — so a 20×10 grid yields {cols:20,rows:10}
 // but a ring, a diagonal, or any irregular cloud yields null (the readout then
@@ -49,7 +49,7 @@ export function detectGridDims(coords: number[][]): GridDims | null {
 }
 
 export interface BakedMap {
-  // Coordinates normalized aspect-preserving into [0,1] (ADR-0008/0009, longest
+  // Coordinates normalized aspect-preserving into [0,1] (longest
   // axis fills the unit interval), ready to freeze into a custom map's replay array.
   points: number[][]
   // Sample/display arity, inferred from the raw coords' arity.
@@ -58,12 +58,12 @@ export interface BakedMap {
   gridDims: GridDims | null
 }
 
-// Evaluate a map source (plain-JS `new Function`, float64 — ADR-0008) at the
+// Evaluate a map source (plain-JS `new Function`, float64) at the
 // given count and bake the result: validate arity, detect any regular grid, and
 // normalize to [0,1]. Throws a descriptive error if the source fails to compile,
 // throws while running, or returns empty/mixed/invalid-arity coordinates — the
 // caller surfaces that without crashing the preview. Normalization is
-// aspect-preserving (ADR-0009): a 2:1 map bakes to a 2:1 rectangle, not a square.
+// aspect-preserving: a 2:1 map bakes to a 2:1 rectangle, not a square.
 export function bakeMapSource(source: string, pixelCount: number): BakedMap {
   const raw = evalMapSource(source, pixelCount)
   const dim = inferDim(raw)

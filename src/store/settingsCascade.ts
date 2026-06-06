@@ -1,4 +1,4 @@
-// The per-pattern settings cascade wiring (ADR-0013) — the single place that
+// The per-pattern settings cascade wiring — the single place that
 // composes the four layers into live store state and routes a control's manipulation
 // to the correct layer. No React; orchestrates across the three stores + the pure
 // engine resolver, so components stay thin and this stays unit-testable.
@@ -20,8 +20,8 @@ import { usePreviewStore } from './previewStore'
 import { useMapStore } from './mapStore'
 
 // The active pattern's persisted overrides (layer 1). A user pattern stores them on
-// its PatternRecord; a demo stores them in the keyed demoOverrides map (ADR-0013
-// amendment) — both are layer-1 override bags, so they resolve identically.
+// its PatternRecord; a demo stores them in the keyed demoOverrides map — both
+// are layer-1 override bags, so they resolve identically.
 function activeOverrides(): Partial<Settings> {
   const ps = usePatternStore.getState()
   if (ps.activeDemoName) return ps.demoOverrides[ps.activeDemoName] ?? {}
@@ -43,7 +43,7 @@ function persistOverride<K extends keyof Settings>(field: K, value: Settings[K])
 
 // Whether the active pattern/demo carries any layer-1 overrides. Drives the
 // "Reset to defaults" / "Revert to recommended" affordance: the action clears layer 1,
-// so it is offered exactly when there is something there to clear (ADR-0013).
+// so it is offered exactly when there is something there to clear.
 export function hasActiveOverrides(): boolean {
   return Object.keys(activeOverrides()).length > 0
 }
@@ -69,7 +69,7 @@ export function resolveSettingsForDemo(demoName: string): Settings {
   return resolveSettings({}, recommendedSettingsFor(demoName), globalSticky(), DEV_DEFAULTS)
 }
 
-// Seed the live working stores from the resolved settings (open-time, ADR-0013).
+// Seed the live working stores from the resolved settings (open-time).
 // Replaces the former per-field hydrate/solidity effects. `fidelity` is pure-global
 // (already live in previewStore), so it is not reseeded here.
 export function seedActiveSettings(): void {
@@ -89,14 +89,14 @@ export function seedActiveSettings(): void {
 }
 
 // Write a cascaded override (layer 1) for whatever is active. Routes to the user
-// pattern's record or, for a demo, its keyed override bag (ADR-0013 amendment) — both
+// pattern's record or, for a demo, its keyed override bag — both
 // persist, so a reopen restores the change.
 export function writeCascadedOverride<K extends keyof Settings>(field: K, value: Settings[K]): void {
   persistOverride(field, value)
 }
 
 // Route a hybrid comfort-pref drag (lightSize/diffusion) to the correct layer
-// (ADR-0013): a per-pattern/per-demo override when the active item already has a
+//: a per-pattern/per-demo override when the active item already has a
 // recommendation or existing override for the field, else the global-sticky baseline
 // (set-once-stays-set). A demo now has a persistent override home too, so it follows
 // the same rule as a user pattern.
@@ -118,7 +118,7 @@ export function writeHybrid(field: 'lightSize' | 'diffusion', value: number): vo
 }
 
 // Snapshot the active demo's *effective* settings as a frozen layer-1 override copy
-// for a fork (ADR-0013). Everything except `fidelity` is captured — `fidelity` is
+// for a fork. Everything except `fidelity` is captured — `fidelity` is
 // pure-global and never per-pattern. The fork carries no live pointer back to the
 // demo: later changes to the demo's recommendations never reach this copy. Call this
 // while the demo is still active (before `setActivePattern` flips state).
@@ -134,7 +134,7 @@ export function forkSettingsSnapshotForDemo(demoName: string): Partial<Settings>
   return rest
 }
 
-// "Reset to defaults" (user pattern) / "Revert to recommended" (demo), ADR-0013:
+// "Reset to defaults" (user pattern) / "Revert to recommended" (demo):
 // clear the active item's layer-1 overrides, then re-seed so the live preview drops to
 // the next layer down — recommended (demos) or global + dev-default (user patterns).
 // Hybrid comfort prefs that live in global-sticky are read, not cleared, so a personal

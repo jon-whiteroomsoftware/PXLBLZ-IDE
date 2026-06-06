@@ -2,7 +2,7 @@ import type { MapPoint, PixelMap } from './types'
 
 // Plane grid math + a general rows×cols grid builder.
 //
-// The STOCK plane map is now source-backed (sources/plane.js, ADR-0008) — that
+// The STOCK plane map is now source-backed (sources/plane.js) — that
 // `.js` is the single source of truth the live preview runs. `createPlaneMap`
 // here is NOT that stock map; it is a general utility that lays out an EXPLICIT
 // rows×cols grid (the shim's default render surface, fixed-grid test fixtures).
@@ -16,8 +16,7 @@ export interface PlaneParams {
   cols: number
 }
 
-// Lay a bare pixel count out as the most-square plane that holds it (ADR-0004:
-// the count is the knob; the map decides the arrangement, and the stock plane
+// Lay a bare pixel count out as the most-square plane that holds it (// the count is the knob; the map decides the arrangement, and the stock plane
 // has no aspect to honour, so it squares up). `cols = ceil(sqrt(n))` then
 // `rows = ceil(n/cols)`, so the grid is always wide-enough and at most one row
 // is partial (e.g. 99 → 10×10 with the last cell unused).

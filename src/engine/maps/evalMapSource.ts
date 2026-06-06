@@ -1,4 +1,4 @@
-// The no-shim map-source evaluator (ADR-0008). A stock or custom map's authoring
+// The no-shim map-source evaluator. A stock or custom map's authoring
 // source is a single top-level `function(pixelCount){ … return coords }` written
 // in plain JavaScript — the exact thing a real Pixelblaze Mapper tab evaluates in
 // the browser. We run it the same way the device's browser does: a bare

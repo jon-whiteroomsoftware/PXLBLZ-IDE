@@ -5,7 +5,7 @@
 // positive crossing of the four face planes) and place the point at r = R·cbrt(u)
 // for a van der Corput u, so points are evenly distributed by VOLUME out to the
 // real boundary instead of clustering at the centre. The pixel count is the only
-// knob (ADR-0004). Emits raw coords; the shared normalize pass maps each axis to
+// knob. Emits raw coords; the shared normalize pass maps each axis to
 // [0,1]. A volume carries no per-point boundary normal, so it is not
 // solid-eligible.
 function(pixelCount) {

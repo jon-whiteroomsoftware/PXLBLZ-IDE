@@ -1,19 +1,19 @@
 import type { MapPoint } from './types'
 
-// The shared map normalize pass (ADR-0008, ADR-0009). Stock map sources return
+// The shared map normalize pass. Stock map sources return
 // RAW natural-unit geometry (row/col indices, lattice indices, raw cos/sin in
 // [-1,1]); this single engine pass maps that geometry into [0,1], mirroring how
 // firmware normalizes a map's coordinates at bake time. This replaces the per-map
 // hand-baked `i/(n-1)` that each TS generator used to do.
 //
-// Normalization is ASPECT-PRESERVING, anchored to the longest axis (ADR-0009):
+// Normalization is ASPECT-PRESERVING, anchored to the longest axis:
 // every axis is divided by the SINGLE largest axis range, so the longest axis
 // fills [0,1] and shorter axes get a proportionally smaller range (a 15×10 map →
 // long axis 0..1, short axis 0..0.667). No axis ever exceeds 1.0. This supersedes
 // the old per-axis stretch (each axis independently → [0,1]), a vestige of the
 // square-only 2D renderer that collapsed 15×10, 10×15, and 12×12 maps all to the
 // same unit square — destroying the map's true shape on both the drawn `pos` and
-// the pattern's `sample`. The map is authoritative for aspect (ADR-0009); the
+// the pattern's `sample`. The map is authoritative for aspect; the
 // preview and the pattern both see the true proportion.
 //
 // A fully degenerate input (all points coincident, longest range 0) collapses to
@@ -37,7 +37,7 @@ export type NormalizeMode = 'contain' | 'fill'
 //
 // Fill stretches each axis independently to [0,1] — but ONLY for `sample`, the
 // coordinates the pattern reads. The map is authoritative for the PHYSICAL layout
-// (project axiom; ADR-0009): the pixels' screen positions and the canvas aspect come
+// (project axiom): the pixels' screen positions and the canvas aspect come
 // from `pos`, which must always stay the aspect-preserving Contain coords. So a 2:1
 // map drawn under Fill keeps its 2:1 pixel arrangement and 2:1 canvas — the pattern
 // merely samples a stretched coordinate field that fills the array. (The earlier

@@ -8,20 +8,20 @@ interface PreviewState {
   isRunning: boolean
   speed: number
   brightness: number
-  // Preview light size (ADR-0006/0013): the drawn diameter of each light source as a
+  // Preview light size: the drawn diameter of each light source as a
   // fraction of the inter-dot pitch (diameter = pitch × lightSize). Grows the
   // sources in place — never moves dots or resizes the canvas. A preview-only
   // viewing-comfort pref; never written to a map/controller. A HYBRID cascade field
-  // (ADR-0013): this live value is the working copy seeded from the resolver on open;
+  //: this live value is the working copy seeded from the resolver on open;
   // its global baseline lives in `lightSizeSticky` below.
   lightSize: number
-  // Diffusion (ADR-0006/0013): a blur that merges the light sources. A sibling
+  // Diffusion: a blur that merges the light sources. A sibling
   // viewport pref alongside lightSize — deliberately NOT inside `grid`, so no
   // preview construct lives in anything that could serialize toward a map. Hard
   // invariants: it never changes source size, and it never dims the field. Hybrid
   // cascade field; baseline in `diffusionSticky`.
   diffusion: number
-  // The user global-sticky baselines (cascade layer 3, ADR-0013) for the hybrid
+  // The user global-sticky baselines (cascade layer 3) for the hybrid
   // comfort prefs: a single persisted value the user sets once that applies to any
   // pattern without its own recommendation or override. Distinct from the live
   // `lightSize`/`diffusion` working copies above, which the resolver seeds per open.
@@ -62,7 +62,7 @@ export const previewInitialState = {
   // The Fast renderer (float64) is the default on first load: it's the smoother,
   // good-enough preview. The Precise renderer (16.16 fixed-point) is an opt-in
   // for checking hardware-accurate behaviour — and even it isn't bit-exact
-  // without the device. The pure-global cascade field (ADR-0013): persisted in the
+  // without the device. The pure-global cascade field: persisted in the
   // localStorage blob, never recommended, never per-pattern.
   fidelity: 'fast' as FidelityMode,
   watchPatternVars: false,
@@ -75,7 +75,7 @@ export const previewInitialState = {
 }
 
 // Light size sweeps f: 0.15 (clearly separated) → 0.95 (almost touching), with
-// 0.5 the default (ADR-0006). Clamp so a stale or fat-fingered value can neither
+// 0.5 the default. Clamp so a stale or fat-fingered value can neither
 // collapse sources to a point nor balloon them past touching.
 export const MIN_LIGHT_SIZE = 0.15
 export const MAX_LIGHT_SIZE = 0.95
@@ -91,15 +91,15 @@ function clampDiffusion(d: number): number {
 }
 
 // Merge persisted state over the live state. Only true global prefs are persisted
-// now (ADR-0013): `fidelity` plus the hybrid global-sticky baselines. The live
+// now: `fidelity` plus the hybrid global-sticky baselines. The live
 // `brightness`/`speed` are per-pattern cascaded (seeded by the resolver on open), so
 // they are NOT persisted; a legacy blob's `brightness`/`speed`/`grid` are explicitly
 // destructured OUT and dropped — they can never land back on state.
 //
-// Migration: a pre-0013 blob persisted the live `lightSize`/`diffusion`. Lift those
+// Migration: a pre-cascade blob persisted the live `lightSize`/`diffusion`. Lift those
 // into the new global-sticky baselines so a returning user keeps their dialled-in
 // comfort prefs as the global baseline (`grid.diffusion` is the even older home,
-// ADR-0006, still honoured as a fallback). The live working copies stay at their
+// still honoured as a fallback). The live working copies stay at their
 // initial defaults until the resolver seeds them per pattern.
 export function mergePersistedPreview(persisted: unknown, current: PreviewState): PreviewState {
   const raw = (persisted ?? {}) as Partial<
@@ -135,7 +135,7 @@ export const usePreviewStore = create<PreviewState>()(
     }),
     {
       name: 'pixelblaze-preview',
-      // Only true GLOBAL prefs ride in localStorage now (ADR-0013): the renderer
+      // Only true GLOBAL prefs ride in localStorage now: the renderer
       // choice `fidelity` and the hybrid global-sticky baselines. Per-pattern
       // cascaded fields (brightness/speed) and the live hybrid working copies
       // (lightSize/diffusion) are NOT persisted here — they live on the

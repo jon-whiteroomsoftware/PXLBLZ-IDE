@@ -1,12 +1,12 @@
 // Stock 3D tetrahedron SHELL: LEDs across the four triangular faces of a regular
 // tetrahedron (a four-sided die / d4), a hollow shell — distinct from the filled
-// `tetra-volume`. The pixel count is the knob (ADR-0004), split as evenly as
+// `tetra-volume`. The pixel count is the knob, split as evenly as
 // possible across the four faces; the first (count % 4) faces get one extra. Each
 // face subdivides into a triangular sub-grid and emits the CENTROIDS of the small
 // triangles, so every point sits strictly inside its face, never on a shared
 // edge. Emits raw [-s,s] coords; the shared normalize pass maps each axis to
-// [0,1]. The preview re-derives a per-face outward normal (tetraShellNormals,
-// ADR-0012) and offers the solidity slider.
+// [0,1]. The preview re-derives a per-face outward normal (tetraShellNormals)
+// and offers the solidity slider.
 function(pixelCount) {
   var n = Math.max(0, Math.floor(pixelCount) || 0)
   var s = 1 / Math.sqrt(3)

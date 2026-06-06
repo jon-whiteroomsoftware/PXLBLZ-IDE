@@ -1,7 +1,7 @@
-// Viewport shape embeddings (ADR-0005): pure pos-only generators for 1D layouts.
+// Viewport shape embeddings: pure pos-only generators for 1D layouts.
 //
 // A `render`-only (1D) pattern consumes the index alone — its `sample` is empty
-// (ADR-0005), so where its dots are *drawn* is a pure display choice owned by the
+//, so where its dots are *drawn* is a pure display choice owned by the
 // viewport, not the map. Line, ring, polygon, helix are the same index sequence
 // over the same (empty) sample; they differ only in `pos`. So these embeddings
 // live here in the viewport, not under `maps/`.
@@ -19,10 +19,10 @@ export interface Shape {
   name: string
   // DISPLAY dimensionality of the embedding (not the pattern's): a line reads as
   // 1D, a ring as 2D, a helix as 3D. Gates the viewport's camera control set
-  // (§5, ADR-0005) — a 1D pattern on a ring still gets the 2D top-down camera,
+  // (§5) — a 1D pattern on a ring still gets the 2D top-down camera,
   // while its dispatch stays 1D (the `sample` is always empty).
   displayDim: 1 | 2 | 3
-  // Solid-eligible iff the shape supplies a per-point outward normal (ADR-0011):
+  // Solid-eligible iff the shape supplies a per-point outward normal:
   // the Pole has radial normals (its solidity fade can hide its far side); the
   // flat Line and the camera-facing Ring do not and never offer the slider.
   solidEligible: boolean
@@ -179,7 +179,7 @@ export function polePoint(
 // The outward unit normal at a pole pixel: radial in the U/VP cross-section
 // plane (cos a·U + sin a·VP), pointing away from the body-diagonal axis. Unit
 // length since U,VP are orthonormal; independent of the wrap radius and height.
-// Preview-only (ADR-0011) — feeds the solidity terminator, never serialized.
+// Preview-only — feeds the solidity terminator, never serialized.
 export function poleNormal(
   index: number,
   pixelCount: number,

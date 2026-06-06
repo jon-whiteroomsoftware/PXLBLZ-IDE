@@ -116,7 +116,7 @@ describe('mapFromRecord', () => {
     expect(map.builtin).toBe(false)
     expect(map.dim).toBe(3)
     expect(map.bakedCount).toBe(2)
-    // Over-count replays surplus indices at the 3D origin (ADR-0007 drift).
+    // Over-count replays surplus indices at the 3D origin (baked-replay drift).
     expect(map.resolve(3)[2].pos).toEqual([0, 0, 0])
   })
 })

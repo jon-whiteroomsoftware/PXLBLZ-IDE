@@ -61,17 +61,16 @@ When built, `bundle(patternSrc)` will return `{ code, metadata }`:
 
 Library files go under `src/pixelblaze/lib/` as plain `.js` (not `.ts`) — Acorn parses them directly and they must be valid Pixelblaze dialect. The filename is the namespace (`sdf.js` → `sdf.*`).
 
-### Key ADR constraints
+### Key constraints
 
-- **Float64, not fixed-point** (ADR-0001): the preview runs patterns as native JS float64. No fixed-point emulation. Patterns using bitwise tricks or overflow will differ from hardware — accepted divergence.
-- **Main thread execution** (ADR-0002): patterns run on the main thread via `new Function()` + rAF. A syntactically valid infinite loop freezes the tab. The periodic-sync-tick gate (not per-keystroke eval) reduces but does not eliminate this risk.
+- **Faithful fixed-point preview** (Tech Reference §2/§5): the preview *defaults* to emulating the device's 16.16 fixed-point arithmetic (Precise), with a float64 "Fast" escape hatch. Two divergence classes are accepted: transcendental precision and algorithmic identity (`perlin`/`prng`/`wave`); only pure integer arithmetic is bit-identical.
+- **Main thread execution** (Tech Reference §16): patterns run on the main thread via `new Function()` + rAF. A syntactically valid infinite loop freezes the tab. The periodic-sync-tick gate (not per-keystroke eval) reduces but does not eliminate this risk.
 
 ## Key docs
 
 - **As-built reference**: `docs/PXLBLZ Technical Reference.md` — authoritative description of how the system is built (engine internals, maps, fidelity, connectivity)
 - **Feature guide**: `docs/PXLBLZ Feature Guide.md` — the user-facing view of what the IDE does
 - **Domain glossary**: `CONTEXT.md`
-- **ADRs**: `docs/adr/` — the *why* behind individual design decisions
 
 ## Agent skills
 
@@ -85,4 +84,4 @@ Uses the default five-label vocabulary. See `docs/agents/triage-labels.md`.
 
 ### Domain docs
 
-Single-context repo: `CONTEXT.md` + `docs/adr/` at root. See `docs/agents/domain.md`.
+Single-context repo: `CONTEXT.md` at root. The Technical Reference (`docs/PXLBLZ Technical Reference.md`) is the authoritative record of design decisions and their rationale. See `docs/agents/domain.md`.

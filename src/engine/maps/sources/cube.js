@@ -1,4 +1,4 @@
-// Stock 3D cube lattice. The pixel count is the knob (ADR-0004), cubed up to a
+// Stock 3D cube lattice. The pixel count is the knob, cubed up to a
 // side x side x side lattice: side = round(cbrt(n)). Emits raw integer lattice
 // indices, x-fastest then y then z; the shared normalize pass turns each axis
 // index into [0,1]. A degenerate single-cell axis collapses to 0.

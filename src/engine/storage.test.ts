@@ -91,7 +91,7 @@ describe('storage — patterns', () => {
     expect(result?.controls).toEqual(withControls.controls)
   })
 
-  it('round-trips the per-pattern settings overrides (ADR-0013)', async () => {
+  it('round-trips the per-pattern settings overrides', async () => {
     const db = await makeDb()
     const withSettings: PatternRecord = {
       ...PATTERN,
@@ -110,7 +110,7 @@ describe('storage — patterns', () => {
     expect(result?.settings).toBeUndefined()
   })
 
-  it('lifts legacy flat layout fields into settings on read (ADR-0013)', async () => {
+  it('lifts legacy flat layout fields into settings on read', async () => {
     const db = await makeDb()
     // A pre-0013 record carried the layout selection on the top level.
     const legacy = {
@@ -135,7 +135,7 @@ describe('storage — patterns', () => {
     expect((result as unknown as Record<string, unknown>).pixelCount).toBeUndefined()
   })
 
-  it('migrates a retired surface-cube surfaceId to Flat inside settings (ADR-0012, #170)', async () => {
+  it('migrates a retired surface-cube surfaceId to Flat inside settings (#170)', async () => {
     const db = await makeDb()
     await createPattern({ ...PATTERN, settings: { surfaceId: 'surface-cube' } }, db)
     expect((await getPattern('p1', db))?.settings?.surfaceId).toBe('flat')
@@ -148,7 +148,7 @@ describe('storage — patterns', () => {
     expect((await getPattern('p1', db))?.settings?.surfaceId).toBe('cylinder')
   })
 
-  it('migrates the retired wireframe star mapId to Star (shell) inside settings (ADR-0012, #173)', async () => {
+  it('migrates the retired wireframe star mapId to Star (shell) inside settings (#173)', async () => {
     const db = await makeDb()
     await createPattern({ ...PATTERN, settings: { mapId: 'star' } }, db)
     expect((await getPattern('p1', db))?.settings?.mapId).toBe('star-shell')

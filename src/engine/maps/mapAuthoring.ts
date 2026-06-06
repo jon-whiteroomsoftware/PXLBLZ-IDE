@@ -2,7 +2,7 @@ import * as acorn from 'acorn'
 import type { MapRecord } from '../storage'
 import { STOCK_MAP_SPECS } from './stockCatalogue'
 
-// The editor "map mode" authoring layer (#151, ADR-0008). A custom map's source
+// The editor "map mode" authoring layer (#151). A custom map's source
 // is plain JavaScript — a single anonymous `function(pixelCount){ … return
 // coords }` expression, exactly what a real Pixelblaze Mapper tab evaluates — so
 // this layer uses a *parse-only* JS check (no fixed-point shim, no dialect

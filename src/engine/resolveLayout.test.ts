@@ -217,7 +217,7 @@ describe('resolveLayout — selection correction & precedence', () => {
   })
 
   // Demo recommendations no longer enter resolveLayout: the settings cascade
-  // (ADR-0013) seeds a recommended map/count into the persisted selection upstream,
+  // seeds a recommended map/count into the persisted selection upstream,
   // so they arrive here as ordinary persisted values.
   it('honours a seeded map id in the selection', () => {
     const r = resolveLayout(input({ nativeDim: 3, selection: { mapId: 'sphere' } }), deps)

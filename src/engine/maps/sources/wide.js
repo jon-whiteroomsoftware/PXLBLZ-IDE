@@ -1,5 +1,5 @@
 // Stock 2D wide grid. Like the square plane, the pixel count is the only knob
-// (ADR-0004), but this grid is laid out about twice as wide as it is tall: it
+//, but this grid is laid out about twice as wide as it is tall: it
 // picks rows = ceil(sqrt(n/2)) so cols = ceil(n/rows) comes out roughly 2x rows.
 // Emits raw row/col integer indices in row-major order (x-fastest); the shared
 // normalize pass divides every axis by the longest (the wide axis), so the grid

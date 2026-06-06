@@ -1,5 +1,5 @@
 // Example 3D solid sphere (volume) — points fill the interior of the ball, not
-// just its surface (ADR-0012). Fibonacci-lattice directions give an irregular,
+// just its surface. Fibonacci-lattice directions give an irregular,
 // evenly-spread angular order; the radius grows as cbrt(u) so points are evenly
 // distributed by VOLUME (equal-volume shells get equal counts) instead of
 // clustering at the centre or the rim. The radius fraction u comes from a

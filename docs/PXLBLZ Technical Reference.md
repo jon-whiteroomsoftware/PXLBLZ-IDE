@@ -11,10 +11,9 @@ itself (see the **Pixelblaze Ecosystem Primer**).
 > the implementation (it replaced an earlier `docs/REFERENCE.md`), organised around
 > *why it's built this way* and the Pixelblaze-interfacing decisions, and current as
 > of the live-Controller arc (extension relay, in-app connection UI, pattern/map
-> push and read-back — ADR-0014, §13), the per-pattern settings cascade (ADR-0013),
-> the shell/volume maps (ADR-0012), and solidity (ADR-0011). The **ADRs**
-> (`docs/adr/`) are the authoritative record of individual
-> decisions; this doc summarises and connects them. Where any doc disagrees with the
+> push and read-back, §13), the per-pattern settings cascade,
+> the shell/volume maps, and solidity. This doc is the single authoritative record of
+> the design decisions and the reasoning behind them. Where any doc disagrees with the
 > code, the code wins.
 
 ---
@@ -34,20 +33,20 @@ itself (see the **Pixelblaze Ecosystem Primer**).
 | Tests | **Vitest** | Fast; jsdom for light component smoke tests. |
 | Commit gate | **Husky** | Runs `npm run lint && npm test` pre-commit. |
 
-The overarching stance (ADR-0002/0003/0004): **offline-first, no
+The overarching stance: **offline-first, no
 backend.** Everything — editing, transpiling, running, previewing — happens in the
 browser. The single deliberate exception is the live-Controller connectivity layer
 (§13) — additive, optional, and never required for authoring. It reaches a device
 through a Chrome-extension relay (not a server), so even the exception runs no
-backend of our own (ADR-0014).
+backend of our own.
 
 ---
 
 ## 2. The defining design decision: faithful fixed-point preview
 
 The most consequential interfacing decision is that the preview **defaults to
-emulating the device's 16.16 fixed-point arithmetic** (ADR-0003, superseding the
-original float64-only stance of ADR-0001). The driver is shader porting: the common
+emulating the device's 16.16 fixed-point arithmetic** (superseding an earlier
+float64-only stance). The driver is shader porting: the common
 GLSL hash idiom `fract(sin(p·12.9898)·43758.5453)` overflows 16.16 on hardware while
 looking perfect in float64, so a float-only preview cannot reveal that bug class — it
 would let a pattern pass preview and fail on the device, defeating the whole point.
@@ -62,7 +61,7 @@ hardware artifact is plain unmodified code — the device does fixed-point nativ
 nothing is rewritten for it. The fixed-point machinery exists solely so the *browser*
 can reproduce the device.
 
-Two divergence classes are documented and accepted rather than chased (ADR-0003):
+Two divergence classes are documented and accepted rather than chased:
 **transcendental precision** (`sin`/`sqrt`/… computed in float64 then quantized — a
 small sub-ULP gap) and **algorithmic identity** (`perlin`/`prng`/`wave` are different
 algorithms than firmware). Only **pure integer arithmetic** is bit-identical on both
@@ -93,8 +92,8 @@ A hard split, enforced by convention and load-bearing for the test strategy:
 
 | Store | Holds |
 |---|---|
-| `previewStore` | `isRunning`, `speed`, `brightness`, `lightSize`, `diffusion` (live working copies), `lightSizeSticky`/`diffusionSticky` (global-sticky baselines), `fidelity`, `watchPatternVars`, `watchValues`, `fps`, `elapsed`. Persists only `fidelity` + the two `*Sticky` baselines to `localStorage` (ADR-0013); the cascaded `speed`/`brightness` and the live `lightSize`/`diffusion` are seeded per-pattern by the resolver, not persisted here. |
-| `patternStore` | tri-state selection: `activePatternId` / `activeLibraryName` / `activeDemoName`; `userPatterns`; `demoOverrides` (per-demo cascade layer-1 bag, keyed by demo name, ADR-0013); CRUD. |
+| `previewStore` | `isRunning`, `speed`, `brightness`, `lightSize`, `diffusion` (live working copies), `lightSizeSticky`/`diffusionSticky` (global-sticky baselines), `fidelity`, `watchPatternVars`, `watchValues`, `fps`, `elapsed`. Persists only `fidelity` + the two `*Sticky` baselines to `localStorage`; the cascaded `speed`/`brightness` and the live `lightSize`/`diffusion` are seeded per-pattern by the resolver, not persisted here. |
+| `patternStore` | tri-state selection: `activePatternId` / `activeLibraryName` / `activeDemoName`; `userPatterns`; `demoOverrides` (per-demo cascade layer-1 bag, keyed by demo name); CRUD. |
 | `editorStore` | `source`, `previewSource`, `compileStatus`, `isReadOnly`, `previewPatternName`, `patternVars`, `controls`, `nativeDim`, `displayDim`, `solidEligible`, `editorFlavor` (`'pattern' \| 'map'`). |
 | `mapStore` | `activeMapId`, `activeShapeId`, `activeSurfaceId`, `activePixelCount`, `activeNormalizeMode` (Fill/Contain), `activeSolidity`, `userMaps`, stock catalogue. |
 | `controlStore` | current pattern UI control values (transient). |
@@ -107,10 +106,10 @@ and write state outside React**. Each store exports `*InitialState`; tests reset
 `setState(initialState)` (merge mode). `previewStore`'s persist layer
 (`mergePersistedPreview`) drops the legacy `grid` blob, the stale per-pattern
 `brightness`/`speed`, and migrates `grid.diffusion` — and a pre-cascade blob's
-live `lightSize`/`diffusion` — forward into the global-sticky baselines (ADR-0013).
-The preview-wide grid is retired (ADR-0009; §8).
+live `lightSize`/`diffusion` — forward into the global-sticky baselines.
+The preview-wide grid is retired (§8).
 
-> **Per-pattern settings cascade (ADR-0013).** Effective preview settings resolve
+> **Per-pattern settings cascade.** Effective preview settings resolve
 > field-by-field through four layers, first hit wins: per-pattern override →
 > recommended (curated patterns only) → user global-sticky (comfort prefs only) →
 > developer default. The pure resolver is `resolveSettings` (`src/engine/resolveSettings.ts`)
@@ -120,8 +119,8 @@ The preview-wide grid is retired (ADR-0009; §8).
 > `resetActiveSettings`, `hasActiveOverrides`). Layer-1 overrides live sparsely and are
 > written only on genuine user manipulation: a **user pattern** stores them on
 > `PatternRecord.settings`; a **demo** stores them in `patternStore.demoOverrides`
-> (keyed by demo name, persisted under the `demoOverrides` settings-KV key — ADR-0013
-> amendment), so a demo's tweaks survive a reopen and `writeHybrid` treats it like a
+> (keyed by demo name, persisted under the `demoOverrides` settings-KV key),
+> so a demo's tweaks survive a reopen and `writeHybrid` treats it like a
 > pattern. `resetActiveSettings` clears whichever layer-1 bag is active (demo → reverts
 > to recommended; user pattern → app defaults) and is offered (`hasActiveOverrides`)
 > only when that bag is non-empty. `fidelity` is the one **pure-global** field — never
@@ -243,7 +242,7 @@ aspect-preserving normalize per §8). **Deploy to preview** (`canDeployMap`) sel
 baked map as the active layout — enabled only when the bake is clean and its dim
 matches the previewed pattern. The source bakes at the active `pixelCount` or, with
 none set, `DEFAULT_MAP_BAKE_COUNT`; deploy never pins or overrides `pixelCount`
-(ADR-0004). Eval failures surface in the header without crashing. `isMapOpenable` gates
+. Eval failures surface in the header without crashing. `isMapOpenable` gates
 which persisted records reopen (only those carrying `source` — i.e. custom maps, never
 stock).
 
@@ -278,20 +277,20 @@ there is no firmware auto-sync.
 ## 8. Maps, embeddings, and the sample/position split
 
 This is the richest interfacing area, and the one where the IDE's model has been
-refined most (ADR-0004/0005/0007/0008/0009/0010/0011/0012).
+refined most.
 
 ### The core model
 
-- **`pixelCount` is independent of the map** (ADR-0004). The render loop iterates
+- **`pixelCount` is independent of the map**. The render loop iterates
   `0…pixelCount-1` and asks the map for each index's position; the map is an
   index→position lookup, never the authority on count. This mirrors hardware, where
   `pixelCount` and the installed map are separate settings that can disagree.
-- **Each map point has two channels** (ADR-0005): **`sample`** — the coordinates fed
+- **Each map point has two channels**: **`sample`** — the coordinates fed
   to the render fn, always map-owned — and **`pos`** — where the dot is drawn, which
   is *dual-sourced*: map-intrinsic when the map encodes real geometry, or
   *viewport-supplied* when the pattern leaves position free.
 
-### Maps are source-backed plain JavaScript (ADR-0008)
+### Maps are source-backed plain JavaScript
 
 A map function is **plain JavaScript run in the browser**, never the Pixelblaze
 dialect and never run through the fixed-point shim — because that is exactly what
@@ -318,7 +317,7 @@ runs — single source of truth, no parallel TS generator to drift. Stock maps
 
 The shipped catalogue (`STOCK_MAP_SPECS`): `plane` (label "Square"), `wide`
 ("Wide 2:1"), `seed-ring-2d` ("Ring") — 2D; and the 3D set, named by the **shell /
-volume** scheme (ADR-0012): `cube` ("Cube volume"), `cube-shell` ("Cube shell"),
+volume** scheme: `cube` ("Cube volume"), `cube-shell` ("Cube shell"),
 `star-shell`/`star-volume`, `seed-sphere-3d` ("Sphere shell"),
 `sphere-volume`, and `tetra-shell`/`tetra-volume` (a four-sided die / d4). Shell
 entries carry a `normals` recipe
@@ -329,7 +328,7 @@ which `createSourceMap` maps to the live count→dims derivation backing
 dims; absent ⇒ `gridDims` returns null (the irregular clouds and shells).
 The old wireframe `star` and the no-source "drape cylinder" are both retired.
 
-### Custom maps bake on save (ADR-0007)
+### Custom maps bake on save
 
 A custom map is evaluated **once** (float64, no shim) and its coordinate array frozen
 into the `MapRecord`; `resolve(pixelCount)` *replays* that baked array index-aligned.
@@ -339,7 +338,7 @@ pixelCount, forgot to re-save the Mapper" stale-map drift. A `MapRecord` carries
 regular lattice (for the layout readout). Baked replay applies to **custom maps only**
 (stock maps regenerate).
 
-### Aspect normalization: Fill / Contain (ADR-0009, amended #174)
+### Aspect normalization: Fill / Contain (amended #174)
 
 A single shared pass maps raw geometry into `[0,1]`, in one of two modes — both real,
 faithful Mapper behaviours, a **per-pattern** choice persisted on
@@ -358,7 +357,7 @@ state is gone.
 ### Viewport embeddings: shapes (1D) and surfaces (2D)
 
 An embedding owns `pos` while the map owns `sample` — the sample/position split,
-spanning both dimensions (ADR-0010). All embeddings are pure `pos`-only generators.
+spanning both dimensions. All embeddings are pure `pos`-only generators.
 
 - **Shapes** (`shapes.ts`, 1D): `line`, `ring` (pure `embed(index, count) → [x,y]`),
   and `pole` (a helix wound on a cylinder, drawn in 3D via `polePositions`, with a
@@ -368,7 +367,7 @@ spanning both dimensions (ADR-0010). All embeddings are pure `pos`-only generato
   `cylinder` (wraps the map's *raw integer* `gridDims` around a tube; `circumference:
   height = cols:rows`, so geometry is fully map-derived, no slenderness knob).
 
-**Three embedding mechanisms, fixed by source-map arity** (ADR-0012): a 2D map can
+**Three embedding mechanisms, fixed by source-map arity**: a 2D map can
 only wrap onto a **developable** Surface (Flat or Cylinder — a sphere needs a
 distortive projection, a cube net only takes square-per-face grids, so neither is a
 Surface); a 3D map owns its geometry directly as a **shell** (points on a boundary,
@@ -376,7 +375,7 @@ solid-eligible) or a **volume** (interior fill, never solid-eligible).
 
 ### Layout routing (`layout.ts`)
 
-Two orthogonal controls, not one union dropdown (ADR-0010): a **Map** control (owns
+Two orthogonal controls, not one union dropdown: a **Map** control (owns
 `sample`, filtered by sample-arity) and an **embedding** control (owns `pos` —
 shapes for 1D, surfaces gated on the map's `gridDims` for 2D). `resolveLayoutSelection`
 restores a persisted selection if still valid, else a default, optionally honouring a
@@ -411,7 +410,7 @@ cases: a map shows a label exactly when its `gridDims` is non-null — the Squar
 planes and the volumetric cube's side³ lattice do; shells and irregular clouds (Ring,
 sphere shell) don't. Each branch's MODELED count runs through one selector,
 `effectivePixelCount({ persisted, recommended, baked, fallback })` (`persisted ??
-recommended ?? baked ?? fallback`, ADR-0004) — re-exported so the deck's editable count
+recommended ?? baked ?? fallback`) — re-exported so the deck's editable count
 box reads the same chain the renderer does, rather than open-coding it.
 
 ### Recommended settings (`demos.ts`)
@@ -420,7 +419,7 @@ Read-only demos carry no `PatternRecord`, so a single preview-only, IDE-side tab
 sets better on-open defaults: `RECOMMENDED_SETTINGS`, keyed by curated-pattern id, with
 `recommendedSettingsFor(name)` the lookup (e.g. `AuroraSphere → { mapId:'seed-sphere-3d',
 pixelCount: 4096, solidity: 1 }`). This is **layer 2** of the settings cascade
-(ADR-0013) and collapses the three former sibling registries
+ and collapses the three former sibling registries
 (`DEMO_RECOMMENDED_MAPS`/`_PIXEL_COUNTS`/`_SOLIDITIES`) into one object holding any
 subset of the cascaded fields. It sets the on-open default only; everything stays
 switchable, and a user override outranks the recommendation. **None reaches the
@@ -429,7 +428,7 @@ patterns and maps, never associations.
 
 ---
 
-## 9. Solidity & surface normals (ADR-0011/0012)
+## 9. Solidity & surface normals
 
 **Solidity** is a preview-only, *per-pattern* display property of any normal-bearing
 embedding or shell map: a `0 = transparent → 1 = solid` slider that fades out
@@ -482,7 +481,7 @@ A thin WebGL wrapper over `camera.ts`. All pixels draw as one `gl.POINTS` call; 
 fragment shader renders a per-source kernel — a solid round core plus an optional
 raised-cosine (Hann) glow tail — discarding outside the inscribed circle.
 
-- **Diffusion** is a per-source point-spread, not a frame blur (ADR-0006).
+- **Diffusion** is a per-source point-spread, not a frame blur.
   `diffusionGlow(diffusion, coreDiameterPx, pitchPx)` returns the grown quad size, a
   dissolving `coreFrac`, and an overlap-normalised `peak` so the field never dims or
   blows out. As diffusion → 1 the solid core dissolves into one smooth bump.
@@ -539,10 +538,10 @@ decisions:
 
 **IndexedDB** (`pixelblaze-ide`, version 2): `patterns`, `settings`, `maps` object
 stores. `PatternRecord` carries the per-pattern preview overrides in a sparse
-`settings?: Partial<Settings>` field — **layer 1** of the settings cascade (ADR-0013),
+`settings?: Partial<Settings>` field — **layer 1** of the settings cascade,
 superseding the older flat `mapId`/`shapeId`/`surfaceId`/`pixelCount`/`solidity`/
 `normalize` columns. `migratePatternRecord` lifts a pre-cascade record's flat fields
-into the nested `settings` bag on read, and still rewrites retired ids (the ADR-0012
+into the nested `settings` bag on read, and still rewrites retired ids (the
 `surface-cube` → `flat`, `star` → `star-shell`) — schemaless throughout, so no DB
 bump. Overrides are written sparsely and only on genuine user manipulation
 (`updatePatternSettings`, a sparse merge that does **not** bump `src`/`updatedAt`);
@@ -553,23 +552,23 @@ animated starter immediately. **Import** parses `.epe` JSON (`epeImport.ts`, tak
 `sources.main`) into a new user pattern. **Fork** copies a read-only demo into an
 editable pattern, snapshotting the demo's *effective* settings into the new record's
 `settings` as frozen layer-1 overrides (everything except pure-global `fidelity`) — a
-frozen copy with no live pointer back to the demo (`forkSettingsSnapshot`, ADR-0013).
+frozen copy with no live pointer back to the demo (`forkSettingsSnapshot`).
 CRUD helpers accept an injectable `IDBFactory` for tests (`fake-indexeddb`).
 
 ---
 
-## 13. Live Controller connectivity (ADR-0014)
+## 13. Live Controller connectivity
 
 The IDE can connect to a **real Pixelblaze** and mirror/drive it live: a status
 surface, a live panel, and **Send to Controller** for patterns and maps. The whole
-stack sits behind one provider seam (ADR-0014), so no UI imports a transport.
+stack sits behind one provider seam, so no UI imports a transport.
 
 ### The constraint that shapes everything
 
 From an **https** GitHub Pages deployment the browser cannot open `ws://<LAN-IP>:81`
 directly — mixed *active* content, blocked outright (Ecosystem Primer §7). So a helper
 outside the browser sandbox must relay. The v1 helper is a **Chrome extension**
-(ADR-0014, superseding the Node "local bridge" originally
+(superseding the Node "local bridge" originally
 anticipated): the page cannot reach the device, but the extension's service worker can.
 
 ### The isomorphic protocol core (`PixelblazeConnection`)
@@ -593,7 +592,7 @@ the original Node-side tooling:
 ### The provider seam (`ControllerProvider`)
 
 `ControllerProvider` (`src/engine/ControllerProvider.ts`) is the **firewall** that
-contains the entire "how do we reach a Controller" decision (ADR-0014). It exposes
+contains the entire "how do we reach a Controller" decision. It exposes
 `connect`/`disconnect`, a `ControllerStatus` subscription (a discriminated union:
 `no-extension | extension-present | connecting | connected | error`), the read/monitor
 surface (`getConfig`, telemetry, `listPrograms`, `getControls`/`setControls`,
@@ -623,14 +622,14 @@ state machine, a keepalive ping, a **liveness watchdog** (declare the device gon
 evict the service worker; a powered-off Controller is expected back, so it keeps
 probing).
 
-### Per-IP just-in-time host permissions (ADR-0015)
+### Per-IP just-in-time host permissions
 
 The extension must reach `ws://<LAN-IP>:81` and `http://<LAN-IP>/…` (compiler fetch,
 `/pixelmap.dat` read-back) at *runtime-discovered* IPs, but Chrome match patterns can't
 express "the local network" (no CIDR, no partial octets) and a static broad
 `ws://*/*` + `http://*/*` grant reads as a network-sniffing surface that fails Web Store
 review (#229). So the LAN reach lives in **`optional_host_permissions`**, granted **per
-device IP, just-in-time** (ADR-0015). Only `https://discover.electromage.com/*` is a
+device IP, just-in-time**. Only `https://discover.electromage.com/*` is a
 required host permission — discovery must work before any device IP is known. When the
 app connects to an IP not yet granted, the service worker opens the extension's action
 popup (`chrome.action.openPopup()`), which calls
@@ -796,7 +795,7 @@ one-click), distinct from routine pattern deploy. `mapPush.ts` encodes the binar
 a 12-byte header of three LE uint32 `[formatVersion, numDimensions, bodyBytes]` then
 each coordinate as a `formatVersion`-byte LE uint. **Deliberate divergence from the
 reference:** our `points` are already firmware-normalized to `[0,1]` by the preview
-layout (Contain/Fill, the user's per-map choice — ADR-0009), so we scale straight
+layout (Contain/Fill, the user's per-map choice), so we scale straight
 through and only clamp, rather than re-running the reference's per-axis Fill stretch
 (which would silently break aspect). What the preview shows is exactly what the device
 receives.
@@ -812,7 +811,7 @@ Two firmware facts gate the rest:
   conforming any map whose `function(pixelCount)` honours its argument. A hard-coded
   point count can't conform that way — the remedy is to set the device count to match,
   which is why the panel's **`pixels` row is editable** (`setPixelCount(n, save:true)`,
-  #213). This is a *push-time* constraint, distinct from ADR-0004's post-hoc stale-map
+  #213). This is a *push-time* constraint, distinct from the post-hoc stale-map
   drift (changing `pixelCount` after a valid save).
 - **Map read-back is an HTTP GET of `/pixelmap.dat`, not a WS call** (#205). There is no
   "get map" WS message (`putPixelMap` type 8 is send-only) and `getConfig` carries no
@@ -877,14 +876,31 @@ and run out-of-band.
 - **Algorithmic divergence** — `perlin`/`prng`/transcendentals are different
   algorithms than firmware (documented, not chased). Only pure integer arithmetic is
   bit-identical.
-- **Main-thread execution** (ADR-0002) — patterns run via `new Function()` + rAF; a
-  valid infinite loop freezes the tab (no watchdog). The clean-compile debounce
-  reduces but doesn't eliminate this. A combined exec+OffscreenCanvas worker is the
-  designated future lever (analysed in ADR-0002), deferred until the watchdog or 3D
-  responsiveness genuinely bites.
+- **Main-thread execution** — patterns are evaluated and rendered on the main thread
+  (`new Function()` + rAF + Canvas/WebGL), with no Web Worker isolation. A
+  syntactically valid infinite loop therefore freezes the entire tab (editor included),
+  forcing a reload; there is no watchdog (real hardware has one). The clean-compile
+  debounce — only (re-)evaluating on the periodic clean-compile tick, never per
+  keystroke — reduces but does not eliminate this, because a valid infinite loop passes
+  the parse+validate gate. The deferred fix is **one combined worker**: run pattern
+  *exec and OffscreenCanvas draw together* in a single worker so the whole hot loop
+  (render fns → fixed-point shim → projection → draw) lives off the main thread and
+  pixel buffers never cross the boundary (only low-frequency control/camera messages
+  do, so per-frame `postMessage` cost evaporates). A worker **relocates** execution, it
+  does not **accelerate** it (same engine, same single core) — so it is *not* a
+  3D-throughput fix (that stays the job of the pixel-count cap and small default 3D
+  map). Its two real prizes are **responsiveness** (editor/controls stay live while a
+  heavy 3D pattern grinds) and a **real watchdog** (a worker is `terminate()`-able after
+  a timeout — the thing hardware has and this preview lacks). It needs no
+  `SharedArrayBuffer` (whose cross-origin-isolation headers GitHub Pages cannot set);
+  transferables + low-frequency messaging suffice. The honest cost is that the engine's
+  synchronous, framework-free orchestration becomes message-passing async at the
+  `renderLoop` seam — so it is deferred until the watchdog or 3D responsiveness genuinely
+  bites. The pure modules (`camera.ts`, generators, shim math) stay synchronously
+  unit-testable regardless.
 - **Inert sensors** — sound/sensor-expansion globals are stubs; reactive patterns run
   but don't animate.
-- **`fidelity` is pure-global by design** (ADR-0013) — the renderer is a
+- **`fidelity` is pure-global by design** — the renderer is a
   machine/performance choice, never recommended and never per-pattern; it persists as
   one global value (superseding the old #90 "not per-pattern" framing).
 
@@ -894,10 +910,5 @@ and run out-of-band.
 
 - **Feature guide** (using the IDE) — `docs/PXLBLZ Feature Guide.md`.
 - **Pixelblaze ecosystem primer** (the platform itself) — `docs/Pixelblaze Ecosystem Primer.md`.
-- **ADRs** — `docs/adr/` (0002 main-thread; 0003 fixed-point fidelity; 0004 pixelCount
-  independence; 0005 sample/pos; 0006 light size + diffusion; 0007 bake-on-save; 0008
-  map functions are plain JS; 0009 maps authoritative / Fill+Contain; 0010 surfaces;
-  0011 solidity; 0012 shell/volume + three embedding mechanisms; 0013 per-pattern
-  settings cascade; 0014 Controller via extension relay).
 - **Domain glossary** — `CONTEXT.md`.
 - **Porting guide** — `docs/guides/Porting ShaderToy shaders to Pixelblaze.md`.

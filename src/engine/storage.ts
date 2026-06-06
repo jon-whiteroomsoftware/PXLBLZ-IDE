@@ -16,7 +16,7 @@ export interface PatternRecord {
   // The active map's generator params. Not a cascaded setting (it rides with the
   // map, not the four-layer settings cascade), so it stays a flat field.
   params?: Record<string, number>
-  // Sparse per-pattern settings overrides — cascade layer 1 (ADR-0013). Written
+  // Sparse per-pattern settings overrides — cascade layer 1. Written
   // only on genuine user manipulation of a control; a field absent here flows from
   // a lower cascade layer (recommended / global-sticky / dev-default). Supersedes
   // the former flat layout fields (mapId/shapeId/surfaceId/pixelCount/solidity/
@@ -34,16 +34,16 @@ export interface MapRecord {
   generator: string                // e.g. 'plane', or 'custom' for a baked map
   params: Record<string, number>
   // Baked coordinate array for a custom map (`generator: 'custom'`), authored
-  // once and replayed index-aligned by resolve (ADR-0007). Absent for stock
+  // once and replayed index-aligned by resolve. Absent for stock
   // generator-based maps. Schemaless add — no DB_VERSION bump needed.
   points?: number[][]
   // The custom map's authoring source: plain JavaScript `function(pixelCount){ …
-  // return coords }` (ADR-0008), never the Pixelblaze dialect and never run
-  // through the fixed-point shim. A custom map is source + baked output (ADR-0007);
+  // return coords }`, never the Pixelblaze dialect and never run
+  // through the fixed-point shim. A custom map is source + baked output;
   // a record with no `source` (every stock map) is not openable in the editor.
   // Schemaless add — no DB_VERSION bump needed.
   source?: string
-  // The custom map's recorded grid shape (ADR-0009), when its baked points form
+  // The custom map's recorded grid shape, when its baked points form
   // a regular lattice: { cols, rows, depth? }. Captured at bake so the preview's
   // layout readout shows e.g. `20×10`; absent for an irregular point cloud.
   // Schemaless add — no DB_VERSION bump needed.
@@ -52,7 +52,7 @@ export interface MapRecord {
 }
 
 // The former flat layout fields, now lifted into the nested `settings` bag
-// (ADR-0013). A pre-0013 record carries these on the top level; the migration moves
+// An older record carries these on the top level; the migration moves
 // them into `settings` and strips them from the root.
 const LEGACY_FLAT_SETTING_KEYS = [
   'mapId',
@@ -65,10 +65,10 @@ const LEGACY_FLAT_SETTING_KEYS = [
 
 // Normalize a pattern record read from IDB (schemaless, no DB_VERSION bump). Two
 // concerns, in order:
-//   1. ADR-0013: lift the former flat layout fields into the nested `settings` bag,
+//   1. the settings cascade: lift the former flat layout fields into the nested `settings` bag,
 //      stripping them from the root, so the override set is one cohesive Partial.
 //   2. #170/#173: correct stale embedding ids inside `settings` — the retired
-//      `surface-cube` Surface (ADR-0012) maps to Flat, and the retired wireframe
+//      `surface-cube` Surface maps to Flat, and the retired wireframe
 //      `star` map splits into Star (shell), the faceted default.
 // Pure over the record; idempotent (an already-migrated record is untouched).
 export function migratePatternRecord(record: PatternRecord): PatternRecord {

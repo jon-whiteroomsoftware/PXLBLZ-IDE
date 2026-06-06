@@ -1,8 +1,8 @@
 // Stock 3D star SHELL: LEDs spread over the SURFACE of a stellated icosahedron
-// (ADR-0012) — an icosahedron body with a pyramidal spike over each of its 20
+// — an icosahedron body with a pyramidal spike over each of its 20
 // triangular faces, so the surface is 60 slanted triangles. Distinct from the
 // retired wireframe star (lights on the edges) and the filled star-volume. The
-// pixel count is the only knob (ADR-0004): points are dealt round-robin across
+// pixel count is the only knob: points are dealt round-robin across
 // the 60 faces, each placed strictly INSIDE its triangle via a Halton-folded
 // barycentric coordinate (never on a shared edge). Emits raw coords; the shared
 // normalize pass maps each axis to [0,1], aspect-preserving (the star is

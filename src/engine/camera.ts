@@ -31,7 +31,7 @@ export function clampPixelCount(n: number): number {
 
 // Derive a cube lattice side (points per axis) from a bare pixel count: the
 // stock cube has no aspect to honour, so it cubes up to the side nearest the
-// count's cube root (ADR-0004 — the count is the knob, the map arranges it).
+// count's cube root (the count is the knob, the map arranges it).
 // Floored at 2 (a single-point cube has no extent) and capped so side³ stays
 // under the freeze guard. The realized count is side³, which may differ from
 // the requested count (e.g. 500 → side 8 → 512).
@@ -44,7 +44,7 @@ export function cubeSideForCount(n: number): number {
 // ── Locked-2D camera (pos-bounds driven) ─────────────────────────────────────
 //
 // The 2D-display half of the preview camera. The active layout's resolved `pos`
-// is the single source of the preview's extent and aspect (ADR-0009) — there is
+// is the single source of the preview's extent and aspect — there is
 // no global rows/cols grid. These pure helpers measure the layout's bounds and
 // neighbour spacing and project each `pos` into clip space, exactly the way the
 // 3D path derives its extent from `modelHalfExtent` / `nearestNeighborSpacing`.
@@ -126,7 +126,7 @@ export function projectPosInBounds(
 // NN over the full set, median) so it is cheap and robust to a lone far point.
 // Coincident duplicates (distance 0) are NOT counted as neighbours: a baked
 // custom map rendered above its bakedCount piles surplus indices on the origin
-// (ADR-0007), and a pile of zero-distance points would otherwise drag the median
+//, and a pile of zero-distance points would otherwise drag the median
 // pitch to 0 — collapsing the measured pitch and ballooning the light size into a
 // whole-frame bloom. Excluding zeros keeps the pitch the spacing among DISTINCT
 // positions, so the honest degraded render (a bright origin overlap + correctly
@@ -299,7 +299,7 @@ export function projectOrbit(
 
 // Map `projectOrbit`'s rotated depth to a WebGL clip-space z for the depth
 // buffer, so 3D orbs render OPAQUE (nearer occludes farther) instead of
-// additively blending into a translucent, washed-out field (ADR-0006: diffusion
+// additively blending into a translucent, washed-out field (diffusion
 // 0 must read as crisp, distinct sources). `projectOrbit` returns larger-z =
 // nearer; the depth test keeps the SMALLEST z, so nearer maps to the smaller
 // (front) clip z. Normalized by the model's worst-case half-extent so it spans
@@ -353,7 +353,7 @@ export function neighborPitchPx(
 // those — robust to a lone far point or a wrap seam. O(sample × N), run once per
 // layout change (never per frame). Coincident duplicates (distance 0) are not
 // counted as neighbours, so an origin pile from an over-count custom map replay
-// (ADR-0007) can't collapse the pitch to 0 — see `nearestNeighborSpacing2D`.
+// can't collapse the pitch to 0 — see `nearestNeighborSpacing2D`.
 // Returns 0 for fewer than two points.
 export const NN_SAMPLE_LIMIT = 1024
 export function nearestNeighborSpacing(
@@ -383,7 +383,7 @@ export function nearestNeighborSpacing(
 
 // Drawn light-source diameter in pixels for a 3D layout (the un-cued base, before
 // per-dot depth cueing): the measured neighbour pitch times the preview light-size
-// fraction (ADR-0006), so "almost touching" (lightSize → 1) lands at the same felt
+// fraction, so "almost touching" (lightSize → 1) lands at the same felt
 // point as the 2D plane across every layout (#63).
 export function point3DSize(
   canvasPx: number,
@@ -394,10 +394,10 @@ export function point3DSize(
   return Math.max(1, neighborPitchPx(canvasPx, spacingNorm, scale) * lightSize)
 }
 
-// Default preview light size, and the store's initial value (ADR-0006).
+// Default preview light size, and the store's initial value.
 export const DEFAULT_LIGHT_SIZE = 0.5
 
-// Per-source diffusion glow (ADR-0006, revised twice). Diffusion is modelled as
+// Per-source diffusion glow (revised twice). Diffusion is modelled as
 // each light source's point-spread *widening* — a soft radial profile grown around
 // the core — NOT a Gaussian blur of the whole rendered frame. A frame blur is a
 // low-pass filter: it drains the bright cores, bleeds light past the array edge
@@ -514,13 +514,13 @@ export function depthCue(
   }
 }
 
-// ── Solidity terminator (ADR-0011) ───────────────────────────────────────────
+// ── Solidity terminator ───────────────────────────────────────────
 //
 // A solid object hides its own back: on a solid-eligible surface embedding the
 // preview suppresses BACK-facing points so the far side doesn't shine through
 // the gaps between the near points. This is a geometric visibility factor folded
 // into the per-vertex brightness beside `depthCue` — NOT the brightness control,
-// so ADR-0006's "brightness is the only control that changes brightness" holds.
+// so the "brightness is the only control that changes brightness" invariant holds.
 //
 // `facing` is the point's outward unit normal dotted with the view direction
 // (toward the camera): the rotated normal's z under `orbitRotate` (the view looks

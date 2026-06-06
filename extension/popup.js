@@ -1,4 +1,4 @@
-// Action popup for the PXLBLZ-IDE Controller Helper (#229, ADR-0015).
+// Action popup for the PXLBLZ-IDE Controller Helper (#229).
 //
 // The ONLY context that may call chrome.permissions.request: content scripts
 // can't, and the service worker has no user gesture after an async hop. So the

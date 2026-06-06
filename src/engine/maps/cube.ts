@@ -1,5 +1,5 @@
 // Cube LAYOUT math. The stock cube's coordinate generation now lives in its
-// source-backed `.js` (sources/cube.js, ADR-0008); this module keeps only the
+// source-backed `.js` (sources/cube.js); this module keeps only the
 // pure side³ count helper the preview uses to size the run loop to the lattice.
 
 // The pixel count a cube map models: side³ (the renderer's freeze guard still

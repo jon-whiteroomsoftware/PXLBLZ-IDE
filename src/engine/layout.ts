@@ -1,4 +1,4 @@
-// The Layout controls' routing logic (ADR-0005/ADR-0010) — pure, no React/DOM.
+// The Layout controls' routing logic — pure, no React/DOM.
 //
 // Layout is two orthogonal controls, not one union dropdown:
 //   • the MAP control owns `sample` (the [u,v] the pattern reads), and
@@ -28,7 +28,7 @@ import { centroidNormals, faceNormals } from './centroidNormals'
 import { starShellNormals } from './maps/starGeometry'
 import { tetraShellNormals } from './maps/tetraGeometry'
 
-// The map a NormalRecipe tag resolves to its derivation (ADR-0011/0012): the
+// The map a NormalRecipe tag resolves to its derivation: the
 // catalogue declares the recipe NAME; the resolver owns the function lookup, so
 // no map-id strings leak in here. A new shell ships its recipe in the catalogue.
 const NORMAL_FNS: Record<NormalRecipe, (positions: [number, number, number][]) => [number, number, number][]> = {
@@ -76,7 +76,7 @@ export interface MapMeta {
   // How the map is DRAWN, when it differs from `dim`. Absent ⇒ same as `dim`.
   displayDim?: 1 | 2 | 3
   // Whether the map exposes a clean integer `cols×rows` grid a surface can wrap
-  // (ADR-0010). The stock Square/Wide and regular-lattice custom maps qualify;
+  // The stock Square/Wide and regular-lattice custom maps qualify;
   // an irregular cloud does not, so it is offered Flat only.
   wrappable?: boolean
   // True for a built-in stock map, false/absent for a user-authored one — drives the
@@ -134,7 +134,7 @@ export function embeddingOptions(
     .map((s) => ({ kind: 'surface' as const, id: s.id, name: s.name, displayDim: s.displayDim }))
 }
 
-// The per-pattern layout selection persisted on `PatternRecord` (ADR-0004/0005/0010).
+// The per-pattern layout selection persisted on `PatternRecord`.
 export interface LayoutSelection {
   mapId?: string
   shapeId?: string
@@ -166,7 +166,7 @@ export function selectedEmbeddingId(
   return undefined
 }
 
-// Resolve the on-open solidity for a layout (ADR-0011), the same precedence
+// Resolve the on-open solidity for a layout, the same precedence
 // family as the recommended map/count: a user pattern's PERSISTED solidity wins
 // outright; otherwise a demo's RECOMMENDED solidity is the on-open default ahead
 // of the global `fallback` (1.0). A demo persists nothing, so the recommendation
@@ -179,7 +179,7 @@ export function resolveSolidity(
   return persisted ?? recommended ?? fallback
 }
 
-// The single precedence chain for a layout's MODELED pixel count (ADR-0004), the
+// The single precedence chain for a layout's MODELED pixel count, the
 // pre-arrangement knob the user edits — before a map squares it up to a lattice
 // (cube/plane) or a shape stretches it along a strip. A pattern's PERSISTED count
 // wins; else a demo's RECOMMENDED count; else a custom map's BAKED length (the
@@ -206,7 +206,7 @@ export function effectivePixelCount(opts: {
 // of the offered set), so selecting a wrappable map never surprise-wraps.
 //
 // On-open demo recommendations no longer enter here: the settings cascade
-// (ADR-0013) seeds a recommended `mapId` into the persisted selection before this
+// seeds a recommended `mapId` into the persisted selection before this
 // runs, so a demo's map arrives as the persisted choice like any other.
 export function resolveLayoutSelection(
   persisted: LayoutSelection,
@@ -238,7 +238,7 @@ export function resolveLayoutSelection(
 
 // ---------------------------------------------------------------------------
 // resolveLayout — the single seam from a Layout *selection* to its *resolved*
-// drawn realization (ADR-0004/0005/0008/0009/0010/0011/0012).
+// drawn realization.
 //
 // Given the persisted selection, the pattern's native dimensionality, the
 // modeled pixel count and normalize mode, this corrects the selection (via
@@ -254,7 +254,7 @@ export function resolveLayoutSelection(
 // store/React import, no import cycle) and table-testable with fakes: a test
 // supplies a stub `resolveMap` returning a controlled PixelMap.
 
-// The 3D channel carries per-point normals (present ⇔ solid-eligible, ADR-0011);
+// The 3D channel carries per-point normals (present ⇔ solid-eligible);
 // the 2D channel never does. `displayDim` (1|2|3) is the LOGICAL display
 // dimension for UI gating, distinct from the draw channel — a 1D line and a 2D
 // ring both draw through the 2D channel.
@@ -300,7 +300,7 @@ export interface ResolveLayoutInput {
   source: LayoutSource
   // The modeled pixel count (null ⇒ use a default). A demo's recommended count
   // arrives here already, seeded into the persisted selection by the settings
-  // cascade (ADR-0013).
+  // cascade.
   persistedCount: number | null
   normalizeMode: NormalizeMode
   // The ephemeral pole-wrap density (null ⇒ the shape default).
@@ -355,7 +355,7 @@ export function resolveLayout(
     }
   } else {
     const map = resolveMap(correctedSelection.mapId)
-    // The shared modeled count for every map branch (ADR-0004): a stock generator
+    // The shared modeled count for every map branch: a stock generator
     // carries no `baked`, so that slot drops out; the cube then squares this up.
     const modeledCount = effectivePixelCount({
       persisted: persistedCount,
@@ -364,7 +364,7 @@ export function resolveLayout(
     })
     if (map.dim === 3) {
       if (map.id === 'cube') {
-        // 3D cube lattice: the count squares up to a side³ lattice (ADR-0004/0008).
+        // 3D cube lattice: the count squares up to a side³ lattice.
         const cubeSide = cubeSideForCount(modeledCount)
         pixelCount = clampPixelCount(cubePixelCount(cubeSide))
         mapPoints = applyNormalizeMode(map.resolve(pixelCount), normalizeMode)
@@ -373,12 +373,12 @@ export function resolveLayout(
         layoutLabel = formatGridDims(map.gridDims(pixelCount))
       } else {
         // 3D point cloud: stock regenerates live; a custom replays its baked
-        // array index-aligned to the count (ADR-0007/0008).
+        // array index-aligned to the count.
         pixelCount = clampPixelCount(modeledCount)
         mapPoints = applyNormalizeMode(map.resolve(pixelCount), normalizeMode)
       }
       positions3D = mapPoints.map((p) => p.pos as [number, number, number])
-      // A solid-eligible stock 3D map (ADR-0011/0012) carries no baked normal, so
+      // A solid-eligible stock 3D map carries no baked normal, so
       // the preview re-derives one per the map's declared recipe — the faceted Cube
       // shell uses per-face normals, the Star shell its stellation faces, a convex
       // shell the generic centroid radial. No recipe ⇒ not solid-eligible.
@@ -391,7 +391,7 @@ export function resolveLayout(
       // clean lattice: a grid-recipe generator (Square, Wide 2:1) or a baked custom
       // map whose points fall on a regular lattice returns non-null `gridDims`, so
       // the readout shows `cols×rows`; an irregular cloud (Ring, blob) returns null
-      // and the readout cell stays hidden (ADR-0009/0010).
+      // and the readout cell stays hidden.
       pixelCount = clampPixelCount(modeledCount)
       mapPoints = applyNormalizeMode(map.resolve(pixelCount), normalizeMode)
       positions2D = mapPoints.map((p) => p.pos as [number, number])
@@ -399,7 +399,7 @@ export function resolveLayout(
       displayDim = 2
     }
 
-    // 2D surface embedding (ADR-0010): the Cylinder wraps the map's grid onto a
+    // 2D surface embedding: the Cylinder wraps the map's grid onto a
     // 3D tube. The map still owns `sample`; the surface owns `pos`.
     if (correctedSelection.surfaceId === 'cylinder' && displayDim === 2) {
       const gridDims = map.gridDims(pixelCount)

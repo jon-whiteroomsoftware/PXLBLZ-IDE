@@ -29,7 +29,7 @@ describe('stock catalogue', () => {
     }
   })
 
-  it('excludes the drape cylinder (no faithful source — ADR-0008 exception)', () => {
+  it('excludes the drape cylinder (no faithful source)', () => {
     expect(stockMapSpec('cylinder')).toBeUndefined()
   })
 
@@ -44,7 +44,7 @@ describe('stock catalogue', () => {
     expect(mapById('seed-sphere-3d').dim).toBe(3)
   })
 
-  it('ships each shell its normal recipe, so eligibility lives in the catalogue (ADR-0011/0012)', () => {
+  it('ships each shell its normal recipe, so eligibility lives in the catalogue', () => {
     // The Sphere vouches a centroid normal is honest; the Cube shell carries per-
     // face normals; the Star shell its stellation faces. The recipe's PRESENCE is
     // the solid-eligibility gate. The volume Cube and every other stock map carry
@@ -63,7 +63,7 @@ describe('stock catalogue', () => {
     expect(mapById('tetra-volume').normals).toBeUndefined()
   })
 
-  it('derives a wrappable grid live from the count, null for everything else (ADR-0010)', () => {
+  it('derives a wrappable grid live from the count, null for everything else', () => {
     // The Square squares up; the Wide runs 2:1 — both from the count, mirroring
     // their `.js` sources, so the cylinder wrap and layout readout read the grid
     // off the map with no provenance switch.
@@ -163,7 +163,7 @@ function surfaceFractions(coords: number[][]): number[] {
   })
 }
 
-describe('star shell (stellated surface, ADR-0012)', () => {
+describe('star shell (stellated surface)', () => {
   it('is a distinct, solid-eligible 3D map (not the volume)', () => {
     expect(mapById('star-shell').dim).toBe(3)
     expect(mapById('star-shell').normals).toBe('star')
@@ -207,7 +207,7 @@ describe('star shell (stellated surface, ADR-0012)', () => {
   })
 })
 
-describe('star volume (filled stellated solid, ADR-0012)', () => {
+describe('star volume (filled stellated solid)', () => {
   it('is NOT solid-eligible', () => {
     expect(mapById('star-volume').normals).toBeUndefined()
   })
@@ -242,7 +242,7 @@ describe('cube lattice', () => {
   })
 })
 
-describe('cube shell (faceted 3D shell, ADR-0012)', () => {
+describe('cube shell (faceted 3D shell)', () => {
   const onAFace = (c: number) => Math.abs(c) < 1e-9 || Math.abs(c - 1) < 1e-9
 
   it('is a distinct 3D map from the volume cube', () => {
@@ -285,7 +285,7 @@ describe('cube shell (faceted 3D shell, ADR-0012)', () => {
   })
 })
 
-describe('sphere volume (solid ball, ADR-0012)', () => {
+describe('sphere volume (solid ball)', () => {
   // The cloud's own centroid is the ball centre; radius is the distance from it.
   function centroidOf(pts: number[][]) {
     const c = [0, 0, 0]

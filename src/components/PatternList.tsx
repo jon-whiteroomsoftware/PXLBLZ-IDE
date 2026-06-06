@@ -635,7 +635,7 @@ export function PatternList() {
     closeMapEditor()
     const newName = uniquePatternName(name, userPatterns.map((p) => p.name))
     const record = newPatternRecord(newName, DEMOS[name])
-    // Snapshot the demo's effective settings as frozen layer-1 overrides (ADR-0013)
+    // Snapshot the demo's effective settings as frozen layer-1 overrides
     // so the fork keeps the demo's curated look with no live pointer back to it.
     record.settings = forkSettingsSnapshotForDemo(name)
     await addPattern(record)

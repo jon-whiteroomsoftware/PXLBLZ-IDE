@@ -40,7 +40,7 @@ describe('tetra geometry', () => {
   })
 })
 
-describe('tetra shell (faceted 3D shell, ADR-0012)', () => {
+describe('tetra shell (faceted 3D shell)', () => {
   it('is a distinct, solid-eligible 3D map (not the volume)', () => {
     expect(mapById('tetra-shell').dim).toBe(3)
     expect(mapById('tetra-shell').normals).toBe('tetra')
@@ -73,7 +73,7 @@ describe('tetra shell (faceted 3D shell, ADR-0012)', () => {
   })
 })
 
-describe('tetra volume (filled solid, ADR-0012)', () => {
+describe('tetra volume (filled solid)', () => {
   it('is NOT solid-eligible', () => {
     expect(mapById('tetra-volume').normals).toBeUndefined()
   })

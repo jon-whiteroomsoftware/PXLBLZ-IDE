@@ -1,12 +1,12 @@
-// Viewport surface embeddings (ADR-0010): pure pos-only generators for 2D
+// Viewport surface embeddings: pure pos-only generators for 2D
 // layouts. The 2D sibling of the 1D shapes in `shapes.ts`.
 //
 // A 2D pattern's `sample` is owned by its *map* (the `[u,v]` it reads). Where
 // each dot is *drawn* in the viewport is a separate display choice owned by a
 // **surface**: Flat (the identity — today's plain 2D preview) or Cylinder (the
 // map's grid wrapped around a tube). A surface never touches `sample`, so the
-// pattern cannot observe the wrap — only `pos` differs (the ADR-0005
-// sample/position divergence, made first-class for 2D). No DOM/React imports.
+// pattern cannot observe the wrap — only `pos` differs (the sample/position
+// divergence, made first-class for 2D). No DOM/React imports.
 
 import type { GridDims } from './maps/types'
 import { cylinderWallRadius, cylinderWallDiameter } from './cylinderWall'
@@ -27,7 +27,7 @@ export interface Surface {
   // clean integer grid and is offered only for maps that have one.
   needsGrid: boolean
   // Solid-eligible iff the surface can supply a per-point outward normal
-  // (ADR-0011): the curved Cylinder can, so the solidity fade may suppress its
+  //: the curved Cylinder can, so the solidity fade may suppress its
   // back-facing points; Flat trivially faces the camera and needs nothing.
   // Volumes (the volumetric cube) are never surfaces and so never eligible.
   solidEligible: boolean
@@ -60,17 +60,17 @@ export const SURFACES: Record<SurfaceId, Surface> = {
 
 const TAU = Math.PI * 2
 
-// --- Cylinder wrap geometry (map-derived, ADR-0010) -------------------------
+// --- Cylinder wrap geometry (map-derived) -------------------------
 //
 // The surface reads the source map's RAW integer `gridDims` (`cols×rows`), NOT
-// its ADR-0009-normalized sample (which caps the longest axis at 1 and would
+// its aspect-normalized sample (which caps the longest axis at 1 and would
 // flatten every map to circumference 1). `circumference:height = cols:rows`, so
 // the unrolled tube *is* the map rectangle — no cell distortion. A square map
 // (cols=rows) wraps to a tall slender tube (~π:1 height:diameter); a 2:1 map to
 // a fatter, shorter one.
 //
 // The square-cell radius/diameter come from the shared `cylinderWall` helper the
-// Pole also consumes (ADR-0010, #159).
+// Pole also consumes (#159).
 
 // The diameter of the wrapped tube (in height units, height normalized to 1) for
 // a cols×rows grid. Drives the slender/fat readout and is the geometry the tests
@@ -111,7 +111,7 @@ export function cylinderSurfacePositions(
 
 // The outward unit normal at a cylinder-surface pixel: radial from the tube
 // axis, (cos a, 0, sin a) — independent of the wrap radius and height. Preview-
-// only (ADR-0011): feeds the solidity terminator, never serialized.
+// only: feeds the solidity terminator, never serialized.
 export function cylinderSurfaceNormal(
   index: number,
   gridDims: GridDims,

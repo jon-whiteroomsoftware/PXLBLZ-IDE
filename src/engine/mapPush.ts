@@ -16,7 +16,7 @@
 // DELIBERATE DIVERGENCE from the reference: `createMapData` re-normalizes raw author
 // coordinates per-axis to fill 0..maxInt (a Fill pass). We do NOT — our `points` are
 // already firmware-normalized to [0,1] by the preview layout (Contain or Fill, the
-// user's per-map choice, ADR-0009/#174). Re-stretching here would silently force Fill
+// user's per-map choice). Re-stretching here would silently force Fill
 // and break aspect, so we scale [0,1] straight through and only clamp. What the
 // preview shows is exactly what the device receives.
 

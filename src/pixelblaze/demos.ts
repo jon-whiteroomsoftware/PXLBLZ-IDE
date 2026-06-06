@@ -13,7 +13,7 @@ export const DEMOS: Record<string, string> = Object.fromEntries(
   }),
 )
 
-// Recommended settings (IDE-side, preview-only) — cascade layer 2 (ADR-0013). One
+// Recommended settings (IDE-side, preview-only) — cascade layer 2. One
 // table keyed by curated-pattern (demo) name, consolidating the three former
 // registries (recommended map / pixel count / solidity). A geometry-aware demo
 // names the map / count / solidity it's meant to be seen on, so it opens looking its
@@ -21,7 +21,7 @@ export const DEMOS: Record<string, string> = Object.fromEntries(
 // the user global-sticky and dev-default, freely overridable from the controls, and
 // never reaches pattern source, the transpiled artifact, or a controller. A demo has
 // no PatternRecord, but it does carry its own persisted layer-1 override bag (keyed by
-// demo name, in patternStore.demoOverrides — ADR-0013 amendment), so a user's tweaks
+// demo name, in patternStore.demoOverrides), so a user's tweaks
 // outrank these recommendations and survive a reopen; "Revert to recommended" clears
 // that bag to fall back to this layer.
 export const RECOMMENDED_SETTINGS: Record<string, Partial<Settings>> = {
@@ -35,7 +35,7 @@ export const RECOMMENDED_SETTINGS: Record<string, Partial<Settings>> = {
 
 // The recommended settings for a demo (cascade layer 2), or an empty object for a
 // demo without recommendations and for user patterns (which have no recommendation
-// layer — dev-default + global-sticky + their own overrides only, ADR-0013).
+// layer — dev-default + global-sticky + their own overrides only).
 export function recommendedSettingsFor(demoName: string | null | undefined): Partial<Settings> {
   return (demoName ? RECOMMENDED_SETTINGS[demoName] : undefined) ?? {}
 }

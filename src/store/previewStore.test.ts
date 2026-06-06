@@ -35,7 +35,7 @@ describe('previewStore', () => {
     expect(usePreviewStore.getState().brightness).toBe(0.5)
   })
 
-  it('holds no preview-wide grid (retired in ADR-0009)', () => {
+  it('holds no preview-wide grid (retired with map-authoritative aspect)', () => {
     expect('grid' in usePreviewStore.getState()).toBe(false)
     expect('setGrid' in usePreviewStore.getState()).toBe(false)
   })
@@ -76,7 +76,7 @@ describe('mergePersistedPreview', () => {
     expect('grid' in merged).toBe(false)
   })
 
-  it('drops legacy per-pattern fields (brightness/speed) from the persisted blob (ADR-0013)', () => {
+  it('drops legacy per-pattern fields (brightness/speed) from the persisted blob', () => {
     const current = usePreviewStore.getState()
     const persisted = { brightness: 0.3, speed: 4 }
     const merged = mergePersistedPreview(persisted, current)
@@ -86,7 +86,7 @@ describe('mergePersistedPreview', () => {
     expect(merged.speed).toBe(previewInitialState.speed)
   })
 
-  it('migrates a pre-ADR-0013 blob: legacy live lightSize/diffusion lift to the sticky baselines', () => {
+  it('migrates a pre-cascade blob: legacy live lightSize/diffusion lift to the sticky baselines', () => {
     const current = usePreviewStore.getState()
     const persisted = { lightSize: 0.7, diffusion: 0.6 }
     const merged = mergePersistedPreview(persisted, current)
@@ -94,7 +94,7 @@ describe('mergePersistedPreview', () => {
     expect(merged.diffusionSticky).toBe(0.6)
   })
 
-  it('migrates a pre-ADR-0006 blob: legacy grid.diffusion lifts to the diffusion baseline', () => {
+  it('migrates a legacy grid.diffusion blob: it lifts to the diffusion baseline', () => {
     const current = usePreviewStore.getState()
     const persisted = { grid: { rows: 16, cols: 16, spacing: 20, diffusion: 0.6 } }
     const merged = mergePersistedPreview(persisted, current)
@@ -154,7 +154,7 @@ describe('diffusion', () => {
   })
 })
 
-describe('global-sticky baselines (ADR-0013)', () => {
+describe('global-sticky baselines', () => {
   it('default to the same values as the live working copies', () => {
     const s = usePreviewStore.getState()
     expect(s.lightSizeSticky).toBe(0.5)

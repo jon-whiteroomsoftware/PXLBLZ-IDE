@@ -123,7 +123,7 @@ function iqPalette(t, ar, ag, ab, br, bg, bb, cr_, cg_, cb_, dr, dg, db) {
 //
 // Hardware-safe pseudo-random in [0, 1) from integer cell coords. Pure
 // multiply/add only — NO sin/perlin/prng (those are algorithmically divergent
-// between preview and hardware, ADR-0003). Built to the same 16.16-fidelity
+// between preview and hardware). Built to the same 16.16-fidelity
 // recipe as Noise.js's _hash2/_hash1 (#92):
 //
 //   - constants ≤ ±32767 (larger ones overflow when scaled by 65536 into raw
@@ -142,7 +142,7 @@ function iqPalette(t, ar, ag, ab, br, bg, bb, cr_, cg_, cb_, dr, dg, db) {
 //
 // VALIDATED bit-identical preview↔hardware via the divergence harness against a
 // real Pixelblaze (fw 3.67, 2026-05-29): `hash11_div` matched the fixed-point
-// reference to sub-ULP across the swept inputs (#113). ADR-0003.
+// reference to sub-ULP across the swept inputs (#113).
 
 // Hash 2 integer cell coords → [0, 1)
 function hash21(ix, iy) {

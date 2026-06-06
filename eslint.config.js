@@ -5,7 +5,7 @@ import reactHooks from 'eslint-plugin-react-hooks'
 export default tseslint.config(
   {
     // `src/engine/maps/sources/*.js` are intentionally bare `function(pixelCount){…}`
-    // expressions consumed verbatim via Vite `?raw` (ADR-0008), not ES modules — they
+    // expressions consumed verbatim via Vite `?raw`, not ES modules — they
     // can't be parsed standalone and must not be wrapped in `export`.
     ignores: [
       'dist',

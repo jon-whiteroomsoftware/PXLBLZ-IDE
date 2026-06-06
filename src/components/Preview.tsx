@@ -59,7 +59,7 @@ export function Preview() {
   const handleRef = useRef<ReturnType<typeof loadPattern> | null>(null)
   const shimRef = useRef<ShimContext | null>(null)
   // The 2D viewport the renderer fits to: the container width + the live light
-  // size. The layout's extent/aspect come from the active map's `pos` (ADR-0009),
+  // size. The layout's extent/aspect come from the active map's `pos`,
   // measured inside the renderer — not from any stored grid.
   const [viewport, setViewport] = useState<{ containerWidth: number; lightSize: number } | null>(null)
   // The square 3D viewport size (CSS px) when a 3D layout is active, else null.
@@ -71,7 +71,7 @@ export function Preview() {
   // Track the container width so the renderer fits the canvas to the pane. Also
   // directly re-fits the renderer on each observation to avoid waiting for the
   // React re-render cycle, which would lag the canvas behind the container during
-  // splitter drags. The canvas aspect comes from the active map's `pos` (ADR-0009),
+  // splitter drags. The canvas aspect comes from the active map's `pos`,
   // resolved inside the renderer; light size scales the drawn sources only.
   useEffect(() => {
     const el = containerRef.current
@@ -112,7 +112,7 @@ export function Preview() {
     if (!previewSource) return
 
     // Bundle first so the pattern's native dimensionality (highest render fn) is
-    // known before resolving its layout — the dropdown filters by it (ADR-0005).
+    // known before resolving its layout — the dropdown filters by it.
     let bundled: ReturnType<typeof bundle>
     try {
       bundled = bundle(previewSource, LIBRARIES)
@@ -125,13 +125,13 @@ export function Preview() {
     const nativeDim = nativeDimension(metadata.renderFns)
     useEditorStore.getState().setNativeDim(nativeDim)
 
-    // Resolve the active layout (ADR-0005): a 1D pattern draws on a viewport
+    // Resolve the active layout: a 1D pattern draws on a viewport
     // shape embedding (pos-only, empty `sample`); a 2D pattern on a map. The pure
     // helper corrects a stale persisted selection to the dimension's default, and
     // we reflect any correction back so the "Shape" dropdown stays in sync.
     const { userMaps } = useMapStore.getState()
     // The active map/shape/surface/count already carry any demo recommendation —
-    // the settings cascade seeded them on open (seedActiveSettings, ADR-0013) — so
+    // the settings cascade seeded them on open (seedActiveSettings) — so
     // resolveLayout needs no separate recommended* inputs: the seeded selection IS
     // the recommendation when a demo opens, freely overridable thereafter.
     // Resolve the full layout in one engine query (src/engine/layout.ts):
@@ -179,7 +179,7 @@ export function Preview() {
     useEditorStore.getState().setLayoutLabel(layout.layoutLabel)
     // A normal array is fed exactly for a solid-eligible embedding (Pole, Cylinder,
     // Sphere shell, Cube shell), so its presence IS the eligibility the deck's
-    // solidity slider keys on (ADR-0011).
+    // solidity slider keys on.
     useEditorStore.getState().setSolidEligible(normals3D !== null)
 
     const clock = createVirtualClock()
@@ -259,7 +259,7 @@ export function Preview() {
     } else {
       // Every 2D layout — stock plane, ring/cloud, or a 1D shape embedding — draws
       // through the single pos channel; the renderer measures extent + neighbour
-      // pitch from these points (ADR-0009). An empty array is a valid no-op layout.
+      // pitch from these points. An empty array is a valid no-op layout.
       renderer.set2DPositions(shapePositions ?? [], viewport)
       setCanvas3DPx(null)
     }
@@ -316,7 +316,7 @@ export function Preview() {
     return () => loop.stop()
   }, [previewSource, viewport, fidelity, activeMapId, activeShapeId, activeSurfaceId, activePixelCount, activeNormalizeMode, activeDemoName])
 
-  // Seed the live working state from the resolved settings cascade on open (ADR-0013):
+  // Seed the live working state from the resolved settings cascade on open:
   // one pass that composes per-pattern override → recommended (demos) → global-sticky
   // → dev-default for every field and pushes the result into mapStore.active* +
   // previewStore live values. Replaces the former separate hydrate/solidity effects.
@@ -420,7 +420,7 @@ export function Preview() {
     return () => cancelAnimationFrame(raf)
   }, [displayDim])
 
-  // Diffusion (ADR-0006, per-source glow): pushed into the WebGL renderer, which
+  // Diffusion (per-source glow): pushed into the WebGL renderer, which
   // grows a soft glow tail around each source's solid core to merge neighbours
   // like a physical diffuser — no whole-frame blur, so cores stay crisp, the array
   // edge never goes furry, and the 3D silhouette never smears. Repaint while paused
@@ -432,7 +432,7 @@ export function Preview() {
     if (!usePreviewStore.getState().isRunning) loopRef.current?.renderPreviewFrame()
   }, [diffusion])
 
-  // Solidity (ADR-0011, back-face terminator fade): pushed into the renderer,
+  // Solidity (back-face terminator fade): pushed into the renderer,
   // which folds a normal·viewDir multiplier into the 3D per-vertex brightness when
   // the layout supplies normals. A no-op in 2D / for ineligible embeddings (no
   // normals fed). Repaint while paused so the change shows immediately.

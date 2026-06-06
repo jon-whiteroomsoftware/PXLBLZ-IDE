@@ -1,4 +1,4 @@
-// Shared cylinder-wall pi-cell geometry (ADR-0010) — pure, no DOM/React.
+// Shared cylinder-wall pi-cell geometry — pure, no DOM/React.
 //
 // The 1D Pole shape (`shapes.ts`) and the 2D Cylinder surface (`surfaces.ts`)
 // both wrap a `cols×rows` grid around a tube and both want each surface cell to

@@ -1,4 +1,4 @@
-// Stock 2D plane / grid. The pixel count is the only knob (ADR-0004) and the
+// Stock 2D plane / grid. The pixel count is the only knob and the
 // plane has no aspect to honour, so it squares the count up to the most-square
 // grid that holds it: cols = ceil(sqrt(n)), rows = ceil(n/cols). Emits raw
 // row/col integer indices in row-major order (x-fastest); the shared normalize

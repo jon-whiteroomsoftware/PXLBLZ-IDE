@@ -29,20 +29,20 @@ export type { MapRecord }
 
 export const DEFAULT_MAP_ID = 'plane'
 export const DEFAULT_SHAPE_ID: ShapeId = 'line'
-// Default 2D viewport surface embedding (ADR-0010): Flat (the identity — the
+// Default 2D viewport surface embedding: Flat (the identity — the
 // plain 2D preview). Selecting a wrappable map never surprise-wraps.
 export const DEFAULT_SURFACE_ID: SurfaceId = 'flat'
-// Default solidity (ADR-0011): solid is the common physical case, so an eligible
+// Default solidity: solid is the common physical case, so an eligible
 // embedding opens fully solid (1.0). A demo's recommended-solidity may override
 // this on open; a custom pattern persists whatever the user sets.
 export const DEFAULT_SOLIDITY = 1
 // Default map-coordinate normalization mode (#174): Contain (aspect-preserving,
-// longest-axis anchor — ADR-0009). Matches the Mapper's default selection, so an
+// longest-axis anchor). Matches the Mapper's default selection, so an
 // existing pattern with no persisted mode previews exactly as before.
 export const DEFAULT_NORMALIZE_MODE: NormalizeMode = 'contain'
 
 // The stock 2D grid generators that expose a clean integer cols×rows lattice a
-// surface can wrap (ADR-0010). The Square and Wide maps qualify; the example
+// surface can wrap. The Square and Wide maps qualify; the example
 // clouds (ring) and 3D maps do not. Custom maps advertise their grid via the
 // `gridDims` recorded at bake instead.
 const WRAPPABLE_STOCK_IDS = new Set(['plane', 'wide'])
@@ -54,20 +54,20 @@ export const DEFAULT_CUBE_SIDE = 8
 // Default modeled pixel count for a 2D plane when a pattern carries no persisted
 // count: a 64×64 square.
 export const DEFAULT_PLANE_PIXEL_COUNT = 4096
-// The pixel count a custom map's source is evaluated at when baking (ADR-0008),
+// The pixel count a custom map's source is evaluated at when baking,
 // used only when no count is modeled. A map's geometry is authored for a snapshot
 // count; lacking a dedicated map-count control yet, bake at the active modeled
 // count when present, else the count a fresh 2D pattern carries — so a map authored
 // against the common 64×64 default bakes dense and matches by default, without ever
-// pinning or overriding the count (ADR-0004). The function's own return length
+// pinning or overriding the count. The function's own return length
 // becomes `bakedCount`; the modeled count stays a free knob and a genuine count/map
-// mismatch still renders honestly + warns (#144), the intentional drift of ADR-0007.
+// mismatch still renders honestly + warns (#144), the intentional baked-replay drift.
 export const DEFAULT_MAP_BAKE_COUNT = DEFAULT_PLANE_PIXEL_COUNT
 
 // The pixel count a freshly-opened pattern of the given display dimensionality
 // defaults to when it carries no persisted count. 1D → a short strip; 2D → a
 // 64×64 square; 3D → the stock 8³ cube. The count is the single user knob
-// (ADR-0004); each map then arranges it per its own geometry.
+//; each map then arranges it per its own geometry.
 export function defaultPixelCountForDim(dim: 1 | 2 | 3): number {
   if (dim === 1) return DEFAULT_SHAPE_PIXEL_COUNT
   if (dim === 3) return DEFAULT_CUBE_SIDE * DEFAULT_CUBE_SIDE * DEFAULT_CUBE_SIDE
@@ -76,14 +76,14 @@ export function defaultPixelCountForDim(dim: 1 | 2 | 3): number {
 
 // Reconstruct a runtime PixelMap (with its resolve fn) from a serializable
 // generator descriptor. Stock generators (plane/cube) are source-backed
-// (ADR-0008): rebuild them from their `.js` source so a saved stock reference and
+//: rebuild them from their `.js` source so a saved stock reference and
 // the live stock map run identical code. Unknown generators fall back to a plane.
 export function buildMap(id: string, name: string, generator: string): PixelMap {
   const spec = stockMapSpec(generator) ?? stockMapSpec('plane')!
   return createSourceMap({ ...spec, id, name })
 }
 
-// Whether a map exposes a grid a surface can wrap (ADR-0010): a stock grid
+// Whether a map exposes a grid a surface can wrap: a stock grid
 // generator, or a custom map with recorded lattice dims. Only 2D maps qualify.
 // A structural check over a map RECORD's shape (id/dim/baked dims) — the runtime
 // `PixelMap.gridDims(count)` method (which the resolver reads) supersedes the old
@@ -94,7 +94,7 @@ export function isMapWrappable(map: { id: string; dim: 1 | 2 | 3; gridDims?: Gri
 }
 
 export function mapFromRecord(r: MapRecord): PixelMap {
-  // A custom map replays its baked coordinate array (ADR-0007); stock generators
+  // A custom map replays its baked coordinate array; stock generators
   // rebuild live from params. The recorded grid dims ride along for the readout.
   if (r.generator === 'custom') {
     return createCustomMap(r.points ?? [], { id: r.id, name: r.name, gridDims: r.gridDims })
@@ -102,11 +102,11 @@ export function mapFromRecord(r: MapRecord): PixelMap {
   return buildMap(r.id, r.name, r.generator)
 }
 
-// Built-in stock maps — source-backed (ADR-0008), regenerated live, never
+// Built-in stock maps — source-backed, regenerated live, never
 // persisted. The plane and cube run their `.js` source. The relocated #140
 // example clouds (sphere/ring) are now live builtin generators too — stock
 // by provenance, never listed in "Your Maps" (#141). The cylinder is no longer a
-// stock map: it is a viewport Surface (ADR-0010) composed onto the Square.
+// stock map: it is a viewport Surface composed onto the Square.
 export const STOCK_MAPS: PixelMap[] = SOURCE_STOCK_MAPS
 
 // Resolve a map id to its runtime PixelMap (stock or user). Falls back to the
@@ -119,7 +119,7 @@ export function resolveMap(mapId: string, userMaps: MapRecord[]): PixelMap {
   return STOCK_MAPS[0]
 }
 
-// The layout catalogue the Map + embedding controls filter (ADR-0010): every
+// The layout catalogue the Map + embedding controls filter: every
 // viewport shape, every surface, and every available map (stock + user). The
 // pure `mapOptions`/`embeddingOptions` helpers do the dimension/wrappability
 // filtering; this just gathers the raw metadata. Each map advertises whether a
@@ -176,11 +176,11 @@ export function canDeployMap(args: {
 
 interface MapState {
   activeMapId: string
-  // The active 1D viewport shape embedding (ADR-0005). Lives alongside
+  // The active 1D viewport shape embedding. Lives alongside
   // `activeMapId` because the "Shape" dropdown blurs both into one knob; which
   // one is live is decided by the pattern's native dimensionality (1D → shape).
   activeShapeId: ShapeId
-  // The active 2D viewport surface embedding (ADR-0010). Lives alongside
+  // The active 2D viewport surface embedding. Lives alongside
   // `activeMapId` because the embedding control owns `pos` while the map owns
   // `sample`; which embedding axis is live is decided by the pattern's native
   // dimensionality (1D → shape, 2D → surface).
@@ -188,7 +188,7 @@ interface MapState {
   // The modeled pixel count for the active layout, or null to derive a default
   // (the global grid's rows×cols for a map; a 1D default for a shape).
   activePixelCount: number | null
-  // The active layout's solidity (0–1, ADR-0011): a preview-only, per-pattern
+  // The active layout's solidity (0–1): a preview-only, per-pattern
   // back-face terminator floor. Lives alongside the embedding selection because
   // it is a modifier on the chosen embedding; consumed only when that embedding
   // is solid-eligible. Never serialized toward a controller.
@@ -226,7 +226,7 @@ interface MapState {
   // Replace the editor buffer with a template's verbatim source and reset the
   // dirty-guard baseline to it ("Load template").
   loadMapTemplate: (source: string) => void
-  // Evaluate + bake the open map's current source (ADR-0008): persist the source
+  // Evaluate + bake the open map's current source: persist the source
   // (re-editable) and, on a clean eval, the baked points/dim/gridDims into the
   // record so it becomes a usable layout. Driven by the editor's periodic sync
   // tick when the parse badge is green. An eval failure persists source only,
@@ -314,7 +314,7 @@ export const useMapStore = create<MapState>()((set, get) => ({
   },
 
   openExistingMap: (record) => {
-    // Stock maps carry no source and are never openable in place (#151, ADR-0008).
+    // Stock maps carry no source and are never openable in place (#151).
     if (typeof record.source !== 'string') return
     enterMapMode(record.source)
     // Opening a map for editing does NOT change the active layout/preview

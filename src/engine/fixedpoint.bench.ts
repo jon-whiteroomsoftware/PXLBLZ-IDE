@@ -1,4 +1,4 @@
-// fx.mul microbenchmark — go/no-go evidence for ADR-0003 (fixed-point fidelity default).
+// fx.mul microbenchmark — go/no-go evidence for the fixed-point fidelity default.
 //
 // Run with:  npx vitest bench src/engine/fixedpoint.bench.ts
 //

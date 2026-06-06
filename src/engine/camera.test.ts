@@ -143,7 +143,7 @@ describe('camera — pos-bounds 2D extent & sizing', () => {
     expect(nearestNeighborSpacing2D([[0.5, 0.5]])).toBe(0)
   })
 
-  it('ignores coincident origin-pile points (over-count custom replay, ADR-0007)', () => {
+  it('ignores coincident origin-pile points (over-count custom replay)', () => {
     // A baked 9×9 grid rendered above its bakedCount piles surplus indices on the
     // origin; the pile must NOT collapse the measured pitch (else light size blooms
     // to fill the frame). The honest pitch stays the grid spacing among distinct pts.
@@ -203,7 +203,7 @@ describe('camera — pos-bounds 2D extent & sizing', () => {
   })
 })
 
-describe('camera — 3D light size (ADR-0006)', () => {
+describe('camera — 3D light size', () => {
   it('lattice pitch is the projected screen-space gap between adjacent points', () => {
     // 8-per-axis lattice, 400px square canvas. Normalized pitch 1/(side-1) is
     // scaled into clip space and converted to px (clip span 2 ↔ canvasPx).
@@ -272,7 +272,7 @@ describe('camera — 3D light size (ADR-0006)', () => {
   })
 })
 
-describe('camera — per-source diffusion glow (ADR-0006)', () => {
+describe('camera — per-source diffusion glow', () => {
   it('at diffusion 0 is bit-for-bit the solid core disc (quad == core, full peak, no tail)', () => {
     const g = diffusionGlow(0, 20, 25)
     expect(g.quadDiameterPx).toBe(20)
@@ -449,7 +449,7 @@ describe('camera — orbit interaction', () => {
   })
 })
 
-describe('terminatorFade (solidity back-face fade, ADR-0011)', () => {
+describe('terminatorFade (solidity back-face fade)', () => {
   it('is 1 everywhere at solidity 0 — bit-identical to the see-through draw', () => {
     for (const facing of [-1, -0.5, -0.1, 0, 0.1, 0.5, 1]) {
       expect(terminatorFade(facing, 0)).toBe(1)

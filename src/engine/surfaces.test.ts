@@ -10,7 +10,7 @@ import {
 } from './surfaces'
 
 describe('surface catalogue', () => {
-  it('offers only Flat (2D, identity) and Cylinder (3D wrap) — developable wraps (ADR-0012)', () => {
+  it('offers only Flat (2D, identity) and Cylinder (3D wrap) — developable wraps', () => {
     expect(Object.keys(SURFACES)).toEqual(['flat', 'cylinder'])
     expect(FLAT).toMatchObject({ displayDim: 2, needsGrid: false, solidEligible: false })
     expect(CYLINDER).toMatchObject({ displayDim: 3, needsGrid: true, solidEligible: true })

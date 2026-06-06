@@ -34,7 +34,7 @@ are one-off request/response round-trips keyed by `reqId`, independent of any
 socket. Binary frames and blobs cross the seam as base64 (`chrome.runtime`
 messaging is JSON-only).
 
-## Host permissions — per-IP, just-in-time (#229, ADR-0015)
+## Host permissions — per-IP, just-in-time (#229)
 
 The LAN reach is **optional** and granted **per device IP, on demand**, rather than
 held as a broad static permission (which Web Store scanners flag as a network-

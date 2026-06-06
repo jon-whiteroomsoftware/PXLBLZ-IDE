@@ -1,12 +1,12 @@
 // Stock 3D cube SHELL: LEDs across the six faces of a cube (a hollow shell), as
 // distinct from the filled `cube` volume lattice. The pixel count is the knob
-// (ADR-0004), split as evenly as possible across the six faces; the first
+//, split as evenly as possible across the six faces; the first
 // (count % 6) faces get one extra. Each face lays its share out on a square-ish
 // in-plane sub-grid of cell CENTRES, so every point sits strictly inside its
 // face, never on a shared edge. Emits raw [-1,1] coords (faces pinned at ±1);
 // the shared normalize pass maps each axis to [0,1] (a symmetric cube, centre
 // 0.5). The preview re-derives a per-face outward normal (dominant axis of
-// pos − centre, ADR-0012) and offers the solidity slider.
+// pos − centre) and offers the solidity slider.
 function(pixelCount) {
   var n = Math.max(0, Math.floor(pixelCount) || 0)
   // Six faces as origin-pin axis + sign, with the two in-plane axes.

@@ -1,5 +1,5 @@
 // Regular-tetrahedron geometry, shared by the Tetra shell/volume normal
-// derivation (ADR-0012, preview-only). A four-sided die (d4) is a regular
+// derivation (preview-only). A four-sided die (d4) is a regular
 // tetrahedron: 4 vertices, 4 triangular faces. This is the simplest case of the
 // faceted-shell pattern the Cube and Star shells already use — only 4 fixed
 // faces, so the per-point normal is just "which of the 4 faces does this point

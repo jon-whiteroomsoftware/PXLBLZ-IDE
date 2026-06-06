@@ -14,7 +14,7 @@ export type { PatternRecord }
 
 export const LAST_ACTIVE_KEY = 'lastActive'
 
-// The persisted demo-override layer (ADR-0013 amendment). A demo carries no
+// The persisted demo-override layer. A demo carries no
 // PatternRecord — its code is read-only and shipped in the app — but it still gets a
 // persistent cascade layer-1 override bag so the user's tweaks survive a reopen, just
 // like a user pattern. The whole map (demo name → sparse overrides) lives under one
@@ -31,7 +31,7 @@ interface PatternState {
   activeLibraryName: string | null
   activeDemoName: string | null
   userPatterns: PatternRecord[]
-  // Persisted per-demo settings overrides (cascade layer 1, ADR-0013 amendment),
+  // Persisted per-demo settings overrides (cascade layer 1),
   // keyed by demo name. Parallel to PatternRecord.settings for user patterns; a demo
   // has no record so its bag lives here instead.
   demoOverrides: Record<string, Partial<Settings>>
@@ -46,12 +46,12 @@ interface PatternState {
   renamePattern: (id: string, name: string) => Promise<void>
   removePattern: (id: string) => Promise<void>
   updatePatternSrc: (id: string, src: string) => Promise<void>
-  // Sparse-merge per-pattern settings overrides (cascade layer 1, ADR-0013) onto the
+  // Sparse-merge per-pattern settings overrides (cascade layer 1) onto the
   // record, in both IndexedDB and the in-memory list, so reopening restores them this
   // session. Called from a control's own change handler on genuine manipulation —
   // never inferred by comparing a stored value to a default.
   updatePatternSettings: (id: string, patch: Partial<Settings>) => Promise<void>
-  // Clear a pattern's layer-1 overrides ("Reset to defaults", ADR-0013), dropping it
+  // Clear a pattern's layer-1 overrides ("Reset to defaults"), dropping it
   // back to recommended + global-sticky + dev-default on the next resolve.
   resetPatternSettings: (id: string) => Promise<void>
   // Sparse-merge per-demo settings overrides (cascade layer 1) — the demo equivalent

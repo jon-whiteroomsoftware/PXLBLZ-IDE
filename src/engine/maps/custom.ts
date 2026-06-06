@@ -1,6 +1,6 @@
 import type { GridDims, MapPoint, PixelMap } from './types'
 
-// A baked custom map (ADR-0007): a coordinate array authored once and frozen
+// A baked custom map: a coordinate array authored once and frozen
 // into the record. Unlike stock generators (which regenerate live for any
 // count), a custom map REPLAYS its frozen array, index-aligned to the requested
 // count: indices past the array's end fall back to the origin, surplus entries
@@ -44,7 +44,7 @@ export function createCustomMap(
     name: opts.name,
     builtin: false,
     dim,
-    // Replay the grid dims recorded at bake for the layout readout (ADR-0009),
+    // Replay the grid dims recorded at bake for the layout readout,
     // count-independent; null when the baked points are an irregular cloud.
     gridDims: () => opts.gridDims ?? null,
     bakedCount: baked.length,

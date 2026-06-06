@@ -56,7 +56,7 @@ describe('bakeMapSource', () => {
     expect(baked.dim).toBe(2)
     expect(baked.gridDims).toEqual({ cols: 4, rows: 2 })
     expect(baked.points).toHaveLength(8)
-    // aspect-preserving (ADR-0009): the 4-wide axis (range 3, longest) fills [0,1];
+    // aspect-preserving: the 4-wide axis (range 3, longest) fills [0,1];
     // the 2-tall axis (range 1) scales by the same factor → 1/3, so the baked
     // rectangle is 3:1, not stretched to a unit square.
     expect(baked.points[0]).toEqual([0, 0])

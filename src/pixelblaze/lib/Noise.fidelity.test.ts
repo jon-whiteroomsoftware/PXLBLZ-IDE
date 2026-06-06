@@ -81,7 +81,7 @@ const ULP = 1 / 65536
 // the byte-identical `hash11`/`hash21` recipe on a real Pixelblaze (fw 3.67) and
 // recorded these device readings in test/divergence-harness/report.md. Pinning
 // the fidelity engine to those device values guards the bit-identity claim in
-// ADR-0003: if a future edit to the `_hash1`/`_hash2` fold (e.g. reverting the
+// the fidelity bit-identity guarantee: if a future edit to the `_hash1`/`_hash2` fold (e.g. reverting the
 // #113 `/256/256` demotion back to a `× 1/65536` literal, which flushes to 0 on
 // hardware — #111) regresses preview↔hardware fidelity, these assertions fail.
 describe('Noise hash bit-identity vs hardware (#100)', () => {

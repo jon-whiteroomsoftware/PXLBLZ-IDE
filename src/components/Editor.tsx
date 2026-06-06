@@ -66,8 +66,8 @@ export function Editor() {
   // Persistence tick: every SYNC_TICK_MS, auto-save the clean editor buffer to
   // IndexedDB. For a pattern that's clean source → the pattern record. For an open
   // map (flavor 'map'), a clean (parse-good) buffer is evaluated + baked into the
-  // map record (#143, ADR-0008) — once per tick, never per keystroke (a runaway
-  // map loop would freeze the tab, ADR-0002). Bake failures surface via the store.
+  // map record (#143) — once per tick, never per keystroke (a runaway
+  // map loop would freeze the tab). Bake failures surface via the store.
   useEffect(() => {
     const id = setInterval(() => {
       const { source: s, compileStatus: status, activePatternId: pid, editorFlavor: flavor } = syncRef.current
@@ -84,7 +84,7 @@ export function Editor() {
     // but a map source is a bare `function(pixelCount){…}` expression — not a
     // valid top-level statement/module — so Monaco's TS worker flags it with a
     // spurious "unexpected identifier" squiggle. We feed our own parse-only markers
-    // (owner 'pixelblaze', ADR-0008), so disable the worker's diagnostics entirely.
+    // (owner 'pixelblaze'), so disable the worker's diagnostics entirely.
     monaco.languages.typescript.javascriptDefaults.setDiagnosticsOptions({
       noSemanticValidation: true,
       noSyntaxValidation: true,
@@ -140,7 +140,7 @@ export function Editor() {
       return
     }
 
-    // Map mode (#151, ADR-0008) authors plain JS, so the badge is a parse-only
+    // Map mode (#151) authors plain JS, so the badge is a parse-only
     // check (no Pixelblaze dialect rules); patterns keep the dialect validator.
     const errors = editorFlavor === 'map' ? parseMapSource(source) : validateSource(source)
     setCompileStatus(errors.length === 0 ? 'good' : 'broken')

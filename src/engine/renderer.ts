@@ -25,7 +25,7 @@ import {
 } from './camera'
 
 // The 2D viewport knobs the renderer needs from the UI: the container width it
-// fits the canvas to, and the preview light size (ADR-0006: the drawn source
+// fits the canvas to, and the preview light size (the drawn source
 // diameter as a fraction of the measured neighbour pitch). The layout's extent
 // and aspect come from the `pos` handed to `set2DPositions`, not from here.
 export interface Viewport2D {
@@ -40,7 +40,7 @@ export interface Renderer {
   // bounds and nearest-neighbour spacing, sizes the canvas to the bounds' aspect
   // (square today, since pos is per-axis normalized; the true rectangle once
   // #116 flips normalization), and anchors the light-source pitch to the measured
-  // spacing — no global rows/cols grid (ADR-0009).
+  // spacing — no global rows/cols grid.
   set2DPositions(positions: [number, number][], viewport: Viewport2D): void
   // Re-fit the 2D canvas to a new container width / light size without remeasuring
   // the layout (pos unchanged). Called on container resize and light-size change.
@@ -57,14 +57,14 @@ export interface Renderer {
   ): void
   // Update the orbit camera (auto-orbit advance, drag, reset). No-op in 2D mode.
   setCamera(camera: OrbitCamera): void
-  // Set the solidity (0–1, ADR-0011): a back-face terminator fade folded into the
+  // Set the solidity (0–1): a back-face terminator fade folded into the
   // 3D per-vertex brightness when the active layout supplies per-point normals
   // (set via set3DPositions). 0 leaves the draw bit-identical to see-through; 1
   // fades back-facing points to zero. No-op without normals or in 2D mode.
   setSolidity(solidity: number): void
   // Set the diffusion amount (0–1). Diffusion grows a soft glow tail around each
   // light source's solid core to merge neighbours like a physical diffuser, never
-  // resizing the core and never dimming (ADR-0006). Recomputes 2D quad sizes in
+  // resizing the core and never dimming. Recomputes 2D quad sizes in
   // place; 3D consumes it per paint.
   setDiffusion(diffusion: number): void
 }
@@ -84,7 +84,7 @@ void main() {
 }
 `
 
-// Per-source light kernel (ADR-0006, revised). The gl.POINTS quad is grown beyond
+// Per-source light kernel (revised). The gl.POINTS quad is grown beyond
 // the solid core to hold the diffusion glow; `q` is the fragment's radius as a
 // fraction of the quad half-width (0 at centre, 1 at the inscribed-circle rim).
 //   - q > 1                discarded (outside the round LED).
@@ -139,7 +139,7 @@ function createProgram(gl: WebGLRenderingContext): WebGLProgram {
 
 export function createRenderer(canvas: HTMLCanvasElement, initialViewport: Viewport2D): Renderer {
   // The locked-2D layout, measured from the active layout's resolved `pos`
-  // (ADR-0009). `pos2D` is the normalized [0,1]² draw positions; `bounds2D`,
+  // `pos2D` is the normalized [0,1]² draw positions; `bounds2D`,
   // `spacingNorm2D` and `inset2D` are derived once per layout. Starts empty (a
   // 1px square canvas) until the first `set2DPositions`.
   let pos2D: [number, number][] = []
@@ -221,7 +221,7 @@ export function createRenderer(canvas: HTMLCanvasElement, initialViewport: Viewp
   // When set, the renderer is in 3D orbit mode: positions/sizes are recomputed
   // per paint from `pos3D` + `camera`. Takes precedence over the 2D paths.
   let pos3D: [number, number, number][] | null = null
-  // Per-point outward unit normals for a solid-eligible 3D layout (ADR-0011),
+  // Per-point outward unit normals for a solid-eligible 3D layout,
   // parallel to pos3D. Null for a layout with no normal (volumetric cube, cloud);
   // the terminator fade is then skipped. `solidity` is the slider's 0–1 floor.
   let normals3D: [number, number, number][] | null = null
@@ -259,8 +259,8 @@ export function createRenderer(canvas: HTMLCanvasElement, initialViewport: Viewp
 
   // Resolve the 2D glow kernel from the current diffusion + pitch and upload the
   // (uniform) per-vertex quad size. The solid core is the light-size disc; the
-  // diffusion tail grows the quad around it without moving the core (ADR-0006).
-  // The pitch is MEASURED from the layout's neighbour spacing (ADR-0009), not read
+  // diffusion tail grows the quad around it without moving the core.
+  // The pitch is MEASURED from the layout's neighbour spacing, not read
   // from a global grid `spacing` — so it is correct for the plane, a ring, or any
   // cloud alike.
   function apply2DGlow(): void {
@@ -295,7 +295,7 @@ export function createRenderer(canvas: HTMLCanvasElement, initialViewport: Viewp
     if (depths.length !== cap) depths = new Float32Array(cap)
     const bright = new Float32Array(cap)
     // Base orb diameter is anchored to the projected lattice pitch via light
-    // size (ADR-0006), the 3D analogue of the 2D pointSize; depth cueing then
+    // size, the 3D analogue of the 2D pointSize; depth cueing then
     // scales it per-dot (nearer = larger). Diffusion never touches it — the blur
     // that merges sources is a CSS filter applied by the UI layer.
     const scale = fit3DScale(FIT_3D_MARGIN, lattice3DHalfExtent)
@@ -308,7 +308,7 @@ export function createRenderer(canvas: HTMLCanvasElement, initialViewport: Viewp
     const glow = diffusionGlow(diffusion, baseSize, pitch)
     coreFrac = glow.coreFrac
     peak = glow.peak
-    // Solidity terminator (ADR-0011): only when a normal is supplied AND the
+    // Solidity terminator: only when a normal is supplied AND the
     // slider is above 0 — otherwise the multiplier is uniformly 1 and the path is
     // bit-identical to the see-through draw.
     const applyFade = solidity > 0 && !!normals3D && normals3D.length >= cap
@@ -340,7 +340,7 @@ export function createRenderer(canvas: HTMLCanvasElement, initialViewport: Viewp
 
     const dimScale = dimmed ? DIM_FACTOR : 1
     // Faithful intensity in BOTH dimensions: each source shows at brightness×color
-    // (ADR-0006 — the priority invariant is dimension parity: switching a 2D
+    // (the priority invariant is dimension parity: switching a 2D
     // pattern to a 3D one at identical settings must not change perceived
     // brightness, and at diffusion 0 sources must read as crisp and distinct).
     // No light-size energy compensation: 2D is a single non-overlapping layer
@@ -391,7 +391,7 @@ export function createRenderer(canvas: HTMLCanvasElement, initialViewport: Viewp
     ctx.uniform1f(uPeak, peak)
 
     if (pos3D) {
-      // 3D in two passes (ADR-0006): opaque cores first (depth test on, blend off)
+      // 3D in two passes: opaque cores first (depth test on, blend off)
       // so nearer orbs occlude farther — crisp, solid sources, never a washed-out
       // additive haze at diffusion 0. Then, when diffusing, an ADDITIVE glow-tail
       // pass on top (depth-test read-only, no depth write) fills the inter-orb gaps

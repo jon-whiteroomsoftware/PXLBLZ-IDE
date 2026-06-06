@@ -77,7 +77,7 @@ Every GLSL construct falls into one of three buckets:
 |---|---|---|---|
 | IQ cosine palette `a + b*cos(2π(c·t+d))` | `Shader.iqPalette(t, a…, b…, c…, d…)` → `cr,cg,cb` | `Shader.*` | per-channel `a,b,c,d`; out-var |
 | `fract(sin(dot(p, k))*M)` hash | `Shader.hash21(ix, iy)` / `Shader.hash11(n)` | `Shader.*` | **integer cell coords in**; hardware-safe — see [Gotcha A](#a-the-1616-overflow-cliff-the-1-porting-hazard) |
-| `perlin`/`prng`/`noise` | `perlin(...)` / `prng(...)` built-ins | built-in | **algorithmically divergent** — preview-approximate, not bit-identical to hardware (ADR-0003) |
+| `perlin`/`prng`/`noise` | `perlin(...)` / `prng(...)` built-ins | built-in | **algorithmically divergent** — preview-approximate, not bit-identical to hardware |
 
 ### The out-var contract
 
@@ -112,7 +112,7 @@ float h = fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453);
 — breaks on hardware in **two** independent ways:
 
 1. **Unrepresentable constant.** `43758.5453` is comfortably inside ±32768, but the intermediate `value × 65536` (how the raw int is formed) and the products built from these large magic numbers **overflow int32 and wrap** rather than saturating. The hash's whole job is to *amplify* tiny input differences into chaos, so an overflow-wrap doesn't degrade gracefully — it produces a *different* chaotic value than the GPU, and the texture is wrong.
-2. **`sin` is algorithmically divergent.** Even with no overflow, the firmware's `sin` is not bit-identical to the preview's (ADR-0003). Feeding a divergent `sin` into a hash multiplies the divergence.
+2. **`sin` is algorithmically divergent.** Even with no overflow, the firmware's `sin` is not bit-identical to the preview's. Feeding a divergent `sin` into a hash multiplies the divergence.
 
 Under the float64 **Fast renderer** both problems are invisible — which is exactly why the **Precise renderer is the default**. It surfaces the bug before you upload.
 
@@ -173,7 +173,7 @@ Use `t` anywhere the shader used `iTime`. For values that should loop cleanly, p
 
 ### E. Loop/perf budget
 
-Patterns run **on the main thread** (ADR-0002), and Fidelity's fixed-point arithmetic is **~3–8× slower** than float64. Your cost is roughly *pixels × per-pixel work*, and ShaderToy shaders love per-pixel loops (octaves, raymarch steps).
+Patterns run **on the main thread**, and Fidelity's fixed-point arithmetic is **~3–8× slower** than float64. Your cost is roughly *pixels × per-pixel work*, and ShaderToy shaders love per-pixel loops (octaves, raymarch steps).
 
 - 16×16 and 32×32 grids with typical fragment shaders stay interactive under the Precise renderer.
 - Deep raymarchers on 64×64 will not — that's what the **Fast renderer** toggle is for (iterate in float64, do the final precise check at the grid size you'll actually run).
@@ -228,5 +228,4 @@ These rely on GPU features Pixelblaze's per-pixel model has no equivalent for. T
 
 - `src/pixelblaze/lib/Shader.js` — the library inventory and the out-var contract, in code.
 - `src/pixelblaze/demos/Kishimisu.js`, `NeonSquircles.js` — worked ports built on `Shader.*` (`toUV`, `fract`, `iqPalette`, `rot2`).
-- `docs/PXLBLZ Technical Reference.md` §5 (fixed-point engine) and §11 (porting toolkit) — how Fidelity works as built and why the two divergences (numeric vs algorithmic) differ.
-- `docs/adr/0003-fixed-point-fidelity-default.md` — the fixed-point fidelity decision (why Fidelity is the default).
+- `docs/PXLBLZ Technical Reference.md` §2 (why fidelity is the default), §5 (fixed-point engine) and §11 (porting toolkit) — how Fidelity works as built and why the two divergences (numeric vs algorithmic) differ.

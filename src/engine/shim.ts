@@ -518,7 +518,7 @@ function lerp(a: number, b: number, t: number): number {
 
 // ── Perlin noise helpers ──────────────────────────────────────────────────────
 // Ken Perlin's improved noise (2002). Output of perlinRaw is in [-1, 1].
-// Not bit-identical to Pixelblaze firmware (accepted divergence per ADR-0001).
+// Not bit-identical to Pixelblaze firmware (an accepted divergence).
 
 // prettier-ignore
 const _PERM = new Uint8Array([

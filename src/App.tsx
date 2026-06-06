@@ -92,7 +92,7 @@ export default function App() {
     const id = generateId()
     const existingNames = userPatterns.map((p) => p.name)
     const name = uniquePatternName(activeDemoName, existingNames)
-    // Snapshot the demo's effective settings as frozen layer-1 overrides (ADR-0013)
+    // Snapshot the demo's effective settings as frozen layer-1 overrides
     // BEFORE setActivePattern flips state, so the fork keeps the demo's curated look.
     const settings = forkSettingsSnapshot()
     const record: PatternRecord = {

@@ -80,7 +80,7 @@ function PrimaryBand() {
   const toggle = usePreviewStore((s) => s.toggle)
   const previewPatternName = useEditorStore((s) => s.previewPatternName)
 
-  // The layer-1 reset affordance (ADR-0013, #63): a rewind icon sitting immediately to
+  // The layer-1 reset affordance (#63): a rewind icon sitting immediately to
   // the right of the pattern name in the primary nav — findable, and clearly scoped to
   // the whole preview rather than buried mid-deck below the controls it resets. It pops
   // in only when the active pattern/demo carries overrides to clear (so it's never a
@@ -139,8 +139,8 @@ function PixelCountInput() {
   const nativeDim = useEditorStore((s) => s.nativeDim)
 
   // The effective modeled count, via the same `effectivePixelCount` selector the
-  // renderer feeds every layout branch through (ADR-0004) — the per-pattern value
-  // (already seeded with any demo recommendation by the cascade, ADR-0013), else the
+  // renderer feeds every layout branch through — the per-pattern value
+  // (already seeded with any demo recommendation by the cascade), else the
   // dimension's default. Keyed off the layout's coordinate dimension (nativeDim), not
   // the viewport dimension, so the box reads the count actually rendered. (No `baked`
   // slot: the deck has no resolved map.)
@@ -180,10 +180,10 @@ function PixelCountInput() {
 }
 
 // Secondary band: the viewport controls, in two labeled sections (#174) that make
-// visible the boundary the ADRs already draw in code — real Pixelblaze device
+// visible the boundary already drawn in code — real Pixelblaze device
 // settings (pixels, fit, brightness) that exist on hardware and would round-trip to a
 // controller, vs the preview-only Preview section (light size, diffusion, solidity,
-// renderer, speed — ADR-0006/0011, "never serialize toward a controller") which also
+// renderer, speed — "never serialize toward a controller") which also
 // absorbs the read-only telemetry (fps/elapsed/layout). All sliders use the one shared
 // long DeckSlider style; non-slider rows stay on the deck's 2-col label/value grid.
 function SecondaryBand() {
@@ -203,7 +203,7 @@ function SecondaryBand() {
   // each axis to fill the unit square. Persisted per-pattern.
   const normalizeMode = useMapStore((s) => s.activeNormalizeMode)
   const setNormalizeMode = useMapStore((s) => s.setActiveNormalizeMode)
-  // Solidity (ADR-0011) rides in the Preview section only when the active embedding is
+  // Solidity rides in the Preview section only when the active embedding is
   // solid-eligible (it supplies a per-point normal); it appears/disappears as a unit
   // with that embedding. The canonical term is `solidity`; the slider is labelled
   // by its physical spectrum, Transparent ↔ Solid.

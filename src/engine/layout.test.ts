@@ -154,7 +154,7 @@ describe('resolveLayoutSelection (open / restore)', () => {
 
   it('honours a seeded map id, ignoring the first-match default', () => {
     // Demo recommendations now arrive pre-seeded into the persisted selection
-    // (the settings cascade, ADR-0013), so they resolve like any persisted map.
+    // (the settings cascade), so they resolve like any persisted map.
     const source: LayoutSource = {
       ...SOURCE,
       maps: [...SOURCE.maps, { id: 'sphere', name: 'Sphere', dim: 3 }],

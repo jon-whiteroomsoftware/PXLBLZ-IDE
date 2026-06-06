@@ -82,6 +82,6 @@ Three documents go deeper, each for a different reader — pick the one that mat
 - **[PXLBLZ Technical Reference](docs/PXLBLZ%20Technical%20Reference.md)** — *for someone building the IDE.* The authoritative as-built description of how it works: transpiler, validator, fixed-point engine, maps and embeddings, camera, render loop, storage. Start here to contribute.
 - **[Pixelblaze Ecosystem Primer](docs/Pixelblaze%20Ecosystem%20Primer.md)** — *for someone new to Pixelblaze itself.* The mental model the other two assume: device vs. browser, 16.16 fixed-point, the pattern and mapper dialects, the WebSocket API. Start here if "fixed-point" or "pixel map" needs unpacking.
 
-Beyond those: the **[ADRs](docs/adr/)** record the *why* behind the design decisions, and the official **[Pixelblaze docs](https://electromage.com/docs/)** cover the hardware, firmware, and language itself.
+Beyond those: the **Technical Reference** records the *why* behind the design decisions, and the official **[Pixelblaze docs](https://electromage.com/docs/)** cover the hardware, firmware, and language itself.
 </content>
 </invoke>

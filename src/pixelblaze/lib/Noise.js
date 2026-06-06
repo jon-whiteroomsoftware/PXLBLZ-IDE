@@ -14,7 +14,7 @@
 // int32 wrap of the raw fixed-point value (hardware does the same), so they are
 // bit-identical preview↔hardware under the fidelity engine. The integer part
 // wraps mod 65536, giving a ~16-bit hash — lower entropy than a 32-bit hash,
-// but ample for LED-scale visuals (ADR-0003).
+// but ample for LED-scale visuals.
 //
 // The final step `h / 256 / 256` demotes the wrapped integer's low 16 bits into
 // a [0, 1) fraction; the floor-based fract then folds it into a stable [0, 1).
@@ -26,7 +26,7 @@
 // NOT `h * (1/65536)`: the literal 0.0000152587890625 flushes to raw 0 in the
 // firmware's number parser, so `h * 0 = 0` collapsed every hash to 0 on the
 // device (#111). Power-of-two division avoids any sub-ULP literal entirely.
-// No `sin`/`perlin` — those are algorithmically divergent (ADR-0003) and unfit
+// No `sin`/`perlin` — those are algorithmically divergent and unfit
 // for fidelity-critical hashing.
 
 function _hash2(ix, iy) {

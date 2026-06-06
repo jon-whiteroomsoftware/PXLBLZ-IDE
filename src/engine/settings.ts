@@ -1,4 +1,4 @@
-// The tunable preview settings and their developer-default table (ADR-0013).
+// The tunable preview settings and their developer-default table.
 // Engine-pure: no React, no store. This is the vocabulary the per-pattern settings
 // cascade resolves over (see resolveSettings.ts) and the bottom layer (layer 4) of
 // that cascade.
@@ -47,7 +47,7 @@ export const DEV_DEFAULTS: Settings = {
   fidelity: 'fast',
 }
 
-// The field partition (ADR-0013). Each tunable field belongs to exactly one class,
+// The field partition. Each tunable field belongs to exactly one class,
 // which decides how many cascade layers apply to it:
 //   • CASCADED   — layers 1 (override), 2 (recommended), 4 (dev-default); NO global-sticky.
 //   • HYBRID     — all four layers (a global-sticky baseline, recommendable, overridable).

@@ -1,4 +1,4 @@
-// Generic centroid-derived surface normals (ADR-0011, preview-only).
+// Generic centroid-derived surface normals (preview-only).
 //
 // A baked 3D point cloud (the Sphere stock map) arrives as `xyz` with no
 // formula, so the preview re-derives a per-point outward normal as
@@ -45,14 +45,14 @@ export function centroidNormals(positions: Vec3[]): Vec3[] {
   })
 }
 
-// Per-FACE outward normals for a faceted shell (the Cube shell, ADR-0012): the
+// Per-FACE outward normals for a faceted shell (the Cube shell): the
 // axis-aligned unit vector along the DOMINANT axis of `pos − centroid`. A point
 // on a cube face is pinned to the centre's extreme on one axis (offset ±half the
 // span) while its in-face offsets stay strictly smaller, so the dominant axis is
 // always the face's own axis — yielding the exact ±x/±y/±z face normal, with no
 // rounding of the centroid-radial direction. A point sitting at the centroid has
 // no dominant axis, so it falls back to facing the camera (+z) and never fades.
-// Preview-only (ADR-0011) — never written to a map record nor sent to hardware.
+// Preview-only — never written to a map record nor sent to hardware.
 export function faceNormals(positions: Vec3[]): Vec3[] {
   const c = centroid(positions)
   return positions.map(([x, y, z]) => {

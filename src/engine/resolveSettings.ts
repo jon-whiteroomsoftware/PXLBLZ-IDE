@@ -1,4 +1,4 @@
-// The per-pattern settings cascade resolver (ADR-0013) — engine-pure, table-tested.
+// The per-pattern settings cascade resolver — engine-pure, table-tested.
 //
 // Effective value per field = first hit, top-down:
 //   per-pattern override → recommended (demos only) → global-sticky (comfort prefs
@@ -9,7 +9,7 @@
 //   • hybrid     → override ?? recommended ?? globalSticky ?? devDefault
 //   • global-only → globalSticky (fidelity); override/recommended ignored even if present.
 //
-// This deviates from the ADR's nominal `resolveSettings(id, …)` signature: the
+// This deviates from the originally-specified nominal `resolveSettings(id, …)` signature: the
 // caller looks the override bag up by id and passes it in, so this stays a pure
 // function over plain data with no record/map lookup.
 
@@ -49,7 +49,7 @@ export function resolveSettings(
   return out
 }
 
-// Decide where a hybrid-field drag (lightSize/diffusion) writes (ADR-0013):
+// Decide where a hybrid-field drag (lightSize/diffusion) writes:
 //   • global-sticky (set-once-stays-set) when the active pattern has NO recommendation
 //     for the field AND NO existing override for it — the plain comfort-pref case.
 //   • a per-pattern override otherwise — so a user can still outrank an enforced
