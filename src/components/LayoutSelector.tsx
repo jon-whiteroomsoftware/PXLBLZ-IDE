@@ -76,18 +76,24 @@ function useLayoutControls() {
 export function MapSelect() {
   const { maps, mapValue, route } = useLayoutControls()
   if (maps.length === 0) return null
+  // Block-mode + a max-width cap, right-aligned (self-end) within the stacked map cell:
+  // the dropdown grows with the column until it hits the cap, keeping its right edge
+  // pinned to the column edge so it lines up with the `fit` dropdown directly below.
   return (
-    <DeckSelect
-      ariaLabel="Map"
-      value={mapValue ?? maps[0].id}
-      options={maps.map((o) => ({
-        value: o.id,
-        label: o.name,
-        group: o.group === 'user' ? 'User' : 'Stock',
-      }))}
-      onChange={(id) => route(id, maps)}
-      menuWidthClass="w-44"
-    />
+    <div className="self-end w-full max-w-[11rem]">
+      <DeckSelect
+        ariaLabel="Map"
+        value={mapValue ?? maps[0].id}
+        options={maps.map((o) => ({
+          value: o.id,
+          label: o.name,
+          group: o.group === 'user' ? 'User' : 'Stock',
+        }))}
+        onChange={(id) => route(id, maps)}
+        menuWidthClass="w-44"
+        block
+      />
+    </div>
   )
 }
 

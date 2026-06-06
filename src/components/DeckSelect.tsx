@@ -26,12 +26,18 @@ export function DeckSelect<T extends string | number>({
   options,
   onChange,
   menuWidthClass = 'w-24',
+  block = false,
 }: {
   ariaLabel: string
   value: T
   options: DeckOption<T>[]
   onChange: (value: T) => void
   menuWidthClass?: string
+  // When true the trigger fills its container's width (chevron pinned right, long
+  // label truncates) instead of shrinking to its content. Lets a caller cap the width
+  // with a wrapper and right-align it — e.g. the stacked `map` cell, which grows to
+  // the column width and aligns its right edge with the `fit` dropdown below.
+  block?: boolean
 }) {
   const [isOpen, setIsOpen] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -52,15 +58,17 @@ export function DeckSelect<T extends string | number>({
   }, [isOpen])
 
   return (
-    <div ref={containerRef} className="relative">
+    <div ref={containerRef} className={`relative ${block ? 'w-full' : ''}`}>
       <button
         aria-label={ariaLabel}
         aria-haspopup="listbox"
         aria-expanded={isOpen}
         onClick={() => setIsOpen((o) => !o)}
-        className="flex items-center gap-0.5 h-5 pl-1 pr-0.5 shrink-0 rounded border border-zinc-500 text-[11px] tabular-nums text-zinc-300 hover:border-zinc-400 hover:text-amber-400/80 transition-colors"
+        className={`flex items-center gap-0.5 h-5 pl-1 pr-0.5 rounded border border-zinc-500 text-[11px] tabular-nums text-zinc-300 hover:border-zinc-400 hover:text-amber-400/80 transition-colors ${
+          block ? 'w-full justify-between' : 'shrink-0'
+        }`}
       >
-        <span className="whitespace-nowrap">{current?.label}</span>
+        <span className={block ? 'min-w-0 truncate' : 'whitespace-nowrap'}>{current?.label}</span>
         {current?.badge && (
           <span aria-hidden className="ml-1 text-zinc-500">
             {current.badge}

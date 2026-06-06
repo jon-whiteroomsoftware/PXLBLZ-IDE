@@ -14,14 +14,17 @@ import { HelpHint } from '@/components/HelpHint'
 // a label-keyed list of its controls. Brief, aimed at someone who already knows
 // Pixelblaze — what each control does, not how it's implemented.
 export function DeckSectionHint({
+  heading,
   intro,
   items,
 }: {
+  heading?: string
   intro?: string
   items: [string, string][]
 }) {
   return (
     <div className="flex flex-col gap-2 normal-case tracking-normal">
+      {heading && <h5 className="font-semibold text-zinc-100 leading-snug">{heading}</h5>}
       {intro && <p className="text-zinc-300 leading-snug">{intro}</p>}
       <div className="flex flex-col gap-1.5">
         {items.map(([label, desc]) => (

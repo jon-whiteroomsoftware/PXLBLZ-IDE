@@ -76,10 +76,10 @@ export function DeckSlider({
           // not a disabled one. Stays enabled: dragging is how the user sets it.
           value={sliderValue}
           onChange={(e) => handleChange(Number(e.target.value))}
-          className={`w-2/3 ${indeterminate ? 'deck-slider-unset' : 'accent-live'}`}
+          className={`flex-1 min-w-0 ${indeterminate ? 'deck-slider-unset' : 'accent-live'}`}
         />
         <span
-          className={`flex-1 text-right tabular-nums ${indeterminate ? 'text-zinc-500' : 'text-live'}`}
+          className={`shrink-0 w-10 text-right tabular-nums ${indeterminate ? 'text-zinc-500' : 'text-live'}`}
         >
           {indeterminate ? '—' : format(value)}
         </span>

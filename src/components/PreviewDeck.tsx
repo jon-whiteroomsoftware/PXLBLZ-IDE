@@ -32,25 +32,28 @@ import {
 // section is renderer-only and never leaves the browser.
 const PIXELBLAZE_HINT = (
   <DeckSectionHint
+    heading="Pixelblaze controller settings"
     items={[
-      ['map', 'the pixel map the pattern samples — its layout in real space (2D/3D only)'],
-      ['fit', 'how the pixel map is normalized into pattern space — Contain keeps the aspect ratio, Fill stretches each axis to fill it'],
-      ['pixel count', 'how many LEDs the pattern drives'],
+      ['map', 'the physical pixel layout in 2D/3D space'],
       ['brightness', 'master output level applied to every pixel'],
+      ['fit', 'pixel map normalization to pattern space — Contain keeps the aspect ratio, Fill stretches each axis to fill it'],
+      ['pixel count', 'how many LEDs the pattern drives'],
     ]}
   />
 )
 
 const PREVIEW_HINT = (
   <DeckSectionHint
-    intro="Preview only — these controls affect the IDE but are never sent to the controller."
+    heading="PXLBLZ Preview settings"
     items={[
-      ['light size', 'on-screen size of each rendered LED'],
-      ['diffusion', 'soft glow and blending between neighbouring lights'],
-      ['solidity', 'for surface maps, how opaque it reads — transparent through solid'],
-      ['renderer', 'Fast (plain float math) or Precise (hardware-accurate fixed-point)'],
-      ['speed', 'playback rate of the preview clock'],
-      ['fps / elapsed / layout', 'live readouts — frame rate, run time, and the active map'],
+      ['light size', 'on-screen LED size'],
+      ['diffusion', 'soften and blend lights'],
+      ['solidity', 'opacity for surface maps'],
+      ['renderer', 'Fast (native float math) or Precise (hardware-accurate fixed-point)'],
+      ['speed', 'playback rate of the preview'],
+      ['fps', 'live preview frame rate'],
+      ['elapsed', 'elapsed preview run time'],
+      ['layout', 'map grid dimensions, e.g. 16×16 — grid-shaped maps only (squares, rectangles, cubes)'],
     ]}
   />
 )
@@ -217,14 +220,17 @@ function SecondaryBand() {
     <div className="text-xs pr-3">
       <DeckSection label="Pixelblaze" hint={PIXELBLAZE_HINT}>
         <DeckGrid>
-          {/* Additive layout: row 1 (pixel count + brightness) is present for every
-              dimension and never moves; row 2 (fit + map) only appears for a mapped
-              2D/3D layout, growing downward rather than reshuffling row 1. Row 1 is
-              stacked (label above control) so pixel count aligns to the brightness
-              slider; row 2's fit and map are inline label-left/value-right cells. */}
-          <DeckField label="pixel count">
-            <PixelCountInput />
-          </DeckField>
+          {/* Row 1 is the two controls that want room: map (stacked, so its dropdown
+              gets the full column width for long map names) and brightness (the stacked
+              slider). Row 2 holds the two compact one-liners: fit and pixel count, as
+              inline label-left/value-right cells. For a mapless 1D layout, map and fit
+              both drop out, and brightness + pixel count collapse up into a single row
+              rather than reshuffling. */}
+          {hasMap && (
+            <DeckField label="map">
+              <MapSelect />
+            </DeckField>
+          )}
           <DeckSlider
             label="brightness"
             ariaLabel="Brightness"
@@ -255,11 +261,9 @@ function SecondaryBand() {
               />
             </DeckCell>
           )}
-          {hasMap && (
-            <DeckCell label="map">
-              <MapSelect />
-            </DeckCell>
-          )}
+          <DeckCell label="pixel count">
+            <PixelCountInput />
+          </DeckCell>
         </DeckGrid>
       </DeckSection>
       <DeckSection label="Preview" hint={PREVIEW_HINT}>
