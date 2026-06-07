@@ -1,4 +1,56 @@
-# Perf harness (hardware built-in cost spike, #245)
+# Perf harness
+
+Two complementary tools live here. Keep their questions apart:
+
+| tool | question | source of truth |
+|---|---|---|
+| **emulator bench** (`bench.ts`, #247) | "how many ops did my pattern do?" | the in-repo emulator — no hardware |
+| **hardware profiler** (`profiler.ts`, #245) | "what does each op cost on the device?" | a physical Pixelblaze on your LAN |
+
+---
+
+## Emulator bench (`npm run bench`, #247)
+
+Times any demo in both **Fast** (float64) and **Precise** (16.16 fixed-point)
+modes and emits a **pixel checksum**, so an optimization pass can prove it
+changed the speed *without changing the visual*.
+
+```bash
+npm run bench -- Kishimisu                  # both modes, time + checksum
+npm run bench -- Kishimisu --frames 60 --grid 32x32
+npm run bench -- TestPattern3D --grid 12x12x12   # ROWSxCOLSxLAYERS for 3D
+npm run bench -- --list                     # available demos
+```
+
+The **checksum is the guard rail**: it's an FNV-1a hash of the 8-bit-quantized
+RGB buffer over a fixed window of frames at a fixed virtual clock. Re-run after
+an edit and compare it *per mode* — identical checksum ⇒ byte-for-byte identical
+output, so any frame-time delta is a pure speed change. (8-bit quantization
+absorbs sub-ULP float noise between modes/machines while staying sensitive to
+real visual change.) The bench picks a default grid by the demo's
+dimensionality (1D strip / 2D plane / 3D cube) unless `--grid` overrides it.
+
+### Load-bearing caveat — it counts OPS, not native cost
+
+Every math built-in is a native JS `Math.*` in **both** shims
+(`src/engine/shim.ts`); Precise only adds a raw↔float quantization per call. So
+the bench rewards **fewer ops, fewer loop iterations, and factoring invariants
+into `beforeRender`** — but it will **not** reward `sin`→`wave` or
+`sqrt`→`hypot` (it may even *penalize* them, since here `wave` wraps `cos` and
+is strictly more work). For true per-call hardware cost, use the profiler below.
+
+This tool is pure and hardware-free; the pure core (`benchCore.ts`) is unit-
+tested (`benchCore.test.ts`) and runs in the normal `npm test` gate.
+
+| file | role |
+|---|---|
+| `bench.ts` | CLI: parse args, load demo + libs off disk, print time + checksum |
+| `benchCore.ts` | pure bench engine: bundle → render N frames → mean time + checksum |
+| `benchCore.test.ts` | guards checksum determinism & sensitivity |
+
+---
+
+## Hardware built-in cost profiler (#245)
 
 Measures the **real relative cost of native Pixelblaze built-ins on actual
 hardware** (`sin`, `cos`, `wave`, `pow`, `exp`, `sqrt`, `hypot`, `perlin`, …) and
@@ -54,7 +106,7 @@ running accumulator (no hoisting), the accumulator carries across frames into a
 read-back sink (not dead code), and operands wrap through `frac(... + 0.123)`
 each iteration to stay in `[0,1)` (bounded — no 16.16 overflow shifting costs).
 
-## Files
+## Files (profiler)
 
 | file | role |
 |---|---|

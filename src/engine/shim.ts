@@ -1,5 +1,9 @@
 import { fx } from './fixedpoint'
-import { createPlaneMap, type MapPoint } from './maps'
+// Leaf-module imports (not the maps/ barrel): the barrel pulls in
+// stockCatalogue, whose Vite import.meta.glob breaks plain-Node consumers like
+// the tsx-run perf bench (test/perf-harness). plane/types carry no such dep.
+import { createPlaneMap } from './maps/plane'
+import type { MapPoint } from './maps/types'
 
 const PI2 = Math.PI * 2
 
