@@ -17,6 +17,10 @@ The WebGL preview render loop keeps the page perpetually busy, so naive screensh
 
 Prefer this path over out-of-band canvas readback (`drawImage`/`toBlob` from outside), which catches the buffer at unpredictable moments and can return stale or cleared frames.
 
+### Code search (Morph)
+
+For exploratory "where/how does X work" questions, prefer the Morph `codebase_search` tool (`mcp__morph-mcp__codebase_search`) over grepping and reading files yourself. It runs the grep/read work in a separate subagent and returns only the curated, relevant excerpts — keeping the main context lean. Pass a natural-language question (not a regex or symbol dump) and the repo path. Use direct file tools (Read/Grep/Glob) when you already know the exact file or symbol.
+
 ## Commands
 
 ```bash
