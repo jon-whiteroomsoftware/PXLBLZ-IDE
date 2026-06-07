@@ -97,6 +97,11 @@ var ringVel = 0     // normalized 0..1 tick velocity (0 at rest, 1 mid-snap)
 var greatPhase = 0   // primary spin angle of the great-ring axis
 var greatCycle = 0   // palette scroll phase swept through the great-ring band
 
+// Great-ring normal (gnx/gny/gnz) — derives only from greatPhase, so it's the
+// same for every pixel. Computed once per frame in beforeRender instead of
+// recomputing ~5 trig/pixel (sin/cos of theta/phi + the wander sin) in render3D.
+var gnx = 0, gny = 0, gnz = 0
+
 // Fraction of each tick cycle the ring spends moving; the rest is a hold. A
 // short move + long hold reads like an analog clock's second hand: a quick
 // eased snap up a level, then a pause.
@@ -125,6 +130,16 @@ export function beforeRender(delta) {
   var spinRate = spin * 2 - 1            // 0..1 position -> -1..1, 0.5 = still
   greatPhase += dt * spinRate * 2.0      // signed; sits still at the midpoint
   greatCycle += dt * 0.35                // palette scroll through the great-ring
+
+  // Great-ring axis: two incommensurate angles (azimuth theta + wandering polar
+  // phi) drive an off-axis normal. All time-only — hoisted here so render3D just
+  // reads gnx/gny/gnz. (Same expressions as before; pure relocation.)
+  var theta = greatPhase
+  var phi = greatPhase * 0.27 + 0.4 * sin(greatPhase * 0.23)
+  var sp = sin(phi)
+  gnx = sp * cos(theta)
+  gny = cos(phi)
+  gnz = sp * sin(theta)
 }
 
 export function render3D(index, x, y, z) {
@@ -137,7 +152,7 @@ export function render3D(index, x, y, z) {
   var px = (x - cx) / radius
   var py = (y - cy) / radius
   var pz = (z - cz) / radius
-  var len = sqrt(px * px + py * py + pz * pz)
+  var len = hypot3(px, py, pz)
   if (len > 0) { px /= len; py /= len; pz /= len }
 
   // Bands stack along a pole axis tilted 45° from vertical (in the y-z plane),
@@ -171,15 +186,10 @@ export function render3D(index, x, y, z) {
   // reads like the preview's own orbit). Instead drive the axis with two
   // incommensurate angles — an azimuth that spins and a polar angle that wanders
   // at an unrelated rate — so the ring tumbles off-axis and never quite repeats.
-  var theta = greatPhase
-  var phi = greatPhase * 0.27 + 0.4 * sin(greatPhase * 0.23)
-  var sp = sin(phi)
-  var nx = sp * cos(theta)
-  var ny = cos(phi)
-  var nz = sp * sin(theta)
-  // n is already unit length; `dot` is the unit-sphere point's signed distance
-  // from the ring plane, in [-1, 1].
-  var dot = px * nx + py * ny + pz * nz
+  // n (gnx/gny/gnz) is computed once per frame in beforeRender; it's already unit
+  // length, so `dot` is the unit-sphere point's signed distance from the ring
+  // plane, in [-1, 1].
+  var dot = px * gnx + py * gny + pz * gnz
 
   // A fat band — half-thickness 0.2 of the unit radius, so the lit strip is
   // ~0.4 across = a fifth of the sphere's diameter. Soft edges spread the blend.

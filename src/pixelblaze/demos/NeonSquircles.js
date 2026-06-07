@@ -11,8 +11,43 @@
 
 export var t = 0
 
+// Per-ring scratch tables (20 iterations). Everything that depends only on the
+// loop index — or on the index AND time, but never on the pixel — is precomputed
+// here instead of being recomputed for all 2048 pixels every frame (guide §6,
+// "precompute loop-index-only work into a table"). The per-pixel loop then only
+// does the genuinely position-dependent work (the rotation apply + the L4 glow).
+//
+//   colR/colG/colB — pure index constants (cos(ic + 0/1/2) + 1); filled once.
+//   rc/rs          — rotation cos/sin of the per-ring angle (time-only); per frame.
+//   animT          — the ring's smoothstep pulse weight (time-only); per frame.
+var colR = array(20), colG = array(20), colB = array(20)
+var rc = array(20), rs = array(20), animT = array(20)
+
+// Index-only color constants — cos() here is the device's fixed-point cos, run
+// once at load, so the values are bit-identical to computing cos(ic) per pixel.
+for (var k = 0; k < 20; k = k + 1) {
+  var ic0 = k + 1                 // post-increment index (1..20)
+  colR[k] = cos(ic0) + 1
+  colG[k] = cos(ic0 + 1) + 1
+  colB[k] = cos(ic0 + 2) + 1
+}
+
 export function beforeRender(delta) {
   t = t + delta * 0.001
+  var mt = t % 2
+  for (var i = 0; i < 20; i = i + 1) {
+    var ic = i + 1
+    // Rotation angle is (t+i)*0.03, applied by Shader.rot2(.., -angle); precompute
+    // cos/sin of that SAME negated argument so the per-pixel apply below is
+    // bit-identical to the original rot2 call (no per-pixel sin/cos). Negate the
+    // product (not the operand) to match the original's fixed-point rounding.
+    var angle = (t + i) * 0.03
+    var na = -angle
+    rc[i] = cos(na)
+    rs[i] = sin(na)
+    // Per-ring pulse — time-only (mt) and index-only (ic), never per-pixel.
+    animT[i] = smoothstep(0.35, 0.4, abs(abs(mt - ic * 0.1) - 1))
+  }
 }
 
 export function render2D(index, x, y) {
@@ -22,18 +57,16 @@ export function render2D(index, x, y) {
   Shader.toUV(x, y, 1)
   var px = ux, py = uy          // Shader.toUV writes the ux/uy out-vars
 
-  var mt = t % 2
   var finalR = 0, finalG = 0, finalB = 0
 
   for (var i = 0; i < 20; i = i + 1) {
-    // Body: rotate with pre-increment i (0..19). The GLSL mat2(rot(i)) folds
-    // by -angle, which Shader.rot2(.., -angle) reproduces → rx/ry out-vars.
-    var angle = (t + i) * 0.03
-    Shader.rot2(px, py, -angle)
-    px = rx
-    py = ry
+    // Apply the precomputed rotation. This mirrors Shader.rot2(px, py, -angle)
+    // exactly (rx = x*c - y*s; ry = x*s + y*c) with c=rc[i], s=rs[i].
+    var nx = px * rc[i] - py * rs[i]
+    var ny = px * rs[i] + py * rc[i]
+    px = nx
+    py = ny
 
-    // Post: glow + color with post-increment index (1..20)
     var ic = i + 1
 
     // Squircle (L4) distance: sqrt(px^4 + py^4) == hypot(px², py²)
@@ -41,13 +74,11 @@ export function render2D(index, x, y) {
     var l4 = hypot(ux2, uy2)
     var gv = 0.004 / (abs(l4 - ic * 0.04) + 0.005)
 
-    // Per-ring animation: stagger by ic*0.1 so the pulse sweeps across rings
-    var anim = smoothstep(0.35, 0.4, abs(abs(mt - ic * 0.1) - 1))
-
-    // Color: (cos(ic + [0,1,2]) + 1) — +1 keeps each channel non-negative
-    finalR = finalR + gv * anim * (cos(ic) + 1)
-    finalG = finalG + gv * anim * (cos(ic + 1) + 1)
-    finalB = finalB + gv * anim * (cos(ic + 2) + 1)
+    // Same multiply order as the original ((gv*anim)*color): anim and color are
+    // just read from the per-ring tables, so the result is bit-identical.
+    finalR = finalR + gv * animT[i] * colR[i]
+    finalG = finalG + gv * animT[i] * colG[i]
+    finalB = finalB + gv * animT[i] * colB[i]
   }
 
   rgb(finalR, finalG, finalB)

@@ -15,6 +15,9 @@
 //   2. invRingDensityM = 1/ringDensityM (per-octave divide → multiply) and
 //      t04 = t*0.4 precomputed once/frame.
 //   3. The per-octave palette phase i*0.4 → a running accumulator (mul → add).
+//   4. Per-pixel memoization of exp(-len0) — a position-only transcendental — into
+//      a pixelCount cache (see the note on expCache below). Bit-identical;
+//      measured 9.20 → 9.43 FPS (+2.5%) on top of steps 1–3, for ~8.4% total.
 // Measured on hardware (fw 3.67, 16×16): 8.7 → 9.1 FPS (+4.6%, free). The cost
 // table predicts a ~10% cut to the per-pixel body; the whole-frame gain is less
 // because fixed per-frame overhead (LED output, map walk) dilutes it (~44% of
@@ -61,6 +64,22 @@ var zoomM = 1.5, ringDensityM = 8, glowM = 0.01, sharpnessM = 1.2, octavesM = 4
 // multiply) and the time-only palette phase term. Step 2 of #248.
 var invRingDensityM = 1 / 8, t04 = 0
 
+// ── Per-pixel exp memoization (#248) ─────────────────────────────────────────
+// exp0 = exp(-len0) is a pure function of the pixel's position (len0 = hypot of
+// the centred uv), so it never changes frame to frame — yet exp is the priciest
+// scalar on hardware (~12.6×mul). Cache it per pixel index, filled lazily on each
+// index's first visit (sentinel 0 — exp(-len0) is in (0,1] here, never 0), then
+// read for free on every later frame. This turns a hardware-wisdom cost into a
+// bench-verifiable one: the checksum holds (the cached value equals what the
+// original recomputed) while ~pixelCount exp calls/frame vanish after frame 1.
+//
+// MEMORY NOTE: this is a pixelCount-sized array, and Pixelblaze has no GC — the
+// array can't be freed, and a grid-change reallocation leaks the old one. Safe at
+// this panel's 256 px (~1 KB); the catalogue entry in the guide spells out when
+// this trade is and isn't worth making at larger LED counts.
+var expCache              // allocated in beforeRender once pixelCount is known
+var expBuilt = 0          // pixelCount the cache was built for (0 = not yet)
+
 export function beforeRender(delta) {
   t = t + delta * 0.001
 
@@ -72,6 +91,16 @@ export function beforeRender(delta) {
 
   invRingDensityM = 1 / ringDensityM
   t04             = t * 0.4
+
+  // (Re)allocate the per-pixel exp cache when the grid size changes. Done here in
+  // beforeRender (not render2D) and via a bare-declared var, mirroring
+  // FireflyChoir's proven array idiom. Guard on pixelCount > 0: the map may not be
+  // ready on the first beforeRender (as AuroraSphere's calibrate() also guards),
+  // and array(0) then leaves render2D indexing out of bounds.
+  if (pixelCount > 0 && expBuilt != pixelCount) {
+    expCache = array(pixelCount)
+    expBuilt = pixelCount
+  }
 }
 
 // ── render2D ──────────────────────────────────────────────────────────────
@@ -84,7 +113,18 @@ export function render2D(index, x, y) {
   Shader.toUV(x, y, 1)
   var px = ux, py = uy          // Shader.toUV writes the ux/uy out-vars
   var len0 = hypot(px, py)
-  var exp0 = exp(-len0)
+
+  // Lazily fill the per-pixel exp cache (allocated in beforeRender). 0 marks an
+  // unfilled slot — exp(-len0) is in (0,1] here, so it's never a false hit. Guard
+  // the index against the built size in case the cache isn't ready yet (first
+  // frame before the map settles); floor it so it's a clean integer subscript.
+  var ix = floor(index)
+  var cached = (ix < expBuilt)
+  var exp0 = cached ? expCache[ix] : 0
+  if (exp0 == 0) {
+    exp0 = exp(-len0)
+    if (cached) expCache[ix] = exp0
+  }
 
   var finalR = 0, finalG = 0, finalB = 0
 

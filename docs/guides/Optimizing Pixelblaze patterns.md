@@ -182,6 +182,74 @@ accumulation, `sin(t)`/`cos(t)` for a rotation angle, palette coefficients,
 constants derived from sliders — computes **once per frame** there instead of
 once per pixel. The emulator bench will show the call-count drop directly.
 
+### Precompute loop-index-only work into a table [bench-verifiable + hardware-wisdom]
+
+A generalisation of the move above for patterns with an **inner loop** in
+`render`. If an inner-loop expression depends only on the **loop index** (and
+maybe time), but never on the pixel, compute it **once into a small array** and
+read it in the loop — at *module scope* if it's a pure index constant, in
+`beforeRender` if it's also time-dependent. The per-pixel loop then carries only
+the genuinely position-dependent work.
+
+This is the highest-leverage move for the "N-iteration loop per pixel" ports
+(layered rings, octave sums, kaleidoscope folds). It cuts both **call count**
+(bench-verifiable) *and*, when what you hoist is a transcendental, a real
+per-built-in cost on hardware (hardware-wisdom) — provable both ways. The two
+table flavours:
+
+- **Index-only constants → module scope.** `cos(i)`, `i*k`, anything that's the
+  same every frame, filled once in a top-level `for` loop. The `cos` runs in the
+  device's own fixed-point at load, so the cached value is bit-identical to
+  computing it inline.
+- **Index-and-time → `beforeRender`.** Per-ring rotation angles, per-octave
+  phases, a time-staggered pulse weight. Refilled once per frame, read by every
+  pixel.
+
+> **Keep the multiply order.** Folding `gv * anim * color` into a precomputed
+> `gv * weight` (with `weight = anim*color`) *re-associates* the multiplies and
+> drifts the Precise/fixed-point checksum. To stay strictly output-preserving,
+> table only the invariant *operands* (`anim`, `color`) and leave the per-pixel
+> expression's association untouched: `gv * animT[i] * colT[i]`. Same values,
+> same order, bit-identical. (See the NeonSquircles case study.)
+
+> **The emulator can't see this win — and reads it backwards.** The bench runs
+> every built-in as a native `Math.*` but reaches array elements through a
+> heavier path, so swapping per-pixel `sin`/`cos` for array reads makes the
+> *emulator* slower even as the *device* gets much faster. Trust the checksum
+> (output-preserving) and `devbench` (the real gain), not the bench stopwatch.
+
+### Memoize position-only transcendentals per pixel [bench-verifiable after the change]
+
+When a per-pixel value is an **expensive transcendental of the pixel's position
+alone** — time-invariant, the same every frame — cache it in a `pixelCount`-sized
+module array, filled once, and read it thereafter. `exp`/`pow`/`asin` of a
+fixed `len = hypot(px,py)` are the textbook cases. This is the one move that
+turns a **hardware-wisdom** cost (the emulator can't see a `sin`→table swap) into
+a **bench-verifiable** one: after the cache fills, the call simply stops
+happening, so both the op count *and* the device cost drop, and the checksum
+holds (the cached value equals what the body recomputed).
+
+The clean, bit-identical way to fill it is **lazy** — compute on each index's
+first visit (with a sentinel for "unfilled"), read on every later frame — because
+that uses the exact per-pixel coordinates `render2D` receives. (Prefilling via
+`mapPixels` risks a coordinate-normalisation mismatch and a checksum drift.)
+
+> **Memory cost — weigh it deliberately.** An array is the *only* dynamically
+> allocated type on Pixelblaze and **cannot be freed** (no GC — [Language
+> Reference](../ElectroMage/Pixelblaze%20Language%20Reference.md)), so a
+> `pixelCount` cache is permanent, **leaks the old one on any grid-change
+> reallocation**, and **scales with LED count**. Fine at a 256-px panel (~1 KB);
+> a real liability on a multi-thousand-LED install or a frequently re-mapped one.
+> Static `var`s are free by comparison — reach for this *only* when the memoized
+> built-in is genuinely expensive (`exp`/`pow`/inverse-trig) and the pixel count
+> is bounded. Don't memoize a `sin`; do consider it for a per-pixel `exp`.
+
+> **Device array gotchas (fw 3.67).** `array(0)` is rejected — bare-declare the
+> var and allocate `array(pixelCount)` only once `pixelCount > 0` (the map can be
+> unready on the first `beforeRender`). Bound-check the subscript (`ix < built`)
+> and `floor()` the render `index` before using it. See the Kishimisu case study
+> and `FireflyChoir.js` for the proven idiom.
+
 ### Cut loop iterations [bench-verifiable]
 
 Cost scales with `pixels × iterations`. Raymarch step counts, noise octaves, and
@@ -191,7 +259,14 @@ holds; often 95 steps look identical to 40. The bench confirms the reduction.
 ### Reduce op count; strength-reduce [bench-verifiable]
 
 - Hoist common subexpressions out of inner loops.
-- Replace `pow(x, 2)` with `x*x` (8.5× → 1.0×), `pow(x, 0.5)` with `sqrt(x)`.
+- Replace `pow(x, k)` for small integer `k` with repeated multiplies
+  (`pow(x,2)→x*x`, `pow(x,3)→x*x*x`; 8.6× → ~`k-1` muls), and `pow(x, 0.5)` with
+  `sqrt(x)`. Note this is **not** output-preserving — `pow` routes through
+  `exp`/`log`, so the result differs by a fixed-point ULP (the Fast checksum
+  usually survives quantization, Precise drifts); it's a blessed sub-perceptual
+  change, *not* a free one. And weigh it against the whole frame: on a frame
+  dominated by something else (see the Caustics case study — voronoi-bound), even
+  cutting two `pow`s buys ~nothing, so the drift isn't worth it.
 - Multiply by a reciprocal once instead of dividing repeatedly (`div` 1.9× vs
   `mul` 1.0×) — but mind the [16.16 overflow cliff](#part-ii--optimizing-glsl--shadertoy-ports)
   on the reciprocal's magnitude.
@@ -274,6 +349,110 @@ correctness and the on-device perf check in Precise / on hardware.
 
 ## 7. Case studies
 
+### NeonSquircles (`src/pixelblaze/demos/NeonSquircles.js`) — precompute the per-ring tables (#248)
+
+The cleanest big win on the board, and the worked example for **precompute
+loop-index-only work into a table** (§4). The demo draws 20 rotating squircle
+rings in a per-pixel `for(i=0..19)` loop, and almost all of the loop's
+transcendental cost is **pixel-invariant**:
+
+- **Color** — `cos(ic)`, `cos(ic+1)`, `cos(ic+2)` (where `ic = i+1`) depend on
+  *nothing but the loop index*. Pure constants → a module-scope `cos` table
+  filled once at load. Removes **60 `cos`/pixel**.
+- **Rotation** — `Shader.rot2(px, py, -(t+i)*0.03)` recomputes a `sin`+`cos` of an
+  angle that depends only on `t` and `i`, not the pixel. Precompute `rc[i]`/`rs[i]`
+  in `beforeRender` (20 entries) and apply the rotation inline. Removes
+  **~20 `sin` + 20 `cos`/pixel**.
+- **Pulse** — the `smoothstep(…abs(abs(mt - ic*0.1) - 1))` ring weight is
+  time-only (`mt = t%2`) and index-only. Also tabled in `beforeRender`.
+
+That's ~100 trig calls plus a `smoothstep` chain per pixel moved off the
+per-pixel path, onto a 20-entry-per-frame path. The image is unchanged.
+
+**Output-preserving — both checksums held** (Fast `1f3f932d`, Precise
+`3c337ca4`), but it took two care points to keep the *Precise* checksum:
+
+1. **Negate the product, not the operand.** The original forms `angle = (t+i)*0.03`
+   then passes `-angle`; writing `na = -(t+i)*0.03` instead negates *before* the
+   multiply, and `(-(t+i))*0.03` rounds one ULP differently from `-((t+i)*0.03)`
+   in 16.16 — enough to drift the Precise checksum. Mirror the original's order.
+2. **Don't re-associate the accumulate.** Keep `gv * animT[i] * colR[i]` (same
+   left-to-right order as the original `gv * anim * (cos(ic)+1)`); folding
+   `animT*colR` into one precomputed weight reorders the fixed-point multiplies
+   and drifts Precise. Table the *operands*, not the product.
+
+**Hardware: 2.46 → 3.08 FPS, +25.3%** (`devbench`, before/after, settle 4 s /
+sample 14 s, n=8/5, readings dead stable at 2.5 / 3.1):
+
+| | FPS | ms/frame |
+|---|---|---|
+| baseline | 2.46 | 406.8 |
+| tabled | 3.08 | 324.6 |
+
+Why this one pays off where Kishimisu's pass barely moved and PhantomStar's
+didn't at all: the work removed here is **expensive *and* a large fraction of the
+frame** — ~100 trig calls/pixel × 2048 pixels, a 2.9–3.2× built-in each, against
+a per-pixel body that *is* most of this demo's frame. Contrast the §1 whole-frame
+model: a big cut to a body that dominates the frame is a big frame win.
+
+**The bench reads it backwards** — exactly as §4 warns. The emulator runs each
+built-in as native `Math.*` but reaches array elements through a heavier path, so
+trading per-pixel `sin`/`cos` for table reads made the *emulator* frame ~15×
+slower (Fast 2.3 → 34 ms) even as the *device* sped up 25%. The checksum (held)
+and `devbench` (+25%) are the truth here; the bench stopwatch is noise.
+
+### Caustics (`src/pixelblaze/demos/Caustics.js`) — hoisting a voronoi-bound frame (#248)
+
+A second sober counterweight to NeonSquircles, and a tidy illustration of the
+whole-frame model (§1). Caustics drifts two animated Voronoi layers past each
+other; per pixel it calls `Noise.voronoiDist` **twice**, and each call scans a
+3×3 cell neighbourhood hashing every cell — ~18 cell-hashes/pixel that **own the
+frame**.
+
+- **The hoist [bench-verifiable, output-preserving].** `SCALE`/`sharp` are
+  slider-only and the five layer-drift terms are `sin`/`cos` of the time phase
+  `ph` — pixel-invariant. Moved to `beforeRender`, removing 5 trig/pixel. Both
+  checksums held (Fast `46d774e1`, Precise `5ebcd5b5`). Two fixed-point care
+  points kept Precise: fold offsets via *adds* only (exact in 16.16, unlike the
+  re-associated *multiply* `SCALE*1.3` would have been), and negate the *product*
+  (`-(cos·0.5)`, not the unary-bound `(-cos)·0.5`).
+- **Hardware: 2.83 → 2.87 FPS, +1.7%** (`devbench`, settle 3 s / sample 10 s,
+  stable). Real but tiny — because the 5 trig calls are a rounding error against
+  ~18 voronoi cell-hashes. The frame model predicts exactly this: a free cut to a
+  small slice of the frame is a small frame win.
+- **The `pow` that wasn't worth it.** The two `pow(·, 3)` (8.6× each) look like
+  prime strength-reduction targets (`→ v*v*v`). Measured: **+2.1% with the cube
+  vs +1.7% without — no gain past the hoist**, the voronoi cost swamping it, and
+  the cube drifts the Precise checksum (`f5c48b5e`). So it was reverted: a Precise
+  divergence you can't see *and* can't measure is not a win. **Only the levers the
+  voronoi cost can't swamp move this frame** — dropping a layer or shrinking the
+  3×3 scan, both quality knobs (image-changing), on the far side of the checksum.
+
+### AuroraSphere (`src/pixelblaze/demos/AuroraSphere.js`) — hoist a frame-global vector + measure hypot3 (#248)
+
+A geometry-aware 3D sphere showcase, and our first *isolated* measurement of the
+`hypot3` swap. (It's a `render3D` demo; on the 16×16 *2D* panel the firmware still
+runs the full per-pixel body — only the image degenerates — so the FPS is a valid
+compute proxy.) Two layered wins:
+
+- **Hoist the great-ring normal [bench-verifiable, output-preserving].** The
+  axis `(nx, ny, nz)` derives only from `greatPhase` (time) — `sin`/`cos` of
+  `theta`/`phi` plus a wander `sin`, ~5 trig/pixel, *identical for every pixel*.
+  Moved whole into `beforeRender` as `gnx/gny/gnz`; render3D just reads them. Both
+  checksums held (Fast `8191cd6f`, Precise `b09f3de4`). **Hardware: 9.81 → 10.38
+  FPS, +5.9%.**
+- **`hypot3` over hand-rolled length [hardware-wisdom].** The unit-sphere
+  normalize `sqrt(px*px+py*py+pz*pz)` → `hypot3(px,py,pz)` (6.6× → 3.6×). Fast
+  checksum held; Precise drifted (`e9839f4b`) — accepted, since this demo is
+  already declared non-bit-faithful (asin/atan2, REFERENCE 8.4). **Marginal gain
+  measured in isolation: +5.9% → +7.0%, i.e. ~+1.1%** (9.81 → 10.50 total).
+
+The `hypot3` datapoint is the lesson: the cost table says it's ~2× cheaper *per
+call*, but it's one call against a per-pixel body that also runs `asin`, two
+`samplePalette` ramp-walks, and the rings math — so a ~3-×mul saving lands as
+~1% of the frame. Real, worth keeping (it's also clearer), but another instance
+of §1: price the swap against the *whole frame*, not the call.
+
 ### Kishimisu (`src/pixelblaze/demos/Kishimisu.js`) — a full measured pass (#248)
 
 The canonical "1.4 KB of beauty" kaleidoscope: a 4-octave fold, an IQ cosine
@@ -308,12 +487,19 @@ the [cost table](#the-measured-cost-table) (units = ×mul, 4 octaves):
   (`cos`'s phase carries the per-pixel `len0`; `sharpnessM` is a non-integer
   slider, so no `pow(x,2)→x*x`). They are the ceiling for a faithful render.
 - **`exp(-len0)` is ~13.8 ×mul *per pixel* and time-invariant** (a pure function of
-  position). It's already hoisted out of the octave loop; the next move would be
-  to **memoize it per pixel index** into a module array filled once — the one
-  hardware-wisdom item here that memoization could turn bench-verifiable (it would
-  drop ~2048 `exp` calls/frame in steady state). Not yet done: it's a structural
-  change (a `pixelCount`-sized cache + a grid-change guard) weighed against the
-  demo's readability.
+  position), so it's the textbook **per-pixel memoization** target (§4). Now
+  *done and measured:* cached lazily into a `pixelCount` array, filled on each
+  index's first visit. Bit-identical (both checksums held, `7b85cec1`/`27e503fe`),
+  and **9.20 → 9.43 FPS, +2.5%** on hardware (`devbench`, n=6/7, dead stable) — on
+  top of steps 1–3, ~**8.4% total** from the original. The gain is modest for the
+  same whole-frame reason: `exp` is one cost among the per-octave `cos`/`pow`.
+  This is the one item here memoization turned **bench-verifiable** (the `exp`
+  calls stop after frame 1). It ships with eyes open about the memory trade — a
+  `pixelCount` array that can't be freed (§4's memory note) — justified at the
+  panel's 256 px, and the in-code comment flags when it wouldn't be.
+  - *Two device gotchas surfaced doing it:* `array(0)` is rejected by fw 3.67 (so
+    allocate only once `pixelCount > 0`), and the subscript must be bound-checked
+    and `floor()`ed — folded into §4's gotcha note and `FireflyChoir.js`'s idiom.
 - **`octavesM` is the biggest single dial** — it multiplies the whole per-octave
   cost. Dropping 4→3 is ~23% off the frame, but it **changes the image**: a
   quality knob, not a free win. Keep it on the checksum's *other* side of the line.
@@ -346,17 +532,52 @@ loop** — a 10% cut to a body that's half the frame is a 5% cut to the frame. T
 big-ticket items (the per-octave `cos`/`pow`, the octave count) are where a
 *dramatic* win would have to come from, and none of those are free.
 
-### PhantomStar (`src/pixelblaze/demos/PhantomStar.js`)
+### PhantomStar (`src/pixelblaze/demos/PhantomStar.js`) — when hoisting runs out of road (#248)
 
-A volumetric raymarched IFS fractal — the heavy case, and the textbook
-hoisting win:
+A volumetric raymarched IFS fractal — the heaviest port we ship, and a sober
+counterweight to the "hoist and the cost collapses" reflex. A ~95-step
+raymarcher with a 5-iteration fold per step is ≈ 95 × 5 × pixels fold
+evaluations per frame; on the 16×16 panel it renders at **~0.24 FPS (≈4.2
+s/frame)** on fw 3.67. That is the headline: hoisting did **not** make this
+pattern viable, and the measurements say why.
 
-- A ~95-step raymarcher with a 5-iteration fold per step is far over budget
-  ported naïvely (≈ 95 × 5 × pixels evaluations of the fold).
-- **The fix is faithful, not a shortcut:** every `rot(iTime*…)` angle in the fold
-  is **time-only, not position-dependent**. So all of that `sin`/`cos` hoists
-  into `beforeRender` and computes **once per frame** instead of per-step
-  per-pixel. The image is identical; the cost collapses.
+**Two kinds of hoist, only one of them big.**
+
+- **The structural hoist — already done, and it's the real one.** Every
+  `rot(iTime·…)` angle in the fold is time-only, not position-dependent, so the
+  three rotation matrices (`c03/s03`, `c01/s01`, `cf/sf`) compute **once per
+  frame** in `beforeRender` and the fold just reads them — instead of
+  recomputing `sin`/`cos` per step per pixel. This is the textbook win, and it is
+  baked into the demo as shipped.
+- **The incremental hoist — correct, free, and negligible.** A later pass (#248)
+  also moved the per-pixel `iters`/`steps`/`gain` and the per-step `ringT = 24·t`
+  out of the hot paths. Output-preserving (the bench checksum is **identical in
+  both modes**), but the *hardware* delta is **+0.1% FPS — inside measurement
+  noise** (devbench, before/after, n=10 each, settle 6 s / sample 40 s; the
+  firmware quantises FPS to 0.2 so both versions read 0.24):
+
+  | | FPS | ms/frame |
+  |---|---|---|
+  | before (rotation-hoist only) | 0.24 | 4250 |
+  | after (+ scalar/ringT hoist) | 0.24 | 4245 |
+
+  **Δ +0.1%, i.e. zero.** What this hoist removed — two `floor`s and a few
+  `mul`/`add` per pixel, one `mul` per step — is a rounding error against a
+  95-step raymarch whose every step runs a 5-iteration fold plus `exp` (12.2×)
+  and `hypot3`.
+
+**The lesson: a hoist is only worth what you hoist.** Factoring invariants into
+`beforeRender` is the highest-leverage *general* move (§1), but its payoff is
+bounded by the cost of the thing you move. Here the genuinely expensive work —
+the per-step IFS fold, `exp(-dist·3)`, the ring `hypot3` — is a function of the
+per-pixel ray position and the per-step distance, so it is **structurally
+unhoistable**. The only levers that move PhantomStar's FPS materially are the
+ones the bench can see and the checksum guards against: **cutting march steps and
+fold iterations** (the `quality`/`depth` knobs) — and those change the image, so
+they live on the *other* side of the checksum line. Reach for them, measured and
+labelled, when a port is this far over budget; don't expect another hoist to
+save it.
+
 - Watch the `fx` identifier shadow (porting guide §4.B) — orthogonal to perf, but
   it bites in exactly these heavy ports.
 

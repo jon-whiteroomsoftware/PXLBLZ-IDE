@@ -161,6 +161,17 @@ same Node comms layer `profiler.ts` uses.
   `--settle` window (default 3 s) then averages distinct readings over a
   `--sample` window (default 4 s).
 
+### Caveat — very slow patterns need a longer sample window
+
+The default 4 s sample assumes a normal frame rate. A pathologically heavy port
+can render at a fraction of an FPS (PhantomStar is ~0.24 FPS ≈ 4.2 s/frame on the
+16×16 panel), so the default window catches only one or two frames — far too few
+to trust a before/after Δ. For sub-1-FPS patterns pass a long window so you
+collect ~10 frames per side, e.g. `--settle 6000 --sample 40000`. (Separately, the
+post-push active-program guard waits ~2 s for the device to finish loading the
+freshly compiled bytecode before calling `getConfig`; too short a wait there makes
+`getConfig` time out on the settings packet that carries `brightness`.)
+
 ### Caveat — frees the socket pool
 
 The Pixelblaze has a small WebSocket pool; if a connect fails with `ECONNRESET`

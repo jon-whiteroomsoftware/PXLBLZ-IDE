@@ -18,26 +18,42 @@ export function sliderTint(v) { tint = v }
 
 export var t
 
+// Frame-global scratch — slider- and time-only values the per-pixel path reads.
+// SCALE/sharp depend only on sliders; the layer drift offsets are five sin/cos of
+// the time phase `ph`, none of which depend on the pixel. Hoisting them out of
+// render2D removes 5 trig calls/pixel (guide §6). The drift offsets fold into the
+// per-pixel `x*SCALE + …` via integer adds, which are exact in 16.16 (no rounding),
+// so this stays output-preserving.
+var SCALE, sharp
+var offAx, offAy, offBx, offBy
+
 export function beforeRender(delta) {
   t = time(0.1) * (0.5 + speed * 3)
+  SCALE = 3 + density * 5
+  sharp = 1.2 + sharpness * 1.5
+  var ph = t * PI2
+  offAx = sin(ph) * 0.6 + sin(ph * 0.37) * 0.4
+  offAy = cos(ph * 0.9) * 0.6
+  offBx = -(cos(ph * 0.8) * 0.5)
+  offBy = sin(ph * 1.1) * 0.7
 }
 
 export function render2D(index, x, y) {
-  var SCALE = 3 + density * 5
-  var sharp = 1.2 + sharpness * 1.5
-  var ph = t * PI2
-
   // Layer A — slow, large-scale drift
-  var ax = x * SCALE + sin(ph) * 0.6 + sin(ph * 0.37) * 0.4
-  var ay = y * SCALE + cos(ph * 0.9) * 0.6
+  var ax = x * SCALE + offAx
+  var ay = y * SCALE + offAy
   var dA = Noise.voronoiDist(ax, ay)
 
   // Layer B — faster, finer, counter-drifting
-  var bx = x * SCALE * 1.3 - cos(ph * 0.8) * 0.5
-  var by = y * SCALE * 1.3 + sin(ph * 1.1) * 0.7
+  var bx = x * SCALE * 1.3 + offBx
+  var by = y * SCALE * 1.3 + offBy
   var dB = Noise.voronoiDist(bx, by)
 
-  // Sharp focal pools near each layer's cell centres
+  // Sharp focal pools near each layer's cell centres. (pow(v,3) → v*v*v is a
+  // valid strength reduction here, but measured ~0 frame gain on hardware — this
+  // demo is voronoi-bound, so the two pow calls are diluted to noise — and it
+  // costs a Precise drift, so it's not worth it. Left as pow to stay
+  // output-preserving. See the guide's Caustics note.)
   var cA = pow(1 - clamp(dA * sharp, 0, 1), 3)
   var cB = pow(1 - clamp(dB * sharp, 0, 1), 3)
 

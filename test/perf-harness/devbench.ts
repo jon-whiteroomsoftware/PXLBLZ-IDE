@@ -194,7 +194,11 @@ async function measureSource(
   conn.pushByteCode(bytecode, { id: programId, name: '' })
 
   // Confirm the device is actually running what we pushed before trusting FPS.
-  await sleep(400)
+  // The freshly compiled bytecode takes a beat to load; until it has, the device
+  // won't answer getConfig's settings packet (the one carrying `brightness`), so
+  // too short a wait here makes getConfig time out waiting on `brightness`. 2 s is
+  // comfortably past the observed load time on fw 3.67.
+  await sleep(2000)
   const cfg = await conn.getConfig()
   if (cfg.activeProgramId !== programId) {
     throw new Error(
@@ -253,7 +257,9 @@ async function main(): Promise<void> {
   const conn = new PixelblazeConnection({
     host: IP,
     webSocketFactory: nodeFactory,
-    requestTimeoutMs: 5000,
+    // Generous: a getConfig right after a code push can be slow to answer while
+    // the device finishes loading the new bytecode (see the settle in measureSource).
+    requestTimeoutMs: 15000,
   })
   conn.on('error', (e) => console.error('socket error:', e))
   await conn.connect()
