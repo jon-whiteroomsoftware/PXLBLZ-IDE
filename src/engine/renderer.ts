@@ -151,7 +151,16 @@ export function createRenderer(canvas: HTMLCanvasElement, initialViewport: Viewp
   // Glowing LEDs are additive light, so the draw uses additive blending — which
   // is order-independent, so there is no painter's-order depth sort. The CSS
   // `diffusion` blur is applied as a filter on this canvas by the UI layer.
-  const gl = canvas.getContext('webgl', { premultipliedAlpha: false, alpha: true })
+  // Dev-only opt-in: `?capture` keeps the drawing buffer readable so automation
+  // (and toDataURL) can grab real preview frames. Off by default — no perf cost.
+  const captureMode =
+    typeof location !== 'undefined' &&
+    new URLSearchParams(location.search).has('capture')
+  const gl = canvas.getContext('webgl', {
+    premultipliedAlpha: false,
+    alpha: true,
+    preserveDrawingBuffer: captureMode,
+  })
 
   function applySize(): void {
     const { width, height } = canvasSizeForBounds(containerWidth, bounds2D)
