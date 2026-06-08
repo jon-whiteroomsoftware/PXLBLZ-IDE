@@ -34,6 +34,7 @@ much more.
 | demo | what moved off the per-pixel path | FPS before→after | Δ | preserving |
 |---|---|---|---|---|
 | ControlsShowcase | 4 `cos`/`sin` + orbit geometry + edge falloff | 33.7 → 50.4 | **+49.7%** | ✅ both |
+| NebulaSphere | hardware retune: derive warp components + 2-octave final density + cheap curve | 18.35 → 25.94 | **+41.4%** | drift + preview accepted |
 | PulseLoom | cached 4 per-pixel Gaussian bumps | 21.09 → 29.02 | **+37.6%** | ✅ both |
 | NeonSquircles | ~100 trig/pixel → 20-ring `beforeRender` tables | 2.46 → 3.08 | +25.3% | ✅ both |
 | NeonSquircles | hardware retune: 20 rings → 5 representative rings | 3.08 → 10.73 | **+248%** | drift + visual accepted |
@@ -48,6 +49,7 @@ much more.
 | Kishimisu | slider remaps + per-pixel `exp` memoization | 8.7 → 9.43 | ~+8.4% | ✅ both |
 | SDF/Coord helpers | 2D hand-rolled lengths → `hypot` | 50.92 → 54.60\*\* | +7.2% | Fast + tiny Precise drift |
 | ZippyZaps | 1 `pow` + 7 `cos`/iteration → index tables | 0.83 → 0.89 | +7.4% | ✅ both |
+| AuroraSphere | fixed palette sampler specialized out of array scan | 11.29 → 18.78 | **+66.3%** | ✅ both |
 | AuroraSphere | cached position-only sphere geometry | 10.57 → 11.29 | +6.8% | ✅ both |
 | AuroraSphere | frame-global great-ring normal + `hypot3` | 9.81 → 10.50 | +7.0% | Fast only |
 | PlasmaNebula | scale / warp / twinkle-threshold scalars | 21.6 → 22.8 | +5.5% | ✅ both |

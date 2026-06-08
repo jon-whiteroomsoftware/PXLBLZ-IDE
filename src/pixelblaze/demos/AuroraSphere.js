@@ -27,17 +27,6 @@ export function sliderRingCount(v) { ringCount = v }
 export function sliderSpin(v) { spin = v }
 export function sliderSpeed(v) { speed = v }
 
-// Aurora ramp (pos, r, g, b — all 0..1, Pixelblaze palette convention).
-var aurora = [
-  0.00, 0.00, 0.04, 0.06,  // night
-  0.25, 0.00, 0.42, 0.22,  // deep green
-  0.48, 0.22, 0.95, 0.50,  // bright green
-  0.68, 0.30, 0.85, 0.95,  // teal
-  0.85, 0.55, 0.22, 0.98,  // blue-violet
-  1.00, 0.92, 0.30, 0.78,  // magenta crown
-]
-var AURORA_STOPS = 6
-
 // Sample the aurora ramp into RGB module vars (_pr/_pg/_pb). We do this in the
 // pattern rather than via paint() because paint() OVERWRITES the pixel, so it
 // can't add two palette colours together. Sampling here lets the latitude rings
@@ -46,17 +35,30 @@ var AURORA_STOPS = 6
 var _pr = 0, _pg = 0, _pb = 0
 function samplePalette(pos) {
   pos = pos - floor(pos)                 // wrap into 0..1
-  var lo = 0
-  for (var s = 0; s < AURORA_STOPS - 1; s++) {
-    if (aurora[s * 4] <= pos) lo = s
+  var loPos = 0, hiPos = 0.25
+  var lr = 0, lg = 0.04, lb = 0.06
+  var hr = 0, hg = 0.42, hb = 0.22
+  if (pos >= 0.85) {
+    loPos = 0.85; hiPos = 1.00
+    lr = 0.55; lg = 0.22; lb = 0.98
+    hr = 0.92; hg = 0.30; hb = 0.78
+  } else if (pos >= 0.68) {
+    loPos = 0.68; hiPos = 0.85
+    lr = 0.30; lg = 0.85; lb = 0.95
+    hr = 0.55; hg = 0.22; hb = 0.98
+  } else if (pos >= 0.48) {
+    loPos = 0.48; hiPos = 0.68
+    lr = 0.22; lg = 0.95; lb = 0.50
+    hr = 0.30; hg = 0.85; hb = 0.95
+  } else if (pos >= 0.25) {
+    loPos = 0.25; hiPos = 0.48
+    lr = 0.00; lg = 0.42; lb = 0.22
+    hr = 0.22; hg = 0.95; hb = 0.50
   }
-  var hi = min(lo + 1, AURORA_STOPS - 1)
-  var loPos = aurora[lo * 4], hiPos = aurora[hi * 4]
-  var span = hiPos - loPos
-  var t = span > 0 ? clamp((pos - loPos) / span, 0, 1) : 0
-  _pr = aurora[lo * 4 + 1] + (aurora[hi * 4 + 1] - aurora[lo * 4 + 1]) * t
-  _pg = aurora[lo * 4 + 2] + (aurora[hi * 4 + 2] - aurora[lo * 4 + 2]) * t
-  _pb = aurora[lo * 4 + 3] + (aurora[hi * 4 + 3] - aurora[lo * 4 + 3]) * t
+  var t = (pos - loPos) / (hiPos - loPos)
+  _pr = lr + (hr - lr) * t
+  _pg = lg + (hg - lg) * t
+  _pb = lb + (hb - lb) * t
 }
 
 // ── Self-calibration cache (reset on every preview rebuild) ──────────────────

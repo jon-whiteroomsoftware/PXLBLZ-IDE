@@ -7,8 +7,10 @@
 // volume re-slice.
 //
 // The "warp the warp" technique (Inigo Quilez), now in 3D: sample fBm, use it
-// to displace all three coords, sample again, displace again — ~9-12 perlin
-// calls per pixel. This is the extremes demo; the cost is the point.
+// to displace the sample coords, sample again, displace again. The hardware
+// default derives some displacement components from neighbouring samples rather
+// than evaluating a full 3-vector at every warp level, preserving the volumetric
+// gas read while keeping preview and device FPS practical.
 //
 // Animation: with all three noise axes spatial, there's no time axis to drift,
 // so we drift the *sample point* through the volume instead — p = pos*scale +
@@ -63,21 +65,23 @@ export function beforeRender(delta) {
 export function render3D(index, x, y, z) {
   var px = x * s + dx, py = y * s + dy, pz = z * s + dz
 
-  // First warp layer
+  // First warp layer. q3 is derived from the other two samples to avoid a third
+  // expensive fBm while keeping all three spatial axes involved downstream.
   var q1 = perlinFbm(px,       py,       pz,       2, 0.5, 3)
   var q2 = perlinFbm(px + 5.2, py + 1.3, pz + 2.8, 2, 0.5, 3)
-  var q3 = perlinFbm(px + 3.1, py + 8.7, pz + 4.4, 2, 0.5, 3)
+  var q3 = (q1 + q2) * 0.5
 
-  // Second warp, displaced by the first
+  // Second warp, displaced by the first. Keep one fresh fBm sample and derive
+  // the companion components from the first-layer field.
   var r1 = perlinFbm(px + w * q1,       py + w * q2,       pz + w * q3,       2, 0.5, 3)
-  var r2 = perlinFbm(px + w * q1 + 1.7, py + w * q2 + 9.2, pz + w * q3 + 6.5, 2, 0.5, 3)
-  var r3 = perlinFbm(px + w * q1 + 4.3, py + w * q2 + 2.1, pz + w * q3 + 7.9, 2, 0.5, 3)
+  var r2 = r1 * 0.55 + q2 * 0.45
+  var r3 = r1 * 0.55 + q1 * 0.45
 
   // Final density field, displaced by the second
-  var f = perlinFbm(px + w * r1, py + w * r2, pz + w * r3, 2, 0.5, 3)
+  var f = perlinFbm(px + w * r1, py + w * r2, pz + w * r3, 2, 0.5, 2)
 
   var density = clamp((f - 0.2) * 1.7, 0, 1)
-  density = pow(density, 1.3)
+  density = density * (0.7 + 0.3 * density)
 
   // Star twinkle: stable per-cell hash, only in the dark voids. Uses
   // Shader.hash21 (pure integer arithmetic) rather than the classic GLSL
