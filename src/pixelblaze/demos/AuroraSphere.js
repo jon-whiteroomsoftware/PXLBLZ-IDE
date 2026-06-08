@@ -27,11 +27,10 @@ export function sliderRingCount(v) { ringCount = v }
 export function sliderSpin(v) { spin = v }
 export function sliderSpeed(v) { speed = v }
 
-// Sample the aurora ramp into RGB module vars (_pr/_pg/_pb). We do this in the
-// pattern rather than via paint() because paint() OVERWRITES the pixel, so it
-// can't add two palette colours together. Sampling here lets the latitude rings
-// and the great-ring be composited as real additive light — colours that blend
-// where they overlap, instead of smearing through the palette in between.
+// Sample the fixed aurora ramp into RGB module vars (_pr/_pg/_pb). The original
+// array scan was specialized into these branches: same output, less per-pixel
+// palette work. Sampling here instead of paint() lets the latitude rings and
+// great-ring add as light where they overlap.
 var _pr = 0, _pg = 0, _pb = 0
 function samplePalette(pos) {
   pos = pos - floor(pos)                 // wrap into 0..1

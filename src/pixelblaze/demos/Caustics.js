@@ -18,12 +18,10 @@ export function sliderTint(v) { tint = v }
 
 export var t
 
-// Frame-global scratch — slider- and time-only values the per-pixel path reads.
-// SCALE/sharp depend only on sliders; the layer drift offsets are five sin/cos of
-// the time phase `ph`, none of which depend on the pixel. Hoisting them out of
-// render2D removes 5 trig calls/pixel (guide §6). The drift offsets fold into the
-// per-pixel `x*SCALE + …` via integer adds, which are exact in 16.16 (no rounding),
-// so this stays output-preserving.
+// Frame-global scratch: slider- and time-only values the per-pixel path reads.
+// Hoisting these offsets removes five trig calls per pixel; the later hardware
+// retune keeps only one real Voronoi layer and uses a noise layer to avoid large
+// diagonal repetition at bigger preview sizes.
 var SCALE, sharp
 var offAx, offAy, offBx, offBy
 

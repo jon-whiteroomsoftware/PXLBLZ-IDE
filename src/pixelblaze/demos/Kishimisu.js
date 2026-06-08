@@ -2,7 +2,7 @@
 //   Original GLSL (kishimisu, ShaderToy): https://www.shadertoy.com/view/mtyGWy
 //   Companion tutorial video:             https://youtu.be/f4s1h2YETNY
 //
-// Inigo Quilez palette function `a + b*cos(2π·(c·t + d))` paints a 4-octave
+// Inigo Quilez palette function `a + b*cos(2π·(c·t + d))` paints a 3-octave
 // kaleidoscope of folded space. Each octave folds uv into `fract(uv*zoom)-0.5`,
 // then a sharpened sine ring is multiplied in. Bright veins where multiple
 // octaves align; dark voids elsewhere.
@@ -25,8 +25,9 @@
 // The emulator bench can't *show* this — it runs every built-in as native JS,
 // so mul/add/div are near-free and the per-octave cos/sin/pow/exp dominate; the
 // bench's role here is the checksum guard, not the stopwatch. The fat hardware
-// items left (3× cos and the pow per octave; the per-pixel exp; the octave
-// count) are documented in the guide as hardware-wisdom / quality knobs.
+// items left (3× cos per octave; the per-pixel exp; the octave count) are
+// documented in the guide as hardware-wisdom / quality knobs. The accepted
+// hardware default now uses 3 octaves and the polynomial glow below.
 // Note: change 2's reciprocal-multiply is a deliberate 16.16 divergence — the
 // Precise checksum shifts (Fast holds); accepted, since hardware ships the same
 // reciprocal and the delta is sub-perceptual.

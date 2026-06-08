@@ -11,11 +11,12 @@
 
 export var t = 0
 
-// Per-ring scratch tables (20 iterations). Everything that depends only on the
+// Per-ring scratch tables (20 source rings). Everything that depends only on the
 // loop index — or on the index AND time, but never on the pixel — is precomputed
-// here instead of being recomputed for all 2048 pixels every frame (guide §6,
-// "precompute loop-index-only work into a table"). The per-pixel loop then only
-// does the genuinely position-dependent work (the rotation apply + the L4 glow).
+// here instead of being recomputed for every pixel every frame (guide §6,
+// "precompute loop-index-only work into a table"). The hardware default samples
+// 5 representative rings from these 20, preserving the read while making the
+// effect viable on-device.
 //
 //   colR/colG/colB — pure index constants (cos(ic + 0/1/2) + 1); filled once.
 //   rc/rs          — rotation cos/sin of the per-ring angle (time-only); per frame.
@@ -59,10 +60,12 @@ export function render2D(index, x, y) {
 
   var finalR = 0, finalG = 0, finalB = 0
 
+  // Hardware retune: sample every fourth source ring and boost the contribution.
+  // This was the measured step that moved the demo from single-digit FPS to a
+  // usable frame rate while keeping the visual acceptable.
   for (var i = 0; i < 5; i = i + 1) {
     var ri = i * 4
-    // Apply the precomputed rotation. This mirrors Shader.rot2(px, py, -angle)
-    // exactly (rx = x*c - y*s; ry = x*s + y*c) with c=rc[i], s=rs[i].
+    // Apply the selected source ring's precomputed rotation.
     var nx = px * rc[ri] - py * rs[ri]
     var ny = px * rs[ri] + py * rc[ri]
     px = nx
@@ -75,8 +78,8 @@ export function render2D(index, x, y) {
     var l4 = hypot(ux2, uy2)
     var gv = 0.004 / (abs(l4 - ic * 0.04) + 0.005)
 
-    // Same multiply order as the original ((gv*anim)*color): anim and color are
-    // just read from the per-ring tables, so the result is bit-identical.
+    // Same contribution shape as the original, scaled to compensate for the
+    // reduced ring count.
     finalR = finalR + gv * animT[ri] * colR[ri] * 2.1
     finalG = finalG + gv * animT[ri] * colG[ri] * 2.1
     finalB = finalB + gv * animT[ri] * colB[ri] * 2.1

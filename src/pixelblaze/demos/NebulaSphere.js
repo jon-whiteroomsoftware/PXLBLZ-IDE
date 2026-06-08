@@ -8,9 +8,9 @@
 //
 // The "warp the warp" technique (Inigo Quilez), now in 3D: sample fBm, use it
 // to displace the sample coords, sample again, displace again. The hardware
-// default derives some displacement components from neighbouring samples rather
-// than evaluating a full 3-vector at every warp level, preserving the volumetric
-// gas read while keeping preview and device FPS practical.
+// retune derives some displacement components from neighbouring samples, uses a
+// 2-octave final density field, and replaces one pow curve. It keeps the
+// volumetric gas read while making preview/device FPS practical.
 //
 // Animation: with all three noise axes spatial, there's no time axis to drift,
 // so we drift the *sample point* through the volume instead — p = pos*scale +
@@ -77,10 +77,12 @@ export function render3D(index, x, y, z) {
   var r2 = r1 * 0.55 + q2 * 0.45
   var r3 = r1 * 0.55 + q1 * 0.45
 
-  // Final density field, displaced by the second
+  // Final density field, displaced by the second. Two octaves kept the gas
+  // structure in preview while trimming the hottest remaining fBm call.
   var f = perlinFbm(px + w * r1, py + w * r2, pz + w * r3, 2, 0.5, 2)
 
   var density = clamp((f - 0.2) * 1.7, 0, 1)
+  // Cheap close curve for the original pow(density, 1.3).
   density = density * (0.7 + 0.3 * density)
 
   // Star twinkle: stable per-cell hash, only in the dark voids. Uses
