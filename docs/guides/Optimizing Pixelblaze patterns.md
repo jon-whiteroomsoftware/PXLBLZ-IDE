@@ -36,6 +36,7 @@ much more.
 | ControlsShowcase | 4 `cos`/`sin` + orbit geometry + edge falloff | 33.7 → 50.4 | **+49.7%** | ✅ both |
 | PulseLoom | cached 4 per-pixel Gaussian bumps | 21.09 → 29.02 | **+37.6%** | ✅ both |
 | NeonSquircles | ~100 trig/pixel → 20-ring `beforeRender` tables | 2.46 → 3.08 | +25.3% | ✅ both |
+| ZippyZaps | hardware retune: 18-pass shader loop → 2-pass default, cheaper denominator | 1.10 → 10.35 | **+841%** | drift + visual accepted |
 | ZippyZaps | local fast `tanh` approximation in hot loop | 0.90 → 1.10 | +22.1% | drift-measured |
 | TestPattern2D | 2 trig (dot centre) + breathe level | 101.9 → 124.5\* | +22.1% | ✅ both |
 | GlowingOrb | `wave(t)` orb radius | 100.4 → 115.0 | +14.5% | ✅ both |

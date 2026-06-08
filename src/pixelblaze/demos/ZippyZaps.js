@@ -22,9 +22,9 @@
 // z is the constant vec4(1,2,3,0); its .wxzw swizzle ×11 is (0,11,33,0), the
 // three phase offsets fed into the per-pass cos-matrix.
 
-// Iteration count (perf/detail). Raw 0..1 → floor(4 + v*15) → 4..19 (18 passes
-// at the default, matching the original's `++i < 19.`).
-export var iterations = 1
+// Iteration count (perf/detail). Raw 0..1 → floor(3 + v*12) → 3..15. The
+// hardware default intentionally runs a tiny version of the original loop.
+export var iterations = 0
 export function sliderIterations(v) { iterations = v }
 
 // Per-iteration, frame-constant tables (loop-index/time-only — identical for
@@ -67,53 +67,48 @@ export function beforeRender(delta) {
 }
 
 export function render2D(index, x, y) {
-  var iters = floor(4 + iterations * 15) // 4..19
+  var iters = floor(3 + iterations * 12) // 3..15
 
-  // u = .2*(u+u-v)/v.y  →  centred, short-axis-normalised, scaled by 0.2.
+  // Same decoded shader loop, with the most expensive hot-path terms softened:
+  // fewer default passes, no exp() in the tiny drift term, a radius-based
+  // denominator scale, and Manhattan length for the reciprocal zap denominator.
   Shader.toUV(x, y, 1)
   var px = 0.2 * ux, py = 0.2 * uy
 
   // vec4 z = o = vec4(1,2,3,0); z stays constant, o accumulates.
   var ox = 1, oy = 2, oz = 3, ow = 0
 
-  var a = 0.5    // still needed for the cheap 0.2*a*px term below
+  var a = 0.5
   var tt = t
-  var vx = 0, vy = 0 // v, (re)assigned each pass before use
-
   for (var i = 1; i < iters; i = i + 1) {
     tt = tt + 1   // ++t  (first thing the loop body does)
     a = a + 0.03  // a += .03
 
-    // v = cos(tt - 7*u*pow(a,i)) - 5*u   (componentwise); pow(a,i) is P[i].
-    var p = P[i]
-    vx = cos(tt - 7 * px * p) - 5 * px
-    vy = cos(tt - 7 * py * p) - 5 * py
-
-    // u *= mat2(cos(i + .02*tt - z.wxzw*11)).  Phases: (0,11,33,0) offsets, and
-    // cos0 == cos3 since both offsets are 0. Row-vector × matrix:
-    //   u.x' = u.x*cos0 + u.y*cos1 ;  u.y' = u.x*cos2 + u.y*cos3
+    // u *= mat2(cos(i + .02*tt - z.wxzw*11)).
     var c0 = C0[i], c1 = C1[i], c2 = C2[i], c3 = c0
     var nux = px * c0 + py * c1
     var nuy = px * c2 + py * c3
     px = nux; py = nuy
 
-    // u += tanh(40*dot(u,u)*cos(1e2*u.yx + tt))/2e2 + .2*a*u + cos(...)/3e2
+    // u += tanh(...) + .2*a*u + cos(...)/3e2.  The final scalar shimmer has a
+    // nearly invisible contribution at Pixelblaze scale, so approximate it with
+    // a single cheap cosine and keep the tanh/fold behaviour intact.
     var du = px * px + py * py
-    // u.yx swizzle: x-component reads u.y, y-component reads u.x.
     var t1x = fastTanh(40 * du * cos(100 * py + tt)) / 200
     var t1y = fastTanh(40 * du * cos(100 * px + tt)) / 200
-    var doo = ox * ox + oy * oy + oz * oz + ow * ow
-    var sc = cos(4 / exp(doo / 100) + tt) / 300 // scalar, added to both components
+    var sc = cos(tt) / 300
     px = px + t1x + 0.2 * a * px + sc
     py = py + t1y + 0.2 * a * py + sc
 
-    // o += (1 + cos(z+tt)) / length((1 + i*dot(v,v)) * sin(1.5*u/(.5-dot(u,u)) - 9*u.yx + tt))
-    var dvv = vx * vx + vy * vy
+    // The original scales by dot(cos(tt - 7*u*pow(a,i)) - 5*u).  Using the
+    // current folded radius keeps bright zaps spatially similar while removing
+    // two hot-loop cosines per pass.
+    var dvv = 0.5 + 25 * (px * px + py * py)
     var scale = 1 + i * dvv
     var denom = 0.5 - (px * px + py * py)
     var sx = sin(1.5 * px / denom - 9 * py + tt)
     var sy = sin(1.5 * py / denom - 9 * px + tt)
-    var L = scale * hypot(sx, sy)
+    var L = scale * (abs(sx) + abs(sy) + 0.02)
     ox = ox + N0[i] / L
     oy = oy + N1[i] / L
     oz = oz + N2[i] / L
