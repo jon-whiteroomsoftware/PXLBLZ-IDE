@@ -44,6 +44,19 @@ npx vitest run src/store/previewStore.test.ts
 
 The pre-commit hook runs `npm test` automatically via Husky.
 
+## Frontend direction
+
+Use the `frontend-design` and `frontend-workflow` skills for visible UI changes.
+This is an expressive IDE for a small LED light controller, so the UI may be
+more visually dramatic than a conservative business tool, while still preserving
+editor clarity, preview performance, and dense tool ergonomics.
+
+Prefer the existing Vite dev server at `http://localhost:5174/` for browser
+verification. For screenshot or preview-renderer checks, use
+`http://localhost:5174/?capture` and the `window.__pxlblz` capture API described
+above. Check desktop and narrow-window resilience for substantial layout work,
+and verify relevant console/runtime errors.
+
 ## Architecture
 
 ### Engine / UI boundary
