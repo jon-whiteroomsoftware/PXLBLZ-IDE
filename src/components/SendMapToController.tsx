@@ -3,7 +3,7 @@ import { RotateCw, Check, ArrowRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { getControllerProvider } from '@/engine/controllerProviderRegistry'
 import { useControllerStore } from '@/store/controllerStore'
-import { useMapStore } from '@/store/mapStore'
+import { useMapStore, openMapForPushState } from '@/store/mapStore'
 import { describeSendMap } from '@/engine/sendToController'
 import type { PreflightWarning } from '@/engine/preflight'
 import {
@@ -110,14 +110,15 @@ export function SendMapToController() {
     () => provider.getStatus(),
   )
 
-  // The map open for editing, resolved to its dirty-gate inputs.
+  // The map open in map mode, resolved to its dirty-gate inputs. Supports both
+  // editable custom maps and read-only stock maps.
   const editingMap = useMapStore((s) => s.editingMap)
   const userMaps = useMapStore((s) => s.userMaps)
-  const openRecord =
-    editingMap?.kind === 'existing' ? userMaps.find((m) => m.id === editingMap.id) : undefined
-  const mapId = openRecord?.id
-  const hasBakedPoints = (openRecord?.points?.length ?? 0) > 0
-  const signature = openRecord?.source ?? ''
+  const activePixelCount = useMapStore((s) => s.activePixelCount)
+  const openMap = openMapForPushState({ editingMap, userMaps, activePixelCount })
+  const mapId = openMap?.id
+  const hasBakedPoints = (openMap?.points.length ?? 0) > 0
+  const signature = openMap?.signature ?? ''
 
   const activeIp = useControllerStore((s) => s.activeIp)
   const active = useControllerStore((s) => (s.activeIp ? s.controllers[s.activeIp] : undefined))

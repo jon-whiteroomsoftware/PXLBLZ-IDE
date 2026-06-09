@@ -179,7 +179,7 @@ describe('SendToController', () => {
     })
   }
 
-  it('flips the armed mode when the Save toggle is clicked', () => {
+  it('flips the armed mode when the Save segment is clicked', () => {
     connectActive()
     render(<SendToController />)
     const toggle = screen.getByTestId('save-toggle')

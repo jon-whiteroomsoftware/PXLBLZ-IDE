@@ -1,6 +1,15 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
-import { Lock } from 'lucide-react'
+import { Lock, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import {
+  AlertDialogRoot,
+  AlertDialogContent,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogCancel,
+  AlertDialogAction,
+} from '@/components/ui/alert-dialog'
 import { Editor } from '@/components/Editor'
 import { CompileStatusBadge } from '@/components/CompileStatusBadge'
 import { DimPills } from '@/components/DimPills'
@@ -60,6 +69,7 @@ export default function App() {
   const userPatterns = usePatternStore((s) => s.userPatterns)
   const addPattern = usePatternStore((s) => s.addPattern)
   const setActivePattern = usePatternStore((s) => s.setActivePattern)
+  const removePattern = usePatternStore((s) => s.removePattern)
   const source = useEditorStore((s) => s.source)
   const compileStatus = useEditorStore((s) => s.compileStatus)
   const editorFlavor = useEditorStore((s) => s.editorFlavor)
@@ -114,6 +124,7 @@ export default function App() {
   }, [activeDemoName, source, userPatterns, addPattern, setActivePattern, setSource, setIsReadOnly, setPreviewSource, setPreviewPatternName])
 
   const [copied, setCopied] = useState(false)
+  const [deletePatternOpen, setDeletePatternOpen] = useState(false)
   const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => () => { if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current) }, [])
@@ -132,6 +143,13 @@ export default function App() {
 
   const activeFileName =
     activeLibraryName ?? activeDemoName ?? userPatterns.find((p) => p.id === activePatternId)?.name ?? '—'
+  const activePattern = activePatternId ? userPatterns.find((p) => p.id === activePatternId) : undefined
+
+  const handleDeletePattern = useCallback(async () => {
+    if (!activePatternId) return
+    await removePattern(activePatternId)
+    setDeletePatternOpen(false)
+  }, [activePatternId, removePattern])
 
   const handleLeftDrag = useCallback((dx: number) => {
     setLeftWidth((w) => Math.max(120, w + dx))
@@ -176,7 +194,7 @@ export default function App() {
       </header>
       <div className="flex flex-1 min-h-0">
         <aside data-testid="left-pane" className="shrink-0 flex flex-col" style={{ width: leftWidth }}>
-          <div className="flex-1 overflow-y-auto">
+          <div className="flex-1 min-h-0 overflow-hidden">
             <PatternList />
           </div>
           {/* The live Controller dashboard moved out of this slot (#211): it now
@@ -222,6 +240,30 @@ export default function App() {
               >
                 {copied ? 'Copied!' : 'Copy Code'}
               </Button>
+            )}
+            {activePattern !== undefined && (
+              <AlertDialogRoot open={deletePatternOpen} onOpenChange={setDeletePatternOpen}>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="text-xs text-zinc-500 bg-zinc-900/50 hover:bg-red-950/50 hover:text-red-300"
+                  onClick={() => setDeletePatternOpen(true)}
+                  title="Delete pattern"
+                >
+                  <Trash2 size={13} aria-hidden />
+                  Delete
+                </Button>
+                <AlertDialogContent>
+                  <AlertDialogTitle>Delete pattern?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    "{activePattern.name}" will be permanently deleted and cannot be recovered.
+                  </AlertDialogDescription>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={() => void handleDeletePattern()}>Delete</AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialogRoot>
             )}
             {/* Send to Controller works for any open pattern — user patterns and
                 read-only demos alike (a demo pushes without first forking). */}

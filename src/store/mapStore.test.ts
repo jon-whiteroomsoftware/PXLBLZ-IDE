@@ -263,6 +263,27 @@ describe('editor map mode (#151)', () => {
     expect(useEditorStore.getState().editorFlavor).toBe('pattern')
   })
 
+  it('openStockMap opens read-only stock source without changing the active layout', () => {
+    useMapStore.getState().openStockMap('cube-shell')
+    expect(useMapStore.getState().editingMap).toEqual({ kind: 'stock', id: 'cube-shell' })
+    expect(useMapStore.getState().activeMapId).toBe(DEFAULT_MAP_ID)
+    expect(useEditorStore.getState().editorFlavor).toBe('map')
+    expect(useEditorStore.getState().isReadOnly).toBe(true)
+    expect(useEditorStore.getState().source).toMatch(/function/)
+  })
+
+  it('cloneStockMap creates an editable custom map copy', async () => {
+    await useMapStore.getState().cloneStockMap('cube-shell')
+    const { userMaps, editingMap } = useMapStore.getState()
+    expect(userMaps).toHaveLength(1)
+    expect(userMaps[0].name).toBe('Cube shell copy')
+    expect(userMaps[0].generator).toBe('custom')
+    expect(userMaps[0].source).toMatch(/function/)
+    expect(userMaps[0].points?.length).toBeGreaterThan(0)
+    expect(editingMap).toEqual({ kind: 'existing', id: userMaps[0].id })
+    expect(useEditorStore.getState().isReadOnly).toBe(false)
+  })
+
   it('loadMapTemplate replaces the buffer and resets the baseline, keeping editingMap', async () => {
     await useMapStore.getState().createNewMap()
     const opened = useMapStore.getState().editingMap
@@ -357,11 +378,10 @@ describe('map eval/bake/deploy (#143)', () => {
     expect(rec.points).toHaveLength(8) // prior good bake intact
   })
 
-  it('deployEditingMap selects the open map as the active layout', async () => {
+  it('deployEditingMap no longer selects the open map as the active layout', async () => {
     await useMapStore.getState().createNewMap()
-    const id = (useMapStore.getState().editingMap as { id: string }).id
     useMapStore.getState().deployEditingMap()
-    expect(useMapStore.getState().activeMapId).toBe(id)
+    expect(useMapStore.getState().activeMapId).toBe(DEFAULT_MAP_ID)
   })
 })
 

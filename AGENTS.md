@@ -8,6 +8,8 @@ This project lives under a path containing spaces (Google Drive folder). Never w
 
 ### Preview screenshots / browser automation (`?capture`)
 
+This project is configured around a long-lived Vite dev server on port `5174`. Prefer using the existing server at `http://localhost:5174/` (or `http://localhost:5174/?capture`) for browser checks. Do not casually start and stop per-task dev servers; hot reload is reliable and the persistent server is part of the normal workflow. If the server is not responding, report that and only start it when needed.
+
 The WebGL preview render loop keeps the page perpetually busy, so naive screenshot tools time out and the canvas drawing buffer is unreadable by default. When you need to screenshot the app — and especially the preview renderer — load the dev server with the `?capture` query param (e.g. `http://localhost:5174/?capture`). This is dev-only and inert without the param. It enables `preserveDrawingBuffer` and installs deterministic capture tooling (added in #263/#265):
 
 - **In-page automation API** on `window.__pxlblz` (only present under `?capture`):
@@ -28,7 +30,7 @@ Use direct shell/file search only when there is a specific good reason: checking
 ## Commands
 
 ```bash
-npm run dev          # start Vite dev server
+npm run dev          # start the long-lived Vite dev server on port 5174 if it is not already running
 npm test             # run full test suite (Vitest, one-shot)
 npm run test:watch   # Vitest in watch mode
 npm run build        # tsc + Vite build

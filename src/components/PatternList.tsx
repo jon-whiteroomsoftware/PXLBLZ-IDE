@@ -9,7 +9,7 @@ import { nativeDim, matchesLens, matchesQuery, type DimLens } from '@/engine/dim
 import { getSetting } from '@/engine/storage'
 import { useEditorStore } from '@/store/editorStore'
 import { usePatternStore, PatternRecord, LastActive, LAST_ACTIVE_KEY } from '@/store/patternStore'
-import { useMapStore, MapRecord } from '@/store/mapStore'
+import { useMapStore, MapRecord, STOCK_MAP_ITEMS } from '@/store/mapStore'
 import { forkSettingsSnapshotForDemo } from '@/store/settingsCascade'
 import {
   AlertDialogRoot,
@@ -21,6 +21,12 @@ import {
   AlertDialogCancel,
   AlertDialogAction,
 } from '@/components/ui/alert-dialog'
+
+type ScrollMetrics = {
+  top: number
+  height: number
+  visible: boolean
+}
 
 // Module-scope factory for a fresh pattern record. Kept out of the component so its
 // impure id/timestamp generation isn't attributed to render (react-hooks/purity).
@@ -202,6 +208,51 @@ const DIM_LENS_OPTIONS: { label: string; value: DimLens }[] = [
   { label: '3D', value: 3 },
 ]
 
+type RailMode = 'patterns' | 'maps'
+
+function RailModeSwitch({
+  mode,
+  onModeChange,
+}: {
+  mode: RailMode
+  onModeChange: (mode: RailMode) => void
+}) {
+  return (
+    <div
+      role="radiogroup"
+      aria-label="Rail mode"
+      className="grid grid-cols-2 border-b border-seam bg-zinc-950/20"
+    >
+      {(['patterns', 'maps'] as const).map((value) => {
+        const active = mode === value
+        return (
+          <button
+            key={value}
+            role="radio"
+            aria-checked={active}
+            onClick={() => onModeChange(value)}
+            className={[
+              'relative h-7 text-[11px] font-semibold uppercase transition-colors',
+              value === 'maps' ? 'border-l border-seam' : '',
+              active
+                ? 'text-zinc-100'
+                : 'text-zinc-600 hover:text-zinc-400 hover:bg-zinc-900/45',
+            ].join(' ')}
+          >
+            {value === 'patterns' ? 'Patterns' : 'Maps'}
+            {active && (
+              <span
+                aria-hidden
+                className="absolute inset-x-3 bottom-0 h-px bg-live/70"
+              />
+            )}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
 // The rail filter bar (#252): the dimension lens and the type-down name search share
 // ONE row to conserve scarce vertical real estate. Collapsed, it shows the pills and a
 // magnifier at the right. Hovering or clicking the magnifier scrolls the search input
@@ -213,11 +264,13 @@ function RailFilterBar({
   onLensChange,
   query,
   onQueryChange,
+  hideOneDimensional,
 }: {
   lens: DimLens
   onLensChange: (lens: DimLens) => void
   query: string
   onQueryChange: (query: string) => void
+  hideOneDimensional?: boolean
 }) {
   const [pinned, setPinned] = useState(false)
   const [hovered, setHovered] = useState(false)
@@ -267,6 +320,20 @@ function RailFilterBar({
         className={`flex shrink-0 transition-all ${expanded ? 'gap-px' : 'gap-0.5'}`}
       >
         {DIM_LENS_OPTIONS.map((opt) => {
+          if (hideOneDimensional && opt.value === 1) {
+            return (
+              <span
+                key={String(opt.value)}
+                aria-hidden
+                className={[
+                  'invisible rounded py-0.5 text-[10px] font-mono uppercase tracking-wide',
+                  expanded ? 'px-1' : 'px-2.5',
+                ].join(' ')}
+              >
+                {opt.label}
+              </span>
+            )
+          }
           const active = lens === opt.value
           return (
             <button
@@ -308,7 +375,7 @@ function RailFilterBar({
             onFocus={() => setFocused(true)}
             onBlur={handleBlur}
             placeholder="Search by name"
-            aria-label="Search patterns by name"
+            aria-label="Search by name"
             tabIndex={expanded ? 0 : -1}
             className="w-full rounded bg-zinc-800/60 py-0.5 px-2 text-[11px] text-zinc-200 placeholder:text-zinc-500 outline-none focus:bg-zinc-800 focus:ring-1 focus:ring-zinc-600"
           />
@@ -368,8 +435,8 @@ function ListItem({
         <span className="absolute right-2 top-0 bottom-0 flex items-center opacity-0 transition-opacity group-hover:opacity-100">
           <button
             onClick={(e) => { e.stopPropagation(); onFork() }}
-            title="Fork to an editable pattern"
-            aria-label="Fork to an editable pattern"
+            title="Clone"
+            aria-label="Clone"
             className="text-zinc-500 hover:text-live text-xs px-0.5"
           >
             ✎
@@ -503,6 +570,62 @@ function EditableListItem({
   )
 }
 
+function railScrollMetrics(el: HTMLDivElement): ScrollMetrics {
+  const { clientHeight, scrollHeight, scrollTop } = el
+  if (scrollHeight <= clientHeight + 1) return { top: 0, height: 0, visible: false }
+  const height = Math.max(24, (clientHeight / scrollHeight) * clientHeight)
+  const maxTop = clientHeight - height
+  const top = (scrollTop / (scrollHeight - clientHeight)) * maxTop
+  return { top, height, visible: true }
+}
+
+function RailScrollThumb({
+  metrics,
+  scrollRef,
+}: {
+  metrics: ScrollMetrics
+  scrollRef: React.RefObject<HTMLDivElement | null>
+}) {
+  if (!metrics.visible) return null
+
+  function handlePointerDown(e: React.PointerEvent<HTMLDivElement>) {
+    const el = scrollRef.current
+    if (!el) return
+    const scrollEl = el
+    const startY = e.clientY
+    const startScrollTop = scrollEl.scrollTop
+    const maxScrollTop = scrollEl.scrollHeight - scrollEl.clientHeight
+    const maxThumbTop = scrollEl.clientHeight - metrics.height
+    const scrollPerPixel = maxThumbTop > 0 ? maxScrollTop / maxThumbTop : 0
+
+    function move(ev: PointerEvent) {
+      scrollEl.scrollTop = startScrollTop + (ev.clientY - startY) * scrollPerPixel
+    }
+
+    function up() {
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', up)
+    }
+
+    window.addEventListener('pointermove', move)
+    window.addEventListener('pointerup', up)
+    e.preventDefault()
+  }
+
+  return (
+    <div
+      aria-hidden
+      className="pointer-events-none absolute right-0 top-0 bottom-0 z-10 w-2"
+    >
+      <div
+        className="pointer-events-auto absolute right-0.5 w-1 rounded-full bg-zinc-500/55 hover:bg-zinc-400/70"
+        style={{ top: metrics.top, height: metrics.height }}
+        onPointerDown={handlePointerDown}
+      />
+    </div>
+  )
+}
+
 export function PatternList() {
   const setSource = useEditorStore((s) => s.setSource)
   const setIsReadOnly = useEditorStore((s) => s.setIsReadOnly)
@@ -524,6 +647,8 @@ export function PatternList() {
   const editingMap = useMapStore((s) => s.editingMap)
   const createNewMap = useMapStore((s) => s.createNewMap)
   const openExistingMap = useMapStore((s) => s.openExistingMap)
+  const openStockMap = useMapStore((s) => s.openStockMap)
+  const cloneStockMap = useMapStore((s) => s.cloneStockMap)
   const closeMapEditor = useMapStore((s) => s.closeMapEditor)
 
   // Open-from-disk (.epe import) lives next to "New pattern" (#141): both create
@@ -569,12 +694,38 @@ export function PatternList() {
     reader.readAsText(file)
   }
 
+  const [railMode, setRailMode] = useState<RailMode>('patterns')
   // The dimension lens (#251). Ephemeral: component state, resets to All on reload.
   const [dimLens, setDimLens] = useState<DimLens>('all')
-  // The type-down name search (#252). Ephemeral too: resets to '' on reload.
-  const [query, setQuery] = useState('')
+  // The type-down name search (#252). Ephemeral too: resets to '' on reload, and
+  // separate per rail mode so a map search doesn't leak into pattern browsing.
+  const [queries, setQueries] = useState<Record<RailMode, string>>({ patterns: '', maps: '' })
 
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({})
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const [scrollMetrics, setScrollMetrics] = useState<ScrollMetrics>({ top: 0, height: 0, visible: false })
+  const query = queries[railMode]
+  const setQuery = (next: string) => setQueries((q) => ({ ...q, [railMode]: next }))
+
+  function handleRailModeChange(next: RailMode) {
+    setRailMode(next)
+    if (next === 'maps' && dimLens === 1) setDimLens(2)
+  }
+
+  function updateScrollMetrics() {
+    const el = scrollRef.current
+    if (!el) return
+    setScrollMetrics(railScrollMetrics(el))
+  }
+
+  useEffect(() => {
+    updateScrollMetrics()
+    const el = scrollRef.current
+    if (!el || typeof ResizeObserver === 'undefined') return
+    const resizeObserver = new ResizeObserver(updateScrollMetrics)
+    resizeObserver.observe(el)
+    return () => resizeObserver.disconnect()
+  }, [railMode, dimLens, query, userPatterns.length, userMaps.length, collapsedSections])
 
   useEffect(() => {
     // Hydrate user maps (and seed the stock custom maps, #140) so the layout
@@ -711,64 +862,120 @@ export function PatternList() {
         className="hidden"
         onChange={handleFileChange}
       />
+      <RailModeSwitch mode={railMode} onModeChange={handleRailModeChange} />
       <RailFilterBar
         lens={dimLens}
         onLensChange={setDimLens}
         query={query}
         onQueryChange={setQuery}
+        hideOneDimensional={railMode === 'maps'}
       />
-      <SectionHeader
-        label="Your Patterns"
-        first
-        collapsed={isCollapsed('Your Patterns')}
-        onToggle={() => toggleCollapsed('Your Patterns')}
-        action={
-          <>
-            <HeaderAction
-              icon={<FolderOpen size={14} />}
-              title="Open pattern from .epe file"
-              onClick={() => fileInputRef.current?.click()}
-            />
-            <HeaderAction icon={<Plus size={14} />} title="New pattern" onClick={handleCreatePattern} />
-          </>
-        }
-      />
-      {importError && (
-        <p className="pl-3 pr-3 py-1 text-red-400 truncate" title={importError}>{importError}</p>
-      )}
-      {!isCollapsed('Your Patterns') && (
-        <ul>
-          {userPatterns
-            .filter(
-              (pattern) =>
-                matchesLens(nativeDim(pattern.src), dimLens) && matchesQuery(pattern.name, query),
-            )
-            .map((pattern) => (
-            <EditableListItem
-              key={pattern.id}
-              name={pattern.name}
-              noun="pattern"
-              active={activePatternId === pattern.id}
-              dim={dimLens === 'all' ? `${nativeDim(pattern.src)}D` : undefined}
-              takenNames={userPatterns.filter((p) => p.id !== pattern.id).map((p) => p.name)}
-              onSelect={() => openUserPattern(pattern)}
-              onRename={(name) => renamePattern(pattern.id, name)}
-              onDelete={() => removePattern(pattern.id)}
-            />
-          ))}
-        </ul>
-      )}
+      <div className="relative flex-1 min-h-0">
+        <div
+          ref={scrollRef}
+          data-testid="pattern-list-scroll"
+          onScroll={updateScrollMetrics}
+          className="rail-list-scroll h-full overflow-y-auto overflow-x-hidden pb-2"
+        >
+          {railMode === 'patterns' && (
+            <>
+          <SectionHeader
+            label="Your Patterns"
+            first
+            collapsed={isCollapsed('Your Patterns')}
+            onToggle={() => toggleCollapsed('Your Patterns')}
+            action={
+              <>
+                <HeaderAction
+                  icon={<FolderOpen size={14} />}
+                  title="Open pattern from .epe file"
+                  onClick={() => fileInputRef.current?.click()}
+                />
+                <HeaderAction icon={<Plus size={14} />} title="New pattern" onClick={handleCreatePattern} />
+              </>
+            }
+          />
+          {importError && (
+            <p className="pl-3 pr-3 py-1 text-red-400 truncate" title={importError}>{importError}</p>
+          )}
+          {!isCollapsed('Your Patterns') && (
+            <ul>
+              {userPatterns
+                .filter(
+                  (pattern) =>
+                    matchesLens(nativeDim(pattern.src), dimLens) && matchesQuery(pattern.name, query),
+                )
+                .map((pattern) => (
+                <EditableListItem
+                  key={pattern.id}
+                  name={pattern.name}
+                  noun="pattern"
+                  active={activePatternId === pattern.id}
+                  dim={dimLens === 'all' ? `${nativeDim(pattern.src)}D` : undefined}
+                  takenNames={userPatterns.filter((p) => p.id !== pattern.id).map((p) => p.name)}
+                  onSelect={() => openUserPattern(pattern)}
+                  onRename={(name) => renamePattern(pattern.id, name)}
+                  onDelete={() => removePattern(pattern.id)}
+                />
+              ))}
+            </ul>
+          )}
 
-      {/* Your Maps is mapless by construction under the 1D lens (1D is reached via
-          viewport shapes, not maps), so the whole section is hidden there (#251). */}
-      {dimLens !== 1 && (() => {
+          <SectionHeader
+            label="Demos"
+            collapsed={isCollapsed('Demos')}
+            onToggle={() => toggleCollapsed('Demos')}
+          />
+          {!isCollapsed('Demos') &&
+            DEMO_SECTIONS.map((section) => {
+              // Under a dimension lens, drop non-matching demos and hide any subsection
+              // that ends up empty — no empty headers (#251).
+              const names = section.names.filter(
+                (name) =>
+                  matchesLens(nativeDim(DEMOS[name] ?? ''), dimLens) && matchesQuery(name, query),
+              )
+              if (names.length === 0) return null
+              const collapsed = isCollapsed(section.label)
+              return (
+                <div key={section.label}>
+                  <SubsectionHeader
+                    label={section.label}
+                    collapsed={collapsed}
+                    onToggle={() => toggleCollapsed(section.label)}
+                  />
+                  {!collapsed && (
+                    <ul>
+                      {names.map((name) => (
+                        <ListItem
+                          key={name}
+                          label={name}
+                          subItem
+                          dim={dimLens === 'all' ? `${nativeDim(DEMOS[name] ?? '')}D` : undefined}
+                          active={activeDemoName === name}
+                          onClick={() => openDemo(name)}
+                          onFork={() => handleForkDemo(name)}
+                        />
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )
+            })}
+          </>
+        )}
+
+          {railMode === 'maps' && (() => {
         const visibleMaps = userMaps.filter(
+          (map) => matchesLens(map.dim, dimLens) && matchesQuery(map.name, query),
+        )
+        const visibleStockMaps = STOCK_MAP_ITEMS.filter(
           (map) => matchesLens(map.dim, dimLens) && matchesQuery(map.name, query),
         )
         return (
           <>
             <SectionHeader
               label="Your Maps"
+              first
               collapsed={isCollapsed('Your Maps')}
               onToggle={() => toggleCollapsed('Your Maps')}
               action={<HeaderAction icon={<Plus size={14} />} title="New map" onClick={createNewMap} />}
@@ -799,50 +1006,31 @@ export function PatternList() {
                 </ul>
               )
             )}
+            <SectionHeader
+              label="Stock Maps"
+              collapsed={isCollapsed('Stock Maps')}
+              onToggle={() => toggleCollapsed('Stock Maps')}
+            />
+            {!isCollapsed('Stock Maps') && (
+              <ul>
+                {visibleStockMaps.map((map) => (
+                  <ListItem
+                    key={map.id}
+                    label={map.name}
+                    active={editingMap?.kind === 'stock' && editingMap.id === map.id}
+                    dim={dimLens === 'all' ? `${map.dim}D` : undefined}
+                    onClick={() => openStockMap(map.id)}
+                    onFork={() => void cloneStockMap(map.id)}
+                  />
+                ))}
+              </ul>
+            )}
           </>
         )
-      })()}
-
-      <SectionHeader
-        label="Demos"
-        collapsed={isCollapsed('Demos')}
-        onToggle={() => toggleCollapsed('Demos')}
-      />
-      {!isCollapsed('Demos') &&
-        DEMO_SECTIONS.map((section) => {
-          // Under a dimension lens, drop non-matching demos and hide any subsection
-          // that ends up empty — no empty headers (#251).
-          const names = section.names.filter(
-            (name) =>
-              matchesLens(nativeDim(DEMOS[name] ?? ''), dimLens) && matchesQuery(name, query),
-          )
-          if (names.length === 0) return null
-          const collapsed = isCollapsed(section.label)
-          return (
-            <div key={section.label}>
-              <SubsectionHeader
-                label={section.label}
-                collapsed={collapsed}
-                onToggle={() => toggleCollapsed(section.label)}
-              />
-              {!collapsed && (
-                <ul>
-                  {names.map((name) => (
-                    <ListItem
-                      key={name}
-                      label={name}
-                      subItem
-                      dim={dimLens === 'all' ? `${nativeDim(DEMOS[name] ?? '')}D` : undefined}
-                      active={activeDemoName === name}
-                      onClick={() => openDemo(name)}
-                      onFork={() => handleForkDemo(name)}
-                    />
-                  ))}
-                </ul>
-              )}
-            </div>
-          )
-        })}
+          })()}
+        </div>
+        <RailScrollThumb metrics={scrollMetrics} scrollRef={scrollRef} />
+      </div>
     </div>
   )
 }

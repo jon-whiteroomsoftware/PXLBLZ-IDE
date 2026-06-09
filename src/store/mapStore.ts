@@ -12,6 +12,7 @@ import {
   SOURCE_STOCK_MAPS,
   SEED_MAP_IDS,
   stockMapSpec,
+  STOCK_MAP_SPECS,
   MAP_SKELETON,
   bakeMapSource,
   type GridDims,
@@ -159,12 +160,9 @@ export function layoutSource(state: Pick<MapState, 'userMaps'>): LayoutSource {
   }
 }
 
-// Pure gate for the map editor's "Deploy to preview" action (#143). The map's
-// source compiling (green badge) is independent of the preview; deploy is only
-// allowed when the open map has baked cleanly AND its sample dimensionality
-// matches the native dim of the pattern currently running in the preview — a 2D
-// map can only be pushed onto a 2D pattern, 3D onto 3D. With no pattern in the
-// preview there is nothing to deploy onto.
+// Legacy gate for the retired map editor "Deploy to preview" action (#143). Kept
+// exported for older tests/imports while map assignment now lives only in the
+// preview Map control.
 export function canDeployMap(args: {
   hasBakedPoints: boolean
   mapDim: 1 | 2 | 3 | undefined
@@ -201,15 +199,15 @@ interface MapState {
   activeNormalizeMode: NormalizeMode
   userMaps: MapRecord[]
   // The map open in editor "map mode" (#151), or null when the editor holds a
-  // pattern/demo/library. Every custom map is persisted on creation (like a
-  // pattern), so a map open for editing is always an `existing` record.
+  // pattern/demo/library. Custom maps are persisted records; stock maps are
+  // read-only source-backed catalogue entries.
   editingMap: EditingMap
-  // The last-loaded source baseline (skeleton or a "Load template" selection) the
-  // dirty-guard compares the buffer against before overwriting (#151).
+  // The last-loaded source baseline (skeleton, stock map, or legacy template
+  // selection) the dirty-guard compares the buffer against before overwriting.
   mapBaseline: string
   // The latest bake error for the open map: parses (green badge) but throws or
   // returns bad coords when evaluated (#143). Null when the last bake succeeded.
-  // Surfaced in the map header; disables "Deploy to preview".
+  // Surfaced in the map header; disables map push until a clean bake exists.
   mapEvalError: string | null
   setActiveMap: (id: string) => void
   setActiveShape: (id: ShapeId) => void
@@ -221,10 +219,14 @@ interface MapState {
   // in "Your Maps" (no save step, mirroring New Pattern), and open it in map mode.
   createNewMap: () => Promise<void>
   // Open editor map mode on a saved custom map's source. No-op for a record with
-  // no source (a stock map is never openable, isMapOpenable).
+  // no source.
   openExistingMap: (record: MapRecord) => void
-  // Replace the editor buffer with a template's verbatim source and reset the
-  // dirty-guard baseline to it ("Load template").
+  // Open editor map mode on a stock map's read-only source.
+  openStockMap: (id: string) => void
+  // Clone a stock map into an editable custom map under "Your Maps".
+  cloneStockMap: (id: string) => Promise<void>
+  // Legacy helper: replace the editor buffer with a template's verbatim source and
+  // reset the dirty-guard baseline to it.
   loadMapTemplate: (source: string) => void
   // Evaluate + bake the open map's current source: persist the source
   // (re-editable) and, on a clean eval, the baked points/dim/gridDims into the
@@ -232,9 +234,8 @@ interface MapState {
   // tick when the parse badge is green. An eval failure persists source only,
   // records mapEvalError, and leaves any prior bake intact — never crashes.
   bakeEditingMap: () => Promise<void>
-  // Push the open map onto the running preview: select it as the active layout so
-  // the currently-running pattern re-renders through its geometry. The UI gates
-  // this on canDeployMap (dim match); no-op when no map is open.
+  // Legacy map-to-preview action. Kept as an inert compatibility no-op; assigning
+  // a map to a pattern now happens only through the preview Map control.
   deployEditingMap: () => void
   // Leave map mode (selecting a pattern/demo/library). Clears editingMap and
   // restores the pattern editor flavor.
@@ -245,7 +246,14 @@ interface MapState {
   removeMap: (id: string) => Promise<void>
 }
 
-export type EditingMap = { kind: 'existing'; id: string } | null
+export type EditingMap = { kind: 'existing'; id: string } | { kind: 'stock'; id: string } | null
+
+export interface OpenMapForPush {
+  id: string
+  points: number[][]
+  source: string | undefined
+  signature: string
+}
 
 export const mapInitialState = {
   activeMapId: DEFAULT_MAP_ID,
@@ -269,15 +277,38 @@ export function selectActiveMap(state: Pick<MapState, 'activeMapId' | 'userMaps'
   return user ? mapFromRecord(user) : STOCK_MAPS[0]
 }
 
+export function openMapForPushState(
+  state: Pick<MapState, 'editingMap' | 'userMaps' | 'activePixelCount'>,
+): OpenMapForPush | null {
+  const { editingMap } = state
+  if (editingMap?.kind === 'stock') {
+    const spec = stockMapSpec(editingMap.id)
+    if (!spec) return null
+    const points = bakeMapSource(spec.source, state.activePixelCount ?? DEFAULT_MAP_BAKE_COUNT).points
+    if (points.length === 0) return null
+    return { id: spec.id, points, source: spec.source, signature: spec.source }
+  }
+
+  if (editingMap?.kind !== 'existing') return null
+  const record = state.userMaps.find((m) => m.id === editingMap.id)
+  if (!record || !record.points || record.points.length === 0) return null
+  return {
+    id: record.id,
+    points: record.points,
+    source: record.source ?? undefined,
+    signature: record.source ?? '',
+  }
+}
+
 // Switch the editor surface into map mode on the given source: clear any active
 // pattern/demo/library, flip the editor to the JS map flavor (editable, parse-only
 // badge), and load the buffer. The compile badge re-derives from the source via
 // the Editor's parse pass; we seed 'good' so the badge doesn't flash stale.
-function enterMapMode(source: string): void {
+function enterMapMode(source: string, readOnly = false): void {
   usePatternStore.getState().setActivePattern(null)
   const ed = useEditorStore.getState()
   ed.setEditorFlavor('map')
-  ed.setIsReadOnly(false)
+  ed.setIsReadOnly(readOnly)
   ed.setSource(source)
   ed.setCompileStatus('good')
 }
@@ -314,7 +345,7 @@ export const useMapStore = create<MapState>()((set, get) => ({
   },
 
   openExistingMap: (record) => {
-    // Stock maps carry no source and are never openable in place (#151).
+    // Persisted custom maps must carry source to be openable.
     if (typeof record.source !== 'string') return
     enterMapMode(record.source)
     // Opening a map for editing does NOT change the active layout/preview
@@ -325,6 +356,39 @@ export const useMapStore = create<MapState>()((set, get) => ({
       mapBaseline: record.source,
       mapEvalError: null,
     })
+  },
+
+  openStockMap: (id) => {
+    const spec = stockMapSpec(id)
+    if (!spec) return
+    enterMapMode(spec.source, true)
+    set({
+      editingMap: { kind: 'stock', id: spec.id },
+      mapBaseline: spec.source,
+      mapEvalError: null,
+    })
+  },
+
+  cloneStockMap: async (id) => {
+    const spec = stockMapSpec(id)
+    if (!spec) return
+    const recordId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+    const name = uniquePatternName(`${spec.name} copy`, get().userMaps.map((m) => m.name))
+    const updatedAt = Date.now()
+    const baked = bakeMapSource(spec.source, get().activePixelCount ?? DEFAULT_MAP_BAKE_COUNT)
+    const record: MapRecord = {
+      id: recordId,
+      name,
+      dim: baked.dim,
+      generator: 'custom',
+      params: {},
+      source: spec.source,
+      points: baked.points,
+      gridDims: baked.gridDims ?? undefined,
+      updatedAt,
+    }
+    await get().addMap(record)
+    get().openExistingMap(record)
   },
 
   loadMapTemplate: (source) => {
@@ -368,12 +432,7 @@ export const useMapStore = create<MapState>()((set, get) => ({
   },
 
   deployEditingMap: () => {
-    const { editingMap } = get()
-    if (editingMap?.kind !== 'existing') return
-    // Select the open map as the active layout; the still-running preview pattern
-    // rebuilds against it (Preview's effect keys on activeMapId). Enablement
-    // (dim match) is the UI's job via canDeployMap.
-    set({ activeMapId: editingMap.id })
+    return
   },
 
   closeMapEditor: () => {
@@ -416,4 +475,10 @@ export const useMapStore = create<MapState>()((set, get) => ({
     // If the deleted map was open in map mode, leave the editor cleanly.
     if (editingMap?.kind === 'existing' && editingMap.id === id) get().closeMapEditor()
   },
+}))
+
+export const STOCK_MAP_ITEMS = STOCK_MAP_SPECS.map((spec) => ({
+  id: spec.id,
+  name: spec.name,
+  dim: spec.dim,
 }))

@@ -1,5 +1,5 @@
-import { useState, useRef, useEffect } from 'react'
-import { ChevronDown } from 'lucide-react'
+import { useState } from 'react'
+import { Trash2 } from 'lucide-react'
 import { CompileStatusBadge } from '@/components/CompileStatusBadge'
 import {
   AlertDialogRoot,
@@ -10,74 +10,50 @@ import {
   AlertDialogCancel,
   AlertDialogAction,
 } from '@/components/ui/alert-dialog'
-import { useEditorStore } from '@/store/editorStore'
-import { useMapStore, canDeployMap } from '@/store/mapStore'
+import { useMapStore, STOCK_MAP_ITEMS } from '@/store/mapStore'
 import { SendMapToController } from '@/components/SendMapToController'
-import { mapTemplates, isPristineToBaseline, type MapTemplate } from '@/engine/maps'
 
-// The editor header strip in map mode (#151): the map's name, a parse-only
-// compile badge, and the "Load template" dropdown. The dropdown is the ONLY way
-// to view a stock map's source — selecting one replaces the buffer with its
-// verbatim source (text only, not name/dim), guarded so an edited buffer is not
-// clobbered without confirmation.
+// The editor header strip in map mode (#151/#268): source identity, parse-only
+// compile badge, and document actions. Stock maps are read-only but cloneable and
+// directly pushable; custom maps are editable, pushable, and deletable.
 export function MapModeHeader() {
   const editingMap = useMapStore((s) => s.editingMap)
   const userMaps = useMapStore((s) => s.userMaps)
-  const mapBaseline = useMapStore((s) => s.mapBaseline)
-  const loadMapTemplate = useMapStore((s) => s.loadMapTemplate)
-  const deployEditingMap = useMapStore((s) => s.deployEditingMap)
+  const cloneStockMap = useMapStore((s) => s.cloneStockMap)
+  const removeMap = useMapStore((s) => s.removeMap)
   const mapEvalError = useMapStore((s) => s.mapEvalError)
-  const source = useEditorStore((s) => s.source)
-  const nativeDim = useEditorStore((s) => s.nativeDim)
-  const previewSource = useEditorStore((s) => s.previewSource)
+  const [deleteOpen, setDeleteOpen] = useState(false)
 
   const openRecord =
     editingMap?.kind === 'existing' ? userMaps.find((m) => m.id === editingMap.id) : undefined
-  // Deploy is gated on a clean bake whose dim matches the running preview pattern
-  // (canDeployMap), and on the latest edit having baked cleanly (no eval error).
-  const deployable =
-    mapEvalError === null &&
-    canDeployMap({
-      hasBakedPoints: (openRecord?.points?.length ?? 0) > 0,
-      mapDim: openRecord?.dim,
-      nativeDim,
-      hasPreviewPattern: previewSource !== '',
-    })
+  const stockRecord =
+    editingMap?.kind === 'stock' ? STOCK_MAP_ITEMS.find((m) => m.id === editingMap.id) : undefined
 
-  // Pending template awaiting overwrite confirmation (buffer was edited).
-  const [pending, setPending] = useState<MapTemplate | null>(null)
+  const name = openRecord?.name ?? stockRecord?.name ?? 'Map'
+  const dim = openRecord?.dim ?? stockRecord?.dim
 
-  const name =
-    editingMap?.kind === 'existing'
-      ? (userMaps.find((m) => m.id === editingMap.id)?.name ?? 'Map')
-      : 'Map'
-
-  function chooseTemplate(t: MapTemplate) {
-    // Dirty-guard: silent swap while the buffer is byte-identical to the last
-    // loaded baseline (skeleton or a prior template); otherwise confirm first.
-    if (isPristineToBaseline(source, mapBaseline)) {
-      loadMapTemplate(t.source)
-    } else {
-      setPending(t)
-    }
-  }
-
-  function confirmOverwrite() {
-    if (pending) loadMapTemplate(pending.source)
-    setPending(null)
+  async function confirmDelete() {
+    if (!openRecord) return
+    await removeMap(openRecord.id)
+    setDeleteOpen(false)
   }
 
   return (
     <>
       <span className="flex-1 min-w-0 flex items-center gap-1.5">
-        <span className="truncate">{name}</span>
+        <span className="truncate text-zinc-200">{name}</span>
         <CompileStatusBadge />
         <span className="shrink-0 px-1.5 py-0.5 rounded text-[9px] font-medium tracking-wide uppercase text-zinc-400 border border-zinc-700 leading-none">
           map
         </span>
-        {openRecord && (
+        {editingMap?.kind === 'stock' && (
           <span className="shrink-0 px-1.5 py-0.5 rounded text-[9px] font-medium tracking-wide uppercase text-zinc-500 border border-zinc-700 leading-none">
-            {openRecord.dim}D
+            read-only
+          </span>
+        )}
+        {dim && (
+          <span className="shrink-0 px-1.5 py-0.5 rounded text-[9px] font-medium tracking-wide uppercase text-zinc-500 border border-zinc-700 leading-none">
+            {dim}D
           </span>
         )}
         {mapEvalError && (
@@ -89,86 +65,40 @@ export function MapModeHeader() {
           </span>
         )}
       </span>
-      <button
-        onClick={deployEditingMap}
-        disabled={!deployable}
-        title={
-          deployable
-            ? 'Render the current pattern through this map'
-            : "Compiles when the map's dimensions match the previewed pattern"
-        }
-        className="shrink-0 h-6 px-2 rounded border text-[11px] transition-colors disabled:opacity-40 disabled:cursor-not-allowed border-zinc-700 text-zinc-300 enabled:hover:border-amber-500 enabled:hover:text-amber-400/90"
-      >
-        Deploy to preview
-      </button>
+      {editingMap?.kind === 'stock' && (
+        <button
+          type="button"
+          onClick={() => void cloneStockMap(editingMap.id)}
+          className="shrink-0 h-6 px-2 rounded border border-zinc-700 text-[11px] text-zinc-300 hover:border-zinc-500 hover:text-amber-400/80 transition-colors"
+        >
+          Clone
+        </button>
+      )}
       <SendMapToController />
-      <LoadTemplateMenu onSelect={chooseTemplate} />
+      {openRecord && (
+        <button
+          type="button"
+          onClick={() => setDeleteOpen(true)}
+          className="shrink-0 h-6 px-2 rounded border border-zinc-800 text-[11px] text-zinc-500 hover:border-red-900/80 hover:text-red-300 transition-colors flex items-center gap-1"
+          title="Delete map"
+        >
+          <Trash2 size={12} aria-hidden />
+          Delete
+        </button>
+      )}
 
-      <AlertDialogRoot open={pending !== null} onOpenChange={(o) => { if (!o) setPending(null) }}>
+      <AlertDialogRoot open={deleteOpen} onOpenChange={setDeleteOpen}>
         <AlertDialogContent>
-          <AlertDialogTitle>Replace map source?</AlertDialogTitle>
+          <AlertDialogTitle>Delete map?</AlertDialogTitle>
           <AlertDialogDescription>
-            Loading "{pending?.name}" will replace your edited source. This can't be undone.
+            "{name}" will be permanently deleted and cannot be recovered.
           </AlertDialogDescription>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmOverwrite}>Replace</AlertDialogAction>
+            <AlertDialogAction onClick={() => void confirmDelete()}>Delete</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialogRoot>
     </>
-  )
-}
-
-// A small action dropdown listing the source-backed stock maps. Unlike a select
-// it has no persistent "current value" — each pick fires onSelect — so it shows a
-// fixed "Load template" label.
-function LoadTemplateMenu({ onSelect }: { onSelect: (t: MapTemplate) => void }) {
-  const [isOpen, setIsOpen] = useState(false)
-  const containerRef = useRef<HTMLDivElement>(null)
-  const templates = mapTemplates()
-
-  useEffect(() => {
-    if (!isOpen) return
-    const onMouseDown = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setIsOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', onMouseDown)
-    return () => document.removeEventListener('mousedown', onMouseDown)
-  }, [isOpen])
-
-  return (
-    <div ref={containerRef} className="relative shrink-0">
-      <button
-        aria-haspopup="listbox"
-        aria-expanded={isOpen}
-        onClick={() => setIsOpen((o) => !o)}
-        className="flex items-center gap-0.5 h-6 pl-2 pr-1 rounded border border-zinc-700 text-[11px] text-zinc-300 hover:border-zinc-500 hover:text-amber-400/80 transition-colors"
-      >
-        <span className="whitespace-nowrap">Load template</span>
-        <ChevronDown size={12} className="shrink-0 text-zinc-500" />
-      </button>
-      {isOpen && (
-        <div
-          role="listbox"
-          aria-label="Load template"
-          className="absolute top-full right-0 mt-1 w-40 bg-zinc-900 border border-zinc-800 rounded-md shadow-xl z-50 py-1"
-        >
-          {templates.map((t) => (
-            <button
-              key={t.id}
-              role="option"
-              aria-selected={false}
-              onClick={() => { onSelect(t); setIsOpen(false) }}
-              className="w-full text-left px-3 py-1 text-[11px] text-zinc-300 hover:bg-zinc-800 hover:text-amber-400/80"
-            >
-              {t.name}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
   )
 }

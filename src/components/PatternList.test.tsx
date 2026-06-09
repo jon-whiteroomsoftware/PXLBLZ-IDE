@@ -40,6 +40,10 @@ const CUSTOM_MAP: MapRecord = {
   updatedAt: 1000,
 }
 
+async function switchToMaps(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole('radio', { name: 'Maps' }))
+}
+
 describe('PatternList', () => {
   it('clicking a demo sets previewSource to the demo source', async () => {
     const user = userEvent.setup()
@@ -62,35 +66,63 @@ describe('PatternList', () => {
   })
 
   it('shows the empty state when there are no custom maps', async () => {
+    const user = userEvent.setup()
     render(<PatternList />)
+    await switchToMaps(user)
     expect(await screen.findByText('No custom maps yet')).toBeInTheDocument()
   })
 
   it('lists user-authored custom maps under "Your Maps"', async () => {
     vi.mocked(listMaps).mockResolvedValueOnce([CUSTOM_MAP])
+    const user = userEvent.setup()
     render(<PatternList />)
+    await switchToMaps(user)
     expect(await screen.findByText('My Tree')).toBeInTheDocument()
   })
 
-  it('hides "Your Maps" and non-matching maps under the 1D dimension lens', async () => {
+  it('shows stock maps in Maps mode but not in Patterns mode', async () => {
+    const user = userEvent.setup()
+    render(<PatternList />)
+    expect(screen.queryByText('Stock Maps')).not.toBeInTheDocument()
+    await switchToMaps(user)
+    expect(screen.getByText('Stock Maps')).toBeInTheDocument()
+    expect(screen.getByText('Cube shell')).toBeInTheDocument()
+  })
+
+  it('hides the 1D dimension lens in Maps mode', async () => {
     vi.mocked(listMaps).mockResolvedValueOnce([CUSTOM_MAP])
     const user = userEvent.setup()
     render(<PatternList />)
+    await switchToMaps(user)
     expect(await screen.findByText('My Tree')).toBeInTheDocument()
 
-    await user.click(screen.getByRole('radio', { name: '1D' }))
+    expect(screen.queryByRole('radio', { name: '1D' })).not.toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: '2D' })).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: '3D' })).toBeInTheDocument()
+  })
 
-    expect(screen.queryByText('Your Maps')).not.toBeInTheDocument()
-    expect(screen.queryByText('My Tree')).not.toBeInTheDocument()
+  it('switches the dimension lens from 1D to 2D when entering Maps mode', async () => {
+    vi.mocked(listMaps).mockResolvedValueOnce([CUSTOM_MAP])
+    const user = userEvent.setup()
+    render(<PatternList />)
+
+    await user.click(screen.getByRole('radio', { name: '1D' }))
+    expect(screen.getByRole('radio', { name: '1D' })).toHaveAttribute('aria-checked', 'true')
+
+    await switchToMaps(user)
+
+    expect(screen.queryByRole('radio', { name: '1D' })).not.toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: '2D' })).toHaveAttribute('aria-checked', 'true')
   })
 
   it('filters maps by name via the type-down search box', async () => {
     vi.mocked(listMaps).mockResolvedValueOnce([CUSTOM_MAP])
     const user = userEvent.setup()
     render(<PatternList />)
+    await switchToMaps(user)
     expect(await screen.findByText('My Tree')).toBeInTheDocument()
 
-    const search = screen.getByRole('textbox', { name: /search patterns by name/i })
+    const search = screen.getByRole('textbox', { name: /search by name/i })
     await user.type(search, 'tree')
     expect(screen.getByText('My Tree')).toBeInTheDocument()
 
@@ -103,9 +135,10 @@ describe('PatternList', () => {
     vi.mocked(listMaps).mockResolvedValueOnce([CUSTOM_MAP])
     const user = userEvent.setup()
     render(<PatternList />)
+    await switchToMaps(user)
     expect(await screen.findByText('My Tree')).toBeInTheDocument()
 
-    await user.type(screen.getByRole('textbox', { name: /search patterns by name/i }), 'nope')
+    await user.type(screen.getByRole('textbox', { name: /search by name/i }), 'nope')
     expect(screen.queryByText('My Tree')).not.toBeInTheDocument()
     // Header stays, but the genuine-empty message must not appear.
     expect(screen.getByText('Your Maps')).toBeInTheDocument()
@@ -116,10 +149,11 @@ describe('PatternList', () => {
     vi.mocked(listMaps).mockResolvedValueOnce([CUSTOM_MAP])
     const user = userEvent.setup()
     render(<PatternList />)
+    await switchToMaps(user)
     expect(await screen.findByText('My Tree')).toBeInTheDocument()
 
     // Query matches but lens (2D) does not -> hidden.
-    await user.type(screen.getByRole('textbox', { name: /search patterns by name/i }), 'tree')
+    await user.type(screen.getByRole('textbox', { name: /search by name/i }), 'tree')
     await user.click(screen.getByRole('radio', { name: '2D' }))
     expect(screen.queryByText('My Tree')).not.toBeInTheDocument()
 
@@ -140,7 +174,7 @@ describe('PatternList', () => {
     expect(screen.queryByText(new RegExp(`^${demoName}`))).not.toBeInTheDocument()
 
     // A search matching that demo must surface it despite the collapse.
-    const search = screen.getByRole('textbox', { name: /search patterns by name/i })
+    const search = screen.getByRole('textbox', { name: /search by name/i })
     await user.type(search, demoName)
     expect(screen.getByText(new RegExp(`^${demoName}`))).toBeInTheDocument()
 
@@ -153,7 +187,7 @@ describe('PatternList', () => {
     const user = userEvent.setup()
     render(<PatternList />)
 
-    const search = screen.getByRole('textbox', { name: /search patterns by name/i })
+    const search = screen.getByRole('textbox', { name: /search by name/i })
     expect(search).not.toHaveFocus()
 
     await user.click(screen.getByRole('button', { name: /search by name/i }))
@@ -164,7 +198,7 @@ describe('PatternList', () => {
     const user = userEvent.setup()
     render(<PatternList />)
 
-    const search = screen.getByRole('textbox', { name: /search patterns by name/i })
+    const search = screen.getByRole('textbox', { name: /search by name/i })
 
     // Open + focus it; the icon now offers Close.
     await user.click(screen.getByRole('button', { name: /search by name/i }))
@@ -184,7 +218,7 @@ describe('PatternList', () => {
     const user = userEvent.setup()
     render(<PatternList />)
 
-    const search = screen.getByRole('textbox', { name: /search patterns by name/i })
+    const search = screen.getByRole('textbox', { name: /search by name/i })
     await user.click(screen.getByRole('button', { name: /search by name/i }))
     await user.type(search, 'abc')
     expect(search).toHaveFocus()
@@ -201,6 +235,7 @@ describe('PatternList', () => {
     vi.mocked(listMaps).mockResolvedValueOnce([CUSTOM_MAP])
     const user = userEvent.setup()
     render(<PatternList />)
+    await switchToMaps(user)
     expect(await screen.findByText('My Tree')).toBeInTheDocument()
 
     await user.click(screen.getByRole('radio', { name: '2D' }))
@@ -208,5 +243,15 @@ describe('PatternList', () => {
 
     await user.click(screen.getByRole('radio', { name: '3D' }))
     expect(screen.getByText('My Tree')).toBeInTheDocument()
+  })
+
+  it('opening a stock map does not change the active preview map', async () => {
+    const user = userEvent.setup()
+    render(<PatternList />)
+    await switchToMaps(user)
+    await user.click(screen.getByText('Cube shell'))
+    expect(useMapStore.getState().editingMap).toEqual({ kind: 'stock', id: 'cube-shell' })
+    expect(useMapStore.getState().activeMapId).toBe('plane')
+    expect(useEditorStore.getState().isReadOnly).toBe(true)
   })
 })

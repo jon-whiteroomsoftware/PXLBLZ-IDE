@@ -34,7 +34,7 @@ import { buildPreviewJpeg } from '@/engine/previewThumbnailJpeg'
 import { LIBRARIES } from '@/pixelblaze/libs'
 import { usePatternStore, activePushKey } from '@/store/patternStore'
 import { useEditorStore } from '@/store/editorStore'
-import { useMapStore } from '@/store/mapStore'
+import { useMapStore, openMapForPushState } from '@/store/mapStore'
 import { useControllerPanelStore } from '@/store/controllerPanelStore'
 
 // Keyed connection orchestration for the live Controller surface (#210).
@@ -94,7 +94,7 @@ interface ControllerConnectionState {
    *  save are distinct acts, so the dirty gate compares against this when Save is
    *  armed. Not persisted, same as the run record. */
   lastSavedSource: Record<string, Record<string, string>>
-  /** Whether the Send button's Save toggle is armed (#238). When on, Send persists the
+  /** Whether the Send button's Save mode is armed (#238). When on, Send persists the
    *  pattern to the device's Saved Patterns (#236) instead of a run-only push. Sticky:
    *  persisted across sessions (it's a deliberate, remembered intent). */
   saveArmed: boolean
@@ -188,7 +188,7 @@ interface ControllerConnectionState {
    *  map slot (#204). Reuses `pushing`/`pushResult` for the button animation; a no-op
    *  when nothing is open/active. */
   pushActiveMap: () => Promise<void>
-  /** Arm/disarm the Save toggle (#238). Sticky across sessions. */
+  /** Arm/disarm Save mode (#238). Sticky across sessions. */
   setSaveArmed: (armed: boolean) => void
   /** Clear the transient push result (e.g. after the toast/badge times out). */
   clearPushResult: () => void
@@ -268,24 +268,11 @@ export const useControllerStore = create<ControllerConnectionState>()(
     (set, get) => {
       // Resolve the map currently open in the editor's map mode into the bits a push
       // needs: its stable id, baked coordinate array, and a change signature (its
-      // source) for the dirty gate. Returns null unless a custom map is open AND has
-      // baked points — a stock map (no source) or an unbaked map can't be pushed.
+      // source) for the dirty gate. Works for both custom maps and read-only stock maps.
       const openMapForPush = ():
         | { id: string; points: number[][]; source: string | undefined; signature: string }
         | null => {
-        const { editingMap, userMaps } = useMapStore.getState()
-        if (editingMap?.kind !== 'existing') return null
-        const record = userMaps.find((m) => m.id === editingMap.id)
-        if (!record || !record.points || record.points.length === 0) return null
-        // `points` are baked at the *preview* count; the push re-bakes `source` to the
-        // device's pixel count (resolveMapPushPoints, #204). `signature` is the source
-        // text used by the dirty gate.
-        return {
-          id: record.id,
-          points: record.points,
-          source: record.source ?? undefined,
-          signature: record.source ?? '',
-        }
+        return openMapForPushState(useMapStore.getState())
       }
 
       // Fold a per-Controller patch into the keyed map without dropping siblings.

@@ -71,9 +71,9 @@ function PatternPushChoices({
 }
 
 // The editor-header "Send to Controller" action (H9 #201 → H10 #202; save mode #236,
-// run-vs-save toggle #238). One verb that plays *or* saves the open pattern on the
+// run-vs-save selector #238). One verb that plays *or* saves the open pattern on the
 // connected Controller: the extension compiles the bundled artifact to bytecode and the
-// page frames it over the existing socket. A sticky Save toggle (#238) picks run-only
+// page frames it over the existing socket. A sticky text Run/Save selector (#238) picks run-only
 // (play) vs persisted (save) mode; the button glyph/tooltip reflect it.
 //
 // A thin shell over the pure gates: `describeSendToController` decides enablement and
@@ -181,25 +181,44 @@ export function SendToController() {
   const working = pushing || !!pushResult?.ok
   const dimClass = working ? 'opacity-95' : 'disabled:opacity-30'
 
-  // The sticky Save toggle (#238): always visible (never a hidden mode), immediately
-  // left of the Send button. Armed → Send persists to Saved Patterns; off → run-only.
-  const saveToggle = (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={saveArmed}
-      aria-label="Save to Controller"
-      title={saveArmed ? 'Saving: Send persists to the Controller' : 'Arm to save the pattern on the Controller'}
-      onClick={() => setSaveArmed(!saveArmed)}
-      data-testid="save-toggle"
-      className={`flex items-center gap-1 rounded px-1.5 py-1 text-xs transition-colors ${
-        saveArmed
-          ? 'bg-amber-500/15 text-amber-300 hover:bg-amber-500/25'
-          : 'text-zinc-500 hover:bg-zinc-800/70 hover:text-zinc-300'
-      }`}
+  const modeSelector = (
+    <span
+      role="radiogroup"
+      aria-label="Controller send mode"
+      className="flex h-7 shrink-0 overflow-hidden rounded-md border border-zinc-800 bg-zinc-900/70"
     >
-      <Save size={13} strokeWidth={2.5} aria-hidden />
-    </button>
+      <button
+        type="button"
+        role="radio"
+        aria-checked={!saveArmed}
+        aria-label="Run on Controller"
+        title="Run transiently on the Controller"
+        onClick={() => setSaveArmed(false)}
+        className={`h-full px-2 text-xs transition-colors ${
+          !saveArmed
+            ? 'bg-zinc-700/80 text-zinc-100'
+            : 'text-zinc-500 hover:bg-zinc-800/70 hover:text-zinc-300'
+        }`}
+      >
+        Run
+      </button>
+      <button
+        type="button"
+        role="radio"
+        aria-checked={saveArmed}
+        aria-label="Save to Controller"
+        title="Save to the Controller's Saved Patterns"
+        onClick={() => setSaveArmed(true)}
+        data-testid="save-toggle"
+        className={`h-full border-l border-zinc-800 px-2 text-xs transition-colors ${
+          saveArmed
+            ? 'bg-amber-500/15 text-amber-300'
+            : 'text-zinc-500 hover:bg-zinc-800/70 hover:text-zinc-300'
+        }`}
+      >
+        Save
+      </button>
+    </span>
   )
 
   // A clean pattern push goes straight through (the one-click path, #239). The only
@@ -208,8 +227,8 @@ export function SendToController() {
   // pushing, and the author confirms with "Send anyway" (mirrors the map-push flow).
   const dimMismatch = (preflight ?? []).find((w) => w.kind === 'pattern-dim-mismatch')
   return (
-    <span className="flex items-center gap-1">
-      {saveToggle}
+    <span className="ml-2 inline-flex h-7 items-stretch gap-1">
+      {modeSelector}
       <PushConfirmPopover
         open={dimMismatch !== undefined}
         onCancel={cancelPush}
@@ -219,7 +238,7 @@ export function SendToController() {
           <Button
             size="sm"
             variant="ghost"
-            className={`text-xs text-zinc-400 bg-zinc-800/70 hover:bg-zinc-700/70 hover:text-zinc-300 ${dimClass}`}
+            className={`h-7 rounded-md border border-zinc-800 bg-zinc-800/70 text-xs text-zinc-400 hover:bg-zinc-700/70 hover:text-zinc-300 ${dimClass}`}
             disabled={!enabled || working}
             title={title}
             onClick={() => void requestPush()}

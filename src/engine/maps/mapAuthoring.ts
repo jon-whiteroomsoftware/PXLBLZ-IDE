@@ -15,8 +15,8 @@ export interface ParseError {
 }
 
 // The default working skeleton a fresh New Map opens on: a minimal valid map
-// source returning a short 2D line. Valid plain JS, ready to edit or replace via
-// the "Load template" dropdown. Not yet evaluated/rendered (that is #143).
+// source returning a short 2D line. Valid plain JS and ready to edit. Not yet
+// evaluated/rendered (that is #143).
 export const MAP_SKELETON = `function(pixelCount) {
   var coords = []
   for (var i = 0; i < pixelCount; i++) {
@@ -64,8 +64,7 @@ export function isMapOpenable(record: Pick<MapRecord, 'source'>): boolean {
 }
 
 // The dirty-guard predicate (#151): a buffer is pristine vs. its last-loaded
-// baseline when byte-identical. The New Map "Load template" path swaps silently
-// while pristine and confirms before overwriting once edited.
+// baseline when byte-identical. Kept for any source-replacement flow.
 export function isPristineToBaseline(buffer: string, baseline: string): boolean {
   return buffer === baseline
 }
@@ -76,10 +75,9 @@ export interface MapTemplate {
   source: string
 }
 
-// The "Load template" dropdown options: each source-backed stock map paired with
-// its verbatim source. The dropdown loads the source *text only* — not the
-// template's name or dimensionality (#151). This is the only way to view a stock
-// map's code; stock maps stay non-openable in place.
+// Legacy template options: each source-backed stock map paired with its verbatim
+// source. Current UI opens stock maps read-only and clones them into custom maps,
+// but keeping this helper preserves the plain "stock source as template" primitive.
 export function mapTemplates(): MapTemplate[] {
   return STOCK_MAP_SPECS.map((s) => ({ id: s.id, name: s.name, source: s.source }))
 }
