@@ -6,7 +6,7 @@
 // step accumulates an exponential glow (the "phantom" volumetric look), with a
 // second accumulator pulsing rings of brightness outward over time.
 //
-// Faithful-port notes (see docs/guides/Porting ShaderToy shaders to Pixelblaze):
+// Faithful-port notes:
 //   • Screen uv: the original's (2*frag - res)/min(res) is the centred square
 //     normalisation → Shader.toUV(x, y, 1) (square; #116 stretch on non-square).
 //   • mat2 rot(a) idiom → inlined cos/sin multiply-adds (the Shader.rot2 form).

@@ -56,6 +56,6 @@ Open the **Libraries** menu in the header for a summary on hover; click any to o
 
 ## What to read next
 
-- **[PXLBLZ Feature Guide](docs/PXLBLZ%20Feature%20Guide.md)** — _for someone who uses Pixelblaze._ What every control on the screen does: the preview, maps, the control deck, live controls, and getting code onto hardware. Start here if you just want to use the IDE.
-- **[PXLBLZ Technical Reference](docs/PXLBLZ%20Technical%20Reference.md)** — _for someone building the IDE._ The authoritative as-built description of how it works: transpiler, validator, fixed-point engine, maps and embeddings, camera, render loop, storage. Start here to contribute.
-- **[Pixelblaze Ecosystem Primer](docs/Pixelblaze%20Ecosystem%20Primer.md)** — _for someone new to Pixelblaze itself._ The mental model the other two assume: device vs. browser, 16.16 fixed-point, the pattern and mapper dialects, the WebSocket API. Start here if "fixed-point" or "pixel map" needs unpacking.
+- **[PXLBLZ Feature Guide](docs/reference/PXLBLZ%20Feature%20Guide.md)** — _for someone who uses Pixelblaze._ What every control on the screen does: the preview, maps, the control deck, live controls, and getting code onto hardware. Start here if you just want to use the IDE.
+- **[PXLBLZ Technical Reference](docs/reference/PXLBLZ%20Technical%20Reference.md)** — _for someone building the IDE._ The authoritative as-built description of how it works: transpiler, validator, fixed-point engine, maps and embeddings, camera, render loop, storage. Start here to contribute.
+- **[Pixelblaze Ecosystem Primer](docs/reference/Pixelblaze%20Ecosystem%20Primer.md)** — _for someone new to Pixelblaze itself._ The mental model the other two assume: device vs. browser, 16.16 fixed-point, the pattern and mapper dialects, the WebSocket API. Start here if "fixed-point" or "pixel map" needs unpacking.

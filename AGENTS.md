@@ -1,6 +1,6 @@
-# CLAUDE.md
+# AGENTS.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Codex (Codex.ai/code) when working with code in this repository.
 
 ## Environment notes
 
@@ -17,9 +17,13 @@ The WebGL preview render loop keeps the page perpetually busy, so naive screensh
 
 Prefer this path over out-of-band canvas readback (`drawImage`/`toBlob` from outside), which catches the buffer at unpredictable moments and can return stale or cleared frames.
 
-### Code search (Morph)
+### Code search (Morph / Warp Grip)
 
-For exploratory "where/how does X work" questions, prefer the Morph `codebase_search` tool (`mcp__morph-mcp__codebase_search`) over grepping and reading files yourself. It runs the grep/read work in a separate subagent and returns only the curated, relevant excerpts — keeping the main context lean. Pass a natural-language question (not a regex or symbol dump) and the repo path. Use direct file tools (Read/Grep/Glob) when you already know the exact file or symbol.
+For code exploration, use Morph Warp Grip first. In Codex this is exposed as `mcp__morph_mcp.codebase_search`; pass the repo path and a natural-language question. It runs grep/read work in a separate subagent and returns curated excerpts, which keeps the main context lean.
+
+Default to Warp Grip for "where/how does X work?", architecture tracing, feature discovery, bug investigation, and any search where the exact file or symbol is not already known. Do not start with `rg`, `grep`, broad `find`, or manual file reading for those tasks.
+
+Use direct shell/file search only when there is a specific good reason: checking whether an exact literal string exists, listing known files, opening a file already identified by Morph, or performing a small mechanical verification after Morph has found the relevant area. If direct search is used for exploration anyway, pause first and state why Warp Grip is not the better tool for that query.
 
 ## Commands
 

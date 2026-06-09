@@ -11,7 +11,7 @@
 // module. If something here names "extension" or "bridge", it's in the wrong file.
 //
 // Pure TypeScript, zero React, zero transport specifics. See
-// docs/PXLBLZ Technical Reference.md §13.
+// docs/reference/PXLBLZ Technical Reference.md §13.
 
 import type { ProgramListEntry } from './PixelblazeConnection'
 

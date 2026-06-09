@@ -514,9 +514,8 @@ dialect): `Anim`, `Color`, `Coord`, `Noise`, `SDF`, `Shader`. Each has a
 **Demos** (`src/pixelblaze/demos/`, read-only, forkable): shader ports, showcases, and
 per-dimension test patterns. Loaded from disk at build time via `import.meta.glob`.
 
-**ShaderToy porting toolkit** (`Shader` lib + the porting guide), sequenced *after*
-fidelity because a port is only worth doing if it survives upload. Key interfacing
-decisions:
+**ShaderToy porting toolkit** (`Shader` lib), sequenced *after* fidelity because a
+port is only worth doing if it survives upload. Key interfacing decisions:
 
 - **No re-polyfilling.** `mix`/`smoothstep`/`clamp` are Pixelblaze built-ins with
   GLSL-matching signatures, so `Shader` fills only genuine gaps.
@@ -916,7 +915,6 @@ and run out-of-band.
 
 ## 17. Pointers
 
-- **Feature guide** (using the IDE) — `docs/PXLBLZ Feature Guide.md`.
-- **Pixelblaze ecosystem primer** (the platform itself) — `docs/Pixelblaze Ecosystem Primer.md`.
+- **Feature guide** (using the IDE) — `docs/reference/PXLBLZ Feature Guide.md`.
+- **Pixelblaze ecosystem primer** (the platform itself) — `docs/reference/Pixelblaze Ecosystem Primer.md`.
 - **Domain glossary** — `CONTEXT.md`.
-- **Porting guide** — `docs/guides/Porting ShaderToy shaders to Pixelblaze.md`.

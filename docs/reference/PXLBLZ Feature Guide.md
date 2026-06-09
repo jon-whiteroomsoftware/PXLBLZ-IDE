@@ -290,11 +290,10 @@ pattern).
 Because the Precise renderer lets you trust the preview against real fixed-point
 behaviour, the IDE is a comfortable home for porting ShaderToy-style GLSL onto LEDs.
 The `Shader` library fills the genuine GLSL gaps (`fract`, `step`, `sign`, vector
-helpers, IQ palettes, and integer hashes that *don't* overflow on the device), and
-there's a dedicated **[porting guide](guides/Porting%20ShaderToy%20shaders%20to%20Pixelblaze.md)**
-that walks through the idioms that translate, the ones that need rewriting, and the
-GPU-only features that simply won't port (textures, multipass feedback, `dFdx`, etc.).
-Porting is human-driven with library support — there's no automatic GLSL converter.
+helpers, IQ palettes, and integer hashes that *don't* overflow on the device). Some
+idioms translate cleanly, others need rewriting, and GPU-only features simply won't
+port (textures, multipass feedback, `dFdx`, etc.). Porting is human-driven with
+library support — there's no automatic GLSL converter.
 
 ---
 

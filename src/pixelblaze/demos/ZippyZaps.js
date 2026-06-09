@@ -8,7 +8,7 @@
 // leans on vec4/mat2/swizzle tricks Pixelblaze has none of, so every vector is
 // unrolled to scalars here.
 //
-// Faithful-port notes (see docs/guides/Porting ShaderToy shaders to Pixelblaze):
+// Faithful-port notes:
 //   • iTime → `t`, accumulated in beforeRender. The loop's own `++t` becomes a
 //     per-iteration `tt = tt + 1` (the original increments t once per pass).
 //   • aspect → Shader.toUV(x,y,1): square grids match the original's

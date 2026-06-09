@@ -7,7 +7,7 @@
 // shader is already exactly what Shader.iqPalette implements, so the only manual
 // work is the per-band coefficient table and the band's border/shadow trim.
 //
-// Faithful-port notes (see docs/guides/Porting ShaderToy shaders to Pixelblaze):
+// Faithful-port notes:
 //   • This shader uses RAW [0,1] uv (p = fragCoord/iResolution), NOT the centred
 //     short-axis normalisation — so we use render2D's x,y directly and do NOT
 //     route through Shader.toUV. (Gotcha B is about the centred idiom; n/a here.)

@@ -95,5 +95,5 @@ Tests: `src/engine/applyControllerPixelCount.test.ts` (new) + additions in the t
 
 ## References
 - Reference client: https://github.com/zranger1/pixelblaze-client/blob/main/pixelblaze/pixelblaze.py (`setPixelCount` ~L2083, `setMapFunction`/`setMapData` ~L1622/1683, `getMapCoordinates` ~L1695, `messageTypes` ~L460)
-- In-repo: `docs/ElectroMage/Pixelblaze Websockets Api.md` (no `pixelCount`/clear semantics documented), `src/engine/mapPush.ts` (encode/decode + the Fill-divergence note), `docs/PXLBLZ Technical Reference.md` §13 (pixelCount is modeled independently of the map).
+- In-repo: `docs/ElectroMage/Pixelblaze Websockets Api.md` (no `pixelCount`/clear semantics documented), `src/engine/mapPush.ts` (encode/decode + the Fill-divergence note), `docs/reference/PXLBLZ Technical Reference.md` §13 (pixelCount is modeled independently of the map).
 - Related issues: #213 (count↔map coupling on map push), #204/#205 (map push + read-back).

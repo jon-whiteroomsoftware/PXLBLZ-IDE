@@ -388,10 +388,8 @@ every loop with a constant or a slider-fed count.
 
 Ports are the patterns most likely to be slow: GLSL is written for a GPU that
 doesn't care about per-pixel loops or transcendental cost. Everything in Part I
-applies; this part covers what's port-specific. For the mechanics of *getting* a
-shader running (vector flattening, the `Shader` library, the fixed-point gotchas),
-see **[Porting ShaderToy shaders to Pixelblaze](./Porting%20ShaderToy%20shaders%20to%20Pixelblaze.md)** —
-this guide picks up at "it runs, now make it fast."
+applies; this part covers the port-specific performance traps: vector flattening,
+heavy per-fragment loops, the `Shader` library, and fixed-point gotchas.
 
 ## 5. Why ports are expensive
 
@@ -424,8 +422,8 @@ where the exact curve doesn't matter.
 
 ### Use the integer hash, not the magic-constant hash [hardware-wisdom + correctness]
 
-`fract(sin(dot(p,k))*43758.5453)` is both **wrong** (16.16 overflow — see the
-porting guide's Gotcha A) **and** expensive (`sin` + a big multiply per call).
+`fract(sin(dot(p,k))*43758.5453)` is both **wrong** (16.16 overflow) **and**
+expensive (`sin` + a big multiply per call).
 `Shader.hash21`/`hash11` are integer multiply/add — cheaper *and* bit-identical
 preview↔hardware.
 
@@ -771,7 +769,7 @@ they live on the *other* side of the checksum line. Reach for them, measured and
 labelled, when a port is this far over budget; don't expect another hoist to
 save it.
 
-- Watch the `fx` identifier shadow (porting guide §4.B) — orthogonal to perf, but
+- Watch the `fx` identifier shadow — orthogonal to perf, but
   it bites in exactly these heavy ports.
 
 ---
@@ -780,9 +778,7 @@ save it.
 
 - [`test/perf-harness/costs.md`](../../test/perf-harness/costs.md) — the measured
   cost table (source of record); regenerate with `npm run profile` (#245).
-- [Porting ShaderToy shaders to Pixelblaze](./Porting%20ShaderToy%20shaders%20to%20Pixelblaze.md)
-  — getting a shader running before you tune it; the fixed-point gotchas.
-- `docs/PXLBLZ Technical Reference.md` §2/§5 (fidelity & the fixed-point engine),
+- `docs/reference/PXLBLZ Technical Reference.md` §2/§5 (fidelity & the fixed-point engine),
   §11 (the porting toolkit), §16 (main-thread execution).
 - `test/perf-harness/` — the emulator bench (`npm run bench`, #247) and the
   hardware profiler (`npm run profile`, #245).
