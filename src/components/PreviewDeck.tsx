@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { Play, Pause, RotateCcw } from 'lucide-react'
 import { usePreviewStore, MIN_LIGHT_SIZE, MAX_LIGHT_SIZE } from '@/store/previewStore'
 import { useEditorStore } from '@/store/editorStore'
@@ -10,7 +9,6 @@ import {
   resetActiveSettings,
   hasActiveOverrides,
 } from '@/store/settingsCascade'
-import { clampPixelCount } from '@/engine/camera'
 import { effectivePixelCount } from '@/engine/layout'
 import { MapSelect, EmbeddingSelect } from '@/components/LayoutSelector'
 import { SpeedSelector } from '@/components/SpeedSelector'
@@ -20,6 +18,7 @@ import { ControlsPanel } from '@/components/ControlsPanel'
 import { DimPills } from '@/components/DimPills'
 import { exportedDims } from '@/engine/exportedDims'
 import { Variables } from '@/components/Variables'
+import { PixelCountPopover } from '@/components/PixelCountPopover'
 import {
   DeckSection,
   DeckSectionHint,
@@ -134,9 +133,6 @@ function PrimaryBand() {
   )
 }
 
-// Inline pixel-count control (#150): the count is now an editable control in the
-// deck, not a read-only echo. Draft/commit logic lifted from the old settings dialog
-// — the draft tracks edits until Enter/blur commits a clamped value to the store.
 function PixelCountInput() {
   const activePixelCount = useMapStore((s) => s.activePixelCount)
   const setActivePixelCount = useMapStore((s) => s.setActivePixelCount)
@@ -152,33 +148,17 @@ function PixelCountInput() {
     persisted: activePixelCount,
     fallback: defaultPixelCountForDim(nativeDim),
   })
-  const [draftCount, setDraftCount] = useState(String(effectiveCount))
-
-  // Reflect external count changes (pattern switch, default per dimension) into the
-  // draft by adjusting state during render (React's recommended pattern over an effect).
-  const [lastCount, setLastCount] = useState(effectiveCount)
-  if (effectiveCount !== lastCount) {
-    setLastCount(effectiveCount)
-    setDraftCount(String(effectiveCount))
-  }
-
-  function commit() {
-    const n = clampPixelCount(parseInt(draftCount, 10) || effectiveCount)
-    setDraftCount(String(n))
+  function commit(n: number) {
     setActivePixelCount(n)
     writeCascadedOverride('pixelCount', n)
   }
 
   return (
-    <input
-      aria-label="Pixel count"
-      type="text"
-      inputMode="numeric"
-      value={draftCount}
-      onChange={(e) => setDraftCount(e.target.value.replace(/\D/g, ''))}
-      onKeyDown={(e) => e.key === 'Enter' && commit()}
-      onBlur={commit}
-      className="w-[42px] h-5 px-0.5 rounded border border-zinc-500 text-[11px] tabular-nums text-zinc-300 text-center bg-transparent hover:border-zinc-400 focus:outline-none focus:border-live"
+    <PixelCountPopover
+      value={effectiveCount}
+      triggerLabel="Edit pixel count"
+      inputLabel="Pixel count"
+      onApply={commit}
     />
   )
 }

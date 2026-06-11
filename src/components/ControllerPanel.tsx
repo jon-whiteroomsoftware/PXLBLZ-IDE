@@ -1,5 +1,4 @@
-import { useEffect, useState, useSyncExternalStore } from 'react'
-import { clampPixelCount } from '@/engine/camera'
+import { useEffect, useSyncExternalStore } from 'react'
 import { getControllerProvider } from '@/engine/controllerProviderRegistry'
 import { useControllerStore } from '@/store/controllerStore'
 import { useControllerPanelStore } from '@/store/controllerPanelStore'
@@ -18,6 +17,7 @@ import {
   DeckTelemetry,
 } from '@/components/Deck'
 import { DeckSlider } from '@/components/DeckSlider'
+import { PixelCountPopover } from '@/components/PixelCountPopover'
 
 // The live Controller panel (H6, issue #198). A dashboard built from the *same*
 // shared deck template as the preview control deck — read-only telemetry (active
@@ -68,12 +68,6 @@ const VARS_HINT = (
   />
 )
 
-// Editable pixel-count control (#213). Mirrors the preview deck's PixelCountInput —
-// same draft/commit-on-Enter-or-blur logic and styling — but reads/writes the live
-// Controller's pixel count. Unlike the preview's preview-only count this is real
-// device config: committing it sends a saved `setPixelCount` to the device. Setting
-// the count is also the remedy for an unconformable map push (a map only applies
-// when its point count exactly matches the device's pixel count).
 function ControllerPixelCountInput() {
   const pixelCount = useControllerPanelStore((s) => s.pixelCount)
   const setPixelCount = useControllerPanelStore((s) => s.setPixelCount)
@@ -81,39 +75,18 @@ function ControllerPixelCountInput() {
   // slow write reads as deliberate, and it keeps showing the entered value (#213).
   const pending = useControllerPanelStore((s) => s.pixelCountPending) != null
 
-  const [draft, setDraft] = useState(pixelCount == null ? '' : String(pixelCount))
-
-  // Reflect external count changes (the device's reported value, polled) into the
-  // draft by adjusting state during render — React's recommended pattern over an effect.
-  const [lastCount, setLastCount] = useState(pixelCount)
-  if (pixelCount !== lastCount) {
-    setLastCount(pixelCount)
-    setDraft(pixelCount == null ? '' : String(pixelCount))
-  }
-
-  function commit() {
-    const parsed = parseInt(draft, 10)
-    if (!Number.isFinite(parsed) || parsed <= 0) {
-      // Reject empty/garbage: snap back to the last known device count.
-      setDraft(pixelCount == null ? '' : String(pixelCount))
-      return
-    }
-    const n = clampPixelCount(parsed)
-    setDraft(String(n))
+  function commit(n: number) {
     if (n !== pixelCount) setPixelCount(n)
   }
 
   return (
-    <input
-      aria-label="Controller pixel count"
-      type="text"
-      inputMode="numeric"
-      value={draft}
+    <PixelCountPopover
+      value={pixelCount}
+      triggerLabel="Edit controller pixel count"
+      inputLabel="Controller pixel count"
       disabled={pending}
-      onChange={(e) => setDraft(e.target.value.replace(/\D/g, ''))}
-      onKeyDown={(e) => e.key === 'Enter' && commit()}
-      onBlur={commit}
-      className="w-[42px] h-5 px-0.5 rounded border border-zinc-500 text-[11px] tabular-nums text-zinc-300 text-center bg-transparent hover:border-zinc-400 focus:outline-none focus:border-live disabled:opacity-40 disabled:cursor-not-allowed"
+      pending={pending}
+      onApply={commit}
     />
   )
 }

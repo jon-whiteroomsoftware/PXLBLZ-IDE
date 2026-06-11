@@ -20,9 +20,8 @@ import { ControllerPanelTitle } from './ControllerPanelTitle'
 // the nickname/IP — there is no longer an inline remove affordance on the pill.
 
 // Bridge the pill's status tone vocabulary to the shared StatusDot tones. A live
-// Controller reads as solid green `ok`; a connecting one blinks amber hard (like a
-// modem's link LED searching for signal) and then settles to the solid green dot
-// once the link is up.
+// Controller reads as solid green `ok`; a connecting one smoothly pulses amber and
+// then settles to the solid green dot once the link is up.
 const PILL_TONE: Record<ControllerStatusTone, StatusTone> = {
   absent: 'absent',
   idle: 'idle',

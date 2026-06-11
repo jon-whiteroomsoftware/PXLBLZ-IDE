@@ -135,14 +135,20 @@ describe('ControllerPanel', () => {
     )
   })
 
-  it('shows the device pixel count in an editable field and writes it back (saved) on commit', async () => {
+  it('opens a pixel-count drawer and writes the device count back (saved) on apply', async () => {
     const provider = new ConnectedProvider()
     setControllerProvider(provider)
     render(<ControllerPanel />)
-    const input = (await screen.findByLabelText('Controller pixel count')) as HTMLInputElement
-    await waitFor(() => expect(input.value).toBe('256'))
+
+    const trigger = await screen.findByRole('button', { name: 'Edit controller pixel count' })
+    await waitFor(() => expect(trigger).toHaveTextContent('256'))
+    fireEvent.click(trigger)
+
+    const input = screen.getByLabelText('Controller pixel count') as HTMLInputElement
+    await waitFor(() => expect(input).toHaveFocus())
     fireEvent.change(input, { target: { value: '16' } })
-    fireEvent.blur(input)
+    fireEvent.click(screen.getByRole('button', { name: 'Apply controller pixel count' }))
+
     await waitFor(() =>
       expect(provider.pixelCountWrites[provider.pixelCountWrites.length - 1]).toEqual({
         value: 16,

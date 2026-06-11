@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { PreviewDeck } from './PreviewDeck'
 import { usePreviewStore, previewInitialState } from '@/store/previewStore'
 import { useMapStore, mapInitialState } from '@/store/mapStore'
@@ -25,7 +25,7 @@ describe('PreviewDeck (smoke)', () => {
     // Pixelblaze section: the Map control now lives here (#253), alongside pixel
     // count + fit, with brightness as a long slider.
     expect(screen.getByRole('button', { name: 'Map' })).toBeInTheDocument()
-    expect(screen.getByRole('textbox', { name: 'Pixel count' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Edit pixel count' })).toBeInTheDocument()
     expect(screen.getByRole('slider', { name: 'Brightness' })).toBeInTheDocument()
 
     // Preview section: light size, diffusion sliders + renderer, speed.
@@ -51,7 +51,7 @@ describe('PreviewDeck (smoke)', () => {
       screen.queryByRole('button', { name: 'Map normalization (Fill / Contain)' }),
     ).not.toBeInTheDocument()
     // The rest of the Pixelblaze block is still present.
-    expect(screen.getByRole('textbox', { name: 'Pixel count' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Edit pixel count' })).toBeInTheDocument()
     expect(screen.getByRole('slider', { name: 'Brightness' })).toBeInTheDocument()
   })
 
@@ -63,6 +63,23 @@ describe('PreviewDeck (smoke)', () => {
     expect(
       screen.getByRole('button', { name: 'About the Preview section' }),
     ).toBeInTheDocument()
+  })
+
+  it('opens a focused pixel-count drawer and applies the preview count explicitly', async () => {
+    useEditorStore.setState({ nativeDim: 1 })
+    render(<PreviewDeck />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit pixel count' }))
+    const input = screen.getByRole('textbox', { name: 'Pixel count' }) as HTMLInputElement
+    await waitFor(() => expect(input).toHaveFocus())
+    expect(input.value).toBe('100')
+
+    fireEvent.change(input, { target: { value: '128px' } })
+    expect(input.value).toBe('128')
+    fireEvent.click(screen.getByRole('button', { name: 'Apply pixel count' }))
+
+    expect(useMapStore.getState().activePixelCount).toBe(128)
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
   it('shows the layout telemetry cell only when a regular grid is live', () => {

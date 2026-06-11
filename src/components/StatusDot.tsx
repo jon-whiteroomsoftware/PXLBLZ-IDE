@@ -6,8 +6,8 @@
 //   ok         — green: healthy / connected / compile-good (traffic-light "go")
 //   working    — amber, pulsing: in-flight compile — traffic-light "wait", distinct
 //                from the steady green of connected
-//   connecting — amber, fast hard blink: a link establishing, like a modem's link LED
-//                searching for signal. Settles to the solid green `ok` once connected.
+//   connecting — amber, smooth pulse: a link establishing, visible without a hard
+//                flash. Settles to the solid green `ok` once connected.
 //   error      — red
 //   idle       — quiet grey, present but inactive
 //   absent     — near-invisible grey, nothing there
