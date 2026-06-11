@@ -29,8 +29,8 @@ function forceTokenizeModel(model: monacoType.editor.ITextModel | null): void {
 
 const EDITOR_OPTIONS = {
   minimap: { enabled: false },
-  fontSize: 13,
-  lineHeight: 20,
+  fontSize: 14.3,
+  lineHeight: 22,
   fontFamily: "'IBM Plex Mono', 'Cascadia Code', 'Fira Code', monospace",
   fontLigatures: true,
   automaticLayout: true,

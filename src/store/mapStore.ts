@@ -25,6 +25,7 @@ import type { LayoutSource } from '@/engine/layout'
 import { uniquePatternName } from '@/engine/patternName'
 import { useEditorStore } from './editorStore'
 import { usePatternStore } from './patternStore'
+import { useDocsStore } from './docsStore'
 
 export type { MapRecord }
 
@@ -306,6 +307,7 @@ export function openMapForPushState(
 // the Editor's parse pass; we seed 'good' so the badge doesn't flash stale.
 function enterMapMode(source: string, readOnly = false): void {
   usePatternStore.getState().setActivePattern(null)
+  useDocsStore.getState().closeDocs()
   const ed = useEditorStore.getState()
   ed.setEditorFlavor('map')
   ed.setIsReadOnly(readOnly)

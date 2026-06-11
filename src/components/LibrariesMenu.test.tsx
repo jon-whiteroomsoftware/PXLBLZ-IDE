@@ -13,30 +13,31 @@ describe('LibrariesMenu', () => {
     usePatternStore.setState(patternInitialState)
   })
 
-  it('renders the Libraries button collapsed', () => {
+  it('renders the Code button collapsed', () => {
     render(<LibrariesMenu />)
-    const button = screen.getByTestId('libraries-menu-button')
+    const button = screen.getByTestId('code-menu-button')
     expect(button).toHaveAttribute('aria-expanded', 'false')
-    expect(screen.queryByTestId('libraries-menu-dropdown')).not.toBeInTheDocument()
+    expect(button).toHaveTextContent('Code')
+    expect(screen.queryByTestId('code-menu-dropdown')).not.toBeInTheDocument()
   })
 
   it('opens the dropdown listing PixelBlaze plus every library', () => {
     render(<LibrariesMenu />)
-    fireEvent.click(screen.getByTestId('libraries-menu-button'))
-    expect(screen.getByTestId('libraries-menu-dropdown')).toBeInTheDocument()
-    const items = screen.getAllByTestId('libraries-menu-item').map((el) => el.textContent)
+    fireEvent.click(screen.getByTestId('code-menu-button'))
+    expect(screen.getByTestId('code-menu-dropdown')).toBeInTheDocument()
+    const items = screen.getAllByTestId('code-menu-item').map((el) => el.textContent)
     expect(items).toContain('PixelBlaze')
     for (const name of LIBRARY_NAMES) expect(items).toContain(name)
   })
 
   it('opens a library read-only in the editor on click and closes the menu', () => {
     render(<LibrariesMenu />)
-    fireEvent.click(screen.getByTestId('libraries-menu-button'))
+    fireEvent.click(screen.getByTestId('code-menu-button'))
     const name = LIBRARY_NAMES[0]
     fireEvent.click(screen.getByText(name))
     expect(useEditorStore.getState().source).toBe(LIBRARIES[name])
     expect(useEditorStore.getState().isReadOnly).toBe(true)
     expect(usePatternStore.getState().activeLibraryName).toBe(name)
-    expect(screen.queryByTestId('libraries-menu-dropdown')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('code-menu-dropdown')).not.toBeInTheDocument()
   })
 })

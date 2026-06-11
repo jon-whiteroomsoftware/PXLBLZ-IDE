@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
-import { Lock, Trash2 } from 'lucide-react'
+import { ExternalLink, FileText, Lock, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   AlertDialogRoot,
@@ -18,16 +18,20 @@ import { Preview } from '@/components/Preview'
 import { PaneHeader } from '@/components/PaneHeader'
 import { ControllerBar } from '@/components/ControllerBar'
 import { LibrariesMenu } from '@/components/LibrariesMenu'
+import { DocsMenu } from '@/components/DocsMenu'
+import { DocsReader } from '@/components/DocsReader'
 import { SendToController } from '@/components/SendToController'
 import { useControllerStore } from '@/store/controllerStore'
 import { MapModeHeader } from '@/components/MapModeHeader'
 import { usePatternStore, PatternRecord } from '@/store/patternStore'
 import { useEditorStore } from '@/store/editorStore'
+import { useDocsStore } from '@/store/docsStore'
 import { forkSettingsSnapshot } from '@/store/settingsCascade'
 import { bundle } from '@/engine/bundle'
 import { LIBRARIES } from '@/pixelblaze/libs'
 import { uniquePatternName } from '@/engine/patternName'
 import { exportedDims } from '@/engine/exportedDims'
+import { docExternalHref, getUserDoc, isDocId } from '@/docs/catalog'
 
 function generateId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
@@ -77,6 +81,21 @@ export default function App() {
   const setIsReadOnly = useEditorStore((s) => s.setIsReadOnly)
   const setPreviewSource = useEditorStore((s) => s.setPreviewSource)
   const setPreviewPatternName = useEditorStore((s) => s.setPreviewPatternName)
+  const activeDocId = useDocsStore((s) => s.activeDocId)
+  const openDoc = useDocsStore((s) => s.openDoc)
+  const closeDocs = useDocsStore((s) => s.closeDocs)
+  const activeDoc = getUserDoc(activeDocId)
+
+  useEffect(() => {
+    const syncFromHash = () => {
+      const match = /^#\/docs\/([^/]+)$/.exec(window.location.hash)
+      if (match && isDocId(match[1])) openDoc(match[1])
+      else closeDocs()
+    }
+    syncFromHash()
+    window.addEventListener('hashchange', syncFromHash)
+    return () => window.removeEventListener('hashchange', syncFromHash)
+  }, [closeDocs, openDoc])
 
   // On startup, probe extension presence (global) and, if a Controller IP was
   // remembered from a previous session, reconnect only that one (#210). Silent on
@@ -183,10 +202,13 @@ export default function App() {
             ))}
           </span>
         </span>
-        {/* Left zone = identity + authoring reference (#254): Libraries sits beside
+        {/* Left zone = identity + authoring reference (#254): Docs and Code sit beside
             the wordmark, mirroring the Controller pill family on the right. */}
         <span className="ml-5 flex items-center">
-          <LibrariesMenu />
+          <DocsMenu />
+          <span className="ml-2">
+            <LibrariesMenu />
+          </span>
         </span>
         <span className="ml-auto flex items-center gap-2.5">
           <ControllerBar />
@@ -203,7 +225,27 @@ export default function App() {
         <Splitter onDrag={handleLeftDrag} />
         <main data-testid="editor-pane" className="flex-1 min-w-0 flex flex-col overflow-hidden">
           <PaneHeader>
-            {editorFlavor === 'map' ? (
+            {activeDoc ? (
+              <>
+                <span className="flex-1 min-w-0 flex items-center gap-1.5">
+                  <FileText size={14} aria-hidden className="shrink-0 text-zinc-500" />
+                  <span className="truncate text-zinc-200">{activeDoc.title}</span>
+                  <span className="hidden rounded border border-zinc-700 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-structural sm:inline">
+                    Docs
+                  </span>
+                </span>
+                <a
+                  href={docExternalHref(activeDoc.id)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex h-7 items-center gap-1 rounded px-2 font-mono text-xs text-zinc-400 bg-zinc-800/70 hover:bg-zinc-700/70 hover:text-zinc-300"
+                  title="Open document in a new tab"
+                >
+                  <ExternalLink size={13} aria-hidden />
+                  <span className="hidden sm:inline">Open in tab</span>
+                </a>
+              </>
+            ) : editorFlavor === 'map' ? (
               <MapModeHeader />
             ) : (
               <>
@@ -273,7 +315,7 @@ export default function App() {
             )}
           </PaneHeader>
           <div className="flex-1 overflow-hidden">
-            <Editor />
+            {activeDoc ? <DocsReader doc={activeDoc} /> : <Editor />}
           </div>
         </main>
         <Splitter onDrag={handleRightDrag} />

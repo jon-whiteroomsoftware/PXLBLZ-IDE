@@ -56,6 +56,7 @@
 }
 
 :root {
+    font-size: 110%;
     --background: oklch(1 0 0);
     --foreground: oklch(0.145 0 0);
     --card: oklch(1 0 0);
@@ -289,4 +290,38 @@
     animation: none;
     opacity: 0.55;
   }
+}
+
+.docs-article {
+  scroll-behavior: smooth;
+}
+
+.docs-article a {
+  color: var(--color-live);
+  text-underline-offset: 3px;
+}
+
+.docs-article a:hover {
+  color: #fde68a;
+}
+
+.docs-article p code,
+.docs-article li code,
+.docs-article td code {
+  border: 1px solid var(--color-seam);
+  border-radius: 4px;
+  background: #18181b;
+  padding: 1px 5px;
+  color: #fef3c7;
+  font-family: var(--font-mono);
+  font-size: 0.88em;
+}
+
+.docs-article strong {
+  color: #f4f4f5;
+  font-weight: 600;
+}
+
+.docs-article :target {
+  scroll-margin-top: 20px;
 }

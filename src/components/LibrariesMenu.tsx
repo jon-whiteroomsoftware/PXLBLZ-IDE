@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
-import { Library, ChevronDown } from 'lucide-react'
+import { Code2, ChevronDown } from 'lucide-react'
 import { LIBRARIES } from '@/pixelblaze/libs'
 import { useEditorStore } from '@/store/editorStore'
 import { usePatternStore } from '@/store/patternStore'
 import { useMapStore } from '@/store/mapStore'
+import { useDocsStore } from '@/store/docsStore'
 import { LibraryHoverCard } from '@/components/LibraryHoverCard'
 
-// The Libraries affordance in the header's LEFT zone (#254). Libraries are reference
+// The Code affordance in the header's LEFT zone (#254). Libraries are reference
 // documentation consulted while writing pattern code, not browsable patterns — they
 // don't belong in the pattern rail (especially once it grew a dimension lens + name
 // search, both meaningless for dimensionless libraries). They live here, beside the
@@ -28,6 +29,7 @@ export function LibrariesMenu() {
   const activeLibraryName = usePatternStore((s) => s.activeLibraryName)
   const setActiveLibrary = usePatternStore((s) => s.setActiveLibrary)
   const closeMapEditor = useMapStore((s) => s.closeMapEditor)
+  const closeDocs = useDocsStore((s) => s.closeDocs)
 
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
@@ -91,6 +93,7 @@ export function LibrariesMenu() {
 
   function openLibrary(name: string) {
     closeMapEditor()
+    closeDocs()
     setActiveLibrary(name)
     setSource(LIBRARIES[name])
     setIsReadOnly(true)
@@ -109,8 +112,8 @@ export function LibrariesMenu() {
     <div ref={rootRef} className="relative flex items-center">
       <button
         type="button"
-        data-testid="libraries-menu-button"
-        aria-label="Libraries"
+        data-testid="code-menu-button"
+        aria-label="Code"
         aria-expanded={open}
         onClick={() => {
           setOpen((v) => !v)
@@ -123,19 +126,19 @@ export function LibrariesMenu() {
             : 'border-zinc-700 bg-zinc-900 text-zinc-300 hover:border-zinc-500 hover:text-zinc-100'
         }`}
       >
-        <Library size={14} aria-hidden className="shrink-0 text-zinc-400" />
-        Libraries
+        <Code2 size={14} aria-hidden className="shrink-0 text-zinc-400" />
+        Code
         <ChevronDown size={13} aria-hidden className={`shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
 
       {open && (
         <div
-          data-testid="libraries-menu-dropdown"
+          data-testid="code-menu-dropdown"
           className="absolute left-0 top-8 z-50 w-44 rounded-lg border border-zinc-700 bg-zinc-900 py-1 shadow-2xl"
         >
           {/* The built-in reference: hover for the flyout, but no source to open. */}
           <div
-            data-testid="libraries-menu-item"
+            data-testid="code-menu-item"
             onMouseEnter={(e) => startShow('PixelBlaze', e.currentTarget)}
             onMouseLeave={startHide}
             className="flex w-full items-center px-3 py-1 text-left text-xs font-mono text-zinc-400 select-none cursor-default hover:bg-zinc-800/70 hover:text-zinc-300"
@@ -146,7 +149,7 @@ export function LibrariesMenu() {
             <button
               key={name}
               type="button"
-              data-testid="libraries-menu-item"
+              data-testid="code-menu-item"
               onClick={() => openLibrary(name)}
               onMouseEnter={(e) => startShow(name, e.currentTarget)}
               onMouseLeave={startHide}

@@ -10,6 +10,7 @@ import { getSetting } from '@/engine/storage'
 import { useEditorStore } from '@/store/editorStore'
 import { usePatternStore, PatternRecord, LastActive, LAST_ACTIVE_KEY } from '@/store/patternStore'
 import { useMapStore, MapRecord, STOCK_MAP_ITEMS } from '@/store/mapStore'
+import { useDocsStore } from '@/store/docsStore'
 import { forkSettingsSnapshotForDemo } from '@/store/settingsCascade'
 import {
   AlertDialogRoot,
@@ -652,6 +653,7 @@ export function PatternList() {
   const setIsReadOnly = useEditorStore((s) => s.setIsReadOnly)
   const setPreviewSource = useEditorStore((s) => s.setPreviewSource)
   const setPreviewPatternName = useEditorStore((s) => s.setPreviewPatternName)
+  const closeDocs = useDocsStore((s) => s.closeDocs)
   const activeDemoName = usePatternStore((s) => s.activeDemoName)
   const activePatternId = usePatternStore((s) => s.activePatternId)
   const userPatterns = usePatternStore((s) => s.userPatterns)
@@ -706,6 +708,7 @@ export function PatternList() {
       const record: PatternRecord = { id, name, src: parsed.src, controls: {}, updatedAt: Date.now() }
       await addPattern(record)
       useMapStore.getState().closeMapEditor()
+      useDocsStore.getState().closeDocs()
       setActivePattern(id)
       setSource(record.src)
       setPreviewSource(record.src)
@@ -811,6 +814,7 @@ export function PatternList() {
 
   function openDemo(name: string) {
     closeMapEditor()
+    closeDocs()
     setActiveDemo(name)
     setSource(DEMOS[name])
     setPreviewSource(DEMOS[name])
@@ -823,6 +827,7 @@ export function PatternList() {
   // having to open it.
   async function handleForkDemo(name: string) {
     closeMapEditor()
+    closeDocs()
     const newName = uniquePatternName(name, userPatterns.map((p) => p.name))
     const record = newPatternRecord(newName, DEMOS[name])
     // Snapshot the demo's effective settings as frozen layer-1 overrides
@@ -838,6 +843,7 @@ export function PatternList() {
 
   function openUserPattern(pattern: PatternRecord) {
     closeMapEditor()
+    closeDocs()
     setActivePattern(pattern.id)
     setSource(pattern.src)
     setPreviewSource(pattern.src)
@@ -849,6 +855,7 @@ export function PatternList() {
   // (#141) so a new pattern is created right by its list.
   async function handleCreatePattern() {
     closeMapEditor()
+    closeDocs()
     const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
     const name = uniquePatternName('Untitled Pattern', userPatterns.map((p) => p.name))
     const record: PatternRecord = { id, name, src: NEW_PATTERN_SRC, controls: {}, updatedAt: Date.now() }
@@ -863,6 +870,7 @@ export function PatternList() {
   // Open a custom map in editor map mode (#151): loads its source, flips the
   // editor to the JS map flavor, and drives the bare-geometry preview.
   function openUserMap(map: MapRecord) {
+    closeDocs()
     openExistingMap(map)
   }
 
