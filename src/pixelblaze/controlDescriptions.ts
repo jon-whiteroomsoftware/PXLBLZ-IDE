@@ -20,6 +20,12 @@ export const CONTROL_DESCRIPTIONS: Record<string, Record<string, string>> = {
     sliderSpin: 'How fast the bright great-ring orbits — centred is still, higher spins faster.',
     sliderSpeed: 'How often the rings ratchet up a level — the tick rate of the bloom.',
   },
+  BinaryBeacon: {
+    sliderSpeed: 'How fast digital packets move around the strip.',
+    sliderPackets: 'Number of active packet heads.',
+    sliderWidth: 'Width of each packet pulse.',
+    sliderPalette: 'Base colour of the beacon.',
+  },
   Caustics: {
     sliderSpeed: 'How fast the water moves.',
     sliderDensity: 'Size of the light pools — higher packs in more, smaller cells.',
@@ -63,6 +69,12 @@ export const CONTROL_DESCRIPTIONS: Record<string, Record<string, string>> = {
     sliderNodeSize: 'Size of the glowing lattice nodes and rods.',
     sliderHue: 'Base colour of the crystal.',
   },
+  CrystalRain3D: {
+    sliderSpeed: 'How fast crystal droplets fall through the volume.',
+    sliderDensity: 'Density of repeated rain columns.',
+    sliderLength: 'Length of each falling crystal streak.',
+    sliderHue: 'Base colour of the crystal rain.',
+  },
   EclipseFactory: {
     sliderSpeed: 'How quickly the moons cross the sun.',
     sliderMoonSize: 'Size of the eclipsing bodies.',
@@ -95,6 +107,12 @@ export const CONTROL_DESCRIPTIONS: Record<string, Record<string, string>> = {
     sliderRadius: 'Radius and thickness of the braid.',
     sliderHue: 'Base colour of the forged glow.',
   },
+  HeatShimmerTiles: {
+    sliderSpeed: 'How fast the heat shimmer moves.',
+    sliderTileSize: 'Density of the repeated heat tiles.',
+    sliderShimmer: 'How strongly the tile coordinates bend.',
+    sliderPalette: 'Base heat colour.',
+  },
   IQPalettes: {
     sliderSpeed: 'How fast the palette parameter scrolls across the bands.',
   },
@@ -103,6 +121,12 @@ export const CONTROL_DESCRIPTIONS: Record<string, Record<string, string>> = {
     sliderZoom: 'Size of the lattice cells.',
     sliderBreathe: 'How much the zoom pulses in and out.',
     sliderColorSpread: 'Width of the radial rainbow spreading from the centre.',
+  },
+  LatticeWarp3D: {
+    sliderSpeed: 'How fast the cubic lattice warps.',
+    sliderSpacing: 'Density of lattice cells.',
+    sliderWarp: 'Strength of the phase-wave bend.',
+    sliderColor: 'Base colour of the lattice.',
   },
   Kishimisu: {
     rgbPickerPaletteA: 'Palette base colour — the midpoint the gradient cycles around.',
@@ -150,6 +174,12 @@ export const CONTROL_DESCRIPTIONS: Record<string, Record<string, string>> = {
     sliderPulse: 'Brightness of packet glints travelling through the board.',
     sliderHue: 'Base colour of the neon traces.',
   },
+  OrbitingGlyphs: {
+    sliderSpeed: 'How fast the glyph symbols orbit.',
+    sliderSpacing: 'Radius of the symbol orbit.',
+    sliderGlow: 'Brightness of the glyph bloom.',
+    sliderHue: 'Base colour of the glyphs.',
+  },
   OrigamiLanterns: {
     sliderSpeed: 'How quickly the lanterns drift.',
     sliderFold: 'Strength of the folded paper seam pattern.',
@@ -196,6 +226,18 @@ export const CONTROL_DESCRIPTIONS: Record<string, Record<string, string>> = {
     sliderSpokes: 'Number of radial spokes.',
     sliderRings: 'Density of circular signal rings.',
     sliderColor: 'Base colour of the mandala.',
+  },
+  StainedGlassWeather: {
+    sliderSpeed: 'How fast the rain and lightning move.',
+    sliderPaneSize: 'Density of stained-glass panes.',
+    sliderStorm: 'Strength of rain and lightning flashes.',
+    sliderTint: 'Base colour of the glass.',
+  },
+  TideClock: {
+    sliderSpeed: 'How fast the tide cycle moves.',
+    sliderSwell: 'Contrast of the overlapping wave tides.',
+    sliderFoam: 'Brightness of crest foam.',
+    sliderPalette: 'Base water colour.',
   },
   Trainyard: {
     sliderSpeed: 'How fast pulses move around the virtual rail yard.',
