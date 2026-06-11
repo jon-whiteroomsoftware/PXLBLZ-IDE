@@ -12,6 +12,7 @@ import {
   DEFAULT_MAP_ID,
   DEFAULT_SHAPE_ID,
   DEFAULT_NORMALIZE_MODE,
+  defaultPixelCountForDim,
   type MapRecord,
 } from './mapStore'
 import { useEditorStore, editorInitialState } from './editorStore'
@@ -161,6 +162,10 @@ describe('shape + pixel-count selection', () => {
     useMapStore.getState().setActivePixelCount(64)
     expect(useMapStore.getState().activeShapeId).toBe('ring')
     expect(useMapStore.getState().activePixelCount).toBe(64)
+  })
+
+  it('uses 1024 as the fallback count for fresh 2D patterns', () => {
+    expect(defaultPixelCountForDim(2)).toBe(1024)
   })
 })
 

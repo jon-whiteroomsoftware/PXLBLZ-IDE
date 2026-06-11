@@ -69,6 +69,7 @@ export function MapModeHeader() {
         <button
           type="button"
           onClick={() => void cloneStockMap(editingMap.id)}
+          title="Clone into Your Maps"
           className="shrink-0 h-6 px-2 rounded border border-zinc-700 text-[11px] text-zinc-300 hover:border-zinc-500 hover:text-amber-400/80 transition-colors"
         >
           Clone

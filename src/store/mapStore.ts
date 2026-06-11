@@ -53,21 +53,21 @@ export const DEFAULT_SHAPE_PIXEL_COUNT = 100
 // Points per axis for the stock cube lattice (side³ pixels = 512 at 8).
 export const DEFAULT_CUBE_SIDE = 8
 // Default modeled pixel count for a 2D plane when a pattern carries no persisted
-// count: a 64×64 square.
-export const DEFAULT_PLANE_PIXEL_COUNT = 4096
+// count: a moderate square-ish preview budget.
+export const DEFAULT_PLANE_PIXEL_COUNT = 1024
 // The pixel count a custom map's source is evaluated at when baking,
 // used only when no count is modeled. A map's geometry is authored for a snapshot
 // count; lacking a dedicated map-count control yet, bake at the active modeled
 // count when present, else the count a fresh 2D pattern carries — so a map authored
-// against the common 64×64 default bakes dense and matches by default, without ever
+// against the common default bakes dense and matches by default, without ever
 // pinning or overriding the count. The function's own return length
 // becomes `bakedCount`; the modeled count stays a free knob and a genuine count/map
 // mismatch still renders honestly + warns (#144), the intentional baked-replay drift.
 export const DEFAULT_MAP_BAKE_COUNT = DEFAULT_PLANE_PIXEL_COUNT
 
 // The pixel count a freshly-opened pattern of the given display dimensionality
-// defaults to when it carries no persisted count. 1D → a short strip; 2D → a
-// 64×64 square; 3D → the stock 8³ cube. The count is the single user knob
+// defaults to when it carries no persisted count. 1D → a short strip; 2D → the
+// default plane budget; 3D → the stock 8³ cube. The count is the single user knob
 //; each map then arranges it per its own geometry.
 export function defaultPixelCountForDim(dim: 1 | 2 | 3): number {
   if (dim === 1) return DEFAULT_SHAPE_PIXEL_COUNT

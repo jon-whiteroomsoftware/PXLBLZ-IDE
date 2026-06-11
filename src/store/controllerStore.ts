@@ -388,7 +388,7 @@ export const useControllerStore = create<ControllerConnectionState>()(
           // Warm the panel store immediately so it opens populated rather than
           // empty-then-jumping as the first lazy poll lands (#225). The panel still
           // owns the polling interval (started on open); this is a one-shot seed.
-          useControllerPanelStore.getState().seed()
+          useControllerPanelStore.getState().seed(target)
         },
 
         removeController: async (ip) => {

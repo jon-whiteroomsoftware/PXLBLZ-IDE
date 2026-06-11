@@ -30,7 +30,7 @@ export type MapCoord = number[]
  *
  *  The firmware stores exactly `pixelCount` map entries — a blob of any other size is
  *  dropped wholesale, so the map silently never takes effect. Our preview-baked points
- *  are baked at the *preview* pixel count (`activePixelCount`, default 4096), which has
+ *  are baked at the *preview* pixel count (`activePixelCount`, or the preview fallback), which has
  *  no relation to the device's wired pixel count, so they routinely mismatch.
  *
  *  When we know the device count and have the map's source, re-evaluate the map at that

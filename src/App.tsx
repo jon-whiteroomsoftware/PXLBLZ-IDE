@@ -226,6 +226,7 @@ export default function App() {
                 variant="ghost"
                 className="text-xs text-zinc-400 bg-zinc-800/70 hover:bg-zinc-700/70 hover:text-zinc-300"
                 onClick={handleForkDemo}
+                title="Clone into Your Patterns"
               >
                 Clone
               </Button>

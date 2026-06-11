@@ -188,6 +188,16 @@ describe('controllerStore (keyed)', () => {
     expect(useControllerPanelStore.getState().mapPointCount).toBe(2)
   })
 
+  it('keeps warmed panel values when the panel later starts polling that Controller (#225)', async () => {
+    await store().addController('10.0.0.5')
+    await new Promise((r) => setTimeout(r, 0))
+    expect(useControllerPanelStore.getState().mapPointCount).toBe(2)
+
+    useControllerPanelStore.getState().start('10.0.0.5')
+
+    expect(useControllerPanelStore.getState().mapPointCount).toBe(2)
+  })
+
   it('a nameless device leaves the nickname unset (pill falls back to IP)', async () => {
     setControllerProviderFactory((ip) => {
       const p = new FakeProvider()
