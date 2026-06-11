@@ -40,8 +40,9 @@ test('main UI pathways still function', async ({ page }, testInfo) => {
   // --- Boot: app mounts and the live preview canvas is present ---
   await expect(page.locator('#root')).not.toBeEmpty()
   await expect(preview(page).locator('canvas').first()).toBeVisible()
-  // Default 2D starter pattern is loaded.
-  await expect(editor(page)).toContainText('2D')
+  // Fresh visitors land on the read-only AuroraSphere demo.
+  await expect(editor(page)).toContainText('AuroraSphere')
+  await expect(editor(page)).toContainText('3D')
 
   // --- Load a 2D demo ---
   await openFromRail(page, 'Kishimisu')
