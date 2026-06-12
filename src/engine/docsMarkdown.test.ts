@@ -37,6 +37,40 @@ export function render() {}
     expect(extractHeadings(blocks)).toEqual([{ level: 1, text: 'Title', id: 'title' }])
   })
 
+  it('keeps hard-wrapped list items in one bullet', () => {
+    const blocks = parseMarkdown(`- **First.** A bullet whose text wraps
+  onto an indented continuation line.
+- Second bullet.
+
+Next paragraph.
+`)
+
+    expect(blocks.map((block) => block.type)).toEqual(['list', 'paragraph'])
+    const list = blocks[0] as Extract<(typeof blocks)[number], { type: 'list' }>
+    expect(list.items).toHaveLength(2)
+    expect(list.items[0]).toContainEqual({
+      type: 'text',
+      text: ' A bullet whose text wraps onto an indented continuation line.',
+    })
+  })
+
+  it('parses ordered lists with wrapped items', () => {
+    const blocks = parseMarkdown(`Steps:
+
+1. First step that wraps
+   onto another line.
+2. Second step.
+`)
+
+    expect(blocks.map((block) => block.type)).toEqual(['paragraph', 'list'])
+    const list = blocks[1] as Extract<(typeof blocks)[number], { type: 'list' }>
+    expect(list.ordered).toBe(true)
+    expect(list.items).toHaveLength(2)
+    expect(list.items[0]).toEqual([
+      { type: 'text', text: 'First step that wraps onto another line.' },
+    ])
+  })
+
   it('creates stable duplicate heading ids', () => {
     const used = new Map<string, number>()
     expect(slugifyHeading('Maps & Embeddings', used)).toBe('maps-and-embeddings')

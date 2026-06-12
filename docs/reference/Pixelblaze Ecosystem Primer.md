@@ -5,21 +5,17 @@ document is about **Pixelblaze itself** — the hardware, firmware, language, an
 workflow ElectroMage built. For the PXLBLZ IDE, see the **PXLBLZ Feature Guide**
 (what it does) or the **PXLBLZ Technical Reference** (how it's built).
 
-**The whole document in two sentences.** A Pixelblaze is a standalone WiFi LED
+A Pixelblaze is a standalone WiFi LED
 controller that runs small JavaScript-like **patterns** in 16.16 **fixed-point**
 arithmetic, computing a colour for every LED many times per second, guided by an
 optional **pixel map** that records where each LED physically sits. Nearly every
-quirk of the platform — the constrained language, the overflow traps, the map that
-silently goes stale — falls out of a handful of structural facts, and this primer's
-job is to hand you those facts before the details arrive.
+behaviour worth knowing about — the constrained language, overflow wrapping, the
+map that can go stale — falls out of a handful of structural facts, and this
+primer's job is to hand you those facts before the details arrive.
 
-**Part 1** is the mental model: enough to reason correctly about the platform, and a
-quick preconception check if you already know it. **Part 2** is the detail layer:
-exact semantics, reference tables, a worked power budget, and troubleshooting —
-deliberately deepest where ElectroMage's own docs are thinnest. Behaviour this
-project has verified on real hardware (overflow, truncation) is called out as
-such. Pixel maps get the two-sentence treatment here (§5) and the full story in
-**Understanding Maps**.
+**Part 1** is the mental model; **Part 2** is the details. Behaviour this project
+has verified on real hardware is called out as such. Pixel maps get the full
+story in **Understanding Maps**.
 
 ---
 
@@ -81,22 +77,13 @@ Every value a pattern computes is a **16.16 fixed-point** number: a signed 32-bi
 integer interpreted as `value × 65536`. The range is roughly **−32768 to +32768**,
 the smallest step is **1/65536**, and overflow **wraps** rather than saturating.
 
-This is not an implementation detail you can ignore — it shapes how patterns are
-written:
+This is not an implementation detail you can ignore.
 
-- **Patterns live in the 0–1 range.** Hue, saturation, brightness, coordinates,
-  and waveform phases are all 0..1. Staying near 0–1 keeps you far from overflow
-  and gives you the most fractional precision.
-- **Large intermediates overflow silently.** The classic trap is the GLSL shader
-  hash `fract(sin(p · 12.9898) · 43758.5453)`: the `· 43758` blows past 32768 and
-  wraps. On a float machine it looks perfect; on a Pixelblaze it turns to noise.
-  Porting GPU shaders means rewriting anything that relies on big numbers.
-- **Only integer arithmetic is exactly predictable.** Everything transcendental
-  (`sin`, `sqrt`, `perlin`, `random`) is "close", but its exact bits are
-  firmware-internal.
+- **Patterns live in the 0–1 range.**
+- **Large intermediates overflow silently.**
+- **Only integer arithmetic is exactly predictable.**
 
-Exact semantics — truncation rules, bitwise behaviour, what was verified on real
-hardware — are in §8.
+More detail on all of this in §8.
 
 ## 4. Patterns — the program the device runs
 
@@ -185,7 +172,7 @@ to faithfully preview a Pixelblaze has to reproduce them.
 
 ---
 
-# Part 2 — Details, reference, and footguns
+# Part 2 — Details, reference, and things to watch for
 
 ## 8. Fixed-point, precisely
 
@@ -202,9 +189,21 @@ The number format is a signed 32-bit integer read as `value × 65536`:
 - **Multiply, `frac`, and `%` truncate** toward the sign of the dividend; **divide
   also truncates** on the device. Power-of-two divides are exact.
 
-The takeaway for a pattern author: *integer-only arithmetic is the only thing that
-is bit-exact and overflow-predictable.* Everything transcendental is close, but
-its exact bits are firmware-internal.
+What this means for how patterns are written:
+
+**Patterns live in the 0–1 range.** Hue, saturation, brightness, coordinates,
+and waveform phases are all 0..1. Staying near 0–1 keeps you far from overflow
+and gives you the most fractional precision.
+
+**Large intermediates overflow silently.** The classic example is the GLSL shader
+hash `fract(sin(p · 12.9898) · 43758.5453)`: the `· 43758` blows past 32768 and
+wraps. On a float machine it looks perfect; on a Pixelblaze it turns to noise.
+Porting GPU shaders means rewriting anything that relies on big numbers.
+
+**Only integer arithmetic is exactly predictable.** Everything transcendental
+(`sin`, `sqrt`, `perlin`, `random`) is "close", but its exact bits are
+firmware-internal — integer-only arithmetic is the only thing that is bit-exact
+and overflow-predictable.
 
 ## 9. The pattern language, in detail
 
@@ -250,16 +249,16 @@ the return value). Values persist per pattern across restarts.
 | `showNumber` | read-only number | `() => number` | output (polled) |
 | `gauge` | 0–1 bar display | `() => number` | output (polled) |
 
-### Built-ins — the families, and the gotchas worth knowing
+### Built-ins — the families, and the details worth knowing
 
 Built-ins are called bare, no namespace (`sin(x)`, not `Math.sin`). The full
 catalogue lives in ElectroMage's language reference
 ([electromage.com/docs](https://electromage.com/docs), mirrored in this repo under
-`docs/ElectroMage/`); what follows is the shape of it plus the traps it
-under-explains.
+`docs/ElectroMage/`); what follows is the shape of it plus the details that are
+easy to miss.
 
 - **Math & constants** — the usual trig/rounding/clamping set plus `hypot`,
-  `hypot3`, `random`, and the seeded `prng`. Gotchas: **`mod` is the floored
+  `hypot3`, `random`, and the seeded `prng`. Worth knowing: **`mod` is the floored
   remainder** (sign of the divisor) while **`%` truncates** (sign of the
   dividend), and **`frac` truncates toward zero** — `frac(-5.5) === -0.5` — unlike
   GLSL's floor-based `fract`. Symmetric folds built on the wrong one break for
@@ -275,10 +274,10 @@ under-explains.
   `setPalette`/`paint`.
 - **Coordinate transforms** — a transform *stack* (`translate`, `scale`, `rotate`,
   3D variants, up to 31 entries) that modifies the coordinates fed to the next
-  render cycle. Gotcha: `scale(2,2)` makes the image appear *half* as large — it
+  render cycle. Worth knowing: `scale(2,2)` makes the image appear *half* as large — it
   densifies the coordinate space, not the picture.
 - **Arrays** — `array(n)` plus a functional set (`map`, `mutate`, `reduce`,
-  `sort`, `sum`, …), usable as functions or methods. Gotchas (verified, fw 3.67):
+  `sort`, `sum`, …), usable as functions or methods. Worth knowing (verified, fw 3.67):
   `array(0)` is rejected, out-of-range indexing throws rather than clamping, and
   arrays can never be freed.
 - **Map introspection** — `pixelCount`, `has2DMap`/`has3DMap`,
@@ -419,7 +418,7 @@ repo under `docs/ElectroMage/`):
 - **WebSockets API** — the documented protocol surface; thin on the binary side
   (§10 covers what this project verified beyond it).
 - **The [ElectroMage forum](https://forum.electromage.com)** — searchable, active,
-  and the developer answers; the best source for hardware-revision quirks.
+  and the developer answers; the best source for hardware-revision details.
 
 ---
 

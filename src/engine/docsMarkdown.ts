@@ -8,7 +8,7 @@ export type MarkdownBlock =
   | { type: 'heading'; level: 1 | 2 | 3; text: string; id: string }
   | { type: 'paragraph'; children: InlineNode[] }
   | { type: 'blockquote'; children: InlineNode[] }
-  | { type: 'list'; items: InlineNode[][] }
+  | { type: 'list'; ordered: boolean; items: InlineNode[][] }
   | { type: 'code'; language: string | null; code: string }
   | { type: 'table'; headers: InlineNode[][]; rows: InlineNode[][][] }
   | { type: 'image'; alt: string; src: string }
@@ -23,6 +23,8 @@ export type MarkdownHeading = {
 const HEADING_RE = /^(#{1,3})\s+(.+)$/
 const IMAGE_RE = /^!\[([^\]]*)\]\(([^)]+)\)$/
 const LIST_RE = /^\s*[-*]\s+(.+)$/
+const ORDERED_LIST_RE = /^\s*\d+[.)]\s+(.+)$/
+const LIST_CONTINUATION_RE = /^\s+\S/
 const BLOCKQUOTE_RE = /^>\s?(.*)$/
 
 function stripInlineMarkdown(text: string): string {
@@ -199,16 +201,30 @@ export function parseMarkdown(markdown: string): MarkdownBlock[] {
       continue
     }
 
-    const firstList = LIST_RE.exec(line)
-    if (firstList) {
-      const items: InlineNode[][] = []
+    const ordered = !LIST_RE.test(line) && ORDERED_LIST_RE.test(line)
+    const itemRe = ordered ? ORDERED_LIST_RE : LIST_RE
+    if (itemRe.test(line)) {
+      const items: string[] = []
       while (i < lines.length) {
-        const item = LIST_RE.exec(lines[i])
-        if (!item) break
-        items.push(parseInline(item[1].trim()))
-        i += 1
+        const item = itemRe.exec(lines[i])
+        if (item) {
+          items.push(item[1].trim())
+          i += 1
+          continue
+        }
+        // hard-wrapped sources indent an item's continuation lines
+        if (
+          LIST_CONTINUATION_RE.test(lines[i]) &&
+          !LIST_RE.test(lines[i]) &&
+          !ORDERED_LIST_RE.test(lines[i])
+        ) {
+          items[items.length - 1] += ` ${lines[i].trim()}`
+          i += 1
+          continue
+        }
+        break
       }
-      blocks.push({ type: 'list', items })
+      blocks.push({ type: 'list', ordered, items: items.map(parseInline) })
       continue
     }
 
@@ -222,6 +238,7 @@ export function parseMarkdown(markdown: string): MarkdownBlock[] {
         HEADING_RE.test(next) ||
         IMAGE_RE.test(next) ||
         LIST_RE.test(lines[i]) ||
+        ORDERED_LIST_RE.test(lines[i]) ||
         BLOCKQUOTE_RE.test(lines[i]) ||
         /^-{3,}$/.test(next) ||
         (i + 1 < lines.length && next.includes('|') && isTableSeparator(lines[i + 1]))

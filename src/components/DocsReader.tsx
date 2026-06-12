@@ -75,10 +75,13 @@ function BlockView({ block, doc }: { block: MarkdownBlock; doc: UserDoc }) {
     )
   }
   if (block.type === 'list') {
+    const Tag = block.ordered ? 'ol' : 'ul'
     return (
-      <ul className="my-3 list-disc space-y-1.5 pl-5 leading-5 text-zinc-300 marker:text-live/80">
+      <Tag
+        className={`my-3 ${block.ordered ? 'list-decimal' : 'list-disc'} space-y-1.5 pl-5 leading-5 text-zinc-300 marker:text-live/80`}
+      >
         {block.items.map((item, index) => <li key={index}><Inline nodes={item} doc={doc} /></li>)}
-      </ul>
+      </Tag>
     )
   }
   if (block.type === 'code') {
