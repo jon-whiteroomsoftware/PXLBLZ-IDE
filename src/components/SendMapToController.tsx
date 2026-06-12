@@ -191,7 +191,7 @@ export function SendMapToController() {
       testId="map-preflight-dialog"
       anchor={
         <Button
-          size="sm"
+          size="xs"
           variant="ghost"
           className={`text-xs text-zinc-400 bg-zinc-800/70 hover:bg-zinc-700/70 hover:text-zinc-300 ${dimClass}`}
           disabled={!enabled || working}

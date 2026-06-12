@@ -185,7 +185,7 @@ export function SendToController() {
     <span
       role="radiogroup"
       aria-label="Controller send mode"
-      className="flex h-7 shrink-0 overflow-hidden rounded-md border border-zinc-800 bg-zinc-900/70"
+      className="flex h-6 shrink-0 overflow-hidden rounded-md border border-zinc-800 bg-zinc-900/70"
     >
       <button
         type="button"
@@ -227,7 +227,7 @@ export function SendToController() {
   // pushing, and the author confirms with "Send anyway" (mirrors the map-push flow).
   const dimMismatch = (preflight ?? []).find((w) => w.kind === 'pattern-dim-mismatch')
   return (
-    <span className="ml-2 inline-flex h-7 items-stretch gap-1">
+    <span className="ml-2 inline-flex h-6 items-stretch gap-1">
       {modeSelector}
       <PushConfirmPopover
         open={dimMismatch !== undefined}
@@ -236,9 +236,9 @@ export function SendToController() {
         testId="pattern-preflight-dialog"
         anchor={
           <Button
-            size="sm"
+            size="xs"
             variant="ghost"
-            className={`h-7 rounded-md border border-zinc-800 bg-zinc-800/70 text-xs text-zinc-400 hover:bg-zinc-700/70 hover:text-zinc-300 ${dimClass}`}
+            className={`h-6 rounded-md border border-zinc-800 bg-zinc-800/70 text-xs text-zinc-400 hover:bg-zinc-700/70 hover:text-zinc-300 ${dimClass}`}
             disabled={!enabled || working}
             title={title}
             onClick={() => void requestPush()}

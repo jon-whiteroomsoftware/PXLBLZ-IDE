@@ -238,7 +238,7 @@ export default function App() {
                   href={docExternalHref(activeDoc.id)}
                   target="_blank"
                   rel="noreferrer"
-                  className="inline-flex h-7 items-center gap-1 rounded px-2 font-mono text-xs text-zinc-400 bg-zinc-800/70 hover:bg-zinc-700/70 hover:text-zinc-300"
+                  className="inline-flex h-6 items-center gap-1 rounded px-2 font-mono text-xs text-zinc-400 bg-zinc-800/70 hover:bg-zinc-700/70 hover:text-zinc-300"
                   title="Open document in a new tab"
                 >
                   <ExternalLink size={13} aria-hidden />
@@ -264,7 +264,7 @@ export default function App() {
             </span>
             {activeDemoName !== null && (
               <Button
-                size="sm"
+                size="xs"
                 variant="ghost"
                 className="text-xs text-zinc-400 bg-zinc-800/70 hover:bg-zinc-700/70 hover:text-zinc-300"
                 onClick={handleForkDemo}
@@ -275,7 +275,7 @@ export default function App() {
             )}
             {activePatternId !== null && (
               <Button
-                size="sm"
+                size="xs"
                 variant="ghost"
                 className="text-xs text-zinc-400 bg-zinc-800/70 hover:bg-zinc-700/70 hover:text-zinc-300 disabled:opacity-30"
                 disabled={compileStatus === 'broken'}
@@ -287,7 +287,7 @@ export default function App() {
             {activePattern !== undefined && (
               <AlertDialogRoot open={deletePatternOpen} onOpenChange={setDeletePatternOpen}>
                 <Button
-                  size="sm"
+                  size="xs"
                   variant="ghost"
                   className="text-xs text-zinc-500 bg-zinc-900/50 hover:bg-red-950/50 hover:text-red-300"
                   onClick={() => setDeletePatternOpen(true)}
