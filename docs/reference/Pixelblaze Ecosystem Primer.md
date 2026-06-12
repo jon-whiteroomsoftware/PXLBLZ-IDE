@@ -17,8 +17,9 @@ job is to hand you those facts before the details arrive.
 quick preconception check if you already know it. **Part 2** is the detail layer:
 exact semantics, reference tables, a worked power budget, and troubleshooting —
 deliberately deepest where ElectroMage's own docs are thinnest. Behaviour this
-project has verified on real hardware (overflow, truncation, Fill/Contain) is called
-out as such.
+project has verified on real hardware (overflow, truncation) is called out as
+such. Pixel maps get the two-sentence treatment here (§5) and the full story in
+**Understanding Maps**.
 
 ---
 
@@ -45,7 +46,7 @@ Three traits define the platform:
 Hardware comes in several variants — V2, V3 Standard, V3 Pico, plus an Output
 Expander (many parallel LED channels) and a Sensor Expansion board (sound, motion,
 light). The differences mostly matter for wiring; the language and workflow are
-common across them. Supported LED types and powering are covered in §13.
+common across them. Supported LED types and powering are covered in §12.
 
 ## 2. Device vs. browser — who owns what
 
@@ -140,58 +141,15 @@ like `7MuJmcy4FZbs9jGbB`.
 
 ## 5. Maps — where the LEDs are
 
-A **pixel map** answers one question: *where is each LED physically located?* The
-firmware doesn't assume your LEDs are a straight line. Give it a map, and it hands
-each pixel's coordinates to `render2D`/`render3D`, so a pattern is written in real
-space rather than wiring order.
-
-The structural facts:
-
-- **Chain index and spatial position are decoupled.** LED #50 in the wiring order
-  might sit anywhere. The map is the lookup from index → position.
-- **`pixelCount` and the map are separate device settings.** The map function is
-  *handed* `pixelCount`; it is never the authority on how many pixels exist. The
-  two can disagree — a real footgun (§10).
-- **A device stores one map, shared by every pattern.** It's part of the
-  installation, set when you build the thing, not per-pattern.
-
-![The map pipeline: function → array → device → render2D](../images/map-pipeline.svg)
-
-The subtle part is the **dialect split**. The Mapper tab takes a JavaScript
-function like:
-
-```javascript
-function (pixelCount) {
-  var map = []
-  for (var i = 0; i < pixelCount; i++) {
-    map.push([Math.cos(i * 0.1), Math.sin(i * 0.1)])
-  }
-  return map
-}
-```
-
-This is **real, full JavaScript** — `Math.cos`, `Array.push`, the lot — because
-**your browser runs it**, not the Pixelblaze. On save, the browser evaluates it once
-and uploads only the coordinate array. A pattern, by contrast, is the constrained
-fixed-point dialect the *firmware* executes every frame. Same-looking syntax, two
-genuinely different execution models:
-
-| | Mapper function | Pattern |
-|---|---|---|
-| Language | full JavaScript | Pixelblaze dialect (subset) |
-| Numbers | float64 | 16.16 fixed-point |
-| Math | `Math.sin`, `Math.PI`, … | bare `sin`, `PI`, … |
-| Who runs it | the **browser**, once at save | the **firmware**, every frame |
-| What reaches the device | the baked coordinate array | the compiled pattern |
-
-So in a mapper you write `Math.floor(x)`; in a pattern you write `floor(x)`. Don't
-mix them up.
-
-You author maps in **whatever units fit the build** — millimetres, inches, grid
-steps. The firmware computes the world's extent from your coordinates' limits and
-normalizes everything into the `0..1` "world units" patterns actually see, so a
-1500 mm tree laid out in millimetres scales itself. How non-square extents
-normalize is the Fill/Contain choice (§10).
+A **pixel map** records where each LED physically sits, decoupled from wiring
+order: give the firmware a map and it hands each pixel's coordinates to
+`render2D`/`render3D`, so patterns are written in real space. The map *function*
+is full JavaScript that runs once **in your browser** — only the baked coordinate
+array reaches the device, which stores a single map shared by every pattern and
+normalizes whatever units you authored in into the `0..1` range patterns see.
+The full story — the mapper/pattern dialect split, Fill vs. Contain, and the
+`pixelCount` behaviours to be aware of — has its own document:
+**Understanding Maps**.
 
 ## 6. Talking to a Pixelblaze
 
@@ -200,14 +158,14 @@ text frames and binary frames. It's the same API the device's own editor uses, a
 what third-party tools ([Firestorm](https://github.com/simap/Firestorm),
 [pixelblaze-client](https://github.com/zranger1/pixelblaze-client)) build on. Over
 it you can read and write a running pattern's exported variables, switch patterns,
-set brightness, and drive controls (§11).
+set brightness, and drive controls (§10).
 
 One constraint shapes every web-based tool: a Pixelblaze speaks only plain `ws://`
 (no TLS), and a page served over **https** is forbidden by the browser from opening
 a plain-`ws://` LAN connection — mixed active content, blocked outright. So a
 deployed web app can't talk to a Pixelblaze on its own; it needs a helper outside
 the browser sandbox — a local process (ElectroMage's Firestorm is exactly this) or
-a browser extension (the route PXLBLZ takes). Details and discovery in §11.
+a browser extension (the route PXLBLZ takes). Details and discovery in §10.
 
 ## 7. The model in one paragraph
 
@@ -334,67 +292,7 @@ For which built-ins are cheap and which are expensive on hardware, see
 **Optimizing Pixelblaze patterns** — the short version is that `exp` and `pow`
 cost several times what `sin` does, and `wave` is *not* cheaper than `sin`.
 
-## 10. Maps, in detail
-
-### Two source formats, any units
-
-The Mapper tab accepts either:
-
-- **A plain JSON array of coordinates** — one `[x, y]` pair (2D) or `[x, y, z]`
-  triplet (3D) per pixel. A 4-pixel box is literally
-  `[[0,0],[100,0],[100,100],[0,100]]`. Good for hand-placed, irregular layouts.
-- **A JavaScript `function(pixelCount)`** returning such an array — the generative
-  form, good for parametric structures (matrices, rings, helices).
-
-Either way the browser ends up with a coordinate array and uploads only that.
-Units are yours; the firmware normalizes from the coordinates' limits (§5).
-
-### Fill vs. Contain
-
-After the mapper produces raw coordinates, the firmware **normalizes** them into a
-predictable range. The Mapper tab's **Fill / Contain** dropdown controls how:
-
-![Fill vs Contain: aspect-preserving vs per-axis stretch](../images/fill-vs-contain.svg)
-
-- **Contain** (default): aspect-preserving. The longest axis fits `0..1`; shorter
-  axes get a proportionally smaller range (a 15×10 map → x spans `0..1`, y spans
-  `0..0.667`). A circle stays a circle; no axis exceeds 1.
-- **Fill**: per-axis stretch. Each axis independently fills `0..1`, so a 4:1 map
-  fills the unit square and a circle becomes an ellipse.
-
-Both are real hardware behaviours (verified on a 16×16 matrix against a
-`y >= 0.9` probe pattern: under Fill, `y` reached 1.0; under Contain it capped
-low). Contain is the sensible default; Fill is occasionally right when a pattern
-is authored against the unit square regardless of physical shape.
-
-### The stale-map footgun
-
-The mapper runs *once at save*, and only the data is stored — so **changing
-`pixelCount` does not re-run the mapper**. The map silently goes stale: grow your
-strip from 100 to 200 LEDs and the stored 100-point map still applies, with the
-new pixels falling off the end. ElectroMage's own guidance: *"if you rely on
-pixelCount and change the number of pixels, visit the mapper page and save it to
-re-generate the pixel map."* This is by-design behaviour, and any faithful tool
-must reproduce it rather than paper over it.
-
-### The exact-count rule
-
-There's a sharper, *push-time* sibling: **a map written to a device must contain
-exactly `pixelCount` coordinates, or the device will not apply it.** Saving a
-count-mismatched map appears to succeed but produces no visible change — the map
-is dropped, not partially applied — and the reference client refuses to even parse
-such a map on read-back. A tool that pushes maps must either generate exactly
-`pixelCount` points or set the device's pixel count to match; the two are
-inseparable.
-
-### Dimensionality
-
-A map is 1D, 2D, or 3D; `pixelMapDimensions()` reports it (0 = no map). With no
-map installed, `render` is used and `x` degenerates to `index/pixelCount`. "1D"
-really means "a strip" — a `render()` pattern takes no coordinates at all, yet is
-still spatially one-dimensional.
-
-## 11. The WebSocket API, in detail
+## 10. The WebSocket API, in detail
 
 ### The documented JSON surface
 
@@ -437,7 +335,7 @@ one's LAN IP. V2.10+ devices also emit UDP broadcast beacons. Both paths need a
 LAN-resident caller (the cloud endpoint sends no CORS header; a browser can't
 hear UDP), so discovery, too, belongs to a helper — or you type the IP by hand.
 
-## 12. Networking modes
+## 11. Networking modes
 
 - **Client mode** — the device joins your WiFi. Best for development (you keep
   internet access), firmware updates, and the clock functions (which need network
@@ -449,7 +347,7 @@ hear UDP), so discovery, too, belongs to a helper — or you type the IP by hand
 - **Sync groups / Firestorm** — multiple Pixelblazes can be synchronised
   (patterns using `time()` stay phase-locked) and orchestrated as a fleet.
 
-## 13. Power — a worked example
+## 12. Power — a worked example
 
 ElectroMage's hardware guide has the per-LED numbers but no arithmetic, so here it
 is. Supported LED families: APA102/SK9822 ("DotStar" — 4-wire, high dynamic range,
@@ -477,7 +375,7 @@ Rules of thumb that follow:
 - **Grounds must be common.** The controller and the LED supply must share ground,
   or the data signal has no reference and the strip glitches.
 
-## 14. First-contact troubleshooting
+## 13. First-contact troubleshooting
 
 The failure modes that actually happen, roughly in the order you'll meet them:
 
@@ -494,16 +392,16 @@ The failure modes that actually happen, roughly in the order you'll meet them:
   small WebSocket connection pool. Stray editor tabs, other browser windows, and
   tools like Firestorm each hold a socket; close the extras before suspecting the
   device. (Verified the hard way.)
-- **An https web tool can't reach it.** That's the mixed-content wall (§11), not a
+- **An https web tool can't reach it.** That's the mixed-content wall (§10), not a
   fault — the tool needs its LAN-side helper installed and running.
 - **Editor works, LEDs dark or wrong colours.** Check the LED type and colour
   order in Settings, the data wiring (DAT vs CLK on 4-wire types), and that
-  grounds are common (§13). Wrong colour order shows as red/green swaps; wrong
+  grounds are common (§12). Wrong colour order shows as red/green swaps; wrong
   type usually shows as chaos or nothing.
 - **Clock functions return nonsense.** They need network time: client mode, with
   internet access.
 
-## 15. Where ElectroMage's own docs are strong
+## 14. Where ElectroMage's own docs are strong
 
 This primer deliberately doesn't duplicate what's already well covered. The map
 (all under [electromage.com/docs](https://electromage.com/docs), mirrored in this
@@ -512,19 +410,20 @@ repo under `docs/ElectroMage/`):
 - **Quickstart (V3)** — physical setup, WiFi onboarding, LED connector wiring,
   with photos. Procedural and reliable; follow it literally.
 - **Hardware Getting Started** — the electrical reference: LED types, per-channel
-  current, connector pinouts. Good numbers; §13 above adds the arithmetic.
+  current, connector pinouts. Good numbers; §12 above adds the arithmetic.
 - **Language Reference** — the authoritative catalogue of every built-in,
   control, and language feature. Complete but flat; Part 1 of this primer is the
   "why" that it skips.
-- **Maps and Map Editing** — map formats and worked generator examples. §5/§10
-  give the mental model first.
+- **Maps and Map Editing** — map formats and worked generator examples.
+  **Understanding Maps** gives the mental model first.
 - **WebSockets API** — the documented protocol surface; thin on the binary side
-  (§11 covers what this project verified beyond it).
+  (§10 covers what this project verified beyond it).
 - **The [ElectroMage forum](https://forum.electromage.com)** — searchable, active,
   and the developer answers; the best source for hardware-revision quirks.
 
 ---
 
-For making patterns fast on this hardware, see **Optimizing Pixelblaze patterns**
-(`docs/guides/`). For everything about the PXLBLZ IDE itself, the **Feature
-Guide**.
+For everything about pixel maps — the dialect split, normalization, the
+behaviours to watch for — see **Understanding Maps**. For making patterns fast on this hardware,
+**Optimizing Pixelblaze patterns** (`docs/guides/`). For everything about the
+PXLBLZ IDE itself, the **Feature Guide**.

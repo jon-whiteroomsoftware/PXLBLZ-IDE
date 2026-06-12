@@ -28,9 +28,6 @@ that benefit from a bigger browser workspace:
 - Copy / download of a flat, tree-shaken `.js` artifact that is ready for the
   hardware editor.
 
-It is a hobby-engineering workbench, not a replacement for ElectroMage's own
-software.
-
 ## What works today
 
 - Edit user patterns in the browser and preview them live.

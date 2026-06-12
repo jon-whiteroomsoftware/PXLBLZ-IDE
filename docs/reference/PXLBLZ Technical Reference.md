@@ -10,8 +10,8 @@ the code wins.
 browser IDE: editing, transpiling, execution, and preview all happen in the page,
 with an optional Chrome-extension relay as the only bridge to real hardware. Its
 defining commitment is hardware fidelity — the preview reproduces the device's
-fixed-point math, map semantics, and footguns, and nothing the preview invents
-ever reaches a controller.
+fixed-point math, map semantics, and edge-case behaviours, and nothing the
+preview invents ever reaches a controller.
 
 **Part 1** is the architecture: the stack, the defining decisions, and the system
 map. **Part 2** is the subsystem reference: engine internals, the preview
@@ -46,20 +46,6 @@ through a Chrome-extension relay rather than any server of ours.
 
 Six decisions shape everything in Part 2.
 
-**Faithful fixed-point preview.** The preview can emulate the device's 16.16
-fixed-point arithmetic exactly. The driver is shader porting: the common GLSL
-hash `fract(sin(p·12.9898)·43758.5453)` overflows 16.16 on hardware while looking
-perfect in float64, so a float-only preview cannot reveal that bug class — a
-pattern would pass preview and fail on the device. This produces the
-**two-renderer model**: **Fast** (float64, the editing default) and **Precise**
-(faithful 16.16). Fidelity is a preview-only second emit path — the exported
-artifact is plain unmodified code, since the device does fixed-point natively.
-Two divergence classes are documented and accepted rather than chased:
-**transcendental precision** (built-ins computed in float64 then quantized) and
-**algorithmic identity** (`perlin`/`prng`/`wave` are different algorithms than
-firmware). Only pure integer arithmetic is bit-identical on both sides — which is
-why the library hashes are built from integer ops (§11).
-
 **A hard engine/UI boundary.** Engine code (`src/engine/`) is pure TypeScript
 with **zero React imports**; UI components are thin views over engine functions
 and Zustand stores. Zustand specifically because the render loop and other engine
@@ -87,6 +73,20 @@ cannot open a LAN WebSocket itself (§13).
 the fixed-point emit, the settings cascade, light size, diffusion, solidity,
 fidelity — all stay browser-side. Only the pattern artifact and, on request, the
 map cross over (§14).
+
+**Faithful fixed-point preview.** The preview can emulate the device's 16.16
+fixed-point arithmetic exactly. The driver is shader porting: the common GLSL
+hash `fract(sin(p·12.9898)·43758.5453)` overflows 16.16 on hardware while looking
+perfect in float64, so a float-only preview cannot reveal that bug class — a
+pattern would pass preview and fail on the device. This produces the
+**two-renderer model**: **Fast** (float64, the editing default) and **Precise**
+(faithful 16.16). Fidelity is a preview-only second emit path — the exported
+artifact is plain unmodified code, since the device does fixed-point natively.
+Two divergence classes are documented and accepted rather than chased:
+**transcendental precision** (built-ins computed in float64 then quantized) and
+**algorithmic identity** (`perlin`/`prng`/`wave` are different algorithms than
+firmware). Only pure integer arithmetic is bit-identical on both sides — which is
+why the library hashes are built from integer ops (§11).
 
 ## 3. System map
 
@@ -524,7 +524,7 @@ stack sits behind one provider seam; no UI imports a transport.
 ### The constraint that shapes everything
 
 From an https deployment the browser cannot open `ws://<LAN-IP>:81` — mixed
-active content, blocked outright (Ecosystem Primer §11). A helper outside the
+active content, blocked outright (Ecosystem Primer §10). A helper outside the
 browser sandbox must relay. The v1 helper is a **Chrome extension** (superseding
 the originally anticipated Node "local bridge"): the page can't reach the device,
 but the extension's service worker can.
@@ -744,7 +744,7 @@ device receives.
 Three firmware facts gate the rest:
 
 - **The exact-count rule.** A pushed map must contain exactly `pixelCount`
-  coordinates or firmware silently drops it — frames report success, nothing
+  coordinates or the firmware won't apply it — frames report success, nothing
   changes (#204). So `resolveMapPushPoints` re-bakes the map source to the
   device's `pixelCount` before encoding (mirroring the reference
   `setMapFunction`), conforming any map whose `function(pixelCount)` honours its
@@ -757,7 +757,7 @@ Three firmware facts gate the rest:
   helper fetches the file over HTTP (the same helper that fetches the device
   compiler). `numPixels = bodyBytes / numDimensions / formatVersion` from the
   header, so even the point count is a cheap parse — surfaced beside the panel's
-  pixels row so the silently-dropped-map footgun is visible. Read-back also
+  pixels row so a dropped map is easy to spot. Read-back also
   supplies the map dimensionality the Send gate uses. (The Fill/Contain fit mode
   is map-bound — saved with the map, not a standalone settings field — so it
   rides read-back too.)

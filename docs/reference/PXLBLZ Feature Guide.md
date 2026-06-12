@@ -32,56 +32,46 @@ function, and the device's own web UI remains the place for device management.
 ### What's different about it
 
 - **It needs no hardware.** The whole loop — editing, compiling, a live animated
-  preview faithful to the device's fixed-point math — runs in your browser. A
-  controller is a deploy target, not your workspace. You can develop patterns on
-  a plane.
+  preview faithful to the device's fixed-point math — runs in your browser.
 - **Your work lives off the device.** Patterns and maps are saved outside
   Pixelblaze hardware, so they aren't tied to any one controller's storage
   (§10).
 - **Modern IDE features.** Monaco (the engine behind VS Code) with autocomplete,
   signature hints, and hover API cards for the built-ins and libraries;
   background compilation with inline error markers that know the Pixelblaze
-  dialect (broken code keeps the last good version running in the preview);
-  quiet auto-save (§9).
+  dialect; quiet auto-save (§9).
 - **Reusable libraries.** Call `SDF.circle(...)` or `Anim.ease(...)` from a
   bundled library; export inlines only what you actually use, keeping the
   artifact small enough for the device (§5).
-- **A first-class Controller connection.** With a Pixelblaze on your LAN you can
-  discover and connect to it, mirror its state live, drive the running pattern's
-  controls in real time, and push patterns and maps (§6, §11).
 - **A bench harness.** Scripted, repeatable benchmarking that runs a pattern
-  under the emulator or pushes it to a real controller and reads back FPS. Not
+  under a software emulator or pushes it to a real controller and reads back FPS. Not
   covered in this guide — see **Optimizing Pixelblaze patterns**.
 
 ### What else you can do
 
+- Ships with 25 brand-new demo patterns and 5 Shadertoy ports (§5).
+- Connect to a Pixelblaze on your LAN — discover and connect to it, mirror its
+  state live, drive the running pattern's controls in real time, and push
+  patterns and maps (§6, §11).
 - Import `.epe` files exported from the hardware editor or downloaded from the
   pattern library site (§7).
 - Copy or download a flat, tree-shaken `.js` of your pattern plus the library
   code it uses, ready to paste into the device editor (§7).
 - Preview in 1D, 2D, and 3D, with an orbit viewport and a Fast/Precise
   fixed-point renderer toggle (§3).
-- Author custom maps in real Mapper JavaScript, and push stock or custom maps to
-  a connected device (§4, §11).
+- Author custom maps, and push stock or custom maps to a connected device
+  (§4, §11).
 - Clone any demo or stock map into an editable copy (§5).
-- Keep your patterns and maps saved locally in the browser — no account, no
-  cloud (§10).
 
 ### What it doesn't do
 
 - **Pattern management on the device.** It won't list, rename, or delete the
-  device's saved patterns, or drive playlists — that belongs to the device's own
-  UI. Send pushes one pattern at a time (run or save), nothing more (§11).
+  device's saved patterns, or drive playlists. Push to Controller one pattern at
+  a time (run or save) (§11).
 - **Read patterns back from a controller.** The import path is `.epe` files, not
   a device connection.
 - **Device setup.** LED hardware type, WiFi, expanders, and the rest of the
-  device's settings stay on the device's settings page. (The live panel's
-  editable pixel count is the one exception, §11.)
-- **Sensor input in the preview.** Sensor-reactive patterns load and run, but
-  sound, accelerometer, and light inputs are inert stubs off-device (§12).
-- **Multi-controller sync.** Several Controllers can be connected at once, but
-  each independently — synchronised playback across devices is Firestorm
-  territory (Ecosystem Primer).
+  device's settings stay on the device's settings page.
 
 ## 2. Screen at a glance
 
@@ -191,7 +181,7 @@ rewriting, and GPU-only features (textures, multipass feedback, `dFdx`) won't po
 
 When a Pixelblaze is on your LAN, the IDE talks to it live through a small Chrome
 helper extension (a deployed web page can't open a `ws://` LAN connection itself —
-Ecosystem Primer §11). Install it once; the in-app Connect surface walks you
+Ecosystem Primer §10). Install it once; the in-app Connect surface walks you
 through it. Then:
 
 - **Find your Controller** from the connect dropdown (top right): pick it from the
@@ -371,8 +361,8 @@ A pinned popover under the active pill, polled live, in rows:
   preview's). Brightness and control writes are volatile — never written to
   flash, to spare it.
 - **Map points** and **pixel count**. The map-points figure flags **amber** when
-  it disagrees with the pixel count — a mismatched map is silently ignored by the
-  firmware, so this makes that footgun visible. The **pixel count is editable**;
+  it disagrees with the pixel count — the firmware won't apply a mismatched map,
+  so this makes that easy to spot. The **pixel count is editable**;
   committing a new value saves it to the device (the only way to make a
   fixed-size map apply). The input holds your entered value, dimmed, while the
   slow write is in flight.
@@ -411,7 +401,8 @@ mismatch is "this won't look right," not an error.
 Writes the open custom or stock map to the device's **single shared map slot** — a
 deliberate, confirm-first action, since one map is shared by every pattern on the
 device. The IDE re-bakes the map to the device's exact pixel count first, because
-the firmware drops any map whose point count doesn't match (Ecosystem Primer §10).
+the firmware drops any map whose point count doesn't match (**Understanding
+Maps** §5).
 
 ## 12. Good to know
 
