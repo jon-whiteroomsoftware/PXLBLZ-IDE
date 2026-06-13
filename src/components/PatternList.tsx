@@ -153,7 +153,7 @@ function SectionHeader({
       onClick={onToggle}
       style={{ letterSpacing: '0.04em' }}
       className={[
-        first ? 'pt-1.5' : 'mt-2 pt-2.5 border-t border-zinc-700/80',
+        first ? 'pt-0.5' : 'mt-2 pt-2.5 border-t border-zinc-700/80',
         'pb-1 px-3 border-b border-zinc-700/65 flex items-center justify-between gap-1 cursor-pointer select-none text-[11px] font-mono font-semibold text-structural uppercase hover:text-live',
       ].join(' ')}
     >
@@ -987,7 +987,7 @@ export function PatternList() {
             <p className="pl-3 pr-3 py-1 text-red-400 truncate" title={importError}>{importError}</p>
           )}
           {!isCollapsed('Your Patterns') && (
-            <ul>
+            <ul className="pt-2">
               {visibleUserPatterns.map((pattern) => (
                 <EditableListItem
                   key={pattern.id}
