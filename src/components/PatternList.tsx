@@ -38,7 +38,7 @@ function newPatternRecord(name: string, src: string): PatternRecord {
 
 const DEMO_NAMES = Object.keys(DEMOS).sort()
 
-const OPENGL_DEMOS = ['Kishimisu', 'NeonSquircles', 'ZippyZaps', 'IQPalettes', 'PhantomStar']
+const OPENGL_DEMOS = ['Kishimisu', 'NeonSquircles', 'ZippyZaps', 'IQPalettes', 'PhantomStar', 'IridescentFibers']
 const BRAND_NEW_DEMOS = ['PlasmaNebula', 'Caustics', 'AuroraSphere', 'NebulaSphere', 'ShaderShowcase']
 // Pixelblaze-native sketches built around cheap fields, SDFs, and 3D math that
 // should scale better than direct shader ports.

@@ -49,6 +49,7 @@ export const RECOMMENDED_SETTINGS: Record<string, Partial<Settings>> = {
   EasedSweep: { mapId: 'wide', surfaceId: 'flat', pixelCount: 256, normalize: 'contain', brightness: 0.9, lightSize: 0.45, diffusion: 0.67 },
   HeatShimmerTiles: { mapId: 'wide', surfaceId: 'cylinder', pixelCount: 1536, normalize: 'contain', brightness: 0.9, lightSize: 0.30, diffusion: 0.81, solidity: 0.33 },
   IQPalettes: { mapId: 'plane', surfaceId: 'flat', pixelCount: 256, normalize: 'fill', brightness: 0.9, lightSize: 0.85, diffusion: 0.40 },
+  IridescentFibers: { mapId: 'plane', surfaceId: 'flat', pixelCount: 1024, normalize: 'contain', brightness: 1, lightSize: 0.85, diffusion: 0.85 },
   KaleidoBloom: { mapId: 'panel-winding', surfaceId: 'flat', pixelCount: 1024, normalize: 'fill', brightness: 0.91, lightSize: 0.65, diffusion: 0.87 },
   Kishimisu: { mapId: 'plane', surfaceId: 'flat', pixelCount: 1024, normalize: 'fill', brightness: 0.71, lightSize: 0.85, diffusion: 0.52 },
   MagneticFilaments: { mapId: 'plane', surfaceId: 'flat', pixelCount: 2048, normalize: 'contain', brightness: 0.9, lightSize: 0.80, diffusion: 0.96 },

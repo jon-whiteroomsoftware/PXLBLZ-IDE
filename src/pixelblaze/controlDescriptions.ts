@@ -85,6 +85,12 @@ export const CONTROL_DESCRIPTIONS: Record<string, Record<string, string>> = {
   IQPalettes: {
     sliderSpeed: 'How fast the palette parameter scrolls across the bands.',
   },
+  IridescentFibers: {
+    sliderSpeed: 'How fast the layered fibers drift.',
+    sliderZoom: 'Framing of the fiber field, remapped to the useful ShaderToy-like range.',
+    sliderThickness: 'Thickness and softness of each luminous fiber.',
+    sliderBrightness: 'Overall output brightness.',
+  },
   KaleidoBloom: {
     sliderSpeed: 'How fast the lattice spins and breathes.',
     sliderZoom: 'Size of the lattice cells.',
