@@ -8,14 +8,11 @@ workflow ElectroMage built. For the PXLBLZ IDE, see the **PXLBLZ Feature Guide**
 A Pixelblaze is a standalone WiFi LED
 controller that runs small JavaScript-like **patterns** in 16.16 **fixed-point**
 arithmetic, computing a colour for every LED many times per second, guided by an
-optional **pixel map** that records where each LED physically sits. Nearly every
-behaviour worth knowing about — the constrained language, overflow wrapping, the
-map that can go stale — falls out of a handful of structural facts, and this
-primer's job is to hand you those facts before the details arrive.
+optional **pixel map** that records where each LED physically sits.
 
-**Part 1** is the mental model; **Part 2** is the details. Behaviour this project
-has verified on real hardware is called out as such. Pixel maps get the full
-story in **Understanding Maps**.
+This primer is in two sections: **Part 1** is the mental model, and **Part 2** is
+the details. Behaviour this project has verified on real hardware is called out
+as such. Pixel maps get the full story in **Understanding Maps**.
 
 ---
 
