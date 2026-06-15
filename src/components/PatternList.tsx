@@ -37,6 +37,7 @@ function newPatternRecord(name: string, src: string): PatternRecord {
 }
 
 const DEMO_NAMES = Object.keys(DEMOS).sort()
+const DEFAULT_DEMO_NAME = 'IridescentFibers'
 
 const OPENGL_DEMOS = ['Kishimisu', 'NeonSquircles', 'ZippyZaps', 'IQPalettes', 'PhantomStar', 'IridescentFibers']
 const BRAND_NEW_DEMOS = ['PlasmaNebula', 'Caustics', 'AuroraSphere', 'NebulaSphere', 'ShaderShowcase']
@@ -779,10 +780,10 @@ export function PatternList() {
       const { userPatterns, setActivePattern, setActiveLibrary, setActiveDemo } = usePatternStore.getState()
       const { setSource, setIsReadOnly, setPreviewSource, setPreviewPatternName } = useEditorStore.getState()
       if (!last) {
-        setActiveDemo('AuroraSphere')
-        setSource(DEMOS.AuroraSphere)
-        setPreviewSource(DEMOS.AuroraSphere)
-        setPreviewPatternName('AuroraSphere')
+        setActiveDemo(DEFAULT_DEMO_NAME)
+        setSource(DEMOS[DEFAULT_DEMO_NAME])
+        setPreviewSource(DEMOS[DEFAULT_DEMO_NAME])
+        setPreviewPatternName(DEFAULT_DEMO_NAME)
         setIsReadOnly(true)
         return
       }

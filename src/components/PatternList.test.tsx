@@ -46,15 +46,15 @@ async function switchToMaps(user: ReturnType<typeof userEvent.setup>) {
 }
 
 describe('PatternList', () => {
-  it('opens AuroraSphere for visitors without a saved last-active pattern', async () => {
+  it('opens IridescentFibers for visitors without a saved last-active pattern', async () => {
     render(<PatternList />)
 
     await waitFor(() => {
-      expect(usePatternStore.getState().activeDemoName).toBe('AuroraSphere')
+      expect(usePatternStore.getState().activeDemoName).toBe('IridescentFibers')
     })
     expect(usePatternStore.getState().activePatternId).toBeNull()
-    expect(useEditorStore.getState().previewPatternName).toBe('AuroraSphere')
-    expect(useEditorStore.getState().previewSource).toBe(DEMOS.AuroraSphere)
+    expect(useEditorStore.getState().previewPatternName).toBe('IridescentFibers')
+    expect(useEditorStore.getState().previewSource).toBe(DEMOS.IridescentFibers)
     expect(useEditorStore.getState().isReadOnly).toBe(true)
     expect(createPattern).not.toHaveBeenCalled()
   })
