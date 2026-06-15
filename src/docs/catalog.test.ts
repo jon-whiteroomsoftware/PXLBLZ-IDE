@@ -5,6 +5,7 @@ describe('docs catalog', () => {
     expect(USER_DOCS.map((doc) => doc.id)).toEqual([
       'ecosystem-primer',
       'feature-guide',
+      'understanding-maps',
       'optimization-guide',
     ])
     expect(USER_DOCS.map((doc) => doc.title).join(' ')).not.toMatch(/Technical Reference/)
@@ -15,6 +16,7 @@ describe('docs catalog', () => {
     expect(isDocId('technical-reference')).toBe(false)
     expect(getUserDoc('feature-guide')?.menuLabel).toBe('Feature Guide')
     expect(docHash('optimization-guide')).toBe('#/docs/optimization-guide')
+    expect(docHash('understanding-maps')).toBe('#/docs/understanding-maps')
   })
 
   it('resolves checked-in diagram assets', () => {

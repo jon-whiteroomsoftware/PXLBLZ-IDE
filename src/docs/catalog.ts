@@ -1,5 +1,6 @@
 import ecosystemPrimer from '../../docs/reference/Pixelblaze Ecosystem Primer.md?raw'
 import featureGuide from '../../docs/reference/PXLBLZ Feature Guide.md?raw'
+import understandingMaps from '../../docs/reference/Understanding Maps.md?raw'
 import optimizationGuide from '../../docs/guides/Optimizing Pixelblaze patterns.md?raw'
 
 import builtinCostsUrl from '../../docs/images/builtin-costs.svg?url'
@@ -8,7 +9,7 @@ import fillVsContainUrl from '../../docs/images/fill-vs-contain.svg?url'
 import mapPipelineUrl from '../../docs/images/map-pipeline.svg?url'
 import wholeFrameModelUrl from '../../docs/images/whole-frame-model.svg?url'
 
-export type DocId = 'ecosystem-primer' | 'feature-guide' | 'optimization-guide'
+export type DocId = 'ecosystem-primer' | 'feature-guide' | 'optimization-guide' | 'understanding-maps'
 
 export type UserDoc = {
   id: DocId
@@ -48,6 +49,16 @@ export const USER_DOCS: UserDoc[] = [
     menuKicker: 'Using PXLBLZ',
     summary: 'The screen, preview, editor, controls, maps, and Controller flow.',
     source: featureGuide,
+    assets: sharedAssets,
+  },
+  {
+    id: 'understanding-maps',
+    path: 'docs/reference/Understanding Maps.md',
+    title: 'Understanding Maps',
+    menuLabel: 'Understanding Maps',
+    menuKicker: 'Pixel maps',
+    summary: 'How maps are authored, normalized, pushed, and used by patterns.',
+    source: understandingMaps,
     assets: sharedAssets,
   },
   {
