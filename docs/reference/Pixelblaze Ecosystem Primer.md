@@ -39,7 +39,7 @@ Three traits define the platform:
 Hardware comes in several variants — V2, V3 Standard, V3 Pico, plus an Output
 Expander (many parallel LED channels) and a Sensor Expansion board (sound, motion,
 light). The differences mostly matter for wiring; the language and workflow are
-common across them. Supported LED types and powering are covered in §12.
+common across them. Supported LED types and powering are covered in §11.
 
 ## 2. Device vs. browser — who owns what
 
@@ -142,7 +142,8 @@ text frames and binary frames. It's the same API the device's own editor uses, a
 what third-party tools ([Firestorm](https://github.com/simap/Firestorm),
 [pixelblaze-client](https://github.com/zranger1/pixelblaze-client)) build on. Over
 it you can read and write a running pattern's exported variables, switch patterns,
-set brightness, and drive controls (§10).
+set brightness, and drive controls. Section 10 explains why hosted tools need help
+reaching that API.
 
 One constraint shapes every web-based tool: a Pixelblaze speaks only plain `ws://`
 (no TLS), and a page served over **https** is forbidden by the browser from opening
@@ -171,20 +172,12 @@ to faithfully preview a Pixelblaze has to reproduce them.
 
 # Part 2 — Details, reference, and things to watch for
 
-## 8. Fixed-point, precisely
+## 8. Fixed-point numbers
 
-The number format is a signed 32-bit integer read as `value × 65536`:
-
-- **Range** ≈ −32768 to +32768; **precision** 1/65536 (≈ 0.0000153).
-- **Overflow wraps** (int32 wrap), not saturates — verified against a real device
-  (fw 3.67).
-- **Bitwise operators act on all 32 bits** (16 integer + 16 fraction) — different
-  from JavaScript, which coerces to a 32-bit integer first. The documented
-  exception is `~`, which zeros the low 16 bits, so `~x` operates on the integer
-  part. This project verified that the device's bitwise ops effectively
-  integer-coerce operands (`~2.5 → -3`).
-- **Multiply, `frac`, and `%` truncate** toward the sign of the dividend; **divide
-  also truncates** on the device. Power-of-two divides are exact.
+Pixelblaze patterns do not use normal JavaScript floating-point numbers. They use
+16.16 fixed-point numbers: each value has an integer part and a fractional part,
+with a much smaller range than browser JavaScript but enough precision for LED
+patterns.
 
 What this means for how patterns are written:
 
@@ -202,136 +195,46 @@ Porting GPU shaders means rewriting anything that relies on big numbers.
 firmware-internal — integer-only arithmetic is the only thing that is bit-exact
 and overflow-predictable.
 
-## 9. The pattern language, in detail
+## 9. The pattern language, at a glance
 
-### What will not run on hardware
+ElectroMage's [**Language Reference**](https://electromage.com/docs/language-reference/)
+is the authoritative catalogue of syntax, controls, and built-ins. Section 4 gives
+the shape of a pattern; the extra primer point is that the language is a small
+firmware dialect, not ordinary browser JavaScript.
 
-- **Objects, named properties, classes** — no object literals, no `.` properties;
-  arrays are the only aggregate.
-- **`let` / `const`** — only `var`, or implicit globals via bare assignment.
-- **`switch` / `case`** — use chained `else if`, or an array of functions as a
-  jump table (`modes[current]()`).
-- **Closures** — a function defined inside another does *not* capture the outer
-  function's locals or parameters. It sees globals and its own params only.
-- **`new`, `try`/`catch`/`throw`, `import`** — none of these exist.
-- **Freeing memory** — arrays are the only dynamic allocation and cannot be freed.
+- **Stay in the dialect.** The language is JavaScript-shaped, but smaller: `var`,
+  functions, loops, arrays, and arithmetic are normal; objects, named properties,
+  closures, `let`/`const`, `switch`, `new`, `import`, and exceptions are not.
+- **Call firmware built-ins bare.** Write `sin(x)`, `time(x)`, `hsv(h, s, v)`,
+  `perlin(...)`, `translate(...)`, not `Math.sin(...)`. Most colour, coordinate,
+  brightness, and phase values live in the `0..1` range.
+- **Watch the fixed-point edges.** `frac` is not GLSL `fract` for negative values,
+  `%` and `mod` have different sign rules, `time()` has Pixelblaze-specific units,
+  and coordinate transforms change the coordinate space rather than moving
+  physical LEDs.
 
-What *is* supported: `var`, `if`/`else`, `while`/`for` with `break`/`continue`,
-the ternary, functions in both `function f(){}` and arrow forms, functions as
-values, arrays, and the full math operator set. Logical operators carry the value,
-not just a boolean (`0 || 42 === 42`).
+For hardware cost and pattern-writing tactics, see **Optimizing Pixelblaze patterns**.
 
-### Variables and `export`
+## 10. Networking and discovery
 
-Variables are global unless declared with `var` *inside* a function — implicit
-assignment (`foo = 1`) creates a global even there. Prefixing a global with
-**`export`** makes it visible to the Var Watcher and to the `getVars`/`setVars`
-WebSocket API; that is the mechanism by which a host reads and pokes a running
-pattern's state.
+Pixelblaze exposes its editor and control surface over WiFi. The native editor is
+served by the device itself, so it can talk straight back to the controller. A
+separate web app has a harder job: the hardware speaks plain `ws://` on the LAN,
+while a deployed `https://` page is not allowed to open that insecure WebSocket
+directly.
 
-### Controls
+That browser rule is why tools need a LAN-side helper. Firestorm uses a local
+process; PXLBLZ uses a browser extension. Both are doing the same essential job:
+opening the connection that the hosted page cannot open by itself, then relaying
+pattern, variable, brightness, control, and upload messages.
 
-Exporting a function with a control-prefix name grows the matching widget. Input
-controls are *push* (called on change, and once at load with the saved value —
-except `trigger`); output controls are *pull* (the host polls them and displays
-the return value). Values persist per pattern across restarts.
+Discovery is also a networking concern. Devices in client mode can register with
+ElectroMage's cloud discovery service so `discover.electromage.com` can tell you
+their LAN IP from the same network. Newer devices also broadcast UDP beacons. A
+browser page cannot rely on those paths unaided, so tools either use a helper or
+let you type the IP manually.
 
-| Prefix | Widget | Signature | Direction |
-|---|---|---|---|
-| `slider` | range slider 0–1 | `(v)` | input |
-| `toggle` | on/off switch | `(isOn)` 1/0 | input |
-| `hsvPicker` / `rgbPicker` | colour well | `(h,s,v)` / `(r,g,b)` each 0–1 | input |
-| `trigger` | momentary button | `()` — not called at load | input |
-| `inputNumber` | free numeric field | `(v)` | input |
-| `showNumber` | read-only number | `() => number` | output (polled) |
-| `gauge` | 0–1 bar display | `() => number` | output (polled) |
-
-### Built-ins — the families, and the details worth knowing
-
-Built-ins are called bare, no namespace (`sin(x)`, not `Math.sin`). The full
-catalogue lives in ElectroMage's language reference
-([electromage.com/docs](https://electromage.com/docs), mirrored in this repo under
-`docs/ElectroMage/`); what follows is the shape of it plus the details that are
-easy to miss.
-
-- **Math & constants** — the usual trig/rounding/clamping set plus `hypot`,
-  `hypot3`, `random`, and the seeded `prng`. Worth knowing: **`mod` is the floored
-  remainder** (sign of the divisor) while **`%` truncates** (sign of the
-  dividend), and **`frac` truncates toward zero** — `frac(-5.5) === -0.5` — unlike
-  GLSL's floor-based `fract`. Symmetric folds built on the wrong one break for
-  negatives.
-- **Waveforms** — `time(interval)` is the master animation clock, a 0..1 sawtooth
-  that loops every **`interval × 65.536` seconds** (so `time(.015)` ≈ once a
-  second — the odd unit is a fixed-point artifact). `wave` turns it into a
-  sinusoid; `triangle` and `square` are the cheap periodic shapes; `mix`,
-  `smoothstep`, and beziers interpolate. Patterns driven by `time()` stay
-  phase-locked across synchronised devices.
-- **Noise** — `perlin` and the fractal family (`perlinFbm`/`Ridge`/`Turbulence`).
-- **Colour** — `hsv` (hue wraps), `rgb`, `hsv24`, palettes via
-  `setPalette`/`paint`.
-- **Coordinate transforms** — a transform *stack* (`translate`, `scale`, `rotate`,
-  3D variants, up to 31 entries) that modifies the coordinates fed to the next
-  render cycle. Worth knowing: `scale(2,2)` makes the image appear *half* as large — it
-  densifies the coordinate space, not the picture.
-- **Arrays** — `array(n)` plus a functional set (`map`, `mutate`, `reduce`,
-  `sort`, `sum`, …), usable as functions or methods. Worth knowing (verified, fw 3.67):
-  `array(0)` is rejected, out-of-range indexing throws rather than clamping, and
-  arrays can never be freed.
-- **Map introspection** — `pixelCount`, `has2DMap`/`has3DMap`,
-  `pixelMapDimensions`, `mapPixels(fn)`.
-- **Clock, sequencer, I/O, sensors** — wall-clock functions (need network time),
-  on-device playlist control, GPIO/analog reads, and — with the sensor board —
-  `frequencyData` (32-band FFT), `energyAverage`, `accelerometer`, `light`, read
-  via `export var`.
-
-For which built-ins are cheap and which are expensive on hardware, see
-**Optimizing Pixelblaze patterns** — the short version is that `exp` and `pow`
-cost several times what `sin` does, and `wave` is *not* cheaper than `sin`.
-
-## 10. The WebSocket API, in detail
-
-### The documented JSON surface
-
-- **`{"getVars": true}`** → `{vars: {...}}` — read all exported variables
-  (sampled after the last pixel of a frame renders).
-- **`{"setVars": {...}}`** — write exported variables on the active pattern.
-- **`{"listPrograms": true}`** → a **binary** frame protocol (tab-separated
-  id/name pairs, possibly split across frames) listing stored patterns.
-- **`{"activeProgramId": "<id>"}`** — switch the active pattern (persists across
-  reboot).
-- **`{"brightness": 0.5}`** — set global brightness (not persisted).
-- **`{"getControls": "<id>"}` / `{"setControls": {...}, "save": true}`** —
-  read/write a pattern's UI control values; writes aren't persisted unless
-  `save: true` (to spare flash wear).
-
-There are also **undocumented binary frames** — notably the chunked pattern
-*upload* path — which this project reverse-engineered and verified (fw 3.67),
-building on `pixelblaze-client`'s work.
-
-### Why a browser can't reach a device directly
-
-A Pixelblaze speaks only `ws://` — plain, no TLS, no `wss://`. A page served over
-**https** that tries to open `ws://192.168.x.x:81` is **mixed active content**,
-blocked outright by the browser — no prompt, no realistic override. (WebSockets
-don't use CORS, so the handshake itself would be fine; the https→ws downgrade is
-the wall.)
-
-The practical consequence: a deployed https web app needs a **helper outside the
-browser sandbox**. Two shapes qualify: a **local process** the page reaches at
-`ws://127.0.0.1` (localhost is exempt from mixed-content blocking — ElectroMage's
-Firestorm is exactly this), or a **browser extension** whose service worker opens
-the LAN socket the page can't and relays frames back. PXLBLZ takes the extension
-route; see the Technical Reference §13.
-
-### Discovery
-
-Devices in client mode register with ElectroMage's cloud discovery service:
-`discover.electromage.com` matches controllers by your public IP and returns each
-one's LAN IP. V2.10+ devices also emit UDP broadcast beacons. Both paths need a
-LAN-resident caller (the cloud endpoint sends no CORS header; a browser can't
-hear UDP), so discovery, too, belongs to a helper — or you type the IP by hand.
-
-## 11. Networking modes
+The device has a few operating modes worth recognising:
 
 - **Client mode** — the device joins your WiFi. Best for development (you keep
   internet access), firmware updates, and the clock functions (which need network
@@ -343,7 +246,7 @@ hear UDP), so discovery, too, belongs to a helper — or you type the IP by hand
 - **Sync groups / Firestorm** — multiple Pixelblazes can be synchronised
   (patterns using `time()` stay phase-locked) and orchestrated as a fleet.
 
-## 12. Power — a worked example
+## 11. Power — a worked example
 
 ElectroMage's hardware guide has the per-LED numbers but no arithmetic, so here it
 is. Supported LED families: APA102/SK9822 ("DotStar" — 4-wire, high dynamic range,
@@ -371,7 +274,7 @@ Rules of thumb that follow:
 - **Grounds must be common.** The controller and the LED supply must share ground,
   or the data signal has no reference and the strip glitches.
 
-## 13. First-contact troubleshooting
+## 12. First-contact troubleshooting
 
 The failure modes that actually happen, roughly in the order you'll meet them:
 
@@ -392,34 +295,35 @@ The failure modes that actually happen, roughly in the order you'll meet them:
   fault — the tool needs its LAN-side helper installed and running.
 - **Editor works, LEDs dark or wrong colours.** Check the LED type and colour
   order in Settings, the data wiring (DAT vs CLK on 4-wire types), and that
-  grounds are common (§12). Wrong colour order shows as red/green swaps; wrong
+  grounds are common (§11). Wrong colour order shows as red/green swaps; wrong
   type usually shows as chaos or nothing.
 - **Clock functions return nonsense.** They need network time: client mode, with
   internet access.
 
-## 14. Where ElectroMage's own docs are strong
+## 13. Where ElectroMage's own docs are strong
 
-This primer deliberately doesn't duplicate what's already well covered. The map
-(all under [electromage.com/docs](https://electromage.com/docs), mirrored in this
-repo under `docs/ElectroMage/`):
+This primer deliberately doesn't duplicate what's already well covered in
+[ElectroMage's docs](https://electromage.com/docs):
 
 - **Quickstart (V3)** — physical setup, WiFi onboarding, LED connector wiring,
   with photos. Procedural and reliable; follow it literally.
 - **Hardware Getting Started** — the electrical reference: LED types, per-channel
-  current, connector pinouts. Good numbers; §12 above adds the arithmetic.
+  current, connector pinouts. Good numbers; §11 above adds the arithmetic.
 - **Language Reference** — the authoritative catalogue of every built-in,
   control, and language feature. Complete but flat; Part 1 of this primer is the
   "why" that it skips.
 - **Maps and Map Editing** — map formats and worked generator examples.
   **Understanding Maps** gives the mental model first.
-- **WebSockets API** — the documented protocol surface; thin on the binary side
-  (§10 covers what this project verified beyond it).
+- **WebSockets API** — the documented protocol surface for people building tools;
+  this primer only explains why hosted tools need a helper.
 - **The [ElectroMage forum](https://forum.electromage.com)** — searchable, active,
   and the developer answers; the best source for hardware-revision details.
 
----
+## Further reading
 
-For everything about pixel maps — the dialect split, normalization, the
-behaviours to watch for — see **Understanding Maps**. For making patterns fast on this hardware,
-**Optimizing Pixelblaze patterns** (`docs/guides/`). For everything about the
-PXLBLZ IDE itself, the **Feature Guide**.
+- **PXLBLZ Feature Guide** — what this IDE does and how to use its editor,
+  preview, maps, and controller tools.
+- **Understanding Maps** — the pixel-map mental model: authoring, normalization,
+  stale maps, and how mapped coordinates reach patterns.
+- **Optimizing Pixelblaze patterns** — hardware costs, profiling, and tactics for
+  making patterns run well on real controllers.
