@@ -73,19 +73,13 @@ Open the **Code** menu in the app header for source and hover summaries.
 
 ## Good to know
 
+- Patterns, maps, and demo setting overrides are stored in this browser's
+  IndexedDB. **Clearing site data clears that local workspace.**
 - If the app does not reconnect to a Pixelblaze Controller when it opens, reload
   the browser window first. If it still does not pick up, manually disconnect and
   reconnect from the Controller menu.
-- Patterns, maps, and demo setting overrides are stored in this browser's
-  IndexedDB. Clearing site data clears that local workspace.
-- Preview brightness is for the screen. Controller brightness is controlled from
-  the connected Controller panel and is not copied from the preview.
-- Precise rendering emulates Pixelblaze's fixed-point arithmetic, but `perlin`
-  and random functions still diverge slightly because the browser shim does not
-  reverse-engineer those firmware algorithms.
-- Everything preview-only stays preview-only: light size, diffusion, solidity,
-  Fast / Precise, playback speed, and viewport choices are never sent to
-  hardware.
+- Preview controls affect only the on-screen preview. Controller variables and
+  brightness live in the Controller menu.
 
 ## Local development
 
