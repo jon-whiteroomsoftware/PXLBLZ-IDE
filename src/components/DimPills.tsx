@@ -9,6 +9,7 @@ export function DimPills({ dims }: { dims: (1 | 2 | 3)[] }) {
       {dims.map((d) => (
         <span
           key={d}
+          title={`${d}D render function`}
           className="shrink-0 px-1.5 py-0.5 rounded text-[9px] font-medium tracking-wide uppercase text-zinc-400 border border-zinc-700 leading-none"
         >
           {d}D

@@ -67,6 +67,7 @@ export function DeckSelect<T extends string | number>({
     <div ref={containerRef} className={`relative ${block ? 'w-full' : ''}`}>
       <button
         aria-label={ariaLabel}
+        title={`${ariaLabel}: ${current?.label ?? ''}`}
         aria-haspopup="listbox"
         aria-expanded={isOpen}
         onClick={() => setIsOpen((o) => !o)}

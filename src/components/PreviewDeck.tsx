@@ -82,13 +82,13 @@ function PrimaryBand() {
   const previewPatternName = useEditorStore((s) => s.previewPatternName)
   const previewSource = useEditorStore((s) => s.previewSource)
 
-  // The layer-1 reset affordance (#63): a rewind icon sitting immediately to
-  // the right of the pattern name in the primary nav — findable, and clearly scoped to
-  // the whole preview rather than buried mid-deck below the controls it resets. It pops
-  // in only when the active pattern/demo carries overrides to clear (so it's never a
-  // no-op) — a demo reverts to its developer recommendation, a user pattern to the app
-  // defaults (resetActiveSettings picks the floor). We subscribe to the override sources
-  // so it appears/disappears live as controls are touched; the divergence check itself is
+  // The layer-1 reset affordance (#63): a rewind icon in the primary action cluster,
+  // immediately before the viewport embedding chooser. It stays in the main row so it
+  // is findable, but reads as an action rather than status. It pops in only when the
+  // active pattern/demo carries overrides to clear (so it's never a no-op) — a demo
+  // reverts to its developer recommendation, a user pattern to the app defaults
+  // (resetActiveSettings picks the floor). We subscribe to the override sources so it
+  // appears/disappears live as controls are touched; the divergence check itself is
   // `hasActiveOverrides()`. Clicking resets and the icon disappears.
   usePatternStore((s) => s.activePatternId)
   usePatternStore((s) => s.activeDemoName)
@@ -103,25 +103,26 @@ function PrimaryBand() {
   return (
     <div className="flex items-center gap-3 py-2 pr-3 border-b border-zinc-800">
       <div className="flex-1 min-w-0 flex items-center gap-2">
-        <span className="min-w-0 truncate text-sm text-zinc-200">
+        <span className="min-w-0 truncate text-sm text-zinc-200" title={previewPatternName || 'No pattern'}>
           {previewPatternName || '—'}
         </span>
         <DimPills dims={exportedDims(previewSource)} />
-        {showReset && (
-          <button
-            type="button"
-            aria-label="Reset preview"
-            title="Reset preview"
-            onClick={() => void resetActiveSettings()}
-            className="flex items-center justify-center h-5 w-5 shrink-0 rounded text-zinc-500 hover:text-amber-400 hover:bg-zinc-800/80 transition-colors"
-          >
-            <RotateCcw size={14} />
-          </button>
-        )}
       </div>
+      {showReset && (
+        <button
+          type="button"
+          aria-label="Reset preview"
+          title="Reset preview settings"
+          onClick={() => void resetActiveSettings()}
+          className="flex items-center justify-center h-5 w-5 shrink-0 rounded text-zinc-500 hover:text-amber-400 hover:bg-zinc-800/80 transition-colors"
+        >
+          <RotateCcw size={14} />
+        </button>
+      )}
       <EmbeddingSelect />
       <button
         aria-label={isRunning ? 'Pause' : 'Run'}
+        title={isRunning ? 'Pause preview' : 'Run preview'}
         onClick={toggle}
         className={`flex items-center justify-center w-8 h-8 rounded shrink-0 hover:bg-zinc-700 transition-colors ${
           isRunning ? 'text-green-500 hover:text-green-400' : 'text-red-500 hover:text-red-400'

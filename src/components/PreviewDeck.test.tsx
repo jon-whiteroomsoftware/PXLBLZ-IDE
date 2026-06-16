@@ -102,6 +102,7 @@ describe('PreviewDeck (smoke)', () => {
   })
 
   it('hides the reset-preview icon until the active item carries overrides', () => {
+    useEditorStore.setState({ nativeDim: 2 })
     const { rerender } = render(<PreviewDeck />)
     expect(screen.queryByRole('button', { name: 'Reset preview' })).not.toBeInTheDocument()
 
@@ -111,7 +112,11 @@ describe('PreviewDeck (smoke)', () => {
       userPatterns: [{ id: 'p1', name: 'P1', src: '', controls: {}, updatedAt: 1, settings: { brightness: 0.5 } }],
     })
     rerender(<PreviewDeck />)
-    expect(screen.getByRole('button', { name: 'Reset preview' })).toBeInTheDocument()
+    const reset = screen.getByRole('button', { name: 'Reset preview' })
+    const surface = screen.getByRole('button', { name: 'Surface' })
+    expect(reset).toBeInTheDocument()
+    expect(reset).toHaveAttribute('title', 'Reset preview settings')
+    expect(reset.compareDocumentPosition(surface) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
   it('surfaces the same reset-preview icon for a demo with overrides', () => {
@@ -122,5 +127,14 @@ describe('PreviewDeck (smoke)', () => {
     })
     render(<PreviewDeck />)
     expect(screen.getByRole('button', { name: 'Reset preview' })).toBeInTheDocument()
+  })
+
+  it('provides tooltips for primary-row controls', () => {
+    useEditorStore.setState({ nativeDim: 2, previewPatternName: 'Demo' })
+    render(<PreviewDeck />)
+
+    expect(screen.getByText('Demo')).toHaveAttribute('title', 'Demo')
+    expect(screen.getByRole('button', { name: 'Pause' })).toHaveAttribute('title', 'Pause preview')
+    expect(screen.getByRole('button', { name: 'Surface' })).toHaveAttribute('title', expect.stringMatching(/^Surface: /))
   })
 })
