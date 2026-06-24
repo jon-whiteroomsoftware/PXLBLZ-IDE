@@ -98,6 +98,13 @@ npx tsc --noEmit
 npm run build
 ```
 
+### GitHub Pages analytics
+
+The production build installs Google Analytics only when
+`VITE_GA_MEASUREMENT_ID` is set. For GitHub Pages, add a repository variable
+named `GA_MEASUREMENT_ID` with your GA4 measurement ID, for example `G-XXXXXXXXXX`.
+Local development and builds without that variable do not load Google Analytics.
+
 ## Documentation
 
 - **[PXLBLZ Feature Guide](docs/reference/PXLBLZ%20Feature%20Guide.md)** - start

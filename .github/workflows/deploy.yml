@@ -25,6 +25,8 @@ jobs:
           cache: 'npm'
       - run: npm ci
       - run: npm run build
+        env:
+          VITE_GA_MEASUREMENT_ID: ${{ vars.GA_MEASUREMENT_ID }}
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist

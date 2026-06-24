@@ -5,6 +5,7 @@ import App from './App'
 import { setControllerProviderFactory } from './engine/controllerProviderRegistry'
 import { ExtensionControllerProvider } from './engine/ExtensionControllerProvider'
 import { windowRelayTransport } from './engine/windowRelayTransport'
+import { installGoogleAnalytics } from './analytics/googleAnalytics'
 
 // Install how the keyed store mints a live backend per Controller IP (#210): each
 // Controller gets its own extension-backed provider over a shared window relay
@@ -14,6 +15,7 @@ import { windowRelayTransport } from './engine/windowRelayTransport'
 // extension detection + last-connected auto-reconnect from here.
 const transport = windowRelayTransport()
 setControllerProviderFactory(() => new ExtensionControllerProvider({ transport }))
+installGoogleAnalytics()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
