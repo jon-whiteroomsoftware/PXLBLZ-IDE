@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import path from 'path'
@@ -6,6 +6,37 @@ import fs from 'fs'
 
 const BASE = '/PXLBLZ-IDE/'
 const PERSONAL_DIRS = ['patterns', 'maps', 'controllers', 'bindings'] as const
+
+function googleAnalyticsSnippet(measurementId: string | undefined): Plugin {
+  return {
+    name: 'pxlblz-google-analytics',
+    apply: 'build',
+    transformIndexHtml() {
+      if (!measurementId) return []
+      const id = JSON.stringify(measurementId)
+      return [
+        {
+          tag: 'script',
+          attrs: {
+            async: true,
+            src: `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(measurementId)}`,
+          },
+          injectTo: 'head',
+        },
+        {
+          tag: 'script',
+          children: [
+            'window.dataLayer = window.dataLayer || [];',
+            'function gtag(){dataLayer.push(arguments);}',
+            'gtag("js", new Date());',
+            `gtag("config", ${id});`,
+          ].join('\n'),
+          injectTo: 'head',
+        },
+      ]
+    },
+  }
+}
 
 // Dev-only: a sink for in-page canvas captures. The running app can POST raw
 // PNG bytes to `/__capture?name=foo.png` and this writes them to disk, so
@@ -217,31 +248,43 @@ function personalContentWorkspace() {
   }
 }
 
-export default defineConfig({
-  base: BASE,
-  plugins: [redirectBaseTrailingSlash(), captureSink(), personalContentWorkspace(), react(), tailwindcss()],
-  server: {
-    port: 5174,
-    strictPort: true,
-    allowedHosts: true,
-    watch: {
-      ignored: ['**/personal/**'],
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), '')
+  const gaMeasurementId = env.VITE_GA_MEASUREMENT_ID?.trim()
+
+  return {
+    base: BASE,
+    plugins: [
+      googleAnalyticsSnippet(gaMeasurementId),
+      redirectBaseTrailingSlash(),
+      captureSink(),
+      personalContentWorkspace(),
+      react(),
+      tailwindcss(),
+    ],
+    server: {
+      port: 5174,
+      strictPort: true,
+      allowedHosts: true,
+      watch: {
+        ignored: ['**/personal/**'],
+      },
     },
-  },
-  resolve: {
-    alias: {
-      '@': path.resolve(__dirname, './src'),
+    resolve: {
+      alias: {
+        '@': path.resolve(__dirname, './src'),
+      },
+      dedupe: ['react', 'react-dom'],
     },
-    dedupe: ['react', 'react-dom'],
-  },
-  optimizeDeps: {
-    include: ['@monaco-editor/react', 'zustand'],
-  },
-  test: {
-    environment: 'jsdom',
-    globals: true,
-    setupFiles: ['./src/test/setup.ts'],
-    // Playwright E2E specs live in e2e/ and are run by Playwright, not Vitest.
-    exclude: ['e2e/**', 'node_modules/**'],
-  },
+    optimizeDeps: {
+      include: ['@monaco-editor/react', 'zustand'],
+    },
+    test: {
+      environment: 'jsdom',
+      globals: true,
+      setupFiles: ['./src/test/setup.ts'],
+      // Playwright E2E specs live in e2e/ and are run by Playwright, not Vitest.
+      exclude: ['e2e/**', 'node_modules/**'],
+    },
+  }
 })
