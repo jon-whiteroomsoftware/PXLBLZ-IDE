@@ -1,14 +1,16 @@
 import { useEffect, useRef, useState } from 'react'
 import { ChevronDown, Plus, FolderOpen, Search, X } from 'lucide-react'
 import { LIBRARIES } from '@/pixelblaze/libs'
-import { DEMOS } from '@/pixelblaze/demos'
+import { DEMOS } from '@/pixelblaze/stock/patterns'
 import { nameConflicts, uniquePatternName } from '@/engine/patternName'
 import { NEW_PATTERN_SRC } from '@/pixelblaze/newPattern'
 import { parseEpe } from '@/engine/epeImport'
 import { nativeDim, matchesLens, matchesQuery, type DimLens } from '@/engine/dimLens'
-import { getSetting } from '@/engine/storage'
+import { getPersonalContentProvider, initializePersonalContentProvider } from '@/engine/personalContentProvider'
+import { newPersonalContentId } from '@/engine/personalContentMetadata'
+import { canUseWorkspaceProvider } from '@/engine/workspacePersonalContentProvider'
 import { useEditorStore } from '@/store/editorStore'
-import { usePatternStore, PatternRecord, LastActive, LAST_ACTIVE_KEY } from '@/store/patternStore'
+import { usePatternStore, PatternRecord } from '@/store/patternStore'
 import { useMapStore, MapRecord, STOCK_MAP_ITEMS } from '@/store/mapStore'
 import { useDocsStore } from '@/store/docsStore'
 import { forkSettingsSnapshotForDemo } from '@/store/settingsCascade'
@@ -32,12 +34,14 @@ type ScrollMetrics = {
 // Module-scope factory for a fresh pattern record. Kept out of the component so its
 // impure id/timestamp generation isn't attributed to render (react-hooks/purity).
 function newPatternRecord(name: string, src: string): PatternRecord {
-  const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+  const id = newPersonalContentId()
   return { id, name, src, controls: {}, updatedAt: Date.now() }
 }
 
 const DEMO_NAMES = Object.keys(DEMOS).sort()
 const DEFAULT_DEMO_NAME = 'IridescentFibers'
+const STOCK_PATTERNS_LABEL = 'Built-in Patterns'
+type PersonalStorageMode = 'workspace' | 'fallback' | null
 
 const OPENGL_DEMOS = ['Kishimisu', 'NeonSquircles', 'ZippyZaps', 'IQPalettes', 'PhantomStar', 'IridescentFibers']
 const BRAND_NEW_DEMOS = ['PlasmaNebula', 'Caustics', 'AuroraSphere', 'NebulaSphere', 'ShaderShowcase']
@@ -62,6 +66,7 @@ const FPS_FRIENDLY_DEMOS = [
   'RibbonLoom',
   'SignalMandala',
   'StainedGlassWeather',
+  'TempestVolume3D',
   'TopographicBloom',
 ]
 // 1D effects that lean on rhythm and emergence rather than the usual chases and
@@ -718,7 +723,7 @@ export function PatternList() {
         showImportError(err instanceof Error ? err.message : 'Failed to import EPE file')
         return
       }
-      const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+      const id = newPersonalContentId()
       const name = uniquePatternName(parsed.name, userPatterns.map((p) => p.name))
       const record: PatternRecord = { id, name, src: parsed.src, controls: {}, updatedAt: Date.now() }
       await addPattern(record)
@@ -744,6 +749,7 @@ export function PatternList() {
   const scrollRef = useRef<HTMLDivElement>(null)
   const patternRowRefs = useRef(new Map<string, HTMLLIElement>())
   const [scrollMetrics, setScrollMetrics] = useState<ScrollMetrics>({ top: 0, height: 0, visible: false })
+  const [personalStorageMode, setPersonalStorageMode] = useState<PersonalStorageMode>(null)
   const query = queries[railMode]
   const setQuery = (next: string) => setQueries((q) => ({ ...q, [railMode]: next }))
 
@@ -768,15 +774,20 @@ export function PatternList() {
   }, [railMode, dimLens, query, userPatterns.length, userMaps.length, collapsedSections])
 
   useEffect(() => {
-    // Hydrate user maps (and seed the stock custom maps, #140) so the layout
-    // selector is populated before the first pattern opens.
-    useMapStore.getState().loadMaps()
-  }, [])
-
-  useEffect(() => {
-    void usePatternStore.getState().loadDemoOverrides()
-    loadPatterns().then(async () => {
-      const last = await getSetting<LastActive>(LAST_ACTIVE_KEY).catch(() => undefined)
+    let cancelled = false
+    async function hydratePersonalContent() {
+      const provider = await initializePersonalContentProvider()
+      if (cancelled) return
+      setPersonalStorageMode(canUseWorkspaceProvider() ? (provider.id === 'workspace-files' ? 'workspace' : 'fallback') : null)
+      // Hydrate user maps before the first pattern opens so the layout selector is
+      // populated from whichever personal provider won startup selection.
+      await useMapStore.getState().loadMaps()
+      if (cancelled) return
+      await usePatternStore.getState().loadDemoOverrides()
+      if (cancelled) return
+      await loadPatterns()
+      if (cancelled) return
+      const last = await getPersonalContentProvider().getLastActive().catch(() => undefined)
       const { userPatterns, setActivePattern, setActiveLibrary, setActiveDemo } = usePatternStore.getState()
       const { setSource, setIsReadOnly, setPreviewSource, setPreviewPatternName } = useEditorStore.getState()
       if (!last) {
@@ -811,7 +822,11 @@ export function PatternList() {
           setIsReadOnly(true)
         }
       }
-    })
+    }
+    void hydratePersonalContent()
+    return () => {
+      cancelled = true
+    }
   }, [loadPatterns])
 
   function openDemo(name: string) {
@@ -825,7 +840,7 @@ export function PatternList() {
   }
 
   // Fork a demo into an editable user pattern (#182): the per-row "edit" action in
-  // the Demos list. Mirrors the top-bar "Edit" fork, but for any demo without first
+  // the built-in patterns list. Mirrors the top-bar "Edit" fork, but for any demo without first
   // having to open it.
   async function handleForkDemo(name: string) {
     closeMapEditor()
@@ -858,7 +873,7 @@ export function PatternList() {
   async function handleCreatePattern() {
     closeMapEditor()
     closeDocs()
-    const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+    const id = newPersonalContentId()
     const name = uniquePatternName('Untitled Pattern', userPatterns.map((p) => p.name))
     const record: PatternRecord = { id, name, src: NEW_PATTERN_SRC, controls: {}, updatedAt: Date.now() }
     await addPattern(record)
@@ -883,6 +898,18 @@ export function PatternList() {
   const isCollapsed = (label: string) => !searching && !!collapsedSections[label]
   const toggleCollapsed = (label: string) =>
     setCollapsedSections((c) => ({ ...c, [label]: !c[label] }))
+  const personalPatternsLabel =
+    personalStorageMode === 'workspace'
+      ? 'Workspace Patterns'
+      : personalStorageMode === 'fallback'
+        ? 'Browser Patterns'
+        : 'Your Patterns'
+  const personalMapsLabel =
+    personalStorageMode === 'workspace'
+      ? 'Workspace Maps'
+      : personalStorageMode === 'fallback'
+        ? 'Browser Maps'
+        : 'Your Maps'
   const visibleUserPatterns = userPatterns.filter(
     (pattern) =>
       matchesLens(nativeDim(pattern.src), dimLens) && matchesQuery(pattern.name, query),
@@ -896,13 +923,13 @@ export function PatternList() {
   })).filter((section) => section.names.length > 0)
 
   const patternNavItems = [
-    ...(!isCollapsed('Your Patterns')
+    ...(!isCollapsed(personalPatternsLabel)
       ? visibleUserPatterns.map((pattern) => ({
         key: `pattern:${pattern.id}`,
         activate: () => openUserPattern(pattern),
       }))
       : []),
-    ...(!isCollapsed('Demos')
+    ...(!isCollapsed(STOCK_PATTERNS_LABEL)
       ? visibleDemoSections.flatMap((section) =>
         isCollapsed(section.label)
           ? []
@@ -969,10 +996,10 @@ export function PatternList() {
           {railMode === 'patterns' && (
             <>
           <SectionHeader
-            label="Your Patterns"
+            label={personalPatternsLabel}
             first
-            collapsed={isCollapsed('Your Patterns')}
-            onToggle={() => toggleCollapsed('Your Patterns')}
+            collapsed={isCollapsed(personalPatternsLabel)}
+            onToggle={() => toggleCollapsed(personalPatternsLabel)}
             action={
               <>
                 <HeaderAction
@@ -987,7 +1014,7 @@ export function PatternList() {
           {importError && (
             <p className="pl-3 pr-3 py-1 text-red-400 truncate" title={importError}>{importError}</p>
           )}
-          {!isCollapsed('Your Patterns') && (
+          {!isCollapsed(personalPatternsLabel) && (
             <ul className="pt-2">
               {visibleUserPatterns.map((pattern) => (
                 <EditableListItem
@@ -1009,11 +1036,11 @@ export function PatternList() {
           )}
 
           <SectionHeader
-            label="Demos"
-            collapsed={isCollapsed('Demos')}
-            onToggle={() => toggleCollapsed('Demos')}
+            label={STOCK_PATTERNS_LABEL}
+            collapsed={isCollapsed(STOCK_PATTERNS_LABEL)}
+            onToggle={() => toggleCollapsed(STOCK_PATTERNS_LABEL)}
           />
-          {!isCollapsed('Demos') &&
+          {!isCollapsed(STOCK_PATTERNS_LABEL) &&
             visibleDemoSections.map((section) => {
               const collapsed = isCollapsed(section.label)
               return (
@@ -1056,13 +1083,13 @@ export function PatternList() {
         return (
           <>
             <SectionHeader
-              label="Your Maps"
+              label={personalMapsLabel}
               first
-              collapsed={isCollapsed('Your Maps')}
-              onToggle={() => toggleCollapsed('Your Maps')}
+              collapsed={isCollapsed(personalMapsLabel)}
+              onToggle={() => toggleCollapsed(personalMapsLabel)}
               action={<HeaderAction icon={<Plus size={14} />} title="New map" onClick={createNewMap} />}
             />
-            {!isCollapsed('Your Maps') && (
+            {!isCollapsed(personalMapsLabel) && (
               // The "no maps yet" empty state only fits when the user genuinely has no
               // maps. If a filter (lens or query) merely emptied the list, leave just
               // the header — the message would misread as "you have none" (#252).

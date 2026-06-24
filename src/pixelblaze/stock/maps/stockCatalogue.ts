@@ -1,5 +1,5 @@
-import { createSourceMap, type SourceMapSpec } from './sourceMap'
-import type { PixelMap } from './types'
+import { createSourceMap, type SourceMapSpec } from '@/engine/maps/sourceMap'
+import type { PixelMap } from '@/engine/maps/types'
 
 // Raw `.js` map sources, read as text: each file is a self-contained
 // `function(pixelCount){ … }`, Math/built-ins only, pasteable into a real

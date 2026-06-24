@@ -30,12 +30,9 @@ import { forkSettingsSnapshot } from '@/store/settingsCascade'
 import { bundle } from '@/engine/bundle'
 import { LIBRARIES } from '@/pixelblaze/libs'
 import { uniquePatternName } from '@/engine/patternName'
+import { newPersonalContentId } from '@/engine/personalContentMetadata'
 import { exportedDims } from '@/engine/exportedDims'
 import { docExternalHref, getUserDoc, isDocId } from '@/docs/catalog'
-
-function generateId(): string {
-  return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-}
 
 function Splitter({ onDrag }: { onDrag: (dx: number) => void }) {
   const lastX = useRef(0)
@@ -120,7 +117,7 @@ export default function App() {
 
   const handleForkDemo = useCallback(async () => {
     if (!activeDemoName) return
-    const id = generateId()
+    const id = newPersonalContentId()
     const existingNames = userPatterns.map((p) => p.name)
     const name = uniquePatternName(activeDemoName, existingNames)
     // Snapshot the demo's effective settings as frozen layer-1 overrides

@@ -37,7 +37,7 @@ import {
 import { bytecodeHeaderReconciles, makeProgramId } from '../../src/engine/bytecodePush'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
-const DEMOS_DIR = join(HERE, '../../src/pixelblaze/demos')
+const DEMOS_DIR = join(HERE, '../../src/pixelblaze/stock/patterns')
 const LIB_DIR = join(HERE, '../../src/pixelblaze/lib')
 const IP = process.env.PIXELBLAZE_IP ?? '192.168.8.224'
 

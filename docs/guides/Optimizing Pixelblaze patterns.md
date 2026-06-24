@@ -223,7 +223,7 @@ trade where a pattern looks almost the same but runs much faster — the drift t
 compares two sources over the same deterministic frame window:
 
 ```bash
-npm run drift -- /tmp/base.js src/pixelblaze/demos/ZippyZaps.js
+npm run drift -- /tmp/base.js src/pixelblaze/stock/patterns/ZippyZaps.js
 npm run drift -- PhantomStar /tmp/PhantomStar.fast.js --frames 8 --grid 16x16
 ```
 

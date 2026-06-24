@@ -1,11 +1,11 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { PatternList } from './PatternList'
 import { useEditorStore, editorInitialState } from '@/store/editorStore'
 import { usePatternStore, patternInitialState } from '@/store/patternStore'
 import { useMapStore, mapInitialState, type MapRecord } from '@/store/mapStore'
-import { DEMOS } from '@/pixelblaze/demos'
+import { DEMOS } from '@/pixelblaze/stock/patterns'
 
 vi.mock('@/engine/storage', async (importOriginal) => {
   const orig = await importOriginal<typeof import('@/engine/storage')>()
@@ -31,6 +31,10 @@ beforeEach(() => {
   useMapStore.setState(mapInitialState)
 })
 
+afterEach(() => {
+  vi.unstubAllGlobals()
+})
+
 const CUSTOM_MAP: MapRecord = {
   id: 'm1',
   name: 'My Tree',
@@ -46,6 +50,23 @@ async function switchToMaps(user: ReturnType<typeof userEvent.setup>) {
 }
 
 describe('PatternList', () => {
+  it('labels personal sections as workspace-backed on localhost when the workspace API is available', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ ok: true, patterns: [], maps: [] }),
+    }))
+    render(<PatternList />)
+
+    expect(await screen.findByText('Workspace Patterns')).toBeInTheDocument()
+  })
+
+  it('labels personal sections as browser-backed on localhost when the workspace API is unavailable', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 404 }))
+    render(<PatternList />)
+
+    expect(await screen.findByText('Browser Patterns')).toBeInTheDocument()
+  })
+
   it('opens IridescentFibers for visitors without a saved last-active pattern', async () => {
     render(<PatternList />)
 
@@ -176,7 +197,7 @@ describe('PatternList', () => {
     await user.type(screen.getByRole('textbox', { name: /search by name/i }), 'nope')
     expect(screen.queryByText('My Tree')).not.toBeInTheDocument()
     // Header stays, but the genuine-empty message must not appear.
-    expect(screen.getByText('Your Maps')).toBeInTheDocument()
+    expect(screen.getByText('Browser Maps')).toBeInTheDocument()
     expect(screen.queryByText('No custom maps yet')).not.toBeInTheDocument()
   })
 
@@ -202,10 +223,10 @@ describe('PatternList', () => {
     render(<PatternList />)
 
     // Pick a demo and its OpenGL-style subsection isn't guaranteed, so collapse the
-    // top-level "Demos" group, which hides every demo.
+    // top-level built-in patterns group, which hides every demo.
     const demoName = Object.keys(DEMOS).sort()[0]
     expect(await screen.findByText(new RegExp(`^${demoName}`))).toBeInTheDocument()
-    await user.click(screen.getByText('Demos'))
+    await user.click(screen.getByText('Built-in Patterns'))
     expect(screen.queryByText(new RegExp(`^${demoName}`))).not.toBeInTheDocument()
 
     // A search matching that demo must surface it despite the collapse.
@@ -259,7 +280,7 @@ describe('PatternList', () => {
     expect(search).toHaveFocus()
 
     // A click on an unrelated part of the rail blurs the input.
-    await user.click(screen.getByText('Demos'))
+    await user.click(screen.getByText('Built-in Patterns'))
 
     expect(search).not.toHaveFocus()
     expect(search).toHaveValue('')

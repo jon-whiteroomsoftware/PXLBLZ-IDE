@@ -1,4 +1,4 @@
-import { SOURCE_STOCK_MAPS, stockMapSpec } from './stockCatalogue'
+import { SOURCE_STOCK_MAPS, stockMapSpec } from '@/pixelblaze/stock/maps/stockCatalogue'
 import { evalMapSource } from './evalMapSource'
 import {
   TETRA_FACES,

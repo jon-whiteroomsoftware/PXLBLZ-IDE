@@ -17,7 +17,7 @@ import { dirname, join } from 'node:path'
 import { benchDemo, type BenchResult, type GridSpec, type BenchOptions } from './benchCore'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
-const DEMOS_DIR = join(HERE, '../../src/pixelblaze/demos')
+const DEMOS_DIR = join(HERE, '../../src/pixelblaze/stock/patterns')
 const LIB_DIR = join(HERE, '../../src/pixelblaze/lib')
 
 /** Load the Pixelblaze library namespaces off disk, mirroring src/pixelblaze/

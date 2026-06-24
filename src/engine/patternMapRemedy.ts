@@ -7,8 +7,8 @@
 // (RECOMMENDED_SETTINGS, keyed by demo name). User patterns have no recommendation layer,
 // so the remedy is absent for them and the popover falls back to a plain "Send anyway".
 
-import { recommendedSettingsFor } from '@/pixelblaze/demos'
-import { stockMapSpec } from '@/engine/maps/stockCatalogue'
+import { recommendedSettingsFor } from '@/pixelblaze/stock/patterns'
+import { stockMapSpec } from '@/pixelblaze/stock/maps/stockCatalogue'
 
 export interface RecommendedMapRemedy {
   /** The stock map id to install (e.g. `seed-sphere-3d`). */

@@ -200,6 +200,13 @@ export const CONTROL_DESCRIPTIONS: Record<string, Record<string, string>> = {
     sliderStorm: 'Strength of rain and lightning flashes.',
     sliderTint: 'Base colour of the glass.',
   },
+  TempestVolume3D: {
+    sliderWaterLevel: 'How full the virtual volume is — low drains it, high nearly floods it.',
+    sliderAgitation: 'Storm strength: calmer swells at low, torn crests and spray at high.',
+    sliderCurrentScale: 'Size of the submerged current cells moving through the water.',
+    sliderFoam: 'Brightness and thickness of surface foam and spray.',
+    sliderTint: 'Base water colour.',
+  },
   TopographicBloom: {
     sliderSpeed: 'How quickly the flower shape breathes.',
     sliderLayers: 'Strength and density of the contour bands.',

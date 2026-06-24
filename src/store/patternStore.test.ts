@@ -1,7 +1,13 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { usePatternStore, patternInitialState, activePushKey } from './patternStore'
+import {
+  resetPersonalContentProvider,
+  setPersonalContentProvider,
+  type PersonalContentProvider,
+} from '@/engine/personalContentProvider'
 
 beforeEach(() => {
+  resetPersonalContentProvider()
   usePatternStore.setState(patternInitialState)
 })
 
@@ -51,6 +57,33 @@ describe('patternStore', () => {
     usePatternStore.getState().setActivePattern('abc-123')
     usePatternStore.getState().setActiveLibrary('sdf')
     expect(usePatternStore.getState().activePatternId).toBeNull()
+  })
+
+  it('skips unchanged source writes so autosave ticks do not rewrite workspace files', async () => {
+    const updatePattern = vi.fn()
+    setPersonalContentProvider({
+      id: 'test-provider',
+      listPatterns: async () => [],
+      createPattern: async () => {},
+      updatePattern,
+      deletePattern: async () => {},
+      listMaps: async () => [],
+      createMap: async () => {},
+      updateMap: async () => {},
+      deleteMap: async () => {},
+      getLastActive: async () => undefined,
+      setLastActive: async () => {},
+      getDemoOverrides: async () => undefined,
+      setDemoOverrides: async () => {},
+    } satisfies PersonalContentProvider)
+    usePatternStore.setState({
+      userPatterns: [{ id: 'p1', name: 'P1', src: 'same source', controls: {}, updatedAt: 1 }],
+    })
+
+    await usePatternStore.getState().updatePatternSrc('p1', 'same source')
+
+    expect(updatePattern).not.toHaveBeenCalled()
+    expect(usePatternStore.getState().userPatterns[0].updatedAt).toBe(1)
   })
 })
 

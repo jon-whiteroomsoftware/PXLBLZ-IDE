@@ -1,30 +1,15 @@
 import { create } from 'zustand'
 import {
-  PatternRecord,
-  createPattern,
-  listPatterns,
-  updatePattern,
-  deletePattern,
-  getSetting,
-  setSetting,
-} from '@/engine/storage'
+  DEMO_OVERRIDES_KEY,
+  LAST_ACTIVE_KEY,
+  type LastActive,
+  getPersonalContentProvider,
+} from '@/engine/personalContentProvider'
+import type { PatternRecord } from '@/engine/storage'
 import type { Settings } from '@/engine/settings'
 
-export type { PatternRecord }
-
-export const LAST_ACTIVE_KEY = 'lastActive'
-
-// The persisted demo-override layer. A demo carries no
-// PatternRecord — its code is read-only and shipped in the app — but it still gets a
-// persistent cascade layer-1 override bag so the user's tweaks survive a reopen, just
-// like a user pattern. The whole map (demo name → sparse overrides) lives under one
-// key in the settings KV store.
-export const DEMO_OVERRIDES_KEY = 'demoOverrides'
-
-export type LastActive =
-  | { type: 'pattern'; id: string }
-  | { type: 'library'; name: string }
-  | { type: 'demo'; name: string }
+export type { LastActive, PatternRecord }
+export { DEMO_OVERRIDES_KEY, LAST_ACTIVE_KEY }
 
 interface PatternState {
   activePatternId: string | null
@@ -90,31 +75,29 @@ export const usePatternStore = create<PatternState>()((set, get) => ({
 
   setActivePattern: (id) => {
     set({ activePatternId: id, activeLibraryName: null, activeDemoName: null })
-    if (id !== null) setSetting<LastActive>(LAST_ACTIVE_KEY, { type: 'pattern', id }).catch(() => {})
+    if (id !== null) getPersonalContentProvider().setLastActive({ type: 'pattern', id }).catch(() => {})
   },
   setActiveLibrary: (name) => {
     set({ activeLibraryName: name, activePatternId: null, activeDemoName: null })
-    if (name !== null) setSetting<LastActive>(LAST_ACTIVE_KEY, { type: 'library', name }).catch(() => {})
+    if (name !== null) getPersonalContentProvider().setLastActive({ type: 'library', name }).catch(() => {})
   },
   setActiveDemo: (name) => {
     set({ activeDemoName: name, activeLibraryName: null, activePatternId: null })
-    if (name !== null) setSetting<LastActive>(LAST_ACTIVE_KEY, { type: 'demo', name }).catch(() => {})
+    if (name !== null) getPersonalContentProvider().setLastActive({ type: 'demo', name }).catch(() => {})
   },
 
   loadPatterns: async () => {
-    const patterns = await listPatterns()
+    const patterns = await getPersonalContentProvider().listPatterns()
     set({ userPatterns: patterns.sort((a, b) => b.updatedAt - a.updatedAt) })
   },
 
   loadDemoOverrides: async () => {
-    const stored = await getSetting<Record<string, Partial<Settings>>>(DEMO_OVERRIDES_KEY).catch(
-      () => undefined,
-    )
+    const stored = await getPersonalContentProvider().getDemoOverrides().catch(() => undefined)
     if (stored) set({ demoOverrides: stored })
   },
 
   addPattern: async (record) => {
-    await createPattern(record)
+    await getPersonalContentProvider().createPattern(record)
     set((s) => ({
       userPatterns: [record, ...s.userPatterns],
     }))
@@ -122,7 +105,7 @@ export const usePatternStore = create<PatternState>()((set, get) => ({
 
   renamePattern: async (id, name) => {
     const updatedAt = Date.now()
-    await updatePattern(id, { name, updatedAt })
+    await getPersonalContentProvider().updatePattern(id, { name, updatedAt })
     set((s) => ({
       userPatterns: s.userPatterns.map((p) =>
         p.id === id ? { ...p, name, updatedAt } : p,
@@ -131,7 +114,7 @@ export const usePatternStore = create<PatternState>()((set, get) => ({
   },
 
   removePattern: async (id) => {
-    await deletePattern(id)
+    await getPersonalContentProvider().deletePattern(id)
     const { activePatternId, userPatterns } = get()
     const remaining = userPatterns.filter((p) => p.id !== id)
     set({
@@ -141,8 +124,10 @@ export const usePatternStore = create<PatternState>()((set, get) => ({
   },
 
   updatePatternSrc: async (id, src) => {
+    const existing = get().userPatterns.find((p) => p.id === id)
+    if (existing?.src === src) return
     const updatedAt = Date.now()
-    await updatePattern(id, { src, updatedAt })
+    await getPersonalContentProvider().updatePattern(id, { src, updatedAt })
     set((s) => ({
       userPatterns: s.userPatterns.map((p) =>
         p.id === id ? { ...p, src, updatedAt } : p,
@@ -163,14 +148,14 @@ export const usePatternStore = create<PatternState>()((set, get) => ({
       }),
     }))
     if (merged === undefined) return
-    await updatePattern(id, { settings: merged }).catch(() => {})
+    await getPersonalContentProvider().updatePattern(id, { settings: merged }).catch(() => {})
   },
 
   resetPatternSettings: async (id) => {
     set((s) => ({
       userPatterns: s.userPatterns.map((p) => (p.id === id ? { ...p, settings: {} } : p)),
     }))
-    await updatePattern(id, { settings: {} }).catch(() => {})
+    await getPersonalContentProvider().updatePattern(id, { settings: {} }).catch(() => {})
   },
 
   updateDemoSettings: async (name, patch) => {
@@ -180,7 +165,7 @@ export const usePatternStore = create<PatternState>()((set, get) => ({
       next = { ...s.demoOverrides, [name]: { ...s.demoOverrides[name], ...patch } }
       return { demoOverrides: next }
     })
-    if (next) await setSetting(DEMO_OVERRIDES_KEY, next).catch(() => {})
+    if (next) await getPersonalContentProvider().setDemoOverrides(next).catch(() => {})
   },
 
   resetDemoSettings: async (name) => {
@@ -190,6 +175,6 @@ export const usePatternStore = create<PatternState>()((set, get) => ({
       next = rest
       return { demoOverrides: next }
     })
-    if (next) await setSetting(DEMO_OVERRIDES_KEY, next).catch(() => {})
+    if (next) await getPersonalContentProvider().setDemoOverrides(next).catch(() => {})
   },
 }))

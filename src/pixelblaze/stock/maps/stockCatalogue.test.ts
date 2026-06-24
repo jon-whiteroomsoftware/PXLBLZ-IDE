@@ -1,7 +1,7 @@
 import { SOURCE_STOCK_MAPS, STOCK_MAP_SPECS, SEED_MAP_IDS, stockMapSpec } from './stockCatalogue'
-import { squarePlaneDims, widePlaneDims } from './plane'
-import { STAR_FACES, starShellNormals, starSurfaceRadius } from './starGeometry'
-import { evalMapSource } from './evalMapSource'
+import { squarePlaneDims, widePlaneDims } from '@/engine/maps/plane'
+import { STAR_FACES, starShellNormals, starSurfaceRadius } from '@/engine/maps/starGeometry'
+import { evalMapSource } from '@/engine/maps/evalMapSource'
 
 function mapById(id: string) {
   const m = SOURCE_STOCK_MAPS.find((m) => m.id === id)

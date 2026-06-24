@@ -1,11 +1,11 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { bundle } from '../../engine/bundle'
-import { loadPattern } from '../../engine/loadPattern'
-import { createShim, createFxShim, planeShimConfig } from '../../engine/shim'
-import { LIBRARIES } from '../libs'
+import { bundle } from '@/engine/bundle'
+import { loadPattern } from '@/engine/loadPattern'
+import { createShim, createFxShim, planeShimConfig } from '@/engine/shim'
+import { LIBRARIES } from '@/pixelblaze/libs'
 
-const here = join(process.cwd(), 'src/pixelblaze/demos')
+const here = join(process.cwd(), 'src/pixelblaze/stock/patterns')
 
 function runDemo(file: string, mode: 'fast' | 'fidelity' = 'fast') {
   const src = readFileSync(join(here, file), 'utf8')

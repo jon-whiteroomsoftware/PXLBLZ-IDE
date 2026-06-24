@@ -12,7 +12,7 @@
 import type { Settings, FidelityMode } from '@/engine/settings'
 import { DEV_DEFAULTS } from '@/engine/settings'
 import { resolveSettings, hybridWriteTarget } from '@/engine/resolveSettings'
-import { recommendedSettingsFor } from '@/pixelblaze/demos'
+import { recommendedSettingsFor } from '@/pixelblaze/stock/patterns'
 import type { ShapeId } from '@/engine/shapes'
 import type { SurfaceId } from '@/engine/surfaces'
 import { usePatternStore } from './patternStore'

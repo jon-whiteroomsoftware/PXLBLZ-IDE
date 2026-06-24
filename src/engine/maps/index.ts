@@ -16,7 +16,7 @@ export {
   SOURCE_STOCK_MAPS,
   SEED_MAP_IDS,
   stockMapSpec,
-} from './stockCatalogue'
+} from '@/pixelblaze/stock/maps/stockCatalogue'
 export {
   MAP_SKELETON,
   parseMapSource,

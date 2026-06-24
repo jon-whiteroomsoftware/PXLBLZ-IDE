@@ -1,6 +1,6 @@
 import type { Settings } from '@/engine/settings'
 
-const rawDemos = import.meta.glob('./demos/*.js', {
+const rawDemos = import.meta.glob('./patterns/*.js', {
   query: '?raw',
   import: 'default',
   eager: true,
@@ -8,7 +8,7 @@ const rawDemos = import.meta.glob('./demos/*.js', {
 
 export const DEMOS: Record<string, string> = Object.fromEntries(
   Object.entries(rawDemos).map(([path, src]) => {
-    const name = path.replace('./demos/', '').replace('.js', '')
+    const name = path.replace('./patterns/', '').replace('.js', '')
     return [name, src as string]
   }),
 )
@@ -63,6 +63,7 @@ export const RECOMMENDED_SETTINGS: Record<string, Partial<Settings>> = {
   ShaderShowcase: { mapId: 'plane', surfaceId: 'flat', pixelCount: 2048, normalize: 'fill', brightness: 1, lightSize: 0.70, diffusion: 0.96 },
   SignalMandala: { mapId: 'plane', surfaceId: 'flat', pixelCount: 2048, normalize: 'fill', brightness: 1, lightSize: 0.85, diffusion: 0.54 },
   StainedGlassWeather: { mapId: 'plane', surfaceId: 'cylinder', pixelCount: 1024, normalize: 'contain', brightness: 0.9, lightSize: 0.55, diffusion: 0.75, solidity: 0.82 },
+  TempestVolume3D: { mapId: 'cube', pixelCount: 1728, normalize: 'fill', brightness: 0.9, lightSize: 0.66, diffusion: 0.72, solidity: 1 },
   TopographicBloom: { mapId: 'plane', surfaceId: 'flat', pixelCount: 1024, normalize: 'fill', brightness: 0.9, lightSize: 0.85, diffusion: 0.64 },
   ZippyZaps: { mapId: 'plane', surfaceId: 'flat', pixelCount: 1024, normalize: 'fill', brightness: 0.9, lightSize: 0.85, diffusion: 0.72 },
 

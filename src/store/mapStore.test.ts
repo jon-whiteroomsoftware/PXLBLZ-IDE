@@ -17,8 +17,10 @@ import {
 } from './mapStore'
 import { useEditorStore, editorInitialState } from './editorStore'
 import { MAP_SKELETON } from '@/engine/maps'
+import { resetPersonalContentProvider } from '@/engine/personalContentProvider'
 
 beforeEach(() => {
+  resetPersonalContentProvider()
   useMapStore.setState(mapInitialState)
   useEditorStore.setState(editorInitialState)
 })
@@ -312,6 +314,16 @@ describe('editor map mode (#151)', () => {
     await useMapStore.getState().removeMap('cm1')
     expect(useMapStore.getState().editingMap).toBeNull()
     expect(useEditorStore.getState().editorFlavor).toBe('pattern')
+  })
+
+  it('skips unchanged baked map writes so autosave ticks do not rewrite workspace files', async () => {
+    useMapStore.setState({ userMaps: [CUSTOM_MAP], editingMap: { kind: 'existing', id: 'cm1' } })
+    useEditorStore.setState({ source: CUSTOM_MAP.source!, editorFlavor: 'map' })
+
+    await useMapStore.getState().bakeEditingMap()
+
+    expect(useMapStore.getState().userMaps[0].updatedAt).toBe(2000)
+    expect(useMapStore.getState().mapEvalError).toBeNull()
   })
 })
 

@@ -78,7 +78,7 @@ function, and the device's own web UI remains the place for device management.
 - **Header** — the PXLBLZ wordmark and the **Libraries** menu on the left
   (authoring reference); the **Controller** connection surface on the right
   (hardware).
-- **Left rail** — your patterns and maps, plus the shipped demos and stock maps,
+- **Left rail** — your patterns and maps, plus Built-in Patterns and Stock Maps,
   with a dimension filter and name search (§10).
 - **Editor pane** (centre) — Monaco, in pattern mode or map mode (§9).
 - **Preview pane** (right) — the animated canvas, a play/pause transport row, and
@@ -150,14 +150,22 @@ re-bake automatically as you edit (the same once-at-save evaluation hardware doe
 but never change the running preview on their own; you assign a map to a pattern
 with the preview's Map control.
 
-## 5. Patterns, demos, and libraries
+## 5. Patterns, built-ins, and libraries
 
 The left rail holds **Your patterns** (stored in this browser, no account or
-cloud), **Demos** (read-only, runnable examples — shader ports, eased sweeps,
-noise fields, test patterns), and in Maps mode **Your maps** and **Stock maps**. A
-new pattern starts from a runnable animated starter; any demo or stock map can be
-**cloned** into an editable copy. Demos can open with a recommended map, pixel
-count, and solidity — defaults only, everything stays switchable (§8).
+cloud), **Built-in Patterns** (read-only, runnable examples — shader ports, eased
+sweeps, noise fields, test patterns), and in Maps mode **Your maps** and **Stock
+maps**. When you run the IDE on localhost, **Your patterns** and **Your maps** can
+instead be backed by repo files under `personal/patterns/` and `personal/maps/`;
+the section titles become **Workspace Patterns/Maps** when that mode is active, or
+**Browser Patterns/Maps** when localhost cannot reach the dev workspace API. Public
+GitHub Pages users keep browser-local storage. Existing browser records are not
+migrated into workspace files automatically.
+
+A new pattern starts from a runnable animated starter; any built-in pattern or
+stock map can be **cloned** into an editable copy. Built-in patterns can open
+with a recommended map, pixel count, and solidity — defaults only, everything
+stays switchable (§8).
 
 The bundled **libraries** live in the header's Libraries menu — click one to view
 its source read-only, hover for its API reference:

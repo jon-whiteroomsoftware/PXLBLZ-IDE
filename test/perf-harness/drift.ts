@@ -2,7 +2,7 @@
 // emulator frame window and reports "how different" they are, not just whether
 // their checksums match.
 //
-//   npm run drift -- /tmp/base.js src/pixelblaze/demos/Kishimisu.js
+//   npm run drift -- /tmp/base.js src/pixelblaze/stock/patterns/Kishimisu.js
 //   npm run drift -- Kishimisu /tmp/Kishimisu.fast.js --mode precise
 
 import { existsSync, readFileSync, readdirSync } from 'node:fs'
@@ -18,7 +18,7 @@ import {
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const ROOT = join(HERE, '../..')
-const DEMOS_DIR = join(ROOT, 'src/pixelblaze/demos')
+const DEMOS_DIR = join(ROOT, 'src/pixelblaze/stock/patterns')
 const LIB_DIR = join(ROOT, 'src/pixelblaze/lib')
 
 function loadLibraries(): Record<string, string> {

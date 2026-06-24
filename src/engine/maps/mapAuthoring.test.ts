@@ -5,7 +5,7 @@ import {
   isPristineToBaseline,
   mapTemplates,
 } from './mapAuthoring'
-import { STOCK_MAP_SPECS } from './stockCatalogue'
+import { STOCK_MAP_SPECS } from '@/pixelblaze/stock/maps/stockCatalogue'
 
 describe('MAP_SKELETON', () => {
   it('is a valid map source that parses good', () => {

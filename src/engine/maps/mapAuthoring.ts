@@ -1,6 +1,6 @@
 import * as acorn from 'acorn'
 import type { MapRecord } from '../storage'
-import { STOCK_MAP_SPECS } from './stockCatalogue'
+import { STOCK_MAP_SPECS } from '@/pixelblaze/stock/maps/stockCatalogue'
 
 // The editor "map mode" authoring layer (#151). A custom map's source
 // is plain JavaScript — a single anonymous `function(pixelCount){ … return

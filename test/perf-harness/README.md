@@ -66,7 +66,7 @@ steps, or replacing a smooth curve with a cheaper one.
 
 ```bash
 npm run drift -- Kishimisu /tmp/Kishimisu.lossy.js
-npm run drift -- /tmp/base.js src/pixelblaze/demos/ZippyZaps.js --mode precise
+npm run drift -- /tmp/base.js src/pixelblaze/stock/patterns/ZippyZaps.js --mode precise
 npm run drift -- PhantomStar /tmp/PhantomStar.fast.js --frames 8 --grid 16x16
 ```
 
@@ -171,7 +171,7 @@ PIXELBLAZE_IP=192.168.8.224 npm run devbench -- a.js b.js --settle 4000 --sample
 ```
 
 A handy before/after recipe is to diff the committed version against your working
-tree: `git show HEAD:src/pixelblaze/demos/Kishimisu.js > /tmp/base.js`, then
+tree: `git show HEAD:src/pixelblaze/stock/patterns/Kishimisu.js > /tmp/base.js`, then
 `npm run devbench -- /tmp/base.js Kishimisu`.
 
 ### How it works (and why it needs no Chrome extension)

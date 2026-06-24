@@ -1,4 +1,4 @@
-import { DEMOS } from '@/pixelblaze/demos'
+import { DEMOS } from '@/pixelblaze/stock/patterns'
 import type { PatternRecord } from '@/engine/storage'
 
 // Resolve a pattern NAME to its source code, looking across the built-in demos and

@@ -1,5 +1,5 @@
 import { bundle } from '@/engine/bundle'
-import { DEMOS } from './demos'
+import { DEMOS } from './stock/patterns'
 import { LIBRARIES } from './libs'
 import { CONTROL_DESCRIPTIONS, withControlDescriptions } from './controlDescriptions'
 

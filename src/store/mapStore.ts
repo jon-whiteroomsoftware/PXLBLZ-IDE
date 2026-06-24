@@ -1,11 +1,7 @@
 import { create } from 'zustand'
-import {
-  MapRecord,
-  createMap,
-  listMaps,
-  updateMap,
-  deleteMap,
-} from '@/engine/storage'
+import type { MapRecord } from '@/engine/storage'
+import { getPersonalContentProvider } from '@/engine/personalContentProvider'
+import { newPersonalContentId } from '@/engine/personalContentMetadata'
 import {
   createCustomMap,
   createSourceMap,
@@ -331,7 +327,7 @@ export const useMapStore = create<MapState>()((set, get) => ({
     // no save step (#151 follow-up). The skeleton is the authoring source; dim is
     // a 2D placeholder and there are no baked points yet (source eval/bake is
     // #143). Persist, then open it in map mode like any existing map.
-    const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+    const id = newPersonalContentId()
     const name = uniquePatternName('Untitled Map', get().userMaps.map((m) => m.name))
     const record: MapRecord = {
       id,
@@ -374,7 +370,7 @@ export const useMapStore = create<MapState>()((set, get) => ({
   cloneStockMap: async (id) => {
     const spec = stockMapSpec(id)
     if (!spec) return
-    const recordId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+    const recordId = newPersonalContentId()
     const name = uniquePatternName(`${spec.name} copy`, get().userMaps.map((m) => m.name))
     const updatedAt = Date.now()
     const baked = bakeMapSource(spec.source, get().activePixelCount ?? DEFAULT_MAP_BAKE_COUNT)
@@ -405,6 +401,11 @@ export const useMapStore = create<MapState>()((set, get) => ({
     if (editingMap?.kind !== 'existing') return
     const id = editingMap.id
     const source = useEditorStore.getState().source
+    const existing = get().userMaps.find((m) => m.id === id)
+    if (existing?.source === source && existing.points && existing.points.length > 0) {
+      set({ mapEvalError: null })
+      return
+    }
     const updatedAt = Date.now()
     try {
       const baked = bakeMapSource(source, get().activePixelCount ?? DEFAULT_MAP_BAKE_COUNT)
@@ -417,7 +418,7 @@ export const useMapStore = create<MapState>()((set, get) => ({
         gridDims: baked.gridDims ?? undefined,
         updatedAt,
       }
-      await updateMap(id, patch)
+      await getPersonalContentProvider().updateMap(id, patch)
       set((s) => ({
         mapEvalError: null,
         userMaps: s.userMaps.map((m) => (m.id === id ? { ...m, ...patch } : m)),
@@ -425,7 +426,7 @@ export const useMapStore = create<MapState>()((set, get) => ({
     } catch (e) {
       // Parses but fails to evaluate: keep the edits (persist source), keep any
       // prior good bake, and surface the error rather than crashing the preview.
-      await updateMap(id, { source, updatedAt }).catch(() => {})
+      await getPersonalContentProvider().updateMap(id, { source, updatedAt }).catch(() => {})
       set((s) => ({
         mapEvalError: (e as Error).message,
         userMaps: s.userMaps.map((m) => (m.id === id ? { ...m, source, updatedAt } : m)),
@@ -447,28 +448,29 @@ export const useMapStore = create<MapState>()((set, get) => ({
     // are now stock (in STOCK_MAPS), so prune any rows an earlier build seeded
     // into the IDB `maps` store before they were relocated — otherwise they'd
     // show up duplicated under "Your Maps".
-    const existing = await listMaps()
+    const provider = getPersonalContentProvider()
+    const existing = await provider.listMaps()
     const stale = existing.filter((m) => SEED_MAP_IDS.includes(m.id))
-    for (const m of stale) await deleteMap(m.id)
+    for (const m of stale) await provider.deleteMap(m.id)
     const maps = stale.length ? existing.filter((m) => !SEED_MAP_IDS.includes(m.id)) : existing
     set({ userMaps: maps.sort((a, b) => b.updatedAt - a.updatedAt) })
   },
 
   addMap: async (record) => {
-    await createMap(record)
+    await getPersonalContentProvider().createMap(record)
     set((s) => ({ userMaps: [record, ...s.userMaps] }))
   },
 
   renameMap: async (id, name) => {
     const updatedAt = Date.now()
-    await updateMap(id, { name, updatedAt })
+    await getPersonalContentProvider().updateMap(id, { name, updatedAt })
     set((s) => ({
       userMaps: s.userMaps.map((m) => (m.id === id ? { ...m, name, updatedAt } : m)),
     }))
   },
 
   removeMap: async (id) => {
-    await deleteMap(id)
+    await getPersonalContentProvider().deleteMap(id)
     const { activeMapId, userMaps, editingMap } = get()
     set({
       userMaps: userMaps.filter((m) => m.id !== id),
