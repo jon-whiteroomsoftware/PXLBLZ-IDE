@@ -180,6 +180,9 @@ export function SendToController() {
   // working states barely dim (the amber spinner / check carries them).
   const working = pushing || !!pushResult?.ok
   const dimClass = working ? 'opacity-95' : 'disabled:opacity-30'
+  const modeDisabled = status.kind !== 'connected' || working
+  const runTitle = modeDisabled && reason ? reason : 'Run transiently on the Controller'
+  const saveTitle = modeDisabled && reason ? reason : "Save to the Controller's Saved Patterns"
 
   const modeSelector = (
     <span
@@ -192,9 +195,10 @@ export function SendToController() {
         role="radio"
         aria-checked={!saveArmed}
         aria-label="Run on Controller"
-        title="Run transiently on the Controller"
+        title={runTitle}
+        disabled={modeDisabled}
         onClick={() => setSaveArmed(false)}
-        className={`h-full px-2 text-xs transition-colors ${
+        className={`h-full px-2 text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
           !saveArmed
             ? 'bg-zinc-700/80 text-zinc-100'
             : 'text-zinc-500 hover:bg-zinc-800/70 hover:text-zinc-300'
@@ -207,10 +211,11 @@ export function SendToController() {
         role="radio"
         aria-checked={saveArmed}
         aria-label="Save to Controller"
-        title="Save to the Controller's Saved Patterns"
+        title={saveTitle}
+        disabled={modeDisabled}
         onClick={() => setSaveArmed(true)}
         data-testid="save-toggle"
-        className={`h-full border-l border-zinc-800 px-2 text-xs transition-colors ${
+        className={`h-full border-l border-zinc-800 px-2 text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
           saveArmed
             ? 'bg-amber-500/15 text-amber-300'
             : 'text-zinc-500 hover:bg-zinc-800/70 hover:text-zinc-300'

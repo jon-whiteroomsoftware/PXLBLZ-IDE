@@ -29,8 +29,14 @@ describe('SendToController', () => {
   it('is disabled with an explanation when no Controller is connected', () => {
     render(<SendToController />)
     const button = screen.getByTestId('send-to-controller')
+    const runToggle = screen.getByRole('radio', { name: /run on controller/i })
+    const saveToggle = screen.getByRole('radio', { name: /save to controller/i })
     expect(button).toBeDisabled()
     expect(button).toHaveAttribute('title', expect.stringMatching(/connect a controller/i))
+    expect(runToggle).toBeDisabled()
+    expect(saveToggle).toBeDisabled()
+    expect(runToggle).toHaveAttribute('title', expect.stringMatching(/connect a controller/i))
+    expect(saveToggle).toHaveAttribute('title', expect.stringMatching(/connect a controller/i))
   })
 
   it('is enabled when connected and the dimensions match', () => {
