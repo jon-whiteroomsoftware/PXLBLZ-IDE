@@ -1,8 +1,11 @@
 import {
   browserPersonalContentProvider,
   getPersonalContentProvider,
+  personalContentCollectionLabel,
   resetPersonalContentProvider,
+  resolvePersonalContentProviderMode,
   setPersonalContentProvider,
+  storageModeForPersonalContentProvider,
   type PersonalContentProvider,
 } from './personalContentProvider'
 import { resetDbCache, type MapRecord, type PatternRecord } from './storage'
@@ -56,6 +59,17 @@ describe('personal content provider seam', () => {
     expect(getPersonalContentProvider()).toBe(provider)
     resetPersonalContentProvider()
     expect(getPersonalContentProvider()).toBe(browserPersonalContentProvider)
+  })
+
+  it('resolves provider modes and labels storage-backed collections', () => {
+    expect(resolvePersonalContentProviderMode('workspace')).toBe('workspace')
+    expect(resolvePersonalContentProviderMode('anything-else')).toBe('browser')
+    expect(storageModeForPersonalContentProvider(browserPersonalContentProvider)).toBe('browser')
+    expect(storageModeForPersonalContentProvider({ id: 'workspace-files' })).toBe('workspace')
+    expect(storageModeForPersonalContentProvider({ id: 'remote-api' })).toBe('api')
+    expect(personalContentCollectionLabel('browser', 'patterns')).toBe('Your Patterns')
+    expect(personalContentCollectionLabel('workspace', 'maps')).toBe('Workspace Maps')
+    expect(personalContentCollectionLabel('api', 'patterns')).toBe('Cloud Patterns')
   })
 
   it('browser provider preserves pattern, map, last-active, and demo-override storage', async () => {

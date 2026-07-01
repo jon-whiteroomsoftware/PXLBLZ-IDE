@@ -6,9 +6,15 @@ import { nameConflicts, uniquePatternName } from '@/engine/patternName'
 import { NEW_PATTERN_SRC } from '@/pixelblaze/newPattern'
 import { parseEpe } from '@/engine/epeImport'
 import { nativeDim, matchesLens, matchesQuery, type DimLens } from '@/engine/dimLens'
-import { getPersonalContentProvider, initializePersonalContentProvider } from '@/engine/personalContentProvider'
+import {
+  getPersonalContentProvider,
+  initializePersonalContentProvider,
+  personalContentCollectionLabel,
+  resolvePersonalContentProviderMode,
+  storageModeForPersonalContentProvider,
+  type PersonalContentStorageMode,
+} from '@/engine/personalContentProvider'
 import { newPersonalContentId } from '@/engine/personalContentMetadata'
-import { canUseWorkspaceProvider } from '@/engine/workspacePersonalContentProvider'
 import { useEditorStore } from '@/store/editorStore'
 import { usePatternStore, PatternRecord } from '@/store/patternStore'
 import { useMapStore, MapRecord, STOCK_MAP_ITEMS } from '@/store/mapStore'
@@ -41,7 +47,7 @@ function newPatternRecord(name: string, src: string): PatternRecord {
 const DEMO_NAMES = Object.keys(DEMOS).sort()
 const DEFAULT_DEMO_NAME = 'IridescentFibers'
 const STOCK_PATTERNS_LABEL = 'Built-in Patterns'
-type PersonalStorageMode = 'workspace' | 'fallback' | null
+const PERSONAL_CONTENT_PROVIDER_MODE = resolvePersonalContentProviderMode(import.meta.env.VITE_PERSONAL_CONTENT_PROVIDER)
 
 const OPENGL_DEMOS = ['Kishimisu', 'NeonSquircles', 'ZippyZaps', 'IQPalettes', 'PhantomStar', 'IridescentFibers']
 const BRAND_NEW_DEMOS = ['PlasmaNebula', 'Caustics', 'AuroraSphere', 'NebulaSphere', 'ShaderShowcase']
@@ -749,7 +755,7 @@ export function PatternList() {
   const scrollRef = useRef<HTMLDivElement>(null)
   const patternRowRefs = useRef(new Map<string, HTMLLIElement>())
   const [scrollMetrics, setScrollMetrics] = useState<ScrollMetrics>({ top: 0, height: 0, visible: false })
-  const [personalStorageMode, setPersonalStorageMode] = useState<PersonalStorageMode>(null)
+  const [personalStorageMode, setPersonalStorageMode] = useState<PersonalContentStorageMode>('browser')
   const query = queries[railMode]
   const setQuery = (next: string) => setQueries((q) => ({ ...q, [railMode]: next }))
 
@@ -776,9 +782,9 @@ export function PatternList() {
   useEffect(() => {
     let cancelled = false
     async function hydratePersonalContent() {
-      const provider = await initializePersonalContentProvider()
+      const provider = await initializePersonalContentProvider({ mode: PERSONAL_CONTENT_PROVIDER_MODE })
       if (cancelled) return
-      setPersonalStorageMode(canUseWorkspaceProvider() ? (provider.id === 'workspace-files' ? 'workspace' : 'fallback') : null)
+      setPersonalStorageMode(storageModeForPersonalContentProvider(provider))
       // Hydrate user maps before the first pattern opens so the layout selector is
       // populated from whichever personal provider won startup selection.
       await useMapStore.getState().loadMaps()
@@ -898,18 +904,8 @@ export function PatternList() {
   const isCollapsed = (label: string) => !searching && !!collapsedSections[label]
   const toggleCollapsed = (label: string) =>
     setCollapsedSections((c) => ({ ...c, [label]: !c[label] }))
-  const personalPatternsLabel =
-    personalStorageMode === 'workspace'
-      ? 'Workspace Patterns'
-      : personalStorageMode === 'fallback'
-        ? 'Browser Patterns'
-        : 'Your Patterns'
-  const personalMapsLabel =
-    personalStorageMode === 'workspace'
-      ? 'Workspace Maps'
-      : personalStorageMode === 'fallback'
-        ? 'Browser Maps'
-        : 'Your Maps'
+  const personalPatternsLabel = personalContentCollectionLabel(personalStorageMode, 'patterns')
+  const personalMapsLabel = personalContentCollectionLabel(personalStorageMode, 'maps')
   const visibleUserPatterns = userPatterns.filter(
     (pattern) =>
       matchesLens(nativeDim(pattern.src), dimLens) && matchesQuery(pattern.name, query),

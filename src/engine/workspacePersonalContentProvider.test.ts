@@ -69,8 +69,19 @@ describe('workspace personal content provider', () => {
     expect(fetchFn).toHaveBeenCalledWith('/__personal-content/maps/m1', expect.objectContaining({ method: 'DELETE' }))
   })
 
-  it('selects the workspace provider on localhost when the API is available', async () => {
+  it('keeps browser storage by default even on localhost when the workspace API is available', async () => {
     const provider = await initializePersonalContentProvider({
+      location: { hostname: '[::1]' },
+      fetchFn: okFetch({ ok: true, patterns: [], maps: [] }),
+    })
+
+    expect(provider).toBe(browserPersonalContentProvider)
+    expect(getPersonalContentProvider()).toBe(browserPersonalContentProvider)
+  })
+
+  it('selects the workspace provider on localhost only when explicitly requested', async () => {
+    const provider = await initializePersonalContentProvider({
+      mode: 'workspace',
       location: { hostname: '[::1]' },
       fetchFn: okFetch({ ok: true, patterns: [], maps: [] }),
     })
@@ -88,6 +99,7 @@ describe('workspace personal content provider', () => {
 
     const failingFetch = vi.fn().mockResolvedValue({ ok: false, status: 404 }) as unknown as typeof fetch
     const fallback = await initializePersonalContentProvider({
+      mode: 'workspace',
       location: { hostname: 'localhost' },
       fetchFn: failingFetch,
     })

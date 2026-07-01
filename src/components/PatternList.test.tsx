@@ -50,21 +50,22 @@ async function switchToMaps(user: ReturnType<typeof userEvent.setup>) {
 }
 
 describe('PatternList', () => {
-  it('labels personal sections as workspace-backed on localhost when the workspace API is available', async () => {
+  it('labels personal sections as user-owned browser content by default', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({ ok: true, patterns: [], maps: [] }),
     }))
     render(<PatternList />)
 
-    expect(await screen.findByText('Workspace Patterns')).toBeInTheDocument()
+    expect(await screen.findByText('Your Patterns')).toBeInTheDocument()
   })
 
-  it('labels personal sections as browser-backed on localhost when the workspace API is unavailable', async () => {
+  it('does not expose workspace labels when the workspace provider is not explicitly requested', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 404 }))
     render(<PatternList />)
 
-    expect(await screen.findByText('Browser Patterns')).toBeInTheDocument()
+    expect(await screen.findByText('Your Patterns')).toBeInTheDocument()
+    expect(screen.queryByText('Workspace Patterns')).not.toBeInTheDocument()
   })
 
   it('opens IridescentFibers for visitors without a saved last-active pattern', async () => {
@@ -197,7 +198,7 @@ describe('PatternList', () => {
     await user.type(screen.getByRole('textbox', { name: /search by name/i }), 'nope')
     expect(screen.queryByText('My Tree')).not.toBeInTheDocument()
     // Header stays, but the genuine-empty message must not appear.
-    expect(screen.getByText('Browser Maps')).toBeInTheDocument()
+    expect(screen.getByText('Your Maps')).toBeInTheDocument()
     expect(screen.queryByText('No custom maps yet')).not.toBeInTheDocument()
   })
 

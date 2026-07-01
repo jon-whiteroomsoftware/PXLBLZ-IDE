@@ -505,20 +505,22 @@ field: never cascaded, persisted on its own.
 Patterns** and **Your Maps**. Exactly one personal content provider is active at a
 time:
 
-- **Browser provider** (production/GitHub Pages and localhost fallback): IndexedDB
+- **Browser provider** (production, Cloudflare/GitHub Pages, and default localhost): IndexedDB
   database `pixelblaze-ide` (version 2), with `patterns`, `settings`, and `maps`
   stores.
-- **Workspace provider** (localhost only, when the Vite dev API responds): reads
-  and writes repo files under `personal/patterns/` and `personal/maps/`.
+- **Workspace provider** (explicit localhost development opt-in): reads and
+  writes repo files under `personal/patterns/` and `personal/maps/` when
+  `VITE_PERSONAL_CONTENT_PROVIDER=workspace` and the Vite dev API responds.
   `personal/controllers/` and `personal/bindings/` exist only as reserved future
   homes; no hardware binding/code-injection behavior ships here.
 
-Provider selection probes `GET /__personal-content` during left-rail startup.
-Public builds do not expose the workspace API, and localhost falls back to browser
-storage if the API is missing. The UI still shows one **Your Patterns** and one
-**Your Maps** surface; it does not split browser and workspace content. On
-localhost, the personal section titles become **Workspace Patterns/Maps** or
-**Browser Patterns/Maps** to name the active backing store.
+Provider selection defaults to browser storage. Workspace mode probes
+`GET /__personal-content` during left-rail startup only after explicit opt-in; if
+the API is missing or the app is not running on localhost, selection falls back to
+browser storage. The UI still shows one **Your Patterns** and one **Your Maps**
+surface; it does not split browser and workspace content. When workspace mode is
+active, the personal section titles become **Workspace Patterns/Maps** to name the
+active backing store.
 Existing IndexedDB records are not migrated into files automatically.
 
 `PatternRecord` carries the per-pattern overrides in a sparse

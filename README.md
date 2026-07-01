@@ -90,6 +90,15 @@ npm run dev
 
 The normal development server runs at `http://localhost:5174/`.
 
+Personal patterns/maps use browser-local IndexedDB by default. To opt into the
+dev-only repo-file storage provider, start Vite with:
+
+```bash
+VITE_PERSONAL_CONTENT_PROVIDER=workspace npm run dev
+```
+
+That mode reads/writes `personal/patterns/` and `personal/maps/`.
+
 Useful checks:
 
 ```bash
