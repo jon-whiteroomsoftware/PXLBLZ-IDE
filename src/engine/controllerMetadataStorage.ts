@@ -79,8 +79,19 @@ export interface ControllerMetadataStorageInitOptions {
   mode?: ControllerMetadataStorageMode
 }
 
-export function resolveControllerMetadataStorageMode(raw: string | undefined): ControllerMetadataStorageMode {
-  return raw === 'remote-api' ? 'remote-api' : 'browser'
+export interface ControllerMetadataStorageModeContext {
+  prod?: boolean
+  baseUrl?: string
+}
+
+export function resolveControllerMetadataStorageMode(
+  raw: string | undefined,
+  context: ControllerMetadataStorageModeContext = {},
+): ControllerMetadataStorageMode {
+  if (raw === 'browser') return 'browser'
+  if (raw === 'remote-api') return 'remote-api'
+  if (context.prod && context.baseUrl === '/') return 'remote-api'
+  return 'browser'
 }
 
 export async function initializeControllerMetadataStorage(
@@ -90,7 +101,10 @@ export async function initializeControllerMetadataStorage(
     activeStorage = options.storage
     return activeStorage
   }
-  const mode = options.mode ?? resolveControllerMetadataStorageMode(import.meta.env.VITE_PERSONAL_CONTENT_PROVIDER)
+  const mode = options.mode ?? resolveControllerMetadataStorageMode(import.meta.env.VITE_PERSONAL_CONTENT_PROVIDER, {
+    prod: import.meta.env.PROD,
+    baseUrl: import.meta.env.BASE_URL,
+  })
   activeStorage = mode === 'remote-api'
     ? createRemoteControllerMetadataStorage()
     : browserControllerMetadataStorage

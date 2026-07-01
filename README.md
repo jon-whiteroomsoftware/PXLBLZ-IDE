@@ -8,7 +8,7 @@ your desk, then push the result to hardware when you are ready.
 The IDE can be run from the link below and is fully functional. If you later
 want to connect to a controller, install the companion Chrome extension.
 
-**[Open PXLBLZ-IDE](https://jon-whiteroomsoftware.github.io/PXLBLZ-IDE/)**
+**[Open PXLBLZ-IDE](https://pxlblz-ide.pages.dev/)**
 
 ## Why it exists
 
@@ -73,8 +73,10 @@ Open the **Code** menu in the app header for source and hover summaries.
 
 ## Good to know
 
-- Patterns, maps, and demo setting overrides are stored in this browser's
-  IndexedDB. **Clearing site data clears that local workspace.**
+- The Cloudflare deployment stores signed-in personal patterns, maps, settings,
+  and controller metadata in D1. Signed-out use and local development fall back
+  to this browser's IndexedDB. **Clearing site data clears only that local
+  fallback workspace.**
 - If the app does not reconnect to a Pixelblaze Controller when it opens, reload
   the browser window first. If it still does not pick up, manually disconnect and
   reconnect from the Controller menu.
@@ -90,7 +92,8 @@ npm run dev
 
 The normal development server runs at `http://localhost:5174/`.
 
-Personal patterns/maps use browser-local IndexedDB.
+Personal patterns/maps use browser-local IndexedDB in local development unless
+you explicitly run a Cloudflare-style build with remote storage enabled.
 
 Useful checks:
 
@@ -110,15 +113,9 @@ Local development and builds without that variable do not load Google Analytics.
 ### Cloudflare Pages deployment
 
 GitHub Pages serves this app under `/PXLBLZ-IDE/`, but Cloudflare Pages serves it
-from the site root. Set this Cloudflare Pages environment variable:
-
-```txt
-VITE_BASE_PATH=/
-```
-
-The repo also has the initial Cloudflare D1 foundation for the future
-cloud-backed personal storage provider. The current shipped app still uses
-browser-local IndexedDB until the auth/API cutover work lands.
+from the site root. Root production builds default to the authenticated
+D1-backed provider; GitHub Pages-style builds and localhost default to
+browser-local IndexedDB.
 
 The D1 binding is named `PXLBLZ_DB` in `wrangler.jsonc`, and points at the
 Cloudflare database named `pxlblz-ide`. Apply the schema migration with:
@@ -139,10 +136,19 @@ npm run cf:dev
 Then visit `/api/d1/health`; a migrated D1 binding returns
 `{"ok":true,"schemaVersion":"1"}`.
 
+The tracked Wrangler configuration also sets:
+
+```txt
+VITE_BASE_PATH=/
+VITE_PERSONAL_CONTENT_PROVIDER=remote-api
+```
+
+Set `VITE_PERSONAL_CONTENT_PROVIDER=browser` in an explicit local environment
+when you want to force browser-local fallback in a production-style build.
+
 ### Cloudflare GitHub OAuth
 
-The backend has GitHub OAuth/session endpoints for the future cloud-backed
-storage provider:
+The backend uses GitHub OAuth/session endpoints for cloud-backed storage:
 
 - `GET /api/auth/login` starts GitHub OAuth.
 - `GET /api/auth/callback` exchanges the GitHub code, upserts the user in D1,
@@ -177,21 +183,13 @@ GITHUB_OAUTH_REDIRECT_URI  # optional override, useful for local testing
 `SESSION_SECRET` should be a long random value, for example from
 `openssl rand -base64 32`. When either allow-list variable is set, only matching
 GitHub users can sign in. With neither allow-list set, any GitHub user can
-authenticate, though personal-content CRUD is not wired to the backend until the
-next storage issues land.
+authenticate. Signed-in users read and write personal patterns through
+`/api/patterns`, personal maps through `/api/maps`, provider-owned settings
+through `/api/settings/:key`, and controller metadata through
+`/api/controller-metadata/:key`.
 
-Cloud-backed personal patterns, custom maps, last-active state, and demo
-overrides are available behind an explicit frontend flag:
-
-```txt
-VITE_PERSONAL_CONTENT_PROVIDER=remote-api
-```
-
-Leave that unset for the default browser-local IndexedDB behavior. When enabled,
-signed-in users read and write personal patterns through `/api/patterns`,
-personal maps through `/api/maps`, and provider-owned settings through
-`/api/settings/:key`. Controller metadata remains browser-local until its D1
-storage slice lands.
+For production smoke checks, D1 inspection, exports, and restore notes, see
+**[Cloudflare Operations](docs/reference/Cloudflare%20Operations.md)**.
 
 ## Documentation
 
@@ -202,6 +200,8 @@ storage slice lands.
 - **[PXLBLZ Technical Reference](docs/reference/PXLBLZ%20Technical%20Reference.md)** -
   how the IDE is built: preview engine, maps, settings cascade, controller
   connection, storage, and the transpiler.
+- **[Cloudflare Operations](docs/reference/Cloudflare%20Operations.md)** -
+  how the production Pages/D1 deployment is configured, backed up, and smoked.
 
 ## Status
 

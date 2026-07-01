@@ -505,16 +505,19 @@ field: never cascaded, persisted on its own.
 Patterns** and **Your Maps**. Exactly one personal content provider is active at a
 time:
 
-- **Browser provider** (default, GitHub Pages fallback, and localhost):
+- **Browser provider** (default for localhost, explicit fallback, and
+  GitHub Pages-style builds):
   IndexedDB database `pixelblaze-ide` (version 2), with `patterns`, `settings`,
   and `maps` stores.
 - **Remote API provider**: a Cloudflare Pages Functions/D1-backed
   implementation selected by build-time configuration behind the same interface.
 
-Provider selection defaults to browser storage unless
-`VITE_PERSONAL_CONTENT_PROVIDER=remote-api` is set at build time. The UI shows
-one personal pattern surface and one personal map surface; it does not split
-local and remote content.
+Provider selection defaults to remote storage for root production builds
+(`import.meta.env.PROD` with `BASE_URL === '/'`) and browser storage elsewhere,
+unless `VITE_PERSONAL_CONTENT_PROVIDER=remote-api` or `browser` explicitly
+overrides it. The Cloudflare Pages config sets root base and remote storage; the
+local Vite dev server remains browser-local. The UI shows one personal pattern
+surface and one personal map surface; it does not split local and remote content.
 
 The Cloudflare D1 foundation is selected by the remote provider. The Wrangler
 binding is `PXLBLZ_DB`, backed by the `pxlblz-ide` database. The first
@@ -543,6 +546,9 @@ push metadata uses a sibling framework-free storage seam: overwrite bindings
 mode and fall back to IndexedDB settings in browser mode. All D1 helpers scope
 list/update/delete predicates by the signed session's `userId`. The UI labels
 remote-backed collections as **Cloud Patterns** and **Cloud Maps**.
+If `/api/me` reports no session at startup, the app presents a GitHub sign-in
+affordance in the header and falls back to browser-local storage until a session
+exists. No IndexedDB-to-D1 migration is attempted or implied.
 
 `PatternRecord` carries the per-pattern overrides in a sparse
 `settings?: Partial<Settings>` field — superseding older flat columns;

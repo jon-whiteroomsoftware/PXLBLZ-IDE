@@ -322,9 +322,10 @@ A primary **Patterns / Maps** switch, then a filter row combining two things:
   separately for Patterns and Maps; the lens is shared.
 
 The switch and filter row stay fixed; only the lists scroll. Your patterns and
-maps are created, renamed, and deleted by you, stored in the browser (IndexedDB) —
-persistent across sessions, no account. Delete lives in the editor header as a
-visible, confirmation-guarded action, with the rail hover action as a shortcut.
+maps are created, renamed, and deleted by you. On the Cloudflare deployment they
+live in your signed-in cloud workspace; signed-out use and local development fall
+back to browser IndexedDB. Delete lives in the editor header as a visible,
+confirmation-guarded action, with the rail hover action as a shortcut.
 
 ## 11. Controller reference
 

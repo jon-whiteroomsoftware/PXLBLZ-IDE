@@ -51,7 +51,10 @@ describe('controller metadata storage seam', () => {
   it('selects remote metadata storage only through explicit mode', async () => {
     expect(resolveControllerMetadataStorageMode(undefined)).toBe('browser')
     expect(resolveControllerMetadataStorageMode('remote-api')).toBe('remote-api')
+    expect(resolveControllerMetadataStorageMode('browser', { prod: true, baseUrl: '/' })).toBe('browser')
     expect(resolveControllerMetadataStorageMode('anything-else')).toBe('browser')
+    expect(resolveControllerMetadataStorageMode(undefined, { prod: true, baseUrl: '/' })).toBe('remote-api')
+    expect(resolveControllerMetadataStorageMode(undefined, { prod: true, baseUrl: '/PXLBLZ-IDE/' })).toBe('browser')
     await expect(initializeControllerMetadataStorage({ mode: 'browser' })).resolves.toBe(
       browserControllerMetadataStorage,
     )

@@ -10,10 +10,13 @@ import {
   getPersonalContentProvider,
   initializePersonalContentProvider,
   personalContentCollectionLabel,
+  resolvePersonalContentProviderMode,
   storageModeForPersonalContentProvider,
   type PersonalContentStorageMode,
+  type PersonalContentProviderMode,
 } from '@/engine/personalContentProvider'
 import { initializeControllerMetadataStorage } from '@/engine/controllerMetadataStorage'
+import { getAuthSession } from '@/engine/authSession'
 import { newPersonalContentId } from '@/engine/personalContentMetadata'
 import { useEditorStore } from '@/store/editorStore'
 import { usePatternStore, PatternRecord } from '@/store/patternStore'
@@ -781,8 +784,17 @@ export function PatternList() {
   useEffect(() => {
     let cancelled = false
     async function hydratePersonalContent() {
-      const provider = await initializePersonalContentProvider()
-      await initializeControllerMetadataStorage()
+      const desiredMode = resolvePersonalContentProviderMode(import.meta.env.VITE_PERSONAL_CONTENT_PROVIDER, {
+        prod: import.meta.env.PROD,
+        baseUrl: import.meta.env.BASE_URL,
+      })
+      let mode: PersonalContentProviderMode = desiredMode
+      if (desiredMode === 'remote-api') {
+        const session = await getAuthSession().catch(() => ({ authenticated: false as const }))
+        if (!session.authenticated) mode = 'browser'
+      }
+      const provider = await initializePersonalContentProvider({ mode })
+      await initializeControllerMetadataStorage({ mode })
       if (cancelled) return
       setPersonalStorageMode(storageModeForPersonalContentProvider(provider))
       // Hydrate user maps before the first pattern opens so the layout selector is

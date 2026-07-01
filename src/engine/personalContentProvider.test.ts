@@ -73,7 +73,10 @@ describe('personal content provider seam', () => {
   it('keeps browser storage as default and selects remote API only through explicit mode', async () => {
     expect(resolvePersonalContentProviderMode(undefined)).toBe('browser')
     expect(resolvePersonalContentProviderMode('remote-api')).toBe('remote-api')
+    expect(resolvePersonalContentProviderMode('browser', { prod: true, baseUrl: '/' })).toBe('browser')
     expect(resolvePersonalContentProviderMode('anything-else')).toBe('browser')
+    expect(resolvePersonalContentProviderMode(undefined, { prod: true, baseUrl: '/' })).toBe('remote-api')
+    expect(resolvePersonalContentProviderMode(undefined, { prod: true, baseUrl: '/PXLBLZ-IDE/' })).toBe('browser')
     await expect(initializePersonalContentProvider({ mode: 'browser' })).resolves.toBe(browserPersonalContentProvider)
     await expect(initializePersonalContentProvider({ mode: 'remote-api' })).resolves.toMatchObject({ id: 'remote-api' })
   })

@@ -94,8 +94,19 @@ export interface PersonalContentProviderInitOptions {
   mode?: PersonalContentProviderMode
 }
 
-export function resolvePersonalContentProviderMode(raw: string | undefined): PersonalContentProviderMode {
-  return raw === 'remote-api' ? 'remote-api' : 'browser'
+export interface PersonalContentProviderModeContext {
+  prod?: boolean
+  baseUrl?: string
+}
+
+export function resolvePersonalContentProviderMode(
+  raw: string | undefined,
+  context: PersonalContentProviderModeContext = {},
+): PersonalContentProviderMode {
+  if (raw === 'browser') return 'browser'
+  if (raw === 'remote-api') return 'remote-api'
+  if (context.prod && context.baseUrl === '/') return 'remote-api'
+  return 'browser'
 }
 
 export async function initializePersonalContentProvider(
@@ -105,7 +116,10 @@ export async function initializePersonalContentProvider(
     activeProvider = options.provider
     return activeProvider
   }
-  const mode = options.mode ?? resolvePersonalContentProviderMode(import.meta.env.VITE_PERSONAL_CONTENT_PROVIDER)
+  const mode = options.mode ?? resolvePersonalContentProviderMode(import.meta.env.VITE_PERSONAL_CONTENT_PROVIDER, {
+    prod: import.meta.env.PROD,
+    baseUrl: import.meta.env.BASE_URL,
+  })
   activeProvider = mode === 'remote-api'
     ? createRemotePersonalContentProvider()
     : browserPersonalContentProvider

@@ -3,6 +3,10 @@
   "name": "pxlblz-ide",
   "compatibility_date": "2026-06-30",
   "pages_build_output_dir": "./dist",
+  "vars": {
+    "VITE_BASE_PATH": "/",
+    "VITE_PERSONAL_CONTENT_PROVIDER": "remote-api"
+  },
   "d1_databases": [
     {
       "binding": "PXLBLZ_DB",

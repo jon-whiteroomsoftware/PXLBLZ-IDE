@@ -17,6 +17,7 @@ import { PatternList } from '@/components/PatternList'
 import { Preview } from '@/components/Preview'
 import { PaneHeader } from '@/components/PaneHeader'
 import { ControllerBar } from '@/components/ControllerBar'
+import { AuthStatus } from '@/components/AuthStatus'
 import { LibrariesMenu } from '@/components/LibrariesMenu'
 import { DocsMenu } from '@/components/DocsMenu'
 import { DocsReader } from '@/components/DocsReader'
@@ -208,6 +209,7 @@ export default function App() {
           </span>
         </span>
         <span className="ml-auto flex items-center gap-2.5">
+          <AuthStatus />
           <ControllerBar />
         </span>
       </header>
