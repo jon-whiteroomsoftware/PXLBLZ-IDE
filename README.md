@@ -116,6 +116,29 @@ from the site root. Set this Cloudflare Pages environment variable:
 VITE_BASE_PATH=/
 ```
 
+The repo also has the initial Cloudflare D1 foundation for the future
+cloud-backed personal storage provider. The current shipped app still uses
+browser-local IndexedDB until the auth/API cutover work lands.
+
+The D1 binding is named `PXLBLZ_DB` in `wrangler.jsonc`, and points at the
+Cloudflare database named `pxlblz-ide`. Apply the schema migration with:
+
+```bash
+npm run db:migrate:remote
+```
+
+That command requires Wrangler to be authenticated, either by running Wrangler in
+an interactive terminal that can log in, or by setting `CLOUDFLARE_API_TOKEN`.
+For local Cloudflare runtime checks after building:
+
+```bash
+npm run build
+npm run cf:dev
+```
+
+Then visit `/api/d1/health`; a migrated D1 binding returns
+`{"ok":true,"schemaVersion":"1"}`.
+
 ## Documentation
 
 - **[PXLBLZ Feature Guide](docs/reference/PXLBLZ%20Feature%20Guide.md)** - start

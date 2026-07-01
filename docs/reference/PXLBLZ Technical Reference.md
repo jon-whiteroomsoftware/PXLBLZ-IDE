@@ -515,6 +515,14 @@ Provider selection currently defaults to browser storage. The UI shows one
 **Your Patterns** and one **Your Maps** surface; it does not split local and
 remote content.
 
+The Cloudflare D1 foundation exists but is not yet selected by the app. The
+Wrangler binding is `PXLBLZ_DB`, backed by the `pxlblz-ide` database. The first
+migration creates user-scoped tables for personal patterns, personal maps,
+personal settings, and controller metadata, plus `app_metadata` for schema
+version probing. The Pages Function at `/api/d1/health` reads
+`app_metadata.schema_version` and reports whether the binding is reachable; it is
+only a backend foundation probe, not personal-content CRUD.
+
 `PatternRecord` carries the per-pattern overrides in a sparse
 `settings?: Partial<Settings>` field — superseding older flat columns;
 `migratePatternRecord` lifts pre-cascade records into the nested bag on read and

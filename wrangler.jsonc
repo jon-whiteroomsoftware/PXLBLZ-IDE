@@ -1,0 +1,14 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "pxlblz-ide",
+  "compatibility_date": "2026-06-30",
+  "pages_build_output_dir": "./dist",
+  "d1_databases": [
+    {
+      "binding": "PXLBLZ_DB",
+      "database_name": "pxlblz-ide",
+      "database_id": "df318f37-a9ce-4eef-9502-f09d75e4ef26",
+      "migrations_dir": "./migrations"
+    }
+  ]
+}
