@@ -5,7 +5,7 @@ import {
   type LastActive,
   getPersonalContentProvider,
 } from '@/engine/personalContentProvider'
-import type { PatternRecord } from '@/engine/storage'
+import type { PatternRecord } from '@/engine/personalContentRecords'
 import type { Settings } from '@/engine/settings'
 
 export type { LastActive, PatternRecord }
@@ -32,7 +32,7 @@ interface PatternState {
   removePattern: (id: string) => Promise<void>
   updatePatternSrc: (id: string, src: string) => Promise<void>
   // Sparse-merge per-pattern settings overrides (cascade layer 1) onto the
-  // record, in both IndexedDB and the in-memory list, so reopening restores them this
+  // record, in both D1 and the in-memory list, so reopening restores them this
   // session. Called from a control's own change handler on genuine manipulation —
   // never inferred by comparing a stored value to a default.
   updatePatternSettings: (id: string, patch: Partial<Settings>) => Promise<void>

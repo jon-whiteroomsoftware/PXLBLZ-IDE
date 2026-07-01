@@ -15,7 +15,8 @@ async function shootPreview(page: Page, info: TestInfo, name: string) {
  * Pre-push smoke test — NOT exhaustive. It drives the main UI pathways end to end
  * and asserts they still function: boot, load a 2D demo, change its surface embedding,
  * change brightness, load a 3D demo (recommended map applies, surface control drops
- * away), change the renderer, and create a new user pattern.
+ * away), change the renderer, and verify signed-out demo mode hides personal
+ * workspace actions.
  *
  * Selectors lean on accessible names (aria-label / role) which are the stablest
  * handles in this UI; the dropdowns are listbox buttons, demos are left-rail rows.
@@ -79,11 +80,12 @@ test('main UI pathways still function', async ({ page }, testInfo) => {
   await selectOption(page, 'Renderer', 'Precise')
   await expect(page.getByRole('button', { name: 'Renderer', exact: true })).toHaveText('Precise')
 
-  // --- Create a new user pattern: starts from the 2D starter, editable ---
-  await page.getByRole('button', { name: 'New pattern', exact: true }).click()
-  await expect(editor(page)).toContainText('Untitled Pattern')
-  // A user pattern is editable — no read-only Lock icon.
-  await expect(editor(page).getByRole('img', { name: 'read-only' })).toHaveCount(0)
+  // --- Signed-out demo mode: personal workspace creation is gated by auth ---
+  const rail = page.getByRole('complementary').first()
+  await expect(page.getByText('Cloud Patterns', { exact: true })).toBeVisible()
+  await expect(rail.getByRole('link', { name: 'Sign in', exact: true })).toHaveAttribute('href', '/api/auth/login')
+  await expect(page.getByRole('button', { name: 'New pattern', exact: true })).toHaveCount(0)
+  await expect(editor(page).getByRole('img', { name: 'read-only' })).toBeVisible()
 
   // Canvas still rendering after the whole sequence.
   await expect(preview(page).locator('canvas').first()).toBeVisible()

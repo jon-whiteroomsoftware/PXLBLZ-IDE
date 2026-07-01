@@ -152,11 +152,12 @@ with the preview's Map control.
 
 ## 5. Patterns, built-ins, and libraries
 
-The left rail holds **Your patterns** (stored in this browser, no account or
-cloud), **Built-in Patterns** (read-only, runnable examples — shader ports, eased
-sweeps, noise fields, test patterns), and in Maps mode **Your maps** and **Stock
-maps**. Public builds and localhost development both use browser-local storage
-until account-backed cloud storage is added.
+The left rail holds **Cloud Patterns** (your signed-in personal patterns),
+**Built-in Patterns** (read-only, runnable examples — shader ports, eased
+sweeps, noise fields, test patterns), and in Maps mode **Cloud Maps** and
+**Stock Maps**. Signed-out use is demo mode: built-ins, stock maps, libraries,
+docs, and preview controls remain usable, while durable personal resources wait
+for sign-in.
 
 A new pattern starts from a runnable animated starter; any built-in pattern or
 stock map can be **cloned** into an editable copy. Built-in patterns can open
@@ -321,11 +322,11 @@ A primary **Patterns / Maps** switch, then a filter row combining two things:
   surface hits, restoring their collapse state when cleared. Search text is kept
   separately for Patterns and Maps; the lens is shared.
 
-The switch and filter row stay fixed; only the lists scroll. Your patterns and
+The switch and filter row stay fixed; only the lists scroll. Cloud patterns and
 maps are created, renamed, and deleted by you. On the Cloudflare deployment they
-live in your signed-in cloud workspace; signed-out use and local development fall
-back to browser IndexedDB. Delete lives in the editor header as a visible,
-confirmation-guarded action, with the rail hover action as a shortcut.
+live in your signed-in cloud workspace; signed-out use is non-durable demo mode.
+Delete lives in the editor header as a visible, confirmation-guarded action,
+with the rail hover action as a shortcut.
 
 ## 11. Controller reference
 

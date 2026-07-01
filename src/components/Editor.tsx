@@ -65,7 +65,7 @@ export function Editor() {
   }, [source, compileStatus, activePatternId, editorFlavor])
 
   // Persistence tick: every SYNC_TICK_MS, auto-save the clean editor buffer to
-  // IndexedDB. For a pattern that's clean source → the pattern record. For an open
+      // D1. For a pattern that's clean source → the pattern record. For an open
   // map (flavor 'map'), a clean (parse-good) buffer is evaluated + baked into the
   // map record (#143) — once per tick, never per keystroke (a runaway
   // map loop would freeze the tab). Bake failures surface via the store.

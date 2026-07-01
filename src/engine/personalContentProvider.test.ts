@@ -1,5 +1,5 @@
 import {
-  browserPersonalContentProvider,
+  demoPersonalContentProvider,
   getPersonalContentProvider,
   initializePersonalContentProvider,
   personalContentCollectionLabel,
@@ -9,10 +9,9 @@ import {
   storageModeForPersonalContentProvider,
   type PersonalContentProvider,
 } from './personalContentProvider'
-import { resetDbCache, type MapRecord, type PatternRecord } from './storage'
+import type { MapRecord, PatternRecord } from './personalContentRecords'
 
 beforeEach(() => {
-  resetDbCache()
   resetPersonalContentProvider()
 })
 
@@ -53,45 +52,43 @@ function memoryProvider(): PersonalContentProvider {
 }
 
 describe('personal content provider seam', () => {
-  it('uses the browser IndexedDB provider by default and allows one active provider override', () => {
-    expect(getPersonalContentProvider()).toBe(browserPersonalContentProvider)
+  it('uses the non-durable demo provider by default and allows one active provider override', () => {
+    expect(getPersonalContentProvider()).toBe(demoPersonalContentProvider)
     const provider = memoryProvider()
     setPersonalContentProvider(provider)
     expect(getPersonalContentProvider()).toBe(provider)
     resetPersonalContentProvider()
-    expect(getPersonalContentProvider()).toBe(browserPersonalContentProvider)
+    expect(getPersonalContentProvider()).toBe(demoPersonalContentProvider)
   })
 
-  it('labels browser and future API storage-backed collections', () => {
-    expect(storageModeForPersonalContentProvider(browserPersonalContentProvider)).toBe('browser')
+  it('labels demo and API storage-backed collections as cloud collections', () => {
+    expect(storageModeForPersonalContentProvider(demoPersonalContentProvider)).toBe('demo')
     expect(storageModeForPersonalContentProvider({ id: 'remote-api' })).toBe('api')
-    expect(personalContentCollectionLabel('browser', 'patterns')).toBe('Your Patterns')
+    expect(personalContentCollectionLabel('demo', 'patterns')).toBe('Cloud Patterns')
     expect(personalContentCollectionLabel('api', 'patterns')).toBe('Cloud Patterns')
     expect(personalContentCollectionLabel('api', 'maps')).toBe('Cloud Maps')
   })
 
-  it('keeps browser storage as default and selects remote API only through explicit mode', async () => {
-    expect(resolvePersonalContentProviderMode(undefined)).toBe('browser')
+  it('selects the remote API as the only durable provider mode', async () => {
+    expect(resolvePersonalContentProviderMode(undefined)).toBe('remote-api')
     expect(resolvePersonalContentProviderMode('remote-api')).toBe('remote-api')
-    expect(resolvePersonalContentProviderMode('browser', { prod: true, baseUrl: '/' })).toBe('browser')
-    expect(resolvePersonalContentProviderMode('anything-else')).toBe('browser')
+    expect(resolvePersonalContentProviderMode('browser', { prod: true, baseUrl: '/' })).toBe('remote-api')
+    expect(resolvePersonalContentProviderMode('anything-else')).toBe('remote-api')
     expect(resolvePersonalContentProviderMode(undefined, { prod: true, baseUrl: '/' })).toBe('remote-api')
-    expect(resolvePersonalContentProviderMode(undefined, { prod: true, baseUrl: '/PXLBLZ-IDE/' })).toBe('browser')
-    await expect(initializePersonalContentProvider({ mode: 'browser' })).resolves.toBe(browserPersonalContentProvider)
+    expect(resolvePersonalContentProviderMode(undefined, { prod: true, baseUrl: '/PXLBLZ-IDE/' })).toBe('remote-api')
     await expect(initializePersonalContentProvider({ mode: 'remote-api' })).resolves.toMatchObject({ id: 'remote-api' })
   })
 
-  it('browser provider preserves pattern, map, last-active, and demo-override storage', async () => {
-    const suffix = `${Date.now()}-${Math.random()}`
+  it('demo provider exposes no personal workspace and rejects durable writes', async () => {
     const pattern: PatternRecord = {
-      id: `pattern-${suffix}`,
+      id: 'pattern-1',
       name: 'Provider Pattern',
       src: 'export function render(index) { hsv(0, 1, 1) }',
       controls: {},
       updatedAt: 1,
     }
     const map: MapRecord = {
-      id: `map-${suffix}`,
+      id: 'map-1',
       name: 'Provider Map',
       dim: 2,
       generator: 'custom',
@@ -101,29 +98,21 @@ describe('personal content provider seam', () => {
       updatedAt: 1,
     }
 
-    await browserPersonalContentProvider.createPattern(pattern)
-    await browserPersonalContentProvider.updatePattern(pattern.id, { name: 'Renamed Pattern' })
-    expect((await browserPersonalContentProvider.listPatterns()).find((p) => p.id === pattern.id)?.name).toBe(
-      'Renamed Pattern',
+    await expect(demoPersonalContentProvider.listPatterns()).resolves.toEqual([])
+    await expect(demoPersonalContentProvider.listMaps()).resolves.toEqual([])
+    await expect(demoPersonalContentProvider.getLastActive()).resolves.toBeUndefined()
+    await expect(demoPersonalContentProvider.getDemoOverrides()).resolves.toBeUndefined()
+    await expect(demoPersonalContentProvider.setLastActive({ type: 'pattern', id: pattern.id })).resolves.toBeUndefined()
+    await expect(demoPersonalContentProvider.setDemoOverrides({ AuroraSphere: { brightness: 0.5 } })).resolves.toBeUndefined()
+    await expect(demoPersonalContentProvider.createPattern(pattern)).rejects.toThrow('Sign in required')
+    await expect(demoPersonalContentProvider.updatePattern(pattern.id, { name: 'Renamed Pattern' })).rejects.toThrow(
+      'Sign in required',
     )
-
-    await browserPersonalContentProvider.createMap(map)
-    await browserPersonalContentProvider.updateMap(map.id, { name: 'Renamed Map' })
-    expect((await browserPersonalContentProvider.listMaps()).find((m) => m.id === map.id)?.name).toBe(
-      'Renamed Map',
+    await expect(demoPersonalContentProvider.deletePattern(pattern.id)).rejects.toThrow('Sign in required')
+    await expect(demoPersonalContentProvider.createMap(map)).rejects.toThrow('Sign in required')
+    await expect(demoPersonalContentProvider.updateMap(map.id, { name: 'Renamed Map' })).rejects.toThrow(
+      'Sign in required',
     )
-
-    await browserPersonalContentProvider.setLastActive({ type: 'pattern', id: pattern.id })
-    expect(await browserPersonalContentProvider.getLastActive()).toEqual({ type: 'pattern', id: pattern.id })
-
-    await browserPersonalContentProvider.setDemoOverrides({ AuroraSphere: { brightness: 0.5 } })
-    expect(await browserPersonalContentProvider.getDemoOverrides()).toEqual({
-      AuroraSphere: { brightness: 0.5 },
-    })
-
-    await browserPersonalContentProvider.deletePattern(pattern.id)
-    await browserPersonalContentProvider.deleteMap(map.id)
-    expect((await browserPersonalContentProvider.listPatterns()).some((p) => p.id === pattern.id)).toBe(false)
-    expect((await browserPersonalContentProvider.listMaps()).some((m) => m.id === map.id)).toBe(false)
+    await expect(demoPersonalContentProvider.deleteMap(map.id)).rejects.toThrow('Sign in required')
   })
 })

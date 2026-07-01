@@ -5,6 +5,7 @@ import path from 'path'
 import fs from 'fs'
 
 const DEFAULT_BASE = '/PXLBLZ-IDE/'
+const DEFAULT_API_PROXY_TARGET = 'http://localhost:8788'
 
 function googleAnalyticsSnippet(measurementId: string | undefined): Plugin {
   return {
@@ -104,6 +105,7 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   const gaMeasurementId = env.VITE_GA_MEASUREMENT_ID?.trim()
   const base = env.VITE_BASE_PATH?.trim() || DEFAULT_BASE
+  const apiProxyTarget = env.VITE_API_PROXY_TARGET?.trim() || DEFAULT_API_PROXY_TARGET
 
   return {
     base,
@@ -118,6 +120,12 @@ export default defineConfig(({ mode }) => {
       port: 5174,
       strictPort: true,
       allowedHosts: true,
+      proxy: {
+        '/api': {
+          target: apiProxyTarget,
+          changeOrigin: true,
+        },
+      },
     },
     resolve: {
       alias: {

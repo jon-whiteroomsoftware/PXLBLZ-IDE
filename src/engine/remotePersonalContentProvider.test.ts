@@ -1,7 +1,7 @@
 import {
   createRemotePersonalContentProvider,
 } from './remotePersonalContentProvider'
-import type { PatternRecord } from './storage'
+import type { PatternRecord } from './personalContentRecords'
 
 describe('remote personal content provider', () => {
   it('performs pattern CRUD through the authenticated API', async () => {

@@ -1,15 +1,9 @@
 import type { BindingStore, ProgramLabelStore } from './controllerBinding'
-import {
-  getControllerBindings as getBrowserControllerBindings,
-  getProgramLabels as getBrowserProgramLabels,
-  setControllerBindings as setBrowserControllerBindings,
-  setProgramLabels as setBrowserProgramLabels,
-} from './storage'
 
 export const CONTROLLER_BINDINGS_METADATA_KEY = 'controller-bindings'
 export const CONTROLLER_PROGRAM_LABELS_METADATA_KEY = 'controller-program-labels'
 
-export type ControllerMetadataStorageMode = 'browser' | 'remote-api'
+export type ControllerMetadataStorageMode = 'remote-api'
 
 export interface ControllerMetadataStorage {
   readonly id: string
@@ -19,12 +13,12 @@ export interface ControllerMetadataStorage {
   setProgramLabels(labels: ProgramLabelStore): Promise<void>
 }
 
-export const browserControllerMetadataStorage: ControllerMetadataStorage = {
-  id: 'browser-indexeddb',
-  getControllerBindings: () => getBrowserControllerBindings(),
-  setControllerBindings: (bindings) => setBrowserControllerBindings(bindings),
-  getProgramLabels: () => getBrowserProgramLabels(),
-  setProgramLabels: (labels) => setBrowserProgramLabels(labels),
+export const demoControllerMetadataStorage: ControllerMetadataStorage = {
+  id: 'demo',
+  getControllerBindings: async () => ({}),
+  setControllerBindings: async () => {},
+  getProgramLabels: async () => ({}),
+  setProgramLabels: async () => {},
 }
 
 export interface RemoteControllerMetadataStorageOptions {
@@ -60,7 +54,7 @@ export function createRemoteControllerMetadataStorage(
   }
 }
 
-let activeStorage: ControllerMetadataStorage = browserControllerMetadataStorage
+let activeStorage: ControllerMetadataStorage = demoControllerMetadataStorage
 
 export function getControllerMetadataStorage(): ControllerMetadataStorage {
   return activeStorage
@@ -71,7 +65,7 @@ export function setControllerMetadataStorage(storage: ControllerMetadataStorage)
 }
 
 export function resetControllerMetadataStorage(): void {
-  activeStorage = browserControllerMetadataStorage
+  activeStorage = demoControllerMetadataStorage
 }
 
 export interface ControllerMetadataStorageInitOptions {
@@ -85,13 +79,10 @@ export interface ControllerMetadataStorageModeContext {
 }
 
 export function resolveControllerMetadataStorageMode(
-  raw: string | undefined,
-  context: ControllerMetadataStorageModeContext = {},
+  _raw: string | undefined,
+  _context: ControllerMetadataStorageModeContext = {},
 ): ControllerMetadataStorageMode {
-  if (raw === 'browser') return 'browser'
-  if (raw === 'remote-api') return 'remote-api'
-  if (context.prod && context.baseUrl === '/') return 'remote-api'
-  return 'browser'
+  return 'remote-api'
 }
 
 export async function initializeControllerMetadataStorage(
@@ -101,13 +92,7 @@ export async function initializeControllerMetadataStorage(
     activeStorage = options.storage
     return activeStorage
   }
-  const mode = options.mode ?? resolveControllerMetadataStorageMode(import.meta.env.VITE_PERSONAL_CONTENT_PROVIDER, {
-    prod: import.meta.env.PROD,
-    baseUrl: import.meta.env.BASE_URL,
-  })
-  activeStorage = mode === 'remote-api'
-    ? createRemoteControllerMetadataStorage()
-    : browserControllerMetadataStorage
+  activeStorage = createRemoteControllerMetadataStorage()
   return activeStorage
 }
 

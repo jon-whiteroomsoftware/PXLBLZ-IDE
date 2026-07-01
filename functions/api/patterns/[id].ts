@@ -4,7 +4,7 @@ import {
   updateD1Pattern,
   type D1DatabasePatternsLike,
 } from '../../../src/cloudflare/patterns'
-import type { PatternRecord } from '../../../src/engine/storage'
+import type { PatternRecord } from '../../../src/engine/personalContentRecords'
 
 interface PagesFunctionContext {
   request: Request

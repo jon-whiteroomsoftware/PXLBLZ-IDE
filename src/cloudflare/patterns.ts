@@ -1,4 +1,4 @@
-import type { PatternRecord } from '../engine/storage'
+import type { PatternRecord } from '../engine/personalContentRecords'
 
 export interface D1PatternStatementLike {
   bind(...values: unknown[]): D1PatternStatementLike

@@ -6,7 +6,7 @@ import {
   updateD1Pattern,
   type D1DatabasePatternsLike,
 } from './patterns'
-import type { PatternRecord } from '../engine/storage'
+import type { PatternRecord } from '../engine/personalContentRecords'
 
 function fakeDb(rows: Record<string, unknown>[] = []): {
   db: D1DatabasePatternsLike

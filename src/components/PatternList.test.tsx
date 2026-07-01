@@ -5,30 +5,50 @@ import { PatternList } from './PatternList'
 import { useEditorStore, editorInitialState } from '@/store/editorStore'
 import { usePatternStore, patternInitialState } from '@/store/patternStore'
 import { useMapStore, mapInitialState, type MapRecord } from '@/store/mapStore'
+import { useWorkspaceStore, workspaceInitialState } from '@/store/workspaceStore'
 import { DEMOS } from '@/pixelblaze/stock/patterns'
+import { getAuthSession } from '@/engine/authSession'
 
-vi.mock('@/engine/storage', async (importOriginal) => {
-  const orig = await importOriginal<typeof import('@/engine/storage')>()
-  return {
-    ...orig,
-    listPatterns: vi.fn().mockResolvedValue([
-      { id: 'seed-1', name: 'Seed Pattern', src: '// seed', controls: {}, updatedAt: 0 },
-    ]),
-    getSetting: vi.fn().mockResolvedValue(undefined),
-    setSetting: vi.fn().mockResolvedValue(undefined),
-    createPattern: vi.fn().mockResolvedValue(undefined),
-    listMaps: vi.fn().mockResolvedValue([]),
-    deleteMap: vi.fn().mockResolvedValue(undefined),
-  }
-})
+vi.mock('@/engine/authSession', () => ({
+  getAuthSession: vi.fn(),
+}))
 
-import { createPattern, listMaps } from '@/engine/storage'
+const SEED_PATTERN = { id: 'seed-1', name: 'Seed Pattern', src: '// seed', controls: {}, updatedAt: 0 }
+
+let mockMaps: MapRecord[] = []
+let requests: Array<{ url: string; init?: RequestInit }> = []
 
 beforeEach(() => {
   vi.clearAllMocks()
+  mockMaps = []
+  requests = []
+  vi.mocked(getAuthSession).mockResolvedValue({
+    authenticated: true,
+    user: {
+      id: 'github:123',
+      githubUserId: '123',
+      githubLogin: 'tester',
+      displayName: 'Tester',
+      avatarUrl: '',
+    },
+  })
+  vi.stubGlobal('fetch', vi.fn(async (url, init) => {
+    requests.push({ url: String(url), init })
+    if (String(url) === '/api/patterns' && init?.method === undefined) {
+      return Response.json({ patterns: [SEED_PATTERN] })
+    }
+    if (String(url) === '/api/maps' && init?.method === undefined) {
+      return Response.json({ maps: mockMaps })
+    }
+    if (String(url).startsWith('/api/settings/') && init?.method === undefined) {
+      return Response.json({})
+    }
+    return Response.json({ ok: true })
+  }))
   useEditorStore.setState(editorInitialState)
   usePatternStore.setState(patternInitialState)
   useMapStore.setState(mapInitialState)
+  useWorkspaceStore.setState(workspaceInitialState)
 })
 
 afterEach(() => {
@@ -50,13 +70,14 @@ async function switchToMaps(user: ReturnType<typeof userEvent.setup>) {
 }
 
 describe('PatternList', () => {
-  it('labels personal sections as user-owned content', async () => {
+  it('labels personal sections as cloud content', async () => {
     render(<PatternList />)
 
-    expect(await screen.findByText('Your Patterns')).toBeInTheDocument()
+    expect(await screen.findByText('Cloud Patterns')).toBeInTheDocument()
   })
 
   it('opens IridescentFibers for visitors without a saved last-active pattern', async () => {
+    vi.mocked(getAuthSession).mockResolvedValueOnce({ authenticated: false })
     render(<PatternList />)
 
     await waitFor(() => {
@@ -66,7 +87,8 @@ describe('PatternList', () => {
     expect(useEditorStore.getState().previewPatternName).toBe('IridescentFibers')
     expect(useEditorStore.getState().previewSource).toBe(DEMOS.IridescentFibers)
     expect(useEditorStore.getState().isReadOnly).toBe(true)
-    expect(createPattern).not.toHaveBeenCalled()
+    expect(requests.some((request) => request.init?.method === 'POST')).toBe(false)
+    expect(await screen.findByText('Sign in')).toBeInTheDocument()
   })
 
   it('clicking a demo sets previewSource to the demo source', async () => {
@@ -117,8 +139,8 @@ describe('PatternList', () => {
     expect(await screen.findByText('No custom maps yet')).toBeInTheDocument()
   })
 
-  it('lists user-authored custom maps under "Your Maps"', async () => {
-    vi.mocked(listMaps).mockResolvedValueOnce([CUSTOM_MAP])
+  it('lists user-authored custom maps under Cloud Maps', async () => {
+    mockMaps = [CUSTOM_MAP]
     const user = userEvent.setup()
     render(<PatternList />)
     await switchToMaps(user)
@@ -135,7 +157,7 @@ describe('PatternList', () => {
   })
 
   it('hides the 1D dimension lens in Maps mode', async () => {
-    vi.mocked(listMaps).mockResolvedValueOnce([CUSTOM_MAP])
+    mockMaps = [CUSTOM_MAP]
     const user = userEvent.setup()
     render(<PatternList />)
     await switchToMaps(user)
@@ -147,7 +169,7 @@ describe('PatternList', () => {
   })
 
   it('switches the dimension lens from 1D to 2D when entering Maps mode', async () => {
-    vi.mocked(listMaps).mockResolvedValueOnce([CUSTOM_MAP])
+    mockMaps = [CUSTOM_MAP]
     const user = userEvent.setup()
     render(<PatternList />)
 
@@ -161,7 +183,7 @@ describe('PatternList', () => {
   })
 
   it('filters maps by name via the type-down search box', async () => {
-    vi.mocked(listMaps).mockResolvedValueOnce([CUSTOM_MAP])
+    mockMaps = [CUSTOM_MAP]
     const user = userEvent.setup()
     render(<PatternList />)
     await switchToMaps(user)
@@ -177,7 +199,7 @@ describe('PatternList', () => {
   })
 
   it('does not show the "no maps yet" empty state when a filter merely empties the list', async () => {
-    vi.mocked(listMaps).mockResolvedValueOnce([CUSTOM_MAP])
+    mockMaps = [CUSTOM_MAP]
     const user = userEvent.setup()
     render(<PatternList />)
     await switchToMaps(user)
@@ -186,12 +208,12 @@ describe('PatternList', () => {
     await user.type(screen.getByRole('textbox', { name: /search by name/i }), 'nope')
     expect(screen.queryByText('My Tree')).not.toBeInTheDocument()
     // Header stays, but the genuine-empty message must not appear.
-    expect(screen.getByText('Your Maps')).toBeInTheDocument()
+    expect(screen.getByText('Cloud Maps')).toBeInTheDocument()
     expect(screen.queryByText('No custom maps yet')).not.toBeInTheDocument()
   })
 
   it('AND-combines the search query with the dimension lens', async () => {
-    vi.mocked(listMaps).mockResolvedValueOnce([CUSTOM_MAP])
+    mockMaps = [CUSTOM_MAP]
     const user = userEvent.setup()
     render(<PatternList />)
     await switchToMaps(user)
@@ -277,7 +299,7 @@ describe('PatternList', () => {
   })
 
   it('shows a 3D custom map under the 3D lens but not the 2D lens', async () => {
-    vi.mocked(listMaps).mockResolvedValueOnce([CUSTOM_MAP])
+    mockMaps = [CUSTOM_MAP]
     const user = userEvent.setup()
     render(<PatternList />)
     await switchToMaps(user)

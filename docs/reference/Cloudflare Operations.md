@@ -3,7 +3,7 @@
 PXLBLZ-IDE's Cloudflare Pages deployment is the production cloud workspace. It
 uses GitHub OAuth for identity and Cloudflare D1 for personal patterns, custom
 maps, last-active state, demo overrides, and controller push metadata. No
-IndexedDB-to-D1 migration is performed; the cloud workspace starts clean for each
+browser-local-to-D1 migration is performed; the cloud workspace starts clean for each
 signed-in user.
 
 ## Required Configuration
@@ -16,7 +16,6 @@ production binding is:
 The production build expects:
 
 - `VITE_BASE_PATH=/`
-- `VITE_PERSONAL_CONTENT_PROVIDER=remote-api`
 
 Secrets and operator-specific values are managed in Cloudflare Pages:
 
@@ -64,8 +63,8 @@ After deploy, open the Pages URL and smoke-test:
    `/api/controller-metadata/controller-program-labels` retain values for the
    signed-in session.
 
-Signed-out production users see the GitHub sign-in affordance and the app falls
-back to browser-local IndexedDB for authoring until a session exists.
+Signed-out production users see the GitHub sign-in affordance and remain in
+non-durable demo mode until a session exists.
 
 ## Inspect D1 Data
 

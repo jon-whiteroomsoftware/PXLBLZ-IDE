@@ -27,6 +27,8 @@ import {
   setControllerBindings,
   getProgramLabels,
   resetControllerMetadataStorage,
+  setControllerMetadataStorage,
+  type ControllerMetadataStorage,
 } from '@/engine/controllerMetadataStorage'
 
 // A fake per-Controller provider with a real (if minimal) status machine, so we
@@ -138,6 +140,22 @@ class FakeProvider extends NullControllerProvider {
   }
 }
 
+function memoryControllerMetadataStorage(): ControllerMetadataStorage {
+  let bindings = {}
+  let labels = {}
+  return {
+    id: 'memory-test',
+    getControllerBindings: async () => bindings,
+    setControllerBindings: async (next) => {
+      bindings = next
+    },
+    getProgramLabels: async () => labels,
+    setProgramLabels: async (next) => {
+      labels = next
+    },
+  }
+}
+
 function makeReconcilingBytecode(): Uint8Array {
   const bytes = new Uint8Array(16)
   new DataView(bytes.buffer).setUint32(0, 8, true) // opcodeBytes = 8 → 8 + 8 + 0 = 16
@@ -150,6 +168,7 @@ beforeEach(async () => {
   localStorage.clear()
   __resetControllerProviders()
   resetControllerMetadataStorage()
+  setControllerMetadataStorage(memoryControllerMetadataStorage())
   useControllerStore.setState(controllerInitialState)
   usePatternStore.setState(patternInitialState)
   useEditorStore.setState(editorInitialState)

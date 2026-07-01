@@ -7,21 +7,24 @@ import { NEW_PATTERN_SRC } from '@/pixelblaze/newPattern'
 import { parseEpe } from '@/engine/epeImport'
 import { nativeDim, matchesLens, matchesQuery, type DimLens } from '@/engine/dimLens'
 import {
+  demoPersonalContentProvider,
   getPersonalContentProvider,
   initializePersonalContentProvider,
   personalContentCollectionLabel,
-  resolvePersonalContentProviderMode,
   storageModeForPersonalContentProvider,
   type PersonalContentStorageMode,
-  type PersonalContentProviderMode,
 } from '@/engine/personalContentProvider'
-import { initializeControllerMetadataStorage } from '@/engine/controllerMetadataStorage'
+import {
+  demoControllerMetadataStorage,
+  initializeControllerMetadataStorage,
+} from '@/engine/controllerMetadataStorage'
 import { getAuthSession } from '@/engine/authSession'
 import { newPersonalContentId } from '@/engine/personalContentMetadata'
 import { useEditorStore } from '@/store/editorStore'
 import { usePatternStore, PatternRecord } from '@/store/patternStore'
 import { useMapStore, MapRecord, STOCK_MAP_ITEMS } from '@/store/mapStore'
 import { useDocsStore } from '@/store/docsStore'
+import { useWorkspaceStore } from '@/store/workspaceStore'
 import { forkSettingsSnapshotForDemo } from '@/store/settingsCascade'
 import {
   AlertDialogRoot,
@@ -202,7 +205,7 @@ function SubsectionHeader({
 }
 
 // Rows align flush with their nearest rail header so the pattern names share one
-// clean reading edge across "Your Patterns" and grouped demos.
+// clean reading edge across "Cloud Patterns" and grouped demos.
 const ROW_PAD = '12px'
 
 // Shared row chrome (#182): tight ~19px rows, a 2px amber left accent bar + subtle
@@ -487,8 +490,8 @@ function ListItem({
   )
 }
 
-// A selectable, in-place-renamable, deletable list row shared by "Your Patterns"
-// and "Your Maps" (#141). `noun` only varies the rename-conflict / delete copy.
+// A selectable, in-place-renamable, deletable list row shared by "Cloud Patterns"
+// and "Cloud Maps" (#141). `noun` only varies the rename-conflict / delete copy.
 function EditableListItem({
   name,
   noun,
@@ -703,7 +706,7 @@ export function PatternList() {
   const closeMapEditor = useMapStore((s) => s.closeMapEditor)
 
   // Open-from-disk (.epe import) lives next to "New pattern" (#141): both create
-  // a pattern, so they sit together on the "Your Patterns" header.
+  // a pattern, so they sit together on the "Cloud Patterns" header.
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [importError, setImportError] = useState<string | null>(null)
   const importErrorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -757,7 +760,9 @@ export function PatternList() {
   const scrollRef = useRef<HTMLDivElement>(null)
   const patternRowRefs = useRef(new Map<string, HTMLLIElement>())
   const [scrollMetrics, setScrollMetrics] = useState<ScrollMetrics>({ top: 0, height: 0, visible: false })
-  const [personalStorageMode, setPersonalStorageMode] = useState<PersonalContentStorageMode>('browser')
+  const [personalStorageMode, setPersonalStorageMode] = useState<PersonalContentStorageMode>('demo')
+  const [personalWorkspaceAuthenticated, setPersonalWorkspaceAuthenticated] = useState(false)
+  const setGlobalWorkspaceAuthenticated = useWorkspaceStore((s) => s.setPersonalWorkspaceAuthenticated)
   const query = queries[railMode]
   const setQuery = (next: string) => setQueries((q) => ({ ...q, [railMode]: next }))
 
@@ -784,18 +789,18 @@ export function PatternList() {
   useEffect(() => {
     let cancelled = false
     async function hydratePersonalContent() {
-      const desiredMode = resolvePersonalContentProviderMode(import.meta.env.VITE_PERSONAL_CONTENT_PROVIDER, {
-        prod: import.meta.env.PROD,
-        baseUrl: import.meta.env.BASE_URL,
-      })
-      let mode: PersonalContentProviderMode = desiredMode
-      if (desiredMode === 'remote-api') {
-        const session = await getAuthSession().catch(() => ({ authenticated: false as const }))
-        if (!session.authenticated) mode = 'browser'
-      }
-      const provider = await initializePersonalContentProvider({ mode })
-      await initializeControllerMetadataStorage({ mode })
+      const session = await getAuthSession().catch(() => ({ authenticated: false as const }))
+      const provider = session.authenticated
+        ? await initializePersonalContentProvider({ mode: 'remote-api' })
+        : await initializePersonalContentProvider({ provider: demoPersonalContentProvider })
+      await initializeControllerMetadataStorage(
+        session.authenticated
+          ? { mode: 'remote-api' }
+          : { storage: demoControllerMetadataStorage },
+      )
       if (cancelled) return
+      setPersonalWorkspaceAuthenticated(session.authenticated)
+      setGlobalWorkspaceAuthenticated(session.authenticated)
       setPersonalStorageMode(storageModeForPersonalContentProvider(provider))
       // Hydrate user maps before the first pattern opens so the layout selector is
       // populated from whichever personal provider won startup selection.
@@ -845,7 +850,7 @@ export function PatternList() {
     return () => {
       cancelled = true
     }
-  }, [loadPatterns])
+  }, [loadPatterns, setGlobalWorkspaceAuthenticated])
 
   function openDemo(name: string) {
     closeMapEditor()
@@ -861,6 +866,7 @@ export function PatternList() {
   // the built-in patterns list. Mirrors the top-bar "Edit" fork, but for any demo without first
   // having to open it.
   async function handleForkDemo(name: string) {
+    if (!personalWorkspaceAuthenticated) return
     closeMapEditor()
     closeDocs()
     const newName = uniquePatternName(name, userPatterns.map((p) => p.name))
@@ -886,9 +892,10 @@ export function PatternList() {
     setIsReadOnly(false)
   }
 
-  // Create a fresh "Untitled Pattern" and open it. Lives next to "Your Patterns"
+  // Create a fresh "Untitled Pattern" and open it. Lives next to "Cloud Patterns"
   // (#141) so a new pattern is created right by its list.
   async function handleCreatePattern() {
+    if (!personalWorkspaceAuthenticated) return
     closeMapEditor()
     closeDocs()
     const id = newPersonalContentId()
@@ -1009,38 +1016,47 @@ export function PatternList() {
             collapsed={isCollapsed(personalPatternsLabel)}
             onToggle={() => toggleCollapsed(personalPatternsLabel)}
             action={
-              <>
+              personalWorkspaceAuthenticated ? (
+                <>
                 <HeaderAction
                   icon={<FolderOpen size={14} />}
                   title="Open pattern from .epe file"
                   onClick={() => fileInputRef.current?.click()}
                 />
                 <HeaderAction icon={<Plus size={14} />} title="New pattern" onClick={handleCreatePattern} />
-              </>
+                </>
+              ) : null
             }
           />
           {importError && (
             <p className="pl-3 pr-3 py-1 text-red-400 truncate" title={importError}>{importError}</p>
           )}
           {!isCollapsed(personalPatternsLabel) && (
-            <ul className="pt-2">
-              {visibleUserPatterns.map((pattern) => (
-                <EditableListItem
-                  key={pattern.id}
-                  name={pattern.name}
-                  noun="pattern"
-                  active={activePatternId === pattern.id}
-                  dim={dimLens === 'all' ? `${nativeDim(pattern.src)}D` : undefined}
-                  takenNames={userPatterns.filter((p) => p.id !== pattern.id).map((p) => p.name)}
-                  navKey={`pattern:${pattern.id}`}
-                  onSelect={() => openUserPattern(pattern)}
-                  onRename={(name) => renamePattern(pattern.id, name)}
-                  onDelete={() => removePattern(pattern.id)}
-                  onRowRef={handlePatternRowRef}
-                  onRowKeyDown={handlePatternRowKeyDown}
-                />
-              ))}
-            </ul>
+            personalWorkspaceAuthenticated ? (
+              <ul className="pt-2">
+                {visibleUserPatterns.map((pattern) => (
+                  <EditableListItem
+                    key={pattern.id}
+                    name={pattern.name}
+                    noun="pattern"
+                    active={activePatternId === pattern.id}
+                    dim={dimLens === 'all' ? `${nativeDim(pattern.src)}D` : undefined}
+                    takenNames={userPatterns.filter((p) => p.id !== pattern.id).map((p) => p.name)}
+                    navKey={`pattern:${pattern.id}`}
+                    onSelect={() => openUserPattern(pattern)}
+                    onRename={(name) => renamePattern(pattern.id, name)}
+                    onDelete={() => removePattern(pattern.id)}
+                    onRowRef={handlePatternRowRef}
+                    onRowKeyDown={handlePatternRowKeyDown}
+                  />
+                ))}
+              </ul>
+            ) : (
+              <p className="pl-3 pr-3 py-2 text-zinc-600 italic select-none">
+                <a href="/api/auth/login" className="text-live hover:underline">Sign in</a>
+                {' '}to save cloud patterns
+              </p>
+            )
           )}
 
           <SectionHeader
@@ -1068,7 +1084,7 @@ export function PatternList() {
                           dim={dimLens === 'all' ? `${nativeDim(DEMOS[name] ?? '')}D` : undefined}
                           active={activeDemoName === name}
                           onClick={() => openDemo(name)}
-                          onFork={() => handleForkDemo(name)}
+                          onFork={personalWorkspaceAuthenticated ? () => handleForkDemo(name) : undefined}
                           onRowRef={handlePatternRowRef}
                           onKeyDown={handlePatternRowKeyDown}
                         />
@@ -1095,13 +1111,20 @@ export function PatternList() {
               first
               collapsed={isCollapsed(personalMapsLabel)}
               onToggle={() => toggleCollapsed(personalMapsLabel)}
-              action={<HeaderAction icon={<Plus size={14} />} title="New map" onClick={createNewMap} />}
+              action={personalWorkspaceAuthenticated
+                ? <HeaderAction icon={<Plus size={14} />} title="New map" onClick={createNewMap} />
+                : null}
             />
             {!isCollapsed(personalMapsLabel) && (
               // The "no maps yet" empty state only fits when the user genuinely has no
               // maps. If a filter (lens or query) merely emptied the list, leave just
               // the header — the message would misread as "you have none" (#252).
-              visibleMaps.length === 0 ? (
+              !personalWorkspaceAuthenticated ? (
+                <p className="pl-3 pr-3 py-2 text-zinc-600 italic select-none">
+                  <a href="/api/auth/login" className="text-live hover:underline">Sign in</a>
+                  {' '}to save cloud maps
+                </p>
+              ) : visibleMaps.length === 0 ? (
                 userMaps.length === 0 ? (
                   <p className="pl-3 pr-3 py-1 text-zinc-600 italic select-none">No custom maps yet</p>
                 ) : null
@@ -1137,7 +1160,7 @@ export function PatternList() {
                     active={editingMap?.kind === 'stock' && editingMap.id === map.id}
                     dim={dimLens === 'all' ? `${map.dim}D` : undefined}
                     onClick={() => openStockMap(map.id)}
-                    onFork={() => void cloneStockMap(map.id)}
+                    onFork={personalWorkspaceAuthenticated ? () => void cloneStockMap(map.id) : undefined}
                   />
                 ))}
               </ul>

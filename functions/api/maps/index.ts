@@ -1,6 +1,6 @@
 import { readSessionFromRequest } from '../../../src/cloudflare/auth'
 import { createD1Map, listD1Maps, type D1DatabaseMapsLike } from '../../../src/cloudflare/maps'
-import type { MapRecord } from '../../../src/engine/storage'
+import type { MapRecord } from '../../../src/engine/personalContentRecords'
 
 interface PagesFunctionContext {
   request: Request

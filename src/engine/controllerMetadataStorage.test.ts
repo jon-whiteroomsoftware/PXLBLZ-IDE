@@ -1,6 +1,6 @@
 import {
-  browserControllerMetadataStorage,
   createRemoteControllerMetadataStorage,
+  demoControllerMetadataStorage,
   getControllerBindings,
   getControllerMetadataStorage,
   getProgramLabels,
@@ -12,10 +12,8 @@ import {
   setProgramLabels,
   type ControllerMetadataStorage,
 } from './controllerMetadataStorage'
-import { resetDbCache } from './storage'
 
 beforeEach(() => {
-  resetDbCache()
   resetControllerMetadataStorage()
 })
 
@@ -36,8 +34,8 @@ function memoryStorage(): ControllerMetadataStorage {
 }
 
 describe('controller metadata storage seam', () => {
-  it('uses browser IndexedDB storage by default and allows one active storage override', async () => {
-    expect(getControllerMetadataStorage()).toBe(browserControllerMetadataStorage)
+  it('uses non-durable demo storage by default and allows one active storage override', async () => {
+    expect(getControllerMetadataStorage()).toBe(demoControllerMetadataStorage)
     const storage = memoryStorage()
     setControllerMetadataStorage(storage)
     expect(getControllerMetadataStorage()).toBe(storage)
@@ -48,16 +46,13 @@ describe('controller metadata storage seam', () => {
     expect(await getProgramLabels()).toEqual({ 'ctrl-A': { DEVPROG1: 'Twinkle' } })
   })
 
-  it('selects remote metadata storage only through explicit mode', async () => {
-    expect(resolveControllerMetadataStorageMode(undefined)).toBe('browser')
+  it('selects remote metadata storage as the only durable mode', async () => {
+    expect(resolveControllerMetadataStorageMode(undefined)).toBe('remote-api')
     expect(resolveControllerMetadataStorageMode('remote-api')).toBe('remote-api')
-    expect(resolveControllerMetadataStorageMode('browser', { prod: true, baseUrl: '/' })).toBe('browser')
-    expect(resolveControllerMetadataStorageMode('anything-else')).toBe('browser')
+    expect(resolveControllerMetadataStorageMode('browser', { prod: true, baseUrl: '/' })).toBe('remote-api')
+    expect(resolveControllerMetadataStorageMode('anything-else')).toBe('remote-api')
     expect(resolveControllerMetadataStorageMode(undefined, { prod: true, baseUrl: '/' })).toBe('remote-api')
-    expect(resolveControllerMetadataStorageMode(undefined, { prod: true, baseUrl: '/PXLBLZ-IDE/' })).toBe('browser')
-    await expect(initializeControllerMetadataStorage({ mode: 'browser' })).resolves.toBe(
-      browserControllerMetadataStorage,
-    )
+    expect(resolveControllerMetadataStorageMode(undefined, { prod: true, baseUrl: '/PXLBLZ-IDE/' })).toBe('remote-api')
     await expect(initializeControllerMetadataStorage({ mode: 'remote-api' })).resolves.toMatchObject({
       id: 'remote-api',
     })

@@ -1,0 +1,35 @@
+import type { Settings } from './settings'
+
+export interface PatternRecord {
+  id: string
+  name: string
+  src: string
+  controls: Record<string, number | number[]>
+  updatedAt: number
+  // The active map's generator params. Not a cascaded setting (it rides with the
+  // map, not the four-layer settings cascade), so it stays a flat field.
+  params?: Record<string, number>
+  // Sparse per-pattern settings overrides — cascade layer 1. A field absent here
+  // flows from a lower cascade layer.
+  settings?: Partial<Settings>
+}
+
+// A persisted user map. Serializable form of a PixelMap: a generator descriptor
+// plus params, optional baked coordinates, and optional authoring source.
+export interface MapRecord {
+  id: string
+  name: string
+  dim: 1 | 2 | 3
+  generator: string
+  params: Record<string, number>
+  // Baked coordinate array for a custom map (`generator: 'custom'`), authored
+  // once and replayed index-aligned by resolve. Absent for stock generator-based
+  // maps.
+  points?: number[][]
+  // The custom map's authoring source: plain JavaScript
+  // `function(pixelCount){ … return coords }`, never the Pixelblaze dialect.
+  source?: string
+  // Recorded grid shape when baked points form a regular lattice.
+  gridDims?: { cols: number; rows: number; depth?: number }
+  updatedAt: number
+}

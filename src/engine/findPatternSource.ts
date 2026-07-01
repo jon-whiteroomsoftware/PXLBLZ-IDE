@@ -1,5 +1,5 @@
 import { DEMOS } from '@/pixelblaze/stock/patterns'
-import type { PatternRecord } from '@/engine/storage'
+import type { PatternRecord } from '@/engine/personalContentRecords'
 
 // Resolve a pattern NAME to its source code, looking across the built-in demos and
 // the user's saved patterns. Used to recover dims (and anything else source-derived)

@@ -1,5 +1,5 @@
 import * as acorn from 'acorn'
-import type { MapRecord } from '../storage'
+import type { MapRecord } from '../personalContentRecords'
 import { STOCK_MAP_SPECS } from '@/pixelblaze/stock/maps/stockCatalogue'
 
 // The editor "map mode" authoring layer (#151). A custom map's source
@@ -59,7 +59,7 @@ function stripAcornSuffix(message: string): string {
 // A map record is openable in the editor only if it carries authoring source.
 // Stock maps are source-backed at runtime but never persist a record, so a
 // persisted record with no `source` (or a future legacy row) is not openable.
-export function isMapOpenable(record: Pick<MapRecord, 'source'>): boolean {
+export function isMapOpenable(record: Partial<Pick<MapRecord, 'source'>>): boolean {
   return typeof record.source === 'string'
 }
 

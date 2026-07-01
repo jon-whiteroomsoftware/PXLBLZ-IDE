@@ -6,12 +6,12 @@ Primer**'s. This document is the single authoritative record of the design
 decisions and the reasoning behind them; where any doc disagrees with the code,
 the code wins.
 
-**The whole document in two sentences.** PXLBLZ is an offline-first, no-backend
-browser IDE: editing, transpiling, execution, and preview all happen in the page,
-with an optional Chrome-extension relay as the only bridge to real hardware. Its
-defining commitment is hardware fidelity — the preview reproduces the device's
-fixed-point math, map semantics, and edge-case behaviours, and nothing the
-preview invents ever reaches a controller.
+**The whole document in two sentences.** PXLBLZ is a browser IDE with a small
+authenticated cloud workspace: editing, transpiling, execution, and preview all
+happen in the page, while personal patterns/maps/settings live in D1 behind
+Pages Functions. Its defining commitment is hardware fidelity — the preview
+reproduces the device's fixed-point math, map semantics, and edge-case
+behaviours, and nothing the preview invents ever reaches a controller.
 
 **Part 1** is the architecture: the stack, the defining decisions, and the system
 map. **Part 2** is the subsystem reference: engine internals, the preview
@@ -26,21 +26,23 @@ detail.
 
 | Concern | Choice | Why |
 |---|---|---|
-| Build / dev server | **Vite** | fast HMR; static output deployable to GitHub Pages |
+| Build / dev server | **Vite** | fast HMR; proxies API calls to local Wrangler for D1-backed dev |
 | UI | **React + TypeScript** | mainstream, typed; thin view layer over the engine |
 | Styling | **Tailwind CSS + shadcn/ui** | utility styling; a few headless components |
 | State | **Zustand** | framework-agnostic stores readable/writable from the non-React engine |
 | Editor | **Monaco** (`@monaco-editor/react`) | real IDE features: completion, markers, hovers |
 | Parser | **Acorn** | standards JS AST; powers the transpiler, validator, fixed-point re-emit |
-| Pattern storage | **IndexedDB** (raw API) | offline, structured, no backend |
+| Personal storage | **Cloudflare D1 + Pages Functions** | authenticated, user-scoped cloud workspace |
 | Preview draw | **WebGL** point cloud | one pipeline for 1D/2D/3D |
 | Tests | **Vitest** | fast; jsdom for component smoke tests |
 | Commit gate | **Husky** | `npm run lint && npm test` pre-commit |
 
-The overarching stance: **offline-first, no backend.** Everything — editing,
-transpiling, running, previewing — happens in the browser. The single deliberate
-exception is live-Controller connectivity (§13): additive, optional, and routed
-through a Chrome-extension relay rather than any server of ours.
+The overarching stance: **browser-native IDE with a small cloud workspace**.
+Editing, transpiling, running, and previewing happen in the browser. Durable
+personal resources use authenticated Pages Functions backed by D1. Signed-out
+use is a non-durable demo mode for built-in demos/maps/libraries/docs. Live
+Controller connectivity (§13) stays additive and routed through a Chrome
+extension relay rather than through the cloud backend.
 
 ## 2. The defining decisions
 
@@ -90,7 +92,7 @@ why the library hashes are built from integer ops (§11).
 
 ## 3. System map
 
-![System map: UI and stores over a pure engine, with WebGL, IndexedDB, and the extension relay below](../images/system-map.svg)
+![System map: UI and stores over a pure engine, with WebGL, D1/API storage, and the extension relay below](../images/system-map.svg)
 
 ### Zustand stores (`src/store/`)
 
@@ -207,7 +209,7 @@ independent timers:
   pushed to `previewSource`, rebuilding the preview. Broken code is not pushed —
   the last clean version keeps running.
 - **Auto-save** — a separate 4 s tick (`SYNC_TICK_MS`) writing clean source to
-  IndexedDB.
+  the authenticated personal content provider.
 
 The model is force-tokenized on mount and source swap (2000-line cap) to avoid a
 flash of unhighlighted text; read-only files skip validation and clear markers.
@@ -501,23 +503,14 @@ field: never cascaded, persisted on its own.
 
 ### Personal content storage
 
-`src/engine/personalContentProvider.ts` is the storage seam behind **Your
-Patterns** and **Your Maps**. Exactly one personal content provider is active at a
-time:
-
-- **Browser provider** (default for localhost, explicit fallback, and
-  GitHub Pages-style builds):
-  IndexedDB database `pixelblaze-ide` (version 2), with `patterns`, `settings`,
-  and `maps` stores.
-- **Remote API provider**: a Cloudflare Pages Functions/D1-backed
-  implementation selected by build-time configuration behind the same interface.
-
-Provider selection defaults to remote storage for root production builds
-(`import.meta.env.PROD` with `BASE_URL === '/'`) and browser storage elsewhere,
-unless `VITE_PERSONAL_CONTENT_PROVIDER=remote-api` or `browser` explicitly
-overrides it. The Cloudflare Pages config sets root base and remote storage; the
-local Vite dev server remains browser-local. The UI shows one personal pattern
-surface and one personal map surface; it does not split local and remote content.
+`src/engine/personalContentProvider.ts` is the storage seam behind **Cloud
+Patterns** and **Cloud Maps**. Durable personal content has one supported
+backend: the authenticated Remote API provider, implemented by Cloudflare Pages
+Functions over D1. When `/api/me` reports no signed-in session, startup installs
+the non-durable demo provider instead. Demo mode returns empty personal
+collections, ignores last-active/demo-override writes, and rejects personal
+create/update/delete calls. Built-in demos, stock maps, libraries, docs, and the
+preview remain usable without auth.
 
 The Cloudflare D1 foundation is selected by the remote provider. The Wrangler
 binding is `PXLBLZ_DB`, backed by the `pxlblz-ide` database. The first
@@ -536,19 +529,16 @@ details out of React and out of the personal content provider. Optional owner
 allow-lists (`GITHUB_ALLOWED_LOGINS` / `GITHUB_ALLOWED_IDS`) are enforced
 server-side before a session is issued.
 
-When remote mode is selected, startup selects `remote-api` instead of the
-browser provider. Pattern operations call
-`/api/patterns`, custom map operations call `/api/maps`, and provider-owned
-settings (`lastActive`, `demoOverrides`) call `/api/settings/:key`. Controller
-push metadata uses a sibling framework-free storage seam: overwrite bindings
-(`controller-bindings`) and program label caches
-(`controller-program-labels`) call `/api/controller-metadata/:key` in remote
-mode and fall back to IndexedDB settings in browser mode. All D1 helpers scope
-list/update/delete predicates by the signed session's `userId`. The UI labels
-remote-backed collections as **Cloud Patterns** and **Cloud Maps**.
-If `/api/me` reports no session at startup, the app presents a GitHub sign-in
-affordance in the header and falls back to browser-local storage until a session
-exists. No IndexedDB-to-D1 migration is attempted or implied.
+Pattern operations call `/api/patterns`, custom map operations call `/api/maps`,
+and provider-owned settings (`lastActive`, `demoOverrides`) call
+`/api/settings/:key`. Controller push metadata uses a sibling framework-free
+storage seam: overwrite bindings (`controller-bindings`) and program label
+caches (`controller-program-labels`) call `/api/controller-metadata/:key`.
+All D1 helpers scope list/update/delete predicates by the signed session's
+`userId`. The UI labels personal collections as **Cloud Patterns** and
+**Cloud Maps**. Signed-out users see sign-in prompts where personal workspace
+actions would be; no browser-local durable workspace is created, and no
+browser-to-D1 migration is attempted or implied.
 
 `PatternRecord` carries the per-pattern overrides in a sparse
 `settings?: Partial<Settings>` field — superseding older flat columns;
@@ -563,7 +553,8 @@ animated starter immediately. **Import** parses `.epe` JSON (`epeImport.ts`,
 takes `sources.main`) into a new user pattern. **Fork** copies a read-only demo
 into an editable pattern, snapshotting the demo's *effective* settings into the
 new record as frozen layer-1 overrides — no live pointer back. CRUD helpers
-accept an injectable `IDBFactory` for tests (`fake-indexeddb`).
+use the active personal content provider; tests inject memory providers or mock
+the authenticated API.
 
 ## 13. Live Controller connectivity
 
@@ -751,10 +742,11 @@ pair remembers the device program id it last saved to and reuses it (an id the
 user deleted on-device is silently re-minted, detected against the live
 `listPrograms`). Run-only's id never lists, so binding it would churn a fresh id
 every push. Control values are never in either push; the binding is identity
-only, persisted in IndexedDB.
+only, persisted in D1 through controller metadata storage.
 
 **Program label cache** (`withProgramLabel`) is a parallel structure, persisted
-under its own IndexedDB key and keyed by device program id (not pattern id).
+under its own controller metadata key and keyed by device program id (not pattern
+id).
 Every push records the pushed name against the program id it landed on, so the
 panel can name a running program the device list doesn't know. The panel resolves
 the active program's name in three tiers — program-list name → local label → raw

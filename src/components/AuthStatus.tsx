@@ -2,17 +2,11 @@ import { useEffect, useState } from 'react'
 import { LogIn, LogOut } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { getAuthSession, type AuthSession } from '@/engine/authSession'
-import { resolvePersonalContentProviderMode } from '@/engine/personalContentProvider'
 
 export function AuthStatus() {
-  const cloudMode = resolvePersonalContentProviderMode(import.meta.env.VITE_PERSONAL_CONTENT_PROVIDER, {
-    prod: import.meta.env.PROD,
-    baseUrl: import.meta.env.BASE_URL,
-  }) === 'remote-api'
   const [session, setSession] = useState<AuthSession | null>(null)
 
   useEffect(() => {
-    if (!cloudMode) return
     let cancelled = false
     getAuthSession()
       .then((next) => {
@@ -24,9 +18,8 @@ export function AuthStatus() {
     return () => {
       cancelled = true
     }
-  }, [cloudMode])
+  }, [])
 
-  if (!cloudMode) return null
   if (!session) return null
 
   if (session?.authenticated) {

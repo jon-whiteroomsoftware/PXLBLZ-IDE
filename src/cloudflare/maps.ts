@@ -1,4 +1,4 @@
-import type { MapRecord } from '../engine/storage'
+import type { MapRecord } from '../engine/personalContentRecords'
 
 export interface D1MapStatementLike {
   bind(...values: unknown[]): D1MapStatementLike

@@ -6,7 +6,7 @@ import {
   updateD1Map,
   type D1DatabaseMapsLike,
 } from './maps'
-import type { MapRecord } from '../engine/storage'
+import type { MapRecord } from '../engine/personalContentRecords'
 
 function fakeDb(rows: Record<string, unknown>[] = []): {
   db: D1DatabaseMapsLike

@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { MapRecord } from '@/engine/storage'
+import type { MapRecord } from '@/engine/personalContentRecords'
 import { getPersonalContentProvider } from '@/engine/personalContentProvider'
 import { newPersonalContentId } from '@/engine/personalContentMetadata'
 import {
@@ -103,7 +103,7 @@ export function mapFromRecord(r: MapRecord): PixelMap {
 // Built-in stock maps — source-backed, regenerated live, never
 // persisted. The plane and cube run their `.js` source. The relocated #140
 // example clouds (sphere/ring) are now live builtin generators too — stock
-// by provenance, never listed in "Your Maps" (#141). The cylinder is no longer a
+// by provenance, never listed in "Cloud Maps" (#141). The cylinder is no longer a
 // stock map: it is a viewport Surface composed onto the Square.
 export const STOCK_MAPS: PixelMap[] = SOURCE_STOCK_MAPS
 
@@ -213,14 +213,14 @@ interface MapState {
   setActiveSolidity: (solidity: number) => void
   setActiveNormalizeMode: (mode: NormalizeMode) => void
   // Create a fresh custom map (skeleton source), persist it immediately as a row
-  // in "Your Maps" (no save step, mirroring New Pattern), and open it in map mode.
+  // in "Cloud Maps" (no save step, mirroring New Pattern), and open it in map mode.
   createNewMap: () => Promise<void>
   // Open editor map mode on a saved custom map's source. No-op for a record with
   // no source.
   openExistingMap: (record: MapRecord) => void
   // Open editor map mode on a stock map's read-only source.
   openStockMap: (id: string) => void
-  // Clone a stock map into an editable custom map under "Your Maps".
+  // Clone a stock map into an editable custom map under "Cloud Maps".
   cloneStockMap: (id: string) => Promise<void>
   // Legacy helper: replace the editor buffer with a template's verbatim source and
   // reset the dirty-guard baseline to it.
@@ -444,10 +444,10 @@ export const useMapStore = create<MapState>()((set, get) => ({
   },
 
   loadMaps: async () => {
-    // "Your Maps" lists user-authored maps only (#141). The #140 example clouds
+    // "Cloud Maps" lists user-authored maps only (#141). The #140 example clouds
     // are now stock (in STOCK_MAPS), so prune any rows an earlier build seeded
     // into the IDB `maps` store before they were relocated — otherwise they'd
-    // show up duplicated under "Your Maps".
+    // show up duplicated under "Cloud Maps".
     const provider = getPersonalContentProvider()
     const existing = await provider.listMaps()
     const stale = existing.filter((m) => SEED_MAP_IDS.includes(m.id))

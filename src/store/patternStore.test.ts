@@ -1,13 +1,46 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { usePatternStore, patternInitialState, activePushKey } from './patternStore'
+import type { PatternRecord } from '@/engine/personalContentRecords'
 import {
   resetPersonalContentProvider,
   setPersonalContentProvider,
   type PersonalContentProvider,
 } from '@/engine/personalContentProvider'
+import type { Settings } from '@/engine/settings'
+
+function memoryProvider(): PersonalContentProvider {
+  const patterns = new Map<string, PatternRecord>()
+  let demoOverrides: Record<string, Partial<Settings>> | undefined
+  return {
+    id: 'memory-test',
+    listPatterns: async () => [...patterns.values()],
+    createPattern: async (record) => {
+      patterns.set(record.id, record)
+    },
+    updatePattern: async (id, changes) => {
+      const existing = patterns.get(id)
+      if (!existing) return
+      patterns.set(id, { ...existing, ...changes })
+    },
+    deletePattern: async (id) => {
+      patterns.delete(id)
+    },
+    listMaps: async () => [],
+    createMap: async () => {},
+    updateMap: async () => {},
+    deleteMap: async () => {},
+    getLastActive: async () => undefined,
+    setLastActive: async () => {},
+    getDemoOverrides: async () => demoOverrides,
+    setDemoOverrides: async (next) => {
+      demoOverrides = next
+    },
+  }
+}
 
 beforeEach(() => {
   resetPersonalContentProvider()
+  setPersonalContentProvider(memoryProvider())
   usePatternStore.setState(patternInitialState)
 })
 

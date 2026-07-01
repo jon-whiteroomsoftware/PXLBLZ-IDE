@@ -1,18 +1,5 @@
-import {
-  type MapRecord,
-  type PatternRecord,
-  createMap,
-  createPattern,
-  deleteMap,
-  deletePattern,
-  getSetting,
-  listMaps,
-  listPatterns,
-  setSetting,
-  updateMap,
-  updatePattern,
-} from './storage'
 import type { Settings } from './settings'
+import type { MapRecord, PatternRecord } from './personalContentRecords'
 import { createRemotePersonalContentProvider } from './remotePersonalContentProvider'
 
 export const LAST_ACTIVE_KEY = 'lastActive'
@@ -23,9 +10,9 @@ export type LastActive =
   | { type: 'library'; name: string }
   | { type: 'demo'; name: string }
 
-export type PersonalContentStorageMode = 'browser' | 'api'
+export type PersonalContentStorageMode = 'demo' | 'api'
 export type PersonalContentCollection = 'patterns' | 'maps'
-export type PersonalContentProviderMode = 'browser' | 'remote-api'
+export type PersonalContentProviderMode = 'remote-api'
 
 export interface PersonalContentProvider {
   readonly id: string
@@ -47,7 +34,7 @@ export function storageModeForPersonalContentProvider(
   provider: Pick<PersonalContentProvider, 'id'>,
 ): PersonalContentStorageMode {
   if (provider.id === 'remote-api') return 'api'
-  return 'browser'
+  return 'demo'
 }
 
 export function personalContentCollectionLabel(
@@ -56,26 +43,30 @@ export function personalContentCollectionLabel(
 ): string {
   const noun = collection === 'patterns' ? 'Patterns' : 'Maps'
   if (storageMode === 'api') return `Cloud ${noun}`
-  return `Your ${noun}`
+  return `Cloud ${noun}`
 }
 
-export const browserPersonalContentProvider: PersonalContentProvider = {
-  id: 'browser-indexeddb',
-  listPatterns,
-  createPattern,
-  updatePattern,
-  deletePattern,
-  listMaps,
-  createMap,
-  updateMap,
-  deleteMap,
-  getLastActive: () => getSetting<LastActive>(LAST_ACTIVE_KEY),
-  setLastActive: (lastActive) => setSetting(LAST_ACTIVE_KEY, lastActive),
-  getDemoOverrides: () => getSetting<Record<string, Partial<Settings>>>(DEMO_OVERRIDES_KEY),
-  setDemoOverrides: (overrides) => setSetting(DEMO_OVERRIDES_KEY, overrides),
+function signInRequired(): Promise<never> {
+  return Promise.reject(new Error('Sign in required for durable personal workspace storage'))
 }
 
-let activeProvider: PersonalContentProvider = browserPersonalContentProvider
+export const demoPersonalContentProvider: PersonalContentProvider = {
+  id: 'demo',
+  listPatterns: async () => [],
+  createPattern: signInRequired,
+  updatePattern: signInRequired,
+  deletePattern: signInRequired,
+  listMaps: async () => [],
+  createMap: signInRequired,
+  updateMap: signInRequired,
+  deleteMap: signInRequired,
+  getLastActive: async () => undefined,
+  setLastActive: async () => {},
+  getDemoOverrides: async () => undefined,
+  setDemoOverrides: async () => {},
+}
+
+let activeProvider: PersonalContentProvider = demoPersonalContentProvider
 
 export function getPersonalContentProvider(): PersonalContentProvider {
   return activeProvider
@@ -86,7 +77,7 @@ export function setPersonalContentProvider(provider: PersonalContentProvider): v
 }
 
 export function resetPersonalContentProvider(): void {
-  activeProvider = browserPersonalContentProvider
+  activeProvider = demoPersonalContentProvider
 }
 
 export interface PersonalContentProviderInitOptions {
@@ -100,13 +91,10 @@ export interface PersonalContentProviderModeContext {
 }
 
 export function resolvePersonalContentProviderMode(
-  raw: string | undefined,
-  context: PersonalContentProviderModeContext = {},
+  _raw: string | undefined,
+  _context: PersonalContentProviderModeContext = {},
 ): PersonalContentProviderMode {
-  if (raw === 'browser') return 'browser'
-  if (raw === 'remote-api') return 'remote-api'
-  if (context.prod && context.baseUrl === '/') return 'remote-api'
-  return 'browser'
+  return 'remote-api'
 }
 
 export async function initializePersonalContentProvider(
@@ -116,12 +104,6 @@ export async function initializePersonalContentProvider(
     activeProvider = options.provider
     return activeProvider
   }
-  const mode = options.mode ?? resolvePersonalContentProviderMode(import.meta.env.VITE_PERSONAL_CONTENT_PROVIDER, {
-    prod: import.meta.env.PROD,
-    baseUrl: import.meta.env.BASE_URL,
-  })
-  activeProvider = mode === 'remote-api'
-    ? createRemotePersonalContentProvider()
-    : browserPersonalContentProvider
+  activeProvider = createRemotePersonalContentProvider()
   return activeProvider
 }

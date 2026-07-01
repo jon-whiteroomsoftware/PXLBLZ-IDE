@@ -44,7 +44,7 @@ export interface PushPatternDeps {
    *  in-place via the binding). When false/undefined, run-only — load + run under a
    *  throwaway id, no binding. */
   persist?: boolean
-  /** Load the persisted binding store (e.g. from IndexedDB). Save mode only. */
+  /** Load the persisted binding store (e.g. from the API/D1 metadata backend). Save mode only. */
   loadBindings: () => Promise<BindingStore>
   /** Persist the binding store after a freshly-minted binding. Save mode only. */
   saveBindings: (bindings: BindingStore) => Promise<void>

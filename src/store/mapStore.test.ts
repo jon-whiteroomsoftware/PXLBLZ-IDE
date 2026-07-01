@@ -17,10 +17,42 @@ import {
 } from './mapStore'
 import { useEditorStore, editorInitialState } from './editorStore'
 import { MAP_SKELETON } from '@/engine/maps'
-import { resetPersonalContentProvider } from '@/engine/personalContentProvider'
+import {
+  resetPersonalContentProvider,
+  setPersonalContentProvider,
+  type PersonalContentProvider,
+} from '@/engine/personalContentProvider'
+
+function memoryProvider(): PersonalContentProvider {
+  const maps = new Map<string, MapRecord>()
+  return {
+    id: 'memory-test',
+    listPatterns: async () => [],
+    createPattern: async () => {},
+    updatePattern: async () => {},
+    deletePattern: async () => {},
+    listMaps: async () => [...maps.values()],
+    createMap: async (record) => {
+      maps.set(record.id, record)
+    },
+    updateMap: async (id, changes) => {
+      const existing = maps.get(id)
+      if (!existing) throw new Error(`Map ${id} not found`)
+      maps.set(id, { ...existing, ...changes })
+    },
+    deleteMap: async (id) => {
+      maps.delete(id)
+    },
+    getLastActive: async () => undefined,
+    setLastActive: async () => {},
+    getDemoOverrides: async () => undefined,
+    setDemoOverrides: async () => {},
+  }
+}
 
 beforeEach(() => {
   resetPersonalContentProvider()
+  setPersonalContentProvider(memoryProvider())
   useMapStore.setState(mapInitialState)
   useEditorStore.setState(editorInitialState)
 })
@@ -130,7 +162,7 @@ describe('seed clouds relocated to stock (#141)', () => {
     expect(STOCK_MAPS.some((m) => m.id === 'seed-sphere-3d')).toBe(true)
   })
 
-  it('starts "Your Maps" empty on a fresh profile', async () => {
+  it('starts Cloud Maps empty on a fresh profile', async () => {
     await useMapStore.getState().loadMaps()
     expect(useMapStore.getState().userMaps).toHaveLength(0)
   })

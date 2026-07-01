@@ -5,7 +5,7 @@ import {
   type PersonalContentProvider,
 } from './personalContentProvider'
 import type { Settings } from './settings'
-import type { MapRecord, PatternRecord } from './storage'
+import type { MapRecord, PatternRecord } from './personalContentRecords'
 
 export interface RemotePersonalContentProviderOptions {
   fetcher?: typeof fetch

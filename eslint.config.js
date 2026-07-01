@@ -12,6 +12,8 @@ export default tseslint.config(
       'node_modules',
       'src/pixelblaze/lib',
       'src/pixelblaze/demos',
+      'src/pixelblaze/stock/patterns/*.js',
+      'src/pixelblaze/stock/maps/sources/*.js',
       'src/engine/maps/sources/**',
       'test/divergence-harness/probe.js',
       'test/perf-harness/profiler.js',

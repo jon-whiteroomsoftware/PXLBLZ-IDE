@@ -11,6 +11,7 @@ import {
   AlertDialogAction,
 } from '@/components/ui/alert-dialog'
 import { useMapStore, STOCK_MAP_ITEMS } from '@/store/mapStore'
+import { useWorkspaceStore } from '@/store/workspaceStore'
 import { SendMapToController } from '@/components/SendMapToController'
 
 // The editor header strip in map mode (#151/#268): source identity, parse-only
@@ -22,6 +23,7 @@ export function MapModeHeader() {
   const cloneStockMap = useMapStore((s) => s.cloneStockMap)
   const removeMap = useMapStore((s) => s.removeMap)
   const mapEvalError = useMapStore((s) => s.mapEvalError)
+  const personalWorkspaceAuthenticated = useWorkspaceStore((s) => s.personalWorkspaceAuthenticated)
   const [deleteOpen, setDeleteOpen] = useState(false)
 
   const openRecord =
@@ -65,11 +67,11 @@ export function MapModeHeader() {
           </span>
         )}
       </span>
-      {editingMap?.kind === 'stock' && (
+      {editingMap?.kind === 'stock' && personalWorkspaceAuthenticated && (
         <button
           type="button"
           onClick={() => void cloneStockMap(editingMap.id)}
-          title="Clone into Your Maps"
+          title="Clone into Cloud Maps"
           className="shrink-0 h-6 px-2 rounded border border-zinc-700 text-[11px] text-zinc-300 hover:border-zinc-500 hover:text-amber-400/80 transition-colors"
         >
           Clone

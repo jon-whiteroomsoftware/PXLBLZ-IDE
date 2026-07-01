@@ -27,6 +27,7 @@ import { MapModeHeader } from '@/components/MapModeHeader'
 import { usePatternStore, PatternRecord } from '@/store/patternStore'
 import { useEditorStore } from '@/store/editorStore'
 import { useDocsStore } from '@/store/docsStore'
+import { useWorkspaceStore } from '@/store/workspaceStore'
 import { forkSettingsSnapshot } from '@/store/settingsCascade'
 import { bundle } from '@/engine/bundle'
 import { LIBRARIES } from '@/pixelblaze/libs'
@@ -72,6 +73,7 @@ export default function App() {
   const addPattern = usePatternStore((s) => s.addPattern)
   const setActivePattern = usePatternStore((s) => s.setActivePattern)
   const removePattern = usePatternStore((s) => s.removePattern)
+  const personalWorkspaceAuthenticated = useWorkspaceStore((s) => s.personalWorkspaceAuthenticated)
   const source = useEditorStore((s) => s.source)
   const compileStatus = useEditorStore((s) => s.compileStatus)
   const editorFlavor = useEditorStore((s) => s.editorFlavor)
@@ -117,7 +119,7 @@ export default function App() {
   }, [source, activePatternId, userPatterns, setSource, setPreviewSource, setIsReadOnly])
 
   const handleForkDemo = useCallback(async () => {
-    if (!activeDemoName) return
+    if (!activeDemoName || !personalWorkspaceAuthenticated) return
     const id = newPersonalContentId()
     const existingNames = userPatterns.map((p) => p.name)
     const name = uniquePatternName(activeDemoName, existingNames)
@@ -138,7 +140,7 @@ export default function App() {
     setIsReadOnly(false)
     setPreviewSource(record.src)
     setPreviewPatternName(record.name)
-  }, [activeDemoName, source, userPatterns, addPattern, setActivePattern, setSource, setIsReadOnly, setPreviewSource, setPreviewPatternName])
+  }, [activeDemoName, personalWorkspaceAuthenticated, source, userPatterns, addPattern, setActivePattern, setSource, setIsReadOnly, setPreviewSource, setPreviewPatternName])
 
   const [copied, setCopied] = useState(false)
   const [deletePatternOpen, setDeletePatternOpen] = useState(false)
@@ -261,13 +263,13 @@ export default function App() {
               <DimPills dims={exportedDims(source)} />
               {activePatternId !== null && <CompileStatusBadge />}
             </span>
-            {activeDemoName !== null && (
+            {activeDemoName !== null && personalWorkspaceAuthenticated && (
               <Button
                 size="xs"
                 variant="ghost"
                 className="text-xs text-zinc-400 bg-zinc-800/70 hover:bg-zinc-700/70 hover:text-zinc-300"
                 onClick={handleForkDemo}
-                title="Clone into Your Patterns"
+                title="Clone into Cloud Patterns"
               >
                 Clone
               </Button>

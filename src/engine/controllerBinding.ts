@@ -1,5 +1,5 @@
 // Per-Controller pattern→program binding logic for overwrite-in-place push
-// (H10, issue #202). Pure decision layer; persistence lives in storage.ts and the
+// (H10, issue #202). Pure decision layer; persistence lives behind controller metadata storage and the
 // socket work in PixelblazeConnection.
 //
 // The #202 contract: a deliberate Send "overwrites in place" rather than piling up
