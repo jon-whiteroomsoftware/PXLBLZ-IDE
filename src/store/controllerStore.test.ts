@@ -26,7 +26,8 @@ import {
   getControllerBindings,
   setControllerBindings,
   getProgramLabels,
-} from '@/engine/storage'
+  resetControllerMetadataStorage,
+} from '@/engine/controllerMetadataStorage'
 
 // A fake per-Controller provider with a real (if minimal) status machine, so we
 // can assert the keyed store's orchestration end-to-end. detectHelper acks true
@@ -148,6 +149,7 @@ const created = new Map<string, FakeProvider>()
 beforeEach(async () => {
   localStorage.clear()
   __resetControllerProviders()
+  resetControllerMetadataStorage()
   useControllerStore.setState(controllerInitialState)
   usePatternStore.setState(patternInitialState)
   useEditorStore.setState(editorInitialState)

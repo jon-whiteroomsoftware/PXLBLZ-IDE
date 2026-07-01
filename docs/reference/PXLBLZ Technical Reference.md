@@ -505,42 +505,44 @@ field: never cascaded, persisted on its own.
 Patterns** and **Your Maps**. Exactly one personal content provider is active at a
 time:
 
-- **Browser provider** (production, Cloudflare/GitHub Pages, and localhost): IndexedDB
-  database `pixelblaze-ide` (version 2), with `patterns`, `settings`, and `maps`
-  stores.
-- **Remote API provider** (planned): a future Cloudflare Workers/D1-backed
-  implementation can replace the browser provider behind the same interface.
+- **Browser provider** (default, GitHub Pages fallback, and localhost):
+  IndexedDB database `pixelblaze-ide` (version 2), with `patterns`, `settings`,
+  and `maps` stores.
+- **Remote API provider**: a Cloudflare Pages Functions/D1-backed
+  implementation selected by build-time configuration behind the same interface.
 
-Provider selection currently defaults to browser storage. The UI shows one
-**Your Patterns** and one **Your Maps** surface; it does not split local and
-remote content.
+Provider selection defaults to browser storage unless
+`VITE_PERSONAL_CONTENT_PROVIDER=remote-api` is set at build time. The UI shows
+one personal pattern surface and one personal map surface; it does not split
+local and remote content.
 
-The Cloudflare D1 foundation exists but is not yet selected by the app. The
-Wrangler binding is `PXLBLZ_DB`, backed by the `pxlblz-ide` database. The first
+The Cloudflare D1 foundation is selected by the remote provider. The Wrangler
+binding is `PXLBLZ_DB`, backed by the `pxlblz-ide` database. The first
 migration creates user-scoped tables for personal patterns, personal maps,
 personal settings, and controller metadata, plus `app_metadata` for schema
 version probing. The Pages Function at `/api/d1/health` reads
 `app_metadata.schema_version` and reports whether the binding is reachable; it is
 only a backend foundation probe, not personal-content CRUD.
 
-The Cloudflare auth foundation is also backend-only for now. GitHub OAuth starts
-at `/api/auth/login`, returns through `/api/auth/callback`, upserts a row in
-`users`, and sets a signed `pxlblz_session` cookie. `/api/me` verifies that
-cookie and returns the GitHub-backed user identity; `/api/auth/logout` clears it.
-The session signer and OAuth helpers live in `src/cloudflare/auth.ts`, keeping
-GitHub/Cloudflare details out of React and out of the personal content provider.
-Optional owner allow-lists (`GITHUB_ALLOWED_LOGINS` / `GITHUB_ALLOWED_IDS`) are
-enforced server-side before a session is issued. The remote personal-content
-provider still does not exist in this slice.
+GitHub OAuth starts at `/api/auth/login`, returns through
+`/api/auth/callback`, upserts a row in `users`, and sets a signed
+`pxlblz_session` cookie. `/api/me` verifies that cookie and returns the
+GitHub-backed user identity; `/api/auth/logout` clears it. The session signer
+and OAuth helpers live in `src/cloudflare/auth.ts`, keeping GitHub/Cloudflare
+details out of React and out of the personal content provider. Optional owner
+allow-lists (`GITHUB_ALLOWED_LOGINS` / `GITHUB_ALLOWED_IDS`) are enforced
+server-side before a session is issued.
 
-When `VITE_PERSONAL_CONTENT_PROVIDER=remote-api` is set at build time, startup
-selects `remote-api` instead of the browser provider. Pattern operations call
+When remote mode is selected, startup selects `remote-api` instead of the
+browser provider. Pattern operations call
 `/api/patterns`, custom map operations call `/api/maps`, and provider-owned
-settings (`lastActive`, `demoOverrides`) call `/api/settings/:key`. All D1
-helpers scope list/update/delete predicates by the signed session's `userId`.
-Controller metadata deliberately continues to use browser-local storage until
-its follow-up slice lands. The UI labels remote-backed collections as **Cloud
-Patterns** and **Cloud Maps**.
+settings (`lastActive`, `demoOverrides`) call `/api/settings/:key`. Controller
+push metadata uses a sibling framework-free storage seam: overwrite bindings
+(`controller-bindings`) and program label caches
+(`controller-program-labels`) call `/api/controller-metadata/:key` in remote
+mode and fall back to IndexedDB settings in browser mode. All D1 helpers scope
+list/update/delete predicates by the signed session's `userId`. The UI labels
+remote-backed collections as **Cloud Patterns** and **Cloud Maps**.
 
 `PatternRecord` carries the per-pattern overrides in a sparse
 `settings?: Partial<Settings>` field — superseding older flat columns;

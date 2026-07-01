@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { getControllerProvider } from '@/engine/controllerProviderRegistry'
 import { applyControllerPixelCount } from '@/engine/applyControllerPixelCount'
 import { throttleTrailing } from '@/engine/throttleTrailing'
-import { getProgramLabels } from '@/engine/storage'
+import { getProgramLabels } from '@/engine/controllerMetadataStorage'
 import type { ProgramListEntry } from '@/engine/PixelblazeConnection'
 
 // Polling orchestration for the live Controller panel (H6, issue #198).

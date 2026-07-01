@@ -27,7 +27,7 @@ import {
   setControllerBindings,
   getProgramLabels,
   setProgramLabels,
-} from '@/engine/storage'
+} from '@/engine/controllerMetadataStorage'
 import { withProgramLabel } from '@/engine/controllerBinding'
 import { bundle } from '@/engine/bundle'
 import { buildPreviewJpeg } from '@/engine/previewThumbnailJpeg'

@@ -13,6 +13,7 @@ import {
   storageModeForPersonalContentProvider,
   type PersonalContentStorageMode,
 } from '@/engine/personalContentProvider'
+import { initializeControllerMetadataStorage } from '@/engine/controllerMetadataStorage'
 import { newPersonalContentId } from '@/engine/personalContentMetadata'
 import { useEditorStore } from '@/store/editorStore'
 import { usePatternStore, PatternRecord } from '@/store/patternStore'
@@ -781,6 +782,7 @@ export function PatternList() {
     let cancelled = false
     async function hydratePersonalContent() {
       const provider = await initializePersonalContentProvider()
+      await initializeControllerMetadataStorage()
       if (cancelled) return
       setPersonalStorageMode(storageModeForPersonalContentProvider(provider))
       // Hydrate user maps before the first pattern opens so the layout selector is
