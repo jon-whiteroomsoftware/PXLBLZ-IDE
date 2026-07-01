@@ -139,6 +139,47 @@ npm run cf:dev
 Then visit `/api/d1/health`; a migrated D1 binding returns
 `{"ok":true,"schemaVersion":"1"}`.
 
+### Cloudflare GitHub OAuth
+
+The backend has GitHub OAuth/session endpoints for the future cloud-backed
+storage provider:
+
+- `GET /api/auth/login` starts GitHub OAuth.
+- `GET /api/auth/callback` exchanges the GitHub code, upserts the user in D1,
+  and sets a signed `pxlblz_session` cookie.
+- `GET /api/me` returns the signed-in GitHub user or `401`.
+- `GET` or `POST /api/auth/logout` clears the session cookie.
+
+Create a GitHub OAuth app for the Cloudflare deployment and set its callback URL
+to:
+
+```txt
+https://pxlblz-ide.pages.dev/api/auth/callback
+```
+
+For local end-to-end OAuth testing, create a second GitHub OAuth app with:
+
+```txt
+http://localhost:8788/api/auth/callback
+```
+
+Then set Cloudflare Pages environment variables/secrets:
+
+```txt
+GITHUB_CLIENT_ID
+GITHUB_CLIENT_SECRET
+SESSION_SECRET
+GITHUB_ALLOWED_LOGINS      # optional comma-separated GitHub logins
+GITHUB_ALLOWED_IDS         # optional comma-separated numeric GitHub ids
+GITHUB_OAUTH_REDIRECT_URI  # optional override, useful for local testing
+```
+
+`SESSION_SECRET` should be a long random value, for example from
+`openssl rand -base64 32`. When either allow-list variable is set, only matching
+GitHub users can sign in. With neither allow-list set, any GitHub user can
+authenticate, though personal-content CRUD is not wired to the backend until the
+next storage issues land.
+
 ## Documentation
 
 - **[PXLBLZ Feature Guide](docs/reference/PXLBLZ%20Feature%20Guide.md)** - start

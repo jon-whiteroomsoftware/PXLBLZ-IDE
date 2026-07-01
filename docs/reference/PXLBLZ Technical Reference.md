@@ -523,6 +523,16 @@ version probing. The Pages Function at `/api/d1/health` reads
 `app_metadata.schema_version` and reports whether the binding is reachable; it is
 only a backend foundation probe, not personal-content CRUD.
 
+The Cloudflare auth foundation is also backend-only for now. GitHub OAuth starts
+at `/api/auth/login`, returns through `/api/auth/callback`, upserts a row in
+`users`, and sets a signed `pxlblz_session` cookie. `/api/me` verifies that
+cookie and returns the GitHub-backed user identity; `/api/auth/logout` clears it.
+The session signer and OAuth helpers live in `src/cloudflare/auth.ts`, keeping
+GitHub/Cloudflare details out of React and out of the personal content provider.
+Optional owner allow-lists (`GITHUB_ALLOWED_LOGINS` / `GITHUB_ALLOWED_IDS`) are
+enforced server-side before a session is issued. The remote personal-content
+provider still does not exist in this slice.
+
 `PatternRecord` carries the per-pattern overrides in a sparse
 `settings?: Partial<Settings>` field — superseding older flat columns;
 `migratePatternRecord` lifts pre-cascade records into the nested bag on read and
