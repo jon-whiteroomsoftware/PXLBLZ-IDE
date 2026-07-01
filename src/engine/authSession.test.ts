@@ -2,6 +2,12 @@ import { getAuthSession } from './authSession'
 
 describe('auth session probe', () => {
   it('returns authenticated false for an unsigned request', async () => {
+    const session = await getAuthSession(async () => Response.json({ authenticated: false }))
+
+    expect(session).toEqual({ authenticated: false })
+  })
+
+  it('treats the older 401 unsigned response as authenticated false', async () => {
     const session = await getAuthSession(async () => Response.json({ error: 'Unauthorized' }, { status: 401 }))
 
     expect(session).toEqual({ authenticated: false })

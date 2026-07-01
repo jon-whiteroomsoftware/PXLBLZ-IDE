@@ -52,7 +52,7 @@ printed `pxlblz_session` cookie to local API smoke requests.
 After deploy, open the Pages URL and smoke-test:
 
 1. Visit `/api/d1/health`; expect `{"ok":true,"schemaVersion":"1"}`.
-2. Visit `/api/me`; signed out should report unauthenticated or 401.
+2. Visit `/api/me`; signed out should report `{ "authenticated": false }`.
 3. Click **Sign in**, complete GitHub OAuth, and confirm `/api/me` reports the
    GitHub user.
 4. Create, edit, reload, and delete a personal pattern.

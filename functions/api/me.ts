@@ -16,7 +16,7 @@ export async function onRequestGet(context: PagesFunctionContext): Promise<Respo
   const session = await readSessionToken(cookies[sessionCookieName], context.env.SESSION_SECRET)
 
   if (!session) {
-    return Response.json({ authenticated: false }, { status: 401 })
+    return Response.json({ authenticated: false })
   }
 
   return Response.json({

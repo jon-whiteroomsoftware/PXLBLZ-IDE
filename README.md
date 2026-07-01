@@ -160,7 +160,7 @@ The backend uses GitHub OAuth/session endpoints for cloud-backed storage:
 - `GET /api/auth/login` starts GitHub OAuth.
 - `GET /api/auth/callback` exchanges the GitHub code, upserts the user in D1,
   and sets a signed `pxlblz_session` cookie.
-- `GET /api/me` returns the signed-in GitHub user or `401`.
+- `GET /api/me` returns the signed-in GitHub user or `{ "authenticated": false }`.
 - `GET` or `POST /api/auth/logout` clears the session cookie.
 
 Create a GitHub OAuth app for the Cloudflare deployment and set its callback URL
