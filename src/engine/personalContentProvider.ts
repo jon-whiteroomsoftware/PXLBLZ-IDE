@@ -13,6 +13,7 @@ import {
   updatePattern,
 } from './storage'
 import type { Settings } from './settings'
+import { createRemotePersonalContentProvider } from './remotePersonalContentProvider'
 
 export const LAST_ACTIVE_KEY = 'lastActive'
 export const DEMO_OVERRIDES_KEY = 'demoOverrides'
@@ -24,6 +25,7 @@ export type LastActive =
 
 export type PersonalContentStorageMode = 'browser' | 'api'
 export type PersonalContentCollection = 'patterns' | 'maps'
+export type PersonalContentProviderMode = 'browser' | 'remote-api'
 
 export interface PersonalContentProvider {
   readonly id: string
@@ -53,7 +55,7 @@ export function personalContentCollectionLabel(
   collection: PersonalContentCollection,
 ): string {
   const noun = collection === 'patterns' ? 'Patterns' : 'Maps'
-  if (storageMode === 'api') return `Cloud ${noun}`
+  if (storageMode === 'api' && collection === 'patterns') return `Cloud ${noun}`
   return `Your ${noun}`
 }
 
@@ -89,11 +91,23 @@ export function resetPersonalContentProvider(): void {
 
 export interface PersonalContentProviderInitOptions {
   provider?: PersonalContentProvider
+  mode?: PersonalContentProviderMode
+}
+
+export function resolvePersonalContentProviderMode(raw: string | undefined): PersonalContentProviderMode {
+  return raw === 'remote-api' ? 'remote-api' : 'browser'
 }
 
 export async function initializePersonalContentProvider(
   options: PersonalContentProviderInitOptions = {},
 ): Promise<PersonalContentProvider> {
-  activeProvider = options.provider ?? browserPersonalContentProvider
+  if (options.provider) {
+    activeProvider = options.provider
+    return activeProvider
+  }
+  const mode = options.mode ?? resolvePersonalContentProviderMode(import.meta.env.VITE_PERSONAL_CONTENT_PROVIDER)
+  activeProvider = mode === 'remote-api'
+    ? createRemotePersonalContentProvider()
+    : browserPersonalContentProvider
   return activeProvider
 }

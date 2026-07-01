@@ -160,6 +160,14 @@ export async function readSessionToken(
   }
 }
 
+export async function readSessionFromRequest(
+  request: Request,
+  secret: string | undefined,
+): Promise<SessionPayload | null> {
+  const cookies = parseCookieHeader(request.headers.get('Cookie'))
+  return readSessionToken(cookies[sessionCookieName], secret)
+}
+
 export function parseCookieHeader(header: string | null): Record<string, string> {
   if (!header) return {}
   const cookies: Record<string, string> = {}

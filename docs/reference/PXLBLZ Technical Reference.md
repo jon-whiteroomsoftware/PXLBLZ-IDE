@@ -533,6 +533,15 @@ Optional owner allow-lists (`GITHUB_ALLOWED_LOGINS` / `GITHUB_ALLOWED_IDS`) are
 enforced server-side before a session is issued. The remote personal-content
 provider still does not exist in this slice.
 
+The first remote personal-content provider slice covers **patterns only**. When
+`VITE_PERSONAL_CONTENT_PROVIDER=remote-api` is set at build time, startup selects
+`remote-api` instead of the browser provider. Pattern operations then call
+`/api/patterns` and are scoped by the signed session's `userId`; the D1 helpers
+always include `user_id` in list/update/delete predicates. Maps, last-active
+state, demo overrides, and controller metadata deliberately continue to use
+browser-local storage until their follow-up slices land, so the UI labels cloud
+patterns as **Cloud Patterns** while maps remain **Your Maps**.
+
 `PatternRecord` carries the per-pattern overrides in a sparse
 `settings?: Partial<Settings>` field — superseding older flat columns;
 `migratePatternRecord` lifts pre-cascade records into the nested bag on read and

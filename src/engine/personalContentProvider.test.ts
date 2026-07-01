@@ -1,8 +1,10 @@
 import {
   browserPersonalContentProvider,
   getPersonalContentProvider,
+  initializePersonalContentProvider,
   personalContentCollectionLabel,
   resetPersonalContentProvider,
+  resolvePersonalContentProviderMode,
   setPersonalContentProvider,
   storageModeForPersonalContentProvider,
   type PersonalContentProvider,
@@ -65,6 +67,15 @@ describe('personal content provider seam', () => {
     expect(storageModeForPersonalContentProvider({ id: 'remote-api' })).toBe('api')
     expect(personalContentCollectionLabel('browser', 'patterns')).toBe('Your Patterns')
     expect(personalContentCollectionLabel('api', 'patterns')).toBe('Cloud Patterns')
+    expect(personalContentCollectionLabel('api', 'maps')).toBe('Your Maps')
+  })
+
+  it('keeps browser storage as default and selects remote API only through explicit mode', async () => {
+    expect(resolvePersonalContentProviderMode(undefined)).toBe('browser')
+    expect(resolvePersonalContentProviderMode('remote-api')).toBe('remote-api')
+    expect(resolvePersonalContentProviderMode('anything-else')).toBe('browser')
+    await expect(initializePersonalContentProvider({ mode: 'browser' })).resolves.toBe(browserPersonalContentProvider)
+    await expect(initializePersonalContentProvider({ mode: 'remote-api' })).resolves.toMatchObject({ id: 'remote-api' })
   })
 
   it('browser provider preserves pattern, map, last-active, and demo-override storage', async () => {

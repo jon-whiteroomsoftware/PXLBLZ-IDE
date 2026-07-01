@@ -180,6 +180,17 @@ GitHub users can sign in. With neither allow-list set, any GitHub user can
 authenticate, though personal-content CRUD is not wired to the backend until the
 next storage issues land.
 
+Cloud-backed personal patterns are available behind an explicit frontend flag:
+
+```txt
+VITE_PERSONAL_CONTENT_PROVIDER=remote-api
+```
+
+Leave that unset for the default browser-local IndexedDB behavior. When enabled,
+signed-in users read and write personal patterns through `/api/patterns`;
+personal maps, last-active state, demo overrides, and controller metadata remain
+browser-local until the later D1 storage slices land.
+
 ## Documentation
 
 - **[PXLBLZ Feature Guide](docs/reference/PXLBLZ%20Feature%20Guide.md)** - start
