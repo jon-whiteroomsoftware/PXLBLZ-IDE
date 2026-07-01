@@ -55,7 +55,7 @@ export function personalContentCollectionLabel(
   collection: PersonalContentCollection,
 ): string {
   const noun = collection === 'patterns' ? 'Patterns' : 'Maps'
-  if (storageMode === 'api' && collection === 'patterns') return `Cloud ${noun}`
+  if (storageMode === 'api') return `Cloud ${noun}`
   return `Your ${noun}`
 }
 

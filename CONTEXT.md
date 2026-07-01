@@ -60,7 +60,7 @@ The app's object browser and primary open/select surface. Its top-level organiza
 _Avoid_: treating **patterns** and **maps** as one interchangeable saved-item list; putting all user-owned objects together just because they share provenance.
 
 **Personal content provider**:
-The storage seam behind **Your patterns** and **Your maps**. Exactly one provider is active at a time. The default provider is browser-local IndexedDB in public builds and localhost development. A remote provider can be selected with `VITE_PERSONAL_CONTENT_PROVIDER=remote-api`; in the first D1 slice it stores personal patterns through authenticated Cloudflare Pages Functions while maps/settings/controller metadata remain browser-local. The Cloudflare D1 foundation (`PXLBLZ_DB`) and GitHub OAuth/session foundation sit behind this seam so React components do not know about D1, Workers, or auth.
+The storage seam behind **Your patterns** and **Your maps**. Exactly one provider is active at a time. The default provider is browser-local IndexedDB in public builds and localhost development. A remote provider can be selected with `VITE_PERSONAL_CONTENT_PROVIDER=remote-api`; it stores personal patterns, custom maps, last-active state, and demo overrides through authenticated Cloudflare Pages Functions while controller metadata remains browser-local until its own D1 slice. The Cloudflare D1 foundation (`PXLBLZ_DB`) and GitHub OAuth/session foundation sit behind this seam so React components do not know about D1, Workers, or auth.
 _Avoid_: implying multiple personal stores are visible at once; wiring database or network details directly into UI components.
 
 **Active document**:

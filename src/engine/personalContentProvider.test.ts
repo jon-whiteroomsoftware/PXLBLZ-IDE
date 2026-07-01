@@ -67,7 +67,7 @@ describe('personal content provider seam', () => {
     expect(storageModeForPersonalContentProvider({ id: 'remote-api' })).toBe('api')
     expect(personalContentCollectionLabel('browser', 'patterns')).toBe('Your Patterns')
     expect(personalContentCollectionLabel('api', 'patterns')).toBe('Cloud Patterns')
-    expect(personalContentCollectionLabel('api', 'maps')).toBe('Your Maps')
+    expect(personalContentCollectionLabel('api', 'maps')).toBe('Cloud Maps')
   })
 
   it('keeps browser storage as default and selects remote API only through explicit mode', async () => {
