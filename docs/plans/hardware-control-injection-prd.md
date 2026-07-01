@@ -24,7 +24,7 @@ PXLBLZ-IDE will introduce a hardware control injection pipeline that combines:
 3. A hardware-control manifest describing a Controller's physical inputs and optional per-pattern bindings.
 4. A deploy-time transform that emits a generated hardware-aware artifact plus a human-readable transform summary.
 
-The generated artifact is what gets sent to the Pixelblaze Controller. The original pattern remains unchanged in the editor, stock catalogue, personal workspace files, and exported source.
+The generated artifact is what gets sent to the Pixelblaze Controller. The original pattern remains unchanged in the editor, stock catalogue, personal content provider, and exported source.
 
 The first target is physical brightness. A potentiometer connected to an analog input should multiply the pattern's output brightness without relying on the Controller's native Web UI brightness. Native Pixelblaze brightness remains the hard safety cap; hardware injection can only dim or shape the pattern output inside that cap.
 
@@ -313,7 +313,7 @@ The spike should produce a short findings note and, if useful, small fixture pat
 - Direct variable assignment must be explicit in the manifest and should support min/max and quantize.
 - Generated artifacts should be inspectable. The first UI may be a debug/developer affordance rather than a polished product flow.
 - Normal Send to Controller behavior should continue unchanged when no manifest or no matching hardware profile is active.
-- GitHub Pages/public builds should not require local workspace files; the feature should degrade cleanly unless a later persistence design supplies browser-backed profiles.
+- GitHub Pages/public builds should not require local filesystem-backed personal storage; the feature should degrade cleanly unless a later persistence design supplies browser-backed profiles.
 
 ## Testing Decisions
 

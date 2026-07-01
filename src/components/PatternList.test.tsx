@@ -50,22 +50,10 @@ async function switchToMaps(user: ReturnType<typeof userEvent.setup>) {
 }
 
 describe('PatternList', () => {
-  it('labels personal sections as user-owned browser content by default', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({ ok: true, patterns: [], maps: [] }),
-    }))
+  it('labels personal sections as user-owned content', async () => {
     render(<PatternList />)
 
     expect(await screen.findByText('Your Patterns')).toBeInTheDocument()
-  })
-
-  it('does not expose workspace labels when the workspace provider is not explicitly requested', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 404 }))
-    render(<PatternList />)
-
-    expect(await screen.findByText('Your Patterns')).toBeInTheDocument()
-    expect(screen.queryByText('Workspace Patterns')).not.toBeInTheDocument()
   })
 
   it('opens IridescentFibers for visitors without a saved last-active pattern', async () => {

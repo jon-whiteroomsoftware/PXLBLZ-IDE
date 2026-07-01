@@ -3,7 +3,6 @@ import {
   getPersonalContentProvider,
   personalContentCollectionLabel,
   resetPersonalContentProvider,
-  resolvePersonalContentProviderMode,
   setPersonalContentProvider,
   storageModeForPersonalContentProvider,
   type PersonalContentProvider,
@@ -61,14 +60,10 @@ describe('personal content provider seam', () => {
     expect(getPersonalContentProvider()).toBe(browserPersonalContentProvider)
   })
 
-  it('resolves provider modes and labels storage-backed collections', () => {
-    expect(resolvePersonalContentProviderMode('workspace')).toBe('workspace')
-    expect(resolvePersonalContentProviderMode('anything-else')).toBe('browser')
+  it('labels browser and future API storage-backed collections', () => {
     expect(storageModeForPersonalContentProvider(browserPersonalContentProvider)).toBe('browser')
-    expect(storageModeForPersonalContentProvider({ id: 'workspace-files' })).toBe('workspace')
     expect(storageModeForPersonalContentProvider({ id: 'remote-api' })).toBe('api')
     expect(personalContentCollectionLabel('browser', 'patterns')).toBe('Your Patterns')
-    expect(personalContentCollectionLabel('workspace', 'maps')).toBe('Workspace Maps')
     expect(personalContentCollectionLabel('api', 'patterns')).toBe('Cloud Patterns')
   })
 

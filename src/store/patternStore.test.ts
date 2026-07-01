@@ -59,7 +59,7 @@ describe('patternStore', () => {
     expect(usePatternStore.getState().activePatternId).toBeNull()
   })
 
-  it('skips unchanged source writes so autosave ticks do not rewrite workspace files', async () => {
+  it('skips unchanged source writes so autosave ticks do not rewrite persisted patterns', async () => {
     const updatePattern = vi.fn()
     setPersonalContentProvider({
       id: 'test-provider',

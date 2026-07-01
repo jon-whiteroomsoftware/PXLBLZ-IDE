@@ -10,7 +10,6 @@ import {
   getPersonalContentProvider,
   initializePersonalContentProvider,
   personalContentCollectionLabel,
-  resolvePersonalContentProviderMode,
   storageModeForPersonalContentProvider,
   type PersonalContentStorageMode,
 } from '@/engine/personalContentProvider'
@@ -47,7 +46,6 @@ function newPatternRecord(name: string, src: string): PatternRecord {
 const DEMO_NAMES = Object.keys(DEMOS).sort()
 const DEFAULT_DEMO_NAME = 'IridescentFibers'
 const STOCK_PATTERNS_LABEL = 'Built-in Patterns'
-const PERSONAL_CONTENT_PROVIDER_MODE = resolvePersonalContentProviderMode(import.meta.env.VITE_PERSONAL_CONTENT_PROVIDER)
 
 const OPENGL_DEMOS = ['Kishimisu', 'NeonSquircles', 'ZippyZaps', 'IQPalettes', 'PhantomStar', 'IridescentFibers']
 const BRAND_NEW_DEMOS = ['PlasmaNebula', 'Caustics', 'AuroraSphere', 'NebulaSphere', 'ShaderShowcase']
@@ -782,7 +780,7 @@ export function PatternList() {
   useEffect(() => {
     let cancelled = false
     async function hydratePersonalContent() {
-      const provider = await initializePersonalContentProvider({ mode: PERSONAL_CONTENT_PROVIDER_MODE })
+      const provider = await initializePersonalContentProvider()
       if (cancelled) return
       setPersonalStorageMode(storageModeForPersonalContentProvider(provider))
       // Hydrate user maps before the first pattern opens so the layout selector is

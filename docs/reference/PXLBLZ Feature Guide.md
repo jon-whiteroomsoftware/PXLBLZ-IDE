@@ -155,12 +155,8 @@ with the preview's Map control.
 The left rail holds **Your patterns** (stored in this browser, no account or
 cloud), **Built-in Patterns** (read-only, runnable examples — shader ports, eased
 sweeps, noise fields, test patterns), and in Maps mode **Your maps** and **Stock
-maps**. Localhost development also has an explicit workspace-file mode for
-developers who opt in with `VITE_PERSONAL_CONTENT_PROVIDER=workspace`; then
-personal patterns/maps are backed by repo files under `personal/patterns/` and
-`personal/maps/`, and the section titles become **Workspace Patterns/Maps**.
-Public builds and normal localhost development keep browser-local storage.
-Existing browser records are not migrated into workspace files automatically.
+maps**. Public builds and localhost development both use browser-local storage
+until account-backed cloud storage is added.
 
 A new pattern starts from a runnable animated starter; any built-in pattern or
 stock map can be **cloned** into an editable copy. Built-in patterns can open

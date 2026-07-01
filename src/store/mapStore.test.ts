@@ -316,7 +316,7 @@ describe('editor map mode (#151)', () => {
     expect(useEditorStore.getState().editorFlavor).toBe('pattern')
   })
 
-  it('skips unchanged baked map writes so autosave ticks do not rewrite workspace files', async () => {
+  it('skips unchanged baked map writes so autosave ticks do not rewrite persisted maps', async () => {
     useMapStore.setState({ userMaps: [CUSTOM_MAP], editingMap: { kind: 'existing', id: 'cm1' } })
     useEditorStore.setState({ source: CUSTOM_MAP.source!, editorFlavor: 'map' })
 

@@ -505,23 +505,15 @@ field: never cascaded, persisted on its own.
 Patterns** and **Your Maps**. Exactly one personal content provider is active at a
 time:
 
-- **Browser provider** (production, Cloudflare/GitHub Pages, and default localhost): IndexedDB
+- **Browser provider** (production, Cloudflare/GitHub Pages, and localhost): IndexedDB
   database `pixelblaze-ide` (version 2), with `patterns`, `settings`, and `maps`
   stores.
-- **Workspace provider** (explicit localhost development opt-in): reads and
-  writes repo files under `personal/patterns/` and `personal/maps/` when
-  `VITE_PERSONAL_CONTENT_PROVIDER=workspace` and the Vite dev API responds.
-  `personal/controllers/` and `personal/bindings/` exist only as reserved future
-  homes; no hardware binding/code-injection behavior ships here.
+- **Remote API provider** (planned): a future Cloudflare Workers/D1-backed
+  implementation can replace the browser provider behind the same interface.
 
-Provider selection defaults to browser storage. Workspace mode probes
-`GET /__personal-content` during left-rail startup only after explicit opt-in; if
-the API is missing or the app is not running on localhost, selection falls back to
-browser storage. The UI still shows one **Your Patterns** and one **Your Maps**
-surface; it does not split browser and workspace content. When workspace mode is
-active, the personal section titles become **Workspace Patterns/Maps** to name the
-active backing store.
-Existing IndexedDB records are not migrated into files automatically.
+Provider selection currently defaults to browser storage. The UI shows one
+**Your Patterns** and one **Your Maps** surface; it does not split local and
+remote content.
 
 `PatternRecord` carries the per-pattern overrides in a sparse
 `settings?: Partial<Settings>` field — superseding older flat columns;
@@ -529,20 +521,7 @@ Existing IndexedDB records are not migrated into files automatically.
 rewrites retired ids, schemaless throughout (no DB bump). Override writes go
 through `updatePatternSettings` (a sparse merge that does not bump
 `src`/`updatedAt`). `MapRecord` carries `source`/`points`/`gridDims` (§8).
-New personal pattern/map records use UUID ids; ids are stable and independent
-from workspace filenames. Workspace files use ISO `updatedAt` strings and
-deterministic ASCII-safe filenames (`display-name--id.json`), with collision
-suffixes only when needed.
-
-The dev-only Vite middleware owns the file API:
-
-- `GET /__personal-content` returns workspace patterns/maps.
-- `POST /__personal-content/patterns` and `/maps` validate and write one record.
-- `DELETE /__personal-content/patterns/:id` and `/maps/:id` remove one record.
-
-All writes are constrained to the repo-root `personal/` tree and reject mismatched
-record kinds or unsafe filenames. The browser app never bundles `fs`; it talks to
-this middleware through the active provider.
+New personal pattern/map records use UUID ids.
 
 Selection is tri-state (pattern / library / demo). **Create** writes a runnable
 animated starter immediately. **Import** parses `.epe` JSON (`epeImport.ts`,
