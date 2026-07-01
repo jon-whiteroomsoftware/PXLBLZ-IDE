@@ -129,12 +129,19 @@ an interactive terminal that can log in, or by setting `CLOUDFLARE_API_TOKEN`.
 For local Cloudflare runtime checks after building:
 
 ```bash
-npm run build
-npm run cf:dev
+cp .dev.vars.example .dev.vars
+npm run cf:build
+npm run db:migrate:local
+npm run cf:dev:local
 ```
 
-Then visit `/api/d1/health`; a migrated D1 binding returns
+Then visit `http://localhost:8788/api/d1/health`; a migrated D1 binding returns
 `{"ok":true,"schemaVersion":"1"}`.
+
+For browser OAuth testing, fill in `.dev.vars` with a localhost GitHub OAuth app
+whose callback URL is `http://localhost:8788/api/auth/callback`. For API-level
+smoke without OAuth, run `npm run cf:session` and send the printed
+`pxlblz_session` cookie with local requests.
 
 The tracked Wrangler configuration also sets:
 

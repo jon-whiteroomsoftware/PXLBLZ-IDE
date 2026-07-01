@@ -1,0 +1,12 @@
+SESSION_SECRET=replace-with-a-long-local-secret
+
+# Required only for testing the browser GitHub OAuth flow locally.
+# Create a separate GitHub OAuth app with callback:
+# http://localhost:8788/api/auth/callback
+GITHUB_CLIENT_ID=
+GITHUB_CLIENT_SECRET=
+GITHUB_OAUTH_REDIRECT_URI=http://localhost:8788/api/auth/callback
+
+# Optional local owner allow-list.
+GITHUB_ALLOWED_LOGINS=
+GITHUB_ALLOWED_IDS=

@@ -36,6 +36,19 @@ npm run build
 VITE_BASE_PATH=/ npm run build
 ```
 
+For a local Cloudflare runtime check against Wrangler's local D1 store:
+
+```bash
+cp .dev.vars.example .dev.vars
+npm run cf:build
+npm run db:migrate:local
+npm run cf:dev:local
+```
+
+Then open `http://localhost:8788`. Fill `.dev.vars` with a localhost GitHub
+OAuth app to test the sign-in loop, or run `npm run cf:session` and attach the
+printed `pxlblz_session` cookie to local API smoke requests.
+
 After deploy, open the Pages URL and smoke-test:
 
 1. Visit `/api/d1/health`; expect `{"ok":true,"schemaVersion":"1"}`.
