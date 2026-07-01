@@ -4,7 +4,7 @@ import tailwindcss from '@tailwindcss/vite'
 import path from 'path'
 import fs from 'fs'
 
-const BASE = '/PXLBLZ-IDE/'
+const DEFAULT_BASE = '/PXLBLZ-IDE/'
 const PERSONAL_DIRS = ['patterns', 'maps', 'controllers', 'bindings'] as const
 
 function googleAnalyticsSnippet(measurementId: string | undefined): Plugin {
@@ -77,19 +77,21 @@ function captureSink() {
   }
 }
 
-// Dev-only: redirect the base path without a trailing slash to the canonical
-// trailing-slash form, so http://localhost:5174/PXLBLZ-IDE loads instead of 404ing.
-function redirectBaseTrailingSlash() {
-  const bare = BASE.replace(/\/$/, '')
+// Dev-only: redirect a non-root base path without a trailing slash to the
+// canonical trailing-slash form, so http://localhost:5174/PXLBLZ-IDE loads
+// instead of 404ing.
+function redirectBaseTrailingSlash(base: string) {
+  const bare = base.replace(/\/$/, '')
   return {
     name: 'redirect-base-trailing-slash',
     configureServer(server: import('vite').ViteDevServer) {
+      if (!bare) return
       server.middlewares.use((req, res, next) => {
         const pathname = (req.url ?? '').split('?')[0].split('#')[0]
         if (pathname === bare) {
           const suffix = (req.url ?? '').slice(pathname.length)
           res.statusCode = 301
-          res.setHeader('Location', BASE + suffix)
+          res.setHeader('Location', base + suffix)
           res.end()
           return
         }
@@ -251,12 +253,13 @@ function personalContentWorkspace() {
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   const gaMeasurementId = env.VITE_GA_MEASUREMENT_ID?.trim()
+  const base = env.VITE_BASE_PATH?.trim() || DEFAULT_BASE
 
   return {
-    base: BASE,
+    base,
     plugins: [
       googleAnalyticsSnippet(gaMeasurementId),
-      redirectBaseTrailingSlash(),
+      redirectBaseTrailingSlash(base),
       captureSink(),
       personalContentWorkspace(),
       react(),
