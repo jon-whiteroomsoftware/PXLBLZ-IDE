@@ -10,6 +10,27 @@ This project lives under a path containing spaces (Google Drive folder). Never w
 
 This project is configured around a long-lived Vite dev server on port `5174`. Prefer using the existing server at `http://localhost:5174/` (or `http://localhost:5174/?capture`) for browser checks. Do not casually start and stop per-task dev servers; hot reload is reliable and the persistent server is part of the normal workflow. If the server is not responding, report that and only start it when needed.
 
+For visual UI work, expect the Codex in-app Browser to be available and use it
+before falling back to standalone Playwright, Chrome, or Computer Use. In Codex
+Desktop this browser is not exposed as a separate `mcp__browser__...` namespace;
+it is bootstrapped through the Browser Plugin's `control-in-app-browser` skill
+using the Node REPL and the plugin's `scripts/browser-client.mjs` runtime:
+
+```js
+if (globalThis.agent?.browsers == null) {
+  const { setupBrowserRuntime } = await import('<browser-plugin-root>/scripts/browser-client.mjs');
+  await setupBrowserRuntime({ globals: globalThis });
+}
+globalThis.browser = await agent.browsers.get('iab');
+nodeRepl.write(await browser.documentation());
+```
+
+If the `browser:control-in-app-browser` skill is listed in the session, read it
+and follow its bootstrap instructions before claiming the browser is missing.
+Only fall back after that documented in-app browser path has actually failed,
+and say briefly what failed. This is important because the in-app browser is the
+fastest feedback loop for inspecting this app's UI.
+
 The WebGL preview render loop keeps the page perpetually busy, so naive screenshot tools time out and the canvas drawing buffer is unreadable by default. When you need to screenshot the app — and especially the preview renderer — load the dev server with the `?capture` query param (e.g. `http://localhost:5174/?capture`). This is dev-only and inert without the param. It enables `preserveDrawingBuffer` and installs deterministic capture tooling (added in #263/#265):
 
 - **In-page automation API** on `window.__pxlblz` (only present under `?capture`):

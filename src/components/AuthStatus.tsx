@@ -42,7 +42,12 @@ export function AuthStatus() {
   }
 
   return (
-    <Button asChild variant="outline" size="sm">
+    <Button
+      asChild
+      variant="outline"
+      size="sm"
+      className="border-live/60 bg-live/12 text-live shadow-[0_0_18px_rgba(251,191,36,0.12)] hover:border-live hover:bg-live/22 hover:text-amber-100 focus-visible:border-live focus-visible:ring-live/35"
+    >
       <a href="/api/auth/login">
         <LogIn data-icon="inline-start" />
         Sign in

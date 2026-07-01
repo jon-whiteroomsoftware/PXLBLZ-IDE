@@ -211,8 +211,8 @@ export default function App() {
           </span>
         </span>
         <span className="ml-auto flex items-center gap-2.5">
-          <AuthStatus />
           <ControllerBar />
+          <AuthStatus />
         </span>
       </header>
       <div className="flex flex-1 min-h-0">
