@@ -22,7 +22,7 @@ const checkbox = 'h-3.5 w-3.5 shrink-0 accent-amber-400'
 // recommended map of the matching dimension (Option A), a checked-by-default checkbox
 // offers to install it first — the pattern analogue of the map-push count remedy. Without
 // a recommendation (user patterns, demos without one) there's no checkbox: a plain push.
-function PatternPushChoices({
+export function PatternPushChoices({
   warning,
   remedy,
   onCancel,

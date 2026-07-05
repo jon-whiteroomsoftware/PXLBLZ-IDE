@@ -797,6 +797,40 @@ describe('controllerStore (keyed)', () => {
   })
 
   describe('discover', () => {
+    it('keeps errored controllers discoverable so the user can retry from the network list', async () => {
+      setControllerProviderFactory((ip) => {
+        const p = new FakeProvider()
+        p.discover = () =>
+          Promise.resolve([
+            { id: 'error-device', address: '10.0.0.9', name: 'Errored' },
+            { id: 'live-device', address: '10.0.0.5', name: 'Live' },
+          ])
+        created.set(ip, p)
+        return p
+      })
+
+      await store().addController('10.0.0.5')
+      useControllerStore.setState((s) => ({
+        controllers: {
+          ...s.controllers,
+          '10.0.0.9': {
+            ip: '10.0.0.9',
+            phase: 'error',
+            error: 'WebSocket open timed out',
+            mapDim: null,
+            nickname: 'Errored',
+            authorizationNeededIp: null,
+          },
+        },
+      }))
+
+      await store().discover()
+
+      expect(store().discovered).toEqual([
+        { id: 'error-device', address: '10.0.0.9', name: 'Errored' },
+      ])
+    })
+
     it('ignores a concurrent call while a sweep is already in flight', async () => {
       // The dropdown now fires discovery on open, on a periodic tick, AND on the
       // manual refresh — the guard must keep those from stacking overlapping sweeps.

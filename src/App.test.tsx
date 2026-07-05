@@ -173,18 +173,30 @@ describe('routing (#308)', () => {
     window.history.replaceState(null, '', '/p/iridescent-fibers')
     render(<App />)
     expect(screen.getByTestId('pattern-detail-page')).toHaveTextContent('IridescentFibers')
-    await userEvent.click(screen.getByRole('button', { name: /Open in Studio/i }))
+    await userEvent.click(screen.getByRole('button', { name: /Edit in Studio/i }))
     expect(window.location.pathname).toBe('/studio')
     expect(usePatternStore.getState().activeDemoName).toBe('IridescentFibers')
     expect(screen.getByTestId('editor-pane')).toBeInTheDocument()
   })
 
-  it('shows pattern source inline from the detail page', async () => {
+  it('shows pattern source in a read-only detail-stage code view', async () => {
     window.history.replaceState(null, '', '/p/iridescent-fibers')
     render(<App />)
-    await userEvent.click(screen.getByRole('button', { name: /View source/i }))
+    await userEvent.click(screen.getByRole('button', { name: /Code/i }))
     expect(window.location.pathname).toBe('/p/iridescent-fibers')
-    expect(screen.getByTestId('pattern-detail-page')).toHaveTextContent('export var')
+    expect(screen.getByTestId('pattern-code-stage')).toBeInTheDocument()
+    expect(screen.queryByText(/read-only/i)).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Preview' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Edit in Studio/i })).toBeInTheDocument()
+  })
+
+  it('opens the shared Controller connect flow from the detail action bar', async () => {
+    window.history.replaceState(null, '', '/p/iridescent-fibers')
+    render(<App />)
+    expect(screen.queryByRole('button', { name: /Run on Controller/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Save to Controller/i })).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Connect' }))
+    expect(screen.getByTestId('controller-install-pitch')).toBeInTheDocument()
   })
 
   it('shows the detail-page reset action when the demo has preview overrides', () => {

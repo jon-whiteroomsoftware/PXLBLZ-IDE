@@ -115,6 +115,20 @@ export const controllerPanelInitialState = {
   programLabels: {} as Record<string, string>,
 }
 
+type ControllerPanelSnapshot = Pick<
+  ControllerPanelState,
+  | 'brightness'
+  | 'activeProgramId'
+  | 'programs'
+  | 'fps'
+  | 'pixelCount'
+  | 'pixelCountPending'
+  | 'mapPointCount'
+  | 'activeControls'
+  | 'vars'
+  | 'programLabels'
+>
+
 // Interval handle kept module-local (not in store state) so it never serializes
 // and a stale render never holds a timer reference.
 let pollTimer: ReturnType<typeof setInterval> | null = null
@@ -128,6 +142,30 @@ let controlsSeededFor: string | undefined
 // to decide whether a reseed should keep the existing values (same device — a panel
 // reopen) or clear them first (a genuine device switch). Undefined until first seed.
 let seededForIp: string | undefined
+// Monotonic guard for async fetches. Switching to a different Controller bumps
+// this; late reads from the previous device must not write into the shared panel
+// slice after the new device has populated it.
+let panelSession = 0
+const panelSnapshots = new Map<string, ControllerPanelSnapshot>()
+
+function snapshotFromState(state: ControllerPanelState): ControllerPanelSnapshot {
+  return {
+    brightness: state.brightness,
+    activeProgramId: state.activeProgramId,
+    programs: state.programs,
+    fps: state.fps,
+    pixelCount: state.pixelCount,
+    pixelCountPending: state.pixelCountPending,
+    mapPointCount: state.mapPointCount,
+    activeControls: state.activeControls,
+    vars: state.vars,
+    programLabels: state.programLabels,
+  }
+}
+
+function saveSeededSnapshot(state: ControllerPanelState): void {
+  if (seededForIp) panelSnapshots.set(seededForIp, snapshotFromState(state))
+}
 
 export const useControllerPanelStore = create<ControllerPanelState>()((set, get) => ({
   ...controllerPanelInitialState,
@@ -137,23 +175,31 @@ export const useControllerPanelStore = create<ControllerPanelState>()((set, get)
     // same device keeps its last-known values so the panel renders populated at once
     // and the warm fetch below just refreshes them — no blank-then-populate flash.
     if (ip !== seededForIp) {
+      saveSeededSnapshot(get())
       seededForIp = ip
-      controlsSeededFor = undefined
-      set(controllerPanelInitialState)
+      panelSession += 1
+      const cached = ip ? panelSnapshots.get(ip) : undefined
+      controlsSeededFor = cached?.activeProgramId
+      set(cached ?? controllerPanelInitialState)
     }
+    const session = panelSession
     // Program names rarely change; fetch the list once and tolerate failure.
     void get().refreshPrograms()
     // The installed map rarely changes and read-back is a one-off HTTP fetch, so
     // read it once (not every poll) to surface its point count (#205).
     getControllerProvider()
       .getPixelMap()
-      .then((map) => set({ mapPointCount: map ? map.length : null }))
+      .then((map) => {
+        if (session === panelSession) set({ mapPointCount: map ? map.length : null })
+      })
       .catch(() => {})
     // Load this Controller's program label cache (#237) so a previously run-only push
     // resolves to its name on reopen rather than the raw id. Keyed by Controller ip;
     // an unknown ip yields an empty cache (only the device list resolves names then).
     getProgramLabels()
-      .then((store) => set({ programLabels: ip ? store[ip] ?? {} : {} }))
+      .then((store) => {
+        if (session === panelSession) set({ programLabels: ip ? store[ip] ?? {} : {} })
+      })
       .catch(() => {})
     void get().poll()
   },
@@ -178,12 +224,14 @@ export const useControllerPanelStore = create<ControllerPanelState>()((set, get)
   },
 
   poll: async () => {
+    const session = panelSession
     const provider = getControllerProvider()
     const [config, telemetry, vars] = await Promise.all([
       provider.getConfig().catch(() => null),
       provider.getTelemetry().catch(() => null),
       provider.getVars().catch(() => null),
     ])
+    if (session !== panelSession) return
     if (config) {
       set((s) => {
         // Reseed the controls only when the device's active pattern changes; in
@@ -213,9 +261,10 @@ export const useControllerPanelStore = create<ControllerPanelState>()((set, get)
   },
 
   refreshPrograms: async () => {
+    const session = panelSession
     try {
       const programs = await getControllerProvider().listPrograms()
-      set({ programs })
+      if (session === panelSession) set({ programs })
     } catch {
       // Transient — keep the last-known list.
     }

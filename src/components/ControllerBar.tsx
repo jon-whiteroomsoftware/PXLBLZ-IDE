@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { RotateCw } from 'lucide-react'
 import { useControllerStore } from '@/store/controllerStore'
 import { describeControllerPill, type ControllerPhase } from '@/engine/controllerPillView'
@@ -6,6 +6,7 @@ import type { ControllerStatusTone } from '@/engine/controllerStatusView'
 import { StatusDot, type StatusTone } from './StatusDot'
 import { ControllerPanel } from './ControllerPanel'
 import { ControllerPanelTitle } from './ControllerPanelTitle'
+import { onControllerEntryRequested } from './controllerEntryEvents'
 
 // The consolidated top-right Controller surface (#210). Supersedes the always-on
 // header IP input (ControllerConnect) and the standalone status dot
@@ -250,13 +251,15 @@ export function ControllerBar({ reloadPage = () => window.location.reload() }: {
     void removeController(ip)
   }
 
-  const openDropdown = () => {
+  const openDropdown = useCallback(() => {
     // Re-probe presence each time the affordance opens, so installing the
     // extension mid-session flips the dropdown from pitch to IP form.
     void detectExtension()
     setPanelOpenIp(null)
     setOpen(true)
-  }
+  }, [detectExtension])
+
+  useEffect(() => onControllerEntryRequested(openDropdown), [openDropdown])
 
   const submitIp = () => {
     const ip = draft.trim()

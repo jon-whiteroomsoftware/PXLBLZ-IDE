@@ -305,11 +305,15 @@ export const useControllerStore = create<ControllerConnectionState>()(
           if (get().discovering) return
           set({ discovering: true })
           const found = await discoverControllers().catch(() => [])
-          // Drop already-connected Controllers from the candidate list — connecting
-          // to one again is the manual-IP path's job, not discovery's.
+          // Drop active connection attempts and live Controllers from discovery.
+          // Keep errored entries discoverable so the network list can be used as
+          // the normal retry path after a failed connect.
           const connected = get().controllers
           set({
-            discovered: found.filter((c) => !connected[c.address]),
+            discovered: found.filter((c) => {
+              const entry = connected[c.address]
+              return !entry || entry.phase === 'error'
+            }),
             discovering: false,
           })
         },

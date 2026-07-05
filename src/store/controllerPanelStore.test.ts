@@ -60,6 +60,16 @@ class FakeProvider extends NullControllerProvider {
   }
 }
 
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res
+    reject = rej
+  })
+  return { promise, resolve, reject }
+}
+
 let provider: FakeProvider
 
 beforeEach(() => {
@@ -287,7 +297,7 @@ describe('controllerPanelStore', () => {
     expect(useControllerPanelStore.getState().fps).toBe(30)
   })
 
-  it('reopening the same device keeps values; a different device clears them first', async () => {
+  it('reopening the same device keeps values; a never-opened different device clears first', async () => {
     useControllerPanelStore.getState().start('1.2.3.4')
     await flush()
     useControllerPanelStore.getState().stop()
@@ -303,6 +313,100 @@ describe('controllerPanelStore', () => {
     expect(useControllerPanelStore.getState().fps).toBeNull()
     await flush()
     expect(useControllerPanelStore.getState().fps).toBe(30)
+  })
+
+  it('restores a previously opened controller immediately when switching back to it', async () => {
+    const a = new FakeProvider()
+    const b = new FakeProvider()
+    a.config = {
+      brightness: 0.4,
+      activeProgramId: 'a-program',
+      activeControls: { sliderA: 0.7 },
+      pixelCount: 32,
+    }
+    a.telemetry = { fps: 24 }
+    a.programs = [{ id: 'a-program', name: 'A Pattern' }]
+    b.config = {
+      brightness: 0.8,
+      activeProgramId: 'b-program',
+      activeControls: { sliderB: 0.2 },
+      pixelCount: 64,
+    }
+    b.telemetry = { fps: 60 }
+    b.programs = [{ id: 'b-program', name: 'B Pattern' }]
+
+    setControllerProvider(a)
+    useControllerPanelStore.getState().start('1.2.3.4')
+    await flush()
+    useControllerPanelStore.getState().stop()
+
+    setControllerProvider(b)
+    useControllerPanelStore.getState().start('5.6.7.8')
+    await flush()
+    useControllerPanelStore.getState().stop()
+
+    setControllerProvider(a)
+    useControllerPanelStore.getState().start('1.2.3.4')
+
+    expect(useControllerPanelStore.getState()).toMatchObject({
+      activeProgramId: 'a-program',
+      fps: 24,
+      pixelCount: 32,
+      activeControls: { sliderA: 0.7 },
+      programs: [{ id: 'a-program', name: 'A Pattern' }],
+    })
+  })
+
+  it('ignores late async results from a previously active controller after switching devices', async () => {
+    const a = new FakeProvider()
+    const b = new FakeProvider()
+    const aConfig = deferred<ControllerConfig>()
+    const aTelemetry = deferred<ControllerTelemetry>()
+    const bConfig = deferred<ControllerConfig>()
+    const bTelemetry = deferred<ControllerTelemetry>()
+    a.getConfig = () => aConfig.promise
+    a.getTelemetry = () => aTelemetry.promise
+    a.getVars = () => Promise.resolve({ phase: 0.1 })
+    b.getConfig = () => bConfig.promise
+    b.getTelemetry = () => bTelemetry.promise
+    b.getVars = () => Promise.resolve({ phase: 0.2 })
+
+    setControllerProvider(a)
+    useControllerPanelStore.getState().start('1.2.3.4')
+    useControllerPanelStore.getState().stop()
+
+    setControllerProvider(b)
+    useControllerPanelStore.getState().start('5.6.7.8')
+    bConfig.resolve({
+      brightness: 0.8,
+      activeProgramId: 'b-program',
+      activeControls: { sliderB: 0.2 },
+      pixelCount: 64,
+    })
+    bTelemetry.resolve({ fps: 60 })
+    await flush()
+    expect(useControllerPanelStore.getState()).toMatchObject({
+      activeProgramId: 'b-program',
+      fps: 60,
+      pixelCount: 64,
+      activeControls: { sliderB: 0.2 },
+    })
+
+    aConfig.resolve({
+      brightness: 0.3,
+      activeProgramId: 'a-program',
+      activeControls: { sliderA: 0.9 },
+      pixelCount: 32,
+    })
+    aTelemetry.resolve({ fps: 12 })
+    await flush()
+
+    expect(useControllerPanelStore.getState()).toMatchObject({
+      activeProgramId: 'b-program',
+      fps: 60,
+      pixelCount: 64,
+      activeControls: { sliderB: 0.2 },
+    })
   })
 
   it('tolerates a failing poll without throwing', async () => {
