@@ -20,6 +20,8 @@
     {
       "matches": [
         "https://jon-whiteroomsoftware.github.io/PXLBLZ-IDE/*",
+        "https://pxlblz-ide.pages.dev/*",
+        "https://pxlblz-ide.whiteroomsoftware.com/*",
         "http://localhost:5174/*",
         "http://127.0.0.1:5174/*"
       ],
