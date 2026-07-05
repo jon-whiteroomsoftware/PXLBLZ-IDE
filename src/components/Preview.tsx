@@ -37,7 +37,7 @@ function cube3DCanvasPx(containerWidth: number, containerHeight: number): number
   return Math.max(200, Math.floor(Math.min(containerWidth, containerHeight)))
 }
 
-export function Preview() {
+export function Preview({ showDeck = true }: { showDeck?: boolean }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const loopRef = useRef<RenderLoop | null>(null)
@@ -512,7 +512,7 @@ export function Preview() {
           )}
         </div>
       </div>
-      <PreviewDeck />
+      {showDeck && <PreviewDeck />}
     </div>
   )
 }

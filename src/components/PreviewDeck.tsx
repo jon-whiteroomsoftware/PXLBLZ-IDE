@@ -65,10 +65,10 @@ const PREVIEW_HINT = (
 // and a Preview group (renderer-only constructs + the read-only telemetry that used
 // to be its own Readout section — both are preview-only, so they share one section);
 // then the author's pattern controls; then the Variables turn-down.
-export function PreviewDeck() {
+export function PreviewDeck({ showPrimaryBand = true }: { showPrimaryBand?: boolean }) {
   return (
     <div className="font-mono pl-3">
-      <PrimaryBand />
+      {showPrimaryBand && <PrimaryBand />}
       <SecondaryBand />
       <ControlsPanel />
       <Variables />

@@ -44,4 +44,17 @@ describe('controlStore', () => {
     useControlStore.getState().resetControls({ hsvPickerColor: [0, 1, 1] })
     expect(useControlStore.getState().controlValues['hsvPickerColor']).toEqual([0, 1, 1])
   })
+
+  it('applies preserved values to the next reset once', () => {
+    useControlStore.getState().preserveForNextReset({ sliderSpeed: 0.8 })
+    useControlStore.getState().resetControls({ sliderSpeed: 0.3, sliderZoom: 0.4 })
+    expect(useControlStore.getState().controlValues).toEqual({
+      sliderSpeed: 0.8,
+      sliderZoom: 0.4,
+    })
+    expect(useControlStore.getState().nextResetOverride).toBeNull()
+
+    useControlStore.getState().resetControls({ sliderSpeed: 0.2 })
+    expect(useControlStore.getState().controlValues).toEqual({ sliderSpeed: 0.2 })
+  })
 })

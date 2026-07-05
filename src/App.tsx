@@ -23,16 +23,18 @@ import { DocsMenu } from '@/components/DocsMenu'
 import { DocsReader } from '@/components/DocsReader'
 import { SendToController } from '@/components/SendToController'
 import { GalleryPage } from '@/components/GalleryPage'
+import { PatternDetailPage } from '@/components/PatternDetailPage'
 import { useControllerStore } from '@/store/controllerStore'
 import { MapModeHeader } from '@/components/MapModeHeader'
 import { usePatternStore, PatternRecord } from '@/store/patternStore'
 import { useEditorStore } from '@/store/editorStore'
 import { useDocsStore } from '@/store/docsStore'
 import { useRouterStore } from '@/store/routerStore'
-import { openPatternRecord } from '@/store/openPattern'
+import { openDemoPattern, openPatternRecord } from '@/store/openPattern'
 import { routesEqual, type Route } from '@/engine/routes'
 import { useWorkspaceStore } from '@/store/workspaceStore'
 import { forkSettingsSnapshot } from '@/store/settingsCascade'
+import { useControlStore } from '@/store/controlStore'
 import { bundle } from '@/engine/bundle'
 import { LIBRARIES } from '@/pixelblaze/libs'
 import { uniquePatternName } from '@/engine/patternName'
@@ -175,12 +177,13 @@ export default function App() {
     }
   }, [activePatternId, activeDemoName, activeLibraryName, navigate])
 
-  // Signed-out Studio redirects to the Gallery (#308) once the auth probe has
-  // settled — built-ins will live in the Gallery, not a degraded Studio.
+  // Signed-out cold Studio redirects to the Gallery (#308) once the auth probe has
+  // settled. A pattern-detail handoff may carry an active built-in demo into Studio
+  // (#310), so that read-only demo view is allowed through.
   useEffect(() => {
     if (!personalWorkspaceResolved || personalWorkspaceAuthenticated) return
-    if (route.kind === 'studio') navigate({ kind: 'gallery' }, { replace: true })
-  }, [route, personalWorkspaceResolved, personalWorkspaceAuthenticated, navigate])
+    if (route.kind === 'studio' && activeDemoName === null) navigate({ kind: 'gallery' }, { replace: true })
+  }, [route, personalWorkspaceResolved, personalWorkspaceAuthenticated, activeDemoName, navigate])
 
   // On startup, probe extension presence (global) and, if a Controller IP was
   // remembered from a previous session, reconnect only that one (#210). Silent on
@@ -278,6 +281,13 @@ export default function App() {
   const invalidDocRoute = route.kind === 'docs' && !isDocId(route.docId)
   const browseRoute = route.kind === 'gallery' || route.kind === 'pattern-detail'
   const detailPattern = route.kind === 'pattern-detail' ? galleryPatternBySlug(route.slug) : undefined
+  const openBrowseRouteStudio = () => {
+    if (detailPattern) {
+      useControlStore.getState().preserveForNextReset(useControlStore.getState().controlValues)
+      openDemoPattern(detailPattern.name)
+    }
+    navigate({ kind: 'studio', entity: null })
+  }
 
   return (
     <div className="flex flex-col h-screen bg-zinc-950 text-zinc-100">
@@ -312,13 +322,13 @@ export default function App() {
           )}
         </span>
         <span className="ml-auto flex items-center gap-1.5 sm:gap-2.5">
-          {!browseRoute && <ControllerBar />}
+          {(!browseRoute || route.kind === 'pattern-detail') && <ControllerBar />}
           <AuthStatus />
           {browseRoute && (
             <Button
               size="sm"
               className="border border-live/50 bg-live/15 px-2 font-mono text-xs text-live hover:bg-live/25 hover:text-amber-100 sm:px-2.5"
-              onClick={() => navigate({ kind: 'studio', entity: null })}
+              onClick={openBrowseRouteStudio}
               title="Open Studio"
             >
               <span className="hidden min-[430px]:inline">Open Studio</span>
@@ -330,16 +340,16 @@ export default function App() {
       {route.kind === 'gallery' ? (
         <GalleryPage />
       ) : route.kind === 'pattern-detail' ? (
-        <RouteMessage
-          title={detailPattern?.name ?? 'Pattern not found'}
-          detail={
-            detailPattern
-              ? 'Shareable pattern pages are coming soon. This built-in pattern is addressable from the Gallery.'
-              : `There's no built-in pattern with slug "${route.slug}".`
-          }
-          actionLabel="Browse the Gallery"
-          onAction={() => navigate({ kind: 'gallery' })}
-        />
+        detailPattern ? (
+          <PatternDetailPage pattern={detailPattern} />
+        ) : (
+          <RouteMessage
+            title="Pattern not found"
+            detail={`There's no built-in pattern with slug "${route.slug}".`}
+            actionLabel="Browse the Gallery"
+            onAction={() => navigate({ kind: 'gallery' })}
+          />
+        )
       ) : route.kind === 'not-found' || invalidDocRoute ? (
         <RouteMessage
           title="Nothing at this address"

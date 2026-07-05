@@ -166,6 +166,33 @@ describe('routing (#308)', () => {
     render(<App />)
     await userEvent.click(screen.getByRole('button', { name: /IridescentFibers/i }))
     expect(window.location.pathname).toBe('/p/iridescent-fibers')
-    expect(screen.getByTestId('route-message')).toHaveTextContent('IridescentFibers')
+    expect(screen.getByTestId('pattern-detail-page')).toHaveTextContent('IridescentFibers')
+  })
+
+  it('opens a Gallery pattern detail page in Studio', async () => {
+    window.history.replaceState(null, '', '/p/iridescent-fibers')
+    render(<App />)
+    expect(screen.getByTestId('pattern-detail-page')).toHaveTextContent('IridescentFibers')
+    await userEvent.click(screen.getByRole('button', { name: /Open in Studio/i }))
+    expect(window.location.pathname).toBe('/studio')
+    expect(usePatternStore.getState().activeDemoName).toBe('IridescentFibers')
+    expect(screen.getByTestId('editor-pane')).toBeInTheDocument()
+  })
+
+  it('shows pattern source inline from the detail page', async () => {
+    window.history.replaceState(null, '', '/p/iridescent-fibers')
+    render(<App />)
+    await userEvent.click(screen.getByRole('button', { name: /View source/i }))
+    expect(window.location.pathname).toBe('/p/iridescent-fibers')
+    expect(screen.getByTestId('pattern-detail-page')).toHaveTextContent('export var')
+  })
+
+  it('shows the detail-page reset action when the demo has preview overrides', () => {
+    window.history.replaceState(null, '', '/p/aurora-sphere')
+    usePatternStore.setState({
+      demoOverrides: { AuroraSphere: { brightness: 0.5 } },
+    })
+    render(<App />)
+    expect(screen.getByRole('button', { name: 'Reset preview' })).toBeInTheDocument()
   })
 })
