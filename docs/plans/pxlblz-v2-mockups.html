@@ -1,0 +1,1182 @@
+<title>PXLBLZ v2 — UI Mockups</title>
+<style>
+  :root {
+    --bg: #09090b;
+    --panel: #141416;
+    --panel-2: #18181c;
+    --seam: #2e2e34;
+    --text: #e4e4e7;
+    --dim: #a1a1aa;
+    --structural: #71717a;
+    --live: #fbbf24;
+    --live-dim: rgba(251, 191, 36, 0.14);
+    --ok: #4ade80;
+    --err: #f87171;
+    --mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+    --sans: 'Geist Variable', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  }
+  html { background: var(--bg); }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 15px;
+    line-height: 1.55;
+  }
+  ::selection { background: var(--live-dim); }
+
+  /* ── page chrome ─────────────────────────────────────────── */
+  .page-head {
+    padding: 40px 32px 20px;
+    max-width: 1280px; margin: 0 auto;
+  }
+  .page-head .brand {
+    font-family: var(--mono); font-size: 13px; letter-spacing: 0.14em;
+    color: var(--structural); text-transform: uppercase;
+  }
+  .page-head h1 {
+    font-family: var(--mono); font-weight: 600; font-size: 26px;
+    margin: 6px 0 8px; letter-spacing: -0.01em; text-wrap: balance;
+  }
+  .page-head p { color: var(--dim); max-width: 68ch; margin: 0; }
+  .page-head .meta { font-family: var(--mono); font-size: 12px; color: var(--structural); margin-top: 10px; }
+
+  .tabbar {
+    position: sticky; top: 0; z-index: 50;
+    background: rgba(9, 9, 11, 0.92); backdrop-filter: blur(6px);
+    border-bottom: 1px solid var(--seam);
+  }
+  .tabbar-inner {
+    max-width: 1280px; margin: 0 auto; padding: 0 32px;
+    display: flex; gap: 4px; overflow-x: auto;
+  }
+  .tab {
+    font-family: var(--mono); font-size: 12.5px; letter-spacing: 0.04em;
+    background: none; border: none; color: var(--structural);
+    padding: 12px 14px 10px; cursor: pointer; white-space: nowrap;
+    border-bottom: 2px solid transparent;
+  }
+  .tab:hover { color: var(--dim); }
+  .tab[aria-selected="true"] { color: var(--live); border-bottom-color: var(--live); }
+  .tab .k { color: var(--seam); margin-right: 6px; }
+  .tab[aria-selected="true"] .k { color: rgba(251,191,36,0.5); }
+  .tab:focus-visible, button:focus-visible { outline: 2px solid var(--live); outline-offset: 2px; }
+
+  .screen { display: none; max-width: 1280px; margin: 0 auto; padding: 28px 32px 56px; }
+  .screen.active { display: block; }
+  .screen > h2 { font-family: var(--mono); font-size: 17px; font-weight: 600; margin: 0 0 4px; }
+  .screen > .sub { color: var(--dim); margin: 0 0 20px; max-width: 78ch; }
+
+  /* ── the mock frame ──────────────────────────────────────── */
+  .frame {
+    border: 1px solid var(--seam); border-radius: 8px; overflow: hidden;
+    background: var(--bg);
+    box-shadow: 0 24px 60px -30px rgba(0,0,0,0.9);
+  }
+  .frame + .frame { margin-top: 28px; }
+  .frame-cap {
+    display: flex; align-items: center; gap: 10px;
+    font-family: var(--mono); font-size: 11.5px; color: var(--structural);
+    background: var(--panel); border-bottom: 1px solid var(--seam);
+    padding: 7px 12px;
+  }
+  .frame-cap .dots { display: flex; gap: 5px; }
+  .frame-cap .dots i { width: 9px; height: 9px; border-radius: 50%; background: var(--seam); display: block; }
+  .frame-cap .url {
+    background: var(--bg); border: 1px solid var(--seam); border-radius: 4px;
+    padding: 2px 10px; color: var(--dim);
+  }
+  .frame-cap .url b { color: var(--live); font-weight: 500; }
+
+  /* ── shared IDE chrome primitives ────────────────────────── */
+  .mock { font-family: var(--mono); font-size: 12.5px; }
+  .topbar {
+    height: 42px; display: flex; align-items: center; gap: 18px;
+    padding: 0 14px; border-bottom: 1px solid var(--seam); background: var(--bg);
+  }
+  .wordmark { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 14px; letter-spacing: 0.06em; }
+  .wordmark svg { display: block; }
+  .menu-chip {
+    color: var(--dim); border: 1px solid transparent; border-radius: 5px; padding: 4px 9px;
+    display: inline-flex; gap: 6px; align-items: center; font-size: 12px;
+  }
+  .menu-chip:hover { border-color: var(--seam); }
+  .spacer { flex: 1; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 7px;
+    border: 1px solid var(--seam); border-radius: 6px;
+    background: var(--panel); color: var(--text);
+    font-family: var(--mono); font-size: 12px; padding: 5px 12px;
+  }
+  .btn.primary { border-color: rgba(251,191,36,0.5); color: var(--live); background: var(--live-dim); }
+  .btn.ghost { background: none; color: var(--dim); }
+  .btn.sm { padding: 3px 9px; font-size: 11.5px; }
+  .pill {
+    display: inline-flex; align-items: center; gap: 7px;
+    border: 1px solid var(--seam); border-radius: 999px;
+    padding: 4px 12px; font-size: 12px; color: var(--dim); background: var(--panel);
+  }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--structural); display: inline-block; }
+  .dot.ok { background: var(--ok); box-shadow: 0 0 6px rgba(74,222,128,0.6); }
+  .dot.idle { background: var(--structural); }
+  .badge {
+    font-size: 10px; border: 1px solid var(--seam); border-radius: 4px;
+    padding: 1px 5px; color: var(--structural); letter-spacing: 0.04em;
+  }
+  .badge.live { color: var(--live); border-color: rgba(251,191,36,0.4); }
+  .badge.ok { color: var(--ok); border-color: rgba(74,222,128,0.35); }
+
+  .cols { display: flex; align-items: stretch; min-height: 620px; }
+  .rail { width: 250px; border-right: 1px solid var(--seam); background: var(--bg); display: flex; }
+  .activity {
+    width: 46px; border-right: 1px solid var(--seam); background: var(--panel);
+    display: flex; flex-direction: column; align-items: center; padding: 8px 0; gap: 2px;
+  }
+  .act {
+    width: 34px; height: 34px; border-radius: 6px; display: grid; place-items: center;
+    color: var(--structural); border: 1px solid transparent; background: none; cursor: default;
+  }
+  .act.on { color: var(--live); background: var(--live-dim); }
+  .act svg { display: block; }
+  .act-label { font-size: 8.5px; letter-spacing: 0.06em; margin-top: -1px; }
+  .act-wrap { display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 3px 0; }
+  .act-wrap .cap { font-size: 8px; color: var(--structural); letter-spacing: 0.05em; }
+  .act-wrap.on .cap { color: var(--live); }
+  .act-bottom { margin-top: auto; }
+
+  .raillist { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  .rail-head {
+    padding: 10px 12px 8px; border-bottom: 1px solid var(--seam);
+  }
+  .rail-title { font-size: 11px; letter-spacing: 0.12em; color: var(--structural); text-transform: uppercase; display: flex; align-items: center; gap: 8px; }
+  .rail-title .n { color: var(--seam); }
+  .lens { display: flex; gap: 3px; margin-top: 8px; }
+  .lens b {
+    font-weight: 500; font-size: 10.5px; border: 1px solid var(--seam); border-radius: 4px;
+    padding: 1px 7px; color: var(--structural);
+  }
+  .lens b.on { color: var(--live); border-color: rgba(251,191,36,0.4); background: var(--live-dim); }
+  .lens .search { margin-left: auto; color: var(--structural); }
+  .rail-sec { padding: 8px 0 2px; }
+  .rail-sec h4 {
+    margin: 0; padding: 4px 12px; font-size: 10.5px; font-weight: 500;
+    letter-spacing: 0.12em; color: var(--structural); text-transform: uppercase;
+    display: flex; align-items: center; gap: 7px;
+  }
+  .rail-sec h4 .plus { margin-left: auto; color: var(--structural); }
+  .ritem {
+    display: flex; align-items: center; gap: 8px;
+    padding: 3.5px 12px 3.5px 18px; color: var(--dim); font-size: 12px;
+  }
+  .ritem .bd { margin-left: auto; }
+  .ritem.on { color: var(--live); background: var(--live-dim); }
+  .ritem.muted { color: var(--structural); }
+  .rail-note {
+    margin: 10px 12px; padding: 9px 10px; border: 1px dashed var(--seam); border-radius: 6px;
+    color: var(--structural); font-size: 11px; line-height: 1.5;
+  }
+  .rail-note a { color: var(--dim); text-decoration: underline; text-underline-offset: 2px; }
+
+  .centerpane { flex: 1; min-width: 0; display: flex; flex-direction: column; border-right: 1px solid var(--seam); }
+  .pane-head {
+    height: 38px; display: flex; align-items: center; gap: 10px; padding: 0 14px;
+    border-bottom: 1px solid var(--seam); background: var(--bg);
+  }
+  .pane-head .title { font-size: 13px; font-weight: 600; }
+  .code {
+    flex: 1; padding: 14px 0; overflow: hidden; background: var(--bg);
+    font-size: 12px; line-height: 1.75; white-space: pre; color: #c8c8d0;
+  }
+  .code .ln { display: flex; }
+  .code .no { width: 44px; text-align: right; padding-right: 16px; color: #3f3f46; user-select: none; flex-shrink: 0; }
+  .code .c-com { color: #6b7280; font-style: italic; }
+  .code .c-kw { color: #93c5fd; }
+  .code .c-fn { color: #fbbf24; }
+  .code .c-num { color: #f0abfc; }
+  .code .c-str { color: #86efac; }
+
+  .previewpane { width: 340px; display: flex; flex-direction: column; background: var(--bg); flex-shrink: 0; }
+  .canvas-wrap { position: relative; background: #000; }
+  .canvas-wrap canvas { display: block; width: 100%; height: 100%; }
+  .deck { padding: 4px 14px 14px; overflow: hidden; }
+  .deck h5 {
+    margin: 12px 0 6px; font-size: 10px; font-weight: 500; letter-spacing: 0.14em;
+    color: var(--structural); text-transform: uppercase; display: flex; gap: 6px; align-items: center;
+  }
+  .drow { display: flex; align-items: center; gap: 10px; padding: 3px 0; font-size: 11.5px; color: var(--dim); }
+  .drow .lab { width: 88px; flex-shrink: 0; color: var(--structural); }
+  .drow .val { margin-left: auto; color: var(--live); font-variant-numeric: tabular-nums; }
+  .slider { flex: 1; height: 3px; background: var(--seam); border-radius: 2px; position: relative; }
+  .slider i {
+    position: absolute; top: 50%; transform: translate(-50%, -50%);
+    width: 11px; height: 11px; border-radius: 50%; background: var(--live); display: block;
+  }
+  .slider .fill { position: absolute; inset: 0 auto 0 0; background: var(--live); border-radius: 2px; opacity: 0.6; }
+  .field {
+    border: 1px solid var(--seam); border-radius: 5px; background: var(--panel);
+    padding: 3px 9px; font-size: 11.5px; color: var(--text); display: inline-flex; gap: 8px; align-items: center;
+  }
+  .field .car { color: var(--structural); font-size: 9px; }
+
+  /* ── gallery ─────────────────────────────────────────────── */
+  .g-hero { padding: 26px 22px 6px; display: flex; align-items: baseline; gap: 18px; flex-wrap: wrap; }
+  .g-hero h3 { font-family: var(--mono); font-weight: 600; font-size: 19px; margin: 0; letter-spacing: -0.01em; }
+  .g-hero p { color: var(--structural); font-family: var(--mono); font-size: 12px; margin: 0; }
+  .g-filters { padding: 12px 22px 4px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .chip {
+    font-family: var(--mono); font-size: 11.5px; color: var(--dim);
+    border: 1px solid var(--seam); border-radius: 999px; padding: 3px 11px; background: var(--panel);
+  }
+  .chip.on { color: var(--live); border-color: rgba(251,191,36,0.4); background: var(--live-dim); }
+  .g-search {
+    margin-left: auto; font-family: var(--mono); font-size: 11.5px; color: var(--structural);
+    border: 1px solid var(--seam); border-radius: 6px; padding: 4px 12px; min-width: 180px; background: var(--bg);
+  }
+  .g-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(215px, 1fr));
+    gap: 14px; padding: 16px 22px 26px;
+  }
+  .g-card {
+    border: 1px solid var(--seam); border-radius: 8px; overflow: hidden; background: var(--panel);
+    transition: border-color 0.15s;
+  }
+  .g-card:hover { border-color: var(--structural); }
+  .g-card .thumb { aspect-ratio: 16 / 10; background: #000; position: relative; }
+  .g-card .thumb canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .g-card .info { padding: 8px 11px 10px; }
+  .g-card .name { font-family: var(--mono); font-size: 12.5px; color: var(--text); display: flex; align-items: center; gap: 7px; }
+  .g-card .tags { margin-top: 4px; display: flex; gap: 5px; flex-wrap: wrap; }
+  .g-card .tag { font-family: var(--mono); font-size: 9.5px; color: var(--structural); letter-spacing: 0.04em; }
+
+  .g-detail { display: flex; min-height: 540px; }
+  .g-stage { flex: 1.5; background: #000; position: relative; min-width: 0; }
+  .g-stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .g-side { flex: 1; max-width: 400px; border-left: 1px solid var(--seam); padding: 20px 20px 16px; font-family: var(--mono); }
+  .g-side h3 { font-size: 17px; font-weight: 600; margin: 0 0 2px; display: flex; align-items: center; gap: 9px; }
+  .g-side .byline { font-size: 11px; color: var(--structural); margin-bottom: 12px; }
+  .g-side .desc { font-family: var(--sans); font-size: 13px; color: var(--dim); line-height: 1.6; margin-bottom: 16px; }
+  .g-actions { display: flex; gap: 8px; flex-wrap: wrap; margin: 16px 0 6px; }
+  .sharebar {
+    margin-top: 14px; display: flex; align-items: center; gap: 8px;
+    border: 1px solid var(--seam); border-radius: 6px; padding: 6px 10px;
+    font-size: 11px; color: var(--structural); background: var(--bg);
+  }
+  .sharebar b { color: var(--dim); font-weight: 400; }
+
+  /* ── controller page ─────────────────────────────────────── */
+  .ctl-body { flex: 1; overflow: hidden; padding: 18px 22px; }
+  .ctl-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .card {
+    border: 1px solid var(--seam); border-radius: 8px; background: var(--panel); overflow: hidden;
+  }
+  .card > h5 {
+    margin: 0; padding: 9px 14px; font-size: 10.5px; font-weight: 500; letter-spacing: 0.13em;
+    text-transform: uppercase; color: var(--structural); border-bottom: 1px solid var(--seam);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .card > h5 .right { margin-left: auto; letter-spacing: 0; text-transform: none; }
+  .card .bd { padding: 10px 14px 12px; }
+  table.t { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+  table.t th {
+    text-align: left; font-weight: 500; color: var(--structural); font-size: 10px;
+    letter-spacing: 0.1em; text-transform: uppercase; padding: 4px 10px 6px 0;
+    border-bottom: 1px solid var(--seam);
+  }
+  table.t td { padding: 6px 10px 6px 0; color: var(--dim); border-bottom: 1px solid rgba(46,46,52,0.5); vertical-align: middle; }
+  table.t tr:last-child td { border-bottom: none; }
+  table.t .mx { color: var(--dim); text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--seam); }
+  .kv { display: flex; justify-content: space-between; padding: 4px 0; font-size: 11.5px; color: var(--dim); }
+  .kv b { color: var(--text); font-weight: 500; font-variant-numeric: tabular-nums; }
+  .kv .amber { color: var(--live); }
+
+  /* ── show editor ─────────────────────────────────────────── */
+  .tl { padding: 16px 18px 10px; }
+  .tl-ruler {
+    display: flex; font-size: 9.5px; color: var(--structural); border-bottom: 1px solid var(--seam);
+    padding-bottom: 3px; margin-bottom: 10px; margin-left: 92px;
+  }
+  .tl-ruler span { flex: 1; }
+  .tl-track { display: flex; align-items: center; gap: 0; margin-bottom: 9px; }
+  .tl-name { width: 92px; flex-shrink: 0; font-size: 10.5px; color: var(--structural); letter-spacing: 0.05em; }
+  .tl-lane { flex: 1; height: 34px; background: rgba(20,20,22,0.7); border-radius: 5px; position: relative; overflow: hidden; }
+  .clip {
+    position: absolute; top: 3px; bottom: 3px; border-radius: 4px;
+    border: 1px solid var(--seam); background: var(--panel-2);
+    font-size: 10px; color: var(--dim); display: flex; align-items: center;
+    padding: 0 8px; white-space: nowrap; overflow: hidden;
+  }
+  .clip.sel { border-color: var(--live); color: var(--live); background: var(--live-dim); }
+  .clip .cd { font-size: 9px; color: var(--structural); margin-left: 7px; }
+  .xfade {
+    position: absolute; top: 3px; bottom: 3px;
+    background: repeating-linear-gradient(-55deg, rgba(251,191,36,0.16) 0 4px, transparent 4px 8px);
+    border-left: 1px dashed rgba(251,191,36,0.5); border-right: 1px dashed rgba(251,191,36,0.5);
+  }
+  .playhead { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--live); box-shadow: 0 0 8px rgba(251,191,36,0.8); }
+  .inspector {
+    border-top: 1px solid var(--seam); display: flex; gap: 0; background: var(--panel);
+    min-height: 148px;
+  }
+  .insp-col { flex: 1; padding: 12px 16px; border-right: 1px solid var(--seam); }
+  .insp-col:last-child { border-right: none; }
+  .insp-col h6 {
+    margin: 0 0 8px; font-size: 10px; letter-spacing: 0.13em; text-transform: uppercase;
+    color: var(--structural); font-weight: 500;
+  }
+  .compilebar {
+    border-top: 1px solid var(--seam); padding: 9px 18px; display: flex; align-items: center; gap: 16px;
+    font-size: 11px; color: var(--structural); background: var(--bg);
+  }
+  .meter { flex: 0 0 160px; height: 4px; background: var(--seam); border-radius: 2px; overflow: hidden; }
+  .meter i { display: block; height: 100%; width: 66%; background: var(--ok); }
+  .compilebar b { color: var(--dim); font-weight: 400; font-variant-numeric: tabular-nums; }
+
+  /* ── notes below each mock ───────────────────────────────── */
+  .notes {
+    margin-top: 22px; display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 14px 22px;
+  }
+  .note { border-top: 1px solid var(--seam); padding-top: 10px; }
+  .note h4 {
+    font-family: var(--mono); font-size: 12px; font-weight: 600; margin: 0 0 4px;
+    color: var(--live);
+  }
+  .note p { margin: 0; color: var(--dim); font-size: 13.5px; }
+  .note code { font-family: var(--mono); font-size: 12px; color: var(--text); background: var(--panel); border: 1px solid var(--seam); border-radius: 4px; padding: 0 4px; }
+
+  footer { max-width: 1280px; margin: 0 auto; padding: 0 32px 48px; color: var(--structural); font-size: 12.5px; }
+  footer p { max-width: 80ch; }
+
+  @media (max-width: 900px) {
+    .cols { flex-direction: column; }
+    .rail { width: 100%; border-right: none; border-bottom: 1px solid var(--seam); }
+    .previewpane { width: 100%; }
+    .g-detail { flex-direction: column; }
+    .g-side { max-width: none; border-left: none; border-top: 1px solid var(--seam); }
+    .ctl-grid { grid-template-columns: 1fr; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+  }
+</style>
+
+<div class="page-head">
+  <div class="brand">PXLBLZ · design direction</div>
+  <h1>v2 — Gallery, Studio &amp; the five-entity workspace</h1>
+  <p>Mockups for the v2 information architecture: a public Gallery for browsing patterns, and a
+     Studio whose left rail grows from two lists (Patterns / Maps) to five entity kinds —
+     Patterns, Maps, Mixins, Controllers, Shows. Built in the app's existing visual language:
+     IBM&nbsp;Plex&nbsp;Mono chrome, one amber accent, zinc-dark ground.</p>
+  <div class="meta">July 2026 · companion to docs/plans/pxlblz-v2-prd.md · previews are canvas stand-ins for the WebGL renderer</div>
+</div>
+
+<div class="tabbar" role="tablist">
+  <div class="tabbar-inner">
+    <button class="tab" role="tab" aria-selected="true" data-screen="s-gallery"><span class="k">1</span>Gallery</button>
+    <button class="tab" role="tab" aria-selected="false" data-screen="s-detail"><span class="k">2</span>Pattern detail</button>
+    <button class="tab" role="tab" aria-selected="false" data-screen="s-studio"><span class="k">3</span>Studio nav</button>
+    <button class="tab" role="tab" aria-selected="false" data-screen="s-controller"><span class="k">4</span>Controller</button>
+    <button class="tab" role="tab" aria-selected="false" data-screen="s-mixin"><span class="k">5</span>Mixin</button>
+    <button class="tab" role="tab" aria-selected="false" data-screen="s-show"><span class="k">6</span>Show editor</button>
+  </div>
+</div>
+
+<!-- ═══════════════════ 1 · GALLERY ═══════════════════ -->
+<section class="screen active" id="s-gallery">
+  <h2>Gallery — the signed-out landing page</h2>
+  <p class="sub">Browse mode stops pretending to be an editor. The center real estate goes to the
+     patterns themselves: live animated cards, a dimension lens, category chips. This is the page a
+     forum link lands on.</p>
+
+  <div class="frame">
+    <div class="frame-cap">
+      <span class="dots"><i></i><i></i><i></i></span>
+      <span class="url">pxlblz-ide.pages.dev/<b>gallery</b></span>
+    </div>
+    <div class="mock">
+      <div class="topbar">
+        <span class="wordmark">
+          <svg width="20" height="14" viewBox="0 0 20 14" fill="none"><path d="M1 13 5 1l3 8 3-8 4 12" stroke="#fbbf24" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          PXLBLZ
+        </span>
+        <span class="menu-chip">Docs ▾</span>
+        <span class="spacer"></span>
+        <span class="btn ghost">Sign in</span>
+        <span class="btn primary">Open Studio →</span>
+      </div>
+
+      <div class="g-hero">
+        <h3>Patterns for Pixelblaze</h3>
+        <p>run them live in your browser — no hardware, no install</p>
+      </div>
+
+      <div class="g-filters">
+        <span class="chip on">All</span>
+        <span class="chip">1D</span>
+        <span class="chip">2D</span>
+        <span class="chip">3D</span>
+        <span style="width:10px"></span>
+        <span class="chip on">Everything</span>
+        <span class="chip">ShaderToy ports</span>
+        <span class="chip">FPS friendly</span>
+        <span class="chip">Living 1D</span>
+        <span class="g-search">⌕ search patterns…</span>
+      </div>
+
+      <div class="g-grid">
+        <div class="g-card"><div class="thumb"><canvas data-fx="fibers"></canvas></div>
+          <div class="info"><div class="name">IridescentFibers <span class="badge">2D</span></div>
+          <div class="tags"><span class="tag">shadertoy port</span><span class="tag">·</span><span class="tag">by evesira</span></div></div></div>
+        <div class="g-card"><div class="thumb"><canvas data-fx="aurora"></canvas></div>
+          <div class="info"><div class="name">AuroraSphere <span class="badge">3D</span></div>
+          <div class="tags"><span class="tag">geometry-aware</span><span class="tag">·</span><span class="tag">sphere map</span></div></div></div>
+        <div class="g-card"><div class="thumb"><canvas data-fx="squircle"></canvas></div>
+          <div class="info"><div class="name">NeonSquircles <span class="badge">2D</span></div>
+          <div class="tags"><span class="tag">shadertoy port</span></div></div></div>
+        <div class="g-card"><div class="thumb"><canvas data-fx="comet"></canvas></div>
+          <div class="info"><div class="name">CometLoom <span class="badge">1D</span></div>
+          <div class="tags"><span class="tag">living 1d</span><span class="tag">·</span><span class="tag">fps friendly</span></div></div></div>
+        <div class="g-card"><div class="thumb"><canvas data-fx="plasma"></canvas></div>
+          <div class="info"><div class="name">PlasmaNebula <span class="badge">2D</span></div>
+          <div class="tags"><span class="tag">fps heavyweight</span></div></div></div>
+        <div class="g-card"><div class="thumb"><canvas data-fx="kaleido"></canvas></div>
+          <div class="info"><div class="name">KaleidoBloom <span class="badge">2D</span></div>
+          <div class="tags"><span class="tag">fps friendly</span></div></div></div>
+        <div class="g-card"><div class="thumb"><canvas data-fx="voxel"></canvas></div>
+          <div class="info"><div class="name">VoxelFireflies3D <span class="badge">3D</span></div>
+          <div class="tags"><span class="tag">volume map</span></div></div></div>
+        <div class="g-card"><div class="thumb"><canvas data-fx="metro"></canvas></div>
+          <div class="info"><div class="name">MetroLines <span class="badge">1D</span></div>
+          <div class="tags"><span class="tag">living 1d</span></div></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="notes">
+    <div class="note"><h4>Cards are alive</h4>
+      <p>Each card runs the real preview engine at reduced pixel count, staggered and paused
+         off-viewport. The launch-post lesson was "lead with motion" — this page <em>is</em> the motion.</p></div>
+    <div class="note"><h4>Real URLs at last</h4>
+      <p>v2 introduces routing. <code>/gallery</code> is the signed-out landing;
+         each pattern gets <code>/p/&lt;slug&gt;</code> — the shareable link for Show-and-Tell posts.</p></div>
+    <div class="note"><h4>Familiar vocabulary, new frame</h4>
+      <p>The dimension lens (All/1D/2D/3D) and section names carry over from the v1 rail — same
+         filters, now applied to a grid instead of a sidebar list.</p></div>
+    <div class="note"><h4>Two doors out</h4>
+      <p>"Open Studio →" is the only bright accent in the top bar. Signed-in users land in the
+         Studio directly; the Gallery remains reachable from the Studio's catalog entry point.</p></div>
+  </div>
+</section>
+
+<!-- ═══════════════════ 2 · PATTERN DETAIL ═══════════════════ -->
+<section class="screen" id="s-detail">
+  <h2>Pattern detail — a big preview, the pattern's own controls, no Monaco</h2>
+  <p class="sub">Clicking a card gives the pattern the whole stage. Controls are the pattern's real
+     exported sliders. Source is one click away, but reading code is opt-in here — this view is for
+     the pattern <em>consumer</em>.</p>
+
+  <div class="frame">
+    <div class="frame-cap">
+      <span class="dots"><i></i><i></i><i></i></span>
+      <span class="url">pxlblz-ide.pages.dev/<b>p/iridescent-fibers</b></span>
+    </div>
+    <div class="mock">
+      <div class="topbar">
+        <span class="wordmark">
+          <svg width="20" height="14" viewBox="0 0 20 14" fill="none"><path d="M1 13 5 1l3 8 3-8 4 12" stroke="#fbbf24" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          PXLBLZ
+        </span>
+        <span class="menu-chip">← Gallery</span>
+        <span class="spacer"></span>
+        <span class="btn ghost">Sign in</span>
+        <span class="btn primary">Open Studio →</span>
+      </div>
+      <div class="g-detail">
+        <div class="g-stage"><canvas data-fx="fibers" data-big="1"></canvas></div>
+        <div class="g-side">
+          <h3>IridescentFibers <span class="badge">2D</span></h3>
+          <div class="byline">ShaderToy port · original "iridescent fibers" by evesira</div>
+          <p class="desc">Ten additive sine-wave layers with an IQ-style cosine palette. The zoom
+             slider is remapped to the useful source-like range.</p>
+
+          <div class="drow"><span class="lab">speed</span><span class="slider"><span class="fill" style="width:20%"></span><i style="left:20%"></i></span><span class="val">0.20</span></div>
+          <div class="drow"><span class="lab">zoom</span><span class="slider"><span class="fill" style="width:33%"></span><i style="left:33%"></i></span><span class="val">0.33</span></div>
+          <div class="drow"><span class="lab">thickness</span><span class="slider"><span class="fill" style="width:44%"></span><i style="left:44%"></i></span><span class="val">0.44</span></div>
+          <div class="drow"><span class="lab">brightness</span><span class="slider"><span class="fill" style="width:65%"></span><i style="left:65%"></i></span><span class="val">0.65</span></div>
+
+          <div class="drow" style="margin-top:12px"><span class="lab">map</span><span class="field">Square <span class="car">▾</span></span><span class="lab" style="width:auto;margin-left:14px">pixels</span><span class="field">1024</span></div>
+
+          <div class="g-actions">
+            <span class="btn primary">Open in Studio</span>
+            <span class="btn">View source</span>
+            <span class="btn">⇥ Send to Controller</span>
+          </div>
+          <div class="sharebar">⧉ <b>pxlblz-ide.pages.dev/p/iridescent-fibers</b> <span style="margin-left:auto">copy</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="notes">
+    <div class="note"><h4>Consumer-first, author-optional</h4>
+      <p>The v1 retro's conclusion: the broad audience consumes patterns, it doesn't write them.
+         Controls and Send to Controller work right here; "View source" and "Open in Studio" are
+         the on-ramps for the authoring minority.</p></div>
+    <div class="note"><h4>Send without Studio</h4>
+      <p>A hardware builder can push a gallery pattern to their device without ever entering the
+         editor — the Controller connect surface is available from this page too.</p></div>
+    <div class="note"><h4>Settings that follow you in</h4>
+      <p>Slider tweaks made here ride along through "Open in Studio" — the same
+         settings-cascade layer that demo overrides use today.</p></div>
+  </div>
+</section>
+
+<!-- ═══════════════════ 3 · STUDIO ═══════════════════ -->
+<section class="screen" id="s-studio">
+  <h2>Studio — the five-entity rail</h2>
+  <p class="sub">The two-list rail becomes an activity strip + list pane. Your entities — Patterns,
+     Maps, Mixins, Controllers, Shows — are the top-level nav; built-ins recede into a catalog you
+     pull from, instead of a permanent sibling list.</p>
+
+  <div class="frame">
+    <div class="frame-cap">
+      <span class="dots"><i></i><i></i><i></i></span>
+      <span class="url">pxlblz-ide.pages.dev/<b>studio</b></span>
+    </div>
+    <div class="mock">
+      <div class="topbar">
+        <span class="wordmark">
+          <svg width="20" height="14" viewBox="0 0 20 14" fill="none"><path d="M1 13 5 1l3 8 3-8 4 12" stroke="#fbbf24" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          PXLBLZ
+        </span>
+        <span class="menu-chip">Docs ▾</span>
+        <span class="menu-chip">Libraries ▾</span>
+        <span class="spacer"></span>
+        <span class="pill"><span class="dot ok"></span> burner-bag</span>
+        <span class="btn sm ghost">+ Connect</span>
+        <span class="pill">jon-whiteroomsoft… ⏻</span>
+      </div>
+
+      <div class="cols">
+        <div class="rail">
+          <div class="activity">
+            <span class="act-wrap on"><span class="act on">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M1 12c2-6 3 -2 5-6s3 8 5 2 2-2 4-4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+            </span><span class="cap">PTRN</span></span>
+            <span class="act-wrap"><span class="act">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="4" cy="4" r="1.4" fill="currentColor"/><circle cx="12" cy="4" r="1.4" fill="currentColor"/><circle cx="4" cy="12" r="1.4" fill="currentColor"/><circle cx="12" cy="12" r="1.4" fill="currentColor"/><circle cx="8" cy="8" r="1.4" fill="currentColor"/></svg>
+            </span><span class="cap">MAPS</span></span>
+            <span class="act-wrap"><span class="act">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 2C4 2 5 5 3 5v2c2 0 1 3 3 3M10 2c2 0 1 3 3 3v2c-2 0-1 3-3 3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" transform="translate(0 2)"/></svg>
+            </span><span class="cap">MIXN</span></span>
+            <span class="act-wrap"><span class="act">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="5.2" stroke="currentColor" stroke-width="1.3"/><path d="M8 8 10.5 5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+            </span><span class="cap">CTRL</span></span>
+            <span class="act-wrap"><span class="act">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="1.5" y="4" width="6" height="8" rx="1" stroke="currentColor" stroke-width="1.3"/><rect x="8.5" y="4" width="6" height="8" rx="1" stroke="currentColor" stroke-width="1.3"/></svg>
+            </span><span class="cap">SHOW</span></span>
+            <span class="act-bottom act-wrap"><span class="act">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 2v12M8 2C6 3.5 3 3.5 2 3v10c1-.5 4-.5 6 1 2-1.5 5-1.5 6-1V3c-1 .5-4 .5-6-1z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>
+            </span><span class="cap">CTLG</span></span>
+          </div>
+          <div class="raillist">
+            <div class="rail-head">
+              <div class="rail-title">Patterns <span class="n">·</span></div>
+              <div class="lens"><b class="on">All</b><b>1D</b><b>2D</b><b>3D</b><span class="search">⌕</span></div>
+            </div>
+            <div class="rail-sec">
+              <h4>Cloud Patterns <span class="plus">＋ ▾</span></h4>
+              <div class="ritem on">aurora-drift <span class="bd badge live">2D</span></div>
+              <div class="ritem">color-fields <span class="bd badge">2D</span></div>
+              <div class="ritem">tazii-arches <span class="bd badge">2D</span></div>
+              <div class="ritem">bag-sparkle <span class="bd badge">1D</span></div>
+              <div class="ritem">wave-collapse <span class="bd badge">2D</span></div>
+            </div>
+            <div class="rail-note">
+              Need a starting point? <a>Browse the catalog</a> — 30 built-in patterns, cloneable
+              into your workspace. Or <a>import an .epe</a>.
+            </div>
+          </div>
+        </div>
+
+        <div class="centerpane">
+          <div class="pane-head">
+            <span class="title">aurora-drift</span>
+            <span class="badge">2D</span>
+            <span class="badge ok">good</span>
+            <span class="spacer"></span>
+            <span class="btn sm ghost">Clone</span>
+            <span class="btn sm">Run <b style="color:var(--structural)">·</b> Save</span>
+            <span class="btn sm primary">▷ Controller</span>
+          </div>
+          <div class="code"><div class="ln"><span class="no">1</span><span class="c-com">// Aurora Drift — layered curtains on a cosine palette.</span></div>
+<div class="ln"><span class="no">2</span></div>
+<div class="ln"><span class="no">3</span><span><span class="c-kw">export var</span> speed = <span class="c-num">0.3</span></span></div>
+<div class="ln"><span class="no">4</span><span><span class="c-kw">export var</span> drift = <span class="c-num">0.5</span></span></div>
+<div class="ln"><span class="no">5</span><span><span class="c-kw">export function</span> <span class="c-fn">sliderSpeed</span>(v) { speed = v }</span></div>
+<div class="ln"><span class="no">6</span></div>
+<div class="ln"><span class="no">7</span><span><span class="c-kw">export function</span> <span class="c-fn">beforeRender</span>(delta) {</span></div>
+<div class="ln"><span class="no">8</span><span>  t = t + delta * <span class="c-num">0.001</span> * speed</span></div>
+<div class="ln"><span class="no">9</span><span>}</span></div>
+<div class="ln"><span class="no">10</span></div>
+<div class="ln"><span class="no">11</span><span><span class="c-kw">export function</span> <span class="c-fn">render2D</span>(index, x, y) {</span></div>
+<div class="ln"><span class="no">12</span><span>  <span class="c-kw">var</span> v = <span class="c-fn">Shader.fract</span>(x * <span class="c-num">3</span> + <span class="c-fn">wave</span>(t + y))</span></div>
+<div class="ln"><span class="no">13</span><span>  <span class="c-fn">hsv</span>(<span class="c-num">0.55</span> + v * drift, <span class="c-num">1</span>, v * v)</span></div>
+<div class="ln"><span class="no">14</span><span>}</span></div></div>
+        </div>
+
+        <div class="previewpane">
+          <div class="canvas-wrap" style="height:250px"><canvas data-fx="aurora"></canvas></div>
+          <div class="deck">
+            <h5>Pixelblaze <span style="color:var(--seam)">?</span></h5>
+            <div class="drow"><span class="lab">map</span><span class="field" style="flex:1">Square <span class="car" style="margin-left:auto">▾</span></span></div>
+            <div class="drow"><span class="lab">brightness</span><span class="slider"><span class="fill" style="width:100%"></span><i style="left:100%"></i></span><span class="val">1.00</span></div>
+            <h5>Preview</h5>
+            <div class="drow"><span class="lab">renderer</span><span class="field">Fast <span class="car">▾</span></span><span class="spacer"></span><span class="lab" style="width:auto">fps</span><span class="val">60.0</span></div>
+            <div class="drow"><span class="lab">light size</span><span class="slider"><span class="fill" style="width:85%"></span><i style="left:85%"></i></span><span class="val">0.85</span></div>
+            <h5>Pattern controls</h5>
+            <div class="drow"><span class="lab">speed</span><span class="slider"><span class="fill" style="width:30%"></span><i style="left:30%"></i></span><span class="val">0.30</span></div>
+            <div class="drow"><span class="lab">drift</span><span class="slider"><span class="fill" style="width:50%"></span><i style="left:50%"></i></span><span class="val">0.50</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="notes">
+    <div class="note"><h4>Activity strip scales to five</h4>
+      <p>A Patterns/Maps segmented toggle can't hold five entity kinds. The 46px strip
+         (VS Code-style) does, keeps every kind one click away, and leaves the list pane's width
+         for names. Labels under icons — no icon-only guessing.</p></div>
+    <div class="note"><h4>Built-ins recede</h4>
+      <p>No permanent "Built-in Patterns" tree. Your cloud list is the rail; the catalog is the
+         bottom strip entry and the dashed hint card when a list is short. Cloning from the
+         catalog is the same fork flow as today.</p></div>
+    <div class="note"><h4>Editor and preview unchanged</h4>
+      <p>Monaco, the deck, the settings cascade, Run/Save, the controller pills — all carried
+         over as-is. The rework is the rail and routing, not the editing core.</p></div>
+    <div class="note"><h4>Implementation note</h4>
+      <p>Today's rail is one 1,177-line <code>PatternList.tsx</code> with a two-value
+         <code>railMode</code>. The strip generalizes it into one list component per entity kind
+         behind a shared shell — a prerequisite issue in the nav-rework track.</p></div>
+  </div>
+</section>
+
+<!-- ═══════════════════ 4 · CONTROLLER ═══════════════════ -->
+<section class="screen" id="s-controller">
+  <h2>Controller — hardware profile as a first-class entity</h2>
+  <p class="sub">A Controller is no longer just a connection pill. It's a durable D1-backed entity:
+     the physical box's inputs, its global transforms, and its per-pattern bindings — the concepts
+     from the hardware-injection manifest, given a page instead of a YAML file.</p>
+
+  <div class="frame">
+    <div class="frame-cap">
+      <span class="dots"><i></i><i></i><i></i></span>
+      <span class="url">pxlblz-ide.pages.dev/<b>studio/controllers/workshop-box</b></span>
+    </div>
+    <div class="mock">
+      <div class="topbar">
+        <span class="wordmark">
+          <svg width="20" height="14" viewBox="0 0 20 14" fill="none"><path d="M1 13 5 1l3 8 3-8 4 12" stroke="#fbbf24" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          PXLBLZ
+        </span>
+        <span class="menu-chip">Docs ▾</span>
+        <span class="spacer"></span>
+        <span class="pill"><span class="dot ok"></span> workshop-box</span>
+        <span class="pill">jon-whiteroomsoft… ⏻</span>
+      </div>
+
+      <div class="cols" style="min-height:600px">
+        <div class="rail">
+          <div class="activity">
+            <span class="act-wrap"><span class="act"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M1 12c2-6 3-2 5-6s3 8 5 2 2-2 4-4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></span><span class="cap">PTRN</span></span>
+            <span class="act-wrap"><span class="act"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="4" cy="4" r="1.4" fill="currentColor"/><circle cx="12" cy="4" r="1.4" fill="currentColor"/><circle cx="4" cy="12" r="1.4" fill="currentColor"/><circle cx="12" cy="12" r="1.4" fill="currentColor"/><circle cx="8" cy="8" r="1.4" fill="currentColor"/></svg></span><span class="cap">MAPS</span></span>
+            <span class="act-wrap"><span class="act"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 2C4 2 5 5 3 5v2c2 0 1 3 3 3M10 2c2 0 1 3 3 3v2c-2 0-1 3-3 3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" transform="translate(0 2)"/></svg></span><span class="cap">MIXN</span></span>
+            <span class="act-wrap on"><span class="act on"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="5.2" stroke="currentColor" stroke-width="1.3"/><path d="M8 8 10.5 5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></span><span class="cap">CTRL</span></span>
+            <span class="act-wrap"><span class="act"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="1.5" y="4" width="6" height="8" rx="1" stroke="currentColor" stroke-width="1.3"/><rect x="8.5" y="4" width="6" height="8" rx="1" stroke="currentColor" stroke-width="1.3"/></svg></span><span class="cap">SHOW</span></span>
+            <span class="act-bottom act-wrap"><span class="act"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 2v12M8 2C6 3.5 3 3.5 2 3v10c1-.5 4-.5 6 1 2-1.5 5-1.5 6-1V3c-1 .5-4 .5-6-1z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg></span><span class="cap">CTLG</span></span>
+          </div>
+          <div class="raillist">
+            <div class="rail-head"><div class="rail-title">Controllers</div></div>
+            <div class="rail-sec">
+              <h4>My Controllers <span class="plus">＋</span></h4>
+              <div class="ritem on"><span class="dot ok"></span> workshop-box</div>
+              <div class="ritem"><span class="dot idle"></span> burner-bag</div>
+              <div class="ritem"><span class="dot idle"></span> tazii-north-arch</div>
+            </div>
+            <div class="rail-note">A Controller profile is durable — it keeps its hardware
+              setup and bindings even while the device is offline.</div>
+          </div>
+        </div>
+
+        <div class="centerpane" style="border-right:none">
+          <div class="pane-head">
+            <span class="title">workshop-box</span>
+            <span class="badge ok">connected</span>
+            <span class="badge">192.168.4.61 · fw 3.67</span>
+            <span class="spacer"></span>
+            <span class="btn sm ghost">Rename</span>
+            <span class="btn sm ghost">Disconnect</span>
+          </div>
+          <div class="ctl-body">
+            <div class="ctl-grid">
+              <div class="card">
+                <h5>Device <span class="right badge ok">live</span></h5>
+                <div class="bd">
+                  <div class="kv"><span>active pattern</span><b>aurora-drift <span class="badge">unsaved</span></b></div>
+                  <div class="kv"><span>pixels</span><b>256</b></div>
+                  <div class="kv"><span>map points</span><b>256 · 2D</b></div>
+                  <div class="kv"><span>frame rate</span><b>112 fps</b></div>
+                  <div class="kv"><span>brightness cap</span><b class="amber">0.40</b></div>
+                </div>
+              </div>
+
+              <div class="card">
+                <h5>Hardware inputs <span class="right btn sm ghost">＋ add input</span></h5>
+                <div class="bd">
+                  <table class="t">
+                    <tr><th>input</th><th>pin</th><th>role</th><th>smoothing</th><th>live</th></tr>
+                    <tr><td>pot0</td><td>A1 <span class="badge ok">ADC1</span></td><td>brightness</td><td>0.10</td><td style="color:var(--live)">0.72</td></tr>
+                    <tr><td>pot1</td><td>A2 <span class="badge ok">ADC1</span></td><td>assignable</td><td>0.10</td><td style="color:var(--live)">0.31</td></tr>
+                    <tr><td>btn0</td><td>IO12</td><td>next pattern</td><td>—</td><td style="color:var(--structural)">open</td></tr>
+                  </table>
+                </div>
+              </div>
+
+              <div class="card">
+                <h5>Global transforms — applied to every push</h5>
+                <div class="bd">
+                  <table class="t">
+                    <tr><th>transform</th><th>source</th><th>mixin</th><th></th></tr>
+                    <tr><td>Hardware brightness</td><td>pot0 × output</td><td><span class="mx">hw-brightness</span></td><td><span class="badge live">on</span></td></tr>
+                    <tr><td>Power cap</td><td>2.5 A @ 5 V</td><td><span class="mx">power-cap</span></td><td><span class="badge">off</span></td></tr>
+                  </table>
+                </div>
+              </div>
+
+              <div class="card">
+                <h5>Pattern bindings <span class="right btn sm ghost">＋ add binding</span></h5>
+                <div class="bd">
+                  <table class="t">
+                    <tr><th>pattern</th><th>input</th><th>target</th><th>mixin</th></tr>
+                    <tr><td>aurora-drift</td><td>pot1</td><td>call sliderSpeed</td><td><span class="mx">pot-binding</span></td></tr>
+                    <tr><td>color-fields</td><td>pot1</td><td>paletteIndex 0–6 ⌁ quantize</td><td><span class="mx">pot-binding</span></td></tr>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            <div style="margin-top:14px; font-size:11px; color:var(--structural); display:flex; gap:14px; align-items:center;">
+              <span>Every push to this Controller compiles: pattern + active mixins → generated artifact.</span>
+              <span class="btn sm ghost">View last transform summary</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="notes">
+    <div class="note"><h4>Manifest concepts, D1 home</h4>
+      <p>The PRD's manifest vocabulary survives intact — inputs, roles, smoothing/fallback,
+         global transforms, per-pattern bindings — but lives as a cloud entity, not a workspace
+         file. It exists and is editable even while the device is offline.</p></div>
+    <div class="note"><h4>ADC1 validation built in</h4>
+      <p>Pin pickers only offer WiFi-safe ADC1 pins per board variant, with the constraint
+         explained inline — the spike finding becomes UI, not documentation trivia.</p></div>
+    <div class="note"><h4>Mixins are the visible mechanics</h4>
+      <p>Every transform and binding names the mixin that implements it, linking to its readable
+         source. Nothing is generated from a hidden template — same philosophy as stock maps.</p></div>
+    <div class="note"><h4>Native brightness stays the cap</h4>
+      <p>The live Device card shows the device's own brightness cap in amber — injected hardware
+         brightness only dims inside it, never exceeds it.</p></div>
+  </div>
+</section>
+
+<!-- ═══════════════════ 5 · MIXIN ═══════════════════ -->
+<section class="screen" id="s-mixin">
+  <h2>Mixin — readable code, bound elsewhere</h2>
+  <p class="sub">A mixin is a visible chunk of Pixelblaze-dialect source that the pass engine
+     injects around a pattern at push time. Built-ins ship read-only and cloneable, exactly like
+     stock maps; parameters are bound where the mixin is <em>used</em> (on a Controller or Show),
+     never inside the mixin itself.</p>
+
+  <div class="frame">
+    <div class="frame-cap">
+      <span class="dots"><i></i><i></i><i></i></span>
+      <span class="url">pxlblz-ide.pages.dev/<b>studio/mixins/pot-binding</b></span>
+    </div>
+    <div class="mock">
+      <div class="topbar">
+        <span class="wordmark">
+          <svg width="20" height="14" viewBox="0 0 20 14" fill="none"><path d="M1 13 5 1l3 8 3-8 4 12" stroke="#fbbf24" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          PXLBLZ
+        </span>
+        <span class="menu-chip">Docs ▾</span>
+        <span class="spacer"></span>
+        <span class="pill"><span class="dot ok"></span> workshop-box</span>
+        <span class="pill">jon-whiteroomsoft… ⏻</span>
+      </div>
+
+      <div class="cols" style="min-height:600px">
+        <div class="rail">
+          <div class="activity">
+            <span class="act-wrap"><span class="act"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M1 12c2-6 3-2 5-6s3 8 5 2 2-2 4-4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></span><span class="cap">PTRN</span></span>
+            <span class="act-wrap"><span class="act"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="4" cy="4" r="1.4" fill="currentColor"/><circle cx="12" cy="4" r="1.4" fill="currentColor"/><circle cx="4" cy="12" r="1.4" fill="currentColor"/><circle cx="12" cy="12" r="1.4" fill="currentColor"/><circle cx="8" cy="8" r="1.4" fill="currentColor"/></svg></span><span class="cap">MAPS</span></span>
+            <span class="act-wrap on"><span class="act on"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 2C4 2 5 5 3 5v2c2 0 1 3 3 3M10 2c2 0 1 3 3 3v2c-2 0-1 3-3 3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" transform="translate(0 2)"/></svg></span><span class="cap">MIXN</span></span>
+            <span class="act-wrap"><span class="act"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="5.2" stroke="currentColor" stroke-width="1.3"/><path d="M8 8 10.5 5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></span><span class="cap">CTRL</span></span>
+            <span class="act-wrap"><span class="act"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="1.5" y="4" width="6" height="8" rx="1" stroke="currentColor" stroke-width="1.3"/><rect x="8.5" y="4" width="6" height="8" rx="1" stroke="currentColor" stroke-width="1.3"/></svg></span><span class="cap">SHOW</span></span>
+            <span class="act-bottom act-wrap"><span class="act"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 2v12M8 2C6 3.5 3 3.5 2 3v10c1-.5 4-.5 6 1 2-1.5 5-1.5 6-1V3c-1 .5-4 .5-6-1z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg></span><span class="cap">CTLG</span></span>
+          </div>
+          <div class="raillist">
+            <div class="rail-head"><div class="rail-title">Mixins</div></div>
+            <div class="rail-sec">
+              <h4>Built-in Mixins</h4>
+              <div class="ritem on">pot-binding <span class="bd badge">bind</span></div>
+              <div class="ritem">hw-brightness <span class="bd badge">intercept</span></div>
+              <div class="ritem">power-cap <span class="bd badge">intercept</span></div>
+              <div class="ritem">sensor-pulse <span class="bd badge">inject</span></div>
+              <div class="ritem">night-scheduler <span class="bd badge">inject</span></div>
+            </div>
+            <div class="rail-sec">
+              <h4>Cloud Mixins <span class="plus">＋</span></h4>
+              <div class="ritem">tazii-crown-mask <span class="bd badge">intercept</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="centerpane">
+          <div class="pane-head">
+            <span class="title">pot-binding</span>
+            <span class="badge">mixin · read-only</span>
+            <span class="spacer"></span>
+            <span class="btn sm">Clone</span>
+          </div>
+          <div class="code"><div class="ln"><span class="no">1</span><span class="c-com">// Pot Binding — read an analog input once per frame and drive one</span></div>
+<div class="ln"><span class="no">2</span><span class="c-com">// pattern control. This source is exactly what gets injected; the</span></div>
+<div class="ln"><span class="no">3</span><span class="c-com">// pass engine fills the @params where the mixin is bound.</span></div>
+<div class="ln"><span class="no">4</span><span class="c-com">//</span></div>
+<div class="ln"><span class="no">5</span><span class="c-com">// @param PIN       analog input (ADC1-safe pins only under WiFi)</span></div>
+<div class="ln"><span class="no">6</span><span class="c-com">// @param SMOOTHING 0..1 exponential smoothing per frame</span></div>
+<div class="ln"><span class="no">7</span><span class="c-com">// @param FALLBACK  value used while the input reads as floating</span></div>
+<div class="ln"><span class="no">8</span><span class="c-com">// @target CONTROL  slider fn to call, or variable to assign</span></div>
+<div class="ln"><span class="no">9</span></div>
+<div class="ln"><span class="no">10</span><span><span class="c-kw">var</span> potValue = <span class="c-fn">FALLBACK</span></span></div>
+<div class="ln"><span class="no">11</span></div>
+<div class="ln"><span class="no">12</span><span><span class="c-kw">function</span> <span class="c-fn">readPot</span>(delta) {</span></div>
+<div class="ln"><span class="no">13</span><span>  <span class="c-kw">var</span> raw = <span class="c-fn">analogRead</span>(<span class="c-fn">PIN</span>)</span></div>
+<div class="ln"><span class="no">14</span><span>  potValue = potValue + (raw - potValue) * <span class="c-fn">SMOOTHING</span></span></div>
+<div class="ln"><span class="no">15</span><span>  <span class="c-fn">CONTROL</span>(potValue)</span></div>
+<div class="ln"><span class="no">16</span><span>}</span></div>
+<div class="ln"><span class="no">17</span></div>
+<div class="ln"><span class="no">18</span><span class="c-com">// @wraps beforeRender — readPot runs first, then the pattern's own</span></div>
+<div class="ln"><span class="no">19</span><span class="c-com">// beforeRender, so hardware reads happen once per frame, not per pixel.</span></div></div>
+        </div>
+
+        <div class="previewpane">
+          <div class="deck" style="padding-top:12px">
+            <h5>Used by</h5>
+            <div class="drow"><span style="color:var(--dim)">workshop-box</span><span class="spacer"></span><span style="color:var(--structural);font-size:11px">pot1 → sliderSpeed</span></div>
+            <div class="drow" style="padding-left:12px; color:var(--structural); font-size:11px">on aurora-drift · PIN=A2 · SMOOTHING=0.1</div>
+            <div class="drow"><span style="color:var(--dim)">workshop-box</span><span class="spacer"></span><span style="color:var(--structural);font-size:11px">pot1 → paletteIndex</span></div>
+            <div class="drow" style="padding-left:12px; color:var(--structural); font-size:11px">on color-fields · 0–6 quantized</div>
+
+            <h5 style="margin-top:18px">Last transform summary</h5>
+            <div style="border:1px solid var(--seam); border-radius:6px; padding:10px 12px; font-size:11px; line-height:1.7; color:var(--dim); background:var(--bg)">
+              <div>aurora-drift → workshop-box</div>
+              <div style="color:var(--structural)">├ injected pot-binding (PIN=A2)</div>
+              <div style="color:var(--structural)">├ wrapped beforeRender (kept original)</div>
+              <div style="color:var(--structural)">├ wrapped 2 hsv() call sites <span style="color:var(--dim)">(hw-brightness)</span></div>
+              <div style="color:var(--structural)">├ +3 globals, +1 export</div>
+              <div style="color:var(--structural)">└ est. per-pixel cost <b style="color:var(--live)">+4%</b></div>
+              <div style="margin-top:7px"><span class="btn sm ghost">View generated artifact</span></div>
+            </div>
+
+            <div style="margin-top:16px; font-size:11px; color:var(--structural); line-height:1.6">
+              Parameters are bound on the Controller or Show that uses this mixin —
+              the mixin source itself stays generic and portable.
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="notes">
+    <div class="note"><h4>No magic, like maps</h4>
+      <p>The stock-maps promise — "here's the actual code" — extends to hardware wiring. What the
+         pass engine injects is this file, verbatim, with <code>@param</code> slots filled from the
+         binding. Cloning it makes a personal variant, same as cloning a stock map.</p></div>
+    <div class="note"><h4>The pass taxonomy shows up as badges</h4>
+      <p><code>inject</code> / <code>intercept</code> / <code>bind</code> chips on the rail teach
+         the vocabulary passively. Intercept mixins (brightness, power cap) also rewrite call
+         sites — that part can't be plain visible code, so the transform summary reports it.</p></div>
+    <div class="note"><h4>Right pane repurposed</h4>
+      <p>A mixin has no preview to render, so the preview pane becomes provenance: where the mixin
+         is used, and the last transform summary with a path to the generated artifact — the
+         inspection affordance the PRD requires.</p></div>
+  </div>
+</section>
+
+<!-- ═══════════════════ 6 · SHOW ═══════════════════ -->
+<section class="screen" id="s-show">
+  <h2>Show editor — clips, transitions, zones (sketch)</h2>
+  <p class="sub">Lower fidelity, on purpose — this ships after the pass engine proves out. A Show
+     treats whole patterns as clips on zone tracks, compiles to a single generated Pixelblaze
+     pattern, and reports its device budget honestly.</p>
+
+  <div class="frame">
+    <div class="frame-cap">
+      <span class="dots"><i></i><i></i><i></i></span>
+      <span class="url">pxlblz-ide.pages.dev/<b>studio/shows/tazii-nights</b></span>
+    </div>
+    <div class="mock">
+      <div class="topbar">
+        <span class="wordmark">
+          <svg width="20" height="14" viewBox="0 0 20 14" fill="none"><path d="M1 13 5 1l3 8 3-8 4 12" stroke="#fbbf24" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          PXLBLZ
+        </span>
+        <span class="menu-chip">Docs ▾</span>
+        <span class="spacer"></span>
+        <span class="pill"><span class="dot idle"></span> tazii-north-arch</span>
+        <span class="pill">jon-whiteroomsoft… ⏻</span>
+      </div>
+
+      <div style="display:flex; flex-direction:column; min-height:560px">
+        <div class="pane-head">
+          <span class="title">tazii-nights</span>
+          <span class="badge">show · 2m 15s loop</span>
+          <span class="spacer"></span>
+          <span class="btn sm ghost">▷ Preview show</span>
+          <span class="btn sm primary">Compile → tazii-north-arch</span>
+        </div>
+
+        <div class="tl" style="flex:1">
+          <div class="tl-ruler"><span>0:00</span><span>0:30</span><span>1:00</span><span>1:30</span><span>2:00</span></div>
+
+          <div class="tl-track">
+            <span class="tl-name">arch-left</span>
+            <div class="tl-lane">
+              <span class="clip" style="left:0%; width:26%">lantern-flicker <span class="cd">30s</span></span>
+              <span class="xfade" style="left:22%; width:8%"></span>
+              <span class="clip sel" style="left:26%; width:36%">zellij-drift <span class="cd">45s</span></span>
+              <span class="xfade" style="left:58%; width:6%"></span>
+              <span class="clip" style="left:62%; width:38%">oasis-wash <span class="cd">60s</span></span>
+              <span class="playhead" style="left:41%"></span>
+            </div>
+          </div>
+
+          <div class="tl-track">
+            <span class="tl-name">arch-right</span>
+            <div class="tl-lane">
+              <span class="clip" style="left:0%; width:26%">lantern-flicker <span class="cd">mirror</span></span>
+              <span class="xfade" style="left:22%; width:8%"></span>
+              <span class="clip" style="left:26%; width:36%">zellij-drift <span class="cd">mirror · φ 0.25</span></span>
+              <span class="xfade" style="left:58%; width:6%"></span>
+              <span class="clip" style="left:62%; width:38%">oasis-wash <span class="cd">mirror</span></span>
+              <span class="playhead" style="left:41%"></span>
+            </div>
+          </div>
+
+          <div class="tl-track">
+            <span class="tl-name">rock-wash</span>
+            <div class="tl-lane">
+              <span class="clip" style="left:0%; width:100%">oasis-wash <span class="cd">blur · delay 500ms · low-res</span></span>
+              <span class="playhead" style="left:41%"></span>
+            </div>
+          </div>
+
+          <div class="tl-track">
+            <span class="tl-name">overlay</span>
+            <div class="tl-lane" style="height:24px">
+              <span class="clip" style="left:26%; width:74%; font-size:9.5px">sparkle-crown <span class="cd">amount 0.2</span></span>
+              <span class="playhead" style="left:41%"></span>
+            </div>
+          </div>
+        </div>
+
+        <div class="inspector">
+          <div class="insp-col">
+            <h6>Clip — zellij-drift</h6>
+            <div class="kv"><span>source pattern</span><b>zellij-drift</b></div>
+            <div class="kv"><span>duration</span><b>45 s</b></div>
+            <div class="kv"><span>in transition</span><b>crossfade · 8 s</b></div>
+          </div>
+          <div class="insp-col">
+            <h6>Adaptations (non-destructive)</h6>
+            <div class="kv"><span>palette</span><b>moroccan-lantern</b></div>
+            <div class="kv"><span>arch-right</span><b>mirror · phase 0.25</b></div>
+            <div class="kv"><span>brightness env</span><b>breathing</b></div>
+          </div>
+          <div class="insp-col">
+            <h6>Zones — tazii-north-arch</h6>
+            <div class="kv"><span>arch-left</span><b>px 0–239</b></div>
+            <div class="kv"><span>arch-right</span><b>px 240–479</b></div>
+            <div class="kv"><span>rock-wash</span><b>px 480–527</b></div>
+          </div>
+        </div>
+
+        <div class="compilebar">
+          <span>compiled artifact</span>
+          <span class="meter"><i></i></span>
+          <b>7.9 KB / ~12 KB budget</b>
+          <span>·</span>
+          <b>est. 74 fps @ 528 px</b>
+          <span>·</span>
+          <span>2 renderers live during transitions only <span style="color:var(--ok)">✓ time-sliced</span></span>
+          <span class="spacer"></span>
+          <span class="btn sm ghost">View generated pattern</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="notes">
+    <div class="note"><h4>Zones are semantic, not electrical</h4>
+      <p>Tracks are named zones (<code>arch-left</code>, <code>rock-wash</code>); the zone→pixel
+         mapping lives on the target Controller. The same show retargets to different hardware by
+         remapping zones, per the orchestration doc's creative/deployment split.</p></div>
+    <div class="note"><h4>Adaptations live on the clip</h4>
+      <p>Palette swap, mirror, phase, brightness envelope attach to the pattern-in-this-show —
+         the original pattern is never forked. This is the "adaptation on the relationship"
+         decision: no standalone recipe entity.</p></div>
+    <div class="note"><h4>The budget bar is load-bearing</h4>
+      <p>A show compiles to one generated pattern; the device's code-size and FPS ceilings are
+         real. The compile bar surfaces artifact size against the measured device budget and
+         confirms time-sliced emission — the honesty the cost model exists for.</p></div>
+    <div class="note"><h4>Everything inspectable</h4>
+      <p>"View generated pattern" opens the compiled artifact read-only — a Show is ultimately
+         just a Pixelblaze pattern you could paste anywhere, keeping the no-magic promise.</p></div>
+  </div>
+</section>
+
+<footer>
+  <p>Deliberately single-theme: these mock a dark-only IDE, so the review page commits to the same
+     ground. Fonts fall back from IBM Plex Mono / Geist to system equivalents where not installed —
+     proportions are set to survive the swap. Previews are lightweight canvas sketches, not the
+     real fixed-point engine.</p>
+</footer>
+
+<script>
+  // ── tabs ──────────────────────────────────────────────────
+  const tabs = document.querySelectorAll('.tab');
+  const screens = document.querySelectorAll('.screen');
+  function selectTab(tab) {
+    tabs.forEach(t => t.setAttribute('aria-selected', String(t === tab)));
+    screens.forEach(s => s.classList.toggle('active', s.id === tab.dataset.screen));
+    window.scrollTo({ top: 0 });
+  }
+  tabs.forEach(t => t.addEventListener('click', () => selectTab(t)));
+
+  // ── LED dot-field previews (stand-ins for the WebGL renderer) ──
+  const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  const FX = {
+    fibers: (x, y, t) => {
+      let v = 0;
+      for (let i = 0; i < 4; i++) {
+        v += Math.max(0, 1 - 6 * Math.abs(y - 0.5 - 0.34 * Math.sin(x * 2.4 + t * (0.4 + i * 0.13) + i * 1.9)));
+      }
+      return { v: Math.min(1, v), h: 0.55 + 0.4 * Math.sin(x * 2 + t * 0.2), s: 0.85 };
+    },
+    aurora: (x, y, t) => {
+      const w = Math.sin(x * 3 + t * 0.5) * 0.5 + Math.sin(x * 7 - t * 0.3) * 0.25;
+      const v = Math.max(0, 1 - 3.2 * Math.abs(y - 0.55 - w * 0.22));
+      return { v: v * v, h: 0.38 + 0.14 * Math.sin(x * 4 + t * 0.4), s: 0.9 };
+    },
+    squircle: (x, y, t) => {
+      const cx = x - 0.5, cy = y - 0.5;
+      const d = Math.pow(Math.pow(Math.abs(cx), 3) + Math.pow(Math.abs(cy * 1.6), 3), 1 / 3);
+      const v = Math.max(0, Math.cos((d * 9 - t) * 2.2));
+      return { v: v * v, h: 0.85 + d * 0.5, s: 1 };
+    },
+    comet: (x, y, t) => {
+      if (Math.abs(y - 0.5) > 0.08) return { v: 0, h: 0, s: 0 };
+      const p = (x - t * 0.13 % 1 + 1) % 1;
+      const v = Math.pow(Math.max(0, 1 - p * 2.4), 2);
+      return { v, h: 0.08 + p * 0.1, s: 1 };
+    },
+    plasma: (x, y, t) => {
+      const v = 0.5 + 0.5 * Math.sin(x * 5 + Math.sin(y * 4 + t * 0.6) * 2 + t * 0.3);
+      return { v: v * v, h: 0.7 + 0.25 * v, s: 0.9 };
+    },
+    kaleido: (x, y, t) => {
+      const a = Math.atan2(y - 0.5, x - 0.5), r = Math.hypot(x - 0.5, y - 0.5);
+      const v = 0.5 + 0.5 * Math.sin(Math.abs(((a * 3 / Math.PI) % 1) - 0.5) * 12 + r * 10 - t);
+      return { v: Math.pow(v, 3) * Math.max(0, 1 - r * 1.6), h: 0.12 + r * 0.6, s: 0.95 };
+    },
+    voxel: (x, y, t) => {
+      const n = Math.sin(x * 12.3 + t * 0.7) * Math.sin(y * 9.7 - t * 0.5) * Math.sin((x + y) * 7.1 + t);
+      const v = Math.pow(Math.max(0, n), 6);
+      return { v, h: 0.28 + 0.1 * Math.sin(x * 5), s: 0.8 };
+    },
+    metro: (x, y, t) => {
+      if (Math.abs(y - 0.5) > 0.08) return { v: 0, h: 0, s: 0 };
+      let v = 0, h = 0;
+      for (let i = 0; i < 3; i++) {
+        const p = ((x * (i % 2 ? -1 : 1)) - t * (0.1 + i * 0.06) % 1 + 2) % 1;
+        const c = Math.pow(Math.max(0, 1 - p * 5), 2);
+        if (c > v) { v = c; h = 0.5 + i * 0.17; }
+      }
+      return { v, h, s: 1 };
+    },
+  };
+
+  const fields = [];
+  document.querySelectorAll('canvas[data-fx]').forEach((canvas, idx) => {
+    fields.push({ canvas, fn: FX[canvas.dataset.fx] || FX.plasma, big: !!canvas.dataset.big, phase: idx * 7.3 });
+  });
+
+  function drawField(f, t) {
+    const { canvas, fn, big } = f;
+    const rect = canvas.getBoundingClientRect();
+    if (rect.width === 0) return;
+    const scale = Math.min(devicePixelRatio || 1, 1.5);
+    const W = Math.round(rect.width * scale), H = Math.round(rect.height * scale);
+    if (canvas.width !== W || canvas.height !== H) { canvas.width = W; canvas.height = H; }
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, W, H);
+    ctx.globalCompositeOperation = 'lighter';
+    const nx = big ? 40 : 24;
+    const pitch = W / nx;
+    const ny = Math.max(2, Math.round(H / pitch));
+    const r = pitch * 0.34;
+    for (let iy = 0; iy < ny; iy++) {
+      for (let ix = 0; ix < nx; ix++) {
+        const x = (ix + 0.5) / nx, y = (iy + 0.5) / ny;
+        const { v, h, s } = fn(x, y, t + f.phase);
+        if (v < 0.02) continue;
+        const px = x * W, py = y * H;
+        const rad = r * (0.55 + v * 0.75);
+        const g = ctx.createRadialGradient(px, py, 0, px, py, rad * 2.1);
+        const l = 18 + 44 * v;
+        g.addColorStop(0, `hsla(${(h % 1) * 360},${s * 100}%,${l + 18}%,${0.9 * v})`);
+        g.addColorStop(0.45, `hsla(${(h % 1) * 360},${s * 100}%,${l}%,${0.5 * v})`);
+        g.addColorStop(1, 'transparent');
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(px, py, rad * 2.1, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    ctx.globalCompositeOperation = 'source-over';
+  }
+
+  let start = performance.now();
+  function frame(now) {
+    const t = (now - start) / 1000 * 2;
+    const active = document.querySelector('.screen.active');
+    fields.forEach(f => { if (active && active.contains(f.canvas)) drawField(f, t); });
+    if (!reduceMotion) requestAnimationFrame(frame);
+  }
+  if (reduceMotion) {
+    // one static frame per canvas, drawn when its screen first shows
+    const drawAll = () => fields.forEach(f => drawField(f, 4));
+    drawAll();
+    tabs.forEach(tb => tb.addEventListener('click', () => setTimeout(drawAll, 30)));
+  } else {
+    requestAnimationFrame(frame);
+  }
+</script>

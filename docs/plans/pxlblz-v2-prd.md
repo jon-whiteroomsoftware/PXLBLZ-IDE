@@ -1,0 +1,376 @@
+# PXLBLZ v2 — Product Requirements
+
+**The whole document in two sentences.** v2 turns PXLBLZ from a pattern editor
+into a pattern *platform*: a public Gallery for browsing and sharing patterns, a
+Studio organized around five entity kinds (Patterns, Maps, Mixins, Controllers,
+Shows), and one generic transpiler pass engine that powers hardware control
+injection, output shaping, and pattern orchestration. Everything the system
+generates stays inspectable — mixins are readable source, generated artifacts
+are viewable, and transforms report what they did.
+
+This PRD supersedes and replaces three earlier planning docs (the v2 direction
+handoff, the orchestration ideas capture, and the hardware control injection
+PRD); their surviving content is folded in below. Mockups for every v2 screen
+were reviewed and approved in July 2026 — see `pxlblz-v2-mockups.html` beside
+this document (open in a browser: Gallery, pattern detail, Studio nav,
+Controller, Mixin, Show editor).
+
+---
+
+# Part 1 — The model
+
+## 1. Why v2
+
+The v1 launch retro concluded that the addressable audience for a pattern
+*editor* is a small subset of a small community, while the features with broad
+appeal are consumable by non-developers: the patterns themselves, and the
+ability to adapt, combine, and deploy patterns without writing code. v2 shifts
+value from "editor for authors" toward "compositor/adapter for consumers",
+while keeping the editor core intact for the authoring minority.
+
+Infrastructure is already in place: the Cloudflare Pages + D1 deployment with
+GitHub OAuth is live, personal patterns/maps/settings are cloud-backed, and
+signed-out use is a non-durable demo mode. v1 stays frozen on GitHub Pages.
+
+## 2. The two surfaces
+
+- **Gallery** — the public, signed-out-friendly face. A browsable grid of live
+  animated pattern cards; each pattern gets a shareable URL with a large
+  preview, the pattern's own controls, and Send to Controller — no editor in
+  sight. This is the page a forum link lands on.
+- **Studio** — the signed-in working environment. The three-pane IDE (rail,
+  editor, preview) survives, but the rail is rebuilt around the user's own
+  entities, with built-in content receding into a catalog you pull from.
+
+## 3. The five entities
+
+The Studio rail becomes an activity strip + list pane over five entity kinds:
+
+| Entity | What it is | Built-in flavor | Cloud flavor |
+|---|---|---|---|
+| Patterns | Pixelblaze-dialect programs | catalog (formerly "Built-in Patterns") | Cloud Patterns |
+| Maps | `function(pixelCount)` coordinate sources | stock maps | Cloud Maps |
+| Mixins | injectable source chunks consumed by the pass engine | built-in mixins | Cloud Mixins |
+| Controllers | durable hardware profiles: inputs, transforms, bindings | — | per-user |
+| Shows | compositions: clips on zone tracks, compiled to one pattern | — | per-user |
+
+Two things are deliberately **not** top-level entities:
+
+- **Adaptations/recipes** (palette swap, mirror, phase, brightness envelope)
+  live on the relationship — a pattern *in a Show* or a pattern *bound on a
+  Controller* — never as standalone documents.
+- **Segments/zones** live inside a Controller (zone → pixel-range mapping) and
+  are referenced by name from Shows.
+
+## 4. One pass engine, not three features
+
+Hardware control injection, universal brightness, power capping, sensor mixins,
+and orchestration are all instances of one pipeline:
+
+```
+parse (Acorn) → namespace/rename → passes[] → merge → emit + transform summary
+```
+
+Pass taxonomy (canonical vocabulary):
+
+| Pass | Does | Used by |
+|---|---|---|
+| inject | prepend mixin source; wrap or synthesize `beforeRender` | HW controls, sensors, scheduling |
+| intercept | rewrite output-sink call sites (`hsv`/`hsv24`/`rgb`/`paint`) to wrappers | brightness, power cap, palette remap, gamma |
+| bind | call an exported slider fn / assign a named var (min/max/quantize) | HW pots → pattern controls |
+| route | gate render by index range / named zone | segment routing |
+| blend | transition mixer between two renderers | crossfades, wipes |
+
+The existing bundler (`src/engine/bundle.ts`) is already the right foundation:
+Acorn-parsed ASTs with span-splice rewriting. The pass engine generalizes that
+machinery. Its one genuinely new capability is **scope-aware alpha-renaming** —
+renaming *all* of a pattern's globals collision-free so N patterns can merge
+into one artifact. That is orchestration's hard 20% and gets its own design
+note before any Show prototype.
+
+## 5. Mixins are visible code
+
+The app's standing philosophy — "here's a fancy map, and here's the actual
+Mapper code that made it" — extends to code transforms. A mixin is a readable
+Pixelblaze-dialect source file with declared `@param` slots. The pass engine
+injects that file verbatim (parameters filled from the binding); it is not
+synthesized from templates hidden in the engine. Built-in mixins ship read-only
+and cloneable, exactly like stock maps.
+
+What can't be expressed as visible code — call-site rewriting for intercept
+passes — is covered by the **transform summary**: a per-push report of what was
+wrapped, injected, and bound, with an estimated per-pixel cost delta, plus a
+view of the full generated artifact.
+
+## 6. Tracks and sequencing
+
+Three parallel tracks, sliced so each proceeds independently:
+
+- **Track A — engine**: dialect research spikes, then the pass engine, then
+  hardware injection as its first proof, then orchestration.
+- **Track B — UI/IA**: routing + Gallery, the five-entity rail rework, the
+  Controller entity, the Mixins entity.
+- **Track C — platform**: identity model (multi-provider auth), Google OAuth,
+  analytics.
+
+Gates: the spikes gate the pass engine's design; the state-namespacing design
+note gates Shows; the identity-model migration lands *before* Google OAuth.
+
+---
+
+# Part 2 — Full requirements
+
+## 7. Information architecture and routing
+
+v2 introduces a real routing layer. v1 has no router — the only route is the
+`#/docs/<id>` hash; everything else is store state. Shareable URLs are a launch
+requirement, so navigation state moves into routes:
+
+- `/gallery` — the Gallery grid; the signed-out landing page.
+- `/p/<slug>` — pattern detail: large preview, pattern controls, description,
+  View source, Open in Studio, Send to Controller, copyable URL. Built-in
+  patterns get stable slugs; personal patterns may get share URLs later (out of
+  scope for the first slice).
+- `/studio` — the IDE; redirects to Gallery when signed out (built-ins remain
+  usable in the Gallery instead of a degraded Studio).
+- `/studio/patterns/<id>`, `/studio/maps/<id>`, `/studio/mixins/<id>`,
+  `/studio/controllers/<id>`, `/studio/shows/<id>` — entity-addressed Studio
+  views.
+- `/docs/<id>` — the existing docs viewer, promoted from hash routes.
+
+Gallery requirements:
+
+- Live animated cards running the real preview engine at reduced pixel count,
+  staggered, paused off-viewport. Motion is the point.
+- The dimension lens (All/1D/2D/3D) and category chips carry over from the v1
+  rail vocabulary; name search included.
+- Pattern detail drives the pattern's real exported controls, and slider tweaks
+  ride into "Open in Studio" via the existing settings-cascade override layer.
+- Send to Controller works from the detail page without entering the Studio.
+
+## 8. Studio nav rework
+
+- A ~46px **activity strip** (icons + short labels) selects the entity kind:
+  Patterns, Maps, Mixins, Controllers, Shows, with **Catalog** as the bottom
+  entry linking back to the Gallery/browse experience (in a picker-friendly
+  mode when invoked from the Studio).
+- The list pane keeps the v1 patterns-list conventions: dimension lens, name
+  search, collapsible sections, inline rename/delete, cloud sections gated on
+  auth.
+- **Built-ins recede.** No permanent "Built-in Patterns" tree in the rail. The
+  cloud list is the rail; the catalog is the entry point for built-ins, plus a
+  dashed hint card when a list is empty/short. Cloning from the catalog is the
+  existing fork flow.
+- The editor pane, preview pane, control deck, settings cascade, Run/Save
+  semantics, and controller pills are explicitly unchanged in this rework.
+- Implementation: today's rail is a single ~1,177-line `PatternList.tsx` with a
+  two-value `railMode`. The rework factors a shared rail shell with one list
+  module per entity kind. Editor flavor handling follows the existing
+  map-editor precedent (`editorStore.editorFlavor`, switched by store open/
+  close helpers) when mixin editing arrives.
+
+## 9. Pass engine
+
+A pure engine module (no React imports) that generalizes `bundle.ts`'s
+machinery:
+
+- **Recipe IR**: a push (or Show compile) is described by an ordered list of
+  passes with their parameters — produced by front-ends (Controller profile,
+  Show definition), consumed by the engine. JSON-serializable, inspectable.
+- **Pass interfaces** for the five taxonomy entries. Passes operate via the
+  same AST-located span-splice rewriting `bundle.ts` uses today; whole-pattern
+  merging (orchestration) additionally requires scope-aware renaming.
+- **Transform summary**: what each pass did — call sites wrapped (by name and
+  count), `beforeRender` handling (wrapped vs synthesized), globals/exports
+  added, bindings applied, warnings for anything that could not be applied —
+  plus an **estimated per-pixel cost delta** (the seed of the cost model Shows
+  need). Unsupported output shapes are reported, never silently skipped.
+- **Name hygiene**: generated/injected names use a reserved prefix; collisions
+  with user identifiers are detected and avoided. Comments, strings, property
+  names, and unrelated identifiers are never rewritten.
+- **Purity and tests**: behavior-level unit tests over transformed source and
+  summaries; the original pattern source is never modified anywhere.
+- The normal no-recipe path is byte-identical to today's `bundle()` output.
+
+### Scope-aware alpha-renaming (design note, gates Shows)
+
+Before any Show prototype, a short design note must settle: renaming all
+globals/`t`/exported controls across N merged patterns; the semantics of N
+`beforeRender` time bases under pause/resume (freeze vs advance); how exported
+controls from member patterns surface (or don't) on the generated show pattern.
+
+## 10. Research spikes
+
+Existing tooling makes most of this cheap: the divergence harness
+(`test/divergence-harness/`), the hardware perf microbenchmark
+(`test/perf-harness/`), and `npm run devbench` for compile-push-measure loops.
+
+Hardware/dialect spike (blocking Track A implementation):
+
+1. The exact API for reading analog input pins; confirm the ADC1-only-under-
+   WiFi constraint per board variant (WiFi is always active on Pixelblaze, so
+   ADC2 pins are expected to be unusable — verify).
+2. Rename/wrap an exported `beforeRender`; call exported sliders from injected
+   code; assign to `var` and `export var` from injected code (emulator +
+   hardware).
+3. Built-in aliasing/shadowing viability (expected answer: call-site rewriting
+   stays mandatory); optional-argument semantics (expected: arity-specific
+   `paint` wrappers).
+4. `hsv`/`hsv24`/`rgb`/`paint` wrapper correctness on hardware; `hsv` calls
+   stay `hsv` through wrappers (extra brightness resolution on supported LEDs).
+5. Floating/disconnected analog input characterization → a concrete guard
+   design (manifest `deadband` plus a fallback heuristic for rail-pinned or
+   high-variance readings), not just a note.
+6. Per-frame analog read + smoothing cost.
+
+Perf-harness spikes (runnable now, no new hardware work):
+
+7. Wrapper-indirection cost: wrapped `hsv` vs direct `hsv`, per pixel.
+8. Device budgets: max pattern code size, global/array count limits,
+   exported-control limit → determines the clips-per-show ceiling.
+9. Two real renderers merged: steady-state FPS, time-sliced vs both-running,
+   on a 300–1000 pixel rig.
+
+## 11. Mixins
+
+- **Format**: a Pixelblaze-dialect source file with a structured header
+  comment: `@param NAME description` for binding-supplied values, `@target`
+  for the control/variable slot, `@wraps beforeRender` (or similar) declaring
+  its injection point. The file body is exactly what the inject pass prepends.
+- **Kinds**: each mixin is tagged with its pass kind (inject / intercept /
+  bind), surfaced as a badge in the rail. Intercept mixins pair visible helper
+  source with engine-side call-site rewriting.
+- **Built-in set (initial)**: `pot-binding` (bind), `hw-brightness`
+  (intercept), `power-cap` (intercept), `sensor-pulse` (inject — sensor-board
+  reactivity around unmodified patterns), `night-scheduler` (inject —
+  time-of-day dim/off). `power-cap` estimates and limits total current draw;
+  high value for battery and small-PSU builds.
+- **Lifecycle**: built-ins read-only + cloneable; cloud mixins created,
+  renamed, edited, deleted like patterns; stored in D1 behind the personal
+  content provider.
+- **Binding lives with the user**, not the mixin: parameters are set on the
+  Controller (or Show) that applies the mixin, so mixin source stays generic
+  and portable.
+- **Mixin view**: editor shows the source; the right pane repurposes as
+  provenance — where the mixin is used, and the last transform summary with a
+  path to the generated artifact.
+
+## 12. Controllers
+
+A Controller is a durable, D1-backed entity — the physical box's profile — that
+exists and is editable while the device is offline. It absorbs the earlier
+manifest concept whole (identity, inputs, global transforms, per-pattern
+bindings, smoothing/fallback/invert, explicit call-vs-assign targets), giving
+it a page instead of a YAML file.
+
+- **Device card** (live when connected): active pattern, pixels, map points,
+  FPS, and the device's native brightness cap. Native brightness remains the
+  hard safety cap; injected brightness only shapes output inside it. Effective
+  output = native cap × pattern output × injected UI brightness × pot value.
+- **Hardware inputs**: named inputs (pot0, pot1, btn0…) with pin, role
+  (brightness / assignable / next-pattern), smoothing, fallback, invert, and a
+  live readout when connected. Pin pickers offer only ADC1-safe pins per board
+  variant, with the constraint explained inline.
+- **Global transforms**: applied to every push to this Controller — hardware
+  brightness (source pot × output), power cap — each naming the mixin that
+  implements it, linked to its source, individually toggleable.
+- **Pattern bindings**: pattern × input → target. Preferred order: call an
+  exported slider function (the author already encoded scaling and taste
+  there); call an explicit named function; assign a named variable with
+  min/max and optional quantize. Missing targets warn loudly, never silently
+  no-op.
+- **Push pipeline**: every Send to Controller resolves the Controller's active
+  recipe (global transforms + any binding for this pattern) and pushes the
+  generated artifact. With no profile or all transforms off, the push is
+  byte-identical to today's. Run/Save semantics, dirty tracking, and the
+  overwrite binding are unchanged.
+- **Zones**: the Controller carries named zone → pixel-range mappings
+  (arch-left → 0–239), the deployment half of the Shows model.
+- Existing controller metadata (overwrite bindings, program label cache)
+  migrates into or alongside the Controller entity where natural.
+
+## 13. Shows
+
+A Show composes existing patterns into one deployable artifact. It is the last
+major feature to build — after the pass engine, hardware injection, and the
+renaming design note have landed — but its model constrains earlier work, so it
+is specified here.
+
+- **Model**: zone tracks (semantic names, resolved through the target
+  Controller's zone map) holding **clips** (references to patterns, never
+  copies) with durations, **transitions** between clips (crossfade first;
+  wipes later), an optional overlay track, and per-clip **adaptations**
+  (palette, mirror, phase offset, brightness envelope, and similar
+  post-processing) that never fork the source pattern.
+- **Compilation**: a Show compiles to a single generated Pixelblaze pattern
+  via the pass engine (route + blend + intercept passes over alpha-renamed
+  members). **Time-slicing is the default emission strategy**: steady-state
+  runs only the active clip's `beforeRender`/render; both renderers evaluate
+  only inside a transition window.
+- **Budget honesty**: the editor surfaces compiled artifact size against the
+  measured device budget and an estimated FPS at the target pixel count,
+  fed by the transform summary's cost model. Compositions that exceed the
+  target device's limits warn before push.
+- **Inspectability**: "View generated pattern" opens the compiled artifact
+  read-only. A Show is ultimately a plain Pixelblaze pattern you could paste
+  anywhere.
+- **Preview**: the Studio preview renders the show timeline with zone
+  boundaries visible; full multi-zone spatial preview can start simple
+  (per-zone strips) before attempting installation geometry.
+- **v1 slice**: two clips + one crossfade on a single zone, compiled and
+  verified on hardware. Segment routing to named zones is the second slice.
+- **Deferred**: the fluent/Strudel-style composition DSL (the recipe IR is the
+  v1 authoring format, edited through the Show editor UI); low-resolution wash
+  sampling; the geometric pattern language. These are recorded as later
+  directions, not v2 commitments.
+
+## 14. Platform
+
+### Identity and multi-provider auth
+
+- **Identity model migration (first)**: split `users` into `users` +
+  `identities` (provider, provider_user_id, email, verified flag → user_id).
+  Existing GitHub users migrate to a GitHub identity row. All personal-content
+  scoping continues to key off `user_id`.
+- **Google OAuth (second)**: an OIDC authorization-code flow beside the
+  existing hand-rolled GitHub flow, behind the same session cookie. Google is
+  chosen for coverage and its verified-email claim; Reddit is explicitly not
+  planned (no reliable verified email, near-total audience overlap).
+- **Linking/dedup**: on first login with a new provider, if its verified email
+  matches an existing identity's verified email, link automatically to that
+  user. Otherwise create a new user. A signed-in "connect another login"
+  action in the account menu handles explicit linking (including users whose
+  GitHub email is hidden). Never auto-link on unverified email.
+
+### Analytics
+
+Lightweight product analytics on the v2 deployment (likely Google Analytics).
+Verify what the default instrumentation captures (page views per route matter
+most: gallery landings, pattern detail views, studio sessions); add explicit
+events only where the defaults fall short (e.g. Send to Controller, catalog
+clone). v1's only signal was landing counts; v2 should at least distinguish
+browsing, authoring, and hardware use.
+
+## 15. Out of scope for v2
+
+- Automated GLSL→Pixelblaze translation (unchanged from v1 stance).
+- Reading patterns back from a controller; device settings management.
+- The fluent composition DSL, low-res wash sampling, geometric pattern
+  language (deferred, see §13).
+- Continuous sync of hardware control positions back into preview controls.
+- Public sharing/publishing of *personal* patterns beyond built-in gallery
+  slugs (a natural later step once the Gallery exists).
+- Multi-controller synchronized shows (Firestorm territory).
+
+## 16. Phasing summary
+
+| Phase | Track A (engine) | Track B (UI/IA) | Track C (platform) |
+|---|---|---|---|
+| 1 | perf-harness spikes (§10.7–9); hardware spike (§10.1–6) | routing + Gallery + pattern detail | identity migration |
+| 2 | pass engine + transform summary | five-entity rail; Controller entity | Google OAuth + linking; analytics |
+| 3 | HW injection end-to-end (brightness, then bindings) | Mixins entity; transform-summary UI | — |
+| 4 | renaming design note → Show compile (2 clips + crossfade) | Show editor v1 | — |
+| 5 | segment routing; power-cap / sensor / scheduler mixins | zone editing on Controller | — |
+
+Each phase leaves the app shippable; Tracks A and B only join at phase 3
+(HW injection needs the Controller entity as its front-end).
