@@ -261,7 +261,9 @@ describe('routing (#308)', () => {
     window.history.replaceState(null, '', '/p/iridescent-fibers')
     const { rerender } = render(<App />)
     expect(screen.getByTestId('pattern-detail-page')).toHaveTextContent('IridescentFibers')
-    expect(screen.getByRole('button', { name: 'Surface' })).toBeInTheDocument()
+    const minorRow = screen.getByTestId('pattern-detail-minor-row')
+    expect(minorRow).toHaveTextContent('surface')
+    expect(within(minorRow).getByRole('button', { name: 'Surface' })).toBeInTheDocument()
 
     window.history.replaceState(null, '', '/p/aurora-sphere')
     act(() => {
@@ -270,6 +272,7 @@ describe('routing (#308)', () => {
     rerender(<App />)
     expect(screen.getByTestId('pattern-detail-page')).toHaveTextContent('AuroraSphere')
     expect(screen.queryByRole('button', { name: 'Surface' })).not.toBeInTheDocument()
+    expect(screen.queryByTestId('pattern-detail-minor-row')).not.toBeInTheDocument()
   })
 
   it('opens the shared Controller connect flow from the detail action bar', async () => {
@@ -288,5 +291,17 @@ describe('routing (#308)', () => {
     })
     render(<App />)
     expect(screen.getByRole('button', { name: 'Reset preview' })).toBeInTheDocument()
+    expect(screen.queryByTestId('pattern-detail-minor-row')).not.toBeInTheDocument()
+  })
+
+  it('keeps reset in the detail minor row when a surface selector anchors it', () => {
+    window.history.replaceState(null, '', '/p/iridescent-fibers')
+    usePatternStore.setState({
+      demoOverrides: { IridescentFibers: { surfaceId: 'cylinder' } },
+    })
+    render(<App />)
+    const minorRow = screen.getByTestId('pattern-detail-minor-row')
+    expect(within(minorRow).getByRole('button', { name: 'Surface' })).toBeInTheDocument()
+    expect(within(minorRow).getByRole('button', { name: 'Reset preview' })).toHaveTextContent('Reset')
   })
 })

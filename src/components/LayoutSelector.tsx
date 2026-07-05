@@ -69,6 +69,14 @@ function useLayoutControls() {
   return { nativeDim, maps, embeddings, mapValue, embeddingValue, route }
 }
 
+export function useEmbeddingSelectMeta() {
+  const { nativeDim, embeddings } = useLayoutControls()
+  return {
+    hasEmbeddingChoice: embeddings.length > 1,
+    label: nativeDim === 1 ? 'shape' : 'surface',
+  }
+}
+
 // The MAP control (#253): real Pixelblaze state, rendered bare so the PIXELBLAZE
 // block can wrap it in a labeled deck cell paired with `fit`. Renders nothing for
 // a mapless layout (1D, or a dimension with no maps) — the caller hides the whole
@@ -104,14 +112,21 @@ export function MapSelect() {
 // for 2D — that stays in the play-button row. Shows only when it carries a real
 // choice: a single option (an irregular cloud's Flat-only set, or 3D with none) is
 // not a choice, so it is hidden ("show only when needed").
-export function EmbeddingSelect() {
+export function EmbeddingSelect({ showLabel = false }: { showLabel?: boolean } = {}) {
   const { nativeDim, embeddings, embeddingValue, route } = useLayoutControls()
   const showEmbedding = embeddings.length > 1
   if (!showEmbedding) return null
+  const label = nativeDim === 1 ? 'shape' : 'surface'
+  const ariaLabel = nativeDim === 1 ? 'Shape' : 'Surface'
   return (
     <div className="flex items-center gap-1.5 shrink-0">
+      {showLabel && (
+        <span className="text-xs lowercase tracking-wide text-structural">
+          {label}
+        </span>
+      )}
       <DeckSelect
-        ariaLabel={nativeDim === 1 ? 'Shape' : 'Surface'}
+        ariaLabel={ariaLabel}
         value={embeddingValue ?? embeddings[0].id}
         options={embeddings.map((o) => ({
           value: o.id,

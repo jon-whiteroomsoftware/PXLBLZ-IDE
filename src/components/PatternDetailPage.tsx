@@ -5,7 +5,7 @@ import { Preview } from '@/components/Preview'
 import { PreviewDeck } from '@/components/PreviewDeck'
 import { PixelblazeCodeEditor } from '@/components/PixelblazeCodeEditor'
 import { PatternDetailActionBar } from '@/components/PatternDetailActionBar'
-import { EmbeddingSelect } from '@/components/LayoutSelector'
+import { EmbeddingSelect, useEmbeddingSelectMeta } from '@/components/LayoutSelector'
 import { useRouterStore } from '@/store/routerStore'
 import { openDemoPattern } from '@/store/openPattern'
 import type { GalleryPattern } from '@/engine/galleryCatalog'
@@ -24,6 +24,7 @@ export function PatternDetailPage({ pattern }: { pattern: GalleryPattern }) {
   usePatternStore((s) => s.userPatterns)
   usePatternStore((s) => s.demoOverrides)
   const showReset = hasActiveOverrides()
+  const { hasEmbeddingChoice } = useEmbeddingSelectMeta()
   const [stageView, setStageView] = useState<'preview' | 'code'>('preview')
 
   useEffect(() => {
@@ -81,17 +82,16 @@ export function PatternDetailPage({ pattern }: { pattern: GalleryPattern }) {
 
           <aside className="rounded-lg border border-seam bg-panel font-mono">
             <div className="border-b border-seam px-4 py-3">
-              <div className="flex min-w-0 items-center gap-2">
+              <div className="flex min-w-0 items-center gap-3">
                 <div className="flex min-w-0 flex-1 items-center gap-2">
-                  <h1 className="min-w-0 truncate text-base font-semibold text-zinc-100">
+                  <h1 className="min-w-0 truncate text-lg font-semibold text-zinc-100">
                     {pattern.name}
                   </h1>
                   <span className="shrink-0 rounded border border-zinc-700 px-1.5 py-px text-[10px] uppercase tracking-wide text-structural">
                     {pattern.dim}D
                   </span>
                 </div>
-                <EmbeddingSelect />
-                {showReset && (
+                {!hasEmbeddingChoice && showReset && (
                   <button
                     type="button"
                     aria-label="Reset preview"
@@ -114,6 +114,23 @@ export function PatternDetailPage({ pattern }: { pattern: GalleryPattern }) {
                   {isRunning ? <Play size={21} aria-hidden /> : <Pause size={21} aria-hidden />}
                 </button>
               </div>
+              {hasEmbeddingChoice && (
+                <div data-testid="pattern-detail-minor-row" className="mt-2 flex min-w-0 items-center gap-3">
+                  <EmbeddingSelect showLabel />
+                  {showReset && (
+                    <button
+                      type="button"
+                      aria-label="Reset preview"
+                      title="Reset preview settings"
+                      onClick={() => void resetActiveSettings()}
+                      className="flex h-5 shrink-0 items-center gap-1 rounded border border-zinc-700 px-1.5 text-xs text-zinc-400 transition-colors hover:border-zinc-500 hover:bg-zinc-800/70 hover:text-amber-400"
+                    >
+                      <RotateCcw size={13} aria-hidden />
+                      Reset
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="border-b border-seam py-1 pr-1">
