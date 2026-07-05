@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { ArrowLeft, ArrowRight, Pause, Play, RotateCcw } from 'lucide-react'
+import { ArrowLeft, Code2, Pause, Play, RotateCcw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Preview } from '@/components/Preview'
 import { PreviewDeck } from '@/components/PreviewDeck'
@@ -124,8 +124,8 @@ export function PatternDetailPage({ pattern }: { pattern: GalleryPattern }) {
                 className="w-full justify-center border border-live/50 bg-live/15 font-mono text-xs text-live hover:bg-live/25 hover:text-amber-100"
                 onClick={openInStudio}
               >
-                Edit in Studio
-                <ArrowRight size={13} aria-hidden />
+                <Code2 data-icon="inline-start" />
+                Edit
               </Button>
               <PatternDetailActionBar
                 stageView={stageView}

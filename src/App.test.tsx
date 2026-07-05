@@ -72,7 +72,7 @@ describe('routing (#308)', () => {
     })
     render(<App />)
     expect(window.location.pathname).toBe('/gallery')
-    expect(screen.getByTestId('gallery-page')).toHaveTextContent('Patterns for Pixelblaze')
+    expect(screen.getByTestId('gallery-page')).toHaveTextContent('Pattern Gallery')
   })
 
   it('does not redirect before the auth probe settles', () => {
@@ -147,7 +147,7 @@ describe('routing (#308)', () => {
   it('renders the Gallery grid at /gallery', () => {
     window.history.replaceState(null, '', '/gallery')
     render(<App />)
-    expect(screen.getByTestId('gallery-page')).toHaveTextContent('Patterns for Pixelblaze')
+    expect(screen.getByTestId('gallery-page')).toHaveTextContent('Pattern Gallery')
     expect(screen.getByRole('button', { name: /IridescentFibers/i })).toBeInTheDocument()
   })
 
@@ -183,7 +183,7 @@ describe('routing (#308)', () => {
     expect(window.location.pathname).toBe('/p/iridescent-fibers')
     expect(within(screen.getByTestId('top-bar')).getByRole('button', { name: 'Toggle Desk panel' })).toBeInTheDocument()
 
-    await userEvent.click(screen.getByRole('button', { name: /Edit in Studio/i }))
+    await userEvent.click(screen.getByRole('button', { name: 'Edit' }))
     expect(window.location.pathname).toBe('/studio')
     expect(within(screen.getByTestId('top-bar')).getByRole('button', { name: 'Toggle Desk panel' })).toBeInTheDocument()
     expect(useControllerStore.getState().activeIp).toBe('10.0.0.5')
@@ -240,7 +240,7 @@ describe('routing (#308)', () => {
     window.history.replaceState(null, '', '/p/iridescent-fibers')
     render(<App />)
     expect(screen.getByTestId('pattern-detail-page')).toHaveTextContent('IridescentFibers')
-    await userEvent.click(screen.getByRole('button', { name: /Edit in Studio/i }))
+    await userEvent.click(screen.getByRole('button', { name: 'Edit' }))
     expect(window.location.pathname).toBe('/studio')
     expect(usePatternStore.getState().activeDemoName).toBe('IridescentFibers')
     expect(screen.getByTestId('editor-pane')).toBeInTheDocument()
@@ -254,7 +254,7 @@ describe('routing (#308)', () => {
     expect(screen.getByTestId('pattern-code-stage')).toBeInTheDocument()
     expect(screen.queryByText(/read-only/i)).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Preview' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Edit in Studio/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Edit' })).toBeInTheDocument()
   })
 
   it('opens the shared Controller connect flow from the detail action bar', async () => {

@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
-import { ArrowRight, ExternalLink, FileText, Lock, Trash2 } from 'lucide-react'
+import { Code2, ExternalLink, FileText, Lock, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   AlertDialogRoot,
@@ -331,8 +331,8 @@ export default function App() {
               onClick={openBrowseRouteStudio}
               title="Open Studio"
             >
-              <span className="hidden min-[430px]:inline">Open Studio</span>
-              <ArrowRight data-icon="inline-end" />
+              <Code2 data-icon="inline-start" />
+              <span className="hidden min-[430px]:inline">Studio</span>
             </Button>
           )}
         </span>

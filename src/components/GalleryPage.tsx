@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { ArrowRight, ChevronDown, Search, X } from 'lucide-react'
+import { ArrowRight, ChevronDown, Images, Search, X } from 'lucide-react'
 import {
   GALLERY_ALL_CATEGORY,
   GALLERY_CATEGORIES,
@@ -105,8 +105,9 @@ export function GalleryPage() {
     <main className="flex-1 overflow-auto bg-zinc-950" data-testid="gallery-page">
       <div className="mx-auto flex max-w-[1180px] flex-wrap items-center gap-x-5 gap-y-2 px-[22px] pb-2 pt-[18px]">
         <div className="mr-auto">
-          <h1 className="font-mono text-[19px] font-semibold tracking-normal text-zinc-100">
-            Patterns for Pixelblaze
+          <h1 className="flex items-center gap-2 font-mono text-[19px] font-semibold tracking-normal text-zinc-100">
+            <Images size={18} aria-hidden className="text-live" />
+            Pattern Gallery
           </h1>
         </div>
         <div role="radiogroup" aria-label="Dimension filter" className="flex flex-wrap gap-1.5">
