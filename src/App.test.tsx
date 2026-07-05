@@ -257,6 +257,21 @@ describe('routing (#308)', () => {
     expect(screen.getByRole('button', { name: 'Edit' })).toBeInTheDocument()
   })
 
+  it('shows the surface selector in the detail header for 2D patterns only', () => {
+    window.history.replaceState(null, '', '/p/iridescent-fibers')
+    const { rerender } = render(<App />)
+    expect(screen.getByTestId('pattern-detail-page')).toHaveTextContent('IridescentFibers')
+    expect(screen.getByRole('button', { name: 'Surface' })).toBeInTheDocument()
+
+    window.history.replaceState(null, '', '/p/aurora-sphere')
+    act(() => {
+      useRouterStore.getState().syncFromLocation()
+    })
+    rerender(<App />)
+    expect(screen.getByTestId('pattern-detail-page')).toHaveTextContent('AuroraSphere')
+    expect(screen.queryByRole('button', { name: 'Surface' })).not.toBeInTheDocument()
+  })
+
   it('opens the shared Controller connect flow from the detail action bar', async () => {
     window.history.replaceState(null, '', '/p/iridescent-fibers')
     render(<App />)

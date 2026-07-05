@@ -5,6 +5,7 @@ import { Preview } from '@/components/Preview'
 import { PreviewDeck } from '@/components/PreviewDeck'
 import { PixelblazeCodeEditor } from '@/components/PixelblazeCodeEditor'
 import { PatternDetailActionBar } from '@/components/PatternDetailActionBar'
+import { EmbeddingSelect } from '@/components/LayoutSelector'
 import { useRouterStore } from '@/store/routerStore'
 import { openDemoPattern } from '@/store/openPattern'
 import type { GalleryPattern } from '@/engine/galleryCatalog'
@@ -82,13 +83,14 @@ export function PatternDetailPage({ pattern }: { pattern: GalleryPattern }) {
             <div className="border-b border-seam px-4 py-3">
               <div className="flex min-w-0 items-center gap-2">
                 <div className="flex min-w-0 flex-1 items-center gap-2">
-                  <h1 className="min-w-0 truncate text-lg font-semibold text-zinc-100">
+                  <h1 className="min-w-0 truncate text-base font-semibold text-zinc-100">
                     {pattern.name}
                   </h1>
                   <span className="shrink-0 rounded border border-zinc-700 px-1.5 py-px text-[10px] uppercase tracking-wide text-structural">
                     {pattern.dim}D
                   </span>
                 </div>
+                <EmbeddingSelect />
                 {showReset && (
                   <button
                     type="button"
