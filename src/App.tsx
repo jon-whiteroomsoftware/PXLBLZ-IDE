@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
-import { ExternalLink, FileText, Lock, Trash2 } from 'lucide-react'
+import { ArrowRight, ExternalLink, FileText, Lock, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   AlertDialogRoot,
@@ -22,6 +22,7 @@ import { LibrariesMenu } from '@/components/LibrariesMenu'
 import { DocsMenu } from '@/components/DocsMenu'
 import { DocsReader } from '@/components/DocsReader'
 import { SendToController } from '@/components/SendToController'
+import { GalleryPage } from '@/components/GalleryPage'
 import { useControllerStore } from '@/store/controllerStore'
 import { MapModeHeader } from '@/components/MapModeHeader'
 import { usePatternStore, PatternRecord } from '@/store/patternStore'
@@ -37,6 +38,7 @@ import { LIBRARIES } from '@/pixelblaze/libs'
 import { uniquePatternName } from '@/engine/patternName'
 import { newPersonalContentId } from '@/engine/personalContentMetadata'
 import { exportedDims } from '@/engine/exportedDims'
+import { galleryPatternBySlug } from '@/engine/galleryCatalog'
 import { docExternalHref, getUserDoc, isDocId } from '@/docs/catalog'
 
 function Splitter({ onDrag }: { onDrag: (dx: number) => void }) {
@@ -274,10 +276,12 @@ export default function App() {
         activePatternId !== routeEntity.id &&
         !userPatterns.some((p) => p.id === routeEntity.id))
   const invalidDocRoute = route.kind === 'docs' && !isDocId(route.docId)
+  const browseRoute = route.kind === 'gallery' || route.kind === 'pattern-detail'
+  const detailPattern = route.kind === 'pattern-detail' ? galleryPatternBySlug(route.slug) : undefined
 
   return (
     <div className="flex flex-col h-screen bg-zinc-950 text-zinc-100">
-      <header data-testid="top-bar" className="h-10 flex items-center px-4 border-b border-seam shrink-0 bg-panel">
+      <header data-testid="top-bar" className="flex min-h-10 shrink-0 flex-wrap items-center gap-y-1 border-b border-seam bg-panel px-3 py-1 sm:h-10 sm:flex-nowrap sm:px-4 sm:py-0">
         <span className="flex items-center gap-2 select-none">
           <svg width="26" height="20" viewBox="0 0 26 20" aria-hidden className="shrink-0">
             <path d="M1 10 Q5 1 9 10 T17 10 T25 10" fill="none" stroke="#fbbf24" strokeWidth="2.4" strokeLinecap="round" />
@@ -299,36 +303,40 @@ export default function App() {
         </span>
         {/* Left zone = identity + authoring reference (#254): Docs and Code sit beside
             the wordmark, mirroring the Controller pill family on the right. */}
-        <span className="ml-5 flex items-center">
+        <span className="ml-2 flex items-center sm:ml-5">
           <DocsMenu />
-          <span className="ml-2">
-            <LibrariesMenu />
-          </span>
+          {!browseRoute && (
+            <span className="ml-2">
+              <LibrariesMenu />
+            </span>
+          )}
         </span>
-        <span className="ml-auto flex items-center gap-2.5">
-          <ControllerBar />
+        <span className="ml-auto flex items-center gap-1.5 sm:gap-2.5">
+          {!browseRoute && <ControllerBar />}
           <AuthStatus />
+          {browseRoute && (
+            <Button
+              size="sm"
+              className="border border-live/50 bg-live/15 px-2 font-mono text-xs text-live hover:bg-live/25 hover:text-amber-100 sm:px-2.5"
+              onClick={() => navigate({ kind: 'studio', entity: null })}
+              title="Open Studio"
+            >
+              <span className="hidden min-[430px]:inline">Open Studio</span>
+              <ArrowRight data-icon="inline-end" />
+            </Button>
+          )}
         </span>
       </header>
       {route.kind === 'gallery' ? (
-        <RouteMessage
-          title="Gallery"
-          detail={
-            personalWorkspaceAuthenticated
-              ? 'The pattern gallery is on its way — animated cards, shareable pattern pages, the works.'
-              : 'The pattern gallery is on its way. Sign in (top right) to open the Studio in the meantime.'
-          }
-          actionLabel={personalWorkspaceAuthenticated ? 'Open Studio' : undefined}
-          onAction={
-            personalWorkspaceAuthenticated
-              ? () => navigate({ kind: 'studio', entity: null })
-              : undefined
-          }
-        />
+        <GalleryPage />
       ) : route.kind === 'pattern-detail' ? (
         <RouteMessage
-          title={route.slug}
-          detail="Shareable pattern pages are coming soon."
+          title={detailPattern?.name ?? 'Pattern not found'}
+          detail={
+            detailPattern
+              ? 'Shareable pattern pages are coming soon. This built-in pattern is addressable from the Gallery.'
+              : `There's no built-in pattern with slug "${route.slug}".`
+          }
           actionLabel="Browse the Gallery"
           onAction={() => navigate({ kind: 'gallery' })}
         />

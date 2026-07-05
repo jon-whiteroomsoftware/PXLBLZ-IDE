@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import App from './App'
 import { useRouterStore, routerInitialState } from '@/store/routerStore'
 import { useWorkspaceStore, workspaceInitialState } from '@/store/workspaceStore'
@@ -69,7 +70,7 @@ describe('routing (#308)', () => {
     })
     render(<App />)
     expect(window.location.pathname).toBe('/gallery')
-    expect(screen.getByTestId('route-message')).toHaveTextContent('Gallery')
+    expect(screen.getByTestId('gallery-page')).toHaveTextContent('Patterns for Pixelblaze')
   })
 
   it('does not redirect before the auth probe settles', () => {
@@ -139,5 +140,32 @@ describe('routing (#308)', () => {
     render(<App />)
     expect(window.location.pathname).toBe('/docs/feature-guide')
     expect(useDocsStore.getState().activeDocId).toBe('feature-guide')
+  })
+
+  it('renders the Gallery grid at /gallery', () => {
+    window.history.replaceState(null, '', '/gallery')
+    render(<App />)
+    expect(screen.getByTestId('gallery-page')).toHaveTextContent('Patterns for Pixelblaze')
+    expect(screen.getByRole('button', { name: /IridescentFibers/i })).toBeInTheDocument()
+  })
+
+  it('clears the Gallery search from the inline clear button', async () => {
+    window.history.replaceState(null, '', '/gallery')
+    render(<App />)
+    const search = screen.getByRole('textbox', { name: /search patterns/i })
+    await userEvent.type(search, 'core')
+    expect(search).toHaveValue('core')
+    expect(screen.queryByRole('button', { name: /IridescentFibers/i })).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: /clear search/i }))
+    expect(search).toHaveValue('')
+    expect(screen.getByRole('button', { name: /IridescentFibers/i })).toBeInTheDocument()
+  })
+
+  it('navigates from a Gallery card to its pattern detail route', async () => {
+    window.history.replaceState(null, '', '/gallery')
+    render(<App />)
+    await userEvent.click(screen.getByRole('button', { name: /IridescentFibers/i }))
+    expect(window.location.pathname).toBe('/p/iridescent-fibers')
+    expect(screen.getByTestId('route-message')).toHaveTextContent('IridescentFibers')
   })
 })

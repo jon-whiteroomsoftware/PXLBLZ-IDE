@@ -6,6 +6,7 @@ import { nameConflicts, uniquePatternName } from '@/engine/patternName'
 import { NEW_PATTERN_SRC } from '@/pixelblaze/newPattern'
 import { parseEpe } from '@/engine/epeImport'
 import { nativeDim, matchesLens, matchesQuery, type DimLens } from '@/engine/dimLens'
+import { DEMO_SECTIONS } from '@/engine/galleryCatalog'
 import {
   demoPersonalContentProvider,
   getPersonalContentProvider,
@@ -51,63 +52,8 @@ function newPatternRecord(name: string, src: string): PatternRecord {
   return { id, name, src, controls: {}, updatedAt: Date.now() }
 }
 
-const DEMO_NAMES = Object.keys(DEMOS).sort()
 const DEFAULT_DEMO_NAME = 'IridescentFibers'
 const STOCK_PATTERNS_LABEL = 'Built-in Patterns'
-
-const OPENGL_DEMOS = ['Kishimisu', 'NeonSquircles', 'ZippyZaps', 'IQPalettes', 'PhantomStar', 'IridescentFibers']
-const BRAND_NEW_DEMOS = ['PlasmaNebula', 'Caustics', 'AuroraSphere', 'NebulaSphere', 'ShaderShowcase']
-// Pixelblaze-native sketches built around cheap fields, SDFs, and 3D math that
-// should scale better than direct shader ports.
-const FPS_FRIENDLY_DEMOS = [
-  'KaleidoBloom',
-  'CompassRose',
-  'CorePulse3D',
-  'CrystalLattice3D',
-  'CrystalRain3D',
-  'GyroidGlow3D',
-  'HelixForge3D',
-  'LatticeWarp3D',
-  'NebulaShells3D',
-  'VoxelFireflies3D',
-  'HeatShimmerTiles',
-  'MagneticFilaments',
-  'MetaballGarden',
-  'MoireCathedral',
-  'NeonCircuitBoard',
-  'RibbonLoom',
-  'SignalMandala',
-  'StainedGlassWeather',
-  'TempestVolume3D',
-  'TopographicBloom',
-]
-// 1D effects that lean on rhythm and emergence rather than the usual chases and
-// crawls.
-const LIVING_1D_DEMOS = ['PulseLoom', 'FireflyChoir', 'CometLoom', 'MetroLines']
-// Minimal patterns — one per render dimensionality — for visually verifying
-// 1D / 2D / 3D preview behavior.
-const TEST_PATTERNS = ['EasedSweep', 'TestPattern1D', 'TestPattern2D', 'TestPattern3D']
-const GROUPED_DEMOS = new Set([
-  ...OPENGL_DEMOS,
-  ...BRAND_NEW_DEMOS,
-  ...FPS_FRIENDLY_DEMOS,
-  ...LIVING_1D_DEMOS,
-  ...TEST_PATTERNS,
-])
-
-// "Old Favorites" is the rest — anything not explicitly grouped, so new demos
-// land there by default until reassigned.
-const demoSectionNames = (names: string[]) =>
-  names.filter((n) => DEMO_NAMES.includes(n)).sort((a, b) => a.localeCompare(b))
-
-const DEMO_SECTIONS: { label: string; names: string[] }[] = [
-  { label: 'ShaderToy Ports', names: demoSectionNames(OPENGL_DEMOS) },
-  { label: 'Old Favorites', names: DEMO_NAMES.filter((n) => !GROUPED_DEMOS.has(n)) },
-  { label: 'FPS Heavyweights', names: demoSectionNames(BRAND_NEW_DEMOS) },
-  { label: 'FPS Friendly', names: demoSectionNames(FPS_FRIENDLY_DEMOS) },
-  { label: 'Living 1D', names: demoSectionNames(LIVING_1D_DEMOS) },
-  { label: 'Test Patterns', names: demoSectionNames(TEST_PATTERNS) },
-]
 
 // A turn-down chevron, sized to read as a clear interactive affordance. Points down
 // when open, rotates to point right when collapsed. Inherits the header's text color
