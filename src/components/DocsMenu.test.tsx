@@ -31,6 +31,7 @@ describe('DocsMenu', () => {
     fireEvent.click(screen.getByText('Feature Guide'))
     expect(useDocsStore.getState().activeDocId).toBe('feature-guide')
     expect(useEditorStore.getState().source).toBe('keep me')
-    expect(location.hash).toBe('#/docs/feature-guide')
+    expect(location.pathname).toBe('/docs/feature-guide')
+    expect(location.hash).toBe('')
   })
 })

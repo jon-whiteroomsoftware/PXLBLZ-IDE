@@ -82,12 +82,14 @@ export function isDocId(value: string): value is DocId {
   return USER_DOCS.some((doc) => doc.id === value)
 }
 
+// Legacy hash form, still used for in-doc cross-links; the router redirects it
+// onto the /docs/<id> path route (#308).
 export function docHash(id: DocId): string {
   return `#/docs/${id}`
 }
 
 export function docExternalHref(id: DocId): string {
-  return `${import.meta.env.BASE_URL}${docHash(id)}`
+  return `${import.meta.env.BASE_URL}docs/${id}`
 }
 
 export function resolveDocAsset(doc: UserDoc, src: string): string {

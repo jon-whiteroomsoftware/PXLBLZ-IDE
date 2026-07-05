@@ -24,6 +24,7 @@ import { useEditorStore } from '@/store/editorStore'
 import { usePatternStore, PatternRecord } from '@/store/patternStore'
 import { useMapStore, MapRecord, STOCK_MAP_ITEMS } from '@/store/mapStore'
 import { useDocsStore } from '@/store/docsStore'
+import { useRouterStore } from '@/store/routerStore'
 import { useWorkspaceStore } from '@/store/workspaceStore'
 import { forkSettingsSnapshotForDemo } from '@/store/settingsCascade'
 import {
@@ -810,6 +811,10 @@ export function PatternList() {
       if (cancelled) return
       await loadPatterns()
       if (cancelled) return
+      // A deep link to a studio entity outranks the last-active restore (#308):
+      // App's route effect opens the addressed pattern once loadPatterns lands.
+      const route = useRouterStore.getState().route
+      if (route.kind === 'studio' && route.entity !== null) return
       const last = await getPersonalContentProvider().getLastActive().catch(() => undefined)
       const { userPatterns, setActivePattern, setActiveLibrary, setActiveDemo } = usePatternStore.getState()
       const { setSource, setIsReadOnly, setPreviewSource, setPreviewPatternName } = useEditorStore.getState()

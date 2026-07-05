@@ -27,6 +27,9 @@ import { MapModeHeader } from '@/components/MapModeHeader'
 import { usePatternStore, PatternRecord } from '@/store/patternStore'
 import { useEditorStore } from '@/store/editorStore'
 import { useDocsStore } from '@/store/docsStore'
+import { useRouterStore } from '@/store/routerStore'
+import { openPatternRecord } from '@/store/openPattern'
+import { routesEqual, type Route } from '@/engine/routes'
 import { useWorkspaceStore } from '@/store/workspaceStore'
 import { forkSettingsSnapshot } from '@/store/settingsCascade'
 import { bundle } from '@/engine/bundle'
@@ -65,6 +68,39 @@ function Splitter({ onDrag }: { onDrag: (dx: number) => void }) {
   )
 }
 
+// Full-body message surface for routes that don't render the three-pane studio
+// yet (#308): the Gallery/pattern-detail placeholders and graceful dead ends.
+function RouteMessage({
+  title,
+  detail,
+  actionLabel,
+  onAction,
+}: {
+  title: string
+  detail: string
+  actionLabel?: string
+  onAction?: () => void
+}) {
+  return (
+    <div data-testid="route-message" className="flex flex-1 min-h-0 items-center justify-center">
+      <div className="max-w-md px-6 text-center">
+        <h1 className="font-mono text-lg text-zinc-200">{title}</h1>
+        <p className="mt-2 text-sm leading-relaxed text-zinc-500">{detail}</p>
+        {actionLabel && onAction && (
+          <Button
+            size="xs"
+            variant="ghost"
+            className="mt-4 text-xs text-zinc-400 bg-zinc-800/70 hover:bg-zinc-700/70 hover:text-zinc-300"
+            onClick={onAction}
+          >
+            {actionLabel}
+          </Button>
+        )}
+      </div>
+    </div>
+  )
+}
+
 export default function App() {
   const activePatternId = usePatternStore((s) => s.activePatternId)
   const activeLibraryName = usePatternStore((s) => s.activeLibraryName)
@@ -82,20 +118,67 @@ export default function App() {
   const setPreviewSource = useEditorStore((s) => s.setPreviewSource)
   const setPreviewPatternName = useEditorStore((s) => s.setPreviewPatternName)
   const activeDocId = useDocsStore((s) => s.activeDocId)
-  const openDoc = useDocsStore((s) => s.openDoc)
-  const closeDocs = useDocsStore((s) => s.closeDocs)
+  const syncDocsFromRoute = useDocsStore((s) => s.syncFromRoute)
   const activeDoc = getUserDoc(activeDocId)
+  const route = useRouterStore((s) => s.route)
+  const navigate = useRouterStore((s) => s.navigate)
+  const patternsLoaded = usePatternStore((s) => s.patternsLoaded)
+  const personalWorkspaceResolved = useWorkspaceStore((s) => s.personalWorkspaceResolved)
 
+  // History wiring (#308): parse the URL on mount and on back/forward. The
+  // hashchange listener keeps legacy #/docs/<id> links (still emitted for
+  // in-doc cross-links) redirecting onto the path route.
   useEffect(() => {
-    const syncFromHash = () => {
-      const match = /^#\/docs\/([^/]+)$/.exec(window.location.hash)
-      if (match && isDocId(match[1])) openDoc(match[1])
-      else closeDocs()
+    const sync = () => useRouterStore.getState().syncFromLocation()
+    sync()
+    window.addEventListener('popstate', sync)
+    window.addEventListener('hashchange', sync)
+    return () => {
+      window.removeEventListener('popstate', sync)
+      window.removeEventListener('hashchange', sync)
     }
-    syncFromHash()
-    window.addEventListener('hashchange', syncFromHash)
-    return () => window.removeEventListener('hashchange', syncFromHash)
-  }, [closeDocs, openDoc])
+  }, [])
+
+  // Route → state. Re-runs when patterns finish loading so a deep link to
+  // /studio/patterns/<id> resolves once the record exists.
+  useEffect(() => {
+    if (route.kind === 'docs') {
+      if (isDocId(route.docId)) syncDocsFromRoute(route.docId)
+      return
+    }
+    syncDocsFromRoute(null)
+    if (route.kind === 'studio' && route.entity !== null && route.entity.kind === 'patterns') {
+      const entityId = route.entity.id
+      const { userPatterns, activePatternId } = usePatternStore.getState()
+      if (activePatternId !== entityId) {
+        const record = userPatterns.find((p) => p.id === entityId)
+        if (record) openPatternRecord(record)
+      }
+    }
+  }, [route, patternsLoaded, syncDocsFromRoute])
+
+  // State → URL: the active studio entity is addressable. Push when moving
+  // between entities so back/forward walk them; replace when a plain /studio
+  // URL first resolves to an entity (startup restore shouldn't add an entry).
+  useEffect(() => {
+    const current = useRouterStore.getState().route
+    if (current.kind !== 'studio') return
+    if (activePatternId !== null) {
+      const target: Route = { kind: 'studio', entity: { kind: 'patterns', id: activePatternId } }
+      if (!routesEqual(current, target)) navigate(target, { replace: current.entity === null })
+    } else if ((activeDemoName !== null || activeLibraryName !== null) && current.entity !== null) {
+      // Demos and libraries have no addressable URL yet; fall back to /studio
+      // so a stale entity URL doesn't sit over unrelated content.
+      navigate({ kind: 'studio', entity: null })
+    }
+  }, [activePatternId, activeDemoName, activeLibraryName, navigate])
+
+  // Signed-out Studio redirects to the Gallery (#308) once the auth probe has
+  // settled — built-ins will live in the Gallery, not a degraded Studio.
+  useEffect(() => {
+    if (!personalWorkspaceResolved || personalWorkspaceAuthenticated) return
+    if (route.kind === 'studio') navigate({ kind: 'gallery' }, { replace: true })
+  }, [route, personalWorkspaceResolved, personalWorkspaceAuthenticated, navigate])
 
   // On startup, probe extension presence (global) and, if a Controller IP was
   // remembered from a previous session, reconnect only that one (#210). Silent on
@@ -180,6 +263,18 @@ export default function App() {
     setRightWidth((w) => Math.max(MIN_PREVIEW_WIDTH, w - dx))
   }, [])
 
+  // A deep link to a studio entity that can't resolve (#308): unknown pattern id
+  // once patterns have loaded, or an entity kind that has no studio view yet.
+  const routeEntity = route.kind === 'studio' ? route.entity : null
+  const studioEntityMissing =
+    routeEntity !== null &&
+    (routeEntity.kind !== 'patterns'
+      ? true
+      : patternsLoaded &&
+        activePatternId !== routeEntity.id &&
+        !userPatterns.some((p) => p.id === routeEntity.id))
+  const invalidDocRoute = route.kind === 'docs' && !isDocId(route.docId)
+
   return (
     <div className="flex flex-col h-screen bg-zinc-950 text-zinc-100">
       <header data-testid="top-bar" className="h-10 flex items-center px-4 border-b border-seam shrink-0 bg-panel">
@@ -215,6 +310,47 @@ export default function App() {
           <AuthStatus />
         </span>
       </header>
+      {route.kind === 'gallery' ? (
+        <RouteMessage
+          title="Gallery"
+          detail={
+            personalWorkspaceAuthenticated
+              ? 'The pattern gallery is on its way — animated cards, shareable pattern pages, the works.'
+              : 'The pattern gallery is on its way. Sign in (top right) to open the Studio in the meantime.'
+          }
+          actionLabel={personalWorkspaceAuthenticated ? 'Open Studio' : undefined}
+          onAction={
+            personalWorkspaceAuthenticated
+              ? () => navigate({ kind: 'studio', entity: null })
+              : undefined
+          }
+        />
+      ) : route.kind === 'pattern-detail' ? (
+        <RouteMessage
+          title={route.slug}
+          detail="Shareable pattern pages are coming soon."
+          actionLabel="Browse the Gallery"
+          onAction={() => navigate({ kind: 'gallery' })}
+        />
+      ) : route.kind === 'not-found' || invalidDocRoute ? (
+        <RouteMessage
+          title="Nothing at this address"
+          detail={`There's no page at ${route.kind === 'docs' ? `/docs/${route.docId}` : route.path}.`}
+          actionLabel="Back to Studio"
+          onAction={() => navigate({ kind: 'studio', entity: null }, { replace: true })}
+        />
+      ) : studioEntityMissing ? (
+        <RouteMessage
+          title={routeEntity!.kind === 'patterns' ? 'Pattern not found' : 'Not available yet'}
+          detail={
+            routeEntity!.kind === 'patterns'
+              ? `There's no pattern with id "${routeEntity!.id}" in this workspace. It may have been deleted, or the link may belong to a different account.`
+              : `Studio views for ${routeEntity!.kind} aren't built yet.`
+          }
+          actionLabel="Back to Studio"
+          onAction={() => navigate({ kind: 'studio', entity: null }, { replace: true })}
+        />
+      ) : (
       <div className="flex flex-1 min-h-0">
         <aside data-testid="left-pane" className="shrink-0 flex flex-col" style={{ width: leftWidth }}>
           <div className="flex-1 min-h-0 overflow-hidden">
@@ -326,6 +462,7 @@ export default function App() {
           <Preview />
         </aside>
       </div>
+      )}
     </div>
   )
 }

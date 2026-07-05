@@ -16,6 +16,9 @@ interface PatternState {
   activeLibraryName: string | null
   activeDemoName: string | null
   userPatterns: PatternRecord[]
+  // True once loadPatterns has resolved. Deep links to /studio/patterns/<id>
+  // can't distinguish "not found" from "not loaded yet" without it (#308).
+  patternsLoaded: boolean
   // Persisted per-demo settings overrides (cascade layer 1),
   // keyed by demo name. Parallel to PatternRecord.settings for user patterns; a demo
   // has no record so its bag lives here instead.
@@ -67,6 +70,7 @@ export const patternInitialState = {
   activeLibraryName: null as string | null,
   activeDemoName: null as string | null,
   userPatterns: [] as PatternRecord[],
+  patternsLoaded: false,
   demoOverrides: {} as Record<string, Partial<Settings>>,
 }
 
@@ -88,7 +92,7 @@ export const usePatternStore = create<PatternState>()((set, get) => ({
 
   loadPatterns: async () => {
     const patterns = await getPersonalContentProvider().listPatterns()
-    set({ userPatterns: patterns.sort((a, b) => b.updatedAt - a.updatedAt) })
+    set({ userPatterns: patterns.sort((a, b) => b.updatedAt - a.updatedAt), patternsLoaded: true })
   },
 
   loadDemoOverrides: async () => {

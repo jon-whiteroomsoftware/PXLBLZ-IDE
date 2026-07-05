@@ -1,92 +1,43 @@
-import { test, expect, type Page, type TestInfo } from '@playwright/test'
-
-const SHOT_DIR = 'e2e/screenshots'
-
-// Screenshot the preview pane, save it under e2e/screenshots/, and attach it to the
-// Playwright report so failures/visual checks have artifacts. Returns nothing.
-async function shootPreview(page: Page, info: TestInfo, name: string) {
-  // Let a couple of animation frames render so the canvas isn't mid-clear.
-  await page.waitForTimeout(300)
-  const buf = await preview(page).screenshot({ path: `${SHOT_DIR}/${name}.png` })
-  await info.attach(name, { body: buf, contentType: 'image/png' })
-}
+import { test, expect } from '@playwright/test'
 
 /**
- * Pre-push smoke test — NOT exhaustive. It drives the main UI pathways end to end
- * and asserts they still function: boot, load a 2D demo, change its surface embedding,
- * change brightness, load a 3D demo (recommended map applies, surface control drops
- * away), change the renderer, and verify signed-out demo mode hides personal
- * workspace actions.
+ * Pre-push smoke test — NOT exhaustive.
  *
- * Selectors lean on accessible names (aria-label / role) which are the stablest
- * handles in this UI; the dropdowns are listbox buttons, demos are left-rail rows.
+ * Since #308 the app routes by path and signed-out visitors are redirected from
+ * the Studio to the Gallery (a placeholder until the real Gallery slice lands).
+ * That retires the old signed-out IDE walkthrough this file used to run: the
+ * three-pane Studio now requires an authenticated session, which headless e2e
+ * doesn't have yet. Until an authenticated e2e story exists, this smoke covers
+ * the routing seam itself — redirect, docs deep links, legacy hash links, and
+ * graceful dead ends.
  */
 
-const editor = (page: Page) => page.getByTestId('editor-pane')
-const preview = (page: Page) => page.getByTestId('preview-pane')
-
-// Open a listbox-style dropdown by its aria-label and pick an option by text.
-async function selectOption(page: Page, dropdownLabel: string, option: string) {
-  await page.getByRole('button', { name: dropdownLabel, exact: true }).click()
-  await page.getByRole('option', { name: option, exact: true }).click()
-}
-
-// Click a left-rail pattern/demo row by its (unique) name.
-const openFromRail = (page: Page, name: string) =>
-  page.getByText(name, { exact: true }).click()
-
-test('main UI pathways still function', async ({ page }, testInfo) => {
+test('signed-out visitors land on the gallery placeholder', async ({ page }) => {
   await page.goto('/')
+  await expect(page).toHaveURL(/\/gallery$/)
+  await expect(page.getByTestId('route-message')).toContainText('Gallery')
+  // The header (and its sign-in affordance) still renders on the placeholder.
+  await expect(page.getByTestId('top-bar')).toBeVisible()
+})
 
-  // --- Boot: app mounts and the live preview canvas is present ---
-  await expect(page.locator('#root')).not.toBeEmpty()
-  await expect(preview(page).locator('canvas').first()).toBeVisible()
-  // Fresh visitors land on the read-only IridescentFibers demo.
-  await expect(editor(page)).toContainText('IridescentFibers')
-  await expect(editor(page)).toContainText('2D')
+test('signed-out /studio redirects to /gallery', async ({ page }) => {
+  await page.goto('studio')
+  await expect(page).toHaveURL(/\/gallery$/)
+})
 
-  // --- Load a 2D demo ---
-  await openFromRail(page, 'Kishimisu')
-  await expect(editor(page)).toContainText('Kishimisu')
-  // Demos are read-only — flagged by the Lock icon (aria-label, not text).
-  await expect(editor(page).getByRole('img', { name: 'read-only' })).toBeVisible()
-  // A 2D pattern exposes the Surface (embedding) dropdown.
-  const surface = page.getByRole('button', { name: 'Surface', exact: true })
-  await expect(surface).toBeVisible()
+test('docs deep links render the docs reader without signing in', async ({ page }) => {
+  await page.goto('docs/feature-guide')
+  await expect(page).toHaveURL(/\/docs\/feature-guide$/)
+  await expect(page.getByTestId('editor-pane')).toContainText('PXLBLZ Feature Guide')
+})
 
-  // Visual proof #1: a known pattern renders plausibly on the flat square grid.
-  await shootPreview(page, testInfo, '01-pattern-2d-flat')
+test('legacy #/docs/<id> hash links redirect to the path route', async ({ page }) => {
+  await page.goto('/#/docs/optimization-guide')
+  await expect(page).toHaveURL(/\/docs\/optimization-guide$/)
+  await expect(page.getByTestId('editor-pane')).toContainText('Optimizing Pixelblaze Patterns')
+})
 
-  // --- Change the surface embedding Flat -> Cylinder ---
-  await selectOption(page, 'Surface', 'Cylinder')
-  await expect(surface).toHaveText('Cylinder')
-
-  // Visual proof #2: same pattern, layout shape changed (flat grid -> wrapped tube).
-  await shootPreview(page, testInfo, '02-pattern-2d-cylinder')
-
-  // --- Change brightness ---
-  const brightness = preview(page).getByLabel('Brightness')
-  await brightness.fill('0.5')
-  await expect(brightness).toHaveValue('0.5')
-
-  // --- Load a 3D demo: recommended map applies, Surface control disappears ---
-  await openFromRail(page, 'NebulaSphere')
-  await expect(editor(page)).toContainText('NebulaSphere')
-  await expect(editor(page)).toContainText('3D')
-  await expect(page.getByRole('button', { name: 'Map', exact: true })).toHaveText(/Sphere/)
-  await expect(page.getByRole('button', { name: 'Surface', exact: true })).toHaveCount(0)
-
-  // --- Change a setting: renderer Fast -> Precise ---
-  await selectOption(page, 'Renderer', 'Precise')
-  await expect(page.getByRole('button', { name: 'Renderer', exact: true })).toHaveText('Precise')
-
-  // --- Signed-out demo mode: personal workspace creation is gated by auth ---
-  const rail = page.getByRole('complementary').first()
-  await expect(page.getByText('Cloud Patterns', { exact: true })).toBeVisible()
-  await expect(rail.getByRole('link', { name: 'Sign in', exact: true })).toHaveAttribute('href', '/api/auth/login')
-  await expect(page.getByRole('button', { name: 'New pattern', exact: true })).toHaveCount(0)
-  await expect(editor(page).getByRole('img', { name: 'read-only' })).toBeVisible()
-
-  // Canvas still rendering after the whole sequence.
-  await expect(preview(page).locator('canvas').first()).toBeVisible()
+test('unknown paths fail gracefully', async ({ page }) => {
+  await page.goto('no-such-page')
+  await expect(page.getByTestId('route-message')).toContainText('Nothing at this address')
 })

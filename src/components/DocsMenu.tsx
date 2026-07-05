@@ -22,9 +22,9 @@ export function DocsMenu() {
 
   function selectDoc(id: DocId) {
     closeMapEditor()
+    // openDoc routes to /docs/<id> itself (#308); no URL handling needed here.
     openDoc(id)
     setOpen(false)
-    history.replaceState(null, '', `#/docs/${id}`)
   }
 
   return (

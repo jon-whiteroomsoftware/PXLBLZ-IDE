@@ -1,6 +1,25 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import App from './App'
+import { useRouterStore, routerInitialState } from '@/store/routerStore'
+import { useWorkspaceStore, workspaceInitialState } from '@/store/workspaceStore'
+import { usePatternStore, patternInitialState, type PatternRecord } from '@/store/patternStore'
+import { useDocsStore, docsInitialState } from '@/store/docsStore'
+
+// Hold the startup auth probe pending so the smoke tests exercise the studio
+// shell without the signed-out Gallery redirect kicking in mid-test; the
+// routing tests below seed workspace state explicitly instead.
+vi.mock('@/engine/authSession', () => ({
+  getAuthSession: () => new Promise(() => {}),
+}))
+
+beforeEach(() => {
+  window.history.replaceState(null, '', '/')
+  useRouterStore.setState(routerInitialState)
+  useWorkspaceStore.setState(workspaceInitialState)
+  usePatternStore.setState(patternInitialState)
+  useDocsStore.setState(docsInitialState)
+})
 
 describe('App smoke test', () => {
   it('renders without crashing', () => {
@@ -30,5 +49,95 @@ describe('App smoke test', () => {
   it('starts with a wider preview pane', () => {
     render(<App />)
     expect(screen.getByTestId('preview-pane')).toHaveStyle({ width: '460px' })
+  })
+})
+
+describe('routing (#308)', () => {
+  const record: PatternRecord = {
+    id: 'p-1',
+    name: 'Deep Linked',
+    src: 'export function render(index) {}',
+    controls: {},
+    updatedAt: 1,
+  }
+
+  it('redirects signed-out visitors from /studio to /gallery', () => {
+    window.history.replaceState(null, '', '/studio')
+    useWorkspaceStore.setState({
+      personalWorkspaceAuthenticated: false,
+      personalWorkspaceResolved: true,
+    })
+    render(<App />)
+    expect(window.location.pathname).toBe('/gallery')
+    expect(screen.getByTestId('route-message')).toHaveTextContent('Gallery')
+  })
+
+  it('does not redirect before the auth probe settles', () => {
+    window.history.replaceState(null, '', '/studio')
+    render(<App />)
+    expect(window.location.pathname).toBe('/studio')
+    expect(screen.getByTestId('editor-pane')).toBeInTheDocument()
+  })
+
+  it('keeps signed-in visitors in the studio', () => {
+    window.history.replaceState(null, '', '/studio')
+    useWorkspaceStore.setState({
+      personalWorkspaceAuthenticated: true,
+      personalWorkspaceResolved: true,
+    })
+    render(<App />)
+    expect(window.location.pathname).toBe('/studio')
+    expect(screen.getByTestId('editor-pane')).toBeInTheDocument()
+  })
+
+  it('opens a pattern addressed by /studio/patterns/<id>', () => {
+    window.history.replaceState(null, '', '/studio/patterns/p-1')
+    useWorkspaceStore.setState({
+      personalWorkspaceAuthenticated: true,
+      personalWorkspaceResolved: true,
+    })
+    usePatternStore.setState({ userPatterns: [record], patternsLoaded: true })
+    render(<App />)
+    expect(usePatternStore.getState().activePatternId).toBe('p-1')
+    expect(screen.getByTestId('editor-pane')).toBeInTheDocument()
+  })
+
+  it('updates the URL when the active pattern changes', () => {
+    window.history.replaceState(null, '', '/studio')
+    useWorkspaceStore.setState({
+      personalWorkspaceAuthenticated: true,
+      personalWorkspaceResolved: true,
+    })
+    usePatternStore.setState({
+      userPatterns: [record],
+      patternsLoaded: true,
+      activePatternId: 'p-1',
+    })
+    render(<App />)
+    expect(window.location.pathname).toBe('/studio/patterns/p-1')
+  })
+
+  it('shows a graceful message for a deep link to a missing pattern', () => {
+    window.history.replaceState(null, '', '/studio/patterns/nope')
+    useWorkspaceStore.setState({
+      personalWorkspaceAuthenticated: true,
+      personalWorkspaceResolved: true,
+    })
+    usePatternStore.setState({ userPatterns: [record], patternsLoaded: true })
+    render(<App />)
+    expect(screen.getByTestId('route-message')).toHaveTextContent('Pattern not found')
+  })
+
+  it('shows a graceful message for unknown paths', () => {
+    window.history.replaceState(null, '', '/bogus')
+    render(<App />)
+    expect(screen.getByTestId('route-message')).toHaveTextContent('Nothing at this address')
+  })
+
+  it('opens the docs reader at /docs/<id> and redirects legacy hash links', () => {
+    window.history.replaceState(null, '', '/#/docs/feature-guide')
+    render(<App />)
+    expect(window.location.pathname).toBe('/docs/feature-guide')
+    expect(useDocsStore.getState().activeDocId).toBe('feature-guide')
   })
 })
