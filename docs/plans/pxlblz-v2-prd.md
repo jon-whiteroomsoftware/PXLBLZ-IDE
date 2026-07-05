@@ -130,7 +130,10 @@ requirement, so navigation state moves into routes:
 - `/p/<slug>` — pattern detail: large preview, pattern controls, description,
   View source, Open in Studio, Send to Controller, copyable URL. Built-in
   patterns get stable slugs; personal patterns may get share URLs later (out of
-  scope for the first slice).
+  scope for the first slice). View source is a **Preview | Code toggle on the
+  main stage**: the Code view is a full-height, read-only Monaco editor reusing
+  the Studio editor's syntax highlighting (none of its chrome), with "Open in
+  Studio" as the edit escalation — not a snippet box in the sidebar.
 - `/studio` — the IDE; redirects to Gallery when signed out (built-ins remain
   usable in the Gallery instead of a degraded Studio).
 - `/studio/patterns/<id>`, `/studio/maps/<id>`, `/studio/mixins/<id>`,
@@ -147,6 +150,31 @@ Gallery requirements:
 - Pattern detail drives the pattern's real exported controls, and slider tweaks
   ride into "Open in Studio" via the existing settings-cascade override layer.
 - Send to Controller works from the detail page without entering the Studio.
+
+Controller connect surface (live connection, distinct from the Controllers
+entity in §12):
+
+- The connect affordance — a Connect button when disconnected, the controller
+  pill(s) when connected — is **global top-bar chrome, rendered in the same
+  position on every route**, including the Gallery grid. Connecting is a
+  prerequisite for any push-to-hardware action, so it must be reachable from
+  anywhere those actions appear.
+- Connection state is session-global and orthogonal to auth: signed-out users
+  can connect and push, and signing in or out never touches the live
+  connection. Navigation never mutates or hides connection state — only
+  explicit connect/disconnect or device-side events do.
+- Hardware-dependent actions (e.g. Send to Controller) stay visible but
+  disabled when no controller is connected, with a hint pointing at the
+  top-bar Connect button.
+
+Top-bar chrome (signed-out surfaces):
+
+- Sign in and Open Studio are deliberately both present: they serve different
+  intents (attach an account vs. frictionless try-it, entering the non-durable
+  demo Studio). **Open Studio is the single primary CTA**; Sign in and Connect
+  stay ghost weight and must not compete with it.
+- Signing in returns the user to the page they were on, not to the Studio.
+  When signed in, the Sign in button is replaced by the account pill.
 
 ## 8. Studio nav rework
 
@@ -258,7 +286,9 @@ Perf-harness spikes (runnable now, no new hardware work):
 ## 12. Controllers
 
 A Controller is a durable, D1-backed entity — the physical box's profile — that
-exists and is editable while the device is offline. It absorbs the earlier
+exists and is editable while the device is offline. It is distinct from the
+live connection surface (the global top-bar Connect button/pills, §7), which
+works without auth and carries no durable state. It absorbs the earlier
 manifest concept whole (identity, inputs, global transforms, per-pattern
 bindings, smoothing/fallback/invert, explicit call-vs-assign targets), giving
 it a page instead of a YAML file.
