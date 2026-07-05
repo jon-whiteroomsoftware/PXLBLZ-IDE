@@ -322,7 +322,7 @@ export default function App() {
           )}
         </span>
         <span className="ml-auto flex items-center gap-1.5 sm:gap-2.5">
-          {(!browseRoute || route.kind === 'pattern-detail') && <ControllerBar />}
+          <ControllerBar />
           <AuthStatus />
           {browseRoute && (
             <Button

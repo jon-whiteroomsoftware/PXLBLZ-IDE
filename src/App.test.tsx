@@ -1,11 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import App from './App'
 import { useRouterStore, routerInitialState } from '@/store/routerStore'
 import { useWorkspaceStore, workspaceInitialState } from '@/store/workspaceStore'
 import { usePatternStore, patternInitialState, type PatternRecord } from '@/store/patternStore'
 import { useDocsStore, docsInitialState } from '@/store/docsStore'
+import { controllerInitialState, useControllerStore } from '@/store/controllerStore'
 
 // Hold the startup auth probe pending so the smoke tests exercise the studio
 // shell without the signed-out Gallery redirect kicking in mid-test; the
@@ -20,6 +21,7 @@ beforeEach(() => {
   useWorkspaceStore.setState(workspaceInitialState)
   usePatternStore.setState(patternInitialState)
   useDocsStore.setState(docsInitialState)
+  useControllerStore.setState(controllerInitialState)
 })
 
 describe('App smoke test', () => {
@@ -149,6 +151,71 @@ describe('routing (#308)', () => {
     expect(screen.getByRole('button', { name: /IridescentFibers/i })).toBeInTheDocument()
   })
 
+  it('keeps the global Controller surface visible on gallery, detail, studio, and docs routes (#323)', () => {
+    const routes = ['/gallery', '/p/iridescent-fibers', '/studio', '/docs/feature-guide']
+
+    for (const path of routes) {
+      window.history.replaceState(null, '', path)
+      useRouterStore.setState(routerInitialState)
+      useDocsStore.setState(docsInitialState)
+      const view = render(<App />)
+      const topBar = screen.getByTestId('top-bar')
+
+      expect(within(topBar).getByTestId('controller-bar')).toBeInTheDocument()
+      expect(within(topBar).getByRole('button', { name: 'Connect a Controller' })).toBeInTheDocument()
+
+      view.unmount()
+    }
+  })
+
+  it('keeps the connected Controller pill visible while navigating browse routes (#323)', async () => {
+    window.history.replaceState(null, '', '/gallery')
+    useControllerStore.setState({
+      extensionPresent: true,
+      activeIp: '10.0.0.5',
+      controllers: { '10.0.0.5': { ip: '10.0.0.5', nickname: 'Desk', phase: 'live', mapDim: 2 } },
+    })
+    render(<App />)
+
+    expect(within(screen.getByTestId('top-bar')).getByRole('button', { name: 'Toggle Desk panel' })).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: /IridescentFibers/i }))
+    expect(window.location.pathname).toBe('/p/iridescent-fibers')
+    expect(within(screen.getByTestId('top-bar')).getByRole('button', { name: 'Toggle Desk panel' })).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: /Edit in Studio/i }))
+    expect(window.location.pathname).toBe('/studio')
+    expect(within(screen.getByTestId('top-bar')).getByRole('button', { name: 'Toggle Desk panel' })).toBeInTheDocument()
+    expect(useControllerStore.getState().activeIp).toBe('10.0.0.5')
+  })
+
+  it('keeps controller connection state orthogonal to auth changes (#323)', async () => {
+    window.history.replaceState(null, '', '/studio')
+    useWorkspaceStore.setState({
+      personalWorkspaceAuthenticated: true,
+      personalWorkspaceResolved: true,
+    })
+    useControllerStore.setState({
+      extensionPresent: true,
+      activeIp: '10.0.0.5',
+      controllers: { '10.0.0.5': { ip: '10.0.0.5', nickname: 'Desk', phase: 'live', mapDim: 2 } },
+    })
+    render(<App />)
+
+    expect(within(screen.getByTestId('top-bar')).getByRole('button', { name: 'Toggle Desk panel' })).toBeInTheDocument()
+
+    act(() => {
+      useWorkspaceStore.setState({
+        personalWorkspaceAuthenticated: false,
+        personalWorkspaceResolved: true,
+      })
+    })
+
+    await waitFor(() => expect(window.location.pathname).toBe('/gallery'))
+    expect(useControllerStore.getState().activeIp).toBe('10.0.0.5')
+    expect(within(screen.getByTestId('top-bar')).getByRole('button', { name: 'Toggle Desk panel' })).toBeInTheDocument()
+  })
+
   it('clears the Gallery search from the inline clear button', async () => {
     window.history.replaceState(null, '', '/gallery')
     render(<App />)
@@ -195,7 +262,7 @@ describe('routing (#308)', () => {
     render(<App />)
     expect(screen.queryByRole('button', { name: /Run on Controller/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Save to Controller/i })).not.toBeInTheDocument()
-    await userEvent.click(screen.getByRole('button', { name: 'Connect' }))
+    await userEvent.click(within(screen.getByTestId('pattern-detail-page')).getByRole('button', { name: 'Connect' }))
     expect(screen.getByTestId('controller-install-pitch')).toBeInTheDocument()
   })
 
