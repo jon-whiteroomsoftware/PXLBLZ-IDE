@@ -50,17 +50,25 @@ export function PatternDetailPage({ pattern }: { pattern: GalleryPattern }) {
           <span className="min-w-0 truncate text-xs text-structural">/p/{pattern.slug}</span>
         </div>
 
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
-          <section className="relative min-h-[440px] overflow-hidden rounded-lg border border-seam bg-black lg:min-h-[620px]">
+        <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_360px]">
+          <section
+            className={`relative overflow-hidden rounded-lg border border-seam bg-black ${
+              stageView === 'code' ? 'min-h-[440px] md:min-h-[620px]' : ''
+            }`}
+          >
             <div
-              className={`absolute inset-0 ${stageView === 'preview' ? '' : 'pointer-events-none invisible'}`}
+              className={stageView === 'preview' ? 'relative' : 'hidden'}
               aria-hidden={stageView !== 'preview'}
             >
               <Preview showDeck={false} />
             </div>
 
             <div
-              className={`absolute inset-0 bg-zinc-950 ${stageView === 'code' ? '' : 'pointer-events-none invisible'}`}
+              className={`bg-zinc-950 ${
+                stageView === 'code'
+                  ? 'relative h-[70vh] min-h-[360px] md:absolute md:inset-0 md:h-auto md:min-h-0'
+                  : 'hidden'
+              }`}
               aria-hidden={stageView !== 'code'}
               data-testid="pattern-code-stage"
             >

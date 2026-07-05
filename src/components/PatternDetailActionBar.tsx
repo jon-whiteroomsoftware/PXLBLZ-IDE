@@ -1,5 +1,6 @@
 import { useEffect, useSyncExternalStore } from 'react'
-import { Check, Code2, Eye, Play, Radio, RotateCw, Save } from 'lucide-react'
+import { Check, Code2, Eye, Play, RotateCw, Save } from 'lucide-react'
+import { ChipGlyph, ConnectGlyph } from '@/components/ControllerGlyphs'
 import { PatternPushChoices } from '@/components/SendToController'
 import { PushConfirmPopover } from '@/components/PushConfirmPopover'
 import { getControllerProvider } from '@/engine/controllerProviderRegistry'
@@ -88,13 +89,15 @@ export function PatternDetailActionBar({ stageView, onToggleStage }: PatternDeta
         onClick={requestControllerEntryOpen}
         className={`${actionButtonClass} flex-1 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100`}
       >
-        <Radio size={13} aria-hidden className="text-zinc-500" />
+        <span className="text-zinc-500" aria-hidden>
+          <ConnectGlyph />
+        </span>
         Connect
       </button>
     ) : (
       <span className="inline-flex flex-1 items-stretch" title={target}>
         <span className="grid w-7 place-items-center text-zinc-500" aria-hidden>
-          <Radio size={13} />
+          <ChipGlyph />
         </span>
         <button
           type="button"

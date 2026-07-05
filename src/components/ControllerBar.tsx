@@ -3,6 +3,7 @@ import { RotateCw } from 'lucide-react'
 import { useControllerStore } from '@/store/controllerStore'
 import { describeControllerPill, type ControllerPhase } from '@/engine/controllerPillView'
 import type { ControllerStatusTone } from '@/engine/controllerStatusView'
+import { ChipGlyph, ConnectGlyph } from './ControllerGlyphs'
 import { StatusDot, type StatusTone } from './StatusDot'
 import { ControllerPanel } from './ControllerPanel'
 import { ControllerPanelTitle } from './ControllerPanelTitle'
@@ -33,31 +34,6 @@ const PILL_TONE: Record<ControllerStatusTone, StatusTone> = {
 
 const CONTROLLER_HELPER_STORE_URL =
   'https://chromewebstore.google.com/detail/pxlblz-ide-controller-hel/hjdkmngopeofakdbjfkaomcmgkcidoeg'
-
-/** The small Controller/chip glyph carried on every pill. */
-function ChipGlyph() {
-  return (
-    <svg width="13" height="13" viewBox="0 0 16 16" aria-hidden className="shrink-0">
-      <rect x="3.5" y="3.5" width="9" height="9" rx="1.5" fill="none" stroke="currentColor" strokeWidth="1.3" />
-      <rect x="6" y="6" width="4" height="4" rx="0.5" fill="currentColor" />
-      <path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
-    </svg>
-  )
-}
-
-/** A two-prong plug + cord — the familiar "plug it in" connect affordance. */
-function ConnectGlyph() {
-  return (
-    <svg width="15" height="15" viewBox="0 0 16 16" aria-hidden className="shrink-0">
-      {/* Two prongs poking up out of the plug body. */}
-      <path d="M6.25 1.5v4M9.75 1.5v4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-      {/* Plug body: flat top with a rounded bowl underneath. */}
-      <path d="M4 5.5h8v0.5a4 4 0 0 1-8 0z" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
-      {/* Cord dropping straight down from the body. */}
-      <path d="M8 10v3.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-    </svg>
-  )
-}
 
 function ControllerPillButton({
   ip,
