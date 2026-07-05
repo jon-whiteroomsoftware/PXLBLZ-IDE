@@ -283,8 +283,8 @@ export function ControllerBar({ reloadPage = () => window.location.reload() }: {
         aria-label={hasPills ? 'Add a Controller' : 'Connect a Controller'}
         aria-expanded={open}
         onClick={() => (open ? setOpen(false) : openDropdown())}
-        className={`inline-flex items-center justify-center h-6 rounded border border-zinc-700 bg-zinc-900 text-zinc-300 hover:border-zinc-500 hover:text-zinc-100 transition-colors focus:outline-none ${
-          hasPills ? 'w-6 text-base leading-none' : 'gap-1.5 px-2 text-xs font-mono'
+        className={`inline-flex h-7 items-center justify-center rounded-[min(var(--radius-md),12px)] border border-zinc-700 bg-zinc-900 font-mono text-xs text-zinc-300 transition-colors hover:border-zinc-500 hover:text-zinc-100 focus:outline-none ${
+          hasPills ? 'w-7 text-base leading-none' : 'gap-1.5 px-2.5'
         }`}
       >
         {/* Plug glyph + "Connect" until a Controller is live, when it collapses
