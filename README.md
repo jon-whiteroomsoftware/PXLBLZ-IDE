@@ -74,9 +74,8 @@ Open the **Code** menu in the app header for source and hover summaries.
 ## Good to know
 
 - The Cloudflare deployment stores signed-in personal patterns, maps, settings,
-  and controller metadata in D1. Signed-out use and local development fall back
-  to this browser's IndexedDB. **Clearing site data clears only that local
-  fallback workspace.**
+  and controller metadata in D1. Signed-out use stays in non-durable demo mode
+  until you sign in.
 - If the app does not reconnect to a Pixelblaze Controller when it opens, reload
   the browser window first. If it still does not pick up, manually disconnect and
   reconnect from the Controller menu.
@@ -92,8 +91,9 @@ npm run dev
 
 The normal development server runs at `http://localhost:5174/`.
 
-Personal patterns/maps use browser-local IndexedDB in local development unless
-you explicitly run a Cloudflare-style build with remote storage enabled.
+For Cloudflare-style local checks, OAuth setup, D1 migration, production smoke
+tests, exports, and restore notes, see
+**[Cloudflare Operations](docs/reference/Cloudflare%20Operations.md)**.
 
 Useful checks:
 
@@ -110,93 +110,13 @@ The production build installs Google Analytics only when
 named `GA_MEASUREMENT_ID` with your GA4 measurement ID, for example `G-XXXXXXXXXX`.
 Local development and builds without that variable do not load Google Analytics.
 
-### Cloudflare Pages deployment
+### Deployment And Operations
 
-GitHub Pages serves this app under `/PXLBLZ-IDE/`, but Cloudflare Pages serves it
-from the site root. Root production builds default to the authenticated
-D1-backed provider; GitHub Pages-style builds and localhost default to
-browser-local IndexedDB.
-
-The D1 binding is named `PXLBLZ_DB` in `wrangler.jsonc`, and points at the
-Cloudflare database named `pxlblz-ide`. Apply the schema migration with:
-
-```bash
-npm run db:migrate:remote
-```
-
-That command requires Wrangler to be authenticated, either by running Wrangler in
-an interactive terminal that can log in, or by setting `CLOUDFLARE_API_TOKEN`.
-For local Cloudflare runtime checks after building:
-
-```bash
-cp .dev.vars.example .dev.vars
-npm run cf:build
-npm run db:migrate:local
-npm run cf:dev:local
-```
-
-Then visit `http://localhost:8788/api/d1/health`; a migrated D1 binding returns
-`{"ok":true,"schemaVersion":"1"}`.
-
-For browser OAuth testing, fill in `.dev.vars` with a localhost GitHub OAuth app
-whose callback URL is `http://localhost:8788/api/auth/callback`. For API-level
-smoke without OAuth, run `npm run cf:session` and send the printed
-`pxlblz_session` cookie with local requests.
-
-The tracked Wrangler configuration also sets:
-
-```txt
-VITE_BASE_PATH=/
-VITE_PERSONAL_CONTENT_PROVIDER=remote-api
-```
-
-Set `VITE_PERSONAL_CONTENT_PROVIDER=browser` in an explicit local environment
-when you want to force browser-local fallback in a production-style build.
-
-### Cloudflare GitHub OAuth
-
-The backend uses GitHub OAuth/session endpoints for cloud-backed storage:
-
-- `GET /api/auth/login` starts GitHub OAuth.
-- `GET /api/auth/callback` exchanges the GitHub code, upserts the user in D1,
-  and sets a signed `pxlblz_session` cookie.
-- `GET /api/me` returns the signed-in GitHub user or `{ "authenticated": false }`.
-- `GET` or `POST /api/auth/logout` clears the session cookie.
-
-Create a GitHub OAuth app for the Cloudflare deployment and set its callback URL
-to:
-
-```txt
-https://pxlblz-ide.pages.dev/api/auth/callback
-```
-
-For local end-to-end OAuth testing, create a second GitHub OAuth app with:
-
-```txt
-http://localhost:8788/api/auth/callback
-```
-
-Then set Cloudflare Pages environment variables/secrets:
-
-```txt
-GITHUB_CLIENT_ID
-GITHUB_CLIENT_SECRET
-SESSION_SECRET
-GITHUB_ALLOWED_LOGINS      # optional comma-separated GitHub logins
-GITHUB_ALLOWED_IDS         # optional comma-separated numeric GitHub ids
-GITHUB_OAUTH_REDIRECT_URI  # optional override, useful for local testing
-```
-
-`SESSION_SECRET` should be a long random value, for example from
-`openssl rand -base64 32`. When either allow-list variable is set, only matching
-GitHub users can sign in. With neither allow-list set, any GitHub user can
-authenticate. Signed-in users read and write personal patterns through
-`/api/patterns`, personal maps through `/api/maps`, provider-owned settings
-through `/api/settings/:key`, and controller metadata through
-`/api/controller-metadata/:key`.
-
-For production smoke checks, D1 inspection, exports, and restore notes, see
-**[Cloudflare Operations](docs/reference/Cloudflare%20Operations.md)**.
+The public app is served from Cloudflare Pages. The production runtime uses
+Pages Functions, GitHub OAuth, and D1 for signed-in personal workspaces. Those
+operator details are intentionally kept out of the README; see
+**[Cloudflare Operations](docs/reference/Cloudflare%20Operations.md)** when you
+need to deploy, smoke-test, inspect D1, or run a local Cloudflare runtime.
 
 ## Documentation
 
