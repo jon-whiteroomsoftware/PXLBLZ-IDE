@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 const migrationPath = path.resolve('migrations/0001_personal_storage.sql')
+const identityMigrationPath = path.resolve('migrations/0002_identity_model.sql')
 
 describe('D1 personal storage migration', () => {
   it('creates the storage buckets needed for the Cloudflare personal-storage foundation', () => {
@@ -21,5 +22,16 @@ describe('D1 personal storage migration', () => {
     expect(sql).toContain('PRIMARY KEY (user_id, id)')
     expect(sql).toContain('PRIMARY KEY (user_id, key)')
     expect(sql).toContain('FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE')
+  })
+
+  it('adds identities as the OAuth-provider lookup layer and backfills GitHub users', () => {
+    const sql = fs.readFileSync(identityMigrationPath, 'utf8')
+
+    expect(sql).toContain('CREATE TABLE IF NOT EXISTS identities')
+    expect(sql).toContain('PRIMARY KEY (provider, provider_user_id)')
+    expect(sql).toContain('FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE')
+    expect(sql).toContain("SELECT\n  'github'")
+    expect(sql).toContain('github_user_id')
+    expect(sql).toContain("VALUES ('schema_version', '2', unixepoch())")
   })
 })

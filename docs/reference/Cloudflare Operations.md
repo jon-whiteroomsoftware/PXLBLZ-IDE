@@ -50,7 +50,7 @@ printed `pxlblz_session` cookie to local API smoke requests.
 
 After deploy, open the Pages URL and smoke-test:
 
-1. Visit `/api/d1/health`; expect `{"ok":true,"schemaVersion":"1"}`.
+1. Visit `/api/d1/health`; expect `{"ok":true,"schemaVersion":"2"}`.
 2. Visit `/api/me`; signed out should report `{ "authenticated": false }`.
 3. Click **Sign in**, complete GitHub OAuth, and confirm `/api/me` reports the
    GitHub user.
@@ -71,7 +71,8 @@ non-durable demo mode until a session exists.
 Run read-only checks with Wrangler:
 
 ```bash
-npx wrangler d1 execute pxlblz-ide --remote --command "SELECT id, github_login FROM users;"
+npx wrangler d1 execute pxlblz-ide --remote --command "SELECT id, display_name, updated_at FROM users;"
+npx wrangler d1 execute pxlblz-ide --remote --command "SELECT provider, provider_user_id, user_id, handle, email_verified FROM identities;"
 npx wrangler d1 execute pxlblz-ide --remote --command "SELECT user_id, id, name, updated_at FROM personal_patterns ORDER BY updated_at DESC LIMIT 20;"
 npx wrangler d1 execute pxlblz-ide --remote --command "SELECT user_id, id, name, updated_at FROM personal_maps ORDER BY updated_at DESC LIMIT 20;"
 npx wrangler d1 execute pxlblz-ide --remote --command "SELECT user_id, key, updated_at FROM personal_settings;"

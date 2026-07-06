@@ -503,8 +503,8 @@ field: never cascaded, persisted on its own.
 
 ### Personal content storage
 
-`src/engine/personalContentProvider.ts` is the storage seam behind **Cloud
-Patterns** and **Cloud Maps**. Durable personal content has one supported
+`src/engine/personalContentProvider.ts` is the storage seam behind **Patterns**
+and **Maps**. Durable personal content has one supported
 backend: the authenticated Remote API provider, implemented by Cloudflare Pages
 Functions over D1. When `/api/me` reports no signed-in session, startup installs
 the non-durable demo provider instead. Demo mode returns empty personal
@@ -513,21 +513,25 @@ create/update/delete calls. Built-in demos, stock maps, libraries, docs, and the
 preview remain usable without auth.
 
 The Cloudflare D1 foundation is selected by the remote provider. The Wrangler
-binding is `PXLBLZ_DB`, backed by the `pxlblz-ide` database. The first
-migration creates user-scoped tables for personal patterns, personal maps,
-personal settings, and controller metadata, plus `app_metadata` for schema
-version probing. The Pages Function at `/api/d1/health` reads
+binding is `PXLBLZ_DB`, backed by the `pxlblz-ide` database. The migrations
+create stable `users`, provider-specific `identities`, user-scoped tables for
+personal patterns, personal maps, personal settings, and controller metadata,
+plus `app_metadata` for schema version probing. The Pages Function at
+`/api/d1/health` reads
 `app_metadata.schema_version` and reports whether the binding is reachable; it is
 only a backend foundation probe, not personal-content CRUD.
 
 GitHub OAuth starts at `/api/auth/login`, returns through
-`/api/auth/callback`, upserts a row in `users`, and sets a signed
-`pxlblz_session` cookie. `/api/me` verifies that cookie and returns the
-GitHub-backed user identity; `/api/auth/logout` clears it. The session signer
-and OAuth helpers live in `src/cloudflare/auth.ts`, keeping GitHub/Cloudflare
-details out of React and out of the personal content provider. Optional owner
-allow-lists (`GITHUB_ALLOWED_LOGINS` / `GITHUB_ALLOWED_IDS`) are enforced
-server-side before a session is issued.
+`/api/auth/callback`, resolves the provider identity through `identities`,
+updates the durable `users` row, and sets a signed `pxlblz_session` cookie whose
+stable `userId` scopes personal content. Existing pre-identity GitHub users are
+backfilled into `identities` with the same `users.id`, so personal content keys
+do not move. `/api/me` verifies the cookie and returns the GitHub-backed user
+identity; `/api/auth/logout` clears it. The session signer and OAuth helpers
+live in `src/cloudflare/auth.ts`, keeping GitHub/Cloudflare details out of React
+and out of the personal content provider. Optional owner allow-lists
+(`GITHUB_ALLOWED_LOGINS` / `GITHUB_ALLOWED_IDS`) are enforced server-side before
+a session is issued.
 
 Pattern operations call `/api/patterns`, custom map operations call `/api/maps`,
 and provider-owned settings (`lastActive`, `demoOverrides`) call
@@ -535,8 +539,8 @@ and provider-owned settings (`lastActive`, `demoOverrides`) call
 storage seam: overwrite bindings (`controller-bindings`) and program label
 caches (`controller-program-labels`) call `/api/controller-metadata/:key`.
 All D1 helpers scope list/update/delete predicates by the signed session's
-`userId`. The UI labels personal collections as **Cloud Patterns** and
-**Cloud Maps**. Signed-out users see sign-in prompts where personal workspace
+`userId`. The UI labels personal collections as **Patterns** and **Maps**.
+Signed-out users see sign-in prompts where personal workspace
 actions would be; no browser-local durable workspace is created, and no
 browser-to-D1 migration is attempted or implied.
 
