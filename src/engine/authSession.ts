@@ -1,9 +1,22 @@
+export type AuthProvider = 'github' | 'google'
+
+export interface ConnectedIdentity {
+  provider: AuthProvider
+  providerUserId: string
+  handle: string | null
+  email: string | null
+  emailVerified: boolean | null
+}
+
 export interface AuthenticatedUser {
   id: string
-  githubUserId: string
-  githubLogin: string
-  displayName: string
-  avatarUrl: string
+  primaryProvider: AuthProvider
+  primaryHandle: string | null
+  githubUserId?: string | null
+  githubLogin?: string | null
+  displayName: string | null
+  avatarUrl: string | null
+  identities: ConnectedIdentity[]
 }
 
 export type AuthSession =

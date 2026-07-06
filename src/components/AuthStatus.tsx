@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
-import { ChevronDown, LogIn, LogOut } from 'lucide-react'
+import { ChevronDown, CircleUser, Link2, LogIn, LogOut, Unlink } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { getAuthSession, type AuthSession } from '@/engine/authSession'
+import { getAuthSession, type AuthProvider, type AuthSession } from '@/engine/authSession'
 import { studioWelcomeAcknowledgedKey } from '@/engine/studioAccess'
 import { useRouterStore } from '@/store/routerStore'
 import { useWorkspaceStore } from '@/store/workspaceStore'
@@ -12,6 +12,18 @@ export function AuthStatus() {
   const accountRef = useRef<HTMLDivElement>(null)
   const navigate = useRouterStore((s) => s.navigate)
   const setPersonalWorkspaceAuthenticated = useWorkspaceStore((s) => s.setPersonalWorkspaceAuthenticated)
+
+  const refreshSession = () => {
+    getAuthSession()
+      .then((next) => {
+        setSession(next)
+        setPersonalWorkspaceAuthenticated(next.authenticated)
+      })
+      .catch(() => {
+        setSession({ authenticated: false })
+        setPersonalWorkspaceAuthenticated(false)
+      })
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -33,6 +45,11 @@ export function AuthStatus() {
     }
   }, [setPersonalWorkspaceAuthenticated])
 
+  const disconnectProvider = async (provider: AuthProvider) => {
+    const response = await fetch(`/api/auth/disconnect?provider=${provider}`, { method: 'POST' })
+    if (response.ok) refreshSession()
+  }
+
   useEffect(() => {
     if (!accountOpen) return
     const onDown = (e: MouseEvent) => {
@@ -52,11 +69,17 @@ export function AuthStatus() {
   if (!session) return null
 
   if (session?.authenticated) {
+    const label = accountLabel(session)
+    const connectedProviders = new Set(session.user.identities.map((identity) => identity.provider))
+    const canDisconnect = session.user.identities.length > 1
+    const missingProviders: AuthProvider[] = (['github', 'google'] as const)
+      .filter((provider) => !connectedProviders.has(provider))
+
     return (
       <div ref={accountRef} className="relative flex max-w-52 items-center">
         <button
           type="button"
-          aria-label={`Account menu for ${session.user.githubLogin}`}
+          aria-label={`Account menu for ${label}`}
           aria-haspopup="menu"
           aria-expanded={accountOpen}
           onClick={() => setAccountOpen((open) => !open)}
@@ -66,13 +89,17 @@ export function AuthStatus() {
               : 'border-zinc-700 bg-zinc-900 text-zinc-300 hover:border-zinc-500 hover:text-zinc-100'
           }`}
         >
-          <img
-            src={session.user.avatarUrl}
-            alt=""
-            className="size-4 rounded-full border border-zinc-700"
-            referrerPolicy="no-referrer"
-          />
-          <span className="max-w-32 truncate">{session.user.githubLogin}</span>
+          {session.user.avatarUrl ? (
+            <img
+              src={session.user.avatarUrl}
+              alt=""
+              className="size-4 rounded-full border border-zinc-700"
+              referrerPolicy="no-referrer"
+            />
+          ) : (
+            <CircleUser size={16} className="shrink-0 text-zinc-500" aria-hidden />
+          )}
+          <span className="max-w-32 truncate">{label}</span>
           <ChevronDown
             size={13}
             aria-hidden
@@ -85,10 +112,45 @@ export function AuthStatus() {
             role="menu"
             className="absolute right-0 top-8 z-50 w-full min-w-full rounded-lg border border-zinc-700 bg-zinc-900 py-1 shadow-2xl"
           >
+            <div className="border-b border-zinc-800 px-3 py-1.5">
+              <p className="font-mono text-[10px] uppercase text-zinc-500">Connected logins</p>
+              <div className="mt-1 space-y-0.5">
+                {session.user.identities.map((identity) => (
+                  <div key={`${identity.provider}:${identity.providerUserId}`} className="flex items-center justify-between gap-2 font-mono text-xs text-zinc-300">
+                    <span className="truncate">{providerLabel(identity.provider)}</span>
+                    <span className="truncate text-zinc-500">{identity.handle ?? identity.email ?? identity.providerUserId}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            {missingProviders.map((provider) => (
+              <a
+                key={provider}
+                href={`/api/auth/login?provider=${provider}&mode=link`}
+                role="menuitem"
+                className="flex w-full items-center gap-2 px-3 py-1.5 text-left font-mono text-xs text-zinc-300 transition-colors hover:bg-zinc-800/70 hover:text-zinc-100 focus:bg-zinc-800/70 focus:text-zinc-100 focus:outline-none"
+              >
+                <Link2 size={13} strokeWidth={2.4} className="shrink-0 text-zinc-500" aria-hidden />
+                Connect {providerLabel(provider)}
+              </a>
+            ))}
+            {session.user.identities.map((identity) => (
+              <button
+                key={`disconnect:${identity.provider}:${identity.providerUserId}`}
+                type="button"
+                role="menuitem"
+                disabled={!canDisconnect}
+                onClick={() => void disconnectProvider(identity.provider)}
+                className="flex w-full items-center gap-2 px-3 py-1.5 text-left font-mono text-xs text-zinc-300 transition-colors hover:bg-zinc-800/70 hover:text-zinc-100 focus:bg-zinc-800/70 focus:text-zinc-100 focus:outline-none disabled:cursor-not-allowed disabled:text-zinc-600 disabled:hover:bg-transparent"
+              >
+                <Unlink size={13} strokeWidth={2.4} className="shrink-0 text-zinc-500" aria-hidden />
+                Disconnect {providerLabel(identity.provider)}
+              </button>
+            ))}
             <a
               href="/api/auth/logout"
               role="menuitem"
-              className="flex w-full items-center gap-2 px-3 py-1.5 text-left font-mono text-xs text-zinc-300 transition-colors hover:bg-zinc-800/70 hover:text-zinc-100 focus:bg-zinc-800/70 focus:text-zinc-100 focus:outline-none"
+              className="mt-1 flex w-full items-center gap-2 border-t border-zinc-800 px-3 py-1.5 text-left font-mono text-xs text-zinc-300 transition-colors hover:bg-zinc-800/70 hover:text-zinc-100 focus:bg-zinc-800/70 focus:text-zinc-100 focus:outline-none"
             >
               <LogOut size={13} strokeWidth={2.4} className="shrink-0 text-zinc-500" aria-hidden />
               Log out
@@ -125,4 +187,12 @@ export function AuthStatus() {
       Sign in
     </Button>
   )
+}
+
+function accountLabel(session: Extract<AuthSession, { authenticated: true }>): string {
+  return session.user.primaryHandle ?? session.user.githubLogin ?? session.user.displayName ?? 'Account'
+}
+
+function providerLabel(provider: AuthProvider): string {
+  return provider === 'google' ? 'Google' : 'GitHub'
 }

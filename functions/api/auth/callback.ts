@@ -1,17 +1,27 @@
 import {
   clearCookie,
   createSessionCookie,
+  exchangeGoogleCode,
   exchangeGitHubCode,
+  fetchGoogleUser,
+  fetchGitHubPrimaryEmail,
   fetchGitHubUser,
+  isGoogleUserAllowed,
   isGitHubUserAllowed,
   isSecureRequest,
+  oauthModeCookieName,
+  oauthProviderCookieName,
   oauthStateCookieName,
   oauthVerifierCookieName,
   parseCookieHeader,
   appRedirectUrlForRequest,
+  readSessionToken,
   redirectUriForRequest,
+  sessionCookieName,
+  type OAuthMode,
+  type OAuthProvider,
 } from '../../../src/cloudflare/auth'
-import { upsertGitHubUser, type D1DatabaseWritableLike } from '../../../src/cloudflare/users'
+import { upsertGitHubUser, upsertGoogleUser, type D1DatabaseWritableLike } from '../../../src/cloudflare/users'
 
 interface PagesFunctionContext {
   request: Request
@@ -21,6 +31,11 @@ interface PagesFunctionContext {
     GITHUB_OAUTH_REDIRECT_URI?: string
     GITHUB_ALLOWED_LOGINS?: string
     GITHUB_ALLOWED_IDS?: string
+    GOOGLE_CLIENT_ID?: string
+    GOOGLE_CLIENT_SECRET?: string
+    GOOGLE_OAUTH_REDIRECT_URI?: string
+    GOOGLE_ALLOWED_EMAILS?: string
+    GOOGLE_ALLOWED_IDS?: string
     SESSION_SECRET?: string
     APP_REDIRECT_URL?: string
     PXLBLZ_DB?: D1DatabaseWritableLike
@@ -35,9 +50,11 @@ export async function onRequestGet(context: PagesFunctionContext): Promise<Respo
   const cookies = parseCookieHeader(context.request.headers.get('Cookie'))
   const redirectToApp = appRedirectUrlForRequest(context.request, context.env.APP_REDIRECT_URL)
   const secure = isSecureRequest(context.request)
+  const provider = oauthProviderFromCookie(cookies[oauthProviderCookieName])
+  const mode = oauthModeFromCookie(cookies[oauthModeCookieName])
 
   if (error) return redirectWithAuthResult(redirectToApp, 'error', secure)
-  if (!context.env.GITHUB_CLIENT_ID || !context.env.GITHUB_CLIENT_SECRET || !context.env.SESSION_SECRET) {
+  if (!context.env.SESSION_SECRET || !providerConfigured(provider, context.env)) {
     return redirectWithAuthResult(redirectToApp, 'not-configured', secure)
   }
   if (!context.env.PXLBLZ_DB) return redirectWithAuthResult(redirectToApp, 'no-database', secure)
@@ -46,23 +63,14 @@ export async function onRequestGet(context: PagesFunctionContext): Promise<Respo
   }
 
   try {
-    const accessToken = await exchangeGitHubCode({
-      clientId: context.env.GITHUB_CLIENT_ID,
-      clientSecret: context.env.GITHUB_CLIENT_SECRET,
-      code,
-      redirectUri: redirectUriForRequest(context.request, context.env.GITHUB_OAUTH_REDIRECT_URI),
-      codeVerifier: cookies[oauthVerifierCookieName],
-    })
-    const githubUser = await fetchGitHubUser(accessToken)
+    const linkSession = mode === 'link'
+      ? await readSessionToken(cookies[sessionCookieName], context.env.SESSION_SECRET)
+      : null
+    if (mode === 'link' && !linkSession) return redirectWithAuthResult(redirectToApp, 'invalid-link', secure)
 
-    if (!isGitHubUserAllowed(githubUser, {
-      logins: context.env.GITHUB_ALLOWED_LOGINS,
-      ids: context.env.GITHUB_ALLOWED_IDS,
-    })) {
-      return redirectWithAuthResult(redirectToApp, 'not-allowed', secure)
-    }
-
-    const user = await upsertGitHubUser(context.env.PXLBLZ_DB, githubUser)
+    const user = provider === 'google'
+      ? await resolveGoogleUser(context, code, cookies[oauthVerifierCookieName], linkSession?.userId)
+      : await resolveGitHubUser(context, code, cookies[oauthVerifierCookieName], linkSession?.userId)
     const sessionCookie = await createSessionCookie(user, context.env.SESSION_SECRET, { secure })
 
     return new Response(null, {
@@ -72,10 +80,12 @@ export async function onRequestGet(context: PagesFunctionContext): Promise<Respo
         ['Set-Cookie', sessionCookie],
         ['Set-Cookie', clearCookie(oauthStateCookieName)],
         ['Set-Cookie', clearCookie(oauthVerifierCookieName)],
+        ['Set-Cookie', clearCookie(oauthProviderCookieName)],
+        ['Set-Cookie', clearCookie(oauthModeCookieName)],
       ],
     })
-  } catch {
-    return redirectWithAuthResult(redirectToApp, 'error', secure)
+  } catch (caught) {
+    return redirectWithAuthResult(redirectToApp, caught instanceof AuthCallbackError ? caught.result : 'error', secure)
   }
 }
 
@@ -87,6 +97,81 @@ function redirectWithAuthResult(url: URL, result: string, _secure: boolean): Res
       ['Location', url.toString()],
       ['Set-Cookie', clearCookie(oauthStateCookieName)],
       ['Set-Cookie', clearCookie(oauthVerifierCookieName)],
+      ['Set-Cookie', clearCookie(oauthProviderCookieName)],
+      ['Set-Cookie', clearCookie(oauthModeCookieName)],
     ],
   })
+}
+
+async function resolveGitHubUser(
+  context: PagesFunctionContext,
+  code: string,
+  codeVerifier: string,
+  linkUserId?: string,
+) {
+  const accessToken = await exchangeGitHubCode({
+    clientId: context.env.GITHUB_CLIENT_ID!,
+    clientSecret: context.env.GITHUB_CLIENT_SECRET!,
+    code,
+    redirectUri: redirectUriForRequest(context.request, context.env.GITHUB_OAUTH_REDIRECT_URI),
+    codeVerifier,
+  })
+  const githubUser = await fetchGitHubUser(accessToken)
+  const primaryEmail = await fetchGitHubPrimaryEmail(accessToken)
+  const githubUserWithEmail = primaryEmail
+    ? { ...githubUser, email: primaryEmail.email, email_verified: primaryEmail.verified }
+    : githubUser
+
+  if (!isGitHubUserAllowed(githubUserWithEmail, {
+    logins: context.env.GITHUB_ALLOWED_LOGINS,
+    ids: context.env.GITHUB_ALLOWED_IDS,
+  })) {
+    throw new AuthCallbackError('not-allowed')
+  }
+
+  return upsertGitHubUser(context.env.PXLBLZ_DB!, githubUserWithEmail, Math.floor(Date.now() / 1000), linkUserId)
+}
+
+async function resolveGoogleUser(
+  context: PagesFunctionContext,
+  code: string,
+  codeVerifier: string,
+  linkUserId?: string,
+) {
+  const accessToken = await exchangeGoogleCode({
+    clientId: context.env.GOOGLE_CLIENT_ID!,
+    clientSecret: context.env.GOOGLE_CLIENT_SECRET!,
+    code,
+    redirectUri: redirectUriForRequest(context.request, context.env.GOOGLE_OAUTH_REDIRECT_URI),
+    codeVerifier,
+  })
+  const googleUser = await fetchGoogleUser(accessToken)
+
+  if (!isGoogleUserAllowed(googleUser, {
+    emails: context.env.GOOGLE_ALLOWED_EMAILS,
+    ids: context.env.GOOGLE_ALLOWED_IDS,
+  })) {
+    throw new AuthCallbackError('not-allowed')
+  }
+
+  return upsertGoogleUser(context.env.PXLBLZ_DB!, googleUser, Math.floor(Date.now() / 1000), linkUserId)
+}
+
+function oauthProviderFromCookie(value: string | undefined): OAuthProvider {
+  return value === 'google' ? 'google' : 'github'
+}
+
+function oauthModeFromCookie(value: string | undefined): OAuthMode {
+  return value === 'link' ? 'link' : 'sign-in'
+}
+
+function providerConfigured(provider: OAuthProvider, env: PagesFunctionContext['env']): boolean {
+  if (provider === 'google') return Boolean(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET)
+  return Boolean(env.GITHUB_CLIENT_ID && env.GITHUB_CLIENT_SECRET)
+}
+
+class AuthCallbackError extends Error {
+  constructor(readonly result: string) {
+    super(result)
+  }
 }

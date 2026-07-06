@@ -521,17 +521,20 @@ plus `app_metadata` for schema version probing. The Pages Function at
 `app_metadata.schema_version` and reports whether the binding is reachable; it is
 only a backend foundation probe, not personal-content CRUD.
 
-GitHub OAuth starts at `/api/auth/login`, returns through
-`/api/auth/callback`, resolves the provider identity through `identities`,
-updates the durable `users` row, and sets a signed `pxlblz_session` cookie whose
-stable `userId` scopes personal content. Existing pre-identity GitHub users are
+GitHub and Google OAuth start at `/api/auth/login?provider=...`, return through
+`/api/auth/callback`, resolve the provider identity through `identities`, update
+the durable `users` row, and set a signed `pxlblz_session` cookie whose stable
+`userId` scopes personal content. Existing pre-identity GitHub users are
 backfilled into `identities` with the same `users.id`, so personal content keys
-do not move. `/api/me` verifies the cookie and returns the GitHub-backed user
-identity; `/api/auth/logout` clears it. The session signer and OAuth helpers
-live in `src/cloudflare/auth.ts`, keeping GitHub/Cloudflare details out of React
-and out of the personal content provider. Optional owner allow-lists
-(`GITHUB_ALLOWED_LOGINS` / `GITHUB_ALLOWED_IDS`) are enforced server-side before
-a session is issued.
+do not move. Google sign-in auto-links only when the Google email is verified
+and matches an already verified identity email; signed-in users can explicitly
+connect another login from the account menu. `/api/me` verifies the cookie and
+returns the user plus connected identities; `/api/auth/logout` clears the session
+and `/api/auth/disconnect?provider=...` removes a linked provider unless it is
+the last remaining login. The session signer and OAuth helpers live in
+`src/cloudflare/auth.ts`, keeping provider/Cloudflare details out of React and
+out of the personal content provider. Optional owner allow-lists are enforced
+server-side before a session is issued.
 
 Pattern operations call `/api/patterns`, custom map operations call `/api/maps`,
 and provider-owned settings (`lastActive`, `demoOverrides`) call

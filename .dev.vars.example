@@ -1,11 +1,15 @@
 SESSION_SECRET=replace-with-a-long-local-secret
 
 # Required only for testing the browser GitHub OAuth flow locally.
-# Create a separate GitHub OAuth app with callback:
+# Create separate local OAuth apps with callback:
 # http://localhost:8788/api/auth/callback
 GITHUB_CLIENT_ID=
 GITHUB_CLIENT_SECRET=
 GITHUB_OAUTH_REDIRECT_URI=http://localhost:8788/api/auth/callback
+
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+GOOGLE_OAUTH_REDIRECT_URI=http://localhost:8788/api/auth/callback
 
 # Where the local OAuth callback should send the browser after setting the
 # session cookie. Production omits this and redirects to its own Pages origin.
@@ -14,3 +18,5 @@ APP_REDIRECT_URL=http://localhost:5174/PXLBLZ-IDE/
 # Optional local owner allow-list.
 GITHUB_ALLOWED_LOGINS=
 GITHUB_ALLOWED_IDS=
+GOOGLE_ALLOWED_EMAILS=
+GOOGLE_ALLOWED_IDS=

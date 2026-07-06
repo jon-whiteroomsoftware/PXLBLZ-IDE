@@ -1,10 +1,10 @@
 # Cloudflare Operations
 
 PXLBLZ-IDE's Cloudflare Pages deployment is the production cloud workspace. It
-uses GitHub OAuth for identity and Cloudflare D1 for personal patterns, custom
-maps, last-active state, demo overrides, and controller push metadata. No
-browser-local-to-D1 migration is performed; the cloud workspace starts clean for each
-signed-in user.
+uses GitHub or Google OAuth for identity and Cloudflare D1 for personal
+patterns, custom maps, last-active state, demo overrides, and controller push
+metadata. No browser-local-to-D1 migration is performed; the cloud workspace
+starts clean for each signed-in user.
 
 ## Required Configuration
 
@@ -21,9 +21,17 @@ Secrets and operator-specific values are managed in Cloudflare Pages:
 
 - `GITHUB_CLIENT_ID`
 - `GITHUB_CLIENT_SECRET`
+- `GOOGLE_CLIENT_ID`
+- `GOOGLE_CLIENT_SECRET`
 - `SESSION_SECRET`
 - `GITHUB_ALLOWED_LOGINS` or `GITHUB_ALLOWED_IDS` when access should be owner-only
+- `GOOGLE_ALLOWED_EMAILS` or `GOOGLE_ALLOWED_IDS` when access should be owner-only
 - `GITHUB_OAUTH_REDIRECT_URI` only when overriding the default callback URL
+- `GOOGLE_OAUTH_REDIRECT_URI` only when overriding the default callback URL
+
+GitHub OAuth must allow the `read:user user:email` scopes so the callback can
+store a verified primary email when GitHub exposes one. Google OAuth must allow
+`openid email profile`.
 
 ## Deploy And Verify
 
@@ -44,26 +52,32 @@ npm run db:migrate:local
 npm run cf:dev:local
 ```
 
-Then open `http://localhost:8788`. Fill `.dev.vars` with a localhost GitHub
-OAuth app to test the sign-in loop, or run `npm run cf:session` and attach the
-printed `pxlblz_session` cookie to local API smoke requests.
+Then open `http://localhost:8788`. Fill `.dev.vars` with localhost GitHub and/or
+Google OAuth apps to test the browser sign-in loop, or run `npm run cf:session`
+and attach the printed `pxlblz_session` cookie to local API smoke requests.
 
 After deploy, open the Pages URL and smoke-test:
 
 1. Visit `/api/d1/health`; expect `{"ok":true,"schemaVersion":"2"}`.
 2. Visit `/api/me`; signed out should report `{ "authenticated": false }`.
 3. Click **Sign in**, complete GitHub OAuth, and confirm `/api/me` reports the
-   GitHub user.
-4. Create, edit, reload, and delete a personal pattern.
-5. Create, edit, reload, and delete a custom map.
-6. Select a personal pattern, reload, and confirm last-active restore.
-7. Change a demo preview control, reload, and confirm the override survives.
-8. Push or fake controller metadata when hardware is available, then confirm
+   GitHub user and one connected identity.
+4. Link Google from the account menu and confirm `/api/me` reports both
+   identities on the same `user.id`.
+5. In a fresh session, sign in with a Google account whose verified email already
+   belongs to a verified identity and confirm personal content stays under the
+   existing `user.id`.
+6. Disconnect one login and confirm the final remaining login cannot be removed.
+7. Create, edit, reload, and delete a personal pattern.
+8. Create, edit, reload, and delete a custom map.
+9. Select a personal pattern, reload, and confirm last-active restore.
+10. Change a demo preview control, reload, and confirm the override survives.
+11. Push or fake controller metadata when hardware is available, then confirm
    `/api/controller-metadata/controller-bindings` and
    `/api/controller-metadata/controller-program-labels` retain values for the
    signed-in session.
 
-Signed-out production users see the GitHub sign-in affordance and remain in
+Signed-out production users see the Studio sign-in affordance and remain in
 non-durable demo mode until a session exists.
 
 ## Inspect D1 Data

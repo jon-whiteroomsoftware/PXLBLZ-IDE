@@ -27,10 +27,21 @@ beforeEach(() => {
     authenticated: true,
     user: {
       id: 'github:123',
+      primaryProvider: 'github',
+      primaryHandle: 'tester',
       githubUserId: '123',
       githubLogin: 'tester',
       displayName: 'Tester',
       avatarUrl: '',
+      identities: [
+        {
+          provider: 'github',
+          providerUserId: '123',
+          handle: 'tester',
+          email: null,
+          emailVerified: null,
+        },
+      ],
     },
   })
   vi.stubGlobal('fetch', vi.fn(async (url, init) => {

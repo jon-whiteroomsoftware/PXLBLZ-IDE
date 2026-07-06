@@ -1,9 +1,12 @@
 import {
   appRedirectUrlForRequest,
+  buildGoogleAuthorizeUrl,
   buildGitHubAuthorizeUrl,
   clearCookie,
   createSessionCookie,
   createSessionToken,
+  fetchGitHubPrimaryEmail,
+  isGoogleUserAllowed,
   isGitHubUserAllowed,
   parseCookieHeader,
   readSessionToken,
@@ -22,6 +25,25 @@ describe('Cloudflare GitHub auth helpers', () => {
     expect(url.origin + url.pathname).toBe('https://github.com/login/oauth/authorize')
     expect(url.searchParams.get('client_id')).toBe('client-123')
     expect(url.searchParams.get('redirect_uri')).toBe('https://pxlblz.example/api/auth/callback')
+    expect(url.searchParams.get('state')).toBe('state-abc')
+    expect(url.searchParams.get('code_challenge')).toBe('challenge-xyz')
+    expect(url.searchParams.get('code_challenge_method')).toBe('S256')
+    expect(url.searchParams.get('scope')).toBe('read:user user:email')
+  })
+
+  it('builds a Google authorization URL with OIDC scopes and PKCE challenge', () => {
+    const url = buildGoogleAuthorizeUrl({
+      clientId: 'google-client-123',
+      redirectUri: 'https://pxlblz.example/api/auth/callback',
+      state: 'state-abc',
+      codeChallenge: 'challenge-xyz',
+    })
+
+    expect(url.origin + url.pathname).toBe('https://accounts.google.com/o/oauth2/v2/auth')
+    expect(url.searchParams.get('client_id')).toBe('google-client-123')
+    expect(url.searchParams.get('redirect_uri')).toBe('https://pxlblz.example/api/auth/callback')
+    expect(url.searchParams.get('response_type')).toBe('code')
+    expect(url.searchParams.get('scope')).toBe('openid email profile')
     expect(url.searchParams.get('state')).toBe('state-abc')
     expect(url.searchParams.get('code_challenge')).toBe('challenge-xyz')
     expect(url.searchParams.get('code_challenge_method')).toBe('S256')
@@ -46,10 +68,41 @@ describe('Cloudflare GitHub auth helpers', () => {
     expect(isGitHubUserAllowed({ id: 123, login: 'octocat' }, { logins: 'someone', ids: '456' })).toBe(false)
   })
 
+  it('matches Google owner allow-lists by provider id or verified email', () => {
+    expect(isGoogleUserAllowed(
+      { sub: 'google-123', email: 'octocat@example.test', email_verified: true },
+      { emails: 'someone@example.test,octocat@example.test' },
+    )).toBe(true)
+    expect(isGoogleUserAllowed(
+      { sub: 'google-123', email: 'octocat@example.test', email_verified: false },
+      { emails: 'octocat@example.test' },
+    )).toBe(false)
+    expect(isGoogleUserAllowed(
+      { sub: 'google-123', email: null, email_verified: false },
+      { ids: 'google-123' },
+    )).toBe(true)
+  })
+
+  it('reads the primary GitHub email when GitHub exposes verified email addresses', async () => {
+    const fetcher = async () => Response.json([
+      { email: 'secondary@example.test', primary: false, verified: true, visibility: null },
+      { email: 'octocat@example.test', primary: true, verified: true, visibility: 'private' },
+    ])
+
+    await expect(fetchGitHubPrimaryEmail('token-123', fetcher)).resolves.toEqual({
+      email: 'octocat@example.test',
+      primary: true,
+      verified: true,
+      visibility: 'private',
+    })
+  })
+
   it('round-trips a signed session token and rejects tampering', async () => {
     const token = await createSessionToken(
       {
         userId: 'github:123',
+        primaryProvider: 'github',
+        primaryHandle: 'octocat',
         githubUserId: '123',
         githubLogin: 'octocat',
         displayName: 'The Octocat',
@@ -62,6 +115,8 @@ describe('Cloudflare GitHub auth helpers', () => {
 
     await expect(readSessionToken(token, 'secret', 1_010)).resolves.toEqual({
       userId: 'github:123',
+      primaryProvider: 'github',
+      primaryHandle: 'octocat',
       githubUserId: '123',
       githubLogin: 'octocat',
       displayName: 'The Octocat',
@@ -77,6 +132,8 @@ describe('Cloudflare GitHub auth helpers', () => {
     const cookie = await createSessionCookie(
       {
         userId: 'github:123',
+        primaryProvider: 'github',
+        primaryHandle: 'octocat',
         githubUserId: '123',
         githubLogin: 'octocat',
         displayName: null,

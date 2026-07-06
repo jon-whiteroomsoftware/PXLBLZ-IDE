@@ -19,10 +19,21 @@ describe('auth session probe', () => {
         authenticated: true,
         user: {
           id: 'github:123',
+          primaryProvider: 'github',
+          primaryHandle: 'octocat',
           githubUserId: '123',
           githubLogin: 'octocat',
           displayName: 'Octo Cat',
           avatarUrl: 'https://example.test/avatar.png',
+          identities: [
+            {
+              provider: 'github',
+              providerUserId: '123',
+              handle: 'octocat',
+              email: null,
+              emailVerified: null,
+            },
+          ],
         },
       }),
     )
@@ -31,10 +42,21 @@ describe('auth session probe', () => {
       authenticated: true,
       user: {
         id: 'github:123',
+        primaryProvider: 'github',
+        primaryHandle: 'octocat',
         githubUserId: '123',
         githubLogin: 'octocat',
         displayName: 'Octo Cat',
         avatarUrl: 'https://example.test/avatar.png',
+        identities: [
+          {
+            provider: 'github',
+            providerUserId: '123',
+            handle: 'octocat',
+            email: null,
+            emailVerified: null,
+          },
+        ],
       },
     })
   })

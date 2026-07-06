@@ -45,6 +45,7 @@ import { initializePersonalContentProvider } from '@/engine/personalContentProvi
 import { initializeControllerMetadataStorage } from '@/engine/controllerMetadataStorage'
 import { galleryCloneRecord, pendingGalleryCloneKey } from '@/engine/galleryClone'
 import { docExternalHref, getUserDoc, isDocId } from '@/docs/catalog'
+import type { AuthProvider } from '@/engine/authSession'
 
 function Splitter({ onDrag }: { onDrag: (dx: number) => void }) {
   const lastX = useRef(0)
@@ -109,10 +110,10 @@ function RouteMessage({
 }
 
 function StudioWelcomePage({
-  onContinue,
+  onSignIn,
   onBack,
 }: {
-  onContinue: () => void
+  onSignIn: (provider: AuthProvider) => void
   onBack: () => void
 }) {
   return (
@@ -132,10 +133,19 @@ function StudioWelcomePage({
               <Button
                 size="sm"
                 className="border border-live/50 bg-live/15 px-3 font-mono text-xs text-live hover:bg-live/25 hover:text-amber-100"
-                onClick={onContinue}
+                onClick={() => onSignIn('github')}
               >
                 <LogIn data-icon="inline-start" />
-                Continue to sign in
+                Continue with GitHub
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="border-zinc-700 bg-zinc-900 px-3 font-mono text-xs text-zinc-300 hover:border-zinc-500 hover:bg-zinc-900 hover:text-zinc-100"
+                onClick={() => onSignIn('google')}
+              >
+                <LogIn data-icon="inline-start" />
+                Continue with Google
               </Button>
               <Button
                 size="sm"
@@ -437,14 +447,14 @@ export default function App() {
     navigate({ kind: 'studio', entity: null })
   }
 
-  const continueFromStudioWelcome = useCallback(() => {
+  const continueFromStudioWelcome = useCallback((provider: AuthProvider) => {
     try {
       window.localStorage.setItem(studioWelcomeAcknowledgedKey, '1')
     } catch {
       // If storage is unavailable, still let sign-in proceed.
     }
     setStudioWelcomeAcknowledged(true)
-    window.location.assign('/api/auth/login')
+    window.location.assign(`/api/auth/login?provider=${provider}`)
   }, [])
 
   return (
@@ -511,7 +521,7 @@ export default function App() {
         <GalleryPage />
       ) : route.kind === 'studio-welcome' ? (
         <StudioWelcomePage
-          onContinue={continueFromStudioWelcome}
+          onSignIn={continueFromStudioWelcome}
           onBack={() => navigate({ kind: 'gallery' }, { replace: true })}
         />
       ) : route.kind === 'pattern-detail' ? (

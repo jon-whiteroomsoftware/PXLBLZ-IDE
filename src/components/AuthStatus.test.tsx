@@ -9,10 +9,21 @@ vi.mock('@/engine/authSession', () => ({
       authenticated: true,
       user: {
         id: 'user-1',
+        primaryProvider: 'github',
+        primaryHandle: 'voidstar',
         githubUserId: '123',
         githubLogin: 'voidstar',
         displayName: 'Void Star',
         avatarUrl: 'https://example.com/avatar.png',
+        identities: [
+          {
+            provider: 'github',
+            providerUserId: '123',
+            handle: 'voidstar',
+            email: null,
+            emailVerified: null,
+          },
+        ],
       },
     }),
 }))
@@ -28,6 +39,13 @@ describe('AuthStatus', () => {
     await userEvent.click(account)
 
     expect(account).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByText('Connected logins')).toBeInTheDocument()
+    expect(screen.getByText('GitHub')).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: /connect google/i })).toHaveAttribute(
+      'href',
+      '/api/auth/login?provider=google&mode=link',
+    )
+    expect(screen.getByRole('menuitem', { name: /disconnect github/i })).toBeDisabled()
     const logout = screen.getByRole('menuitem', { name: /log out/i })
     expect(logout).toHaveAttribute('href', '/api/auth/logout')
 
