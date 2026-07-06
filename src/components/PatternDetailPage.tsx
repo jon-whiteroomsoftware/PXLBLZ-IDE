@@ -9,14 +9,18 @@ import { EmbeddingSelect, useEmbeddingSelectMeta } from '@/components/LayoutSele
 import { useRouterStore } from '@/store/routerStore'
 import { openDemoPattern } from '@/store/openPattern'
 import type { GalleryPattern } from '@/engine/galleryCatalog'
-import { useControlStore } from '@/store/controlStore'
 import { usePreviewStore } from '@/store/previewStore'
 import { usePatternStore } from '@/store/patternStore'
 import { hasActiveOverrides, resetActiveSettings } from '@/store/settingsCascade'
 
-export function PatternDetailPage({ pattern }: { pattern: GalleryPattern }) {
+export function PatternDetailPage({
+  pattern,
+  onCloneToStudio,
+}: {
+  pattern: GalleryPattern
+  onCloneToStudio: (pattern: GalleryPattern) => void
+}) {
   const navigate = useRouterStore((s) => s.navigate)
-  const preserveControlsForNextReset = useControlStore((s) => s.preserveForNextReset)
   const isRunning = usePreviewStore((s) => s.isRunning)
   const togglePreview = usePreviewStore((s) => s.toggle)
   usePatternStore((s) => s.activePatternId)
@@ -30,11 +34,6 @@ export function PatternDetailPage({ pattern }: { pattern: GalleryPattern }) {
   useEffect(() => {
     openDemoPattern(pattern.name)
   }, [pattern.name])
-
-  const openInStudio = () => {
-    preserveControlsForNextReset(useControlStore.getState().controlValues)
-    navigate({ kind: 'studio', entity: null })
-  }
 
   return (
     <main className="flex-1 overflow-auto bg-zinc-950" data-testid="pattern-detail-page">
@@ -141,10 +140,10 @@ export function PatternDetailPage({ pattern }: { pattern: GalleryPattern }) {
               <Button
                 size="sm"
                 className="w-full justify-center border border-live/50 bg-live/15 font-mono text-xs text-live hover:bg-live/25 hover:text-amber-100"
-                onClick={openInStudio}
+                onClick={() => onCloneToStudio(pattern)}
               >
                 <Code2 data-icon="inline-start" />
-                Edit
+                Clone
               </Button>
               <PatternDetailActionBar
                 stageView={stageView}

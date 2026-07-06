@@ -162,7 +162,7 @@ describe('seed clouds relocated to stock (#141)', () => {
     expect(STOCK_MAPS.some((m) => m.id === 'seed-sphere-3d')).toBe(true)
   })
 
-  it('starts Cloud Maps empty on a fresh profile', async () => {
+  it('starts Maps empty on a fresh profile', async () => {
     await useMapStore.getState().loadMaps()
     expect(useMapStore.getState().userMaps).toHaveLength(0)
   })

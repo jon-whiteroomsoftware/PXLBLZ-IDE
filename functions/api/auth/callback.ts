@@ -8,6 +8,7 @@ import {
   oauthStateCookieName,
   oauthVerifierCookieName,
   parseCookieHeader,
+  appRedirectUrlForRequest,
   redirectUriForRequest,
 } from '../../../src/cloudflare/auth'
 import { upsertGitHubUser, type D1DatabaseWritableLike } from '../../../src/cloudflare/users'
@@ -21,6 +22,7 @@ interface PagesFunctionContext {
     GITHUB_ALLOWED_LOGINS?: string
     GITHUB_ALLOWED_IDS?: string
     SESSION_SECRET?: string
+    APP_REDIRECT_URL?: string
     PXLBLZ_DB?: D1DatabaseWritableLike
   }
 }
@@ -31,7 +33,7 @@ export async function onRequestGet(context: PagesFunctionContext): Promise<Respo
   const code = requestUrl.searchParams.get('code')
   const state = requestUrl.searchParams.get('state')
   const cookies = parseCookieHeader(context.request.headers.get('Cookie'))
-  const redirectToApp = new URL('/', requestUrl.origin)
+  const redirectToApp = appRedirectUrlForRequest(context.request, context.env.APP_REDIRECT_URL)
   const secure = isSecureRequest(context.request)
 
   if (error) return redirectWithAuthResult(redirectToApp, 'error', secure)

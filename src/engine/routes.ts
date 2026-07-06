@@ -10,9 +10,17 @@ export interface StudioEntityRef {
   id: string
 }
 
+export interface StudioEntitySection {
+  kind: StudioEntityKind
+  id: null
+}
+
+export type StudioEntityRoute = StudioEntityRef | StudioEntitySection
+
 export type Route =
   | { kind: 'gallery' }
-  | { kind: 'studio'; entity: StudioEntityRef | null }
+  | { kind: 'studio-welcome' }
+  | { kind: 'studio'; entity: StudioEntityRoute | null }
   | { kind: 'pattern-detail'; slug: string }
   | { kind: 'docs'; docId: string }
   | { kind: 'not-found'; path: string }
@@ -38,14 +46,19 @@ export function parseRoute(pathname: string, base: string): Route {
   const segments = baseRelativeSegments(pathname, base)
   if (segments === null) return notFound
 
-  if (segments.length === 0) return { kind: 'studio', entity: null }
+  if (segments.length === 0) return { kind: 'gallery' }
 
   const [head, ...rest] = segments
   switch (head) {
     case 'gallery':
       return rest.length === 0 ? { kind: 'gallery' } : notFound
+    case 'studio-welcome':
+      return rest.length === 0 ? { kind: 'studio-welcome' } : notFound
     case 'studio':
       if (rest.length === 0) return { kind: 'studio', entity: null }
+      if (rest.length === 1 && isStudioEntityKind(rest[0])) {
+        return { kind: 'studio', entity: { kind: rest[0], id: null } }
+      }
       if (rest.length === 2 && isStudioEntityKind(rest[0])) {
         return { kind: 'studio', entity: { kind: rest[0], id: rest[1] } }
       }
@@ -64,10 +77,14 @@ export function routePath(route: Route, base: string): string {
   switch (route.kind) {
     case 'gallery':
       return join('gallery')
+    case 'studio-welcome':
+      return join('studio-welcome')
     case 'studio':
       return route.entity === null
         ? join('studio')
-        : join('studio', route.entity.kind, route.entity.id)
+        : route.entity.id === null
+          ? join('studio', route.entity.kind)
+          : join('studio', route.entity.kind, route.entity.id)
     case 'pattern-detail':
       return join('p', route.slug)
     case 'docs':
@@ -81,6 +98,8 @@ export function routesEqual(a: Route, b: Route): boolean {
   if (a.kind !== b.kind) return false
   switch (a.kind) {
     case 'gallery':
+      return true
+    case 'studio-welcome':
       return true
     case 'studio': {
       const other = (b as Extract<Route, { kind: 'studio' }>).entity

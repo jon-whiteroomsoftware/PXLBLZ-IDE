@@ -1,5 +1,5 @@
-import { useState, useCallback, useRef, useEffect } from 'react'
-import { Code2, ExternalLink, FileText, Lock, Trash2 } from 'lucide-react'
+import { useState, useCallback, useRef, useEffect, useLayoutEffect } from 'react'
+import { Code2, ExternalLink, FileText, Images, Lock, LogIn, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   AlertDialogRoot,
@@ -30,17 +30,20 @@ import { usePatternStore, PatternRecord } from '@/store/patternStore'
 import { useEditorStore } from '@/store/editorStore'
 import { useDocsStore } from '@/store/docsStore'
 import { useRouterStore } from '@/store/routerStore'
-import { openDemoPattern, openPatternRecord } from '@/store/openPattern'
+import { openPatternRecord } from '@/store/openPattern'
 import { routesEqual, type Route } from '@/engine/routes'
+import { decideStudioAccess, studioWelcomeAcknowledgedKey } from '@/engine/studioAccess'
 import { useWorkspaceStore } from '@/store/workspaceStore'
 import { forkSettingsSnapshot } from '@/store/settingsCascade'
-import { useControlStore } from '@/store/controlStore'
 import { bundle } from '@/engine/bundle'
 import { LIBRARIES } from '@/pixelblaze/libs'
 import { uniquePatternName } from '@/engine/patternName'
 import { newPersonalContentId } from '@/engine/personalContentMetadata'
 import { exportedDims } from '@/engine/exportedDims'
-import { galleryPatternBySlug } from '@/engine/galleryCatalog'
+import { galleryPatternBySlug, type GalleryPattern } from '@/engine/galleryCatalog'
+import { initializePersonalContentProvider } from '@/engine/personalContentProvider'
+import { initializeControllerMetadataStorage } from '@/engine/controllerMetadataStorage'
+import { galleryCloneRecord, pendingGalleryCloneKey } from '@/engine/galleryClone'
 import { docExternalHref, getUserDoc, isDocId } from '@/docs/catalog'
 
 function Splitter({ onDrag }: { onDrag: (dx: number) => void }) {
@@ -105,6 +108,51 @@ function RouteMessage({
   )
 }
 
+function StudioWelcomePage({
+  onContinue,
+  onBack,
+}: {
+  onContinue: () => void
+  onBack: () => void
+}) {
+  return (
+    <div data-testid="studio-welcome-page" className="flex flex-1 min-h-0 items-center justify-center px-5">
+      <section className="w-full max-w-xl border border-seam bg-panel/90 px-6 py-6 shadow-2xl shadow-black/30 sm:px-8 sm:py-7">
+        <div className="flex items-start gap-4">
+          <div className="mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-md border border-live/40 bg-live/10 text-live">
+            <Code2 size={20} aria-hidden />
+          </div>
+          <div className="min-w-0">
+            <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-live/80">Studio workspace</p>
+            <h1 className="mt-2 text-xl font-semibold text-zinc-100">Sign in to Studio</h1>
+            <p className="mt-3 text-sm leading-6 text-zinc-400">
+              Studio is where your saved patterns, maps, and shows live. Sign in seamlessly with GitHub or Google; your workspace is created automatically the first time you arrive.
+            </p>
+            <div className="mt-6 flex flex-wrap items-center gap-3">
+              <Button
+                size="sm"
+                className="border border-live/50 bg-live/15 px-3 font-mono text-xs text-live hover:bg-live/25 hover:text-amber-100"
+                onClick={onContinue}
+              >
+                <LogIn data-icon="inline-start" />
+                Continue to sign in
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="px-3 font-mono text-xs text-zinc-400 hover:bg-zinc-800/70 hover:text-zinc-200"
+                onClick={onBack}
+              >
+                Back to Gallery
+              </Button>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  )
+}
+
 export default function App() {
   const activePatternId = usePatternStore((s) => s.activePatternId)
   const activeLibraryName = usePatternStore((s) => s.activeLibraryName)
@@ -128,13 +176,23 @@ export default function App() {
   const navigate = useRouterStore((s) => s.navigate)
   const patternsLoaded = usePatternStore((s) => s.patternsLoaded)
   const personalWorkspaceResolved = useWorkspaceStore((s) => s.personalWorkspaceResolved)
+  const cloneIntentInFlightRef = useRef(false)
+  const routeSyncedRef = useRef(false)
+  const [studioWelcomeAcknowledged, setStudioWelcomeAcknowledged] = useState(() => {
+    try {
+      return window.localStorage.getItem(studioWelcomeAcknowledgedKey) === '1'
+    } catch {
+      return false
+    }
+  })
 
   // History wiring (#308): parse the URL on mount and on back/forward. The
   // hashchange listener keeps legacy #/docs/<id> links (still emitted for
   // in-doc cross-links) redirecting onto the path route.
-  useEffect(() => {
+  useLayoutEffect(() => {
     const sync = () => useRouterStore.getState().syncFromLocation()
     sync()
+    routeSyncedRef.current = true
     window.addEventListener('popstate', sync)
     window.addEventListener('hashchange', sync)
     return () => {
@@ -151,7 +209,7 @@ export default function App() {
       return
     }
     syncDocsFromRoute(null)
-    if (route.kind === 'studio' && route.entity !== null && route.entity.kind === 'patterns') {
+    if (route.kind === 'studio' && route.entity !== null && route.entity.kind === 'patterns' && route.entity.id !== null) {
       const entityId = route.entity.id
       const { userPatterns, activePatternId } = usePatternStore.getState()
       if (activePatternId !== entityId) {
@@ -167,23 +225,42 @@ export default function App() {
   useEffect(() => {
     const current = useRouterStore.getState().route
     if (current.kind !== 'studio') return
-    if (activePatternId !== null) {
+    if (activePatternId !== null && (current.entity === null || current.entity.kind === 'patterns')) {
       const target: Route = { kind: 'studio', entity: { kind: 'patterns', id: activePatternId } }
-      if (!routesEqual(current, target)) navigate(target, { replace: current.entity === null })
-    } else if ((activeDemoName !== null || activeLibraryName !== null) && current.entity !== null) {
+      if (!routesEqual(current, target)) navigate(target, { replace: current.entity === null || current.entity.id === null })
+    } else if (
+      (activeDemoName !== null || activeLibraryName !== null) &&
+      current.entity !== null &&
+      current.entity.id !== null
+    ) {
       // Demos and libraries have no addressable URL yet; fall back to /studio
       // so a stale entity URL doesn't sit over unrelated content.
       navigate({ kind: 'studio', entity: null })
     }
   }, [activePatternId, activeDemoName, activeLibraryName, navigate])
 
-  // Signed-out cold Studio redirects to the Gallery (#308) once the auth probe has
-  // settled. A pattern-detail handoff may carry an active built-in demo into Studio
-  // (#310), so that read-only demo view is allowed through.
+  // Signed-out cold Studio goes through a one-time welcome/sign-in gate. A
+  // pattern-detail handoff may carry an active built-in demo into Studio (#310),
+  // so that read-only demo view is allowed through.
   useEffect(() => {
-    if (!personalWorkspaceResolved || personalWorkspaceAuthenticated) return
-    if (route.kind === 'studio' && activeDemoName === null) navigate({ kind: 'gallery' }, { replace: true })
-  }, [route, personalWorkspaceResolved, personalWorkspaceAuthenticated, activeDemoName, navigate])
+    const decision = decideStudioAccess({
+      route,
+      personalWorkspaceResolved,
+      personalWorkspaceAuthenticated,
+      activeDemoName,
+      studioWelcomeAcknowledged,
+    })
+    if (!routeSyncedRef.current) return
+    if (!routesEqual(route, useRouterStore.getState().route)) return
+    if (decision === 'show-welcome') navigate({ kind: 'studio-welcome' }, { replace: true })
+    if (decision === 'sign-in') window.location.assign('/api/auth/login')
+  }, [route, personalWorkspaceResolved, personalWorkspaceAuthenticated, activeDemoName, studioWelcomeAcknowledged, navigate])
+
+  useEffect(() => {
+    if (route.kind === 'studio-welcome' && personalWorkspaceResolved && personalWorkspaceAuthenticated) {
+      navigate({ kind: 'studio', entity: null }, { replace: true })
+    }
+  }, [route, personalWorkspaceResolved, personalWorkspaceAuthenticated, navigate])
 
   // On startup, probe extension presence (global) and, if a Controller IP was
   // remembered from a previous session, reconnect only that one (#210). Silent on
@@ -269,10 +346,11 @@ export default function App() {
   }, [])
 
   // A deep link to a studio entity that can't resolve (#308): unknown pattern id
-  // once patterns have loaded, or an entity kind that has no studio view yet.
+  // once patterns have loaded, or a non-pattern entity id whose view is not built.
   const routeEntity = route.kind === 'studio' ? route.entity : null
   const studioEntityMissing =
     routeEntity !== null &&
+    routeEntity.id !== null &&
     (routeEntity.kind !== 'patterns'
       ? true
       : patternsLoaded &&
@@ -280,14 +358,94 @@ export default function App() {
         !userPatterns.some((p) => p.id === routeEntity.id))
   const invalidDocRoute = route.kind === 'docs' && !isDocId(route.docId)
   const browseRoute = route.kind === 'gallery' || route.kind === 'pattern-detail'
+  const studioRoute = route.kind === 'studio'
   const detailPattern = route.kind === 'pattern-detail' ? galleryPatternBySlug(route.slug) : undefined
+
+  const cloneGalleryPatternIntoStudio = useCallback(async (pattern: GalleryPattern) => {
+    await initializePersonalContentProvider({ mode: 'remote-api' })
+    await initializeControllerMetadataStorage({ mode: 'remote-api' })
+    await usePatternStore.getState().loadPatterns()
+
+    const { userPatterns, addPattern } = usePatternStore.getState()
+    const record = galleryCloneRecord({
+      pattern,
+      existingNames: userPatterns.map((p) => p.name),
+      id: newPersonalContentId(),
+      updatedAt: Date.now(),
+    })
+    await addPattern(record)
+    openPatternRecord(record)
+    navigate({ kind: 'studio', entity: { kind: 'patterns', id: record.id } })
+  }, [navigate])
+
+  const queueGalleryClone = useCallback((pattern: GalleryPattern) => {
+    try {
+      window.localStorage.setItem(pendingGalleryCloneKey, pattern.slug)
+    } catch {
+      // If storage is unavailable, the user can still sign in and retry Clone.
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!personalWorkspaceResolved || !personalWorkspaceAuthenticated || cloneIntentInFlightRef.current) return
+    const slug = (() => {
+      try {
+        return window.localStorage.getItem(pendingGalleryCloneKey)
+      } catch {
+        return null
+      }
+    })()
+    if (!slug) return
+    const pattern = galleryPatternBySlug(slug)
+    try {
+      window.localStorage.removeItem(pendingGalleryCloneKey)
+    } catch {
+      // Harmless: the in-flight guard still prevents a duplicate clone this mount.
+    }
+    if (!pattern) return
+
+    cloneIntentInFlightRef.current = true
+    void cloneGalleryPatternIntoStudio(pattern).finally(() => {
+      cloneIntentInFlightRef.current = false
+    })
+  }, [personalWorkspaceResolved, personalWorkspaceAuthenticated, cloneGalleryPatternIntoStudio])
+
+  const cloneDetailPattern = useCallback((pattern: GalleryPattern) => {
+    queueGalleryClone(pattern)
+    if (personalWorkspaceResolved && personalWorkspaceAuthenticated) {
+      void cloneGalleryPatternIntoStudio(pattern)
+      return
+    }
+    navigate({ kind: 'studio-welcome' })
+  }, [
+    cloneGalleryPatternIntoStudio,
+    navigate,
+    personalWorkspaceAuthenticated,
+    personalWorkspaceResolved,
+    queueGalleryClone,
+  ])
+
   const openBrowseRouteStudio = () => {
-    if (detailPattern) {
-      useControlStore.getState().preserveForNextReset(useControlStore.getState().controlValues)
-      openDemoPattern(detailPattern.name)
+    if (personalWorkspaceResolved && !personalWorkspaceAuthenticated) {
+      if (studioWelcomeAcknowledged) {
+        window.location.assign('/api/auth/login')
+        return
+      }
+      navigate({ kind: 'studio-welcome' })
+      return
     }
     navigate({ kind: 'studio', entity: null })
   }
+
+  const continueFromStudioWelcome = useCallback(() => {
+    try {
+      window.localStorage.setItem(studioWelcomeAcknowledgedKey, '1')
+    } catch {
+      // If storage is unavailable, still let sign-in proceed.
+    }
+    setStudioWelcomeAcknowledged(true)
+    window.location.assign('/api/auth/login')
+  }, [])
 
   return (
     <div className="flex flex-col h-screen bg-zinc-950 text-zinc-100">
@@ -323,7 +481,6 @@ export default function App() {
         </span>
         <span className="ml-auto flex items-center gap-1.5 sm:gap-2.5">
           <ControllerBar />
-          <AuthStatus />
           {browseRoute && (
             <Button
               size="sm"
@@ -335,13 +492,31 @@ export default function App() {
               <span className="hidden min-[430px]:inline">Studio</span>
             </Button>
           )}
+          {studioRoute && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="border-zinc-700 bg-zinc-900 px-2 font-mono text-xs text-zinc-300 hover:border-zinc-500 hover:bg-zinc-900 hover:text-zinc-100 sm:px-2.5"
+              onClick={() => navigate({ kind: 'gallery' })}
+              title="Open Gallery"
+            >
+              <Images data-icon="inline-start" />
+              <span className="hidden min-[430px]:inline">Gallery</span>
+            </Button>
+          )}
+          <AuthStatus />
         </span>
       </header>
       {route.kind === 'gallery' ? (
         <GalleryPage />
+      ) : route.kind === 'studio-welcome' ? (
+        <StudioWelcomePage
+          onContinue={continueFromStudioWelcome}
+          onBack={() => navigate({ kind: 'gallery' }, { replace: true })}
+        />
       ) : route.kind === 'pattern-detail' ? (
         detailPattern ? (
-          <PatternDetailPage pattern={detailPattern} />
+          <PatternDetailPage pattern={detailPattern} onCloneToStudio={cloneDetailPattern} />
         ) : (
           <RouteMessage
             title="Pattern not found"
@@ -423,7 +598,7 @@ export default function App() {
                 variant="ghost"
                 className="text-xs text-zinc-400 bg-zinc-800/70 hover:bg-zinc-700/70 hover:text-zinc-300"
                 onClick={handleForkDemo}
-                title="Clone into Cloud Patterns"
+                title="Clone into Patterns"
               >
                 Clone
               </Button>

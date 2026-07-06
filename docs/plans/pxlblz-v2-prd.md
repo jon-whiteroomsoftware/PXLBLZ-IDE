@@ -46,11 +46,11 @@ signed-out use is a non-durable demo mode. v1 stays frozen on GitHub Pages.
 
 The Studio rail becomes an activity strip + list pane over five entity kinds:
 
-| Entity | What it is | Built-in flavor | Cloud flavor |
+| Entity | What it is | Built-in/catalog flavor | User flavor |
 |---|---|---|---|
-| Patterns | Pixelblaze-dialect programs | catalog (formerly "Built-in Patterns") | Cloud Patterns |
-| Maps | `function(pixelCount)` coordinate sources | stock maps | Cloud Maps |
-| Mixins | injectable source chunks consumed by the pass engine | built-in mixins | Cloud Mixins |
+| Patterns | Pixelblaze-dialect programs | catalog (formerly "Built-in Patterns") | Patterns |
+| Maps | `function(pixelCount)` coordinate sources | stock maps | Maps |
+| Mixins | injectable source chunks consumed by the pass engine | built-in mixins | Mixins |
 | Controllers | durable hardware profiles: inputs, transforms, bindings | — | per-user |
 | Shows | compositions: clips on zone tracks, compiled to one pattern | — | per-user |
 
@@ -183,10 +183,10 @@ Top-bar chrome (signed-out surfaces):
   entry linking back to the Gallery/browse experience (in a picker-friendly
   mode when invoked from the Studio).
 - The list pane keeps the v1 patterns-list conventions: dimension lens, name
-  search, collapsible sections, inline rename/delete, cloud sections gated on
-  auth.
+  search, collapsible sections, inline rename/delete, user-owned sections gated
+  on auth.
 - **Built-ins recede.** No permanent "Built-in Patterns" tree in the rail. The
-  cloud list is the rail; the catalog is the entry point for built-ins, plus a
+  user's list is the rail; the catalog is the entry point for built-ins, plus a
   dashed hint card when a list is empty/short. Cloning from the catalog is the
   existing fork flow.
 - The editor pane, preview pane, control deck, settings cascade, Run/Save

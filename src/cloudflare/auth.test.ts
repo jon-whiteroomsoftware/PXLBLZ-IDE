@@ -1,4 +1,5 @@
 import {
+  appRedirectUrlForRequest,
   buildGitHubAuthorizeUrl,
   clearCookie,
   createSessionCookie,
@@ -24,6 +25,15 @@ describe('Cloudflare GitHub auth helpers', () => {
     expect(url.searchParams.get('state')).toBe('state-abc')
     expect(url.searchParams.get('code_challenge')).toBe('challenge-xyz')
     expect(url.searchParams.get('code_challenge_method')).toBe('S256')
+  })
+
+  it('builds an app redirect URL from an override or the request origin', () => {
+    const request = new Request('http://localhost:8788/api/auth/callback')
+
+    expect(appRedirectUrlForRequest(request).toString()).toBe('http://localhost:8788/')
+    expect(appRedirectUrlForRequest(request, 'http://localhost:5174/PXLBLZ-IDE/').toString()).toBe(
+      'http://localhost:5174/PXLBLZ-IDE/',
+    )
   })
 
   it('allows all GitHub users when no owner allow-list is configured', () => {

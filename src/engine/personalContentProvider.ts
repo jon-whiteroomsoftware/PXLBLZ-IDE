@@ -38,12 +38,10 @@ export function storageModeForPersonalContentProvider(
 }
 
 export function personalContentCollectionLabel(
-  storageMode: PersonalContentStorageMode,
+  _storageMode: PersonalContentStorageMode,
   collection: PersonalContentCollection,
 ): string {
-  const noun = collection === 'patterns' ? 'Patterns' : 'Maps'
-  if (storageMode === 'api') return `Cloud ${noun}`
-  return `Cloud ${noun}`
+  return collection === 'patterns' ? 'Patterns' : 'Maps'
 }
 
 function signInRequired(): Promise<never> {

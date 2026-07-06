@@ -1,12 +1,24 @@
 import { useEffect, useRef, useState } from 'react'
-import { ChevronDown, Plus, FolderOpen, Search, X } from 'lucide-react'
+import {
+  BookOpen,
+  Braces,
+  ChevronDown,
+  Cpu,
+  FileCode2,
+  FolderOpen,
+  Images,
+  Map as MapIcon,
+  PanelsTopLeft,
+  Plus,
+  Search,
+  X,
+} from 'lucide-react'
 import { LIBRARIES } from '@/pixelblaze/libs'
 import { DEMOS } from '@/pixelblaze/stock/patterns'
 import { nameConflicts, uniquePatternName } from '@/engine/patternName'
 import { NEW_PATTERN_SRC } from '@/pixelblaze/newPattern'
 import { parseEpe } from '@/engine/epeImport'
 import { nativeDim, matchesLens, matchesQuery, type DimLens } from '@/engine/dimLens'
-import { DEMO_SECTIONS } from '@/engine/galleryCatalog'
 import {
   demoPersonalContentProvider,
   getPersonalContentProvider,
@@ -23,11 +35,11 @@ import { getAuthSession } from '@/engine/authSession'
 import { newPersonalContentId } from '@/engine/personalContentMetadata'
 import { useEditorStore } from '@/store/editorStore'
 import { usePatternStore, PatternRecord } from '@/store/patternStore'
-import { useMapStore, MapRecord, STOCK_MAP_ITEMS } from '@/store/mapStore'
+import { useMapStore, MapRecord } from '@/store/mapStore'
 import { useDocsStore } from '@/store/docsStore'
 import { useRouterStore } from '@/store/routerStore'
 import { useWorkspaceStore } from '@/store/workspaceStore'
-import { forkSettingsSnapshotForDemo } from '@/store/settingsCascade'
+import type { StudioEntityKind } from '@/engine/routes'
 import {
   AlertDialogRoot,
   AlertDialogTrigger,
@@ -45,15 +57,7 @@ type ScrollMetrics = {
   visible: boolean
 }
 
-// Module-scope factory for a fresh pattern record. Kept out of the component so its
-// impure id/timestamp generation isn't attributed to render (react-hooks/purity).
-function newPatternRecord(name: string, src: string): PatternRecord {
-  const id = newPersonalContentId()
-  return { id, name, src, controls: {}, updatedAt: Date.now() }
-}
-
 const DEFAULT_DEMO_NAME = 'IridescentFibers'
-const STOCK_PATTERNS_LABEL = 'Built-in Patterns'
 
 // A turn-down chevron, sized to read as a clear interactive affordance. Points down
 // when open, rotates to point right when collapsed. Inherits the header's text color
@@ -130,29 +134,8 @@ function SectionHeader({
   )
 }
 
-function SubsectionHeader({
-  label,
-  collapsed,
-  onToggle,
-}: {
-  label: string
-  collapsed: boolean
-  onToggle: () => void
-}) {
-  return (
-    <div
-      onClick={onToggle}
-      style={{ letterSpacing: '0.04em' }}
-      className="pt-2 pb-0.5 px-3 flex items-center justify-between gap-1 cursor-pointer select-none text-[11px] font-mono font-semibold text-structural uppercase hover:text-live"
-    >
-      <span className="truncate">{label}</span>
-      <CollapseChevron collapsed={collapsed} />
-    </div>
-  )
-}
-
-// Rows align flush with their nearest rail header so the pattern names share one
-// clean reading edge across "Cloud Patterns" and grouped demos.
+// Rows align flush with their nearest rail header so entity names share one
+// clean reading edge under their section header.
 const ROW_PAD = '12px'
 
 // Shared row chrome (#182): tight ~19px rows, a 2px amber left accent bar + subtle
@@ -190,47 +173,124 @@ const DIM_LENS_OPTIONS: { label: string; value: DimLens }[] = [
   { label: '3D', value: 3 },
 ]
 
-type RailMode = 'patterns' | 'maps'
+type RailMode = StudioEntityKind
 
-function RailModeSwitch({
+const ACTIVITY_ENTRIES: Array<{
+  kind: RailMode
+  label: string
+  short: string
+  icon: React.ReactNode
+}> = [
+  { kind: 'patterns', label: 'Patterns', short: 'PTRN', icon: <FileCode2 size={17} /> },
+  { kind: 'maps', label: 'Maps', short: 'MAPS', icon: <MapIcon size={17} /> },
+  { kind: 'mixins', label: 'Mixins', short: 'MIXN', icon: <Braces size={17} /> },
+  { kind: 'controllers', label: 'Controllers', short: 'CTRL', icon: <Cpu size={17} /> },
+  { kind: 'shows', label: 'Shows', short: 'SHOW', icon: <PanelsTopLeft size={17} /> },
+]
+
+function ActivityStrip({
   mode,
   onModeChange,
+  onCatalog,
 }: {
   mode: RailMode
   onModeChange: (mode: RailMode) => void
+  onCatalog: () => void
 }) {
   return (
     <div
       role="radiogroup"
-      aria-label="Rail mode"
-      className="grid grid-cols-2 border-b border-seam bg-zinc-950/20"
+      aria-label="Studio activity"
+      className="flex w-[46px] shrink-0 flex-col items-center border-r border-seam bg-zinc-950/35 py-2"
     >
-      {(['patterns', 'maps'] as const).map((value) => {
-        const active = mode === value
+      {ACTIVITY_ENTRIES.map((entry) => {
+        const active = mode === entry.kind
         return (
           <button
-            key={value}
+            key={entry.kind}
             role="radio"
             aria-checked={active}
-            onClick={() => onModeChange(value)}
+            aria-label={entry.label}
+            title={entry.label}
+            onClick={() => onModeChange(entry.kind)}
             className={[
-              'relative h-7 text-[11px] font-semibold uppercase transition-colors',
-              value === 'maps' ? 'border-l border-seam' : '',
+              'mb-1 flex w-full flex-col items-center gap-0.5 px-1 py-1 text-[9px] font-semibold uppercase tracking-wide transition-colors',
               active
-                ? 'text-zinc-100'
-                : 'text-zinc-600 hover:text-zinc-400 hover:bg-zinc-900/45',
+                ? 'text-live'
+                : 'text-zinc-600 hover:bg-zinc-900/55 hover:text-zinc-300',
             ].join(' ')}
           >
-            {value === 'patterns' ? 'Patterns' : 'Maps'}
-            {active && (
-              <span
-                aria-hidden
-                className="absolute inset-x-3 bottom-0 h-px bg-live/70"
-              />
-            )}
+            <span className={[
+              'grid size-7 place-items-center rounded border transition-colors',
+              active ? 'border-live/45 bg-live/10' : 'border-transparent',
+            ].join(' ')}>
+              {entry.icon}
+            </span>
+            <span>{entry.short}</span>
           </button>
         )
       })}
+      <button
+        type="button"
+        aria-label="Catalog"
+        title="Catalog"
+        onClick={onCatalog}
+        className="mt-auto flex w-full flex-col items-center gap-0.5 px-1 py-1 text-[9px] font-semibold uppercase tracking-wide text-zinc-600 transition-colors hover:bg-zinc-900/55 hover:text-zinc-300"
+      >
+        <span className="grid size-7 place-items-center rounded border border-transparent">
+          <Images size={17} />
+        </span>
+        <span>CTLG</span>
+      </button>
+    </div>
+  )
+}
+
+function CatalogHint({
+  noun,
+  detail,
+  onCatalog,
+}: {
+  noun: string
+  detail: string
+  onCatalog: () => void
+}) {
+  return (
+    <div className="mx-3 mt-3 rounded border border-dashed border-zinc-700/80 bg-zinc-950/25 px-3 py-2 text-[11px] leading-relaxed text-zinc-500">
+      <p>{detail}</p>
+      <button
+        type="button"
+        onClick={onCatalog}
+        className="mt-1 inline-flex items-center gap-1 text-live hover:text-amber-300"
+      >
+        <BookOpen size={12} aria-hidden />
+        Browse the catalog
+        <span className="sr-only"> for {noun}</span>
+      </button>
+    </div>
+  )
+}
+
+function EntityStubList({
+  title,
+  label,
+  detail,
+}: {
+  title: string
+  label: string
+  detail: string
+}) {
+  return (
+    <div className="flex h-full flex-col text-xs font-mono">
+      <div className="border-b border-seam px-3 py-2">
+        <div className="text-sm font-semibold text-zinc-200">{title}</div>
+      </div>
+      <div className="px-3 py-3">
+        <SectionHeader label={label} first collapsed={false} onToggle={() => {}} />
+        <div className="mt-3 rounded border border-dashed border-zinc-700/80 bg-zinc-950/25 px-3 py-3 text-[11px] leading-relaxed text-zinc-500">
+          {detail}
+        </div>
+      </div>
     </div>
   )
 }
@@ -383,62 +443,8 @@ function RailFilterBar({
   )
 }
 
-function ListItem({
-  label,
-  active,
-  dim,
-  navKey,
-  onFork,
-  onClick,
-  onRowRef,
-  onKeyDown,
-  onMouseEnter,
-  onMouseLeave,
-}: {
-  label: string
-  active: boolean
-  dim?: string
-  navKey?: string
-  onFork?: () => void
-  onClick: () => void
-  onRowRef?: (key: string, el: HTMLLIElement | null) => void
-  onKeyDown?: (e: React.KeyboardEvent<HTMLLIElement>, key: string) => void
-  onMouseEnter?: (e: React.MouseEvent<HTMLLIElement>) => void
-  onMouseLeave?: () => void
-}) {
-  return (
-    <li
-      ref={(el) => { if (navKey) onRowRef?.(navKey, el) }}
-      onClick={onClick}
-      onKeyDown={navKey ? (e) => onKeyDown?.(e, navKey) : undefined}
-      onMouseEnter={onMouseEnter}
-      onMouseLeave={onMouseLeave}
-      tabIndex={navKey ? 0 : undefined}
-      data-pattern-nav-key={navKey}
-      style={{ paddingLeft: ROW_PAD }}
-      className={rowClass(active)}
-    >
-      {active && <ActiveBar />}
-      <span className="flex-1 min-w-0 truncate">{label}</span>
-      {dim && <DimPill dim={dim} />}
-      {onFork && (
-        <span className="absolute right-2 top-0 bottom-0 flex items-center opacity-0 transition-opacity group-hover:opacity-100">
-          <button
-            onClick={(e) => { e.stopPropagation(); onFork() }}
-            title="Clone"
-            aria-label="Clone"
-            className="text-zinc-500 hover:text-live text-xs px-0.5"
-          >
-            ✎
-          </button>
-        </span>
-      )}
-    </li>
-  )
-}
-
-// A selectable, in-place-renamable, deletable list row shared by "Cloud Patterns"
-// and "Cloud Maps" (#141). `noun` only varies the rename-conflict / delete copy.
+// A selectable, in-place-renamable, deletable list row shared by Patterns and
+// Maps (#141). `noun` only varies the rename-conflict / delete copy.
 function EditableListItem({
   name,
   noun,
@@ -632,10 +638,8 @@ export function PatternList() {
   const setPreviewSource = useEditorStore((s) => s.setPreviewSource)
   const setPreviewPatternName = useEditorStore((s) => s.setPreviewPatternName)
   const closeDocs = useDocsStore((s) => s.closeDocs)
-  const activeDemoName = usePatternStore((s) => s.activeDemoName)
   const activePatternId = usePatternStore((s) => s.activePatternId)
   const userPatterns = usePatternStore((s) => s.userPatterns)
-  const setActiveDemo = usePatternStore((s) => s.setActiveDemo)
   const setActivePattern = usePatternStore((s) => s.setActivePattern)
   const loadPatterns = usePatternStore((s) => s.loadPatterns)
   const renamePattern = usePatternStore((s) => s.renamePattern)
@@ -648,12 +652,12 @@ export function PatternList() {
   const editingMap = useMapStore((s) => s.editingMap)
   const createNewMap = useMapStore((s) => s.createNewMap)
   const openExistingMap = useMapStore((s) => s.openExistingMap)
-  const openStockMap = useMapStore((s) => s.openStockMap)
-  const cloneStockMap = useMapStore((s) => s.cloneStockMap)
   const closeMapEditor = useMapStore((s) => s.closeMapEditor)
+  const navigate = useRouterStore((s) => s.navigate)
+  const route = useRouterStore((s) => s.route)
 
   // Open-from-disk (.epe import) lives next to "New pattern" (#141): both create
-  // a pattern, so they sit together on the "Cloud Patterns" header.
+  // a pattern, so they sit together on the Patterns header.
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [importError, setImportError] = useState<string | null>(null)
   const importErrorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -696,12 +700,21 @@ export function PatternList() {
     reader.readAsText(file)
   }
 
-  const [railMode, setRailMode] = useState<RailMode>('patterns')
+  const railMode: RailMode =
+    route.kind === 'studio' && route.entity !== null
+      ? route.entity.kind
+      : 'patterns'
   // The dimension lens (#251). Ephemeral: component state, resets to All on reload.
   const [dimLens, setDimLens] = useState<DimLens>('all')
   // The type-down name search (#252). Ephemeral too: resets to '' on reload, and
   // separate per rail mode so a map search doesn't leak into pattern browsing.
-  const [queries, setQueries] = useState<Record<RailMode, string>>({ patterns: '', maps: '' })
+  const [queries, setQueries] = useState<Record<RailMode, string>>({
+    patterns: '',
+    maps: '',
+    mixins: '',
+    controllers: '',
+    shows: '',
+  })
 
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({})
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -714,8 +727,13 @@ export function PatternList() {
   const setQuery = (next: string) => setQueries((q) => ({ ...q, [railMode]: next }))
 
   function handleRailModeChange(next: RailMode) {
-    setRailMode(next)
     if (next === 'maps' && dimLens === 1) setDimLens(2)
+    closeDocs()
+    navigate({ kind: 'studio', entity: { kind: next, id: null } })
+  }
+
+  function openCatalog() {
+    navigate({ kind: 'gallery' })
   }
 
   function updateScrollMetrics() {
@@ -757,10 +775,12 @@ export function PatternList() {
       if (cancelled) return
       await loadPatterns()
       if (cancelled) return
-      // A deep link to a studio entity outranks the last-active restore (#308):
-      // App's route effect opens the addressed pattern once loadPatterns lands.
+      // A deep link to a concrete studio entity outranks the last-active restore
+      // (#308): App's route effect opens the addressed pattern once loadPatterns
+      // lands. Kind-only shell routes (/studio/maps, /studio/mixins, ...) still
+      // show the restored/default editor content beside the active rail list.
       const route = useRouterStore.getState().route
-      if (route.kind === 'studio' && route.entity !== null) return
+      if (route.kind === 'studio' && route.entity !== null && route.entity.id !== null) return
       const last = await getPersonalContentProvider().getLastActive().catch(() => undefined)
       const { userPatterns, setActivePattern, setActiveLibrary, setActiveDemo } = usePatternStore.getState()
       const { setSource, setIsReadOnly, setPreviewSource, setPreviewPatternName } = useEditorStore.getState()
@@ -803,36 +823,6 @@ export function PatternList() {
     }
   }, [loadPatterns, setGlobalWorkspaceAuthenticated])
 
-  function openDemo(name: string) {
-    closeMapEditor()
-    closeDocs()
-    setActiveDemo(name)
-    setSource(DEMOS[name])
-    setPreviewSource(DEMOS[name])
-    setPreviewPatternName(name)
-    setIsReadOnly(true)
-  }
-
-  // Fork a demo into an editable user pattern (#182): the per-row "edit" action in
-  // the built-in patterns list. Mirrors the top-bar "Edit" fork, but for any demo without first
-  // having to open it.
-  async function handleForkDemo(name: string) {
-    if (!personalWorkspaceAuthenticated) return
-    closeMapEditor()
-    closeDocs()
-    const newName = uniquePatternName(name, userPatterns.map((p) => p.name))
-    const record = newPatternRecord(newName, DEMOS[name])
-    // Snapshot the demo's effective settings as frozen layer-1 overrides
-    // so the fork keeps the demo's curated look with no live pointer back to it.
-    record.settings = forkSettingsSnapshotForDemo(name)
-    await addPattern(record)
-    setActivePattern(record.id)
-    setSource(record.src)
-    setPreviewSource(record.src)
-    setPreviewPatternName(record.name)
-    setIsReadOnly(false)
-  }
-
   function openUserPattern(pattern: PatternRecord) {
     closeMapEditor()
     closeDocs()
@@ -843,7 +833,7 @@ export function PatternList() {
     setIsReadOnly(false)
   }
 
-  // Create a fresh "Untitled Pattern" and open it. Lives next to "Cloud Patterns"
+  // Create a fresh "Untitled Pattern" and open it. Lives next to Patterns
   // (#141) so a new pattern is created right by its list.
   async function handleCreatePattern() {
     if (!personalWorkspaceAuthenticated) return
@@ -880,13 +870,6 @@ export function PatternList() {
     (pattern) =>
       matchesLens(nativeDim(pattern.src), dimLens) && matchesQuery(pattern.name, query),
   )
-  const visibleDemoSections = DEMO_SECTIONS.map((section) => ({
-    ...section,
-    names: section.names.filter(
-      (name) =>
-        matchesLens(nativeDim(DEMOS[name] ?? ''), dimLens) && matchesQuery(name, query),
-    ),
-  })).filter((section) => section.names.length > 0)
 
   const patternNavItems = [
     ...(!isCollapsed(personalPatternsLabel)
@@ -894,16 +877,6 @@ export function PatternList() {
         key: `pattern:${pattern.id}`,
         activate: () => openUserPattern(pattern),
       }))
-      : []),
-    ...(!isCollapsed(STOCK_PATTERNS_LABEL)
-      ? visibleDemoSections.flatMap((section) =>
-        isCollapsed(section.label)
-          ? []
-          : section.names.map((name) => ({
-            key: `demo:${name}`,
-            activate: () => openDemo(name),
-          })),
-      )
       : []),
   ]
 
@@ -936,7 +909,7 @@ export function PatternList() {
   }
 
   return (
-    <div className="flex flex-col h-full text-xs font-mono">
+    <div data-testid="studio-rail" className="flex h-full text-xs font-mono">
       <input
         ref={fileInputRef}
         type="file"
@@ -944,183 +917,172 @@ export function PatternList() {
         className="hidden"
         onChange={handleFileChange}
       />
-      <RailModeSwitch mode={railMode} onModeChange={handleRailModeChange} />
-      <RailFilterBar
-        lens={dimLens}
-        onLensChange={setDimLens}
-        query={query}
-        onQueryChange={setQuery}
-        hideOneDimensional={railMode === 'maps'}
+      <ActivityStrip
+        mode={railMode}
+        onModeChange={handleRailModeChange}
+        onCatalog={openCatalog}
       />
-      <div className="relative flex-1 min-h-0">
-        <div
-          ref={scrollRef}
-          data-testid="pattern-list-scroll"
-          onScroll={updateScrollMetrics}
-          className="rail-list-scroll h-full overflow-y-auto overflow-x-hidden pb-2"
-        >
-          {railMode === 'patterns' && (
-            <>
-          <SectionHeader
-            label={personalPatternsLabel}
-            first
-            collapsed={isCollapsed(personalPatternsLabel)}
-            onToggle={() => toggleCollapsed(personalPatternsLabel)}
-            action={
-              personalWorkspaceAuthenticated ? (
-                <>
-                <HeaderAction
-                  icon={<FolderOpen size={14} />}
-                  title="Open pattern from .epe file"
-                  onClick={() => fileInputRef.current?.click()}
-                />
-                <HeaderAction icon={<Plus size={14} />} title="New pattern" onClick={handleCreatePattern} />
-                </>
-              ) : null
-            }
-          />
-          {importError && (
-            <p className="pl-3 pr-3 py-1 text-red-400 truncate" title={importError}>{importError}</p>
-          )}
-          {!isCollapsed(personalPatternsLabel) && (
-            personalWorkspaceAuthenticated ? (
-              <ul className="pt-2">
-                {visibleUserPatterns.map((pattern) => (
-                  <EditableListItem
-                    key={pattern.id}
-                    name={pattern.name}
-                    noun="pattern"
-                    active={activePatternId === pattern.id}
-                    dim={dimLens === 'all' ? `${nativeDim(pattern.src)}D` : undefined}
-                    takenNames={userPatterns.filter((p) => p.id !== pattern.id).map((p) => p.name)}
-                    navKey={`pattern:${pattern.id}`}
-                    onSelect={() => openUserPattern(pattern)}
-                    onRename={(name) => renamePattern(pattern.id, name)}
-                    onDelete={() => removePattern(pattern.id)}
-                    onRowRef={handlePatternRowRef}
-                    onRowKeyDown={handlePatternRowKeyDown}
-                  />
-                ))}
-              </ul>
-            ) : (
-              <p className="pl-3 pr-3 py-2 text-zinc-600 italic select-none">
-                <a href="/api/auth/login" className="text-live hover:underline">Sign in</a>
-                {' '}to save cloud patterns
-              </p>
-            )
-          )}
+      <div className="flex min-w-0 flex-1 flex-col">
+        {(railMode === 'patterns' || railMode === 'maps') && (
+          <>
+            <div className="border-b border-seam px-3 py-2">
+              <div className="mb-1 text-sm font-semibold text-zinc-200">
+                {railMode === 'patterns' ? 'Patterns' : 'Maps'}
+              </div>
+              <RailFilterBar
+                lens={dimLens}
+                onLensChange={setDimLens}
+                query={query}
+                onQueryChange={setQuery}
+                hideOneDimensional={railMode === 'maps'}
+              />
+            </div>
+            <div className="relative flex-1 min-h-0">
+              <div
+                ref={scrollRef}
+                data-testid="pattern-list-scroll"
+                onScroll={updateScrollMetrics}
+                className="rail-list-scroll h-full overflow-y-auto overflow-x-hidden pb-2"
+              >
+                {railMode === 'patterns' && (
+                  <>
+                    <SectionHeader
+                      label={personalPatternsLabel}
+                      first
+                      collapsed={isCollapsed(personalPatternsLabel)}
+                      onToggle={() => toggleCollapsed(personalPatternsLabel)}
+                      action={
+                        personalWorkspaceAuthenticated ? (
+                          <>
+                            <HeaderAction
+                              icon={<FolderOpen size={14} />}
+                              title="Open pattern from .epe file"
+                              onClick={() => fileInputRef.current?.click()}
+                            />
+                            <HeaderAction icon={<Plus size={14} />} title="New pattern" onClick={handleCreatePattern} />
+                          </>
+                        ) : null
+                      }
+                    />
+                    {importError && (
+                      <p className="pl-3 pr-3 py-1 text-red-400 truncate" title={importError}>{importError}</p>
+                    )}
+                    {!isCollapsed(personalPatternsLabel) && (
+                      personalWorkspaceAuthenticated ? (
+                        visibleUserPatterns.length === 0 ? (
+                          <p className="pl-3 pr-3 py-1 text-zinc-600 italic select-none">No patterns yet</p>
+                        ) : (
+                          <ul className="pt-2">
+                            {visibleUserPatterns.map((pattern) => (
+                              <EditableListItem
+                                key={pattern.id}
+                                name={pattern.name}
+                                noun="pattern"
+                                active={activePatternId === pattern.id}
+                                dim={dimLens === 'all' ? `${nativeDim(pattern.src)}D` : undefined}
+                                takenNames={userPatterns.filter((p) => p.id !== pattern.id).map((p) => p.name)}
+                                navKey={`pattern:${pattern.id}`}
+                                onSelect={() => openUserPattern(pattern)}
+                                onRename={(name) => renamePattern(pattern.id, name)}
+                                onDelete={() => removePattern(pattern.id)}
+                                onRowRef={handlePatternRowRef}
+                                onRowKeyDown={handlePatternRowKeyDown}
+                              />
+                            ))}
+                          </ul>
+                        )
+                      ) : (
+                        <p className="pl-3 pr-3 py-2 text-zinc-600 italic select-none">
+                          <a href="/api/auth/login" className="text-live hover:underline">Sign in</a>
+                          {' '}to save patterns
+                        </p>
+                      )
+                    )}
+                    <CatalogHint
+                      noun="patterns"
+                      detail="Need a starting point? Browse built-in patterns in the catalog, then open one in Studio when it is time to edit."
+                      onCatalog={openCatalog}
+                    />
+                  </>
+                )}
 
-          <SectionHeader
-            label={STOCK_PATTERNS_LABEL}
-            collapsed={isCollapsed(STOCK_PATTERNS_LABEL)}
-            onToggle={() => toggleCollapsed(STOCK_PATTERNS_LABEL)}
-          />
-          {!isCollapsed(STOCK_PATTERNS_LABEL) &&
-            visibleDemoSections.map((section) => {
-              const collapsed = isCollapsed(section.label)
-              return (
-                <div key={section.label}>
-                  <SubsectionHeader
-                    label={section.label}
-                    collapsed={collapsed}
-                    onToggle={() => toggleCollapsed(section.label)}
-                  />
-                  {!collapsed && (
-                    <ul>
-                      {section.names.map((name) => (
-                        <ListItem
-                          key={name}
-                          label={name}
-                          navKey={`demo:${name}`}
-                          dim={dimLens === 'all' ? `${nativeDim(DEMOS[name] ?? '')}D` : undefined}
-                          active={activeDemoName === name}
-                          onClick={() => openDemo(name)}
-                          onFork={personalWorkspaceAuthenticated ? () => handleForkDemo(name) : undefined}
-                          onRowRef={handlePatternRowRef}
-                          onKeyDown={handlePatternRowKeyDown}
-                        />
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              )
-            })}
+                {railMode === 'maps' && (() => {
+                  const visibleMaps = userMaps.filter(
+                    (map) => matchesLens(map.dim, dimLens) && matchesQuery(map.name, query),
+                  )
+                  return (
+                    <>
+                      <SectionHeader
+                        label={personalMapsLabel}
+                        first
+                        collapsed={isCollapsed(personalMapsLabel)}
+                        onToggle={() => toggleCollapsed(personalMapsLabel)}
+                        action={personalWorkspaceAuthenticated
+                          ? <HeaderAction icon={<Plus size={14} />} title="New map" onClick={createNewMap} />
+                          : null}
+                      />
+                      {!isCollapsed(personalMapsLabel) && (
+                        !personalWorkspaceAuthenticated ? (
+                          <p className="pl-3 pr-3 py-2 text-zinc-600 italic select-none">
+                            <a href="/api/auth/login" className="text-live hover:underline">Sign in</a>
+                            {' '}to save maps
+                          </p>
+                        ) : visibleMaps.length === 0 ? (
+                          userMaps.length === 0 ? (
+                            <p className="pl-3 pr-3 py-1 text-zinc-600 italic select-none">No custom maps yet</p>
+                          ) : null
+                        ) : (
+                          <ul className="pt-2">
+                            {visibleMaps.map((map) => (
+                              <EditableListItem
+                                key={map.id}
+                                name={map.name}
+                                noun="map"
+                                active={editingMap?.kind === 'existing' && editingMap.id === map.id}
+                                dim={dimLens === 'all' ? `${map.dim}D` : undefined}
+                                takenNames={userMaps.filter((m) => m.id !== map.id).map((m) => m.name)}
+                                onSelect={() => openUserMap(map)}
+                                onRename={(name) => renameMap(map.id, name)}
+                                onDelete={() => removeMap(map.id)}
+                              />
+                            ))}
+                          </ul>
+                        )
+                      )}
+                      <CatalogHint
+                        noun="maps"
+                        detail="Stock maps moved to the catalog so the rail stays focused on your saved map workspace."
+                        onCatalog={openCatalog}
+                      />
+                    </>
+                  )
+                })()}
+              </div>
+              <RailScrollThumb metrics={scrollMetrics} scrollRef={scrollRef} />
+            </div>
           </>
         )}
-
-          {railMode === 'maps' && (() => {
-        const visibleMaps = userMaps.filter(
-          (map) => matchesLens(map.dim, dimLens) && matchesQuery(map.name, query),
-        )
-        const visibleStockMaps = STOCK_MAP_ITEMS.filter(
-          (map) => matchesLens(map.dim, dimLens) && matchesQuery(map.name, query),
-        )
-        return (
-          <>
-            <SectionHeader
-              label={personalMapsLabel}
-              first
-              collapsed={isCollapsed(personalMapsLabel)}
-              onToggle={() => toggleCollapsed(personalMapsLabel)}
-              action={personalWorkspaceAuthenticated
-                ? <HeaderAction icon={<Plus size={14} />} title="New map" onClick={createNewMap} />
-                : null}
-            />
-            {!isCollapsed(personalMapsLabel) && (
-              // The "no maps yet" empty state only fits when the user genuinely has no
-              // maps. If a filter (lens or query) merely emptied the list, leave just
-              // the header — the message would misread as "you have none" (#252).
-              !personalWorkspaceAuthenticated ? (
-                <p className="pl-3 pr-3 py-2 text-zinc-600 italic select-none">
-                  <a href="/api/auth/login" className="text-live hover:underline">Sign in</a>
-                  {' '}to save cloud maps
-                </p>
-              ) : visibleMaps.length === 0 ? (
-                userMaps.length === 0 ? (
-                  <p className="pl-3 pr-3 py-1 text-zinc-600 italic select-none">No custom maps yet</p>
-                ) : null
-              ) : (
-                <ul>
-                  {visibleMaps.map((map) => (
-                    <EditableListItem
-                      key={map.id}
-                      name={map.name}
-                      noun="map"
-                      active={editingMap?.kind === 'existing' && editingMap.id === map.id}
-                      dim={dimLens === 'all' ? `${map.dim}D` : undefined}
-                      takenNames={userMaps.filter((m) => m.id !== map.id).map((m) => m.name)}
-                      onSelect={() => openUserMap(map)}
-                      onRename={(name) => renameMap(map.id, name)}
-                      onDelete={() => removeMap(map.id)}
-                    />
-                  ))}
-                </ul>
-              )
-            )}
-            <SectionHeader
-              label="Stock Maps"
-              collapsed={isCollapsed('Stock Maps')}
-              onToggle={() => toggleCollapsed('Stock Maps')}
-            />
-            {!isCollapsed('Stock Maps') && (
-              <ul>
-                {visibleStockMaps.map((map) => (
-                  <ListItem
-                    key={map.id}
-                    label={map.name}
-                    active={editingMap?.kind === 'stock' && editingMap.id === map.id}
-                    dim={dimLens === 'all' ? `${map.dim}D` : undefined}
-                    onClick={() => openStockMap(map.id)}
-                    onFork={personalWorkspaceAuthenticated ? () => void cloneStockMap(map.id) : undefined}
-                  />
-                ))}
-              </ul>
-            )}
-          </>
-        )
-          })()}
-        </div>
-        <RailScrollThumb metrics={scrollMetrics} scrollRef={scrollRef} />
+        {railMode === 'mixins' && (
+          <EntityStubList
+            title="Mixins"
+            label="Mixins"
+            detail="Mixin lists land in their own slice. This rail entry is reserved so the v2 Studio navigation can settle first."
+          />
+        )}
+        {railMode === 'controllers' && (
+          <EntityStubList
+            title="Controllers"
+            label="My Controllers"
+            detail="Controller profiles become durable workspace entities in a following slice. Live connection controls stay in the top bar for now."
+          />
+        )}
+        {railMode === 'shows' && (
+          <EntityStubList
+            title="Shows"
+            label="Shows"
+            detail="Shows will compose clips across zones once the underlying entity model is ready."
+          />
+        )}
       </div>
     </div>
   )

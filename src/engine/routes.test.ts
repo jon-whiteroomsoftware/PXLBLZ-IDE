@@ -8,8 +8,8 @@ import {
 } from './routes'
 
 describe('parseRoute', () => {
-  it('parses the root path as plain studio', () => {
-    expect(parseRoute('/', '/')).toEqual({ kind: 'studio', entity: null })
+  it('parses the root path as the public gallery', () => {
+    expect(parseRoute('/', '/')).toEqual({ kind: 'gallery' })
   })
 
   it('parses /gallery', () => {
@@ -20,7 +20,19 @@ describe('parseRoute', () => {
     expect(parseRoute('/studio', '/')).toEqual({ kind: 'studio', entity: null })
   })
 
+  it('parses /studio-welcome', () => {
+    expect(parseRoute('/studio-welcome', '/')).toEqual({ kind: 'studio-welcome' })
+  })
+
   it('parses entity-addressed studio routes', () => {
+    expect(parseRoute('/studio/patterns', '/')).toEqual({
+      kind: 'studio',
+      entity: { kind: 'patterns', id: null },
+    })
+    expect(parseRoute('/studio/mixins', '/')).toEqual({
+      kind: 'studio',
+      entity: { kind: 'mixins', id: null },
+    })
     expect(parseRoute('/studio/patterns/abc-123', '/')).toEqual({
       kind: 'studio',
       entity: { kind: 'patterns', id: 'abc-123' },
@@ -61,15 +73,11 @@ describe('parseRoute', () => {
 
   it('treats unknown paths as not-found', () => {
     expect(parseRoute('/bogus', '/')).toEqual({ kind: 'not-found', path: '/bogus' })
-    expect(parseRoute('/studio/patterns', '/')).toEqual({
-      kind: 'not-found',
-      path: '/studio/patterns',
-    })
     expect(parseRoute('/docs', '/')).toEqual({ kind: 'not-found', path: '/docs' })
   })
 
   it('strips a non-root base path', () => {
-    expect(parseRoute('/PXLBLZ-IDE/', '/PXLBLZ-IDE/')).toEqual({ kind: 'studio', entity: null })
+    expect(parseRoute('/PXLBLZ-IDE/', '/PXLBLZ-IDE/')).toEqual({ kind: 'gallery' })
     expect(parseRoute('/PXLBLZ-IDE/gallery', '/PXLBLZ-IDE/')).toEqual({ kind: 'gallery' })
     expect(parseRoute('/PXLBLZ-IDE/studio/patterns/x', '/PXLBLZ-IDE/')).toEqual({
       kind: 'studio',
@@ -96,7 +104,11 @@ describe('parseRoute', () => {
 describe('routePath', () => {
   it('formats each route kind', () => {
     expect(routePath({ kind: 'gallery' }, '/')).toBe('/gallery')
+    expect(routePath({ kind: 'studio-welcome' }, '/')).toBe('/studio-welcome')
     expect(routePath({ kind: 'studio', entity: null }, '/')).toBe('/studio')
+    expect(routePath({ kind: 'studio', entity: { kind: 'maps', id: null } }, '/')).toBe(
+      '/studio/maps',
+    )
     expect(routePath({ kind: 'studio', entity: { kind: 'patterns', id: 'x' } }, '/')).toBe(
       '/studio/patterns/x',
     )
@@ -118,7 +130,9 @@ describe('routePath', () => {
   it('round-trips through parseRoute', () => {
     const routes: Route[] = [
       { kind: 'gallery' },
+      { kind: 'studio-welcome' },
       { kind: 'studio', entity: null },
+      { kind: 'studio', entity: { kind: 'controllers', id: null } },
       { kind: 'studio', entity: { kind: 'maps', id: 'm-1' } },
       { kind: 'pattern-detail', slug: 'slug' },
       { kind: 'docs', docId: 'ecosystem-primer' },

@@ -8,6 +8,7 @@ import { useMapStore, mapInitialState, type MapRecord } from '@/store/mapStore'
 import { useWorkspaceStore, workspaceInitialState } from '@/store/workspaceStore'
 import { DEMOS } from '@/pixelblaze/stock/patterns'
 import { getAuthSession } from '@/engine/authSession'
+import { useRouterStore, routerInitialState } from '@/store/routerStore'
 
 vi.mock('@/engine/authSession', () => ({
   getAuthSession: vi.fn(),
@@ -49,6 +50,8 @@ beforeEach(() => {
   usePatternStore.setState(patternInitialState)
   useMapStore.setState(mapInitialState)
   useWorkspaceStore.setState(workspaceInitialState)
+  useRouterStore.setState(routerInitialState)
+  window.history.replaceState(null, '', '/studio')
 })
 
 afterEach(() => {
@@ -70,10 +73,10 @@ async function switchToMaps(user: ReturnType<typeof userEvent.setup>) {
 }
 
 describe('PatternList', () => {
-  it('labels personal sections as cloud content', async () => {
+  it('labels personal sections with the entity name', async () => {
     render(<PatternList />)
 
-    expect(await screen.findByText('Cloud Patterns')).toBeInTheDocument()
+    expect(await screen.findAllByText('Patterns')).toHaveLength(2)
   })
 
   it('opens IridescentFibers for visitors without a saved last-active pattern', async () => {
@@ -91,45 +94,24 @@ describe('PatternList', () => {
     expect(await screen.findByText('Sign in')).toBeInTheDocument()
   })
 
-  it('clicking a demo sets previewSource to the demo source', async () => {
-    const user = userEvent.setup()
+  it('renders the five-entity activity strip plus Catalog entry', async () => {
     render(<PatternList />)
 
-    const demoName = Object.keys(DEMOS).sort()[0]
-    await user.click(screen.getByText(new RegExp(`^${demoName}`)))
-
-    expect(useEditorStore.getState().previewSource).toBe(DEMOS[demoName])
+    expect(await screen.findByRole('radio', { name: 'Patterns' })).toHaveAttribute('aria-checked', 'true')
+    for (const name of ['Maps', 'Mixins', 'Controllers', 'Shows']) {
+      expect(screen.getByRole('radio', { name })).toBeInTheDocument()
+    }
+    expect(screen.getByRole('button', { name: 'Catalog' })).toBeInTheDocument()
   })
 
-  it('clicking a demo sets previewPatternName to the demo name', async () => {
+  it('selects entity kinds through /studio/<kind> routes', async () => {
     const user = userEvent.setup()
     render(<PatternList />)
 
-    const demoName = Object.keys(DEMOS).sort()[0]
-    await user.click(screen.getByText(new RegExp(`^${demoName}`)))
+    await user.click(screen.getByRole('radio', { name: 'Mixins' }))
 
-    expect(useEditorStore.getState().previewPatternName).toBe(demoName)
-  })
-
-  it('moves between focused demo rows with the arrow keys', async () => {
-    const user = userEvent.setup()
-    render(<PatternList />)
-
-    const firstRow = screen.getByText(/^Kishimisu$/).closest('li')
-    const nextRow = screen.getByText(/^NeonSquircles$/).closest('li')
-    expect(firstRow).toBeInTheDocument()
-    expect(nextRow).toBeInTheDocument()
-
-    await user.click(firstRow!)
-    firstRow!.focus()
-    await user.keyboard('{ArrowDown}')
-
-    expect(useEditorStore.getState().previewPatternName).toBe('NeonSquircles')
-    expect(nextRow).toHaveFocus()
-
-    await user.keyboard('{ArrowUp}')
-    expect(useEditorStore.getState().previewPatternName).toBe('Kishimisu')
-    expect(firstRow).toHaveFocus()
+    expect(window.location.pathname).toBe('/studio/mixins')
+    expect(screen.getAllByText('Mixins')).toHaveLength(2)
   })
 
   it('shows the empty state when there are no custom maps', async () => {
@@ -139,7 +121,7 @@ describe('PatternList', () => {
     expect(await screen.findByText('No custom maps yet')).toBeInTheDocument()
   })
 
-  it('lists user-authored custom maps under Cloud Maps', async () => {
+  it('lists user-authored custom maps under Maps', async () => {
     mockMaps = [CUSTOM_MAP]
     const user = userEvent.setup()
     render(<PatternList />)
@@ -147,13 +129,14 @@ describe('PatternList', () => {
     expect(await screen.findByText('My Tree')).toBeInTheDocument()
   })
 
-  it('shows stock maps in Maps mode but not in Patterns mode', async () => {
+  it('keeps stock maps out of the rail and points to the Catalog', async () => {
     const user = userEvent.setup()
     render(<PatternList />)
     expect(screen.queryByText('Stock Maps')).not.toBeInTheDocument()
     await switchToMaps(user)
-    expect(screen.getByText('Stock Maps')).toBeInTheDocument()
-    expect(screen.getByText('Cube shell')).toBeInTheDocument()
+    expect(screen.queryByText('Stock Maps')).not.toBeInTheDocument()
+    expect(screen.queryByText('Cube shell')).not.toBeInTheDocument()
+    expect(screen.getByText(/Stock maps moved to the catalog/i)).toBeInTheDocument()
   })
 
   it('hides the 1D dimension lens in Maps mode', async () => {
@@ -208,7 +191,7 @@ describe('PatternList', () => {
     await user.type(screen.getByRole('textbox', { name: /search by name/i }), 'nope')
     expect(screen.queryByText('My Tree')).not.toBeInTheDocument()
     // Header stays, but the genuine-empty message must not appear.
-    expect(screen.getByText('Cloud Maps')).toBeInTheDocument()
+    expect(screen.getAllByText('Maps')).toHaveLength(2)
     expect(screen.queryByText('No custom maps yet')).not.toBeInTheDocument()
   })
 
@@ -229,25 +212,20 @@ describe('PatternList', () => {
     expect(screen.getByText('My Tree')).toBeInTheDocument()
   })
 
-  it('surfaces a search hit inside a collapsed group, then restores collapse when cleared', async () => {
+  it('surfaces a search hit inside a collapsed entity section, then restores collapse when cleared', async () => {
     const user = userEvent.setup()
     render(<PatternList />)
 
-    // Pick a demo and its OpenGL-style subsection isn't guaranteed, so collapse the
-    // top-level built-in patterns group, which hides every demo.
-    const demoName = Object.keys(DEMOS).sort()[0]
-    expect(await screen.findByText(new RegExp(`^${demoName}`))).toBeInTheDocument()
-    await user.click(screen.getByText('Built-in Patterns'))
-    expect(screen.queryByText(new RegExp(`^${demoName}`))).not.toBeInTheDocument()
+    expect(await screen.findByText('Seed Pattern')).toBeInTheDocument()
+    await user.click(screen.getAllByText('Patterns')[1])
+    expect(screen.queryByText('Seed Pattern')).not.toBeInTheDocument()
 
-    // A search matching that demo must surface it despite the collapse.
     const search = screen.getByRole('textbox', { name: /search by name/i })
-    await user.type(search, demoName)
-    expect(screen.getByText(new RegExp(`^${demoName}`))).toBeInTheDocument()
+    await user.type(search, 'seed')
+    expect(screen.getByText('Seed Pattern')).toBeInTheDocument()
 
-    // Clearing the query restores the user's collapsed layout.
     await user.clear(search)
-    expect(screen.queryByText(new RegExp(`^${demoName}`))).not.toBeInTheDocument()
+    expect(screen.queryByText('Seed Pattern')).not.toBeInTheDocument()
   })
 
   it('clicking the search icon focuses the input', async () => {
@@ -291,7 +269,7 @@ describe('PatternList', () => {
     expect(search).toHaveFocus()
 
     // A click on an unrelated part of the rail blurs the input.
-    await user.click(screen.getByText('Built-in Patterns'))
+    await user.click(screen.getAllByText('Patterns')[1])
 
     expect(search).not.toHaveFocus()
     expect(search).toHaveValue('')
@@ -312,13 +290,10 @@ describe('PatternList', () => {
     expect(screen.getByText('My Tree')).toBeInTheDocument()
   })
 
-  it('opening a stock map does not change the active preview map', async () => {
+  it('the Catalog entry navigates to the Gallery', async () => {
     const user = userEvent.setup()
     render(<PatternList />)
-    await switchToMaps(user)
-    await user.click(screen.getByText('Cube shell'))
-    expect(useMapStore.getState().editingMap).toEqual({ kind: 'stock', id: 'cube-shell' })
-    expect(useMapStore.getState().activeMapId).toBe('plane')
-    expect(useEditorStore.getState().isReadOnly).toBe(true)
+    await user.click(screen.getByRole('button', { name: 'Catalog' }))
+    expect(window.location.pathname).toBe('/gallery')
   })
 })

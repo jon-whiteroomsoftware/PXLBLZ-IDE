@@ -50,6 +50,12 @@ export function redirectUriForRequest(request: Request, override?: string): stri
   return `${url.origin}/api/auth/callback`
 }
 
+export function appRedirectUrlForRequest(request: Request, override?: string): URL {
+  if (override) return new URL(override)
+  const url = new URL(request.url)
+  return new URL('/', url.origin)
+}
+
 export function randomToken(bytes = 32): string {
   const buffer = new Uint8Array(bytes)
   crypto.getRandomValues(buffer)

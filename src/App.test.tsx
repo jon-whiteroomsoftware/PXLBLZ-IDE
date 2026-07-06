@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import App from './App'
@@ -7,6 +7,7 @@ import { useWorkspaceStore, workspaceInitialState } from '@/store/workspaceStore
 import { usePatternStore, patternInitialState, type PatternRecord } from '@/store/patternStore'
 import { useDocsStore, docsInitialState } from '@/store/docsStore'
 import { controllerInitialState, useControllerStore } from '@/store/controllerStore'
+import { pendingGalleryCloneKey } from '@/engine/galleryClone'
 
 // Hold the startup auth probe pending so the smoke tests exercise the studio
 // shell without the signed-out Gallery redirect kicking in mid-test; the
@@ -16,6 +17,7 @@ vi.mock('@/engine/authSession', () => ({
 }))
 
 beforeEach(() => {
+  window.localStorage.clear()
   window.history.replaceState(null, '', '/')
   useRouterStore.setState(routerInitialState)
   useWorkspaceStore.setState(workspaceInitialState)
@@ -23,6 +25,38 @@ beforeEach(() => {
   useDocsStore.setState(docsInitialState)
   useControllerStore.setState(controllerInitialState)
 })
+
+afterEach(() => {
+  vi.unstubAllGlobals()
+})
+
+function stubRemotePatterns(patterns: PatternRecord[] = []) {
+  const created: PatternRecord[] = []
+  vi.stubGlobal('fetch', vi.fn(async (url, init) => {
+    const path = String(url)
+    if (path === '/api/patterns' && init?.method === undefined) {
+      return Response.json({ patterns })
+    }
+    if (path === '/api/patterns' && init?.method === 'POST') {
+      created.push(JSON.parse(String(init.body)) as PatternRecord)
+      return Response.json({ ok: true })
+    }
+    if (path === '/api/maps' && init?.method === undefined) {
+      return Response.json({ maps: [] })
+    }
+    if (path.startsWith('/api/settings/') && init?.method === undefined) {
+      return Response.json({})
+    }
+    if (path.startsWith('/api/settings/') && init?.method === 'PUT') {
+      return Response.json({ ok: true })
+    }
+    if (path.startsWith('/api/controller-metadata/')) {
+      return Response.json({})
+    }
+    return Response.json({ ok: true })
+  }))
+  return created
+}
 
 describe('App smoke test', () => {
   it('renders without crashing', () => {
@@ -35,21 +69,25 @@ describe('App smoke test', () => {
   })
 
   it('has a left pane', () => {
+    window.history.replaceState(null, '', '/studio')
     render(<App />)
     expect(screen.getByTestId('left-pane')).toBeInTheDocument()
   })
 
   it('has an editor pane', () => {
+    window.history.replaceState(null, '', '/studio')
     render(<App />)
     expect(screen.getByTestId('editor-pane')).toBeInTheDocument()
   })
 
   it('has a preview pane', () => {
+    window.history.replaceState(null, '', '/studio')
     render(<App />)
     expect(screen.getByTestId('preview-pane')).toBeInTheDocument()
   })
 
   it('starts with a wider preview pane', () => {
+    window.history.replaceState(null, '', '/studio')
     render(<App />)
     expect(screen.getByTestId('preview-pane')).toHaveStyle({ width: '460px' })
   })
@@ -64,15 +102,15 @@ describe('routing (#308)', () => {
     updatedAt: 1,
   }
 
-  it('redirects signed-out visitors from /studio to /gallery', () => {
+  it('sends signed-out visitors from /studio to the one-time Studio welcome page', () => {
     window.history.replaceState(null, '', '/studio')
     useWorkspaceStore.setState({
       personalWorkspaceAuthenticated: false,
       personalWorkspaceResolved: true,
     })
     render(<App />)
-    expect(window.location.pathname).toBe('/gallery')
-    expect(screen.getByTestId('gallery-page')).toHaveTextContent('Pattern Gallery')
+    expect(window.location.pathname).toBe('/studio-welcome')
+    expect(screen.getByTestId('studio-welcome-page')).toHaveTextContent('Sign in to Studio')
   })
 
   it('does not redirect before the auth probe settles', () => {
@@ -84,6 +122,17 @@ describe('routing (#308)', () => {
 
   it('keeps signed-in visitors in the studio', () => {
     window.history.replaceState(null, '', '/studio')
+    useWorkspaceStore.setState({
+      personalWorkspaceAuthenticated: true,
+      personalWorkspaceResolved: true,
+    })
+    render(<App />)
+    expect(window.location.pathname).toBe('/studio')
+    expect(screen.getByTestId('editor-pane')).toBeInTheDocument()
+  })
+
+  it('moves authenticated visitors from the Studio welcome page into Studio', () => {
+    window.history.replaceState(null, '', '/studio-welcome')
     useWorkspaceStore.setState({
       personalWorkspaceAuthenticated: true,
       personalWorkspaceResolved: true,
@@ -151,6 +200,39 @@ describe('routing (#308)', () => {
     expect(screen.getByRole('button', { name: /IridescentFibers/i })).toBeInTheDocument()
   })
 
+  it('shows a quiet Gallery link in Studio and returns to the Gallery from it', async () => {
+    window.history.replaceState(null, '', '/studio')
+    useWorkspaceStore.setState({
+      personalWorkspaceAuthenticated: true,
+      personalWorkspaceResolved: true,
+    })
+    render(<App />)
+
+    const topBar = screen.getByTestId('top-bar')
+    expect(within(topBar).queryByRole('button', { name: 'Studio' })).not.toBeInTheDocument()
+    const galleryLink = within(topBar).getByRole('button', { name: 'Gallery' })
+    expect(galleryLink).toHaveClass('border-zinc-700')
+
+    await userEvent.click(galleryLink)
+    expect(window.location.pathname).toBe('/gallery')
+    expect(screen.getByTestId('gallery-page')).toHaveTextContent('Pattern Gallery')
+  })
+
+  it('sends signed-out Gallery visitors to the Studio welcome page without rendering Studio first', async () => {
+    window.history.replaceState(null, '', '/gallery')
+    useWorkspaceStore.setState({
+      personalWorkspaceAuthenticated: false,
+      personalWorkspaceResolved: true,
+    })
+    render(<App />)
+
+    await userEvent.click(screen.getByRole('button', { name: 'Studio' }))
+
+    expect(window.location.pathname).toBe('/studio-welcome')
+    expect(screen.getByTestId('studio-welcome-page')).toHaveTextContent('Sign in to Studio')
+    expect(screen.queryByTestId('left-pane')).not.toBeInTheDocument()
+  })
+
   it('keeps the global Controller surface visible on gallery, detail, studio, and docs routes (#323)', () => {
     const routes = ['/gallery', '/p/iridescent-fibers', '/studio', '/docs/feature-guide']
 
@@ -170,6 +252,10 @@ describe('routing (#308)', () => {
 
   it('keeps the connected Controller pill visible while navigating browse routes (#323)', async () => {
     window.history.replaceState(null, '', '/gallery')
+    useWorkspaceStore.setState({
+      personalWorkspaceAuthenticated: true,
+      personalWorkspaceResolved: true,
+    })
     useControllerStore.setState({
       extensionPresent: true,
       activeIp: '10.0.0.5',
@@ -183,7 +269,7 @@ describe('routing (#308)', () => {
     expect(window.location.pathname).toBe('/p/iridescent-fibers')
     expect(within(screen.getByTestId('top-bar')).getByRole('button', { name: 'Toggle Desk panel' })).toBeInTheDocument()
 
-    await userEvent.click(screen.getByRole('button', { name: 'Edit' }))
+    await userEvent.click(within(screen.getByTestId('top-bar')).getByRole('button', { name: 'Studio' }))
     expect(window.location.pathname).toBe('/studio')
     expect(within(screen.getByTestId('top-bar')).getByRole('button', { name: 'Toggle Desk panel' })).toBeInTheDocument()
     expect(useControllerStore.getState().activeIp).toBe('10.0.0.5')
@@ -211,7 +297,7 @@ describe('routing (#308)', () => {
       })
     })
 
-    await waitFor(() => expect(window.location.pathname).toBe('/gallery'))
+    await waitFor(() => expect(window.location.pathname).toBe('/studio-welcome'))
     expect(useControllerStore.getState().activeIp).toBe('10.0.0.5')
     expect(within(screen.getByTestId('top-bar')).getByRole('button', { name: 'Toggle Desk panel' })).toBeInTheDocument()
   })
@@ -236,14 +322,56 @@ describe('routing (#308)', () => {
     expect(screen.getByTestId('pattern-detail-page')).toHaveTextContent('IridescentFibers')
   })
 
-  it('opens a Gallery pattern detail page in Studio', async () => {
+  it('clones a Gallery pattern detail page into a writable Studio pattern', async () => {
     window.history.replaceState(null, '', '/p/iridescent-fibers')
+    useWorkspaceStore.setState({
+      personalWorkspaceAuthenticated: true,
+      personalWorkspaceResolved: true,
+    })
+    const created = stubRemotePatterns()
     render(<App />)
     expect(screen.getByTestId('pattern-detail-page')).toHaveTextContent('IridescentFibers')
-    await userEvent.click(screen.getByRole('button', { name: 'Edit' }))
-    expect(window.location.pathname).toBe('/studio')
-    expect(usePatternStore.getState().activeDemoName).toBe('IridescentFibers')
+    await userEvent.click(screen.getByRole('button', { name: 'Clone' }))
+    await waitFor(() => expect(created).toHaveLength(1))
+    expect(created[0]).toMatchObject({ name: 'IridescentFibers' })
+    expect(window.location.pathname).toBe(`/studio/patterns/${created[0].id}`)
+    expect(usePatternStore.getState().activePatternId).toBe(created[0].id)
+    expect(usePatternStore.getState().activeDemoName).toBeNull()
     expect(screen.getByTestId('editor-pane')).toBeInTheDocument()
+  })
+
+  it('queues a Gallery clone intent and shows sign-in when Clone is clicked signed out', async () => {
+    window.history.replaceState(null, '', '/p/iridescent-fibers')
+    useWorkspaceStore.setState({
+      personalWorkspaceAuthenticated: false,
+      personalWorkspaceResolved: true,
+    })
+    render(<App />)
+
+    await userEvent.click(screen.getByRole('button', { name: 'Clone' }))
+
+    expect(window.location.pathname).toBe('/studio-welcome')
+    expect(window.localStorage.getItem(pendingGalleryCloneKey)).toBe('iridescent-fibers')
+    expect(screen.getByTestId('studio-welcome-page')).toHaveTextContent('Sign in to Studio')
+    expect(screen.queryByTestId('left-pane')).not.toBeInTheDocument()
+  })
+
+  it('consumes a pending Gallery clone after sign-in and opens the saved copy', async () => {
+    window.history.replaceState(null, '', '/gallery')
+    window.localStorage.setItem(pendingGalleryCloneKey, 'iridescent-fibers')
+    useWorkspaceStore.setState({
+      personalWorkspaceAuthenticated: true,
+      personalWorkspaceResolved: true,
+    })
+    const created = stubRemotePatterns([{ id: 'existing', name: 'IridescentFibers', src: '// old', controls: {}, updatedAt: 1 }])
+
+    render(<App />)
+
+    await waitFor(() => expect(created).toHaveLength(1))
+    expect(created[0].name).toBe('IridescentFibers 1')
+    expect(window.localStorage.getItem(pendingGalleryCloneKey)).toBeNull()
+    expect(window.location.pathname).toBe(`/studio/patterns/${created[0].id}`)
+    expect(usePatternStore.getState().activePatternId).toBe(created[0].id)
   })
 
   it('shows pattern source in a read-only detail-stage code view', async () => {
@@ -254,7 +382,7 @@ describe('routing (#308)', () => {
     expect(screen.getByTestId('pattern-code-stage')).toBeInTheDocument()
     expect(screen.queryByText(/read-only/i)).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Preview' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Edit' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Clone' })).toBeInTheDocument()
   })
 
   it('shows the surface selector in the detail header for 2D patterns only', () => {

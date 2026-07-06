@@ -61,12 +61,12 @@ describe('personal content provider seam', () => {
     expect(getPersonalContentProvider()).toBe(demoPersonalContentProvider)
   })
 
-  it('labels demo and API storage-backed collections as cloud collections', () => {
+  it('labels storage-backed collections with plain entity names', () => {
     expect(storageModeForPersonalContentProvider(demoPersonalContentProvider)).toBe('demo')
     expect(storageModeForPersonalContentProvider({ id: 'remote-api' })).toBe('api')
-    expect(personalContentCollectionLabel('demo', 'patterns')).toBe('Cloud Patterns')
-    expect(personalContentCollectionLabel('api', 'patterns')).toBe('Cloud Patterns')
-    expect(personalContentCollectionLabel('api', 'maps')).toBe('Cloud Maps')
+    expect(personalContentCollectionLabel('demo', 'patterns')).toBe('Patterns')
+    expect(personalContentCollectionLabel('api', 'patterns')).toBe('Patterns')
+    expect(personalContentCollectionLabel('api', 'maps')).toBe('Maps')
   })
 
   it('selects the remote API as the only durable provider mode', async () => {
