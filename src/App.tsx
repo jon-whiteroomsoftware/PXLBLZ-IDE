@@ -369,6 +369,7 @@ export default function App() {
   const invalidDocRoute = route.kind === 'docs' && !isDocId(route.docId)
   const browseRoute = route.kind === 'gallery' || route.kind === 'pattern-detail'
   const studioRoute = route.kind === 'studio'
+  const studioAccessPending = studioRoute && !personalWorkspaceResolved
   const detailPattern = route.kind === 'pattern-detail' ? galleryPatternBySlug(route.slug) : undefined
 
   const cloneGalleryPatternIntoStudio = useCallback(async (pattern: GalleryPattern) => {
@@ -541,6 +542,11 @@ export default function App() {
           detail={`There's no page at ${route.kind === 'docs' ? `/docs/${route.docId}` : route.path}.`}
           actionLabel="Back to Studio"
           onAction={() => navigate({ kind: 'studio', entity: null }, { replace: true })}
+        />
+      ) : studioAccessPending ? (
+        <RouteMessage
+          title="Checking Studio access"
+          detail="Loading your sign-in state before opening Studio."
         />
       ) : studioEntityMissing ? (
         <RouteMessage

@@ -58,6 +58,13 @@ function stubRemotePatterns(patterns: PatternRecord[] = []) {
   return created
 }
 
+function seedSignedInWorkspace() {
+  useWorkspaceStore.setState({
+    personalWorkspaceAuthenticated: true,
+    personalWorkspaceResolved: true,
+  })
+}
+
 describe('App smoke test', () => {
   it('renders without crashing', () => {
     render(<App />)
@@ -70,24 +77,28 @@ describe('App smoke test', () => {
 
   it('has a left pane', () => {
     window.history.replaceState(null, '', '/studio')
+    seedSignedInWorkspace()
     render(<App />)
     expect(screen.getByTestId('left-pane')).toBeInTheDocument()
   })
 
   it('has an editor pane', () => {
     window.history.replaceState(null, '', '/studio')
+    seedSignedInWorkspace()
     render(<App />)
     expect(screen.getByTestId('editor-pane')).toBeInTheDocument()
   })
 
   it('has a preview pane', () => {
     window.history.replaceState(null, '', '/studio')
+    seedSignedInWorkspace()
     render(<App />)
     expect(screen.getByTestId('preview-pane')).toBeInTheDocument()
   })
 
   it('starts with a wider preview pane', () => {
     window.history.replaceState(null, '', '/studio')
+    seedSignedInWorkspace()
     render(<App />)
     expect(screen.getByTestId('preview-pane')).toHaveStyle({ width: '460px' })
   })
@@ -117,7 +128,8 @@ describe('routing (#308)', () => {
     window.history.replaceState(null, '', '/studio')
     render(<App />)
     expect(window.location.pathname).toBe('/studio')
-    expect(screen.getByTestId('editor-pane')).toBeInTheDocument()
+    expect(screen.getByTestId('route-message')).toHaveTextContent('Checking Studio access')
+    expect(screen.queryByTestId('editor-pane')).not.toBeInTheDocument()
   })
 
   it('keeps signed-in visitors in the studio', () => {
