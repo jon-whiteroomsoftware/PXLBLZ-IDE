@@ -3,26 +3,26 @@ import { test, expect } from '@playwright/test'
 /**
  * Pre-push smoke test — NOT exhaustive.
  *
- * Since #308 the app routes by path and signed-out visitors are redirected from
- * the Studio to the Gallery (a placeholder until the real Gallery slice lands).
- * That retires the old signed-out IDE walkthrough this file used to run: the
- * three-pane Studio now requires an authenticated session, which headless e2e
- * doesn't have yet. Until an authenticated e2e story exists, this smoke covers
- * the routing seam itself — redirect, docs deep links, legacy hash links, and
- * graceful dead ends.
+ * Since #308 the app routes by path, and since #311 signed-out Studio access
+ * lands on the Studio welcome/sign-in interstitial instead of silently bouncing
+ * to Gallery. Until an authenticated e2e story exists, this smoke covers the
+ * routing seam itself — public entry, Studio gate, docs deep links, legacy hash
+ * links, and graceful dead ends.
  */
 
-test('signed-out visitors land on the gallery placeholder', async ({ page }) => {
+test('signed-out visitors can load the public app shell at root', async ({ page }) => {
   await page.goto('/')
-  await expect(page).toHaveURL(/\/gallery$/)
-  await expect(page.getByTestId('route-message')).toContainText('Gallery')
-  // The header (and its sign-in affordance) still renders on the placeholder.
+  await expect(page).toHaveURL(/\/PXLBLZ-IDE\/$/)
   await expect(page.getByTestId('top-bar')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible()
 })
 
-test('signed-out /studio redirects to /gallery', async ({ page }) => {
+test('signed-out /studio shows the Studio welcome gate', async ({ page }) => {
   await page.goto('studio')
-  await expect(page).toHaveURL(/\/gallery$/)
+  await expect(page).toHaveURL(/\/studio-welcome$/)
+  await expect(page.getByTestId('studio-welcome-page')).toContainText('Sign in to Studio')
+  await expect(page.getByRole('button', { name: 'Continue with GitHub' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Continue with Google' })).toBeVisible()
 })
 
 test('docs deep links render the docs reader without signing in', async ({ page }) => {
