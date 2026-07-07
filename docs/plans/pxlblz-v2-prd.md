@@ -372,6 +372,38 @@ duplicates live controls. It absorbs the earlier manifest concept whole
 smoothing/fallback/invert, explicit call-vs-assign targets), giving it a page
 instead of a YAML file.
 
+### Controller identity
+
+A profile must map to one physical device, and the only durable name a
+Pixelblaze has is its **device id** — the stable identifier the cloud
+discovery service reports for each unit (`GET
+discover.electromage.com/discover` → `{ id, localIp, name, version, ... }`;
+verified live 2026-06). It survives DHCP renewals, renames, and firmware
+updates; IP address and device name do not. Rules:
+
+- **The device id is the hardware key.** `controller_profiles.device_id`
+  stores it; a profile with a `device_id` *claims* that physical unit. IP is
+  transport only and is never used as a binding key. Device name is display
+  only.
+- **Identity must survive the connect path.** A connection made from a
+  discovery pick carries the picked record's `id` into the connected state.
+  A connection made from a typed IP recovers the id opportunistically — via
+  a direct read from the device if the firmware exposes one (open spike:
+  whether the id is readable over the WebSocket config packets or a local
+  HTTP endpoint; if it is, discovery is no longer required for identity), or
+  failing that via a background cloud-discovery lookup matched on `localIp`.
+- **Unclaimed is a normal state.** If no id is recoverable (discovery
+  disabled and no direct read), the connection still works fully; the device
+  is simply unclaimed and "Create profile" produces a profile with no
+  `device_id`, bindable later.
+- **The dropdown is the join point** (§7): signed in + connected device with
+  a known id → resolve the user's profiles by `device_id` → show "Controller
+  profile →" or "Create profile for this device" (creation stamps the
+  `device_id` at birth).
+- **Live state is ephemeral.** Everything in the dropdown/panel is in-memory
+  per session; the only persisted live-layer crumbs are the last-connected
+  IP + nickname reconnect seed, which are convenience, not identity.
+
 - **Status strip** (not a device card): a slim row showing connected/offline,
   last-known pixels, map dimensionality, and firmware, with a pointer to the
   top-bar dropdown for the live view. Native brightness remains the hard
