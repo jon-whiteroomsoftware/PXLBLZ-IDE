@@ -387,11 +387,14 @@ updates; IP address and device name do not. Rules:
   only.
 - **Identity must survive the connect path.** A connection made from a
   discovery pick carries the picked record's `id` into the connected state.
-  A connection made from a typed IP recovers the id opportunistically — via
-  a direct read from the device if the firmware exposes one (open spike:
-  whether the id is readable over the WebSocket config packets or a local
-  HTTP endpoint; if it is, discovery is no longer required for identity), or
-  failing that via a background cloud-discovery lookup matched on `localIp`.
+  A connection made from a typed IP recovers the id by direct local reads
+  first: the WebSocket `{getConfig:true}` settings packet exposes
+  `boardType`, and `GET /wifistatus` exposes the MAC address; the cloud id is
+  `pixelblaze_${boardType}_${reverseMacBytes(mac)}`. The issue #327 spike
+  verified this on firmware 3.67 by reconstructing
+  `pixelblaze_pb32_3cd4ee549434` and matching cloud discovery. If either
+  direct read fails on a device/firmware variant, fall back to background
+  cloud discovery matched on `localIp`.
 - **Unclaimed is a normal state.** If no id is recoverable (discovery
   disabled and no direct read), the connection still works fully; the device
   is simply unclaimed and "Create profile" produces a profile with no
