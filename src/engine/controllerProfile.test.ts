@@ -1,0 +1,168 @@
+import {
+  controllerProfileValidationErrors,
+  validateControllerProfile,
+  type ControllerProfile,
+} from './controllerProfile'
+
+const baseProfile: ControllerProfile = {
+  id: 'ctrl-1',
+  name: 'Burner bag',
+  deviceId: 'pixelblaze_pb32_3cd4ee549434',
+  board: {
+    kind: 'pixelblaze-v3-standard',
+    hardwareRevision: 3.5,
+    firmwareVersion: '3.67',
+  },
+  inputs: [
+    {
+      id: 'pot0',
+      name: 'Brightness pot',
+      pin: 33,
+      signal: 'analog',
+      role: 'brightness',
+      smoothing: 0.2,
+      fallback: 0.5,
+      invert: false,
+    },
+    {
+      id: 'btn0',
+      name: 'Next button',
+      pin: 25,
+      signal: 'digital',
+      role: 'next-pattern',
+      smoothing: 0,
+      fallback: 0,
+      invert: false,
+    },
+  ],
+  globalTransforms: [
+    {
+      id: 'brightness',
+      type: 'hardware-brightness',
+      enabled: true,
+      mixinId: 'builtin:hardware-brightness',
+      inputId: 'pot0',
+      mode: 'multiply-output',
+    },
+    {
+      id: 'power',
+      type: 'power-cap',
+      enabled: false,
+      mixinId: 'builtin:power-cap',
+      maxMilliamps: 3500,
+    },
+  ],
+  patternBindings: [
+    {
+      id: 'p1-pot0-speed',
+      patternId: 'pattern-1',
+      inputId: 'pot0',
+      target: {
+        kind: 'call-exported-slider',
+        name: 'sliderSpeed',
+      },
+    },
+    {
+      id: 'p1-pot0-plain',
+      patternId: 'pattern-1',
+      inputId: 'pot0',
+      target: {
+        kind: 'assign-variable',
+        name: 'speed',
+        min: 0,
+        max: 1,
+        quantize: 0.05,
+      },
+    },
+  ],
+  zones: [
+    { id: 'arch-left', name: 'Arch left', start: 0, end: 239 },
+    { id: 'arch-right', name: 'Arch right', start: 240, end: 479 },
+  ],
+  updatedAt: 100,
+}
+
+describe('ControllerProfile validation', () => {
+  it('accepts a durable controller profile with inputs, transforms, bindings, and zones', () => {
+    expect(validateControllerProfile(baseProfile)).toEqual({ ok: true, errors: [] })
+  })
+
+  it('rejects analog bindings on digital-only through-hole pins with a human-readable board error', () => {
+    const profile: ControllerProfile = {
+      ...baseProfile,
+      inputs: [{ ...baseProfile.inputs[0], pin: 25 }],
+    }
+
+    const result = validateControllerProfile(profile)
+
+    expect(result.ok).toBe(false)
+    expect(controllerProfileValidationErrors(result)).toContain(
+      'Input "pot0" uses IO25 for analog input, but pixelblaze-v3-standard analog inputs are IO33, IO34, IO35, IO36, IO39.',
+    )
+  })
+
+  it('limits pre-3.5 v3 standard analog profiles to IO33', () => {
+    const profile: ControllerProfile = {
+      ...baseProfile,
+      board: { kind: 'pixelblaze-v3-standard', hardwareRevision: 3.4 },
+      inputs: [{ ...baseProfile.inputs[0], pin: 34 }],
+    }
+
+    const result = validateControllerProfile(profile)
+
+    expect(result.ok).toBe(false)
+    expect(controllerProfileValidationErrors(result)).toContain(
+      'Input "pot0" uses IO34 for analog input, but pixelblaze-v3-standard analog inputs are IO33.',
+    )
+  })
+
+  it('reports invalid references instead of silently dropping transforms or bindings', () => {
+    const profile: ControllerProfile = {
+      ...baseProfile,
+      globalTransforms: [
+        {
+          id: 'brightness',
+          type: 'hardware-brightness',
+          enabled: true,
+          mixinId: 'builtin:hardware-brightness',
+          inputId: 'missing-input',
+          mode: 'multiply-output',
+        },
+      ],
+      patternBindings: [{ ...baseProfile.patternBindings[0], inputId: 'other-missing-input' }],
+    }
+
+    const result = validateControllerProfile(profile)
+
+    expect(controllerProfileValidationErrors(result)).toEqual([
+      'Global transform "brightness" references missing input "missing-input".',
+      'Pattern binding "p1-pot0-speed" references missing input "other-missing-input".',
+    ])
+  })
+
+  it('reports duplicate ids and numeric ranges that would make generated code ambiguous', () => {
+    const profile: ControllerProfile = {
+      ...baseProfile,
+      inputs: [
+        { ...baseProfile.inputs[0], smoothing: 1.5 },
+        { ...baseProfile.inputs[1], id: 'pot0' },
+      ],
+      zones: [{ id: 'bad-zone', name: 'Bad zone', start: 10, end: 5 }],
+      patternBindings: [
+        {
+          ...baseProfile.patternBindings[1],
+          target: { kind: 'assign-variable', name: 'speed', min: 1, max: 0 },
+        },
+      ],
+    }
+
+    const result = validateControllerProfile(profile)
+
+    expect(controllerProfileValidationErrors(result)).toEqual([
+      'Input id "pot0" is duplicated.',
+      'Input "pot0" smoothing must be between 0 and 1.',
+      'Pattern binding "p1-pot0-plain" assignment min must be less than max.',
+      'Zone "bad-zone" start must be less than or equal to end.',
+    ])
+  })
+})
