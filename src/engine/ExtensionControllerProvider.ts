@@ -32,7 +32,27 @@ import {
   RELAY_SOURCE,
   base64ToBytes,
   type RelayTransport,
+  type WifiStatusWire,
 } from './RelayWebSocket'
+
+/** Reverse a colon/dash/plain MAC string into the byte order used by Pixelblaze
+ *  cloud ids. Returns null for malformed input. */
+export function reverseMacBytes(mac: string): string | null {
+  const compact = mac.replace(/[:-]/g, '').toLowerCase()
+  if (!/^[0-9a-f]{12}$/.test(compact)) return null
+  return compact.match(/../g)!.reverse().join('')
+}
+
+/** Build the stable Pixelblaze cloud-discovery id from websocket boardType plus
+ *  `/wifistatus` MAC. Returns null until both pieces are present and valid. */
+export function pixelblazeDeviceIdFromBoardAndMac(
+  boardType: string | undefined,
+  mac: string | undefined,
+): string | null {
+  if (!boardType || !mac) return null
+  const reversed = reverseMacBytes(mac)
+  return reversed ? `pixelblaze_${boardType}_${reversed}` : null
+}
 
 export interface ExtensionControllerProviderOptions {
   transport: RelayTransport
@@ -118,6 +138,7 @@ export class ExtensionControllerProvider implements ControllerProvider {
   private compileSeq = 0
   private mapSeq = 0
   private discoverSeq = 0
+  private identitySeq = 0
   private readonly _setTimeout: (fn: () => void, ms: number) => unknown
   private readonly _clearTimeout: (h: unknown) => void
 
@@ -315,9 +336,15 @@ export class ExtensionControllerProvider implements ControllerProvider {
       throw e
     }
     this.expectConnected = true
+    const deviceId = await this.recoverDeviceId(target, conn)
     this.setStatus({
       kind: 'connected',
-      controller: { id: target.address, address: target.address },
+      controller: {
+        id: deviceId ?? target.address,
+        address: target.address,
+        deviceId,
+        ...(target.name ? { name: target.name } : {}),
+      },
     })
   }
 
@@ -434,6 +461,63 @@ export class ExtensionControllerProvider implements ControllerProvider {
         address: target.address,
       })
     })
+  }
+
+  private getWifiStatus(address: string): Promise<WifiStatusWire | null> {
+    const reqId = `wifi-status-${this.identitySeq++}`
+    return new Promise<WifiStatusWire | null>((resolve) => {
+      let settled = false
+      const finish = (value: WifiStatusWire | null) => {
+        if (settled) return
+        settled = true
+        unsubscribe()
+        this._clearTimeout(timer)
+        resolve(value)
+      }
+      const unsubscribe = this.transport.subscribe((msg) => {
+        if (
+          msg.source === RELAY_SOURCE &&
+          msg.dir === 'from-helper' &&
+          msg.type === 'wifi-status' &&
+          msg.reqId === reqId
+        ) {
+          finish(msg.ok ? (msg.status ?? null) : null)
+        }
+      })
+      const timer = this._setTimeout(() => finish(null), this.getMapTimeoutMs)
+      this.transport.post({
+        source: RELAY_SOURCE,
+        dir: 'to-helper',
+        type: 'get-wifi-status',
+        reqId,
+        address,
+      })
+    })
+  }
+
+  private async recoverDeviceId(
+    target: ControllerTarget,
+    conn: PixelblazeConnection,
+  ): Promise<string | null> {
+    if (target.deviceId) return target.deviceId
+
+    try {
+      const [config, wifi] = await Promise.all([
+        conn.getConfig().catch(() => null),
+        this.getWifiStatus(target.address).catch(() => null),
+      ])
+      const direct = pixelblazeDeviceIdFromBoardAndMac(config?.boardType, wifi?.mac)
+      if (direct) return direct
+    } catch {
+      // Identity is opportunistic; fall through to discovery.
+    }
+
+    try {
+      const discovered = await this.discover()
+      return discovered.find((c) => c.address === target.address)?.id ?? null
+    } catch {
+      return null
+    }
   }
 
   setControls(controls: Record<string, number>, save = false): Promise<void> {

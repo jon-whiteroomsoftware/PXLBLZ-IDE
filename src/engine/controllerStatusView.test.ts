@@ -25,7 +25,7 @@ describe('describeControllerStatus', () => {
   it('prefers the Controller name when connected', () => {
     const status: ControllerStatus = {
       kind: 'connected',
-      controller: { id: 'a', address: '10.0.0.5', name: 'Hallway' },
+      controller: { id: 'a', address: '10.0.0.5', deviceId: 'a', name: 'Hallway' },
     }
     const v = describeControllerStatus(status)
     expect(v.tone).toBe('live')
@@ -35,7 +35,7 @@ describe('describeControllerStatus', () => {
   it('falls back to the address when connected without a name', () => {
     const status: ControllerStatus = {
       kind: 'connected',
-      controller: { id: 'a', address: '10.0.0.5' },
+      controller: { id: 'a', address: '10.0.0.5', deviceId: 'a' },
     }
     expect(describeControllerStatus(status).label).toContain('10.0.0.5')
   })

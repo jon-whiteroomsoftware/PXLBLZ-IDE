@@ -23,6 +23,10 @@ export type { ProgramListEntry }
  *  it internally. */
 export interface ControllerTarget {
   address: string
+  /** Stable Pixelblaze cloud-discovery id when known before connecting. */
+  deviceId?: string
+  /** Human label from discovery or prior session; display only, never identity. */
+  name?: string
 }
 
 /** A Controller the provider is currently connected to. `id` is the stable key
@@ -32,6 +36,8 @@ export interface ControllerTarget {
 export interface ConnectedController {
   id: string
   address: string
+  /** Stable physical-device id when recovered; null means connected but unclaimed. */
+  deviceId: string | null
   name?: string
 }
 
@@ -100,6 +106,10 @@ export interface ControllerConfig {
   /** The device's configured pixel count. Editable from the panel via
    *  `setPixelCount` (#213); read here for display and preflight reconciliation. */
   pixelCount?: number
+  /** Pixelblaze board type from the settings packet, e.g. `pb32`. */
+  boardType?: string
+  /** ESP chip id from the settings packet. Kept for diagnostics; MAC is the id source. */
+  chipId?: number
 }
 
 /** Live runtime metrics the device reports while running — distinct from stored

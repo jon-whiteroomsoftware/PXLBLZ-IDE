@@ -8,6 +8,7 @@ import { StatusDot, type StatusTone } from './StatusDot'
 import { ControllerPanel } from './ControllerPanel'
 import { ControllerPanelTitle } from './ControllerPanelTitle'
 import { onControllerEntryRequested } from './controllerEntryEvents'
+import type { DiscoveredController } from '@/engine/ControllerProvider'
 
 // The consolidated top-right Controller surface (#210). Supersedes the always-on
 // header IP input (ControllerConnect) and the standalone status dot
@@ -252,13 +253,11 @@ export function ControllerBar({ reloadPage = () => window.location.reload() }: {
     if (!present) reloadPage()
   }
 
-  // Connect to a discovered candidate by its LAN address — same path as a manual
-  // IP, so it slots straight into the existing keyed connect (#197 foundation).
-  // Seed the discovered name so the pending pill is born named rather than flashing
-  // the bare IP until the device's getConfig lands (#230).
-  const onDiscoveredClick = (address: string, name?: string) => {
+  // Connect to a discovered candidate through the same keyed path as a manual IP,
+  // but preserve the discovered device id so the live connection starts claimed.
+  const onDiscoveredClick = (controller: DiscoveredController) => {
     setOpen(false)
-    void addController(address, name)
+    void addController(controller)
   }
 
   return (
@@ -376,7 +375,7 @@ export function ControllerBar({ reloadPage = () => window.location.reload() }: {
                       <li key={c.id}>
                         <button
                           type="button"
-                          onClick={() => onDiscoveredClick(c.address, c.name)}
+                          onClick={() => onDiscoveredClick(c)}
                           data-testid="controller-discovered-item"
                           className="flex w-full items-baseline justify-between gap-2 rounded border border-zinc-700 bg-zinc-950 px-2 py-1 text-left hover:border-zinc-500 hover:text-zinc-100"
                         >

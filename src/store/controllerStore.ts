@@ -12,6 +12,7 @@ import {
   NullControllerProvider,
   type ControllerProvider,
   type ControllerStatus,
+  type ControllerTarget,
   type DiscoveredController,
 } from '@/engine/ControllerProvider'
 import { mapDimension, type MapDimension } from '@/engine/sendToController'
@@ -58,6 +59,8 @@ import { useControllerPanelStore } from '@/store/controllerPanelStore'
  *  `live` (label → nickname) or `error`. `mapDim` gates Send-to-Controller. */
 export interface ControllerEntry {
   ip: string
+  /** Stable physical-device id while live/known; null means connected but unclaimed. */
+  deviceId?: string | null
   /** Device name when reported; absent → the pill falls back to the IP. */
   nickname?: string
   phase: ControllerPhase
@@ -83,6 +86,12 @@ interface ControllerConnectionState {
    *  pill is born with the name on reload rather than the bare IP (#215). Refreshed
    *  from the device's `getConfig` once it reconnects — a rename on the device wins. */
   lastConnectedNickname: string | null
+  /** Session-only Controller-reported name by stable physical device id. Display-only;
+   *  the durable copy belongs on Controller profiles, not the live layer. */
+  lastKnownControllerNames: Record<string, string>
+  /** Session-only transport IP by stable physical device id. Display/reconnect hint
+   *  only; never an identity key. */
+  lastKnownControllerIps: Record<string, string>
   /** True while a Send-to-Controller push is in flight (#202) — disables the button. */
   pushing: boolean
   /** Last push outcome, surfaced transiently on the Send button. `null` = idle. */
@@ -133,12 +142,12 @@ interface ControllerConnectionState {
   /** Run a cloud discovery sweep and record the candidates (#206). Best-effort:
    *  a failure or no helper leaves `discovered` empty. */
   discover: () => Promise<void>
-  /** Begin connecting to `ip`: born as a pending pill, made active immediately.
+  /** Begin connecting to a Controller: born as a pending pill, made active immediately.
    *  Settles to live (nickname + mapDim read) or error. Re-adding an existing IP
    *  retries it. Rejection is swallowed — the pill reflects the error.
    *  `seedNickname` pre-labels the pending pill (used by auto-reconnect, #215); it is
    *  overwritten once the device reports its real name. */
-  addController: (ip: string, seedNickname?: string) => Promise<void>
+  addController: (target: string | DiscoveredController, seedNickname?: string) => Promise<void>
   /** Disconnect + drop a Controller. If it was active, activates another (or none).
    *  Clears the remembered last-connected IP if it was this one. */
   removeController: (ip: string) => Promise<void>
@@ -207,6 +216,8 @@ export const controllerInitialState = {
   activeIp: null as string | null,
   lastConnectedIp: null as string | null,
   lastConnectedNickname: null as string | null,
+  lastKnownControllerNames: {} as Record<string, string>,
+  lastKnownControllerIps: {} as Record<string, string>,
   pushing: false,
   pushResult: null as PushResult | null,
   lastPushedSource: {} as Record<string, Record<string, string>>,
@@ -240,6 +251,7 @@ function phaseFromStatus(status: ControllerStatus): Partial<ControllerEntry> | n
     case 'connected':
       return {
         phase: 'live',
+        deviceId: status.controller.deviceId,
         error: undefined,
         authorizationNeededIp: null,
         ...(status.controller.name ? { nickname: status.controller.name } : {}),
@@ -268,6 +280,30 @@ async function installStockMap(remedy: RecommendedMapRemedy): Promise<void> {
     throw new Error("Couldn't read the Controller's pixel count to size the map")
   }
   await provider.setPixelMap(points)
+}
+
+function normalizeControllerTarget(
+  target: string | DiscoveredController,
+  seedNickname?: string,
+): { ip: string; connectTarget: ControllerTarget; seedNickname?: string } {
+  if (typeof target === 'string') {
+    const ip = target.trim()
+    return {
+      ip,
+      connectTarget: { address: ip },
+      seedNickname,
+    }
+  }
+  const ip = target.address.trim()
+  return {
+    ip,
+    connectTarget: {
+      address: ip,
+      deviceId: target.id,
+      ...(target.name ? { name: target.name } : {}),
+    },
+    seedNickname: target.name ?? seedNickname,
+  }
 }
 
 export const useControllerStore = create<ControllerConnectionState>()(
@@ -323,15 +359,16 @@ export const useControllerStore = create<ControllerConnectionState>()(
           setControllerProvider(providers.get(ip) ?? new NullControllerProvider())
         },
 
-        addController: async (ip, seedNickname) => {
-          const target = ip.trim()
+        addController: async (controllerTarget, seedNickname) => {
+          const { ip: target, connectTarget, seedNickname: targetSeed } =
+            normalizeControllerTarget(controllerTarget, seedNickname)
           if (!target) return
 
           // Reconnecting to the controller we last connected to? Seed the pending pill
           // from the cached name so it never flashes the bare IP before getConfig lands
           // (#230). The live read below still overwrites it if the device was renamed.
           const seed =
-            seedNickname ??
+            targetSeed ??
             (target === get().lastConnectedIp ? get().lastConnectedNickname ?? undefined : undefined)
 
           // Reuse an existing provider (retry) or mint a fresh one.
@@ -354,6 +391,7 @@ export const useControllerStore = create<ControllerConnectionState>()(
               ...s.controllers,
               [target]: {
                 ip: target,
+                deviceId: connectTarget.deviceId ?? null,
                 phase: 'pending',
                 mapDim: null,
                 nickname: seed || undefined,
@@ -364,7 +402,7 @@ export const useControllerStore = create<ControllerConnectionState>()(
           get().setActive(target)
 
           try {
-            await provider.connect({ address: target })
+            await provider.connect(connectTarget)
           } catch (e) {
             // A declined per-IP permission grant (#229) is a user choice, not a
             // failure to dwell on: drop the half-created entry so the UI returns to
@@ -380,6 +418,8 @@ export const useControllerStore = create<ControllerConnectionState>()(
             provider.getConfig().catch(() => null),
             provider.getPixelMap().catch(() => null),
           ])
+          const liveDeviceId = get().controllers[target]?.deviceId ?? connectTarget.deviceId ?? null
+          const reportedName = config?.name ?? connectTarget.name
           patchController(target, {
             phase: 'live',
             // Sticky name: only overwrite when getConfig actually returned one. During
@@ -397,6 +437,19 @@ export const useControllerStore = create<ControllerConnectionState>()(
             lastConnectedIp: target,
             ...(config?.name ? { lastConnectedNickname: config.name } : {}),
           })
+          if (liveDeviceId) {
+            set((s) => ({
+              lastKnownControllerIps: { ...s.lastKnownControllerIps, [liveDeviceId]: target },
+              ...(reportedName
+                ? {
+                    lastKnownControllerNames: {
+                      ...s.lastKnownControllerNames,
+                      [liveDeviceId]: reportedName,
+                    },
+                  }
+                : {}),
+            }))
+          }
           // Warm the panel store immediately so it opens populated rather than
           // empty-then-jumping as the first lazy poll lands (#225). The panel still
           // owns the polling interval (started on open); this is a one-shot seed.

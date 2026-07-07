@@ -637,7 +637,8 @@ Controller is expected back, so it keeps probing).
 ### Per-IP just-in-time host permissions
 
 The extension must reach `ws://<LAN-IP>:81` and `http://<LAN-IP>/…` (compiler
-fetch, `/pixelmap.dat` read-back) at runtime-discovered IPs, but Chrome match
+fetch, `/pixelmap.dat` read-back, `/wifistatus` identity read) at
+runtime-discovered IPs, but Chrome match
 patterns can't express "the local network", and a static broad grant reads as a
 network-sniffing surface that fails Web Store review (#229). So LAN reach lives
 in **`optional_host_permissions`**, granted **per device IP, just-in-time**; only
@@ -675,11 +676,29 @@ seam as a `reqId`-keyed `discover`/`discover-result` round-trip,
 connection-independent. The seam exposes `discover()` on `ControllerProvider`
 (Null returns `[]`; failures return `[]`), maps `localIp` → connect address and
 `id` → stable key, and the `ControllerBar` shows candidates as clickable rows
-driving the existing keyed `addController(address)`. A discovered row carries its
-`name` in as a seed nickname, so the pill is born named. Discovery runs
+driving the existing keyed `addController(discoveredController)`. A discovered
+row carries its stable `id` into the provider target and its `name` in as a seed
+nickname, so the pill is born named and claimed. Discovery runs
 automatically when the connect dropdown opens, refreshes on a timer while open,
 offers a manual rescan (spinner in flight), and filters out already-connected
 Controllers.
+
+### Live Controller identity
+
+Live connection state carries a `deviceId` field that is either the stable
+Pixelblaze id or `null` for an unclaimed-but-usable connection. Discovery picks
+thread the cloud `id` directly into `ConnectedController`. Manual IP connects
+recover it opportunistically: after the websocket opens, `getConfig` captures the
+settings packet's `boardType`, the helper fetches `http://<ip>/wifistatus` for
+the MAC, and the provider builds
+`pixelblaze_${boardType}_${reverseMacBytes(mac)}`. If that direct read is
+unavailable, the provider falls back to helper cloud discovery and matches by
+`localIp`. All identity reads are best-effort; failure leaves the connection live
+with `deviceId: null`. The keyed store mirrors `deviceId` in memory only; durable
+metadata belongs on Controller profiles. Profiles keep user-editable `name`
+separate from the Pixelblaze-reported `lastKnownDeviceName`, plus `lastSeenIp`
+as a convenience hint. Future profile-join flows update those fields when the
+same physical Controller reports a new mutable name or IP.
 
 ### The in-app surface (status pills, panel)
 

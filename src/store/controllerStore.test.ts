@@ -43,6 +43,7 @@ class FakeProvider extends NullControllerProvider {
   denyPermission = false
   pendingAuthorization = false
   name: string | undefined = 'pixel-1'
+  deviceId: string | null = null
   pixelCount: number | undefined = undefined
   pixelMap: number[][] | null = [
     [0, 0],
@@ -80,7 +81,16 @@ class FakeProvider extends NullControllerProvider {
       this.emit({ kind: 'error', message: 'unreachable' })
       return Promise.reject(new Error('unreachable'))
     }
-    this.emit({ kind: 'connected', controller: { id: target.address, address: target.address, name: this.name } })
+    const deviceId = target.deviceId ?? this.deviceId
+    this.emit({
+      kind: 'connected',
+      controller: {
+        id: deviceId ?? target.address,
+        address: target.address,
+        deviceId,
+        ...(target.name ?? this.name ? { name: target.name ?? this.name } : {}),
+      },
+    })
     return Promise.resolve()
   }
   disconnect(): Promise<void> {
@@ -200,10 +210,63 @@ describe('controllerStore (keyed)', () => {
     await store().addController('10.0.0.5')
     const entry = store().controllers['10.0.0.5']
     expect(entry.phase).toBe('live')
+    expect(entry.deviceId).toBeNull()
     expect(entry.nickname).toBe('pixel-1')
     expect(entry.mapDim).toBe(2)
     expect(store().activeIp).toBe('10.0.0.5')
     expect(created.get('10.0.0.5')!.connects).toEqual([{ address: '10.0.0.5' }])
+  })
+
+  it('threads a discovery-picked device id into the provider target and live entry', async () => {
+    await store().addController({
+      id: 'pixelblaze_pb32_known',
+      address: '10.0.0.5',
+      name: 'Desk',
+    })
+
+    const provider = created.get('10.0.0.5')!
+    expect(provider.connects).toEqual([
+      { address: '10.0.0.5', deviceId: 'pixelblaze_pb32_known', name: 'Desk' },
+    ])
+    expect(store().controllers['10.0.0.5']).toMatchObject({
+      phase: 'live',
+      deviceId: 'pixelblaze_pb32_known',
+      nickname: 'pixel-1',
+    })
+    expect(store().lastKnownControllerNames.pixelblaze_pb32_known).toBe('pixel-1')
+    expect(store().lastKnownControllerIps.pixelblaze_pb32_known).toBe('10.0.0.5')
+  })
+
+  it('mirrors a recovered manual-IP device id from provider status', async () => {
+    setControllerProviderFactory((ip) => {
+      const p = new FakeProvider()
+      p.deviceId = 'pixelblaze_pb32_recovered'
+      created.set(ip, p)
+      return p
+    })
+
+    await store().addController('10.0.0.5')
+
+    expect(store().controllers['10.0.0.5'].deviceId).toBe('pixelblaze_pb32_recovered')
+    expect(store().lastKnownControllerNames.pixelblaze_pb32_recovered).toBe('pixel-1')
+    expect(store().lastKnownControllerIps.pixelblaze_pb32_recovered).toBe('10.0.0.5')
+    expect(created.get('10.0.0.5')!.connects).toEqual([{ address: '10.0.0.5' }])
+  })
+
+  it('updates last-known name and IP when the same device id reconnects renamed', async () => {
+    setControllerProviderFactory((ip) => {
+      const p = new FakeProvider()
+      p.deviceId = 'pixelblaze_pb32_same_device'
+      p.name = ip === '10.0.0.5' ? 'Old Name' : 'New Name'
+      created.set(ip, p)
+      return p
+    })
+
+    await store().addController('10.0.0.5')
+    await store().addController('10.0.0.9')
+
+    expect(store().lastKnownControllerNames.pixelblaze_pb32_same_device).toBe('New Name')
+    expect(store().lastKnownControllerIps.pixelblaze_pb32_same_device).toBe('10.0.0.9')
   })
 
   it('warms the panel store on connect so it opens populated (#225)', async () => {

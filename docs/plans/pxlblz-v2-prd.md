@@ -384,7 +384,10 @@ updates; IP address and device name do not. Rules:
 - **The device id is the hardware key.** `controller_profiles.device_id`
   stores it; a profile with a `device_id` *claims* that physical unit. IP is
   transport only and is never used as a binding key. Device name is display
-  only.
+  only. The user-editable profile `name` is distinct from the mutable name
+  stored on the Pixelblaze; the profile may also keep `last_known_device_name`
+  and `last_seen_ip` as convenience metadata, overwritten when the same
+  physical controller reports new values.
 - **Identity must survive the connect path.** A connection made from a
   discovery pick carries the picked record's `id` into the connected state.
   A connection made from a typed IP recovers the id by direct local reads

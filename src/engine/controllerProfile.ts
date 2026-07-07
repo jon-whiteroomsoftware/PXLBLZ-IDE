@@ -72,6 +72,11 @@ export interface ControllerProfile {
   id: string
   name: string
   deviceId?: string
+  /** Last mutable name reported by the physical Pixelblaze. Display-only; may
+   *  differ from the user-editable profile name and is overwritten on reconnect. */
+  lastKnownDeviceName?: string
+  /** Last transport IP seen for this physical device. Convenience only, not identity. */
+  lastSeenIp?: string
   board: ControllerBoardProfile
   inputs: ControllerInput[]
   globalTransforms: GlobalTransform[]

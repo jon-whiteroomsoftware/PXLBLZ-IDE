@@ -30,7 +30,7 @@ class ConnectedProvider extends NullControllerProvider {
   controlWrites: Array<{ controls: Record<string, number>; save: boolean }> = []
   private status: ControllerStatus = {
     kind: 'connected',
-    controller: { id: 'c1', address: '10.0.0.9', name: 'Living Room' },
+    controller: { id: 'c1', address: '10.0.0.9', deviceId: 'c1', name: 'Living Room' },
   }
   getStatus(): ControllerStatus {
     return this.status

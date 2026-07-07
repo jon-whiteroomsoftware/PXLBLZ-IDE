@@ -245,6 +245,11 @@ export class PixelblazeConnection {
   // device's wiring — the panel shows it read-only.
   private _pixelCount: number | null = null
 
+  // Last full settings packet, captured from the getConfig response. Kept so
+  // higher-level connection code can read identity-adjacent fields (`boardType`,
+  // `chipId`) without narrowing the packet too early.
+  private lastSettings: Record<string, unknown> | null = null
+
   /** True once the socket handshake is open and frames can flow. */
   get isConnected(): boolean {
     return this.ws != null && this.ws.readyState === OPEN
@@ -373,6 +378,8 @@ export class PixelblazeConnection {
     activeControls?: Record<string, number>
     name?: string
     pixelCount?: number
+    boardType?: string
+    chipId?: number
   }> {
     if (!this.isConnected) {
       return Promise.reject(new Error('Cannot send: Pixelblaze connection is not open'))
@@ -385,12 +392,15 @@ export class PixelblazeConnection {
         activeProgramId?: string
         controls?: Record<string, number>
       }
+      const settings = this.lastSettings
       return {
         brightness: typeof b === 'number' ? b : undefined,
         activeProgramId: active.activeProgramId,
         activeControls: active.controls,
         name: this._deviceName ?? undefined,
         pixelCount: this._pixelCount ?? undefined,
+        boardType: typeof settings?.boardType === 'string' ? settings.boardType : undefined,
+        chipId: typeof settings?.chipId === 'number' ? settings.chipId : undefined,
       }
     })
   }
@@ -593,6 +603,7 @@ export class PixelblazeConnection {
     if ('name' in msg && typeof msg.name === 'string') this._deviceName = msg.name
     // Passively capture the device's pixel count from the settings packet.
     if ('pixelCount' in msg && typeof msg.pixelCount === 'number') this._pixelCount = msg.pixelCount
+    if ('brightness' in msg) this.lastSettings = msg
     // Resolve the first matching pending request by response field.
     if ('vars' in msg) this.fulfil('vars', msg.vars)
     if ('ack' in msg) this.fulfil('ack', msg.ack)

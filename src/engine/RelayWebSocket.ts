@@ -44,6 +44,18 @@ export type RelayMessage =
       reqId: string
       address: string
     }
+  // Device identity support (#328): `/wifistatus` is a plain HTTP endpoint that
+  // exposes the Controller's MAC address. The page can't fetch it directly from an
+  // HTTPS app, so the helper performs the same reqId-keyed HTTP round-trip as
+  // map read-back. The provider combines this MAC with `boardType` from the live
+  // websocket config packet to reconstruct the stable Pixelblaze id.
+  | {
+      source: typeof RELAY_SOURCE
+      dir: 'to-helper'
+      type: 'get-wifi-status'
+      reqId: string
+      address: string
+    }
   // Compile request (H10, issue #202): the device's own compiler runs inside the
   // helper (an offscreen-hosted sandboxed iframe, the only MV3-legal place to eval
   // remote code), not over a ws socket — so this is a one-off request/response
@@ -89,6 +101,19 @@ export type RelayMessage =
       ok: boolean
       /** The `/pixelmap.dat` blob as base64; absent when the device has no map. */
       mapData?: string
+      /** Failure reason when `ok` is false. */
+      error?: string
+    }
+  // Reply to `get-wifi-status`. `ok` true carries the parsed JSON from
+  // `/wifistatus`; `ok` false carries `error`. Missing/invalid fields are handled
+  // by the provider as "no recoverable id".
+  | {
+      source: typeof RELAY_SOURCE
+      dir: 'from-helper'
+      type: 'wifi-status'
+      reqId: string
+      ok: boolean
+      status?: WifiStatusWire
       /** Failure reason when `ok` is false. */
       error?: string
     }
@@ -140,6 +165,14 @@ export interface DiscoveredControllerWire {
   localIp: string
   name?: string
   version?: string
+}
+
+/** Trimmed `/wifistatus` response fields used for device-id recovery. */
+export interface WifiStatusWire {
+  status?: number
+  ip?: string
+  ssid?: string
+  mac?: string
 }
 
 /** Discriminates this app's relay traffic from any other postMessage chatter. */

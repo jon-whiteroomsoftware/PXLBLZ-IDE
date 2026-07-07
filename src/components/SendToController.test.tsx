@@ -10,7 +10,7 @@ import { NullControllerProvider, type ControllerStatus } from '@/engine/Controll
 class ConnectedProvider extends NullControllerProvider {
   private status: ControllerStatus = {
     kind: 'connected',
-    controller: { id: 'c1', address: '10.0.0.9' },
+    controller: { id: 'c1', address: '10.0.0.9', deviceId: 'c1' },
   }
   getStatus(): ControllerStatus {
     return this.status

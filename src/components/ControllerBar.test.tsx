@@ -197,6 +197,29 @@ describe('ControllerBar', () => {
     await waitFor(() => expect(calls).toBeGreaterThan(0))
   })
 
+  it('passes the full discovered controller record into connect', () => {
+    const addController = vi.fn()
+    const discovered = {
+      id: 'pixelblaze_pb32_known',
+      address: '10.0.0.5',
+      name: 'Desk',
+      version: '3.67',
+    }
+    useControllerStore.setState({
+      extensionPresent: true,
+      detectExtension: async () => true,
+      discover: async () => {},
+      discovered: [discovered],
+      addController,
+    })
+    render(<ControllerBar />)
+    fireEvent.click(screen.getByTestId('controller-entry-button'))
+
+    fireEvent.click(screen.getByTestId('controller-discovered-item'))
+
+    expect(addController).toHaveBeenCalledWith(discovered)
+  })
+
   it('the refresh affordance triggers a manual rescan', async () => {
     let calls = 0
     useControllerStore.setState({

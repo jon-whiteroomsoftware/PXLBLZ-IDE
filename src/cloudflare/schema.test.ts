@@ -4,6 +4,9 @@ import path from 'node:path'
 const migrationPath = path.resolve('migrations/0001_personal_storage.sql')
 const identityMigrationPath = path.resolve('migrations/0002_identity_model.sql')
 const controllerProfilesMigrationPath = path.resolve('migrations/0003_controller_profiles.sql')
+const controllerProfileDeviceMetadataMigrationPath = path.resolve(
+  'migrations/0004_controller_profile_device_metadata.sql',
+)
 
 describe('D1 personal storage migration', () => {
   it('creates the storage buckets needed for the Cloudflare personal-storage foundation', () => {
@@ -48,5 +51,13 @@ describe('D1 personal storage migration', () => {
     expect(sql).toContain('pattern_bindings_json TEXT NOT NULL')
     expect(sql).toContain('zones_json TEXT NOT NULL')
     expect(sql).toContain("VALUES ('schema_version', '3', unixepoch())")
+  })
+
+  it('adds last-known mutable device metadata to controller profiles', () => {
+    const sql = fs.readFileSync(controllerProfileDeviceMetadataMigrationPath, 'utf8')
+
+    expect(sql).toContain('ALTER TABLE controller_profiles ADD COLUMN last_known_device_name TEXT')
+    expect(sql).toContain('ALTER TABLE controller_profiles ADD COLUMN last_seen_ip TEXT')
+    expect(sql).toContain("VALUES ('schema_version', '4', unixepoch())")
   })
 })

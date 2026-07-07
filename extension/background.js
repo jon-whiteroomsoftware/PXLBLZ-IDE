@@ -222,6 +222,43 @@ chrome.runtime.onConnect.addListener((port) => {
       return
     }
 
+    // Device identity support (#328): read `/wifistatus` helper-side so the page
+    // can recover the Controller MAC without direct mixed-content/CORS access.
+    if (msg.type === 'get-wifi-status') {
+      if (!(await ensureGate(msg.address))) {
+        send({
+          source: RELAY_SOURCE,
+          dir: 'from-helper',
+          type: 'wifi-status',
+          reqId: msg.reqId,
+          ok: false,
+          error: `access to ${hostOf(msg.address)} not authorized`,
+        })
+        return
+      }
+      handleWifiStatus(msg).then(
+        (status) =>
+          send({
+            source: RELAY_SOURCE,
+            dir: 'from-helper',
+            type: 'wifi-status',
+            reqId: msg.reqId,
+            ok: true,
+            status,
+          }),
+        (e) =>
+          send({
+            source: RELAY_SOURCE,
+            dir: 'from-helper',
+            type: 'wifi-status',
+            reqId: msg.reqId,
+            ok: false,
+            error: e && e.message ? e.message : String(e),
+          }),
+      )
+      return
+    }
+
     // Auto-discovery request (#206): a global, socket-independent cloud lookup. The
     // helper GETs discover.electromage.com/discover — which the https page can't read
     // (no CORS header), the same wall as ws://LAN — and returns the candidate list.
@@ -357,6 +394,17 @@ async function handleGetMap(msg) {
   const buf = await resp.arrayBuffer()
   if (buf.byteLength === 0) return null
   return new Uint8Array(buf)
+}
+
+// ── wifi status / identity read-back (#328) ──────────────────────────────────
+//
+// GET the device's `/wifistatus` JSON over HTTP. The MAC in this response, paired
+// with `boardType` from the websocket settings packet, reconstructs the stable
+// cloud-discovery device id without requiring discovery to be reachable.
+async function handleWifiStatus(msg) {
+  const resp = await fetch(`http://${msg.address}/wifistatus`)
+  if (!resp.ok) throw new Error(`GET /wifistatus -> ${resp.status}`)
+  return await resp.json()
 }
 
 // ── cloud discovery (#206) ───────────────────────────────────────────────────

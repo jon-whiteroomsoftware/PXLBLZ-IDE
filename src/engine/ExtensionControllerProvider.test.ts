@@ -5,7 +5,11 @@
 // writes, disconnect, and bounded reconnect — without a DOM or a real extension.
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { ExtensionControllerProvider } from './ExtensionControllerProvider'
+import {
+  ExtensionControllerProvider,
+  pixelblazeDeviceIdFromBoardAndMac,
+  reverseMacBytes,
+} from './ExtensionControllerProvider'
 import {
   RELAY_SOURCE,
   bytesToBase64,
@@ -46,6 +50,12 @@ function makeDeviceTransport(
     discovered?: { id: string; localIp: string; name?: string; version?: string }[]
     /** When set, the fake helper fails discover with this error. */
     discoverError?: string
+    /** Fields the fake device reports in the websocket settings packet. */
+    settings?: { boardType?: string; chipId?: number; name?: string; pixelCount?: number }
+    /** JSON the fake helper returns from `/wifistatus`. Absent means no MAC known. */
+    wifiStatus?: { status?: number; ip?: string; ssid?: string; mac?: string }
+    /** When set, the fake helper fails `/wifistatus` with this error. */
+    wifiStatusError?: string
   } = {},
 ) {
   const detectAck = opts.detectAck ?? true
@@ -119,6 +129,13 @@ function makeDeviceTransport(
             emit({ source: RELAY_SOURCE, dir: 'from-helper', type: 'map-data', reqId: msg.reqId, ok: true })
           }
           return
+        case 'get-wifi-status':
+          if (opts.wifiStatusError) {
+            emit({ source: RELAY_SOURCE, dir: 'from-helper', type: 'wifi-status', reqId: msg.reqId, ok: false, error: opts.wifiStatusError })
+          } else {
+            emit({ source: RELAY_SOURCE, dir: 'from-helper', type: 'wifi-status', reqId: msg.reqId, ok: true, status: opts.wifiStatus ?? {} })
+          }
+          return
         case 'discover':
           if (opts.discoverError) {
             emit({ source: RELAY_SOURCE, dir: 'from-helper', type: 'discover-result', reqId: msg.reqId, ok: false, error: opts.discoverError })
@@ -134,7 +151,7 @@ function makeDeviceTransport(
           const cmd = JSON.parse(msg.payload.text) as Record<string, unknown>
           if (cmd.getVars) reply(msg.connId, { vars: { speed: 0.5 } })
           if (cmd.getConfig) {
-            reply(msg.connId, { brightness: 0.4 })
+            reply(msg.connId, { brightness: 0.4, ...opts.settings })
             reply(msg.connId, { activeProgram: { activeProgramId: 'P1', controls: { sliderX: 0.7 } } })
           }
           if (cmd.ping) reply(msg.connId, { ack: 1 })
@@ -183,6 +200,16 @@ function makeDeviceTransport(
 const TARGET = { address: '192.168.8.224' }
 
 describe('ExtensionControllerProvider', () => {
+  it('reverses MAC bytes and builds the Pixelblaze cloud id', () => {
+    expect(reverseMacBytes('34:94:54:EE:D4:3C')).toBe('3cd4ee549434')
+    expect(reverseMacBytes('34-94-54-ee-d4-3c')).toBe('3cd4ee549434')
+    expect(reverseMacBytes('not-a-mac')).toBeNull()
+    expect(pixelblazeDeviceIdFromBoardAndMac('pb32', '34:94:54:EE:D4:3C')).toBe(
+      'pixelblaze_pb32_3cd4ee549434',
+    )
+    expect(pixelblazeDeviceIdFromBoardAndMac(undefined, '34:94:54:EE:D4:3C')).toBeNull()
+  })
+
   it('starts in no-helper', () => {
     const p = new ExtensionControllerProvider({ transport: makeDeviceTransport().transport })
     expect(p.getStatus()).toEqual({ kind: 'no-extension' })
@@ -210,8 +237,80 @@ describe('ExtensionControllerProvider', () => {
     const seen: ControllerStatus[] = []
     p.subscribe((s) => seen.push(s))
     await p.connect(TARGET)
-    expect(p.getStatus()).toEqual({ kind: 'connected', controller: { id: TARGET.address, address: TARGET.address } })
+    expect(p.getStatus()).toEqual({
+      kind: 'connected',
+      controller: { id: TARGET.address, address: TARGET.address, deviceId: null },
+    })
     expect(seen.map((s) => s.kind)).toContain('connecting')
+  })
+
+  it('uses a discovery-picked device id immediately on connect', async () => {
+    const p = new ExtensionControllerProvider({ transport: makeDeviceTransport().transport })
+    await p.connect({
+      address: TARGET.address,
+      deviceId: 'pixelblaze_pb32_known',
+      name: 'Desk',
+    })
+    expect(p.getStatus()).toEqual({
+      kind: 'connected',
+      controller: {
+        id: 'pixelblaze_pb32_known',
+        address: TARGET.address,
+        deviceId: 'pixelblaze_pb32_known',
+        name: 'Desk',
+      },
+    })
+  })
+
+  it('recovers a manual-IP device id from websocket config plus /wifistatus', async () => {
+    const d = makeDeviceTransport({
+      settings: { boardType: 'pb32', chipId: 3986670 },
+      wifiStatus: { mac: '34:94:54:EE:D4:3C' },
+    })
+    const p = new ExtensionControllerProvider({ transport: d.transport })
+
+    await p.connect(TARGET)
+
+    expect(p.getStatus()).toEqual({
+      kind: 'connected',
+      controller: {
+        id: 'pixelblaze_pb32_3cd4ee549434',
+        address: TARGET.address,
+        deviceId: 'pixelblaze_pb32_3cd4ee549434',
+      },
+    })
+  })
+
+  it('falls back to cloud discovery when direct manual-IP id recovery is unavailable', async () => {
+    const d = makeDeviceTransport({
+      settings: { boardType: 'pb32', chipId: 3986670 },
+      wifiStatusError: 'wifi status failed',
+      discovered: [{ id: 'pixelblaze_pb32_from_discovery', localIp: TARGET.address }],
+    })
+    const p = new ExtensionControllerProvider({ transport: d.transport })
+
+    await p.connect(TARGET)
+
+    expect(p.getStatus()).toEqual({
+      kind: 'connected',
+      controller: {
+        id: 'pixelblaze_pb32_from_discovery',
+        address: TARGET.address,
+        deviceId: 'pixelblaze_pb32_from_discovery',
+      },
+    })
+  })
+
+  it('keeps a manual-IP connection usable with null deviceId when no id is recoverable', async () => {
+    const d = makeDeviceTransport({ discoverError: 'cloud offline' })
+    const p = new ExtensionControllerProvider({ transport: d.transport })
+
+    await p.connect(TARGET)
+
+    expect(p.getStatus()).toEqual({
+      kind: 'connected',
+      controller: { id: TARGET.address, address: TARGET.address, deviceId: null },
+    })
   })
 
   it('rejects connect when no helper is installed', async () => {
