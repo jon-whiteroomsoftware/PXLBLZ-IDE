@@ -284,21 +284,47 @@ Existing tooling makes most of this cheap: the divergence harness
 
 Hardware/dialect spike (blocking Track A implementation):
 
-1. The exact API for reading analog input pins; confirm the ADC1-only-under-
-   WiFi constraint per board variant (WiFi is always active on Pixelblaze, so
-   ADC2 pins are expected to be unusable — verify).
-2. Rename/wrap an exported `beforeRender`; call exported sliders from injected
-   code; assign to `var` and `export var` from injected code (emulator +
-   hardware).
-3. Built-in aliasing/shadowing viability (expected answer: call-site rewriting
-   stays mandatory); optional-argument semantics (expected: arity-specific
-   `paint` wrappers).
-4. `hsv`/`hsv24`/`rgb`/`paint` wrapper correctness on hardware; `hsv` calls
-   stay `hsv` through wrappers (extra brightness resolution on supported LEDs).
-5. Floating/disconnected analog input characterization → a concrete guard
-   design (manifest `deadband` plus a fallback heuristic for rail-pinned or
-   high-variance readings), not just a note.
-6. Per-frame analog read + smoothing cost.
+1. Confirmed 2026-07-07 in issue #289:
+   - V3 analog input code is `pinMode(pin, ANALOG)` plus `analogRead(pin)`;
+     `readAdc()` is V2-only and did not compile on the tested V3 controller.
+   - Mockup-style `A1`/`A2` names are not compiler symbols on fw 3.67. Numeric
+     GPIO arguments compile; GPIO 32 ran successfully. Pin pickers therefore
+     need board-profile pad labels mapped to the numeric IO values Pixelblaze
+     code uses.
+   - ElectroMage's GPIO table is the board-profile authority. For v3 Standard,
+     analog-capable labels are `IO33` on all v3 boards, plus `IO34`, `IO35`,
+     `IO36`, and `IO39` on hardware revision >= v3.5. The 8-pin through-hole
+     header labels `IO26`, `IO25`, and `IO0` are digital-only.
+   - ESP32 ADC2 is shared with WiFi, so WiFi-connected Pixelblaze profiles
+     should expose only board-available analog labels from ElectroMage's table,
+     not every raw ESP32 ADC candidate.
+   - Renamed/wrapped `beforeRender(delta)` works; injected code can call
+     exported sliders and assign both plain top-level `var` and `export var`
+     bindings.
+   - Built-ins are not first-class aliasable values (`var oldHsv = hsv` fails),
+     but user functions can shadow built-in names. Output interception must use
+     scope-aware call-site rewriting and must not rewrite local shadows.
+   - Wrappers forwarding to `hsv`, `hsv24`, `rgb`, and arity-specific `paint`
+     call paths compiled and ran on hardware.
+   - Pixelblaze has no `undefined` value, and missing user-function arguments
+     read as `0`. Generated wrappers must use arity-specific branches rather
+     than forwarding `undefined`.
+   - Floating GPIO 32 spanned nearly the full 0..1 range in a short run; guard
+     design should combine declared `deadband`/`fallback` with sustained
+     rail-pinned or high-variance detection.
+   - One `analogRead(32)` plus one-pole smoothing in `beforeRender` was
+     indistinguishable from the ~124.5 FPS no-analog baseline on the tested rig.
+2. Remaining Track A prerequisite: encode the ElectroMage GPIO table as board
+   profiles. Do not brute-force GPIOs on hardware. A follow-up run stopped
+   responding while moving from a successful GPIO 32 probe to GPIO 33, but
+   ElectroMage documents `IO33` as analog-capable, so that timeout is
+   inconclusive controller/socket state rather than a pin capability finding.
+   The current test controller's pots appear to be wired to digital-only
+   through-hole header labels `IO25`/`IO26`. A focused hardware fixture has
+   validated `IO25` as a changing digital input that can route into injected
+   logic/exported slider calls; `IO26` stayed high in that sample. Analog pot
+   range/deadband/fallback validation waits until a wiper is moved to an
+   analog-capable pad.
 
 Perf-harness spikes (runnable now, no new hardware work):
 
