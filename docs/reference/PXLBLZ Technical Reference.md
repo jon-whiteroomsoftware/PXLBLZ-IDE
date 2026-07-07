@@ -8,10 +8,11 @@ the code wins.
 
 **The whole document in two sentences.** PXLBLZ is a browser IDE with a small
 authenticated cloud workspace: editing, transpiling, execution, and preview all
-happen in the page, while personal patterns/maps/settings live in D1 behind
-Pages Functions. Its defining commitment is hardware fidelity — the preview
-reproduces the device's fixed-point math, map semantics, and edge-case
-behaviours, and nothing the preview invents ever reaches a controller.
+happen in the page, while personal patterns/maps/settings and Controller
+profiles live in D1 behind Pages Functions. Its defining commitment is hardware
+fidelity — the preview reproduces the device's fixed-point math, map semantics,
+and edge-case behaviours, and nothing the preview invents ever reaches a
+controller.
 
 **Part 1** is the architecture: the stack, the defining decisions, and the system
 map. **Part 2** is the subsystem reference: engine internals, the preview
@@ -515,8 +516,9 @@ preview remain usable without auth.
 The Cloudflare D1 foundation is selected by the remote provider. The Wrangler
 binding is `PXLBLZ_DB`, backed by the `pxlblz-ide` database. The migrations
 create stable `users`, provider-specific `identities`, user-scoped tables for
-personal patterns, personal maps, personal settings, and controller metadata,
-plus `app_metadata` for schema version probing. The Pages Function at
+personal patterns, personal maps, personal settings, durable Controller
+profiles, and controller metadata, plus `app_metadata` for schema version
+probing. The Pages Function at
 `/api/d1/health` reads
 `app_metadata.schema_version` and reports whether the binding is reachable; it is
 only a backend foundation probe, not personal-content CRUD.
@@ -537,15 +539,21 @@ out of the personal content provider. Optional owner allow-lists are enforced
 server-side before a session is issued.
 
 Pattern operations call `/api/patterns`, custom map operations call `/api/maps`,
-and provider-owned settings (`lastActive`, `demoOverrides`) call
-`/api/settings/:key`. Controller push metadata uses a sibling framework-free
-storage seam: overwrite bindings (`controller-bindings`) and program label
-caches (`controller-program-labels`) call `/api/controller-metadata/:key`.
-All D1 helpers scope list/update/delete predicates by the signed session's
-`userId`. The UI labels personal collections as **Patterns** and **Maps**.
-Signed-out users see sign-in prompts where personal workspace
-actions would be; no browser-local durable workspace is created, and no
-browser-to-D1 migration is attempted or implied.
+provider-owned settings (`lastActive`, `demoOverrides`) call
+`/api/settings/:key`, and durable Controller profiles call `/api/controllers`.
+Controller profiles are offline-editable records for hardware identity,
+board-aware inputs, global transforms, per-pattern bindings, and zones. Their
+pure validator lives in `src/engine/controllerProfile.ts`; it rejects analog
+bindings on non-analog Pixelblaze v3 Standard pins using the ElectroMage GPIO
+findings from the issue #289 spike. Controller push metadata remains a sibling
+framework-free storage seam: overwrite bindings (`controller-bindings`) and
+program label caches (`controller-program-labels`) call
+`/api/controller-metadata/:key`. All D1 helpers scope list/update/delete
+predicates by the signed session's `userId`. The UI labels personal collections
+as **Patterns** and **Maps** today; Controller profile UI is a later slice.
+Signed-out users see sign-in prompts where personal workspace actions would be;
+no browser-local durable workspace is created, and no browser-to-D1 migration is
+attempted or implied.
 
 `PatternRecord` carries the per-pattern overrides in a sparse
 `settings?: Partial<Settings>` field — superseding older flat columns;
