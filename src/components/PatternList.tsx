@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react'
 import {
   BookOpen,
   Braces,
-  ChevronDown,
   Cpu,
   FileCode2,
   FolderOpen,
@@ -23,9 +22,6 @@ import {
   demoPersonalContentProvider,
   getPersonalContentProvider,
   initializePersonalContentProvider,
-  personalContentCollectionLabel,
-  storageModeForPersonalContentProvider,
-  type PersonalContentStorageMode,
 } from '@/engine/personalContentProvider'
 import {
   demoControllerMetadataStorage,
@@ -59,20 +55,7 @@ type ScrollMetrics = {
 
 const DEFAULT_DEMO_NAME = 'IridescentFibers'
 
-// A turn-down chevron, sized to read as a clear interactive affordance. Points down
-// when open, rotates to point right when collapsed. Inherits the header's text color
-// so it brightens with the label on hover.
-function CollapseChevron({ collapsed }: { collapsed: boolean }) {
-  return (
-    <ChevronDown
-      size={17}
-      className={`shrink-0 transition-transform ${collapsed ? '-rotate-90' : ''}`}
-    />
-  )
-}
-
-// An icon action button for a section header (e.g. "+" new, or open-from-disk).
-// Stops propagation so clicking it acts without toggling the section's collapse.
+// An icon action button for a rail title row (e.g. "+" new, or open-from-disk).
 // `title` doubles as the hover tooltip and the accessible label.
 function HeaderAction({
   icon,
@@ -101,35 +84,22 @@ function HeaderAction({
   )
 }
 
-function SectionHeader({
-  label,
-  collapsed,
-  onToggle,
+function RailEntityHeader({
+  title,
   action,
-  first,
+  children,
 }: {
-  label: string
-  collapsed: boolean
-  onToggle: () => void
+  title: string
   action?: React.ReactNode
-  // The topmost header has nothing above it to separate from, so it takes less top
-  // pad; later sections lean on generous space above (not a colour/rule) to divide.
-  first?: boolean
+  children?: React.ReactNode
 }) {
   return (
-    <div
-      onClick={onToggle}
-      style={{ letterSpacing: '0.04em' }}
-      className={[
-        first ? 'pt-0.5' : 'mt-2 pt-2.5 border-t border-zinc-700/80',
-        'pb-1 px-3 border-b border-zinc-700/65 flex items-center justify-between gap-1 cursor-pointer select-none text-[11px] font-mono font-semibold text-structural uppercase hover:text-live',
-      ].join(' ')}
-    >
-      <span className="truncate">{label}</span>
-      <div className="flex items-center gap-1.5">
-        {action}
-        <CollapseChevron collapsed={collapsed} />
+    <div className="border-b border-seam px-3 py-2">
+      <div className="flex min-h-5 items-center gap-2">
+        <div className="flex-1 truncate text-sm font-semibold text-zinc-200">{title}</div>
+        {action && <div className="flex items-center gap-1.5">{action}</div>}
       </div>
+      {children}
     </div>
   )
 }
@@ -273,21 +243,16 @@ function CatalogHint({
 
 function EntityStubList({
   title,
-  label,
   detail,
 }: {
   title: string
-  label: string
   detail: string
 }) {
   return (
     <div className="flex h-full flex-col text-xs font-mono">
-      <div className="border-b border-seam px-3 py-2">
-        <div className="text-sm font-semibold text-zinc-200">{title}</div>
-      </div>
+      <RailEntityHeader title={title} />
       <div className="px-3 py-3">
-        <SectionHeader label={label} first collapsed={false} onToggle={() => {}} />
-        <div className="mt-3 rounded border border-dashed border-zinc-700/80 bg-zinc-950/25 px-3 py-3 text-[11px] leading-relaxed text-zinc-500">
+        <div className="rounded border border-dashed border-zinc-700/80 bg-zinc-950/25 px-3 py-3 text-[11px] leading-relaxed text-zinc-500">
           {detail}
         </div>
       </div>
@@ -353,7 +318,7 @@ function RailFilterBar({
   }
 
   return (
-    <div className="flex items-center gap-1 px-3 pt-1.5 pb-1">
+    <div className="flex items-center gap-1 pt-1.5">
       <div
         role="radiogroup"
         aria-label="Dimension filter"
@@ -716,11 +681,9 @@ export function PatternList() {
     shows: '',
   })
 
-  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({})
   const scrollRef = useRef<HTMLDivElement>(null)
   const patternRowRefs = useRef(new Map<string, HTMLLIElement>())
   const [scrollMetrics, setScrollMetrics] = useState<ScrollMetrics>({ top: 0, height: 0, visible: false })
-  const [personalStorageMode, setPersonalStorageMode] = useState<PersonalContentStorageMode>('demo')
   const [personalWorkspaceAuthenticated, setPersonalWorkspaceAuthenticated] = useState(false)
   const setGlobalWorkspaceAuthenticated = useWorkspaceStore((s) => s.setPersonalWorkspaceAuthenticated)
   const query = queries[railMode]
@@ -749,15 +712,17 @@ export function PatternList() {
     const resizeObserver = new ResizeObserver(updateScrollMetrics)
     resizeObserver.observe(el)
     return () => resizeObserver.disconnect()
-  }, [railMode, dimLens, query, userPatterns.length, userMaps.length, collapsedSections])
+  }, [railMode, dimLens, query, userPatterns.length, userMaps.length])
 
   useEffect(() => {
     let cancelled = false
     async function hydratePersonalContent() {
       const session = await getAuthSession().catch(() => ({ authenticated: false as const }))
-      const provider = session.authenticated
-        ? await initializePersonalContentProvider({ mode: 'remote-api' })
-        : await initializePersonalContentProvider({ provider: demoPersonalContentProvider })
+      if (session.authenticated) {
+        await initializePersonalContentProvider({ mode: 'remote-api' })
+      } else {
+        await initializePersonalContentProvider({ provider: demoPersonalContentProvider })
+      }
       await initializeControllerMetadataStorage(
         session.authenticated
           ? { mode: 'remote-api' }
@@ -766,7 +731,6 @@ export function PatternList() {
       if (cancelled) return
       setPersonalWorkspaceAuthenticated(session.authenticated)
       setGlobalWorkspaceAuthenticated(session.authenticated)
-      setPersonalStorageMode(storageModeForPersonalContentProvider(provider))
       // Hydrate user maps before the first pattern opens so the layout selector is
       // populated from whichever personal provider won startup selection.
       await useMapStore.getState().loadMaps()
@@ -857,28 +821,15 @@ export function PatternList() {
     openExistingMap(map)
   }
 
-  // An active name search force-expands every group: a hit inside a collapsed group
-  // must still surface (#252 follow-up). The stored collapse state is left untouched,
-  // so groups snap back to the user's chosen open/closed layout when the query clears.
-  const searching = query.trim() !== ''
-  const isCollapsed = (label: string) => !searching && !!collapsedSections[label]
-  const toggleCollapsed = (label: string) =>
-    setCollapsedSections((c) => ({ ...c, [label]: !c[label] }))
-  const personalPatternsLabel = personalContentCollectionLabel(personalStorageMode, 'patterns')
-  const personalMapsLabel = personalContentCollectionLabel(personalStorageMode, 'maps')
   const visibleUserPatterns = userPatterns.filter(
     (pattern) =>
       matchesLens(nativeDim(pattern.src), dimLens) && matchesQuery(pattern.name, query),
   )
 
-  const patternNavItems = [
-    ...(!isCollapsed(personalPatternsLabel)
-      ? visibleUserPatterns.map((pattern) => ({
-        key: `pattern:${pattern.id}`,
-        activate: () => openUserPattern(pattern),
-      }))
-      : []),
-  ]
+  const patternNavItems = visibleUserPatterns.map((pattern) => ({
+    key: `pattern:${pattern.id}`,
+    activate: () => openUserPattern(pattern),
+  }))
 
   function handlePatternRowRef(key: string, el: HTMLLIElement | null) {
     if (el) patternRowRefs.current.set(key, el)
@@ -925,10 +876,27 @@ export function PatternList() {
       <div className="flex min-w-0 flex-1 flex-col">
         {(railMode === 'patterns' || railMode === 'maps') && (
           <>
-            <div className="border-b border-seam px-3 py-2">
-              <div className="mb-1 text-sm font-semibold text-zinc-200">
-                {railMode === 'patterns' ? 'Patterns' : 'Maps'}
-              </div>
+            <RailEntityHeader
+              title={railMode === 'patterns' ? 'Patterns' : 'Maps'}
+              action={railMode === 'patterns'
+                ? (
+                  personalWorkspaceAuthenticated ? (
+                    <>
+                      <HeaderAction
+                        icon={<FolderOpen size={14} />}
+                        title="Open pattern from .epe file"
+                        onClick={() => fileInputRef.current?.click()}
+                      />
+                      <HeaderAction icon={<Plus size={14} />} title="New pattern" onClick={handleCreatePattern} />
+                    </>
+                  ) : null
+                )
+                : (
+                  personalWorkspaceAuthenticated
+                    ? <HeaderAction icon={<Plus size={14} />} title="New map" onClick={createNewMap} />
+                    : null
+                )}
+            >
               <RailFilterBar
                 lens={dimLens}
                 onLensChange={setDimLens}
@@ -936,7 +904,7 @@ export function PatternList() {
                 onQueryChange={setQuery}
                 hideOneDimensional={railMode === 'maps'}
               />
-            </div>
+            </RailEntityHeader>
             <div className="relative flex-1 min-h-0">
               <div
                 ref={scrollRef}
@@ -946,57 +914,37 @@ export function PatternList() {
               >
                 {railMode === 'patterns' && (
                   <>
-                    <SectionHeader
-                      label={personalPatternsLabel}
-                      first
-                      collapsed={isCollapsed(personalPatternsLabel)}
-                      onToggle={() => toggleCollapsed(personalPatternsLabel)}
-                      action={
-                        personalWorkspaceAuthenticated ? (
-                          <>
-                            <HeaderAction
-                              icon={<FolderOpen size={14} />}
-                              title="Open pattern from .epe file"
-                              onClick={() => fileInputRef.current?.click()}
-                            />
-                            <HeaderAction icon={<Plus size={14} />} title="New pattern" onClick={handleCreatePattern} />
-                          </>
-                        ) : null
-                      }
-                    />
                     {importError && (
                       <p className="pl-3 pr-3 py-1 text-red-400 truncate" title={importError}>{importError}</p>
                     )}
-                    {!isCollapsed(personalPatternsLabel) && (
-                      personalWorkspaceAuthenticated ? (
-                        visibleUserPatterns.length === 0 ? (
-                          <p className="pl-3 pr-3 py-1 text-zinc-600 italic select-none">No patterns yet</p>
-                        ) : (
-                          <ul className="pt-2">
-                            {visibleUserPatterns.map((pattern) => (
-                              <EditableListItem
-                                key={pattern.id}
-                                name={pattern.name}
-                                noun="pattern"
-                                active={activePatternId === pattern.id}
-                                dim={dimLens === 'all' ? `${nativeDim(pattern.src)}D` : undefined}
-                                takenNames={userPatterns.filter((p) => p.id !== pattern.id).map((p) => p.name)}
-                                navKey={`pattern:${pattern.id}`}
-                                onSelect={() => openUserPattern(pattern)}
-                                onRename={(name) => renamePattern(pattern.id, name)}
-                                onDelete={() => removePattern(pattern.id)}
-                                onRowRef={handlePatternRowRef}
-                                onRowKeyDown={handlePatternRowKeyDown}
-                              />
-                            ))}
-                          </ul>
-                        )
+                    {personalWorkspaceAuthenticated ? (
+                      visibleUserPatterns.length === 0 ? (
+                        <p className="pl-3 pr-3 py-1 text-zinc-600 italic select-none">No patterns yet</p>
                       ) : (
-                        <p className="pl-3 pr-3 py-2 text-zinc-600 italic select-none">
-                          <a href="/api/auth/login" className="text-live hover:underline">Sign in</a>
-                          {' '}to save patterns
-                        </p>
+                        <ul className="pt-2">
+                          {visibleUserPatterns.map((pattern) => (
+                            <EditableListItem
+                              key={pattern.id}
+                              name={pattern.name}
+                              noun="pattern"
+                              active={activePatternId === pattern.id}
+                              dim={dimLens === 'all' ? `${nativeDim(pattern.src)}D` : undefined}
+                              takenNames={userPatterns.filter((p) => p.id !== pattern.id).map((p) => p.name)}
+                              navKey={`pattern:${pattern.id}`}
+                              onSelect={() => openUserPattern(pattern)}
+                              onRename={(name) => renamePattern(pattern.id, name)}
+                              onDelete={() => removePattern(pattern.id)}
+                              onRowRef={handlePatternRowRef}
+                              onRowKeyDown={handlePatternRowKeyDown}
+                            />
+                          ))}
+                        </ul>
                       )
+                    ) : (
+                      <p className="pl-3 pr-3 py-2 text-zinc-600 italic select-none">
+                        <a href="/api/auth/login" className="text-live hover:underline">Sign in</a>
+                        {' '}to save patterns
+                      </p>
                     )}
                     <CatalogHint
                       noun="patterns"
@@ -1012,42 +960,33 @@ export function PatternList() {
                   )
                   return (
                     <>
-                      <SectionHeader
-                        label={personalMapsLabel}
-                        first
-                        collapsed={isCollapsed(personalMapsLabel)}
-                        onToggle={() => toggleCollapsed(personalMapsLabel)}
-                        action={personalWorkspaceAuthenticated
-                          ? <HeaderAction icon={<Plus size={14} />} title="New map" onClick={createNewMap} />
-                          : null}
-                      />
-                      {!isCollapsed(personalMapsLabel) && (
-                        !personalWorkspaceAuthenticated ? (
-                          <p className="pl-3 pr-3 py-2 text-zinc-600 italic select-none">
-                            <a href="/api/auth/login" className="text-live hover:underline">Sign in</a>
-                            {' '}to save maps
-                          </p>
-                        ) : visibleMaps.length === 0 ? (
-                          userMaps.length === 0 ? (
-                            <p className="pl-3 pr-3 py-1 text-zinc-600 italic select-none">No custom maps yet</p>
-                          ) : null
+                      {!personalWorkspaceAuthenticated ? (
+                        <p className="pl-3 pr-3 py-2 text-zinc-600 italic select-none">
+                          <a href="/api/auth/login" className="text-live hover:underline">Sign in</a>
+                          {' '}to save maps
+                        </p>
+                      ) : visibleMaps.length === 0 ? (
+                        userMaps.length === 0 ? (
+                          <p className="pl-3 pr-3 py-1 text-zinc-600 italic select-none">No custom maps yet</p>
                         ) : (
-                          <ul className="pt-2">
-                            {visibleMaps.map((map) => (
-                              <EditableListItem
-                                key={map.id}
-                                name={map.name}
-                                noun="map"
-                                active={editingMap?.kind === 'existing' && editingMap.id === map.id}
-                                dim={dimLens === 'all' ? `${map.dim}D` : undefined}
-                                takenNames={userMaps.filter((m) => m.id !== map.id).map((m) => m.name)}
-                                onSelect={() => openUserMap(map)}
-                                onRename={(name) => renameMap(map.id, name)}
-                                onDelete={() => removeMap(map.id)}
-                              />
-                            ))}
-                          </ul>
+                          null
                         )
+                      ) : (
+                        <ul className="pt-2">
+                          {visibleMaps.map((map) => (
+                            <EditableListItem
+                              key={map.id}
+                              name={map.name}
+                              noun="map"
+                              active={editingMap?.kind === 'existing' && editingMap.id === map.id}
+                              dim={dimLens === 'all' ? `${map.dim}D` : undefined}
+                              takenNames={userMaps.filter((m) => m.id !== map.id).map((m) => m.name)}
+                              onSelect={() => openUserMap(map)}
+                              onRename={(name) => renameMap(map.id, name)}
+                              onDelete={() => removeMap(map.id)}
+                            />
+                          ))}
+                        </ul>
                       )}
                       <CatalogHint
                         noun="maps"
@@ -1065,21 +1004,18 @@ export function PatternList() {
         {railMode === 'mixins' && (
           <EntityStubList
             title="Mixins"
-            label="Mixins"
             detail="Mixin lists land in their own slice. This rail entry is reserved so the v2 Studio navigation can settle first."
           />
         )}
         {railMode === 'controllers' && (
           <EntityStubList
             title="Controllers"
-            label="My Controllers"
             detail="Controller profiles become durable workspace entities in a following slice. Live connection controls stay in the top bar for now."
           />
         )}
         {railMode === 'shows' && (
           <EntityStubList
             title="Shows"
-            label="Shows"
             detail="Shows will compose clips across zones once the underlying entity model is ready."
           />
         )}
