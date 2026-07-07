@@ -151,6 +151,7 @@
   }
   .rail-title { font-size: 11px; letter-spacing: 0.12em; color: var(--structural); text-transform: uppercase; display: flex; align-items: center; gap: 8px; }
   .rail-title .n { color: var(--seam); }
+  .rail-title .plus { margin-left: auto; letter-spacing: 0; }
   .lens { display: flex; gap: 3px; margin-top: 8px; }
   .lens b {
     font-weight: 500; font-size: 10.5px; border: 1px solid var(--seam); border-radius: 4px;
@@ -290,6 +291,36 @@
   .kv b { color: var(--text); font-weight: 500; font-variant-numeric: tabular-nums; }
   .kv .amber { color: var(--live); }
 
+  /* slim device status strip (profile page) */
+  .statusline {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    font-size: 11.5px; color: var(--dim);
+    border: 1px solid var(--seam); border-radius: 6px; background: var(--panel);
+    padding: 7px 12px; margin-bottom: 16px;
+  }
+  .statusline .sep { color: var(--seam); }
+  .statusline .hint { margin-left: auto; color: var(--structural); }
+  .statusline .hint b { color: var(--dim); font-weight: 400; }
+
+  /* live controller dropdown (top-bar) */
+  .dd { width: 310px; margin: 10px 14px 22px auto; border: 1px solid var(--seam); border-radius: 8px; background: var(--panel); box-shadow: 0 18px 44px -18px rgba(0,0,0,0.85); font-size: 11.5px; }
+  .dd-head { display: flex; align-items: center; gap: 8px; padding: 9px 12px; border-bottom: 1px solid var(--seam); color: var(--text); font-weight: 600; font-size: 12.5px; }
+  .dd-sec { padding: 8px 12px 6px; }
+  .dd-sec h6 { margin: 0 0 4px; font-size: 9.5px; letter-spacing: 0.13em; text-transform: uppercase; color: var(--structural); font-weight: 500; }
+  .dd-foot { border-top: 1px solid var(--seam); padding: 8px 12px; display: flex; align-items: center; gap: 8px; color: var(--live); }
+  .dd-foot .k { margin-left: auto; color: var(--structural); font-size: 10px; }
+
+  /* map wiring check (docked in the context pane) */
+  .wire-legend { display: flex; align-items: center; gap: 8px; margin: 10px 0 2px; font-size: 10px; color: var(--structural); }
+  .wire-legend .ramp { flex: 1; height: 4px; border-radius: 2px; background: linear-gradient(90deg, #2a2a30, #7a5a14, var(--live)); }
+
+  /* stock reveal in rail lists */
+  .rail-reveal {
+    display: flex; align-items: center; gap: 6px; padding: 6px 12px 6px 18px;
+    font-size: 11px; color: var(--structural); cursor: pointer;
+  }
+  .rail-reveal:hover { color: var(--dim); }
+
   /* ── show editor ─────────────────────────────────────────── */
   .tl { padding: 16px 18px 10px; }
   .tl-ruler {
@@ -376,9 +407,10 @@
     <button class="tab" role="tab" aria-selected="true" data-screen="s-gallery"><span class="k">1</span>Gallery</button>
     <button class="tab" role="tab" aria-selected="false" data-screen="s-detail"><span class="k">2</span>Pattern detail</button>
     <button class="tab" role="tab" aria-selected="false" data-screen="s-studio"><span class="k">3</span>Studio nav</button>
-    <button class="tab" role="tab" aria-selected="false" data-screen="s-controller"><span class="k">4</span>Controller</button>
-    <button class="tab" role="tab" aria-selected="false" data-screen="s-mixin"><span class="k">5</span>Mixin</button>
-    <button class="tab" role="tab" aria-selected="false" data-screen="s-show"><span class="k">6</span>Show editor</button>
+    <button class="tab" role="tab" aria-selected="false" data-screen="s-maps"><span class="k">4</span>Maps</button>
+    <button class="tab" role="tab" aria-selected="false" data-screen="s-controller"><span class="k">5</span>Controller</button>
+    <button class="tab" role="tab" aria-selected="false" data-screen="s-mixin"><span class="k">6</span>Mixin</button>
+    <button class="tab" role="tab" aria-selected="false" data-screen="s-show"><span class="k">7</span>Show editor</button>
   </div>
 </div>
 
@@ -582,11 +614,10 @@
           </div>
           <div class="raillist">
             <div class="rail-head">
-              <div class="rail-title">Patterns <span class="n">·</span></div>
+              <div class="rail-title">Patterns <span class="plus">＋ ▾</span></div>
               <div class="lens"><b class="on">All</b><b>1D</b><b>2D</b><b>3D</b><span class="search">⌕</span></div>
             </div>
             <div class="rail-sec">
-              <h4>Patterns <span class="plus">＋ ▾</span></h4>
               <div class="ritem on">aurora-drift <span class="bd badge live">2D</span></div>
               <div class="ritem">color-fields <span class="bd badge">2D</span></div>
               <div class="ritem">tazii-arches <span class="bd badge">2D</span></div>
@@ -663,12 +694,131 @@
   </div>
 </section>
 
-<!-- ═══════════════════ 4 · CONTROLLER ═══════════════════ -->
+<!-- ═══════════════════ 4 · MAPS ═══════════════════ -->
+<section class="screen" id="s-maps">
+  <h2>Maps — Mapper source, wiring check docked in the context pane</h2>
+  <p class="sub">A map is a template that needs a pattern to present, so there's no animated
+     preview here. Instead the context pane docks a <em>wiring check</em>: a static render of the
+     map in its true shape with pixels marked in wire order — redrawn on each successful compile —
+     plus the map's facts and where it's used. The "did I solder this serpentine the right way
+     round?" answer is always one glance away.</p>
+
+  <div class="frame">
+    <div class="frame-cap">
+      <span class="dots"><i></i><i></i><i></i></span>
+      <span class="url">pxlblz-ide.pages.dev/<b>studio/maps/bag-matrix-16x16</b></span>
+    </div>
+    <div class="mock">
+      <div class="topbar">
+        <span class="wordmark">
+          <svg width="20" height="14" viewBox="0 0 20 14" fill="none"><path d="M1 13 5 1l3 8 3-8 4 12" stroke="#fbbf24" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          PXLBLZ
+        </span>
+        <span class="menu-chip">Docs ▾</span>
+        <span class="spacer"></span>
+        <span class="pill"><span class="dot ok"></span> workshop-box</span>
+        <span class="pill">jon-whiteroomsoft… ⏻</span>
+      </div>
+
+      <div class="cols" style="min-height:600px">
+        <div class="rail">
+          <div class="activity">
+            <span class="act-wrap"><span class="act"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M1 12c2-6 3-2 5-6s3 8 5 2 2-2 4-4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></span><span class="cap">PTRN</span></span>
+            <span class="act-wrap on"><span class="act on"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="4" cy="4" r="1.4" fill="currentColor"/><circle cx="12" cy="4" r="1.4" fill="currentColor"/><circle cx="4" cy="12" r="1.4" fill="currentColor"/><circle cx="12" cy="12" r="1.4" fill="currentColor"/><circle cx="8" cy="8" r="1.4" fill="currentColor"/></svg></span><span class="cap">MAPS</span></span>
+            <span class="act-wrap"><span class="act"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 2C4 2 5 5 3 5v2c2 0 1 3 3 3M10 2c2 0 1 3 3 3v2c-2 0-1 3-3 3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" transform="translate(0 2)"/></svg></span><span class="cap">MIXN</span></span>
+            <span class="act-wrap"><span class="act"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="5.2" stroke="currentColor" stroke-width="1.3"/><path d="M8 8 10.5 5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></span><span class="cap">CTRL</span></span>
+            <span class="act-wrap"><span class="act"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="1.5" y="4" width="6" height="8" rx="1" stroke="currentColor" stroke-width="1.3"/><rect x="8.5" y="4" width="6" height="8" rx="1" stroke="currentColor" stroke-width="1.3"/></svg></span><span class="cap">SHOW</span></span>
+            <span class="act-bottom act-wrap"><span class="act"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 2v12M8 2C6 3.5 3 3.5 2 3v10c1-.5 4-.5 6 1 2-1.5 5-1.5 6-1V3c-1 .5-4 .5-6-1z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg></span><span class="cap">CTLG</span></span>
+          </div>
+          <div class="raillist">
+            <div class="rail-head">
+              <div class="rail-title">Maps <span class="plus">＋</span></div>
+              <div class="lens"><b class="on">All</b><b>1D</b><b>2D</b><b>3D</b><span class="search">⌕</span></div>
+            </div>
+            <div class="rail-sec">
+              <div class="ritem on">bag-matrix-16x16 <span class="bd badge live">2D</span></div>
+              <div class="ritem">tazii-arch-strip <span class="bd badge">1D</span></div>
+              <div class="ritem">helix-200 <span class="bd badge">3D</span></div>
+            </div>
+            <div class="rail-reveal">show stock maps ▾</div>
+          </div>
+        </div>
+
+        <div class="centerpane">
+          <div class="pane-head">
+            <span class="title">bag-matrix-16x16</span>
+            <span class="badge">2D</span>
+            <span class="badge ok">compiles</span>
+            <span class="spacer"></span>
+            <span class="btn sm ghost">Rename</span>
+            <span class="btn sm">Save</span>
+          </div>
+
+          <div class="code"><div class="ln"><span class="no">1</span><span class="c-com">// bag-matrix — 16×16 column-serpentine panel. Columns wind</span></div>
+<div class="ln"><span class="no">2</span><span class="c-com">// bottom-up then top-down. Mapper code is plain browser JS,</span></div>
+<div class="ln"><span class="no">3</span><span class="c-com">// not the Pixelblaze pattern dialect.</span></div>
+<div class="ln"><span class="no">4</span><span><span class="c-kw">function</span> (pixelCount) {</span></div>
+<div class="ln"><span class="no">5</span><span>  <span class="c-kw">var</span> width = <span class="c-num">16</span></span></div>
+<div class="ln"><span class="no">6</span><span>  <span class="c-kw">var</span> map = []</span></div>
+<div class="ln"><span class="no">7</span><span>  <span class="c-kw">for</span> (<span class="c-kw">var</span> i = <span class="c-num">0</span>; i &lt; pixelCount; i++) {</span></div>
+<div class="ln"><span class="no">8</span><span>    <span class="c-kw">var</span> col = <span class="c-fn">Math.floor</span>(i / width)</span></div>
+<div class="ln"><span class="no">9</span><span>    <span class="c-kw">var</span> row = i % width</span></div>
+<div class="ln"><span class="no">10</span><span>    <span class="c-kw">if</span> (col % <span class="c-num">2</span> == <span class="c-num">1</span>) row = width - <span class="c-num">1</span> - row</span></div>
+<div class="ln"><span class="no">11</span><span>    map.<span class="c-fn">push</span>([col, row])</span></div>
+<div class="ln"><span class="no">12</span><span>  }</span></div>
+<div class="ln"><span class="no">13</span><span>  <span class="c-kw">return</span> map</span></div>
+<div class="ln"><span class="no">14</span><span>}</span></div></div>
+        </div>
+
+        <div class="previewpane">
+          <div class="canvas-wrap" style="height:340px"><canvas id="map-preview" width="340" height="340"></canvas></div>
+          <div class="deck">
+            <div class="wire-legend"><span>1</span><span class="ramp"></span><span>256</span><span style="margin-left:6px">gradient follows wire order</span></div>
+            <h5>Map</h5>
+            <div class="kv"><span>pixels</span><b>256</b></div>
+            <div class="kv"><span>arity</span><b>2D</b></div>
+            <div class="kv"><span>bounds</span><b>16 × 16</b></div>
+            <h5>Used by</h5>
+            <div class="drow"><span style="color:var(--dim)">workshop-box</span><span class="spacer"></span><span style="color:var(--structural);font-size:11px">active map</span></div>
+            <div class="drow"><span style="color:var(--dim)">4 patterns</span><span class="spacer"></span><span style="color:var(--structural);font-size:11px">preview on this map ▸</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="notes">
+    <div class="note"><h4>Docked, not watched</h4>
+      <p>The wiring check lives in the context pane, where every entity's ambient context lives —
+         but it's a static render, not an animation. It redraws only when the Mapper source
+         compiles, so it costs nothing to keep on screen and answers "is the serpentine winding
+         the right way?" the instant you look.</p></div>
+    <div class="note"><h4>Order is the content</h4>
+      <p>The map draws in its true shape for its arity, with an amber ramp following wire order
+         and indices at the endpoints and every 32nd pixel. A reversed column or a swapped axis
+         is visible in one glance.</p></div>
+    <div class="note"><h4>Compile keeps it honest</h4>
+      <p>On a parse error the <code>compiles</code> badge flips and the render greys, holding the
+         last good state — same status discipline as the pattern preview. It is never a pattern
+         renderer: watching a pattern run on this map happens in the pattern view, via the deck's
+         map chooser.</p></div>
+    <div class="note"><h4>The context slot rule</h4>
+      <p>Every entity view fills the right-hand pane with its most useful ambient context:
+         Patterns — live preview; Maps — wiring check, facts, and who uses it; Mixins —
+         provenance. Controllers ships without one for now — its live context already has a
+         global home in the top-bar dropdown. The rail here shows the reveal pattern's resting
+         state ("show stock maps"); the Mixin screen shows it revealed.</p></div>
+  </div>
+</section>
+
+<!-- ═══════════════════ 5 · CONTROLLER ═══════════════════ -->
 <section class="screen" id="s-controller">
-  <h2>Controller — hardware profile as a first-class entity</h2>
-  <p class="sub">A Controller is no longer just a connection pill. It's a durable D1-backed entity:
-     the physical box's inputs, its global transforms, and its per-pattern bindings — the concepts
-     from the hardware-injection manifest, given a page instead of a YAML file.</p>
+  <h2>Controller — the durable profile; live stays in the top bar</h2>
+  <p class="sub">Everything about the <em>running</em> device — stats, brightness, pattern
+     controls, variables — stays in the top-bar dropdown, one click away on every page, signed in
+     or not. This page is the durable half: the box's inputs, global transforms, and per-pattern
+     bindings, editable even while the device is offline. It is deliberately roomy — playlist and
+     pattern-list management will land here later.</p>
 
   <div class="frame">
     <div class="frame-cap">
@@ -698,9 +848,8 @@
             <span class="act-bottom act-wrap"><span class="act"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 2v12M8 2C6 3.5 3 3.5 2 3v10c1-.5 4-.5 6 1 2-1.5 5-1.5 6-1V3c-1 .5-4 .5-6-1z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg></span><span class="cap">CTLG</span></span>
           </div>
           <div class="raillist">
-            <div class="rail-head"><div class="rail-title">Controllers</div></div>
+            <div class="rail-head"><div class="rail-title">Controllers <span class="plus">＋</span></div></div>
             <div class="rail-sec">
-              <h4>My Controllers <span class="plus">＋</span></h4>
               <div class="ritem on"><span class="dot ok"></span> workshop-box</div>
               <div class="ritem"><span class="dot idle"></span> burner-bag</div>
               <div class="ritem"><span class="dot idle"></span> tazii-north-arch</div>
@@ -720,18 +869,16 @@
             <span class="btn sm ghost">Disconnect</span>
           </div>
           <div class="ctl-body">
-            <div class="ctl-grid">
-              <div class="card">
-                <h5>Device <span class="right badge ok">live</span></h5>
-                <div class="bd">
-                  <div class="kv"><span>active pattern</span><b>aurora-drift <span class="badge">unsaved</span></b></div>
-                  <div class="kv"><span>pixels</span><b>256</b></div>
-                  <div class="kv"><span>map points</span><b>256 · 2D</b></div>
-                  <div class="kv"><span>frame rate</span><b>112 fps</b></div>
-                  <div class="kv"><span>brightness cap</span><b class="amber">0.40</b></div>
-                </div>
-              </div>
+            <div class="statusline">
+              <span class="dot ok"></span>
+              <span>256 px</span><span class="sep">·</span>
+              <span>2D map</span><span class="sep">·</span>
+              <span>fw 3.67</span><span class="sep">·</span>
+              <span>last seen now</span>
+              <span class="hint">live view &amp; controls: <b>top bar ↗</b></span>
+            </div>
 
+            <div class="ctl-grid">
               <div class="card">
                 <h5>Hardware inputs <span class="right btn sm ghost">＋ add input</span></h5>
                 <div class="bd">
@@ -755,7 +902,7 @@
                 </div>
               </div>
 
-              <div class="card">
+              <div class="card" style="grid-column: 1 / -1">
                 <h5>Pattern bindings <span class="right btn sm ghost">＋ add binding</span></h5>
                 <div class="bd">
                   <table class="t">
@@ -777,30 +924,72 @@
     </div>
   </div>
 
+  <div class="frame">
+    <div class="frame-cap">
+      <span class="dots"><i></i><i></i><i></i></span>
+      <span class="url">any route — the live dropdown, unchanged from v1, plus one new row</span>
+    </div>
+    <div class="mock">
+      <div class="topbar">
+        <span class="wordmark">
+          <svg width="20" height="14" viewBox="0 0 20 14" fill="none"><path d="M1 13 5 1l3 8 3-8 4 12" stroke="#fbbf24" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          PXLBLZ
+        </span>
+        <span class="spacer"></span>
+        <span class="pill" style="border-color: rgba(251,191,36,0.4); color: var(--live)"><span class="dot ok"></span> workshop-box</span>
+        <span class="pill">jon-whiteroomsoft… ⏻</span>
+      </div>
+      <div class="dd">
+        <div class="dd-head">Kishimuri OPT <span class="spacer"></span><span class="btn sm ghost">Disconnect</span></div>
+        <div class="dd-sec">
+          <h6>Pixelblaze</h6>
+          <div class="kv"><span>fps</span><b>112</b></div>
+          <div class="kv"><span>map points</span><b>256 · 2D</b></div>
+          <div class="kv"><span>brightness</span><b class="amber">0.40</b></div>
+        </div>
+        <div class="dd-sec">
+          <h6>Pattern controls</h6>
+          <div class="drow"><span class="lab">zoom</span><span class="slider"><span class="fill" style="width:33%"></span><i style="left:33%"></i></span></div>
+          <div class="drow"><span class="lab">glow</span><span class="slider"><span class="fill" style="width:17%"></span><i style="left:17%"></i></span></div>
+        </div>
+        <div class="dd-sec">
+          <h6>Variables</h6>
+          <div class="kv"><span>zoom</span><b>0.33</b></div>
+          <div class="kv"><span>t</span><b>53.86</b></div>
+        </div>
+        <div class="dd-foot">Controller profile →<span class="k">signed in only</span></div>
+      </div>
+    </div>
+  </div>
+
   <div class="notes">
-    <div class="note"><h4>Manifest concepts, D1 home</h4>
-      <p>The PRD's manifest vocabulary survives intact — inputs, roles, smoothing/fallback,
-         global transforms, per-pattern bindings — but lives as a cloud entity, not a workspace
-         file. It exists and is editable even while the device is offline.</p></div>
+    <div class="note"><h4>Live stays in the top bar</h4>
+      <p>The v1 dropdown — stats, brightness, pattern controls, variables — is the one live
+         surface, identical on Gallery and Studio, signed in or out. A hardware user who installed
+         the extension gets its full value without an account. The profile page never duplicates
+         live controls; its status strip just points back up.</p></div>
+    <div class="note"><h4>The dropdown is the bridge</h4>
+      <p>Signed in, the dropdown gains one row: "Controller profile →". If no profile exists for
+         the connected device yet, that row reads "Create profile for this device" — the natural
+         birth of a Controller entity.</p></div>
+    <div class="note"><h4>Bindings now, room to grow</h4>
+      <p>The profile page holds durable config only: inputs, transforms, bindings, later zones.
+         The sparseness is deliberate — playlist and pattern-list management (stock playlists,
+         one-click push of a set) will claim this real estate later.</p></div>
     <div class="note"><h4>ADC1 validation built in</h4>
       <p>Pin pickers only offer WiFi-safe ADC1 pins per board variant, with the constraint
          explained inline — the spike finding becomes UI, not documentation trivia.</p></div>
-    <div class="note"><h4>Mixins are the visible mechanics</h4>
-      <p>Every transform and binding names the mixin that implements it, linking to its readable
-         source. Nothing is generated from a hidden template — same philosophy as stock maps.</p></div>
-    <div class="note"><h4>Native brightness stays the cap</h4>
-      <p>The live Device card shows the device's own brightness cap in amber — injected hardware
-         brightness only dims inside it, never exceeds it.</p></div>
   </div>
 </section>
 
-<!-- ═══════════════════ 5 · MIXIN ═══════════════════ -->
+<!-- ═══════════════════ 6 · MIXIN ═══════════════════ -->
 <section class="screen" id="s-mixin">
   <h2>Mixin — readable code, bound elsewhere</h2>
   <p class="sub">A mixin is a visible chunk of Pixelblaze-dialect source that the pass engine
-     injects around a pattern at push time. Built-ins ship read-only and cloneable, exactly like
-     stock maps; parameters are bound where the mixin is <em>used</em> (on a Controller or Show),
-     never inside the mixin itself.</p>
+     injects around a pattern at push time. The rail shows <em>your</em> mixins; a quiet link
+     reveals the stock set as reference material — read-only, cloneable, same treatment as stock
+     maps. Parameters are bound where the mixin is <em>used</em> (on a Controller or Show), never
+     inside the mixin itself.</p>
 
   <div class="frame">
     <div class="frame-cap">
@@ -830,19 +1019,21 @@
             <span class="act-bottom act-wrap"><span class="act"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 2v12M8 2C6 3.5 3 3.5 2 3v10c1-.5 4-.5 6 1 2-1.5 5-1.5 6-1V3c-1 .5-4 .5-6-1z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg></span><span class="cap">CTLG</span></span>
           </div>
           <div class="raillist">
-            <div class="rail-head"><div class="rail-title">Mixins</div></div>
+            <div class="rail-head"><div class="rail-title">Mixins <span class="plus">＋</span></div></div>
             <div class="rail-sec">
-              <h4>Built-in Mixins</h4>
-              <div class="ritem on">pot-binding <span class="bd badge">bind</span></div>
-              <div class="ritem">hw-brightness <span class="bd badge">intercept</span></div>
-              <div class="ritem">power-cap <span class="bd badge">intercept</span></div>
-              <div class="ritem">sensor-pulse <span class="bd badge">inject</span></div>
-              <div class="ritem">night-scheduler <span class="bd badge">inject</span></div>
-            </div>
-            <div class="rail-sec">
-              <h4>Mixins <span class="plus">＋</span></h4>
               <div class="ritem">tazii-crown-mask <span class="bd badge">intercept</span></div>
             </div>
+            <div class="rail-sec">
+              <h4>Stock mixins <span class="plus" style="letter-spacing:0">hide ▴</span></h4>
+              <div class="ritem on">pot-binding <span class="bd badge">bind</span></div>
+              <div class="ritem muted">hw-brightness <span class="bd badge">intercept</span></div>
+              <div class="ritem muted">power-cap <span class="bd badge">intercept</span></div>
+              <div class="ritem muted">sensor-pulse <span class="bd badge">inject</span></div>
+              <div class="ritem muted">night-scheduler <span class="bd badge">inject</span></div>
+            </div>
+            <div class="rail-note">Stock mixins are reference material — open one to read the
+              source, clone it to make it yours. Hidden by default behind
+              <a>show stock mixins</a>.</div>
           </div>
         </div>
 
@@ -908,6 +1099,10 @@
       <p>The stock-maps promise — "here's the actual code" — extends to hardware wiring. What the
          pass engine injects is this file, verbatim, with <code>@param</code> slots filled from the
          binding. Cloning it makes a personal variant, same as cloning a stock map.</p></div>
+    <div class="note"><h4>Yours first, stock on request</h4>
+      <p>The list defaults to your mixins only. "Show stock mixins" reveals the built-in set in a
+         muted section — you asked to see reference material, so read-only needs no explanation.
+         The same reveal pattern applies to stock maps in the Maps list.</p></div>
     <div class="note"><h4>The pass taxonomy shows up as badges</h4>
       <p><code>inject</code> / <code>intercept</code> / <code>bind</code> chips on the rail teach
          the vocabulary passively. Intercept mixins (brightness, power cap) also rewrite call
@@ -919,7 +1114,7 @@
   </div>
 </section>
 
-<!-- ═══════════════════ 6 · SHOW ═══════════════════ -->
+<!-- ═══════════════════ 7 · SHOW ═══════════════════ -->
 <section class="screen" id="s-show">
   <h2>Show editor — clips, transitions, zones (sketch)</h2>
   <p class="sub">Lower fidelity, on purpose — this ships after the pass engine proves out. A Show
@@ -1163,6 +1358,43 @@
     }
     ctx.globalCompositeOperation = 'source-over';
   }
+
+  // ── map wiring-check preview (static, drawn once) ─────────
+  (function drawMapPreview() {
+    const canvas = document.getElementById('map-preview');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+    const N = 16, count = 256;
+    const pitch = W / N;
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, W, H);
+    const lerp = (a, b, t) => Math.round(a + (b - a) * t);
+    const labelled = new Set([0, 31, 63, 127, 191, 255]);
+    const labels = [];
+    for (let i = 0; i < count; i++) {
+      const col = Math.floor(i / N);
+      let row = i % N;
+      if (col % 2 === 1) row = N - 1 - row;
+      const px = (col + 0.5) * pitch;
+      const py = H - (row + 0.5) * pitch;           // row 0 at the bottom
+      const t = i / (count - 1);
+      const r = lerp(42, 251, t), g = lerp(42, 191, t), b = lerp(48, 36, t);
+      ctx.fillStyle = `rgb(${r},${g},${b})`;
+      ctx.beginPath();
+      ctx.arc(px, py, pitch * 0.3, 0, Math.PI * 2);
+      ctx.fill();
+      if (labelled.has(i)) labels.push({ px, py, n: i + 1 });
+    }
+    ctx.font = '600 8px "IBM Plex Mono", monospace';
+    ctx.textAlign = 'center';
+    labels.forEach(({ px, py, n }) => {
+      ctx.fillStyle = 'rgba(0,0,0,0.65)';
+      ctx.fillRect(px - 10, py - 4.5, 20, 9);
+      ctx.fillStyle = '#e4e4e7';
+      ctx.fillText(String(n), px, py + 3);
+    });
+  })();
 
   let start = performance.now();
   function frame(now) {
