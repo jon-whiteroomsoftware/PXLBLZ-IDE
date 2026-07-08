@@ -25,6 +25,20 @@ A Show composes existing patterns into one deployable artifact. Its model:
   wipes later), an optional overlay track, and per-clip **adaptations**
   (palette, mirror, phase offset, brightness envelope, and similar
   post-processing) that never fork the source pattern.
+- **Zone map** (decided 2026-07-08): a Controller-profile mapping from
+  semantic zone names to **lists of pixel-index ranges**. Zones are pure
+  index arithmetic and are **hardware-independent** — no Output Expander
+  required: a single serpentine panel can be sliced into software zones today
+  (a column slice of the column-serpentine 16x16 panel is one contiguous
+  range; a row band is several, which is why a zone is a *list* of ranges).
+  Expander channels are just one *source* of ranges: the expander board is
+  stateless and its channel config (startIndex/count) lives on the Pixelblaze
+  as `/obconf.dat` (product doc: `docs/ElectroMage/Pixelblaze Output
+  Expander.md`; binary format: pixelblaze-client `__decodeExpanderData`), so
+  a later convenience import can derive zones from it without changing
+  anything above the zone map. **Patterns stay zone-ignorant**: a pattern is
+  a texture; placement lives in the zone map; zone awareness exists only at
+  orchestration level (the Show).
 - **Compilation**: a Show compiles to a single generated Pixelblaze pattern
   via the pass engine (route + blend + intercept passes over alpha-renamed
   members). **Time-slicing is the default emission strategy**: steady-state
@@ -39,14 +53,19 @@ A Show composes existing patterns into one deployable artifact. Its model:
   anywhere.
 - **Preview**: the Studio preview renders the show timeline with zone
   boundaries visible; full multi-zone spatial preview can start simple
-  (per-zone strips) before attempting installation geometry.
+  (per-zone strips) before attempting installation geometry. Zones should be
+  **solo-able** in the preview ("show me only arch-left") — useful as a
+  debugging affordance as soon as zone maps exist, before any Show does.
 - **v1 slice**: two clips + one crossfade on a single zone, compiled and
   verified on hardware (#316). Segment routing to named zones is the second
   slice (#317). Show editor v1 (zone timeline, clip inspector, budget bar) is
   #318.
 - **Deferred**: the fluent/Strudel-style composition DSL (the recipe IR is the
   v1 authoring format, edited through the Show editor UI); low-resolution wash
-  sampling; the geometric pattern language. Recorded as later directions, not
+  sampling; the geometric pattern language; a read-only `zoneIndex`/`zoneCount`
+  injection for patterns that deliberately want per-zone behavior (escape
+  hatch — the default remains zone-ignorant patterns); zone import from a
+  device's `/obconf.dat` expander config. Recorded as later directions, not
   v2 commitments.
 
 ### Prerequisites (in order)
@@ -63,7 +82,13 @@ A Show composes existing patterns into one deployable artifact. Its model:
 2. **route and blend passes** — specified in the pass taxonomy (route: gate
    render by index range / named zone; blend: transition mixer between two
    renderers) but not yet implemented; the engine's recipe union is
-   inject/intercept/bind only.
+   inject/intercept/bind only. The route pass also hands the clip
+   **zone-local coordinates** — each zone re-normalized to its own frame
+   (centre-origin, unit-fit, per the project uv convention) so an unmodified
+   pattern renders inside a zone as if the zone were its whole world, and
+   per-zone adaptations like mirror become plain coordinate transforms.
+   1D re-normalization (index/count) is the v1 shape; 2D zone-local frames
+   over a pixel map follow.
 3. **Perf-harness spikes** (#314, runnable now, no new hardware work):
    wrapper-indirection cost (wrapped vs direct `hsv`, per pixel); device
    budgets (max pattern code size, global/array count limits,
