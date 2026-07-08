@@ -34,8 +34,28 @@ A physical Pixelblaze reachable over the network via its WebSocket API (port 81,
 _Avoid_: device, board, unit, node — though the ElectroMage WebSocket API itself says "board," the IDE's canonical term is Controller. Never shorten to "control."
 
 **Extension**:
-A browser extension the user installs that lets the deployed (GitHub Pages, https) IDE reach a Controller. The page itself cannot open the Controller's `ws://` socket directly (mixed-content blocking), but the extension — running with elevated privileges outside the page's mixed-content sandbox — can, relaying frames between the IDE and the Controller, discovering Controllers through ElectroMage cloud discovery, and fetching the device compiler, `/pixelmap.dat`, and `/wifistatus` over HTTP on its behalf. Connection can start from a discovered row or **manual IP**; manual IP still works when discovery cannot identify the Controller, yielding a live but unclaimed connection. Optional, local-only, and purely additive — authoring/preview/export work with no extension installed. The IDE never launches the extension; the user installs it and the IDE detects it.
+A browser extension the user installs that lets the deployed (https) IDE reach a Controller. The page itself cannot open the Controller's `ws://` socket directly (mixed-content blocking), but the extension — running with elevated privileges outside the page's mixed-content sandbox — can, relaying frames between the IDE and the Controller, discovering Controllers through ElectroMage cloud discovery, and fetching the device compiler, `/pixelmap.dat`, and `/wifistatus` over HTTP on its behalf. Connection can start from a discovered row or **manual IP**; manual IP still works when discovery cannot identify the Controller, yielding a live but unclaimed connection. Optional, local-only, and purely additive — authoring/preview/export work with no extension installed. The IDE never launches the extension; the user installs it and the IDE detects it.
 _Avoid_: server, backend, daemon, proxy, bridge, Node process — there is no separate process the user runs; it is a browser extension.
+
+**Gallery**:
+The public, signed-out-friendly surface at `/gallery` (also the landing page): a browsable grid of live animated cards for the built-in patterns, each linking to a **pattern detail page**. The Gallery is the browse home for built-in patterns; personal patterns never appear in it.
+_Avoid_: catalog as a synonym in prose (Catalog is the rail's entry *pointing at* the Gallery); calling it a store or marketplace.
+
+**Studio**:
+The signed-in working environment — the three-pane IDE at `/studio/...`, organized by the **left rail**'s five entity kinds. Gallery and Studio are a bright line: there are no special signed-out routes into the Studio; a signed-out visit is met by the welcome gate (GitHub/Google sign-in). Live Controller connectivity is orthogonal — it works on every route in every auth state.
+_Avoid_: "the IDE" when the Gallery/Studio distinction matters; signed-out Studio variants.
+
+**Pattern detail page**:
+A built-in pattern's shareable page at `/p/<slug>`: large live preview driven by the real engine, the pattern's exported controls, a Preview | Code toggle (read-only Monaco), Clone into the Studio, and Send to Controller without entering the Studio. Slugs exist for built-in patterns only.
+_Avoid_: implying personal patterns have public detail pages (a later step).
+
+**Device id**:
+The stable identifier of one physical Pixelblaze, `pixelblaze_<boardType>_<reversed-mac-bytes>` — read directly from the device on connect (WS `getConfig` boardType + HTTP `/wifistatus` MAC), with cloud discovery as fallback, matching the id ElectroMage's discovery service reports. The hardware key for **Controller profiles**; IP is transport only, device name is display only. A live connection without a recoverable id is **unclaimed** — fully usable, just not auto-persisted.
+_Avoid_: keying anything durable on IP or name; treating chipId or MAC alone as the id.
+
+**Controller profile**:
+The durable, D1-backed record of one physical **Controller** — user-editable name, claimed **device id**, board profile, hardware inputs, global transforms, pattern bindings, zones, and last-known convenience metadata (device name, IP, pixel count, map dim). Offline-editable at `/studio/controllers/<id>`; auto-created for signed-in sessions when a live device reports a stable id. It holds durable configuration only and never duplicates live controls — those stay in the **Controller panel**.
+_Avoid_: conflating it with the live connection or panel; "controller" bare when the profile/live distinction matters.
 
 **Controller panel** (the connected-hardware surface):
 A top-right-nav surface (icon → dropdown/popover) that **mirrors the live truth of a connected Controller** ("Model A"): its currently-running pattern, that pattern's **controls** and watched **vars**, its **brightness**, its reported **FPS**, its configured **pixel count** (live-editable — committing saves it to the device, the only way to make a fixed-size map apply), and its installed **map's point count** (read back from `/pixelmap.dat`, flagged when it disagrees with the pixel count — a mismatched map is silently dropped by firmware). Structured to echo the preview deck's control vocabulary, but bound to the *Controller's* state, never to the editor buffer — the two surfaces are linked only by **Send to Controller**. Some fields are live-editable (brightness, controls); **brightness is editable only here** and never inherited from the preview, because physical LEDs are far brighter than a monitor (preview brightness is the wrong value for a strip). Optimized for one connected Controller though it supports several. Absent/empty when no **extension** or Controller is present.
@@ -176,11 +196,11 @@ A purely cosmetic viewport control blurring the drawn light sources together, li
 _Avoid_: "glow" (the old PRD term); letting diffusion change brightness or source size; calling it "global, not per-pattern" (it is now a hybrid cascade field).
 
 **Precise renderer**:
-The default renderer, running the preview with the same 16.16 fixed-point numeric behaviour as the hardware (range ±32768, precision ~1/65536, int32-wrap overflow, faithful multiply) so that what the preview shows matches what a physical Pixelblaze does. The underlying numeric behaviour is _fixed-point fidelity_.
+The opt-in high-fidelity renderer (Fast is the default), running the preview with the same 16.16 fixed-point numeric behaviour as the hardware (range ±32768, precision ~1/65536, int32-wrap overflow, faithful multiply) so that what the preview shows matches what a physical Pixelblaze does. The underlying numeric behaviour is _fixed-point fidelity_.
 _Avoid_: Fidelity mode, emulation accuracy, hardware mode.
 
 **Fast renderer**:
-The opt-out escape hatch that renders in plain float64 instead of fixed-point fidelity, for smooth editing of heavy patterns that are too slow under the Precise renderer. A speed-over-truth toggle.
+The default renderer: plain float64 instead of fixed-point fidelity, for smooth everyday editing. Flip to Precise when hardware-faithful numbers matter. A speed-over-truth toggle.
 _Avoid_: fast preview, float mode, preview accuracy off.
 
 **Divergence**:

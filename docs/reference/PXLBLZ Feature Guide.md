@@ -5,15 +5,14 @@ assumes you know the Pixelblaze concepts — patterns, maps, controls, fixed-poi
 if you don't, read the **Pixelblaze Ecosystem Primer** first. How PXLBLZ is *built*
 is the **PXLBLZ Technical Reference**'s job.
 
-**The whole document in two sentences.** PXLBLZ is a browser-based pattern editor
-for Pixelblaze that lets you write, preview, and tune patterns entirely offline —
-no controller, no network, no install — and then put the result onto your device,
-either by hand or over a live connection. The preview is built to be faithful to
-real hardware (down to optional 16.16 fixed-point emulation), and everything the
-IDE invents for previewing stays in the browser: only patterns and maps ever reach
+**The whole document in two sentences.** PXLBLZ is a browser-based pattern
+platform for Pixelblaze with two faces: a public **Gallery** for browsing live
+animated patterns and sharing them by URL, and a signed-in **Studio** where you
+write, preview, and tune patterns — with a preview built to be faithful to real
+hardware (down to optional 16.16 fixed-point emulation) — and then put the
+result onto your device, by hand or over a live connection. Everything the app
+invents for previewing stays in the browser: only patterns and maps ever reach
 a controller.
-
-**[Open PXLBLZ →](https://jon-whiteroomsoftware.github.io/PXLBLZ-IDE/)**
 
 **Part 1** is the tour — what's on the screen and what it's for. **Part 2** is the
 reference — exact control semantics, what sticks where, and the full Controller
@@ -73,18 +72,49 @@ function, and the device's own web UI remains the place for device management.
 - **Device setup.** LED hardware type, WiFi, expanders, and the rest of the
   device's settings stay on the device's settings page.
 
-## 2. Screen at a glance
+## 2. The two surfaces, and getting in
+
+The app has real URLs now — every page is shareable and bookmarkable.
+
+- **Gallery** (`/gallery`, also the landing page) — the public face. A browsable
+  grid of **live animated pattern cards**, filterable by dimension (All/1D/2D/3D),
+  category, and name. No sign-in needed. Click a card for its **pattern detail
+  page** (`/p/<name>`): a large live preview with the pattern's real controls, a
+  **Preview | Code** toggle that shows the full source read-only in the same
+  editor the Studio uses, **Clone** (copies it into your Studio patterns —
+  prompting sign-in first if needed), and **Send to Controller** right from the
+  page, no Studio required.
+- **Studio** (`/studio/...`) — the signed-in working environment, the three-pane
+  IDE described in the rest of this guide. Visiting it signed out shows a
+  welcome page offering **Continue with GitHub** or **Continue with Google**.
+  Every entity has a stable address: `/studio/patterns/<id>`,
+  `/studio/maps/<id>`, `/studio/mixins/<id>`, `/studio/controllers/<id>`.
+- **Accounts**: sign in with GitHub or Google. Both can attach to one account —
+  the account menu offers **Connect** for the other provider (and Disconnect,
+  as long as one login remains). A Google sign-in whose verified email matches
+  your existing account links automatically. Your patterns, maps, mixins, and
+  controller profiles live in your cloud workspace, on any machine you sign
+  into.
+- **The Controller connection surface is global** — the same top-right Connect
+  button, pills, and live panel on every page, Gallery included, signed in or
+  not. Live hardware never requires an account.
+
+### The Studio screen at a glance
 
 - **Header** — the PXLBLZ wordmark and the **Libraries** menu on the left
-  (authoring reference); the **Controller** connection surface on the right
-  (hardware).
-- **Left rail** — your patterns, maps, and controller profiles. Patterns and
-  Maps include the dimension filter and name search; Controllers opens durable
-  hardware profile pages (§10).
-- **Editor pane** (centre) — Monaco, in pattern mode or map mode (§9).
+  (authoring reference); the **Controller** connection surface and account pill
+  on the right.
+- **Left rail** — an **activity strip** of five entity kinds — **Patterns,
+  Maps, Mixins, Controllers, Shows** — plus **Catalog** (back to the Gallery)
+  at the bottom, with the selected kind's list beside it. Patterns and Maps
+  include the dimension filter and name search; Controllers opens durable
+  hardware profile pages (§10). Shows is a placeholder for the upcoming
+  composition feature.
+- **Editor pane** (centre) — Monaco, in pattern, map, or mixin mode (§9).
 - **Preview pane** (right) — the animated canvas, a play/pause transport row, and
   the **control deck** below it: device-like settings, preview-only viewing
-  controls, your pattern's own controls, and a variable watcher (§8).
+  controls, your pattern's own controls, and a variable watcher (§8). On a
+  mixin, this pane becomes the mixin's provenance view instead.
 
 ## 3. Preview
 
@@ -161,13 +191,13 @@ states until bindings or generated artifacts have been recorded.
 
 ## 5. Patterns, built-ins, and libraries
 
-The left rail holds **Cloud Patterns** (your signed-in personal patterns),
-**Built-in Patterns** (read-only, runnable examples — shader ports, eased
-sweeps, noise fields, test patterns), in Maps mode **Cloud Maps** by default
-with a quiet **show stock maps** reveal, and in Mixins mode **Cloud Mixins** by
-default with a quiet **show stock mixins** reveal. Signed-out use is demo mode:
-built-ins, stock maps, stock mixins, libraries, docs, and preview controls remain
-usable, while durable personal resources wait for sign-in.
+The rail's Patterns list holds your personal patterns; the built-in patterns'
+browse home is the **Gallery** (the rail's Catalog entry and a dashed hint card
+point there). Maps mode lists your custom maps with a quiet **show stock maps**
+reveal; Mixins mode lists your cloud mixins with a quiet **show stock mixins**
+reveal. Signed-out use is demo mode: the Gallery, stock maps, stock mixins,
+libraries, docs, and preview controls remain usable, while durable personal
+resources wait for sign-in.
 
 A new pattern starts from a runnable animated starter; any built-in pattern,
 stock map, or stock mixin can be **cloned** into an editable copy. Built-in patterns can open
@@ -208,8 +238,11 @@ through it. Then:
   draggable in real time.
 - **Keep a Controller profile** in the left rail: a durable record for that
   physical controller's identity, inputs, global transforms, pattern bindings,
-  zones, and last-known hardware status. The profile page is offline-editable;
-  live brightness and running-pattern controls stay in the top-right panel.
+  zones, and last-known hardware status. Signed-in sessions create that profile
+  automatically when the connected device reports a stable id; IP-only
+  unclaimed connections remain live without being persisted unless you create a
+  profile yourself. The profile page is offline-editable; live brightness and
+  running-pattern controls stay in the top-right panel.
 - **Send to Controller** compiles the open pattern with the device's own compiler
   and pushes it — transiently (**Run**) or into the device's Saved Patterns
   (**Save**).
@@ -323,7 +356,9 @@ is confirmation-guarded); stock maps open read-only with **Clone**.
 
 ## 10. Rail in detail
 
-A primary **Patterns / Maps** switch, then a filter row combining two things:
+The **activity strip** picks the entity kind — Patterns, Maps, Mixins,
+Controllers, Shows, with Catalog (→ Gallery) pinned at the bottom. Patterns and
+Maps get a filter row combining two things:
 
 - **Dimension lens** — single-select All / 1D / 2D / 3D; shows only items of that
   native dimension (a pattern's dimension is the highest render function it
@@ -336,11 +371,23 @@ A primary **Patterns / Maps** switch, then a filter row combining two things:
   surface hits, restoring their collapse state when cleared. Search text is kept
   separately for Patterns and Maps; the lens is shared.
 
-The switch and filter row stay fixed; only the lists scroll. Cloud patterns and
-maps are created, renamed, and deleted by you. On the Cloudflare deployment they
-live in your signed-in cloud workspace; signed-out use is non-durable demo mode.
-Delete lives in the editor header as a visible, confirmation-guarded action,
-with the rail hover action as a shortcut.
+The strip and filter row stay fixed; only the lists scroll. Personal patterns,
+maps, and mixins are created, renamed, and deleted by you; they live in your
+signed-in cloud workspace, and signed-out use is non-durable demo mode. Delete
+lives in the editor header as a visible, confirmation-guarded action, with the
+rail hover action as a shortcut.
+
+The other three entity lists:
+
+- **Mixins** — your cloud mixins, each row badged with its pass kind
+  (`inject` / `intercept` / `bind`), plus the **show stock mixins** reveal for
+  the five shipped mixins (pot-binding, hw-brightness, power-cap, sensor-pulse,
+  night-scheduler). Stock mixins open read-only with Clone.
+- **Controllers** — your durable hardware profiles, each marked LIVE or IDLE
+  depending on whether its physical device is currently connected. See §6 and
+  §11.
+- **Shows** — a placeholder for the upcoming composition feature; nothing to
+  open yet.
 
 ## 11. Controller reference
 
@@ -416,6 +463,30 @@ sent directly**, no fork needed. There's no pixel-count warning on pattern push:
 pattern push sends bytecode only and keeps the device's existing map, so a count
 mismatch is "this won't look right," not an error.
 
+### Controller profiles
+
+A **Controller profile** is the durable record of one physical device — keyed
+by the Pixelblaze's stable device id, which the app reads directly from the
+device on connect (falling back to cloud discovery), never by IP. Signed in
+with a live device, the panel shows a **Controller profile →** row (or the
+profile is created automatically the first time); the profile page at
+`/studio/controllers/<id>` is editable even while the device is offline:
+
+- a **status strip** — connected/offline, last-known device name, IP, pixel
+  count, map dimensionality, firmware — with a Refresh button when live;
+- **hardware inputs** — named pots/buttons with pin, signal, role, smoothing,
+  fallback, and invert; analog choices are limited to the board's ADC1-safe
+  pins, with anything else flagged inline;
+- **global transforms** — hardware brightness (pot × output) and power cap,
+  each toggleable (hardware brightness is what Send to Controller applies
+  today; power cap is stored but not yet applied on push);
+- **pattern bindings** — pattern × input → an exported slider, a named
+  function, or a variable with min/max/quantize;
+- **zones** — named pixel ranges, groundwork for Shows.
+
+The page never duplicates live controls — brightness and the running pattern's
+sliders stay in the live panel.
+
 ### Send map to Controller
 
 Writes the open custom or stock map to the device's **single shared map slot** — a
@@ -435,8 +506,15 @@ Maps** §5).
 - **Sensor-reactive patterns load and run**, but the sensor inputs (sound FFT,
   accelerometer, light) are inert stubs, so they won't animate from audio or
   motion in the preview.
-- **Everything is per-browser.** Patterns and settings live in this browser's
-  storage; there's no account and no sync between machines.
+- **Your work follows your account.** Personal patterns, maps, mixins, and
+  controller profiles live in your signed-in cloud workspace, available from
+  any machine. Signed-out sessions are non-durable demo mode — nothing you make
+  there persists.
+- **Push transforms are opt-in and inspectable.** If the connected device's
+  Controller profile has its hardware-brightness transform enabled, Send to
+  Controller injects that behaviour into the pushed artifact (the pattern
+  samples the configured pot and scales its output). With no profile or the
+  transform off, the push is byte-identical to the plain artifact.
 
 ---
 

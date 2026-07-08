@@ -6,10 +6,11 @@ Primer**'s. This document is the single authoritative record of the design
 decisions and the reasoning behind them; where any doc disagrees with the code,
 the code wins.
 
-**The whole document in two sentences.** PXLBLZ is a browser IDE with a small
-authenticated cloud workspace: editing, transpiling, execution, and preview all
-happen in the page, while personal patterns/maps/settings and Controller
-profiles live in D1 behind Pages Functions. Its defining commitment is hardware
+**The whole document in two sentences.** PXLBLZ is a browser app with two
+surfaces — a public Gallery and an authenticated Studio — over one engine:
+editing, transpiling, execution, and preview all happen in the page, while
+personal patterns/maps/mixins/settings and Controller profiles live in D1
+behind Pages Functions. Its defining commitment is hardware
 fidelity — the preview reproduces the device's fixed-point math, map semantics,
 and edge-case behaviours, and nothing the preview invents ever reaches a
 controller.
@@ -95,6 +96,50 @@ why the library hashes are built from integer ops (§11).
 
 ![System map: UI and stores over a pure engine, with WebGL, D1/API storage, and the extension relay below](../images/system-map.svg)
 
+### Routing & the two surfaces
+
+The app is split into a public **Gallery** and an authenticated **Studio**,
+joined by a hand-rolled History-API router (no library, no hash routes). The
+pure route codec is `src/engine/routes.ts` (`Route` union: `gallery`,
+`studio-welcome`, `studio` with an optional `{kind, id}` entity,
+`pattern-detail` by slug, `docs`, `not-found`); `src/store/routerStore.ts` owns
+`pushState`/`replaceState` and `popstate` sync; `App.tsx` renders the route
+switch and runs two effects that keep route ↔ store state aligned (deep links
+open the matching record once collections load; opening an entity rewrites the
+URL). v1's `#/docs/<id>` hash links redirect to `/docs/<id>`.
+
+Route table: `/` and `/gallery` → the Gallery grid; `/p/<slug>` → pattern
+detail (slugs exist for built-in demos only); `/studio` and
+`/studio/<kind>/<id>` for the five entity kinds (`shows` parses but renders a
+not-available message); `/docs/<id>`; anything else → not-found.
+
+Only Studio routes gate on auth. `decideStudioAccess`
+(`src/engine/studioAccess.ts`) sends a signed-out visitor to the
+`/studio-welcome` gate (GitHub/Google sign-in buttons; an acknowledged gate
+goes straight to `/api/auth/login` next time), lets a Gallery-carried demo
+through, and — to avoid flashing the IDE shell before `/api/me` resolves —
+holds Studio routes on a "Checking Studio access" message until
+`personalWorkspaceResolved` flips true.
+
+The **Gallery** (`GalleryPage.tsx`, catalog in `src/engine/galleryCatalog.ts`)
+filters the stock demos by dimension lens, category, and name. Cards run the
+real preview engine (`GalleryLivePreview.tsx` composes `bundle`, `createShim`,
+`loadPattern`, `resolveLayout`, `createRenderer`, `createRenderLoop`) at a
+reduced pixel count (≤384 for 1D, ≤1024 for 2D/3D), with a global cap of six
+concurrently animating cards (hovered/focused cards get slot priority),
+IntersectionObserver pause off-viewport, a 70 ms-staggered start, and a static
+single frame under `prefers-reduced-motion`. The **pattern detail page**
+(`PatternDetailPage.tsx`) opens the demo into the normal preview stores, so
+its deck controls and Send to Controller are the real Studio paths; the
+Preview | Code toggle swaps in a read-only Monaco (`PixelblazeCodeEditor`)
+with the Studio's language mode and none of its chrome. **Clone** queues the
+slug (surviving a sign-in round-trip via localStorage) and copies the source
+into a new personal pattern.
+
+The **top-bar chrome is global**: `ControllerBar` (connect button, pills, live
+panel — §13) and `AuthStatus` (account pill, provider connect/disconnect)
+render in the same header on every route and in every auth state.
+
 ### Zustand stores (`src/store/`)
 
 | Store | Holds |
@@ -107,6 +152,10 @@ why the library hashes are built from integer ops (§11).
 | `cameraStore` | ephemeral orbit angle, persistent auto-orbit flag, a transient `dragging` hold, pole wrap density. |
 | `controllerStore` | keyed map of connected Controllers (IP → phase/nickname/map dim), the active one, extension presence, last-connected IP for auto-reconnect, the Send/push slices, and the sticky `saveArmed` toggle with mode-split dirty tracking (`lastPushedSource`/`lastSavedSource`). |
 | `controllerPanelStore` | the connected device's polled live slice: active program + program list, FPS, device `pixelCount` (with in-flight `pixelCountPending` hold), installed-map point count, panel-owned volatile brightness and live controls. `seed`/`start` are keyed by owning IP so a same-device reopen keeps last-known values while a device switch clears. |
+| `routerStore` | the current `Route`, `navigate` (pushState/replaceState) and `syncFromLocation`; the only module that touches `history`/`location`. |
+| `mixinStore` | cloud `MixinRecord` list + CRUD through the personal content provider, the mixin-mode editing target, stock-mixin open state. |
+| `controllerProfileStore` | durable Controller profiles: list/CRUD via `/api/controllers`, `ensureProfileForLiveController` (auto-create + refresh, with pending/suppressed device-id guards), live-metadata refresh for the profile page. |
+| `workspaceStore` | `personalWorkspaceAuthenticated` / `personalWorkspaceResolved` — the auth-state seam the Studio gate and rail read. |
 
 Each store exports `*InitialState`; tests reset with `setState(initialState)`
 (merge mode). `previewStore`'s persist layer migrates legacy blobs (the retired
@@ -757,9 +806,16 @@ profile name with a live/idle marker derived from `deviceId`; selecting one open
 `/studio/controllers/<id>`, a durable profile page for hardware inputs, global
 transforms, per-pattern bindings, zones, and a read-only status strip. That page
 does not own live controls: the active connection controls stay in the top-right
-Controller panel. When the matching physical Controller is connected, the profile
-refresh path updates `lastKnownDeviceName`, `lastSeenIp`, `lastKnownPixelCount`,
-and `lastKnownMapDim`.
+Controller panel. When a signed-in session has a live Controller with a stable
+`deviceId`, `ControllerBar` asks `controllerProfileStore` to ensure a durable
+profile exists: existing profiles are refreshed, and missing profiles are
+auto-created from the device name/id/IP. A live Controller with `deviceId: null`
+stays fully usable but is not auto-persisted from IP alone; the user can still
+create an unclaimed profile explicitly from the panel. Deleting a profile
+suppresses same-session auto-recreation for that device id. When the matching
+physical Controller is connected, the profile refresh path updates
+`lastKnownDeviceName`, `lastSeenIp`, `lastKnownPixelCount`, and
+`lastKnownMapDim`.
 
 ### The in-app surface (status pills, panel)
 
@@ -945,7 +1001,9 @@ consistent rule of §2.
 
 The user docs (Ecosystem Primer, Feature Guide, Optimization Guide) ship inside
 the app. `src/docs/catalog.ts` imports each markdown file `?raw` at build time,
-pairs it with its SVG assets (`?url`), and exposes hash routes (`#/docs/<id>`).
+pairs it with its SVG assets (`?url`), and serves them at `/docs/<id>` routes
+(legacy `#/docs/<id>` hash links redirect there; in-doc cross-links still emit
+hash hrefs, caught by the `hashchange` listener).
 `DocsReader` renders a block model produced by `src/engine/docsMarkdown.ts` — a
 small purpose-built parser covering exactly the subset the docs use: h1–h3
 headings (with slugged ids), paragraphs, blockquotes, ordered and unordered
@@ -965,8 +1023,10 @@ device end-to-end). React components get smoke coverage only. Library fidelity
 tests (`*.fidelity.test.ts`) assert Fast/Precise agreement per function;
 `fixedpoint.bench.ts` benchmarks the multiply hot path; the hardware
 microbenchmark (`test/perf-harness/`) profiles real per-built-in cost to guide
-pattern-perf advice. Husky runs `npm run lint && npm test` pre-commit; the live
-hardware tier is excluded from the gate and run out-of-band.
+pattern-perf advice. A Playwright E2E smoke (`e2e/smoke.spec.ts`) covers the
+route-level flows (Gallery, detail, Studio welcome gate). Husky runs
+`npm run lint && npm test` pre-commit; the live hardware tier and E2E are
+excluded from the gate and run out-of-band.
 
 ## 17. Known limits & accepted divergences
 
