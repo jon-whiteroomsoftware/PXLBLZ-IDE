@@ -34,6 +34,7 @@ export function MixinModeHeader() {
   async function confirmDelete() {
     if (!openRecord) return
     await removeMixin(openRecord.id)
+    navigate({ kind: 'studio', entity: { kind: 'mixins', id: null } })
     setDeleteOpen(false)
   }
 

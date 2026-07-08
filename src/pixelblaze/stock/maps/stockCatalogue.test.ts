@@ -24,6 +24,7 @@ describe('stock catalogue', () => {
       'tetra-shell',
       'tetra-volume',
       'sunflower-pucks',
+      'sunflower-pucks-2d',
       'seed-ring-2d',
     ])
     for (const s of STOCK_MAP_SPECS) {
@@ -43,6 +44,7 @@ describe('stock catalogue', () => {
     expect(mapById('plane').dim).toBe(2)
     expect(mapById('cube').dim).toBe(3)
     expect(mapById('sunflower-pucks').dim).toBe(3)
+    expect(mapById('sunflower-pucks-2d').dim).toBe(2)
     expect(mapById('seed-ring-2d').dim).toBe(2)
     expect(mapById('seed-sphere-3d').dim).toBe(3)
   })
@@ -58,6 +60,7 @@ describe('stock catalogue', () => {
     expect(mapById('cube').normals).toBeUndefined()
     expect(mapById('plane').normals).toBeUndefined()
     expect(mapById('sunflower-pucks').normals).toBeUndefined()
+    expect(mapById('sunflower-pucks-2d').normals).toBeUndefined()
     // A volume has no per-point boundary normal, so a solid ball / solid star is
     // never solid-eligible — it leans on the renderer's depth-tested opaque cores.
     expect(mapById('sphere-volume').normals).toBeUndefined()
@@ -78,6 +81,7 @@ describe('stock catalogue', () => {
     // (512 = 8³). An irregular 2D cloud and the shells still expose no clean lattice.
     expect(mapById('cube').gridDims(512)).toEqual({ cols: 8, rows: 8, depth: 8 })
     expect(mapById('sunflower-pucks').gridDims(160)).toBeNull()
+    expect(mapById('sunflower-pucks-2d').gridDims(160)).toBeNull()
     expect(mapById('seed-ring-2d').gridDims(60)).toBeNull()
   })
 
@@ -88,7 +92,7 @@ describe('stock catalogue', () => {
 
 describe('source regeneration', () => {
   it('regenerates exactly pixelCount points for any count (no baked replay)', () => {
-    for (const m of SOURCE_STOCK_MAPS.filter((m) => m.id !== 'sunflower-pucks')) {
+    for (const m of SOURCE_STOCK_MAPS.filter((m) => !m.id.startsWith('sunflower-pucks'))) {
       expect(m.resolve(7)).toHaveLength(7)
       expect(m.resolve(200)).toHaveLength(200)
     }
@@ -96,9 +100,25 @@ describe('source regeneration', () => {
 
   it('keeps literal coordinate-array stock maps at their measured point count', () => {
     const pucks = mapById('sunflower-pucks')
+    const pucks2d = mapById('sunflower-pucks-2d')
     expect(evalMapSource(stockMapSpec('sunflower-pucks')!.source, 7)).toHaveLength(160)
+    expect(evalMapSource(stockMapSpec('sunflower-pucks-2d')!.source, 7)).toHaveLength(160)
     expect(pucks.resolve(7)).toHaveLength(160)
     expect(pucks.resolve(200)).toHaveLength(160)
+    expect(pucks2d.resolve(7)).toHaveLength(160)
+    expect(pucks2d.resolve(200)).toHaveLength(160)
+  })
+
+  it('ships a 2D sunflower puck map projected from the 3D puck X/Y coordinates', () => {
+    const pucks3d = mapById('sunflower-pucks').resolve(160)
+    const pucks2d = mapById('sunflower-pucks-2d').resolve(160)
+
+    expect(pucks2d).toHaveLength(pucks3d.length)
+    expect(pucks2d.every((pt) => pt.pos?.length === 2 && pt.sample.length === 2)).toBe(true)
+    for (let i = 0; i < pucks2d.length; i++) {
+      expect(pucks2d[i].pos).toEqual(pucks3d[i].pos?.slice(0, 2))
+      expect(pucks2d[i].sample).toEqual(pucks3d[i].sample.slice(0, 2))
+    }
   })
 
   it('normalizes every coordinate into [0,1] per axis', () => {

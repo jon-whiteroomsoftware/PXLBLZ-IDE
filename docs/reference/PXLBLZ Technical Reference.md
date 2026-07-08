@@ -314,6 +314,18 @@ Custom maps offer **Send map to Controller** and a confirmation-guarded
 **Delete**; stock maps offer read-only state, **Clone**, and **Send map to
 Controller**.
 
+In map mode the right context pane is `MapContextPane`, not the animated pattern
+preview. It resolves the open stock or custom map, paints deterministic
+wire-order colors through the shared WebGL renderer (`createRenderer`), and
+overlays one-based labels at the endpoints plus every 32nd pixel. 2D/1D maps use
+the renderer's measured 2D projection; 3D maps use the same orbit camera and
+`OrbitControls` vocabulary as the pattern preview, with the pole-only density
+control suppressed. If a custom map evaluates badly, the pane dims the last
+successful bake and surfaces the eval error instead of clearing the geometry.
+Below the wiring check, the pane reports pixel count, arity, grid/bounds, and
+honest provenance rows: explicit saved-pattern map settings when present, and an
+empty controller-identity state until Controller profiles persist map ids.
+
 The editor's third flavor is **mixin mode** (`editorFlavor === 'mixin'`,
 `mixinStore.ts` + `MixinModeHeader.tsx`): Pixelblaze-dialect source with a
 structured pass header. Validation is header-focused (`parseMixinHeader`) rather
@@ -392,7 +404,8 @@ The shipped catalogue (`STOCK_MAP_SPECS`): `plane` ("Square"), `wide`
 naming scheme — `cube`/`cube-shell`, `star-shell`/`star-volume`,
 `seed-sphere-3d` ("Sphere shell")/`sphere-volume`, `tetra-shell`/`tetra-volume`;
 and `sunflower-pucks`, a fixed 160-point literal 3D array modeling eight small LED
-puck clusters. Shell entries carry a `normals` recipe (`'face' | 'star' |
+puck clusters, plus `sunflower-pucks-2d`, the same wire order projected to X/Y.
+Shell entries carry a `normals` recipe (`'face' | 'star' |
 'tetra' | 'centroid'`), whose presence is the solid-eligibility gate (§9). A
 lattice entry carries a `grid` recipe (`'square' | 'wide' | 'cube'`) backing
 `PixelMap.gridDims` — the live count→dims derivation; absent means `gridDims`

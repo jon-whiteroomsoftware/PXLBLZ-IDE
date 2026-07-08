@@ -30,6 +30,7 @@ import { MapModeHeader } from '@/components/MapModeHeader'
 import { useMapStore, STOCK_MAP_ITEMS } from '@/store/mapStore'
 import { MixinModeHeader } from '@/components/MixinModeHeader'
 import { MixinProvenancePane } from '@/components/MixinProvenancePane'
+import { MapContextPane } from '@/components/MapContextPane'
 import { useMixinStore, STOCK_MIXIN_ITEMS } from '@/store/mixinStore'
 import { usePatternStore, PatternRecord } from '@/store/patternStore'
 import { useControllerProfileStore } from '@/store/controllerProfileStore'
@@ -132,16 +133,6 @@ function StudioPaneMessage({
         <p className="mt-2 text-xs leading-5 text-zinc-600">{detail}</p>
       </div>
     </div>
-  )
-}
-
-function MapContextPane() {
-  return (
-    <StudioPaneMessage
-      icon={<MapIcon size={18} aria-hidden />}
-      title="Map context"
-      detail="The wiring check, map facts, and provenance will live here. For now, the map source is open in the editor."
-    />
   )
 }
 
@@ -414,9 +405,13 @@ export default function App() {
 
   const handleDeletePattern = useCallback(async () => {
     if (!activePatternId) return
-    await removePattern(activePatternId)
+    const deletedId = activePatternId
+    await removePattern(deletedId)
+    if (route.kind === 'studio' && route.entity?.kind === 'patterns' && route.entity.id === deletedId) {
+      navigate({ kind: 'studio', entity: { kind: 'patterns', id: null } })
+    }
     setDeletePatternOpen(false)
-  }, [activePatternId, removePattern])
+  }, [activePatternId, navigate, removePattern, route])
 
   const handleLeftDrag = useCallback((dx: number) => {
     setLeftWidth((w) => Math.max(120, w + dx))

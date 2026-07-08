@@ -8,8 +8,10 @@ import {
   Images,
   Map as MapIcon,
   PanelsTopLeft,
+  Pencil,
   Plus,
   Search,
+  Trash2,
   X,
 } from 'lucide-react'
 import { LIBRARIES } from '@/pixelblaze/libs'
@@ -491,23 +493,23 @@ function EditableListItem({
           <>
             <span className="flex-1 min-w-0 truncate">{name}</span>
             {dim && <DimPill dim={dim} />}
-            <span className="absolute right-2 top-0 bottom-0 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+            <span className="pointer-events-none absolute right-3 top-1/2 flex -translate-y-1/2 items-center gap-1 opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100">
               <button
                 onClick={startEdit}
-                className="text-zinc-500 hover:text-zinc-300 text-xs px-0.5"
+                className="inline-flex h-5 w-5 items-center justify-center rounded border border-zinc-800 bg-zinc-950/85 text-zinc-500 transition-colors hover:border-zinc-600 hover:bg-zinc-800 hover:text-zinc-200"
                 title="Rename"
                 aria-label="Rename"
               >
-                ✎
+                <Pencil size={13} aria-hidden />
               </button>
               <AlertDialogTrigger asChild>
                 <button
                   onClick={(e) => e.stopPropagation()}
-                  className="text-zinc-500 hover:text-red-400 text-xs px-0.5"
+                  className="inline-flex h-5 w-5 items-center justify-center rounded border border-zinc-800 bg-zinc-950/85 text-zinc-500 transition-colors hover:border-red-900/80 hover:bg-red-950/50 hover:text-red-300"
                   title="Delete"
                   aria-label="Delete"
                 >
-                  ✕
+                  <Trash2 size={13} aria-hidden />
                 </button>
               </AlertDialogTrigger>
             </span>
@@ -1046,6 +1048,27 @@ export function PatternList() {
     }
   }
 
+  async function handleRemovePattern(patternId: string) {
+    await removePattern(patternId)
+    if (route.kind === 'studio' && route.entity?.kind === 'patterns' && route.entity.id === patternId) {
+      navigate({ kind: 'studio', entity: { kind: 'patterns', id: null } })
+    }
+  }
+
+  async function handleRemoveMap(mapId: string) {
+    await removeMap(mapId)
+    if (route.kind === 'studio' && route.entity?.kind === 'maps' && route.entity.id === mapId) {
+      navigate({ kind: 'studio', entity: { kind: 'maps', id: null } })
+    }
+  }
+
+  async function handleRemoveMixin(mixinId: string) {
+    await removeMixin(mixinId)
+    if (route.kind === 'studio' && route.entity?.kind === 'mixins' && route.entity.id === mixinId) {
+      navigate({ kind: 'studio', entity: { kind: 'mixins', id: null } })
+    }
+  }
+
   const visibleUserPatterns = userPatterns.filter(
     (pattern) =>
       matchesLens(nativeDim(pattern.src), dimLens) && matchesQuery(pattern.name, query),
@@ -1161,7 +1184,7 @@ export function PatternList() {
                               navKey={`pattern:${pattern.id}`}
                               onSelect={() => openUserPattern(pattern)}
                               onRename={(name) => renamePattern(pattern.id, name)}
-                              onDelete={() => removePattern(pattern.id)}
+                              onDelete={() => void handleRemovePattern(pattern.id)}
                               onRowRef={handlePatternRowRef}
                               onRowKeyDown={handlePatternRowKeyDown}
                             />
@@ -1233,7 +1256,7 @@ export function PatternList() {
                               takenNames={userMaps.filter((m) => m.id !== map.id).map((m) => m.name)}
                               onSelect={() => openUserMap(map)}
                               onRename={(name) => renameMap(map.id, name)}
-                              onDelete={() => removeMap(map.id)}
+                              onDelete={() => void handleRemoveMap(map.id)}
                             />
                           ))}
                         </ul>
@@ -1348,7 +1371,7 @@ export function PatternList() {
                         takenNames={userMixins.filter((m) => m.id !== mixin.id).map((m) => m.name)}
                         onSelect={() => openUserMixin(mixin)}
                         onRename={(name) => renameMixin(mixin.id, name)}
-                        onDelete={() => removeMixin(mixin.id)}
+                        onDelete={() => void handleRemoveMixin(mixin.id)}
                       />
                     ))}
                   </ul>

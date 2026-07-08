@@ -39,6 +39,7 @@ export function MapModeHeader() {
   async function confirmDelete() {
     if (!openRecord) return
     await removeMap(openRecord.id)
+    navigate({ kind: 'studio', entity: { kind: 'maps', id: null } })
     setDeleteOpen(false)
   }
 

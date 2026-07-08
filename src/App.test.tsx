@@ -15,6 +15,10 @@ import {
   useControllerProfileStore,
   type ControllerProfile,
 } from '@/store/controllerProfileStore'
+import {
+  initializePersonalContentProvider,
+  resetPersonalContentProvider,
+} from '@/engine/personalContentProvider'
 
 // Hold the startup auth probe pending so the smoke tests exercise the studio
 // shell without the signed-out Gallery redirect kicking in mid-test; the
@@ -39,6 +43,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.unstubAllGlobals()
+  resetPersonalContentProvider()
 })
 
 function stubRemotePatterns(patterns: PatternRecord[] = []) {
@@ -72,6 +77,7 @@ function stubRemotePatterns(patterns: PatternRecord[] = []) {
     }
     return Response.json({ ok: true })
   }))
+  void initializePersonalContentProvider({ mode: 'remote-api' })
   return created
 }
 
@@ -276,6 +282,26 @@ describe('routing (#308)', () => {
     expect(screen.getByTestId('editor-pane')).toHaveTextContent('Deep Linked Map')
   })
 
+  it('returns to the map list after deleting the routed personal map', async () => {
+    const user = userEvent.setup()
+    stubRemotePatterns()
+    window.history.replaceState(null, '', '/studio/maps/map-1')
+    useWorkspaceStore.setState({
+      personalWorkspaceAuthenticated: true,
+      personalWorkspaceResolved: true,
+    })
+    useMapStore.setState({ userMaps: [mapRecord], mapsLoaded: true })
+    render(<App />)
+
+    await screen.findAllByText('Deep Linked Map')
+    await user.click(screen.getByRole('button', { name: /delete/i }))
+    await user.click(screen.getByRole('button', { name: /^delete$/i }))
+
+    await waitFor(() => expect(window.location.pathname).toBe('/studio/maps'))
+    expect(screen.getByTestId('editor-pane')).toHaveTextContent('No map selected')
+    expect(screen.queryByTestId('route-message')).not.toBeInTheDocument()
+  })
+
   it('shows a graceful message for a deep link to a missing map', () => {
     window.history.replaceState(null, '', '/studio/maps/nope')
     useWorkspaceStore.setState({
@@ -320,6 +346,45 @@ describe('routing (#308)', () => {
     expect(useEditorStore.getState().editorFlavor).toBe('mixin')
     expect(useEditorStore.getState().isReadOnly).toBe(false)
     expect(screen.getByTestId('editor-pane')).toHaveTextContent('Deep Linked Mixin')
+  })
+
+  it('returns to the mixin list after deleting the routed personal mixin', async () => {
+    const user = userEvent.setup()
+    stubRemotePatterns()
+    window.history.replaceState(null, '', '/studio/mixins/mx-1')
+    useWorkspaceStore.setState({
+      personalWorkspaceAuthenticated: true,
+      personalWorkspaceResolved: true,
+    })
+    useMixinStore.setState({ userMixins: [mixinRecord], mixinsLoaded: true })
+    render(<App />)
+
+    await screen.findAllByText('Deep Linked Mixin')
+    await user.click(screen.getByRole('button', { name: /delete/i }))
+    await user.click(screen.getByRole('button', { name: /^delete$/i }))
+
+    await waitFor(() => expect(window.location.pathname).toBe('/studio/mixins'))
+    expect(screen.getByTestId('editor-pane')).toHaveTextContent('No mixin selected')
+    expect(screen.queryByTestId('route-message')).not.toBeInTheDocument()
+  })
+
+  it('returns to the pattern list after deleting the routed personal pattern', async () => {
+    const user = userEvent.setup()
+    stubRemotePatterns()
+    window.history.replaceState(null, '', '/studio/patterns/p-1')
+    useWorkspaceStore.setState({
+      personalWorkspaceAuthenticated: true,
+      personalWorkspaceResolved: true,
+    })
+    usePatternStore.setState({ userPatterns: [record], patternsLoaded: true })
+    render(<App />)
+
+    await screen.findAllByText('Deep Linked')
+    await user.click(screen.getByRole('button', { name: /delete/i }))
+    await user.click(screen.getByRole('button', { name: /^delete$/i }))
+
+    await waitFor(() => expect(window.location.pathname).toBe('/studio/patterns'))
+    expect(screen.queryByTestId('route-message')).not.toBeInTheDocument()
   })
 
   it('shows a graceful message for a deep link to a missing mixin', () => {

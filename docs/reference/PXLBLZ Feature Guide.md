@@ -111,10 +111,9 @@ The app has real URLs now — every page is shareable and bookmarkable.
   hardware profile pages (§10). Shows is a placeholder for the upcoming
   composition feature.
 - **Editor pane** (centre) — Monaco, in pattern, map, or mixin mode (§9).
-- **Preview pane** (right) — the animated canvas, a play/pause transport row, and
-  the **control deck** below it: device-like settings, preview-only viewing
-  controls, your pattern's own controls, and a variable watcher (§8). On a
-  mixin, this pane becomes the mixin's provenance view instead.
+- **Context pane** (right) — Patterns show the animated preview canvas, transport
+  row, and **control deck** (§8). Maps show a static wire-order geometry check
+  with map facts and usage. Mixins show provenance.
 
 ## 3. Preview
 
@@ -170,11 +169,11 @@ offers no real choice is hidden, not disabled:
 
 **Stock maps** ship ready to use: Square, Wide 2:1, Ring, a 3D set in
 shell/volume pairs — Cube, Sphere, Star, and Tetra (a d4), where "shell" puts LEDs
-on the surface and "volume" fills the interior — plus Sunflower pucks, a
-fixed-length 160-point literal 3D coordinate array modeling eight measured LED
-clusters. Every stock map is real, pasteable Mapper code: reveal **Stock Maps** in
-the Maps rail, open one read-only at its stable `/studio/maps/<id>` route, and
-**Clone** it into an editable copy.
+on the surface and "volume" fills the interior — plus Sunflower pucks as both
+the fixed-length 160-point literal 3D coordinate array and a 2D X/Y projection
+of the same measured LED clusters. Every stock map is real, pasteable Mapper
+code: reveal **Stock Maps** in the Maps rail, open one read-only at its stable
+`/studio/maps/<id>` route, and **Clone** it into an editable copy.
 
 **Custom maps**: click **New Map** and you get an editor for real Pixelblaze
 Mapper source: either a literal coordinate array (`[[x,y], ...]` or
@@ -183,6 +182,13 @@ are full JavaScript with `Math.*`, authored in whatever units fit your build.
 Custom maps re-bake automatically as you edit (the same once-at-save evaluation
 hardware does) but never change the running preview on their own; you assign a map
 to a pattern with the preview's Map control.
+
+In Maps mode, the right pane is a **wiring check**, not a running pattern preview:
+it draws the open map in wire order with a dark-to-amber ramp and labels the
+endpoints plus regular intervals. 2D maps draw in their measured aspect; 3D maps
+use the same orbitable 3D viewport controls as the pattern preview. Below the
+canvas are map facts (pixel count, arity, bounds) and honest usage/provenance
+rows.
 
 **Mixins** are visible Pixelblaze-dialect source chunks for the pass engine.
 Cloud mixins live under Mixins, followed by a collapsible **Stock Mixins** section

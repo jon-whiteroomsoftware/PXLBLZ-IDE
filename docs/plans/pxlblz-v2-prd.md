@@ -11,7 +11,7 @@ the unfinished corners of shipped surfaces, and open questions.
 
 Mockups for every v2 screen (approved July 2026) remain in
 `pxlblz-v2-mockups.html` beside this document — still the visual reference for
-the unbuilt screens (Maps context pane, Show editor).
+the shipped Maps context pane and the unbuilt Show editor.
 
 ---
 
@@ -78,7 +78,7 @@ A Show composes existing patterns into one deployable artifact. Its model:
 Reference docs describe these surfaces as they are; this list is what's still
 intended.
 
-**Maps context pane** (approved design, mockup tab 4 — unbuilt):
+**Maps context pane** (approved design, mockup tab 4 — built by #330):
 
 - The Maps view's right pane should dock the **wiring check** — a static
   render of the map in its true shape for its arity, pixels colored by a
@@ -87,8 +87,9 @@ intended.
   parse error the badge flips and the render greys, holding last-good state.
   Never a pattern renderer. Below it: map facts (pixel count, arity, bounds)
   and provenance (which Controllers use the map, how many patterns use it).
-  Supersedes #153, whose geometry-render idea it absorbs. Today the Maps view
-  still shows the live pattern preview in that pane.
+  Supersedes #153, whose geometry-render idea it absorbs. 3D maps use the
+  orbitable 3D viewport vocabulary from the pattern preview rather than a fixed
+  projection.
 
 **Rail**:
 

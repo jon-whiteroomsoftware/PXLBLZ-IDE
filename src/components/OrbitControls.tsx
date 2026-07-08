@@ -22,7 +22,13 @@ import { poleMaxCols, defaultPoleCols, clampPoleCols } from '@/engine/shapes'
 //   • grabbing the model holds the spin still; it resumes on release. Only the
 //     play/pause control toggles the persistent spinning/stopped state.
 //   • reset returns to the default angle and re-arms auto-orbit
-export function OrbitControls({ canvasRef }: { canvasRef: RefObject<HTMLCanvasElement | null> }) {
+export function OrbitControls({
+  canvasRef,
+  showPoleControls = true,
+}: {
+  canvasRef: RefObject<HTMLCanvasElement | null>
+  showPoleControls?: boolean
+}) {
   const autoOrbit = useCameraStore((s) => s.autoOrbit)
   const setAutoOrbit = useCameraStore((s) => s.setAutoOrbit)
   const resetView = useCameraStore((s) => s.resetView)
@@ -35,7 +41,7 @@ export function OrbitControls({ canvasRef }: { canvasRef: RefObject<HTMLCanvasEl
   const setPoleCols = useCameraStore((s) => s.setPoleCols)
   const activeShapeId = useMapStore((s) => s.activeShapeId)
   const activePixelCount = useMapStore((s) => s.activePixelCount)
-  const isPole = activeShapeId === 'pole'
+  const isPole = showPoleControls && activeShapeId === 'pole'
   const poleCount = clampPixelCount(activePixelCount ?? DEFAULT_SHAPE_PIXEL_COUNT)
   const poleMax = poleMaxCols(poleCount)
   const poleValue = clampPoleCols(poleCount, poleCols ?? defaultPoleCols(poleCount))

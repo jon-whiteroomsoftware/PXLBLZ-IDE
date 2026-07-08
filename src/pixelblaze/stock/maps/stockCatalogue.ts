@@ -53,6 +53,7 @@ export const STOCK_MAP_SPECS: SourceMapSpec[] = [
   { id: 'tetra-shell', name: 'Tetra shell', dim: 3, source: source('tetra-shell'), normals: 'tetra' },
   { id: 'tetra-volume', name: 'Tetra volume', dim: 3, source: source('tetra-volume') },
   { id: 'sunflower-pucks', name: 'Sunflower pucks', dim: 3, source: source('sunflower-pucks') },
+  { id: 'sunflower-pucks-2d', name: 'Sunflower pucks 2D', dim: 2, source: source('sunflower-pucks-2d') },
   { id: 'seed-ring-2d', name: 'Ring', dim: 2, source: source('ring') },
 ]
 
