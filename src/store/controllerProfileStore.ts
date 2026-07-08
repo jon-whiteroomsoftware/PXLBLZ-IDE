@@ -3,6 +3,11 @@ import { getControllerProvider } from '@/engine/controllerProviderRegistry'
 import { getPersonalContentProvider } from '@/engine/personalContentProvider'
 import { newPersonalContentId } from '@/engine/personalContentMetadata'
 import { mapDimension } from '@/engine/sendToController'
+import {
+  controllerProfileCreateSeed,
+  findControllerProfileForDevice,
+  type ControllerProfileJoinTarget,
+} from '@/engine/controllerProfileJoin'
 import type {
   ControllerBindingTarget,
   ControllerInput,
@@ -29,6 +34,9 @@ interface ControllerProfileState {
   }) => Promise<ControllerProfile>
   renameProfile: (id: string, name: string) => Promise<void>
   removeProfile: (id: string) => Promise<void>
+  ensureProfileForLiveController: (
+    target: ControllerProfileJoinTarget & { phase: string; mapDim?: unknown },
+  ) => Promise<ControllerProfile | null>
   updateProfile: (id: string, changes: Partial<Omit<ControllerProfile, 'id'>>) => Promise<void>
   addInput: (profileId: string) => Promise<void>
   updateInput: (profileId: string, inputId: string, changes: Partial<ControllerInput>) => Promise<void>
@@ -50,6 +58,14 @@ interface ControllerProfileState {
 export const controllerProfileInitialState = {
   profiles: [] as ControllerProfile[],
   profilesLoaded: false,
+}
+
+const autoCreateSuppressedDeviceIds = new Set<string>()
+const autoCreatePendingDeviceIds = new Set<string>()
+
+export function __resetControllerProfileAutoCreateGuards(): void {
+  autoCreateSuppressedDeviceIds.clear()
+  autoCreatePendingDeviceIds.clear()
 }
 
 export function defaultControllerProfile(seed: {
@@ -143,8 +159,38 @@ export const useControllerProfileStore = create<ControllerProfileState>()((set, 
   },
 
   removeProfile: async (id) => {
+    const profile = get().profiles.find((item) => item.id === id)
+    if (profile?.deviceId) autoCreateSuppressedDeviceIds.add(profile.deviceId)
     await getPersonalContentProvider().deleteControllerProfile(id)
     set((s) => ({ profiles: s.profiles.filter((profile) => profile.id !== id) }))
+  },
+
+  ensureProfileForLiveController: async (target) => {
+    if (target.phase !== 'live' || !target.deviceId) return null
+    if (autoCreateSuppressedDeviceIds.has(target.deviceId)) return null
+
+    const existing = findControllerProfileForDevice(get().profiles, target.deviceId)
+    if (existing) {
+      const changes: Partial<Omit<ControllerProfile, 'id'>> = {
+        ...(target.nickname && existing.lastKnownDeviceName !== target.nickname
+          ? { lastKnownDeviceName: target.nickname }
+          : {}),
+        ...(existing.lastSeenIp !== target.ip ? { lastSeenIp: target.ip } : {}),
+      }
+      if (Object.keys(changes).length > 0) await get().updateProfile(existing.id, changes)
+      return get().profiles.find((profile) => profile.id === existing.id) ?? existing
+    }
+
+    if (autoCreatePendingDeviceIds.has(target.deviceId)) return null
+    autoCreatePendingDeviceIds.add(target.deviceId)
+    try {
+      const profile = defaultControllerProfile(controllerProfileCreateSeed(target))
+      await getPersonalContentProvider().createControllerProfile(profile)
+      set((s) => ({ profiles: [profile, ...s.profiles], profilesLoaded: true }))
+      return profile
+    } finally {
+      autoCreatePendingDeviceIds.delete(target.deviceId)
+    }
   },
 
   updateProfile: async (id, changes) => {

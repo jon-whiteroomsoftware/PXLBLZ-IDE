@@ -15,6 +15,7 @@ import {
 } from '@/engine/controllerProviderRegistry'
 import {
   defaultControllerProfile,
+  __resetControllerProfileAutoCreateGuards,
   controllerProfileInitialState,
   useControllerProfileStore,
   type ControllerProfile,
@@ -102,6 +103,7 @@ function memoryProvider(seed: ControllerProfile[] = []): PersonalContentProvider
 beforeEach(() => {
   resetPersonalContentProvider()
   resetControllerProvider()
+  __resetControllerProfileAutoCreateGuards()
   useControllerProfileStore.setState(controllerProfileInitialState)
   useControllerStore.setState(controllerInitialState)
 })
@@ -193,5 +195,89 @@ describe('controllerProfileStore', () => {
       lastKnownPixelCount: 256,
       lastKnownMapDim: 3,
     })
+  })
+
+  it('auto-creates a default profile for a signed-in live controller with a stable device id', async () => {
+    setPersonalContentProvider(memoryProvider())
+
+    const created = await useControllerProfileStore.getState().ensureProfileForLiveController({
+      ip: '192.168.8.224',
+      deviceId: 'pixelblaze_pb32_3cd4ee549434',
+      nickname: 'Pixelblaze shelf',
+      phase: 'live',
+      mapDim: 2,
+    })
+
+    expect(created).toMatchObject({
+      name: 'Pixelblaze shelf',
+      deviceId: 'pixelblaze_pb32_3cd4ee549434',
+      lastKnownDeviceName: 'Pixelblaze shelf',
+      lastSeenIp: '192.168.8.224',
+    })
+    expect(useControllerProfileStore.getState().profiles).toHaveLength(1)
+  })
+
+  it('does not auto-create a durable profile for an unclaimed live controller', async () => {
+    setPersonalContentProvider(memoryProvider())
+
+    await expect(useControllerProfileStore.getState().ensureProfileForLiveController({
+      ip: '192.168.8.224',
+      deviceId: null,
+      nickname: 'Pixelblaze shelf',
+      phase: 'live',
+      mapDim: 2,
+    })).resolves.toBeNull()
+
+    expect(useControllerProfileStore.getState().profiles).toEqual([])
+  })
+
+  it('refreshes an existing profile instead of creating a duplicate', async () => {
+    const profile = defaultControllerProfile({
+      id: 'ctrl-1',
+      deviceId: 'pixelblaze_pb32_3cd4ee549434',
+      name: 'Road case',
+      now: 1,
+    })
+    setPersonalContentProvider(memoryProvider([profile]))
+    await useControllerProfileStore.getState().loadProfiles()
+
+    const ensured = await useControllerProfileStore.getState().ensureProfileForLiveController({
+      ip: '192.168.8.224',
+      deviceId: 'pixelblaze_pb32_3cd4ee549434',
+      nickname: 'Pixelblaze shelf',
+      phase: 'live',
+      mapDim: 2,
+    })
+
+    expect(ensured?.id).toBe('ctrl-1')
+    expect(useControllerProfileStore.getState().profiles).toHaveLength(1)
+    expect(useControllerProfileStore.getState().profiles[0]).toMatchObject({
+      id: 'ctrl-1',
+      name: 'Road case',
+      lastKnownDeviceName: 'Pixelblaze shelf',
+      lastSeenIp: '192.168.8.224',
+    })
+  })
+
+  it('does not immediately recreate a live controller profile after deleting it in the same session', async () => {
+    const profile = defaultControllerProfile({
+      id: 'ctrl-1',
+      deviceId: 'pixelblaze_pb32_3cd4ee549434',
+      now: 1,
+    })
+    setPersonalContentProvider(memoryProvider([profile]))
+    await useControllerProfileStore.getState().loadProfiles()
+
+    await useControllerProfileStore.getState().removeProfile('ctrl-1')
+    const ensured = await useControllerProfileStore.getState().ensureProfileForLiveController({
+      ip: '192.168.8.224',
+      deviceId: 'pixelblaze_pb32_3cd4ee549434',
+      nickname: 'Pixelblaze shelf',
+      phase: 'live',
+      mapDim: 2,
+    })
+
+    expect(ensured).toBeNull()
+    expect(useControllerProfileStore.getState().profiles).toEqual([])
   })
 })

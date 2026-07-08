@@ -8,6 +8,7 @@ import {
 } from '@/store/controllerStore'
 import {
   controllerProfileInitialState,
+  __resetControllerProfileAutoCreateGuards,
   useControllerProfileStore,
   type ControllerProfile,
 } from '@/store/controllerProfileStore'
@@ -24,6 +25,7 @@ import { resetControllerProvider } from '@/engine/controllerProviderRegistry'
 beforeEach(() => {
   __resetControllerProviders()
   resetPersonalContentProvider()
+  __resetControllerProfileAutoCreateGuards()
   useControllerStore.setState(controllerInitialState)
   useControllerProfileStore.setState(controllerProfileInitialState)
   useRouterStore.setState(routerInitialState)
@@ -326,13 +328,10 @@ describe('ControllerBar', () => {
     expect(window.location.pathname).toBe('/studio/controllers/new')
   })
 
-  it('creates a claimed profile for a connected device with a known id', async () => {
+  it('auto-creates a claimed profile for a connected device with a known id', async () => {
     seedLiveController()
     seedSignedInProfiles([])
     render(<ControllerBar />)
-    fireEvent.click(screen.getByRole('button', { name: 'Toggle Desk panel' }))
-
-    fireEvent.click(screen.getByRole('button', { name: 'Create profile for this device' }))
 
     await waitFor(() => expect(useControllerProfileStore.getState().profiles).toHaveLength(1))
     const created = useControllerProfileStore.getState().profiles[0]
@@ -342,10 +341,10 @@ describe('ControllerBar', () => {
       lastKnownDeviceName: 'Desk',
       lastSeenIp: '10.0.0.5',
     })
-    expect(window.location.pathname).toBe(`/studio/controllers/${created.id}`)
 
     fireEvent.click(screen.getByRole('button', { name: 'Toggle Desk panel' }))
-    expect(screen.getByRole('button', { name: 'Controller profile' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Controller profile' }))
+    expect(window.location.pathname).toBe(`/studio/controllers/${created.id}`)
   })
 
   it('creates an unclaimed profile when the live controller has no recoverable id', async () => {

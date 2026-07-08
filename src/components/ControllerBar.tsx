@@ -205,6 +205,7 @@ export function ControllerBar({ reloadPage = () => window.location.reload() }: {
   const controllerProfilesLoaded = useControllerProfileStore((s) => s.profilesLoaded)
   const loadControllerProfiles = useControllerProfileStore((s) => s.loadProfiles)
   const createControllerProfile = useControllerProfileStore((s) => s.createProfile)
+  const ensureProfileForLiveController = useControllerProfileStore((s) => s.ensureProfileForLiveController)
   const refreshLiveMetadata = useControllerProfileStore((s) => s.refreshLiveMetadata)
   const personalWorkspaceAuthenticated = useWorkspaceStore((s) => s.personalWorkspaceAuthenticated)
   const navigate = useRouterStore((s) => s.navigate)
@@ -266,6 +267,19 @@ export function ControllerBar({ reloadPage = () => window.location.reload() }: {
       cancelled = true
     }
   }, [controllerProfilesLoaded, loadControllerProfiles, personalWorkspaceAuthenticated])
+
+  useEffect(() => {
+    if (!personalWorkspaceAuthenticated || !controllerProfilesLoaded) return
+    for (const entry of Object.values(controllers)) {
+      if (entry.phase !== 'live' || !entry.deviceId) continue
+      void ensureProfileForLiveController(entry).catch(() => {})
+    }
+  }, [
+    controllerProfilesLoaded,
+    controllers,
+    ensureProfileForLiveController,
+    personalWorkspaceAuthenticated,
+  ])
 
   useEffect(() => {
     if (!personalWorkspaceAuthenticated || !controllerProfilesLoaded || !panelOpenIp) return
