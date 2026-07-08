@@ -5,6 +5,7 @@ import {
   showLoopDurationMs,
   showRecordToCompileRecipe,
   updateShowCellAdaptations,
+  updateShowCellPattern,
   updateShowScene,
 } from './showModel'
 import { DEMOS } from '@/pixelblaze/stock/patterns'
@@ -87,10 +88,54 @@ describe('showModel (#318)', () => {
 
     expect(recipe).toMatchObject({
       clips: [
-        { id: show.cells[0].id, zone: 'main' },
-        { id: show.cells[1].id, zone: 'main' },
+        { id: show.cells[0].id },
+        { id: show.cells[1].id },
       ],
-      zones: [{ name: 'main' }],
+      crossfade: { startMs: 30000, durationMs: 2000 },
     })
+  })
+
+  it('emits a single continuous clip recipe for a spanning hold cell', () => {
+    const show = extendShowCell(createDefaultShow('show-1', 'Untitled Show'), 'cell-1', 2)
+    const recipe = showRecordToCompileRecipe(show, {
+      byCellId: {
+        [show.cells[0].id]: DEMOS.TestPattern1D,
+      },
+    })
+
+    expect(recipe).toMatchObject({
+      clips: [{ id: 'cell-1' }],
+    })
+    expect(recipe.clips).toHaveLength(1)
+    expect(recipe.crossfade).toBeUndefined()
+    expect(recipe.cut).toBeUndefined()
+    expect(recipe.adaptationRamp).toBeUndefined()
+  })
+
+  it('emits a parameter ramp when adjacent same-pattern cells transition adaptations', () => {
+    const base = createDefaultShow('show-1', 'Untitled Show')
+    const samePattern = updateShowCellPattern(base, base.cells[1].id, {
+      pattern: base.cells[0].pattern,
+      patternName: base.cells[0].patternName,
+    })
+    const adapted = updateShowCellAdaptations(samePattern, samePattern.cells[1].id, {
+      brightness: 0.4,
+      phase: 0.25,
+    })
+    const recipe = showRecordToCompileRecipe(adapted, {
+      byCellId: {
+        [adapted.cells[0].id]: DEMOS.TestPattern1D,
+        [adapted.cells[1].id]: DEMOS.TestPattern1D,
+      },
+    })
+
+    expect(recipe.clips).toHaveLength(1)
+    expect(recipe.adaptationRamp).toEqual({
+      startMs: 30000,
+      durationMs: 2000,
+      from: { brightness: 1, phase: 0, timeScale: 1, mirror: false },
+      to: { brightness: 0.4, phase: 0.25, timeScale: 1, mirror: false },
+    })
+    expect(recipe.crossfade).toBeUndefined()
   })
 })

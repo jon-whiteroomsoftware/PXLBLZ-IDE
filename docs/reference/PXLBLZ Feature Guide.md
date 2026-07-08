@@ -208,6 +208,13 @@ boundary transition, extend a cell across scenes as a hold shape, inspect the
 compiled artifact budget, view the generated source read-only, and push the
 generated pattern to the connected Controller.
 
+Scene-boundary behavior is geometric. A cell that spans scene columns holds: the
+same renderer keeps its time base and phase across the boundary. Two separate
+cells can restart the same source pattern as a fresh instance. When adjacent cells
+use the same source pattern and a transition changes only adaptations, the
+compiler emits a parameter ramp instead of a two-renderer blend, so the compile
+bar reports it as one-renderer-per-pixel work.
+
 ## 5. Patterns, built-ins, and libraries
 
 The rail's Patterns list holds your personal patterns followed by a collapsible

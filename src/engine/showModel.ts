@@ -6,7 +6,7 @@ import type {
   ShowTransitionCost,
   ShowZone,
 } from './personalContentRecords'
-import type { ShowRecipe } from './showCompiler'
+import type { ShowClipAdaptation, ShowRecipe } from './showCompiler'
 import type { ControllerZone } from './controllerProfile'
 
 export interface ShowStripTransitionProjection {
@@ -196,26 +196,47 @@ export function showRecordToCompileRecipe(
     .filter((cell) => cell.zoneId === firstZone.id)
     .sort((a, b) => sceneIndex(show, a.sceneId) - sceneIndex(show, b.sceneId))
     .slice(0, 2)
-  if (cells.length !== 2) throw new Error('Show compile v1 requires two cells on the first zone.')
+  if (cells.length === 0) throw new Error('Show compile requires at least one cell on the first zone.')
   const source0 = lookup.byCellId[cells[0].id]
+  if (!source0) throw new Error('Show compile requires pattern source for the first cell.')
+
+  if (cells[0].sceneSpan > 1 || cells.length === 1) {
+    return {
+      clips: [{ id: cells[0].id, source: source0, adaptation: compilerAdaptation(cells[0].adaptations) }],
+      zones: lookup.controllerZones ?? nominalZones(firstZone),
+    }
+  }
+
   const source1 = lookup.byCellId[cells[1].id]
-  if (!source0 || !source1) throw new Error('Show compile requires pattern source for both cells.')
+  if (!source1) throw new Error('Show compile requires pattern source for both cells.')
 
   const transitionScene = show.scenes[sceneIndex(show, cells[0].sceneId)]
   const transition = transitionScene?.transitionOut
+  const samePattern = isSamePattern(cells[0], cells[1])
+  if (samePattern && transition && transition.kind !== 'cut') {
+    return {
+      clips: [{ id: cells[0].id, source: source0, adaptation: compilerAdaptation(cells[0].adaptations) }],
+      adaptationRamp: {
+        startMs: show.scenes[0].durationMs,
+        durationMs: transition.durationMs,
+        from: compilerAdaptation(cells[0].adaptations),
+        to: compilerAdaptation(cells[1].adaptations),
+      },
+      zones: lookup.controllerZones ?? nominalZones(firstZone),
+    }
+  }
+
+  const clips = [
+    { id: cells[0].id, source: source0, adaptation: compilerAdaptation(cells[0].adaptations) },
+    { id: cells[1].id, source: source1, adaptation: compilerAdaptation(cells[1].adaptations) },
+  ]
   return {
-    clips: [
-      { id: cells[0].id, source: source0, zone: firstZone.name },
-      { id: cells[1].id, source: source1, zone: firstZone.name },
-    ],
+    clips,
     crossfade: transition && transition.kind === 'crossfade'
       ? { startMs: show.scenes[0].durationMs, durationMs: transition.durationMs }
       : undefined,
-    zones: lookup.controllerZones ?? [{
-      id: firstZone.id,
-      name: firstZone.name,
-      ranges: [{ start: 0, end: Math.max(0, firstZone.nominalPixelCount - 1) }],
-    }],
+    cut: !transition || transition.kind === 'cut' ? { startMs: show.scenes[0].durationMs } : undefined,
+    zones: lookup.controllerZones ?? nominalZones(firstZone),
   }
 }
 
@@ -249,4 +270,25 @@ function normalizeAdaptations(adaptations: ShowCellAdaptations): ShowCellAdaptat
 
 function clamp01(value: number): number {
   return Math.max(0, Math.min(1, value))
+}
+
+function compilerAdaptation(adaptations: ShowCellAdaptations): ShowClipAdaptation {
+  return {
+    brightness: adaptations.brightness,
+    phase: adaptations.phase,
+    timeScale: adaptations.timeScale,
+    mirror: adaptations.mirror,
+  }
+}
+
+function isSamePattern(a: ShowCell, b: ShowCell): boolean {
+  return a.pattern.kind === b.pattern.kind && a.pattern.id === b.pattern.id
+}
+
+function nominalZones(firstZone: ShowZone): ControllerZone[] {
+  return [{
+    id: firstZone.id,
+    name: firstZone.name,
+    ranges: [{ start: 0, end: Math.max(0, firstZone.nominalPixelCount - 1) }],
+  }]
 }

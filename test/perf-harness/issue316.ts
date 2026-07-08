@@ -9,6 +9,7 @@
 //   PIXELBLAZE_IP=192.168.8.224 SHOW_FIXTURE=delta-ms-fade npm run issue316
 //   PIXELBLAZE_IP=192.168.8.224 SHOW_FIXTURE=capture-fade npm run issue316
 //   PIXELBLAZE_IP=192.168.8.224 SHOW_FIXTURE=stock WATCH_MS=12000 npm run issue316
+//   PIXELBLAZE_IP=192.168.8.224 SHOW_FIXTURE=adaptation-ramp SAMPLE_VARS=1 npm run issue316
 //   PIXELBLAZE_IP=192.168.8.224 npm run issue332
 //   PIXELBLAZE_IP=192.168.8.224 SHOW_FIXTURE=plain-dither SAMPLE_VARS=1 npm run issue332
 //   PIXELBLAZE_IP=192.168.8.224 SHOW_FIXTURE=pattern-crossfade-baseline SAMPLE_VARS=1 npm run issue332
@@ -68,6 +69,7 @@ type CompileResult = CompileOk | CompileFail
 
 function defaultWatchMs(fixture: string): number {
   if (fixture === 'stock') return 9000
+  if (fixture === 'adaptation-ramp') return 9000
   if (
     fixture === 'plain-wipe' ||
     fixture === 'plain-dither' ||
@@ -417,6 +419,42 @@ function buildFixtureSource(fixture: string): FixtureSource {
     }
   }
 
+  if (fixture === 'adaptation-ramp') {
+    const artifact = compileShow({
+      clips: [
+        {
+          id: 'ramp-source',
+          source: `
+export var t = 0
+export var calls = 0
+export var last = 0
+export function beforeRender(delta) {
+  last = calls
+  calls = 0
+  t = t + delta * 0.001
+}
+export function render(index) {
+  calls = calls + 1
+  var x = index / pixelCount
+  hsv(t * 0.2 + x, 1, 1)
+}
+`,
+        },
+      ],
+      adaptationRamp: {
+        startMs: 1000,
+        durationMs: 4000,
+        from: { brightness: 1, phase: 0, timeScale: 1, mirror: false },
+        to: { brightness: 0.2, phase: 0.25, timeScale: 1, mirror: false },
+      },
+    }, {})
+    return {
+      source: artifact.code,
+      description: 'same-pattern adaptation ramp: one running renderer, brightness 1.0 -> 0.2 and phase +0.25 over 4s',
+      sourceLabel: `Generated #335 adaptation-ramp Show source: ${artifact.summary.artifactBytes} bytes; renderPolicy=${artifact.summary.renderPolicy}; transitionCost=${artifact.summary.transitionCost}; worstInstantRenderersPerPixel=${artifact.summary.worstInstantRenderersPerPixel}`,
+    }
+  }
+
   if (fixture === 'direct-fade') {
     return {
       source: directFadeSource(),
@@ -458,7 +496,7 @@ function buildFixtureSource(fixture: string): FixtureSource {
   }
 
   if (fixture !== 'diagnostic') {
-    throw new Error(`unknown SHOW_FIXTURE=${fixture}; expected diagnostic, direct-fade, pulse-fade, time-fade, delta-ms-fade, capture-fade, stock, zone-repeat, or one of: ${routeTransitionFixtureList()}`)
+    throw new Error(`unknown SHOW_FIXTURE=${fixture}; expected diagnostic, direct-fade, pulse-fade, time-fade, delta-ms-fade, capture-fade, stock, adaptation-ramp, zone-repeat, or one of: ${routeTransitionFixtureList()}`)
   }
 
   const artifact = compileShow({

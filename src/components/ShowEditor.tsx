@@ -448,6 +448,13 @@ function CompileBar({
   const summary = compiled.artifact?.summary
   const ratio = summary?.artifactBudgetRatio ?? 0
   const estimate = estimateFps(ratio, summary?.renderPolicy)
+  const worstInstant = summary?.transitionCost === 'renderer-window'
+    ? 'crossfade'
+    : summary?.transitionCost === 'parameter'
+      ? 'adaptation ramp'
+      : summary?.transitionCost === 'route'
+        ? 'route'
+        : 'none'
   return (
     <div className="flex min-h-10 shrink-0 items-center gap-2 border-t border-seam bg-zinc-950 px-3 font-mono text-xs text-zinc-500">
       <span>compiled artifact</span>
@@ -459,7 +466,9 @@ function CompileBar({
       <b className="text-zinc-300">est. {estimate} fps @ {targetPixels} px</b>
       <span>-</span>
       <span>steady state <span className="text-emerald-300"><Check size={12} className="inline" aria-hidden /> 1 renderer/px</span></span>
-      <span className="text-amber-300">worst instant: crossfade</span>
+      <span className={summary?.transitionCost === 'renderer-window' ? 'text-amber-300' : 'text-emerald-300'}>
+        worst instant: {worstInstant}
+      </span>
       {summary?.warnings.map((warning) => <span key={warning} className="text-amber-300">{warning}</span>)}
       {pushResult && <span className="text-zinc-300">{pushResult}</span>}
       <span className="flex-1" />
@@ -549,7 +558,7 @@ function formatBytes(bytes: number): string {
 }
 
 function estimateFps(ratio: number, policy: string | undefined): number {
-  const base = policy === 'route-one-renderer-per-pixel' ? 70 : 62
+  const base = policy === 'steady-active-transition-both' ? 62 : 70
   return Math.max(20, Math.round(base - ratio * 12))
 }
 

@@ -687,17 +687,30 @@ Show and writes every scene/cell edit immediately through `/api/shows`. The pure
 model helpers in `showModel.ts` create the default two-scene/one-zone strip,
 project the arrangement into scene columns + zone rows, extend cells across
 scene boundaries as hold shapes, edit non-destructive adaptations, and build the
-current compiler recipe from the first two cells on the first zone. The
+current compiler recipe from the first cells on the first zone. A spanning cell
+emits a single continuous clip; adjacent same-pattern cells with a non-cut
+transition emit a parameter ramp between the cells' adaptations; separate cells
+with a cut emit distinct clip instances so the second clip gets a fresh virtual
+time base. The
 `ShowEditor` component renders the scene strip, cell inspector, transition
 inspector, zone binding panel, compile/budget bar, read-only generated-source
 view, and a run-to-Controller action that compiles the generated source through
 the active provider and pushes bytecode to the connected controller.
 
-The current Show compiler (`src/engine/showCompiler.ts`) has two emission modes:
-the original two-clip crossfade and the #317 route pass. A routed clip names a
-Controller zone; compile binds by zone name, warns in the summary when a zone is
-missing, and emits a single Pixelblaze artifact. At render time the route pass
-tests the global LED index against each zone's ordered ranges, computes a
+The current Show compiler (`src/engine/showCompiler.ts`) emits five policies:
+single continuous hold (`single-continuous-hold`), cut/restart
+(`cut-restart`), two-renderer crossfade (`steady-active-transition-both`),
+same-pattern adaptation ramp (`parameter-ramp-one-renderer-per-pixel`), and the
+#317 route pass (`route-one-renderer-per-pixel`). Each member pattern is
+alpha-renamed, gets a private elapsed-time accumulator, and receives per-member
+adaptation variables for brightness, phase, time scale, and mirror. Adaptation
+ramps interpolate those variables once per frame and call only one renderer per
+pixel; the transform summary marks them as `transitionCost: 'parameter'` with
+`worstInstantRenderersPerPixel: 1`, unlike crossfades, which report a
+renderer-window cost and `worstInstantRenderersPerPixel: 2`. A routed clip names
+a Controller zone; compile binds by zone name, warns in the summary when a zone
+is missing, and emits a single Pixelblaze artifact. At render time the route
+pass tests the global LED index against each zone's ordered ranges, computes a
 continuous zone-local index across multi-range zones, sets that member's virtual
 `pixelCount` to the zone's total size, and calls exactly one member renderer for
 the matching pixel. This is the 1D zone-local-coordinate path used by Shows; 2D

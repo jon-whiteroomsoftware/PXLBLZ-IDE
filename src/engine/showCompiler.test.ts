@@ -331,4 +331,120 @@ export function render(index) {
     handle.render(5)
     expect(pixel()).toEqual([0, 0, 0])
   })
+
+  it('emits a single continuous clip for a hold span with phase continuity across scene boundaries', () => {
+    const artifact = compileShow({
+      clips: [
+        {
+          id: 'held',
+          source: `
+export var elapsed = 0
+export function beforeRender(delta) { elapsed = elapsed + delta }
+export function render(index) { rgb(elapsed, index, 0) }
+`,
+        },
+      ],
+    }, {})
+
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata)
+
+    handle.beforeRender(900)
+    handle.render(2)
+    expect(pixel()).toEqual([900, 2, 0])
+
+    handle.beforeRender(200)
+    handle.render(2)
+    expect(pixel()).toEqual([1100, 2, 0])
+    expect(handle.getExports()).toMatchObject({
+      __pxlblz_show_c0_elapsed: 1100,
+      __pxlblz_show_c0_elapsed_ms: 1100,
+    })
+    expect(artifact.summary).toMatchObject({
+      clipCount: 1,
+      transitionCount: 0,
+      renderPolicy: 'single-continuous-hold',
+      transitionCost: 'none',
+      worstInstantRenderersPerPixel: 1,
+    })
+  })
+
+  it('emits a cut boundary where the same pattern restarts as a fresh clip instance', () => {
+    const source = `
+export var elapsed = 0
+export function beforeRender(delta) { elapsed = elapsed + delta }
+export function render(index) { rgb(elapsed, index, 0) }
+`
+    const artifact = compileShow({
+      clips: [
+        { id: 'scene-a', source },
+        { id: 'scene-b', source },
+      ],
+      cut: { startMs: 1000 },
+    }, {})
+
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata)
+
+    handle.beforeRender(900)
+    handle.render(3)
+    expect(pixel()).toEqual([900, 3, 0])
+
+    handle.beforeRender(200)
+    handle.render(3)
+    expect(pixel()).toEqual([200, 3, 0])
+    expect(handle.getExports()).toMatchObject({
+      __pxlblz_show_c0_elapsed: 900,
+      __pxlblz_show_c1_elapsed: 200,
+      __pxlblz_show_c0_elapsed_ms: 900,
+      __pxlblz_show_c1_elapsed_ms: 200,
+    })
+    expect(artifact.summary).toMatchObject({
+      clipCount: 2,
+      transitionCount: 1,
+      renderPolicy: 'cut-restart',
+      transitionCost: 'none',
+      worstInstantRenderersPerPixel: 1,
+    })
+  })
+
+  it('emits a same-pattern adaptation ramp as parameter-cost with one renderer per pixel', () => {
+    const artifact = compileShow({
+      clips: [
+        {
+          id: 'continuous',
+          source: `
+export var renderCalls = 0
+export function render(index) {
+  renderCalls = renderCalls + 1
+  rgb(1, 1, 1)
+}
+`,
+        },
+      ],
+      adaptationRamp: {
+        startMs: 1000,
+        durationMs: 1000,
+        from: { brightness: 1, phase: 0 },
+        to: { brightness: 0.25, phase: 0.2 },
+      },
+    }, {})
+
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata)
+
+    handle.beforeRender(1500)
+    handle.render(0)
+
+    expect(pixel()).toEqual([0.625, 0.625, 0.625])
+    expect(handle.getExports()).toMatchObject({
+      __pxlblz_show_c0_renderCalls: 1,
+      __pxlblz_show_c0_adapt_brightness: 0.625,
+      __pxlblz_show_c0_adapt_phase: 0.1,
+    })
+    expect(artifact.summary).toMatchObject({
+      clipCount: 1,
+      transitionCount: 1,
+      renderPolicy: 'parameter-ramp-one-renderer-per-pixel',
+      transitionCost: 'parameter',
+      worstInstantRenderersPerPixel: 1,
+    })
+  })
 })

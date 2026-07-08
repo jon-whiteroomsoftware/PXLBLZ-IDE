@@ -12,6 +12,7 @@ export interface ShowClipRecipe {
   id: string
   source: string
   zone?: string
+  adaptation?: Partial<ShowClipAdaptation>
 }
 
 export interface ShowCrossfadeRecipe {
@@ -19,9 +20,29 @@ export interface ShowCrossfadeRecipe {
   durationMs: number
 }
 
+export interface ShowCutRecipe {
+  startMs: number
+}
+
+export interface ShowClipAdaptation {
+  brightness: number
+  phase: number
+  timeScale: number
+  mirror: boolean
+}
+
+export interface ShowAdaptationRampRecipe {
+  startMs: number
+  durationMs: number
+  from: Partial<ShowClipAdaptation>
+  to: Partial<ShowClipAdaptation>
+}
+
 export interface ShowRecipe {
-  clips: [ShowClipRecipe, ShowClipRecipe]
+  clips: ShowClipRecipe[]
   crossfade?: ShowCrossfadeRecipe
+  cut?: ShowCutRecipe
+  adaptationRamp?: ShowAdaptationRampRecipe
   zones?: ControllerZone[]
 }
 
@@ -40,7 +61,14 @@ export interface ShowCompileSummary {
   artifactBytes: number
   measuredDeviceBudgetBytes: number
   artifactBudgetRatio: number
-  renderPolicy: 'steady-active-transition-both' | 'route-one-renderer-per-pixel'
+  renderPolicy:
+    | 'steady-active-transition-both'
+    | 'route-one-renderer-per-pixel'
+    | 'single-continuous-hold'
+    | 'cut-restart'
+    | 'parameter-ramp-one-renderer-per-pixel'
+  transitionCost: 'none' | 'renderer-window' | 'route' | 'parameter'
+  worstInstantRenderersPerPixel: 1 | 2
   clips: ShowCompileClipSummary[]
   warnings: string[]
 }
@@ -82,6 +110,7 @@ interface CompiledMember {
   hasBeforeRender: boolean
   elapsedName: string
   pixelCountName: string
+  adaptation: ShowClipAdaptation
 }
 
 interface ResolvedRoute {
@@ -98,18 +127,43 @@ export function compileShow(
   const members = recipe.clips.map((clip, index) => compileMember(clip, index, libraries))
   const route = buildRoutePlan(members, recipe)
   const routeMode = route !== null
-  const code = routeMode ? emitRouteShowCode(members, route.routes) : emitShowCode(members, recipe.crossfade!)
+  const code = routeMode
+    ? emitRouteShowCode(members, route.routes)
+    : recipe.adaptationRamp
+      ? emitAdaptationRampShowCode(members[0], recipe.adaptationRamp)
+      : recipe.cut
+        ? emitCutShowCode(members[0], members[1], recipe.cut)
+        : recipe.crossfade
+          ? emitShowCode(members[0], members[1], recipe.crossfade)
+          : emitSingleClipShowCode(members[0])
   const metadata = buildMetadata(members)
   const sourceBytesBeforeMerge = members.reduce((sum, member) => sum + member.sourceBytes, 0)
   const artifactBytes = byteLength(code)
+  const transitionCost = routeMode
+    ? 'route'
+    : recipe.crossfade
+      ? 'renderer-window'
+      : recipe.adaptationRamp
+        ? 'parameter'
+        : 'none'
   const summary: ShowCompileSummary = {
     clipCount: members.length,
-    transitionCount: routeMode ? 0 : 1,
+    transitionCount: recipe.crossfade || recipe.cut || recipe.adaptationRamp ? 1 : 0,
     sourceBytesBeforeMerge,
     artifactBytes,
     measuredDeviceBudgetBytes: MEASURED_DEVICE_BUDGET_BYTES,
     artifactBudgetRatio: artifactBytes / MEASURED_DEVICE_BUDGET_BYTES,
-    renderPolicy: routeMode ? 'route-one-renderer-per-pixel' : 'steady-active-transition-both',
+    renderPolicy: routeMode
+      ? 'route-one-renderer-per-pixel'
+      : recipe.crossfade
+        ? 'steady-active-transition-both'
+        : recipe.cut
+          ? 'cut-restart'
+          : recipe.adaptationRamp
+            ? 'parameter-ramp-one-renderer-per-pixel'
+            : 'single-continuous-hold',
+    transitionCost,
+    worstInstantRenderersPerPixel: transitionCost === 'renderer-window' ? 2 : 1,
     clips: members.map(member => ({
       id: member.id,
       prefix: member.prefix,
@@ -129,15 +183,24 @@ export function compileShow(
 }
 
 function validateRecipe(recipe: ShowRecipe): void {
-  if (recipe.clips.length !== 2) {
-    throw new Error('compileShow v1 requires exactly two clips.')
-  }
+  if (recipe.clips.length < 1 || recipe.clips.length > 2) throw new Error('compileShow v1 requires one or two clips.')
   const routeMode = recipe.clips.some((clip) => clip.zone !== undefined)
-  if (!routeMode && !recipe.crossfade) {
-    throw new Error('compileShow requires a crossfade or routed clips.')
+  const boundaryModes = [recipe.crossfade, recipe.cut, recipe.adaptationRamp].filter(Boolean).length
+  if (boundaryModes > 1) throw new Error('compileShow accepts only one boundary mode.')
+  if (recipe.clips.length === 2 && !routeMode && boundaryModes === 0) {
+    throw new Error('compileShow requires a crossfade, cut, ramp, or routed clips for two clips.')
+  }
+  if (recipe.clips.length === 1 && (recipe.crossfade || recipe.cut)) {
+    throw new Error('compileShow single-clip recipes can only hold or ramp adaptations.')
   }
   if (recipe.crossfade && recipe.crossfade.durationMs <= 0) {
     throw new Error('compileShow requires a positive crossfade duration.')
+  }
+  if (recipe.adaptationRamp && recipe.adaptationRamp.durationMs <= 0) {
+    throw new Error('compileShow requires a positive adaptation-ramp duration.')
+  }
+  if (recipe.adaptationRamp && recipe.clips.length !== 1) {
+    throw new Error('compileShow adaptation ramps run on one continuous clip.')
   }
   if (routeMode && !recipe.zones) {
     throw new Error('compileShow routed clips require controller zones.')
@@ -171,17 +234,89 @@ function compileMember(
     hasBeforeRender: bindings.has('beforeRender'),
     elapsedName: `${prefix}_elapsed_ms`,
     pixelCountName: `${prefix}_pixelCount`,
+    adaptation: normalizeAdaptation(clip.adaptation),
   }
 }
 
-function emitShowCode(members: CompiledMember[], crossfade: ShowCrossfadeRecipe): string {
-  const [from, to] = members
+function emitShowCode(from: CompiledMember, to: CompiledMember, crossfade: ShowCrossfadeRecipe): string {
   const transitionEnd = crossfade.startMs + crossfade.durationMs
+  const members = [from, to]
   return [
     emitRuntimePrelude(members),
     ...members.map(member => member.code.trim()),
     emitScheduler(from, to, crossfade.startMs, transitionEnd, crossfade.durationMs),
     emitRender(from, to),
+    '',
+  ].join('\n\n')
+}
+
+function emitSingleClipShowCode(member: CompiledMember): string {
+  return [
+    emitRuntimePrelude([member]),
+    member.code.trim(),
+    `export function beforeRender(delta) {
+  __pxlblz_show_elapsed_ms = __pxlblz_show_elapsed_ms + delta
+  ${member.prefix}_advance(delta)
+}`,
+    `export function render(index) {
+  ${member.prefix}_renderCapture(index)
+  ${member.prefix}_emit()
+}`,
+    '',
+  ].join('\n\n')
+}
+
+function emitCutShowCode(from: CompiledMember, to: CompiledMember, cut: ShowCutRecipe): string {
+  return [
+    emitRuntimePrelude([from, to]),
+    from.code.trim(),
+    to.code.trim(),
+    `export function beforeRender(delta) {
+  __pxlblz_show_elapsed_ms = __pxlblz_show_elapsed_ms + delta
+  if (__pxlblz_show_elapsed_ms < ${cut.startMs}) {
+    __pxlblz_show_phase = 0
+    ${from.prefix}_advance(delta)
+  } else {
+    __pxlblz_show_phase = 2
+    ${to.prefix}_advance(delta)
+  }
+}`,
+    `export function render(index) {
+  if (__pxlblz_show_phase == 0) {
+    ${from.prefix}_renderCapture(index)
+    ${from.prefix}_emit()
+  } else {
+    ${to.prefix}_renderCapture(index)
+    ${to.prefix}_emit()
+  }
+}`,
+    '',
+  ].join('\n\n')
+}
+
+function emitAdaptationRampShowCode(member: CompiledMember, ramp: ShowAdaptationRampRecipe): string {
+  const from = normalizeAdaptation(ramp.from)
+  const to = normalizeAdaptation(ramp.to)
+  const transitionEnd = ramp.startMs + ramp.durationMs
+  return [
+    emitRuntimePrelude([member]),
+    member.code.trim(),
+    `export function beforeRender(delta) {
+  __pxlblz_show_elapsed_ms = __pxlblz_show_elapsed_ms + delta
+  if (__pxlblz_show_elapsed_ms < ${ramp.startMs}) {
+    __pxlblz_show_mix = 0
+  } else if (__pxlblz_show_elapsed_ms < ${transitionEnd}) {
+    __pxlblz_show_mix = (__pxlblz_show_elapsed_ms - ${ramp.startMs}) / ${ramp.durationMs}
+  } else {
+    __pxlblz_show_mix = 1
+  }
+  ${member.prefix}_mixAdaptation(${from.brightness}, ${from.phase}, ${from.timeScale}, ${boolNumber(from.mirror)}, ${to.brightness}, ${to.phase}, ${to.timeScale}, ${boolNumber(to.mirror)}, __pxlblz_show_mix)
+  ${member.prefix}_advance(delta)
+}`,
+    `export function render(index) {
+  ${member.prefix}_renderCapture(index)
+  ${member.prefix}_emit()
+}`,
     '',
   ].join('\n\n')
 }
@@ -225,16 +360,41 @@ function emitRuntimePrelude(members: CompiledMember[]): string {
   const memberVars = members.flatMap((member, index) => [
     `var ${member.elapsedName} = 0`,
     `var ${member.pixelCountName} = pixelCount`,
+    `var ${member.prefix}_adapt_brightness = ${member.adaptation.brightness}`,
+    `var ${member.prefix}_adapt_phase = ${member.adaptation.phase}`,
+    `var ${member.prefix}_adapt_timeScale = ${member.adaptation.timeScale}`,
+    `var ${member.prefix}_adapt_mirror = ${boolNumber(member.adaptation.mirror)}`,
     `var ${member.prefix}_r = 0`,
     `var ${member.prefix}_g = 0`,
     `var ${member.prefix}_b = 0`,
     `function ${member.prefix}_clear() { ${member.prefix}_r = 0; ${member.prefix}_g = 0; ${member.prefix}_b = 0 }`,
-    `function ${member.prefix}_rgb(r, g, b) { ${member.prefix}_r = r; ${member.prefix}_g = g; ${member.prefix}_b = b }`,
-    `function ${member.prefix}_hsv(h, s, v) { __pxlblz_show_capture_hsv(${index}, h, s, v) }`,
+    `function ${member.prefix}_rgb(r, g, b) { ${member.prefix}_r = r * ${member.prefix}_adapt_brightness; ${member.prefix}_g = g * ${member.prefix}_adapt_brightness; ${member.prefix}_b = b * ${member.prefix}_adapt_brightness }`,
+    `function ${member.prefix}_hsv(h, s, v) { __pxlblz_show_capture_hsv(${index}, h + ${member.prefix}_adapt_phase, s, v * ${member.prefix}_adapt_brightness) }`,
     `function ${member.prefix}_time(interval) { return ((${member.elapsedName} * 0.001) / interval) % 1 }`,
+    `function ${member.prefix}_setAdaptation(brightness, phase, timeScale, mirror) {
+  ${member.prefix}_adapt_brightness = brightness
+  ${member.prefix}_adapt_phase = phase
+  ${member.prefix}_adapt_timeScale = timeScale
+  ${member.prefix}_adapt_mirror = mirror
+}`,
+    `function ${member.prefix}_mixAdaptation(fromBrightness, fromPhase, fromTimeScale, fromMirror, toBrightness, toPhase, toTimeScale, toMirror, mix) {
+  ${member.prefix}_setAdaptation(
+    fromBrightness + (toBrightness - fromBrightness) * mix,
+    fromPhase + (toPhase - fromPhase) * mix,
+    fromTimeScale + (toTimeScale - fromTimeScale) * mix,
+    mix < 0.5 ? fromMirror : toMirror
+  )
+}`,
     `function ${member.prefix}_advance(delta) {
-  ${member.elapsedName} = ${member.elapsedName} + delta
-  ${member.hasBeforeRender ? `${member.beforeRenderName}(delta)` : ''}
+  var scaledDelta = delta * ${member.prefix}_adapt_timeScale
+  ${member.elapsedName} = ${member.elapsedName} + scaledDelta
+  ${member.hasBeforeRender ? `${member.beforeRenderName}(scaledDelta)` : ''}
+}`,
+    `function ${member.prefix}_renderCapture(index) {
+  var mappedIndex = index
+  if (${member.prefix}_adapt_mirror >= 0.5) mappedIndex = ${member.pixelCountName} - 1 - index
+  ${member.prefix}_clear()
+  ${member.hasRender ? `${member.renderName}(mappedIndex)` : ''}
 }`,
     `function ${member.prefix}_emit() { rgb(${member.prefix}_r, ${member.prefix}_g, ${member.prefix}_b) }`,
   ])
@@ -305,21 +465,17 @@ ${lines.join('\n')}
 function emitRender(from: CompiledMember, to: CompiledMember): string {
   return `export function render(index) {
   if (__pxlblz_show_phase == 0) {
-    ${from.prefix}_clear()
-    ${from.hasRender ? `${from.renderName}(index)` : ''}
+    ${from.prefix}_renderCapture(index)
     ${from.prefix}_emit()
   } else if (__pxlblz_show_phase == 2) {
-    ${to.prefix}_clear()
-    ${to.hasRender ? `${to.renderName}(index)` : ''}
+    ${to.prefix}_renderCapture(index)
     ${to.prefix}_emit()
   } else {
-    ${from.prefix}_clear()
-    ${from.hasRender ? `${from.renderName}(index)` : ''}
+    ${from.prefix}_renderCapture(index)
     var r0 = ${from.prefix}_r
     var g0 = ${from.prefix}_g
     var b0 = ${from.prefix}_b
-    ${to.prefix}_clear()
-    ${to.hasRender ? `${to.renderName}(index)` : ''}
+    ${to.prefix}_renderCapture(index)
     rgb(
       r0 * (1 - __pxlblz_show_mix) + ${to.prefix}_r * __pxlblz_show_mix,
       g0 * (1 - __pxlblz_show_mix) + ${to.prefix}_g * __pxlblz_show_mix,
@@ -344,8 +500,7 @@ function emitRouteRenderBlock(route: ResolvedRoute): string {
     ...emitZoneLocalAssignments(route.zone, localName),
     `  if (${localName} >= 0) {`,
     `    ${route.member.pixelCountName} = ${route.pixelCount}`,
-    `    ${route.member.prefix}_clear()`,
-    route.member.hasRender ? `    ${route.member.renderName}(${localName})` : '',
+    `    ${route.member.prefix}_renderCapture(${localName})`,
     `    ${route.member.prefix}_emit()`,
     `    return`,
     `  }`,
@@ -374,6 +529,10 @@ function buildMetadata(members: CompiledMember[]): BundleMetadata {
     ...members.flatMap(member => [
       member.elapsedName,
       member.pixelCountName,
+      `${member.prefix}_adapt_brightness`,
+      `${member.prefix}_adapt_phase`,
+      `${member.prefix}_adapt_timeScale`,
+      `${member.prefix}_adapt_mirror`,
       `${member.prefix}_r`,
       `${member.prefix}_g`,
       `${member.prefix}_b`,
@@ -392,6 +551,24 @@ function buildMetadata(members: CompiledMember[]): BundleMetadata {
       hasRender3D: false,
     },
   }
+}
+
+function normalizeAdaptation(adaptation: Partial<ShowClipAdaptation> | undefined): ShowClipAdaptation {
+  return {
+    brightness: clampNumber(adaptation?.brightness ?? 1, 0, 1),
+    phase: clampNumber(adaptation?.phase ?? 0, 0, 1),
+    timeScale: clampNumber(adaptation?.timeScale ?? 1, 0.1, 4),
+    mirror: Boolean(adaptation?.mirror),
+  }
+}
+
+function clampNumber(value: number, min: number, max: number): number {
+  if (!Number.isFinite(value)) return min
+  return Math.max(min, Math.min(max, value))
+}
+
+function boolNumber(value: boolean): 0 | 1 {
+  return value ? 1 : 0
 }
 
 function rewriteMemberSource(source: string, prefix: string, mapping: Map<string, string>): string {
