@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { PatternList } from './PatternList'
 import { useEditorStore, editorInitialState } from '@/store/editorStore'
@@ -160,6 +160,21 @@ describe('PatternList', () => {
     expect(await screen.findByText('Sign in')).toBeInTheDocument()
   })
 
+  it('lists built-in patterns in a collapsible Patterns section and opens them read-only', async () => {
+    const user = userEvent.setup()
+    render(<PatternList />)
+
+    expect(await screen.findByRole('button', { name: 'Built-in Patterns' })).toHaveAttribute('aria-expanded', 'true')
+    await user.click(screen.getByText('AuroraSphere'))
+
+    expect(window.location.pathname).toBe('/studio/patterns/AuroraSphere')
+    expect(usePatternStore.getState().activeDemoName).toBe('AuroraSphere')
+    expect(useEditorStore.getState().isReadOnly).toBe(true)
+
+    await user.click(screen.getByRole('button', { name: 'Built-in Patterns' }))
+    expect(screen.queryByText('AuroraSphere')).not.toBeInTheDocument()
+  })
+
   it('renders the five-entity activity strip plus Catalog entry', async () => {
     render(<PatternList />)
 
@@ -224,26 +239,23 @@ describe('PatternList', () => {
     const user = userEvent.setup()
     render(<PatternList />)
     await switchToMixins(user)
-    expect(await screen.findByText('tazii-crown-mask')).toBeInTheDocument()
-    expect(screen.getByText('intercept')).toBeInTheDocument()
+    const mixinRow = (await screen.findByText('tazii-crown-mask')).closest('li')
+    expect(mixinRow).not.toBeNull()
+    expect(within(mixinRow!).getByText('intercept')).toBeInTheDocument()
   })
 
-  it('reveals and hides stock mixins in a muted Mixins section', async () => {
+  it('collapses and expands stock mixins in a muted Mixins section', async () => {
     const user = userEvent.setup()
     render(<PatternList />)
     await switchToMixins(user)
-    expect(screen.queryByText('Stock Mixins')).not.toBeInTheDocument()
-    expect(screen.queryByText('pot-binding')).not.toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: 'show stock mixins' }))
-
-    expect(screen.getByText('Stock Mixins')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Stock Mixins' })).toHaveAttribute('aria-expanded', 'true')
     expect(screen.getByText('pot-binding')).toBeInTheDocument()
     expect(screen.getByText('hw-brightness')).toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: 'hide stock mixins' }))
+    await user.click(screen.getByRole('button', { name: 'Stock Mixins' }))
 
-    expect(screen.queryByText('Stock Mixins')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Stock Mixins' })).toHaveAttribute('aria-expanded', 'false')
     expect(screen.queryByText('pot-binding')).not.toBeInTheDocument()
   })
 
@@ -251,7 +263,6 @@ describe('PatternList', () => {
     const user = userEvent.setup()
     render(<PatternList />)
     await switchToMixins(user)
-    await user.click(screen.getByRole('button', { name: 'show stock mixins' }))
 
     await user.click(screen.getByText('pot-binding'))
 
@@ -261,22 +272,17 @@ describe('PatternList', () => {
     expect(useEditorStore.getState().isReadOnly).toBe(true)
   })
 
-  it('reveals and hides stock maps in a muted Maps section', async () => {
+  it('collapses and expands stock maps in a muted Maps section', async () => {
     const user = userEvent.setup()
     render(<PatternList />)
-    expect(screen.queryByText('Stock Maps')).not.toBeInTheDocument()
     await switchToMaps(user)
-    expect(screen.queryByText('Stock Maps')).not.toBeInTheDocument()
-    expect(screen.queryByText('Cube shell')).not.toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: 'show stock maps' }))
-
-    expect(screen.getByText('Stock Maps')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Stock Maps' })).toHaveAttribute('aria-expanded', 'true')
     expect(screen.getByText('Cube shell')).toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: 'hide stock maps' }))
+    await user.click(screen.getByRole('button', { name: 'Stock Maps' }))
 
-    expect(screen.queryByText('Stock Maps')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Stock Maps' })).toHaveAttribute('aria-expanded', 'false')
     expect(screen.queryByText('Cube shell')).not.toBeInTheDocument()
   })
 
@@ -284,7 +290,6 @@ describe('PatternList', () => {
     const user = userEvent.setup()
     render(<PatternList />)
     await switchToMaps(user)
-    await user.click(screen.getByRole('button', { name: 'show stock maps' }))
 
     await user.click(screen.getByText('Cube shell'))
 

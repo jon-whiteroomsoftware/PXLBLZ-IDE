@@ -15,10 +15,10 @@ import { hasActiveOverrides, resetActiveSettings } from '@/store/settingsCascade
 
 export function PatternDetailPage({
   pattern,
-  onCloneToStudio,
+  onOpenInStudio,
 }: {
   pattern: GalleryPattern
-  onCloneToStudio: (pattern: GalleryPattern) => void
+  onOpenInStudio: (pattern: GalleryPattern) => void
 }) {
   const navigate = useRouterStore((s) => s.navigate)
   const isRunning = usePreviewStore((s) => s.isRunning)
@@ -140,10 +140,10 @@ export function PatternDetailPage({
               <Button
                 size="sm"
                 className="w-full justify-center border border-live/50 bg-live/15 font-mono text-xs text-live hover:bg-live/25 hover:text-amber-100"
-                onClick={() => onCloneToStudio(pattern)}
+                onClick={() => onOpenInStudio(pattern)}
               >
                 <Code2 data-icon="inline-start" />
-                Clone
+                Open in Studio
               </Button>
               <PatternDetailActionBar
                 stageView={stageView}

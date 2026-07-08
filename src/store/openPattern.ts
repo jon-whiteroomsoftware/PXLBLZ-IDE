@@ -1,6 +1,7 @@
 import { usePatternStore, type PatternRecord } from './patternStore'
 import { useEditorStore } from './editorStore'
 import { useMapStore } from './mapStore'
+import { useMixinStore } from './mixinStore'
 import { useDocsStore } from './docsStore'
 import { DEMOS } from '@/pixelblaze/stock/patterns'
 
@@ -9,8 +10,11 @@ import { DEMOS } from '@/pixelblaze/stock/patterns'
 // lands in exactly the state a rail click produces.
 export function openPatternRecord(record: PatternRecord): void {
   useMapStore.getState().closeMapEditor()
+  useMixinStore.getState().closeMixinEditor()
+  useDocsStore.getState().closeDocs()
   usePatternStore.getState().setActivePattern(record.id)
   const editor = useEditorStore.getState()
+  editor.setEditorFlavor('pattern')
   editor.setSource(record.src)
   editor.setPreviewSource(record.src)
   editor.setPreviewPatternName(record.name)
@@ -21,9 +25,11 @@ export function openDemoPattern(name: string): void {
   const src = DEMOS[name]
   if (!src) return
   useMapStore.getState().closeMapEditor()
+  useMixinStore.getState().closeMixinEditor()
   useDocsStore.getState().closeDocs()
   usePatternStore.getState().setActiveDemo(name)
   const editor = useEditorStore.getState()
+  editor.setEditorFlavor('pattern')
   editor.setSource(src)
   editor.setPreviewSource(src)
   editor.setPreviewPatternName(name)

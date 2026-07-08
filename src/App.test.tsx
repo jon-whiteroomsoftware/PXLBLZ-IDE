@@ -15,7 +15,6 @@ import {
   useControllerProfileStore,
   type ControllerProfile,
 } from '@/store/controllerProfileStore'
-import { pendingGalleryCloneKey } from '@/engine/galleryClone'
 
 // Hold the startup auth probe pending so the smoke tests exercise the studio
 // shell without the signed-out Gallery redirect kicking in mid-test; the
@@ -492,25 +491,25 @@ describe('routing (#308)', () => {
     expect(screen.getByTestId('pattern-detail-page')).toHaveTextContent('IridescentFibers')
   })
 
-  it('clones a Gallery pattern detail page into a writable Studio pattern', async () => {
+  it('opens a Gallery pattern detail page read-only in Studio', async () => {
     window.history.replaceState(null, '', '/p/iridescent-fibers')
     useWorkspaceStore.setState({
       personalWorkspaceAuthenticated: true,
       personalWorkspaceResolved: true,
     })
-    const created = stubRemotePatterns()
+    stubRemotePatterns()
     render(<App />)
     expect(screen.getByTestId('pattern-detail-page')).toHaveTextContent('IridescentFibers')
-    await userEvent.click(screen.getByRole('button', { name: 'Clone' }))
-    await waitFor(() => expect(created).toHaveLength(1))
-    expect(created[0]).toMatchObject({ name: 'IridescentFibers' })
-    expect(window.location.pathname).toBe(`/studio/patterns/${created[0].id}`)
-    expect(usePatternStore.getState().activePatternId).toBe(created[0].id)
-    expect(usePatternStore.getState().activeDemoName).toBeNull()
+    await userEvent.click(screen.getByRole('button', { name: 'Open in Studio' }))
+    await waitFor(() => expect(window.location.pathname).toBe('/studio/patterns/IridescentFibers'))
+    expect(usePatternStore.getState().activePatternId).toBeNull()
+    expect(usePatternStore.getState().activeDemoName).toBe('IridescentFibers')
     expect(screen.getByTestId('editor-pane')).toBeInTheDocument()
+    expect(within(screen.getByTestId('editor-pane')).getByRole('button', { name: 'View in Gallery' })).toBeInTheDocument()
+    expect(within(screen.getByTestId('editor-pane')).getByRole('button', { name: 'Clone' })).toBeInTheDocument()
   })
 
-  it('queues a Gallery clone intent and shows sign-in when Clone is clicked signed out', async () => {
+  it('opens a Gallery pattern in Studio signed out without queuing a clone', async () => {
     window.history.replaceState(null, '', '/p/iridescent-fibers')
     useWorkspaceStore.setState({
       personalWorkspaceAuthenticated: false,
@@ -518,30 +517,12 @@ describe('routing (#308)', () => {
     })
     render(<App />)
 
-    await userEvent.click(screen.getByRole('button', { name: 'Clone' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Open in Studio' }))
 
-    expect(window.location.pathname).toBe('/studio-welcome')
-    expect(window.localStorage.getItem(pendingGalleryCloneKey)).toBe('iridescent-fibers')
-    expect(screen.getByTestId('studio-welcome-page')).toHaveTextContent('Sign in to Studio')
-    expect(screen.queryByTestId('left-pane')).not.toBeInTheDocument()
-  })
-
-  it('consumes a pending Gallery clone after sign-in and opens the saved copy', async () => {
-    window.history.replaceState(null, '', '/gallery')
-    window.localStorage.setItem(pendingGalleryCloneKey, 'iridescent-fibers')
-    useWorkspaceStore.setState({
-      personalWorkspaceAuthenticated: true,
-      personalWorkspaceResolved: true,
-    })
-    const created = stubRemotePatterns([{ id: 'existing', name: 'IridescentFibers', src: '// old', controls: {}, updatedAt: 1 }])
-
-    render(<App />)
-
-    await waitFor(() => expect(created).toHaveLength(1))
-    expect(created[0].name).toBe('IridescentFibers 1')
-    expect(window.localStorage.getItem(pendingGalleryCloneKey)).toBeNull()
-    expect(window.location.pathname).toBe(`/studio/patterns/${created[0].id}`)
-    expect(usePatternStore.getState().activePatternId).toBe(created[0].id)
+    await waitFor(() => expect(window.location.pathname).toBe('/studio/patterns/IridescentFibers'))
+    expect(usePatternStore.getState().activeDemoName).toBe('IridescentFibers')
+    expect(screen.queryByTestId('studio-welcome-page')).not.toBeInTheDocument()
+    expect(screen.getByTestId('left-pane')).toBeInTheDocument()
   })
 
   it('shows pattern source in a read-only detail-stage code view', async () => {
@@ -552,7 +533,7 @@ describe('routing (#308)', () => {
     expect(screen.getByTestId('pattern-code-stage')).toBeInTheDocument()
     expect(screen.queryByText(/read-only/i)).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Preview' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Clone' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Open in Studio' })).toBeInTheDocument()
   })
 
   it('shows the surface selector in the detail header for 2D patterns only', () => {

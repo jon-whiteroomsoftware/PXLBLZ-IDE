@@ -46,7 +46,7 @@ The signed-in working environment — the three-pane IDE at `/studio/...`, organ
 _Avoid_: "the IDE" when the Gallery/Studio distinction matters; signed-out Studio variants.
 
 **Pattern detail page**:
-A built-in pattern's shareable page at `/p/<slug>`: large live preview driven by the real engine, the pattern's exported controls, a Preview | Code toggle (read-only Monaco), Clone into the Studio, and Send to Controller without entering the Studio. Slugs exist for built-in patterns only.
+A built-in pattern's shareable page at `/p/<slug>`: large live preview driven by the real engine, the pattern's exported controls, a Preview | Code toggle (read-only Monaco), **Open in Studio** for the read-only workspace/code view, and **Send to Controller** without entering the Studio. Cloning is deliberately a Studio action from that read-only view, not a Gallery action. Slugs exist for built-in patterns only.
 _Avoid_: implying personal patterns have public detail pages (a later step).
 
 **Device id**:
@@ -76,7 +76,7 @@ The engine component that turns pattern source into a transpiled artifact: it pa
 The preview-pane table showing the live values of a pattern's `export var` globals, sampled after each rendered frame.
 
 **Left rail**:
-The app's object browser and primary open/select surface. Its top-level organization follows **object type** before provenance: **Patterns**, **Maps**, **Mixins**, **Controllers**, and **Shows** live as rail modes, with **Catalog** as the bottom entry for built-in patterns and browse pages. **Patterns** lists personal patterns; **Maps** defaults to personal custom maps and can reveal a quiet, hideable **Stock Maps** section; **Mixins** defaults to personal cloud mixins and can reveal a quiet, hideable **Stock Mixins** section; **Controllers** lists durable hardware profiles. The **dimension lens** and type-down name search belong only to dimensional authoring content (Patterns and Maps), not Controllers or Mixins. Switching rail mode changes what the rail is browsing, not necessarily which file or page remains open in the editor.
+The app's object browser and primary open/select surface. Its top-level organization follows **object type** before provenance: **Patterns**, **Maps**, **Mixins**, **Controllers**, and **Shows** live as rail modes, with **Catalog** as the bottom entry for the public Gallery browse surface. **Patterns**, **Maps**, and **Mixins** list user-owned rows first and then an always-present, collapsible stock/built-in section; those sections remember their open/closed state during the session. **Controllers** lists durable hardware profiles and has no stock section. The **dimension lens** and type-down name search belong only to dimensional authoring content (Patterns and Maps), not Controllers or Mixins. Switching rail mode restores that mode's last selected/open destination where possible.
 _Avoid_: treating **patterns**, **maps**, and **controllers** as one interchangeable saved-item list; putting all user-owned objects together just because they share provenance.
 
 **Personal content provider**:

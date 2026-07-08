@@ -300,9 +300,9 @@ The editor's second flavor is **map authoring** (`editorFlavor === 'map'`,
 `mapAuthoring.ts` + `MapModeHeader.tsx`): a plain-JavaScript surface with a
 **parse-only** badge (`parseMapSource` — an Acorn parse of `(${source})`; no
 dialect walker, no shim, since a map is just a JS function expression). **New
-Map** opens on `MAP_SKELETON`, a minimal valid 2D function. Stock maps are hidden
-from the Maps rail until the session-scoped **show stock maps** reveal is on, then
-open read-only in the same flavor at stable `/studio/maps/<stock-id>` routes;
+Map** opens on `MAP_SKELETON`, a minimal valid 2D function. Stock maps live in
+the Maps rail's session-remembered collapsible **Stock Maps** section and open
+read-only in the same flavor at stable `/studio/maps/<stock-id>` routes;
 **Clone** copies the stock source into a new custom `MapRecord`, bakes it, routes
 to the new `/studio/maps/<id>`, and opens it editable. Custom map source
 **auto-bakes** on
@@ -318,10 +318,10 @@ The editor's third flavor is **mixin mode** (`editorFlavor === 'mixin'`,
 `mixinStore.ts` + `MixinModeHeader.tsx`): Pixelblaze-dialect source with a
 structured pass header. Validation is header-focused (`parseMixinHeader`) rather
 than full dialect validation because `@param` placeholders are intentionally
-unresolved until a Controller or Show binding applies the mixin. Stock mixins are
-hidden from the Mixins rail until the session-scoped **show stock mixins** reveal
-is on, then open read-only at stable `/studio/mixins/<stock-id>` routes with pass
-kind badges (`inject`, `intercept`, `bind`). **Clone** copies the stock source
+unresolved until a Controller or Show binding applies the mixin. Stock mixins live
+in the Mixins rail's session-remembered collapsible **Stock Mixins** section and
+open read-only at stable `/studio/mixins/<stock-id>` routes with pass kind badges
+(`inject`, `intercept`, `bind`). **Clone** copies the stock source
 into a new D1-backed `MixinRecord`, routes to `/studio/mixins/<id>`, and opens it
 editable. Cloud mixin source auto-saves on the editor sync tick when the header is
 valid. The preview/right pane is replaced by `MixinProvenancePane`: header facts,

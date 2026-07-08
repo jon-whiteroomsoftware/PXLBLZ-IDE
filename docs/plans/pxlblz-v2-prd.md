@@ -92,8 +92,9 @@ intended.
 
 **Rail**:
 
-- The **Controllers view should ship without a right context pane** (punt,
-  revisit in use); today it still shows the pattern preview pane.
+- The **Controllers view now suppresses the pattern preview** with an empty
+  context placeholder; collapse/remove that right slot later if the placeholder
+  feels like wasted space.
 - Factor the monolithic `PatternList.tsx` (~1,400 lines) into a shared rail
   shell + per-entity list modules.
 
@@ -102,9 +103,10 @@ intended.
 - **Copyable URL** affordance on the detail page (the `/p/<slug>` is shown as
   static text).
 - **Pattern description** on the detail page (no description field exists).
-- **Settings carry into Clone**: detail-page slider/embedding tweaks are meant
-  to ride into the Studio copy via the settings cascade; today
-  `galleryCloneRecord` drops them (the in-Studio demo fork does carry them).
+- **Settings carry into Clone**: detail-page slider/embedding tweaks should
+  ride into the eventual Studio copy via the settings cascade. The detail page
+  now opens the built-in pattern read-only in Studio first, so this belongs to
+  the in-Studio clone path rather than a Gallery clone shortcut.
 - Share URLs for *personal* patterns remain a natural later step, out of
   scope for this arc.
 
@@ -135,8 +137,10 @@ intended.
 
 **Open questions (deliberately unresolved)**:
 
-- Whether the **Patterns** list also gets a show-stock reveal (useful for
-  future playlist management; many stock patterns). Deferred.
+- **Resolved 2026-07-08:** Patterns, Maps, and Mixins all use the same
+  always-present collapsible stock/built-in section pattern. The Gallery remains
+  the public browse/detail surface and keeps direct Send to Controller; Gallery
+  **Open in Studio** opens a built-in read-only, and cloning happens from Studio.
 - Whether the **Catalog** activity-strip entry stays once the reveal pattern
   beds in — re-evaluate.
 - Whether the Controllers page grows a context pane occupant (push history /

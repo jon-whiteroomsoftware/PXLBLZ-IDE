@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect, useLayoutEffect } from 'react'
-import { Code2, Cpu, ExternalLink, FileText, Images, Lock, LogIn, Trash2 } from 'lucide-react'
+import { Braces, Code2, Cpu, ExternalLink, FileText, Images, Lock, LogIn, Map as MapIcon, PanelsTopLeft, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   AlertDialogRoot,
@@ -36,7 +36,7 @@ import { useControllerProfileStore } from '@/store/controllerProfileStore'
 import { useEditorStore } from '@/store/editorStore'
 import { useDocsStore } from '@/store/docsStore'
 import { useRouterStore } from '@/store/routerStore'
-import { openPatternRecord } from '@/store/openPattern'
+import { openDemoPattern, openPatternRecord } from '@/store/openPattern'
 import { routesEqual, type Route } from '@/engine/routes'
 import { decideStudioAccess, studioWelcomeAcknowledgedKey } from '@/engine/studioAccess'
 import { useWorkspaceStore } from '@/store/workspaceStore'
@@ -46,12 +46,10 @@ import { LIBRARIES } from '@/pixelblaze/libs'
 import { uniquePatternName } from '@/engine/patternName'
 import { newPersonalContentId } from '@/engine/personalContentMetadata'
 import { exportedDims } from '@/engine/exportedDims'
-import { galleryPatternBySlug, type GalleryPattern } from '@/engine/galleryCatalog'
-import { initializePersonalContentProvider } from '@/engine/personalContentProvider'
-import { initializeControllerMetadataStorage } from '@/engine/controllerMetadataStorage'
-import { galleryCloneRecord, pendingGalleryCloneKey } from '@/engine/galleryClone'
+import { galleryPatternBySlug, patternSlug, type GalleryPattern } from '@/engine/galleryCatalog'
 import { docExternalHref, getUserDoc, isDocId } from '@/docs/catalog'
 import type { AuthProvider } from '@/engine/authSession'
+import { DEMOS } from '@/pixelblaze/stock/patterns'
 
 function Splitter({ onDrag }: { onDrag: (dx: number) => void }) {
   const lastX = useRef(0)
@@ -112,6 +110,48 @@ function RouteMessage({
         )}
       </div>
     </div>
+  )
+}
+
+function StudioPaneMessage({
+  icon,
+  title,
+  detail,
+}: {
+  icon: React.ReactNode
+  title: string
+  detail: string
+}) {
+  return (
+    <div className="flex h-full items-center justify-center bg-zinc-950/40 px-6 font-mono">
+      <div className="max-w-sm text-center">
+        <div className="mx-auto mb-3 grid size-10 place-items-center rounded-md border border-zinc-800 bg-panel text-zinc-500">
+          {icon}
+        </div>
+        <h2 className="text-sm font-semibold text-zinc-300">{title}</h2>
+        <p className="mt-2 text-xs leading-5 text-zinc-600">{detail}</p>
+      </div>
+    </div>
+  )
+}
+
+function MapContextPane() {
+  return (
+    <StudioPaneMessage
+      icon={<MapIcon size={18} aria-hidden />}
+      title="Map context"
+      detail="The wiring check, map facts, and provenance will live here. For now, the map source is open in the editor."
+    />
+  )
+}
+
+function EmptyContextPane({ label }: { label: string }) {
+  return (
+    <StudioPaneMessage
+      icon={<PanelsTopLeft size={18} aria-hidden />}
+      title={`${label} context`}
+      detail="No right-side context pane is available for this view yet."
+    />
   )
 }
 
@@ -198,7 +238,6 @@ export default function App() {
   const controllerProfiles = useControllerProfileStore((s) => s.profiles)
   const controllerProfilesLoaded = useControllerProfileStore((s) => s.profilesLoaded)
   const personalWorkspaceResolved = useWorkspaceStore((s) => s.personalWorkspaceResolved)
-  const cloneIntentInFlightRef = useRef(false)
   const routeSyncedRef = useRef(false)
   const [studioWelcomeAcknowledged, setStudioWelcomeAcknowledged] = useState(() => {
     try {
@@ -234,11 +273,10 @@ export default function App() {
     syncDocsFromRoute(null)
     if (route.kind === 'studio' && route.entity !== null && route.entity.kind === 'patterns' && route.entity.id !== null) {
       const entityId = route.entity.id
-      const { userPatterns, activePatternId } = usePatternStore.getState()
-      if (activePatternId !== entityId) {
-        const record = userPatterns.find((p) => p.id === entityId)
-        if (record) openPatternRecord(record)
-      }
+      const { userPatterns, activePatternId, activeDemoName } = usePatternStore.getState()
+      const record = userPatterns.find((p) => p.id === entityId)
+      if (record && activePatternId !== entityId) openPatternRecord(record)
+      else if (!record && DEMOS[entityId] && activeDemoName !== entityId) openDemoPattern(entityId)
     } else if (route.kind === 'studio' && route.entity !== null && route.entity.kind === 'maps' && route.entity.id !== null) {
       const entityId = route.entity.id
       const { userMaps, editingMap, openExistingMap, openStockMap } = useMapStore.getState()
@@ -265,12 +303,15 @@ export default function App() {
     if (activePatternId !== null && (current.entity === null || current.entity.kind === 'patterns')) {
       const target: Route = { kind: 'studio', entity: { kind: 'patterns', id: activePatternId } }
       if (!routesEqual(current, target)) navigate(target, { replace: current.entity === null || current.entity.id === null })
+    } else if (activeDemoName !== null && (current.entity === null || current.entity.kind === 'patterns')) {
+      const target: Route = { kind: 'studio', entity: { kind: 'patterns', id: activeDemoName } }
+      if (!routesEqual(current, target)) navigate(target, { replace: current.entity === null || current.entity.id === null })
     } else if (
-      (activeDemoName !== null || activeLibraryName !== null) &&
+      activeLibraryName !== null &&
       current.entity !== null &&
       current.entity.id !== null
     ) {
-      // Demos and libraries have no addressable URL yet; fall back to /studio
+      // Libraries have no addressable URL yet; fall back to /studio
       // so a stale entity URL doesn't sit over unrelated content.
       navigate({ kind: 'studio', entity: null })
     }
@@ -365,6 +406,7 @@ export default function App() {
   const activeFileName =
     activeLibraryName ?? activeDemoName ?? userPatterns.find((p) => p.id === activePatternId)?.name ?? '—'
   const activePattern = activePatternId ? userPatterns.find((p) => p.id === activePatternId) : undefined
+  const studioEntityKind = route.kind === 'studio' ? (route.entity?.kind ?? null) : null
   const activeControllerProfileId =
     route.kind === 'studio' && route.entity?.kind === 'controllers' ? route.entity.id : null
   const activeControllerProfile =
@@ -395,7 +437,8 @@ export default function App() {
     (routeEntity.kind === 'patterns'
       ? patternsLoaded &&
         activePatternId !== routeEntity.id &&
-        !userPatterns.some((p) => p.id === routeEntity.id)
+        !userPatterns.some((p) => p.id === routeEntity.id) &&
+        !DEMOS[routeEntity.id]
       : routeEntity.kind === 'maps'
         ? mapsLoaded &&
           !userMaps.some((m) => m.id === routeEntity.id) &&
@@ -413,69 +456,10 @@ export default function App() {
   const studioAccessPending = studioRoute && !personalWorkspaceResolved
   const detailPattern = route.kind === 'pattern-detail' ? galleryPatternBySlug(route.slug) : undefined
 
-  const cloneGalleryPatternIntoStudio = useCallback(async (pattern: GalleryPattern) => {
-    await initializePersonalContentProvider({ mode: 'remote-api' })
-    await initializeControllerMetadataStorage({ mode: 'remote-api' })
-    await usePatternStore.getState().loadPatterns()
-
-    const { userPatterns, addPattern } = usePatternStore.getState()
-    const record = galleryCloneRecord({
-      pattern,
-      existingNames: userPatterns.map((p) => p.name),
-      id: newPersonalContentId(),
-      updatedAt: Date.now(),
-    })
-    await addPattern(record)
-    openPatternRecord(record)
-    navigate({ kind: 'studio', entity: { kind: 'patterns', id: record.id } })
+  const openDetailPatternInStudio = useCallback((pattern: GalleryPattern) => {
+    openDemoPattern(pattern.name)
+    navigate({ kind: 'studio', entity: { kind: 'patterns', id: pattern.name } })
   }, [navigate])
-
-  const queueGalleryClone = useCallback((pattern: GalleryPattern) => {
-    try {
-      window.localStorage.setItem(pendingGalleryCloneKey, pattern.slug)
-    } catch {
-      // If storage is unavailable, the user can still sign in and retry Clone.
-    }
-  }, [])
-
-  useEffect(() => {
-    if (!personalWorkspaceResolved || !personalWorkspaceAuthenticated || cloneIntentInFlightRef.current) return
-    const slug = (() => {
-      try {
-        return window.localStorage.getItem(pendingGalleryCloneKey)
-      } catch {
-        return null
-      }
-    })()
-    if (!slug) return
-    const pattern = galleryPatternBySlug(slug)
-    try {
-      window.localStorage.removeItem(pendingGalleryCloneKey)
-    } catch {
-      // Harmless: the in-flight guard still prevents a duplicate clone this mount.
-    }
-    if (!pattern) return
-
-    cloneIntentInFlightRef.current = true
-    void cloneGalleryPatternIntoStudio(pattern).finally(() => {
-      cloneIntentInFlightRef.current = false
-    })
-  }, [personalWorkspaceResolved, personalWorkspaceAuthenticated, cloneGalleryPatternIntoStudio])
-
-  const cloneDetailPattern = useCallback((pattern: GalleryPattern) => {
-    queueGalleryClone(pattern)
-    if (personalWorkspaceResolved && personalWorkspaceAuthenticated) {
-      void cloneGalleryPatternIntoStudio(pattern)
-      return
-    }
-    navigate({ kind: 'studio-welcome' })
-  }, [
-    cloneGalleryPatternIntoStudio,
-    navigate,
-    personalWorkspaceAuthenticated,
-    personalWorkspaceResolved,
-    queueGalleryClone,
-  ])
 
   const openBrowseRouteStudio = () => {
     if (personalWorkspaceResolved && !personalWorkspaceAuthenticated) {
@@ -568,7 +552,7 @@ export default function App() {
         />
       ) : route.kind === 'pattern-detail' ? (
         detailPattern ? (
-          <PatternDetailPage pattern={detailPattern} onCloneToStudio={cloneDetailPattern} />
+          <PatternDetailPage pattern={detailPattern} onOpenInStudio={openDetailPatternInStudio} />
         ) : (
           <RouteMessage
             title="Pattern not found"
@@ -656,6 +640,32 @@ export default function App() {
                   Controller
                 </span>
               </span>
+            ) : studioEntityKind === 'controllers' ? (
+              <span className="flex-1 min-w-0 flex items-center gap-1.5">
+                <Cpu size={14} aria-hidden className="shrink-0 text-zinc-500" />
+                <span className="truncate text-zinc-200">Controllers</span>
+                <span className="hidden rounded border border-zinc-700 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-structural sm:inline">
+                  Profiles
+                </span>
+              </span>
+            ) : studioEntityKind === 'shows' ? (
+              <span className="flex-1 min-w-0 flex items-center gap-1.5">
+                <PanelsTopLeft size={14} aria-hidden className="shrink-0 text-zinc-500" />
+                <span className="truncate text-zinc-200">Shows</span>
+                <span className="hidden rounded border border-zinc-700 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-structural sm:inline">
+                  Stub
+                </span>
+              </span>
+            ) : studioEntityKind === 'maps' && editorFlavor !== 'map' ? (
+              <span className="flex-1 min-w-0 flex items-center gap-1.5">
+                <MapIcon size={14} aria-hidden className="shrink-0 text-zinc-500" />
+                <span className="truncate text-zinc-200">Maps</span>
+              </span>
+            ) : studioEntityKind === 'mixins' && editorFlavor !== 'mixin' ? (
+              <span className="flex-1 min-w-0 flex items-center gap-1.5">
+                <Braces size={14} aria-hidden className="shrink-0 text-zinc-500" />
+                <span className="truncate text-zinc-200">Mixins</span>
+              </span>
             ) : editorFlavor === 'map' ? (
               <MapModeHeader />
             ) : editorFlavor === 'mixin' ? (
@@ -675,6 +685,17 @@ export default function App() {
               <DimPills dims={exportedDims(source)} />
               {activePatternId !== null && <CompileStatusBadge />}
             </span>
+            {activeDemoName !== null && (
+              <Button
+                size="xs"
+                variant="ghost"
+                className="text-xs text-zinc-400 bg-zinc-800/70 hover:bg-zinc-700/70 hover:text-zinc-300"
+                onClick={() => navigate({ kind: 'pattern-detail', slug: patternSlug(activeDemoName) })}
+                title="View in Gallery"
+              >
+                View in Gallery
+              </Button>
+            )}
             {activeDemoName !== null && personalWorkspaceAuthenticated && (
               <Button
                 size="xs"
@@ -732,6 +753,30 @@ export default function App() {
               <DocsReader doc={activeDoc} />
             ) : activeControllerProfileId !== null ? (
               <ControllerProfilePage profileId={activeControllerProfileId} />
+            ) : studioEntityKind === 'controllers' ? (
+              <StudioPaneMessage
+                icon={<Cpu size={18} aria-hidden />}
+                title="No controller selected"
+                detail="Create or select a controller profile from the rail."
+              />
+            ) : studioEntityKind === 'shows' ? (
+              <StudioPaneMessage
+                icon={<PanelsTopLeft size={18} aria-hidden />}
+                title="Shows"
+                detail="Shows will compose clips across zones once the underlying entity model is ready."
+              />
+            ) : studioEntityKind === 'maps' && editorFlavor !== 'map' ? (
+              <StudioPaneMessage
+                icon={<MapIcon size={18} aria-hidden />}
+                title="No map selected"
+                detail="Create or select a map from the rail."
+              />
+            ) : studioEntityKind === 'mixins' && editorFlavor !== 'mixin' ? (
+              <StudioPaneMessage
+                icon={<Braces size={18} aria-hidden />}
+                title="No mixin selected"
+                detail="Create or select a mixin from the rail."
+              />
             ) : (
               <Editor />
             )}
@@ -741,7 +786,17 @@ export default function App() {
         {/* The preview is an output/instrument surface (#150): no header strip — the
             canvas sits flush at the top and all controls live in the deck below it. */}
         <aside data-testid="preview-pane" className="shrink-0 flex flex-col min-h-0" style={{ width: rightWidth, minWidth: MIN_PREVIEW_WIDTH }}>
-          {editorFlavor === 'mixin' ? <MixinProvenancePane /> : <Preview />}
+          {editorFlavor === 'mixin' ? (
+            <MixinProvenancePane />
+          ) : editorFlavor === 'map' || studioEntityKind === 'maps' ? (
+            <MapContextPane />
+          ) : studioEntityKind === 'controllers' ? (
+            <EmptyContextPane label="Controller" />
+          ) : studioEntityKind === 'shows' ? (
+            <EmptyContextPane label="Shows" />
+          ) : (
+            <Preview />
+          )}
         </aside>
       </div>
       )}

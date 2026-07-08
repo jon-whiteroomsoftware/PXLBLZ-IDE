@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import {
-  BookOpen,
   Braces,
   Cpu,
   FileCode2,
   FolderOpen,
+  ChevronDown,
   Images,
   Map as MapIcon,
   PanelsTopLeft,
@@ -18,6 +18,7 @@ import { nameConflicts, uniquePatternName } from '@/engine/patternName'
 import { NEW_PATTERN_SRC } from '@/pixelblaze/newPattern'
 import { parseEpe } from '@/engine/epeImport'
 import { nativeDim, matchesLens, matchesQuery, type DimLens } from '@/engine/dimLens'
+import { GALLERY_PATTERNS } from '@/engine/galleryCatalog'
 import {
   demoPersonalContentProvider,
   getPersonalContentProvider,
@@ -44,6 +45,7 @@ import {
 } from '@/store/controllerProfileStore'
 import { useDocsStore } from '@/store/docsStore'
 import { useRouterStore } from '@/store/routerStore'
+import { openDemoPattern } from '@/store/openPattern'
 import { useWorkspaceStore } from '@/store/workspaceStore'
 import type { StudioEntityKind } from '@/engine/routes'
 import {
@@ -221,31 +223,6 @@ function ActivityStrip({
           <Images size={17} />
         </span>
         <span>CTLG</span>
-      </button>
-    </div>
-  )
-}
-
-function CatalogHint({
-  noun,
-  detail,
-  onCatalog,
-}: {
-  noun: string
-  detail: string
-  onCatalog: () => void
-}) {
-  return (
-    <div className="mx-3 mt-3 rounded border border-dashed border-zinc-700/80 bg-zinc-950/25 px-3 py-2 text-[11px] leading-relaxed text-zinc-500">
-      <p>{detail}</p>
-      <button
-        type="button"
-        onClick={onCatalog}
-        className="mt-1 inline-flex items-center gap-1 text-live hover:text-amber-300"
-      >
-        <BookOpen size={12} aria-hidden />
-        Browse the catalog
-        <span className="sr-only"> for {noun}</span>
       </button>
     </div>
   )
@@ -575,40 +552,33 @@ function StockListItem({
   )
 }
 
-function StockMapsToggle({
-  visible,
+// The muted subheader over a stock/reference section. User items sit directly
+// under the entity title row; a subheader appears only where a second provenance
+// group genuinely coexists. The header itself is the disclosure control.
+function StockSectionHeader({
+  label,
+  open,
   onToggle,
-  noun = 'maps',
 }: {
-  visible: boolean
+  label: string
+  open: boolean
   onToggle: () => void
-  noun?: 'maps' | 'mixins'
 }) {
   return (
-    <div className="px-3 pt-2">
-      <button
-        type="button"
-        onClick={onToggle}
-        className="text-[11px] text-zinc-500 hover:text-live"
-      >
-        {visible ? `hide stock ${noun}` : `show stock ${noun}`}
-      </button>
-    </div>
-  )
-}
-
-// The muted subheader over a revealed stock section. The only subheader the rail
-// renders (#326): user items sit directly under the entity title row, and a
-// subheader exists only where two groups genuinely coexist. Not collapsible —
-// the show/hide stock link is the control.
-function StockSectionHeader({ label }: { label: string }) {
-  return (
-    <div
+    <button
+      type="button"
+      aria-expanded={open}
+      onClick={onToggle}
       style={{ letterSpacing: '0.04em' }}
-      className="mt-2 pt-2.5 pb-1 px-3 border-t border-zinc-700/80 border-b border-zinc-700/65 text-[11px] font-mono font-semibold text-structural uppercase select-none"
+      className="mt-2 flex w-full items-center gap-1 border-y border-zinc-700/70 px-3 pb-1 pt-2.5 text-left font-mono text-[11px] font-semibold uppercase text-structural transition-colors hover:bg-zinc-900/45 hover:text-zinc-300"
     >
+      <ChevronDown
+        size={12}
+        aria-hidden
+        className={`shrink-0 transition-transform ${open ? '' : '-rotate-90'}`}
+      />
       {label}
-    </div>
+    </button>
   )
 }
 
@@ -675,6 +645,7 @@ export function PatternList() {
   const setPreviewPatternName = useEditorStore((s) => s.setPreviewPatternName)
   const closeDocs = useDocsStore((s) => s.closeDocs)
   const activePatternId = usePatternStore((s) => s.activePatternId)
+  const activeDemoName = usePatternStore((s) => s.activeDemoName)
   const userPatterns = usePatternStore((s) => s.userPatterns)
   const setActivePattern = usePatternStore((s) => s.setActivePattern)
   const loadPatterns = usePatternStore((s) => s.loadPatterns)
@@ -768,22 +739,36 @@ export function PatternList() {
     shows: '',
   })
 
+  const [showStockPatterns, setShowStockPatterns] = useState(() => {
+    try {
+      return window.sessionStorage.getItem('pxlblz.showStockPatterns') !== '0'
+    } catch {
+      return true
+    }
+  })
   const [showStockMaps, setShowStockMaps] = useState(() => {
     try {
-      return window.sessionStorage.getItem('pxlblz.showStockMaps') === '1'
+      return window.sessionStorage.getItem('pxlblz.showStockMaps') !== '0'
     } catch {
-      return false
+      return true
     }
   })
   const [showStockMixins, setShowStockMixins] = useState(() => {
     try {
-      return window.sessionStorage.getItem('pxlblz.showStockMixins') === '1'
+      return window.sessionStorage.getItem('pxlblz.showStockMixins') !== '0'
     } catch {
-      return false
+      return true
     }
   })
   const scrollRef = useRef<HTMLDivElement>(null)
   const patternRowRefs = useRef(new Map<string, HTMLLIElement>())
+  const lastEntityByModeRef = useRef<Record<RailMode, string | null>>({
+    patterns: null,
+    maps: null,
+    mixins: null,
+    controllers: null,
+    shows: null,
+  })
   const [scrollMetrics, setScrollMetrics] = useState<ScrollMetrics>({ top: 0, height: 0, visible: false })
   const [personalWorkspaceAuthenticated, setPersonalWorkspaceAuthenticated] = useState(false)
   const setGlobalWorkspaceAuthenticated = useWorkspaceStore((s) => s.setPersonalWorkspaceAuthenticated)
@@ -793,7 +778,29 @@ export function PatternList() {
   function handleRailModeChange(next: RailMode) {
     if (next === 'maps' && dimLens === 1) setDimLens(2)
     closeDocs()
-    navigate({ kind: 'studio', entity: { kind: next, id: null } })
+    if (next !== 'maps') closeMapEditor()
+    if (next !== 'mixins') closeMixinEditor()
+    if (next === 'shows') {
+      navigate({ kind: 'studio', entity: { kind: next, id: null } })
+      return
+    }
+    if (next === 'controllers') {
+      const last = lastEntityByModeRef.current.controllers
+      const id = controllerProfiles.some((profile) => profile.id === last)
+        ? last
+        : (controllerProfiles[0]?.id ?? null)
+      navigate({ kind: 'studio', entity: { kind: next, id } })
+      return
+    }
+    const last = lastEntityByModeRef.current[next]
+    const id = next === 'patterns'
+      ? (userPatterns.some((p) => p.id === last) || GALLERY_PATTERNS.some((p) => p.name === last) ? last : null)
+      : next === 'maps'
+        ? (userMaps.some((m) => m.id === last) || STOCK_MAP_ITEMS.some((m) => m.id === last) ? last : null)
+      : next === 'mixins'
+        ? (userMixins.some((m) => m.id === last) || STOCK_MIXIN_ITEMS.some((m) => m.id === last) ? last : null)
+      : null
+    navigate({ kind: 'studio', entity: { kind: next, id } })
   }
 
   function openCatalog() {
@@ -821,9 +828,18 @@ export function PatternList() {
     userMaps.length,
     userMixins.length,
     controllerProfiles.length,
+    showStockPatterns,
     showStockMaps,
     showStockMixins,
   ])
+
+  useEffect(() => {
+    try {
+      window.sessionStorage.setItem('pxlblz.showStockPatterns', showStockPatterns ? '1' : '0')
+    } catch {
+      // Session persistence is a convenience only.
+    }
+  }, [showStockPatterns])
 
   useEffect(() => {
     try {
@@ -840,6 +856,20 @@ export function PatternList() {
       // Session persistence is a convenience only.
     }
   }, [showStockMixins])
+
+  useEffect(() => {
+    if (route.kind !== 'studio' || route.entity === null || route.entity.id === null) return
+    lastEntityByModeRef.current[route.entity.kind] = route.entity.id
+  }, [route])
+
+  useEffect(() => {
+    if (route.kind !== 'studio' || route.entity?.kind !== 'controllers' || route.entity.id !== null) return
+    const last = lastEntityByModeRef.current.controllers
+    const id = controllerProfiles.some((profile) => profile.id === last)
+      ? last
+      : (controllerProfiles[0]?.id ?? null)
+    if (id) navigate({ kind: 'studio', entity: { kind: 'controllers', id } }, { replace: true })
+  }, [controllerProfiles, navigate, route])
 
   useEffect(() => {
     let cancelled = false
@@ -929,6 +959,11 @@ export function PatternList() {
     setIsReadOnly(false)
   }
 
+  function openStockPatternRoute(name: string) {
+    openDemoPattern(name)
+    navigate({ kind: 'studio', entity: { kind: 'patterns', id: name } })
+  }
+
   // Create a fresh "Untitled Pattern" and open it. Lives next to Patterns
   // (#141) so a new pattern is created right by its list.
   async function handleCreatePattern() {
@@ -966,6 +1001,15 @@ export function PatternList() {
   async function handleCreateMap() {
     closeMixinEditor()
     await createNewMap()
+    const editing = useMapStore.getState().editingMap
+    if (editing?.kind === 'existing') navigate({ kind: 'studio', entity: { kind: 'maps', id: editing.id } })
+  }
+
+  async function handleCreateMixin() {
+    closeMapEditor()
+    await createNewMixin()
+    const editing = useMixinStore.getState().editingMixin
+    if (editing?.kind === 'existing') navigate({ kind: 'studio', entity: { kind: 'mixins', id: editing.id } })
   }
 
   function openUserMixin(mixin: MixinRecord) {
@@ -1005,6 +1049,9 @@ export function PatternList() {
   const visibleUserPatterns = userPatterns.filter(
     (pattern) =>
       matchesLens(nativeDim(pattern.src), dimLens) && matchesQuery(pattern.name, query),
+  )
+  const visibleStockPatterns = GALLERY_PATTERNS.filter(
+    (pattern) => matchesLens(pattern.dim, dimLens) && matchesQuery(pattern.name, query),
   )
 
   const patternNavItems = visibleUserPatterns.map((pattern) => ({
@@ -1127,11 +1174,28 @@ export function PatternList() {
                         {' '}to save patterns
                       </p>
                     )}
-                    <CatalogHint
-                      noun="patterns"
-                      detail="Need a starting point? Browse built-in patterns in the catalog, then open one in Studio when it is time to edit."
-                      onCatalog={openCatalog}
+                    <StockSectionHeader
+                      label="Built-in Patterns"
+                      open={showStockPatterns}
+                      onToggle={() => setShowStockPatterns((visible) => !visible)}
                     />
+                    {showStockPatterns && (
+                      visibleStockPatterns.length === 0 ? (
+                        <p className="pl-3 pr-3 py-1 text-zinc-600 italic select-none">No built-in patterns match</p>
+                      ) : (
+                        <ul className="pt-2 opacity-85">
+                          {visibleStockPatterns.map((pattern) => (
+                            <StockListItem
+                              key={pattern.name}
+                              name={pattern.name}
+                              active={activeDemoName === pattern.name}
+                              meta={dimLens === 'all' ? `${pattern.dim}D` : undefined}
+                              onSelect={() => openStockPatternRoute(pattern.name)}
+                            />
+                          ))}
+                        </ul>
+                      )
+                    )}
                   </>
                 )}
 
@@ -1152,7 +1216,7 @@ export function PatternList() {
                       ) : visibleMaps.length === 0 ? (
                         userMaps.length === 0 ? (
                           <p className="pl-3 pr-3 py-1 text-zinc-600 italic select-none">
-                            No custom maps yet. Use show stock maps below to browse built-ins.
+                            No custom maps yet
                           </p>
                         ) : (
                           null
@@ -1174,29 +1238,27 @@ export function PatternList() {
                           ))}
                         </ul>
                       )}
-                      <StockMapsToggle
-                        visible={showStockMaps}
+                      <StockSectionHeader
+                        label="Stock Maps"
+                        open={showStockMaps}
                         onToggle={() => setShowStockMaps((visible) => !visible)}
                       />
                       {showStockMaps && (
-                        <>
-                          <StockSectionHeader label="Stock Maps" />
-                          {visibleStockMaps.length === 0 ? (
-                            <p className="pl-3 pr-3 py-1 text-zinc-600 italic select-none">No stock maps match</p>
-                          ) : (
-                            <ul className="pt-2 opacity-85">
-                              {visibleStockMaps.map((map) => (
-                                <StockListItem
-                                  key={map.id}
-                                  name={map.name}
-                                  active={editingMap?.kind === 'stock' && editingMap.id === map.id}
-                                  meta={dimLens === 'all' ? `${map.dim}D` : undefined}
-                                  onSelect={() => openStockMapRoute(map.id)}
-                                />
-                              ))}
-                            </ul>
-                          )}
-                        </>
+                        visibleStockMaps.length === 0 ? (
+                          <p className="pl-3 pr-3 py-1 text-zinc-600 italic select-none">No stock maps match</p>
+                        ) : (
+                          <ul className="pt-2 opacity-85">
+                            {visibleStockMaps.map((map) => (
+                              <StockListItem
+                                key={map.id}
+                                name={map.name}
+                                active={editingMap?.kind === 'stock' && editingMap.id === map.id}
+                                meta={dimLens === 'all' ? `${map.dim}D` : undefined}
+                                onSelect={() => openStockMapRoute(map.id)}
+                              />
+                            ))}
+                          </ul>
+                        )
                       )}
                     </>
                   )
@@ -1255,7 +1317,7 @@ export function PatternList() {
             <RailEntityHeader
               title="Mixins"
               action={personalWorkspaceAuthenticated
-                ? <HeaderAction icon={<Plus size={14} />} title="New mixin" onClick={() => void createNewMixin()} />
+                ? <HeaderAction icon={<Plus size={14} />} title="New mixin" onClick={() => void handleCreateMixin()} />
                 : null}
             />
             <div className="relative flex-1 min-h-0">
@@ -1272,7 +1334,7 @@ export function PatternList() {
                   </p>
                 ) : userMixins.length === 0 ? (
                   <p className="pl-3 pr-3 py-1 text-zinc-600 italic select-none">
-                    No cloud mixins yet. Use show stock mixins below to browse built-ins.
+                    No cloud mixins yet
                   </p>
                 ) : (
                   <ul className="pt-2">
@@ -1291,26 +1353,23 @@ export function PatternList() {
                     ))}
                   </ul>
                 )}
-                <StockMapsToggle
-                  noun="mixins"
-                  visible={showStockMixins}
+                <StockSectionHeader
+                  label="Stock Mixins"
+                  open={showStockMixins}
                   onToggle={() => setShowStockMixins((visible) => !visible)}
                 />
                 {showStockMixins && (
-                  <>
-                    <StockSectionHeader label="Stock Mixins" />
-                    <ul className="pt-2 opacity-85">
-                      {STOCK_MIXIN_ITEMS.map((mixin) => (
-                        <StockListItem
-                          key={mixin.id}
-                          name={mixin.name}
-                          active={editingMixin?.kind === 'stock' && editingMixin.id === mixin.id}
-                          meta={mixin.kind}
-                          onSelect={() => openStockMixinRoute(mixin.id)}
-                        />
-                      ))}
-                    </ul>
-                  </>
+                  <ul className="pt-2 opacity-85">
+                    {STOCK_MIXIN_ITEMS.map((mixin) => (
+                      <StockListItem
+                        key={mixin.id}
+                        name={mixin.name}
+                        active={editingMixin?.kind === 'stock' && editingMixin.id === mixin.id}
+                        meta={mixin.kind}
+                        onSelect={() => openStockMixinRoute(mixin.id)}
+                      />
+                    ))}
+                  </ul>
                 )}
               </div>
               <RailScrollThumb metrics={scrollMetrics} scrollRef={scrollRef} />

@@ -185,20 +185,22 @@ hardware does) but never change the running preview on their own; you assign a m
 to a pattern with the preview's Map control.
 
 **Mixins** are visible Pixelblaze-dialect source chunks for the pass engine.
-Cloud mixins live under Mixins, while **show stock mixins** reveals the read-only
-stock set with pass-kind badges (`inject`, `intercept`, `bind`). Opening a stock
-mixin shows the exact source and structured header (`@param`, `@target`,
-`@wraps`); **Clone** creates an editable cloud mixin. The right pane shows where a
-mixin is used and the last transform summary when that data exists, with empty
+Cloud mixins live under Mixins, followed by a collapsible **Stock Mixins** section
+with read-only pass-kind examples (`inject`, `intercept`, `bind`). Opening a
+stock mixin shows the exact source and structured header (`@param`, `@target`,
+`@wraps`); **Clone** creates an editable cloud mixin. The right pane shows where
+a mixin is used and the last transform summary when that data exists, with empty
 states until bindings or generated artifacts have been recorded.
 
 ## 5. Patterns, built-ins, and libraries
 
-The rail's Patterns list holds your personal patterns; the built-in patterns'
-browse home is the **Gallery** (the rail's Catalog entry and a dashed hint card
-point there). Maps mode lists your custom maps with a quiet **show stock maps**
-reveal; Mixins mode lists your cloud mixins with a quiet **show stock mixins**
-reveal. Signed-out use is demo mode: the Gallery, stock maps, stock mixins,
+The rail's Patterns list holds your personal patterns followed by a collapsible
+**Built-in Patterns** section. The Gallery remains the public browse/detail
+surface: it can send catalog patterns to a Controller directly, and **Open in
+Studio** opens the built-in read-only in Studio for code inspection and cloning.
+Maps mode lists your custom maps followed by collapsible **Stock Maps**; Mixins
+mode lists your cloud mixins followed by collapsible **Stock Mixins**. Signed-out
+use is demo mode: the Gallery, built-in patterns, stock maps, stock mixins,
 libraries, docs, and preview controls remain usable, while durable personal
 resources wait for sign-in.
 
@@ -383,9 +385,8 @@ rail hover action as a shortcut.
 The other three entity lists:
 
 - **Mixins** — your cloud mixins, each row badged with its pass kind
-  (`inject` / `intercept` / `bind`), plus the **show stock mixins** reveal for
-  the five shipped mixins (pot-binding, hw-brightness, power-cap, sensor-pulse,
-  night-scheduler). Stock mixins open read-only with Clone.
+  (`inject` / `intercept` / `bind`), plus the collapsible **Stock Mixins**
+  section for the shipped examples. Stock mixins open read-only with Clone.
 - **Controllers** — your durable hardware profiles, each marked LIVE or IDLE
   depending on whether its physical device is currently connected. See §6 and
   §11.
