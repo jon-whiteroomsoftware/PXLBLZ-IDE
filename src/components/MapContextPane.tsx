@@ -24,7 +24,7 @@ import { usePatternStore } from '@/store/patternStore'
 import { useControllerProfileStore } from '@/store/controllerProfileStore'
 import { usePreviewStore } from '@/store/previewStore'
 import { OrbitControls } from '@/components/OrbitControls'
-import { advanceAutoOrbit } from '@/engine/camera'
+import { advanceAutoOrbit, canvasSizeForBounds, posBounds2D } from '@/engine/camera'
 
 interface OpenMapContext {
   id: string
@@ -40,8 +40,12 @@ function canvasSizeFor3D(width: number): number {
   return Math.max(200, Math.floor(width))
 }
 
-function resolveOpenMapContext(): OpenMapContext | null {
-  const { editingMap, userMaps, activePixelCount, mapEvalError } = useMapStore.getState()
+function resolveOpenMapContext(
+  editingMap: ReturnType<typeof useMapStore.getState>['editingMap'],
+  userMaps: ReturnType<typeof useMapStore.getState>['userMaps'],
+  activePixelCount: ReturnType<typeof useMapStore.getState>['activePixelCount'],
+  mapEvalError: ReturnType<typeof useMapStore.getState>['mapEvalError'],
+): OpenMapContext | null {
   if (editingMap?.kind === 'stock') {
     const map = resolveMap(editingMap.id, userMaps)
     const count = activePixelCount ?? defaultPixelCountForDim(map.dim)
@@ -125,8 +129,6 @@ export function MapContextPane() {
   const containerRef = useRef<HTMLDivElement>(null)
   const rendererRef = useRef<Renderer | null>(null)
   const [containerWidth, setContainerWidth] = useState(0)
-  const [canvasSize, setCanvasSize] = useState({ width: 1, height: 1 })
-  const [labels, setLabels] = useState<WireLabel[]>([])
   const editingMap = useMapStore((s) => s.editingMap)
   const userMaps = useMapStore((s) => s.userMaps)
   const activePixelCount = useMapStore((s) => s.activePixelCount)
@@ -137,7 +139,7 @@ export function MapContextPane() {
   const userPatterns = usePatternStore((s) => s.userPatterns)
   const controllerProfiles = useControllerProfileStore((s) => s.profiles)
   const context = useMemo(
-    () => resolveOpenMapContext(),
+    () => resolveOpenMapContext(editingMap, userMaps, activePixelCount, mapEvalError),
     [editingMap, userMaps, activePixelCount, mapEvalError],
   )
   const geometry = useMemo(
@@ -152,6 +154,22 @@ export function MapContextPane() {
     () => (context ? explicitPatternMapUsers(userPatterns, context.id) : []),
     [context, userPatterns],
   )
+  const canvasSize = useMemo(() => {
+    if (!geometry || containerWidth <= 0) return { width: 1, height: 1 }
+    if (geometry.kind === '3d') {
+      const px = canvasSizeFor3D(containerWidth)
+      return { width: px, height: px }
+    }
+    return canvasSizeForBounds(containerWidth, posBounds2D(geometry.positions))
+  }, [containerWidth, geometry])
+  const labels = useMemo<WireLabel[]>(() => {
+    if (!geometry) return []
+    const indices = wireLabelIndices(geometry.positions.length)
+    if (geometry.kind === '3d') {
+      return wireLabels3D(geometry.positions, canvasSize.width, camera, indices)
+    }
+    return wireLabels2D(geometry.positions, canvasSize.width, canvasSize.height, indices)
+  }, [camera, canvasSize.height, canvasSize.width, geometry])
 
   useEffect(() => {
     const el = containerRef.current
@@ -175,19 +193,16 @@ export function MapContextPane() {
     rendererRef.current = renderer
 
     if (geometry.kind === '3d') {
-      const px = canvasSizeFor3D(containerWidth)
-      renderer.set3DPositions(geometry.positions, { canvasPx: px })
+      renderer.set3DPositions(geometry.positions, { canvasPx: canvasSize.width })
       renderer.setCamera(useCameraStore.getState().camera)
-      setCanvasSize({ width: px, height: px })
     } else {
       renderer.set2DPositions(geometry.positions, { containerWidth, lightSize })
-      setCanvasSize({ width: canvas.width, height: canvas.height })
     }
     renderer.paint(wireOrderColors(geometry.positions.length), 1, context?.evalError !== null)
     return () => {
       rendererRef.current = null
     }
-  }, [containerWidth, context?.evalError, diffusion, geometry, lightSize])
+  }, [canvasSize.width, containerWidth, context?.evalError, diffusion, geometry, lightSize])
 
   useEffect(() => {
     const renderer = rendererRef.current
@@ -195,17 +210,7 @@ export function MapContextPane() {
     if (geometry.kind === '3d') renderer.setCamera(camera)
     renderer.setDiffusion(diffusion)
     renderer.paint(wireOrderColors(geometry.positions.length), 1, context?.evalError !== null)
-    if (geometry.kind === '3d') {
-      setLabels(wireLabels3D(geometry.positions, canvasSize.width, camera, wireLabelIndices(geometry.positions.length)))
-    } else {
-      setLabels(wireLabels2D(
-        geometry.positions,
-        canvasSize.width,
-        canvasSize.height,
-        wireLabelIndices(geometry.positions.length),
-      ))
-    }
-  }, [camera, canvasSize.height, canvasSize.width, context?.evalError, diffusion, geometry])
+  }, [camera, context?.evalError, diffusion, geometry])
 
   useEffect(() => {
     if (!geometry || geometry.kind !== '3d') return
