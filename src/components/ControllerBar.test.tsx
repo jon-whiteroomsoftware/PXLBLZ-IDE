@@ -6,17 +6,126 @@ import {
   controllerInitialState,
   __resetControllerProviders,
 } from '@/store/controllerStore'
+import {
+  controllerProfileInitialState,
+  useControllerProfileStore,
+  type ControllerProfile,
+} from '@/store/controllerProfileStore'
+import { useRouterStore, routerInitialState } from '@/store/routerStore'
+import { useWorkspaceStore, workspaceInitialState } from '@/store/workspaceStore'
+import type { MapRecord, PatternRecord } from '@/engine/personalContentRecords'
+import {
+  resetPersonalContentProvider,
+  setPersonalContentProvider,
+  type PersonalContentProvider,
+} from '@/engine/personalContentProvider'
 import { resetControllerProvider } from '@/engine/controllerProviderRegistry'
 
 beforeEach(() => {
   __resetControllerProviders()
+  resetPersonalContentProvider()
   useControllerStore.setState(controllerInitialState)
+  useControllerProfileStore.setState(controllerProfileInitialState)
+  useRouterStore.setState(routerInitialState)
+  useWorkspaceStore.setState(workspaceInitialState)
+  window.history.replaceState(null, '', '/studio')
 })
 
 afterEach(() => {
   __resetControllerProviders()
   resetControllerProvider()
+  resetPersonalContentProvider()
 })
+
+function profile(
+  id: string,
+  deviceId: string | undefined,
+  updatedAt: number,
+  name = id,
+): ControllerProfile {
+  return {
+    id,
+    name,
+    ...(deviceId ? { deviceId } : {}),
+    board: { kind: 'pixelblaze-v3-standard' },
+    inputs: [],
+    globalTransforms: [],
+    patternBindings: [],
+    zones: [],
+    updatedAt,
+  }
+}
+
+function memoryProvider(seed: ControllerProfile[] = []): PersonalContentProvider {
+  const patterns = new Map<string, PatternRecord>()
+  const maps = new Map<string, MapRecord>()
+  const controllers = new Map<string, ControllerProfile>(seed.map((record) => [record.id, record]))
+  return {
+    id: 'memory-test',
+    listPatterns: async () => [...patterns.values()],
+    createPattern: async (record) => {
+      patterns.set(record.id, record)
+    },
+    updatePattern: async (id, changes) => {
+      const existing = patterns.get(id)
+      if (existing) patterns.set(id, { ...existing, ...changes })
+    },
+    deletePattern: async (id) => {
+      patterns.delete(id)
+    },
+    listMaps: async () => [...maps.values()],
+    createMap: async (record) => {
+      maps.set(record.id, record)
+    },
+    updateMap: async (id, changes) => {
+      const existing = maps.get(id)
+      if (existing) maps.set(id, { ...existing, ...changes })
+    },
+    deleteMap: async (id) => {
+      maps.delete(id)
+    },
+    listControllerProfiles: async () => [...controllers.values()],
+    createControllerProfile: async (record) => {
+      controllers.set(record.id, record)
+    },
+    updateControllerProfile: async (id, changes) => {
+      const existing = controllers.get(id)
+      if (existing) controllers.set(id, { ...existing, ...changes })
+    },
+    deleteControllerProfile: async (id) => {
+      controllers.delete(id)
+    },
+    getLastActive: async () => undefined,
+    setLastActive: async () => {},
+    getDemoOverrides: async () => undefined,
+    setDemoOverrides: async () => {},
+  }
+}
+
+function seedLiveController(deviceId: string | null = 'pixelblaze_pb32_3cd4ee549434') {
+  useControllerStore.setState({
+    extensionPresent: true,
+    activeIp: '10.0.0.5',
+    controllers: {
+      '10.0.0.5': {
+        ip: '10.0.0.5',
+        nickname: 'Desk',
+        phase: 'live',
+        mapDim: 2,
+        deviceId,
+      },
+    },
+  })
+}
+
+function seedSignedInProfiles(profiles: ControllerProfile[]) {
+  useWorkspaceStore.setState({
+    personalWorkspaceAuthenticated: true,
+    personalWorkspaceResolved: true,
+  })
+  setPersonalContentProvider(memoryProvider(profiles))
+  useControllerProfileStore.setState({ profiles, profilesLoaded: true })
+}
 
 describe('ControllerBar', () => {
   it('offers the install pitch when no extension is present', () => {
@@ -180,6 +289,68 @@ describe('ControllerBar', () => {
     expect(screen.getByTestId('controller-panel-popover')).toBeInTheDocument()
     fireEvent.mouseDown(document.body)
     expect(screen.queryByTestId('controller-panel-popover')).not.toBeInTheDocument()
+  })
+
+  it('omits the durable profile row when signed out', () => {
+    seedLiveController()
+    render(<ControllerBar />)
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle Desk panel' }))
+
+    expect(screen.queryByText('Controller profile')).not.toBeInTheDocument()
+    expect(screen.queryByText('Create profile for this device')).not.toBeInTheDocument()
+  })
+
+  it('links to the newest matching controller profile by device id when signed in', () => {
+    seedLiveController()
+    seedSignedInProfiles([
+      profile('old', 'pixelblaze_pb32_3cd4ee549434', 1, 'Old Desk'),
+      profile('new', 'pixelblaze_pb32_3cd4ee549434', 2, 'New Desk'),
+    ])
+    render(<ControllerBar />)
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle Desk panel' }))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Controller profile' }))
+
+    expect(window.location.pathname).toBe('/studio/controllers/new')
+  })
+
+  it('creates a claimed profile for a connected device with a known id', async () => {
+    seedLiveController()
+    seedSignedInProfiles([])
+    render(<ControllerBar />)
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle Desk panel' }))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Create profile for this device' }))
+
+    await waitFor(() => expect(useControllerProfileStore.getState().profiles).toHaveLength(1))
+    const created = useControllerProfileStore.getState().profiles[0]
+    expect(created).toMatchObject({
+      name: 'Desk',
+      deviceId: 'pixelblaze_pb32_3cd4ee549434',
+      lastKnownDeviceName: 'Desk',
+      lastSeenIp: '10.0.0.5',
+    })
+    expect(window.location.pathname).toBe(`/studio/controllers/${created.id}`)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle Desk panel' }))
+    expect(screen.getByRole('button', { name: 'Controller profile' })).toBeInTheDocument()
+  })
+
+  it('creates an unclaimed profile when the live controller has no recoverable id', async () => {
+    seedLiveController(null)
+    seedSignedInProfiles([])
+    render(<ControllerBar />)
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle Desk panel' }))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Create profile for this device' }))
+
+    await waitFor(() => expect(useControllerProfileStore.getState().profiles).toHaveLength(1))
+    expect(useControllerProfileStore.getState().profiles[0]).toMatchObject({
+      name: 'Desk',
+      lastKnownDeviceName: 'Desk',
+      lastSeenIp: '10.0.0.5',
+    })
+    expect(useControllerProfileStore.getState().profiles[0].deviceId).toBeUndefined()
   })
 
   it('auto-runs discovery when the connection dropdown opens (extension present)', async () => {

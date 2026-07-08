@@ -733,6 +733,11 @@ and `lastKnownMapDim`.
   `controllerPanelView` renders rows of `DeckStat`/`DeckField`/`DeckSlider`:
   active pattern (id resolved to a name via program-list → local label cache →
   raw id) + brightness, map-points + pixel count, IP + FPS, then live controls.
+  When signed in, the same popover carries one durable-layer row above the live
+  panel: it resolves the connected Controller's `deviceId` against controller
+  profiles and links to the newest matching profile, or creates one for the
+  current device. Matching is never by IP or name; unclaimed live Controllers can
+  still create an unbound profile for later binding.
   On connect the panel is warm-seeded once so it opens populated; a same-device
   close/reopen keeps the last-known slice (`stop` preserves, `seed` clears only
   on device switch). Brightness is panel-owned and volatile — seeded once from

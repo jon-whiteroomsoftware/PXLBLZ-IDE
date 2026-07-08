@@ -660,10 +660,12 @@ export function ControllerProfilePage({ profileId }: { profileId: string }) {
   const controllers = useControllerStore((state) => state.controllers)
   const profile = profiles.find((item) => item.id === profileId)
   const live = profile ? statusForProfile(profile, controllers) : null
+  const liveIp = live?.ip
+  const profileRefreshId = profile?.id
 
   useEffect(() => {
-    if (profile && live) void refreshLiveMetadata(profile.id)
-  }, [live?.ip, profile?.id, refreshLiveMetadata])
+    if (profileRefreshId && liveIp) void refreshLiveMetadata(profileRefreshId)
+  }, [liveIp, profileRefreshId, refreshLiveMetadata])
 
   if (!profile) {
     return (

@@ -1,8 +1,19 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { RotateCw } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import { ChevronRight, RotateCw } from 'lucide-react'
 import { useControllerStore } from '@/store/controllerStore'
+import { useControllerProfileStore } from '@/store/controllerProfileStore'
+import { useRouterStore } from '@/store/routerStore'
+import { useWorkspaceStore } from '@/store/workspaceStore'
 import { describeControllerPill, type ControllerPhase } from '@/engine/controllerPillView'
 import type { ControllerStatusTone } from '@/engine/controllerStatusView'
+import {
+  controllerProfileCreateSeed,
+  findControllerProfileForDevice,
+} from '@/engine/controllerProfileJoin'
+import {
+  getPersonalContentProvider,
+  initializePersonalContentProvider,
+} from '@/engine/personalContentProvider'
 import { ChipGlyph, ConnectGlyph } from './ControllerGlyphs'
 import { StatusDot, type StatusTone } from './StatusDot'
 import { ControllerPanel } from './ControllerPanel'
@@ -45,6 +56,7 @@ function ControllerPillButton({
   authorizationNeededIp,
   onActivate,
   onRemove,
+  profileJoinRow,
 }: {
   ip: string
   nickname?: string
@@ -54,6 +66,7 @@ function ControllerPillButton({
   authorizationNeededIp?: string | null
   onActivate: () => void
   onRemove: () => void
+  profileJoinRow?: ReactNode
 }) {
   const { label, tone, showDot } = describeControllerPill({ ip, nickname, phase })
   return (
@@ -115,6 +128,7 @@ function ControllerPillButton({
               Disconnect
             </button>
           </div>
+          {profileJoinRow}
           <div className="py-2 pr-3">
             <ControllerPanel />
           </div>
@@ -146,6 +160,36 @@ const MIN_RESCAN_SPIN_MS = 600
 // no !important. One full rotation in MIN_RESCAN_SPIN_MS so it lands back at start.
 const RESCAN_SPIN_CLASS = '[animation:spin_0.6s_linear_infinite] text-amber-400'
 
+function ControllerProfileJoinRow({
+  label,
+  onClick,
+  muted,
+}: {
+  label: string
+  onClick?: () => void
+  muted?: boolean
+}) {
+  if (muted) {
+    return (
+      <div className="border-b border-seam px-3 py-2 text-zinc-500">
+        {label}
+      </div>
+    )
+  }
+  return (
+    <div className="border-b border-seam px-3 py-2">
+      <button
+        type="button"
+        onClick={onClick}
+        className="flex w-full items-center justify-between gap-2 rounded border border-zinc-700 bg-zinc-950 px-2 py-1 text-left text-zinc-300 hover:border-zinc-500 hover:text-zinc-100"
+      >
+        <span>{label}</span>
+        <ChevronRight size={14} aria-hidden className="shrink-0 text-zinc-500" />
+      </button>
+    </div>
+  )
+}
+
 export function ControllerBar({ reloadPage = () => window.location.reload() }: { reloadPage?: () => void } = {}) {
   const extensionPresent = useControllerStore((s) => s.extensionPresent)
   const controllers = useControllerStore((s) => s.controllers)
@@ -157,6 +201,13 @@ export function ControllerBar({ reloadPage = () => window.location.reload() }: {
   const addController = useControllerStore((s) => s.addController)
   const removeController = useControllerStore((s) => s.removeController)
   const setActive = useControllerStore((s) => s.setActive)
+  const controllerProfiles = useControllerProfileStore((s) => s.profiles)
+  const controllerProfilesLoaded = useControllerProfileStore((s) => s.profilesLoaded)
+  const loadControllerProfiles = useControllerProfileStore((s) => s.loadProfiles)
+  const createControllerProfile = useControllerProfileStore((s) => s.createProfile)
+  const refreshLiveMetadata = useControllerProfileStore((s) => s.refreshLiveMetadata)
+  const personalWorkspaceAuthenticated = useWorkspaceStore((s) => s.personalWorkspaceAuthenticated)
+  const navigate = useRouterStore((s) => s.navigate)
 
   const [open, setOpen] = useState(false)
   const [panelOpenIp, setPanelOpenIp] = useState<string | null>(null)
@@ -166,6 +217,7 @@ export function ControllerBar({ reloadPage = () => window.location.reload() }: {
   // manual click, independent of how fast the actual sweep resolves.
   const [manualSpin, setManualSpin] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
+  const refreshedProfileKeyRef = useRef<string | null>(null)
 
   const ips = Object.keys(controllers)
   const hasPills = ips.length > 0
@@ -200,6 +252,40 @@ export function ControllerBar({ reloadPage = () => window.location.reload() }: {
     return () => window.clearInterval(id)
   }, [open, extensionPresent])
 
+  useEffect(() => {
+    if (!personalWorkspaceAuthenticated || controllerProfilesLoaded) return
+    let cancelled = false
+    async function loadProfiles() {
+      if (getPersonalContentProvider().id === 'demo') {
+        await initializePersonalContentProvider({ mode: 'remote-api' })
+      }
+      if (!cancelled) await loadControllerProfiles()
+    }
+    void loadProfiles().catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [controllerProfilesLoaded, loadControllerProfiles, personalWorkspaceAuthenticated])
+
+  useEffect(() => {
+    if (!personalWorkspaceAuthenticated || !controllerProfilesLoaded || !panelOpenIp) return
+    const entry = controllers[panelOpenIp]
+    if (!entry || entry.phase !== 'live') return
+    const profile = findControllerProfileForDevice(controllerProfiles, entry.deviceId)
+    if (!profile) return
+    const key = `${profile.id}:${entry.deviceId ?? ''}:${entry.ip}:${entry.nickname ?? ''}`
+    if (refreshedProfileKeyRef.current === key) return
+    refreshedProfileKeyRef.current = key
+    void refreshLiveMetadata(profile.id)
+  }, [
+    controllerProfiles,
+    controllerProfilesLoaded,
+    controllers,
+    panelOpenIp,
+    personalWorkspaceAuthenticated,
+    refreshLiveMetadata,
+  ])
+
   // Release the forced spin window after a manual rescan.
   useEffect(() => {
     if (!manualSpin) return
@@ -226,6 +312,46 @@ export function ControllerBar({ reloadPage = () => window.location.reload() }: {
   const onPillRemove = (ip: string) => {
     setPanelOpenIp((prev) => (prev === ip ? null : prev))
     void removeController(ip)
+  }
+
+  const openControllerProfile = (profileId: string) => {
+    setOpen(false)
+    setPanelOpenIp(null)
+    navigate({ kind: 'studio', entity: { kind: 'controllers', id: profileId } })
+  }
+
+  const createProfileForController = async (ip: string) => {
+    const entry = useControllerStore.getState().controllers[ip]
+    if (!entry) return
+    if (getPersonalContentProvider().id === 'demo') {
+      await initializePersonalContentProvider({ mode: 'remote-api' })
+    }
+    const profile = await createControllerProfile(controllerProfileCreateSeed(entry))
+    openControllerProfile(profile.id)
+  }
+
+  const profileJoinRowFor = (ip: string) => {
+    if (!personalWorkspaceAuthenticated) return undefined
+    const entry = controllers[ip]
+    if (!entry || entry.phase !== 'live') return undefined
+    if (!controllerProfilesLoaded) {
+      return <ControllerProfileJoinRow label="Loading controller profiles..." muted />
+    }
+    const profile = findControllerProfileForDevice(controllerProfiles, entry.deviceId)
+    if (profile) {
+      return (
+        <ControllerProfileJoinRow
+          label="Controller profile"
+          onClick={() => openControllerProfile(profile.id)}
+        />
+      )
+    }
+    return (
+      <ControllerProfileJoinRow
+        label="Create profile for this device"
+        onClick={() => void createProfileForController(ip)}
+      />
+    )
   }
 
   const openDropdown = useCallback(() => {
@@ -273,6 +399,7 @@ export function ControllerBar({ reloadPage = () => window.location.reload() }: {
           authorizationNeededIp={controllers[ip].authorizationNeededIp}
           onActivate={() => onPillClick(ip)}
           onRemove={() => onPillRemove(ip)}
+          profileJoinRow={profileJoinRowFor(ip)}
         />
       ))}
 
