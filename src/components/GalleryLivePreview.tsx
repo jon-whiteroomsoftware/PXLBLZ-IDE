@@ -7,6 +7,7 @@ import { createShim, type ShimContext } from '@/engine/shim'
 import { createVirtualClock } from '@/engine/virtualClock'
 import { loadPattern, nativeDimension } from '@/engine/loadPattern'
 import { resolveLayout } from '@/engine/layout'
+import { galleryThumbnailPixelCount } from '@/engine/previewPixelCount'
 import { DEV_DEFAULTS } from '@/engine/settings'
 import type { SurfaceId } from '@/engine/surfaces'
 import { LIBRARIES } from '@/pixelblaze/libs'
@@ -114,14 +115,6 @@ function usePrefersReducedMotion(): boolean {
   return reduced
 }
 
-function thumbnailCount(dim: 1 | 2 | 3, recommended: number | null | undefined): number {
-  const fallback = defaultPixelCountForDim(dim)
-  const base = recommended ?? fallback
-  if (dim === 1) return Math.min(base, 384)
-  if (dim === 3) return Math.min(base, 1024)
-  return Math.min(base, 1024)
-}
-
 export function GalleryLivePreview({
   name,
   src,
@@ -226,7 +219,11 @@ export function GalleryLivePreview({
     try {
       const bundled = bundle(src, LIBRARIES)
       const nativeDim = nativeDimension(bundled.metadata.renderFns)
-      const pixelCount = thumbnailCount(nativeDim, settings.pixelCount)
+      const pixelCount = galleryThumbnailPixelCount(
+        nativeDim,
+        settings.pixelCount,
+        defaultPixelCountForDim(nativeDim),
+      )
       const source = layoutSource({ userMaps: [] })
       const layout = resolveLayout(
         {

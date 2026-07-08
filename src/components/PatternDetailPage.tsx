@@ -3,6 +3,7 @@ import { ArrowLeft, Code2, Pause, Play, RotateCcw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Preview } from '@/components/Preview'
 import { PreviewDeck } from '@/components/PreviewDeck'
+import { PATTERN_DETAIL_PIXEL_COUNT_MULTIPLIER } from '@/engine/previewPixelCount'
 import { PixelblazeCodeEditor } from '@/components/PixelblazeCodeEditor'
 import { PatternDetailActionBar } from '@/components/PatternDetailActionBar'
 import { EmbeddingSelect, useEmbeddingSelectMeta } from '@/components/LayoutSelector'
@@ -61,7 +62,10 @@ export function PatternDetailPage({
               className={stageView === 'preview' ? 'relative' : 'hidden'}
               aria-hidden={stageView !== 'preview'}
             >
-              <Preview showDeck={false} />
+              <Preview
+                showDeck={false}
+                pixelCountMultiplier={PATTERN_DETAIL_PIXEL_COUNT_MULTIPLIER}
+              />
             </div>
 
             <div

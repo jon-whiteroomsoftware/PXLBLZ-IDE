@@ -20,6 +20,7 @@ import { createRenderer } from '@/engine/renderer'
 import { createRenderLoop, type RenderLoop } from '@/engine/renderLoop'
 import { createVirtualClock } from '@/engine/virtualClock'
 import { clampPixelCount, advanceAutoOrbit } from '@/engine/camera'
+import { scaledPreviewPixelCount } from '@/engine/previewPixelCount'
 import { layoutSource as buildLayoutSource } from '@/store/mapStore'
 import { resolveLayout } from '@/engine/layout'
 import { resolvePole, type ShapeId } from '@/engine/shapes'
@@ -45,7 +46,13 @@ function cube3DCanvasPx(containerWidth: number, containerHeight: number): number
   return Math.max(200, Math.floor(Math.min(containerWidth, containerHeight)))
 }
 
-export function Preview({ showDeck = true }: { showDeck?: boolean }) {
+export function Preview({
+  showDeck = true,
+  pixelCountMultiplier = 1,
+}: {
+  showDeck?: boolean
+  pixelCountMultiplier?: number
+}) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const loopRef = useRef<RenderLoop | null>(null)
@@ -66,6 +73,7 @@ export function Preview({ showDeck = true }: { showDeck?: boolean }) {
   const activeShapeId = useMapStore((s) => s.activeShapeId)
   const activeSurfaceId = useMapStore((s) => s.activeSurfaceId)
   const activePixelCount = useMapStore((s) => s.activePixelCount)
+  const previewPixelCount = scaledPreviewPixelCount(activePixelCount, pixelCountMultiplier)
   const activeSolidity = useMapStore((s) => s.activeSolidity)
   const activeNormalizeMode = useMapStore((s) => s.activeNormalizeMode)
   const controllerProfiles = useControllerProfileStore((s) => s.profiles)
@@ -154,9 +162,10 @@ export function Preview({ showDeck = true }: { showDeck?: boolean }) {
     // we reflect any correction back so the "Shape" dropdown stays in sync.
     const { userMaps } = useMapStore.getState()
     // The active map/shape/surface/count already carry any demo recommendation —
-    // the settings cascade seeded them on open (seedActiveSettings) — so
-    // resolveLayout needs no separate recommended* inputs: the seeded selection IS
-    // the recommendation when a demo opens, freely overridable thereafter.
+    // the settings cascade seeded them on open (seedActiveSettings). Detail views
+    // may scale the count preview-only, but resolveLayout still needs no separate
+    // recommended* inputs: the seeded selection IS the recommendation when a demo
+    // opens, freely overridable thereafter.
     // Resolve the full layout in one engine query (src/engine/layout.ts):
     // selection-correction + map/shape/surface resolution + normalization +
     // positions + solid-eligible normals + the grid readout. Store-coupled
@@ -166,7 +175,7 @@ export function Preview({ showDeck = true }: { showDeck?: boolean }) {
         selection: { mapId: activeMapId, shapeId: activeShapeId, surfaceId: activeSurfaceId },
         nativeDim,
         source: buildLayoutSource({ userMaps }),
-        persistedCount: activePixelCount,
+        persistedCount: previewPixelCount,
         normalizeMode: activeNormalizeMode,
         poleCols: useCameraStore.getState().poleCols,
         shapeDefaultCount: DEFAULT_SHAPE_PIXEL_COUNT,
@@ -352,7 +361,7 @@ export function Preview({ showDeck = true }: { showDeck?: boolean }) {
     if (usePreviewStore.getState().isRunning) loop.start()
 
     return () => loop.stop()
-  }, [previewSource, viewport, fidelity, activeMapId, activeShapeId, activeSurfaceId, activePixelCount, activeNormalizeMode, activeDemoName, activeZones])
+  }, [previewSource, viewport, fidelity, activeMapId, activeShapeId, activeSurfaceId, previewPixelCount, activeNormalizeMode, activeDemoName, activeZones])
 
   // Seed the live working state from the resolved settings cascade on open:
   // one pass that composes per-pattern override → recommended (demos) → global-sticky
@@ -428,7 +437,7 @@ export function Preview({ showDeck = true }: { showDeck?: boolean }) {
     if (activeShapeId !== 'pole' || displayDim !== 3 || canvas3DPx == null) return
     const renderer = rendererRef.current
     if (!renderer) return
-    const count = clampPixelCount(activePixelCount ?? DEFAULT_SHAPE_PIXEL_COUNT)
+    const count = clampPixelCount(previewPixelCount ?? DEFAULT_SHAPE_PIXEL_COUNT)
     const pole = resolvePole(count, poleCols)
     renderer.set3DPositions(pole.positions, { canvasPx: canvas3DPx, normals: pole.normals })
     // set3DPositions re-measures the layout's neighbour pitch + extent, so the orb
@@ -436,7 +445,7 @@ export function Preview({ showDeck = true }: { showDeck?: boolean }) {
     renderer.setDiffusion(usePreviewStore.getState().diffusion)
     renderer.setSolidity(useMapStore.getState().activeSolidity)
     if (!usePreviewStore.getState().isRunning) loopRef.current?.renderPreviewFrame()
-  }, [poleCols, activeShapeId, displayDim, canvas3DPx, activePixelCount])
+  }, [poleCols, activeShapeId, displayDim, canvas3DPx, previewPixelCount])
 
   // Auto-orbit drive: an independent rAF that advances the turntable whenever a
   // 3D layout is active and auto-orbit is armed — decoupled from the pattern's
