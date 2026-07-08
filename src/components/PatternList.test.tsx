@@ -127,10 +127,22 @@ async function switchToMixins(user: ReturnType<typeof userEvent.setup>) {
 }
 
 describe('PatternList', () => {
-  it('labels personal sections with the entity name', async () => {
+  it('renders Patterns with one list header carrying create actions', async () => {
     render(<PatternList />)
 
-    expect(await screen.findAllByText('Patterns')).toHaveLength(2)
+    expect(await screen.findAllByText('Patterns')).toHaveLength(1)
+    expect(await screen.findByRole('button', { name: 'Open pattern from .epe file' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'New pattern' })).toBeInTheDocument()
+  })
+
+  it('creates a new pattern from the Patterns title row', async () => {
+    const user = userEvent.setup()
+    render(<PatternList />)
+
+    await user.click(await screen.findByRole('button', { name: 'New pattern' }))
+
+    expect(await screen.findByText('Untitled Pattern')).toBeInTheDocument()
+    expect(usePatternStore.getState().activePatternId).not.toBeNull()
   })
 
   it('opens IridescentFibers for visitors without a saved last-active pattern', async () => {
@@ -181,6 +193,19 @@ describe('PatternList', () => {
     render(<PatternList />)
     await switchToMaps(user)
     expect(await screen.findByText('My Tree')).toBeInTheDocument()
+    expect(screen.getAllByText('Maps')).toHaveLength(1)
+    expect(screen.getByRole('button', { name: 'New map' })).toBeInTheDocument()
+  })
+
+  it('creates a new map from the Maps title row', async () => {
+    const user = userEvent.setup()
+    render(<PatternList />)
+    await switchToMaps(user)
+
+    await user.click(await screen.findByRole('button', { name: 'New map' }))
+
+    expect(await screen.findByText('Untitled Map')).toBeInTheDocument()
+    expect(useMapStore.getState().editingMap?.kind).toBe('existing')
   })
 
   it('lists durable controller profiles under Controllers', async () => {
@@ -321,7 +346,7 @@ describe('PatternList', () => {
     await user.type(screen.getByRole('textbox', { name: /search by name/i }), 'nope')
     expect(screen.queryByText('My Tree')).not.toBeInTheDocument()
     // Header stays, but the genuine-empty message must not appear.
-    expect(screen.getAllByText('Maps')).toHaveLength(2)
+    expect(screen.getAllByText('Maps')).toHaveLength(1)
     expect(screen.queryByText('No custom maps yet')).not.toBeInTheDocument()
   })
 
@@ -342,20 +367,22 @@ describe('PatternList', () => {
     expect(screen.getByText('My Tree')).toBeInTheDocument()
   })
 
-  it('surfaces a search hit inside a collapsed entity section, then restores collapse when cleared', async () => {
+  it('filters patterns by name via the type-down search box', async () => {
     const user = userEvent.setup()
     render(<PatternList />)
 
     expect(await screen.findByText('Seed Pattern')).toBeInTheDocument()
-    await user.click(screen.getAllByText('Patterns')[1])
-    expect(screen.queryByText('Seed Pattern')).not.toBeInTheDocument()
 
     const search = screen.getByRole('textbox', { name: /search by name/i })
+    await user.type(search, 'nope')
+    expect(screen.queryByText('Seed Pattern')).not.toBeInTheDocument()
+
+    await user.clear(search)
     await user.type(search, 'seed')
     expect(screen.getByText('Seed Pattern')).toBeInTheDocument()
 
     await user.clear(search)
-    expect(screen.queryByText('Seed Pattern')).not.toBeInTheDocument()
+    expect(screen.getByText('Seed Pattern')).toBeInTheDocument()
   })
 
   it('clicking the search icon focuses the input', async () => {
@@ -399,7 +426,7 @@ describe('PatternList', () => {
     expect(search).toHaveFocus()
 
     // A click on an unrelated part of the rail blurs the input.
-    await user.click(screen.getAllByText('Patterns')[1])
+    await user.click(screen.getByText('Patterns'))
 
     expect(search).not.toHaveFocus()
     expect(search).toHaveValue('')
