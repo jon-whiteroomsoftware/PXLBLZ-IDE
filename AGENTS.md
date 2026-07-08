@@ -53,10 +53,21 @@ matching browser cache revisions. In Codex Desktop, bare
 `import('playwright')` from the Node REPL can resolve Codex.app's bundled
 Playwright instead of this repo's package; that bundled copy may expect a
 different browser revision and produce a misleading "Executable doesn't exist"
-error. For repo UI smoke tests, prefer `npx playwright ...`, `npm run
-test:e2e`, or a shell-launched script from this workspace. Browser launches may
-still require unsandboxed execution on macOS; that is a launch permission issue,
-not a missing Chromium install.
+error. If you must drive Playwright from `node_repl`, load it through CommonJS
+resolution instead:
+
+```js
+const { createRequire } = await import('node:module');
+const require = createRequire(import.meta.url);
+const { chromium } = require('playwright');
+```
+
+For repo UI smoke tests, prefer `npx playwright ...`, `npm run test:e2e`, or a
+shell-launched script from this workspace. Browser launches require unsandboxed
+execution on macOS in Codex Desktop; sandboxed launches can fail after the binary
+is found with `bootstrap_check_in ... MachPortRendezvousServer ... Permission
+denied (1100)`. That is a launch permission issue, not a missing Chromium
+install.
 
 ### Code search (Morph / Warp Grip)
 
