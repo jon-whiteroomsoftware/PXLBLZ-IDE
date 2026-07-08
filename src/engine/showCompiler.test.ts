@@ -447,4 +447,93 @@ export function render(index) {
       worstInstantRenderersPerPixel: 1,
     })
   })
+
+  it('emits a wipe transition that renders exactly one member per pixel during the transition window', () => {
+    const artifact = compileShow({
+      clips: [
+        {
+          id: 'from',
+          source: `
+export var calls = 0
+export function beforeRender(delta) {}
+export function render(index) { calls = calls + 1; rgb(1, 0, 0) }
+`,
+        },
+        {
+          id: 'to',
+          source: `
+export var calls = 0
+export function beforeRender(delta) {}
+export function render(index) { calls = calls + 1; rgb(0, 1, 0) }
+`,
+        },
+      ],
+      routeTransition: { kind: 'wipe', startMs: 1000, durationMs: 1000 },
+    }, {})
+
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 10)
+
+    handle.beforeRender(1500)
+    handle.render(2)
+    expect(pixel()).toEqual([0, 1, 0])
+    expect(handle.getExports()).toMatchObject({
+      __pxlblz_show_mix: 0.5,
+      __pxlblz_show_c0_calls: 0,
+      __pxlblz_show_c1_calls: 1,
+    })
+
+    handle.render(8)
+    expect(pixel()).toEqual([1, 0, 0])
+    expect(handle.getExports()).toMatchObject({
+      __pxlblz_show_c0_calls: 1,
+      __pxlblz_show_c1_calls: 1,
+    })
+    expect(artifact.summary).toMatchObject({
+      transitionCount: 1,
+      renderPolicy: 'route-transition-one-renderer-per-pixel',
+      transitionCost: 'route',
+      worstInstantRenderersPerPixel: 1,
+    })
+  })
+
+  it('emits a dither dissolve that hashes each pixel to one member renderer', () => {
+    const artifact = compileShow({
+      clips: [
+        {
+          id: 'from',
+          source: `
+export var calls = 0
+export function render(index) { calls = calls + 1; rgb(1, 0, 0) }
+`,
+        },
+        {
+          id: 'to',
+          source: `
+export var calls = 0
+export function render(index) { calls = calls + 1; rgb(0, 1, 0) }
+`,
+        },
+      ],
+      routeTransition: { kind: 'dither', startMs: 1000, durationMs: 1000 },
+    }, {})
+
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 10)
+
+    handle.beforeRender(1500)
+    handle.render(0)
+    expect(pixel()).toEqual([1, 0, 0])
+    handle.render(1)
+    expect(pixel()).toEqual([0, 1, 0])
+    expect(handle.getExports()).toMatchObject({
+      __pxlblz_show_mix: 0.5,
+      __pxlblz_show_c0_calls: 1,
+      __pxlblz_show_c1_calls: 1,
+    })
+    expect(artifact.summary).toMatchObject({
+      transitionCount: 1,
+      renderPolicy: 'route-transition-one-renderer-per-pixel',
+      transitionCost: 'route',
+      worstInstantRenderersPerPixel: 1,
+    })
+  })
 })

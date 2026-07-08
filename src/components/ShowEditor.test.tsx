@@ -29,5 +29,7 @@ describe('ShowEditor (#318)', () => {
 
     expect(screen.getByText('Cell - TestPattern1D')).toBeInTheDocument()
     expect(screen.getByLabelText('Mirror cell')).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: 'wipe' })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: 'dither' })).toBeInTheDocument()
   })
 })

@@ -10,6 +10,9 @@
 //   PIXELBLAZE_IP=192.168.8.224 SHOW_FIXTURE=capture-fade npm run issue316
 //   PIXELBLAZE_IP=192.168.8.224 SHOW_FIXTURE=stock WATCH_MS=12000 npm run issue316
 //   PIXELBLAZE_IP=192.168.8.224 SHOW_FIXTURE=adaptation-ramp SAMPLE_VARS=1 npm run issue316
+//   PIXELBLAZE_IP=192.168.8.224 SHOW_FIXTURE=show-wipe SAMPLE_VARS=1 npm run issue316
+//   PIXELBLAZE_IP=192.168.8.224 SHOW_FIXTURE=show-dither SAMPLE_VARS=1 npm run issue316
+//   PIXELBLAZE_IP=192.168.8.224 SHOW_FIXTURE=show-crossfade-baseline SAMPLE_VARS=1 npm run issue316
 //   PIXELBLAZE_IP=192.168.8.224 npm run issue332
 //   PIXELBLAZE_IP=192.168.8.224 SHOW_FIXTURE=plain-dither SAMPLE_VARS=1 npm run issue332
 //   PIXELBLAZE_IP=192.168.8.224 SHOW_FIXTURE=pattern-crossfade-baseline SAMPLE_VARS=1 npm run issue332
@@ -77,7 +80,10 @@ function defaultWatchMs(fixture: string): number {
     fixture === 'pattern-dither' ||
     fixture === 'pattern-crossfade-baseline' ||
     fixture === 'pattern-decimate' ||
-    fixture === 'zone-repeat'
+    fixture === 'zone-repeat' ||
+    fixture === 'show-wipe' ||
+    fixture === 'show-dither' ||
+    fixture === 'show-crossfade-baseline'
   ) {
     return 12000
   }
@@ -381,6 +387,43 @@ export function render(index) {
 `
 }
 
+function routeTransitionClip(kind: 'warm' | 'cool'): string {
+  if (kind === 'warm') {
+    return `
+export var t = 0
+export var calls = 0
+export var last = 0
+export function beforeRender(delta) {
+  last = calls
+  calls = 0
+  t = t + delta * 0.001
+}
+export function render(index) {
+  calls = calls + 1
+  var x = index / pixelCount
+  var sweep = wave(t * 0.8 + x * 2)
+  hsv(0.04 + sweep * 0.08, 1, 0.25 + sweep * 0.75)
+}
+`
+  }
+  return `
+export var t = 0
+export var calls = 0
+export var last = 0
+export function beforeRender(delta) {
+  last = calls
+  calls = 0
+  t = t + delta * 0.001
+}
+export function render(index) {
+  calls = calls + 1
+  var x = index / pixelCount
+  var band = wave(t * 0.6 - x * 3)
+  hsv(0.55 + band * 0.08, 1, 0.25 + band * 0.75)
+}
+`
+}
+
 function buildFixtureSource(fixture: string): FixtureSource {
   const routeTransitionFixture = buildRouteTransitionFixtureSource(fixture)
   if (routeTransitionFixture) return routeTransitionFixture
@@ -455,6 +498,32 @@ export function render(index) {
     }
   }
 
+  if (fixture === 'show-wipe' || fixture === 'show-dither' || fixture === 'show-crossfade-baseline') {
+    const routeTransition = fixture === 'show-crossfade-baseline'
+      ? undefined
+      : {
+          kind: fixture === 'show-dither' ? 'dither' as const : 'wipe' as const,
+          startMs: 1500,
+          durationMs: 4000,
+        }
+    const crossfade = fixture === 'show-crossfade-baseline'
+      ? { startMs: 1500, durationMs: 4000 }
+      : undefined
+    const artifact = compileShow({
+      clips: [
+        { id: 'warm', source: routeTransitionClip('warm') },
+        { id: 'cool', source: routeTransitionClip('cool') },
+      ],
+      ...(routeTransition ? { routeTransition } : {}),
+      ...(crossfade ? { crossfade } : {}),
+    }, {})
+    return {
+      source: artifact.code,
+      description: `generated Show ${fixture}: warm chase -> cool bands over 4s; ${artifact.summary.transitionCost} cost`,
+      sourceLabel: `Generated #334 Show source: ${artifact.summary.artifactBytes} bytes; renderPolicy=${artifact.summary.renderPolicy}; transitionCost=${artifact.summary.transitionCost}; worstInstantRenderersPerPixel=${artifact.summary.worstInstantRenderersPerPixel}`,
+    }
+  }
+
   if (fixture === 'direct-fade') {
     return {
       source: directFadeSource(),
@@ -496,7 +565,7 @@ export function render(index) {
   }
 
   if (fixture !== 'diagnostic') {
-    throw new Error(`unknown SHOW_FIXTURE=${fixture}; expected diagnostic, direct-fade, pulse-fade, time-fade, delta-ms-fade, capture-fade, stock, adaptation-ramp, zone-repeat, or one of: ${routeTransitionFixtureList()}`)
+    throw new Error(`unknown SHOW_FIXTURE=${fixture}; expected diagnostic, direct-fade, pulse-fade, time-fade, delta-ms-fade, capture-fade, stock, adaptation-ramp, show-wipe, show-dither, show-crossfade-baseline, zone-repeat, or one of: ${routeTransitionFixtureList()}`)
   }
 
   const artifact = compileShow({

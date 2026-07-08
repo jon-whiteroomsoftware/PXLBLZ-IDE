@@ -38,11 +38,18 @@ export interface ShowAdaptationRampRecipe {
   to: Partial<ShowClipAdaptation>
 }
 
+export interface ShowRouteTransitionRecipe {
+  kind: 'wipe' | 'dither'
+  startMs: number
+  durationMs: number
+}
+
 export interface ShowRecipe {
   clips: ShowClipRecipe[]
   crossfade?: ShowCrossfadeRecipe
   cut?: ShowCutRecipe
   adaptationRamp?: ShowAdaptationRampRecipe
+  routeTransition?: ShowRouteTransitionRecipe
   zones?: ControllerZone[]
 }
 
@@ -67,6 +74,7 @@ export interface ShowCompileSummary {
     | 'single-continuous-hold'
     | 'cut-restart'
     | 'parameter-ramp-one-renderer-per-pixel'
+    | 'route-transition-one-renderer-per-pixel'
   transitionCost: 'none' | 'renderer-window' | 'route' | 'parameter'
   worstInstantRenderersPerPixel: 1 | 2
   clips: ShowCompileClipSummary[]
@@ -133,6 +141,8 @@ export function compileShow(
       ? emitAdaptationRampShowCode(members[0], recipe.adaptationRamp)
       : recipe.cut
         ? emitCutShowCode(members[0], members[1], recipe.cut)
+        : recipe.routeTransition
+          ? emitRouteTransitionShowCode(members[0], members[1], recipe.routeTransition)
         : recipe.crossfade
           ? emitShowCode(members[0], members[1], recipe.crossfade)
           : emitSingleClipShowCode(members[0])
@@ -145,10 +155,12 @@ export function compileShow(
       ? 'renderer-window'
       : recipe.adaptationRamp
         ? 'parameter'
+        : recipe.routeTransition
+          ? 'route'
         : 'none'
   const summary: ShowCompileSummary = {
     clipCount: members.length,
-    transitionCount: recipe.crossfade || recipe.cut || recipe.adaptationRamp ? 1 : 0,
+    transitionCount: recipe.crossfade || recipe.cut || recipe.adaptationRamp || recipe.routeTransition ? 1 : 0,
     sourceBytesBeforeMerge,
     artifactBytes,
     measuredDeviceBudgetBytes: MEASURED_DEVICE_BUDGET_BYTES,
@@ -159,8 +171,10 @@ export function compileShow(
         ? 'steady-active-transition-both'
         : recipe.cut
           ? 'cut-restart'
-          : recipe.adaptationRamp
-            ? 'parameter-ramp-one-renderer-per-pixel'
+        : recipe.adaptationRamp
+          ? 'parameter-ramp-one-renderer-per-pixel'
+          : recipe.routeTransition
+            ? 'route-transition-one-renderer-per-pixel'
             : 'single-continuous-hold',
     transitionCost,
     worstInstantRenderersPerPixel: transitionCost === 'renderer-window' ? 2 : 1,
@@ -185,7 +199,7 @@ export function compileShow(
 function validateRecipe(recipe: ShowRecipe): void {
   if (recipe.clips.length < 1 || recipe.clips.length > 2) throw new Error('compileShow v1 requires one or two clips.')
   const routeMode = recipe.clips.some((clip) => clip.zone !== undefined)
-  const boundaryModes = [recipe.crossfade, recipe.cut, recipe.adaptationRamp].filter(Boolean).length
+  const boundaryModes = [recipe.crossfade, recipe.cut, recipe.adaptationRamp, recipe.routeTransition].filter(Boolean).length
   if (boundaryModes > 1) throw new Error('compileShow accepts only one boundary mode.')
   if (recipe.clips.length === 2 && !routeMode && boundaryModes === 0) {
     throw new Error('compileShow requires a crossfade, cut, ramp, or routed clips for two clips.')
@@ -201,6 +215,12 @@ function validateRecipe(recipe: ShowRecipe): void {
   }
   if (recipe.adaptationRamp && recipe.clips.length !== 1) {
     throw new Error('compileShow adaptation ramps run on one continuous clip.')
+  }
+  if (recipe.routeTransition && recipe.routeTransition.durationMs <= 0) {
+    throw new Error('compileShow requires a positive route-transition duration.')
+  }
+  if (recipe.routeTransition && recipe.clips.length !== 2) {
+    throw new Error('compileShow route transitions require two clips.')
   }
   if (routeMode && !recipe.zones) {
     throw new Error('compileShow routed clips require controller zones.')
@@ -321,6 +341,39 @@ function emitAdaptationRampShowCode(member: CompiledMember, ramp: ShowAdaptation
   ].join('\n\n')
 }
 
+function emitRouteTransitionShowCode(
+  from: CompiledMember,
+  to: CompiledMember,
+  transition: ShowRouteTransitionRecipe,
+): string {
+  const transitionEnd = transition.startMs + transition.durationMs
+  const pickTo = transition.kind === 'wipe'
+    ? 'index / pixelCount < __pxlblz_show_mix'
+    : '__pxlblz_show_hash01(index) < __pxlblz_show_mix'
+  return [
+    emitRuntimePrelude([from, to]),
+    from.code.trim(),
+    to.code.trim(),
+    emitScheduler(from, to, transition.startMs, transitionEnd, transition.durationMs),
+    `export function render(index) {
+  if (__pxlblz_show_phase == 0) {
+    ${from.prefix}_renderCapture(index)
+    ${from.prefix}_emit()
+  } else if (__pxlblz_show_phase == 2) {
+    ${to.prefix}_renderCapture(index)
+    ${to.prefix}_emit()
+  } else if (${pickTo}) {
+    ${to.prefix}_renderCapture(index)
+    ${to.prefix}_emit()
+  } else {
+    ${from.prefix}_renderCapture(index)
+    ${from.prefix}_emit()
+  }
+}`,
+    '',
+  ].join('\n\n')
+}
+
 function buildRoutePlan(
   members: CompiledMember[],
   recipe: ShowRecipe,
@@ -421,6 +474,9 @@ function emitRuntimePrelude(members: CompiledMember[]): string {
   else if (i == 3) __pxlblz_show_capture_rgb(slot, p, q, v)
   else if (i == 4) __pxlblz_show_capture_rgb(slot, t, p, v)
   else __pxlblz_show_capture_rgb(slot, v, p, q)
+}`,
+    `function __pxlblz_show_hash01(index) {
+  return frac((index + 1) * 0.61803398875)
 }`,
   ].join('\n')
 }

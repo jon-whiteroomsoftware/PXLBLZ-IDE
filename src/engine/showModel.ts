@@ -236,6 +236,9 @@ export function showRecordToCompileRecipe(
       ? { startMs: show.scenes[0].durationMs, durationMs: transition.durationMs }
       : undefined,
     cut: !transition || transition.kind === 'cut' ? { startMs: show.scenes[0].durationMs } : undefined,
+    routeTransition: transition && (transition.kind === 'wipe' || transition.kind === 'dither')
+      ? { kind: transition.kind, startMs: show.scenes[0].durationMs, durationMs: transition.durationMs }
+      : undefined,
     zones: lookup.controllerZones ?? nominalZones(firstZone),
   }
 }

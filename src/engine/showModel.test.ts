@@ -138,4 +138,20 @@ describe('showModel (#318)', () => {
     })
     expect(recipe.crossfade).toBeUndefined()
   })
+
+  it('emits a route-cost transition recipe for wipe and dither boundaries', () => {
+    const show = updateShowScene(createDefaultShow('show-1', 'Untitled Show'), 'scene-1', {
+      transitionOut: { kind: 'wipe', durationMs: 1500 },
+    })
+    const recipe = showRecordToCompileRecipe(show, {
+      byCellId: {
+        [show.cells[0].id]: DEMOS.TestPattern1D,
+        [show.cells[1].id]: DEMOS.CometLoom,
+      },
+    })
+
+    expect(recipe.routeTransition).toEqual({ kind: 'wipe', startMs: 30000, durationMs: 1500 })
+    expect(recipe.crossfade).toBeUndefined()
+    expect(recipe.cut).toBeUndefined()
+  })
 })

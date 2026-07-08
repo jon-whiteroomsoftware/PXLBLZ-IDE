@@ -215,6 +215,12 @@ use the same source pattern and a transition changes only adaptations, the
 compiler emits a parameter ramp instead of a two-renderer blend, so the compile
 bar reports it as one-renderer-per-pixel work.
 
+Transitions are priced by renderer cost. **Crossfade** is the expensive
+two-renderer window. **Wipe** moves a split point across the zone, and
+**dither** uses a stable per-pixel hash against the animated threshold; both
+render exactly one member per pixel and show as route-cost transitions in the
+compile bar.
+
 ## 5. Patterns, built-ins, and libraries
 
 The rail's Patterns list holds your personal patterns followed by a collapsible

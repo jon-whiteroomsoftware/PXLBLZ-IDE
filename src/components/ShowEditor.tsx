@@ -388,11 +388,13 @@ function TransitionInspector({
           <select
             aria-label="Transition kind"
             value={transition.kind}
-            onChange={(event) => onUpdateTransition(scene.id, event.target.value as 'cut' | 'crossfade', transition.durationMs || 2000)}
+            onChange={(event) => onUpdateTransition(scene.id, event.target.value as NonNullable<ShowScene['transitionOut']>['kind'], transition.durationMs || 2000)}
             className={`${field} mt-1 w-full`}
           >
             <option value="cut">cut</option>
             <option value="crossfade">crossfade</option>
+            <option value="wipe">wipe</option>
+            <option value="dither">dither</option>
           </select>
         </label>
         <NumberField
@@ -453,7 +455,7 @@ function CompileBar({
     : summary?.transitionCost === 'parameter'
       ? 'adaptation ramp'
       : summary?.transitionCost === 'route'
-        ? 'route'
+        ? 'route transition'
         : 'none'
   return (
     <div className="flex min-h-10 shrink-0 items-center gap-2 border-t border-seam bg-zinc-950 px-3 font-mono text-xs text-zinc-500">

@@ -701,21 +701,27 @@ The current Show compiler (`src/engine/showCompiler.ts`) emits five policies:
 single continuous hold (`single-continuous-hold`), cut/restart
 (`cut-restart`), two-renderer crossfade (`steady-active-transition-both`),
 same-pattern adaptation ramp (`parameter-ramp-one-renderer-per-pixel`), and the
-#317 route pass (`route-one-renderer-per-pixel`). Each member pattern is
+#334 route-cost transition path (`route-transition-one-renderer-per-pixel`) plus
+the #317 zone route pass (`route-one-renderer-per-pixel`). Each member pattern is
 alpha-renamed, gets a private elapsed-time accumulator, and receives per-member
 adaptation variables for brightness, phase, time scale, and mirror. Adaptation
 ramps interpolate those variables once per frame and call only one renderer per
 pixel; the transform summary marks them as `transitionCost: 'parameter'` with
 `worstInstantRenderersPerPixel: 1`, unlike crossfades, which report a
-renderer-window cost and `worstInstantRenderersPerPixel: 2`. A routed clip names
-a Controller zone; compile binds by zone name, warns in the summary when a zone
-is missing, and emits a single Pixelblaze artifact. At render time the route
-pass tests the global LED index against each zone's ordered ranges, computes a
+renderer-window cost and `worstInstantRenderersPerPixel: 2`. Wipe and dither
+route transitions run both members' `beforeRender` hooks during the transition
+window but render exactly one member per pixel: wipe compares `index/pixelCount`
+to the animated mix threshold, while dither compares a stable hash of `index` to
+that threshold. They report `transitionCost: 'route'` and
+`worstInstantRenderersPerPixel: 1`; live harness notes are archived in
+`docs/plans/archive/issue-334-route-cost-transitions.md`. A routed clip names a
+Controller zone; compile binds by zone name, warns in the summary when a zone is
+missing, and emits a single Pixelblaze artifact. At render time the route pass
+tests the global LED index against each zone's ordered ranges, computes a
 continuous zone-local index across multi-range zones, sets that member's virtual
 `pixelCount` to the zone's total size, and calls exactly one member renderer for
 the matching pixel. This is the 1D zone-local-coordinate path used by Shows; 2D
-zone frames, show-local zones, zone spanning, and richer transition types remain
-future slices.
+zone frames, show-local zones, and zone spanning remain future slices.
 
 `PatternRecord` carries the per-pattern overrides in a sparse
 `settings?: Partial<Settings>` field — superseding older flat columns;
