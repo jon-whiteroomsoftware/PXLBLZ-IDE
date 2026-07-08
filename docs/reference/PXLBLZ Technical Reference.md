@@ -219,9 +219,12 @@ The editor's second flavor is **map authoring** (`editorFlavor === 'map'`,
 `mapAuthoring.ts` + `MapModeHeader.tsx`): a plain-JavaScript surface with a
 **parse-only** badge (`parseMapSource` — an Acorn parse of `(${source})`; no
 dialect walker, no shim, since a map is just a JS function expression). **New
-Map** opens on `MAP_SKELETON`, a minimal valid 2D function. Stock maps open
-read-only in the same flavor; **Clone** copies the stock source into a new custom
-`MapRecord`, bakes it, and opens it editable. Custom map source **auto-bakes** on
+Map** opens on `MAP_SKELETON`, a minimal valid 2D function. Stock maps are hidden
+from the Maps rail until the session-scoped **show stock maps** reveal is on, then
+open read-only in the same flavor at stable `/studio/maps/<stock-id>` routes;
+**Clone** copies the stock source into a new custom `MapRecord`, bakes it, routes
+to the new `/studio/maps/<id>`, and opens it editable. Custom map source
+**auto-bakes** on
 the sync tick when it parses (`bakeMapSource` — plain-JS `new Function`, float64,
 no shim). Auto-baking only updates the stored record; no map-mode action applies
 itself to the running preview — assigning a map to a pattern happens only via the

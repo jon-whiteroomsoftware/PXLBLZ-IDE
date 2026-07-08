@@ -13,6 +13,7 @@ import {
 import { useMapStore, STOCK_MAP_ITEMS } from '@/store/mapStore'
 import { useWorkspaceStore } from '@/store/workspaceStore'
 import { SendMapToController } from '@/components/SendMapToController'
+import { useRouterStore } from '@/store/routerStore'
 
 // The editor header strip in map mode (#151/#268): source identity, parse-only
 // compile badge, and document actions. Stock maps are read-only but cloneable and
@@ -23,6 +24,7 @@ export function MapModeHeader() {
   const cloneStockMap = useMapStore((s) => s.cloneStockMap)
   const removeMap = useMapStore((s) => s.removeMap)
   const mapEvalError = useMapStore((s) => s.mapEvalError)
+  const navigate = useRouterStore((s) => s.navigate)
   const personalWorkspaceAuthenticated = useWorkspaceStore((s) => s.personalWorkspaceAuthenticated)
   const [deleteOpen, setDeleteOpen] = useState(false)
 
@@ -38,6 +40,11 @@ export function MapModeHeader() {
     if (!openRecord) return
     await removeMap(openRecord.id)
     setDeleteOpen(false)
+  }
+
+  async function handleCloneStockMap(id: string) {
+    const recordId = await cloneStockMap(id)
+    if (recordId) navigate({ kind: 'studio', entity: { kind: 'maps', id: recordId } })
   }
 
   return (
@@ -70,7 +77,7 @@ export function MapModeHeader() {
       {editingMap?.kind === 'stock' && personalWorkspaceAuthenticated && (
         <button
           type="button"
-          onClick={() => void cloneStockMap(editingMap.id)}
+          onClick={() => void handleCloneStockMap(editingMap.id)}
           title="Clone into Maps"
           className="shrink-0 h-6 px-2 rounded border border-zinc-700 text-[11px] text-zinc-300 hover:border-zinc-500 hover:text-amber-400/80 transition-colors"
         >

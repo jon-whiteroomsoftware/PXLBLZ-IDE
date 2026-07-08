@@ -27,6 +27,7 @@ import { PatternDetailPage } from '@/components/PatternDetailPage'
 import { ControllerProfilePage } from '@/components/ControllerProfilePage'
 import { useControllerStore } from '@/store/controllerStore'
 import { MapModeHeader } from '@/components/MapModeHeader'
+import { useMapStore, STOCK_MAP_ITEMS } from '@/store/mapStore'
 import { usePatternStore, PatternRecord } from '@/store/patternStore'
 import { useControllerProfileStore } from '@/store/controllerProfileStore'
 import { useEditorStore } from '@/store/editorStore'
@@ -187,6 +188,8 @@ export default function App() {
   const route = useRouterStore((s) => s.route)
   const navigate = useRouterStore((s) => s.navigate)
   const patternsLoaded = usePatternStore((s) => s.patternsLoaded)
+  const userMaps = useMapStore((s) => s.userMaps)
+  const mapsLoaded = useMapStore((s) => s.mapsLoaded)
   const controllerProfiles = useControllerProfileStore((s) => s.profiles)
   const controllerProfilesLoaded = useControllerProfileStore((s) => s.profilesLoaded)
   const personalWorkspaceResolved = useWorkspaceStore((s) => s.personalWorkspaceResolved)
@@ -215,8 +218,9 @@ export default function App() {
     }
   }, [])
 
-  // Route → state. Re-runs when patterns finish loading so a deep link to
-  // /studio/patterns/<id> resolves once the record exists.
+  // Route → state. Re-runs when personal collections finish loading so a deep
+  // link to /studio/patterns/<id> or /studio/maps/<id> resolves once the record
+  // exists.
   useEffect(() => {
     if (route.kind === 'docs') {
       if (isDocId(route.docId)) syncDocsFromRoute(route.docId)
@@ -230,8 +234,15 @@ export default function App() {
         const record = userPatterns.find((p) => p.id === entityId)
         if (record) openPatternRecord(record)
       }
+    } else if (route.kind === 'studio' && route.entity !== null && route.entity.kind === 'maps' && route.entity.id !== null) {
+      const entityId = route.entity.id
+      const { userMaps, editingMap, openExistingMap, openStockMap } = useMapStore.getState()
+      if (editingMap?.id === entityId) return
+      const record = userMaps.find((m) => m.id === entityId)
+      if (record) openExistingMap(record)
+      else if (STOCK_MAP_ITEMS.some((m) => m.id === entityId)) openStockMap(entityId)
     }
-  }, [route, patternsLoaded, syncDocsFromRoute])
+  }, [route, patternsLoaded, mapsLoaded, syncDocsFromRoute])
 
   // State → URL: the active studio entity is addressable. Push when moving
   // between entities so back/forward walk them; replace when a plain /studio
@@ -373,6 +384,10 @@ export default function App() {
       ? patternsLoaded &&
         activePatternId !== routeEntity.id &&
         !userPatterns.some((p) => p.id === routeEntity.id)
+      : routeEntity.kind === 'maps'
+        ? mapsLoaded &&
+          !userMaps.some((m) => m.id === routeEntity.id) &&
+          !STOCK_MAP_ITEMS.some((m) => m.id === routeEntity.id)
       : routeEntity.kind === 'controllers'
         ? controllerProfilesLoaded && !controllerProfiles.some((profile) => profile.id === routeEntity.id)
         : true)
@@ -563,6 +578,8 @@ export default function App() {
           title={
             routeEntity!.kind === 'patterns'
               ? 'Pattern not found'
+              : routeEntity!.kind === 'maps'
+                ? 'Map not found'
               : routeEntity!.kind === 'controllers'
                 ? 'Controller not found'
                 : 'Not available yet'
@@ -570,6 +587,8 @@ export default function App() {
           detail={
             routeEntity!.kind === 'patterns'
               ? `There's no pattern with id "${routeEntity!.id}" in this workspace. It may have been deleted, or the link may belong to a different account.`
+              : routeEntity!.kind === 'maps'
+                ? `There's no map with id "${routeEntity!.id}" in this workspace. It may have been deleted, or the link may belong to a different account.`
               : routeEntity!.kind === 'controllers'
                 ? `There's no controller profile with id "${routeEntity!.id}" in this workspace. It may have been deleted, or the link may belong to a different account.`
               : `Studio views for ${routeEntity!.kind} aren't built yet.`

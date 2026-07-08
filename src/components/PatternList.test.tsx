@@ -27,6 +27,7 @@ let requests: Array<{ url: string; init?: RequestInit }> = []
 
 beforeEach(() => {
   vi.clearAllMocks()
+  window.sessionStorage.clear()
   mockMaps = []
   mockControllers = []
   requests = []
@@ -152,7 +153,7 @@ describe('PatternList', () => {
     const user = userEvent.setup()
     render(<PatternList />)
     await switchToMaps(user)
-    expect(await screen.findByText('No custom maps yet')).toBeInTheDocument()
+    expect(await screen.findByText(/No custom maps yet/i)).toBeInTheDocument()
   })
 
   it('lists user-authored custom maps under Maps', async () => {
@@ -174,14 +175,37 @@ describe('PatternList', () => {
     expect(screen.queryByRole('textbox', { name: /search by name/i })).not.toBeInTheDocument()
   })
 
-  it('keeps stock maps out of the rail and points to the Catalog', async () => {
+  it('reveals and hides stock maps in a muted Maps section', async () => {
     const user = userEvent.setup()
     render(<PatternList />)
     expect(screen.queryByText('Stock Maps')).not.toBeInTheDocument()
     await switchToMaps(user)
     expect(screen.queryByText('Stock Maps')).not.toBeInTheDocument()
     expect(screen.queryByText('Cube shell')).not.toBeInTheDocument()
-    expect(screen.getByText(/Stock maps moved to the catalog/i)).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'show stock maps' }))
+
+    expect(screen.getByText('Stock Maps')).toBeInTheDocument()
+    expect(screen.getByText('Cube shell')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'hide stock maps' }))
+
+    expect(screen.queryByText('Stock Maps')).not.toBeInTheDocument()
+    expect(screen.queryByText('Cube shell')).not.toBeInTheDocument()
+  })
+
+  it('opens a revealed stock map read-only at a stable map route', async () => {
+    const user = userEvent.setup()
+    render(<PatternList />)
+    await switchToMaps(user)
+    await user.click(screen.getByRole('button', { name: 'show stock maps' }))
+
+    await user.click(screen.getByText('Cube shell'))
+
+    expect(window.location.pathname).toBe('/studio/maps/cube-shell')
+    expect(useMapStore.getState().editingMap).toEqual({ kind: 'stock', id: 'cube-shell' })
+    expect(useEditorStore.getState().editorFlavor).toBe('map')
+    expect(useEditorStore.getState().isReadOnly).toBe(true)
   })
 
   it('hides the 1D dimension lens in Maps mode', async () => {

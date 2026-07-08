@@ -5,6 +5,8 @@ import App from './App'
 import { useRouterStore, routerInitialState } from '@/store/routerStore'
 import { useWorkspaceStore, workspaceInitialState } from '@/store/workspaceStore'
 import { usePatternStore, patternInitialState, type PatternRecord } from '@/store/patternStore'
+import { useMapStore, mapInitialState, type MapRecord } from '@/store/mapStore'
+import { useEditorStore, editorInitialState } from '@/store/editorStore'
 import { useDocsStore, docsInitialState } from '@/store/docsStore'
 import { controllerInitialState, useControllerStore } from '@/store/controllerStore'
 import {
@@ -27,6 +29,8 @@ beforeEach(() => {
   useRouterStore.setState(routerInitialState)
   useWorkspaceStore.setState(workspaceInitialState)
   usePatternStore.setState(patternInitialState)
+  useMapStore.setState(mapInitialState)
+  useEditorStore.setState(editorInitialState)
   useDocsStore.setState(docsInitialState)
   useControllerStore.setState(controllerInitialState)
   useControllerProfileStore.setState(controllerProfileInitialState)
@@ -136,6 +140,16 @@ describe('routing (#308)', () => {
     zones: [],
     updatedAt: 1,
   }
+  const mapRecord: MapRecord = {
+    id: 'map-1',
+    name: 'Deep Linked Map',
+    dim: 2,
+    generator: 'custom',
+    params: {},
+    source: 'export function map(index, count) { return [0, 0] }',
+    points: [[0, 0]],
+    updatedAt: 1,
+  }
 
   it('sends signed-out visitors from /studio to the one-time Studio welcome page', () => {
     window.history.replaceState(null, '', '/studio')
@@ -214,6 +228,52 @@ describe('routing (#308)', () => {
     usePatternStore.setState({ userPatterns: [record], patternsLoaded: true })
     render(<App />)
     expect(screen.getByTestId('route-message')).toHaveTextContent('Pattern not found')
+  })
+
+  it('opens a stock map addressed by /studio/maps/<id>', async () => {
+    window.history.replaceState(null, '', '/studio/maps/cube-shell')
+    useWorkspaceStore.setState({
+      personalWorkspaceAuthenticated: true,
+      personalWorkspaceResolved: true,
+    })
+    useMapStore.setState({ mapsLoaded: true })
+    render(<App />)
+
+    await waitFor(() => {
+      expect(useMapStore.getState().editingMap).toEqual({ kind: 'stock', id: 'cube-shell' })
+    })
+    expect(useEditorStore.getState().editorFlavor).toBe('map')
+    expect(useEditorStore.getState().isReadOnly).toBe(true)
+    expect(screen.getByTestId('editor-pane')).toHaveTextContent('Cube shell')
+    expect(screen.getByTestId('editor-pane')).toHaveTextContent('read-only')
+  })
+
+  it('opens a personal map addressed by /studio/maps/<id>', async () => {
+    window.history.replaceState(null, '', '/studio/maps/map-1')
+    useWorkspaceStore.setState({
+      personalWorkspaceAuthenticated: true,
+      personalWorkspaceResolved: true,
+    })
+    useMapStore.setState({ userMaps: [mapRecord], mapsLoaded: true })
+    render(<App />)
+
+    await waitFor(() => {
+      expect(useMapStore.getState().editingMap).toEqual({ kind: 'existing', id: 'map-1' })
+    })
+    expect(useEditorStore.getState().editorFlavor).toBe('map')
+    expect(useEditorStore.getState().isReadOnly).toBe(false)
+    expect(screen.getByTestId('editor-pane')).toHaveTextContent('Deep Linked Map')
+  })
+
+  it('shows a graceful message for a deep link to a missing map', () => {
+    window.history.replaceState(null, '', '/studio/maps/nope')
+    useWorkspaceStore.setState({
+      personalWorkspaceAuthenticated: true,
+      personalWorkspaceResolved: true,
+    })
+    useMapStore.setState({ userMaps: [mapRecord], mapsLoaded: true })
+    render(<App />)
+    expect(screen.getByTestId('route-message')).toHaveTextContent('Map not found')
   })
 
   it('opens a controller profile addressed by /studio/controllers/<id>', () => {

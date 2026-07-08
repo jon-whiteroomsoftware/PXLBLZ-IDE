@@ -141,8 +141,8 @@ offers no real choice is hidden, not disabled:
 **Stock maps** ship ready to use: Square, Wide 2:1, Ring, and a 3D set in
 shell/volume pairs — Cube, Sphere, Star, and Tetra (a d4), where "shell" puts LEDs
 on the surface and "volume" fills the interior. Every stock map is real, pasteable
-Mapper code: open one read-only under Stock Maps and **Clone** it into an editable
-copy.
+Mapper code: reveal **Stock Maps** in the Maps rail, open one read-only at its
+stable `/studio/maps/<id>` route, and **Clone** it into an editable copy.
 
 **Custom maps**: click **New Map** and you get an editor on a plain
 `function(pixelCount)` — exactly what a real Pixelblaze Mapper tab evaluates, full
@@ -155,10 +155,10 @@ with the preview's Map control.
 
 The left rail holds **Cloud Patterns** (your signed-in personal patterns),
 **Built-in Patterns** (read-only, runnable examples — shader ports, eased
-sweeps, noise fields, test patterns), and in Maps mode **Cloud Maps** and
-**Stock Maps**. Signed-out use is demo mode: built-ins, stock maps, libraries,
-docs, and preview controls remain usable, while durable personal resources wait
-for sign-in.
+sweeps, noise fields, test patterns), and in Maps mode **Cloud Maps** by default,
+with a quiet **show stock maps** reveal for the read-only stock set. Signed-out
+use is demo mode: built-ins, stock maps, libraries, docs, and preview controls
+remain usable, while durable personal resources wait for sign-in.
 
 A new pattern starts from a runnable animated starter; any built-in pattern or
 stock map can be **cloned** into an editable copy. Built-in patterns can open

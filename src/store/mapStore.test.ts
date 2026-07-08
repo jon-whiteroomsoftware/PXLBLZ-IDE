@@ -177,8 +177,10 @@ describe('seed clouds relocated to stock (#141)', () => {
   })
 
   it('starts Maps empty on a fresh profile', async () => {
+    expect(useMapStore.getState().mapsLoaded).toBe(false)
     await useMapStore.getState().loadMaps()
     expect(useMapStore.getState().userMaps).toHaveLength(0)
+    expect(useMapStore.getState().mapsLoaded).toBe(true)
   })
 
   it('prunes any stale seed rows a prior build persisted into the maps store', async () => {
@@ -326,9 +328,10 @@ describe('editor map mode (#151)', () => {
   })
 
   it('cloneStockMap creates an editable custom map copy', async () => {
-    await useMapStore.getState().cloneStockMap('cube-shell')
+    const recordId = await useMapStore.getState().cloneStockMap('cube-shell')
     const { userMaps, editingMap } = useMapStore.getState()
     expect(userMaps).toHaveLength(1)
+    expect(recordId).toBe(userMaps[0].id)
     expect(userMaps[0].name).toBe('Cube shell copy')
     expect(userMaps[0].generator).toBe('custom')
     expect(userMaps[0].source).toMatch(/function/)

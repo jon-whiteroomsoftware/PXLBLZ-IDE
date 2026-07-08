@@ -195,6 +195,7 @@ interface MapState {
   // coords (applyNormalizeMode); persisted on the PatternRecord as `normalize`.
   activeNormalizeMode: NormalizeMode
   userMaps: MapRecord[]
+  mapsLoaded: boolean
   // The map open in editor "map mode" (#151), or null when the editor holds a
   // pattern/demo/library. Custom maps are persisted records; stock maps are
   // read-only source-backed catalogue entries.
@@ -221,7 +222,7 @@ interface MapState {
   // Open editor map mode on a stock map's read-only source.
   openStockMap: (id: string) => void
   // Clone a stock map into an editable custom map under Maps.
-  cloneStockMap: (id: string) => Promise<void>
+  cloneStockMap: (id: string) => Promise<string | null>
   // Legacy helper: replace the editor buffer with a template's verbatim source and
   // reset the dirty-guard baseline to it.
   loadMapTemplate: (source: string) => void
@@ -260,6 +261,7 @@ export const mapInitialState = {
   activeSolidity: DEFAULT_SOLIDITY,
   activeNormalizeMode: DEFAULT_NORMALIZE_MODE,
   userMaps: [] as MapRecord[],
+  mapsLoaded: false,
   editingMap: null as EditingMap,
   mapBaseline: '',
   mapEvalError: null as string | null,
@@ -369,7 +371,7 @@ export const useMapStore = create<MapState>()((set, get) => ({
 
   cloneStockMap: async (id) => {
     const spec = stockMapSpec(id)
-    if (!spec) return
+    if (!spec) return null
     const recordId = newPersonalContentId()
     const name = uniquePatternName(`${spec.name} copy`, get().userMaps.map((m) => m.name))
     const updatedAt = Date.now()
@@ -387,6 +389,7 @@ export const useMapStore = create<MapState>()((set, get) => ({
     }
     await get().addMap(record)
     get().openExistingMap(record)
+    return recordId
   },
 
   loadMapTemplate: (source) => {
@@ -453,7 +456,7 @@ export const useMapStore = create<MapState>()((set, get) => ({
     const stale = existing.filter((m) => SEED_MAP_IDS.includes(m.id))
     for (const m of stale) await provider.deleteMap(m.id)
     const maps = stale.length ? existing.filter((m) => !SEED_MAP_IDS.includes(m.id)) : existing
-    set({ userMaps: maps.sort((a, b) => b.updatedAt - a.updatedAt) })
+    set({ userMaps: maps.sort((a, b) => b.updatedAt - a.updatedAt), mapsLoaded: true })
   },
 
   addMap: async (record) => {

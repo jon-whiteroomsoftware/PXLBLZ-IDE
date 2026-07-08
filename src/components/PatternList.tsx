@@ -35,7 +35,7 @@ import { getAuthSession } from '@/engine/authSession'
 import { newPersonalContentId } from '@/engine/personalContentMetadata'
 import { useEditorStore } from '@/store/editorStore'
 import { usePatternStore, PatternRecord } from '@/store/patternStore'
-import { useMapStore, MapRecord } from '@/store/mapStore'
+import { useMapStore, STOCK_MAP_ITEMS, MapRecord } from '@/store/mapStore'
 import { useControllerStore } from '@/store/controllerStore'
 import {
   profileMatchesLive,
@@ -581,6 +581,50 @@ function EditableListItem({
   )
 }
 
+function StockMapListItem({
+  name,
+  active,
+  dim,
+  onSelect,
+}: {
+  name: string
+  active: boolean
+  dim?: string
+  onSelect: () => void
+}) {
+  return (
+    <li
+      onClick={onSelect}
+      style={{ paddingLeft: ROW_PAD }}
+      className={[rowClass(active), active ? '' : 'text-zinc-500'].join(' ')}
+    >
+      {active && <ActiveBar />}
+      <span className="flex-1 min-w-0 truncate">{name}</span>
+      {dim && <DimPill dim={dim} />}
+    </li>
+  )
+}
+
+function StockMapsToggle({
+  visible,
+  onToggle,
+}: {
+  visible: boolean
+  onToggle: () => void
+}) {
+  return (
+    <div className="px-3 pt-2">
+      <button
+        type="button"
+        onClick={onToggle}
+        className="text-[11px] text-zinc-500 hover:text-live"
+      >
+        {visible ? 'hide stock maps' : 'show stock maps'}
+      </button>
+    </div>
+  )
+}
+
 function railScrollMetrics(el: HTMLDivElement): ScrollMetrics {
   const { clientHeight, scrollHeight, scrollTop } = el
   if (scrollHeight <= clientHeight + 1) return { top: 0, height: 0, visible: false }
@@ -657,6 +701,7 @@ export function PatternList() {
   const editingMap = useMapStore((s) => s.editingMap)
   const createNewMap = useMapStore((s) => s.createNewMap)
   const openExistingMap = useMapStore((s) => s.openExistingMap)
+  const openStockMap = useMapStore((s) => s.openStockMap)
   const closeMapEditor = useMapStore((s) => s.closeMapEditor)
   const controllerProfiles = useControllerProfileStore((s) => s.profiles)
   const loadControllerProfiles = useControllerProfileStore((s) => s.loadProfiles)
@@ -728,6 +773,13 @@ export function PatternList() {
   })
 
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({})
+  const [showStockMaps, setShowStockMaps] = useState(() => {
+    try {
+      return window.sessionStorage.getItem('pxlblz.showStockMaps') === '1'
+    } catch {
+      return false
+    }
+  })
   const scrollRef = useRef<HTMLDivElement>(null)
   const patternRowRefs = useRef(new Map<string, HTMLLIElement>())
   const [scrollMetrics, setScrollMetrics] = useState<ScrollMetrics>({ top: 0, height: 0, visible: false })
@@ -760,7 +812,15 @@ export function PatternList() {
     const resizeObserver = new ResizeObserver(updateScrollMetrics)
     resizeObserver.observe(el)
     return () => resizeObserver.disconnect()
-  }, [railMode, dimLens, query, userPatterns.length, userMaps.length, controllerProfiles.length, collapsedSections])
+  }, [railMode, dimLens, query, userPatterns.length, userMaps.length, controllerProfiles.length, collapsedSections, showStockMaps])
+
+  useEffect(() => {
+    try {
+      window.sessionStorage.setItem('pxlblz.showStockMaps', showStockMaps ? '1' : '0')
+    } catch {
+      // Session persistence is a convenience only.
+    }
+  }, [showStockMaps])
 
   useEffect(() => {
     let cancelled = false
@@ -868,6 +928,13 @@ export function PatternList() {
   function openUserMap(map: MapRecord) {
     closeDocs()
     openExistingMap(map)
+    navigate({ kind: 'studio', entity: { kind: 'maps', id: map.id } })
+  }
+
+  function openStockMapRoute(id: string) {
+    closeDocs()
+    openStockMap(id)
+    navigate({ kind: 'studio', entity: { kind: 'maps', id } })
   }
 
   function openControllerProfile(profileId: string) {
@@ -1045,6 +1112,9 @@ export function PatternList() {
                   const visibleMaps = userMaps.filter(
                     (map) => matchesLens(map.dim, dimLens) && matchesQuery(map.name, query),
                   )
+                  const visibleStockMaps = STOCK_MAP_ITEMS.filter(
+                    (map) => matchesLens(map.dim, dimLens) && matchesQuery(map.name, query),
+                  )
                   return (
                     <>
                       <SectionHeader
@@ -1064,7 +1134,9 @@ export function PatternList() {
                           </p>
                         ) : visibleMaps.length === 0 ? (
                           userMaps.length === 0 ? (
-                            <p className="pl-3 pr-3 py-1 text-zinc-600 italic select-none">No custom maps yet</p>
+                            <p className="pl-3 pr-3 py-1 text-zinc-600 italic select-none">
+                              No custom maps yet. Use show stock maps below to browse built-ins.
+                            </p>
                           ) : null
                         ) : (
                           <ul className="pt-2">
@@ -1084,11 +1156,36 @@ export function PatternList() {
                           </ul>
                         )
                       )}
-                      <CatalogHint
-                        noun="maps"
-                        detail="Stock maps moved to the catalog so the rail stays focused on your saved map workspace."
-                        onCatalog={openCatalog}
+                      <StockMapsToggle
+                        visible={showStockMaps}
+                        onToggle={() => setShowStockMaps((visible) => !visible)}
                       />
+                      {showStockMaps && (
+                        <>
+                          <SectionHeader
+                            label="Stock Maps"
+                            collapsed={isCollapsed('Stock Maps')}
+                            onToggle={() => toggleCollapsed('Stock Maps')}
+                          />
+                          {!isCollapsed('Stock Maps') && (
+                            visibleStockMaps.length === 0 ? (
+                              <p className="pl-3 pr-3 py-1 text-zinc-600 italic select-none">No stock maps match</p>
+                            ) : (
+                              <ul className="pt-2 opacity-85">
+                                {visibleStockMaps.map((map) => (
+                                  <StockMapListItem
+                                    key={map.id}
+                                    name={map.name}
+                                    active={editingMap?.kind === 'stock' && editingMap.id === map.id}
+                                    dim={dimLens === 'all' ? `${map.dim}D` : undefined}
+                                    onSelect={() => openStockMapRoute(map.id)}
+                                  />
+                                ))}
+                              </ul>
+                            )
+                          )}
+                        </>
+                      )}
                     </>
                   )
                 })()}
