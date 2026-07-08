@@ -320,11 +320,16 @@ intended.
 - **Hardware-input live readout** — the Inputs table's Live column is a
   placeholder; when the device is connected it should show the input's
   current value.
-- **power-cap on push** — the transform is stored, toggleable, and has stock
-  mixin source, but the push recipe only applies hardware-brightness today.
-  Same for `sensor-pulse` / `night-scheduler` consumption (#319 covers the
-  pack's real implementations; power-cap's mixin body is a passthrough
-  placeholder).
+- **Mixin pack residuals (#319)** — power-cap is now real and wired into the
+  push recipe for enabled profile transforms: it intercepts `hsv`, estimates
+  draw from `lastKnownPixelCount` at 60 mA/pixel, exports reserved
+  `__px_power*` telemetry (rendered as a structured Power panel on the
+  Controller page, hidden from generic watched vars), and scales output when
+  over budget. `sensor-pulse` and `night-scheduler` ship as real, readable
+  stock sources. Remaining: hardware validation of power-cap; consumption
+  plumbing/UI for `sensor-pulse` and `night-scheduler` beyond cloneable
+  source (the #294 binding surface is the natural home); output-sink
+  coverage beyond `hsv` if power measurement should apply to `rgb` patterns.
 - **Binding target validation** — "missing targets warn loudly" is only
   partly realized: a binding referencing a missing *input* is flagged, but
   target slider/function/variable names are free text, unchecked against the
