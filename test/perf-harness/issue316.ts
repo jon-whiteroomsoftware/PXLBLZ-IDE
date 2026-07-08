@@ -3,7 +3,12 @@
 // run-only program, and leaves the single crossfade visible for a short window.
 //
 //   PIXELBLAZE_IP=192.168.8.224 npm run issue316
-//   PIXELBLAZE_IP=192.168.8.224 WATCH_MS=12000 npm run issue316
+//   PIXELBLAZE_IP=192.168.8.224 SHOW_FIXTURE=direct-fade npm run issue316
+//   PIXELBLAZE_IP=192.168.8.224 SHOW_FIXTURE=pulse-fade FORCE_BRIGHTNESS=0.3 npm run issue316
+//   PIXELBLAZE_IP=192.168.8.224 SHOW_FIXTURE=time-fade npm run issue316
+//   PIXELBLAZE_IP=192.168.8.224 SHOW_FIXTURE=delta-ms-fade npm run issue316
+//   PIXELBLAZE_IP=192.168.8.224 SHOW_FIXTURE=capture-fade npm run issue316
+//   PIXELBLAZE_IP=192.168.8.224 SHOW_FIXTURE=stock WATCH_MS=12000 npm run issue316
 
 import { readFileSync } from 'node:fs'
 import vm from 'node:vm'
@@ -22,7 +27,10 @@ import { bytecodeHeaderReconciles, makeProgramId } from '../../src/engine/byteco
 import { compileShow } from '../../src/engine/showCompiler'
 
 const IP = process.env.PIXELBLAZE_IP ?? '192.168.8.224'
-const WATCH_MS = parseInt(process.env.WATCH_MS ?? '9000', 10)
+const SHOW_FIXTURE = process.env.SHOW_FIXTURE ?? 'diagnostic'
+const WATCH_MS = parseInt(process.env.WATCH_MS ?? String(defaultWatchMs(SHOW_FIXTURE)), 10)
+const SAMPLE_VARS = process.env.SAMPLE_VARS === '1'
+const FORCE_BRIGHTNESS = process.env.FORCE_BRIGHTNESS
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
@@ -43,6 +51,19 @@ interface CompileFail {
 }
 
 type CompileResult = CompileOk | CompileFail
+
+interface FixtureSource {
+  source: string
+  description: string
+  sourceLabel: string
+}
+
+function defaultWatchMs(fixture: string): number {
+  if (fixture === 'stock') return 9000
+  if (fixture === 'pulse-fade') return 12000
+  if (fixture === 'direct-fade' || fixture === 'time-fade' || fixture === 'delta-ms-fade' || fixture === 'capture-fade') return 14000
+  return 22000
+}
 
 function nodeFactory(url: string): WebSocketLike {
   return new WebSocket(url) as unknown as WebSocketLike
@@ -120,6 +141,281 @@ function stockPattern(name: string): string {
   return readFileSync(new URL(`../../src/pixelblaze/stock/patterns/${name}.js`, import.meta.url), 'utf8')
 }
 
+function diagnosticClipA(): string {
+  return `
+export var seconds = 0
+export var calls = 0
+export var last = 0
+
+export function beforeRender(delta) {
+  last = calls
+  calls = 0
+  seconds = seconds + delta * 0.001
+}
+
+export function render(index) {
+  calls = calls + 1
+  if (seconds < 3) {
+    rgb(1, 0, 0)
+  } else if (seconds < 6) {
+    rgb(0, 1, 0)
+  } else if (seconds < 9) {
+    rgb(0, 0, 1)
+  } else if (seconds < 12) {
+    rgb(1 - (seconds - 9) / 3, 0, 0)
+  } else if (seconds < 15) {
+    rgb(0, 0, 1 - (seconds - 12) / 3)
+  } else {
+    rgb(1, 0, 0)
+  }
+}
+`
+}
+
+function diagnosticClipB(): string {
+  return `
+export var ticks = 0
+export var calls = 0
+export var last = 0
+
+export function beforeRender(delta) {
+  last = calls
+  calls = 0
+  ticks = ticks + 1
+}
+
+export function render(index) {
+  calls = calls + 1
+  rgb(0, 0, 1)
+}
+`
+}
+
+function directFadeSource(): string {
+  return `
+export var seconds = 0
+export var calls = 0
+export var last = 0
+
+export function beforeRender(delta) {
+  last = calls
+  calls = 0
+  seconds = seconds + delta * 0.001
+}
+
+export function render(index) {
+  calls = calls + 1
+  if (seconds < 3) {
+    rgb(1, 0, 0)
+  } else if (seconds < 9) {
+    var v = 1 - (seconds - 3) / 6
+    rgb(v, 0, 0)
+  } else {
+    rgb(0, 0, 0)
+  }
+}
+`
+}
+
+function pulseFadeSource(): string {
+  return `
+export var phase = 0
+export var calls = 0
+export var last = 0
+
+export function beforeRender(delta) {
+  last = calls
+  calls = 0
+  phase = phase + delta * 0.001
+  if (phase >= 2) {
+    phase = phase - 2
+  }
+}
+
+export function render(index) {
+  calls = calls + 1
+  var v = phase
+  if (phase > 1) {
+    v = 2 - phase
+  }
+  rgb(v, 0, 0)
+}
+`
+}
+
+function timeFadeSource(): string {
+  return `
+export var calls = 0
+export var last = 0
+
+export function beforeRender(delta) {
+  last = calls
+  calls = 0
+}
+
+export function render(index) {
+  calls = calls + 1
+  rgb(1 - time(0.166667), 0, 0)
+}
+`
+}
+
+function deltaMsFadeSource(): string {
+  return `
+export var ms = 0
+export var calls = 0
+export var last = 0
+
+export function beforeRender(delta) {
+  last = calls
+  calls = 0
+  ms = ms + delta
+}
+
+export function render(index) {
+  calls = calls + 1
+  if (ms < 3000) {
+    rgb(1, 0, 0)
+  } else if (ms < 9000) {
+    var v = 1 - (ms - 3000) / 6000
+    rgb(v, 0, 0)
+  } else {
+    rgb(0, 0, 0)
+  }
+}
+`
+}
+
+function captureFadeSource(): string {
+  return `
+export var seconds = 0
+export var calls = 0
+export var last = 0
+var captureR = 0
+var captureG = 0
+var captureB = 0
+
+function captureRgb(r, g, b) {
+  captureR = r
+  captureG = g
+  captureB = b
+}
+
+function emitCapture() {
+  rgb(captureR, captureG, captureB)
+}
+
+function memberBeforeRender(delta) {
+  last = calls
+  calls = 0
+  seconds = seconds + delta * 0.001
+}
+
+function memberRender(index) {
+  calls = calls + 1
+  if (seconds < 3) {
+    captureRgb(1, 0, 0)
+  } else if (seconds < 9) {
+    var v = 1 - (seconds - 3) / 6
+    captureRgb(v, 0, 0)
+  } else {
+    captureRgb(0, 0, 0)
+  }
+}
+
+export function beforeRender(delta) {
+  memberBeforeRender(delta)
+}
+
+export function render(index) {
+  captureR = 0
+  captureG = 0
+  captureB = 0
+  memberRender(index)
+  emitCapture()
+}
+`
+}
+
+function buildFixtureSource(fixture: string): FixtureSource {
+  if (fixture === 'stock') {
+    const artifact = compileShow({
+      clips: [
+        { id: 'TestPattern1D', source: stockPattern('TestPattern1D') },
+        { id: 'CometLoom', source: stockPattern('CometLoom') },
+      ],
+      crossfade: { startMs: 2500, durationMs: 3000 },
+    }, {})
+    return {
+      source: artifact.code,
+      description: 'stock TestPattern1D -> CometLoom, crossfade starts at 2500 ms and lasts 3000 ms',
+      sourceLabel: `Generated Show source: ${artifact.summary.artifactBytes} bytes (${(artifact.summary.artifactBudgetRatio * 100).toFixed(1)}% of ${artifact.summary.measuredDeviceBudgetBytes})`,
+    }
+  }
+
+  if (fixture === 'direct-fade') {
+    return {
+      source: directFadeSource(),
+      description: 'direct baseline: 0-3s solid red, 3-9s direct rgb(v,0,0) fade to black, then black',
+      sourceLabel: 'Direct Pixelblaze source',
+    }
+  }
+
+  if (fixture === 'pulse-fade') {
+    return {
+      source: pulseFadeSource(),
+      description: 'looping direct pulse: 1s red fade in, 1s red fade out, repeats',
+      sourceLabel: 'Direct Pixelblaze looping pulse source',
+    }
+  }
+
+  if (fixture === 'time-fade') {
+    return {
+      source: timeFadeSource(),
+      description: 'native time() baseline: repeating 6-second direct rgb(1-time(0.166667),0,0) fade',
+      sourceLabel: 'Direct Pixelblaze time() source',
+    }
+  }
+
+  if (fixture === 'delta-ms-fade') {
+    return {
+      source: deltaMsFadeSource(),
+      description: 'delta-ms baseline: accumulates raw delta milliseconds, 0-3s red, 3-9s fade to black, then black',
+      sourceLabel: 'Direct Pixelblaze raw-delta-ms source',
+    }
+  }
+
+  if (fixture === 'capture-fade') {
+    return {
+      source: captureFadeSource(),
+      description: 'capture baseline: same fade, but stores RGB channels in globals and re-emits them through rgb()',
+      sourceLabel: 'Hand-written capture/re-emit source',
+    }
+  }
+
+  if (fixture !== 'diagnostic') {
+    throw new Error(`unknown SHOW_FIXTURE=${fixture}; expected diagnostic, direct-fade, pulse-fade, time-fade, delta-ms-fade, capture-fade, or stock`)
+  }
+
+  const artifact = compileShow({
+    clips: [
+      { id: 'diagnostic-a', source: diagnosticClipA() },
+      { id: 'diagnostic-b', source: diagnosticClipB() },
+    ],
+    crossfade: { startMs: 15000, durationMs: 3000 },
+  }, {})
+  return {
+    source: artifact.code,
+    description: [
+      'diagnostic colors:',
+      '0-3s red, 3-6s green, 6-9s blue,',
+      '9-12s red fades to black, 12-15s blue fades to black,',
+      '15-18s red crossfades to blue, then steady blue',
+    ].join(' '),
+    sourceLabel: `Generated Show source: ${artifact.summary.artifactBytes} bytes (${(artifact.summary.artifactBudgetRatio * 100).toFixed(1)}% of ${artifact.summary.measuredDeviceBudgetBytes})`,
+  }
+}
+
 async function pushActive(
   conn: PixelblazeConnection,
   bytecode: Uint8Array,
@@ -131,22 +427,39 @@ async function pushActive(
   return { active: config.activeProgramId === programId, programId, config }
 }
 
-async function main(): Promise<void> {
-  const artifact = compileShow({
-    clips: [
-      { id: 'TestPattern1D', source: stockPattern('TestPattern1D') },
-      { id: 'CometLoom', source: stockPattern('CometLoom') },
-    ],
-    crossfade: { startMs: 2500, durationMs: 3000 },
-  }, {})
+async function watchController(conn: PixelblazeConnection, watchMs: number): Promise<void> {
+  const started = Date.now()
+  let lastFps = -1
+  let lastVars = ''
+  while (Date.now() - started < watchMs) {
+    const fps = conn.fps
+    if (typeof fps === 'number' && fps > 0 && fps !== lastFps) {
+      console.log(`  t=${((Date.now() - started) / 1000).toFixed(1)}s fps=${fps}`)
+      lastFps = fps
+    }
+    if (SAMPLE_VARS) {
+      const vars = await conn.getVars()
+      const compact = Object.entries(vars)
+        .map(([key, value]) => `${key}=${Number.isFinite(value) ? value.toFixed(6) : value}`)
+        .join(' ')
+      if (compact !== lastVars) {
+        console.log(`  t=${((Date.now() - started) / 1000).toFixed(1)}s vars ${compact}`)
+        lastVars = compact
+      }
+    }
+    await sleep(250)
+  }
+}
 
-  console.log(`Generated Show source: ${artifact.summary.artifactBytes} bytes`)
-  console.log(
-    `Measured budget ratio: ${(artifact.summary.artifactBudgetRatio * 100).toFixed(1)}% of ${artifact.summary.measuredDeviceBudgetBytes} bytes`,
-  )
+async function main(): Promise<void> {
+  const { source, description, sourceLabel } = buildFixtureSource(SHOW_FIXTURE)
+
+  console.log(`Fixture: ${SHOW_FIXTURE}`)
+  console.log(description)
+  console.log(sourceLabel)
   console.log(`Fetching device compiler from http://${IP} ...`)
   const compile = makeDeviceCompiler(await fetchWebUI(IP))
-  const compiled = compile(artifact.code)
+  const compiled = compile(source)
   if (!compiled.ok) throw new Error(`device compile failed: ${compiled.error}`)
   console.log(`Device bytecode: ${compiled.bytecode.length} bytes; exports=${compiled.exports.length}`)
 
@@ -160,13 +473,22 @@ async function main(): Promise<void> {
   await conn.connect()
 
   try {
+    if (FORCE_BRIGHTNESS !== undefined) {
+      const value = Number(FORCE_BRIGHTNESS)
+      if (!Number.isFinite(value) || value < 0 || value > 1) {
+        throw new Error('FORCE_BRIGHTNESS must be a number from 0 to 1')
+      }
+      console.log(`Setting temporary brightness=${value} (save=false) ...`)
+      conn.setBrightness(value, false)
+      await sleep(250)
+    }
     const pushed = await pushActive(conn, compiled.bytecode)
     if (!pushed.active) throw new Error('pushed show did not become the active program')
     console.log(
-      `Active on controller: ${pushed.programId}; firmware=${pushed.config.firmwareVersion ?? 'unknown'} pixels=${pushed.config.pixelCount ?? 'unknown'}`,
+      `Active on controller: ${pushed.programId}; firmware=${pushed.config.firmwareVersion ?? 'unknown'} pixels=${pushed.config.pixelCount ?? 'unknown'} brightness=${pushed.config.brightness ?? 'unknown'}`,
     )
-    console.log(`Watching for ${WATCH_MS} ms; crossfade starts at 2500 ms and lasts 3000 ms ...`)
-    await sleep(WATCH_MS)
+    console.log(`Watching for ${WATCH_MS} ms ...`)
+    await watchController(conn, WATCH_MS)
   } finally {
     conn.close()
   }
