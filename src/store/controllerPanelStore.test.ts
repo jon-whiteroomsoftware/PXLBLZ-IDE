@@ -3,6 +3,7 @@ import {
   useControllerPanelStore,
   controllerPanelInitialState,
   CONTROLLER_POLL_INTERVAL_MS,
+  BRIGHTNESS_SEND_INTERVAL_MS,
 } from './controllerPanelStore'
 import { setControllerProvider, resetControllerProvider } from '@/engine/controllerProviderRegistry'
 import {
@@ -200,6 +201,26 @@ describe('controllerPanelStore', () => {
     useControllerPanelStore.getState().setBrightness(0.25)
     expect(useControllerPanelStore.getState().brightness).toBe(0.25)
     expect(provider.brightnessWrites).toEqual([{ value: 0.25, save: false }])
+  })
+
+  it('targets throttled brightness writes at the provider active when the slider moved', async () => {
+    const a = new FakeProvider()
+    const b = new FakeProvider()
+
+    await vi.advanceTimersByTimeAsync(BRIGHTNESS_SEND_INTERVAL_MS * 2)
+    setControllerProvider(a)
+    useControllerPanelStore.getState().setBrightness(0.4)
+    await vi.advanceTimersByTimeAsync(20)
+    useControllerPanelStore.getState().setBrightness(0.02)
+
+    setControllerProvider(b)
+    await vi.advanceTimersByTimeAsync(100)
+
+    expect(a.brightnessWrites).toEqual([
+      { value: 0.4, save: false },
+      { value: 0.02, save: false },
+    ])
+    expect(b.brightnessWrites).toEqual([])
   })
 
   it('setPixelCount persists the count (save:true) and updates locally', async () => {

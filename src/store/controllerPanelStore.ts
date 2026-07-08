@@ -27,9 +27,9 @@ export const CONTROLLER_POLL_INTERVAL_MS = 1000
  *  final value lands so the device never settles on a stale brightness. */
 export const BRIGHTNESS_SEND_INTERVAL_MS = 100
 
-const sendBrightness = throttleTrailing((value: number) => {
-  void getControllerProvider()
-    .setBrightness(value, false)
+const sendBrightness = throttleTrailing((write: { provider: ReturnType<typeof getControllerProvider>; value: number }) => {
+  void write.provider
+    .setBrightness(write.value, false)
     .catch(() => {})
 }, BRIGHTNESS_SEND_INTERVAL_MS)
 
@@ -272,7 +272,7 @@ export const useControllerPanelStore = create<ControllerPanelState>()((set, get)
 
   setBrightness: (value) => {
     set({ brightness: value })
-    sendBrightness(value)
+    sendBrightness({ provider: getControllerProvider(), value })
   },
 
   setPixelCount: async (value) => {
