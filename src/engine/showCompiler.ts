@@ -197,10 +197,12 @@ export function compileShow(
 }
 
 function validateRecipe(recipe: ShowRecipe): void {
-  if (recipe.clips.length < 1 || recipe.clips.length > 2) throw new Error('compileShow v1 requires one or two clips.')
   const routeMode = recipe.clips.some((clip) => clip.zone !== undefined)
   const boundaryModes = [recipe.crossfade, recipe.cut, recipe.adaptationRamp, recipe.routeTransition].filter(Boolean).length
+  if (recipe.clips.length < 1) throw new Error('compileShow requires at least one clip.')
+  if (!routeMode && recipe.clips.length > 2) throw new Error('compileShow v1 requires one or two unrouted clips.')
   if (boundaryModes > 1) throw new Error('compileShow accepts only one boundary mode.')
+  if (routeMode && boundaryModes > 0) throw new Error('compileShow routed clips cannot use scene boundary modes yet.')
   if (recipe.clips.length === 2 && !routeMode && boundaryModes === 0) {
     throw new Error('compileShow requires a crossfade, cut, ramp, or routed clips for two clips.')
   }

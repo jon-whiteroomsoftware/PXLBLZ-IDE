@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Check, Code2, PanelsTopLeft, Play, RotateCw, Zap } from 'lucide-react'
+import { Check, Code2, PanelsTopLeft, Play, RotateCw, Trash2, Zap } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { PixelblazeCodeEditor } from '@/components/PixelblazeCodeEditor'
 import { getControllerProvider } from '@/engine/controllerProviderRegistry'
@@ -11,7 +11,11 @@ import {
   showRecordToCompileRecipe,
   transitionCost,
 } from '@/engine/showModel'
-import { controllerZonePixelCount } from '@/engine/controllerProfile'
+import {
+  controllerZonePixelCount,
+  findControllerZoneByName,
+  type ControllerZone,
+} from '@/engine/controllerProfile'
 import { DEMOS } from '@/pixelblaze/stock/patterns'
 import { GALLERY_PATTERNS } from '@/engine/galleryCatalog'
 import { useControllerStore } from '@/store/controllerStore'
@@ -36,6 +40,9 @@ export function ShowEditor({ showId }: { showId: string }) {
   const updateCellAdaptations = useShowStore((state) => state.updateCellAdaptations)
   const updateCellPattern = useShowStore((state) => state.updateCellPattern)
   const extendCell = useShowStore((state) => state.extendCell)
+  const addZone = useShowStore((state) => state.addZone)
+  const updateZone = useShowStore((state) => state.updateZone)
+  const removeZone = useShowStore((state) => state.removeZone)
   const userPatterns = usePatternStore((state) => state.userPatterns)
   const controllerProfiles = useControllerProfileStore((state) => state.profiles)
   const activeIp = useControllerStore((state) => state.activeIp)
@@ -169,7 +176,14 @@ export function ShowEditor({ showId }: { showId: string }) {
               show={activeShow}
               onUpdateTransition={(sceneId, kind, durationMs) => void updateTransition(activeShow.id, sceneId, kind, durationMs)}
             />
-            <ZoneBindingPanel show={activeShow} targetName={targetProfile?.name} />
+            <ZoneBindingPanel
+              show={activeShow}
+              targetName={targetProfile?.name}
+              targetZones={targetProfile?.zones ?? []}
+              onAddZone={() => void addZone(activeShow.id)}
+              onUpdateZone={(zoneId, changes) => void updateZone(activeShow.id, zoneId, changes)}
+              onRemoveZone={(zoneId) => void removeZone(activeShow.id, zoneId)}
+            />
           </div>
         </div>
       </div>
@@ -413,19 +427,85 @@ function TransitionInspector({
   )
 }
 
-function ZoneBindingPanel({ show, targetName }: { show: ShowRecord; targetName?: string }) {
+function ZoneBindingPanel({
+  show,
+  targetName,
+  targetZones,
+  onAddZone,
+  onUpdateZone,
+  onRemoveZone,
+}: {
+  show: ShowRecord
+  targetName?: string
+  targetZones: ControllerZone[]
+  onAddZone: () => void
+  onUpdateZone: (zoneId: string, changes: Partial<ShowRecord['zones'][number]>) => void
+  onRemoveZone: (zoneId: string) => void
+}) {
   return (
     <InspectorPanel title={`Show zones${targetName ? ` -> ${targetName}` : ''}`}>
-      <div className="space-y-1">
+      <div className="space-y-2">
         {show.zones.map((zone) => (
-          <div key={zone.id} className="flex items-center justify-between rounded border border-zinc-800 bg-zinc-950/55 px-2 py-1">
-            <span className="text-zinc-300">{zone.name}</span>
-            <span className="text-[10px] text-emerald-300">nominal - {zone.nominalPixelCount}px</span>
+          <div key={zone.id} className="grid grid-cols-[minmax(90px,1fr)_64px_28px] gap-2 rounded border border-zinc-800 bg-zinc-950/55 p-2">
+            <label className="flex items-center gap-2 min-w-0">
+              <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: zone.color ?? '#38bdf8' }} />
+              <input
+                aria-label={`Zone name ${zone.name}`}
+                value={zone.name}
+                onChange={(event) => onUpdateZone(zone.id, { name: event.target.value })}
+                className={field}
+              />
+            </label>
+            <input
+              aria-label={`Nominal pixels ${zone.name}`}
+              type="number"
+              min={1}
+              value={zone.nominalPixelCount}
+              onChange={(event) => onUpdateZone(zone.id, { nominalPixelCount: Number(event.target.value) })}
+              className={field}
+            />
+            <button
+              type="button"
+              aria-label={`Remove zone ${zone.name}`}
+              title={`Remove ${zone.name}`}
+              onClick={() => onRemoveZone(zone.id)}
+              disabled={show.zones.length <= 1}
+              className="h-7 w-7 rounded border border-zinc-800 flex items-center justify-center text-zinc-500 hover:text-red-300 hover:border-red-900/70 disabled:opacity-30 disabled:hover:text-zinc-500 disabled:hover:border-zinc-800"
+            >
+              <Trash2 size={13} />
+            </button>
+            <div className="col-span-3 pl-4 text-[10px] uppercase tracking-wider">
+              <ZoneBindingStatus zone={zone} targetZones={targetZones} />
+            </div>
           </div>
         ))}
+        <button
+          type="button"
+          onClick={onAddZone}
+          className="h-7 rounded border border-zinc-800 px-2 text-[10px] uppercase tracking-wider text-zinc-400 hover:text-zinc-100 hover:border-zinc-600"
+        >
+          Add zone
+        </button>
       </div>
     </InspectorPanel>
   )
+}
+
+function ZoneBindingStatus({
+  zone,
+  targetZones,
+}: {
+  zone: ShowRecord['zones'][number]
+  targetZones: ControllerZone[]
+}) {
+  const bound = findControllerZoneByName(targetZones, zone.name)
+  if (!targetZones.length) {
+    return <span className="text-zinc-500">nominal - {zone.nominalPixelCount} px</span>
+  }
+  if (!bound) {
+    return <span className="text-amber-300">unbound - nominal {zone.nominalPixelCount} px</span>
+  }
+  return <span className="text-green-400">bound - {controllerZonePixelCount(bound)} px</span>
 }
 
 function CompileBar({

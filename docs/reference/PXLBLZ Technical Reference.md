@@ -683,15 +683,20 @@ attempted or implied.
 Shows are persisted as `ShowRecord`s in `personal_shows` (migration 0007):
 `name`, `scenes_json`, `zones_json`, `cells_json`, optional
 `target_controller_profile_id`, and `updated_at`. `showStore` owns the active
-Show and writes every scene/cell edit immediately through `/api/shows`. The pure
-model helpers in `showModel.ts` create the default two-scene/one-zone strip,
-project the arrangement into scene columns + zone rows, extend cells across
-scene boundaries as hold shapes, edit non-destructive adaptations, and build the
-current compiler recipe from the first cells on the first zone. A spanning cell
-emits a single continuous clip; adjacent same-pattern cells with a non-cut
-transition emit a parameter ramp between the cells' adaptations; separate cells
-with a cut emit distinct clip instances so the second clip gets a fresh virtual
-time base. The
+Show and writes every scene/cell/zone edit immediately through `/api/shows`. The
+pure model helpers in `showModel.ts` create the default two-scene/one-zone
+strip, seed a Show from a Controller profile's zone map, project the arrangement
+into scene columns + zone rows, edit show-local zone names and nominal pixel
+counts, extend cells across scene boundaries as hold shapes, edit
+non-destructive adaptations, and build compiler recipes. A one-zone Show keeps
+the scene-boundary policies: a spanning cell emits a single continuous clip;
+adjacent same-pattern cells with a non-cut transition emit a parameter ramp
+between the cells' adaptations; separate cells with a cut emit distinct clip
+instances so the second clip gets a fresh virtual time base. A multi-zone Show
+currently emits the first scene's cells as routed clips, one clip per populated
+zone row. Without a target Controller, show-local zones become sequential nominal
+ranges for preview (`0..n-1`, then the next zone after that); with a target,
+compile uses the Controller's real zone ranges and binds clips by zone name. The
 `ShowEditor` component renders the scene strip, cell inspector, transition
 inspector, zone binding panel, compile/budget bar, read-only generated-source
 view, and a run-to-Controller action that compiles the generated source through
@@ -715,13 +720,15 @@ to the animated mix threshold, while dither compares a stable hash of `index` to
 that threshold. They report `transitionCost: 'route'` and
 `worstInstantRenderersPerPixel: 1`; live harness notes are archived in
 `docs/plans/archive/issue-334-route-cost-transitions.md`. A routed clip names a
-Controller zone; compile binds by zone name, warns in the summary when a zone is
-missing, and emits a single Pixelblaze artifact. At render time the route pass
-tests the global LED index against each zone's ordered ranges, computes a
-continuous zone-local index across multi-range zones, sets that member's virtual
-`pixelCount` to the zone's total size, and calls exactly one member renderer for
-the matching pixel. This is the 1D zone-local-coordinate path used by Shows; 2D
-zone frames, show-local zones, and zone spanning remain future slices.
+zone; compile binds by zone name, warns in the summary when a show-local zone
+has no matching Controller zone, and emits a single Pixelblaze artifact. Route
+recipes may contain more than two clips because each physical pixel still calls
+at most one member renderer. At render time the route pass tests the global LED
+index against each zone's ordered ranges, computes a continuous zone-local index
+across multi-range zones, sets that member's virtual `pixelCount` to the zone's
+total size, and calls exactly one member renderer for the matching pixel. This
+is the 1D zone-local-coordinate path used by Shows; 2D zone frames and zone
+spanning remain future slices.
 
 `PatternRecord` carries the per-pattern overrides in a sparse
 `settings?: Partial<Settings>` field — superseding older flat columns;

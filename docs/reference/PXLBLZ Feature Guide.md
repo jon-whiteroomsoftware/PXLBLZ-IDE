@@ -210,9 +210,16 @@ opens as a scene strip: scenes are columns, zones are rows, and each cell holds 
 source pattern plus non-destructive adaptations such as mirror, phase, brightness,
 and time scale. The v1 editor persists shows in your cloud workspace, lets you
 rename/delete them from the rail, select cells, edit scene duration and the first
-boundary transition, extend a cell across scenes as a hold shape, inspect the
-compiled artifact budget, view the generated source read-only, and push the
-generated pattern to the connected Controller.
+boundary transition, edit freestyle show-local zone rows, extend a cell across
+scenes as a hold shape, inspect the compiled artifact budget, view the generated
+source read-only, and push the generated pattern to the connected Controller.
+
+Show zones have two origins. A plain new Show starts with editable local rows
+that use nominal pixel counts for preview. When a Controller profile with zones
+exists, the Shows rail can create a Show seeded from that Controller's zone map.
+At compile/push time, show rows bind to Controller zones by name; matched rows use
+the Controller's real ranges and pixel counts, while unmatched rows appear as
+compile-bar warnings rather than silently disappearing.
 
 Scene-boundary behavior is geometric. A cell that spans scene columns holds: the
 same renderer keeps its time base and phase across the boundary. Two separate

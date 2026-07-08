@@ -1,7 +1,11 @@
 import { create } from 'zustand'
 import {
+  addShowZone,
+  createDefaultShowFromController,
   createDefaultShow,
   extendShowCell,
+  removeShowZone,
+  updateShowZone,
   updateShowCellAdaptations,
   updateShowCellPattern,
   updateShowScene,
@@ -13,7 +17,9 @@ import type {
   ShowCellAdaptations,
   ShowRecord,
   ShowScene,
+  ShowZone,
 } from '@/engine/personalContentRecords'
+import type { ControllerProfile } from '@/engine/controllerProfile'
 import { newPersonalContentId } from '@/engine/personalContentMetadata'
 import { uniquePatternName } from '@/engine/patternName'
 
@@ -23,6 +29,7 @@ interface ShowState {
   activeShowId: string | null
   loadShows: () => Promise<void>
   createNewShow: () => Promise<ShowRecord>
+  createShowFromController: (profile: ControllerProfile) => Promise<ShowRecord>
   openShow: (id: string | null) => void
   addShow: (record: ShowRecord) => Promise<void>
   renameShow: (id: string, name: string) => Promise<void>
@@ -46,6 +53,9 @@ interface ShowState {
     patch: Pick<ShowCell, 'pattern' | 'patternName'>,
   ) => Promise<void>
   extendCell: (showId: string, cellId: string, sceneSpan: number) => Promise<void>
+  addZone: (showId: string) => Promise<void>
+  updateZone: (showId: string, zoneId: string, changes: Partial<Omit<ShowZone, 'id'>>) => Promise<void>
+  removeZone: (showId: string, zoneId: string) => Promise<void>
 }
 
 export type { ShowRecord }
@@ -68,6 +78,15 @@ export const useShowStore = create<ShowState>()((set, get) => ({
     const id = newPersonalContentId()
     const name = uniquePatternName('Untitled Show', get().shows.map((show) => show.name))
     const show = createDefaultShow(id, name)
+    await get().addShow(show)
+    get().openShow(show.id)
+    return show
+  },
+
+  createShowFromController: async (profile) => {
+    const id = newPersonalContentId()
+    const name = uniquePatternName(`${profile.name} Show`, get().shows.map((show) => show.name))
+    const show = createDefaultShowFromController(id, name, profile)
     await get().addShow(show)
     get().openShow(show.id)
     return show
@@ -144,5 +163,23 @@ export const useShowStore = create<ShowState>()((set, get) => ({
     const show = get().shows.find((item) => item.id === showId)
     if (!show) return
     await get().updateShow(showId, extendShowCell(show, cellId, sceneSpan))
+  },
+
+  addZone: async (showId) => {
+    const show = get().shows.find((item) => item.id === showId)
+    if (!show) return
+    await get().updateShow(showId, addShowZone(show))
+  },
+
+  updateZone: async (showId, zoneId, changes) => {
+    const show = get().shows.find((item) => item.id === showId)
+    if (!show) return
+    await get().updateShow(showId, updateShowZone(show, zoneId, changes))
+  },
+
+  removeZone: async (showId, zoneId) => {
+    const show = get().shows.find((item) => item.id === showId)
+    if (!show) return
+    await get().updateShow(showId, removeShowZone(show, zoneId))
   },
 }))

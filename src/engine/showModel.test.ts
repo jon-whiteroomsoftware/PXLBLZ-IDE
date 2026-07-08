@@ -1,4 +1,6 @@
 import {
+  addShowZone,
+  createDefaultShowFromController,
   createDefaultShow,
   extendShowCell,
   projectShowStrip,
@@ -7,6 +9,7 @@ import {
   updateShowCellAdaptations,
   updateShowCellPattern,
   updateShowScene,
+  updateShowZone,
 } from './showModel'
 import { DEMOS } from '@/pixelblaze/stock/patterns'
 
@@ -153,5 +156,96 @@ describe('showModel (#318)', () => {
     expect(recipe.routeTransition).toEqual({ kind: 'wipe', startMs: 30000, durationMs: 1500 })
     expect(recipe.crossfade).toBeUndefined()
     expect(recipe.cut).toBeUndefined()
+  })
+
+  it('builds routed clips for every show-local zone in the first scene', () => {
+    const show = addShowZone(createDefaultShow('show-1', 'Untitled Show'), {
+      name: 'doorframe',
+      nominalPixelCount: 12,
+    })
+    const doorCell = show.cells.find((cell) => cell.zoneId === 'zone-2' && cell.sceneId === 'scene-1')!
+    const recipe = showRecordToCompileRecipe(show, {
+      byCellId: {
+        [show.cells[0].id]: DEMOS.TestPattern1D,
+        [doorCell.id]: DEMOS.CometLoom,
+      },
+    })
+
+    expect(recipe.clips).toEqual([
+      expect.objectContaining({ id: 'cell-1', zone: 'main' }),
+      expect.objectContaining({ id: doorCell.id, zone: 'doorframe' }),
+    ])
+    expect(recipe.zones).toEqual([
+      { id: 'zone-1', name: 'main', ranges: [{ start: 0, end: 59 }] },
+      { id: 'zone-2', name: 'doorframe', ranges: [{ start: 60, end: 71 }] },
+    ])
+  })
+
+  it('binds show-local zone names to controller zones when a target is available', () => {
+    const show = addShowZone(createDefaultShow('show-1', 'Untitled Show'), {
+      name: 'doorframe',
+      nominalPixelCount: 12,
+    })
+    const doorCell = show.cells.find((cell) => cell.zoneId === 'zone-2' && cell.sceneId === 'scene-1')!
+    const controllerZones = [
+      { id: 'controller-main', name: 'main', ranges: [{ start: 100, end: 139 }] },
+      {
+        id: 'controller-door',
+        name: 'doorframe',
+        ranges: [
+          { start: 0, end: 1 },
+          { start: 6, end: 7 },
+        ],
+      },
+    ]
+    const recipe = showRecordToCompileRecipe(show, {
+      byCellId: {
+        [show.cells[0].id]: DEMOS.TestPattern1D,
+        [doorCell.id]: DEMOS.CometLoom,
+      },
+      controllerZones,
+    })
+
+    expect(recipe.zones).toEqual(controllerZones)
+  })
+
+  it('edits show-local zone rows and seeds a show from controller zones', () => {
+    const show = addShowZone(createDefaultShow('show-1', 'Untitled Show'), {
+      name: 'doorframe',
+      nominalPixelCount: 12,
+    })
+    const edited = updateShowZone(show, 'zone-2', { name: 'entry', nominalPixelCount: 20 })
+    expect(projectShowStrip(edited).rows.map((row) => [row.zoneName, row.nominalPixelCount])).toEqual([
+      ['main', 60],
+      ['entry', 20],
+    ])
+
+    const seeded = createDefaultShowFromController('show-2', 'Controller Show', {
+      id: 'controller-1',
+      name: 'North Arch',
+      board: { kind: 'pixelblaze-v3-standard' },
+      inputs: [],
+      globalTransforms: [],
+      patternBindings: [],
+      zones: [
+        { id: 'left', name: 'arch-left', ranges: [{ start: 0, end: 119 }] },
+        {
+          id: 'right',
+          name: 'arch-right',
+          ranges: [
+            { start: 120, end: 179 },
+            { start: 220, end: 279 },
+          ],
+        },
+      ],
+      updatedAt: 1,
+    })
+
+    expect(seeded.targetControllerProfileId).toBe('controller-1')
+    expect(seeded.zones.map((zone) => [zone.name, zone.nominalPixelCount])).toEqual([
+      ['arch-left', 120],
+      ['arch-right', 120],
+    ])
+    expect(seeded.cells.filter((cell) => cell.sceneId === 'scene-1')).toHaveLength(2)
   })
 })

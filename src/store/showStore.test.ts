@@ -80,4 +80,44 @@ describe('showStore (#318)', () => {
     expect(useShowStore.getState().shows).toEqual([])
     expect(useShowStore.getState().activeShowId).toBeNull()
   })
+
+  it('edits show-local zones and creates a show from controller zones', async () => {
+    setPersonalContentProvider(memoryProvider())
+
+    const show = await useShowStore.getState().createNewShow()
+    await useShowStore.getState().addZone(show.id)
+    const withZone = useShowStore.getState().shows[0]
+    const addedZone = withZone.zones[1]
+
+    await useShowStore.getState().updateZone(show.id, addedZone.id, {
+      name: 'doorframe',
+      nominalPixelCount: 24,
+    })
+
+    expect(useShowStore.getState().shows[0].zones[1]).toMatchObject({
+      name: 'doorframe',
+      nominalPixelCount: 24,
+    })
+
+    const seeded = await useShowStore.getState().createShowFromController({
+      id: 'controller-1',
+      name: 'North Arch',
+      board: { kind: 'pixelblaze-v3-standard' },
+      inputs: [],
+      globalTransforms: [],
+      patternBindings: [],
+      zones: [
+        { id: 'left', name: 'arch-left', ranges: [{ start: 0, end: 119 }] },
+        { id: 'right', name: 'arch-right', ranges: [{ start: 120, end: 239 }] },
+      ],
+      updatedAt: 1,
+    })
+
+    expect(seeded.targetControllerProfileId).toBe('controller-1')
+    expect(seeded.zones.map((zone) => [zone.name, zone.nominalPixelCount])).toEqual([
+      ['arch-left', 120],
+      ['arch-right', 120],
+    ])
+    expect(useShowStore.getState().activeShowId).toBe(seeded.id)
+  })
 })

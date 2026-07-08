@@ -305,6 +305,36 @@ export function render(index) {
     expect(pixel()).toEqual([3, 4, 0])
   })
 
+  it('allows more than two clips when every clip is routed to a zone', () => {
+    const artifact = compileShow({
+      zones: [
+        { id: 'a', name: 'a', ranges: [{ start: 0, end: 1 }] },
+        { id: 'b', name: 'b', ranges: [{ start: 2, end: 3 }] },
+        { id: 'c', name: 'c', ranges: [{ start: 4, end: 5 }] },
+      ],
+      clips: [
+        { id: 'a', zone: 'a', source: 'export function render(index) { rgb(1, index, pixelCount) }' },
+        { id: 'b', zone: 'b', source: 'export function render(index) { rgb(2, index, pixelCount) }' },
+        { id: 'c', zone: 'c', source: 'export function render(index) { rgb(3, index, pixelCount) }' },
+      ],
+    }, {})
+
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 6)
+    handle.beforeRender(16)
+
+    handle.render(0)
+    expect(pixel()).toEqual([1, 0, 2])
+    handle.render(3)
+    expect(pixel()).toEqual([2, 1, 2])
+    handle.render(5)
+    expect(pixel()).toEqual([3, 1, 2])
+    expect(artifact.summary).toMatchObject({
+      clipCount: 3,
+      renderPolicy: 'route-one-renderer-per-pixel',
+      worstInstantRenderersPerPixel: 1,
+    })
+  })
+
   it('reports missing controller zones as compile warnings', () => {
     const artifact = compileShow({
       zones: [{ id: 'left', name: 'left', ranges: [{ start: 0, end: 3 }] }],

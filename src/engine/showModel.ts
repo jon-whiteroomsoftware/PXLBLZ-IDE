@@ -7,7 +7,12 @@ import type {
   ShowZone,
 } from './personalContentRecords'
 import type { ShowClipAdaptation, ShowRecipe } from './showCompiler'
-import type { ControllerZone } from './controllerProfile'
+import {
+  controllerZonePixelCount,
+  normalizeControllerZones,
+  type ControllerProfile,
+  type ControllerZone,
+} from './controllerProfile'
 
 export interface ShowStripTransitionProjection {
   afterSceneId: string
@@ -48,6 +53,8 @@ const DEFAULT_ADAPTATIONS: ShowCellAdaptations = {
   timeScale: 1,
 }
 
+const ZONE_COLORS = ['#38bdf8', '#f97316', '#a78bfa', '#22c55e', '#f43f5e', '#eab308']
+
 export function createDefaultShow(id: string, name: string, updatedAt = Date.now()): ShowRecord {
   const scenes: ShowScene[] = [
     {
@@ -73,6 +80,34 @@ export function createDefaultShow(id: string, name: string, updatedAt = Date.now
       patternName: index === 0 ? 'TestPattern1D' : 'CometLoom',
       adaptations: { ...DEFAULT_ADAPTATIONS },
     })),
+    updatedAt,
+  }
+}
+
+export function createDefaultShowFromController(
+  id: string,
+  name: string,
+  controller: ControllerProfile,
+  updatedAt = Date.now(),
+): ShowRecord {
+  const base = createDefaultShow(id, name, updatedAt)
+  const controllerZones = normalizeControllerZones(controller.zones)
+  if (controllerZones.length === 0) {
+    return { ...base, targetControllerProfileId: controller.id }
+  }
+
+  const zones: ShowZone[] = controllerZones.map((zone, index) => ({
+    id: `zone-${index + 1}`,
+    name: zone.name,
+    nominalPixelCount: controllerZonePixelCount(zone),
+    color: ZONE_COLORS[index % ZONE_COLORS.length],
+  }))
+
+  return {
+    ...base,
+    zones,
+    cells: createCellsForZones(base.scenes, zones),
+    targetControllerProfileId: controller.id,
     updatedAt,
   }
 }
@@ -175,6 +210,56 @@ export function updateShowCellPattern(
   }
 }
 
+export function addShowZone(
+  show: ShowRecord,
+  seed: Partial<Pick<ShowZone, 'name' | 'nominalPixelCount' | 'color'>> = {},
+): ShowRecord {
+  const id = nextEntityId('zone-', show.zones)
+  const zone: ShowZone = {
+    id,
+    name: uniqueZoneName(seed.name ?? `zone-${show.zones.length + 1}`, show.zones),
+    nominalPixelCount: clampPixelCount(seed.nominalPixelCount ?? 60),
+    color: seed.color ?? ZONE_COLORS[show.zones.length % ZONE_COLORS.length],
+  }
+  return {
+    ...show,
+    zones: [...show.zones, zone],
+    cells: [...show.cells, ...createCellsForZone(show.scenes, zone, show.cells)],
+    updatedAt: Date.now(),
+  }
+}
+
+export function updateShowZone(
+  show: ShowRecord,
+  zoneId: string,
+  changes: Partial<Omit<ShowZone, 'id'>>,
+): ShowRecord {
+  return {
+    ...show,
+    zones: show.zones.map((zone) => (
+      zone.id === zoneId
+        ? {
+            ...zone,
+            ...changes,
+            name: changes.name ?? zone.name,
+            nominalPixelCount: clampPixelCount(changes.nominalPixelCount ?? zone.nominalPixelCount),
+          }
+        : zone
+    )),
+    updatedAt: Date.now(),
+  }
+}
+
+export function removeShowZone(show: ShowRecord, zoneId: string): ShowRecord {
+  if (show.zones.length <= 1) return show
+  return {
+    ...show,
+    zones: show.zones.filter((zone) => zone.id !== zoneId),
+    cells: show.cells.filter((cell) => cell.zoneId !== zoneId),
+    updatedAt: Date.now(),
+  }
+}
+
 export function updateShowTransition(
   show: ShowRecord,
   sceneId: string,
@@ -190,6 +275,10 @@ export function showRecordToCompileRecipe(
   show: ShowRecord,
   lookup: ShowCompileRecipeSourceLookup,
 ): ShowRecipe {
+  if (show.zones.length > 1) {
+    return showRecordToRoutedFirstSceneRecipe(show, lookup)
+  }
+
   const firstZone = show.zones[0]
   if (!firstZone) throw new Error('Show compile requires at least one zone.')
   const cells = show.cells
@@ -203,7 +292,7 @@ export function showRecordToCompileRecipe(
   if (cells[0].sceneSpan > 1 || cells.length === 1) {
     return {
       clips: [{ id: cells[0].id, source: source0, adaptation: compilerAdaptation(cells[0].adaptations) }],
-      zones: lookup.controllerZones ?? nominalZones(firstZone),
+      zones: lookup.controllerZones ?? nominalZones(show.zones),
     }
   }
 
@@ -222,7 +311,7 @@ export function showRecordToCompileRecipe(
         from: compilerAdaptation(cells[0].adaptations),
         to: compilerAdaptation(cells[1].adaptations),
       },
-      zones: lookup.controllerZones ?? nominalZones(firstZone),
+      zones: lookup.controllerZones ?? nominalZones(show.zones),
     }
   }
 
@@ -239,7 +328,36 @@ export function showRecordToCompileRecipe(
     routeTransition: transition && (transition.kind === 'wipe' || transition.kind === 'dither')
       ? { kind: transition.kind, startMs: show.scenes[0].durationMs, durationMs: transition.durationMs }
       : undefined,
-    zones: lookup.controllerZones ?? nominalZones(firstZone),
+    zones: lookup.controllerZones ?? nominalZones(show.zones),
+  }
+}
+
+function showRecordToRoutedFirstSceneRecipe(
+  show: ShowRecord,
+  lookup: ShowCompileRecipeSourceLookup,
+): ShowRecipe {
+  const firstScene = show.scenes[0]
+  if (!firstScene) throw new Error('Show compile requires at least one scene.')
+  const zoneById = new Map(show.zones.map((zone) => [zone.id, zone]))
+  const cells = show.zones
+    .map((zone) => show.cells.find((cell) => cell.zoneId === zone.id && cell.sceneId === firstScene.id))
+    .filter((cell): cell is ShowCell => Boolean(cell))
+  if (cells.length === 0) throw new Error('Show compile requires at least one first-scene zone cell.')
+
+  return {
+    clips: cells.map((cell) => {
+      const source = lookup.byCellId[cell.id]
+      if (!source) throw new Error(`Show compile requires pattern source for cell "${cell.id}".`)
+      const zone = zoneById.get(cell.zoneId)
+      if (!zone) throw new Error(`Show compile requires zone for cell "${cell.id}".`)
+      return {
+        id: cell.id,
+        source,
+        zone: zone.name,
+        adaptation: compilerAdaptation(cell.adaptations),
+      }
+    }),
+    zones: lookup.controllerZones ?? nominalZones(show.zones),
   }
 }
 
@@ -260,6 +378,11 @@ function sceneToGridColumn(index: number): number {
 
 function clampDuration(durationMs: number): number {
   return Math.max(1000, Math.round(durationMs))
+}
+
+function clampPixelCount(pixelCount: number): number {
+  if (!Number.isFinite(pixelCount)) return 1
+  return Math.max(1, Math.round(pixelCount))
 }
 
 function normalizeAdaptations(adaptations: ShowCellAdaptations): ShowCellAdaptations {
@@ -288,10 +411,76 @@ function isSamePattern(a: ShowCell, b: ShowCell): boolean {
   return a.pattern.kind === b.pattern.kind && a.pattern.id === b.pattern.id
 }
 
-function nominalZones(firstZone: ShowZone): ControllerZone[] {
-  return [{
-    id: firstZone.id,
-    name: firstZone.name,
-    ranges: [{ start: 0, end: Math.max(0, firstZone.nominalPixelCount - 1) }],
-  }]
+function nominalZones(zones: ShowZone[]): ControllerZone[] {
+  let offset = 0
+  return zones.map((zone) => {
+    const pixelCount = clampPixelCount(zone.nominalPixelCount)
+    const start = offset
+    const end = offset + pixelCount - 1
+    offset += pixelCount
+    return {
+      id: zone.id,
+      name: zone.name,
+      ranges: [{ start, end }],
+    }
+  })
+}
+
+function createCellsForZones(scenes: ShowScene[], zones: ShowZone[]): ShowCell[] {
+  return zones.flatMap((zone, zoneIndex) =>
+    scenes.map((scene, sceneIndex) => defaultCell(`cell-${zoneIndex * scenes.length + sceneIndex + 1}`, zone.id, scene.id, sceneIndex)),
+  )
+}
+
+function createCellsForZone(
+  scenes: ShowScene[],
+  zone: ShowZone,
+  existingCells: ShowCell[],
+): ShowCell[] {
+  const cells: ShowCell[] = []
+  const used = new Set(existingCells.map((cell) => cell.id))
+  for (const [index, scene] of scenes.entries()) {
+    const id = nextStringId('cell-', used)
+    used.add(id)
+    cells.push(defaultCell(id, zone.id, scene.id, index))
+  }
+  return cells
+}
+
+function defaultCell(id: string, zoneId: string, sceneId: string, sceneIndex: number): ShowCell {
+  return {
+    id,
+    zoneId,
+    sceneId,
+    sceneSpan: 1,
+    pattern: { kind: 'stock', id: sceneIndex === 0 ? 'TestPattern1D' : 'CometLoom' },
+    patternName: sceneIndex === 0 ? 'TestPattern1D' : 'CometLoom',
+    adaptations: { ...DEFAULT_ADAPTATIONS },
+  }
+}
+
+function nextEntityId(prefix: string, existing: Array<{ id: string }>): string {
+  return nextStringId(prefix, new Set(existing.map((item) => item.id)))
+}
+
+function nextStringId(prefix: string, used: Set<string>): string {
+  let index = used.size + 1
+  let id = `${prefix}${index}`
+  while (used.has(id)) {
+    index += 1
+    id = `${prefix}${index}`
+  }
+  return id
+}
+
+function uniqueZoneName(name: string, zones: ShowZone[]): string {
+  const taken = new Set(zones.map((zone) => zone.name.toLowerCase()))
+  if (!taken.has(name.toLowerCase())) return name
+  let index = 2
+  let next = `${name} ${index}`
+  while (taken.has(next.toLowerCase())) {
+    index += 1
+    next = `${name} ${index}`
+  }
+  return next
 }

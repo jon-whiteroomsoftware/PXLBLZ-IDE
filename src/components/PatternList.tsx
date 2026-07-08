@@ -671,6 +671,10 @@ export function PatternList() {
   const liveControllers = useControllerStore((s) => s.controllers)
   const navigate = useRouterStore((s) => s.navigate)
   const route = useRouterStore((s) => s.route)
+  const createShowFromController = useShowStore((s) => s.createShowFromController)
+  const showSeedProfile = controllerProfiles.find((profile) => (
+    profile.zones.length > 0 && profileMatchesLive(profile, liveControllers)
+  )) ?? controllerProfiles.find((profile) => profile.zones.length > 0)
 
   // Open-from-disk (.epe import) lives next to "New pattern" (#141): both create
   // a pattern, so they sit together on the Patterns header.
@@ -1040,6 +1044,15 @@ export function PatternList() {
     closeMixinEditor()
     closeDocs()
     const show = await createNewShow()
+    navigate({ kind: 'studio', entity: { kind: 'shows', id: show.id } })
+  }
+
+  async function handleCreateShowFromController() {
+    if (!showSeedProfile) return
+    closeMapEditor()
+    closeMixinEditor()
+    closeDocs()
+    const show = await createShowFromController(showSeedProfile)
     navigate({ kind: 'studio', entity: { kind: 'shows', id: show.id } })
   }
 
@@ -1417,7 +1430,18 @@ export function PatternList() {
             <RailEntityHeader
               title="Shows"
               action={personalWorkspaceAuthenticated
-                ? <HeaderAction icon={<Plus size={14} />} title="New show" onClick={() => void handleCreateShow()} />
+                ? (
+                    <>
+                      {showSeedProfile && (
+                        <HeaderAction
+                          icon={<Cpu size={14} />}
+                          title={`New show from ${controllerProfileDisplayName(showSeedProfile)}`}
+                          onClick={() => void handleCreateShowFromController()}
+                        />
+                      )}
+                      <HeaderAction icon={<Plus size={14} />} title="New show" onClick={() => void handleCreateShow()} />
+                    </>
+                  )
                 : null}
             />
             <div className="relative flex-1 min-h-0">
