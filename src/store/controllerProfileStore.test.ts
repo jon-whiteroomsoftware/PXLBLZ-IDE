@@ -4,7 +4,7 @@ import {
   setPersonalContentProvider,
   type PersonalContentProvider,
 } from '@/engine/personalContentProvider'
-import type { MapRecord, PatternRecord } from '@/engine/personalContentRecords'
+import type { MapRecord, PatternRecord, ShowRecord } from '@/engine/personalContentRecords'
 import {
   NullControllerProvider,
   type ControllerConfig,
@@ -46,6 +46,7 @@ function memoryProvider(seed: ControllerProfile[] = []): PersonalContentProvider
   const patterns = new Map<string, PatternRecord>()
   const maps = new Map<string, MapRecord>()
   const mixins = new Map()
+  const shows = new Map<string, ShowRecord>()
   const controllers = new Map<string, ControllerProfile>(seed.map((profile) => [profile.id, profile]))
   return {
     id: 'memory-test',
@@ -81,6 +82,17 @@ function memoryProvider(seed: ControllerProfile[] = []): PersonalContentProvider
     },
     deleteMixin: async (id) => {
       mixins.delete(id)
+    },
+    listShows: async () => [...shows.values()],
+    createShow: async (record) => {
+      shows.set(record.id, record)
+    },
+    updateShow: async (id, changes) => {
+      const existing = shows.get(id)
+      if (existing) shows.set(id, { ...existing, ...changes })
+    },
+    deleteShow: async (id) => {
+      shows.delete(id)
     },
     listControllerProfiles: async () => [...controllers.values()],
     createControllerProfile: async (profile) => {

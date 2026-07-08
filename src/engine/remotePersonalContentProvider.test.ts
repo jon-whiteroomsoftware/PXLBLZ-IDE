@@ -2,7 +2,7 @@ import {
   createRemotePersonalContentProvider,
 } from './remotePersonalContentProvider'
 import type { ControllerProfile } from './controllerProfile'
-import type { PatternRecord } from './personalContentRecords'
+import type { PatternRecord, ShowRecord } from './personalContentRecords'
 
 describe('remote personal content provider', () => {
   it('performs pattern CRUD through the authenticated API', async () => {
@@ -143,6 +143,39 @@ describe('remote personal content provider', () => {
       ['/api/mixins', 'POST'],
       ['/api/mixins/mx1', 'PATCH'],
       ['/api/mixins/mx1', 'DELETE'],
+    ])
+    expect(requests[2].init?.body).toBe(JSON.stringify({ name: 'Renamed', updatedAt: 2 }))
+  })
+
+  it('performs show CRUD through the authenticated API', async () => {
+    const requests: Array<{ url: string; init?: RequestInit }> = []
+    const show: ShowRecord = {
+      id: 'show-1',
+      name: 'Opening wash',
+      scenes: [],
+      zones: [],
+      cells: [],
+      updatedAt: 1,
+    }
+    const fetcher: typeof fetch = async (url, init) => {
+      requests.push({ url: String(url), init })
+      if (String(url) === '/api/shows' && init?.method === undefined) {
+        return Response.json({ shows: [show] })
+      }
+      return Response.json({ ok: true })
+    }
+    const provider = createRemotePersonalContentProvider({ fetcher })
+
+    await expect(provider.listShows()).resolves.toEqual([show])
+    await provider.createShow(show)
+    await provider.updateShow('show-1', { name: 'Renamed', updatedAt: 2 })
+    await provider.deleteShow('show-1')
+
+    expect(requests.map((r) => [r.url, r.init?.method ?? 'GET'])).toEqual([
+      ['/api/shows', 'GET'],
+      ['/api/shows', 'POST'],
+      ['/api/shows/show-1', 'PATCH'],
+      ['/api/shows/show-1', 'DELETE'],
     ])
     expect(requests[2].init?.body).toBe(JSON.stringify({ name: 'Renamed', updatedAt: 2 }))
   })

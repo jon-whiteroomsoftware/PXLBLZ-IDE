@@ -15,6 +15,7 @@ import {
   useControllerProfileStore,
   type ControllerProfile,
 } from '@/store/controllerProfileStore'
+import { showInitialState, useShowStore } from '@/store/showStore'
 import {
   initializePersonalContentProvider,
   resetPersonalContentProvider,
@@ -39,6 +40,7 @@ beforeEach(() => {
   useDocsStore.setState(docsInitialState)
   useControllerStore.setState(controllerInitialState)
   useControllerProfileStore.setState(controllerProfileInitialState)
+  useShowStore.setState(showInitialState)
 })
 
 afterEach(() => {
@@ -65,6 +67,9 @@ function stubRemotePatterns(patterns: PatternRecord[] = []) {
     }
     if (path === '/api/controllers' && init?.method === undefined) {
       return Response.json({ controllers: [] })
+    }
+    if (path === '/api/shows' && init?.method === undefined) {
+      return Response.json({ shows: [] })
     }
     if (path.startsWith('/api/settings/') && init?.method === undefined) {
       return Response.json({})

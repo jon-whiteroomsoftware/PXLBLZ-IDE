@@ -46,6 +46,7 @@ import {
   profileMatchesLive,
   useControllerProfileStore,
 } from '@/store/controllerProfileStore'
+import { useShowStore, type ShowRecord } from '@/store/showStore'
 import { useDocsStore } from '@/store/docsStore'
 import { useRouterStore } from '@/store/routerStore'
 import { openDemoPattern } from '@/store/openPattern'
@@ -231,25 +232,6 @@ function ActivityStrip({
   )
 }
 
-function EntityStubList({
-  title,
-  detail,
-}: {
-  title: string
-  detail: string
-}) {
-  return (
-    <div className="flex h-full flex-col text-xs font-mono">
-      <RailEntityHeader title={title} />
-      <div className="px-3 py-3">
-        <div className="rounded border border-dashed border-zinc-700/80 bg-zinc-950/25 px-3 py-3 text-[11px] leading-relaxed text-zinc-500">
-          {detail}
-        </div>
-      </div>
-    </div>
-  )
-}
-
 // The rail filter bar (#252): the dimension lens and the type-down name search share
 // ONE row to conserve scarce vertical real estate. Collapsed, it shows the pills and a
 // magnifier at the right. Hovering or clicking the magnifier scrolls the search input
@@ -414,7 +396,7 @@ function EditableListItem({
   onRowKeyDown,
 }: {
   name: string
-  noun: 'pattern' | 'map' | 'mixin' | 'controller'
+    noun: 'pattern' | 'map' | 'mixin' | 'controller' | 'show'
   active: boolean
   dim?: string
   takenNames: string[]
@@ -679,6 +661,13 @@ export function PatternList() {
   const controllerProfiles = useControllerProfileStore((s) => s.profiles)
   const loadControllerProfiles = useControllerProfileStore((s) => s.loadProfiles)
   const removeControllerProfile = useControllerProfileStore((s) => s.removeProfile)
+  const userShows = useShowStore((s) => s.shows)
+  const activeShowId = useShowStore((s) => s.activeShowId)
+  const loadShows = useShowStore((s) => s.loadShows)
+  const createNewShow = useShowStore((s) => s.createNewShow)
+  const openShow = useShowStore((s) => s.openShow)
+  const renameShow = useShowStore((s) => s.renameShow)
+  const removeShow = useShowStore((s) => s.removeShow)
   const liveControllers = useControllerStore((s) => s.controllers)
   const navigate = useRouterStore((s) => s.navigate)
   const route = useRouterStore((s) => s.route)
@@ -786,7 +775,11 @@ export function PatternList() {
     if (next !== 'maps') closeMapEditor()
     if (next !== 'mixins') closeMixinEditor()
     if (next === 'shows') {
-      navigate({ kind: 'studio', entity: { kind: next, id: null } })
+      const last = lastEntityByModeRef.current.shows
+      const id = userShows.some((show) => show.id === last)
+        ? last
+        : (userShows[0]?.id ?? null)
+      navigate({ kind: 'studio', entity: { kind: next, id } })
       return
     }
     if (next === 'controllers') {
@@ -833,6 +826,7 @@ export function PatternList() {
     userMaps.length,
     userMixins.length,
     controllerProfiles.length,
+    userShows.length,
     showStockPatterns,
     showStockMaps,
     showStockMixins,
@@ -901,6 +895,8 @@ export function PatternList() {
       if (cancelled) return
       await loadControllerProfiles()
       if (cancelled) return
+      await loadShows()
+      if (cancelled) return
       await usePatternStore.getState().loadDemoOverrides()
       if (cancelled) return
       await loadPatterns()
@@ -913,6 +909,7 @@ export function PatternList() {
       if (route.kind === 'studio' && route.entity !== null && route.entity.id !== null) return
       const last = await getPersonalContentProvider().getLastActive().catch(() => undefined)
       const { userPatterns, setActivePattern, setActiveLibrary, setActiveDemo } = usePatternStore.getState()
+      const { shows, openShow } = useShowStore.getState()
       const { setSource, setIsReadOnly, setPreviewSource, setPreviewPatternName } = useEditorStore.getState()
       if (!last) {
         setActiveDemo(DEFAULT_DEMO_NAME)
@@ -945,13 +942,15 @@ export function PatternList() {
           setSource(LIBRARIES[last.name])
           setIsReadOnly(true)
         }
+      } else if (last.type === 'show') {
+        if (shows.some((show) => show.id === last.id)) openShow(last.id)
       }
     }
     void hydratePersonalContent()
     return () => {
       cancelled = true
     }
-  }, [loadControllerProfiles, loadPatterns, setGlobalWorkspaceAuthenticated])
+  }, [loadControllerProfiles, loadPatterns, loadShows, setGlobalWorkspaceAuthenticated])
 
   function openUserPattern(pattern: PatternRecord) {
     closeMapEditor()
@@ -1036,10 +1035,33 @@ export function PatternList() {
     navigate({ kind: 'studio', entity: { kind: 'controllers', id: profileId } })
   }
 
+  async function handleCreateShow() {
+    closeMapEditor()
+    closeMixinEditor()
+    closeDocs()
+    const show = await createNewShow()
+    navigate({ kind: 'studio', entity: { kind: 'shows', id: show.id } })
+  }
+
+  function openUserShow(show: ShowRecord) {
+    closeMapEditor()
+    closeMixinEditor()
+    closeDocs()
+    openShow(show.id)
+    navigate({ kind: 'studio', entity: { kind: 'shows', id: show.id } })
+  }
+
   async function handleRemoveControllerProfile(profileId: string) {
     await removeControllerProfile(profileId)
     if (route.kind === 'studio' && route.entity?.kind === 'controllers' && route.entity.id === profileId) {
       navigate({ kind: 'studio', entity: { kind: 'controllers', id: null } })
+    }
+  }
+
+  async function handleRemoveShow(showId: string) {
+    await removeShow(showId)
+    if (route.kind === 'studio' && route.entity?.kind === 'shows' && route.entity.id === showId) {
+      navigate({ kind: 'studio', entity: { kind: 'shows', id: null } })
     }
   }
 
@@ -1391,10 +1413,50 @@ export function PatternList() {
           </>
         )}
         {railMode === 'shows' && (
-          <EntityStubList
-            title="Shows"
-            detail="Shows will compose clips across zones once the underlying entity model is ready."
-          />
+          <>
+            <RailEntityHeader
+              title="Shows"
+              action={personalWorkspaceAuthenticated
+                ? <HeaderAction icon={<Plus size={14} />} title="New show" onClick={() => void handleCreateShow()} />
+                : null}
+            />
+            <div className="relative flex-1 min-h-0">
+              <div
+                ref={scrollRef}
+                data-testid="show-list-scroll"
+                onScroll={updateScrollMetrics}
+                className="rail-list-scroll h-full overflow-y-auto overflow-x-hidden pb-2"
+              >
+                {!personalWorkspaceAuthenticated ? (
+                  <p className="pl-3 pr-3 py-2 text-zinc-600 italic select-none">
+                    <a href="/api/auth/login" className="text-live hover:underline">Sign in</a>
+                    {' '}to save shows
+                  </p>
+                ) : userShows.length === 0 ? (
+                  <p className="pl-3 pr-3 py-1 text-zinc-600 italic select-none">
+                    No shows yet
+                  </p>
+                ) : (
+                  <ul className="pt-2">
+                    {userShows.map((show) => (
+                      <EditableListItem
+                        key={show.id}
+                        name={show.name}
+                        noun="show"
+                        active={activeShowId === show.id}
+                        dim={`${show.scenes.length} SC`}
+                        takenNames={userShows.filter((item) => item.id !== show.id).map((item) => item.name)}
+                        onSelect={() => openUserShow(show)}
+                        onRename={(name) => renameShow(show.id, name)}
+                        onDelete={() => void handleRemoveShow(show.id)}
+                      />
+                    ))}
+                  </ul>
+                )}
+              </div>
+              <RailScrollThumb metrics={scrollMetrics} scrollRef={scrollRef} />
+            </div>
+          </>
         )}
       </div>
     </div>

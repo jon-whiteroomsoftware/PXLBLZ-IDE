@@ -1,5 +1,5 @@
 import type { Settings } from './settings'
-import type { MapRecord, MixinRecord, PatternRecord } from './personalContentRecords'
+import type { MapRecord, MixinRecord, PatternRecord, ShowRecord } from './personalContentRecords'
 import type { ControllerProfile } from './controllerProfile'
 import { createRemotePersonalContentProvider } from './remotePersonalContentProvider'
 
@@ -10,9 +10,10 @@ export type LastActive =
   | { type: 'pattern'; id: string }
   | { type: 'library'; name: string }
   | { type: 'demo'; name: string }
+  | { type: 'show'; id: string }
 
 export type PersonalContentStorageMode = 'demo' | 'api'
-export type PersonalContentCollection = 'patterns' | 'maps' | 'mixins' | 'controllers'
+export type PersonalContentCollection = 'patterns' | 'maps' | 'mixins' | 'controllers' | 'shows'
 export type PersonalContentProviderMode = 'remote-api'
 
 export interface PersonalContentProvider {
@@ -29,6 +30,10 @@ export interface PersonalContentProvider {
   createMixin(record: MixinRecord): Promise<void>
   updateMixin(id: string, changes: Partial<Omit<MixinRecord, 'id'>>): Promise<void>
   deleteMixin(id: string): Promise<void>
+  listShows(): Promise<ShowRecord[]>
+  createShow(record: ShowRecord): Promise<void>
+  updateShow(id: string, changes: Partial<Omit<ShowRecord, 'id'>>): Promise<void>
+  deleteShow(id: string): Promise<void>
   listControllerProfiles(): Promise<ControllerProfile[]>
   createControllerProfile(profile: ControllerProfile): Promise<void>
   updateControllerProfile(id: string, changes: Partial<Omit<ControllerProfile, 'id'>>): Promise<void>
@@ -52,6 +57,7 @@ export function personalContentCollectionLabel(
 ): string {
   if (collection === 'controllers') return 'Controllers'
   if (collection === 'mixins') return 'Mixins'
+  if (collection === 'shows') return 'Shows'
   return collection === 'patterns' ? 'Patterns' : 'Maps'
 }
 
@@ -73,6 +79,10 @@ export const demoPersonalContentProvider: PersonalContentProvider = {
   createMixin: signInRequired,
   updateMixin: signInRequired,
   deleteMixin: signInRequired,
+  listShows: async () => [],
+  createShow: signInRequired,
+  updateShow: signInRequired,
+  deleteShow: signInRequired,
   listControllerProfiles: async () => [],
   createControllerProfile: signInRequired,
   updateControllerProfile: signInRequired,

@@ -15,6 +15,7 @@ import { useWorkspaceStore, workspaceInitialState } from '@/store/workspaceStore
 import { DEMOS } from '@/pixelblaze/stock/patterns'
 import { getAuthSession } from '@/engine/authSession'
 import { useRouterStore, routerInitialState } from '@/store/routerStore'
+import { showInitialState, useShowStore } from '@/store/showStore'
 
 vi.mock('@/engine/authSession', () => ({
   getAuthSession: vi.fn(),
@@ -69,6 +70,9 @@ beforeEach(() => {
     if (String(url) === '/api/controllers' && init?.method === undefined) {
       return Response.json({ controllers: mockControllers })
     }
+    if (String(url) === '/api/shows' && init?.method === undefined) {
+      return Response.json({ shows: [] })
+    }
     if (String(url).startsWith('/api/settings/') && init?.method === undefined) {
       return Response.json({})
     }
@@ -79,6 +83,7 @@ beforeEach(() => {
   useMapStore.setState(mapInitialState)
   useMixinStore.setState(mixinInitialState)
   useControllerProfileStore.setState(controllerProfileInitialState)
+  useShowStore.setState(showInitialState)
   useWorkspaceStore.setState(workspaceInitialState)
   useRouterStore.setState(routerInitialState)
   window.history.replaceState(null, '', '/studio')
@@ -194,6 +199,17 @@ describe('PatternList', () => {
 
     expect(window.location.pathname).toBe('/studio/mixins')
     expect(screen.getAllByText('Mixins')).toHaveLength(1)
+  })
+
+  it('creates a new show from the Shows title row', async () => {
+    const user = userEvent.setup()
+    render(<PatternList />)
+
+    await user.click(screen.getByRole('radio', { name: 'Shows' }))
+    await user.click(await screen.findByRole('button', { name: 'New show' }))
+
+    expect(await screen.findByText('Untitled Show')).toBeInTheDocument()
+    expect(window.location.pathname).toMatch(/^\/studio\/shows\//)
   })
 
   it('shows the empty state when there are no custom maps', async () => {

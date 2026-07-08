@@ -7,12 +7,13 @@ import {
   type PersonalContentProvider,
 } from '@/engine/personalContentProvider'
 import type { ControllerProfile } from '@/engine/controllerProfile'
-import type { MapRecord, PatternRecord } from '@/engine/personalContentRecords'
+import type { MapRecord, PatternRecord, ShowRecord } from '@/engine/personalContentRecords'
 
 function memoryProvider(): PersonalContentProvider {
   const patterns = new Map<string, PatternRecord>()
   const maps = new Map<string, MapRecord>()
   const mixins = new Map<string, MixinRecord>()
+  const shows = new Map<string, ShowRecord>()
   const controllers = new Map<string, ControllerProfile>()
   return {
     id: 'memory-test',
@@ -28,6 +29,10 @@ function memoryProvider(): PersonalContentProvider {
     createMixin: async (record) => { mixins.set(record.id, record) },
     updateMixin: async (id, changes) => { mixins.set(id, { ...mixins.get(id)!, ...changes }) },
     deleteMixin: async (id) => { mixins.delete(id) },
+    listShows: async () => [...shows.values()],
+    createShow: async (record) => { shows.set(record.id, record) },
+    updateShow: async (id, changes) => { shows.set(id, { ...shows.get(id)!, ...changes }) },
+    deleteShow: async (id) => { shows.delete(id) },
     listControllerProfiles: async () => [...controllers.values()],
     createControllerProfile: async (profile) => { controllers.set(profile.id, profile) },
     updateControllerProfile: async (id, changes) => { controllers.set(id, { ...controllers.get(id)!, ...changes }) },

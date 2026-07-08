@@ -5,7 +5,7 @@ import {
   type PersonalContentProvider,
 } from './personalContentProvider'
 import type { Settings } from './settings'
-import type { MapRecord, MixinRecord, PatternRecord } from './personalContentRecords'
+import type { MapRecord, MixinRecord, PatternRecord, ShowRecord } from './personalContentRecords'
 import type { ControllerProfile } from './controllerProfile'
 
 export interface RemotePersonalContentProviderOptions {
@@ -86,6 +86,29 @@ export function createRemotePersonalContentProvider(
     },
     deleteMixin: async (id) => {
       await requestJson(fetcher, `/api/mixins/${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+      })
+    },
+    listShows: async () => {
+      const body = await requestJson<{ shows: ShowRecord[] }>(fetcher, '/api/shows')
+      return body.shows
+    },
+    createShow: async (record) => {
+      await requestJson(fetcher, '/api/shows', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(record),
+      })
+    },
+    updateShow: async (id, changes) => {
+      await requestJson(fetcher, `/api/shows/${encodeURIComponent(id)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(changes),
+      })
+    },
+    deleteShow: async (id) => {
+      await requestJson(fetcher, `/api/shows/${encodeURIComponent(id)}`, {
         method: 'DELETE',
       })
     },

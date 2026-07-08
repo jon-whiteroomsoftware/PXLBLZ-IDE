@@ -11,6 +11,7 @@ const controllerProfileStatusMetadataMigrationPath = path.resolve(
   'migrations/0005_controller_profile_status_metadata.sql',
 )
 const personalMixinsMigrationPath = path.resolve('migrations/0006_personal_mixins.sql')
+const personalShowsMigrationPath = path.resolve('migrations/0007_personal_shows.sql')
 
 describe('D1 personal storage migration', () => {
   it('creates the storage buckets needed for the Cloudflare personal-storage foundation', () => {
@@ -81,5 +82,18 @@ describe('D1 personal storage migration', () => {
     expect(sql).toContain('PRIMARY KEY (user_id, id)')
     expect(sql).toContain('FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE')
     expect(sql).toContain("VALUES ('schema_version', '6', unixepoch())")
+  })
+
+  it('adds durable user-scoped shows', () => {
+    const sql = fs.readFileSync(personalShowsMigrationPath, 'utf8')
+
+    expect(sql).toContain('CREATE TABLE IF NOT EXISTS personal_shows')
+    expect(sql).toContain('scenes_json TEXT NOT NULL')
+    expect(sql).toContain('zones_json TEXT NOT NULL')
+    expect(sql).toContain('cells_json TEXT NOT NULL')
+    expect(sql).toContain('target_controller_profile_id TEXT')
+    expect(sql).toContain('PRIMARY KEY (user_id, id)')
+    expect(sql).toContain('FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE')
+    expect(sql).toContain("VALUES ('schema_version', '7', unixepoch())")
   })
 })

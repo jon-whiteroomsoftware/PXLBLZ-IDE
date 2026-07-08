@@ -88,7 +88,8 @@ The app has real URLs now — every page is shareable and bookmarkable.
   IDE described in the rest of this guide. Visiting it signed out shows a
   welcome page offering **Continue with GitHub** or **Continue with Google**.
   Every entity has a stable address: `/studio/patterns/<id>`,
-  `/studio/maps/<id>`, `/studio/mixins/<id>`, `/studio/controllers/<id>`.
+  `/studio/maps/<id>`, `/studio/mixins/<id>`, `/studio/controllers/<id>`,
+  `/studio/shows/<id>`.
 - **Accounts**: sign in with GitHub or Google. Both can attach to one account —
   the account menu offers **Connect** for the other provider (and Disconnect,
   as long as one login remains). A Google sign-in whose verified email matches
@@ -108,9 +109,9 @@ The app has real URLs now — every page is shareable and bookmarkable.
   Maps, Mixins, Controllers, Shows** — plus **Catalog** (back to the Gallery)
   at the bottom, with the selected kind's list beside it. Patterns and Maps
   include the dimension filter and name search; Controllers opens durable
-  hardware profile pages (§10). Shows is a placeholder for the upcoming
-  composition feature.
-- **Editor pane** (centre) — Monaco, in pattern, map, or mixin mode (§9).
+  hardware profile pages (§10). Shows opens the scene-strip composition editor.
+- **Editor pane** (centre) — Monaco, in pattern, map, or mixin mode (§9), or
+  the Show scene strip (§5).
 - **Context pane** (right) — Patterns show the animated preview canvas, transport
   row, and **control deck** (§8). Maps show a static wire-order geometry check
   with map facts and usage. Mixins show provenance.
@@ -198,6 +199,15 @@ stock mixin shows the exact source and structured header (`@param`, `@target`,
 a mixin is used and the last transform summary when that data exists, with empty
 states until bindings or generated artifacts have been recorded.
 
+**Shows** compose existing patterns into one generated Pixelblaze pattern. A Show
+opens as a scene strip: scenes are columns, zones are rows, and each cell holds a
+source pattern plus non-destructive adaptations such as mirror, phase, brightness,
+and time scale. The v1 editor persists shows in your cloud workspace, lets you
+rename/delete them from the rail, select cells, edit scene duration and the first
+boundary transition, extend a cell across scenes as a hold shape, inspect the
+compiled artifact budget, view the generated source read-only, and push the
+generated pattern to the connected Controller.
+
 ## 5. Patterns, built-ins, and libraries
 
 The rail's Patterns list holds your personal patterns followed by a collapsible
@@ -205,7 +215,8 @@ The rail's Patterns list holds your personal patterns followed by a collapsible
 surface: it can send catalog patterns to a Controller directly, and **Open in
 Studio** opens the built-in read-only in Studio for code inspection and cloning.
 Maps mode lists your custom maps followed by collapsible **Stock Maps**; Mixins
-mode lists your cloud mixins followed by collapsible **Stock Mixins**. Signed-out
+mode lists your cloud mixins followed by collapsible **Stock Mixins**; Shows mode
+lists your cloud shows. Signed-out
 use is demo mode: the Gallery, built-in patterns, stock maps, stock mixins,
 libraries, docs, and preview controls remain usable, while durable personal
 resources wait for sign-in.
@@ -383,7 +394,7 @@ Maps get a filter row combining two things:
   separately for Patterns and Maps; the lens is shared.
 
 The strip and filter row stay fixed; only the lists scroll. Personal patterns,
-maps, and mixins are created, renamed, and deleted by you; they live in your
+maps, mixins, and shows are created, renamed, and deleted by you; they live in your
 signed-in cloud workspace, and signed-out use is non-durable demo mode. Delete
 lives in the editor header as a visible, confirmation-guarded action, with the
 rail hover action as a shortcut.
@@ -396,8 +407,9 @@ The other three entity lists:
 - **Controllers** — your durable hardware profiles, each marked LIVE or IDLE
   depending on whether its physical device is currently connected. See §6 and
   §11.
-- **Shows** — a placeholder for the upcoming composition feature; nothing to
-  open yet.
+- **Shows** — your cloud shows. Each row opens a scene-strip editor with scene
+  columns, zone rows, a cell inspector, compile/budget bar, generated-source
+  view, and Controller push action.
 
 ## 11. Controller reference
 
@@ -521,7 +533,7 @@ Maps** §5).
 - **Sensor-reactive patterns load and run**, but the sensor inputs (sound FFT,
   accelerometer, light) are inert stubs, so they won't animate from audio or
   motion in the preview.
-- **Your work follows your account.** Personal patterns, maps, mixins, and
+- **Your work follows your account.** Personal patterns, maps, mixins, shows, and
   observed controller profiles live in your signed-in cloud workspace,
   available from any machine. Controller profiles are created when hardware is
   connected and named from the Pixelblaze device name; signed-out sessions are

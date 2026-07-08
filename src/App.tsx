@@ -25,6 +25,7 @@ import { SendToController } from '@/components/SendToController'
 import { GalleryPage } from '@/components/GalleryPage'
 import { PatternDetailPage } from '@/components/PatternDetailPage'
 import { ControllerProfilePage } from '@/components/ControllerProfilePage'
+import { ShowEditor } from '@/components/ShowEditor'
 import { useControllerStore } from '@/store/controllerStore'
 import { MapModeHeader } from '@/components/MapModeHeader'
 import { useMapStore, STOCK_MAP_ITEMS } from '@/store/mapStore'
@@ -34,6 +35,7 @@ import { MapContextPane } from '@/components/MapContextPane'
 import { useMixinStore, STOCK_MIXIN_ITEMS } from '@/store/mixinStore'
 import { usePatternStore, PatternRecord } from '@/store/patternStore'
 import { useControllerProfileStore } from '@/store/controllerProfileStore'
+import { useShowStore } from '@/store/showStore'
 import { useEditorStore } from '@/store/editorStore'
 import { useDocsStore } from '@/store/docsStore'
 import { useRouterStore } from '@/store/routerStore'
@@ -229,6 +231,10 @@ export default function App() {
   const mixinsLoaded = useMixinStore((s) => s.mixinsLoaded)
   const controllerProfiles = useControllerProfileStore((s) => s.profiles)
   const controllerProfilesLoaded = useControllerProfileStore((s) => s.profilesLoaded)
+  const activeShowId = useShowStore((s) => s.activeShowId)
+  const shows = useShowStore((s) => s.shows)
+  const showsLoaded = useShowStore((s) => s.showsLoaded)
+  const openShow = useShowStore((s) => s.openShow)
   const personalWorkspaceResolved = useWorkspaceStore((s) => s.personalWorkspaceResolved)
   const routeSyncedRef = useRef(false)
   const [studioWelcomeAcknowledged, setStudioWelcomeAcknowledged] = useState(() => {
@@ -283,8 +289,11 @@ export default function App() {
       const record = userMixins.find((m) => m.id === entityId)
       if (record) openExistingMixin(record)
       else if (STOCK_MIXIN_ITEMS.some((m) => m.id === entityId)) openStockMixin(entityId)
+    } else if (route.kind === 'studio' && route.entity !== null && route.entity.kind === 'shows' && route.entity.id !== null) {
+      const entityId = route.entity.id
+      if (shows.some((show) => show.id === entityId) && activeShowId !== entityId) openShow(entityId)
     }
-  }, [route, patternsLoaded, mapsLoaded, mixinsLoaded, syncDocsFromRoute])
+  }, [route, patternsLoaded, mapsLoaded, mixinsLoaded, showsLoaded, syncDocsFromRoute, shows, activeShowId, openShow])
 
   // State → URL: the active studio entity is addressable. Push when moving
   // between entities so back/forward walk them; replace when a plain /studio
@@ -299,6 +308,12 @@ export default function App() {
       const target: Route = { kind: 'studio', entity: { kind: 'patterns', id: activeDemoName } }
       if (!routesEqual(current, target)) navigate(target, { replace: current.entity === null || current.entity.id === null })
     } else if (
+      activeShowId !== null &&
+      (current.entity === null || current.entity.kind === 'shows')
+    ) {
+      const target: Route = { kind: 'studio', entity: { kind: 'shows', id: activeShowId } }
+      if (!routesEqual(current, target)) navigate(target, { replace: current.entity === null || current.entity.id === null })
+    } else if (
       activeLibraryName !== null &&
       current.entity !== null &&
       current.entity.id !== null
@@ -307,7 +322,7 @@ export default function App() {
       // so a stale entity URL doesn't sit over unrelated content.
       navigate({ kind: 'studio', entity: null })
     }
-  }, [activePatternId, activeDemoName, activeLibraryName, navigate])
+  }, [activePatternId, activeDemoName, activeLibraryName, activeShowId, navigate])
 
   // Signed-out cold Studio goes through a one-time welcome/sign-in gate. A
   // pattern-detail handoff may carry an active built-in demo into Studio (#310),
@@ -403,6 +418,7 @@ export default function App() {
     route.kind === 'studio' && route.entity?.kind === 'controllers' ? route.entity.id : null
   const activeControllerProfile =
     activeControllerProfileId ? controllerProfiles.find((profile) => profile.id === activeControllerProfileId) : undefined
+  const activeShow = activeShowId ? shows.find((show) => show.id === activeShowId) : undefined
 
   const handleDeletePattern = useCallback(async () => {
     if (!activePatternId) return
@@ -424,8 +440,8 @@ export default function App() {
     setRightWidth((w) => Math.max(MIN_PREVIEW_WIDTH, w - dx))
   }, [])
 
-  // A deep link to a studio entity that can't resolve (#308): unknown pattern id
-  // once patterns have loaded, or a non-pattern entity id whose view is not built.
+  // A deep link to a studio entity that can't resolve (#308): unknown entity id
+  // once that personal collection has loaded.
   const routeEntity = route.kind === 'studio' ? route.entity : null
   const studioEntityMissing =
     routeEntity !== null &&
@@ -445,6 +461,8 @@ export default function App() {
           !STOCK_MIXIN_ITEMS.some((m) => m.id === routeEntity.id)
       : routeEntity.kind === 'controllers'
         ? controllerProfilesLoaded && !controllerProfiles.some((profile) => profile.id === routeEntity.id)
+      : routeEntity.kind === 'shows'
+        ? showsLoaded && !shows.some((show) => show.id === routeEntity.id)
         : true)
   const invalidDocRoute = route.kind === 'docs' && !isDocId(route.docId)
   const browseRoute = route.kind === 'gallery' || route.kind === 'pattern-detail'
@@ -580,6 +598,8 @@ export default function App() {
                 ? 'Mixin not found'
               : routeEntity!.kind === 'controllers'
                 ? 'Controller not found'
+              : routeEntity!.kind === 'shows'
+                ? 'Show not found'
                 : 'Not available yet'
           }
           detail={
@@ -591,6 +611,8 @@ export default function App() {
                 ? `There's no mixin with id "${routeEntity!.id}" in this workspace. It may have been deleted, or the link may belong to a different account.`
               : routeEntity!.kind === 'controllers'
                 ? `There's no controller profile with id "${routeEntity!.id}" in this workspace. It may have been deleted, or the link may belong to a different account.`
+              : routeEntity!.kind === 'shows'
+                ? `There's no show with id "${routeEntity!.id}" in this workspace. It may have been deleted, or the link may belong to a different account.`
               : `Studio views for ${routeEntity!.kind} aren't built yet.`
           }
           actionLabel="Back to Studio"
@@ -649,10 +671,12 @@ export default function App() {
             ) : studioEntityKind === 'shows' ? (
               <span className="flex-1 min-w-0 flex items-center gap-1.5">
                 <PanelsTopLeft size={14} aria-hidden className="shrink-0 text-zinc-500" />
-                <span className="truncate text-zinc-200">Shows</span>
-                <span className="hidden rounded border border-zinc-700 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-structural sm:inline">
-                  Stub
-                </span>
+                <span className="truncate text-zinc-200">{activeShow?.name ?? 'Shows'}</span>
+                {activeShow && (
+                  <span className="hidden rounded border border-zinc-700 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-structural sm:inline">
+                    {activeShow.scenes.length} scenes
+                  </span>
+                )}
               </span>
             ) : studioEntityKind === 'maps' && editorFlavor !== 'map' ? (
               <span className="flex-1 min-w-0 flex items-center gap-1.5">
@@ -758,11 +782,15 @@ export default function App() {
                 detail="Create or select a controller profile from the rail."
               />
             ) : studioEntityKind === 'shows' ? (
-              <StudioPaneMessage
-                icon={<PanelsTopLeft size={18} aria-hidden />}
-                title="Shows"
-                detail="Shows will compose clips across zones once the underlying entity model is ready."
-              />
+              activeShowId !== null ? (
+                <ShowEditor showId={activeShowId} />
+              ) : (
+                <StudioPaneMessage
+                  icon={<PanelsTopLeft size={18} aria-hidden />}
+                  title="No show selected"
+                  detail="Create or select a show from the rail."
+                />
+              )
             ) : studioEntityKind === 'maps' && editorFlavor !== 'map' ? (
               <StudioPaneMessage
                 icon={<MapIcon size={18} aria-hidden />}

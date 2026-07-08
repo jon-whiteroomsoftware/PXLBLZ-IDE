@@ -23,10 +23,12 @@ import {
   type PersonalContentProvider,
 } from '@/engine/personalContentProvider'
 import type { ControllerProfile } from '@/engine/controllerProfile'
+import type { ShowRecord } from '@/engine/personalContentRecords'
 
 function memoryProvider(): PersonalContentProvider {
   const maps = new Map<string, MapRecord>()
   const mixins = new Map()
+  const shows = new Map<string, ShowRecord>()
   const controllers = new Map<string, ControllerProfile>()
   return {
     id: 'memory-test',
@@ -56,6 +58,17 @@ function memoryProvider(): PersonalContentProvider {
     },
     deleteMixin: async (id) => {
       mixins.delete(id)
+    },
+    listShows: async () => [...shows.values()],
+    createShow: async (record) => {
+      shows.set(record.id, record)
+    },
+    updateShow: async (id, changes) => {
+      const existing = shows.get(id)
+      if (existing) shows.set(id, { ...existing, ...changes })
+    },
+    deleteShow: async (id) => {
+      shows.delete(id)
     },
     listControllerProfiles: async () => [...controllers.values()],
     createControllerProfile: async (profile) => {

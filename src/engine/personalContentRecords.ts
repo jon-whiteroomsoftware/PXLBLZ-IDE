@@ -45,3 +45,56 @@ export interface MixinRecord {
   src: string
   updatedAt: number
 }
+
+export type ShowTransitionKind = 'cut' | 'crossfade' | 'wipe' | 'dither'
+export type ShowTransitionCost = 'free' | 'cheap' | 'expensive'
+
+export interface ShowTransition {
+  kind: ShowTransitionKind
+  durationMs: number
+}
+
+export interface ShowScene {
+  id: string
+  name: string
+  durationMs: number
+  transitionOut?: ShowTransition
+}
+
+export interface ShowZone {
+  id: string
+  name: string
+  nominalPixelCount: number
+  color?: string
+}
+
+export interface ShowCellAdaptations {
+  mirror: boolean
+  phase: number
+  brightness: number
+  timeScale: number
+}
+
+export type ShowPatternRef =
+  | { kind: 'user'; id: string }
+  | { kind: 'stock'; id: string }
+
+export interface ShowCell {
+  id: string
+  zoneId: string
+  sceneId: string
+  sceneSpan: number
+  pattern: ShowPatternRef
+  patternName: string
+  adaptations: ShowCellAdaptations
+}
+
+export interface ShowRecord {
+  id: string
+  name: string
+  scenes: ShowScene[]
+  zones: ShowZone[]
+  cells: ShowCell[]
+  targetControllerProfileId?: string
+  updatedAt: number
+}

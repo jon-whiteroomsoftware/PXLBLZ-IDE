@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { usePatternStore, patternInitialState, activePushKey } from './patternStore'
-import type { PatternRecord } from '@/engine/personalContentRecords'
+import type { PatternRecord, ShowRecord } from '@/engine/personalContentRecords'
 import type { ControllerProfile } from '@/engine/controllerProfile'
 import {
   resetPersonalContentProvider,
@@ -11,6 +11,7 @@ import type { Settings } from '@/engine/settings'
 
 function memoryProvider(): PersonalContentProvider {
   const patterns = new Map<string, PatternRecord>()
+  const shows = new Map<string, ShowRecord>()
   const controllers = new Map<string, ControllerProfile>()
   let demoOverrides: Record<string, Partial<Settings>> | undefined
   return {
@@ -35,6 +36,17 @@ function memoryProvider(): PersonalContentProvider {
     createMixin: async () => {},
     updateMixin: async () => {},
     deleteMixin: async () => {},
+    listShows: async () => [...shows.values()],
+    createShow: async (record) => {
+      shows.set(record.id, record)
+    },
+    updateShow: async (id, changes) => {
+      const existing = shows.get(id)
+      if (existing) shows.set(id, { ...existing, ...changes })
+    },
+    deleteShow: async (id) => {
+      shows.delete(id)
+    },
     listControllerProfiles: async () => [...controllers.values()],
     createControllerProfile: async (profile) => {
       controllers.set(profile.id, profile)
@@ -125,6 +137,10 @@ describe('patternStore', () => {
       createMixin: async () => {},
       updateMixin: async () => {},
       deleteMixin: async () => {},
+      listShows: async () => [],
+      createShow: async () => {},
+      updateShow: async () => {},
+      deleteShow: async () => {},
       listControllerProfiles: async () => [],
       createControllerProfile: async () => {},
       updateControllerProfile: async () => {},

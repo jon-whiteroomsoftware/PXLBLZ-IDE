@@ -9,7 +9,7 @@ the code wins.
 **The whole document in two sentences.** PXLBLZ is a browser app with two
 surfaces — a public Gallery and an authenticated Studio — over one engine:
 editing, transpiling, execution, and preview all happen in the page, while
-personal patterns/maps/mixins/settings and Controller profiles live in D1
+personal patterns/maps/mixins/shows/settings and Controller profiles live in D1
 behind Pages Functions. Its defining commitment is hardware
 fidelity — the preview reproduces the device's fixed-point math, map semantics,
 and edge-case behaviours, and nothing the preview invents ever reaches a
@@ -154,6 +154,7 @@ render in the same header on every route and in every auth state.
 | `controllerPanelStore` | the connected device's polled live slice: active program + program list, FPS, device `pixelCount` (with in-flight `pixelCountPending` hold), installed-map point count, panel-owned volatile brightness and live controls. `seed`/`start` are keyed by owning IP so a same-device reopen keeps last-known values while a device switch clears. |
 | `routerStore` | the current `Route`, `navigate` (pushState/replaceState) and `syncFromLocation`; the only module that touches `history`/`location`. |
 | `mixinStore` | cloud `MixinRecord` list + CRUD through the personal content provider, the mixin-mode editing target, stock-mixin open state. |
+| `showStore` | cloud `ShowRecord` list + CRUD through the personal content provider, `activeShowId`, and scene/cell edit operations over the pure show model. |
 | `controllerProfileStore` | durable Controller profiles: list/CRUD via `/api/controllers`, `ensureProfileForLiveController` (auto-create + refresh, with pending/suppressed device-id guards), live-metadata refresh for the profile page. |
 | `workspaceStore` | `personalWorkspaceAuthenticated` / `personalWorkspaceResolved` — the auth-state seam the Studio gate and rail read. |
 
@@ -652,6 +653,7 @@ out of the personal content provider. Optional owner allow-lists are enforced
 server-side before a session is issued.
 
 Pattern operations call `/api/patterns`, custom map operations call `/api/maps`,
+cloud mixin operations call `/api/mixins`, Show operations call `/api/shows`,
 provider-owned settings (`lastActive`, `demoOverrides`) call
 `/api/settings/:key`, and durable Controller profiles call `/api/controllers`.
 Controller profiles are offline-editable records for hardware identity,
@@ -678,6 +680,19 @@ Signed-out users see sign-in prompts where personal workspace actions would be;
 no browser-local durable workspace is created, and no browser-to-D1 migration is
 attempted or implied.
 
+Shows are persisted as `ShowRecord`s in `personal_shows` (migration 0007):
+`name`, `scenes_json`, `zones_json`, `cells_json`, optional
+`target_controller_profile_id`, and `updated_at`. `showStore` owns the active
+Show and writes every scene/cell edit immediately through `/api/shows`. The pure
+model helpers in `showModel.ts` create the default two-scene/one-zone strip,
+project the arrangement into scene columns + zone rows, extend cells across
+scene boundaries as hold shapes, edit non-destructive adaptations, and build the
+current compiler recipe from the first two cells on the first zone. The
+`ShowEditor` component renders the scene strip, cell inspector, transition
+inspector, zone binding panel, compile/budget bar, read-only generated-source
+view, and a run-to-Controller action that compiles the generated source through
+the active provider and pushes bytecode to the connected controller.
+
 The current Show compiler (`src/engine/showCompiler.ts`) has two emission modes:
 the original two-clip crossfade and the #317 route pass. A routed clip names a
 Controller zone; compile binds by zone name, warns in the summary when a zone is
@@ -697,7 +712,8 @@ through `updatePatternSettings` (a sparse merge that does not bump
 `src`/`updatedAt`). `MapRecord` carries `source`/`points`/`gridDims` (§8).
 `MixinRecord` carries `name`, pass `kind`, Pixelblaze-dialect `src`, and
 `updatedAt`; `/api/mixins` persists it in `personal_mixins` (migration 0006).
-New personal pattern/map/mixin records use UUID ids.
+`ShowRecord` carries scene-strip data and is D1-backed through `/api/shows`.
+New personal pattern/map/mixin/show records use UUID ids.
 
 Selection is tri-state (pattern / library / demo). **Create** writes a runnable
 animated starter immediately. **Import** parses `.epe` JSON (`epeImport.ts`,

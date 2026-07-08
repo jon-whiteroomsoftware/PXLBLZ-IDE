@@ -10,7 +10,7 @@ import {
   type PersonalContentProvider,
 } from './personalContentProvider'
 import type { ControllerProfile } from './controllerProfile'
-import type { MapRecord, MixinRecord, PatternRecord } from './personalContentRecords'
+import type { MapRecord, MixinRecord, PatternRecord, ShowRecord } from './personalContentRecords'
 
 beforeEach(() => {
   resetPersonalContentProvider()
@@ -20,6 +20,7 @@ function memoryProvider(): PersonalContentProvider {
   const patterns = new Map<string, PatternRecord>()
   const maps = new Map<string, MapRecord>()
   const mixins = new Map<string, MixinRecord>()
+  const shows = new Map<string, ShowRecord>()
   const controllers = new Map<string, ControllerProfile>()
   return {
     id: 'memory-test',
@@ -59,6 +60,18 @@ function memoryProvider(): PersonalContentProvider {
     deleteMixin: async (id) => {
       mixins.delete(id)
     },
+    listShows: async () => [...shows.values()],
+    createShow: async (record) => {
+      shows.set(record.id, record)
+    },
+    updateShow: async (id, changes) => {
+      const existing = shows.get(id)
+      if (!existing) throw new Error(`Show ${id} not found`)
+      shows.set(id, { ...existing, ...changes })
+    },
+    deleteShow: async (id) => {
+      shows.delete(id)
+    },
     listControllerProfiles: async () => [...controllers.values()],
     createControllerProfile: async (profile) => {
       controllers.set(profile.id, profile)
@@ -95,6 +108,7 @@ describe('personal content provider seam', () => {
     expect(personalContentCollectionLabel('api', 'patterns')).toBe('Patterns')
     expect(personalContentCollectionLabel('api', 'maps')).toBe('Maps')
     expect(personalContentCollectionLabel('api', 'mixins')).toBe('Mixins')
+    expect(personalContentCollectionLabel('api', 'shows')).toBe('Shows')
   })
 
   it('selects the remote API as the only durable provider mode', async () => {
@@ -132,10 +146,19 @@ describe('personal content provider seam', () => {
       src: '// @param PIN\n// @target CONTROL\n// @wraps beforeRender',
       updatedAt: 1,
     }
+    const show: ShowRecord = {
+      id: 'show-1',
+      name: 'Provider Show',
+      scenes: [],
+      zones: [],
+      cells: [],
+      updatedAt: 1,
+    }
 
     await expect(demoPersonalContentProvider.listPatterns()).resolves.toEqual([])
     await expect(demoPersonalContentProvider.listMaps()).resolves.toEqual([])
     await expect(demoPersonalContentProvider.listMixins()).resolves.toEqual([])
+    await expect(demoPersonalContentProvider.listShows()).resolves.toEqual([])
     await expect(demoPersonalContentProvider.listControllerProfiles()).resolves.toEqual([])
     await expect(demoPersonalContentProvider.getLastActive()).resolves.toBeUndefined()
     await expect(demoPersonalContentProvider.getDemoOverrides()).resolves.toBeUndefined()
@@ -156,6 +179,11 @@ describe('personal content provider seam', () => {
       'Sign in required',
     )
     await expect(demoPersonalContentProvider.deleteMixin(mixin.id)).rejects.toThrow('Sign in required')
+    await expect(demoPersonalContentProvider.createShow(show)).rejects.toThrow('Sign in required')
+    await expect(demoPersonalContentProvider.updateShow(show.id, { name: 'Renamed Show' })).rejects.toThrow(
+      'Sign in required',
+    )
+    await expect(demoPersonalContentProvider.deleteShow(show.id)).rejects.toThrow('Sign in required')
     await expect(demoPersonalContentProvider.createControllerProfile({
       id: 'ctrl-1',
       name: 'Controller',
