@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import {
   Plus,
   RefreshCw,
@@ -7,12 +7,17 @@ import {
 import { Button } from '@/components/ui/button'
 import {
   analogPinsForBoard,
+  controllerZonePixelCount,
+  formatControllerZoneRanges,
+  parseControllerZoneRanges,
   validateControllerProfile,
   type ControllerBindingTarget,
   type ControllerInput,
   type ControllerInputRole,
   type ControllerInputSignal,
   type ControllerProfile,
+  type ControllerZone,
+  type ControllerZoneRange,
   type GlobalTransform,
   type PatternBinding,
 } from '@/engine/controllerProfile'
@@ -610,63 +615,132 @@ function ZonesTable({
   onRemoveZone,
 }: {
   profile: ControllerProfile
-  onUpdateZone: (zoneId: string, changes: { name?: string; start?: number; end?: number }) => void
+  onUpdateZone: (zoneId: string, changes: Partial<ControllerZone>) => void
   onRemoveZone: (zoneId: string) => void
 }) {
   if (profile.zones.length === 0) return <EmptyState>No zones have been defined for this controller.</EmptyState>
 
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full min-w-[520px] border-collapse text-xs">
-        <thead>
-          <tr>
-            <th className={tableHeadClass}>Name</th>
-            <th className={tableHeadClass}>Start</th>
-            <th className={tableHeadClass}>End</th>
-            <th className={tableHeadClass} />
-          </tr>
-        </thead>
-        <tbody>
-          {profile.zones.map((zone) => (
-            <tr key={zone.id}>
-              <td className={tableCellClass}>
-                <TextField
-                  ariaLabel={`${zone.name} zone name`}
-                  value={zone.name}
-                  onChange={(name) => onUpdateZone(zone.id, { name })}
-                />
-              </td>
-              <td className={tableCellClass}>
-                <NumberField
-                  ariaLabel={`${zone.name} zone start`}
-                  min={0}
-                  value={zone.start}
-                  onChange={(start) => onUpdateZone(zone.id, { start })}
-                />
-              </td>
-              <td className={tableCellClass}>
-                <NumberField
-                  ariaLabel={`${zone.name} zone end`}
-                  min={0}
-                  value={zone.end}
-                  onChange={(end) => onUpdateZone(zone.id, { end })}
-                />
-              </td>
-              <td className={tableCellClass}>
-                <button
-                  type="button"
-                  aria-label={`Remove ${zone.name}`}
-                  title="Remove zone"
-                  onClick={() => onRemoveZone(zone.id)}
-                  className="text-zinc-500 hover:text-red-300"
-                >
-                  <Trash2 size={14} aria-hidden />
-                </button>
-              </td>
+    <div className="space-y-3">
+      <ZoneRibbon profile={profile} />
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[720px] border-collapse text-xs">
+          <thead>
+            <tr>
+              <th className={tableHeadClass}>Zone</th>
+              <th className={tableHeadClass}>Ranges</th>
+              <th className={tableHeadClass}>Pixels</th>
+              <th className={tableHeadClass} />
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {profile.zones.map((zone) => (
+              <tr key={zone.id}>
+                <td className={tableCellClass}>
+                  <TextField
+                    ariaLabel={`${zone.name} zone name`}
+                    value={zone.name}
+                    onChange={(name) => onUpdateZone(zone.id, { name })}
+                  />
+                </td>
+                <td className={tableCellClass}>
+                  <RangesField
+                    zone={zone}
+                    onChange={(ranges) => onUpdateZone(zone.id, { ranges })}
+                  />
+                </td>
+                <td className={`${tableCellClass} font-mono text-zinc-300`}>
+                  {controllerZonePixelCount(zone)}
+                </td>
+                <td className={tableCellClass}>
+                  <button
+                    type="button"
+                    aria-label={`Remove ${zone.name}`}
+                    title="Remove zone"
+                    onClick={() => onRemoveZone(zone.id)}
+                    className="text-zinc-500 hover:text-red-300"
+                  >
+                    <Trash2 size={14} aria-hidden />
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
+function RangesField({
+  zone,
+  onChange,
+}: {
+  zone: ControllerZone
+  onChange: (ranges: ControllerZoneRange[]) => void
+}) {
+  const formatted = formatControllerZoneRanges(zone)
+  const [draftState, setDraftState] = useState<{
+    source: string
+    draft: string
+    error: string | null
+  }>({ source: formatted, draft: formatted, error: null })
+  const draft = draftState.source === formatted ? draftState.draft : formatted
+  const error = draftState.source === formatted ? draftState.error : null
+
+  return (
+    <div className="space-y-1">
+      <input
+        aria-label={`${zone.name} zone ranges`}
+        value={draft}
+        placeholder="0-63, 96-127"
+        onChange={(event) => {
+          const next = event.target.value
+          const parsed = parseControllerZoneRanges(next)
+          if (parsed.ok) {
+            setDraftState({ source: formatted, draft: next, error: null })
+            onChange(parsed.ranges)
+          } else {
+            setDraftState({ source: formatted, draft: next, error: parsed.message })
+          }
+        }}
+        className={`${fieldClass} w-full font-mono tabular-nums ${error ? 'border-amber-400/70' : ''}`}
+      />
+      {error && <div className="text-[10px] text-amber-300">{error}</div>}
+    </div>
+  )
+}
+
+function ZoneRibbon({ profile }: { profile: ControllerProfile }) {
+  const maxEnd = Math.max(
+    0,
+    ...profile.zones.flatMap((zone) => zone.ranges.map((range) => range.end)),
+  )
+  const totalPixels = profile.lastKnownPixelCount ?? maxEnd + 1
+  if (totalPixels <= 0) return null
+
+  return (
+    <div>
+      <div className="flex h-2 overflow-hidden rounded-sm border border-zinc-800 bg-zinc-900">
+        {profile.zones.map((zone, index) => {
+          const width = Math.max(1, (controllerZonePixelCount(zone) / totalPixels) * 100)
+          return (
+            <span
+              key={zone.id}
+              title={`${zone.name}: ${formatControllerZoneRanges(zone)}`}
+              className={index % 3 === 0 ? 'bg-live/70' : index % 3 === 1 ? 'bg-ok/70' : 'bg-amber-400/70'}
+              style={{ width: `${width}%` }}
+            />
+          )
+        })}
+      </div>
+      <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-[10px] text-zinc-500">
+        {profile.zones.map((zone) => (
+          <span key={zone.id}>
+            <span className="font-mono text-zinc-400">{zone.name}</span> {controllerZonePixelCount(zone)} px
+          </span>
+        ))}
+      </div>
     </div>
   )
 }

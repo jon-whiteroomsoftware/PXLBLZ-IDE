@@ -202,4 +202,133 @@ export function render(index) { rgb(0, t, 0) }
       expect.objectContaining({ id: 'comet-loom', prefix: '__pxlblz_show_c1' }),
     ])
   })
+
+  it('routes simultaneous clips to named controller zones with zone-local 1D coordinates', () => {
+    const artifact = compileShow({
+      zones: [
+        { id: 'left', name: 'left', ranges: [{ start: 0, end: 3 }] },
+        { id: 'right', name: 'right', ranges: [{ start: 4, end: 7 }] },
+      ],
+      clips: [
+        {
+          id: 'left-clip',
+          zone: 'left',
+          source: `
+export var ticks = 0
+export var seenPixelCount = 0
+export function beforeRender(delta) {
+  ticks = ticks + 1
+  seenPixelCount = pixelCount
+}
+export function render(index) {
+  rgb(index / pixelCount, seenPixelCount, ticks)
+}
+`,
+        },
+        {
+          id: 'right-clip',
+          zone: 'right',
+          source: `
+export var ticks = 0
+export var seenPixelCount = 0
+export function beforeRender(delta) {
+  ticks = ticks + 1
+  seenPixelCount = pixelCount
+}
+export function render(index) {
+  rgb(0, index / pixelCount, seenPixelCount)
+}
+`,
+        },
+      ],
+    }, {})
+
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 8)
+    handle.beforeRender(16)
+
+    handle.render(2)
+    expect(pixel()).toEqual([0.5, 4, 1])
+
+    handle.render(6)
+    expect(pixel()).toEqual([0, 0.5, 4])
+
+    expect(handle.getExports()).toMatchObject({
+      __pxlblz_show_c0_seenPixelCount: 4,
+      __pxlblz_show_c1_seenPixelCount: 4,
+      __pxlblz_show_c0_ticks: 1,
+      __pxlblz_show_c1_ticks: 1,
+    })
+    expect(artifact.summary).toMatchObject({
+      renderPolicy: 'route-one-renderer-per-pixel',
+      transitionCount: 0,
+      warnings: [],
+    })
+  })
+
+  it('routes multi-range zones as one continuous zone-local index space', () => {
+    const artifact = compileShow({
+      zones: [
+        {
+          id: 'row-band',
+          name: 'row-band',
+          ranges: [
+            { start: 0, end: 1 },
+            { start: 6, end: 7 },
+          ],
+        },
+        { id: 'other', name: 'other', ranges: [{ start: 2, end: 5 }] },
+      ],
+      clips: [
+        {
+          id: 'row',
+          zone: 'row-band',
+          source: 'export function render(index) { rgb(index, pixelCount, 0) }',
+        },
+        {
+          id: 'other',
+          zone: 'other',
+          source: 'export function render(index) { rgb(0, 0, 1) }',
+        },
+      ],
+    }, {})
+
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 8)
+    handle.beforeRender(16)
+
+    handle.render(0)
+    expect(pixel()).toEqual([0, 4, 0])
+    handle.render(1)
+    expect(pixel()).toEqual([1, 4, 0])
+    handle.render(6)
+    expect(pixel()).toEqual([2, 4, 0])
+    handle.render(7)
+    expect(pixel()).toEqual([3, 4, 0])
+  })
+
+  it('reports missing controller zones as compile warnings', () => {
+    const artifact = compileShow({
+      zones: [{ id: 'left', name: 'left', ranges: [{ start: 0, end: 3 }] }],
+      clips: [
+        {
+          id: 'left-clip',
+          zone: 'left',
+          source: 'export function render(index) { rgb(1, 0, 0) }',
+        },
+        {
+          id: 'missing-clip',
+          zone: 'doorframe',
+          source: 'export function render(index) { rgb(0, 1, 0) }',
+        },
+      ],
+    }, {})
+
+    expect(artifact.summary.warnings).toEqual([
+      'Clip "missing-clip" references missing zone "doorframe".',
+    ])
+
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 8)
+    handle.beforeRender(16)
+    handle.render(5)
+    expect(pixel()).toEqual([0, 0, 0])
+  })
 })

@@ -1,5 +1,6 @@
 import {
   controllerProfileValidationErrors,
+  normalizeControllerZones,
   validateControllerProfile,
   type ControllerBoardProfile,
   type ControllerInput,
@@ -53,7 +54,7 @@ export function controllerProfileFromRow(row: D1ControllerProfileRow): Controlle
     inputs: parseJson<ControllerInput[]>(row.inputs_json),
     globalTransforms: parseJson<GlobalTransform[]>(row.global_transforms_json),
     patternBindings: parseJson<PatternBinding[]>(row.pattern_bindings_json),
-    zones: parseJson<ControllerZone[]>(row.zones_json),
+    zones: normalizeControllerZones(parseJson<ControllerZone[]>(row.zones_json)),
     updatedAt: row.updated_at,
   }
 }

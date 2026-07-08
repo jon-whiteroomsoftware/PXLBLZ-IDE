@@ -496,7 +496,8 @@ profile is created automatically the first time); the profile page at
   today; power cap is stored but not yet applied on push);
 - **pattern bindings** — pattern × input → an exported slider, a named
   function, or a variable with min/max/quantize;
-- **zones** — named pixel ranges, groundwork for Shows.
+- **zones** — named lists of pixel ranges, groundwork for Shows. A zone can be
+  one contiguous strip slice or several ranges that act as one semantic stage.
 
 The page never duplicates live controls — brightness and the running pattern's
 sliders stay in the live panel.

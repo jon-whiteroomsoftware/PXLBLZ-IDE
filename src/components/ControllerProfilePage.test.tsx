@@ -84,4 +84,35 @@ describe('ControllerProfilePage', () => {
     expect(screen.getByTestId('controller-profile-status-dot')).toHaveClass('bg-ok')
     expect(screen.getByRole('button', { name: /refresh/i })).toBeEnabled()
   })
+
+  it('shows controller zones as editable range lists with pixel totals', () => {
+    const profile = seedProfile()
+    useControllerProfileStore.setState({
+      profiles: [
+        {
+          ...profile,
+          lastKnownPixelCount: 256,
+          zones: [
+            { id: 'quad-1', name: 'quad-1', ranges: [{ start: 0, end: 63 }] },
+            {
+              id: 'top-band',
+              name: 'top-band',
+              ranges: [
+                { start: 0, end: 3 },
+                { start: 28, end: 31 },
+              ],
+            },
+          ],
+        },
+      ],
+      profilesLoaded: true,
+    })
+
+    render(<ControllerProfilePage profileId="ctrl-1" />)
+
+    expect(screen.getByRole('textbox', { name: 'quad-1 zone ranges' })).toHaveValue('0-63')
+    expect(screen.getByRole('textbox', { name: 'top-band zone ranges' })).toHaveValue('0-3, 28-31')
+    expect(screen.getByText('64')).toBeInTheDocument()
+    expect(screen.getByText('8')).toBeInTheDocument()
+  })
 })

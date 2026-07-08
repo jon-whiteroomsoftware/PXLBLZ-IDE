@@ -249,7 +249,7 @@ export const useControllerProfileStore = create<ControllerProfileState>()((set, 
     if (!profile) return
     const id = nextId('zone', profile.zones)
     await get().updateProfile(profileId, {
-      zones: [...profile.zones, { id, name: `Zone ${profile.zones.length + 1}`, start: 0, end: 0 }],
+      zones: [...profile.zones, { id, name: `Zone ${profile.zones.length + 1}`, ranges: [{ start: 0, end: 0 }] }],
     })
   },
 

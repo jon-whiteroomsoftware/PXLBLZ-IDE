@@ -658,12 +658,16 @@ Controller profiles are offline-editable records for hardware identity,
 board-aware inputs, global transforms, per-pattern bindings, and zones. Their
 pure validator lives in `src/engine/controllerProfile.ts`; it rejects analog
 bindings on non-analog Pixelblaze v3 Standard pins using the ElectroMage GPIO
-findings from the issue #289 spike. Profiles are created from observed hardware
-rather than from a blank Studio form. They key the physical controller by
-`device_id` when known, mirror the last observed Pixelblaze device name into the
-profile `name`, and keep mutable convenience fields (`lastKnownDeviceName`,
-`lastSeenIp`, `lastKnownPixelCount`, `lastKnownMapDim`) for the Studio controller
-page's offline status strip. Controller push metadata remains a sibling
+findings from the issue #289 spike. A Controller zone is a named list of
+inclusive pixel-index ranges (`{ start, end }[]`); the page edits those ranges
+directly, displays their total pixel count, and keeps legacy single
+`start`/`end` zone rows readable by normalizing them on load. Profiles are
+created from observed hardware rather than from a blank Studio form. They key
+the physical controller by `device_id` when known, mirror the last observed
+Pixelblaze device name into the profile `name`, and keep mutable convenience
+fields (`lastKnownDeviceName`, `lastSeenIp`, `lastKnownPixelCount`,
+`lastKnownMapDim`) for the Studio controller page's offline status strip.
+Controller push metadata remains a sibling
 framework-free storage seam: overwrite bindings (`controller-bindings`) and
 program label caches (`controller-program-labels`) call
 `/api/controller-metadata/:key`. All D1 helpers scope list/update/delete
@@ -673,6 +677,17 @@ pages, while live hardware controls stay in the top-right Controller surface.
 Signed-out users see sign-in prompts where personal workspace actions would be;
 no browser-local durable workspace is created, and no browser-to-D1 migration is
 attempted or implied.
+
+The current Show compiler (`src/engine/showCompiler.ts`) has two emission modes:
+the original two-clip crossfade and the #317 route pass. A routed clip names a
+Controller zone; compile binds by zone name, warns in the summary when a zone is
+missing, and emits a single Pixelblaze artifact. At render time the route pass
+tests the global LED index against each zone's ordered ranges, computes a
+continuous zone-local index across multi-range zones, sets that member's virtual
+`pixelCount` to the zone's total size, and calls exactly one member renderer for
+the matching pixel. This is the 1D zone-local-coordinate path used by Shows; 2D
+zone frames, show-local zones, zone spanning, and richer transition types remain
+future slices.
 
 `PatternRecord` carries the per-pattern overrides in a sparse
 `settings?: Partial<Settings>` field — superseding older flat columns;

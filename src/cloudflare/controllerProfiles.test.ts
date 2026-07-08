@@ -48,7 +48,7 @@ const profile: ControllerProfile = {
       target: { kind: 'call-exported-slider', name: 'sliderSpeed' },
     },
   ],
-  zones: [{ id: 'arch-left', name: 'Arch left', start: 0, end: 239 }],
+  zones: [{ id: 'arch-left', name: 'Arch left', ranges: [{ start: 0, end: 239 }] }],
   updatedAt: 100,
 }
 
@@ -102,6 +102,24 @@ describe('D1 controller profile persistence', () => {
       zones_json: JSON.stringify(profile.zones),
       updated_at: 100,
     })).toEqual(profile)
+  })
+
+  it('normalizes legacy single-range zones when reading D1 rows', () => {
+    expect(controllerProfileFromRow({
+      id: 'ctrl-1',
+      name: 'Burner bag',
+      device_id: null,
+      last_known_device_name: null,
+      last_seen_ip: null,
+      last_known_pixel_count: null,
+      last_known_map_dim: null,
+      board_json: JSON.stringify(profile.board),
+      inputs_json: JSON.stringify([]),
+      global_transforms_json: JSON.stringify([]),
+      pattern_bindings_json: JSON.stringify([]),
+      zones_json: JSON.stringify([{ id: 'legacy', name: 'Legacy', start: 2, end: 5 }]),
+      updated_at: 100,
+    }).zones).toEqual([{ id: 'legacy', name: 'Legacy', ranges: [{ start: 2, end: 5 }] }])
   })
 
   it('lists and gets profiles scoped to the signed-in user', async () => {

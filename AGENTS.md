@@ -40,6 +40,24 @@ The WebGL preview render loop keeps the page perpetually busy, so naive screensh
 
 Prefer this path over out-of-band canvas readback (`drawImage`/`toBlob` from outside), which catches the buffer at unpredictable moments and can return stale or cleared frames.
 
+### Playwright browser checks
+
+Before claiming that the Playwright Chromium binary is missing, run:
+
+```bash
+npm run check:playwright
+```
+
+That check verifies the repo's own `node_modules/playwright` resolution and the
+matching browser cache revisions. In Codex Desktop, bare
+`import('playwright')` from the Node REPL can resolve Codex.app's bundled
+Playwright instead of this repo's package; that bundled copy may expect a
+different browser revision and produce a misleading "Executable doesn't exist"
+error. For repo UI smoke tests, prefer `npx playwright ...`, `npm run
+test:e2e`, or a shell-launched script from this workspace. Browser launches may
+still require unsandboxed execution on macOS; that is a launch permission issue,
+not a missing Chromium install.
+
 ### Code search (Morph / Warp Grip)
 
 For code exploration, use Morph Warp Grip first. In Codex this is exposed as `mcp__morph_mcp.codebase_search`; pass the repo path and a natural-language question. It runs grep/read work in a separate subagent and returns curated excerpts, which keeps the main context lean.

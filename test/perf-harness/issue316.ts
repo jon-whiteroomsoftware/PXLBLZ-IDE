@@ -12,6 +12,7 @@
 //   PIXELBLAZE_IP=192.168.8.224 npm run issue332
 //   PIXELBLAZE_IP=192.168.8.224 SHOW_FIXTURE=plain-dither SAMPLE_VARS=1 npm run issue332
 //   PIXELBLAZE_IP=192.168.8.224 SHOW_FIXTURE=pattern-crossfade-baseline SAMPLE_VARS=1 npm run issue332
+//   PIXELBLAZE_IP=192.168.8.224 SAMPLE_VARS=1 npm run issue317
 
 import { readFileSync } from 'node:fs'
 import vm from 'node:vm'
@@ -35,7 +36,11 @@ import {
 } from './showRouteTransitionFixtures'
 
 const IP = process.env.PIXELBLAZE_IP ?? '192.168.8.224'
-const DEFAULT_FIXTURE = process.env.npm_lifecycle_event === 'issue332' ? 'pattern-wipe' : 'diagnostic'
+const DEFAULT_FIXTURE = process.env.npm_lifecycle_event === 'issue332'
+  ? 'pattern-wipe'
+  : process.env.npm_lifecycle_event === 'issue317'
+    ? 'zone-repeat'
+    : 'diagnostic'
 const SHOW_FIXTURE = process.env.SHOW_FIXTURE ?? DEFAULT_FIXTURE
 const WATCH_MS = parseInt(process.env.WATCH_MS ?? String(defaultWatchMs(SHOW_FIXTURE)), 10)
 const SAMPLE_VARS = process.env.SAMPLE_VARS === '1'
@@ -69,7 +74,8 @@ function defaultWatchMs(fixture: string): number {
     fixture === 'pattern-wipe' ||
     fixture === 'pattern-dither' ||
     fixture === 'pattern-crossfade-baseline' ||
-    fixture === 'pattern-decimate'
+    fixture === 'pattern-decimate' ||
+    fixture === 'zone-repeat'
   ) {
     return 12000
   }
@@ -350,9 +356,51 @@ export function render(index) {
 `
 }
 
+function zoneRepeatClip(): string {
+  return `
+export var t = 0
+export var calls = 0
+export var last = 0
+export var seenPixelCount = 0
+
+export function beforeRender(delta) {
+  last = calls
+  calls = 0
+  t = t + delta * 0.001
+  seenPixelCount = pixelCount
+}
+
+export function render(index) {
+  calls = calls + 1
+  var x = index / pixelCount
+  var sweep = wave(t * 0.8 + x * 2)
+  rgb(x, sweep, 1 - x)
+}
+`
+}
+
 function buildFixtureSource(fixture: string): FixtureSource {
   const routeTransitionFixture = buildRouteTransitionFixtureSource(fixture)
   if (routeTransitionFixture) return routeTransitionFixture
+
+  if (fixture === 'zone-repeat') {
+    const source = zoneRepeatClip()
+    const artifact = compileShow({
+      zones: [
+        { id: 'left-half', name: 'left-half', ranges: [{ start: 0, end: 127 }] },
+        { id: 'right-half', name: 'right-half', ranges: [{ start: 128, end: 255 }] },
+      ],
+      clips: [
+        { id: 'left-repeat', zone: 'left-half', source },
+        { id: 'right-repeat', zone: 'right-half', source },
+      ],
+    }, {})
+    return {
+      source: artifact.code,
+      description: 'zone route: the same pattern is compiled into two half-strip zones with zone-local index/pixelCount, so both halves repeat the same animation',
+      sourceLabel: `Generated #317 routed Show source: ${artifact.summary.artifactBytes} bytes (${(artifact.summary.artifactBudgetRatio * 100).toFixed(1)}% of ${artifact.summary.measuredDeviceBudgetBytes}); warnings=${artifact.summary.warnings.length}`,
+    }
+  }
 
   if (fixture === 'stock') {
     const artifact = compileShow({
@@ -410,7 +458,7 @@ function buildFixtureSource(fixture: string): FixtureSource {
   }
 
   if (fixture !== 'diagnostic') {
-    throw new Error(`unknown SHOW_FIXTURE=${fixture}; expected diagnostic, direct-fade, pulse-fade, time-fade, delta-ms-fade, capture-fade, stock, or one of: ${routeTransitionFixtureList()}`)
+    throw new Error(`unknown SHOW_FIXTURE=${fixture}; expected diagnostic, direct-fade, pulse-fade, time-fade, delta-ms-fade, capture-fade, stock, zone-repeat, or one of: ${routeTransitionFixtureList()}`)
   }
 
   const artifact = compileShow({

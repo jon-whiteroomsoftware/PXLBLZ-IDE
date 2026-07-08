@@ -1,10 +1,17 @@
 import * as acorn from 'acorn'
 import { bundle, type BundleMetadata } from './bundle'
+import {
+  controllerZonePixelCount,
+  findControllerZoneByName,
+  normalizeControllerZones,
+  type ControllerZone,
+} from './controllerProfile'
 import { emitFixedPoint } from './fxEmit'
 
 export interface ShowClipRecipe {
   id: string
   source: string
+  zone?: string
 }
 
 export interface ShowCrossfadeRecipe {
@@ -14,7 +21,8 @@ export interface ShowCrossfadeRecipe {
 
 export interface ShowRecipe {
   clips: [ShowClipRecipe, ShowClipRecipe]
-  crossfade: ShowCrossfadeRecipe
+  crossfade?: ShowCrossfadeRecipe
+  zones?: ControllerZone[]
 }
 
 export interface ShowCompileClipSummary {
@@ -32,8 +40,9 @@ export interface ShowCompileSummary {
   artifactBytes: number
   measuredDeviceBudgetBytes: number
   artifactBudgetRatio: number
-  renderPolicy: 'steady-active-transition-both'
+  renderPolicy: 'steady-active-transition-both' | 'route-one-renderer-per-pixel'
   clips: ShowCompileClipSummary[]
+  warnings: string[]
 }
 
 export interface GeneratedShowArtifact {
@@ -75,24 +84,32 @@ interface CompiledMember {
   pixelCountName: string
 }
 
+interface ResolvedRoute {
+  member: CompiledMember
+  zone: ControllerZone
+  pixelCount: number
+}
+
 export function compileShow(
   recipe: ShowRecipe,
   libraries: Record<string, string>,
 ): GeneratedShowArtifact {
   validateRecipe(recipe)
   const members = recipe.clips.map((clip, index) => compileMember(clip, index, libraries))
-  const code = emitShowCode(members, recipe.crossfade)
+  const route = buildRoutePlan(members, recipe)
+  const routeMode = route !== null
+  const code = routeMode ? emitRouteShowCode(members, route.routes) : emitShowCode(members, recipe.crossfade!)
   const metadata = buildMetadata(members)
   const sourceBytesBeforeMerge = members.reduce((sum, member) => sum + member.sourceBytes, 0)
   const artifactBytes = byteLength(code)
   const summary: ShowCompileSummary = {
     clipCount: members.length,
-    transitionCount: 1,
+    transitionCount: routeMode ? 0 : 1,
     sourceBytesBeforeMerge,
     artifactBytes,
     measuredDeviceBudgetBytes: MEASURED_DEVICE_BUDGET_BYTES,
     artifactBudgetRatio: artifactBytes / MEASURED_DEVICE_BUDGET_BYTES,
-    renderPolicy: 'steady-active-transition-both',
+    renderPolicy: routeMode ? 'route-one-renderer-per-pixel' : 'steady-active-transition-both',
     clips: members.map(member => ({
       id: member.id,
       prefix: member.prefix,
@@ -100,6 +117,7 @@ export function compileShow(
       renamedBindings: member.renamedBindings,
       renamedPatternVars: member.renamedPatternVars,
     })),
+    warnings: route?.warnings ?? [],
   }
 
   return {
@@ -114,8 +132,15 @@ function validateRecipe(recipe: ShowRecipe): void {
   if (recipe.clips.length !== 2) {
     throw new Error('compileShow v1 requires exactly two clips.')
   }
-  if (recipe.crossfade.durationMs <= 0) {
+  const routeMode = recipe.clips.some((clip) => clip.zone !== undefined)
+  if (!routeMode && !recipe.crossfade) {
+    throw new Error('compileShow requires a crossfade or routed clips.')
+  }
+  if (recipe.crossfade && recipe.crossfade.durationMs <= 0) {
     throw new Error('compileShow requires a positive crossfade duration.')
+  }
+  if (routeMode && !recipe.zones) {
+    throw new Error('compileShow routed clips require controller zones.')
   }
 }
 
@@ -157,6 +182,41 @@ function emitShowCode(members: CompiledMember[], crossfade: ShowCrossfadeRecipe)
     ...members.map(member => member.code.trim()),
     emitScheduler(from, to, crossfade.startMs, transitionEnd, crossfade.durationMs),
     emitRender(from, to),
+    '',
+  ].join('\n\n')
+}
+
+function buildRoutePlan(
+  members: CompiledMember[],
+  recipe: ShowRecipe,
+): { routes: ResolvedRoute[]; warnings: string[] } | null {
+  if (!recipe.clips.some((clip) => clip.zone !== undefined)) return null
+
+  const zones = normalizeControllerZones(recipe.zones ?? [])
+  const warnings: string[] = []
+  const routes: ResolvedRoute[] = []
+  for (const [index, clip] of recipe.clips.entries()) {
+    if (!clip.zone) continue
+    const zone = findControllerZoneByName(zones, clip.zone)
+    if (!zone) {
+      warnings.push(`Clip "${clip.id}" references missing zone "${clip.zone}".`)
+      continue
+    }
+    routes.push({
+      member: members[index],
+      zone,
+      pixelCount: controllerZonePixelCount(zone),
+    })
+  }
+  return { routes, warnings }
+}
+
+function emitRouteShowCode(members: CompiledMember[], routes: ResolvedRoute[]): string {
+  return [
+    emitRuntimePrelude(members),
+    ...members.map(member => member.code.trim()),
+    emitRouteScheduler(routes),
+    emitRouteRender(routes),
     '',
   ].join('\n\n')
 }
@@ -231,6 +291,17 @@ function emitScheduler(
 }`
 }
 
+function emitRouteScheduler(routes: ResolvedRoute[]): string {
+  const lines = routes.flatMap((route) => [
+    `  ${route.member.pixelCountName} = ${route.pixelCount}`,
+    `  ${route.member.prefix}_advance(delta)`,
+  ])
+  return `export function beforeRender(delta) {
+  __pxlblz_show_elapsed_ms = __pxlblz_show_elapsed_ms + delta
+${lines.join('\n')}
+}`
+}
+
 function emitRender(from: CompiledMember, to: CompiledMember): string {
   return `export function render(index) {
   if (__pxlblz_show_phase == 0) {
@@ -256,6 +327,43 @@ function emitRender(from: CompiledMember, to: CompiledMember): string {
     )
   }
 }`
+}
+
+function emitRouteRender(routes: ResolvedRoute[]): string {
+  const blocks = routes.map(emitRouteRenderBlock).join('\n')
+  return `export function render(index) {
+${blocks}
+  rgb(0, 0, 0)
+}`
+}
+
+function emitRouteRenderBlock(route: ResolvedRoute): string {
+  const localName = `${route.member.prefix}_zoneLocalIndex`
+  return [
+    `  var ${localName} = -1`,
+    ...emitZoneLocalAssignments(route.zone, localName),
+    `  if (${localName} >= 0) {`,
+    `    ${route.member.pixelCountName} = ${route.pixelCount}`,
+    `    ${route.member.prefix}_clear()`,
+    route.member.hasRender ? `    ${route.member.renderName}(${localName})` : '',
+    `    ${route.member.prefix}_emit()`,
+    `    return`,
+    `  }`,
+  ].filter(Boolean).join('\n')
+}
+
+function emitZoneLocalAssignments(zone: ControllerZone, localName: string): string[] {
+  const lines: string[] = []
+  let offset = 0
+  for (const range of zone.ranges) {
+    const length = range.end - range.start + 1
+    const assignment = offset === 0
+      ? `index - ${range.start}`
+      : `${offset} + index - ${range.start}`
+    lines.push(`  if (index >= ${range.start} && index <= ${range.end}) ${localName} = ${assignment}`)
+    offset += length
+  }
+  return lines
 }
 
 function buildMetadata(members: CompiledMember[]): BundleMetadata {
