@@ -221,6 +221,11 @@ At compile/push time, show rows bind to Controller zones by name; matched rows u
 the Controller's real ranges and pixel counts, while unmatched rows appear as
 compile-bar warnings rather than silently disappearing.
 
+Cells normally treat each zone row as its own domain. Setting **Span zones** on a
+cell stretches that one pattern across adjacent rows as a single canvas, so a
+gradient or wash can run continuously across multiple physical zones instead of
+restarting inside each one.
+
 Scene-boundary behavior is geometric. A cell that spans scene columns holds: the
 same renderer keeps its time base and phase across the boundary. Two separate
 cells can restart the same source pattern as a fresh instance. When adjacent cells

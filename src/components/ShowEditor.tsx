@@ -40,6 +40,7 @@ export function ShowEditor({ showId }: { showId: string }) {
   const updateCellAdaptations = useShowStore((state) => state.updateCellAdaptations)
   const updateCellPattern = useShowStore((state) => state.updateCellPattern)
   const extendCell = useShowStore((state) => state.extendCell)
+  const spanCellZones = useShowStore((state) => state.spanCellZones)
   const addZone = useShowStore((state) => state.addZone)
   const updateZone = useShowStore((state) => state.updateZone)
   const removeZone = useShowStore((state) => state.removeZone)
@@ -168,6 +169,7 @@ export function ShowEditor({ showId }: { showId: string }) {
                 onUpdatePattern={(patch) => void updateCellPattern(activeShow.id, selectedCell.id, patch)}
                 onUpdateAdaptations={(changes) => void updateCellAdaptations(activeShow.id, selectedCell.id, changes)}
                 onExtend={(sceneSpan) => void extendCell(activeShow.id, selectedCell.id, sceneSpan)}
+                onSpanZones={(zoneSpan) => void spanCellZones(activeShow.id, selectedCell.id, zoneSpan)}
               />
             ) : (
               <InspectorPanel title="Cell">Select a cell in the strip.</InspectorPanel>
@@ -249,12 +251,16 @@ function SceneStrip({
                     ? 'border-live/70 bg-live/10 text-zinc-100'
                     : 'border-zinc-800 bg-zinc-900/50 text-zinc-300 hover:border-zinc-700 hover:bg-zinc-900',
                 ].join(' ')}
-                style={{ gridColumn: `${cell.columnStart} / span ${cell.columnSpan}` }}
+                style={{
+                  gridColumn: `${cell.columnStart} / span ${cell.columnSpan}`,
+                  gridRow: `span ${cell.rowSpan}`,
+                }}
               >
                 <span className="block truncate text-[12px] font-semibold">{cell.patternName}</span>
                 <span className="mt-1 block truncate text-[10px] text-zinc-500">
                   {adaptationSummary(cell)}
                   {cell.sceneSpan > 1 ? ' - hold' : ''}
+                  {(cell.zoneSpan ?? 1) > 1 ? ' - span zones' : ''}
                 </span>
               </button>
             ))}
@@ -321,6 +327,7 @@ function CellInspector({
   onUpdatePattern,
   onUpdateAdaptations,
   onExtend,
+  onSpanZones,
 }: {
   show: ShowRecord
   cell: ShowCell
@@ -328,9 +335,12 @@ function CellInspector({
   onUpdatePattern: (patch: Pick<ShowCell, 'pattern' | 'patternName'>) => void
   onUpdateAdaptations: (changes: Partial<ShowCell['adaptations']>) => void
   onExtend: (sceneSpan: number) => void
+  onSpanZones: (zoneSpan: number) => void
 }) {
   const sceneIndex = show.scenes.findIndex((scene) => scene.id === cell.sceneId)
   const maxSpan = Math.max(1, show.scenes.length - sceneIndex)
+  const zoneIndex = show.zones.findIndex((zone) => zone.id === cell.zoneId)
+  const maxZoneSpan = Math.max(1, show.zones.length - zoneIndex)
   return (
     <InspectorPanel title={`Cell - ${cell.patternName}`}>
       <label className="block text-[10px] uppercase text-zinc-600">
@@ -369,6 +379,19 @@ function CellInspector({
             className={`${field} mt-1 w-full`}
           >
             {Array.from({ length: maxSpan }, (_, index) => index + 1).map((span) => (
+              <option key={span} value={span}>{span}</option>
+            ))}
+          </select>
+        </label>
+        <label className="text-[10px] uppercase text-zinc-600">
+          Span zones
+          <select
+            aria-label="Span zones"
+            value={cell.zoneSpan ?? 1}
+            onChange={(event) => onSpanZones(Number(event.target.value))}
+            className={`${field} mt-1 w-full`}
+          >
+            {Array.from({ length: maxZoneSpan }, (_, index) => index + 1).map((span) => (
               <option key={span} value={span}>{span}</option>
             ))}
           </select>

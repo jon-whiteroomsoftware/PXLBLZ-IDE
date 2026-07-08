@@ -12,6 +12,8 @@ export interface ShowClipRecipe {
   id: string
   source: string
   zone?: string
+  zones?: string[]
+  zoneMode?: 'independent' | 'span'
   adaptation?: Partial<ShowClipAdaptation>
 }
 
@@ -131,49 +133,50 @@ export function compileShow(
   recipe: ShowRecipe,
   libraries: Record<string, string>,
 ): GeneratedShowArtifact {
-  validateRecipe(recipe)
-  const members = recipe.clips.map((clip, index) => compileMember(clip, index, libraries))
-  const route = buildRoutePlan(members, recipe)
+  const expandedRecipe = { ...recipe, clips: expandRouteClips(recipe.clips) }
+  validateRecipe(expandedRecipe)
+  const members = expandedRecipe.clips.map((clip, index) => compileMember(clip, index, libraries))
+  const route = buildRoutePlan(members, expandedRecipe)
   const routeMode = route !== null
   const code = routeMode
     ? emitRouteShowCode(members, route.routes)
-    : recipe.adaptationRamp
-      ? emitAdaptationRampShowCode(members[0], recipe.adaptationRamp)
-      : recipe.cut
-        ? emitCutShowCode(members[0], members[1], recipe.cut)
-        : recipe.routeTransition
-          ? emitRouteTransitionShowCode(members[0], members[1], recipe.routeTransition)
-        : recipe.crossfade
-          ? emitShowCode(members[0], members[1], recipe.crossfade)
+    : expandedRecipe.adaptationRamp
+      ? emitAdaptationRampShowCode(members[0], expandedRecipe.adaptationRamp)
+      : expandedRecipe.cut
+        ? emitCutShowCode(members[0], members[1], expandedRecipe.cut)
+        : expandedRecipe.routeTransition
+          ? emitRouteTransitionShowCode(members[0], members[1], expandedRecipe.routeTransition)
+        : expandedRecipe.crossfade
+          ? emitShowCode(members[0], members[1], expandedRecipe.crossfade)
           : emitSingleClipShowCode(members[0])
   const metadata = buildMetadata(members)
   const sourceBytesBeforeMerge = members.reduce((sum, member) => sum + member.sourceBytes, 0)
   const artifactBytes = byteLength(code)
   const transitionCost = routeMode
     ? 'route'
-    : recipe.crossfade
+    : expandedRecipe.crossfade
       ? 'renderer-window'
-      : recipe.adaptationRamp
+      : expandedRecipe.adaptationRamp
         ? 'parameter'
-        : recipe.routeTransition
+        : expandedRecipe.routeTransition
           ? 'route'
         : 'none'
   const summary: ShowCompileSummary = {
     clipCount: members.length,
-    transitionCount: recipe.crossfade || recipe.cut || recipe.adaptationRamp || recipe.routeTransition ? 1 : 0,
+    transitionCount: expandedRecipe.crossfade || expandedRecipe.cut || expandedRecipe.adaptationRamp || expandedRecipe.routeTransition ? 1 : 0,
     sourceBytesBeforeMerge,
     artifactBytes,
     measuredDeviceBudgetBytes: MEASURED_DEVICE_BUDGET_BYTES,
     artifactBudgetRatio: artifactBytes / MEASURED_DEVICE_BUDGET_BYTES,
     renderPolicy: routeMode
       ? 'route-one-renderer-per-pixel'
-      : recipe.crossfade
+      : expandedRecipe.crossfade
         ? 'steady-active-transition-both'
-        : recipe.cut
+        : expandedRecipe.cut
           ? 'cut-restart'
-        : recipe.adaptationRamp
+        : expandedRecipe.adaptationRamp
           ? 'parameter-ramp-one-renderer-per-pixel'
-          : recipe.routeTransition
+          : expandedRecipe.routeTransition
             ? 'route-transition-one-renderer-per-pixel'
             : 'single-continuous-hold',
     transitionCost,
@@ -197,7 +200,7 @@ export function compileShow(
 }
 
 function validateRecipe(recipe: ShowRecipe): void {
-  const routeMode = recipe.clips.some((clip) => clip.zone !== undefined)
+  const routeMode = recipe.clips.some((clip) => routeTargets(clip).length > 0)
   const boundaryModes = [recipe.crossfade, recipe.cut, recipe.adaptationRamp, recipe.routeTransition].filter(Boolean).length
   if (recipe.clips.length < 1) throw new Error('compileShow requires at least one clip.')
   if (!routeMode && recipe.clips.length > 2) throw new Error('compileShow v1 requires one or two unrouted clips.')
@@ -227,6 +230,25 @@ function validateRecipe(recipe: ShowRecipe): void {
   if (routeMode && !recipe.zones) {
     throw new Error('compileShow routed clips require controller zones.')
   }
+}
+
+function expandRouteClips(clips: ShowClipRecipe[]): ShowClipRecipe[] {
+  return clips.flatMap((clip) => {
+    if (!clip.zones?.length) return [clip]
+    if (clip.zoneMode === 'span') return [clip]
+    return clip.zones.map((zone) => ({
+      ...clip,
+      id: `${clip.id}:${zone}`,
+      zone,
+      zones: undefined,
+      zoneMode: undefined,
+    }))
+  })
+}
+
+function routeTargets(clip: ShowClipRecipe): string[] {
+  if (clip.zones?.length) return clip.zones
+  return clip.zone ? [clip.zone] : []
 }
 
 function compileMember(
@@ -380,18 +402,27 @@ function buildRoutePlan(
   members: CompiledMember[],
   recipe: ShowRecipe,
 ): { routes: ResolvedRoute[]; warnings: string[] } | null {
-  if (!recipe.clips.some((clip) => clip.zone !== undefined)) return null
+  if (!recipe.clips.some((clip) => routeTargets(clip).length > 0)) return null
 
   const zones = normalizeControllerZones(recipe.zones ?? [])
   const warnings: string[] = []
   const routes: ResolvedRoute[] = []
   for (const [index, clip] of recipe.clips.entries()) {
-    if (!clip.zone) continue
-    const zone = findControllerZoneByName(zones, clip.zone)
-    if (!zone) {
-      warnings.push(`Clip "${clip.id}" references missing zone "${clip.zone}".`)
+    const targets = routeTargets(clip)
+    if (targets.length === 0) continue
+    const resolvedZones = targets
+      .map((target) => {
+        const zone = findControllerZoneByName(zones, target)
+        if (!zone) warnings.push(`Clip "${clip.id}" references missing zone "${target}".`)
+        return zone
+      })
+      .filter((zone): zone is ControllerZone => Boolean(zone))
+    if (resolvedZones.length === 0) {
       continue
     }
+    const zone = clip.zoneMode === 'span'
+      ? mergeRouteZones(clip.id, resolvedZones)
+      : resolvedZones[0]
     routes.push({
       member: members[index],
       zone,
@@ -399,6 +430,14 @@ function buildRoutePlan(
     })
   }
   return { routes, warnings }
+}
+
+function mergeRouteZones(id: string, zones: ControllerZone[]): ControllerZone {
+  return {
+    id: `${id}:span`,
+    name: zones.map((zone) => zone.name).join('+'),
+    ranges: zones.flatMap((zone) => zone.ranges.map((range) => ({ start: range.start, end: range.end }))),
+  }
 }
 
 function emitRouteShowCode(members: CompiledMember[], routes: ResolvedRoute[]): string {

@@ -5,6 +5,7 @@ import {
   createDefaultShow,
   extendShowCell,
   removeShowZone,
+  spanShowCellZones,
   updateShowZone,
   updateShowCellAdaptations,
   updateShowCellPattern,
@@ -53,6 +54,7 @@ interface ShowState {
     patch: Pick<ShowCell, 'pattern' | 'patternName'>,
   ) => Promise<void>
   extendCell: (showId: string, cellId: string, sceneSpan: number) => Promise<void>
+  spanCellZones: (showId: string, cellId: string, zoneSpan: number) => Promise<void>
   addZone: (showId: string) => Promise<void>
   updateZone: (showId: string, zoneId: string, changes: Partial<Omit<ShowZone, 'id'>>) => Promise<void>
   removeZone: (showId: string, zoneId: string) => Promise<void>
@@ -163,6 +165,12 @@ export const useShowStore = create<ShowState>()((set, get) => ({
     const show = get().shows.find((item) => item.id === showId)
     if (!show) return
     await get().updateShow(showId, extendShowCell(show, cellId, sceneSpan))
+  },
+
+  spanCellZones: async (showId, cellId, zoneSpan) => {
+    const show = get().shows.find((item) => item.id === showId)
+    if (!show) return
+    await get().updateShow(showId, spanShowCellZones(show, cellId, zoneSpan))
   },
 
   addZone: async (showId) => {

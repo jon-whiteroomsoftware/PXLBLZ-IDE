@@ -93,10 +93,14 @@ describe('showStore (#318)', () => {
       name: 'doorframe',
       nominalPixelCount: 24,
     })
+    await useShowStore.getState().spanCellZones(show.id, show.cells[0].id, 2)
 
     expect(useShowStore.getState().shows[0].zones[1]).toMatchObject({
       name: 'doorframe',
       nominalPixelCount: 24,
+    })
+    expect(useShowStore.getState().shows[0].cells.find((cell) => cell.id === show.cells[0].id)).toMatchObject({
+      zoneSpan: 2,
     })
 
     const seeded = await useShowStore.getState().createShowFromController({

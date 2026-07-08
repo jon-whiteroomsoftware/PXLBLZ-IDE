@@ -335,6 +335,100 @@ export function render(index) {
     })
   })
 
+  it('expands one clip over several zones as independent domains by default', () => {
+    const artifact = compileShow({
+      zones: [
+        { id: 'left', name: 'left', ranges: [{ start: 0, end: 1 }] },
+        { id: 'right', name: 'right', ranges: [{ start: 4, end: 7 }] },
+      ],
+      clips: [
+        {
+          id: 'wash',
+          zones: ['left', 'right'],
+          source: 'export function render(index) { rgb(index, pixelCount, 0) }',
+        },
+      ],
+    }, {})
+
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 8)
+    handle.beforeRender(16)
+
+    handle.render(0)
+    expect(pixel()).toEqual([0, 2, 0])
+    handle.render(1)
+    expect(pixel()).toEqual([1, 2, 0])
+    handle.render(4)
+    expect(pixel()).toEqual([0, 4, 0])
+    handle.render(7)
+    expect(pixel()).toEqual([3, 4, 0])
+    expect(artifact.summary.clips.map((clip) => clip.id)).toEqual(['wash:left', 'wash:right'])
+  })
+
+  it('routes one clip over several zones as one continuous span domain', () => {
+    const artifact = compileShow({
+      zones: [
+        { id: 'left', name: 'left', ranges: [{ start: 0, end: 1 }] },
+        { id: 'right', name: 'right', ranges: [{ start: 4, end: 7 }] },
+      ],
+      clips: [
+        {
+          id: 'wash',
+          zones: ['left', 'right'],
+          zoneMode: 'span',
+          source: 'export function render(index) { rgb(index, pixelCount, 0) }',
+        },
+      ],
+    }, {})
+
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 8)
+    handle.beforeRender(16)
+
+    handle.render(0)
+    expect(pixel()).toEqual([0, 6, 0])
+    handle.render(1)
+    expect(pixel()).toEqual([1, 6, 0])
+    handle.render(4)
+    expect(pixel()).toEqual([2, 6, 0])
+    handle.render(7)
+    expect(pixel()).toEqual([5, 6, 0])
+  })
+
+  it('spans zones when one member zone is itself multi-range', () => {
+    const artifact = compileShow({
+      zones: [
+        {
+          id: 'band',
+          name: 'band',
+          ranges: [
+            { start: 0, end: 1 },
+            { start: 6, end: 7 },
+          ],
+        },
+        { id: 'middle', name: 'middle', ranges: [{ start: 2, end: 5 }] },
+      ],
+      clips: [
+        {
+          id: 'wash',
+          zones: ['band', 'middle'],
+          zoneMode: 'span',
+          source: 'export function render(index) { rgb(index, pixelCount, 0) }',
+        },
+      ],
+    }, {})
+
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 8)
+    handle.beforeRender(16)
+
+    handle.render(0)
+    expect(pixel()).toEqual([0, 8, 0])
+    handle.render(6)
+    expect(pixel()).toEqual([2, 8, 0])
+    handle.render(2)
+    expect(pixel()).toEqual([4, 8, 0])
+    handle.render(5)
+    expect(pixel()).toEqual([7, 8, 0])
+  })
+
   it('reports missing controller zones as compile warnings', () => {
     const artifact = compileShow({
       zones: [{ id: 'left', name: 'left', ranges: [{ start: 0, end: 3 }] }],

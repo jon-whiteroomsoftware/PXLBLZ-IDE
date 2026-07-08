@@ -104,6 +104,13 @@ describe('ShowEditor (#318)', () => {
 
     expect(screen.getByText('Clip "cell-3" references missing zone "doorframe".')).toBeInTheDocument()
 
+    await user.selectOptions(screen.getByLabelText('Span zones'), '2')
+    await waitFor(() => {
+      expect(useShowStore.getState().shows[0].cells.find((cell) => cell.id === 'cell-1')).toMatchObject({
+        zoneSpan: 2,
+      })
+    })
+
     const nameInput = screen.getByLabelText('Zone name doorframe')
     await user.clear(nameInput)
     await user.type(nameInput, 'entry')

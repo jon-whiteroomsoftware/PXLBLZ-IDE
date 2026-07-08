@@ -694,9 +694,12 @@ adjacent same-pattern cells with a non-cut transition emit a parameter ramp
 between the cells' adaptations; separate cells with a cut emit distinct clip
 instances so the second clip gets a fresh virtual time base. A multi-zone Show
 currently emits the first scene's cells as routed clips, one clip per populated
-zone row. Without a target Controller, show-local zones become sequential nominal
-ranges for preview (`0..n-1`, then the next zone after that); with a target,
-compile uses the Controller's real zone ranges and binds clips by zone name. The
+zone row. A cell can also span downward across adjacent zone rows: the compiler
+emits that clip with `zones: [...]` and `zoneMode: 'span'`, so the named zones'
+ordered ranges become one continuous 1D domain. Without a target Controller,
+show-local zones become sequential nominal ranges for preview (`0..n-1`, then
+the next zone after that); with a target, compile uses the Controller's real zone
+ranges and binds clips by zone name. The
 `ShowEditor` component renders the scene strip, cell inspector, transition
 inspector, zone binding panel, compile/budget bar, read-only generated-source
 view, and a run-to-Controller action that compiles the generated source through
@@ -724,11 +727,13 @@ zone; compile binds by zone name, warns in the summary when a show-local zone
 has no matching Controller zone, and emits a single Pixelblaze artifact. Route
 recipes may contain more than two clips because each physical pixel still calls
 at most one member renderer. At render time the route pass tests the global LED
-index against each zone's ordered ranges, computes a continuous zone-local index
-across multi-range zones, sets that member's virtual `pixelCount` to the zone's
-total size, and calls exactly one member renderer for the matching pixel. This
-is the 1D zone-local-coordinate path used by Shows; 2D zone frames and zone
-spanning remain future slices.
+index against each route domain's ordered ranges, computes a continuous
+zone-local index across multi-range zones, sets that member's virtual
+`pixelCount` to the domain's total size, and calls exactly one member renderer
+for the matching pixel. Multi-zone clips default to independent domains by
+expanding into one member instance per named zone; `zoneMode: 'span'` keeps one
+member and merges the zones into a single canvas. This is the 1D
+zone-local-coordinate path used by Shows; 2D zone frames remain a future slice.
 
 `PatternRecord` carries the per-pattern overrides in a sparse
 `settings?: Partial<Settings>` field — superseding older flat columns;

@@ -25,6 +25,7 @@ export interface ShowStripCellProjection extends ShowCell {
   sceneIndex: number
   columnStart: number
   columnSpan: number
+  rowSpan: number
 }
 
 export interface ShowStripRowProjection {
@@ -142,6 +143,7 @@ export function projectShowStrip(show: ShowRecord): ShowStripProjection {
             sceneIndex: index,
             columnStart: sceneToGridColumn(index),
             columnSpan: Math.max(1, cell.sceneSpan * 2 - 1),
+            rowSpan: Math.max(1, cell.zoneSpan ?? 1),
           }
         })
         .sort((a, b) => a.sceneIndex - b.sceneIndex),
@@ -194,6 +196,24 @@ export function extendShowCell(show: ShowRecord, cellId: string, sceneSpan: numb
     cells: show.cells
       .filter((cell) => cell.id === cellId || cell.zoneId !== target.zoneId || !occupiedSceneIds.has(cell.sceneId))
       .map((cell) => cell.id === cellId ? { ...cell, sceneSpan: nextSpan } : cell),
+    updatedAt: Date.now(),
+  }
+}
+
+export function spanShowCellZones(show: ShowRecord, cellId: string, zoneSpan: number): ShowRecord {
+  const target = show.cells.find((cell) => cell.id === cellId)
+  if (!target) return show
+  const targetZoneIndex = show.zones.findIndex((zone) => zone.id === target.zoneId)
+  if (targetZoneIndex === -1) return show
+  const nextSpan = Math.max(1, Math.min(zoneSpan, show.zones.length - targetZoneIndex))
+  const occupiedZoneIds = new Set(
+    show.zones.slice(targetZoneIndex, targetZoneIndex + nextSpan).map((zone) => zone.id),
+  )
+  return {
+    ...show,
+    cells: show.cells
+      .filter((cell) => cell.id === cellId || cell.sceneId !== target.sceneId || !occupiedZoneIds.has(cell.zoneId))
+      .map((cell) => cell.id === cellId ? { ...cell, zoneSpan: nextSpan } : cell),
     updatedAt: Date.now(),
   }
 }
@@ -350,10 +370,15 @@ function showRecordToRoutedFirstSceneRecipe(
       if (!source) throw new Error(`Show compile requires pattern source for cell "${cell.id}".`)
       const zone = zoneById.get(cell.zoneId)
       if (!zone) throw new Error(`Show compile requires zone for cell "${cell.id}".`)
+      const zoneIndex = show.zones.findIndex((candidate) => candidate.id === cell.zoneId)
+      const zoneSpan = Math.max(1, Math.min(cell.zoneSpan ?? 1, show.zones.length - zoneIndex))
+      const spannedZones = show.zones.slice(zoneIndex, zoneIndex + zoneSpan)
       return {
         id: cell.id,
         source,
-        zone: zone.name,
+        ...(zoneSpan > 1
+          ? { zones: spannedZones.map((spannedZone) => spannedZone.name), zoneMode: 'span' as const }
+          : { zone: zone.name }),
         adaptation: compilerAdaptation(cell.adaptations),
       }
     }),
@@ -453,6 +478,7 @@ function defaultCell(id: string, zoneId: string, sceneId: string, sceneIndex: nu
     zoneId,
     sceneId,
     sceneSpan: 1,
+    zoneSpan: 1,
     pattern: { kind: 'stock', id: sceneIndex === 0 ? 'TestPattern1D' : 'CometLoom' },
     patternName: sceneIndex === 0 ? 'TestPattern1D' : 'CometLoom',
     adaptations: { ...DEFAULT_ADAPTATIONS },

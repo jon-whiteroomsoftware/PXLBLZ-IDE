@@ -84,6 +84,7 @@ export interface ShowCell {
   zoneId: string
   sceneId: string
   sceneSpan: number
+  zoneSpan?: number
   pattern: ShowPatternRef
   patternName: string
   adaptations: ShowCellAdaptations

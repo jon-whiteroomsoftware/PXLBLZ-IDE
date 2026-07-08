@@ -6,6 +6,7 @@ import {
   projectShowStrip,
   showLoopDurationMs,
   showRecordToCompileRecipe,
+  spanShowCellZones,
   updateShowCellAdaptations,
   updateShowCellPattern,
   updateShowScene,
@@ -247,5 +248,31 @@ describe('showModel (#318)', () => {
       ['arch-right', 120],
     ])
     expect(seeded.cells.filter((cell) => cell.sceneId === 'scene-1')).toHaveLength(2)
+  })
+
+  it('emits a spanned zone cell as one-canvas route targets', () => {
+    const show = addShowZone(createDefaultShow('show-1', 'Untitled Show'), {
+      name: 'doorframe',
+      nominalPixelCount: 12,
+    })
+    const spanned = spanShowCellZones(show, 'cell-1', 2)
+    const strip = projectShowStrip(spanned)
+    const firstCell = strip.rows[0].cells[0]
+    expect(firstCell.rowSpan).toBe(2)
+    expect(spanned.cells.some((cell) => cell.id === 'cell-3')).toBe(false)
+
+    const recipe = showRecordToCompileRecipe(spanned, {
+      byCellId: {
+        'cell-1': DEMOS.TestPattern1D,
+      },
+    })
+
+    expect(recipe.clips).toEqual([
+      expect.objectContaining({
+        id: 'cell-1',
+        zones: ['main', 'doorframe'],
+        zoneMode: 'span',
+      }),
+    ])
   })
 })
