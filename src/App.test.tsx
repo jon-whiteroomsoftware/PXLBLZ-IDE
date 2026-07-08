@@ -7,6 +7,11 @@ import { useWorkspaceStore, workspaceInitialState } from '@/store/workspaceStore
 import { usePatternStore, patternInitialState, type PatternRecord } from '@/store/patternStore'
 import { useDocsStore, docsInitialState } from '@/store/docsStore'
 import { controllerInitialState, useControllerStore } from '@/store/controllerStore'
+import {
+  controllerProfileInitialState,
+  useControllerProfileStore,
+  type ControllerProfile,
+} from '@/store/controllerProfileStore'
 import { pendingGalleryCloneKey } from '@/engine/galleryClone'
 
 // Hold the startup auth probe pending so the smoke tests exercise the studio
@@ -24,6 +29,7 @@ beforeEach(() => {
   usePatternStore.setState(patternInitialState)
   useDocsStore.setState(docsInitialState)
   useControllerStore.setState(controllerInitialState)
+  useControllerProfileStore.setState(controllerProfileInitialState)
 })
 
 afterEach(() => {
@@ -43,6 +49,9 @@ function stubRemotePatterns(patterns: PatternRecord[] = []) {
     }
     if (path === '/api/maps' && init?.method === undefined) {
       return Response.json({ maps: [] })
+    }
+    if (path === '/api/controllers' && init?.method === undefined) {
+      return Response.json({ controllers: [] })
     }
     if (path.startsWith('/api/settings/') && init?.method === undefined) {
       return Response.json({})
@@ -110,6 +119,21 @@ describe('routing (#308)', () => {
     name: 'Deep Linked',
     src: 'export function render(index) {}',
     controls: {},
+    updatedAt: 1,
+  }
+  const controllerProfile: ControllerProfile = {
+    id: 'ctrl-1',
+    name: 'Burner bag',
+    deviceId: 'pixelblaze_pb32_3cd4ee549434',
+    lastKnownDeviceName: 'Pixelblaze shelf',
+    lastSeenIp: '192.168.8.224',
+    lastKnownPixelCount: 256,
+    lastKnownMapDim: 2,
+    board: { kind: 'pixelblaze-v3-standard' },
+    inputs: [],
+    globalTransforms: [],
+    patternBindings: [],
+    zones: [],
     updatedAt: 1,
   }
 
@@ -190,6 +214,22 @@ describe('routing (#308)', () => {
     usePatternStore.setState({ userPatterns: [record], patternsLoaded: true })
     render(<App />)
     expect(screen.getByTestId('route-message')).toHaveTextContent('Pattern not found')
+  })
+
+  it('opens a controller profile addressed by /studio/controllers/<id>', () => {
+    window.history.replaceState(null, '', '/studio/controllers/ctrl-1')
+    useWorkspaceStore.setState({
+      personalWorkspaceAuthenticated: true,
+      personalWorkspaceResolved: true,
+    })
+    useControllerProfileStore.setState({
+      profiles: [controllerProfile],
+      profilesLoaded: true,
+    })
+    render(<App />)
+
+    expect(screen.getByTestId('controller-profile-page')).toHaveTextContent('Pixelblaze shelf')
+    expect(screen.getByTestId('editor-pane')).toHaveTextContent('Burner bag')
   })
 
   it('shows a graceful message for unknown paths', () => {

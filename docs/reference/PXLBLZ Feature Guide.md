@@ -78,8 +78,9 @@ function, and the device's own web UI remains the place for device management.
 - **Header** — the PXLBLZ wordmark and the **Libraries** menu on the left
   (authoring reference); the **Controller** connection surface on the right
   (hardware).
-- **Left rail** — your patterns and maps, plus Built-in Patterns and Stock Maps,
-  with a dimension filter and name search (§10).
+- **Left rail** — your patterns, maps, and controller profiles. Patterns and
+  Maps include the dimension filter and name search; Controllers opens durable
+  hardware profile pages (§10).
 - **Editor pane** (centre) — Monaco, in pattern mode or map mode (§9).
 - **Preview pane** (right) — the animated canvas, a play/pause transport row, and
   the **control deck** below it: device-like settings, preview-only viewing
@@ -196,6 +197,10 @@ through it. Then:
 - **Mirror and drive it live**: a panel shows the active pattern, brightness,
   pixel count, installed map size, and FPS, with the running pattern's controls
   draggable in real time.
+- **Keep a Controller profile** in the left rail: a durable record for that
+  physical controller's identity, inputs, global transforms, pattern bindings,
+  zones, and last-known hardware status. The profile page is offline-editable;
+  live brightness and running-pattern controls stay in the top-right panel.
 - **Send to Controller** compiles the open pattern with the device's own compiler
   and pushes it — transiently (**Run**) or into the device's Saved Patterns
   (**Save**).

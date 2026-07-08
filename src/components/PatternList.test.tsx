@@ -5,6 +5,11 @@ import { PatternList } from './PatternList'
 import { useEditorStore, editorInitialState } from '@/store/editorStore'
 import { usePatternStore, patternInitialState } from '@/store/patternStore'
 import { useMapStore, mapInitialState, type MapRecord } from '@/store/mapStore'
+import {
+  controllerProfileInitialState,
+  useControllerProfileStore,
+  type ControllerProfile,
+} from '@/store/controllerProfileStore'
 import { useWorkspaceStore, workspaceInitialState } from '@/store/workspaceStore'
 import { DEMOS } from '@/pixelblaze/stock/patterns'
 import { getAuthSession } from '@/engine/authSession'
@@ -17,11 +22,13 @@ vi.mock('@/engine/authSession', () => ({
 const SEED_PATTERN = { id: 'seed-1', name: 'Seed Pattern', src: '// seed', controls: {}, updatedAt: 0 }
 
 let mockMaps: MapRecord[] = []
+let mockControllers: ControllerProfile[] = []
 let requests: Array<{ url: string; init?: RequestInit }> = []
 
 beforeEach(() => {
   vi.clearAllMocks()
   mockMaps = []
+  mockControllers = []
   requests = []
   vi.mocked(getAuthSession).mockResolvedValue({
     authenticated: true,
@@ -52,6 +59,9 @@ beforeEach(() => {
     if (String(url) === '/api/maps' && init?.method === undefined) {
       return Response.json({ maps: mockMaps })
     }
+    if (String(url) === '/api/controllers' && init?.method === undefined) {
+      return Response.json({ controllers: mockControllers })
+    }
     if (String(url).startsWith('/api/settings/') && init?.method === undefined) {
       return Response.json({})
     }
@@ -60,6 +70,7 @@ beforeEach(() => {
   useEditorStore.setState(editorInitialState)
   usePatternStore.setState(patternInitialState)
   useMapStore.setState(mapInitialState)
+  useControllerProfileStore.setState(controllerProfileInitialState)
   useWorkspaceStore.setState(workspaceInitialState)
   useRouterStore.setState(routerInitialState)
   window.history.replaceState(null, '', '/studio')
@@ -76,6 +87,18 @@ const CUSTOM_MAP: MapRecord = {
   generator: 'custom',
   params: {},
   points: [[0.1, 0.2, 0.3]],
+  updatedAt: 1000,
+}
+
+const CONTROLLER_PROFILE: ControllerProfile = {
+  id: 'ctrl-1',
+  name: 'Burner bag',
+  deviceId: 'pixelblaze_pb32_3cd4ee549434',
+  board: { kind: 'pixelblaze-v3-standard' },
+  inputs: [],
+  globalTransforms: [],
+  patternBindings: [],
+  zones: [],
   updatedAt: 1000,
 }
 
@@ -138,6 +161,17 @@ describe('PatternList', () => {
     render(<PatternList />)
     await switchToMaps(user)
     expect(await screen.findByText('My Tree')).toBeInTheDocument()
+  })
+
+  it('lists durable controller profiles under Controllers', async () => {
+    mockControllers = [CONTROLLER_PROFILE]
+    const user = userEvent.setup()
+    render(<PatternList />)
+
+    await user.click(screen.getByRole('radio', { name: 'Controllers' }))
+
+    expect(await screen.findByText('Burner bag')).toBeInTheDocument()
+    expect(screen.queryByRole('textbox', { name: /search by name/i })).not.toBeInTheDocument()
   })
 
   it('keeps stock maps out of the rail and points to the Catalog', async () => {

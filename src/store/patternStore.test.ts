@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { usePatternStore, patternInitialState, activePushKey } from './patternStore'
 import type { PatternRecord } from '@/engine/personalContentRecords'
+import type { ControllerProfile } from '@/engine/controllerProfile'
 import {
   resetPersonalContentProvider,
   setPersonalContentProvider,
@@ -10,6 +11,7 @@ import type { Settings } from '@/engine/settings'
 
 function memoryProvider(): PersonalContentProvider {
   const patterns = new Map<string, PatternRecord>()
+  const controllers = new Map<string, ControllerProfile>()
   let demoOverrides: Record<string, Partial<Settings>> | undefined
   return {
     id: 'memory-test',
@@ -29,6 +31,17 @@ function memoryProvider(): PersonalContentProvider {
     createMap: async () => {},
     updateMap: async () => {},
     deleteMap: async () => {},
+    listControllerProfiles: async () => [...controllers.values()],
+    createControllerProfile: async (profile) => {
+      controllers.set(profile.id, profile)
+    },
+    updateControllerProfile: async (id, changes) => {
+      const existing = controllers.get(id)
+      if (existing) controllers.set(id, { ...existing, ...changes })
+    },
+    deleteControllerProfile: async (id) => {
+      controllers.delete(id)
+    },
     getLastActive: async () => undefined,
     setLastActive: async () => {},
     getDemoOverrides: async () => demoOverrides,
@@ -104,6 +117,10 @@ describe('patternStore', () => {
       createMap: async () => {},
       updateMap: async () => {},
       deleteMap: async () => {},
+      listControllerProfiles: async () => [],
+      createControllerProfile: async () => {},
+      updateControllerProfile: async () => {},
+      deleteControllerProfile: async () => {},
       getLastActive: async () => undefined,
       setLastActive: async () => {},
       getDemoOverrides: async () => undefined,

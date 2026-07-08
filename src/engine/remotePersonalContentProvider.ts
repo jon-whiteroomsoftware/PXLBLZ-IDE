@@ -6,6 +6,7 @@ import {
 } from './personalContentProvider'
 import type { Settings } from './settings'
 import type { MapRecord, PatternRecord } from './personalContentRecords'
+import type { ControllerProfile } from './controllerProfile'
 
 export interface RemotePersonalContentProviderOptions {
   fetcher?: typeof fetch
@@ -62,6 +63,29 @@ export function createRemotePersonalContentProvider(
     },
     deleteMap: async (id) => {
       await requestJson(fetcher, `/api/maps/${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+      })
+    },
+    listControllerProfiles: async () => {
+      const body = await requestJson<{ controllers: ControllerProfile[] }>(fetcher, '/api/controllers')
+      return body.controllers
+    },
+    createControllerProfile: async (profile) => {
+      await requestJson(fetcher, '/api/controllers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(profile),
+      })
+    },
+    updateControllerProfile: async (id, changes) => {
+      await requestJson(fetcher, `/api/controllers/${encodeURIComponent(id)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(changes),
+      })
+    },
+    deleteControllerProfile: async (id) => {
+      await requestJson(fetcher, `/api/controllers/${encodeURIComponent(id)}`, {
         method: 'DELETE',
       })
     },

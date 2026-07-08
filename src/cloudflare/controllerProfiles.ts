@@ -26,6 +26,8 @@ export interface D1ControllerProfileRow {
   device_id: string | null
   last_known_device_name: string | null
   last_seen_ip: string | null
+  last_known_pixel_count: number | null
+  last_known_map_dim: number | null
   board_json: string
   inputs_json: string
   global_transforms_json: string
@@ -43,6 +45,10 @@ export function controllerProfileFromRow(row: D1ControllerProfileRow): Controlle
     ...(row.device_id ? { deviceId: row.device_id } : {}),
     ...(row.last_known_device_name ? { lastKnownDeviceName: row.last_known_device_name } : {}),
     ...(row.last_seen_ip ? { lastSeenIp: row.last_seen_ip } : {}),
+    ...(typeof row.last_known_pixel_count === 'number' ? { lastKnownPixelCount: row.last_known_pixel_count } : {}),
+    ...(row.last_known_map_dim === 1 || row.last_known_map_dim === 2 || row.last_known_map_dim === 3
+      ? { lastKnownMapDim: row.last_known_map_dim }
+      : {}),
     board: parseJson<ControllerBoardProfile>(row.board_json),
     inputs: parseJson<ControllerInput[]>(row.inputs_json),
     globalTransforms: parseJson<GlobalTransform[]>(row.global_transforms_json),
@@ -59,7 +65,8 @@ export async function listD1ControllerProfiles(
   const { results } = await db
     .prepare(`
       SELECT id, name, device_id, board_json, inputs_json, global_transforms_json,
-             pattern_bindings_json, zones_json, last_known_device_name, last_seen_ip, updated_at
+             pattern_bindings_json, zones_json, last_known_device_name, last_seen_ip,
+             last_known_pixel_count, last_known_map_dim, updated_at
       FROM controller_profiles
       WHERE user_id = ?
       ORDER BY updated_at DESC
@@ -77,7 +84,8 @@ export async function getD1ControllerProfile(
   const row = await db
     .prepare(`
       SELECT id, name, device_id, board_json, inputs_json, global_transforms_json,
-             pattern_bindings_json, zones_json, last_known_device_name, last_seen_ip, updated_at
+             pattern_bindings_json, zones_json, last_known_device_name, last_seen_ip,
+             last_known_pixel_count, last_known_map_dim, updated_at
       FROM controller_profiles
       WHERE user_id = ? AND id = ?
       LIMIT 1
@@ -98,11 +106,11 @@ export async function createD1ControllerProfile(
     .prepare(`
       INSERT INTO controller_profiles (
         user_id, id, name, device_id, last_known_device_name, last_seen_ip,
-        board_json, inputs_json,
+        last_known_pixel_count, last_known_map_dim, board_json, inputs_json,
         global_transforms_json, pattern_bindings_json, zones_json,
         created_at, updated_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
     .bind(
       userId,
@@ -111,6 +119,8 @@ export async function createD1ControllerProfile(
       profile.deviceId ?? null,
       profile.lastKnownDeviceName ?? null,
       profile.lastSeenIp ?? null,
+      profile.lastKnownPixelCount ?? null,
+      profile.lastKnownMapDim ?? null,
       JSON.stringify(profile.board),
       JSON.stringify(profile.inputs),
       JSON.stringify(profile.globalTransforms),
@@ -134,6 +144,8 @@ export async function updateD1ControllerProfile(
   addAssignment(assignments, values, 'device_id', changes.deviceId ?? null, false, changes.deviceId !== undefined)
   addAssignment(assignments, values, 'last_known_device_name', changes.lastKnownDeviceName ?? null, false, changes.lastKnownDeviceName !== undefined)
   addAssignment(assignments, values, 'last_seen_ip', changes.lastSeenIp ?? null, false, changes.lastSeenIp !== undefined)
+  addAssignment(assignments, values, 'last_known_pixel_count', changes.lastKnownPixelCount ?? null, false, changes.lastKnownPixelCount !== undefined)
+  addAssignment(assignments, values, 'last_known_map_dim', changes.lastKnownMapDim ?? null, false, changes.lastKnownMapDim !== undefined)
   addAssignment(assignments, values, 'board_json', changes.board, true)
   addAssignment(assignments, values, 'inputs_json', changes.inputs, true)
   addAssignment(assignments, values, 'global_transforms_json', changes.globalTransforms, true)

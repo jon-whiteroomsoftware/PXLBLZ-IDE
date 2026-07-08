@@ -545,12 +545,16 @@ Controller profiles are offline-editable records for hardware identity,
 board-aware inputs, global transforms, per-pattern bindings, and zones. Their
 pure validator lives in `src/engine/controllerProfile.ts`; it rejects analog
 bindings on non-analog Pixelblaze v3 Standard pins using the ElectroMage GPIO
-findings from the issue #289 spike. Controller push metadata remains a sibling
+findings from the issue #289 spike. Profiles key the physical controller by
+`device_id` when known, and keep mutable convenience fields (`lastKnownDeviceName`,
+`lastSeenIp`, `lastKnownPixelCount`, `lastKnownMapDim`) for the Studio controller
+page's offline status strip. Controller push metadata remains a sibling
 framework-free storage seam: overwrite bindings (`controller-bindings`) and
 program label caches (`controller-program-labels`) call
 `/api/controller-metadata/:key`. All D1 helpers scope list/update/delete
 predicates by the signed session's `userId`. The UI labels personal collections
-as **Patterns** and **Maps** today; Controller profile UI is a later slice.
+as **Patterns**, **Maps**, and **Controllers**; Controllers opens durable profile
+pages, while live hardware controls stay in the top-right Controller surface.
 Signed-out users see sign-in prompts where personal workspace actions would be;
 no browser-local durable workspace is created, and no browser-to-D1 migration is
 attempted or implied.
@@ -697,8 +701,14 @@ unavailable, the provider falls back to helper cloud discovery and matches by
 with `deviceId: null`. The keyed store mirrors `deviceId` in memory only; durable
 metadata belongs on Controller profiles. Profiles keep user-editable `name`
 separate from the Pixelblaze-reported `lastKnownDeviceName`, plus `lastSeenIp`
-as a convenience hint. Future profile-join flows update those fields when the
-same physical Controller reports a new mutable name or IP.
+as a convenience hint. The Studio `Controllers` rail lists durable profiles by
+profile name with a live/idle marker derived from `deviceId`; selecting one opens
+`/studio/controllers/<id>`, a durable profile page for hardware inputs, global
+transforms, per-pattern bindings, zones, and a read-only status strip. That page
+does not own live controls: the active connection controls stay in the top-right
+Controller panel. When the matching physical Controller is connected, the profile
+refresh path updates `lastKnownDeviceName`, `lastSeenIp`, `lastKnownPixelCount`,
+and `lastKnownMapDim`.
 
 ### The in-app surface (status pills, panel)
 

@@ -22,9 +22,11 @@ import {
   setPersonalContentProvider,
   type PersonalContentProvider,
 } from '@/engine/personalContentProvider'
+import type { ControllerProfile } from '@/engine/controllerProfile'
 
 function memoryProvider(): PersonalContentProvider {
   const maps = new Map<string, MapRecord>()
+  const controllers = new Map<string, ControllerProfile>()
   return {
     id: 'memory-test',
     listPatterns: async () => [],
@@ -42,6 +44,18 @@ function memoryProvider(): PersonalContentProvider {
     },
     deleteMap: async (id) => {
       maps.delete(id)
+    },
+    listControllerProfiles: async () => [...controllers.values()],
+    createControllerProfile: async (profile) => {
+      controllers.set(profile.id, profile)
+    },
+    updateControllerProfile: async (id, changes) => {
+      const existing = controllers.get(id)
+      if (!existing) return
+      controllers.set(id, { ...existing, ...changes })
+    },
+    deleteControllerProfile: async (id) => {
+      controllers.delete(id)
     },
     getLastActive: async () => undefined,
     setLastActive: async () => {},

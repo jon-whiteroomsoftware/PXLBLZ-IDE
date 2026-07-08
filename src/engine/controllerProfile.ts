@@ -77,6 +77,10 @@ export interface ControllerProfile {
   lastKnownDeviceName?: string
   /** Last transport IP seen for this physical device. Convenience only, not identity. */
   lastSeenIp?: string
+  /** Last reported pixel count for offline display on the profile page. */
+  lastKnownPixelCount?: number
+  /** Last installed map dimensionality for offline display on the profile page. */
+  lastKnownMapDim?: 1 | 2 | 3
   board: ControllerBoardProfile
   inputs: ControllerInput[]
   globalTransforms: GlobalTransform[]
@@ -137,7 +141,7 @@ export function validateControllerProfile(
   }
 
   for (const transform of profile.globalTransforms) {
-    if (transform.type === 'hardware-brightness' && !inputIds.has(transform.inputId)) {
+    if (transform.type === 'hardware-brightness' && transform.enabled && !inputIds.has(transform.inputId)) {
       errors.push({
         path: `globalTransforms.${transform.id}.inputId`,
         message: `Global transform "${transform.id}" references missing input "${transform.inputId}".`,

@@ -15,6 +15,8 @@ const profile: ControllerProfile = {
   deviceId: 'pixelblaze_pb32_3cd4ee549434',
   lastKnownDeviceName: 'Pixelblaze shelf',
   lastSeenIp: '192.168.8.224',
+  lastKnownPixelCount: 256,
+  lastKnownMapDim: 2,
   board: { kind: 'pixelblaze-v3-standard', hardwareRevision: 3.5, firmwareVersion: '3.67' },
   inputs: [
     {
@@ -91,6 +93,8 @@ describe('D1 controller profile persistence', () => {
       device_id: 'pixelblaze_pb32_3cd4ee549434',
       last_known_device_name: 'Pixelblaze shelf',
       last_seen_ip: '192.168.8.224',
+      last_known_pixel_count: 256,
+      last_known_map_dim: 2,
       board_json: JSON.stringify(profile.board),
       inputs_json: JSON.stringify(profile.inputs),
       global_transforms_json: JSON.stringify(profile.globalTransforms),
@@ -120,6 +124,8 @@ describe('D1 controller profile persistence', () => {
       name: 'Renamed',
       lastKnownDeviceName: 'Renamed on device',
       lastSeenIp: '192.168.8.99',
+      lastKnownPixelCount: 512,
+      lastKnownMapDim: 3,
       updatedAt: 200,
     })
     await deleteD1ControllerProfile(db, 'github:123', 'ctrl-1')
@@ -127,11 +133,17 @@ describe('D1 controller profile persistence', () => {
     expect(calls[0].values.slice(0, 2)).toEqual(['github:123', 'ctrl-1'])
     expect(calls[0].values).toContain('Pixelblaze shelf')
     expect(calls[0].values).toContain('192.168.8.224')
+    expect(calls[0].values).toContain(256)
+    expect(calls[0].values).toContain(2)
     expect(calls[1].sql).toContain('WHERE user_id = ? AND id = ?')
     expect(calls[1].sql).toContain('last_known_device_name = ?')
     expect(calls[1].sql).toContain('last_seen_ip = ?')
+    expect(calls[1].sql).toContain('last_known_pixel_count = ?')
+    expect(calls[1].sql).toContain('last_known_map_dim = ?')
     expect(calls[1].values).toContain('Renamed on device')
     expect(calls[1].values).toContain('192.168.8.99')
+    expect(calls[1].values).toContain(512)
+    expect(calls[1].values).toContain(3)
     expect(calls[1].values.slice(-2)).toEqual(['github:123', 'ctrl-1'])
     expect(calls[2].values).toEqual(['github:123', 'ctrl-1'])
   })

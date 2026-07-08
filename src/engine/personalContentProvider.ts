@@ -1,5 +1,6 @@
 import type { Settings } from './settings'
 import type { MapRecord, PatternRecord } from './personalContentRecords'
+import type { ControllerProfile } from './controllerProfile'
 import { createRemotePersonalContentProvider } from './remotePersonalContentProvider'
 
 export const LAST_ACTIVE_KEY = 'lastActive'
@@ -11,7 +12,7 @@ export type LastActive =
   | { type: 'demo'; name: string }
 
 export type PersonalContentStorageMode = 'demo' | 'api'
-export type PersonalContentCollection = 'patterns' | 'maps'
+export type PersonalContentCollection = 'patterns' | 'maps' | 'controllers'
 export type PersonalContentProviderMode = 'remote-api'
 
 export interface PersonalContentProvider {
@@ -24,6 +25,10 @@ export interface PersonalContentProvider {
   createMap(record: MapRecord): Promise<void>
   updateMap(id: string, changes: Partial<Omit<MapRecord, 'id'>>): Promise<void>
   deleteMap(id: string): Promise<void>
+  listControllerProfiles(): Promise<ControllerProfile[]>
+  createControllerProfile(profile: ControllerProfile): Promise<void>
+  updateControllerProfile(id: string, changes: Partial<Omit<ControllerProfile, 'id'>>): Promise<void>
+  deleteControllerProfile(id: string): Promise<void>
   getLastActive(): Promise<LastActive | undefined>
   setLastActive(lastActive: LastActive): Promise<void>
   getDemoOverrides(): Promise<Record<string, Partial<Settings>> | undefined>
@@ -41,6 +46,7 @@ export function personalContentCollectionLabel(
   _storageMode: PersonalContentStorageMode,
   collection: PersonalContentCollection,
 ): string {
+  if (collection === 'controllers') return 'Controllers'
   return collection === 'patterns' ? 'Patterns' : 'Maps'
 }
 
@@ -58,6 +64,10 @@ export const demoPersonalContentProvider: PersonalContentProvider = {
   createMap: signInRequired,
   updateMap: signInRequired,
   deleteMap: signInRequired,
+  listControllerProfiles: async () => [],
+  createControllerProfile: signInRequired,
+  updateControllerProfile: signInRequired,
+  deleteControllerProfile: signInRequired,
   getLastActive: async () => undefined,
   setLastActive: async () => {},
   getDemoOverrides: async () => undefined,

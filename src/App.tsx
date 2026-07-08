@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect, useLayoutEffect } from 'react'
-import { Code2, ExternalLink, FileText, Images, Lock, LogIn, Trash2 } from 'lucide-react'
+import { Code2, Cpu, ExternalLink, FileText, Images, Lock, LogIn, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   AlertDialogRoot,
@@ -24,9 +24,11 @@ import { DocsReader } from '@/components/DocsReader'
 import { SendToController } from '@/components/SendToController'
 import { GalleryPage } from '@/components/GalleryPage'
 import { PatternDetailPage } from '@/components/PatternDetailPage'
+import { ControllerProfilePage } from '@/components/ControllerProfilePage'
 import { useControllerStore } from '@/store/controllerStore'
 import { MapModeHeader } from '@/components/MapModeHeader'
 import { usePatternStore, PatternRecord } from '@/store/patternStore'
+import { useControllerProfileStore } from '@/store/controllerProfileStore'
 import { useEditorStore } from '@/store/editorStore'
 import { useDocsStore } from '@/store/docsStore'
 import { useRouterStore } from '@/store/routerStore'
@@ -185,6 +187,8 @@ export default function App() {
   const route = useRouterStore((s) => s.route)
   const navigate = useRouterStore((s) => s.navigate)
   const patternsLoaded = usePatternStore((s) => s.patternsLoaded)
+  const controllerProfiles = useControllerProfileStore((s) => s.profiles)
+  const controllerProfilesLoaded = useControllerProfileStore((s) => s.profilesLoaded)
   const personalWorkspaceResolved = useWorkspaceStore((s) => s.personalWorkspaceResolved)
   const cloneIntentInFlightRef = useRef(false)
   const routeSyncedRef = useRef(false)
@@ -338,6 +342,10 @@ export default function App() {
   const activeFileName =
     activeLibraryName ?? activeDemoName ?? userPatterns.find((p) => p.id === activePatternId)?.name ?? '—'
   const activePattern = activePatternId ? userPatterns.find((p) => p.id === activePatternId) : undefined
+  const activeControllerProfileId =
+    route.kind === 'studio' && route.entity?.kind === 'controllers' ? route.entity.id : null
+  const activeControllerProfile =
+    activeControllerProfileId ? controllerProfiles.find((profile) => profile.id === activeControllerProfileId) : undefined
 
   const handleDeletePattern = useCallback(async () => {
     if (!activePatternId) return
@@ -361,11 +369,13 @@ export default function App() {
   const studioEntityMissing =
     routeEntity !== null &&
     routeEntity.id !== null &&
-    (routeEntity.kind !== 'patterns'
-      ? true
-      : patternsLoaded &&
+    (routeEntity.kind === 'patterns'
+      ? patternsLoaded &&
         activePatternId !== routeEntity.id &&
-        !userPatterns.some((p) => p.id === routeEntity.id))
+        !userPatterns.some((p) => p.id === routeEntity.id)
+      : routeEntity.kind === 'controllers'
+        ? controllerProfilesLoaded && !controllerProfiles.some((profile) => profile.id === routeEntity.id)
+        : true)
   const invalidDocRoute = route.kind === 'docs' && !isDocId(route.docId)
   const browseRoute = route.kind === 'gallery' || route.kind === 'pattern-detail'
   const studioRoute = route.kind === 'studio'
@@ -550,10 +560,18 @@ export default function App() {
         />
       ) : studioEntityMissing ? (
         <RouteMessage
-          title={routeEntity!.kind === 'patterns' ? 'Pattern not found' : 'Not available yet'}
+          title={
+            routeEntity!.kind === 'patterns'
+              ? 'Pattern not found'
+              : routeEntity!.kind === 'controllers'
+                ? 'Controller not found'
+                : 'Not available yet'
+          }
           detail={
             routeEntity!.kind === 'patterns'
               ? `There's no pattern with id "${routeEntity!.id}" in this workspace. It may have been deleted, or the link may belong to a different account.`
+              : routeEntity!.kind === 'controllers'
+                ? `There's no controller profile with id "${routeEntity!.id}" in this workspace. It may have been deleted, or the link may belong to a different account.`
               : `Studio views for ${routeEntity!.kind} aren't built yet.`
           }
           actionLabel="Back to Studio"
@@ -591,6 +609,14 @@ export default function App() {
                   <span className="hidden sm:inline">Open in tab</span>
                 </a>
               </>
+            ) : activeControllerProfileId !== null ? (
+              <span className="flex-1 min-w-0 flex items-center gap-1.5">
+                <Cpu size={14} aria-hidden className="shrink-0 text-zinc-500" />
+                <span className="truncate text-zinc-200">{activeControllerProfile?.name ?? 'Controller profile'}</span>
+                <span className="hidden rounded border border-zinc-700 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-structural sm:inline">
+                  Controller
+                </span>
+              </span>
             ) : editorFlavor === 'map' ? (
               <MapModeHeader />
             ) : (
@@ -661,7 +687,13 @@ export default function App() {
             )}
           </PaneHeader>
           <div className="flex-1 overflow-hidden">
-            {activeDoc ? <DocsReader doc={activeDoc} /> : <Editor />}
+            {activeDoc ? (
+              <DocsReader doc={activeDoc} />
+            ) : activeControllerProfileId !== null ? (
+              <ControllerProfilePage profileId={activeControllerProfileId} />
+            ) : (
+              <Editor />
+            )}
           </div>
         </main>
         <Splitter onDrag={handleRightDrag} />

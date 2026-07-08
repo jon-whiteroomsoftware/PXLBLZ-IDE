@@ -7,6 +7,9 @@ const controllerProfilesMigrationPath = path.resolve('migrations/0003_controller
 const controllerProfileDeviceMetadataMigrationPath = path.resolve(
   'migrations/0004_controller_profile_device_metadata.sql',
 )
+const controllerProfileStatusMetadataMigrationPath = path.resolve(
+  'migrations/0005_controller_profile_status_metadata.sql',
+)
 
 describe('D1 personal storage migration', () => {
   it('creates the storage buckets needed for the Cloudflare personal-storage foundation', () => {
@@ -59,5 +62,13 @@ describe('D1 personal storage migration', () => {
     expect(sql).toContain('ALTER TABLE controller_profiles ADD COLUMN last_known_device_name TEXT')
     expect(sql).toContain('ALTER TABLE controller_profiles ADD COLUMN last_seen_ip TEXT')
     expect(sql).toContain("VALUES ('schema_version', '4', unixepoch())")
+  })
+
+  it('adds last-known controller status metadata to controller profiles', () => {
+    const sql = fs.readFileSync(controllerProfileStatusMetadataMigrationPath, 'utf8')
+
+    expect(sql).toContain('ALTER TABLE controller_profiles ADD COLUMN last_known_pixel_count INTEGER')
+    expect(sql).toContain('ALTER TABLE controller_profiles ADD COLUMN last_known_map_dim INTEGER')
+    expect(sql).toContain("VALUES ('schema_version', '5', unixepoch())")
   })
 })

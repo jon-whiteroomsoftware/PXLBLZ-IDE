@@ -1,6 +1,7 @@
 import {
   createRemotePersonalContentProvider,
 } from './remotePersonalContentProvider'
+import type { ControllerProfile } from './controllerProfile'
 import type { PatternRecord } from './personalContentRecords'
 
 describe('remote personal content provider', () => {
@@ -72,6 +73,46 @@ describe('remote personal content provider', () => {
       ['/api/settings/demoOverrides', 'PUT'],
     ])
     expect(requests[2].init?.body).toBe(JSON.stringify({ name: 'Renamed', gridDims: null, updatedAt: 2 }))
+  })
+
+  it('performs controller profile CRUD through the authenticated API', async () => {
+    const requests: Array<{ url: string; init?: RequestInit }> = []
+    const profile: ControllerProfile = {
+      id: 'ctrl-1',
+      name: 'Burner bag',
+      deviceId: 'pixelblaze_pb32_3cd4ee549434',
+      lastKnownDeviceName: 'Pixelblaze shelf',
+      lastSeenIp: '192.168.8.224',
+      lastKnownPixelCount: 256,
+      lastKnownMapDim: 2,
+      board: { kind: 'pixelblaze-v3-standard' },
+      inputs: [],
+      globalTransforms: [],
+      patternBindings: [],
+      zones: [],
+      updatedAt: 1,
+    }
+    const fetcher: typeof fetch = async (url, init) => {
+      requests.push({ url: String(url), init })
+      if (String(url) === '/api/controllers' && init?.method === undefined) {
+        return Response.json({ controllers: [profile] })
+      }
+      return Response.json({ ok: true })
+    }
+    const provider = createRemotePersonalContentProvider({ fetcher })
+
+    await expect(provider.listControllerProfiles()).resolves.toEqual([profile])
+    await provider.createControllerProfile(profile)
+    await provider.updateControllerProfile('ctrl-1', { lastKnownPixelCount: 512, updatedAt: 2 })
+    await provider.deleteControllerProfile('ctrl-1')
+
+    expect(requests.map((r) => [r.url, r.init?.method ?? 'GET'])).toEqual([
+      ['/api/controllers', 'GET'],
+      ['/api/controllers', 'POST'],
+      ['/api/controllers/ctrl-1', 'PATCH'],
+      ['/api/controllers/ctrl-1', 'DELETE'],
+    ])
+    expect(requests[2].init?.body).toBe(JSON.stringify({ lastKnownPixelCount: 512, updatedAt: 2 }))
   })
 
   it('raises a clear error when the API rejects the request', async () => {

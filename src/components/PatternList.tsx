@@ -36,6 +36,11 @@ import { newPersonalContentId } from '@/engine/personalContentMetadata'
 import { useEditorStore } from '@/store/editorStore'
 import { usePatternStore, PatternRecord } from '@/store/patternStore'
 import { useMapStore, MapRecord } from '@/store/mapStore'
+import { useControllerStore } from '@/store/controllerStore'
+import {
+  profileMatchesLive,
+  useControllerProfileStore,
+} from '@/store/controllerProfileStore'
 import { useDocsStore } from '@/store/docsStore'
 import { useRouterStore } from '@/store/routerStore'
 import { useWorkspaceStore } from '@/store/workspaceStore'
@@ -459,7 +464,7 @@ function EditableListItem({
   onRowKeyDown,
 }: {
   name: string
-  noun: 'pattern' | 'map'
+  noun: 'pattern' | 'map' | 'controller'
   active: boolean
   dim?: string
   takenNames: string[]
@@ -653,6 +658,12 @@ export function PatternList() {
   const createNewMap = useMapStore((s) => s.createNewMap)
   const openExistingMap = useMapStore((s) => s.openExistingMap)
   const closeMapEditor = useMapStore((s) => s.closeMapEditor)
+  const controllerProfiles = useControllerProfileStore((s) => s.profiles)
+  const loadControllerProfiles = useControllerProfileStore((s) => s.loadProfiles)
+  const createControllerProfile = useControllerProfileStore((s) => s.createProfile)
+  const renameControllerProfile = useControllerProfileStore((s) => s.renameProfile)
+  const removeControllerProfile = useControllerProfileStore((s) => s.removeProfile)
+  const liveControllers = useControllerStore((s) => s.controllers)
   const navigate = useRouterStore((s) => s.navigate)
   const route = useRouterStore((s) => s.route)
 
@@ -749,7 +760,7 @@ export function PatternList() {
     const resizeObserver = new ResizeObserver(updateScrollMetrics)
     resizeObserver.observe(el)
     return () => resizeObserver.disconnect()
-  }, [railMode, dimLens, query, userPatterns.length, userMaps.length, collapsedSections])
+  }, [railMode, dimLens, query, userPatterns.length, userMaps.length, controllerProfiles.length, collapsedSections])
 
   useEffect(() => {
     let cancelled = false
@@ -770,6 +781,8 @@ export function PatternList() {
       // Hydrate user maps before the first pattern opens so the layout selector is
       // populated from whichever personal provider won startup selection.
       await useMapStore.getState().loadMaps()
+      if (cancelled) return
+      await loadControllerProfiles()
       if (cancelled) return
       await usePatternStore.getState().loadDemoOverrides()
       if (cancelled) return
@@ -821,7 +834,7 @@ export function PatternList() {
     return () => {
       cancelled = true
     }
-  }, [loadPatterns, setGlobalWorkspaceAuthenticated])
+  }, [loadControllerProfiles, loadPatterns, setGlobalWorkspaceAuthenticated])
 
   function openUserPattern(pattern: PatternRecord) {
     closeMapEditor()
@@ -857,6 +870,27 @@ export function PatternList() {
     openExistingMap(map)
   }
 
+  function openControllerProfile(profileId: string) {
+    closeMapEditor()
+    closeDocs()
+    navigate({ kind: 'studio', entity: { kind: 'controllers', id: profileId } })
+  }
+
+  async function handleCreateControllerProfile() {
+    if (!personalWorkspaceAuthenticated) return
+    const profile = await createControllerProfile({
+      name: uniquePatternName('Untitled Controller', controllerProfiles.map((item) => item.name)),
+    })
+    openControllerProfile(profile.id)
+  }
+
+  async function handleRemoveControllerProfile(profileId: string) {
+    await removeControllerProfile(profileId)
+    if (route.kind === 'studio' && route.entity?.kind === 'controllers' && route.entity.id === profileId) {
+      navigate({ kind: 'studio', entity: { kind: 'controllers', id: null } })
+    }
+  }
+
   // An active name search force-expands every group: a hit inside a collapsed group
   // must still surface (#252 follow-up). The stored collapse state is left untouched,
   // so groups snap back to the user's chosen open/closed layout when the query clears.
@@ -866,6 +900,7 @@ export function PatternList() {
     setCollapsedSections((c) => ({ ...c, [label]: !c[label] }))
   const personalPatternsLabel = personalContentCollectionLabel(personalStorageMode, 'patterns')
   const personalMapsLabel = personalContentCollectionLabel(personalStorageMode, 'maps')
+  const personalControllersLabel = personalContentCollectionLabel(personalStorageMode, 'controllers')
   const visibleUserPatterns = userPatterns.filter(
     (pattern) =>
       matchesLens(nativeDim(pattern.src), dimLens) && matchesQuery(pattern.name, query),
@@ -1062,18 +1097,63 @@ export function PatternList() {
             </div>
           </>
         )}
+        {railMode === 'controllers' && (
+          <>
+            <div className="border-b border-seam px-3 py-2">
+              <div className="text-sm font-semibold text-zinc-200">Controllers</div>
+            </div>
+            <div className="relative flex-1 min-h-0">
+              <div
+                ref={scrollRef}
+                data-testid="controller-list-scroll"
+                onScroll={updateScrollMetrics}
+                className="rail-list-scroll h-full overflow-y-auto overflow-x-hidden pb-2"
+              >
+                <SectionHeader
+                  label={personalControllersLabel}
+                  first
+                  collapsed={isCollapsed(personalControllersLabel)}
+                  onToggle={() => toggleCollapsed(personalControllersLabel)}
+                  action={personalWorkspaceAuthenticated
+                    ? <HeaderAction icon={<Plus size={14} />} title="New controller profile" onClick={handleCreateControllerProfile} />
+                    : null}
+                />
+                {!isCollapsed(personalControllersLabel) && (
+                  !personalWorkspaceAuthenticated ? (
+                    <p className="pl-3 pr-3 py-2 text-zinc-600 italic select-none">
+                      <a href="/api/auth/login" className="text-live hover:underline">Sign in</a>
+                      {' '}to save controllers
+                    </p>
+                  ) : controllerProfiles.length === 0 ? (
+                    <p className="pl-3 pr-3 py-1 text-zinc-600 italic select-none">No controller profiles yet</p>
+                  ) : (
+                    <ul className="pt-2">
+                      {controllerProfiles.map((profile) => (
+                        <EditableListItem
+                          key={profile.id}
+                          name={profile.name}
+                          noun="controller"
+                          active={route.kind === 'studio' && route.entity?.kind === 'controllers' && route.entity.id === profile.id}
+                          dim={profileMatchesLive(profile, liveControllers) ? 'LIVE' : 'IDLE'}
+                          takenNames={controllerProfiles.filter((item) => item.id !== profile.id).map((item) => item.name)}
+                          onSelect={() => openControllerProfile(profile.id)}
+                          onRename={(name) => renameControllerProfile(profile.id, name)}
+                          onDelete={() => void handleRemoveControllerProfile(profile.id)}
+                        />
+                      ))}
+                    </ul>
+                  )
+                )}
+              </div>
+              <RailScrollThumb metrics={scrollMetrics} scrollRef={scrollRef} />
+            </div>
+          </>
+        )}
         {railMode === 'mixins' && (
           <EntityStubList
             title="Mixins"
             label="Mixins"
             detail="Mixin lists land in their own slice. This rail entry is reserved so the v2 Studio navigation can settle first."
-          />
-        )}
-        {railMode === 'controllers' && (
-          <EntityStubList
-            title="Controllers"
-            label="My Controllers"
-            detail="Controller profiles become durable workspace entities in a following slice. Live connection controls stay in the top bar for now."
           />
         )}
         {railMode === 'shows' && (

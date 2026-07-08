@@ -9,6 +9,7 @@ import {
   storageModeForPersonalContentProvider,
   type PersonalContentProvider,
 } from './personalContentProvider'
+import type { ControllerProfile } from './controllerProfile'
 import type { MapRecord, PatternRecord } from './personalContentRecords'
 
 beforeEach(() => {
@@ -18,6 +19,7 @@ beforeEach(() => {
 function memoryProvider(): PersonalContentProvider {
   const patterns = new Map<string, PatternRecord>()
   const maps = new Map<string, MapRecord>()
+  const controllers = new Map<string, ControllerProfile>()
   return {
     id: 'memory-test',
     listPatterns: async () => [...patterns.values()],
@@ -43,6 +45,18 @@ function memoryProvider(): PersonalContentProvider {
     },
     deleteMap: async (id) => {
       maps.delete(id)
+    },
+    listControllerProfiles: async () => [...controllers.values()],
+    createControllerProfile: async (profile) => {
+      controllers.set(profile.id, profile)
+    },
+    updateControllerProfile: async (id, changes) => {
+      const existing = controllers.get(id)
+      if (!existing) throw new Error(`Controller profile ${id} not found`)
+      controllers.set(id, { ...existing, ...changes })
+    },
+    deleteControllerProfile: async (id) => {
+      controllers.delete(id)
     },
     getLastActive: async () => undefined,
     setLastActive: async () => {},
@@ -100,6 +114,7 @@ describe('personal content provider seam', () => {
 
     await expect(demoPersonalContentProvider.listPatterns()).resolves.toEqual([])
     await expect(demoPersonalContentProvider.listMaps()).resolves.toEqual([])
+    await expect(demoPersonalContentProvider.listControllerProfiles()).resolves.toEqual([])
     await expect(demoPersonalContentProvider.getLastActive()).resolves.toBeUndefined()
     await expect(demoPersonalContentProvider.getDemoOverrides()).resolves.toBeUndefined()
     await expect(demoPersonalContentProvider.setLastActive({ type: 'pattern', id: pattern.id })).resolves.toBeUndefined()
@@ -114,5 +129,15 @@ describe('personal content provider seam', () => {
       'Sign in required',
     )
     await expect(demoPersonalContentProvider.deleteMap(map.id)).rejects.toThrow('Sign in required')
+    await expect(demoPersonalContentProvider.createControllerProfile({
+      id: 'ctrl-1',
+      name: 'Controller',
+      board: { kind: 'pixelblaze-v3-standard' },
+      inputs: [],
+      globalTransforms: [],
+      patternBindings: [],
+      zones: [],
+      updatedAt: 1,
+    })).rejects.toThrow('Sign in required')
   })
 })
