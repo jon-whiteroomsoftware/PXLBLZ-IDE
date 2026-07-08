@@ -39,6 +39,43 @@ A Show composes existing patterns into one deployable artifact. Its model:
   anything above the zone map. **Patterns stay zone-ignorant**: a pattern is
   a texture; placement lives in the zone map; zone awareness exists only at
   orchestration level (the Show).
+- **Zone origins** (decided 2026-07-08): zones are deliberately lightweight —
+  named index-range lists, trivially recreatable, **not** a shared first-class
+  entity with referential integrity. They have two origins:
+  **Controller zones** (durable: "this is how the box is physically set up" —
+  the model above, per #317) and **show-local zones** (freestyle authoring: a
+  Show owns its own zone rows — names, order, and a nominal size used only by
+  the preview — so you can invent five or seventeen stages with no controller
+  in sight). **Binding happens at compile/push, by name**: matched zones take
+  their real pixel counts (zone-ignorant patterns plus route re-normalization
+  mean choreography authored against a nominal 60 px zone lands correctly on
+  a real 240 px zone); unmatched zones surface as bind-time warnings on the
+  compile bar, alongside budget honesty. Convenience flows: starting a Show
+  from a controller seeds its zone rows from that controller's map, and a
+  freestyle Show can later save its zones to a controller. (A **preferred
+  map** per Controller wants to exist for similar reasons — noted, parked.)
+- **Editor direction** (decided 2026-07-08): the v1 Show editor is a **scene
+  strip**, not a timeline — scenes as columns, zones as rows, a cell holds a
+  pattern plus its adaptations, and transitions are first-class column
+  separators glyphed by cost. Scene durations plus hold spans are the only
+  time arithmetic v1 exposes. The underlying data model is nonetheless an
+  **arrangement** (clips with start/duration on zone tracks), so the strip is
+  a projection where boundaries happen to align; a zoomable timeline can
+  arrive later as a second view on the same data, no migration. A cell can
+  span rows (**zone spanning**: adjacent zones act as one canvas — one
+  domain — versus two independently re-normalized domains). Design sketches
+  2026-07-08 (scene strip, hold explainer, timeline frame-out, Controller
+  zones card) to be folded into `pxlblz-v2-mockups.html`.
+- **Hold vs restart at scene boundaries** (decided 2026-07-08): never a
+  per-clip setting — it's geometry. A cell spanning a boundary **holds**: the
+  clip keeps playing with phase intact and the compiler emits nothing for
+  that zone at the boundary. Two separate cells **restart** (second instance,
+  fresh time base). When adjacent scenes hold the same pattern the default is
+  to keep playing undisturbed, and a transition placed on that boundary
+  compiles to an **adaptation ramp** over the continuous clip — palette,
+  brightness, mirror, phase parameters interpolate across the transition
+  window while one renderer runs, phase undisturbed. Same-pattern transitions
+  are therefore parameter-cheap and never open a 2-renderer window.
 - **Compilation**: a Show compiles to a single generated Pixelblaze pattern
   via the pass engine (route + blend + intercept passes over alpha-renamed
   members). **Time-slicing is the default emission strategy**: steady-state
@@ -81,8 +118,8 @@ A Show composes existing patterns into one deployable artifact. Its model:
   debugging affordance as soon as zone maps exist, before any Show does.
 - **v1 slice**: two clips + one crossfade on a single zone, compiled and
   verified on hardware (#316). Segment routing to named zones is the second
-  slice (#317). Show editor v1 (zone timeline, clip inspector, budget bar) is
-  #318.
+  slice (#317). Show editor v1 (scene strip, clip inspector, compile/budget
+  bar) is #318.
 - **Deferred**: the fluent/Strudel-style composition DSL (the recipe IR is the
   v1 authoring format, edited through the Show editor UI); low-resolution wash
   sampling; the geometric pattern language; a read-only `zoneIndex`/`zoneCount`
@@ -129,7 +166,96 @@ A Show composes existing patterns into one deployable artifact. Its model:
    summary is a placeholder (call-site count); Shows' budget bar needs it
    grounded in the perf-spike measurements and able to distinguish parameter
    automation, domain transforms, output interception, and multi-render
-   composition.
+   composition. The model should track three axes, not one: **cycles**
+   (per-frame vs per-pixel vs per-output-call, crediting `beforeRender`
+   hoisting of frame-invariant setup), **memory** (arrays are a separate hard
+   budget), and **code size / exported-control count** (the clips-per-show
+   ceiling). It should also admit **negative-cost adaptations** (decimation,
+   interlacing, hold buffers — see the ideas ladder below), which buy budget
+   rather than spend it.
+
+### Automation & adaptation ideas ladder (recorded 2026-07-08)
+
+An ideation pass over what Shows can automate, ordered from most tactical
+(cheap, near-term, likely to shape v1.x) to most speculative. Nothing here is
+a v2 commitment beyond what §1 already specifies; it is recorded so the cost
+model, pass taxonomy, and Show editor leave room for these directions.
+
+**Pass 1 — tactical, biggest bang for the buck:**
+
+- **Clip time-base control.** Every pattern consumes `delta`/`time()`, so
+  scaling or warping the clock a clip sees is a universal tier-1 lever —
+  speed ramps, slow-motion, freeze-frame, stutter/strobe — that works even on
+  patterns exporting no controls. One multiply per frame. (The synthetic
+  preview already has a speed control; this is its on-device analogue.)
+- **Per-zone time offset (canon).** The same clip in every zone with
+  staggered clocks — a musical round, symmetric choreography — with no second
+  renderer.
+- **Clip-relative progress.** Expose `clipTime`/`clipProgress` (0→1 over the
+  clip's duration) as a modulation source, making entry/exit envelopes
+  trivial: intensity attack on entry, dim-and-desaturate outro that lands
+  exactly on the cut.
+- **Wipes and dither dissolves repriced as route transitions.** A wipe
+  animates the route boundary so each pixel runs exactly one renderer; a
+  dither dissolve hashes `index` against an animated threshold. Both cost
+  steady-state plus a comparison, versus a crossfade's both-renderers window.
+  Given the #314 finding that both-running is much slower than time-sliced,
+  wipe/dither may deserve to ship before (or immediately after) crossfade.
+- **Amortized wrapper stack.** The output wrapper's per-call cost (#314) is
+  fixed, so one intercepted `hsv` should host the whole scalar stack — hue
+  shift + saturation scale + brightness envelope + power accumulation. The
+  cost model charges the wrapper once, then near-zero per additional op.
+
+**Pass 2 — clear value, modest engine work:**
+
+- **Modulation sources** for parameter automation: LFOs (`wave()` is right
+  there), perlin drift for organic wander, sample-and-hold, envelopes
+  triggered at clip boundaries.
+- **Animated domain transforms.** Scroll/translate, rotation, zoom,
+  kaleidoscope folds, polar wrap (any linear pattern becomes radial),
+  wave-warp distortion, jitter. Their parameters (angle, zoom, offset) are
+  per-frame scalars — i.e. tier-1 automatable — and frame-invariant setup
+  (sin/cos) hoists into `beforeRender`. Animated domain transforms are the
+  cheap route to Ken Burns-style motion over any static pattern
+  (~1–2 ops/pixel).
+- **Show-wide buses.** One macro knob or LFO fanned out to corresponding
+  controls across all clips ("global energy"); "night mode" as a bus =
+  schedule-driven color-temperature shift + brightness cap + speed reduction.
+- **Negative-cost adaptations** as first-class citizens: decimation (N pixels
+  share one evaluation — a chunky pixelated look *and* an N× cost cut),
+  interlacing (evaluate half the pixels per frame), per-clip frame-rate caps,
+  and freeze-a-zone hold buffers (an array traded for near-zero steady-state
+  cost). These are what let an ambitious show fit the device.
+
+**Pass 3 — valuable, more speculative (memory- and sensor-dependent):**
+
+- **Snapshot crossfade.** Capture the outgoing clip's last frame to an array
+  and fade from the static snapshot while only the incoming renderer runs
+  live — one live renderer during the transition window, memory traded for
+  cycles.
+- **Trails intercept.** One output wrapper with a decay buffer
+  (`out[i] = max(new, old*k)`) gives any pattern motion blur, comets, and
+  paint/hold modes — probably the highest-value tier-4 adaptation after power
+  limiting. Mind the firmware array constraints.
+- **Sensor/live-driven modulation.** Sensor-board inputs (energy, FFT bands,
+  accelerometer), time-of-day schedules, and a small live `setVars` control
+  surface over the websocket. Beat-quantized transitions fall out of the
+  shared merged time base: quantize cut triggers to `time()` phase
+  boundaries so cuts land on the bar.
+- **Sparse overlays.** Overlays costed by coverage (pixels touched), not
+  presence — a scanner sweep or beat flash over a base clip is cheap
+  composition.
+
+**Pass 4 — wildly speculative:**
+
+- **Cross-pattern modulation routing.** Because a Show compiles to one
+  artifact with alpha-renamed globals, pattern A's exported state is readable
+  by pattern B's bindings — patch-cable modulation (A's energy drives B's
+  hue) that separate-pattern playlist systems categorically cannot do.
+  Architecturally cheap, hard to surface in UI, easy to defer.
+- **A full modulation matrix / automation-curve editor** in the Show editor.
+- **Generative show composition** — rules or constraints choosing clips and
+  adaptations — several rungs above the already-deferred fluent DSL.
 
 ## 2. Unfinished corners of shipped surfaces
 
@@ -236,7 +362,11 @@ to the Cloudflare deployment waits until this arc is finished.
 1. Maps context pane (#330) · #322 analytics — independent, any order.
 2. #315 renaming design note → route/blend passes → #314 perf spikes feed the
    cost model.
-3. #316 show compile vertical → #317 segment routing → #318 Show editor v1 →
-   #319 built-in mixin pack.
+3. #316 show compile vertical → #317 segment routing → #318 Show editor v1
+   (scene strip) → #319 built-in mixin pack.
+4. Off the #316/#317 trunk, in rough value order: #335 hold spans &
+   adaptation ramps and #334 wipe/dither transitions (both compiler-side,
+   blocked by #316); #337 per-zone preview strips and #336 zone spanning
+   (blocked by #317); #333 show-local zones (blocked by #317 + #318).
 
 Each step leaves the app shippable.

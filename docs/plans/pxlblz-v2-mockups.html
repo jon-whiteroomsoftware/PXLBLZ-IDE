@@ -363,6 +363,40 @@
   .meter i { display: block; height: 100%; width: 66%; background: var(--ok); }
   .compilebar b { color: var(--dim); font-weight: 400; font-variant-numeric: tabular-nums; }
 
+  /* scene strip (Show editor v1) */
+  .sgrid { display: grid; grid-template-columns: 104px 1fr 30px 1fr 30px 1fr 30px 1fr 84px; gap: 6px; align-items: stretch; padding: 16px 18px 6px; min-width: 860px; }
+  .sg-corner { font-family: var(--mono); font-size: 10px; color: var(--structural); align-self: end; padding-bottom: 6px; }
+  .sg-scene { background: var(--panel-2); border: 1px solid var(--seam); border-radius: 6px; padding: 7px 10px 6px; }
+  .sg-scene .sname { font-family: var(--mono); font-size: 12px; font-weight: 600; color: var(--text); }
+  .sg-scene .sdur { font-family: var(--mono); font-size: 10px; color: var(--structural); margin-top: 1px; }
+  .sg-t { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; }
+  .sg-t .g { font-family: var(--mono); font-size: 13px; color: var(--live); }
+  .sg-t .g.quiet { color: var(--structural); }
+  .sg-t .c { font-family: var(--mono); font-size: 8.5px; color: var(--structural); text-align: center; }
+  .sg-t .c.hot { color: var(--live); }
+  .sg-zone { display: flex; align-items: center; gap: 7px; font-family: var(--mono); font-size: 11px; color: var(--dim); }
+  .sg-zone .zsw, .zsw { width: 7px; height: 7px; border-radius: 2px; flex: none; display: inline-block; }
+  .zsw.zc1 { background: #7dd3fc; } .zsw.zc2 { background: #5eead4; } .zsw.zc3 { background: #c4b5fd; }
+  .scell { background: var(--panel-2); border: 1px solid var(--seam); border-left: 2px solid var(--structural); border-radius: 5px; padding: 6px 9px; min-height: 40px; display: flex; flex-direction: column; justify-content: center; gap: 2px; }
+  .scell .pn { font-family: var(--mono); font-size: 11.5px; color: var(--text); }
+  .scell .ad { font-family: var(--mono); font-size: 9.5px; color: var(--structural); }
+  .scell .ht { color: var(--structural); font-size: 9px; }
+  .scell.zc1 { border-left-color: #7dd3fc; } .scell.zc2 { border-left-color: #5eead4; } .scell.zc3 { border-left-color: #c4b5fd; }
+  .scell.span { border-left-color: var(--live); background: linear-gradient(180deg, rgba(251,191,36,0.07), var(--panel-2)); }
+  .scell.sel { border-color: rgba(251,191,36,0.5); border-left-color: var(--live); }
+  .sg-add { border: 1px dashed var(--seam); border-radius: 6px; display: flex; align-items: center; justify-content: center; font-family: var(--mono); font-size: 11px; color: var(--structural); }
+  .sg-legend { display: flex; flex-wrap: wrap; gap: 14px 18px; padding: 8px 18px 14px; font-family: var(--mono); font-size: 10.5px; color: var(--structural); }
+  .sg-legend b { color: var(--dim); font-weight: 500; }
+
+  /* zone ribbon (Controller zones card) */
+  .ribbon { display: flex; height: 22px; border-radius: 4px; overflow: hidden; border: 1px solid var(--seam); margin: 2px 0 4px; }
+  .ribbon i { display: block; height: 100%; }
+  .ribbon .r1 { background: rgba(125,211,252,0.28); border-right: 1px solid var(--bg); }
+  .ribbon .r2 { background: rgba(94,234,212,0.24); border-right: 1px solid var(--bg); }
+  .ribbon .r3 { background: rgba(196,181,253,0.26); border-right: 1px solid var(--bg); }
+  .riblabels { display: flex; font-family: var(--mono); font-size: 9.5px; color: var(--structural); margin-bottom: 10px; }
+  .badge.warn { color: var(--live); border-color: rgba(251,191,36,0.4); }
+
   /* ── notes below each mock ───────────────────────────────── */
   .notes {
     margin-top: 22px; display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
@@ -915,6 +949,28 @@
                   </table>
                 </div>
               </div>
+
+              <div class="card" style="grid-column: 1 / -1">
+                <h5>Zones — semantic stages over the strip (#317) <span class="right btn sm ghost">＋ add zone</span></h5>
+                <div class="bd">
+                  <div class="ribbon">
+                    <i class="r1" style="width:25%"></i><i class="r2" style="width:25%"></i><i class="r3" style="width:25%"></i><i class="r1" style="width:25%"></i>
+                  </div>
+                  <div class="riblabels">
+                    <span style="width:25%">quad-1</span><span style="width:25%">quad-2</span><span style="width:25%">quad-3</span><span style="width:25%">quad-4</span>
+                  </div>
+                  <table class="t">
+                    <tr><th>zone</th><th>ranges</th><th>px</th></tr>
+                    <tr><td>quad-1 … quad-4</td><td>0–63 · 64–127 · 128–191 · 192–255 (column slices are contiguous)</td><td>64 ea</td></tr>
+                    <tr><td>top-band</td><td>0–3, 28–31, 32–35, 60–63, … <span style="color:var(--structural)">(16 ranges — a row band on the column-serpentine panel)</span></td><td>64</td></tr>
+                  </table>
+                  <div style="margin-top:8px; font-size:10.5px; color:var(--structural)">
+                    Zones are pure index arithmetic — no Output Expander required. Shows reference them by
+                    name; a show zone with no match here warns at compile (#333). Import from
+                    <code>/obconf.dat</code> expander config: deferred.
+                  </div>
+                </div>
+              </div>
             </div>
 
             <div style="margin-top:14px; font-size:11px; color:var(--structural); display:flex; gap:14px; align-items:center;">
@@ -975,9 +1031,9 @@
       <p>Signed in, the dropdown gains one row: "Controller profile →". If no profile exists for
          the connected device yet, that row reads "Create profile for this device" — the natural
          birth of a Controller entity.</p></div>
-    <div class="note"><h4>Bindings now, room to grow</h4>
-      <p>The profile page holds durable config only: inputs, transforms, bindings, later zones.
-         The sparseness is deliberate — playlist and pattern-list management (stock playlists,
+    <div class="note"><h4>Bindings and zones now, room to grow</h4>
+      <p>The profile page holds durable config only: inputs, transforms, bindings, zones. The
+         remaining sparseness is deliberate — playlist and pattern-list management (stock playlists,
          one-click push of a set) will claim this real estate later.</p></div>
     <div class="note"><h4>ADC1 validation built in</h4>
       <p>Pin pickers only offer WiFi-safe ADC1 pins per board variant, with the constraint
@@ -1119,10 +1175,13 @@
 
 <!-- ═══════════════════ 7 · SHOW ═══════════════════ -->
 <section class="screen" id="s-show">
-  <h2>Show editor — clips, transitions, zones (sketch)</h2>
-  <p class="sub">Lower fidelity, on purpose — this ships after the pass engine proves out. A Show
-     treats whole patterns as clips on zone tracks, compiles to a single generated Pixelblaze
-     pattern, and reports its device budget honestly.</p>
+  <h2>Show editor — scene strip v1 (scenes × zones)</h2>
+  <p class="sub">Decided 2026-07-08 (PRD §1 "Editor direction", #318): v1 is a <b>scene strip</b>, not a
+     timeline — "click patterns and transitions together and map them across stages." Scenes are columns,
+     zones are rows, a cell is a pattern + its adaptations, and the narrow columns between scenes are the
+     transitions, first-class and glyphed by cost. A cell spanning columns <em>holds</em> (keeps playing,
+     phase intact — #335); a cell spanning rows treats adjacent zones as one canvas (#336). The data model
+     underneath is an arrangement, so a zoomable timeline can arrive later as a second view, no migration.</p>
 
   <div class="frame">
     <div class="frame-cap">
@@ -1144,85 +1203,81 @@
       <div style="display:flex; flex-direction:column; min-height:560px">
         <div class="pane-head">
           <span class="title">tazii-nights</span>
-          <span class="badge">show · 2m 15s loop</span>
+          <span class="badge">show · 4 scenes · 3m 00s loop</span>
           <span class="spacer"></span>
           <span class="btn sm ghost">▷ Preview show</span>
           <span class="btn sm primary">Compile → tazii-north-arch</span>
         </div>
 
-        <div class="tl" style="flex:1">
-          <div class="tl-ruler"><span>0:00</span><span>0:30</span><span>1:00</span><span>1:30</span><span>2:00</span></div>
+        <div style="flex:1; overflow-x:auto">
+          <div class="sgrid">
+            <div class="sg-corner">zones ↓ · scenes →</div>
+            <div class="sg-scene"><div class="sname">dusk</div><div class="sdur">30 s</div></div>
+            <div class="sg-t"><span class="g">◧</span><span class="c">wipe 2s</span></div>
+            <div class="sg-scene"><div class="sname">build</div><div class="sdur">45 s</div></div>
+            <div class="sg-t"><span class="g quiet">▒</span><span class="c">dither 3s</span></div>
+            <div class="sg-scene"><div class="sname">peak</div><div class="sdur">45 s</div></div>
+            <div class="sg-t"><span class="g">⧉</span><span class="c hot">xfade 6s</span></div>
+            <div class="sg-scene"><div class="sname">afterglow</div><div class="sdur">60 s</div></div>
+            <div class="sg-add" style="grid-row: 1 / span 4">＋ scene</div>
 
-          <div class="tl-track">
-            <span class="tl-name">arch-left</span>
-            <div class="tl-lane">
-              <span class="clip" style="left:0%; width:26%">lantern-flicker <span class="cd">30s</span></span>
-              <span class="xfade" style="left:22%; width:8%"></span>
-              <span class="clip sel" style="left:26%; width:36%">zellij-drift <span class="cd">45s</span></span>
-              <span class="xfade" style="left:58%; width:6%"></span>
-              <span class="clip" style="left:62%; width:38%">oasis-wash <span class="cd">60s</span></span>
-              <span class="playhead" style="left:41%"></span>
-            </div>
+            <div class="sg-zone"><span class="zsw zc1"></span>arch-left</div>
+            <div class="scell zc1"><span class="pn">lantern-flicker</span><span class="ad">time ×0.6</span></div>
+            <div></div>
+            <div class="scell zc1 sel" style="grid-column: span 3"><span class="pn">zellij-drift <span class="ht">— holds build → peak, keeps phase</span></span><span class="ad">palette moroccan-lantern · env: attack 4s</span></div>
+            <div></div>
+            <div class="scell span" style="grid-row: span 2"><span class="pn">oasis-wash</span><span class="ad">spans both arches · one canvas</span></div>
+
+            <div class="sg-zone"><span class="zsw zc2"></span>arch-right</div>
+            <div class="scell zc2"><span class="pn">lantern-flicker</span><span class="ad">mirror · time ×0.6</span></div>
+            <div></div>
+            <div class="scell zc2" style="grid-column: span 3"><span class="pn">zellij-drift</span><span class="ad">mirror · φ 0.25 · same hold</span></div>
+            <div></div>
+
+            <div class="sg-zone"><span class="zsw zc3"></span>rock-wash</div>
+            <div class="scell zc3" style="grid-column: span 7"><span class="pn">ember-bed <span class="ht">— one clip under the whole show; boundaries pass over it</span></span><span class="ad">time ×0.3 · dim 0.4 · decimate /4</span></div>
           </div>
-
-          <div class="tl-track">
-            <span class="tl-name">arch-right</span>
-            <div class="tl-lane">
-              <span class="clip" style="left:0%; width:26%">lantern-flicker <span class="cd">mirror</span></span>
-              <span class="xfade" style="left:22%; width:8%"></span>
-              <span class="clip" style="left:26%; width:36%">zellij-drift <span class="cd">mirror · φ 0.25</span></span>
-              <span class="xfade" style="left:58%; width:6%"></span>
-              <span class="clip" style="left:62%; width:38%">oasis-wash <span class="cd">mirror</span></span>
-              <span class="playhead" style="left:41%"></span>
-            </div>
-          </div>
-
-          <div class="tl-track">
-            <span class="tl-name">rock-wash</span>
-            <div class="tl-lane">
-              <span class="clip" style="left:0%; width:100%">oasis-wash <span class="cd">blur · delay 500ms · low-res</span></span>
-              <span class="playhead" style="left:41%"></span>
-            </div>
-          </div>
-
-          <div class="tl-track">
-            <span class="tl-name">overlay</span>
-            <div class="tl-lane" style="height:24px">
-              <span class="clip" style="left:26%; width:74%; font-size:9.5px">sparkle-crown <span class="cd">amount 0.2</span></span>
-              <span class="playhead" style="left:41%"></span>
-            </div>
+          <div class="sg-legend">
+            <span><b>◧ wipe</b> · route cut, 1 renderer/px</span>
+            <span><b>▒ dither</b> · hashed dissolve, 1 renderer/px</span>
+            <span><b>⧉ crossfade</b> · 2-renderer window (budgeted)</span>
+            <span><b>long cell</b> · hold: keeps playing through the cut</span>
+            <span><b>tall cell</b> · span: zones act as one canvas</span>
           </div>
         </div>
 
         <div class="inspector">
           <div class="insp-col">
-            <h6>Clip — zellij-drift</h6>
+            <h6>Cell — zellij-drift</h6>
             <div class="kv"><span>source pattern</span><b>zellij-drift</b></div>
-            <div class="kv"><span>duration</span><b>45 s</b></div>
-            <div class="kv"><span>in transition</span><b>crossfade · 8 s</b></div>
+            <div class="kv"><span>scenes</span><b>build → peak (hold)</b></div>
+            <div class="kv"><span>in transition</span><b>◧ wipe · 2 s</b></div>
+            <div class="kv"><span>actions</span><b>extend → · span ↓</b></div>
           </div>
           <div class="insp-col">
             <h6>Adaptations (non-destructive)</h6>
             <div class="kv"><span>palette</span><b>moroccan-lantern</b></div>
             <div class="kv"><span>arch-right</span><b>mirror · phase 0.25</b></div>
-            <div class="kv"><span>brightness env</span><b>breathing</b></div>
+            <div class="kv"><span>brightness env</span><b>attack 4 s</b></div>
+            <div class="kv"><span>time base</span><b>×1.0</b></div>
           </div>
           <div class="insp-col">
-            <h6>Zones — tazii-north-arch</h6>
-            <div class="kv"><span>arch-left</span><b>px 0–239</b></div>
-            <div class="kv"><span>arch-right</span><b>px 240–479</b></div>
-            <div class="kv"><span>rock-wash</span><b>px 480–527</b></div>
+            <h6>Show zones → tazii-north-arch</h6>
+            <div class="kv"><span>arch-left</span><b style="color:var(--ok)">bound · 240 px</b></div>
+            <div class="kv"><span>arch-right</span><b style="color:var(--ok)">bound · 240 px</b></div>
+            <div class="kv"><span>rock-wash</span><b style="color:var(--ok)">bound · 48 px</b></div>
+            <div class="kv"><span>doorframe</span><b style="color:var(--live)">⚠ unbound · nominal 60 px</b></div>
           </div>
         </div>
 
         <div class="compilebar">
           <span>compiled artifact</span>
           <span class="meter"><i></i></span>
-          <b>7.9 KB / ~12 KB budget</b>
+          <b>8.4 KB / ~12 KB budget</b>
           <span>·</span>
-          <b>est. 74 fps @ 528 px</b>
+          <b>est. 71 fps @ 528 px</b>
           <span>·</span>
-          <span>2 renderers live during transitions only <span style="color:var(--ok)">✓ time-sliced</span></span>
+          <span>steady state <span style="color:var(--ok)">✓ 1 renderer/px</span> · worst instant: peak→afterglow xfade</span>
           <span class="spacer"></span>
           <span class="btn sm ghost">View generated pattern</span>
         </div>
@@ -1230,22 +1285,63 @@
     </div>
   </div>
 
+  <div class="frame" style="margin-top:18px">
+    <div class="frame-cap">
+      <span class="dots"><i></i><i></i><i></i></span>
+      <span class="url">later — the same show as an arrangement timeline (second view on the same data)</span>
+    </div>
+    <div class="mock">
+      <div class="tl">
+        <div class="tl-ruler"><span>0:00 · DUSK</span><span>0:30 · BUILD</span><span>1:15 · PEAK</span><span>2:00 · AFTERGLOW</span><span>3:00</span></div>
+        <div class="tl-track">
+          <span class="tl-name">arch-left</span>
+          <div class="tl-lane">
+            <span class="clip" style="left:0%; width:15.5%">lantern-flicker</span>
+            <span class="clip" style="left:17%; width:48.5%">zellij-drift <span class="cd">hold</span></span>
+            <span class="xfade" style="left:64%; width:5%"></span>
+            <span class="clip" style="left:67.5%; width:32.5%">oasis-wash <span class="cd">span ↓</span></span>
+            <span class="playhead" style="left:41%"></span>
+          </div>
+        </div>
+        <div class="tl-track">
+          <span class="tl-name">arch-right</span>
+          <div class="tl-lane">
+            <span class="clip" style="left:0%; width:15.5%">lantern-flicker <span class="cd">mirror</span></span>
+            <span class="clip" style="left:17%; width:48.5%">zellij-drift <span class="cd">mirror · φ 0.25</span></span>
+            <span class="xfade" style="left:64%; width:5%"></span>
+            <span class="clip" style="left:67.5%; width:32.5%">oasis-wash <span class="cd">(spanned)</span></span>
+            <span class="playhead" style="left:41%"></span>
+          </div>
+        </div>
+        <div class="tl-track">
+          <span class="tl-name">rock-wash</span>
+          <div class="tl-lane">
+            <span class="clip" style="left:0%; width:100%">ember-bed <span class="cd">time ×0.3 · dim 0.4 · decimate /4</span></span>
+            <span class="playhead" style="left:41%"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div class="notes">
-    <div class="note"><h4>Zones are semantic, not electrical</h4>
-      <p>Tracks are named zones (<code>arch-left</code>, <code>rock-wash</code>); the zone→pixel
-         mapping lives on the target Controller. The same show retargets to different hardware by
-         remapping zones, per the orchestration doc's creative/deployment split.</p></div>
-    <div class="note"><h4>Adaptations live on the clip</h4>
-      <p>Palette swap, mirror, phase, brightness envelope attach to the pattern-in-this-show —
-         the original pattern is never forked. This is the "adaptation on the relationship"
-         decision: no standalone recipe entity.</p></div>
-    <div class="note"><h4>The budget bar is load-bearing</h4>
-      <p>A show compiles to one generated pattern; the device's code-size and FPS ceilings are
-         real. The compile bar surfaces artifact size against the measured device budget and
-         confirms time-sliced emission — the honesty the cost model exists for.</p></div>
-    <div class="note"><h4>Everything inspectable</h4>
-      <p>"View generated pattern" opens the compiled artifact read-only — a Show is ultimately
-         just a Pixelblaze pattern you could paste anywhere, keeping the no-magic promise.</p></div>
+    <div class="note"><h4>Zones bind by name, from two origins</h4>
+      <p>Rows are named zones (<code>arch-left</code>, <code>rock-wash</code>). Controller zones are the
+         durable half (#317, Zones card on the Controller page); show zones are freestyle — authored with
+         no controller, nominal sizes for preview — and bind by name at compile, with unbound zones
+         warning on the compile bar (#333). Retargeting = the other controller defines the same names.</p></div>
+    <div class="note"><h4>Hold is geometry, not a setting</h4>
+      <p>A cell spanning a boundary keeps playing, phase intact — the compiler emits nothing there. Same
+         pattern on both sides defaults to a hold, and a transition on that boundary compiles to an
+         <em>adaptation ramp</em> (parameters interpolate, one renderer, #335). Two separate cells restart.</p></div>
+    <div class="note"><h4>Transitions are priced</h4>
+      <p>Wipe and dither are route-cost — every pixel evaluates exactly one renderer (#334). Crossfade is
+         the only 2-renderer window, and the compile bar names the worst instant. Steady state stays at
+         1 renderer/px — the feasibility line.</p></div>
+    <div class="note"><h4>Adaptations live on the cell; everything inspectable</h4>
+      <p>Palette, mirror, phase, envelopes, time base attach to the pattern-in-this-show — the source
+         pattern is never forked. "View generated pattern" opens the compiled artifact read-only: a Show
+         is ultimately a plain Pixelblaze pattern you could paste anywhere.</p></div>
   </div>
 </section>
 
