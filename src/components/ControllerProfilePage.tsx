@@ -1,6 +1,5 @@
 import { useEffect } from 'react'
 import {
-  Circle,
   Plus,
   RefreshCw,
   Trash2,
@@ -17,12 +16,15 @@ import {
   type GlobalTransform,
   type PatternBinding,
 } from '@/engine/controllerProfile'
-import { useControllerStore } from '@/store/controllerStore'
+import { describeControllerPill } from '@/engine/controllerPillView'
+import type { ControllerStatusTone } from '@/engine/controllerStatusView'
+import { useControllerStore, type ControllerEntry } from '@/store/controllerStore'
 import {
   CONTROLLER_INPUT_ROLES,
   CONTROLLER_INPUT_SIGNALS,
   useControllerProfileStore,
 } from '@/store/controllerProfileStore'
+import { StatusDot, type StatusTone } from './StatusDot'
 
 const fieldClass =
   'h-7 min-w-0 rounded border border-zinc-700 bg-zinc-900 px-2 text-xs text-zinc-200 outline-none focus:border-live/70'
@@ -46,10 +48,39 @@ function statusForProfile(
   profile: ControllerProfile,
   controllers: ReturnType<typeof useControllerStore.getState>['controllers'],
 ) {
-  if (!profile.deviceId) return null
-  return Object.values(controllers).find(
-    (entry) => entry.phase === 'live' && entry.deviceId === profile.deviceId,
-  ) ?? null
+  const entries = Object.values(controllers)
+  const byDeviceId = profile.deviceId
+    ? entries.filter((entry) => entry.deviceId === profile.deviceId)
+    : []
+  const byLastSeenIp =
+    byDeviceId.length === 0 && profile.lastSeenIp
+      ? entries.filter((entry) => entry.ip === profile.lastSeenIp && (!profile.deviceId || !entry.deviceId))
+      : []
+  return chooseProfileController(byDeviceId.length > 0 ? byDeviceId : byLastSeenIp)
+}
+
+function chooseProfileController(entries: ControllerEntry[]) {
+  return (
+    entries.find((entry) => entry.phase === 'live') ??
+    entries.find((entry) => entry.phase === 'pending') ??
+    entries.find((entry) => entry.phase === 'error') ??
+    null
+  )
+}
+
+const PROFILE_STATUS_TONE: Record<ControllerStatusTone, StatusTone> = {
+  absent: 'absent',
+  idle: 'idle',
+  pending: 'connecting',
+  live: 'ok',
+  error: 'error',
+}
+
+function profileStatusLabel(entry: ControllerEntry | null) {
+  if (!entry) return 'Offline'
+  if (entry.phase === 'pending') return 'Trying to connect'
+  if (entry.phase === 'error') return 'Connect failed'
+  return 'Connected'
 }
 
 function targetForKind(kind: ControllerBindingTarget['kind'], current?: ControllerBindingTarget): ControllerBindingTarget {
@@ -187,25 +218,22 @@ function EmptyState({ children }: { children: React.ReactNode }) {
 
 function ProfileStatus({
   profile,
-  connectedIp,
+  controller,
   onRefresh,
 }: {
   profile: ControllerProfile
-  connectedIp?: string
+  controller: ControllerEntry | null
   onRefresh: () => void
 }) {
-  const connected = connectedIp !== undefined
+  const status = controller ? describeControllerPill(controller) : null
+  const statusTone = status?.tone ? PROFILE_STATUS_TONE[status.tone] : 'absent'
+  const refreshable = controller?.phase === 'live'
   return (
     <div className="border-b border-seam bg-zinc-950/35 px-4 py-3">
       <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs">
         <span className="flex items-center gap-2 font-mono text-zinc-200">
-          <Circle
-            size={9}
-            fill={connected ? 'currentColor' : 'transparent'}
-            className={connected ? 'text-live' : 'text-zinc-600'}
-            aria-hidden
-          />
-          {connected ? 'Connected' : 'Offline'}
+          <StatusDot tone={statusTone} testId="controller-profile-status-dot" />
+          {profileStatusLabel(controller)}
         </span>
         <span>
           <FieldLabel>Device</FieldLabel>{' '}
@@ -213,7 +241,7 @@ function ProfileStatus({
         </span>
         <span>
           <FieldLabel>IP</FieldLabel>{' '}
-          <span className="font-mono text-zinc-300">{connectedIp ?? formatMaybe(profile.lastSeenIp)}</span>
+          <span className="font-mono text-zinc-300">{controller?.ip ?? formatMaybe(profile.lastSeenIp)}</span>
         </span>
         <span>
           <FieldLabel>Pixels</FieldLabel>{' '}
@@ -232,7 +260,7 @@ function ProfileStatus({
           size="xs"
           variant="ghost"
           className="ml-auto bg-zinc-900/70 text-xs text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 disabled:opacity-35"
-          disabled={!connected}
+          disabled={!refreshable}
           onClick={onRefresh}
           title="Refresh controller metadata"
         >
@@ -659,8 +687,8 @@ export function ControllerProfilePage({ profileId }: { profileId: string }) {
   const refreshLiveMetadata = useControllerProfileStore((state) => state.refreshLiveMetadata)
   const controllers = useControllerStore((state) => state.controllers)
   const profile = profiles.find((item) => item.id === profileId)
-  const live = profile ? statusForProfile(profile, controllers) : null
-  const liveIp = live?.ip
+  const profileController = profile ? statusForProfile(profile, controllers) : null
+  const liveIp = profileController?.phase === 'live' ? profileController.ip : undefined
   const profileRefreshId = profile?.id
 
   useEffect(() => {
@@ -681,7 +709,7 @@ export function ControllerProfilePage({ profileId }: { profileId: string }) {
     <div data-testid="controller-profile-page" className="h-full overflow-y-auto bg-zinc-950 text-zinc-200">
       <ProfileStatus
         profile={profile}
-        connectedIp={live?.ip}
+        controller={profileController}
         onRefresh={() => void refreshLiveMetadata(profile.id)}
       />
       {!validation.ok && (
