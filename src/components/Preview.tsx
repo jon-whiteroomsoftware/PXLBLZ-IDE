@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { usePreviewStore } from '@/store/previewStore'
 import { useEditorStore } from '@/store/editorStore'
 import { useControlStore } from '@/store/controlStore'
@@ -24,9 +24,17 @@ import { layoutSource as buildLayoutSource } from '@/store/mapStore'
 import { resolveLayout } from '@/engine/layout'
 import { resolvePole, type ShapeId } from '@/engine/shapes'
 import { OrbitControls } from '@/components/OrbitControls'
+import { ZonePreviewStrips } from '@/components/ZonePreviewStrips'
 import { LIBRARIES } from '@/pixelblaze/libs'
 import { withControlDescriptions } from '@/pixelblaze/controlDescriptions'
 import { captureEnabled, createPreviewCapture } from '@/dev/previewCapture'
+import { useControllerStore } from '@/store/controllerStore'
+import { useControllerProfileStore } from '@/store/controllerProfileStore'
+import {
+  buildZonePreviewStrips,
+  filterPixelsForSolo,
+  selectControllerPreviewZones,
+} from '@/engine/zonePreview'
 
 // Square 3D viewport size (CSS px): fill the available pane edge-to-edge (the
 // smaller of its two sides), so the 3D canvas is exactly as tall as a square 2D
@@ -60,6 +68,17 @@ export function Preview({ showDeck = true }: { showDeck?: boolean }) {
   const activePixelCount = useMapStore((s) => s.activePixelCount)
   const activeSolidity = useMapStore((s) => s.activeSolidity)
   const activeNormalizeMode = useMapStore((s) => s.activeNormalizeMode)
+  const controllerProfiles = useControllerProfileStore((s) => s.profiles)
+  const activeControllerIp = useControllerStore((s) => s.activeIp)
+  const liveControllers = useControllerStore((s) => s.controllers)
+  const activeZones = useMemo(
+    () =>
+      selectControllerPreviewZones(controllerProfiles, {
+        activeIp: activeControllerIp,
+        controllers: liveControllers,
+      }),
+    [controllerProfiles, activeControllerIp, liveControllers],
+  )
   const handleRef = useRef<ReturnType<typeof loadPattern> | null>(null)
   const shimRef = useRef<ShimContext | null>(null)
   // The 2D viewport the renderer fits to: the container width + the live light
@@ -275,7 +294,20 @@ export function Preview({ showDeck = true }: { showDeck?: boolean }) {
     // never churns React.
     const paint = (pixels: [number, number, number][], brightness: number, dimmed: boolean) => {
       if (positions3D) renderer.setCamera(useCameraStore.getState().camera)
-      renderer.paint(pixels, brightness, dimmed)
+      let displayPixels = pixels
+      if (activeZones.length > 0) {
+        usePreviewStore.getState().setZonePreviewStrips(
+          buildZonePreviewStrips(pixels, activeZones, { maxSamples: 96 }),
+        )
+        displayPixels = filterPixelsForSolo(
+          pixels,
+          activeZones,
+          usePreviewStore.getState().zoneSoloId,
+        )
+      } else if (usePreviewStore.getState().zonePreviewStrips.length > 0) {
+        usePreviewStore.getState().setZonePreviewStrips([])
+      }
+      renderer.paint(displayPixels, brightness, dimmed)
       // Dev capture: fulfil any pending request with the frame just drawn.
       captureRef.current.afterPaint(canvasRef.current)
     }
@@ -320,7 +352,7 @@ export function Preview({ showDeck = true }: { showDeck?: boolean }) {
     if (usePreviewStore.getState().isRunning) loop.start()
 
     return () => loop.stop()
-  }, [previewSource, viewport, fidelity, activeMapId, activeShapeId, activeSurfaceId, activePixelCount, activeNormalizeMode, activeDemoName])
+  }, [previewSource, viewport, fidelity, activeMapId, activeShapeId, activeSurfaceId, activePixelCount, activeNormalizeMode, activeDemoName, activeZones])
 
   // Seed the live working state from the resolved settings cascade on open:
   // one pass that composes per-pattern override → recommended (demos) → global-sticky
@@ -512,6 +544,7 @@ export function Preview({ showDeck = true }: { showDeck?: boolean }) {
           )}
         </div>
       </div>
+      {showDeck && <ZonePreviewStrips />}
       {showDeck && <PreviewDeck />}
     </div>
   )

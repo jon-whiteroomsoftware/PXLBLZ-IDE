@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { DEFAULT_LIGHT_SIZE } from '../engine/camera'
+import type { ZonePreviewStrip } from '@/engine/zonePreview'
 
 export type FidelityMode = 'fidelity' | 'fast'
 
@@ -37,6 +38,10 @@ interface PreviewState {
   // Pattern elapsed time (ms), updated every frame so the readout's `elapsed` cell
   // is unconditional (#150). null while paused/not yet measured. Never persisted.
   elapsed: number | null
+  // Per-zone diagnostic strips are sampled from the current preview frame. They
+  // are session-only because zones live on controller/show data, not preview prefs.
+  zonePreviewStrips: ZonePreviewStrip[]
+  zoneSoloId: string | null
   toggle: () => void
   setFps: (fps: number | null) => void
   setElapsed: (elapsed: number | null) => void
@@ -49,6 +54,8 @@ interface PreviewState {
   setDiffusionSticky: (diffusion: number) => void
   setWatchPatternVars: (on: boolean) => void
   setWatchValues: (values: Record<string, unknown>) => void
+  setZonePreviewStrips: (strips: ZonePreviewStrip[]) => void
+  setZoneSoloId: (id: string | null) => void
 }
 
 export const previewInitialState = {
@@ -72,6 +79,8 @@ export const previewInitialState = {
   fps: null as number | null,
   // Pattern elapsed time (ms); null while paused/not yet measured. Never persisted.
   elapsed: null as number | null,
+  zonePreviewStrips: [] as ZonePreviewStrip[],
+  zoneSoloId: null as string | null,
 }
 
 // Light size sweeps f: 0.15 (clearly separated) → 0.95 (almost touching), with
@@ -132,6 +141,15 @@ export const usePreviewStore = create<PreviewState>()(
       setDiffusionSticky: (diffusion) => set({ diffusionSticky: clampDiffusion(diffusion) }),
       setWatchPatternVars: (watchPatternVars) => set({ watchPatternVars }),
       setWatchValues: (watchValues) => set({ watchValues }),
+      setZonePreviewStrips: (zonePreviewStrips) =>
+        set((s) => ({
+          zonePreviewStrips,
+          zoneSoloId:
+            s.zoneSoloId && !zonePreviewStrips.some((strip) => strip.id === s.zoneSoloId)
+              ? null
+              : s.zoneSoloId,
+        })),
+      setZoneSoloId: (zoneSoloId) => set({ zoneSoloId }),
     }),
     {
       name: 'pixelblaze-preview',

@@ -148,6 +148,12 @@ source draws), **diffusion** (blurs sources together like a diffuser sheet), and
 **solidity** (for closed shapes, fades the back-facing dots so a solid object
 hides its own back). Exact semantics and what sticks where: §8.
 
+**Zone strips.** When the active or only zoned Controller profile defines zones,
+the Preview deck shows one compact strip per zone. Each strip samples the current
+frame in that zone's wire order, including multi-range zones flattened into one
+contiguous diagnostic strip. The eye control solos a zone in the main preview by
+holding the physical layout and blacking out every pixel outside that zone.
+
 ## 4. Maps and embeddings — what's read vs. how it's drawn
 
 Just like real hardware, a **pixel map** describes where each LED sits, decoupled
@@ -523,6 +529,8 @@ profile is created automatically the first time); the profile page at
   function, or a variable with min/max/quantize;
 - **zones** — named lists of pixel ranges, groundwork for Shows. A zone can be
   one contiguous strip slice or several ranges that act as one semantic stage.
+  Preview reads these ranges as soon as a matching live Controller profile is
+  active, or when exactly one offline profile has zones configured.
 
 The page never duplicates live controls — brightness and the running pattern's
 sliders stay in the live panel.
