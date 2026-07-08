@@ -9,6 +9,9 @@
 //   PIXELBLAZE_IP=192.168.8.224 SHOW_FIXTURE=delta-ms-fade npm run issue316
 //   PIXELBLAZE_IP=192.168.8.224 SHOW_FIXTURE=capture-fade npm run issue316
 //   PIXELBLAZE_IP=192.168.8.224 SHOW_FIXTURE=stock WATCH_MS=12000 npm run issue316
+//   PIXELBLAZE_IP=192.168.8.224 npm run issue332
+//   PIXELBLAZE_IP=192.168.8.224 SHOW_FIXTURE=plain-dither SAMPLE_VARS=1 npm run issue332
+//   PIXELBLAZE_IP=192.168.8.224 SHOW_FIXTURE=pattern-crossfade-baseline SAMPLE_VARS=1 npm run issue332
 
 import { readFileSync } from 'node:fs'
 import vm from 'node:vm'
@@ -25,9 +28,15 @@ import {
 } from '../../src/engine/compilerExtraction'
 import { bytecodeHeaderReconciles, makeProgramId } from '../../src/engine/bytecodePush'
 import { compileShow } from '../../src/engine/showCompiler'
+import {
+  buildRouteTransitionFixtureSource,
+  routeTransitionFixtureList,
+  type FixtureSource,
+} from './showRouteTransitionFixtures'
 
 const IP = process.env.PIXELBLAZE_IP ?? '192.168.8.224'
-const SHOW_FIXTURE = process.env.SHOW_FIXTURE ?? 'diagnostic'
+const DEFAULT_FIXTURE = process.env.npm_lifecycle_event === 'issue332' ? 'pattern-wipe' : 'diagnostic'
+const SHOW_FIXTURE = process.env.SHOW_FIXTURE ?? DEFAULT_FIXTURE
 const WATCH_MS = parseInt(process.env.WATCH_MS ?? String(defaultWatchMs(SHOW_FIXTURE)), 10)
 const SAMPLE_VARS = process.env.SAMPLE_VARS === '1'
 const FORCE_BRIGHTNESS = process.env.FORCE_BRIGHTNESS
@@ -52,14 +61,18 @@ interface CompileFail {
 
 type CompileResult = CompileOk | CompileFail
 
-interface FixtureSource {
-  source: string
-  description: string
-  sourceLabel: string
-}
-
 function defaultWatchMs(fixture: string): number {
   if (fixture === 'stock') return 9000
+  if (
+    fixture === 'plain-wipe' ||
+    fixture === 'plain-dither' ||
+    fixture === 'pattern-wipe' ||
+    fixture === 'pattern-dither' ||
+    fixture === 'pattern-crossfade-baseline' ||
+    fixture === 'pattern-decimate'
+  ) {
+    return 12000
+  }
   if (fixture === 'pulse-fade') return 12000
   if (fixture === 'direct-fade' || fixture === 'time-fade' || fixture === 'delta-ms-fade' || fixture === 'capture-fade') return 14000
   return 22000
@@ -338,6 +351,9 @@ export function render(index) {
 }
 
 function buildFixtureSource(fixture: string): FixtureSource {
+  const routeTransitionFixture = buildRouteTransitionFixtureSource(fixture)
+  if (routeTransitionFixture) return routeTransitionFixture
+
   if (fixture === 'stock') {
     const artifact = compileShow({
       clips: [
@@ -394,7 +410,7 @@ function buildFixtureSource(fixture: string): FixtureSource {
   }
 
   if (fixture !== 'diagnostic') {
-    throw new Error(`unknown SHOW_FIXTURE=${fixture}; expected diagnostic, direct-fade, pulse-fade, time-fade, delta-ms-fade, capture-fade, or stock`)
+    throw new Error(`unknown SHOW_FIXTURE=${fixture}; expected diagnostic, direct-fade, pulse-fade, time-fade, delta-ms-fade, capture-fade, stock, or one of: ${routeTransitionFixtureList()}`)
   }
 
   const artifact = compileShow({

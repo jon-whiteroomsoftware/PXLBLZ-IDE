@@ -27,6 +27,7 @@
     "profile": "tsx test/perf-harness/profiler.ts",
     "issue314": "tsx test/perf-harness/issue314.ts",
     "issue316": "tsx test/perf-harness/issue316.ts",
+    "issue332": "tsx test/perf-harness/issue316.ts",
     "bench": "tsx test/perf-harness/bench.ts",
     "drift": "tsx test/perf-harness/drift.ts",
     "devbench": "tsx test/perf-harness/devbench.ts",
