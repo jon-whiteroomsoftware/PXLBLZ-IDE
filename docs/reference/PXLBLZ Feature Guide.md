@@ -168,11 +168,13 @@ offers no real choice is hidden, not disabled:
 | 2D | ✓ | surface: **Flat** or **Cylinder** (proportions follow the map's aspect) |
 | 3D | ✓ | — (the map owns the geometry) |
 
-**Stock maps** ship ready to use: Square, Wide 2:1, Ring, and a 3D set in
+**Stock maps** ship ready to use: Square, Wide 2:1, Ring, a 3D set in
 shell/volume pairs — Cube, Sphere, Star, and Tetra (a d4), where "shell" puts LEDs
-on the surface and "volume" fills the interior. Every stock map is real, pasteable
-Mapper code: reveal **Stock Maps** in the Maps rail, open one read-only at its
-stable `/studio/maps/<id>` route, and **Clone** it into an editable copy.
+on the surface and "volume" fills the interior — plus Sunflower pucks, a
+fixed-length 160-point literal 3D coordinate array modeling eight measured LED
+clusters. Every stock map is real, pasteable Mapper code: reveal **Stock Maps** in
+the Maps rail, open one read-only at its stable `/studio/maps/<id>` route, and
+**Clone** it into an editable copy.
 
 **Custom maps**: click **New Map** and you get an editor for real Pixelblaze
 Mapper source: either a literal coordinate array (`[[x,y], ...]` or

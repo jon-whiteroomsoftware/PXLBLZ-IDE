@@ -31,7 +31,8 @@ export interface SourceMapSpec {
   name: string
   dim: 1 | 2 | 3
   displayDim?: 1 | 2 | 3
-  // Raw `function(pixelCount){ … return coords }` JavaScript (Vite `?raw` text).
+  // Raw Mapper JavaScript (Vite `?raw` text): either a literal coordinate array
+  // or `function(pixelCount){ … return coords }`.
   source: string
   // Provenance-gated normal recipe: set only on a stock 3D shell
   // the catalogue vouches for, so the preview derives the matching per-point normal
@@ -42,12 +43,13 @@ export interface SourceMapSpec {
   grid?: GridRecipe
 }
 
-// Build a live, source-backed PixelMap. `resolve(pixelCount)` runs the raw source
+// Build a source-backed PixelMap. `resolve(pixelCount)` runs the raw source
 // through the no-shim `new Function` primitive and the shared aspect-preserving
-// normalize pass, regenerating for any count (no baked replay — that is
-// custom-only). The normalized coords serve as both the render-fn `sample` and the
-// drawn `pos`, so a non-square stock map (e.g. a count the plane squares to N×M)
-// shows its true proportion on both channels.
+// normalize pass. Function sources regenerate for any count; literal coordinate
+// arrays intentionally keep their measured point count. The normalized coords
+// serve as both the render-fn `sample` and the drawn `pos`, so a non-square stock
+// map (e.g. a count the plane squares to N×M) shows its true proportion on both
+// channels.
 export function createSourceMap(spec: SourceMapSpec): PixelMap {
   return {
     id: spec.id,

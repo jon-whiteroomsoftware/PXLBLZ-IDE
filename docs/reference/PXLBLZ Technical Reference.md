@@ -378,23 +378,25 @@ or function expression, and `bakeMapSource` evaluates the array directly or call
 the function once with the modeled pixel count. The raw-units detail is invisible
 downstream — normalization erases input scale.
 
-Every stock map (`stockCatalogue.ts`) is a self-contained `function(pixelCount)`
-in `src/pixelblaze/stock/maps/sources/*.js` — `Math.*` and language built-ins only,
-pasteable into a real Mapper tab — read raw via `import.meta.glob` and run
-through a no-shim `new Function`. The `.js` a user views *is* the `.js` the
-preview runs: single source of truth, no parallel generator to drift. Stock maps
-**regenerate live** for any count, so they never go stale, and the same source is
-pushable directly to a Controller.
+Every stock map (`stockCatalogue.ts`) is self-contained Mapper source in
+`src/pixelblaze/stock/maps/sources/*.js` — either `function(pixelCount)` with
+`Math.*`/language built-ins only, or a literal coordinate array for measured
+hardware — pasteable into a real Mapper tab, read raw via `import.meta.glob`, and
+run through a no-shim `new Function`. The `.js` a user views *is* the `.js` the
+preview runs: single source of truth, no parallel generator to drift. Function
+stock maps **regenerate live** for any count; literal-array stock maps keep their
+measured point count.
 
 The shipped catalogue (`STOCK_MAP_SPECS`): `plane` ("Square"), `wide`
 ("Wide 2:1"), `seed-ring-2d` ("Ring") in 2D; the 3D set in the shell/volume
 naming scheme — `cube`/`cube-shell`, `star-shell`/`star-volume`,
-`seed-sphere-3d` ("Sphere shell")/`sphere-volume`, `tetra-shell`/`tetra-volume`.
-Shell entries carry a `normals` recipe (`'face' | 'star' | 'tetra' |
-'centroid'`), whose presence is the solid-eligibility gate (§9). A lattice entry
-carries a `grid` recipe (`'square' | 'wide' | 'cube'`) backing
+`seed-sphere-3d` ("Sphere shell")/`sphere-volume`, `tetra-shell`/`tetra-volume`;
+and `sunflower-pucks`, a fixed 160-point literal 3D array modeling eight small LED
+puck clusters. Shell entries carry a `normals` recipe (`'face' | 'star' |
+'tetra' | 'centroid'`), whose presence is the solid-eligibility gate (§9). A
+lattice entry carries a `grid` recipe (`'square' | 'wide' | 'cube'`) backing
 `PixelMap.gridDims` — the live count→dims derivation; absent means `gridDims`
-returns null (irregular clouds and shells).
+returns null (irregular clouds, literal measured arrays, and shells).
 
 ### Custom maps bake on save
 

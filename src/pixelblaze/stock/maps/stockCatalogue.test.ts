@@ -23,10 +23,11 @@ describe('stock catalogue', () => {
       'sphere-volume',
       'tetra-shell',
       'tetra-volume',
+      'sunflower-pucks',
       'seed-ring-2d',
     ])
     for (const s of STOCK_MAP_SPECS) {
-      expect(s.source).toMatch(/function\s*\(/)
+      expect(() => evalMapSource(s.source, 160)).not.toThrow()
     }
   })
 
@@ -41,6 +42,7 @@ describe('stock catalogue', () => {
     }
     expect(mapById('plane').dim).toBe(2)
     expect(mapById('cube').dim).toBe(3)
+    expect(mapById('sunflower-pucks').dim).toBe(3)
     expect(mapById('seed-ring-2d').dim).toBe(2)
     expect(mapById('seed-sphere-3d').dim).toBe(3)
   })
@@ -55,6 +57,7 @@ describe('stock catalogue', () => {
     expect(mapById('star-shell').normals).toBe('star')
     expect(mapById('cube').normals).toBeUndefined()
     expect(mapById('plane').normals).toBeUndefined()
+    expect(mapById('sunflower-pucks').normals).toBeUndefined()
     // A volume has no per-point boundary normal, so a solid ball / solid star is
     // never solid-eligible — it leans on the renderer's depth-tested opaque cores.
     expect(mapById('sphere-volume').normals).toBeUndefined()
@@ -74,6 +77,7 @@ describe('stock catalogue', () => {
     // The volumetric cube is a regular side³ lattice, so it reports cols×rows×depth
     // (512 = 8³). An irregular 2D cloud and the shells still expose no clean lattice.
     expect(mapById('cube').gridDims(512)).toEqual({ cols: 8, rows: 8, depth: 8 })
+    expect(mapById('sunflower-pucks').gridDims(160)).toBeNull()
     expect(mapById('seed-ring-2d').gridDims(60)).toBeNull()
   })
 
@@ -84,10 +88,17 @@ describe('stock catalogue', () => {
 
 describe('source regeneration', () => {
   it('regenerates exactly pixelCount points for any count (no baked replay)', () => {
-    for (const m of SOURCE_STOCK_MAPS) {
+    for (const m of SOURCE_STOCK_MAPS.filter((m) => m.id !== 'sunflower-pucks')) {
       expect(m.resolve(7)).toHaveLength(7)
       expect(m.resolve(200)).toHaveLength(200)
     }
+  })
+
+  it('keeps literal coordinate-array stock maps at their measured point count', () => {
+    const pucks = mapById('sunflower-pucks')
+    expect(evalMapSource(stockMapSpec('sunflower-pucks')!.source, 7)).toHaveLength(160)
+    expect(pucks.resolve(7)).toHaveLength(160)
+    expect(pucks.resolve(200)).toHaveLength(160)
   })
 
   it('normalizes every coordinate into [0,1] per axis', () => {

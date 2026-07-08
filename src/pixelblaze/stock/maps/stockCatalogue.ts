@@ -1,9 +1,9 @@
 import { createSourceMap, type SourceMapSpec } from '@/engine/maps/sourceMap'
 import type { PixelMap } from '@/engine/maps/types'
 
-// Raw `.js` map sources, read as text: each file is a self-contained
-// `function(pixelCount){ … }`, Math/built-ins only, pasteable into a real
-// Pixelblaze Mapper tab. The filename is the source key.
+// Raw `.js` map sources, read as text: each file is either a self-contained
+// `function(pixelCount){ … }` generator or a literal coordinate array,
+// pasteable into a real Pixelblaze Mapper tab. The filename is the source key.
 const rawSources = import.meta.glob('./sources/*.js', {
   query: '?raw',
   import: 'default',
@@ -52,6 +52,7 @@ export const STOCK_MAP_SPECS: SourceMapSpec[] = [
   // has no per-point normal.
   { id: 'tetra-shell', name: 'Tetra shell', dim: 3, source: source('tetra-shell'), normals: 'tetra' },
   { id: 'tetra-volume', name: 'Tetra volume', dim: 3, source: source('tetra-volume') },
+  { id: 'sunflower-pucks', name: 'Sunflower pucks', dim: 3, source: source('sunflower-pucks') },
   { id: 'seed-ring-2d', name: 'Ring', dim: 2, source: source('ring') },
 ]
 
