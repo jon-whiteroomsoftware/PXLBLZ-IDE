@@ -153,6 +153,27 @@ describe('pass engine - intercept passes', () => {
     expect(result.code).toContain('__pxlblz_power_measure_hsv(0, 0.5, 0.8)')
     expect(result.summary.callSitesWrapped).toEqual({ hsv: 1 })
   })
+
+  it('can wire the stock power-cap source as an hsv scaling intercept', () => {
+    const powerCap = stockMixinSpec('power-cap')
+    expect(powerCap).toBeDefined()
+
+    const result = bundleWithPasses(`export function render(index) { hsv(0, 1, 1) }`, {}, [
+      {
+        id: 'power-cap',
+        kind: 'intercept',
+        target: 'hsv',
+        source: powerCap!.src,
+        wrapperName: 'cappedHsv',
+        params: { MAX_MILLIAMPS: 2500, FULL_WHITE_MILLIAMPS: 6000 },
+      },
+    ])
+
+    expect(result.code).toContain('export var __px_powerLimit = 2500')
+    expect(result.code).toContain('var __px_powerEstimate = __px_powerDuty * 6000')
+    expect(result.code).toContain('hsv(h, s, v * __px_powerScale)')
+    expect(result.summary.callSitesWrapped).toEqual({ hsv: 1 })
+  })
 })
 
 describe('pass engine - bind passes', () => {

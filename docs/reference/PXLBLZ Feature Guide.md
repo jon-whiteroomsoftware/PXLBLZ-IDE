@@ -393,6 +393,9 @@ from its default, and resets the whole preview in one click (semantics below).
   from power-measure/power-cap mixins are shown as a structured Power row on the
   live Controller panel instead of appearing as ordinary watch variables. Treat
   these as estimated draw/budget signals, not precision measurement.
+- **Power cap** — enabling the Controller profile's power-cap transform applies
+  an estimated `hsv` output guard at push time and reports the same Power row
+  telemetry while it runs.
 
 ## 9. Editor in detail
 

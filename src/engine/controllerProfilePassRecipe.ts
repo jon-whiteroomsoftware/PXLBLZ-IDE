@@ -9,6 +9,7 @@ export interface LiveControllerIdentity {
 }
 
 type HardwareBrightnessTransform = Extract<GlobalTransform, { type: 'hardware-brightness' }>
+type PowerCapTransform = Extract<GlobalTransform, { type: 'power-cap' }>
 
 export function findProfileForLiveController(
   profiles: ControllerProfile[],
@@ -26,50 +27,79 @@ export function controllerProfilePassRecipe(
   patternSource: string,
 ): PassRecipe {
   if (!profile) return []
+  const recipe: PassRecipe = []
   const hardwareBrightness = profile.globalTransforms.find(
     (transform): transform is HardwareBrightnessTransform =>
       transform.type === 'hardware-brightness' && transform.enabled,
   )
-  if (!hardwareBrightness || hardwareBrightness.mode !== 'multiply-output') return []
+  const powerCap = profile.globalTransforms.find(
+    (transform): transform is PowerCapTransform =>
+      transform.type === 'power-cap' && transform.enabled && transform.maxMilliamps > 0,
+  )
 
-  const input = profile.inputs.find((candidate) => candidate.id === hardwareBrightness.inputId)
-  if (!input || input.signal !== 'analog') return []
+  if (hardwareBrightness && hardwareBrightness.mode === 'multiply-output') {
+    const input = profile.inputs.find((candidate) => candidate.id === hardwareBrightness.inputId)
+    if (input?.signal === 'analog') {
+      const brightnessName = uniqueIdentifier(patternSource, 'hardwareBrightnessValue')
+      const hwBrightnessMixin = stockMixinSpec('hw-brightness')
+      if (hwBrightnessMixin) {
+        recipe.push(
+          {
+            id: 'hardware-brightness-sample',
+            kind: 'inject',
+            source: [
+              `var ${brightnessName} = FALLBACK`,
+              ``,
+              `export function beforeRender(delta) {`,
+              `  var raw = analogRead(PIN)`,
+              `  if (INVERT) raw = 1 - raw`,
+              `  ${brightnessName} = ${brightnessName} + (raw - ${brightnessName}) * SMOOTHING`,
+              `}`,
+            ].join('\n'),
+            params: {
+              PIN: input.pin,
+              SMOOTHING: input.smoothing,
+              FALLBACK: input.fallback,
+              INVERT: input.invert,
+            },
+          },
+          {
+            id: 'hardware-brightness',
+            kind: 'intercept',
+            target: 'hsv',
+            source: hwBrightnessMixin.src,
+            wrapperName: 'hardwareBrightness',
+            params: {
+              BRIGHTNESS: brightnessName,
+            },
+          },
+        )
+      }
+    }
+  }
 
-  const brightnessName = uniqueIdentifier(patternSource, 'hardwareBrightnessValue')
-  const hwBrightnessMixin = stockMixinSpec('hw-brightness')
-  if (!hwBrightnessMixin) return []
+  if (powerCap) {
+    const powerCapMixin = stockMixinSpec('power-cap')
+    if (powerCapMixin) {
+      recipe.push({
+        id: 'power-cap',
+        kind: 'intercept',
+        target: 'hsv',
+        source: powerCapMixin.src,
+        wrapperName: 'cappedHsv',
+        params: {
+          MAX_MILLIAMPS: powerCap.maxMilliamps,
+          FULL_WHITE_MILLIAMPS: fullWhiteMilliamps(profile),
+        },
+      })
+    }
+  }
 
-  return [
-    {
-      id: 'hardware-brightness-sample',
-      kind: 'inject',
-      source: [
-        `var ${brightnessName} = FALLBACK`,
-        ``,
-        `export function beforeRender(delta) {`,
-        `  var raw = analogRead(PIN)`,
-        `  if (INVERT) raw = 1 - raw`,
-        `  ${brightnessName} = ${brightnessName} + (raw - ${brightnessName}) * SMOOTHING`,
-        `}`,
-      ].join('\n'),
-      params: {
-        PIN: input.pin,
-        SMOOTHING: input.smoothing,
-        FALLBACK: input.fallback,
-        INVERT: input.invert,
-      },
-    },
-    {
-      id: 'hardware-brightness',
-      kind: 'intercept',
-      target: 'hsv',
-      source: hwBrightnessMixin.src,
-      wrapperName: 'hardwareBrightness',
-      params: {
-        BRIGHTNESS: brightnessName,
-      },
-    },
-  ]
+  return recipe
+}
+
+function fullWhiteMilliamps(profile: ControllerProfile): number {
+  return Math.max(1, Math.round((profile.lastKnownPixelCount ?? 256) * 60))
 }
 
 function uniqueIdentifier(source: string, preferred: string): string {

@@ -169,15 +169,32 @@ export function powerMeasureHsv(h, s, v) {
 }
 `
 
-const POWER_CAP_SOURCE = `// Power Cap - reserve a pass slot for current limiting. The intercept pass
-// rewrites color calls and reports the clamp in the transform summary.
+const POWER_CAP_SOURCE = `// Power Cap - estimate output duty from intercepted hsv() calls and scale value
+// when the running estimate exceeds the configured current budget.
 //
 // @param MAX_MILLIAMPS controller power budget
+// @param FULL_WHITE_MILLIAMPS estimated current when every RGB channel is full on
 // @target hsv
 // @wraps hsv-call
 
+export var __px_powerDuty = 0
+export var __px_powerMilliAmps = 0
+export var __px_powerLimit = MAX_MILLIAMPS
+export var __px_powerScale = 1
+export var __px_powerClipping = 0
+
+var __px_powerSamples = 0
+
 export function cappedHsv(h, s, v) {
-  hsv(h, s, v)
+  var duty = max(0, min(1, v)) * (1 - max(0, min(1, s)) * 0.5)
+  __px_powerSamples = __px_powerSamples + 1
+  __px_powerDuty = __px_powerDuty + (duty - __px_powerDuty) / __px_powerSamples
+  var __px_powerEstimate = __px_powerDuty * FULL_WHITE_MILLIAMPS
+  __px_powerLimit = MAX_MILLIAMPS
+  __px_powerScale = __px_powerEstimate > MAX_MILLIAMPS ? max(0, min(1, MAX_MILLIAMPS / __px_powerEstimate)) : 1
+  __px_powerClipping = __px_powerScale < 1 ? 1 : 0
+  __px_powerMilliAmps = __px_powerEstimate * __px_powerScale
+  hsv(h, s, v * __px_powerScale)
 }
 `
 

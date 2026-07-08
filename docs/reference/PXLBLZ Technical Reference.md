@@ -341,10 +341,10 @@ valid. The preview/right pane is replaced by `MixinProvenancePane`: header facts
 usage rows, and the last transform summary when available, with honest empty
 states until the pass engine records provenance/artifacts. The stock catalog
 includes `power-measure`, a measurement-only intercept source that exports the
-reserved `__px_power*` telemetry variables while leaving output unchanged; the
-full `power-cap`, `sensor-pulse`, and `night-scheduler` entries remain readable
-stock sources whose complete push-time consumption is handled by later #319
-slices.
+reserved `__px_power*` telemetry variables while leaving output unchanged.
+`power-cap` uses the same telemetry convention and, when enabled on a Controller
+profile, compiles as an estimated `hsv` output limiter; broader sink coverage,
+sensor-pulse, and night-scheduler consumption are later #319 slices.
 
 ## 7. Runtime shim & built-ins (`shim.ts`, `builtins.ts`)
 
@@ -980,9 +980,13 @@ input once per `beforeRender`, smooths/inverts/falls back according to the
 profile input, intercepts `hsv(...)` output calls through the stock
 `hw-brightness` mixin, and stores the pass-engine transform summary in
 `controllerStore.lastTransformSummary[controllerId][patternId]` for later
-inspection. The device's native brightness stays independent: it remains the
-hard output cap controlled from the live Controller panel, not a value copied
-from preview state. The modes:
+inspection. With the power-cap global transform enabled, the push recipe also
+intercepts `hsv(...)` calls through the stock `power-cap` mixin, estimates duty
+against `lastKnownPixelCount * 60mA`, exports `__px_power*` telemetry, and scales
+value when the running estimate exceeds the configured milliamp budget. The
+device's native brightness stays independent: it remains the hard output cap
+controlled from the live Controller panel, not a value copied from preview
+state. The modes:
 
 - **Run-only** (default): compile, mint a throwaway program id, load + run via
   `pushBytecode` — the firmware's `setCode`/`putByteCode`/`pause:false` sequence

@@ -20,10 +20,41 @@ describe('controller profile pass recipe', () => {
     })?.id).toBe('device')
   })
 
-  it('returns no passes without an enabled hardware brightness transform', () => {
+  it('returns no passes without enabled global transforms', () => {
     const profile = defaultControllerProfile({ id: 'ctrl-1' })
 
     expect(controllerProfilePassRecipe(profile, 'export function render(i){}')).toEqual([])
+  })
+
+  it('builds a power-cap recipe for an enabled cap transform', () => {
+    const profile = {
+      ...defaultControllerProfile({ id: 'ctrl-1', now: 1 }),
+      lastKnownPixelCount: 100,
+      globalTransforms: [
+        {
+          id: 'power-cap',
+          type: 'power-cap' as const,
+          enabled: true,
+          mixinId: 'builtin:power-cap',
+          maxMilliamps: 2500,
+        },
+      ],
+    }
+
+    const recipe = controllerProfilePassRecipe(profile, 'export function render(i) { hsv(i, 1, 1) }')
+
+    expect(recipe).toEqual([
+      expect.objectContaining({
+        id: 'power-cap',
+        kind: 'intercept',
+        target: 'hsv',
+        wrapperName: 'cappedHsv',
+        params: {
+          MAX_MILLIAMPS: 2500,
+          FULL_WHITE_MILLIAMPS: 6000,
+        },
+      }),
+    ])
   })
 
   it('builds a frame-sampled hardware brightness recipe for an enabled analog input', () => {
