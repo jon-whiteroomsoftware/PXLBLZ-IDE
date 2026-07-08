@@ -108,8 +108,9 @@ const CUSTOM_MIXIN: MixinRecord = {
 
 const CONTROLLER_PROFILE: ControllerProfile = {
   id: 'ctrl-1',
-  name: 'Burner bag',
+  name: 'Old alias',
   deviceId: 'pixelblaze_pb32_3cd4ee549434',
+  lastKnownDeviceName: 'Burner bag',
   board: { kind: 'pixelblaze-v3-standard' },
   inputs: [],
   globalTransforms: [],
@@ -231,6 +232,10 @@ describe('PatternList', () => {
     await user.click(screen.getByRole('radio', { name: 'Controllers' }))
 
     expect(await screen.findByText('Burner bag')).toBeInTheDocument()
+    expect(screen.queryByText('Old alias')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'New controller profile' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Rename' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Delete' })).toBeInTheDocument()
     expect(screen.queryByRole('textbox', { name: /search by name/i })).not.toBeInTheDocument()
   })
 

@@ -658,8 +658,10 @@ Controller profiles are offline-editable records for hardware identity,
 board-aware inputs, global transforms, per-pattern bindings, and zones. Their
 pure validator lives in `src/engine/controllerProfile.ts`; it rejects analog
 bindings on non-analog Pixelblaze v3 Standard pins using the ElectroMage GPIO
-findings from the issue #289 spike. Profiles key the physical controller by
-`device_id` when known, and keep mutable convenience fields (`lastKnownDeviceName`,
+findings from the issue #289 spike. Profiles are created from observed hardware
+rather than from a blank Studio form. They key the physical controller by
+`device_id` when known, mirror the last observed Pixelblaze device name into the
+profile `name`, and keep mutable convenience fields (`lastKnownDeviceName`,
 `lastSeenIp`, `lastKnownPixelCount`, `lastKnownMapDim`) for the Studio controller
 page's offline status strip. Controller push metadata remains a sibling
 framework-free storage seam: overwrite bindings (`controller-bindings`) and
@@ -816,25 +818,29 @@ the MAC, and the provider builds
 unavailable, the provider falls back to helper cloud discovery and matches by
 `localIp`. All identity reads are best-effort; failure leaves the connection live
 with `deviceId: null`. The keyed store mirrors `deviceId` in memory only; durable
-metadata belongs on Controller profiles. Profiles keep user-editable `name`
-separate from the Pixelblaze-reported `lastKnownDeviceName`, plus `lastSeenIp`
-as a convenience hint and `board.firmwareVersion` as last-seen firmware
-metadata. The Studio `Controllers` rail lists durable profiles by profile name
+metadata belongs on Controller profiles. Profiles use the last observed
+Pixelblaze device name as their durable `name`, keep `lastKnownDeviceName` for
+older-record display fallback and metadata sync, plus `lastSeenIp` as a
+convenience hint and `board.firmwareVersion` as last-seen firmware metadata. The
+Studio `Controllers` rail lists durable profiles by last observed device name
 with a live/idle marker derived from `deviceId`; selecting one opens
 `/studio/controllers/<id>`, a durable profile page for hardware inputs, global
 transforms, per-pattern bindings, zones, and a read-only status strip. That page
 does not own live controls: the active connection controls stay in the top-right
-Controller panel. When a signed-in session has a live Controller with a stable
-`deviceId`, `ControllerBar` asks `controllerProfileStore` to ensure a durable
-profile exists: existing profiles are refreshed, and missing profiles are
-auto-created from the device name/id/IP/firmware. A live Controller with
-`deviceId: null` stays fully usable but is not auto-persisted from IP alone; the
-user can still create an unclaimed profile explicitly from the panel. Deleting a
-profile suppresses same-session auto-recreation for that device id. When the
-matching physical Controller is connected, the profile refresh path updates
-`lastKnownDeviceName`, `lastSeenIp`, `lastKnownPixelCount`, `lastKnownMapDim`,
-and last-seen firmware. Discovery firmware can seed the profile before full live
-metadata is available; a later live config read overwrites it.
+Controller panel. There is no blank-new Controller profile action in the Studio
+rail and no profile-name alias/rename path; users can delete profiles, while
+creation happens from live observed hardware. When a signed-in session has a
+live Controller with a stable `deviceId`, `ControllerBar` asks
+`controllerProfileStore` to ensure a durable profile exists: existing profiles
+are refreshed, and missing profiles are auto-created from the device
+name/id/IP/firmware. A live Controller with `deviceId: null` stays fully usable
+but is not auto-persisted from IP alone; the user can still create an unclaimed
+profile explicitly from the panel. Deleting a profile suppresses same-session
+auto-recreation for that device id. When the matching physical Controller is
+connected, the profile refresh path updates `name`, `lastKnownDeviceName`,
+`lastSeenIp`, `lastKnownPixelCount`, `lastKnownMapDim`, and last-seen firmware.
+Discovery firmware can seed the profile before full live metadata is available;
+a later live config read overwrites it.
 
 ### The in-app surface (status pills, panel)
 

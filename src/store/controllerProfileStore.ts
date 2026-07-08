@@ -33,7 +33,6 @@ interface ControllerProfileState {
     ip?: string
     firmwareVersion?: string
   }) => Promise<ControllerProfile>
-  renameProfile: (id: string, name: string) => Promise<void>
   removeProfile: (id: string) => Promise<void>
   ensureProfileForLiveController: (
     target: ControllerProfileJoinTarget & { phase: string; mapDim?: unknown },
@@ -159,10 +158,6 @@ export const useControllerProfileStore = create<ControllerProfileState>()((set, 
     return profile
   },
 
-  renameProfile: async (id, name) => {
-    await get().updateProfile(id, { name })
-  },
-
   removeProfile: async (id) => {
     const profile = get().profiles.find((item) => item.id === id)
     if (profile?.deviceId) autoCreateSuppressedDeviceIds.add(profile.deviceId)
@@ -178,8 +173,8 @@ export const useControllerProfileStore = create<ControllerProfileState>()((set, 
     if (existing) {
       const firmwareVersion = target.firmwareVersion
       const changes: Partial<Omit<ControllerProfile, 'id'>> = {
-        ...(target.nickname && existing.lastKnownDeviceName !== target.nickname
-          ? { lastKnownDeviceName: target.nickname }
+        ...(target.nickname && (existing.lastKnownDeviceName !== target.nickname || existing.name !== target.nickname)
+          ? { name: target.nickname, lastKnownDeviceName: target.nickname }
           : {}),
         ...(existing.lastSeenIp !== target.ip ? { lastSeenIp: target.ip } : {}),
         ...(firmwareVersion && existing.board.firmwareVersion !== firmwareVersion
@@ -335,10 +330,13 @@ export const useControllerProfileStore = create<ControllerProfileState>()((set, 
     ])
     const mapDim = mapDimension(map)
     const firmwareVersion = config?.firmwareVersion ?? active.firmwareVersion
+    const liveName = config?.name ?? active.nickname
     const changes: Partial<Omit<ControllerProfile, 'id'>> = {
-      ...(active.deviceId ? { deviceId: active.deviceId } : {}),
-      ...(config?.name ? { lastKnownDeviceName: config.name } : {}),
-      lastSeenIp: active.ip,
+      ...(active.deviceId && profile.deviceId !== active.deviceId ? { deviceId: active.deviceId } : {}),
+      ...(liveName && (profile.name !== liveName || profile.lastKnownDeviceName !== liveName)
+        ? { name: liveName, lastKnownDeviceName: liveName }
+        : {}),
+      ...(profile.lastSeenIp !== active.ip ? { lastSeenIp: active.ip } : {}),
       ...(typeof config?.pixelCount === 'number' ? { lastKnownPixelCount: config.pixelCount } : {}),
       ...(mapDim ? { lastKnownMapDim: mapDim } : {}),
       ...(firmwareVersion && profile.board.firmwareVersion !== firmwareVersion

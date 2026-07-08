@@ -41,6 +41,7 @@ import {
   type MixinRecord,
 } from '@/store/mixinStore'
 import { useControllerStore } from '@/store/controllerStore'
+import { controllerProfileDisplayName } from '@/engine/controllerProfile'
 import {
   profileMatchesLive,
   useControllerProfileStore,
@@ -419,7 +420,7 @@ function EditableListItem({
   takenNames: string[]
   navKey?: string
   onSelect: () => void
-  onRename: (name: string) => void
+  onRename?: (name: string) => void
   onDelete: () => void
   onRowRef?: (key: string, el: HTMLLIElement | null) => void
   onRowKeyDown?: (e: React.KeyboardEvent<HTMLLIElement>, key: string) => void
@@ -431,6 +432,7 @@ function EditableListItem({
 
   function startEdit(e: React.MouseEvent) {
     e.stopPropagation()
+    if (!onRename) return
     setDraft(name)
     setConflict(false)
     setEditing(true)
@@ -438,6 +440,7 @@ function EditableListItem({
   }
 
   function commitRename() {
+    if (!onRename) { setEditing(false); return }
     const trimmed = draft.trim()
     if (!trimmed) { setEditing(false); return }
     if (trimmed === name) { setEditing(false); return }
@@ -494,14 +497,16 @@ function EditableListItem({
             <span className="flex-1 min-w-0 truncate">{name}</span>
             {dim && <DimPill dim={dim} />}
             <span className="pointer-events-none absolute right-3 top-1/2 flex -translate-y-1/2 items-center gap-1 opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100">
-              <button
-                onClick={startEdit}
-                className="inline-flex h-5 w-5 items-center justify-center rounded border border-zinc-800 bg-zinc-950/85 text-zinc-500 transition-colors hover:border-zinc-600 hover:bg-zinc-800 hover:text-zinc-200"
-                title="Rename"
-                aria-label="Rename"
-              >
-                <Pencil size={13} aria-hidden />
-              </button>
+              {onRename && (
+                <button
+                  onClick={startEdit}
+                  className="inline-flex h-5 w-5 items-center justify-center rounded border border-zinc-800 bg-zinc-950/85 text-zinc-500 transition-colors hover:border-zinc-600 hover:bg-zinc-800 hover:text-zinc-200"
+                  title="Rename"
+                  aria-label="Rename"
+                >
+                  <Pencil size={13} aria-hidden />
+                </button>
+              )}
               <AlertDialogTrigger asChild>
                 <button
                   onClick={(e) => e.stopPropagation()}
@@ -673,8 +678,6 @@ export function PatternList() {
   const removeMixin = useMixinStore((s) => s.removeMixin)
   const controllerProfiles = useControllerProfileStore((s) => s.profiles)
   const loadControllerProfiles = useControllerProfileStore((s) => s.loadProfiles)
-  const createControllerProfile = useControllerProfileStore((s) => s.createProfile)
-  const renameControllerProfile = useControllerProfileStore((s) => s.renameProfile)
   const removeControllerProfile = useControllerProfileStore((s) => s.removeProfile)
   const liveControllers = useControllerStore((s) => s.controllers)
   const navigate = useRouterStore((s) => s.navigate)
@@ -1033,14 +1036,6 @@ export function PatternList() {
     navigate({ kind: 'studio', entity: { kind: 'controllers', id: profileId } })
   }
 
-  async function handleCreateControllerProfile() {
-    if (!personalWorkspaceAuthenticated) return
-    const profile = await createControllerProfile({
-      name: uniquePatternName('Untitled Controller', controllerProfiles.map((item) => item.name)),
-    })
-    openControllerProfile(profile.id)
-  }
-
   async function handleRemoveControllerProfile(profileId: string) {
     await removeControllerProfile(profileId)
     if (route.kind === 'studio' && route.entity?.kind === 'controllers' && route.entity.id === profileId) {
@@ -1293,12 +1288,7 @@ export function PatternList() {
         )}
         {railMode === 'controllers' && (
           <>
-            <RailEntityHeader
-              title="Controllers"
-              action={personalWorkspaceAuthenticated
-                ? <HeaderAction icon={<Plus size={14} />} title="New controller profile" onClick={handleCreateControllerProfile} />
-                : null}
-            />
+            <RailEntityHeader title="Controllers" />
             <div className="relative flex-1 min-h-0">
               <div
                 ref={scrollRef}
@@ -1312,19 +1302,20 @@ export function PatternList() {
                     {' '}to save controllers
                   </p>
                 ) : controllerProfiles.length === 0 ? (
-                  <p className="pl-3 pr-3 py-1 text-zinc-600 italic select-none">No controller profiles yet</p>
+                  <p className="pl-3 pr-3 py-1 text-zinc-600 italic select-none">
+                    Connect a Controller to create its profile
+                  </p>
                 ) : (
                   <ul className="pt-2">
                     {controllerProfiles.map((profile) => (
                       <EditableListItem
                         key={profile.id}
-                        name={profile.name}
+                        name={controllerProfileDisplayName(profile)}
                         noun="controller"
                         active={route.kind === 'studio' && route.entity?.kind === 'controllers' && route.entity.id === profile.id}
                         dim={profileMatchesLive(profile, liveControllers) ? 'LIVE' : 'IDLE'}
-                        takenNames={controllerProfiles.filter((item) => item.id !== profile.id).map((item) => item.name)}
+                        takenNames={[]}
                         onSelect={() => openControllerProfile(profile.id)}
-                        onRename={(name) => renameControllerProfile(profile.id, name)}
                         onDelete={() => void handleRemoveControllerProfile(profile.id)}
                       />
                     ))}

@@ -72,8 +72,8 @@ export interface ControllerProfile {
   id: string
   name: string
   deviceId?: string
-  /** Last mutable name reported by the physical Pixelblaze. Display-only; may
-   *  differ from the user-editable profile name and is overwritten on reconnect. */
+  /** Last mutable name reported by the physical Pixelblaze. Claimed profiles
+   *  mirror this into `name`; older records may still need this as display fallback. */
   lastKnownDeviceName?: string
   /** Last transport IP seen for this physical device. Convenience only, not identity. */
   lastSeenIp?: string
@@ -87,6 +87,10 @@ export interface ControllerProfile {
   patternBindings: PatternBinding[]
   zones: ControllerZone[]
   updatedAt: number
+}
+
+export function controllerProfileDisplayName(profile: ControllerProfile): string {
+  return profile.lastKnownDeviceName ?? profile.name
 }
 
 export interface ControllerProfileValidationIssue {

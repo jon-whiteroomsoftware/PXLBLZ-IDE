@@ -148,7 +148,7 @@ describe('controllerProfileStore', () => {
       lastKnownDeviceName: 'Live PB',
     })
 
-    await useControllerProfileStore.getState().renameProfile(created.id, 'Road case')
+    await useControllerProfileStore.getState().updateProfile(created.id, { name: 'Road case' })
     expect(useControllerProfileStore.getState().profiles[0]).toMatchObject({ name: 'Road case' })
 
     await useControllerProfileStore.getState().removeProfile(created.id)
@@ -170,7 +170,7 @@ describe('controllerProfileStore', () => {
     expect(useControllerProfileStore.getState().profiles[0].patternBindings).toEqual([])
   })
 
-  it('refreshes last-known metadata from the active live controller', async () => {
+  it('refreshes the durable profile name and last-known metadata from the active live controller', async () => {
     const profile = defaultControllerProfile({
       id: 'ctrl-1',
       deviceId: 'pixelblaze_pb32_3cd4ee549434',
@@ -195,6 +195,7 @@ describe('controllerProfileStore', () => {
     await useControllerProfileStore.getState().refreshLiveMetadata('ctrl-1')
 
     expect(useControllerProfileStore.getState().profiles[0]).toMatchObject({
+      name: 'Pixelblaze shelf',
       lastKnownDeviceName: 'Pixelblaze shelf',
       lastSeenIp: '192.168.8.224',
       lastKnownPixelCount: 256,
@@ -266,7 +267,7 @@ describe('controllerProfileStore', () => {
     expect(useControllerProfileStore.getState().profiles).toHaveLength(1)
     expect(useControllerProfileStore.getState().profiles[0]).toMatchObject({
       id: 'ctrl-1',
-      name: 'Road case',
+      name: 'Pixelblaze shelf',
       lastKnownDeviceName: 'Pixelblaze shelf',
       lastSeenIp: '192.168.8.224',
       board: {

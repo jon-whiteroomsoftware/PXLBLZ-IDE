@@ -411,7 +411,8 @@ describe('routing (#308)', () => {
     render(<App />)
 
     expect(screen.getByTestId('controller-profile-page')).toHaveTextContent('Pixelblaze shelf')
-    expect(screen.getByTestId('editor-pane')).toHaveTextContent('Burner bag')
+    expect(screen.getByTestId('editor-pane')).toHaveTextContent('Pixelblaze shelf')
+    expect(screen.getByTestId('editor-pane')).not.toHaveTextContent('Burner bag')
   })
 
   it('shows a graceful message for unknown paths', () => {

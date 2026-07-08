@@ -93,8 +93,8 @@ The app has real URLs now — every page is shareable and bookmarkable.
   the account menu offers **Connect** for the other provider (and Disconnect,
   as long as one login remains). A Google sign-in whose verified email matches
   your existing account links automatically. Your patterns, maps, mixins, and
-  controller profiles live in your cloud workspace, on any machine you sign
-  into.
+  observed controller profiles live in your cloud workspace, on any machine you
+  sign into.
 - **The Controller connection surface is global** — the same top-right Connect
   button, pills, and live panel on every page, Gallery included, signed in or
   not. Live hardware never requires an account.
@@ -521,9 +521,10 @@ Maps** §5).
   accelerometer, light) are inert stubs, so they won't animate from audio or
   motion in the preview.
 - **Your work follows your account.** Personal patterns, maps, mixins, and
-  controller profiles live in your signed-in cloud workspace, available from
-  any machine. Signed-out sessions are non-durable demo mode — nothing you make
-  there persists.
+  observed controller profiles live in your signed-in cloud workspace,
+  available from any machine. Controller profiles are created when hardware is
+  connected and named from the Pixelblaze device name; signed-out sessions are
+  non-durable demo mode — nothing you make there persists.
 - **Push transforms are opt-in and inspectable.** If the connected device's
   Controller profile has its hardware-brightness transform enabled, Send to
   Controller injects that behaviour into the pushed artifact (the pattern

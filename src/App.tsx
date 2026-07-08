@@ -39,6 +39,7 @@ import { useDocsStore } from '@/store/docsStore'
 import { useRouterStore } from '@/store/routerStore'
 import { openDemoPattern, openPatternRecord } from '@/store/openPattern'
 import { routesEqual, type Route } from '@/engine/routes'
+import { controllerProfileDisplayName } from '@/engine/controllerProfile'
 import { decideStudioAccess, studioWelcomeAcknowledgedKey } from '@/engine/studioAccess'
 import { useWorkspaceStore } from '@/store/workspaceStore'
 import { forkSettingsSnapshot } from '@/store/settingsCascade'
@@ -630,7 +631,9 @@ export default function App() {
             ) : activeControllerProfileId !== null ? (
               <span className="flex-1 min-w-0 flex items-center gap-1.5">
                 <Cpu size={14} aria-hidden className="shrink-0 text-zinc-500" />
-                <span className="truncate text-zinc-200">{activeControllerProfile?.name ?? 'Controller profile'}</span>
+                <span className="truncate text-zinc-200">
+                  {activeControllerProfile ? controllerProfileDisplayName(activeControllerProfile) : 'Controller profile'}
+                </span>
                 <span className="hidden rounded border border-zinc-700 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-structural sm:inline">
                   Controller
                 </span>
