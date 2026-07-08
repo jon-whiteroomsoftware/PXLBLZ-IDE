@@ -25,6 +25,7 @@
     "pack:extension": "node scripts/pack-extension.mjs",
     "harness": "tsx test/divergence-harness/harness.ts",
     "profile": "tsx test/perf-harness/profiler.ts",
+    "issue314": "tsx test/perf-harness/issue314.ts",
     "bench": "tsx test/perf-harness/bench.ts",
     "drift": "tsx test/perf-harness/drift.ts",
     "devbench": "tsx test/perf-harness/devbench.ts",
