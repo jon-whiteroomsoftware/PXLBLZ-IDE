@@ -69,6 +69,8 @@ export interface ControllerEntry {
   deviceId?: string | null
   /** Device name when reported; absent → the pill falls back to the IP. */
   nickname?: string
+  /** Last firmware version reported by discovery or live config. */
+  firmwareVersion?: string
   phase: ControllerPhase
   /** Last error message when `phase === 'error'`. */
   error?: string
@@ -265,6 +267,7 @@ function phaseFromStatus(status: ControllerStatus): Partial<ControllerEntry> | n
         error: undefined,
         authorizationNeededIp: null,
         ...(status.controller.name ? { nickname: status.controller.name } : {}),
+        ...(status.controller.firmwareVersion ? { firmwareVersion: status.controller.firmwareVersion } : {}),
       }
     case 'error':
       return { phase: 'error', error: status.message, authorizationNeededIp: null }
@@ -332,6 +335,7 @@ function normalizeControllerTarget(
       address: ip,
       deviceId: target.id,
       ...(target.name ? { name: target.name } : {}),
+      ...(target.version ? { firmwareVersion: target.version } : {}),
     },
     seedNickname: target.name ?? seedNickname,
   }
@@ -425,6 +429,7 @@ export const useControllerStore = create<ControllerConnectionState>()(
                 phase: 'pending',
                 mapDim: null,
                 nickname: seed || undefined,
+                firmwareVersion: connectTarget.firmwareVersion,
                 authorizationNeededIp: null,
               },
             },
@@ -450,6 +455,7 @@ export const useControllerStore = create<ControllerConnectionState>()(
           ])
           const liveDeviceId = get().controllers[target]?.deviceId ?? connectTarget.deviceId ?? null
           const reportedName = config?.name ?? connectTarget.name
+          const reportedFirmwareVersion = config?.firmwareVersion ?? connectTarget.firmwareVersion
           patchController(target, {
             phase: 'live',
             // Sticky name: only overwrite when getConfig actually returned one. During
@@ -457,6 +463,7 @@ export const useControllerStore = create<ControllerConnectionState>()(
             // reject (→ null here); clobbering the name to undefined would flash the
             // pill back to the bare IP. Keep the seeded/last-known name instead.
             ...(config?.name ? { nickname: config.name } : {}),
+            ...(reportedFirmwareVersion ? { firmwareVersion: reportedFirmwareVersion } : {}),
             mapDim: mapDimension(map),
           })
           // Remember the IP *and* the freshly-read name (#215). A device rename since

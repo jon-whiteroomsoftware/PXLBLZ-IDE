@@ -43,11 +43,13 @@ describe('controller profile join', () => {
       ip: '192.168.8.224',
       deviceId: 'pixelblaze_pb32_3cd4ee549434',
       nickname: 'Pixelblaze shelf',
+      firmwareVersion: '3.67',
     })).toEqual({
       name: 'Pixelblaze shelf',
       deviceId: 'pixelblaze_pb32_3cd4ee549434',
       deviceName: 'Pixelblaze shelf',
       ip: '192.168.8.224',
+      firmwareVersion: '3.67',
     })
 
     expect(controllerProfileCreateSeed({ ip: '192.168.8.225', deviceId: null })).toEqual({

@@ -818,21 +818,23 @@ unavailable, the provider falls back to helper cloud discovery and matches by
 with `deviceId: null`. The keyed store mirrors `deviceId` in memory only; durable
 metadata belongs on Controller profiles. Profiles keep user-editable `name`
 separate from the Pixelblaze-reported `lastKnownDeviceName`, plus `lastSeenIp`
-as a convenience hint. The Studio `Controllers` rail lists durable profiles by
-profile name with a live/idle marker derived from `deviceId`; selecting one opens
+as a convenience hint and `board.firmwareVersion` as last-seen firmware
+metadata. The Studio `Controllers` rail lists durable profiles by profile name
+with a live/idle marker derived from `deviceId`; selecting one opens
 `/studio/controllers/<id>`, a durable profile page for hardware inputs, global
 transforms, per-pattern bindings, zones, and a read-only status strip. That page
 does not own live controls: the active connection controls stay in the top-right
 Controller panel. When a signed-in session has a live Controller with a stable
 `deviceId`, `ControllerBar` asks `controllerProfileStore` to ensure a durable
 profile exists: existing profiles are refreshed, and missing profiles are
-auto-created from the device name/id/IP. A live Controller with `deviceId: null`
-stays fully usable but is not auto-persisted from IP alone; the user can still
-create an unclaimed profile explicitly from the panel. Deleting a profile
-suppresses same-session auto-recreation for that device id. When the matching
-physical Controller is connected, the profile refresh path updates
-`lastKnownDeviceName`, `lastSeenIp`, `lastKnownPixelCount`, and
-`lastKnownMapDim`.
+auto-created from the device name/id/IP/firmware. A live Controller with
+`deviceId: null` stays fully usable but is not auto-persisted from IP alone; the
+user can still create an unclaimed profile explicitly from the panel. Deleting a
+profile suppresses same-session auto-recreation for that device id. When the
+matching physical Controller is connected, the profile refresh path updates
+`lastKnownDeviceName`, `lastSeenIp`, `lastKnownPixelCount`, `lastKnownMapDim`,
+and last-seen firmware. Discovery firmware can seed the profile before full live
+metadata is available; a later live config read overwrites it.
 
 ### The in-app surface (status pills, panel)
 

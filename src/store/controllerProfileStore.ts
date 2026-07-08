@@ -31,6 +31,7 @@ interface ControllerProfileState {
     deviceId?: string | null
     deviceName?: string
     ip?: string
+    firmwareVersion?: string
   }) => Promise<ControllerProfile>
   renameProfile: (id: string, name: string) => Promise<void>
   removeProfile: (id: string) => Promise<void>
@@ -74,6 +75,7 @@ export function defaultControllerProfile(seed: {
   deviceId?: string | null
   deviceName?: string
   ip?: string
+  firmwareVersion?: string
   now?: number
 } = {}): ControllerProfile {
   const name = seed.name ?? seed.deviceName ?? 'Untitled Controller'
@@ -84,7 +86,10 @@ export function defaultControllerProfile(seed: {
     ...(seed.deviceId ? { deviceId: seed.deviceId } : {}),
     ...(seed.deviceName ? { lastKnownDeviceName: seed.deviceName } : {}),
     ...(seed.ip ? { lastSeenIp: seed.ip } : {}),
-    board: { kind: 'pixelblaze-v3-standard' },
+    board: {
+      kind: 'pixelblaze-v3-standard',
+      ...(seed.firmwareVersion ? { firmwareVersion: seed.firmwareVersion } : {}),
+    },
     inputs: [],
     globalTransforms: [
       {
@@ -171,11 +176,15 @@ export const useControllerProfileStore = create<ControllerProfileState>()((set, 
 
     const existing = findControllerProfileForDevice(get().profiles, target.deviceId)
     if (existing) {
+      const firmwareVersion = target.firmwareVersion
       const changes: Partial<Omit<ControllerProfile, 'id'>> = {
         ...(target.nickname && existing.lastKnownDeviceName !== target.nickname
           ? { lastKnownDeviceName: target.nickname }
           : {}),
         ...(existing.lastSeenIp !== target.ip ? { lastSeenIp: target.ip } : {}),
+        ...(firmwareVersion && existing.board.firmwareVersion !== firmwareVersion
+          ? { board: { ...existing.board, firmwareVersion } }
+          : {}),
       }
       if (Object.keys(changes).length > 0) await get().updateProfile(existing.id, changes)
       return get().profiles.find((profile) => profile.id === existing.id) ?? existing
@@ -325,12 +334,16 @@ export const useControllerProfileStore = create<ControllerProfileState>()((set, 
       provider.getPixelMap().catch(() => null),
     ])
     const mapDim = mapDimension(map)
+    const firmwareVersion = config?.firmwareVersion ?? active.firmwareVersion
     const changes: Partial<Omit<ControllerProfile, 'id'>> = {
       ...(active.deviceId ? { deviceId: active.deviceId } : {}),
       ...(config?.name ? { lastKnownDeviceName: config.name } : {}),
       lastSeenIp: active.ip,
       ...(typeof config?.pixelCount === 'number' ? { lastKnownPixelCount: config.pixelCount } : {}),
       ...(mapDim ? { lastKnownMapDim: mapDim } : {}),
+      ...(firmwareVersion && profile.board.firmwareVersion !== firmwareVersion
+        ? { board: { ...profile.board, firmwareVersion } }
+        : {}),
     }
     if (Object.keys(changes).length > 0) await get().updateProfile(profileId, changes)
   },

@@ -380,6 +380,7 @@ export class PixelblazeConnection {
     pixelCount?: number
     boardType?: string
     chipId?: number
+    firmwareVersion?: string
   }> {
     if (!this.isConnected) {
       return Promise.reject(new Error('Cannot send: Pixelblaze connection is not open'))
@@ -401,6 +402,12 @@ export class PixelblazeConnection {
         pixelCount: this._pixelCount ?? undefined,
         boardType: typeof settings?.boardType === 'string' ? settings.boardType : undefined,
         chipId: typeof settings?.chipId === 'number' ? settings.chipId : undefined,
+        firmwareVersion:
+          typeof settings?.version === 'string'
+            ? settings.version
+            : typeof settings?.firmwareVersion === 'string'
+              ? settings.firmwareVersion
+              : undefined,
       }
     })
   }

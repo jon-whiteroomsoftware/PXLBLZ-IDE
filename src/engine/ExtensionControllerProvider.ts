@@ -345,6 +345,7 @@ export class ExtensionControllerProvider implements ControllerProvider {
         address: target.address,
         deviceId,
         ...(target.name ? { name: target.name } : {}),
+        ...(target.firmwareVersion ? { firmwareVersion: target.firmwareVersion } : {}),
       },
     })
   }

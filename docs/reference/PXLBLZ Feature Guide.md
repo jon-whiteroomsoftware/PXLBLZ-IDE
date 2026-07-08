@@ -485,7 +485,9 @@ profile is created automatically the first time); the profile page at
 `/studio/controllers/<id>` is editable even while the device is offline:
 
 - a **status strip** — connected/offline, last-known device name, IP, pixel
-  count, map dimensionality, firmware — with a Refresh button when live;
+  count, map dimensionality, firmware — with a Refresh button when live. Device
+  name, IP, and firmware are last-seen metadata: discovery/connect refreshes
+  them when newer values are observed;
 - **hardware inputs** — named pots/buttons with pin, signal, role, smoothing,
   fallback, and invert; analog choices are limited to the board's ADC1-safe
   pins, with anything else flagged inline;

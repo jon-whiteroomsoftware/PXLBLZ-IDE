@@ -27,6 +27,7 @@ class FakeControllerProvider extends NullControllerProvider {
   config: ControllerConfig = {
     name: 'Pixelblaze shelf',
     pixelCount: 256,
+    firmwareVersion: '3.68',
   }
 
   getConfig(): Promise<ControllerConfig> {
@@ -115,6 +116,7 @@ describe('controllerProfileStore', () => {
       deviceId: 'pixelblaze_pb32_3cd4ee549434',
       deviceName: 'Pixelblaze shelf',
       ip: '192.168.8.224',
+      firmwareVersion: '3.67',
       now: 100,
     })
 
@@ -124,6 +126,9 @@ describe('controllerProfileStore', () => {
       deviceId: 'pixelblaze_pb32_3cd4ee549434',
       lastKnownDeviceName: 'Pixelblaze shelf',
       lastSeenIp: '192.168.8.224',
+      board: {
+        firmwareVersion: '3.67',
+      },
     })
     expect(validateControllerProfile(profile)).toEqual({ ok: true, errors: [] })
   })
@@ -194,6 +199,9 @@ describe('controllerProfileStore', () => {
       lastSeenIp: '192.168.8.224',
       lastKnownPixelCount: 256,
       lastKnownMapDim: 3,
+      board: {
+        firmwareVersion: '3.68',
+      },
     })
   })
 
@@ -204,6 +212,7 @@ describe('controllerProfileStore', () => {
       ip: '192.168.8.224',
       deviceId: 'pixelblaze_pb32_3cd4ee549434',
       nickname: 'Pixelblaze shelf',
+      firmwareVersion: '3.67',
       phase: 'live',
       mapDim: 2,
     })
@@ -213,6 +222,9 @@ describe('controllerProfileStore', () => {
       deviceId: 'pixelblaze_pb32_3cd4ee549434',
       lastKnownDeviceName: 'Pixelblaze shelf',
       lastSeenIp: '192.168.8.224',
+      board: {
+        firmwareVersion: '3.67',
+      },
     })
     expect(useControllerProfileStore.getState().profiles).toHaveLength(1)
   })
@@ -245,6 +257,7 @@ describe('controllerProfileStore', () => {
       ip: '192.168.8.224',
       deviceId: 'pixelblaze_pb32_3cd4ee549434',
       nickname: 'Pixelblaze shelf',
+      firmwareVersion: '3.68',
       phase: 'live',
       mapDim: 2,
     })
@@ -256,6 +269,9 @@ describe('controllerProfileStore', () => {
       name: 'Road case',
       lastKnownDeviceName: 'Pixelblaze shelf',
       lastSeenIp: '192.168.8.224',
+      board: {
+        firmwareVersion: '3.68',
+      },
     })
   })
 

@@ -241,15 +241,22 @@ describe('controllerStore (keyed)', () => {
       id: 'pixelblaze_pb32_known',
       address: '10.0.0.5',
       name: 'Desk',
+      version: '3.67',
     })
 
     const provider = created.get('10.0.0.5')!
     expect(provider.connects).toEqual([
-      { address: '10.0.0.5', deviceId: 'pixelblaze_pb32_known', name: 'Desk' },
+      {
+        address: '10.0.0.5',
+        deviceId: 'pixelblaze_pb32_known',
+        name: 'Desk',
+        firmwareVersion: '3.67',
+      },
     ])
     expect(store().controllers['10.0.0.5']).toMatchObject({
       phase: 'live',
       deviceId: 'pixelblaze_pb32_known',
+      firmwareVersion: '3.67',
       nickname: 'pixel-1',
     })
     expect(store().lastKnownControllerNames.pixelblaze_pb32_known).toBe('pixel-1')

@@ -468,7 +468,7 @@ describe('PixelblazeConnection', () => {
       const promise = conn.getConfig()
       expect(socket.lastFrame()).toEqual({ getConfig: true })
       // settings packet (top-level brightness) and sequencer packet arrive separately
-      socket.simulateMessage({ brightness: 0.4, pixelCount: 256, name: 'pb' })
+      socket.simulateMessage({ brightness: 0.4, pixelCount: 256, name: 'pb', version: '3.68' })
       socket.simulateMessage({
         activeProgram: { activeProgramId: 'pat1', name: 'X', controls: { sliderA: 0.7 } },
       })
@@ -478,6 +478,7 @@ describe('PixelblazeConnection', () => {
         activeControls: { sliderA: 0.7 },
         name: 'pb',
         pixelCount: 256,
+        firmwareVersion: '3.68',
       })
     })
 

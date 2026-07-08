@@ -4,6 +4,7 @@ export interface ControllerProfileJoinTarget {
   ip: string
   deviceId?: string | null
   nickname?: string
+  firmwareVersion?: string
 }
 
 export function findControllerProfileForDevice(
@@ -24,11 +25,13 @@ export function controllerProfileCreateSeed(target: ControllerProfileJoinTarget)
   deviceId?: string
   deviceName?: string
   ip: string
+  firmwareVersion?: string
 } {
   return {
     name: target.nickname ?? `Controller ${target.ip}`,
     ...(target.deviceId ? { deviceId: target.deviceId } : {}),
     ...(target.nickname ? { deviceName: target.nickname } : {}),
+    ...(target.firmwareVersion ? { firmwareVersion: target.firmwareVersion } : {}),
     ip: target.ip,
   }
 }

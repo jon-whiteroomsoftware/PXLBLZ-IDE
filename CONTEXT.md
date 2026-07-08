@@ -54,7 +54,7 @@ The stable identifier of one physical Pixelblaze, `pixelblaze_<boardType>_<rever
 _Avoid_: keying anything durable on IP or name; treating chipId or MAC alone as the id.
 
 **Controller profile**:
-The durable, D1-backed record of one physical **Controller** — user-editable name, claimed **device id**, board profile, hardware inputs, global transforms, pattern bindings, zones, and last-known convenience metadata (device name, IP, pixel count, map dim). Offline-editable at `/studio/controllers/<id>`; auto-created for signed-in sessions when a live device reports a stable id. It holds durable configuration only and never duplicates live controls — those stay in the **Controller panel**.
+The durable, D1-backed record of one physical **Controller** — user-editable name, claimed **device id**, board profile, hardware inputs, global transforms, pattern bindings, zones, and last-known convenience metadata (device name, IP, firmware, pixel count, map dim). Offline-editable at `/studio/controllers/<id>`; auto-created for signed-in sessions when a live device reports a stable id. It holds durable configuration only and never duplicates live controls — those stay in the **Controller panel**.
 _Avoid_: conflating it with the live connection or panel; "controller" bare when the profile/live distinction matters.
 
 **Controller panel** (the connected-hardware surface):

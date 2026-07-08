@@ -27,6 +27,8 @@ export interface ControllerTarget {
   deviceId?: string
   /** Human label from discovery or prior session; display only, never identity. */
   name?: string
+  /** Firmware version from discovery when known before connecting. */
+  firmwareVersion?: string
 }
 
 /** A Controller the provider is currently connected to. `id` is the stable key
@@ -39,6 +41,7 @@ export interface ConnectedController {
   /** Stable physical-device id when recovered; null means connected but unclaimed. */
   deviceId: string | null
   name?: string
+  firmwareVersion?: string
 }
 
 /** A Controller surfaced by auto-discovery (H14, issue #206) but not (yet)
@@ -111,6 +114,8 @@ export interface ControllerConfig {
   boardType?: string
   /** ESP chip id from the settings packet. Kept for diagnostics; MAC is the id source. */
   chipId?: number
+  /** Firmware version from the settings packet when available. */
+  firmwareVersion?: string
 }
 
 /** Live runtime metrics the device reports while running — distinct from stored
