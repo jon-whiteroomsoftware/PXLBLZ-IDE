@@ -46,6 +46,13 @@ describe('detectGridDims', () => {
 })
 
 describe('bakeMapSource', () => {
+  it('bakes a literal coordinate array source', () => {
+    const baked = bakeMapSource('[[0,0], [100,0], [100,100], [0,100]]', 999)
+    expect(baked.dim).toBe(2)
+    expect(baked.gridDims).toEqual({ cols: 2, rows: 2 })
+    expect(baked.points).toEqual([[0, 0], [1, 0], [1, 1], [0, 1]])
+  })
+
   it('bakes a regular 2D grid: normalized points, dim 2, grid dims', () => {
     const src = `function(pixelCount) {
       var coords = []

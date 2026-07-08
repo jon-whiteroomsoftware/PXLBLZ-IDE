@@ -372,11 +372,11 @@ Map evaluation is therefore faithful by construction.
 
 Hardware's Mapper accepts two source formats — a literal JSON coordinate array,
 or a `function(pixelCount)` returning one — authored in arbitrary real-world
-units (the firmware normalizes from the coordinates' limits). The IDE
-deliberately models **only the function flavor**: it is the superset (a static
-array is a trivial function body), it is what `parseMapSource`/`bakeMapSource`
-evaluate, and every stock map is expressed that way. The raw-units detail is
-invisible downstream — normalization erases input scale.
+units (the firmware normalizes from the coordinates' limits). The IDE accepts
+both forms in map mode: `parseMapSource` parses either a top-level array literal
+or function expression, and `bakeMapSource` evaluates the array directly or calls
+the function once with the modeled pixel count. The raw-units detail is invisible
+downstream — normalization erases input scale.
 
 Every stock map (`stockCatalogue.ts`) is a self-contained `function(pixelCount)`
 in `src/pixelblaze/stock/maps/sources/*.js` — `Math.*` and language built-ins only,

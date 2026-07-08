@@ -174,12 +174,13 @@ on the surface and "volume" fills the interior. Every stock map is real, pasteab
 Mapper code: reveal **Stock Maps** in the Maps rail, open one read-only at its
 stable `/studio/maps/<id>` route, and **Clone** it into an editable copy.
 
-**Custom maps**: click **New Map** and you get an editor on a plain
-`function(pixelCount)` — exactly what a real Pixelblaze Mapper tab evaluates, full
-JavaScript with `Math.*`, authored in whatever units fit your build. Custom maps
-re-bake automatically as you edit (the same once-at-save evaluation hardware does)
-but never change the running preview on their own; you assign a map to a pattern
-with the preview's Map control.
+**Custom maps**: click **New Map** and you get an editor for real Pixelblaze
+Mapper source: either a literal coordinate array (`[[x,y], ...]` or
+`[[x,y,z], ...]`) or a plain `function(pixelCount)` returning one. Function maps
+are full JavaScript with `Math.*`, authored in whatever units fit your build.
+Custom maps re-bake automatically as you edit (the same once-at-save evaluation
+hardware does) but never change the running preview on their own; you assign a map
+to a pattern with the preview's Map control.
 
 **Mixins** are visible Pixelblaze-dialect source chunks for the pass engine.
 Cloud mixins live under Mixins, while **show stock mixins** reveals the read-only

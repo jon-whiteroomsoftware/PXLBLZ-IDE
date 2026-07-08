@@ -412,6 +412,21 @@ describe('map eval/bake/deploy (#143)', () => {
     expect(useMapStore.getState().mapEvalError).toBeNull()
   })
 
+  it('bakeEditingMap accepts a literal coordinate array source', async () => {
+    await useMapStore.getState().createNewMap()
+    const source = '[[0,0], [100,0], [100,100], [0,100]]'
+    useEditorStore.getState().setSource(source)
+    useMapStore.setState({ activePixelCount: 99 })
+    await useMapStore.getState().bakeEditingMap()
+
+    const rec = useMapStore.getState().userMaps[0]
+    expect(rec.source).toBe(source)
+    expect(rec.dim).toBe(2)
+    expect(rec.gridDims).toEqual({ cols: 2, rows: 2 })
+    expect(rec.points).toEqual([[0, 0], [1, 0], [1, 1], [0, 1]])
+    expect(useMapStore.getState().mapEvalError).toBeNull()
+  })
+
   it('bakes at the modeled-2D default when no pixel count is set (matches a fresh 2D pattern)', async () => {
     await useMapStore.getState().createNewMap()
     useEditorStore.getState().setSource(GRID_SRC)

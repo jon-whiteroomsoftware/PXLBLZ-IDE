@@ -1,32 +1,37 @@
 // The no-shim map-source evaluator. A stock or custom map's authoring
-// source is a single top-level `function(pixelCount){ … return coords }` written
-// in plain JavaScript — the exact thing a real Pixelblaze Mapper tab evaluates in
-// the browser. We run it the same way the device's browser does: a bare
-// `new Function`, float64, with NO fixed-point shim wrapper (that layer is for
-// patterns only). `Math` and language built-ins are in scope; there are no IDE
-// helpers, no library namespaces, no pattern globals.
+// source is either a literal coordinate array or a single top-level
+// `function(pixelCount){ … return coords }` written in plain JavaScript — the
+// exact shapes a real Pixelblaze Mapper tab accepts. We run it the same way the
+// device's browser does: a bare `new Function`, float64, with NO fixed-point
+// shim wrapper (that layer is for patterns only). `Math` and language built-ins
+// are in scope for function sources; there are no IDE helpers, no library
+// namespaces, no pattern globals.
 
 // Evaluate a map source for the requested pixel count and return its RAW
 // coordinate array (natural-unit geometry — the shared normalize pass maps it to
-// [0,1] afterwards). Throws a descriptive error if the source is not a function
-// or does not return a non-empty array of equal-arity numeric coords.
+// [0,1] afterwards). Throws a descriptive error if the source is neither a
+// function nor an array, or does not produce equal-arity numeric coords.
 export function evalMapSource(source: string, pixelCount: number): number[][] {
-  let factory: (n: number) => unknown
+  let value: unknown
   try {
-    // `return (<source>)` so the function expression is the evaluated value.
-    factory = new Function(`return (${source})`)() as (n: number) => unknown
+    // `return (<source>)` so the function expression or array literal is the
+    // evaluated value.
+    value = new Function(`return (${source})`)()
   } catch (e) {
     throw new Error(`map source failed to compile: ${(e as Error).message}`, { cause: e })
   }
-  if (typeof factory !== 'function') {
-    throw new Error('map source must be a single function(pixelCount){ … }')
+
+  let raw: unknown = value
+  if (typeof value === 'function') {
+    try {
+      raw = value(pixelCount)
+    } catch (e) {
+      throw new Error(`map source threw while generating: ${(e as Error).message}`, { cause: e })
+    }
+  } else if (!Array.isArray(value)) {
+    throw new Error('map source must be a coordinate array or a function(pixelCount){ … }')
   }
-  let raw: unknown
-  try {
-    raw = factory(pixelCount)
-  } catch (e) {
-    throw new Error(`map source threw while generating: ${(e as Error).message}`, { cause: e })
-  }
+
   if (!Array.isArray(raw)) {
     throw new Error('map source must return an array of coordinates')
   }

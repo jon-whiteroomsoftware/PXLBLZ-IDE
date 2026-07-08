@@ -3,10 +3,11 @@ import type { MapRecord } from '../personalContentRecords'
 import { STOCK_MAP_SPECS } from '@/pixelblaze/stock/maps/stockCatalogue'
 
 // The editor "map mode" authoring layer (#151). A custom map's source
-// is plain JavaScript — a single anonymous `function(pixelCount){ … return
-// coords }` expression, exactly what a real Pixelblaze Mapper tab evaluates — so
-// this layer uses a *parse-only* JS check (no fixed-point shim, no dialect
-// walker) and never evaluates anything. Evaluating/baking the source is #143.
+// is plain JavaScript — either a literal coordinate array or a single anonymous
+// `function(pixelCount){ … return coords }` expression, exactly what a real
+// Pixelblaze Mapper tab evaluates — so this layer uses a *parse-only* JS check
+// (no fixed-point shim, no dialect walker) and never evaluates anything.
+// Evaluating/baking the source is #143.
 
 export interface ParseError {
   message: string
@@ -25,12 +26,12 @@ export const MAP_SKELETON = `function(pixelCount) {
   return coords
 }`
 
-// Parse-only validity check for a map source. The canonical source is an
-// anonymous function *expression*, which is not a valid top-level statement on
-// its own, so we wrap it in parens (mirroring how `evalMapSource` evaluates
-// `(${source})`) and parse as plain JS — no dialect rules. Returns [] when the
-// source parses, or a single positioned error when it does not. Drives the
-// parse-only compile badge and Monaco markers.
+// Parse-only validity check for a map source. Function expressions and array
+// literals are not both valid top-level statements in every shape, so we wrap in
+// parens (mirroring how `evalMapSource` evaluates `(${source})`) and parse as
+// plain JS — no dialect rules. Returns [] when the source parses, or a single
+// positioned error when it does not. Drives the parse-only compile badge and
+// Monaco markers.
 export function parseMapSource(source: string): ParseError[] {
   try {
     acorn.parse(`(${source})`, { ecmaVersion: 2020, sourceType: 'script', locations: true })

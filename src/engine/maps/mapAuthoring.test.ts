@@ -18,6 +18,10 @@ describe('parseMapSource', () => {
     expect(parseMapSource('function(n){ return [[0,0]] }')).toEqual([])
   })
 
+  it('accepts a literal coordinate array source', () => {
+    expect(parseMapSource('[[0,0], [100,0], [100,100], [0,100]]')).toEqual([])
+  })
+
   it('accepts every stock map source verbatim', () => {
     for (const spec of STOCK_MAP_SPECS) {
       expect(parseMapSource(spec.source)).toEqual([])

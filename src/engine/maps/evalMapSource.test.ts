@@ -6,6 +6,16 @@ describe('evalMapSource', () => {
     expect(evalMapSource(src, 3)).toEqual([[0, 0], [1, 2], [2, 4]])
   })
 
+  it('accepts a literal 2D coordinate array', () => {
+    const src = '[[0, 0], [100, 0], [100, 100], [0, 100]]'
+    expect(evalMapSource(src, 99)).toEqual([[0, 0], [100, 0], [100, 100], [0, 100]])
+  })
+
+  it('accepts a literal 3D coordinate array', () => {
+    const src = '[[0, 0, 0], [1, 0, 0.5], [1, 1, 1]]'
+    expect(evalMapSource(src, 3)).toEqual([[0, 0, 0], [1, 0, 0.5], [1, 1, 1]])
+  })
+
   it('exposes Math to the source', () => {
     const src = 'function(n){ return [[Math.cos(0), Math.sqrt(4)]] }'
     expect(evalMapSource(src, 1)).toEqual([[1, 2]])
@@ -17,8 +27,8 @@ describe('evalMapSource', () => {
     expect(evalMapSource(src, 50)).toHaveLength(50)
   })
 
-  it('rejects a source that is not a function', () => {
-    expect(() => evalMapSource('[[0,0]]', 1)).toThrow(/single function/)
+  it('rejects a source that is neither a coordinate array nor a function', () => {
+    expect(() => evalMapSource('42', 1)).toThrow(/coordinate array or a function/)
   })
 
   it('rejects a source that does not return an array', () => {
