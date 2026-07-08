@@ -159,6 +159,8 @@ export function ShowStagePreview({ showId }: { showId: string }) {
       note: null,
     }
   }, [danglingStageMap, selectedStageMap, show, targetProfile?.lastKnownPixelCount, targetProfile?.zones, userMaps])
+  const effectiveSoloZoneId =
+    layout?.projection.zones.some((zone) => zone.id === soloZoneId) ? soloZoneId : null
 
   useEffect(() => {
     const element = containerRef.current
@@ -169,12 +171,6 @@ export function ShowStagePreview({ showId }: { showId: string }) {
     observer.observe(element)
     return () => observer.disconnect()
   }, [])
-
-  useEffect(() => {
-    if (!layout || !layout.projection.zones.some((zone) => zone.id === soloZoneId)) {
-      setSoloZoneId(null)
-    }
-  }, [layout, soloZoneId])
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -209,14 +205,15 @@ export function ShowStagePreview({ showId }: { showId: string }) {
         shim.builtins,
       )
     } catch (error) {
-      setRuntimeError(error instanceof Error ? error.message : 'Show preview failed')
+      const message = error instanceof Error ? error.message : 'Show preview failed'
+      queueMicrotask(() => setRuntimeError(message))
       return
     }
 
     const paint = (pixels: [number, number, number][], currentBrightness: number, dimmed: boolean) => {
       if (layout.draw.kind === '3d') renderer.setCamera(useCameraStore.getState().camera)
       renderer.paint(
-        applyShowStageMask(pixels, layout.projection, soloZoneId),
+        applyShowStageMask(pixels, layout.projection, effectiveSoloZoneId),
         currentBrightness,
         dimmed,
       )
@@ -238,7 +235,7 @@ export function ShowStagePreview({ showId }: { showId: string }) {
     loop.renderPreviewFrame()
     if (usePreviewStore.getState().isRunning) loop.start()
     return () => loop.stop()
-  }, [compiled.artifact, diffusion, fidelity, layout, lightSize, soloZoneId, viewportWidth])
+  }, [compiled.artifact, diffusion, effectiveSoloZoneId, fidelity, layout, lightSize, viewportWidth])
 
   useEffect(() => {
     const renderer = rendererRef.current
@@ -348,7 +345,7 @@ export function ShowStagePreview({ showId }: { showId: string }) {
 
         <div className="mt-4 flex items-center justify-between gap-2">
           <h3 className="text-[11px] font-semibold uppercase tracking-wider text-structural">Zones - solo</h3>
-          {soloZoneId && (
+          {effectiveSoloZoneId && (
             <button
               type="button"
               onClick={() => setSoloZoneId(null)}
@@ -360,7 +357,7 @@ export function ShowStagePreview({ showId }: { showId: string }) {
         </div>
         <div className="mt-2 space-y-1.5">
           {layout?.projection.zones.map((zone) => {
-            const active = zone.id === soloZoneId
+            const active = zone.id === effectiveSoloZoneId
             return (
               <div key={zone.id} className="grid grid-cols-[1fr_auto_auto] items-center gap-2 rounded border border-zinc-800 bg-zinc-950/55 px-2 py-1.5">
                 <div className="flex min-w-0 items-center gap-2">
