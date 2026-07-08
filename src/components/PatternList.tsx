@@ -36,6 +36,11 @@ import { newPersonalContentId } from '@/engine/personalContentMetadata'
 import { useEditorStore } from '@/store/editorStore'
 import { usePatternStore, PatternRecord } from '@/store/patternStore'
 import { useMapStore, STOCK_MAP_ITEMS, MapRecord } from '@/store/mapStore'
+import {
+  useMixinStore,
+  STOCK_MIXIN_ITEMS,
+  type MixinRecord,
+} from '@/store/mixinStore'
 import { useControllerStore } from '@/store/controllerStore'
 import {
   profileMatchesLive,
@@ -464,7 +469,7 @@ function EditableListItem({
   onRowKeyDown,
 }: {
   name: string
-  noun: 'pattern' | 'map' | 'controller'
+  noun: 'pattern' | 'map' | 'mixin' | 'controller'
   active: boolean
   dim?: string
   takenNames: string[]
@@ -581,15 +586,15 @@ function EditableListItem({
   )
 }
 
-function StockMapListItem({
+function StockListItem({
   name,
   active,
-  dim,
+  meta,
   onSelect,
 }: {
   name: string
   active: boolean
-  dim?: string
+  meta?: string
   onSelect: () => void
 }) {
   return (
@@ -600,7 +605,7 @@ function StockMapListItem({
     >
       {active && <ActiveBar />}
       <span className="flex-1 min-w-0 truncate">{name}</span>
-      {dim && <DimPill dim={dim} />}
+      {meta && <DimPill dim={meta} />}
     </li>
   )
 }
@@ -608,9 +613,11 @@ function StockMapListItem({
 function StockMapsToggle({
   visible,
   onToggle,
+  noun = 'maps',
 }: {
   visible: boolean
   onToggle: () => void
+  noun?: 'maps' | 'mixins'
 }) {
   return (
     <div className="px-3 pt-2">
@@ -619,7 +626,7 @@ function StockMapsToggle({
         onClick={onToggle}
         className="text-[11px] text-zinc-500 hover:text-live"
       >
-        {visible ? 'hide stock maps' : 'show stock maps'}
+        {visible ? `hide stock ${noun}` : `show stock ${noun}`}
       </button>
     </div>
   )
@@ -703,6 +710,14 @@ export function PatternList() {
   const openExistingMap = useMapStore((s) => s.openExistingMap)
   const openStockMap = useMapStore((s) => s.openStockMap)
   const closeMapEditor = useMapStore((s) => s.closeMapEditor)
+  const userMixins = useMixinStore((s) => s.userMixins)
+  const editingMixin = useMixinStore((s) => s.editingMixin)
+  const createNewMixin = useMixinStore((s) => s.createNewMixin)
+  const openExistingMixin = useMixinStore((s) => s.openExistingMixin)
+  const openStockMixin = useMixinStore((s) => s.openStockMixin)
+  const closeMixinEditor = useMixinStore((s) => s.closeMixinEditor)
+  const renameMixin = useMixinStore((s) => s.renameMixin)
+  const removeMixin = useMixinStore((s) => s.removeMixin)
   const controllerProfiles = useControllerProfileStore((s) => s.profiles)
   const loadControllerProfiles = useControllerProfileStore((s) => s.loadProfiles)
   const createControllerProfile = useControllerProfileStore((s) => s.createProfile)
@@ -746,6 +761,7 @@ export function PatternList() {
       const record: PatternRecord = { id, name, src: parsed.src, controls: {}, updatedAt: Date.now() }
       await addPattern(record)
       useMapStore.getState().closeMapEditor()
+      useMixinStore.getState().closeMixinEditor()
       useDocsStore.getState().closeDocs()
       setActivePattern(id)
       setSource(record.src)
@@ -776,6 +792,13 @@ export function PatternList() {
   const [showStockMaps, setShowStockMaps] = useState(() => {
     try {
       return window.sessionStorage.getItem('pxlblz.showStockMaps') === '1'
+    } catch {
+      return false
+    }
+  })
+  const [showStockMixins, setShowStockMixins] = useState(() => {
+    try {
+      return window.sessionStorage.getItem('pxlblz.showStockMixins') === '1'
     } catch {
       return false
     }
@@ -812,7 +835,18 @@ export function PatternList() {
     const resizeObserver = new ResizeObserver(updateScrollMetrics)
     resizeObserver.observe(el)
     return () => resizeObserver.disconnect()
-  }, [railMode, dimLens, query, userPatterns.length, userMaps.length, controllerProfiles.length, collapsedSections, showStockMaps])
+  }, [
+    railMode,
+    dimLens,
+    query,
+    userPatterns.length,
+    userMaps.length,
+    userMixins.length,
+    controllerProfiles.length,
+    collapsedSections,
+    showStockMaps,
+    showStockMixins,
+  ])
 
   useEffect(() => {
     try {
@@ -821,6 +855,14 @@ export function PatternList() {
       // Session persistence is a convenience only.
     }
   }, [showStockMaps])
+
+  useEffect(() => {
+    try {
+      window.sessionStorage.setItem('pxlblz.showStockMixins', showStockMixins ? '1' : '0')
+    } catch {
+      // Session persistence is a convenience only.
+    }
+  }, [showStockMixins])
 
   useEffect(() => {
     let cancelled = false
@@ -841,6 +883,8 @@ export function PatternList() {
       // Hydrate user maps before the first pattern opens so the layout selector is
       // populated from whichever personal provider won startup selection.
       await useMapStore.getState().loadMaps()
+      if (cancelled) return
+      await useMixinStore.getState().loadMixins()
       if (cancelled) return
       await loadControllerProfiles()
       if (cancelled) return
@@ -898,6 +942,7 @@ export function PatternList() {
 
   function openUserPattern(pattern: PatternRecord) {
     closeMapEditor()
+    closeMixinEditor()
     closeDocs()
     setActivePattern(pattern.id)
     setSource(pattern.src)
@@ -911,6 +956,7 @@ export function PatternList() {
   async function handleCreatePattern() {
     if (!personalWorkspaceAuthenticated) return
     closeMapEditor()
+    closeMixinEditor()
     closeDocs()
     const id = newPersonalContentId()
     const name = uniquePatternName('Untitled Pattern', userPatterns.map((p) => p.name))
@@ -927,18 +973,38 @@ export function PatternList() {
   // editor to the JS map flavor, and drives the bare-geometry preview.
   function openUserMap(map: MapRecord) {
     closeDocs()
+    closeMixinEditor()
     openExistingMap(map)
     navigate({ kind: 'studio', entity: { kind: 'maps', id: map.id } })
   }
 
   function openStockMapRoute(id: string) {
     closeDocs()
+    closeMixinEditor()
     openStockMap(id)
     navigate({ kind: 'studio', entity: { kind: 'maps', id } })
   }
 
+  async function handleCreateMap() {
+    closeMixinEditor()
+    await createNewMap()
+  }
+
+  function openUserMixin(mixin: MixinRecord) {
+    closeDocs()
+    openExistingMixin(mixin)
+    navigate({ kind: 'studio', entity: { kind: 'mixins', id: mixin.id } })
+  }
+
+  function openStockMixinRoute(id: string) {
+    closeDocs()
+    openStockMixin(id)
+    navigate({ kind: 'studio', entity: { kind: 'mixins', id } })
+  }
+
   function openControllerProfile(profileId: string) {
     closeMapEditor()
+    closeMixinEditor()
     closeDocs()
     navigate({ kind: 'studio', entity: { kind: 'controllers', id: profileId } })
   }
@@ -1123,7 +1189,7 @@ export function PatternList() {
                         collapsed={isCollapsed(personalMapsLabel)}
                         onToggle={() => toggleCollapsed(personalMapsLabel)}
                         action={personalWorkspaceAuthenticated
-                          ? <HeaderAction icon={<Plus size={14} />} title="New map" onClick={createNewMap} />
+                          ? <HeaderAction icon={<Plus size={14} />} title="New map" onClick={() => void handleCreateMap()} />
                           : null}
                       />
                       {!isCollapsed(personalMapsLabel) && (
@@ -1173,11 +1239,11 @@ export function PatternList() {
                             ) : (
                               <ul className="pt-2 opacity-85">
                                 {visibleStockMaps.map((map) => (
-                                  <StockMapListItem
+                                  <StockListItem
                                     key={map.id}
                                     name={map.name}
                                     active={editingMap?.kind === 'stock' && editingMap.id === map.id}
-                                    dim={dimLens === 'all' ? `${map.dim}D` : undefined}
+                                    meta={dimLens === 'all' ? `${map.dim}D` : undefined}
                                     onSelect={() => openStockMapRoute(map.id)}
                                   />
                                 ))}
@@ -1247,11 +1313,79 @@ export function PatternList() {
           </>
         )}
         {railMode === 'mixins' && (
-          <EntityStubList
-            title="Mixins"
-            label="Mixins"
-            detail="Mixin lists land in their own slice. This rail entry is reserved so the v2 Studio navigation can settle first."
-          />
+          <>
+            <div className="border-b border-seam px-3 py-2">
+              <div className="flex items-center justify-between gap-2">
+                <div className="text-sm font-semibold text-zinc-200">Mixins</div>
+                {personalWorkspaceAuthenticated && (
+                  <HeaderAction icon={<Plus size={14} />} title="New mixin" onClick={() => void createNewMixin()} />
+                )}
+              </div>
+            </div>
+            <div className="relative flex-1 min-h-0">
+              <div
+                ref={scrollRef}
+                data-testid="mixin-list-scroll"
+                onScroll={updateScrollMetrics}
+                className="rail-list-scroll h-full overflow-y-auto overflow-x-hidden pb-2"
+              >
+                {!personalWorkspaceAuthenticated ? (
+                  <p className="pl-3 pr-3 py-2 text-zinc-600 italic select-none">
+                    <a href="/api/auth/login" className="text-live hover:underline">Sign in</a>
+                    {' '}to save mixins
+                  </p>
+                ) : userMixins.length === 0 ? (
+                  <p className="pl-3 pr-3 py-1 text-zinc-600 italic select-none">
+                    No cloud mixins yet. Use show stock mixins below to browse built-ins.
+                  </p>
+                ) : (
+                  <ul className="pt-2">
+                    {userMixins.map((mixin) => (
+                      <EditableListItem
+                        key={mixin.id}
+                        name={mixin.name}
+                        noun="mixin"
+                        active={editingMixin?.kind === 'existing' && editingMixin.id === mixin.id}
+                        dim={mixin.kind}
+                        takenNames={userMixins.filter((m) => m.id !== mixin.id).map((m) => m.name)}
+                        onSelect={() => openUserMixin(mixin)}
+                        onRename={(name) => renameMixin(mixin.id, name)}
+                        onDelete={() => removeMixin(mixin.id)}
+                      />
+                    ))}
+                  </ul>
+                )}
+                <StockMapsToggle
+                  noun="mixins"
+                  visible={showStockMixins}
+                  onToggle={() => setShowStockMixins((visible) => !visible)}
+                />
+                {showStockMixins && (
+                  <>
+                    <SectionHeader
+                      label="Stock Mixins"
+                      collapsed={isCollapsed('Stock Mixins')}
+                      onToggle={() => toggleCollapsed('Stock Mixins')}
+                    />
+                    {!isCollapsed('Stock Mixins') && (
+                      <ul className="pt-2 opacity-85">
+                        {STOCK_MIXIN_ITEMS.map((mixin) => (
+                          <StockListItem
+                            key={mixin.id}
+                            name={mixin.name}
+                            active={editingMixin?.kind === 'stock' && editingMixin.id === mixin.id}
+                            meta={mixin.kind}
+                            onSelect={() => openStockMixinRoute(mixin.id)}
+                          />
+                        ))}
+                      </ul>
+                    )}
+                  </>
+                )}
+              </div>
+              <RailScrollThumb metrics={scrollMetrics} scrollRef={scrollRef} />
+            </div>
+          </>
         )}
         {railMode === 'shows' && (
           <EntityStubList

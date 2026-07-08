@@ -10,6 +10,7 @@ const controllerProfileDeviceMetadataMigrationPath = path.resolve(
 const controllerProfileStatusMetadataMigrationPath = path.resolve(
   'migrations/0005_controller_profile_status_metadata.sql',
 )
+const personalMixinsMigrationPath = path.resolve('migrations/0006_personal_mixins.sql')
 
 describe('D1 personal storage migration', () => {
   it('creates the storage buckets needed for the Cloudflare personal-storage foundation', () => {
@@ -70,5 +71,15 @@ describe('D1 personal storage migration', () => {
     expect(sql).toContain('ALTER TABLE controller_profiles ADD COLUMN last_known_pixel_count INTEGER')
     expect(sql).toContain('ALTER TABLE controller_profiles ADD COLUMN last_known_map_dim INTEGER')
     expect(sql).toContain("VALUES ('schema_version', '5', unixepoch())")
+  })
+
+  it('adds durable user-scoped mixins', () => {
+    const sql = fs.readFileSync(personalMixinsMigrationPath, 'utf8')
+
+    expect(sql).toContain('CREATE TABLE IF NOT EXISTS personal_mixins')
+    expect(sql).toContain("kind TEXT NOT NULL CHECK (kind IN ('inject', 'intercept', 'bind'))")
+    expect(sql).toContain('PRIMARY KEY (user_id, id)')
+    expect(sql).toContain('FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE')
+    expect(sql).toContain("VALUES ('schema_version', '6', unixepoch())")
   })
 })

@@ -5,7 +5,9 @@ import { usePatternStore } from '@/store/patternStore'
 import { useMapStore } from '@/store/mapStore'
 import { validateSource } from '@/engine/validate'
 import { parseMapSource } from '@/engine/maps'
+import { parseMixinHeader } from '@/engine/mixins'
 import { PixelblazeCodeEditor } from '@/components/PixelblazeCodeEditor'
+import { useMixinStore } from '@/store/mixinStore'
 
 const SYNC_TICK_MS = 4000
 const PREVIEW_DEBOUNCE_MS = 600
@@ -41,6 +43,10 @@ export function Editor() {
       const { source: s, compileStatus: status, activePatternId: pid, editorFlavor: flavor } = syncRef.current
       if (status !== 'good' || s === '') return
       if (flavor === 'map') void useMapStore.getState().bakeEditingMap()
+      else if (flavor === 'mixin') {
+        const editingMixin = useMixinStore.getState().editingMixin
+        if (editingMixin?.kind === 'existing') void useMixinStore.getState().updateMixinSrc(editingMixin.id, s)
+      }
       else if (pid) updatePatternSrc(pid, s)
     }, SYNC_TICK_MS)
     return () => clearInterval(id)
@@ -78,8 +84,13 @@ export function Editor() {
     }
 
     // Map mode (#151) authors plain JS, so the badge is a parse-only
-    // check (no Pixelblaze dialect rules); patterns keep the dialect validator.
-    const errors = editorFlavor === 'map' ? parseMapSource(source) : validateSource(source)
+    // check. Mixin mode validates the structured pass header only: binding
+    // placeholders are resolved where the mixin is used, not inside the source.
+    const errors = editorFlavor === 'map'
+      ? parseMapSource(source)
+      : editorFlavor === 'mixin'
+        ? parseMixinHeader(source)
+        : validateSource(source)
     setCompileStatus(errors.length === 0 ? 'good' : 'broken')
 
     monaco.editor.setModelMarkers(

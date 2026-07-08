@@ -151,17 +151,26 @@ re-bake automatically as you edit (the same once-at-save evaluation hardware doe
 but never change the running preview on their own; you assign a map to a pattern
 with the preview's Map control.
 
+**Mixins** are visible Pixelblaze-dialect source chunks for the pass engine.
+Cloud mixins live under Mixins, while **show stock mixins** reveals the read-only
+stock set with pass-kind badges (`inject`, `intercept`, `bind`). Opening a stock
+mixin shows the exact source and structured header (`@param`, `@target`,
+`@wraps`); **Clone** creates an editable cloud mixin. The right pane shows where a
+mixin is used and the last transform summary when that data exists, with empty
+states until bindings or generated artifacts have been recorded.
+
 ## 5. Patterns, built-ins, and libraries
 
 The left rail holds **Cloud Patterns** (your signed-in personal patterns),
 **Built-in Patterns** (read-only, runnable examples — shader ports, eased
-sweeps, noise fields, test patterns), and in Maps mode **Cloud Maps** by default,
-with a quiet **show stock maps** reveal for the read-only stock set. Signed-out
-use is demo mode: built-ins, stock maps, libraries, docs, and preview controls
-remain usable, while durable personal resources wait for sign-in.
+sweeps, noise fields, test patterns), in Maps mode **Cloud Maps** by default
+with a quiet **show stock maps** reveal, and in Mixins mode **Cloud Mixins** by
+default with a quiet **show stock mixins** reveal. Signed-out use is demo mode:
+built-ins, stock maps, stock mixins, libraries, docs, and preview controls remain
+usable, while durable personal resources wait for sign-in.
 
-A new pattern starts from a runnable animated starter; any built-in pattern or
-stock map can be **cloned** into an editable copy. Built-in patterns can open
+A new pattern starts from a runnable animated starter; any built-in pattern,
+stock map, or stock mixin can be **cloned** into an editable copy. Built-in patterns can open
 with a recommended map, pixel count, and solidity — defaults only, everything
 stays switchable (§8).
 

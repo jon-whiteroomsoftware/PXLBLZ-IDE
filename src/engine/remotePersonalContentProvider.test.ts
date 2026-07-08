@@ -115,6 +115,38 @@ describe('remote personal content provider', () => {
     expect(requests[2].init?.body).toBe(JSON.stringify({ lastKnownPixelCount: 512, updatedAt: 2 }))
   })
 
+  it('performs mixin CRUD through the authenticated API', async () => {
+    const requests: Array<{ url: string; init?: RequestInit }> = []
+    const mixin = {
+      id: 'mx1',
+      name: 'Pot binding',
+      kind: 'bind' as const,
+      src: '// @param PIN\n// @target CONTROL\n// @wraps beforeRender',
+      updatedAt: 1,
+    }
+    const fetcher: typeof fetch = async (url, init) => {
+      requests.push({ url: String(url), init })
+      if (String(url) === '/api/mixins' && init?.method === undefined) {
+        return Response.json({ mixins: [mixin] })
+      }
+      return Response.json({ ok: true })
+    }
+    const provider = createRemotePersonalContentProvider({ fetcher })
+
+    await expect(provider.listMixins()).resolves.toEqual([mixin])
+    await provider.createMixin(mixin)
+    await provider.updateMixin('mx1', { name: 'Renamed', updatedAt: 2 })
+    await provider.deleteMixin('mx1')
+
+    expect(requests.map((r) => [r.url, r.init?.method ?? 'GET'])).toEqual([
+      ['/api/mixins', 'GET'],
+      ['/api/mixins', 'POST'],
+      ['/api/mixins/mx1', 'PATCH'],
+      ['/api/mixins/mx1', 'DELETE'],
+    ])
+    expect(requests[2].init?.body).toBe(JSON.stringify({ name: 'Renamed', updatedAt: 2 }))
+  })
+
   it('raises a clear error when the API rejects the request', async () => {
     const provider = createRemotePersonalContentProvider({
       fetcher: async () => Response.json({ error: 'Unauthorized' }, { status: 401 }),

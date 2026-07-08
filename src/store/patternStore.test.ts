@@ -31,6 +31,10 @@ function memoryProvider(): PersonalContentProvider {
     createMap: async () => {},
     updateMap: async () => {},
     deleteMap: async () => {},
+    listMixins: async () => [],
+    createMixin: async () => {},
+    updateMixin: async () => {},
+    deleteMixin: async () => {},
     listControllerProfiles: async () => [...controllers.values()],
     createControllerProfile: async (profile) => {
       controllers.set(profile.id, profile)
@@ -117,6 +121,10 @@ describe('patternStore', () => {
       createMap: async () => {},
       updateMap: async () => {},
       deleteMap: async () => {},
+      listMixins: async () => [],
+      createMixin: async () => {},
+      updateMixin: async () => {},
+      deleteMixin: async () => {},
       listControllerProfiles: async () => [],
       createControllerProfile: async () => {},
       updateControllerProfile: async () => {},

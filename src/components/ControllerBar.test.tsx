@@ -59,6 +59,7 @@ function profile(
 function memoryProvider(seed: ControllerProfile[] = []): PersonalContentProvider {
   const patterns = new Map<string, PatternRecord>()
   const maps = new Map<string, MapRecord>()
+  const mixins = new Map()
   const controllers = new Map<string, ControllerProfile>(seed.map((record) => [record.id, record]))
   return {
     id: 'memory-test',
@@ -83,6 +84,17 @@ function memoryProvider(seed: ControllerProfile[] = []): PersonalContentProvider
     },
     deleteMap: async (id) => {
       maps.delete(id)
+    },
+    listMixins: async () => [...mixins.values()],
+    createMixin: async (record) => {
+      mixins.set(record.id, record)
+    },
+    updateMixin: async (id, changes) => {
+      const existing = mixins.get(id)
+      if (existing) mixins.set(id, { ...existing, ...changes })
+    },
+    deleteMixin: async (id) => {
+      mixins.delete(id)
     },
     listControllerProfiles: async () => [...controllers.values()],
     createControllerProfile: async (record) => {

@@ -6,8 +6,9 @@ export type CompileStatus = 'good' | 'broken'
 // Which flavor of content the editor surface holds (#151). 'pattern' covers the
 // existing pattern/demo/library flavors (Pixelblaze dialect, dialect-validated);
 // 'map' is the custom-map authoring mode (plain JS, parse-only badge).
+// 'mixin' is Pixelblaze-dialect source with a structured pass header.
 // The flavor selects the Monaco language and which validator feeds the badge.
-export type EditorFlavor = 'pattern' | 'map'
+export type EditorFlavor = 'pattern' | 'map' | 'mixin'
 
 interface EditorState {
   compileStatus: CompileStatus

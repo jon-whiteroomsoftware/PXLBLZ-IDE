@@ -10,7 +10,7 @@ import {
   type PersonalContentProvider,
 } from './personalContentProvider'
 import type { ControllerProfile } from './controllerProfile'
-import type { MapRecord, PatternRecord } from './personalContentRecords'
+import type { MapRecord, MixinRecord, PatternRecord } from './personalContentRecords'
 
 beforeEach(() => {
   resetPersonalContentProvider()
@@ -19,6 +19,7 @@ beforeEach(() => {
 function memoryProvider(): PersonalContentProvider {
   const patterns = new Map<string, PatternRecord>()
   const maps = new Map<string, MapRecord>()
+  const mixins = new Map<string, MixinRecord>()
   const controllers = new Map<string, ControllerProfile>()
   return {
     id: 'memory-test',
@@ -45,6 +46,18 @@ function memoryProvider(): PersonalContentProvider {
     },
     deleteMap: async (id) => {
       maps.delete(id)
+    },
+    listMixins: async () => [...mixins.values()],
+    createMixin: async (record) => {
+      mixins.set(record.id, record)
+    },
+    updateMixin: async (id, changes) => {
+      const existing = mixins.get(id)
+      if (!existing) throw new Error(`Mixin ${id} not found`)
+      mixins.set(id, { ...existing, ...changes })
+    },
+    deleteMixin: async (id) => {
+      mixins.delete(id)
     },
     listControllerProfiles: async () => [...controllers.values()],
     createControllerProfile: async (profile) => {
@@ -81,6 +94,7 @@ describe('personal content provider seam', () => {
     expect(personalContentCollectionLabel('demo', 'patterns')).toBe('Patterns')
     expect(personalContentCollectionLabel('api', 'patterns')).toBe('Patterns')
     expect(personalContentCollectionLabel('api', 'maps')).toBe('Maps')
+    expect(personalContentCollectionLabel('api', 'mixins')).toBe('Mixins')
   })
 
   it('selects the remote API as the only durable provider mode', async () => {
@@ -111,9 +125,17 @@ describe('personal content provider seam', () => {
       points: [[0, 0]],
       updatedAt: 1,
     }
+    const mixin: MixinRecord = {
+      id: 'mixin-1',
+      name: 'Provider Mixin',
+      kind: 'bind',
+      src: '// @param PIN\n// @target CONTROL\n// @wraps beforeRender',
+      updatedAt: 1,
+    }
 
     await expect(demoPersonalContentProvider.listPatterns()).resolves.toEqual([])
     await expect(demoPersonalContentProvider.listMaps()).resolves.toEqual([])
+    await expect(demoPersonalContentProvider.listMixins()).resolves.toEqual([])
     await expect(demoPersonalContentProvider.listControllerProfiles()).resolves.toEqual([])
     await expect(demoPersonalContentProvider.getLastActive()).resolves.toBeUndefined()
     await expect(demoPersonalContentProvider.getDemoOverrides()).resolves.toBeUndefined()
@@ -129,6 +151,11 @@ describe('personal content provider seam', () => {
       'Sign in required',
     )
     await expect(demoPersonalContentProvider.deleteMap(map.id)).rejects.toThrow('Sign in required')
+    await expect(demoPersonalContentProvider.createMixin(mixin)).rejects.toThrow('Sign in required')
+    await expect(demoPersonalContentProvider.updateMixin(mixin.id, { name: 'Renamed Mixin' })).rejects.toThrow(
+      'Sign in required',
+    )
+    await expect(demoPersonalContentProvider.deleteMixin(mixin.id)).rejects.toThrow('Sign in required')
     await expect(demoPersonalContentProvider.createControllerProfile({
       id: 'ctrl-1',
       name: 'Controller',

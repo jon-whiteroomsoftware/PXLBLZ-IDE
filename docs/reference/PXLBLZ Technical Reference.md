@@ -233,6 +233,20 @@ Custom maps offer **Send map to Controller** and a confirmation-guarded
 **Delete**; stock maps offer read-only state, **Clone**, and **Send map to
 Controller**.
 
+The editor's third flavor is **mixin mode** (`editorFlavor === 'mixin'`,
+`mixinStore.ts` + `MixinModeHeader.tsx`): Pixelblaze-dialect source with a
+structured pass header. Validation is header-focused (`parseMixinHeader`) rather
+than full dialect validation because `@param` placeholders are intentionally
+unresolved until a Controller or Show binding applies the mixin. Stock mixins are
+hidden from the Mixins rail until the session-scoped **show stock mixins** reveal
+is on, then open read-only at stable `/studio/mixins/<stock-id>` routes with pass
+kind badges (`inject`, `intercept`, `bind`). **Clone** copies the stock source
+into a new D1-backed `MixinRecord`, routes to `/studio/mixins/<id>`, and opens it
+editable. Cloud mixin source auto-saves on the editor sync tick when the header is
+valid. The preview/right pane is replaced by `MixinProvenancePane`: header facts,
+usage rows, and the last transform summary when available, with honest empty
+states until the pass engine records provenance/artifacts.
+
 ## 7. Runtime shim & built-ins (`shim.ts`, `builtins.ts`)
 
 `createShim(config)` builds the Pixelblaze built-in surface as a plain object,
@@ -568,7 +582,9 @@ attempted or implied.
 rewrites retired ids, schemaless throughout (no DB bump). Override writes go
 through `updatePatternSettings` (a sparse merge that does not bump
 `src`/`updatedAt`). `MapRecord` carries `source`/`points`/`gridDims` (§8).
-New personal pattern/map records use UUID ids.
+`MixinRecord` carries `name`, pass `kind`, Pixelblaze-dialect `src`, and
+`updatedAt`; `/api/mixins` persists it in `personal_mixins` (migration 0006).
+New personal pattern/map/mixin records use UUID ids.
 
 Selection is tri-state (pattern / library / demo). **Create** writes a runnable
 animated starter immediately. **Import** parses `.epe` JSON (`epeImport.ts`,

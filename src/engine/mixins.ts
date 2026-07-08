@@ -1,0 +1,200 @@
+import type { MixinPassKind, MixinRecord } from './personalContentRecords'
+
+export type { MixinPassKind, MixinRecord }
+
+export interface MixinParam {
+  name: string
+  description: string
+}
+
+export interface MixinHeader {
+  params: MixinParam[]
+  target: string
+  wraps: string
+}
+
+export interface MixinParseError {
+  line: number
+  column: number
+  message: string
+}
+
+export interface StockMixinSpec {
+  id: string
+  name: string
+  kind: MixinPassKind
+  src: string
+}
+
+export const MIXIN_SKELETON = `// Untitled Mixin
+// @param VALUE binding-supplied value
+// @target CONTROL
+// @wraps beforeRender
+
+export var mixinValue = 0
+
+export function beforeRender(delta) {
+  mixinValue = VALUE
+  CONTROL(mixinValue)
+}
+`
+
+export function parseMixinHeader(source: string): MixinParseError[] {
+  const lines = source.split(/\r?\n/)
+  const params = new Set<string>()
+  let targetLine = 0
+  let wrapsLine = 0
+  const errors: MixinParseError[] = []
+
+  lines.forEach((line, index) => {
+    const lineNumber = index + 1
+    const trimmed = line.trim()
+    const directive = /^\/\/\s*@(\w+)\b(.*)$/.exec(trimmed)
+    if (!directive) return
+
+    const [, tag, rawRest] = directive
+    const rest = rawRest.trim()
+    if (tag === 'param') {
+      const [name] = rest.split(/\s+/, 1)
+      if (!name) {
+        errors.push({ line: lineNumber, column: line.indexOf('@param'), message: '@param requires a name' })
+      } else {
+        params.add(name)
+      }
+      return
+    }
+    if (tag === 'target') {
+      if (targetLine !== 0) {
+        errors.push({ line: lineNumber, column: line.indexOf('@target'), message: 'Only one @target is allowed' })
+      } else if (!rest) {
+        errors.push({ line: lineNumber, column: line.indexOf('@target'), message: '@target requires a slot name' })
+      } else {
+        targetLine = lineNumber
+      }
+      return
+    }
+    if (tag === 'wraps') {
+      if (wrapsLine !== 0) {
+        errors.push({ line: lineNumber, column: line.indexOf('@wraps'), message: 'Only one @wraps is allowed' })
+      } else if (!rest) {
+        errors.push({ line: lineNumber, column: line.indexOf('@wraps'), message: '@wraps requires an injection point' })
+      } else {
+        wrapsLine = lineNumber
+      }
+    }
+  })
+
+  if (params.size === 0) errors.push({ line: 1, column: 0, message: 'Mixin header needs at least one @param' })
+  if (targetLine === 0) errors.push({ line: 1, column: 0, message: 'Mixin header needs @target' })
+  if (wrapsLine === 0) errors.push({ line: 1, column: 0, message: 'Mixin header needs @wraps' })
+  return errors
+}
+
+export function readMixinHeader(source: string): MixinHeader {
+  const params: MixinParam[] = []
+  let target = ''
+  let wraps = ''
+
+  for (const line of source.split(/\r?\n/)) {
+    const match = /^\/\/\s*@(\w+)\b(.*)$/.exec(line.trim())
+    if (!match) continue
+    const [, tag, rawRest] = match
+    const rest = rawRest.trim()
+    if (tag === 'param') {
+      const [name, ...description] = rest.split(/\s+/)
+      if (name) params.push({ name, description: description.join(' ') })
+    } else if (tag === 'target') {
+      target = rest
+    } else if (tag === 'wraps') {
+      wraps = rest
+    }
+  }
+
+  return { params, target, wraps }
+}
+
+const POT_BINDING_SOURCE = `// Pot Binding - read an analog input once per frame and drive one
+// pattern control. The pass engine fills the @params where this mixin is bound.
+//
+// @param PIN analog input pin, e.g. A2 on ADC1-safe Pixelblaze pins
+// @param SMOOTHING 0..1 exponential smoothing per frame
+// @param FALLBACK value used before the first stable read
+// @target CONTROL slider function or variable slot to drive
+// @wraps beforeRender
+
+export var potBindingValue = FALLBACK
+
+export function beforeRender(delta) {
+  var raw = analogRead(PIN)
+  potBindingValue = potBindingValue + (raw - potBindingValue) * SMOOTHING
+  CONTROL(potBindingValue)
+}
+`
+
+const HARDWARE_BRIGHTNESS_SOURCE = `// Hardware Brightness - multiply every hsv() value by a binding-supplied
+// hardware brightness scalar without changing the authored pattern source.
+//
+// @param BRIGHTNESS 0..1 controller-level brightness scalar
+// @target hsv
+// @wraps hsv-call
+
+export function hardwareBrightness(h, s, v) {
+  hsv(h, s, v * BRIGHTNESS)
+}
+`
+
+const POWER_CAP_SOURCE = `// Power Cap - reserve a pass slot for current limiting. The intercept pass
+// rewrites color calls and reports the clamp in the transform summary.
+//
+// @param MAX_MILLIAMPS controller power budget
+// @target hsv
+// @wraps hsv-call
+
+export function cappedHsv(h, s, v) {
+  hsv(h, s, v)
+}
+`
+
+const SENSOR_PULSE_SOURCE = `// Sensor Pulse - inject a frame-level sensor envelope for bindings that need
+// a simple pulse around an otherwise unmodified pattern.
+//
+// @param SENSOR normalized sensor value
+// @param DECAY 0..1 envelope decay
+// @target SENSOR_PULSE
+// @wraps beforeRender
+
+export var sensorPulse = 0
+
+export function beforeRender(delta) {
+  sensorPulse = max(SENSOR, sensorPulse * DECAY)
+}
+`
+
+const NIGHT_SCHEDULER_SOURCE = `// Night Scheduler - inject a time-window dimmer for controller or show bindings.
+//
+// @param START_HOUR local hour where dimming begins
+// @param END_HOUR local hour where dimming ends
+// @param NIGHT_LEVEL 0..1 brightness while inside the window
+// @target BRIGHTNESS
+// @wraps beforeRender
+
+export var scheduledBrightness = 1
+
+export function beforeRender(delta) {
+  scheduledBrightness = NIGHT_LEVEL
+}
+`
+
+export const STOCK_MIXIN_SPECS: StockMixinSpec[] = [
+  { id: 'pot-binding', name: 'pot-binding', kind: 'bind', src: POT_BINDING_SOURCE },
+  { id: 'hw-brightness', name: 'hw-brightness', kind: 'intercept', src: HARDWARE_BRIGHTNESS_SOURCE },
+  { id: 'power-cap', name: 'power-cap', kind: 'intercept', src: POWER_CAP_SOURCE },
+  { id: 'sensor-pulse', name: 'sensor-pulse', kind: 'inject', src: SENSOR_PULSE_SOURCE },
+  { id: 'night-scheduler', name: 'night-scheduler', kind: 'inject', src: NIGHT_SCHEDULER_SOURCE },
+]
+
+export function stockMixinSpec(id: string): StockMixinSpec | undefined {
+  return STOCK_MIXIN_SPECS.find((spec) => spec.id === id)
+}
+
+export const STOCK_MIXIN_ITEMS = STOCK_MIXIN_SPECS.map(({ id, name, kind }) => ({ id, name, kind }))

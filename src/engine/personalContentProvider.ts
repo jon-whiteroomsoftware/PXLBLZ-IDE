@@ -1,5 +1,5 @@
 import type { Settings } from './settings'
-import type { MapRecord, PatternRecord } from './personalContentRecords'
+import type { MapRecord, MixinRecord, PatternRecord } from './personalContentRecords'
 import type { ControllerProfile } from './controllerProfile'
 import { createRemotePersonalContentProvider } from './remotePersonalContentProvider'
 
@@ -12,7 +12,7 @@ export type LastActive =
   | { type: 'demo'; name: string }
 
 export type PersonalContentStorageMode = 'demo' | 'api'
-export type PersonalContentCollection = 'patterns' | 'maps' | 'controllers'
+export type PersonalContentCollection = 'patterns' | 'maps' | 'mixins' | 'controllers'
 export type PersonalContentProviderMode = 'remote-api'
 
 export interface PersonalContentProvider {
@@ -25,6 +25,10 @@ export interface PersonalContentProvider {
   createMap(record: MapRecord): Promise<void>
   updateMap(id: string, changes: Partial<Omit<MapRecord, 'id'>>): Promise<void>
   deleteMap(id: string): Promise<void>
+  listMixins(): Promise<MixinRecord[]>
+  createMixin(record: MixinRecord): Promise<void>
+  updateMixin(id: string, changes: Partial<Omit<MixinRecord, 'id'>>): Promise<void>
+  deleteMixin(id: string): Promise<void>
   listControllerProfiles(): Promise<ControllerProfile[]>
   createControllerProfile(profile: ControllerProfile): Promise<void>
   updateControllerProfile(id: string, changes: Partial<Omit<ControllerProfile, 'id'>>): Promise<void>
@@ -47,6 +51,7 @@ export function personalContentCollectionLabel(
   collection: PersonalContentCollection,
 ): string {
   if (collection === 'controllers') return 'Controllers'
+  if (collection === 'mixins') return 'Mixins'
   return collection === 'patterns' ? 'Patterns' : 'Maps'
 }
 
@@ -64,6 +69,10 @@ export const demoPersonalContentProvider: PersonalContentProvider = {
   createMap: signInRequired,
   updateMap: signInRequired,
   deleteMap: signInRequired,
+  listMixins: async () => [],
+  createMixin: signInRequired,
+  updateMixin: signInRequired,
+  deleteMixin: signInRequired,
   listControllerProfiles: async () => [],
   createControllerProfile: signInRequired,
   updateControllerProfile: signInRequired,

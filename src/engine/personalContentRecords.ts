@@ -33,3 +33,15 @@ export interface MapRecord {
   gridDims?: { cols: number; rows: number; depth?: number }
   updatedAt: number
 }
+
+export type MixinPassKind = 'inject' | 'intercept' | 'bind'
+
+// A user-authored pass-engine source chunk. Parameters are declared in the
+// header and bound where the mixin is used, not in the mixin itself.
+export interface MixinRecord {
+  id: string
+  name: string
+  kind: MixinPassKind
+  src: string
+  updatedAt: number
+}

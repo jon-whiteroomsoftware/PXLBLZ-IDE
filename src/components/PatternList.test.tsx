@@ -5,6 +5,7 @@ import { PatternList } from './PatternList'
 import { useEditorStore, editorInitialState } from '@/store/editorStore'
 import { usePatternStore, patternInitialState } from '@/store/patternStore'
 import { useMapStore, mapInitialState, type MapRecord } from '@/store/mapStore'
+import { useMixinStore, mixinInitialState, type MixinRecord } from '@/store/mixinStore'
 import {
   controllerProfileInitialState,
   useControllerProfileStore,
@@ -22,6 +23,7 @@ vi.mock('@/engine/authSession', () => ({
 const SEED_PATTERN = { id: 'seed-1', name: 'Seed Pattern', src: '// seed', controls: {}, updatedAt: 0 }
 
 let mockMaps: MapRecord[] = []
+let mockMixins: MixinRecord[] = []
 let mockControllers: ControllerProfile[] = []
 let requests: Array<{ url: string; init?: RequestInit }> = []
 
@@ -29,6 +31,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   window.sessionStorage.clear()
   mockMaps = []
+  mockMixins = []
   mockControllers = []
   requests = []
   vi.mocked(getAuthSession).mockResolvedValue({
@@ -60,6 +63,9 @@ beforeEach(() => {
     if (String(url) === '/api/maps' && init?.method === undefined) {
       return Response.json({ maps: mockMaps })
     }
+    if (String(url) === '/api/mixins' && init?.method === undefined) {
+      return Response.json({ mixins: mockMixins })
+    }
     if (String(url) === '/api/controllers' && init?.method === undefined) {
       return Response.json({ controllers: mockControllers })
     }
@@ -71,6 +77,7 @@ beforeEach(() => {
   useEditorStore.setState(editorInitialState)
   usePatternStore.setState(patternInitialState)
   useMapStore.setState(mapInitialState)
+  useMixinStore.setState(mixinInitialState)
   useControllerProfileStore.setState(controllerProfileInitialState)
   useWorkspaceStore.setState(workspaceInitialState)
   useRouterStore.setState(routerInitialState)
@@ -91,6 +98,14 @@ const CUSTOM_MAP: MapRecord = {
   updatedAt: 1000,
 }
 
+const CUSTOM_MIXIN: MixinRecord = {
+  id: 'mx1',
+  name: 'tazii-crown-mask',
+  kind: 'intercept',
+  src: '// @param BRIGHTNESS scalar\n// @target hsv\n// @wraps hsv-call\nexport var x = 0',
+  updatedAt: 1000,
+}
+
 const CONTROLLER_PROFILE: ControllerProfile = {
   id: 'ctrl-1',
   name: 'Burner bag',
@@ -105,6 +120,10 @@ const CONTROLLER_PROFILE: ControllerProfile = {
 
 async function switchToMaps(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getByRole('radio', { name: 'Maps' }))
+}
+
+async function switchToMixins(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole('radio', { name: 'Mixins' }))
 }
 
 describe('PatternList', () => {
@@ -146,7 +165,7 @@ describe('PatternList', () => {
     await user.click(screen.getByRole('radio', { name: 'Mixins' }))
 
     expect(window.location.pathname).toBe('/studio/mixins')
-    expect(screen.getAllByText('Mixins')).toHaveLength(2)
+    expect(screen.getAllByText('Mixins')).toHaveLength(1)
   })
 
   it('shows the empty state when there are no custom maps', async () => {
@@ -173,6 +192,48 @@ describe('PatternList', () => {
 
     expect(await screen.findByText('Burner bag')).toBeInTheDocument()
     expect(screen.queryByRole('textbox', { name: /search by name/i })).not.toBeInTheDocument()
+  })
+
+  it('lists user-authored cloud mixins under Mixins', async () => {
+    mockMixins = [CUSTOM_MIXIN]
+    const user = userEvent.setup()
+    render(<PatternList />)
+    await switchToMixins(user)
+    expect(await screen.findByText('tazii-crown-mask')).toBeInTheDocument()
+    expect(screen.getByText('intercept')).toBeInTheDocument()
+  })
+
+  it('reveals and hides stock mixins in a muted Mixins section', async () => {
+    const user = userEvent.setup()
+    render(<PatternList />)
+    await switchToMixins(user)
+    expect(screen.queryByText('Stock Mixins')).not.toBeInTheDocument()
+    expect(screen.queryByText('pot-binding')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'show stock mixins' }))
+
+    expect(screen.getByText('Stock Mixins')).toBeInTheDocument()
+    expect(screen.getByText('pot-binding')).toBeInTheDocument()
+    expect(screen.getByText('hw-brightness')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'hide stock mixins' }))
+
+    expect(screen.queryByText('Stock Mixins')).not.toBeInTheDocument()
+    expect(screen.queryByText('pot-binding')).not.toBeInTheDocument()
+  })
+
+  it('opens a revealed stock mixin read-only at a stable mixin route', async () => {
+    const user = userEvent.setup()
+    render(<PatternList />)
+    await switchToMixins(user)
+    await user.click(screen.getByRole('button', { name: 'show stock mixins' }))
+
+    await user.click(screen.getByText('pot-binding'))
+
+    expect(window.location.pathname).toBe('/studio/mixins/pot-binding')
+    expect(useMixinStore.getState().editingMixin).toEqual({ kind: 'stock', id: 'pot-binding' })
+    expect(useEditorStore.getState().editorFlavor).toBe('mixin')
+    expect(useEditorStore.getState().isReadOnly).toBe(true)
   })
 
   it('reveals and hides stock maps in a muted Maps section', async () => {

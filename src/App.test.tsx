@@ -6,6 +6,7 @@ import { useRouterStore, routerInitialState } from '@/store/routerStore'
 import { useWorkspaceStore, workspaceInitialState } from '@/store/workspaceStore'
 import { usePatternStore, patternInitialState, type PatternRecord } from '@/store/patternStore'
 import { useMapStore, mapInitialState, type MapRecord } from '@/store/mapStore'
+import { useMixinStore, mixinInitialState, type MixinRecord } from '@/store/mixinStore'
 import { useEditorStore, editorInitialState } from '@/store/editorStore'
 import { useDocsStore, docsInitialState } from '@/store/docsStore'
 import { controllerInitialState, useControllerStore } from '@/store/controllerStore'
@@ -30,6 +31,7 @@ beforeEach(() => {
   useWorkspaceStore.setState(workspaceInitialState)
   usePatternStore.setState(patternInitialState)
   useMapStore.setState(mapInitialState)
+  useMixinStore.setState(mixinInitialState)
   useEditorStore.setState(editorInitialState)
   useDocsStore.setState(docsInitialState)
   useControllerStore.setState(controllerInitialState)
@@ -53,6 +55,9 @@ function stubRemotePatterns(patterns: PatternRecord[] = []) {
     }
     if (path === '/api/maps' && init?.method === undefined) {
       return Response.json({ maps: [] })
+    }
+    if (path === '/api/mixins' && init?.method === undefined) {
+      return Response.json({ mixins: [] })
     }
     if (path === '/api/controllers' && init?.method === undefined) {
       return Response.json({ controllers: [] })
@@ -148,6 +153,13 @@ describe('routing (#308)', () => {
     params: {},
     source: 'export function map(index, count) { return [0, 0] }',
     points: [[0, 0]],
+    updatedAt: 1,
+  }
+  const mixinRecord: MixinRecord = {
+    id: 'mx-1',
+    name: 'Deep Linked Mixin',
+    kind: 'bind',
+    src: '// @param PIN input\n// @target CONTROL\n// @wraps beforeRender\nexport var x = 0',
     updatedAt: 1,
   }
 
@@ -274,6 +286,52 @@ describe('routing (#308)', () => {
     useMapStore.setState({ userMaps: [mapRecord], mapsLoaded: true })
     render(<App />)
     expect(screen.getByTestId('route-message')).toHaveTextContent('Map not found')
+  })
+
+  it('opens a stock mixin addressed by /studio/mixins/<id>', async () => {
+    window.history.replaceState(null, '', '/studio/mixins/pot-binding')
+    useWorkspaceStore.setState({
+      personalWorkspaceAuthenticated: true,
+      personalWorkspaceResolved: true,
+    })
+    useMixinStore.setState({ mixinsLoaded: true })
+    render(<App />)
+
+    await waitFor(() => {
+      expect(useMixinStore.getState().editingMixin).toEqual({ kind: 'stock', id: 'pot-binding' })
+    })
+    expect(useEditorStore.getState().editorFlavor).toBe('mixin')
+    expect(useEditorStore.getState().isReadOnly).toBe(true)
+    expect(screen.getByTestId('editor-pane')).toHaveTextContent('pot-binding')
+    expect(screen.getByTestId('preview-pane')).toHaveTextContent('No Controller or Show bindings use this mixin yet')
+  })
+
+  it('opens a personal mixin addressed by /studio/mixins/<id>', async () => {
+    window.history.replaceState(null, '', '/studio/mixins/mx-1')
+    useWorkspaceStore.setState({
+      personalWorkspaceAuthenticated: true,
+      personalWorkspaceResolved: true,
+    })
+    useMixinStore.setState({ userMixins: [mixinRecord], mixinsLoaded: true })
+    render(<App />)
+
+    await waitFor(() => {
+      expect(useMixinStore.getState().editingMixin).toEqual({ kind: 'existing', id: 'mx-1' })
+    })
+    expect(useEditorStore.getState().editorFlavor).toBe('mixin')
+    expect(useEditorStore.getState().isReadOnly).toBe(false)
+    expect(screen.getByTestId('editor-pane')).toHaveTextContent('Deep Linked Mixin')
+  })
+
+  it('shows a graceful message for a deep link to a missing mixin', () => {
+    window.history.replaceState(null, '', '/studio/mixins/nope')
+    useWorkspaceStore.setState({
+      personalWorkspaceAuthenticated: true,
+      personalWorkspaceResolved: true,
+    })
+    useMixinStore.setState({ userMixins: [mixinRecord], mixinsLoaded: true })
+    render(<App />)
+    expect(screen.getByTestId('route-message')).toHaveTextContent('Mixin not found')
   })
 
   it('opens a controller profile addressed by /studio/controllers/<id>', () => {

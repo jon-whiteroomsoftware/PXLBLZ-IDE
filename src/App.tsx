@@ -28,6 +28,9 @@ import { ControllerProfilePage } from '@/components/ControllerProfilePage'
 import { useControllerStore } from '@/store/controllerStore'
 import { MapModeHeader } from '@/components/MapModeHeader'
 import { useMapStore, STOCK_MAP_ITEMS } from '@/store/mapStore'
+import { MixinModeHeader } from '@/components/MixinModeHeader'
+import { MixinProvenancePane } from '@/components/MixinProvenancePane'
+import { useMixinStore, STOCK_MIXIN_ITEMS } from '@/store/mixinStore'
 import { usePatternStore, PatternRecord } from '@/store/patternStore'
 import { useControllerProfileStore } from '@/store/controllerProfileStore'
 import { useEditorStore } from '@/store/editorStore'
@@ -190,6 +193,8 @@ export default function App() {
   const patternsLoaded = usePatternStore((s) => s.patternsLoaded)
   const userMaps = useMapStore((s) => s.userMaps)
   const mapsLoaded = useMapStore((s) => s.mapsLoaded)
+  const userMixins = useMixinStore((s) => s.userMixins)
+  const mixinsLoaded = useMixinStore((s) => s.mixinsLoaded)
   const controllerProfiles = useControllerProfileStore((s) => s.profiles)
   const controllerProfilesLoaded = useControllerProfileStore((s) => s.profilesLoaded)
   const personalWorkspaceResolved = useWorkspaceStore((s) => s.personalWorkspaceResolved)
@@ -241,8 +246,15 @@ export default function App() {
       const record = userMaps.find((m) => m.id === entityId)
       if (record) openExistingMap(record)
       else if (STOCK_MAP_ITEMS.some((m) => m.id === entityId)) openStockMap(entityId)
+    } else if (route.kind === 'studio' && route.entity !== null && route.entity.kind === 'mixins' && route.entity.id !== null) {
+      const entityId = route.entity.id
+      const { userMixins, editingMixin, openExistingMixin, openStockMixin } = useMixinStore.getState()
+      if (editingMixin?.id === entityId) return
+      const record = userMixins.find((m) => m.id === entityId)
+      if (record) openExistingMixin(record)
+      else if (STOCK_MIXIN_ITEMS.some((m) => m.id === entityId)) openStockMixin(entityId)
     }
-  }, [route, patternsLoaded, mapsLoaded, syncDocsFromRoute])
+  }, [route, patternsLoaded, mapsLoaded, mixinsLoaded, syncDocsFromRoute])
 
   // State → URL: the active studio entity is addressable. Push when moving
   // between entities so back/forward walk them; replace when a plain /studio
@@ -388,6 +400,10 @@ export default function App() {
         ? mapsLoaded &&
           !userMaps.some((m) => m.id === routeEntity.id) &&
           !STOCK_MAP_ITEMS.some((m) => m.id === routeEntity.id)
+      : routeEntity.kind === 'mixins'
+        ? mixinsLoaded &&
+          !userMixins.some((m) => m.id === routeEntity.id) &&
+          !STOCK_MIXIN_ITEMS.some((m) => m.id === routeEntity.id)
       : routeEntity.kind === 'controllers'
         ? controllerProfilesLoaded && !controllerProfiles.some((profile) => profile.id === routeEntity.id)
         : true)
@@ -580,6 +596,8 @@ export default function App() {
               ? 'Pattern not found'
               : routeEntity!.kind === 'maps'
                 ? 'Map not found'
+              : routeEntity!.kind === 'mixins'
+                ? 'Mixin not found'
               : routeEntity!.kind === 'controllers'
                 ? 'Controller not found'
                 : 'Not available yet'
@@ -589,6 +607,8 @@ export default function App() {
               ? `There's no pattern with id "${routeEntity!.id}" in this workspace. It may have been deleted, or the link may belong to a different account.`
               : routeEntity!.kind === 'maps'
                 ? `There's no map with id "${routeEntity!.id}" in this workspace. It may have been deleted, or the link may belong to a different account.`
+              : routeEntity!.kind === 'mixins'
+                ? `There's no mixin with id "${routeEntity!.id}" in this workspace. It may have been deleted, or the link may belong to a different account.`
               : routeEntity!.kind === 'controllers'
                 ? `There's no controller profile with id "${routeEntity!.id}" in this workspace. It may have been deleted, or the link may belong to a different account.`
               : `Studio views for ${routeEntity!.kind} aren't built yet.`
@@ -638,6 +658,8 @@ export default function App() {
               </span>
             ) : editorFlavor === 'map' ? (
               <MapModeHeader />
+            ) : editorFlavor === 'mixin' ? (
+              <MixinModeHeader />
             ) : (
               <>
             <span className="flex-1 min-w-0 flex items-center gap-1.5">
@@ -719,7 +741,7 @@ export default function App() {
         {/* The preview is an output/instrument surface (#150): no header strip — the
             canvas sits flush at the top and all controls live in the deck below it. */}
         <aside data-testid="preview-pane" className="shrink-0 flex flex-col min-h-0" style={{ width: rightWidth, minWidth: MIN_PREVIEW_WIDTH }}>
-          <Preview />
+          {editorFlavor === 'mixin' ? <MixinProvenancePane /> : <Preview />}
         </aside>
       </div>
       )}
