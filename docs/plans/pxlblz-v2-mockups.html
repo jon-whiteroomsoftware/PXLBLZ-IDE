@@ -388,6 +388,22 @@
   .sg-legend { display: flex; flex-wrap: wrap; gap: 14px 18px; padding: 8px 18px 14px; font-family: var(--mono); font-size: 10.5px; color: var(--structural); }
   .sg-legend b { color: var(--dim); font-weight: 500; }
 
+  /* show preview stage (tab 8) */
+  .zsw.zc4 { background: #f9a8d4; }
+  .zrow { display: flex; align-items: center; gap: 8px; padding: 3.5px 0; font-family: var(--mono); font-size: 11.5px; color: var(--dim); }
+  .zrow .px { margin-left: auto; color: var(--structural); font-variant-numeric: tabular-nums; }
+  .solo {
+    width: 20px; height: 17px; border: 1px solid var(--seam); border-radius: 4px;
+    display: grid; place-items: center; font-family: var(--mono); font-size: 9px;
+    color: var(--structural); flex: none;
+  }
+  .solo.on { color: var(--live); border-color: rgba(251,191,36,0.5); background: var(--live-dim); }
+  .zstrips { display: flex; flex-direction: column; gap: 6px; padding: 12px 14px 10px; background: #000; }
+  .zstrip { display: flex; align-items: center; gap: 8px; }
+  .zstrip .zl { width: 86px; flex: none; font-family: var(--mono); font-size: 10px; color: var(--structural); display: flex; gap: 6px; align-items: center; }
+  .zstrip canvas { flex: 1; height: 26px; display: block; min-width: 0; }
+  .deck-note { font-size: 10.5px; color: var(--structural); padding: 3px 0 0; line-height: 1.5; }
+
   /* zone ribbon (Controller zones card) */
   .ribbon { display: flex; height: 22px; border-radius: 4px; overflow: hidden; border: 1px solid var(--seam); margin: 2px 0 4px; }
   .ribbon i { display: block; height: 100%; }
@@ -445,6 +461,7 @@
     <button class="tab" role="tab" aria-selected="false" data-screen="s-controller"><span class="k">5</span>Controller</button>
     <button class="tab" role="tab" aria-selected="false" data-screen="s-mixin"><span class="k">6</span>Mixin</button>
     <button class="tab" role="tab" aria-selected="false" data-screen="s-show"><span class="k">7</span>Show editor</button>
+    <button class="tab" role="tab" aria-selected="false" data-screen="s-stage"><span class="k">8</span>Show preview</button>
   </div>
 </div>
 
@@ -1345,6 +1362,199 @@
   </div>
 </section>
 
+<!-- ═══════════════════ 8 · SHOW PREVIEW / STAGE ═══════════════════ -->
+<section class="screen" id="s-stage">
+  <h2>Show preview — zones on a stage</h2>
+  <p class="sub">Decided 2026-07-08 (PRD §1 "Preview", #337): the show preview always renders
+     <b>zones on a stage</b>. The default stage is generic <em>zone strips</em> — one labeled strip per
+     zone, honest for freestyle shows that have no geometry. A show may instead choose any map as its
+     stage, and the natural stage is the target controller's own map, pulled off the device as a named
+     map (frame 3). Same pane, same legend, same solo toggles in both — only the geometry flips. Playback
+     follows the scene strip's time ticker.</p>
+
+  <div class="frame">
+    <div class="frame-cap">
+      <span class="dots"><i></i><i></i><i></i></span>
+      <span class="url">pxlblz-ide.pages.dev/<b>studio/shows/tazii-nights</b> — stage: the imported controller map</span>
+    </div>
+    <div class="mock">
+      <div class="topbar">
+        <span class="wordmark">
+          <svg width="20" height="14" viewBox="0 0 20 14" fill="none"><path d="M1 13 5 1l3 8 3-8 4 12" stroke="#fbbf24" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          PXLBLZ
+        </span>
+        <span class="menu-chip">Docs ▾</span>
+        <span class="spacer"></span>
+        <span class="pill"><span class="dot idle"></span> tazii-north-arch</span>
+        <span class="pill">jon-whiteroomsoft… ⏻</span>
+      </div>
+      <div class="cols" style="min-height:480px">
+        <div class="centerpane">
+          <div class="pane-head">
+            <span class="title">tazii-nights</span>
+            <span class="badge">show · 4 scenes · 3m 00s loop</span>
+            <span class="spacer"></span>
+            <span class="btn sm primary">Compile → tazii-north-arch</span>
+          </div>
+          <div class="tl">
+            <div class="tl-ruler"><span>0:00 · DUSK</span><span>0:30 · BUILD</span><span>1:15 · PEAK</span><span>2:00 · AFTERGLOW</span><span>3:00</span></div>
+            <div class="tl-track">
+              <span class="tl-name">arch-left</span>
+              <div class="tl-lane">
+                <span class="clip" style="left:0%; width:15.5%">lantern-flicker</span>
+                <span class="clip" style="left:17%; width:48.5%">zellij-drift</span>
+                <span class="clip" style="left:67.5%; width:32.5%">oasis-wash</span>
+                <span class="playhead" style="left:41%"></span>
+              </div>
+            </div>
+            <div class="tl-track">
+              <span class="tl-name">arch-right</span>
+              <div class="tl-lane">
+                <span class="clip" style="left:0%; width:15.5%">lantern-flicker</span>
+                <span class="clip" style="left:17%; width:48.5%">zellij-drift</span>
+                <span class="clip" style="left:67.5%; width:32.5%">oasis-wash</span>
+                <span class="playhead" style="left:41%"></span>
+              </div>
+            </div>
+            <div class="tl-track">
+              <span class="tl-name">rock-wash</span>
+              <div class="tl-lane">
+                <span class="clip" style="left:0%; width:100%">ember-bed</span>
+                <span class="playhead" style="left:41%"></span>
+              </div>
+            </div>
+            <div style="margin-top:10px; font-size:10.5px; color:var(--structural)">
+              (scene strip / timeline as on tab 7 — the preview pane follows this playhead)
+            </div>
+          </div>
+        </div>
+        <div class="previewpane">
+          <div class="canvas-wrap" style="height:300px"><canvas id="stage-spatial" width="340" height="300"></canvas></div>
+          <div class="deck">
+            <div class="drow"><span class="lab">playhead</span><span style="color:var(--text)">▷ 1:14 / 3:00 · peak</span></div>
+            <h5>Stage</h5>
+            <div class="drow"><span class="field" style="flex:1; justify-content:space-between">tazii-north-arch map <span class="car">▾</span></span></div>
+            <div class="deck-note">Saved with this show. Options: zone strips (generic) · any map in Maps.</div>
+            <h5>Zones · solo</h5>
+            <div class="zrow"><span class="zsw zc1"></span>arch-left<span class="px">240 px</span><span class="solo">S</span></div>
+            <div class="zrow"><span class="zsw zc2"></span>arch-right<span class="px">240 px</span><span class="solo">S</span></div>
+            <div class="zrow"><span class="zsw zc3"></span>rock-wash<span class="px">48 px</span><span class="solo">S</span></div>
+            <div class="zrow"><span class="zsw zc4"></span>doorframe<span class="px" style="color:var(--live)">⚠ off stage</span><span class="solo">S</span></div>
+            <div class="deck-note">doorframe has no pixels on this stage — it still compiles; the warning
+              is preview-only. 12 px of the map belong to no zone and stay grey.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="frame">
+    <div class="frame-cap">
+      <span class="dots"><i></i><i></i><i></i></span>
+      <span class="url">the same pane before any map is chosen — generic strips, arch-left soloed</span>
+    </div>
+    <div class="mock" style="display:flex; justify-content:center; padding:24px 16px; background:var(--bg)">
+      <div class="previewpane" style="border:1px solid var(--seam); border-radius:8px; overflow:hidden">
+        <div class="zstrips">
+          <div class="zstrip"><span class="zl"><span class="zsw zc1"></span>arch-left</span><canvas id="strip-arch-left" width="220" height="26"></canvas></div>
+          <div class="zstrip"><span class="zl"><span class="zsw zc2"></span>arch-right</span><canvas id="strip-arch-right" width="220" height="26"></canvas></div>
+          <div class="zstrip"><span class="zl"><span class="zsw zc3"></span>rock-wash</span><canvas id="strip-rock-wash" width="220" height="26"></canvas></div>
+          <div class="zstrip"><span class="zl"><span class="zsw zc4"></span>doorframe</span><canvas id="strip-doorframe" width="220" height="26"></canvas></div>
+        </div>
+        <div class="deck">
+          <div class="drow"><span class="lab">playhead</span><span style="color:var(--text)">▷ 1:14 / 3:00 · peak</span></div>
+          <h5>Stage</h5>
+          <div class="drow"><span class="field" style="flex:1; justify-content:space-between">Zone strips · generic <span class="car">▾</span></span></div>
+          <div class="deck-note">The default stage. Every zone at its bound (or nominal) size; a
+            multi-range zone reads as one contiguous strip. Never warns.</div>
+          <h5>Zones · solo</h5>
+          <div class="zrow"><span class="zsw zc1"></span>arch-left<span class="px">240 px</span><span class="solo on">S</span></div>
+          <div class="zrow"><span class="zsw zc2"></span>arch-right<span class="px">240 px</span><span class="solo">S</span></div>
+          <div class="zrow"><span class="zsw zc3"></span>rock-wash<span class="px">48 px</span><span class="solo">S</span></div>
+          <div class="zrow"><span class="zsw zc4"></span>doorframe<span class="px">nominal 60 px</span><span class="solo">S</span></div>
+          <div class="deck-note">Solo keeps every strip in place and takes the light out of the others —
+            un-solo restores all.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="frame">
+    <div class="frame-cap">
+      <span class="dots"><i></i><i></i><i></i></span>
+      <span class="url">pxlblz-ide.pages.dev/<b>studio/controllers/tazii-north-arch</b> — importing the device map</span>
+    </div>
+    <div class="mock">
+      <div class="pane-head">
+        <span class="title">tazii-north-arch</span>
+        <span class="badge ok">connected</span>
+        <span class="badge">192.168.4.77 · fw 3.67</span>
+        <span class="spacer"></span>
+      </div>
+      <div style="padding:16px 20px 22px">
+        <div class="statusline">
+          <span class="dot ok"></span>
+          <span>540 px</span><span class="sep">·</span>
+          <span>2D map</span><span class="sep">·</span>
+          <span>last seen now</span>
+          <span class="btn sm ghost">⇣ Import map…</span>
+          <span class="hint">live view &amp; controls: <b>top bar ↗</b></span>
+        </div>
+        <div style="display:flex; gap:18px; align-items:flex-start; flex-wrap:wrap">
+          <div class="dd" style="margin:0">
+            <div class="dd-head">Import map from tazii-north-arch</div>
+            <div class="dd-sec">
+              <div class="drow"><span class="lab">name</span><span class="field" style="flex:1">tazii-north-arch map</span></div>
+              <div class="kv"><span>coordinates</span><b>540 px · 2D</b></div>
+              <div class="kv"><span>source device</span><b>tazii-north-arch · 8 Jul 2026</b></div>
+            </div>
+            <div class="dd-sec" style="font-size:10.5px; color:var(--structural); line-height:1.5">
+              Coordinates only — the Mapper function that generated them stays on the device. The
+              import is frozen at 540 px, which is exactly what this controller's zone ranges index into.
+            </div>
+            <div class="dd-foot" style="color:inherit">
+              <span class="spacer"></span>
+              <span class="btn sm ghost">Cancel</span>
+              <span class="btn sm primary">Import to Maps</span>
+            </div>
+          </div>
+          <div style="width:240px; border:1px solid var(--seam); border-radius:8px; overflow:hidden; background:var(--bg)">
+            <div class="rail-head"><div class="rail-title">Maps</div></div>
+            <div class="rail-sec">
+              <div class="ritem on">◇ tazii-north-arch map <span class="bd badge">⇣ imported</span></div>
+              <div class="ritem">◇ backyard-spiral</div>
+              <div class="ritem muted">serpentine matrix <span class="bd badge">stock</span></div>
+            </div>
+            <div class="rail-note">An imported map is an ordinary map — usable as any pattern's layout
+              and any show's stage. Provenance is a note, not a link.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="notes">
+    <div class="note"><h4>The stage is the show's, chosen once</h4>
+      <p>A show carries one stage preference (<code>stageMapId</code>, null ⇒ strips), saved with the
+         show like any other setting — never per-scene, since the stage is the physical place the whole
+         show plays. "New show from controller" seeds it when that controller has an imported map.</p></div>
+    <div class="note"><h4>Import is acquisition, not linkage</h4>
+      <p>Pulling the map off a device is a Controller-page action that mints a named user map: baked
+         coordinates + provenance metadata, no referential integrity, no generator function (that stays
+         on the device). Frozen at the device count is <em>correct</em> — zone ranges index into exactly
+         those coordinates.</p></div>
+    <div class="note"><h4>Honesty has three states</h4>
+      <p>A zone with no pixels on the chosen stage warns <code>off stage</code> (preview-only — it still
+         compiles). Stage pixels no zone covers render dim grey — coverage gaps become visible instead
+         of invisible. Strips never warn: with no geometry claimed, nothing can mismatch.</p></div>
+    <div class="note"><h4>The stage is where zones will be born</h4>
+      <p>Once pixels have screen positions and zone membership, dragging a rectangle on the stage to
+         <em>create</em> a zone is a natural extension (a marquee on a serpentine layout yields exactly
+         the multi-range zones the model already speaks). Deferred, but it is why zones-on-geometry is
+         first-class rather than decoration.</p></div>
+  </div>
+</section>
+
 <footer>
   <p>Deliberately single-theme: these mock a dark-only IDE, so the review page commits to the same
      ground. Fonts fall back from IBM Plex Mono / Geist to system equivalents where not installed —
@@ -1492,6 +1702,74 @@
       ctx.fillRect(px - 10, py - 4.5, 20, 9);
       ctx.fillStyle = '#e4e4e7';
       ctx.fillText(String(n), px, py + 3);
+    });
+  })();
+
+  // ── show-stage previews: spatial stage + soloed strips (static) ──
+  (function drawStageMocks() {
+    const HUES = { zc1: 199, zc2: 172, zc3: 258, zc4: 330 };
+    function dot(ctx, x, y, r, hue, v) {
+      ctx.fillStyle = `hsl(${hue}, 85%, ${Math.round(10 + v * 52)}%)`;
+      ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+    }
+    function greyDot(ctx, x, y, r, alpha) {
+      ctx.fillStyle = `rgba(113,113,122,${alpha})`;
+      ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+    }
+
+    const spatial = document.getElementById('stage-spatial');
+    if (spatial) {
+      const ctx = spatial.getContext('2d');
+      const W = spatial.width, H = spatial.height, t = 4;
+      ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
+      function arch(cx, n, hue, phase) {
+        for (let i = 0; i < n; i++) {
+          const a = Math.PI - (Math.PI * i) / (n - 1);
+          const x = cx + Math.cos(a) * W * 0.16;
+          const y = H * 0.78 - Math.sin(a) * H * 0.5;
+          const v = Math.pow(0.5 + 0.5 * Math.sin(i * 0.18 + t + phase), 2);
+          dot(ctx, x, y, 2.1, hue, 0.2 + 0.8 * v);
+        }
+      }
+      arch(W * 0.3, 120, HUES.zc1, 0);
+      arch(W * 0.7, 120, HUES.zc2, 1.6);
+      for (let i = 0; i < 48; i++) {
+        const x = W * 0.12 + (W * 0.76 * i) / 47;
+        const y = H * 0.9 + 2.5 * Math.sin(i * 0.7);
+        const v = 0.25 + 0.55 * Math.abs(Math.sin(i * 0.35 + t * 0.5));
+        dot(ctx, x, y, 2.3, HUES.zc3, v);
+      }
+      for (let i = 0; i < 12; i++) greyDot(ctx, W * 0.875 + i * 3, H * 0.18 + i * 5, 2, 0.45);
+      ctx.font = '600 8.5px "IBM Plex Mono", monospace';
+      ctx.textAlign = 'center';
+      ctx.fillStyle = 'rgba(228,228,231,0.7)';
+      ctx.fillText('arch-left', W * 0.3, H * 0.22);
+      ctx.fillText('arch-right', W * 0.7, H * 0.22);
+      ctx.fillText('rock-wash', W * 0.5, H * 0.98);
+      ctx.fillStyle = 'rgba(113,113,122,0.85)';
+      ctx.fillText('unstaged', W * 0.9, H * 0.46);
+    }
+
+    // strips fallback, arch-left soloed: geometry stays, light leaves the rest
+    [['strip-arch-left', HUES.zc1, true],
+     ['strip-arch-right', HUES.zc2, false],
+     ['strip-rock-wash', HUES.zc3, false],
+     ['strip-doorframe', HUES.zc4, false]].forEach(([id, hue, lit], k) => {
+      const cv = document.getElementById(id);
+      if (!cv) return;
+      const ctx = cv.getContext('2d');
+      const W = cv.width, H = cv.height;
+      ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
+      const n = 56;
+      for (let i = 0; i < n; i++) {
+        const x = ((i + 0.5) / n) * W, y = H / 2;
+        if (lit) {
+          const v = Math.pow(0.5 + 0.5 * Math.sin(i * 0.32 + 4 + k), 2);
+          dot(ctx, x, y, 3.1, hue, 0.15 + 0.85 * v);
+        } else {
+          greyDot(ctx, x, y, 2, 0.2);
+        }
+      }
     });
   })();
 

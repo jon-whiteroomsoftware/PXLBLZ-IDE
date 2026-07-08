@@ -116,6 +116,22 @@ A Show composes existing patterns into one deployable artifact. Its model:
   (per-zone strips) before attempting installation geometry. Zones should be
   **solo-able** in the preview ("show me only arch-left") — useful as a
   debugging affordance as soon as zone maps exist, before any Show does.
+- **Stage** (decided 2026-07-08, mockups tab 8): the show preview always
+  renders *zones on a stage*. The default stage is the generic per-zone
+  strips view (#337) — honest for freestyle shows, never warns. A show may
+  choose any map as its stage (`stageMapId`, saved on the show — never
+  per-scene); zone index ranges then map onto that map's coordinates and the
+  preview renders the installation geometry, reusing the pattern preview's
+  2D/3D viewport. Both views share one pipeline: a pure zones→layout
+  provider feeding the existing mapPoints/renderer path, with strips as the
+  degenerate map. Honesty states: a zone with no pixels on the stage warns
+  "off stage" (preview-only, still compiles); stage pixels no zone covers
+  render dim grey. The natural stage is the target controller's own map,
+  acquired via an explicit Controller-page **"Import map"** action that
+  mints a named user map (baked coordinates + provenance metadata, no
+  generator source, no referential integrity — frozen at the device count,
+  which is exactly what zone ranges index into). Marquee zone creation on
+  the stage view is recorded as a later direction, not a v2 commitment.
 - **v1 slice**: two clips + one crossfade on a single zone, compiled and
   verified on hardware (#316). Segment routing to named zones is the second
   slice (#317). Show editor v1 (scene strip, clip inspector, compile/budget
@@ -368,5 +384,8 @@ to the Cloudflare deployment waits until this arc is finished.
    adaptation ramps and #334 wipe/dither transitions (both compiler-side,
    blocked by #316); #337 per-zone preview strips and #336 zone spanning
    (blocked by #317); #333 show-local zones (blocked by #317 + #318).
+5. Stage arc (PRD §1 "Stage"): #338 import controller map as a named user
+   map (independent) → #339 per-show stage choice + spatial zone preview
+   (blocked by #337 + #338) → #340 stage marquee zone creation (deferred).
 
 Each step leaves the app shippable.
