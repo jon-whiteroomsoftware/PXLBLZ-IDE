@@ -30,13 +30,18 @@ import {
   setProgramLabels,
 } from '@/engine/controllerMetadataStorage'
 import { withProgramLabel } from '@/engine/controllerBinding'
-import { bundle } from '@/engine/bundle'
+import { bundleWithPasses, type TransformSummary } from '@/engine/passEngine'
 import { buildPreviewJpeg } from '@/engine/previewThumbnailJpeg'
 import { LIBRARIES } from '@/pixelblaze/libs'
 import { usePatternStore, activePushKey } from '@/store/patternStore'
 import { useEditorStore } from '@/store/editorStore'
 import { useMapStore, openMapForPushState } from '@/store/mapStore'
 import { useControllerPanelStore } from '@/store/controllerPanelStore'
+import { getPersonalContentProvider } from '@/engine/personalContentProvider'
+import {
+  controllerProfilePassRecipe,
+  findProfileForLiveController,
+} from '@/engine/controllerProfilePassRecipe'
 
 // Keyed connection orchestration for the live Controller surface (#210).
 //
@@ -114,6 +119,9 @@ interface ControllerConnectionState {
    *  is inert until the open map's bake changes. Not persisted (a fresh session re-enables
    *  a push — the device's shared map may have changed under us). */
   lastPushedMap: Record<string, Record<string, string>>
+  /** Last pass-engine summary by Controller and pattern. Populated only when a push
+   *  used an active profile transform; cleared for unchanged-artifact pushes. */
+  lastTransformSummary: Record<string, Record<string, TransformSummary>>
   /** Pending preflight warnings (#203): non-null opens the reconciliation dialog,
    *  which Send must clear (confirm or cancel) before the push proceeds. `null` =
    *  no dialog. An empty array never appears here — a clean preflight pushes
@@ -224,6 +232,7 @@ export const controllerInitialState = {
   lastSavedSource: {} as Record<string, Record<string, string>>,
   saveArmed: false,
   lastPushedMap: {} as Record<string, Record<string, string>>,
+  lastTransformSummary: {} as Record<string, Record<string, TransformSummary>>,
   preflight: null as PreflightWarning[] | null,
   mapPushRemedyCount: null as number | null,
   patternMapRemedy: null as RecommendedMapRemedy | null,
@@ -280,6 +289,27 @@ async function installStockMap(remedy: RecommendedMapRemedy): Promise<void> {
     throw new Error("Couldn't read the Controller's pixel count to size the map")
   }
   await provider.setPixelMap(points)
+}
+
+function withTransformSummary(
+  summaries: Record<string, Record<string, TransformSummary>>,
+  controllerId: string,
+  patternId: string,
+  summary: TransformSummary | null,
+): Record<string, Record<string, TransformSummary>> {
+  const next = { ...summaries }
+  const controllerSummaries = { ...next[controllerId] }
+  if (summary) {
+    next[controllerId] = { ...controllerSummaries, [patternId]: summary }
+    return next
+  }
+  delete controllerSummaries[patternId]
+  if (Object.keys(controllerSummaries).length === 0) {
+    delete next[controllerId]
+  } else {
+    next[controllerId] = controllerSummaries
+  }
+  return next
 }
 
 function normalizeControllerTarget(
@@ -682,7 +712,14 @@ export const useControllerStore = create<ControllerConnectionState>()(
             // Push the bundled artifact (library-inlined) — the same code Copy/Download
             // emit — never raw editor source. Use the last *clean* preview source so a
             // broken edit is never compiled and pushed.
-            const bundled = bundle(previewSource, LIBRARIES)
+            const activeController = get().controllers[controllerId]
+            const profiles = await getPersonalContentProvider().listControllerProfiles().catch(() => [])
+            const profile = activeController
+              ? findProfileForLiveController(profiles, activeController)
+              : null
+            const recipe = controllerProfilePassRecipe(profile, previewSource)
+            const bundled = bundleWithPasses(previewSource, LIBRARIES, recipe)
+            const transformSummary = recipe.length > 0 ? bundled.summary : null
             const { code } = bundled
             // Save mode only: render the device-matched 100x150 waterfall preview and
             // embed it in the PBP blob (#259). A run-only push never persists a record,
@@ -734,6 +771,12 @@ export const useControllerStore = create<ControllerConnectionState>()(
                 ...s[recordKey],
                 [controllerId]: { ...s[recordKey][controllerId], [patternId]: previewSource },
               },
+              lastTransformSummary: withTransformSummary(
+                s.lastTransformSummary,
+                controllerId,
+                patternId,
+                transformSummary,
+              ),
             }))
           } catch (err) {
             const message = err instanceof Error ? err.message : String(err)

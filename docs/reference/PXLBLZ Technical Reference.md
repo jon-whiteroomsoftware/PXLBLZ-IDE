@@ -814,7 +814,19 @@ socket. `pushPattern` owns the policy, in one of two modes chosen by the sticky
 glyph and tooltip follow the armed mode via `describeSendAction`. Run and save
 are tracked as independent acts — the dirty gate keys off `lastPushedSource` for
 run and `lastSavedSource` for save, so a clean run push doesn't satisfy a pending
-save. The modes:
+save. Before compile, `controllerStore.pushActivePattern` resolves the active
+live Controller to its durable Controller profile (`deviceId` first,
+`lastSeenIp` fallback) and asks `controllerProfilePassRecipe` for pass-engine
+recipes. With no profile or hardware brightness disabled, `bundleWithPasses`
+uses the empty-recipe path and emits the same artifact as `bundle()`. With the
+hardware-brightness global transform enabled, it samples the configured analog
+input once per `beforeRender`, smooths/inverts/falls back according to the
+profile input, intercepts `hsv(...)` output calls through the stock
+`hw-brightness` mixin, and stores the pass-engine transform summary in
+`controllerStore.lastTransformSummary[controllerId][patternId]` for later
+inspection. The device's native brightness stays independent: it remains the
+hard output cap controlled from the live Controller panel, not a value copied
+from preview state. The modes:
 
 - **Run-only** (default): compile, mint a throwaway program id, load + run via
   `pushBytecode` — the firmware's `setCode`/`putByteCode`/`pause:false` sequence

@@ -30,6 +30,13 @@ import {
   setControllerMetadataStorage,
   type ControllerMetadataStorage,
 } from '@/engine/controllerMetadataStorage'
+import {
+  demoPersonalContentProvider,
+  resetPersonalContentProvider,
+  setPersonalContentProvider,
+} from '@/engine/personalContentProvider'
+import { bundle } from '@/engine/bundle'
+import { defaultControllerProfile, type ControllerProfile } from './controllerProfileStore'
 
 // A fake per-Controller provider with a real (if minimal) status machine, so we
 // can assert the keyed store's orchestration end-to-end. detectHelper acks true
@@ -112,8 +119,10 @@ class FakeProvider extends NullControllerProvider {
   compileError: Error | null = null
   programs: ProgramListEntry[] = []
   pushed: { bytecode: Uint8Array; opts: { id: string; name?: string } }[] = []
+  compiledSources: string[] = []
 
-  compile(_source: string): Promise<Uint8Array> {
+  compile(source: string): Promise<Uint8Array> {
+    this.compiledSources.push(source)
     if (this.compileError) return Promise.reject(this.compileError)
     return Promise.resolve(this.compileResult)
   }
@@ -166,6 +175,14 @@ function memoryControllerMetadataStorage(): ControllerMetadataStorage {
   }
 }
 
+function setControllerProfiles(profiles: ControllerProfile[]): void {
+  setPersonalContentProvider({
+    ...demoPersonalContentProvider,
+    id: 'controller-profile-test',
+    listControllerProfiles: async () => profiles,
+  })
+}
+
 function makeReconcilingBytecode(): Uint8Array {
   const bytes = new Uint8Array(16)
   new DataView(bytes.buffer).setUint32(0, 8, true) // opcodeBytes = 8 → 8 + 8 + 0 = 16
@@ -177,6 +194,7 @@ const created = new Map<string, FakeProvider>()
 beforeEach(async () => {
   localStorage.clear()
   __resetControllerProviders()
+  resetPersonalContentProvider()
   resetControllerMetadataStorage()
   setControllerMetadataStorage(memoryControllerMetadataStorage())
   useControllerStore.setState(controllerInitialState)
@@ -196,6 +214,7 @@ beforeEach(async () => {
 afterEach(() => {
   __resetControllerProviders()
   resetControllerProvider()
+  resetPersonalContentProvider()
 })
 
 const store = () => useControllerStore.getState()
@@ -576,6 +595,77 @@ describe('controllerStore (keyed)', () => {
       expect(created.get('10.0.0.5')!.pushed).toHaveLength(0)
       expect(store().pushing).toBe(false)
       expect(store().pushResult).toEqual({ ok: false, message: 'compiler offline' })
+    })
+
+    it('keeps the compiled artifact unchanged when the active profile has hardware brightness off', async () => {
+      await store().addController({
+        id: 'pixelblaze_pb32_abc',
+        address: '10.0.0.5',
+        name: 'Desk PB',
+      })
+      const profile = defaultControllerProfile({
+        id: 'ctrl-1',
+        deviceId: 'pixelblaze_pb32_abc',
+        now: 1,
+      })
+      setControllerProfiles([profile])
+      usePatternStore.setState({ activePatternId: 'pat-1' })
+      useEditorStore.setState({ previewSource: PATTERN_SRC, previewPatternName: 'Twinkle' })
+
+      await store().pushActivePattern()
+
+      const provider = created.get('10.0.0.5')!
+      expect(provider.compiledSources).toEqual([bundle(PATTERN_SRC, {}).code])
+      expect(store().lastTransformSummary['10.0.0.5']?.['pat-1']).toBeUndefined()
+    })
+
+    it('injects hardware brightness for the active Controller profile and retains its summary', async () => {
+      await store().addController({
+        id: 'pixelblaze_pb32_abc',
+        address: '10.0.0.5',
+        name: 'Desk PB',
+      })
+      const profile: ControllerProfile = {
+        ...defaultControllerProfile({
+          id: 'ctrl-1',
+          deviceId: 'pixelblaze_pb32_abc',
+          now: 1,
+        }),
+        inputs: [
+          {
+            id: 'brightness-pot',
+            name: 'Brightness pot',
+            pin: 33,
+            signal: 'analog',
+            role: 'brightness',
+            smoothing: 0.2,
+            fallback: 0.4,
+            invert: false,
+          },
+        ],
+        globalTransforms: [
+          {
+            id: 'hardware-brightness',
+            type: 'hardware-brightness',
+            enabled: true,
+            mixinId: 'builtin:hardware-brightness',
+            inputId: 'brightness-pot',
+            mode: 'multiply-output',
+          },
+        ],
+      }
+      setControllerProfiles([profile])
+      usePatternStore.setState({ activePatternId: 'pat-1' })
+      useEditorStore.setState({ previewSource: PATTERN_SRC, previewPatternName: 'Twinkle' })
+
+      await store().pushActivePattern()
+
+      const provider = created.get('10.0.0.5')!
+      expect(provider.compiledSources[0]).toContain('analogRead(33)')
+      expect(provider.compiledSources[0]).toContain('hardwareBrightness(a, b, c)')
+      expect(provider.compiledSources[0]).toContain('__pxlblz_hardware_brightness_hsv(index, 1, 1)')
+      expect(provider.compiledSources[0]).not.toBe(bundle(PATTERN_SRC, {}).code)
+      expect(store().lastTransformSummary['10.0.0.5']['pat-1'].callSitesWrapped).toEqual({ hsv: 1 })
     })
   })
 
