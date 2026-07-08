@@ -90,11 +90,8 @@ intended.
   Supersedes #153, whose geometry-render idea it absorbs. Today the Maps view
   still shows the live pattern preview in that pane.
 
-**Rail** (#326 in flight on `codex/issue-326-one-rail-header`):
+**Rail**:
 
-- **One header per list**: entity title row carries ＋ (and the lens for
-  Patterns/Maps); only a revealed stock section earns a subheader. Built for
-  Mixins only; Patterns/Maps/Controllers still render double headers.
 - The **Controllers view should ship without a right context pane** (punt,
   revisit in use); today it still shows the pattern preview pane.
 - Factor the monolithic `PatternList.tsx` (~1,400 lines) into a shared rail
@@ -173,8 +170,7 @@ to the Cloudflare deployment waits until this arc is finished.
 
 ## 5. Sequencing
 
-1. #326 lands (in flight) · Maps context pane (needs an issue) · #322
-   analytics — independent, any order.
+1. Maps context pane (#330) · #322 analytics — independent, any order.
 2. #315 renaming design note → route/blend passes → #314 perf spikes feed the
    cost model.
 3. #316 show compile vertical → #317 segment routing → #318 Show editor v1 →
