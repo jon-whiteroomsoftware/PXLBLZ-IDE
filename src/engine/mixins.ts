@@ -143,6 +143,32 @@ export function hardwareBrightness(h, s, v) {
 }
 `
 
+const POWER_MEASURE_SOURCE = `// Power Measure - estimate output duty from intercepted hsv() calls and export
+// private IDE telemetry. Measurement-only: it does not alter rendered output.
+//
+// @param FULL_WHITE_MILLIAMPS estimated current when every RGB channel is full on
+// @target hsv
+// @wraps hsv-call
+
+export var __px_powerDuty = 0
+export var __px_powerMilliAmps = 0
+export var __px_powerLimit = 0
+export var __px_powerScale = 1
+export var __px_powerClipping = 0
+
+var __px_powerSamples = 0
+
+export function powerMeasureHsv(h, s, v) {
+  var duty = max(0, min(1, v)) * (1 - max(0, min(1, s)) * 0.5)
+  __px_powerSamples = __px_powerSamples + 1
+  __px_powerDuty = __px_powerDuty + (duty - __px_powerDuty) / __px_powerSamples
+  __px_powerMilliAmps = __px_powerDuty * FULL_WHITE_MILLIAMPS
+  __px_powerScale = 1
+  __px_powerClipping = 0
+  hsv(h, s, v)
+}
+`
+
 const POWER_CAP_SOURCE = `// Power Cap - reserve a pass slot for current limiting. The intercept pass
 // rewrites color calls and reports the clamp in the transform summary.
 //
@@ -188,6 +214,7 @@ export function beforeRender(delta) {
 export const STOCK_MIXIN_SPECS: StockMixinSpec[] = [
   { id: 'pot-binding', name: 'pot-binding', kind: 'bind', src: POT_BINDING_SOURCE },
   { id: 'hw-brightness', name: 'hw-brightness', kind: 'intercept', src: HARDWARE_BRIGHTNESS_SOURCE },
+  { id: 'power-measure', name: 'power-measure', kind: 'intercept', src: POWER_MEASURE_SOURCE },
   { id: 'power-cap', name: 'power-cap', kind: 'intercept', src: POWER_CAP_SOURCE },
   { id: 'sensor-pulse', name: 'sensor-pulse', kind: 'inject', src: SENSOR_PULSE_SOURCE },
   { id: 'night-scheduler', name: 'night-scheduler', kind: 'inject', src: NIGHT_SCHEDULER_SOURCE },

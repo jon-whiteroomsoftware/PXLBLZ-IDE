@@ -8,6 +8,7 @@ import {
   shapeControllerControls,
   controllerSliderValue,
   describeControllerVars,
+  describeControllerPowerTelemetry,
 } from '@/engine/controllerPanelView'
 import {
   DeckSection,
@@ -65,6 +66,19 @@ const VARS_HINT = (
   <DeckSectionHint
     intro="The running pattern's exported variables, read live from the device. Read-only — a watch window, not an editor."
     items={[['value', 'the variable’s current value on the device']]}
+  />
+)
+
+const POWER_HINT = (
+  <DeckSectionHint
+    intro="Estimated power telemetry exported by an IDE power-measure or power-cap mixin."
+    items={[
+      ['duty', 'estimated aggregate RGB duty before controller brightness'],
+      ['draw', 'estimated current at the mixin’s configured LED-current assumption'],
+      ['limit', 'configured budget, when a limiter is active'],
+      ['scale', 'output scale applied by a limiter; 100% means measurement only'],
+      ['clipping', 'whether the limiter is currently intervening'],
+    ]}
   />
 )
 
@@ -148,6 +162,7 @@ export function ControllerPanel() {
     })
   const controls = shapeControllerControls(activeControls, controlDescriptions)
   const controlsHint = buildControlsHint(controls)
+  const powerTelemetry = describeControllerPowerTelemetry(vars)
   const watchedVars = describeControllerVars(vars)
 
   return (
@@ -228,6 +243,18 @@ export function ControllerPanel() {
                 />
               ),
             )}
+          </DeckGrid>
+        </DeckSection>
+      )}
+
+      {powerTelemetry && (
+        <DeckSection label="power" hint={POWER_HINT}>
+          <DeckGrid gapY="gap-y-1">
+            <DeckTelemetry label="duty" value={powerTelemetry.dutyLabel} />
+            <DeckTelemetry label="draw" value={powerTelemetry.milliampsLabel} />
+            <DeckTelemetry label="limit" value={powerTelemetry.limitLabel} />
+            <DeckTelemetry label="scale" value={powerTelemetry.scaleLabel} />
+            <DeckTelemetry label="clipping" value={powerTelemetry.clippingLabel} />
           </DeckGrid>
         </DeckSection>
       )}

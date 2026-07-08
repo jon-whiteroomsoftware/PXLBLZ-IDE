@@ -164,20 +164,79 @@ export interface ControllerVarView {
   value: string
 }
 
+export interface ControllerPowerTelemetryView {
+  dutyLabel: string
+  milliampsLabel: string
+  limitLabel: string
+  scaleLabel: string
+  clippingLabel: string
+}
+
+export const CONTROLLER_POWER_TELEMETRY_KEYS = {
+  duty: '__px_powerDuty',
+  milliamps: '__px_powerMilliAmps',
+  limit: '__px_powerLimit',
+  scale: '__px_powerScale',
+  clipping: '__px_powerClipping',
+} as const
+
+const RESERVED_POWER_TELEMETRY_NAMES = new Set<string>(
+  Object.values(CONTROLLER_POWER_TELEMETRY_KEYS),
+)
+
 function formatVarValue(v: number): string {
   return Number.isInteger(v) ? String(v) : v.toFixed(2)
 }
 
+function formatPercent(value: number): string {
+  return `${Math.round(value * 100)}%`
+}
+
+function formatMilliamps(value: number): string {
+  return `${Math.round(value)} mA`
+}
+
 /** Format the device's exported variables for the read-only watch list. Skips
- *  non-numeric values; preserves the device's reported order. */
+ *  non-numeric values and reserved IDE telemetry names; preserves the device's
+ *  reported order. */
 export function describeControllerVars(
   vars?: Record<string, number>,
 ): ControllerVarView[] {
   if (!vars) return []
   const out: ControllerVarView[] = []
   for (const [name, value] of Object.entries(vars)) {
+    if (RESERVED_POWER_TELEMETRY_NAMES.has(name)) continue
     if (typeof value !== 'number') continue
     out.push({ name, value: formatVarValue(value) })
   }
   return out
+}
+
+export function describeControllerPowerTelemetry(
+  vars?: Record<string, number>,
+): ControllerPowerTelemetryView | null {
+  if (!vars) return null
+  const duty = vars[CONTROLLER_POWER_TELEMETRY_KEYS.duty]
+  const milliamps = vars[CONTROLLER_POWER_TELEMETRY_KEYS.milliamps]
+  const limit = vars[CONTROLLER_POWER_TELEMETRY_KEYS.limit]
+  const scale = vars[CONTROLLER_POWER_TELEMETRY_KEYS.scale]
+  const clipping = vars[CONTROLLER_POWER_TELEMETRY_KEYS.clipping]
+
+  if (
+    typeof duty !== 'number'
+    && typeof milliamps !== 'number'
+    && typeof limit !== 'number'
+    && typeof scale !== 'number'
+    && typeof clipping !== 'number'
+  ) {
+    return null
+  }
+
+  return {
+    dutyLabel: typeof duty === 'number' ? formatPercent(duty) : PLACEHOLDER,
+    milliampsLabel: typeof milliamps === 'number' ? formatMilliamps(milliamps) : PLACEHOLDER,
+    limitLabel: typeof limit === 'number' && limit > 0 ? formatMilliamps(limit) : PLACEHOLDER,
+    scaleLabel: typeof scale === 'number' ? formatPercent(scale) : PLACEHOLDER,
+    clippingLabel: typeof clipping === 'number' && clipping > 0 ? 'yes' : 'no',
+  }
 }

@@ -1,4 +1,5 @@
 import { bundle } from './bundle'
+import { stockMixinSpec } from './mixins'
 import { bundleWithPasses } from './passEngine'
 
 describe('pass engine - recipe entrypoint', () => {
@@ -130,6 +131,27 @@ describe('pass engine - intercept passes', () => {
         message: 'Unsupported rgb call with 2 arguments was left unchanged.',
       },
     ])
+  })
+
+  it('can wire the stock power-measure source as a measurement-only hsv intercept', () => {
+    const powerMeasure = stockMixinSpec('power-measure')
+    expect(powerMeasure).toBeDefined()
+
+    const result = bundleWithPasses(`export function render(index) { hsv(0, 0.5, 0.8) }`, {}, [
+      {
+        id: 'power-measure',
+        kind: 'intercept',
+        target: 'hsv',
+        source: powerMeasure!.src,
+        wrapperName: 'powerMeasureHsv',
+        params: { FULL_WHITE_MILLIAMPS: 12000 },
+      },
+    ])
+
+    expect(result.code).toContain('export var __px_powerDuty = 0')
+    expect(result.code).toContain('__px_powerMilliAmps = __px_powerDuty * 12000')
+    expect(result.code).toContain('__pxlblz_power_measure_hsv(0, 0.5, 0.8)')
+    expect(result.summary.callSitesWrapped).toEqual({ hsv: 1 })
   })
 })
 

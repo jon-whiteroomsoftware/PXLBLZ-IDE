@@ -5,6 +5,7 @@ import {
   shapeControllerControls,
   controllerSliderValue,
   describeControllerVars,
+  describeControllerPowerTelemetry,
 } from './controllerPanelView'
 
 const programs = [
@@ -196,5 +197,37 @@ describe('describeControllerVars', () => {
       { name: 'count', value: '7' },
       { name: 'phase', value: '0.12' },
     ])
+  })
+
+  it('hides reserved power telemetry variables from the generic watch list', () => {
+    expect(describeControllerVars({
+      phase: 0.12345,
+      __px_powerDuty: 0.42,
+      __px_powerMilliAmps: 840,
+    })).toEqual([
+      { name: 'phase', value: '0.12' },
+    ])
+  })
+})
+
+describe('describeControllerPowerTelemetry', () => {
+  it('returns null when the running pattern does not export power telemetry', () => {
+    expect(describeControllerPowerTelemetry({ phase: 0.25 })).toBeNull()
+  })
+
+  it('formats reserved power telemetry as a structured row', () => {
+    expect(describeControllerPowerTelemetry({
+      __px_powerDuty: 0.42,
+      __px_powerMilliAmps: 840,
+      __px_powerLimit: 1000,
+      __px_powerScale: 0.84,
+      __px_powerClipping: 1,
+    })).toEqual({
+      dutyLabel: '42%',
+      milliampsLabel: '840 mA',
+      limitLabel: '1000 mA',
+      scaleLabel: '84%',
+      clippingLabel: 'yes',
+    })
   })
 })

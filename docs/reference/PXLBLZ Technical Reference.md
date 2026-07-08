@@ -339,7 +339,12 @@ into a new D1-backed `MixinRecord`, routes to `/studio/mixins/<id>`, and opens i
 editable. Cloud mixin source auto-saves on the editor sync tick when the header is
 valid. The preview/right pane is replaced by `MixinProvenancePane`: header facts,
 usage rows, and the last transform summary when available, with honest empty
-states until the pass engine records provenance/artifacts.
+states until the pass engine records provenance/artifacts. The stock catalog
+includes `power-measure`, a measurement-only intercept source that exports the
+reserved `__px_power*` telemetry variables while leaving output unchanged; the
+full `power-cap`, `sensor-pulse`, and `night-scheduler` entries remain readable
+stock sources whose complete push-time consumption is handled by later #319
+slices.
 
 ## 7. Runtime shim & built-ins (`shim.ts`, `builtins.ts`)
 
@@ -903,6 +908,14 @@ connected, the profile refresh path updates `name`, `lastKnownDeviceName`,
 `lastSeenIp`, `lastKnownPixelCount`, `lastKnownMapDim`, and last-seen firmware.
 Discovery firmware can seed the profile before full live metadata is available;
 a later live config read overwrites it.
+
+The live Controller panel polls `getConfig`, `getTelemetry`, and `getVars` while
+connected. Ordinary numeric exported vars render in the **variables** section.
+Reserved IDE telemetry names (`__px_powerDuty`, `__px_powerMilliAmps`,
+`__px_powerLimit`, `__px_powerScale`, and `__px_powerClipping`) are filtered out
+of that generic watch list and rendered as a structured **power** section
+instead. Those values ride over the documented Pixelblaze `getVars` websocket
+path; no separate pattern-code message channel exists.
 
 ### The in-app surface (status pills, panel)
 

@@ -389,6 +389,10 @@ from its default, and resets the whole preview in one click (semantics below).
 - **Watch variables** — the var watcher shows the live value of every
   `export var`, refreshed each frame, arrays element by element — just like the
   on-device Var Watcher.
+- **Controller power telemetry** — IDE-reserved `__px_power*` exported variables
+  from power-measure/power-cap mixins are shown as a structured Power row on the
+  live Controller panel instead of appearing as ordinary watch variables. Treat
+  these as estimated draw/budget signals, not precision measurement.
 
 ## 9. Editor in detail
 

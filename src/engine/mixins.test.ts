@@ -27,6 +27,7 @@ describe('mixin source headers (#313)', () => {
     expect(STOCK_MIXIN_SPECS.map((spec) => [spec.id, spec.kind])).toEqual([
       ['pot-binding', 'bind'],
       ['hw-brightness', 'intercept'],
+      ['power-measure', 'intercept'],
       ['power-cap', 'intercept'],
       ['sensor-pulse', 'inject'],
       ['night-scheduler', 'inject'],
@@ -35,5 +36,7 @@ describe('mixin source headers (#313)', () => {
       expect(parseMixinHeader(spec.src)).toEqual([])
     }
     expect(stockMixinSpec('pot-binding')?.src).toContain('@param PIN')
+    expect(stockMixinSpec('power-measure')?.src).toContain('export var __px_powerDuty')
+    expect(stockMixinSpec('power-measure')?.src).toContain('export var __px_powerMilliAmps')
   })
 })

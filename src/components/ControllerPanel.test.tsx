@@ -101,6 +101,29 @@ describe('ControllerPanel', () => {
     expect(screen.getByText('0.50')).toBeInTheDocument()
   })
 
+  it('renders reserved power telemetry separately from watched vars', async () => {
+    const provider = new ConnectedProvider()
+    provider.vars = {
+      phase: 0.5,
+      __px_powerDuty: 0.42,
+      __px_powerMilliAmps: 840,
+      __px_powerLimit: 1000,
+      __px_powerScale: 0.84,
+      __px_powerClipping: 1,
+    }
+    setControllerProvider(provider)
+    render(<ControllerPanel />)
+
+    await waitFor(() => expect(screen.getByText('power')).toBeInTheDocument())
+    expect(screen.getByText('42%')).toBeInTheDocument()
+    expect(screen.getByText('840 mA')).toBeInTheDocument()
+    expect(screen.getByText('1000 mA')).toBeInTheDocument()
+    expect(screen.getByText('84%')).toBeInTheDocument()
+    expect(screen.getByText('yes')).toBeInTheDocument()
+    expect(screen.getByText('phase')).toBeInTheDocument()
+    expect(screen.queryByText('__px_powerDuty')).not.toBeInTheDocument()
+  })
+
   it('shows the pattern-controls help only when the loaded pattern has descriptions', async () => {
     setControllerProvider(new ConnectedProvider())
     // No description metadata loaded → no help affordance on the controls section.
