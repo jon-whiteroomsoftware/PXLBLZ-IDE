@@ -12,6 +12,7 @@ const controllerProfileStatusMetadataMigrationPath = path.resolve(
 )
 const personalMixinsMigrationPath = path.resolve('migrations/0006_personal_mixins.sql')
 const personalShowsMigrationPath = path.resolve('migrations/0007_personal_shows.sql')
+const mapImportMetadataMigrationPath = path.resolve('migrations/0008_map_import_metadata.sql')
 
 describe('D1 personal storage migration', () => {
   it('creates the storage buckets needed for the Cloudflare personal-storage foundation', () => {
@@ -95,5 +96,12 @@ describe('D1 personal storage migration', () => {
     expect(sql).toContain('PRIMARY KEY (user_id, id)')
     expect(sql).toContain('FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE')
     expect(sql).toContain("VALUES ('schema_version', '7', unixepoch())")
+  })
+
+  it('adds display-only imported-map provenance metadata', () => {
+    const sql = fs.readFileSync(mapImportMetadataMigrationPath, 'utf8')
+
+    expect(sql).toContain('ALTER TABLE personal_maps ADD COLUMN import_metadata_json TEXT')
+    expect(sql).toContain("VALUES ('schema_version', '8', unixepoch())")
   })
 })

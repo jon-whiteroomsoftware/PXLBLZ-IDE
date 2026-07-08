@@ -216,8 +216,8 @@ interface MapState {
   // Create a fresh custom map (skeleton source), persist it immediately as a row
   // in Maps (no save step, mirroring New Pattern), and open it in map mode.
   createNewMap: () => Promise<void>
-  // Open editor map mode on a saved custom map's source. No-op for a record with
-  // no source.
+  // Open editor map mode on a saved custom map. Source-backed maps are editable;
+  // frozen imports with no source open read-only with their baked geometry.
   openExistingMap: (record: MapRecord) => void
   // Open editor map mode on a stock map's read-only source.
   openStockMap: (id: string) => void
@@ -313,6 +313,22 @@ function enterMapMode(source: string, readOnly = false): void {
   ed.setCompileStatus('good')
 }
 
+function frozenMapReadOnlySource(record: MapRecord): string {
+  const pixels = record.points?.length ?? 0
+  return [
+    '/*',
+    `  ${record.name}`,
+    '',
+    '  This map was imported from a controller as frozen pixel coordinates.',
+    '  The original Mapper source is not available; create a fresh map',
+    '  to author replacement source.',
+    `  Pixels: ${pixels}`,
+    `  Arity: ${record.dim}D`,
+    '*/',
+    '[]',
+  ].join('\n')
+}
+
 export const useMapStore = create<MapState>()((set, get) => ({
   ...mapInitialState,
 
@@ -345,15 +361,24 @@ export const useMapStore = create<MapState>()((set, get) => ({
   },
 
   openExistingMap: (record) => {
-    // Persisted custom maps must carry source to be openable.
-    if (typeof record.source !== 'string') return
-    enterMapMode(record.source)
+    if (typeof record.source === 'string') {
+      enterMapMode(record.source)
+      set({
+        editingMap: { kind: 'existing', id: record.id },
+        mapBaseline: record.source,
+        mapEvalError: null,
+      })
+      return
+    }
+    if (!record.points || record.points.length === 0) return
+    const readOnlySource = frozenMapReadOnlySource(record)
+    enterMapMode(readOnlySource, true)
     // Opening a map for editing does NOT change the active layout/preview
     // (activeMapId): map preview is deferred (#153), and an unbaked custom map
     // can't resolve as a layout anyway.
     set({
       editingMap: { kind: 'existing', id: record.id },
-      mapBaseline: record.source,
+      mapBaseline: readOnlySource,
       mapEvalError: null,
     })
   },
@@ -405,6 +430,7 @@ export const useMapStore = create<MapState>()((set, get) => ({
     const id = editingMap.id
     const source = useEditorStore.getState().source
     const existing = get().userMaps.find((m) => m.id === id)
+    if (typeof existing?.source !== 'string') return
     if (existing?.source === source && existing.points && existing.points.length > 0) {
       set({ mapEvalError: null })
       return

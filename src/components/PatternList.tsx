@@ -387,6 +387,7 @@ function EditableListItem({
   noun,
   active,
   dim,
+  badge,
   takenNames,
   navKey,
   onSelect,
@@ -399,6 +400,7 @@ function EditableListItem({
     noun: 'pattern' | 'map' | 'mixin' | 'controller' | 'show'
   active: boolean
   dim?: string
+  badge?: string
   takenNames: string[]
   navKey?: string
   onSelect: () => void
@@ -477,6 +479,14 @@ function EditableListItem({
         ) : (
           <>
             <span className="flex-1 min-w-0 truncate">{name}</span>
+            {badge && (
+              <span
+                title={badge}
+                className="shrink-0 rounded border border-live/25 bg-live/10 px-1 text-[8px] font-mono uppercase leading-[1.5] text-live/80 transition-opacity group-hover:opacity-0"
+              >
+                {badge}
+              </span>
+            )}
             {dim && <DimPill dim={dim} />}
             <span className="pointer-events-none absolute right-3 top-1/2 flex -translate-y-1/2 items-center gap-1 opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100">
               {onRename && (
@@ -1283,6 +1293,7 @@ export function PatternList() {
                               noun="map"
                               active={editingMap?.kind === 'existing' && editingMap.id === map.id}
                               dim={dimLens === 'all' ? `${map.dim}D` : undefined}
+                              badge={map.importMetadata ? 'import' : undefined}
                               takenNames={userMaps.filter((m) => m.id !== map.id).map((m) => m.name)}
                               onSelect={() => openUserMap(map)}
                               onRename={(name) => renameMap(map.id, name)}

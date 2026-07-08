@@ -53,7 +53,7 @@ export interface BakedMap {
   // axis fills the unit interval), ready to freeze into a custom map's replay array.
   points: number[][]
   // Sample/display arity, inferred from the raw coords' arity.
-  dim: 2 | 3
+  dim: 1 | 2 | 3
   // Recorded grid dims when the points form a regular lattice; null otherwise.
   gridDims: GridDims | null
 }

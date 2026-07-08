@@ -1,10 +1,21 @@
 import { useEffect, useState } from 'react'
 import {
+  Download,
+  Map as MapIcon,
   Plus,
   RefreshCw,
   Trash2,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import {
+  AlertDialogRoot,
+  AlertDialogContent,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogCancel,
+  AlertDialogAction,
+} from '@/components/ui/alert-dialog'
 import {
   analogPinsForBoard,
   controllerZonePixelCount,
@@ -23,12 +34,22 @@ import {
 } from '@/engine/controllerProfile'
 import { describeControllerPill } from '@/engine/controllerPillView'
 import type { ControllerStatusTone } from '@/engine/controllerStatusView'
+import {
+  createImportedControllerMapRecord,
+  summarizeControllerMapImport,
+  type ControllerMapImportSummary,
+} from '@/engine/importedMap'
+import { newPersonalContentId } from '@/engine/personalContentMetadata'
+import { uniquePatternName } from '@/engine/patternName'
+import { getControllerProvider } from '@/engine/controllerProviderRegistry'
 import { useControllerStore, type ControllerEntry } from '@/store/controllerStore'
 import {
   CONTROLLER_INPUT_ROLES,
   CONTROLLER_INPUT_SIGNALS,
   useControllerProfileStore,
 } from '@/store/controllerProfileStore'
+import { useMapStore } from '@/store/mapStore'
+import { useRouterStore } from '@/store/routerStore'
 import { StatusDot, type StatusTone } from './StatusDot'
 
 const fieldClass =
@@ -47,6 +68,13 @@ function formatMaybe(value: string | number | undefined | null, fallback = 'Unkn
 
 function formatMapDim(dim: 1 | 2 | 3 | undefined) {
   return dim ? `${dim}D` : 'Unknown'
+}
+
+function formatGridDims(dims: ControllerMapImportSummary['gridDims']) {
+  if (!dims) return 'irregular'
+  return dims.depth === undefined
+    ? `${dims.cols} x ${dims.rows}`
+    : `${dims.cols} x ${dims.rows} x ${dims.depth}`
 }
 
 function statusForProfile(
@@ -225,10 +253,14 @@ function ProfileStatus({
   profile,
   controller,
   onRefresh,
+  onImportMap,
+  importingMap,
 }: {
   profile: ControllerProfile
   controller: ControllerEntry | null
   onRefresh: () => void
+  onImportMap: () => void
+  importingMap: boolean
 }) {
   const status = controller ? describeControllerPill(controller) : null
   const statusTone = status?.tone ? PROFILE_STATUS_TONE[status.tone] : 'absent'
@@ -272,11 +304,87 @@ function ProfileStatus({
           <RefreshCw size={13} aria-hidden />
           Refresh
         </Button>
+        <Button
+          type="button"
+          size="xs"
+          variant="ghost"
+          className="bg-zinc-900/70 text-xs text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 disabled:opacity-35"
+          disabled={!refreshable || importingMap}
+          onClick={onImportMap}
+          title="Import installed pixel map"
+        >
+          <Download size={13} aria-hidden />
+          {importingMap ? 'Reading' : 'Import map'}
+        </Button>
       </div>
       <p className="mt-2 text-[11px] text-zinc-500">
         Live controller controls stay in the top bar dropdown.
       </p>
     </div>
+  )
+}
+
+interface PendingMapImport {
+  points: number[][]
+  summary: ControllerMapImportSummary
+  defaultName: string
+  controllerName: string
+  deviceId?: string | null
+  ip?: string | null
+}
+
+function ImportMapDialog({
+  pending,
+  name,
+  onNameChange,
+  onCancel,
+  onConfirm,
+}: {
+  pending: PendingMapImport | null
+  name: string
+  onNameChange: (name: string) => void
+  onCancel: () => void
+  onConfirm: () => void
+}) {
+  if (!pending) return null
+  const trimmed = name.trim()
+  return (
+    <AlertDialogRoot open onOpenChange={(open) => { if (!open) onCancel() }}>
+      <AlertDialogContent>
+        <AlertDialogTitle>Import controller map?</AlertDialogTitle>
+        <AlertDialogDescription>
+          Save the installed pixel map from {pending.controllerName} as a frozen user map.
+        </AlertDialogDescription>
+        <div className="mt-4 space-y-3">
+          <label className="block text-xs text-zinc-400">
+            <span className="mb-1 block text-[10px] uppercase tracking-wide text-zinc-500">Map name</span>
+            <input
+              value={name}
+              onChange={(event) => onNameChange(event.target.value)}
+              className={`${fieldClass} w-full`}
+              aria-label="Imported map name"
+            />
+          </label>
+          <div className="rounded border border-zinc-800 bg-zinc-950/70 px-3 py-2 font-mono text-[11px] text-zinc-400">
+            <div className="flex items-center gap-2 text-zinc-300">
+              <MapIcon size={13} aria-hidden />
+              {pending.summary.pixelCount} px / {pending.summary.dim}D / {formatGridDims(pending.summary.gridDims)}
+            </div>
+            <div className="mt-1 text-zinc-500">Source device: {pending.controllerName}</div>
+            {pending.deviceId && <div className="text-zinc-500">Device ID: {pending.deviceId}</div>}
+          </div>
+          <p className="text-[11px] leading-5 text-zinc-500">
+            Pixelblaze UI maps are fill-normalized per axis when read from the device; aspect may differ from maps pushed by this IDE.
+          </p>
+        </div>
+        <AlertDialogFooter>
+          <AlertDialogCancel onClick={onCancel}>Cancel</AlertDialogCancel>
+          <AlertDialogAction disabled={trimmed.length === 0} onClick={onConfirm}>
+            Import map
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialogRoot>
   )
 }
 
@@ -760,10 +868,20 @@ export function ControllerProfilePage({ profileId }: { profileId: string }) {
   const removePatternBinding = useControllerProfileStore((state) => state.removePatternBinding)
   const refreshLiveMetadata = useControllerProfileStore((state) => state.refreshLiveMetadata)
   const controllers = useControllerStore((state) => state.controllers)
+  const activeIp = useControllerStore((state) => state.activeIp)
+  const setActiveController = useControllerStore((state) => state.setActive)
+  const userMaps = useMapStore((state) => state.userMaps)
+  const addMap = useMapStore((state) => state.addMap)
+  const openExistingMap = useMapStore((state) => state.openExistingMap)
+  const navigate = useRouterStore((state) => state.navigate)
   const profile = profiles.find((item) => item.id === profileId)
   const profileController = profile ? statusForProfile(profile, controllers) : null
   const liveIp = profileController?.phase === 'live' ? profileController.ip : undefined
   const profileRefreshId = profile?.id
+  const [importingMap, setImportingMap] = useState(false)
+  const [importError, setImportError] = useState<string | null>(null)
+  const [pendingImport, setPendingImport] = useState<PendingMapImport | null>(null)
+  const [importName, setImportName] = useState('')
 
   useEffect(() => {
     if (profileRefreshId && liveIp) void refreshLiveMetadata(profileRefreshId)
@@ -779,12 +897,83 @@ export function ControllerProfilePage({ profileId }: { profileId: string }) {
 
   const validation = validateControllerProfile(profile)
 
+  async function beginMapImport() {
+    if (!profile || profileController?.phase !== 'live') return
+    setImportError(null)
+    setImportingMap(true)
+    try {
+      if (activeIp !== profileController.ip) setActiveController(profileController.ip)
+      const points = await getControllerProvider().getPixelMap()
+      if (!points || points.length === 0) {
+        throw new Error('No installed pixel map was returned by this controller.')
+      }
+      const controllerName =
+        profile.lastKnownDeviceName ??
+        profileController.nickname ??
+        profile.name ??
+        profileController.ip
+      const defaultName = uniquePatternName(
+        `${controllerName} map`,
+        userMaps.map((map) => map.name),
+      )
+      setPendingImport({
+        points,
+        summary: summarizeControllerMapImport(points),
+        defaultName,
+        controllerName,
+        deviceId: profile.deviceId ?? profileController.deviceId ?? null,
+        ip: profileController.ip,
+      })
+      setImportName(defaultName)
+    } catch (error) {
+      setImportError(error instanceof Error ? error.message : 'Failed to import controller map.')
+    } finally {
+      setImportingMap(false)
+    }
+  }
+
+  async function confirmMapImport() {
+    if (!pendingImport) return
+    const name = importName.trim() || pendingImport.defaultName
+    const record = createImportedControllerMapRecord({
+      id: newPersonalContentId(),
+      name,
+      points: pendingImport.points,
+      controllerName: pendingImport.controllerName,
+      deviceId: pendingImport.deviceId,
+      ip: pendingImport.ip,
+      importedAt: Date.now(),
+    })
+    await addMap(record)
+    openExistingMap(record)
+    navigate({ kind: 'studio', entity: { kind: 'maps', id: record.id } })
+    setPendingImport(null)
+    setImportName('')
+  }
+
   return (
     <div data-testid="controller-profile-page" className="h-full overflow-y-auto bg-zinc-950 text-zinc-200">
       <ProfileStatus
         profile={profile}
         controller={profileController}
         onRefresh={() => void refreshLiveMetadata(profile.id)}
+        onImportMap={() => void beginMapImport()}
+        importingMap={importingMap}
+      />
+      {importError && (
+        <div className="border-b border-red-500/30 bg-red-950/20 px-4 py-2 text-xs text-red-200">
+          {importError}
+        </div>
+      )}
+      <ImportMapDialog
+        pending={pendingImport}
+        name={importName}
+        onNameChange={setImportName}
+        onCancel={() => {
+          setPendingImport(null)
+          setImportName('')
+        }}
+        onConfirm={() => void confirmMapImport()}
       />
       {!validation.ok && (
         <div className="border-b border-amber-500/30 bg-amber-950/20 px-4 py-2 text-xs text-amber-200">

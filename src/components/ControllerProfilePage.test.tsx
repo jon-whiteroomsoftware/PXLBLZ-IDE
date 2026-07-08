@@ -1,16 +1,57 @@
-import { render, screen } from '@testing-library/react'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { ControllerProfilePage } from './ControllerProfilePage'
+import { NullControllerProvider, type ControllerStatus } from '@/engine/ControllerProvider'
+import { resetControllerProvider, setControllerProvider } from '@/engine/controllerProviderRegistry'
+import {
+  demoPersonalContentProvider,
+  resetPersonalContentProvider,
+  setPersonalContentProvider,
+} from '@/engine/personalContentProvider'
+import type { MapRecord } from '@/engine/personalContentRecords'
 import {
   controllerProfileInitialState,
   defaultControllerProfile,
   useControllerProfileStore,
 } from '@/store/controllerProfileStore'
 import { controllerInitialState, useControllerStore } from '@/store/controllerStore'
+import { mapInitialState, useMapStore } from '@/store/mapStore'
+import { routerInitialState, useRouterStore } from '@/store/routerStore'
+
+class MapReadbackProvider extends NullControllerProvider {
+  getStatus(): ControllerStatus {
+    return {
+      kind: 'connected',
+      controller: {
+        id: '192.168.8.224',
+        address: '192.168.8.224',
+        deviceId: 'pixelblaze_pb32_abc',
+        name: 'Burner bag',
+      },
+    }
+  }
+
+  getPixelMap(): Promise<number[][] | null> {
+    return Promise.resolve([
+      [0, 0],
+      [1, 0],
+      [0, 1],
+      [1, 1],
+    ])
+  }
+}
 
 beforeEach(() => {
   useControllerProfileStore.setState(controllerProfileInitialState)
   useControllerStore.setState(controllerInitialState)
+  useMapStore.setState(mapInitialState)
+  useRouterStore.setState(routerInitialState)
+  resetControllerProvider()
+})
+
+afterEach(() => {
+  resetControllerProvider()
+  resetPersonalContentProvider()
 })
 
 function seedProfile() {
@@ -114,5 +155,67 @@ describe('ControllerProfilePage', () => {
     expect(screen.getByRole('textbox', { name: 'top-band zone ranges' })).toHaveValue('0-3, 28-31')
     expect(screen.getByText('64')).toBeInTheDocument()
     expect(screen.getByText('8')).toBeInTheDocument()
+  })
+
+  it('imports the live controller pixel map as a named frozen user map', async () => {
+    const profile = seedProfile()
+    const created: MapRecord[] = []
+    setPersonalContentProvider({
+      ...demoPersonalContentProvider,
+      updateControllerProfile: async () => {},
+      createMap: async (record) => {
+        created.push(record)
+      },
+    })
+    setControllerProvider(new MapReadbackProvider())
+    useControllerStore.setState({
+      activeIp: '192.168.8.224',
+      controllers: {
+        '192.168.8.224': {
+          ip: '192.168.8.224',
+          deviceId: profile.deviceId,
+          nickname: 'Burner bag',
+          phase: 'live',
+          mapDim: 2,
+        },
+      },
+    })
+
+    render(<ControllerProfilePage profileId="ctrl-1" />)
+
+    fireEvent.click(screen.getByRole('button', { name: /import map/i }))
+    expect(await screen.findByRole('textbox', { name: 'Imported map name' })).toHaveValue('Burner bag map')
+    expect(screen.getByText(/4 px \/ 2D \/ 2 x 2/i)).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /^import map$/i }))
+
+    await waitFor(() => expect(created).toHaveLength(1))
+    expect(created[0]).toMatchObject({
+      name: 'Burner bag map',
+      dim: 2,
+      generator: 'custom',
+      points: [
+        [0, 0],
+        [1, 0],
+        [0, 1],
+        [1, 1],
+      ],
+      gridDims: { cols: 2, rows: 2 },
+      importMetadata: {
+        kind: 'controller',
+        controllerName: 'Burner bag',
+        deviceId: 'pixelblaze_pb32_abc',
+        ip: '192.168.8.224',
+        pixelCount: 4,
+        normalization: 'device-fill-normalized',
+      },
+    })
+    await waitFor(() => {
+      expect(useMapStore.getState().userMaps[0].id).toBe(created[0].id)
+      expect(useRouterStore.getState().route).toEqual({
+        kind: 'studio',
+        entity: { kind: 'maps', id: created[0].id },
+      })
+    })
   })
 })

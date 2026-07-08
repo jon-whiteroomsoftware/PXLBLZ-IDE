@@ -1,6 +1,10 @@
 import { createCustomMap, inferDim } from './custom'
 
 describe('inferDim', () => {
+  it('infers 1D from [x] arity', () => {
+    expect(inferDim([[0], [1]])).toBe(1)
+  })
+
   it('infers 2D from [x,y] arity', () => {
     expect(inferDim([[0, 0], [1, 1]])).toBe(2)
   })
@@ -17,8 +21,8 @@ describe('inferDim', () => {
     expect(() => inferDim([])).toThrow(/at least one point/)
   })
 
-  it('rejects a non-2/3 arity', () => {
-    expect(() => inferDim([[0]])).toThrow(/2D .* or 3D/)
+  it('rejects a non-1/2/3 arity', () => {
+    expect(() => inferDim([[0, 0, 0, 0]])).toThrow(/1D .* 2D .* or 3D/)
   })
 })
 
@@ -45,6 +49,14 @@ describe('createCustomMap', () => {
     expect(out[0].pos).toEqual([0.1, 0.2])
     expect(out[1].pos).toEqual([0, 0])
     expect(out[2].pos).toEqual([0, 0])
+  })
+
+  it('replays 1D maps as sample-only strip coordinates', () => {
+    const m = createCustomMap([[0.1], [0.4]], { id: 's', name: 'Strip' })
+    const out = m.resolve(3)
+    expect(m.dim).toBe(1)
+    expect(out.map((p) => p.sample)).toEqual([[0.1], [0.4], [0]])
+    expect(out.map((p) => p.pos)).toEqual([undefined, undefined, undefined])
   })
 
   it('uses a 3D origin for over-count 3D drift', () => {

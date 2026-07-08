@@ -13,6 +13,7 @@ import {
   type WireLabel,
 } from '@/engine/mapContext'
 import type { GridDims, MapPoint } from '@/engine/maps'
+import type { MapImportMetadata } from '@/engine/personalContentRecords'
 import { useCameraStore } from '@/store/cameraStore'
 import {
   defaultPixelCountForDim,
@@ -34,6 +35,7 @@ interface OpenMapContext {
   gridDims: GridDims | null
   evalError: string | null
   readOnly: boolean
+  importMetadata?: MapImportMetadata
 }
 
 function canvasSizeFor3D(width: number): number {
@@ -75,6 +77,7 @@ function resolveOpenMapContext(
       gridDims: map.gridDims(points.length),
       evalError: mapEvalError,
       readOnly: false,
+      importMetadata: record.importMetadata,
     }
   }
   const points = (record.points ?? []).map((coord) => ({
@@ -89,7 +92,18 @@ function resolveOpenMapContext(
     gridDims: record.gridDims ?? null,
     evalError: mapEvalError,
     readOnly: false,
+    importMetadata: record.importMetadata,
   }
+}
+
+function formatImportDate(timestamp: number): string {
+  return new Date(timestamp).toLocaleString(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  })
 }
 
 function FactRow({ label, value }: { label: string; value: string | number }) {
@@ -275,8 +289,24 @@ export function MapContextPane() {
             <FactRow label="pixels" value={facts.pixels} />
             <FactRow label="arity" value={facts.arity} />
             <FactRow label="bounds" value={facts.bounds} />
-            <FactRow label="source" value={context.readOnly ? 'stock' : 'custom'} />
+            <FactRow
+              label="source"
+              value={context.importMetadata ? 'controller import' : context.readOnly ? 'stock' : 'custom'}
+            />
           </div>
+        )}
+
+        {context.importMetadata && (
+          <>
+            <SectionTitle icon={<MapIcon size={12} aria-hidden />}>Imported</SectionTitle>
+            <div className="mt-1">
+              <FactRow label="device" value={context.importMetadata.controllerName} />
+              {context.importMetadata.ip && <FactRow label="last IP" value={context.importMetadata.ip} />}
+              {context.importMetadata.deviceId && <FactRow label="device ID" value={context.importMetadata.deviceId} />}
+              <FactRow label="imported" value={formatImportDate(context.importMetadata.importedAt)} />
+              <FactRow label="normalization" value="device fill" />
+            </div>
+          </>
         )}
 
         <SectionTitle icon={<GitBranch size={12} aria-hidden />}>Used by</SectionTitle>

@@ -336,11 +336,21 @@ describe('editor map mode (#151)', () => {
     expect(useEditorStore.getState().editorFlavor).toBe('map')
   })
 
-  it('openExistingMap is a no-op for a record with no source (stock maps)', () => {
+  it('openExistingMap opens a frozen no-source custom map read-only', () => {
     const noSource: MapRecord = { ...CUSTOM_MAP, source: undefined }
     useMapStore.getState().openExistingMap(noSource)
-    expect(useMapStore.getState().editingMap).toBeNull()
-    expect(useEditorStore.getState().editorFlavor).toBe('pattern')
+    expect(useMapStore.getState().editingMap).toEqual({ kind: 'existing', id: 'cm1' })
+    expect(useEditorStore.getState().editorFlavor).toBe('map')
+    expect(useEditorStore.getState().isReadOnly).toBe(true)
+    expect(useEditorStore.getState().source).toContain('imported from a controller as frozen pixel coordinates')
+  })
+
+  it('bakeEditingMap leaves frozen no-source imports untouched', async () => {
+    const noSource: MapRecord = { ...CUSTOM_MAP, source: undefined }
+    useMapStore.setState({ userMaps: [noSource], editingMap: { kind: 'existing', id: 'cm1' } })
+    useEditorStore.setState({ source: '[[0,0],[0.5,0.5]]', editorFlavor: 'map', isReadOnly: true })
+    await useMapStore.getState().bakeEditingMap()
+    expect(useMapStore.getState().userMaps[0]).toEqual(noSource)
   })
 
   it('openStockMap opens read-only stock source without changing the active layout', () => {

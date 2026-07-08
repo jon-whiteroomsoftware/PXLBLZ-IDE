@@ -19,6 +19,7 @@ export interface D1MapRow {
   points_json: string | null
   source: string | null
   grid_dims_json: string | null
+  import_metadata_json: string | null
   updated_at: number
 }
 
@@ -35,13 +36,15 @@ export function mapRecordFromRow(row: D1MapRow): MapRecord {
     ...(row.points_json ? { points: parseJson(row.points_json, []) } : {}),
     ...(row.source ? { source: row.source } : {}),
     ...(row.grid_dims_json ? { gridDims: parseJson(row.grid_dims_json, undefined) } : {}),
+    ...(row.import_metadata_json ? { importMetadata: parseJson(row.import_metadata_json, undefined) } : {}),
   }
 }
 
 export async function listD1Maps(db: D1DatabaseMapsLike, userId: string): Promise<MapRecord[]> {
   const { results } = await db
     .prepare(`
-      SELECT id, name, dim, generator, params_json, points_json, source, grid_dims_json, updated_at
+      SELECT id, name, dim, generator, params_json, points_json, source, grid_dims_json,
+        import_metadata_json, updated_at
       FROM personal_maps
       WHERE user_id = ?
       ORDER BY updated_at DESC
@@ -61,9 +64,9 @@ export async function createD1Map(
     .prepare(`
       INSERT INTO personal_maps (
         user_id, id, name, dim, generator, params_json, points_json, source,
-        grid_dims_json, created_at, updated_at
+        grid_dims_json, import_metadata_json, created_at, updated_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
     .bind(
       userId,
@@ -75,6 +78,7 @@ export async function createD1Map(
       optionalJson(record.points),
       record.source ?? null,
       optionalJson(record.gridDims),
+      optionalJson(record.importMetadata),
       now,
       record.updatedAt,
     )
@@ -96,6 +100,7 @@ export async function updateD1Map(
   addAssignment(assignments, values, 'points_json', changes.points, true)
   addAssignment(assignments, values, 'source', changes.source)
   addAssignment(assignments, values, 'grid_dims_json', changes.gridDims, true)
+  addAssignment(assignments, values, 'import_metadata_json', changes.importMetadata, true)
   addAssignment(assignments, values, 'updated_at', changes.updatedAt)
   if (assignments.length === 0) return
 

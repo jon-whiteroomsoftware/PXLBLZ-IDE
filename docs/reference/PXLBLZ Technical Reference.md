@@ -313,7 +313,10 @@ itself to the running preview — assigning a map to a pattern happens only via 
 preview **Map** control. Eval failures surface in the header without crashing.
 Custom maps offer **Send map to Controller** and a confirmation-guarded
 **Delete**; stock maps offer read-only state, **Clone**, and **Send map to
-Controller**.
+Controller**. A user map can also be a frozen controller import with `points` but
+no `source`; opening it enters read-only map mode with a placeholder note while
+the right pane previews the baked geometry. The autosave/bake tick ignores these
+source-less imports so the placeholder can never overwrite the frozen points.
 
 In map mode the right context pane is `MapContextPane`, not the animated pattern
 preview. It resolves the open stock or custom map, paints deterministic
@@ -426,6 +429,11 @@ reproducing the hardware stale-map drift ("changed pixelCount, forgot to re-save
 the Mapper"). A `MapRecord` carries `source`, `points`, and `gridDims` when the
 points form a regular lattice. Baked replay applies to custom maps only (stock
 maps regenerate). Opening or editing a custom map does not change `activeMapId`.
+Imported controller maps use the same custom-map replay path but omit `source`;
+their optional `importMetadata` records display-only provenance (`controllerName`,
+`deviceId`, last IP, pixel count, imported timestamp, and the
+`device-fill-normalized` honesty marker). This metadata is not a foreign key to a
+Controller profile, so deleting a profile leaves imported maps intact.
 
 ### Aspect normalization: Fill / Contain
 
@@ -745,7 +753,8 @@ zone-local-coordinate path used by Shows; 2D zone frames remain a future slice.
 `migratePatternRecord` lifts pre-cascade records into the nested bag on read and
 rewrites retired ids, schemaless throughout (no DB bump). Override writes go
 through `updatePatternSettings` (a sparse merge that does not bump
-`src`/`updatedAt`). `MapRecord` carries `source`/`points`/`gridDims` (§8).
+`src`/`updatedAt`). `MapRecord` carries `source`/`points`/`gridDims` and
+optional controller-import provenance (§8).
 `MixinRecord` carries `name`, pass `kind`, Pixelblaze-dialect `src`, and
 `updatedAt`; `/api/mixins` persists it in `personal_mixins` (migration 0006).
 `ShowRecord` carries scene-strip data and is D1-backed through `/api/shows`.
@@ -1075,6 +1084,14 @@ Three firmware facts gate the rest:
   supplies the map dimensionality the Send gate uses. (The Fill/Contain fit mode
   is map-bound — saved with the map, not a standalone settings field — so it
   rides read-back too.)
+- **Controller profile import** (#338) builds on the same read-back path:
+  `ControllerProfilePage` activates the profile's live provider, calls
+  `getPixelMap()`, summarizes the decoded coordinates with `inferDim` and
+  `detectGridDims`, asks for a map name, and creates an ordinary `MapRecord`
+  with `generator:'custom'`, frozen `points`, no `source`, and display-only
+  import provenance. Pixelblaze-native Mapper writes are Fill-normalized per
+  axis; PXLBLZ map pushes preserve the user's selected fit, so imported
+  provenance records the Fill-normalized caveat where known.
 - **Reducing the count must black out the tail first** (#222, verified on
   hardware). WS2812s hold their last value until re-clocked and the device only
   clocks `pixelCount` LEDs, so after a reduction the LEDs beyond the new count

@@ -48,6 +48,7 @@ describe('D1 map persistence', () => {
       points_json: '[[0,0],[1,1]]',
       source: 'function(pixelCount){ return [[0,0]] }',
       grid_dims_json: '{"cols":2,"rows":1}',
+      import_metadata_json: '{"kind":"controller","controllerName":"Bench","pixelCount":2,"importedAt":123,"normalization":"device-fill-normalized"}',
       updated_at: 123,
     })).toEqual({
       id: 'm1',
@@ -58,6 +59,13 @@ describe('D1 map persistence', () => {
       points: [[0, 0], [1, 1]],
       source: 'function(pixelCount){ return [[0,0]] }',
       gridDims: { cols: 2, rows: 1 },
+      importMetadata: {
+        kind: 'controller',
+        controllerName: 'Bench',
+        pixelCount: 2,
+        importedAt: 123,
+        normalization: 'device-fill-normalized',
+      },
       updatedAt: 123,
     })
   })
@@ -84,11 +92,19 @@ describe('D1 map persistence', () => {
       dim: 2,
       generator: 'custom',
       params: {},
+      importMetadata: {
+        kind: 'controller',
+        controllerName: 'Bench',
+        pixelCount: 1,
+        importedAt: 1,
+        normalization: 'device-fill-normalized',
+      },
       updatedAt: 1,
     }
 
     await createD1Map(db, 'github:123', map, 100)
 
     expect(calls[0].values.slice(0, 2)).toEqual(['github:123', 'm1'])
+    expect(calls[0].values).toContain(JSON.stringify(map.importMetadata))
   })
 })

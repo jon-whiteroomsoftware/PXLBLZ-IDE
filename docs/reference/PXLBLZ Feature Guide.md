@@ -190,6 +190,13 @@ Custom maps re-bake automatically as you edit (the same once-at-save evaluation
 hardware does) but never change the running preview on their own; you assign a map
 to a pattern with the preview's Map control.
 
+**Imported controller maps**: a live Controller profile can read the installed
+device map and save it as a named user map. Imported maps are frozen coordinates,
+not editable source; they show an **import** badge in the Maps rail and provenance
+in the map context pane. Maps read from the native Pixelblaze UI may be
+fill-normalized per axis, so their aspect can differ from maps pushed by PXLBLZ
+with **Contain**.
+
 In Maps mode, the right pane is a **wiring check**, not a running pattern preview:
 it draws the open map in wire order with a dark-to-amber ramp and labels the
 endpoints plus regular intervals. 2D maps draw in their measured aspect; 3D maps
@@ -535,9 +542,11 @@ profile is created automatically the first time); the profile page at
 `/studio/controllers/<id>` is editable even while the device is offline:
 
 - a **status strip** — connected/offline, last-known device name, IP, pixel
-  count, map dimensionality, firmware — with a Refresh button when live. Device
-  name, IP, and firmware are last-seen metadata: discovery/connect refreshes
-  them when newer values are observed;
+  count, map dimensionality, firmware — with Refresh and **Import map** buttons
+  when live. Device name, IP, and firmware are last-seen metadata:
+  discovery/connect refreshes them when newer values are observed. Import map
+  reads the device's installed pixel map and saves a separate user map; the map
+  stays even if the Controller profile is later deleted;
 - **hardware inputs** — named pots/buttons with pin, signal, role, smoothing,
   fallback, and invert; analog choices are limited to the board's ADC1-safe
   pins, with anything else flagged inline;

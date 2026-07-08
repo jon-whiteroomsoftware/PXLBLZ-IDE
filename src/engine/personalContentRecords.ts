@@ -14,8 +14,19 @@ export interface PatternRecord {
   settings?: Partial<Settings>
 }
 
+export interface MapImportMetadata {
+  kind: 'controller'
+  controllerName: string
+  deviceId?: string | null
+  ip?: string | null
+  pixelCount: number
+  importedAt: number
+  normalization: 'device-fill-normalized'
+}
+
 // A persisted user map. Serializable form of a PixelMap: a generator descriptor
-// plus params, optional baked coordinates, and optional authoring source.
+// plus params, optional baked coordinates, optional authoring source, and optional
+// display-only provenance for frozen imports.
 export interface MapRecord {
   id: string
   name: string
@@ -31,6 +42,9 @@ export interface MapRecord {
   source?: string
   // Recorded grid shape when baked points form a regular lattice.
   gridDims?: { cols: number; rows: number; depth?: number }
+  // Display-only provenance for maps imported from hardware. This is not a link
+  // to a controller profile; deleting or renaming the controller leaves the map.
+  importMetadata?: MapImportMetadata
   updatedAt: number
 }
 

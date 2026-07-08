@@ -7,25 +7,26 @@ import type { GridDims, MapPoint, PixelMap } from './types'
 // go unvisited. It deliberately does NOT re-run for a new count — that staleness
 // is the count/map drift this fidelity choice exists to reproduce.
 
-export type Coord = [number, number] | [number, number, number]
+export type Coord = [number] | [number, number] | [number, number, number]
 
-// Infer DISPLAY dimensionality from the baked coordinates' arity (`[x,y]` → 2D,
-// `[x,y,z]` → 3D), matching how firmware reports `pixelMapDimensions()`. Mixed
-// arity, an empty list, or a non-2/3 arity is a save-time error.
-export function inferDim(points: number[][]): 2 | 3 {
+// Infer DISPLAY dimensionality from the baked coordinates' arity (`[x]` → 1D,
+// `[x,y]` → 2D, `[x,y,z]` → 3D), matching how firmware reports
+// `pixelMapDimensions()`. Mixed arity, an empty list, or a non-1/2/3 arity is a
+// save-time error.
+export function inferDim(points: number[][]): 1 | 2 | 3 {
   if (points.length === 0) {
     throw new Error('custom map needs at least one point')
   }
   const arity = points[0].length
-  if (arity !== 2 && arity !== 3) {
-    throw new Error(`custom map coords must be 2D [x,y] or 3D [x,y,z], got arity ${arity}`)
+  if (arity < 1 || arity > 3) {
+    throw new Error(`custom map coords must be 1D [x], 2D [x,y], or 3D [x,y,z], got arity ${arity}`)
   }
   for (const p of points) {
     if (p.length !== arity) {
       throw new Error(`custom map has mixed coordinate arity (expected ${arity}, got ${p.length})`)
     }
   }
-  return arity
+  return arity as 1 | 2 | 3
 }
 
 // Build a runtime PixelMap from a baked coordinate array. `sample` (fed to the
@@ -38,7 +39,7 @@ export function createCustomMap(
   const dim = inferDim(points)
   // Freeze the baked array so resolve replays (never regenerates) from it.
   const baked = points.map((p) => [...p] as Coord)
-  const origin: Coord = dim === 3 ? [0, 0, 0] : [0, 0]
+  const origin: Coord = dim === 3 ? [0, 0, 0] : dim === 2 ? [0, 0] : [0]
   return {
     id: opts.id,
     name: opts.name,
@@ -52,7 +53,10 @@ export function createCustomMap(
       const out: MapPoint[] = []
       for (let i = 0; i < pixelCount; i++) {
         const c = i < baked.length ? baked[i] : origin
-        out.push({ sample: [...c], pos: [...c] as Coord })
+        out.push({
+          sample: [...c],
+          ...(dim === 1 ? {} : { pos: [...c] as [number, number] | [number, number, number] }),
+        })
       }
       return out
     },
