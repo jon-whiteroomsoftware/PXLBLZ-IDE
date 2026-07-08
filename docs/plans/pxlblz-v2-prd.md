@@ -44,6 +44,29 @@ A Show composes existing patterns into one deployable artifact. Its model:
   members). **Time-slicing is the default emission strategy**: steady-state
   runs only the active clip's `beforeRender`/render; both renderers evaluate
   only inside a transition window.
+- **Adaptation cost tiers** (decided 2026-07-08): prefer transforming what a
+  pattern *sees* over transforming what it *emits*, and prefer both over
+  running multiple renderers. The intended ladder:
+  1. **Parameter automation** (cheapest): drive exported vars / slider
+     functions / named bindings once per frame from controller inputs,
+     schedules, sensors, macro knobs, curves, or show state. This is the
+     preferred home for pot/sensor/show modulation when a pattern exposes a
+     useful lever.
+  2. **Index/domain transforms** (cheap per pixel): route, reverse, mirror,
+     tile/repeat, split one physical strip into virtual screens, phase/offset,
+     ping-pong, and zone-local coordinate normalization. These remap `index`,
+     virtual `pixelCount`, or map coordinates before the original renderer runs
+     so an unmodified pattern can fill each zone as its whole world.
+  3. **Color/palette adaptations** (cheap when source-level, moderate when
+     output-level): hue/palette shift, desaturation, zone dimming, brightness
+     envelopes, and night-mode styling. If a pattern exposes palette or
+     saturation controls, bind them; otherwise an output wrapper may be needed.
+  4. **Output interception** (visible per-output-call cost): power measurement,
+     power limiting, and final color clamps wrap sinks such as `hsv`/`rgb`.
+     These are valuable but opt-in/budget-visible.
+  5. **Multi-render composition** (most expensive): two or more complete
+     renderers should run together only for transition windows, overlays, or
+     deliberate blends. The default steady-state path remains time-sliced.
 - **Budget honesty**: the editor surfaces compiled artifact size against the
   measured device budget and an estimated FPS at the target pixel count,
   fed by the transform summary's cost model. Compositions that exceed the
@@ -88,15 +111,25 @@ A Show composes existing patterns into one deployable artifact. Its model:
    pattern renders inside a zone as if the zone were its whole world, and
    per-zone adaptations like mirror become plain coordinate transforms.
    1D re-normalization (index/count) is the v1 shape; 2D zone-local frames
-   over a pixel map follow.
+   over a pixel map follow. This route/domain-transform path is also the
+   desired cheap implementation for duplicated virtual screens (for example,
+   one strip split into two mirrored or repeated half-size screens), reverse,
+   mirror, and zone phase offsets.
 3. **Perf-harness spikes** (#314, runnable now, no new hardware work):
    wrapper-indirection cost (wrapped vs direct `hsv`, per pixel); device
    budgets (max pattern code size, global/array count limits,
    exported-control limit → the clips-per-show ceiling); two real renderers
    merged (steady-state FPS, time-sliced vs both-running, 300–1000 px rig).
+   First findings are committed in
+   `docs/plans/archive/issue-314-perf-harness-spikes.md`: output wrappers have
+   a meaningful per-call cost, both-running renderers are much slower than
+   time-sliced steady state, and the current 256-pixel controller run still
+   needs a 300+ pixel rerun before #314 is final.
 4. **A real per-pixel cost model.** `estimatedPixelCost` in the transform
    summary is a placeholder (call-site count); Shows' budget bar needs it
-   grounded in the perf-spike measurements.
+   grounded in the perf-spike measurements and able to distinguish parameter
+   automation, domain transforms, output interception, and multi-render
+   composition.
 
 ## 2. Unfinished corners of shipped surfaces
 
