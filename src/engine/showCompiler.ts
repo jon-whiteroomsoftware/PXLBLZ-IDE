@@ -1,0 +1,488 @@
+import * as acorn from 'acorn'
+import { bundle, type BundleMetadata } from './bundle'
+import { emitFixedPoint } from './fxEmit'
+
+export interface ShowClipRecipe {
+  id: string
+  source: string
+}
+
+export interface ShowCrossfadeRecipe {
+  startMs: number
+  durationMs: number
+}
+
+export interface ShowRecipe {
+  clips: [ShowClipRecipe, ShowClipRecipe]
+  crossfade: ShowCrossfadeRecipe
+}
+
+export interface ShowCompileClipSummary {
+  id: string
+  prefix: string
+  sourceBytes: number
+  renamedBindings: string[]
+  renamedPatternVars: string[]
+}
+
+export interface ShowCompileSummary {
+  clipCount: number
+  transitionCount: number
+  sourceBytesBeforeMerge: number
+  artifactBytes: number
+  measuredDeviceBudgetBytes: number
+  artifactBudgetRatio: number
+  renderPolicy: 'steady-active-transition-both'
+  clips: ShowCompileClipSummary[]
+}
+
+export interface GeneratedShowArtifact {
+  code: string
+  fxCode: string
+  metadata: BundleMetadata
+  summary: ShowCompileSummary
+}
+
+// Largest source/bytecode budget observed during the #314 hardware spike.
+const MEASURED_DEVICE_BUDGET_BYTES = 68384
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Node = Record<string, any>
+
+interface Rewrite {
+  start: number
+  end: number
+  text: string
+}
+
+interface Scope {
+  locals: Set<string>
+  parent: Scope | null
+}
+
+interface CompiledMember {
+  id: string
+  prefix: string
+  code: string
+  sourceBytes: number
+  renamedBindings: string[]
+  renamedPatternVars: string[]
+  renderName: string
+  beforeRenderName: string
+  hasRender: boolean
+  hasBeforeRender: boolean
+  elapsedName: string
+  pixelCountName: string
+}
+
+export function compileShow(
+  recipe: ShowRecipe,
+  libraries: Record<string, string>,
+): GeneratedShowArtifact {
+  validateRecipe(recipe)
+  const members = recipe.clips.map((clip, index) => compileMember(clip, index, libraries))
+  const code = emitShowCode(members, recipe.crossfade)
+  const metadata = buildMetadata(members)
+  const sourceBytesBeforeMerge = members.reduce((sum, member) => sum + member.sourceBytes, 0)
+  const artifactBytes = byteLength(code)
+  const summary: ShowCompileSummary = {
+    clipCount: members.length,
+    transitionCount: 1,
+    sourceBytesBeforeMerge,
+    artifactBytes,
+    measuredDeviceBudgetBytes: MEASURED_DEVICE_BUDGET_BYTES,
+    artifactBudgetRatio: artifactBytes / MEASURED_DEVICE_BUDGET_BYTES,
+    renderPolicy: 'steady-active-transition-both',
+    clips: members.map(member => ({
+      id: member.id,
+      prefix: member.prefix,
+      sourceBytes: member.sourceBytes,
+      renamedBindings: member.renamedBindings,
+      renamedPatternVars: member.renamedPatternVars,
+    })),
+  }
+
+  return {
+    code,
+    fxCode: emitFixedPoint(code),
+    metadata,
+    summary,
+  }
+}
+
+function validateRecipe(recipe: ShowRecipe): void {
+  if (recipe.clips.length !== 2) {
+    throw new Error('compileShow v1 requires exactly two clips.')
+  }
+  if (recipe.crossfade.durationMs <= 0) {
+    throw new Error('compileShow requires a positive crossfade duration.')
+  }
+}
+
+function compileMember(
+  clip: ShowClipRecipe,
+  index: number,
+  libraries: Record<string, string>,
+): CompiledMember {
+  const bundled = bundle(clip.source, libraries)
+  const prefix = `__pxlblz_show_c${index}`
+  const bindings = collectTopLevelBindings(bundled.code)
+  const mapping = new Map([...bindings].map(name => [name, `${prefix}_${name}`]))
+  const code = rewriteMemberSource(bundled.code, prefix, mapping).replace(/\bexport\s+/g, '')
+  const renamedPatternVars = bundled.metadata.patternVars
+    .map(name => mapping.get(name))
+    .filter((name): name is string => Boolean(name))
+
+  return {
+    id: clip.id,
+    prefix,
+    code,
+    sourceBytes: byteLength(bundled.code),
+    renamedBindings: [...mapping.values()].sort(),
+    renamedPatternVars,
+    renderName: mapping.get('render') ?? `${prefix}_render`,
+    beforeRenderName: mapping.get('beforeRender') ?? `${prefix}_beforeRender`,
+    hasRender: bindings.has('render'),
+    hasBeforeRender: bindings.has('beforeRender'),
+    elapsedName: `${prefix}_elapsed_ms`,
+    pixelCountName: `${prefix}_pixelCount`,
+  }
+}
+
+function emitShowCode(members: CompiledMember[], crossfade: ShowCrossfadeRecipe): string {
+  const [from, to] = members
+  const transitionEnd = crossfade.startMs + crossfade.durationMs
+  return [
+    emitRuntimePrelude(members),
+    ...members.map(member => member.code.trim()),
+    emitScheduler(from, to, crossfade.startMs, transitionEnd, crossfade.durationMs),
+    emitRender(from, to),
+    '',
+  ].join('\n\n')
+}
+
+function emitRuntimePrelude(members: CompiledMember[]): string {
+  const memberVars = members.flatMap((member, index) => [
+    `var ${member.elapsedName} = 0`,
+    `var ${member.pixelCountName} = pixelCount`,
+    `var ${member.prefix}_r = 0`,
+    `var ${member.prefix}_g = 0`,
+    `var ${member.prefix}_b = 0`,
+    `function ${member.prefix}_clear() { ${member.prefix}_r = 0; ${member.prefix}_g = 0; ${member.prefix}_b = 0 }`,
+    `function ${member.prefix}_rgb(r, g, b) { ${member.prefix}_r = r; ${member.prefix}_g = g; ${member.prefix}_b = b }`,
+    `function ${member.prefix}_hsv(h, s, v) { __pxlblz_show_capture_hsv(${index}, h, s, v) }`,
+    `function ${member.prefix}_time(interval) { return ((${member.elapsedName} * 0.001) / interval) % 1 }`,
+    `function ${member.prefix}_advance(delta) {
+  ${member.elapsedName} = ${member.elapsedName} + delta
+  ${member.hasBeforeRender ? `${member.beforeRenderName}(delta)` : ''}
+}`,
+    `function ${member.prefix}_emit() { rgb(${member.prefix}_r, ${member.prefix}_g, ${member.prefix}_b) }`,
+  ])
+
+  return [
+    'var __pxlblz_show_elapsed_ms = 0',
+    'var __pxlblz_show_mix = 0',
+    'var __pxlblz_show_phase = 0',
+    ...memberVars,
+    `function __pxlblz_show_capture_rgb(slot, r, g, b) {
+  if (slot == 0) { __pxlblz_show_c0_r = r; __pxlblz_show_c0_g = g; __pxlblz_show_c0_b = b }
+  else { __pxlblz_show_c1_r = r; __pxlblz_show_c1_g = g; __pxlblz_show_c1_b = b }
+}`,
+    `function __pxlblz_show_capture_hsv(slot, h, s, v) {
+  h = h - floor(h)
+  var i = floor(h * 6)
+  var f = h * 6 - i
+  var p = v * (1 - s)
+  var q = v * (1 - f * s)
+  var t = v * (1 - (1 - f) * s)
+  if (i == 0) __pxlblz_show_capture_rgb(slot, v, t, p)
+  else if (i == 1) __pxlblz_show_capture_rgb(slot, q, v, p)
+  else if (i == 2) __pxlblz_show_capture_rgb(slot, p, v, t)
+  else if (i == 3) __pxlblz_show_capture_rgb(slot, p, q, v)
+  else if (i == 4) __pxlblz_show_capture_rgb(slot, t, p, v)
+  else __pxlblz_show_capture_rgb(slot, v, p, q)
+}`,
+  ].join('\n')
+}
+
+function emitScheduler(
+  from: CompiledMember,
+  to: CompiledMember,
+  transitionStart: number,
+  transitionEnd: number,
+  duration: number,
+): string {
+  return `export function beforeRender(delta) {
+  __pxlblz_show_elapsed_ms = __pxlblz_show_elapsed_ms + delta
+  if (__pxlblz_show_elapsed_ms < ${transitionStart}) {
+    __pxlblz_show_phase = 0
+    __pxlblz_show_mix = 0
+    ${from.prefix}_advance(delta)
+  } else if (__pxlblz_show_elapsed_ms < ${transitionEnd}) {
+    __pxlblz_show_phase = 1
+    __pxlblz_show_mix = (__pxlblz_show_elapsed_ms - ${transitionStart}) / ${duration}
+    ${from.prefix}_advance(delta)
+    ${to.prefix}_advance(delta)
+  } else {
+    __pxlblz_show_phase = 2
+    __pxlblz_show_mix = 1
+    ${to.prefix}_advance(delta)
+  }
+}`
+}
+
+function emitRender(from: CompiledMember, to: CompiledMember): string {
+  return `export function render(index) {
+  if (__pxlblz_show_phase == 0) {
+    ${from.prefix}_clear()
+    ${from.hasRender ? `${from.renderName}(index)` : ''}
+    ${from.prefix}_emit()
+  } else if (__pxlblz_show_phase == 2) {
+    ${to.prefix}_clear()
+    ${to.hasRender ? `${to.renderName}(index)` : ''}
+    ${to.prefix}_emit()
+  } else {
+    ${from.prefix}_clear()
+    ${from.hasRender ? `${from.renderName}(index)` : ''}
+    var r0 = ${from.prefix}_r
+    var g0 = ${from.prefix}_g
+    var b0 = ${from.prefix}_b
+    ${to.prefix}_clear()
+    ${to.hasRender ? `${to.renderName}(index)` : ''}
+    rgb(
+      r0 * (1 - __pxlblz_show_mix) + ${to.prefix}_r * __pxlblz_show_mix,
+      g0 * (1 - __pxlblz_show_mix) + ${to.prefix}_g * __pxlblz_show_mix,
+      b0 * (1 - __pxlblz_show_mix) + ${to.prefix}_b * __pxlblz_show_mix
+    )
+  }
+}`
+}
+
+function buildMetadata(members: CompiledMember[]): BundleMetadata {
+  const showVars = [
+    '__pxlblz_show_elapsed_ms',
+    '__pxlblz_show_mix',
+    '__pxlblz_show_phase',
+    ...members.flatMap(member => [
+      member.elapsedName,
+      member.pixelCountName,
+      `${member.prefix}_r`,
+      `${member.prefix}_g`,
+      `${member.prefix}_b`,
+      ...member.renamedPatternVars,
+    ]),
+  ]
+
+  return {
+    exportedVars: [],
+    patternVars: showVars,
+    controls: [],
+    renderFns: {
+      hasBeforeRender: true,
+      hasRender: true,
+      hasRender2D: false,
+      hasRender3D: false,
+    },
+  }
+}
+
+function rewriteMemberSource(source: string, prefix: string, mapping: Map<string, string>): string {
+  const ast = parseModule(source)
+  const rewrites: Rewrite[] = []
+  const emptyScope: Scope = { locals: new Set(), parent: null }
+  walkForRewrites(ast, emptyScope, true, mapping, prefix, rewrites)
+  return rewriteSource(source, rewrites)
+}
+
+function walkForRewrites(
+  node: Node,
+  scope: Scope,
+  topLevel: boolean,
+  mapping: Map<string, string>,
+  prefix: string,
+  rewrites: Rewrite[],
+): void {
+  if (!node || typeof node !== 'object') return
+
+  if (node.type === 'Program') {
+    for (const child of node.body as Node[]) {
+      walkForRewrites(child, scope, true, mapping, prefix, rewrites)
+    }
+    return
+  }
+
+  if (node.type === 'ExportNamedDeclaration') {
+    if (node.declaration) walkForRewrites(node.declaration, scope, topLevel, mapping, prefix, rewrites)
+    return
+  }
+
+  if (node.type === 'VariableDeclaration') {
+    for (const declaration of node.declarations as Node[]) {
+      if (topLevel && declaration.id?.type === 'Identifier') {
+        addMappedRewrite(declaration.id, mapping, rewrites)
+      }
+      if (declaration.init) walkForRewrites(declaration.init, scope, false, mapping, prefix, rewrites)
+    }
+    return
+  }
+
+  if (node.type === 'FunctionDeclaration') {
+    if (topLevel && node.id?.type === 'Identifier') addMappedRewrite(node.id, mapping, rewrites)
+    const fnScope = makeFunctionScope(node, scope)
+    walkForRewrites(node.body, fnScope, false, mapping, prefix, rewrites)
+    return
+  }
+
+  if (node.type === 'FunctionExpression' || node.type === 'ArrowFunctionExpression') {
+    const fnScope = makeFunctionScope(node, scope)
+    walkForRewrites(node.body, fnScope, false, mapping, prefix, rewrites)
+    return
+  }
+
+  if (node.type === 'CallExpression') {
+    if (node.callee?.type === 'Identifier') {
+      addReferenceRewrite(node.callee, scope, mapping, prefix, rewrites, true)
+    } else {
+      walkForRewrites(node.callee, scope, false, mapping, prefix, rewrites)
+    }
+    for (const argument of (node.arguments as Node[]) ?? []) {
+      walkForRewrites(argument, scope, false, mapping, prefix, rewrites)
+    }
+    return
+  }
+
+  if (node.type === 'MemberExpression') {
+    walkForRewrites(node.object, scope, false, mapping, prefix, rewrites)
+    if (node.computed) walkForRewrites(node.property, scope, false, mapping, prefix, rewrites)
+    return
+  }
+
+  if (node.type === 'Property') {
+    if (node.computed) walkForRewrites(node.key, scope, false, mapping, prefix, rewrites)
+    walkForRewrites(node.value, scope, false, mapping, prefix, rewrites)
+    return
+  }
+
+  if (node.type === 'Identifier') {
+    addReferenceRewrite(node, scope, mapping, prefix, rewrites, false)
+    return
+  }
+
+  for (const [key, val] of Object.entries(node)) {
+    if (key === 'start' || key === 'end' || key === 'loc') continue
+    if (Array.isArray(val)) {
+      for (const child of val) walkForRewrites(child as Node, scope, false, mapping, prefix, rewrites)
+    } else if (val && typeof val === 'object') {
+      walkForRewrites(val as Node, scope, false, mapping, prefix, rewrites)
+    }
+  }
+}
+
+function addReferenceRewrite(
+  node: Node,
+  scope: Scope,
+  mapping: Map<string, string>,
+  prefix: string,
+  rewrites: Rewrite[],
+  callCallee: boolean,
+): void {
+  const name = node.name as string
+  if (isLocallyBound(scope, name)) return
+  const mapped = mapping.get(name)
+  if (mapped) {
+    rewrites.push({ start: node.start, end: node.end, text: mapped })
+    return
+  }
+  if (name === 'pixelCount') {
+    rewrites.push({ start: node.start, end: node.end, text: `${prefix}_pixelCount` })
+    return
+  }
+  if (!callCallee) return
+  if (name === 'time') rewrites.push({ start: node.start, end: node.end, text: `${prefix}_time` })
+  if (name === 'rgb') rewrites.push({ start: node.start, end: node.end, text: `${prefix}_rgb` })
+  if (name === 'hsv') rewrites.push({ start: node.start, end: node.end, text: `${prefix}_hsv` })
+}
+
+function addMappedRewrite(node: Node, mapping: Map<string, string>, rewrites: Rewrite[]): void {
+  const mapped = mapping.get(node.name as string)
+  if (mapped) rewrites.push({ start: node.start, end: node.end, text: mapped })
+}
+
+function makeFunctionScope(node: Node, parent: Scope): Scope {
+  const locals = new Set<string>()
+  for (const param of (node.params as Node[]) ?? []) {
+    if (param.type === 'Identifier') locals.add(param.name as string)
+  }
+  if (node.body?.type === 'BlockStatement') {
+    for (const statement of node.body.body as Node[]) {
+      collectLocalDeclarations(statement, locals)
+    }
+  }
+  return { locals, parent }
+}
+
+function collectLocalDeclarations(node: Node, locals: Set<string>): void {
+  if (!node || typeof node !== 'object') return
+  if (node.type === 'VariableDeclaration') {
+    for (const declaration of (node.declarations as Node[]) ?? []) {
+      if (declaration.id?.type === 'Identifier') locals.add(declaration.id.name as string)
+    }
+    return
+  }
+  if (node.type === 'FunctionDeclaration') {
+    if (node.id?.type === 'Identifier') locals.add(node.id.name as string)
+    return
+  }
+  if (node.type === 'FunctionExpression' || node.type === 'ArrowFunctionExpression') return
+
+  for (const [key, val] of Object.entries(node)) {
+    if (key === 'start' || key === 'end' || key === 'loc') continue
+    if (Array.isArray(val)) {
+      for (const child of val) collectLocalDeclarations(child as Node, locals)
+    } else if (val && typeof val === 'object') {
+      collectLocalDeclarations(val as Node, locals)
+    }
+  }
+}
+
+function isLocallyBound(scope: Scope, name: string): boolean {
+  let current: Scope | null = scope
+  while (current) {
+    if (current.locals.has(name)) return true
+    current = current.parent
+  }
+  return false
+}
+
+function collectTopLevelBindings(source: string): Set<string> {
+  const bindings = new Set<string>()
+  const ast = parseModule(source)
+  for (const node of ast.body as Node[]) {
+    const declaration = node.type === 'ExportNamedDeclaration' ? node.declaration : node
+    if (declaration?.type === 'FunctionDeclaration' && declaration.id?.name) {
+      bindings.add(declaration.id.name as string)
+    }
+    if (declaration?.type === 'VariableDeclaration') {
+      for (const item of (declaration.declarations as Node[]) ?? []) {
+        if (item.id?.type === 'Identifier') bindings.add(item.id.name as string)
+      }
+    }
+  }
+  return bindings
+}
+
+function rewriteSource(src: string, rewrites: Rewrite[]): string {
+  const sorted = [...rewrites].sort((a, b) => b.start - a.start)
+  for (const rewrite of sorted) {
+    src = src.slice(0, rewrite.start) + rewrite.text + src.slice(rewrite.end)
+  }
+  return src
+}
+
+function parseModule(source: string): Node {
+  return acorn.parse(source, { ecmaVersion: 2020, sourceType: 'module' }) as unknown as Node
+}
+
+function byteLength(source: string): number {
+  return new TextEncoder().encode(source).length
+}
