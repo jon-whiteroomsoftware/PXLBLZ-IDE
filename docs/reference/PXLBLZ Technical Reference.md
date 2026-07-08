@@ -101,7 +101,7 @@ why the library hashes are built from integer ops (§11).
 |---|---|
 | `previewStore` | `isRunning`, `speed`, `brightness`, live `lightSize`/`diffusion`, the global-sticky `lightSizeSticky`/`diffusionSticky` baselines, `fidelity`, watcher state, `fps`, `elapsed`. Persists only `fidelity` and the two sticky baselines; cascaded fields are seeded per pattern by the resolver (§12). |
 | `patternStore` | tri-state selection (`activePatternId` / `activeLibraryName` / `activeDemoName`), `userPatterns`, `demoOverrides` (per-demo cascade layer-1 bag), CRUD through the active personal content provider. |
-| `editorStore` | `source`, `previewSource`, `compileStatus`, `isReadOnly`, `patternVars`, `controls`, `nativeDim`, `displayDim`, `solidEligible`, `editorFlavor` (`'pattern' \| 'map'`). |
+| `editorStore` | `source`, `previewSource`, `compileStatus`, `isReadOnly`, `patternVars`, `controls`, `nativeDim`, `displayDim`, `solidEligible`, `editorFlavor` (`'pattern' \| 'map' \| 'mixin'`). |
 | `mapStore` | `activeMapId`/`activeShapeId`/`activeSurfaceId`, `activePixelCount`, `activeNormalizeMode`, `activeSolidity`, `userMaps`, the stock catalogue, and the map-mode editing target. |
 | `controlStore` | current pattern UI control values (transient). |
 | `cameraStore` | ephemeral orbit angle, persistent auto-orbit flag, a transient `dragging` hold, pole wrap density. |
@@ -148,6 +148,38 @@ This is a faithful interfacing choice: the artifact must be valid Pixelblaze
 code, so libraries are authored in the Pixelblaze dialect (plain `.js`,
 Acorn-parseable) and the bundler does only inlining and renaming, never language
 translation.
+
+### Pass engine (`src/engine/passEngine.ts`)
+
+`bundleWithPasses(patternSrc, libraries, recipe)` layers the generic pass engine
+on top of `bundle()`. With an empty recipe it returns the same `code`, `fxCode`,
+and `metadata` bytes as `bundle()` plus an empty transform summary; this is the
+compatibility guarantee for current Copy/Download/Send flows. Non-empty recipes
+operate on the already-bundled artifact and return `{ code, fxCode, metadata,
+summary, warnings }`.
+
+The recipe IR is JSON-serializable and ordered. The implemented pass kinds are:
+
+- **Inject** — substitutes `@param` placeholders by Acorn identifier spans,
+  renames the mixin's `beforeRender`, prepends the mixin source, and either
+  wraps the pattern's existing `beforeRender(delta)` or synthesizes one.
+- **Intercept** — rewrites AST-located output-sink call sites for `hsv`,
+  `hsv24`, `rgb`, `paint(v)`, and `paint(v,b)` to generated arity-specific
+  wrappers. Comments, strings, property names, unrelated identifiers, and
+  locally shadowed sink names are left untouched. Unsupported arities produce
+  warnings instead of silent skips.
+- **Bind** — emits a small frame-level helper that calls a target function
+  (including exported sliders) or assigns a target variable. Optional
+  `min`/`max`/`quantize` constraints are emitted into the assignment/call
+  expression; missing targets warn and do not mutate the artifact.
+
+Generated helper names use the reserved `__pxlblz_` prefix. The engine detects
+user identifiers already using that prefix, avoids exact generated-name
+collisions, and records both as warnings in the transform summary path. The
+summary reports per-pass and aggregate call-site counts, beforeRender handling,
+generated globals/exports, applied bindings, warnings, and the estimated
+per-pixel cost delta. The default cost seed is one unit per wrapped output call
+site unless a recipe item supplies an explicit `cost`.
 
 ## 5. Fixed-point engine
 
