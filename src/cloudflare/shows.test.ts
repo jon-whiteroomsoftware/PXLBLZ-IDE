@@ -48,8 +48,9 @@ describe('D1 show persistence (#318)', () => {
       zones_json: JSON.stringify(show.zones),
       cells_json: JSON.stringify(show.cells),
       target_controller_profile_id: 'ctrl-1',
+      stage_map_id: 'map-1',
       updated_at: 123,
-    })).toEqual({ ...show, targetControllerProfileId: 'ctrl-1' })
+    })).toEqual({ ...show, targetControllerProfileId: 'ctrl-1', stageMapId: 'map-1' })
   })
 
   it('scopes list, update, and delete by signed-in user', async () => {
@@ -75,5 +76,6 @@ describe('D1 show persistence (#318)', () => {
     expect(calls[0].values.slice(0, 2)).toEqual(['github:123', 'show-1'])
     expect(calls[0].values).toContain(JSON.stringify(show.scenes))
     expect(calls[0].values).toContain(JSON.stringify(show.cells))
+    expect(calls[0].values).toContain(null)
   })
 })

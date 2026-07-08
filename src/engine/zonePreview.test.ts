@@ -1,10 +1,15 @@
 import {
+  applyShowStageMask,
+  buildShowStageProjection,
+  buildShowStageStrips,
+  buildShowStripsLayout,
   buildZonePreviewStrips,
   filterPixelsForSolo,
   selectControllerPreviewZones,
   type PixelColor,
 } from '@/engine/zonePreview'
 import type { ControllerProfile } from '@/engine/controllerProfile'
+import type { ShowZone } from '@/engine/personalContentRecords'
 
 const pixels: PixelColor[] = [
   [1, 0, 0],
@@ -187,5 +192,98 @@ describe('selectControllerPreviewZones', () => {
     )
 
     expect(zones).toEqual([])
+  })
+})
+
+describe('show stage projection', () => {
+  const showZones: ShowZone[] = [
+    { id: 'arch', name: 'arch-left', nominalPixelCount: 3, color: '#38bdf8' },
+    { id: 'wash', name: 'rock-wash', nominalPixelCount: 2, color: '#f97316' },
+  ]
+
+  it('maps controller-origin zones onto real multi-ranges and reports unstaged pixels', () => {
+    const projection = buildShowStageProjection(showZones, 8, {
+      controllerZones: [
+        { id: 'arch-real', name: 'arch-left', ranges: [{ start: 0, end: 1 }, { start: 6, end: 7 }] },
+        { id: 'wash-real', name: 'rock-wash', ranges: [{ start: 3, end: 3 }] },
+      ],
+    })
+
+    expect(projection.pixelZoneIds).toEqual([
+      'arch',
+      'arch',
+      null,
+      'wash',
+      null,
+      null,
+      'arch',
+      'arch',
+    ])
+    expect(projection.unstagedPixelCount).toBe(3)
+    expect(projection.zones).toEqual([
+      expect.objectContaining({ id: 'arch', pixelCount: 4, offStage: false }),
+      expect.objectContaining({ id: 'wash', pixelCount: 1, offStage: false }),
+    ])
+  })
+
+  it('places freestyle zones into consecutive nominal ranges', () => {
+    const projection = buildShowStageProjection(showZones, 6)
+
+    expect(projection.pixelZoneIds).toEqual(['arch', 'arch', 'arch', 'wash', 'wash', null])
+    expect(projection.unstagedPixelCount).toBe(1)
+  })
+
+  it('warns when a zone has no pixels on the selected stage', () => {
+    const projection = buildShowStageProjection(showZones, 3, {
+      controllerZones: [
+        { id: 'arch-real', name: 'arch-left', ranges: [{ start: 20, end: 29 }] },
+      ],
+    })
+
+    expect(projection.zones.find((zone) => zone.id === 'arch')).toMatchObject({
+      pixelCount: 10,
+      offStage: true,
+    })
+  })
+
+  it('masks unstaged and non-solo pixels without moving geometry', () => {
+    const projection = buildShowStageProjection(showZones, 5)
+
+    expect(applyShowStageMask(pixels.slice(0, 5), projection, 'wash')).toEqual([
+      [0, 0, 0],
+      [0, 0, 0],
+      [0, 0, 0],
+      [0, 0.9, 0],
+      [0, 0, 1],
+    ])
+
+    expect(applyShowStageMask(pixels.slice(0, 6), buildShowStageProjection(showZones, 6), null)[5]).toEqual([
+      0.055,
+      0.055,
+      0.06,
+    ])
+  })
+
+  it('builds flattened strip layouts even when controller ranges are non-contiguous', () => {
+    const layout = buildShowStripsLayout(showZones, {
+      controllerZones: [
+        { id: 'arch-real', name: 'arch-left', ranges: [{ start: 0, end: 1 }, { start: 6, end: 7 }] },
+        { id: 'wash-real', name: 'rock-wash', ranges: [{ start: 3, end: 3 }] },
+      ],
+    })
+
+    expect(layout.mapPoints).toHaveLength(5)
+    expect(layout.projection.pixelZoneIds).toEqual(['arch', 'arch', 'arch', 'arch', 'wash'])
+
+    const strips = buildShowStageStrips(pixels.slice(0, 5), showZones, {
+      controllerZones: [
+        { id: 'arch-real', name: 'arch-left', ranges: [{ start: 0, end: 1 }, { start: 6, end: 7 }] },
+        { id: 'wash-real', name: 'rock-wash', ranges: [{ start: 3, end: 3 }] },
+      ],
+    })
+    expect(strips.map((strip) => [strip.id, strip.pixelCount])).toEqual([
+      ['arch', 4],
+      ['wash', 1],
+    ])
   })
 })

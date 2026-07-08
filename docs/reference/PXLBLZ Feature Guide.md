@@ -228,6 +228,16 @@ At compile/push time, show rows bind to Controller zones by name; matched rows u
 the Controller's real ranges and pixel counts, while unmatched rows appear as
 compile-bar warnings rather than silently disappearing.
 
+The right pane previews the Show on a **Stage**. The default stage is **Zone
+strips - generic**, a flattened diagnostic view where each zone becomes a labeled
+strip and solo keeps the strips in place while blacking out other zones. A Show
+can instead save any selectable 2D/3D map as its stage. Spatial stages run the
+generated Show artifact over the chosen map's positions, bind show rows to the
+target Controller's real zone ranges when available, warn when a zone has no
+pixels on that stage, and draw map pixels not covered by any Show zone as dim
+grey. If the saved stage map is later deleted, the preview falls back to generic
+strips with a note rather than failing.
+
 Cells normally treat each zone row as its own domain. Setting **Span zones** on a
 cell stretches that one pattern across adjacent rows as a single canvas, so a
 gradient or wash can run continuously across multiple physical zones instead of

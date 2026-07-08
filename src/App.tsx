@@ -26,6 +26,7 @@ import { GalleryPage } from '@/components/GalleryPage'
 import { PatternDetailPage } from '@/components/PatternDetailPage'
 import { ControllerProfilePage } from '@/components/ControllerProfilePage'
 import { ShowEditor } from '@/components/ShowEditor'
+import { ShowStagePreview } from '@/components/ShowStagePreview'
 import { useControllerStore } from '@/store/controllerStore'
 import { MapModeHeader } from '@/components/MapModeHeader'
 import { useMapStore, STOCK_MAP_ITEMS } from '@/store/mapStore'
@@ -819,7 +820,7 @@ export default function App() {
           ) : studioEntityKind === 'controllers' ? (
             <EmptyContextPane label="Controller" />
           ) : studioEntityKind === 'shows' ? (
-            <EmptyContextPane label="Shows" />
+            activeShowId !== null ? <ShowStagePreview showId={activeShowId} /> : <EmptyContextPane label="Shows" />
           ) : (
             <Preview />
           )}

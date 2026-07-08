@@ -695,8 +695,9 @@ attempted or implied.
 
 Shows are persisted as `ShowRecord`s in `personal_shows` (migration 0007):
 `name`, `scenes_json`, `zones_json`, `cells_json`, optional
-`target_controller_profile_id`, and `updated_at`. `showStore` owns the active
-Show and writes every scene/cell/zone edit immediately through `/api/shows`. The
+`target_controller_profile_id`, optional `stage_map_id` (migration 0009), and
+`updated_at`. `showStore` owns the active Show and writes every
+scene/cell/zone/stage edit immediately through `/api/shows`. The
 pure model helpers in `showModel.ts` create the default two-scene/one-zone
 strip, seed a Show from a Controller profile's zone map, project the arrangement
 into scene columns + zone rows, edit show-local zone names and nominal pixel
@@ -717,6 +718,18 @@ ranges and binds clips by zone name. The
 inspector, zone binding panel, compile/budget bar, read-only generated-source
 view, and a run-to-Controller action that compiles the generated source through
 the active provider and pushes bytecode to the connected controller.
+
+`ShowStagePreview` is the right-pane Show context surface. It compiles the active
+Show through the same `compileShowForPreview` helper used by the editor and runs
+that generated `render(index)` artifact through the normal preview render loop.
+For the default strips stage, `zonePreview.ts` builds synthetic sequential
+Controller zones and a 2D strips layout so multi-range physical zones flatten into
+diagnostic rows. For a map stage, the same module builds a spatial zone
+projection over the selected map's pixel count: target Controller zones bind by
+real index ranges, unmatched freestyle rows use consecutive nominal ranges,
+off-stage rows warn in the legend, uncovered map pixels are masked dim grey, and
+solo blackens every non-solo zone without moving the geometry. The stage map
+selection is saved per Show as `stageMapId`; a dangling id falls back to strips.
 
 The current Show compiler (`src/engine/showCompiler.ts`) emits five policies:
 single continuous hold (`single-continuous-hold`), cut/restart

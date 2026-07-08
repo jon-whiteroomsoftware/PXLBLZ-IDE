@@ -13,6 +13,7 @@ const controllerProfileStatusMetadataMigrationPath = path.resolve(
 const personalMixinsMigrationPath = path.resolve('migrations/0006_personal_mixins.sql')
 const personalShowsMigrationPath = path.resolve('migrations/0007_personal_shows.sql')
 const mapImportMetadataMigrationPath = path.resolve('migrations/0008_map_import_metadata.sql')
+const showStageMapMigrationPath = path.resolve('migrations/0009_show_stage_map.sql')
 
 describe('D1 personal storage migration', () => {
   it('creates the storage buckets needed for the Cloudflare personal-storage foundation', () => {
@@ -103,5 +104,12 @@ describe('D1 personal storage migration', () => {
 
     expect(sql).toContain('ALTER TABLE personal_maps ADD COLUMN import_metadata_json TEXT')
     expect(sql).toContain("VALUES ('schema_version', '8', unixepoch())")
+  })
+
+  it('adds per-show stage map selection', () => {
+    const sql = fs.readFileSync(showStageMapMigrationPath, 'utf8')
+
+    expect(sql).toContain('ALTER TABLE personal_shows ADD COLUMN stage_map_id TEXT')
+    expect(sql).toContain("VALUES ('schema_version', '9', unixepoch())")
   })
 })

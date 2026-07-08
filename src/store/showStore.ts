@@ -4,6 +4,7 @@ import {
   createDefaultShowFromController,
   createDefaultShow,
   extendShowCell,
+  importedStageMapIdForController,
   removeShowZone,
   spanShowCellZones,
   updateShowZone,
@@ -23,6 +24,7 @@ import type {
 import type { ControllerProfile } from '@/engine/controllerProfile'
 import { newPersonalContentId } from '@/engine/personalContentMetadata'
 import { uniquePatternName } from '@/engine/patternName'
+import { useMapStore } from '@/store/mapStore'
 
 interface ShowState {
   shows: ShowRecord[]
@@ -36,6 +38,7 @@ interface ShowState {
   renameShow: (id: string, name: string) => Promise<void>
   removeShow: (id: string) => Promise<void>
   updateShow: (id: string, next: ShowRecord) => Promise<void>
+  updateStageMap: (showId: string, stageMapId: string | null) => Promise<void>
   updateScene: (showId: string, sceneId: string, changes: Partial<Omit<ShowScene, 'id'>>) => Promise<void>
   updateTransition: (
     showId: string,
@@ -88,7 +91,8 @@ export const useShowStore = create<ShowState>()((set, get) => ({
   createShowFromController: async (profile) => {
     const id = newPersonalContentId()
     const name = uniquePatternName(`${profile.name} Show`, get().shows.map((show) => show.name))
-    const show = createDefaultShowFromController(id, name, profile)
+    const stageMapId = importedStageMapIdForController(profile, useMapStore.getState().userMaps)
+    const show = createDefaultShowFromController(id, name, profile, stageMapId)
     await get().addShow(show)
     get().openShow(show.id)
     return show
@@ -128,13 +132,20 @@ export const useShowStore = create<ShowState>()((set, get) => ({
       zones: next.zones,
       cells: next.cells,
       targetControllerProfileId: next.targetControllerProfileId,
+      stageMapId: next.stageMapId ?? null,
       updatedAt: next.updatedAt,
     })
     set((state) => ({
       shows: state.shows
         .map((show) => show.id === id ? next : show)
         .sort((a, b) => b.updatedAt - a.updatedAt),
-    }))
+      }))
+  },
+
+  updateStageMap: async (showId, stageMapId) => {
+    const show = get().shows.find((item) => item.id === showId)
+    if (!show) return
+    await get().updateShow(showId, { ...show, stageMapId, updatedAt: Date.now() })
   },
 
   updateScene: async (showId, sceneId, changes) => {

@@ -1,4 +1,5 @@
 import { showInitialState, useShowStore } from './showStore'
+import { mapInitialState, useMapStore } from './mapStore'
 import { createDefaultShow } from '@/engine/showModel'
 import {
   resetPersonalContentProvider,
@@ -46,6 +47,7 @@ function memoryProvider(seedShows: ShowRecord[] = []): PersonalContentProvider {
 beforeEach(() => {
   resetPersonalContentProvider()
   useShowStore.setState(showInitialState)
+  useMapStore.setState(mapInitialState)
 })
 
 describe('showStore (#318)', () => {
@@ -123,5 +125,64 @@ describe('showStore (#318)', () => {
       ['arch-right', 120],
     ])
     expect(useShowStore.getState().activeShowId).toBe(seeded.id)
+  })
+
+  it('seeds and persists a show stage map from controller imports', async () => {
+    setPersonalContentProvider(memoryProvider())
+    useMapStore.setState({
+      userMaps: [
+        {
+          id: 'map-old',
+          name: 'Old import',
+          dim: 2,
+          generator: 'custom',
+          params: {},
+          points: [[0, 0]],
+          importMetadata: {
+            kind: 'controller',
+            controllerName: 'North Arch',
+            deviceId: 'device-1',
+            pixelCount: 1,
+            importedAt: 100,
+            normalization: 'device-fill-normalized',
+          },
+          updatedAt: 100,
+        },
+        {
+          id: 'map-new',
+          name: 'New import',
+          dim: 2,
+          generator: 'custom',
+          params: {},
+          points: [[0, 0], [1, 0]],
+          importMetadata: {
+            kind: 'controller',
+            controllerName: 'North Arch',
+            deviceId: 'device-1',
+            pixelCount: 2,
+            importedAt: 200,
+            normalization: 'device-fill-normalized',
+          },
+          updatedAt: 200,
+        },
+      ],
+    })
+
+    const seeded = await useShowStore.getState().createShowFromController({
+      id: 'controller-1',
+      name: 'North Arch',
+      deviceId: 'device-1',
+      board: { kind: 'pixelblaze-v3-standard' },
+      inputs: [],
+      globalTransforms: [],
+      patternBindings: [],
+      zones: [{ id: 'left', name: 'arch-left', ranges: [{ start: 0, end: 1 }] }],
+      updatedAt: 1,
+    })
+
+    expect(seeded.stageMapId).toBe('map-new')
+
+    await useShowStore.getState().updateStageMap(seeded.id, null)
+    expect(useShowStore.getState().shows[0].stageMapId).toBeNull()
   })
 })

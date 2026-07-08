@@ -4,19 +4,17 @@ import { Button } from '@/components/ui/button'
 import { PixelblazeCodeEditor } from '@/components/PixelblazeCodeEditor'
 import { getControllerProvider } from '@/engine/controllerProviderRegistry'
 import { makeProgramId } from '@/engine/bytecodePush'
-import { compileShow, type GeneratedShowArtifact } from '@/engine/showCompiler'
 import {
   projectShowStrip,
   showLoopDurationMs,
-  showRecordToCompileRecipe,
   transitionCost,
 } from '@/engine/showModel'
+import { compileShowForPreview, type CompiledShowState } from '@/engine/showPreviewArtifact'
 import {
   controllerZonePixelCount,
   findControllerZoneByName,
   type ControllerZone,
 } from '@/engine/controllerProfile'
-import { DEMOS } from '@/pixelblaze/stock/patterns'
 import { GALLERY_PATTERNS } from '@/engine/galleryCatalog'
 import { useControllerStore } from '@/store/controllerStore'
 import { useControllerProfileStore } from '@/store/controllerProfileStore'
@@ -27,11 +25,6 @@ import type { ShowCell, ShowRecord, ShowScene } from '@/engine/personalContentRe
 const card = 'rounded-md border border-zinc-800 bg-zinc-950/35'
 const field =
   'h-7 rounded border border-zinc-700 bg-zinc-900 px-2 text-xs text-zinc-200 outline-none focus:border-live/70'
-
-interface CompiledShowState {
-  artifact: GeneratedShowArtifact | null
-  error: string | null
-}
 
 export function ShowEditor({ showId }: { showId: string }) {
   const show = useShowStore((state) => state.shows.find((item) => item.id === showId))
@@ -59,7 +52,7 @@ export function ShowEditor({ showId }: { showId: string }) {
     ? controllerProfiles.find((profile) => profile.id === activeShow.targetControllerProfileId)
     : controllerProfiles[0]
   const compiled = useMemo(
-    () => activeShow ? compileShowForEditor(activeShow, userPatterns, targetProfile?.zones) : { artifact: null, error: null },
+    () => activeShow ? compileShowForPreview(activeShow, userPatterns, targetProfile?.zones, {}) : { artifact: null, error: null },
     [activeShow, userPatterns, targetProfile?.zones],
   )
 
@@ -616,30 +609,6 @@ function NumberField({
   )
 }
 
-function compileShowForEditor(
-  show: ShowRecord,
-  userPatterns: ReturnType<typeof usePatternStore.getState>['userPatterns'],
-  controllerZones: Parameters<typeof showRecordToCompileRecipe>[1]['controllerZones'],
-): CompiledShowState {
-  try {
-    const byCellId = Object.fromEntries(
-      show.cells.map((cell) => [cell.id, sourceForCell(cell, userPatterns)]),
-    )
-    const recipe = showRecordToCompileRecipe(show, { byCellId, controllerZones })
-    return { artifact: compileShow(recipe, {}), error: null }
-  } catch (error) {
-    return { artifact: null, error: error instanceof Error ? error.message : 'Show compile failed' }
-  }
-}
-
-function sourceForCell(
-  cell: ShowCell,
-  userPatterns: ReturnType<typeof usePatternStore.getState>['userPatterns'],
-): string {
-  if (cell.pattern.kind === 'stock') return DEMOS[cell.pattern.id] ?? DEMOS.TestPattern1D
-  return userPatterns.find((pattern) => pattern.id === cell.pattern.id)?.src ?? DEMOS.TestPattern1D
-}
-
 function adaptationSummary(cell: ShowCell): string {
   const parts = []
   if (cell.adaptations.mirror) parts.push('mirror')
@@ -671,6 +640,6 @@ function zonePixelTotal(show: ShowRecord): number {
   return show.zones.reduce((sum, zone) => sum + zone.nominalPixelCount, 0)
 }
 
-export function targetZonePixelTotal(zones: Parameters<typeof showRecordToCompileRecipe>[1]['controllerZones']): number {
+export function targetZonePixelTotal(zones: ControllerZone[] | undefined): number {
   return zones?.reduce((sum, zone) => sum + controllerZonePixelCount(zone), 0) ?? 0
 }

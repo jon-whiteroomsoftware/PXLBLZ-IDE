@@ -111,5 +111,6 @@ export interface ShowRecord {
   zones: ShowZone[]
   cells: ShowCell[]
   targetControllerProfileId?: string
+  stageMapId?: string | null
   updatedAt: number
 }

@@ -17,6 +17,7 @@ export interface D1ShowRow {
   zones_json: string
   cells_json: string
   target_controller_profile_id: string | null
+  stage_map_id: string | null
   updated_at: number
 }
 
@@ -28,6 +29,7 @@ export function showRecordFromRow(row: D1ShowRow): ShowRecord {
     zones: parseJson(row.zones_json, []),
     cells: parseJson(row.cells_json, []),
     ...(row.target_controller_profile_id ? { targetControllerProfileId: row.target_controller_profile_id } : {}),
+    stageMapId: row.stage_map_id ?? null,
     updatedAt: row.updated_at,
   }
 }
@@ -35,7 +37,7 @@ export function showRecordFromRow(row: D1ShowRow): ShowRecord {
 export async function listD1Shows(db: D1DatabaseShowsLike, userId: string): Promise<ShowRecord[]> {
   const { results } = await db
     .prepare(`
-      SELECT id, name, scenes_json, zones_json, cells_json, target_controller_profile_id, updated_at
+      SELECT id, name, scenes_json, zones_json, cells_json, target_controller_profile_id, stage_map_id, updated_at
       FROM personal_shows
       WHERE user_id = ?
       ORDER BY updated_at DESC
@@ -55,9 +57,9 @@ export async function createD1Show(
     .prepare(`
       INSERT INTO personal_shows (
         user_id, id, name, scenes_json, zones_json, cells_json,
-        target_controller_profile_id, created_at, updated_at
+        target_controller_profile_id, stage_map_id, created_at, updated_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
     .bind(
       userId,
@@ -67,6 +69,7 @@ export async function createD1Show(
       JSON.stringify(record.zones),
       JSON.stringify(record.cells),
       record.targetControllerProfileId ?? null,
+      record.stageMapId ?? null,
       now,
       record.updatedAt,
     )
@@ -86,6 +89,7 @@ export async function updateD1Show(
   addAssignment(assignments, values, 'zones_json', changes.zones, true)
   addAssignment(assignments, values, 'cells_json', changes.cells, true)
   addAssignment(assignments, values, 'target_controller_profile_id', changes.targetControllerProfileId)
+  addAssignment(assignments, values, 'stage_map_id', changes.stageMapId)
   addAssignment(assignments, values, 'updated_at', changes.updatedAt)
   if (assignments.length === 0) return
 

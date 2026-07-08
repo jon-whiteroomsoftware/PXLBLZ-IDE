@@ -1,4 +1,5 @@
 import type {
+  MapRecord,
   ShowCell,
   ShowCellAdaptations,
   ShowRecord,
@@ -9,6 +10,7 @@ import type {
 import type { ShowClipAdaptation, ShowRecipe } from './showCompiler'
 import {
   controllerZonePixelCount,
+  controllerProfileDisplayName,
   normalizeControllerZones,
   type ControllerProfile,
   type ControllerZone,
@@ -81,6 +83,7 @@ export function createDefaultShow(id: string, name: string, updatedAt = Date.now
       patternName: index === 0 ? 'TestPattern1D' : 'CometLoom',
       adaptations: { ...DEFAULT_ADAPTATIONS },
     })),
+    stageMapId: null,
     updatedAt,
   }
 }
@@ -89,12 +92,13 @@ export function createDefaultShowFromController(
   id: string,
   name: string,
   controller: ControllerProfile,
+  stageMapId: string | null = null,
   updatedAt = Date.now(),
 ): ShowRecord {
   const base = createDefaultShow(id, name, updatedAt)
   const controllerZones = normalizeControllerZones(controller.zones)
   if (controllerZones.length === 0) {
-    return { ...base, targetControllerProfileId: controller.id }
+    return { ...base, targetControllerProfileId: controller.id, stageMapId }
   }
 
   const zones: ShowZone[] = controllerZones.map((zone, index) => ({
@@ -109,8 +113,29 @@ export function createDefaultShowFromController(
     zones,
     cells: createCellsForZones(base.scenes, zones),
     targetControllerProfileId: controller.id,
+    stageMapId,
     updatedAt,
   }
+}
+
+export function importedStageMapIdForController(
+  controller: ControllerProfile,
+  maps: MapRecord[],
+): string | null {
+  const displayName = controllerProfileDisplayName(controller)
+  const candidates = maps.filter((map) => {
+    const metadata = map.importMetadata
+    if (!metadata) return false
+    if (controller.deviceId && metadata.deviceId === controller.deviceId) return true
+    if (controller.lastSeenIp && metadata.ip === controller.lastSeenIp) return true
+    return metadata.controllerName === displayName || metadata.controllerName === controller.name
+  })
+  candidates.sort(
+    (a, b) =>
+      (b.importMetadata?.importedAt ?? b.updatedAt) -
+      (a.importMetadata?.importedAt ?? a.updatedAt),
+  )
+  return candidates[0]?.id ?? null
 }
 
 export function showLoopDurationMs(show: Pick<ShowRecord, 'scenes'>): number {

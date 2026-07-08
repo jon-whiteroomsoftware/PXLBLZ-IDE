@@ -1,9 +1,13 @@
 import {
+  controllerZonePixelCount,
+  findControllerZoneByName,
   normalizeControllerZones,
   type ControllerProfile,
   type ControllerZone,
   type ControllerZoneRange,
 } from '@/engine/controllerProfile'
+import type { MapPoint } from '@/engine/maps'
+import type { ShowZone } from '@/engine/personalContentRecords'
 
 export type PixelColor = [number, number, number]
 
@@ -12,7 +16,22 @@ export interface ZonePreviewStrip {
   name: string
   color: string
   pixelCount: number
+  offStage?: boolean
   samples: PixelColor[]
+}
+
+export interface ShowStageZone {
+  id: string
+  name: string
+  color: string
+  pixelCount: number
+  offStage: boolean
+}
+
+export interface ShowStageProjection {
+  zones: ShowStageZone[]
+  pixelZoneIds: Array<string | null>
+  unstagedPixelCount: number
 }
 
 interface PreviewControllerEntry {
@@ -52,10 +71,105 @@ function normalizeRange(range: ControllerZoneRange, pixelCount: number): Control
 
   const lo = Math.min(rawStart, rawEnd)
   const hi = Math.max(rawStart, rawEnd)
-  const start = Math.max(0, Math.min(pixelCount - 1, lo))
-  const end = Math.max(0, Math.min(pixelCount - 1, hi))
+  if (hi < 0 || lo > pixelCount - 1) return null
+  const start = Math.max(0, lo)
+  const end = Math.min(pixelCount - 1, hi)
   if (end < start) return null
   return { start, end }
+}
+
+function pixelIndexesForRanges(ranges: ControllerZoneRange[], pixelCount: number): Set<number> {
+  const indexes = new Set<number>()
+  for (const range of ranges) {
+    const normalized = normalizeRange(range, pixelCount)
+    if (!normalized) continue
+    for (let index = normalized.start; index <= normalized.end; index += 1) {
+      indexes.add(index)
+    }
+  }
+  return indexes
+}
+
+function sequentialRange(start: number, count: number): ControllerZoneRange {
+  const safeCount = Math.max(0, Math.floor(count))
+  return { start, end: start + safeCount - 1 }
+}
+
+function stageRangesForShowZones(
+  zones: ShowZone[],
+  controllerZones: ControllerZone[] | undefined,
+): Array<{ zone: ShowZone; ranges: ControllerZoneRange[]; nominalPixelCount: number }> {
+  const normalizedControllerZones = controllerZones ? normalizeControllerZones(controllerZones) : []
+  let freestyleStart = 0
+  return zones.map((zone) => {
+    const bound = normalizedControllerZones.length
+      ? findControllerZoneByName(normalizedControllerZones, zone.name)
+      : undefined
+    if (bound) {
+      return { zone, ranges: bound.ranges, nominalPixelCount: controllerZonePixelCount(bound) }
+    }
+
+    const count = Math.max(0, Math.floor(zone.nominalPixelCount))
+    const range = sequentialRange(freestyleStart, count)
+    freestyleStart += count
+    return { zone, ranges: count > 0 ? [range] : [], nominalPixelCount: count }
+  })
+}
+
+function stripRangesForShowZones(
+  zones: ShowZone[],
+  controllerZones: ControllerZone[] | undefined,
+): Array<{ zone: ShowZone; ranges: ControllerZoneRange[]; nominalPixelCount: number }> {
+  const normalizedControllerZones = controllerZones ? normalizeControllerZones(controllerZones) : []
+  let start = 0
+  return zones.map((zone) => {
+    const bound = normalizedControllerZones.length
+      ? findControllerZoneByName(normalizedControllerZones, zone.name)
+      : undefined
+    const count = bound ? controllerZonePixelCount(bound) : Math.max(0, Math.floor(zone.nominalPixelCount))
+    const range = sequentialRange(start, count)
+    start += count
+    return { zone, ranges: count > 0 ? [range] : [], nominalPixelCount: count }
+  })
+}
+
+function buildProjectionFromRows(
+  rows: Array<{ zone: ShowZone; ranges: ControllerZoneRange[]; nominalPixelCount: number }>,
+  stagePixelCount: number,
+  fallbackColors?: string[],
+): ShowStageProjection {
+  const colors = fallbackColors?.length ? fallbackColors : DEFAULT_ZONE_COLORS
+  const pixelZoneIds: Array<string | null> = Array.from({ length: Math.max(0, stagePixelCount) }, () => null)
+  const projectedZones: ShowStageZone[] = rows.map(({ zone, ranges, nominalPixelCount }, index) => {
+    const indexes = pixelIndexesForRanges(ranges, pixelZoneIds.length)
+    for (const pixelIndex of indexes) {
+      if (pixelZoneIds[pixelIndex] === null) pixelZoneIds[pixelIndex] = zone.id
+    }
+    return {
+      id: zone.id,
+      name: zone.name,
+      color: zone.color ?? colors[index % colors.length],
+      pixelCount: indexes.size || nominalPixelCount,
+      offStage: indexes.size === 0,
+    }
+  })
+
+  return {
+    zones: projectedZones,
+    pixelZoneIds,
+    unstagedPixelCount: pixelZoneIds.filter((zoneId) => zoneId === null).length,
+  }
+}
+
+export function buildShowStripControllerZones(
+  zones: ShowZone[],
+  controllerZones?: ControllerZone[],
+): ControllerZone[] {
+  return stripRangesForShowZones(zones, controllerZones).map(({ zone, ranges }) => ({
+    id: zone.id,
+    name: zone.name,
+    ranges,
+  }))
 }
 
 function collectZonePixels(pixels: PixelColor[], zone: ControllerZone): PixelColor[] {
@@ -96,6 +210,79 @@ export function buildZonePreviewStrips(
       }
     })
     .filter((strip) => strip.pixelCount > 0)
+}
+
+export function buildShowStageProjection(
+  zones: ShowZone[],
+  stagePixelCount: number,
+  options: { controllerZones?: ControllerZone[]; fallbackColors?: string[] } = {},
+): ShowStageProjection {
+  const rows = stageRangesForShowZones(zones, options.controllerZones)
+  return buildProjectionFromRows(rows, stagePixelCount, options.fallbackColors)
+}
+
+export function buildShowStageStrips(
+  pixels: PixelColor[],
+  zones: ShowZone[],
+  options: { controllerZones?: ControllerZone[]; maxSamples?: number; fallbackColors?: string[] } = {},
+): ZonePreviewStrip[] {
+  const rows = stripRangesForShowZones(zones, options.controllerZones)
+  return buildZonePreviewStrips(
+    pixels,
+    rows.map(({ zone, ranges }) => ({
+      id: zone.id,
+      name: zone.name,
+      ranges,
+    })),
+    options,
+  ).map((strip, index) => ({
+    ...strip,
+    color: zones[index]?.color ?? strip.color,
+  }))
+}
+
+export function buildShowStripsLayout(
+  zones: ShowZone[],
+  options: { controllerZones?: ControllerZone[] } = {},
+): {
+  mapPoints: MapPoint[]
+  positions: [number, number][]
+  projection: ShowStageProjection
+} {
+  const rows = stripRangesForShowZones(zones, options.controllerZones)
+  const totalPixels = rows.reduce((sum, row) => sum + row.nominalPixelCount, 0)
+  const projection = buildProjectionFromRows(rows, totalPixels)
+  const rowCount = Math.max(1, rows.length)
+  const maxRowPixels = Math.max(1, ...rows.map((row) => row.nominalPixelCount))
+  const positions: [number, number][] = []
+  const mapPoints: MapPoint[] = []
+
+  for (let rowIndex = 0; rowIndex < rows.length; rowIndex += 1) {
+    const count = rows[rowIndex].nominalPixelCount
+    const y = rowCount === 1 ? 0.5 : rowIndex / (rowCount - 1)
+    for (let column = 0; column < count; column += 1) {
+      const x = maxRowPixels === 1 ? 0.5 : column / (maxRowPixels - 1)
+      const pos: [number, number] = [x, y]
+      positions.push(pos)
+      mapPoints.push({ sample: [], pos })
+    }
+  }
+
+  return { mapPoints, positions, projection }
+}
+
+export function applyShowStageMask(
+  pixels: PixelColor[],
+  projection: ShowStageProjection,
+  soloZoneId: string | null,
+  unstagedColor: PixelColor = [0.055, 0.055, 0.06],
+): PixelColor[] {
+  return pixels.map((pixel, index) => {
+    const zoneId = projection.pixelZoneIds[index] ?? null
+    if (!zoneId) return unstagedColor
+    if (soloZoneId && zoneId !== soloZoneId) return BLACK
+    return pixel
+  })
 }
 
 export function filterPixelsForSolo(
