@@ -984,6 +984,48 @@ describe('controllerStore (keyed)', () => {
       ])
     })
 
+    it('dedupes discovered Controllers against live Controllers by stable device id', async () => {
+      setControllerProviderFactory((ip) => {
+        const p = new FakeProvider()
+        p.discover = () =>
+          Promise.resolve([
+            {
+              id: 'pixelblaze_pb32_known',
+              address: '10.0.0.99',
+              name: 'Same hardware, new IP',
+            },
+            {
+              id: 'pixelblaze_pb32_other',
+              address: '10.0.0.8',
+              name: 'Other',
+            },
+          ])
+        created.set(ip, p)
+        return p
+      })
+      useControllerStore.setState({
+        controllers: {
+          '10.0.0.5': {
+            ip: '10.0.0.5',
+            deviceId: 'pixelblaze_pb32_known',
+            phase: 'live',
+            mapDim: 2,
+            nickname: 'Known',
+          },
+        },
+      })
+
+      await store().discover()
+
+      expect(store().discovered).toEqual([
+        {
+          id: 'pixelblaze_pb32_other',
+          address: '10.0.0.8',
+          name: 'Other',
+        },
+      ])
+    })
+
     it('ignores a concurrent call while a sweep is already in flight', async () => {
       // The dropdown now fires discovery on open, on a periodic tick, AND on the
       // manual refresh — the guard must keep those from stacking overlapping sweeps.

@@ -425,7 +425,13 @@ async function handleDiscover() {
   if (!Array.isArray(records)) return []
   return records
     .filter((r) => r && r.id && r.localIp)
-    .map((r) => ({ id: r.id, localIp: r.localIp, name: r.name, version: r.version }))
+    .map((r) => ({
+      id: r.id,
+      localIp: r.localIp,
+      name: r.name,
+      version: r.version,
+      boardType: r.boardType,
+    }))
 }
 
 // Fetch + gunzip + decode the device web UI (utf-8-sig: strip BOM).

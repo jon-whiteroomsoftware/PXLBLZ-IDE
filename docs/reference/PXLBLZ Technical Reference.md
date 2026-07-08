@@ -788,19 +788,21 @@ from an MV3 extension** (`chrome.sockets.udp` is a dead Chrome-Apps API), so the
 reference clients' port-1889 beacon path is closed. The only viable path is
 **cloud discovery**, and only from the helper:
 `GET https://discover.electromage.com/discover` matches Controllers by public IP
-and returns `{ id, ip, localIp, name, version, … }` records. The page can't read
-it (no CORS header — the same wall as `ws://LAN`), but the service worker with a
-host permission can. `background.js` owns the fetch; the result crosses the relay
-seam as a `reqId`-keyed `discover`/`discover-result` round-trip,
-connection-independent. The seam exposes `discover()` on `ControllerProvider`
-(Null returns `[]`; failures return `[]`), maps `localIp` → connect address and
-`id` → stable key, and the `ControllerBar` shows candidates as clickable rows
-driving the existing keyed `addController(discoveredController)`. A discovered
-row carries its stable `id` into the provider target and its `name` in as a seed
-nickname, so the pill is born named and claimed. Discovery runs
-automatically when the connect dropdown opens, refreshes on a timer while open,
-offers a manual rescan (spinner in flight), and filters out already-connected
-Controllers.
+and returns `{ id, ip, localIp, name, version, boardType, … }` records. The page
+can't read it (no CORS header — the same wall as `ws://LAN`), but the service
+worker with a host permission can. `background.js` owns the fetch; the result
+crosses the relay seam as a `reqId`-keyed `discover`/`discover-result`
+round-trip, connection-independent. The seam exposes `discover()` on
+`ControllerProvider` (Null returns `[]`; failures return `[]`), maps `localIp`
+→ connect address and `id` → stable key, and the `ControllerBar` shows
+candidates as clickable rows driving the existing keyed
+`addController(discoveredController)`. A discovered row carries its stable `id`
+into the provider target and its `name` in as a seed nickname, so the pill is
+born named and claimed; `boardType` and firmware `version` display as quiet
+metadata in the network list. Discovery runs automatically when the connect
+dropdown opens, refreshes on a timer while open, offers a manual rescan (spinner
+in flight), and filters out already-connected Controllers by IP or by stable
+device id when known.
 
 ### Live Controller identity
 

@@ -260,6 +260,7 @@ export class ExtensionControllerProvider implements ControllerProvider {
                 address: c.localIp,
                 name: c.name || undefined,
                 version: c.version || undefined,
+                boardType: c.boardType || undefined,
               })),
             )
           } else {

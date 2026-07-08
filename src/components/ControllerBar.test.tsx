@@ -386,6 +386,7 @@ describe('ControllerBar', () => {
       address: '10.0.0.5',
       name: 'Desk',
       version: '3.67',
+      boardType: 'pb32',
     }
     useControllerStore.setState({
       extensionPresent: true,
@@ -400,6 +401,66 @@ describe('ControllerBar', () => {
     fireEvent.click(screen.getByTestId('controller-discovered-item'))
 
     expect(addController).toHaveBeenCalledWith(discovered)
+  })
+
+  it('renders multiple discovered Controllers with firmware and board metadata', () => {
+    useControllerStore.setState({
+      extensionPresent: true,
+      detectExtension: async () => true,
+      discover: async () => {},
+      discovered: [
+        {
+          id: 'pixelblaze_pb32_a',
+          address: '10.0.0.5',
+          name: 'Desk',
+          version: '3.67',
+          boardType: 'pb32',
+        },
+        {
+          id: 'pixelblaze_pico_b',
+          address: '10.0.0.8',
+          name: 'Shelf',
+          boardType: 'pico',
+        },
+      ],
+    })
+    render(<ControllerBar />)
+
+    fireEvent.click(screen.getByTestId('controller-entry-button'))
+
+    const rows = screen.getAllByTestId('controller-discovered-item')
+    expect(rows).toHaveLength(2)
+    expect(rows[0]).toHaveTextContent('Desk')
+    expect(rows[0]).toHaveTextContent('10.0.0.5')
+    expect(rows[0]).toHaveTextContent('pb32')
+    expect(rows[0]).toHaveTextContent('3.67')
+    expect(rows[1]).toHaveTextContent('Shelf')
+    expect(rows[1]).toHaveTextContent('pico')
+  })
+
+  it('labels an empty discovery result as no other Controllers when one is already connected', () => {
+    useControllerStore.setState({
+      extensionPresent: true,
+      activeIp: '10.0.0.5',
+      controllers: {
+        '10.0.0.5': {
+          ip: '10.0.0.5',
+          nickname: 'Desk',
+          phase: 'live',
+          mapDim: 2,
+        },
+      },
+      detectExtension: async () => true,
+      discover: async () => {},
+      discovered: [],
+    })
+    render(<ControllerBar />)
+
+    fireEvent.click(screen.getByTestId('controller-entry-button'))
+
+    expect(screen.getByTestId('controller-discover-empty')).toHaveTextContent(
+      'No other Controllers found',
+    )
   })
 
   it('the refresh affordance triggers a manual rescan', async () => {

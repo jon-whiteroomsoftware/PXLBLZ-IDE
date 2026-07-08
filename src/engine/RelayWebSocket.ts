@@ -159,12 +159,14 @@ export type RelayPayload = { text: string } | { binary: string }
 /** One Controller as the cloud discovery service reports it, trimmed to the fields
  *  the page uses. Mirrors the `discover.electromage.com/discover` JSON record
  *  (verified live 2026-06-04): `localIp` is the LAN address to connect to, `id` is
- *  the stable device id, `name` the nickname, `version` the firmware. */
+ *  the stable device id, `name` the nickname, `version` the firmware, `boardType`
+ *  the hardware family. */
 export interface DiscoveredControllerWire {
   id: string
   localIp: string
   name?: string
   version?: string
+  boardType?: string
 }
 
 /** Trimmed `/wifistatus` response fields used for device-id recovery. */

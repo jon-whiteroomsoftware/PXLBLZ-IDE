@@ -411,7 +411,9 @@ right; its dropdown offers two ways in:
   service the official tools use; your device needs to have reached the internet
   at least once). The list runs automatically when the dropdown opens and
   refreshes periodically; a rescan button (spins while working) forces a fresh
-  look. Click a device to connect.
+  look. Click a device to connect. Multiple devices appear as separate rows with
+  their name, IP, and available board/firmware metadata; already-connected
+  hardware is filtered out so it is not offered as a duplicate connect target.
 - **By IP** — type the LAN address and connect. Always works, even when cloud
   discovery can't see the device.
 

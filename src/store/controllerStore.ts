@@ -21,6 +21,7 @@ import { recommendedMapRemedy, type RecommendedMapRemedy } from '@/engine/patter
 import { resolveMapPushPoints } from '@/engine/mapPush'
 import { stockMapSpec } from '@/pixelblaze/stock/maps/stockCatalogue'
 import { applyControllerPixelCount } from '@/engine/applyControllerPixelCount'
+import { availableDiscoveredControllers } from '@/engine/controllerDiscovery'
 import type { ControllerPhase } from '@/engine/controllerPillView'
 import { pushPattern } from '@/engine/pushPattern'
 import {
@@ -373,13 +374,12 @@ export const useControllerStore = create<ControllerConnectionState>()(
           const found = await discoverControllers().catch(() => [])
           // Drop active connection attempts and live Controllers from discovery.
           // Keep errored entries discoverable so the network list can be used as
-          // the normal retry path after a failed connect.
+          // the normal retry path after a failed connect. Match by stable device
+          // id when possible so the same hardware does not reappear after an IP
+          // change.
           const connected = get().controllers
           set({
-            discovered: found.filter((c) => {
-              const entry = connected[c.address]
-              return !entry || entry.phase === 'error'
-            }),
+            discovered: availableDiscoveredControllers(found, Object.values(connected)),
             discovering: false,
           })
         },

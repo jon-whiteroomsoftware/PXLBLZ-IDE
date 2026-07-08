@@ -135,7 +135,8 @@ distribution-agnostic: the same artifact loads unpacked or ships from the Store.
 
 - **Discovery is cloud-only.** Devices are found via `discover.electromage.com`
   (#206), which matches them by your public IP; there is no LAN UDP-beacon
-  discovery (MV3 extensions have no UDP socket). A device with cloud discovery
-  disabled won't appear — connect to it by manual IP instead.
+  discovery (MV3 extensions have no UDP socket). The helper trims and forwards
+  the stable id, LAN IP, name, firmware version, and board type. A device with
+  cloud discovery disabled won't appear — connect to it by manual IP instead.
 - **Persistent socket vs MV3 eviction.** A pinged socket keeps the worker awake on
   current Chrome; if evicted, the page sees a close and the provider reconnects.

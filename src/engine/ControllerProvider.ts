@@ -51,6 +51,7 @@ export interface DiscoveredController {
   address: string
   name?: string
   version?: string
+  boardType?: string
 }
 
 /** Connection status as a discriminated union — the source of truth for the nav

@@ -10,6 +10,7 @@ import {
   controllerProfileCreateSeed,
   findControllerProfileForDevice,
 } from '@/engine/controllerProfileJoin'
+import { discoveredControllerMetadata } from '@/engine/controllerDiscovery'
 import {
   getPersonalContentProvider,
   initializePersonalContentProvider,
@@ -511,20 +512,33 @@ export function ControllerBar({ reloadPage = () => window.location.reload() }: {
                   </button>
                 </div>
                 {discovered.length > 0 && (
-                  <ul className="flex flex-col gap-1" data-testid="controller-discovered-list">
-                    {discovered.map((c) => (
-                      <li key={c.id}>
-                        <button
-                          type="button"
-                          onClick={() => onDiscoveredClick(c)}
-                          data-testid="controller-discovered-item"
-                          className="flex w-full items-baseline justify-between gap-2 rounded border border-zinc-700 bg-zinc-950 px-2 py-1 text-left hover:border-zinc-500 hover:text-zinc-100"
-                        >
-                          <span className="truncate text-zinc-200">{c.name ?? c.address}</span>
-                          <span className="shrink-0 text-zinc-500">{c.address}</span>
-                        </button>
-                      </li>
-                    ))}
+                  <ul
+                    className="max-h-44 overflow-y-auto pr-1 flex flex-col gap-1"
+                    data-testid="controller-discovered-list"
+                  >
+                    {discovered.map((c) => {
+                      const metadata = discoveredControllerMetadata(c)
+                      return (
+                        <li key={c.id}>
+                          <button
+                            type="button"
+                            onClick={() => onDiscoveredClick(c)}
+                            data-testid="controller-discovered-item"
+                            className="flex w-full items-center justify-between gap-3 rounded border border-zinc-700 bg-zinc-950 px-2 py-1.5 text-left hover:border-zinc-500 hover:text-zinc-100"
+                          >
+                            <span className="min-w-0">
+                              <span className="block truncate text-zinc-200">{c.name ?? c.address}</span>
+                              {metadata.length > 0 && (
+                                <span className="block truncate text-[10px] text-zinc-500">
+                                  {metadata.join(' / ')}
+                                </span>
+                              )}
+                            </span>
+                            <span className="shrink-0 text-zinc-500">{c.address}</span>
+                          </button>
+                        </li>
+                      )
+                    })}
                   </ul>
                 )}
                 {discovering && discovered.length === 0 && (
@@ -534,7 +548,9 @@ export function ControllerBar({ reloadPage = () => window.location.reload() }: {
                 )}
                 {!discovering && discovered.length === 0 && (
                   <p className="text-zinc-600" data-testid="controller-discover-empty">
-                    No Controllers found yet. They must have network discovery enabled.
+                    {hasPills
+                      ? 'No other Controllers found. They must have network discovery enabled.'
+                      : 'No Controllers found yet. They must have network discovery enabled.'}
                   </p>
                 )}
               </div>

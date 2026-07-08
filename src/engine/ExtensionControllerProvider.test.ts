@@ -47,7 +47,7 @@ function makeDeviceTransport(
     /** Program ids the fake device reports from listPrograms. */
     programIds?: string[]
     /** Wire records the fake helper returns from a `discover` request. */
-    discovered?: { id: string; localIp: string; name?: string; version?: string }[]
+    discovered?: { id: string; localIp: string; name?: string; version?: string; boardType?: string }[]
     /** When set, the fake helper fails discover with this error. */
     discoverError?: string
     /** Fields the fake device reports in the websocket settings packet. */
@@ -430,14 +430,32 @@ describe('ExtensionControllerProvider', () => {
     it('round-trips a reqId-keyed discover and maps localIp → address', async () => {
       const d = makeDeviceTransport({
         discovered: [
-          { id: 'pixelblaze_pb32_abc', localIp: '192.168.8.224', name: 'Burner bag', version: '3.67' },
+          {
+            id: 'pixelblaze_pb32_abc',
+            localIp: '192.168.8.224',
+            name: 'Burner bag',
+            version: '3.67',
+            boardType: 'pb32',
+          },
           { id: 'pixelblaze_pb32_def', localIp: '192.168.8.99' },
         ],
       })
       const p = new ExtensionControllerProvider({ transport: d.transport })
       await expect(p.discover()).resolves.toEqual([
-        { id: 'pixelblaze_pb32_abc', address: '192.168.8.224', name: 'Burner bag', version: '3.67' },
-        { id: 'pixelblaze_pb32_def', address: '192.168.8.99', name: undefined, version: undefined },
+        {
+          id: 'pixelblaze_pb32_abc',
+          address: '192.168.8.224',
+          name: 'Burner bag',
+          version: '3.67',
+          boardType: 'pb32',
+        },
+        {
+          id: 'pixelblaze_pb32_def',
+          address: '192.168.8.99',
+          name: undefined,
+          version: undefined,
+          boardType: undefined,
+        },
       ])
     })
 
@@ -462,7 +480,7 @@ describe('ExtensionControllerProvider', () => {
       const p = new ExtensionControllerProvider({ transport: d.transport })
       // No connect() first — discovery is connection-independent.
       await expect(p.discover()).resolves.toEqual([
-        { id: 'x', address: '10.0.0.5', name: undefined, version: undefined },
+        { id: 'x', address: '10.0.0.5', name: undefined, version: undefined, boardType: undefined },
       ])
     })
   })
