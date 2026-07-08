@@ -198,18 +198,22 @@ export function cappedHsv(h, s, v) {
 }
 `
 
-const SENSOR_PULSE_SOURCE = `// Sensor Pulse - inject a frame-level sensor envelope for bindings that need
-// a simple pulse around an otherwise unmodified pattern.
+const SENSOR_PULSE_SOURCE = `// Sensor Pulse - inject a frame-level envelope from the sensor expansion board
+// around an otherwise unmodified pattern.
 //
-// @param SENSOR normalized sensor value
+// @param GAIN multiplier applied after the noise floor
 // @param DECAY 0..1 envelope decay
+// @param FLOOR noise floor subtracted from the raw sensor energy
 // @target SENSOR_PULSE
 // @wraps beforeRender
 
 export var sensorPulse = 0
+export var sensorEnergy = 0
 
 export function beforeRender(delta) {
-  sensorPulse = max(SENSOR, sensorPulse * DECAY)
+  var raw = max(energyAverage, maxFrequencyMagnitude)
+  sensorEnergy = max(0, raw - FLOOR) * GAIN
+  sensorPulse = max(sensorEnergy, sensorPulse * DECAY)
 }
 `
 
@@ -223,8 +227,16 @@ const NIGHT_SCHEDULER_SOURCE = `// Night Scheduler - inject a time-window dimmer
 
 export var scheduledBrightness = 1
 
+function __px_isScheduledNight(hour, startHour, endHour) {
+  if (startHour == endHour) return 0
+  if (startHour < endHour) return hour >= startHour && hour < endHour
+  return hour >= startHour || hour < endHour
+}
+
 export function beforeRender(delta) {
-  scheduledBrightness = NIGHT_LEVEL
+  var hour = clockHour() + clockMinute() / 60
+  scheduledBrightness = __px_isScheduledNight(hour, START_HOUR, END_HOUR) ? NIGHT_LEVEL : 1
+  BRIGHTNESS(scheduledBrightness)
 }
 `
 
