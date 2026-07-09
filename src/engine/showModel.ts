@@ -238,9 +238,13 @@ export function removeShowScene(show: ShowRecord, sceneId: string): ShowRecord {
   const cells = show.cells.flatMap((cell) => {
     const start = sceneIndexById.get(cell.sceneId)
     if (start == null) return []
-    if (cell.sceneId === sceneId) return []
     const span = Math.max(1, cell.sceneSpan)
     const end = start + span - 1
+    if (cell.sceneId === sceneId) {
+      const nextSceneId = show.scenes[removedSceneIndex + 1]?.id
+      if (span > 1 && nextSceneId) return [{ ...cell, sceneId: nextSceneId, sceneSpan: span - 1 }]
+      return []
+    }
     if (start < removedSceneIndex && removedSceneIndex <= end) {
       return [{ ...cell, sceneSpan: Math.max(1, span - 1) }]
     }

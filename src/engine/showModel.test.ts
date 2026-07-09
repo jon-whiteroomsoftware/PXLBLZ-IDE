@@ -144,6 +144,20 @@ describe('showModel (#318)', () => {
     expectHoleFreeStrip(removed)
   })
 
+  it('re-anchors a holding cell that starts at the removed scene', () => {
+    const held = extendShowCell(createDefaultShow('show-1', 'Untitled Show'), 'cell-1', 2)
+    const removed = removeShowScene(held, 'scene-1')
+
+    expect(removed.scenes.map((scene) => scene.id)).toEqual(['scene-2'])
+    expect(removed.cells).toHaveLength(1)
+    expect(removed.cells[0]).toMatchObject({
+      id: 'cell-1',
+      sceneId: 'scene-2',
+      sceneSpan: 1,
+    })
+    expectHoleFreeStrip(removed)
+  })
+
   it('removes the final scene by clearing the new final transition and preserves one-scene shows', () => {
     const threeScene = addShowScene(createDefaultShow('show-1', 'Untitled Show'))
     const twoScene = removeShowScene(threeScene, 'scene-3')
