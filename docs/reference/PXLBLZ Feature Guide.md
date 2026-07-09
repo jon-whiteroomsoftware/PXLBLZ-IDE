@@ -274,8 +274,10 @@ stock map, or stock mixin can be **cloned** into an editable copy. Built-in patt
 with a recommended map, pixel count, and solidity — defaults only, everything
 stays switchable (§8).
 
-The bundled **libraries** live in the header's Libraries menu — click one to view
-its source read-only, hover for its API reference:
+The bundled **libraries** live in the Studio Libraries rail and the header's
+Libraries menu. Opening one shows its source read-only in library mode without
+changing the running preview pattern; hover the header menu for its API
+reference:
 
 | Library | What it provides |
 |---|---|

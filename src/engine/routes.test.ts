@@ -41,6 +41,10 @@ describe('parseRoute', () => {
       kind: 'studio',
       entity: { kind: 'maps', id: 'm1' },
     })
+    expect(parseRoute('/studio/libraries/Shader', '/')).toEqual({
+      kind: 'studio',
+      entity: { kind: 'libraries', id: 'Shader' },
+    })
   })
 
   it('rejects unknown studio entity kinds', () => {
@@ -112,6 +116,9 @@ describe('routePath', () => {
     expect(routePath({ kind: 'studio', entity: { kind: 'patterns', id: 'x' } }, '/')).toBe(
       '/studio/patterns/x',
     )
+    expect(routePath({ kind: 'studio', entity: { kind: 'libraries', id: 'Shader' } }, '/')).toBe(
+      '/studio/libraries/Shader',
+    )
     expect(routePath({ kind: 'pattern-detail', slug: 's' }, '/')).toBe('/p/s')
     expect(routePath({ kind: 'docs', docId: 'feature-guide' }, '/')).toBe('/docs/feature-guide')
   })
@@ -134,6 +141,7 @@ describe('routePath', () => {
       { kind: 'studio', entity: null },
       { kind: 'studio', entity: { kind: 'controllers', id: null } },
       { kind: 'studio', entity: { kind: 'maps', id: 'm-1' } },
+      { kind: 'studio', entity: { kind: 'libraries', id: 'Shader' } },
       { kind: 'pattern-detail', slug: 'slug' },
       { kind: 'docs', docId: 'ecosystem-primer' },
     ]

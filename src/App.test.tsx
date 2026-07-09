@@ -353,6 +353,25 @@ describe('routing (#308)', () => {
     expect(screen.getByTestId('editor-pane')).toHaveTextContent('Deep Linked Mixin')
   })
 
+  it('opens a stock library addressed by /studio/libraries/<id>', async () => {
+    window.history.replaceState(null, '', '/studio/libraries/Shader')
+    useWorkspaceStore.setState({
+      personalWorkspaceAuthenticated: true,
+      personalWorkspaceResolved: true,
+    })
+    render(<App />)
+
+    await waitFor(() => {
+      expect(usePatternStore.getState().activeLibraryName).toBe('Shader')
+    })
+    expect(useEditorStore.getState().editorFlavor).toBe('library')
+    expect(useEditorStore.getState().source).toContain('function fract')
+    expect(useEditorStore.getState().isReadOnly).toBe(true)
+    expect(screen.getByTestId('editor-pane')).toHaveTextContent('Shader')
+    expect(screen.getByTestId('editor-pane')).toHaveTextContent('library')
+    expect(screen.getByTestId('preview-pane')).toHaveTextContent('Library context')
+  })
+
   it('returns to the mixin list after deleting the routed personal mixin', async () => {
     const user = userEvent.setup()
     stubRemotePatterns()

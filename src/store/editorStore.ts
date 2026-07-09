@@ -4,11 +4,12 @@ import type { PatternMetadata } from '@/engine/loadPattern'
 export type CompileStatus = 'good' | 'broken'
 
 // Which flavor of content the editor surface holds (#151). 'pattern' covers the
-// existing pattern/demo/library flavors (Pixelblaze dialect, dialect-validated);
+// existing pattern/demo flavors (Pixelblaze dialect, dialect-validated);
 // 'map' is the custom-map authoring mode (plain JS, parse-only badge).
 // 'mixin' is Pixelblaze-dialect source with a structured pass header.
+// 'library' is Pixelblaze-dialect source with the library top-level content rule.
 // The flavor selects the Monaco language and which validator feeds the badge.
-export type EditorFlavor = 'pattern' | 'map' | 'mixin'
+export type EditorFlavor = 'pattern' | 'map' | 'mixin' | 'library'
 
 interface EditorState {
   compileStatus: CompileStatus

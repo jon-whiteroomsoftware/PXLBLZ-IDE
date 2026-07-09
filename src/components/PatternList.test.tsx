@@ -181,14 +181,39 @@ describe('PatternList', () => {
     expect(screen.queryByText('AuroraSphere')).not.toBeInTheDocument()
   })
 
-  it('renders the five-entity activity strip plus Catalog entry', async () => {
+  it('renders the six-entity activity strip plus Catalog entry', async () => {
     render(<PatternList />)
 
     expect(await screen.findByRole('radio', { name: 'Patterns' })).toHaveAttribute('aria-checked', 'true')
-    for (const name of ['Maps', 'Mixins', 'Controllers', 'Shows']) {
+    for (const name of ['Maps', 'Mixins', 'Libraries', 'Controllers', 'Shows']) {
       expect(screen.getByRole('radio', { name })).toBeInTheDocument()
     }
     expect(screen.getByRole('button', { name: 'Catalog' })).toBeInTheDocument()
+  })
+
+  it('opens a stock library read-only from the Libraries rail without changing preview source', async () => {
+    const user = userEvent.setup()
+    render(<PatternList />)
+    await screen.findByText('Seed Pattern')
+    const previewSourceBefore = useEditorStore.getState().previewSource
+
+    await user.click(screen.getByRole('radio', { name: 'Libraries' }))
+
+    expect(await screen.findByRole('button', { name: 'Stock Libraries' })).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByText('No cloud libraries yet')).toBeInTheDocument()
+
+    await user.click(screen.getByText('Shader'))
+
+    expect(window.location.pathname).toBe('/studio/libraries/Shader')
+    expect(usePatternStore.getState().activeLibraryName).toBe('Shader')
+    expect(useEditorStore.getState().source).toContain('function fract')
+    expect(useEditorStore.getState().isReadOnly).toBe(true)
+    expect(useEditorStore.getState().previewSource).toBe(previewSourceBefore)
+
+    await user.click(screen.getByRole('radio', { name: 'Maps' }))
+    expect(window.location.pathname).toBe('/studio/maps')
+    await user.click(screen.getByRole('radio', { name: 'Libraries' }))
+    expect(window.location.pathname).toBe('/studio/libraries/Shader')
   })
 
   it('selects entity kinds through /studio/<kind> routes', async () => {

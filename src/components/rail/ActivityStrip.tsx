@@ -1,4 +1,4 @@
-import { Braces, Cpu, FileCode2, Images, Map as MapIcon, PanelsTopLeft } from 'lucide-react'
+import { BookOpen, Braces, Cpu, FileCode2, Images, Map as MapIcon, PanelsTopLeft } from 'lucide-react'
 import type React from 'react'
 import type { StudioEntityKind } from '@/engine/routes'
 
@@ -13,6 +13,7 @@ const ACTIVITY_ENTRIES: Array<{
   { kind: 'patterns', label: 'Patterns', short: 'PTRN', icon: <FileCode2 size={17} /> },
   { kind: 'maps', label: 'Maps', short: 'MAPS', icon: <MapIcon size={17} /> },
   { kind: 'mixins', label: 'Mixins', short: 'MIXN', icon: <Braces size={17} /> },
+  { kind: 'libraries', label: 'Libraries', short: 'LIBS', icon: <BookOpen size={17} /> },
   { kind: 'controllers', label: 'Controllers', short: 'CTRL', icon: <Cpu size={17} /> },
   { kind: 'shows', label: 'Shows', short: 'SHOW', icon: <PanelsTopLeft size={17} /> },
 ]

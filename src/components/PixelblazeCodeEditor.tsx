@@ -6,7 +6,7 @@ import { registerPixelblazeLanguage, PIXELBLAZE_LANG_ID } from './monaco/pixelbl
 type PixelblazeCodeEditorProps = {
   value: string
   readOnly?: boolean
-  flavor?: 'pattern' | 'map' | 'mixin'
+  flavor?: 'pattern' | 'map' | 'mixin' | 'library'
   onChange?: (value: string) => void
   onMount?: (editor: monacoType.editor.IStandaloneCodeEditor, monaco: typeof monacoType) => void
 }

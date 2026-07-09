@@ -29,6 +29,7 @@ import { ShowEditor } from '@/components/ShowEditor'
 import { ShowStagePreview } from '@/components/ShowStagePreview'
 import { useControllerStore } from '@/store/controllerStore'
 import { MapModeHeader } from '@/components/MapModeHeader'
+import { LibraryModeHeader } from '@/components/LibraryModeHeader'
 import { useMapStore, STOCK_MAP_ITEMS } from '@/store/mapStore'
 import { MixinModeHeader } from '@/components/MixinModeHeader'
 import { MixinProvenancePane } from '@/components/MixinProvenancePane'
@@ -41,6 +42,7 @@ import { useEditorStore } from '@/store/editorStore'
 import { useDocsStore } from '@/store/docsStore'
 import { useRouterStore } from '@/store/routerStore'
 import { openDemoPattern, openPatternRecord } from '@/store/openPattern'
+import { openStockLibrary } from '@/store/openLibrary'
 import { routePath, routesEqual, type Route } from '@/engine/routes'
 import { trackEvent, trackPageView } from '@/analytics'
 import { controllerProfileDisplayName } from '@/engine/controllerProfile'
@@ -322,11 +324,14 @@ export default function App() {
       const record = userMixins.find((m) => m.id === entityId)
       if (record) openExistingMixin(record)
       else if (STOCK_MIXIN_ITEMS.some((m) => m.id === entityId)) openStockMixin(entityId)
+    } else if (route.kind === 'studio' && route.entity !== null && route.entity.kind === 'libraries' && route.entity.id !== null) {
+      const entityId = route.entity.id
+      if (activeLibraryName !== entityId && LIBRARIES[entityId]) openStockLibrary(entityId)
     } else if (route.kind === 'studio' && route.entity !== null && route.entity.kind === 'shows' && route.entity.id !== null) {
       const entityId = route.entity.id
       if (shows.some((show) => show.id === entityId) && activeShowId !== entityId) openShow(entityId)
     }
-  }, [route, patternsLoaded, mapsLoaded, mixinsLoaded, showsLoaded, syncDocsFromRoute, shows, activeShowId, openShow])
+  }, [route, patternsLoaded, mapsLoaded, mixinsLoaded, showsLoaded, syncDocsFromRoute, shows, activeShowId, activeLibraryName, openShow])
 
   // State → URL: the active studio entity is addressable. Push when moving
   // between entities so back/forward walk them; replace when a plain /studio
@@ -348,12 +353,10 @@ export default function App() {
       if (!routesEqual(current, target)) navigate(target, { replace: current.entity === null || current.entity.id === null })
     } else if (
       activeLibraryName !== null &&
-      current.entity !== null &&
-      current.entity.id !== null
+      (current.entity === null || current.entity.kind === 'libraries')
     ) {
-      // Libraries have no addressable URL yet; fall back to /studio
-      // so a stale entity URL doesn't sit over unrelated content.
-      navigate({ kind: 'studio', entity: null })
+      const target: Route = { kind: 'studio', entity: { kind: 'libraries', id: activeLibraryName } }
+      if (!routesEqual(current, target)) navigate(target, { replace: current.entity === null || current.entity.id === null })
     }
   }, [activePatternId, activeDemoName, activeLibraryName, activeShowId, navigate])
 
@@ -513,6 +516,8 @@ export default function App() {
         ? mixinsLoaded &&
           !userMixins.some((m) => m.id === routeEntity.id) &&
           !STOCK_MIXIN_ITEMS.some((m) => m.id === routeEntity.id)
+      : routeEntity.kind === 'libraries'
+        ? !LIBRARIES[routeEntity.id]
       : routeEntity.kind === 'controllers'
         ? controllerProfilesLoaded && !controllerProfiles.some((profile) => profile.id === routeEntity.id)
       : routeEntity.kind === 'shows'
@@ -652,6 +657,8 @@ export default function App() {
                 ? 'Map not found'
               : routeEntity!.kind === 'mixins'
                 ? 'Mixin not found'
+              : routeEntity!.kind === 'libraries'
+                ? 'Library not found'
               : routeEntity!.kind === 'controllers'
                 ? 'Controller not found'
               : routeEntity!.kind === 'shows'
@@ -665,6 +672,8 @@ export default function App() {
                 ? `There's no map with id "${routeEntity!.id}" in this workspace. It may have been deleted, or the link may belong to a different account.`
               : routeEntity!.kind === 'mixins'
                 ? `There's no mixin with id "${routeEntity!.id}" in this workspace. It may have been deleted, or the link may belong to a different account.`
+              : routeEntity!.kind === 'libraries'
+                ? `There's no stock library named "${routeEntity!.id}".`
               : routeEntity!.kind === 'controllers'
                 ? `There's no controller profile with id "${routeEntity!.id}" in this workspace. It may have been deleted, or the link may belong to a different account.`
               : routeEntity!.kind === 'shows'
@@ -744,10 +753,17 @@ export default function App() {
                 <Braces size={14} aria-hidden className="shrink-0 text-zinc-500" />
                 <span className="truncate text-zinc-200">Mixins</span>
               </span>
+            ) : studioEntityKind === 'libraries' && editorFlavor !== 'library' ? (
+              <span className="flex-1 min-w-0 flex items-center gap-1.5">
+                <Code2 size={14} aria-hidden className="shrink-0 text-zinc-500" />
+                <span className="truncate text-zinc-200">Libraries</span>
+              </span>
             ) : editorFlavor === 'map' ? (
               <MapModeHeader />
             ) : editorFlavor === 'mixin' ? (
               <MixinModeHeader />
+            ) : editorFlavor === 'library' ? (
+              <LibraryModeHeader />
             ) : (
               <>
             <span className="flex-1 min-w-0 flex items-center gap-1.5">
@@ -872,6 +888,12 @@ export default function App() {
                 title="No mixin selected"
                 detail="Create or select a mixin from the rail."
               />
+            ) : studioEntityKind === 'libraries' && editorFlavor !== 'library' ? (
+              <StudioPaneMessage
+                icon={<Code2 size={18} aria-hidden />}
+                title="No library selected"
+                detail="Select a stock library from the rail."
+              />
             ) : (
               <Editor />
             )}
@@ -885,6 +907,8 @@ export default function App() {
             <MixinProvenancePane />
           ) : editorFlavor === 'map' || studioEntityKind === 'maps' ? (
             <MapContextPane />
+          ) : editorFlavor === 'library' || studioEntityKind === 'libraries' ? (
+            <EmptyContextPane label="Library" />
           ) : studioEntityKind === 'controllers' ? (
             <EmptyContextPane label="Controller" />
           ) : studioEntityKind === 'shows' ? (

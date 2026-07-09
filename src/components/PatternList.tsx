@@ -36,11 +36,13 @@ import { useDocsStore } from '@/store/docsStore'
 import { useRouterStore } from '@/store/routerStore'
 import { openDemoPattern } from '@/store/openPattern'
 import { useWorkspaceStore } from '@/store/workspaceStore'
+import { openStockLibrary } from '@/store/openLibrary'
 import { ActivityStrip, type RailMode } from '@/components/rail/ActivityStrip'
 import { railScrollMetrics, type ScrollMetrics } from '@/components/rail/RailPrimitives'
 import { PatternsRailSection } from '@/components/rail/PatternsRailSection'
 import { MapsRailSection } from '@/components/rail/MapsRailSection'
 import { MixinsRailSection } from '@/components/rail/MixinsRailSection'
+import { LibrariesRailSection } from '@/components/rail/LibrariesRailSection'
 import { ControllersRailSection } from '@/components/rail/ControllersRailSection'
 import { ShowsRailSection } from '@/components/rail/ShowsRailSection'
 
@@ -48,11 +50,13 @@ const DEFAULT_DEMO_NAME = 'IridescentFibers'
 
 export function PatternList() {
   const setSource = useEditorStore((s) => s.setSource)
+  const setEditorFlavor = useEditorStore((s) => s.setEditorFlavor)
   const setIsReadOnly = useEditorStore((s) => s.setIsReadOnly)
   const setPreviewSource = useEditorStore((s) => s.setPreviewSource)
   const setPreviewPatternName = useEditorStore((s) => s.setPreviewPatternName)
   const closeDocs = useDocsStore((s) => s.closeDocs)
   const activePatternId = usePatternStore((s) => s.activePatternId)
+  const activeLibraryName = usePatternStore((s) => s.activeLibraryName)
   const activeDemoName = usePatternStore((s) => s.activeDemoName)
   const userPatterns = usePatternStore((s) => s.userPatterns)
   const setActivePattern = usePatternStore((s) => s.setActivePattern)
@@ -132,6 +136,7 @@ export function PatternList() {
       useMixinStore.getState().closeMixinEditor()
       useDocsStore.getState().closeDocs()
       setActivePattern(id)
+      setEditorFlavor('pattern')
       setSource(record.src)
       setPreviewSource(record.src)
       setPreviewPatternName(record.name)
@@ -152,6 +157,7 @@ export function PatternList() {
     patterns: '',
     maps: '',
     mixins: '',
+    libraries: '',
     controllers: '',
     shows: '',
   })
@@ -177,12 +183,20 @@ export function PatternList() {
       return true
     }
   })
+  const [showStockLibraries, setShowStockLibraries] = useState(() => {
+    try {
+      return window.sessionStorage.getItem('pxlblz.showStockLibraries') !== '0'
+    } catch {
+      return true
+    }
+  })
   const scrollRef = useRef<HTMLDivElement>(null)
   const patternRowRefs = useRef(new Map<string, HTMLLIElement>())
   const lastEntityByModeRef = useRef<Record<RailMode, string | null>>({
     patterns: null,
     maps: null,
     mixins: null,
+    libraries: null,
     controllers: null,
     shows: null,
   })
@@ -197,6 +211,12 @@ export function PatternList() {
     closeDocs()
     if (next !== 'maps') closeMapEditor()
     if (next !== 'mixins') closeMixinEditor()
+    if (next === 'libraries') {
+      const last = lastEntityByModeRef.current.libraries
+      const id = last && LIBRARIES[last] ? last : null
+      navigate({ kind: 'studio', entity: { kind: next, id } })
+      return
+    }
     if (next === 'shows') {
       const last = lastEntityByModeRef.current.shows
       const id = userShows.some((show) => show.id === last)
@@ -253,6 +273,7 @@ export function PatternList() {
     showStockPatterns,
     showStockMaps,
     showStockMixins,
+    showStockLibraries,
   ])
 
   useEffect(() => {
@@ -278,6 +299,14 @@ export function PatternList() {
       // Session persistence is a convenience only.
     }
   }, [showStockMixins])
+
+  useEffect(() => {
+    try {
+      window.sessionStorage.setItem('pxlblz.showStockLibraries', showStockLibraries ? '1' : '0')
+    } catch {
+      // Session persistence is a convenience only.
+    }
+  }, [showStockLibraries])
 
   useEffect(() => {
     if (route.kind !== 'studio' || route.entity === null || route.entity.id === null) return
@@ -333,9 +362,10 @@ export function PatternList() {
       const last = await getPersonalContentProvider().getLastActive().catch(() => undefined)
       const { userPatterns, setActivePattern, setActiveLibrary, setActiveDemo } = usePatternStore.getState()
       const { shows, openShow } = useShowStore.getState()
-      const { setSource, setIsReadOnly, setPreviewSource, setPreviewPatternName } = useEditorStore.getState()
+      const { setSource, setEditorFlavor, setIsReadOnly, setPreviewSource, setPreviewPatternName } = useEditorStore.getState()
       if (!last) {
         setActiveDemo(DEFAULT_DEMO_NAME)
+        setEditorFlavor('pattern')
         setSource(DEMOS[DEFAULT_DEMO_NAME])
         setPreviewSource(DEMOS[DEFAULT_DEMO_NAME])
         setPreviewPatternName(DEFAULT_DEMO_NAME)
@@ -346,6 +376,7 @@ export function PatternList() {
         const p = userPatterns.find((p) => p.id === last.id)
         if (p) {
           setActivePattern(p.id)
+          setEditorFlavor('pattern')
           setSource(p.src)
           setPreviewSource(p.src)
           setPreviewPatternName(p.name)
@@ -354,6 +385,7 @@ export function PatternList() {
       } else if (last.type === 'demo') {
         if (DEMOS[last.name]) {
           setActiveDemo(last.name)
+          setEditorFlavor('pattern')
           setSource(DEMOS[last.name])
           setPreviewSource(DEMOS[last.name])
           setPreviewPatternName(last.name)
@@ -364,6 +396,7 @@ export function PatternList() {
           setActiveLibrary(last.name)
           setSource(LIBRARIES[last.name])
           setIsReadOnly(true)
+          useEditorStore.getState().setEditorFlavor('library')
         }
       } else if (last.type === 'show') {
         if (shows.some((show) => show.id === last.id)) openShow(last.id)
@@ -380,6 +413,7 @@ export function PatternList() {
     closeMixinEditor()
     closeDocs()
     setActivePattern(pattern.id)
+    setEditorFlavor('pattern')
     setSource(pattern.src)
     setPreviewSource(pattern.src)
     setPreviewPatternName(pattern.name)
@@ -403,6 +437,7 @@ export function PatternList() {
     const record: PatternRecord = { id, name, src: NEW_PATTERN_SRC, controls: {}, updatedAt: Date.now() }
     await addPattern(record)
     setActivePattern(id)
+    setEditorFlavor('pattern')
     setSource(record.src)
     setPreviewSource(record.src)
     setPreviewPatternName(record.name)
@@ -449,6 +484,11 @@ export function PatternList() {
     closeDocs()
     openStockMixin(id)
     navigate({ kind: 'studio', entity: { kind: 'mixins', id } })
+  }
+
+  function openStockLibraryRoute(name: string) {
+    openStockLibrary(name)
+    navigate({ kind: 'studio', entity: { kind: 'libraries', id: name } })
   }
 
   function openControllerProfile(profileId: string) {
@@ -568,6 +608,7 @@ export function PatternList() {
   const activeControllerProfileId = route.kind === 'studio' && route.entity?.kind === 'controllers'
     ? route.entity.id
     : null
+  const libraryNames = Object.keys(LIBRARIES).sort()
 
   return (
     <div data-testid="studio-rail" className="flex h-full text-xs font-mono">
@@ -633,6 +674,18 @@ export function PatternList() {
             onOpenStockMap={openStockMapRoute}
             onRenameMap={renameMap}
             onDeleteMap={(mapId) => void handleRemoveMap(mapId)}
+          />
+        )}
+        {railMode === 'libraries' && (
+          <LibrariesRailSection
+            activeLibraryName={activeLibraryName}
+            libraryNames={libraryNames}
+            showStockLibraries={showStockLibraries}
+            scrollRef={scrollRef}
+            scrollMetrics={scrollMetrics}
+            onScroll={updateScrollMetrics}
+            onToggleStockLibraries={() => setShowStockLibraries((visible) => !visible)}
+            onOpenStockLibrary={openStockLibraryRoute}
           />
         )}
         {railMode === 'controllers' && (

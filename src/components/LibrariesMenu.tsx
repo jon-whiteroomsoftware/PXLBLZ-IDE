@@ -1,10 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { Code2, ChevronDown } from 'lucide-react'
 import { LIBRARIES } from '@/pixelblaze/libs'
-import { useEditorStore } from '@/store/editorStore'
+import { openStockLibrary } from '@/store/openLibrary'
 import { usePatternStore } from '@/store/patternStore'
-import { useMapStore } from '@/store/mapStore'
-import { useDocsStore } from '@/store/docsStore'
+import { useRouterStore } from '@/store/routerStore'
 import { LibraryHoverCard } from '@/components/LibraryHoverCard'
 
 // The Code affordance in the header's LEFT zone (#254). Libraries are reference
@@ -24,12 +23,8 @@ import { LibraryHoverCard } from '@/components/LibraryHoverCard'
 const LIBRARY_NAMES = Object.keys(LIBRARIES).sort()
 
 export function LibrariesMenu() {
-  const setSource = useEditorStore((s) => s.setSource)
-  const setIsReadOnly = useEditorStore((s) => s.setIsReadOnly)
   const activeLibraryName = usePatternStore((s) => s.activeLibraryName)
-  const setActiveLibrary = usePatternStore((s) => s.setActiveLibrary)
-  const closeMapEditor = useMapStore((s) => s.closeMapEditor)
-  const closeDocs = useDocsStore((s) => s.closeDocs)
+  const navigate = useRouterStore((s) => s.navigate)
 
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
@@ -92,11 +87,8 @@ export function LibrariesMenu() {
   }
 
   function openLibrary(name: string) {
-    closeMapEditor()
-    closeDocs()
-    setActiveLibrary(name)
-    setSource(LIBRARIES[name])
-    setIsReadOnly(true)
+    openStockLibrary(name)
+    navigate({ kind: 'studio', entity: { kind: 'libraries', id: name } })
     setOpen(false)
     setHoveredLib(null)
     hoveredLibRef.current = null

@@ -110,8 +110,8 @@ URL). v1's `#/docs/<id>` hash links redirect to `/docs/<id>`.
 
 Route table: `/` and `/gallery` → the Gallery grid; `/p/<slug>` → pattern
 detail (slugs exist for built-in demos only); `/studio` and
-`/studio/<kind>/<id>` for the five entity kinds; `/docs/<id>`; anything else
-→ not-found.
+`/studio/<kind>/<id>` for the six entity kinds (patterns, maps, mixins,
+libraries, controllers, shows); `/docs/<id>`; anything else → not-found.
 
 Only Studio routes gate on auth. `decideStudioAccess`
 (`src/engine/studioAccess.ts`) sends a signed-out visitor to the
@@ -397,6 +397,15 @@ reserved `__px_power*` telemetry variables while leaving output unchanged.
 `power-cap` uses the same telemetry convention and, when enabled on a Controller
 profile, compiles as an estimated `hsv` output limiter; broader sink coverage,
 sensor-pulse, and night-scheduler consumption are later #319 slices.
+
+The editor's fourth flavor is **library mode** (`editorFlavor === 'library'`):
+Pixelblaze-dialect source for bundled stock helpers, opened read-only from the
+Studio Libraries rail or the header's Libraries menu. Stock libraries live at
+stable `/studio/libraries/<library-id>` routes, show a parse/read-only header,
+and use `validateLibraryContent()` instead of the full pattern walker so the
+library top-level rule is visible without pretending the file is a runnable
+pattern. Opening a library intentionally does not change the running preview
+pattern or its source.
 
 ## 7. Runtime shim & built-ins (`shim.ts`, `builtins.ts`)
 

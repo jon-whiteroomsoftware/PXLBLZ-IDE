@@ -2,7 +2,7 @@
 // parsing and formatting are plain functions over strings so the routing seam
 // is testable in isolation. The router store owns history/location wiring.
 
-export const STUDIO_ENTITY_KINDS = ['patterns', 'maps', 'mixins', 'controllers', 'shows'] as const
+export const STUDIO_ENTITY_KINDS = ['patterns', 'maps', 'mixins', 'libraries', 'controllers', 'shows'] as const
 export type StudioEntityKind = (typeof STUDIO_ENTITY_KINDS)[number]
 
 export interface StudioEntityRef {

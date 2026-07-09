@@ -3,6 +3,7 @@ import { useEffect, useRef } from 'react'
 import { useEditorStore } from '@/store/editorStore'
 import { usePatternStore } from '@/store/patternStore'
 import { useMapStore } from '@/store/mapStore'
+import { validateLibraryContent } from '@/engine/bundle'
 import { validateSource } from '@/engine/validate'
 import { parseMapSource } from '@/engine/maps'
 import { parseMixinHeader } from '@/engine/mixins'
@@ -74,10 +75,11 @@ export function Editor() {
     const model = editor.getModel()
     if (!model) return
 
-    // Read-only content (shipped demos, library files) is curated and valid — skip
-    // validation, but mark the status 'good' so a stale 'broken' from a previously
-    // open pattern doesn't linger and block Send-to-Controller for a demo (#208).
-    if (isReadOnly) {
+    // Read-only demos are curated and valid — skip validation, but mark the status
+    // 'good' so a stale 'broken' from a previously open pattern doesn't linger and
+    // block Send-to-Controller for a demo (#208). Library mode still validates its
+    // top-level content rule so the same badge path is ready for cloud libraries.
+    if (isReadOnly && editorFlavor !== 'library') {
       monaco.editor.setModelMarkers(model, 'pixelblaze', [])
       setCompileStatus('good')
       return
@@ -90,7 +92,9 @@ export function Editor() {
       ? parseMapSource(source)
       : editorFlavor === 'mixin'
         ? parseMixinHeader(source)
-        : validateSource(source)
+        : editorFlavor === 'library'
+          ? validateLibraryContent(source)
+          : validateSource(source)
     setCompileStatus(errors.length === 0 ? 'good' : 'broken')
 
     monaco.editor.setModelMarkers(
