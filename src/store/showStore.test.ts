@@ -87,6 +87,12 @@ describe('showStore (#318)', () => {
     setPersonalContentProvider(memoryProvider())
 
     const show = await useShowStore.getState().createNewShow()
+    await useShowStore.getState().addScene(show.id)
+    expect(useShowStore.getState().shows[0].scenes).toHaveLength(3)
+
+    await useShowStore.getState().removeScene(show.id, 'scene-3')
+    expect(useShowStore.getState().shows[0].scenes.map((scene) => scene.id)).toEqual(['scene-1', 'scene-2'])
+
     await useShowStore.getState().addZone(show.id)
     const withZone = useShowStore.getState().shows[0]
     const addedZone = withZone.zones[1]

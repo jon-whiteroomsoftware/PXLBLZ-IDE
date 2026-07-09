@@ -1,11 +1,13 @@
 import { create } from 'zustand'
 import { trackEntityCreated } from '@/analytics'
 import {
+  addShowScene,
   addShowZone,
   createDefaultShowFromController,
   createDefaultShow,
   extendShowCell,
   importedStageMapIdForController,
+  removeShowScene,
   removeShowZone,
   spanShowCellZones,
   updateShowZone,
@@ -40,6 +42,8 @@ interface ShowState {
   removeShow: (id: string) => Promise<void>
   updateShow: (id: string, next: ShowRecord) => Promise<void>
   updateStageMap: (showId: string, stageMapId: string | null) => Promise<void>
+  addScene: (showId: string) => Promise<void>
+  removeScene: (showId: string, sceneId: string) => Promise<void>
   updateScene: (showId: string, sceneId: string, changes: Partial<Omit<ShowScene, 'id'>>) => Promise<void>
   updateTransition: (
     showId: string,
@@ -148,6 +152,18 @@ export const useShowStore = create<ShowState>()((set, get) => ({
     const show = get().shows.find((item) => item.id === showId)
     if (!show) return
     await get().updateShow(showId, { ...show, stageMapId, updatedAt: Date.now() })
+  },
+
+  addScene: async (showId) => {
+    const show = get().shows.find((item) => item.id === showId)
+    if (!show) return
+    await get().updateShow(showId, addShowScene(show))
+  },
+
+  removeScene: async (showId, sceneId) => {
+    const show = get().shows.find((item) => item.id === showId)
+    if (!show) return
+    await get().updateShow(showId, removeShowScene(show, sceneId))
   },
 
   updateScene: async (showId, sceneId, changes) => {

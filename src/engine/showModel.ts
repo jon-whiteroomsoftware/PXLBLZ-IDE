@@ -192,6 +192,71 @@ export function updateShowScene(
   }
 }
 
+export function addShowScene(show: ShowRecord): ShowRecord {
+  const id = nextEntityId('scene-', show.scenes)
+  const scene: ShowScene = {
+    id,
+    name: uniqueSceneName(`Scene ${show.scenes.length + 1}`, show.scenes),
+    durationMs: 30000,
+  }
+  const lastSceneIndex = show.scenes.length - 1
+  const defaultTransition: NonNullable<ShowScene['transitionOut']> = {
+    kind: 'crossfade',
+    durationMs: 2000,
+  }
+  const usedCellIds = new Set(show.cells.map((cell) => cell.id))
+  const nextCells = show.zones.map((zone) => {
+    const source = cellCoveringScene(show, zone.id, lastSceneIndex)
+    const cellId = nextStringId('cell-', usedCellIds)
+    usedCellIds.add(cellId)
+    return copyCellForScene(source, cellId, zone.id, scene.id, lastSceneIndex)
+  })
+
+  return {
+    ...show,
+    scenes: [
+      ...show.scenes.map((existing, index) => (
+        index === lastSceneIndex && existing.transitionOut == null
+          ? { ...existing, transitionOut: defaultTransition }
+          : existing
+      )),
+      scene,
+    ],
+    cells: [...show.cells, ...nextCells],
+    updatedAt: Date.now(),
+  }
+}
+
+export function removeShowScene(show: ShowRecord, sceneId: string): ShowRecord {
+  if (show.scenes.length <= 1) return show
+  const removedSceneIndex = show.scenes.findIndex((scene) => scene.id === sceneId)
+  if (removedSceneIndex === -1) return show
+
+  const remainingScenes = show.scenes.filter((scene) => scene.id !== sceneId)
+  const finalSceneId = remainingScenes[remainingScenes.length - 1]?.id
+  const sceneIndexById = new Map(show.scenes.map((scene, index) => [scene.id, index]))
+  const cells = show.cells.flatMap((cell) => {
+    const start = sceneIndexById.get(cell.sceneId)
+    if (start == null) return []
+    if (cell.sceneId === sceneId) return []
+    const span = Math.max(1, cell.sceneSpan)
+    const end = start + span - 1
+    if (start < removedSceneIndex && removedSceneIndex <= end) {
+      return [{ ...cell, sceneSpan: Math.max(1, span - 1) }]
+    }
+    return [cell]
+  })
+
+  return {
+    ...show,
+    scenes: remainingScenes.map((scene) => (
+      scene.id === finalSceneId ? { ...scene, transitionOut: undefined } : scene
+    )),
+    cells,
+    updatedAt: Date.now(),
+  }
+}
+
 export function updateShowCellAdaptations(
   show: ShowRecord,
   cellId: string,
@@ -497,6 +562,36 @@ function createCellsForZone(
   return cells
 }
 
+function cellCoveringScene(show: ShowRecord, zoneId: string, sceneIndex: number): ShowCell | undefined {
+  const sceneIndexById = new Map(show.scenes.map((scene, index) => [scene.id, index]))
+  return show.cells.find((cell) => {
+    if (cell.zoneId !== zoneId) return false
+    const start = sceneIndexById.get(cell.sceneId)
+    if (start == null) return false
+    return start <= sceneIndex && sceneIndex < start + Math.max(1, cell.sceneSpan)
+  })
+}
+
+function copyCellForScene(
+  source: ShowCell | undefined,
+  id: string,
+  zoneId: string,
+  sceneId: string,
+  sceneIndex: number,
+): ShowCell {
+  if (!source) return defaultCell(id, zoneId, sceneId, sceneIndex)
+  return {
+    ...source,
+    id,
+    zoneId,
+    sceneId,
+    sceneSpan: 1,
+    zoneSpan: 1,
+    pattern: { ...source.pattern },
+    adaptations: { ...source.adaptations },
+  }
+}
+
 function defaultCell(id: string, zoneId: string, sceneId: string, sceneIndex: number): ShowCell {
   return {
     id,
@@ -526,6 +621,18 @@ function nextStringId(prefix: string, used: Set<string>): string {
 
 function uniqueZoneName(name: string, zones: ShowZone[]): string {
   const taken = new Set(zones.map((zone) => zone.name.toLowerCase()))
+  if (!taken.has(name.toLowerCase())) return name
+  let index = 2
+  let next = `${name} ${index}`
+  while (taken.has(next.toLowerCase())) {
+    index += 1
+    next = `${name} ${index}`
+  }
+  return next
+}
+
+function uniqueSceneName(name: string, scenes: ShowScene[]): string {
+  const taken = new Set(scenes.map((scene) => scene.name.toLowerCase()))
   if (!taken.has(name.toLowerCase())) return name
   let index = 2
   let next = `${name} ${index}`

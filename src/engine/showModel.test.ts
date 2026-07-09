@@ -1,9 +1,11 @@
 import {
+  addShowScene,
   addShowZone,
   createDefaultShowFromController,
   createDefaultShow,
   extendShowCell,
   projectShowStrip,
+  removeShowScene,
   showLoopDurationMs,
   showRecordToCompileRecipe,
   spanShowCellZones,
@@ -13,6 +15,20 @@ import {
   updateShowZone,
 } from './showModel'
 import { DEMOS } from '@/pixelblaze/stock/patterns'
+import type { ShowRecord } from './personalContentRecords'
+
+function expectHoleFreeStrip(show: ShowRecord): void {
+  const strip = projectShowStrip(show)
+  for (const row of strip.rows) {
+    const covered = new Set<number>()
+    for (const cell of row.cells) {
+      for (let index = cell.sceneIndex; index < cell.sceneIndex + cell.sceneSpan; index += 1) {
+        covered.add(index)
+      }
+    }
+    expect([...covered].sort((a, b) => a - b)).toEqual(show.scenes.map((_, index) => index))
+  }
+}
 
 describe('showModel (#318)', () => {
   it('creates a two-scene scene-strip show with one zone and editable cells', () => {
@@ -59,6 +75,87 @@ describe('showModel (#318)', () => {
       sceneSpan: 2,
     })
     expect(projectShowStrip(extended).rows[0].cells).toHaveLength(1)
+  })
+
+  it('appends a scene by copying the prior scene cells per zone', () => {
+    const base = addShowZone(createDefaultShow('show-1', 'Untitled Show'), {
+      name: 'doorframe',
+      nominalPixelCount: 12,
+    })
+    const secondMain = base.cells.find((cell) => cell.zoneId === 'zone-1' && cell.sceneId === 'scene-2')!
+    const secondDoor = base.cells.find((cell) => cell.zoneId === 'zone-2' && cell.sceneId === 'scene-2')!
+    const customized = updateShowCellAdaptations(
+      updateShowCellPattern(base, secondDoor.id, {
+        pattern: { kind: 'stock', id: 'RainbowMelt' },
+        patternName: 'RainbowMelt',
+      }),
+      secondMain.id,
+      { brightness: 0.42, phase: 0.25 },
+    )
+
+    const next = addShowScene(customized)
+    const newScene = next.scenes[2]
+    const newMain = next.cells.find((cell) => cell.zoneId === 'zone-1' && cell.sceneId === newScene.id)!
+    const newDoor = next.cells.find((cell) => cell.zoneId === 'zone-2' && cell.sceneId === newScene.id)!
+
+    expect(newScene).toMatchObject({ id: 'scene-3', name: 'Scene 3', durationMs: 30000 })
+    expect(next.scenes[1].transitionOut).toEqual({ kind: 'crossfade', durationMs: 2000 })
+    expect(newMain).toMatchObject({
+      pattern: secondMain.pattern,
+      patternName: secondMain.patternName,
+      adaptations: { ...secondMain.adaptations, brightness: 0.42, phase: 0.25 },
+      sceneSpan: 1,
+      zoneSpan: 1,
+    })
+    expect(newDoor).toMatchObject({
+      pattern: { kind: 'stock', id: 'RainbowMelt' },
+      patternName: 'RainbowMelt',
+      sceneSpan: 1,
+      zoneSpan: 1,
+    })
+    expectHoleFreeStrip(next)
+  })
+
+  it('appends after a hold by restarting the covering cell instead of extending it', () => {
+    const held = extendShowCell(createDefaultShow('show-1', 'Untitled Show'), 'cell-1', 2)
+    const next = addShowScene(held)
+    const newScene = next.scenes[2]
+    const newCell = next.cells.find((cell) => cell.sceneId === newScene.id && cell.zoneId === 'zone-1')!
+
+    expect(next.cells.find((cell) => cell.id === 'cell-1')).toMatchObject({ sceneSpan: 2 })
+    expect(newCell).toMatchObject({
+      pattern: held.cells[0].pattern,
+      patternName: held.cells[0].patternName,
+      sceneSpan: 1,
+      zoneSpan: 1,
+    })
+    expectHoleFreeStrip(next)
+  })
+
+  it('removes scenes by deleting owned cells and clipping spans', () => {
+    const threeScene = addShowScene(createDefaultShow('show-1', 'Untitled Show'))
+    const held = extendShowCell(threeScene, 'cell-1', 3)
+    const removed = removeShowScene(held, 'scene-2')
+
+    expect(removed.scenes.map((scene) => scene.id)).toEqual(['scene-1', 'scene-3'])
+    expect(removed.cells.some((cell) => cell.sceneId === 'scene-2')).toBe(false)
+    expect(removed.cells.find((cell) => cell.id === 'cell-1')).toMatchObject({ sceneSpan: 2 })
+    expect(removed.scenes[1].transitionOut).toBeUndefined()
+    expectHoleFreeStrip(removed)
+  })
+
+  it('removes the final scene by clearing the new final transition and preserves one-scene shows', () => {
+    const threeScene = addShowScene(createDefaultShow('show-1', 'Untitled Show'))
+    const twoScene = removeShowScene(threeScene, 'scene-3')
+    const oneScene = removeShowScene(twoScene, 'scene-2')
+    const noOp = removeShowScene(oneScene, 'scene-1')
+
+    expect(twoScene.scenes.map((scene) => scene.id)).toEqual(['scene-1', 'scene-2'])
+    expect(twoScene.scenes[1].transitionOut).toBeUndefined()
+    expect(oneScene.scenes.map((scene) => scene.id)).toEqual(['scene-1'])
+    expect(noOp).toBe(oneScene)
+    expectHoleFreeStrip(twoScene)
+    expectHoleFreeStrip(oneScene)
   })
 
   it('edits scene duration and non-destructive cell adaptations', () => {
