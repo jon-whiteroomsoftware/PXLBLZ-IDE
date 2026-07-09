@@ -101,6 +101,14 @@ Then open `http://localhost:8788`. Fill `.dev.vars` with localhost GitHub and/or
 Google OAuth apps to test the browser sign-in loop, or run `npm run cf:session`
 and attach the printed `pxlblz_session` cookie to local API smoke requests.
 
+Run `npm run db:migrate:local` again whenever new migrations are added or pulled.
+The local Wrangler D1 store is independent from the remote D1 database; if it is
+behind the code, authenticated localhost Studio screens can fail with browser
+console errors such as `Remote personal content request failed: 500` on
+`/api/maps`, `/api/controllers`, `/api/shows`, or other personal-content
+endpoints. Treat that symptom as a local schema-drift check before chasing
+OAuth/provider configuration.
+
 After deploy, open the Pages URL and smoke-test:
 
 1. Visit `/api/d1/health`; expect `{"ok":true,"schemaVersion":"2"}`.

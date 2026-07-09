@@ -10,6 +10,14 @@ This project lives under a path containing spaces (Google Drive folder). Never w
 
 This project is configured around a long-lived Vite dev server on port `5174`. Prefer using the existing server at `http://localhost:5174/` (or `http://localhost:5174/?capture`) for browser checks. Do not casually start and stop per-task dev servers; hot reload is reliable and the persistent server is part of the normal workflow. If the server is not responding, report that and only start it when needed.
 
+Local authenticated Studio data goes through the Vite `/api` proxy to Wrangler
+Pages dev on port `8788`, backed by Wrangler's local D1 store. Whenever new D1
+migrations land, run `npm run db:migrate:local` as well as any remote migration.
+If localhost Studio loads but personal content endpoints (`/api/maps`,
+`/api/controllers`, `/api/shows`, etc.) throw `Remote personal content request
+failed: 500`, check local D1 schema drift first; stale local migrations often
+manifest as remote-provider errors in the browser console.
+
 For visual UI work, expect the Codex in-app Browser to be available and use it
 before falling back to standalone Playwright, Chrome, or Computer Use. In Codex
 Desktop this browser is not exposed as a separate `mcp__browser__...` namespace;
