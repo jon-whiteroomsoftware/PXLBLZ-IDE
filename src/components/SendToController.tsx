@@ -8,6 +8,7 @@ import { usePatternStore, activePushKey } from '@/store/patternStore'
 import { describeSendToController, isAlreadyPushed, describeSendAction } from '@/engine/sendToController'
 import type { PreflightWarning } from '@/engine/preflight'
 import type { RecommendedMapRemedy } from '@/engine/patternMapRemedy'
+import { trackEvent } from '@/analytics'
 import {
   PushConfirmPopover,
   PreflightWarningList,
@@ -183,6 +184,14 @@ export function SendToController() {
   const modeDisabled = status.kind !== 'connected' || working
   const runTitle = modeDisabled && reason ? reason : 'Run transiently on the Controller'
   const saveTitle = modeDisabled && reason ? reason : "Save to the Controller's Saved Patterns"
+  const handleSendClick = () => {
+    trackEvent('send_to_controller', {
+      mode,
+      pattern_key: patternId,
+      controller_phase: active?.phase ?? status.kind,
+    })
+    void requestPush()
+  }
 
   const modeSelector = (
     <span
@@ -246,7 +255,7 @@ export function SendToController() {
             className={`h-6 rounded-md border border-zinc-800 bg-zinc-800/70 text-xs text-zinc-400 hover:bg-zinc-700/70 hover:text-zinc-300 ${dimClass}`}
             disabled={!enabled || working}
             title={title}
-            onClick={() => void requestPush()}
+            onClick={handleSendClick}
             data-testid="send-to-controller"
           >
             {content}

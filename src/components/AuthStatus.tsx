@@ -5,6 +5,7 @@ import { getAuthSession, type AuthProvider, type AuthSession } from '@/engine/au
 import { studioWelcomeAcknowledgedKey } from '@/engine/studioAccess'
 import { useRouterStore } from '@/store/routerStore'
 import { useWorkspaceStore } from '@/store/workspaceStore'
+import { trackEvent } from '@/analytics'
 
 export function AuthStatus() {
   const [session, setSession] = useState<AuthSession | null>(null)
@@ -170,9 +171,11 @@ export function AuthStatus() {
       }
     })()
     if (acknowledged) {
+      trackEvent('sign_in', { surface: 'auth_button', provider: 'default' })
       window.location.assign('/api/auth/login')
       return
     }
+    trackEvent('sign_in', { surface: 'auth_button_welcome', provider: 'choose_later' })
     navigate({ kind: 'studio-welcome' })
   }
 

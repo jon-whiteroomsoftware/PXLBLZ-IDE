@@ -41,7 +41,8 @@ import { useEditorStore } from '@/store/editorStore'
 import { useDocsStore } from '@/store/docsStore'
 import { useRouterStore } from '@/store/routerStore'
 import { openDemoPattern, openPatternRecord } from '@/store/openPattern'
-import { routesEqual, type Route } from '@/engine/routes'
+import { routePath, routesEqual, type Route } from '@/engine/routes'
+import { trackEvent, trackPageView } from '@/analytics'
 import { controllerProfileDisplayName } from '@/engine/controllerProfile'
 import { decideStudioAccess, studioWelcomeAcknowledgedKey } from '@/engine/studioAccess'
 import { useWorkspaceStore } from '@/store/workspaceStore'
@@ -150,6 +151,13 @@ function EmptyContextPane({ label }: { label: string }) {
   )
 }
 
+function analyticsRouteTitle(route: Route): string {
+  if (route.kind === 'studio') return `studio:${route.entity?.kind ?? 'home'}`
+  if (route.kind === 'pattern-detail') return 'pattern-detail'
+  if (route.kind === 'docs') return 'docs'
+  return route.kind
+}
+
 function StudioWelcomePage({
   onSignIn,
   onBack,
@@ -238,6 +246,7 @@ export default function App() {
   const openShow = useShowStore((s) => s.openShow)
   const personalWorkspaceResolved = useWorkspaceStore((s) => s.personalWorkspaceResolved)
   const routeSyncedRef = useRef(false)
+  const lastTrackedPathRef = useRef<string | null>(null)
   const [studioWelcomeAcknowledged, setStudioWelcomeAcknowledged] = useState(() => {
     try {
       return window.localStorage.getItem(studioWelcomeAcknowledgedKey) === '1'
@@ -339,8 +348,19 @@ export default function App() {
     if (!routeSyncedRef.current) return
     if (!routesEqual(route, useRouterStore.getState().route)) return
     if (decision === 'show-welcome') navigate({ kind: 'studio-welcome' }, { replace: true })
-    if (decision === 'sign-in') window.location.assign('/api/auth/login')
+    if (decision === 'sign-in') {
+      trackEvent('sign_in', { surface: 'studio_gate', provider: 'default' })
+      window.location.assign('/api/auth/login')
+    }
   }, [route, personalWorkspaceResolved, personalWorkspaceAuthenticated, activeDemoName, studioWelcomeAcknowledged, navigate])
+
+  useEffect(() => {
+    if (!routeSyncedRef.current) return
+    const path = routePath(route, import.meta.env.BASE_URL)
+    if (lastTrackedPathRef.current === path) return
+    lastTrackedPathRef.current = path
+    trackPageView(path, analyticsRouteTitle(route))
+  }, [route])
 
   useEffect(() => {
     if (route.kind === 'studio-welcome' && personalWorkspaceResolved && personalWorkspaceAuthenticated) {
@@ -391,6 +411,7 @@ export default function App() {
     setIsReadOnly(false)
     setPreviewSource(record.src)
     setPreviewPatternName(record.name)
+    trackEvent('catalog_clone', { source: 'stock_pattern', pattern: activeDemoName })
   }, [activeDemoName, personalWorkspaceAuthenticated, source, userPatterns, addPattern, setActivePattern, setSource, setIsReadOnly, setPreviewSource, setPreviewPatternName])
 
   const [copied, setCopied] = useState(false)
@@ -479,6 +500,7 @@ export default function App() {
   const openBrowseRouteStudio = () => {
     if (personalWorkspaceResolved && !personalWorkspaceAuthenticated) {
       if (studioWelcomeAcknowledged) {
+        trackEvent('sign_in', { surface: 'open_studio', provider: 'default' })
         window.location.assign('/api/auth/login')
         return
       }
@@ -495,6 +517,7 @@ export default function App() {
       // If storage is unavailable, still let sign-in proceed.
     }
     setStudioWelcomeAcknowledged(true)
+    trackEvent('sign_in', { surface: 'studio_welcome', provider })
     window.location.assign(`/api/auth/login?provider=${provider}`)
   }, [])
 

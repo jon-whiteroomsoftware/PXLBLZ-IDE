@@ -6,6 +6,11 @@ import { useEditorStore, editorInitialState } from '@/store/editorStore'
 import { usePatternStore, patternInitialState } from '@/store/patternStore'
 import { setControllerProvider, resetControllerProvider } from '@/engine/controllerProviderRegistry'
 import { NullControllerProvider, type ControllerStatus } from '@/engine/ControllerProvider'
+import { trackEvent } from '@/analytics'
+
+vi.mock('@/analytics', () => ({
+  trackEvent: vi.fn(),
+}))
 
 class ConnectedProvider extends NullControllerProvider {
   private status: ControllerStatus = {
@@ -21,6 +26,7 @@ beforeEach(() => {
   useControllerStore.setState(controllerInitialState)
   useEditorStore.setState(editorInitialState)
   usePatternStore.setState(patternInitialState)
+  vi.clearAllMocks()
 })
 
 afterEach(() => resetControllerProvider())
@@ -48,6 +54,28 @@ describe('SendToController', () => {
     })
     render(<SendToController />)
     expect(screen.getByTestId('send-to-controller')).toBeEnabled()
+  })
+
+  it('tracks a send intent when the enabled send button is clicked', () => {
+    setControllerProvider(new ConnectedProvider())
+    const pushActivePattern = vi.fn()
+    useEditorStore.setState({ nativeDim: 2, previewSource: 'export function render() {}' })
+    usePatternStore.setState({ activePatternId: 'p1' })
+    useControllerStore.setState({
+      activeIp: '10.0.0.9',
+      controllers: { '10.0.0.9': { ip: '10.0.0.9', phase: 'live', mapDim: 2 } },
+      pushActivePattern,
+    })
+    render(<SendToController />)
+
+    fireEvent.click(screen.getByTestId('send-to-controller'))
+
+    expect(trackEvent).toHaveBeenCalledWith('send_to_controller', {
+      mode: 'run',
+      pattern_key: 'p1',
+      controller_phase: 'live',
+    })
+    expect(pushActivePattern).toHaveBeenCalledOnce()
   })
 
   it('stays enabled on a dimensionality mismatch (no longer a hard block)', () => {

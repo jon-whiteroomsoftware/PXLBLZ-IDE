@@ -16,6 +16,8 @@ production binding is:
 The production build expects:
 
 - `VITE_BASE_PATH=/`
+- `VITE_GA_MEASUREMENT_ID=<Google Analytics measurement id>` when production
+  analytics should be enabled
 
 Secrets and operator-specific values are managed in Cloudflare Pages:
 
@@ -28,10 +30,32 @@ Secrets and operator-specific values are managed in Cloudflare Pages:
 - `GOOGLE_ALLOWED_EMAILS` or `GOOGLE_ALLOWED_IDS` when access should be owner-only
 - `GITHUB_OAUTH_REDIRECT_URI` only when overriding the default callback URL
 - `GOOGLE_OAUTH_REDIRECT_URI` only when overriding the default callback URL
+- `VITE_GA_MEASUREMENT_ID` as a Pages build variable, not a secret, when
+  analytics are enabled
 
 GitHub OAuth must allow the `read:user user:email` scopes so the callback can
 store a verified primary email when GitHub exposes one. Google OAuth must allow
 `openid email profile`.
+
+## Analytics
+
+The app has a production-only Google Analytics integration. It is inert in local
+Vite dev, Vitest, and builds without `VITE_GA_MEASUREMENT_ID`. When that build
+variable is present in a production Pages build, the client loads `gtag.js` with
+automatic page views disabled and sends:
+
+- per-route `page_view` events with the route path and coarse route title
+  (`gallery`, `pattern-detail`, `studio:patterns`, `studio:maps`, etc.);
+- `send_to_controller` when the enabled editor **Send to Controller** action is
+  clicked, with mode (`run`/`save`) and non-PII controller/pattern context;
+- `catalog_clone` when a built-in pattern is cloned into the signed-in Studio
+  workspace;
+- `sign_in` when the app sends the user into the OAuth flow.
+
+View these in Google Analytics under **Reports → Engagement → Pages and screens**
+for page views, and **Reports → Engagement → Events** or **Admin → Events** for
+custom events. The integration does not send personal content source, account
+identity, controller IP address, or OAuth profile data.
 
 ## Deploy And Verify
 
