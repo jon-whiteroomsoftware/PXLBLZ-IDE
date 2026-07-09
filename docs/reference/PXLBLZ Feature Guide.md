@@ -215,11 +215,21 @@ states until bindings or generated artifacts have been recorded.
 **Shows** compose existing patterns into one generated Pixelblaze pattern. A Show
 opens as a scene strip: scenes are columns, zones are rows, and each cell holds a
 source pattern plus non-destructive adaptations such as mirror, phase, brightness,
-and time scale. The v1 editor persists shows in your cloud workspace, lets you
-rename/delete them from the rail, select cells, edit scene duration and the first
-boundary transition, edit freestyle show-local zone rows, extend a cell across
-scenes as a hold shape, inspect the compiled artifact budget, view the generated
-source read-only, and push the generated pattern to the connected Controller.
+and time scale. The strip is a recessed composition surface: scene headers are
+inline-editable labels, zone rows carry their zone color, pattern cells render as
+zone-tinted clips, and transitions are clickable seams between scene columns.
+
+The contextual inspector below the strip follows the current selection. Clicking
+the strip background shows show-level setup (target Controller, stage map, loop
+and zone summary, plus Add zone). Clicking a cell edits its source pattern,
+adaptations, hold span, and zone span. Clicking a transition edits that specific
+scene boundary, not just the first one. Clicking a zone edits the show-local row
+and its nominal pixel count. Ghost affordances at the end of the strip add a new
+scene or zone; scene headers expose rename, duration, and removal controls, with
+scene removal confirmed before it mutates the strip. The editor persists shows in
+your cloud workspace, supports rename/delete from the rail, inspectable compiled
+artifact budget, read-only generated source, and pushing the generated pattern to
+the connected Controller.
 
 Show zones have two origins. A plain new Show starts with editable local rows
 that use nominal pixel counts for preview. When a Controller profile with zones

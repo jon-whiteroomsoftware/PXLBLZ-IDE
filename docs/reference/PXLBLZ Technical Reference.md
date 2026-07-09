@@ -784,10 +784,12 @@ Shows are persisted as `ShowRecord`s in `personal_shows` (migration 0007):
 scene/cell/zone/stage edit immediately through `/api/shows`. The
 pure model helpers in `showModel.ts` create the default two-scene/one-zone
 strip, seed a Show from a Controller profile's zone map, project the arrangement
-into scene columns + zone rows, edit show-local zone names and nominal pixel
-counts, extend cells across scene boundaries as hold shapes, edit
-non-destructive adaptations, and build compiler recipes. A one-zone Show keeps
-the scene-boundary policies: a spanning cell emits a single continuous clip;
+into scene columns + zone rows, append scenes by copying the prior scene's
+covering cells per zone, remove scenes while clipping or re-anchoring spanning
+cells so every remaining zone row stays hole-free, edit show-local zone names
+and nominal pixel counts, extend cells across scene boundaries as hold shapes,
+edit non-destructive adaptations, and build compiler recipes. A one-zone Show
+keeps the scene-boundary policies: a spanning cell emits a single continuous clip;
 adjacent same-pattern cells with a non-cut transition emit a parameter ramp
 between the cells' adaptations; separate cells with a cut emit distinct clip
 instances so the second clip gets a fresh virtual time base. A multi-zone Show
@@ -797,11 +799,21 @@ emits that clip with `zones: [...]` and `zoneMode: 'span'`, so the named zones'
 ordered ranges become one continuous 1D domain. Without a target Controller,
 show-local zones become sequential nominal ranges for preview (`0..n-1`, then
 the next zone after that); with a target, compile uses the Controller's real zone
-ranges and binds clips by zone name. The
-`ShowEditor` component renders the scene strip, cell inspector, transition
-inspector, zone binding panel, compile/budget bar, read-only generated-source
-view, and a run-to-Controller action that compiles the generated source through
-the active provider and pushes bytecode to the connected controller.
+ranges and binds clips by zone name.
+
+`ShowEditor` renders the scene strip as a recessed composition surface: scene
+headers are inline-editable labels, zone headers carry the zone color, cells are
+zone-tinted clips, transitions are seam buttons between scenes, and holding cells
+physically span across transition columns. UI-local selection drives one
+contextual inspector. The default show selection edits target Controller and
+stage-map setup; cell selection edits source pattern/adaptations/scene span/zone
+span; transition selection edits the selected scene boundary; zone selection
+edits a single show-local zone row. The strip includes ghost affordances for
+appending scenes and zones. Scene removal is confirmed with an AlertDialog and
+delegates to the pure `removeShowScene` helper. The compile/budget bar,
+read-only generated-source view, and run-to-Controller action compile the
+generated source through the active provider and push bytecode to the connected
+controller.
 
 `ShowStagePreview` is the right-pane Show context surface. It compiles the active
 Show through the same `compileShowForPreview` helper used by the editor and runs

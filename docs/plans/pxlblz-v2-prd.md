@@ -76,7 +76,10 @@ model remains:
   span rows (**zone spanning**: adjacent zones act as one canvas — one
   domain — versus two independently re-normalized domains). The current
   canonical mockups include the scene strip, hold explainer, timeline
-  frame-out, and Controller zones card.
+  frame-out, and Controller zones card. The shipped 2026-07-09 scene-strip
+  overhaul is captured in `docs/plans/shows-editor-overhaul-mockup.html`: one
+  pane-owned header, recessed strip surface, zone-colored clips, transition
+  seams, ghost growth affordances, and one selection-driven inspector.
 - **Hold vs restart at scene boundaries** (decided 2026-07-08): never a
   per-clip setting — it's geometry. A cell spanning a boundary **holds**: the
   clip keeps playing with phase intact and the compiler emits nothing for
