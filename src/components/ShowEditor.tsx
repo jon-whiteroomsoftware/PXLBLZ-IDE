@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Check, Code2, PanelsTopLeft, Play, RotateCw, Trash2, Zap } from 'lucide-react'
+import { Check, Code2, Play, RotateCw, Trash2, Zap } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { PixelblazeCodeEditor } from '@/components/PixelblazeCodeEditor'
 import { getControllerProvider } from '@/engine/controllerProviderRegistry'
@@ -118,10 +118,8 @@ export function ShowEditor({ showId }: { showId: string }) {
       <div className="flex min-h-0 flex-1 flex-col overflow-auto">
         <div className="min-w-[760px] p-3">
           <div className="mb-3 flex items-center gap-2">
-            <PanelsTopLeft size={15} aria-hidden className="text-zinc-500" />
-            <span className="text-sm font-semibold text-zinc-200">{activeShow.name}</span>
             <span className="rounded border border-zinc-700 px-1.5 py-0.5 text-[10px] uppercase text-structural">
-              show - {activeShow.scenes.length} scenes - {formatDuration(showLoopDurationMs(activeShow))} loop
+              {formatDuration(showLoopDurationMs(activeShow))} loop
             </span>
             <span className="flex-1" />
             <Button
