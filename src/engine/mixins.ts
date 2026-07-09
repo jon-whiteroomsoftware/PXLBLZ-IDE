@@ -250,8 +250,7 @@ function __px_powerFinalizeFrame(delta) {
     __px_powerCapInitialized = 1
   }
 
-  __px_powerLimit = MAX_DUTY
-  __px_powerScale = __px_powerCapDuty > MAX_DUTY ? max(0, min(1, MAX_DUTY / __px_powerCapDuty)) : 1
+  __px_powerScale = __px_powerCapDuty > __px_powerLimit ? max(0, min(1, __px_powerLimit / __px_powerCapDuty)) : 1
   __px_powerClipping = __px_powerScale < 1 ? 1 : 0
 
   if (__px_powerRecentElapsedMs >= RECENT_WINDOW_MS) {

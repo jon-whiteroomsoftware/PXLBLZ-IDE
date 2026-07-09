@@ -73,7 +73,7 @@ const VARS_HINT = (
 
 const POWER_HINT = (
   <DeckSectionHint
-    intro="Output duty is estimated from emitted hsv values. The left value is a roughly two-second block average; the right is the average since start. The cap responds from a faster internal signal than either display. Draw is contextual, not measured."
+    intro="Output duty is estimated from emitted hsv values. The left value is a roughly two-second block average; the right is the average since start. The cap responds from a faster internal signal than either display. The live cap is volatile: re-pushing restores the Controller Profile default, and patterns pushed before live control was added need a re-push. Draw is contextual, not measured."
     items={[
       ['duty recent / start', 'calm recent-window duty followed by the cumulative run average, both before native Controller brightness'],
       ['duty cap', 'configured normalized output budget, when a limiter is active'],
@@ -140,6 +140,7 @@ export function ControllerPanel() {
   const vars = useControllerPanelStore((s) => s.vars)
   const setBrightness = useControllerPanelStore((s) => s.setBrightness)
   const setControl = useControllerPanelStore((s) => s.setControl)
+  const setPowerLimit = useControllerPanelStore((s) => s.setPowerLimit)
   const controllerProfiles = useControllerProfileStore((s) => s.profiles)
   // Control help text isn't reported by the device; borrow it from the loaded
   // pattern's metadata, matched by control name (#190). When the editor holds a
@@ -268,14 +269,31 @@ export function ControllerPanel() {
             <div className="col-span-2">
               <DeckTelemetry label="duty recent / start" value={powerTelemetry.dutyLabel} />
             </div>
-            <DeckTelemetry label="duty cap" value={powerTelemetry.limitLabel} />
-            <DeckCell label="limiting">
-              <span className="text-live tabular-nums truncate">
-                <span>{powerTelemetry.clippingLabel}</span>
-                <span className="text-zinc-500"> · scaled to </span>
-                <span>{powerTelemetry.scaleLabel}</span>
-              </span>
-            </DeckCell>
+            {powerCapSettings && powerTelemetry.limitValue != null ? (
+              <div className="col-span-2">
+                <DeckSlider
+                  label="duty cap"
+                  ariaLabel="Live duty cap"
+                  value={powerTelemetry.limitValue}
+                  min={0}
+                  max={1}
+                  step={0.01}
+                  format={(value) => `${Math.round(value * 100)}%`}
+                  onChange={setPowerLimit}
+                />
+              </div>
+            ) : (
+              <DeckTelemetry label="duty cap" value={powerTelemetry.limitLabel} />
+            )}
+            <div className="col-span-2">
+              <DeckCell label="limiting">
+                <span className="text-live tabular-nums truncate">
+                  <span>{powerTelemetry.clippingLabel}</span>
+                  <span className="text-zinc-500"> · scaled to </span>
+                  <span>{powerTelemetry.scaleLabel}</span>
+                </span>
+              </DeckCell>
+            </div>
             <div className="col-span-2">
               <DeckTelemetry label="est. draw" value={powerTelemetry.estimatedDrawLabel} />
               {powerTelemetry.estimatedDrawAssumptions && (

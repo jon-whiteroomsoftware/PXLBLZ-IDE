@@ -33,6 +33,7 @@ class ConnectedProvider extends NullControllerProvider {
   brightnessWrites: Array<{ value: number; save: boolean }> = []
   pixelCountWrites: Array<{ value: number; save: boolean }> = []
   controlWrites: Array<{ controls: Record<string, number>; save: boolean }> = []
+  variableWrites: Array<Record<string, number>> = []
   private status: ControllerStatus = {
     kind: 'connected',
     controller: { id: 'c1', address: '10.0.0.9', deviceId: 'c1', name: 'Living Room' },
@@ -62,6 +63,10 @@ class ConnectedProvider extends NullControllerProvider {
   }
   setControls(controls: Record<string, number>, save = false): Promise<void> {
     this.controlWrites.push({ controls, save })
+    return Promise.resolve()
+  }
+  setVars(vars: Record<string, number>): Promise<void> {
+    this.variableWrites.push(vars)
     return Promise.resolve()
   }
 }
@@ -95,6 +100,7 @@ describe('ControllerPanel', () => {
     expect(screen.getByText('10.0.0.9')).toBeInTheDocument()
     await waitFor(() => expect(screen.getByText('30.0')).toBeInTheDocument())
     expect(screen.getByLabelText('Controller brightness')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Live duty cap')).not.toBeInTheDocument()
   })
 
   it('renders the running pattern controls and watched vars when connected', async () => {
@@ -140,6 +146,7 @@ describe('ControllerPanel', () => {
     await waitFor(() => expect(screen.getByText('power')).toBeInTheDocument())
     expect(screen.getByText('78% / 41%')).toBeInTheDocument()
     expect(screen.getByText('35%')).toBeInTheDocument()
+    expect(screen.getByLabelText('Live duty cap')).toHaveValue('0.35')
     expect(screen.getByText('84%')).toBeInTheDocument()
     expect(screen.getByText('yes')).toBeInTheDocument()
     expect(screen.getByText('≈ 5.0 A')).toBeInTheDocument()
@@ -150,6 +157,14 @@ describe('ControllerPanel', () => {
     fireEvent.click(screen.getByLabelText('About the power section'))
     expect(screen.getByText(/roughly two-second block/)).toBeInTheDocument()
     expect(screen.getByText(/cap responds from a faster internal signal/)).toBeInTheDocument()
+    expect(screen.getByText(/re-push/i)).toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('Live duty cap'), { target: { value: '0.2' } })
+    await waitFor(() =>
+      expect(provider.variableWrites[provider.variableWrites.length - 1]).toEqual({
+        __px_powerLimit: 0.2,
+      }),
+    )
   })
 
   it('shows the pattern-controls help only when the loaded pattern has descriptions', async () => {

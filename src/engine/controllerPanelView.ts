@@ -5,6 +5,7 @@
 
 import type { ProgramListEntry } from './PixelblazeConnection'
 import { estimatePowerCapAmps, type PowerCapSettings } from './powerCap'
+import { POWER_LIMIT_VARIABLE_NAME } from './powerTelemetry'
 
 export interface ControllerPanelTelemetry {
   /** Id of the program the Controller is currently running, if any. */
@@ -168,6 +169,7 @@ export interface ControllerVarView {
 export interface ControllerPowerTelemetryView {
   dutyLabel: string
   limitLabel: string
+  limitValue: number | null
   scaleLabel: string
   clippingLabel: string
   estimatedDrawLabel: string
@@ -184,7 +186,7 @@ export const CONTROLLER_POWER_TELEMETRY_KEYS = {
   dutySinceStart: '__px_powerDutySinceStart',
   duty: '__px_powerDuty',
   milliamps: '__px_powerMilliAmps',
-  limit: '__px_powerLimit',
+  limit: POWER_LIMIT_VARIABLE_NAME,
   scale: '__px_powerScale',
   clipping: '__px_powerClipping',
 } as const
@@ -275,6 +277,12 @@ export function describeControllerPowerTelemetry(
           : limit > 1
             ? formatMilliamps(limit)
             : PLACEHOLDER,
+    limitValue: typeof limit === 'number'
+      && Number.isFinite(limit)
+      && limit >= 0
+      && limit <= 1
+      ? limit
+      : null,
     scaleLabel: typeof scale === 'number' ? formatPercent(scale) : PLACEHOLDER,
     clippingLabel: typeof clipping === 'number' && clipping > 0 ? 'yes' : 'no',
     estimatedDrawLabel: estimatedAmps != null

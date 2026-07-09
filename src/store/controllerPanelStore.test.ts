@@ -24,6 +24,7 @@ class FakeProvider extends NullControllerProvider {
   brightnessWrites: Array<{ value: number; save: boolean }> = []
   pixelCountWrites: Array<{ value: number; save: boolean }> = []
   controlWrites: Array<{ controls: Record<string, number>; save: boolean }> = []
+  variableWrites: Array<Record<string, number>> = []
   installedMap: number[][] | null = null
   mapWrites: number[][][] = []
 
@@ -49,6 +50,10 @@ class FakeProvider extends NullControllerProvider {
   }
   setControls(controls: Record<string, number>, save = false): Promise<void> {
     this.controlWrites.push({ controls, save })
+    return Promise.resolve()
+  }
+  setVars(vars: Record<string, number>): Promise<void> {
+    this.variableWrites.push(vars)
     return Promise.resolve()
   }
   getPixelMap(): Promise<number[][] | null> {
@@ -195,6 +200,20 @@ describe('controllerPanelStore', () => {
     useControllerPanelStore.getState().setControl('sliderSpeed', 0.7)
     expect(useControllerPanelStore.getState().activeControls).toEqual({ sliderSpeed: 0.7 })
     expect(provider.controlWrites).toEqual([{ controls: { sliderSpeed: 0.7 }, save: false }])
+  })
+
+  it('setPowerLimit writes the exported runtime limit and updates telemetry optimistically', () => {
+    useControllerPanelStore.setState({
+      vars: { __px_powerLimit: 0.35, __px_powerDutyRecent: 0.5 },
+    })
+
+    useControllerPanelStore.getState().setPowerLimit(0.2)
+
+    expect(useControllerPanelStore.getState().vars).toMatchObject({
+      __px_powerLimit: 0.2,
+      __px_powerDutyRecent: 0.5,
+    })
+    expect(provider.variableWrites).toEqual([{ __px_powerLimit: 0.2 }])
   })
 
   it('setBrightness writes through volatile (never save:true) and updates locally', () => {

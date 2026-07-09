@@ -396,7 +396,9 @@ includes `power-measure`, a measurement-only intercept source that exports the
 reserved `__px_power*` telemetry variables while leaving output unchanged.
 `power-cap` uses the same telemetry convention and, when enabled on a Controller
 profile, compiles as an estimated `hsv` output limiter whose `MAX_DUTY` parameter
-is a normalized 0..1 setpoint. Both power intercepts also contribute a composed
+initializes the exported normalized 0..1 `__px_powerLimit` setpoint. Frame-level
+limiting reads that export at runtime, so a documented `setVars` write can tune
+the running cap without recompiling. Both power intercepts also contribute a composed
 `beforeRender`: intercepted `hsv` calls accumulate one frame of duty, then the
 frame hook publishes a roughly two-second block average as
 `__px_powerDutyRecent` and advances a fixed-point-bounded cumulative mean as
@@ -1041,7 +1043,11 @@ Reserved IDE telemetry names (`__px_powerDutyRecent`,
 `__px_powerMilliAmps`, `__px_powerLimit`, `__px_powerScale`, and
 `__px_powerClipping`) are filtered out of that generic watch list and rendered
 as a structured **power** section instead. Duty renders as `recent / since
-start`; the normalized cap remains primary alongside it. The recent export only
+start`; when a cap-enabled profile matches the live Controller, the normalized
+cap renders as a 0..1 slider alongside it. Slider changes optimistically update
+panel state and send volatile `{setVars:{__px_powerLimit:…}}` over the provider
+seam. The running bytecode owns that edit only until the next pattern push,
+which reinitializes the export from the Controller profile default. The recent export only
 changes at roughly two-second block boundaries, while the since-start value
 advances per frame. The limiter responds from a separate short internal EWMA.
 When the active Controller
@@ -1121,7 +1127,8 @@ intercepts `hsv(...)` calls through the stock `power-cap` mixin, estimates duty
 with `v * (1 - s/2)`, and exports the recent and since-start reserved
 `__px_power*` telemetry windows. A composed `beforeRender` finalizes the previous
 frame without device-side arrays. A roughly 250 ms EWMA drives scaling when it
-exceeds the profile's normalized `maxDuty` setpoint; its response is independent
+exceeds the mutable exported `__px_powerLimit`; the profile's normalized
+`maxDuty` only initializes that export when the artifact is pushed. Its response is independent
 of the two display windows. The since-start incremental mean caps its scalar
 weight at 16,384 frames to stay in a useful 16.16 fixed-point range while
 retaining its deliberately slow, flattening behavior.

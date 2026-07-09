@@ -4,6 +4,7 @@ import { applyControllerPixelCount } from '@/engine/applyControllerPixelCount'
 import { throttleTrailing } from '@/engine/throttleTrailing'
 import { getProgramLabels } from '@/engine/controllerMetadataStorage'
 import type { ProgramListEntry } from '@/engine/PixelblazeConnection'
+import { POWER_LIMIT_VARIABLE_NAME } from '@/engine/powerTelemetry'
 
 // Polling orchestration for the live Controller panel (H6, issue #198).
 //
@@ -96,6 +97,8 @@ interface ControllerPanelState {
   setPixelCount: (value: number) => void
   /** Set one control value on the device — volatile, never `save:true`. Optimistic. */
   setControl: (name: string, value: number) => void
+  /** Set the running power-cap export — volatile and reset by the next pattern push. */
+  setPowerLimit: (value: number) => void
   /** Merge a freshly-pushed program label into the local cache for immediate display
    *  (#237). The push path persists the cache to storage; this only mirrors it into the
    *  live slice so the panel resolves the new name without waiting for a reseed. */
@@ -305,6 +308,16 @@ export const useControllerPanelStore = create<ControllerPanelState>()((set, get)
     set((s) => ({ activeControls: { ...s.activeControls, [name]: value } }))
     void getControllerProvider()
       .setControls({ [name]: value }, false)
+      .catch(() => {})
+  },
+
+  setPowerLimit: (value) => {
+    const limit = Math.max(0, Math.min(1, value))
+    set((s) => ({
+      vars: { ...s.vars, [POWER_LIMIT_VARIABLE_NAME]: limit },
+    }))
+    void getControllerProvider()
+      .setVars({ [POWER_LIMIT_VARIABLE_NAME]: limit })
       .catch(() => {})
   },
 

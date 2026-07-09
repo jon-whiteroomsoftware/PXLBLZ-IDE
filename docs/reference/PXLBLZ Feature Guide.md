@@ -443,9 +443,14 @@ from its default, and resets the whole preview in one click (semantics below).
 - **Power cap** — enabling the Controller profile's power-cap transform applies
   an estimated `hsv` output guard at push time. Its authoritative setpoint is
   output duty from 0–100%, not milliamps, and it reports the same Power row
-  telemetry while it runs. A separate short internal average drives the cap, so
-  a bright scene engages it promptly even after the pattern has run for a long
-  time; neither slower display window controls limiting.
+  telemetry while it runs. The live Controller panel turns that duty setpoint
+  into a slider: changes apply to the running pattern immediately without a
+  re-push, remain volatile, and reset to the Controller profile default on the
+  next push. A pattern pushed before live cap control was introduced must be
+  pushed again before its slider can affect output. A separate short internal
+  average drives the cap, so a bright scene engages it promptly even after the
+  pattern has run for a long time; neither slower display window controls
+  limiting.
 
 ## 9. Editor in detail
 

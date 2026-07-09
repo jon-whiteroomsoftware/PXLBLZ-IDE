@@ -236,6 +236,7 @@ describe('describeControllerPowerTelemetry', () => {
     })).toMatchObject({
       dutyLabel: '42%',
       limitLabel: '35%',
+      limitValue: 0.35,
       estimatedDrawLabel: '—',
     })
   })
@@ -261,6 +262,7 @@ describe('describeControllerPowerTelemetry', () => {
     })).toEqual({
       dutyLabel: '78% / 41%',
       limitLabel: '35%',
+      limitValue: 0.35,
       scaleLabel: '84%',
       clippingLabel: 'yes',
       estimatedDrawLabel: '≈ 4.7 A',

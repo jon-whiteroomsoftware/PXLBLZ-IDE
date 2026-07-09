@@ -162,6 +162,7 @@ function makeDeviceTransport(
           }
           if ('brightness' in cmd) writes.push(cmd)
           if ('pixelCount' in cmd) writes.push(cmd)
+          if ('setVars' in cmd) writes.push(cmd)
           if ('setControls' in cmd) writes.push(cmd)
           if ('setCode' in cmd) writes.push(cmd)
           if ('savePixelMap' in cmd) writes.push(cmd)
@@ -555,14 +556,16 @@ describe('ExtensionControllerProvider', () => {
     await expect(p.getTelemetry()).resolves.toEqual({ fps: 73 })
   })
 
-  it('sends brightness and controls writes to the device', async () => {
+  it('sends brightness, variable, and controls writes to the device', async () => {
     const d = makeDeviceTransport()
     const p = new ExtensionControllerProvider({ transport: d.transport })
     await p.connect(TARGET)
     await p.setBrightness(0.25)
+    await p.setVars({ __px_powerLimit: 0.2 })
     await p.setControls({ sliderX: 0.9 }, true)
     expect(d.writes).toEqual([
       { brightness: 0.25, save: false },
+      { setVars: { __px_powerLimit: 0.2 } },
       { setControls: { sliderX: 0.9 }, save: true },
     ])
   })
