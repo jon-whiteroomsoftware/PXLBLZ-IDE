@@ -1075,6 +1075,14 @@ generated artifact sent to hardware changes. The modes:
   `PBP.fromComponents` / `PBP.toPixelblaze` in
   [pixelblaze-client](https://github.com/zranger1/pixelblaze-client/blob/9be84700248fa17f0123c702a2939213ba69800a/pixelblaze/pixelblaze.py#L2992).
 
+**Program ids** minted for new run-only or saved pushes are 17-character firmware
+ids with a `pxb` prefix followed by random characters from the firmware's
+unambiguous base-53 alphabet. `isPxlblzProgramId(id)` recognizes that convention
+from a plain device program list, which lets future Controller inventory UI flag
+programs this IDE minted without downloading PBP source. The prefix marks only
+fresh ids minted here: overwriting an older existing binding keeps that existing
+id, and the artifact banner above is the durable provenance for those records.
+
 **Overwrite-in-place** (`controllerBinding`) applies to save mode only, because
 only a saved pattern enters the program list: each `(Controller, IDE pattern)`
 pair remembers the device program id it last saved to and reuses it (an id the

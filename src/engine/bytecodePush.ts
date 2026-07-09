@@ -32,16 +32,28 @@ export function crc32(bytes: Uint8Array): number {
 
 // The firmware's program-id alphabet: unambiguous base-53 (no 0/1/I/O/l/v). A
 // pushed program needs an id; reusing the same id on a later push overwrites in
-// place (the #202 contract) instead of piling up copies.
+// place (the #202 contract) instead of piling up copies. New ids minted by this
+// IDE reserve a short `pxb` prefix so program lists can cheaply identify records
+// PXLBLZ minted without downloading their PBP source sections (#342).
 const ID_CHARS = '23456789ABCDEFGHJKLMNPQRSTWXYZabcdefghijkmnopqrstuvwxyz'
 const ID_LENGTH = 17
+const PXLBLZ_ID_PREFIX = 'pxb'
 
 /** Mint a fresh program id matching the firmware's format. `rng` is injectable
  *  so tests are deterministic; defaults to `Math.random`. */
 export function makeProgramId(rng: () => number = Math.random): string {
-  let s = ''
-  for (let i = 0; i < ID_LENGTH; i++) s += ID_CHARS[Math.floor(rng() * ID_CHARS.length)]
+  let s = PXLBLZ_ID_PREFIX
+  for (let i = PXLBLZ_ID_PREFIX.length; i < ID_LENGTH; i++) s += ID_CHARS[Math.floor(rng() * ID_CHARS.length)]
   return s
+}
+
+export function isPxlblzProgramId(id: string): boolean {
+  if (!id.startsWith(PXLBLZ_ID_PREFIX)) return false
+  if (id.length !== ID_LENGTH) return false
+  for (const ch of id) {
+    if (!ID_CHARS.includes(ch)) return false
+  }
+  return true
 }
 
 /** A compiled-bytecode header reconciles when its declared opcode + export byte

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { crc32, makeProgramId, bytecodeHeaderReconciles } from './bytecodePush'
+import { crc32, makeProgramId, bytecodeHeaderReconciles, isPxlblzProgramId } from './bytecodePush'
 
 describe('crc32', () => {
   it('matches the known IEEE CRC-32 of "123456789"', () => {
@@ -26,9 +26,10 @@ describe('crc32', () => {
 })
 
 describe('makeProgramId', () => {
-  it('is 17 chars from the firmware alphabet', () => {
+  it('is 17 chars from the firmware alphabet with the PXLBLZ prefix', () => {
     const id = makeProgramId()
     expect(id).toHaveLength(17)
+    expect(id.startsWith('pxb')).toBe(true)
     expect(id).toMatch(/^[2-9A-HJ-NP-Za-km-z]+$/)
   })
 
@@ -45,6 +46,18 @@ describe('makeProgramId', () => {
   it('never emits an ambiguous character (0 1 I O l)', () => {
     const id = makeProgramId(() => 0.999999)
     expect(id).not.toMatch(/[01IOl]/)
+  })
+})
+
+describe('isPxlblzProgramId', () => {
+  it('recognizes ids minted by makeProgramId', () => {
+    expect(isPxlblzProgramId(makeProgramId(() => 0.5))).toBe(true)
+  })
+
+  it('rejects native-format ids and malformed prefixed ids', () => {
+    expect(isPxlblzProgramId('ABCDEFGHJKLMNPQRS')).toBe(false)
+    expect(isPxlblzProgramId('pxb')).toBe(false)
+    expect(isPxlblzProgramId('pxb00000000000000')).toBe(false)
   })
 })
 

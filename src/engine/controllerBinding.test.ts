@@ -20,6 +20,11 @@ describe('resolvePushTarget', () => {
     expect(r).toEqual({ programId: 'DEVPROG1', isNew: false })
   })
 
+  it('treats prefixed ids as opaque values when resolving bindings', () => {
+    const r = resolvePushTarget({ 'pat-1': 'pxbABCDEFGHJKLMN' }, 'pat-1', ['pxbABCDEFGHJKLMN'], mint)
+    expect(r).toEqual({ programId: 'pxbABCDEFGHJKLMN', isNew: false })
+  })
+
   it('silently re-creates when the bound id was deleted on the device', () => {
     const r = resolvePushTarget({ 'pat-1': 'DEVPROG1' }, 'pat-1', ['OTHER'], mint)
     expect(r).toEqual({ programId: 'NEWID00000000000', isNew: true })
