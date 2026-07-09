@@ -209,7 +209,7 @@ describe('pass engine - bind passes', () => {
       },
     ])
 
-    expect(result.code).toContain('brightness = (0.1 + floor((min(0.9, max(0.1, analogRead(33))) - 0.1) / 0.05 + 0.5) * 0.05)')
+    expect(result.code).toContain('brightness = (0.1 + floor(((0.1 + (analogRead(33)) * 0.8) - 0.1) / 0.05 + 0.5) * 0.05)')
     expect(result.summary.bindingsApplied).toEqual([
       { target: 'brightness', mode: 'variable-assignment' },
     ])

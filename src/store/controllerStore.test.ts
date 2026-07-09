@@ -626,6 +626,61 @@ describe('controllerStore (keyed)', () => {
       expect(store().lastTransformSummary['10.0.0.5']?.['pat-1']).toBeUndefined()
     })
 
+    it('applies matching per-pattern hardware input bindings during push', async () => {
+      const source = [
+        'export var speed = 0',
+        'export function sliderSpeed(v) { speed = v }',
+        'export function render(index) {',
+        '  hsv(index, speed, 1)',
+        '}',
+      ].join('\n')
+      await store().addController({
+        id: 'pixelblaze_pb32_abc',
+        address: '10.0.0.5',
+        name: 'Desk PB',
+      })
+      const profile: ControllerProfile = {
+        ...defaultControllerProfile({
+          id: 'ctrl-1',
+          deviceId: 'pixelblaze_pb32_abc',
+          now: 1,
+        }),
+        inputs: [
+          {
+            id: 'speed-pot',
+            name: 'Speed pot',
+            pin: 33,
+            signal: 'analog',
+            role: 'assignable',
+            smoothing: 0.2,
+            fallback: 0.4,
+            invert: false,
+          },
+        ],
+        patternBindings: [
+          {
+            id: 'speed-binding',
+            patternId: 'pat-1',
+            inputId: 'speed-pot',
+            target: { kind: 'call-exported-slider', name: 'sliderSpeed' },
+          },
+        ],
+      }
+      setControllerProfiles([profile])
+      usePatternStore.setState({ activePatternId: 'pat-1' })
+      useEditorStore.setState({ previewSource: source, previewPatternName: 'Twinkle' })
+
+      await store().pushActivePattern()
+
+      const provider = created.get('10.0.0.5')!
+      expect(provider.compiledSources[0]).toContain('analogRead(33)')
+      expect(provider.compiledSources[0]).toContain('sliderSpeed(speedPotValue)')
+      expect(provider.compiledSources[0]).not.toBe(bundle(source, {}).code)
+      expect(store().lastTransformSummary['10.0.0.5']['pat-1'].bindingsApplied).toEqual([
+        { target: 'sliderSpeed', mode: 'function-call' },
+      ])
+    })
+
     it('injects hardware brightness for the active Controller profile and retains its summary', async () => {
       await store().addController({
         id: 'pixelblaze_pb32_abc',

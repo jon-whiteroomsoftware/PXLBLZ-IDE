@@ -352,8 +352,13 @@ function passParamToCode(value: PassParamValue): string {
 
 function constrainValue(value: string, pass: BindPassRecipe): string {
   let expr = value
-  if (typeof pass.min === 'number') expr = `max(${pass.min}, ${expr})`
-  if (typeof pass.max === 'number') expr = `min(${pass.max}, ${expr})`
+  if (typeof pass.min === 'number' && typeof pass.max === 'number') {
+    expr = `(${pass.min} + (${expr}) * ${pass.max - pass.min})`
+  } else if (typeof pass.min === 'number') {
+    expr = `max(${pass.min}, ${expr})`
+  } else if (typeof pass.max === 'number') {
+    expr = `min(${pass.max}, ${expr})`
+  }
   if (typeof pass.quantize === 'number' && pass.quantize > 0) {
     const base = typeof pass.min === 'number' ? pass.min : 0
     expr = `(${base} + floor((${expr} - ${base}) / ${pass.quantize} + 0.5) * ${pass.quantize})`

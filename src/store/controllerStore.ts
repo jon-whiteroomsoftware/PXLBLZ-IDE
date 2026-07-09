@@ -724,7 +724,7 @@ export const useControllerStore = create<ControllerConnectionState>()(
             const profile = activeController
               ? findProfileForLiveController(profiles, activeController)
               : null
-            const recipe = controllerProfilePassRecipe(profile, previewSource)
+            const recipe = controllerProfilePassRecipe(profile, previewSource, patternId)
             const bundled = bundleWithPasses(previewSource, LIBRARIES, recipe)
             const transformSummary = recipe.length > 0 ? bundled.summary : null
             const { code } = bundled

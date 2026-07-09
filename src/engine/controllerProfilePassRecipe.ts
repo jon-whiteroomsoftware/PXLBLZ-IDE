@@ -1,5 +1,5 @@
 import * as acorn from 'acorn'
-import type { ControllerProfile, GlobalTransform } from './controllerProfile'
+import type { ControllerInput, ControllerProfile, GlobalTransform, PatternBinding } from './controllerProfile'
 import type { PassRecipe } from './passEngine'
 import { stockMixinSpec } from './mixins'
 
@@ -25,9 +25,11 @@ export function findProfileForLiveController(
 export function controllerProfilePassRecipe(
   profile: ControllerProfile | null | undefined,
   patternSource: string,
+  patternId?: string | null,
 ): PassRecipe {
   if (!profile) return []
   const recipe: PassRecipe = []
+  const usedNames = collectIdentifiers(patternSource)
   const hardwareBrightness = profile.globalTransforms.find(
     (transform): transform is HardwareBrightnessTransform =>
       transform.type === 'hardware-brightness' && transform.enabled,
@@ -40,7 +42,7 @@ export function controllerProfilePassRecipe(
   if (hardwareBrightness && hardwareBrightness.mode === 'multiply-output') {
     const input = profile.inputs.find((candidate) => candidate.id === hardwareBrightness.inputId)
     if (input?.signal === 'analog') {
-      const brightnessName = uniqueIdentifier(patternSource, 'hardwareBrightnessValue')
+      const brightnessName = reserveIdentifier(usedNames, 'hardwareBrightnessValue')
       const hwBrightnessMixin = stockMixinSpec('hw-brightness')
       if (hwBrightnessMixin) {
         recipe.push(
@@ -95,19 +97,101 @@ export function controllerProfilePassRecipe(
     }
   }
 
+  if (patternId) {
+    for (const binding of profile.patternBindings) {
+      if (binding.patternId !== patternId) continue
+      const input = profile.inputs.find((candidate) => candidate.id === binding.inputId)
+      if (!input) continue
+      const valueName = reserveIdentifier(usedNames, `${identifierStem(input.id)}Value`)
+      recipe.push(
+        patternBindingSamplePass(binding, input, valueName),
+        patternBindingDrivePass(binding, valueName),
+      )
+    }
+  }
+
   return recipe
+}
+
+function patternBindingSamplePass(
+  binding: PatternBinding,
+  input: ControllerInput,
+  valueName: string,
+): PassRecipe[number] {
+  return {
+    id: `${binding.id}-sample`,
+    kind: 'inject',
+    source: [
+      `var ${valueName} = FALLBACK`,
+      ``,
+      `export function beforeRender(delta) {`,
+      input.signal === 'analog'
+        ? `  var raw = analogRead(PIN)`
+        : `  var raw = digitalRead(PIN)`,
+      `  if (INVERT) raw = 1 - raw`,
+      `  ${valueName} = ${valueName} + (raw - ${valueName}) * SMOOTHING`,
+      `}`,
+    ].join('\n'),
+    params: {
+      PIN: input.pin,
+      SMOOTHING: input.smoothing,
+      FALLBACK: input.fallback,
+      INVERT: input.invert,
+    },
+  }
+}
+
+function patternBindingDrivePass(binding: PatternBinding, valueName: string): PassRecipe[number] {
+  const target = binding.target
+  if (target.kind === 'assign-variable') {
+    return {
+      id: `${binding.id}-drive`,
+      kind: 'bind',
+      target: target.name,
+      value: valueName,
+      min: target.min,
+      max: target.max,
+      quantize: target.quantize,
+      mode: 'variable-assignment',
+    }
+  }
+  return {
+    id: `${binding.id}-drive`,
+    kind: 'bind',
+    target: target.name,
+    value: valueName,
+    mode: 'function-call',
+  }
 }
 
 function fullWhiteMilliamps(profile: ControllerProfile): number {
   return Math.max(1, Math.round((profile.lastKnownPixelCount ?? 256) * 60))
 }
 
-function uniqueIdentifier(source: string, preferred: string): string {
-  const used = collectIdentifiers(source)
-  if (!used.has(preferred)) return preferred
+function reserveIdentifier(used: Set<string>, preferred: string): string {
+  if (!used.has(preferred)) {
+    used.add(preferred)
+    return preferred
+  }
   let index = 2
   while (used.has(`${preferred}${index}`)) index += 1
-  return `${preferred}${index}`
+  const name = `${preferred}${index}`
+  used.add(name)
+  return name
+}
+
+function identifierStem(id: string): string {
+  const words = id
+    .replace(/[^A-Za-z0-9]+/g, ' ')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+  if (words.length === 0) return 'input'
+  const [first, ...rest] = words
+  return [
+    first.charAt(0).toLowerCase() + first.slice(1),
+    ...rest.map((word) => word.charAt(0).toUpperCase() + word.slice(1)),
+  ].join('')
 }
 
 function collectIdentifiers(source: string): Set<string> {

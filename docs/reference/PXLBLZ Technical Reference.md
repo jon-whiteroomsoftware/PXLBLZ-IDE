@@ -220,8 +220,9 @@ The recipe IR is JSON-serializable and ordered. The implemented pass kinds are:
   warnings instead of silent skips.
 - **Bind** — emits a small frame-level helper that calls a target function
   (including exported sliders) or assigns a target variable. Optional
-  `min`/`max`/`quantize` constraints are emitted into the assignment/call
-  expression; missing targets warn and do not mutate the artifact.
+  `min`/`max` scale a normalized `0..1` input into the assignment/call range,
+  and `quantize` snaps the scaled result; missing targets warn and do not mutate
+  the artifact.
 
 Generated helper names use the reserved `__pxlblz_` prefix. The engine detects
 user identifiers already using that prefix, avoids exact generated-name

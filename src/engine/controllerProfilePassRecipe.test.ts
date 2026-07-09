@@ -90,6 +90,96 @@ describe('controller profile pass recipe', () => {
       params: { BRIGHTNESS: 'hardwareBrightnessValue2' },
     })
   })
+
+  it('builds frame-sampled pattern binding passes only for the active pattern', () => {
+    const profile = patternBindingProfile()
+
+    const recipe = controllerProfilePassRecipe(
+      profile,
+      'export function sliderSpeed(v) { speed = v }\nexport function render(i) {}',
+      'pat-1',
+    )
+
+    expect(recipe).toHaveLength(2)
+    expect(recipe[0]).toMatchObject({
+      id: 'speed-binding-sample',
+      kind: 'inject',
+      params: { PIN: 33, SMOOTHING: 0.25, FALLBACK: 0.5, INVERT: true },
+    })
+    expect(recipe[0]).toHaveProperty('source', expect.stringContaining('analogRead(PIN)'))
+    expect(recipe[0]).toHaveProperty('source', expect.stringContaining('if (INVERT) raw = 1 - raw'))
+    expect(recipe[1]).toMatchObject({
+      id: 'speed-binding-drive',
+      kind: 'bind',
+      target: 'sliderSpeed',
+      value: 'speedPotValue',
+      mode: 'function-call',
+    })
+  })
+
+  it('maps explicit function targets to function-call bind passes', () => {
+    const profile = {
+      ...patternBindingProfile(),
+      patternBindings: [
+        {
+          id: 'pulse-binding',
+          patternId: 'pat-1',
+          inputId: 'speed-pot',
+          target: { kind: 'call-function' as const, name: 'setPulse' },
+        },
+      ],
+    }
+
+    const recipe = controllerProfilePassRecipe(profile, 'export function render(i) {}', 'pat-1')
+
+    expect(recipe[1]).toMatchObject({
+      id: 'pulse-binding-drive',
+      kind: 'bind',
+      target: 'setPulse',
+      value: 'speedPotValue',
+      mode: 'function-call',
+    })
+  })
+
+  it('maps variable bindings to scaled assignment bind passes', () => {
+    const profile = {
+      ...patternBindingProfile(),
+      patternBindings: [
+        {
+          id: 'brightness-binding',
+          patternId: 'pat-1',
+          inputId: 'speed-pot',
+          target: {
+            kind: 'assign-variable' as const,
+            name: 'brightness',
+            min: 0.2,
+            max: 0.8,
+            quantize: 0.1,
+          },
+        },
+      ],
+    }
+
+    const recipe = controllerProfilePassRecipe(profile, 'export var brightness = 1', 'pat-1')
+
+    expect(recipe[1]).toMatchObject({
+      id: 'brightness-binding-drive',
+      kind: 'bind',
+      target: 'brightness',
+      value: 'speedPotValue',
+      min: 0.2,
+      max: 0.8,
+      quantize: 0.1,
+      mode: 'variable-assignment',
+    })
+  })
+
+  it('does not emit pattern binding passes without an active pattern match', () => {
+    const profile = patternBindingProfile()
+
+    expect(controllerProfilePassRecipe(profile, 'export function render(i) {}')).toEqual([])
+    expect(controllerProfilePassRecipe(profile, 'export function render(i) {}', 'pat-2')).toEqual([])
+  })
 })
 
 function hardwareBrightnessProfile(): ControllerProfile {
@@ -119,6 +209,36 @@ function hardwareBrightnessProfile(): ControllerProfile {
         mixinId: 'builtin:hardware-brightness',
         inputId: 'brightness-pot',
         mode: 'multiply-output',
+      },
+    ],
+  }
+}
+
+function patternBindingProfile(): ControllerProfile {
+  return {
+    ...defaultControllerProfile({
+      id: 'ctrl-1',
+      deviceId: 'pixelblaze_pb32_known',
+      now: 1,
+    }),
+    inputs: [
+      {
+        id: 'speed-pot',
+        name: 'Speed pot',
+        pin: 33,
+        signal: 'analog',
+        role: 'assignable',
+        smoothing: 0.25,
+        fallback: 0.5,
+        invert: true,
+      },
+    ],
+    patternBindings: [
+      {
+        id: 'speed-binding',
+        patternId: 'pat-1',
+        inputId: 'speed-pot',
+        target: { kind: 'call-exported-slider', name: 'sliderSpeed' },
       },
     ],
   }
