@@ -17,6 +17,15 @@ const profile: ControllerProfile = {
   lastSeenIp: '192.168.8.224',
   lastKnownPixelCount: 256,
   lastKnownMapDim: 2,
+  mapFingerprints: [
+    {
+      hash: 'abcd1234',
+      mapId: 'map-1',
+      mapName: 'Wall map',
+      devicePixelCount: 256,
+      pushedAt: 90,
+    },
+  ],
   board: { kind: 'pixelblaze-v3-standard', hardwareRevision: 3.5, firmwareVersion: '3.67' },
   inputs: [
     {
@@ -95,6 +104,7 @@ describe('D1 controller profile persistence', () => {
       last_seen_ip: '192.168.8.224',
       last_known_pixel_count: 256,
       last_known_map_dim: 2,
+      map_fingerprints_json: JSON.stringify(profile.mapFingerprints),
       board_json: JSON.stringify(profile.board),
       inputs_json: JSON.stringify(profile.inputs),
       global_transforms_json: JSON.stringify(profile.globalTransforms),
@@ -113,6 +123,7 @@ describe('D1 controller profile persistence', () => {
       last_seen_ip: null,
       last_known_pixel_count: null,
       last_known_map_dim: null,
+      map_fingerprints_json: null,
       board_json: JSON.stringify(profile.board),
       inputs_json: JSON.stringify([]),
       global_transforms_json: JSON.stringify([]),
@@ -144,11 +155,13 @@ describe('D1 controller profile persistence', () => {
       lastSeenIp: '192.168.8.99',
       lastKnownPixelCount: 512,
       lastKnownMapDim: 3,
+      mapFingerprints: [],
       updatedAt: 200,
     })
     await deleteD1ControllerProfile(db, 'github:123', 'ctrl-1')
 
     expect(calls[0].values.slice(0, 2)).toEqual(['github:123', 'ctrl-1'])
+    expect(calls[0].values).toHaveLength(16)
     expect(calls[0].values).toContain('Pixelblaze shelf')
     expect(calls[0].values).toContain('192.168.8.224')
     expect(calls[0].values).toContain(256)
@@ -158,10 +171,12 @@ describe('D1 controller profile persistence', () => {
     expect(calls[1].sql).toContain('last_seen_ip = ?')
     expect(calls[1].sql).toContain('last_known_pixel_count = ?')
     expect(calls[1].sql).toContain('last_known_map_dim = ?')
+    expect(calls[1].sql).toContain('map_fingerprints_json = ?')
     expect(calls[1].values).toContain('Renamed on device')
     expect(calls[1].values).toContain('192.168.8.99')
     expect(calls[1].values).toContain(512)
     expect(calls[1].values).toContain(3)
+    expect(calls[1].values).toContain(JSON.stringify([]))
     expect(calls[1].values.slice(-2)).toEqual(['github:123', 'ctrl-1'])
     expect(calls[2].values).toEqual(['github:123', 'ctrl-1'])
   })

@@ -18,7 +18,8 @@ import {
 import { mapDimension, type MapDimension } from '@/engine/sendToController'
 import { describePreflight, type PreflightWarning } from '@/engine/preflight'
 import { recommendedMapRemedy, type RecommendedMapRemedy } from '@/engine/patternMapRemedy'
-import { resolveMapPushPoints } from '@/engine/mapPush'
+import { encodeMapData, resolveMapPushPoints } from '@/engine/mapPush'
+import { mapDataHash, withMapFingerprintRecord } from '@/engine/mapFingerprint'
 import { stockMapSpec } from '@/pixelblaze/stock/maps/stockCatalogue'
 import { applyControllerPixelCount } from '@/engine/applyControllerPixelCount'
 import { availableDiscoveredControllers } from '@/engine/controllerDiscovery'
@@ -370,7 +371,7 @@ export const useControllerStore = create<ControllerConnectionState>()(
       // needs: its stable id, baked coordinate array, and a change signature (its
       // source) for the dirty gate. Works for both custom maps and read-only stock maps.
       const openMapForPush = ():
-        | { id: string; points: number[][]; source: string | undefined; signature: string }
+        | { id: string; name: string; points: number[][]; source: string | undefined; signature: string }
         | null => {
         return openMapForPushState(useMapStore.getState())
       }
@@ -705,6 +706,24 @@ export const useControllerStore = create<ControllerConnectionState>()(
             const config = await getControllerProvider().getConfig().catch(() => null)
             const points = resolveMapPushPoints(map.source, map.points, config?.pixelCount ?? null)
             await getControllerProvider().setPixelMap(points)
+            const profiles = await getPersonalContentProvider().listControllerProfiles().catch(() => [])
+            const activeController = get().controllers[controllerId]
+            const profile = activeController
+              ? findProfileForLiveController(profiles, activeController)
+              : null
+            if (profile) {
+              const pushedAt = Date.now()
+              await getPersonalContentProvider().updateControllerProfile(profile.id, {
+                mapFingerprints: withMapFingerprintRecord(profile.mapFingerprints, {
+                  hash: mapDataHash(encodeMapData(points)),
+                  mapId: map.id,
+                  mapName: map.name,
+                  devicePixelCount: points.length,
+                  pushedAt,
+                }),
+                updatedAt: pushedAt,
+              }).catch(() => {})
+            }
             set((s) => ({
               pushing: false,
               // A Controller has one map slot — a push always overwrites it in place,

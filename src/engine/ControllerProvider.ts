@@ -187,6 +187,11 @@ export interface ControllerProvider {
    *  degrades to connected-only rather than blocking on an unknowable mismatch. */
   getPixelMap(): Promise<number[][] | null>
 
+  /** Read back the raw `/pixelmap.dat` blob exactly as stored on the device.
+   *  Used when provenance needs byte-exact identity; callers that only need
+   *  coordinates should keep using `getPixelMap()`. */
+  getPixelMapData(): Promise<Uint8Array | null>
+
   /** Set UI control values on the active pattern. `save` persists to flash
    *  (wear cost) — default false. Resolves once the command is sent. */
   setControls(controls: Record<string, number>, save?: boolean): Promise<void>
@@ -289,6 +294,10 @@ export class NullControllerProvider implements ControllerProvider {
   }
 
   getPixelMap(): Promise<number[][] | null> {
+    return Promise.reject(new Error('Not connected to a Controller'))
+  }
+
+  getPixelMapData(): Promise<Uint8Array | null> {
     return Promise.reject(new Error('Not connected to a Controller'))
   }
 

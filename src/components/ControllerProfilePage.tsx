@@ -39,6 +39,13 @@ import {
   summarizeControllerMapImport,
   type ControllerMapImportSummary,
 } from '@/engine/importedMap'
+import {
+  buildStudioMapFingerprintCandidates,
+  mapDataHash,
+  matchInstalledMapFingerprint,
+  type MapFingerprintMatch,
+} from '@/engine/mapFingerprint'
+import { decodeMapData } from '@/engine/mapPush'
 import { newPersonalContentId } from '@/engine/personalContentMetadata'
 import { uniquePatternName } from '@/engine/patternName'
 import { getControllerProvider } from '@/engine/controllerProviderRegistry'
@@ -333,6 +340,8 @@ interface PendingMapImport {
   controllerName: string
   deviceId?: string | null
   ip?: string | null
+  mapHash?: string
+  match?: MapFingerprintMatch
 }
 
 function ImportMapDialog({
@@ -350,23 +359,28 @@ function ImportMapDialog({
 }) {
   if (!pending) return null
   const trimmed = name.trim()
+  const match = pending.match
   return (
     <AlertDialogRoot open onOpenChange={(open) => { if (!open) onCancel() }}>
       <AlertDialogContent>
-        <AlertDialogTitle>Import controller map?</AlertDialogTitle>
+        <AlertDialogTitle>{match ? 'Open matching Studio map?' : 'Import controller map?'}</AlertDialogTitle>
         <AlertDialogDescription>
-          Save the installed pixel map from {pending.controllerName} as a frozen user map.
+          {match
+            ? `The installed pixel map from ${pending.controllerName} matches "${match.name}".`
+            : `Save the installed pixel map from ${pending.controllerName} as a frozen user map.`}
         </AlertDialogDescription>
         <div className="mt-4 space-y-3">
-          <label className="block text-xs text-zinc-400">
-            <span className="mb-1 block text-[10px] uppercase tracking-wide text-zinc-500">Map name</span>
-            <input
-              value={name}
-              onChange={(event) => onNameChange(event.target.value)}
-              className={`${fieldClass} w-full`}
-              aria-label="Imported map name"
-            />
-          </label>
+          {!match && (
+            <label className="block text-xs text-zinc-400">
+              <span className="mb-1 block text-[10px] uppercase tracking-wide text-zinc-500">Map name</span>
+              <input
+                value={name}
+                onChange={(event) => onNameChange(event.target.value)}
+                className={`${fieldClass} w-full`}
+                aria-label="Imported map name"
+              />
+            </label>
+          )}
           <div className="rounded border border-zinc-800 bg-zinc-950/70 px-3 py-2 font-mono text-[11px] text-zinc-400">
             <div className="flex items-center gap-2 text-zinc-300">
               <MapIcon size={13} aria-hidden />
@@ -374,15 +388,22 @@ function ImportMapDialog({
             </div>
             <div className="mt-1 text-zinc-500">Source device: {pending.controllerName}</div>
             {pending.deviceId && <div className="text-zinc-500">Device ID: {pending.deviceId}</div>}
+            {match && (
+              <div className="mt-1 text-live">
+                Match: {match.name} ({match.kind === 'stock' ? 'stock' : 'user'} map)
+              </div>
+            )}
           </div>
-          <p className="text-[11px] leading-5 text-zinc-500">
-            Pixelblaze UI maps are fill-normalized per axis when read from the device; aspect may differ from maps pushed by this IDE.
-          </p>
+          {!match && (
+            <p className="text-[11px] leading-5 text-zinc-500">
+              Pixelblaze UI maps are fill-normalized per axis when read from the device; aspect may differ from maps pushed by this IDE.
+            </p>
+          )}
         </div>
         <AlertDialogFooter>
           <AlertDialogCancel onClick={onCancel}>Cancel</AlertDialogCancel>
-          <AlertDialogAction disabled={trimmed.length === 0} onClick={onConfirm}>
-            Import map
+          <AlertDialogAction disabled={!match && trimmed.length === 0} onClick={onConfirm}>
+            {match ? 'Open map' : 'Import map'}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
@@ -876,6 +897,7 @@ export function ControllerProfilePage({ profileId }: { profileId: string }) {
   const userMaps = useMapStore((state) => state.userMaps)
   const addMap = useMapStore((state) => state.addMap)
   const openExistingMap = useMapStore((state) => state.openExistingMap)
+  const openStockMap = useMapStore((state) => state.openStockMap)
   const navigate = useRouterStore((state) => state.navigate)
   const profile = profiles.find((item) => item.id === profileId)
   const profileController = profile ? statusForProfile(profile, controllers) : null
@@ -911,10 +933,22 @@ export function ControllerProfilePage({ profileId }: { profileId: string }) {
     setImportingMap(true)
     try {
       if (activeIp !== profileController.ip) setActiveController(profileController.ip)
-      const points = await getControllerProvider().getPixelMap()
+      const bytes = await getControllerProvider().getPixelMapData()
+      const points = decodeMapData(bytes)
       if (!points || points.length === 0) {
         throw new Error('No installed pixel map was returned by this controller.')
       }
+      const hash = bytes ? mapDataHash(bytes) : undefined
+      const match = hash
+        ? matchInstalledMapFingerprint({
+            hash,
+            profile,
+            candidates: buildStudioMapFingerprintCandidates({
+              userMaps,
+              pixelCount: points.length,
+            }),
+          }) ?? undefined
+        : undefined
       const controllerName =
         profile.lastKnownDeviceName ??
         profileController.nickname ??
@@ -931,6 +965,8 @@ export function ControllerProfilePage({ profileId }: { profileId: string }) {
         controllerName,
         deviceId: profile.deviceId ?? profileController.deviceId ?? null,
         ip: profileController.ip,
+        mapHash: hash,
+        match,
       })
       setImportName(defaultName)
     } catch (error) {
@@ -942,6 +978,18 @@ export function ControllerProfilePage({ profileId }: { profileId: string }) {
 
   async function confirmMapImport() {
     if (!pendingImport) return
+    if (pendingImport.match) {
+      if (pendingImport.match.kind === 'stock') {
+        openStockMap(pendingImport.match.id)
+      } else {
+        const record = userMaps.find((map) => map.id === pendingImport.match?.id)
+        if (record) openExistingMap(record)
+      }
+      navigate({ kind: 'studio', entity: { kind: 'maps', id: pendingImport.match.id } })
+      setPendingImport(null)
+      setImportName('')
+      return
+    }
     const name = importName.trim() || pendingImport.defaultName
     const record = createImportedControllerMapRecord({
       id: newPersonalContentId(),
@@ -950,6 +998,7 @@ export function ControllerProfilePage({ profileId }: { profileId: string }) {
       controllerName: pendingImport.controllerName,
       deviceId: pendingImport.deviceId,
       ip: pendingImport.ip,
+      mapHash: pendingImport.mapHash,
       importedAt: Date.now(),
     })
     await addMap(record)

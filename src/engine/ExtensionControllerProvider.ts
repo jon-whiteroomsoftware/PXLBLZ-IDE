@@ -427,12 +427,16 @@ export class ExtensionControllerProvider implements ControllerProvider {
    *  resolve null (never throw) — the connect path stays fast and failure-tolerant,
    *  and the Send gate degrades to connected-only rather than blocking. */
   getPixelMap(): Promise<number[][] | null> {
+    return this.getPixelMapData().then((bytes) => decodeMapData(bytes))
+  }
+
+  getPixelMapData(): Promise<Uint8Array | null> {
     const target = this.target
     if (!target) return Promise.resolve(null)
     const reqId = `get-map-${this.mapSeq++}`
-    return new Promise<number[][] | null>((resolve) => {
+    return new Promise<Uint8Array | null>((resolve) => {
       let settled = false
-      const finish = (value: number[][] | null) => {
+      const finish = (value: Uint8Array | null) => {
         if (settled) return
         settled = true
         unsubscribe()
@@ -447,7 +451,7 @@ export class ExtensionControllerProvider implements ControllerProvider {
           msg.reqId === reqId
         ) {
           if (msg.ok && msg.mapData != null) {
-            finish(decodeMapData(base64ToBytes(msg.mapData)))
+            finish(base64ToBytes(msg.mapData))
           } else {
             // No map on the device, or a read failure — both are "no usable map".
             finish(null)

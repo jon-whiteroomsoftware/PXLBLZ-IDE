@@ -14,6 +14,9 @@ const personalMixinsMigrationPath = path.resolve('migrations/0006_personal_mixin
 const personalShowsMigrationPath = path.resolve('migrations/0007_personal_shows.sql')
 const mapImportMetadataMigrationPath = path.resolve('migrations/0008_map_import_metadata.sql')
 const showStageMapMigrationPath = path.resolve('migrations/0009_show_stage_map.sql')
+const controllerMapFingerprintsMigrationPath = path.resolve(
+  'migrations/0010_controller_map_fingerprints.sql',
+)
 
 describe('D1 personal storage migration', () => {
   it('creates the storage buckets needed for the Cloudflare personal-storage foundation', () => {
@@ -111,5 +114,12 @@ describe('D1 personal storage migration', () => {
 
     expect(sql).toContain('ALTER TABLE personal_shows ADD COLUMN stage_map_id TEXT')
     expect(sql).toContain("VALUES ('schema_version', '9', unixepoch())")
+  })
+
+  it('adds controller map fingerprint provenance', () => {
+    const sql = fs.readFileSync(controllerMapFingerprintsMigrationPath, 'utf8')
+
+    expect(sql).toContain('ALTER TABLE controller_profiles ADD COLUMN map_fingerprints_json TEXT')
+    expect(sql).toContain("VALUES ('schema_version', '10', unixepoch())")
   })
 })

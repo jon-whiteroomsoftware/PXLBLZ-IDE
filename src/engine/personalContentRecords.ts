@@ -19,6 +19,7 @@ export interface MapImportMetadata {
   controllerName: string
   deviceId?: string | null
   ip?: string | null
+  mapHash?: string
   pixelCount: number
   importedAt: number
   normalization: 'device-fill-normalized'

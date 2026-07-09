@@ -72,6 +72,14 @@ export interface ControllerZone {
   ranges: ControllerZoneRange[]
 }
 
+export interface ControllerMapFingerprint {
+  hash: string
+  mapId: string
+  mapName: string
+  devicePixelCount: number
+  pushedAt: number
+}
+
 interface LegacyControllerZone {
   id: string
   name: string
@@ -92,6 +100,8 @@ export interface ControllerProfile {
   lastKnownPixelCount?: number
   /** Last installed map dimensionality for offline display on the profile page. */
   lastKnownMapDim?: 1 | 2 | 3
+  /** Encoded `/pixelmap.dat` fingerprints for maps this IDE pushed to the device. */
+  mapFingerprints?: ControllerMapFingerprint[]
   board: ControllerBoardProfile
   inputs: ControllerInput[]
   globalTransforms: GlobalTransform[]

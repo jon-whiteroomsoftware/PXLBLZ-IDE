@@ -1152,12 +1152,22 @@ Three firmware facts gate the rest:
   rides read-back too.)
 - **Controller profile import** (#338) builds on the same read-back path:
   `ControllerProfilePage` activates the profile's live provider, calls
-  `getPixelMap()`, summarizes the decoded coordinates with `inferDim` and
-  `detectGridDims`, asks for a map name, and creates an ordinary `MapRecord`
-  with `generator:'custom'`, frozen `points`, no `source`, and display-only
-  import provenance. Pixelblaze-native Mapper writes are Fill-normalized per
-  axis; PXLBLZ map pushes preserve the user's selected fit, so imported
-  provenance records the Fill-normalized caveat where known.
+  `getPixelMapData()`, hashes the raw `/pixelmap.dat` bytes, decodes them with
+  `decodeMapData`, summarizes the coordinates with `inferDim` and
+  `detectGridDims`, then either opens a matching Studio map or creates an
+  ordinary `MapRecord` with `generator:'custom'`, frozen `points`, no `source`,
+  and display-only import provenance. Pixelblaze-native Mapper writes are
+  Fill-normalized per axis; PXLBLZ map pushes preserve the user's selected fit,
+  so imported provenance records the Fill-normalized caveat where known.
+- **Map provenance is fingerprint-based** (#343). The firmware's `mapData`
+  format has no metadata slot and rejects non-reconciling blobs, so the IDE
+  never embeds identity into a map. Instead `mapFingerprint.ts` hashes the
+  deterministic encoded bytes. A successful map push records `{ hash, mapId,
+  mapName, devicePixelCount, pushedAt }` on the Controller profile. Read-back
+  first matches that profile record, then candidate-matches every current Studio
+  map (stock + user) baked at the device's point count. If a match exists, the
+  Import map flow opens that Studio map instead of minting a duplicate; genuinely
+  foreign maps still import as frozen user maps.
 - **Reducing the count must black out the tail first** (#222, verified on
   hardware). WS2812s hold their last value until re-clocked and the device only
   clocks `pixelCount` LEDs, so after a reduction the LEDs beyond the new count

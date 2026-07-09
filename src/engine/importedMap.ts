@@ -8,6 +8,7 @@ export interface ControllerMapImportArgs {
   controllerName: string
   deviceId?: string | null
   ip?: string | null
+  mapHash?: string
   importedAt: number
 }
 
@@ -40,6 +41,7 @@ export function createImportedControllerMapRecord(args: ControllerMapImportArgs)
       controllerName: args.controllerName,
       ...(args.deviceId !== undefined ? { deviceId: args.deviceId } : {}),
       ...(args.ip !== undefined ? { ip: args.ip } : {}),
+      ...(args.mapHash !== undefined ? { mapHash: args.mapHash } : {}),
       pixelCount: summary.pixelCount,
       importedAt: args.importedAt,
       normalization: 'device-fill-normalized',

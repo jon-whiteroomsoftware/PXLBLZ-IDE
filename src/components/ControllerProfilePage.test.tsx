@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { ControllerProfilePage } from './ControllerProfilePage'
 import { NullControllerProvider, type ControllerStatus } from '@/engine/ControllerProvider'
 import { resetControllerProvider, setControllerProvider } from '@/engine/controllerProviderRegistry'
+import { encodeMapData } from '@/engine/mapPush'
 import {
   demoPersonalContentProvider,
   resetPersonalContentProvider,
@@ -18,7 +19,17 @@ import { controllerInitialState, useControllerStore } from '@/store/controllerSt
 import { mapInitialState, useMapStore } from '@/store/mapStore'
 import { routerInitialState, useRouterStore } from '@/store/routerStore'
 
+const READBACK_POINTS = [
+  [0, 0],
+  [1, 0],
+  [0, 1],
+  [0, 1],
+]
+const READBACK_HASH = '06427689'
+
 class MapReadbackProvider extends NullControllerProvider {
+  readonly mapData = encodeMapData(READBACK_POINTS)
+
   getStatus(): ControllerStatus {
     return {
       kind: 'connected',
@@ -32,12 +43,11 @@ class MapReadbackProvider extends NullControllerProvider {
   }
 
   getPixelMap(): Promise<number[][] | null> {
-    return Promise.resolve([
-      [0, 0],
-      [1, 0],
-      [0, 1],
-      [1, 1],
-    ])
+    return Promise.resolve(READBACK_POINTS)
+  }
+
+  getPixelMapData(): Promise<Uint8Array | null> {
+    return Promise.resolve(this.mapData)
   }
 }
 
@@ -224,7 +234,7 @@ describe('ControllerProfilePage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /import map/i }))
     expect(await screen.findByRole('textbox', { name: 'Imported map name' })).toHaveValue('Burner bag map')
-    expect(screen.getByText(/4 px \/ 2D \/ 2 x 2/i)).toBeInTheDocument()
+    expect(screen.getByText(/4 px \/ 2D \/ irregular/i)).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: /^import map$/i }))
 
@@ -237,14 +247,14 @@ describe('ControllerProfilePage', () => {
         [0, 0],
         [1, 0],
         [0, 1],
-        [1, 1],
+        [0, 1],
       ],
-      gridDims: { cols: 2, rows: 2 },
       importMetadata: {
         kind: 'controller',
         controllerName: 'Burner bag',
         deviceId: 'pixelblaze_pb32_abc',
         ip: '192.168.8.224',
+        mapHash: READBACK_HASH,
         pixelCount: 4,
         normalization: 'device-fill-normalized',
       },
@@ -254,6 +264,78 @@ describe('ControllerProfilePage', () => {
       expect(useRouterStore.getState().route).toEqual({
         kind: 'studio',
         entity: { kind: 'maps', id: created[0].id },
+      })
+    })
+  })
+
+  it('opens an existing Studio map instead of importing a duplicate when the installed map matches', async () => {
+    const profile = seedProfile()
+    const created: MapRecord[] = []
+    const matchingMap: MapRecord = {
+      id: 'map-existing',
+      name: 'Existing grid',
+      dim: 2,
+      generator: 'custom',
+      params: {},
+      points: [
+        [0, 0],
+        [1, 0],
+        [0, 1],
+        [0, 1],
+      ],
+      updatedAt: 1,
+    }
+    useMapStore.setState({ userMaps: [matchingMap], mapsLoaded: true })
+    useControllerProfileStore.setState({
+      profiles: [
+        {
+          ...profile,
+          mapFingerprints: [
+            {
+              hash: READBACK_HASH,
+              mapId: matchingMap.id,
+              mapName: matchingMap.name,
+              devicePixelCount: 4,
+              pushedAt: 2,
+            },
+          ],
+        },
+      ],
+    })
+    setPersonalContentProvider({
+      ...demoPersonalContentProvider,
+      updateControllerProfile: async () => {},
+      createMap: async (record) => {
+        created.push(record)
+      },
+    })
+    setControllerProvider(new MapReadbackProvider())
+    useControllerStore.setState({
+      activeIp: '192.168.8.224',
+      controllers: {
+        '192.168.8.224': {
+          ip: '192.168.8.224',
+          deviceId: profile.deviceId,
+          nickname: 'Burner bag',
+          phase: 'live',
+          mapDim: 2,
+        },
+      },
+    })
+
+    render(<ControllerProfilePage profileId="ctrl-1" />)
+
+    fireEvent.click(screen.getByRole('button', { name: /import map/i }))
+    expect(await screen.findByText(/matches "Existing grid"/i)).toBeInTheDocument()
+    expect(screen.queryByRole('textbox', { name: 'Imported map name' })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /^open map$/i }))
+
+    expect(created).toHaveLength(0)
+    await waitFor(() => {
+      expect(useRouterStore.getState().route).toEqual({
+        kind: 'studio',
+        entity: { kind: 'maps', id: matchingMap.id },
       })
     })
   })

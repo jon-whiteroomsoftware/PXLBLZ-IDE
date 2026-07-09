@@ -556,8 +556,10 @@ profile is created automatically the first time); the profile page at
   count, map dimensionality, firmware — with Refresh and **Import map** buttons
   when live. Device name, IP, and firmware are last-seen metadata:
   discovery/connect refreshes them when newer values are observed. Import map
-  reads the device's installed pixel map and saves a separate user map; the map
-  stays even if the Controller profile is later deleted;
+  reads the device's installed pixel map, opens the matching Studio map when the
+  byte fingerprint is recognized, or saves a separate frozen user map when it is
+  genuinely foreign. Imported maps stay even if the Controller profile is later
+  deleted;
 - **hardware inputs** — named pots/buttons with pin, signal, role, smoothing,
   fallback, and invert; analog choices are limited to the board's ADC1-safe
   pins, with anything else flagged inline;

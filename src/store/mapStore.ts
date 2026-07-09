@@ -249,6 +249,7 @@ export type EditingMap = { kind: 'existing'; id: string } | { kind: 'stock'; id:
 
 export interface OpenMapForPush {
   id: string
+  name: string
   points: number[][]
   source: string | undefined
   signature: string
@@ -286,7 +287,7 @@ export function openMapForPushState(
     if (!spec) return null
     const points = bakeMapSource(spec.source, state.activePixelCount ?? DEFAULT_MAP_BAKE_COUNT).points
     if (points.length === 0) return null
-    return { id: spec.id, points, source: spec.source, signature: spec.source }
+    return { id: spec.id, name: spec.name, points, source: spec.source, signature: spec.source }
   }
 
   if (editingMap?.kind !== 'existing') return null
@@ -294,6 +295,7 @@ export function openMapForPushState(
   if (!record || !record.points || record.points.length === 0) return null
   return {
     id: record.id,
+    name: record.name,
     points: record.points,
     source: record.source ?? undefined,
     signature: record.source ?? '',
