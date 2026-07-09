@@ -4,6 +4,7 @@
 // no transport specifics; the panel is a thin wrapper over this.
 
 import type { ProgramListEntry } from './PixelblazeConnection'
+import { estimatePowerCapAmps, type PowerCapSettings } from './powerCap'
 
 export interface ControllerPanelTelemetry {
   /** Id of the program the Controller is currently running, if any. */
@@ -166,10 +167,16 @@ export interface ControllerVarView {
 
 export interface ControllerPowerTelemetryView {
   dutyLabel: string
-  milliampsLabel: string
   limitLabel: string
   scaleLabel: string
   clippingLabel: string
+  estimatedDrawLabel: string
+  estimatedDrawAssumptions?: string
+}
+
+export interface ControllerPowerTelemetryContext {
+  pixelCount: number
+  settings: PowerCapSettings
 }
 
 export const CONTROLLER_POWER_TELEMETRY_KEYS = {
@@ -198,6 +205,10 @@ function formatMilliamps(value: number): string {
   return `${Math.round(value)} mA`
 }
 
+function formatEstimatedAmps(value: number): string {
+  return `≈ ${value.toFixed(1)} A`
+}
+
 /** Format the device's exported variables for the read-only watch list. Skips
  *  non-numeric values and reserved IDE telemetry names; preserves the device's
  *  reported order. */
@@ -217,6 +228,7 @@ export function describeControllerVars(
 
 export function describeControllerPowerTelemetry(
   vars?: Record<string, number>,
+  context?: ControllerPowerTelemetryContext,
 ): ControllerPowerTelemetryView | null {
   if (!vars) return null
   const duty = vars[CONTROLLER_POWER_TELEMETRY_KEYS.duty]
@@ -235,11 +247,33 @@ export function describeControllerPowerTelemetry(
     return null
   }
 
+  const estimatedAmps = context?.settings.provenance && typeof duty === 'number'
+    ? estimatePowerCapAmps({
+        ...context.settings,
+        maxDuty: duty * (typeof scale === 'number' ? scale : 1),
+      }, context.pixelCount)
+    : null
+  const provenance = context?.settings.provenance
   return {
     dutyLabel: typeof duty === 'number' ? formatPercent(duty) : PLACEHOLDER,
-    milliampsLabel: typeof milliamps === 'number' ? formatMilliamps(milliamps) : PLACEHOLDER,
-    limitLabel: typeof limit === 'number' && limit > 0 ? formatMilliamps(limit) : PLACEHOLDER,
+    limitLabel: typeof limit !== 'number' || limit < 0
+      ? PLACEHOLDER
+      : context
+        ? formatPercent(limit)
+        : limit > 0 && limit <= 1
+          ? formatPercent(limit)
+          : limit > 1
+            ? formatMilliamps(limit)
+            : PLACEHOLDER,
     scaleLabel: typeof scale === 'number' ? formatPercent(scale) : PLACEHOLDER,
     clippingLabel: typeof clipping === 'number' && clipping > 0 ? 'yes' : 'no',
+    estimatedDrawLabel: estimatedAmps != null
+      ? formatEstimatedAmps(estimatedAmps)
+      : typeof milliamps === 'number'
+        ? formatEstimatedAmps(milliamps / 1000)
+        : PLACEHOLDER,
+    ...(provenance ? {
+      estimatedDrawAssumptions: `at ${formatVarValue(provenance.milliampsPerPixel)} mA/px × ${context.pixelCount} px × ${formatPercent(provenance.brightness)} brightness`,
+    } : {}),
   }
 }

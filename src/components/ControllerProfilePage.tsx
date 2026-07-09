@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import type React from 'react'
 import {
   Download,
@@ -28,6 +28,7 @@ import {
   type ControllerInputRole,
   type ControllerInputSignal,
   type ControllerProfile,
+  type PowerCapTransform,
   type ControllerZone,
   type ControllerZoneRange,
   type GlobalTransform,
@@ -49,6 +50,13 @@ import {
 import { decodeMapData } from '@/engine/mapPush'
 import { newPersonalContentId } from '@/engine/personalContentMetadata'
 import { uniquePatternName } from '@/engine/patternName'
+import {
+  derivedPowerCapSettings,
+  directPowerCapSettings,
+  estimatePowerCapAmps,
+  powerCapElectricalInputs,
+  type PowerCapSettings,
+} from '@/engine/powerCap'
 import { getControllerProvider } from '@/engine/controllerProviderRegistry'
 import { selectTransformArtifactInspection } from '@/engine/transformInspection'
 import { useControllerStore, type ControllerEntry } from '@/store/controllerStore'
@@ -564,9 +572,11 @@ function InputsTable({
 function GlobalTransformsTable({
   profile,
   onUpdateTransforms,
+  liveBrightness,
 }: {
   profile: ControllerProfile
   onUpdateTransforms: (transforms: GlobalTransform[]) => void
+  liveBrightness?: number | null
 }) {
   function updateTransform(transformId: string, changes: Partial<GlobalTransform>) {
     onUpdateTransforms(profile.globalTransforms.map((transform) =>
@@ -576,56 +586,200 @@ function GlobalTransformsTable({
 
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[700px] border-collapse text-xs">
+      <table className="w-full min-w-[30rem] table-fixed border-collapse text-xs">
+        <colgroup>
+          <col className="w-16" />
+          <col className="w-24" />
+          <col className="w-36" />
+          <col />
+        </colgroup>
         <thead>
           <tr>
             <th className={tableHeadClass}>Enabled</th>
             <th className={tableHeadClass}>Transform</th>
             <th className={tableHeadClass}>Mixin</th>
-            <th className={tableHeadClass}>Input / Limit</th>
+            <th className={tableHeadClass}>Input / settings</th>
           </tr>
         </thead>
         <tbody>
           {profile.globalTransforms.map((transform) => (
-            <tr key={transform.id}>
-              <td className={tableCellClass}>
-                <input
-                  type="checkbox"
-                  aria-label={`${transform.type} enabled`}
-                  checked={transform.enabled}
-                  disabled={transform.type === 'hardware-brightness' && profile.inputs.length === 0}
-                  onChange={(event) => updateTransform(transform.id, { enabled: event.target.checked })}
-                  className="accent-live disabled:opacity-40"
-                />
-              </td>
-              <td className={`${tableCellClass} font-mono text-zinc-300`}>{transform.type}</td>
-              <td className={`${tableCellClass} font-mono text-zinc-500`}>{transform.mixinId}</td>
-              <td className={tableCellClass}>
-                {transform.type === 'hardware-brightness' ? (
-                  <SelectField
-                    ariaLabel="Hardware brightness input"
-                    value={transform.inputId}
-                    disabled={profile.inputs.length === 0}
-                    options={[
-                      { value: '', label: 'Choose input' },
-                      ...profile.inputs.map((input) => ({ value: input.id, label: input.name })),
-                    ]}
-                    onChange={(inputId) => updateTransform(transform.id, { inputId })}
+            <Fragment key={transform.id}>
+              <tr>
+                <td className={tableCellClass}>
+                  <input
+                    type="checkbox"
+                    aria-label={`${transform.type} enabled`}
+                    checked={transform.enabled}
+                    disabled={transform.type === 'hardware-brightness' && profile.inputs.length === 0}
+                    onChange={(event) => updateTransform(transform.id, { enabled: event.target.checked })}
+                    className="accent-live disabled:opacity-40"
                   />
-                ) : (
-                  <NumberField
-                    ariaLabel="Power cap milliamps"
-                    min={1}
-                    value={transform.maxMilliamps}
-                    onChange={(maxMilliamps) => updateTransform(transform.id, { maxMilliamps })}
-                  />
-                )}
-              </td>
-            </tr>
+                </td>
+                <td className={`${tableCellClass} break-all font-mono text-zinc-300`}>{transform.type}</td>
+                <td className={`${tableCellClass} break-all font-mono text-zinc-500`}>{transform.mixinId}</td>
+                <td className={tableCellClass}>
+                  {transform.type === 'hardware-brightness' ? (
+                    <SelectField
+                      ariaLabel="Hardware brightness input"
+                      value={transform.inputId}
+                      disabled={profile.inputs.length === 0}
+                      options={[
+                        { value: '', label: 'Choose input' },
+                        ...profile.inputs.map((input) => ({ value: input.id, label: input.name })),
+                      ]}
+                      onChange={(inputId) => updateTransform(transform.id, { inputId })}
+                    />
+                  ) : (
+                    <span className="text-[10px] uppercase tracking-wide text-zinc-600">Configured below</span>
+                  )}
+                </td>
+              </tr>
+              {transform.type === 'power-cap' && (
+                <tr>
+                  <td colSpan={4} className="px-2 pb-2 pt-0">
+                    <PowerCapEditor
+                      transform={transform}
+                      pixelCount={profile.lastKnownPixelCount ?? 256}
+                      liveBrightness={liveBrightness}
+                      onChange={(settings) => updateTransform(transform.id, settings)}
+                    />
+                  </td>
+                </tr>
+              )}
+            </Fragment>
           ))}
         </tbody>
       </table>
     </div>
+  )
+}
+
+function PowerCapEditor({
+  transform,
+  pixelCount,
+  liveBrightness,
+  onChange,
+}: {
+  transform: PowerCapTransform
+  pixelCount: number
+  liveBrightness?: number | null
+  onChange: (settings: PowerCapSettings) => void
+}) {
+  const electrical = powerCapElectricalInputs(transform, pixelCount, liveBrightness)
+  const estimatedAmps = estimatePowerCapAmps(transform, pixelCount)
+
+  function applyDerived(changes: Partial<Omit<typeof electrical, 'pixelCount'>> = {}) {
+    onChange(derivedPowerCapSettings({ ...electrical, ...changes, pixelCount }))
+  }
+
+  const modeClass = (active: boolean) => [
+    'rounded-full border px-2 py-0.5 text-[10px] transition-colors',
+    active
+      ? 'border-amber-400/45 text-amber-300'
+      : 'border-zinc-700 text-zinc-500 hover:border-zinc-600 hover:text-zinc-300',
+  ].join(' ')
+
+  return (
+    <div className="w-full min-w-0 max-w-[32rem] rounded border border-zinc-800 bg-zinc-950/70">
+      <div className="flex flex-wrap gap-1.5 border-b border-zinc-800/80 px-3 py-2">
+        <button
+          type="button"
+          aria-pressed={transform.mode === 'derived'}
+          className={modeClass(transform.mode === 'derived')}
+          onClick={() => applyDerived()}
+        >
+          From power budget
+        </button>
+        <button
+          type="button"
+          aria-pressed={transform.mode === 'direct'}
+          className={modeClass(transform.mode === 'direct')}
+          onClick={() => onChange(directPowerCapSettings(transform, transform.maxDuty))}
+        >
+          Set duty directly
+        </button>
+      </div>
+
+      {transform.mode === 'derived' ? (
+        <div className="grid gap-2 px-3 py-2.5">
+          <PowerCapField label="LED full-white current" unit="mA/px">
+            <NumberField
+              ariaLabel="LED full-white current"
+              min={1}
+              step={1}
+              value={electrical.milliampsPerPixel}
+              onChange={(milliampsPerPixel) => applyDerived({ milliampsPerPixel })}
+            />
+          </PowerCapField>
+          <PowerCapField
+            label="controller brightness"
+            unit="%"
+            hint={!transform.provenance && liveBrightness != null ? 'read from device' : undefined}
+          >
+            <NumberField
+              ariaLabel="Controller brightness percent"
+              min={0}
+              max={100}
+              step={1}
+              value={electrical.brightness * 100}
+              onChange={(percent) => applyDerived({ brightness: percent / 100 })}
+            />
+          </PowerCapField>
+          <PowerCapField label="power budget" unit="A">
+            <NumberField
+              ariaLabel="Power budget amps"
+              min={0}
+              step={0.1}
+              value={electrical.targetAmps}
+              onChange={(targetAmps) => applyDerived({ targetAmps })}
+            />
+          </PowerCapField>
+        </div>
+      ) : (
+        <div className="px-3 py-2.5">
+          <PowerCapField label="duty cap" unit="%">
+            <NumberField
+              ariaLabel="Power cap duty percent"
+              min={0}
+              max={100}
+              step={1}
+              value={Math.round(transform.maxDuty * 100)}
+              onChange={(percent) => onChange(directPowerCapSettings(transform, percent / 100))}
+            />
+          </PowerCapField>
+        </div>
+      )}
+
+      <div className="border-t border-zinc-800/80 px-3 py-2 font-mono text-[11px] leading-relaxed text-zinc-500">
+        <span className="block font-semibold text-amber-300">{Math.round(transform.maxDuty * 100)}% duty cap</span>
+        {estimatedAmps != null && (
+          <span className="block">≈ {estimatedAmps.toFixed(1)} A at the current {pixelCount} px</span>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function PowerCapField({
+  label,
+  unit,
+  hint,
+  children,
+}: {
+  label: string
+  unit: string
+  hint?: string
+  children: React.ReactNode
+}) {
+  return (
+    <label className="grid grid-cols-[minmax(0,1fr)_minmax(4rem,5.5rem)_auto] items-center gap-1.5">
+      <span className="min-w-0 text-[10px] leading-tight text-zinc-500">{label}</span>
+      <span className="flex min-w-0 items-center gap-1.5">
+        {children}
+        <span className="shrink-0 text-[10px] text-zinc-600">{unit}</span>
+      </span>
+      {hint && <span className="col-span-full text-[10px] text-amber-300/80">⚡ {hint}</span>}
+    </label>
   )
 }
 
@@ -921,10 +1075,29 @@ export function ControllerProfilePage({ profileId }: { profileId: string }) {
   const [importError, setImportError] = useState<string | null>(null)
   const [pendingImport, setPendingImport] = useState<PendingMapImport | null>(null)
   const [importName, setImportName] = useState('')
+  const [liveBrightnessRead, setLiveBrightnessRead] = useState<{ ip: string; value: number } | null>(null)
+  const liveBrightness = liveBrightnessRead && liveBrightnessRead.ip === liveIp
+    ? liveBrightnessRead.value
+    : null
 
   useEffect(() => {
     if (profileRefreshId && liveIp) void refreshLiveMetadata(profileRefreshId)
   }, [liveIp, profileRefreshId, refreshLiveMetadata])
+
+  useEffect(() => {
+    let cancelled = false
+    if (!liveIp || activeIp !== liveIp) return
+    void getControllerProvider().getConfig()
+      .then((config) => {
+        if (!cancelled && typeof config.brightness === 'number') {
+          setLiveBrightnessRead({ ip: liveIp, value: config.brightness })
+        }
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [activeIp, liveIp])
 
   if (!profile) {
     return (
@@ -1076,6 +1249,7 @@ export function ControllerProfilePage({ profileId }: { profileId: string }) {
       <Section title="Global transforms">
         <GlobalTransformsTable
           profile={profile}
+          liveBrightness={liveBrightness}
           onUpdateTransforms={(globalTransforms) => void updateProfile(profile.id, { globalTransforms })}
         />
       </Section>

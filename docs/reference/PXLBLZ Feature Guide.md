@@ -434,10 +434,13 @@ from its default, and resets the whole preview in one click (semantics below).
   on-device Var Watcher.
 - **Controller power telemetry** — IDE-reserved `__px_power*` exported variables
   from power-measure/power-cap mixins are shown as a structured Power row on the
-  live Controller panel instead of appearing as ordinary watch variables. Treat
-  these as estimated draw/budget signals, not precision measurement.
+  live Controller panel instead of appearing as ordinary watch variables. Output
+  duty is the primary figure. Estimated amps are secondary and state the
+  Controller profile assumptions used — LED full-white current, pixel count, and
+  configured native brightness. This is a calculator, not an ammeter.
 - **Power cap** — enabling the Controller profile's power-cap transform applies
-  an estimated `hsv` output guard at push time and reports the same Power row
+  an estimated `hsv` output guard at push time. Its authoritative setpoint is
+  output duty from 0–100%, not milliamps, and it reports the same Power row
   telemetry while it runs.
 
 ## 9. Editor in detail
@@ -590,8 +593,14 @@ profile is created automatically the first time); the profile page at
   pins, with anything else flagged inline;
 - **global transforms** — hardware brightness (pot × output) and power cap,
   each toggleable. Hardware brightness samples the chosen input once per frame
-  and multiplies output brightness; power cap estimates draw and scales output
-  when the configured milliamp budget would be exceeded;
+  and multiplies output brightness. Power cap scales output when estimated duty
+  exceeds its normalized limit. Set that limit directly as a percentage, or use
+  **From power budget** to derive it from full-white mA/pixel, Controller
+  brightness, and target amps. Those electrical inputs remain visible as the
+  estimate's provenance; editing duty directly keeps them but switches to direct
+  mode. Pixel count comes from the profile rather than an editable calculator
+  field, so changing the installation changes the displayed amps equivalence
+  without silently changing the stored duty cap;
 - **pattern bindings** — pattern × input → an exported slider, a named
   function, or a variable with min/max/quantize. These are applied at Send to
   Controller time without editing the pattern source;

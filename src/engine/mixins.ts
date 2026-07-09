@@ -170,16 +170,14 @@ function __px_powerMeasureHsv(h, s, v) {
 `
 
 const POWER_CAP_SOURCE = `// Power Cap - estimate output duty from intercepted hsv() calls and scale value
-// when the running estimate exceeds the configured current budget.
+// when the running estimate exceeds the configured duty budget.
 //
-// @param MAX_MILLIAMPS controller power budget
-// @param FULL_WHITE_MILLIAMPS estimated current when every RGB channel is full on
+// @param MAX_DUTY controller output-duty budget, 0..1
 // @target hsv
 // @wraps hsv-call
 
 export var __px_powerDuty = 0
-export var __px_powerMilliAmps = 0
-export var __px_powerLimit = MAX_MILLIAMPS
+export var __px_powerLimit = MAX_DUTY
 export var __px_powerScale = 1
 export var __px_powerClipping = 0
 
@@ -189,11 +187,9 @@ function __px_cappedHsv(h, s, v) {
   var duty = max(0, min(1, v)) * (1 - max(0, min(1, s)) * 0.5)
   __px_powerSamples = __px_powerSamples + 1
   __px_powerDuty = __px_powerDuty + (duty - __px_powerDuty) / __px_powerSamples
-  var __px_powerEstimate = __px_powerDuty * FULL_WHITE_MILLIAMPS
-  __px_powerLimit = MAX_MILLIAMPS
-  __px_powerScale = __px_powerEstimate > MAX_MILLIAMPS ? max(0, min(1, MAX_MILLIAMPS / __px_powerEstimate)) : 1
+  __px_powerLimit = MAX_DUTY
+  __px_powerScale = __px_powerDuty > MAX_DUTY ? max(0, min(1, MAX_DUTY / __px_powerDuty)) : 1
   __px_powerClipping = __px_powerScale < 1 ? 1 : 0
-  __px_powerMilliAmps = __px_powerEstimate * __px_powerScale
   hsv(h, s, v * __px_powerScale)
 }
 `

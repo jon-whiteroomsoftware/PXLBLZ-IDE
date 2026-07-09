@@ -36,7 +36,13 @@ describe('controller profile pass recipe', () => {
           type: 'power-cap' as const,
           enabled: true,
           mixinId: 'builtin:power-cap',
-          maxMilliamps: 2500,
+          mode: 'derived' as const,
+          maxDuty: 0.42,
+          provenance: {
+            targetAmps: 2.5,
+            brightness: 1,
+            milliampsPerPixel: 60,
+          },
         },
       ],
     }
@@ -50,8 +56,7 @@ describe('controller profile pass recipe', () => {
         target: 'hsv',
         wrapperName: '__px_cappedHsv',
         params: {
-          MAX_MILLIAMPS: 2500,
-          FULL_WHITE_MILLIAMPS: 6000,
+          MAX_DUTY: 0.42,
         },
       }),
     ])

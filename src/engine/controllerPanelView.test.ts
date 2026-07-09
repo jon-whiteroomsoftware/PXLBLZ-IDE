@@ -225,19 +225,42 @@ describe('describeControllerPowerTelemetry', () => {
     expect(describeControllerPowerTelemetry({ phase: 0.25 })).toBeNull()
   })
 
-  it('formats reserved power telemetry as a structured row', () => {
+  it('keeps a duty cap legible when no matching Controller Profile is available', () => {
     expect(describeControllerPowerTelemetry({
       __px_powerDuty: 0.42,
-      __px_powerMilliAmps: 840,
-      __px_powerLimit: 1000,
+      __px_powerLimit: 0.35,
       __px_powerScale: 0.84,
       __px_powerClipping: 1,
+    })).toMatchObject({
+      limitLabel: '35%',
+      estimatedDrawLabel: '—',
+    })
+  })
+
+  it('formats duty-first cap telemetry and contextualizes the draw estimate', () => {
+    expect(describeControllerPowerTelemetry({
+      __px_powerDuty: 0.42,
+      __px_powerLimit: 0.35,
+      __px_powerScale: 0.84,
+      __px_powerClipping: 1,
+    }, {
+      pixelCount: 240,
+      settings: {
+        mode: 'derived',
+        maxDuty: 0.35,
+        provenance: {
+          targetAmps: 3,
+          brightness: 0.5,
+          milliampsPerPixel: 60,
+        },
+      },
     })).toEqual({
       dutyLabel: '42%',
-      milliampsLabel: '840 mA',
-      limitLabel: '1000 mA',
+      limitLabel: '35%',
       scaleLabel: '84%',
       clippingLabel: 'yes',
+      estimatedDrawLabel: '≈ 2.5 A',
+      estimatedDrawAssumptions: 'at 60 mA/px × 240 px × 50% brightness',
     })
   })
 })

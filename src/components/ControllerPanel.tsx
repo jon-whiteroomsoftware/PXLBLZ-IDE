@@ -19,6 +19,8 @@ import {
 } from '@/components/Deck'
 import { DeckSlider } from '@/components/DeckSlider'
 import { PixelCountPopover } from '@/components/PixelCountPopover'
+import { findProfileForLiveController } from '@/engine/controllerProfilePassRecipe'
+import { useControllerProfileStore } from '@/store/controllerProfileStore'
 
 // The live Controller panel (H6, issue #198). A dashboard built from the *same*
 // shared deck template as the preview control deck — read-only telemetry (active
@@ -71,13 +73,13 @@ const VARS_HINT = (
 
 const POWER_HINT = (
   <DeckSectionHint
-    intro="Estimated power telemetry exported by an IDE power-measure or power-cap mixin."
+    intro="Output duty is estimated from emitted hsv values. Draw is contextual, not measured: it applies the Controller Profile's LED-current and brightness assumptions."
     items={[
-      ['duty', 'estimated aggregate RGB duty before controller brightness'],
-      ['draw', 'estimated current at the mixin’s configured LED-current assumption'],
-      ['limit', 'configured budget, when a limiter is active'],
+      ['output duty', 'estimated emitted duty before native Controller brightness'],
+      ['duty cap', 'configured normalized output budget, when a limiter is active'],
+      ['est. draw', 'calculated from duty, pixel count, full-white current, and configured brightness — not an ammeter reading'],
       ['scale', 'output scale applied by a limiter; 100% means measurement only'],
-      ['clipping', 'whether the limiter is currently intervening'],
+      ['limiting', 'whether the limiter is currently intervening'],
     ]}
   />
 )
@@ -138,6 +140,7 @@ export function ControllerPanel() {
   const vars = useControllerPanelStore((s) => s.vars)
   const setBrightness = useControllerPanelStore((s) => s.setBrightness)
   const setControl = useControllerPanelStore((s) => s.setControl)
+  const controllerProfiles = useControllerProfileStore((s) => s.profiles)
   // Control help text isn't reported by the device; borrow it from the loaded
   // pattern's metadata, matched by control name (#190). When the editor holds a
   // different pattern (or a user/imported one with no descriptions) nothing matches
@@ -162,7 +165,19 @@ export function ControllerPanel() {
     })
   const controls = shapeControllerControls(activeControls, controlDescriptions)
   const controlsHint = buildControlsHint(controls)
-  const powerTelemetry = describeControllerPowerTelemetry(vars)
+  const activeProfile = findProfileForLiveController(controllerProfiles, {
+    ip: status.controller.address,
+    deviceId: status.controller.deviceId,
+  })
+  const powerCapSettings = activeProfile?.globalTransforms.find(
+    (transform) => transform.type === 'power-cap',
+  )
+  const powerTelemetry = describeControllerPowerTelemetry(
+    vars,
+    powerCapSettings && pixelCount != null
+      ? { settings: powerCapSettings, pixelCount }
+      : undefined,
+  )
   const watchedVars = describeControllerVars(vars)
 
   return (
@@ -250,11 +265,23 @@ export function ControllerPanel() {
       {powerTelemetry && (
         <DeckSection label="power" hint={POWER_HINT}>
           <DeckGrid gapY="gap-y-1">
-            <DeckTelemetry label="duty" value={powerTelemetry.dutyLabel} />
-            <DeckTelemetry label="draw" value={powerTelemetry.milliampsLabel} />
-            <DeckTelemetry label="limit" value={powerTelemetry.limitLabel} />
-            <DeckTelemetry label="scale" value={powerTelemetry.scaleLabel} />
-            <DeckTelemetry label="clipping" value={powerTelemetry.clippingLabel} />
+            <DeckTelemetry label="output duty" value={powerTelemetry.dutyLabel} />
+            <DeckTelemetry label="duty cap" value={powerTelemetry.limitLabel} />
+            <DeckCell label="limiting">
+              <span className="text-live tabular-nums truncate">
+                <span>{powerTelemetry.clippingLabel}</span>
+                <span className="text-zinc-500"> · scaled to </span>
+                <span>{powerTelemetry.scaleLabel}</span>
+              </span>
+            </DeckCell>
+            <div className="col-span-2">
+              <DeckTelemetry label="est. draw" value={powerTelemetry.estimatedDrawLabel} />
+              {powerTelemetry.estimatedDrawAssumptions && (
+                <div className="mt-0.5 text-right text-[10px] leading-tight text-zinc-600">
+                  {powerTelemetry.estimatedDrawAssumptions}
+                </div>
+              )}
+            </div>
           </DeckGrid>
         </DeckSection>
       )}

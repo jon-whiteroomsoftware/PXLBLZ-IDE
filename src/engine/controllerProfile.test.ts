@@ -53,7 +53,13 @@ const baseProfile: ControllerProfile = {
       type: 'power-cap',
       enabled: false,
       mixinId: 'builtin:power-cap',
-      maxMilliamps: 3500,
+      mode: 'derived',
+      maxDuty: 0.23,
+      provenance: {
+        targetAmps: 3.5,
+        brightness: 1,
+        milliampsPerPixel: 60,
+      },
     },
   ],
   patternBindings: [
@@ -96,6 +102,39 @@ const baseProfile: ControllerProfile = {
 describe('ControllerProfile validation', () => {
   it('accepts a durable controller profile with inputs, transforms, bindings, and zones', () => {
     expect(validateControllerProfile(baseProfile)).toEqual({ ok: true, errors: [] })
+  })
+
+  it('rejects a duty cap outside the normalized 0..1 range', () => {
+    const profile: ControllerProfile = {
+      ...baseProfile,
+      globalTransforms: baseProfile.globalTransforms.map((transform) => (
+        transform.type === 'power-cap' ? { ...transform, maxDuty: 1.2 } : transform
+      )),
+    }
+
+    expect(controllerProfileValidationErrors(validateControllerProfile(profile))).toContain(
+      'Global transform "power" maxDuty must be between 0 and 1.',
+    )
+  })
+
+  it('validates optional electrical provenance in its real units', () => {
+    const profile: ControllerProfile = {
+      ...baseProfile,
+      globalTransforms: baseProfile.globalTransforms.map((transform) => (
+        transform.type === 'power-cap'
+          ? {
+              ...transform,
+              provenance: { targetAmps: -1, brightness: 1.2, milliampsPerPixel: 0 },
+            }
+          : transform
+      )),
+    }
+
+    expect(controllerProfileValidationErrors(validateControllerProfile(profile))).toEqual([
+      'Global transform "power" targetAmps must be zero or greater.',
+      'Global transform "power" brightness must be between 0 and 1.',
+      'Global transform "power" milliampsPerPixel must be greater than 0.',
+    ])
   })
 
   it('parses and formats named zones as lists of pixel-index ranges', () => {

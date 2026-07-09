@@ -20,6 +20,13 @@ export interface ControllerInput {
   invert: boolean
 }
 
+export interface PowerCapTransform extends PowerCapSettings {
+  id: string
+  type: 'power-cap'
+  enabled: boolean
+  mixinId: string
+}
+
 export type GlobalTransform =
   | {
       id: string
@@ -29,13 +36,7 @@ export type GlobalTransform =
       inputId: string
       mode: 'multiply-output'
     }
-  | {
-      id: string
-      type: 'power-cap'
-      enabled: boolean
-      mixinId: string
-      maxMilliamps: number
-    }
+  | PowerCapTransform
 
 export type ControllerBindingTarget =
   | {
@@ -251,11 +252,41 @@ export function validateControllerProfile(
         message: `Global transform "${transform.id}" references missing input "${transform.inputId}".`,
       })
     }
-    if (transform.type === 'power-cap' && transform.maxMilliamps <= 0) {
+    if (
+      transform.type === 'power-cap'
+      && (!Number.isFinite(transform.maxDuty) || transform.maxDuty < 0 || transform.maxDuty > 1)
+    ) {
       errors.push({
-        path: `globalTransforms.${transform.id}.maxMilliamps`,
-        message: `Global transform "${transform.id}" maxMilliamps must be greater than 0.`,
+        path: `globalTransforms.${transform.id}.maxDuty`,
+        message: `Global transform "${transform.id}" maxDuty must be between 0 and 1.`,
       })
+    }
+    if (transform.type === 'power-cap' && transform.provenance) {
+      if (!Number.isFinite(transform.provenance.targetAmps) || transform.provenance.targetAmps < 0) {
+        errors.push({
+          path: `globalTransforms.${transform.id}.provenance.targetAmps`,
+          message: `Global transform "${transform.id}" targetAmps must be zero or greater.`,
+        })
+      }
+      if (
+        !Number.isFinite(transform.provenance.brightness)
+        || transform.provenance.brightness < 0
+        || transform.provenance.brightness > 1
+      ) {
+        errors.push({
+          path: `globalTransforms.${transform.id}.provenance.brightness`,
+          message: `Global transform "${transform.id}" brightness must be between 0 and 1.`,
+        })
+      }
+      if (
+        !Number.isFinite(transform.provenance.milliampsPerPixel)
+        || transform.provenance.milliampsPerPixel <= 0
+      ) {
+        errors.push({
+          path: `globalTransforms.${transform.id}.provenance.milliampsPerPixel`,
+          message: `Global transform "${transform.id}" milliampsPerPixel must be greater than 0.`,
+        })
+      }
     }
   }
 
@@ -375,3 +406,4 @@ function formatIoList(pins: number[]): string {
 function capitalize(value: string): string {
   return value.charAt(0).toUpperCase() + value.slice(1)
 }
+import type { PowerCapSettings } from './powerCap'

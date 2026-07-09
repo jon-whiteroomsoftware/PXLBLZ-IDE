@@ -167,14 +167,15 @@ describe('pass engine - intercept passes', () => {
         target: 'hsv',
         source: powerCap!.src,
         wrapperName: '__px_cappedHsv',
-        params: { MAX_MILLIAMPS: 2500, FULL_WHITE_MILLIAMPS: 6000 },
+        params: { MAX_DUTY: 0.35 },
       },
     ])
 
-    expect(result.code).toContain('export var __px_powerLimit = 2500')
+    expect(result.code).toContain('export var __px_powerLimit = 0.35')
     expect(result.code).toContain('function __px_cappedHsv(h, s, v)')
     expect(result.code).not.toContain('export function __px_cappedHsv')
-    expect(result.code).toContain('var __px_powerEstimate = __px_powerDuty * 6000')
+    expect(result.code).toContain('__px_powerDuty > 0.35')
+    expect(result.code).not.toContain('__px_powerMilliAmps')
     expect(result.code).toContain('hsv(h, s, v * __px_powerScale)')
     expect(result.summary.callSitesWrapped).toEqual({ hsv: 1 })
   })

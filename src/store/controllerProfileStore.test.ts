@@ -141,6 +141,13 @@ describe('controllerProfileStore', () => {
       board: {
         firmwareVersion: '3.67',
       },
+      globalTransforms: expect.arrayContaining([
+        expect.objectContaining({
+          type: 'power-cap',
+          mode: 'direct',
+          maxDuty: 0.25,
+        }),
+      ]),
     })
     expect(validateControllerProfile(profile)).toEqual({ ok: true, errors: [] })
   })

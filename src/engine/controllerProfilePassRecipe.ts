@@ -36,7 +36,7 @@ export function controllerProfilePassRecipe(
   )
   const powerCap = profile.globalTransforms.find(
     (transform): transform is PowerCapTransform =>
-      transform.type === 'power-cap' && transform.enabled && transform.maxMilliamps > 0,
+      transform.type === 'power-cap' && transform.enabled && transform.maxDuty >= 0,
   )
 
   if (hardwareBrightness && hardwareBrightness.mode === 'multiply-output') {
@@ -90,8 +90,7 @@ export function controllerProfilePassRecipe(
         source: powerCapMixin.src,
         wrapperName: '__px_cappedHsv',
         params: {
-          MAX_MILLIAMPS: powerCap.maxMilliamps,
-          FULL_WHITE_MILLIAMPS: fullWhiteMilliamps(profile),
+          MAX_DUTY: powerCap.maxDuty,
         },
       })
     }
@@ -162,10 +161,6 @@ function patternBindingDrivePass(binding: PatternBinding, valueName: string): Pa
     value: valueName,
     mode: 'function-call',
   }
-}
-
-function fullWhiteMilliamps(profile: ControllerProfile): number {
-  return Math.max(1, Math.round((profile.lastKnownPixelCount ?? 256) * 60))
 }
 
 function reserveIdentifier(used: Set<string>, preferred: string): string {

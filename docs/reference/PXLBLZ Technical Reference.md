@@ -395,8 +395,11 @@ states until the pass engine records provenance/artifacts. The stock catalog
 includes `power-measure`, a measurement-only intercept source that exports the
 reserved `__px_power*` telemetry variables while leaving output unchanged.
 `power-cap` uses the same telemetry convention and, when enabled on a Controller
-profile, compiles as an estimated `hsv` output limiter; broader sink coverage,
-sensor-pulse, and night-scheduler consumption are later #319 slices.
+profile, compiles as an estimated `hsv` output limiter whose `MAX_DUTY` parameter
+is a normalized 0..1 setpoint. It compares estimated duty directly and scales
+value when that limit is exceeded; milliamps are not part of the generated cap
+policy. Broader sink coverage, sensor-pulse, and night-scheduler consumption are
+later #319 slices.
 
 The editor's fourth flavor is **library mode** (`editorFlavor === 'library'`):
 Pixelblaze-dialect source for stock and cloud helper namespaces. Stock libraries
@@ -1032,7 +1035,13 @@ connected. Ordinary numeric exported vars render in the **variables** section.
 Reserved IDE telemetry names (`__px_powerDuty`, `__px_powerMilliAmps`,
 `__px_powerLimit`, `__px_powerScale`, and `__px_powerClipping`) are filtered out
 of that generic watch list and rendered as a structured **power** section
-instead. Those values ride over the documented Pixelblaze `getVars` websocket
+instead. Duty and the normalized cap are primary. When the active Controller
+profile has power-cap electrical provenance, the panel derives a contextual amps
+estimate from emitted duty after scaling, current device pixel count, stored
+full-white mA/pixel, and stored native-brightness assumption; the UI labels those
+assumptions and never presents the result as a measurement. The older
+`__px_powerMilliAmps` export remains reserved for the standalone measurement
+mixin. All telemetry rides over the documented Pixelblaze `getVars` websocket
 path; no separate pattern-code message channel exists.
 
 ### The in-app surface (status pills, panel)
@@ -1100,8 +1109,14 @@ profile input, intercepts `hsv(...)` output calls through the stock
 `controllerStore.lastTransformSummary[controllerId][patternId]` for later
 inspection. With the power-cap global transform enabled, the push recipe also
 intercepts `hsv(...)` calls through the stock `power-cap` mixin, estimates duty
-against `lastKnownPixelCount * 60mA`, exports `__px_power*` telemetry, and scales
-value when the running estimate exceeds the configured milliamp budget. The
+with `v * (1 - s/2)`, exports reserved `__px_power*` telemetry, and scales value
+when the running estimate exceeds the profile's normalized `maxDuty` setpoint.
+The pure `powerCap.ts` model owns the derived/direct calculator: derived mode
+computes `target amps / (brightness * pixelCount * mA-per-pixel)` and clamps it
+to 0..1; direct edits preserve those electrical values as provenance. Missing
+brightness provenance prefills from a matching active Controller config, while
+stored provenance is never silently overwritten when the device later differs.
+Pixel count is read from current/profile state and is not calculator input. The
 device's native brightness stays independent: it remains the hard output cap
 controlled from the live Controller panel, not a value copied from preview
 state. Matching per-pattern bindings add another pair of passes per binding:

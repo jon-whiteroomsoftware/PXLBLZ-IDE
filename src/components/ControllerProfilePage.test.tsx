@@ -51,6 +51,12 @@ class MapReadbackProvider extends NullControllerProvider {
   }
 }
 
+class LiveBrightnessProvider extends MapReadbackProvider {
+  getConfig() {
+    return Promise.resolve({ brightness: 0.5, pixelCount: 240 })
+  }
+}
+
 beforeEach(() => {
   useControllerProfileStore.setState(controllerProfileInitialState)
   useControllerStore.setState(controllerInitialState)
@@ -182,21 +188,98 @@ describe('ControllerProfilePage', () => {
       </div>,
     )
 
-    const input = screen.getByRole('spinbutton', { name: 'Power cap milliamps' })
+    const input = screen.getByRole('spinbutton', { name: 'Power cap duty percent' })
     fireEvent.click(input)
     fireEvent.keyDown(input, { key: 'ArrowUp' })
 
     expect(onAncestorClick).not.toHaveBeenCalled()
     expect(onAncestorKeyDown).not.toHaveBeenCalled()
 
-    fireEvent.change(input, { target: { value: '2400' } })
+    fireEvent.change(input, { target: { value: '35' } })
 
     await waitFor(() => {
       const profile = useControllerProfileStore.getState().profiles[0]
       expect(profile.globalTransforms.find((transform) => transform.id === 'power-cap')).toMatchObject({
-        maxMilliamps: 2400,
+        mode: 'direct',
+        maxDuty: 0.35,
       })
     })
+  })
+
+  it('derives the duty cap from a unit-labeled power budget without making pixel count editable', async () => {
+    const profile = seedProfile()
+    useControllerProfileStore.setState({
+      profiles: [{ ...profile, lastKnownPixelCount: 240 }],
+      profilesLoaded: true,
+    })
+    setPersonalContentProvider({
+      ...demoPersonalContentProvider,
+      updateControllerProfile: async () => {},
+    })
+
+    render(<ControllerProfilePage profileId="ctrl-1" />)
+    fireEvent.click(screen.getByRole('button', { name: 'From power budget' }))
+
+    expect(await screen.findByRole('spinbutton', { name: 'LED full-white current' })).toHaveValue(60)
+    expect(screen.getByRole('spinbutton', { name: 'Controller brightness percent' })).toHaveValue(100)
+    expect(screen.getByRole('spinbutton', { name: 'Power budget amps' })).toHaveValue(3.6)
+    expect(screen.queryByRole('spinbutton', { name: 'Pixel count' })).not.toBeInTheDocument()
+
+    fireEvent.change(screen.getByRole('spinbutton', { name: 'Controller brightness percent' }), {
+      target: { value: '50' },
+    })
+
+    await waitFor(() => {
+      const transform = useControllerProfileStore.getState().profiles[0].globalTransforms
+        .find((candidate) => candidate.type === 'power-cap')
+      expect(transform).toMatchObject({
+        mode: 'derived',
+        maxDuty: 0.5,
+        provenance: {
+          targetAmps: 3.6,
+          brightness: 0.5,
+          milliampsPerPixel: 60,
+        },
+      })
+    })
+  })
+
+  it('prefills missing calculator provenance from the active live Controller brightness', async () => {
+    const profile = seedProfile()
+    useControllerProfileStore.setState({
+      profiles: [{
+        ...profile,
+        lastKnownPixelCount: 240,
+        globalTransforms: profile.globalTransforms.map((transform) => (
+          transform.type === 'power-cap' ? { ...transform, mode: 'derived' as const } : transform
+        )),
+      }],
+      profilesLoaded: true,
+    })
+    useControllerStore.setState({
+      activeIp: '192.168.8.224',
+      controllers: {
+        '192.168.8.224': {
+          ip: '192.168.8.224',
+          deviceId: 'pixelblaze_pb32_abc',
+          nickname: 'Burner bag',
+          phase: 'live',
+          mapDim: 2,
+        },
+      },
+    })
+    setControllerProvider(new LiveBrightnessProvider())
+    setPersonalContentProvider({
+      ...demoPersonalContentProvider,
+      updateControllerProfile: async () => {},
+    })
+
+    render(<ControllerProfilePage profileId="ctrl-1" />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('spinbutton', { name: 'Controller brightness percent' })).toHaveValue(50)
+    })
+    expect(screen.getByText(/read from device/i)).toBeInTheDocument()
   })
 
   it('shows the latest generated artifact inspection for the controller profile', () => {

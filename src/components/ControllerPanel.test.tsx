@@ -14,6 +14,11 @@ import {
   type ControllerTelemetry,
 } from '@/engine/ControllerProvider'
 import type { ProgramListEntry } from '@/engine/PixelblazeConnection'
+import {
+  controllerProfileInitialState,
+  defaultControllerProfile,
+  useControllerProfileStore,
+} from '@/store/controllerProfileStore'
 
 class ConnectedProvider extends NullControllerProvider {
   config: ControllerConfig = {
@@ -64,6 +69,7 @@ class ConnectedProvider extends NullControllerProvider {
 beforeEach(() => {
   useControllerPanelStore.setState(controllerPanelInitialState)
   useEditorStore.setState(editorInitialState)
+  useControllerProfileStore.setState(controllerProfileInitialState)
 })
 
 afterEach(() => {
@@ -106,20 +112,37 @@ describe('ControllerPanel', () => {
     provider.vars = {
       phase: 0.5,
       __px_powerDuty: 0.42,
-      __px_powerMilliAmps: 840,
-      __px_powerLimit: 1000,
+      __px_powerLimit: 0.35,
       __px_powerScale: 0.84,
       __px_powerClipping: 1,
     }
+    const profile = defaultControllerProfile({ id: 'ctrl-1', deviceId: 'c1', now: 1 })
+    useControllerProfileStore.setState({
+      profiles: [{
+        ...profile,
+        globalTransforms: profile.globalTransforms.map((transform) => (
+          transform.type === 'power-cap'
+            ? {
+                ...transform,
+                mode: 'derived' as const,
+                maxDuty: 0.35,
+                provenance: { targetAmps: 3, brightness: 0.5, milliampsPerPixel: 60 },
+              }
+            : transform
+        )),
+      }],
+      profilesLoaded: true,
+    })
     setControllerProvider(provider)
     render(<ControllerPanel />)
 
     await waitFor(() => expect(screen.getByText('power')).toBeInTheDocument())
     expect(screen.getByText('42%')).toBeInTheDocument()
-    expect(screen.getByText('840 mA')).toBeInTheDocument()
-    expect(screen.getByText('1000 mA')).toBeInTheDocument()
+    expect(screen.getByText('35%')).toBeInTheDocument()
     expect(screen.getByText('84%')).toBeInTheDocument()
     expect(screen.getByText('yes')).toBeInTheDocument()
+    expect(screen.getByText('≈ 2.7 A')).toBeInTheDocument()
+    expect(screen.getByText('at 60 mA/px × 256 px × 50% brightness')).toBeInTheDocument()
     expect(screen.getByText('phase')).toBeInTheDocument()
     expect(screen.queryByText('__px_powerDuty')).not.toBeInTheDocument()
   })
