@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { ShowEditor } from './ShowEditor'
 import { showInitialState, useShowStore } from '@/store/showStore'
-import { addShowScene, addShowZone, createDefaultShow } from '@/engine/showModel'
+import { addShowScene, addShowZone, createDefaultShow, removeShowScene } from '@/engine/showModel'
 import { usePatternStore, patternInitialState } from '@/store/patternStore'
 import { controllerProfileInitialState, useControllerProfileStore } from '@/store/controllerProfileStore'
 import {
@@ -149,5 +149,43 @@ describe('ShowEditor (#318)', () => {
       expect(updated.scenes[0].transitionOut?.kind).toBe('crossfade')
       expect(updated.scenes[1].transitionOut?.kind).toBe('dither')
     })
+  })
+
+  it('adds scenes and zones from strip ghost affordances and confirms scene removal', async () => {
+    const user = userEvent.setup()
+    const show = createDefaultShow('show-1', 'Opening wash', 1000)
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+
+    await user.click(screen.getByRole('button', { name: 'Add scene' }))
+    await waitFor(() => {
+      expect(useShowStore.getState().shows[0].scenes).toHaveLength(3)
+    })
+    expect(screen.getByDisplayValue('Scene 3')).toBeInTheDocument()
+
+    await user.click(screen.getAllByRole('button', { name: 'Add zone' })[0])
+    await waitFor(() => {
+      expect(useShowStore.getState().shows[0].zones).toHaveLength(2)
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Remove scene Scene 3' }))
+    expect(screen.getByText('Remove scene?')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Remove' }))
+
+    await waitFor(() => {
+      expect(useShowStore.getState().shows[0].scenes.map((scene) => scene.id)).toEqual(['scene-1', 'scene-2'])
+    })
+  })
+
+  it('hides scene removal when the show has one scene', () => {
+    const show = removeShowScene(createDefaultShow('show-1', 'Opening wash', 1000), 'scene-2')
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+
+    expect(screen.queryByRole('button', { name: /Remove scene/i })).not.toBeInTheDocument()
   })
 })

@@ -1,6 +1,15 @@
 import { useMemo, useState, type CSSProperties } from 'react'
 import { Check, Code2, Play, RotateCw, Trash2, Zap } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import {
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogRoot,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { PixelblazeCodeEditor } from '@/components/PixelblazeCodeEditor'
 import { getControllerProvider } from '@/engine/controllerProviderRegistry'
 import { makeProgramId } from '@/engine/bytecodePush'
@@ -40,6 +49,8 @@ export function ShowEditor({ showId }: { showId: string }) {
   const show = useShowStore((state) => state.shows.find((item) => item.id === showId))
   const updateShow = useShowStore((state) => state.updateShow)
   const updateStageMap = useShowStore((state) => state.updateStageMap)
+  const addScene = useShowStore((state) => state.addScene)
+  const removeScene = useShowStore((state) => state.removeScene)
   const updateScene = useShowStore((state) => state.updateScene)
   const updateTransition = useShowStore((state) => state.updateTransition)
   const updateCellAdaptations = useShowStore((state) => state.updateCellAdaptations)
@@ -58,6 +69,7 @@ export function ShowEditor({ showId }: { showId: string }) {
   const [generatedOpen, setGeneratedOpen] = useState(false)
   const [pushing, setPushing] = useState(false)
   const [pushResult, setPushResult] = useState<string | null>(null)
+  const [scenePendingDelete, setScenePendingDelete] = useState<ShowScene | null>(null)
 
   const activeShow = show ?? null
   const selectedCell = selection.kind === 'cell'
@@ -163,6 +175,16 @@ export function ShowEditor({ showId }: { showId: string }) {
             show={activeShow}
             selection={selection}
             onSelect={setSelection}
+            onAddScene={() => {
+              void addScene(activeShow.id).then(() => {
+                window.setTimeout(() => {
+                  const inputs = document.querySelectorAll<HTMLInputElement>('[data-show-scene-name]')
+                  inputs[inputs.length - 1]?.focus()
+                }, 0)
+              })
+            }}
+            onAddZone={() => void addZone(activeShow.id)}
+            onRequestRemoveScene={setScenePendingDelete}
             onUpdateScene={(sceneId, changes) => void updateScene(activeShow.id, sceneId, changes)}
           />
 
@@ -189,6 +211,27 @@ export function ShowEditor({ showId }: { showId: string }) {
             onUpdateZone={(zoneId, changes) => void updateZone(activeShow.id, zoneId, changes)}
             onRemoveZone={(zoneId) => void removeZone(activeShow.id, zoneId)}
           />
+          <AlertDialogRoot open={scenePendingDelete !== null} onOpenChange={(open) => { if (!open) setScenePendingDelete(null) }}>
+            <AlertDialogContent>
+              <AlertDialogTitle>Remove scene?</AlertDialogTitle>
+              <AlertDialogDescription>
+                {scenePendingDelete
+                  ? `"${scenePendingDelete.name}" will be removed from this show. Cells anchored in it will be removed or clipped.`
+                  : 'This scene will be removed from the show.'}
+              </AlertDialogDescription>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={() => {
+                    if (scenePendingDelete) void removeScene(activeShow.id, scenePendingDelete.id)
+                    setScenePendingDelete(null)
+                  }}
+                >
+                  Remove
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialogRoot>
         </div>
       </div>
       <CompileBar
@@ -205,16 +248,22 @@ function SceneStrip({
   show,
   selection,
   onSelect,
+  onAddScene,
+  onAddZone,
+  onRequestRemoveScene,
   onUpdateScene,
 }: {
   show: ShowRecord
   selection: ShowSelection
   onSelect: (selection: ShowSelection) => void
+  onAddScene: () => void
+  onAddZone: () => void
+  onRequestRemoveScene: (scene: ShowScene) => void
   onUpdateScene: (sceneId: string, changes: Partial<Omit<ShowScene, 'id'>>) => void
 }) {
   const strip = projectShowStrip(show)
-  const columns = ['148px', ...show.scenes.flatMap(() => ['minmax(170px,1fr)', '36px']).slice(0, -1)]
-  const rows = ['auto', ...strip.rows.map(() => '64px')]
+  const columns = ['148px', ...show.scenes.flatMap(() => ['minmax(170px,1fr)', '36px']).slice(0, -1), '64px']
+  const rows = ['auto', ...strip.rows.map(() => '64px'), '34px']
   return (
     <div
       className="overflow-x-auto border-b border-seam bg-[#060608] p-4 shadow-[inset_0_6px_14px_-8px_rgba(0,0,0,0.9),inset_0_-6px_14px_-10px_rgba(0,0,0,0.9)]"
@@ -228,7 +277,13 @@ function SceneStrip({
           zones ↓
         </div>
         {show.scenes.map((scene) => (
-          <SceneColumnHeader key={scene.id} scene={scene} onUpdate={(changes) => onUpdateScene(scene.id, changes)} />
+          <SceneColumnHeader
+            key={scene.id}
+            scene={scene}
+            canRemove={show.scenes.length > 1}
+            onRemove={() => onRequestRemoveScene(scene)}
+            onUpdate={(changes) => onUpdateScene(scene.id, changes)}
+          />
         )).flatMap((node, index) => (
           index < strip.transitions.length
             ? [
@@ -310,6 +365,30 @@ function SceneStrip({
             ))}
           </div>
         ))}
+        <button
+          type="button"
+          aria-label="Add zone"
+          onClick={(event) => {
+            event.stopPropagation()
+            onAddZone()
+          }}
+          className="flex items-center justify-center rounded-[5px] border border-dashed border-zinc-800 bg-transparent text-[10px] uppercase tracking-wider text-structural hover:border-zinc-600 hover:text-zinc-200"
+          style={{ gridColumn: 1, gridRow: strip.rows.length + 2 }}
+        >
+          + zone
+        </button>
+        <button
+          type="button"
+          aria-label="Add scene"
+          onClick={(event) => {
+            event.stopPropagation()
+            onAddScene()
+          }}
+          className="flex items-center justify-center rounded-[5px] border border-dashed border-zinc-800 bg-transparent text-[10px] uppercase tracking-wider text-structural [writing-mode:vertical-rl] hover:border-zinc-600 hover:text-zinc-200"
+          style={{ gridColumn: columns.length, gridRow: `2 / span ${strip.rows.length}` }}
+        >
+          + scene
+        </button>
       </div>
     </div>
   )
@@ -317,15 +396,20 @@ function SceneStrip({
 
 function SceneColumnHeader({
   scene,
+  canRemove,
+  onRemove,
   onUpdate,
 }: {
   scene: ShowScene
+  canRemove: boolean
+  onRemove: () => void
   onUpdate: (changes: Partial<Omit<ShowScene, 'id'>>) => void
 }) {
   return (
     <div className="group flex items-baseline gap-2 border-b border-zinc-800 px-1 pb-2 pt-0.5">
       <input
         aria-label={`${scene.name} scene name`}
+        data-show-scene-name
         value={scene.name}
         onChange={(event) => onUpdate({ name: event.target.value })}
         className="min-w-0 flex-1 bg-transparent text-[12.5px] font-semibold text-zinc-100 outline-none group-hover:underline group-hover:decoration-dotted group-hover:underline-offset-4 focus:underline focus:decoration-live focus:underline-offset-4"
@@ -344,6 +428,20 @@ function SceneColumnHeader({
       <span aria-hidden className="text-[10px] text-structural opacity-0 transition-opacity group-hover:opacity-100">
         ✎
       </span>
+      {canRemove && (
+        <button
+          type="button"
+          aria-label={`Remove scene ${scene.name}`}
+          title={`Remove ${scene.name}`}
+          onClick={(event) => {
+            event.stopPropagation()
+            onRemove()
+          }}
+          className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-zinc-600 opacity-0 transition-opacity hover:bg-red-950/30 hover:text-red-300 group-hover:opacity-100 focus:opacity-100"
+        >
+          ×
+        </button>
+      )}
     </div>
   )
 }
