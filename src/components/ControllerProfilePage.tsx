@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import type React from 'react'
 import {
   Download,
   Map as MapIcon,
@@ -145,6 +146,10 @@ function FieldLabel({ children }: { children: React.ReactNode }) {
   return <span className="text-[10px] uppercase tracking-wide text-zinc-500">{children}</span>
 }
 
+function stopFieldPropagation(event: React.SyntheticEvent) {
+  event.stopPropagation()
+}
+
 function TextField({
   value,
   onChange,
@@ -158,6 +163,9 @@ function TextField({
     <input
       aria-label={ariaLabel}
       value={value}
+      onClick={stopFieldPropagation}
+      onPointerDown={stopFieldPropagation}
+      onKeyDown={stopFieldPropagation}
       onChange={(event) => onChange(event.target.value)}
       className={fieldClass}
     />
@@ -187,6 +195,9 @@ function NumberField({
       min={min}
       max={max}
       step={step}
+      onClick={stopFieldPropagation}
+      onPointerDown={stopFieldPropagation}
+      onKeyDown={stopFieldPropagation}
       onChange={(event) => {
         const next = Number(event.target.value)
         if (Number.isFinite(next)) onChange(next)
@@ -214,6 +225,9 @@ function SelectField<T extends string | number>({
       aria-label={ariaLabel}
       value={value}
       disabled={disabled}
+      onClick={stopFieldPropagation}
+      onPointerDown={stopFieldPropagation}
+      onKeyDown={stopFieldPropagation}
       onChange={(event) => {
         const raw = event.target.value
         const sample = options[0]?.value

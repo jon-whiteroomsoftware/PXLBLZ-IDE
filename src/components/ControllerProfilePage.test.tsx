@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ControllerProfilePage } from './ControllerProfilePage'
 import { NullControllerProvider, type ControllerStatus } from '@/engine/ControllerProvider'
 import { resetControllerProvider, setControllerProvider } from '@/engine/controllerProviderRegistry'
@@ -165,6 +165,38 @@ describe('ControllerProfilePage', () => {
     expect(screen.getByRole('textbox', { name: 'top-band zone ranges' })).toHaveValue('0-3, 28-31')
     expect(screen.getByText('64')).toBeInTheDocument()
     expect(screen.getByText('8')).toBeInTheDocument()
+  })
+
+  it('keeps global transform field interactions from bubbling to selectable ancestors', async () => {
+    seedProfile()
+    setPersonalContentProvider({
+      ...demoPersonalContentProvider,
+      updateControllerProfile: async () => {},
+    })
+    const onAncestorClick = vi.fn()
+    const onAncestorKeyDown = vi.fn()
+
+    render(
+      <div onClick={onAncestorClick} onKeyDown={onAncestorKeyDown}>
+        <ControllerProfilePage profileId="ctrl-1" />
+      </div>,
+    )
+
+    const input = screen.getByRole('spinbutton', { name: 'Power cap milliamps' })
+    fireEvent.click(input)
+    fireEvent.keyDown(input, { key: 'ArrowUp' })
+
+    expect(onAncestorClick).not.toHaveBeenCalled()
+    expect(onAncestorKeyDown).not.toHaveBeenCalled()
+
+    fireEvent.change(input, { target: { value: '2400' } })
+
+    await waitFor(() => {
+      const profile = useControllerProfileStore.getState().profiles[0]
+      expect(profile.globalTransforms.find((transform) => transform.id === 'power-cap')).toMatchObject({
+        maxMilliamps: 2400,
+      })
+    })
   })
 
   it('shows the latest generated artifact inspection for the controller profile', () => {

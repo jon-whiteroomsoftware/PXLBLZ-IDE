@@ -138,7 +138,7 @@ const HARDWARE_BRIGHTNESS_SOURCE = `// Hardware Brightness - multiply every hsv(
 // @target hsv
 // @wraps hsv-call
 
-export function hardwareBrightness(h, s, v) {
+function __px_hardwareBrightness(h, s, v) {
   hsv(h, s, v * BRIGHTNESS)
 }
 `
@@ -158,7 +158,7 @@ export var __px_powerClipping = 0
 
 var __px_powerSamples = 0
 
-export function powerMeasureHsv(h, s, v) {
+function __px_powerMeasureHsv(h, s, v) {
   var duty = max(0, min(1, v)) * (1 - max(0, min(1, s)) * 0.5)
   __px_powerSamples = __px_powerSamples + 1
   __px_powerDuty = __px_powerDuty + (duty - __px_powerDuty) / __px_powerSamples
@@ -185,7 +185,7 @@ export var __px_powerClipping = 0
 
 var __px_powerSamples = 0
 
-export function cappedHsv(h, s, v) {
+function __px_cappedHsv(h, s, v) {
   var duty = max(0, min(1, v)) * (1 - max(0, min(1, s)) * 0.5)
   __px_powerSamples = __px_powerSamples + 1
   __px_powerDuty = __px_powerDuty + (duty - __px_powerDuty) / __px_powerSamples

@@ -48,7 +48,7 @@ describe('controller profile pass recipe', () => {
         id: 'power-cap',
         kind: 'intercept',
         target: 'hsv',
-        wrapperName: 'cappedHsv',
+        wrapperName: '__px_cappedHsv',
         params: {
           MAX_MILLIAMPS: 2500,
           FULL_WHITE_MILLIAMPS: 6000,
@@ -73,7 +73,7 @@ describe('controller profile pass recipe', () => {
       id: 'hardware-brightness',
       kind: 'intercept',
       target: 'hsv',
-      wrapperName: 'hardwareBrightness',
+      wrapperName: '__px_hardwareBrightness',
       params: { BRIGHTNESS: 'hardwareBrightnessValue' },
     })
   })

@@ -762,7 +762,7 @@ describe('controllerStore (keyed)', () => {
 
       const provider = created.get('10.0.0.5')!
       expect(provider.compiledSources[0]).toContain('analogRead(33)')
-      expect(provider.compiledSources[0]).toContain('hardwareBrightness(a, b, c)')
+      expect(provider.compiledSources[0]).toContain('__px_hardwareBrightness(a, b, c)')
       expect(provider.compiledSources[0]).toContain('__pxlblz_hardware_brightness_hsv(index, 1, 1)')
       expect(provider.compiledSources[0]).not.toBe(bundle(PATTERN_SRC, {}).code)
       expect(store().lastTransformSummary['10.0.0.5']['pat-1'].callSitesWrapped).toEqual({ hsv: 1 })

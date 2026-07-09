@@ -70,7 +70,7 @@ export function controllerProfilePassRecipe(
             kind: 'intercept',
             target: 'hsv',
             source: hwBrightnessMixin.src,
-            wrapperName: 'hardwareBrightness',
+            wrapperName: '__px_hardwareBrightness',
             params: {
               BRIGHTNESS: brightnessName,
             },
@@ -88,7 +88,7 @@ export function controllerProfilePassRecipe(
         kind: 'intercept',
         target: 'hsv',
         source: powerCapMixin.src,
-        wrapperName: 'cappedHsv',
+        wrapperName: '__px_cappedHsv',
         params: {
           MAX_MILLIAMPS: powerCap.maxMilliamps,
           FULL_WHITE_MILLIAMPS: fullWhiteMilliamps(profile),

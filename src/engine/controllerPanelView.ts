@@ -184,6 +184,8 @@ const RESERVED_POWER_TELEMETRY_NAMES = new Set<string>(
   Object.values(CONTROLLER_POWER_TELEMETRY_KEYS),
 )
 
+const RESERVED_IDE_VAR_PREFIXES = ['__px', '__pxlblz']
+
 function formatVarValue(v: number): string {
   return Number.isInteger(v) ? String(v) : v.toFixed(2)
 }
@@ -206,6 +208,7 @@ export function describeControllerVars(
   const out: ControllerVarView[] = []
   for (const [name, value] of Object.entries(vars)) {
     if (RESERVED_POWER_TELEMETRY_NAMES.has(name)) continue
+    if (RESERVED_IDE_VAR_PREFIXES.some((prefix) => name.startsWith(prefix))) continue
     if (typeof value !== 'number') continue
     out.push({ name, value: formatVarValue(value) })
   }

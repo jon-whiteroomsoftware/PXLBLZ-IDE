@@ -208,6 +208,16 @@ describe('describeControllerVars', () => {
       { name: 'phase', value: '0.12' },
     ])
   })
+
+  it('hides reserved IDE helper names that Pixelblaze reports as variables', () => {
+    expect(describeControllerVars({
+      phase: 0.12345,
+      __px_cappedHsv: 0.01,
+      __pxlblz_power_cap_hsv: 0.02,
+    })).toEqual([
+      { name: 'phase', value: '0.12' },
+    ])
+  })
 })
 
 describe('describeControllerPowerTelemetry', () => {
