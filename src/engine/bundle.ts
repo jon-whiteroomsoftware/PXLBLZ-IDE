@@ -1,6 +1,7 @@
 import * as acorn from 'acorn'
 import { type PatternMetadata, type RenderFns } from './loadPattern'
 import { emitFixedPoint } from './fxEmit'
+import type { ParseError } from './validate'
 
 export interface BundleMetadata extends PatternMetadata {
   renderFns: RenderFns
@@ -26,6 +27,36 @@ function parseScript(src: string): unknown {
 
 function parseModule(src: string): unknown {
   return acorn.parse(src, { ecmaVersion: 2020, sourceType: 'module' })
+}
+
+const LIBRARY_TOP_LEVEL_RULE =
+  'Library top level may contain only function declarations, var declarations, and comments'
+
+export function validateLibraryContent(source: string): ParseError[] {
+  let ast: acorn.Program
+  try {
+    ast = acorn.parse(source, { ecmaVersion: 2020, sourceType: 'script', locations: true })
+  } catch (e) {
+    const err = e as { message: string; loc?: { line: number; column: number } }
+    return [{
+      message: err.message.replace(/\s*\(\d+:\d+\)$/, ''),
+      line: err.loc?.line ?? 1,
+      column: err.loc?.column ?? 0,
+    }]
+  }
+
+  const errors: ParseError[] = []
+  for (const node of ast.body) {
+    if (node.type === 'FunctionDeclaration') continue
+    if (node.type === 'VariableDeclaration' && node.kind === 'var') continue
+    const start = node.loc?.start
+    errors.push({
+      message: LIBRARY_TOP_LEVEL_RULE,
+      line: start?.line ?? 1,
+      column: start?.column ?? 0,
+    })
+  }
+  return errors
 }
 
 // ── metadata extraction ──────────────────────────────────────────────────────
@@ -152,6 +183,17 @@ interface LibFnEntry {
   src: string // full function declaration text
 }
 type LibFnMap = Map<string, LibFnEntry>
+
+function parseLibraryVarDeclarations(libSrc: string): string[] {
+  const ast = parseScript(libSrc) as { body: Record<string, unknown>[] }
+  const declarations: string[] = []
+  for (const node of ast.body) {
+    if (node['type'] === 'VariableDeclaration') {
+      declarations.push(libSrc.slice(node['start'] as number, node['end'] as number))
+    }
+  }
+  return declarations
+}
 
 function parseLibraryFns(libSrc: string): LibFnMap {
   const ast = parseScript(libSrc) as { body: Record<string, unknown>[] }
@@ -349,20 +391,27 @@ export function bundle(
   }
 
   const libFnMaps: Record<string, LibFnMap> = {}
+  const libVarDeclarations: Record<string, string[]> = {}
   for (const [ns, src] of Object.entries(libraries)) {
     libFnMaps[ns] = parseLibraryFns(src)
+    libVarDeclarations[ns] = parseLibraryVarDeclarations(src)
   }
 
   const resolved = resolveAllDeps(refs, libFnMaps, knownLibs)
 
-  const preamble = resolved
+  const referencedNamespaces = [...new Set(resolved.map(({ namespace }) => namespace))]
+  const varPreamble = referencedNamespaces
+    .flatMap((namespace) => libVarDeclarations[namespace] ?? [])
+    .join('\n')
+  const fnPreamble = resolved
     .map(({ namespace, fnName }) => {
       const entry = libFnMaps[namespace]?.get(fnName)
       if (!entry) return ''
       return inlineFn(entry, namespace, libFnMaps[namespace], knownLibs)
     })
     .filter(Boolean)
-    .join('\n') + '\n'
+    .join('\n')
+  const preamble = [varPreamble, fnPreamble].filter(Boolean).join('\n') + '\n'
 
   const patternRewrites: Rewrite[] = refs.map((ref) => ({
     start: ref.start,

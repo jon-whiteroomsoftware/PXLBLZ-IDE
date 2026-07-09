@@ -172,9 +172,10 @@ Each store exports `*InitialState`; tests reset with `setState(initialState)`
 
 - **`code`** — the flat hardware/preview artifact: every referenced library
   function inlined and prepended, every `namespace.fn()` call rewritten to
-  `_namespace_fn`, `export` keywords preserved. This is exactly what runs in
-  preview and the source body that export/push boundaries stamp before it leaves
-  the IDE.
+  `_namespace_fn`, referenced libraries' top-level `var` declarations emitted
+  unmangled ahead of the inlined functions, and `export` keywords preserved.
+  This is exactly what runs in preview and the source body that export/push
+  boundaries stamp before it leaves the IDE.
 - **`fxCode`** — the fixed-point re-emit of `code` (§5), preview-only.
 - **`metadata`** — preview-side companion, never sent to hardware.
 
@@ -185,10 +186,19 @@ Each store exports `*InitialState`; tests reset with `setState(initialState)`
 `resolveAllDeps` BFS-pulls each function's transitive same- and cross-library
 references; `inlineFn` renames declarations and rewrites internal calls
 (`mangle(ns, fn) → _ns_fn`). Only reachable functions are inlined —
-function-level tree-shaking, critical for the device's memory limits. A pattern
-referencing no libraries returns its source verbatim. The filename is the
-namespace (`Shader.js` → `Shader.*`); libraries load eagerly via
-`import.meta.glob('./lib/*.js', '?raw')`.
+function-level tree-shaking, critical for the device's memory limits. If any
+function from a library is reached, all of that library's top-level `var`
+declarations are emitted once, before the inlined functions, so out-var helpers
+such as `Shader.toUV()` can initialize globals like `ux`/`uy` and callers can
+read them bare immediately after the helper call. Unreferenced libraries still
+contribute nothing. A pattern referencing no libraries returns its source
+verbatim. The filename is the namespace (`Shader.js` → `Shader.*`); libraries
+load eagerly via `import.meta.glob('./lib/*.js', '?raw')`.
+
+**Library content rule.** `validateLibraryContent()` enforces that a library's
+top level contains only function declarations, `var` declarations, and comments.
+No executable top-level statements are allowed, which keeps emitted out-var
+declarations safe to prepend.
 
 **Metadata extraction** records `exportedVars`, top-level `patternVars`,
 `controls` (exported functions matching a control prefix, with `pickerVars`

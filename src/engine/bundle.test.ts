@@ -1,4 +1,4 @@
-import { bundle } from './bundle'
+import { bundle, validateLibraryContent } from './bundle'
 
 // ── tracer bullet ────────────────────────────────────────────────────────────
 
@@ -134,6 +134,30 @@ describe('bundle — no library refs', () => {
   })
 })
 
+describe('validateLibraryContent', () => {
+  it('accepts comments, function declarations, and top-level var declarations', () => {
+    const src = [
+      `// shared temporaries are allowed`,
+      `var ux = 0, uy = 0;`,
+      `function toUV(x, y) { ux = x; uy = y }`,
+    ].join('\n')
+
+    expect(validateLibraryContent(src)).toEqual([])
+  })
+
+  it('rejects executable top-level statements', () => {
+    const errors = validateLibraryContent('var x = 0\nx = 1')
+
+    expect(errors).toEqual([
+      {
+        message: 'Library top level may contain only function declarations, var declarations, and comments',
+        line: 2,
+        column: 0,
+      },
+    ])
+  })
+})
+
 // ── single library function ──────────────────────────────────────────────────
 
 describe('bundle — library inlining', () => {
@@ -153,6 +177,57 @@ describe('bundle — library inlining', () => {
     const inlinedIdx = code.indexOf('function _sdf_circle(')
     const patternIdx = code.indexOf('export function render2D(')
     expect(inlinedIdx).toBeLessThan(patternIdx)
+  })
+
+  it('emits referenced library top-level vars unmangled before inlined functions', () => {
+    const lib = [
+      `var ux = 0, uy = 0;`,
+      `function toUV(x, y) { ux = x * 2 - 1; uy = y * 2 - 1 }`,
+      `var nx = 0, ny = 0;`,
+      `function normalize2(x, y) { nx = x; ny = y }`,
+    ].join('\n')
+    const src = `export function render2D(index, x, y) { shader.toUV(x, y); hsv(ux, uy, 1) }`
+    const { code } = bundle(src, { shader: lib })
+
+    expect(code).toContain('var ux = 0, uy = 0;')
+    expect(code).toContain('var nx = 0, ny = 0;')
+    expect(code).not.toContain('var _shader_ux')
+    expect(code.indexOf('var ux = 0, uy = 0;')).toBeLessThan(code.indexOf('function _shader_toUV('))
+    expect(code.indexOf('var nx = 0, ny = 0;')).toBeLessThan(code.indexOf('function _shader_toUV('))
+  })
+
+  it('does not emit extra preamble for a referenced library with no top-level vars', () => {
+    const src = `export function render2D(index, x, y) { sdf.circle(x, y, 0.3) }`
+    const { code } = bundle(src, { sdf: sdfCircle })
+
+    expect(code.startsWith('function _sdf_circle(')).toBe(true)
+  })
+
+  it('does not emit vars from an unreferenced library', () => {
+    const src = `export function render2D(index, x, y) { sdf.circle(x, y, 0.3) }`
+    const unused = `var outH = 0, outS = 0, outV = 0;\nfunction lerpHSV() {}`
+    const { code } = bundle(src, { sdf: sdfCircle, color: unused })
+
+    expect(code).not.toContain('outH')
+    expect(code).not.toContain('_color_lerpHSV')
+  })
+
+  it('emits transitive cross-library vars once per referenced library', () => {
+    const color = [
+      `var outH = 0, outS = 0, outV = 0;`,
+      `function lerpHSV() { outH = 1; outS = 1; outV = 1 }`,
+    ].join('\n')
+    const shader = [
+      `var cr = 0, cg = 0, cb = 0;`,
+      `function palette() { Color.lerpHSV(); cr = outH; cg = outS; cb = outV }`,
+    ].join('\n')
+    const src = `export function render(index) { Shader.palette(); hsv(cr, cg, cb) }`
+    const { code } = bundle(src, { Shader: shader, Color: color })
+
+    expect(code.match(/var cr = 0, cg = 0, cb = 0;/g)).toHaveLength(1)
+    expect(code.match(/var outH = 0, outS = 0, outV = 0;/g)).toHaveLength(1)
+    expect(code).toContain('function _Shader_palette(')
+    expect(code).toContain('function _Color_lerpHSV(')
   })
 
   it('does not inline unreferenced library functions', () => {
