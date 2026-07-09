@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type CSSProperties } from 'react'
 import { Check, Code2, Play, RotateCw, Trash2, Zap } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { PixelblazeCodeEditor } from '@/components/PixelblazeCodeEditor'
@@ -27,6 +27,8 @@ import type { MapRecord, ShowCell, ShowRecord, ShowScene } from '@/engine/person
 const card = 'rounded-md border border-zinc-800 bg-zinc-950/35'
 const field =
   'h-7 rounded border border-zinc-700 bg-zinc-900 px-2 text-xs text-zinc-200 outline-none focus:border-live/70'
+const clipBase =
+  'relative z-10 flex min-h-16 flex-col justify-center gap-0.5 overflow-hidden rounded-[5px] border-0 border-l-[3px] px-3 py-2 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-live'
 
 type ShowSelection =
   | { kind: 'cell'; cellId: string }
@@ -211,15 +213,19 @@ function SceneStrip({
   onUpdateScene: (sceneId: string, changes: Partial<Omit<ShowScene, 'id'>>) => void
 }) {
   const strip = projectShowStrip(show)
-  const columns = ['150px', ...show.scenes.flatMap(() => ['minmax(150px,1fr)', '64px']).slice(0, -1)]
+  const columns = ['148px', ...show.scenes.flatMap(() => ['minmax(170px,1fr)', '36px']).slice(0, -1)]
+  const rows = ['auto', ...strip.rows.map(() => '64px')]
   return (
-    <div className={`${card} overflow-x-auto p-2`} onClick={() => onSelect({ kind: 'show' })}>
+    <div
+      className="overflow-x-auto border-b border-seam bg-[#060608] p-4 shadow-[inset_0_6px_14px_-8px_rgba(0,0,0,0.9),inset_0_-6px_14px_-10px_rgba(0,0,0,0.9)]"
+      onClick={() => onSelect({ kind: 'show' })}
+    >
       <div
-        className="grid min-w-[720px] gap-1.5"
-        style={{ gridTemplateColumns: columns.join(' ') }}
+        className="grid min-w-[780px] gap-2"
+        style={{ gridTemplateColumns: columns.join(' '), gridTemplateRows: rows.join(' ') }}
       >
-        <div className="rounded border border-zinc-800 bg-zinc-900/50 px-2 py-2 text-[10px] uppercase text-zinc-500">
-          zones down - scenes across
+        <div className="self-end border-b border-zinc-800 px-1 pb-2 text-[9.5px] uppercase tracking-[0.12em] text-structural">
+          zones ↓
         </div>
         {show.scenes.map((scene) => (
           <SceneColumnHeader key={scene.id} scene={scene} onUpdate={(changes) => onUpdateScene(scene.id, changes)} />
@@ -231,13 +237,14 @@ function SceneStrip({
                   key={`t-${strip.transitions[index].afterSceneId}`}
                   show={show}
                   transition={strip.transitions[index]}
+                  rowCount={strip.rows.length}
                   selected={selection.kind === 'transition' && selection.afterSceneId === strip.transitions[index].afterSceneId}
                   onSelect={() => onSelect({ kind: 'transition', afterSceneId: strip.transitions[index].afterSceneId })}
                 />,
               ]
             : [node]
         ))}
-        {strip.rows.map((row) => (
+        {strip.rows.map((row, rowIndex) => (
           <div key={row.zoneId} className="contents">
             <button
               type="button"
@@ -247,19 +254,20 @@ function SceneStrip({
                 onSelect({ kind: 'zone', zoneId: row.zoneId })
               }}
               className={[
-                'flex items-center gap-2 rounded border px-2 text-left text-zinc-300 transition-colors',
+                'flex items-center gap-2 rounded-[5px] border-0 pr-2 text-left font-mono transition-colors',
                 selection.kind === 'zone' && selection.zoneId === row.zoneId
-                  ? 'border-live/70 bg-live/10'
-                  : 'border-zinc-800 bg-zinc-900/45 hover:border-zinc-700 hover:bg-zinc-900',
+                  ? 'bg-live/10 text-zinc-100'
+                  : 'text-zinc-300 hover:text-zinc-100',
               ].join(' ')}
+              style={{ gridColumn: 1, gridRow: rowIndex + 2 }}
             >
               <span
                 aria-hidden
-                className="size-2 rounded-sm"
+                className="w-1 self-stretch rounded-sm"
                 style={{ backgroundColor: row.color ?? '#38bdf8' }}
               />
-              <span className="truncate">{row.zoneName}</span>
-              <span className="ml-auto text-[10px] text-zinc-600">{row.nominalPixelCount}px</span>
+              <span className="truncate text-[12px] font-medium">{row.zoneName}</span>
+              <span className="ml-auto text-[10px] text-structural">{row.nominalPixelCount}px</span>
             </button>
             {row.cells.map((cell) => (
               <button
@@ -271,20 +279,31 @@ function SceneStrip({
                   onSelect({ kind: 'cell', cellId: cell.id })
                 }}
                 className={[
-                  'min-h-14 rounded-md border px-2 py-2 text-left transition-colors',
+                  clipBase,
                   selection.kind === 'cell' && selection.cellId === cell.id
-                    ? 'border-live/70 bg-live/10 text-zinc-100'
-                    : 'border-zinc-800 bg-zinc-900/50 text-zinc-300 hover:border-zinc-700 hover:bg-zinc-900',
+                    ? 'text-zinc-100 shadow-[0_0_0_1.5px_var(--color-live),0_8px_18px_-10px_rgba(0,0,0,0.9)]'
+                    : 'text-zinc-300 hover:text-zinc-100',
                 ].join(' ')}
                 style={{
+                  '--zone-color': row.color ?? '#38bdf8',
+                  borderLeftColor: row.color ?? '#38bdf8',
+                  background: `linear-gradient(color-mix(in srgb, ${row.color ?? '#38bdf8'} 9%, #101013), color-mix(in srgb, ${row.color ?? '#38bdf8'} 6%, #0c0c0e))`,
                   gridColumn: `${cell.columnStart} / span ${cell.columnSpan}`,
-                  gridRow: `span ${cell.rowSpan}`,
+                  gridRow: `${rowIndex + 2} / span ${cell.rowSpan}`,
+                } as CSSProperties}
+                onMouseEnter={(event) => {
+                  event.currentTarget.style.background = `linear-gradient(color-mix(in srgb, ${row.color ?? '#38bdf8'} 14%, #131316), color-mix(in srgb, ${row.color ?? '#38bdf8'} 10%, #0e0e10))`
+                }}
+                onMouseLeave={(event) => {
+                  event.currentTarget.style.background = `linear-gradient(color-mix(in srgb, ${row.color ?? '#38bdf8'} 9%, #101013), color-mix(in srgb, ${row.color ?? '#38bdf8'} 6%, #0c0c0e))`
                 }}
               >
-                <span className="block truncate text-[12px] font-semibold">{cell.patternName}</span>
-                <span className="mt-1 block truncate text-[10px] text-zinc-500">
+                {cell.sceneSpan > 1 && (
+                  <span className="absolute right-2 top-1.5 text-[9px] uppercase tracking-wider text-structural">hold</span>
+                )}
+                <span className="block truncate text-[13px] font-semibold text-zinc-100">{cell.patternName}</span>
+                <span className="block truncate text-[10px] text-zinc-500">
                   {adaptationSummary(cell)}
-                  {cell.sceneSpan > 1 ? ' - hold' : ''}
                   {(cell.zoneSpan ?? 1) > 1 ? ' - span zones' : ''}
                 </span>
               </button>
@@ -304,24 +323,27 @@ function SceneColumnHeader({
   onUpdate: (changes: Partial<Omit<ShowScene, 'id'>>) => void
 }) {
   return (
-    <div className="rounded-md border border-zinc-800 bg-zinc-900/70 px-2 py-1.5">
+    <div className="group flex items-baseline gap-2 border-b border-zinc-800 px-1 pb-2 pt-0.5">
       <input
         aria-label={`${scene.name} scene name`}
         value={scene.name}
         onChange={(event) => onUpdate({ name: event.target.value })}
-        className="w-full bg-transparent text-[12px] font-semibold text-zinc-200 outline-none"
+        className="min-w-0 flex-1 bg-transparent text-[12.5px] font-semibold text-zinc-100 outline-none group-hover:underline group-hover:decoration-dotted group-hover:underline-offset-4 focus:underline focus:decoration-live focus:underline-offset-4"
       />
-      <label className="mt-1 flex items-center gap-1 text-[10px] text-zinc-500">
+      <label className="flex shrink-0 items-baseline gap-1 text-[10.5px] text-structural">
         <input
           aria-label={`${scene.name} duration seconds`}
           type="number"
           min={1}
           value={Math.round(scene.durationMs / 1000)}
           onChange={(event) => onUpdate({ durationMs: Number(event.target.value) * 1000 })}
-          className={`${field} h-6 w-16 px-1`}
+          className="h-6 w-14 rounded border border-transparent bg-transparent px-1 text-right text-[10.5px] text-structural outline-none hover:border-zinc-700 hover:bg-zinc-900 focus:border-live/70 focus:bg-zinc-900"
         />
         s
       </label>
+      <span aria-hidden className="text-[10px] text-structural opacity-0 transition-opacity group-hover:opacity-100">
+        ✎
+      </span>
     </div>
   )
 }
@@ -329,11 +351,13 @@ function SceneColumnHeader({
 function TransitionGlyph({
   show,
   transition,
+  rowCount,
   selected,
   onSelect,
 }: {
   show: ShowRecord
   transition: ReturnType<typeof projectShowStrip>['transitions'][number]
+  rowCount: number
   selected: boolean
   onSelect: () => void
 }) {
@@ -350,12 +374,16 @@ function TransitionGlyph({
         onSelect()
       }}
       className={[
-        'flex min-h-14 flex-col items-center justify-center rounded border border-dashed bg-zinc-950/35 text-[10px] uppercase text-zinc-500 transition-colors',
-        selected ? 'border-live/80 text-zinc-200' : 'border-zinc-800 hover:border-zinc-700 hover:text-zinc-300',
+        'relative z-0 flex flex-col items-center justify-center gap-1 rounded bg-transparent text-[10px] uppercase text-zinc-500 transition-colors before:absolute before:bottom-[-8px] before:left-1/2 before:top-[-8px] before:border-l before:border-dashed before:border-zinc-700 before:content-[\'\'] hover:text-zinc-300 hover:before:border-zinc-500',
+        selected ? 'text-live before:border-live before:border-solid' : '',
       ].join(' ')}
+      style={{
+        gridColumn: 3 + afterIndex * 2,
+        gridRow: `2 / span ${rowCount}`,
+      }}
     >
-      <span className={transition.cost === 'expensive' ? 'text-amber-300' : 'text-emerald-300'}>{glyph}</span>
-      <span>{Math.round(transition.durationMs / 1000)}s</span>
+      <span className={`relative z-10 bg-[#060608] px-1 ${transition.cost === 'expensive' ? 'text-amber-300' : 'text-emerald-300'}`}>{glyph}</span>
+      <span className="relative z-10 bg-[#060608] px-1 text-[9.5px] text-structural">{Math.round(transition.durationMs / 1000)}s</span>
     </button>
   )
 }
