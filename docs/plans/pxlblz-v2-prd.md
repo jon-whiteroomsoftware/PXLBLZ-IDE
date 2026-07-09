@@ -272,8 +272,9 @@ intended.
 - The **Controllers view now suppresses the pattern preview** with an empty
   context placeholder; collapse/remove that right slot later if the placeholder
   feels like wasted space.
-- Factor the monolithic `PatternList.tsx` (~1,400 lines) into a shared rail
-  shell + per-entity list modules.
+- Factor the monolithic `PatternList.tsx` (~1,500 lines) into a shared rail
+  shell + per-entity list modules — now tasked as #344, the opening issue of
+  the user libraries arc (§5).
 
 **Pattern detail / Gallery residuals** (specified, not built):
 
@@ -384,7 +385,34 @@ write support:
   reserved live-identification exported var (`__px_ide`); a "pushed by
   PXLBLZ" badge on the Controller program list (natural #342 follow-up).
 
-## 5. Out of scope for v2
+## 5. User libraries arc (decided 2026-07-08, issues #344–#350)
+
+Libraries become the sixth Studio entity: user-creatable **cloud libraries**
+beside the read-only stock six, with a LIBS rail mode, a **library mode**
+editor flavor, and full compile-path integration. Design decisions are
+canonical in `CONTEXT.md` (**Library**, **Library mode**, **Clone**,
+**Transpiler**, **Left rail** entries); the short form:
+
+- **Name = namespace** — one identifier-constrained field, unique across
+  stock/user/builtin names; rename/delete allowed behind strong confirmation;
+  references are soft (dependents fail compile with unknown-namespace).
+- **No shadowing** — cloning a stock library mints a fresh namespace
+  (`SDF2`); wrapping is the escape hatch for tweaking stock behavior.
+- **Out-var contract becomes real** — the bundler emits a library's
+  top-level `var` declarations (unmangled, ahead of functions) when any of
+  its functions is inlined; library content rule: top level = functions,
+  vars, comments only.
+- **Library mode** — stock read-only + Clone; cloud auto-save on the sync
+  tick; badge = dialect parse + content rule; right pane = live API
+  reference generated from the library's own `//` doc comments.
+- **Docs scope** — Monaco hover goes store-driven to cover cloud libraries;
+  the top-bar Code menu stays stock/builtin-only.
+
+Issue order: #344 rail factor-out and #345 bundler var emission (parallel,
+unblocked) → #346 LIBS rail mode → #347 cloud CRUD → #348 clone, #349
+compile-path threading, #350 API reference pane + hover (parallel).
+
+## 6. Out of scope for v2
 
 - Automated GLSL→Pixelblaze translation (unchanged from v1 stance).
 - Reading patterns back from a controller; device settings management.
@@ -395,11 +423,13 @@ write support:
   slugs.
 - Multi-controller synchronized shows (Firestorm territory).
 
-## 6. Sequencing
+## 7. Sequencing
 
 The old v2 sequence through #343 is substantially complete. Current remaining
 work should be ordered by dependency rather than by the historical arc:
 
+0. **User libraries arc** (§5, #344–#350): #344/#345 can start immediately;
+   the rest follow the dependency chain above.
 1. **Bench-validation batch**: #336 zone-spanning ramp check, #319 power-cap
    validation, #289 analog pot validation after rewiring.
 2. **Mixin/control maturity**: finish #319's consumption/UI plumbing for
