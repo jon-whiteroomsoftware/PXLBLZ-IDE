@@ -16,6 +16,7 @@ import { useCameraStore } from '@/store/cameraStore'
 import { createShim, createFxShim, type ShimContext } from '@/engine/shim'
 import { loadPattern, nativeDimension } from '@/engine/loadPattern'
 import { bundle } from '@/engine/bundle'
+import { compileLibraries } from '@/engine/libraries'
 import { createRenderer } from '@/engine/renderer'
 import { createRenderLoop, type RenderLoop } from '@/engine/renderLoop'
 import { createVirtualClock } from '@/engine/virtualClock'
@@ -27,6 +28,7 @@ import { resolvePole, type ShapeId } from '@/engine/shapes'
 import { OrbitControls } from '@/components/OrbitControls'
 import { ZonePreviewStrips } from '@/components/ZonePreviewStrips'
 import { LIBRARIES } from '@/pixelblaze/libs'
+import { useLibraryStore } from '@/store/libraryStore'
 import { withControlDescriptions } from '@/pixelblaze/controlDescriptions'
 import { captureEnabled, createPreviewCapture } from '@/dev/previewCapture'
 import { useControllerStore } from '@/store/controllerStore'
@@ -76,6 +78,8 @@ export function Preview({
   const previewPixelCount = scaledPreviewPixelCount(activePixelCount, pixelCountMultiplier)
   const activeSolidity = useMapStore((s) => s.activeSolidity)
   const activeNormalizeMode = useMapStore((s) => s.activeNormalizeMode)
+  const userLibraries = useLibraryStore((s) => s.userLibraries)
+  const libraries = useMemo(() => compileLibraries(LIBRARIES, userLibraries), [userLibraries])
   const controllerProfiles = useControllerProfileStore((s) => s.profiles)
   const activeControllerIp = useControllerStore((s) => s.activeIp)
   const liveControllers = useControllerStore((s) => s.controllers)
@@ -146,7 +150,7 @@ export function Preview({
     // known before resolving its layout — the dropdown filters by it.
     let bundled: ReturnType<typeof bundle>
     try {
-      bundled = bundle(previewSource, LIBRARIES)
+      bundled = bundle(previewSource, libraries)
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
       queueMicrotask(() => setRuntimeError(msg))
@@ -361,7 +365,7 @@ export function Preview({
     if (usePreviewStore.getState().isRunning) loop.start()
 
     return () => loop.stop()
-  }, [previewSource, viewport, fidelity, activeMapId, activeShapeId, activeSurfaceId, previewPixelCount, activeNormalizeMode, activeDemoName, activeZones])
+  }, [previewSource, viewport, fidelity, libraries, activeMapId, activeShapeId, activeSurfaceId, previewPixelCount, activeNormalizeMode, activeDemoName, activeZones])
 
   // Seed the live working state from the resolved settings cascade on open:
   // one pass that composes per-pattern override → recommended (demos) → global-sticky

@@ -22,11 +22,11 @@ function walkAst(node: unknown, visitor: (n: unknown) => void): void {
 }
 
 function parseScript(src: string): unknown {
-  return acorn.parse(src, { ecmaVersion: 2020, sourceType: 'script' })
+  return acorn.parse(src, { ecmaVersion: 2020, sourceType: 'script', locations: true })
 }
 
 function parseModule(src: string): unknown {
-  return acorn.parse(src, { ecmaVersion: 2020, sourceType: 'module' })
+  return acorn.parse(src, { ecmaVersion: 2020, sourceType: 'module', locations: true })
 }
 
 const LIBRARY_TOP_LEVEL_RULE =
@@ -219,7 +219,36 @@ interface LibRef {
   end: number
 }
 
-function collectLibraryRefs(ast: unknown, knownLibs: Set<string>): LibRef[] {
+const SAFE_MEMBER_CALL_GLOBALS = new Set(['Array', 'JSON', 'Math', 'Number', 'Object', 'String'])
+
+function addPatternIdentifier(names: Set<string>, node: Record<string, unknown> | undefined): void {
+  if (node?.['type'] === 'Identifier') names.add(node['name'] as string)
+}
+
+function collectDeclaredIdentifiers(ast: unknown): Set<string> {
+  const names = new Set<string>()
+  walkAst(ast, (node) => {
+    const n = node as Record<string, unknown>
+    if (n['type'] === 'VariableDeclarator') {
+      addPatternIdentifier(names, n['id'] as Record<string, unknown>)
+    }
+    if (n['type'] === 'FunctionDeclaration') {
+      addPatternIdentifier(names, n['id'] as Record<string, unknown>)
+    }
+    if (
+      n['type'] === 'FunctionDeclaration' ||
+      n['type'] === 'FunctionExpression' ||
+      n['type'] === 'ArrowFunctionExpression'
+    ) {
+      for (const param of (n['params'] as Record<string, unknown>[]) ?? []) {
+        addPatternIdentifier(names, param)
+      }
+    }
+  })
+  return names
+}
+
+function collectMemberCallRefs(ast: unknown): LibRef[] {
   const refs: LibRef[] = []
   walkAst(ast, (node) => {
     const n = node as Record<string, unknown>
@@ -230,16 +259,27 @@ function collectLibraryRefs(ast: unknown, knownLibs: Set<string>): LibRef[] {
     const obj = callee['object'] as Record<string, unknown>
     const prop = callee['property'] as Record<string, unknown>
     if (obj?.['type'] !== 'Identifier' || prop?.['type'] !== 'Identifier') return
-    const ns = obj['name'] as string
-    if (!knownLibs.has(ns)) return
     refs.push({
-      namespace: ns,
+      namespace: obj['name'] as string,
       fnName: prop['name'] as string,
       start: callee['start'] as number,
       end: callee['end'] as number,
     })
   })
   return refs
+}
+
+function collectLibraryRefs(ast: unknown, knownLibs: Set<string>): LibRef[] {
+  return collectMemberCallRefs(ast).filter((ref) => knownLibs.has(ref.namespace))
+}
+
+function collectUnknownLibraryRefs(ast: unknown, knownLibs: Set<string>): LibRef[] {
+  const declared = collectDeclaredIdentifiers(ast)
+  return collectMemberCallRefs(ast).filter((ref) => (
+    !knownLibs.has(ref.namespace) &&
+    !declared.has(ref.namespace) &&
+    !SAFE_MEMBER_CALL_GLOBALS.has(ref.namespace)
+  ))
 }
 
 // ── dependency resolution (BFS) ───────────────────────────────────────────────
@@ -384,6 +424,10 @@ export function bundle(
   const metadata = extractMetadata(patternAst)
 
   const knownLibs = new Set(Object.keys(libraries))
+  const unknownRefs = collectUnknownLibraryRefs(patternAst, knownLibs)
+  if (unknownRefs.length > 0) {
+    throw new Error(`Unknown library namespace "${unknownRefs[0].namespace}"`)
+  }
   const refs = collectLibraryRefs(patternAst, knownLibs)
 
   if (refs.length === 0) {
@@ -398,6 +442,14 @@ export function bundle(
   }
 
   const resolved = resolveAllDeps(refs, libFnMaps, knownLibs)
+  for (const { namespace, fnName } of resolved) {
+    const entry = libFnMaps[namespace]?.get(fnName)
+    if (!entry) throw new Error(`Unknown library function "${namespace}.${fnName}"`)
+    const unknownLibraryRefs = collectUnknownLibraryRefs(parseScript(entry.src), knownLibs)
+    if (unknownLibraryRefs.length > 0) {
+      throw new Error(`Unknown library namespace "${unknownLibraryRefs[0].namespace}"`)
+    }
+  }
 
   const referencedNamespaces = [...new Set(resolved.map(({ namespace }) => namespace))]
   const varPreamble = referencedNamespaces

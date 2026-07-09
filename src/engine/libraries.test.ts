@@ -1,6 +1,7 @@
 import {
   LIBRARY_SKELETON,
   builtinNamespaceNames,
+  compileLibraries,
   nextLibraryCloneName,
   nextLibraryName,
   validateLibraryName,
@@ -26,6 +27,20 @@ describe('library namespace rules (#347)', () => {
       userNames: ['SDF2', 'SDF3'],
       builtinNames: [],
     })).toBe('SDF4')
+  })
+
+  it('merges stock and user libraries without allowing stale user records to shadow stock', () => {
+    expect(compileLibraries(
+      { Shader: 'stock shader', SDF: 'stock sdf' },
+      [
+        { name: 'MyLib', src: 'user lib' },
+        { name: 'Shader', src: 'bad stale shadow' },
+      ],
+    )).toEqual({
+      Shader: 'stock shader',
+      SDF: 'stock sdf',
+      MyLib: 'user lib',
+    })
   })
 
   it('requires identifier-safe names and rejects reserved namespaces case-sensitively', () => {

@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect, useLayoutEffect } from 'react'
+import { useState, useCallback, useMemo, useRef, useEffect, useLayoutEffect } from 'react'
 import { Braces, Code2, Cpu, Download, ExternalLink, FileText, Images, Lock, LogIn, Map as MapIcon, PanelsTopLeft, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -51,6 +51,7 @@ import { decideStudioAccess, studioWelcomeAcknowledgedKey } from '@/engine/studi
 import { useWorkspaceStore } from '@/store/workspaceStore'
 import { forkSettingsSnapshot } from '@/store/settingsCascade'
 import { bundle } from '@/engine/bundle'
+import { compileLibraries } from '@/engine/libraries'
 import { stampArtifact } from '@/engine/artifactStamp'
 import { LIBRARIES } from '@/pixelblaze/libs'
 import { uniquePatternName } from '@/engine/patternName'
@@ -90,8 +91,8 @@ function Splitter({ onDrag }: { onDrag: (dx: number) => void }) {
   )
 }
 
-function stampedPatternArtifact(source: string, id: string, name: string): string {
-  const { code } = bundle(source, LIBRARIES)
+function stampedPatternArtifact(source: string, id: string, name: string, libraries: Record<string, string>): string {
+  const { code } = bundle(source, libraries)
   return stampArtifact(code, { kind: 'pattern', id, name })
 }
 
@@ -265,6 +266,7 @@ export default function App() {
   const userMixins = useMixinStore((s) => s.userMixins)
   const mixinsLoaded = useMixinStore((s) => s.mixinsLoaded)
   const userLibraries = useLibraryStore((s) => s.userLibraries)
+  const compileLibrarySet = useMemo(() => compileLibraries(LIBRARIES, userLibraries), [userLibraries])
   const librariesLoaded = useLibraryStore((s) => s.librariesLoaded)
   const editingLibrary = useLibraryStore((s) => s.editingLibrary)
   const controllerProfiles = useControllerProfileStore((s) => s.profiles)
@@ -461,19 +463,19 @@ export default function App() {
   const handleCopy = useCallback(() => {
     if (!activePatternId) return
     const pattern = userPatterns.find((p) => p.id === activePatternId)
-    const code = stampedPatternArtifact(source, activePatternId, pattern?.name ?? 'Pattern')
+    const code = stampedPatternArtifact(source, activePatternId, pattern?.name ?? 'Pattern', compileLibrarySet)
     navigator.clipboard.writeText(code)
     setCopied(true)
     if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current)
     copyTimeoutRef.current = setTimeout(() => setCopied(false), 1500)
-  }, [activePatternId, source, userPatterns])
+  }, [activePatternId, source, userPatterns, compileLibrarySet])
 
   const handleDownload = useCallback(() => {
     if (!activePatternId) return
     const pattern = userPatterns.find((p) => p.id === activePatternId)
     const name = pattern?.name ?? 'Pattern'
-    downloadTextFile(patternDownloadName(name), stampedPatternArtifact(source, activePatternId, name))
-  }, [activePatternId, source, userPatterns])
+    downloadTextFile(patternDownloadName(name), stampedPatternArtifact(source, activePatternId, name, compileLibrarySet))
+  }, [activePatternId, source, userPatterns, compileLibrarySet])
 
   const [leftWidth, setLeftWidth] = useState(224)
   const [rightWidth, setRightWidth] = useState(460)

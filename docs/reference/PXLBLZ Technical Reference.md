@@ -412,6 +412,13 @@ names, the user's libraries, and Pixelblaze built-ins. Library mode uses
 `validateLibraryContent()` instead of the full pattern walker so the top-level
 rule is visible without pretending the file is a runnable pattern. Opening a
 library intentionally does not change the running preview pattern or its source.
+Pattern compile paths merge `src/pixelblaze/lib/` stock libraries with the
+current `userLibraries` store before calling `bundle()`: Studio preview (Fast
+and Precise), Copy Code/Download, Send to Controller, and transform inspection
+all receive the same namespace set. The bundler treats library references as
+compile-time soft references: a missing namespace or missing function throws an
+unknown-library error during bundling rather than leaving a late runtime
+`Namespace is not defined` failure.
 
 ## 7. Runtime shim & built-ins (`shim.ts`, `builtins.ts`)
 
@@ -647,7 +654,10 @@ openable, authored in the Pixelblaze dialect): `Anim`, `Color`, `Coord`, `Noise`
 `SDF`, `Shader` — each with a `*.fidelity.test.ts` asserting Fast/Precise
 agreement. User-owned cloud libraries share the same library-mode validator and
 are stored as durable personal content; stock clones are user-owned cloud
-libraries with fresh non-shadowing namespaces.
+libraries with fresh non-shadowing namespaces. The hardware `devbench` harness
+loads the stock set and can add local cloud-library overlays with
+`--library Namespace=/path/to/lib.js`, using the same non-shadowing merge helper
+as the app compile paths.
 
 **Stock patterns** (`src/pixelblaze/stock/patterns/`, read-only, forkable; UI label
 **Built-in Patterns**): shader ports,

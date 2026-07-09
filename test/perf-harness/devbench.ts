@@ -8,6 +8,7 @@
 //   PIXELBLAZE_IP=192.168.8.224 npm run devbench -- Kishimisu
 //   PIXELBLAZE_IP=192.168.8.224 npm run devbench -- Kishimisu --vs /tmp/Kishimisu.baseline.js
 //   PIXELBLAZE_IP=192.168.8.224 npm run devbench -- /tmp/a.js /tmp/b.js --settle 4000
+//   PIXELBLAZE_IP=192.168.8.224 npm run devbench -- /tmp/pattern.js --library MyLib=/tmp/MyLib.js
 //
 // HUMAN-IN-THE-LOOP, OUT-OF-BAND: needs a physical Pixelblaze on the LAN. Touches
 // the network, so it is excluded from the pre-commit gate (sibling to profiler.ts).
@@ -29,6 +30,7 @@ import {
   type WebSocketLike,
 } from '../../src/engine/PixelblazeConnection'
 import { bundle } from '../../src/engine/bundle'
+import { compileLibraries, type CompileLibraryRecord } from '../../src/engine/libraries'
 import {
   v3AdapterV3,
   buildCompilerEnv,
@@ -215,6 +217,7 @@ async function measureSource(
 
 interface Args {
   specs: string[]
+  librarySpecs: string[]
   settleMs: number
   sampleMs: number
 }
@@ -227,17 +230,31 @@ function intArg(flag: string, raw: string | undefined): number {
 }
 
 function parseArgs(argv: string[]): Args {
-  const args: Args = { specs: [], settleMs: 3000, sampleMs: 4000 }
+  const args: Args = { specs: [], librarySpecs: [], settleMs: 3000, sampleMs: 4000 }
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i]
     if (a === '--vs') continue // sugar; the next positional is just another spec
+    else if (a === '--library') args.librarySpecs.push(argv[++i] ?? '')
     else if (a === '--settle') args.settleMs = intArg(a, argv[++i])
     else if (a === '--sample') args.sampleMs = intArg(a, argv[++i])
     else if (a.startsWith('--')) throw new Error(`unknown flag ${a}`)
     else args.specs.push(a)
   }
-  if (args.specs.length === 0) throw new Error('usage: npm run devbench -- <demo|file> [--vs <demo|file>] [--settle ms] [--sample ms]')
+  if (args.specs.length === 0) {
+    throw new Error('usage: npm run devbench -- <demo|file> [--vs <demo|file>] [--library Namespace=path.js] [--settle ms] [--sample ms]')
+  }
   return args
+}
+
+function resolveLibrarySpec(spec: string, stockLibraries: Record<string, string>): CompileLibraryRecord {
+  const match = /^([A-Za-z_][A-Za-z0-9_]*)=(.+)$/.exec(spec)
+  if (!match) throw new Error(`bad --library "${spec}" (use Namespace=/path/to/lib.js)`)
+  const [, name, path] = match
+  if (Object.prototype.hasOwnProperty.call(stockLibraries, name)) {
+    throw new Error(`--library namespace "${name}" already exists in stock libraries`)
+  }
+  if (!existsSync(path)) throw new Error(`--library cannot find "${path}"`)
+  return { name, src: readFileSync(path, 'utf8') }
 }
 
 function nodeFactory(url: string): WebSocketLike {
@@ -247,7 +264,9 @@ function nodeFactory(url: string): WebSocketLike {
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2))
   const sources = args.specs.map(resolveSource)
-  const libraries = loadLibraries()
+  const stockLibraries = loadLibraries()
+  const cloudLibraries = args.librarySpecs.map((spec) => resolveLibrarySpec(spec, stockLibraries))
+  const libraries = compileLibraries(stockLibraries, cloudLibraries)
 
   console.log(`Fetching device compiler from http://${IP} …`)
   const webUI = await fetchWebUI(IP)

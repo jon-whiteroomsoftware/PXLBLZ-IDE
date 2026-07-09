@@ -254,6 +254,31 @@ describe('bundle — library inlining', () => {
     const count = (code.match(/_sdf_circle\(/g) ?? []).length
     expect(count).toBe(3)
   })
+
+  it('throws a compile-time error for an unknown library namespace', () => {
+    const src = `export function render(index) { MissingLibrary.fn(index) }`
+
+    expect(() => bundle(src, {})).toThrow('Unknown library namespace "MissingLibrary"')
+  })
+
+  it('throws a compile-time error for an unknown library function', () => {
+    const src = `export function render(index) { MyLib.missing(index) }`
+
+    expect(() => bundle(src, { MyLib: `function present(v) { return v }` })).toThrow(
+      'Unknown library function "MyLib.missing"',
+    )
+  })
+
+  it('does not treat declared object member calls as library namespaces', () => {
+    const src = [
+      `export function render(index) {`,
+      `  var local = { fn: function(v) { return v } }`,
+      `  local.fn(index)`,
+      `}`,
+    ].join('\n')
+
+    expect(() => bundle(src, {})).not.toThrow()
+  })
 })
 
 // ── transitive deps ──────────────────────────────────────────────────────────

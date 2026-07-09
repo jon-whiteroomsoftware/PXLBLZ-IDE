@@ -240,6 +240,44 @@ describe('routing (#308)', () => {
     expect(screen.getByTestId('editor-pane')).toBeInTheDocument()
   })
 
+  it('copies active pattern artifacts bundled with user cloud libraries', async () => {
+    const user = userEvent.setup()
+    const writeText = vi.fn()
+    Object.defineProperty(navigator, 'clipboard', {
+      value: { writeText },
+      configurable: true,
+    })
+    const cloudPattern: PatternRecord = {
+      ...record,
+      src: 'export function render(index) { MyLib.paint(index) }',
+    }
+    window.history.replaceState(null, '', '/studio/patterns/p-1')
+    useWorkspaceStore.setState({
+      personalWorkspaceAuthenticated: true,
+      personalWorkspaceResolved: true,
+    })
+    usePatternStore.setState({ userPatterns: [cloudPattern], patternsLoaded: true })
+    useLibraryStore.setState({
+      userLibraries: [{
+        id: 'lib-1',
+        name: 'MyLib',
+        src: 'function paint(index) { hsv(index / pixelCount, 1, 1) }',
+        updatedAt: 1,
+      }],
+      librariesLoaded: true,
+    })
+    render(<App />)
+
+    await screen.findAllByText('Deep Linked')
+    await user.click(screen.getByRole('button', { name: 'Copy Code' }))
+
+    expect(writeText).toHaveBeenCalledOnce()
+    const copied = writeText.mock.calls[0][0] as string
+    expect(copied).toContain('function _MyLib_paint(')
+    expect(copied).toContain('_MyLib_paint(index)')
+    expect(copied).not.toContain('MyLib.paint')
+  })
+
   it('updates the URL when the active pattern changes', () => {
     window.history.replaceState(null, '', '/studio')
     useWorkspaceStore.setState({

@@ -33,6 +33,7 @@ import {
 } from '@/engine/controllerMetadataStorage'
 import { withProgramLabel } from '@/engine/controllerBinding'
 import { bundleWithPasses, type PassRecipe, type TransformSummary } from '@/engine/passEngine'
+import { compileLibraries } from '@/engine/libraries'
 import {
   withTransformArtifactInspection,
   type TransformArtifactInspection,
@@ -42,6 +43,7 @@ import { buildPreviewJpeg } from '@/engine/previewThumbnailJpeg'
 import { LIBRARIES } from '@/pixelblaze/libs'
 import { usePatternStore, activePushKey } from '@/store/patternStore'
 import { useEditorStore } from '@/store/editorStore'
+import { useLibraryStore } from '@/store/libraryStore'
 import { useMapStore, openMapForPushState } from '@/store/mapStore'
 import { useControllerPanelStore } from '@/store/controllerPanelStore'
 import { getPersonalContentProvider } from '@/engine/personalContentProvider'
@@ -766,7 +768,11 @@ export const useControllerStore = create<ControllerConnectionState>()(
               ? findProfileForLiveController(profiles, activeController)
               : null
             const recipe = controllerProfilePassRecipe(profile, previewSource, patternId)
-            const bundled = bundleWithPasses(previewSource, LIBRARIES, recipe)
+            const bundled = bundleWithPasses(
+              previewSource,
+              compileLibraries(LIBRARIES, useLibraryStore.getState().userLibraries),
+              recipe,
+            )
             const transformSummary = recipe.length > 0 ? bundled.summary : null
             const transformArtifact: TransformArtifactInspection | null = recipe.length > 0
               ? {

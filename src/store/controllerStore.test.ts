@@ -20,6 +20,7 @@ import {
 } from '@/engine/ControllerProvider'
 import { usePatternStore, patternInitialState } from '@/store/patternStore'
 import { useEditorStore, editorInitialState } from '@/store/editorStore'
+import { useLibraryStore, libraryInitialState } from '@/store/libraryStore'
 import { useMapStore, mapInitialState, type MapRecord } from '@/store/mapStore'
 import { useControllerPanelStore, controllerPanelInitialState } from '@/store/controllerPanelStore'
 import {
@@ -200,6 +201,7 @@ beforeEach(async () => {
   useControllerStore.setState(controllerInitialState)
   usePatternStore.setState(patternInitialState)
   useEditorStore.setState(editorInitialState)
+  useLibraryStore.setState(libraryInitialState)
   useMapStore.setState(mapInitialState)
   useControllerPanelStore.setState(controllerPanelInitialState)
   await setControllerBindings({})
@@ -625,6 +627,33 @@ describe('controllerStore (keyed)', () => {
       expect(provider.compiledSources).toEqual([bundle(PATTERN_SRC, {}).code])
       expect(store().lastTransformSummary['10.0.0.5']?.['pat-1']).toBeUndefined()
       expect(store().lastTransformArtifacts['10.0.0.5']?.['pat-1']).toBeUndefined()
+    })
+
+    it('pushes patterns bundled with user cloud libraries', async () => {
+      const source = 'export function render(index) { MyLib.paint(index) }'
+      await store().addController({
+        id: 'pixelblaze_pb32_abc',
+        address: '10.0.0.5',
+        name: 'Desk PB',
+      })
+      useLibraryStore.setState({
+        userLibraries: [{
+          id: 'lib-1',
+          name: 'MyLib',
+          src: 'function paint(index) { hsv(index / pixelCount, 1, 1) }',
+          updatedAt: 1,
+        }],
+        librariesLoaded: true,
+      })
+      usePatternStore.setState({ activePatternId: 'pat-1' })
+      useEditorStore.setState({ previewSource: source, previewPatternName: 'Cloudy' })
+
+      await store().pushActivePattern()
+
+      const provider = created.get('10.0.0.5')!
+      expect(provider.compiledSources[0]).toContain('function _MyLib_paint(')
+      expect(provider.compiledSources[0]).toContain('_MyLib_paint(index)')
+      expect(provider.compiledSources[0]).not.toContain('MyLib.paint')
     })
 
     it('applies matching per-pattern hardware input bindings during push', async () => {

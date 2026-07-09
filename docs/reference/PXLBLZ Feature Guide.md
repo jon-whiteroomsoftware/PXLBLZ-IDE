@@ -282,8 +282,11 @@ header's Libraries menu. Opening one shows its source read-only in library mode
 without changing the running preview pattern; **Clone** copies it into a new
 cloud library with a fresh namespace such as `Shader2`, then opens the clone
 editable. Hover the header menu for its API reference. Cloud libraries auto-save
-clean source on the sync tick; rename and delete warn that dependent patterns
-are soft references and will fail compile until updated.
+clean source on the sync tick. Signed-in pattern previews, Copy Code/Download,
+and Send to Controller compile against stock libraries plus the user's cloud
+libraries, so pattern calls such as `MyLib.paint(index)` inline into the artifact
+just like stock calls. Rename and delete warn that dependent patterns are soft
+references and will fail compile with an unknown-namespace error until updated.
 
 | Library | What it provides |
 |---|---|

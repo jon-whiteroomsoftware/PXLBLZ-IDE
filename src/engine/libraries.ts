@@ -15,6 +15,11 @@ export interface LibraryNameScope {
   currentName?: string
 }
 
+export interface CompileLibraryRecord {
+  name: string
+  src: string
+}
+
 export function builtinNamespaceNames(): string[] {
   return [
     ...BUILTIN_FUNCTIONS.map((fn) => fn.name),
@@ -48,4 +53,16 @@ export function nextLibraryCloneName(baseName: string, scope: LibraryNameScope):
   let index = 2
   while (taken.has(`${baseName}${index}`)) index++
   return `${baseName}${index}`
+}
+
+export function compileLibraries(
+  stockLibraries: Record<string, string>,
+  userLibraries: readonly CompileLibraryRecord[],
+): Record<string, string> {
+  const merged = { ...stockLibraries }
+  for (const library of userLibraries) {
+    if (Object.prototype.hasOwnProperty.call(merged, library.name)) continue
+    merged[library.name] = library.src
+  }
+  return merged
 }
