@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { trackEntityCreated } from '@/analytics'
 import {
   MIXIN_SKELETON,
   STOCK_MIXIN_ITEMS,
@@ -117,6 +118,7 @@ export const useMixinStore = create<MixinState>()((set, get) => ({
 
   addMixin: async (record) => {
     await getPersonalContentProvider().createMixin(record)
+    trackEntityCreated('mixin')
     set((s) => ({ userMixins: [record, ...s.userMixins] }))
   },
 

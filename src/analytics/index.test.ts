@@ -1,4 +1,4 @@
-import { analyticsEnabled, initAnalytics, trackEvent, trackPageView } from './index'
+import { analyticsEnabled, initAnalytics, trackEntityCreated, trackEvent, trackPageView } from './index'
 
 describe('analytics', () => {
   it('is disabled unless a production build has a measurement id', () => {
@@ -25,6 +25,7 @@ describe('analytics', () => {
 
     trackPageView('/studio/patterns/p1', 'studio:patterns', win, env)
     trackEvent('send_to_controller', { mode: 'run', ignored: null }, win, env)
+    trackEntityCreated('map', { ignored: undefined }, win, env)
 
     expect(win.dataLayer?.[2]).toEqual([
       'event',
@@ -32,6 +33,7 @@ describe('analytics', () => {
       { page_path: '/studio/patterns/p1', page_title: 'studio:patterns' },
     ])
     expect(win.dataLayer?.[3]).toEqual(['event', 'send_to_controller', { mode: 'run' }])
+    expect(win.dataLayer?.[4]).toEqual(['event', 'map_created', {}])
   })
 })
 

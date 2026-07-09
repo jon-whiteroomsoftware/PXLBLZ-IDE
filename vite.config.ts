@@ -1,4 +1,4 @@
-import { defineConfig, loadEnv, type Plugin } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import path from 'path'
@@ -6,37 +6,6 @@ import fs from 'fs'
 
 const DEFAULT_BASE = '/PXLBLZ-IDE/'
 const DEFAULT_API_PROXY_TARGET = 'http://localhost:8788'
-
-function googleAnalyticsSnippet(measurementId: string | undefined): Plugin {
-  return {
-    name: 'pxlblz-google-analytics',
-    apply: 'build',
-    transformIndexHtml() {
-      if (!measurementId) return []
-      const id = JSON.stringify(measurementId)
-      return [
-        {
-          tag: 'script',
-          attrs: {
-            async: true,
-            src: `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(measurementId)}`,
-          },
-          injectTo: 'head',
-        },
-        {
-          tag: 'script',
-          children: [
-            'window.dataLayer = window.dataLayer || [];',
-            'function gtag(){dataLayer.push(arguments);}',
-            'gtag("js", new Date());',
-            `gtag("config", ${id});`,
-          ].join('\n'),
-          injectTo: 'head',
-        },
-      ]
-    },
-  }
-}
 
 // Dev-only: a sink for in-page canvas captures. The running app can POST raw
 // PNG bytes to `/__capture?name=foo.png` and this writes them to disk, so
@@ -103,14 +72,12 @@ function redirectBaseTrailingSlash(base: string) {
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
-  const gaMeasurementId = env.VITE_GA_MEASUREMENT_ID?.trim()
   const base = env.VITE_BASE_PATH?.trim() || DEFAULT_BASE
   const apiProxyTarget = env.VITE_API_PROXY_TARGET?.trim() || DEFAULT_API_PROXY_TARGET
 
   return {
     base,
     plugins: [
-      googleAnalyticsSnippet(gaMeasurementId),
       redirectBaseTrailingSlash(base),
       captureSink(),
       react(),

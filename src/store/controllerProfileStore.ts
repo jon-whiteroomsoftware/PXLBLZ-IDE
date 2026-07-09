@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { trackEntityCreated } from '@/analytics'
 import { getControllerProvider } from '@/engine/controllerProviderRegistry'
 import { getPersonalContentProvider } from '@/engine/personalContentProvider'
 import { newPersonalContentId } from '@/engine/personalContentMetadata'
@@ -154,6 +155,7 @@ export const useControllerProfileStore = create<ControllerProfileState>()((set, 
   createProfile: async (seed = {}) => {
     const profile = defaultControllerProfile(seed)
     await getPersonalContentProvider().createControllerProfile(profile)
+    trackEntityCreated('controller_profile', { has_device_id: Boolean(profile.deviceId) })
     set((s) => ({ profiles: [profile, ...s.profiles], profilesLoaded: true }))
     return profile
   },
@@ -190,6 +192,7 @@ export const useControllerProfileStore = create<ControllerProfileState>()((set, 
     try {
       const profile = defaultControllerProfile(controllerProfileCreateSeed(target))
       await getPersonalContentProvider().createControllerProfile(profile)
+      trackEntityCreated('controller_profile', { has_device_id: true })
       set((s) => ({ profiles: [profile, ...s.profiles], profilesLoaded: true }))
       return profile
     } finally {

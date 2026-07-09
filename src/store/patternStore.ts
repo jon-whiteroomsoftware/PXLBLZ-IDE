@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { trackEntityCreated } from '@/analytics'
 import {
   DEMO_OVERRIDES_KEY,
   LAST_ACTIVE_KEY,
@@ -102,6 +103,7 @@ export const usePatternStore = create<PatternState>()((set, get) => ({
 
   addPattern: async (record) => {
     await getPersonalContentProvider().createPattern(record)
+    trackEntityCreated('pattern')
     set((s) => ({
       userPatterns: [record, ...s.userPatterns],
     }))

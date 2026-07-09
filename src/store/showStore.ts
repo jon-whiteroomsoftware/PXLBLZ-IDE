@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { trackEntityCreated } from '@/analytics'
 import {
   addShowZone,
   createDefaultShowFromController,
@@ -105,6 +106,7 @@ export const useShowStore = create<ShowState>()((set, get) => ({
 
   addShow: async (record) => {
     await getPersonalContentProvider().createShow(record)
+    trackEntityCreated('show')
     set((state) => ({ shows: [record, ...state.shows], showsLoaded: true }))
   },
 

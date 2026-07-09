@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { trackEntityCreated } from '@/analytics'
 import type { MapRecord } from '@/engine/personalContentRecords'
 import { getPersonalContentProvider } from '@/engine/personalContentProvider'
 import { newPersonalContentId } from '@/engine/personalContentMetadata'
@@ -487,6 +488,7 @@ export const useMapStore = create<MapState>()((set, get) => ({
 
   addMap: async (record) => {
     await getPersonalContentProvider().createMap(record)
+    trackEntityCreated('map')
     set((s) => ({ userMaps: [record, ...s.userMaps] }))
   },
 

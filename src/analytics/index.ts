@@ -1,6 +1,12 @@
 type AnalyticsEnv = Pick<ImportMetaEnv, 'PROD' | 'DEV' | 'VITE_GA_MEASUREMENT_ID'>
 
-type AnalyticsEventName = 'catalog_clone' | 'send_to_controller' | 'sign_in'
+type EntityCreatedKind = 'pattern' | 'map' | 'mixin' | 'show' | 'controller_profile'
+
+type AnalyticsEventName =
+  | 'catalog_clone'
+  | 'send_to_controller'
+  | 'sign_in'
+  | `${EntityCreatedKind}_created`
 
 type AnalyticsEventParams = Record<string, string | number | boolean | null | undefined>
 
@@ -67,6 +73,15 @@ export function trackEvent(
 ): void {
   if (!initAnalytics(win, win.document, env)) return
   win.gtag?.('event', name, compactParams(params))
+}
+
+export function trackEntityCreated(
+  kind: EntityCreatedKind,
+  params: AnalyticsEventParams = {},
+  win: Window = window,
+  env: AnalyticsEnv = import.meta.env,
+): void {
+  trackEvent(`${kind}_created`, params, win, env)
 }
 
 function compactParams(params: AnalyticsEventParams): Record<string, string | number | boolean> {

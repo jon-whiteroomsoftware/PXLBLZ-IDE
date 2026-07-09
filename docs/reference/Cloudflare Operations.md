@@ -16,8 +16,9 @@ production binding is:
 The production build expects:
 
 - `VITE_BASE_PATH=/`
-- `VITE_GA_MEASUREMENT_ID=<Google Analytics measurement id>` when production
-  analytics should be enabled
+- `VITE_GA_MEASUREMENT_ID=<Google Analytics measurement id>` from the dedicated
+  GA4 property for the Cloudflare v2 deployment when production analytics should
+  be enabled
 
 Secrets and operator-specific values are managed in Cloudflare Pages:
 
@@ -31,7 +32,8 @@ Secrets and operator-specific values are managed in Cloudflare Pages:
 - `GITHUB_OAUTH_REDIRECT_URI` only when overriding the default callback URL
 - `GOOGLE_OAUTH_REDIRECT_URI` only when overriding the default callback URL
 - `VITE_GA_MEASUREMENT_ID` as a Pages build variable, not a secret, when
-  analytics are enabled
+  analytics are enabled. Use the Cloudflare/v2 GA4 property id here; the legacy
+  GitHub Pages or marketing property id should not be reused for this deployment.
 
 GitHub OAuth must allow the `read:user user:email` scopes so the callback can
 store a verified primary email when GitHub exposes one. Google OAuth must allow
@@ -50,12 +52,31 @@ automatic page views disabled and sends:
   clicked, with mode (`run`/`save`) and non-PII controller/pattern context;
 - `catalog_clone` when a built-in pattern is cloned into the signed-in Studio
   workspace;
+- entity-creation events when durable rows are created:
+  `pattern_created`, `map_created`, `mixin_created`, `show_created`, and
+  `controller_profile_created`;
 - `sign_in` when the app sends the user into the OAuth flow.
 
 View these in Google Analytics under **Reports → Engagement → Pages and screens**
 for page views, and **Reports → Engagement → Events** or **Admin → Events** for
 custom events. The integration does not send personal content source, account
 identity, controller IP address, or OAuth profile data.
+
+Only the runtime analytics module loads `gtag.js`; Vite does not inject a
+build-time GA snippet. This avoids double-counted page views and keeps
+`send_page_view: false` under test.
+
+Use D1 for current-state aggregate checks that do not fit GA's event model:
+
+```bash
+npx wrangler d1 execute pxlblz-ide --remote --command "SELECT 'patterns' AS entity, COUNT(*) AS total, COUNT(DISTINCT user_id) AS users_with_any FROM personal_patterns UNION ALL SELECT 'maps', COUNT(*), COUNT(DISTINCT user_id) FROM personal_maps UNION ALL SELECT 'mixins', COUNT(*), COUNT(DISTINCT user_id) FROM personal_mixins UNION ALL SELECT 'shows', COUNT(*), COUNT(DISTINCT user_id) FROM personal_shows UNION ALL SELECT 'controller_profiles', COUNT(*), COUNT(DISTINCT user_id) FROM controller_profiles;"
+npx wrangler d1 execute pxlblz-ide --remote --command "SELECT COUNT(*) AS total_users FROM users;"
+npx wrangler d1 execute pxlblz-ide --remote --command "SELECT COUNT(DISTINCT user_id) AS users_with_controller_profiles FROM controller_profiles;"
+```
+
+Deferred analytics work: GA4 Measurement Protocol server-side events if
+ad-blocker loss makes client numbers untrustworthy, and any daily snapshot table
+or Looker Studio dashboard.
 
 ## Deploy And Verify
 
