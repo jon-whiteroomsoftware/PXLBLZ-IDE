@@ -15,9 +15,11 @@ type GtagCommand =
   | ['config', string, Record<string, unknown>?]
   | ['event', string, Record<string, unknown>?]
 
+type GtagDataLayerEntry = IArguments | Record<string, unknown>
+
 declare global {
   interface Window {
-    dataLayer?: GtagCommand[]
+    dataLayer?: GtagDataLayerEntry[]
     gtag?: (...args: GtagCommand) => void
     __pxlblzAnalyticsInitialized?: boolean
   }
@@ -37,8 +39,10 @@ export function initAnalytics(
   if (win.__pxlblzAnalyticsInitialized) return true
 
   win.dataLayer = win.dataLayer ?? []
-  win.gtag = (...args: GtagCommand) => {
-    win.dataLayer?.push(args)
+  win.gtag = function gtag() {
+    // gtag.js consumes the canonical Arguments object; a rest-parameter array stays queued.
+    // eslint-disable-next-line prefer-rest-params
+    win.dataLayer?.push(arguments)
   }
 
   const script = doc.createElement('script')

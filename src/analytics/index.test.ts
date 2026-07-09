@@ -15,8 +15,9 @@ describe('analytics', () => {
     expect(win.document.head.querySelector('script')?.getAttribute('src')).toBe(
       'https://www.googletagmanager.com/gtag/js?id=G-TEST',
     )
-    expect(win.dataLayer?.[0][0]).toBe('js')
-    expect(win.dataLayer?.[1]).toEqual(['config', 'G-TEST', { send_page_view: false }])
+    expect(Array.isArray(win.dataLayer?.[0])).toBe(false)
+    expect(dataLayerCommand(win, 0)[0]).toBe('js')
+    expect(dataLayerCommand(win, 1)).toEqual(['config', 'G-TEST', { send_page_view: false }])
   })
 
   it('records page views and custom events through gtag', () => {
@@ -27,15 +28,19 @@ describe('analytics', () => {
     trackEvent('send_to_controller', { mode: 'run', ignored: null }, win, env)
     trackEntityCreated('map', { ignored: undefined }, win, env)
 
-    expect(win.dataLayer?.[2]).toEqual([
+    expect(dataLayerCommand(win, 2)).toEqual([
       'event',
       'page_view',
       { page_path: '/studio/patterns/p1', page_title: 'studio:patterns' },
     ])
-    expect(win.dataLayer?.[3]).toEqual(['event', 'send_to_controller', { mode: 'run' }])
-    expect(win.dataLayer?.[4]).toEqual(['event', 'map_created', {}])
+    expect(dataLayerCommand(win, 3)).toEqual(['event', 'send_to_controller', { mode: 'run' }])
+    expect(dataLayerCommand(win, 4)).toEqual(['event', 'map_created', {}])
   })
 })
+
+function dataLayerCommand(win: Window, index: number): unknown[] {
+  return Array.from(win.dataLayer?.[index] as IArguments)
+}
 
 function windowForAnalytics(): Window {
   const doc = document.implementation.createHTMLDocument()
