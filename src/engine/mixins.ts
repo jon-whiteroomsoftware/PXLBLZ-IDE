@@ -147,50 +147,125 @@ const POWER_MEASURE_SOURCE = `// Power Measure - estimate output duty from inter
 // private IDE telemetry. Measurement-only: it does not alter rendered output.
 //
 // @param FULL_WHITE_MILLIAMPS estimated current when every RGB channel is full on
+// @param RECENT_WINDOW_MS calm telemetry publication interval
+// @param SINCE_START_MAX_FRAMES fixed-point-safe cumulative-mean weight ceiling
 // @target hsv
 // @wraps hsv-call
 
-export var __px_powerDuty = 0
+export var __px_powerDutyRecent = 0
+export var __px_powerDutySinceStart = 0
 export var __px_powerMilliAmps = 0
 export var __px_powerLimit = 0
 export var __px_powerScale = 1
 export var __px_powerClipping = 0
 
-var __px_powerSamples = 0
+var __px_powerFrameDuty = 0
+var __px_powerFrameSamples = 0
+var __px_powerRecentDutyMs = 0
+var __px_powerRecentElapsedMs = 0
+var __px_powerSinceFrames = 0
 
 function __px_powerMeasureHsv(h, s, v) {
   var duty = max(0, min(1, v)) * (1 - max(0, min(1, s)) * 0.5)
-  __px_powerSamples = __px_powerSamples + 1
-  __px_powerDuty = __px_powerDuty + (duty - __px_powerDuty) / __px_powerSamples
-  __px_powerMilliAmps = __px_powerDuty * FULL_WHITE_MILLIAMPS
+  __px_powerFrameDuty = __px_powerFrameDuty + duty
+  __px_powerFrameSamples = __px_powerFrameSamples + 1
+  hsv(h, s, v)
+}
+
+function __px_powerFinalizeFrame(delta) {
+  if (__px_powerFrameSamples <= 0) return
+  var frameDuty = __px_powerFrameDuty / __px_powerFrameSamples
+  var elapsed = max(0, delta)
+
+  __px_powerRecentDutyMs = __px_powerRecentDutyMs + frameDuty * elapsed
+  __px_powerRecentElapsedMs = __px_powerRecentElapsedMs + elapsed
+  __px_powerSinceFrames = min(SINCE_START_MAX_FRAMES, __px_powerSinceFrames + 1)
+  __px_powerDutySinceStart = __px_powerDutySinceStart + (frameDuty - __px_powerDutySinceStart) / __px_powerSinceFrames
+
+  if (__px_powerRecentElapsedMs >= RECENT_WINDOW_MS) {
+    __px_powerDutyRecent = __px_powerRecentDutyMs / __px_powerRecentElapsedMs
+    __px_powerMilliAmps = __px_powerDutyRecent * FULL_WHITE_MILLIAMPS
+    __px_powerRecentDutyMs = 0
+    __px_powerRecentElapsedMs = 0
+  }
+
   __px_powerScale = 1
   __px_powerClipping = 0
-  hsv(h, s, v)
+  __px_powerFrameDuty = 0
+  __px_powerFrameSamples = 0
+}
+
+export function beforeRender(delta) {
+  __px_powerFinalizeFrame(delta)
 }
 `
 
 const POWER_CAP_SOURCE = `// Power Cap - estimate output duty from intercepted hsv() calls and scale value
-// when the running estimate exceeds the configured duty budget.
+// when a short frame-level EWMA exceeds the configured duty budget. Display
+// telemetry uses separate recent and since-start windows.
 //
 // @param MAX_DUTY controller output-duty budget, 0..1
+// @param RECENT_WINDOW_MS calm telemetry publication interval
+// @param CAP_RESPONSE_MS cap EWMA response time
+// @param SINCE_START_MAX_FRAMES fixed-point-safe cumulative-mean weight ceiling
 // @target hsv
 // @wraps hsv-call
 
-export var __px_powerDuty = 0
+export var __px_powerDutyRecent = 0
+export var __px_powerDutySinceStart = 0
 export var __px_powerLimit = MAX_DUTY
 export var __px_powerScale = 1
 export var __px_powerClipping = 0
 
-var __px_powerSamples = 0
+var __px_powerFrameDuty = 0
+var __px_powerFrameSamples = 0
+var __px_powerRecentDutyMs = 0
+var __px_powerRecentElapsedMs = 0
+var __px_powerSinceFrames = 0
+var __px_powerCapDuty = 0
+var __px_powerCapInitialized = 0
 
 function __px_cappedHsv(h, s, v) {
   var duty = max(0, min(1, v)) * (1 - max(0, min(1, s)) * 0.5)
-  __px_powerSamples = __px_powerSamples + 1
-  __px_powerDuty = __px_powerDuty + (duty - __px_powerDuty) / __px_powerSamples
-  __px_powerLimit = MAX_DUTY
-  __px_powerScale = __px_powerDuty > MAX_DUTY ? max(0, min(1, MAX_DUTY / __px_powerDuty)) : 1
-  __px_powerClipping = __px_powerScale < 1 ? 1 : 0
+  __px_powerFrameDuty = __px_powerFrameDuty + duty
+  __px_powerFrameSamples = __px_powerFrameSamples + 1
   hsv(h, s, v * __px_powerScale)
+}
+
+function __px_powerFinalizeFrame(delta) {
+  if (__px_powerFrameSamples <= 0) return
+  var frameDuty = __px_powerFrameDuty / __px_powerFrameSamples
+  var elapsed = max(0, delta)
+
+  __px_powerRecentDutyMs = __px_powerRecentDutyMs + frameDuty * elapsed
+  __px_powerRecentElapsedMs = __px_powerRecentElapsedMs + elapsed
+  __px_powerSinceFrames = min(SINCE_START_MAX_FRAMES, __px_powerSinceFrames + 1)
+  __px_powerDutySinceStart = __px_powerDutySinceStart + (frameDuty - __px_powerDutySinceStart) / __px_powerSinceFrames
+
+  if (__px_powerCapInitialized) {
+    var alpha = min(1, elapsed / CAP_RESPONSE_MS)
+    __px_powerCapDuty = __px_powerCapDuty + (frameDuty - __px_powerCapDuty) * alpha
+  } else {
+    __px_powerCapDuty = frameDuty
+    __px_powerCapInitialized = 1
+  }
+
+  __px_powerLimit = MAX_DUTY
+  __px_powerScale = __px_powerCapDuty > MAX_DUTY ? max(0, min(1, MAX_DUTY / __px_powerCapDuty)) : 1
+  __px_powerClipping = __px_powerScale < 1 ? 1 : 0
+
+  if (__px_powerRecentElapsedMs >= RECENT_WINDOW_MS) {
+    __px_powerDutyRecent = __px_powerRecentDutyMs / __px_powerRecentElapsedMs
+    __px_powerRecentDutyMs = 0
+    __px_powerRecentElapsedMs = 0
+  }
+
+  __px_powerFrameDuty = 0
+  __px_powerFrameSamples = 0
+}
+
+export function beforeRender(delta) {
+  __px_powerFinalizeFrame(delta)
 }
 `
 

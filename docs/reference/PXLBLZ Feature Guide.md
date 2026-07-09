@@ -435,13 +435,17 @@ from its default, and resets the whole preview in one click (semantics below).
 - **Controller power telemetry** — IDE-reserved `__px_power*` exported variables
   from power-measure/power-cap mixins are shown as a structured Power row on the
   live Controller panel instead of appearing as ordinary watch variables. Output
-  duty is the primary figure. Estimated amps are secondary and state the
-  Controller profile assumptions used — LED full-white current, pixel count, and
-  configured native brightness. This is a calculator, not an ammeter.
+  duty is the primary `recent / since start` pair: the recent value publishes a
+  calm block average about every two seconds, while the second value accumulates
+  across the run. Estimated amps are secondary and state the Controller profile
+  assumptions used — LED full-white current, pixel count, and configured native
+  brightness. This is a calculator, not an ammeter.
 - **Power cap** — enabling the Controller profile's power-cap transform applies
   an estimated `hsv` output guard at push time. Its authoritative setpoint is
   output duty from 0–100%, not milliamps, and it reports the same Power row
-  telemetry while it runs.
+  telemetry while it runs. A separate short internal average drives the cap, so
+  a bright scene engages it promptly even after the pattern has run for a long
+  time; neither slower display window controls limiting.
 
 ## 9. Editor in detail
 
@@ -594,7 +598,8 @@ profile is created automatically the first time); the profile page at
 - **global transforms** — hardware brightness (pot × output) and power cap,
   each toggleable. Hardware brightness samples the chosen input once per frame
   and multiplies output brightness. Power cap scales output when estimated duty
-  exceeds its normalized limit. Set that limit directly as a percentage, or use
+  exceeds its normalized limit, using a short per-frame response signal rather
+  than the slower display averages. Set that limit directly as a percentage, or use
   **From power budget** to derive it from full-white mA/pixel, Controller
   brightness, and target amps. Those electrical inputs remain visible as the
   estimate's provenance; editing duty directly keeps them but switches to direct

@@ -180,6 +180,8 @@ export interface ControllerPowerTelemetryContext {
 }
 
 export const CONTROLLER_POWER_TELEMETRY_KEYS = {
+  dutyRecent: '__px_powerDutyRecent',
+  dutySinceStart: '__px_powerDutySinceStart',
   duty: '__px_powerDuty',
   milliamps: '__px_powerMilliAmps',
   limit: '__px_powerLimit',
@@ -231,7 +233,10 @@ export function describeControllerPowerTelemetry(
   context?: ControllerPowerTelemetryContext,
 ): ControllerPowerTelemetryView | null {
   if (!vars) return null
-  const duty = vars[CONTROLLER_POWER_TELEMETRY_KEYS.duty]
+  const dutyRecent = vars[CONTROLLER_POWER_TELEMETRY_KEYS.dutyRecent]
+  const dutySinceStart = vars[CONTROLLER_POWER_TELEMETRY_KEYS.dutySinceStart]
+  const legacyDuty = vars[CONTROLLER_POWER_TELEMETRY_KEYS.duty]
+  const duty = typeof dutyRecent === 'number' ? dutyRecent : legacyDuty
   const milliamps = vars[CONTROLLER_POWER_TELEMETRY_KEYS.milliamps]
   const limit = vars[CONTROLLER_POWER_TELEMETRY_KEYS.limit]
   const scale = vars[CONTROLLER_POWER_TELEMETRY_KEYS.scale]
@@ -239,6 +244,7 @@ export function describeControllerPowerTelemetry(
 
   if (
     typeof duty !== 'number'
+    && typeof dutySinceStart !== 'number'
     && typeof milliamps !== 'number'
     && typeof limit !== 'number'
     && typeof scale !== 'number'
@@ -255,7 +261,11 @@ export function describeControllerPowerTelemetry(
     : null
   const provenance = context?.settings.provenance
   return {
-    dutyLabel: typeof duty === 'number' ? formatPercent(duty) : PLACEHOLDER,
+    dutyLabel: typeof dutyRecent === 'number' && typeof dutySinceStart === 'number'
+      ? `${formatPercent(dutyRecent)} / ${formatPercent(dutySinceStart)}`
+      : typeof duty === 'number'
+        ? formatPercent(duty)
+        : PLACEHOLDER,
     limitLabel: typeof limit !== 'number' || limit < 0
       ? PLACEHOLDER
       : context

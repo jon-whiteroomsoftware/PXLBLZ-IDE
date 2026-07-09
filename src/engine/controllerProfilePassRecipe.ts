@@ -2,6 +2,11 @@ import * as acorn from 'acorn'
 import type { ControllerInput, ControllerProfile, GlobalTransform, PatternBinding } from './controllerProfile'
 import type { PassRecipe } from './passEngine'
 import { stockMixinSpec } from './mixins'
+import {
+  POWER_CAP_RESPONSE_MS,
+  POWER_RECENT_WINDOW_MS,
+  POWER_SINCE_START_MAX_FRAMES,
+} from './powerTelemetry'
 
 export interface LiveControllerIdentity {
   ip: string
@@ -91,6 +96,9 @@ export function controllerProfilePassRecipe(
         wrapperName: '__px_cappedHsv',
         params: {
           MAX_DUTY: powerCap.maxDuty,
+          RECENT_WINDOW_MS: POWER_RECENT_WINDOW_MS,
+          CAP_RESPONSE_MS: POWER_CAP_RESPONSE_MS,
+          SINCE_START_MAX_FRAMES: POWER_SINCE_START_MAX_FRAMES,
         },
       })
     }

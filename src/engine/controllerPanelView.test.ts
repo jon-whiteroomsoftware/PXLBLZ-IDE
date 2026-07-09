@@ -203,6 +203,8 @@ describe('describeControllerVars', () => {
     expect(describeControllerVars({
       phase: 0.12345,
       __px_powerDuty: 0.42,
+      __px_powerDutyRecent: 0.78,
+      __px_powerDutySinceStart: 0.41,
       __px_powerMilliAmps: 840,
     })).toEqual([
       { name: 'phase', value: '0.12' },
@@ -232,6 +234,7 @@ describe('describeControllerPowerTelemetry', () => {
       __px_powerScale: 0.84,
       __px_powerClipping: 1,
     })).toMatchObject({
+      dutyLabel: '42%',
       limitLabel: '35%',
       estimatedDrawLabel: '—',
     })
@@ -239,7 +242,8 @@ describe('describeControllerPowerTelemetry', () => {
 
   it('formats duty-first cap telemetry and contextualizes the draw estimate', () => {
     expect(describeControllerPowerTelemetry({
-      __px_powerDuty: 0.42,
+      __px_powerDutyRecent: 0.78,
+      __px_powerDutySinceStart: 0.41,
       __px_powerLimit: 0.35,
       __px_powerScale: 0.84,
       __px_powerClipping: 1,
@@ -255,11 +259,11 @@ describe('describeControllerPowerTelemetry', () => {
         },
       },
     })).toEqual({
-      dutyLabel: '42%',
+      dutyLabel: '78% / 41%',
       limitLabel: '35%',
       scaleLabel: '84%',
       clippingLabel: 'yes',
-      estimatedDrawLabel: '≈ 2.5 A',
+      estimatedDrawLabel: '≈ 4.7 A',
       estimatedDrawAssumptions: 'at 60 mA/px × 240 px × 50% brightness',
     })
   })

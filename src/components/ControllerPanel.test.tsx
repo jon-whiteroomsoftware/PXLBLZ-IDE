@@ -111,7 +111,8 @@ describe('ControllerPanel', () => {
     const provider = new ConnectedProvider()
     provider.vars = {
       phase: 0.5,
-      __px_powerDuty: 0.42,
+      __px_powerDutyRecent: 0.78,
+      __px_powerDutySinceStart: 0.41,
       __px_powerLimit: 0.35,
       __px_powerScale: 0.84,
       __px_powerClipping: 1,
@@ -137,14 +138,18 @@ describe('ControllerPanel', () => {
     render(<ControllerPanel />)
 
     await waitFor(() => expect(screen.getByText('power')).toBeInTheDocument())
-    expect(screen.getByText('42%')).toBeInTheDocument()
+    expect(screen.getByText('78% / 41%')).toBeInTheDocument()
     expect(screen.getByText('35%')).toBeInTheDocument()
     expect(screen.getByText('84%')).toBeInTheDocument()
     expect(screen.getByText('yes')).toBeInTheDocument()
-    expect(screen.getByText('≈ 2.7 A')).toBeInTheDocument()
+    expect(screen.getByText('≈ 5.0 A')).toBeInTheDocument()
     expect(screen.getByText('at 60 mA/px × 256 px × 50% brightness')).toBeInTheDocument()
     expect(screen.getByText('phase')).toBeInTheDocument()
-    expect(screen.queryByText('__px_powerDuty')).not.toBeInTheDocument()
+    expect(screen.queryByText('__px_powerDutyRecent')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByLabelText('About the power section'))
+    expect(screen.getByText(/roughly two-second block/)).toBeInTheDocument()
+    expect(screen.getByText(/cap responds from a faster internal signal/)).toBeInTheDocument()
   })
 
   it('shows the pattern-controls help only when the loaded pattern has descriptions', async () => {

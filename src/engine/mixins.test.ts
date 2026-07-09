@@ -36,8 +36,10 @@ describe('mixin source headers (#313)', () => {
       expect(parseMixinHeader(spec.src)).toEqual([])
     }
     expect(stockMixinSpec('pot-binding')?.src).toContain('@param PIN')
-    expect(stockMixinSpec('power-measure')?.src).toContain('export var __px_powerDuty')
+    expect(stockMixinSpec('power-measure')?.src).toContain('export var __px_powerDutyRecent')
+    expect(stockMixinSpec('power-measure')?.src).toContain('export var __px_powerDutySinceStart')
     expect(stockMixinSpec('power-measure')?.src).toContain('export var __px_powerMilliAmps')
+    expect(stockMixinSpec('power-cap')?.src).toContain('export function beforeRender(delta)')
     expect(stockMixinSpec('sensor-pulse')?.src).toContain('energyAverage')
     expect(stockMixinSpec('night-scheduler')?.src).toContain('clockHour')
   })

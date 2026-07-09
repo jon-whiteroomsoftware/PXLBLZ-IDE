@@ -396,10 +396,14 @@ includes `power-measure`, a measurement-only intercept source that exports the
 reserved `__px_power*` telemetry variables while leaving output unchanged.
 `power-cap` uses the same telemetry convention and, when enabled on a Controller
 profile, compiles as an estimated `hsv` output limiter whose `MAX_DUTY` parameter
-is a normalized 0..1 setpoint. It compares estimated duty directly and scales
-value when that limit is exceeded; milliamps are not part of the generated cap
-policy. Broader sink coverage, sensor-pulse, and night-scheduler consumption are
-later #319 slices.
+is a normalized 0..1 setpoint. Both power intercepts also contribute a composed
+`beforeRender`: intercepted `hsv` calls accumulate one frame of duty, then the
+frame hook publishes a roughly two-second block average as
+`__px_powerDutyRecent` and advances a fixed-point-bounded cumulative mean as
+`__px_powerDutySinceStart`. The cap alone maintains a separate roughly 250 ms
+EWMA and scales value from that signal, so neither display average can delay
+limiting. Milliamps are not part of the generated cap policy. Broader sink
+coverage, sensor-pulse, and night-scheduler consumption are later #319 slices.
 
 The editor's fourth flavor is **library mode** (`editorFlavor === 'library'`):
 Pixelblaze-dialect source for stock and cloud helper namespaces. Stock libraries
@@ -1032,12 +1036,17 @@ a later live config read overwrites it.
 
 The live Controller panel polls `getConfig`, `getTelemetry`, and `getVars` while
 connected. Ordinary numeric exported vars render in the **variables** section.
-Reserved IDE telemetry names (`__px_powerDuty`, `__px_powerMilliAmps`,
-`__px_powerLimit`, `__px_powerScale`, and `__px_powerClipping`) are filtered out
-of that generic watch list and rendered as a structured **power** section
-instead. Duty and the normalized cap are primary. When the active Controller
+Reserved IDE telemetry names (`__px_powerDutyRecent`,
+`__px_powerDutySinceStart`, the legacy `__px_powerDuty`,
+`__px_powerMilliAmps`, `__px_powerLimit`, `__px_powerScale`, and
+`__px_powerClipping`) are filtered out of that generic watch list and rendered
+as a structured **power** section instead. Duty renders as `recent / since
+start`; the normalized cap remains primary alongside it. The recent export only
+changes at roughly two-second block boundaries, while the since-start value
+advances per frame. The limiter responds from a separate short internal EWMA.
+When the active Controller
 profile has power-cap electrical provenance, the panel derives a contextual amps
-estimate from emitted duty after scaling, current device pixel count, stored
+estimate from recent emitted duty after scaling, current device pixel count, stored
 full-white mA/pixel, and stored native-brightness assumption; the UI labels those
 assumptions and never presents the result as a measurement. The older
 `__px_powerMilliAmps` export remains reserved for the standalone measurement
@@ -1109,8 +1118,13 @@ profile input, intercepts `hsv(...)` output calls through the stock
 `controllerStore.lastTransformSummary[controllerId][patternId]` for later
 inspection. With the power-cap global transform enabled, the push recipe also
 intercepts `hsv(...)` calls through the stock `power-cap` mixin, estimates duty
-with `v * (1 - s/2)`, exports reserved `__px_power*` telemetry, and scales value
-when the running estimate exceeds the profile's normalized `maxDuty` setpoint.
+with `v * (1 - s/2)`, and exports the recent and since-start reserved
+`__px_power*` telemetry windows. A composed `beforeRender` finalizes the previous
+frame without device-side arrays. A roughly 250 ms EWMA drives scaling when it
+exceeds the profile's normalized `maxDuty` setpoint; its response is independent
+of the two display windows. The since-start incremental mean caps its scalar
+weight at 16,384 frames to stay in a useful 16.16 fixed-point range while
+retaining its deliberately slow, flattening behavior.
 The pure `powerCap.ts` model owns the derived/direct calculator: derived mode
 computes `target amps / (brightness * pixelCount * mA-per-pixel)` and clamps it
 to 0..1; direct edits preserve those electrical values as provenance. Missing

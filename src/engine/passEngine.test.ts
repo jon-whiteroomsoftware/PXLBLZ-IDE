@@ -144,16 +144,50 @@ describe('pass engine - intercept passes', () => {
         target: 'hsv',
         source: powerMeasure!.src,
         wrapperName: '__px_powerMeasureHsv',
-        params: { FULL_WHITE_MILLIAMPS: 12000 },
+        params: {
+          FULL_WHITE_MILLIAMPS: 12000,
+          RECENT_WINDOW_MS: 2000,
+          SINCE_START_MAX_FRAMES: 16384,
+        },
       },
     ])
 
-    expect(result.code).toContain('export var __px_powerDuty = 0')
+    expect(result.code).toContain('export var __px_powerDutyRecent = 0')
+    expect(result.code).toContain('export var __px_powerDutySinceStart = 0')
     expect(result.code).toContain('function __px_powerMeasureHsv(h, s, v)')
     expect(result.code).not.toContain('export function __px_powerMeasureHsv')
-    expect(result.code).toContain('__px_powerMilliAmps = __px_powerDuty * 12000')
+    expect(result.code).toContain('__px_powerMilliAmps = __px_powerDutyRecent * 12000')
     expect(result.code).toContain('__pxlblz_power_measure_hsv(0, 0.5, 0.8)')
     expect(result.summary.callSitesWrapped).toEqual({ hsv: 1 })
+    expect(result.summary.beforeRender).toBe('synthesized')
+  })
+
+  it('composes a frame hook supplied by an intercept mixin with the authored beforeRender', () => {
+    const source = [
+      `export function beforeRender(delta) { phase = phase + delta }`,
+      `export function render(index) { hsv(0, 0, 1) }`,
+    ].join('\n')
+    const mixin = [
+      `var frameCount = 0`,
+      `function measuredHsv(h, s, v) { hsv(h, s, v) }`,
+      `export function beforeRender(delta) { frameCount = frameCount + 1 }`,
+    ].join('\n')
+
+    const result = bundleWithPasses(source, {}, [{
+      id: 'power-frame',
+      kind: 'intercept',
+      target: 'hsv',
+      source: mixin,
+      wrapperName: 'measuredHsv',
+    }])
+
+    expect(result.code.match(/export function beforeRender/g)).toHaveLength(1)
+    expect(result.code).toContain('function __pxlblz_power_frame_original_beforeRender(delta)')
+    expect(result.code).toContain('function __pxlblz_power_frame_beforeRender(delta)')
+    expect(result.code.lastIndexOf('__pxlblz_power_frame_original_beforeRender(delta)')).toBeLessThan(
+      result.code.lastIndexOf('__pxlblz_power_frame_beforeRender(delta)'),
+    )
+    expect(result.summary.beforeRender).toBe('wrapped')
   })
 
   it('can wire the stock power-cap source as an hsv scaling intercept', () => {
@@ -167,17 +201,28 @@ describe('pass engine - intercept passes', () => {
         target: 'hsv',
         source: powerCap!.src,
         wrapperName: '__px_cappedHsv',
-        params: { MAX_DUTY: 0.35 },
+        params: {
+          MAX_DUTY: 0.35,
+          RECENT_WINDOW_MS: 2000,
+          CAP_RESPONSE_MS: 250,
+          SINCE_START_MAX_FRAMES: 16384,
+        },
       },
     ])
 
     expect(result.code).toContain('export var __px_powerLimit = 0.35')
+    expect(result.code).toContain('export var __px_powerDutyRecent = 0')
+    expect(result.code).toContain('export var __px_powerDutySinceStart = 0')
     expect(result.code).toContain('function __px_cappedHsv(h, s, v)')
     expect(result.code).not.toContain('export function __px_cappedHsv')
-    expect(result.code).toContain('__px_powerDuty > 0.35')
+    expect(result.code).toContain('__px_powerCapDuty > 0.35')
+    expect(result.code).toContain('min(1, elapsed / 250)')
+    expect(result.code).toContain('min(16384, __px_powerSinceFrames + 1)')
     expect(result.code).not.toContain('__px_powerMilliAmps')
+    expect(powerCap!.src).not.toMatch(/\[[^\]]*\]/)
     expect(result.code).toContain('hsv(h, s, v * __px_powerScale)')
     expect(result.summary.callSitesWrapped).toEqual({ hsv: 1 })
+    expect(result.summary.beforeRender).toBe('synthesized')
   })
 })
 

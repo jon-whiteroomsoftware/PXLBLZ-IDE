@@ -73,9 +73,9 @@ const VARS_HINT = (
 
 const POWER_HINT = (
   <DeckSectionHint
-    intro="Output duty is estimated from emitted hsv values. Draw is contextual, not measured: it applies the Controller Profile's LED-current and brightness assumptions."
+    intro="Output duty is estimated from emitted hsv values. The left value is a roughly two-second block average; the right is the average since start. The cap responds from a faster internal signal than either display. Draw is contextual, not measured."
     items={[
-      ['output duty', 'estimated emitted duty before native Controller brightness'],
+      ['duty recent / start', 'calm recent-window duty followed by the cumulative run average, both before native Controller brightness'],
       ['duty cap', 'configured normalized output budget, when a limiter is active'],
       ['est. draw', 'calculated from duty, pixel count, full-white current, and configured brightness — not an ammeter reading'],
       ['scale', 'output scale applied by a limiter; 100% means measurement only'],
@@ -265,7 +265,9 @@ export function ControllerPanel() {
       {powerTelemetry && (
         <DeckSection label="power" hint={POWER_HINT}>
           <DeckGrid gapY="gap-y-1">
-            <DeckTelemetry label="output duty" value={powerTelemetry.dutyLabel} />
+            <div className="col-span-2">
+              <DeckTelemetry label="duty recent / start" value={powerTelemetry.dutyLabel} />
+            </div>
             <DeckTelemetry label="duty cap" value={powerTelemetry.limitLabel} />
             <DeckCell label="limiting">
               <span className="text-live tabular-nums truncate">

@@ -57,6 +57,9 @@ describe('controller profile pass recipe', () => {
         wrapperName: '__px_cappedHsv',
         params: {
           MAX_DUTY: 0.42,
+          RECENT_WINDOW_MS: 2000,
+          CAP_RESPONSE_MS: 250,
+          SINCE_START_MAX_FRAMES: 16384,
         },
       }),
     ])

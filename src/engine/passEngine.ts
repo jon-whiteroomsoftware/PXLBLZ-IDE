@@ -211,8 +211,19 @@ function applyInjectPass(ctx: PassContext, pass: InjectPassRecipe, passId: strin
 }
 
 function applyInterceptPass(ctx: PassContext, pass: InterceptPassRecipe, passId: string): PassSummary {
-  const source = pass.source ? substituteParams(pass.source, pass.params ?? {}) : ''
-  const wrapperBaseName = pass.wrapperName ?? (source ? firstFunctionName(source) : '')
+  const rawSource = pass.source ? substituteParams(pass.source, pass.params ?? {}) : ''
+  const mixinBeforeRender = rawSource ? firstTopLevelFunction(rawSource, 'beforeRender') : null
+  const mixinBeforeRenderName = mixinBeforeRender
+    ? reserveName(ctx, passId, `${reservedStem(passId)}_beforeRender`)
+    : null
+  const source = mixinBeforeRender && mixinBeforeRenderName
+    ? rewriteSource(rawSource, [{
+        start: mixinBeforeRender.id.start,
+        end: mixinBeforeRender.id.end,
+        text: mixinBeforeRenderName,
+      }])
+    : rawSource
+  const wrapperBaseName = pass.wrapperName ?? (rawSource ? firstFunctionName(rawSource, 'beforeRender') : '')
   const parsed = parseModule(ctx.code)
   const callRewrites: Rewrite[] = []
   const counts: Record<string, number> = {}
@@ -260,12 +271,25 @@ function applyInterceptPass(ctx: PassContext, pass: InterceptPassRecipe, passId:
   const preamble = [source.trim(), generatedWrappers].filter(Boolean).join('\n\n')
   ctx.code = `${preamble}\n\n${rewriteSource(ctx.code, callRewrites)}`
   ctx.usedNames = collectIdentifiers(ctx.code)
+  const wrapped = mixinBeforeRenderName
+    ? wrapBeforeRender(ctx, passId, `${mixinBeforeRenderName}(delta)`)
+    : null
+  if (wrapped) {
+    ctx.code = wrapped.code
+    ctx.usedNames = collectIdentifiers(ctx.code)
+  }
 
   return {
     id: passId,
     kind: 'intercept',
+    ...(wrapped ? { beforeRender: wrapped.handling } : {}),
     callSitesWrapped: counts,
-    globalsAdded: [...wrappers.values()].map((wrapper) => wrapper.name),
+    globalsAdded: [
+      ...[...wrappers.values()].map((wrapper) => wrapper.name),
+      ...(mixinBeforeRenderName ? [mixinBeforeRenderName] : []),
+      ...(wrapped?.globalsAdded ?? []),
+    ],
+    exportsAdded: wrapped?.exportsAdded ?? [],
     estimatedPixelCost: pass.cost ?? callRewrites.length,
   }
 }
@@ -401,10 +425,16 @@ function firstTopLevelFunction(source: string, name: string): Node | null {
   return null
 }
 
-function firstFunctionName(source: string): string {
+function firstFunctionName(source: string, excludedName?: string): string {
   for (const node of parseModule(source).body as Node[]) {
     const declaration = node.type === 'ExportNamedDeclaration' ? node.declaration : node
-    if (declaration?.type === 'FunctionDeclaration' && declaration.id?.name) return declaration.id.name
+    if (
+      declaration?.type === 'FunctionDeclaration'
+      && declaration.id?.name
+      && declaration.id.name !== excludedName
+    ) {
+      return declaration.id.name
+    }
   }
   return ''
 }
