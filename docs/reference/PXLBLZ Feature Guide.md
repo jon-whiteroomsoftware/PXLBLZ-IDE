@@ -263,21 +263,26 @@ The rail's Patterns list holds your personal patterns followed by a collapsible
 surface: it can send catalog patterns to a Controller directly, and **Open in
 Studio** opens the built-in read-only in Studio for code inspection and cloning.
 Maps mode lists your custom maps followed by collapsible **Stock Maps**; Mixins
-mode lists your cloud mixins followed by collapsible **Stock Mixins**; Shows mode
-lists your cloud shows. Signed-out
+mode lists your cloud mixins followed by collapsible **Stock Mixins**; Libraries
+mode lists your cloud libraries followed by collapsible **Stock Libraries**;
+Shows mode lists your cloud shows. Signed-out
 use is demo mode: the Gallery, built-in patterns, stock maps, stock mixins,
 libraries, docs, and preview controls remain usable, while durable personal
 resources wait for sign-in.
 
-A new pattern starts from a runnable animated starter; any built-in pattern,
-stock map, or stock mixin can be **cloned** into an editable copy. Built-in patterns can open
-with a recommended map, pixel count, and solidity — defaults only, everything
-stays switchable (§8).
+A new pattern starts from a runnable animated starter. **New Library** creates a
+`LibN` namespace and opens it editable in library mode; the namespace is the
+library name, so it must be a valid identifier and cannot collide with stock
+libraries, the user's libraries, or Pixelblaze built-ins. Built-in patterns can
+open with a recommended map, pixel count, and solidity — defaults only,
+everything stays switchable (§8).
 
-The bundled **libraries** live in the Studio Libraries rail and the header's
-Libraries menu. Opening one shows its source read-only in library mode without
-changing the running preview pattern; hover the header menu for its API
-reference:
+The bundled **stock libraries** live in the Studio Libraries rail and the
+header's Libraries menu. Opening one shows its source read-only in library mode
+without changing the running preview pattern; hover the header menu for its API
+reference. Cloud libraries auto-save clean source on the sync tick; rename and
+delete warn that dependent patterns are soft references and will fail compile
+until updated.
 
 | Library | What it provides |
 |---|---|

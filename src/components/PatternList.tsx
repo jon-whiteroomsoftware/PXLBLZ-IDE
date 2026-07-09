@@ -36,7 +36,7 @@ import { useDocsStore } from '@/store/docsStore'
 import { useRouterStore } from '@/store/routerStore'
 import { openDemoPattern } from '@/store/openPattern'
 import { useWorkspaceStore } from '@/store/workspaceStore'
-import { openStockLibrary } from '@/store/openLibrary'
+import { useLibraryStore, type LibraryRecord } from '@/store/libraryStore'
 import { ActivityStrip, type RailMode } from '@/components/rail/ActivityStrip'
 import { railScrollMetrics, type ScrollMetrics } from '@/components/rail/RailPrimitives'
 import { PatternsRailSection } from '@/components/rail/PatternsRailSection'
@@ -81,6 +81,16 @@ export function PatternList() {
   const closeMixinEditor = useMixinStore((s) => s.closeMixinEditor)
   const renameMixin = useMixinStore((s) => s.renameMixin)
   const removeMixin = useMixinStore((s) => s.removeMixin)
+  const userLibraries = useLibraryStore((s) => s.userLibraries)
+  const editingLibrary = useLibraryStore((s) => s.editingLibrary)
+  const loadLibraries = useLibraryStore((s) => s.loadLibraries)
+  const createNewLibrary = useLibraryStore((s) => s.createNewLibrary)
+  const openExistingLibrary = useLibraryStore((s) => s.openExistingLibrary)
+  const openStockLibrary = useLibraryStore((s) => s.openStockLibrary)
+  const closeLibraryEditor = useLibraryStore((s) => s.closeLibraryEditor)
+  const renameLibrary = useLibraryStore((s) => s.renameLibrary)
+  const removeLibrary = useLibraryStore((s) => s.removeLibrary)
+  const validateLibraryNamespace = useLibraryStore((s) => s.validateLibraryNamespace)
   const controllerProfiles = useControllerProfileStore((s) => s.profiles)
   const loadControllerProfiles = useControllerProfileStore((s) => s.loadProfiles)
   const removeControllerProfile = useControllerProfileStore((s) => s.removeProfile)
@@ -211,9 +221,10 @@ export function PatternList() {
     closeDocs()
     if (next !== 'maps') closeMapEditor()
     if (next !== 'mixins') closeMixinEditor()
+    if (next !== 'libraries') closeLibraryEditor()
     if (next === 'libraries') {
       const last = lastEntityByModeRef.current.libraries
-      const id = last && LIBRARIES[last] ? last : null
+      const id = last && (LIBRARIES[last] || userLibraries.some((library) => library.id === last)) ? last : null
       navigate({ kind: 'studio', entity: { kind: next, id } })
       return
     }
@@ -268,6 +279,7 @@ export function PatternList() {
     userPatterns.length,
     userMaps.length,
     userMixins.length,
+    userLibraries.length,
     controllerProfiles.length,
     userShows.length,
     showStockPatterns,
@@ -345,6 +357,8 @@ export function PatternList() {
       if (cancelled) return
       await useMixinStore.getState().loadMixins()
       if (cancelled) return
+      await useLibraryStore.getState().loadLibraries()
+      if (cancelled) return
       await loadControllerProfiles()
       if (cancelled) return
       await loadShows()
@@ -361,6 +375,7 @@ export function PatternList() {
       if (route.kind === 'studio' && route.entity !== null && route.entity.id !== null) return
       const last = await getPersonalContentProvider().getLastActive().catch(() => undefined)
       const { userPatterns, setActivePattern, setActiveLibrary, setActiveDemo } = usePatternStore.getState()
+      const { userLibraries, openExistingLibrary } = useLibraryStore.getState()
       const { shows, openShow } = useShowStore.getState()
       const { setSource, setEditorFlavor, setIsReadOnly, setPreviewSource, setPreviewPatternName } = useEditorStore.getState()
       if (!last) {
@@ -392,7 +407,9 @@ export function PatternList() {
           setIsReadOnly(true)
         }
       } else if (last.type === 'library') {
-        if (LIBRARIES[last.name]) {
+        const record = userLibraries.find((library) => library.name === last.name)
+        if (record) openExistingLibrary(record)
+        else if (LIBRARIES[last.name]) {
           setActiveLibrary(last.name)
           setSource(LIBRARIES[last.name])
           setIsReadOnly(true)
@@ -406,11 +423,12 @@ export function PatternList() {
     return () => {
       cancelled = true
     }
-  }, [loadControllerProfiles, loadPatterns, loadShows, setGlobalWorkspaceAuthenticated])
+  }, [loadControllerProfiles, loadLibraries, loadPatterns, loadShows, setGlobalWorkspaceAuthenticated])
 
   function openUserPattern(pattern: PatternRecord) {
     closeMapEditor()
     closeMixinEditor()
+    closeLibraryEditor()
     closeDocs()
     setActivePattern(pattern.id)
     setEditorFlavor('pattern')
@@ -449,6 +467,7 @@ export function PatternList() {
   function openUserMap(map: MapRecord) {
     closeDocs()
     closeMixinEditor()
+    closeLibraryEditor()
     openExistingMap(map)
     navigate({ kind: 'studio', entity: { kind: 'maps', id: map.id } })
   }
@@ -456,12 +475,14 @@ export function PatternList() {
   function openStockMapRoute(id: string) {
     closeDocs()
     closeMixinEditor()
+    closeLibraryEditor()
     openStockMap(id)
     navigate({ kind: 'studio', entity: { kind: 'maps', id } })
   }
 
   async function handleCreateMap() {
     closeMixinEditor()
+    closeLibraryEditor()
     await createNewMap()
     const editing = useMapStore.getState().editingMap
     if (editing?.kind === 'existing') navigate({ kind: 'studio', entity: { kind: 'maps', id: editing.id } })
@@ -469,6 +490,7 @@ export function PatternList() {
 
   async function handleCreateMixin() {
     closeMapEditor()
+    closeLibraryEditor()
     await createNewMixin()
     const editing = useMixinStore.getState().editingMixin
     if (editing?.kind === 'existing') navigate({ kind: 'studio', entity: { kind: 'mixins', id: editing.id } })
@@ -476,12 +498,14 @@ export function PatternList() {
 
   function openUserMixin(mixin: MixinRecord) {
     closeDocs()
+    closeLibraryEditor()
     openExistingMixin(mixin)
     navigate({ kind: 'studio', entity: { kind: 'mixins', id: mixin.id } })
   }
 
   function openStockMixinRoute(id: string) {
     closeDocs()
+    closeLibraryEditor()
     openStockMixin(id)
     navigate({ kind: 'studio', entity: { kind: 'mixins', id } })
   }
@@ -491,9 +515,33 @@ export function PatternList() {
     navigate({ kind: 'studio', entity: { kind: 'libraries', id: name } })
   }
 
+  function openUserLibrary(library: LibraryRecord) {
+    closeDocs()
+    openExistingLibrary(library)
+    navigate({ kind: 'studio', entity: { kind: 'libraries', id: library.id } })
+  }
+
+  async function handleCreateLibrary() {
+    closeMapEditor()
+    closeMixinEditor()
+    const library = await createNewLibrary()
+    navigate({ kind: 'studio', entity: { kind: 'libraries', id: library.id } })
+  }
+
+  async function handleRenameLibrary(libraryId: string, name: string) {
+    const library = userLibraries.find((candidate) => candidate.id === libraryId)
+    const prior = library?.name ?? 'this library'
+    const confirmed = window.confirm(
+      `Rename library namespace "${prior}" to "${name}"? Patterns that reference "${prior}.*" will fail compile with an unknown-namespace error until you update them.`,
+    )
+    if (!confirmed) return
+    await renameLibrary(libraryId, name)
+  }
+
   function openControllerProfile(profileId: string) {
     closeMapEditor()
     closeMixinEditor()
+    closeLibraryEditor()
     closeDocs()
     navigate({ kind: 'studio', entity: { kind: 'controllers', id: profileId } })
   }
@@ -501,6 +549,7 @@ export function PatternList() {
   async function handleCreateShow() {
     closeMapEditor()
     closeMixinEditor()
+    closeLibraryEditor()
     closeDocs()
     const show = await createNewShow()
     navigate({ kind: 'studio', entity: { kind: 'shows', id: show.id } })
@@ -510,6 +559,7 @@ export function PatternList() {
     if (!showSeedProfile) return
     closeMapEditor()
     closeMixinEditor()
+    closeLibraryEditor()
     closeDocs()
     const show = await createShowFromController(showSeedProfile)
     navigate({ kind: 'studio', entity: { kind: 'shows', id: show.id } })
@@ -518,6 +568,7 @@ export function PatternList() {
   function openUserShow(show: ShowRecord) {
     closeMapEditor()
     closeMixinEditor()
+    closeLibraryEditor()
     closeDocs()
     openShow(show.id)
     navigate({ kind: 'studio', entity: { kind: 'shows', id: show.id } })
@@ -555,6 +606,13 @@ export function PatternList() {
     await removeMixin(mixinId)
     if (route.kind === 'studio' && route.entity?.kind === 'mixins' && route.entity.id === mixinId) {
       navigate({ kind: 'studio', entity: { kind: 'mixins', id: null } })
+    }
+  }
+
+  async function handleRemoveLibrary(libraryId: string) {
+    await removeLibrary(libraryId)
+    if (route.kind === 'studio' && route.entity?.kind === 'libraries' && route.entity.id === libraryId) {
+      navigate({ kind: 'studio', entity: { kind: 'libraries', id: null } })
     }
   }
 
@@ -678,14 +736,22 @@ export function PatternList() {
         )}
         {railMode === 'libraries' && (
           <LibrariesRailSection
+            personalWorkspaceAuthenticated={personalWorkspaceAuthenticated}
+            userLibraries={userLibraries}
+            editingLibrary={editingLibrary}
             activeLibraryName={activeLibraryName}
             libraryNames={libraryNames}
             showStockLibraries={showStockLibraries}
             scrollRef={scrollRef}
             scrollMetrics={scrollMetrics}
             onScroll={updateScrollMetrics}
+            onCreateLibrary={() => void handleCreateLibrary()}
             onToggleStockLibraries={() => setShowStockLibraries((visible) => !visible)}
+            onOpenUserLibrary={openUserLibrary}
             onOpenStockLibrary={openStockLibraryRoute}
+            onRenameLibrary={(libraryId, name) => void handleRenameLibrary(libraryId, name)}
+            onDeleteLibrary={(libraryId) => void handleRemoveLibrary(libraryId)}
+            validateLibraryName={validateLibraryNamespace}
           />
         )}
         {railMode === 'controllers' && (

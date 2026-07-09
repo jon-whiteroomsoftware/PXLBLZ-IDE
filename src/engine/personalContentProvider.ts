@@ -1,5 +1,5 @@
 import type { Settings } from './settings'
-import type { MapRecord, MixinRecord, PatternRecord, ShowRecord } from './personalContentRecords'
+import type { LibraryRecord, MapRecord, MixinRecord, PatternRecord, ShowRecord } from './personalContentRecords'
 import type { ControllerProfile } from './controllerProfile'
 import { createRemotePersonalContentProvider } from './remotePersonalContentProvider'
 
@@ -13,7 +13,7 @@ export type LastActive =
   | { type: 'show'; id: string }
 
 export type PersonalContentStorageMode = 'demo' | 'api'
-export type PersonalContentCollection = 'patterns' | 'maps' | 'mixins' | 'controllers' | 'shows'
+export type PersonalContentCollection = 'patterns' | 'maps' | 'mixins' | 'libraries' | 'controllers' | 'shows'
 export type PersonalContentProviderMode = 'remote-api'
 
 export interface PersonalContentProvider {
@@ -30,6 +30,10 @@ export interface PersonalContentProvider {
   createMixin(record: MixinRecord): Promise<void>
   updateMixin(id: string, changes: Partial<Omit<MixinRecord, 'id'>>): Promise<void>
   deleteMixin(id: string): Promise<void>
+  listLibraries?(): Promise<LibraryRecord[]>
+  createLibrary?(record: LibraryRecord): Promise<void>
+  updateLibrary?(id: string, changes: Partial<Omit<LibraryRecord, 'id'>>): Promise<void>
+  deleteLibrary?(id: string): Promise<void>
   listShows(): Promise<ShowRecord[]>
   createShow(record: ShowRecord): Promise<void>
   updateShow(id: string, changes: Partial<Omit<ShowRecord, 'id'>>): Promise<void>
@@ -57,6 +61,7 @@ export function personalContentCollectionLabel(
 ): string {
   if (collection === 'controllers') return 'Controllers'
   if (collection === 'mixins') return 'Mixins'
+  if (collection === 'libraries') return 'Libraries'
   if (collection === 'shows') return 'Shows'
   return collection === 'patterns' ? 'Patterns' : 'Maps'
 }
@@ -79,6 +84,10 @@ export const demoPersonalContentProvider: PersonalContentProvider = {
   createMixin: signInRequired,
   updateMixin: signInRequired,
   deleteMixin: signInRequired,
+  listLibraries: async () => [],
+  createLibrary: signInRequired,
+  updateLibrary: signInRequired,
+  deleteLibrary: signInRequired,
   listShows: async () => [],
   createShow: signInRequired,
   updateShow: signInRequired,

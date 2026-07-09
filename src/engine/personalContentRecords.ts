@@ -61,6 +61,16 @@ export interface MixinRecord {
   updatedAt: number
 }
 
+// A user-authored helper namespace. `name` is the Pixelblaze namespace used in
+// pattern code (`MyLib.fn()`), so it is identifier-constrained and unique against
+// stock libraries, built-ins, and the user's other libraries.
+export interface LibraryRecord {
+  id: string
+  name: string
+  src: string
+  updatedAt: number
+}
+
 export type ShowTransitionKind = 'cut' | 'crossfade' | 'wipe' | 'dither'
 export type ShowTransitionCost = 'free' | 'cheap' | 'expensive'
 

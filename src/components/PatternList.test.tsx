@@ -6,6 +6,7 @@ import { useEditorStore, editorInitialState } from '@/store/editorStore'
 import { usePatternStore, patternInitialState } from '@/store/patternStore'
 import { useMapStore, mapInitialState, type MapRecord } from '@/store/mapStore'
 import { useMixinStore, mixinInitialState, type MixinRecord } from '@/store/mixinStore'
+import { useLibraryStore, libraryInitialState, type LibraryRecord } from '@/store/libraryStore'
 import {
   controllerProfileInitialState,
   useControllerProfileStore,
@@ -25,6 +26,7 @@ const SEED_PATTERN = { id: 'seed-1', name: 'Seed Pattern', src: '// seed', contr
 
 let mockMaps: MapRecord[] = []
 let mockMixins: MixinRecord[] = []
+let mockLibraries: LibraryRecord[] = []
 let mockControllers: ControllerProfile[] = []
 let requests: Array<{ url: string; init?: RequestInit }> = []
 
@@ -33,6 +35,7 @@ beforeEach(() => {
   window.sessionStorage.clear()
   mockMaps = []
   mockMixins = []
+  mockLibraries = []
   mockControllers = []
   requests = []
   vi.mocked(getAuthSession).mockResolvedValue({
@@ -67,6 +70,25 @@ beforeEach(() => {
     if (String(url) === '/api/mixins' && init?.method === undefined) {
       return Response.json({ mixins: mockMixins })
     }
+    if (String(url) === '/api/libraries' && init?.method === undefined) {
+      return Response.json({ libraries: mockLibraries })
+    }
+    if (String(url) === '/api/libraries' && init?.method === 'POST') {
+      const record = JSON.parse(String(init.body)) as LibraryRecord
+      mockLibraries = [record, ...mockLibraries]
+      return Response.json({ library: record }, { status: 201 })
+    }
+    if (String(url).startsWith('/api/libraries/') && init?.method === 'PATCH') {
+      const id = String(url).replace('/api/libraries/', '')
+      const changes = JSON.parse(String(init.body)) as Partial<LibraryRecord>
+      mockLibraries = mockLibraries.map((library) => library.id === id ? { ...library, ...changes } : library)
+      return Response.json({ ok: true })
+    }
+    if (String(url).startsWith('/api/libraries/') && init?.method === 'DELETE') {
+      const id = String(url).replace('/api/libraries/', '')
+      mockLibraries = mockLibraries.filter((library) => library.id !== id)
+      return Response.json({ ok: true })
+    }
     if (String(url) === '/api/controllers' && init?.method === undefined) {
       return Response.json({ controllers: mockControllers })
     }
@@ -82,6 +104,7 @@ beforeEach(() => {
   usePatternStore.setState(patternInitialState)
   useMapStore.setState(mapInitialState)
   useMixinStore.setState(mixinInitialState)
+  useLibraryStore.setState(libraryInitialState)
   useControllerProfileStore.setState(controllerProfileInitialState)
   useShowStore.setState(showInitialState)
   useWorkspaceStore.setState(workspaceInitialState)
@@ -214,6 +237,31 @@ describe('PatternList', () => {
     expect(window.location.pathname).toBe('/studio/maps')
     await user.click(screen.getByRole('radio', { name: 'Libraries' }))
     expect(window.location.pathname).toBe('/studio/libraries/Shader')
+  })
+
+  it('creates a cloud library from the Libraries title row and opens it editable', async () => {
+    mockLibraries = [{
+      id: 'lib-existing',
+      name: 'Lib1',
+      src: 'function existing(v) { return v }',
+      updatedAt: 1,
+    }]
+    const user = userEvent.setup()
+    render(<PatternList />)
+
+    await user.click(await screen.findByRole('radio', { name: 'Libraries' }))
+    await user.click(await screen.findByRole('button', { name: 'New library' }))
+
+    expect(await screen.findByText('Lib2')).toBeInTheDocument()
+    expect(window.location.pathname).toMatch(/^\/studio\/libraries\//)
+    expect(useLibraryStore.getState().editingLibrary?.kind).toBe('existing')
+    expect(usePatternStore.getState().activeLibraryName).toBe('Lib2')
+    expect(useEditorStore.getState().editorFlavor).toBe('library')
+    expect(useEditorStore.getState().isReadOnly).toBe(false)
+    expect(requests.map((request) => [request.url, request.init?.method ?? 'GET'])).toContainEqual([
+      '/api/libraries',
+      'POST',
+    ])
   })
 
   it('selects entity kinds through /studio/<kind> routes', async () => {

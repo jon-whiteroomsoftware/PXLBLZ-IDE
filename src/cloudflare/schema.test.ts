@@ -17,6 +17,7 @@ const showStageMapMigrationPath = path.resolve('migrations/0009_show_stage_map.s
 const controllerMapFingerprintsMigrationPath = path.resolve(
   'migrations/0010_controller_map_fingerprints.sql',
 )
+const personalLibrariesMigrationPath = path.resolve('migrations/0011_personal_libraries.sql')
 
 describe('D1 personal storage migration', () => {
   it('creates the storage buckets needed for the Cloudflare personal-storage foundation', () => {
@@ -121,5 +122,15 @@ describe('D1 personal storage migration', () => {
 
     expect(sql).toContain('ALTER TABLE controller_profiles ADD COLUMN map_fingerprints_json TEXT')
     expect(sql).toContain("VALUES ('schema_version', '10', unixepoch())")
+  })
+
+  it('adds durable user-scoped libraries', () => {
+    const sql = fs.readFileSync(personalLibrariesMigrationPath, 'utf8')
+
+    expect(sql).toContain('CREATE TABLE IF NOT EXISTS personal_libraries')
+    expect(sql).toContain('UNIQUE (user_id, name)')
+    expect(sql).toContain('PRIMARY KEY (user_id, id)')
+    expect(sql).toContain('FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE')
+    expect(sql).toContain("VALUES ('schema_version', '11', unixepoch())")
   })
 })

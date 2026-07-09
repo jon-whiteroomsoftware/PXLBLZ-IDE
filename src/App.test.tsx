@@ -7,6 +7,7 @@ import { useWorkspaceStore, workspaceInitialState } from '@/store/workspaceStore
 import { usePatternStore, patternInitialState, type PatternRecord } from '@/store/patternStore'
 import { useMapStore, mapInitialState, type MapRecord } from '@/store/mapStore'
 import { useMixinStore, mixinInitialState, type MixinRecord } from '@/store/mixinStore'
+import { useLibraryStore, libraryInitialState, type LibraryRecord } from '@/store/libraryStore'
 import { useEditorStore, editorInitialState } from '@/store/editorStore'
 import { useDocsStore, docsInitialState } from '@/store/docsStore'
 import { controllerInitialState, useControllerStore } from '@/store/controllerStore'
@@ -36,6 +37,7 @@ beforeEach(() => {
   usePatternStore.setState(patternInitialState)
   useMapStore.setState(mapInitialState)
   useMixinStore.setState(mixinInitialState)
+  useLibraryStore.setState(libraryInitialState)
   useEditorStore.setState(editorInitialState)
   useDocsStore.setState(docsInitialState)
   useControllerStore.setState(controllerInitialState)
@@ -50,6 +52,7 @@ afterEach(() => {
 
 function stubRemotePatterns(patterns: PatternRecord[] = []) {
   const created: PatternRecord[] = []
+  const libraries: LibraryRecord[] = []
   vi.stubGlobal('fetch', vi.fn(async (url, init) => {
     const path = String(url)
     if (path === '/api/patterns' && init?.method === undefined) {
@@ -64,6 +67,17 @@ function stubRemotePatterns(patterns: PatternRecord[] = []) {
     }
     if (path === '/api/mixins' && init?.method === undefined) {
       return Response.json({ mixins: [] })
+    }
+    if (path === '/api/libraries' && init?.method === undefined) {
+      return Response.json({ libraries })
+    }
+    if (path === '/api/libraries' && init?.method === 'POST') {
+      const record = JSON.parse(String(init.body)) as LibraryRecord
+      libraries.push(record)
+      return Response.json({ library: record }, { status: 201 })
+    }
+    if (path.startsWith('/api/libraries/')) {
+      return Response.json({ ok: true })
     }
     if (path === '/api/controllers' && init?.method === undefined) {
       return Response.json({ controllers: [] })
@@ -370,6 +384,32 @@ describe('routing (#308)', () => {
     expect(screen.getByTestId('editor-pane')).toHaveTextContent('Shader')
     expect(screen.getByTestId('editor-pane')).toHaveTextContent('library')
     expect(screen.getByTestId('preview-pane')).toHaveTextContent('Library context')
+  })
+
+  it('opens a personal library addressed by /studio/libraries/<id>', async () => {
+    const library: LibraryRecord = {
+      id: 'lib-1',
+      name: 'MyLib',
+      src: 'function scale(v) { return v }',
+      updatedAt: 1,
+    }
+    window.history.replaceState(null, '', '/studio/libraries/lib-1')
+    useWorkspaceStore.setState({
+      personalWorkspaceAuthenticated: true,
+      personalWorkspaceResolved: true,
+    })
+    useLibraryStore.setState({ userLibraries: [library], librariesLoaded: true })
+    render(<App />)
+
+    await waitFor(() => {
+      expect(useLibraryStore.getState().editingLibrary).toEqual({ kind: 'existing', id: 'lib-1' })
+    })
+    expect(usePatternStore.getState().activeLibraryName).toBe('MyLib')
+    expect(useEditorStore.getState().editorFlavor).toBe('library')
+    expect(useEditorStore.getState().source).toContain('function scale')
+    expect(useEditorStore.getState().isReadOnly).toBe(false)
+    expect(screen.getByTestId('editor-pane')).toHaveTextContent('MyLib')
+    expect(screen.getByTestId('editor-pane')).not.toHaveTextContent('read-only')
   })
 
   it('returns to the mixin list after deleting the routed personal mixin', async () => {

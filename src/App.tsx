@@ -36,6 +36,7 @@ import { MixinProvenancePane } from '@/components/MixinProvenancePane'
 import { MapContextPane } from '@/components/MapContextPane'
 import { useMixinStore, STOCK_MIXIN_ITEMS } from '@/store/mixinStore'
 import { usePatternStore, PatternRecord } from '@/store/patternStore'
+import { useLibraryStore } from '@/store/libraryStore'
 import { useControllerProfileStore } from '@/store/controllerProfileStore'
 import { useShowStore } from '@/store/showStore'
 import { useEditorStore } from '@/store/editorStore'
@@ -263,6 +264,9 @@ export default function App() {
   const mapsLoaded = useMapStore((s) => s.mapsLoaded)
   const userMixins = useMixinStore((s) => s.userMixins)
   const mixinsLoaded = useMixinStore((s) => s.mixinsLoaded)
+  const userLibraries = useLibraryStore((s) => s.userLibraries)
+  const librariesLoaded = useLibraryStore((s) => s.librariesLoaded)
+  const editingLibrary = useLibraryStore((s) => s.editingLibrary)
   const controllerProfiles = useControllerProfileStore((s) => s.profiles)
   const controllerProfilesLoaded = useControllerProfileStore((s) => s.profilesLoaded)
   const activeShowId = useShowStore((s) => s.activeShowId)
@@ -326,12 +330,16 @@ export default function App() {
       else if (STOCK_MIXIN_ITEMS.some((m) => m.id === entityId)) openStockMixin(entityId)
     } else if (route.kind === 'studio' && route.entity !== null && route.entity.kind === 'libraries' && route.entity.id !== null) {
       const entityId = route.entity.id
-      if (activeLibraryName !== entityId && LIBRARIES[entityId]) openStockLibrary(entityId)
+      const { userLibraries, editingLibrary, openExistingLibrary } = useLibraryStore.getState()
+      if (editingLibrary?.id === entityId) return
+      const record = userLibraries.find((library) => library.id === entityId)
+      if (record) openExistingLibrary(record)
+      else if (activeLibraryName !== entityId && LIBRARIES[entityId]) openStockLibrary(entityId)
     } else if (route.kind === 'studio' && route.entity !== null && route.entity.kind === 'shows' && route.entity.id !== null) {
       const entityId = route.entity.id
       if (shows.some((show) => show.id === entityId) && activeShowId !== entityId) openShow(entityId)
     }
-  }, [route, patternsLoaded, mapsLoaded, mixinsLoaded, showsLoaded, syncDocsFromRoute, shows, activeShowId, activeLibraryName, openShow])
+  }, [route, patternsLoaded, mapsLoaded, mixinsLoaded, librariesLoaded, showsLoaded, syncDocsFromRoute, shows, activeShowId, activeLibraryName, openShow])
 
   // State → URL: the active studio entity is addressable. Push when moving
   // between entities so back/forward walk them; replace when a plain /studio
@@ -355,10 +363,11 @@ export default function App() {
       activeLibraryName !== null &&
       (current.entity === null || current.entity.kind === 'libraries')
     ) {
-      const target: Route = { kind: 'studio', entity: { kind: 'libraries', id: activeLibraryName } }
+      const targetId = editingLibrary?.kind === 'existing' ? editingLibrary.id : activeLibraryName
+      const target: Route = { kind: 'studio', entity: { kind: 'libraries', id: targetId } }
       if (!routesEqual(current, target)) navigate(target, { replace: current.entity === null || current.entity.id === null })
     }
-  }, [activePatternId, activeDemoName, activeLibraryName, activeShowId, navigate])
+  }, [activePatternId, activeDemoName, activeLibraryName, activeShowId, editingLibrary, navigate])
 
   // Signed-out cold Studio goes through a one-time welcome/sign-in gate. A
   // pattern-detail handoff may carry an active built-in demo into Studio (#310),
@@ -517,7 +526,9 @@ export default function App() {
           !userMixins.some((m) => m.id === routeEntity.id) &&
           !STOCK_MIXIN_ITEMS.some((m) => m.id === routeEntity.id)
       : routeEntity.kind === 'libraries'
-        ? !LIBRARIES[routeEntity.id]
+        ? librariesLoaded &&
+          !userLibraries.some((library) => library.id === routeEntity.id) &&
+          !LIBRARIES[routeEntity.id]
       : routeEntity.kind === 'controllers'
         ? controllerProfilesLoaded && !controllerProfiles.some((profile) => profile.id === routeEntity.id)
       : routeEntity.kind === 'shows'
@@ -673,7 +684,7 @@ export default function App() {
               : routeEntity!.kind === 'mixins'
                 ? `There's no mixin with id "${routeEntity!.id}" in this workspace. It may have been deleted, or the link may belong to a different account.`
               : routeEntity!.kind === 'libraries'
-                ? `There's no stock library named "${routeEntity!.id}".`
+                ? `There's no library with id "${routeEntity!.id}" in this workspace. It may have been deleted, or the link may belong to a different account.`
               : routeEntity!.kind === 'controllers'
                 ? `There's no controller profile with id "${routeEntity!.id}" in this workspace. It may have been deleted, or the link may belong to a different account.`
               : routeEntity!.kind === 'shows'

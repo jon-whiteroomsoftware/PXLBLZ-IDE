@@ -9,6 +9,7 @@ import { parseMapSource } from '@/engine/maps'
 import { parseMixinHeader } from '@/engine/mixins'
 import { PixelblazeCodeEditor } from '@/components/PixelblazeCodeEditor'
 import { useMixinStore } from '@/store/mixinStore'
+import { useLibraryStore } from '@/store/libraryStore'
 
 const SYNC_TICK_MS = 4000
 const PREVIEW_DEBOUNCE_MS = 600
@@ -47,6 +48,10 @@ export function Editor() {
       else if (flavor === 'mixin') {
         const editingMixin = useMixinStore.getState().editingMixin
         if (editingMixin?.kind === 'existing') void useMixinStore.getState().updateMixinSrc(editingMixin.id, s)
+      }
+      else if (flavor === 'library') {
+        const editingLibrary = useLibraryStore.getState().editingLibrary
+        if (editingLibrary?.kind === 'existing') void useLibraryStore.getState().updateLibrarySrc(editingLibrary.id, s)
       }
       else if (pid) updatePatternSrc(pid, s)
     }, SYNC_TICK_MS)

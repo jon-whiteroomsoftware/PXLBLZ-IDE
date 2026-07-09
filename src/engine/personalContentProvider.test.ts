@@ -10,7 +10,7 @@ import {
   type PersonalContentProvider,
 } from './personalContentProvider'
 import type { ControllerProfile } from './controllerProfile'
-import type { MapRecord, MixinRecord, PatternRecord, ShowRecord } from './personalContentRecords'
+import type { LibraryRecord, MapRecord, MixinRecord, PatternRecord, ShowRecord } from './personalContentRecords'
 
 beforeEach(() => {
   resetPersonalContentProvider()
@@ -108,6 +108,7 @@ describe('personal content provider seam', () => {
     expect(personalContentCollectionLabel('api', 'patterns')).toBe('Patterns')
     expect(personalContentCollectionLabel('api', 'maps')).toBe('Maps')
     expect(personalContentCollectionLabel('api', 'mixins')).toBe('Mixins')
+    expect(personalContentCollectionLabel('api', 'libraries')).toBe('Libraries')
     expect(personalContentCollectionLabel('api', 'shows')).toBe('Shows')
   })
 
@@ -154,10 +155,17 @@ describe('personal content provider seam', () => {
       cells: [],
       updatedAt: 1,
     }
+    const library: LibraryRecord = {
+      id: 'library-1',
+      name: 'ProviderLib',
+      src: 'function identity(v) { return v }',
+      updatedAt: 1,
+    }
 
     await expect(demoPersonalContentProvider.listPatterns()).resolves.toEqual([])
     await expect(demoPersonalContentProvider.listMaps()).resolves.toEqual([])
     await expect(demoPersonalContentProvider.listMixins()).resolves.toEqual([])
+    await expect(demoPersonalContentProvider.listLibraries?.()).resolves.toEqual([])
     await expect(demoPersonalContentProvider.listShows()).resolves.toEqual([])
     await expect(demoPersonalContentProvider.listControllerProfiles()).resolves.toEqual([])
     await expect(demoPersonalContentProvider.getLastActive()).resolves.toBeUndefined()
@@ -179,6 +187,11 @@ describe('personal content provider seam', () => {
       'Sign in required',
     )
     await expect(demoPersonalContentProvider.deleteMixin(mixin.id)).rejects.toThrow('Sign in required')
+    await expect(demoPersonalContentProvider.createLibrary?.(library)).rejects.toThrow('Sign in required')
+    await expect(demoPersonalContentProvider.updateLibrary?.(library.id, { name: 'RenamedLib' })).rejects.toThrow(
+      'Sign in required',
+    )
+    await expect(demoPersonalContentProvider.deleteLibrary?.(library.id)).rejects.toThrow('Sign in required')
     await expect(demoPersonalContentProvider.createShow(show)).rejects.toThrow('Sign in required')
     await expect(demoPersonalContentProvider.updateShow(show.id, { name: 'Renamed Show' })).rejects.toThrow(
       'Sign in required',

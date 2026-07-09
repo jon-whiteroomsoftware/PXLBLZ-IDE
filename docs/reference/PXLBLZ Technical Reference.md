@@ -399,13 +399,17 @@ profile, compiles as an estimated `hsv` output limiter; broader sink coverage,
 sensor-pulse, and night-scheduler consumption are later #319 slices.
 
 The editor's fourth flavor is **library mode** (`editorFlavor === 'library'`):
-Pixelblaze-dialect source for bundled stock helpers, opened read-only from the
-Studio Libraries rail or the header's Libraries menu. Stock libraries live at
-stable `/studio/libraries/<library-id>` routes, show a parse/read-only header,
-and use `validateLibraryContent()` instead of the full pattern walker so the
-library top-level rule is visible without pretending the file is a runnable
-pattern. Opening a library intentionally does not change the running preview
-pattern or its source.
+Pixelblaze-dialect source for stock and cloud helper namespaces. Stock libraries
+open read-only from the Studio Libraries rail or the header's Libraries menu at
+stable `/studio/libraries/<library-id>` routes. Cloud libraries live in D1 as
+`LibraryRecord`s (`id`, identifier-constrained `name` namespace, `src`,
+`updatedAt`), open editable at `/studio/libraries/<id>`, and auto-save clean
+source on the editor sync tick through `/api/libraries`. New libraries mint
+`LibN` names, and rename/create validate against stock library names, the user's
+libraries, and Pixelblaze built-ins. Library mode uses
+`validateLibraryContent()` instead of the full pattern walker so the top-level
+rule is visible without pretending the file is a runnable pattern. Opening a
+library intentionally does not change the running preview pattern or its source.
 
 ## 7. Runtime shim & built-ins (`shim.ts`, `builtins.ts`)
 
@@ -636,9 +640,11 @@ guard), `MAX_GRID_AXIS = 256`.
 
 ## 11. Libraries, demos & the porting toolkit
 
-**Libraries** (`src/pixelblaze/lib/`, read-only, openable, authored in the
-Pixelblaze dialect): `Anim`, `Color`, `Coord`, `Noise`, `SDF`, `Shader` — each
-with a `*.fidelity.test.ts` asserting Fast/Precise agreement.
+**Libraries**: the stock set lives in `src/pixelblaze/lib/` (read-only,
+openable, authored in the Pixelblaze dialect): `Anim`, `Color`, `Coord`, `Noise`,
+`SDF`, `Shader` — each with a `*.fidelity.test.ts` asserting Fast/Precise
+agreement. User-owned cloud libraries share the same library-mode validator and
+are stored as durable personal content.
 
 **Stock patterns** (`src/pixelblaze/stock/patterns/`, read-only, forkable; UI label
 **Built-in Patterns**): shader ports,
@@ -689,20 +695,21 @@ field: never cascaded, persisted on its own.
 
 ### Personal content storage
 
-`src/engine/personalContentProvider.ts` is the storage seam behind **Patterns**
-and **Maps**. Durable personal content has one supported
+`src/engine/personalContentProvider.ts` is the storage seam behind **Patterns**,
+**Maps**, **Mixins**, **Libraries**, **Shows**, and Controller profiles. Durable personal content has one supported
 backend: the authenticated Remote API provider, implemented by Cloudflare Pages
 Functions over D1. When `/api/me` reports no signed-in session, startup installs
 the non-durable demo provider instead. Demo mode returns empty personal
 collections, ignores last-active/demo-override writes, and rejects personal
-create/update/delete calls. Built-in demos, stock maps, libraries, docs, and the
-preview remain usable without auth.
+create/update/delete calls. Built-in demos, stock maps, stock mixins, stock
+libraries, docs, and the preview remain usable without auth.
 
 The Cloudflare D1 foundation is selected by the remote provider. The Wrangler
 binding is `PXLBLZ_DB`, backed by the `pxlblz-ide` database. The migrations
 create stable `users`, provider-specific `identities`, user-scoped tables for
-personal patterns, personal maps, personal settings, durable Controller
-profiles, and controller metadata, plus `app_metadata` for schema version
+personal patterns, personal maps, personal mixins, personal libraries, personal
+shows, personal settings, durable Controller profiles, and controller metadata,
+plus `app_metadata` for schema version
 probing. The Pages Function at
 `/api/d1/health` reads
 `app_metadata.schema_version` and reports whether the binding is reachable; it is

@@ -2,7 +2,7 @@ import {
   createRemotePersonalContentProvider,
 } from './remotePersonalContentProvider'
 import type { ControllerProfile } from './controllerProfile'
-import type { PatternRecord, ShowRecord } from './personalContentRecords'
+import type { LibraryRecord, PatternRecord, ShowRecord } from './personalContentRecords'
 
 describe('remote personal content provider', () => {
   it('performs pattern CRUD through the authenticated API', async () => {
@@ -145,6 +145,37 @@ describe('remote personal content provider', () => {
       ['/api/mixins/mx1', 'DELETE'],
     ])
     expect(requests[2].init?.body).toBe(JSON.stringify({ name: 'Renamed', updatedAt: 2 }))
+  })
+
+  it('performs library CRUD through the authenticated API', async () => {
+    const requests: Array<{ url: string; init?: RequestInit }> = []
+    const library: LibraryRecord = {
+      id: 'lib-1',
+      name: 'MyLib',
+      src: 'function scale(v) { return v }',
+      updatedAt: 1,
+    }
+    const fetcher: typeof fetch = async (url, init) => {
+      requests.push({ url: String(url), init })
+      if (String(url) === '/api/libraries' && init?.method === undefined) {
+        return Response.json({ libraries: [library] })
+      }
+      return Response.json({ ok: true })
+    }
+    const provider = createRemotePersonalContentProvider({ fetcher })
+
+    await expect(provider.listLibraries?.()).resolves.toEqual([library])
+    await provider.createLibrary?.(library)
+    await provider.updateLibrary?.('lib-1', { name: 'RenamedLib', updatedAt: 2 })
+    await provider.deleteLibrary?.('lib-1')
+
+    expect(requests.map((r) => [r.url, r.init?.method ?? 'GET'])).toEqual([
+      ['/api/libraries', 'GET'],
+      ['/api/libraries', 'POST'],
+      ['/api/libraries/lib-1', 'PATCH'],
+      ['/api/libraries/lib-1', 'DELETE'],
+    ])
+    expect(requests[2].init?.body).toBe(JSON.stringify({ name: 'RenamedLib', updatedAt: 2 }))
   })
 
   it('performs show CRUD through the authenticated API', async () => {

@@ -229,6 +229,9 @@ export function EditableListItem({
   dim,
   badge,
   takenNames,
+  validateName,
+  deleteTitle,
+  deleteDescription,
   navKey,
   onSelect,
   onRename,
@@ -237,11 +240,14 @@ export function EditableListItem({
   onRowKeyDown,
 }: {
   name: string
-  noun: 'pattern' | 'map' | 'mixin' | 'controller' | 'show'
+  noun: 'pattern' | 'map' | 'mixin' | 'controller' | 'show' | 'library'
   active: boolean
   dim?: string
   badge?: string
   takenNames: string[]
+  validateName?: (name: string) => string | null
+  deleteTitle?: string
+  deleteDescription?: string
   navKey?: string
   onSelect: () => void
   onRename?: (name: string) => void
@@ -252,6 +258,7 @@ export function EditableListItem({
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(name)
   const [conflict, setConflict] = useState(false)
+  const [validationMessage, setValidationMessage] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
   function startEdit(e: React.MouseEvent) {
@@ -259,6 +266,7 @@ export function EditableListItem({
     if (!onRename) return
     setDraft(name)
     setConflict(false)
+    setValidationMessage(null)
     setEditing(true)
     setTimeout(() => inputRef.current?.select(), 0)
   }
@@ -268,6 +276,12 @@ export function EditableListItem({
     const trimmed = draft.trim()
     if (!trimmed) { setEditing(false); return }
     if (trimmed === name) { setEditing(false); return }
+    const customError = validateName?.(trimmed) ?? null
+    if (customError) {
+      setValidationMessage(customError)
+      inputRef.current?.select()
+      return
+    }
     if (nameConflicts(trimmed, takenNames)) {
       setConflict(true)
       inputRef.current?.select()
@@ -285,6 +299,7 @@ export function EditableListItem({
   function handleDraftChange(e: React.ChangeEvent<HTMLInputElement>) {
     setDraft(e.target.value)
     if (conflict) setConflict(false)
+    if (validationMessage) setValidationMessage(null)
   }
 
   return (
@@ -312,9 +327,11 @@ export function EditableListItem({
               'flex-1 min-w-0 text-xs px-1 rounded outline-none',
               conflict
                 ? 'bg-red-900/60 text-red-200 ring-1 ring-red-500'
+                : validationMessage
+                  ? 'bg-red-900/60 text-red-200 ring-1 ring-red-500'
                 : 'bg-zinc-700 text-zinc-100',
             ].join(' ')}
-            title={conflict ? `A ${noun} with that name already exists` : undefined}
+            title={validationMessage ?? (conflict ? `A ${noun} with that name already exists` : undefined)}
           />
         ) : (
           <>
@@ -354,9 +371,9 @@ export function EditableListItem({
         )}
       </li>
       <AlertDialogContent>
-        <AlertDialogTitle>Delete {noun}?</AlertDialogTitle>
+        <AlertDialogTitle>{deleteTitle ?? `Delete ${noun}?`}</AlertDialogTitle>
         <AlertDialogDescription>
-          "{name}" will be permanently deleted and cannot be recovered.
+          {deleteDescription ?? `"${name}" will be permanently deleted and cannot be recovered.`}
         </AlertDialogDescription>
         <AlertDialogFooter>
           <AlertDialogCancel>Cancel</AlertDialogCancel>
