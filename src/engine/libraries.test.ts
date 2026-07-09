@@ -4,6 +4,7 @@ import {
   compileLibraries,
   nextLibraryCloneName,
   nextLibraryName,
+  sanitizeLibraryNameInput,
   validateLibraryName,
 } from './libraries'
 
@@ -49,6 +50,14 @@ describe('library namespace rules (#347)', () => {
     expect(validateLibraryName('Shader', { stockNames: ['Shader'], userNames: [], builtinNames: [] })).toContain('already')
     expect(validateLibraryName('shader', { stockNames: ['Shader'], userNames: [], builtinNames: [] })).toBeNull()
     expect(validateLibraryName('hsv', { stockNames: [], userNames: [], builtinNames: ['hsv'] })).toContain('built-in')
+  })
+
+  it('sanitizes in-progress input to the valid library namespace character subset', () => {
+    expect(sanitizeLibraryNameInput('My_Lib2')).toBe('My_Lib2')
+    expect(sanitizeLibraryNameInput('bad name-with.symbols')).toBe('badnamewithsymbols')
+    expect(sanitizeLibraryNameInput('123Lib')).toBe('Lib')
+    expect(sanitizeLibraryNameInput(' _Lib')).toBe('_Lib')
+    expect(sanitizeLibraryNameInput('l\u00e9 sparkle')).toBe('lsparkle')
   })
 
   it('derives builtin namespace reservations from the Pixelblaze builtins catalog', () => {

@@ -7,6 +7,8 @@ function identity(v) {
 `
 
 const IDENTIFIER_RE = /^[A-Za-z_][A-Za-z0-9_]*$/
+const IDENTIFIER_START_RE = /^[A-Za-z_]$/
+const IDENTIFIER_PART_RE = /^[A-Za-z0-9_]$/
 
 export interface LibraryNameScope {
   stockNames: readonly string[]
@@ -39,6 +41,18 @@ export function validateLibraryName(name: string, scope: LibraryNameScope): stri
     return `"${trimmed}" is a Pixelblaze built-in name`
   }
   return null
+}
+
+export function sanitizeLibraryNameInput(value: string): string {
+  let sanitized = ''
+  for (const char of value) {
+    if (sanitized.length === 0) {
+      if (IDENTIFIER_START_RE.test(char)) sanitized += char
+    } else if (IDENTIFIER_PART_RE.test(char)) {
+      sanitized += char
+    }
+  }
+  return sanitized
 }
 
 export function nextLibraryName(scope: LibraryNameScope): string {

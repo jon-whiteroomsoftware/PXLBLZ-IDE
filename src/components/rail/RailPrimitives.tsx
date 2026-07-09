@@ -2,6 +2,7 @@ import { useRef, useState, type RefObject } from 'react'
 import type React from 'react'
 import { ChevronDown, Pencil, Search, Trash2, X } from 'lucide-react'
 import { nameConflicts } from '@/engine/patternName'
+import { sanitizeLibraryNameInput } from '@/engine/libraries'
 import type { DimLens } from '@/engine/dimLens'
 import {
   AlertDialogRoot,
@@ -297,9 +298,20 @@ export function EditableListItem({
   }
 
   function handleDraftChange(e: React.ChangeEvent<HTMLInputElement>) {
-    setDraft(e.target.value)
+    setDraft(noun === 'library' ? sanitizeLibraryNameInput(e.target.value) : e.target.value)
     if (conflict) setConflict(false)
     if (validationMessage) setValidationMessage(null)
+  }
+
+  function handleBeforeInput(e: React.FormEvent<HTMLInputElement>) {
+    if (noun !== 'library') return
+    const data = (e.nativeEvent as InputEvent).data
+    if (!data) return
+    const input = e.currentTarget
+    const selectionStart = input.selectionStart ?? draft.length
+    const selectionEnd = input.selectionEnd ?? selectionStart
+    const nextDraft = `${draft.slice(0, selectionStart)}${data}${draft.slice(selectionEnd)}`
+    if (sanitizeLibraryNameInput(nextDraft) !== nextDraft) e.preventDefault()
   }
 
   return (
@@ -319,6 +331,7 @@ export function EditableListItem({
             ref={inputRef}
             autoFocus
             value={draft}
+            onBeforeInput={handleBeforeInput}
             onChange={handleDraftChange}
             onBlur={commitRename}
             onKeyDown={onKeyDown}
