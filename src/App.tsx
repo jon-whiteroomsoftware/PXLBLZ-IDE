@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect, useLayoutEffect } from 'react'
-import { Braces, Code2, Cpu, ExternalLink, FileText, Images, Lock, LogIn, Map as MapIcon, PanelsTopLeft, Trash2 } from 'lucide-react'
+import { Braces, Code2, Cpu, Download, ExternalLink, FileText, Images, Lock, LogIn, Map as MapIcon, PanelsTopLeft, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   AlertDialogRoot,
@@ -48,6 +48,7 @@ import { decideStudioAccess, studioWelcomeAcknowledgedKey } from '@/engine/studi
 import { useWorkspaceStore } from '@/store/workspaceStore'
 import { forkSettingsSnapshot } from '@/store/settingsCascade'
 import { bundle } from '@/engine/bundle'
+import { stampArtifact } from '@/engine/artifactStamp'
 import { LIBRARIES } from '@/pixelblaze/libs'
 import { uniquePatternName } from '@/engine/patternName'
 import { newPersonalContentId } from '@/engine/personalContentMetadata'
@@ -84,6 +85,28 @@ function Splitter({ onDrag }: { onDrag: (dx: number) => void }) {
       onMouseDown={handleMouseDown}
     />
   )
+}
+
+function stampedPatternArtifact(source: string, id: string, name: string): string {
+  const { code } = bundle(source, LIBRARIES)
+  return stampArtifact(code, { kind: 'pattern', id, name })
+}
+
+function patternDownloadName(name: string): string {
+  const safe = name.trim().replace(/[^A-Za-z0-9._-]+/g, '-').replace(/^-+|-+$/g, '')
+  return `${safe || 'pattern'}.js`
+}
+
+function downloadTextFile(filename: string, text: string): void {
+  const blob = new Blob([text], { type: 'text/javascript;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  URL.revokeObjectURL(url)
 }
 
 // Full-body message surface for routes that don't render the three-pane studio
@@ -421,12 +444,21 @@ export default function App() {
   useEffect(() => () => { if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current) }, [])
 
   const handleCopy = useCallback(() => {
-    const { code } = bundle(source, LIBRARIES)
+    if (!activePatternId) return
+    const pattern = userPatterns.find((p) => p.id === activePatternId)
+    const code = stampedPatternArtifact(source, activePatternId, pattern?.name ?? 'Pattern')
     navigator.clipboard.writeText(code)
     setCopied(true)
     if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current)
     copyTimeoutRef.current = setTimeout(() => setCopied(false), 1500)
-  }, [source])
+  }, [activePatternId, source, userPatterns])
+
+  const handleDownload = useCallback(() => {
+    if (!activePatternId) return
+    const pattern = userPatterns.find((p) => p.id === activePatternId)
+    const name = pattern?.name ?? 'Pattern'
+    downloadTextFile(patternDownloadName(name), stampedPatternArtifact(source, activePatternId, name))
+  }, [activePatternId, source, userPatterns])
 
   const [leftWidth, setLeftWidth] = useState(224)
   const [rightWidth, setRightWidth] = useState(460)
@@ -754,15 +786,28 @@ export default function App() {
               </Button>
             )}
             {activePatternId !== null && (
-              <Button
-                size="xs"
-                variant="ghost"
-                className="text-xs text-zinc-400 bg-zinc-800/70 hover:bg-zinc-700/70 hover:text-zinc-300 disabled:opacity-30"
-                disabled={compileStatus === 'broken'}
-                onClick={handleCopy}
-              >
-                {copied ? 'Copied!' : 'Copy Code'}
-              </Button>
+              <>
+                <Button
+                  size="xs"
+                  variant="ghost"
+                  className="text-xs text-zinc-400 bg-zinc-800/70 hover:bg-zinc-700/70 hover:text-zinc-300 disabled:opacity-30"
+                  disabled={compileStatus === 'broken'}
+                  onClick={handleCopy}
+                >
+                  {copied ? 'Copied!' : 'Copy Code'}
+                </Button>
+                <Button
+                  size="xs"
+                  variant="ghost"
+                  className="text-xs text-zinc-400 bg-zinc-800/70 hover:bg-zinc-700/70 hover:text-zinc-300 disabled:opacity-30"
+                  disabled={compileStatus === 'broken'}
+                  onClick={handleDownload}
+                  title="Download artifact"
+                >
+                  <Download size={13} aria-hidden />
+                  Download
+                </Button>
+              </>
             )}
             {activePattern !== undefined && (
               <AlertDialogRoot open={deletePatternOpen} onOpenChange={setDeletePatternOpen}>

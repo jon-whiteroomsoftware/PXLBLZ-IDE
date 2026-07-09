@@ -328,9 +328,10 @@ to the device. Full reference: §11.
 No device, no extension, or just by preference:
 
 - **Copy Code / Download** emits a single flat `.js` — every library function you
-  used inlined, `export`s preserved — exactly the format the device expects. Paste
-  it into the built-in Pixelblaze editor or upload the file. Disabled while your
-  code has a compile error.
+  used inlined, `export`s preserved, and a small `pxlblz:1` identity banner at
+  the top — exactly the format the device expects. Paste it into the built-in
+  Pixelblaze editor or upload the file. Disabled while your code has a compile
+  error.
 - **Import** opens `.epe` files exported from the Pixelblaze hardware editor; they
   land as new editable patterns.
 
@@ -609,10 +610,11 @@ Maps** §5).
   binding enabled, Send to Controller generates a derived artifact (the pattern
   samples the configured input once per frame and applies the selected
   transform/binding). The Controller's native brightness slider remains the hard
-  safety cap and is never copied from preview brightness. With no profile
-  transform or binding, the push is byte-identical to the plain artifact. After
-  a transformed push, the Controller profile and mixin provenance panes show the
-  transform summary, warnings, and a read-only view of the generated artifact.
+  safety cap and is never copied from preview brightness. The generated source
+  saved into a persisted PBP carries the same `pxlblz:1` identity banner as Copy
+  and Download; run-only bytecode has no source section. After a transformed
+  push, the Controller profile and mixin provenance panes show the transform
+  summary, warnings, and a read-only view of the generated artifact.
 
 ---
 

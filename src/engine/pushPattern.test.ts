@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { pushPattern, type PushPatternDeps } from './pushPattern'
 import { decodePbp } from './pbpEncode'
+import { parsePxlblzBanner, stripPxlblzBanner } from './artifactStamp'
 import type { BindingStore } from './controllerBinding'
 
 // A reconciling bytecode blob: header declares 0 opcode + 0 export bytes, len 8.
@@ -108,17 +109,24 @@ describe('pushPattern — save mode (persist: true)', () => {
     expect(runId).toBe('DEVPROG1')
   })
 
-  it('encodes the PBP blob with the pattern name and source', async () => {
+  it('encodes the PBP blob with the pattern name and stamped source', async () => {
     const { deps } = makeDeps({
       persist: true,
       name: 'Rainbow',
       source: 'export function render(index){ hsv(0,1,1) }',
+      transforms: ['hardware-brightness', 'power-cap'],
     })
     await pushPattern(deps)
     const [blob] = (deps.provider.saveProgram as ReturnType<typeof vi.fn>).mock.calls[0]
     const decoded = decodePbp(blob as Uint8Array)
     expect(decoded!.name).toBe('Rainbow')
-    expect(decoded!.sourceCode).toBe('export function render(index){ hsv(0,1,1) }')
+    expect(stripPxlblzBanner(decoded!.sourceCode)).toBe('export function render(index){ hsv(0,1,1) }')
+    expect(parsePxlblzBanner(decoded!.sourceCode)).toMatchObject({
+      kind: 'pattern',
+      id: 'pat-1',
+      name: 'Rainbow',
+      transforms: ['hardware-brightness', 'power-cap'],
+    })
   })
 
   it('threads the previewImage into the PBP jpeg section (#259)', async () => {

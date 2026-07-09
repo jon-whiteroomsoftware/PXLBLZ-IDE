@@ -31,7 +31,7 @@ import {
   setProgramLabels,
 } from '@/engine/controllerMetadataStorage'
 import { withProgramLabel } from '@/engine/controllerBinding'
-import { bundleWithPasses, type TransformSummary } from '@/engine/passEngine'
+import { bundleWithPasses, type PassRecipe, type TransformSummary } from '@/engine/passEngine'
 import {
   withTransformArtifactInspection,
   type TransformArtifactInspection,
@@ -48,6 +48,19 @@ import {
   controllerProfilePassRecipe,
   findProfileForLiveController,
 } from '@/engine/controllerProfilePassRecipe'
+
+function artifactTransformIds(recipe: PassRecipe): string[] {
+  const ids = new Set<string>()
+  for (const pass of recipe) {
+    if (!pass.id) {
+      ids.add(pass.kind)
+      continue
+    }
+    if (pass.id.endsWith('-sample')) continue
+    ids.add(pass.id.endsWith('-drive') ? pass.id.slice(0, -'-drive'.length) : pass.id)
+  }
+  return [...ids]
+}
 
 // Keyed connection orchestration for the live Controller surface (#210).
 //
@@ -761,6 +774,7 @@ export const useControllerStore = create<ControllerConnectionState>()(
               name: previewPatternName,
               persist,
               previewImage,
+              transforms: artifactTransformIds(recipe),
               loadBindings: getControllerBindings,
               saveBindings: setControllerBindings,
             })

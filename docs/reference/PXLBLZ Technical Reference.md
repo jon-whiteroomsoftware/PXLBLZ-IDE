@@ -172,8 +172,9 @@ Each store exports `*InitialState`; tests reset with `setState(initialState)`
 
 - **`code`** — the flat hardware/preview artifact: every referenced library
   function inlined and prepended, every `namespace.fn()` call rewritten to
-  `_namespace_fn`, `export` keywords preserved. This is exactly what runs on the
-  device and the only thing Copy/Download emit.
+  `_namespace_fn`, `export` keywords preserved. This is exactly what runs in
+  preview and the source body that export/push boundaries stamp before it leaves
+  the IDE.
 - **`fxCode`** — the fixed-point re-emit of `code` (§5), preview-only.
 - **`metadata`** — preview-side companion, never sent to hardware.
 
@@ -243,6 +244,31 @@ library abstractions; those cases warn or remain unchanged. Bind passes target
 top-level functions or variables by name. Controller profile target names are
 free text in the UI, so validation happens at transform time: missing functions
 or variables produce transform-summary warnings and do not mutate the artifact.
+
+### Artifact identity banner (`src/engine/artifactStamp.ts`)
+
+Every outbound source artifact is stamped after bundling and after any pass
+recipe has generated a derived source. The banner is a comment-only convention,
+so it has no bytecode, FPS, or code-budget cost; run-only pushes send bytecode
+only and are not stamped. Save-mode PBP blobs store the stamped source section,
+while Copy Code and Download emit the same stamped `.js` artifact. The preview
+and eval path continue to consume unstamped `bundle()`/`bundleWithPasses()`
+results.
+
+Current format:
+
+```js
+// Built with PXLBLZ-IDE https://pxlblz-ide.whiteroomsoftware.com/
+// pxlblz:1 kind=pattern id=pat-1 name="Sunset Arch" hash=1a2b3c4d stamped=2026-07-08T00:00:00.000Z
+// pxlblz:transforms hardware-brightness power-cap
+```
+
+`hash` is the 8-hex CRC32 of the artifact with any PXLBLZ banner stripped, so
+restamping preserves the same hash and one-character source drift is detectable.
+`parsePxlblzBanner(code)` returns null for unstamped source and recovers
+kind/id/name/hash/stamped/transforms for stamped source. The pattern name section
+inside PBP is untouched; names remain the human-facing currency, and the banner
+is machine-facing provenance for future read-back.
 
 ## 5. Fixed-point engine
 
@@ -1035,7 +1061,8 @@ generated artifact sent to hardware changes. The modes:
   `setCode` name is sent empty, matching the reference; the display name lives in
   the local label cache instead. Run-only deliberately does not consult or write
   the overwrite binding.
-- **Save** (`persist: true`): compile, encode a **PBP blob** (`encodePbp`,
+- **Save** (`persist: true`): compile, stamp the generated source artifact,
+  encode a **PBP blob** (`encodePbp`,
   `pbpEncode.ts`) — a 17-char id plus a 36-byte header of nine LE uint32s
   (version, then offset/length pairs for name/jpeg/bytecode/source) followed by
   the concatenated sections; the source rides as the firmware-required
@@ -1140,10 +1167,10 @@ Three firmware facts gate the rest:
 
 ## 14. Export
 
-- **Copy Code** — `bundle(source).code` to the clipboard; disabled while compile
-  is broken.
-- **Download** — the same artifact as `<sanitized-name>.js`. The fixed-point
-  `fxCode` is preview-only and never exported.
+- **Copy Code** — `stampArtifact(bundle(source).code, patternMeta)` to the
+  clipboard; disabled while compile is broken.
+- **Download** — the same stamped artifact as `<sanitized-name>.js`. The
+  fixed-point `fxCode` is preview-only and never exported.
 
 The artifact is the only thing that crosses to hardware. Metadata, the
 fixed-point emit, and the whole settings cascade stay browser-side — the

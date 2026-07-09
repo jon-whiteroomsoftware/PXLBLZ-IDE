@@ -24,6 +24,7 @@
 // flow is unit-testable with a fake provider + in-memory binding store.
 
 import type { ControllerProvider } from './ControllerProvider'
+import { stampArtifact } from './artifactStamp'
 import { bytecodeHeaderReconciles, makeProgramId } from './bytecodePush'
 import { encodePbp } from './pbpEncode'
 import { resolvePushTarget, withBinding, type BindingStore } from './controllerBinding'
@@ -54,6 +55,8 @@ export interface PushPatternDeps {
    *  run-only never persists a record. Omitting it writes an empty preview section
    *  (the pre-#259 behaviour), which stalls the stock app's pattern list. */
   previewImage?: Uint8Array
+  /** Transform/pass names baked into the generated source, for the artifact banner. */
+  transforms?: string[]
 }
 
 export interface PushPatternResult {
@@ -105,7 +108,12 @@ export async function pushPattern(deps: PushPatternDeps): Promise<PushPatternRes
   const blob = encodePbp({
     id: programId,
     name: deps.name ?? '',
-    sourceCode: deps.source,
+    sourceCode: stampArtifact(deps.source, {
+      kind: 'pattern',
+      id: deps.patternId,
+      name: deps.name ?? '',
+      transforms: deps.transforms,
+    }),
     byteCode: bytecode,
     previewImage: deps.previewImage,
   })
