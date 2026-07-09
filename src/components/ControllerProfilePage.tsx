@@ -42,6 +42,7 @@ import {
 import { newPersonalContentId } from '@/engine/personalContentMetadata'
 import { uniquePatternName } from '@/engine/patternName'
 import { getControllerProvider } from '@/engine/controllerProviderRegistry'
+import { selectTransformArtifactInspection } from '@/engine/transformInspection'
 import { useControllerStore, type ControllerEntry } from '@/store/controllerStore'
 import {
   CONTROLLER_INPUT_ROLES,
@@ -51,6 +52,7 @@ import {
 import { useMapStore } from '@/store/mapStore'
 import { useRouterStore } from '@/store/routerStore'
 import { StatusDot, type StatusTone } from './StatusDot'
+import { TransformInspectionPanel } from './TransformInspectionPanel'
 
 const fieldClass =
   'h-7 min-w-0 rounded border border-zinc-700 bg-zinc-900 px-2 text-xs text-zinc-200 outline-none focus:border-live/70'
@@ -870,6 +872,7 @@ export function ControllerProfilePage({ profileId }: { profileId: string }) {
   const controllers = useControllerStore((state) => state.controllers)
   const activeIp = useControllerStore((state) => state.activeIp)
   const setActiveController = useControllerStore((state) => state.setActive)
+  const transformArtifacts = useControllerStore((state) => state.lastTransformArtifacts)
   const userMaps = useMapStore((state) => state.userMaps)
   const addMap = useMapStore((state) => state.addMap)
   const openExistingMap = useMapStore((state) => state.openExistingMap)
@@ -896,6 +899,11 @@ export function ControllerProfilePage({ profileId }: { profileId: string }) {
   }
 
   const validation = validateControllerProfile(profile)
+  const transformArtifact = selectTransformArtifactInspection(
+    transformArtifacts,
+    profileController?.ip ?? profile.lastSeenIp ?? null,
+    null,
+  )
 
   async function beginMapImport() {
     if (!profile || profileController?.phase !== 'live') return
@@ -1029,6 +1037,12 @@ export function ControllerProfilePage({ profileId }: { profileId: string }) {
           profile={profile}
           onUpdateBinding={(bindingId, changes) => void updatePatternBinding(profile.id, bindingId, changes)}
           onRemoveBinding={(bindingId) => void removePatternBinding(profile.id, bindingId)}
+        />
+      </Section>
+      <Section title="Last generated artifact">
+        <TransformInspectionPanel
+          artifact={transformArtifact}
+          empty="No profile-enabled push has generated an inspectable artifact for this controller yet."
         />
       </Section>
       <Section

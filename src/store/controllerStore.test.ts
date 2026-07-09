@@ -624,6 +624,7 @@ describe('controllerStore (keyed)', () => {
       const provider = created.get('10.0.0.5')!
       expect(provider.compiledSources).toEqual([bundle(PATTERN_SRC, {}).code])
       expect(store().lastTransformSummary['10.0.0.5']?.['pat-1']).toBeUndefined()
+      expect(store().lastTransformArtifacts['10.0.0.5']?.['pat-1']).toBeUndefined()
     })
 
     it('applies matching per-pattern hardware input bindings during push', async () => {
@@ -679,6 +680,14 @@ describe('controllerStore (keyed)', () => {
       expect(store().lastTransformSummary['10.0.0.5']['pat-1'].bindingsApplied).toEqual([
         { target: 'sliderSpeed', mode: 'function-call' },
       ])
+      expect(store().lastTransformArtifacts['10.0.0.5']['pat-1']).toMatchObject({
+        patternName: 'Twinkle',
+        warnings: [],
+        summary: {
+          bindingsApplied: [{ target: 'sliderSpeed', mode: 'function-call' }],
+        },
+      })
+      expect(store().lastTransformArtifacts['10.0.0.5']['pat-1'].generatedSource).toContain('sliderSpeed(speedPotValue)')
     })
 
     it('injects hardware brightness for the active Controller profile and retains its summary', async () => {

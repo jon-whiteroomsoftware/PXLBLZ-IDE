@@ -157,6 +157,45 @@ describe('ControllerProfilePage', () => {
     expect(screen.getByText('8')).toBeInTheDocument()
   })
 
+  it('shows the latest generated artifact inspection for the controller profile', () => {
+    seedProfile()
+    useControllerStore.setState({
+      lastTransformArtifacts: {
+        '192.168.8.224': {
+          'pat-1': {
+            patternName: 'Twinkle',
+            updatedAt: 1,
+            generatedSource: 'export function render(index) { hsv(index, 1, 1) }',
+            warnings: [],
+            summary: {
+              passes: [
+                {
+                  id: 'speed-drive',
+                  kind: 'bind',
+                  beforeRender: 'wrapped',
+                  bindingsApplied: [{ target: 'sliderSpeed', mode: 'function-call' }],
+                  estimatedPixelCost: 0,
+                },
+              ],
+              callSitesWrapped: {},
+              beforeRender: 'wrapped',
+              globalsAdded: ['__pxlblz_speed_drive_bind'],
+              exportsAdded: [],
+              bindingsApplied: [{ target: 'sliderSpeed', mode: 'function-call' }],
+              estimatedPixelCost: 0,
+            },
+          },
+        },
+      },
+    })
+
+    render(<ControllerProfilePage profileId="ctrl-1" />)
+
+    expect(screen.getByText('Last generated artifact')).toBeInTheDocument()
+    expect(screen.getByText('Twinkle')).toBeInTheDocument()
+    expect(screen.getByText('sliderSpeed (function-call)')).toBeInTheDocument()
+  })
+
   it('imports the live controller pixel map as a named frozen user map', async () => {
     const profile = seedProfile()
     const created: MapRecord[] = []

@@ -92,6 +92,7 @@ interface Rewrite {
 interface PassContext {
   code: string
   usedNames: Set<string>
+  userNames: Set<string>
   summary: TransformSummary
   warnings: PassWarning[]
 }
@@ -128,6 +129,7 @@ export function bundleWithPasses(
   const ctx: PassContext = {
     code: base.code,
     usedNames: collectIdentifiers(base.code),
+    userNames: collectIdentifiers(base.code),
     summary: emptySummary(),
     warnings: [],
   }
@@ -448,7 +450,7 @@ function reservedStem(passId: string): string {
 }
 
 function warnReservedPrefixCollisions(ctx: PassContext, passId: string): void {
-  for (const name of ctx.usedNames) {
+  for (const name of ctx.userNames) {
     if (name.startsWith('__pxlblz_')) {
       addWarning(ctx, passId, 'reserved-prefix-collision', `User identifier ${name} uses the reserved pass prefix.`)
       return

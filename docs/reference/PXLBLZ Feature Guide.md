@@ -601,7 +601,9 @@ Maps** §5).
   Controller profile has its hardware-brightness transform enabled, Send to
   Controller injects that behaviour into the pushed artifact (the pattern
   samples the configured pot and scales its output). With no profile or the
-  transform off, the push is byte-identical to the plain artifact.
+  transform off, the push is byte-identical to the plain artifact. After a
+  transformed push, the Controller profile and mixin provenance panes show the
+  transform summary, warnings, and a read-only view of the generated artifact.
 
 ---
 

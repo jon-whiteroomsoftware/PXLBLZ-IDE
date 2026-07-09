@@ -32,6 +32,11 @@ import {
 } from '@/engine/controllerMetadataStorage'
 import { withProgramLabel } from '@/engine/controllerBinding'
 import { bundleWithPasses, type TransformSummary } from '@/engine/passEngine'
+import {
+  withTransformArtifactInspection,
+  type TransformArtifactInspection,
+  type TransformArtifactInspectionStore,
+} from '@/engine/transformInspection'
 import { buildPreviewJpeg } from '@/engine/previewThumbnailJpeg'
 import { LIBRARIES } from '@/pixelblaze/libs'
 import { usePatternStore, activePushKey } from '@/store/patternStore'
@@ -125,6 +130,9 @@ interface ControllerConnectionState {
   /** Last pass-engine summary by Controller and pattern. Populated only when a push
    *  used an active profile transform; cleared for unchanged-artifact pushes. */
   lastTransformSummary: Record<string, Record<string, TransformSummary>>
+  /** Last inspectable generated artifact by Controller and pattern. Populated
+   *  alongside `lastTransformSummary`, including source and pass warnings. */
+  lastTransformArtifacts: TransformArtifactInspectionStore
   /** Pending preflight warnings (#203): non-null opens the reconciliation dialog,
    *  which Send must clear (confirm or cancel) before the push proceeds. `null` =
    *  no dialog. An empty array never appears here — a clean preflight pushes
@@ -236,6 +244,7 @@ export const controllerInitialState = {
   saveArmed: false,
   lastPushedMap: {} as Record<string, Record<string, string>>,
   lastTransformSummary: {} as Record<string, Record<string, TransformSummary>>,
+  lastTransformArtifacts: {} as TransformArtifactInspectionStore,
   preflight: null as PreflightWarning[] | null,
   mapPushRemedyCount: null as number | null,
   patternMapRemedy: null as RecommendedMapRemedy | null,
@@ -727,6 +736,15 @@ export const useControllerStore = create<ControllerConnectionState>()(
             const recipe = controllerProfilePassRecipe(profile, previewSource, patternId)
             const bundled = bundleWithPasses(previewSource, LIBRARIES, recipe)
             const transformSummary = recipe.length > 0 ? bundled.summary : null
+            const transformArtifact: TransformArtifactInspection | null = recipe.length > 0
+              ? {
+                  summary: bundled.summary,
+                  warnings: bundled.warnings,
+                  generatedSource: bundled.code,
+                  ...(previewPatternName ? { patternName: previewPatternName } : {}),
+                  updatedAt: Date.now(),
+                }
+              : null
             const { code } = bundled
             // Save mode only: render the device-matched 100x150 waterfall preview and
             // embed it in the PBP blob (#259). A run-only push never persists a record,
@@ -783,6 +801,12 @@ export const useControllerStore = create<ControllerConnectionState>()(
                 controllerId,
                 patternId,
                 transformSummary,
+              ),
+              lastTransformArtifacts: withTransformArtifactInspection(
+                s.lastTransformArtifacts,
+                controllerId,
+                patternId,
+                transformArtifact,
               ),
             }))
           } catch (err) {

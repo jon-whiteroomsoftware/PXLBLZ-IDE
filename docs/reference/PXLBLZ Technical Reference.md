@@ -225,12 +225,15 @@ The recipe IR is JSON-serializable and ordered. The implemented pass kinds are:
   the artifact.
 
 Generated helper names use the reserved `__pxlblz_` prefix. The engine detects
-user identifiers already using that prefix, avoids exact generated-name
+user-authored identifiers already using that prefix, avoids exact generated-name
 collisions, and records both as warnings in the transform summary path. The
 summary reports per-pass and aggregate call-site counts, beforeRender handling,
 generated globals/exports, applied bindings, warnings, and the estimated
 per-pixel cost delta. The default cost seed is one unit per wrapped output call
-site unless a recipe item supplies an explicit `cost`.
+site unless a recipe item supplies an explicit `cost`. `controllerStore` keeps
+the last transformed push as an inspection record containing the summary, pass
+warnings, and full generated source; the mixin provenance pane and Controller
+profile page expose that record read-only.
 
 ## 5. Fixed-point engine
 
