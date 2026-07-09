@@ -367,7 +367,42 @@ hardware use.
 **Cutover** — the repo README still points at v1 on GitHub Pages; the switch
 to the Cloudflare deployment waits until this arc is finished.
 
-## 4. Out of scope for v2
+## 4. Artifact identity & provenance (decided 2026-07-08)
+
+Everything PXLBLZ distributes onto controllers — patterns, compiled show
+artifacts, maps — should identify this IDE as its author wherever the channel
+allows, so a controller can be triaged ("which programs are ours; leave the
+rest alone"), device state can be tied back to Studio entities, and shared
+artifacts carry attribution. Canonical URL:
+`https://pxlblz-ide.whiteroomsoftware.com/`. Three channels, three slices:
+
+- **Source banner (#341)**: a versioned, machine-parseable comment block
+  stamped onto every bundled artifact that leaves the IDE (save-mode push —
+  it persists in the PBP source section and is visible in the native editor —
+  plus Copy/Download, and compiled Shows when they ship). Carries kind, id,
+  name, a content hash over the pre-banner artifact (drift detection), the
+  applied profile transforms, and member patterns for shows. Zero runtime
+  cost (comments never reach bytecode); no personal data; ships with its
+  inverse parser so later re-ingest is a read-back problem, not a format
+  problem. **The pattern name is never touched** — names stay the human
+  currency; identity rides machine-facing channels.
+- **Branded program ids (#342)**: mint program ids with a short fixed prefix
+  (still 17 chars, firmware alphabet) so `listPrograms` alone distinguishes
+  PXLBLZ-minted programs — no blob reads. Marks minted programs only;
+  overwrite-in-place keeps the bound id, which the banner covers.
+- **Map fingerprinting (#343)**: the mapData format has no metadata slot
+  (rigid header + exact-size body), so map identity is by content hash —
+  record the encoded blob's hash at push, match on read-back, and
+  candidate-match by baking Studio maps at the device count. Extends #338
+  import with "link to existing map". An LSB coordinate watermark was
+  considered and rejected (breaks the what-you-preview-is-what-you-push
+  guarantee).
+- **Deferred**: reading PBP blobs back off a controller to re-ingest banner
+  metadata (the banner is written now precisely so this stays cheap later); a
+  reserved live-identification exported var (`__px_ide`); a "pushed by
+  PXLBLZ" badge on the Controller program list (natural #342 follow-up).
+
+## 5. Out of scope for v2
 
 - Automated GLSL→Pixelblaze translation (unchanged from v1 stance).
 - Reading patterns back from a controller; device settings management.
@@ -378,7 +413,7 @@ to the Cloudflare deployment waits until this arc is finished.
   slugs.
 - Multi-controller synchronized shows (Firestorm territory).
 
-## 5. Sequencing
+## 6. Sequencing
 
 1. Maps context pane (#330) · #322 analytics — independent, any order.
 2. #315 renaming design note → route/blend passes → #314 perf spikes feed the
@@ -392,5 +427,8 @@ to the Cloudflare deployment waits until this arc is finished.
 5. Stage arc (PRD §1 "Stage"): #338 import controller map as a named user
    map (independent) → #339 per-show stage choice + spatial zone preview
    (blocked by #337 + #338) → #340 stage marquee zone creation (deferred).
+6. Identity arc (§4): #341 artifact banner (independent, any time) →
+   #342 branded program ids (hardware AC batches with the pending bench
+   session) → #343 map fingerprinting (after #338 lands).
 
 Each step leaves the app shippable.
