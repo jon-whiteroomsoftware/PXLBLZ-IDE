@@ -72,6 +72,14 @@ _Avoid_: bundle (the verb is fine; the noun is the artifact), build, output file
 **Transpiler**:
 The engine component that turns pattern source into a transpiled artifact: it parses with Acorn, resolves library references (including transitive cross-library ones), tree-shakes to only referenced functions, and mangles names. Returns `{ code, metadata }`.
 
+**Pass recipe**:
+A JSON-serializable instruction list that asks the pass engine to derive a hardware artifact from source without editing the user's pattern. Recipes are produced by Controller profiles and Shows, then applied in order at Send to Controller or Show compile time. Current pass kinds cover source injection, output interception, and input-to-target binding; the resulting generated artifact is inspectable, but the recipe is the durable user intent.
+_Avoid_: calling a pass recipe source code; storing generated helper names as user-authored configuration.
+
+**Transform summary**:
+The inspectable report emitted with a pass-engine-generated artifact: pass list, warnings, inserted globals/exports, `beforeRender` work, rewritten output call sites, bindings, and rough cost notes. Controller profiles and mixin provenance panes show the latest summary with a read-only generated-artifact viewer. Warnings about missing sinks, missing inputs, or missing binding targets belong here.
+_Avoid_: treating the summary as editable source or implying it is sent to hardware.
+
 **Var watcher**:
 The preview-pane table showing the live values of a pattern's `export var` globals, sampled after each rendered frame.
 
@@ -114,12 +122,24 @@ _Avoid_: built-in map (collides with **Built-in**, reserved for runtime function
 The preview place a **Show** renders its zones onto. A Show carries one `stageMapId`: `null` means the generic **zone strips** stage, while a map id means the Show preview draws over that map's 2D/3D coordinates. Stage choice is saved on the Show, never on scenes or patterns. The stage is preview-only geometry for authoring and debugging: imported controller maps are the natural stage because their frozen pixel indexes line up with Controller zone ranges. Spatial stages warn when a zone has no pixels on the selected map and draw uncovered stage pixels dim grey; generic strips are intentionally geometry-free and never warn.
 _Avoid_: treating Stage as a map association on a pattern or scene; saying a Stage changes what source patterns read (Shows are routed by index; the stage is the drawn place).
 
+**Zone**:
+A named semantic subset of LED indexes. Controller zones are durable physical setup and may contain one inclusive pixel range or several ranges; show-local zones are authoring rows that can later bind to Controller zones by name. Patterns stay zone-ignorant - routing and clipping happen in the Show/pass recipe layer.
+_Avoid_: assuming a zone must be contiguous; treating a zone as a hardware port or a second map.
+
+**Show**:
+A saved choreography of scenes across zone rows. A scene cell references a pattern/demo plus adaptations and transitions, then the Show compiler turns the strip into one generated Pixelblaze artifact routed over Controller zones or a selected stage. Shows own timing, placement, zone routing, and clip adaptation so patterns remain reusable textures.
+_Avoid_: playlist when describing compiled multi-zone choreography; implying patterns know which zone they are rendering.
+
 **Custom map**:
 A **map** the *user authored* (by writing a map function or importing a coordinate list) — listed in **Cloud Maps**, openable in **map mode**, and editable/deletable. Provenance, not mechanism, is what makes it custom. Its record is **source + baked output**: the editable plain-JS map function (`function(pixelCount){ … return coords }`) plus the coordinate array that function baked to, together with its integer **grid dims** when the baked points form a regular lattice (for the layout readout). There is no explicit save: like a pattern, the source **auto-bakes on the editor's periodic sync tick** whenever it parses (eval via plain `new Function`, float64, no shim). Auto-baking only refreshes the stored map record; it does **not** apply the map to the running preview. To exercise a custom map visually, the user explicitly chooses it in the preview **Map** control. It is born from the **New Map** flow: the editor opens on a default working **skeleton**, or the user **clones** a **stock map** into an editable custom copy; an imported coordinate list is wrapped as a literal-returning source so even it is editable. Never (for the openable kind) without source.
 _Avoid_: user map (fine in casual UI prose, but the canonical term is custom map).
 
+**Mixin**:
+A reusable Pixelblaze-dialect transformation source with structured header directives (`@param`, `@target`, `@wraps`) and a pass-kind badge (`inject`, `intercept`, or `bind`). Mixins stay generic: parameter values live in Controller or Show bindings, and generated call-site rewriting is surfaced through the **transform summary** rather than baked into the mixin record.
+_Avoid_: saying a mixin carries per-controller values; those belong to the binding or pass recipe.
+
 **Stock mixin**:
-A **mixin** that ships with the IDE — revealable in the **Mixins** rail, openable read-only in **mixin mode** at `/studio/mixins/<stock-id>`, cloneable into a **cloud mixin**, but never listed in **Cloud Mixins** and never deletable. Stock mixins are readable Pixelblaze-dialect source with structured header directives (`@param`, `@target`, `@wraps`) and a pass-kind badge (`inject`, `intercept`, or `bind`). They are reference material for the pass engine: the source is what the engine injects where possible, while engine-side call-site rewriting is surfaced later through the transform summary.
+A **mixin** that ships with the IDE — revealable in the **Mixins** rail, openable read-only in **mixin mode** at `/studio/mixins/<stock-id>`, cloneable into a **cloud mixin**, but never listed in **Cloud Mixins** and never deletable. Stock mixins are reference material for the pass engine and for users learning the source shape.
 _Avoid_: built-in mixin when contrasting provenance in the rail; say **stock mixin**.
 
 **Cloud mixin**:

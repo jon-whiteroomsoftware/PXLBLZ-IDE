@@ -235,6 +235,15 @@ the last transformed push as an inspection record containing the summary, pass
 warnings, and full generated source; the mixin provenance pane and Controller
 profile page expose that record read-only.
 
+The supported output-sink abstraction is intentionally narrow: intercept passes
+only see top-level unshadowed calls to `hsv`, `hsv24`, `rgb`, `paint(v)`, and
+`paint(v,b)`. They do not understand arbitrary aliases, dynamically selected
+sink functions, object methods, unsupported arities, or effects hidden behind
+library abstractions; those cases warn or remain unchanged. Bind passes target
+top-level functions or variables by name. Controller profile target names are
+free text in the UI, so validation happens at transform time: missing functions
+or variables produce transform-summary warnings and do not mutate the artifact.
+
 ## 5. Fixed-point engine
 
 Three pieces implement Precise mode.
@@ -1012,7 +1021,12 @@ against `lastKnownPixelCount * 60mA`, exports `__px_power*` telemetry, and scale
 value when the running estimate exceeds the configured milliamp budget. The
 device's native brightness stays independent: it remains the hard output cap
 controlled from the live Controller panel, not a value copied from preview
-state. The modes:
+state. Matching per-pattern bindings add another pair of passes per binding:
+one inject pass samples the configured input once per `beforeRender` with
+smoothing/fallback/invert, and one bind pass calls an exported slider or named
+function, or assigns a named variable after scaling the normalized input through
+the binding's min/max/quantize rules. Pattern source is never edited; only the
+generated artifact sent to hardware changes. The modes:
 
 - **Run-only** (default): compile, mint a throwaway program id, load + run via
   `pushBytecode` — the firmware's `setCode`/`putByteCode`/`pause:false` sequence

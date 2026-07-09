@@ -561,10 +561,12 @@ profile is created automatically the first time); the profile page at
   fallback, and invert; analog choices are limited to the board's ADC1-safe
   pins, with anything else flagged inline;
 - **global transforms** — hardware brightness (pot × output) and power cap,
-  each toggleable (hardware brightness is what Send to Controller applies
-  today; power cap is stored but not yet applied on push);
+  each toggleable. Hardware brightness samples the chosen input once per frame
+  and multiplies output brightness; power cap estimates draw and scales output
+  when the configured milliamp budget would be exceeded;
 - **pattern bindings** — pattern × input → an exported slider, a named
-  function, or a variable with min/max/quantize;
+  function, or a variable with min/max/quantize. These are applied at Send to
+  Controller time without editing the pattern source;
 - **zones** — named lists of pixel ranges, groundwork for Shows. A zone can be
   one contiguous strip slice or several ranges that act as one semantic stage.
   Preview reads these ranges as soon as a matching live Controller profile is
@@ -572,6 +574,11 @@ profile is created automatically the first time); the profile page at
 
 The page never duplicates live controls — brightness and the running pattern's
 sliders stay in the live panel.
+
+For analog pots, use a linear 10k potentiometer when possible: connect the outer
+lugs to **3.3V** and **GND**, and the wiper to an ADC1-safe Pixelblaze analog
+input. Do not feed 5V into a Pixelblaze analog input. Under WiFi, use the
+ADC1-safe pins offered by the Controller profile input picker.
 
 ### Send map to Controller
 
@@ -598,11 +605,13 @@ Maps** §5).
   connected and named from the Pixelblaze device name; signed-out sessions are
   non-durable demo mode — nothing you make there persists.
 - **Push transforms are opt-in and inspectable.** If the connected device's
-  Controller profile has its hardware-brightness transform enabled, Send to
-  Controller injects that behaviour into the pushed artifact (the pattern
-  samples the configured pot and scales its output). With no profile or the
-  transform off, the push is byte-identical to the plain artifact. After a
-  transformed push, the Controller profile and mixin provenance panes show the
+  Controller profile has hardware brightness, power cap, or a matching pattern
+  binding enabled, Send to Controller generates a derived artifact (the pattern
+  samples the configured input once per frame and applies the selected
+  transform/binding). The Controller's native brightness slider remains the hard
+  safety cap and is never copied from preview brightness. With no profile
+  transform or binding, the push is byte-identical to the plain artifact. After
+  a transformed push, the Controller profile and mixin provenance panes show the
   transform summary, warnings, and a read-only view of the generated artifact.
 
 ---

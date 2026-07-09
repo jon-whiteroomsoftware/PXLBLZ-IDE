@@ -330,10 +330,13 @@ intended.
   plumbing/UI for `sensor-pulse` and `night-scheduler` beyond cloneable
   source (the #294 binding surface is the natural home); output-sink
   coverage beyond `hsv` if power measurement should apply to `rgb` patterns.
-- **Binding target validation** — "missing targets warn loudly" is only
-  partly realized: a binding referencing a missing *input* is flagged, but
-  target slider/function/variable names are free text, unchecked against the
-  bound pattern.
+- **Per-pattern hardware bindings (#294)** — shipped: Controller profiles can
+  bind a named input to a pattern's exported slider, named function, or variable
+  without editing the pattern source. Push-time recipes sample once per frame,
+  apply smoothing/fallback/invert, scale through min/max/quantize, and surface
+  missing target warnings in the transform summary. Remaining: friendlier UI
+  target validation/autocomplete before push, and bench validation once the
+  analog pot is rewired to an ADC1-safe analog input.
 - **Board profiles beyond v3 Standard** — one `ControllerBoardKind` exists;
   the ElectroMage GPIO table should back additional board kinds (and pad
   labels mapped to numeric IO values in the pin picker).
@@ -349,20 +352,21 @@ intended.
   **Open in Studio** opens a built-in read-only, and cloning happens from Studio.
 - Whether the **Catalog** activity-strip entry stays once the reveal pattern
   beds in — re-evaluate.
-- Whether the Controllers page grows a context pane occupant (push history /
-  last transform summary) or full-width simply feels fine.
+- **Resolved 2026-07-08:** the Controllers page now has a context-pane occupant:
+  the latest generated artifact inspection with transform summary, warnings,
+  and a read-only generated source dialog.
 - The mixin pass-kind badge vocabulary in the UI (inject/intercept/bind is
   engine truth; whether users need friendlier words is unsettled).
 
 ## 3. Platform remainder
 
-**Analytics (#322)** — not started (`src/analytics/` is empty). Lightweight
-product analytics on the v2 deployment (likely Google Analytics). Verify what
-default instrumentation captures (page views per route matter most: gallery
-landings, pattern detail views, studio sessions); add explicit events only
-where defaults fall short (e.g. Send to Controller, clone). v1's only signal
-was landing counts; v2 should at least distinguish browsing, authoring, and
-hardware use.
+**Analytics (#322)** — shipped as production-only instrumentation gated by
+`VITE_GA_MEASUREMENT_ID`. The app injects GA only in production, disables
+automatic page views, emits explicit route-level `page_view`s for Gallery,
+pattern detail, Studio entity modes, and other app routes, and records coarse
+events for Send to Controller, catalog clone, and sign-in intent. The event
+payloads avoid personal names, source, controller ids, and IP addresses; see
+`docs/reference/Cloudflare Operations.md` for deployment configuration.
 
 **Cutover** — the repo README still points at v1 on GitHub Pages; the switch
 to the Cloudflare deployment waits until this arc is finished.
