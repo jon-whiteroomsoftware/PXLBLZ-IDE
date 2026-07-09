@@ -1,11 +1,12 @@
 # Issue 315: scope-aware Show merge design
 
-Status: proposed for maintainer review, 2026-07-08
+Status: accepted historical design note, 2026-07-08; implemented by the Show
+compiler slices that followed.
 
-This note settles the Show compiler design choices needed before #316 can merge
-two real patterns into one generated Pixelblaze artifact. The goal is not to
-ship the Show compiler here; it is to make the renaming, time, and control
-semantics crisp enough that the compiler can be built and tested directly.
+This note settled the Show compiler design choices used by #316 and later
+slices to merge real patterns into one generated Pixelblaze artifact. The
+current shipped compiler is documented in the PXLBLZ Technical Reference; this
+file remains as rationale for the renaming, time, and control semantics.
 
 ## Inputs
 
@@ -176,16 +177,17 @@ against the existing `loadPattern` preview emulator:
 - inactive member time bases freeze and transition participants both advance
 - member controls are private unless exposed through explicit public proxies
 
-These tests are intentionally not a production compiler. They are executable
-fixtures for the design contract #316 should implement.
+These tests were intentionally not a production compiler. They were executable
+fixtures for the design contract #316 implemented.
 
 ## Consequences for #316 and later
 
-- #316 should build the real compiler behind this contract, starting with two
-  member patterns, one crossfade, and one zone.
-- #317's route pass should use the virtual `index`/`pixelCount` path for cheap
-  zone-local rendering rather than output interception.
-- #318's budget bar should distinguish parameter automation, route/domain
-  transforms, output interception, and multi-render composition.
+- #316 built the first real compiler path behind this contract, starting with
+  two member patterns, one crossfade, and one zone.
+- #317 used the virtual `index`/`pixelCount` path for cheap zone-local rendering
+  rather than output interception.
+- #318 surfaced artifact size and broad render-cost policy in the Show compile
+  bar; richer parameter/domain/output/multi-render cost modeling remains a
+  future maturity step.
 - #319's power measurement/capping belongs in the output-interception tier and
   should remain opt-in/budget-visible.

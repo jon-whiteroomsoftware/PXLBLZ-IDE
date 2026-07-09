@@ -309,10 +309,10 @@ through it. Then:
 - **Keep a Controller profile** in the left rail: a durable record for that
   physical controller's identity, inputs, global transforms, pattern bindings,
   zones, and last-known hardware status. Signed-in sessions create that profile
-  automatically when the connected device reports a stable id; IP-only
-  unclaimed connections remain live without being persisted unless you create a
-  profile yourself. The profile page is offline-editable; live brightness and
-  running-pattern controls stay in the top-right panel.
+  automatically when the connected device reports a stable id. IP-only
+  unclaimed connections remain live and usable, but are not persisted as
+  Controller profiles. The profile page is offline-editable; live brightness
+  and running-pattern controls stay in the top-right panel.
 - **Send to Controller** compiles the open pattern with the device's own compiler
   and pushes it — transiently (**Run**) or into the device's Saved Patterns
   (**Save**).
@@ -570,7 +570,7 @@ profile is created automatically the first time); the profile page at
 - **pattern bindings** — pattern × input → an exported slider, a named
   function, or a variable with min/max/quantize. These are applied at Send to
   Controller time without editing the pattern source;
-- **zones** — named lists of pixel ranges, groundwork for Shows. A zone can be
+- **zones** — named lists of pixel ranges used by Shows. A zone can be
   one contiguous strip slice or several ranges that act as one semantic stage.
   Preview reads these ranges as soon as a matching live Controller profile is
   active, or when exactly one offline profile has zones configured.

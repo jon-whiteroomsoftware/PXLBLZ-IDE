@@ -2,29 +2,40 @@
 
 **Status, July 2026.** Most of v2 has shipped: the routing layer, the public
 Gallery and pattern detail pages, the five-entity Studio rail, the Mixins
-entity, Controller profiles with device-id identity, the generic pass engine
-with hardware-brightness injection, and multi-provider auth (GitHub + Google
-with linking). Shipped behavior is documented in the **PXLBLZ Technical
-Reference** and **Feature Guide** (`docs/reference/`) and is no longer specified
-here. This document now holds only what remains: Shows and its prerequisites,
-the unfinished corners of shipped surfaces, and open questions.
+entity, Controller profiles with device-id identity, the generic pass engine,
+hardware-control/power transforms, Shows v1, stage previews, artifact
+provenance, analytics, and multi-provider auth (GitHub + Google with linking).
+Shipped behavior is documented in the **PXLBLZ Technical Reference** and
+**Feature Guide** (`docs/reference/`) and is no longer specified here. This
+document now holds only what remains: Show maturity beyond the shipped v1,
+unfinished corners of shipped surfaces, platform residuals, and open questions.
 
 Mockups for every v2 screen (approved July 2026) remain in
 `pxlblz-v2-mockups.html` beside this document — still the visual reference for
-the shipped Maps context pane and the unbuilt Show editor.
+the shipped Maps/Shows surfaces and deferred future Show states.
 
 ---
 
-## 1. The remaining arc: Shows
+## 1. Shows residual arc
 
-A Show composes existing patterns into one deployable artifact. Its model:
+The shipped Show baseline is no longer specified here. In current code, Shows are
+D1-backed personal content with a scene-strip editor, show-local zones, optional
+target Controller profile, per-show stage map, generated-source inspection,
+Controller push, hold/restart semantics, adaptation ramps, crossfade,
+wipe/dither route transitions, zone routing, zone spanning, per-zone preview
+strips, spatial stage preview, and imported-controller-map stage support. See
+the reference docs for exact behavior.
+
+The remaining Show arc is about maturity: richer adaptation sources, more spatial
+authoring, better cost honesty, and later timeline/DSL affordances. The durable
+model remains:
 
 - **Model**: zone tracks (semantic names, resolved through the target
   Controller's zone map) holding **clips** (references to patterns, never
-  copies) with durations, **transitions** between clips (crossfade first;
-  wipes later), an optional overlay track, and per-clip **adaptations**
-  (palette, mirror, phase offset, brightness envelope, and similar
-  post-processing) that never fork the source pattern.
+  copies) with durations, **transitions** between clips (cut, crossfade,
+  wipe, dither, and future transition types), an optional overlay track, and
+  per-clip **adaptations** (palette, mirror, phase offset, brightness
+  envelope, and similar post-processing) that never fork the source pattern.
 - **Zone map** (decided 2026-07-08): a Controller-profile mapping from
   semantic zone names to **lists of pixel-index ranges**. Zones are pure
   index arithmetic and are **hardware-independent** — no Output Expander
@@ -63,9 +74,9 @@ A Show composes existing patterns into one deployable artifact. Its model:
   a projection where boundaries happen to align; a zoomable timeline can
   arrive later as a second view on the same data, no migration. A cell can
   span rows (**zone spanning**: adjacent zones act as one canvas — one
-  domain — versus two independently re-normalized domains). Design sketches
-  2026-07-08 (scene strip, hold explainer, timeline frame-out, Controller
-  zones card) to be folded into `pxlblz-v2-mockups.html`.
+  domain — versus two independently re-normalized domains). The current
+  canonical mockups include the scene strip, hold explainer, timeline
+  frame-out, and Controller zones card.
 - **Hold vs restart at scene boundaries** (decided 2026-07-08): never a
   per-clip setting — it's geometry. A cell spanning a boundary **holds**: the
   clip keeps playing with phase intact and the compiler emits nothing for
@@ -77,10 +88,10 @@ A Show composes existing patterns into one deployable artifact. Its model:
   window while one renderer runs, phase undisturbed. Same-pattern transitions
   are therefore parameter-cheap and never open a 2-renderer window.
 - **Compilation**: a Show compiles to a single generated Pixelblaze pattern
-  via the pass engine (route + blend + intercept passes over alpha-renamed
-  members). **Time-slicing is the default emission strategy**: steady-state
-  runs only the active clip's `beforeRender`/render; both renderers evaluate
-  only inside a transition window.
+  over alpha-renamed members. **Time-slicing is the default emission strategy**:
+  steady-state runs only the active clip's `beforeRender`/render; both renderers
+  evaluate only inside a crossfade window. Route transitions and routed zones
+  are one-renderer-per-pixel paths in the shipped compiler.
 - **Adaptation cost tiers** (decided 2026-07-08): prefer transforming what a
   pattern *sees* over transforming what it *emits*, and prefer both over
   running multiple renderers. The intended ladder:
@@ -111,11 +122,10 @@ A Show composes existing patterns into one deployable artifact. Its model:
 - **Inspectability**: "View generated pattern" opens the compiled artifact
   read-only. A Show is ultimately a plain Pixelblaze pattern you could paste
   anywhere.
-- **Preview**: the Studio preview renders the show timeline with zone
-  boundaries visible; full multi-zone spatial preview can start simple
-  (per-zone strips) before attempting installation geometry. Zones should be
-  **solo-able** in the preview ("show me only arch-left") — useful as a
-  debugging affordance as soon as zone maps exist, before any Show does.
+- **Preview**: the Studio preview renders Shows on a Stage with zone boundaries
+  visible. The shipped default is per-zone strips; the shipped spatial path maps
+  zones onto a selected 2D/3D stage map. Zones are **solo-able** in the preview
+  ("show me only arch-left") as a debugging affordance.
 - **Stage** (decided 2026-07-08, mockups tab 8): the show preview always
   renders *zones on a stage*. The default stage is the generic per-zone
   strips view (#337) — honest for freestyle shows, never warns. A show may
@@ -132,10 +142,9 @@ A Show composes existing patterns into one deployable artifact. Its model:
   generator source, no referential integrity — frozen at the device count,
   which is exactly what zone ranges index into). Marquee zone creation on
   the stage view is recorded as a later direction, not a v2 commitment.
-- **v1 slice**: two clips + one crossfade on a single zone, compiled and
-  verified on hardware (#316). Segment routing to named zones is the second
-  slice (#317). Show editor v1 (scene strip, clip inspector, compile/budget
-  bar) is #318.
+- **Shipped baseline**: the #316/#317/#318 trunk, hold/ramp semantics, route-cost
+  transitions, per-zone preview strips, show-local zones, zone spanning, stage
+  map choice, controller-map import, and map fingerprint matching have landed.
 - **Deferred**: the fluent/Strudel-style composition DSL (the recipe IR is the
   v1 authoring format, edited through the Show editor UI); low-resolution wash
   sampling; the geometric pattern language; a read-only `zoneIndex`/`zoneCount`
@@ -144,51 +153,31 @@ A Show composes existing patterns into one deployable artifact. Its model:
   device's `/obconf.dat` expander config. Recorded as later directions, not
   v2 commitments.
 
-### Prerequisites (in order)
+### Remaining Show prerequisites
 
-1. **Scope-aware alpha-renaming design note** (#315, ready-for-human). The
-   pass engine's one genuinely new capability for Shows: renaming *all* of a
-   pattern's globals collision-free so N patterns merge into one artifact.
-   The note must settle: renaming globals/`t`/exported controls across N
-   merged patterns; the semantics of N `beforeRender` time bases under
-   pause/resume (freeze vs advance); how exported controls from member
-   patterns surface (or don't) on the generated show pattern. Today's engine
-   has only generated-name collision avoidance and scope-aware call-site
-   rewriting — not whole-pattern renaming.
-2. **route and blend passes** — specified in the pass taxonomy (route: gate
-   render by index range / named zone; blend: transition mixer between two
-   renderers) but not yet implemented; the engine's recipe union is
-   inject/intercept/bind only. The route pass also hands the clip
-   **zone-local coordinates** — each zone re-normalized to its own frame
-   (centre-origin, unit-fit, per the project uv convention) so an unmodified
-   pattern renders inside a zone as if the zone were its whole world, and
-   per-zone adaptations like mirror become plain coordinate transforms.
-   1D re-normalization (index/count) is the v1 shape; 2D zone-local frames
-   over a pixel map follow. This route/domain-transform path is also the
-   desired cheap implementation for duplicated virtual screens (for example,
-   one strip split into two mirrored or repeated half-size screens), reverse,
-   mirror, and zone phase offsets.
-3. **Perf-harness spikes** (#314, runnable now, no new hardware work):
-   wrapper-indirection cost (wrapped vs direct `hsv`, per pixel); device
-   budgets (max pattern code size, global/array count limits,
-   exported-control limit → the clips-per-show ceiling); two real renderers
-   merged (steady-state FPS, time-sliced vs both-running, 300–1000 px rig).
-   First findings are committed in
-   `docs/plans/archive/issue-314-perf-harness-spikes.md`: output wrappers have
-   a meaningful per-call cost, both-running renderers are much slower than
-   time-sliced steady state, and the current 256-pixel controller run still
-   needs a 300+ pixel rerun before #314 is final.
-4. **A real per-pixel cost model.** `estimatedPixelCost` in the transform
-   summary is a placeholder (call-site count); Shows' budget bar needs it
-   grounded in the perf-spike measurements and able to distinguish parameter
-   automation, domain transforms, output interception, and multi-render
-   composition. The model should track three axes, not one: **cycles**
-   (per-frame vs per-pixel vs per-output-call, crediting `beforeRender`
-   hoisting of frame-invariant setup), **memory** (arrays are a separate hard
-   budget), and **code size / exported-control count** (the clips-per-show
-   ceiling). It should also admit **negative-cost adaptations** (decimation,
-   interlacing, hold buffers — see the ideas ladder below), which buy budget
-   rather than spend it.
+The original gating slices (#315 scope-aware merge design, #316 compile
+vertical, #317 segment routing, #318 scene strip, #333 show-local zones, #334
+route transitions, #335 holds/ramps, #336 zone spanning software, #337 zone
+strips, #338 controller-map import, and #339 stage preview) have landed. The
+open prerequisite for richer Shows is not another editor shell; it is a better
+cost and capability model.
+
+**A real per-pixel cost model.** The current budget bar reports generated
+artifact size against the measured device byte budget and distinguishes broad
+render policies. The next model should be grounded in the hardware-spike
+measurements and distinguish parameter automation, domain transforms, output
+interception, and multi-render composition. It should track three axes, not one:
+**cycles** (per-frame vs per-pixel vs per-output-call, crediting
+`beforeRender` hoisting of frame-invariant setup), **memory** (arrays are a
+separate hard budget), and **code size / exported-control count** (the
+clips-per-show ceiling). It should also admit **negative-cost adaptations**
+(decimation, interlacing, hold buffers — see the ideas ladder below), which buy
+budget rather than spend it.
+
+**Hardware validation still batches best.** Remaining bench checks include
+zone-spanning ramps on hardware, power-cap validation, and analog pot validation
+after rewiring to an ADC1-safe input. These are validation gates, not blockers
+on the shipped editor/compiler model.
 
 ### Automation & adaptation ideas ladder (recorded 2026-07-08)
 
@@ -278,19 +267,6 @@ model, pass taxonomy, and Show editor leave room for these directions.
 Reference docs describe these surfaces as they are; this list is what's still
 intended.
 
-**Maps context pane** (approved design, mockup tab 4 — built by #330):
-
-- The Maps view's right pane should dock the **wiring check** — a static
-  render of the map in its true shape for its arity, pixels colored by a
-  gradient following wire order, indices at endpoints and intervals ("did I
-  wire this in the right order?"). Redraws on each successful compile; on a
-  parse error the badge flips and the render greys, holding last-good state.
-  Never a pattern renderer. Below it: map facts (pixel count, arity, bounds)
-  and provenance (which Controllers use the map, how many patterns use it).
-  Supersedes #153, whose geometry-render idea it absorbs. 3D maps use the
-  orbitable 3D viewport vocabulary from the pattern preview rather than a fixed
-  projection.
-
 **Rail**:
 
 - The **Controllers view now suppresses the pattern preview** with an empty
@@ -378,12 +354,14 @@ artifacts, maps — should identify this IDE as its author wherever the channel
 allows, so a controller can be triaged ("which programs are ours; leave the
 rest alone"), device state can be tied back to Studio entities, and shared
 artifacts carry attribution. Canonical URL:
-`https://pxlblz-ide.whiteroomsoftware.com/`. Three channels, three slices:
+`https://pxlblz-ide.whiteroomsoftware.com/`. The three v2 channels are now
+implemented; the deferred work here is read-back/UI polish rather than first
+write support:
 
 - **Source banner (#341)**: a versioned, machine-parseable comment block
   stamped onto every bundled artifact that leaves the IDE (save-mode push —
   it persists in the PBP source section and is visible in the native editor —
-  plus Copy/Download, and compiled Shows when they ship). Carries kind, id,
+  plus Copy/Download and compiled Shows). Carries kind, id,
   name, a content hash over the pre-banner artifact (drift detection), the
   applied profile transforms, and member patterns for shows. Zero runtime
   cost (comments never reach bytecode); no personal data; ships with its
@@ -419,20 +397,21 @@ artifacts carry attribution. Canonical URL:
 
 ## 6. Sequencing
 
-1. Maps context pane (#330) · #322 analytics — independent, any order.
-2. #315 renaming design note → route/blend passes → #314 perf spikes feed the
-   cost model.
-3. #316 show compile vertical → #317 segment routing → #318 Show editor v1
-   (scene strip) → #319 built-in mixin pack.
-4. Off the #316/#317 trunk, in rough value order: #335 hold spans &
-   adaptation ramps and #334 wipe/dither transitions (both compiler-side,
-   blocked by #316); #337 per-zone preview strips and #336 zone spanning
-   (blocked by #317); #333 show-local zones (blocked by #317 + #318).
-5. Stage arc (PRD §1 "Stage"): #338 import controller map as a named user
-   map (independent) → #339 per-show stage choice + spatial zone preview
-   (blocked by #337 + #338) → #340 stage marquee zone creation (deferred).
-6. Identity arc (§4): #341 artifact banner (independent, any time) →
-   #342 branded program ids (hardware AC batches with the pending bench
-   session) → #343 map fingerprinting (after #338 lands).
+The old v2 sequence through #343 is substantially complete. Current remaining
+work should be ordered by dependency rather than by the historical arc:
 
-Each step leaves the app shippable.
+1. **Bench-validation batch**: #336 zone-spanning ramp check, #319 power-cap
+   validation, #289 analog pot validation after rewiring.
+2. **Mixin/control maturity**: finish #319's consumption/UI plumbing for
+   `sensor-pulse` and `night-scheduler`, using #294's binding surface where
+   natural.
+3. **Cost model and artifact inspection maturity**: deepen the transform/show
+   cost model, then keep #293-style generated-artifact inspection aligned with
+   the richer pass stack.
+4. **Stage authoring later**: #340 marquee zone creation, after the shipped
+   stage preview has enough real use to justify direct spatial editing.
+5. **Platform/release polish**: close stale issue-state gaps, then switch the
+   README and public entry points to the Cloudflare deployment when the v2 arc
+   is ready for public cutover.
+
+Each step should leave the app shippable.

@@ -2,9 +2,10 @@
 
 PXLBLZ-IDE's Cloudflare Pages deployment is the production cloud workspace. It
 uses GitHub or Google OAuth for identity and Cloudflare D1 for personal
-patterns, custom maps, last-active state, demo overrides, and controller push
-metadata. No browser-local-to-D1 migration is performed; the cloud workspace
-starts clean for each signed-in user.
+patterns, custom maps, cloud mixins, Shows, durable Controller profiles,
+last-active state, demo overrides, controller push metadata, and controller map
+fingerprints. No browser-local-to-D1 migration is performed; the cloud
+workspace starts clean for each signed-in user.
 
 ## Required Configuration
 
@@ -111,7 +112,8 @@ OAuth/provider configuration.
 
 After deploy, open the Pages URL and smoke-test:
 
-1. Visit `/api/d1/health`; expect `{"ok":true,"schemaVersion":"2"}`.
+1. Visit `/api/d1/health`; expect `{"ok":true,"schemaVersion":"10"}` or the
+   latest migration number in `migrations/`.
 2. Visit `/api/me`; signed out should report `{ "authenticated": false }`.
 3. Click **Sign in**, complete GitHub OAuth, and confirm `/api/me` reports the
    GitHub user and one connected identity.
@@ -123,9 +125,13 @@ After deploy, open the Pages URL and smoke-test:
 6. Disconnect one login and confirm the final remaining login cannot be removed.
 7. Create, edit, reload, and delete a personal pattern.
 8. Create, edit, reload, and delete a custom map.
-9. Select a personal pattern, reload, and confirm last-active restore.
-10. Change a demo preview control, reload, and confirm the override survives.
-11. Push or fake controller metadata when hardware is available, then confirm
+9. Create, edit, reload, and delete a cloud mixin.
+10. Create, edit, reload, and delete a Show.
+11. Connect a Controller when hardware is available and confirm a stable-id
+   connection creates or refreshes a Controller profile.
+12. Select a personal pattern, reload, and confirm last-active restore.
+13. Change a demo preview control, reload, and confirm the override survives.
+14. Push or fake controller metadata when hardware is available, then confirm
    `/api/controller-metadata/controller-bindings` and
    `/api/controller-metadata/controller-program-labels` retain values for the
    signed-in session.
@@ -142,6 +148,9 @@ npx wrangler d1 execute pxlblz-ide --remote --command "SELECT id, display_name, 
 npx wrangler d1 execute pxlblz-ide --remote --command "SELECT provider, provider_user_id, user_id, handle, email_verified FROM identities;"
 npx wrangler d1 execute pxlblz-ide --remote --command "SELECT user_id, id, name, updated_at FROM personal_patterns ORDER BY updated_at DESC LIMIT 20;"
 npx wrangler d1 execute pxlblz-ide --remote --command "SELECT user_id, id, name, updated_at FROM personal_maps ORDER BY updated_at DESC LIMIT 20;"
+npx wrangler d1 execute pxlblz-ide --remote --command "SELECT user_id, id, name, kind, updated_at FROM personal_mixins ORDER BY updated_at DESC LIMIT 20;"
+npx wrangler d1 execute pxlblz-ide --remote --command "SELECT user_id, id, name, updated_at FROM personal_shows ORDER BY updated_at DESC LIMIT 20;"
+npx wrangler d1 execute pxlblz-ide --remote --command "SELECT user_id, id, name, device_id, last_seen_ip, updated_at FROM controller_profiles ORDER BY updated_at DESC LIMIT 20;"
 npx wrangler d1 execute pxlblz-ide --remote --command "SELECT user_id, key, updated_at FROM personal_settings;"
 npx wrangler d1 execute pxlblz-ide --remote --command "SELECT user_id, key, updated_at FROM controller_metadata;"
 ```

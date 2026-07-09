@@ -110,8 +110,8 @@ URL). v1's `#/docs/<id>` hash links redirect to `/docs/<id>`.
 
 Route table: `/` and `/gallery` → the Gallery grid; `/p/<slug>` → pattern
 detail (slugs exist for built-in demos only); `/studio` and
-`/studio/<kind>/<id>` for the five entity kinds (`shows` parses but renders a
-not-available message); `/docs/<id>`; anything else → not-found.
+`/studio/<kind>/<id>` for the five entity kinds; `/docs/<id>`; anything else
+→ not-found.
 
 Only Studio routes gate on auth. `decideStudioAccess`
 (`src/engine/studioAccess.ts`) sends a signed-out visitor to the
@@ -770,7 +770,7 @@ off-stage rows warn in the legend, uncovered map pixels are masked dim grey, and
 solo blackens every non-solo zone without moving the geometry. The stage map
 selection is saved per Show as `stageMapId`; a dangling id falls back to strips.
 
-The current Show compiler (`src/engine/showCompiler.ts`) emits five policies:
+The current Show compiler (`src/engine/showCompiler.ts`) emits six policies:
 single continuous hold (`single-continuous-hold`), cut/restart
 (`cut-restart`), two-renderer crossfade (`steady-active-transition-both`),
 same-pattern adaptation ramp (`parameter-ramp-one-renderer-per-pixel`), and the
@@ -962,11 +962,11 @@ live Controller with a stable `deviceId`, `ControllerBar` asks
 `controllerProfileStore` to ensure a durable profile exists: existing profiles
 are refreshed, and missing profiles are auto-created from the device
 name/id/IP/firmware. A live Controller with `deviceId: null` stays fully usable
-but is not auto-persisted from IP alone; the user can still create an unclaimed
-profile explicitly from the panel. Deleting a profile suppresses same-session
-auto-recreation for that device id. When the matching physical Controller is
-connected, the profile refresh path updates `name`, `lastKnownDeviceName`,
-`lastSeenIp`, `lastKnownPixelCount`, `lastKnownMapDim`, and last-seen firmware.
+but is not auto-persisted from IP alone. Deleting a profile suppresses
+same-session auto-recreation for that device id. When the matching physical
+Controller is connected, the profile refresh path updates `name`,
+`lastKnownDeviceName`, `lastSeenIp`, `lastKnownPixelCount`, `lastKnownMapDim`,
+and last-seen firmware.
 Discovery firmware can seed the profile before full live metadata is available;
 a later live config read overwrites it.
 
@@ -1004,8 +1004,8 @@ path; no separate pattern-code message channel exists.
   When signed in, the same popover carries one durable-layer row above the live
   panel: it resolves the connected Controller's `deviceId` against controller
   profiles and links to the newest matching profile, or creates one for the
-  current device. Matching is never by IP or name; unclaimed live Controllers can
-  still create an unbound profile for later binding.
+  current device. Matching is never by IP or name; unclaimed live Controllers
+  remain live-only until a stable device id can be recovered.
   On connect the panel is warm-seeded once so it opens populated; a same-device
   close/reopen keeps the last-known slice (`stop` preserves, `seed` clears only
   on device switch). Brightness is panel-owned and volatile — seeded once from
