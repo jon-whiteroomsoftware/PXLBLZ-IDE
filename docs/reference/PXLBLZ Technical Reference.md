@@ -401,12 +401,14 @@ sensor-pulse, and night-scheduler consumption are later #319 slices.
 The editor's fourth flavor is **library mode** (`editorFlavor === 'library'`):
 Pixelblaze-dialect source for stock and cloud helper namespaces. Stock libraries
 open read-only from the Studio Libraries rail or the header's Libraries menu at
-stable `/studio/libraries/<library-id>` routes. Cloud libraries live in D1 as
-`LibraryRecord`s (`id`, identifier-constrained `name` namespace, `src`,
-`updatedAt`), open editable at `/studio/libraries/<id>`, and auto-save clean
-source on the editor sync tick through `/api/libraries`. New libraries mint
-`LibN` names, and rename/create validate against stock library names, the user's
-libraries, and Pixelblaze built-ins. Library mode uses
+stable `/studio/libraries/<library-id>` routes. Cloning a stock library copies
+the source into a cloud `LibraryRecord` with a fresh namespace based on the stock
+name (`Shader2`, `Shader3`, ...), never the stock namespace itself. Cloud
+libraries live in D1 as `LibraryRecord`s (`id`, identifier-constrained `name`
+namespace, `src`, `updatedAt`), open editable at `/studio/libraries/<id>`, and
+auto-save clean source on the editor sync tick through `/api/libraries`. New
+libraries mint `LibN` names, and rename/create validate against stock library
+names, the user's libraries, and Pixelblaze built-ins. Library mode uses
 `validateLibraryContent()` instead of the full pattern walker so the top-level
 rule is visible without pretending the file is a runnable pattern. Opening a
 library intentionally does not change the running preview pattern or its source.
@@ -644,7 +646,8 @@ guard), `MAX_GRID_AXIS = 256`.
 openable, authored in the Pixelblaze dialect): `Anim`, `Color`, `Coord`, `Noise`,
 `SDF`, `Shader` — each with a `*.fidelity.test.ts` asserting Fast/Precise
 agreement. User-owned cloud libraries share the same library-mode validator and
-are stored as durable personal content.
+are stored as durable personal content; stock clones are user-owned cloud
+libraries with fresh non-shadowing namespaces.
 
 **Stock patterns** (`src/pixelblaze/stock/patterns/`, read-only, forkable; UI label
 **Built-in Patterns**): shader ports,

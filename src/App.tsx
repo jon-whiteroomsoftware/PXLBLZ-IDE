@@ -334,7 +334,9 @@ export default function App() {
       if (editingLibrary?.id === entityId) return
       const record = userLibraries.find((library) => library.id === entityId)
       if (record) openExistingLibrary(record)
-      else if (activeLibraryName !== entityId && LIBRARIES[entityId]) openStockLibrary(entityId)
+      else if (LIBRARIES[entityId] && !(editingLibrary?.kind === 'stock' && editingLibrary.id === entityId)) {
+        openStockLibrary(entityId)
+      }
     } else if (route.kind === 'studio' && route.entity !== null && route.entity.kind === 'shows' && route.entity.id !== null) {
       const entityId = route.entity.id
       if (shows.some((show) => show.id === entityId) && activeShowId !== entityId) openShow(entityId)
@@ -363,7 +365,8 @@ export default function App() {
       activeLibraryName !== null &&
       (current.entity === null || current.entity.kind === 'libraries')
     ) {
-      const targetId = editingLibrary?.kind === 'existing' ? editingLibrary.id : activeLibraryName
+      const liveEditingLibrary = useLibraryStore.getState().editingLibrary
+      const targetId = liveEditingLibrary?.kind === 'existing' ? liveEditingLibrary.id : activeLibraryName
       const target: Route = { kind: 'studio', entity: { kind: 'libraries', id: targetId } }
       if (!routesEqual(current, target)) navigate(target, { replace: current.entity === null || current.entity.id === null })
     }

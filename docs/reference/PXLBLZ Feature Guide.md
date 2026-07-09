@@ -279,10 +279,11 @@ everything stays switchable (§8).
 
 The bundled **stock libraries** live in the Studio Libraries rail and the
 header's Libraries menu. Opening one shows its source read-only in library mode
-without changing the running preview pattern; hover the header menu for its API
-reference. Cloud libraries auto-save clean source on the sync tick; rename and
-delete warn that dependent patterns are soft references and will fail compile
-until updated.
+without changing the running preview pattern; **Clone** copies it into a new
+cloud library with a fresh namespace such as `Shader2`, then opens the clone
+editable. Hover the header menu for its API reference. Cloud libraries auto-save
+clean source on the sync tick; rename and delete warn that dependent patterns
+are soft references and will fail compile until updated.
 
 | Library | What it provides |
 |---|---|

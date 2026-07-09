@@ -2,7 +2,9 @@ import { useEditorStore, editorInitialState } from './editorStore'
 import { libraryInitialState, useLibraryStore, type LibraryRecord } from './libraryStore'
 import { useMapStore, mapInitialState } from './mapStore'
 import { useMixinStore, mixinInitialState } from './mixinStore'
+import { usePatternStore, patternInitialState } from './patternStore'
 import { resetPersonalContentProvider, setPersonalContentProvider, type PersonalContentProvider } from '@/engine/personalContentProvider'
+import { LIBRARIES } from '@/pixelblaze/libs'
 
 function memoryProvider(seed: LibraryRecord[] = []): PersonalContentProvider {
   const libraries = new Map(seed.map((record) => [record.id, record]))
@@ -53,6 +55,7 @@ beforeEach(() => {
   useEditorStore.setState(editorInitialState)
   useMapStore.setState(mapInitialState)
   useMixinStore.setState(mixinInitialState)
+  usePatternStore.setState(patternInitialState)
 })
 
 describe('libraryStore (#347)', () => {
@@ -108,5 +111,18 @@ describe('libraryStore (#347)', () => {
     await useLibraryStore.getState().updateLibrarySrc('lib-1', `${CUSTOM_LIBRARY.src}\nfunction plus(v) { return v + 1 }`)
 
     expect(useLibraryStore.getState().userLibraries[0].src).toContain('plus')
+  })
+
+  it('clones a stock library under a fresh namespace and opens it editable', async () => {
+    await useLibraryStore.getState().addLibrary({ ...CUSTOM_LIBRARY, name: 'Shader2' })
+
+    const id = await useLibraryStore.getState().cloneStockLibrary('Shader')
+    const clone = useLibraryStore.getState().userLibraries.find((library) => library.id === id)
+
+    expect(clone).toMatchObject({ name: 'Shader3', src: LIBRARIES.Shader })
+    expect(useLibraryStore.getState().editingLibrary).toEqual({ kind: 'existing', id })
+    expect(usePatternStore.getState().activeLibraryName).toBe('Shader3')
+    expect(useEditorStore.getState().source).toBe(LIBRARIES.Shader)
+    expect(useEditorStore.getState().isReadOnly).toBe(false)
   })
 })

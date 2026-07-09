@@ -412,6 +412,30 @@ describe('routing (#308)', () => {
     expect(screen.getByTestId('editor-pane')).not.toHaveTextContent('read-only')
   })
 
+  it('clones a stock library from library mode into an editable cloud library', async () => {
+    const user = userEvent.setup()
+    stubRemotePatterns()
+    window.history.replaceState(null, '', '/studio/libraries/Shader')
+    useWorkspaceStore.setState({
+      personalWorkspaceAuthenticated: true,
+      personalWorkspaceResolved: true,
+    })
+    render(<App />)
+
+    await waitFor(() => {
+      expect(useLibraryStore.getState().editingLibrary).toEqual({ kind: 'stock', id: 'Shader' })
+    })
+    await user.click(await screen.findByRole('button', { name: 'Clone' }))
+
+    await waitFor(() => {
+      expect(useLibraryStore.getState().userLibraries[0]?.name).toBe('Shader2')
+    })
+    const clone = useLibraryStore.getState().userLibraries[0]
+    expect(window.location.pathname).toBe(`/studio/libraries/${clone.id}`)
+    expect(useLibraryStore.getState().editingLibrary).toEqual({ kind: 'existing', id: clone.id })
+    expect(useEditorStore.getState().isReadOnly).toBe(false)
+  })
+
   it('returns to the mixin list after deleting the routed personal mixin', async () => {
     const user = userEvent.setup()
     stubRemotePatterns()

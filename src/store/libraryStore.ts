@@ -3,6 +3,7 @@ import { trackEntityCreated } from '@/analytics'
 import {
   LIBRARY_SKELETON,
   builtinNamespaceNames,
+  nextLibraryCloneName,
   nextLibraryName,
   validateLibraryName,
 } from '@/engine/libraries'
@@ -30,6 +31,7 @@ interface LibraryState {
   addLibrary: (record: LibraryRecord) => Promise<void>
   openExistingLibrary: (record: LibraryRecord) => void
   openStockLibrary: (name: string) => void
+  cloneStockLibrary: (name: string) => Promise<string | null>
   closeLibraryEditor: () => void
   renameLibrary: (id: string, name: string) => Promise<void>
   removeLibrary: (id: string) => Promise<void>
@@ -101,21 +103,40 @@ export const useLibraryStore = create<LibraryState>()((set, get) => ({
   },
 
   openExistingLibrary: (record) => {
-    enterLibraryMode(record.src, record.name)
     set({
       editingLibrary: { kind: 'existing', id: record.id },
       libraryBaseline: record.src,
     })
+    enterLibraryMode(record.src, record.name)
   },
 
   openStockLibrary: (name) => {
     const src = LIBRARIES[name]
     if (!src) return
-    enterLibraryMode(src, name, true)
     set({
       editingLibrary: { kind: 'stock', id: name },
       libraryBaseline: src,
     })
+    enterLibraryMode(src, name, true)
+  },
+
+  cloneStockLibrary: async (stockName) => {
+    const src = LIBRARIES[stockName]
+    if (!src) return null
+    const name = nextLibraryCloneName(stockName, {
+      stockNames: Object.keys(LIBRARIES),
+      userNames: get().userLibraries.map((library) => library.name),
+      builtinNames: builtinNamespaceNames(),
+    })
+    const record: LibraryRecord = {
+      id: newPersonalContentId(),
+      name,
+      src,
+      updatedAt: Date.now(),
+    }
+    await get().addLibrary(record)
+    get().openExistingLibrary(record)
+    return record.id
   },
 
   closeLibraryEditor: () => {

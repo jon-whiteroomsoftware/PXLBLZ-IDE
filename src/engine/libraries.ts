@@ -42,3 +42,10 @@ export function nextLibraryName(scope: LibraryNameScope): string {
   while (taken.has(`Lib${index}`)) index++
   return `Lib${index}`
 }
+
+export function nextLibraryCloneName(baseName: string, scope: LibraryNameScope): string {
+  const taken = new Set([...scope.stockNames, ...scope.userNames, ...scope.builtinNames])
+  let index = 2
+  while (taken.has(`${baseName}${index}`)) index++
+  return `${baseName}${index}`
+}

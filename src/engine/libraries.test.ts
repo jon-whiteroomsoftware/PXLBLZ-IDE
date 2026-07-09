@@ -1,6 +1,7 @@
 import {
   LIBRARY_SKELETON,
   builtinNamespaceNames,
+  nextLibraryCloneName,
   nextLibraryName,
   validateLibraryName,
 } from './libraries'
@@ -12,6 +13,19 @@ describe('library namespace rules (#347)', () => {
       userNames: ['Lib1', 'Lib2', 'Lib4'],
       builtinNames: ['hsv'],
     })).toBe('Lib3')
+  })
+
+  it('mints stock clone namespaces from the stock name without shadowing it', () => {
+    expect(nextLibraryCloneName('SDF', {
+      stockNames: ['SDF'],
+      userNames: [],
+      builtinNames: [],
+    })).toBe('SDF2')
+    expect(nextLibraryCloneName('SDF', {
+      stockNames: ['SDF'],
+      userNames: ['SDF2', 'SDF3'],
+      builtinNames: [],
+    })).toBe('SDF4')
   })
 
   it('requires identifier-safe names and rejects reserved namespaces case-sensitively', () => {
