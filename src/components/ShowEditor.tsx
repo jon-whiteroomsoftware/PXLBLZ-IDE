@@ -13,21 +13,31 @@ import { compileShowForPreview, type CompiledShowState } from '@/engine/showPrev
 import {
   controllerZonePixelCount,
   findControllerZoneByName,
+  type ControllerProfile,
   type ControllerZone,
 } from '@/engine/controllerProfile'
 import { GALLERY_PATTERNS } from '@/engine/galleryCatalog'
 import { useControllerStore } from '@/store/controllerStore'
 import { useControllerProfileStore } from '@/store/controllerProfileStore'
+import { useMapStore } from '@/store/mapStore'
 import { usePatternStore } from '@/store/patternStore'
 import { useShowStore } from '@/store/showStore'
-import type { ShowCell, ShowRecord, ShowScene } from '@/engine/personalContentRecords'
+import type { MapRecord, ShowCell, ShowRecord, ShowScene } from '@/engine/personalContentRecords'
 
 const card = 'rounded-md border border-zinc-800 bg-zinc-950/35'
 const field =
   'h-7 rounded border border-zinc-700 bg-zinc-900 px-2 text-xs text-zinc-200 outline-none focus:border-live/70'
 
+type ShowSelection =
+  | { kind: 'cell'; cellId: string }
+  | { kind: 'transition'; afterSceneId: string }
+  | { kind: 'zone'; zoneId: string }
+  | { kind: 'show' }
+
 export function ShowEditor({ showId }: { showId: string }) {
   const show = useShowStore((state) => state.shows.find((item) => item.id === showId))
+  const updateShow = useShowStore((state) => state.updateShow)
+  const updateStageMap = useShowStore((state) => state.updateStageMap)
   const updateScene = useShowStore((state) => state.updateScene)
   const updateTransition = useShowStore((state) => state.updateTransition)
   const updateCellAdaptations = useShowStore((state) => state.updateCellAdaptations)
@@ -38,16 +48,19 @@ export function ShowEditor({ showId }: { showId: string }) {
   const updateZone = useShowStore((state) => state.updateZone)
   const removeZone = useShowStore((state) => state.removeZone)
   const userPatterns = usePatternStore((state) => state.userPatterns)
+  const userMaps = useMapStore((state) => state.userMaps)
   const controllerProfiles = useControllerProfileStore((state) => state.profiles)
   const activeIp = useControllerStore((state) => state.activeIp)
   const activeController = useControllerStore((state) => (state.activeIp ? state.controllers[state.activeIp] : undefined))
-  const [selectedCellId, setSelectedCellId] = useState<string | null>(null)
+  const [selection, setSelection] = useState<ShowSelection>({ kind: 'show' })
   const [generatedOpen, setGeneratedOpen] = useState(false)
   const [pushing, setPushing] = useState(false)
   const [pushResult, setPushResult] = useState<string | null>(null)
 
   const activeShow = show ?? null
-  const selectedCell = activeShow?.cells.find((cell) => cell.id === (selectedCellId ?? activeShow.cells[0]?.id)) ?? null
+  const selectedCell = selection.kind === 'cell'
+    ? activeShow?.cells.find((cell) => cell.id === selection.cellId) ?? null
+    : null
   const targetProfile = activeShow?.targetControllerProfileId
     ? controllerProfiles.find((profile) => profile.id === activeShow.targetControllerProfileId)
     : controllerProfiles[0]
@@ -146,38 +159,34 @@ export function ShowEditor({ showId }: { showId: string }) {
 
           <SceneStrip
             show={activeShow}
-            selectedCell={selectedCell}
-            onSelectCell={setSelectedCellId}
+            selection={selection}
+            onSelect={setSelection}
             onUpdateScene={(sceneId, changes) => void updateScene(activeShow.id, sceneId, changes)}
           />
 
-          <div className="mt-3 grid gap-3 xl:grid-cols-[1fr_1fr_1fr]">
-            {selectedCell ? (
-              <CellInspector
-                show={activeShow}
-                cell={selectedCell}
-                patternOptions={patternOptions}
-                onUpdatePattern={(patch) => void updateCellPattern(activeShow.id, selectedCell.id, patch)}
-                onUpdateAdaptations={(changes) => void updateCellAdaptations(activeShow.id, selectedCell.id, changes)}
-                onExtend={(sceneSpan) => void extendCell(activeShow.id, selectedCell.id, sceneSpan)}
-                onSpanZones={(zoneSpan) => void spanCellZones(activeShow.id, selectedCell.id, zoneSpan)}
-              />
-            ) : (
-              <InspectorPanel title="Cell">Select a cell in the strip.</InspectorPanel>
-            )}
-            <TransitionInspector
-              show={activeShow}
-              onUpdateTransition={(sceneId, kind, durationMs) => void updateTransition(activeShow.id, sceneId, kind, durationMs)}
-            />
-            <ZoneBindingPanel
-              show={activeShow}
-              targetName={targetProfile?.name}
-              targetZones={targetProfile?.zones ?? []}
-              onAddZone={() => void addZone(activeShow.id)}
-              onUpdateZone={(zoneId, changes) => void updateZone(activeShow.id, zoneId, changes)}
-              onRemoveZone={(zoneId) => void removeZone(activeShow.id, zoneId)}
-            />
-          </div>
+          <ContextualInspector
+            show={activeShow}
+            selection={selection}
+            selectedCell={selectedCell}
+            patternOptions={patternOptions}
+            controllerProfiles={controllerProfiles}
+            targetProfile={targetProfile}
+            userMaps={userMaps}
+            onUpdateTargetProfile={(targetControllerProfileId) => void updateShow(activeShow.id, {
+              ...activeShow,
+              targetControllerProfileId: targetControllerProfileId || undefined,
+              updatedAt: Date.now(),
+            })}
+            onUpdateStageMap={(stageMapId) => void updateStageMap(activeShow.id, stageMapId)}
+            onUpdatePattern={(cell, patch) => void updateCellPattern(activeShow.id, cell.id, patch)}
+            onUpdateAdaptations={(cell, changes) => void updateCellAdaptations(activeShow.id, cell.id, changes)}
+            onExtend={(cell, sceneSpan) => void extendCell(activeShow.id, cell.id, sceneSpan)}
+            onSpanZones={(cell, zoneSpan) => void spanCellZones(activeShow.id, cell.id, zoneSpan)}
+            onUpdateTransition={(sceneId, kind, durationMs) => void updateTransition(activeShow.id, sceneId, kind, durationMs)}
+            onAddZone={() => void addZone(activeShow.id)}
+            onUpdateZone={(zoneId, changes) => void updateZone(activeShow.id, zoneId, changes)}
+            onRemoveZone={(zoneId) => void removeZone(activeShow.id, zoneId)}
+          />
         </div>
       </div>
       <CompileBar
@@ -192,19 +201,19 @@ export function ShowEditor({ showId }: { showId: string }) {
 
 function SceneStrip({
   show,
-  selectedCell,
-  onSelectCell,
+  selection,
+  onSelect,
   onUpdateScene,
 }: {
   show: ShowRecord
-  selectedCell: ShowCell | null
-  onSelectCell: (cellId: string) => void
+  selection: ShowSelection
+  onSelect: (selection: ShowSelection) => void
   onUpdateScene: (sceneId: string, changes: Partial<Omit<ShowScene, 'id'>>) => void
 }) {
   const strip = projectShowStrip(show)
   const columns = ['150px', ...show.scenes.flatMap(() => ['minmax(150px,1fr)', '64px']).slice(0, -1)]
   return (
-    <div className={`${card} overflow-x-auto p-2`}>
+    <div className={`${card} overflow-x-auto p-2`} onClick={() => onSelect({ kind: 'show' })}>
       <div
         className="grid min-w-[720px] gap-1.5"
         style={{ gridTemplateColumns: columns.join(' ') }}
@@ -216,12 +225,34 @@ function SceneStrip({
           <SceneColumnHeader key={scene.id} scene={scene} onUpdate={(changes) => onUpdateScene(scene.id, changes)} />
         )).flatMap((node, index) => (
           index < strip.transitions.length
-            ? [node, <TransitionGlyph key={`t-${strip.transitions[index].afterSceneId}`} transition={strip.transitions[index]} />]
+            ? [
+                node,
+                <TransitionGlyph
+                  key={`t-${strip.transitions[index].afterSceneId}`}
+                  show={show}
+                  transition={strip.transitions[index]}
+                  selected={selection.kind === 'transition' && selection.afterSceneId === strip.transitions[index].afterSceneId}
+                  onSelect={() => onSelect({ kind: 'transition', afterSceneId: strip.transitions[index].afterSceneId })}
+                />,
+              ]
             : [node]
         ))}
         {strip.rows.map((row) => (
           <div key={row.zoneId} className="contents">
-            <div className="flex items-center gap-2 rounded border border-zinc-800 bg-zinc-900/45 px-2 text-zinc-300">
+            <button
+              type="button"
+              aria-label={`Select zone ${row.zoneName}`}
+              onClick={(event) => {
+                event.stopPropagation()
+                onSelect({ kind: 'zone', zoneId: row.zoneId })
+              }}
+              className={[
+                'flex items-center gap-2 rounded border px-2 text-left text-zinc-300 transition-colors',
+                selection.kind === 'zone' && selection.zoneId === row.zoneId
+                  ? 'border-live/70 bg-live/10'
+                  : 'border-zinc-800 bg-zinc-900/45 hover:border-zinc-700 hover:bg-zinc-900',
+              ].join(' ')}
+            >
               <span
                 aria-hidden
                 className="size-2 rounded-sm"
@@ -229,16 +260,19 @@ function SceneStrip({
               />
               <span className="truncate">{row.zoneName}</span>
               <span className="ml-auto text-[10px] text-zinc-600">{row.nominalPixelCount}px</span>
-            </div>
+            </button>
             {row.cells.map((cell) => (
               <button
                 key={cell.id}
                 type="button"
                 aria-label={`Select ${cell.patternName}`}
-                onClick={() => onSelectCell(cell.id)}
+                onClick={(event) => {
+                  event.stopPropagation()
+                  onSelect({ kind: 'cell', cellId: cell.id })
+                }}
                 className={[
                   'min-h-14 rounded-md border px-2 py-2 text-left transition-colors',
-                  selectedCell?.id === cell.id
+                  selection.kind === 'cell' && selection.cellId === cell.id
                     ? 'border-live/70 bg-live/10 text-zinc-100'
                     : 'border-zinc-800 bg-zinc-900/50 text-zinc-300 hover:border-zinc-700 hover:bg-zinc-900',
                 ].join(' ')}
@@ -292,22 +326,136 @@ function SceneColumnHeader({
   )
 }
 
-function TransitionGlyph({ transition }: { transition: ReturnType<typeof projectShowStrip>['transitions'][number] }) {
+function TransitionGlyph({
+  show,
+  transition,
+  selected,
+  onSelect,
+}: {
+  show: ShowRecord
+  transition: ReturnType<typeof projectShowStrip>['transitions'][number]
+  selected: boolean
+  onSelect: () => void
+}) {
   const glyph = transition.kind === 'crossfade' ? 'xf' : transition.kind === 'wipe' ? 'wp' : transition.kind === 'dither' ? 'dt' : 'cut'
+  const afterIndex = show.scenes.findIndex((scene) => scene.id === transition.afterSceneId)
+  const from = show.scenes[afterIndex]?.name ?? 'Scene'
+  const to = show.scenes[afterIndex + 1]?.name ?? 'next scene'
   return (
-    <div className="flex min-h-14 flex-col items-center justify-center rounded border border-dashed border-zinc-800 bg-zinc-950/35 text-[10px] uppercase text-zinc-500">
+    <button
+      type="button"
+      aria-label={`Select ${from} to ${to} transition`}
+      onClick={(event) => {
+        event.stopPropagation()
+        onSelect()
+      }}
+      className={[
+        'flex min-h-14 flex-col items-center justify-center rounded border border-dashed bg-zinc-950/35 text-[10px] uppercase text-zinc-500 transition-colors',
+        selected ? 'border-live/80 text-zinc-200' : 'border-zinc-800 hover:border-zinc-700 hover:text-zinc-300',
+      ].join(' ')}
+    >
       <span className={transition.cost === 'expensive' ? 'text-amber-300' : 'text-emerald-300'}>{glyph}</span>
       <span>{Math.round(transition.durationMs / 1000)}s</span>
-    </div>
+    </button>
   )
 }
 
 function InspectorPanel({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className={`${card} min-h-36 p-3`}>
+    <section className={`${card} mt-3 min-h-36 p-3`}>
       <h3 className="mb-2 text-[11px] font-semibold uppercase text-zinc-500">{title}</h3>
       {children}
     </section>
+  )
+}
+
+function ContextualInspector({
+  show,
+  selection,
+  selectedCell,
+  patternOptions,
+  controllerProfiles,
+  targetProfile,
+  userMaps,
+  onUpdateTargetProfile,
+  onUpdateStageMap,
+  onUpdatePattern,
+  onUpdateAdaptations,
+  onExtend,
+  onSpanZones,
+  onUpdateTransition,
+  onAddZone,
+  onUpdateZone,
+  onRemoveZone,
+}: {
+  show: ShowRecord
+  selection: ShowSelection
+  selectedCell: ShowCell | null
+  patternOptions: Array<{ label: string; ref: ShowCell['pattern'] }>
+  controllerProfiles: ControllerProfile[]
+  targetProfile?: ControllerProfile
+  userMaps: MapRecord[]
+  onUpdateTargetProfile: (targetControllerProfileId: string) => void
+  onUpdateStageMap: (stageMapId: string | null) => void
+  onUpdatePattern: (cell: ShowCell, patch: Pick<ShowCell, 'pattern' | 'patternName'>) => void
+  onUpdateAdaptations: (cell: ShowCell, changes: Partial<ShowCell['adaptations']>) => void
+  onExtend: (cell: ShowCell, sceneSpan: number) => void
+  onSpanZones: (cell: ShowCell, zoneSpan: number) => void
+  onUpdateTransition: (sceneId: string, kind: NonNullable<ShowScene['transitionOut']>['kind'], durationMs: number) => void
+  onAddZone: () => void
+  onUpdateZone: (zoneId: string, changes: Partial<ShowRecord['zones'][number]>) => void
+  onRemoveZone: (zoneId: string) => void
+}) {
+  if (selection.kind === 'cell' && selectedCell) {
+    return (
+      <CellInspector
+        show={show}
+        cell={selectedCell}
+        patternOptions={patternOptions}
+        onUpdatePattern={(patch) => onUpdatePattern(selectedCell, patch)}
+        onUpdateAdaptations={(changes) => onUpdateAdaptations(selectedCell, changes)}
+        onExtend={(sceneSpan) => onExtend(selectedCell, sceneSpan)}
+        onSpanZones={(zoneSpan) => onSpanZones(selectedCell, zoneSpan)}
+      />
+    )
+  }
+
+  if (selection.kind === 'transition') {
+    return (
+      <TransitionInspector
+        show={show}
+        afterSceneId={selection.afterSceneId}
+        onUpdateTransition={onUpdateTransition}
+      />
+    )
+  }
+
+  if (selection.kind === 'zone') {
+    const zone = show.zones.find((candidate) => candidate.id === selection.zoneId)
+    if (zone) {
+      return (
+        <ZoneInspector
+          show={show}
+          zone={zone}
+          targetName={targetProfile?.name}
+          targetZones={targetProfile?.zones ?? []}
+          onUpdateZone={(changes) => onUpdateZone(zone.id, changes)}
+          onRemoveZone={() => onRemoveZone(zone.id)}
+        />
+      )
+    }
+  }
+
+  return (
+    <ShowSetupInspector
+      show={show}
+      controllerProfiles={controllerProfiles}
+      targetProfile={targetProfile}
+      userMaps={userMaps}
+      onUpdateTargetProfile={onUpdateTargetProfile}
+      onUpdateStageMap={onUpdateStageMap}
+      onAddZone={onAddZone}
+    />
   )
 }
 
@@ -332,8 +480,10 @@ function CellInspector({
   const maxSpan = Math.max(1, show.scenes.length - sceneIndex)
   const zoneIndex = show.zones.findIndex((zone) => zone.id === cell.zoneId)
   const maxZoneSpan = Math.max(1, show.zones.length - zoneIndex)
+  const zone = show.zones[zoneIndex]
+  const scene = show.scenes[sceneIndex]
   return (
-    <InspectorPanel title={`Cell - ${cell.patternName}`}>
+    <InspectorPanel title={`${cell.patternName} - cell - ${zone?.name ?? 'zone'} - ${scene?.name ?? 'scene'}`}>
       <label className="block text-[10px] uppercase text-zinc-600">
         Source pattern
         <select
@@ -397,19 +547,24 @@ function CellInspector({
 
 function TransitionInspector({
   show,
+  afterSceneId,
   onUpdateTransition,
 }: {
   show: ShowRecord
+  afterSceneId: string
   onUpdateTransition: (sceneId: string, kind: NonNullable<ShowScene['transitionOut']>['kind'], durationMs: number) => void
 }) {
-  const scene = show.scenes[0]
+  const sceneIndex = show.scenes.findIndex((scene) => scene.id === afterSceneId)
+  const scene = show.scenes[sceneIndex] ?? show.scenes[0]
+  const nextScene = show.scenes[sceneIndex + 1]
   const transition = scene.transitionOut ?? { kind: 'cut' as const, durationMs: 0 }
+  const cost = transitionCost(transition.kind)
   return (
-    <InspectorPanel title="Transition">
+    <InspectorPanel title={`${scene?.name ?? 'Scene'} -> ${nextScene?.name ?? 'next'} - transition`}>
       <div className="grid grid-cols-2 gap-2">
         <label className="text-[10px] uppercase text-zinc-600">
           Boundary
-          <div className="mt-1 text-zinc-300">{show.scenes[0]?.name} to {show.scenes[1]?.name}</div>
+          <div className="mt-1 text-zinc-300">{scene?.name} to {nextScene?.name}</div>
         </label>
         <label className="text-[10px] uppercase text-zinc-600">
           Kind
@@ -434,72 +589,139 @@ function TransitionInspector({
           onChange={(seconds) => onUpdateTransition(scene.id, transition.kind, seconds * 1000)}
         />
         <div className="rounded border border-zinc-800 bg-zinc-950/55 p-2 text-[10px] text-zinc-500">
-          Cost tier: <span className="text-zinc-300">{transitionCost(transition.kind)}</span>
+          Cost tier:{' '}
+          <span className={cost === 'expensive' ? 'text-amber-300' : cost === 'cheap' ? 'text-emerald-300' : 'text-zinc-300'}>
+            {cost}
+          </span>
         </div>
       </div>
     </InspectorPanel>
   )
 }
 
-function ZoneBindingPanel({
+function ShowSetupInspector({
   show,
+  controllerProfiles,
+  targetProfile,
+  userMaps,
+  onUpdateTargetProfile,
+  onUpdateStageMap,
+  onAddZone,
+}: {
+  show: ShowRecord
+  controllerProfiles: ControllerProfile[]
+  targetProfile?: ControllerProfile
+  userMaps: MapRecord[]
+  onUpdateTargetProfile: (targetControllerProfileId: string) => void
+  onUpdateStageMap: (stageMapId: string | null) => void
+  onAddZone: () => void
+}) {
+  const zonePixels = show.zones.reduce((sum, zone) => sum + zone.nominalPixelCount, 0)
+  return (
+    <InspectorPanel title="Show setup">
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <label className="text-[10px] uppercase text-zinc-600">
+          Target controller
+          <select
+            aria-label="Target controller"
+            value={show.targetControllerProfileId ?? ''}
+            onChange={(event) => onUpdateTargetProfile(event.target.value)}
+            className={`${field} mt-1 w-full`}
+          >
+            <option value="">automatic</option>
+            {controllerProfiles.map((profile) => (
+              <option key={profile.id} value={profile.id}>{profile.name}</option>
+            ))}
+          </select>
+        </label>
+        <label className="text-[10px] uppercase text-zinc-600">
+          Stage map
+          <select
+            aria-label="Stage map"
+            value={show.stageMapId ?? ''}
+            onChange={(event) => onUpdateStageMap(event.target.value || null)}
+            className={`${field} mt-1 w-full`}
+          >
+            <option value="">none</option>
+            {userMaps.map((map) => (
+              <option key={map.id} value={map.id}>{map.name}</option>
+            ))}
+          </select>
+        </label>
+        <div className="rounded border border-zinc-800 bg-zinc-950/55 p-2 text-[10px] uppercase text-zinc-600">
+          Loop
+          <div className="mt-1 text-xs text-zinc-300">{formatDuration(showLoopDurationMs(show))}</div>
+        </div>
+        <div className="rounded border border-zinc-800 bg-zinc-950/55 p-2 text-[10px] uppercase text-zinc-600">
+          Zones
+          <div className="mt-1 text-xs text-zinc-300">
+            {show.zones.length} zone{show.zones.length === 1 ? '' : 's'} - {zonePixels} px
+          </div>
+        </div>
+      </div>
+      <div className="mt-3 flex items-center gap-2 text-[10px] text-zinc-500">
+        <span>Using {targetProfile?.name ?? 'nominal zones'} for compile estimates.</span>
+        <span className="flex-1" />
+        <button
+          type="button"
+          onClick={onAddZone}
+          className="h-7 rounded border border-zinc-800 px-2 text-[10px] uppercase tracking-wider text-zinc-400 hover:border-zinc-600 hover:text-zinc-100"
+        >
+          Add zone
+        </button>
+      </div>
+    </InspectorPanel>
+  )
+}
+
+function ZoneInspector({
+  show,
+  zone,
   targetName,
   targetZones,
-  onAddZone,
   onUpdateZone,
   onRemoveZone,
 }: {
   show: ShowRecord
+  zone: ShowRecord['zones'][number]
   targetName?: string
   targetZones: ControllerZone[]
-  onAddZone: () => void
-  onUpdateZone: (zoneId: string, changes: Partial<ShowRecord['zones'][number]>) => void
-  onRemoveZone: (zoneId: string) => void
+  onUpdateZone: (changes: Partial<ShowRecord['zones'][number]>) => void
+  onRemoveZone: () => void
 }) {
   return (
-    <InspectorPanel title={`Show zones${targetName ? ` -> ${targetName}` : ''}`}>
-      <div className="space-y-2">
-        {show.zones.map((zone) => (
-          <div key={zone.id} className="grid grid-cols-[minmax(90px,1fr)_64px_28px] gap-2 rounded border border-zinc-800 bg-zinc-950/55 p-2">
-            <label className="flex items-center gap-2 min-w-0">
-              <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: zone.color ?? '#38bdf8' }} />
-              <input
-                aria-label={`Zone name ${zone.name}`}
-                value={zone.name}
-                onChange={(event) => onUpdateZone(zone.id, { name: event.target.value })}
-                className={field}
-              />
-            </label>
-            <input
-              aria-label={`Nominal pixels ${zone.name}`}
-              type="number"
-              min={1}
-              value={zone.nominalPixelCount}
-              onChange={(event) => onUpdateZone(zone.id, { nominalPixelCount: Number(event.target.value) })}
-              className={field}
-            />
-            <button
-              type="button"
-              aria-label={`Remove zone ${zone.name}`}
-              title={`Remove ${zone.name}`}
-              onClick={() => onRemoveZone(zone.id)}
-              disabled={show.zones.length <= 1}
-              className="h-7 w-7 rounded border border-zinc-800 flex items-center justify-center text-zinc-500 hover:text-red-300 hover:border-red-900/70 disabled:opacity-30 disabled:hover:text-zinc-500 disabled:hover:border-zinc-800"
-            >
-              <Trash2 size={13} />
-            </button>
-            <div className="col-span-3 pl-4 text-[10px] uppercase tracking-wider">
-              <ZoneBindingStatus zone={zone} targetZones={targetZones} />
-            </div>
-          </div>
-        ))}
+    <InspectorPanel title={`${zone.name} - zone${targetName ? ` - ${targetName}` : ''}`}>
+      <div className="grid gap-2 rounded border border-zinc-800 bg-zinc-950/55 p-2 md:grid-cols-[minmax(140px,1fr)_96px_36px]">
+        <label className="flex min-w-0 items-center gap-2">
+          <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: zone.color ?? '#38bdf8' }} />
+          <input
+            aria-label={`Zone name ${zone.name}`}
+            value={zone.name}
+            onChange={(event) => onUpdateZone({ name: event.target.value })}
+            className={`${field} w-full`}
+          />
+        </label>
+        <input
+          aria-label={`Nominal pixels ${zone.name}`}
+          type="number"
+          min={1}
+          value={zone.nominalPixelCount}
+          onChange={(event) => onUpdateZone({ nominalPixelCount: Number(event.target.value) })}
+          className={field}
+        />
         <button
           type="button"
-          onClick={onAddZone}
-          className="h-7 rounded border border-zinc-800 px-2 text-[10px] uppercase tracking-wider text-zinc-400 hover:text-zinc-100 hover:border-zinc-600"
+          aria-label={`Remove zone ${zone.name}`}
+          title={`Remove ${zone.name}`}
+          onClick={onRemoveZone}
+          disabled={show.zones.length <= 1}
+          className="flex h-7 w-7 items-center justify-center rounded border border-zinc-800 text-zinc-500 hover:border-red-900/70 hover:text-red-300 disabled:opacity-30 disabled:hover:border-zinc-800 disabled:hover:text-zinc-500"
         >
-          Add zone
+          <Trash2 size={13} />
         </button>
+        <div className="text-[10px] uppercase tracking-wider md:col-span-3">
+          <ZoneBindingStatus zone={zone} targetZones={targetZones} />
+        </div>
       </div>
     </InspectorPanel>
   )

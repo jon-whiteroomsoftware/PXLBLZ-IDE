@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { ShowEditor } from './ShowEditor'
 import { showInitialState, useShowStore } from '@/store/showStore'
-import { addShowZone, createDefaultShow } from '@/engine/showModel'
+import { addShowScene, addShowZone, createDefaultShow } from '@/engine/showModel'
 import { usePatternStore, patternInitialState } from '@/store/patternStore'
 import { controllerProfileInitialState, useControllerProfileStore } from '@/store/controllerProfileStore'
 import {
@@ -70,13 +70,17 @@ describe('ShowEditor (#318)', () => {
     expect(screen.getAllByText('main').length).toBeGreaterThan(0)
     expect(screen.getByText(/compiled artifact/i)).toBeInTheDocument()
     expect(screen.getByText(/renderer\/px/i)).toBeInTheDocument()
+    expect(screen.getByText('Show setup')).toBeInTheDocument()
+    expect(screen.getByLabelText('Target controller')).toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: /Select TestPattern1D/i }))
+    await user.click(screen.getAllByRole('button', { name: /Select TestPattern1D/i })[0])
 
-    expect(screen.getByText('Cell - TestPattern1D')).toBeInTheDocument()
+    expect(screen.getByText(/TestPattern1D - cell - main - Scene 1/i)).toBeInTheDocument()
     expect(screen.getByLabelText('Mirror cell')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /Select Scene 1 to Scene 2 transition/i }))
+    expect(screen.getByText(/Scene 1 -> Scene 2 - transition/i)).toBeInTheDocument()
     expect(screen.getByRole('option', { name: 'wipe' })).toBeInTheDocument()
-    expect(screen.getByRole('option', { name: 'dither' })).toBeInTheDocument()
   })
 
   it('edits freestyle show zones and warns when a target controller zone is missing', async () => {
@@ -107,6 +111,7 @@ describe('ShowEditor (#318)', () => {
 
     expect(screen.getByText('Clip "cell-3" references missing zone "doorframe".')).toBeInTheDocument()
 
+    await user.click(screen.getAllByRole('button', { name: /Select TestPattern1D/i })[0])
     await user.selectOptions(screen.getByLabelText('Span zones'), '2')
     await waitFor(() => {
       expect(useShowStore.getState().shows[0].cells.find((cell) => cell.id === 'cell-1')).toMatchObject({
@@ -114,6 +119,7 @@ describe('ShowEditor (#318)', () => {
       })
     })
 
+    await user.click(screen.getByRole('button', { name: /Select zone doorframe/i }))
     const nameInput = screen.getByLabelText('Zone name doorframe')
     await user.clear(nameInput)
     await user.type(nameInput, 'entry')
@@ -124,6 +130,24 @@ describe('ShowEditor (#318)', () => {
         name: 'entry',
         nominalPixelCount: 24,
       })
+    })
+  })
+
+  it('edits the selected second transition boundary in a three-scene show', async () => {
+    const user = userEvent.setup()
+    const show = addShowScene(createDefaultShow('show-1', 'Opening wash', 1000))
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+
+    await user.click(screen.getByRole('button', { name: /Select Scene 2 to Scene 3 transition/i }))
+    await user.selectOptions(screen.getByLabelText('Transition kind'), 'dither')
+
+    await waitFor(() => {
+      const updated = useShowStore.getState().shows[0]
+      expect(updated.scenes[0].transitionOut?.kind).toBe('crossfade')
+      expect(updated.scenes[1].transitionOut?.kind).toBe('dither')
     })
   })
 })
