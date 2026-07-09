@@ -1,0 +1,558 @@
+<title>Shows Editor Overhaul</title>
+<style>
+  :root {
+    --bg: #0a0a0c;
+    --panel: #141416;
+    --panel-2: #101013;
+    --strip: #060608;
+    --seam: #2e2e34;
+    --line: #232328;
+    --live: #fbbf24;
+    --ok: #4ade80;
+    --warn: #fbbf24;
+    --text: #d4d4d8;
+    --text-bright: #f4f4f5;
+    --text-dim: #8b8b94;
+    --structural: #71717a;
+    --z-sky: #38bdf8;
+    --z-violet: #a78bfa;
+    --z-rose: #fb7185;
+    --mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+  }
+  html { background: var(--bg); }
+  body {
+    font-family: var(--mono);
+    background: var(--bg);
+    color: var(--text);
+    margin: 0;
+    padding: 48px 24px 96px;
+    font-size: 13px;
+    line-height: 1.55;
+  }
+  .wrap { max-width: 1120px; margin: 0 auto; }
+
+  /* ---------- intro ---------- */
+  .eyebrow {
+    color: var(--structural);
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    font-size: 10.5px;
+    margin-bottom: 10px;
+  }
+  h1 {
+    color: var(--text-bright);
+    font-size: 26px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    margin: 0 0 14px;
+    text-wrap: balance;
+  }
+  .lede { max-width: 64ch; color: var(--text); margin: 0 0 8px; }
+  .lede b { color: var(--text-bright); font-weight: 600; }
+  .dim { color: var(--text-dim); }
+  .thesis {
+    max-width: 64ch;
+    margin: 22px 0 0;
+    padding: 14px 16px;
+    border-left: 2px solid var(--live);
+    background: #141210;
+    color: var(--text);
+  }
+
+  /* ---------- mock frame ---------- */
+  .mock-outer { margin: 44px 0 10px; overflow-x: auto; }
+  .mock {
+    min-width: 980px;
+    border: 1px solid var(--seam);
+    border-radius: 8px;
+    background: var(--panel-2);
+    overflow: hidden;
+    box-shadow: 0 24px 60px -30px rgba(0,0,0,0.8);
+  }
+  .caption { color: var(--text-dim); font-size: 11.5px; margin: 12px 2px 0; }
+  .caption b { color: var(--text); font-weight: 500; }
+
+  /* pane header — the ONLY header */
+  .pane-header {
+    display: flex; align-items: center; gap: 8px;
+    height: 40px; padding: 0 12px;
+    border-bottom: 1px solid var(--seam);
+    background: var(--panel);
+  }
+  .pane-header .icon { color: var(--structural); display: flex; }
+  .pane-header .name { color: var(--text-bright); font-weight: 600; font-size: 13px; }
+  .tag {
+    border: 1px solid #3f3f46; border-radius: 4px;
+    padding: 2px 7px; font-size: 9.5px; letter-spacing: 0.1em;
+    text-transform: uppercase; color: var(--structural); white-space: nowrap;
+  }
+  .spacer { flex: 1; }
+  .btn {
+    font-family: var(--mono); font-size: 11.5px;
+    border: 0; border-radius: 5px; padding: 5px 11px;
+    background: #27272acc; color: #a1a1aa; cursor: pointer;
+  }
+  .btn:hover { background: #3f3f46cc; color: var(--text); }
+  .btn.live { background: rgba(251,191,36,0.14); color: var(--live); }
+  .btn.live:hover { background: rgba(251,191,36,0.2); }
+  button:focus-visible, .cell:focus-visible {
+    outline: 2px solid var(--live); outline-offset: 1px;
+  }
+
+  /* ---------- the strip: a recessed composition surface ---------- */
+  .strip {
+    background: var(--strip);
+    box-shadow: inset 0 6px 14px -8px rgba(0,0,0,0.9), inset 0 -6px 14px -10px rgba(0,0,0,0.9);
+    border-bottom: 1px solid var(--seam);
+    padding: 14px 16px 16px;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: 148px minmax(170px,1fr) 36px minmax(170px,1fr) 36px minmax(170px,1fr) 64px;
+    grid-template-rows: auto 64px 64px 64px 34px;
+    column-gap: 8px;
+    row-gap: 8px;
+    position: relative;
+  }
+
+  /* scene headers: headers, not boxes */
+  .scene-head {
+    display: flex; align-items: baseline; gap: 8px;
+    padding: 2px 4px 8px;
+    border-bottom: 1px solid var(--line);
+    cursor: text;
+  }
+  .scene-head .s-name { color: var(--text-bright); font-weight: 600; font-size: 12.5px; }
+  .scene-head .s-dur { color: var(--structural); font-size: 10.5px; }
+  .scene-head .pencil { opacity: 0; color: var(--structural); font-size: 10px; transition: opacity 120ms; }
+  .scene-head:hover .pencil { opacity: 1; }
+  .scene-head:hover .s-name { text-decoration: underline dotted var(--structural); text-underline-offset: 3px; }
+  .corner {
+    align-self: end; padding: 2px 4px 8px;
+    color: var(--structural); font-size: 9.5px; letter-spacing: 0.12em; text-transform: uppercase;
+    border-bottom: 1px solid var(--line);
+  }
+
+  /* zone rail */
+  .zone-head {
+    display: flex; align-items: center; gap: 9px;
+    padding: 0 10px 0 0;
+    background: none; border: 0; cursor: pointer; text-align: left;
+    font-family: var(--mono); color: var(--text);
+    border-radius: 5px;
+  }
+  .zone-head .bar { width: 4px; align-self: stretch; border-radius: 2px; }
+  .zone-head .z-name { font-size: 12px; font-weight: 500; color: var(--text); }
+  .zone-head .z-px { margin-left: auto; font-size: 10px; color: var(--structural); font-variant-numeric: tabular-nums; }
+  .zone-head:hover .z-name { color: var(--text-bright); }
+  .zone-head.selected { background: rgba(251,191,36,0.07); }
+  .zone-head.selected .z-name { color: var(--text-bright); }
+
+  /* clips */
+  .cell {
+    position: relative; z-index: 2;
+    display: flex; flex-direction: column; justify-content: center; gap: 3px;
+    padding: 8px 10px 8px 12px;
+    border: 0; border-left: 3px solid var(--zc, var(--z-sky));
+    border-radius: 5px;
+    background:
+      linear-gradient(color-mix(in srgb, var(--zc) 9%, #101013), color-mix(in srgb, var(--zc) 6%, #0c0c0e));
+    font-family: var(--mono); text-align: left; cursor: pointer;
+    color: var(--text);
+    transition: transform 100ms, background 120ms;
+  }
+  .cell:hover { background: linear-gradient(color-mix(in srgb, var(--zc) 14%, #131316), color-mix(in srgb, var(--zc) 10%, #0e0e10)); }
+  .cell .c-pattern { font-size: 13px; font-weight: 600; color: var(--text-bright); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .cell .c-adapt { font-size: 10px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .cell.selected {
+    box-shadow: 0 0 0 1.5px var(--live), 0 8px 18px -10px rgba(0,0,0,0.9);
+  }
+  .cell .hold-tick {
+    position: absolute; top: 6px; right: 8px;
+    font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--structural);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .cell, .scene-head .pencil { transition: none; }
+  }
+
+  /* transition seams */
+  .tseam {
+    position: relative; z-index: 1;
+    grid-row: 2 / span 3;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+    background: none; border: 0; cursor: pointer; font-family: var(--mono);
+    border-radius: 4px;
+  }
+  .tseam::before {
+    content: ""; position: absolute; top: -8px; bottom: -8px; left: 50%;
+    border-left: 1px dashed #3a3a42;
+  }
+  .tseam .t-glyph {
+    position: relative; z-index: 1;
+    background: var(--strip); padding: 3px 0 1px;
+  }
+  .tseam .t-dur {
+    position: relative; z-index: 1;
+    background: var(--strip);
+    font-size: 9.5px; color: var(--structural); font-variant-numeric: tabular-nums;
+  }
+  .tseam:hover::before { border-left-color: #52525b; }
+  .tseam.selected::before { border-left: 1px solid var(--live); }
+  .tseam.selected .t-dur { color: var(--live); }
+
+  /* ghost affordances */
+  .ghost {
+    display: flex; align-items: center; justify-content: center; gap: 5px;
+    border: 1px dashed #303038; border-radius: 5px; background: none;
+    color: var(--structural); font-family: var(--mono); font-size: 10px;
+    letter-spacing: 0.1em; text-transform: uppercase; cursor: pointer;
+  }
+  .ghost:hover { color: var(--text); border-color: #52525b; }
+  .ghost.col { grid-column: 7; grid-row: 2 / span 3; writing-mode: vertical-rl; }
+
+  /* ---------- inspector: one panel, driven by selection ---------- */
+  .inspector { background: var(--panel); padding: 12px 16px 16px; min-height: 128px; }
+  .insp-head { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+  .insp-head .chip { width: 9px; height: 9px; border-radius: 2px; }
+  .insp-head .i-name { color: var(--text-bright); font-weight: 600; font-size: 13px; }
+  .insp-head .i-kind {
+    font-size: 9.5px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--structural);
+    border: 1px solid #3f3f46; border-radius: 4px; padding: 2px 7px;
+  }
+  .fields { display: flex; flex-wrap: wrap; gap: 10px 22px; }
+  .f { display: flex; flex-direction: column; gap: 5px; min-width: 110px; }
+  .f label { font-size: 9.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--structural); }
+  .f .val, .f select, .f input {
+    height: 28px; border: 1px solid #3f3f46; border-radius: 4px;
+    background: #1b1b1f; color: var(--text); font-family: var(--mono); font-size: 12px;
+    padding: 0 9px; display: flex; align-items: center;
+  }
+  .f select:focus, .f input:focus { outline: none; border-color: rgba(251,191,36,0.6); }
+  .f .val.readout { border-style: dashed; color: var(--text-dim); }
+  .f .toggle { display: flex; align-items: center; gap: 7px; height: 28px; color: var(--text); font-size: 12px; }
+  .cost-cheap { color: var(--ok); }
+  .cost-hot { color: var(--warn); }
+  .insp-variant { display: none; }
+  .insp-variant.active { display: block; }
+  .bound { color: var(--ok); font-size: 11px; }
+
+  /* compile bar */
+  .compile-bar {
+    display: flex; align-items: center; gap: 14px;
+    min-height: 38px; padding: 0 14px;
+    border-top: 1px solid var(--seam); background: #0c0c0e;
+    font-size: 11px; color: var(--text-dim);
+    white-space: nowrap; overflow-x: auto;
+  }
+  .compile-bar b { color: var(--text); font-weight: 500; }
+  .meter { width: 96px; height: 7px; border-radius: 2px; background: #27272a; overflow: hidden; }
+  .meter i { display: block; height: 100%; width: 22%; background: var(--live); }
+
+  /* ---------- moves section ---------- */
+  h2 {
+    color: var(--text-bright); font-size: 16px; font-weight: 600;
+    margin: 56px 0 6px; letter-spacing: -0.005em;
+  }
+  .h2-sub { color: var(--text-dim); max-width: 64ch; margin: 0 0 22px; }
+  .moves { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; }
+  .move {
+    border: 1px solid var(--line); border-radius: 7px; background: var(--panel-2);
+    padding: 14px 16px;
+  }
+  .move .m-title { color: var(--text-bright); font-weight: 600; font-size: 12.5px; margin-bottom: 6px; }
+  .move p { margin: 0; font-size: 12px; color: var(--text-dim); }
+  .move p b { color: var(--text); font-weight: 500; }
+  .fixes { margin: 18px 0 0; padding: 0; list-style: none; max-width: 70ch; }
+  .fixes li { padding: 7px 0 7px 22px; position: relative; font-size: 12.5px; border-bottom: 1px solid #19191d; }
+  .fixes li::before { content: "→"; position: absolute; left: 0; color: var(--live); }
+  .fixes li b { color: var(--text-bright); font-weight: 600; }
+  .foot { margin-top: 40px; color: var(--structural); font-size: 11px; max-width: 70ch; }
+</style>
+
+<div class="wrap">
+  <div class="eyebrow">PXLBLZ · Design proposal · Shows</div>
+  <h1>The scene strip should read like a stage plot, not a form</h1>
+  <p class="lede">Today every element of the Show editor — axis legend, scene headers, zone labels, pattern
+  cells, transition markers, and all three inspector panels — is the same 1px-bordered zinc box at the same
+  font size. Nothing tells you what is <b>content</b>, what is <b>structure</b>, and what is <b>controls</b>.</p>
+  <p class="lede dim">The fix is not decoration. It is three different visual vocabularies for the three
+  different kinds of thing on screen, plus one inspector that follows your selection instead of three
+  permanent panels.</p>
+  <div class="thesis">A first-time user should be able to muddle through: see the grid as
+  zones&nbsp;×&nbsp;scenes without a legend, click anything to find out what it is, and grow the show from
+  affordances that live where the growth happens.</div>
+
+  <div class="mock-outer">
+  <div class="mock">
+
+    <!-- single header: identity left (PaneHeader), actions right -->
+    <div class="pane-header">
+      <span class="icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 9v12"/></svg></span>
+      <span class="name">Solstice Set</span>
+      <span class="tag">Show · 3 scenes · 10m loop</span>
+      <span class="spacer"></span>
+      <button class="btn" type="button">View generated pattern</button>
+      <button class="btn live" type="button">▸ Push to Garage East</button>
+    </div>
+
+    <!-- the strip: recessed surface -->
+    <div class="strip" id="strip">
+      <div class="grid">
+        <!-- header row -->
+        <div class="corner">zones ↓</div>
+        <div class="scene-head"><span class="s-name">Doors Open</span><span class="s-dur">120s</span><span class="pencil">✎</span></div>
+        <div></div>
+        <div class="scene-head"><span class="s-name">Main Set</span><span class="s-dur">300s</span><span class="pencil">✎</span></div>
+        <div></div>
+        <div class="scene-head"><span class="s-name">Wind Down</span><span class="s-dur">180s</span><span class="pencil">✎</span></div>
+        <div class="corner" style="text-align:center">+ scene</div>
+
+        <!-- transition seams (span all zone rows) -->
+        <button class="tseam" style="grid-column:3" data-sel="t1" type="button" aria-label="Transition after Doors Open: crossfade 2s">
+          <span class="t-glyph"><svg width="14" height="10" viewBox="0 0 14 10"><path d="M1 1 L13 9 M13 1 L1 9" stroke="#fbbf24" stroke-width="1.4" fill="none"/></svg></span>
+          <span class="t-dur">2s</span>
+        </button>
+        <button class="tseam" style="grid-column:5" data-sel="t2" type="button" aria-label="Transition after Main Set: wipe 3s">
+          <span class="t-glyph"><svg width="14" height="10" viewBox="0 0 14 10"><path d="M2 1 v8 M6 3 v4 M10 4 v2" stroke="#4ade80" stroke-width="1.4" fill="none"/></svg></span>
+          <span class="t-dur">3s</span>
+        </button>
+
+        <!-- zone: arch-left -->
+        <button class="zone-head" style="grid-row:2" data-sel="z1" type="button">
+          <span class="bar" style="background:var(--z-sky)"></span>
+          <span class="z-name">arch-left</span><span class="z-px">240px</span>
+        </button>
+        <button class="cell" style="grid-row:2;grid-column:2;--zc:var(--z-sky)" data-sel="c1" type="button">
+          <span class="c-pattern">CometLoom</span><span class="c-adapt">dim 0.60</span>
+        </button>
+        <button class="cell selected" style="grid-row:2;grid-column:4;--zc:var(--z-sky)" data-sel="c2" type="button">
+          <span class="c-pattern">AuroraSphere</span><span class="c-adapt">no adaptations</span>
+        </button>
+
+        <!-- zone: arch-right -->
+        <button class="zone-head" style="grid-row:3" data-sel="z2" type="button">
+          <span class="bar" style="background:var(--z-violet)"></span>
+          <span class="z-name">arch-right</span><span class="z-px">240px</span>
+        </button>
+        <button class="cell" style="grid-row:3;grid-column:2;--zc:var(--z-violet)" data-sel="c3" type="button">
+          <span class="c-pattern">CometLoom</span><span class="c-adapt">mirror · phase 0.50</span>
+        </button>
+        <button class="cell" style="grid-row:3;grid-column:4;--zc:var(--z-violet)" data-sel="c4" type="button">
+          <span class="c-pattern">AuroraSphere</span><span class="c-adapt">mirror</span>
+        </button>
+        <!-- zone-spanning cell: arch-left + arch-right act as one canvas -->
+        <button class="cell" style="grid-row:2 / span 2;grid-column:6;--zc:var(--z-sky)" data-sel="c5" type="button">
+          <span class="c-pattern">NebulaSphere</span><span class="c-adapt">spans arch-left + arch-right</span>
+        </button>
+
+        <!-- zone: canopy — hold cell crosses the first seam -->
+        <button class="zone-head" style="grid-row:4" data-sel="z3" type="button">
+          <span class="bar" style="background:var(--z-rose)"></span>
+          <span class="z-name">canopy</span><span class="z-px">300px</span>
+        </button>
+        <button class="cell" style="grid-row:4;grid-column:2 / span 3;--zc:var(--z-rose)" data-sel="c6" type="button">
+          <span class="c-pattern">SlowPlasma</span><span class="c-adapt">time ×0.5 · plays through the boundary</span>
+          <span class="hold-tick">hold</span>
+        </button>
+        <button class="cell" style="grid-row:4;grid-column:6;--zc:var(--z-rose)" data-sel="c7" type="button">
+          <span class="c-pattern">EmberFade</span><span class="c-adapt">dim 0.40</span>
+        </button>
+
+        <!-- growth affordances live where growth happens -->
+        <button class="ghost" style="grid-column:1;grid-row:5" type="button">+ zone</button>
+        <button class="ghost col" type="button">+ scene</button>
+      </div>
+    </div>
+
+    <!-- one inspector, four states -->
+    <div class="inspector" id="inspector">
+
+      <div class="insp-variant active" data-for="c2 c1 c3 c4 c5 c6 c7">
+        <div class="insp-head">
+          <span class="chip" style="background:var(--z-sky)"></span>
+          <span class="i-name" id="cell-name">AuroraSphere</span>
+          <span class="i-kind">cell · arch-left · main set</span>
+        </div>
+        <div class="fields">
+          <div class="f" style="min-width:180px"><label>Source pattern</label>
+            <select><option>AuroraSphere</option><option>CometLoom</option><option>NebulaSphere</option><option>SlowPlasma</option></select></div>
+          <div class="f"><label>Mirror</label><span class="toggle"><input type="checkbox" style="height:auto"> off</span></div>
+          <div class="f"><label>Hold scenes</label><select><option>1</option><option>2</option></select></div>
+          <div class="f"><label>Span zones</label><select><option>1</option><option>2</option></select></div>
+          <div class="f"><label>Phase</label><input value="0.00"></div>
+          <div class="f"><label>Brightness</label><input value="1.00"></div>
+          <div class="f"><label>Time ×</label><input value="1.0"></div>
+        </div>
+      </div>
+
+      <div class="insp-variant" data-for="t1">
+        <div class="insp-head">
+          <span class="i-name">Doors Open → Main Set</span>
+          <span class="i-kind">transition</span>
+        </div>
+        <div class="fields">
+          <div class="f" style="min-width:160px"><label>Kind</label>
+            <select><option>crossfade</option><option>cut</option><option>wipe</option><option>dither</option></select></div>
+          <div class="f"><label>Duration</label><input value="2s"></div>
+          <div class="f" style="min-width:220px"><label>Cost</label>
+            <span class="val readout cost-hot">expensive — 2 renderers during window</span></div>
+        </div>
+      </div>
+
+      <div class="insp-variant" data-for="t2">
+        <div class="insp-head">
+          <span class="i-name">Main Set → Wind Down</span>
+          <span class="i-kind">transition</span>
+        </div>
+        <div class="fields">
+          <div class="f" style="min-width:160px"><label>Kind</label>
+            <select><option>wipe</option><option>cut</option><option>crossfade</option><option>dither</option></select></div>
+          <div class="f"><label>Duration</label><input value="3s"></div>
+          <div class="f" style="min-width:220px"><label>Cost</label>
+            <span class="val readout cost-cheap">cheap — index transform, 1 renderer</span></div>
+        </div>
+      </div>
+
+      <div class="insp-variant" data-for="z1 z2 z3">
+        <div class="insp-head">
+          <span class="chip" style="background:var(--z-sky)"></span>
+          <span class="i-name" id="zone-name">arch-left</span>
+          <span class="i-kind">zone</span>
+        </div>
+        <div class="fields">
+          <div class="f" style="min-width:160px"><label>Name</label><input value="arch-left"></div>
+          <div class="f"><label>Nominal pixels</label><input value="60"></div>
+          <div class="f" style="min-width:220px"><label>Binding</label>
+            <span class="val readout"><span class="bound">● bound — 240 px on Garage East</span></span></div>
+          <div class="f"><label>&nbsp;</label><button class="btn" type="button">Remove zone</button></div>
+        </div>
+      </div>
+
+      <div class="insp-variant" data-for="show">
+        <div class="insp-head">
+          <span class="i-name">Solstice Set</span>
+          <span class="i-kind">show setup</span>
+        </div>
+        <div class="fields">
+          <div class="f" style="min-width:180px"><label>Target controller</label>
+            <select><option>Garage East</option><option>(none — freestyle)</option></select></div>
+          <div class="f" style="min-width:180px"><label>Stage</label>
+            <select><option>per-zone strips</option><option>Garage East map</option></select></div>
+          <div class="f"><label>Loop</label><span class="val readout">10m 5s</span></div>
+          <div class="f" style="min-width:200px"><label>Zones</label>
+            <span class="val readout">3 zones · all bound · 780 px</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- compile bar: unchanged concept, kept -->
+    <div class="compile-bar">
+      <span>compiled artifact</span>
+      <span class="meter"><i></i></span>
+      <b>3.1 KB / ~14.2 KB</b>
+      <span>·</span>
+      <b>est. 61 fps @ 780 px</b>
+      <span>·</span>
+      <span>steady state <span class="cost-cheap">✓ 1 renderer/px</span></span>
+      <span>worst instant: <span class="cost-hot">crossfade</span></span>
+    </div>
+  </div>
+  </div>
+  <p class="caption"><b>The mock is clickable.</b> Select a clip, a transition seam, or a zone header — the
+  inspector below follows the selection. Click the strip background for show-level setup. (Names and
+  durations edit inline in the real thing; the pencil appears on hover.)</p>
+
+  <h2>The five moves</h2>
+  <p class="h2-sub">Each one attacks a specific way the current screen fails to communicate. Together they
+  are the difference between "a bunch of boxes" and a surface you can muddle through, CapCut-style.</p>
+
+  <div class="moves">
+    <div class="move">
+      <div class="m-title">1 · One header (#351)</div>
+      <p>The pane header owns identity — name, badge — exactly like the pattern and map panes. The editor's
+      duplicate title row is deleted; <b>View generated</b> and <b>Push</b> move up beside it.</p>
+    </div>
+    <div class="move">
+      <div class="m-title">2 · The strip is a surface, not a card</div>
+      <p>The composition area is <b>recessed</b> — darker ground, inset shadow, full-bleed — so it reads as
+      the stage everything else serves. Inspectors sit on ordinary panel ground. Two surfaces, two jobs,
+      visible from across the room.</p>
+    </div>
+    <div class="move">
+      <div class="m-title">3 · Clips carry zone color</div>
+      <p>Zone color stops being an 8px dot. The zone rail gets a solid color bar; every clip in the row gets
+      a <b>color edge and tinted fill</b> (Ableton's session view move). Pattern names become the largest
+      type in the grid — they are the content. Headers lose their boxes and become labels.</p>
+    </div>
+    <div class="move">
+      <div class="m-title">4 · Transitions are seams, not cells</div>
+      <p>A transition is a <b>dashed vertical seam</b> between scene columns with a cost-colored glyph —
+      visibly a different species from a clip. A holding clip physically crosses the seam, which makes the
+      hold-vs-restart geometry self-explanatory. Seams are clickable, which fixes the panel that today can
+      only ever edit the first boundary.</p>
+    </div>
+    <div class="move">
+      <div class="m-title">5 · One inspector, driven by selection</div>
+      <p>Cell, Transition, and Zones panels collapse into <b>one contextual inspector</b>: click a thing,
+      edit that thing. Nothing selected shows show-level setup. This is the editing model every video and
+      audio tool trains people on, and it removes six identical boxes from the default view.</p>
+    </div>
+    <div class="move">
+      <div class="m-title">What stays</div>
+      <p>The compile bar (budget honesty) survives untouched. So does the PRD model — scenes as columns,
+      zones as rows, transitions as first-class separators, holds as geometry. This is a re-skin of the
+      agreed design, not a re-spec.</p>
+    </div>
+  </div>
+
+  <h2>Muddle-through gaps this pass surfaced</h2>
+  <p class="h2-sub">Styling aside, three functional gaps guarantee a new user gets stuck. The overhaul
+  bakes in the affordances; these need engine/store work regardless of which skin ships.</p>
+  <ul class="fixes">
+    <li><b>You cannot add a scene.</b> No addScene exists in the store or the UI — every show is stuck at
+    the default two scenes. The mock's <b>+ scene</b> ghost column needs a real action behind it.</li>
+    <li><b>Only the first transition is editable.</b> TransitionInspector hardcodes scenes[0]; boundaries
+    beyond the first can never be changed. Selection-driven seams fix the interaction; the store needs
+    per-boundary addressing.</li>
+    <li><b>Scene names and durations don't look editable.</b> They are inline inputs styled as static
+    text. Hover affordances (dotted underline, pencil) advertise the edit.</li>
+  </ul>
+
+  <p class="foot">Palette, mono voice, and accent discipline follow #182: amber <span style="color:var(--live)">live</span>
+  strictly for selection and live actions, structural zinc for labels, status green only for health. Zone
+  colors are content, drawn from the existing ZONE_COLORS palette. Comparables studied: Ableton Live's
+  session view (clip grid, track color, contextual clip view) and CapCut (recessed timeline, seam
+  transitions, selection-driven inspector).</p>
+</div>
+
+<script>
+  const variants = document.querySelectorAll('.insp-variant');
+  const cellNames = { c1:'CometLoom', c2:'AuroraSphere', c3:'CometLoom', c4:'AuroraSphere', c5:'NebulaSphere', c6:'SlowPlasma', c7:'EmberFade' };
+  const cellKinds = {
+    c1:'cell · arch-left · doors open', c2:'cell · arch-left · main set',
+    c3:'cell · arch-right · doors open', c4:'cell · arch-right · main set',
+    c5:'cell · arch-left + arch-right · wind down', c6:'cell · canopy · holds 2 scenes', c7:'cell · canopy · wind down' };
+  const cellColors = { c1:'--z-sky', c2:'--z-sky', c3:'--z-violet', c4:'--z-violet', c5:'--z-sky', c6:'--z-rose', c7:'--z-rose' };
+  const zoneNames = { z1:'arch-left', z2:'arch-right', z3:'canopy' };
+  const zoneColors = { z1:'--z-sky', z2:'--z-violet', z3:'--z-rose' };
+
+  function show(sel) {
+    document.querySelectorAll('[data-sel]').forEach(el => el.classList.toggle('selected', el.dataset.sel === sel));
+    variants.forEach(v => v.classList.toggle('active', v.dataset.for.split(' ').includes(sel)));
+    const active = document.querySelector('.insp-variant.active');
+    if (!active) return;
+    if (sel.startsWith('c')) {
+      active.querySelector('.i-name').textContent = cellNames[sel];
+      active.querySelector('.i-kind').textContent = cellKinds[sel];
+      active.querySelector('.chip').style.background = 'var(' + cellColors[sel] + ')';
+    }
+    if (sel.startsWith('z')) {
+      active.querySelector('.i-name').textContent = zoneNames[sel];
+      active.querySelector('.chip').style.background = 'var(' + zoneColors[sel] + ')';
+      active.querySelector('input').value = zoneNames[sel];
+    }
+  }
+  document.querySelectorAll('[data-sel]').forEach(el =>
+    el.addEventListener('click', e => { e.stopPropagation(); show(el.dataset.sel); }));
+  document.getElementById('strip').addEventListener('click', () => show('show'));
+</script>
