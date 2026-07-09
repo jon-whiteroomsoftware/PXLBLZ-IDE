@@ -281,12 +281,16 @@ The bundled **stock libraries** live in the Studio Libraries rail and the
 header's Libraries menu. Opening one shows its source read-only in library mode
 without changing the running preview pattern; **Clone** copies it into a new
 cloud library with a fresh namespace such as `Shader2`, then opens the clone
-editable. Hover the header menu for its API reference. Cloud libraries auto-save
-clean source on the sync tick. Signed-in pattern previews, Copy Code/Download,
-and Send to Controller compile against stock libraries plus the user's cloud
-libraries, so pattern calls such as `MyLib.paint(index)` inline into the artifact
-just like stock calls. Rename and delete warn that dependent patterns are soft
-references and will fail compile with an unknown-namespace error until updated.
+editable. Hover the header menu for its stock API reference; when a library is
+open, the right pane shows its live API reference generated from `//` comments
+above function declarations, plus function count, out-vars, and stock library
+calls. Cloud libraries auto-save clean source on the sync tick. Signed-in
+pattern previews, Copy Code/Download, and Send to Controller compile against
+stock libraries plus the user's cloud libraries, so pattern calls such as
+`MyLib.paint(index)` inline into the artifact just like stock calls; editor hover
+docs also resolve cloud-library calls. Rename and delete warn that dependent
+patterns are soft references and will fail compile with an unknown-namespace
+error until updated.
 
 | Library | What it provides |
 |---|---|

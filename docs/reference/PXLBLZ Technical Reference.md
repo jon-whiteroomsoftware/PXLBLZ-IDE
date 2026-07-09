@@ -412,6 +412,12 @@ names, the user's libraries, and Pixelblaze built-ins. Library mode uses
 `validateLibraryContent()` instead of the full pattern walker so the top-level
 rule is visible without pretending the file is a runnable pattern. Opening a
 library intentionally does not change the running preview pattern or its source.
+`LibraryContextPane` parses the current library source live with the pure
+`parseLibraryApiReference()` helper, rendering docs from `//` comments directly
+above function declarations and facts for function count, top-level `var`
+out-vars, and referenced stock libraries. Monaco hover uses the same
+case-sensitive stock+cloud doc index for `Namespace.fn()` calls; completion and
+the top-bar Code menu remain stock/builtin-only.
 Pattern compile paths merge `src/pixelblaze/lib/` stock libraries with the
 current `userLibraries` store before calling `bundle()`: Studio preview (Fast
 and Precise), Copy Code/Download, Send to Controller, and transform inspection

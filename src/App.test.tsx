@@ -421,7 +421,8 @@ describe('routing (#308)', () => {
     expect(useEditorStore.getState().isReadOnly).toBe(true)
     expect(screen.getByTestId('editor-pane')).toHaveTextContent('Shader')
     expect(screen.getByTestId('editor-pane')).toHaveTextContent('library')
-    expect(screen.getByTestId('preview-pane')).toHaveTextContent('Library context')
+    expect(screen.getByTestId('preview-pane')).toHaveTextContent('API Reference')
+    expect(screen.getByTestId('preview-pane')).toHaveTextContent('Shader.fract(x)')
   })
 
   it('opens a personal library addressed by /studio/libraries/<id>', async () => {

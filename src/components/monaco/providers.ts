@@ -1,7 +1,15 @@
 import type * as monacoType from 'monaco-editor'
 import { BUILTIN_FUNCTIONS, BUILTIN_CONSTANTS, resolveSignatureContext } from '@/engine/builtins'
-import { LIB_DOCS } from '@/pixelblaze/libDocs'
+import { buildLibraryDocIndex, type LibraryDocIndex } from '@/engine/libraryDocs'
+import { compileLibraries } from '@/engine/libraries'
+import { LIBRARIES } from '@/pixelblaze/libs'
+import { useLibraryStore } from '@/store/libraryStore'
 import { PIXELBLAZE_LANG_ID } from './pixelblazeLanguage'
+
+interface HoverContent {
+  signature: string
+  doc: string
+}
 
 export function registerProviders(monaco: typeof monacoType): void {
   registerCompletion(monaco)
@@ -84,37 +92,50 @@ function registerHover(monaco: typeof monacoType): void {
       const word = model.getWordAtPosition(position)
       if (!word) return null
 
-      const fnName = word.word
       const lineContent = model.getLineContent(position.lineNumber)
-      // Check the character immediately before this word (columns are 1-indexed)
-      const charBefore = lineContent[word.startColumn - 2]
-
-      if (charBefore === '.') {
-        // Library function call: namespace.fnName
-        const beforeDot = lineContent.slice(0, word.startColumn - 2)
-        const nsMatch = beforeDot.match(/(\w+)$/)
-        if (nsMatch) {
-          const ns = nsMatch[1].toLowerCase()
-          const fnDoc = LIB_DOCS[ns]?.[fnName]
-          if (fnDoc) {
-            const sig = `${ns}.${fnName}(${fnDoc.params.join(', ')})`
-            return hoverCard(sig, fnDoc.doc)
-          }
-        }
-      } else {
-        const fn = BUILTIN_FUNCTIONS.find((f) => f.name === fnName)
-        if (fn) {
-          return hoverCard(`${fn.name}(${fn.params.join(', ')})`, fn.doc)
-        }
-        const c = BUILTIN_CONSTANTS.find((c) => c.name === fnName)
-        if (c) {
-          return hoverCard(c.name, c.doc)
-        }
-      }
-
-      return null
+      const content = resolvePixelblazeHover(
+        lineContent,
+        word.startColumn,
+        word.word,
+        currentLibraryDocIndex(),
+      )
+      return content ? hoverCard(content.signature, content.doc) : null
     },
   })
+}
+
+function currentLibraryDocIndex(): LibraryDocIndex {
+  return buildLibraryDocIndex(compileLibraries(LIBRARIES, useLibraryStore.getState().userLibraries))
+}
+
+export function resolvePixelblazeHover(
+  lineContent: string,
+  wordStartColumn: number,
+  word: string,
+  libraryDocs: LibraryDocIndex,
+): HoverContent | null {
+  const charBefore = lineContent[wordStartColumn - 2]
+
+  if (charBefore === '.') {
+    const beforeDot = lineContent.slice(0, wordStartColumn - 2)
+    const nsMatch = beforeDot.match(/(\w+)$/)
+    if (!nsMatch) return null
+    const namespace = nsMatch[1]
+    const fnDoc = libraryDocs[namespace]?.[word]
+    if (!fnDoc) return null
+    return {
+      signature: `${namespace}.${word}(${fnDoc.params.join(', ')})`,
+      doc: fnDoc.doc,
+    }
+  }
+
+  const fn = BUILTIN_FUNCTIONS.find((candidate) => candidate.name === word)
+  if (fn) return { signature: `${fn.name}(${fn.params.join(', ')})`, doc: fn.doc }
+
+  const constant = BUILTIN_CONSTANTS.find((candidate) => candidate.name === word)
+  if (constant) return { signature: constant.name, doc: constant.doc }
+
+  return null
 }
 
 function hoverCard(signature: string, doc: string): monacoType.languages.Hover {

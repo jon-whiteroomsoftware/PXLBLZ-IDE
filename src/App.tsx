@@ -30,6 +30,7 @@ import { ShowStagePreview } from '@/components/ShowStagePreview'
 import { useControllerStore } from '@/store/controllerStore'
 import { MapModeHeader } from '@/components/MapModeHeader'
 import { LibraryModeHeader } from '@/components/LibraryModeHeader'
+import { LibraryContextPane } from '@/components/LibraryContextPane'
 import { useMapStore, STOCK_MAP_ITEMS } from '@/store/mapStore'
 import { MixinModeHeader } from '@/components/MixinModeHeader'
 import { MixinProvenancePane } from '@/components/MixinProvenancePane'
@@ -924,7 +925,7 @@ export default function App() {
           ) : editorFlavor === 'map' || studioEntityKind === 'maps' ? (
             <MapContextPane />
           ) : editorFlavor === 'library' || studioEntityKind === 'libraries' ? (
-            <EmptyContextPane label="Library" />
+            <LibraryContextPane />
           ) : studioEntityKind === 'controllers' ? (
             <EmptyContextPane label="Controller" />
           ) : studioEntityKind === 'shows' ? (
