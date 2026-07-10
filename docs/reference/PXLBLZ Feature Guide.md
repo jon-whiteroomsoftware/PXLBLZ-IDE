@@ -544,6 +544,13 @@ than one can stay connected.
 
 A pinned popover under the active pill, polled live, in rows:
 
+- **Run**, **Save**, and **Profile** form the first action row. Run and Save use
+  the same push flows and glyph vocabulary as the editor send control; the quiet
+  caption names the open Studio pattern they act on. On Gallery, Shows, or any
+  other non-pattern surface, both verbs dim and the caption explains that a
+  pattern must be opened. Profile remains an unboxed navigation link and is
+  always available; it opens the matching durable profile, creates one from
+  live hardware when appropriate, or takes signed-out users toward Studio.
 - **Active pattern** name and a **brightness** slider (logarithmic, like the
   preview's). Brightness and control writes are volatile — never written to
   flash, to spare it.
@@ -579,9 +586,11 @@ Run and save are tracked independently — a clean run push doesn't satisfy a
 pending save; flipping the toggle re-arms Send. Changing a Controller profile
 transform or matching pattern binding also re-arms Send even when pattern source
 is unchanged. Send waits for any in-flight profile auto-save before generating
-the artifact. Send is enabled when a Controller
-is connected and the pattern compiles cleanly; if the IDE can tell the pattern's
-dimensionality won't match the device's installed map, it says so. **Demos can be
+the artifact. The editor control remains the authoring-loop shortcut; the live
+panel's action row is the always-available home for the same verbs. Send is
+enabled when a Controller is connected and the pattern compiles cleanly; if the
+IDE can tell the pattern's dimensionality won't match the device's installed
+map, it says so. **Demos can be
 sent directly**, no fork needed. There's no pixel-count warning on pattern push: a
 pattern push sends bytecode only and keeps the device's existing map, so a count
 mismatch is "this won't look right," not an error.
@@ -590,10 +599,11 @@ mismatch is "this won't look right," not an error.
 
 A **Controller profile** is the durable record of one physical device — keyed
 by the Pixelblaze's stable device id, which the app reads directly from the
-device on connect (falling back to cloud discovery), never by IP. Signed in
-with a live device, the panel shows a **Controller profile →** row (or the
-profile is created automatically the first time); the profile page at
-`/studio/controllers/<id>` is editable even while the device is offline:
+device on connect (falling back to cloud discovery), never by IP. The live
+panel's **Profile ›** link opens it (and a signed-in session creates the profile
+automatically the first time when stable device identity is available); the
+profile page at `/studio/controllers/<id>` is editable even while the device is
+offline:
 
 - a **status strip** — connected/offline, last-known device name, IP, pixel
   count, map dimensionality, firmware — with Refresh and **Import map** buttons

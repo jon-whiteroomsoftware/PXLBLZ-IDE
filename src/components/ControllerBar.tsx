@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
-import { ChevronRight, RotateCw } from 'lucide-react'
+import { RotateCw } from 'lucide-react'
 import { useControllerStore } from '@/store/controllerStore'
 import { useControllerProfileStore } from '@/store/controllerProfileStore'
 import { useRouterStore } from '@/store/routerStore'
@@ -19,8 +19,10 @@ import { ChipGlyph, ConnectGlyph } from './ControllerGlyphs'
 import { StatusDot, type StatusTone } from './StatusDot'
 import { ControllerPanel } from './ControllerPanel'
 import { ControllerPanelTitle } from './ControllerPanelTitle'
+import { ControllerActionRow } from './ControllerActionRow'
 import { onControllerEntryRequested } from './controllerEntryEvents'
 import type { DiscoveredController } from '@/engine/ControllerProvider'
+import { routePath } from '@/engine/routes'
 
 // The consolidated top-right Controller surface (#210). Supersedes the always-on
 // header IP input (ControllerConnect) and the standalone status dot
@@ -57,7 +59,7 @@ function ControllerPillButton({
   authorizationNeededIp,
   onActivate,
   onRemove,
-  profileJoinRow,
+  actionRow,
 }: {
   ip: string
   nickname?: string
@@ -67,7 +69,7 @@ function ControllerPillButton({
   authorizationNeededIp?: string | null
   onActivate: () => void
   onRemove: () => void
-  profileJoinRow?: ReactNode
+  actionRow: ReactNode
 }) {
   const { label, tone, showDot } = describeControllerPill({ ip, nickname, phase })
   return (
@@ -129,7 +131,7 @@ function ControllerPillButton({
               Disconnect
             </button>
           </div>
-          {profileJoinRow}
+          {actionRow}
           <div className="py-2 pr-3">
             <ControllerPanel />
           </div>
@@ -160,36 +162,6 @@ const MIN_RESCAN_SPIN_MS = 600
 // the `spin` keyframes Tailwind already emits) — one declaration, order-independent,
 // no !important. One full rotation in MIN_RESCAN_SPIN_MS so it lands back at start.
 const RESCAN_SPIN_CLASS = '[animation:spin_0.6s_linear_infinite] text-amber-400'
-
-function ControllerProfileJoinRow({
-  label,
-  onClick,
-  muted,
-}: {
-  label: string
-  onClick?: () => void
-  muted?: boolean
-}) {
-  if (muted) {
-    return (
-      <div className="border-b border-seam px-3 py-2 text-zinc-500">
-        {label}
-      </div>
-    )
-  }
-  return (
-    <div className="border-b border-seam px-3 py-2">
-      <button
-        type="button"
-        onClick={onClick}
-        className="flex w-full items-center justify-between gap-2 rounded border border-zinc-700 bg-zinc-950 px-2 py-1 text-left text-zinc-300 hover:border-zinc-500 hover:text-zinc-100"
-      >
-        <span>{label}</span>
-        <ChevronRight size={14} aria-hidden className="shrink-0 text-zinc-500" />
-      </button>
-    </div>
-  )
-}
 
 export function ControllerBar({ reloadPage = () => window.location.reload() }: { reloadPage?: () => void } = {}) {
   const extensionPresent = useControllerStore((s) => s.extensionPresent)
@@ -329,42 +301,57 @@ export function ControllerBar({ reloadPage = () => window.location.reload() }: {
     void removeController(ip)
   }
 
-  const openControllerProfile = (profileId: string) => {
+  const openControllerProfile = (profileId: string | null) => {
     setOpen(false)
     setPanelOpenIp(null)
     navigate({ kind: 'studio', entity: { kind: 'controllers', id: profileId } })
   }
 
-  const createProfileForController = async (ip: string) => {
+  const openProfileForController = async (ip: string) => {
     const entry = useControllerStore.getState().controllers[ip]
     if (!entry) return
+    if (!personalWorkspaceAuthenticated) {
+      openControllerProfile(null)
+      return
+    }
     if (getPersonalContentProvider().id === 'demo') {
       await initializePersonalContentProvider({ mode: 'remote-api' })
     }
-    const profile = await createControllerProfile(controllerProfileCreateSeed(entry))
-    openControllerProfile(profile.id)
+    if (!useControllerProfileStore.getState().profilesLoaded) {
+      await useControllerProfileStore.getState().loadProfiles()
+    }
+    const existing = findControllerProfileForDevice(
+      useControllerProfileStore.getState().profiles,
+      entry.deviceId,
+    )
+    if (existing) {
+      openControllerProfile(existing.id)
+      return
+    }
+    if (entry.phase !== 'live') {
+      openControllerProfile(null)
+      return
+    }
+    const ensured = entry.deviceId
+      ? await ensureProfileForLiveController(entry)
+      : null
+    const created = ensured ?? await createControllerProfile(controllerProfileCreateSeed(entry))
+    openControllerProfile(created.id)
   }
 
-  const profileJoinRowFor = (ip: string) => {
-    if (!personalWorkspaceAuthenticated) return undefined
+  const actionRowFor = (ip: string) => {
     const entry = controllers[ip]
-    if (!entry || entry.phase !== 'live') return undefined
-    if (!controllerProfilesLoaded) {
-      return <ControllerProfileJoinRow label="Loading controller profiles..." muted />
-    }
-    const profile = findControllerProfileForDevice(controllerProfiles, entry.deviceId)
-    if (profile) {
-      return (
-        <ControllerProfileJoinRow
-          label="Controller profile"
-          onClick={() => openControllerProfile(profile.id)}
-        />
-      )
+    const profile = entry
+      ? findControllerProfileForDevice(controllerProfiles, entry.deviceId)
+      : null
+    const profileRoute = {
+      kind: 'studio' as const,
+      entity: { kind: 'controllers' as const, id: profile?.id ?? null },
     }
     return (
-      <ControllerProfileJoinRow
-        label="Create profile for this device"
-        onClick={() => void createProfileForController(ip)}
+      <ControllerActionRow
+        profileHref={routePath(profileRoute, import.meta.env.BASE_URL)}
+        onProfile={() => void openProfileForController(ip)}
       />
     )
   }
@@ -414,7 +401,7 @@ export function ControllerBar({ reloadPage = () => window.location.reload() }: {
           authorizationNeededIp={controllers[ip].authorizationNeededIp}
           onActivate={() => onPillClick(ip)}
           onRemove={() => onPillRemove(ip)}
-          profileJoinRow={profileJoinRowFor(ip)}
+          actionRow={actionRowFor(ip)}
         />
       ))}
 

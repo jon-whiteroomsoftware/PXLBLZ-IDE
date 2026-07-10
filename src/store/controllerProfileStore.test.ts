@@ -289,6 +289,29 @@ describe('controllerProfileStore', () => {
     expect(useControllerProfileStore.getState().profiles).toHaveLength(1)
   })
 
+  it('shares one in-flight auto-create across background and explicit profile requests', async () => {
+    const provider = memoryProvider()
+    const create = vi.fn(provider.createControllerProfile)
+    provider.createControllerProfile = create
+    setPersonalContentProvider(provider)
+    const target = {
+      ip: '192.168.8.224',
+      deviceId: 'pixelblaze_pb32_3cd4ee549434',
+      nickname: 'Pixelblaze shelf',
+      phase: 'live' as const,
+      mapDim: 2 as const,
+    }
+
+    const [background, explicit] = await Promise.all([
+      useControllerProfileStore.getState().ensureProfileForLiveController(target),
+      useControllerProfileStore.getState().ensureProfileForLiveController(target),
+    ])
+
+    expect(background?.id).toBe(explicit?.id)
+    expect(create).toHaveBeenCalledOnce()
+    expect(useControllerProfileStore.getState().profiles).toHaveLength(1)
+  })
+
   it('does not auto-create a durable profile for an unclaimed live controller', async () => {
     setPersonalContentProvider(memoryProvider())
 

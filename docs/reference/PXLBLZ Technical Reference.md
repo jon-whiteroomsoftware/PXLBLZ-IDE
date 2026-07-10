@@ -1039,7 +1039,9 @@ live Controller with a stable `deviceId`, `ControllerBar` asks
 `controllerProfileStore` to ensure a durable profile exists: existing profiles
 are refreshed, and missing profiles are auto-created from the device
 name/id/IP/firmware. A live Controller with `deviceId: null` stays fully usable
-but is not auto-persisted from IP alone. Deleting a profile suppresses
+but is not auto-persisted from IP alone. Background auto-create and an explicit
+Profile click share the same in-flight creation promise, so the action cannot
+race the observer into duplicate profiles. Deleting a profile suppresses
 same-session auto-recreation for that device id. When the matching physical
 Controller is connected, the profile refresh path updates `name`,
 `lastKnownDeviceName`, `lastSeenIp`, `lastKnownPixelCount`, `lastKnownMapDim`,
@@ -1093,11 +1095,22 @@ path; no separate pattern-code message channel exists.
   `controllerPanelView` renders rows of `DeckStat`/`DeckField`/`DeckSlider`:
   active pattern (id resolved to a name via program-list → local label cache →
   raw id) + brightness, map-points + pixel count, IP + FPS, then live controls.
-  When signed in, the same popover carries one durable-layer row above the live
-  panel: it resolves the connected Controller's `deviceId` against controller
-  profiles and links to the newest matching profile, or creates one for the
-  current device. Matching is never by IP or name; unclaimed live Controllers
-  remain live-only until a stable device id can be recovered.
+  Above that data, `ControllerActionRow` (#374) gives the popover its three
+  controller verbs: button-styled Run and Save plus unboxed Profile navigation.
+  Its pure `describeControllerActionRow` projection is route-aware because the
+  pattern store deliberately retains its last active pattern on Gallery, Shows,
+  and other routes; only a Studio pattern route may enable those actions. The
+  caption names the open pattern or explains why actions are unavailable, while
+  the two mode gates reuse `describeSendToController`, `isAlreadyPushed`, and the
+  same Controller-profile artifact signature as the editor control. Clicking a
+  verb arms the matching `saveArmed` mode and calls the shared `requestPush` flow;
+  the editor send control is unchanged. Profile remains available independently:
+  it resolves the Controller's `deviceId` against profiles and opens the newest
+  match, creates one from current live hardware when appropriate, or navigates a
+  signed-out session toward Studio. The old bordered profile join row is gone.
+  Matching is never by IP or name; unclaimed live Controllers remain live-only
+  until a stable device id can be recovered (an explicit Profile click can still
+  create their unclaimed durable record).
   On connect the panel is warm-seeded once so it opens populated; a same-device
   close/reopen keeps the last-known slice (`stop` preserves, `seed` clears only
   on device switch). Brightness is panel-owned and volatile — seeded once from

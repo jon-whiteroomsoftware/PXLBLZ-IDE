@@ -14,13 +14,27 @@ import {
 } from '@/store/controllerProfileStore'
 import { useRouterStore, routerInitialState } from '@/store/routerStore'
 import { useWorkspaceStore, workspaceInitialState } from '@/store/workspaceStore'
+import { useEditorStore, editorInitialState } from '@/store/editorStore'
+import { usePatternStore, patternInitialState } from '@/store/patternStore'
 import type { MapRecord, PatternRecord, ShowRecord } from '@/engine/personalContentRecords'
 import {
   resetPersonalContentProvider,
   setPersonalContentProvider,
   type PersonalContentProvider,
 } from '@/engine/personalContentProvider'
-import { resetControllerProvider } from '@/engine/controllerProviderRegistry'
+import { resetControllerProvider, setControllerProvider } from '@/engine/controllerProviderRegistry'
+import { NullControllerProvider, type ControllerStatus } from '@/engine/ControllerProvider'
+
+class ConnectedProvider extends NullControllerProvider {
+  private status: ControllerStatus = {
+    kind: 'connected',
+    controller: { id: 'c1', address: '10.0.0.5', deviceId: 'pixelblaze_pb32_3cd4ee549434' },
+  }
+
+  getStatus(): ControllerStatus {
+    return this.status
+  }
+}
 
 beforeEach(() => {
   __resetControllerProviders()
@@ -30,6 +44,8 @@ beforeEach(() => {
   useControllerProfileStore.setState(controllerProfileInitialState)
   useRouterStore.setState(routerInitialState)
   useWorkspaceStore.setState(workspaceInitialState)
+  useEditorStore.setState(editorInitialState)
+  usePatternStore.setState(patternInitialState)
   window.history.replaceState(null, '', '/studio')
 })
 
@@ -317,13 +333,88 @@ describe('ControllerBar', () => {
     expect(screen.queryByTestId('controller-panel-popover')).not.toBeInTheDocument()
   })
 
-  it('omits the durable profile row when signed out', () => {
+  it('keeps Profile navigation available when signed out and retires the join-row copy', () => {
     seedLiveController()
     render(<ControllerBar />)
     fireEvent.click(screen.getByRole('button', { name: 'Toggle Desk panel' }))
 
+    expect(screen.getByRole('link', { name: 'Profile' })).toBeInTheDocument()
     expect(screen.queryByText('Controller profile')).not.toBeInTheDocument()
     expect(screen.queryByText('Create profile for this device')).not.toBeInTheDocument()
+  })
+
+  it('renders the action row first and dispatches Run and Save through the shared push flow', () => {
+    setControllerProvider(new ConnectedProvider())
+    const requestPush = vi.fn()
+    seedLiveController()
+    seedSignedInProfiles([profile('profile-1', 'pixelblaze_pb32_3cd4ee549434', 1)])
+    useRouterStore.setState({
+      route: { kind: 'studio', entity: { kind: 'patterns', id: 'pattern-1' } },
+    })
+    usePatternStore.setState({
+      activePatternId: 'pattern-1',
+      userPatterns: [{
+        id: 'pattern-1',
+        name: 'Aurora Drift',
+        src: 'export function render() {}',
+        controls: {},
+        updatedAt: 1,
+      }],
+    })
+    useEditorStore.setState({
+      compileStatus: 'good',
+      previewSource: 'export function render() {}',
+    })
+    useControllerStore.setState({
+      requestPush,
+      setActive: (ip) => useControllerStore.setState({ activeIp: ip }),
+    })
+
+    render(<ControllerBar />)
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle Desk panel' }))
+
+    const actionRow = screen.getByTestId('controller-action-row')
+    expect(actionRow).toHaveTextContent('Acts on the open pattern — Aurora Drift')
+    expect(screen.getByRole('link', { name: 'Profile' })).toBeInTheDocument()
+    expect(
+      actionRow.compareDocumentPosition(screen.getByTestId('controller-panel'))
+        & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Run' }))
+    expect(useControllerStore.getState().saveArmed).toBe(false)
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(useControllerStore.getState().saveArmed).toBe(true)
+    expect(requestPush).toHaveBeenCalledTimes(2)
+  })
+
+  it('dims Run and Save outside the Studio pattern surface and explains why', () => {
+    setControllerProvider(new ConnectedProvider())
+    seedLiveController()
+    useRouterStore.setState({ route: { kind: 'gallery' } })
+    usePatternStore.setState({
+      activePatternId: 'stale-pattern',
+      userPatterns: [{
+        id: 'stale-pattern',
+        name: 'Stale Pattern',
+        src: 'export function render() {}',
+        controls: {},
+        updatedAt: 1,
+      }],
+    })
+    useControllerStore.setState({
+      setActive: (ip) => useControllerStore.setState({ activeIp: ip }),
+    })
+
+    render(<ControllerBar />)
+    fireEvent.click(screen.getByRole('button', { name: 'Toggle Desk panel' }))
+
+    expect(screen.getByRole('button', { name: 'Run' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
+    expect(screen.getByTestId('controller-action-row')).toHaveTextContent(
+      'Open a pattern to push it to this Controller.',
+    )
+    expect(screen.getByRole('link', { name: 'Profile' })).toBeEnabled()
   })
 
   it('links to the newest matching controller profile by device id when signed in', () => {
@@ -335,7 +426,7 @@ describe('ControllerBar', () => {
     render(<ControllerBar />)
     fireEvent.click(screen.getByRole('button', { name: 'Toggle Desk panel' }))
 
-    fireEvent.click(screen.getByRole('button', { name: 'Controller profile' }))
+    fireEvent.click(screen.getByRole('link', { name: 'Profile' }))
 
     expect(window.location.pathname).toBe('/studio/controllers/new')
   })
@@ -355,7 +446,7 @@ describe('ControllerBar', () => {
     })
 
     fireEvent.click(screen.getByRole('button', { name: 'Toggle Desk panel' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Controller profile' }))
+    fireEvent.click(screen.getByRole('link', { name: 'Profile' }))
     expect(window.location.pathname).toBe(`/studio/controllers/${created.id}`)
   })
 
@@ -365,7 +456,7 @@ describe('ControllerBar', () => {
     render(<ControllerBar />)
     fireEvent.click(screen.getByRole('button', { name: 'Toggle Desk panel' }))
 
-    fireEvent.click(screen.getByRole('button', { name: 'Create profile for this device' }))
+    fireEvent.click(screen.getByRole('link', { name: 'Profile' }))
 
     await waitFor(() => expect(useControllerProfileStore.getState().profiles).toHaveLength(1))
     expect(useControllerProfileStore.getState().profiles[0]).toMatchObject({

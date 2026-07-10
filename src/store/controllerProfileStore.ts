@@ -64,11 +64,11 @@ export const controllerProfileInitialState = {
 }
 
 const autoCreateSuppressedDeviceIds = new Set<string>()
-const autoCreatePendingDeviceIds = new Set<string>()
+const autoCreatePendingProfiles = new Map<string, Promise<ControllerProfile>>()
 
 export function __resetControllerProfileAutoCreateGuards(): void {
   autoCreateSuppressedDeviceIds.clear()
-  autoCreatePendingDeviceIds.clear()
+  autoCreatePendingProfiles.clear()
 }
 
 export function defaultControllerProfile(seed: {
@@ -193,16 +193,23 @@ export const useControllerProfileStore = create<ControllerProfileState>()((set, 
       return get().profiles.find((profile) => profile.id === existing.id) ?? existing
     }
 
-    if (autoCreatePendingDeviceIds.has(target.deviceId)) return null
-    autoCreatePendingDeviceIds.add(target.deviceId)
-    try {
+    const pending = autoCreatePendingProfiles.get(target.deviceId)
+    if (pending) return pending
+
+    const creation = (async () => {
       const profile = defaultControllerProfile(controllerProfileCreateSeed(target))
       await getPersonalContentProvider().createControllerProfile(profile)
       trackEntityCreated('controller_profile', { has_device_id: true })
       set((s) => ({ profiles: [profile, ...s.profiles], profilesLoaded: true }))
       return profile
+    })()
+    autoCreatePendingProfiles.set(target.deviceId, creation)
+    try {
+      return await creation
     } finally {
-      autoCreatePendingDeviceIds.delete(target.deviceId)
+      if (autoCreatePendingProfiles.get(target.deviceId) === creation) {
+        autoCreatePendingProfiles.delete(target.deviceId)
+      }
     }
   },
 
