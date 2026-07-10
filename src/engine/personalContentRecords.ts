@@ -77,6 +77,8 @@ export type ShowTransitionCost = 'free' | 'cheap' | 'expensive'
 export interface ShowTransition {
   kind: ShowTransitionKind
   durationMs: number
+  /** Normalized fraction of the 1D route used as a stable wipe feather band. */
+  feather?: number
 }
 
 export interface ShowScene {

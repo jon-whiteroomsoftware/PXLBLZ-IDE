@@ -206,7 +206,7 @@ export function ShowEditor({ showId }: { showId: string }) {
             onUpdateAdaptations={(cell, changes) => void updateCellAdaptations(activeShow.id, cell.id, changes)}
             onExtend={(cell, sceneSpan) => void extendCell(activeShow.id, cell.id, sceneSpan)}
             onSpanZones={(cell, zoneSpan) => void spanCellZones(activeShow.id, cell.id, zoneSpan)}
-            onUpdateTransition={(sceneId, kind, durationMs) => void updateTransition(activeShow.id, sceneId, kind, durationMs)}
+            onUpdateTransition={(sceneId, kind, durationMs, feather) => void updateTransition(activeShow.id, sceneId, kind, durationMs, feather)}
             onAddZone={() => void addZone(activeShow.id)}
             onUpdateZone={(zoneId, changes) => void updateZone(activeShow.id, zoneId, changes)}
             onRemoveZone={(zoneId) => void removeZone(activeShow.id, zoneId)}
@@ -527,7 +527,7 @@ function ContextualInspector({
   onUpdateAdaptations: (cell: ShowCell, changes: Partial<ShowCell['adaptations']>) => void
   onExtend: (cell: ShowCell, sceneSpan: number) => void
   onSpanZones: (cell: ShowCell, zoneSpan: number) => void
-  onUpdateTransition: (sceneId: string, kind: NonNullable<ShowScene['transitionOut']>['kind'], durationMs: number) => void
+  onUpdateTransition: (sceneId: string, kind: NonNullable<ShowScene['transitionOut']>['kind'], durationMs: number, feather?: number) => void
   onAddZone: () => void
   onUpdateZone: (zoneId: string, changes: Partial<ShowRecord['zones'][number]>) => void
   onRemoveZone: (zoneId: string) => void
@@ -678,7 +678,7 @@ function TransitionInspector({
 }: {
   show: ShowRecord
   afterSceneId: string
-  onUpdateTransition: (sceneId: string, kind: NonNullable<ShowScene['transitionOut']>['kind'], durationMs: number) => void
+  onUpdateTransition: (sceneId: string, kind: NonNullable<ShowScene['transitionOut']>['kind'], durationMs: number, feather?: number) => void
 }) {
   const sceneIndex = show.scenes.findIndex((scene) => scene.id === afterSceneId)
   const scene = show.scenes[sceneIndex] ?? show.scenes[0]
@@ -697,7 +697,7 @@ function TransitionInspector({
           <select
             aria-label="Transition kind"
             value={transition.kind}
-            onChange={(event) => onUpdateTransition(scene.id, event.target.value as NonNullable<ShowScene['transitionOut']>['kind'], transition.durationMs || 2000)}
+            onChange={(event) => onUpdateTransition(scene.id, event.target.value as NonNullable<ShowScene['transitionOut']>['kind'], transition.durationMs || 2000, transition.feather)}
             className={`${field} mt-1 w-full`}
           >
             <option value="cut">cut</option>
@@ -712,8 +712,23 @@ function TransitionInspector({
           min={0}
           max={30}
           step={1}
-          onChange={(seconds) => onUpdateTransition(scene.id, transition.kind, seconds * 1000)}
+          onChange={(seconds) => onUpdateTransition(scene.id, transition.kind, seconds * 1000, transition.feather)}
         />
+        {transition.kind === 'wipe' && (
+          <>
+            <NumberField
+              label="Feather width"
+              value={transition.feather ?? 0}
+              min={0}
+              max={1}
+              step={0.05}
+              onChange={(feather) => onUpdateTransition(scene.id, transition.kind, transition.durationMs, feather)}
+            />
+            <div className="rounded border border-zinc-800 bg-zinc-950/55 p-2 text-[10px] leading-4 text-zinc-500">
+              Feather uses a stable spatial threshold across the 1D route edge and still calls one Pattern renderer per pixel.
+            </div>
+          </>
+        )}
         <div className="rounded border border-zinc-800 bg-zinc-950/55 p-2 text-[10px] text-zinc-500">
           Cost tier:{' '}
           <span className={cost === 'expensive' ? 'text-amber-300' : cost === 'cheap' ? 'text-emerald-300' : 'text-zinc-300'}>
@@ -897,7 +912,9 @@ function CompileBar({
     : summary?.transitionCost === 'parameter'
       ? 'adaptation ramp'
       : summary?.transitionCost === 'route'
-        ? 'route transition'
+        ? summary.routePolicy === 'feathered-wipe'
+          ? 'feathered wipe'
+          : 'route transition'
         : 'none'
   const clockPolicy = summary?.clockPolicy === 'exact-pause-ramp'
     ? 'exact pause ramp'

@@ -379,9 +379,16 @@ export function updateShowTransition(
   sceneId: string,
   kind: NonNullable<ShowScene['transitionOut']>['kind'],
   durationMs: number,
+  feather = 0,
 ): ShowRecord {
   return updateShowScene(show, sceneId, {
-    transitionOut: kind === 'cut' ? undefined : { kind, durationMs: clampDuration(durationMs) },
+    transitionOut: kind === 'cut'
+      ? undefined
+      : {
+          kind,
+          durationMs: clampDuration(durationMs),
+          ...(kind === 'wipe' ? { feather: clamp01(feather) } : {}),
+        },
   })
 }
 
@@ -440,7 +447,12 @@ export function showRecordToCompileRecipe(
       : undefined,
     cut: !transition || transition.kind === 'cut' ? { startMs: show.scenes[0].durationMs } : undefined,
     routeTransition: transition && (transition.kind === 'wipe' || transition.kind === 'dither')
-      ? { kind: transition.kind, startMs: show.scenes[0].durationMs, durationMs: transition.durationMs }
+      ? {
+          kind: transition.kind,
+          startMs: show.scenes[0].durationMs,
+          durationMs: transition.durationMs,
+          ...(transition.kind === 'wipe' ? { feather: clamp01(transition.feather ?? 0) } : {}),
+        }
       : undefined,
     zones: lookup.controllerZones ?? nominalZones(show.zones),
   }

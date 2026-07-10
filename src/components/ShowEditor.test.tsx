@@ -106,6 +106,20 @@ describe('ShowEditor (#318)', () => {
     expect(screen.getByText(/steady state/i)).toHaveTextContent('1 renderer/px')
   })
 
+  it('explains feathered wipe as a stable one-renderer route edge', async () => {
+    const user = userEvent.setup()
+    const show = createDefaultShow('show-1', 'Feathered wipe', 1000)
+    show.scenes[0].transitionOut = { kind: 'wipe', durationMs: 2000, feather: 0.2 }
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+    await user.click(screen.getByRole('button', { name: /Select Scene 1 to Scene 2 transition/i }))
+
+    expect(screen.getByLabelText('Feather width')).toHaveValue(0.2)
+    expect(screen.getByText(/stable spatial threshold/i)).toHaveTextContent('one Pattern renderer')
+    expect(screen.getByText('worst instant: feathered wipe')).toBeInTheDocument()
+  })
+
   it('edits freestyle show zones and warns when a target controller zone is missing', async () => {
     const user = userEvent.setup()
     const show = addShowZone(createDefaultShow('show-1', 'Opening wash', 1000), {

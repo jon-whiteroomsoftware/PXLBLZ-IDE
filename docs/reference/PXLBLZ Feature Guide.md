@@ -240,6 +240,13 @@ the connected Controller. The compile bar labels exact-pause clock recipes
 separately from renderer policy: pausing time does not claim renderer-cycle
 savings or buffered frame reuse.
 
+A **wipe** can add a normalized `0..1` feather width. Zero is the original hard
+index boundary. A positive feather turns the surrounding band over through a
+stable per-pixel spatial threshold: each pixel changes owner once as the edge
+passes, so the edge looks less row-stepped without temporal sparkle or a
+two-renderer crossfade. The inspector keeps the tradeoff explicit, and the
+compile bar still reports one Pattern renderer per pixel.
+
 Show zones have two origins. A plain new Show starts with editable local rows
 that use nominal pixel counts for preview. When a Controller profile with zones
 exists, the Shows rail can create a Show seeded from that Controller's zone map.

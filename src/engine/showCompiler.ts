@@ -44,6 +44,7 @@ export interface ShowRouteTransitionRecipe {
   kind: 'wipe' | 'dither'
   startMs: number
   durationMs: number
+  feather?: number
 }
 
 export interface ShowRecipe {
@@ -78,6 +79,7 @@ export interface ShowCompileSummary {
     | 'parameter-ramp-one-renderer-per-pixel'
     | 'route-transition-one-renderer-per-pixel'
   transitionCost: 'none' | 'renderer-window' | 'route' | 'parameter'
+  routePolicy: 'none' | 'hard-wipe' | 'feathered-wipe' | 'dither'
   clockPolicy: 'real-time' | 'scaled' | 'scaled-ramp' | 'exact-pause' | 'exact-pause-ramp'
   worstInstantRenderersPerPixel: 1 | 2
   clips: ShowCompileClipSummary[]
@@ -181,6 +183,13 @@ export function compileShow(
             ? 'route-transition-one-renderer-per-pixel'
             : 'single-continuous-hold',
     transitionCost,
+    routePolicy: expandedRecipe.routeTransition?.kind === 'dither'
+      ? 'dither'
+      : expandedRecipe.routeTransition?.kind === 'wipe'
+        ? clampNumber(expandedRecipe.routeTransition.feather ?? 0, 0, 1) > 0
+          ? 'feathered-wipe'
+          : 'hard-wipe'
+        : 'none',
     clockPolicy: describeClockPolicy(expandedRecipe, members),
     worstInstantRenderersPerPixel: transitionCost === 'renderer-window' ? 2 : 1,
     clips: members.map(member => ({
@@ -373,8 +382,14 @@ function emitRouteTransitionShowCode(
   transition: ShowRouteTransitionRecipe,
 ): string {
   const transitionEnd = transition.startMs + transition.durationMs
+  const feather = clampNumber(transition.feather ?? 0, 0, 1)
+  const featherPrelude = transition.kind === 'wipe' && feather > 0
+    ? `  var __pxlblz_show_feather_progress = (__pxlblz_show_mix + ${feather / 2} - index / pixelCount) / ${feather}\n`
+    : ''
   const pickTo = transition.kind === 'wipe'
-    ? 'index / pixelCount < __pxlblz_show_mix'
+    ? feather > 0
+      ? `index / pixelCount < __pxlblz_show_mix - ${feather / 2} || (index / pixelCount < __pxlblz_show_mix + ${feather / 2} && __pxlblz_show_hash01(index) < clamp(__pxlblz_show_feather_progress, 0, 1))`
+      : 'index / pixelCount < __pxlblz_show_mix'
     : '__pxlblz_show_hash01(index) < __pxlblz_show_mix'
   return [
     emitRuntimePrelude([from, to]),
@@ -382,7 +397,7 @@ function emitRouteTransitionShowCode(
     to.code.trim(),
     emitScheduler(from, to, transition.startMs, transitionEnd, transition.durationMs),
     `export function render(index) {
-  if (__pxlblz_show_phase == 0) {
+${featherPrelude}  if (__pxlblz_show_phase == 0) {
     ${from.prefix}_renderCapture(index)
     ${from.prefix}_emit()
   } else if (__pxlblz_show_phase == 2) {

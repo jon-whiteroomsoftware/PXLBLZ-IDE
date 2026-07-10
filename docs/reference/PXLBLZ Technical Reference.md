@@ -857,7 +857,14 @@ renderer-window cost and `worstInstantRenderersPerPixel: 2`. Wipe and dither
 route transitions run both members' `beforeRender` hooks during the transition
 window but render exactly one member per pixel: wipe compares `index/pixelCount`
 to the animated mix threshold, while dither compares a stable hash of `index` to
-that threshold. They report `transitionCost: 'route'` and
+that threshold. A wipe feather (#377) is a normalized fraction of the 1D route.
+At zero, compiler output is byte-identical to the original hard-wipe branch. At
+a positive width, pixels outside the band route deterministically; pixels inside
+compare their fixed index hash to their progress through the moving band. The
+hash never changes, so a pixel flips owner once rather than sparkling between
+frames, and only the selected member renderer is invoked. `routePolicy` reports
+`hard-wipe`, `feathered-wipe`, `dither`, or `none`. Route transitions report
+`transitionCost: 'route'` and
 `worstInstantRenderersPerPixel: 1`; live harness notes are archived in
 `docs/plans/archive/issue-334-route-cost-transitions.md`. A routed clip names a
 zone; compile binds by zone name, warns in the summary when a show-local zone

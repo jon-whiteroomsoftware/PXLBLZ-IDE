@@ -728,6 +728,61 @@ export function render(index) { calls = calls + 1; rgb(0, 1, 0) }
       renderPolicy: 'route-transition-one-renderer-per-pixel',
       transitionCost: 'route',
       worstInstantRenderersPerPixel: 1,
+      routePolicy: 'hard-wipe',
+    })
+    expect(artifact.code).toContain('index / pixelCount < __pxlblz_show_mix')
+    expect(artifact.code).not.toContain('__pxlblz_show_feather_progress')
+  })
+
+  it('keeps an explicit zero feather byte-identical to the original hard wipe', () => {
+    const clips = [
+      { id: 'from', source: 'export function render(index) { rgb(1, 0, 0) }' },
+      { id: 'to', source: 'export function render(index) { rgb(0, 1, 0) }' },
+    ]
+    const hard = compileShow({
+      clips,
+      routeTransition: { kind: 'wipe', startMs: 1000, durationMs: 1000 },
+    }, {})
+    const zero = compileShow({
+      clips,
+      routeTransition: { kind: 'wipe', startMs: 1000, durationMs: 1000, feather: 0 },
+    }, {})
+
+    expect(zero.code).toBe(hard.code)
+    expect(zero.fxCode).toBe(hard.fxCode)
+  })
+
+  it('routes a feathered wipe through a stable spatial threshold with one renderer per pixel', () => {
+    const artifact = compileShow({
+      clips: [
+        {
+          id: 'from',
+          source: 'export var calls = 0\nexport function render(index) { calls = calls + 1; rgb(1, 0, 0) }',
+        },
+        {
+          id: 'to',
+          source: 'export var calls = 0\nexport function render(index) { calls = calls + 1; rgb(0, 1, 0) }',
+        },
+      ],
+      routeTransition: { kind: 'wipe', startMs: 1000, durationMs: 1000, feather: 0.4 },
+    }, {})
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 10)
+
+    handle.beforeRender(1500)
+    handle.render(4)
+    expect(pixel()).toEqual([0, 1, 0])
+    handle.render(5)
+    expect(pixel()).toEqual([1, 0, 0])
+    handle.render(5)
+    expect(pixel()).toEqual([1, 0, 0])
+    expect(handle.getExports()).toMatchObject({
+      __pxlblz_show_c0_calls: 2,
+      __pxlblz_show_c1_calls: 1,
+    })
+    expect(artifact.summary).toMatchObject({
+      routePolicy: 'feathered-wipe',
+      renderPolicy: 'route-transition-one-renderer-per-pixel',
+      worstInstantRenderersPerPixel: 1,
     })
   })
 
@@ -769,6 +824,7 @@ export function render(index) { calls = calls + 1; rgb(0, 1, 0) }
       renderPolicy: 'route-transition-one-renderer-per-pixel',
       transitionCost: 'route',
       worstInstantRenderersPerPixel: 1,
+      routePolicy: 'dither',
     })
   })
 })

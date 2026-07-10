@@ -50,6 +50,7 @@ interface ShowState {
     sceneId: string,
     kind: NonNullable<ShowScene['transitionOut']>['kind'],
     durationMs: number,
+    feather?: number,
   ) => Promise<void>
   updateCellAdaptations: (
     showId: string,
@@ -172,10 +173,10 @@ export const useShowStore = create<ShowState>()((set, get) => ({
     await get().updateShow(showId, updateShowScene(show, sceneId, changes))
   },
 
-  updateTransition: async (showId, sceneId, kind, durationMs) => {
+  updateTransition: async (showId, sceneId, kind, durationMs, feather) => {
     const show = get().shows.find((item) => item.id === showId)
     if (!show) return
-    await get().updateShow(showId, updateShowTransition(show, sceneId, kind, durationMs))
+    await get().updateShow(showId, updateShowTransition(show, sceneId, kind, durationMs, feather))
   },
 
   updateCellAdaptations: async (showId, cellId, changes) => {
