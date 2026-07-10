@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import type React from 'react'
 import {
   Download,
@@ -58,11 +58,7 @@ import {
   type PowerCapSettings,
 } from '@/engine/powerCap'
 import { getControllerProvider } from '@/engine/controllerProviderRegistry'
-import { getControllerBindings } from '@/engine/controllerMetadataStorage'
-import {
-  describeControllerSavedPrograms,
-  type ControllerSavedProgramsView,
-} from '@/engine/controllerSavedPrograms'
+import { controllerForProfile } from '@/engine/controllerProfileConnection'
 import { selectTransformArtifactInspection } from '@/engine/transformInspection'
 import { useControllerStore, type ControllerEntry } from '@/store/controllerStore'
 import {
@@ -71,11 +67,7 @@ import {
   useControllerProfileStore,
 } from '@/store/controllerProfileStore'
 import { useMapStore } from '@/store/mapStore'
-import { usePatternStore } from '@/store/patternStore'
 import { useRouterStore } from '@/store/routerStore'
-import { DEMOS } from '@/pixelblaze/stock/patterns'
-import type { BindingStore } from '@/engine/controllerBinding'
-import type { ProgramListEntry } from '@/engine/PixelblazeConnection'
 import { StatusDot, type StatusTone } from './StatusDot'
 import { TransformInspectionPanel } from './TransformInspectionPanel'
 
@@ -102,30 +94,6 @@ function formatGridDims(dims: ControllerMapImportSummary['gridDims']) {
   return dims.depth === undefined
     ? `${dims.cols} x ${dims.rows}`
     : `${dims.cols} x ${dims.rows} x ${dims.depth}`
-}
-
-function statusForProfile(
-  profile: ControllerProfile,
-  controllers: ReturnType<typeof useControllerStore.getState>['controllers'],
-) {
-  const entries = Object.values(controllers)
-  const byDeviceId = profile.deviceId
-    ? entries.filter((entry) => entry.deviceId === profile.deviceId)
-    : []
-  const byLastSeenIp =
-    byDeviceId.length === 0 && profile.lastSeenIp
-      ? entries.filter((entry) => entry.ip === profile.lastSeenIp && (!profile.deviceId || !entry.deviceId))
-      : []
-  return chooseProfileController(byDeviceId.length > 0 ? byDeviceId : byLastSeenIp)
-}
-
-function chooseProfileController(entries: ControllerEntry[]) {
-  return (
-    entries.find((entry) => entry.phase === 'live') ??
-    entries.find((entry) => entry.phase === 'pending') ??
-    entries.find((entry) => entry.phase === 'error') ??
-    null
-  )
 }
 
 const PROFILE_STATUS_TONE: Record<ControllerStatusTone, StatusTone> = {
@@ -286,111 +254,6 @@ function EmptyState({ children }: { children: React.ReactNode }) {
     <div className="border border-dashed border-zinc-700/80 bg-zinc-950/30 px-3 py-3 text-xs text-zinc-500">
       {children}
     </div>
-  )
-}
-
-type SavedProgramsRead = {
-  controllerId: string | null
-  status: 'offline' | 'loading' | 'ready' | 'error'
-  programs: ProgramListEntry[]
-  bindings: BindingStore
-}
-
-function SavedProgramsSection({
-  status,
-  programs,
-  onRefresh,
-  onOpen,
-}: {
-  status: SavedProgramsRead['status']
-  programs: ControllerSavedProgramsView
-  onRefresh: () => void
-  onOpen: (routeId: string) => void
-}) {
-  const count = programs.owned.length + programs.foreign.length
-  return (
-    <Section
-      title="Saved programs"
-      action={
-        <Button
-          type="button"
-          size="xs"
-          variant="ghost"
-          aria-label="Refresh saved programs"
-          disabled={status === 'offline' || status === 'loading'}
-          className="bg-zinc-900/70 text-xs text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 disabled:opacity-35"
-          onClick={onRefresh}
-        >
-          <RefreshCw size={13} aria-hidden className={status === 'loading' ? 'animate-spin' : ''} />
-          Refresh
-        </Button>
-      }
-    >
-      {status === 'offline' ? (
-        <EmptyState>Connect this controller to inspect its saved programs.</EmptyState>
-      ) : status === 'loading' ? (
-        <EmptyState>Reading saved programs from the controller…</EmptyState>
-      ) : status === 'error' ? (
-        <EmptyState>Saved programs could not be read. Check the connection, then refresh.</EmptyState>
-      ) : count === 0 ? (
-        <EmptyState>No saved programs are installed on this controller.</EmptyState>
-      ) : (
-        <div className="overflow-x-auto border border-zinc-800/80 bg-zinc-950/25">
-          <table className="w-full border-collapse text-xs" aria-label="Saved programs inventory">
-            <thead>
-              <tr>
-                <th className={tableHeadClass}>Pattern</th>
-                <th className={tableHeadClass}>Program id</th>
-              </tr>
-            </thead>
-            <tbody>
-              {programs.owned.map((program) => (
-                <tr key={program.programId} className="bg-zinc-900/20">
-                  <td className={tableCellClass}>
-                    {program.routeId ? (
-                      <button
-                        type="button"
-                        className="text-left font-medium text-live transition-colors hover:text-amber-300"
-                        onClick={() => onOpen(program.routeId!)}
-                      >
-                        {program.name}
-                      </button>
-                    ) : (
-                      <div>
-                        <div className="text-zinc-300">{program.name}</div>
-                        <div className="text-[10px] text-amber-400/65">Studio pattern missing</div>
-                      </div>
-                    )}
-                  </td>
-                  <td className={`${tableCellClass} font-mono text-zinc-400`}>{program.programId}</td>
-                </tr>
-              ))}
-              {programs.foreign.length > 0 && (
-                <tr>
-                  <td
-                    colSpan={2}
-                    className="border-t border-zinc-800 bg-zinc-950/70 px-2 py-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-500"
-                  >
-                    Foreign programs · {programs.foreign.length}
-                  </td>
-                </tr>
-              )}
-              {programs.foreign.map((program) => (
-                <tr key={program.programId} className="bg-zinc-950/40">
-                  <td className={`${tableCellClass} text-zinc-500`}>{program.name}</td>
-                  <td className={`${tableCellClass} font-mono text-zinc-600`}>{program.programId}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {programs.foreign.length > 0 && (
-            <p className="border-t border-zinc-800/80 px-2 py-2 text-[10px] leading-4 text-zinc-600">
-              Foreign means saved on this controller but not linked to a pattern in this Studio.
-            </p>
-          )}
-        </div>
-      )}
-    </Section>
   )
 }
 
@@ -1180,10 +1043,9 @@ export function ControllerProfilePage({ profileId }: { profileId: string }) {
   const addMap = useMapStore((state) => state.addMap)
   const openExistingMap = useMapStore((state) => state.openExistingMap)
   const openStockMap = useMapStore((state) => state.openStockMap)
-  const userPatterns = usePatternStore((state) => state.userPatterns)
   const navigate = useRouterStore((state) => state.navigate)
   const profile = profiles.find((item) => item.id === profileId)
-  const profileController = profile ? statusForProfile(profile, controllers) : null
+  const profileController = profile ? controllerForProfile(profile, controllers) : null
   const liveIp = profileController?.phase === 'live' ? profileController.ip : undefined
   const profileRefreshId = profile?.id
   const [importingMap, setImportingMap] = useState(false)
@@ -1191,14 +1053,6 @@ export function ControllerProfilePage({ profileId }: { profileId: string }) {
   const [pendingImport, setPendingImport] = useState<PendingMapImport | null>(null)
   const [importName, setImportName] = useState('')
   const [liveBrightnessRead, setLiveBrightnessRead] = useState<{ ip: string; value: number } | null>(null)
-  const savedProgramsRequest = useRef(0)
-  const [savedProgramsRefresh, setSavedProgramsRefresh] = useState(0)
-  const [savedProgramsRead, setSavedProgramsRead] = useState<SavedProgramsRead>({
-    controllerId: null,
-    status: 'offline',
-    programs: [],
-    bindings: {},
-  })
   const liveBrightness = liveBrightnessRead && liveBrightnessRead.ip === liveIp
     ? liveBrightnessRead.value
     : null
@@ -1222,44 +1076,6 @@ export function ControllerProfilePage({ profileId }: { profileId: string }) {
     }
   }, [activeIp, liveIp])
 
-  useEffect(() => {
-    const request = ++savedProgramsRequest.current
-    let cancelled = false
-    void (async () => {
-      // Keep all state writes behind an async boundary: this effect synchronizes
-      // the page with the live Controller/provider rather than deriving local state.
-      await Promise.resolve()
-      if (cancelled || savedProgramsRequest.current !== request) return
-      if (!liveIp) {
-        setSavedProgramsRead({ controllerId: null, status: 'offline', programs: [], bindings: {} })
-        return
-      }
-
-      setSavedProgramsRead((current) => ({
-        controllerId: liveIp,
-        status: 'loading',
-        programs: current.controllerId === liveIp ? current.programs : [],
-        bindings: current.controllerId === liveIp ? current.bindings : {},
-      }))
-      if (useControllerStore.getState().activeIp !== liveIp) setActiveController(liveIp)
-
-      try {
-        const [programs, bindings] = await Promise.all([
-          getControllerProvider().listPrograms(),
-          getControllerBindings(),
-        ])
-        if (cancelled || savedProgramsRequest.current !== request) return
-        setSavedProgramsRead({ controllerId: liveIp, status: 'ready', programs, bindings })
-      } catch {
-        if (cancelled || savedProgramsRequest.current !== request) return
-        setSavedProgramsRead((current) => ({ ...current, controllerId: liveIp, status: 'error' }))
-      }
-    })()
-    return () => {
-      cancelled = true
-    }
-  }, [liveIp, savedProgramsRefresh, setActiveController])
-
   if (!profile) {
     return (
       <div className="flex h-full items-center justify-center px-6 text-sm text-zinc-500">
@@ -1269,23 +1085,6 @@ export function ControllerProfilePage({ profileId }: { profileId: string }) {
   }
 
   const validation = validateControllerProfile(profile)
-  const savedPrograms = describeControllerSavedPrograms({
-    controllerId: savedProgramsRead.controllerId ?? liveIp ?? '',
-    programs: savedProgramsRead.programs,
-    bindings: savedProgramsRead.bindings,
-    studioPatterns: [
-      ...userPatterns.map((pattern) => ({
-        bindingKey: pattern.id,
-        routeId: pattern.id,
-        name: pattern.name,
-      })),
-      ...Object.keys(DEMOS).map((name) => ({
-        bindingKey: `demo:${name}`,
-        routeId: name,
-        name,
-      })),
-    ],
-  })
   const transformArtifact = selectTransformArtifactInspection(
     transformArtifacts,
     profileController?.ip ?? profile.lastSeenIp ?? null,
@@ -1402,12 +1201,6 @@ export function ControllerProfilePage({ profileId }: { profileId: string }) {
           {validation.errors.map((error) => error.message).join(' ')}
         </div>
       )}
-      <SavedProgramsSection
-        status={savedProgramsRead.status}
-        programs={savedPrograms}
-        onRefresh={() => setSavedProgramsRefresh((value) => value + 1)}
-        onOpen={(routeId) => navigate({ kind: 'studio', entity: { kind: 'patterns', id: routeId } })}
-      />
       <Section
         title="Hardware inputs"
         action={

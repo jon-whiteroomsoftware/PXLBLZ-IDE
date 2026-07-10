@@ -25,6 +25,7 @@ import { SendToController } from '@/components/SendToController'
 import { GalleryPage } from '@/components/GalleryPage'
 import { PatternDetailPage } from '@/components/PatternDetailPage'
 import { ControllerProfilePage } from '@/components/ControllerProfilePage'
+import { ControllerSavedProgramsPane } from '@/components/ControllerSavedProgramsPane'
 import { ShowEditor } from '@/components/ShowEditor'
 import { ShowStagePreview } from '@/components/ShowStagePreview'
 import { useControllerStore } from '@/store/controllerStore'
@@ -927,7 +928,9 @@ export default function App() {
           ) : editorFlavor === 'library' || studioEntityKind === 'libraries' ? (
             <LibraryContextPane />
           ) : studioEntityKind === 'controllers' ? (
-            <EmptyContextPane label="Controller" />
+            activeControllerProfile
+              ? <ControllerSavedProgramsPane profile={activeControllerProfile} />
+              : <EmptyContextPane label="Controller" />
           ) : studioEntityKind === 'shows' ? (
             activeShowId !== null ? <ShowStagePreview showId={activeShowId} /> : <EmptyContextPane label="Shows" />
           ) : (

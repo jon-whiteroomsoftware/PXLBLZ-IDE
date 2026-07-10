@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ControllerProfilePage } from './ControllerProfilePage'
+import { ControllerSavedProgramsPane } from './ControllerSavedProgramsPane'
 import { NullControllerProvider, type ControllerStatus } from '@/engine/ControllerProvider'
 import { resetControllerProvider, setControllerProvider } from '@/engine/controllerProviderRegistry'
 import { encodeMapData } from '@/engine/mapPush'
@@ -113,7 +114,6 @@ describe('ControllerProfilePage', () => {
     expect(screen.getByText('Offline')).toBeInTheDocument()
     expect(screen.getByTestId('controller-profile-status-dot')).toHaveClass('bg-zinc-700')
     expect(screen.getByTitle('Refresh controller metadata')).toBeDisabled()
-    expect(screen.getByText(/connect this controller to inspect its saved programs/i)).toBeInTheDocument()
 
     useControllerStore.setState({
       controllers: {
@@ -166,6 +166,15 @@ describe('ControllerProfilePage', () => {
     expect(screen.getByTitle('Refresh controller metadata')).toBeEnabled()
   })
 
+  it('shows the saved-program inventory offline state in its dedicated pane', () => {
+    const profile = seedProfile()
+
+    render(<ControllerSavedProgramsPane profile={profile} />)
+
+    expect(screen.getByText(/connect this controller to inspect its saved programs/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Refresh saved programs' })).toBeDisabled()
+  })
+
   it('groups saved programs by Studio ownership, links owned rows, and refreshes', async () => {
     const profile = seedProfile()
     const provider = new ProgramListProvider()
@@ -208,7 +217,7 @@ describe('ControllerProfilePage', () => {
       },
     })
 
-    render(<ControllerProfilePage profileId="ctrl-1" />)
+    render(<ControllerSavedProgramsPane profile={profile} />)
 
     expect(await screen.findByRole('button', { name: 'Twinkle' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'AuroraSphere' })).toBeInTheDocument()
@@ -245,7 +254,7 @@ describe('ControllerProfilePage', () => {
       },
     })
 
-    render(<ControllerProfilePage profileId="ctrl-1" />)
+    render(<ControllerSavedProgramsPane profile={profile} />)
 
     expect(await screen.findByText(/no saved programs are installed/i)).toBeInTheDocument()
   })
