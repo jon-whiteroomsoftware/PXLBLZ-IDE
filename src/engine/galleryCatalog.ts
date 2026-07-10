@@ -18,7 +18,7 @@ export interface GalleryFilter {
 export const GALLERY_ALL_CATEGORY = 'Everything'
 
 export const OPENGL_DEMOS = ['Kishimisu', 'NeonSquircles', 'ZippyZaps', 'IQPalettes', 'PhantomStar', 'IridescentFibers']
-export const BRAND_NEW_DEMOS = ['PlasmaNebula', 'Caustics', 'AuroraSphere', 'NebulaSphere', 'ShaderShowcase']
+export const BRAND_NEW_DEMOS = ['PlasmaNebula', 'Caustics', 'AuroraSphere', 'NebulaSphere', 'ShaderShowcase', 'MandelbulbHeartbeat']
 
 // Pixelblaze-native sketches built around cheap fields, SDFs, and 3D math that
 // should scale better than direct shader ports.
@@ -43,11 +43,12 @@ export const FPS_FRIENDLY_DEMOS = [
   'StainedGlassWeather',
   'TempestVolume3D',
   'TopographicBloom',
+  'ShapeShifter',
 ]
 
 // 1D effects that lean on rhythm and emergence rather than the usual chases and
 // crawls.
-export const LIVING_1D_DEMOS = ['PulseLoom', 'FireflyChoir', 'CometLoom', 'MetroLines']
+export const LIVING_1D_DEMOS = ['PulseLoom', 'FireflyChoir', 'CometLoom', 'MetroLines', 'ImpactEngine']
 
 // Minimal patterns - one per render dimensionality - for visually verifying
 // 1D / 2D / 3D preview behavior.

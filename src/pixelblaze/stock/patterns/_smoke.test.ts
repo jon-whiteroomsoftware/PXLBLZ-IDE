@@ -53,7 +53,7 @@ function runDemo(file: string, mode: 'fast' | 'fidelity' = 'fast') {
 }
 
 describe('demo smoke tests', () => {
-  for (const file of ['PlasmaNebula.js', 'Caustics.js', 'KaleidoBloom.js', 'Kishimisu.js', 'PhantomStar.js']) {
+  for (const file of ['PlasmaNebula.js', 'Caustics.js', 'KaleidoBloom.js', 'Kishimisu.js', 'PhantomStar.js', 'ShapeShifter.js', 'GlyphRain.js', 'Murmuration.js', 'Harmonograph.js']) {
     it(`${file} bundles, runs, lights pixels, and exposes sliders`, () => {
       let result!: ReturnType<typeof runDemo>
       expect(() => { result = runDemo(file) }).not.toThrow()
@@ -104,7 +104,7 @@ describe('demo smoke tests', () => {
   // Run on a 1D strip through the render() dispatch path, exercising controls and
   // several frames of beforeRender so the stateful ones (firefly arrays) actually
   // advance. Each must light pixels and expose its sliders.
-  for (const file of ['PulseLoom.js', 'FireflyChoir.js']) {
+  for (const file of ['PulseLoom.js', 'FireflyChoir.js', 'ImpactEngine.js', 'EmberSpire.js', 'RivalryRing.js', 'PendulumWave.js']) {
     it(`${file} bundles, runs render(), lights pixels, and exposes sliders`, () => {
       const N = 120
       const src = readFileSync(join(here, file), 'utf8')
@@ -240,4 +240,84 @@ describe('demo smoke tests', () => {
       })
     }
   }
+
+  // Stateful 3D volume demos: body positions / heat / panic persist across
+  // frames, so run several beforeRender ticks over a cubic volume in both modes.
+  for (const file of ['LavaLamp3D.js', 'ShoalScatter3D.js', 'Orrery3D.js']) {
+    it(`${file} bundles, simulates, runs render3D, lights pixels, and exposes sliders`, () => {
+      const src = readFileSync(join(here, file), 'utf8')
+      const bundled = bundle(src, LIBRARIES)
+      expect(bundled.metadata.renderFns.hasRender3D).toBe(true)
+      expect(bundled.metadata.controls.length).toBeGreaterThanOrEqual(4)
+
+      const mapPoints = Array.from({ length: 125 }, (_, index) => {
+        const x = index % 5
+        const y = Math.floor(index / 5) % 5
+        const z = Math.floor(index / 25)
+        const pos: [number, number, number] = [x / 4, y / 4, z / 4]
+        return { sample: pos, pos }
+      })
+
+      for (const mode of ['fast', 'fidelity'] as const) {
+        let vt = 0
+        const shim = mode === 'fast'
+          ? createShim({ mapPoints, pixelCount: mapPoints.length, dimensions: 3, getVirtualTime: () => vt })
+          : createFxShim({ mapPoints, pixelCount: mapPoints.length, dimensions: 3, getVirtualTime: () => vt })
+        const handle = loadPattern(mode === 'fast' ? bundled.code : bundled.fxCode, bundled.metadata, shim.builtins)
+        const enc = shim.encodeScalar
+
+        for (const c of bundled.metadata.controls) handle.controls[c.exportName]?.(enc(0.5))
+
+        let anyLit = false
+        for (let frame = 0; frame < 4; frame++) {
+          vt += 33 * 65.536
+          handle.beforeRender(enc(33))
+          for (let i = 0; i < mapPoints.length; i++) {
+            const [x, y, z] = mapPoints[i].pos
+            handle.render3D(enc(i), enc(x), enc(y), enc(z))
+            const [r, g, b] = shim.capturedPixel()
+            if (r + g + b > 0.01) anyLit = true
+          }
+        }
+        expect(anyLit).toBe(true)
+      }
+    })
+  }
+
+  it('MandelbulbHeartbeat bundles and renders a controllable 3D field in both numeric modes', () => {
+    const src = readFileSync(join(here, 'MandelbulbHeartbeat.js'), 'utf8')
+    const bundled = bundle(src, LIBRARIES)
+    expect(bundled.metadata.renderFns.hasRender3D).toBe(true)
+    expect(bundled.metadata.renderFns.hasRender2D).toBe(false)
+    expect(bundled.metadata.renderFns.hasRender).toBe(false)
+    expect(bundled.metadata.controls.map((control) => control.exportName)).toEqual(
+      expect.arrayContaining(['sliderPower', 'sliderColor']),
+    )
+
+    const mapPoints = Array.from({ length: 125 }, (_, index) => {
+      const x = index % 5
+      const y = Math.floor(index / 5) % 5
+      const z = Math.floor(index / 25)
+      const pos: [number, number, number] = [x / 4, y / 4, z / 4]
+      return { sample: pos, pos }
+    })
+
+    for (const mode of ['fast', 'fidelity'] as const) {
+      const shim = mode === 'fast'
+        ? createShim({ mapPoints, pixelCount: mapPoints.length, dimensions: 3, getVirtualTime: () => 0 })
+        : createFxShim({ mapPoints, pixelCount: mapPoints.length, dimensions: 3, getVirtualTime: () => 0 })
+      const handle = loadPattern(mode === 'fast' ? bundled.code : bundled.fxCode, bundled.metadata, shim.builtins)
+      const enc = shim.encodeScalar
+      let anyLit = false
+
+      handle.beforeRender(enc(33))
+      for (let i = 0; i < mapPoints.length; i++) {
+        const [x, y, z] = mapPoints[i].pos
+        handle.render3D(enc(i), enc(x), enc(y), enc(z))
+        const [r, g, b] = shim.capturedPixel()
+        if (r + g + b > 0.01) anyLit = true
+      }
+      expect(anyLit).toBe(true)
+    }
+  })
 })
