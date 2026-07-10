@@ -30,6 +30,7 @@ import { ZonePreviewStrips } from '@/components/ZonePreviewStrips'
 import { LIBRARIES } from '@/pixelblaze/libs'
 import { useLibraryStore } from '@/store/libraryStore'
 import { withControlDescriptions } from '@/pixelblaze/controlDescriptions'
+import { snapshotWatchValue } from '@/engine/watchValue'
 import { captureEnabled, createPreviewCapture } from '@/dev/previewCapture'
 import { useControllerStore } from '@/store/controllerStore'
 import { useControllerProfileStore } from '@/store/controllerProfileStore'
@@ -344,16 +345,10 @@ export function Preview({
         // domain so the panel reads the same in fast and fidelity modes.
         // decodeScalar is identity in fast mode.
         const dec = shim.decodeScalar
-        const decode = (v: unknown): unknown =>
-          typeof v === 'number'
-            ? dec(v)
-            : Array.isArray(v)
-              ? (v as unknown[]).map((n) => (typeof n === 'number' ? dec(n) : n))
-              : v
         const values: Record<string, unknown> = {}
         const exports = handle.getExports()
         for (const name of useEditorStore.getState().patternVars) {
-          values[name] = decode(exports[name])
+          values[name] = snapshotWatchValue(exports[name], dec)
         }
         usePreviewStore.getState().setWatchValues(values)
       },

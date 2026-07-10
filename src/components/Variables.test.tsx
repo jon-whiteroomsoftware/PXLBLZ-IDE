@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { Variables } from './Variables'
 import { usePreviewStore, previewInitialState } from '@/store/previewStore'
 import { useEditorStore, editorInitialState } from '@/store/editorStore'
+import { snapshotWatchValue } from '@/engine/watchValue'
 
 beforeEach(() => {
   usePreviewStore.setState(previewInitialState)
@@ -33,5 +34,24 @@ describe('Variables pattern-variable watch', () => {
     const { container } = render(<Variables />)
     expect(container).toBeEmptyDOMElement()
     expect(screen.queryByRole('button', { name: /variables/i })).not.toBeInTheDocument()
+  })
+
+  it('shows a compact array prefix with the number of remaining elements', () => {
+    useEditorStore.setState({ patternVars: ['samples'] })
+    usePreviewStore.setState({
+      watchPatternVars: true,
+      watchValues: {
+        samples: snapshotWatchValue(
+          Array.from({ length: 23 }, (_, index) => index / 10),
+          (value) => value,
+        ),
+      },
+    })
+
+    render(<Variables />)
+
+    const summary = screen.getByText('0, 0.10, 0.20, … +20')
+    expect(summary).toBeInTheDocument()
+    expect(summary.parentElement).toHaveClass('col-span-2')
   })
 })

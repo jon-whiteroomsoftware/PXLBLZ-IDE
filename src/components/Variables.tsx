@@ -1,18 +1,7 @@
 import { ChevronDown } from 'lucide-react'
 import { usePreviewStore } from '@/store/previewStore'
 import { useEditorStore } from '@/store/editorStore'
-
-function formatValue(v: unknown): string {
-  if (v === undefined || v === null) return '—'
-  if (typeof v === 'number') return Number.isInteger(v) ? String(v) : v.toFixed(2)
-  if (Array.isArray(v)) {
-    const items = (v as number[]).slice(0, 8).map((n) =>
-      typeof n === 'number' ? (Number.isInteger(n) ? String(n) : n.toFixed(2)) : '?'
-    )
-    return items.join(', ') + (v.length > 8 ? ', …' : '')
-  }
-  return String(v)
-}
+import { formatWatchValue, isWatchArrayValue } from '@/engine/watchValue'
 
 // Variables (#150): the bottom-most deck section — a single all-or-nothing turn-down
 // that reveals every exported pattern variable (no per-variable or sensor-builtin
@@ -41,14 +30,20 @@ export function Variables() {
       </button>
       {watchPatternVars && (
         <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 mt-1">
-          {patternVars.map((name) => (
-            <div key={name} className="flex justify-between gap-2 min-w-0">
-              <span className="text-zinc-400 truncate">{name}</span>
-              <span className="text-live tabular-nums truncate">
-                {formatValue(watchValues[name])}
-              </span>
-            </div>
-          ))}
+          {patternVars.map((name) => {
+            const value = watchValues[name]
+            return (
+              <div
+                key={name}
+                className={`${isWatchArrayValue(value) ? 'col-span-2' : ''} grid grid-cols-[minmax(0,1fr)_auto] gap-2 min-w-0`}
+              >
+                <span className="text-zinc-400 truncate" title={name}>{name}</span>
+                <span className="text-live tabular-nums whitespace-nowrap">
+                  {formatWatchValue(value)}
+                </span>
+              </div>
+            )
+          })}
         </div>
       )}
     </section>
