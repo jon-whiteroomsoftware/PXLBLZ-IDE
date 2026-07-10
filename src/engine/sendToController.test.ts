@@ -80,6 +80,16 @@ describe('isAlreadyPushed (mode-split dirty gate)', () => {
   it('does not match when the source has changed since the push', () => {
     expect(isAlreadyPushed({ mode: 'run', source: 'xyz', lastRunSource: 'abc' })).toBe(false)
   })
+
+  it('does not match when the Controller profile artifact configuration changed', () => {
+    expect(isAlreadyPushed({
+      mode: 'run',
+      source: 'abc',
+      lastRunSource: 'abc',
+      profileSignature: 'power-cap:on:0.25',
+      lastRunProfileSignature: 'power-cap:off',
+    })).toBe(false)
+  })
 })
 
 describe('describeSendAction', () => {

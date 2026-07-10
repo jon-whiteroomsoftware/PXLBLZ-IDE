@@ -200,7 +200,7 @@ export function beforeRender(delta) {
 }
 `
 
-const POWER_CAP_SOURCE = `// Power Cap - estimate output duty from intercepted hsv() calls and scale value
+const POWER_CAP_SOURCE = `// Power Cap - estimate output duty from intercepted hsv()/rgb() calls and scale output
 // when a short frame-level EWMA exceeds the configured duty budget. Display
 // telemetry uses separate recent and since-start windows.
 //
@@ -208,8 +208,8 @@ const POWER_CAP_SOURCE = `// Power Cap - estimate output duty from intercepted h
 // @param RECENT_WINDOW_MS calm telemetry publication interval
 // @param CAP_RESPONSE_MS cap EWMA response time
 // @param SINCE_START_MAX_FRAMES fixed-point-safe cumulative-mean weight ceiling
-// @target hsv
-// @wraps hsv-call
+// @target hsv,rgb
+// @wraps output-call
 
 export var __px_powerDutyRecent = 0
 export var __px_powerDutySinceStart = 0
@@ -230,6 +230,13 @@ function __px_cappedHsv(h, s, v) {
   __px_powerFrameDuty = __px_powerFrameDuty + duty
   __px_powerFrameSamples = __px_powerFrameSamples + 1
   hsv(h, s, v * __px_powerScale)
+}
+
+function __px_cappedRgb(r, g, b) {
+  var duty = (max(0, min(1, r)) + max(0, min(1, g)) + max(0, min(1, b))) / 3
+  __px_powerFrameDuty = __px_powerFrameDuty + duty
+  __px_powerFrameSamples = __px_powerFrameSamples + 1
+  rgb(r * __px_powerScale, g * __px_powerScale, b * __px_powerScale)
 }
 
 function __px_powerFinalizeFrame(delta) {

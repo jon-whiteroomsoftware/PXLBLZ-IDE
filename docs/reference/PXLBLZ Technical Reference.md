@@ -150,7 +150,7 @@ render in the same header on every route and in every auth state.
 | `mapStore` | `activeMapId`/`activeShapeId`/`activeSurfaceId`, `activePixelCount`, `activeNormalizeMode`, `activeSolidity`, `userMaps`, the stock catalogue, and the map-mode editing target. |
 | `controlStore` | current pattern UI control values (transient). |
 | `cameraStore` | ephemeral orbit angle, persistent auto-orbit flag, a transient `dragging` hold, pole wrap density. |
-| `controllerStore` | keyed map of connected Controllers (IP → phase/nickname/map dim), the active one, extension presence, last-connected IP for auto-reconnect, the Send/push slices, and the sticky `saveArmed` toggle with mode-split dirty tracking (`lastPushedSource`/`lastSavedSource`). |
+| `controllerStore` | keyed map of connected Controllers (IP → phase/nickname/map dim), the active one, extension presence, last-connected IP for auto-reconnect, the Send/push slices, and the sticky `saveArmed` toggle with mode-split dirty tracking for both source and generated-code Controller-profile signatures. |
 | `controllerPanelStore` | the connected device's polled live slice: active program + program list, FPS, device `pixelCount` (with in-flight `pixelCountPending` hold), installed-map point count, panel-owned volatile brightness and live controls. `seed`/`start` are keyed by owning IP so a same-device reopen keeps last-known values while a device switch clears. |
 | `routerStore` | the current `Route`, `navigate` (pushState/replaceState) and `syncFromLocation`; the only module that touches `history`/`location`. |
 | `mixinStore` | cloud `MixinRecord` list + CRUD through the personal content provider, the mixin-mode editing target, stock-mixin open state. |
@@ -226,7 +226,9 @@ The recipe IR is JSON-serializable and ordered. The implemented pass kinds are:
   wraps the pattern's existing `beforeRender(delta)` or synthesizes one.
 - **Intercept** — rewrites AST-located output-sink call sites for `hsv`,
   `hsv24`, `rgb`, `paint(v)`, and `paint(v,b)` to generated arity-specific
-  wrappers. Comments, strings, property names, unrelated identifiers, and
+  wrappers. One pass can target several sinks with a per-sink wrapper function,
+  allowing shared telemetry/frame state across `hsv` and `rgb`. Comments,
+  strings, property names, unrelated identifiers, and
   locally shadowed sink names are left untouched. Unsupported arities produce
   warnings instead of silent skips.
 - **Bind** — emits a small frame-level helper that calls a target function
@@ -395,17 +397,20 @@ states until the pass engine records provenance/artifacts. The stock catalog
 includes `power-measure`, a measurement-only intercept source that exports the
 reserved `__px_power*` telemetry variables while leaving output unchanged.
 `power-cap` uses the same telemetry convention and, when enabled on a Controller
-profile, compiles as an estimated `hsv` output limiter whose `MAX_DUTY` parameter
+profile, compiles as an estimated `hsv`/`rgb` output limiter whose `MAX_DUTY` parameter
 initializes the exported normalized 0..1 `__px_powerLimit` setpoint. Frame-level
 limiting reads that export at runtime, so a documented `setVars` write can tune
 the running cap without recompiling. Both power intercepts also contribute a composed
 `beforeRender`: intercepted `hsv` calls accumulate one frame of duty, then the
 frame hook publishes a roughly two-second block average as
 `__px_powerDutyRecent` and advances a fixed-point-bounded cumulative mean as
-`__px_powerDutySinceStart`. The cap alone maintains a separate roughly 250 ms
-EWMA and scales value from that signal, so neither display average can delay
-limiting. Milliamps are not part of the generated cap policy. Broader sink
-coverage, sensor-pulse, and night-scheduler consumption are later #319 slices.
+`__px_powerDutySinceStart`. RGB duty is the mean of the three clamped channel
+values and capping scales all three channels uniformly. The cap alone maintains
+a separate roughly 250 ms EWMA and scales output from that signal, so neither
+display average can delay limiting. Milliamps are not part of the generated cap
+policy. Palette-aware `paint()` coverage remains deferred because source-level
+calls expose palette position and brightness, not the resolved RGB channels;
+sensor-pulse and night-scheduler consumption are also later #319 slices.
 
 The editor's fourth flavor is **library mode** (`editorFlavor === 'library'`):
 Pixelblaze-dialect source for stock and cloud helper namespaces. Stock libraries
@@ -1054,7 +1059,7 @@ advances per frame. The limiter responds from a separate short internal EWMA.
 When the active Controller
 profile has power-cap electrical provenance, the panel derives a contextual amps
 estimate from recent emitted duty after scaling, current device pixel count, stored
-full-white mA/pixel, and stored native-brightness assumption; the UI labels those
+full-white mA/pixel, and current live native brightness; the UI labels those
 assumptions and never presents the result as a measurement. The older
 `__px_powerMilliAmps` export remains reserved for the standalone measurement
 mixin. All telemetry rides over the documented Pixelblaze `getVars` websocket
@@ -1111,9 +1116,13 @@ remote compiler), turning source into bytecode; `pushBytecode` sends it over the
 socket. `pushPattern` owns the policy, in one of two modes chosen by the sticky
 **Run / Save** pill (`controllerStore.saveArmed`, persisted); the Send button's
 glyph and tooltip follow the armed mode via `describeSendAction`. Run and save
-are tracked as independent acts — the dirty gate keys off `lastPushedSource` for
-run and `lastSavedSource` for save, so a clean run push doesn't satisfy a pending
-save. Before compile, `controllerStore.pushActivePattern` resolves the active
+are tracked as independent acts — the dirty gate keys off source plus the
+generated-code Controller-profile signature in each mode, so a clean run push
+doesn't satisfy a pending save and a transform/binding edit re-arms Send without
+a source edit. Controller-profile edits update Zustand optimistically, serialize
+durable writes per profile, roll back the latest optimistic edit on failure, and
+expose a drain barrier; Push waits at that barrier before reading durable profiles.
+Before compile, `controllerStore.pushActivePattern` resolves the active
 live Controller to its durable Controller profile (`deviceId` first,
 `lastSeenIp` fallback) and asks `controllerProfilePassRecipe` for pass-engine
 recipes. With no profile or hardware brightness disabled, `bundleWithPasses`
@@ -1124,9 +1133,11 @@ profile input, intercepts `hsv(...)` output calls through the stock
 `hw-brightness` mixin, and stores the pass-engine transform summary in
 `controllerStore.lastTransformSummary[controllerId][patternId]` for later
 inspection. With the power-cap global transform enabled, the push recipe also
-intercepts `hsv(...)` calls through the stock `power-cap` mixin, estimates duty
-with `v * (1 - s/2)`, and exports the recent and since-start reserved
-`__px_power*` telemetry windows. A composed `beforeRender` finalizes the previous
+intercepts both `hsv(...)` and `rgb(...)` calls through one stock `power-cap`
+mixin. HSV estimates duty with `v * (1 - s/2)` and scales `v`; RGB estimates
+duty as `(clamp(r) + clamp(g) + clamp(b)) / 3` and scales all three channels.
+Both paths export the same recent and since-start reserved `__px_power*`
+telemetry windows. A composed `beforeRender` finalizes the previous
 frame without device-side arrays. A roughly 250 ms EWMA drives scaling when it
 exceeds the mutable exported `__px_powerLimit`; the profile's normalized
 `maxDuty` only initializes that export when the artifact is pushed. Its response is independent

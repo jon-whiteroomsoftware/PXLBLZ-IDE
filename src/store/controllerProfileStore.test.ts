@@ -22,6 +22,7 @@ import {
 } from './controllerProfileStore'
 import { validateControllerProfile } from '@/engine/controllerProfile'
 import { controllerInitialState, useControllerStore } from './controllerStore'
+import { __resetControllerProfileWriteQueue } from '@/engine/controllerProfileWriteQueue'
 
 class FakeControllerProvider extends NullControllerProvider {
   config: ControllerConfig = {
@@ -117,6 +118,7 @@ beforeEach(() => {
   resetPersonalContentProvider()
   resetControllerProvider()
   __resetControllerProfileAutoCreateGuards()
+  __resetControllerProfileWriteQueue()
   useControllerProfileStore.setState(controllerProfileInitialState)
   useControllerStore.setState(controllerInitialState)
 })
@@ -173,6 +175,43 @@ describe('controllerProfileStore', () => {
 
     await useControllerProfileStore.getState().removeProfile(created.id)
     expect(useControllerProfileStore.getState().profiles.some((profile) => profile.id === created.id)).toBe(false)
+  })
+
+  it('shows an auto-saved profile edit immediately while persistence is pending', async () => {
+    const profile = defaultControllerProfile({ id: 'ctrl-1', name: 'Original', now: 1 })
+    let releaseWrite!: () => void
+    const provider = memoryProvider([profile])
+    provider.updateControllerProfile = async () => {
+      await new Promise<void>((resolve) => {
+        releaseWrite = resolve
+      })
+    }
+    setPersonalContentProvider(provider)
+    await useControllerProfileStore.getState().loadProfiles()
+
+    const pending = useControllerProfileStore.getState().updateProfile('ctrl-1', { name: 'Immediate' })
+
+    expect(useControllerProfileStore.getState().profiles[0].name).toBe('Immediate')
+    await Promise.resolve()
+    await Promise.resolve()
+    releaseWrite()
+    await pending
+  })
+
+  it('rolls back the optimistic profile edit when auto-save fails', async () => {
+    const profile = defaultControllerProfile({ id: 'ctrl-1', name: 'Original', now: 1 })
+    const provider = memoryProvider([profile])
+    provider.updateControllerProfile = async () => {
+      throw new Error('save failed')
+    }
+    setPersonalContentProvider(provider)
+    await useControllerProfileStore.getState().loadProfiles()
+
+    await expect(
+      useControllerProfileStore.getState().updateProfile('ctrl-1', { name: 'Unsaved' }),
+    ).rejects.toThrow('save failed')
+
+    expect(useControllerProfileStore.getState().profiles[0].name).toBe('Original')
   })
 
   it('keeps bindings consistent when removing an input', async () => {

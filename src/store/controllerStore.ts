@@ -49,7 +49,9 @@ import { useLibraryStore } from '@/store/libraryStore'
 import { useMapStore, openMapForPushState } from '@/store/mapStore'
 import { useControllerPanelStore } from '@/store/controllerPanelStore'
 import { getPersonalContentProvider } from '@/engine/personalContentProvider'
+import { waitForControllerProfileWrites } from '@/engine/controllerProfileWriteQueue'
 import {
+  controllerProfileArtifactSignature,
   controllerProfilePassRecipe,
   findProfileForLiveController,
 } from '@/engine/controllerProfilePassRecipe'
@@ -136,6 +138,10 @@ interface ControllerConnectionState {
    *  save are distinct acts, so the dirty gate compares against this when Save is
    *  armed. Not persisted, same as the run record. */
   lastSavedSource: Record<string, Record<string, string>>
+  /** Generated-code profile signature used by the last run-mode push. */
+  lastPushedProfileSignature: Record<string, Record<string, string>>
+  /** Generated-code profile signature used by the last save-mode push. */
+  lastSavedProfileSignature: Record<string, Record<string, string>>
   /** Whether the Send button's Save mode is armed (#238). When on, Send persists the
    *  pattern to the device's Saved Patterns (#236) instead of a run-only push. Sticky:
    *  persisted across sessions (it's a deliberate, remembered intent). */
@@ -259,6 +265,8 @@ export const controllerInitialState = {
   pushResult: null as PushResult | null,
   lastPushedSource: {} as Record<string, Record<string, string>>,
   lastSavedSource: {} as Record<string, Record<string, string>>,
+  lastPushedProfileSignature: {} as Record<string, Record<string, string>>,
+  lastSavedProfileSignature: {} as Record<string, Record<string, string>>,
   saveArmed: false,
   lastPushedMap: {} as Record<string, Record<string, string>>,
   lastTransformSummary: {} as Record<string, Record<string, TransformSummary>>,
@@ -765,10 +773,12 @@ export const useControllerStore = create<ControllerConnectionState>()(
             // emit — never raw editor source. Use the last *clean* preview source so a
             // broken edit is never compiled and pushed.
             const activeController = get().controllers[controllerId]
+            await waitForControllerProfileWrites()
             const profiles = await getPersonalContentProvider().listControllerProfiles().catch(() => [])
             const profile = activeController
               ? findProfileForLiveController(profiles, activeController)
               : null
+            const profileSignature = controllerProfileArtifactSignature(profile, patternId)
             const recipe = controllerProfilePassRecipe(profile, previewSource, patternId)
             const bundled = bundleWithPasses(
               previewSource,
@@ -832,12 +842,22 @@ export const useControllerStore = create<ControllerConnectionState>()(
             // redundant re-push until the pattern is edited again — into the run or save
             // record per the armed mode (#238), so flipping the toggle re-enables Send.
             const recordKey = persist ? 'lastSavedSource' : 'lastPushedSource'
+            const profileRecordKey = persist
+              ? 'lastSavedProfileSignature'
+              : 'lastPushedProfileSignature'
             set((s) => ({
               pushing: false,
               pushResult: { ok: true, created },
               [recordKey]: {
                 ...s[recordKey],
                 [controllerId]: { ...s[recordKey][controllerId], [patternId]: previewSource },
+              },
+              [profileRecordKey]: {
+                ...s[profileRecordKey],
+                [controllerId]: {
+                  ...s[profileRecordKey][controllerId],
+                  [patternId]: profileSignature,
+                },
               },
               lastTransformSummary: withTransformSummary(
                 s.lastTransformSummary,

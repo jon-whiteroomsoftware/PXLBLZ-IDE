@@ -13,6 +13,47 @@ export interface LiveControllerIdentity {
   deviceId?: string | null
 }
 
+/** Stable signature of the profile fields that can change generated pattern code.
+ * Descriptive/controller-only metadata is deliberately excluded so renaming a
+ * profile does not make Send dirty. */
+export function controllerProfileArtifactSignature(
+  profile: ControllerProfile | null | undefined,
+  patternId?: string | null,
+): string {
+  if (!profile) return ''
+  const transforms: Array<
+    | { type: 'power-cap'; mixinId: string; maxDuty: number }
+    | { type: 'hardware-brightness'; mixinId: string; inputId: string; mode: string }
+  > = []
+  for (const transform of profile.globalTransforms) {
+    if (!transform.enabled) continue
+    if (transform.type === 'power-cap') {
+      transforms.push({
+        type: transform.type,
+        mixinId: transform.mixinId,
+        maxDuty: transform.maxDuty,
+      })
+      continue
+    }
+    transforms.push({
+      type: transform.type,
+      mixinId: transform.mixinId,
+      inputId: transform.inputId,
+      mode: transform.mode,
+    })
+  }
+  const bindings = patternId
+    ? profile.patternBindings.filter((binding) => binding.patternId === patternId)
+    : []
+  const inputIds = new Set<string>()
+  for (const transform of transforms) {
+    if ('inputId' in transform) inputIds.add(transform.inputId)
+  }
+  for (const binding of bindings) inputIds.add(binding.inputId)
+  const inputs = profile.inputs.filter((input) => inputIds.has(input.id))
+  return JSON.stringify({ transforms, inputs, bindings })
+}
+
 type HardwareBrightnessTransform = Extract<GlobalTransform, { type: 'hardware-brightness' }>
 type PowerCapTransform = Extract<GlobalTransform, { type: 'power-cap' }>
 
@@ -91,9 +132,12 @@ export function controllerProfilePassRecipe(
       recipe.push({
         id: 'power-cap',
         kind: 'intercept',
-        target: 'hsv',
+        target: ['hsv', 'rgb'],
         source: powerCapMixin.src,
-        wrapperName: '__px_cappedHsv',
+        wrapperName: {
+          hsv: '__px_cappedHsv',
+          rgb: '__px_cappedRgb',
+        },
         params: {
           MAX_DUTY: powerCap.maxDuty,
           RECENT_WINDOW_MS: POWER_RECENT_WINDOW_MS,

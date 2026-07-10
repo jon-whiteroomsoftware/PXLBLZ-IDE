@@ -84,6 +84,12 @@ export interface DirtyGateInput {
   lastRunSource?: string
   /** Source last *saved* to this Controller for this pattern (save-mode record). */
   lastSavedSource?: string
+  /** Signature of the active Controller Profile fields that affect generated code. */
+  profileSignature?: string
+  /** Profile artifact signature used by the last run-mode push. */
+  lastRunProfileSignature?: string
+  /** Profile artifact signature used by the last save-mode push. */
+  lastSavedProfileSignature?: string
 }
 
 /** Decide whether the current source already matches what was last pushed *in the
@@ -94,10 +100,16 @@ export function isAlreadyPushed({
   source,
   lastRunSource,
   lastSavedSource,
+  profileSignature,
+  lastRunProfileSignature,
+  lastSavedProfileSignature,
 }: DirtyGateInput): boolean {
   if (source.length === 0) return false
   const last = mode === 'save' ? lastSavedSource : lastRunSource
-  return last === source
+  if (last !== source) return false
+  if (profileSignature === undefined) return true
+  const lastProfile = mode === 'save' ? lastSavedProfileSignature : lastRunProfileSignature
+  return (lastProfile ?? '') === profileSignature
 }
 
 /** The verb the Send button surfaces for the armed mode, used for its tooltip when

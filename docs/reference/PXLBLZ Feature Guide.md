@@ -442,7 +442,7 @@ from its default, and resets the whole preview in one click (semantics below).
   count and native brightness. Moving the brightness slider recomputes the estimate
   immediately. This is a calculator, not an ammeter.
 - **Power cap** — enabling the Controller profile's power-cap transform applies
-  an estimated `hsv` output guard at push time. Its authoritative setpoint is
+  an estimated `hsv`/`rgb` output guard at push time. Its authoritative setpoint is
   output duty from 0–100%, not milliamps, and it reports the same Power row
   telemetry while it runs. The live Controller panel turns that duty setpoint
   into a slider: changes apply to the running pattern immediately without a
@@ -574,7 +574,10 @@ button's glyph and tooltip follow it:
   copies.
 
 Run and save are tracked independently — a clean run push doesn't satisfy a
-pending save; flipping the toggle re-arms Send. Send is enabled when a Controller
+pending save; flipping the toggle re-arms Send. Changing a Controller profile
+transform or matching pattern binding also re-arms Send even when pattern source
+is unchanged. Send waits for any in-flight profile auto-save before generating
+the artifact. Send is enabled when a Controller
 is connected and the pattern compiles cleanly; if the IDE can tell the pattern's
 dimensionality won't match the device's installed map, it says so. **Demos can be
 sent directly**, no fork needed. There's no pixel-count warning on pattern push: a
@@ -608,7 +611,8 @@ profile is created automatically the first time); the profile page at
   fallback, and invert; analog choices are limited to the board's ADC1-safe
   pins, with anything else flagged inline;
 - **global transforms** — hardware brightness (pot × output) and power cap,
-  each toggleable. Hardware brightness samples the chosen input once per frame
+  each toggleable and auto-saved immediately without a separate Save button.
+  Hardware brightness samples the chosen input once per frame
   and multiplies output brightness. Power cap scales output when estimated duty
   exceeds its normalized limit, using a short per-frame response signal rather
   than the slower display averages. Set that limit directly as a percentage, or use

@@ -3,9 +3,14 @@ import { RotateCw, Check, Play, Save } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { getControllerProvider } from '@/engine/controllerProviderRegistry'
 import { useControllerStore } from '@/store/controllerStore'
+import { useControllerProfileStore } from '@/store/controllerProfileStore'
 import { useEditorStore } from '@/store/editorStore'
 import { usePatternStore, activePushKey } from '@/store/patternStore'
 import { describeSendToController, isAlreadyPushed, describeSendAction } from '@/engine/sendToController'
+import {
+  controllerProfileArtifactSignature,
+  findProfileForLiveController,
+} from '@/engine/controllerProfilePassRecipe'
 import type { PreflightWarning } from '@/engine/preflight'
 import type { RecommendedMapRemedy } from '@/engine/patternMapRemedy'
 import { trackEvent } from '@/analytics'
@@ -100,6 +105,9 @@ export function SendToController() {
   const pushResult = useControllerStore((s) => s.pushResult)
   const lastPushedSource = useControllerStore((s) => s.lastPushedSource)
   const lastSavedSource = useControllerStore((s) => s.lastSavedSource)
+  const lastPushedProfileSignature = useControllerStore((s) => s.lastPushedProfileSignature)
+  const lastSavedProfileSignature = useControllerStore((s) => s.lastSavedProfileSignature)
+  const controllerProfiles = useControllerProfileStore((s) => s.profiles)
   const saveArmed = useControllerStore((s) => s.saveArmed)
   const setSaveArmed = useControllerStore((s) => s.setSaveArmed)
   const requestPush = useControllerStore((s) => s.requestPush)
@@ -124,6 +132,10 @@ export function SendToController() {
   // Controller *in this mode*. Run and save are distinct acts, so arming the other
   // mode after a clean push re-enables Send.
   const mode = saveArmed ? 'save' : 'run'
+  const controllerProfile = active
+    ? findProfileForLiveController(controllerProfiles, active)
+    : null
+  const profileSignature = controllerProfileArtifactSignature(controllerProfile, patternId)
   const alreadyPushed =
     !!activeIp &&
     !!patternId &&
@@ -132,6 +144,9 @@ export function SendToController() {
       source: previewSource,
       lastRunSource: lastPushedSource[activeIp]?.[patternId],
       lastSavedSource: lastSavedSource[activeIp]?.[patternId],
+      profileSignature,
+      lastRunProfileSignature: lastPushedProfileSignature[activeIp]?.[patternId],
+      lastSavedProfileSignature: lastSavedProfileSignature[activeIp]?.[patternId],
     })
 
   const { enabled, reason } = describeSendToController({

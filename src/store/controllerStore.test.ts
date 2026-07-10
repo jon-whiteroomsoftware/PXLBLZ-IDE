@@ -37,6 +37,10 @@ import {
   setPersonalContentProvider,
 } from '@/engine/personalContentProvider'
 import { bundle } from '@/engine/bundle'
+import {
+  __resetControllerProfileWriteQueue,
+  queueControllerProfileWrite,
+} from '@/engine/controllerProfileWriteQueue'
 import { defaultControllerProfile, type ControllerProfile } from './controllerProfileStore'
 
 // A fake per-Controller provider with a real (if minimal) status machine, so we
@@ -201,6 +205,7 @@ beforeEach(async () => {
   localStorage.clear()
   __resetControllerProviders()
   resetPersonalContentProvider()
+  __resetControllerProfileWriteQueue()
   resetControllerMetadataStorage()
   setControllerMetadataStorage(memoryControllerMetadataStorage())
   useControllerStore.setState(controllerInitialState)
@@ -632,6 +637,37 @@ describe('controllerStore (keyed)', () => {
       expect(provider.compiledSources).toEqual([bundle(PATTERN_SRC, {}).code])
       expect(store().lastTransformSummary['10.0.0.5']?.['pat-1']).toBeUndefined()
       expect(store().lastTransformArtifacts['10.0.0.5']?.['pat-1']).toBeUndefined()
+    })
+
+    it('waits for pending Controller Profile auto-saves before reading transforms', async () => {
+      await store().addController({
+        id: 'pixelblaze_pb32_abc',
+        address: '10.0.0.5',
+        name: 'Desk PB',
+      })
+      const profile = defaultControllerProfile({
+        id: 'ctrl-1',
+        deviceId: 'pixelblaze_pb32_abc',
+        now: 1,
+      })
+      setControllerProfiles([profile])
+      usePatternStore.setState({ activePatternId: 'pat-1' })
+      useEditorStore.setState({ previewSource: PATTERN_SRC, previewPatternName: 'Twinkle' })
+      let releaseWrite!: () => void
+      void queueControllerProfileWrite(profile.id, async () => {
+        await new Promise<void>((resolve) => {
+          releaseWrite = resolve
+        })
+      })
+
+      const push = store().pushActivePattern()
+      await Promise.resolve()
+      await Promise.resolve()
+      expect(created.get('10.0.0.5')!.compiledSources).toEqual([])
+
+      releaseWrite()
+      await push
+      expect(created.get('10.0.0.5')!.compiledSources).toHaveLength(1)
     })
 
     it('pushes patterns bundled with user cloud libraries', async () => {

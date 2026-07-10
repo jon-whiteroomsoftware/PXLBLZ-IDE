@@ -227,6 +227,42 @@ describe('pass engine - intercept passes', () => {
     expect(result.summary.callSitesWrapped).toEqual({ hsv: 1 })
     expect(result.summary.beforeRender).toBe('synthesized')
   })
+
+  it('can wire one stock power-cap source across hsv and rgb output calls', () => {
+    const powerCap = stockMixinSpec('power-cap')
+    expect(powerCap).toBeDefined()
+
+    const result = bundleWithPasses(
+      `export function render(index) {
+        if (index % 2) hsv(0, 1, 1)
+        else rgb(0.2, 0.4, 0.6)
+      }`,
+      {},
+      [{
+        id: 'power-cap',
+        kind: 'intercept',
+        target: ['hsv', 'rgb'],
+        source: powerCap!.src,
+        wrapperName: {
+          hsv: '__px_cappedHsv',
+          rgb: '__px_cappedRgb',
+        },
+        params: {
+          MAX_DUTY: 0.35,
+          RECENT_WINDOW_MS: 2000,
+          CAP_RESPONSE_MS: 250,
+          SINCE_START_MAX_FRAMES: 16384,
+        },
+      }],
+    )
+
+    expect(result.code).toContain('__pxlblz_power_cap_hsv(0, 1, 1)')
+    expect(result.code).toContain('__pxlblz_power_cap_rgb(0.2, 0.4, 0.6)')
+    expect(result.code).toContain('function __px_cappedRgb(r, g, b)')
+    expect(result.code).toContain('rgb(r * __px_powerScale, g * __px_powerScale, b * __px_powerScale)')
+    expect(result.summary.callSitesWrapped).toEqual({ hsv: 1, rgb: 1 })
+    expect(result.summary.exportsAdded).toEqual(['beforeRender'])
+  })
 })
 
 describe('pass engine - bind passes', () => {

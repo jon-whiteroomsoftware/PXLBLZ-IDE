@@ -4,6 +4,7 @@ import { getControllerProvider } from '@/engine/controllerProviderRegistry'
 import { getPersonalContentProvider } from '@/engine/personalContentProvider'
 import { newPersonalContentId } from '@/engine/personalContentMetadata'
 import { DEFAULT_POWER_CAP_MILLIAMPS_PER_PIXEL } from '@/engine/powerCap'
+import { queueControllerProfileWrite } from '@/engine/controllerProfileWriteQueue'
 import { mapDimension } from '@/engine/sendToController'
 import {
   controllerProfileCreateSeed,
@@ -144,7 +145,9 @@ function patchProfile(
 }
 
 async function persistPatch(id: string, changes: Partial<Omit<ControllerProfile, 'id'>>): Promise<void> {
-  await getPersonalContentProvider().updateControllerProfile(id, changes)
+  await queueControllerProfileWrite(id, () =>
+    getPersonalContentProvider().updateControllerProfile(id, changes),
+  )
 }
 
 export const useControllerProfileStore = create<ControllerProfileState>()((set, get) => ({
@@ -206,12 +209,23 @@ export const useControllerProfileStore = create<ControllerProfileState>()((set, 
   updateProfile: async (id, changes) => {
     const updatedAt = Date.now()
     const patch = { ...changes, updatedAt }
-    await persistPatch(id, patch)
+    const previous = get().profiles.find((profile) => profile.id === id)
     set((s) => ({
       profiles: s.profiles.map((profile) =>
         profile.id === id ? patchProfile(profile, patch) : profile,
       ),
     }))
+    const optimistic = get().profiles.find((profile) => profile.id === id)
+    try {
+      await persistPatch(id, patch)
+    } catch (error) {
+      set((s) => ({
+        profiles: s.profiles.map((profile) =>
+          profile.id === id && profile === optimistic && previous ? previous : profile,
+        ),
+      }))
+      throw error
+    }
   },
 
   addInput: async (profileId) => {

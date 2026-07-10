@@ -1,5 +1,6 @@
 import { defaultControllerProfile } from '@/store/controllerProfileStore'
 import {
+  controllerProfileArtifactSignature,
   controllerProfilePassRecipe,
   findProfileForLiveController,
 } from './controllerProfilePassRecipe'
@@ -24,6 +25,24 @@ describe('controller profile pass recipe', () => {
     const profile = defaultControllerProfile({ id: 'ctrl-1' })
 
     expect(controllerProfilePassRecipe(profile, 'export function render(i){}')).toEqual([])
+  })
+
+  it('signs generated-code configuration but ignores descriptive profile edits', () => {
+    const profile = defaultControllerProfile({ id: 'ctrl-1', name: 'Original', now: 1 })
+    const renamed = { ...profile, name: 'Renamed', updatedAt: 2 }
+    const enabled = {
+      ...renamed,
+      globalTransforms: renamed.globalTransforms.map((transform) =>
+        transform.type === 'power-cap' ? { ...transform, enabled: true } : transform,
+      ),
+    }
+
+    expect(controllerProfileArtifactSignature(renamed, 'pat-1')).toBe(
+      controllerProfileArtifactSignature(profile, 'pat-1'),
+    )
+    expect(controllerProfileArtifactSignature(enabled, 'pat-1')).not.toBe(
+      controllerProfileArtifactSignature(profile, 'pat-1'),
+    )
   })
 
   it('builds a power-cap recipe for an enabled cap transform', () => {
@@ -53,13 +72,48 @@ describe('controller profile pass recipe', () => {
       expect.objectContaining({
         id: 'power-cap',
         kind: 'intercept',
-        target: 'hsv',
-        wrapperName: '__px_cappedHsv',
+        target: ['hsv', 'rgb'],
+        wrapperName: {
+          hsv: '__px_cappedHsv',
+          rgb: '__px_cappedRgb',
+        },
         params: {
           MAX_DUTY: 0.42,
           RECENT_WINDOW_MS: 2000,
           CAP_RESPONSE_MS: 250,
           SINCE_START_MAX_FRAMES: 16384,
+        },
+      }),
+    ])
+  })
+
+  it('builds the same power-cap recipe for rgb output patterns', () => {
+    const profile = {
+      ...defaultControllerProfile({ id: 'ctrl-rgb', now: 1 }),
+      globalTransforms: [{
+        id: 'power-cap',
+        type: 'power-cap' as const,
+        enabled: true,
+        mixinId: 'builtin:power-cap',
+        mode: 'direct' as const,
+        maxDuty: 0.4,
+        milliampsPerPixel: 60,
+      }],
+    }
+
+    const recipe = controllerProfilePassRecipe(
+      profile,
+      'export function render(i) { rgb(0.2, 0.4, 0.6) }',
+    )
+
+    expect(recipe).toEqual([
+      expect.objectContaining({
+        id: 'power-cap',
+        kind: 'intercept',
+        target: ['hsv', 'rgb'],
+        wrapperName: {
+          hsv: '__px_cappedHsv',
+          rgb: '__px_cappedRgb',
         },
       }),
     ])

@@ -19,9 +19,9 @@ export interface InjectPassRecipe extends BasePassRecipe {
 
 export interface InterceptPassRecipe extends BasePassRecipe {
   kind: 'intercept'
-  target: OutputSinkName
+  target: OutputSinkName | OutputSinkName[]
   source?: string
-  wrapperName?: string
+  wrapperName?: string | Partial<Record<OutputSinkName, string>>
   params?: Record<string, PassParamValue>
 }
 
@@ -211,6 +211,7 @@ function applyInjectPass(ctx: PassContext, pass: InjectPassRecipe, passId: strin
 }
 
 function applyInterceptPass(ctx: PassContext, pass: InterceptPassRecipe, passId: string): PassSummary {
+  const targets = Array.isArray(pass.target) ? pass.target : [pass.target]
   const rawSource = pass.source ? substituteParams(pass.source, pass.params ?? {}) : ''
   const mixinBeforeRender = rawSource ? firstTopLevelFunction(rawSource, 'beforeRender') : null
   const mixinBeforeRenderName = mixinBeforeRender
@@ -223,35 +224,46 @@ function applyInterceptPass(ctx: PassContext, pass: InterceptPassRecipe, passId:
         text: mixinBeforeRenderName,
       }])
     : rawSource
-  const wrapperBaseName = pass.wrapperName ?? (rawSource ? firstFunctionName(rawSource, 'beforeRender') : '')
+  const defaultWrapperBaseName = rawSource ? firstFunctionName(rawSource, 'beforeRender') : ''
+  const wrapperBaseNameFor = (sink: OutputSinkName): string =>
+    typeof pass.wrapperName === 'string'
+      ? pass.wrapperName
+      : pass.wrapperName?.[sink] ?? defaultWrapperBaseName
   const parsed = parseModule(ctx.code)
   const callRewrites: Rewrite[] = []
   const counts: Record<string, number> = {}
-  const wrappers = new Map<string, { name: string; sink: OutputSinkName; arity: number }>()
+  const wrappers = new Map<string, {
+    name: string
+    sink: OutputSinkName
+    arity: number
+    wrapperBaseName: string
+  }>()
   const warningCount = ctx.warnings.length
 
   walkWithScope(parsed, null, (node, scope) => {
     if (node.type !== 'CallExpression') return
     const callee = node.callee as Node
-    if (callee?.type !== 'Identifier' || callee.name !== pass.target) return
-    if (isNameBound(scope, pass.target)) return
+    if (callee?.type !== 'Identifier' || !targets.includes(callee.name as OutputSinkName)) return
+    const sink = callee.name as OutputSinkName
+    if (isNameBound(scope, sink)) return
 
     const arity = (node.arguments as Node[]).length
-    const shape = outputShape(pass.target, arity)
+    const shape = outputShape(sink, arity)
     if (!shape) {
       addWarning(
         ctx,
         passId,
         'unsupported-output-shape',
-        `Unsupported ${pass.target} call with ${arity} argument${arity === 1 ? '' : 's'} was left unchanged.`,
+        `Unsupported ${sink} call with ${arity} argument${arity === 1 ? '' : 's'} was left unchanged.`,
       )
       return
     }
 
     const wrapper = wrappers.get(shape) ?? {
       name: reserveName(ctx, passId, `${reservedStem(passId)}_${shape.replace(/[()]/g, '').replace(',', '_')}`),
-      sink: pass.target,
+      sink,
       arity,
+      wrapperBaseName: wrapperBaseNameFor(sink),
     }
     wrappers.set(shape, wrapper)
     callRewrites.push({ start: callee.start, end: callee.end, text: wrapper.name })
@@ -260,13 +272,19 @@ function applyInterceptPass(ctx: PassContext, pass: InterceptPassRecipe, passId:
 
   if (callRewrites.length === 0) {
     if (ctx.warnings.length === warningCount) {
-      addWarning(ctx, passId, 'no-call-sites', `No ${pass.target} call sites were wrapped.`)
+      const targetLabel = targets.length === 1 ? targets[0] : targets.join(' or ')
+      addWarning(ctx, passId, 'no-call-sites', `No ${targetLabel} call sites were wrapped.`)
     }
     return { id: passId, kind: 'intercept', callSitesWrapped: {}, estimatedPixelCost: 0 }
   }
 
   const generatedWrappers = [...wrappers.values()]
-    .map((wrapper) => emitOutputWrapper(wrapper.name, wrapper.sink, wrapper.arity, wrapperBaseName))
+    .map((wrapper) => emitOutputWrapper(
+      wrapper.name,
+      wrapper.sink,
+      wrapper.arity,
+      wrapper.wrapperBaseName,
+    ))
     .join('\n')
   const preamble = [source.trim(), generatedWrappers].filter(Boolean).join('\n\n')
   ctx.code = `${preamble}\n\n${rewriteSource(ctx.code, callRewrites)}`

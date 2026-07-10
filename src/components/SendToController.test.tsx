@@ -1,9 +1,15 @@
-import { render, screen, fireEvent } from '@testing-library/react'
+import { act, render, screen, fireEvent } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SendToController } from './SendToController'
 import { useControllerStore, controllerInitialState } from '@/store/controllerStore'
 import { useEditorStore, editorInitialState } from '@/store/editorStore'
 import { usePatternStore, patternInitialState } from '@/store/patternStore'
+import {
+  controllerProfileInitialState,
+  defaultControllerProfile,
+  useControllerProfileStore,
+} from '@/store/controllerProfileStore'
+import { controllerProfileArtifactSignature } from '@/engine/controllerProfilePassRecipe'
 import { setControllerProvider, resetControllerProvider } from '@/engine/controllerProviderRegistry'
 import { NullControllerProvider, type ControllerStatus } from '@/engine/ControllerProvider'
 import { trackEvent } from '@/analytics'
@@ -26,6 +32,7 @@ beforeEach(() => {
   useControllerStore.setState(controllerInitialState)
   useEditorStore.setState(editorInitialState)
   usePatternStore.setState(patternInitialState)
+  useControllerProfileStore.setState(controllerProfileInitialState)
   vi.clearAllMocks()
 })
 
@@ -249,6 +256,39 @@ describe('SendToController', () => {
     render(<SendToController />)
     expect(screen.getByTestId('send-to-controller')).toBeDisabled()
     fireEvent.click(screen.getByTestId('save-toggle'))
+    expect(screen.getByTestId('send-to-controller')).toBeEnabled()
+  })
+
+  it('re-enables Send when generated Controller Profile configuration changes', () => {
+    setControllerProvider(new ConnectedProvider())
+    const source = 'export function render() { hsv(0, 1, 1) }'
+    const profile = defaultControllerProfile({ id: 'profile-1', deviceId: 'c1', now: 1 })
+    const previousSignature = controllerProfileArtifactSignature(profile, 'p1')
+    useEditorStore.setState({ nativeDim: 2, previewSource: source })
+    usePatternStore.setState({ activePatternId: 'p1' })
+    useControllerProfileStore.setState({ profiles: [profile], profilesLoaded: true })
+    useControllerStore.setState({
+      activeIp: '10.0.0.9',
+      controllers: {
+        '10.0.0.9': { ip: '10.0.0.9', deviceId: 'c1', phase: 'live', mapDim: 2 },
+      },
+      lastPushedSource: { '10.0.0.9': { p1: source } },
+      lastPushedProfileSignature: { '10.0.0.9': { p1: previousSignature } },
+    })
+    render(<SendToController />)
+    expect(screen.getByTestId('send-to-controller')).toBeDisabled()
+
+    act(() => {
+      useControllerProfileStore.setState({
+        profiles: [{
+          ...profile,
+          globalTransforms: profile.globalTransforms.map((transform) =>
+            transform.type === 'power-cap' ? { ...transform, enabled: true } : transform,
+          ),
+        }],
+      })
+    })
+
     expect(screen.getByTestId('send-to-controller')).toBeEnabled()
   })
 
