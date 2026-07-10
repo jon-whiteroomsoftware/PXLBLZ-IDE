@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button'
 import { getControllerProvider } from '@/engine/controllerProviderRegistry'
 import { useControllerStore } from '@/store/controllerStore'
 import { useMapStore, openMapForPushState } from '@/store/mapStore'
-import { describeSendMap } from '@/engine/sendToController'
+import { describeSendMap, mapDimension } from '@/engine/sendToController'
 import type { PreflightWarning } from '@/engine/preflight'
 import {
   PushConfirmPopover,
@@ -146,7 +146,13 @@ export function SendMapToController() {
   const alreadyPushed =
     !!activeIp && !!mapId && hasBakedPoints && lastPushedMap[activeIp]?.[mapId] === signature
 
-  const { enabled, reason } = describeSendMap({ status, hasBakedPoints, alreadyPushed })
+  const { enabled, reason } = describeSendMap({
+    status,
+    hasBakedPoints,
+    alreadyPushed,
+    mapDim: mapDimension(openMap?.points),
+    firmwareVersion: active?.firmwareVersion,
+  })
 
   const target = active ? active.nickname || activeIp : null
   const name = target ?? 'Controller'

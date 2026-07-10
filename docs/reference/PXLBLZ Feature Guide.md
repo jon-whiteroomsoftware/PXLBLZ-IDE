@@ -161,9 +161,10 @@ holding the physical layout and blacking out every pixel outside that zone.
 Just like real hardware, a **pixel map** describes where each LED sits, decoupled
 from chain order. The IDE splits "layout" into two deliberately separate controls:
 
-- The **Map** control picks the geometry your pattern *reads* — the coordinates
-  fed to `render2D`/`render3D`. It lives inside the **PIXELBLAZE block** of the
-  deck, with the other settings a real device would carry.
+- The **Map** control picks the coordinates your pattern *reads* — `[x]` for
+  `render`, `[x,y]` for `render2D`, or `[x,y,z]` for `render3D`. It lives inside
+  the **PIXELBLAZE block** of the deck, with the other settings a real device
+  would carry.
 - The **embedding** control picks how the dots are *drawn* — a viewport choice the
   device never sees. It sits on the **transport row** beside play/pause.
 
@@ -172,7 +173,7 @@ offers no real choice is hidden, not disabled:
 
 | Pattern | Map control | Embedding control |
 |---|---|---|
-| 1D | — (no map at all) | shape: **line**, **ring**, or **pole** (a helix with adjustable wrap density) |
+| 1D | appears when a true 1D map exists; **Index** means no installed map | shape: **line**, **ring**, or **pole** (a helix with adjustable wrap density) |
 | 2D | ✓ | surface: **Flat** or **Cylinder** (proportions follow the map's aspect) |
 | 3D | ✓ | — (the map owns the geometry) |
 
@@ -185,12 +186,19 @@ code: reveal **Stock Maps** in the Maps rail, open one read-only at its stable
 `/studio/maps/<id>` route, and **Clone** it into an editable copy.
 
 **Custom maps**: click **New Map** and you get an editor for real Pixelblaze
-Mapper source: either a literal coordinate array (`[[x,y], ...]` or
-`[[x,y,z], ...]`) or a plain `function(pixelCount)` returning one. Function maps
+Mapper source: either a literal coordinate array (`[[x], ...]`, `[[x,y], ...]`,
+or `[[x,y,z], ...]`) or a plain `function(pixelCount)` returning one. Function maps
 are full JavaScript with `Math.*`, authored in whatever units fit your build.
 Custom maps re-bake automatically as you edit (the same once-at-save evaluation
 hardware does) but never change the running preview on their own; you assign a map
 to a pattern with the preview's Map control.
+
+For a 1D Pattern, the Map and Shape choices stay independent. A reversed,
+uneven, or discontinuous `[x]` map changes the value passed to
+`render(index, x)`; switching Line/Ring/Pole changes only where those same pixels
+are drawn. If the workspace has no true 1D map, the redundant Map control stays
+hidden and the preview uses Pixelblaze's normal `x = index / pixelCount` Index
+convention.
 
 **Imported controller maps**: a live Controller profile can read the installed
 device map and save it as a named user map. Imported maps are frozen coordinates,
@@ -417,8 +425,9 @@ Controls group by what they *are*, and the IDE keeps that boundary visible.
 
 These would round-trip to a controller:
 
-- **Map** — the geometry the pattern reads (§4). A stacked full-width field
-  (map names are long). Absent entirely for 1D patterns.
+- **Map** — the coordinates the Pattern reads (§4). A stacked full-width field
+  (map names are long). For 1D it appears only when a real `[x]` map is available,
+  with **Index** as the reversible no-installed-map choice.
 - **Pixels** — the LED count, a single number; the map arranges it (the Square
   map squares it up).
 - **Fit** — the Fill/Contain choice, mirroring the Pixelblaze Mapper's own
@@ -522,11 +531,12 @@ Controllers, Shows, with Catalog (→ Gallery) pinned at the bottom. Patterns an
 Maps get a filter row combining two things:
 
 - **Dimension lens** — single-select All / 1D / 2D / 3D; shows only items of that
-  native dimension (a pattern's dimension is the highest render function it
-  defines). Maps have no 1D form, so the 1D pill is hidden in Maps mode; entering
-  Maps with the lens on 1D silently switches it to 2D. Empty demo subsections hide
-  rather than leaving bare headers. The lens is ephemeral (resets on reload), and
-  the active document stays loaded even when filtered out of view.
+  native dimension (a Pattern's dimension is the highest render function it
+  defines; a map's is its coordinate arity). All four lenses remain available in
+  Maps mode, so custom and imported `[x]` maps can be isolated directly. Empty
+  demo subsections hide rather than leaving bare headers. The lens is ephemeral
+  (resets on reload), and the active document stays loaded even when filtered out
+  of view.
 - **Name search** — the magnifier expands into a type-down filter that
   AND-combines with the lens. An active query force-expands collapsed groups to
   surface hits, restoring their collapse state when cleared. Search text is kept

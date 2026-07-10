@@ -182,12 +182,11 @@ export function createShim(config: ShimConfig): ShimContext {
     has3DMap: () => dimensions >= 3,
     pixelMapDimensions: () => dimensions,
     mapPixels(fn: (index: number, x: number, y: number, z: number) => void) {
-      // Iterate the active map's points, using each point's drawn position
-      // (`pos`) — falling back to its `sample` when a map carries no intrinsic
-      // position (e.g. a uniform plane, where the two coincide). Current
-      // coordinate transforms apply before fn is called, as before.
+      // Pixelblaze exposes installed-map coordinates, never the IDE's preview
+      // embedding. This distinction matters for a 1D map drawn as a Ring/Pole
+      // and for a 2D map wrapped onto the Cylinder surface.
       for (let i = 0; i < mapPoints.length; i++) {
-        const coord = mapPoints[i].pos ?? mapPoints[i].sample
+        const coord = mapPoints[i].sample
         const [tx, ty, tz] = transformPoint(coord[0] ?? 0, coord[1] ?? 0, coord[2] ?? 0)
         fn(i, tx, ty, tz)
       }

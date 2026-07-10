@@ -60,6 +60,14 @@ describe('loadPattern handle', () => {
     expect(calls).toEqual([5])
   })
 
+  it('passes mapped x through render(index, x)', () => {
+    const calls: number[][] = []
+    const code = `function render(index, x) { calls.push([index, x]); }`
+    const handle = loadPattern(code, meta([]), { ...minimalBuiltins, calls })
+    handle.render(5, 0.75)
+    expect(calls).toEqual([[5, 0.75]])
+  })
+
   it('provides no-op render slot when the pattern does not define render', () => {
     const code = `export var x = 0;`
     const handle = loadPattern(code, meta(['x']), minimalBuiltins)

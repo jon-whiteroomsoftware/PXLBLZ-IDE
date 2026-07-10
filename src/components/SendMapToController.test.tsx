@@ -34,11 +34,18 @@ function openBakedMap() {
   useMapStore.setState({ editingMap: { kind: 'existing', id: 'm1' }, userMaps: [BAKED_MAP] })
 }
 
-function connect() {
+function connect(firmwareVersion?: string) {
   setControllerProvider(new ConnectedProvider())
   useControllerStore.setState({
     activeIp: '10.0.0.9',
-    controllers: { '10.0.0.9': { ip: '10.0.0.9', phase: 'live', mapDim: 2 } },
+    controllers: {
+      '10.0.0.9': {
+        ip: '10.0.0.9',
+        phase: 'live',
+        mapDim: 2,
+        ...(firmwareVersion ? { firmwareVersion } : {}),
+      },
+    },
   })
 }
 
@@ -75,6 +82,18 @@ describe('SendMapToController', () => {
     openBakedMap()
     render(<SendMapToController />)
     expect(screen.getByTestId('send-map-to-controller')).toBeEnabled()
+  })
+
+  it('disables a 1D map send to firmware older than 3.66 with an explanation', () => {
+    connect('3.65')
+    useMapStore.setState({
+      editingMap: { kind: 'existing', id: 'm1' },
+      userMaps: [{ ...BAKED_MAP, dim: 1, points: [[0], [1]], source: '[[0], [1]]' }],
+    })
+    render(<SendMapToController />)
+    const button = screen.getByTestId('send-map-to-controller')
+    expect(button).toBeDisabled()
+    expect(button).toHaveAttribute('title', expect.stringMatching(/3\.66 or newer/i))
   })
 
   it('opens the preflight dialog on click (a map send always confirms)', async () => {

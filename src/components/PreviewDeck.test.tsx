@@ -5,6 +5,7 @@ import { usePreviewStore, previewInitialState } from '@/store/previewStore'
 import { useMapStore, mapInitialState } from '@/store/mapStore'
 import { useEditorStore, editorInitialState } from '@/store/editorStore'
 import { usePatternStore, patternInitialState } from '@/store/patternStore'
+import { INDEX_MAP_ID } from '@/engine/layout'
 
 beforeEach(() => {
   usePreviewStore.setState(previewInitialState)
@@ -53,6 +54,39 @@ describe('PreviewDeck (smoke)', () => {
     // The rest of the Pixelblaze block is still present.
     expect(screen.getByRole('button', { name: 'Edit pixel count' })).toBeInTheDocument()
     expect(screen.getByRole('slider', { name: 'Brightness' })).toBeInTheDocument()
+  })
+
+  it('shows a reversible 1D map choice but no fit control while Index is active', () => {
+    useEditorStore.setState({ nativeDim: 1 })
+    useMapStore.setState({
+      activeMapId: INDEX_MAP_ID,
+      userMaps: [{
+        id: 'reverse1d', name: 'Reverse strand', dim: 1, generator: 'custom', params: {},
+        points: [[1], [0]], source: '[[1], [0]]', updatedAt: 1,
+      }],
+    })
+    render(<PreviewDeck />)
+    expect(screen.getByRole('button', { name: 'Map' })).toHaveTextContent('Index')
+    expect(
+      screen.queryByRole('button', { name: 'Map normalization (Fill / Contain)' }),
+    ).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Shape' })).toBeInTheDocument()
+  })
+
+  it('keeps the meaningless 1D fit control hidden while a real map is active', () => {
+    useEditorStore.setState({ nativeDim: 1 })
+    useMapStore.setState({
+      activeMapId: 'reverse1d',
+      userMaps: [{
+        id: 'reverse1d', name: 'Reverse strand', dim: 1, generator: 'custom', params: {},
+        points: [[1], [0]], source: '[[1], [0]]', updatedAt: 1,
+      }],
+    })
+    render(<PreviewDeck />)
+    expect(screen.getByRole('button', { name: 'Map' })).toHaveTextContent('Reverse strand')
+    expect(
+      screen.queryByRole('button', { name: 'Map normalization (Fill / Contain)' }),
+    ).not.toBeInTheDocument()
   })
 
   it('offers an info hint on both the Pixelblaze and Preview sections', () => {

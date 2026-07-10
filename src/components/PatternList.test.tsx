@@ -393,19 +393,19 @@ describe('PatternList', () => {
     expect(useEditorStore.getState().isReadOnly).toBe(true)
   })
 
-  it('hides the 1D dimension lens in Maps mode', async () => {
+  it('shows the 1D dimension lens in Maps mode', async () => {
     mockMaps = [CUSTOM_MAP]
     const user = userEvent.setup()
     render(<PatternList />)
     await switchToMaps(user)
     expect(await screen.findByText('My Tree')).toBeInTheDocument()
 
-    expect(screen.queryByRole('radio', { name: '1D' })).not.toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: '1D' })).toBeInTheDocument()
     expect(screen.getByRole('radio', { name: '2D' })).toBeInTheDocument()
     expect(screen.getByRole('radio', { name: '3D' })).toBeInTheDocument()
   })
 
-  it('switches the dimension lens from 1D to 2D when entering Maps mode', async () => {
+  it('preserves the 1D dimension lens when entering Maps mode', async () => {
     mockMaps = [CUSTOM_MAP]
     const user = userEvent.setup()
     render(<PatternList />)
@@ -415,8 +415,29 @@ describe('PatternList', () => {
 
     await switchToMaps(user)
 
-    expect(screen.queryByRole('radio', { name: '1D' })).not.toBeInTheDocument()
-    expect(screen.getByRole('radio', { name: '2D' })).toHaveAttribute('aria-checked', 'true')
+    expect(screen.getByRole('radio', { name: '1D' })).toHaveAttribute('aria-checked', 'true')
+  })
+
+  it('filters the Maps rail to true 1D maps', async () => {
+    mockMaps = [
+      CUSTOM_MAP,
+      {
+        ...CUSTOM_MAP,
+        id: 'map-1d',
+        name: 'Reverse strand',
+        dim: 1,
+        points: [[1], [0]],
+        source: '[[1], [0]]',
+      },
+    ]
+    const user = userEvent.setup()
+    render(<PatternList />)
+
+    await user.click(screen.getByRole('radio', { name: '1D' }))
+    await switchToMaps(user)
+
+    expect(await screen.findByText('Reverse strand')).toBeInTheDocument()
+    expect(screen.queryByText('My Tree')).not.toBeInTheDocument()
   })
 
   it('filters maps by name via the type-down search box', async () => {

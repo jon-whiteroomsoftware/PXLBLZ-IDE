@@ -318,7 +318,7 @@ describe('pixel map queries', () => {
     expect((builtins.pixelMapDimensions as () => number)()).toBe(1)
   })
 
-  it('mapPixels iterates the active map points using their pos', () => {
+  it('mapPixels iterates the active map samples, never preview positions', () => {
     const { builtins } = createShim({
       mapPoints: [
         { sample: [0, 0], pos: [0.1, 0.2] },
@@ -333,8 +333,8 @@ describe('pixel map queries', () => {
       (i, x, y, z) => seen.push([i, x, y, z]),
     )
     expect(seen).toEqual([
-      [0, 0.1, 0.2, 0],
-      [1, 0.3, 0.4, 0],
+      [0, 0, 0, 0],
+      [1, 1, 0, 0],
     ])
   })
 })

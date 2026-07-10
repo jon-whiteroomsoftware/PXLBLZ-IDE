@@ -450,6 +450,19 @@ describe('map eval/bake/deploy (#143)', () => {
     expect(useMapStore.getState().mapEvalError).toBeNull()
   })
 
+  it('bakeEditingMap preserves a true 1D source as [x] points', async () => {
+    await useMapStore.getState().createNewMap()
+    const source = '[[10], [5], [0]]'
+    useEditorStore.getState().setSource(source)
+    await useMapStore.getState().bakeEditingMap()
+
+    const rec = useMapStore.getState().userMaps[0]
+    expect(rec.source).toBe(source)
+    expect(rec.dim).toBe(1)
+    expect(rec.gridDims).toBeUndefined()
+    expect(rec.points).toEqual([[1], [0.5], [0]])
+  })
+
   it('bakes at the modeled-2D default when no pixel count is set (matches a fresh 2D pattern)', async () => {
     await useMapStore.getState().createNewMap()
     useEditorStore.getState().setSource(GRID_SRC)

@@ -46,11 +46,9 @@ export type NormalizeMode = 'contain' | 'fill'
 // read.) Applied at resolve time, before any embedding/surface overwrites `pos`.
 export function applyNormalizeMode(points: MapPoint[], mode: NormalizeMode): MapPoint[] {
   if (mode === 'contain' || points.length === 0) return points
-  // Callers pass map-resolved points, whose `pos` is always defined (a 1D shape's
-  // pos-less points never reach here — Fill only applies to map coordinates). At
-  // resolve `sample` and `pos` coincide (both Contain), so stretch the Contain `pos`
-  // per-axis to get the Fill `sample`, and keep `pos` itself untouched.
-  const filled = normalizeFill(points.map((p) => p.pos as number[]))
+  // Stretch only the observable sample channel. A true 1D map deliberately has
+  // no intrinsic `pos`; its Shape supplies draw positions later.
+  const filled = normalizeFill(points.map((p) => p.sample))
   return points.map((p, i) => ({
     sample: filled[i],
     pos: p.pos,

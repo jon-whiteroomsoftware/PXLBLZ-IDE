@@ -172,14 +172,11 @@ export function canDeployMap(args: {
 
 interface MapState {
   activeMapId: string
-  // The active 1D viewport shape embedding. Lives alongside
-  // `activeMapId` because the "Shape" dropdown blurs both into one knob; which
-  // one is live is decided by the pattern's native dimensionality (1D → shape).
+  // The active 1D viewport shape embedding. It owns `pos` independently of a
+  // true 1D map (or Index), which owns sampled `x`.
   activeShapeId: ShapeId
-  // The active 2D viewport surface embedding. Lives alongside
-  // `activeMapId` because the embedding control owns `pos` while the map owns
-  // `sample`; which embedding axis is live is decided by the pattern's native
-  // dimensionality (1D → shape, 2D → surface).
+  // The active 2D viewport surface embedding. The embedding control owns `pos`
+  // while the map owns `sample`; 1D uses Shape and 2D uses Surface.
   activeSurfaceId: SurfaceId
   // The modeled pixel count for the active layout, or null to derive a default
   // (the global grid's rows×cols for a map; a 1D default for a shape).

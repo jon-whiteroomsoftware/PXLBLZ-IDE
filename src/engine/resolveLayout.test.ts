@@ -21,6 +21,7 @@ const SOURCE: LayoutSource = {
     { id: 'cylinder', name: 'Cylinder', displayDim: 3, needsGrid: true },
   ],
   maps: [
+    { id: 'reverse1d', name: 'Reverse strand', dim: 1 },
     { id: 'plane', name: 'Square', dim: 2, wrappable: true },
     { id: 'ring2d', name: 'Ring', dim: 2, wrappable: false },
     { id: 'cube', name: 'Cube', dim: 3 },
@@ -55,6 +56,17 @@ function makeMap(opts: Partial<PixelMap> & Pick<PixelMap, 'id' | 'dim'>): PixelM
 }
 
 const MAPS: Record<string, PixelMap> = {
+  reverse1d: {
+    id: 'reverse1d',
+    name: 'Reverse strand',
+    builtin: false,
+    dim: 1,
+    bakedCount: 3,
+    gridDims: () => null,
+    resolve: (pixelCount) => Array.from({ length: pixelCount }, (_, i) => ({
+      sample: [pixelCount > 1 ? 1 - i / (pixelCount - 1) : 0],
+    })),
+  },
   plane: makeMap({ id: 'plane', dim: 2, gridDims: (count) => ({ cols: count, rows: 1 }) }),
   ring2d: makeMap({ id: 'ring2d', dim: 2, bakedCount: 60 }),
   // A non-`plane` 2D map that still resolves to a clean lattice (the Wide 2:1 case):
@@ -107,12 +119,31 @@ describe('effectivePixelCount — the modeled-count precedence chain', () => {
 })
 
 describe('resolveLayout — 1D shapes', () => {
-  it('line draws through the 2D channel with an empty sample', () => {
+  it('combines a true 1D map sample with an independent ring position', () => {
+    const r = resolveLayout(
+      input({
+        nativeDim: 1,
+        selection: { mapId: 'reverse1d', shapeId: 'ring' },
+      }),
+      deps,
+    )
+    expect(r.correctedSelection).toEqual({ mapId: 'reverse1d', shapeId: 'ring' })
+    expect(r.pixelCount).toBe(3)
+    expect(r.mapPoints.map((p) => p.sample)).toEqual([[1], [0.5], [0]])
+    expect(r.mapPoints.every((p) => p.pos?.length === 2)).toBe(true)
+    expect(r.draw.kind).toBe('2d')
+    expect(r.displayDim).toBe(2)
+  })
+
+  it('line draws through the 2D channel with implicit index samples', () => {
     const r = resolveLayout(input({ nativeDim: 1, selection: { shapeId: 'line' } }), deps)
     expect(r.draw.kind).toBe('2d')
     expect(r.displayDim).toBe(1)
     expect(r.draw.positions).toHaveLength(r.pixelCount)
-    expect(r.mapPoints.every((p) => p.sample.length === 0)).toBe(true)
+    expect(r.mapPoints[0].sample).toEqual([0])
+    expect(r.mapPoints[r.mapPoints.length - 1]?.sample[0]).toBeCloseTo(
+      (r.pixelCount - 1) / r.pixelCount,
+    )
     expect(r.layoutLabel).toBeNull()
   })
 

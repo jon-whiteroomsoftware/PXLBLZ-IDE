@@ -42,7 +42,8 @@ function useLayoutControls() {
   const embeddings = embeddingOptions(nativeDim, source, activeMap)
 
   const sel = { mapId: activeMapId, shapeId: activeShapeId, surfaceId: activeSurfaceId }
-  const mapValue = selectedMapId(sel, nativeDim)
+  const selectedMap = selectedMapId(sel, nativeDim)
+  const mapValue = maps.some((option) => option.id === selectedMap) ? selectedMap : maps[0]?.id
   const embeddingValue = selectedEmbeddingId(sel, nativeDim)
 
   // Route a chosen option to its live setter AND write a per-pattern cascaded
@@ -69,6 +70,25 @@ function useLayoutControls() {
   return { nativeDim, maps, embeddings, mapValue, embeddingValue, route }
 }
 
+function mapSelectMeta(
+  nativeDim: 1 | 2 | 3,
+  maps: ReturnType<typeof mapOptions>,
+) {
+  const hasExplicit1DMap = maps.some((option) => !option.implicit)
+  const hasMapChoice = maps.length > 0 && (nativeDim !== 1 || hasExplicit1DMap)
+  return {
+    hasMapChoice,
+    // Contain and Fill are identical with one coordinate axis, so Fit remains
+    // absent for 1D even while a true map is selected.
+    hasMappedCoordinates: hasMapChoice && nativeDim !== 1,
+  }
+}
+
+export function useMapSelectMeta() {
+  const { nativeDim, maps } = useLayoutControls()
+  return mapSelectMeta(nativeDim, maps)
+}
+
 export function useEmbeddingSelectMeta() {
   const { nativeDim, embeddings } = useLayoutControls()
   return {
@@ -82,8 +102,10 @@ export function useEmbeddingSelectMeta() {
 // a mapless layout (1D, or a dimension with no maps) — the caller hides the whole
 // map+fit row in that case.
 export function MapSelect() {
-  const { maps, mapValue, route } = useLayoutControls()
-  if (maps.length === 0) return null
+  const { nativeDim, maps, mapValue, route } = useLayoutControls()
+  // Index is an invisible default until at least one real 1D map exists. Once
+  // there is a choice it appears as the reversible "no installed map" option.
+  if (!mapSelectMeta(nativeDim, maps).hasMapChoice) return null
   // Block-mode + a max-width cap, right-aligned (self-end) within the stacked map cell:
   // the dropdown grows with the column until it hits the cap, keeping its right edge
   // pinned to the column edge so it lines up with the `fit` dropdown directly below.
@@ -97,7 +119,7 @@ export function MapSelect() {
         options={maps.map((o) => ({
           value: o.id,
           label: o.name,
-          group: o.group === 'user' ? 'User' : 'Stock',
+          group: o.implicit ? undefined : o.group === 'user' ? 'User' : 'Stock',
         }))}
         onChange={(id) => route(id, maps)}
         menuWidthClass="w-full"

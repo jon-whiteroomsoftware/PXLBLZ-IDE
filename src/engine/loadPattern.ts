@@ -32,7 +32,7 @@ export interface PatternHandle {
   // Dimensional render slots. Each dispatches at its own dimensionality and
   // falls back down the chain render3D -> render2D -> render -> noop, so asking
   // for a higher dimension than the pattern defines drops the extra coords.
-  render: (index: number) => void
+  render: (index: number, x?: number) => void
   render2D: (index: number, x: number, y: number) => void
   render3D: (index: number, x: number, y: number, z: number) => void
   getExports: () => Record<string, unknown>

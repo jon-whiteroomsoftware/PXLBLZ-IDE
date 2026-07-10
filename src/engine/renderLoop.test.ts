@@ -384,12 +384,12 @@ describe('dispatch by sample arity', () => {
     })
   }
 
-  it('1D layout (empty sample) dispatches to render with index only', () => {
+  it('1D map dispatches its x sample to render(index, x)', () => {
     const handle = makeMockHandle()
-    loopWith([{ sample: [] }, { sample: [] }], handle).tick(16)
+    loopWith([{ sample: [0.75] }, { sample: [0.25] }], handle).tick(16)
     expect(handle.render).toHaveBeenCalledTimes(2)
-    expect(handle.render).toHaveBeenNthCalledWith(1, 0)
-    expect(handle.render).toHaveBeenNthCalledWith(2, 1)
+    expect(handle.render).toHaveBeenNthCalledWith(1, 0, 0.75)
+    expect(handle.render).toHaveBeenNthCalledWith(2, 1, 0.25)
     expect(handle.render2D).not.toHaveBeenCalled()
     expect(handle.render3D).not.toHaveBeenCalled()
   })

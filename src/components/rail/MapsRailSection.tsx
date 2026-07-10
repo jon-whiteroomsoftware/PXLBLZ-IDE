@@ -67,7 +67,6 @@ export function MapsRailSection({
           onLensChange={onLensChange}
           query={query}
           onQueryChange={onQueryChange}
-          hideOneDimensional
         />
       </RailEntityHeader>
       <RailSectionScroller

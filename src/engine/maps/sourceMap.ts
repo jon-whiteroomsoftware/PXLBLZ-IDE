@@ -61,7 +61,10 @@ export function createSourceMap(spec: SourceMapSpec): PixelMap {
     gridDims: spec.grid ? (pixelCount: number) => GRID_FNS[spec.grid!](pixelCount) : () => null,
     resolve(pixelCount: number): MapPoint[] {
       const normalized = normalizeAspect(evalMapSource(spec.source, pixelCount))
-      return normalized.map((c) => ({ sample: [...c], pos: [...c] as MapPoint['pos'] }))
+      return normalized.map((c) => ({
+        sample: [...c],
+        ...(spec.dim === 1 ? {} : { pos: [...c] as MapPoint['pos'] }),
+      }))
     },
   }
 }

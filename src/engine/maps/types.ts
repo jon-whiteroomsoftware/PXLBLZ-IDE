@@ -6,9 +6,9 @@
 
 // Per-pixel resolution of the two independent channels:
 export interface MapPoint {
-  // Normalized coordinates fed to the render fn — length matches the render fn:
-  // [] (1D) | [x,y] (2D) | [x,y,z] (3D). Always owned by the map; the only thing
-  // a pattern can observe.
+  // Normalized coordinates fed to the render fn — `[x]` for a true 1D map (or
+  // the implicit index convention), `[x,y]` for 2D, `[x,y,z]` for 3D. Always
+  // map-owned and the only spatial channel a Pattern can observe.
   sample: number[]
   // Where the dot is drawn. Map-intrinsic (real geometry) when present; ABSENT
   // for a 1D map, whose `pos` is supplied by a viewport shape embedding instead.

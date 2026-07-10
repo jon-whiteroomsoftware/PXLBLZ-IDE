@@ -161,8 +161,8 @@ export function Preview({
     const nativeDim = nativeDimension(metadata.renderFns)
     useEditorStore.getState().setNativeDim(nativeDim)
 
-    // Resolve the active layout: a 1D pattern draws on a viewport
-    // shape embedding (pos-only, empty `sample`); a 2D pattern on a map. The pure
+    // Resolve the active layout: a 1D Pattern combines mapped/Index `[x]` with a
+    // viewport Shape; a 2D Pattern combines a map with an optional Surface. The pure
     // helper corrects a stale persisted selection to the dimension's default, and
     // we reflect any correction back so the "Shape" dropdown stays in sync.
     const { userMaps } = useMapStore.getState()

@@ -54,8 +54,8 @@ export function createRenderLoop(config: RenderLoopConfig): RenderLoop {
 
     // Iterate the modeled pixel count, reading each pixel's `sample` from the
     // active map, and dispatch by the layout's sample-arity through the pattern
-    // handle's fallback chain (render3D -> render2D -> render -> noop). 1D
-    // layouts carry an empty `sample`, so they feed index only.
+    // handle's fallback chain (render3D -> render2D -> render -> noop). A true
+    // 1D map carries `[x]`; a legacy/mapless point may still carry no sample.
     for (let index = 0; index < pixelCount; index++) {
       const sample = mapPoints[index]?.sample ?? []
       // index crosses the engine->pattern boundary as a scalar, so it must be
@@ -69,6 +69,9 @@ export function createRenderLoop(config: RenderLoopConfig): RenderLoop {
       } else if (sample.length === 2) {
         const [tx, ty] = shim.transformPoint(sample[0], sample[1], 0)
         handle.render2D(encIndex, tx, ty)
+      } else if (sample.length === 1) {
+        const [tx] = shim.transformPoint(sample[0], 0, 0)
+        handle.render(encIndex, tx)
       } else {
         handle.render(encIndex)
       }

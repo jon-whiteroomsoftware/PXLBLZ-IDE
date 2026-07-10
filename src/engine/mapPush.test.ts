@@ -170,11 +170,11 @@ describe('resolveMapPushPoints', () => {
   // count is honoured, so re-baking yields a different-sized array per device.
   const source = `function (pixelCount) {
     var p = []
-    for (var i = 0; i < pixelCount; i++) p.push([i, 0])
+    for (var i = 0; i < pixelCount; i++) p.push([i])
     return p
   }`
   // Stand-in for the preview-baked array (baked at the preview count, e.g. 4096).
-  const previewBaked = Array.from({ length: 4096 }, (_, i) => [i / 4095, 0])
+  const previewBaked = Array.from({ length: 4096 }, (_, i) => [i / 4095])
 
   it('re-bakes the map source to the device pixel count (the #204 fix)', () => {
     const points = resolveMapPushPoints(source, previewBaked, 256)

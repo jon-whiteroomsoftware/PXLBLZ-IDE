@@ -6,6 +6,7 @@ import {
   selectedEmbeddingId,
   resolveLayoutSelection,
   resolveSolidity,
+  INDEX_MAP_ID,
   type LayoutSource,
 } from './layout'
 
@@ -19,6 +20,7 @@ const SOURCE: LayoutSource = {
     { id: 'cylinder', name: 'Cylinder', displayDim: 3, needsGrid: true },
   ],
   maps: [
+    { id: 'reverse1d', name: 'Reverse strand', dim: 1 },
     { id: 'plane', name: 'Square', dim: 2, wrappable: true },
     { id: 'ring2d', name: 'Ring', dim: 2, wrappable: false },
     { id: 'cube', name: 'Cube', dim: 3 },
@@ -26,8 +28,8 @@ const SOURCE: LayoutSource = {
 }
 
 describe('mapOptions (sample-arity filter)', () => {
-  it('offers a 1D pattern no map (it always uses a shape)', () => {
-    expect(mapOptions(1, SOURCE)).toEqual([])
+  it('offers Index plus true 1D maps to a 1D pattern', () => {
+    expect(mapOptions(1, SOURCE).map((o) => o.id)).toEqual([INDEX_MAP_ID, 'reverse1d'])
   })
 
   it('offers a 2D pattern only dim-2 maps', () => {
@@ -48,18 +50,18 @@ describe('embeddingOptions (shapes for 1D, surfaces for 2D)', () => {
   })
 
   it('offers both surfaces for a 2D pattern on a wrappable map', () => {
-    const opts = embeddingOptions(2, SOURCE, SOURCE.maps[0])
+    const opts = embeddingOptions(2, SOURCE, SOURCE.maps.find((m) => m.id === 'plane'))
     expect(opts.map((o) => o.id)).toEqual(['flat', 'cylinder'])
     expect(opts.every((o) => o.kind === 'surface')).toBe(true)
   })
 
   it('offers only Flat for a 2D pattern on an irregular map', () => {
-    const opts = embeddingOptions(2, SOURCE, SOURCE.maps[1])
+    const opts = embeddingOptions(2, SOURCE, SOURCE.maps.find((m) => m.id === 'ring2d'))
     expect(opts.map((o) => o.id)).toEqual(['flat'])
   })
 
   it('offers no embedding for a 3D pattern', () => {
-    expect(embeddingOptions(3, SOURCE, SOURCE.maps[2])).toEqual([])
+    expect(embeddingOptions(3, SOURCE, SOURCE.maps.find((m) => m.id === 'cube'))).toEqual([])
   })
 })
 
@@ -84,9 +86,9 @@ describe('selectionForOption (routing)', () => {
 })
 
 describe('selectedMapId / selectedEmbeddingId', () => {
-  it('reads no map but the shapeId for a 1D pattern', () => {
-    const sel = { shapeId: 'ring', mapId: 'plane', surfaceId: 'cylinder' as const }
-    expect(selectedMapId(sel, 1)).toBeUndefined()
+  it('reads the mapId and shapeId independently for a 1D pattern', () => {
+    const sel = { shapeId: 'ring', mapId: 'reverse1d', surfaceId: 'cylinder' as const }
+    expect(selectedMapId(sel, 1)).toBe('reverse1d')
     expect(selectedEmbeddingId(sel, 1)).toBe('ring')
   })
 
@@ -108,15 +110,21 @@ describe('selectedMapId / selectedEmbeddingId', () => {
 
 describe('resolveLayoutSelection (open / restore)', () => {
   it('restores a valid persisted 1D shape', () => {
-    expect(resolveLayoutSelection({ shapeId: 'ring' }, 1, SOURCE)).toEqual({ shapeId: 'ring' })
+    expect(resolveLayoutSelection({ shapeId: 'ring' }, 1, SOURCE)).toEqual({
+      mapId: INDEX_MAP_ID,
+      shapeId: 'ring',
+    })
   })
 
   it('falls back to the first shape when nothing persisted (1D default = line)', () => {
-    expect(resolveLayoutSelection({}, 1, SOURCE)).toEqual({ shapeId: 'line' })
+    expect(resolveLayoutSelection({}, 1, SOURCE)).toEqual({ mapId: INDEX_MAP_ID, shapeId: 'line' })
   })
 
   it('falls back to the default shape when the persisted id is no longer offered', () => {
-    expect(resolveLayoutSelection({ shapeId: 'helix' }, 1, SOURCE)).toEqual({ shapeId: 'line' })
+    expect(resolveLayoutSelection({ shapeId: 'helix' }, 1, SOURCE)).toEqual({
+      mapId: INDEX_MAP_ID,
+      shapeId: 'line',
+    })
   })
 
   it('restores a persisted map + surface for a 2D pattern', () => {

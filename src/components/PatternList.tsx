@@ -217,7 +217,6 @@ export function PatternList() {
   const setQuery = (next: string) => setQueries((q) => ({ ...q, [railMode]: next }))
 
   function handleRailModeChange(next: RailMode) {
-    if (next === 'maps' && dimLens === 1) setDimLens(2)
     closeDocs()
     if (next !== 'maps') closeMapEditor()
     if (next !== 'mixins') closeMixinEditor()

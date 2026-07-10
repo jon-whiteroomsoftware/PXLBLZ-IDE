@@ -4,9 +4,9 @@
 //   • the MAP control owns `sample` (the [u,v] the pattern reads), and
 //   • the EMBEDDING control owns `pos` (where each dot is drawn) — populated
 //     with viewport *shapes* for a 1D pattern and *surfaces* for a 2D pattern.
-// Controls show only when they carry a real choice: 1D → embedding (shapes)
-// only; 2D with a wrappable map → both (map left, surface right); 2D with an
-// irregular map, or 3D → map only.
+// Controls show only when they carry a real choice: 1D always has a Shape and
+// gains Map when true 1D maps exist; 2D with a wrappable map has Map + Surface;
+// an irregular 2D map or a 3D map has Map only.
 //
 // This module owns (a) the sample-arity filter deciding which maps a pattern can
 // consume, (b) the embedding list for a given pattern + active map, (c) routing
@@ -51,7 +51,15 @@ export interface LayoutOption {
   // dropdown can list stock maps and user maps under separate headers. Absent for
   // shapes/surfaces.
   group?: 'stock' | 'user'
+  // The 1D Index option represents Pixelblaze's no-map coordinate convention,
+  // not a persisted Map entity or a blob that can be sent to hardware.
+  implicit?: boolean
 }
+
+// Reversible default for 1D Patterns: no installed map, so firmware supplies
+// x = index / pixelCount. Kept outside the map catalogue because it is not a
+// Map entity and must never appear in Map mode or Controller map pushes.
+export const INDEX_MAP_ID = '__index__'
 
 export interface ShapeMeta {
   id: ShapeId
@@ -91,12 +99,10 @@ export interface LayoutSource {
 }
 
 // The maps a pattern of native dimension `nativeDim` can consume, filtered by
-// `sample`-arity: a map emits a sample of its own `dim`, so it is offered only
-// when its `dim` matches the pattern's native dimension. (A 1D pattern reads no
-// map — it always uses a viewport shape — so this is empty for nativeDim 1.)
+// `sample`-arity. 1D also exposes the implicit Index convention so selecting a
+// true map is reversible without inventing a persisted Map entity.
 export function mapOptions(nativeDim: 1 | 2 | 3, source: LayoutSource): LayoutOption[] {
-  if (nativeDim === 1) return []
-  return source.maps
+  const maps = source.maps
     .filter((m) => m.dim === nativeDim)
     .map((m) => ({
       kind: 'map' as const,
@@ -105,10 +111,21 @@ export function mapOptions(nativeDim: 1 | 2 | 3, source: LayoutSource): LayoutOp
       displayDim: m.displayDim ?? m.dim,
       group: m.stock ? ('stock' as const) : ('user' as const),
     }))
+  if (nativeDim !== 1) return maps
+  return [
+    {
+      kind: 'map',
+      id: INDEX_MAP_ID,
+      name: 'Index',
+      displayDim: 1,
+      implicit: true,
+    },
+    ...maps,
+  ]
 }
 
 // The embedding options for a pattern + its active map: shapes for a 1D pattern
-// (every shape — they all dispatch the 1D `render` over an empty sample), and
+// (every shape owns only `pos`, independently of `[x]` map sampling), and
 // surfaces for a 2D pattern. Surfaces that need a grid (cylinder) are offered
 // only when the active map is wrappable; an irregular 2D map gets Flat alone —
 // and a single-option embedding control is hidden by the component (consistent
@@ -149,10 +166,10 @@ export function selectionForOption(opt: LayoutOption): LayoutSelection {
   return { mapId: opt.id }
 }
 
-// The id the MAP control shows as selected: the pattern's `mapId` for 2D/3D,
-// nothing for 1D (which has no map control).
-export function selectedMapId(sel: LayoutSelection, nativeDim: 1 | 2 | 3): string | undefined {
-  return nativeDim === 1 ? undefined : sel.mapId
+// The id the MAP control shows as selected. Map and embedding are orthogonal in
+// every dimension, including a 1D map paired with a Shape.
+export function selectedMapId(sel: LayoutSelection, _nativeDim: 1 | 2 | 3): string | undefined {
+  return sel.mapId
 }
 
 // The id the EMBEDDING control shows as selected: a 1D pattern reads its
@@ -199,7 +216,7 @@ export function effectivePixelCount(opts: {
 // Resolve the layout a pattern opens with, validating its persisted selection
 // against the pattern's native dimensionality and the live catalogue:
 //   • the MAP is the persisted `mapId` if still a valid dim-matched option, else
-//     the first map (2D/3D); a 1D pattern keeps no map.
+//     the first option. For 1D that first option is the implicit Index convention.
 //   • the EMBEDDING is the persisted `shapeId` (1D) / `surfaceId` (2D) if still
 //     offered, else the first/default — Flat for 2D, the first shape for 1D.
 // A stale cylinder on a now-irregular map falls back to Flat (cylinder drops out
@@ -215,12 +232,10 @@ export function resolveLayoutSelection(
 ): LayoutSelection {
   const sel: LayoutSelection = {}
 
-  if (nativeDim !== 1) {
-    const maps = mapOptions(nativeDim, source)
-    // A valid persisted map wins outright; otherwise the bare first match.
-    const map = maps.find((m) => m.id === persisted.mapId) ?? maps[0]
-    if (map) sel.mapId = map.id
-  }
+  const maps = mapOptions(nativeDim, source)
+  // A valid persisted map wins outright; otherwise the dimension's default.
+  const map = maps.find((m) => m.id === persisted.mapId) ?? maps[0]
+  if (map) sel.mapId = map.id
 
   const activeMap = sel.mapId ? source.maps.find((m) => m.id === sel.mapId) : undefined
   const embeddings = embeddingOptions(nativeDim, source, activeMap)
@@ -336,21 +351,33 @@ export function resolveLayout(
   let normals3D: [number, number, number][] | null = null
 
   if (correctedSelection.shapeId) {
-    // 1D shape: pos-only embedding over an empty sample.
+    // 1D composes two independent channels: the selected map (or implicit
+    // Index convention) owns sample `[x]`; the Shape owns drawn `pos`.
     const shape = SHAPES[correctedSelection.shapeId as ShapeId]
+    const selected1DMap =
+      correctedSelection.mapId && correctedSelection.mapId !== INDEX_MAP_ID
+        ? resolveMap(correctedSelection.mapId)
+        : null
     pixelCount = clampPixelCount(
-      effectivePixelCount({ persisted: persistedCount, fallback: shapeDefaultCount }),
+      effectivePixelCount({
+        persisted: persistedCount,
+        baked: selected1DMap?.bakedCount,
+        fallback: shapeDefaultCount,
+      }),
     )
+    const samples = selected1DMap
+      ? applyNormalizeMode(selected1DMap.resolve(pixelCount), normalizeMode).map((p) => p.sample)
+      : Array.from({ length: pixelCount }, (_, index) => [index / pixelCount])
     if (shape.displayDim === 3) {
       // Pole: a 1D strip wrapped onto a cylinder, drawn in 3D.
       const pole = resolvePole(pixelCount, poleCols)
       positions3D = pole.positions
       normals3D = pole.normals
-      mapPoints = positions3D.map((pos) => ({ sample: [], pos }))
+      mapPoints = positions3D.map((pos, index) => ({ sample: samples[index], pos }))
       displayDim = 3
     } else {
       positions2D = embedPositions(shape, pixelCount)
-      mapPoints = positions2D.map((pos) => ({ sample: [], pos }))
+      mapPoints = positions2D.map((pos, index) => ({ sample: samples[index], pos }))
       displayDim = shape.displayDim
     }
   } else {

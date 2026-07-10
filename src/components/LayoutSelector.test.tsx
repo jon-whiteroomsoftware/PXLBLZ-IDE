@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { MapSelect, EmbeddingSelect } from './LayoutSelector'
 import { useMapStore, mapInitialState } from '@/store/mapStore'
 import { useEditorStore, editorInitialState } from '@/store/editorStore'
+import { INDEX_MAP_ID } from '@/engine/layout'
 
 beforeEach(() => {
   useMapStore.setState(mapInitialState)
@@ -47,6 +48,32 @@ describe('MapSelect (smoke)', () => {
     const { container } = render(<MapSelect />)
     expect(screen.queryByRole('button', { name: 'Map' })).not.toBeInTheDocument()
     expect(container).toBeEmptyDOMElement()
+  })
+
+  it('offers Index and user 1D maps without replacing the Shape control', async () => {
+    const user = userEvent.setup()
+    useEditorStore.setState({ nativeDim: 1 })
+    useMapStore.setState({
+      activeMapId: INDEX_MAP_ID,
+      userMaps: [
+        {
+          id: 'reverse1d',
+          name: 'Reverse strand',
+          dim: 1,
+          generator: 'custom',
+          params: {},
+          points: [[1], [0]],
+          source: '[[1], [0]]',
+          updatedAt: 1,
+        },
+      ],
+    })
+    render(<><MapSelect /><EmbeddingSelect /></>)
+    expect(screen.getByRole('button', { name: 'Map' })).toHaveTextContent('Index')
+    expect(screen.getByRole('button', { name: 'Shape' })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Map' }))
+    await user.click(screen.getByRole('option', { name: 'Reverse strand' }))
+    expect(useMapStore.getState().activeMapId).toBe('reverse1d')
   })
 
   it('selecting a map for a 2D pattern routes to the map store', async () => {

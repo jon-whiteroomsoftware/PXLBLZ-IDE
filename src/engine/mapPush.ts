@@ -20,7 +20,10 @@
 // and break aspect, so we scale [0,1] straight through and only clamp. What the
 // preview shows is exactly what the device receives.
 
-import { bakeMapSource } from './maps'
+// Import the pure bake module directly. The maps barrel also exports the stock
+// catalogue, whose Vite-only `import.meta.glob` side effect makes this otherwise
+// Node-safe transport helper impossible to use in hardware probes.
+import { bakeMapSource } from './maps/bake'
 
 /** A baked coordinate per pixel: `[x,y]` (2D), `[x,y,z]` (3D), or `[x]` (1D). Values
  *  are expected pre-normalized to [0,1] per axis; out-of-range values are clamped. */

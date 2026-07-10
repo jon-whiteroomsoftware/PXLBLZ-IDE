@@ -63,10 +63,11 @@ Pixelblaze dialect (§4, §11). Map sources are plain browser JavaScript, exactl
 as on real hardware, and stock maps are the very `.js` the user can read (§8).
 
 **The sample/pos split.** Each preview point has two channels: **`sample`** — the
-coordinates fed to the render function, always map-owned — and **`pos`** — where
-the dot is drawn, owned by the map when it encodes real geometry or by a viewport
-**embedding** when the pattern leaves position free. This one model spans 1D
-shapes, 2D surfaces, and 3D maps (§8).
+coordinates fed to the render function, always map-coordinate-owned — and
+**`pos`** — where the dot is drawn, owned by the map when it encodes real geometry
+or by a viewport **embedding**. A 1D point carries `[x]` from a true map or the
+implicit Index convention while Line/Ring/Pole independently supplies `pos`.
+This one model spans 1D shapes, 2D surfaces, and 3D maps (§8).
 
 **Connectivity behind one seam.** All "how do we reach a Controller" knowledge
 lives behind `ControllerProvider`; the UI never imports a transport. The v1
@@ -469,12 +470,12 @@ reference; there is no firmware auto-sync.
 The richest interfacing area. The core model:
 
 - **`pixelCount` is independent of the map.** The render loop iterates
-  `0…pixelCount-1` and asks the map for each index's position; the map is an
-  index→position lookup, never the authority on count — mirroring hardware, where
-  the two settings can disagree.
+  `0…pixelCount-1` and asks the map for each index's sample; the map is an
+  index→coordinate lookup, never the authority on count — mirroring hardware,
+  where the two settings can disagree.
 - **Each point has two channels** — `sample` (fed to the render fn, map-owned)
   and `pos` (where the dot draws; map-intrinsic for real geometry,
-  viewport-supplied when the pattern leaves position free).
+  viewport-supplied by an embedding when presentation is independent).
 
 ### Maps are source-backed plain JavaScript
 
@@ -487,8 +488,9 @@ or a `function(pixelCount)` returning one — authored in arbitrary real-world
 units (the firmware normalizes from the coordinates' limits). The IDE accepts
 both forms in map mode: `parseMapSource` parses either a top-level array literal
 or function expression, and `bakeMapSource` evaluates the array directly or calls
-the function once with the modeled pixel count. The raw-units detail is invisible
-downstream — normalization erases input scale.
+the function once with the modeled pixel count. Coordinate arity 1, 2, and 3 are
+all first-class: `inferDim` accepts `[x]`, `[x,y]`, or `[x,y,z]`. The raw-units
+detail is invisible downstream — normalization erases input scale.
 
 Every stock map (`stockCatalogue.ts`) is self-contained Mapper source in
 `src/pixelblaze/stock/maps/sources/*.js` — either `function(pixelCount)` with
@@ -510,6 +512,8 @@ Shell entries carry a `normals` recipe (`'face' | 'star' |
 lattice entry carries a `grid` recipe (`'square' | 'wide' | 'cube'`) backing
 `PixelMap.gridDims` — the live count→dims derivation; absent means `gridDims`
 returns null (irregular clouds, literal measured arrays, and shells).
+There is currently no stock 1D map; 1D entries come from custom authoring or
+Controller import and appear under the Maps rail's 1D lens.
 
 ### Custom maps bake on save
 
@@ -536,9 +540,10 @@ Mapper behaviours, a **per-pattern** choice persisted on
   shorter axes proportionally smaller.
 - **Fill** (`normalizeFill`) — each axis independently → `[0,1]`.
 
-`applyNormalizeMode` re-stretches resolved Contain points to Fill live (no
-re-bake). Applied identically to `sample` and `pos`. The map's resolved geometry
-is the single source of the preview's extent and aspect.
+`applyNormalizeMode` re-stretches resolved Contain `sample` values to Fill live
+(no re-bake). It deliberately leaves `pos` in aspect-preserving Contain space:
+Fill changes the coordinates the Pattern reads, not the physical placement or
+canvas aspect. A pos-less 1D map therefore normalizes without inventing geometry.
 
 ### Viewport embeddings: shapes (1D) and surfaces (2D)
 
@@ -547,7 +552,8 @@ An embedding owns `pos` while the map owns `sample`; all embeddings are pure
 
 - **Shapes** (`shapes.ts`, 1D): `line`, `ring`, and `pole` (a helix on a
   cylinder, drawn in 3D via `polePositions`, wrap density in `cameraStore`).
-  Shared π-cell wall math in `cylinderWall.ts`.
+  Shared π-cell wall math in `cylinderWall.ts`. Each Shape supplies only `pos`;
+  the selected true 1D map or implicit Index view independently supplies `[x]`.
 - **Surfaces** (`surfaces.ts`, 2D): `flat` (identity) and `cylinder` (wraps the
   map's raw integer `gridDims` around a tube; `circumference : height =
   cols : rows`, fully map-derived).
@@ -563,12 +569,16 @@ geometry directly as a **shell** (boundary points, solid-eligible) or a
 Two orthogonal controls, not one union dropdown: **Map** (owns `sample`, filtered
 by sample-arity) and **embedding** (owns `pos` — shapes for 1D, surfaces gated on
 `gridDims` for 2D). `resolveLayoutSelection` restores a persisted selection if
-still valid, else a default, optionally honouring a demo's recommended map.
+still valid, else a default. `mapOptions(1)` prepends the implicit `Index` option
+(`x = index / pixelCount`) to real dim-1 maps. It is a reversible no-map sentinel,
+not a `MapRecord`, so it never appears in Map mode or a Controller push.
 `LayoutSelector.tsx` factors shared logic into `useLayoutControls()` and exports
 the two controls separately so the deck can place them by what they are:
 `MapSelect` renders inside the PIXELBLAZE block (stacked full-width, stock/user
-subgroups) and returns nothing when there's no map; `EmbeddingSelect` renders on
-the transport row, only when it offers a real choice.
+subgroups). For a 1D Pattern it stays hidden while Index is the only option, then
+appears as soon as any real 1D map exists; `EmbeddingSelect` renders on the
+transport row independently. Fill/Contain remains hidden for 1D because one axis
+has no aspect tradeoff.
 
 `resolveLayout(input, deps): ResolvedLayout` is the single seam from a layout
 *selection* to its drawn realization: selection-correction, map/shape/surface
@@ -636,7 +646,7 @@ not per-frame dispatch.
 Per `requestAnimationFrame`: scale `realDelta` by playback speed and advance the
 virtual clock; `beforeRender(encodeScalar(scaledDelta))`; then per index, read
 the map point's `sample`, apply the transform stack, and dispatch by sample arity
-(`≥3 → render3D`, `===2 → render2D`, else `render`); capture the colour;
+(`≥3 → render3D`, `===2 → render2D`, `===1 → render(index, x)`); capture the colour;
 `paint(...)`; report watch values and a ~500 ms-smoothed FPS. Runtime throws are
 caught — the loop stops quietly and reports via `onError`.
 
@@ -1415,7 +1425,14 @@ and only clamp, rather than re-running the reference's per-axis Fill stretch
 (which would silently break aspect). What the preview shows is exactly what the
 device receives.
 
-Three firmware facts gate the rest:
+Key firmware facts gate the rest:
+
+- **True 1D maps require firmware 3.66+.** `describeSendMap` disables a dim-1
+  transfer when a connected Controller reports an older version, while an
+  unknown version remains non-blocking. Dim-1 uses the same binary map format
+  with `numDimensions = 1`; a 256-pixel reversed/discontinuous map was verified
+  by device read-back on a V3 Standard running 3.67, with the original map
+  restored byte-for-byte afterward (#391).
 
 - **The exact-count rule.** A pushed map must contain exactly `pixelCount`
   coordinates or the firmware won't apply it — frames report success, nothing

@@ -82,7 +82,7 @@ function resolveOpenMapContext(
   }
   const points = (record.points ?? []).map((coord) => ({
     sample: [...coord],
-    pos: [...coord] as MapPoint['pos'],
+    ...(record.dim === 1 ? {} : { pos: [...coord] as MapPoint['pos'] }),
   }))
   return {
     id: record.id,

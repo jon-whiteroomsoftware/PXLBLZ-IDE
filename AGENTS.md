@@ -35,9 +35,15 @@ nodeRepl.write(await browser.documentation());
 
 If the `browser:control-in-app-browser` skill is listed in the session, read it
 and follow its bootstrap instructions before claiming the browser is missing.
-Only fall back after that documented in-app browser path has actually failed,
-and say briefly what failed. This is important because the in-app browser is the
-fastest feedback loop for inspecting this app's UI.
+The skill can disappear from the session catalogue when the standalone Browser
+plugin has been uninstalled even though Codex's in-app browser service is still
+live. In that case, do not infer absence from the skill list: if another bundled
+browser plugin (currently Chrome) exposes `scripts/browser-client.mjs`, bootstrap
+that shared runtime, call `agent.browsers.list()`, and use the entry whose
+`type` is `"iab"` via `agent.browsers.get("iab")`. Only fall back after the live
+browser registry has no `iab` entry or that documented connection actually
+fails, and say briefly what failed. This is important because the in-app browser
+is the fastest feedback loop for inspecting this app's UI.
 
 The WebGL preview render loop keeps the page perpetually busy, so naive screenshot tools time out and the canvas drawing buffer is unreadable by default. When you need to screenshot the app — and especially the preview renderer — load the dev server with the `?capture` query param (e.g. `http://localhost:5174/?capture`). This is dev-only and inert without the param. It enables `preserveDrawingBuffer` and installs deterministic capture tooling (added in #263/#265):
 

@@ -137,6 +137,19 @@ export interface SendMapGateInput {
   /** True when the open map's current bake already matches what was last pushed to
    *  this Controller — nothing to send until it's edited/re-baked. Defaults false. */
   alreadyPushed?: boolean
+  /** Coordinate arity of the map being sent. */
+  mapDim?: MapDimension
+  /** Controller-reported firmware, when known. True 1D maps arrived in 3.66. */
+  firmwareVersion?: string
+}
+
+export function supportsOneDimensionalMaps(firmwareVersion: string | undefined): boolean | null {
+  if (!firmwareVersion) return null
+  const match = /^v?(\d+)\.(\d+)/i.exec(firmwareVersion.trim())
+  if (!match) return null
+  const major = Number(match[1])
+  const minor = Number(match[2])
+  return major > 3 || (major === 3 && minor >= 66)
 }
 
 /** Decide whether the map editor's Send-to-Controller is enabled, and why not. */
@@ -144,12 +157,17 @@ export function describeSendMap({
   status,
   hasBakedPoints,
   alreadyPushed = false,
+  mapDim,
+  firmwareVersion,
 }: SendMapGateInput): SendGate {
   if (status.kind !== 'connected') {
     return { enabled: false, reason: 'Connect a Controller to send' }
   }
   if (!hasBakedPoints) {
     return { enabled: false, reason: 'Bake the map before sending' }
+  }
+  if (mapDim === 1 && supportsOneDimensionalMaps(firmwareVersion) === false) {
+    return { enabled: false, reason: 'True 1D maps require Pixelblaze firmware 3.66 or newer' }
   }
   if (alreadyPushed) {
     return { enabled: false, reason: 'No changes since the last send' }

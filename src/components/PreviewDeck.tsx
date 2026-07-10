@@ -10,7 +10,7 @@ import {
   hasActiveOverrides,
 } from '@/store/settingsCascade'
 import { effectivePixelCount } from '@/engine/layout'
-import { MapSelect, EmbeddingSelect } from '@/components/LayoutSelector'
+import { MapSelect, EmbeddingSelect, useMapSelectMeta } from '@/components/LayoutSelector'
 import { SpeedSelector } from '@/components/SpeedSelector'
 import { DeckSelect } from '@/components/DeckSelect'
 import { DeckSlider } from '@/components/DeckSlider'
@@ -35,7 +35,7 @@ const PIXELBLAZE_HINT = (
   <DeckSectionHint
     heading="Pixelblaze controller settings"
     items={[
-      ['map', 'the physical pixel layout in 2D/3D space'],
+      ['map', 'the coordinates sampled by each physical pixel in 1D/2D/3D space'],
       ['brightness', 'master output level applied to every pixel'],
       ['fit', 'pixel map normalization to pattern space — Contain keeps the aspect ratio, Fill stretches each axis to fill it'],
       ['pixel count', 'how many LEDs the pattern drives'],
@@ -195,11 +195,10 @@ function SecondaryBand() {
   const solidEligible = useEditorStore((s) => s.solidEligible)
   const solidity = useMapStore((s) => s.activeSolidity)
   const setSolidity = useMapStore((s) => s.setActiveSolidity)
-  // The map+fit row is real Pixelblaze state that only exists for a mapped layout
-  // (#253). 1D is mapless, so both the map and its normalization mode (fit) are
-  // absent entirely — not shown disabled.
-  const nativeDim = useEditorStore((s) => s.nativeDim)
-  const hasMap = nativeDim !== 1
+  // A 1D Pattern stays visually compact until a real 1D map exists. Then Map
+  // appears with reversible Index/default semantics. Fit stays absent because
+  // Contain and Fill are equivalent with one coordinate axis.
+  const { hasMapChoice, hasMappedCoordinates } = useMapSelectMeta()
 
   return (
     <div className="text-xs pr-3">
@@ -211,7 +210,7 @@ function SecondaryBand() {
               inline label-left/value-right cells. For a mapless 1D layout, map and fit
               both drop out, and brightness + pixel count collapse up into a single row
               rather than reshuffling. */}
-          {hasMap && (
+          {hasMapChoice && (
             <DeckField label="map">
               <MapSelect />
             </DeckField>
@@ -229,7 +228,7 @@ function SecondaryBand() {
               writeCascadedOverride('brightness', v)
             }}
           />
-          {hasMap && (
+          {hasMappedCoordinates && (
             <DeckCell label="fit">
               <DeckSelect
                 ariaLabel="Map normalization (Fill / Contain)"

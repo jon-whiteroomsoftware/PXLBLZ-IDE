@@ -3,6 +3,7 @@ import {
   mapDimension,
   describeSendToController,
   describeSendMap,
+  supportsOneDimensionalMaps,
   isAlreadyPushed,
   describeSendAction,
 } from './sendToController'
@@ -100,6 +101,14 @@ describe('describeSendAction', () => {
 })
 
 describe('describeSendMap', () => {
+  it('recognizes the firmware boundary for true 1D maps', () => {
+    expect(supportsOneDimensionalMaps('3.65')).toBe(false)
+    expect(supportsOneDimensionalMaps('3.66')).toBe(true)
+    expect(supportsOneDimensionalMaps('v3.67.1')).toBe(true)
+    expect(supportsOneDimensionalMaps(undefined)).toBeNull()
+    expect(supportsOneDimensionalMaps('unknown')).toBeNull()
+  })
+
   it('enables when connected and the map has baked points', () => {
     expect(describeSendMap({ status: connected, hasBakedPoints: true })).toEqual({ enabled: true })
   })
@@ -120,5 +129,16 @@ describe('describeSendMap', () => {
     const gate = describeSendMap({ status: connected, hasBakedPoints: true, alreadyPushed: true })
     expect(gate.enabled).toBe(false)
     expect(gate.reason).toMatch(/no changes/i)
+  })
+
+  it('explains that true 1D maps require firmware 3.66 or newer', () => {
+    const gate = describeSendMap({
+      status: connected,
+      hasBakedPoints: true,
+      mapDim: 1,
+      firmwareVersion: '3.65',
+    })
+    expect(gate.enabled).toBe(false)
+    expect(gate.reason).toMatch(/3\.66 or newer/i)
   })
 })
