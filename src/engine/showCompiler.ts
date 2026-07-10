@@ -31,6 +31,14 @@ export interface ShowClipAdaptation {
   phase: number
   timeScale: number
   mirror: boolean
+  lightShutter?: ShowLightShutter
+}
+
+export interface ShowLightShutter {
+  rateHz: number
+  duty: number
+  phase: number
+  clockBehavior: 'continue' | 'freeze'
 }
 
 export interface ShowAdaptationRampRecipe {
@@ -62,6 +70,8 @@ export interface ShowCompileClipSummary {
   sourceBytes: number
   renamedBindings: string[]
   renamedPatternVars: string[]
+  evaluationPolicy: 'full' | 'masked-shutter-continue' | 'masked-shutter-freeze'
+  expectedActiveFraction: number
 }
 
 export interface ShowCompileSummary {
@@ -81,6 +91,8 @@ export interface ShowCompileSummary {
   transitionCost: 'none' | 'renderer-window' | 'route' | 'parameter'
   routePolicy: 'none' | 'hard-wipe' | 'feathered-wipe' | 'dither'
   clockPolicy: 'real-time' | 'scaled' | 'scaled-ramp' | 'exact-pause' | 'exact-pause-ramp'
+  evaluationPolicy: 'full' | 'masked-shutter' | 'mixed'
+  expectedActiveFraction: number | null
   worstInstantRenderersPerPixel: 1 | 2
   clips: ShowCompileClipSummary[]
   warnings: string[]
@@ -164,6 +176,7 @@ export function compileShow(
         : expandedRecipe.routeTransition
           ? 'route'
         : 'none'
+  const evaluationSummary = describeEvaluationPolicy(members)
   const summary: ShowCompileSummary = {
     clipCount: members.length,
     transitionCount: expandedRecipe.crossfade || expandedRecipe.cut || expandedRecipe.adaptationRamp || expandedRecipe.routeTransition ? 1 : 0,
@@ -191,14 +204,23 @@ export function compileShow(
           : 'hard-wipe'
         : 'none',
     clockPolicy: describeClockPolicy(expandedRecipe, members),
+    evaluationPolicy: evaluationSummary.policy,
+    expectedActiveFraction: evaluationSummary.expectedActiveFraction,
     worstInstantRenderersPerPixel: transitionCost === 'renderer-window' ? 2 : 1,
-    clips: members.map(member => ({
-      id: member.id,
-      prefix: member.prefix,
-      sourceBytes: member.sourceBytes,
-      renamedBindings: member.renamedBindings,
-      renamedPatternVars: member.renamedPatternVars,
-    })),
+    clips: members.map((member) => {
+      const lightShutter = member.adaptation.lightShutter
+      return {
+        id: member.id,
+        prefix: member.prefix,
+        sourceBytes: member.sourceBytes,
+        renamedBindings: member.renamedBindings,
+        renamedPatternVars: member.renamedPatternVars,
+        evaluationPolicy: lightShutter
+          ? `masked-shutter-${lightShutter.clockBehavior}` as const
+          : 'full' as const,
+        expectedActiveFraction: lightShutter?.duty ?? 1,
+      }
+    }),
     warnings: route?.warnings ?? [],
   }
 
@@ -468,7 +490,60 @@ function emitRouteShowCode(members: CompiledMember[], routes: ResolvedRoute[]): 
 }
 
 function emitRuntimePrelude(members: CompiledMember[]): string {
-  const memberVars = members.flatMap((member, index) => [
+  const memberVars = members.flatMap((member, index) => {
+    const lightShutter = member.adaptation.lightShutter
+    const shutterVars = lightShutter
+      ? [
+          `var ${member.prefix}_shutter_rate_hz = ${lightShutter.rateHz}`,
+          `var ${member.prefix}_shutter_duty = ${lightShutter.duty}`,
+          `var ${member.prefix}_shutter_phase = ${lightShutter.phase}`,
+          `var ${member.prefix}_shutter_open = ${initialShutterOpen(lightShutter)}`,
+          `function ${member.prefix}_updateShutter() {
+  if (${member.prefix}_shutter_duty <= 0) ${member.prefix}_shutter_open = 0
+  else if (${member.prefix}_shutter_duty >= 1) ${member.prefix}_shutter_open = 1
+  else if (frac(__pxlblz_show_elapsed_ms * 0.001 * ${member.prefix}_shutter_rate_hz + ${member.prefix}_shutter_phase) < ${member.prefix}_shutter_duty) ${member.prefix}_shutter_open = 1
+  else ${member.prefix}_shutter_open = 0
+}`,
+          ...(lightShutter.clockBehavior === 'freeze'
+            ? [
+                `function ${member.prefix}_shutterActiveCycles(cycles) {
+  return floor(cycles) * ${member.prefix}_shutter_duty + min(frac(cycles), ${member.prefix}_shutter_duty)
+}`,
+                `function ${member.prefix}_shutterActiveMs(startMs, endMs) {
+  if (${member.prefix}_shutter_duty <= 0) return 0
+  if (${member.prefix}_shutter_duty >= 1) return endMs - startMs
+  var cyclesPerMs = ${member.prefix}_shutter_rate_hz * 0.001
+  var startCycles = startMs * cyclesPerMs + ${member.prefix}_shutter_phase
+  var endCycles = endMs * cyclesPerMs + ${member.prefix}_shutter_phase
+  return (${member.prefix}_shutterActiveCycles(endCycles) - ${member.prefix}_shutterActiveCycles(startCycles)) / cyclesPerMs
+}`,
+              ]
+            : []),
+        ]
+      : []
+    const advance = lightShutter?.clockBehavior === 'freeze'
+      ? `function ${member.prefix}_advance(delta) {
+  ${member.prefix}_updateShutter()
+  var activeDelta = ${member.prefix}_shutterActiveMs(__pxlblz_show_elapsed_ms - delta, __pxlblz_show_elapsed_ms)
+  if (activeDelta > 0) {
+    var scaledDelta = activeDelta * ${member.prefix}_adapt_timeScale
+    ${member.elapsedName} = ${member.elapsedName} + scaledDelta
+    ${member.hasBeforeRender ? `${member.beforeRenderName}(scaledDelta)` : ''}
+  }
+}`
+      : lightShutter
+        ? `function ${member.prefix}_advance(delta) {
+  ${member.prefix}_updateShutter()
+  var scaledDelta = delta * ${member.prefix}_adapt_timeScale
+  ${member.elapsedName} = ${member.elapsedName} + scaledDelta
+  ${member.hasBeforeRender ? `${member.beforeRenderName}(scaledDelta)` : ''}
+}`
+        : `function ${member.prefix}_advance(delta) {
+  var scaledDelta = delta * ${member.prefix}_adapt_timeScale
+  ${member.elapsedName} = ${member.elapsedName} + scaledDelta
+  ${member.hasBeforeRender ? `${member.beforeRenderName}(scaledDelta)` : ''}
+}`
+    return [
     `var ${member.elapsedName} = 0`,
     `var ${member.pixelCountName} = pixelCount`,
     `var ${member.prefix}_adapt_brightness = ${member.adaptation.brightness}`,
@@ -478,6 +553,7 @@ function emitRuntimePrelude(members: CompiledMember[]): string {
     `var ${member.prefix}_r = 0`,
     `var ${member.prefix}_g = 0`,
     `var ${member.prefix}_b = 0`,
+    ...shutterVars,
     `function ${member.prefix}_clear() { ${member.prefix}_r = 0; ${member.prefix}_g = 0; ${member.prefix}_b = 0 }`,
     `function ${member.prefix}_rgb(r, g, b) { ${member.prefix}_r = r * ${member.prefix}_adapt_brightness; ${member.prefix}_g = g * ${member.prefix}_adapt_brightness; ${member.prefix}_b = b * ${member.prefix}_adapt_brightness }`,
     `function ${member.prefix}_hsv(h, s, v) { __pxlblz_show_capture_hsv(${index}, h + ${member.prefix}_adapt_phase, s, v * ${member.prefix}_adapt_brightness) }`,
@@ -496,19 +572,16 @@ function emitRuntimePrelude(members: CompiledMember[]): string {
     mix < 0.5 ? fromMirror : toMirror
   )
 }`,
-    `function ${member.prefix}_advance(delta) {
-  var scaledDelta = delta * ${member.prefix}_adapt_timeScale
-  ${member.elapsedName} = ${member.elapsedName} + scaledDelta
-  ${member.hasBeforeRender ? `${member.beforeRenderName}(scaledDelta)` : ''}
-}`,
+    advance,
     `function ${member.prefix}_renderCapture(index) {
   var mappedIndex = index
   if (${member.prefix}_adapt_mirror >= 0.5) mappedIndex = ${member.pixelCountName} - 1 - index
   ${member.prefix}_clear()
-  ${member.hasRender ? `${member.renderName}(mappedIndex)` : ''}
+  ${member.hasRender ? lightShutter ? `if (${member.prefix}_shutter_open >= 0.5) ${member.renderName}(mappedIndex)` : `${member.renderName}(mappedIndex)` : ''}
 }`,
     `function ${member.prefix}_emit() { rgb(${member.prefix}_r, ${member.prefix}_g, ${member.prefix}_b) }`,
-  ])
+    ]
+  })
 
   return [
     'var __pxlblz_show_elapsed_ms = 0',
@@ -647,6 +720,14 @@ function buildMetadata(members: CompiledMember[]): BundleMetadata {
       `${member.prefix}_adapt_phase`,
       `${member.prefix}_adapt_timeScale`,
       `${member.prefix}_adapt_mirror`,
+      ...(member.adaptation.lightShutter
+        ? [
+            `${member.prefix}_shutter_rate_hz`,
+            `${member.prefix}_shutter_duty`,
+            `${member.prefix}_shutter_phase`,
+            `${member.prefix}_shutter_open`,
+          ]
+        : []),
       `${member.prefix}_r`,
       `${member.prefix}_g`,
       `${member.prefix}_b`,
@@ -673,7 +754,41 @@ function normalizeAdaptation(adaptation: Partial<ShowClipAdaptation> | undefined
     phase: clampNumber(adaptation?.phase ?? 0, 0, 1),
     timeScale: clampNumber(adaptation?.timeScale ?? 1, 0, 4),
     mirror: Boolean(adaptation?.mirror),
+    ...(adaptation?.lightShutter
+      ? {
+          lightShutter: {
+            rateHz: clampNumber(adaptation.lightShutter.rateHz, 0.01, 60),
+            duty: clampNumber(adaptation.lightShutter.duty, 0, 1),
+            phase: clampNumber(adaptation.lightShutter.phase, 0, 1),
+            clockBehavior: adaptation.lightShutter.clockBehavior === 'freeze' ? 'freeze' as const : 'continue' as const,
+          },
+        }
+      : {}),
   }
+}
+
+function describeEvaluationPolicy(members: CompiledMember[]): {
+  policy: ShowCompileSummary['evaluationPolicy']
+  expectedActiveFraction: number | null
+} {
+  const shutters = members.map((member) => member.adaptation.lightShutter)
+  if (shutters.every((shutter) => shutter === undefined)) {
+    return { policy: 'full', expectedActiveFraction: 1 }
+  }
+  if (shutters.every((shutter) => shutter !== undefined)) {
+    const duties = shutters.map((shutter) => shutter!.duty)
+    if (duties.every((duty) => duty === duties[0])) {
+      return { policy: 'masked-shutter', expectedActiveFraction: duties[0] }
+    }
+  }
+  return { policy: 'mixed', expectedActiveFraction: null }
+}
+
+function initialShutterOpen(shutter: ShowLightShutter): 0 | 1 {
+  if (shutter.duty <= 0) return 0
+  if (shutter.duty >= 1) return 1
+  const cycle = shutter.phase - Math.floor(shutter.phase)
+  return cycle < shutter.duty ? 1 : 0
 }
 
 function describeClockPolicy(recipe: ShowRecipe, members: CompiledMember[]): ShowCompileSummary['clockPolicy'] {

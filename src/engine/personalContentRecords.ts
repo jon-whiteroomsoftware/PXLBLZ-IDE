@@ -100,6 +100,14 @@ export interface ShowCellAdaptations {
   phase: number
   brightness: number
   timeScale: number
+  lightShutter?: ShowLightShutter
+}
+
+export interface ShowLightShutter {
+  rateHz: number
+  duty: number
+  phase: number
+  clockBehavior: 'continue' | 'freeze'
 }
 
 export type ShowPatternRef =

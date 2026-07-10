@@ -222,6 +222,12 @@ for that clip's private clock and the `delta` delivered to its Pattern, while th
 generated outer renderer continues to draw the paused state. Adjacent cells that
 reuse the same Pattern can ramp continuously down to that pause, dwell there,
 and ramp away without restarting or jumping phase. Negative time is not offered.
+Each cell can also enable a **light shutter** with a rate, light-on fraction,
+phase, and dark-time clock policy. Closed shutter frames are explicitly black
+and skip that Pattern's renderer. **Continue** lets the Pattern advance behind
+the darkness; **freeze** advances its private clock only for the open portion of
+each frame interval. This is a generated evaluation mask, not a brightness
+scalar: the outer Pixelblaze render loop and LED transport still run.
 The strip is a recessed composition surface: scene headers are
 inline-editable labels, zone rows carry their zone color, pattern cells render as
 zone-tinted clips, and transitions are clickable seams between scene columns.
@@ -238,7 +244,9 @@ your cloud workspace, supports rename/delete from the rail, inspectable compiled
 artifact budget, read-only generated source, and pushing the generated pattern to
 the connected Controller. The compile bar labels exact-pause clock recipes
 separately from renderer policy: pausing time does not claim renderer-cycle
-savings or buffered frame reuse.
+savings or buffered frame reuse. For shuttered clips it reports expected active
+Pattern evaluation per clip and explicitly keeps that estimate separate from
+unavoidable outer-render and LED-transport work.
 
 A **wipe** can add a normalized `0..1` feather width. Zero is the original hard
 index boundary. A positive feather turns the surrounding band over through a

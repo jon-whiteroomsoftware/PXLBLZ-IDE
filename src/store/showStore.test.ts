@@ -96,6 +96,26 @@ describe('showStore (#318)', () => {
     expect(useShowStore.getState().shows[0].cells[0].adaptations.timeScale).toBe(0)
   })
 
+  it('persists a full-clip light shutter through the provider', async () => {
+    const show = createDefaultShow('show-1', 'Opening wash', 1)
+    const provider = memoryProvider([show])
+    setPersonalContentProvider(provider)
+    useShowStore.setState({ shows: [show], showsLoaded: true })
+
+    await useShowStore.getState().updateCellAdaptations(show.id, show.cells[0].id, {
+      lightShutter: { rateHz: 12, duty: 0.4, phase: 0.2, clockBehavior: 'freeze' },
+    })
+    useShowStore.setState(showInitialState)
+    await useShowStore.getState().loadShows()
+
+    expect(useShowStore.getState().shows[0].cells[0].adaptations.lightShutter).toEqual({
+      rateHz: 12,
+      duty: 0.4,
+      phase: 0.2,
+      clockBehavior: 'freeze',
+    })
+  })
+
   it('persists a wipe feather width through the provider', async () => {
     const show = createDefaultShow('show-1', 'Opening wash', 1)
     setPersonalContentProvider(memoryProvider([show]))

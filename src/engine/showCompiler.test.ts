@@ -683,6 +683,138 @@ export function render(index) { renders = renders + 1; rgb(elapsed, renders, ind
     })
   })
 
+  it('masks a continued Pattern behind a full-clip light shutter without calling its renderer', () => {
+    const artifact = compileShow({
+      clips: [{
+        id: 'continued',
+        source: `
+export var elapsed = 0
+export var renderCalls = 0
+export function beforeRender(delta) { elapsed = elapsed + delta }
+export function render(index) { renderCalls = renderCalls + 1; rgb(elapsed, index, 1) }
+`,
+        adaptation: {
+          lightShutter: { rateHz: 1, duty: 0.25, phase: 0, clockBehavior: 'continue' },
+        },
+      }],
+    }, {})
+    const runtime = loadShow(artifact.code, artifact.metadata)
+
+    runtime.handle.beforeRender(300)
+    runtime.handle.render(4)
+
+    expect(runtime.pixel()).toEqual([0, 0, 0])
+    expect(runtime.handle.getExports()).toMatchObject({
+      __pxlblz_show_c0_elapsed: 300,
+      __pxlblz_show_c0_renderCalls: 0,
+      __pxlblz_show_c0_shutter_open: 0,
+    })
+
+    runtime.handle.beforeRender(700)
+    runtime.handle.render(4)
+
+    expect(runtime.pixel()).toEqual([1000, 4, 1])
+    expect(runtime.handle.getExports()).toMatchObject({
+      __pxlblz_show_c0_elapsed: 1000,
+      __pxlblz_show_c0_renderCalls: 1,
+      __pxlblz_show_c0_shutter_open: 1,
+    })
+    expect(artifact.summary).toMatchObject({
+      evaluationPolicy: 'masked-shutter',
+      expectedActiveFraction: 0.25,
+      clips: [expect.objectContaining({
+        evaluationPolicy: 'masked-shutter-continue',
+        expectedActiveFraction: 0.25,
+      })],
+    })
+  })
+
+  it('freezes Pattern time for the exact closed portion of shutter intervals', () => {
+    const artifact = compileShow({
+      clips: [{
+        id: 'frozen',
+        source: `
+export var elapsed = 0
+export var frames = 0
+export var renderCalls = 0
+export function beforeRender(delta) { elapsed = elapsed + delta; frames = frames + 1 }
+export function render(index) { renderCalls = renderCalls + 1; rgb(elapsed, frames, index) }
+`,
+        adaptation: {
+          lightShutter: { rateHz: 1, duty: 0.25, phase: 0, clockBehavior: 'freeze' },
+        },
+      }],
+    }, {})
+    const runtime = loadShow(artifact.code, artifact.metadata)
+
+    runtime.handle.beforeRender(300)
+    runtime.handle.render(2)
+    runtime.handle.beforeRender(400)
+    runtime.handle.render(2)
+
+    expect(runtime.pixel()).toEqual([0, 0, 0])
+    expect(runtime.handle.getExports()).toMatchObject({
+      __pxlblz_show_c0_elapsed_ms: 250,
+      __pxlblz_show_c0_elapsed: 250,
+      __pxlblz_show_c0_frames: 1,
+      __pxlblz_show_c0_renderCalls: 0,
+    })
+
+    runtime.handle.beforeRender(300)
+    runtime.handle.render(2)
+
+    expect(runtime.pixel()).toEqual([250, 1, 2])
+    expect(runtime.handle.getExports()).toMatchObject({
+      __pxlblz_show_c0_elapsed_ms: 250,
+      __pxlblz_show_c0_elapsed: 250,
+      __pxlblz_show_c0_frames: 1,
+      __pxlblz_show_c0_renderCalls: 1,
+      __pxlblz_show_c0_shutter_open: 1,
+    })
+    expect(artifact.summary.clips[0]).toMatchObject({
+      evaluationPolicy: 'masked-shutter-freeze',
+      expectedActiveFraction: 0.25,
+    })
+  })
+
+  it('keeps shutter duty endpoints exact and leaves unmasked artifacts unchanged', () => {
+    const source = `export function render(index) { rgb(1, 0, 0) }`
+    const baseline = compileShow({ clips: [{ id: 'plain', source }] }, {})
+    const explicitDefault = compileShow({ clips: [{ id: 'plain', source, adaptation: {} }] }, {})
+    const alwaysClosed = compileShow({
+      clips: [{
+        id: 'closed',
+        source,
+        adaptation: { lightShutter: { rateHz: 8, duty: 0, phase: 1, clockBehavior: 'continue' } },
+      }],
+    }, {})
+    const alwaysOpen = compileShow({
+      clips: [{
+        id: 'open',
+        source,
+        adaptation: { lightShutter: { rateHz: 8, duty: 1, phase: 0.75, clockBehavior: 'freeze' } },
+      }],
+    }, {})
+    const closedRuntime = loadShow(alwaysClosed.code, alwaysClosed.metadata)
+    const openRuntime = loadShow(alwaysOpen.code, alwaysOpen.metadata)
+
+    closedRuntime.handle.beforeRender(1000)
+    closedRuntime.handle.render(0)
+    openRuntime.handle.beforeRender(1000)
+    openRuntime.handle.render(0)
+
+    expect(explicitDefault.code).toBe(baseline.code)
+    expect(explicitDefault.summary).toEqual(baseline.summary)
+    expect(closedRuntime.pixel()).toEqual([0, 0, 0])
+    expect(openRuntime.pixel()).toEqual([1, 0, 0])
+    expect(alwaysClosed.summary.expectedActiveFraction).toBe(0)
+    expect(alwaysOpen.summary.expectedActiveFraction).toBe(1)
+    expect(baseline.summary).toMatchObject({
+      evaluationPolicy: 'full',
+      expectedActiveFraction: 1,
+    })
+  })
+
   it('emits a wipe transition that renders exactly one member per pixel during the transition window', () => {
     const artifact = compileShow({
       clips: [

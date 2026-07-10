@@ -608,6 +608,11 @@ function CellInspector({
   const maxZoneSpan = Math.max(1, show.zones.length - zoneIndex)
   const zone = show.zones[zoneIndex]
   const scene = show.scenes[sceneIndex]
+  const lightShutter = cell.adaptations.lightShutter
+  const updateLightShutter = (changes: Partial<NonNullable<ShowCell['adaptations']['lightShutter']>>) => {
+    if (!lightShutter) return
+    onUpdateAdaptations({ lightShutter: { ...lightShutter, ...changes } })
+  }
   return (
     <InspectorPanel title={`${cell.patternName} - cell - ${zone?.name ?? 'zone'} - ${scene?.name ?? 'scene'}`}>
       <label className="block text-[10px] uppercase text-zinc-600">
@@ -666,6 +671,44 @@ function CellInspector({
         <NumberField label="Phase" value={cell.adaptations.phase} min={0} max={1} step={0.01} onChange={(phase) => onUpdateAdaptations({ phase })} />
         <NumberField label="Brightness" value={cell.adaptations.brightness} min={0} max={1} step={0.01} onChange={(brightness) => onUpdateAdaptations({ brightness })} />
         <NumberField label="Time x" value={cell.adaptations.timeScale} min={0} max={4} step={0.1} onChange={(timeScale) => onUpdateAdaptations({ timeScale })} />
+      </div>
+      <div className="mt-3 border-t border-zinc-800 pt-3">
+        <label className="flex items-center gap-2 text-zinc-300">
+          <input
+            type="checkbox"
+            checked={Boolean(lightShutter)}
+            onChange={(event) => onUpdateAdaptations({
+              lightShutter: event.target.checked
+                ? { rateHz: 8, duty: 0.5, phase: 0, clockBehavior: 'continue' }
+                : undefined,
+            })}
+          />
+          Light shutter
+        </label>
+        {lightShutter && (
+          <>
+            <div className="mt-2 grid grid-cols-2 gap-2 xl:grid-cols-4">
+              <NumberField label="Shutter rate (Hz)" value={lightShutter.rateHz} min={0.01} max={60} step={0.1} onChange={(rateHz) => updateLightShutter({ rateHz })} />
+              <NumberField label="Light on fraction" value={lightShutter.duty} min={0} max={1} step={0.01} onChange={(duty) => updateLightShutter({ duty })} />
+              <NumberField label="Shutter phase" value={lightShutter.phase} min={0} max={1} step={0.01} onChange={(phase) => updateLightShutter({ phase })} />
+              <label className="text-[10px] uppercase text-zinc-600">
+                Clock while dark
+                <select
+                  aria-label="Clock while dark"
+                  value={lightShutter.clockBehavior}
+                  onChange={(event) => updateLightShutter({ clockBehavior: event.target.value === 'freeze' ? 'freeze' : 'continue' })}
+                  className={`${field} mt-1 w-full`}
+                >
+                  <option value="continue">continue</option>
+                  <option value="freeze">freeze</option>
+                </select>
+              </label>
+            </div>
+            <p className="mt-2 text-[10px] leading-relaxed text-zinc-500">
+              Closed frames emit black and skip Pattern rendering. Continue advances motion behind darkness; freeze pauses Pattern time while dark.
+            </p>
+          </>
+        )}
       </div>
     </InspectorPanel>
   )
@@ -925,6 +968,14 @@ function CompileBar({
         : summary?.clockPolicy === 'scaled'
           ? 'scaled'
           : 'real time'
+  const maskedClipFractions = summary?.clips
+    .filter((clip) => clip.evaluationPolicy !== 'full')
+    .map((clip) => `${Math.round(clip.expectedActiveFraction * 100)}%`) ?? []
+  const evaluationLabel = summary?.evaluationPolicy === 'masked-shutter'
+    ? `${Math.round((summary.expectedActiveFraction ?? 0) * 100)}% expected`
+    : summary?.evaluationPolicy === 'mixed'
+      ? `${maskedClipFractions.join(', ')} expected for masked clip`
+      : null
   return (
     <div className="flex min-h-10 shrink-0 items-center gap-2 border-t border-seam bg-zinc-950 px-3 font-mono text-xs text-zinc-500">
       <span>compiled artifact</span>
@@ -942,6 +993,11 @@ function CompileBar({
       {summary && summary.clockPolicy !== 'real-time' && (
         <span className={summary.clockPolicy.includes('exact-pause') ? 'text-amber-300' : 'text-zinc-500'}>
           clock: {clockPolicy}
+        </span>
+      )}
+      {evaluationLabel && (
+        <span className="text-sky-300">
+          Pattern eval: {evaluationLabel} - outer loop + LEDs unchanged
         </span>
       )}
       {summary?.warnings.map((warning) => <span key={warning} className="text-amber-300">{warning}</span>)}
@@ -992,6 +1048,7 @@ function adaptationSummary(cell: ShowCell): string {
   if (cell.adaptations.phase !== 0) parts.push(`phase ${cell.adaptations.phase.toFixed(2)}`)
   if (cell.adaptations.brightness !== 1) parts.push(`dim ${cell.adaptations.brightness.toFixed(2)}`)
   if (cell.adaptations.timeScale !== 1) parts.push(`time x${cell.adaptations.timeScale.toFixed(1)}`)
+  if (cell.adaptations.lightShutter) parts.push(`shutter ${Math.round(cell.adaptations.lightShutter.duty * 100)}%`)
   return parts.length ? parts.join(' - ') : 'no adaptations'
 }
 

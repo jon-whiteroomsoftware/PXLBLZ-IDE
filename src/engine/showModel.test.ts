@@ -201,6 +201,24 @@ describe('showModel (#318)', () => {
     expect(negative.cells[0].adaptations.timeScale).toBe(0)
   })
 
+  it('normalizes and removes a non-destructive light shutter adaptation', () => {
+    const show = createDefaultShow('show-1', 'Untitled Show')
+    const shuttered = updateShowCellAdaptations(show, show.cells[0].id, {
+      lightShutter: { rateHz: 120, duty: -0.2, phase: 2, clockBehavior: 'freeze' },
+    })
+    const removed = updateShowCellAdaptations(shuttered, show.cells[0].id, {
+      lightShutter: undefined,
+    })
+
+    expect(shuttered.cells[0].adaptations.lightShutter).toEqual({
+      rateHz: 60,
+      duty: 0,
+      phase: 1,
+      clockBehavior: 'freeze',
+    })
+    expect(removed.cells[0].adaptations.lightShutter).toBeUndefined()
+  })
+
   it('builds the current compiler recipe from the first two scene cells', () => {
     const show = createDefaultShow('show-1', 'Untitled Show')
     const recipe = showRecordToCompileRecipe(show, {
@@ -234,6 +252,33 @@ describe('showModel (#318)', () => {
     expect(recipe.clips).toHaveLength(1)
     expect(recipe.crossfade).toBeUndefined()
     expect(recipe.cut).toBeUndefined()
+    expect(recipe.adaptationRamp).toBeUndefined()
+  })
+
+  it('passes a light shutter into the compiler recipe and keeps unlike shutters as separate clips', () => {
+    const base = createDefaultShow('show-1', 'Untitled Show')
+    const samePattern = updateShowCellPattern(base, base.cells[1].id, {
+      pattern: base.cells[0].pattern,
+      patternName: base.cells[0].patternName,
+    })
+    const shuttered = updateShowCellAdaptations(samePattern, samePattern.cells[0].id, {
+      lightShutter: { rateHz: 8, duty: 0.35, phase: 0.1, clockBehavior: 'continue' },
+    })
+    const recipe = showRecordToCompileRecipe(shuttered, {
+      byCellId: {
+        [shuttered.cells[0].id]: DEMOS.TestPattern1D,
+        [shuttered.cells[1].id]: DEMOS.TestPattern1D,
+      },
+    })
+
+    expect(recipe.clips[0].adaptation?.lightShutter).toEqual({
+      rateHz: 8,
+      duty: 0.35,
+      phase: 0.1,
+      clockBehavior: 'continue',
+    })
+    expect(recipe.clips).toHaveLength(2)
+    expect(recipe.crossfade).toEqual({ startMs: 30000, durationMs: 2000 })
     expect(recipe.adaptationRamp).toBeUndefined()
   })
 

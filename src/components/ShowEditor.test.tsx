@@ -106,6 +106,36 @@ describe('ShowEditor (#318)', () => {
     expect(screen.getByText(/steady state/i)).toHaveTextContent('1 renderer/px')
   })
 
+  it('edits and explains a masked-evaluation light shutter', async () => {
+    const user = userEvent.setup()
+    const show = createDefaultShow('show-1', 'Shutter study', 1000)
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+    await user.click(screen.getAllByRole('button', { name: /Select TestPattern1D/i })[0])
+    await user.click(screen.getByLabelText('Light shutter'))
+
+    expect(screen.getByLabelText('Shutter rate (Hz)')).toHaveValue(8)
+    expect(screen.getByLabelText('Light on fraction')).toHaveValue(0.5)
+    expect(screen.getByLabelText('Shutter phase')).toHaveValue(0)
+    expect(screen.getByLabelText('Clock while dark')).toHaveValue('continue')
+    expect(screen.getByText(/closed frames emit black/i)).toHaveTextContent('skip Pattern rendering')
+    expect(screen.getByText(/Pattern eval:/i)).toHaveTextContent('50% expected')
+    expect(screen.getByText(/Pattern eval:/i)).toHaveTextContent('outer loop + LEDs unchanged')
+
+    fireEvent.change(screen.getByLabelText('Light on fraction'), { target: { value: '0.35' } })
+    await user.selectOptions(screen.getByLabelText('Clock while dark'), 'freeze')
+
+    await waitFor(() => {
+      expect(useShowStore.getState().shows[0].cells[0].adaptations.lightShutter).toMatchObject({
+        duty: 0.35,
+        clockBehavior: 'freeze',
+      })
+    })
+    expect(screen.getAllByText(/shutter 35%/i).length).toBeGreaterThan(0)
+  })
+
   it('explains feathered wipe as a stable one-renderer route edge', async () => {
     const user = userEvent.setup()
     const show = createDefaultShow('show-1', 'Feathered wipe', 1000)

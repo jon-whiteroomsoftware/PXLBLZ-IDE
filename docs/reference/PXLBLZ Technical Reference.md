@@ -806,7 +806,9 @@ and nominal pixel counts, extend cells across scene boundaries as hold shapes,
 edit non-destructive adaptations, and build compiler recipes. A one-zone Show
 keeps the scene-boundary policies: a spanning cell emits a single continuous clip;
 adjacent same-pattern cells with a non-cut transition emit a parameter ramp
-between the cells' adaptations; separate cells with a cut emit distinct clip
+between the cells' rampable adaptations when their discrete adaptations match;
+different light-shutter settings keep separate clip instances. Separate cells
+with a cut emit distinct clip
 instances so the second clip gets a fresh virtual time base. A multi-zone Show
 currently emits the first scene's cells as routed clips, one clip per populated
 zone row. A cell can also span downward across adjacent zone rows: the compiler
@@ -849,7 +851,8 @@ same-pattern adaptation ramp (`parameter-ramp-one-renderer-per-pixel`), and the
 #334 route-cost transition path (`route-transition-one-renderer-per-pixel`) plus
 the #317 zone route pass (`route-one-renderer-per-pixel`). Each member pattern is
 alpha-renamed, gets a private elapsed-time accumulator, and receives per-member
-adaptation variables for brightness, phase, time scale, and mirror. Adaptation
+adaptation variables for brightness, phase, time scale, mirror, and an optional
+full-clip light shutter. Adaptation
 ramps interpolate those variables once per frame and call only one renderer per
 pixel; the transform summary marks them as `transitionCost: 'parameter'` with
 `worstInstantRenderersPerPixel: 1`, unlike crossfades, which report a
@@ -894,6 +897,29 @@ instance, so stop, dwell, and resume preserve state without implicit restart.
 `ShowStagePreview` loads this same generated artifact (float or fixed-point)
 that hardware receives, rather than approximating pause in React or the stage
 renderer.
+
+A light shutter (#378) is an optional generated evaluation mask with normalized
+rate (`0.01..60` Hz), duty (`0..1`), phase (`0..1`), and `continue` or `freeze`
+clock behavior. The shutter oscillator follows outer Show time. Each member's
+capture wrapper clears its RGB slot first; while closed it skips the rewritten
+Pattern renderer, so the ordinary emit path produces explicit black without
+calling source Pattern code. In `continue` mode the private clock and original
+`beforeRender(delta)` advance normally behind darkness. In `freeze` mode the
+wrapper integrates the exact open-time overlap of each outer frame interval and
+delivers only that accumulated duration to the private clock and Pattern
+`beforeRender`; a wholly closed interval calls neither. Duty `0` is always
+closed, duty `1` is always open, and omitting the shutter leaves generated
+runtime code byte-identical to the unmasked path.
+
+The artifact summary reports top-level `evaluationPolicy` (`full`,
+`masked-shutter`, or `mixed`) and `expectedActiveFraction` when one aggregate
+fraction is honest. Every clip also reports `full`,
+`masked-shutter-continue`, or `masked-shutter-freeze` plus its own expected
+active fraction. These numbers describe Pattern evaluation only. Firmware still
+calls the generated outer `render(index)` for every pixel and LED transport is
+unchanged; the Show editor states that limit alongside the estimate. Stage
+preview runs the same generated artifact and therefore exercises identical
+mask, boundary, hold, and restart behavior.
 
 `PatternRecord` carries the per-pattern overrides in a sparse
 `settings?: Partial<Settings>` field — superseding older flat columns;

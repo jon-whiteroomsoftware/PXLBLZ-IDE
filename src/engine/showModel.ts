@@ -423,7 +423,7 @@ export function showRecordToCompileRecipe(
   const transitionScene = show.scenes[sceneIndex(show, cells[0].sceneId)]
   const transition = transitionScene?.transitionOut
   const samePattern = isSamePattern(cells[0], cells[1])
-  if (samePattern && transition && transition.kind !== 'cut') {
+  if (samePattern && hasSameDiscreteAdaptations(cells[0], cells[1]) && transition && transition.kind !== 'cut') {
     return {
       clips: [{ id: cells[0].id, source: source0, adaptation: compilerAdaptation(cells[0].adaptations) }],
       adaptationRamp: {
@@ -522,6 +522,16 @@ function normalizeAdaptations(adaptations: ShowCellAdaptations): ShowCellAdaptat
     phase: clamp01(adaptations.phase),
     brightness: clamp01(adaptations.brightness),
     timeScale: Math.max(0, Math.min(4, adaptations.timeScale)),
+    ...(adaptations.lightShutter
+      ? {
+          lightShutter: {
+            rateHz: Math.max(0.01, Math.min(60, adaptations.lightShutter.rateHz)),
+            duty: clamp01(adaptations.lightShutter.duty),
+            phase: clamp01(adaptations.lightShutter.phase),
+            clockBehavior: adaptations.lightShutter.clockBehavior === 'freeze' ? 'freeze' as const : 'continue' as const,
+          },
+        }
+      : {}),
   }
 }
 
@@ -535,11 +545,22 @@ function compilerAdaptation(adaptations: ShowCellAdaptations): ShowClipAdaptatio
     phase: adaptations.phase,
     timeScale: adaptations.timeScale,
     mirror: adaptations.mirror,
+    ...(adaptations.lightShutter ? { lightShutter: { ...adaptations.lightShutter } } : {}),
   }
 }
 
 function isSamePattern(a: ShowCell, b: ShowCell): boolean {
   return a.pattern.kind === b.pattern.kind && a.pattern.id === b.pattern.id
+}
+
+function hasSameDiscreteAdaptations(a: ShowCell, b: ShowCell): boolean {
+  const aShutter = a.adaptations.lightShutter
+  const bShutter = b.adaptations.lightShutter
+  if (!aShutter || !bShutter) return aShutter === bShutter
+  return aShutter.rateHz === bShutter.rateHz
+    && aShutter.duty === bShutter.duty
+    && aShutter.phase === bShutter.phase
+    && aShutter.clockBehavior === bShutter.clockBehavior
 }
 
 function nominalZones(zones: ShowZone[]): ControllerZone[] {
@@ -604,7 +625,12 @@ function copyCellForScene(
     sceneSpan: 1,
     zoneSpan: 1,
     pattern: { ...source.pattern },
-    adaptations: { ...source.adaptations },
+    adaptations: {
+      ...source.adaptations,
+      ...(source.adaptations.lightShutter
+        ? { lightShutter: { ...source.adaptations.lightShutter } }
+        : {}),
+    },
   }
 }
 
