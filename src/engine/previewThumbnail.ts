@@ -10,18 +10,16 @@
 //   - width  = 100 columns: a fixed 100-pixel 1D strip, one column per LED index
 //     (independent of the real pixel count — a 16x16 matrix still previews 100 wide).
 //   - height = 150 rows: 150 successive frame iterations, time flowing top->bottom.
-// Higher-dim patterns mirror the device's own dispatch: the highest render fn the
-// pattern exports, fed the strip coords with only X varying (Y/Z pinned to 0). That
-// falls out for free here — every strip sample has arity 3, so dispatch always goes
-// through handle.render3D, whose fallback chain (render3D->render2D->render->noop,
-// loadPattern.ts) cascades to the pattern's actual highest render fn.
+// Higher-dim Patterns use the same firmware-compatible renderer policy as the
+// live preview: X varies across the 1D strip and missing Y/Z are centered at 0.5.
 //
 // This module is the PURE half: it produces the raw RGBA waterfall buffer with zero
 // DOM/React. JPEG encoding (which needs a canvas) lives at the engine/UI seam in
 // previewThumbnailJpeg.ts.
 
 import { createShim, createFxShim } from './shim'
-import { loadPattern, nativeDimension } from './loadPattern'
+import { loadPattern } from './loadPattern'
+import { selectRenderCompatibility } from './renderCompatibility'
 import type { BundleMetadata } from './bundle'
 import { createVirtualClock } from './virtualClock'
 import { createRenderLoop } from './renderLoop'
@@ -63,17 +61,16 @@ export function renderPreviewWaterfall(
   const fidelity = options.fidelity ?? 'precise'
   const frameDelta = options.frameDeltaMs ?? PREVIEW_FRAME_DELTA_MS
 
-  // A synthetic 100-pixel 1D strip: every sample is a 3-coord [x,0,0] with x = i/width,
-  // so render dispatch always hits render3D and cascades to the pattern's highest fn.
+  // A synthetic 100-pixel 1D strip. Compatibility chooses the renderer.
   const mapPoints: MapPoint[] = Array.from({ length: width }, (_, i) => ({
-    sample: [i / width, 0, 0],
+    sample: [i / width],
   }))
 
   const clock = createVirtualClock()
   const shimConfig = {
     mapPoints,
     pixelCount: width,
-    dimensions: nativeDimension(source.metadata.renderFns),
+    dimensions: 1 as const,
     getVirtualTime: () => clock.getTime(),
   }
   const shim = fidelity === 'fast' ? createShim(shimConfig) : createFxShim(shimConfig)
@@ -82,6 +79,7 @@ export function renderPreviewWaterfall(
     source.metadata,
     shim.builtins,
   )
+  const renderCompatibility = selectRenderCompatibility(1, source.metadata.renderFns)
 
   const rgba = new Uint8ClampedArray(width * height * 4)
   let row = 0
@@ -92,6 +90,7 @@ export function renderPreviewWaterfall(
     clock,
     mapPoints,
     pixelCount: width,
+    renderCompatibility,
     getSpeed: () => 1,
     getBrightness: () => 1,
     isDimmed: () => false,

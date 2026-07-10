@@ -4,6 +4,7 @@ import type { PatternHandle } from './loadPattern'
 import type { ShimContext } from './shim'
 import type { VirtualClock } from './virtualClock'
 import { createPlaneMap } from './maps'
+import { selectRenderCompatibility, type RenderCompatibility } from './renderCompatibility'
 
 // The reveal-2D spatial source: a uniform plane resolved to row-major points,
 // whose `sample` reproduces the legacy grid loop's `x = col/(cols-1)` coords.
@@ -375,10 +376,15 @@ describe('onFps', () => {
 // ── dimensionality dispatch (sample-arity → fallback chain) ───────────────────
 
 describe('dispatch by sample arity', () => {
-  function loopWith(points: { sample: number[] }[], handle: PatternHandle) {
+  function loopWith(
+    points: { sample: number[] }[],
+    handle: PatternHandle,
+    renderCompatibility?: RenderCompatibility,
+  ) {
     return createRenderLoop({
       handle, shim: makeMockShim(), clock: makeMockClock(),
       mapPoints: points as never, pixelCount: points.length,
+      renderCompatibility,
       getSpeed: () => 1, getBrightness: () => 1, isDimmed: () => false,
       paint: vi.fn(),
     })
@@ -405,5 +411,31 @@ describe('dispatch by sample arity', () => {
     const handle = makeMockHandle()
     loopWith([{ sample: [0.1, 0.2, 0.3] }], handle).tick(16)
     expect(handle.render3D).toHaveBeenCalledWith(0, 0.1, 0.2, 0.3)
+  })
+
+  it('pads a 2D map with center-space z for a 3D-only Pattern', () => {
+    const handle = makeMockHandle()
+    const plan = selectRenderCompatibility(2, {
+      hasBeforeRender: false,
+      hasRender: false,
+      hasRender2D: false,
+      hasRender3D: true,
+    })
+    loopWith([{ sample: [0.1, 0.2] }], handle, plan).tick(16)
+    expect(handle.render3D).toHaveBeenCalledWith(0, 0.1, 0.2, 0.5)
+    expect(handle.render2D).not.toHaveBeenCalled()
+  })
+
+  it('drops z when a 3D map drives a 2D-only Pattern', () => {
+    const handle = makeMockHandle()
+    const plan = selectRenderCompatibility(3, {
+      hasBeforeRender: false,
+      hasRender: false,
+      hasRender2D: true,
+      hasRender3D: false,
+    })
+    loopWith([{ sample: [0.1, 0.2, 0.9] }], handle, plan).tick(16)
+    expect(handle.render2D).toHaveBeenCalledWith(0, 0.1, 0.2)
+    expect(handle.render3D).not.toHaveBeenCalled()
   })
 })

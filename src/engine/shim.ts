@@ -178,8 +178,8 @@ export function createShim(config: ShimConfig): ShimContext {
 
     // ── Pixel map ──────────────────────────────────────────────────────────
     pixelCount,
-    has2DMap: () => dimensions >= 2,
-    has3DMap: () => dimensions >= 3,
+    has2DMap: () => dimensions === 2,
+    has3DMap: () => dimensions === 3,
     pixelMapDimensions: () => dimensions,
     mapPixels(fn: (index: number, x: number, y: number, z: number) => void) {
       // Pixelblaze exposes installed-map coordinates, never the IDE's preview

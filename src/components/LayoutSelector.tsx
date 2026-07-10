@@ -38,13 +38,14 @@ function useLayoutControls() {
 
   const source = layoutSource({ userMaps })
   const maps = mapOptions(nativeDim, source)
-  const activeMap = source.maps.find((m) => m.id === activeMapId)
-  const embeddings = embeddingOptions(nativeDim, source, activeMap)
-
   const sel = { mapId: activeMapId, shapeId: activeShapeId, surfaceId: activeSurfaceId }
   const selectedMap = selectedMapId(sel, nativeDim)
   const mapValue = maps.some((option) => option.id === selectedMap) ? selectedMap : maps[0]?.id
-  const embeddingValue = selectedEmbeddingId(sel, nativeDim)
+  const selectedMapOption = maps.find((option) => option.id === mapValue)
+  const mapDim = selectedMapOption?.mapDim ?? nativeDim
+  const activeMap = source.maps.find((m) => m.id === mapValue)
+  const embeddings = embeddingOptions(mapDim, source, activeMap)
+  const embeddingValue = selectedEmbeddingId(sel, mapDim)
 
   // Route a chosen option to its live setter AND write a per-pattern cascaded
   // override: a map/shape/surface change is genuine manipulation, so it
@@ -67,45 +68,41 @@ function useLayoutControls() {
     }
   }
 
-  return { nativeDim, maps, embeddings, mapValue, embeddingValue, route }
+  return { nativeDim, mapDim, maps, embeddings, mapValue, embeddingValue, route }
 }
 
 function mapSelectMeta(
-  nativeDim: 1 | 2 | 3,
+  mapDim: 1 | 2 | 3,
   maps: ReturnType<typeof mapOptions>,
 ) {
-  const hasExplicit1DMap = maps.some((option) => !option.implicit)
-  const hasMapChoice = maps.length > 0 && (nativeDim !== 1 || hasExplicit1DMap)
+  const hasMapChoice = maps.length > 1
   return {
     hasMapChoice,
     // Contain and Fill are identical with one coordinate axis, so Fit remains
     // absent for 1D even while a true map is selected.
-    hasMappedCoordinates: hasMapChoice && nativeDim !== 1,
+    hasMappedCoordinates: hasMapChoice && mapDim !== 1,
   }
 }
 
 export function useMapSelectMeta() {
-  const { nativeDim, maps } = useLayoutControls()
-  return mapSelectMeta(nativeDim, maps)
+  const { mapDim, maps } = useLayoutControls()
+  return { ...mapSelectMeta(mapDim, maps), mapDim }
 }
 
 export function useEmbeddingSelectMeta() {
-  const { nativeDim, embeddings } = useLayoutControls()
+  const { mapDim, embeddings } = useLayoutControls()
   return {
     hasEmbeddingChoice: embeddings.length > 1,
-    label: nativeDim === 1 ? 'shape' : 'surface',
+    label: mapDim === 1 ? 'shape' : 'surface',
   }
 }
 
 // The MAP control (#253): real Pixelblaze state, rendered bare so the PIXELBLAZE
-// block can wrap it in a labeled deck cell paired with `fit`. Renders nothing for
-// a mapless layout (1D, or a dimension with no maps) — the caller hides the whole
-// map+fit row in that case.
+// block can wrap it in a labeled deck cell paired with `fit`. Renders nothing only
+// when Index is literally the sole available option.
 export function MapSelect() {
-  const { nativeDim, maps, mapValue, route } = useLayoutControls()
-  // Index is an invisible default until at least one real 1D map exists. Once
-  // there is a choice it appears as the reversible "no installed map" option.
-  if (!mapSelectMeta(nativeDim, maps).hasMapChoice) return null
+  const { mapDim, maps, mapValue, route } = useLayoutControls()
+  if (!mapSelectMeta(mapDim, maps).hasMapChoice) return null
   // Block-mode + a max-width cap, right-aligned (self-end) within the stacked map cell:
   // the dropdown grows with the column until it hits the cap, keeping its right edge
   // pinned to the column edge so it lines up with the `fit` dropdown directly below.
@@ -119,7 +116,8 @@ export function MapSelect() {
         options={maps.map((o) => ({
           value: o.id,
           label: o.name,
-          group: o.implicit ? undefined : o.group === 'user' ? 'User' : 'Stock',
+          badge: o.mapDim ? `${o.mapDim}D` : undefined,
+          group: o.group === 'recommended' ? 'Recommended' : 'Other dimensions',
         }))}
         onChange={(id) => route(id, maps)}
         menuWidthClass="w-full"
@@ -135,11 +133,11 @@ export function MapSelect() {
 // choice: a single option (an irregular cloud's Flat-only set, or 3D with none) is
 // not a choice, so it is hidden ("show only when needed").
 export function EmbeddingSelect({ showLabel = false }: { showLabel?: boolean } = {}) {
-  const { nativeDim, embeddings, embeddingValue, route } = useLayoutControls()
+  const { mapDim, embeddings, embeddingValue, route } = useLayoutControls()
   const showEmbedding = embeddings.length > 1
   if (!showEmbedding) return null
-  const label = nativeDim === 1 ? 'shape' : 'surface'
-  const ariaLabel = nativeDim === 1 ? 'Shape' : 'Surface'
+  const label = mapDim === 1 ? 'shape' : 'surface'
+  const ariaLabel = mapDim === 1 ? 'Shape' : 'Surface'
   return (
     <div className="flex items-center gap-1.5 shrink-0">
       {showLabel && (

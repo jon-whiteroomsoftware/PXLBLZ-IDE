@@ -61,4 +61,15 @@ describe('editorStore', () => {
     useEditorStore.getState().setControls(controls)
     expect(useEditorStore.getState().controls).toEqual(controls)
   })
+
+  it('publishes the active map dimension and renderer adaptation', () => {
+    useEditorStore.getState().setMapDim(3)
+    useEditorStore.getState().setRenderAdaptation(
+      'Using render2D with a 3D map; z is dropped.',
+    )
+    expect(useEditorStore.getState().mapDim).toBe(3)
+    expect(useEditorStore.getState().renderAdaptation).toBe(
+      'Using render2D with a 3D map; z is dropped.',
+    )
+  })
 })

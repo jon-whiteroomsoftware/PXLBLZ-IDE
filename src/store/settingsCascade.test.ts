@@ -2,6 +2,7 @@ import { beforeEach, describe, it, expect } from 'vitest'
 import { usePatternStore, patternInitialState } from './patternStore'
 import { usePreviewStore, previewInitialState } from './previewStore'
 import { useMapStore, mapInitialState } from './mapStore'
+import { AUTO_MAP_ID } from '@/engine/settings'
 import {
   resolveActiveSettings,
   seedActiveSettings,
@@ -32,7 +33,7 @@ describe('resolveActiveSettings', () => {
     seedPattern()
     const eff = resolveActiveSettings()
     expect(eff.brightness).toBe(1)
-    expect(eff.mapId).toBe('plane')
+    expect(eff.mapId).toBe(AUTO_MAP_ID)
   })
 
   it('applies a per-pattern override over the dev-default', () => {
@@ -161,7 +162,7 @@ describe('resetActiveSettings', () => {
     await resetActiveSettings()
     expect(usePatternStore.getState().userPatterns[0].settings).toEqual({})
     expect(usePreviewStore.getState().brightness).toBe(1)
-    expect(useMapStore.getState().activeMapId).toBe('plane')
+    expect(useMapStore.getState().activeMapId).toBe(AUTO_MAP_ID)
   })
 
   it('reverts a demo to its recommendation, leaving the global-sticky comfort prefs alone', async () => {

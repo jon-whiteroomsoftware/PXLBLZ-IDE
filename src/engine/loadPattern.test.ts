@@ -38,12 +38,12 @@ describe('loadPattern handle', () => {
     expect(() => handle.beforeRender(16)).not.toThrow()
   })
 
-  it('falls back to render(index) when render2D is not defined', () => {
+  it('keeps the render2D slot exact so compatibility policy owns fallback', () => {
     const calls: number[] = []
     const code = `function render(index) { calls.push(index); }`
     const handle = loadPattern(code, meta([]), { ...minimalBuiltins, calls })
     handle.render2D(3, 0.5, 0.5)
-    expect(calls).toEqual([3])
+    expect(calls).toEqual([])
   })
 
   it('provides no-op render2D when the pattern does not define it', () => {
@@ -82,20 +82,20 @@ describe('loadPattern handle', () => {
     expect(calls).toEqual([[2, 0.1, 0.2, 0.3]])
   })
 
-  it('render3D falls back to render2D, dropping z', () => {
+  it('does not make render3D secretly fall back to render2D', () => {
     const calls: number[][] = []
     const code = `function render2D(index, x, y) { calls.push([index, x, y]); }`
     const handle = loadPattern(code, meta([]), { ...minimalBuiltins, calls })
     handle.render3D(2, 0.1, 0.2, 0.3)
-    expect(calls).toEqual([[2, 0.1, 0.2]])
+    expect(calls).toEqual([])
   })
 
-  it('render3D falls back to render, dropping x/y/z', () => {
+  it('does not make render3D secretly fall back to render', () => {
     const calls: number[] = []
     const code = `function render(index) { calls.push(index); }`
     const handle = loadPattern(code, meta([]), { ...minimalBuiltins, calls })
     handle.render3D(7, 0.1, 0.2, 0.3)
-    expect(calls).toEqual([7])
+    expect(calls).toEqual([])
   })
 
   it('provides no-op render3D when no render fn is defined', () => {

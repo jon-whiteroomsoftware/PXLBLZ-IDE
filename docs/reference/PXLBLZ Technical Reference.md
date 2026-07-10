@@ -147,7 +147,7 @@ render in the same header on every route and in every auth state.
 |---|---|
 | `previewStore` | `isRunning`, `speed`, `brightness`, live `lightSize`/`diffusion`, the global-sticky `lightSizeSticky`/`diffusionSticky` baselines, `fidelity`, watcher state, `fps`, `elapsed`. Persists only `fidelity` and the two sticky baselines; cascaded fields are seeded per pattern by the resolver (§12). |
 | `patternStore` | tri-state selection (`activePatternId` / `activeLibraryName` / `activeDemoName`), `userPatterns`, `demoOverrides` (per-demo cascade layer-1 bag), CRUD through the active personal content provider. |
-| `editorStore` | `source`, `previewSource`, `compileStatus`, `isReadOnly`, `patternVars`, `controls`, `nativeDim`, `displayDim`, `solidEligible`, `editorFlavor` (`'pattern' \| 'map' \| 'mixin'`). |
+| `editorStore` | `source`, `previewSource`, `compileStatus`, `isReadOnly`, `patternVars`, `controls`, Pattern `nativeDim`, active `mapDim`, viewport `displayDim`, `renderAdaptation`, `solidEligible`, `editorFlavor` (`'pattern' \| 'map' \| 'mixin'`). |
 | `mapStore` | `activeMapId`/`activeShapeId`/`activeSurfaceId`, `activePixelCount`, `activeNormalizeMode`, `activeSolidity`, `userMaps`, the stock catalogue, and the map-mode editing target. |
 | `controlStore` | current pattern UI control values (transient). |
 | `cameraStore` | ephemeral orbit angle, persistent auto-orbit flag, a transient `dragging` hold, pole wrap density. |
@@ -566,23 +566,30 @@ geometry directly as a **shell** (boundary points, solid-eligible) or a
 
 ### Layout routing (`layout.ts`)
 
-Two orthogonal controls, not one union dropdown: **Map** (owns `sample`, filtered
-by sample-arity) and **embedding** (owns `pos` — shapes for 1D, surfaces gated on
-`gridDims` for 2D). `resolveLayoutSelection` restores a persisted selection if
-still valid, else a default. `mapOptions(1)` prepends the implicit `Index` option
-(`x = index / pixelCount`) to real dim-1 maps. It is a reversible no-map sentinel,
-not a `MapRecord`, so it never appears in Map mode or a Controller push.
+Two orthogonal controls, not one union dropdown: **Map** owns `sample`, and
+**embedding** owns `pos`. `mapOptions(nativeDim)` offers Index plus every real map
+to every Pattern, stable-partitioned into exact-dimensional **Recommended** and
+**Other dimensions**. Pattern native dimension chooses the initial/default group;
+it is not a filter. The cascade's internal `AUTO_MAP_ID` sentinel lets an
+untouched Pattern resolve to the first Recommended option without turning that
+default into an explicit cross-dimensional choice. **Index** supplies
+`x = index / pixelCount`; neither sentinel is a `MapRecord`, so neither appears in
+Map mode or a Controller push.
+
+`resolveLayoutSelection` restores any still-valid selected map, then derives the
+embedding from that map's dimension: shapes for Index/1D, surfaces (gated on
+`gridDims`) for 2D, none for 3D. Thus a 3D-native Pattern on a 1D map gets a Shape,
+while a 1D-native Pattern on a 2D map gets Flat/Cylinder.
 `LayoutSelector.tsx` factors shared logic into `useLayoutControls()` and exports
 the two controls separately so the deck can place them by what they are:
-`MapSelect` renders inside the PIXELBLAZE block (stacked full-width, stock/user
-subgroups). For a 1D Pattern it stays hidden while Index is the only option, then
-appears as soon as any real 1D map exists; `EmbeddingSelect` renders on the
-transport row independently. Fill/Contain remains hidden for 1D because one axis
-has no aspect tradeoff.
+`MapSelect` renders inside the PIXELBLAZE block (stacked full-width, compatibility
+groups and dimension badges); `EmbeddingSelect` renders on the transport row.
+Fill/Contain keys off selected map dimension and remains hidden for 1D because
+one axis has no aspect tradeoff.
 
 `resolveLayout(input, deps): ResolvedLayout` is the single seam from a layout
-*selection* to its drawn realization: selection-correction, map/shape/surface
-resolution, the shared normalization, draw positions, solid-eligible normals, the
+*selection* to its drawn realization: selection-correction, active `mapDim`,
+map/shape/surface resolution, the shared normalization, draw positions, solid-eligible normals, the
 modeled `pixelCount`, and the `cols×rows(×depth)` readout label. The result's
 `draw` is a discriminated union — `{ kind:'2d', positions }` or `{ kind:'3d',
 positions, normals }` (normals present ⇔ solidity-eligible). `Preview.tsx` is
@@ -635,18 +642,33 @@ to a controller (a Pixelblaze map is positions only). Solidity persists on
 
 `loadPattern` strips `export`, appends a generated epilogue, and evaluates via
 `new Function(...builtinNames, body)(...builtinValues)` → a `PatternHandle`. The
-epilogue builds each render slot with the fallback chain
-`render3D → render2D → render → noop`, so asking for a higher dimensionality than
-defined transparently drops extra coordinates. `nativeDimension(renderFns)`
-returns the highest render fn defined — driving default layout and title label,
-not per-frame dispatch.
+epilogue exposes exact `render` / `render2D` / `render3D` slots (or no-ops); it
+contains no hidden fallback chain. `nativeDimension(renderFns)` returns the
+highest render fn defined for title metadata and Recommended map grouping, not
+per-frame dispatch.
+
+`renderCompatibility.ts` owns the firmware-3.66 preference matrix:
+
+| Active map | Renderer preference |
+|---|---|
+| Index / 1D | `render` → `render3D` → `render2D` |
+| 2D | `render2D` → `render3D` → `render` |
+| 3D | `render3D` → `render2D` → `render` |
+
+`selectRenderCompatibility` runs once when the preview loop is built. Exact arity
+wins; `adaptSampleForRenderer` fills missing trailing coordinates with `0.5` or
+drops extras. Its optional description is published as
+`editorStore.renderAdaptation`; exact matches publish `null`. There is no manual
+render-function selector. The shim receives the resolved layout's exact `mapDim`,
+so `has2DMap()` is true only for 2D, `has3DMap()` only for 3D, and
+`pixelMapDimensions()` is independent of Pattern renderer and viewport display.
 
 ### Render loop (`renderLoop.ts`)
 
 Per `requestAnimationFrame`: scale `realDelta` by playback speed and advance the
 virtual clock; `beforeRender(encodeScalar(scaledDelta))`; then per index, read
-the map point's `sample`, apply the transform stack, and dispatch by sample arity
-(`≥3 → render3D`, `===2 → render2D`, `===1 → render(index, x)`); capture the colour;
+the map point's `sample`, adapt it through the preselected compatibility plan,
+apply the transform stack, and call that exact Pattern render slot; capture the colour;
 `paint(...)`; report watch values and a ~500 ms-smoothed FPS. Runtime throws are
 caught — the loop stops quietly and reports via `onError`.
 

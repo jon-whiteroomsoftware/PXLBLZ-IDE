@@ -5,6 +5,10 @@
 
 import { DEFAULT_LIGHT_SIZE } from './camera'
 
+// Cascade sentinel meaning "choose the natural exact-dimensional map after the
+// Pattern has compiled." It is not a Map entity and is never offered in the UI.
+export const AUTO_MAP_ID = '__auto__'
+
 // The renderer (machine/performance choice). Mirrors the previewStore type; defined
 // here so the engine layer owns the Settings vocabulary without importing a store.
 export type FidelityMode = 'fast' | 'fidelity'
@@ -32,9 +36,9 @@ export interface Settings {
 // The developer-default table (cascade layer 4): the static fallback shipped in the
 // engine, used for any field no higher layer supplies. Values mirror the stores'
 // historical defaults (DEFAULT_MAP_ID 'plane', DEFAULT_SHAPE_ID 'line', etc.) so a
-// pattern with no overrides previews exactly as before.
+// pattern with no overrides previews through its exact-dimensional default.
 export const DEV_DEFAULTS: Settings = {
-  mapId: 'plane',
+  mapId: AUTO_MAP_ID,
   shapeId: 'line',
   surfaceId: 'flat',
   pixelCount: null,

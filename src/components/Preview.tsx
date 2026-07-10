@@ -15,6 +15,7 @@ import { seedActiveSettings } from '@/store/settingsCascade'
 import { useCameraStore } from '@/store/cameraStore'
 import { createShim, createFxShim, type ShimContext } from '@/engine/shim'
 import { loadPattern, nativeDimension } from '@/engine/loadPattern'
+import { selectRenderCompatibility } from '@/engine/renderCompatibility'
 import { bundle } from '@/engine/bundle'
 import { compileLibraries } from '@/engine/libraries'
 import { createRenderer } from '@/engine/renderer'
@@ -139,6 +140,7 @@ export function Preview({
     const canvas = canvasRef.current
     if (!canvas || !viewport) return
     setRuntimeError(null)
+    useEditorStore.getState().setRenderAdaptation(null)
 
     // Opening a map (editor map mode) must NOT touch the preview — it changes the
     // editor surface only, leaving the running pattern rendering untouched. Map
@@ -147,8 +149,9 @@ export function Preview({
     // even rebuilt; nothing here special-cases map mode.
     if (!previewSource) return
 
-    // Bundle first so the pattern's native dimensionality (highest render fn) is
-    // known before resolving its layout — the dropdown filters by it.
+    // Bundle first so the Pattern's native dimensionality (highest render fn) is
+    // known before resolving its layout — it drives Recommended/default ordering,
+    // never a map filter.
     let bundled: ReturnType<typeof bundle>
     try {
       bundled = bundle(previewSource, libraries)
@@ -205,6 +208,7 @@ export function Preview({
     }
 
     const { mapPoints, pixelCount, draw } = layout
+    const renderCompatibility = selectRenderCompatibility(layout.mapDim, metadata.renderFns)
     // Split the draw channel back into the prior locals so the renderer wiring
     // below is unchanged: the 3D channel carries positions + (solid-eligible)
     // normals; the 2D channel a single pos list.
@@ -213,7 +217,9 @@ export function Preview({
     const shapePositions = draw.kind === '2d' ? draw.positions : null
 
     useEditorStore.getState().setDisplayDim(layout.displayDim)
+    useEditorStore.getState().setMapDim(layout.mapDim)
     useEditorStore.getState().setLayoutLabel(layout.layoutLabel)
+    useEditorStore.getState().setRenderAdaptation(renderCompatibility.description)
     // A normal array is fed exactly for a solid-eligible embedding (Pole, Cylinder,
     // Sphere shell, Cube shell), so its presence IS the eligibility the deck's
     // solidity slider keys on.
@@ -223,7 +229,7 @@ export function Preview({
     const shimConfig = {
       mapPoints,
       pixelCount,
-      dimensions: nativeDim,
+      dimensions: layout.mapDim,
       getVirtualTime: () => clock.getTime(),
     }
     // The Precise renderer runs the 16.16 fixed-point emit + shim; the Fast
@@ -329,6 +335,7 @@ export function Preview({
     const loop = createRenderLoop({
       handle, shim, clock,
       mapPoints, pixelCount,
+      renderCompatibility,
       getSpeed: () => usePreviewStore.getState().speed,
       getBrightness: () => usePreviewStore.getState().brightness,
       isDimmed: () => !usePreviewStore.getState().isRunning,

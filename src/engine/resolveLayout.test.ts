@@ -1,6 +1,7 @@
 import {
   resolveLayout,
   effectivePixelCount,
+  INDEX_MAP_ID,
   type LayoutSource,
   type ResolveLayoutDeps,
   type ResolveLayoutInput,
@@ -239,6 +240,25 @@ describe('resolveLayout — 3D maps', () => {
 })
 
 describe('resolveLayout — selection correction & precedence', () => {
+  it('resolves a 1D Pattern against a selected 3D map', () => {
+    const r = resolveLayout(input({ nativeDim: 1, selection: { mapId: 'cube' } }), deps)
+    expect(r.mapDim).toBe(3)
+    expect(r.correctedSelection).toEqual({ mapId: 'cube' })
+    expect(r.mapPoints[0].sample).toHaveLength(3)
+    expect(r.draw.kind).toBe('3d')
+  })
+
+  it('resolves a 3D Pattern against Index with an independent Shape', () => {
+    const r = resolveLayout(
+      input({ nativeDim: 3, selection: { mapId: INDEX_MAP_ID, shapeId: 'ring' } }),
+      deps,
+    )
+    expect(r.mapDim).toBe(1)
+    expect(r.correctedSelection).toEqual({ mapId: INDEX_MAP_ID, shapeId: 'ring' })
+    expect(r.mapPoints[0].sample).toHaveLength(1)
+    expect(r.displayDim).toBe(2)
+  })
+
   it('corrects a stale 1D shape on a 2D pattern and reports it', () => {
     // A 2D pattern carrying only a stale shapeId gets a map + flat surface.
     const r = resolveLayout(input({ nativeDim: 2, selection: { shapeId: 'line' } }), deps)

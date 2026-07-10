@@ -558,8 +558,9 @@ coordinates, and Cylinder existed only as a 2D viewport Surface even though the
 resolved layout already knew its 3D points. Pixelblaze firmware 3.66 added true
 1D maps and broadened cross-dimensional renderer selection, so PXLBLZ-IDE is
 catching up to hardware and turning the existing `sample` / `pos` split into a
-more flexible product model. Issue #391 has now delivered the first slice: true
-1D maps end to end; cross-dimensional selection remains future work below.
+more flexible product model. Issues #391 and #392 have now delivered true 1D maps
+and cross-dimensional browser preview; hardware-safe generated artifacts remain
+the next boundary in #393.
 
 ### Durable model: three independent axes
 
@@ -678,14 +679,18 @@ run.
 1. **True 1D maps end to end (#391) — implemented 2026-07-10.** Author, bake,
    select, preview, persist, import, and send `[x]` maps; deliver mapped `x` to
    `render(index, x)` and cover reversed, uneven, and discontinuous strands.
-   The Map control stays hidden for ordinary Index-only 1D work, appears with an
-   explicit Index option once a real 1D map exists, and remains independent from
-   Line/Ring/Pole. Known pre-3.66 Controllers reject 1D map transfer; 3.67 device
+   Index and real 1D maps remain independent from Line/Ring/Pole. (The later #392
+   selector now keeps Map visible because it also exposes 2D/3D choices.) Known
+   pre-3.66 Controllers reject 1D map transfer; 3.67 device
    read-back verified a 256-point reversed/discontinuous payload and exact
    restoration of the prior map.
-2. **Any map dimension in preview (#392).** Replace native-dimension filtering and the
-   one-way fallback with the pure compatibility matrix, Recommended / Other
-   dimension grouping, exact map predicates, and adapted-combination status.
+2. **Any map dimension in preview (#392) — implemented 2026-07-10.** Replaced
+   native-dimension filtering and the one-way handle fallback with a pure
+   compatibility matrix, Recommended / Other dimensions grouping, map-led
+   Shape/Surface selection, exact map predicates, centered missing coordinates,
+   deterministic dropped extras, and adapted-combination status. An internal Auto
+   sentinel preserves exact-dimensional defaults until the user explicitly picks
+   another dimension; no manual renderer selector was added.
 3. **Hardware-safe cross-dimensional artifacts (#393).** Generate exact-arity adapters,
    report their cost/provenance, and gate 1D/cross-dimensional behavior through
    known Controller firmware capability.

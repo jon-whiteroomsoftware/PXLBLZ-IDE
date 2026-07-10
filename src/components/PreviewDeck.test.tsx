@@ -6,6 +6,7 @@ import { useMapStore, mapInitialState } from '@/store/mapStore'
 import { useEditorStore, editorInitialState } from '@/store/editorStore'
 import { usePatternStore, patternInitialState } from '@/store/patternStore'
 import { INDEX_MAP_ID } from '@/engine/layout'
+import { AUTO_MAP_ID } from '@/engine/settings'
 
 beforeEach(() => {
   usePreviewStore.setState(previewInitialState)
@@ -44,10 +45,11 @@ describe('PreviewDeck (smoke)', () => {
     expect(screen.queryByRole('button', { name: /preview settings/i })).not.toBeInTheDocument()
   })
 
-  it('omits the map and fit controls for a mapless 1D pattern', () => {
+  it('offers cross-dimensional maps but omits Fit while Index is active for 1D', () => {
     useEditorStore.setState({ nativeDim: 1 })
+    useMapStore.setState({ activeMapId: AUTO_MAP_ID })
     render(<PreviewDeck />)
-    expect(screen.queryByRole('button', { name: 'Map' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Map' })).toHaveTextContent('Index')
     expect(
       screen.queryByRole('button', { name: 'Map normalization (Fill / Contain)' }),
     ).not.toBeInTheDocument()
@@ -89,6 +91,17 @@ describe('PreviewDeck (smoke)', () => {
     ).not.toBeInTheDocument()
   })
 
+  it('keys Fit and embedding controls off the selected map, not Pattern dimension', () => {
+    useEditorStore.setState({ nativeDim: 1 })
+    useMapStore.setState({ activeMapId: 'plane' })
+    render(<PreviewDeck />)
+    expect(
+      screen.getByRole('button', { name: 'Map normalization (Fill / Contain)' }),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Surface' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Shape' })).not.toBeInTheDocument()
+  })
+
   it('offers an info hint on both the Pixelblaze and Preview sections', () => {
     render(<PreviewDeck />)
     expect(
@@ -101,6 +114,7 @@ describe('PreviewDeck (smoke)', () => {
 
   it('opens a focused pixel-count drawer and applies the preview count explicitly', async () => {
     useEditorStore.setState({ nativeDim: 1 })
+    useMapStore.setState({ activeMapId: AUTO_MAP_ID })
     render(<PreviewDeck />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit pixel count' }))
@@ -124,6 +138,16 @@ describe('PreviewDeck (smoke)', () => {
     rerender(<PreviewDeck />)
     expect(screen.getByText('layout')).toBeInTheDocument()
     expect(screen.getByText('10×10')).toBeInTheDocument()
+  })
+
+  it('explains an adapted map/renderer combination', () => {
+    useEditorStore.setState({
+      renderAdaptation: 'Using render3D with a 2D map; missing z is 0.5.',
+    })
+    render(<PreviewDeck />)
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'Using render3D with a 2D map; missing z is 0.5.',
+    )
   })
 
   it('shows the solidity slider only when the embedding is solid-eligible', () => {

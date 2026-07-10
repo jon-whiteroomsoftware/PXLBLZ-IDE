@@ -9,6 +9,7 @@ import { useCameraStore } from '@/store/cameraStore'
 import { compileShowForPreview } from '@/engine/showPreviewArtifact'
 import { createShim, createFxShim } from '@/engine/shim'
 import { loadPattern } from '@/engine/loadPattern'
+import { selectRenderCompatibility } from '@/engine/renderCompatibility'
 import { createRenderLoop, type RenderLoop } from '@/engine/renderLoop'
 import { createVirtualClock } from '@/engine/virtualClock'
 import { createRenderer } from '@/engine/renderer'
@@ -189,6 +190,7 @@ export function ShowStagePreview({ showId }: { showId: string }) {
     renderer.setDiffusion(diffusion)
 
     const clock = createVirtualClock()
+    const renderCompatibility = selectRenderCompatibility(1, compiled.artifact.metadata.renderFns)
     const shimConfig = {
       mapPoints: layout.mapPoints,
       pixelCount: layout.mapPoints.length,
@@ -225,6 +227,7 @@ export function ShowStagePreview({ showId }: { showId: string }) {
       clock,
       mapPoints: layout.mapPoints,
       pixelCount: layout.mapPoints.length,
+      renderCompatibility,
       getSpeed: () => usePreviewStore.getState().speed,
       getBrightness: () => usePreviewStore.getState().brightness,
       isDimmed: () => !usePreviewStore.getState().isRunning,

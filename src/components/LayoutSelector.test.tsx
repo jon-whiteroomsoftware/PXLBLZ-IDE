@@ -5,6 +5,7 @@ import { MapSelect, EmbeddingSelect } from './LayoutSelector'
 import { useMapStore, mapInitialState } from '@/store/mapStore'
 import { useEditorStore, editorInitialState } from '@/store/editorStore'
 import { INDEX_MAP_ID } from '@/engine/layout'
+import { AUTO_MAP_ID } from '@/engine/settings'
 
 beforeEach(() => {
   useMapStore.setState(mapInitialState)
@@ -43,11 +44,16 @@ describe('MapSelect (smoke)', () => {
     expect(screen.getByRole('button', { name: 'Map' })).toHaveTextContent('My Grid')
   })
 
-  it('renders nothing for a mapless 1D pattern', () => {
+  it('offers Index plus other dimensions for an untouched 1D Pattern', async () => {
+    const user = userEvent.setup()
     useEditorStore.setState({ nativeDim: 1 })
-    const { container } = render(<MapSelect />)
-    expect(screen.queryByRole('button', { name: 'Map' })).not.toBeInTheDocument()
-    expect(container).toBeEmptyDOMElement()
+    useMapStore.setState({ activeMapId: AUTO_MAP_ID })
+    render(<MapSelect />)
+    expect(screen.getByRole('button', { name: 'Map' })).toHaveTextContent('Index')
+    await user.click(screen.getByRole('button', { name: 'Map' }))
+    expect(screen.getByText('Recommended')).toBeInTheDocument()
+    expect(screen.getByText('Other dimensions')).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: 'Square' })).toBeInTheDocument()
   })
 
   it('offers Index and user 1D maps without replacing the Shape control', async () => {
@@ -74,6 +80,21 @@ describe('MapSelect (smoke)', () => {
     await user.click(screen.getByRole('button', { name: 'Map' }))
     await user.click(screen.getByRole('option', { name: 'Reverse strand' }))
     expect(useMapStore.getState().activeMapId).toBe('reverse1d')
+  })
+
+  it('switches embeddings with the selected map dimension, not Pattern dimension', async () => {
+    const user = userEvent.setup()
+    useEditorStore.setState({ nativeDim: 1 })
+    useMapStore.setState({ activeMapId: AUTO_MAP_ID })
+    render(<><MapSelect /><EmbeddingSelect /></>)
+    expect(screen.getByRole('button', { name: 'Shape' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Map' }))
+    await user.click(screen.getByRole('option', { name: 'Square' }))
+
+    expect(useMapStore.getState().activeMapId).toBe('plane')
+    expect(screen.queryByRole('button', { name: 'Shape' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Surface' })).toBeInTheDocument()
   })
 
   it('selecting a map for a 2D pattern routes to the map store', async () => {
@@ -139,6 +160,7 @@ describe('EmbeddingSelect (smoke)', () => {
 
   it('shows the Shape control for a 1D pattern', () => {
     useEditorStore.setState({ nativeDim: 1 })
+    useMapStore.setState({ activeMapId: AUTO_MAP_ID })
     render(<EmbeddingSelect />)
     expect(screen.getByRole('button', { name: 'Shape' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Map' })).not.toBeInTheDocument()
@@ -147,6 +169,7 @@ describe('EmbeddingSelect (smoke)', () => {
   it('lists 1D shapes and routes a choice to the shape store', async () => {
     const user = userEvent.setup()
     useEditorStore.setState({ nativeDim: 1 })
+    useMapStore.setState({ activeMapId: AUTO_MAP_ID })
     render(<EmbeddingSelect />)
     await user.click(screen.getByRole('button', { name: 'Shape' }))
     await user.click(screen.getByRole('option', { name: 'Ring' }))

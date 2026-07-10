@@ -301,7 +301,7 @@ describe('pixel map queries', () => {
       dimensions: 3,
       getVirtualTime: () => 0,
     })
-    expect((builtins.has2DMap as () => boolean)()).toBe(true)
+    expect((builtins.has2DMap as () => boolean)()).toBe(false)
     expect((builtins.has3DMap as () => boolean)()).toBe(true)
     expect((builtins.pixelMapDimensions as () => number)()).toBe(3)
   })

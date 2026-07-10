@@ -137,17 +137,17 @@ function PrimaryBand() {
 function PixelCountInput() {
   const activePixelCount = useMapStore((s) => s.activePixelCount)
   const setActivePixelCount = useMapStore((s) => s.setActivePixelCount)
-  const nativeDim = useEditorStore((s) => s.nativeDim)
+  const { mapDim } = useMapSelectMeta()
 
   // The effective modeled count, via the same `effectivePixelCount` selector the
   // renderer feeds every layout branch through — the per-pattern value
   // (already seeded with any demo recommendation by the cascade), else the
-  // dimension's default. Keyed off the layout's coordinate dimension (nativeDim), not
-  // the viewport dimension, so the box reads the count actually rendered. (No `baked`
+  // dimension's default. Keyed off the selected map/sample dimension, not the
+  // Pattern or viewport dimension, so the box reads the count actually rendered. (No `baked`
   // slot: the deck has no resolved map.)
   const effectiveCount = effectivePixelCount({
     persisted: activePixelCount,
-    fallback: defaultPixelCountForDim(nativeDim),
+    fallback: defaultPixelCountForDim(mapDim),
   })
   function commit(n: number) {
     setActivePixelCount(n)
@@ -183,6 +183,7 @@ function SecondaryBand() {
   const fps = usePreviewStore((s) => s.fps)
   const elapsed = usePreviewStore((s) => s.elapsed)
   const layoutLabel = useEditorStore((s) => s.layoutLabel)
+  const renderAdaptation = useEditorStore((s) => s.renderAdaptation)
   // Fill/Contain (#174): a real Mapper map-coordinate normalization setting, so it
   // sits in the Pixelblaze section. Contain (default) preserves aspect; Fill stretches
   // each axis to fill the unit square. Persisted per-pattern.
@@ -195,9 +196,8 @@ function SecondaryBand() {
   const solidEligible = useEditorStore((s) => s.solidEligible)
   const solidity = useMapStore((s) => s.activeSolidity)
   const setSolidity = useMapStore((s) => s.setActiveSolidity)
-  // A 1D Pattern stays visually compact until a real 1D map exists. Then Map
-  // appears with reversible Index/default semantics. Fit stays absent because
-  // Contain and Fill are equivalent with one coordinate axis.
+  // Map stays available across dimensions. Fit keys off the selected map and is
+  // absent for 1D because Contain and Fill are equivalent on one axis.
   const { hasMapChoice, hasMappedCoordinates } = useMapSelectMeta()
 
   return (
@@ -207,9 +207,8 @@ function SecondaryBand() {
           {/* Row 1 is the two controls that want room: map (stacked, so its dropdown
               gets the full column width for long map names) and brightness (the stacked
               slider). Row 2 holds the two compact one-liners: fit and pixel count, as
-              inline label-left/value-right cells. For a mapless 1D layout, map and fit
-              both drop out, and brightness + pixel count collapse up into a single row
-              rather than reshuffling. */}
+              inline label-left/value-right cells. Fit drops out for an active 1D map;
+              the Map control remains because Other dimensions are always available. */}
           {hasMapChoice && (
             <DeckField label="map">
               <MapSelect />
@@ -249,6 +248,14 @@ function SecondaryBand() {
             <PixelCountInput />
           </DeckCell>
         </DeckGrid>
+        {renderAdaptation && (
+          <div
+            role="status"
+            className="mt-1.5 border-l border-amber-500/40 pl-2 text-[10px] leading-4 text-zinc-400"
+          >
+            {renderAdaptation}
+          </div>
+        )}
       </DeckSection>
       <DeckSection label="Preview" hint={PREVIEW_HINT}>
         {/* Sliders on top, then renderer/speed dropdowns, then read-only telemetry at

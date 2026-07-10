@@ -30,23 +30,21 @@ describe('renderPreviewWaterfall', () => {
     expect(pixelAt(rgba, PREVIEW_WIDTH, 40, 99)).toEqual([102, 0, 0, 255])
   })
 
-  it('renders a 2D-only pattern via the 2D path with X varying, Y pinned', () => {
-    // No render()/render3D — the strip's [x,0,0] sample falls through render3D->render2D.
-    // rgb(x,0,0) ramps with x=i/width; rgb(0,y,0) would stay black (y pinned to 0).
+  it('renders a 2D-only pattern on the 1D strip with missing Y centered', () => {
     const src = bundle('export function render2D(index, x, y){ rgb(x, y, 0) }', {})
     const rgba = renderPreviewWaterfall(src, { fidelity: 'fast' })
-    expect(pixelAt(rgba, PREVIEW_WIDTH, 0, 0)).toEqual([0, 0, 0, 255])
-    expect(pixelAt(rgba, PREVIEW_WIDTH, 40, 0)).toEqual([102, 0, 0, 255]) // red = x = 40/100
-    // green channel is y, pinned to 0 everywhere
+    expect(pixelAt(rgba, PREVIEW_WIDTH, 0, 0)).toEqual([0, 128, 0, 255])
+    expect(pixelAt(rgba, PREVIEW_WIDTH, 40, 0)).toEqual([102, 128, 0, 255])
+    // Green is the missing y coordinate, supplied at center space (0.5).
     for (let row = 0; row < PREVIEW_HEIGHT; row += 50) {
-      expect(pixelAt(rgba, PREVIEW_WIDTH, 60, row)[1]).toBe(0)
+      expect(pixelAt(rgba, PREVIEW_WIDTH, 60, row)[1]).toBe(128)
     }
   })
 
   it('renders a 3D-only pattern via the 3D path', () => {
-    const src = bundle('export function render3D(index, x, y, z){ rgb(x, 0, 0) }', {})
+    const src = bundle('export function render3D(index, x, y, z){ rgb(x, y, z) }', {})
     const rgba = renderPreviewWaterfall(src, { fidelity: 'fast' })
-    expect(pixelAt(rgba, PREVIEW_WIDTH, 40, 0)).toEqual([102, 0, 0, 255])
+    expect(pixelAt(rgba, PREVIEW_WIDTH, 40, 0)).toEqual([102, 128, 128, 255])
   })
 
   it('runs in the default Precise fidelity and yields a coherent ramp', () => {

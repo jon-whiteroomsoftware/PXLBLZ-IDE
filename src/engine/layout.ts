@@ -3,13 +3,12 @@
 // Layout is two orthogonal controls, not one union dropdown:
 //   • the MAP control owns `sample` (the [u,v] the pattern reads), and
 //   • the EMBEDDING control owns `pos` (where each dot is drawn) — populated
-//     with viewport *shapes* for a 1D pattern and *surfaces* for a 2D pattern.
-// Controls show only when they carry a real choice: 1D always has a Shape and
-// gains Map when true 1D maps exist; 2D with a wrappable map has Map + Surface;
-// an irregular 2D map or a 3D map has Map only.
+//     from the active map dimension: Shapes for 1D, Surfaces for 2D, none for 3D.
+// Every Pattern may select every map; native dimension only orders Recommended
+// ahead of Other dimensions.
 //
-// This module owns (a) the sample-arity filter deciding which maps a pattern can
-// consume, (b) the embedding list for a given pattern + active map, (c) routing
+// This module owns (a) compatibility ordering for maps, (b) the embedding list
+// for the active map dimension, (c) routing
 // a chosen option to the right knob, and (d) resolving a pattern's persisted
 // selection (or a default) on open. The components are thin wrappers over these.
 
@@ -47,10 +46,13 @@ export interface LayoutOption {
   // DISPLAY dimension of the option (a 1D pattern's ring reads as 2D display; a
   // 2D pattern's cylinder reads as 3D).
   displayDim: 1 | 2 | 3
-  // For map options only: which subgroup the option belongs to, so the map
-  // dropdown can list stock maps and user maps under separate headers. Absent for
-  // shapes/surfaces.
-  group?: 'stock' | 'user'
+  // Map options are progressively disclosed by compatibility with the Pattern.
+  group?: 'recommended' | 'other'
+  // Installed/sample dimension. Deliberately independent of displayDim.
+  mapDim?: 1 | 2 | 3
+  // Preserved for secondary presentation/provenance even though compatibility
+  // is the selector's primary grouping axis.
+  provenance?: 'stock' | 'user'
   // The 1D Index option represents Pixelblaze's no-map coordinate convention,
   // not a persisted Map entity or a blob that can be sent to hardware.
   implicit?: boolean
@@ -78,8 +80,7 @@ export interface SurfaceMeta {
 export interface MapMeta {
   id: string
   name: string
-  // Sample arity — what the selector filters on (a `dim:2` map is offered to
-  // render2D patterns).
+  // Sample arity — the active map dimension, independent of Pattern renderers.
   dim: 1 | 2 | 3
   // How the map is DRAWN, when it differs from `dim`. Absent ⇒ same as `dim`.
   displayDim?: 1 | 2 | 3
@@ -98,45 +99,47 @@ export interface LayoutSource {
   maps: MapMeta[]
 }
 
-// The maps a pattern of native dimension `nativeDim` can consume, filtered by
-// `sample`-arity. 1D also exposes the implicit Index convention so selecting a
-// true map is reversible without inventing a persisted Map entity.
+// Every map is available. Exact-dimensional options are Recommended; the rest
+// follow under Other dimensions. Index is the reversible no-map 1D view.
 export function mapOptions(nativeDim: 1 | 2 | 3, source: LayoutSource): LayoutOption[] {
-  const maps = source.maps
-    .filter((m) => m.dim === nativeDim)
-    .map((m) => ({
-      kind: 'map' as const,
-      id: m.id,
-      name: m.name,
-      displayDim: m.displayDim ?? m.dim,
-      group: m.stock ? ('stock' as const) : ('user' as const),
-    }))
-  if (nativeDim !== 1) return maps
-  return [
+  const candidates: LayoutOption[] = [
     {
       kind: 'map',
       id: INDEX_MAP_ID,
       name: 'Index',
       displayDim: 1,
+      mapDim: 1,
       implicit: true,
     },
-    ...maps,
+    ...source.maps.map((m) => ({
+      kind: 'map' as const,
+      id: m.id,
+      name: m.name,
+      displayDim: m.displayDim ?? m.dim,
+      mapDim: m.dim,
+      provenance: m.stock ? ('stock' as const) : ('user' as const),
+    })),
   ]
+  const recommended: LayoutOption[] = candidates
+    .filter((option) => option.mapDim === nativeDim)
+    .map((option) => ({ ...option, group: 'recommended' }))
+  const other: LayoutOption[] = candidates
+    .filter((option) => option.mapDim !== nativeDim)
+    .map((option) => ({ ...option, group: 'other' }))
+  return [...recommended, ...other]
 }
 
-// The embedding options for a pattern + its active map: shapes for a 1D pattern
-// (every shape owns only `pos`, independently of `[x]` map sampling), and
-// surfaces for a 2D pattern. Surfaces that need a grid (cylinder) are offered
+// Embedding options come from the active map: Shapes for 1D (each owns only
+// `pos`, independently of `[x]` sampling), and Surfaces for 2D. Surfaces that need a grid are offered
 // only when the active map is wrappable; an irregular 2D map gets Flat alone —
-// and a single-option embedding control is hidden by the component (consistent
-// with "show only when it carries a real choice"). A 3D pattern has no embedding
-// choice (it draws through the map's own 3D positions).
+// and a single-option embedding control is hidden by the component. A 3D map has
+// no embedding choice because it owns its positions.
 export function embeddingOptions(
-  nativeDim: 1 | 2 | 3,
+  mapDim: 1 | 2 | 3,
   source: LayoutSource,
   activeMap?: MapMeta,
 ): LayoutOption[] {
-  if (nativeDim === 1) {
+  if (mapDim === 1) {
     return source.shapes.map((s) => ({
       kind: 'shape' as const,
       id: s.id,
@@ -144,7 +147,7 @@ export function embeddingOptions(
       displayDim: s.displayDim,
     }))
   }
-  if (nativeDim === 3) return []
+  if (mapDim === 3) return []
   const wrappable = activeMap?.wrappable ?? false
   return source.surfaces
     .filter((s) => wrappable || !s.needsGrid)
@@ -176,10 +179,10 @@ export function selectedMapId(sel: LayoutSelection, _nativeDim: 1 | 2 | 3): stri
 // `shapeId`; a 2D pattern its `surfaceId` (defaulting to Flat). 3D has none.
 export function selectedEmbeddingId(
   sel: LayoutSelection,
-  nativeDim: 1 | 2 | 3,
+  mapDim: 1 | 2 | 3,
 ): string | undefined {
-  if (nativeDim === 1) return sel.shapeId
-  if (nativeDim === 2) return sel.surfaceId ?? 'flat'
+  if (mapDim === 1) return sel.shapeId
+  if (mapDim === 2) return sel.surfaceId ?? 'flat'
   return undefined
 }
 
@@ -213,12 +216,10 @@ export function effectivePixelCount(opts: {
   return opts.persisted ?? opts.recommended ?? opts.baked ?? opts.fallback
 }
 
-// Resolve the layout a pattern opens with, validating its persisted selection
-// against the pattern's native dimensionality and the live catalogue:
-//   • the MAP is the persisted `mapId` if still a valid dim-matched option, else
-//     the first option. For 1D that first option is the implicit Index convention.
-//   • the EMBEDDING is the persisted `shapeId` (1D) / `surfaceId` (2D) if still
-//     offered, else the first/default — Flat for 2D, the first shape for 1D.
+// Resolve the layout a Pattern opens with against the live catalogue:
+//   • any valid persisted map wins; otherwise the first Recommended option.
+//   • the embedding is restored/defaulted by selected map dimension — first
+//     Shape for 1D, Flat for 2D, none for 3D.
 // A stale cylinder on a now-irregular map falls back to Flat (cylinder drops out
 // of the offered set), so selecting a wrappable map never surprise-wraps.
 //
@@ -238,12 +239,13 @@ export function resolveLayoutSelection(
   if (map) sel.mapId = map.id
 
   const activeMap = sel.mapId ? source.maps.find((m) => m.id === sel.mapId) : undefined
-  const embeddings = embeddingOptions(nativeDim, source, activeMap)
+  const mapDim = map?.mapDim ?? activeMap?.dim ?? nativeDim
+  const embeddings = embeddingOptions(mapDim, source, activeMap)
   if (embeddings.length > 0) {
-    const wantId = selectedEmbeddingId(persisted, nativeDim)
+    const wantId = selectedEmbeddingId(persisted, mapDim)
     const chosen = embeddings.find((e) => e.id === wantId) ?? embeddings[0]
     Object.assign(sel, selectionForOption(chosen))
-  } else if (nativeDim === 2) {
+  } else if (mapDim === 2) {
     // Irregular 2D map: no embedding choice, but the layout is still Flat.
     sel.surfaceId = 'flat'
   }
@@ -284,6 +286,9 @@ export interface ResolvedLayout {
   // Per-index sample+pos, feeding the shim and render loop.
   mapPoints: MapPoint[]
   pixelCount: number
+  // Installed/sample dimension. Renderer compatibility and map predicates key
+  // off this value, never native Pattern or display dimension.
+  mapDim: 1 | 2 | 3
   displayDim: 1 | 2 | 3
   // The `cols×rows(×depth)` readout, or null for a 1D strip / irregular cloud.
   layoutLabel: string | null
@@ -341,6 +346,9 @@ export function resolveLayout(
   const { resolveMap, defaultCountForDim } = deps
 
   const correctedSelection = resolveLayoutSelection(selection, nativeDim, source)
+  const selectedMapMeta = source.maps.find((map) => map.id === correctedSelection.mapId)
+  const mapDim: 1 | 2 | 3 =
+    correctedSelection.mapId === INDEX_MAP_ID ? 1 : selectedMapMeta?.dim ?? nativeDim
 
   let pixelCount: number
   let mapPoints: MapPoint[]
@@ -446,5 +454,5 @@ export function resolveLayout(
       ? { kind: '3d', positions: positions3D, normals: normals3D }
       : { kind: '2d', positions: positions2D ?? [] }
 
-  return { correctedSelection, mapPoints, pixelCount, displayDim, layoutLabel, draw }
+  return { correctedSelection, mapPoints, pixelCount, mapDim, displayDim, layoutLabel, draw }
 }

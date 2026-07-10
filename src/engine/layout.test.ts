@@ -27,18 +27,44 @@ const SOURCE: LayoutSource = {
   ],
 }
 
-describe('mapOptions (sample-arity filter)', () => {
-  it('offers Index plus true 1D maps to a 1D pattern', () => {
-    expect(mapOptions(1, SOURCE).map((o) => o.id)).toEqual([INDEX_MAP_ID, 'reverse1d'])
+describe('mapOptions (exact dimension first)', () => {
+  it('offers Index plus true 1D maps first to a 1D Pattern', () => {
+    expect(mapOptions(1, SOURCE).map((o) => o.id)).toEqual([
+      INDEX_MAP_ID,
+      'reverse1d',
+      'plane',
+      'ring2d',
+      'cube',
+    ])
   })
 
-  it('offers a 2D pattern only dim-2 maps', () => {
-    expect(mapOptions(2, SOURCE).map((o) => o.id)).toEqual(['plane', 'ring2d'])
+  it('offers a 2D Pattern every map with exact-dimensional choices first', () => {
+    const options = mapOptions(2, SOURCE)
+    expect(options.map((o) => o.id)).toEqual([
+      'plane',
+      'ring2d',
+      INDEX_MAP_ID,
+      'reverse1d',
+      'cube',
+    ])
+    expect(options.map((o) => o.group)).toEqual([
+      'recommended',
+      'recommended',
+      'other',
+      'other',
+      'other',
+    ])
     expect(mapOptions(2, SOURCE).every((o) => o.kind === 'map')).toBe(true)
   })
 
-  it('offers a 3D pattern only the dim-3 map', () => {
-    expect(mapOptions(3, SOURCE).map((o) => o.id)).toEqual(['cube'])
+  it('offers a 3D Pattern its dim-3 map first, then every other dimension', () => {
+    expect(mapOptions(3, SOURCE).map((o) => o.id)).toEqual([
+      'cube',
+      INDEX_MAP_ID,
+      'reverse1d',
+      'plane',
+      'ring2d',
+    ])
   })
 })
 
@@ -134,6 +160,12 @@ describe('resolveLayoutSelection (open / restore)', () => {
     })
   })
 
+  it('uses the selected 3D map dimension, not Pattern dimension, to choose embeddings', () => {
+    expect(resolveLayoutSelection({ mapId: 'cube', shapeId: 'ring' }, 1, SOURCE)).toEqual({
+      mapId: 'cube',
+    })
+  })
+
   it('defaults a 2D pattern to the first map and Flat', () => {
     expect(resolveLayoutSelection({}, 2, SOURCE)).toEqual({ mapId: 'plane', surfaceId: 'flat' })
   })
@@ -156,8 +188,10 @@ describe('resolveLayoutSelection (open / restore)', () => {
     expect(resolveLayoutSelection({ mapId: 'cube' }, 3, SOURCE)).toEqual({ mapId: 'cube' })
   })
 
-  it('returns empty when no options exist for the dimension', () => {
-    expect(resolveLayoutSelection({}, 3, { shapes: [], surfaces: [], maps: [] })).toEqual({})
+  it('still offers the implicit Index view when no real maps exist', () => {
+    expect(resolveLayoutSelection({}, 3, { shapes: [], surfaces: [], maps: [] })).toEqual({
+      mapId: INDEX_MAP_ID,
+    })
   })
 
   it('honours a seeded map id, ignoring the first-match default', () => {

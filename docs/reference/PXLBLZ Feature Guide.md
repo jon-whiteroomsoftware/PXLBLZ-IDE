@@ -168,14 +168,22 @@ from chain order. The IDE splits "layout" into two deliberately separate control
 - The **embedding** control picks how the dots are *drawn* — a viewport choice the
   device never sees. It sits on the **transport row** beside play/pause.
 
-Which controls appear depends on the pattern's dimensionality; a control that
-offers no real choice is hidden, not disabled:
+The Map menu offers every dimensionality to every Pattern. Choices matching the
+Pattern's highest render function appear under **Recommended**; the rest sit under
+**Other dimensions**, each with a 1D/2D/3D badge. The selected map—not the
+Pattern—then decides which embedding control appears:
 
-| Pattern | Map control | Embedding control |
+| Active map | Map control | Embedding control |
 |---|---|---|
-| 1D | appears when a true 1D map exists; **Index** means no installed map | shape: **line**, **ring**, or **pole** (a helix with adjustable wrap density) |
+| **Index** / 1D | ✓ | shape: **line**, **ring**, or **pole** (a helix with adjustable wrap density) |
 | 2D | ✓ | surface: **Flat** or **Cylinder** (proportions follow the map's aspect) |
 | 3D | ✓ | — (the map owns the geometry) |
+
+Renderer selection is automatic and matches Pixelblaze firmware 3.66. Index/1D
+prefers `render`, then `render3D`, then `render2D`; 2D prefers `render2D`, then
+`render3D`, then `render`; 3D prefers `render3D`, then `render2D`, then `render`.
+Missing coordinates are `0.5`, extra trailing coordinates are dropped, and a
+small status line explains an adapted combination. Exact matches show no status.
 
 **Stock maps** ship ready to use: Square, Wide 2:1, Ring, a 3D set in
 shell/volume pairs — Cube, Sphere, Star, and Tetra (a d4), where "shell" puts LEDs
@@ -193,12 +201,10 @@ Custom maps re-bake automatically as you edit (the same once-at-save evaluation
 hardware does) but never change the running preview on their own; you assign a map
 to a pattern with the preview's Map control.
 
-For a 1D Pattern, the Map and Shape choices stay independent. A reversed,
-uneven, or discontinuous `[x]` map changes the value passed to
-`render(index, x)`; switching Line/Ring/Pole changes only where those same pixels
-are drawn. If the workspace has no true 1D map, the redundant Map control stays
-hidden and the preview uses Pixelblaze's normal `x = index / pixelCount` Index
-convention.
+For an active 1D map, Map and Shape stay independent. A reversed, uneven, or
+discontinuous `[x]` map changes the value passed to the selected renderer;
+switching Line/Ring/Pole changes only where those same pixels are drawn. **Index**
+uses Pixelblaze's normal `x = index / pixelCount` no-installed-map convention.
 
 **Imported controller maps**: a live Controller profile can read the installed
 device map and save it as a named user map. Imported maps are frozen coordinates,
@@ -426,14 +432,14 @@ Controls group by what they *are*, and the IDE keeps that boundary visible.
 These would round-trip to a controller:
 
 - **Map** — the coordinates the Pattern reads (§4). A stacked full-width field
-  (map names are long). For 1D it appears only when a real `[x]` map is available,
-  with **Index** as the reversible no-installed-map choice.
+  (map names are long), grouped into **Recommended** and **Other dimensions**.
+  **Index** is the reversible no-installed-map 1D choice.
 - **Pixels** — the LED count, a single number; the map arranges it (the Square
   map squares it up).
 - **Fit** — the Fill/Contain choice, mirroring the Pixelblaze Mapper's own
   dropdown; both are real device behaviours, chosen per pattern. **Contain**
   (default) preserves the map's true aspect — a circle stays a circle; **Fill**
-  stretches each axis to the unit square. Absent for 1D.
+  stretches each axis to the unit square. Absent while the selected map is 1D.
 - **Brightness** — a **logarithmic** slider: more of the track is devoted to the
   dim end, where small changes matter most, while reading and writing plain
   `0..1`.

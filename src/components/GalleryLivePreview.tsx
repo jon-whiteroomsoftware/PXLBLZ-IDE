@@ -6,6 +6,7 @@ import { createRenderLoop, type RenderLoop } from '@/engine/renderLoop'
 import { createShim, type ShimContext } from '@/engine/shim'
 import { createVirtualClock } from '@/engine/virtualClock'
 import { loadPattern, nativeDimension } from '@/engine/loadPattern'
+import { selectRenderCompatibility } from '@/engine/renderCompatibility'
 import { resolveLayout } from '@/engine/layout'
 import { galleryThumbnailPixelCount } from '@/engine/previewPixelCount'
 import { DEV_DEFAULTS } from '@/engine/settings'
@@ -245,10 +246,14 @@ export function GalleryLivePreview({
         },
       )
       const clock = createVirtualClock()
+      const renderCompatibility = selectRenderCompatibility(
+        layout.mapDim,
+        bundled.metadata.renderFns,
+      )
       shim = createShim({
         mapPoints: layout.mapPoints,
         pixelCount: layout.pixelCount,
-        dimensions: nativeDim,
+        dimensions: layout.mapDim,
         getVirtualTime: () => clock.getTime(),
       })
       shimRef.current = shim
@@ -293,6 +298,7 @@ export function GalleryLivePreview({
         clock,
         mapPoints: layout.mapPoints,
         pixelCount: layout.pixelCount,
+        renderCompatibility,
         getSpeed: () => settings.speed,
         getBrightness: () => settings.brightness,
         isDimmed: () => dimmed,

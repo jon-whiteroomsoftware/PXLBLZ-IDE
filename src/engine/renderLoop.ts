@@ -2,6 +2,7 @@ import type { PatternHandle } from './loadPattern'
 import type { ShimContext } from './shim'
 import type { VirtualClock } from './virtualClock'
 import type { MapPoint } from './maps'
+import { adaptSampleForRenderer, type RenderCompatibility } from './renderCompatibility'
 
 export interface RenderLoopConfig {
   handle: PatternHandle
@@ -11,6 +12,9 @@ export interface RenderLoopConfig {
   // The loop iterates 0 .. pixelCount-1, reading each point's `sample`.
   mapPoints: MapPoint[]
   pixelCount: number
+  // When present, dispatch through the firmware-compatible renderer policy.
+  // Omitted only by legacy/unit callers, which retain sample-arity dispatch.
+  renderCompatibility?: RenderCompatibility
   getSpeed: () => number
   getBrightness: () => number
   isDimmed: () => boolean
@@ -37,7 +41,18 @@ export interface RenderLoop {
 }
 
 export function createRenderLoop(config: RenderLoopConfig): RenderLoop {
-  const { handle, shim, clock, mapPoints, pixelCount, getSpeed, getBrightness, isDimmed, paint } = config
+  const {
+    handle,
+    shim,
+    clock,
+    mapPoints,
+    pixelCount,
+    renderCompatibility,
+    getSpeed,
+    getBrightness,
+    isDimmed,
+    paint,
+  } = config
   let rafId: number | null = null
   let lastTs: number | null = null
   let fpsWindowStart: number | null = null
@@ -53,15 +68,30 @@ export function createRenderLoop(config: RenderLoopConfig): RenderLoop {
     const pixels: [number, number, number][] = []
 
     // Iterate the modeled pixel count, reading each pixel's `sample` from the
-    // active map, and dispatch by the layout's sample-arity through the pattern
-    // handle's fallback chain (render3D -> render2D -> render -> noop). A true
-    // 1D map carries `[x]`; a legacy/mapless point may still carry no sample.
+    // active map. Production callers supply one firmware-compatible renderer plan;
+    // legacy/unit callers may still use direct sample-arity dispatch. A true 1D
+    // map carries `[x]`; a legacy/mapless point may still carry no sample.
     for (let index = 0; index < pixelCount; index++) {
       const sample = mapPoints[index]?.sample ?? []
       // index crosses the engine->pattern boundary as a scalar, so it must be
       // encoded to the active numeric domain (raw int32 in fidelity mode).
       const encIndex = shim.encodeScalar(index)
-      if (sample.length >= 3) {
+      if (renderCompatibility) {
+        const { renderer, rendererDim } = renderCompatibility
+        if (renderer && rendererDim) {
+          const adapted = adaptSampleForRenderer(sample, rendererDim)
+          if (renderer === 'render3D') {
+            const [tx, ty, tz] = shim.transformPoint(adapted[0], adapted[1], adapted[2])
+            handle.render3D(encIndex, tx, ty, tz)
+          } else if (renderer === 'render2D') {
+            const [tx, ty] = shim.transformPoint(adapted[0], adapted[1], 0)
+            handle.render2D(encIndex, tx, ty)
+          } else {
+            const [tx] = shim.transformPoint(adapted[0], 0, 0)
+            handle.render(encIndex, tx)
+          }
+        }
+      } else if (sample.length >= 3) {
         // Apply the pattern's coordinate transform stack before render, so
         // translate/rotate/scale behave as on hardware.
         const [tx, ty, tz] = shim.transformPoint(sample[0], sample[1], sample[2])
