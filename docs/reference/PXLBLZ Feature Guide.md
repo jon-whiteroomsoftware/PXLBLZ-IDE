@@ -222,6 +222,14 @@ for that clip's private clock and the `delta` delivered to its Pattern, while th
 generated outer renderer continues to draw the paused state. Adjacent cells that
 reuse the same Pattern can ramp continuously down to that pause, dwell there,
 and ramp away without restarting or jumping phase. Negative time is not offered.
+**Motion cadence** is a separate Smooth/Stepped control. Stepped motion holds
+the Pattern clock between cadence boundaries, then releases the accumulated
+scaled time as a jump. The inspector expresses cadence as jumps per second and
+shows the equivalent interval in milliseconds. Time scale still controls how
+far the animation moves; cadence controls when that motion is released. Pixels
+keep rendering between jumps, so stepped motion does not blink the light or
+claim renderer savings. A held cell keeps its cadence phase, while a restarted
+cell starts a fresh schedule.
 Each cell can also enable a **light shutter** with a rate, light-on fraction,
 phase, and dark-time clock policy. Closed shutter frames are explicitly black
 and skip that Pattern's renderer. **Continue** lets the Pattern advance behind
@@ -246,7 +254,8 @@ the connected Controller. The compile bar labels exact-pause clock recipes
 separately from renderer policy: pausing time does not claim renderer-cycle
 savings or buffered frame reuse. For shuttered clips it reports expected active
 Pattern evaluation per clip and explicitly keeps that estimate separate from
-unavoidable outer-render and LED-transport work.
+unavoidable outer-render and LED-transport work. For stepped clips it reports
+motion cadence separately and states that renderer cost is unchanged.
 
 A **wipe** can add a normalized `0..1` feather width. Zero is the original hard
 index boundary. A positive feather turns the surrounding band over through a

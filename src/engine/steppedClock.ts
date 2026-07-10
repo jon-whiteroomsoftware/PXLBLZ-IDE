@@ -13,6 +13,23 @@ export const steppedClockInitialState: SteppedClockState = {
   pendingMs: 0,
 }
 
+const MIN_STEP_MS = 16
+const MAX_STEP_MS = 60000
+
+export function steppedClockRateHz(stepMs: number): number {
+  return 1000 / normalizeStepMs(stepMs)
+}
+
+export function steppedClockStepMs(rateHz: number): number {
+  if (!Number.isFinite(rateHz) || rateHz <= 0) return MAX_STEP_MS
+  return normalizeStepMs(1000 / rateHz)
+}
+
+function normalizeStepMs(stepMs: number): number {
+  if (!Number.isFinite(stepMs)) return MAX_STEP_MS
+  return Math.max(MIN_STEP_MS, Math.min(MAX_STEP_MS, stepMs))
+}
+
 export function advanceSteppedClock(
   state: SteppedClockState,
   deltaMs: number,

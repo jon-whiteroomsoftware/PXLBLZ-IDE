@@ -927,9 +927,10 @@ export function render(index) { rgb(elapsed, index, 0) }
     runtime.handle.beforeRender(400)
 
     expect(runtime.handle.getExports()).toMatchObject({
-      __pxlblz_show_c0_elapsed_ms: 200,
-      __pxlblz_show_c0_step_pending_ms: 50,
-      __pxlblz_show_c0_elapsed: 200,
+      __pxlblz_show_c0_elapsed_ms: 250,
+      __pxlblz_show_c0_step_pending_ms: 0,
+      __pxlblz_show_c0_step_pending_delta: 0,
+      __pxlblz_show_c0_elapsed: 250,
     })
     expect(artifact.summary).toMatchObject({
       clockPolicy: 'scaled',

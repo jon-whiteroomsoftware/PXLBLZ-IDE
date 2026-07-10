@@ -1,4 +1,23 @@
-import { advanceSteppedClock, steppedClockInitialState } from './steppedClock'
+import {
+  advanceSteppedClock,
+  steppedClockInitialState,
+  steppedClockRateHz,
+  steppedClockStepMs,
+} from './steppedClock'
+
+describe('stepped-clock cadence controls (#379)', () => {
+  it('converts between the stored step interval and user-facing jumps per second', () => {
+    expect(steppedClockRateHz(125)).toBe(8)
+    expect(steppedClockRateHz(250)).toBe(4)
+    expect(steppedClockStepMs(8)).toBe(125)
+    expect(steppedClockStepMs(4)).toBe(250)
+  })
+
+  it('keeps cadence conversion inside the supported clock interval', () => {
+    expect(steppedClockStepMs(0)).toBe(60000)
+    expect(steppedClockStepMs(1000)).toBe(16)
+  })
+})
 
 describe('advanceSteppedClock (#379)', () => {
   it('holds private time between boundaries and delivers accumulated time as one jump', () => {

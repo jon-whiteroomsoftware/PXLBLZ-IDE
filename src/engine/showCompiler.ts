@@ -508,14 +508,21 @@ function emitRuntimePrelude(members: CompiledMember[]): string {
       ? [
           `var ${member.prefix}_step_ms = ${steppedClock.stepMs}`,
           `var ${member.prefix}_step_pending_ms = 0`,
+          `var ${member.prefix}_step_pending_delta = 0`,
           `function ${member.prefix}_advanceStepped(delta) {
   var scaledDelta = delta * ${member.prefix}_adapt_timeScale
-  var accumulatedDelta = ${member.prefix}_step_pending_ms + scaledDelta
-  var deliveredDelta = floor(accumulatedDelta / ${member.prefix}_step_ms) * ${member.prefix}_step_ms
-  ${member.prefix}_step_pending_ms = accumulatedDelta - deliveredDelta
-  if (deliveredDelta > 0) {
+  var previousPendingMs = ${member.prefix}_step_pending_ms
+  var accumulatedMs = previousPendingMs + delta
+  var deliveredCadenceMs = floor(accumulatedMs / ${member.prefix}_step_ms) * ${member.prefix}_step_ms
+  if (deliveredCadenceMs > 0) {
+    var deliveredDelta = ${member.prefix}_step_pending_delta + (deliveredCadenceMs - previousPendingMs) * ${member.prefix}_adapt_timeScale
+    ${member.prefix}_step_pending_ms = accumulatedMs - deliveredCadenceMs
+    ${member.prefix}_step_pending_delta = ${member.prefix}_step_pending_ms * ${member.prefix}_adapt_timeScale
     ${member.elapsedName} = ${member.elapsedName} + deliveredDelta
     ${member.hasBeforeRender ? `${member.beforeRenderName}(deliveredDelta)` : ''}
+  } else {
+    ${member.prefix}_step_pending_ms = accumulatedMs
+    ${member.prefix}_step_pending_delta = ${member.prefix}_step_pending_delta + scaledDelta
   }
 }`,
         ]
@@ -760,6 +767,7 @@ function buildMetadata(members: CompiledMember[]): BundleMetadata {
         ? [
             `${member.prefix}_step_ms`,
             `${member.prefix}_step_pending_ms`,
+            `${member.prefix}_step_pending_delta`,
           ]
         : []),
       `${member.prefix}_r`,

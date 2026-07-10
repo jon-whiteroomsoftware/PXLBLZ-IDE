@@ -19,6 +19,7 @@ import {
   transitionCost,
 } from '@/engine/showModel'
 import { compileShowForPreview, type CompiledShowState } from '@/engine/showPreviewArtifact'
+import { steppedClockRateHz, steppedClockStepMs } from '@/engine/steppedClock'
 import {
   controllerZonePixelCount,
   findControllerZoneByName,
@@ -672,6 +673,12 @@ function CellInspector({
         <NumberField label="Brightness" value={cell.adaptations.brightness} min={0} max={1} step={0.01} onChange={(brightness) => onUpdateAdaptations({ brightness })} />
         <NumberField label="Time x" value={cell.adaptations.timeScale} min={0} max={4} step={0.1} onChange={(timeScale) => onUpdateAdaptations({ timeScale })} />
       </div>
+      <MotionCadenceControl
+        stepMs={cell.adaptations.steppedClock?.stepMs}
+        onChange={(stepMs) => onUpdateAdaptations({
+          steppedClock: stepMs === null ? undefined : { stepMs },
+        })}
+      />
       <div className="mt-3 border-t border-zinc-800 pt-3">
         <label className="flex items-center gap-2 text-zinc-300">
           <input
@@ -711,6 +718,79 @@ function CellInspector({
         )}
       </div>
     </InspectorPanel>
+  )
+}
+
+function MotionCadenceControl({
+  stepMs,
+  onChange,
+}: {
+  stepMs: number | undefined
+  onChange: (stepMs: number | null) => void
+}) {
+  const stepped = stepMs !== undefined
+  const rateHz = steppedClockRateHz(stepMs ?? 125)
+  const rateLabel = formatCadenceRate(rateHz)
+  return (
+    <section className="mt-3 rounded-md border border-violet-400/25 bg-violet-400/[0.04] p-3">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <div className="text-[10px] uppercase tracking-[0.12em] text-violet-300">Motion cadence</div>
+          <div className="mt-0.5 text-[10px] text-zinc-500">How often Pattern time is released</div>
+        </div>
+        <div className="flex rounded border border-zinc-700 bg-zinc-950 p-0.5 text-[10px]">
+          <button
+            type="button"
+            aria-label="Smooth motion"
+            aria-pressed={!stepped}
+            className={stepped ? 'rounded px-2 py-1 text-zinc-500 hover:text-zinc-300' : 'rounded bg-zinc-700 px-2 py-1 text-zinc-100'}
+            onClick={() => onChange(null)}
+          >
+            smooth
+          </button>
+          <button
+            type="button"
+            aria-label="Stepped motion"
+            aria-pressed={stepped}
+            className={stepped ? 'rounded bg-violet-400/20 px-2 py-1 text-violet-200' : 'rounded px-2 py-1 text-zinc-500 hover:text-zinc-300'}
+            onClick={() => onChange(stepMs ?? 125)}
+          >
+            stepped
+          </button>
+        </div>
+      </div>
+      {stepped && (
+        <>
+          <div className="mt-3 grid grid-cols-[minmax(0,1fr)_auto] items-end gap-3">
+            <label className="text-[10px] uppercase text-zinc-600">
+              Jumps per second
+              <input
+                aria-label="Jumps per second"
+                className="mt-2 w-full accent-violet-400"
+                type="range"
+                min={0.25}
+                max={30}
+                step={0.25}
+                value={rateHz}
+                onChange={(event) => onChange(steppedClockStepMs(Number(event.target.value)))}
+              />
+            </label>
+            <div className="rounded border border-zinc-700 bg-zinc-900 px-3 py-1.5 text-right">
+              <b className="block text-sm text-zinc-100">{rateLabel} / sec</b>
+              <span className="text-[9px] text-zinc-500">every {Math.round(stepMs)} ms</span>
+            </div>
+          </div>
+          <div className="mt-2 flex gap-1" aria-hidden>
+            {Array.from({ length: 12 }, (_, index) => (
+              <span key={index} className={index % 3 === 0 ? 'h-2 flex-1 bg-violet-300/70' : 'h-2 flex-1 bg-zinc-800'} />
+            ))}
+          </div>
+          <p className="mt-2 text-[10px] text-zinc-500">
+            Motion freezes and jumps; unlike Light shutter, pixels do not blink off and the renderer keeps running.
+          </p>
+        </>
+      )}
+    </section>
   )
 }
 
@@ -976,6 +1056,14 @@ function CompileBar({
     : summary?.evaluationPolicy === 'mixed'
       ? `${maskedClipFractions.join(', ')} expected for masked clip`
       : null
+  const steppedRates = summary?.clips
+    .filter((clip) => clip.temporalPolicy === 'stepped-clock' && clip.stepMs !== null)
+    .map((clip) => formatCadenceRate(steppedClockRateHz(clip.stepMs!))) ?? []
+  const temporalLabel = summary?.temporalPolicy === 'stepped-clock'
+    ? `${[...new Set(steppedRates)].join(', ')}/s stepped`
+    : summary?.temporalPolicy === 'mixed'
+      ? `${[...new Set(steppedRates)].join(', ')}/s stepped clip`
+      : null
   return (
     <div className="flex min-h-10 shrink-0 items-center gap-2 border-t border-seam bg-zinc-950 px-3 font-mono text-xs text-zinc-500">
       <span>compiled artifact</span>
@@ -998,6 +1086,11 @@ function CompileBar({
       {evaluationLabel && (
         <span className="text-sky-300">
           Pattern eval: {evaluationLabel} - outer loop + LEDs unchanged
+        </span>
+      )}
+      {temporalLabel && (
+        <span className="text-violet-300">
+          Motion cadence: {temporalLabel} - renderer cost unchanged
         </span>
       )}
       {summary?.warnings.map((warning) => <span key={warning} className="text-amber-300">{warning}</span>)}
@@ -1049,7 +1142,12 @@ function adaptationSummary(cell: ShowCell): string {
   if (cell.adaptations.brightness !== 1) parts.push(`dim ${cell.adaptations.brightness.toFixed(2)}`)
   if (cell.adaptations.timeScale !== 1) parts.push(`time x${cell.adaptations.timeScale.toFixed(1)}`)
   if (cell.adaptations.lightShutter) parts.push(`shutter ${Math.round(cell.adaptations.lightShutter.duty * 100)}%`)
+  if (cell.adaptations.steppedClock) parts.push(`step ${formatCadenceRate(steppedClockRateHz(cell.adaptations.steppedClock.stepMs))}/s`)
   return parts.length ? parts.join(' - ') : 'no adaptations'
+}
+
+function formatCadenceRate(rateHz: number): string {
+  return Number.isInteger(rateHz) ? rateHz.toFixed(0) : rateHz.toFixed(2).replace(/0+$/, '').replace(/\.$/, '')
 }
 
 function formatDuration(ms: number): string {

@@ -898,6 +898,30 @@ instance, so stop, dwell, and resume preserve state without implicit restart.
 that hardware receives, rather than approximating pause in React or the stage
 renderer.
 
+Stepped clock (#379) is an optional clip adaptation stored as
+`steppedClock.stepMs`, normalized to `16..60000` ms. Its cadence clock advances
+through eligible real time, independently from `timeScale`; a light shutter in
+`continue` mode leaves cadence advancing behind darkness, while `freeze` admits
+only the shutter interval's exact open-time overlap. Each generated member keeps
+both pending cadence milliseconds and the corresponding pending scaled Pattern
+delta. Between boundaries its private `time()` and rewritten Pattern
+`beforeRender` remain frozen, but the outer per-pixel renderer continues to draw
+the same Pattern state. At a boundary, the wrapper delivers the accumulated
+non-negative scaled delta as one jump and retains any post-boundary remainder.
+Thus Time x changes jump distance while jumps-per-second controls release
+timing.
+
+A continuous hold keeps the same member and pending cadence state. A cut/restart
+selects a fresh member whose cadence accumulator begins at zero. Same-Pattern
+adaptation ramps remain one-member ramps only when their discrete stepped-clock
+and light-shutter settings match; different schedules keep separate clip
+instances. `ShowCompileSummary.temporalPolicy` reports `continuous`,
+`stepped-clock`, or `mixed`, and every clip reports its `stepMs`. Renderer policy
+and `worstInstantRenderersPerPixel` remain unchanged. `ShowStagePreview` compiles
+and runs this exact generated artifact. The cell inspector presents the approved
+cadence-first Smooth/Stepped control at `0.25..30` jumps per second with an
+interval readback, explicitly separate from the light shutter.
+
 A light shutter (#378) is an optional generated evaluation mask with normalized
 rate (`0.01..60` Hz), duty (`0..1`), phase (`0..1`), and `continue` or `freeze`
 clock behavior. The shutter oscillator follows outer Show time. Each member's

@@ -136,6 +136,44 @@ describe('ShowEditor (#318)', () => {
     expect(screen.getAllByText(/shutter 35%/i).length).toBeGreaterThan(0)
   })
 
+  it('edits stepped motion as cadence and keeps it distinct from rendering and light output', async () => {
+    const user = userEvent.setup()
+    const show = createDefaultShow('show-1', 'Temporal study', 1000)
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+    await user.click(screen.getAllByRole('button', { name: /Select TestPattern1D/i })[0])
+
+    expect(screen.getByRole('button', { name: 'Smooth motion' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: 'Stepped motion' })).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.queryByLabelText('Jumps per second')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Stepped motion' }))
+
+    expect(screen.getByLabelText('Jumps per second')).toHaveValue('8')
+    expect(screen.getByText('every 125 ms')).toBeInTheDocument()
+    expect(screen.getByText(/motion freezes and jumps/i)).toHaveTextContent('pixels do not blink off')
+    await waitFor(() => {
+      expect(useShowStore.getState().shows[0].cells[0].adaptations.steppedClock).toEqual({ stepMs: 125 })
+    })
+
+    fireEvent.change(screen.getByLabelText('Jumps per second'), { target: { value: '4' } })
+
+    await waitFor(() => {
+      expect(useShowStore.getState().shows[0].cells[0].adaptations.steppedClock).toEqual({ stepMs: 250 })
+    })
+    expect(screen.getByText('every 250 ms')).toBeInTheDocument()
+    expect(screen.getByText(/Motion cadence:/i)).toHaveTextContent('4/s stepped clip')
+    expect(screen.getByText(/Motion cadence:/i)).toHaveTextContent('renderer cost unchanged')
+    expect(screen.getAllByText(/step 4\/s/i).length).toBeGreaterThan(0)
+
+    await user.click(screen.getByRole('button', { name: 'Smooth motion' }))
+    await waitFor(() => {
+      expect(useShowStore.getState().shows[0].cells[0].adaptations.steppedClock).toBeUndefined()
+    })
+  })
+
   it('explains feathered wipe as a stable one-renderer route edge', async () => {
     const user = userEvent.setup()
     const show = createDefaultShow('show-1', 'Feathered wipe', 1000)
