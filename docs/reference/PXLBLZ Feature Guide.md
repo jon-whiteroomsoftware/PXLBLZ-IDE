@@ -64,11 +64,13 @@ function, and the device's own web UI remains the place for device management.
 
 ### What it doesn't do
 
-- **Pattern management on the device.** It won't list, rename, or delete the
-  device's saved patterns, or drive playlists. Push to Controller one pattern at
-  a time (run or save) (§11).
-- **Read patterns back from a controller.** The import path is `.epe` files, not
-  a device connection.
+- **Full pattern management on the device.** It can list and import saved
+  programs, but it does not rename or delete them or drive playlists. Push to
+  Controller still sends one pattern at a time (run or save) (§11).
+- **Recover source that the device did not save.** A saved program with no
+  source payload can be identified but not reconstructed. Source-bearing
+  programs can be imported from the Controller profile; `.epe` remains the
+  portable file-import path.
 - **Device setup.** LED hardware type, WiFi, expanders, and the rest of the
   device's settings stay on the device's settings page.
 
@@ -610,7 +612,13 @@ profile is created automatically the first time); the profile page at
   **stale** when the enabled set changed (re-push to update), or **unmanaged**
   when no Studio push record exists. These badges recompute locally as profile
   transforms change; only Refresh rereads the device. Offline, empty, loading,
-  and read-error states are reported in place;
+  and read-error states are reported in place. **Import** reads the saved PBP:
+  a program whose PXLBLZ stamp still names an existing Studio pattern simply
+  opens it; a stamped program whose pattern was deleted restores that pattern
+  with its original Studio id; and a foreign source-bearing program becomes a
+  new Studio pattern. The confirmation explains which name, source, and id were
+  recovered or newly assigned. Programs without recoverable source say why they
+  cannot be imported rather than creating an empty pattern;
 - **hardware inputs** — named pots/buttons with pin, signal, role, smoothing,
   fallback, and invert; analog choices are limited to the board's ADC1-safe
   pins, with anything else flagged inline;

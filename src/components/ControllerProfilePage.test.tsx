@@ -10,7 +10,8 @@ import {
   resetPersonalContentProvider,
   setPersonalContentProvider,
 } from '@/engine/personalContentProvider'
-import type { MapRecord } from '@/engine/personalContentRecords'
+import type { MapRecord, PatternRecord } from '@/engine/personalContentRecords'
+import type { RecoveredSavedProgram } from '@/engine/controllerSavedProgramRead'
 import {
   demoControllerMetadataStorage,
   resetControllerMetadataStorage,
@@ -66,11 +67,16 @@ class LiveBrightnessProvider extends MapReadbackProvider {
 
 class ProgramListProvider extends MapReadbackProvider {
   programs: Array<{ id: string; name: string }> = []
+  recoveredPrograms = new Map<string, RecoveredSavedProgram>()
   listCalls = 0
 
   listPrograms() {
     this.listCalls += 1
     return Promise.resolve(this.programs)
+  }
+
+  readSavedProgram(programId: string) {
+    return Promise.resolve(this.recoveredPrograms.get(programId) ?? null)
   }
 }
 
@@ -274,6 +280,58 @@ describe('ControllerProfilePage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Refresh saved programs' }))
     expect(await screen.findByText('New Pattern 14')).toBeInTheDocument()
     expect(provider.listCalls).toBeGreaterThanOrEqual(2)
+  })
+
+  it('imports recovered foreign source as a new Studio pattern', async () => {
+    const profile = seedProfile()
+    const provider = new ProgramListProvider()
+    provider.programs = [{ id: 'FOREIGN1', name: 'sound bar kit' }]
+    provider.recoveredPrograms.set('FOREIGN1', {
+      programId: 'FOREIGN1',
+      deviceName: 'sound bar kit',
+      sourceCode: 'export function render(index) { rgb(index, 0, 1) }',
+      stamp: null,
+    })
+    const createPattern = vi.fn(async (_record: PatternRecord) => {})
+    setPersonalContentProvider({
+      ...demoPersonalContentProvider,
+      createPattern,
+      updateControllerProfile: async () => {},
+    })
+    setControllerProvider(provider)
+    useControllerStore.setState({
+      activeIp: '192.168.8.224',
+      controllers: {
+        '192.168.8.224': {
+          ip: '192.168.8.224',
+          deviceId: profile.deviceId,
+          nickname: 'Burner bag',
+          phase: 'live',
+          mapDim: 2,
+        },
+      },
+    })
+
+    render(<ControllerSavedProgramsPane profile={profile} />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Import sound bar kit' }))
+    expect(await screen.findByRole('heading', { name: 'Import controller pattern?' })).toBeInTheDocument()
+    expect(screen.getByText('Name · recovered')).toBeInTheDocument()
+    expect(screen.getByText('Studio id · new')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Import pattern' }))
+
+    await waitFor(() => expect(createPattern).toHaveBeenCalledTimes(1))
+    const record = createPattern.mock.calls[0]![0]
+    expect(record).toMatchObject({
+      name: 'sound bar kit',
+      src: 'export function render(index) { rgb(index, 0, 1) }',
+      controls: {},
+    })
+    expect(record.id).toEqual(expect.any(String))
+    expect(useRouterStore.getState().route).toEqual({
+      kind: 'studio',
+      entity: { kind: 'patterns', id: record.id },
+    })
   })
 
   it('shows a clean empty state when a live Controller has no saved programs', async () => {

@@ -1238,7 +1238,7 @@ and undecodable-blob failures reject with caller-facing errors. The pure
 returns foreign source unchanged, and parses then strips a PXLBLZ banner so
 IDE-owned source and `ParsedPxlblzBanner` provenance are separate values. A
 valid PBP with no source remains recoverable with `sourceCode: null`. This is an
-engine/relay capability; the inventory import interaction is owned by #373.
+engine/relay capability consumed by the Controller-profile inventory import.
 
 **Saved-program inventory** is the Controller profile route's live, read-only
 right-hand context pane (`ControllerSavedProgramsPane`), replacing the otherwise
@@ -1255,8 +1255,19 @@ link. Unbound programs remain visible in device order beneath a counted,
 visually quieter foreign-program heading. The pane reads only while the
 matching Controller is live and exposes explicit loading, refresh, offline,
 empty, and error states. Profile transform toggles therefore recompute badges
-without another device read. The pane does not download, delete, import, or
-mutate device programs.
+without another device read.
+
+Each inventory row also exposes an **Import** action (#373). After read-back,
+the pure `decideSavedProgramImport` projection chooses one of four outcomes:
+an artifact stamp that names a still-existing personal pattern or demo opens
+that route; a stamped pattern missing from Studio is restored with its recovered
+source and original pattern id; foreign source creates a new personal pattern
+with a fresh id and a conflict-safe name; and source-less or non-pattern
+artifacts produce an explicit unavailable explanation. The confirmation dialog
+labels name, source, and Studio id as recovered or newly assigned before any
+write occurs. `createSavedProgramPatternRecord` is the framework-free record
+constructor; the component supplies persistence and navigation. Import never
+renames, deletes, or otherwise mutates the device program.
 
 **Program label cache** (`withProgramLabel`) is a parallel structure, persisted
 under its own controller metadata key and keyed by device program id (not pattern
