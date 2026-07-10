@@ -1,5 +1,15 @@
 # PXLBLZ-IDE
 
+> [!IMPORTANT]
+> **PXLBLZ-IDE 2.0 is in active development.** The stable 1.0 release remains
+> available below, but you may encounter code or documentation elsewhere in
+> this repository for features that have not reached the public app yet.
+> **A substantial new release is on the way.** 😸
+>
+> [Launch PXLBLZ-IDE 1.0](https://jon-whiteroomsoftware.github.io/PXLBLZ-IDE/)
+> · [1.0 Feature Guide](https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/blob/v1.0.0/docs/reference/PXLBLZ%20Feature%20Guide.md)
+> · [1.0 Technical Reference](https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/blob/v1.0.0/docs/reference/PXLBLZ%20Technical%20Reference.md)
+
 PXLBLZ-IDE is a browser-based pattern editor for
 [Pixelblaze](https://electromage.com/) LED controllers. It lets you write,
 preview, tune, and export Pixelblaze patterns without needing a controller on
@@ -8,7 +18,7 @@ your desk, then push the result to hardware when you are ready.
 The IDE can be run from the link below and is fully functional. If you later
 want to connect to a controller, install the companion Chrome extension.
 
-**[Open PXLBLZ-IDE](https://pxlblz-ide.pages.dev/)**
+**[Open PXLBLZ-IDE](https://jon-whiteroomsoftware.github.io/PXLBLZ-IDE/)**
 
 ## Why it exists
 
@@ -73,9 +83,8 @@ Open the **Code** menu in the app header for source and hover summaries.
 
 ## Good to know
 
-- The Cloudflare deployment stores signed-in personal patterns, maps, settings,
-  and controller metadata in D1. Signed-out use stays in non-durable demo mode
-  until you sign in.
+- Patterns, maps, and demo setting overrides are stored in this browser's
+  IndexedDB. **Clearing site data clears that local workspace.**
 - If the app does not reconnect to a Pixelblaze Controller when it opens, reload
   the browser window first. If it still does not pick up, manually disconnect and
   reconnect from the Controller menu.
@@ -91,9 +100,7 @@ npm run dev
 
 The normal development server runs at `http://localhost:5174/`.
 
-For Cloudflare-style local checks, OAuth setup, D1 migration, production smoke
-tests, exports, and restore notes, see
-**[Cloudflare Operations](docs/reference/Cloudflare%20Operations.md)**.
+Personal patterns/maps use browser-local IndexedDB.
 
 Useful checks:
 
@@ -103,45 +110,109 @@ npx tsc --noEmit
 npm run build
 ```
 
-### Cloudflare analytics
+### GitHub Pages analytics
 
-The production Cloudflare Pages build installs Google Analytics only when
-`VITE_GA_MEASUREMENT_ID` is set as a Pages build variable. Use the GA4
-measurement ID from the dedicated Cloudflare/v2 property, for example
-`G-XXXXXXXXXX`. Local development and builds without that variable do not load
-Google Analytics.
+The production build installs Google Analytics only when
+`VITE_GA_MEASUREMENT_ID` is set. For GitHub Pages, add a repository variable
+named `GA_MEASUREMENT_ID` with your GA4 measurement ID, for example `G-XXXXXXXXXX`.
+Local development and builds without that variable do not load Google Analytics.
 
-### Deployment And Operations
+### Cloudflare Pages deployment
 
-The public app is served from Cloudflare Pages. The production runtime uses
-Pages Functions, GitHub OAuth, and D1 for signed-in personal workspaces. Those
-operator details are intentionally kept out of the README; see
-**[Cloudflare Operations](docs/reference/Cloudflare%20Operations.md)** when you
-need to deploy, smoke-test, inspect D1, or run a local Cloudflare runtime.
+GitHub Pages serves this app under `/PXLBLZ-IDE/`, but Cloudflare Pages serves it
+from the site root. Set this Cloudflare Pages environment variable:
+
+```txt
+VITE_BASE_PATH=/
+```
+
+The repo also has the initial Cloudflare D1 foundation for the future
+cloud-backed personal storage provider. The current shipped app still uses
+browser-local IndexedDB until the auth/API cutover work lands.
+
+The D1 binding is named `PXLBLZ_DB` in `wrangler.jsonc`, and points at the
+Cloudflare database named `pxlblz-ide`. Apply the schema migration with:
+
+```bash
+npm run db:migrate:remote
+```
+
+That command requires Wrangler to be authenticated, either by running Wrangler in
+an interactive terminal that can log in, or by setting `CLOUDFLARE_API_TOKEN`.
+For local Cloudflare runtime checks after building:
+
+```bash
+npm run build
+npm run cf:dev
+```
+
+Then visit `/api/d1/health`; a migrated D1 binding returns
+`{"ok":true,"schemaVersion":"1"}`.
+
+### Cloudflare GitHub OAuth
+
+The backend has GitHub OAuth/session endpoints for the future cloud-backed
+storage provider:
+
+- `GET /api/auth/login` starts GitHub OAuth.
+- `GET /api/auth/callback` exchanges the GitHub code, upserts the user in D1,
+  and sets a signed `pxlblz_session` cookie.
+- `GET /api/me` returns the signed-in GitHub user or `401`.
+- `GET` or `POST /api/auth/logout` clears the session cookie.
+
+Create a GitHub OAuth app for the Cloudflare deployment and set its callback URL
+to:
+
+```txt
+https://pxlblz-ide.pages.dev/api/auth/callback
+```
+
+For local end-to-end OAuth testing, create a second GitHub OAuth app with:
+
+```txt
+http://localhost:8788/api/auth/callback
+```
+
+Then set Cloudflare Pages environment variables/secrets:
+
+```txt
+GITHUB_CLIENT_ID
+GITHUB_CLIENT_SECRET
+SESSION_SECRET
+GITHUB_ALLOWED_LOGINS      # optional comma-separated GitHub logins
+GITHUB_ALLOWED_IDS         # optional comma-separated numeric GitHub ids
+GITHUB_OAUTH_REDIRECT_URI  # optional override, useful for local testing
+```
+
+`SESSION_SECRET` should be a long random value, for example from
+`openssl rand -base64 32`. When either allow-list variable is set, only matching
+GitHub users can sign in. With neither allow-list set, any GitHub user can
+authenticate, though personal-content CRUD is not wired to the backend until the
+next storage issues land.
+
+Cloud-backed personal patterns, custom maps, last-active state, and demo
+overrides are available behind an explicit frontend flag:
+
+```txt
+VITE_PERSONAL_CONTENT_PROVIDER=remote-api
+```
+
+Leave that unset for the default browser-local IndexedDB behavior. When enabled,
+signed-in users read and write personal patterns through `/api/patterns`,
+personal maps through `/api/maps`, and provider-owned settings through
+`/api/settings/:key`. Controller metadata remains browser-local until its D1
+storage slice lands.
 
 ## Documentation
 
-- **[PXLBLZ Feature Guide](docs/reference/PXLBLZ%20Feature%20Guide.md)** - start
+- **[PXLBLZ Feature Guide](https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/blob/v1.0.0/docs/reference/PXLBLZ%20Feature%20Guide.md)** - start
   here if you use Pixelblaze and want to know what the IDE does.
-- **[Pixelblaze Ecosystem Primer](docs/reference/Pixelblaze%20Ecosystem%20Primer.md)** -
+- **[Pixelblaze Ecosystem Primer](https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/blob/v1.0.0/docs/reference/Pixelblaze%20Ecosystem%20Primer.md)** -
   background on the Pixelblaze model this project assumes.
-- **[PXLBLZ Technical Reference](docs/reference/PXLBLZ%20Technical%20Reference.md)** -
+- **[PXLBLZ Technical Reference](https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/blob/v1.0.0/docs/reference/PXLBLZ%20Technical%20Reference.md)** -
   how the IDE is built: preview engine, maps, settings cascade, controller
   connection, storage, and the transpiler.
-- **[Cloudflare Operations](docs/reference/Cloudflare%20Operations.md)** -
-  how the production Pages/D1 deployment is configured, backed up, and smoked.
 
-## Status
+## Where to from here
 
-PXLBLZ-IDE is small, local-first, and still evolving. Expect rough edges, keep
-copies of patterns you care about, and file issues with enough detail to
-reproduce the problem.
-
-## Where from here
-
-This feels useful and feature-complete enough to call a 1.0, but it probably has
-some bugs left to shake out. If you try it and something breaks, please open a
-GitHub issue with enough detail to reproduce it.
-
-More features are welcome if there is real interest, and pull requests are also
-welcome. Small, focused changes with a clear use case are easiest to review.
+Major new features are coming very soon.

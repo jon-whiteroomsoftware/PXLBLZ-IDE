@@ -1,8 +1,6 @@
-name: Deploy to GitHub Pages
+name: Deploy stable v1 to GitHub Pages
 
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -19,6 +17,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: v1-maintenance
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
