@@ -4,7 +4,11 @@
 // no transport specifics; the panel is a thin wrapper over this.
 
 import type { ProgramListEntry } from './PixelblazeConnection'
-import { estimatePowerCapAmps, type PowerCapSettings } from './powerCap'
+import {
+  estimatePowerCapAmps,
+  resolvePowerCapMilliamps,
+  type PowerCapSettings,
+} from './powerCap'
 import { POWER_LIMIT_VARIABLE_NAME } from './powerTelemetry'
 
 export interface ControllerPanelTelemetry {
@@ -178,6 +182,7 @@ export interface ControllerPowerTelemetryView {
 
 export interface ControllerPowerTelemetryContext {
   pixelCount: number
+  brightness: number
   settings: PowerCapSettings
 }
 
@@ -255,13 +260,15 @@ export function describeControllerPowerTelemetry(
     return null
   }
 
-  const estimatedAmps = context?.settings.provenance && typeof duty === 'number'
+  const estimatedAmps = context && typeof duty === 'number'
     ? estimatePowerCapAmps({
         ...context.settings,
         maxDuty: duty * (typeof scale === 'number' ? scale : 1),
-      }, context.pixelCount)
+      }, context.pixelCount, context.brightness)
     : null
-  const provenance = context?.settings.provenance
+  const milliampsPerPixel = context
+    ? resolvePowerCapMilliamps(context.settings)
+    : null
   return {
     dutyLabel: typeof dutyRecent === 'number' && typeof dutySinceStart === 'number'
       ? `${formatPercent(dutyRecent)} / ${formatPercent(dutySinceStart)}`
@@ -290,8 +297,8 @@ export function describeControllerPowerTelemetry(
       : typeof milliamps === 'number'
         ? formatEstimatedAmps(milliamps / 1000)
         : PLACEHOLDER,
-    ...(provenance ? {
-      estimatedDrawAssumptions: `at ${formatVarValue(provenance.milliampsPerPixel)} mA/px × ${context.pixelCount} px × ${formatPercent(provenance.brightness)} brightness`,
+    ...(context && milliampsPerPixel != null ? {
+      estimatedDrawAssumptions: `at ${formatVarValue(milliampsPerPixel)} mA/px × ${context.pixelCount} px × ${formatPercent(context.brightness)} brightness`,
     } : {}),
   }
 }

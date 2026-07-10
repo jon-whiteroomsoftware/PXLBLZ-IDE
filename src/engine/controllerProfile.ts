@@ -1,3 +1,5 @@
+import type { PowerCapSettings } from './powerCap'
+
 export type ControllerBoardKind = 'pixelblaze-v3-standard'
 
 export interface ControllerBoardProfile {
@@ -278,12 +280,16 @@ export function validateControllerProfile(
           message: `Global transform "${transform.id}" brightness must be between 0 and 1.`,
         })
       }
+    }
+    if (transform.type === 'power-cap') {
+      const milliampsPerPixel = transform.milliampsPerPixel
+        ?? transform.provenance?.milliampsPerPixel
       if (
-        !Number.isFinite(transform.provenance.milliampsPerPixel)
-        || transform.provenance.milliampsPerPixel <= 0
+        milliampsPerPixel !== undefined
+        && (!Number.isFinite(milliampsPerPixel) || milliampsPerPixel <= 0)
       ) {
         errors.push({
-          path: `globalTransforms.${transform.id}.provenance.milliampsPerPixel`,
+          path: `globalTransforms.${transform.id}.milliampsPerPixel`,
           message: `Global transform "${transform.id}" milliampsPerPixel must be greater than 0.`,
         })
       }
@@ -406,4 +412,3 @@ function formatIoList(pins: number[]): string {
 function capitalize(value: string): string {
   return value.charAt(0).toUpperCase() + value.slice(1)
 }
-import type { PowerCapSettings } from './powerCap'

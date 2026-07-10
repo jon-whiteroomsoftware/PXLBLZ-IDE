@@ -4,6 +4,8 @@ import {
   directPowerCapSettings,
   estimatePowerCapAmps,
   powerCapElectricalInputs,
+  resolvePowerCapMilliamps,
+  withPowerCapMilliamps,
 } from './powerCap'
 
 describe('power cap duty calculator', () => {
@@ -34,10 +36,10 @@ describe('power cap duty calculator', () => {
     expect(directPowerCapSettings(derived, 0.35)).toEqual({
       mode: 'direct',
       maxDuty: 0.35,
+      milliampsPerPixel: 60,
       provenance: {
         targetAmps: 3,
         brightness: 0.5,
-        milliampsPerPixel: 60,
       },
     })
   })
@@ -68,5 +70,26 @@ describe('power cap duty calculator', () => {
       maxDuty: 0.35,
       provenance: { targetAmps: 2, brightness: 0.4, milliampsPerPixel: 50 },
     }, 240, 0.8).brightness).toBe(0.4)
+  })
+
+  it('keeps per-pixel current as durable power-management data in direct mode', () => {
+    const legacyDirect = { mode: 'direct' as const, maxDuty: 0.25 }
+    expect(resolvePowerCapMilliamps(legacyDirect)).toBe(60)
+    expect(withPowerCapMilliamps(legacyDirect, 45)).toEqual({
+      mode: 'direct',
+      maxDuty: 0.25,
+      milliampsPerPixel: 45,
+    })
+  })
+
+  it('uses an explicit live brightness when estimating draw', () => {
+    const settings = derivedPowerCapSettings({
+      targetAmps: 20,
+      brightness: 1,
+      pixelCount: 256,
+      milliampsPerPixel: 60,
+    })
+
+    expect(estimatePowerCapAmps(settings, 256, 0.3)).toBeCloseTo(4.608)
   })
 })

@@ -1135,13 +1135,25 @@ weight at 16,384 frames to stay in a useful 16.16 fixed-point range while
 retaining its deliberately slow, flattening behavior.
 The pure `powerCap.ts` model owns the derived/direct calculator: derived mode
 computes `target amps / (brightness * pixelCount * mA-per-pixel)` and clamps it
-to 0..1; direct edits preserve those electrical values as provenance. Missing
+to 0..1; direct edits preserve calculator provenance. Per-pixel full-white
+current is durable power-management data on the transform itself, defaults to
+60 mA/px, and stays editable in both modes. Older serialized transforms resolve
+the legacy provenance value first and otherwise fall back to 60; the next power
+setting edit writes the top-level field into the existing
+`global_transforms_json` D1 column, so no schema migration is required. Missing
 brightness provenance prefills from a matching active Controller config, while
 stored provenance is never silently overwritten when the device later differs.
-Pixel count is read from current/profile state and is not calculator input. The
-device's native brightness stays independent: it remains the hard output cap
-controlled from the live Controller panel, not a value copied from preview
-state. Matching per-pattern bindings add another pair of passes per binding:
+Pixel count is read from current/profile state and is not calculator input.
+
+The Controller panel's estimated draw is a separate live projection. Because
+the exported duty windows are upstream of native Controller brightness,
+`describeControllerPowerTelemetry` multiplies recent duty after limiter scale by
+the panel's current brightness, current pixel count, and the profile's mA/px.
+Changing the panel brightness therefore recomputes both the amps value and its
+assumptions caption without a re-push. Setup brightness remains calculator
+provenance only. Native brightness stays the hard device output cap controlled
+from the live Controller panel, never a value copied from preview state.
+Matching per-pattern bindings add another pair of passes per binding:
 one inject pass samples the configured input once per `beforeRender` with
 smoothing/fallback/invert, and one bind pass calls an exported slider or named
 function, or assigns a named variable after scaling the normalized input through

@@ -55,6 +55,7 @@ import {
   directPowerCapSettings,
   estimatePowerCapAmps,
   powerCapElectricalInputs,
+  withPowerCapMilliamps,
   type PowerCapSettings,
 } from '@/engine/powerCap'
 import { getControllerProvider } from '@/engine/controllerProviderRegistry'
@@ -649,6 +650,14 @@ function PowerCapEditor({
     onChange(derivedPowerCapSettings({ ...electrical, ...changes, pixelCount }))
   }
 
+  function applyMilliampsPerPixel(milliampsPerPixel: number) {
+    if (transform.mode === 'derived') {
+      applyDerived({ milliampsPerPixel })
+    } else {
+      onChange(withPowerCapMilliamps(transform, milliampsPerPixel))
+    }
+  }
+
   const modeClass = (active: boolean) => [
     'rounded-full border px-2 py-0.5 text-[10px] transition-colors',
     active
@@ -677,17 +686,20 @@ function PowerCapEditor({
         </button>
       </div>
 
+      <div className="grid gap-2 px-3 py-2.5">
+        <PowerCapField label="LED full-white current" unit="mA/px">
+          <NumberField
+            ariaLabel="LED full-white current"
+            min={1}
+            step={1}
+            value={electrical.milliampsPerPixel}
+            onChange={applyMilliampsPerPixel}
+          />
+        </PowerCapField>
+      </div>
+
       {transform.mode === 'derived' ? (
-        <div className="grid gap-2 px-3 py-2.5">
-          <PowerCapField label="LED full-white current" unit="mA/px">
-            <NumberField
-              ariaLabel="LED full-white current"
-              min={1}
-              step={1}
-              value={electrical.milliampsPerPixel}
-              onChange={(milliampsPerPixel) => applyDerived({ milliampsPerPixel })}
-            />
-          </PowerCapField>
+        <div className="grid gap-2 border-t border-zinc-800/80 px-3 py-2.5">
           <PowerCapField
             label="controller brightness"
             unit="%"
@@ -713,7 +725,7 @@ function PowerCapEditor({
           </PowerCapField>
         </div>
       ) : (
-        <div className="px-3 py-2.5">
+        <div className="border-t border-zinc-800/80 px-3 py-2.5">
           <PowerCapField label="duty cap" unit="%">
             <NumberField
               ariaLabel="Power cap duty percent"

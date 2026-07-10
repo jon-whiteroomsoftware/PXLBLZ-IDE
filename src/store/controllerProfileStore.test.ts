@@ -146,6 +146,7 @@ describe('controllerProfileStore', () => {
           type: 'power-cap',
           mode: 'direct',
           maxDuty: 0.25,
+          milliampsPerPixel: 60,
         }),
       ]),
     })

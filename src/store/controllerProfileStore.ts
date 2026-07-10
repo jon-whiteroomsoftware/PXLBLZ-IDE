@@ -3,6 +3,7 @@ import { trackEntityCreated } from '@/analytics'
 import { getControllerProvider } from '@/engine/controllerProviderRegistry'
 import { getPersonalContentProvider } from '@/engine/personalContentProvider'
 import { newPersonalContentId } from '@/engine/personalContentMetadata'
+import { DEFAULT_POWER_CAP_MILLIAMPS_PER_PIXEL } from '@/engine/powerCap'
 import { mapDimension } from '@/engine/sendToController'
 import {
   controllerProfileCreateSeed,
@@ -107,6 +108,7 @@ export function defaultControllerProfile(seed: {
         mixinId: 'builtin:power-cap',
         mode: 'direct',
         maxDuty: 0.25,
+        milliampsPerPixel: DEFAULT_POWER_CAP_MILLIAMPS_PER_PIXEL,
       },
     ],
     patternBindings: [],

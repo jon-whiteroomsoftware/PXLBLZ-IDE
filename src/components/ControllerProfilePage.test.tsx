@@ -305,6 +305,19 @@ describe('ControllerProfilePage', () => {
       </div>,
     )
 
+    const milliampsInput = screen.getByRole('spinbutton', { name: 'LED full-white current' })
+    expect(milliampsInput).toHaveValue(60)
+    fireEvent.change(milliampsInput, { target: { value: '45' } })
+
+    await waitFor(() => {
+      const profile = useControllerProfileStore.getState().profiles[0]
+      expect(profile.globalTransforms.find((transform) => transform.id === 'power-cap')).toMatchObject({
+        mode: 'direct',
+        maxDuty: 0.25,
+        milliampsPerPixel: 45,
+      })
+    })
+
     const input = screen.getByRole('spinbutton', { name: 'Power cap duty percent' })
     fireEvent.click(input)
     fireEvent.keyDown(input, { key: 'ArrowUp' })
@@ -352,10 +365,10 @@ describe('ControllerProfilePage', () => {
       expect(transform).toMatchObject({
         mode: 'derived',
         maxDuty: 0.5,
+        milliampsPerPixel: 60,
         provenance: {
           targetAmps: 3.6,
           brightness: 0.5,
-          milliampsPerPixel: 60,
         },
       })
     })

@@ -73,11 +73,11 @@ const VARS_HINT = (
 
 const POWER_HINT = (
   <DeckSectionHint
-    intro="Output duty is estimated from emitted hsv values. The left value is a roughly two-second block average; the right is the average since start. The cap responds from a faster internal signal than either display. The live cap is volatile: re-pushing restores the Controller Profile default, and patterns pushed before live control was added need a re-push. Draw is contextual, not measured."
+    intro="Output duty is estimated from emitted hsv values. The left value is a roughly two-second block average; the right is the average since start. The cap responds from a faster internal signal than either display. The live cap is volatile: re-pushing restores the Controller Profile default, and patterns pushed before live control was added need a re-push. Draw is contextual, not measured, and follows the live Controller brightness above."
     items={[
       ['duty recent / start', 'calm recent-window duty followed by the cumulative run average, both before native Controller brightness'],
       ['duty cap', 'configured normalized output budget, when a limiter is active'],
-      ['est. draw', 'calculated from duty, pixel count, full-white current, and configured brightness — not an ammeter reading'],
+      ['est. draw', 'calculated from duty, live pixel count, full-white current, and current Controller brightness — not an ammeter reading'],
       ['scale', 'output scale applied by a limiter; 100% means measurement only'],
       ['limiting', 'whether the limiter is currently intervening'],
     ]}
@@ -175,8 +175,8 @@ export function ControllerPanel() {
   )
   const powerTelemetry = describeControllerPowerTelemetry(
     vars,
-    powerCapSettings && pixelCount != null
-      ? { settings: powerCapSettings, pixelCount }
+    powerCapSettings && pixelCount != null && brightness != null
+      ? { settings: powerCapSettings, pixelCount, brightness }
       : undefined,
   )
   const watchedVars = describeControllerVars(vars)

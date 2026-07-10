@@ -8,14 +8,19 @@ export interface PowerCapElectricalInputs {
 export interface PowerCapElectricalProvenance {
   targetAmps: number
   brightness: number
-  milliampsPerPixel: number
+  /** Legacy location retained only while older serialized profiles are read. */
+  milliampsPerPixel?: number
 }
 
 export interface PowerCapSettings {
   mode: 'derived' | 'direct'
   maxDuty: number
+  /** Full-white current for one installed LED. Defaults to 60 for legacy profiles. */
+  milliampsPerPixel?: number
   provenance?: PowerCapElectricalProvenance
 }
+
+export const DEFAULT_POWER_CAP_MILLIAMPS_PER_PIXEL = 60
 
 export function deriveDutyLimit(inputs: PowerCapElectricalInputs): number {
   const fullWhiteAmps = inputs.brightness * inputs.pixelCount * inputs.milliampsPerPixel / 1000
@@ -27,10 +32,10 @@ export function derivedPowerCapSettings(inputs: PowerCapElectricalInputs): Power
   return {
     mode: 'derived',
     maxDuty: deriveDutyLimit(inputs),
+    milliampsPerPixel: normalizeMilliamps(inputs.milliampsPerPixel),
     provenance: {
       targetAmps: inputs.targetAmps,
       brightness: inputs.brightness,
-      milliampsPerPixel: inputs.milliampsPerPixel,
     },
   }
 }
@@ -43,18 +48,36 @@ export function directPowerCapSettings(
     ...settings,
     mode: 'direct',
     maxDuty: clamp01(maxDuty),
+    milliampsPerPixel: resolvePowerCapMilliamps(settings),
+  }
+}
+
+export function resolvePowerCapMilliamps(settings: PowerCapSettings): number {
+  return normalizeMilliamps(
+    settings.milliampsPerPixel ?? settings.provenance?.milliampsPerPixel,
+  )
+}
+
+export function withPowerCapMilliamps(
+  settings: PowerCapSettings,
+  milliampsPerPixel: number,
+): PowerCapSettings {
+  return {
+    ...settings,
+    milliampsPerPixel: normalizeMilliamps(milliampsPerPixel),
   }
 }
 
 export function estimatePowerCapAmps(
   settings: PowerCapSettings,
   pixelCount: number,
+  brightness = settings.provenance?.brightness,
 ): number | null {
-  if (!settings.provenance) return null
+  if (typeof brightness !== 'number' || !Number.isFinite(brightness)) return null
   return settings.maxDuty
-    * settings.provenance.brightness
+    * clamp01(brightness)
     * Math.max(0, pixelCount)
-    * settings.provenance.milliampsPerPixel
+    * resolvePowerCapMilliamps(settings)
     / 1000
 }
 
@@ -68,7 +91,7 @@ export function powerCapElectricalInputs(
     ?? (typeof liveBrightness === 'number' && Number.isFinite(liveBrightness)
       ? clamp01(liveBrightness)
       : 1)
-  const milliampsPerPixel = settings.provenance?.milliampsPerPixel ?? 60
+  const milliampsPerPixel = resolvePowerCapMilliamps(settings)
   const targetAmps = settings.provenance?.targetAmps
     ?? settings.maxDuty * brightness * resolvedPixelCount * milliampsPerPixel / 1000
   return {
@@ -77,6 +100,12 @@ export function powerCapElectricalInputs(
     pixelCount: resolvedPixelCount,
     milliampsPerPixel,
   }
+}
+
+function normalizeMilliamps(value: number | undefined): number {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0
+    ? value
+    : DEFAULT_POWER_CAP_MILLIAMPS_PER_PIXEL
 }
 
 function clamp01(value: number): number {

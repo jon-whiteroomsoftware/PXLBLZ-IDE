@@ -48,6 +48,15 @@ const profile: ControllerProfile = {
       inputId: 'pot0',
       mode: 'multiply-output',
     },
+    {
+      id: 'power-cap',
+      type: 'power-cap',
+      enabled: true,
+      mixinId: 'builtin:power-cap',
+      mode: 'direct',
+      maxDuty: 0.25,
+      milliampsPerPixel: 60,
+    },
   ],
   patternBindings: [
     {
@@ -156,6 +165,7 @@ describe('D1 controller profile persistence', () => {
       lastKnownPixelCount: 512,
       lastKnownMapDim: 3,
       mapFingerprints: [],
+      globalTransforms: profile.globalTransforms,
       updatedAt: 200,
     })
     await deleteD1ControllerProfile(db, 'github:123', 'ctrl-1')
@@ -172,11 +182,13 @@ describe('D1 controller profile persistence', () => {
     expect(calls[1].sql).toContain('last_known_pixel_count = ?')
     expect(calls[1].sql).toContain('last_known_map_dim = ?')
     expect(calls[1].sql).toContain('map_fingerprints_json = ?')
+    expect(calls[1].sql).toContain('global_transforms_json = ?')
     expect(calls[1].values).toContain('Renamed on device')
     expect(calls[1].values).toContain('192.168.8.99')
     expect(calls[1].values).toContain(512)
     expect(calls[1].values).toContain(3)
     expect(calls[1].values).toContain(JSON.stringify([]))
+    expect(calls[1].values).toContain(JSON.stringify(profile.globalTransforms))
     expect(calls[1].values.slice(-2)).toEqual(['github:123', 'ctrl-1'])
     expect(calls[2].values).toEqual(['github:123', 'ctrl-1'])
   })

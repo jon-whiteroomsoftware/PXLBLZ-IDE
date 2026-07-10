@@ -250,13 +250,14 @@ describe('describeControllerPowerTelemetry', () => {
       __px_powerClipping: 1,
     }, {
       pixelCount: 240,
+      brightness: 0.3,
       settings: {
         mode: 'derived',
         maxDuty: 0.35,
+        milliampsPerPixel: 60,
         provenance: {
           targetAmps: 3,
           brightness: 0.5,
-          milliampsPerPixel: 60,
         },
       },
     })).toEqual({
@@ -265,8 +266,8 @@ describe('describeControllerPowerTelemetry', () => {
       limitValue: 0.35,
       scaleLabel: '84%',
       clippingLabel: 'yes',
-      estimatedDrawLabel: '≈ 4.7 A',
-      estimatedDrawAssumptions: 'at 60 mA/px × 240 px × 50% brightness',
+      estimatedDrawLabel: '≈ 2.8 A',
+      estimatedDrawAssumptions: 'at 60 mA/px × 240 px × 30% brightness',
     })
   })
 })

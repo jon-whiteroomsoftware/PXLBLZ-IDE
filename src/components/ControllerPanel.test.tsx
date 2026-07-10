@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { act, render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { ControllerPanel } from './ControllerPanel'
 import {
@@ -133,7 +133,8 @@ describe('ControllerPanel', () => {
                 ...transform,
                 mode: 'derived' as const,
                 maxDuty: 0.35,
-                provenance: { targetAmps: 3, brightness: 0.5, milliampsPerPixel: 60 },
+                milliampsPerPixel: 60,
+                provenance: { targetAmps: 3, brightness: 0.5 },
               }
             : transform
         )),
@@ -149,8 +150,12 @@ describe('ControllerPanel', () => {
     expect(screen.getByLabelText('Live duty cap')).toHaveValue('0.35')
     expect(screen.getByText('84%')).toBeInTheDocument()
     expect(screen.getByText('yes')).toBeInTheDocument()
-    expect(screen.getByText('≈ 5.0 A')).toBeInTheDocument()
-    expect(screen.getByText('at 60 mA/px × 256 px × 50% brightness')).toBeInTheDocument()
+    expect(screen.getByText('≈ 4.0 A')).toBeInTheDocument()
+    expect(screen.getByText('at 60 mA/px × 256 px × 40% brightness')).toBeInTheDocument()
+
+    act(() => useControllerPanelStore.getState().setBrightness(0.3))
+    expect(screen.getByText('≈ 3.0 A')).toBeInTheDocument()
+    expect(screen.getByText('at 60 mA/px × 256 px × 30% brightness')).toBeInTheDocument()
     expect(screen.getByText('phase')).toBeInTheDocument()
     expect(screen.queryByText('__px_powerDutyRecent')).not.toBeInTheDocument()
 

@@ -55,10 +55,10 @@ const baseProfile: ControllerProfile = {
       mixinId: 'builtin:power-cap',
       mode: 'derived',
       maxDuty: 0.23,
+      milliampsPerPixel: 60,
       provenance: {
         targetAmps: 3.5,
         brightness: 1,
-        milliampsPerPixel: 60,
       },
     },
   ],
@@ -117,14 +117,15 @@ describe('ControllerProfile validation', () => {
     )
   })
 
-  it('validates optional electrical provenance in its real units', () => {
+  it('validates electrical settings and optional calculator provenance in their real units', () => {
     const profile: ControllerProfile = {
       ...baseProfile,
       globalTransforms: baseProfile.globalTransforms.map((transform) => (
         transform.type === 'power-cap'
           ? {
               ...transform,
-              provenance: { targetAmps: -1, brightness: 1.2, milliampsPerPixel: 0 },
+              milliampsPerPixel: 0,
+              provenance: { targetAmps: -1, brightness: 1.2 },
             }
           : transform
       )),

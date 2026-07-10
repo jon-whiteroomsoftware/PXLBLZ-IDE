@@ -437,9 +437,10 @@ from its default, and resets the whole preview in one click (semantics below).
   live Controller panel instead of appearing as ordinary watch variables. Output
   duty is the primary `recent / since start` pair: the recent value publishes a
   calm block average about every two seconds, while the second value accumulates
-  across the run. Estimated amps are secondary and state the Controller profile
-  assumptions used — LED full-white current, pixel count, and configured native
-  brightness. This is a calculator, not an ammeter.
+  across the run. Estimated amps are secondary and state the inputs used — the
+  Controller profile's LED full-white current plus the panel's current live pixel
+  count and native brightness. Moving the brightness slider recomputes the estimate
+  immediately. This is a calculator, not an ammeter.
 - **Power cap** — enabling the Controller profile's power-cap transform applies
   an estimated `hsv` output guard at push time. Its authoritative setpoint is
   output duty from 0–100%, not milliamps, and it reports the same Power row
@@ -612,11 +613,12 @@ profile is created automatically the first time); the profile page at
   exceeds its normalized limit, using a short per-frame response signal rather
   than the slower display averages. Set that limit directly as a percentage, or use
   **From power budget** to derive it from full-white mA/pixel, Controller
-  brightness, and target amps. Those electrical inputs remain visible as the
-  estimate's provenance; editing duty directly keeps them but switches to direct
-  mode. Pixel count comes from the profile rather than an editable calculator
-  field, so changing the installation changes the displayed amps equivalence
-  without silently changing the stored duty cap;
+  brightness, and target amps. Full-white mA/pixel is durable installation data,
+  defaults to 60, and remains visible in both modes. Calculator brightness and
+  target amps remain as derivation provenance; editing duty directly switches to
+  direct mode without losing them. Pixel count comes from the profile rather than
+  an editable calculator field, so changing the installation changes the displayed
+  amps equivalence without silently changing the stored duty cap;
 - **pattern bindings** — pattern × input → an exported slider, a named
   function, or a variable with min/max/quantize. These are applied at Send to
   Controller time without editing the pattern source;
