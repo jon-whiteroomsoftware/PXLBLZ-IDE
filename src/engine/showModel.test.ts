@@ -219,6 +219,26 @@ describe('showModel (#318)', () => {
     expect(removed.cells[0].adaptations.lightShutter).toBeUndefined()
   })
 
+  it('normalizes and removes stepped-clock cadence independently from other adaptations', () => {
+    const show = createDefaultShow('show-1', 'Untitled Show')
+    const stepped = updateShowCellAdaptations(show, show.cells[0].id, {
+      steppedClock: { stepMs: 5 },
+      timeScale: 0.5,
+      lightShutter: { rateHz: 8, duty: 0.5, phase: 0, clockBehavior: 'continue' },
+    })
+    const removed = updateShowCellAdaptations(stepped, show.cells[0].id, {
+      steppedClock: undefined,
+    })
+
+    expect(stepped.cells[0].adaptations).toMatchObject({
+      steppedClock: { stepMs: 16 },
+      timeScale: 0.5,
+      lightShutter: { rateHz: 8, duty: 0.5, phase: 0, clockBehavior: 'continue' },
+    })
+    expect(removed.cells[0].adaptations.steppedClock).toBeUndefined()
+    expect(removed.cells[0].adaptations.lightShutter).toBeDefined()
+  })
+
   it('builds the current compiler recipe from the first two scene cells', () => {
     const show = createDefaultShow('show-1', 'Untitled Show')
     const recipe = showRecordToCompileRecipe(show, {
@@ -277,6 +297,28 @@ describe('showModel (#318)', () => {
       phase: 0.1,
       clockBehavior: 'continue',
     })
+    expect(recipe.clips).toHaveLength(2)
+    expect(recipe.crossfade).toEqual({ startMs: 30000, durationMs: 2000 })
+    expect(recipe.adaptationRamp).toBeUndefined()
+  })
+
+  it('passes stepped cadence into the recipe and keeps unlike schedules as separate clips', () => {
+    const base = createDefaultShow('show-1', 'Untitled Show')
+    const samePattern = updateShowCellPattern(base, base.cells[1].id, {
+      pattern: base.cells[0].pattern,
+      patternName: base.cells[0].patternName,
+    })
+    const stepped = updateShowCellAdaptations(samePattern, samePattern.cells[0].id, {
+      steppedClock: { stepMs: 125 },
+    })
+    const recipe = showRecordToCompileRecipe(stepped, {
+      byCellId: {
+        [stepped.cells[0].id]: DEMOS.TestPattern1D,
+        [stepped.cells[1].id]: DEMOS.TestPattern1D,
+      },
+    })
+
+    expect(recipe.clips[0].adaptation?.steppedClock).toEqual({ stepMs: 125 })
     expect(recipe.clips).toHaveLength(2)
     expect(recipe.crossfade).toEqual({ startMs: 30000, durationMs: 2000 })
     expect(recipe.adaptationRamp).toBeUndefined()

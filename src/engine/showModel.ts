@@ -530,7 +530,10 @@ function normalizeAdaptations(adaptations: ShowCellAdaptations): ShowCellAdaptat
             phase: clamp01(adaptations.lightShutter.phase),
             clockBehavior: adaptations.lightShutter.clockBehavior === 'freeze' ? 'freeze' as const : 'continue' as const,
           },
-        }
+      }
+      : {}),
+    ...(adaptations.steppedClock
+      ? { steppedClock: { stepMs: Math.max(16, Math.min(60000, adaptations.steppedClock.stepMs)) } }
       : {}),
   }
 }
@@ -546,6 +549,7 @@ function compilerAdaptation(adaptations: ShowCellAdaptations): ShowClipAdaptatio
     timeScale: adaptations.timeScale,
     mirror: adaptations.mirror,
     ...(adaptations.lightShutter ? { lightShutter: { ...adaptations.lightShutter } } : {}),
+    ...(adaptations.steppedClock ? { steppedClock: { ...adaptations.steppedClock } } : {}),
   }
 }
 
@@ -556,11 +560,18 @@ function isSamePattern(a: ShowCell, b: ShowCell): boolean {
 function hasSameDiscreteAdaptations(a: ShowCell, b: ShowCell): boolean {
   const aShutter = a.adaptations.lightShutter
   const bShutter = b.adaptations.lightShutter
-  if (!aShutter || !bShutter) return aShutter === bShutter
-  return aShutter.rateHz === bShutter.rateHz
+  const sameShutter = !aShutter || !bShutter
+    ? aShutter === bShutter
+    : aShutter.rateHz === bShutter.rateHz
     && aShutter.duty === bShutter.duty
     && aShutter.phase === bShutter.phase
     && aShutter.clockBehavior === bShutter.clockBehavior
+  const aSteppedClock = a.adaptations.steppedClock
+  const bSteppedClock = b.adaptations.steppedClock
+  const sameSteppedClock = !aSteppedClock || !bSteppedClock
+    ? aSteppedClock === bSteppedClock
+    : aSteppedClock.stepMs === bSteppedClock.stepMs
+  return sameShutter && sameSteppedClock
 }
 
 function nominalZones(zones: ShowZone[]): ControllerZone[] {
@@ -629,6 +640,9 @@ function copyCellForScene(
       ...source.adaptations,
       ...(source.adaptations.lightShutter
         ? { lightShutter: { ...source.adaptations.lightShutter } }
+        : {}),
+      ...(source.adaptations.steppedClock
+        ? { steppedClock: { ...source.adaptations.steppedClock } }
         : {}),
     },
   }

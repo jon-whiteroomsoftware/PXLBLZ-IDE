@@ -812,6 +812,129 @@ export function render(index) { renderCalls = renderCalls + 1; rgb(elapsed, fram
     expect(baseline.summary).toMatchObject({
       evaluationPolicy: 'full',
       expectedActiveFraction: 1,
+      temporalPolicy: 'continuous',
+    })
+  })
+
+  it('holds private time between stepped-clock boundaries while continuing to render', () => {
+    const artifact = compileShow({
+      clips: [{
+        id: 'stepped',
+        source: `
+export var elapsed = 0
+export var frames = 0
+export var renders = 0
+export function beforeRender(delta) { elapsed = elapsed + delta; frames = frames + 1 }
+export function render(index) { renders = renders + 1; rgb(elapsed, frames, renders) }
+`,
+        adaptation: { steppedClock: { stepMs: 100 } },
+      }],
+    }, {})
+    const runtime = loadShow(artifact.code, artifact.metadata)
+
+    runtime.handle.beforeRender(40)
+    runtime.handle.render(0)
+    expect(runtime.pixel()).toEqual([0, 0, 1])
+    runtime.handle.beforeRender(35)
+    runtime.handle.render(0)
+    expect(runtime.pixel()).toEqual([0, 0, 2])
+    runtime.handle.beforeRender(30)
+    runtime.handle.render(0)
+    expect(runtime.pixel()).toEqual([100, 1, 3])
+    runtime.handle.beforeRender(195)
+    runtime.handle.render(0)
+
+    expect(runtime.pixel()).toEqual([300, 2, 4])
+    expect(runtime.handle.getExports()).toMatchObject({
+      __pxlblz_show_c0_elapsed_ms: 300,
+      __pxlblz_show_c0_step_pending_ms: 0,
+      __pxlblz_show_c0_elapsed: 300,
+      __pxlblz_show_c0_frames: 2,
+      __pxlblz_show_c0_renders: 4,
+    })
+    expect(artifact.summary).toMatchObject({
+      temporalPolicy: 'stepped-clock',
+      renderPolicy: 'single-continuous-hold',
+      worstInstantRenderersPerPixel: 1,
+      clips: [expect.objectContaining({ temporalPolicy: 'stepped-clock', stepMs: 100 })],
+    })
+  })
+
+  it('preserves a stepped schedule through a hold and starts a fresh schedule after a cut', () => {
+    const source = `
+export var elapsed = 0
+export function beforeRender(delta) { elapsed = elapsed + delta }
+export function render(index) { rgb(elapsed, index, 0) }
+`
+    const held = compileShow({
+      clips: [{ id: 'held', source, adaptation: { steppedClock: { stepMs: 100 } } }],
+    }, {})
+    const heldRuntime = loadShow(held.code, held.metadata)
+
+    heldRuntime.handle.beforeRender(60)
+    heldRuntime.handle.beforeRender(60)
+
+    expect(heldRuntime.handle.getExports()).toMatchObject({
+      __pxlblz_show_c0_elapsed_ms: 100,
+      __pxlblz_show_c0_step_pending_ms: 20,
+      __pxlblz_show_c0_elapsed: 100,
+    })
+
+    const restarted = compileShow({
+      clips: [
+        { id: 'from', source, adaptation: { steppedClock: { stepMs: 100 } } },
+        { id: 'to', source, adaptation: { steppedClock: { stepMs: 100 } } },
+      ],
+      cut: { startMs: 100 },
+    }, {})
+    const restartRuntime = loadShow(restarted.code, restarted.metadata)
+
+    restartRuntime.handle.beforeRender(60)
+    restartRuntime.handle.beforeRender(60)
+    restartRuntime.handle.beforeRender(40)
+
+    expect(restartRuntime.handle.getExports()).toMatchObject({
+      __pxlblz_show_c0_elapsed_ms: 0,
+      __pxlblz_show_c0_step_pending_ms: 60,
+      __pxlblz_show_c1_elapsed_ms: 100,
+      __pxlblz_show_c1_step_pending_ms: 0,
+    })
+    expect(restarted.summary).toMatchObject({
+      temporalPolicy: 'stepped-clock',
+      renderPolicy: 'cut-restart',
+    })
+  })
+
+  it('composes stepped time after time scaling and shutter freeze eligibility', () => {
+    const artifact = compileShow({
+      clips: [{
+        id: 'composed',
+        source: `
+export var elapsed = 0
+export function beforeRender(delta) { elapsed = elapsed + delta }
+export function render(index) { rgb(elapsed, index, 0) }
+`,
+        adaptation: {
+          timeScale: 0.5,
+          steppedClock: { stepMs: 100 },
+          lightShutter: { rateHz: 1, duty: 0.5, phase: 0, clockBehavior: 'freeze' },
+        },
+      }],
+    }, {})
+    const runtime = loadShow(artifact.code, artifact.metadata)
+
+    runtime.handle.beforeRender(300)
+    runtime.handle.beforeRender(400)
+
+    expect(runtime.handle.getExports()).toMatchObject({
+      __pxlblz_show_c0_elapsed_ms: 200,
+      __pxlblz_show_c0_step_pending_ms: 50,
+      __pxlblz_show_c0_elapsed: 200,
+    })
+    expect(artifact.summary).toMatchObject({
+      clockPolicy: 'scaled',
+      temporalPolicy: 'stepped-clock',
+      evaluationPolicy: 'masked-shutter',
     })
   })
 

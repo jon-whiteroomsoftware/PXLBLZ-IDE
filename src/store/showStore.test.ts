@@ -116,6 +116,27 @@ describe('showStore (#318)', () => {
     })
   })
 
+  it('persists stepped-clock cadence independently from time scale and light shutter', async () => {
+    const show = createDefaultShow('show-1', 'Opening wash', 1)
+    const provider = memoryProvider([show])
+    setPersonalContentProvider(provider)
+    useShowStore.setState({ shows: [show], showsLoaded: true })
+
+    await useShowStore.getState().updateCellAdaptations(show.id, show.cells[0].id, {
+      timeScale: 0.75,
+      steppedClock: { stepMs: 125 },
+      lightShutter: { rateHz: 8, duty: 0.4, phase: 0.2, clockBehavior: 'continue' },
+    })
+    useShowStore.setState(showInitialState)
+    await useShowStore.getState().loadShows()
+
+    expect(useShowStore.getState().shows[0].cells[0].adaptations).toMatchObject({
+      timeScale: 0.75,
+      steppedClock: { stepMs: 125 },
+      lightShutter: { rateHz: 8, duty: 0.4, phase: 0.2, clockBehavior: 'continue' },
+    })
+  })
+
   it('persists a wipe feather width through the provider', async () => {
     const show = createDefaultShow('show-1', 'Opening wash', 1)
     setPersonalContentProvider(memoryProvider([show]))

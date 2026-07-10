@@ -32,6 +32,7 @@ export interface ShowClipAdaptation {
   timeScale: number
   mirror: boolean
   lightShutter?: ShowLightShutter
+  steppedClock?: ShowSteppedClock
 }
 
 export interface ShowLightShutter {
@@ -39,6 +40,10 @@ export interface ShowLightShutter {
   duty: number
   phase: number
   clockBehavior: 'continue' | 'freeze'
+}
+
+export interface ShowSteppedClock {
+  stepMs: number
 }
 
 export interface ShowAdaptationRampRecipe {
@@ -72,6 +77,8 @@ export interface ShowCompileClipSummary {
   renamedPatternVars: string[]
   evaluationPolicy: 'full' | 'masked-shutter-continue' | 'masked-shutter-freeze'
   expectedActiveFraction: number
+  temporalPolicy: 'continuous' | 'stepped-clock'
+  stepMs: number | null
 }
 
 export interface ShowCompileSummary {
@@ -93,6 +100,7 @@ export interface ShowCompileSummary {
   clockPolicy: 'real-time' | 'scaled' | 'scaled-ramp' | 'exact-pause' | 'exact-pause-ramp'
   evaluationPolicy: 'full' | 'masked-shutter' | 'mixed'
   expectedActiveFraction: number | null
+  temporalPolicy: 'continuous' | 'stepped-clock' | 'mixed'
   worstInstantRenderersPerPixel: 1 | 2
   clips: ShowCompileClipSummary[]
   warnings: string[]
@@ -206,6 +214,7 @@ export function compileShow(
     clockPolicy: describeClockPolicy(expandedRecipe, members),
     evaluationPolicy: evaluationSummary.policy,
     expectedActiveFraction: evaluationSummary.expectedActiveFraction,
+    temporalPolicy: describeTemporalPolicy(members),
     worstInstantRenderersPerPixel: transitionCost === 'renderer-window' ? 2 : 1,
     clips: members.map((member) => {
       const lightShutter = member.adaptation.lightShutter
@@ -219,6 +228,8 @@ export function compileShow(
           ? `masked-shutter-${lightShutter.clockBehavior}` as const
           : 'full' as const,
         expectedActiveFraction: lightShutter?.duty ?? 1,
+        temporalPolicy: member.adaptation.steppedClock ? 'stepped-clock' as const : 'continuous' as const,
+        stepMs: member.adaptation.steppedClock?.stepMs ?? null,
       }
     }),
     warnings: route?.warnings ?? [],
@@ -492,6 +503,23 @@ function emitRouteShowCode(members: CompiledMember[], routes: ResolvedRoute[]): 
 function emitRuntimePrelude(members: CompiledMember[]): string {
   const memberVars = members.flatMap((member, index) => {
     const lightShutter = member.adaptation.lightShutter
+    const steppedClock = member.adaptation.steppedClock
+    const steppedClockVars = steppedClock
+      ? [
+          `var ${member.prefix}_step_ms = ${steppedClock.stepMs}`,
+          `var ${member.prefix}_step_pending_ms = 0`,
+          `function ${member.prefix}_advanceStepped(delta) {
+  var scaledDelta = delta * ${member.prefix}_adapt_timeScale
+  var accumulatedDelta = ${member.prefix}_step_pending_ms + scaledDelta
+  var deliveredDelta = floor(accumulatedDelta / ${member.prefix}_step_ms) * ${member.prefix}_step_ms
+  ${member.prefix}_step_pending_ms = accumulatedDelta - deliveredDelta
+  if (deliveredDelta > 0) {
+    ${member.elapsedName} = ${member.elapsedName} + deliveredDelta
+    ${member.hasBeforeRender ? `${member.beforeRenderName}(deliveredDelta)` : ''}
+  }
+}`,
+        ]
+      : []
     const shutterVars = lightShutter
       ? [
           `var ${member.prefix}_shutter_rate_hz = ${lightShutter.rateHz}`,
@@ -521,27 +549,26 @@ function emitRuntimePrelude(members: CompiledMember[]): string {
             : []),
         ]
       : []
+    const advanceDelta = (delta: string, indent: string) => steppedClock
+      ? `${indent}${member.prefix}_advanceStepped(${delta})`
+      : `${indent}var scaledDelta = ${delta} * ${member.prefix}_adapt_timeScale
+${indent}${member.elapsedName} = ${member.elapsedName} + scaledDelta
+${indent}${member.hasBeforeRender ? `${member.beforeRenderName}(scaledDelta)` : ''}`
     const advance = lightShutter?.clockBehavior === 'freeze'
       ? `function ${member.prefix}_advance(delta) {
   ${member.prefix}_updateShutter()
   var activeDelta = ${member.prefix}_shutterActiveMs(__pxlblz_show_elapsed_ms - delta, __pxlblz_show_elapsed_ms)
   if (activeDelta > 0) {
-    var scaledDelta = activeDelta * ${member.prefix}_adapt_timeScale
-    ${member.elapsedName} = ${member.elapsedName} + scaledDelta
-    ${member.hasBeforeRender ? `${member.beforeRenderName}(scaledDelta)` : ''}
+${advanceDelta('activeDelta', '    ')}
   }
 }`
       : lightShutter
         ? `function ${member.prefix}_advance(delta) {
   ${member.prefix}_updateShutter()
-  var scaledDelta = delta * ${member.prefix}_adapt_timeScale
-  ${member.elapsedName} = ${member.elapsedName} + scaledDelta
-  ${member.hasBeforeRender ? `${member.beforeRenderName}(scaledDelta)` : ''}
+${advanceDelta('delta', '  ')}
 }`
         : `function ${member.prefix}_advance(delta) {
-  var scaledDelta = delta * ${member.prefix}_adapt_timeScale
-  ${member.elapsedName} = ${member.elapsedName} + scaledDelta
-  ${member.hasBeforeRender ? `${member.beforeRenderName}(scaledDelta)` : ''}
+${advanceDelta('delta', '  ')}
 }`
     return [
     `var ${member.elapsedName} = 0`,
@@ -553,6 +580,7 @@ function emitRuntimePrelude(members: CompiledMember[]): string {
     `var ${member.prefix}_r = 0`,
     `var ${member.prefix}_g = 0`,
     `var ${member.prefix}_b = 0`,
+    ...steppedClockVars,
     ...shutterVars,
     `function ${member.prefix}_clear() { ${member.prefix}_r = 0; ${member.prefix}_g = 0; ${member.prefix}_b = 0 }`,
     `function ${member.prefix}_rgb(r, g, b) { ${member.prefix}_r = r * ${member.prefix}_adapt_brightness; ${member.prefix}_g = g * ${member.prefix}_adapt_brightness; ${member.prefix}_b = b * ${member.prefix}_adapt_brightness }`,
@@ -728,6 +756,12 @@ function buildMetadata(members: CompiledMember[]): BundleMetadata {
             `${member.prefix}_shutter_open`,
           ]
         : []),
+      ...(member.adaptation.steppedClock
+        ? [
+            `${member.prefix}_step_ms`,
+            `${member.prefix}_step_pending_ms`,
+          ]
+        : []),
       `${member.prefix}_r`,
       `${member.prefix}_g`,
       `${member.prefix}_b`,
@@ -762,9 +796,19 @@ function normalizeAdaptation(adaptation: Partial<ShowClipAdaptation> | undefined
             phase: clampNumber(adaptation.lightShutter.phase, 0, 1),
             clockBehavior: adaptation.lightShutter.clockBehavior === 'freeze' ? 'freeze' as const : 'continue' as const,
           },
-        }
+      }
+      : {}),
+    ...(adaptation?.steppedClock
+      ? { steppedClock: { stepMs: clampNumber(adaptation.steppedClock.stepMs, 16, 60000) } }
       : {}),
   }
+}
+
+function describeTemporalPolicy(members: CompiledMember[]): ShowCompileSummary['temporalPolicy'] {
+  const steppedCount = members.filter((member) => member.adaptation.steppedClock).length
+  if (steppedCount === 0) return 'continuous'
+  if (steppedCount === members.length) return 'stepped-clock'
+  return 'mixed'
 }
 
 function describeEvaluationPolicy(members: CompiledMember[]): {

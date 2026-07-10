@@ -101,6 +101,7 @@ export interface ShowCellAdaptations {
   brightness: number
   timeScale: number
   lightShutter?: ShowLightShutter
+  steppedClock?: ShowSteppedClock
 }
 
 export interface ShowLightShutter {
@@ -108,6 +109,10 @@ export interface ShowLightShutter {
   duty: number
   phase: number
   clockBehavior: 'continue' | 'freeze'
+}
+
+export interface ShowSteppedClock {
+  stepMs: number
 }
 
 export type ShowPatternRef =
