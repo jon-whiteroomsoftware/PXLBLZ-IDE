@@ -597,6 +597,11 @@ profile is created automatically the first time); the profile page at
   byte fingerprint is recognized, or saves a separate frozen user map when it is
   genuinely foreign. Imported maps stay even if the Controller profile is later
   deleted;
+- **saved programs** — a read-only live inventory of the patterns installed on
+  the Controller. Programs that this IDE saved are listed first and link back to
+  their Studio pattern or built-in demo. Programs without an IDE binding remain
+  visible in a quieter, counted foreign-program group. Refresh rereads the
+  device; offline, empty, loading, and read-error states are reported in place;
 - **hardware inputs** — named pots/buttons with pin, signal, role, smoothing,
   fallback, and invert; analog choices are limited to the board's ADC1-safe
   pins, with anything else flagged inline;

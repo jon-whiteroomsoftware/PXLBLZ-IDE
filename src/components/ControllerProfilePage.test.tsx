@@ -11,6 +11,11 @@ import {
 } from '@/engine/personalContentProvider'
 import type { MapRecord } from '@/engine/personalContentRecords'
 import {
+  demoControllerMetadataStorage,
+  resetControllerMetadataStorage,
+  setControllerMetadataStorage,
+} from '@/engine/controllerMetadataStorage'
+import {
   controllerProfileInitialState,
   defaultControllerProfile,
   useControllerProfileStore,
@@ -18,6 +23,7 @@ import {
 import { controllerInitialState, useControllerStore } from '@/store/controllerStore'
 import { mapInitialState, useMapStore } from '@/store/mapStore'
 import { routerInitialState, useRouterStore } from '@/store/routerStore'
+import { patternInitialState, usePatternStore } from '@/store/patternStore'
 
 const READBACK_POINTS = [
   [0, 0],
@@ -57,16 +63,33 @@ class LiveBrightnessProvider extends MapReadbackProvider {
   }
 }
 
+class ProgramListProvider extends MapReadbackProvider {
+  programs: Array<{ id: string; name: string }> = []
+  listCalls = 0
+
+  listPrograms() {
+    this.listCalls += 1
+    return Promise.resolve(this.programs)
+  }
+}
+
 beforeEach(() => {
   useControllerProfileStore.setState(controllerProfileInitialState)
   useControllerStore.setState(controllerInitialState)
   useMapStore.setState(mapInitialState)
   useRouterStore.setState(routerInitialState)
+  usePatternStore.setState(patternInitialState)
   resetControllerProvider()
+  resetControllerMetadataStorage()
+  setPersonalContentProvider({
+    ...demoPersonalContentProvider,
+    updateControllerProfile: async () => {},
+  })
 })
 
 afterEach(() => {
   resetControllerProvider()
+  resetControllerMetadataStorage()
   resetPersonalContentProvider()
 })
 
@@ -89,7 +112,8 @@ describe('ControllerProfilePage', () => {
     const { rerender } = render(<ControllerProfilePage profileId="ctrl-1" />)
     expect(screen.getByText('Offline')).toBeInTheDocument()
     expect(screen.getByTestId('controller-profile-status-dot')).toHaveClass('bg-zinc-700')
-    expect(screen.getByRole('button', { name: /refresh/i })).toBeDisabled()
+    expect(screen.getByTitle('Refresh controller metadata')).toBeDisabled()
+    expect(screen.getByText(/connect this controller to inspect its saved programs/i)).toBeInTheDocument()
 
     useControllerStore.setState({
       controllers: {
@@ -106,7 +130,7 @@ describe('ControllerProfilePage', () => {
     expect(screen.getByText('Trying to connect')).toBeInTheDocument()
     expect(screen.getByTestId('controller-profile-status-dot')).toHaveClass('bg-amber-400')
     expect(screen.getByTestId('controller-profile-status-dot')).toHaveClass('animate-blink-connect')
-    expect(screen.getByRole('button', { name: /refresh/i })).toBeDisabled()
+    expect(screen.getByTitle('Refresh controller metadata')).toBeDisabled()
 
     useControllerStore.setState({
       controllers: {
@@ -123,7 +147,7 @@ describe('ControllerProfilePage', () => {
     rerender(<ControllerProfilePage profileId="ctrl-1" />)
     expect(screen.getByText('Connect failed')).toBeInTheDocument()
     expect(screen.getByTestId('controller-profile-status-dot')).toHaveClass('bg-red-400')
-    expect(screen.getByRole('button', { name: /refresh/i })).toBeDisabled()
+    expect(screen.getByTitle('Refresh controller metadata')).toBeDisabled()
 
     useControllerStore.setState({
       controllers: {
@@ -139,7 +163,91 @@ describe('ControllerProfilePage', () => {
     rerender(<ControllerProfilePage profileId="ctrl-1" />)
     expect(screen.getByText('Connected')).toBeInTheDocument()
     expect(screen.getByTestId('controller-profile-status-dot')).toHaveClass('bg-ok')
-    expect(screen.getByRole('button', { name: /refresh/i })).toBeEnabled()
+    expect(screen.getByTitle('Refresh controller metadata')).toBeEnabled()
+  })
+
+  it('groups saved programs by Studio ownership, links owned rows, and refreshes', async () => {
+    const profile = seedProfile()
+    const provider = new ProgramListProvider()
+    provider.programs = [
+      { id: 'DEV1', name: 'Device Twinkle' },
+      { id: 'FOREIGN1', name: 'sound bar kit' },
+      { id: 'DEV2', name: 'Device Aurora' },
+    ]
+    usePatternStore.setState({
+      userPatterns: [{
+        id: 'pat-1',
+        name: 'Twinkle',
+        src: 'export function render(i) {}',
+        controls: {},
+        updatedAt: 1,
+      }],
+      patternsLoaded: true,
+    })
+    setControllerMetadataStorage({
+      ...demoControllerMetadataStorage,
+      id: 'saved-program-test',
+      getControllerBindings: async () => ({
+        '192.168.8.224': {
+          'pat-1': 'DEV1',
+          'demo:AuroraSphere': 'DEV2',
+        },
+      }),
+    })
+    setControllerProvider(provider)
+    useControllerStore.setState({
+      activeIp: '192.168.8.224',
+      controllers: {
+        '192.168.8.224': {
+          ip: '192.168.8.224',
+          deviceId: profile.deviceId,
+          nickname: 'Burner bag',
+          phase: 'live',
+          mapDim: 2,
+        },
+      },
+    })
+
+    render(<ControllerProfilePage profileId="ctrl-1" />)
+
+    expect(await screen.findByRole('button', { name: 'Twinkle' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'AuroraSphere' })).toBeInTheDocument()
+    expect(screen.getByText('Foreign programs · 1')).toBeInTheDocument()
+    expect(screen.getByText('sound bar kit')).toBeInTheDocument()
+    expect(screen.getByText('DEV1')).toBeInTheDocument()
+    expect(screen.getByText('FOREIGN1')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Twinkle' }))
+    expect(useRouterStore.getState().route).toEqual({
+      kind: 'studio',
+      entity: { kind: 'patterns', id: 'pat-1' },
+    })
+
+    provider.programs = [...provider.programs, { id: 'FOREIGN2', name: 'New Pattern 14' }]
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh saved programs' }))
+    expect(await screen.findByText('New Pattern 14')).toBeInTheDocument()
+    expect(provider.listCalls).toBeGreaterThanOrEqual(2)
+  })
+
+  it('shows a clean empty state when a live Controller has no saved programs', async () => {
+    const profile = seedProfile()
+    setControllerProvider(new ProgramListProvider())
+    useControllerStore.setState({
+      activeIp: '192.168.8.224',
+      controllers: {
+        '192.168.8.224': {
+          ip: '192.168.8.224',
+          deviceId: profile.deviceId,
+          nickname: 'Burner bag',
+          phase: 'live',
+          mapDim: 2,
+        },
+      },
+    })
+
+    render(<ControllerProfilePage profileId="ctrl-1" />)
+
+    expect(await screen.findByText(/no saved programs are installed/i)).toBeInTheDocument()
   })
 
   it('shows controller zones as editable range lists with pixel totals', () => {

@@ -1195,6 +1195,18 @@ they remain ephemeral and recordless. Because the hash, transforms, and time
 come from the embedded banner rather than a parallel calculation, later
 freshness checks compare against the artifact that was actually saved.
 
+**Saved-program inventory** on the Controller profile is a live, read-only
+projection built by `describeControllerSavedPrograms`. The profile calls the
+active Controller provider's `listPrograms`, reads that Controller's overwrite
+bindings, and joins binding keys against personal patterns and built-in demos.
+Bound programs are grouped first and link to their Studio route when the source
+still exists; orphaned bindings remain identified as IDE-owned without a broken
+link. Unbound programs remain visible in device order beneath a counted,
+visually quieter foreign-program heading. The component reads only while the
+matching Controller is live and exposes explicit loading, refresh, offline,
+empty, and error states. It does not download, delete, import, or mutate device
+programs.
+
 **Program label cache** (`withProgramLabel`) is a parallel structure, persisted
 under its own controller metadata key and keyed by device program id (not pattern
 id).
