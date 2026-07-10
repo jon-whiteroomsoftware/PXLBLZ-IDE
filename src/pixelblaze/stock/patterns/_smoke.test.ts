@@ -53,7 +53,7 @@ function runDemo(file: string, mode: 'fast' | 'fidelity' = 'fast') {
 }
 
 describe('demo smoke tests', () => {
-  for (const file of ['PlasmaNebula.js', 'Caustics.js', 'KaleidoBloom.js', 'Kishimisu.js', 'PhantomStar.js', 'ShapeShifter.js', 'GlyphRain.js', 'Murmuration.js', 'Harmonograph.js']) {
+  for (const file of ['PlasmaNebula.js', 'Caustics.js', 'KaleidoBloom.js', 'Kishimisu.js', 'PhantomStar.js', 'ShapeShifter.js', 'GlyphRain.js', 'Murmuration.js', 'Harmonograph.js', 'EventHorizon.js', 'ClockworkIris.js']) {
     it(`${file} bundles, runs, lights pixels, and exposes sliders`, () => {
       let result!: ReturnType<typeof runDemo>
       expect(() => { result = runDemo(file) }).not.toThrow()
@@ -104,7 +104,7 @@ describe('demo smoke tests', () => {
   // Run on a 1D strip through the render() dispatch path, exercising controls and
   // several frames of beforeRender so the stateful ones (firefly arrays) actually
   // advance. Each must light pixels and expose its sliders.
-  for (const file of ['PulseLoom.js', 'FireflyChoir.js', 'ImpactEngine.js', 'EmberSpire.js', 'RivalryRing.js', 'PendulumWave.js']) {
+  for (const file of ['PulseLoom.js', 'FireflyChoir.js', 'ImpactEngine.js', 'EmberSpire.js', 'RivalryRing.js', 'PendulumWave.js', 'StandingWaveOrgan.js']) {
     it(`${file} bundles, runs render(), lights pixels, and exposes sliders`, () => {
       const N = 120
       const src = readFileSync(join(here, file), 'utf8')
@@ -243,7 +243,7 @@ describe('demo smoke tests', () => {
 
   // Stateful 3D volume demos: body positions / heat / panic persist across
   // frames, so run several beforeRender ticks over a cubic volume in both modes.
-  for (const file of ['LavaLamp3D.js', 'ShoalScatter3D.js', 'Orrery3D.js']) {
+  for (const file of ['LavaLamp3D.js', 'ShoalScatter3D.js', 'Orrery3D.js', 'StarNestReimagined.js', 'KineticSculpture.js']) {
     it(`${file} bundles, simulates, runs render3D, lights pixels, and exposes sliders`, () => {
       const src = readFileSync(join(here, file), 'utf8')
       const bundled = bundle(src, LIBRARIES)

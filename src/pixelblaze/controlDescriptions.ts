@@ -56,11 +56,23 @@ export const CONTROL_DESCRIPTIONS: Record<string, Record<string, string>> = {
     sliderLength: 'Length of each falling crystal streak.',
     sliderHue: 'Base colour of the crystal rain.',
   },
+  ClockworkIris: {
+    sliderSpeed: 'How fast the escapement beats.',
+    sliderAperture: 'Opens and closes the bladed shutter across the ring stack.',
+    sliderTeeth: 'Gearing density — more blades, finer dashes, busier works.',
+    sliderColor: 'Sweeps the brass-and-steel palette around the colour wheel.',
+  },
   EmberSpire: {
     sliderIntensity: 'How much fuel feeds the base — from a bed of embers to a roaring column.',
     sliderCooling: 'How quickly rising heat dies out — higher makes shorter, sharper flames.',
     sliderSurge: 'Depth of the slow bellows that swells and starves the fire.',
     sliderColor: 'Fire chemistry — shifts the flames from classic orange through emerald and ghost-blue.',
+  },
+  EventHorizon: {
+    sliderSpeed: 'Orbital rate of the accretion disk.',
+    sliderFeed: 'How hard the hole is feeding — arc density, turbulence, and jet response.',
+    sliderJets: 'Strength of the twin polar jets.',
+    sliderColor: 'Re-temperatures the disk from ember-orange through x-ray blue.',
   },
   FireflyChoir: {
     sliderCoupling:
@@ -126,6 +138,12 @@ export const CONTROL_DESCRIPTIONS: Record<string, Record<string, string>> = {
     sliderSpacing: 'Density of lattice cells.',
     sliderWarp: 'Strength of the phase-wave bend.',
     sliderColor: 'Base colour of the lattice.',
+  },
+  KineticSculpture: {
+    sliderSpeed: 'How fast the forms travel their orbits.',
+    sliderBlend: 'How much the forms melt together as they pass — crisp clockwork to liquid mercury.',
+    sliderColor: 'Re-tints the whole sculpture.',
+    sliderShell: 'Thickness and glow of the lit surface shell.',
   },
   LavaLamp3D: {
     sliderSpeed: 'Pace of the thermal loop — how quickly blobs heat, rise, cool, and sink.',
@@ -260,6 +278,18 @@ export const CONTROL_DESCRIPTIONS: Record<string, Record<string, string>> = {
     sliderFear: 'How far panic spreads and how hard the shoal shatters.',
     sliderSchooling: 'How strongly the fish hold together between scares.',
     sliderColor: 'Water and fish colour; the hunter glows in a contrasting tone.',
+  },
+  StandingWaveOrgan: {
+    sliderSpeed: 'How fast the voices ring.',
+    sliderChord: 'Retunes the voices from unison through fifths to a full harmonic stack.',
+    sliderVoices: 'How many voices sound — pull out the stops one by one.',
+    sliderColor: 'Sweeps the whole register around the colour wheel.',
+  },
+  StarNestReimagined: {
+    sliderSpeed: 'Drift rate through the folded nest.',
+    sliderFold: 'The fold constant — reshapes the nest from open wisps to dense filament webs.',
+    sliderColor: 'Base nebula hue.',
+    sliderDetail: 'Extra fold passes — finer filaments at the cost of frame rate.',
   },
   SignalMandala: {
     sliderSpeed: 'How fast the scan pulses move through the mandala.',
