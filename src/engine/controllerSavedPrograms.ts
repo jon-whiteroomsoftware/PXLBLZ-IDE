@@ -1,5 +1,26 @@
 import type { ProgramListEntry } from './PixelblazeConnection'
 import type { BindingStore } from './controllerBinding'
+import type { ControllerPushRecord, ControllerPushRecords } from './controllerPushRecord'
+
+export type TransformFreshness = 'current' | 'stale' | 'unmanaged'
+
+export function enabledControllerTransformIds(
+  transforms: readonly { id: string; enabled: boolean }[],
+): string[] {
+  return transforms.filter((transform) => transform.enabled).map((transform) => transform.id)
+}
+
+export function describeTransformFreshness(
+  pushRecord: ControllerPushRecord | undefined,
+  enabledTransforms: readonly string[],
+): TransformFreshness {
+  if (!pushRecord) return 'unmanaged'
+  const pushed = [...new Set(pushRecord.transforms)].sort()
+  const enabled = [...new Set(enabledTransforms)].sort()
+  return pushed.length === enabled.length && pushed.every((value, index) => value === enabled[index])
+    ? 'current'
+    : 'stale'
+}
 
 export interface StudioPatternIdentity {
   /** The key used by controller bindings: record id or `demo:<name>`. */
@@ -16,6 +37,7 @@ export interface ControllerSavedProgramRow {
   deviceName: string
   routeId: string | null
   studioPatternMissing: boolean
+  freshness: TransformFreshness
 }
 
 export interface ControllerSavedProgramsView {
@@ -28,6 +50,8 @@ export function describeControllerSavedPrograms(input: {
   programs: readonly ProgramListEntry[]
   bindings: BindingStore
   studioPatterns: readonly StudioPatternIdentity[]
+  pushRecords: ControllerPushRecords
+  enabledTransforms: readonly string[]
 }): ControllerSavedProgramsView {
   const bindingByProgramId = new Map<string, string>()
   for (const [bindingKey, programId] of Object.entries(input.bindings[input.controllerId] ?? {})) {
@@ -50,6 +74,7 @@ export function describeControllerSavedPrograms(input: {
         deviceName,
         routeId: null,
         studioPatternMissing: false,
+        freshness: 'unmanaged',
       })
       continue
     }
@@ -62,6 +87,10 @@ export function describeControllerSavedPrograms(input: {
       deviceName,
       routeId: studioPattern?.routeId ?? null,
       studioPatternMissing: !studioPattern,
+      freshness: describeTransformFreshness(
+        input.pushRecords[input.controllerId]?.[bindingKey],
+        input.enabledTransforms,
+      ),
     })
   }
 

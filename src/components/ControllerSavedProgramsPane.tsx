@@ -3,12 +3,15 @@ import { RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import type { ProgramListEntry } from '@/engine/PixelblazeConnection'
 import type { BindingStore } from '@/engine/controllerBinding'
-import { getControllerBindings } from '@/engine/controllerMetadataStorage'
+import { getControllerBindings, getPushRecords } from '@/engine/controllerMetadataStorage'
 import type { ControllerProfile } from '@/engine/controllerProfile'
+import type { ControllerPushRecords } from '@/engine/controllerPushRecord'
 import { controllerForProfile } from '@/engine/controllerProfileConnection'
 import { getControllerProvider } from '@/engine/controllerProviderRegistry'
 import {
   describeControllerSavedPrograms,
+  enabledControllerTransformIds,
+  type TransformFreshness,
   type ControllerSavedProgramsView,
 } from '@/engine/controllerSavedPrograms'
 import { DEMOS } from '@/pixelblaze/stock/patterns'
@@ -24,6 +27,37 @@ type SavedProgramsRead = {
   status: 'offline' | 'loading' | 'ready' | 'error'
   programs: ProgramListEntry[]
   bindings: BindingStore
+  pushRecords: ControllerPushRecords
+}
+
+const freshnessPresentation: Record<TransformFreshness, { label: string; title: string; className: string }> = {
+  current: {
+    label: 'current',
+    title: 'Current: pushed with the transforms enabled on this profile.',
+    className: 'border-emerald-700/55 bg-emerald-950/55 text-emerald-300',
+  },
+  stale: {
+    label: 'stale',
+    title: 'Stale: profile transforms changed since this program was pushed. Push it again to update.',
+    className: 'border-amber-700/60 bg-amber-950/50 text-amber-300',
+  },
+  unmanaged: {
+    label: 'unmanaged',
+    title: 'Unmanaged: no Studio push record is available for this saved program.',
+    className: 'border-zinc-700/80 bg-zinc-900/70 text-zinc-500',
+  },
+}
+
+function FreshnessBadge({ freshness }: { freshness: TransformFreshness }) {
+  const presentation = freshnessPresentation[freshness]
+  return (
+    <span
+      title={presentation.title}
+      className={`inline-flex whitespace-nowrap border px-1.5 py-0.5 font-mono text-[9px] font-semibold uppercase tracking-wide ${presentation.className}`}
+    >
+      {presentation.label}
+    </span>
+  )
 }
 
 function EmptyState({ children }: { children: React.ReactNode }) {
@@ -78,6 +112,7 @@ function SavedProgramsInventory({
               <tr>
                 <th className={tableHeadClass}>Pattern</th>
                 <th className={tableHeadClass}>Program id</th>
+                <th className={tableHeadClass}>Transforms</th>
               </tr>
             </thead>
             <tbody>
@@ -100,12 +135,15 @@ function SavedProgramsInventory({
                     )}
                   </td>
                   <td className={`${tableCellClass} font-mono text-zinc-400`}>{program.programId}</td>
+                  <td className={tableCellClass}>
+                    <FreshnessBadge freshness={program.freshness} />
+                  </td>
                 </tr>
               ))}
               {programs.foreign.length > 0 && (
                 <tr>
                   <td
-                    colSpan={2}
+                    colSpan={3}
                     className="border-t border-zinc-800 bg-zinc-950/70 px-2 py-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-500"
                   >
                     Foreign programs · {programs.foreign.length}
@@ -116,6 +154,9 @@ function SavedProgramsInventory({
                 <tr key={program.programId} className="bg-zinc-950/40">
                   <td className={`${tableCellClass} text-zinc-500`}>{program.name}</td>
                   <td className={`${tableCellClass} font-mono text-zinc-600`}>{program.programId}</td>
+                  <td className={tableCellClass}>
+                    <FreshnessBadge freshness={program.freshness} />
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -145,6 +186,7 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
     status: 'offline',
     programs: [],
     bindings: {},
+    pushRecords: {},
   })
 
   useEffect(() => {
@@ -156,7 +198,7 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
       if (!liveIp) {
         setRead((current) => current.status === 'offline' && current.controllerId === null
           ? current
-          : { controllerId: null, status: 'offline', programs: [], bindings: {} })
+          : { controllerId: null, status: 'offline', programs: [], bindings: {}, pushRecords: {} })
         return
       }
 
@@ -165,16 +207,18 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
         status: 'loading',
         programs: current.controllerId === liveIp ? current.programs : [],
         bindings: current.controllerId === liveIp ? current.bindings : {},
+        pushRecords: current.controllerId === liveIp ? current.pushRecords : {},
       }))
       if (useControllerStore.getState().activeIp !== liveIp) setActiveController(liveIp)
 
       try {
-        const [programs, bindings] = await Promise.all([
+        const [programs, bindings, pushRecords] = await Promise.all([
           getControllerProvider().listPrograms(),
           getControllerBindings(),
+          getPushRecords(),
         ])
         if (cancelled || requestRef.current !== request) return
-        setRead({ controllerId: liveIp, status: 'ready', programs, bindings })
+        setRead({ controllerId: liveIp, status: 'ready', programs, bindings, pushRecords })
       } catch {
         if (cancelled || requestRef.current !== request) return
         setRead((current) => ({ ...current, controllerId: liveIp, status: 'error' }))
@@ -189,6 +233,8 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
     controllerId: read.controllerId ?? liveIp ?? '',
     programs: read.programs,
     bindings: read.bindings,
+    pushRecords: read.pushRecords,
+    enabledTransforms: enabledControllerTransformIds(profile.globalTransforms),
     studioPatterns: [
       ...userPatterns.map((pattern) => ({
         bindingKey: pattern.id,

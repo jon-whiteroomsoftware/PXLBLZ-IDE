@@ -1,4 +1,47 @@
-import { describeControllerSavedPrograms } from './controllerSavedPrograms'
+import {
+  describeControllerSavedPrograms,
+  describeTransformFreshness,
+  enabledControllerTransformIds,
+} from './controllerSavedPrograms'
+
+function pushRecord(transforms: string[]) {
+  return {
+    transforms,
+    artifactHash: 'hash',
+    stampedAt: '2026-07-09T00:00:00.000Z',
+    name: 'Saved pattern',
+  }
+}
+
+describe('describeTransformFreshness', () => {
+  it('marks a push record current when its transforms match the enabled profile transforms', () => {
+    expect(describeTransformFreshness(
+      {
+        transforms: ['power-cap', 'hardware-brightness'],
+        artifactHash: 'hash',
+        stampedAt: '2026-07-09T00:00:00.000Z',
+        name: 'Aurora',
+      },
+      ['hardware-brightness', 'power-cap'],
+    )).toBe('current')
+  })
+
+  it('marks a push record stale when the enabled transform set changed', () => {
+    expect(describeTransformFreshness(pushRecord([]), ['power-cap'])).toBe('stale')
+    expect(describeTransformFreshness(pushRecord(['power-cap']), [])).toBe('stale')
+  })
+
+  it('marks a saved program without a push record unmanaged', () => {
+    expect(describeTransformFreshness(undefined, ['power-cap'])).toBe('unmanaged')
+  })
+
+  it('derives enabled transform ids from profile state', () => {
+    expect(enabledControllerTransformIds([
+      { id: 'hardware-brightness', enabled: false },
+      { id: 'power-cap', enabled: true },
+    ])).toEqual(['power-cap'])
+  })
+})
 
 describe('describeControllerSavedPrograms', () => {
   it('groups binding-owned programs first and resolves Studio names and routes', () => {
@@ -25,6 +68,13 @@ describe('describeControllerSavedPrograms', () => {
           name: 'AuroraSphere',
         },
       ],
+      pushRecords: {
+        'ctrl-A': {
+          'pat-1': pushRecord(['power-cap']),
+          'demo:AuroraSphere': pushRecord([]),
+        },
+      },
+      enabledTransforms: ['power-cap'],
     })
 
     expect(view.owned).toEqual([
@@ -35,6 +85,7 @@ describe('describeControllerSavedPrograms', () => {
         deviceName: 'Device copy of Twinkle',
         routeId: 'pat-1',
         studioPatternMissing: false,
+        freshness: 'current',
       },
       {
         kind: 'owned',
@@ -43,6 +94,7 @@ describe('describeControllerSavedPrograms', () => {
         deviceName: 'Aurora on device',
         routeId: 'AuroraSphere',
         studioPatternMissing: false,
+        freshness: 'stale',
       },
       {
         kind: 'owned',
@@ -51,6 +103,7 @@ describe('describeControllerSavedPrograms', () => {
         deviceName: 'Deleted Studio pattern',
         routeId: null,
         studioPatternMissing: true,
+        freshness: 'unmanaged',
       },
     ])
     expect(view.foreign).toEqual([
@@ -61,6 +114,7 @@ describe('describeControllerSavedPrograms', () => {
         deviceName: 'sound bar kit',
         routeId: null,
         studioPatternMissing: false,
+        freshness: 'unmanaged',
       },
     ])
   })
@@ -81,6 +135,8 @@ describe('describeControllerSavedPrograms', () => {
         { bindingKey: 'pat-1', routeId: 'pat-1', name: 'One' },
         { bindingKey: 'pat-2', routeId: 'pat-2', name: 'Two' },
       ],
+      pushRecords: {},
+      enabledTransforms: [],
     })
 
     expect(view.owned.map((row) => row.programId)).toEqual(['B2', 'B1'])

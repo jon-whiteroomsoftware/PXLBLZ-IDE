@@ -605,7 +605,11 @@ profile is created automatically the first time); the profile page at
   inventory of the patterns installed on the Controller. Programs that this IDE
   saved are listed first and link back to their Studio pattern or built-in demo.
   Programs without an IDE binding remain visible in a quieter, counted
-  foreign-program group. Refresh rereads the device; offline, empty, loading,
+  foreign-program group. A transform badge marks each row **current** when its
+  saved push record matches the transforms enabled on the profile now,
+  **stale** when the enabled set changed (re-push to update), or **unmanaged**
+  when no Studio push record exists. These badges recompute locally as profile
+  transforms change; only Refresh rereads the device. Offline, empty, loading,
   and read-error states are reported in place;
 - **hardware inputs** — named pots/buttons with pin, signal, role, smoothing,
   fallback, and invert; analog choices are limited to the board's ADC1-safe

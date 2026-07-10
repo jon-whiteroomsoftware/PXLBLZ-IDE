@@ -202,6 +202,16 @@ describe('ControllerProfilePage', () => {
           'demo:AuroraSphere': 'DEV2',
         },
       }),
+      getPushRecords: async () => ({
+        '192.168.8.224': {
+          'pat-1': {
+            transforms: [],
+            artifactHash: 'twinkle-hash',
+            stampedAt: '2026-07-09T00:00:00.000Z',
+            name: 'Twinkle',
+          },
+        },
+      }),
     })
     setControllerProvider(provider)
     useControllerStore.setState({
@@ -217,7 +227,7 @@ describe('ControllerProfilePage', () => {
       },
     })
 
-    render(<ControllerSavedProgramsPane profile={profile} />)
+    const { rerender } = render(<ControllerSavedProgramsPane profile={profile} />)
 
     expect(await screen.findByRole('button', { name: 'Twinkle' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'AuroraSphere' })).toBeInTheDocument()
@@ -225,6 +235,21 @@ describe('ControllerProfilePage', () => {
     expect(screen.getByText('sound bar kit')).toBeInTheDocument()
     expect(screen.getByText('DEV1')).toBeInTheDocument()
     expect(screen.getByText('FOREIGN1')).toBeInTheDocument()
+    expect(screen.getByTitle('Current: pushed with the transforms enabled on this profile.')).toHaveTextContent('current')
+    expect(screen.getAllByTitle('Unmanaged: no Studio push record is available for this saved program.')).toHaveLength(2)
+
+    const readsBeforeToggle = provider.listCalls
+    const changedProfile = {
+      ...profile,
+      globalTransforms: profile.globalTransforms.map((transform) =>
+        transform.type === 'power-cap' ? { ...transform, enabled: true } : transform,
+      ),
+    }
+    rerender(<ControllerSavedProgramsPane profile={changedProfile} />)
+    expect(screen.getByTitle(
+      'Stale: profile transforms changed since this program was pushed. Push it again to update.',
+    )).toHaveTextContent('stale')
+    expect(provider.listCalls).toBe(readsBeforeToggle)
 
     fireEvent.click(screen.getByRole('button', { name: 'Twinkle' }))
     expect(useRouterStore.getState().route).toEqual({

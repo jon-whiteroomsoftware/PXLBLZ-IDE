@@ -1223,14 +1223,18 @@ right-hand context pane (`ControllerSavedProgramsPane`), replacing the otherwise
 empty preview slot without lengthening the editable profile column. Its
 projection is built by `describeControllerSavedPrograms`: the pane calls the
 active Controller provider's `listPrograms`, reads that Controller's overwrite
-bindings, and joins binding keys against personal patterns and built-in demos.
+bindings and push records, and joins binding keys against personal patterns and
+built-in demos. `describeTransformFreshness` compares the saved transform ids
+with the profile's currently enabled transform ids as order-independent sets:
+equal is `current`, unequal is `stale`, and a missing record is `unmanaged`.
 Bound programs are grouped first and link to their Studio route when the source
 still exists; orphaned bindings remain identified as IDE-owned without a broken
 link. Unbound programs remain visible in device order beneath a counted,
 visually quieter foreign-program heading. The pane reads only while the
 matching Controller is live and exposes explicit loading, refresh, offline,
-empty, and error states. It does not download, delete, import, or mutate device
-programs.
+empty, and error states. Profile transform toggles therefore recompute badges
+without another device read. The pane does not download, delete, import, or
+mutate device programs.
 
 **Program label cache** (`withProgramLabel`) is a parallel structure, persisted
 under its own controller metadata key and keyed by device program id (not pattern
