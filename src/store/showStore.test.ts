@@ -83,6 +83,19 @@ describe('showStore (#318)', () => {
     expect(useShowStore.getState().activeShowId).toBeNull()
   })
 
+  it('persists an exact-zero clip time scale through the provider', async () => {
+    const show = createDefaultShow('show-1', 'Opening wash', 1)
+    const provider = memoryProvider([show])
+    setPersonalContentProvider(provider)
+    useShowStore.setState({ shows: [show], showsLoaded: true })
+
+    await useShowStore.getState().updateCellAdaptations(show.id, show.cells[0].id, { timeScale: 0 })
+    useShowStore.setState(showInitialState)
+    await useShowStore.getState().loadShows()
+
+    expect(useShowStore.getState().shows[0].cells[0].adaptations.timeScale).toBe(0)
+  })
+
   it('edits show-local zones and creates a show from controller zones', async () => {
     setPersonalContentProvider(memoryProvider())
 

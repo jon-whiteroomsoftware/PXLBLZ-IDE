@@ -665,7 +665,7 @@ function CellInspector({
         </label>
         <NumberField label="Phase" value={cell.adaptations.phase} min={0} max={1} step={0.01} onChange={(phase) => onUpdateAdaptations({ phase })} />
         <NumberField label="Brightness" value={cell.adaptations.brightness} min={0} max={1} step={0.01} onChange={(brightness) => onUpdateAdaptations({ brightness })} />
-        <NumberField label="Time x" value={cell.adaptations.timeScale} min={0.1} max={4} step={0.1} onChange={(timeScale) => onUpdateAdaptations({ timeScale })} />
+        <NumberField label="Time x" value={cell.adaptations.timeScale} min={0} max={4} step={0.1} onChange={(timeScale) => onUpdateAdaptations({ timeScale })} />
       </div>
     </InspectorPanel>
   )
@@ -899,6 +899,15 @@ function CompileBar({
       : summary?.transitionCost === 'route'
         ? 'route transition'
         : 'none'
+  const clockPolicy = summary?.clockPolicy === 'exact-pause-ramp'
+    ? 'exact pause ramp'
+    : summary?.clockPolicy === 'exact-pause'
+      ? 'exact pause'
+      : summary?.clockPolicy === 'scaled-ramp'
+        ? 'scaled ramp'
+        : summary?.clockPolicy === 'scaled'
+          ? 'scaled'
+          : 'real time'
   return (
     <div className="flex min-h-10 shrink-0 items-center gap-2 border-t border-seam bg-zinc-950 px-3 font-mono text-xs text-zinc-500">
       <span>compiled artifact</span>
@@ -913,6 +922,11 @@ function CompileBar({
       <span className={summary?.transitionCost === 'renderer-window' ? 'text-amber-300' : 'text-emerald-300'}>
         worst instant: {worstInstant}
       </span>
+      {summary && summary.clockPolicy !== 'real-time' && (
+        <span className={summary.clockPolicy.includes('exact-pause') ? 'text-amber-300' : 'text-zinc-500'}>
+          clock: {clockPolicy}
+        </span>
+      )}
       {summary?.warnings.map((warning) => <span key={warning} className="text-amber-300">{warning}</span>)}
       {pushResult && <span className="text-zinc-300">{pushResult}</span>}
       <span className="flex-1" />

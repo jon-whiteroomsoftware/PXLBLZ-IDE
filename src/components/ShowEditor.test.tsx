@@ -2,7 +2,14 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { ShowEditor } from './ShowEditor'
 import { showInitialState, useShowStore } from '@/store/showStore'
-import { addShowScene, addShowZone, createDefaultShow, removeShowScene } from '@/engine/showModel'
+import {
+  addShowScene,
+  addShowZone,
+  createDefaultShow,
+  removeShowScene,
+  updateShowCellAdaptations,
+  updateShowCellPattern,
+} from '@/engine/showModel'
 import { usePatternStore, patternInitialState } from '@/store/patternStore'
 import { controllerProfileInitialState, useControllerProfileStore } from '@/store/controllerProfileStore'
 import {
@@ -77,10 +84,26 @@ describe('ShowEditor (#318)', () => {
 
     expect(screen.getByText(/TestPattern1D - cell - main - Scene 1/i)).toBeInTheDocument()
     expect(screen.getByLabelText('Mirror cell')).toBeInTheDocument()
+    expect(screen.getByLabelText('Time x')).toHaveAttribute('min', '0')
 
     await user.click(screen.getByRole('button', { name: /Select Scene 1 to Scene 2 transition/i }))
     expect(screen.getByText(/Scene 1 -> Scene 2 - transition/i)).toBeInTheDocument()
     expect(screen.getByRole('option', { name: 'wipe' })).toBeInTheDocument()
+  })
+
+  it('identifies an exact-pause clock ramp without changing renderer policy', async () => {
+    const base = createDefaultShow('show-1', 'Opening wash', 1000)
+    const repeated = updateShowCellPattern(base, base.cells[1].id, {
+      pattern: base.cells[0].pattern,
+      patternName: base.cells[0].patternName,
+    })
+    const paused = updateShowCellAdaptations(repeated, repeated.cells[1].id, { timeScale: 0 })
+    useShowStore.setState({ shows: [paused], activeShowId: paused.id, showsLoaded: true })
+
+    render(<ShowEditor showId={paused.id} />)
+
+    expect(screen.getByText('clock: exact pause ramp')).toBeInTheDocument()
+    expect(screen.getByText(/steady state/i)).toHaveTextContent('1 renderer/px')
   })
 
   it('edits freestyle show zones and warns when a target controller zone is missing', async () => {

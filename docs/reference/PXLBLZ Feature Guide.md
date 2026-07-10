@@ -217,7 +217,12 @@ states until bindings or generated artifacts have been recorded.
 **Shows** compose existing patterns into one generated Pixelblaze pattern. A Show
 opens as a scene strip: scenes are columns, zones are rows, and each cell holds a
 source pattern plus non-destructive adaptations such as mirror, phase, brightness,
-and time scale. The strip is a recessed composition surface: scene headers are
+and time scale. Time scale ranges from 0× through 4×: **0× is an exact pause**
+for that clip's private clock and the `delta` delivered to its Pattern, while the
+generated outer renderer continues to draw the paused state. Adjacent cells that
+reuse the same Pattern can ramp continuously down to that pause, dwell there,
+and ramp away without restarting or jumping phase. Negative time is not offered.
+The strip is a recessed composition surface: scene headers are
 inline-editable labels, zone rows carry their zone color, pattern cells render as
 zone-tinted clips, and transitions are clickable seams between scene columns.
 
@@ -231,7 +236,9 @@ scene or zone; scene headers expose rename, duration, and removal controls, with
 scene removal confirmed before it mutates the strip. The editor persists shows in
 your cloud workspace, supports rename/delete from the rail, inspectable compiled
 artifact budget, read-only generated source, and pushing the generated pattern to
-the connected Controller.
+the connected Controller. The compile bar labels exact-pause clock recipes
+separately from renderer policy: pausing time does not claim renderer-cycle
+savings or buffered frame reuse.
 
 Show zones have two origins. A plain new Show starts with editable local rows
 that use nominal pixel counts for preview. When a Controller profile with zones

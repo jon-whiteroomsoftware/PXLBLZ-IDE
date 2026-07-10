@@ -872,6 +872,22 @@ expanding into one member instance per named zone; `zoneMode: 'span'` keeps one
 member and merges the zones into a single canvas. This is the 1D
 zone-local-coordinate path used by Shows; 2D zone frames remain a future slice.
 
+Show time scale is normalized to the closed range `0..4` (#376); negative input
+clamps to zero and `0` survives model updates, cloud persistence, recipe
+conversion, and compiler normalization. Every member advances through
+`scaledDelta = delta * adapt_timeScale`, so at exact zero its private elapsed
+accumulator and the `delta` passed to its rewritten Pattern `beforeRender` remain
+zero. The generated outer `beforeRender` and per-pixel `render` still execute:
+this is a clock pause, not an evaluation mask or buffered frame hold. A
+same-Pattern adaptation ramp interpolates through zero on the existing member
+instance, so stop, dwell, and resume preserve state without implicit restart.
+`ShowCompileSummary.clockPolicy` distinguishes `real-time`, `scaled`,
+`scaled-ramp`, `exact-pause`, and `exact-pause-ramp` while render policy and
+`worstInstantRenderersPerPixel` continue to report the unchanged renderer cost.
+`ShowStagePreview` loads this same generated artifact (float or fixed-point)
+that hardware receives, rather than approximating pause in React or the stage
+renderer.
+
 `PatternRecord` carries the per-pattern overrides in a sparse
 `settings?: Partial<Settings>` field — superseding older flat columns;
 `migratePatternRecord` lifts pre-cascade records into the nested bag on read and

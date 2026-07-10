@@ -78,6 +78,7 @@ export interface ShowCompileSummary {
     | 'parameter-ramp-one-renderer-per-pixel'
     | 'route-transition-one-renderer-per-pixel'
   transitionCost: 'none' | 'renderer-window' | 'route' | 'parameter'
+  clockPolicy: 'real-time' | 'scaled' | 'scaled-ramp' | 'exact-pause' | 'exact-pause-ramp'
   worstInstantRenderersPerPixel: 1 | 2
   clips: ShowCompileClipSummary[]
   warnings: string[]
@@ -180,6 +181,7 @@ export function compileShow(
             ? 'route-transition-one-renderer-per-pixel'
             : 'single-continuous-hold',
     transitionCost,
+    clockPolicy: describeClockPolicy(expandedRecipe, members),
     worstInstantRenderersPerPixel: transitionCost === 'renderer-window' ? 2 : 1,
     clips: members.map(member => ({
       id: member.id,
@@ -654,9 +656,21 @@ function normalizeAdaptation(adaptation: Partial<ShowClipAdaptation> | undefined
   return {
     brightness: clampNumber(adaptation?.brightness ?? 1, 0, 1),
     phase: clampNumber(adaptation?.phase ?? 0, 0, 1),
-    timeScale: clampNumber(adaptation?.timeScale ?? 1, 0.1, 4),
+    timeScale: clampNumber(adaptation?.timeScale ?? 1, 0, 4),
     mirror: Boolean(adaptation?.mirror),
   }
+}
+
+function describeClockPolicy(recipe: ShowRecipe, members: CompiledMember[]): ShowCompileSummary['clockPolicy'] {
+  if (recipe.adaptationRamp) {
+    const from = normalizeAdaptation(recipe.adaptationRamp.from)
+    const to = normalizeAdaptation(recipe.adaptationRamp.to)
+    if (from.timeScale === 0 || to.timeScale === 0) return 'exact-pause-ramp'
+    if (from.timeScale !== 1 || to.timeScale !== 1) return 'scaled-ramp'
+  }
+  if (members.some((member) => member.adaptation.timeScale === 0)) return 'exact-pause'
+  if (members.some((member) => member.adaptation.timeScale !== 1)) return 'scaled'
+  return 'real-time'
 }
 
 function clampNumber(value: number, min: number, max: number): number {

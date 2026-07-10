@@ -191,6 +191,15 @@ describe('showModel (#318)', () => {
     })
   })
 
+  it('accepts an exact-zero time scale and clamps negative values back to zero', () => {
+    const show = createDefaultShow('show-1', 'Untitled Show')
+    const paused = updateShowCellAdaptations(show, show.cells[0].id, { timeScale: 0 })
+    const negative = updateShowCellAdaptations(show, show.cells[0].id, { timeScale: -1 })
+
+    expect(paused.cells[0].adaptations.timeScale).toBe(0)
+    expect(negative.cells[0].adaptations.timeScale).toBe(0)
+  })
+
   it('builds the current compiler recipe from the first two scene cells', () => {
     const show = createDefaultShow('show-1', 'Untitled Show')
     const recipe = showRecordToCompileRecipe(show, {
@@ -236,6 +245,7 @@ describe('showModel (#318)', () => {
     const adapted = updateShowCellAdaptations(samePattern, samePattern.cells[1].id, {
       brightness: 0.4,
       phase: 0.25,
+      timeScale: 0,
     })
     const recipe = showRecordToCompileRecipe(adapted, {
       byCellId: {
@@ -249,7 +259,7 @@ describe('showModel (#318)', () => {
       startMs: 30000,
       durationMs: 2000,
       from: { brightness: 1, phase: 0, timeScale: 1, mirror: false },
-      to: { brightness: 0.4, phase: 0.25, timeScale: 1, mirror: false },
+      to: { brightness: 0.4, phase: 0.25, timeScale: 0, mirror: false },
     })
     expect(recipe.crossfade).toBeUndefined()
   })

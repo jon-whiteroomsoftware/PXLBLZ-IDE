@@ -509,7 +509,7 @@ function normalizeAdaptations(adaptations: ShowCellAdaptations): ShowCellAdaptat
     mirror: Boolean(adaptations.mirror),
     phase: clamp01(adaptations.phase),
     brightness: clamp01(adaptations.brightness),
-    timeScale: Math.max(0.1, Math.min(4, adaptations.timeScale)),
+    timeScale: Math.max(0, Math.min(4, adaptations.timeScale)),
   }
 }
 

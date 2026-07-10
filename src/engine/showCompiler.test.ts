@@ -572,6 +572,117 @@ export function render(index) {
     })
   })
 
+  it('ramps to exact pause, dwells, and resumes the same private clock without restart', () => {
+    const source = `
+export var elapsed = 0
+export var frames = 0
+export function beforeRender(delta) { elapsed = elapsed + delta; frames = frames + 1 }
+export function render(index) { rgb(time(1), elapsed, index) }
+`
+    const toPause = compileShow({
+      clips: [{ id: 'continuous', source }],
+      adaptationRamp: {
+        startMs: 100,
+        durationMs: 100,
+        from: { timeScale: 1 },
+        to: { timeScale: 0 },
+      },
+    }, {})
+    const paused = loadShow(toPause.code, toPause.metadata)
+
+    paused.handle.beforeRender(50)
+    paused.handle.beforeRender(100)
+    paused.handle.beforeRender(50)
+    paused.handle.beforeRender(500)
+    paused.handle.render(3)
+
+    expect(paused.pixel()).toEqual([0.1, 100, 3])
+    expect(paused.handle.getExports()).toMatchObject({
+      __pxlblz_show_c0_elapsed_ms: 100,
+      __pxlblz_show_c0_elapsed: 100,
+      __pxlblz_show_c0_frames: 4,
+      __pxlblz_show_c0_adapt_timeScale: 0,
+    })
+    expect(toPause.summary).toMatchObject({
+      clockPolicy: 'exact-pause-ramp',
+      renderPolicy: 'parameter-ramp-one-renderer-per-pixel',
+      worstInstantRenderersPerPixel: 1,
+    })
+
+    const fromPause = compileShow({
+      clips: [{ id: 'continuous', source, adaptation: { timeScale: 0 } }],
+      adaptationRamp: {
+        startMs: 500,
+        durationMs: 200,
+        from: { timeScale: 0 },
+        to: { timeScale: 1 },
+      },
+    }, {})
+    const resumed = loadShow(fromPause.code, fromPause.metadata)
+
+    resumed.handle.beforeRender(500)
+    resumed.handle.beforeRender(100)
+    resumed.handle.beforeRender(100)
+
+    expect(resumed.handle.getExports()).toMatchObject({
+      __pxlblz_show_c0_elapsed_ms: 150,
+      __pxlblz_show_c0_elapsed: 150,
+      __pxlblz_show_c0_adapt_timeScale: 1,
+    })
+    expect(fromPause.summary.clockPolicy).toBe('exact-pause-ramp')
+  })
+
+  it('keeps exact pause distinct from hold rendering and explicit cut restart', () => {
+    const source = `
+export var elapsed = 0
+export var renders = 0
+export function beforeRender(delta) { elapsed = elapsed + delta }
+export function render(index) { renders = renders + 1; rgb(elapsed, renders, index) }
+`
+    const held = compileShow({
+      clips: [{ id: 'held', source, adaptation: { timeScale: 0 } }],
+    }, {})
+    const heldRuntime = loadShow(held.code, held.metadata)
+
+    heldRuntime.handle.beforeRender(500)
+    heldRuntime.handle.render(2)
+
+    expect(heldRuntime.pixel()).toEqual([0, 1, 2])
+    expect(heldRuntime.handle.getExports()).toMatchObject({
+      __pxlblz_show_c0_elapsed_ms: 0,
+      __pxlblz_show_c0_elapsed: 0,
+    })
+    expect(held.summary).toMatchObject({
+      clockPolicy: 'exact-pause',
+      renderPolicy: 'single-continuous-hold',
+      worstInstantRenderersPerPixel: 1,
+    })
+
+    const restarted = compileShow({
+      clips: [
+        { id: 'paused', source, adaptation: { timeScale: 0 } },
+        { id: 'fresh', source, adaptation: { timeScale: 1 } },
+      ],
+      cut: { startMs: 100 },
+    }, {})
+    const restartRuntime = loadShow(restarted.code, restarted.metadata)
+
+    restartRuntime.handle.beforeRender(50)
+    restartRuntime.handle.beforeRender(100)
+
+    expect(restartRuntime.handle.getExports()).toMatchObject({
+      __pxlblz_show_c0_elapsed_ms: 0,
+      __pxlblz_show_c0_elapsed: 0,
+      __pxlblz_show_c1_elapsed_ms: 100,
+      __pxlblz_show_c1_elapsed: 100,
+    })
+    expect(restarted.summary).toMatchObject({
+      clockPolicy: 'exact-pause',
+      renderPolicy: 'cut-restart',
+      worstInstantRenderersPerPixel: 1,
+    })
+  })
+
   it('emits a wipe transition that renders exactly one member per pixel during the transition window', () => {
     const artifact = compileShow({
       clips: [
