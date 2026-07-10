@@ -53,7 +53,7 @@ function runDemo(file: string, mode: 'fast' | 'fidelity' = 'fast') {
 }
 
 describe('demo smoke tests', () => {
-  for (const file of ['PlasmaNebula.js', 'Caustics.js', 'KaleidoBloom.js', 'Kishimisu.js', 'PhantomStar.js', 'ShapeShifter.js', 'GlyphRain.js', 'Murmuration.js', 'Harmonograph.js', 'EventHorizon.js', 'ClockworkIris.js']) {
+  for (const file of ['PlasmaNebula.js', 'Caustics.js', 'KaleidoBloom.js', 'Kishimisu.js', 'PhantomStar.js', 'ShapeShifter.js', 'GlyphRain.js', 'Murmuration.js', 'Harmonograph.js', 'EventHorizon.js', 'ClockworkIris.js', 'SceneSplice.js']) {
     it(`${file} bundles, runs, lights pixels, and exposes sliders`, () => {
       let result!: ReturnType<typeof runDemo>
       expect(() => { result = runDemo(file) }).not.toThrow()
@@ -243,7 +243,7 @@ describe('demo smoke tests', () => {
 
   // Stateful 3D volume demos: body positions / heat / panic persist across
   // frames, so run several beforeRender ticks over a cubic volume in both modes.
-  for (const file of ['LavaLamp3D.js', 'ShoalScatter3D.js', 'Orrery3D.js', 'StarNestReimagined.js', 'KineticSculpture.js']) {
+  for (const file of ['LavaLamp3D.js', 'ShoalScatter3D.js', 'Orrery3D.js', 'StarNestReimagined.js', 'KineticSculpture.js', 'SceneSplice3D.js']) {
     it(`${file} bundles, simulates, runs render3D, lights pixels, and exposes sliders`, () => {
       const src = readFileSync(join(here, file), 'utf8')
       const bundled = bundle(src, LIBRARIES)

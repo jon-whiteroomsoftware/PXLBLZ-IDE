@@ -262,6 +262,18 @@ export const CONTROL_DESCRIPTIONS: Record<string, Record<string, string>> = {
     sliderAggression: 'From calm shifting borders up to constant upheaval.',
     sliderColor: 'Rotates the whole faction palette around the colour wheel.',
   },
+  SceneSplice: {
+    sliderSpeed: 'How quickly the showreel advances from cut to cut.',
+    sliderScrub: 'Drags the whole reel by hand through every scene and transition.',
+    sliderColor: 'Re-tints all five scenes and their transition accents together.',
+    sliderFeather: 'Width of the soft band where one scene blends into the next.',
+  },
+  SceneSplice3D: {
+    sliderSpeed: 'How quickly the volume cycles between its two cuts.',
+    sliderScrub: 'Drags the slicing plane and gyroid growth back and forth by hand.',
+    sliderColor: 'Re-tints both scenes and the cutting-edge glow together.',
+    sliderFeather: 'Thickness of the glowing frontier where the scenes blend.',
+  },
   ShaderShowcase: {
     sliderSpeed: 'Animation rate.',
     sliderZoom: 'Density of the kaleidoscope.',

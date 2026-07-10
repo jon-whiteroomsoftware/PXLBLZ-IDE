@@ -37,6 +37,8 @@ describe('galleryCatalog (#309)', () => {
     expect(GALLERY_PATTERNS.find((pattern) => pattern.name === 'StarNestReimagined')?.sections).toContain('FPS Heavyweights')
     expect(GALLERY_PATTERNS.find((pattern) => pattern.name === 'StandingWaveOrgan')?.sections).toContain('Living 1D')
     expect(GALLERY_PATTERNS.find((pattern) => pattern.name === 'ClockworkIris')?.sections).toContain('FPS Friendly')
+    expect(GALLERY_PATTERNS.find((pattern) => pattern.name === 'SceneSplice')?.sections).toContain('FPS Friendly')
+    expect(GALLERY_PATTERNS.find((pattern) => pattern.name === 'SceneSplice3D')?.sections).toContain('FPS Friendly')
   })
 
   it('treats Everything and an empty query as no-ops', () => {

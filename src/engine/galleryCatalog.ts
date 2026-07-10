@@ -47,6 +47,8 @@ export const FPS_FRIENDLY_DEMOS = [
   'EventHorizon',
   'ClockworkIris',
   'KineticSculpture',
+  'SceneSplice',
+  'SceneSplice3D',
 ]
 
 // 1D effects that lean on rhythm and emergence rather than the usual chases and
