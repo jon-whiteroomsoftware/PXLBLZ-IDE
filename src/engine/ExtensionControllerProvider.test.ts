@@ -20,6 +20,7 @@ import {
 import { ControllerPermissionDeniedError } from './ControllerProvider'
 import { encodeBinaryFrames, MessageType } from './PixelblazeConnection'
 import { encodeMapData } from './mapPush'
+import { encodePbp } from './pbpEncode'
 import type { ControllerStatus } from './ControllerProvider'
 
 /** A fake relay that plays both the extension and a Pixelblaze device. Replies
@@ -44,6 +45,10 @@ function makeDeviceTransport(
     mapData?: Uint8Array
     /** When set, the fake helper fails get-map with this error. */
     mapError?: string
+    /** Raw `/p/{id}` PBP blob returned by the fake helper. Absent means 404. */
+    programData?: Uint8Array
+    /** When set, the fake helper fails saved-program read-back with this error. */
+    programError?: string
     /** Program ids the fake device reports from listPrograms. */
     programIds?: string[]
     /** Wire records the fake helper returns from a `discover` request. */
@@ -127,6 +132,15 @@ function makeDeviceTransport(
             emit({ source: RELAY_SOURCE, dir: 'from-helper', type: 'map-data', reqId: msg.reqId, ok: true, mapData: bytesToBase64(opts.mapData) })
           } else {
             emit({ source: RELAY_SOURCE, dir: 'from-helper', type: 'map-data', reqId: msg.reqId, ok: true })
+          }
+          return
+        case 'get-program':
+          if (opts.programError) {
+            emit({ source: RELAY_SOURCE, dir: 'from-helper', type: 'program-data', reqId: msg.reqId, ok: false, error: opts.programError })
+          } else if (opts.programData) {
+            emit({ source: RELAY_SOURCE, dir: 'from-helper', type: 'program-data', reqId: msg.reqId, ok: true, programData: bytesToBase64(opts.programData) })
+          } else {
+            emit({ source: RELAY_SOURCE, dir: 'from-helper', type: 'program-data', reqId: msg.reqId, ok: true })
           }
           return
         case 'get-wifi-status':
@@ -532,6 +546,72 @@ describe('ExtensionControllerProvider', () => {
       const p = new ExtensionControllerProvider({ transport: d.transport, getMapTimeoutMs: 10 })
       await p.connect(TARGET)
       await expect(p.getPixelMap()).resolves.toBeNull()
+    })
+  })
+
+  describe('saved-program read-back', () => {
+    it('round-trips a PBP blob through the relay and returns recovered source', async () => {
+      const source = 'export function render(index) { hsv(index, 1, 1) }'
+      const blob = encodePbp({
+        id: 'PROGRAM_01',
+        name: 'Aurora Drift',
+        sourceCode: source,
+        byteCode: Uint8Array.from([1, 2, 3]),
+      })
+      const p = new ExtensionControllerProvider({
+        transport: makeDeviceTransport({ programData: blob }).transport,
+      })
+      await p.connect(TARGET)
+
+      await expect(p.readSavedProgram('PROGRAM_01')).resolves.toEqual({
+        programId: 'PROGRAM_01',
+        deviceName: 'Aurora Drift',
+        sourceCode: source,
+        stamp: null,
+      })
+    })
+
+    it('resolves null when the program is missing', async () => {
+      const p = new ExtensionControllerProvider({ transport: makeDeviceTransport().transport })
+      await p.connect(TARGET)
+
+      await expect(p.readSavedProgram('MISSING')).resolves.toBeNull()
+    })
+
+    it('surfaces helper failures as clean read errors', async () => {
+      const p = new ExtensionControllerProvider({
+        transport: makeDeviceTransport({ programError: 'GET /p/BROKEN -> 500' }).transport,
+      })
+      await p.connect(TARGET)
+
+      await expect(p.readSavedProgram('BROKEN')).rejects.toThrow('GET /p/BROKEN -> 500')
+    })
+
+    it('surfaces an undecodable PBP as a clean read error', async () => {
+      const p = new ExtensionControllerProvider({
+        transport: makeDeviceTransport({ programData: Uint8Array.from([1, 2, 3]) }).transport,
+      })
+      await p.connect(TARGET)
+
+      await expect(p.readSavedProgram('BROKEN')).rejects.toThrow(
+        'Saved program BROKEN is not a readable PBP blob.',
+      )
+    })
+
+    it('rejects when not connected and when the helper times out', async () => {
+      const d = makeDeviceTransport()
+      const p = new ExtensionControllerProvider({
+        transport: d.transport,
+        getProgramTimeoutMs: 10,
+      })
+      await expect(p.readSavedProgram('OFFLINE')).rejects.toThrow(/not connected/i)
+
+      await p.connect(TARGET)
+      const originalPost = d.transport.post
+      d.transport.post = (message) => {
+        if (message.type !== 'get-program') originalPost(message)
+      }
+      await expect(p.readSavedProgram('SLOW')).rejects.toThrow('Saved program SLOW read timed out.')
     })
   })
 

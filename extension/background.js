@@ -35,7 +35,7 @@ function base64ToBytes(b64) {
 // only DETECTS a missing grant, auto-opens the popup, and waits for the grant to
 // land (chrome.permissions.onAdded) or the user to decline (popup reports it, or
 // a safety timeout fires). Every device-bound call (connect, compile fetch,
-// /pixelmap.dat) passes through `ensureHostPermission` first.
+// /pixelmap.dat, and /p/{programId}) passes through `ensureHostPermission` first.
 
 const GRANT_TIMEOUT_MS = 60000
 
@@ -222,6 +222,44 @@ chrome.runtime.onConnect.addListener((port) => {
       return
     }
 
+    // Saved-program read-back (#372): persisted patterns are HTTP PBP blobs at
+    // `/p/{programId}`. A 404 is a clean missing result; other failures remain
+    // errors so Studio can distinguish "gone" from "could not read".
+    if (msg.type === 'get-program') {
+      if (!(await ensureGate(msg.address))) {
+        send({
+          source: RELAY_SOURCE,
+          dir: 'from-helper',
+          type: 'program-data',
+          reqId: msg.reqId,
+          ok: false,
+          error: `access to ${hostOf(msg.address)} not authorized`,
+        })
+        return
+      }
+      handleGetProgram(msg).then(
+        (programBytes) =>
+          send({
+            source: RELAY_SOURCE,
+            dir: 'from-helper',
+            type: 'program-data',
+            reqId: msg.reqId,
+            ok: true,
+            ...(programBytes ? { programData: bytesToBase64(programBytes.buffer) } : {}),
+          }),
+        (e) =>
+          send({
+            source: RELAY_SOURCE,
+            dir: 'from-helper',
+            type: 'program-data',
+            reqId: msg.reqId,
+            ok: false,
+            error: e && e.message ? e.message : String(e),
+          }),
+      )
+      return
+    }
+
     // Device identity support (#328): read `/wifistatus` helper-side so the page
     // can recover the Controller MAC without direct mixed-content/CORS access.
     if (msg.type === 'get-wifi-status') {
@@ -394,6 +432,24 @@ async function handleGetMap(msg) {
   const buf = await resp.arrayBuffer()
   if (buf.byteLength === 0) return null
   return new Uint8Array(buf)
+}
+
+// ── saved-program read-back (#372) ──────────────────────────────────────────
+//
+// GET the raw Pixelblaze Binary Pattern at `/p/{programId}`. This endpoint and
+// composition mirror `PBP.fromPixelblaze` in the reference client:
+// https://github.com/zranger1/pixelblaze-client/blob/9be84700248fa17f0123c702a2939213ba69800a/pixelblaze/pixelblaze.py#L2978-L2989
+// The page owns PBP decoding and PXLBLZ artifact-stamp recovery. Only 404 means
+// missing; an empty/corrupt 200 response crosses as bytes and becomes a clean
+// decode error at the provider boundary.
+async function handleGetProgram(msg) {
+  const programId = typeof msg.programId === 'string' ? msg.programId.trim() : ''
+  if (!programId) throw new Error('Saved program id is required')
+  const path = `/p/${encodeURIComponent(programId)}`
+  const resp = await fetch(`http://${msg.address}${path}`)
+  if (resp.status === 404) return null
+  if (!resp.ok) throw new Error(`GET ${path} -> ${resp.status}`)
+  return new Uint8Array(await resp.arrayBuffer())
 }
 
 // ── wifi status / identity read-back (#328) ──────────────────────────────────

@@ -928,7 +928,7 @@ extension relay — because each is just a different `WebSocketLike`. It serves:
 containing the entire "how do we reach a Controller" decision. It exposes
 `connect`/`disconnect`, a `ControllerStatus` subscription (`no-extension |
 extension-present | connecting | connected | error`), the read/monitor surface
-(`getConfig`, telemetry, `listPrograms`, controls, `brightness`,
+(`getConfig`, telemetry, `listPrograms`, `readSavedProgram`, controls, `brightness`,
 `setPixelCount`), and the capability-gated
 `compile`/`pushBytecode`/`getPixelMap`/`pushPixelMap`. The app imports only this
 module and its types — never an extension API, `PixelblazeConnection`, or
@@ -954,11 +954,16 @@ the far side of the seam. The provider adds the extension-present handshake
 (device declared gone after ~4 s of inbound silence even with no socket close),
 and bounded auto-reconnect (MV3 can evict the service worker; a powered-off
 Controller is expected back, so it keeps probing).
+Socket-independent operations use reqId-correlated relay messages. In addition
+to compile, discovery, map, and identity reads, `get-program` asks the helper for
+the raw HTTP `/p/{programId}` blob; binary PBP bytes cross back as base64 for
+page-side decode.
 
 ### Per-IP just-in-time host permissions
 
 The extension must reach `ws://<LAN-IP>:81` and `http://<LAN-IP>/…` (compiler
-fetch, `/pixelmap.dat` read-back, `/wifistatus` identity read) at
+fetch, `/pixelmap.dat` read-back, `/p/{programId}` saved-program read-back,
+`/wifistatus` identity read) at
 runtime-discovered IPs, but Chrome match
 patterns can't express "the local network", and a static broad grant reads as a
 network-sniffing surface that fails Web Store review (#229). So LAN reach lives
@@ -1222,6 +1227,18 @@ records are preserved. Run-only pushes neither load nor write this store, so
 they remain ephemeral and recordless. Because the hash, transforms, and time
 come from the embedded banner rather than a parallel calculation, later
 freshness checks compare against the artifact that was actually saved.
+
+**Saved-program read-back** (`ControllerProvider.readSavedProgram`, #372) is the
+inverse capability needed for controller-to-Studio recovery. The extension
+fetches `/p/{programId}` over HTTP, following the reference client's
+[`PBP.fromPixelblaze`](https://github.com/zranger1/pixelblaze-client/blob/9be84700248fa17f0123c702a2939213ba69800a/pixelblaze/pixelblaze.py#L2978-L2989)
+composition. A 404 resolves `null`; authorization, network, other HTTP, timeout,
+and undecodable-blob failures reject with caller-facing errors. The pure
+`recoverSavedProgram` function decodes the PBP, keeps the device-stored name,
+returns foreign source unchanged, and parses then strips a PXLBLZ banner so
+IDE-owned source and `ParsedPxlblzBanner` provenance are separate values. A
+valid PBP with no source remains recoverable with `sourceCode: null`. This is an
+engine/relay capability; the inventory import interaction is owned by #373.
 
 **Saved-program inventory** is the Controller profile route's live, read-only
 right-hand context pane (`ControllerSavedProgramsPane`), replacing the otherwise

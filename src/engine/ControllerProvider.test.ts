@@ -67,6 +67,7 @@ describe('NullControllerProvider', () => {
     await expect(p.getConfig()).rejects.toThrow(/not connected/i)
     await expect(p.getTelemetry()).rejects.toThrow(/not connected/i)
     await expect(p.listPrograms()).rejects.toThrow(/not connected/i)
+    await expect(p.readSavedProgram('PROGRAM_01')).rejects.toThrow(/not connected/i)
     await expect(p.getVars()).rejects.toThrow(/not connected/i)
     await expect(p.setVars({ __px_powerLimit: 0.25 })).rejects.toThrow(/not connected/i)
     await expect(p.getPixelMap()).rejects.toThrow(/not connected/i)

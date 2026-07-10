@@ -22,6 +22,7 @@ background.js (service worker)  ────────────────
   ├─ compile: fetch http://<ip>/index.html.gz → extract the device compiler →
   │    eval it in offscreen.html ▸ sandbox.html (the only MV3-legal place to eval)
   ├─ get-map: HTTP GET http://<ip>/pixelmap.dat (#205)
+  ├─ get-program: HTTP GET http://<ip>/p/<program-id> (#372)
   └─ discover: HTTPS GET discover.electromage.com/discover (#206)
 popup.html / popup.js (action popup)  ── per-IP host-permission grant (#229)
 ```
@@ -33,6 +34,11 @@ protocol code drives it unchanged. The `compile`, `get-map`, and `discover` call
 are one-off request/response round-trips keyed by `reqId`, independent of any
 socket. Binary frames and blobs cross the seam as base64 (`chrome.runtime`
 messaging is JSON-only).
+
+`get-program` is another reqId-keyed HTTP round-trip. It returns the raw PBP blob
+from `/p/<program-id>` for page-side decode and artifact-stamp recovery. A 404 is
+a clean missing program; authorization, network, other HTTP, timeout, and decode
+failures remain distinct errors.
 
 ## Host permissions — per-IP, just-in-time (#229)
 
@@ -50,7 +56,7 @@ flow when the app connects to an IP the extension doesn't yet hold:
 
 ```
 service worker (background.js) gates every device-bound call (connect, compile
-  fetch, /pixelmap.dat) on chrome.permissions.contains({http://IP/*, ws://IP/*})
+  fetch, /pixelmap.dat, /p/<program-id>) on chrome.permissions.contains({http://IP/*, ws://IP/*})
   │  missing → opens the action popup (chrome.action.openPopup) + tells the page
 action popup (popup.html / popup.js)
   │  chrome.permissions.request(...) inside its own click gesture — the ONLY
@@ -96,6 +102,9 @@ specific local device.
    Enter the Controller's LAN IP (or pick a discovered device) and connect. The
    first connection to a new IP opens the helper's popup to authorize that IP
    (see Host permissions, above).
+
+Reload the unpacked extension after changing `background.js`; an already-running
+service worker otherwise keeps the previous relay handlers.
 
 ## Verification checklist (hardware)
 

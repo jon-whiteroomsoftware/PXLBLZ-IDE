@@ -28,6 +28,10 @@ import {
 import { PixelblazeConnection } from './PixelblazeConnection'
 import { encodeMapData, decodeMapData } from './mapPush'
 import {
+  recoverSavedProgram,
+  type RecoveredSavedProgram,
+} from './controllerSavedProgramRead'
+import {
   RelayWebSocket,
   RELAY_SOURCE,
   base64ToBytes,
@@ -95,6 +99,8 @@ export interface ExtensionControllerProviderOptions {
    *  resolving null. A plain HTTP GET of `/pixelmap.dat`, so much cheaper than
    *  compile. Default 5000ms. */
   getMapTimeoutMs?: number
+  /** How long a saved-program `/p/{id}` read waits for the helper. */
+  getProgramTimeoutMs?: number
   /** How long a discovery round-trip waits for the helper's reply before resolving
    *  `[]`. A single HTTPS GET of the cloud discovery service. Default 5000ms. */
   discoverTimeoutMs?: number
@@ -134,9 +140,11 @@ export class ExtensionControllerProvider implements ControllerProvider {
   private readonly reconnectDelayMs: number
   private readonly compileTimeoutMs: number
   private readonly getMapTimeoutMs: number
+  private readonly getProgramTimeoutMs: number
   private readonly discoverTimeoutMs: number
   private compileSeq = 0
   private mapSeq = 0
+  private programSeq = 0
   private discoverSeq = 0
   private identitySeq = 0
   private readonly _setTimeout: (fn: () => void, ms: number) => unknown
@@ -153,6 +161,7 @@ export class ExtensionControllerProvider implements ControllerProvider {
     this.reconnectDelayMs = options.reconnectDelayMs ?? 1000
     this.compileTimeoutMs = options.compileTimeoutMs ?? 20000
     this.getMapTimeoutMs = options.getMapTimeoutMs ?? 5000
+    this.getProgramTimeoutMs = options.getProgramTimeoutMs ?? 5000
     this.discoverTimeoutMs = options.discoverTimeoutMs ?? 5000
     this._setTimeout = options.setTimeout ?? ((fn, ms) => setTimeout(fn, ms))
     this._clearTimeout =
@@ -413,6 +422,57 @@ export class ExtensionControllerProvider implements ControllerProvider {
 
   listPrograms(): Promise<ProgramListEntry[]> {
     return this.withConn((conn) => conn.listPrograms())
+  }
+
+  readSavedProgram(programId: string): Promise<RecoveredSavedProgram | null> {
+    const target = this.target
+    if (!target) return Promise.reject(new Error('Not connected to a Controller'))
+    const reqId = `get-program-${this.programSeq++}`
+    return new Promise<RecoveredSavedProgram | null>((resolve, reject) => {
+      let settled = false
+      const finish = (fn: () => void) => {
+        if (settled) return
+        settled = true
+        unsubscribe()
+        this._clearTimeout(timer)
+        fn()
+      }
+      const unsubscribe = this.transport.subscribe((msg) => {
+        if (
+          msg.source !== RELAY_SOURCE ||
+          msg.dir !== 'from-helper' ||
+          msg.type !== 'program-data' ||
+          msg.reqId !== reqId
+        ) return
+
+        if (!msg.ok) {
+          finish(() => reject(new Error(msg.error || `Saved program ${programId} could not be read.`)))
+          return
+        }
+        if (msg.programData == null) {
+          finish(() => resolve(null))
+          return
+        }
+        const recovery = recoverSavedProgram(programId, base64ToBytes(msg.programData))
+        if (!recovery.ok) {
+          finish(() => reject(new Error(recovery.error.message)))
+          return
+        }
+        finish(() => resolve(recovery.value))
+      })
+      const timer = this._setTimeout(
+        () => finish(() => reject(new Error(`Saved program ${programId} read timed out.`))),
+        this.getProgramTimeoutMs,
+      )
+      this.transport.post({
+        source: RELAY_SOURCE,
+        dir: 'to-helper',
+        type: 'get-program',
+        reqId,
+        address: target.address,
+        programId,
+      })
+    })
   }
 
   getVars(): Promise<Record<string, number>> {

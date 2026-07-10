@@ -44,6 +44,18 @@ export type RelayMessage =
       reqId: string
       address: string
     }
+  // Saved-program read-back (#372): persisted patterns are raw PBP blobs at the
+  // HTTP path `/p/{programId}`. This mirrors `PBP.fromPixelblaze`, which composes
+  // `getFile(f"/p/{patternId}")` in the reference client:
+  // https://github.com/zranger1/pixelblaze-client/blob/9be84700248fa17f0123c702a2939213ba69800a/pixelblaze/pixelblaze.py#L2978-L2989
+  | {
+      source: typeof RELAY_SOURCE
+      dir: 'to-helper'
+      type: 'get-program'
+      reqId: string
+      address: string
+      programId: string
+    }
   // Device identity support (#328): `/wifistatus` is a plain HTTP endpoint that
   // exposes the Controller's MAC address. The page can't fetch it directly from an
   // HTTPS app, so the helper performs the same reqId-keyed HTTP round-trip as
@@ -102,6 +114,19 @@ export type RelayMessage =
       /** The `/pixelmap.dat` blob as base64; absent when the device has no map. */
       mapData?: string
       /** Failure reason when `ok` is false. */
+      error?: string
+    }
+  // Reply to `get-program`. `ok` true without `programData` means a clean 404;
+  // other HTTP/network failures use `ok` false so the provider can distinguish
+  // missing from unreadable.
+  | {
+      source: typeof RELAY_SOURCE
+      dir: 'from-helper'
+      type: 'program-data'
+      reqId: string
+      ok: boolean
+      /** Raw `/p/{id}` PBP bytes as base64. */
+      programData?: string
       error?: string
     }
   // Reply to `get-wifi-status`. `ok` true carries the parsed JSON from

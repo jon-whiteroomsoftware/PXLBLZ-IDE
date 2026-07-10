@@ -14,6 +14,7 @@
 // docs/reference/PXLBLZ Technical Reference.md §13.
 
 import type { ProgramListEntry } from './PixelblazeConnection'
+import type { RecoveredSavedProgram } from './controllerSavedProgramRead'
 
 export type { ProgramListEntry }
 
@@ -175,6 +176,11 @@ export interface ControllerProvider {
   /** List the patterns stored on the Controller. */
   listPrograms(): Promise<ProgramListEntry[]>
 
+  /** Read and decode one persisted `/p/{id}` program blob. Resolves `null` when
+   *  the program is missing; transport and undecodable-blob failures reject with
+   *  a caller-facing error. */
+  readSavedProgram(programId: string): Promise<RecoveredSavedProgram | null>
+
   /** Read the running pattern's live exported variables (name → value). The panel
    *  watches these read-only; backend-forwarded from the documented `getVars`. */
   getVars(): Promise<Record<string, number>>
@@ -290,6 +296,10 @@ export class NullControllerProvider implements ControllerProvider {
   }
 
   listPrograms(): Promise<ProgramListEntry[]> {
+    return Promise.reject(new Error('Not connected to a Controller'))
+  }
+
+  readSavedProgram(_programId: string): Promise<RecoveredSavedProgram | null> {
     return Promise.reject(new Error('Not connected to a Controller'))
   }
 
