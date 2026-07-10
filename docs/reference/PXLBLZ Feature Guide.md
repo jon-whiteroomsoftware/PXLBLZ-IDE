@@ -230,6 +230,13 @@ far the animation moves; cadence controls when that motion is released. Pixels
 keep rendering between jumps, so stepped motion does not blink the light or
 claim renderer savings. A held cell keeps its cadence phase, while a restarted
 cell starts a fresh schedule.
+Each cell also has a non-negative **Start offset** for its private Pattern
+clock. Repeating one Pattern across zone rows with different offsets creates
+rounds, staggered motion, and travelling choreography without editing the source
+Pattern or adding a second renderer per pixel. The offset chooses the cell's
+starting Pattern-time position; Time x and stepped cadence continue to control
+how far and when that private clock advances. Holds preserve the offset clock,
+while a restarted cell begins fresh at its configured offset.
 Each cell can also enable a **light shutter** with a rate, light-on fraction,
 phase, and dark-time clock policy. Closed shutter frames are explicitly black
 and skip that Pattern's renderer. **Continue** lets the Pattern advance behind
@@ -285,6 +292,11 @@ Cells normally treat each zone row as its own domain. Setting **Span zones** on 
 cell stretches that one pattern across adjacent rows as a single canvas, so a
 gradient or wash can run continuously across multiple physical zones instead of
 restarting inside each one.
+
+Zone rows that reuse the same Pattern remain independent member instances. Their
+Start offsets can differ even when their source and other controls match, and
+multi-range Controller zones keep the same continuous zone-local indexing while
+their private clocks stay staggered.
 
 Scene-boundary behavior is geometric. A cell that spans scene columns holds: the
 same renderer keeps its time base and phase across the boundary. Two separate

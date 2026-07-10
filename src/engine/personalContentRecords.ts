@@ -102,6 +102,7 @@ export interface ShowCellAdaptations {
   timeScale: number
   lightShutter?: ShowLightShutter
   steppedClock?: ShowSteppedClock
+  timeOffsetMs?: number
 }
 
 export interface ShowLightShutter {

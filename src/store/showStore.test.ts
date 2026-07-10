@@ -137,6 +137,19 @@ describe('showStore (#318)', () => {
     })
   })
 
+  it('persists a per-cell private time offset', async () => {
+    const show = createDefaultShow('show-1', 'Rounds', 1)
+    const provider = memoryProvider([show])
+    setPersonalContentProvider(provider)
+    useShowStore.setState({ shows: [show], showsLoaded: true })
+
+    await useShowStore.getState().updateCellAdaptations(show.id, show.cells[0].id, { timeOffsetMs: 750 })
+    useShowStore.setState(showInitialState)
+    await useShowStore.getState().loadShows()
+
+    expect(useShowStore.getState().shows[0].cells[0].adaptations.timeOffsetMs).toBe(750)
+  })
+
   it('persists a wipe feather width through the provider', async () => {
     const show = createDefaultShow('show-1', 'Opening wash', 1)
     setPersonalContentProvider(memoryProvider([show]))

@@ -535,6 +535,9 @@ function normalizeAdaptations(adaptations: ShowCellAdaptations): ShowCellAdaptat
     ...(adaptations.steppedClock
       ? { steppedClock: { stepMs: Math.max(16, Math.min(60000, adaptations.steppedClock.stepMs)) } }
       : {}),
+    ...(adaptations.timeOffsetMs !== undefined
+      ? { timeOffsetMs: Math.max(0, Math.min(60000, adaptations.timeOffsetMs)) }
+      : {}),
   }
 }
 
@@ -550,6 +553,7 @@ function compilerAdaptation(adaptations: ShowCellAdaptations): ShowClipAdaptatio
     mirror: adaptations.mirror,
     ...(adaptations.lightShutter ? { lightShutter: { ...adaptations.lightShutter } } : {}),
     ...(adaptations.steppedClock ? { steppedClock: { ...adaptations.steppedClock } } : {}),
+    timeOffsetMs: adaptations.timeOffsetMs ?? 0,
   }
 }
 
@@ -571,7 +575,9 @@ function hasSameDiscreteAdaptations(a: ShowCell, b: ShowCell): boolean {
   const sameSteppedClock = !aSteppedClock || !bSteppedClock
     ? aSteppedClock === bSteppedClock
     : aSteppedClock.stepMs === bSteppedClock.stepMs
-  return sameShutter && sameSteppedClock
+  return sameShutter
+    && sameSteppedClock
+    && (a.adaptations.timeOffsetMs ?? 0) === (b.adaptations.timeOffsetMs ?? 0)
 }
 
 function nominalZones(zones: ShowZone[]): ControllerZone[] {

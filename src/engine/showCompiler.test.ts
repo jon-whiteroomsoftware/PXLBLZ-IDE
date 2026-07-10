@@ -939,6 +939,97 @@ export function render(index) { rgb(elapsed, index, 0) }
     })
   })
 
+  it('offsets private time before stepped cadence releases accumulated motion', () => {
+    const artifact = compileShow({
+      clips: [{
+        id: 'offset',
+        source: `
+export var frames = 0
+export function beforeRender(delta) { frames = frames + 1 }
+export function render(index) { rgb(time(1), frames, index) }
+`,
+        adaptation: { timeOffsetMs: 250, steppedClock: { stepMs: 100 } },
+      }],
+    }, {})
+    const runtime = loadShow(artifact.code, artifact.metadata)
+
+    runtime.handle.render(3)
+    expect(runtime.pixel()).toEqual([0.25, 0, 3])
+    runtime.handle.beforeRender(50)
+    runtime.handle.render(3)
+    expect(runtime.pixel()).toEqual([0.25, 0, 3])
+    runtime.handle.beforeRender(50)
+    runtime.handle.render(3)
+
+    expect(runtime.pixel()[0]).toBeCloseTo(0.35)
+    expect(runtime.pixel().slice(1)).toEqual([1, 3])
+    expect(artifact.summary).toMatchObject({
+      timeOffsetPolicy: 'per-clip',
+      worstInstantRenderersPerPixel: 1,
+      clips: [expect.objectContaining({ timeOffsetMs: 250 })],
+    })
+  })
+
+  it('restarts a fresh member at its configured private time offset after a cut', () => {
+    const source = `export function render(index) { rgb(time(1), index, 0) }`
+    const artifact = compileShow({
+      clips: [
+        { id: 'from', source, adaptation: { timeOffsetMs: 100 } },
+        { id: 'to', source, adaptation: { timeOffsetMs: 500 } },
+      ],
+      cut: { startMs: 100 },
+    }, {})
+    const runtime = loadShow(artifact.code, artifact.metadata)
+
+    runtime.handle.beforeRender(60)
+    runtime.handle.render(0)
+    expect(runtime.pixel()[0]).toBeCloseTo(0.16)
+    runtime.handle.beforeRender(60)
+    runtime.handle.render(0)
+
+    expect(runtime.pixel()[0]).toBeCloseTo(0.56)
+    expect(runtime.handle.getExports()).toMatchObject({
+      __pxlblz_show_c0_elapsed_ms: 160,
+      __pxlblz_show_c1_elapsed_ms: 560,
+    })
+  })
+
+  it('stagger-routes repeated Patterns across multi-range zones with one renderer per pixel', () => {
+    const source = `
+export var renders = 0
+export function render(index) { renders = renders + 1; rgb(time(1), index, renders) }
+`
+    const artifact = compileShow({
+      zones: [
+        { id: 'left', name: 'left', ranges: [{ start: 0, end: 1 }, { start: 4, end: 5 }] },
+        { id: 'right', name: 'right', ranges: [{ start: 2, end: 3 }, { start: 6, end: 7 }] },
+      ],
+      clips: [
+        { id: 'round-left', source, zone: 'left', adaptation: { timeOffsetMs: 0 } },
+        { id: 'round-right', source, zone: 'right', adaptation: { timeOffsetMs: 250 } },
+      ],
+    }, {})
+    const runtime = loadShow(artifact.code, artifact.metadata, 8)
+
+    runtime.handle.beforeRender(100)
+    runtime.handle.render(4)
+    expect(runtime.pixel()).toEqual([0.1, 2, 1])
+    runtime.handle.render(6)
+
+    expect(runtime.pixel()[0]).toBeCloseTo(0.35)
+    expect(runtime.pixel().slice(1)).toEqual([2, 1])
+    expect(artifact.summary).toMatchObject({
+      renderPolicy: 'route-one-renderer-per-pixel',
+      transitionCost: 'route',
+      timeOffsetPolicy: 'per-clip',
+      worstInstantRenderersPerPixel: 1,
+      clips: [
+        expect.objectContaining({ id: 'round-left', timeOffsetMs: 0 }),
+        expect.objectContaining({ id: 'round-right', timeOffsetMs: 250 }),
+      ],
+    })
+  })
+
   it('emits a wipe transition that renders exactly one member per pixel during the transition window', () => {
     const artifact = compileShow({
       clips: [

@@ -922,6 +922,27 @@ and runs this exact generated artifact. The cell inspector presents the approved
 cadence-first Smooth/Stepped control at `0.25..30` jumps per second with an
 interval readback, explicitly separate from the light shutter.
 
+Private time offset (#380) is an optional non-negative per-cell clock adaptation,
+normalized to `0..60000` ms and compiled as `timeOffsetMs`. It initializes that
+member's private elapsed accumulator, so rewritten Pattern `time(interval)` sees
+the offset immediately; it does not alter the non-negative `delta` delivered to
+Pattern `beforeRender`, cadence phase, brightness, or route coordinates. Time
+scale controls subsequent clock advance, exact pause holds the configured
+origin, and stepped cadence releases scaled motion on its ordinary eligible-time
+boundaries. A continuous hold keeps the member clock, while a cut/restart creates
+a fresh member initialized at its own configured offset.
+
+Time offset is discrete for same-Pattern recipe selection: cells with different
+origins remain separate members instead of entering a one-member adaptation
+ramp. Routed zone rows therefore can reuse byte-identical Pattern source with
+different private origins. Multi-range zones retain their continuous local pixel
+index, and each physical pixel still invokes exactly one routed renderer.
+`ShowCompileSummary.timeOffsetPolicy` reports `none` or `per-clip`; every clip
+reports its normalized `timeOffsetMs`, while render policy and
+`worstInstantRenderersPerPixel` remain unchanged. The cadence-first inspector
+places Start offset beside the motion controls and the compile bar labels it as
+clock parameter work with unchanged renderer cost.
+
 A light shutter (#378) is an optional generated evaluation mask with normalized
 rate (`0.01..60` Hz), duty (`0..1`), phase (`0..1`), and `continue` or `freeze`
 clock behavior. The shutter oscillator follows outer Show time. Each member's

@@ -174,6 +174,27 @@ describe('ShowEditor (#318)', () => {
     })
   })
 
+  it('edits a private Pattern time offset with the settled motion vocabulary', async () => {
+    const user = userEvent.setup()
+    const show = createDefaultShow('show-1', 'Rounds', 1000)
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+    await user.click(screen.getAllByRole('button', { name: /Select TestPattern1D/i })[0])
+
+    expect(screen.getByLabelText('Start offset (ms)')).toHaveValue(0)
+    fireEvent.change(screen.getByLabelText('Start offset (ms)'), { target: { value: '500' } })
+
+    await waitFor(() => {
+      expect(useShowStore.getState().shows[0].cells[0].adaptations.timeOffsetMs).toBe(500)
+    })
+    expect(screen.getByText(/shift this cell's private Pattern clock/i)).toHaveTextContent('rounds across zones')
+    expect(screen.getAllByText(/offset 500ms/i).length).toBeGreaterThan(0)
+    expect(screen.getByText(/Clock offset:/i)).toHaveTextContent('500ms')
+    expect(screen.getByText(/Clock offset:/i)).toHaveTextContent('renderer cost unchanged')
+  })
+
   it('explains feathered wipe as a stable one-renderer route edge', async () => {
     const user = userEvent.setup()
     const show = createDefaultShow('show-1', 'Feathered wipe', 1000)

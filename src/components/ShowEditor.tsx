@@ -675,9 +675,11 @@ function CellInspector({
       </div>
       <MotionCadenceControl
         stepMs={cell.adaptations.steppedClock?.stepMs}
+        timeOffsetMs={cell.adaptations.timeOffsetMs ?? 0}
         onChange={(stepMs) => onUpdateAdaptations({
           steppedClock: stepMs === null ? undefined : { stepMs },
         })}
+        onOffsetChange={(timeOffsetMs) => onUpdateAdaptations({ timeOffsetMs })}
       />
       <div className="mt-3 border-t border-zinc-800 pt-3">
         <label className="flex items-center gap-2 text-zinc-300">
@@ -723,10 +725,14 @@ function CellInspector({
 
 function MotionCadenceControl({
   stepMs,
+  timeOffsetMs,
   onChange,
+  onOffsetChange,
 }: {
   stepMs: number | undefined
+  timeOffsetMs: number
   onChange: (stepMs: number | null) => void
+  onOffsetChange: (timeOffsetMs: number) => void
 }) {
   const stepped = stepMs !== undefined
   const rateHz = steppedClockRateHz(stepMs ?? 125)
@@ -758,6 +764,19 @@ function MotionCadenceControl({
             stepped
           </button>
         </div>
+      </div>
+      <div className="mt-3 grid grid-cols-[minmax(0,1fr)_10rem] items-end gap-3 border-t border-violet-400/10 pt-3">
+        <p className="text-[10px] leading-relaxed text-zinc-500">
+          Shift this cell&apos;s private Pattern clock for rounds across zones.
+        </p>
+        <NumberField
+          label="Start offset (ms)"
+          value={timeOffsetMs}
+          min={0}
+          max={60000}
+          step={50}
+          onChange={onOffsetChange}
+        />
       </div>
       {stepped && (
         <>
@@ -1064,6 +1083,12 @@ function CompileBar({
     : summary?.temporalPolicy === 'mixed'
       ? `${[...new Set(steppedRates)].join(', ')}/s stepped clip`
       : null
+  const timeOffsets = summary?.clips
+    .filter((clip) => clip.timeOffsetMs > 0)
+    .map((clip) => `${Math.round(clip.timeOffsetMs)}ms`) ?? []
+  const timeOffsetLabel = summary?.timeOffsetPolicy === 'per-clip'
+    ? [...new Set(timeOffsets)].join(', ')
+    : null
   return (
     <div className="flex min-h-10 shrink-0 items-center gap-2 border-t border-seam bg-zinc-950 px-3 font-mono text-xs text-zinc-500">
       <span>compiled artifact</span>
@@ -1091,6 +1116,11 @@ function CompileBar({
       {temporalLabel && (
         <span className="text-violet-300">
           Motion cadence: {temporalLabel} - renderer cost unchanged
+        </span>
+      )}
+      {timeOffsetLabel && (
+        <span className="text-violet-300">
+          Clock offset: {timeOffsetLabel} - renderer cost unchanged
         </span>
       )}
       {summary?.warnings.map((warning) => <span key={warning} className="text-amber-300">{warning}</span>)}
@@ -1143,6 +1173,7 @@ function adaptationSummary(cell: ShowCell): string {
   if (cell.adaptations.timeScale !== 1) parts.push(`time x${cell.adaptations.timeScale.toFixed(1)}`)
   if (cell.adaptations.lightShutter) parts.push(`shutter ${Math.round(cell.adaptations.lightShutter.duty * 100)}%`)
   if (cell.adaptations.steppedClock) parts.push(`step ${formatCadenceRate(steppedClockRateHz(cell.adaptations.steppedClock.stepMs))}/s`)
+  if ((cell.adaptations.timeOffsetMs ?? 0) > 0) parts.push(`offset ${Math.round(cell.adaptations.timeOffsetMs!)}ms`)
   return parts.length ? parts.join(' - ') : 'no adaptations'
 }
 

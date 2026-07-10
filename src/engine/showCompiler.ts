@@ -33,6 +33,7 @@ export interface ShowClipAdaptation {
   mirror: boolean
   lightShutter?: ShowLightShutter
   steppedClock?: ShowSteppedClock
+  timeOffsetMs: number
 }
 
 export interface ShowLightShutter {
@@ -79,6 +80,7 @@ export interface ShowCompileClipSummary {
   expectedActiveFraction: number
   temporalPolicy: 'continuous' | 'stepped-clock'
   stepMs: number | null
+  timeOffsetMs: number
 }
 
 export interface ShowCompileSummary {
@@ -101,6 +103,7 @@ export interface ShowCompileSummary {
   evaluationPolicy: 'full' | 'masked-shutter' | 'mixed'
   expectedActiveFraction: number | null
   temporalPolicy: 'continuous' | 'stepped-clock' | 'mixed'
+  timeOffsetPolicy: 'none' | 'per-clip'
   worstInstantRenderersPerPixel: 1 | 2
   clips: ShowCompileClipSummary[]
   warnings: string[]
@@ -215,6 +218,7 @@ export function compileShow(
     evaluationPolicy: evaluationSummary.policy,
     expectedActiveFraction: evaluationSummary.expectedActiveFraction,
     temporalPolicy: describeTemporalPolicy(members),
+    timeOffsetPolicy: members.some((member) => member.adaptation.timeOffsetMs !== 0) ? 'per-clip' : 'none',
     worstInstantRenderersPerPixel: transitionCost === 'renderer-window' ? 2 : 1,
     clips: members.map((member) => {
       const lightShutter = member.adaptation.lightShutter
@@ -230,6 +234,7 @@ export function compileShow(
         expectedActiveFraction: lightShutter?.duty ?? 1,
         temporalPolicy: member.adaptation.steppedClock ? 'stepped-clock' as const : 'continuous' as const,
         stepMs: member.adaptation.steppedClock?.stepMs ?? null,
+        timeOffsetMs: member.adaptation.timeOffsetMs,
       }
     }),
     warnings: route?.warnings ?? [],
@@ -578,7 +583,7 @@ ${advanceDelta('delta', '  ')}
 ${advanceDelta('delta', '  ')}
 }`
     return [
-    `var ${member.elapsedName} = 0`,
+    `var ${member.elapsedName} = ${member.adaptation.timeOffsetMs}`,
     `var ${member.pixelCountName} = pixelCount`,
     `var ${member.prefix}_adapt_brightness = ${member.adaptation.brightness}`,
     `var ${member.prefix}_adapt_phase = ${member.adaptation.phase}`,
@@ -796,6 +801,7 @@ function normalizeAdaptation(adaptation: Partial<ShowClipAdaptation> | undefined
     phase: clampNumber(adaptation?.phase ?? 0, 0, 1),
     timeScale: clampNumber(adaptation?.timeScale ?? 1, 0, 4),
     mirror: Boolean(adaptation?.mirror),
+    timeOffsetMs: clampNumber(adaptation?.timeOffsetMs ?? 0, 0, 60000),
     ...(adaptation?.lightShutter
       ? {
           lightShutter: {

@@ -239,6 +239,23 @@ describe('showModel (#318)', () => {
     expect(removed.cells[0].adaptations.lightShutter).toBeDefined()
   })
 
+  it('normalizes a non-negative private time offset independently from cadence and time scale', () => {
+    const show = createDefaultShow('show-1', 'Untitled Show')
+    const offset = updateShowCellAdaptations(show, show.cells[0].id, {
+      timeOffsetMs: 750,
+      timeScale: 0,
+      steppedClock: { stepMs: 125 },
+    })
+    const clamped = updateShowCellAdaptations(offset, show.cells[0].id, { timeOffsetMs: -50 })
+
+    expect(offset.cells[0].adaptations).toMatchObject({
+      timeOffsetMs: 750,
+      timeScale: 0,
+      steppedClock: { stepMs: 125 },
+    })
+    expect(clamped.cells[0].adaptations.timeOffsetMs).toBe(0)
+  })
+
   it('builds the current compiler recipe from the first two scene cells', () => {
     const show = createDefaultShow('show-1', 'Untitled Show')
     const recipe = showRecordToCompileRecipe(show, {
@@ -324,6 +341,28 @@ describe('showModel (#318)', () => {
     expect(recipe.adaptationRamp).toBeUndefined()
   })
 
+  it('passes private time offset into the recipe and keeps unlike origins as separate clips', () => {
+    const base = createDefaultShow('show-1', 'Untitled Show')
+    const samePattern = updateShowCellPattern(base, base.cells[1].id, {
+      pattern: base.cells[0].pattern,
+      patternName: base.cells[0].patternName,
+    })
+    const offset = updateShowCellAdaptations(samePattern, samePattern.cells[0].id, {
+      timeOffsetMs: 500,
+    })
+    const recipe = showRecordToCompileRecipe(offset, {
+      byCellId: {
+        [offset.cells[0].id]: DEMOS.TestPattern1D,
+        [offset.cells[1].id]: DEMOS.TestPattern1D,
+      },
+    })
+
+    expect(recipe.clips[0].adaptation?.timeOffsetMs).toBe(500)
+    expect(recipe.clips).toHaveLength(2)
+    expect(recipe.crossfade).toEqual({ startMs: 30000, durationMs: 2000 })
+    expect(recipe.adaptationRamp).toBeUndefined()
+  })
+
   it('emits a parameter ramp when adjacent same-pattern cells transition adaptations', () => {
     const base = createDefaultShow('show-1', 'Untitled Show')
     const samePattern = updateShowCellPattern(base, base.cells[1].id, {
@@ -346,8 +385,8 @@ describe('showModel (#318)', () => {
     expect(recipe.adaptationRamp).toEqual({
       startMs: 30000,
       durationMs: 2000,
-      from: { brightness: 1, phase: 0, timeScale: 1, mirror: false },
-      to: { brightness: 0.4, phase: 0.25, timeScale: 0, mirror: false },
+      from: { brightness: 1, phase: 0, timeScale: 1, mirror: false, timeOffsetMs: 0 },
+      to: { brightness: 0.4, phase: 0.25, timeScale: 0, mirror: false, timeOffsetMs: 0 },
     })
     expect(recipe.crossfade).toBeUndefined()
   })
