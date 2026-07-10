@@ -163,6 +163,7 @@ class FakeProvider extends NullControllerProvider {
 function memoryControllerMetadataStorage(): ControllerMetadataStorage {
   let bindings = {}
   let labels = {}
+  let pushRecords = {}
   return {
     id: 'memory-test',
     getControllerBindings: async () => bindings,
@@ -172,6 +173,10 @@ function memoryControllerMetadataStorage(): ControllerMetadataStorage {
     getProgramLabels: async () => labels,
     setProgramLabels: async (next) => {
       labels = next
+    },
+    getPushRecords: async () => pushRecords,
+    setPushRecords: async (next) => {
+      pushRecords = next
     },
   }
 }

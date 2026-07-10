@@ -29,8 +29,10 @@ function makeProvider(overrides: Partial<PushPatternDeps['provider']> = {}) {
 function makeDeps(overrides: Partial<PushPatternDeps> = {}): {
   deps: PushPatternDeps
   saved: BindingStore[]
+  pushRecords: Array<Record<string, unknown>>
 } {
   const saved: BindingStore[] = []
+  const pushRecords: Array<Record<string, unknown>> = []
   const deps: PushPatternDeps = {
     provider: makeProvider(),
     controllerId: 'ctrl-A',
@@ -41,15 +43,22 @@ function makeDeps(overrides: Partial<PushPatternDeps> = {}): {
     saveBindings: async (b) => {
       saved.push(b)
     },
+    loadPushRecords: async () => ({}),
+    savePushRecords: async (records) => {
+      pushRecords.push(records)
+    },
+    stampedAt: '2026-07-09T12:34:56.000Z',
     mintId: () => 'MINTED00000000000',
     ...overrides,
   }
-  return { deps, saved }
+  return { deps, saved, pushRecords }
 }
 
 describe('pushPattern — run-only (default)', () => {
   it('mints a throwaway id and loads + runs via pushBytecode, never touching the binding', async () => {
-    const { deps, saved } = makeDeps()
+    const loadPushRecords = vi.fn().mockResolvedValue({})
+    const savePushRecords = vi.fn().mockResolvedValue(undefined)
+    const { deps, saved, pushRecords } = makeDeps({ loadPushRecords, savePushRecords })
     const result = await pushPattern(deps)
 
     expect(result).toEqual({ programId: 'MINTED00000000000', created: true })
@@ -64,6 +73,9 @@ describe('pushPattern — run-only (default)', () => {
     expect(deps.provider.listPrograms).not.toHaveBeenCalled()
     expect(deps.provider.saveProgram).not.toHaveBeenCalled()
     expect(saved).toEqual([])
+    expect(pushRecords).toEqual([])
+    expect(loadPushRecords).not.toHaveBeenCalled()
+    expect(savePushRecords).not.toHaveBeenCalled()
   })
 
   it('mints a fresh throwaway id each push (no overwrite-in-place)', async () => {
@@ -126,7 +138,32 @@ describe('pushPattern — save mode (persist: true)', () => {
       id: 'pat-1',
       name: 'Rainbow',
       transforms: ['hardware-brightness', 'power-cap'],
+      stamped: '2026-07-09T12:34:56.000Z',
     })
+  })
+
+  it('persists the canonical artifact stamp as a push record beside the binding', async () => {
+    const { deps, pushRecords } = makeDeps({
+      persist: true,
+      name: 'Rainbow',
+      source: 'export function render(index){ hsv(0,1,1) }',
+      transforms: ['hardware-brightness', 'power-cap'],
+    })
+
+    await pushPattern(deps)
+
+    const [blob] = (deps.provider.saveProgram as ReturnType<typeof vi.fn>).mock.calls[0]
+    const banner = parsePxlblzBanner(decodePbp(blob as Uint8Array)!.sourceCode)!
+    expect(pushRecords).toEqual([{
+      'ctrl-A': {
+        'pat-1': {
+          transforms: banner.transforms,
+          artifactHash: banner.hash,
+          stampedAt: banner.stamped,
+          name: 'Rainbow',
+        },
+      },
+    }])
   })
 
   it('threads the previewImage into the PBP jpeg section (#259)', async () => {
@@ -147,9 +184,33 @@ describe('pushPattern — save mode (persist: true)', () => {
   })
 
   it('reuses the bound id (overwrite in place) and does NOT re-save the binding when still on the device', async () => {
-    const { deps, saved } = makeDeps({
+    const { deps, saved, pushRecords } = makeDeps({
       persist: true,
       loadBindings: async () => ({ 'ctrl-A': { 'pat-1': 'DEVPROG1' } }),
+      loadPushRecords: async () => ({
+        'ctrl-A': {
+          'pat-1': {
+            transforms: [],
+            artifactHash: 'old-hash',
+            stampedAt: '2020-01-01T00:00:00.000Z',
+            name: 'Old name',
+          },
+          'pat-2': {
+            transforms: ['hardware-brightness'],
+            artifactHash: 'sibling-hash',
+            stampedAt: '2025-01-01T00:00:00.000Z',
+            name: 'Sibling',
+          },
+        },
+        'ctrl-B': {
+          'pat-9': {
+            transforms: [],
+            artifactHash: 'other-controller-hash',
+            stampedAt: '2025-06-01T00:00:00.000Z',
+            name: 'Other Controller',
+          },
+        },
+      }),
       provider: makeProvider({
         listPrograms: vi.fn().mockResolvedValue([{ id: 'DEVPROG1', name: 'x' }]),
       }),
@@ -160,6 +221,25 @@ describe('pushPattern — save mode (persist: true)', () => {
       id: 'DEVPROG1',
     })
     expect(saved).toEqual([]) // no re-save when reusing
+    expect(pushRecords).toHaveLength(1)
+    expect(pushRecords[0]).toMatchObject({
+      'ctrl-A': {
+        'pat-1': {
+          transforms: [],
+          stampedAt: '2026-07-09T12:34:56.000Z',
+          name: 'My Pattern',
+        },
+      },
+    })
+    expect(pushRecords[0]).not.toEqual(expect.objectContaining({
+      'ctrl-A': expect.objectContaining({
+        'pat-1': expect.objectContaining({ artifactHash: 'old-hash' }),
+      }),
+    }))
+    expect(pushRecords[0]).toMatchObject({
+      'ctrl-A': { 'pat-2': { artifactHash: 'sibling-hash' } },
+      'ctrl-B': { 'pat-9': { artifactHash: 'other-controller-hash' } },
+    })
   })
 
   it('silently re-creates when the bound id was deleted on the device', async () => {

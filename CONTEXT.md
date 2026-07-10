@@ -65,6 +65,14 @@ _Avoid_: "device panel" (Controller is canonical); treating it as a second edito
 The editor-header action that sends the open **pattern** to the Controller in one of two modes: **Run** (transient, not added to the Controller's Saved Patterns) or **Save** (persisted to Saved Patterns and activated). The mode selector and send button are presented as one grouped control, not two unrelated buttons: a small text **Run / Save** segmented toggle sets the mode, and the primary **Send to Controller** button keeps the large mode icon so the active mode remains visually obvious. Enabled only when a Controller is connected and the pattern compiles cleanly, with dimensionality mismatch warnings when known. Pattern sends carry source code only: either the normal bundled artifact or a pass-engine-generated artifact derived from the active **Controller profile**. *Nothing from the preview rides along*: not preview brightness, fit (Fill/Contain), pixel count, speed, light size, diffusion, solidity, fidelity, layout, or live control values. Push is a deliberate user click, not continuous sync, which keeps Controller flash writes rare. **Save** mode uses overwrite-in-place: the IDE remembers a per-Controller binding (this IDE pattern/demo ↔ that Controller-assigned id) so repeated saves update the same stored entry rather than piling up copies; **Run** mode uses throwaway ids and does not affect that binding. Control values are tuned live afterward in the **Controller panel**.
 _Avoid_: "deploy" or "upload" as the canonical verb (the verb is push / Send to Controller).
 
+**Push record**:
+Durable IDE-side metadata written after each successful **Save** push, keyed by
+the same `(Controller, IDE pattern/demo)` pair as the overwrite binding. It
+copies the exact artifact banner facts embedded in the saved PBP — transforms,
+artifact hash, stamp time, and pushed name — and overwrites the previous record
+on re-push. **Run** pushes never create records. The record makes transform
+freshness locally computable without reading pattern source back from hardware.
+
 **Transpiled artifact** (or **artifact**):
 The single flat JavaScript file the transpiler produces for a pattern — referenced library functions inlined, namespace calls rewritten. Valid for both browser preview and hardware upload. The downloadable/copyable output.
 _Avoid_: bundle (the verb is fine; the noun is the artifact), build, output file.

@@ -30,6 +30,8 @@ import {
   setControllerBindings,
   getProgramLabels,
   setProgramLabels,
+  getPushRecords,
+  setPushRecords,
 } from '@/engine/controllerMetadataStorage'
 import { withProgramLabel } from '@/engine/controllerBinding'
 import { bundleWithPasses, type PassRecipe, type TransformSummary } from '@/engine/passEngine'
@@ -802,6 +804,8 @@ export const useControllerStore = create<ControllerConnectionState>()(
               transforms: artifactTransformIds(recipe),
               loadBindings: getControllerBindings,
               saveBindings: setControllerBindings,
+              loadPushRecords: getPushRecords,
+              savePushRecords: setPushRecords,
             })
             // Record the name we pushed against the device program id (#237) so the
             // panel resolves a run-only program — which never enters the device's

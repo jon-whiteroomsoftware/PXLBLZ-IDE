@@ -4,12 +4,14 @@ import {
   getControllerBindings,
   getControllerMetadataStorage,
   getProgramLabels,
+  getPushRecords,
   initializeControllerMetadataStorage,
   resetControllerMetadataStorage,
   resolveControllerMetadataStorageMode,
   setControllerBindings,
   setControllerMetadataStorage,
   setProgramLabels,
+  setPushRecords,
   type ControllerMetadataStorage,
 } from './controllerMetadataStorage'
 
@@ -20,6 +22,7 @@ beforeEach(() => {
 function memoryStorage(): ControllerMetadataStorage {
   let bindings = {}
   let labels = {}
+  let pushRecords = {}
   return {
     id: 'memory-test',
     getControllerBindings: async () => bindings,
@@ -29,6 +32,10 @@ function memoryStorage(): ControllerMetadataStorage {
     getProgramLabels: async () => labels,
     setProgramLabels: async (next) => {
       labels = next
+    },
+    getPushRecords: async () => pushRecords,
+    setPushRecords: async (next) => {
+      pushRecords = next
     },
   }
 }
@@ -42,8 +49,21 @@ describe('controller metadata storage seam', () => {
 
     await setControllerBindings({ 'ctrl-A': { 'pat-1': 'DEVPROG1' } })
     await setProgramLabels({ 'ctrl-A': { DEVPROG1: 'Twinkle' } })
+    await setPushRecords({
+      'ctrl-A': {
+        'pat-1': {
+          transforms: ['power-cap'],
+          artifactHash: 'abc123',
+          stampedAt: '2026-07-09T12:34:56.000Z',
+          name: 'Twinkle',
+        },
+      },
+    })
     expect(await getControllerBindings()).toEqual({ 'ctrl-A': { 'pat-1': 'DEVPROG1' } })
     expect(await getProgramLabels()).toEqual({ 'ctrl-A': { DEVPROG1: 'Twinkle' } })
+    expect(await getPushRecords()).toMatchObject({
+      'ctrl-A': { 'pat-1': { artifactHash: 'abc123' } },
+    })
   })
 
   it('selects remote metadata storage as the only durable mode', async () => {
@@ -68,6 +88,9 @@ describe('controller metadata storage seam', () => {
       if (String(url) === '/api/controller-metadata/controller-program-labels' && init?.method === undefined) {
         return Response.json({ value: { 'ctrl-A': { DEVPROG1: 'Twinkle' } } })
       }
+      if (String(url) === '/api/controller-metadata/controller-push-records' && init?.method === undefined) {
+        return Response.json({ value: { 'ctrl-A': { 'pat-1': { artifactHash: 'abc123' } } } })
+      }
       return Response.json({ ok: true })
     }
     const storage = createRemoteControllerMetadataStorage({ fetcher })
@@ -76,15 +99,22 @@ describe('controller metadata storage seam', () => {
     await storage.setControllerBindings({ 'ctrl-A': { 'pat-2': 'DEVPROG2' } })
     await expect(storage.getProgramLabels()).resolves.toEqual({ 'ctrl-A': { DEVPROG1: 'Twinkle' } })
     await storage.setProgramLabels({ 'ctrl-A': { DEVPROG2: 'Sparkle' } })
+    await expect(storage.getPushRecords()).resolves.toMatchObject({
+      'ctrl-A': { 'pat-1': { artifactHash: 'abc123' } },
+    })
+    await storage.setPushRecords({})
 
     expect(requests.map((r) => [r.url, r.init?.method ?? 'GET'])).toEqual([
       ['/api/controller-metadata/controller-bindings', 'GET'],
       ['/api/controller-metadata/controller-bindings', 'PUT'],
       ['/api/controller-metadata/controller-program-labels', 'GET'],
       ['/api/controller-metadata/controller-program-labels', 'PUT'],
+      ['/api/controller-metadata/controller-push-records', 'GET'],
+      ['/api/controller-metadata/controller-push-records', 'PUT'],
     ])
     expect(requests[1].init?.body).toBe(JSON.stringify({ value: { 'ctrl-A': { 'pat-2': 'DEVPROG2' } } }))
     expect(requests[3].init?.body).toBe(JSON.stringify({ value: { 'ctrl-A': { DEVPROG2: 'Sparkle' } } }))
+    expect(requests[5].init?.body).toBe(JSON.stringify({ value: {} }))
   })
 
   it('falls back to empty metadata when the remote API has no stored value yet', async () => {
@@ -94,6 +124,7 @@ describe('controller metadata storage seam', () => {
 
     await expect(storage.getControllerBindings()).resolves.toEqual({})
     await expect(storage.getProgramLabels()).resolves.toEqual({})
+    await expect(storage.getPushRecords()).resolves.toEqual({})
   })
 
   it('raises a clear error when the API rejects the request', async () => {

@@ -777,7 +777,8 @@ fields (`lastKnownDeviceName`, `lastSeenIp`, `lastKnownPixelCount`,
 `lastKnownMapDim`) for the Studio controller page's offline status strip.
 Controller push metadata remains a sibling
 framework-free storage seam: overwrite bindings (`controller-bindings`) and
-program label caches (`controller-program-labels`) call
+program label caches (`controller-program-labels`) and saved-artifact push
+records (`controller-push-records`) call
 `/api/controller-metadata/:key`. All D1 helpers scope list/update/delete
 predicates by the signed session's `userId`. The UI labels personal collections
 as **Patterns**, **Maps**, and **Controllers**; Controllers opens durable profile
@@ -1183,6 +1184,16 @@ user deleted on-device is silently re-minted, detected against the live
 `listPrograms`). Run-only's id never lists, so binding it would churn a fresh id
 every push. Control values are never in either push; the binding is identity
 only, persisted in D1 through controller metadata storage.
+
+**Push records** (`controllerPushRecord`) are the saved-artifact companion to
+those bindings and use the same `(Controller, IDE pattern)` key. After every
+successful save-and-run, `pushPattern` parses the exact banner it embedded in
+the PBP and persists `{ transforms, artifactHash, stampedAt, name }`; re-pushing
+overwrites that key even when the bound device program id is reused. Sibling
+records are preserved. Run-only pushes neither load nor write this store, so
+they remain ephemeral and recordless. Because the hash, transforms, and time
+come from the embedded banner rather than a parallel calculation, later
+freshness checks compare against the artifact that was actually saved.
 
 **Program label cache** (`withProgramLabel`) is a parallel structure, persisted
 under its own controller metadata key and keyed by device program id (not pattern

@@ -1,7 +1,9 @@
 import type { BindingStore, ProgramLabelStore } from './controllerBinding'
+import type { ControllerPushRecords } from './controllerPushRecord'
 
 export const CONTROLLER_BINDINGS_METADATA_KEY = 'controller-bindings'
 export const CONTROLLER_PROGRAM_LABELS_METADATA_KEY = 'controller-program-labels'
+export const CONTROLLER_PUSH_RECORDS_METADATA_KEY = 'controller-push-records'
 
 export type ControllerMetadataStorageMode = 'remote-api'
 
@@ -11,6 +13,8 @@ export interface ControllerMetadataStorage {
   setControllerBindings(bindings: BindingStore): Promise<void>
   getProgramLabels(): Promise<ProgramLabelStore>
   setProgramLabels(labels: ProgramLabelStore): Promise<void>
+  getPushRecords(): Promise<ControllerPushRecords>
+  setPushRecords(records: ControllerPushRecords): Promise<void>
 }
 
 export const demoControllerMetadataStorage: ControllerMetadataStorage = {
@@ -19,6 +23,8 @@ export const demoControllerMetadataStorage: ControllerMetadataStorage = {
   setControllerBindings: async () => {},
   getProgramLabels: async () => ({}),
   setProgramLabels: async () => {},
+  getPushRecords: async () => ({}),
+  setPushRecords: async () => {},
 }
 
 export interface RemoteControllerMetadataStorageOptions {
@@ -50,6 +56,16 @@ export function createRemoteControllerMetadataStorage(
       fetcher,
       CONTROLLER_PROGRAM_LABELS_METADATA_KEY,
       labels,
+    ),
+    getPushRecords: () => getControllerMetadata<ControllerPushRecords>(
+      fetcher,
+      CONTROLLER_PUSH_RECORDS_METADATA_KEY,
+      {},
+    ),
+    setPushRecords: (records) => setControllerMetadata(
+      fetcher,
+      CONTROLLER_PUSH_RECORDS_METADATA_KEY,
+      records,
     ),
   }
 }
@@ -110,6 +126,14 @@ export function getProgramLabels(): Promise<ProgramLabelStore> {
 
 export function setProgramLabels(labels: ProgramLabelStore): Promise<void> {
   return activeStorage.setProgramLabels(labels)
+}
+
+export function getPushRecords(): Promise<ControllerPushRecords> {
+  return activeStorage.getPushRecords()
+}
+
+export function setPushRecords(records: ControllerPushRecords): Promise<void> {
+  return activeStorage.setPushRecords(records)
 }
 
 async function getControllerMetadata<T>(

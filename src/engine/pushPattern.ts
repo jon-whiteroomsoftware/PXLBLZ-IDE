@@ -4,7 +4,7 @@
 // today, a Node bridge if the extension route ever falls back). The provider
 // supplies the transport-coupled pieces (compile in the helper, push over the
 // socket); this module owns the *policy* — run-only vs save, which program id to
-// overwrite, when to mint, and persisting the binding.
+// overwrite, when to mint, and persisting the binding plus saved-artifact record.
 //
 // TWO MODES (#236):
 //   - run-only (today's default): compile, mint a *throwaway* id, and load + run via
@@ -17,6 +17,8 @@
 //     `saveProgram`, creating the persisted `/p/{id}` record that appears in Saved
 //     Patterns with its name. Here overwrite-in-place applies: reuse the bound id when
 //     it is still on the device, else mint, and persist a freshly-minted binding.
+//     Every successful save also overwrites the matching push record from the exact
+//     artifact banner embedded in the PBP.
 //
 // Control values are never part of either push — the binding is identity only.
 //
@@ -24,10 +26,14 @@
 // flow is unit-testable with a fake provider + in-memory binding store.
 
 import type { ControllerProvider } from './ControllerProvider'
-import { stampArtifact } from './artifactStamp'
+import { parsePxlblzBanner, stampArtifact } from './artifactStamp'
 import { bytecodeHeaderReconciles, makeProgramId } from './bytecodePush'
 import { encodePbp } from './pbpEncode'
 import { resolvePushTarget, withBinding, type BindingStore } from './controllerBinding'
+import {
+  withPushRecord,
+  type ControllerPushRecords,
+} from './controllerPushRecord'
 
 export interface PushPatternDeps {
   /** The connected backend — only the push-relevant surface is needed. */
@@ -49,6 +55,10 @@ export interface PushPatternDeps {
   loadBindings: () => Promise<BindingStore>
   /** Persist the binding store after a freshly-minted binding. Save mode only. */
   saveBindings: (bindings: BindingStore) => Promise<void>
+  /** Load saved-artifact metadata keyed like bindings. Save mode only. */
+  loadPushRecords: () => Promise<ControllerPushRecords>
+  /** Persist the latest saved-artifact metadata after every successful save push. */
+  savePushRecords: (records: ControllerPushRecords) => Promise<void>
   /** Injectable id minter (determinism in tests). Defaults to makeProgramId. */
   mintId?: () => string
   /** Optional JPEG preview bytes for the saved PBP blob (#259). Save mode only —
@@ -57,6 +67,8 @@ export interface PushPatternDeps {
   previewImage?: Uint8Array
   /** Transform/pass names baked into the generated source, for the artifact banner. */
   transforms?: string[]
+  /** Injectable artifact stamp time for deterministic tests. Defaults to now. */
+  stampedAt?: Date | string
 }
 
 export interface PushPatternResult {
@@ -94,9 +106,10 @@ export async function pushPattern(deps: PushPatternDeps): Promise<PushPatternRes
 
   // Save mode: overwrite-in-place. The program list resolves the binding (a since-
   // deleted id re-mints); the binding store remembers the target.
-  const [programs, bindings] = await Promise.all([
+  const [programs, bindings, pushRecords] = await Promise.all([
     deps.provider.listPrograms(),
     deps.loadBindings(),
+    deps.loadPushRecords(),
   ])
   const { programId, isNew } = resolvePushTarget(
     bindings[deps.controllerId],
@@ -105,15 +118,20 @@ export async function pushPattern(deps: PushPatternDeps): Promise<PushPatternRes
     mint,
   )
 
+  const stampedSource = stampArtifact(deps.source, {
+    kind: 'pattern',
+    id: deps.patternId,
+    name: deps.name ?? '',
+    transforms: deps.transforms,
+    stampedAt: deps.stampedAt,
+  })
+  const stamp = parsePxlblzBanner(stampedSource)
+  if (!stamp) throw new Error('Generated artifact stamp could not be read back')
+
   const blob = encodePbp({
     id: programId,
     name: deps.name ?? '',
-    sourceCode: stampArtifact(deps.source, {
-      kind: 'pattern',
-      id: deps.patternId,
-      name: deps.name ?? '',
-      transforms: deps.transforms,
-    }),
+    sourceCode: stampedSource,
     byteCode: bytecode,
     previewImage: deps.previewImage,
   })
@@ -132,6 +150,12 @@ export async function pushPattern(deps: PushPatternDeps): Promise<PushPatternRes
   if (isNew) {
     await deps.saveBindings(withBinding(bindings, deps.controllerId, deps.patternId, programId))
   }
+  await deps.savePushRecords(withPushRecord(pushRecords, deps.controllerId, deps.patternId, {
+    transforms: stamp.transforms,
+    artifactHash: stamp.hash,
+    stampedAt: stamp.stamped,
+    name: deps.name ?? '',
+  }))
 
   return { programId, created: isNew }
 }
