@@ -616,11 +616,14 @@ profile is created automatically the first time); the profile page at
   pins, with anything else flagged inline;
 - **global transforms** — hardware brightness (pot × output) and power cap,
   each toggleable and auto-saved immediately without a separate Save button.
-  Hardware brightness samples the chosen input once per frame
-  and multiplies output brightness. Power cap scales output when estimated duty
-  exceeds its normalized limit, using a short per-frame response signal rather
-  than the slower display averages. Set that limit directly as a percentage, or use
-  **From power budget** to derive it from full-white mA/pixel, Controller
+  Auto-save changes the profile; the transform takes effect in generated code
+  the next time a pattern is pushed, so saved programs need another push after
+  a change. Hardware brightness samples the chosen input once per frame and
+  multiplies `hsv()` output brightness. Power cap scales `hsv()` and `rgb()`
+  output when estimated duty exceeds its normalized limit, using a short
+  per-frame response signal rather than the slower display averages. Neither
+  transform currently covers `paint()` output. Set the power limit directly as
+  a percentage, or use **From power budget** to derive it from full-white mA/pixel, Controller
   brightness, and target amps. Full-white mA/pixel is durable installation data,
   defaults to 60, and remains visible in both modes. Calculator brightness and
   target amps remain as derivation provenance; editing duty directly switches to

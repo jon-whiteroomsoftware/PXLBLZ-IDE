@@ -563,71 +563,86 @@ function GlobalTransformsTable({
   }
 
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full min-w-[30rem] table-fixed border-collapse text-xs">
-        <colgroup>
-          <col className="w-16" />
-          <col className="w-24" />
-          <col className="w-36" />
-          <col />
-        </colgroup>
-        <thead>
-          <tr>
-            <th className={tableHeadClass}>Enabled</th>
-            <th className={tableHeadClass}>Transform</th>
-            <th className={tableHeadClass}>Mixin</th>
-            <th className={tableHeadClass}>Input / settings</th>
-          </tr>
-        </thead>
-        <tbody>
-          {profile.globalTransforms.map((transform) => (
-            <Fragment key={transform.id}>
-              <tr>
-                <td className={tableCellClass}>
-                  <input
-                    type="checkbox"
-                    aria-label={`${transform.type} enabled`}
-                    checked={transform.enabled}
-                    disabled={transform.type === 'hardware-brightness' && profile.inputs.length === 0}
-                    onChange={(event) => updateTransform(transform.id, { enabled: event.target.checked })}
-                    className="accent-live disabled:opacity-40"
-                  />
-                </td>
-                <td className={`${tableCellClass} break-all font-mono text-zinc-300`}>{transform.type}</td>
-                <td className={`${tableCellClass} break-all font-mono text-zinc-500`}>{transform.mixinId}</td>
-                <td className={tableCellClass}>
-                  {transform.type === 'hardware-brightness' ? (
-                    <SelectField
-                      ariaLabel="Hardware brightness input"
-                      value={transform.inputId}
-                      disabled={profile.inputs.length === 0}
-                      options={[
-                        { value: '', label: 'Choose input' },
-                        ...profile.inputs.map((input) => ({ value: input.id, label: input.name })),
-                      ]}
-                      onChange={(inputId) => updateTransform(transform.id, { inputId })}
-                    />
-                  ) : (
-                    <span className="text-[10px] uppercase tracking-wide text-zinc-600">Configured below</span>
-                  )}
-                </td>
-              </tr>
-              {transform.type === 'power-cap' && (
+    <div className="grid gap-2">
+      <p className="border-l-2 border-live/35 bg-zinc-900/45 px-2.5 py-2 text-[11px] leading-4 text-zinc-400">
+        Transforms take effect when a pattern is pushed. Push saved programs again after changing them.
+      </p>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[30rem] table-fixed border-collapse text-xs">
+          <colgroup>
+            <col className="w-16" />
+            <col className="w-24" />
+            <col className="w-36" />
+            <col />
+          </colgroup>
+          <thead>
+            <tr>
+              <th className={tableHeadClass}>Enabled</th>
+              <th className={tableHeadClass}>Transform</th>
+              <th className={tableHeadClass}>Mixin</th>
+              <th className={tableHeadClass}>Input / settings</th>
+            </tr>
+          </thead>
+          <tbody>
+            {profile.globalTransforms.map((transform) => (
+              <Fragment key={transform.id}>
                 <tr>
-                  <td colSpan={4} className="px-2 pb-2 pt-0">
-                    <PowerCapEditor
-                      transform={transform}
-                      pixelCount={profile.lastKnownPixelCount ?? 256}
-                      liveBrightness={liveBrightness}
-                      onChange={(settings) => updateTransform(transform.id, settings)}
+                  <td className={tableCellClass}>
+                    <input
+                      type="checkbox"
+                      aria-label={`${transform.type} enabled`}
+                      checked={transform.enabled}
+                      disabled={transform.type === 'hardware-brightness' && profile.inputs.length === 0}
+                      onChange={(event) => updateTransform(transform.id, { enabled: event.target.checked })}
+                      className="accent-live disabled:opacity-40"
                     />
                   </td>
+                  <td className={`${tableCellClass} break-all font-mono text-zinc-300`}>{transform.type}</td>
+                  <td className={`${tableCellClass} break-all font-mono text-zinc-500`}>{transform.mixinId}</td>
+                  <td className={tableCellClass}>
+                    {transform.type === 'hardware-brightness' ? (
+                      <div className="grid gap-1.5">
+                        <SelectField
+                          ariaLabel="Hardware brightness input"
+                          value={transform.inputId}
+                          disabled={profile.inputs.length === 0}
+                          options={[
+                            { value: '', label: 'Choose input' },
+                            ...profile.inputs.map((input) => ({ value: input.id, label: input.name })),
+                          ]}
+                          onChange={(inputId) => updateTransform(transform.id, { inputId })}
+                        />
+                        <p className="text-[10px] leading-4 text-zinc-500">
+                          Samples this input once per frame and multiplies brightness for hsv() output.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="grid gap-1">
+                        <span className="text-[10px] uppercase tracking-wide text-zinc-600">Configured below</span>
+                        <p className="text-[10px] leading-4 text-zinc-500">
+                          Limits estimated output duty for hsv() and rgb(). paint() output is not covered.
+                        </p>
+                      </div>
+                    )}
+                  </td>
                 </tr>
-              )}
-            </Fragment>
-          ))}
-        </tbody>
-      </table>
+                {transform.type === 'power-cap' && (
+                  <tr>
+                    <td colSpan={4} className="px-2 pb-2 pt-0">
+                      <PowerCapEditor
+                        transform={transform}
+                        pixelCount={profile.lastKnownPixelCount ?? 256}
+                        liveBrightness={liveBrightness}
+                        onChange={(settings) => updateTransform(transform.id, settings)}
+                      />
+                    </td>
+                  </tr>
+                )}
+              </Fragment>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   )
 }

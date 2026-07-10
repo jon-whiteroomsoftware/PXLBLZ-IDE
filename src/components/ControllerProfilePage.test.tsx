@@ -107,6 +107,19 @@ function seedProfile() {
 }
 
 describe('ControllerProfilePage', () => {
+  it('explains when profile transforms apply and which output calls they cover', () => {
+    seedProfile()
+
+    render(<ControllerProfilePage profileId="ctrl-1" />)
+
+    expect(screen.getByText(
+      'Transforms take effect when a pattern is pushed. Push saved programs again after changing them.',
+    )).toBeInTheDocument()
+    expect(screen.getByText(/multiplies brightness for hsv\(\) output/i)).toBeInTheDocument()
+    expect(screen.getByText(/limits estimated output duty for hsv\(\) and rgb\(\)/i)).toBeInTheDocument()
+    expect(screen.getByText(/paint\(\) output is not covered/i)).toBeInTheDocument()
+  })
+
   it('uses the shared controller traffic-light vocabulary for profile status', () => {
     seedProfile()
 

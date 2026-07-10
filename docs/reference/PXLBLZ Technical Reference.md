@@ -1122,6 +1122,11 @@ doesn't satisfy a pending save and a transform/binding edit re-arms Send without
 a source edit. Controller-profile edits update Zustand optimistically, serialize
 durable writes per profile, roll back the latest optimistic edit on failure, and
 expose a drain barrier; Push waits at that barrier before reading durable profiles.
+The profile's Global Transforms table makes this persistence/application split
+explicit: edits auto-save immediately but alter device code only on the next
+push. Its per-transform descriptions report the current output-sink boundary:
+hardware brightness intercepts `hsv`, power cap intercepts `hsv` and `rgb`, and
+neither intercepts `paint`.
 Before compile, `controllerStore.pushActivePattern` resolves the active
 live Controller to its durable Controller profile (`deviceId` first,
 `lastSeenIp` fallback) and asks `controllerProfilePassRecipe` for pass-engine
