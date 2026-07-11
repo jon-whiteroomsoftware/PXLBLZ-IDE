@@ -71,6 +71,35 @@ beforeEach(() => {
 })
 
 describe('ShowEditor (#318)', () => {
+  it('keeps the Show workspace scrollable without exposing a vertical scrollbar', () => {
+    const show = createDefaultShow('show-scroll', 'Long Show', 1000)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+
+    expect(screen.getByTestId('show-editor-scroll')).toHaveClass('overflow-auto', 'scrollbar-hidden')
+  })
+
+  it('toggles Show playback with Space from focused timeline controls', () => {
+    const show = createDefaultShow('show-space', 'Keyboard Show', 1000)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Fit timeline to Show' }), { code: 'Space' })
+    expect(usePreviewStore.getState().isRunning).toBe(false)
+  })
+
+  it('leaves Space available while editing Show text', () => {
+    const show = createDefaultShow('show-text-space', 'Text Show', 1000)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+
+    fireEvent.keyDown(screen.getByRole('textbox', { name: 'Scene 1 scene name' }), { code: 'Space' })
+    expect(usePreviewStore.getState().isRunning).toBe(true)
+  })
+
   it('drives proportional Show transport and requests an accurate seek (#414)', async () => {
     const user = userEvent.setup()
     const show = createDefaultShow('show-1', 'Opening wash', 1000)

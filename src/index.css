@@ -219,6 +219,16 @@
   height: 0;
 }
 
+/* Preserve native wheel and trackpad scrolling without spending editor width on
+   persistent scrollbar chrome. */
+.scrollbar-hidden {
+  scrollbar-width: none;
+}
+.scrollbar-hidden::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
 /* Indeterminate ("unset") DeckSlider: a control whose position we don't know — a
    device value still loading, or a pattern control the firmware reports out of range
    (#speed-slider). It must read as an *interactive, not-yet-set* control, NOT a

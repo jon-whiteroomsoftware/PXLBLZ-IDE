@@ -211,7 +211,7 @@ export function ShowEditor({ showId }: { showId: string }) {
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-zinc-950/75 font-mono text-xs text-zinc-400">
-      <div className="flex min-h-0 flex-1 flex-col overflow-auto">
+      <div data-testid="show-editor-scroll" className="scrollbar-hidden flex min-h-0 flex-1 flex-col overflow-auto">
         <div className="min-w-0 p-3">
           <div className="mb-3 flex flex-wrap items-center gap-2">
             <div className="min-w-0 flex-1 basis-[22rem]">
@@ -344,7 +344,7 @@ function ShowTransportControls({ show }: { show: ShowRecord }) {
     const onKeyDown = (event: KeyboardEvent) => {
       const target = event.target
       const editing = target instanceof HTMLElement && (
-        target.matches('input, select, textarea, button, [contenteditable="true"]')
+        target.closest('input:not([type="range"]), select, textarea, [contenteditable="true"], [role="textbox"]') !== null
       )
       if (!editing && event.code === 'Space') {
         event.preventDefault()
