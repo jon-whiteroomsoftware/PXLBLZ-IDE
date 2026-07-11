@@ -102,8 +102,8 @@ model remains:
   The approved interaction/design artifact is
   `docs/plans/show-timeline-overhaul-mockup.html`. The opening proportional
   timeline, transport, playhead, and accurate-seek slice shipped in #414;
-  Split/entry semantics shipped in #415 and the first-class transition lane
-  shipped in #416; automation lanes and zoom continue through #417–#420. A cell can
+  Split/entry semantics shipped in #415, the first-class transition lane shipped
+  in #416, and automation lanes plus zoom shipped through #417-#420. A cell can
   span rows (**zone spanning**: adjacent zones act as one canvas — one
   domain — versus two independently re-normalized domains). A spanning cell
   may instead choose **Repeat per zone**, keeping one shared Pattern instance
@@ -175,15 +175,18 @@ model remains:
   by visible start time and sized by the visible fraction; left/right handles
   resize the range. Keyboard pan/resize and 1x–16x bounds keep all content
   reachable without introducing persisted editor state.
-- **Replay optimization policy** (decided 2026-07-11): v1 ships the direct
+- **Replay optimization policy** (validated #421 on 2026-07-11): v1 ships the direct
   full-resolution replay above. Do not add checkpoints, frame/state caches,
   downsampling, representative-pixel replay, or worker infrastructure before
   observing the real editor. Cooperative yielding/cancellation is basic UI
   hygiene, not an approximation. Put optimization work at the end of the epic
   and activate it only when measured Show lengths, Pattern costs, or target
-  installations make the direct path feel slow. The 2,048-pixel matrix is a
-  rare stress ceiling rather than the typical product case; full spike results
-  live in `docs/plans/archive/issue-412-fast-show-seek-replay-results.md`.
+  installations make the direct path feel slow. The completed-stack rerun found
+  63-186 ms for 15-second, 256-pixel cases and retained prompt cancellation
+  opportunities even in the deliberately extreme 2,048-pixel tail. That stress
+  matrix is not the typical product case. The original spike and final decision
+  live in `docs/plans/archive/issue-412-fast-show-seek-replay-results.md` and
+  `docs/plans/archive/issue-421-show-seek-replay-decision.md`.
 - **Compilation**: a Show compiles to a single generated Pixelblaze pattern
   over alpha-renamed members. **Time-slicing is the default emission strategy**:
   steady-state runs only the active clip's `beforeRender`/render; both renderers

@@ -999,6 +999,14 @@ old live runtime, which makes resumed playback continue from the sought state.
 This direct path uses the full Stage map/pixel count; it has no checkpoint cache,
 downsampling, representative-pixel mode, or worker. Below 980 CSS pixels the Show
 Stage and its splitter collapse while the timeline retains local horizontal scroll.
+The post-epic #421 rerun keeps this as the deliberate v1 architecture: 15-second
+seeks at 256 pixels measured 63-186 ms across cheap, stateful, route, and heavy
+crossfade fixtures. The slowest synthetic 2,048-pixel, three-minute crossfade took
+21.1 seconds, but the 250 ms simulation chunks make its measured CPU interval
+between cancellation checks about 29-32 ms. The direct runtime retains no frame
+history or checkpoints. See
+`docs/plans/archive/issue-421-show-seek-replay-decision.md` for the decision gate,
+full selected matrix, memory observations, and revisit trigger.
 For the default strips stage, `zonePreview.ts` builds synthetic sequential
 Controller zones and a 2D strips layout so multi-range physical zones flatten into
 diagnostic rows. For a map stage, the same module builds a spatial zone

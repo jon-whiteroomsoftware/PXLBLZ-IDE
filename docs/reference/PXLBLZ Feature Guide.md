@@ -327,8 +327,10 @@ or dragging the ruler pauses playback and moves the playhead. The Stage rebuilds
 the requested frame from Show start with deterministic, fixed-step **Fast** replay,
 shows a brief rebuilding state when needed, and discards stale work when another
 seek arrives. Playback resumes from the rebuilt Pattern state rather than jumping
-back to the old preview position. This guarantee covers deterministic Pattern
-state; live sensor, network, and wall-clock inputs are inherently external. At
+back to the old preview position. Replay uses the selected Stage's full pixel
+count and keeps no frame cache or approximate seek mode; long or unusually heavy
+Shows remain cancellable while rebuilding. This guarantee covers deterministic
+Pattern state; live sensor, network, and wall-clock inputs are inherently external. At
 narrow window widths the Stage pane collapses so the timeline remains usable;
 the timeline keeps its own intentional horizontal scrollbar.
 
