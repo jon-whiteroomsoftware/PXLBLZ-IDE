@@ -16,20 +16,6 @@ and reference docs for current product and architecture detail.
 - Ask before editing `README.md`; it is the public entry point for the published
   v1 release and intentionally changes on a different cadence.
 
-## Writing
-
-- Lead with the conclusion or largest useful context. Make the first sentence
-  answer what the thing is before adding mechanics, history, or exceptions.
-- Structure substantial writing as successive levels of detail: whole shape,
-  high-level model, then specialized sections. Let readers stop at any depth
-  without losing the governing idea.
-- Open each major section with natural framing that explains its scope and
-  relationship to the whole. Never label the craft with phrases such as
-  "two-sentence summary" or spend words announcing the structure.
-- Apply this standard to docs, issues, comments, plans, and handoffs. Prefer
-  direct, information-dense engineering prose; cut boilerplate, repetition,
-  throat-clearing, and meta-commentary. Occasional dry humor is welcome.
-
 ## Architecture map
 
 - `src/engine/`: pure TypeScript for parsers, transforms, compilers, models,
