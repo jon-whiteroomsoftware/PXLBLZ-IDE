@@ -137,27 +137,33 @@ export function MapsRailSection({
                       />
                     ) : (
                       <li key={item.familyId} className="px-3 py-1.5 text-zinc-500">
-                        <div className="mb-1 text-[11px] text-zinc-400">{item.name}</div>
-                        <div className="flex flex-wrap gap-1" aria-label={`${item.name} coordinate views`}>
-                          {item.views.map((view) => {
-                            const active = editingMap?.kind === 'stock' && editingMap.id === view.id
-                            const label = view.view ? `${view.view[0].toUpperCase()}${view.view.slice(1)}` : view.name
-                            return (
-                              <button
-                                key={view.id}
-                                type="button"
-                                onClick={() => onOpenStockMap(view.id)}
-                                className={`rounded border px-1.5 py-0.5 text-[10px] transition-colors ${
-                                  active
-                                    ? 'border-amber-500/60 bg-amber-500/10 text-amber-300'
-                                    : 'border-zinc-700 text-zinc-500 hover:border-zinc-500 hover:text-zinc-300'
-                                }`}
-                              >
-                                {label} <span className="text-zinc-600">{view.dim}D</span>
-                              </button>
-                            )
-                          })}
-                        </div>
+                        <details>
+                          <summary className="flex cursor-pointer list-none items-center justify-between text-[11px] text-zinc-400 hover:text-zinc-200 [&::-webkit-details-marker]:hidden">
+                            <span>{item.name}</span>
+                            <span className="text-[9px] text-zinc-600">{item.views.length} views</span>
+                          </summary>
+                          <div className="mt-1 flex flex-wrap gap-1" aria-label={`${item.name} coordinate views`}>
+                            {item.views.map((view) => {
+                              const active = editingMap?.kind === 'stock' && editingMap.id === view.id
+                              const label = view.view ? `${view.view[0].toUpperCase()}${view.view.slice(1)}` : view.name
+                              return (
+                                <button
+                                  key={view.id}
+                                  type="button"
+                                  aria-label={`${item.name} ${label} ${view.dim}D`}
+                                  onClick={() => onOpenStockMap(view.id)}
+                                  className={`rounded border px-1.5 py-0.5 text-[10px] transition-colors ${
+                                    active
+                                      ? 'border-amber-500/60 bg-amber-500/10 text-amber-300'
+                                      : 'border-zinc-700 text-zinc-500 hover:border-zinc-500 hover:text-zinc-300'
+                                  }`}
+                                >
+                                  {label} <span className="text-zinc-600">{view.dim}D</span>
+                                </button>
+                              )
+                            })}
+                          </div>
+                        </details>
                       </li>
                     ))}
                   </ul>

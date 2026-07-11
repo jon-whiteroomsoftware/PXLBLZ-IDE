@@ -17,7 +17,7 @@ import {
   type MapRecord,
 } from './mapStore'
 import { useEditorStore, editorInitialState } from './editorStore'
-import { MAP_SKELETON } from '@/engine/maps'
+import { MAP_SKELETON, STOCK_MAP_SPECS } from '@/engine/maps'
 import {
   resetPersonalContentProvider,
   setPersonalContentProvider,
@@ -375,6 +375,19 @@ describe('editor map mode (#151)', () => {
     expect(push?.id).toBe(id)
     expect(push?.points).toHaveLength(35)
     expect(push?.points.every((point) => point.length === dim)).toBe(true)
+  })
+
+  it('materializes every retrofitted Strand view as an ordinary 1D stock map', () => {
+    const strands = STOCK_MAP_SPECS.filter((spec) => spec.family?.view === 'strand')
+    expect(strands.length).toBeGreaterThan(3)
+    for (const spec of strands) {
+      useMapStore.setState({ activePixelCount: 35 })
+      useMapStore.getState().openStockMap(spec.id)
+      const push = openMapForPushState(useMapStore.getState())
+      expect(push?.id).toBe(spec.id)
+      expect(push?.points).toHaveLength(35)
+      expect(push?.points.every((point) => point.length === 1)).toBe(true)
+    }
   })
 
   it('cloneStockMap creates an editable custom map copy', async () => {

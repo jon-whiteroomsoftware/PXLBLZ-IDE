@@ -26,7 +26,7 @@ import { clampPixelCount, cubeSideForCount } from './camera'
 import { centroidNormals, faceNormals } from './centroidNormals'
 import { starShellNormals } from './maps/starGeometry'
 import { tetraShellNormals } from './maps/tetraGeometry'
-import { mapCatalogueKindRank } from './mapCatalogue'
+import { coordinateViewRank, mapCatalogueKindRank } from './mapCatalogue'
 import type { MapCatalogueKind } from './maps'
 
 // The map a NormalRecipe tag resolves to its derivation: the
@@ -176,6 +176,7 @@ export function coordinateViewOptions(mapId: string | undefined, source: LayoutS
       label: VIEW_LABELS[map.family!.view],
       dim: map.dim,
     }))
+    .sort((left, right) => coordinateViewRank(left.view) - coordinateViewRank(right.view))
 }
 
 // Embedding options come from the active map: Shapes for 1D (each owns only
@@ -188,7 +189,10 @@ export function embeddingOptions(
   source: LayoutSource,
   activeMap?: MapMeta,
 ): LayoutOption[] {
-  if (activeMap?.family) return []
+  // A family-owned 3D position set needs no viewport embedding. A natural 2D
+  // Surface view may still use the existing Flat/Cylinder preview embeddings;
+  // alternate 1D family views retain the family's positions rather than shapes.
+  if (activeMap?.family && (mapDim !== 2 || activeMap.displayDim === 3)) return []
   if (mapDim === 1) {
     return source.shapes.map((s) => ({
       kind: 'shape' as const,

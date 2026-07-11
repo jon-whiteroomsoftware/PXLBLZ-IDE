@@ -48,6 +48,12 @@ const GROUPS: readonly { kind: MapCatalogueKind; label: string }[] = [
   { kind: 'custom', label: 'Custom / imported' },
 ]
 
+const VIEW_ORDER: readonly GeometryFamilyView['view'][] = ['strand', 'surface', 'spatial']
+
+export function coordinateViewRank(view: GeometryFamilyView['view'] | undefined): number {
+  return view ? VIEW_ORDER.indexOf(view) : -1
+}
+
 function matches(value: string, query: string): boolean {
   return value.toLocaleLowerCase().includes(query)
 }
@@ -114,6 +120,9 @@ export function groupMapCatalogue(
       }
     }
 
+    for (const item of items) {
+      item.views.sort((left, right) => coordinateViewRank(left.view) - coordinateViewRank(right.view))
+    }
     return { kind, label, items }
   }).filter((group) => group.items.length > 0)
 }

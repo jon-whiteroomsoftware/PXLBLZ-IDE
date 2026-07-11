@@ -10,8 +10,8 @@ export interface MapPoint {
   // the implicit index convention), `[x,y]` for 2D, `[x,y,z]` for 3D. Always
   // map-owned and the only spatial channel a Pattern can observe.
   sample: number[]
-  // Where the dot is drawn. Map-intrinsic (real geometry) when present; ABSENT
-  // for a 1D map, whose `pos` is supplied by a viewport shape embedding instead.
+  // Where the dot is drawn. Map/family-intrinsic when present; absent for an
+  // ordinary 1D map, whose `pos` is supplied by a viewport shape embedding.
   pos?: [number, number] | [number, number, number]
 }
 
@@ -53,11 +53,9 @@ export interface PixelMap {
   name: string
   builtin: boolean
   // SAMPLE arity — the coord-arg count fed to the render fn, and what the layout
-  // selector filters on (a `dim:2` map is offered to render2D patterns). For
-  // every current map this also equals how it's drawn (no map samples and draws
-  // in different dimensions any more — the cylinder's old 2D-sample/3D-draw split
-  // is now a viewport Surface); `displayDim` remains for a future map
-  // that needs it.
+  // selector filters on (a `dim:2` map is offered to render2D patterns). A family
+  // view can deliberately differ from how it is drawn: a 1D Strand sample may
+  // retain its family's 2D grid or 3D shell positions.
   dim: 1 | 2 | 3
   // How the map is DRAWN, when it differs from `dim`. Absent ⇒ same as `dim`.
   displayDim?: 1 | 2 | 3

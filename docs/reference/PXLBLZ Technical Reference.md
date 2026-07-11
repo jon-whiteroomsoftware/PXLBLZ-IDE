@@ -572,6 +572,21 @@ pixel. Each view's standalone source still bakes, opens in map mode, pushes, and
 reads back through the existing map contract. Cylinder is a wall distribution,
 not a volume generator.
 
+The shipped capability matrix is deliberately sparse:
+
+| Family | Kind | Views |
+|---|---|---|
+| Square / Wide / panel winding | Surface | Strand, Surface (natural) |
+| Cylinder wall | Surface | Strand, Surface (natural), Spatial |
+| Cube / Sphere / Star / Tetra shell | Shell | Strand, Spatial (natural) |
+| Cube / Sphere / Star / Tetra volume | Volume | Strand, Spatial (natural) |
+
+All Strand variants reuse one standalone `strand.js` sample source and pair it
+with their family's existing `positionSource`; the physical generator is not
+copied. Shell variants retain the same normal recipe at every view, while volume
+variants retain none. Ring's planar XY Path and literal Sunflower coordinates are
+not promoted into families: no topology or extra coordinate axis is inferred.
+
 - **Shapes** (`shapes.ts`, 1D): `line`, `ring`, and `pole` (a helix on a
   cylinder, drawn in 3D via `polePositions`, wrap density in `cameraStore`).
   Shared π-cell wall math in `cylinderWall.ts`. Each Shape supplies only `pos`;

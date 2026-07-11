@@ -46,8 +46,8 @@ export type NormalizeMode = 'contain' | 'fill'
 // read.) Applied at resolve time, before any embedding/surface overwrites `pos`.
 export function applyNormalizeMode(points: MapPoint[], mode: NormalizeMode): MapPoint[] {
   if (mode === 'contain' || points.length === 0) return points
-  // Stretch only the observable sample channel. A true 1D map deliberately has
-  // no intrinsic `pos`; its Shape supplies draw positions later.
+  // Stretch only the observable sample channel. An ordinary 1D map has no
+  // intrinsic `pos`; a generated family's Strand view may retain family-owned pos.
   const filled = normalizeFill(points.map((p) => p.sample))
   return points.map((p, i) => ({
     sample: filled[i],

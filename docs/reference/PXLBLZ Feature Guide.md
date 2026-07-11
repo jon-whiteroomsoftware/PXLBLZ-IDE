@@ -187,6 +187,19 @@ changes the real map coordinates the Pattern reads and the Controller receives;
 the Cylinder wall itself does not move. These are three ordinary, inspectable
 Mapper sources over one wall geometry—not a filled Cylinder volume.
 
+| Generated family | Strand | Surface | Spatial |
+|---|:---:|:---:|:---:|
+| Square, Wide 2:1, panel winding | ✓ | ✓ (natural) | — |
+| Cylinder wall | ✓ | ✓ (natural) | ✓ |
+| Cube/Sphere/Star/Tetra shell | ✓ | — | ✓ (natural) |
+| Cube/Sphere/Star/Tetra volume | ✓ | — | ✓ (natural) |
+
+Strand is deterministic wire-order progress, so a chase may look spatially
+irregular on a shell or volume while remaining honest. Surface is never guessed:
+Ring stays a planar Path, and measured Sunflower maps stay single Custom/imported
+coordinate sets. Shell and volume remain separate physical distributions even
+when both expose Spatial.
+
 Renderer selection is automatic and matches Pixelblaze firmware 3.66. Index/1D
 prefers `render`, then `render3D`, then `render2D`; 2D prefers `render2D`, then
 `render3D`, then `render`; 3D prefers `render3D`, then `render2D`, then `render`.

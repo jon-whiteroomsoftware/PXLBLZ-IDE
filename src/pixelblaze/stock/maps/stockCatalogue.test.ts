@@ -13,18 +13,29 @@ describe('stock catalogue', () => {
   it('pairs each stock id with metadata and a non-empty raw source', () => {
     expect(STOCK_MAP_SPECS.map((s) => s.id)).toEqual([
       'plane',
+      'plane-strand',
       'wide',
+      'wide-strand',
       'panel-winding',
+      'panel-winding-strand',
       'cylinder-strand',
       'cylinder-surface',
       'cylinder-spatial',
+      'cube-volume-strand',
       'cube',
+      'cube-shell-strand',
       'cube-shell',
+      'star-shell-strand',
       'star-shell',
+      'star-volume-strand',
       'star-volume',
+      'sphere-shell-strand',
       'seed-sphere-3d',
+      'sphere-volume-strand',
       'sphere-volume',
+      'tetra-shell-strand',
       'tetra-shell',
+      'tetra-volume-strand',
       'tetra-volume',
       'sunflower-pucks',
       'sunflower-pucks-2d',
@@ -50,6 +61,33 @@ describe('stock catalogue', () => {
     expect(stockMapSpec('seed-sphere-3d')?.kind).toBe('shell')
     expect(stockMapSpec('sphere-volume')?.kind).toBe('volume')
     expect(stockMapSpec('sunflower-pucks')?.kind).toBe('custom')
+  })
+
+  it('declares the supported view matrix from generator capabilities', () => {
+    const matrix = Object.fromEntries(
+      ['square-grid', 'wide-grid', 'panel-winding', 'cube-volume', 'cube-shell', 'star-shell', 'star-volume', 'sphere-shell', 'sphere-volume', 'tetra-shell', 'tetra-volume']
+        .map((familyId) => [
+          familyId,
+          STOCK_MAP_SPECS
+            .filter((spec) => spec.family?.id === familyId)
+            .map((spec) => spec.family!.view),
+        ]),
+    )
+    expect(matrix).toEqual({
+      'square-grid': ['surface', 'strand'],
+      'wide-grid': ['surface', 'strand'],
+      'panel-winding': ['surface', 'strand'],
+      'cube-volume': ['strand', 'spatial'],
+      'cube-shell': ['strand', 'spatial'],
+      'star-shell': ['strand', 'spatial'],
+      'star-volume': ['strand', 'spatial'],
+      'sphere-shell': ['strand', 'spatial'],
+      'sphere-volume': ['strand', 'spatial'],
+      'tetra-shell': ['strand', 'spatial'],
+      'tetra-volume': ['strand', 'spatial'],
+    })
+    expect(stockMapSpec('seed-ring-2d')?.family).toBeUndefined()
+    expect(stockMapSpec('sunflower-pucks')?.family).toBeUndefined()
   })
 
   it('builds live builtin maps of the declared dimensionality', () => {
@@ -179,6 +217,49 @@ describe('source regeneration', () => {
     expect(points[cols - 1].pos).not.toEqual(points[0].pos)
     expect(points[cols].pos?.[0]).toBeCloseTo(points[0].pos![0], 12)
     expect(points[cols].pos![2]!).toBeCloseTo(points[0].pos![2]!, 12)
+  })
+
+  it('keeps every retrofitted family position-stable while Strand follows wire order', () => {
+    const count = 120
+    const families = new Map<string, typeof SOURCE_STOCK_MAPS>()
+    for (const map of SOURCE_STOCK_MAPS) {
+      if (!map.family || map.family.id === 'cylinder') continue
+      families.set(map.family.id, [...(families.get(map.family.id) ?? []), map])
+    }
+
+    for (const [familyId, maps] of families) {
+      expect(maps.length, familyId).toBeGreaterThan(1)
+      const resolved = maps.map((map) => map.resolve(count))
+      for (let index = 1; index < resolved.length; index++) {
+        expect(resolved[index].map((point) => point.pos), familyId).toEqual(
+          resolved[0].map((point) => point.pos),
+        )
+      }
+      const strand = maps.find((map) => map.family?.view === 'strand')!
+      expect(strand.resolve(count).map((point) => point.sample[0]), familyId).toEqual(
+        Array.from({ length: count }, (_, index) => index / (count - 1)),
+      )
+    }
+  })
+
+  it('does not synthesize Surface views for shells or volumes', () => {
+    const spatialFamilies = STOCK_MAP_SPECS.filter((spec) => spec.kind === 'shell' || spec.kind === 'volume')
+    expect(spatialFamilies.some((spec) => spec.family?.view === 'surface')).toBe(false)
+    expect(spatialFamilies.filter((spec) => spec.kind === 'shell').every((spec) => spec.normals)).toBe(true)
+    expect(spatialFamilies.filter((spec) => spec.kind === 'volume').every((spec) => !spec.normals)).toBe(true)
+  })
+
+  it('keeps shell and volume siblings as different physical distributions', () => {
+    for (const [shellId, volumeId] of [
+      ['cube-shell', 'cube'],
+      ['star-shell', 'star-volume'],
+      ['seed-sphere-3d', 'sphere-volume'],
+      ['tetra-shell', 'tetra-volume'],
+    ]) {
+      expect(mapById(shellId).resolve(120).map((point) => point.pos)).not.toEqual(
+        mapById(volumeId).resolve(120).map((point) => point.pos),
+      )
+    }
   })
 
   it('clouds do not origin-snap on a count bump (live, not frozen)', () => {

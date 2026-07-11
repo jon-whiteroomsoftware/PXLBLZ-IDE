@@ -386,6 +386,7 @@ describe('PatternList', () => {
     await switchToMaps(user)
 
     await user.click(screen.getByText('Cube shell'))
+    await user.click(screen.getByRole('button', { name: 'Cube shell Spatial 3D' }))
 
     expect(window.location.pathname).toBe('/studio/maps/cube-shell')
     expect(useMapStore.getState().editingMap).toEqual({ kind: 'stock', id: 'cube-shell' })
@@ -402,11 +403,12 @@ describe('PatternList', () => {
       expect(screen.getByText(label)).toBeInTheDocument()
     }
     expect(screen.getAllByText('Cylinder')).toHaveLength(1)
-    expect(screen.getByRole('button', { name: /Strand 1D/ })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Surface 2D/ })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Spatial 3D/ })).toBeInTheDocument()
+    await user.click(screen.getByText('Cylinder'))
+    expect(screen.getByRole('button', { name: 'Cylinder Strand 1D' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Cylinder Surface 2D' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Cylinder Spatial 3D' })).toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: /Spatial 3D/ }))
+    await user.click(screen.getByRole('button', { name: 'Cylinder Spatial 3D' }))
     expect(window.location.pathname).toBe('/studio/maps/cylinder-spatial')
     expect(useMapStore.getState().editingMap).toEqual({ kind: 'stock', id: 'cylinder-spatial' })
   })
@@ -418,8 +420,9 @@ describe('PatternList', () => {
     await user.click(screen.getByRole('radio', { name: '1D' }))
 
     expect(screen.getByText('Cylinder')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /Surface 2D/ })).not.toBeInTheDocument()
-    expect(screen.queryByText('Cube shell')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Cylinder Surface 2D' })).not.toBeInTheDocument()
+    expect(screen.getByText('Cube shell')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Cube shell Spatial 3D' })).not.toBeInTheDocument()
   })
 
   it('shows the 1D dimension lens in Maps mode', async () => {
