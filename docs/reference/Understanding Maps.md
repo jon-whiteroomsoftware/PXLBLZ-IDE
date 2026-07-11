@@ -5,8 +5,8 @@ how they're authored, what actually reaches the device, and the behaviours worth
 knowing about around them. It assumes the platform basics from the **Pixelblaze Ecosystem Primer**;
 for how the PXLBLZ IDE handles maps, see the **PXLBLZ Feature Guide**.
 
-**The whole document in two sentences.** A pixel map records where each LED
-physically sits, decoupling a pattern's geometry from wiring order — and the map
+**The whole document in two sentences.** A pixel map records the coordinate each
+LED samples, decoupling a Pattern's domain from wiring order — and the map
 *function* is full JavaScript that runs once in your browser, with only the baked
 coordinate array ever reaching the device. The device stores one map shared by
 every pattern, normalizes whatever units you authored in into the `0..1` range
@@ -17,15 +17,16 @@ it goes silently stale or silently drops a mismatched map — all by design.
 
 ## 1. Maps — where the LEDs are
 
-A **pixel map** answers one question: *where is each LED physically located?* The
-firmware doesn't assume your LEDs are a straight line. Give it a map, and it hands
-each pixel's coordinates to `render2D`/`render3D`, so a pattern is written in real
-space rather than wiring order.
+A **pixel map** answers one question: *what coordinate should each LED sample?*
+Give firmware a map and it supplies those values to the renderer selected for
+that map, so a Pattern can operate in a virtual 1D domain or real 2D/3D space
+rather than raw wiring order.
 
 The structural facts:
 
-- **Chain index and spatial position are decoupled.** LED #50 in the wiring order
-  might sit anywhere. The map is the lookup from index → position.
+- **Chain index and sampled coordinate are decoupled.** LED #50 in the wiring
+  order may sample any `[x]`, `[x,y]`, or `[x,y,z]` value. The map is the lookup
+  from index → coordinate.
 - **`pixelCount` and the map are separate device settings.** The map function is
   *handed* `pixelCount`; it is never the authority on how many pixels exist. The
   two can disagree — something to be aware of (§5).
@@ -86,8 +87,8 @@ interpretation that 2D and 3D patterns need.
 
 The Mapper tab accepts either:
 
-- **A plain JSON array of coordinates** — one arbitrary `[x, y]` pair (2D) or
-  `[x, y, z]` triplet (3D) per pixel. A 4-pixel box is literally
+- **A plain JSON array of coordinates** — one `[x]` value (1D), arbitrary
+  `[x, y]` pair (2D), or `[x, y, z]` triplet (3D) per pixel. A 4-pixel box is literally
   `[[0,0],[100,0],[100,100],[0,100]]`. Good for hand-placed, irregular layouts,
   measured sculptures, or point clouds produced by another tool.
 - **A JavaScript `function(pixelCount)`** returning such an array — the generative
@@ -137,14 +138,25 @@ inseparable.
 ## 7. Dimensionality
 
 `pixelMapDimensions()` reports the dimensionality of the installed map, not the
-dimensionality of the physical LED build. Its return values are `0`, `2`, or `3`:
-`0` means **no map is installed**, `2` means a 2D map, and `3` means a 3D map.
+dimensionality of the physical LED build. Current firmware reports `0` for no
+installed map and `1`, `2`, or `3` for a true 1D, 2D, or 3D map. True 1D maps
+require firmware 3.66 or later.
 
-Pixelblaze chooses which render function to call based on the installed map. With
-no map installed, it calls the plain `render(index)` form; this is the conceptual
-**1D strip** case, where pixels are addressed only by wiring order. With a 2D map
-installed, it calls `render2D(index, x, y)`. With a 3D map installed, it calls
-`render3D(index, x, y, z)`.
+With no installed map, the conventional 1D coordinate is normalized wire index.
+A true 1D map can reverse, warp, or discontinuously virtualize that coordinate
+without claiming a 2D/3D embedding.
+
+Firmware 3.66+ selects from the render functions a Pattern actually defines:
+
+| Installed map | Renderer preference |
+|---|---|
+| none / 1D | `render` → `render3D` → `render2D` |
+| 2D | `render2D` → `render3D` → `render` |
+| 3D | `render3D` → `render2D` → `render` |
+
+Exact dimensionality wins. PXLBLZ supplies explicit `0.5` values for missing
+trailing coordinates in generated hardware adapters so preview does not depend
+on incidental firmware argument contents.
 
 ## Further reading
 

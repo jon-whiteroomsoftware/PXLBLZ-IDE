@@ -2,7 +2,7 @@
 
 PXLBLZ-IDE's Cloudflare Pages deployment is the production cloud workspace. It
 uses GitHub or Google OAuth for identity and Cloudflare D1 for personal
-patterns, custom maps, cloud mixins, Shows, durable Controller profiles,
+patterns, custom maps, cloud mixins, cloud libraries, Shows, durable Controller profiles,
 last-active state, demo overrides, controller push metadata, and controller map
 fingerprints. No browser-local-to-D1 migration is performed; the cloud
 workspace starts clean for each signed-in user.
@@ -54,7 +54,8 @@ automatic page views disabled and sends:
 - `catalog_clone` when a built-in pattern is cloned into the signed-in Studio
   workspace;
 - entity-creation events when durable rows are created:
-  `pattern_created`, `map_created`, `mixin_created`, `show_created`, and
+  `pattern_created`, `map_created`, `mixin_created`, `library_created`,
+  `show_created`, and
   `controller_profile_created`;
 - `sign_in` when the app sends the user into the OAuth flow.
 
@@ -70,7 +71,7 @@ build-time GA snippet. This avoids double-counted page views and keeps
 Use D1 for current-state aggregate checks that do not fit GA's event model:
 
 ```bash
-npx wrangler d1 execute pxlblz-ide --remote --command "SELECT 'patterns' AS entity, COUNT(*) AS total, COUNT(DISTINCT user_id) AS users_with_any FROM personal_patterns UNION ALL SELECT 'maps', COUNT(*), COUNT(DISTINCT user_id) FROM personal_maps UNION ALL SELECT 'mixins', COUNT(*), COUNT(DISTINCT user_id) FROM personal_mixins UNION ALL SELECT 'shows', COUNT(*), COUNT(DISTINCT user_id) FROM personal_shows UNION ALL SELECT 'controller_profiles', COUNT(*), COUNT(DISTINCT user_id) FROM controller_profiles;"
+npx wrangler d1 execute pxlblz-ide --remote --command "SELECT 'patterns' AS entity, COUNT(*) AS total, COUNT(DISTINCT user_id) AS users_with_any FROM personal_patterns UNION ALL SELECT 'maps', COUNT(*), COUNT(DISTINCT user_id) FROM personal_maps UNION ALL SELECT 'mixins', COUNT(*), COUNT(DISTINCT user_id) FROM personal_mixins UNION ALL SELECT 'libraries', COUNT(*), COUNT(DISTINCT user_id) FROM personal_libraries UNION ALL SELECT 'shows', COUNT(*), COUNT(DISTINCT user_id) FROM personal_shows UNION ALL SELECT 'controller_profiles', COUNT(*), COUNT(DISTINCT user_id) FROM controller_profiles;"
 npx wrangler d1 execute pxlblz-ide --remote --command "SELECT COUNT(*) AS total_users FROM users;"
 npx wrangler d1 execute pxlblz-ide --remote --command "SELECT COUNT(DISTINCT user_id) AS users_with_controller_profiles FROM controller_profiles;"
 ```
@@ -112,7 +113,7 @@ OAuth/provider configuration.
 
 After deploy, open the Pages URL and smoke-test:
 
-1. Visit `/api/d1/health`; expect `{"ok":true,"schemaVersion":"10"}` or the
+1. Visit `/api/d1/health`; expect `{"ok":true,"schemaVersion":"13"}` or the
    latest migration number in `migrations/`.
 2. Visit `/api/me`; signed out should report `{ "authenticated": false }`.
 3. Click **Sign in**, complete GitHub OAuth, and confirm `/api/me` reports the
@@ -126,12 +127,13 @@ After deploy, open the Pages URL and smoke-test:
 7. Create, edit, reload, and delete a personal pattern.
 8. Create, edit, reload, and delete a custom map.
 9. Create, edit, reload, and delete a cloud mixin.
-10. Create, edit, reload, and delete a Show.
-11. Connect a Controller when hardware is available and confirm a stable-id
+10. Create, edit, reload, rename, and delete a cloud library.
+11. Create, edit, reload, and delete a Show.
+12. Connect a Controller when hardware is available and confirm a stable-id
    connection creates or refreshes a Controller profile.
-12. Select a personal pattern, reload, and confirm last-active restore.
-13. Change a demo preview control, reload, and confirm the override survives.
-14. Push or fake controller metadata when hardware is available, then confirm
+13. Select a personal pattern, reload, and confirm last-active restore.
+14. Change a demo preview control, reload, and confirm the override survives.
+15. Push or fake controller metadata when hardware is available, then confirm
    `/api/controller-metadata/controller-bindings` and
    `/api/controller-metadata/controller-program-labels` retain values for the
    signed-in session.
@@ -149,6 +151,7 @@ npx wrangler d1 execute pxlblz-ide --remote --command "SELECT provider, provider
 npx wrangler d1 execute pxlblz-ide --remote --command "SELECT user_id, id, name, updated_at FROM personal_patterns ORDER BY updated_at DESC LIMIT 20;"
 npx wrangler d1 execute pxlblz-ide --remote --command "SELECT user_id, id, name, updated_at FROM personal_maps ORDER BY updated_at DESC LIMIT 20;"
 npx wrangler d1 execute pxlblz-ide --remote --command "SELECT user_id, id, name, kind, updated_at FROM personal_mixins ORDER BY updated_at DESC LIMIT 20;"
+npx wrangler d1 execute pxlblz-ide --remote --command "SELECT user_id, id, name, updated_at FROM personal_libraries ORDER BY updated_at DESC LIMIT 20;"
 npx wrangler d1 execute pxlblz-ide --remote --command "SELECT user_id, id, name, updated_at FROM personal_shows ORDER BY updated_at DESC LIMIT 20;"
 npx wrangler d1 execute pxlblz-ide --remote --command "SELECT user_id, id, name, device_id, last_seen_ip, updated_at FROM controller_profiles ORDER BY updated_at DESC LIMIT 20;"
 npx wrangler d1 execute pxlblz-ide --remote --command "SELECT user_id, key, updated_at FROM personal_settings;"

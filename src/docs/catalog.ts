@@ -47,7 +47,7 @@ export const USER_DOCS: UserDoc[] = [
     title: 'PXLBLZ Feature Guide',
     menuLabel: 'Feature Guide',
     menuKicker: 'Using PXLBLZ',
-    summary: 'The screen, preview, editor, controls, maps, and Controller flow.',
+    summary: 'Gallery, Studio authoring, preview, maps, Controllers, and Shows.',
     source: featureGuide,
     assets: sharedAssets,
   },

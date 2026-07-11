@@ -26,8 +26,8 @@
 
   <g font-size="11" fill="#2b3036">
     <rect x="56" y="172" width="186" height="40" rx="4" fill="#f5f7f9" stroke="#aab3bd"/>
-    <text x="68" y="190">bundle · validate</text>
-    <text x="68" y="204" font-size="10" fill="#6b7480">Acorn AST</text>
+    <text x="68" y="190">bundle · passEngine</text>
+    <text x="68" y="204" font-size="10" fill="#6b7480">Acorn AST · artifacts</text>
 
     <rect x="256" y="172" width="186" height="40" rx="4" fill="#f5f7f9" stroke="#aab3bd"/>
     <text x="268" y="190">fixedpoint · fxEmit · shim</text>
@@ -38,16 +38,16 @@
     <text x="468" y="204" font-size="10" fill="#6b7480">sample / pos split</text>
 
     <rect x="56" y="226" width="186" height="40" rx="4" fill="#f5f7f9" stroke="#aab3bd"/>
-    <text x="68" y="244">renderLoop</text>
-    <text x="68" y="258" font-size="10" fill="#6b7480">rAF, dispatch by arity</text>
+    <text x="68" y="244">renderLoop · showCompiler</text>
+    <text x="68" y="258" font-size="10" fill="#6b7480">frames · composition</text>
 
     <rect x="256" y="226" width="186" height="40" rx="4" fill="#f5f7f9" stroke="#aab3bd"/>
-    <text x="268" y="244">storage</text>
-    <text x="268" y="258" font-size="10" fill="#6b7480">patterns · maps · settings</text>
+    <text x="268" y="244">models · personal content</text>
+    <text x="268" y="258" font-size="10" fill="#6b7480">six Studio entity kinds</text>
 
     <rect x="456" y="226" width="208" height="40" rx="4" fill="#f5f7f9" stroke="#aab3bd"/>
     <text x="468" y="244">ControllerProvider</text>
-    <text x="468" y="258" font-size="10" fill="#6b7480">the transport seam</text>
+    <text x="468" y="258" font-size="10" fill="#6b7480">protocol + transport seam</text>
   </g>
 
   <!-- outputs -->
@@ -61,7 +61,7 @@
 
   <rect x="264" y="332" width="170" height="48" rx="6" fill="#f5f7f9" stroke="#2b3036"/>
   <text x="280" y="352" font-size="12" font-weight="bold" fill="#2b3036">D1 + API</text>
-  <text x="280" y="368" font-size="10" fill="#6b7480">signed-in workspace</text>
+  <text x="280" y="368" font-size="10" fill="#6b7480">all personal entities</text>
 
   <rect x="464" y="332" width="200" height="48" rx="6" fill="#f5f7f9" stroke="#2b3036"/>
   <text x="480" y="352" font-size="12" font-weight="bold" fill="#2b3036">extension relay</text>
@@ -73,5 +73,5 @@
   <text x="436" y="394" font-size="10" fill="#6b7480" letter-spacing="2">WIFI</text>
 
   <rect x="464" y="424" width="200" height="36" rx="6" fill="#eef2f6" stroke="#2b3036"/>
-  <text x="480" y="447" font-size="12" font-weight="bold" fill="#2b3036">Pixelblaze — ws://&#60;ip&#62;:81</text>
+  <text x="480" y="447" font-size="10.5" font-weight="bold" fill="#2b3036">Pixelblaze — ws://&#60;ip&#62;:81</text>
 </svg>

@@ -49,7 +49,7 @@ consequences dominate everything below:
 > **Fixed-point, not float.** On hardware *everything* is 16.16 fixed-point —
 > there is no float mode on the device. The preview's Fast renderer is a dev-loop
 > convenience and does not reflect device cost; do final checks in Precise. See
-> the Technical Reference §2/§5.
+> the Technical Reference §8.
 
 ## 2. Whole-frame model
 
@@ -522,7 +522,7 @@ the whole story.
 
 - [`test/perf-harness/costs.md`](../../test/perf-harness/costs.md) — the measured
   cost table (source of record); regenerate with `npm run profile`.
-- `docs/reference/PXLBLZ Technical Reference.md` §2/§5 (fidelity & the
-  fixed-point engine), §11 (the porting toolkit), §17 (main-thread execution).
+- `docs/reference/PXLBLZ Technical Reference.md` §5/§8 (the shader-porting
+  contract and fixed-point preview), §28 (main-thread execution).
 - `test/perf-harness/` — the emulator bench, drift tool, hardware profiler, and
   hardware FPS bench.
