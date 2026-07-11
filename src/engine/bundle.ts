@@ -145,6 +145,11 @@ function extractMetadata(ast: unknown): BundleMetadata {
   return { exportedVars, patternVars, controls, renderFns }
 }
 
+/** Metadata-only inspection; does not resolve libraries or execute Pattern source. */
+export function inspectPatternMetadata(patternSrc: string): BundleMetadata {
+  return extractMetadata(parseModule(patternSrc))
+}
+
 // A picker function maps its parameters to top-level vars via simple
 // `someVar = param` assignments, e.g. `rgbPickerA(r,g,b){ ar=r; ag=g; ab=b }`.
 // Recover the backing var for each parameter (in param order) so the UI can

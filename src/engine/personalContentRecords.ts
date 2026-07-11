@@ -85,6 +85,13 @@ export interface ShowPropertyTransition {
   easing?: ShowTransitionEasing
 }
 
+export interface ShowPropertyTransitions {
+  timeScale?: ShowPropertyTransition
+  brightness?: ShowPropertyTransition
+  /** Public Pixelblaze slider export name -> the same shared transition descriptor. */
+  controls?: Record<string, ShowPropertyTransition>
+}
+
 export interface ShowPortalSettings {
   centerX: number
   centerY: number
@@ -151,7 +158,7 @@ export interface ShowBoundaryTransition {
   invert?: boolean
   featherPolicy?: ShowPortalFeatherPolicy
   /** Boundary-owned interpolation settings keyed by the destination cell. */
-  propertyTransitions?: Partial<Record<ShowAutomatableProperty, ShowPropertyTransition>>
+  propertyTransitions?: ShowPropertyTransitions
 }
 
 export interface ShowCellAdaptations {
@@ -192,6 +199,8 @@ export interface ShowCell {
   adaptations: ShowCellAdaptations
   /** Start this destination with a fresh Pattern instance instead of continuing matching state. */
   restartOnEntry?: boolean
+  /** Scene-owned 0..1 targets for public slider control functions. */
+  controlTargets?: Record<string, number>
 }
 
 export interface ShowRecord {

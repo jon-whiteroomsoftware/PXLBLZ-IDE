@@ -1115,6 +1115,24 @@ adaptation scalar before rendering. Different time and brightness durations or
 easing functions produce independent clamped progress values on one continued
 member. The compile summary remains `transitionCost: parameter`,
 `parameter-ramp-one-renderer-per-pixel`, and one worst-instant renderer per pixel.
+Pattern-control automation reuses the descriptor under
+`propertyTransitions.controls[exportName]`, while each cell stores its `0..1`
+target in `controlTargets`. Metadata-only source inspection accepts only exported
+functions classified by `bundle.ts` as `kind: slider`; toggles, pickers, plain
+exported variables, and non-exported locals are not accepted. The UI reports the
+humanized label, fixed slider domain, and saved Pattern control value or the
+existing Studio fallback `0.5` as its default.
+
+During member compilation, every requested control is validated against that
+member's slider metadata and resolved through the same top-level alpha-renaming
+map as Pattern code. Each bound member gets one generated control-value variable;
+its private `_advance(delta)` calls the alpha-renamed public slider exactly once
+before the Pattern's rewritten `beforeRender`. Hold segments assign scene targets
+and transition segments assign independently eased curve values before advance.
+Continue scenes reuse that member and its slider state; Restart scenes compile a
+separate member/value slot. A missing, renamed, or non-slider target throws a
+clip/control-specific compile error. Per-pixel rendering remains unchanged and
+the compile summary retains parameter cost and one renderer per pixel.
 `ShowCompileSummary.clockPolicy` distinguishes `real-time`, `scaled`,
 `scaled-ramp`, `exact-pause`, and `exact-pause-ramp` while render policy and
 `worstInstantRenderersPerPixel` continue to report the unchanged renderer cost.

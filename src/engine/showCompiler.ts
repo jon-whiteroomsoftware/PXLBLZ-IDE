@@ -17,6 +17,7 @@ export interface ShowClipRecipe {
   zones?: string[]
   zoneMode?: 'independent' | 'span' | 'repeat'
   adaptation?: Partial<ShowClipAdaptation>
+  controlTargets?: Record<string, number>
 }
 
 export interface ShowCrossfadeRecipe {
@@ -56,6 +57,7 @@ export interface ShowAdaptationRampRecipe {
   to: Partial<ShowClipAdaptation>
   easing?: ShowTransitionEasing
   propertyRamps?: Partial<Record<'timeScale' | 'brightness', ShowAdaptationPropertyRampRecipe>>
+  controlRamps?: Record<string, ShowAdaptationPropertyRampRecipe>
 }
 
 export interface ShowAdaptationPropertyRampRecipe {
@@ -86,6 +88,7 @@ export interface ShowSceneSequenceTransitionRecipe {
   featherPolicy?: 'dither' | 'blend'
   easing?: ShowTransitionEasing
   propertyRamps?: Partial<Record<'timeScale' | 'brightness', ShowAdaptationPropertyRampRecipe>>
+  controlRamps?: Record<string, ShowAdaptationPropertyRampRecipe>
 }
 
 export interface ShowSceneSequenceSceneRecipe {
@@ -93,6 +96,7 @@ export interface ShowSceneSequenceSceneRecipe {
   holdMs: number
   timeScale?: number
   brightness?: number
+  controlTargets?: Record<string, number>
   transitionOut?: ShowSceneSequenceTransitionRecipe
 }
 
@@ -220,6 +224,7 @@ interface CompiledMember {
   elapsedName: string
   pixelCountName: string
   adaptation: ShowClipAdaptation
+  controls: Array<{ exportName: string; functionName: string; valueName: string; initialValue: number }>
 }
 
 interface ResolvedRoute {
@@ -526,6 +531,20 @@ function compileMember(
   const renamedPatternVars = bundled.metadata.patternVars
     .map(name => mapping.get(name))
     .filter((name): name is string => Boolean(name))
+  const sliderNames = new Set(bundled.metadata.controls.filter((control) => control.kind === 'slider').map((control) => control.exportName))
+  const controls = Object.entries(clip.controlTargets ?? {}).map(([exportName, initialValue]) => {
+    if (!sliderNames.has(exportName)) {
+      throw new Error(`Clip "${clip.id}" cannot automate "${exportName}": public slider control not found.`)
+    }
+    const functionName = mapping.get(exportName)
+    if (!functionName) throw new Error(`Clip "${clip.id}" cannot bind renamed slider "${exportName}".`)
+    return {
+      exportName,
+      functionName,
+      valueName: `${prefix}_control_${exportName}`,
+      initialValue: clampNumber(initialValue, 0, 1),
+    }
+  })
 
   return {
     id: clip.id,
@@ -543,6 +562,7 @@ function compileMember(
     elapsedName: `${prefix}_elapsed_ms`,
     pixelCountName: `${prefix}_pixelCount`,
     adaptation: normalizeAdaptation(clip.adaptation),
+    controls,
   }
 }
 
@@ -607,6 +627,7 @@ function emitAdaptationRampShowCode(member: CompiledMember, ramp: ShowAdaptation
   const to = normalizeAdaptation(ramp.to)
   const transitionEnd = ramp.startMs + ramp.durationMs
   const propertyAssignments = emitPropertyRampAssignments(member, ramp.propertyRamps, `__pxlblz_show_elapsed_ms - ${ramp.startMs}`)
+  const controlAssignments = emitControlRampAssignments(member, ramp.controlRamps, `__pxlblz_show_elapsed_ms - ${ramp.startMs}`)
   return [
     emitRuntimePrelude([member]),
     member.code.trim(),
@@ -619,7 +640,7 @@ function emitAdaptationRampShowCode(member: CompiledMember, ramp: ShowAdaptation
   } else {
     __pxlblz_show_mix = 1
   }
-  ${member.prefix}_mixAdaptation(${from.brightness}, ${from.phase}, ${from.timeScale}, ${boolNumber(from.mirror)}, ${to.brightness}, ${to.phase}, ${to.timeScale}, ${boolNumber(to.mirror)}, __pxlblz_show_mix)${propertyAssignments ? `\n${indentBlock(propertyAssignments, 2)}` : ''}
+  ${member.prefix}_mixAdaptation(${from.brightness}, ${from.phase}, ${from.timeScale}, ${boolNumber(from.mirror)}, ${to.brightness}, ${to.phase}, ${to.timeScale}, ${boolNumber(to.mirror)}, __pxlblz_show_mix)${propertyAssignments ? `\n${indentBlock(propertyAssignments, 2)}` : ''}${controlAssignments ? `\n${indentBlock(controlAssignments, 2)}` : ''}
   ${member.prefix}_advance(delta)
 }`,
     `export function render(index) {
@@ -628,6 +649,21 @@ function emitAdaptationRampShowCode(member: CompiledMember, ramp: ShowAdaptation
 }`,
     '',
   ].join('\n\n')
+}
+
+function emitControlRampAssignments(
+  member: CompiledMember,
+  ramps: Record<string, ShowAdaptationPropertyRampRecipe> | undefined,
+  elapsedExpression: string,
+): string {
+  if (!ramps) return ''
+  return Object.entries(ramps).map(([exportName, ramp]) => {
+    const control = member.controls.find((candidate) => candidate.exportName === exportName)
+    if (!control) throw new Error(`Clip "${member.id}" cannot animate "${exportName}": public slider control not found.`)
+    const progress = `clamp((${elapsedExpression}) / ${ramp.durationMs}, 0, 1)`
+    const mix = emitShowEasingExpression(ramp.easing, progress)
+    return `${control.valueName} = ${ramp.from} * (1 - ${mix}) + ${ramp.to} * ${mix}`
+  }).join('\n')
 }
 
 function emitPropertyRampAssignments(
@@ -758,7 +794,7 @@ function emitSceneSequenceShowCode(
       return `${condition} {
     __pxlblz_show_scene = ${segment.sceneIndex}
     __pxlblz_show_transition = -1
-    __pxlblz_show_mix = 0${scenes[segment.sceneIndex].brightness === undefined
+    __pxlblz_show_mix = 0${emitSceneControlTargets(segment.from, scenes[segment.sceneIndex].controlTargets)}${scenes[segment.sceneIndex].brightness === undefined
       ? ''
       : `\n    ${segment.from.prefix}_adapt_brightness = ${scenes[segment.sceneIndex].brightness}`}${scenes[segment.sceneIndex].timeScale === undefined
         ? ''
@@ -773,7 +809,9 @@ function emitSceneSequenceShowCode(
     __pxlblz_show_transition = ${segment.sceneIndex}
     __pxlblz_show_mix = ${emitShowEasingExpression(segment.transition!.easing ?? 'linear', `(__pxlblz_show_elapsed_ms - ${segment.startMs}) / ${segment.transition!.durationMs}`)}${segment.transition!.propertyRamps
       ? `\n${indentBlock(emitPropertyRampAssignments(segment.from, segment.transition!.propertyRamps, `__pxlblz_show_elapsed_ms - ${segment.startMs}`), 4)}`
-      : ''}
+      : ''}${segment.transition!.controlRamps
+        ? `\n${indentBlock(emitControlRampAssignments(segment.from, segment.transition!.controlRamps, `__pxlblz_show_elapsed_ms - ${segment.startMs}`), 4)}`
+        : ''}
     ${segment.from.prefix}_advance(delta)${advanceTo}
   }`
   }).join(' ')
@@ -806,6 +844,15 @@ ${indentBlock(emitSceneSequenceTransitionBlock(segment.from, segment.to!, segmen
 }`,
     '',
   ].join('\n\n')
+}
+
+function emitSceneControlTargets(member: CompiledMember, targets: Record<string, number> | undefined): string {
+  if (!targets) return ''
+  return Object.entries(targets).map(([exportName, value]) => {
+    const control = member.controls.find((candidate) => candidate.exportName === exportName)
+    if (!control) throw new Error(`Clip "${member.id}" cannot set "${exportName}": public slider control not found.`)
+    return `\n    ${control.valueName} = ${clampNumber(value, 0, 1)}`
+  }).join('')
 }
 
 function emitSceneSequenceTransitionBlock(
@@ -1286,8 +1333,9 @@ function emitRuntimePrelude(members: CompiledMember[]): string {
       : `${indent}var scaledDelta = ${delta} * ${member.prefix}_adapt_timeScale
 ${indent}${member.elapsedName} = ${member.elapsedName} + scaledDelta
 ${indent}${member.hasBeforeRender ? `${member.beforeRenderName}(scaledDelta)` : ''}`
+    const controlCalls = member.controls.map((control) => `  ${control.functionName}(${control.valueName})`).join('\n')
     const advance = lightShutter?.clockBehavior === 'freeze'
-      ? `function ${member.prefix}_advance(delta) {
+      ? `function ${member.prefix}_advance(delta) {${controlCalls ? `\n${controlCalls}` : ''}
   ${member.prefix}_updateShutter()
   var activeDelta = ${member.prefix}_shutterActiveMs(__pxlblz_show_elapsed_ms - delta, __pxlblz_show_elapsed_ms)
   if (activeDelta > 0) {
@@ -1295,11 +1343,11 @@ ${advanceDelta('activeDelta', '    ')}
   }
 }`
       : lightShutter
-        ? `function ${member.prefix}_advance(delta) {
+        ? `function ${member.prefix}_advance(delta) {${controlCalls ? `\n${controlCalls}` : ''}
   ${member.prefix}_updateShutter()
 ${advanceDelta('delta', '  ')}
 }`
-        : `function ${member.prefix}_advance(delta) {
+        : `function ${member.prefix}_advance(delta) {${controlCalls ? `\n${controlCalls}` : ''}
 ${advanceDelta('delta', '  ')}
 }`
     return [
@@ -1309,6 +1357,7 @@ ${advanceDelta('delta', '  ')}
     `var ${member.prefix}_adapt_phase = ${member.adaptation.phase}`,
     `var ${member.prefix}_adapt_timeScale = ${member.adaptation.timeScale}`,
     `var ${member.prefix}_adapt_mirror = ${boolNumber(member.adaptation.mirror)}`,
+    ...member.controls.map((control) => `var ${control.valueName} = ${control.initialValue}`),
     `var ${member.prefix}_r = 0`,
     `var ${member.prefix}_g = 0`,
     `var ${member.prefix}_b = 0`,
@@ -1523,6 +1572,7 @@ function buildMetadata(members: CompiledMember[], outputDimension: 1 | 2): Bundl
       `${member.prefix}_adapt_phase`,
       `${member.prefix}_adapt_timeScale`,
       `${member.prefix}_adapt_mirror`,
+      ...member.controls.map((control) => control.valueName),
       ...(member.adaptation.lightShutter
         ? [
             `${member.prefix}_shutter_rate_hz`,

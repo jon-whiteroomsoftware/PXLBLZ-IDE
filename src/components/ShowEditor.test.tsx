@@ -229,6 +229,44 @@ describe('ShowEditor (#318)', () => {
     expect(screen.getByText('100%→25%')).toBeInTheDocument()
   })
 
+  it('authors a public Pattern slider with the shared target, lane, and boundary vocabulary (#419)', async () => {
+    const user = userEvent.setup()
+    let show = createDefaultShow('show-419', 'Pattern control', 1000)
+    for (const cell of show.cells) {
+      show = updateShowCellPattern(show, cell.id, {
+        pattern: { kind: 'stock', id: 'RibbonLoom' },
+        patternName: 'Ribbon Loom',
+      })
+    }
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    render(<ShowEditor showId={show.id} />)
+
+    await user.click(screen.getAllByRole('button', { name: 'Select Ribbon Loom' })[0])
+    expect(screen.getByText('sliderSpeed · 0–1 · Studio default 0.5')).toBeInTheDocument()
+    await user.click(screen.getByLabelText('Set Speed target'))
+    fireEvent.change(screen.getByLabelText('Speed target'), { target: { value: '0.2' } })
+
+    await user.click(screen.getAllByRole('button', { name: 'Select Ribbon Loom' })[1])
+    await user.click(screen.getByLabelText('Set Speed target'))
+    fireEvent.change(screen.getByLabelText('Speed target'), { target: { value: '0.8' } })
+
+    await user.click(screen.getByRole('button', { name: 'Edit Speed transition from Scene 1 for main' }))
+    await user.click(screen.getByLabelText('Animate Speed for main'))
+    await user.selectOptions(screen.getByLabelText('Speed easing'), 'ease-in-out')
+
+    await waitFor(() => {
+      const saved = useShowStore.getState().shows[0]
+      expect(saved.cells.map((cell) => cell.controlTargets?.sliderSpeed)).toEqual([0.2, 0.8])
+      expect(saved.transitions?.[0].propertyTransitions?.controls?.sliderSpeed).toMatchObject({
+        fromByCellId: { 'cell-2': 0.2 },
+        easing: 'ease-in-out',
+      })
+    })
+    expect(screen.getByRole('group', { name: 'Speed control lane for main' })).toBeInTheDocument()
+    expect(screen.getByText('0.2→0.8')).toBeInTheDocument()
+  })
+
   it('projects Time values across every row covered by a spanning cell (#417)', () => {
     let show = addShowZone(createDefaultShow('show-417-span', 'Spanning time', 1000), {
       name: 'edge',

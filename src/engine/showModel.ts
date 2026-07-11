@@ -526,6 +526,25 @@ export function updateShowCellAdaptations(
   }
 }
 
+export function updateShowCellControlTarget(
+  show: ShowRecord,
+  cellId: string,
+  exportName: string,
+  value: number | undefined,
+): ShowRecord {
+  return {
+    ...show,
+    cells: show.cells.map((cell) => {
+      if (cell.id !== cellId) return cell
+      const controlTargets = { ...(cell.controlTargets ?? {}) }
+      if (value === undefined) delete controlTargets[exportName]
+      else controlTargets[exportName] = clamp01(value)
+      return { ...cell, ...(Object.keys(controlTargets).length > 0 ? { controlTargets } : { controlTargets: undefined }) }
+    }),
+    updatedAt: Date.now(),
+  }
+}
+
 export function updateShowCellRestartOnEntry(
   show: ShowRecord,
   cellId: string,
@@ -802,7 +821,21 @@ function normalizePropertyTransitions(transition: ShowBoundaryTransition): Pick<
   }
   const timeScale = normalizeProperty('timeScale', clampTimeScale)
   const brightness = normalizeProperty('brightness', clamp01)
-  return timeScale || brightness ? { propertyTransitions: { ...(timeScale ? { timeScale } : {}), ...(brightness ? { brightness } : {}) } } : {}
+  const controls = Object.fromEntries(Object.entries(transition.propertyTransitions?.controls ?? {}).map(([exportName, source]) => {
+    const normalized = {
+      fromByCellId: Object.fromEntries(Object.entries(source.fromByCellId ?? {}).map(([cellId, value]) => [cellId, clamp01(value)])),
+      durationMs: Math.min(clampPropertyDuration(source.durationMs ?? transition.durationMs), clampDuration(transition.durationMs)),
+      easing: normalizeEasing(source.easing ?? transition.easing),
+    }
+    return [exportName, normalized]
+  }))
+  return timeScale || brightness || Object.keys(controls).length > 0
+    ? { propertyTransitions: { ...(timeScale ? { timeScale } : {}), ...(brightness ? { brightness } : {}), ...(Object.keys(controls).length > 0 ? { controls } : {}) } }
+    : {}
+}
+
+function normalizeEasing(easing: ShowBoundaryTransition['easing'] | undefined): ShowBoundaryTransition['easing'] {
+  return easing === 'ease-in' || easing === 'ease-out' || easing === 'ease-in-out' ? easing : 'linear'
 }
 
 function clampTimeScale(value: number): number {
@@ -1025,7 +1058,7 @@ export function showRecordToCompileRecipe(
 
   if (cells[0].sceneSpan > 1 || cells.length === 1) {
     return {
-      clips: [{ id: cells[0].id, source: source0, adaptation: compilerAdaptation(cells[0].adaptations) }],
+      clips: [{ id: cells[0].id, source: source0, adaptation: compilerAdaptation(cells[0].adaptations), controlTargets: cells[0].controlTargets }],
       zones: lookup.controllerZones ?? nominalZones(show.zones),
     }
   }
@@ -1056,8 +1089,23 @@ export function showRecordToCompileRecipe(
           }]]
         }))
       : undefined
+    const controlRamps = boundary?.propertyTransitions?.controls
+      ? Object.fromEntries(Object.entries(boundary.propertyTransitions.controls).map(([exportName, descriptor]) => {
+          const from = cells[0].controlTargets?.[exportName]
+          const to = cells[1].controlTargets?.[exportName]
+          if (from === undefined || to === undefined) {
+            throw new Error(`Show control "${exportName}" needs targets in both adjacent scenes.`)
+          }
+          return [exportName, {
+            from: descriptor.fromByCellId[cells[1].id] ?? from,
+            to,
+            durationMs: descriptor.durationMs ?? boundary.durationMs,
+            easing: descriptor.easing ?? 'linear',
+          }]
+        }))
+      : undefined
     return {
-      clips: [{ id: cells[0].id, source: source0, adaptation: compilerAdaptation(cells[0].adaptations) }],
+      clips: [{ id: cells[0].id, source: source0, adaptation: compilerAdaptation(cells[0].adaptations), controlTargets: cells[0].controlTargets }],
       adaptationRamp: {
         startMs: show.scenes[0].durationMs,
         durationMs: transition.durationMs,
@@ -1068,14 +1116,15 @@ export function showRecordToCompileRecipe(
         to: compilerAdaptation(cells[1].adaptations),
         easing: boundary?.easing ?? 'linear',
         ...(propertyRamps && Object.keys(propertyRamps).length > 0 ? { propertyRamps } : {}),
+        ...(controlRamps && Object.keys(controlRamps).length > 0 ? { controlRamps } : {}),
       },
       zones: lookup.controllerZones ?? nominalZones(show.zones),
     }
   }
 
   const clips = [
-    { id: cells[0].id, source: source0, adaptation: compilerAdaptation(cells[0].adaptations) },
-    { id: cells[1].id, source: source1, adaptation: compilerAdaptation(cells[1].adaptations) },
+    { id: cells[0].id, source: source0, adaptation: compilerAdaptation(cells[0].adaptations), controlTargets: cells[0].controlTargets },
+    { id: cells[1].id, source: source1, adaptation: compilerAdaptation(cells[1].adaptations), controlTargets: cells[1].controlTargets },
   ]
   return {
     clips,
@@ -1150,6 +1199,7 @@ function showRecordToSceneSequenceRecipe(
       clipIdByCellId.set(cell.id, existing.id)
     } else {
       const clip = { id: cell.id, source, adaptation }
+      Object.assign(clip, { controlTargets: cell.controlTargets })
       clipByKey.set(key, clip)
       clipIdByCellId.set(cell.id, clip.id)
     }
@@ -1177,15 +1227,32 @@ function showRecordToSceneSequenceRecipe(
               }]]
             }))
           : undefined
+        const controlRamps = nextCell && boundary?.propertyTransitions?.controls
+          ? Object.fromEntries(Object.entries(boundary.propertyTransitions.controls).map(([exportName, descriptor]) => {
+              const from = cell.controlTargets?.[exportName]
+              const to = nextCell.controlTargets?.[exportName]
+              if (from === undefined || to === undefined) {
+                throw new Error(`Show control "${exportName}" needs targets in both adjacent scenes.`)
+              }
+              return [exportName, {
+                from: descriptor.fromByCellId[nextCell.id] ?? from,
+                to,
+                durationMs: descriptor.durationMs ?? boundary.durationMs,
+                easing: descriptor.easing ?? 'linear',
+              }]
+            }))
+          : undefined
         return {
           clipId: clipIdByCellId.get(cell.id)!,
           holdMs: scene.durationMs,
           ...(hasPropertyTransitions ? { timeScale: cell.adaptations.timeScale, brightness: cell.adaptations.brightness } : {}),
+          ...(cell.controlTargets ? { controlTargets: { ...cell.controlTargets } } : {}),
           ...(transition
             ? {
                 transitionOut: {
                   ...compilerSequenceTransition(transition),
                   ...(propertyRamps && Object.keys(propertyRamps).length > 0 ? { propertyRamps } : {}),
+                  ...(controlRamps && Object.keys(controlRamps).length > 0 ? { controlRamps } : {}),
                 },
               }
             : {}),
@@ -1264,6 +1331,7 @@ function showRecordToRoutedFirstSceneRecipe(
             }
           : { zone: zone.name }),
         adaptation: compilerAdaptation(cell.adaptations),
+        controlTargets: cell.controlTargets,
       }
     }),
     zones: lookup.controllerZones ?? nominalZones(show.zones),
@@ -1529,6 +1597,7 @@ function copyCellForScene(
         ? { steppedClock: { ...source.adaptations.steppedClock } }
         : {}),
     },
+    ...(source.controlTargets ? { controlTargets: { ...source.controlTargets } } : {}),
     restartOnEntry: false,
   }
 }

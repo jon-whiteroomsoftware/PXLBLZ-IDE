@@ -22,7 +22,8 @@ import {
   projectShowTimeline,
   transitionCost,
 } from '@/engine/showModel'
-import { compileShowForPreview, type CompiledShowState } from '@/engine/showPreviewArtifact'
+import { compileShowForPreview, sourceForShowCell, type CompiledShowState } from '@/engine/showPreviewArtifact'
+import { discoverAutomatablePatternControls, type AutomatablePatternControl } from '@/engine/showPatternControls'
 import { buildShowEpeExport, type ShowEpeExport } from '@/engine/showEpeExport'
 import { buildPreviewJpeg } from '@/engine/previewThumbnailJpeg'
 import { bytesToBase64 } from '@/engine/RelayWebSocket'
@@ -76,6 +77,7 @@ export function ShowEditor({ showId }: { showId: string }) {
   const removeBoundaryTransition = useShowStore((state) => state.removeBoundaryTransition)
   const updateCellAdaptations = useShowStore((state) => state.updateCellAdaptations)
   const updateCellPattern = useShowStore((state) => state.updateCellPattern)
+  const updateCellControlTarget = useShowStore((state) => state.updateCellControlTarget)
   const updateCellRestartOnEntry = useShowStore((state) => state.updateCellRestartOnEntry)
   const extendCell = useShowStore((state) => state.extendCell)
   const spanCellZones = useShowStore((state) => state.spanCellZones)
@@ -114,6 +116,16 @@ export function ShowEditor({ showId }: { showId: string }) {
       : { artifact: null, error: null },
     [activeShow, stageDimension, userPatterns, targetProfile?.zones],
   )
+  const patternControlsByCellId = useMemo(() => Object.fromEntries((activeShow?.cells ?? []).map((cell) => {
+    const saved = cell.pattern.kind === 'user'
+      ? userPatterns.find((pattern) => pattern.id === cell.pattern.id)?.controls ?? {}
+      : {}
+    try {
+      return [cell.id, discoverAutomatablePatternControls(sourceForShowCell(cell, userPatterns), saved)]
+    } catch {
+      return [cell.id, []]
+    }
+  })), [activeShow, userPatterns]) as Record<string, AutomatablePatternControl[]>
   const showExport = useMemo(
     () => activeShow && compiled.artifact
       ? buildShowEpeExport(activeShow, compiled.artifact.code, { stampedAt: new Date(activeShow.updatedAt) })
@@ -225,6 +237,7 @@ export function ShowEditor({ showId }: { showId: string }) {
           <section aria-label="Show timeline">
             <SceneStrip
               show={activeShow}
+              patternControlsByCellId={patternControlsByCellId}
               selection={selection}
               onSelect={setSelection}
               onAddScene={() => {
@@ -246,6 +259,7 @@ export function ShowEditor({ showId }: { showId: string }) {
             selection={selection}
             selectedCell={selectedCell}
             patternOptions={patternOptions}
+            patternControlsByCellId={patternControlsByCellId}
             controllerProfiles={controllerProfiles}
             targetProfile={targetProfile}
             userMaps={userMaps}
@@ -257,6 +271,7 @@ export function ShowEditor({ showId }: { showId: string }) {
             onUpdateStageMap={(stageMapId) => void updateStageMap(activeShow.id, stageMapId)}
             onUpdatePattern={(cell, patch) => void updateCellPattern(activeShow.id, cell.id, patch)}
             onUpdateAdaptations={(cell, changes) => void updateCellAdaptations(activeShow.id, cell.id, changes)}
+            onUpdateControlTarget={(cell, exportName, value) => void updateCellControlTarget(activeShow.id, cell.id, exportName, value)}
             onUpdateRestartOnEntry={(cell, restartOnEntry) => void updateCellRestartOnEntry(activeShow.id, cell.id, restartOnEntry)}
             onExtend={(cell, sceneSpan) => void extendCell(activeShow.id, cell.id, sceneSpan)}
             onSpanZones={(cell, zoneSpan) => void spanCellZones(activeShow.id, cell.id, zoneSpan)}
@@ -442,6 +457,7 @@ function ExportShowButton({
 
 function SceneStrip({
   show,
+  patternControlsByCellId,
   selection,
   onSelect,
   onAddScene,
@@ -450,6 +466,7 @@ function SceneStrip({
   onUpdateScene,
 }: {
   show: ShowRecord
+  patternControlsByCellId: Record<string, AutomatablePatternControl[]>
   selection: ShowSelection
   onSelect: (selection: ShowSelection) => void
   onAddScene: () => void
@@ -459,6 +476,16 @@ function SceneStrip({
 }) {
   const strip = projectShowStrip(show)
   const timeline = projectShowTimeline(show)
+  const automatedControlNames = [...new Set([
+    ...show.cells.flatMap((cell) => Object.keys(cell.controlTargets ?? {})),
+    ...(show.transitions ?? []).flatMap((transition) => Object.keys(transition.propertyTransitions?.controls ?? {})),
+  ])]
+  const controlLanes = automatedControlNames.map((exportName) => ({
+    exportName,
+    label: Object.values(patternControlsByCellId).flat().find((control) => control.exportName === exportName)?.label
+      ?? exportName.replace(/^slider/, '').replace(/([A-Z])/g, ' $1').trim(),
+  }))
+  const rowStride = 3 + controlLanes.length
   const columns = [
     '148px',
     ...show.scenes.flatMap((scene, index) => (
@@ -471,7 +498,7 @@ function SceneStrip({
     )),
     '64px',
   ]
-  const rows = ['auto', '28px', '34px', ...strip.rows.flatMap(() => ['64px', '26px', '26px']), '34px']
+  const rows = ['auto', '28px', '34px', ...strip.rows.flatMap(() => ['64px', '26px', '26px', ...controlLanes.map(() => '26px')]), '34px']
   const timelineWidth = Math.max(780, timeline.durationMs / 50)
   return (
     <div
@@ -507,7 +534,7 @@ function SceneStrip({
           Show time
         </div>
         <TimelineRuler show={show} gridColumn={`2 / ${columns.length}`} />
-        <TimelinePlayhead show={show} gridColumn={`2 / ${columns.length}`} rowSpan={strip.rows.length * 3 + 3} />
+        <TimelinePlayhead show={show} gridColumn={`2 / ${columns.length}`} rowSpan={strip.rows.length * rowStride + 3} />
         <div role="group" aria-label="Transition lane" className="contents">
           <div
             className="flex items-center gap-2 border-b border-zinc-900 px-1 text-[9.5px] uppercase tracking-[0.12em] text-structural"
@@ -567,7 +594,7 @@ function SceneStrip({
                   ? 'bg-live/10 text-zinc-100'
                   : 'text-zinc-300 hover:text-zinc-100',
               ].join(' ')}
-              style={{ gridColumn: 1, gridRow: `${rowIndex * 3 + 4} / span 3` }}
+              style={{ gridColumn: 1, gridRow: `${rowIndex * rowStride + 4} / span ${rowStride}` }}
             >
               <span
                 aria-hidden
@@ -597,7 +624,7 @@ function SceneStrip({
                   borderLeftColor: row.color ?? '#38bdf8',
                   background: `linear-gradient(color-mix(in srgb, ${row.color ?? '#38bdf8'} 9%, #101013), color-mix(in srgb, ${row.color ?? '#38bdf8'} 6%, #0c0c0e))`,
                   gridColumn: `${cell.columnStart} / span ${cell.columnSpan}`,
-                  gridRow: `${rowIndex * 3 + 4} / span ${Math.max(1, cell.rowSpan * 3 - 2)}`,
+                  gridRow: `${rowIndex * rowStride + 4} / span ${Math.max(1, cell.rowSpan * rowStride - (rowStride - 1))}`,
                 } as CSSProperties}
                 onMouseEnter={(event) => {
                   event.currentTarget.style.background = `linear-gradient(color-mix(in srgb, ${row.color ?? '#38bdf8'} 14%, #131316), color-mix(in srgb, ${row.color ?? '#38bdf8'} 10%, #0e0e10))`
@@ -620,7 +647,7 @@ function SceneStrip({
               role="group"
               aria-label={`Time lane for ${row.zoneName}`}
               className="flex items-center gap-1 border-t border-zinc-900/80 px-2 text-[9px] text-violet-300/80"
-              style={{ gridColumn: 1, gridRow: rowIndex * 3 + 5 }}
+              style={{ gridColumn: 1, gridRow: rowIndex * rowStride + 5 }}
             >
               <span className="font-mono">↳ time ×</span>
             </div>
@@ -630,7 +657,7 @@ function SceneStrip({
                 <div
                   key={`time-${row.zoneId}-${scene.id}`}
                   className="flex items-center border-t border-zinc-900/80 px-2 font-mono text-[9px] text-zinc-500"
-                  style={{ gridColumn: 2 + sceneIndex * 2, gridRow: rowIndex * 3 + 5 }}
+                  style={{ gridColumn: 2 + sceneIndex * 2, gridRow: rowIndex * rowStride + 5 }}
                 >
                   {formatTimeScale(cell.adaptations.timeScale)}×
                 </div>
@@ -649,7 +676,7 @@ function SceneStrip({
                     'flex items-center justify-center border-t border-zinc-900/80 font-mono text-[9px] transition-colors',
                     from === undefined ? 'text-zinc-700 hover:text-violet-300' : 'bg-violet-400/10 text-violet-200',
                   ].join(' ')}
-                  style={{ gridColumn: 3 + sceneIndex * 2, gridRow: rowIndex * 3 + 5 }}
+                  style={{ gridColumn: 3 + sceneIndex * 2, gridRow: rowIndex * rowStride + 5 }}
                   onClick={(event) => {
                     event.stopPropagation()
                     onSelect({ kind: 'transition', transitionId: transition.id })
@@ -663,7 +690,7 @@ function SceneStrip({
               role="group"
               aria-label={`Brightness lane for ${row.zoneName}`}
               className="flex items-center gap-1 border-t border-zinc-900/80 px-2 text-[9px] text-amber-300/80"
-              style={{ gridColumn: 1, gridRow: rowIndex * 3 + 6 }}
+              style={{ gridColumn: 1, gridRow: rowIndex * rowStride + 6 }}
             >
               <span className="font-mono">↳ bright</span>
             </div>
@@ -673,7 +700,7 @@ function SceneStrip({
                 <div
                   key={`brightness-${row.zoneId}-${scene.id}`}
                   className="flex items-center border-t border-zinc-900/80 px-2 font-mono text-[9px] text-zinc-500"
-                  style={{ gridColumn: 2 + sceneIndex * 2, gridRow: rowIndex * 3 + 6 }}
+                  style={{ gridColumn: 2 + sceneIndex * 2, gridRow: rowIndex * rowStride + 6 }}
                 >
                   {formatBrightness(cell.adaptations.brightness)}
                 </div>
@@ -692,7 +719,7 @@ function SceneStrip({
                     'flex items-center justify-center border-t border-zinc-900/80 font-mono text-[9px] transition-colors',
                     from === undefined ? 'text-zinc-700 hover:text-amber-300' : 'bg-amber-400/10 text-amber-200',
                   ].join(' ')}
-                  style={{ gridColumn: 3 + sceneIndex * 2, gridRow: rowIndex * 3 + 6 }}
+                  style={{ gridColumn: 3 + sceneIndex * 2, gridRow: rowIndex * rowStride + 6 }}
                   onClick={(event) => {
                     event.stopPropagation()
                     onSelect({ kind: 'transition', transitionId: transition.id })
@@ -702,6 +729,55 @@ function SceneStrip({
                 </button>
               ) : null
             })}
+            {controlLanes.map((control, controlIndex) => (
+              <div key={`control-lane-${row.zoneId}-${control.exportName}`} className="contents">
+                <div
+                  role="group"
+                  aria-label={`${control.label} control lane for ${row.zoneName}`}
+                  className="flex items-center gap-1 border-t border-zinc-900/80 px-2 text-[9px] text-cyan-300/80"
+                  style={{ gridColumn: 1, gridRow: rowIndex * rowStride + 7 + controlIndex }}
+                >
+                  <span className="truncate font-mono">↳ {control.label}</span>
+                </div>
+                {show.scenes.map((scene, sceneIndex) => {
+                  const cell = cellCoveringScene(show, row.zoneId, sceneIndex)
+                  const target = cell?.controlTargets?.[control.exportName]
+                  return (
+                    <div
+                      key={`control-${row.zoneId}-${control.exportName}-${scene.id}`}
+                      className="flex items-center border-t border-zinc-900/80 px-2 font-mono text-[9px] text-zinc-500"
+                      style={{ gridColumn: 2 + sceneIndex * 2, gridRow: rowIndex * rowStride + 7 + controlIndex }}
+                    >
+                      {target === undefined ? 'unset' : formatControlValue(target)}
+                    </div>
+                  )
+                })}
+                {show.scenes.slice(0, -1).map((scene, sceneIndex) => {
+                  const transition = show.transitions?.find((candidate) => candidate.afterSceneId === scene.id && candidate.kind !== 'routing')
+                  const destination = cellCoveringScene(show, row.zoneId, sceneIndex + 1)
+                  const from = destination && transition?.propertyTransitions?.controls?.[control.exportName]?.fromByCellId[destination.id]
+                  const target = destination?.controlTargets?.[control.exportName]
+                  return transition && destination ? (
+                    <button
+                      key={`control-boundary-${row.zoneId}-${control.exportName}-${scene.id}`}
+                      type="button"
+                      aria-label={`Edit ${control.label} transition from ${scene.name} for ${row.zoneName}`}
+                      className={[
+                        'flex items-center justify-center border-t border-zinc-900/80 font-mono text-[9px] transition-colors',
+                        from === undefined ? 'text-zinc-700 hover:text-cyan-300' : 'bg-cyan-400/10 text-cyan-200',
+                      ].join(' ')}
+                      style={{ gridColumn: 3 + sceneIndex * 2, gridRow: rowIndex * rowStride + 7 + controlIndex }}
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        onSelect({ kind: 'transition', transitionId: transition.id })
+                      }}
+                    >
+                      {from === undefined || target === undefined ? '—' : `${formatControlValue(from)}→${formatControlValue(target)}`}
+                    </button>
+                  ) : null
+                })}
+              </div>
+            ))}
           </div>
         ))}
         <button
@@ -712,7 +788,7 @@ function SceneStrip({
             onAddZone()
           }}
           className="flex items-center justify-center rounded-[5px] border border-dashed border-zinc-800 bg-transparent text-[10px] uppercase tracking-wider text-structural hover:border-zinc-600 hover:text-zinc-200"
-          style={{ gridColumn: 1, gridRow: strip.rows.length * 3 + 4 }}
+          style={{ gridColumn: 1, gridRow: strip.rows.length * rowStride + 4 }}
         >
           + zone
         </button>
@@ -724,7 +800,7 @@ function SceneStrip({
             onAddScene()
           }}
           className="flex items-center justify-center rounded-[5px] border border-dashed border-zinc-800 bg-transparent text-[10px] uppercase tracking-wider text-structural [writing-mode:vertical-rl] hover:border-zinc-600 hover:text-zinc-200"
-          style={{ gridColumn: columns.length, gridRow: `4 / span ${strip.rows.length * 3}` }}
+          style={{ gridColumn: columns.length, gridRow: `4 / span ${strip.rows.length * rowStride}` }}
         >
           + scene
         </button>
@@ -923,6 +999,7 @@ function ContextualInspector({
   selection,
   selectedCell,
   patternOptions,
+  patternControlsByCellId,
   controllerProfiles,
   targetProfile,
   userMaps,
@@ -930,6 +1007,7 @@ function ContextualInspector({
   onUpdateStageMap,
   onUpdatePattern,
   onUpdateAdaptations,
+  onUpdateControlTarget,
   onUpdateRestartOnEntry,
   onExtend,
   onSpanZones,
@@ -948,6 +1026,7 @@ function ContextualInspector({
   selection: ShowSelection
   selectedCell: ShowCell | null
   patternOptions: Array<{ label: string; ref: ShowCell['pattern'] }>
+  patternControlsByCellId: Record<string, AutomatablePatternControl[]>
   controllerProfiles: ControllerProfile[]
   targetProfile?: ControllerProfile
   userMaps: MapRecord[]
@@ -955,6 +1034,7 @@ function ContextualInspector({
   onUpdateStageMap: (stageMapId: string | null) => void
   onUpdatePattern: (cell: ShowCell, patch: Pick<ShowCell, 'pattern' | 'patternName'>) => void
   onUpdateAdaptations: (cell: ShowCell, changes: Partial<ShowCell['adaptations']>) => void
+  onUpdateControlTarget: (cell: ShowCell, exportName: string, value: number | undefined) => void
   onUpdateRestartOnEntry: (cell: ShowCell, restartOnEntry: boolean) => void
   onExtend: (cell: ShowCell, sceneSpan: number) => void
   onSpanZones: (cell: ShowCell, zoneSpan: number) => void
@@ -978,8 +1058,10 @@ function ContextualInspector({
         show={show}
         cell={selectedCell}
         patternOptions={patternOptions}
+        patternControls={patternControlsByCellId[selectedCell.id] ?? []}
         onUpdatePattern={(patch) => onUpdatePattern(selectedCell, patch)}
         onUpdateAdaptations={(changes) => onUpdateAdaptations(selectedCell, changes)}
+        onUpdateControlTarget={(exportName, value) => onUpdateControlTarget(selectedCell, exportName, value)}
         onUpdateRestartOnEntry={(restartOnEntry) => onUpdateRestartOnEntry(selectedCell, restartOnEntry)}
         onExtend={(sceneSpan) => onExtend(selectedCell, sceneSpan)}
         onSpanZones={(zoneSpan) => onSpanZones(selectedCell, zoneSpan)}
@@ -996,6 +1078,8 @@ function ContextualInspector({
         onUpdate={onUpdateBoundaryTransition}
         onRemove={onRemoveBoundaryTransition}
         onUpdateCellAdaptations={onUpdateAdaptations}
+        patternControlsByCellId={patternControlsByCellId}
+        onUpdateControlTarget={onUpdateControlTarget}
       />
     )
   }
@@ -1046,8 +1130,10 @@ function CellInspector({
   show,
   cell,
   patternOptions,
+  patternControls,
   onUpdatePattern,
   onUpdateAdaptations,
+  onUpdateControlTarget,
   onUpdateRestartOnEntry,
   onExtend,
   onSpanZones,
@@ -1056,8 +1142,10 @@ function CellInspector({
   show: ShowRecord
   cell: ShowCell
   patternOptions: Array<{ label: string; ref: ShowCell['pattern'] }>
+  patternControls: AutomatablePatternControl[]
   onUpdatePattern: (patch: Pick<ShowCell, 'pattern' | 'patternName'>) => void
   onUpdateAdaptations: (changes: Partial<ShowCell['adaptations']>) => void
+  onUpdateControlTarget: (exportName: string, value: number | undefined) => void
   onUpdateRestartOnEntry: (restartOnEntry: boolean) => void
   onExtend: (sceneSpan: number) => void
   onSpanZones: (zoneSpan: number) => void
@@ -1094,6 +1182,46 @@ function CellInspector({
           ))}
         </select>
       </label>
+      {patternControls.length > 0 && (
+        <section className="mt-2 rounded border border-cyan-400/15 bg-cyan-400/[0.035] p-2" aria-label="Pattern automation targets">
+          <div className="mb-2 text-[10px] uppercase tracking-[0.12em] text-cyan-300/80">Pattern controls</div>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {patternControls.map((control) => {
+              const target = cell.controlTargets?.[control.exportName]
+              const enabled = target !== undefined
+              return (
+                <div key={control.exportName} className="rounded border border-zinc-800 bg-zinc-950/45 p-2">
+                  <label className="flex items-center gap-2 text-[10px] text-zinc-300">
+                    <input
+                      type="checkbox"
+                      aria-label={`Set ${control.label} target`}
+                      checked={enabled}
+                      onChange={(event) => onUpdateControlTarget(control.exportName, event.target.checked ? control.defaultValue : undefined)}
+                      className="h-3.5 w-3.5 accent-cyan-400"
+                    />
+                    {control.label}
+                  </label>
+                  <div className="mt-1 text-[9px] text-zinc-600">
+                    {control.exportName} · 0–1 · Studio default {control.defaultValue}
+                  </div>
+                  {enabled && (
+                    <div className="mt-2">
+                      <NumberField
+                        label={`${control.label} target`}
+                        value={target}
+                        min={control.min}
+                        max={control.max}
+                        step={0.01}
+                        onChange={(value) => onUpdateControlTarget(control.exportName, value)}
+                      />
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </section>
+      )}
       <div className="mt-2 grid grid-cols-2 gap-2">
         <label className="flex items-center gap-2 text-zinc-300">
           <input
@@ -1311,12 +1439,16 @@ function TransitionInspector({
   onUpdate,
   onRemove,
   onUpdateCellAdaptations,
+  patternControlsByCellId,
+  onUpdateControlTarget,
 }: {
   show: ShowRecord
   transitionId: string
   onUpdate: (transitionId: string, changes: Partial<Omit<ShowBoundaryTransition, 'id' | 'afterSceneId'>>) => void
   onRemove: (transitionId: string) => void
   onUpdateCellAdaptations: (cell: ShowCell, changes: Partial<ShowCell['adaptations']>) => void
+  patternControlsByCellId: Record<string, AutomatablePatternControl[]>
+  onUpdateControlTarget: (cell: ShowCell, exportName: string, value: number | undefined) => void
 }) {
   const transition = show.transitions?.find((candidate) => candidate.id === transitionId)
   if (!transition) return null
@@ -1366,6 +1498,19 @@ function TransitionInspector({
         return cell ? [{ zone, cell }] : []
       }).filter((entry, index, entries) => entries.findIndex((candidate) => candidate.cell.id === entry.cell.id) === index)
     : []
+  const boundaryControls = destinationCells.flatMap(({ zone, cell }) => {
+    const outgoing = cellCoveringScene(show, zone.id, sceneIndex)
+    if (!outgoing || outgoing.pattern.kind !== cell.pattern.kind || outgoing.pattern.id !== cell.pattern.id) return []
+    const outgoingNames = new Set((patternControlsByCellId[outgoing.id] ?? []).map((control) => control.exportName))
+    return (patternControlsByCellId[cell.id] ?? []).filter((control) => (
+      outgoingNames.has(control.exportName)
+      && (
+        outgoing.controlTargets?.[control.exportName] !== undefined
+        || cell.controlTargets?.[control.exportName] !== undefined
+        || transition.propertyTransitions?.controls?.[control.exportName] !== undefined
+      )
+    ))
+  }).filter((control, index, controls) => controls.findIndex((candidate) => candidate.exportName === control.exportName) === index)
   return (
     <InspectorPanel title={`${scene?.name ?? 'Scene'} -> ${nextScene?.name ?? 'next'} - ${transition.kind} transition`}>
       <div className="grid grid-cols-2 gap-2">
@@ -1430,6 +1575,18 @@ function TransitionInspector({
             destinationCells={destinationCells}
             onUpdate={onUpdate}
             onUpdateCellAdaptations={onUpdateCellAdaptations}
+          />
+        ))}
+        {boundaryControls.map((control) => (
+          <PatternControlTransitionEditor
+            key={control.exportName}
+            control={control}
+            show={show}
+            transition={transition}
+            sceneIndex={sceneIndex}
+            destinationCells={destinationCells}
+            onUpdate={onUpdate}
+            onUpdateControlTarget={onUpdateControlTarget}
           />
         ))}
         {transition.kind === 'wipe' && (
@@ -1646,6 +1803,132 @@ function PropertyTransitionEditor({
         The destination scene owns the target. This boundary owns this property's start, duration, and easing.
         {isTime ? ' A target of 0 pauses without resetting Pattern state.' : ''}
       </p>
+    </section>
+  )
+}
+
+function PatternControlTransitionEditor({
+  control,
+  show,
+  transition,
+  sceneIndex,
+  destinationCells,
+  onUpdate,
+  onUpdateControlTarget,
+}: {
+  control: AutomatablePatternControl
+  show: ShowRecord
+  transition: ShowBoundaryTransition
+  sceneIndex: number
+  destinationCells: Array<{ zone: ShowRecord['zones'][number]; cell: ShowCell }>
+  onUpdate: (transitionId: string, changes: Partial<Omit<ShowBoundaryTransition, 'id' | 'afterSceneId'>>) => void
+  onUpdateControlTarget: (cell: ShowCell, exportName: string, value: number | undefined) => void
+}) {
+  const descriptor = transition.propertyTransitions?.controls?.[control.exportName]
+  const updateDescriptor = (changes: Partial<NonNullable<typeof descriptor>>, fromByCellId = descriptor?.fromByCellId ?? {}) => {
+    onUpdate(transition.id, {
+      propertyTransitions: {
+        ...(transition.propertyTransitions ?? {}),
+        controls: {
+          ...(transition.propertyTransitions?.controls ?? {}),
+          [control.exportName]: {
+            fromByCellId,
+            durationMs: changes.durationMs ?? descriptor?.durationMs ?? transition.durationMs,
+            easing: changes.easing ?? descriptor?.easing ?? transition.easing,
+          },
+        },
+      },
+    })
+  }
+  const removeCell = (cellId: string) => {
+    const fromByCellId = { ...(descriptor?.fromByCellId ?? {}) }
+    delete fromByCellId[cellId]
+    const controls = { ...(transition.propertyTransitions?.controls ?? {}) }
+    if (Object.keys(fromByCellId).length > 0) controls[control.exportName] = { ...descriptor, fromByCellId }
+    else delete controls[control.exportName]
+    const propertyTransitions = { ...(transition.propertyTransitions ?? {}) }
+    if (Object.keys(controls).length > 0) propertyTransitions.controls = controls
+    else delete propertyTransitions.controls
+    onUpdate(transition.id, { propertyTransitions: Object.keys(propertyTransitions).length > 0 ? propertyTransitions : undefined })
+  }
+  return (
+    <section className="col-span-2 rounded border border-cyan-400/15 bg-cyan-400/[0.035] p-2" aria-label={`${control.label} control transition`}>
+      <div className="mb-1 text-[10px] uppercase tracking-[0.12em] text-cyan-300/80">{control.label} · Pattern control</div>
+      <div className="mb-2 text-[9px] text-zinc-600">{control.exportName} · 0–1 · default {control.defaultValue}</div>
+      {descriptor && (
+        <div className="mb-2 grid grid-cols-2 gap-2">
+          <NumberField
+            label={`${control.label} duration seconds`}
+            value={(descriptor.durationMs ?? transition.durationMs) / 1000}
+            min={0.1}
+            max={Math.max(0.1, transition.durationMs / 1000)}
+            step={0.1}
+            onChange={(seconds) => updateDescriptor({ durationMs: seconds * 1000 })}
+          />
+          <label className="text-[10px] uppercase text-zinc-600">
+            {control.label} easing
+            <select
+              aria-label={`${control.label} easing`}
+              value={descriptor.easing ?? transition.easing}
+              onChange={(event) => updateDescriptor({ easing: event.target.value as ShowBoundaryTransition['easing'] })}
+              className={`${field} mt-1 w-full`}
+            >
+              <option value="linear">linear</option>
+              <option value="ease-in">ease in</option>
+              <option value="ease-out">ease out</option>
+              <option value="ease-in-out">ease in/out</option>
+            </select>
+          </label>
+        </div>
+      )}
+      <div className="grid gap-2 sm:grid-cols-2">
+        {destinationCells.map(({ zone, cell }) => {
+          const outgoing = cellCoveringScene(show, zone.id, sceneIndex)
+          const from = descriptor?.fromByCellId[cell.id]
+          const enabled = from !== undefined
+          const bothTargets = outgoing?.controlTargets?.[control.exportName] !== undefined && cell.controlTargets?.[control.exportName] !== undefined
+          return (
+            <div key={cell.id} className="rounded border border-zinc-800 bg-zinc-950/45 p-2">
+              <label className="flex items-center gap-2 text-[10px] text-zinc-300">
+                <input
+                  type="checkbox"
+                  aria-label={`Animate ${control.label} for ${zone.name}`}
+                  checked={enabled}
+                  disabled={transition.kind === 'cut' || !bothTargets}
+                  title={bothTargets ? undefined : 'Set targets on both adjacent cells first'}
+                  onChange={(event) => {
+                    if (!event.target.checked) return removeCell(cell.id)
+                    updateDescriptor({}, { ...(descriptor?.fromByCellId ?? {}), [cell.id]: outgoing?.controlTargets?.[control.exportName] ?? control.defaultValue })
+                  }}
+                  className="h-3.5 w-3.5 accent-cyan-400"
+                />
+                {zone.name}
+              </label>
+              {!bothTargets && <p className="mt-1 text-[9px] text-amber-300/70">Set this target on both adjacent cells first.</p>}
+              {enabled && (
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  <NumberField
+                    label={`${control.label} start ${zone.name}`}
+                    value={from}
+                    min={0}
+                    max={1}
+                    step={0.01}
+                    onChange={(value) => updateDescriptor({}, { ...(descriptor?.fromByCellId ?? {}), [cell.id]: value })}
+                  />
+                  <NumberField
+                    label={`${control.label} target ${zone.name}`}
+                    value={cell.controlTargets?.[control.exportName] ?? control.defaultValue}
+                    min={0}
+                    max={1}
+                    step={0.01}
+                    onChange={(value) => onUpdateControlTarget(cell, control.exportName, value)}
+                  />
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
     </section>
   )
 }
@@ -2119,6 +2402,10 @@ function formatTimeScale(value: number): string {
 
 function formatBrightness(value: number): string {
   return `${Math.round(value * 100)}%`
+}
+
+function formatControlValue(value: number): string {
+  return Number(value.toFixed(2)).toString()
 }
 
 function formatBytes(bytes: number): string {

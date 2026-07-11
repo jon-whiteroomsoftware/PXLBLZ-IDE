@@ -153,6 +153,11 @@ model remains:
   evaluator, persistence path, inspector vocabulary, and nested-lane projection.
   Multiple properties may run different curves on one continued Pattern member;
   the boundary window contains them and the compiler still invokes one renderer.
+  #419 extends that same record to Pattern-exposed slider controls. Studio
+  discovers only exported `sliderName(v)` functions, presents their public name,
+  fixed `0..1` input domain, and saved-or-Studio-default position, then stores
+  scene targets and boundary curves without exposing arbitrary locals. Generated
+  members call the alpha-renamed slider once per frame before Pattern advance.
 - **Timeline transport and accurate seeking** (shipped #414 after spike
   #412): clicking or dragging the ruler places the persistent playhead; Space
   toggles play/pause. #415 adds Split at a valid interior playhead position and

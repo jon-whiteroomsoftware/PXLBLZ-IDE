@@ -19,6 +19,7 @@ import {
   spanShowCellZones,
   updateShowCellZoneMode,
   updateShowCellAdaptations,
+  updateShowCellControlTarget,
   updateShowCellPattern,
   updateShowCellRestartOnEntry,
   updateShowBoundaryTransition,
@@ -799,6 +800,85 @@ describe('showModel (#318)', () => {
 
     const cut = updateShowBoundaryTransition(base, 'transition-scene-1', { kind: 'cut', durationMs: 0 })
     expect(cut.transitions?.find((transition) => transition.id === 'transition-scene-1')?.propertyTransitions).toBeUndefined()
+  })
+
+  it('compiles scene-owned public slider targets through a shared boundary descriptor (#419)', () => {
+    let show = createDefaultShow('show-419', 'Control automation')
+    show = updateShowCellPattern(show, show.cells[1].id, {
+      pattern: show.cells[0].pattern,
+      patternName: show.cells[0].patternName,
+    })
+    show = updateShowCellControlTarget(show, show.cells[0].id, 'sliderSpeed', 0.2)
+    show = updateShowCellControlTarget(show, show.cells[1].id, 'sliderSpeed', 0.8)
+    show = updateShowBoundaryTransition(show, 'transition-scene-1', {
+      propertyTransitions: {
+        controls: {
+          sliderSpeed: {
+            fromByCellId: { [show.cells[1].id]: 0.25 },
+            durationMs: 1200,
+            easing: 'ease-in-out',
+          },
+        },
+      },
+    })
+    const source = 'var speed = 0\nexport function sliderSpeed(v) { speed = v }\nexport function render(index) { rgb(speed, 0, 0) }'
+    const recipe = showRecordToCompileRecipe(show, {
+      byCellId: Object.fromEntries(show.cells.map((cell) => [cell.id, source])),
+    })
+
+    expect(recipe.clips).toHaveLength(1)
+    expect(recipe.clips[0].controlTargets).toEqual({ sliderSpeed: 0.2 })
+    expect(recipe.adaptationRamp?.controlRamps).toEqual({
+      sliderSpeed: { from: 0.25, to: 0.8, durationMs: 1200, easing: 'ease-in-out' },
+    })
+  })
+
+  it('requires deterministic slider targets on both sides of an automated boundary (#419)', () => {
+    let show = createDefaultShow('show-419-invalid', 'Invalid control')
+    show = updateShowCellPattern(show, show.cells[1].id, {
+      pattern: show.cells[0].pattern,
+      patternName: show.cells[0].patternName,
+    })
+    show = updateShowCellControlTarget(show, show.cells[1].id, 'sliderSpeed', 0.8)
+    show = updateShowBoundaryTransition(show, 'transition-scene-1', {
+      propertyTransitions: { controls: { sliderSpeed: { fromByCellId: {} } } },
+    })
+    const source = 'export function sliderSpeed(v) {}\nexport function render(index) {}'
+
+    expect(() => showRecordToCompileRecipe(show, {
+      byCellId: Object.fromEntries(show.cells.map((cell) => [cell.id, source])),
+    })).toThrow(/sliderSpeed.*targets in both adjacent scenes/i)
+  })
+
+  it('resolves public control state deterministically across Continue and Restart scenes (#419)', () => {
+    let show = addShowScene(createDefaultShow('show-419-sequence', 'Control sequence'))
+    for (const cell of show.cells.slice(1)) {
+      show = updateShowCellPattern(show, cell.id, {
+        pattern: show.cells[0].pattern,
+        patternName: show.cells[0].patternName,
+      })
+    }
+    for (const [index, cell] of show.cells.entries()) {
+      show = updateShowCellControlTarget(show, cell.id, 'sliderSpeed', [0.2, 0.8, 0.4][index])
+    }
+    for (const [index, scene] of show.scenes.slice(0, -1).entries()) {
+      const destination = show.cells[index + 1]
+      show = updateShowBoundaryTransition(show, `transition-${scene.id}`, {
+        propertyTransitions: {
+          controls: { sliderSpeed: { fromByCellId: { [destination.id]: show.cells[index].controlTargets!.sliderSpeed } } },
+        },
+      })
+    }
+    const source = 'var speed = 0\nexport function sliderSpeed(v) { speed = v }\nexport function render(index) { rgb(speed, 0, 0) }'
+    const lookup = { byCellId: Object.fromEntries(show.cells.map((cell) => [cell.id, source])) }
+
+    const continued = showRecordToCompileRecipe(show, lookup)
+    expect(continued.clips).toHaveLength(1)
+    expect(continued.sceneSequence?.scenes.map((scene) => scene.controlTargets?.sliderSpeed)).toEqual([0.2, 0.8, 0.4])
+    expect(continued.sceneSequence?.scenes[0].transitionOut?.controlRamps?.sliderSpeed).toMatchObject({ from: 0.2, to: 0.8 })
+
+    const restarted = updateShowCellRestartOnEntry(show, show.cells[2].id, true)
+    expect(showRecordToCompileRecipe(restarted, lookup).clips).toHaveLength(2)
   })
 
   it('emits a route-cost transition recipe for wipe and dither boundaries', () => {

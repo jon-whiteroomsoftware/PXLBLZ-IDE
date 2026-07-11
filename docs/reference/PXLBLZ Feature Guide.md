@@ -312,6 +312,14 @@ enable either property for a destination zone and edit its start, target,
 duration, and easing. Properties on one boundary may use independent curves.
 Linear, ease-in, ease-out, and ease-in-out use the same deterministic math in
 preview and generated controller code, with no additional Pattern renderer.
+Public Pattern sliders can join the same system. Select a cell whose Pattern
+exports a `sliderName(v)` function to see its humanized name, `0..1` range, and
+saved Studio position (or the normal `0.5` Studio fallback), then enable a target
+for that scene. Once targets exist on both neighboring cells, their transition
+inspector offers the same start, target, duration, and easing controls and the
+timeline adds a compact named lane. Renaming/removing the slider or changing to
+an incompatible Pattern produces a compile error instead of silently dropping
+the automation. Private Pattern locals never appear as automatable properties.
 
 The transport above the timeline goes to Show start and toggles play/pause;
 **Space** toggles the same state while focus is outside an editor control. Clicking

@@ -900,6 +900,53 @@ export function render(index) { rgb(time(1), elapsed, index) }
     })
   })
 
+  it('calls an alpha-renamed public slider once per frame with its eased value (#419)', () => {
+    const source = `
+var speed = 0
+export var sliderCalls = 0
+export function sliderSpeed(v) { speed = v; sliderCalls = sliderCalls + 1 }
+export function render(index) { rgb(speed, 0, 0) }
+`
+    const artifact = compileShow({
+      clips: [{ id: 'controlled', source, controlTargets: { sliderSpeed: 0.2 } }],
+      adaptationRamp: {
+        startMs: 0,
+        durationMs: 1000,
+        from: {},
+        to: {},
+        controlRamps: {
+          sliderSpeed: { from: 0.2, to: 0.8, durationMs: 1000, easing: 'ease-in' },
+        },
+      },
+    }, {})
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata)
+
+    handle.beforeRender(500)
+    handle.render(0)
+    handle.render(1)
+
+    expect(pixel()[0]).toBeCloseTo(0.35)
+    expect(handle.getExports().__pxlblz_show_c0_speed).toBeCloseTo(0.35)
+    expect(handle.getExports().__pxlblz_show_c0_control_sliderSpeed).toBeCloseTo(0.35)
+    expect(handle.getExports().__pxlblz_show_c0_sliderCalls).toBe(1)
+    expect(artifact.code).toContain('__pxlblz_show_c0_sliderSpeed(__pxlblz_show_c0_control_sliderSpeed)')
+    expect(artifact.summary).toMatchObject({ transitionCost: 'parameter', worstInstantRenderersPerPixel: 1 })
+  })
+
+  it('rejects missing or incompatible Pattern controls with an actionable error (#419)', () => {
+    expect(() => compileShow({
+      clips: [{ id: 'broken', source: 'export function render(index) { rgb(1, 0, 0) }', controlTargets: { sliderSpeed: 0.5 } }],
+    }, {})).toThrow(/clip "broken".*sliderSpeed.*public slider control not found/i)
+
+    expect(() => compileShow({
+      clips: [{
+        id: 'toggle-only',
+        source: 'export function toggleSpeed(v) {}\nexport function render(index) { rgb(1, 0, 0) }',
+        controlTargets: { toggleSpeed: 1 },
+      }],
+    }, {})).toThrow(/public slider control not found/i)
+  })
+
   it('keeps exact pause distinct from hold rendering and explicit cut restart', () => {
     const source = `
 export var elapsed = 0

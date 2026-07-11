@@ -20,6 +20,7 @@ import {
   updateShowBoundaryTransition,
   updateShowZone,
   updateShowCellAdaptations,
+  updateShowCellControlTarget,
   updateShowCellPattern,
   updateShowCellRestartOnEntry,
   updateShowScene,
@@ -77,6 +78,7 @@ interface ShowState {
     cellId: string,
     patch: Pick<ShowCell, 'pattern' | 'patternName'>,
   ) => Promise<void>
+  updateCellControlTarget: (showId: string, cellId: string, exportName: string, value: number | undefined) => Promise<void>
   updateCellRestartOnEntry: (showId: string, cellId: string, restartOnEntry: boolean) => Promise<void>
   updateBoundaryTransition: (
     showId: string,
@@ -216,6 +218,12 @@ export const useShowStore = create<ShowState>()((set, get) => ({
     const show = get().shows.find((item) => item.id === showId)
     if (!show) return
     await get().updateShow(showId, updateShowCellAdaptations(show, cellId, changes))
+  },
+
+  updateCellControlTarget: async (showId, cellId, exportName, value) => {
+    const show = get().shows.find((item) => item.id === showId)
+    if (!show) return
+    await get().updateShow(showId, updateShowCellControlTarget(show, cellId, exportName, value))
   },
 
   updateCellPattern: async (showId, cellId, patch) => {

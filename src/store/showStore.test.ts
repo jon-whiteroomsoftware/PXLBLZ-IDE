@@ -208,6 +208,28 @@ describe('showStore (#318)', () => {
     })
   })
 
+  it('persists public Pattern control targets and their shared boundary curve (#419)', async () => {
+    const show = createDefaultShow('show-419', 'Control persistence', 1)
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], showsLoaded: true })
+
+    await useShowStore.getState().updateCellControlTarget(show.id, 'cell-1', 'sliderSpeed', 0.2)
+    await useShowStore.getState().updateCellControlTarget(show.id, 'cell-2', 'sliderSpeed', 0.8)
+    await useShowStore.getState().updateBoundaryTransition(show.id, 'transition-scene-1', {
+      propertyTransitions: {
+        controls: { sliderSpeed: { fromByCellId: { 'cell-2': 0.2 }, durationMs: 1200, easing: 'ease-in' } },
+      },
+    })
+    useShowStore.setState(showInitialState)
+    await useShowStore.getState().loadShows()
+
+    const loaded = useShowStore.getState().shows[0]
+    expect(loaded.cells.map((cell) => cell.controlTargets?.sliderSpeed)).toEqual([0.2, 0.8])
+    expect(loaded.transitions?.[0].propertyTransitions?.controls?.sliderSpeed).toEqual({
+      fromByCellId: { 'cell-2': 0.2 }, durationMs: 1200, easing: 'ease-in',
+    })
+  })
+
   it('persists a wipe feather width through the provider', async () => {
     const show = createDefaultShow('show-1', 'Opening wash', 1)
     setPersonalContentProvider(memoryProvider([show]))
