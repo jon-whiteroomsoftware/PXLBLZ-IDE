@@ -65,6 +65,10 @@ export function TransformInspectionPanel({
         <dl className="mt-3 grid gap-2 text-[11px] sm:grid-cols-2">
           <SummaryItem label="Call sites" value={formatRecord(summary.callSitesWrapped)} />
           <SummaryItem label="Bindings" value={summary.bindingsApplied.map((b) => `${b.target} (${b.mode})`).join(', ') || '-'} />
+          <SummaryItem
+            label="Render adapters"
+            value={summary.rendererAdaptations.map(formatRendererAdaptation).join(', ') || '-'}
+          />
           <SummaryItem label="Globals" value={summary.globalsAdded.join(', ') || '-'} />
           <SummaryItem label="Exports" value={summary.exportsAdded.join(', ') || '-'} />
         </dl>
@@ -85,6 +89,11 @@ export function TransformInspectionPanel({
                     binds {binding.target}
                   </span>
                 ))}
+                {pass.rendererAdaptation && (
+                  <span className="ml-2 text-zinc-500">
+                    adapts {formatRendererAdaptation(pass.rendererAdaptation)}
+                  </span>
+                )}
               </li>
             ))}
           </ol>
@@ -137,4 +146,13 @@ function SummaryItem({ label, value }: { label: string; value: string }) {
 function formatRecord(record: Record<string, number>): string {
   const entries = Object.entries(record)
   return entries.length ? entries.map(([key, value]) => `${key} x${value}`).join(', ') : '-'
+}
+
+function formatRendererAdaptation(
+  adaptation: TransformArtifactInspection['summary']['rendererAdaptations'][number],
+): string {
+  const centered = adaptation.missingCoordinates
+    .map((coordinate) => `${coordinate}=0.5`)
+    .join(', ')
+  return `${adaptation.adapterRenderer} -> ${adaptation.sourceRenderer}${centered ? ` (${centered})` : ''}`
 }

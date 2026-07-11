@@ -16,10 +16,135 @@ describe('pass engine - recipe entrypoint', () => {
         globalsAdded: [],
         exportsAdded: [],
         bindingsApplied: [],
+        rendererAdaptations: [],
         estimatedPixelCost: 0,
       },
       warnings: [],
     })
+  })
+})
+
+describe('pass engine - renderer adapter passes', () => {
+  it('emits an exact render2D adapter that supplies centered z to a 3D-only Pattern', () => {
+    const source = `export function render3D(index, x, y, z) { hsv(z, 1, 1) }`
+
+    const result = bundleWithPasses(source, {}, [
+      { id: 'renderer-adapter', kind: 'renderer-adapter', mapDim: 2 },
+    ])
+
+    expect(result.code).toContain('export function render2D(index, x, y)')
+    expect(result.code).toContain('render3D(index, x, y, 0.5)')
+    expect(result.fxCode).toContain('render3D(index, x, y, 32768)')
+    expect(result.summary.rendererAdaptations).toEqual([{
+      mapDimension: 2,
+      sourceRenderer: 'render3D',
+      adapterRenderer: 'render2D',
+      missingCoordinates: ['z'],
+    }])
+    expect(result.summary.estimatedPixelCost).toBe(1)
+  })
+
+  it('emits a 1D adapter with every missing coordinate centered', () => {
+    const source = `export function render3D(index, x, y, z) { hsv(y + z, 1, 1) }`
+
+    const result = bundleWithPasses(source, {}, [
+      { id: 'renderer-adapter', kind: 'renderer-adapter', mapDim: 1 },
+    ])
+
+    expect(result.code).toContain('export function render(index, x)')
+    expect(result.code).toContain('render3D(index, x, 0.5, 0.5)')
+    expect(result.summary.rendererAdaptations[0]).toMatchObject({
+      sourceRenderer: 'render3D',
+      adapterRenderer: 'render',
+      missingCoordinates: ['y', 'z'],
+    })
+  })
+
+  it('uses the firmware preference when several higher-dimensional renderers exist', () => {
+    const source = [
+      `export function render2D(index, x, y) { hsv(y, 1, 1) }`,
+      `export function render3D(index, x, y, z) { hsv(z, 1, 1) }`,
+    ].join('\n')
+
+    const result = bundleWithPasses(source, {}, [
+      { id: 'renderer-adapter', kind: 'renderer-adapter', mapDim: 1 },
+    ])
+
+    expect(result.code).toContain('render3D(index, x, 0.5, 0.5)')
+    expect(result.code).not.toContain('render2D(index, x, 0.5)')
+  })
+
+  it('emits no adapter for an exact renderer or a lower-dimensional fallback', () => {
+    const exact = `export function render2D(index, x, y) { hsv(x, 1, 1) }`
+    const lower = `export function render(index, x) { hsv(x, 1, 1) }`
+
+    const exactResult = bundleWithPasses(exact, {}, [
+      { id: 'renderer-adapter', kind: 'renderer-adapter', mapDim: 2 },
+    ])
+    const lowerResult = bundleWithPasses(lower, {}, [
+      { id: 'renderer-adapter', kind: 'renderer-adapter', mapDim: 3 },
+    ])
+
+    expect(exactResult.code).toBe(exact)
+    expect(exactResult.summary.passes).toEqual([])
+    expect(lowerResult.code).toBe(lower)
+    expect(lowerResult.code).not.toContain('render3D')
+    expect(lowerResult.summary.passes).toEqual([])
+  })
+
+  it('refuses to collide with a user binding that occupies the exact adapter name', () => {
+    const source = [
+      `var render2D = 1`,
+      `export function render3D(index, x, y, z) { hsv(z, 1, 1) }`,
+    ].join('\n')
+
+    const result = bundleWithPasses(source, {}, [
+      { id: 'renderer-adapter', kind: 'renderer-adapter', mapDim: 2 },
+    ])
+
+    expect(result.code).toBe(source)
+    expect(result.code.match(/render2D/g)).toHaveLength(1)
+    expect(result.warnings).toContainEqual({
+      passId: 'renderer-adapter',
+      code: 'renderer-adapter-name-collision',
+      message: 'Cannot generate render2D because that name is already bound by the Pattern or a library.',
+    })
+  })
+
+  it('does not treat a nested local name as a top-level renderer collision', () => {
+    const source = [
+      `function helper(render2D) { return render2D }`,
+      `export function render3D(index, x, y, z) { hsv(z, 1, 1) }`,
+    ].join('\n')
+
+    const result = bundleWithPasses(source, {}, [
+      { id: 'renderer-adapter', kind: 'renderer-adapter', mapDim: 2 },
+    ])
+
+    expect(result.code).toContain('export function render2D(index, x, y)')
+    expect(result.warnings).toEqual([])
+  })
+
+  it('composes after output interception and binding passes', () => {
+    const source = [
+      `export var amount = 1`,
+      `export function render3D(index, x, y, z) { hsv(z, 1, amount) }`,
+    ].join('\n')
+
+    const result = bundleWithPasses(source, {}, [
+      { id: 'dim', kind: 'intercept', target: 'hsv' },
+      { id: 'amount', kind: 'bind', target: 'amount', value: 0.5 },
+      { id: 'renderer-adapter', kind: 'renderer-adapter', mapDim: 2 },
+    ])
+
+    expect(result.code).toContain('__pxlblz_dim_hsv(z, 1, amount)')
+    expect(result.code).toContain('amount = 0.5')
+    expect(result.code).toContain('render3D(index, x, y, 0.5)')
+    expect(result.summary.passes.map((pass) => pass.kind)).toEqual([
+      'intercept',
+      'bind',
+      'renderer-adapter',
+    ])
   })
 })
 

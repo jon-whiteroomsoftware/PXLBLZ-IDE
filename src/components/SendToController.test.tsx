@@ -66,7 +66,7 @@ describe('SendToController', () => {
   it('tracks a send intent when the enabled send button is clicked', () => {
     setControllerProvider(new ConnectedProvider())
     const pushActivePattern = vi.fn()
-    useEditorStore.setState({ nativeDim: 2, previewSource: 'export function render() {}' })
+    useEditorStore.setState({ nativeDim: 2, previewSource: 'export function render2D(index, x, y) {}' })
     usePatternStore.setState({ activePatternId: 'p1' })
     useControllerStore.setState({
       activeIp: '10.0.0.9',
@@ -98,7 +98,7 @@ describe('SendToController', () => {
 
   it('opens the preflight popover (warn, do not block) on a dim mismatch, and Send anyway pushes', () => {
     setControllerProvider(new ConnectedProvider())
-    useEditorStore.setState({ nativeDim: 2, previewSource: 'export function render() {}' })
+    useEditorStore.setState({ nativeDim: 2, previewSource: 'export function render2D(index, x, y) {}' })
     usePatternStore.setState({ activePatternId: 'p1' })
     useControllerStore.setState({
       activeIp: '10.0.0.9',
@@ -119,6 +119,33 @@ describe('SendToController', () => {
     fireEvent.click(screen.getByRole('button', { name: /send anyway/i }))
     expect(pushActivePattern).toHaveBeenCalledOnce()
     expect(useControllerStore.getState().preflight).toBeNull()
+  })
+
+  it('makes a known unsupported firmware combination explicit and blocks plain send', () => {
+    setControllerProvider(new ConnectedProvider())
+    useEditorStore.setState({
+      nativeDim: 2,
+      previewSource: 'export function render2D(index, x, y) {}',
+    })
+    usePatternStore.setState({ activePatternId: 'p1' })
+    useControllerStore.setState({
+      activeIp: '10.0.0.9',
+      controllers: {
+        '10.0.0.9': {
+          ip: '10.0.0.9',
+          phase: 'live',
+          mapDim: 3,
+          firmwareVersion: '3.65',
+        },
+      },
+    })
+    render(<SendToController />)
+
+    fireEvent.click(screen.getByTestId('send-to-controller'))
+
+    const dialog = screen.getByTestId('pattern-preflight-dialog')
+    expect(dialog).toHaveTextContent(/requires Pixelblaze firmware 3\.66 or newer/i)
+    expect(screen.getByRole('button', { name: /unsupported/i })).toBeDisabled()
   })
 
   it('offers the recommended-map remedy for a demo with a matching-dim recommendation', () => {
@@ -167,7 +194,7 @@ describe('SendToController', () => {
 
   it('pushes straight through (no popover) when the dimensions match', () => {
     setControllerProvider(new ConnectedProvider())
-    useEditorStore.setState({ nativeDim: 2, previewSource: 'export function render() {}' })
+    useEditorStore.setState({ nativeDim: 2, previewSource: 'export function render2D(index, x, y) {}' })
     usePatternStore.setState({ activePatternId: 'p1' })
     const pushActivePattern = vi.fn()
     useControllerStore.setState({
@@ -251,6 +278,11 @@ describe('SendToController', () => {
     // is inert — but save-mode Send must stay enabled (saving is not yet done).
     useControllerStore.setState({
       lastPushedSource: { '10.0.0.9': { p1: 'export function render() {}' } },
+      lastPushedProfileSignature: {
+        '10.0.0.9': {
+          p1: controllerProfileArtifactSignature(null, 'p1', { mapDim: 2 }),
+        },
+      },
     })
     usePatternStore.setState({ activePatternId: 'p1' })
     render(<SendToController />)
@@ -263,7 +295,7 @@ describe('SendToController', () => {
     setControllerProvider(new ConnectedProvider())
     const source = 'export function render() { hsv(0, 1, 1) }'
     const profile = defaultControllerProfile({ id: 'profile-1', deviceId: 'c1', now: 1 })
-    const previousSignature = controllerProfileArtifactSignature(profile, 'p1')
+    const previousSignature = controllerProfileArtifactSignature(profile, 'p1', { mapDim: 2 })
     useEditorStore.setState({ nativeDim: 2, previewSource: source })
     usePatternStore.setState({ activePatternId: 'p1' })
     useControllerProfileStore.setState({ profiles: [profile], profilesLoaded: true })
@@ -288,6 +320,29 @@ describe('SendToController', () => {
         }],
       })
     })
+
+    expect(screen.getByTestId('send-to-controller')).toBeEnabled()
+  })
+
+  it('re-enables Send when the Controller map dimension changes the generated artifact', () => {
+    setControllerProvider(new ConnectedProvider())
+    const source = 'export function render3D(index, x, y, z) {}'
+    useEditorStore.setState({ nativeDim: 3, previewSource: source })
+    usePatternStore.setState({ activePatternId: 'p1' })
+    useControllerStore.setState({
+      activeIp: '10.0.0.9',
+      controllers: {
+        '10.0.0.9': { ip: '10.0.0.9', phase: 'live', mapDim: 3 },
+      },
+      lastPushedSource: { '10.0.0.9': { p1: source } },
+      lastPushedProfileSignature: {
+        '10.0.0.9': {
+          p1: controllerProfileArtifactSignature(null, 'p1', { mapDim: 2 }),
+        },
+      },
+    })
+
+    render(<SendToController />)
 
     expect(screen.getByTestId('send-to-controller')).toBeEnabled()
   })

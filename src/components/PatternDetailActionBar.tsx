@@ -7,8 +7,13 @@ import { getControllerProvider } from '@/engine/controllerProviderRegistry'
 import { describeSendAction, describeSendToController, isAlreadyPushed } from '@/engine/sendToController'
 import { requestControllerEntryOpen } from '@/components/controllerEntryEvents'
 import { useControllerStore } from '@/store/controllerStore'
+import { useControllerProfileStore } from '@/store/controllerProfileStore'
 import { useEditorStore } from '@/store/editorStore'
 import { activePushKey, usePatternStore } from '@/store/patternStore'
+import {
+  controllerProfileArtifactSignature,
+  findProfileForLiveController,
+} from '@/engine/controllerProfilePassRecipe'
 
 type PatternDetailActionBarProps = {
   stageView: 'preview' | 'code'
@@ -30,6 +35,9 @@ export function PatternDetailActionBar({ stageView, onToggleStage }: PatternDeta
   const pushResult = useControllerStore((s) => s.pushResult)
   const lastPushedSource = useControllerStore((s) => s.lastPushedSource)
   const lastSavedSource = useControllerStore((s) => s.lastSavedSource)
+  const lastPushedProfileSignature = useControllerStore((s) => s.lastPushedProfileSignature)
+  const lastSavedProfileSignature = useControllerStore((s) => s.lastSavedProfileSignature)
+  const controllerProfiles = useControllerProfileStore((s) => s.profiles)
   const saveArmed = useControllerStore((s) => s.saveArmed)
   const setSaveArmed = useControllerStore((s) => s.setSaveArmed)
   const confirmPatternPush = useControllerStore((s) => s.confirmPatternPush)
@@ -37,7 +45,17 @@ export function PatternDetailActionBar({ stageView, onToggleStage }: PatternDeta
   const cancelPush = useControllerStore((s) => s.cancelPush)
   const preflight = useControllerStore((s) => s.preflight)
   const patternMapRemedy = useControllerStore((s) => s.patternMapRemedy)
+  const patternPushBlocked = useControllerStore((s) => s.patternPushBlocked)
   const clearPushResult = useControllerStore((s) => s.clearPushResult)
+
+  const controllerProfile = active
+    ? findProfileForLiveController(controllerProfiles, active)
+    : null
+  const profileSignature = controllerProfileArtifactSignature(
+    controllerProfile,
+    patternId,
+    { mapDim: active?.mapDim ?? null },
+  )
 
   useEffect(() => {
     if (!pushResult) return
@@ -53,6 +71,9 @@ export function PatternDetailActionBar({ stageView, onToggleStage }: PatternDeta
       source: previewSource,
       lastRunSource: lastPushedSource[activeIp]?.[patternId],
       lastSavedSource: lastSavedSource[activeIp]?.[patternId],
+      profileSignature,
+      lastRunProfileSignature: lastPushedProfileSignature[activeIp]?.[patternId],
+      lastSavedProfileSignature: lastSavedProfileSignature[activeIp]?.[patternId],
     })
   const saveAlreadyPushed =
     !!activeIp &&
@@ -62,12 +83,15 @@ export function PatternDetailActionBar({ stageView, onToggleStage }: PatternDeta
       source: previewSource,
       lastRunSource: lastPushedSource[activeIp]?.[patternId],
       lastSavedSource: lastSavedSource[activeIp]?.[patternId],
+      profileSignature,
+      lastRunProfileSignature: lastPushedProfileSignature[activeIp]?.[patternId],
+      lastSavedProfileSignature: lastSavedProfileSignature[activeIp]?.[patternId],
     })
   const runGate = describeSendToController({ status, compileStatus, alreadyPushed: runAlreadyPushed })
   const saveGate = describeSendToController({ status, compileStatus, alreadyPushed: saveAlreadyPushed })
   const target = active ? active.nickname || active.ip : 'Controller'
   const working = pushing || !!pushResult?.ok
-  const dimMismatch = (preflight ?? []).find((w) => w.kind === 'pattern-dim-mismatch')
+  const patternWarnings = (preflight ?? []).filter((warning) => warning.kind.startsWith('pattern-'))
 
   const runPattern = () => {
     setSaveArmed(false)
@@ -151,14 +175,15 @@ export function PatternDetailActionBar({ stageView, onToggleStage }: PatternDeta
           {stageView === 'code' ? 'Preview' : 'Code'}
         </button>
         <PushConfirmPopover
-          open={dimMismatch !== undefined}
+          open={patternWarnings.length > 0}
           onCancel={cancelPush}
           title="Send pattern"
           testId="pattern-preflight-dialog"
           anchor={<span className="inline-flex min-w-0 items-stretch">{hardwareGroup}</span>}
         >
           <PatternPushChoices
-            warning={dimMismatch}
+            warnings={patternWarnings}
+            blocked={patternPushBlocked}
             remedy={patternMapRemedy}
             onCancel={cancelPush}
             confirmWithMap={confirmPatternPushWithMap}

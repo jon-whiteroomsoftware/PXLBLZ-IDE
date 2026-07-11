@@ -53,7 +53,11 @@ export function ControllerActionRow({
   const controllerProfile = active
     ? findProfileForLiveController(controllerProfiles, active)
     : null
-  const profileSignature = controllerProfileArtifactSignature(controllerProfile, patternId)
+  const profileSignature = controllerProfileArtifactSignature(
+    controllerProfile,
+    patternId,
+    { mapDim: active?.mapDim ?? null },
+  )
   const alreadyPushed = (mode: SendMode) => (
     !!activeIp
     && !!patternId

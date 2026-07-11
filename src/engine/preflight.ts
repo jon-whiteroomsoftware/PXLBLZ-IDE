@@ -19,21 +19,23 @@
 // read via getConfig; local count from the re-baked map) and whether a map upload is
 // opted into.
 //
-// A *pattern* push DOES carry one preflight concern (the dim match): a pattern whose
-// coordinate dimensionality differs from the Controller's installed map renders against
-// coordinates that don't line up, so it will likely look wrong. Unlike the map-count
-// mismatch this is NOT blocking — the device still runs it, and the author may know
-// better (e.g. a 1D pattern that ignores y/z) — so it is a soft warning the author can
-// push past, mirroring the existing "don't block when the map dim is unknown" stance.
+// A *pattern* push carries renderer compatibility preflight against the Controller's
+// installed map. Supported adapters/fallbacks are explanatory and push-past; a known
+// pre-3.66 unsupported combination blocks plain Send. Unknown firmware stays an honest
+// warning rather than silently claiming compatibility.
+
+import type { HardwareRenderPlan, MapDimension, RendererName } from './renderCompatibility'
 
 /** Each distinct preflight concern. `map-overwrite` is the shared-map guard and
  *  `map-count-mismatch` the blocking map-push failure (firmware would silently drop the
- *  map) — both map-push only. `pattern-dim-mismatch` is the pattern-push soft warning:
- *  the pattern's dimensionality differs from the Controller's installed map. */
+ *  map) — both map-push only. `pattern-dim-mismatch` explains the selected
+ *  cross-dimensional renderer/adapter; the firmware kinds report capability. */
 export type PreflightWarningKind =
   | 'map-overwrite'
   | 'map-count-mismatch'
   | 'pattern-dim-mismatch'
+  | 'pattern-firmware-unsupported'
+  | 'pattern-firmware-unknown'
 
 export interface PreflightWarning {
   kind: PreflightWarningKind
@@ -61,6 +63,9 @@ export interface PreflightInput {
    *  can't be read — in which case the dim warning is suppressed (can't prove a
    *  mismatch, same stance as the map count when the device count is unknown). */
   mapDim?: 1 | 2 | 3 | null
+  /** Preferred pattern-push input: exact renderer capability + firmware policy for
+   * the Controller's installed map. Supersedes the legacy highest-dimension hint. */
+  rendererPlan?: HardwareRenderPlan
 }
 
 export interface Preflight {
@@ -83,6 +88,7 @@ export function describePreflight({
   pushingMap = false,
   patternDim,
   mapDim = null,
+  rendererPlan,
 }: PreflightInput): Preflight {
   const warnings: PreflightWarning[] = []
 
@@ -112,9 +118,40 @@ export function describePreflight({
 
   // Pattern push: no count preflight (#239) — a pattern runs on the device's own pixels
   // and map, so the IDE's preview resolution is unrelated. The one concern is the dim
-  // match: a pattern whose dimensionality differs from the installed map renders against
-  // coordinates that don't line up. Soft (non-blocking) — the device still runs it and
-  // the author may know better — and suppressed when the map dim is unknown.
+  // match: prefer the capability-aware plan. The legacy native-dimension branch remains
+  // for callers that cannot yet provide renderer metadata.
+  if (rendererPlan) {
+    const { compatibility } = rendererPlan
+    if (compatibility.description) {
+      const adapterRenderer = rendererForDimension(compatibility.mapDim)
+      warnings.push({
+        kind: 'pattern-dim-mismatch',
+        message: rendererPlan.adapterRequired
+          ? `The Controller artifact will adapt ${compatibility.renderer} through a ${adapterRenderer} adapter for its ${compatibility.mapDim}D map.`
+          : `The Controller will use ${compatibility.renderer} with its ${compatibility.mapDim}D map.`,
+        detail: rendererPlan.adapterRequired
+          ? centeredAdapterDetail(compatibility.mapDim, compatibility.rendererDim ?? compatibility.mapDim)
+          : compatibility.description,
+      })
+    }
+    if (rendererPlan.firmwareSupport === 'unsupported') {
+      warnings.push({
+        kind: 'pattern-firmware-unsupported',
+        message: rendererPlan.reason ?? 'This renderer/map combination is not supported by the Controller firmware.',
+      })
+    } else if (rendererPlan.firmwareSupport === 'unknown') {
+      warnings.push({
+        kind: 'pattern-firmware-unknown',
+        message: rendererPlan.reason ?? 'Controller firmware support for this renderer/map combination is unknown.',
+      })
+    }
+    return {
+      warnings,
+      blocking: rendererPlan.firmwareSupport === 'unsupported',
+      remedyPixelCount: null,
+    }
+  }
+
   if (patternDim !== undefined && mapDim !== null && mapDim !== patternDim) {
     warnings.push({
       kind: 'pattern-dim-mismatch',
@@ -125,4 +162,16 @@ export function describePreflight({
     })
   }
   return { warnings, blocking: false, remedyPixelCount: null }
+}
+
+function rendererForDimension(dimension: MapDimension): RendererName {
+  if (dimension === 1) return 'render'
+  if (dimension === 2) return 'render2D'
+  return 'render3D'
+}
+
+function centeredAdapterDetail(mapDim: MapDimension, rendererDim: number): string {
+  const missing = ['x', 'y', 'z'].slice(mapDim, rendererDim)
+  const assignments = missing.map((coordinate) => `${coordinate} = 0.5`).join(' and ')
+  return `The generated exact-arity adapter calls the original renderer with ${assignments}.`
 }

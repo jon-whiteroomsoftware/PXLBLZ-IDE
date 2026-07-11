@@ -23,19 +23,22 @@ import {
 const checkbox = 'h-3.5 w-3.5 shrink-0 accent-amber-400'
 
 // The pattern-push popover body, mounted only while the popover is open (so its
-// default-checked checkbox re-arms on every open). The dim-mismatch warning is soft, so
-// the author can always push past it ("Send anyway"). When the open demo carries a
+// default-checked checkbox re-arms on every open). Supported/unknown combinations are
+// push-past warnings; a known unsupported firmware combination disables plain Send.
+// When the open demo carries a
 // recommended map of the matching dimension (Option A), a checked-by-default checkbox
 // offers to install it first — the pattern analogue of the map-push count remedy. Without
 // a recommendation (user patterns, demos without one) there's no checkbox: a plain push.
 export function PatternPushChoices({
-  warning,
+  warnings,
+  blocked,
   remedy,
   onCancel,
   confirmWithMap,
   confirmOnly,
 }: {
-  warning?: PreflightWarning
+  warnings: PreflightWarning[]
+  blocked: boolean
   remedy: RecommendedMapRemedy | null
   onCancel: () => void
   confirmWithMap: () => Promise<void>
@@ -43,11 +46,12 @@ export function PatternPushChoices({
 }) {
   const [installMap, setInstallMap] = useState(true)
   const withMap = remedy !== null && installMap
+  const canSend = !blocked || withMap
   const onSend = () => void (withMap ? confirmWithMap() : confirmOnly())
 
   return (
     <>
-      <PreflightWarningList warnings={warning ? [warning] : []} />
+      <PreflightWarningList warnings={warnings} />
 
       {remedy && (
         <fieldset className="mt-3 space-y-1.5">
@@ -68,8 +72,13 @@ export function PatternPushChoices({
         <button type="button" className={pushPopoverButton.cancel} onClick={onCancel}>
           Cancel
         </button>
-        <button type="button" className={pushPopoverButton.action} onClick={onSend}>
-          {withMap ? 'Install & send' : 'Send anyway'}
+        <button
+          type="button"
+          className={pushPopoverButton.action}
+          disabled={!canSend}
+          onClick={onSend}
+        >
+          {withMap ? 'Install & send' : blocked ? 'Unsupported' : 'Send anyway'}
         </button>
       </div>
     </>
@@ -116,6 +125,7 @@ export function SendToController() {
   const cancelPush = useControllerStore((s) => s.cancelPush)
   const preflight = useControllerStore((s) => s.preflight)
   const patternMapRemedy = useControllerStore((s) => s.patternMapRemedy)
+  const patternPushBlocked = useControllerStore((s) => s.patternPushBlocked)
   const clearPushResult = useControllerStore((s) => s.clearPushResult)
 
   // Hold the just-pushed check on screen (button inert) for a few seconds, then let
@@ -135,7 +145,11 @@ export function SendToController() {
   const controllerProfile = active
     ? findProfileForLiveController(controllerProfiles, active)
     : null
-  const profileSignature = controllerProfileArtifactSignature(controllerProfile, patternId)
+  const profileSignature = controllerProfileArtifactSignature(
+    controllerProfile,
+    patternId,
+    { mapDim: active?.mapDim ?? null },
+  )
   const alreadyPushed =
     !!activeIp &&
     !!patternId &&
@@ -250,16 +264,15 @@ export function SendToController() {
     </span>
   )
 
-  // A clean pattern push goes straight through (the one-click path, #239). The only
-  // preflight is the soft dim-match warning: when the pattern's dimensionality differs
-  // from the Controller's installed map, requestPush opens this popover instead of
-  // pushing, and the author confirms with "Send anyway" (mirrors the map-push flow).
-  const dimMismatch = (preflight ?? []).find((w) => w.kind === 'pattern-dim-mismatch')
+  // A clean exact Pattern push goes straight through. Cross-dimensional renderer plans
+  // open this popover with their adapter/fallback and firmware status; supported or
+  // unknown cases may proceed, while known unsupported firmware is blocked.
+  const patternWarnings = (preflight ?? []).filter((warning) => warning.kind.startsWith('pattern-'))
   return (
     <span className="ml-2 inline-flex h-6 items-stretch gap-1">
       {modeSelector}
       <PushConfirmPopover
-        open={dimMismatch !== undefined}
+        open={patternWarnings.length > 0}
         onCancel={cancelPush}
         title="Send pattern"
         testId="pattern-preflight-dialog"
@@ -278,7 +291,8 @@ export function SendToController() {
         }
       >
         <PatternPushChoices
-          warning={dimMismatch}
+          warnings={patternWarnings}
+          blocked={patternPushBlocked}
           remedy={patternMapRemedy}
           onCancel={cancelPush}
           confirmWithMap={confirmPatternPushWithMap}

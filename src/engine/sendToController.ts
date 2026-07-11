@@ -12,6 +12,7 @@
 // dim heuristic, so we warn and let them through rather than block.
 
 import type { ControllerStatus } from './ControllerProvider'
+import { supportsRendererMatrix } from './renderCompatibility'
 
 /** A pattern/map coordinate dimension, or null when it isn't known. */
 export type MapDimension = 1 | 2 | 3 | null
@@ -144,12 +145,7 @@ export interface SendMapGateInput {
 }
 
 export function supportsOneDimensionalMaps(firmwareVersion: string | undefined): boolean | null {
-  if (!firmwareVersion) return null
-  const match = /^v?(\d+)\.(\d+)/i.exec(firmwareVersion.trim())
-  if (!match) return null
-  const major = Number(match[1])
-  const minor = Number(match[2])
-  return major > 3 || (major === 3 && minor >= 66)
+  return supportsRendererMatrix(firmwareVersion)
 }
 
 /** Decide whether the map editor's Send-to-Controller is enabled, and why not. */

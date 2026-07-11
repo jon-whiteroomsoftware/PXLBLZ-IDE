@@ -639,6 +639,112 @@ describe('controllerStore (keyed)', () => {
       expect(store().lastTransformArtifacts['10.0.0.5']?.['pat-1']).toBeUndefined()
     })
 
+    it('adds a centered exact-arity adapter for the live Controller map and records it', async () => {
+      const source = 'export function render3D(index, x, y, z) {\n  hsv(z, 1, 1)\n}\n'
+      await store().addController({
+        id: 'pixelblaze_pb32_abc',
+        address: '10.0.0.5',
+        version: '3.67',
+      })
+      usePatternStore.setState({ activePatternId: 'pat-1' })
+      useEditorStore.setState({ previewSource: source, previewPatternName: 'Spatial' })
+
+      await store().pushActivePattern()
+
+      const provider = created.get('10.0.0.5')!
+      expect(provider.compiledSources[0]).toContain('export function render2D(index, x, y)')
+      expect(provider.compiledSources[0]).toContain('render3D(index, x, y, 0.5)')
+      expect(store().lastTransformSummary['10.0.0.5']['pat-1'].rendererAdaptations).toEqual([{
+        mapDimension: 2,
+        sourceRenderer: 'render3D',
+        adapterRenderer: 'render2D',
+        missingCoordinates: ['z'],
+      }])
+      expect(store().lastTransformArtifacts['10.0.0.5']['pat-1'].generatedSource).toContain(
+        'render3D(index, x, y, 0.5)',
+      )
+    })
+
+    it('keeps an exact renderer byte-identical and records no transform artifact', async () => {
+      const source = 'export function render2D(index, x, y) {\n  hsv(x, 1, 1)\n}\n'
+      await store().addController({
+        id: 'pixelblaze_pb32_abc',
+        address: '10.0.0.5',
+        version: '3.67',
+      })
+      usePatternStore.setState({ activePatternId: 'pat-1' })
+      useEditorStore.setState({ previewSource: source })
+
+      await store().pushActivePattern()
+
+      expect(created.get('10.0.0.5')!.compiledSources).toEqual([bundle(source, {}).code])
+      expect(store().lastTransformSummary['10.0.0.5']?.['pat-1']).toBeUndefined()
+      expect(store().lastTransformArtifacts['10.0.0.5']?.['pat-1']).toBeUndefined()
+    })
+
+    it('allows a centered adapter on pre-3.66 firmware because the emitted renderer is exact', async () => {
+      const source = 'export function render3D(index, x, y, z) { hsv(z, 1, 1) }'
+      await store().addController({
+        id: 'pixelblaze_pb32_abc',
+        address: '10.0.0.5',
+        version: '3.65',
+      })
+      usePatternStore.setState({ activePatternId: 'pat-1' })
+      useEditorStore.setState({ previewSource: source })
+
+      await store().pushActivePattern()
+
+      expect(created.get('10.0.0.5')!.pushed).toHaveLength(1)
+      expect(store().pushResult?.ok).toBe(true)
+    })
+
+    it('refuses an unadapted cross-dimensional fallback on pre-3.66 firmware', async () => {
+      const source = 'export function render2D(index, x, y) { hsv(y, 1, 1) }'
+      await store().addController({
+        id: 'pixelblaze_pb32_abc',
+        address: '10.0.0.5',
+        version: '3.65',
+      })
+      useControllerStore.setState((state) => ({
+        controllers: {
+          ...state.controllers,
+          '10.0.0.5': { ...state.controllers['10.0.0.5'], mapDim: 3 },
+        },
+      }))
+      usePatternStore.setState({ activePatternId: 'pat-1' })
+      useEditorStore.setState({ previewSource: source })
+
+      await store().pushActivePattern()
+
+      expect(created.get('10.0.0.5')!.compiledSources).toHaveLength(0)
+      expect(store().pushResult).toEqual({
+        ok: false,
+        message: 'This cross-dimensional renderer fallback requires Pixelblaze firmware 3.66 or newer.',
+      })
+    })
+
+    it('refuses to push when the exact adapter renderer name is occupied', async () => {
+      const source = [
+        'var render2D = 1',
+        'export function render3D(index, x, y, z) { hsv(z, 1, 1) }',
+      ].join('\n')
+      await store().addController({
+        id: 'pixelblaze_pb32_abc',
+        address: '10.0.0.5',
+        version: '3.67',
+      })
+      usePatternStore.setState({ activePatternId: 'pat-1' })
+      useEditorStore.setState({ previewSource: source })
+
+      await store().pushActivePattern()
+
+      expect(created.get('10.0.0.5')!.compiledSources).toHaveLength(0)
+      expect(store().pushResult).toEqual({
+        ok: false,
+        message: 'Cannot generate render2D because that name is already bound by the Pattern or a library.',
+      })
+    })
+
     it('waits for pending Controller Profile auto-saves before reading transforms', async () => {
       await store().addController({
         id: 'pixelblaze_pb32_abc',
@@ -811,7 +917,7 @@ describe('controllerStore (keyed)', () => {
   })
 
   describe('requestPush (#239 — pattern push has no preflight)', () => {
-    const PATTERN_SRC = 'export function render(index) {\n  hsv(index, 1, 1)\n}\n'
+    const PATTERN_SRC = 'export function render2D(index, x, y) {\n  hsv(x, 1, 1)\n}\n'
 
     async function arm(devicePixelCount: number | undefined) {
       await store().addController('10.0.0.5')
@@ -873,6 +979,51 @@ describe('controllerStore (keyed)', () => {
       })
       // Nothing pushed until the author confirms.
       expect(created.get('10.0.0.5')!.pushed).toHaveLength(0)
+    })
+
+    it('uses exact renderer capabilities rather than highest Pattern dimension', async () => {
+      const source = [
+        'export function render2D(index, x, y) { hsv(x, 1, 1) }',
+        'export function render3D(index, x, y, z) { hsv(z, 1, 1) }',
+      ].join('\n')
+      await store().addController({
+        id: 'pixelblaze_pb32_abc',
+        address: '10.0.0.5',
+        version: '3.67',
+      })
+      usePatternStore.setState({ activePatternId: 'pat-1' })
+      useEditorStore.setState({ nativeDim: 3, previewSource: source })
+
+      await store().requestPush()
+
+      expect(store().preflight).toBeNull()
+      expect(created.get('10.0.0.5')!.pushed).toHaveLength(1)
+    })
+
+    it('blocks a known-unsupported fallback before compile or push', async () => {
+      const source = 'export function render2D(index, x, y) { hsv(y, 1, 1) }'
+      await store().addController({
+        id: 'pixelblaze_pb32_abc',
+        address: '10.0.0.5',
+        version: '3.65',
+      })
+      useControllerStore.setState((state) => ({
+        controllers: {
+          ...state.controllers,
+          '10.0.0.5': { ...state.controllers['10.0.0.5'], mapDim: 3 },
+        },
+      }))
+      usePatternStore.setState({ activePatternId: 'pat-1' })
+      useEditorStore.setState({ nativeDim: 2, previewSource: source })
+
+      await store().requestPush()
+
+      expect(store().patternPushBlocked).toBe(true)
+      expect(store().preflight?.map((warning) => warning.kind)).toContain(
+        'pattern-firmware-unsupported',
+      )
+      await store().confirmPatternPush()
+      expect(created.get('10.0.0.5')!.compiledSources).toHaveLength(0)
     })
 
     it('confirmPatternPushWithMap materializes the map to the device count (no count change), updates mapDim, then pushes', async () => {

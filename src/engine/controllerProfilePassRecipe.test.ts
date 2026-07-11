@@ -45,6 +45,15 @@ describe('controller profile pass recipe', () => {
     )
   })
 
+  it('includes the live Controller map dimension in the generated-artifact signature', () => {
+    const profile = defaultControllerProfile({ id: 'ctrl-1', now: 1 })
+
+    expect(controllerProfileArtifactSignature(profile, 'pat-1', { mapDim: 2 })).not.toBe(
+      controllerProfileArtifactSignature(profile, 'pat-1', { mapDim: 3 }),
+    )
+    expect(controllerProfileArtifactSignature(null, 'pat-1', { mapDim: 2 })).not.toBe('')
+  })
+
   it('builds a power-cap recipe for an enabled cap transform', () => {
     const profile = {
       ...defaultControllerProfile({ id: 'ctrl-1', now: 1 }),

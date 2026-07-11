@@ -1,5 +1,17 @@
 import { describe, it, expect } from 'vitest'
 import { describePreflight } from './preflight'
+import { planHardwareRenderer } from './renderCompatibility'
+import type { RenderFns } from './loadPattern'
+
+function renderFns(over: Partial<RenderFns>): RenderFns {
+  return {
+    hasBeforeRender: false,
+    hasRender: false,
+    hasRender2D: false,
+    hasRender3D: false,
+    ...over,
+  }
+}
 
 describe('describePreflight', () => {
   it('a pattern push reconciles no count, whatever the counts (#239)', () => {
@@ -33,6 +45,63 @@ describe('describePreflight', () => {
   it('suppresses the dim warning when the map dim is unknown (cannot prove a mismatch)', () => {
     const pf = describePreflight({ patternDim: 3, mapDim: null })
     expect(pf.warnings).toEqual([])
+  })
+
+  it('describes a generated centered adapter as a supported soft warning', () => {
+    const rendererPlan = planHardwareRenderer(
+      2,
+      renderFns({ hasRender3D: true }),
+      '3.67',
+    )
+
+    const pf = describePreflight({ rendererPlan })
+
+    expect(pf.blocking).toBe(false)
+    expect(pf.warnings.map((warning) => warning.kind)).toEqual(['pattern-dim-mismatch'])
+    expect(pf.warnings[0].message).toContain('render2D adapter')
+    expect(pf.warnings[0].detail).toContain('z = 0.5')
+  })
+
+  it('does not warn when a multi-renderer Pattern has an exact map renderer', () => {
+    const rendererPlan = planHardwareRenderer(
+      2,
+      renderFns({ hasRender2D: true, hasRender3D: true }),
+      '3.67',
+    )
+
+    expect(describePreflight({ rendererPlan }).warnings).toEqual([])
+  })
+
+  it('blocks a cross-dimensional fallback known to be unsupported by firmware', () => {
+    const rendererPlan = planHardwareRenderer(
+      3,
+      renderFns({ hasRender2D: true }),
+      '3.65',
+    )
+
+    const pf = describePreflight({ rendererPlan })
+
+    expect(pf.blocking).toBe(true)
+    expect(pf.warnings.map((warning) => warning.kind)).toEqual([
+      'pattern-dim-mismatch',
+      'pattern-firmware-unsupported',
+    ])
+  })
+
+  it('warns but does not block when cross-dimensional firmware support is unknown', () => {
+    const rendererPlan = planHardwareRenderer(
+      3,
+      renderFns({ hasRender2D: true }),
+      undefined,
+    )
+
+    const pf = describePreflight({ rendererPlan })
+
+    expect(pf.blocking).toBe(false)
+    expect(pf.warnings.map((warning) => warning.kind)).toEqual([
+      'pattern-dim-mismatch',
+      'pattern-firmware-unknown',
+    ])
   })
 
   it('adds a map-overwrite warning only when a map push is opted into', () => {

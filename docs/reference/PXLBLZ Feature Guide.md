@@ -184,6 +184,13 @@ prefers `render`, then `render3D`, then `render2D`; 2D prefers `render2D`, then
 `render3D`, then `render`; 3D prefers `render3D`, then `render2D`, then `render`.
 Missing coordinates are `0.5`, extra trailing coordinates are dropped, and a
 small status line explains an adapted combination. Exact matches show no status.
+Send to Controller applies the same policy to the Controller's installed map
+(which may differ from the preview selection). When a higher-dimensional
+renderer needs missing coordinates, the IDE generates an exact map-dimensional
+adapter that supplies `0.5`, so the downloaded Pattern matches preview instead
+of depending on incidental firmware argument values. Known pre-3.66 unsupported
+map/fallback combinations are explained before Send and cannot be pushed as if
+they were compatible.
 
 **Stock maps** ship ready to use: Square, Wide 2:1, Ring, a 3D set in
 shell/volume pairs — Cube, Sphere, Star, and Tetra (a d4), where "shell" puts LEDs
@@ -747,7 +754,9 @@ Maps** §5).
   available from any machine. Controller profiles are created when hardware is
   connected and named from the Pixelblaze device name; signed-out sessions are
   non-durable demo mode — nothing you make there persists.
-- **Push transforms are opt-in and inspectable.** If the connected device's
+- **Push transforms are inspectable.** Renderer adapters are automatic when
+  hardware parity requires them; Controller-profile transforms remain opt-in.
+  If the connected device's
   Controller profile has hardware brightness, power cap, or a matching pattern
   binding enabled, Send to Controller generates a derived artifact (the pattern
   samples the configured input once per frame and applies the selected
@@ -756,7 +765,8 @@ Maps** §5).
   saved into a persisted PBP carries the same `pxlblz:1` identity banner as Copy
   and Download; run-only bytecode has no source section. After a transformed
   push, the Controller profile and mixin provenance panes show the transform
-  summary, warnings, and a read-only view of the generated artifact.
+  summary, warnings, renderer-adapter provenance/cost, and a read-only view of
+  the generated artifact.
 
 ---
 

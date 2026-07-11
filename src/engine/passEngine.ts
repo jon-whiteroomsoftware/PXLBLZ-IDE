@@ -1,10 +1,19 @@
 import * as acorn from 'acorn'
 import { bundle, type BundleMetadata } from './bundle'
 import { emitFixedPoint } from './fxEmit'
+import {
+  selectRenderCompatibility,
+  type MapDimension,
+  type RendererName,
+} from './renderCompatibility'
 
 export type PassRecipe = PassRecipeItem[]
 
-export type PassRecipeItem = InjectPassRecipe | InterceptPassRecipe | BindPassRecipe
+export type PassRecipeItem =
+  | InjectPassRecipe
+  | InterceptPassRecipe
+  | BindPassRecipe
+  | RendererAdapterPassRecipe
 
 export interface BasePassRecipe {
   id?: string
@@ -35,6 +44,11 @@ export interface BindPassRecipe extends BasePassRecipe {
   mode?: 'auto' | 'function-call' | 'variable-assignment'
 }
 
+export interface RendererAdapterPassRecipe extends BasePassRecipe {
+  kind: 'renderer-adapter'
+  mapDim: MapDimension
+}
+
 export type OutputSinkName = 'hsv' | 'hsv24' | 'rgb' | 'paint'
 export type PassParamValue = string | number | boolean
 export type BeforeRenderHandling = 'unchanged' | 'wrapped' | 'synthesized'
@@ -47,12 +61,20 @@ export interface PassSummary {
   globalsAdded?: string[]
   exportsAdded?: string[]
   bindingsApplied?: BindingSummary[]
+  rendererAdaptation?: RendererAdaptationSummary
   estimatedPixelCost: number
 }
 
 export interface BindingSummary {
   target: string
   mode: 'function-call' | 'variable-assignment'
+}
+
+export interface RendererAdaptationSummary {
+  mapDimension: MapDimension
+  sourceRenderer: RendererName
+  adapterRenderer: RendererName
+  missingCoordinates: string[]
 }
 
 export interface TransformSummary {
@@ -62,6 +84,7 @@ export interface TransformSummary {
   globalsAdded: string[]
   exportsAdded: string[]
   bindingsApplied: BindingSummary[]
+  rendererAdaptations: RendererAdaptationSummary[]
   estimatedPixelCost: number
 }
 
@@ -93,6 +116,7 @@ interface PassContext {
   code: string
   usedNames: Set<string>
   userNames: Set<string>
+  metadata: BundleMetadata
   summary: TransformSummary
   warnings: PassWarning[]
 }
@@ -112,6 +136,7 @@ function emptySummary(): TransformSummary {
     globalsAdded: [],
     exportsAdded: [],
     bindingsApplied: [],
+    rendererAdaptations: [],
     estimatedPixelCost: 0,
   }
 }
@@ -130,6 +155,7 @@ export function bundleWithPasses(
     code: base.code,
     usedNames: collectIdentifiers(base.code),
     userNames: collectIdentifiers(base.code),
+    metadata: base.metadata,
     summary: emptySummary(),
     warnings: [],
   }
@@ -155,13 +181,10 @@ function applyPass(ctx: PassContext, pass: PassRecipeItem, index: number): void 
 
   warnReservedPrefixCollisions(ctx, passId)
 
-  if (pass.kind === 'inject') {
-    passSummary = applyInjectPass(ctx, pass, passId)
-  } else if (pass.kind === 'intercept') {
-    passSummary = applyInterceptPass(ctx, pass, passId)
-  } else {
-    passSummary = applyBindPass(ctx, pass, passId)
-  }
+  if (pass.kind === 'inject') passSummary = applyInjectPass(ctx, pass, passId)
+  else if (pass.kind === 'intercept') passSummary = applyInterceptPass(ctx, pass, passId)
+  else if (pass.kind === 'bind') passSummary = applyBindPass(ctx, pass, passId)
+  else passSummary = applyRendererAdapterPass(ctx, pass, passId)
 
   passSummary.estimatedPixelCost = pass.cost ?? passSummary.estimatedPixelCost
   if (ctx.code === beforeCode && ctx.warnings.length === beforeWarnings) return
@@ -171,10 +194,80 @@ function applyPass(ctx: PassContext, pass: PassRecipeItem, index: number): void 
   ctx.summary.globalsAdded.push(...(passSummary.globalsAdded ?? []))
   ctx.summary.exportsAdded.push(...(passSummary.exportsAdded ?? []))
   ctx.summary.bindingsApplied.push(...(passSummary.bindingsApplied ?? []))
+  if (passSummary.rendererAdaptation) {
+    ctx.summary.rendererAdaptations.push(passSummary.rendererAdaptation)
+  }
   ctx.summary.estimatedPixelCost += passSummary.estimatedPixelCost
   if (passSummary.beforeRender && passSummary.beforeRender !== 'unchanged') {
     ctx.summary.beforeRender = passSummary.beforeRender
   }
+}
+
+function applyRendererAdapterPass(
+  ctx: PassContext,
+  pass: RendererAdapterPassRecipe,
+  passId: string,
+): PassSummary {
+  const compatibility = selectRenderCompatibility(pass.mapDim, ctx.metadata.renderFns)
+  if (
+    !compatibility.renderer ||
+    !compatibility.rendererDim ||
+    compatibility.rendererDim <= pass.mapDim
+  ) {
+    return { id: passId, kind: 'renderer-adapter', estimatedPixelCost: 0 }
+  }
+
+  const adapterRenderer = rendererForDimension(pass.mapDim)
+  const topLevelBindings = collectTopLevelBindings(ctx.code)
+  if (
+    topLevelBindings.functions.has(adapterRenderer) ||
+    topLevelBindings.variables.has(adapterRenderer)
+  ) {
+    addWarning(
+      ctx,
+      passId,
+      'renderer-adapter-name-collision',
+      `Cannot generate ${adapterRenderer} because that name is already bound by the Pattern or a library.`,
+    )
+    return { id: passId, kind: 'renderer-adapter', estimatedPixelCost: 0 }
+  }
+
+  const coordinateNames = ['x', 'y', 'z']
+  const adapterCoordinates = coordinateNames.slice(0, pass.mapDim)
+  const sourceCoordinates = coordinateNames
+    .slice(0, compatibility.rendererDim)
+    .map((coordinate, index) => index < pass.mapDim ? coordinate : '0.5')
+  const missingCoordinates = coordinateNames.slice(pass.mapDim, compatibility.rendererDim)
+  const parameters = ['index', ...adapterCoordinates].join(', ')
+  const argumentsList = ['index', ...sourceCoordinates].join(', ')
+  const source = [
+    `export function ${adapterRenderer}(${parameters}) {`,
+    `  ${compatibility.renderer}(${argumentsList})`,
+    `}`,
+  ].join('\n')
+
+  ctx.code = `${ctx.code.trimEnd()}\n\n${source}\n`
+  ctx.usedNames = collectIdentifiers(ctx.code)
+
+  return {
+    id: passId,
+    kind: 'renderer-adapter',
+    globalsAdded: [adapterRenderer],
+    exportsAdded: [adapterRenderer],
+    rendererAdaptation: {
+      mapDimension: pass.mapDim,
+      sourceRenderer: compatibility.renderer,
+      adapterRenderer,
+      missingCoordinates,
+    },
+    estimatedPixelCost: 1,
+  }
+}
+
+function rendererForDimension(dimension: MapDimension): RendererName {
+  if (dimension === 1) return 'render'
+  if (dimension === 2) return 'render2D'
+  return 'render3D'
 }
 
 function applyInjectPass(ctx: PassContext, pass: InjectPassRecipe, passId: string): PassSummary {

@@ -559,8 +559,8 @@ resolved layout already knew its 3D points. Pixelblaze firmware 3.66 added true
 1D maps and broadened cross-dimensional renderer selection, so PXLBLZ-IDE is
 catching up to hardware and turning the existing `sample` / `pos` split into a
 more flexible product model. Issues #391 and #392 have now delivered true 1D maps
-and cross-dimensional browser preview; hardware-safe generated artifacts remain
-the next boundary in #393.
+and cross-dimensional browser preview; #393 now supplies matching hardware-safe
+generated artifacts, leaving the Cylinder geometry-family tracer (#394) next.
 
 ### Durable model: three independent axes
 
@@ -691,9 +691,13 @@ run.
    deterministic dropped extras, and adapted-combination status. An internal Auto
    sentinel preserves exact-dimensional defaults until the user explicitly picks
    another dimension; no manual renderer selector was added.
-3. **Hardware-safe cross-dimensional artifacts (#393).** Generate exact-arity adapters,
-   report their cost/provenance, and gate 1D/cross-dimensional behavior through
-   known Controller firmware capability.
+3. **Hardware-safe cross-dimensional artifacts (#393) — implemented 2026-07-10.**
+   Generated exact-arity missing-coordinate adapters from the live Controller's
+   installed map, recorded +1 call/pixel cost and provenance in artifact
+   inspection, included map dimension in the dirty signature, and added a
+   pre-3.66 capability guard. Reversible 256-pixel hardware sentinels passed 1D
+   → `render2D`, 1D → `render3D`, 2D → `render3D`, and 3D → `render2D`, then
+   restored the original map byte-for-byte and active Pattern.
 4. **Cylinder geometry-family tracer (#394).** Preserve one physical point generator,
    expose Strand / Surface / Spatial coordinate views, materialize the selected
    view as real map points/source, and verify all three in preview and on

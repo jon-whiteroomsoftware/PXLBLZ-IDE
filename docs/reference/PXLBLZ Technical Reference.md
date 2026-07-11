@@ -237,13 +237,20 @@ The recipe IR is JSON-serializable and ordered. The implemented pass kinds are:
   `min`/`max` scale a normalized `0..1` input into the assignment/call range,
   and `quantize` snaps the scaled result; missing targets warn and do not mutate
   the artifact.
+- **Renderer adapter** — at Controller-send time, uses the live Controller's
+  installed map dimension plus the Pattern's full renderer capability set. When
+  the firmware preference selects a higher-dimensional renderer, emits the exact
+  map-dimensional export and calls the authored renderer with every missing
+  trailing coordinate explicitly set to `0.5`. Exact matches and
+  lower-dimensional fallbacks remain byte-identical. A user/library binding that
+  occupies the required canonical renderer name is a hard, inspectable error.
 
 Generated helper names use the reserved `__pxlblz_` prefix. The engine detects
 user-authored identifiers already using that prefix, avoids exact generated-name
 collisions, and records both as warnings in the transform summary path. The
 summary reports per-pass and aggregate call-site counts, beforeRender handling,
-generated globals/exports, applied bindings, warnings, and the estimated
-per-pixel cost delta. The default cost seed is one unit per wrapped output call
+generated globals/exports, applied bindings, renderer adaptations, warnings,
+and the estimated per-pixel cost delta. The default cost seed is one unit per wrapped output call
 site unless a recipe item supplies an explicit `cost`. `controllerStore` keeps
 the last transformed push as an inspection record containing the summary, pass
 warnings, and full generated source; the mixin provenance pane and Controller
@@ -1274,8 +1281,8 @@ neither intercepts `paint`.
 Before compile, `controllerStore.pushActivePattern` resolves the active
 live Controller to its durable Controller profile (`deviceId` first,
 `lastSeenIp` fallback) and asks `controllerProfilePassRecipe` for pass-engine
-recipes. With no profile or hardware brightness disabled, `bundleWithPasses`
-uses the empty-recipe path and emits the same artifact as `bundle()`. With the
+recipes. With no profile transforms and no missing-coordinate renderer adapter,
+the no-op recipe emits the same artifact as `bundle()`. With the
 hardware-brightness global transform enabled, it samples the configured analog
 input once per `beforeRender`, smooths/inverts/falls back according to the
 profile input, intercepts `hsv(...)` output calls through the stock
@@ -1293,6 +1300,23 @@ exceeds the mutable exported `__px_powerLimit`; the profile's normalized
 of the two display windows. The since-start incremental mean caps its scalar
 weight at 16,384 frames to stay in a useful 16.16 fixed-point range while
 retaining its deliberately slow, flattening behavior.
+
+Every Pattern push also appends a renderer-adapter recipe keyed to the live
+Controller's installed map dimension. A no-op exact/lower-dimensional recipe is
+not recorded as a transform and leaves the bundled artifact byte-identical. A
+missing-coordinate case adds one exact renderer export, reports its source and
+adapter renderers plus centered coordinates, and estimates +1 function call per
+pixel. Generated-source inspection shows the adapter verbatim. The run/save
+dirty signature includes map dimension, so replacing the Controller map re-arms
+Send even when source and Controller-profile configuration are unchanged.
+
+`planHardwareRenderer` is the firmware capability seam. An exact generated
+adapter on a 2D/3D map is compatible even on older firmware because the device
+sees an ordinary exact renderer. True 1D maps and unadapted lower-dimensional
+fallback require reported firmware 3.66+; a known older version blocks the plain
+push, while an unknown version produces an honest push-past warning. The
+artifact path repeats the guard immediately before compile so direct callers
+cannot bypass preflight.
 The pure `powerCap.ts` model owns the derived/direct calculator: derived mode
 computes `target amps / (brightness * pixelCount * mA-per-pixel)` and clamps it
 to 0..1; direct edits preserve calculator provenance. Per-pixel full-white
@@ -1424,11 +1448,12 @@ when a Controller is connected, the pattern compiles, and — when known — its
 dimensionality matches the installed map (an unknown map dim never blocks).
 **Demos are pushable too**: the dirty gate and overwrite binding key off
 `activePushKey(patternStore)` — the user pattern's id, or a `demo:`-namespaced
-key — so a demo sends without forking. There is no pre-push preflight for
-pattern pushes: the old pixel-count reconciliation was misleading (a pattern
-push sends bytecode only and keeps the device's existing map, so a count
-mismatch is cosmetic), so `preflight` returns warnings only for the map-push
-path.
+key — so a demo sends without forking. Pattern pushes do not reconcile pixel
+count: they send bytecode only and keep the device's existing count/map. Their
+preflight is limited to cross-dimensional renderer explanation and firmware
+capability. Supported combinations remain push-past warnings; a known
+unsupported firmware combination blocks plain Send unless installing the
+demo's recommended exact-dimensional map resolves it.
 
 ### Send map to Controller, and map read-back
 
@@ -1455,6 +1480,14 @@ Key firmware facts gate the rest:
   with `numDimensions = 1`; a 256-pixel reversed/discontinuous map was verified
   by device read-back on a V3 Standard running 3.67, with the original map
   restored byte-for-byte afterward (#391).
+
+- **Cross-dimensional artifacts are explicit (#393).** On a V3 Standard with
+  256 pixels, reversible hardware sentinels verified 1D map → `render2D`, 1D map
+  → `render3D`, and 2D map → `render3D` all observe missing coordinates as exactly
+  `0.5`; 3D map → `render2D` preserved only x/y. The probe restored the original
+  map byte-for-byte and restored the original active Pattern. This establishes
+  the generated adapter behavior without claiming when the observed firmware
+  argument spill originated.
 
 - **The exact-count rule.** A pushed map must contain exactly `pixelCount`
   coordinates or the firmware won't apply it — frames report success, nothing

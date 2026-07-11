@@ -7,6 +7,7 @@ import {
   POWER_RECENT_WINDOW_MS,
   POWER_SINCE_START_MAX_FRAMES,
 } from './powerTelemetry'
+import type { MapDimension } from './renderCompatibility'
 
 export interface LiveControllerIdentity {
   ip: string
@@ -19,13 +20,14 @@ export interface LiveControllerIdentity {
 export function controllerProfileArtifactSignature(
   profile: ControllerProfile | null | undefined,
   patternId?: string | null,
+  renderer?: { mapDim: MapDimension | null },
 ): string {
-  if (!profile) return ''
+  if (!profile && !renderer) return ''
   const transforms: Array<
     | { type: 'power-cap'; mixinId: string; maxDuty: number }
     | { type: 'hardware-brightness'; mixinId: string; inputId: string; mode: string }
   > = []
-  for (const transform of profile.globalTransforms) {
+  for (const transform of profile?.globalTransforms ?? []) {
     if (!transform.enabled) continue
     if (transform.type === 'power-cap') {
       transforms.push({
@@ -43,15 +45,15 @@ export function controllerProfileArtifactSignature(
     })
   }
   const bindings = patternId
-    ? profile.patternBindings.filter((binding) => binding.patternId === patternId)
+    ? (profile?.patternBindings ?? []).filter((binding) => binding.patternId === patternId)
     : []
   const inputIds = new Set<string>()
   for (const transform of transforms) {
     if ('inputId' in transform) inputIds.add(transform.inputId)
   }
   for (const binding of bindings) inputIds.add(binding.inputId)
-  const inputs = profile.inputs.filter((input) => inputIds.has(input.id))
-  return JSON.stringify({ transforms, inputs, bindings })
+  const inputs = (profile?.inputs ?? []).filter((input) => inputIds.has(input.id))
+  return JSON.stringify({ transforms, inputs, bindings, ...(renderer ? { renderer } : {}) })
 }
 
 type HardwareBrightnessTransform = Extract<GlobalTransform, { type: 'hardware-brightness' }>

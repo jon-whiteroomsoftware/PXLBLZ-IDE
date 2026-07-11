@@ -533,6 +533,7 @@ describe('ControllerProfilePage', () => {
               globalsAdded: ['__pxlblz_speed_drive_bind'],
               exportsAdded: [],
               bindingsApplied: [{ target: 'sliderSpeed', mode: 'function-call' }],
+              rendererAdaptations: [],
               estimatedPixelCost: 0,
             },
           },

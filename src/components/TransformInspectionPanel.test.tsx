@@ -11,6 +11,7 @@ describe('TransformInspectionPanel', () => {
     expect(screen.getByText('Call sites')).toBeInTheDocument()
     expect(screen.getByText('hsv x2')).toBeInTheDocument()
     expect(screen.getByText('sliderSpeed (function-call)')).toBeInTheDocument()
+    expect(screen.getAllByText(/render2D -> render3D \(z=0.5\)/).length).toBeGreaterThan(0)
     expect(screen.getByText(/Bind target sliderMissing was not found/i)).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: /view generated artifact/i }))
@@ -48,13 +49,30 @@ function artifact(): TransformArtifactInspection {
           bindingsApplied: [{ target: 'sliderSpeed', mode: 'function-call' }],
           estimatedPixelCost: 0,
         },
+        {
+          id: 'renderer-adapter',
+          kind: 'renderer-adapter',
+          rendererAdaptation: {
+            mapDimension: 2,
+            sourceRenderer: 'render3D',
+            adapterRenderer: 'render2D',
+            missingCoordinates: ['z'],
+          },
+          estimatedPixelCost: 1,
+        },
       ],
       callSitesWrapped: { hsv: 2 },
       beforeRender: 'wrapped',
       globalsAdded: ['__pxlblz_hardware_brightness_hsv'],
       exportsAdded: [],
       bindingsApplied: [{ target: 'sliderSpeed', mode: 'function-call' }],
-      estimatedPixelCost: 2,
+      rendererAdaptations: [{
+        mapDimension: 2,
+        sourceRenderer: 'render3D',
+        adapterRenderer: 'render2D',
+        missingCoordinates: ['z'],
+      }],
+      estimatedPixelCost: 3,
     },
   }
 }

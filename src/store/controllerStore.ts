@@ -34,7 +34,8 @@ import {
   setPushRecords,
 } from '@/engine/controllerMetadataStorage'
 import { withProgramLabel } from '@/engine/controllerBinding'
-import { bundleWithPasses, type PassRecipe, type TransformSummary } from '@/engine/passEngine'
+import { bundleWithPasses, type PassSummary, type TransformSummary } from '@/engine/passEngine'
+import { planHardwareRenderer } from '@/engine/renderCompatibility'
 import { compileLibraries } from '@/engine/libraries'
 import {
   withTransformArtifactInspection,
@@ -56,13 +57,9 @@ import {
   findProfileForLiveController,
 } from '@/engine/controllerProfilePassRecipe'
 
-function artifactTransformIds(recipe: PassRecipe): string[] {
+function artifactTransformIds(passes: Array<Pick<PassSummary, 'id' | 'kind'>>): string[] {
   const ids = new Set<string>()
-  for (const pass of recipe) {
-    if (!pass.id) {
-      ids.add(pass.kind)
-      continue
-    }
+  for (const pass of passes) {
     if (pass.id.endsWith('-sample')) continue
     ids.add(pass.id.endsWith('-drive') ? pass.id.slice(0, -'-drive'.length) : pass.id)
   }
@@ -173,6 +170,9 @@ interface ControllerConnectionState {
    *  pattern preflight is open AND the open demo carries such a recommendation; null for
    *  user patterns and demos without one (the dialog then offers a plain "Send anyway"). */
   patternMapRemedy: RecommendedMapRemedy | null
+  /** True when the current pattern preflight found a known-incompatible firmware
+   * combination. A recommended-map install may still resolve it; plain send may not. */
+  patternPushBlocked: boolean
 
   /** Controllers surfaced by the last discovery sweep (H14, #206), awaiting connect.
    *  Cleared when discovery re-runs. */
@@ -202,12 +202,12 @@ interface ControllerConnectionState {
    *  (#202). Reads the last-clean preview source and active pattern id; a no-op when
    *  nothing is active. Sets `pushing`/`pushResult` for the button to reflect. */
   pushActivePattern: () => Promise<void>
-  /** Push the active pattern to the active Controller. A pattern push has no preflight
-   *  (#239) — it sends bytecode only and the device runs it on its own pixels + map —
-   *  so this pushes straight through (the one-click path). */
+  /** Push the active pattern to the active Controller. Pixel count is irrelevant, but
+   * cross-dimensional renderer/firmware compatibility is reconciled against the live
+   * installed map before the one-click or confirmation path. */
   requestPush: () => Promise<void>
-  /** Acknowledge the pattern preflight dialog and push the pattern WITHOUT the coupled
-   *  map install — the plain "Send anyway" path (the dim warning is soft). */
+  /** Acknowledge a non-blocking pattern preflight and push WITHOUT the coupled map
+   * install. Known unsupported firmware combinations cannot use this path. */
   confirmPatternPush: () => Promise<void>
   /** Acknowledge the pattern preflight and FIRST install the demo's recommended map (set
    *  the Controller's pixel count to the recommended count, then write the stock map),
@@ -274,6 +274,7 @@ export const controllerInitialState = {
   preflight: null as PreflightWarning[] | null,
   mapPushRemedyCount: null as number | null,
   patternMapRemedy: null as RecommendedMapRemedy | null,
+  patternPushBlocked: false,
   discovered: [] as DiscoveredController[],
   discovering: false,
 }
@@ -572,21 +573,41 @@ export const useControllerStore = create<ControllerConnectionState>()(
           // one-click path). The guard inside pushActivePattern makes a stray call inert.
           const activeIp = get().activeIp
           const active = activeIp ? get().controllers[activeIp] : undefined
-          const patternDim = useEditorStore.getState().nativeDim
-          const { warnings } = describePreflight({
+          const editor = useEditorStore.getState()
+          const patternDim = editor.nativeDim
+          let rendererPlan
+          if (active?.mapDim && editor.previewSource) {
+            try {
+              const metadata = bundleWithPasses(
+                editor.previewSource,
+                compileLibraries(LIBRARIES, useLibraryStore.getState().userLibraries),
+              ).metadata
+              rendererPlan = planHardwareRenderer(
+                active.mapDim,
+                metadata.renderFns,
+                active.firmwareVersion,
+              )
+            } catch {
+              // The normal push path owns compile/bundle errors. A preflight miss must
+              // not replace its actionable Send-failed result with a second error path.
+            }
+          }
+          const { warnings, blocking } = describePreflight({
             pushingMap: false,
             patternDim,
             mapDim: active?.mapDim ?? null,
+            rendererPlan,
           })
           if (warnings.length > 0) {
-            // A dim mismatch is never blocking. It may carry a coupled remedy (Option A):
-            // a demo whose recommended map (of the matching dim) can be installed to fix
-            // the mismatch. Absent for user patterns and demos without a recommendation.
+            // A cross-dimensional plan may carry a coupled remedy (Option A): a demo
+            // whose recommended map can be installed first. Known pre-3.66 fallbacks
+            // are blocking unless that remedy changes the installed map.
             const demoName = usePatternStore.getState().activeDemoName
             set({
               preflight: warnings,
               mapPushRemedyCount: null,
               patternMapRemedy: recommendedMapRemedy(demoName, patternDim),
+              patternPushBlocked: blocking,
             })
             return
           }
@@ -594,14 +615,25 @@ export const useControllerStore = create<ControllerConnectionState>()(
         },
 
         confirmPatternPush: async () => {
-          set({ preflight: null, mapPushRemedyCount: null, patternMapRemedy: null })
+          if (get().patternPushBlocked) return
+          set({
+            preflight: null,
+            mapPushRemedyCount: null,
+            patternMapRemedy: null,
+            patternPushBlocked: false,
+          })
           await get().pushActivePattern()
         },
 
         confirmPatternPushWithMap: async () => {
           const remedy = get().patternMapRemedy
           const controllerId = get().activeIp
-          set({ preflight: null, mapPushRemedyCount: null, patternMapRemedy: null })
+          set({
+            preflight: null,
+            mapPushRemedyCount: null,
+            patternMapRemedy: null,
+            patternPushBlocked: false,
+          })
           // No remedy to apply (shouldn't happen via the checkbox) — plain push.
           if (!remedy) {
             await get().pushActivePattern()
@@ -631,7 +663,12 @@ export const useControllerStore = create<ControllerConnectionState>()(
         },
 
         cancelPush: () =>
-          set({ preflight: null, mapPushRemedyCount: null, patternMapRemedy: null }),
+          set({
+            preflight: null,
+            mapPushRemedyCount: null,
+            patternMapRemedy: null,
+            patternPushBlocked: false,
+          }),
 
         requestMapPush: async () => {
           const controllerId = get().activeIp
@@ -778,15 +815,42 @@ export const useControllerStore = create<ControllerConnectionState>()(
             const profile = activeController
               ? findProfileForLiveController(profiles, activeController)
               : null
-            const profileSignature = controllerProfileArtifactSignature(profile, patternId)
+            const profileSignature = controllerProfileArtifactSignature(
+              profile,
+              patternId,
+              { mapDim: activeController?.mapDim ?? null },
+            )
             const recipe = controllerProfilePassRecipe(profile, previewSource, patternId)
+            if (activeController?.mapDim) {
+              recipe.push({
+                id: 'renderer-adapter',
+                kind: 'renderer-adapter',
+                mapDim: activeController.mapDim,
+              })
+            }
             const bundled = bundleWithPasses(
               previewSource,
               compileLibraries(LIBRARIES, useLibraryStore.getState().userLibraries),
               recipe,
             )
-            const transformSummary = recipe.length > 0 ? bundled.summary : null
-            const transformArtifact: TransformArtifactInspection | null = recipe.length > 0
+            if (activeController?.mapDim) {
+              const hardwarePlan = planHardwareRenderer(
+                activeController.mapDim,
+                bundled.metadata.renderFns,
+                activeController.firmwareVersion,
+              )
+              if (hardwarePlan.firmwareSupport === 'unsupported') {
+                throw new Error(hardwarePlan.reason ?? 'Unsupported Controller renderer/map combination')
+              }
+            }
+            const adapterCollision = bundled.warnings.find(
+              (warning) => warning.code === 'renderer-adapter-name-collision',
+            )
+            if (adapterCollision) throw new Error(adapterCollision.message)
+            const hasTransformArtifact =
+              bundled.summary.passes.length > 0 || bundled.warnings.length > 0
+            const transformSummary = hasTransformArtifact ? bundled.summary : null
+            const transformArtifact: TransformArtifactInspection | null = hasTransformArtifact
               ? {
                   summary: bundled.summary,
                   warnings: bundled.warnings,
@@ -811,7 +875,7 @@ export const useControllerStore = create<ControllerConnectionState>()(
               name: previewPatternName,
               persist,
               previewImage,
-              transforms: artifactTransformIds(recipe),
+              transforms: artifactTransformIds(bundled.summary.passes),
               loadBindings: getControllerBindings,
               saveBindings: setControllerBindings,
               loadPushRecords: getPushRecords,

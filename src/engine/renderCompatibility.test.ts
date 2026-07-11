@@ -1,6 +1,7 @@
 import type { RenderFns } from './loadPattern'
 import {
   adaptSampleForRenderer,
+  planHardwareRenderer,
   selectRenderCompatibility,
 } from './renderCompatibility'
 
@@ -49,6 +50,57 @@ describe('selectRenderCompatibility', () => {
   it('describes dropped extra coordinates', () => {
     const plan = selectRenderCompatibility(3, capabilities({ hasRender2D: true }))
     expect(plan.description).toBe('Using render2D with a 3D map; z is dropped.')
+  })
+})
+
+describe('planHardwareRenderer', () => {
+  it('treats a centered higher-dimensional adapter as compatible on older firmware', () => {
+    expect(planHardwareRenderer(
+      2,
+      capabilities({ hasRender3D: true }),
+      '3.65',
+    )).toMatchObject({
+      adapterRequired: true,
+      firmwareSupport: 'supported',
+      compatibility: { renderer: 'render3D', rendererDim: 3 },
+    })
+  })
+
+  it('rejects an unadapted lower-dimensional fallback on pre-3.66 firmware', () => {
+    const plan = planHardwareRenderer(3, capabilities({ hasRender2D: true }), 'v3.65')
+
+    expect(plan.firmwareSupport).toBe('unsupported')
+    expect(plan.reason).toContain('3.66 or newer')
+  })
+
+  it('reports unknown firmware honestly for an unproven fallback', () => {
+    expect(planHardwareRenderer(
+      3,
+      capabilities({ hasRender2D: true }),
+      undefined,
+    ).firmwareSupport).toBe('unknown')
+  })
+
+  it('allows the documented renderer matrix on firmware 3.66+', () => {
+    expect(planHardwareRenderer(
+      3,
+      capabilities({ hasRender2D: true }),
+      '3.67',
+    ).firmwareSupport).toBe('supported')
+  })
+
+  it('rejects true 1D maps on pre-3.66 firmware even with an exact renderer', () => {
+    const plan = planHardwareRenderer(1, capabilities({ hasRender: true }), '3.65')
+
+    expect(plan.firmwareSupport).toBe('unsupported')
+    expect(plan.reason).toContain('True 1D maps')
+  })
+
+  it('rejects a Pattern with no usable renderer', () => {
+    expect(planHardwareRenderer(2, capabilities({}), '3.67')).toMatchObject({
+      firmwareSupport: 'unsupported',
+      adapterRequired: false,
+    })
   })
 })
 

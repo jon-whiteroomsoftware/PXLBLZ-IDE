@@ -41,6 +41,7 @@ function artifact(patternName: string, updatedAt: number): TransformArtifactInsp
       globalsAdded: [],
       exportsAdded: [],
       bindingsApplied: [],
+      rendererAdaptations: [],
       estimatedPixelCost: 0,
     },
   }
