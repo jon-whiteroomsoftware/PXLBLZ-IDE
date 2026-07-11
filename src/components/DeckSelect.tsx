@@ -5,6 +5,9 @@ export interface DeckOption<T> {
   value: T
   label: string
   title?: string
+  // Optional top-level menu column. Options remain in source order for keyboard
+  // navigation; the column only changes their visual grouping.
+  column?: string
   // Optional small muted suffix shown after the label (e.g. a "2D" dimension
   // tag). Decorative — marked aria-hidden so it never enters the accessible name.
   badge?: string
@@ -27,6 +30,7 @@ export function DeckSelect<T extends string | number>({
   onChange,
   menuWidthClass = 'w-24',
   menuAlign = 'right',
+  menuSide = 'bottom',
   block = false,
 }: {
   ariaLabel: string
@@ -39,6 +43,9 @@ export function DeckSelect<T extends string | number>({
   // rightward — use when the control is near the viewport's left edge, where a
   // right-pinned menu would overflow and clip off-screen.
   menuAlign?: 'left' | 'right'
+  // The map menu uses responsive placement because its rail stacks below the
+  // canvas at narrow widths. Other compact deck menus continue opening down.
+  menuSide?: 'bottom' | 'top' | 'responsive'
   // When true the trigger fills its container's width (chevron pinned right, long
   // label truncates) instead of shrinking to its content. Lets a caller cap the width
   // with a wrapper and right-align it — e.g. the stacked `map` cell, which grows to
@@ -50,6 +57,14 @@ export function DeckSelect<T extends string | number>({
   const triggerRef = useRef<HTMLButtonElement>(null)
   const optionRefs = useRef<Array<HTMLButtonElement | null>>([])
   const current = options.find((o) => o.value === value) ?? options[0]
+  const indexedOptions = options.map((option, index) => ({ option, index }))
+  const columns = Array.from(new Set(options.map((option) => option.column).filter((column): column is string => Boolean(column))))
+  const showColumns = columns.length > 1
+  const menuSideClass = menuSide === 'top'
+    ? 'bottom-full mb-1'
+    : menuSide === 'responsive'
+      ? 'bottom-full mb-1 sm:bottom-auto sm:top-full sm:mb-0 sm:mt-1'
+      : 'top-full mt-1'
   // Only show subgroup headers when the options actually span more than one group;
   // a lone group (the common no-user-maps case) reads cleaner with no header.
   const showGroups = new Set(options.map((o) => o.group).filter(Boolean)).size > 1
@@ -94,6 +109,51 @@ export function DeckSelect<T extends string | number>({
     optionRefs.current[nextIndex]?.focus()
   }
 
+  function renderOptions(
+    entries: Array<{ option: DeckOption<T>; index: number }>,
+    alwaysShowGroups = false,
+  ) {
+    return entries.map(({ option: opt, index: i }, entryIndex) => {
+      const previousGroup = entries[entryIndex - 1]?.option.group
+      const header =
+        (alwaysShowGroups || showGroups) && opt.group && opt.group !== previousGroup ? (
+          <div
+            key={`group-${opt.group}`}
+            role="presentation"
+            className={`px-3 ${entryIndex === 0 ? 'pt-1' : 'pt-3'} pb-0.5 text-[10px] font-semibold uppercase tracking-wider text-structural select-none`}
+          >
+            {opt.group}
+          </div>
+        ) : null
+      return (
+        <div key={String(opt.value)}>
+          {header}
+          <button
+            ref={(element) => { optionRefs.current[i] = element }}
+            role="option"
+            aria-selected={opt.value === current?.value}
+            title={opt.title}
+            onClick={() => {
+              onChange(opt.value)
+              setIsOpen(false)
+            }}
+            onKeyDown={(event) => handleOptionKeyDown(event, i)}
+            className={`block w-full whitespace-nowrap text-left px-3 py-0.5 text-xs tabular-nums transition-colors hover:bg-zinc-800 ${
+              opt.value === current?.value ? 'text-amber-400' : 'text-zinc-300'
+            }`}
+          >
+            {opt.label}
+            {opt.badge && (
+              <span aria-hidden className="ml-1 text-zinc-500">
+                {opt.badge}
+              </span>
+            )}
+          </button>
+        </div>
+      )
+    })
+  }
+
   return (
     <div ref={containerRef} className={`relative ${block ? 'w-full' : ''}`}>
       <button
@@ -105,67 +165,41 @@ export function DeckSelect<T extends string | number>({
         onClick={() => setIsOpen((o) => !o)}
         onKeyDown={handleTriggerKeyDown}
         className={`flex items-center gap-0.5 h-5 pl-1 pr-0.5 rounded border border-zinc-500 text-[11px] tabular-nums text-zinc-300 hover:border-zinc-400 hover:text-amber-400/80 transition-colors ${
-          block ? 'w-full justify-between' : 'shrink-0'
+          block ? 'w-full' : 'shrink-0'
         }`}
       >
-        <span className={block ? 'min-w-0 truncate' : 'whitespace-nowrap'}>{current?.label}</span>
-        {current?.badge && (
-          <span aria-hidden className="ml-1 text-zinc-500">
-            {current.badge}
-          </span>
-        )}
-        <ChevronDown size={12} className="shrink-0 text-zinc-500" />
+        <span className={block ? 'min-w-0 flex-1 truncate text-left' : 'whitespace-nowrap'}>{current?.label}</span>
+        <span className="flex shrink-0 items-center gap-0.5">
+          {current?.badge && (
+            <span aria-hidden className="text-zinc-500">
+              {current.badge}
+            </span>
+          )}
+          <ChevronDown size={12} className="shrink-0 text-zinc-500" />
+        </span>
       </button>
 
       {isOpen && (
         <div
           role="listbox"
           aria-label={ariaLabel}
-          // Cap the menu at ~14 rows (max-h-72 ≈ 18rem) and scroll past that, so a
-          // long list (e.g. many user maps) never runs off the deck.
-          className={`absolute top-full ${menuAlign === 'left' ? 'left-0' : 'right-0'} mt-1 ${menuWidthClass} max-h-72 overflow-y-auto bg-zinc-900 border border-zinc-800 rounded-md shadow-xl z-50 py-1`}
+          className={`absolute ${menuSideClass} ${menuAlign === 'left' ? 'left-0' : 'right-0'} ${menuWidthClass} max-h-[calc(100vh-2rem)] overflow-y-auto overflow-x-hidden bg-zinc-900 border border-zinc-800 rounded-md shadow-xl z-50 ${showColumns ? 'grid grid-cols-2' : 'py-1'}`}
         >
-          {options.map((opt, i) => {
-            const header =
-              showGroups && opt.group && opt.group !== options[i - 1]?.group ? (
+          {showColumns
+            ? columns.map((column, columnIndex) => (
                 <div
-                  key={`group-${opt.group}`}
-                  role="presentation"
-                  // Match the pattern-rail section headers: `text-structural` grey, and
-                  // extra top space before a later group so the subgroups read as
-                  // visually separated (the first group sits flush to the menu top).
-                  className={`px-3 ${i === 0 ? 'pt-0.5' : 'pt-3'} pb-0.5 text-[10px] font-semibold uppercase tracking-wider text-structural select-none`}
+                  key={column}
+                  role="group"
+                  aria-label={column}
+                  className={`min-w-0 py-1 ${columnIndex > 0 ? 'border-l border-zinc-800' : ''}`}
                 >
-                  {opt.group}
+                  <div role="presentation" className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-zinc-300 select-none">
+                    {column}
+                  </div>
+                  {renderOptions(indexedOptions.filter(({ option }) => option.column === column), true)}
                 </div>
-              ) : null
-            return (
-              <div key={String(opt.value)}>
-                {header}
-                <button
-                  ref={(element) => { optionRefs.current[i] = element }}
-                  role="option"
-                  aria-selected={opt.value === current?.value}
-                  title={opt.title}
-                  onClick={() => {
-                    onChange(opt.value)
-                    setIsOpen(false)
-                  }}
-                  onKeyDown={(event) => handleOptionKeyDown(event, i)}
-                  className={`block w-full whitespace-nowrap text-left px-3 py-0.5 text-xs tabular-nums transition-colors hover:bg-zinc-800 ${
-                    opt.value === current?.value ? 'text-amber-400' : 'text-zinc-300'
-                  }`}
-                >
-                  {opt.label}
-                  {opt.badge && (
-                    <span aria-hidden className="ml-1 text-zinc-500">
-                      {opt.badge}
-                    </span>
-                  )}
-                </button>
-              </div>
-            )
-          })}
+              ))
+            : renderOptions(indexedOptions)}
         </div>
       )}
     </div>

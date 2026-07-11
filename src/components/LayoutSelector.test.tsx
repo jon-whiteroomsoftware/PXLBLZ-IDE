@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { CoordinateViewSelect, MapSelect, EmbeddingSelect } from './LayoutSelector'
 import { useMapStore, mapInitialState } from '@/store/mapStore'
@@ -51,9 +51,10 @@ describe('MapSelect (smoke)', () => {
     render(<MapSelect />)
     expect(screen.getByRole('button', { name: 'Map' })).toHaveTextContent('Index')
     await user.click(screen.getByRole('button', { name: 'Map' }))
-    expect(screen.getByText('Recommended')).toBeInTheDocument()
-    expect(screen.getAllByText(/Other dimensions/).length).toBeGreaterThan(0)
-    expect(screen.getByRole('option', { name: 'Square' })).toBeInTheDocument()
+    const recommended = screen.getByRole('group', { name: 'Recommended' })
+    const other = screen.getByRole('group', { name: 'Other dimensions' })
+    expect(within(recommended).getByRole('option', { name: 'Index' })).toBeInTheDocument()
+    expect(within(other).getByRole('option', { name: 'Square' })).toBeInTheDocument()
   })
 
   it('offers Index and user 1D maps without replacing the Shape control', async () => {
@@ -94,7 +95,7 @@ describe('MapSelect (smoke)', () => {
 
     expect(useMapStore.getState().activeMapId).toBe('plane')
     expect(screen.queryByRole('button', { name: 'Shape' })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Surface' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Display' })).toBeInTheDocument()
   })
 
   it('selecting a map for a 2D pattern routes to the map store', async () => {
@@ -122,13 +123,17 @@ describe('MapSelect (smoke)', () => {
 })
 
 describe('EmbeddingSelect (smoke)', () => {
-  it('shows the Surface control for a 2D pattern on a wrappable map', () => {
+  it('names the preview-only 2D control Display', async () => {
+    const user = userEvent.setup()
     useEditorStore.setState({ nativeDim: 2 })
     render(<EmbeddingSelect />)
-    expect(screen.getByRole('button', { name: 'Surface' })).toBeInTheDocument()
+    const display = screen.getByRole('button', { name: 'Display' })
+    expect(display).toHaveTextContent('Flat')
+    await user.click(display)
+    expect(screen.getByRole('option', { name: 'Cylinder wrap' })).toBeInTheDocument()
   })
 
-  it('offers the Surface control for a regular-lattice custom map', () => {
+  it('offers the Display control for a regular-lattice custom map', () => {
     useEditorStore.setState({ nativeDim: 2 })
     useMapStore.setState({
       activeMapId: 'cm-grid',
@@ -147,7 +152,7 @@ describe('EmbeddingSelect (smoke)', () => {
       ],
     })
     render(<EmbeddingSelect />)
-    expect(screen.getByRole('button', { name: 'Surface' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Display' })).toBeInTheDocument()
   })
 
   it('hides the embedding control for an irregular custom map (Flat only)', () => {
@@ -168,7 +173,7 @@ describe('EmbeddingSelect (smoke)', () => {
       ],
     })
     render(<EmbeddingSelect />)
-    expect(screen.queryByRole('button', { name: 'Surface' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Display' })).not.toBeInTheDocument()
   })
 
   it('shows the Shape control for a 1D pattern', () => {
@@ -189,12 +194,12 @@ describe('EmbeddingSelect (smoke)', () => {
     expect(useMapStore.getState().activeShapeId).toBe('ring')
   })
 
-  it('selecting the Cylinder surface routes to the surface store', async () => {
+  it('selecting Cylinder wrap routes to the preview surface store', async () => {
     const user = userEvent.setup()
     useEditorStore.setState({ nativeDim: 2 })
     render(<EmbeddingSelect />)
-    await user.click(screen.getByRole('button', { name: 'Surface' }))
-    await user.click(screen.getByRole('option', { name: 'Cylinder' }))
+    await user.click(screen.getByRole('button', { name: 'Display' }))
+    await user.click(screen.getByRole('option', { name: 'Cylinder wrap' }))
     expect(useMapStore.getState().activeSurfaceId).toBe('cylinder')
   })
 })

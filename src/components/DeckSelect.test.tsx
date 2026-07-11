@@ -1,9 +1,31 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { vi } from 'vitest'
 import { DeckSelect } from './DeckSelect'
 
 describe('DeckSelect keyboard navigation', () => {
+  it('renders explicit option columns while preserving each column group order', async () => {
+    const user = userEvent.setup()
+    render(
+      <DeckSelect
+        ariaLabel="Map"
+        value="square"
+        options={[
+          { value: 'ring', label: 'Ring', column: 'Recommended', group: 'Paths' },
+          { value: 'square', label: 'Square', column: 'Recommended', group: 'Surfaces' },
+          { value: 'cube', label: 'Cube', column: 'Other dimensions', group: 'Volumes' },
+        ]}
+        onChange={vi.fn()}
+      />,
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Map' }))
+    const recommended = screen.getByRole('group', { name: 'Recommended' })
+    const other = screen.getByRole('group', { name: 'Other dimensions' })
+    expect(within(recommended).getAllByRole('option').map((option) => option.textContent)).toEqual(['Ring', 'Square'])
+    expect(within(other).getAllByRole('option').map((option) => option.textContent)).toEqual(['Cube'])
+  })
+
   it('opens with ArrowDown and moves across grouped options without focusing headers', async () => {
     const user = userEvent.setup()
     const onChange = vi.fn()

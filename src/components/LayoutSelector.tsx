@@ -98,7 +98,7 @@ export function useEmbeddingSelectMeta() {
   const { mapDim, embeddings } = useLayoutControls()
   return {
     hasEmbeddingChoice: embeddings.length > 1,
-    label: mapDim === 1 ? 'shape' : 'surface',
+    label: mapDim === 1 ? 'shape' : 'display',
   }
 }
 
@@ -108,11 +108,8 @@ export function useEmbeddingSelectMeta() {
 export function MapSelect() {
   const { mapDim, maps, mapValue, route } = useLayoutControls()
   if (!mapSelectMeta(mapDim, maps).hasMapChoice) return null
-  // Block-mode + a max-width cap, right-aligned (self-end) within the stacked map cell:
-  // the dropdown grows with the column until it hits the cap, keeping its right edge
-  // pinned to the column edge so it lines up with the `fit` dropdown directly below.
-  // The pop-up menu opens leftward (menuAlign="left") since the deck now lives on the
-  // left rail — a right-pinned menu would overflow and clip off the viewport edge.
+  // The trigger stays aligned with `fit`; its menu opens rightward at two trigger
+  // widths so recommendation and dimensionality are separate scanning axes.
   return (
     <div className="self-end w-full max-w-[11rem]">
       <DeckSelect
@@ -122,13 +119,13 @@ export function MapSelect() {
           value: o.id,
           label: o.name,
           badge: o.mapDim ? `${o.mapDim}D` : undefined,
-          group: `${o.group === 'recommended' ? 'Recommended' : 'Other dimensions'}${
-            o.catalogueKind ? ` · ${mapCatalogueKindLabel(o.catalogueKind)}` : ''
-          }`,
+          column: o.group === 'recommended' ? 'Recommended' : 'Other dimensions',
+          group: o.catalogueKind ? mapCatalogueKindLabel(o.catalogueKind) : undefined,
         }))}
         onChange={(id) => route(id, maps)}
-        menuWidthClass="w-full"
+        menuWidthClass="w-[22rem] max-w-[calc(100vw-2rem)]"
         menuAlign="left"
+        menuSide="responsive"
         block
       />
     </div>
@@ -170,8 +167,8 @@ export function EmbeddingSelect({ showLabel = false }: { showLabel?: boolean } =
   const { mapDim, embeddings, embeddingValue, route } = useLayoutControls()
   const showEmbedding = embeddings.length > 1
   if (!showEmbedding) return null
-  const label = mapDim === 1 ? 'shape' : 'surface'
-  const ariaLabel = mapDim === 1 ? 'Shape' : 'Surface'
+  const label = mapDim === 1 ? 'shape' : 'display'
+  const ariaLabel = mapDim === 1 ? 'Shape' : 'Display'
   return (
     <div className="flex items-center gap-1.5 shrink-0">
       {showLabel && (
@@ -184,7 +181,7 @@ export function EmbeddingSelect({ showLabel = false }: { showLabel?: boolean } =
         value={embeddingValue ?? embeddings[0].id}
         options={embeddings.map((o) => ({
           value: o.id,
-          label: o.name,
+          label: mapDim === 2 && o.id === 'cylinder' ? 'Cylinder wrap' : o.name,
         }))}
         onChange={(id) => route(id, embeddings)}
         menuWidthClass="w-28"
