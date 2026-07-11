@@ -20,9 +20,9 @@ describe('PreviewDeck (smoke)', () => {
     useEditorStore.setState({ nativeDim: 2, previewPatternName: 'Demo' })
     render(<PreviewDeck />)
 
-    // Primary band: play/pause + the viewport embedding control (Surface for 2D).
+    // Primary band: play/pause + the viewport embedding control.
     expect(screen.getByRole('button', { name: /run|pause/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Surface' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Display' })).toBeInTheDocument()
 
     // Pixelblaze section: the Map control now lives here (#253), alongside pixel
     // count + fit, with brightness as a long slider.
@@ -98,8 +98,8 @@ describe('PreviewDeck (smoke)', () => {
     expect(
       screen.getByRole('button', { name: 'Map normalization (Fill / Contain)' }),
     ).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Surface' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Shape' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Display' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Coordinate view' })).toBeInTheDocument()
   })
 
   it('offers an info hint on both the Pixelblaze and Preview sections', () => {
@@ -171,10 +171,10 @@ describe('PreviewDeck (smoke)', () => {
     })
     rerender(<PreviewDeck />)
     const reset = screen.getByRole('button', { name: 'Reset preview' })
-    const surface = screen.getByRole('button', { name: 'Surface' })
+    const display = screen.getByRole('button', { name: 'Display' })
     expect(reset).toBeInTheDocument()
     expect(reset).toHaveAttribute('title', 'Reset preview settings')
-    expect(reset.compareDocumentPosition(surface) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(reset.compareDocumentPosition(display) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
   it('surfaces the same reset-preview icon for a demo with overrides', () => {
@@ -193,6 +193,6 @@ describe('PreviewDeck (smoke)', () => {
 
     expect(screen.getByText('Demo')).toHaveAttribute('title', 'Demo')
     expect(screen.getByRole('button', { name: 'Pause' })).toHaveAttribute('title', 'Pause preview')
-    expect(screen.getByRole('button', { name: 'Surface' })).toHaveAttribute('title', expect.stringMatching(/^Surface: /))
+    expect(screen.getByRole('button', { name: 'Display' })).toHaveAttribute('title', expect.stringMatching(/^Display: /))
   })
 })

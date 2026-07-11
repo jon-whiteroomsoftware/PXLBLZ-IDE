@@ -731,13 +731,13 @@ describe('routing (#308)', () => {
     expect(screen.getByRole('button', { name: 'Open in Studio' })).toBeInTheDocument()
   })
 
-  it('shows the surface selector in the detail header for 2D patterns only', () => {
+  it('shows the display selector in the detail header for 2D patterns only', () => {
     window.history.replaceState(null, '', '/p/iridescent-fibers')
     const { rerender } = render(<App />)
     expect(screen.getByTestId('pattern-detail-page')).toHaveTextContent('IridescentFibers')
     const minorRow = screen.getByTestId('pattern-detail-minor-row')
-    expect(minorRow).toHaveTextContent('surface')
-    expect(within(minorRow).getByRole('button', { name: 'Surface' })).toBeInTheDocument()
+    expect(minorRow).toHaveTextContent('display')
+    expect(within(minorRow).getByRole('button', { name: 'Display' })).toBeInTheDocument()
 
     window.history.replaceState(null, '', '/p/aurora-sphere')
     act(() => {
@@ -745,7 +745,7 @@ describe('routing (#308)', () => {
     })
     rerender(<App />)
     expect(screen.getByTestId('pattern-detail-page')).toHaveTextContent('AuroraSphere')
-    expect(screen.queryByRole('button', { name: 'Surface' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Display' })).not.toBeInTheDocument()
     expect(screen.queryByTestId('pattern-detail-minor-row')).not.toBeInTheDocument()
   })
 
@@ -768,14 +768,14 @@ describe('routing (#308)', () => {
     expect(screen.queryByTestId('pattern-detail-minor-row')).not.toBeInTheDocument()
   })
 
-  it('keeps reset in the detail minor row when a surface selector anchors it', () => {
+  it('keeps reset in the detail minor row when a display selector anchors it', () => {
     window.history.replaceState(null, '', '/p/iridescent-fibers')
     usePatternStore.setState({
       demoOverrides: { IridescentFibers: { surfaceId: 'cylinder' } },
     })
     render(<App />)
     const minorRow = screen.getByTestId('pattern-detail-minor-row')
-    expect(within(minorRow).getByRole('button', { name: 'Surface' })).toBeInTheDocument()
+    expect(within(minorRow).getByRole('button', { name: 'Display' })).toBeInTheDocument()
     expect(within(minorRow).getByRole('button', { name: 'Reset preview' })).toHaveTextContent('Reset')
   })
 })
