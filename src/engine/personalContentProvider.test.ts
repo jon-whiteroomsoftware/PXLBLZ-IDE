@@ -153,6 +153,8 @@ describe('personal content provider seam', () => {
       scenes: [],
       zones: [],
       cells: [],
+      routingLayouts: [],
+      routingSwitches: [],
       updatedAt: 1,
     }
     const library: LibraryRecord = {

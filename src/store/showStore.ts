@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { trackEntityCreated } from '@/analytics'
 import {
+  addShowRoutingLayout,
   addShowScene,
   addShowZone,
   createDefaultShowFromController,
@@ -8,12 +9,15 @@ import {
   extendShowCell,
   importedStageMapIdForController,
   removeShowScene,
+  removeShowRoutingLayout,
   removeShowZone,
   spanShowCellZones,
   updateShowZone,
   updateShowCellAdaptations,
   updateShowCellPattern,
   updateShowScene,
+  updateShowRoutingLayout,
+  updateShowRoutingSwitch,
   updateShowTransition,
 } from '@/engine/showModel'
 import { getPersonalContentProvider } from '@/engine/personalContentProvider'
@@ -21,6 +25,7 @@ import type {
   ShowCell,
   ShowCellAdaptations,
   ShowRecord,
+  ShowRoutingLayout,
   ShowScene,
   ShowZone,
 } from '@/engine/personalContentRecords'
@@ -67,6 +72,10 @@ interface ShowState {
   addZone: (showId: string) => Promise<void>
   updateZone: (showId: string, zoneId: string, changes: Partial<Omit<ShowZone, 'id'>>) => Promise<void>
   removeZone: (showId: string, zoneId: string) => Promise<void>
+  addRoutingLayout: (showId: string, sourceLayoutId?: string) => Promise<void>
+  updateRoutingLayout: (showId: string, layoutId: string, changes: Partial<Omit<ShowRoutingLayout, 'id'>>) => Promise<void>
+  removeRoutingLayout: (showId: string, layoutId: string) => Promise<void>
+  updateRoutingSwitch: (showId: string, afterSceneId: string, layoutId: string | null) => Promise<void>
 }
 
 export type { ShowRecord }
@@ -138,6 +147,8 @@ export const useShowStore = create<ShowState>()((set, get) => ({
       scenes: next.scenes,
       zones: next.zones,
       cells: next.cells,
+      routingLayouts: next.routingLayouts,
+      routingSwitches: next.routingSwitches,
       targetControllerProfileId: next.targetControllerProfileId,
       stageMapId: next.stageMapId ?? null,
       updatedAt: next.updatedAt,
@@ -219,5 +230,29 @@ export const useShowStore = create<ShowState>()((set, get) => ({
     const show = get().shows.find((item) => item.id === showId)
     if (!show) return
     await get().updateShow(showId, removeShowZone(show, zoneId))
+  },
+
+  addRoutingLayout: async (showId, sourceLayoutId) => {
+    const show = get().shows.find((item) => item.id === showId)
+    if (!show) return
+    await get().updateShow(showId, addShowRoutingLayout(show, 'New layout', sourceLayoutId))
+  },
+
+  updateRoutingLayout: async (showId, layoutId, changes) => {
+    const show = get().shows.find((item) => item.id === showId)
+    if (!show) return
+    await get().updateShow(showId, updateShowRoutingLayout(show, layoutId, changes))
+  },
+
+  removeRoutingLayout: async (showId, layoutId) => {
+    const show = get().shows.find((item) => item.id === showId)
+    if (!show) return
+    await get().updateShow(showId, removeShowRoutingLayout(show, layoutId))
+  },
+
+  updateRoutingSwitch: async (showId, afterSceneId, layoutId) => {
+    const show = get().shows.find((item) => item.id === showId)
+    if (!show) return
+    await get().updateShow(showId, updateShowRoutingSwitch(show, afterSceneId, layoutId))
   },
 }))

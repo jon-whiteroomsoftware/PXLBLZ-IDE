@@ -1,5 +1,5 @@
 import { useMemo, useState, type CSSProperties } from 'react'
-import { Check, Code2, Play, RotateCw, Trash2, Zap } from 'lucide-react'
+import { Check, Code2, Copy, Play, Plus, RotateCw, Route, Trash2, Zap } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   AlertDialogAction,
@@ -15,6 +15,8 @@ import { getControllerProvider } from '@/engine/controllerProviderRegistry'
 import { makeProgramId } from '@/engine/bytecodePush'
 import {
   projectShowStrip,
+  formatShowRoutingRanges,
+  parseShowRoutingRanges,
   showLoopDurationMs,
   transitionCost,
 } from '@/engine/showModel'
@@ -32,7 +34,7 @@ import { useControllerProfileStore } from '@/store/controllerProfileStore'
 import { useMapStore } from '@/store/mapStore'
 import { usePatternStore } from '@/store/patternStore'
 import { useShowStore } from '@/store/showStore'
-import type { MapRecord, ShowCell, ShowRecord, ShowScene } from '@/engine/personalContentRecords'
+import type { MapRecord, ShowCell, ShowRecord, ShowRoutingLayout, ShowScene } from '@/engine/personalContentRecords'
 
 const card = 'rounded-md border border-zinc-800 bg-zinc-950/35'
 const field =
@@ -44,6 +46,7 @@ type ShowSelection =
   | { kind: 'cell'; cellId: string }
   | { kind: 'transition'; afterSceneId: string }
   | { kind: 'zone'; zoneId: string }
+  | { kind: 'routing-switch'; afterSceneId: string }
   | { kind: 'show' }
 
 export function ShowEditor({ showId }: { showId: string }) {
@@ -61,6 +64,10 @@ export function ShowEditor({ showId }: { showId: string }) {
   const addZone = useShowStore((state) => state.addZone)
   const updateZone = useShowStore((state) => state.updateZone)
   const removeZone = useShowStore((state) => state.removeZone)
+  const addRoutingLayout = useShowStore((state) => state.addRoutingLayout)
+  const updateRoutingLayout = useShowStore((state) => state.updateRoutingLayout)
+  const removeRoutingLayout = useShowStore((state) => state.removeRoutingLayout)
+  const updateRoutingSwitch = useShowStore((state) => state.updateRoutingSwitch)
   const userPatterns = usePatternStore((state) => state.userPatterns)
   const userMaps = useMapStore((state) => state.userMaps)
   const controllerProfiles = useControllerProfileStore((state) => state.profiles)
@@ -211,6 +218,10 @@ export function ShowEditor({ showId }: { showId: string }) {
             onAddZone={() => void addZone(activeShow.id)}
             onUpdateZone={(zoneId, changes) => void updateZone(activeShow.id, zoneId, changes)}
             onRemoveZone={(zoneId) => void removeZone(activeShow.id, zoneId)}
+            onAddRoutingLayout={(sourceLayoutId) => void addRoutingLayout(activeShow.id, sourceLayoutId)}
+            onUpdateRoutingLayout={(layoutId, changes) => void updateRoutingLayout(activeShow.id, layoutId, changes)}
+            onRemoveRoutingLayout={(layoutId) => void removeRoutingLayout(activeShow.id, layoutId)}
+            onUpdateRoutingSwitch={(afterSceneId, layoutId) => void updateRoutingSwitch(activeShow.id, afterSceneId, layoutId)}
           />
           <AlertDialogRoot open={scenePendingDelete !== null} onOpenChange={(open) => { if (!open) setScenePendingDelete(null) }}>
             <AlertDialogContent>
@@ -264,7 +275,7 @@ function SceneStrip({
 }) {
   const strip = projectShowStrip(show)
   const columns = ['148px', ...show.scenes.flatMap(() => ['minmax(170px,1fr)', '36px']).slice(0, -1), '64px']
-  const rows = ['auto', ...strip.rows.map(() => '64px'), '34px']
+  const rows = ['auto', '34px', ...strip.rows.map(() => '64px'), '34px']
   return (
     <div
       className="overflow-x-auto border-b border-seam bg-[#060608] p-4 shadow-[inset_0_6px_14px_-8px_rgba(0,0,0,0.9),inset_0_-6px_14px_-10px_rgba(0,0,0,0.9)]"
@@ -300,6 +311,39 @@ function SceneStrip({
               ]
             : [node]
         ))}
+        <div
+          className="flex items-center gap-2 border-b border-zinc-900 px-1 text-[9.5px] uppercase tracking-[0.12em] text-structural"
+          style={{ gridColumn: 1, gridRow: 2 }}
+        >
+          <Route size={12} aria-hidden />
+          routing
+        </div>
+        {show.scenes.slice(0, -1).map((scene, index) => {
+          const routingSwitch = strip.routingSwitches.find((candidate) => candidate.afterSceneId === scene.id)
+          return (
+            <button
+              key={`route-${scene.id}`}
+              type="button"
+              aria-label={`Set routing layout after ${scene.name}`}
+              title={routingSwitch ? `Switch to ${routingSwitch.layoutName}` : `Set routing layout after ${scene.name}`}
+              onClick={(event) => {
+                event.stopPropagation()
+                onSelect({ kind: 'routing-switch', afterSceneId: scene.id })
+              }}
+              className={[
+                'flex min-w-0 items-center justify-center gap-1 rounded border text-[9px] transition-colors',
+                selection.kind === 'routing-switch' && selection.afterSceneId === scene.id
+                  ? 'border-live/70 bg-live/10 text-live'
+                  : routingSwitch
+                    ? 'border-emerald-900/70 bg-emerald-950/20 text-emerald-300 hover:border-emerald-700'
+                    : 'border-dashed border-zinc-800 text-zinc-600 hover:border-zinc-600 hover:text-zinc-300',
+              ].join(' ')}
+              style={{ gridColumn: 3 + index * 2, gridRow: 2 }}
+            >
+              {routingSwitch ? <Route size={12} aria-hidden /> : <Plus size={12} aria-hidden />}
+            </button>
+          )
+        })}
         {strip.rows.map((row, rowIndex) => (
           <div key={row.zoneId} className="contents">
             <button
@@ -315,7 +359,7 @@ function SceneStrip({
                   ? 'bg-live/10 text-zinc-100'
                   : 'text-zinc-300 hover:text-zinc-100',
               ].join(' ')}
-              style={{ gridColumn: 1, gridRow: rowIndex + 2 }}
+              style={{ gridColumn: 1, gridRow: rowIndex + 3 }}
             >
               <span
                 aria-hidden
@@ -345,7 +389,7 @@ function SceneStrip({
                   borderLeftColor: row.color ?? '#38bdf8',
                   background: `linear-gradient(color-mix(in srgb, ${row.color ?? '#38bdf8'} 9%, #101013), color-mix(in srgb, ${row.color ?? '#38bdf8'} 6%, #0c0c0e))`,
                   gridColumn: `${cell.columnStart} / span ${cell.columnSpan}`,
-                  gridRow: `${rowIndex + 2} / span ${cell.rowSpan}`,
+                  gridRow: `${rowIndex + 3} / span ${cell.rowSpan}`,
                 } as CSSProperties}
                 onMouseEnter={(event) => {
                   event.currentTarget.style.background = `linear-gradient(color-mix(in srgb, ${row.color ?? '#38bdf8'} 14%, #131316), color-mix(in srgb, ${row.color ?? '#38bdf8'} 10%, #0e0e10))`
@@ -374,7 +418,7 @@ function SceneStrip({
             onAddZone()
           }}
           className="flex items-center justify-center rounded-[5px] border border-dashed border-zinc-800 bg-transparent text-[10px] uppercase tracking-wider text-structural hover:border-zinc-600 hover:text-zinc-200"
-          style={{ gridColumn: 1, gridRow: strip.rows.length + 2 }}
+          style={{ gridColumn: 1, gridRow: strip.rows.length + 3 }}
         >
           + zone
         </button>
@@ -386,7 +430,7 @@ function SceneStrip({
             onAddScene()
           }}
           className="flex items-center justify-center rounded-[5px] border border-dashed border-zinc-800 bg-transparent text-[10px] uppercase tracking-wider text-structural [writing-mode:vertical-rl] hover:border-zinc-600 hover:text-zinc-200"
-          style={{ gridColumn: columns.length, gridRow: `2 / span ${strip.rows.length}` }}
+          style={{ gridColumn: columns.length, gridRow: `3 / span ${strip.rows.length}` }}
         >
           + scene
         </button>
@@ -478,7 +522,7 @@ function TransitionGlyph({
       ].join(' ')}
       style={{
         gridColumn: 3 + afterIndex * 2,
-        gridRow: `2 / span ${rowCount}`,
+        gridRow: `3 / span ${rowCount}`,
       }}
     >
       <span className={`relative z-10 bg-[#060608] px-1 ${transition.cost === 'expensive' ? 'text-amber-300' : 'text-emerald-300'}`}>{glyph}</span>
@@ -514,6 +558,10 @@ function ContextualInspector({
   onAddZone,
   onUpdateZone,
   onRemoveZone,
+  onAddRoutingLayout,
+  onUpdateRoutingLayout,
+  onRemoveRoutingLayout,
+  onUpdateRoutingSwitch,
 }: {
   show: ShowRecord
   selection: ShowSelection
@@ -532,6 +580,10 @@ function ContextualInspector({
   onAddZone: () => void
   onUpdateZone: (zoneId: string, changes: Partial<ShowRecord['zones'][number]>) => void
   onRemoveZone: (zoneId: string) => void
+  onAddRoutingLayout: (sourceLayoutId?: string) => void
+  onUpdateRoutingLayout: (layoutId: string, changes: Partial<Omit<ShowRoutingLayout, 'id'>>) => void
+  onRemoveRoutingLayout: (layoutId: string) => void
+  onUpdateRoutingSwitch: (afterSceneId: string, layoutId: string | null) => void
 }) {
   if (selection.kind === 'cell' && selectedCell) {
     return (
@@ -573,6 +625,16 @@ function ContextualInspector({
     }
   }
 
+  if (selection.kind === 'routing-switch') {
+    return (
+      <RoutingSwitchInspector
+        show={show}
+        afterSceneId={selection.afterSceneId}
+        onUpdate={(layoutId) => onUpdateRoutingSwitch(selection.afterSceneId, layoutId)}
+      />
+    )
+  }
+
   return (
     <ShowSetupInspector
       show={show}
@@ -582,6 +644,9 @@ function ContextualInspector({
       onUpdateTargetProfile={onUpdateTargetProfile}
       onUpdateStageMap={onUpdateStageMap}
       onAddZone={onAddZone}
+      onAddRoutingLayout={onAddRoutingLayout}
+      onUpdateRoutingLayout={onUpdateRoutingLayout}
+      onRemoveRoutingLayout={onRemoveRoutingLayout}
     />
   )
 }
@@ -882,6 +947,44 @@ function TransitionInspector({
   )
 }
 
+function RoutingSwitchInspector({
+  show,
+  afterSceneId,
+  onUpdate,
+}: {
+  show: ShowRecord
+  afterSceneId: string
+  onUpdate: (layoutId: string | null) => void
+}) {
+  const sceneIndex = show.scenes.findIndex((scene) => scene.id === afterSceneId)
+  const from = show.scenes[sceneIndex]?.name ?? 'Scene'
+  const to = show.scenes[sceneIndex + 1]?.name ?? 'next scene'
+  const routingSwitch = show.routingSwitches.find((candidate) => candidate.afterSceneId === afterSceneId)
+  return (
+    <InspectorPanel title={`${from} -> ${to} - routing layout`}>
+      <div className="grid max-w-xl gap-2">
+        <label className="text-[10px] uppercase text-zinc-600">
+          Destination routing layout
+          <select
+            aria-label="Destination routing layout"
+            value={routingSwitch?.layoutId ?? ''}
+            onChange={(event) => onUpdate(event.target.value || null)}
+            className={`${field} mt-1 w-full`}
+          >
+            <option value="">no switch</option>
+            {show.routingLayouts.map((layout) => (
+              <option key={layout.id} value={layout.id}>{layout.name}</option>
+            ))}
+          </select>
+        </label>
+        <p className="text-[10px] leading-4 text-zinc-500">
+          The destination layout takes effect at this scene boundary. Running Pattern clocks and state continue uninterrupted.
+        </p>
+      </div>
+    </InspectorPanel>
+  )
+}
+
 function ShowSetupInspector({
   show,
   controllerProfiles,
@@ -890,6 +993,9 @@ function ShowSetupInspector({
   onUpdateTargetProfile,
   onUpdateStageMap,
   onAddZone,
+  onAddRoutingLayout,
+  onUpdateRoutingLayout,
+  onRemoveRoutingLayout,
 }: {
   show: ShowRecord
   controllerProfiles: ControllerProfile[]
@@ -898,6 +1004,9 @@ function ShowSetupInspector({
   onUpdateTargetProfile: (targetControllerProfileId: string) => void
   onUpdateStageMap: (stageMapId: string | null) => void
   onAddZone: () => void
+  onAddRoutingLayout: (sourceLayoutId?: string) => void
+  onUpdateRoutingLayout: (layoutId: string, changes: Partial<Omit<ShowRoutingLayout, 'id'>>) => void
+  onRemoveRoutingLayout: (layoutId: string) => void
 }) {
   const zonePixels = show.zones.reduce((sum, zone) => sum + zone.nominalPixelCount, 0)
   return (
@@ -952,6 +1061,84 @@ function ShowSetupInspector({
         >
           Add zone
         </button>
+      </div>
+      <div className="mt-4 border-t border-zinc-800 pt-3">
+        <div className="mb-2 flex items-center gap-2">
+          <Route size={13} aria-hidden className="text-zinc-500" />
+          <h4 className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Routing layouts</h4>
+          <span className="flex-1" />
+          <button
+            type="button"
+            aria-label="Add routing layout"
+            title="Add routing layout"
+            onClick={() => onAddRoutingLayout()}
+            className="flex h-7 w-7 items-center justify-center rounded border border-zinc-800 text-zinc-400 hover:border-zinc-600 hover:text-zinc-100"
+          >
+            <Plus size={13} aria-hidden />
+          </button>
+        </div>
+        <div className="divide-y divide-zinc-800/80 border-y border-zinc-800/80">
+          {show.routingLayouts.map((layout) => (
+            <div key={layout.id} className="py-3">
+              <div className="flex items-center gap-2">
+                <input
+                  aria-label={`${layout.name} routing layout name`}
+                  value={layout.name}
+                  onChange={(event) => onUpdateRoutingLayout(layout.id, { name: event.target.value })}
+                  className={`${field} min-w-0 flex-1`}
+                />
+                <button
+                  type="button"
+                  aria-label={`Duplicate routing layout ${layout.name}`}
+                  title={`Duplicate ${layout.name}`}
+                  onClick={() => onAddRoutingLayout(layout.id)}
+                  className="flex h-7 w-7 items-center justify-center rounded text-zinc-500 hover:bg-zinc-800 hover:text-zinc-100"
+                >
+                  <Copy size={13} aria-hidden />
+                </button>
+                <button
+                  type="button"
+                  aria-label={`Remove routing layout ${layout.name}`}
+                  title={`Remove ${layout.name}`}
+                  onClick={() => onRemoveRoutingLayout(layout.id)}
+                  disabled={show.routingLayouts.length <= 1}
+                  className="flex h-7 w-7 items-center justify-center rounded text-zinc-500 hover:bg-red-950/30 hover:text-red-300 disabled:opacity-25 disabled:hover:bg-transparent disabled:hover:text-zinc-500"
+                >
+                  <Trash2 size={13} aria-hidden />
+                </button>
+              </div>
+              <div className="mt-2 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+                {show.zones.map((zone) => {
+                  const layoutZone = layout.zones.find((candidate) => candidate.zoneId === zone.id)
+                  return (
+                    <label key={zone.id} className="text-[9.5px] uppercase text-zinc-600">
+                      {zone.name} ranges
+                      <input
+                        key={formatShowRoutingRanges(layoutZone?.ranges ?? [])}
+                        aria-label={`${layout.name} ${zone.name} pixel ranges`}
+                        defaultValue={formatShowRoutingRanges(layoutZone?.ranges ?? [])}
+                        placeholder="0-63, 128-191"
+                        onBlur={(event) => {
+                          const ranges = parseShowRoutingRanges(event.currentTarget.value)
+                          if (ranges === null) {
+                            event.currentTarget.value = formatShowRoutingRanges(layoutZone?.ranges ?? [])
+                            return
+                          }
+                          onUpdateRoutingLayout(layout.id, {
+                            zones: layout.zones.map((candidate) => candidate.zoneId === zone.id
+                              ? { ...candidate, ranges }
+                              : candidate),
+                          })
+                        }}
+                        className={`${field} mt-1 w-full font-mono`}
+                      />
+                    </label>
+                  )
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     </InspectorPanel>
   )

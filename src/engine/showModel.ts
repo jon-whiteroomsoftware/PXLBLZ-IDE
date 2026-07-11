@@ -3,6 +3,8 @@ import type {
   ShowCell,
   ShowCellAdaptations,
   ShowRecord,
+  ShowRoutingLayout,
+  ShowRoutingLayoutZone,
   ShowScene,
   ShowTransitionCost,
   ShowZone,
@@ -41,6 +43,7 @@ export interface ShowStripRowProjection {
 export interface ShowStripProjection {
   sceneColumns: ShowScene[]
   transitions: ShowStripTransitionProjection[]
+  routingSwitches: Array<{ afterSceneId: string; layoutId: string; layoutName: string }>
   rows: ShowStripRowProjection[]
 }
 
@@ -83,6 +86,8 @@ export function createDefaultShow(id: string, name: string, updatedAt = Date.now
       patternName: index === 0 ? 'TestPattern1D' : 'CometLoom',
       adaptations: { ...DEFAULT_ADAPTATIONS },
     })),
+    routingLayouts: [routingLayoutFromZones('layout-1', 'Default', zones)],
+    routingSwitches: [],
     stageMapId: null,
     updatedAt,
   }
@@ -112,6 +117,8 @@ export function createDefaultShowFromController(
     ...base,
     zones,
     cells: createCellsForZones(base.scenes, zones),
+    routingLayouts: [routingLayoutFromControllerZones('layout-1', 'Default', zones, controllerZones)],
+    routingSwitches: [],
     targetControllerProfileId: controller.id,
     stageMapId,
     updatedAt,
@@ -154,6 +161,12 @@ export function projectShowStrip(show: ShowRecord): ShowStripProjection {
         durationMs: scene.transitionOut?.durationMs ?? 0,
         cost: transitionCost(scene.transitionOut?.kind ?? 'cut'),
       })),
+    routingSwitches: show.routingSwitches.flatMap((routingSwitch) => {
+      const layout = show.routingLayouts.find((candidate) => candidate.id === routingSwitch.layoutId)
+      return layout
+        ? [{ ...routingSwitch, layoutName: layout.name }]
+        : []
+    }),
     rows: show.zones.map((zone) => ({
       zoneId: zone.id,
       zoneName: zone.name,
@@ -257,6 +270,7 @@ export function removeShowScene(show: ShowRecord, sceneId: string): ShowRecord {
       scene.id === finalSceneId ? { ...scene, transitionOut: undefined } : scene
     )),
     cells,
+    routingSwitches: show.routingSwitches.filter((routingSwitch) => routingSwitch.afterSceneId !== sceneId),
     updatedAt: Date.now(),
   }
 }
@@ -335,11 +349,15 @@ export function addShowZone(
     nominalPixelCount: clampPixelCount(seed.nominalPixelCount ?? 60),
     color: seed.color ?? ZONE_COLORS[show.zones.length % ZONE_COLORS.length],
   }
-  return {
+  const next = {
     ...show,
     zones: [...show.zones, zone],
     cells: [...show.cells, ...createCellsForZone(show.scenes, zone, show.cells)],
     updatedAt: Date.now(),
+  }
+  return {
+    ...next,
+    routingLayouts: next.routingLayouts.map((layout) => appendZoneToLayout(layout, zone)),
   }
 }
 
@@ -370,8 +388,97 @@ export function removeShowZone(show: ShowRecord, zoneId: string): ShowRecord {
     ...show,
     zones: show.zones.filter((zone) => zone.id !== zoneId),
     cells: show.cells.filter((cell) => cell.zoneId !== zoneId),
+    routingLayouts: show.routingLayouts.map((layout) => ({
+      ...layout,
+      zones: layout.zones.filter((zone) => zone.zoneId !== zoneId),
+    })),
     updatedAt: Date.now(),
   }
+}
+
+export function normalizeShowRoutingState(show: ShowRecord): ShowRecord {
+  const layouts = Array.isArray(show.routingLayouts) && show.routingLayouts.length > 0
+    ? show.routingLayouts.map(normalizeRoutingLayout)
+    : [routingLayoutFromZones('layout-1', 'Default', show.zones)]
+  const sceneIds = new Set(show.scenes.slice(0, -1).map((scene) => scene.id))
+  const layoutIds = new Set(layouts.map((layout) => layout.id))
+  const switches = Array.isArray(show.routingSwitches)
+    ? show.routingSwitches.filter((routingSwitch) => (
+        sceneIds.has(routingSwitch.afterSceneId) && layoutIds.has(routingSwitch.layoutId)
+      ))
+    : []
+  return { ...show, routingLayouts: layouts, routingSwitches: switches }
+}
+
+export function addShowRoutingLayout(show: ShowRecord, name = 'New layout', sourceLayoutId?: string): ShowRecord {
+  const normalized = normalizeShowRoutingState(show)
+  const id = nextEntityId('layout-', normalized.routingLayouts)
+  const source = sourceLayoutId
+    ? normalized.routingLayouts.find((layout) => layout.id === sourceLayoutId)
+    : undefined
+  const layout: ShowRoutingLayout = {
+    id,
+    name: uniqueRoutingLayoutName(name, normalized.routingLayouts),
+    zones: source
+      ? source.zones.map(cloneRoutingLayoutZone)
+      : routingLayoutFromZones(id, name, normalized.zones).zones,
+  }
+  return { ...normalized, routingLayouts: [...normalized.routingLayouts, layout], updatedAt: Date.now() }
+}
+
+export function formatShowRoutingRanges(ranges: ShowRoutingLayoutZone['ranges']): string {
+  return ranges.map((range) => range.start === range.end ? `${range.start}` : `${range.start}-${range.end}`).join(', ')
+}
+
+export function parseShowRoutingRanges(value: string): ShowRoutingLayoutZone['ranges'] | null {
+  const parts = value.split(',').map((part) => part.trim()).filter(Boolean)
+  if (parts.length === 0) return []
+  const ranges: ShowRoutingLayoutZone['ranges'] = []
+  for (const part of parts) {
+    const match = /^(\d+)(?:\s*-\s*(\d+))?$/.exec(part)
+    if (!match) return null
+    const start = Number(match[1])
+    const end = Number(match[2] ?? match[1])
+    ranges.push({ start: Math.min(start, end), end: Math.max(start, end) })
+  }
+  return ranges.sort((a, b) => a.start - b.start || a.end - b.end)
+}
+
+export function updateShowRoutingLayout(
+  show: ShowRecord,
+  layoutId: string,
+  changes: Partial<Omit<ShowRoutingLayout, 'id'>>,
+): ShowRecord {
+  const normalized = normalizeShowRoutingState(show)
+  return {
+    ...normalized,
+    routingLayouts: normalized.routingLayouts.map((layout) => layout.id === layoutId
+      ? normalizeRoutingLayout({ ...layout, ...changes, id: layout.id })
+      : layout),
+    updatedAt: Date.now(),
+  }
+}
+
+export function removeShowRoutingLayout(show: ShowRecord, layoutId: string): ShowRecord {
+  const normalized = normalizeShowRoutingState(show)
+  if (normalized.routingLayouts.length <= 1) return show
+  const routingLayouts = normalized.routingLayouts.filter((layout) => layout.id !== layoutId)
+  if (routingLayouts.length === normalized.routingLayouts.length) return show
+  return {
+    ...normalized,
+    routingLayouts,
+    routingSwitches: normalized.routingSwitches.filter((routingSwitch) => routingSwitch.layoutId !== layoutId),
+    updatedAt: Date.now(),
+  }
+}
+
+export function updateShowRoutingSwitch(show: ShowRecord, afterSceneId: string, layoutId: string | null): ShowRecord {
+  const normalized = normalizeShowRoutingState(show)
+  if (!normalized.scenes.slice(0, -1).some((scene) => scene.id === afterSceneId)) return show
+  if (layoutId !== null && !normalized.routingLayouts.some((layout) => layout.id === layoutId)) return show
+  const routingSwitches = normalized.routingSwitches.filter((routingSwitch) => routingSwitch.afterSceneId !== afterSceneId)
+  if (layoutId !== null) routingSwitches.push({ afterSceneId, layoutId })
+  return { ...normalized, routingSwitches, updatedAt: Date.now() }
 }
 
 export function updateShowTransition(
@@ -470,6 +577,23 @@ function showRecordToRoutedFirstSceneRecipe(
     .filter((cell): cell is ShowCell => Boolean(cell))
   if (cells.length === 0) throw new Error('Show compile requires at least one first-scene zone cell.')
 
+  const normalized = normalizeShowRoutingState(show)
+  const activeSwitches = normalized.routingSwitches.flatMap((routingSwitch) => {
+    const sceneIndex = normalized.scenes.findIndex((scene) => scene.id === routingSwitch.afterSceneId)
+    if (sceneIndex < 0 || sceneIndex >= normalized.scenes.length - 1) return []
+    const atMs = normalized.scenes
+      .slice(0, sceneIndex + 1)
+      .reduce((sum, scene) => sum + Math.max(0, scene.durationMs), 0)
+    return [{ atMs, layoutId: routingSwitch.layoutId }]
+  })
+  const routingLayouts = activeSwitches.length > 0
+    ? normalized.routingLayouts.map((layout) => ({
+        id: layout.id,
+        name: layout.name,
+        zones: routingLayoutControllerZones(normalized.zones, layout),
+      }))
+    : undefined
+
   return {
     clips: cells.map((cell) => {
       const source = lookup.byCellId[cell.id]
@@ -489,6 +613,9 @@ function showRecordToRoutedFirstSceneRecipe(
       }
     }),
     zones: lookup.controllerZones ?? nominalZones(show.zones),
+    routingLayouts,
+    routingSwitches: routingLayouts ? activeSwitches : undefined,
+    loopDurationMs: routingLayouts ? showLoopDurationMs(normalized) : undefined,
   }
 }
 
@@ -595,6 +722,75 @@ function nominalZones(zones: ShowZone[]): ControllerZone[] {
   })
 }
 
+function routingLayoutFromZones(id: string, name: string, zones: ShowZone[]): ShowRoutingLayout {
+  return {
+    id,
+    name,
+    zones: nominalZones(zones).map((zone) => ({
+      zoneId: zone.id,
+      ranges: zone.ranges.map((range) => ({ ...range })),
+    })),
+  }
+}
+
+function routingLayoutFromControllerZones(
+  id: string,
+  name: string,
+  showZones: ShowZone[],
+  controllerZones: ControllerZone[],
+): ShowRoutingLayout {
+  return {
+    id,
+    name,
+    zones: showZones.map((zone, index) => ({
+      zoneId: zone.id,
+      ranges: (controllerZones[index]?.ranges ?? []).map((range) => ({ ...range })),
+    })),
+  }
+}
+
+function routingLayoutControllerZones(showZones: ShowZone[], layout: ShowRoutingLayout): ControllerZone[] {
+  return showZones.map((zone) => ({
+    id: `${layout.id}:${zone.id}`,
+    name: zone.name,
+    ranges: (layout.zones.find((entry) => entry.zoneId === zone.id)?.ranges ?? []).map((range) => ({ ...range })),
+  }))
+}
+
+function appendZoneToLayout(layout: ShowRoutingLayout, zone: ShowZone): ShowRoutingLayout {
+  const end = layout.zones.reduce((largest, entry) => (
+    Math.max(largest, ...entry.ranges.map((range) => range.end))
+  ), -1)
+  const start = end + 1
+  return {
+    ...layout,
+    zones: [
+      ...layout.zones.map(cloneRoutingLayoutZone),
+      { zoneId: zone.id, ranges: [{ start, end: start + clampPixelCount(zone.nominalPixelCount) - 1 }] },
+    ],
+  }
+}
+
+function normalizeRoutingLayout(layout: ShowRoutingLayout): ShowRoutingLayout {
+  return {
+    id: layout.id,
+    name: layout.name.trim() || 'Untitled layout',
+    zones: layout.zones.map((zone) => ({
+      zoneId: zone.zoneId,
+      ranges: zone.ranges
+        .map((range) => ({
+          start: Math.max(0, Math.round(Math.min(range.start, range.end))),
+          end: Math.max(0, Math.round(Math.max(range.start, range.end))),
+        }))
+        .sort((a, b) => a.start - b.start || a.end - b.end),
+    })),
+  }
+}
+
+function cloneRoutingLayoutZone(zone: ShowRoutingLayoutZone): ShowRoutingLayoutZone {
+  return { zoneId: zone.zoneId, ranges: zone.ranges.map((range) => ({ ...range })) }
+}
+
 function createCellsForZones(scenes: ShowScene[], zones: ShowZone[]): ShowCell[] {
   return zones.flatMap((zone, zoneIndex) =>
     scenes.map((scene, sceneIndex) => defaultCell(`cell-${zoneIndex * scenes.length + sceneIndex + 1}`, zone.id, scene.id, sceneIndex)),
@@ -695,6 +891,18 @@ function uniqueZoneName(name: string, zones: ShowZone[]): string {
 
 function uniqueSceneName(name: string, scenes: ShowScene[]): string {
   const taken = new Set(scenes.map((scene) => scene.name.toLowerCase()))
+  if (!taken.has(name.toLowerCase())) return name
+  let index = 2
+  let next = `${name} ${index}`
+  while (taken.has(next.toLowerCase())) {
+    index += 1
+    next = `${name} ${index}`
+  }
+  return next
+}
+
+function uniqueRoutingLayoutName(name: string, layouts: ShowRoutingLayout[]): string {
+  const taken = new Set(layouts.map((layout) => layout.name.toLowerCase()))
   if (!taken.has(name.toLowerCase())) return name
   let index = 2
   let next = `${name} ${index}`

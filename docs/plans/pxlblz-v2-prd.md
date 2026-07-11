@@ -67,6 +67,17 @@ model remains:
   from a controller seeds its zone rows from that controller's map, and a
   freestyle Show can later save its zones to a controller. (A **preferred
   map** per Controller wants to exist for similar reasons — noted, parked.)
+- **Dynamic zone routing layouts** (decided 2026-07-10, epic #397): a Show may
+  own several named mappings from its semantic zone rows to physical
+  pixel-index range lists. These **routing layouts** are distinct from the
+  Stage Map (spatial coordinates) and from the Controller's default zone map.
+  The scene strip gains a Show-wide routing lane: an instantaneous marker at a
+  scene boundary selects another layout. The first layout is active at loop
+  start; crossing a marker changes physical routing and each zone's local
+  index/count without restarting Pattern clocks or state. The hard-switch
+  tracer bullet (#398) retains one renderer per physical pixel. Progressive
+  transfers (#403), parametric routing (#405), and coordinate remapping (#406)
+  remain later layers rather than requirements for the first useful slice.
 - **Editor direction** (decided 2026-07-08): the v1 Show editor is a **scene
   strip**, not a timeline — scenes as columns, zones as rows, a cell holds a
   pattern plus its adaptations, and transitions are first-class column

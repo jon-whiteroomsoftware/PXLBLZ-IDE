@@ -47,6 +47,8 @@ describe('D1 show persistence (#318)', () => {
       scenes_json: JSON.stringify(show.scenes),
       zones_json: JSON.stringify(show.zones),
       cells_json: JSON.stringify(show.cells),
+      routing_layouts_json: JSON.stringify(show.routingLayouts),
+      routing_switches_json: JSON.stringify(show.routingSwitches),
       target_controller_profile_id: 'ctrl-1',
       stage_map_id: 'map-1',
       updated_at: 123,
@@ -76,6 +78,8 @@ describe('D1 show persistence (#318)', () => {
     expect(calls[0].values.slice(0, 2)).toEqual(['github:123', 'show-1'])
     expect(calls[0].values).toContain(JSON.stringify(show.scenes))
     expect(calls[0].values).toContain(JSON.stringify(show.cells))
+    expect(calls[0].values).toContain(JSON.stringify(show.routingLayouts))
+    expect(calls[0].values).toContain(JSON.stringify(show.routingSwitches))
     expect(calls[0].values).toContain(null)
   })
 })

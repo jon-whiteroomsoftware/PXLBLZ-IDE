@@ -1,10 +1,14 @@
 import {
+  addShowRoutingLayout,
   addShowScene,
   addShowZone,
   createDefaultShowFromController,
   createDefaultShow,
   extendShowCell,
+  formatShowRoutingRanges,
+  parseShowRoutingRanges,
   projectShowStrip,
+  removeShowRoutingLayout,
   removeShowScene,
   showLoopDurationMs,
   showRecordToCompileRecipe,
@@ -12,6 +16,8 @@ import {
   updateShowCellAdaptations,
   updateShowCellPattern,
   updateShowScene,
+  updateShowRoutingLayout,
+  updateShowRoutingSwitch,
   updateShowTransition,
   updateShowZone,
 } from './showModel'
@@ -32,6 +38,57 @@ function expectHoleFreeStrip(show: ShowRecord): void {
 }
 
 describe('showModel (#318)', () => {
+  it('creates, edits, switches, and safely removes named routing layouts (#398)', () => {
+    const show = addShowZone(createDefaultShow('show-1', 'Routing Show'), {
+      name: 'right',
+      nominalPixelCount: 4,
+    })
+
+    expect(show.routingLayouts).toEqual([
+      {
+        id: 'layout-1',
+        name: 'Default',
+        zones: [
+          { zoneId: 'zone-1', ranges: [{ start: 0, end: 59 }] },
+          { zoneId: 'zone-2', ranges: [{ start: 60, end: 63 }] },
+        ],
+      },
+    ])
+
+    const withSplit = addShowRoutingLayout(show, 'Alternating')
+    const split = withSplit.routingLayouts[1]
+    const edited = updateShowRoutingLayout(withSplit, split.id, {
+      zones: [
+        { zoneId: 'zone-1', ranges: [{ start: 0, end: 1 }, { start: 4, end: 5 }] },
+        { zoneId: 'zone-2', ranges: [{ start: 2, end: 3 }, { start: 6, end: 7 }] },
+      ],
+    })
+    const switched = updateShowRoutingSwitch(edited, show.scenes[0].id, split.id)
+
+    expect(projectShowStrip(switched).routingSwitches).toEqual([
+      {
+        afterSceneId: show.scenes[0].id,
+        layoutId: split.id,
+        layoutName: 'Alternating',
+      },
+    ])
+
+    const removed = removeShowRoutingLayout(switched, split.id)
+    expect(removed.routingLayouts).toHaveLength(1)
+    expect(removed.routingSwitches).toEqual([])
+    expect(removeShowRoutingLayout(removed, removed.routingLayouts[0].id)).toBe(removed)
+  })
+
+  it('round-trips compact range-list authoring text (#398)', () => {
+    expect(parseShowRoutingRanges('0-3, 8, 12-15')).toEqual([
+      { start: 0, end: 3 },
+      { start: 8, end: 8 },
+      { start: 12, end: 15 },
+    ])
+    expect(formatShowRoutingRanges(parseShowRoutingRanges('3-0, 8')!)).toBe('0-3, 8')
+    expect(parseShowRoutingRanges('0-3, nope')).toBeNull()
+  })
+
   it('creates a two-scene scene-strip show with one zone and editable cells', () => {
     const show = createDefaultShow('show-1', 'Untitled Show')
 

@@ -63,6 +63,32 @@ beforeEach(() => {
 })
 
 describe('ShowEditor (#318)', () => {
+  it('authors named routing layouts and scene-boundary switch markers (#398)', async () => {
+    const user = userEvent.setup()
+    const show = addShowZone(createDefaultShow('show-1', 'Routing Show', 1000), {
+      name: 'right',
+      nominalPixelCount: 4,
+    })
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+
+    expect(screen.getByText('Routing layouts')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Add routing layout' }))
+    await waitFor(() => expect(useShowStore.getState().shows[0].routingLayouts).toHaveLength(2))
+
+    const added = useShowStore.getState().shows[0].routingLayouts[1]
+    fireEvent.change(screen.getByLabelText(`${added.name} routing layout name`), { target: { value: 'Quadrants' } })
+    await waitFor(() => expect(useShowStore.getState().shows[0].routingLayouts[1].name).toBe('Quadrants'))
+
+    await user.click(screen.getByRole('button', { name: 'Set routing layout after Scene 1' }))
+    await user.selectOptions(screen.getByLabelText('Destination routing layout'), added.id)
+    await waitFor(() => expect(useShowStore.getState().shows[0].routingSwitches).toEqual([
+      { afterSceneId: 'scene-1', layoutId: added.id },
+    ]))
+  })
+
   it('renders a scene strip, selectable cell inspector, and compile bar', async () => {
     const user = userEvent.setup()
     const show = createDefaultShow('show-1', 'Opening wash', 1000)

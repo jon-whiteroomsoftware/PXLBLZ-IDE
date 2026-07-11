@@ -95,6 +95,22 @@ export interface ShowZone {
   color?: string
 }
 
+export interface ShowRoutingLayoutZone {
+  zoneId: string
+  ranges: Array<{ start: number; end: number }>
+}
+
+export interface ShowRoutingLayout {
+  id: string
+  name: string
+  zones: ShowRoutingLayoutZone[]
+}
+
+export interface ShowRoutingSwitch {
+  afterSceneId: string
+  layoutId: string
+}
+
 export interface ShowCellAdaptations {
   mirror: boolean
   phase: number
@@ -137,6 +153,8 @@ export interface ShowRecord {
   scenes: ShowScene[]
   zones: ShowZone[]
   cells: ShowCell[]
+  routingLayouts: ShowRoutingLayout[]
+  routingSwitches: ShowRoutingSwitch[]
   targetControllerProfileId?: string
   stageMapId?: string | null
   updatedAt: number

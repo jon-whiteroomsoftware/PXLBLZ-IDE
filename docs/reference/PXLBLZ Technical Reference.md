@@ -867,6 +867,7 @@ attempted or implied.
 Shows are persisted as `ShowRecord`s in `personal_shows` (migration 0007):
 `name`, `scenes_json`, `zones_json`, `cells_json`, optional
 `target_controller_profile_id`, optional `stage_map_id` (migration 0009), and
+`routing_layouts_json` plus `routing_switches_json` (migration 0012), and
 `updated_at`. `showStore` owns the active Show and writes every
 scene/cell/zone/stage edit immediately through `/api/shows`. The
 pure model helpers in `showModel.ts` create the default two-scene/one-zone
@@ -890,6 +891,15 @@ show-local zones become sequential nominal ranges for preview (`0..n-1`, then
 the next zone after that); with a target, compile uses the Controller's real zone
 ranges and binds clips by zone name.
 
+Every normalized `ShowRecord` has at least one named routing layout. A layout
+stores `zoneId -> [{start,end}]` independently from Controller-profile zones;
+legacy rows synthesize one sequential `Default` layout from nominal Show-zone
+sizes. Routing switches store `afterSceneId -> layoutId` and are valid only on
+non-final scene boundaries. Removing a scene removes its marker; removing a
+referenced layout removes its markers; the final layout cannot be removed.
+Adding a Show zone appends a sequential range to every layout, while removing a
+zone removes its layout entries.
+
 `ShowEditor` renders the scene strip as a recessed composition surface: scene
 headers are inline-editable labels, zone headers carry the zone color, cells are
 zone-tinted clips, transitions are seam buttons between scenes, and holding cells
@@ -904,6 +914,12 @@ read-only generated-source view, and run-to-Controller action compile the
 generated source through the active provider and push bytecode to the connected
 controller.
 
+The routing lane occupies a dedicated strip row above the zone cells. Boundary
+markers select a destination layout in the contextual inspector. Show Setup
+owns layout CRUD and compact range-list authoring (`0-63, 128-191`). The range
+parser and all routing mutations remain pure `showModel` operations; the React
+surface delegates edits through `showStore`.
+
 `ShowStagePreview` is the right-pane Show context surface. It compiles the active
 Show through the same `compileShowForPreview` helper used by the editor and runs
 that generated `render(index)` artifact through the normal preview render loop.
@@ -916,12 +932,16 @@ off-stage rows warn in the legend, uncovered map pixels are masked dim grey, and
 solo blackens every non-solo zone without moving the geometry. The stage map
 selection is saved per Show as `stageMapId`; a dangling id falls back to strips.
 
-The current Show compiler (`src/engine/showCompiler.ts`) emits six policies:
+The current Show compiler (`src/engine/showCompiler.ts`) emits seven policies:
 single continuous hold (`single-continuous-hold`), cut/restart
 (`cut-restart`), two-renderer crossfade (`steady-active-transition-both`),
 same-pattern adaptation ramp (`parameter-ramp-one-renderer-per-pixel`), and the
 #334 route-cost transition path (`route-transition-one-renderer-per-pixel`) plus
-the #317 zone route pass (`route-one-renderer-per-pixel`). Each member pattern is
+the #317 zone route pass (`route-one-renderer-per-pixel`). #398 extends that route
+policy with a looping named-layout schedule: each frame selects the latest
+scene-boundary marker, updates each member's zone-local `pixelCount`, advances
+every member once, and emits only the active layout's range branches. Loop wrap
+returns routing to layout zero while private Pattern clocks continue. Each member pattern is
 alpha-renamed, gets a private elapsed-time accumulator, and receives per-member
 adaptation variables for brightness, phase, time scale, mirror, and an optional
 full-clip light shutter. Adaptation

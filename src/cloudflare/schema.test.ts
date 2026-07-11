@@ -18,6 +18,7 @@ const controllerMapFingerprintsMigrationPath = path.resolve(
   'migrations/0010_controller_map_fingerprints.sql',
 )
 const personalLibrariesMigrationPath = path.resolve('migrations/0011_personal_libraries.sql')
+const showRoutingLayoutsMigrationPath = path.resolve('migrations/0012_show_routing_layouts.sql')
 
 describe('D1 personal storage migration', () => {
   it('creates the storage buckets needed for the Cloudflare personal-storage foundation', () => {
@@ -132,5 +133,13 @@ describe('D1 personal storage migration', () => {
     expect(sql).toContain('PRIMARY KEY (user_id, id)')
     expect(sql).toContain('FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE')
     expect(sql).toContain("VALUES ('schema_version', '11', unixepoch())")
+  })
+
+  it('adds named Show routing layouts and switch markers', () => {
+    const sql = fs.readFileSync(showRoutingLayoutsMigrationPath, 'utf8')
+
+    expect(sql).toContain('ALTER TABLE personal_shows ADD COLUMN routing_layouts_json TEXT')
+    expect(sql).toContain('ALTER TABLE personal_shows ADD COLUMN routing_switches_json TEXT')
+    expect(sql).toContain("VALUES ('schema_version', '12', unixepoch())")
   })
 })

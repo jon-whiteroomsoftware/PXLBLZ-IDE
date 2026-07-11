@@ -36,6 +36,106 @@ function loadShow(code: string, metadata: ReturnType<typeof compileShow>['metada
 }
 
 describe('compileShow', () => {
+  it('switches named routing layouts on a looping schedule without restarting members (#398)', () => {
+    const artifact = compileShow({
+      clips: [
+        {
+          id: 'red',
+          zone: 'red-zone',
+          source: `
+export var ticks = 0
+export function beforeRender(delta) { ticks = ticks + 1 }
+export function render(index) { rgb(1, ticks, index) }
+`,
+        },
+        {
+          id: 'blue',
+          zone: 'blue-zone',
+          source: `
+export var ticks = 0
+export function beforeRender(delta) { ticks = ticks + 1 }
+export function render(index) { rgb(0, ticks, index) }
+`,
+        },
+      ],
+      zones: [
+        { id: 'red-a', name: 'red-zone', ranges: [{ start: 0, end: 1 }] },
+        { id: 'blue-a', name: 'blue-zone', ranges: [{ start: 2, end: 3 }] },
+      ],
+      routingLayouts: [
+        {
+          id: 'layout-a',
+          name: 'Red left',
+          zones: [
+            { id: 'red-a', name: 'red-zone', ranges: [{ start: 0, end: 1 }] },
+            { id: 'blue-a', name: 'blue-zone', ranges: [{ start: 2, end: 3 }] },
+          ],
+        },
+        {
+          id: 'layout-b',
+          name: 'Blue left',
+          zones: [
+            { id: 'red-b', name: 'red-zone', ranges: [{ start: 2, end: 3 }] },
+            { id: 'blue-b', name: 'blue-zone', ranges: [{ start: 0, end: 1 }] },
+          ],
+        },
+      ],
+      routingSwitches: [{ atMs: 1000, layoutId: 'layout-b' }],
+      loopDurationMs: 2000,
+    }, {})
+
+    expect(artifact.summary.renderPolicy).toBe('route-one-renderer-per-pixel')
+    expect(artifact.summary.worstInstantRenderersPerPixel).toBe(1)
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 4)
+
+    handle.beforeRender(500)
+    handle.render(0)
+    expect(pixel()).toEqual([1, 1, 0])
+
+    handle.beforeRender(600)
+    handle.render(0)
+    expect(pixel()).toEqual([0, 2, 0])
+    expect(handle.getExports()).toMatchObject({
+      __pxlblz_show_c0_ticks: 2,
+      __pxlblz_show_c1_ticks: 2,
+    })
+
+    handle.beforeRender(1000)
+    handle.render(0)
+    expect(pixel()).toEqual([1, 3, 0])
+    expect(handle.getExports()).toMatchObject({
+      __pxlblz_show_c0_ticks: 3,
+      __pxlblz_show_c1_ticks: 3,
+    })
+  })
+
+  it('warns when a routing layout assigns one physical pixel to multiple zones (#398)', () => {
+    const artifact = compileShow({
+      clips: [
+        { id: 'a', zone: 'a', source: 'export function render(index) { rgb(1, 0, 0) }' },
+        { id: 'b', zone: 'b', source: 'export function render(index) { rgb(0, 0, 1) }' },
+      ],
+      zones: [
+        { id: 'a', name: 'a', ranges: [{ start: 0, end: 3 }] },
+        { id: 'b', name: 'b', ranges: [{ start: 4, end: 7 }] },
+      ],
+      routingLayouts: [{
+        id: 'overlap',
+        name: 'Overlap',
+        zones: [
+          { id: 'a', name: 'a', ranges: [{ start: 0, end: 4 }] },
+          { id: 'b', name: 'b', ranges: [{ start: 4, end: 7 }] },
+        ],
+      }],
+      routingSwitches: [],
+      loopDurationMs: 2000,
+    }, {})
+
+    expect(artifact.summary.warnings).toContain(
+      'Routing layout "Overlap" assigns overlapping pixels to clips "a" and "b"; the first route wins.',
+    )
+  })
+
   it('keeps member globals independent and runs only participating beforeRender hooks', () => {
     const artifact = compileShow({
       clips: [

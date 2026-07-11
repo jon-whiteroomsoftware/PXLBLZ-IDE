@@ -313,6 +313,15 @@ Pattern evaluation per clip and explicitly keeps that estimate separate from
 unavoidable outer-render and LED-transport work. For stepped clips it reports
 motion cadence separately and states that renderer cost is unchanged.
 
+The Show-wide **routing** lane sits above the zone rows. Show Setup can create,
+duplicate, rename, edit, and remove named routing layouts; each layout maps the
+same semantic zone rows to its own pixel-index range lists. A compact marker at
+a scene boundary selects the destination layout. At playback the first layout
+starts the loop, boundary markers switch routing immediately, and the layout
+returns to the first at the next loop without resetting any running Pattern
+clock or state. Pixels not covered by the active layout render black. Overlaps
+are deterministic (the first route wins) and appear as compile warnings.
+
 A **wipe** can add a normalized `0..1` feather width. Zero is the original hard
 index boundary. A positive feather turns the surrounding band over through a
 stable per-pixel spatial threshold: each pixel changes owner once as the edge

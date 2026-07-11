@@ -186,6 +186,8 @@ describe('remote personal content provider', () => {
       scenes: [],
       zones: [],
       cells: [],
+      routingLayouts: [],
+      routingSwitches: [],
       updatedAt: 1,
     }
     const fetcher: typeof fetch = async (url, init) => {

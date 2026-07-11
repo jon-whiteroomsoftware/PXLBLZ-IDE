@@ -61,6 +61,17 @@ export interface ShowRouteTransitionRecipe {
   feather?: number
 }
 
+export interface ShowRoutingLayoutRecipe {
+  id: string
+  name: string
+  zones: ControllerZone[]
+}
+
+export interface ShowRoutingSwitchRecipe {
+  atMs: number
+  layoutId: string
+}
+
 export interface ShowRecipe {
   clips: ShowClipRecipe[]
   crossfade?: ShowCrossfadeRecipe
@@ -68,6 +79,9 @@ export interface ShowRecipe {
   adaptationRamp?: ShowAdaptationRampRecipe
   routeTransition?: ShowRouteTransitionRecipe
   zones?: ControllerZone[]
+  routingLayouts?: ShowRoutingLayoutRecipe[]
+  routingSwitches?: ShowRoutingSwitchRecipe[]
+  loopDurationMs?: number
 }
 
 export interface ShowCompileClipSummary {
@@ -155,6 +169,13 @@ interface ResolvedRoute {
   pixelCount: number
 }
 
+interface ResolvedRoutingLayout {
+  id: string
+  name: string
+  routes: ResolvedRoute[]
+  warnings: string[]
+}
+
 export function compileShow(
   recipe: ShowRecipe,
   libraries: Record<string, string>,
@@ -163,9 +184,17 @@ export function compileShow(
   validateRecipe(expandedRecipe)
   const members = expandedRecipe.clips.map((clip, index) => compileMember(clip, index, libraries))
   const route = buildRoutePlan(members, expandedRecipe)
+  const routingLayouts = buildRoutingLayoutPlans(members, expandedRecipe)
   const routeMode = route !== null
-  const code = routeMode
-    ? emitRouteShowCode(members, route.routes)
+  const code = routingLayouts
+    ? emitRoutingLayoutShowCode(
+        members,
+        routingLayouts,
+        expandedRecipe.routingSwitches ?? [],
+        expandedRecipe.loopDurationMs ?? 0,
+      )
+    : routeMode
+      ? emitRouteShowCode(members, route.routes)
     : expandedRecipe.adaptationRamp
       ? emitAdaptationRampShowCode(members[0], expandedRecipe.adaptationRamp)
       : expandedRecipe.cut
@@ -190,7 +219,9 @@ export function compileShow(
   const evaluationSummary = describeEvaluationPolicy(members)
   const summary: ShowCompileSummary = {
     clipCount: members.length,
-    transitionCount: expandedRecipe.crossfade || expandedRecipe.cut || expandedRecipe.adaptationRamp || expandedRecipe.routeTransition ? 1 : 0,
+    transitionCount: routingLayouts
+      ? expandedRecipe.routingSwitches?.length ?? 0
+      : expandedRecipe.crossfade || expandedRecipe.cut || expandedRecipe.adaptationRamp || expandedRecipe.routeTransition ? 1 : 0,
     sourceBytesBeforeMerge,
     artifactBytes,
     measuredDeviceBudgetBytes: MEASURED_DEVICE_BUDGET_BYTES,
@@ -237,7 +268,7 @@ export function compileShow(
         timeOffsetMs: member.adaptation.timeOffsetMs,
       }
     }),
-    warnings: route?.warnings ?? [],
+    warnings: routingLayouts?.flatMap((layout) => layout.warnings) ?? route?.warnings ?? [],
   }
 
   return {
@@ -278,6 +309,23 @@ function validateRecipe(recipe: ShowRecipe): void {
   }
   if (routeMode && !recipe.zones) {
     throw new Error('compileShow routed clips require controller zones.')
+  }
+  if (recipe.routingLayouts) {
+    if (!routeMode) throw new Error('compileShow routing layouts require routed clips.')
+    if (recipe.routingLayouts.length === 0) throw new Error('compileShow requires at least one routing layout.')
+    if (!recipe.loopDurationMs || recipe.loopDurationMs <= 0) {
+      throw new Error('compileShow routing layouts require a positive loop duration.')
+    }
+    const layoutIds = new Set(recipe.routingLayouts.map((layout) => layout.id))
+    if (layoutIds.size !== recipe.routingLayouts.length) throw new Error('compileShow routing layout ids must be unique.')
+    for (const routingSwitch of recipe.routingSwitches ?? []) {
+      if (!layoutIds.has(routingSwitch.layoutId)) {
+        throw new Error(`compileShow routing switch references missing layout "${routingSwitch.layoutId}".`)
+      }
+      if (routingSwitch.atMs <= 0 || routingSwitch.atMs >= recipe.loopDurationMs) {
+        throw new Error('compileShow routing switches must fall inside the loop duration.')
+      }
+    }
   }
 }
 
@@ -487,6 +535,41 @@ function buildRoutePlan(
   return { routes, warnings }
 }
 
+function buildRoutingLayoutPlans(
+  members: CompiledMember[],
+  recipe: ShowRecipe,
+): ResolvedRoutingLayout[] | null {
+  if (!recipe.routingLayouts) return null
+  return recipe.routingLayouts.map((layout) => {
+    const plan = buildRoutePlan(members, { ...recipe, zones: layout.zones, routingLayouts: undefined })
+    return {
+      id: layout.id,
+      name: layout.name,
+      routes: plan?.routes ?? [],
+      warnings: [...(plan?.warnings ?? []), ...routingLayoutOverlapWarnings(layout.name, plan?.routes ?? [])],
+    }
+  })
+}
+
+function routingLayoutOverlapWarnings(name: string, routes: ResolvedRoute[]): string[] {
+  const warnings: string[] = []
+  for (let leftIndex = 0; leftIndex < routes.length; leftIndex += 1) {
+    for (let rightIndex = leftIndex + 1; rightIndex < routes.length; rightIndex += 1) {
+      const left = routes[leftIndex]
+      const right = routes[rightIndex]
+      const overlaps = left.zone.ranges.some((leftRange) => right.zone.ranges.some((rightRange) => (
+        leftRange.start <= rightRange.end && rightRange.start <= leftRange.end
+      )))
+      if (overlaps) {
+        warnings.push(
+          `Routing layout "${name}" assigns overlapping pixels to clips "${left.member.id}" and "${right.member.id}"; the first route wins.`,
+        )
+      }
+    }
+  }
+  return warnings
+}
+
 function mergeRouteZones(id: string, zones: ControllerZone[]): ControllerZone {
   return {
     id: `${id}:span`,
@@ -501,6 +584,51 @@ function emitRouteShowCode(members: CompiledMember[], routes: ResolvedRoute[]): 
     ...members.map(member => member.code.trim()),
     emitRouteScheduler(routes),
     emitRouteRender(routes),
+    '',
+  ].join('\n\n')
+}
+
+function emitRoutingLayoutShowCode(
+  members: CompiledMember[],
+  layouts: ResolvedRoutingLayout[],
+  switches: ShowRoutingSwitchRecipe[],
+  loopDurationMs: number,
+): string {
+  const layoutIndex = new Map(layouts.map((layout, index) => [layout.id, index]))
+  const orderedSwitches = [...switches].sort((a, b) => a.atMs - b.atMs)
+  const selectLines = orderedSwitches.map((routingSwitch) => (
+    `  if (__pxlblz_show_elapsed_ms >= ${routingSwitch.atMs}) __pxlblz_show_route_layout = ${layoutIndex.get(routingSwitch.layoutId) ?? 0}`
+  ))
+  const countBlocks = layouts.map((layout, index) => {
+    const counts = members.map((member) => {
+      const route = layout.routes.find((candidate) => candidate.member === member)
+      return `    ${member.pixelCountName} = ${route?.pixelCount ?? 0}`
+    })
+    return `${index === 0 ? '  if' : '  else if'} (__pxlblz_show_route_layout == ${index}) {
+${counts.join('\n')}
+  }`
+  })
+  const advanceLines = members.map((member) => `  ${member.prefix}_advance(delta)`)
+  const renderBlocks = layouts.map((layout, index) => (
+    `${index === 0 ? '  if' : '  else if'} (__pxlblz_show_route_layout == ${index}) {
+${emitRouteRenderBody(layout.routes, '    ')}
+  }`
+  ))
+  return [
+    emitRuntimePrelude(members),
+    ...members.map((member) => member.code.trim()),
+    `var __pxlblz_show_route_layout = 0`,
+    `export function beforeRender(delta) {
+  __pxlblz_show_elapsed_ms = (__pxlblz_show_elapsed_ms + delta) % ${loopDurationMs}
+  __pxlblz_show_route_layout = 0
+${selectLines.join('\n')}
+${countBlocks.join('\n')}
+${advanceLines.join('\n')}
+}`,
+    `export function render(index) {
+${renderBlocks.join('\n')}
+  rgb(0, 0, 0)
+}`,
     '',
   ].join('\n\n')
 }
@@ -713,11 +841,17 @@ function emitRender(from: CompiledMember, to: CompiledMember): string {
 }
 
 function emitRouteRender(routes: ResolvedRoute[]): string {
-  const blocks = routes.map(emitRouteRenderBlock).join('\n')
+  const blocks = emitRouteRenderBody(routes, '')
   return `export function render(index) {
 ${blocks}
   rgb(0, 0, 0)
 }`
+}
+
+function emitRouteRenderBody(routes: ResolvedRoute[], indent: string): string {
+  return routes
+    .map((route) => emitRouteRenderBlock(route).split('\n').map((line) => `${indent}${line}`).join('\n'))
+    .join('\n')
 }
 
 function emitRouteRenderBlock(route: ResolvedRoute): string {
