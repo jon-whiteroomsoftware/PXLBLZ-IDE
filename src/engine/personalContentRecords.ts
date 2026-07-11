@@ -164,6 +164,8 @@ export interface ShowCell {
   pattern: ShowPatternRef
   patternName: string
   adaptations: ShowCellAdaptations
+  /** Start this destination with a fresh Pattern instance instead of continuing matching state. */
+  restartOnEntry?: boolean
 }
 
 export interface ShowRecord {

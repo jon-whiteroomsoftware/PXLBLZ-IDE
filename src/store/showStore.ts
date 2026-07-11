@@ -8,14 +8,17 @@ import {
   createDefaultShow,
   extendShowCell,
   importedStageMapIdForController,
+  normalizeShowEntryState,
   removeShowScene,
   removeShowRoutingLayout,
   removeShowZone,
   spanShowCellZones,
+  splitShowAtTime,
   updateShowCellZoneMode,
   updateShowZone,
   updateShowCellAdaptations,
   updateShowCellPattern,
+  updateShowCellRestartOnEntry,
   updateShowScene,
   updateShowRoutingLayout,
   updateShowRoutingSwitch,
@@ -70,6 +73,8 @@ interface ShowState {
     cellId: string,
     patch: Pick<ShowCell, 'pattern' | 'patternName'>,
   ) => Promise<void>
+  updateCellRestartOnEntry: (showId: string, cellId: string, restartOnEntry: boolean) => Promise<void>
+  splitAtTime: (showId: string, atMs: number) => Promise<void>
   extendCell: (showId: string, cellId: string, sceneSpan: number) => Promise<void>
   spanCellZones: (showId: string, cellId: string, zoneSpan: number) => Promise<void>
   updateCellZoneMode: (showId: string, cellId: string, zoneMode: NonNullable<ShowCell['zoneMode']>) => Promise<void>
@@ -94,7 +99,7 @@ export const useShowStore = create<ShowState>()((set, get) => ({
   ...showInitialState,
 
   loadShows: async () => {
-    const shows = await getPersonalContentProvider().listShows()
+    const shows = (await getPersonalContentProvider().listShows()).map(normalizeShowEntryState)
     set({ shows: shows.sort((a, b) => b.updatedAt - a.updatedAt), showsLoaded: true })
   },
 
@@ -204,6 +209,20 @@ export const useShowStore = create<ShowState>()((set, get) => ({
     const show = get().shows.find((item) => item.id === showId)
     if (!show) return
     await get().updateShow(showId, updateShowCellPattern(show, cellId, patch))
+  },
+
+  updateCellRestartOnEntry: async (showId, cellId, restartOnEntry) => {
+    const show = get().shows.find((item) => item.id === showId)
+    if (!show) return
+    await get().updateShow(showId, updateShowCellRestartOnEntry(show, cellId, restartOnEntry))
+  },
+
+  splitAtTime: async (showId, atMs) => {
+    const show = get().shows.find((item) => item.id === showId)
+    if (!show) return
+    const next = splitShowAtTime(show, atMs)
+    if (next === show) return
+    await get().updateShow(showId, next)
   },
 
   extendCell: async (showId, cellId, sceneSpan) => {

@@ -874,17 +874,25 @@ scene/cell/zone/stage edit immediately through `/api/shows`. The
 pure model helpers in `showModel.ts` create the default two-scene/one-zone
 arrangement, seed a Show from a Controller profile's zone map, project it both
 into logical scene/zone rows and onto one millisecond timeline (`projectShowTimeline`),
+split a valid interior playhead position atomically (`splitShowAtTime`),
 append scenes by copying the prior scene's
 covering cells per zone, remove scenes while clipping or re-anchoring spanning
 cells so every remaining zone row stays hole-free, edit show-local zone names
 and nominal pixel counts, extend cells across scene boundaries as hold shapes,
-edit non-destructive adaptations, and build compiler recipes. A one-zone Show
+edit non-destructive adaptations and explicit `restartOnEntry` state, and build
+compiler recipes. Split rejects transition windows and fragments shorter than
+one second; a successful split moves the original outgoing transition and routing
+switch to the new right-hand scene, divides every temporally covering cell,
+deep-copies its Pattern/adaptation value objects, and persists
+`restartOnEntry: false` on each destination. `loadShows` normalizes older cells
+without the field to false. A one-zone Show
 keeps the scene-boundary policies: a spanning cell emits a single continuous clip;
 adjacent same-pattern cells with a non-cut transition emit a parameter ramp
 between the cells' rampable adaptations when their discrete adaptations match;
-different light-shutter settings keep separate clip instances. Separate cells
-with a cut emit distinct clip
-instances so the second clip gets a fresh virtual time base. A multi-zone Show
+different light-shutter settings keep separate clip instances. Matching sequence
+cells reuse an instance unless the destination has `restartOnEntry: true`, in
+which case its compiler identity includes the cell id and it receives a fresh
+virtual time base. A multi-zone Show
 currently emits the first scene's cells as routed clips, one clip per populated
 zone row. A cell can also span downward across adjacent zone rows: the compiler
 emits that clip with `zones: [...]` and `zoneMode: 'span'`, so the named zones'
@@ -909,10 +917,11 @@ carry the zone color, cells are zone-tinted clips, and holding cells physically
 span across transition columns. The header transport reads the shared preview
 play/pause state, supports Space outside form controls, and publishes seek requests
 through `showTransportStore`; ruler interaction moves the playhead optimistically
-while the Stage rebuilds. UI-local selection drives one
+while the Stage rebuilds. Split is enabled only for a valid interior scene-hold
+position and delegates the complete mutation to the pure model helper. UI-local selection drives one
 contextual inspector. The default show selection edits target Controller and
 stage-map setup; cell selection edits source pattern/adaptations/scene span/zone
-span; transition selection edits the selected scene boundary; zone selection
+span plus explicit Continue/Restart entry behavior; transition selection edits the selected scene boundary; zone selection
 edits a single show-local zone row. The strip includes ghost affordances for
 appending scenes and zones. Scene removal is confirmed with an AlertDialog and
 delegates to the pure `removeShowScene` helper. The compile/budget bar,
@@ -1047,8 +1056,10 @@ are archived in `docs/plans/archive/issue-383-spatial-portal-results.md`.
 Each boundary independently retains cut, crossfade, wipe, dither, or portal
 semantics instead of forcing the whole Show through the first boundary's mode.
 Recipe conversion deduplicates cells that reference the same Pattern and
-normalized adaptations, so an A -> B -> A loop compiles two members rather than
-three fresh instances. The generated scheduler loops over hold and transition
+normalized adaptations unless `restartOnEntry` is true, so Continue across a
+split shares one elapsed accumulator while Restart compiles a distinct member
+initialized at its configured offset. An A -> B -> A loop therefore compiles two
+members by default rather than three fresh instances. The generated scheduler loops over hold and transition
 segments: holds advance/render one member, crossfade and portal windows advance
 both members, while wipe/dither select one renderer per pixel. The existing
 portal renderer still calls the second renderer only inside a true-blend feather.
@@ -1093,8 +1104,8 @@ non-negative scaled delta as one jump and retains any post-boundary remainder.
 Thus Time x changes jump distance while jumps-per-second controls release
 timing.
 
-A continuous hold keeps the same member and pending cadence state. A cut/restart
-selects a fresh member whose cadence accumulator begins at zero. Same-Pattern
+A Continue boundary keeps the same member and pending cadence state. An explicit
+Restart selects a fresh member whose cadence accumulator begins at zero. Same-Pattern
 adaptation ramps remain one-member ramps only when their discrete stepped-clock
 and light-shutter settings match; different schedules keep separate clip
 instances. `ShowCompileSummary.temporalPolicy` reports `continuous`,
@@ -1111,8 +1122,8 @@ the offset immediately; it does not alter the non-negative `delta` delivered to
 Pattern `beforeRender`, cadence phase, brightness, or route coordinates. Time
 scale controls subsequent clock advance, exact pause holds the configured
 origin, and stepped cadence releases scaled motion on its ordinary eligible-time
-boundaries. A continuous hold keeps the member clock, while a cut/restart creates
-a fresh member initialized at its own configured offset.
+boundaries. Continue keeps the member clock, while Restart creates a fresh member
+initialized at its own configured offset.
 
 Time offset is discrete for same-Pattern recipe selection: cells with different
 origins remain separate members instead of entering a one-member adaptation

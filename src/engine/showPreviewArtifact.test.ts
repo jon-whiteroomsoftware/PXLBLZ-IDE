@@ -1,5 +1,13 @@
 import { compileShowForPreview } from './showPreviewArtifact'
-import { addShowZone, createDefaultShow, extendShowCell, updateShowCellAdaptations, updateShowTransition } from './showModel'
+import {
+  addShowZone,
+  createDefaultShow,
+  extendShowCell,
+  splitShowAtTime,
+  updateShowCellAdaptations,
+  updateShowCellRestartOnEntry,
+  updateShowTransition,
+} from './showModel'
 
 describe('compileShowForPreview temporal adaptations (#379)', () => {
   it('loads the exact stepped-clock artifact used by generated Show output', () => {
@@ -63,5 +71,19 @@ describe('compileShowForPreview temporal adaptations (#379)', () => {
       hasRender2D: true,
       hasRender3D: false,
     })
+  })
+
+  it('uses shared preview state for Continue and isolated state for Restart (#415)', () => {
+    const continued = splitShowAtTime(createDefaultShow('show-1', 'Split preview'), 10_000)
+    const destination = continued.cells.find((cell) => cell.sceneId === 'scene-3')!
+
+    const continueArtifact = compileShowForPreview(continued, [], undefined, {}).artifact
+    expect(continueArtifact?.summary.clipCount).toBe(2)
+    expect(continueArtifact?.code.match(/var __pxlblz_show_c0_elapsed_ms/g)).toHaveLength(1)
+
+    const restarted = updateShowCellRestartOnEntry(continued, destination.id, true)
+    const restartArtifact = compileShowForPreview(restarted, [], undefined, {}).artifact
+    expect(restartArtifact?.summary.clipCount).toBe(3)
+    expect(restartArtifact?.code).toContain('var __pxlblz_show_c2_elapsed_ms = 0')
   })
 })

@@ -95,6 +95,35 @@ describe('ShowEditor (#318)', () => {
     expect(usePreviewStore.getState().isRunning).toBe(true)
   })
 
+  it('splits at the playhead and exposes explicit Continue or Restart entry behavior (#415)', async () => {
+    const user = userEvent.setup()
+    const show = createDefaultShow('show-1', 'Split Show', 1000)
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+
+    const splitButton = screen.getByRole('button', { name: 'Split at playhead' })
+    expect(splitButton).toBeDisabled()
+    fireEvent.change(screen.getByRole('slider', { name: 'Show playhead' }), { target: { value: '10000' } })
+    expect(splitButton).toBeEnabled()
+    await user.click(splitButton)
+
+    await waitFor(() => expect(useShowStore.getState().shows[0].scenes).toHaveLength(3))
+    expect(screen.getByDisplayValue('Scene 1 part 2')).toBeInTheDocument()
+
+    await user.click(screen.getAllByRole('button', { name: 'Select TestPattern1D' })[1])
+    const restart = screen.getByLabelText('Restart Pattern on entry')
+    expect(restart).not.toBeChecked()
+    expect(screen.getByText(/continues the matching Pattern instance/i)).toBeInTheDocument()
+    await user.click(restart)
+
+    await waitFor(() => {
+      expect(useShowStore.getState().shows[0].cells.find((cell) => cell.sceneId === 'scene-3')?.restartOnEntry).toBe(true)
+    })
+    expect(screen.getByText(/starts a fresh Pattern instance/i)).toBeInTheDocument()
+  })
+
   it('authors named routing layouts and scene-boundary switch markers (#398)', async () => {
     const user = userEvent.setup()
     const show = addShowZone(createDefaultShow('show-1', 'Routing Show', 1000), {

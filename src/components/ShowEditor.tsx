@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type CSSProperties } from 'react'
-import { Check, Code2, Copy, Download, Pause, Play, Plus, RotateCw, Route, SkipBack, Trash2, Zap } from 'lucide-react'
+import { Check, Code2, Copy, Download, Pause, Play, Plus, RotateCw, Route, Scissors, SkipBack, Trash2, Zap } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   AlertDialogAction,
@@ -15,6 +15,7 @@ import { getControllerProvider } from '@/engine/controllerProviderRegistry'
 import { makeProgramId } from '@/engine/bytecodePush'
 import {
   projectShowStrip,
+  canSplitShowAtTime,
   formatShowRoutingRanges,
   parseShowRoutingRanges,
   showLoopDurationMs,
@@ -72,6 +73,7 @@ export function ShowEditor({ showId }: { showId: string }) {
   const updateTransition = useShowStore((state) => state.updateTransition)
   const updateCellAdaptations = useShowStore((state) => state.updateCellAdaptations)
   const updateCellPattern = useShowStore((state) => state.updateCellPattern)
+  const updateCellRestartOnEntry = useShowStore((state) => state.updateCellRestartOnEntry)
   const extendCell = useShowStore((state) => state.extendCell)
   const spanCellZones = useShowStore((state) => state.spanCellZones)
   const updateCellZoneMode = useShowStore((state) => state.updateCellZoneMode)
@@ -188,30 +190,33 @@ export function ShowEditor({ showId }: { showId: string }) {
     <div className="flex h-full min-h-0 flex-col bg-zinc-950/75 font-mono text-xs text-zinc-400">
       <div className="flex min-h-0 flex-1 flex-col overflow-auto">
         <div className="min-w-0 p-3">
-          <div className="mb-3 flex items-center gap-2">
-            <ShowTransportControls show={activeShow} />
-            <span className="flex-1" />
-            <Button
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            <div className="min-w-0 flex-1 basis-[22rem]">
+              <ShowTransportControls show={activeShow} />
+            </div>
+            <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+              <Button
               size="xs"
               variant="ghost"
               className="bg-zinc-800/70 text-xs text-zinc-400 hover:bg-zinc-700/70 hover:text-zinc-300 disabled:opacity-40"
               disabled={!compiled.artifact}
               onClick={() => setGeneratedOpen(true)}
-            >
-              View generated pattern
-            </Button>
-            <ExportShowButton exported={showExport} buildExport={buildDownloadExport} />
-            <Button
-              size="xs"
-              variant="ghost"
-              className="bg-live/15 text-xs text-live hover:bg-live/20 disabled:opacity-40"
-              disabled={!compiled.artifact || !activeController || pushing}
-              onClick={() => void handlePushShow()}
-              title={activeController ? `Push to ${activeController.nickname || activeIp}` : 'Connect a Controller to push'}
-            >
-              {pushing ? <RotateCw size={13} className="animate-spin" aria-hidden /> : <Play size={13} aria-hidden />}
-              {activeController ? `Push to ${activeController.nickname || activeIp}` : 'Push to Controller'}
-            </Button>
+              >
+                View generated pattern
+              </Button>
+              <ExportShowButton exported={showExport} buildExport={buildDownloadExport} />
+              <Button
+                size="xs"
+                variant="ghost"
+                className="bg-live/15 text-xs text-live hover:bg-live/20 disabled:opacity-40"
+                disabled={!compiled.artifact || !activeController || pushing}
+                onClick={() => void handlePushShow()}
+                title={activeController ? `Push to ${activeController.nickname || activeIp}` : 'Connect a Controller to push'}
+              >
+                {pushing ? <RotateCw size={13} className="animate-spin" aria-hidden /> : <Play size={13} aria-hidden />}
+                {activeController ? `Push to ${activeController.nickname || activeIp}` : 'Push to Controller'}
+              </Button>
+            </div>
           </div>
 
           <section aria-label="Show timeline">
@@ -249,6 +254,7 @@ export function ShowEditor({ showId }: { showId: string }) {
             onUpdateStageMap={(stageMapId) => void updateStageMap(activeShow.id, stageMapId)}
             onUpdatePattern={(cell, patch) => void updateCellPattern(activeShow.id, cell.id, patch)}
             onUpdateAdaptations={(cell, changes) => void updateCellAdaptations(activeShow.id, cell.id, changes)}
+            onUpdateRestartOnEntry={(cell, restartOnEntry) => void updateCellRestartOnEntry(activeShow.id, cell.id, restartOnEntry)}
             onExtend={(cell, sceneSpan) => void extendCell(activeShow.id, cell.id, sceneSpan)}
             onSpanZones={(cell, zoneSpan) => void spanCellZones(activeShow.id, cell.id, zoneSpan)}
             onUpdateCellZoneMode={(cell, zoneMode) => void updateCellZoneMode(activeShow.id, cell.id, zoneMode)}
@@ -300,6 +306,8 @@ function ShowTransportControls({ show }: { show: ShowRecord }) {
   const toggle = usePreviewStore((state) => state.toggle)
   const positionMs = useShowTransportStore((state) => state.showId === show.id ? state.positionMs : 0)
   const seekStatus = useShowTransportStore((state) => state.showId === show.id ? state.seekStatus : 'idle')
+  const splitAtTime = useShowStore((state) => state.splitAtTime)
+  const canSplit = canSplitShowAtTime(show, positionMs)
 
   useEffect(() => {
     useShowTransportStore.getState().openShow(show.id, durationMs)
@@ -345,6 +353,21 @@ function ShowTransportControls({ show }: { show: ShowRecord }) {
       <output className="w-[142px] text-[10px] tabular-nums text-zinc-300" aria-live="off">
         {formatShowTime(positionMs)} / {formatShowTime(durationMs)}
       </output>
+      <Button
+        size="xs"
+        variant="ghost"
+        aria-label="Split at playhead"
+        title={canSplit ? 'Split scene at playhead' : 'Place the playhead inside a scene to split'}
+        disabled={!canSplit}
+        className="border border-zinc-800 bg-zinc-900/60 text-[10px] text-zinc-400 hover:border-amber-400/40 hover:bg-amber-400/10 hover:text-amber-200"
+        onClick={() => {
+          if (usePreviewStore.getState().isRunning) usePreviewStore.getState().toggle()
+          void splitAtTime(show.id, positionMs)
+        }}
+      >
+        <Scissors size={12} aria-hidden />
+        Split
+      </Button>
       {seekStatus === 'rebuilding' && (
         <span className="whitespace-nowrap text-[9px] uppercase tracking-wider text-amber-300">
           rebuilding
@@ -814,6 +837,7 @@ function ContextualInspector({
   onUpdateStageMap,
   onUpdatePattern,
   onUpdateAdaptations,
+  onUpdateRestartOnEntry,
   onExtend,
   onSpanZones,
   onUpdateCellZoneMode,
@@ -837,6 +861,7 @@ function ContextualInspector({
   onUpdateStageMap: (stageMapId: string | null) => void
   onUpdatePattern: (cell: ShowCell, patch: Pick<ShowCell, 'pattern' | 'patternName'>) => void
   onUpdateAdaptations: (cell: ShowCell, changes: Partial<ShowCell['adaptations']>) => void
+  onUpdateRestartOnEntry: (cell: ShowCell, restartOnEntry: boolean) => void
   onExtend: (cell: ShowCell, sceneSpan: number) => void
   onSpanZones: (cell: ShowCell, zoneSpan: number) => void
   onUpdateCellZoneMode: (cell: ShowCell, zoneMode: NonNullable<ShowCell['zoneMode']>) => void
@@ -863,6 +888,7 @@ function ContextualInspector({
         patternOptions={patternOptions}
         onUpdatePattern={(patch) => onUpdatePattern(selectedCell, patch)}
         onUpdateAdaptations={(changes) => onUpdateAdaptations(selectedCell, changes)}
+        onUpdateRestartOnEntry={(restartOnEntry) => onUpdateRestartOnEntry(selectedCell, restartOnEntry)}
         onExtend={(sceneSpan) => onExtend(selectedCell, sceneSpan)}
         onSpanZones={(zoneSpan) => onSpanZones(selectedCell, zoneSpan)}
         onUpdateZoneMode={(zoneMode) => onUpdateCellZoneMode(selectedCell, zoneMode)}
@@ -928,6 +954,7 @@ function CellInspector({
   patternOptions,
   onUpdatePattern,
   onUpdateAdaptations,
+  onUpdateRestartOnEntry,
   onExtend,
   onSpanZones,
   onUpdateZoneMode,
@@ -937,6 +964,7 @@ function CellInspector({
   patternOptions: Array<{ label: string; ref: ShowCell['pattern'] }>
   onUpdatePattern: (patch: Pick<ShowCell, 'pattern' | 'patternName'>) => void
   onUpdateAdaptations: (changes: Partial<ShowCell['adaptations']>) => void
+  onUpdateRestartOnEntry: (restartOnEntry: boolean) => void
   onExtend: (sceneSpan: number) => void
   onSpanZones: (zoneSpan: number) => void
   onUpdateZoneMode: (zoneMode: NonNullable<ShowCell['zoneMode']>) => void
@@ -1025,6 +1053,24 @@ function CellInspector({
         <NumberField label="Brightness" value={cell.adaptations.brightness} min={0} max={1} step={0.01} onChange={(brightness) => onUpdateAdaptations({ brightness })} />
         <NumberField label="Time x" value={cell.adaptations.timeScale} min={0} max={4} step={0.1} onChange={(timeScale) => onUpdateAdaptations({ timeScale })} />
       </div>
+      {sceneIndex > 0 && (
+        <section className="mt-3 rounded-md border border-sky-400/20 bg-sky-400/[0.04] p-3">
+          <label className="flex items-center gap-2 text-zinc-200">
+            <input
+              type="checkbox"
+              aria-label="Restart Pattern on entry"
+              checked={Boolean(cell.restartOnEntry)}
+              onChange={(event) => onUpdateRestartOnEntry(event.target.checked)}
+            />
+            Restart Pattern on entry
+          </label>
+          <p className="mt-1.5 text-[10px] leading-relaxed text-zinc-500">
+            {cell.restartOnEntry
+              ? 'Starts a fresh Pattern instance and private time base at this scene boundary.'
+              : 'Continues the matching Pattern instance, private clock, and accumulated state across this boundary.'}
+          </p>
+        </section>
+      )}
       <MotionCadenceControl
         stepMs={cell.adaptations.steppedClock?.stepMs}
         timeOffsetMs={cell.adaptations.timeOffsetMs ?? 0}

@@ -102,8 +102,8 @@ model remains:
   The approved interaction/design artifact is
   `docs/plans/show-timeline-overhaul-mockup.html`. The opening proportional
   timeline, transport, playhead, and accurate-seek slice shipped in #414;
-  Split/entry semantics, first-class transition migration, automation lanes,
-  and zoom continue through #415–#420. A cell can
+  Split/entry semantics shipped in #415; first-class transition migration,
+  automation lanes, and zoom continue through #416–#420. A cell can
   span rows (**zone spanning**: adjacent zones act as one canvas — one
   domain — versus two independently re-normalized domains). A spanning cell
   may instead choose **Repeat per zone**, keeping one shared Pattern instance
@@ -111,7 +111,7 @@ model remains:
   2026-07-09 scene-strip baseline remains captured in
   `docs/plans/shows-editor-overhaul-mockup.html`; the 2026-07-11 artifact above
   supersedes it only for the next authoring direction.
-- **Continue vs restart at scene boundaries** (revised 2026-07-11): every
+- **Continue vs restart at scene boundaries** (shipped #415): every
   destination scene cell owns a `restart on entry` boolean. It defaults off, so
   splitting a scene preserves the Pattern instance, private clock, accumulated
   state, and visual continuity across the new boundary. Turning it on starts a
@@ -141,8 +141,8 @@ model remains:
   remapping must consume this shared property system.
 - **Timeline transport and accurate seeking** (shipped #414 after spike
   #412): clicking or dragging the ruler places the persistent playhead; Space
-  toggles play/pause; Split cuts at the playhead and preserves continuity by
-  default. A seek rebuilds the requested preview state by replaying from Show
+  toggles play/pause. #415 adds Split at a valid interior playhead position and
+  preserves continuity by default. A seek rebuilds the requested preview state by replaying from Show
   start in the Fast renderer with deterministic random seed, fixed simulation
   steps, and the full selected Stage Map/pixel count. Intermediate frames run
   headlessly and only the target frame paints. The UI shows a short rebuilding

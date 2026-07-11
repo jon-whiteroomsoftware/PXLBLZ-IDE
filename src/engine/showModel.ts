@@ -113,6 +113,7 @@ export function createDefaultShow(id: string, name: string, updatedAt = Date.now
       pattern: { kind: 'stock', id: index === 0 ? 'TestPattern1D' : 'CometLoom' },
       patternName: index === 0 ? 'TestPattern1D' : 'CometLoom',
       adaptations: { ...DEFAULT_ADAPTATIONS },
+      restartOnEntry: false,
     })),
     routingLayouts: [routingLayoutFromZones('layout-1', 'Default', zones)],
     routingSwitches: [],
@@ -320,6 +321,87 @@ export function addShowScene(show: ShowRecord): ShowRecord {
   }
 }
 
+/**
+ * Split the scene hold containing `atMs`. The operation is atomic: invalid
+ * boundaries and transition windows return the original record unchanged.
+ */
+export function splitShowAtTime(show: ShowRecord, atMs: number): ShowRecord {
+  const target = showSplitTarget(show, atMs)
+  if (!target) return show
+  const { sceneIndex, leftDurationMs } = target
+  const sourceScene = show.scenes[sceneIndex]
+  const rightDurationMs = sourceScene.durationMs - leftDurationMs
+
+  const newSceneId = nextEntityId('scene-', show.scenes)
+  const destinationScene: ShowScene = {
+    ...sourceScene,
+    id: newSceneId,
+    name: uniqueSceneName(`${sourceScene.name} part 2`, show.scenes),
+    durationMs: rightDurationMs,
+  }
+  const scenes = [
+    ...show.scenes.slice(0, sceneIndex),
+    { ...sourceScene, durationMs: leftDurationMs, transitionOut: undefined },
+    destinationScene,
+    ...show.scenes.slice(sceneIndex + 1),
+  ]
+
+  const sceneIndexById = new Map(show.scenes.map((scene, index) => [scene.id, index]))
+  const usedCellIds = new Set(show.cells.map((cell) => cell.id))
+  const cells = show.cells.flatMap((cell) => {
+    const startIndex = sceneIndexById.get(cell.sceneId)
+    if (startIndex == null) return [cell]
+    const span = Math.max(1, cell.sceneSpan)
+    const endIndex = startIndex + span - 1
+    if (sceneIndex < startIndex || sceneIndex > endIndex) return [cell]
+
+    const destinationId = nextStringId('cell-', usedCellIds)
+    usedCellIds.add(destinationId)
+    const leftSpan = sceneIndex - startIndex + 1
+    const rightSpan = endIndex - sceneIndex + 1
+    return [
+      { ...cell, sceneSpan: leftSpan },
+      cloneCellForSplit(cell, destinationId, newSceneId, rightSpan),
+    ]
+  })
+
+  return {
+    ...show,
+    scenes,
+    cells,
+    routingSwitches: show.routingSwitches.map((routingSwitch) => (
+      routingSwitch.afterSceneId === sourceScene.id
+        ? { ...routingSwitch, afterSceneId: newSceneId }
+        : routingSwitch
+    )),
+    updatedAt: Math.max(Date.now(), show.updatedAt + 1),
+  }
+}
+
+export function canSplitShowAtTime(show: ShowRecord, atMs: number): boolean {
+  return showSplitTarget(show, atMs) !== null
+}
+
+function showSplitTarget(
+  show: ShowRecord,
+  atMs: number,
+): { sceneIndex: number; leftDurationMs: number } | null {
+  if (!Number.isFinite(atMs)) return null
+  let cursorMs = 0
+  for (const [sceneIndex, scene] of show.scenes.entries()) {
+    const holdEndMs = cursorMs + Math.max(0, scene.durationMs)
+    if (cursorMs < atMs && atMs < holdEndMs) {
+      const leftDurationMs = Math.round(atMs - cursorMs)
+      const rightDurationMs = scene.durationMs - leftDurationMs
+      return leftDurationMs >= 1000 && rightDurationMs >= 1000
+        ? { sceneIndex, leftDurationMs }
+        : null
+    }
+    cursorMs = holdEndMs + Math.max(0, scene.transitionOut?.durationMs ?? 0)
+  }
+  return null
+}
+
 export function removeShowScene(show: ShowRecord, sceneId: string): ShowRecord {
   if (show.scenes.length <= 1) return show
   const removedSceneIndex = show.scenes.findIndex((scene) => scene.id === sceneId)
@@ -366,6 +448,20 @@ export function updateShowCellAdaptations(
       cell.id === cellId
         ? { ...cell, adaptations: normalizeAdaptations({ ...cell.adaptations, ...changes }) }
         : cell
+    )),
+    updatedAt: Date.now(),
+  }
+}
+
+export function updateShowCellRestartOnEntry(
+  show: ShowRecord,
+  cellId: string,
+  restartOnEntry: boolean,
+): ShowRecord {
+  return {
+    ...show,
+    cells: show.cells.map((cell) => (
+      cell.id === cellId ? { ...cell, restartOnEntry: Boolean(restartOnEntry) } : cell
     )),
     updatedAt: Date.now(),
   }
@@ -505,6 +601,16 @@ export function normalizeShowRoutingState(show: ShowRecord): ShowRecord {
       ))
     : []
   return { ...show, routingLayouts: layouts, routingSwitches: switches }
+}
+
+export function normalizeShowEntryState(show: ShowRecord): ShowRecord {
+  return {
+    ...show,
+    cells: show.cells.map((cell) => ({
+      ...cell,
+      restartOnEntry: Boolean(cell.restartOnEntry),
+    })),
+  }
 }
 
 export function addShowRoutingLayout(show: ShowRecord, name = 'New layout', sourceLayoutId?: string): ShowRecord {
@@ -712,7 +818,8 @@ function showRecordToSceneSequenceRecipe(
     const source = lookup.byCellId[cell.id]
     if (!source) throw new Error(`Show compile requires pattern source for cell "${cell.id}".`)
     const adaptation = compilerAdaptation(cell.adaptations)
-    const key = `${cell.pattern.kind}:${cell.pattern.id}:${JSON.stringify(adaptation)}`
+    const continuityKey = `${cell.pattern.kind}:${cell.pattern.id}:${JSON.stringify(adaptation)}`
+    const key = cell.restartOnEntry ? `${continuityKey}:restart:${cell.id}` : continuityKey
     const existing = clipByKey.get(key)
     if (existing) {
       clipIdByCellId.set(cell.id, existing.id)
@@ -1071,6 +1178,27 @@ function copyCellForScene(
         ? { steppedClock: { ...source.adaptations.steppedClock } }
         : {}),
     },
+    restartOnEntry: false,
+  }
+}
+
+function cloneCellForSplit(source: ShowCell, id: string, sceneId: string, sceneSpan: number): ShowCell {
+  return {
+    ...source,
+    id,
+    sceneId,
+    sceneSpan,
+    pattern: { ...source.pattern },
+    adaptations: {
+      ...source.adaptations,
+      ...(source.adaptations.lightShutter
+        ? { lightShutter: { ...source.adaptations.lightShutter } }
+        : {}),
+      ...(source.adaptations.steppedClock
+        ? { steppedClock: { ...source.adaptations.steppedClock } }
+        : {}),
+    },
+    restartOnEntry: false,
   }
 }
 
@@ -1084,6 +1212,7 @@ function defaultCell(id: string, zoneId: string, sceneId: string, sceneIndex: nu
     pattern: { kind: 'stock', id: sceneIndex === 0 ? 'TestPattern1D' : 'CometLoom' },
     patternName: sceneIndex === 0 ? 'TestPattern1D' : 'CometLoom',
     adaptations: { ...DEFAULT_ADAPTATIONS },
+    restartOnEntry: false,
   }
 }
 

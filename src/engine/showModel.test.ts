@@ -14,10 +14,12 @@ import {
   removeShowZone,
   showLoopDurationMs,
   showRecordToCompileRecipe,
+  splitShowAtTime,
   spanShowCellZones,
   updateShowCellZoneMode,
   updateShowCellAdaptations,
   updateShowCellPattern,
+  updateShowCellRestartOnEntry,
   updateShowScene,
   updateShowRoutingLayout,
   updateShowRoutingSwitch,
@@ -41,6 +43,70 @@ function expectHoleFreeStrip(show: ShowRecord): void {
 }
 
 describe('showModel (#318)', () => {
+  it('splits a scene and every covering cell without changing playback state (#415)', () => {
+    const base = extendShowCell(createDefaultShow('show-1', 'Split Show', 1), 'cell-1', 2)
+    const split = splitShowAtTime(base, 10_000)
+
+    expect(split).not.toBe(base)
+    expect(split.scenes).toEqual([
+      expect.objectContaining({ id: 'scene-1', durationMs: 10_000, transitionOut: undefined }),
+      expect.objectContaining({ id: 'scene-3', durationMs: 20_000, transitionOut: base.scenes[0].transitionOut }),
+      base.scenes[1],
+    ])
+    expect(split.cells).toEqual([
+      expect.objectContaining({ id: 'cell-1', sceneId: 'scene-1', sceneSpan: 1 }),
+      expect.objectContaining({
+        id: 'cell-2',
+        sceneId: 'scene-3',
+        sceneSpan: 2,
+        pattern: base.cells[0].pattern,
+        adaptations: base.cells[0].adaptations,
+        restartOnEntry: false,
+      }),
+    ])
+    expect(split.cells[1].pattern).not.toBe(base.cells[0].pattern)
+    expect(split.cells[1].adaptations).not.toBe(base.cells[0].adaptations)
+    expect(split.updatedAt).toBeGreaterThan(base.updatedAt)
+  })
+
+  it('rejects split points at boundaries, transitions, and sub-second fragments (#415)', () => {
+    const show = createDefaultShow('show-1', 'Split Show', 1)
+
+    expect(splitShowAtTime(show, 0)).toBe(show)
+    expect(splitShowAtTime(show, 500)).toBe(show)
+    expect(splitShowAtTime(show, 29_500)).toBe(show)
+    expect(splitShowAtTime(show, 30_500)).toBe(show)
+    expect(splitShowAtTime(show, showLoopDurationMs(show))).toBe(show)
+  })
+
+  it('compiles Continue as shared Pattern state and Restart as a fresh instance (#415)', () => {
+    const continued = splitShowAtTime(createDefaultShow('show-1', 'Split Show', 1), 10_000)
+    const destination = continued.cells.find((cell) => cell.sceneId === 'scene-3')!
+    const sources = {
+      byCellId: Object.fromEntries(continued.cells.map((cell) => [
+        cell.id,
+        cell.pattern.id === 'TestPattern1D' ? DEMOS.TestPattern1D : DEMOS.CometLoom,
+      ])),
+    }
+
+    const continueRecipe = showRecordToCompileRecipe(continued, sources)
+    expect(continueRecipe.clips).toHaveLength(2)
+    expect(continueRecipe.sceneSequence?.scenes.map((scene) => scene.clipId)).toEqual([
+      'cell-1',
+      'cell-1',
+      'cell-2',
+    ])
+
+    const restarted = updateShowCellRestartOnEntry(continued, destination.id, true)
+    const restartRecipe = showRecordToCompileRecipe(restarted, sources)
+    expect(restartRecipe.clips).toHaveLength(3)
+    expect(restartRecipe.sceneSequence?.scenes.map((scene) => scene.clipId)).toEqual([
+      'cell-1',
+      destination.id,
+      'cell-2',
+    ])
+  })
+
   it('creates, edits, switches, and safely removes named routing layouts (#398)', () => {
     const show = addShowZone(createDefaultShow('show-1', 'Routing Show'), {
       name: 'right',

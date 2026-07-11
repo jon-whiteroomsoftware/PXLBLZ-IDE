@@ -310,6 +310,12 @@ state; live sensor, network, and wall-clock inputs are inherently external. At
 narrow window widths the Stage pane collapses so the timeline remains usable;
 the timeline keeps its own intentional horizontal scrollbar.
 
+**Split** is enabled when the playhead is at least one second inside either edge
+of a scene hold. It creates one shared scene boundary across all zone rows,
+preserves the outgoing transition at the right edge, and divides every covering
+cell without changing its Pattern, adaptations, clock, or accumulated state.
+The new destination cells default to **Continue**.
+
 The contextual inspector below the timeline follows the current selection. Clicking
 the timeline background shows show-level setup (target Controller, stage map, loop
 and zone summary, plus Add zone). Clicking a cell edits its source pattern,
@@ -388,10 +394,13 @@ Start offsets can differ even when their source and other controls match, and
 multi-range Controller zones keep the same continuous zone-local indexing while
 their private clocks stay staggered.
 
-Scene-boundary behavior is geometric. A cell that spans scene columns holds: the
-same renderer keeps its time base and phase across the boundary. Two separate
-cells can restart the same source pattern as a fresh instance. When adjacent cells
-use the same source pattern and a transition changes only adaptations, the
+Scene-boundary behavior is explicit. Every non-initial cell has a **Restart
+Pattern on entry** checkbox. Off means Continue: a matching Pattern/adaptation
+pair reuses its private renderer state, clock, cadence, and phase even when the
+timeline has been split into separate cells. On allocates a fresh instance and
+time base, which makes deliberate stutters and repeated starts visible. Spanning
+geometry remains a compact way to draw a hold, but it is not the continuity
+contract. When adjacent cells use the same source pattern and a transition changes only adaptations, the
 compiler emits a parameter ramp instead of a two-renderer blend, so the compile
 bar reports it as one-renderer-per-pixel work.
 

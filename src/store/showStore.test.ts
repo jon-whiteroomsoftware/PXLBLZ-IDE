@@ -150,6 +150,25 @@ describe('showStore (#318)', () => {
     expect(useShowStore.getState().shows[0].cells[0].adaptations.timeOffsetMs).toBe(750)
   })
 
+  it('normalizes legacy entry state and persists split Continue/Restart choices (#415)', async () => {
+    const legacy = createDefaultShow('show-1', 'Split Show', 1)
+    legacy.cells = legacy.cells.map(({ restartOnEntry: _restartOnEntry, ...cell }) => cell)
+    const provider = memoryProvider([legacy])
+    setPersonalContentProvider(provider)
+
+    await useShowStore.getState().loadShows()
+    expect(useShowStore.getState().shows[0].cells.every((cell) => cell.restartOnEntry === false)).toBe(true)
+
+    await useShowStore.getState().splitAtTime(legacy.id, 10_000)
+    const destination = useShowStore.getState().shows[0].cells.find((cell) => cell.sceneId === 'scene-3')!
+    expect(destination.restartOnEntry).toBe(false)
+
+    await useShowStore.getState().updateCellRestartOnEntry(legacy.id, destination.id, true)
+    useShowStore.setState(showInitialState)
+    await useShowStore.getState().loadShows()
+    expect(useShowStore.getState().shows[0].cells.find((cell) => cell.id === destination.id)?.restartOnEntry).toBe(true)
+  })
+
   it('persists a wipe feather width through the provider', async () => {
     const show = createDefaultShow('show-1', 'Opening wash', 1)
     setPersonalContentProvider(memoryProvider([show]))
