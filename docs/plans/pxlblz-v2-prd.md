@@ -21,23 +21,28 @@ the shipped Maps/Shows surfaces and deferred future Show states.
 ## 1. Shows residual arc
 
 The shipped Show baseline is no longer specified here. In current code, Shows are
-D1-backed personal content with a scene-strip editor, show-local zones, optional
+D1-backed personal content with a proportional timeline editor, show-local zones, optional
 target Controller profile, per-show stage map, generated-source inspection,
 Controller push, hold/restart semantics, adaptation ramps, crossfade,
 wipe/dither route transitions, 2D spatial portal transitions, zone routing, zone spanning, per-zone preview
 strips, spatial stage preview, and imported-controller-map stage support. See
 the reference docs for exact behavior.
 
-The remaining Show arc is about maturity: richer adaptation sources, more spatial
-authoring, better cost honesty, and later timeline/DSL affordances. The durable
+The remaining Show arc is about maturity: a proportional timeline and transport,
+property automation, richer adaptation sources, more spatial authoring, better
+cost honesty, and later DSL affordances. The durable
 model remains:
 
-- **Model**: zone tracks (semantic names, resolved through the target
-  Controller's zone map) holding **clips** (references to patterns, never
-  copies) with durations, **transitions** between clips (cut, crossfade,
-  wipe, dither, 2D spatial portal, and future transition types), an optional overlay track, and
-  per-clip **adaptations** (palette, mirror, phase offset, brightness
-  envelope, and similar post-processing) that never fork the source pattern.
+- **Model**: **scenes** define shared time boundaries and target states across
+  **zone tracks** (semantic names, resolved through the target Controller's zone
+  map). Tracks hold **clips** (references to Patterns, never copies) with
+  start/duration. A **transition** is its own boundary entity, selected and
+  inspected separately from either neighboring scene; it owns type, duration,
+  easing, and type-specific parameters while affecting the states on both sides.
+  Transition types include cut, crossfade, wipe, dither, 2D spatial portal,
+  property ramp, and future types. Per-clip **adaptations** (palette, mirror,
+  phase offset, brightness envelope, and similar processing) never fork the
+  source Pattern. An optional overlay track remains a later layer.
 - **Zone map** (decided 2026-07-08): a Controller-profile mapping from
   semantic zone names to **lists of pixel-index ranges**. Zones are pure
   index arithmetic and are **hardware-independent** — no Output Expander
@@ -71,46 +76,88 @@ model remains:
   own several named mappings from its semantic zone rows to physical
   pixel-index range lists. These **routing layouts** are distinct from the
   Stage Map (spatial coordinates) and from the Controller's default zone map.
-  The scene strip gains a Show-wide routing lane: an instantaneous marker at a
-  scene boundary selects another layout. The first layout is active at loop
+  The shipped scene strip has a Show-wide routing lane: an instantaneous marker
+  at a scene boundary selects another layout. The first layout is active at loop
   start; crossing a marker changes physical routing and each zone's local
   index/count without restarting Pattern clocks or state. The hard-switch
   tracer bullet (#398) retains one renderer per physical pixel. Progressive
   transfers (#403), parametric routing (#405), and coordinate remapping (#406)
-  remain later layers rather than requirements for the first useful slice. The
+  remain later layers. In the proportional timeline, routing markers project as
+  zero-duration transition objects and progressive transfers extend the same
+  entity rather than introducing another lane or inspector. The
   routing-representation spike (#400) keeps arbitrary range branches as the
   general default. Pattern Prism (#401) ships the first bounded packed lookup:
   high-run schedules switch only when the complete table is at most 2,048
   elements; the compile summary names the choice. Conservative formula
   recognition remains #408; detailed measurements live in the archived
   technical plan rather than this product document.
-- **Editor direction** (decided 2026-07-08): the v1 Show editor is a **scene
-  strip**, not a timeline — scenes as columns, zones as rows, a cell holds a
-  pattern plus its adaptations, and transitions are first-class column
-  separators glyphed by cost. Scene durations plus hold spans are the only
-  time arithmetic v1 exposes. The underlying data model is nonetheless an
-  **arrangement** (clips with start/duration on zone tracks), so the strip is
-  a projection where boundaries happen to align; a zoomable timeline can
-  arrive later as a second view on the same data, no migration. A cell can
+- **Editor direction** (revised 2026-07-11): the shipped v1 **scene strip** is
+  the starting point for one canonical, zoomable proportional timeline rather
+  than a permanent second view. Scenes remain explicit column headers; zones
+  and their property lanes are explicit row headers. Proportional scene widths,
+  a time ruler, persistent playhead, transport, first-class transition lane,
+  nested automation curves, and a whole-Show navigator make the arrangement's
+  real time geometry directly editable. The navigator thumb's width represents
+  the visible fraction of the Show and therefore grows and shrinks with zoom.
+  The approved interaction/design artifact is
+  `docs/plans/show-timeline-overhaul-mockup.html`. The opening proportional
+  timeline, transport, playhead, and accurate-seek slice shipped in #414;
+  Split/entry semantics, first-class transition migration, automation lanes,
+  and zoom continue through #415–#420. A cell can
   span rows (**zone spanning**: adjacent zones act as one canvas — one
   domain — versus two independently re-normalized domains). A spanning cell
   may instead choose **Repeat per zone**, keeping one shared Pattern instance
-  and clock while giving every covered zone its own local canvas. The current
-  canonical mockups include the scene strip, hold explainer, timeline
-  frame-out, and Controller zones card. The shipped 2026-07-09 scene-strip
-  overhaul is captured in `docs/plans/shows-editor-overhaul-mockup.html`: one
-  pane-owned header, recessed strip surface, zone-colored clips, transition
-  seams, ghost growth affordances, and one selection-driven inspector.
-- **Hold vs restart at scene boundaries** (decided 2026-07-08): never a
-  per-clip setting — it's geometry. A cell spanning a boundary **holds**: the
-  clip keeps playing with phase intact and the compiler emits nothing for
-  that zone at the boundary. Two separate cells **restart** (second instance,
-  fresh time base). When adjacent scenes hold the same pattern the default is
-  to keep playing undisturbed, and a transition placed on that boundary
-  compiles to an **adaptation ramp** over the continuous clip — palette,
-  brightness, mirror, phase parameters interpolate across the transition
-  window while one renderer runs, phase undisturbed. Same-pattern transitions
-  are therefore parameter-cheap and never open a 2-renderer window.
+  and clock while giving every covered zone its own local canvas. The shipped
+  2026-07-09 scene-strip baseline remains captured in
+  `docs/plans/shows-editor-overhaul-mockup.html`; the 2026-07-11 artifact above
+  supersedes it only for the next authoring direction.
+- **Continue vs restart at scene boundaries** (revised 2026-07-11): every
+  destination scene cell owns a `restart on entry` boolean. It defaults off, so
+  splitting a scene preserves the Pattern instance, private clock, accumulated
+  state, and visual continuity across the new boundary. Turning it on starts a
+  fresh instance/time base at that cell, making deliberate stutters and repeated
+  starts easy to author. Geometry may still merge visually contiguous spans,
+  but it is no longer the only way to express continuity. When adjacent cells
+  continue the same Pattern, a transition on their boundary compiles to an
+  **adaptation/property ramp** over one continuous instance — palette,
+  brightness, mirror, phase, time scale, and exposed Pattern properties may
+  interpolate while phase remains undisturbed. Same-Pattern transitions are
+  therefore parameter-cheap and never open a two-renderer window.
+- **First-class transition ownership** (decided 2026-07-11): a transition is
+  not metadata hidden on the outgoing clip. It is a selectable boundary object
+  that relates the states on both sides. Zero-duration cut/routing markers and
+  duration-bearing property, route, crossfade, wipe, dither, and portal
+  transitions share one lane, selection model, and inspector. A transition's
+  duration occupies visible Show time and its easing is explicit.
+- **Property transitions and automation** (decided 2026-07-11): the primitive
+  is CSS-like: start value, target value, duration, and optional easing (linear
+  when omitted). Scene/cell state owns target values; the boundary transition
+  owns how the previous state reaches them. `timeScale` is the first complete
+  property because the compiler/runtime contract already supports exact pause.
+  The same mechanism then expands to Show adaptations and Pattern-exposed
+  controls/exported variables. It does not mutate arbitrary private locals.
+  Automation lanes are the editable projection of these values and transitions,
+  not a separate animation engine; #405 parametric routing and #406 coordinate
+  remapping must consume this shared property system.
+- **Timeline transport and accurate seeking** (shipped #414 after spike
+  #412): clicking or dragging the ruler places the persistent playhead; Space
+  toggles play/pause; Split cuts at the playhead and preserves continuity by
+  default. A seek rebuilds the requested preview state by replaying from Show
+  start in the Fast renderer with deterministic random seed, fixed simulation
+  steps, and the full selected Stage Map/pixel count. Intermediate frames run
+  headlessly and only the target frame paints. The UI shows a short rebuilding
+  state and newer seeks cancel stale work. This is accurate for deterministic
+  Pattern state; wall-clock, network, and live sensor inputs remain outside the
+  guarantee and must be identified honestly.
+- **Replay optimization policy** (decided 2026-07-11): v1 ships the direct
+  full-resolution replay above. Do not add checkpoints, frame/state caches,
+  downsampling, representative-pixel replay, or worker infrastructure before
+  observing the real editor. Cooperative yielding/cancellation is basic UI
+  hygiene, not an approximation. Put optimization work at the end of the epic
+  and activate it only when measured Show lengths, Pattern costs, or target
+  installations make the direct path feel slow. The 2,048-pixel matrix is a
+  rare stress ceiling rather than the typical product case; full spike results
+  live in `docs/plans/archive/issue-412-fast-show-seek-replay-results.md`.
 - **Compilation**: a Show compiles to a single generated Pixelblaze pattern
   over alpha-renamed members. **Time-slicing is the default emission strategy**:
   steady-state runs only the active clip's `beforeRender`/render; both renderers
@@ -194,6 +241,32 @@ model remains:
   hatch — the default remains zone-ignorant patterns); zone import from a
   device's `/obconf.dat` expander config. Recorded as later directions, not
   v2 commitments.
+
+### Timeline-overhaul compatibility with the existing Show runway
+
+The 2026-07-11 backlog audit keeps the visual-effect runway intact and prevents
+parallel authoring systems:
+
+- #397 remains the parent for dynamic routing layouts and catalog Shows. Its
+  fundamentals and catalog work are not replaced by the timeline overhaul.
+- #403 progressive routing transitions and #404 the expanded SDF family remain
+  valid. Both attach their type-specific controls to the shared first-class
+  transition entity/lane rather than the shipped marker-specific inspector.
+- #405 parametric routing and #406 coordinate remapping remain valid. Both use
+  the shared property-transition/automation model rather than defining private
+  curves, keyframes, or time controls.
+- #398's shipped hard routing marker projects as a zero-duration
+  transition object; its runtime semantics do not change.
+- #401 and #402 remain catalog/physical-review work and are not blocked on the
+  new editor. #408–#411 remain routing/metadata infrastructure and are likewise
+  not made obsolete.
+- #390 ("Multiple zone mappings within a show") is an empty predecessor now
+  covered by #397/#398 and should be closed as a duplicate when issue hygiene is
+  next performed. #363 ("Build some killer + educational shows") remains a
+  broad content direction; #401/#402 are its concrete current slices.
+- #306 remains the shipped Shows-v1 baseline. The new timeline epic owns only
+  the maturity layer above it and links back to that baseline rather than
+  reopening its completed slices.
 
 ### Remaining Show prerequisites
 

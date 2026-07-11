@@ -77,7 +77,7 @@ export function AuthStatus() {
       .filter((provider) => !connectedProviders.has(provider))
 
     return (
-      <div ref={accountRef} className="relative flex max-w-52 items-center">
+      <div ref={accountRef} className="relative flex max-w-52 items-center max-[980px]:max-w-36">
         <button
           type="button"
           aria-label={`Account menu for ${label}`}

@@ -10,7 +10,7 @@ import type {
   ShowTransitionCost,
   ShowZone,
 } from './personalContentRecords'
-import type { ShowClipAdaptation, ShowRecipe } from './showCompiler'
+import type { ShowClipAdaptation, ShowRecipe, ShowRoutingLayoutRecipe } from './showCompiler'
 import {
   controllerZonePixelCount,
   controllerProfileDisplayName,
@@ -46,6 +46,32 @@ export interface ShowStripProjection {
   transitions: ShowStripTransitionProjection[]
   routingSwitches: Array<{ afterSceneId: string; layoutId: string; layoutName: string }>
   rows: ShowStripRowProjection[]
+}
+
+export interface ShowTimelineRange {
+  startMs: number
+  endMs: number
+}
+
+export interface ShowTimelineSceneProjection extends ShowTimelineRange {
+  sceneId: string
+  scene: ShowScene
+}
+
+export interface ShowTimelineTransitionProjection extends ShowStripTransitionProjection, ShowTimelineRange {}
+
+export interface ShowTimelineCellProjection extends ShowStripCellProjection, ShowTimelineRange {}
+
+export interface ShowTimelineRowProjection extends Omit<ShowStripRowProjection, 'cells'> {
+  cells: ShowTimelineCellProjection[]
+}
+
+export interface ShowTimelineProjection {
+  durationMs: number
+  scenes: ShowTimelineSceneProjection[]
+  transitions: ShowTimelineTransitionProjection[]
+  routingSwitches: ShowStripProjection['routingSwitches']
+  rows: ShowTimelineRowProjection[]
 }
 
 export interface ShowCompileRecipeSourceLookup {
@@ -153,6 +179,54 @@ export function showLoopDurationMs(show: Pick<ShowRecord, 'scenes'>): number {
     + Math.max(0, scene.durationMs)
     + Math.max(0, scene.transitionOut?.durationMs ?? 0)
   ), 0)
+}
+
+export function projectShowTimeline(show: ShowRecord): ShowTimelineProjection {
+  const strip = projectShowStrip(show)
+  const sceneRanges = new Map<string, ShowTimelineSceneProjection>()
+  const transitions: ShowTimelineTransitionProjection[] = []
+  let cursorMs = 0
+
+  for (const scene of show.scenes) {
+    const startMs = cursorMs
+    const endMs = startMs + Math.max(0, scene.durationMs)
+    sceneRanges.set(scene.id, { sceneId: scene.id, scene, startMs, endMs })
+    cursorMs = endMs
+
+    const transitionDurationMs = Math.max(0, scene.transitionOut?.durationMs ?? 0)
+    if (scene.transitionOut && transitionDurationMs > 0) {
+      transitions.push({
+        afterSceneId: scene.id,
+        kind: scene.transitionOut.kind,
+        durationMs: transitionDurationMs,
+        cost: transitionCost(scene.transitionOut.kind),
+        startMs: cursorMs,
+        endMs: cursorMs + transitionDurationMs,
+      })
+    }
+    cursorMs += transitionDurationMs
+  }
+
+  return {
+    durationMs: cursorMs,
+    scenes: show.scenes.map((scene) => sceneRanges.get(scene.id)!),
+    transitions,
+    routingSwitches: strip.routingSwitches,
+    rows: strip.rows.map((row) => ({
+      ...row,
+      cells: row.cells.map((cell) => {
+        const startScene = show.scenes[cell.sceneIndex]
+        const endScene = show.scenes[Math.min(show.scenes.length - 1, cell.sceneIndex + cell.sceneSpan - 1)]
+        const startRange = startScene ? sceneRanges.get(startScene.id) : undefined
+        const endRange = endScene ? sceneRanges.get(endScene.id) : undefined
+        return {
+          ...cell,
+          startMs: startRange?.startMs ?? 0,
+          endMs: endRange?.endMs ?? startRange?.endMs ?? 0,
+        }
+      }),
+    })),
+  }
 }
 
 export function projectShowStrip(show: ShowRecord): ShowStripProjection {
@@ -413,6 +487,7 @@ export function removeShowZone(show: ShowRecord, zoneId: string): ShowRecord {
     routingLayouts: show.routingLayouts.map((layout) => ({
       ...layout,
       zones: layout.zones.filter((zone) => zone.zoneId !== zoneId),
+      logical: layout.logical?.zoneIds.includes(zoneId) ? undefined : layout.logical,
     })),
     updatedAt: Date.now(),
   }
@@ -444,6 +519,7 @@ export function addShowRoutingLayout(show: ShowRecord, name = 'New layout', sour
     zones: source
       ? source.zones.map(cloneRoutingLayoutZone)
       : routingLayoutFromZones(id, name, normalized.zones).zones,
+    logical: source?.logical ? cloneLogicalRouting(source.logical) : undefined,
   }
   return { ...normalized, routingLayouts: [...normalized.routingLayouts, layout], updatedAt: Date.now() }
 }
@@ -711,6 +787,7 @@ function showRecordToRoutedFirstSceneRecipe(
         id: layout.id,
         name: layout.name,
         zones: routingLayoutControllerZones(normalized.zones, layout),
+        logical: layout.logical ? logicalRoutingRecipe(normalized.zones, layout.logical) : undefined,
       }))
     : undefined
 
@@ -912,11 +989,30 @@ function normalizeRoutingLayout(layout: ShowRoutingLayout): ShowRoutingLayout {
         }))
         .sort((a, b) => a.start - b.start || a.end - b.end),
     })),
+    logical: layout.logical ? cloneLogicalRouting(layout.logical) : undefined,
   }
 }
 
 function cloneRoutingLayoutZone(zone: ShowRoutingLayoutZone): ShowRoutingLayoutZone {
   return { zoneId: zone.zoneId, ranges: zone.ranges.map((range) => ({ ...range })) }
+}
+
+function cloneLogicalRouting(logical: NonNullable<ShowRoutingLayout['logical']>): NonNullable<ShowRoutingLayout['logical']> {
+  return { ...logical, zoneIds: [...logical.zoneIds] } as NonNullable<ShowRoutingLayout['logical']>
+}
+
+function logicalRoutingRecipe(
+  zones: ShowZone[],
+  logical: NonNullable<ShowRoutingLayout['logical']>,
+): NonNullable<ShowRoutingLayoutRecipe['logical']> {
+  const zoneNameById = new Map(zones.map((zone) => [zone.id, zone.name]))
+  const zoneNames = logical.zoneIds.map((zoneId) => zoneNameById.get(zoneId) ?? zoneId)
+  if (logical.kind === 'single') return { kind: logical.kind, zoneNames: [zoneNames[0]] }
+  if (logical.kind === 'grid') {
+    return { kind: logical.kind, zoneNames, columns: logical.columns, rows: logical.rows }
+  }
+  if (logical.kind === 'stripes') return { kind: logical.kind, zoneNames, axis: logical.axis }
+  return { kind: logical.kind, zoneNames, twist: logical.twist }
 }
 
 function createCellsForZones(scenes: ShowScene[], zones: ShowZone[]): ShowCell[] {

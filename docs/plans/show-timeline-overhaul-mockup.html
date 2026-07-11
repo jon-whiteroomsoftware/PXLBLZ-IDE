@@ -1,0 +1,559 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PXLBLZ Show timeline - canonical product design</title>
+  <!--
+    Canonical product-design artifact, 2026-07-11.
+    Final synthesis: B's track-first proportional timeline, A's explicit
+    scene/zone axes, and C's first-class transition objects. This standalone
+    artifact demonstrates transport, accurate seeking, splitting, continuity,
+    automation lanes, and a proportional zoom navigator without mutating data.
+  -->
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #070709;
+      --chrome: #0d0d10;
+      --panel: #111115;
+      --panel-2: #15151a;
+      --panel-3: #1a1a20;
+      --header: #1e1e25;
+      --line: #2b2b33;
+      --line-hot: #454550;
+      --text: #d8d8df;
+      --bright: #f5f5f7;
+      --dim: #8c8c99;
+      --quiet: #62626e;
+      --amber: #fbbf24;
+      --amber-soft: rgba(251,191,36,.14);
+      --cyan: #32c7f3;
+      --cyan-soft: rgba(50,199,243,.13);
+      --green: #43db86;
+      --violet: #ad8cff;
+      --rose: #fb7185;
+      --orange: #fb923c;
+      --mono: "IBM Plex Mono", "SFMono-Regular", Menlo, Consolas, monospace;
+      --sans: Inter, ui-sans-serif, system-ui, sans-serif;
+      --label-w: 164px;
+      --timeline-w: 1340px;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { min-height: 100%; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: 12px;
+      overflow: hidden;
+    }
+    button, input { font: inherit; }
+    button { color: inherit; }
+    button:focus-visible, input:focus-visible, [tabindex]:focus-visible {
+      outline: 2px solid var(--amber);
+      outline-offset: 2px;
+    }
+    .app {
+      height: 100vh;
+      min-height: 690px;
+      display: grid;
+      grid-template-rows: 42px 1fr 44px;
+      background: var(--bg);
+    }
+    .topbar, .compilebar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 0 14px;
+      background: var(--chrome);
+      border-color: var(--line);
+      border-style: solid;
+    }
+    .topbar { border-width: 0 0 1px; }
+    .compilebar { border-width: 1px 0 0; color: var(--dim); }
+    .mark { color: var(--bright); font-weight: 750; letter-spacing: .08em; }
+    .mark i { color: var(--amber); font-style: normal; }
+    .crumb { color: var(--dim); }
+    .crumb b { color: var(--bright); font-weight: 600; }
+    .spacer { flex: 1; }
+    .chip, .button, .icon-button {
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: var(--panel-2);
+    }
+    .chip { padding: 4px 8px; color: var(--dim); font-size: 10px; text-transform: uppercase; letter-spacing: .08em; }
+    .button { padding: 6px 10px; cursor: pointer; }
+    .button:hover, .icon-button:hover { border-color: var(--line-hot); background: var(--panel-3); }
+    .button.primary { border-color: #6d5311; color: var(--amber); background: #1e190c; }
+    .icon-button { width: 30px; height: 30px; display: grid; place-items: center; cursor: pointer; }
+    .workspace {
+      min-height: 0;
+      display: grid;
+      grid-template-columns: minmax(720px, 1fr) 360px;
+    }
+    .editor { min-width: 0; display: grid; grid-template-rows: 48px minmax(0, 1fr) 164px; border-right: 1px solid var(--line); }
+    .pane-title {
+      display: flex; align-items: center; gap: 9px;
+      padding: 0 16px;
+      border-bottom: 1px solid var(--line);
+      background: var(--chrome);
+    }
+    .pane-title h1 {
+      margin: 0;
+      min-width: 0;
+      max-width: 220px;
+      overflow: hidden;
+      color: var(--bright);
+      font-size: 14px;
+      font-weight: 650;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .transport { display: flex; align-items: center; gap: 7px; }
+    .timecode { min-width: 126px; color: var(--bright); font-variant-numeric: tabular-nums; }
+    .timeline-shell { min-height: 0; overflow: auto; background: #09090b; position: relative; }
+    .timeline { width: calc(var(--label-w) + var(--timeline-w)); min-height: 100%; position: relative; }
+    .inspector {
+      border-top: 1px solid var(--line);
+      background: var(--panel);
+      display: grid;
+      grid-template-columns: 1.1fr 1fr 1fr;
+      gap: 0;
+      overflow: auto;
+    }
+    .inspect-col { padding: 13px 16px; border-right: 1px solid var(--line); }
+    .inspect-col:last-child { border-right: 0; }
+    .inspect-col h2 { margin: 0 0 12px; color: var(--bright); font-size: 11px; text-transform: uppercase; letter-spacing: .09em; }
+    .kv { display: grid; grid-template-columns: minmax(90px, 1fr) auto; align-items: center; gap: 12px; min-height: 27px; border-bottom: 1px solid #202027; }
+    .kv span { color: var(--dim); }
+    .kv b { color: var(--text); font-weight: 500; text-align: right; }
+    .kv .hot { color: var(--amber); }
+    .toggle { display: flex; align-items: center; justify-content: space-between; min-height: 31px; color: var(--dim); }
+    .toggle input { accent-color: var(--amber); }
+    .preview { display: grid; grid-template-rows: minmax(300px, 1fr) auto; min-width: 0; background: #060607; }
+    .stage {
+      position: relative;
+      background:
+        radial-gradient(circle at 23% 20%, rgba(20,160,75,.65) 0 14px, transparent 36px),
+        radial-gradient(circle at 69% 25%, rgba(22,155,72,.55) 0 17px, transparent 42px),
+        radial-gradient(ellipse at 48% 78%, rgba(238,20,120,.67) 0 14%, transparent 30%),
+        radial-gradient(circle at 54% 57%, rgba(44,198,111,.54) 0 10px, transparent 35px),
+        #030403;
+      overflow: hidden;
+    }
+    .stage::after { content: ""; position: absolute; inset: 0; background-image: radial-gradient(circle, rgba(255,255,255,.07) 0 1px, transparent 1px); background-size: 18px 18px; opacity: .22; }
+    .preview-panel { border-top: 1px solid var(--line); padding: 14px; background: var(--chrome); }
+    .preview-state { display: flex; align-items: center; gap: 8px; color: var(--dim); margin-bottom: 12px; }
+    .preview-state .play-dot { color: var(--green); }
+    .meter { width: 86px; height: 7px; background: #292930; border-radius: 9px; overflow: hidden; }
+    .meter i { display: block; width: 31%; height: 100%; background: var(--amber); }
+    .compilebar b { color: var(--text); font-weight: 550; }
+    .compilebar .ok { color: var(--green); }
+    .compilebar .warn { color: var(--amber); }
+
+    /* Shared timeline atoms */
+    .axis-row { display: grid; grid-template-columns: var(--label-w) var(--timeline-w); }
+    .corner, .row-head, .axis-title {
+      position: sticky; left: 0; z-index: 15;
+      background: var(--header);
+      border-right: 1px solid var(--line-hot);
+    }
+    .ruler {
+      position: relative; height: 30px;
+      background-color: #111116;
+      background-image:
+        linear-gradient(90deg, rgba(255,255,255,.13) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,.06) 1px, transparent 1px);
+      background-size: 100px 8px, 20px 5px;
+      background-repeat: repeat-x;
+      background-position: 0 bottom;
+      border-bottom: 1px solid var(--line);
+      cursor: crosshair;
+    }
+    .ruler-label { position: absolute; top: 6px; color: var(--quiet); font-size: 9px; transform: translateX(-50%); }
+    .playhead { position: absolute; z-index: 30; top: 0; bottom: 0; left: calc(var(--label-w) + 31.25%); width: 1px; background: var(--amber); pointer-events: none; filter: drop-shadow(0 0 5px rgba(251,191,36,.42)); }
+    .playhead::before { content: ""; position: absolute; top: 29px; left: -5px; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 7px solid var(--amber); }
+    .track-grid {
+      position: relative;
+      background-image: linear-gradient(90deg, rgba(255,255,255,.04) 1px, transparent 1px);
+      background-size: 100px 100%;
+    }
+    .clip {
+      position: absolute; top: 9px; height: 48px;
+      border: 1px solid color-mix(in srgb, var(--zone) 45%, #303039);
+      border-left: 3px solid var(--zone);
+      border-radius: 5px;
+      background: linear-gradient(180deg, color-mix(in srgb, var(--zone) 12%, #17171c), #111116);
+      padding: 8px 10px;
+      overflow: hidden;
+      cursor: pointer;
+    }
+    .clip:hover { filter: brightness(1.16); }
+    .clip.selected { box-shadow: 0 0 0 1px var(--amber), 0 8px 20px rgba(0,0,0,.35); }
+    .clip-name { color: var(--bright); font-weight: 650; white-space: nowrap; }
+    .clip-meta { color: var(--dim); font-size: 9.5px; margin-top: 4px; white-space: nowrap; }
+    .continuity { position: absolute; top: 25px; height: 16px; border-top: 2px solid var(--cyan); color: var(--cyan); text-align: center; font-size: 8px; letter-spacing: .09em; text-transform: uppercase; }
+    .transition-block {
+      position: absolute; top: 8px; height: 50px;
+      border: 1px solid #6b5113; border-radius: 4px;
+      background: repeating-linear-gradient(135deg, rgba(251,191,36,.19) 0 6px, rgba(251,191,36,.06) 6px 12px);
+      color: var(--amber); display: grid; place-items: center;
+      cursor: pointer; font-size: 9px; text-transform: uppercase; letter-spacing: .08em;
+    }
+    .transition-block.route { border-color: #23768d; color: var(--cyan); background: repeating-linear-gradient(135deg, rgba(50,199,243,.17) 0 6px, rgba(50,199,243,.04) 6px 12px); }
+    .automation-lane { height: 38px; position: relative; border-top: 1px solid #23232a; background: #0d0d11; }
+    .automation-label { position: sticky; left: 0; z-index: 14; width: var(--label-w); height: 38px; display: flex; align-items: center; padding: 0 16px 0 38px; color: var(--dim); background: #121217; border-right: 1px solid var(--line); }
+    .curve { position: absolute; left: var(--label-w); right: 0; top: 0; height: 38px; }
+    .curve svg { width: 100%; height: 100%; display: block; }
+    .curve line, .curve path { vector-effect: non-scaling-stroke; }
+    .navigator { height: 38px; display: grid; grid-template-columns: var(--label-w) var(--timeline-w); border-top: 1px solid var(--line); background: #0d0d11; }
+    .navigator-label { position: sticky; left: 0; z-index: 15; display: flex; align-items: center; padding: 0 14px; color: var(--quiet); background: var(--header); border-right: 1px solid var(--line-hot); text-transform: uppercase; letter-spacing: .1em; font-size: 9px; }
+    .overview { position: relative; margin: 8px 12px; border-radius: 3px; background: linear-gradient(90deg,#1e3038 0 31%,#34270d 31% 44%,#241d38 44% 75%,#301b21 75%); }
+    .viewport-thumb { position: absolute; left: 22%; width: 47%; top: -3px; bottom: -3px; border: 1px solid var(--amber); background: rgba(251,191,36,.06); border-radius: 4px; cursor: grab; }
+    .viewport-thumb::before, .viewport-thumb::after { content: ""; position: absolute; top: 4px; bottom: 4px; width: 3px; border-left: 1px solid var(--amber); border-right: 1px solid var(--amber); opacity: .7; }
+    .viewport-thumb::before { left: 4px; } .viewport-thumb::after { right: 4px; }
+
+    /* A - explicit table axes */
+    .variant-a .scene-axis { display: grid; grid-template-columns: 31.25% 12.5% 37.5% 18.75%; height: 56px; }
+    .variant-a .corner { height: 56px; padding: 13px 14px; display: flex; flex-direction: column; justify-content: center; gap: 5px; color: var(--dim); }
+    .variant-a .corner b { color: var(--bright); text-transform: uppercase; letter-spacing: .1em; font-size: 9px; }
+    .variant-a .scene-head { border-right: 1px solid var(--line); border-bottom: 1px solid var(--line-hot); background: var(--header); padding: 10px 13px; cursor: pointer; }
+    .variant-a .scene-head:hover { background: #25252c; }
+    .variant-a .scene-head strong { color: var(--bright); display: block; font-size: 11px; }
+    .variant-a .scene-head span { color: var(--dim); font-size: 9px; }
+    .variant-a .scene-head.transition-head { background: #1e190c; color: var(--amber); }
+    .variant-a .zone-row { height: 68px; }
+    .variant-a .row-head { height: 68px; display: grid; grid-template-columns: 5px 1fr; align-items: stretch; cursor: pointer; }
+    .variant-a .row-head:hover { background: #24242b; }
+    .variant-a .zone-bar { background: var(--zone); }
+    .variant-a .zone-copy { display: flex; align-items: center; gap: 7px; padding: 0 13px; }
+    .variant-a .zone-copy b { color: var(--bright); }
+    .variant-a .zone-copy span { margin-left: auto; color: var(--quiet); font-size: 9px; }
+
+    /* B - track first, scene bands behind */
+    .variant-b .ruler-row { position: sticky; top: 0; z-index: 22; }
+    .variant-b .corner { height: 30px; display: flex; align-items: center; padding: 0 12px; color: var(--quiet); text-transform: uppercase; letter-spacing: .1em; font-size: 9px; }
+    .variant-b .scene-bands { position: absolute; left: var(--label-w); top: 30px; bottom: 38px; width: var(--timeline-w); display: grid; grid-template-columns: 31.25% 12.5% 37.5% 18.75%; pointer-events: none; }
+    .variant-b .scene-band { border-right: 1px solid #303038; background: rgba(255,255,255,.012); padding: 8px 11px; color: var(--quiet); text-transform: uppercase; letter-spacing: .1em; font-size: 9px; }
+    .variant-b .scene-band:nth-child(even) { background: rgba(255,255,255,.027); }
+    .variant-b .track { height: 76px; }
+    .variant-b .row-head { height: 76px; padding: 11px 13px; display: flex; flex-direction: column; justify-content: center; gap: 4px; cursor: pointer; }
+    .variant-b .row-head b { color: var(--bright); }
+    .variant-b .row-head span { color: var(--quiet); font-size: 9px; }
+    .variant-b .track-grid { height: 76px; }
+
+    /* Canonical synthesis - track-first, explicit axes, first-class transitions */
+    .canonical .scene-axis { display: grid; grid-template-columns: 18.52% 7.41% 37.04% 37.03%; height: 54px; }
+    .canonical .axis-corner {
+      height: 54px; padding: 10px 13px; display: flex; flex-direction: column;
+      justify-content: center; gap: 4px; color: var(--dim);
+    }
+    .canonical .axis-corner b { color: var(--bright); font-size: 9px; text-transform: uppercase; letter-spacing: .1em; }
+    .canonical .scene-head {
+      min-width: 0; padding: 8px 11px; border: 0; border-right: 1px solid var(--line);
+      border-bottom: 1px solid var(--line-hot); background: var(--header); text-align: left; cursor: pointer;
+    }
+    .canonical .scene-head:hover { background: #25252c; }
+    .canonical .scene-head strong { display: block; overflow: hidden; color: var(--bright); text-overflow: ellipsis; white-space: nowrap; }
+    .canonical .scene-head span { display: block; margin-top: 4px; overflow: hidden; color: var(--dim); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+    .canonical .ruler-row { position: sticky; top: 0; z-index: 22; }
+    .canonical .ruler-corner { height: 30px; padding: 0 13px; display: flex; align-items: center; color: var(--quiet); font-size: 9px; text-transform: uppercase; letter-spacing: .1em; }
+    .canonical .transition-row { height: 58px; }
+    .canonical .transition-axis {
+      height: 58px; padding: 0 13px; display: flex; align-items: center; justify-content: space-between;
+      color: var(--amber); font-size: 9px; text-transform: uppercase; letter-spacing: .09em;
+    }
+    .canonical .transition-axis span { color: var(--quiet); }
+    .canonical .transition-grid { height: 58px; position: relative; background: #0f0f13; border-bottom: 1px solid var(--line); }
+    .canonical .transition-card {
+      position: absolute; top: 8px; height: 42px; min-width: 84px; overflow: hidden;
+      border: 1px solid #6d5311; border-radius: 5px; background: #1e190d; color: var(--amber);
+      padding: 6px 9px; text-align: left; cursor: pointer;
+    }
+    .canonical .transition-card.route { border-color: #23768d; background: #0d1c21; color: var(--cyan); }
+    .canonical .transition-card:hover, .canonical .transition-card.selected { box-shadow: 0 0 0 1px currentColor; filter: brightness(1.12); }
+    .canonical .transition-card b { display: block; overflow: hidden; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+    .canonical .transition-card span { display: block; margin-top: 3px; overflow: hidden; font-size: 8.5px; opacity: .75; text-overflow: ellipsis; white-space: nowrap; }
+    .canonical .track { height: 76px; }
+    .canonical .row-head { height: 76px; padding: 10px 13px; display: flex; flex-direction: column; justify-content: center; gap: 4px; text-align: left; cursor: pointer; }
+    .canonical .row-head b { color: var(--bright); }
+    .canonical .row-head span { color: var(--quiet); font-size: 9px; }
+    .canonical .track-grid { height: 76px; }
+    .canonical .scene-seams { position: absolute; inset: 0; pointer-events: none; }
+    .canonical .scene-seams i { position: absolute; top: 0; bottom: 0; width: 1px; background: #303038; }
+    .canonical .boundary-pin { position: absolute; top: 0; bottom: 0; width: 1px; background: currentColor; opacity: .45; }
+
+    /* C - transitions as a dedicated orchestration lane */
+    .variant-c .cue-strip { display: grid; grid-template-columns: 31.25% 12.5% 37.5% 18.75%; height: 62px; }
+    .variant-c .corner { height: 62px; padding: 12px 14px; color: var(--dim); display: flex; align-items: center; }
+    .variant-c .cue { background: #17171c; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 10px 12px; cursor: pointer; }
+    .variant-c .cue:hover { background: #202027; }
+    .variant-c .cue strong { color: var(--bright); display: block; }
+    .variant-c .cue span { color: var(--quiet); font-size: 9px; }
+    .variant-c .orchestration { height: 60px; }
+    .variant-c .axis-title { height: 60px; display: flex; align-items: center; padding: 0 14px; color: var(--amber); text-transform: uppercase; letter-spacing: .09em; font-size: 9px; }
+    .variant-c .orchestration-grid { height: 60px; position: relative; background: #0f0f13; }
+    .variant-c .transition-card { position: absolute; top: 9px; height: 42px; border: 1px solid #6d5311; border-radius: 5px; background: #1e190d; color: var(--amber); padding: 7px 10px; cursor: pointer; }
+    .variant-c .transition-card b { display: block; font-weight: 650; }
+    .variant-c .transition-card span { font-size: 9px; opacity: .72; }
+    .variant-c .track { height: 66px; }
+    .variant-c .row-head { height: 66px; padding: 0 13px; display: flex; align-items: center; gap: 8px; }
+    .variant-c .row-head i { width: 4px; align-self: stretch; background: var(--zone); border-radius: 3px; }
+    .variant-c .row-head b { color: var(--bright); }
+    .variant-c .track-grid { height: 66px; }
+
+    .variant { display: none; min-height: 100%; }
+    .variant.active { display: block; }
+    .state-toast { position: fixed; right: 378px; bottom: 58px; z-index: 80; background: #17171d; border: 1px solid var(--line-hot); border-radius: 6px; padding: 8px 11px; color: var(--dim); opacity: 0; transform: translateY(4px); transition: 140ms; pointer-events: none; }
+    .state-toast.show { opacity: 1; transform: translateY(0); }
+    .rebuild { color: var(--amber); display: none; }
+    .seeking .rebuild { display: inline; }
+    .seeking .preview-state .status-copy { display: none; }
+    .mobile-note { display: none; }
+
+    @media (max-width: 980px) {
+      .workspace { grid-template-columns: 1fr; }
+      .preview { display: none; }
+      .editor { border-right: 0; }
+      .inspector { grid-template-columns: 1fr 1fr; }
+      .inspect-col:last-child { display: none; }
+      .state-toast { right: 12px; }
+      .mobile-note { display: inline; color: var(--quiet); }
+    }
+    @media (max-width: 1350px) {
+      .pane-title > .chip { display: none; }
+      .pane-title h1 { max-width: 170px; }
+    }
+    @media (max-width: 680px) {
+      :root { --label-w: 128px; --timeline-w: 1040px; }
+      .pane-title .chip, .pane-title .button:not(.primary) { display: none; }
+      .transport .timecode { min-width: 104px; font-size: 10px; }
+      .inspector { grid-template-columns: 1fr; }
+      .inspect-col:nth-child(n+2) { display: none; }
+      .compilebar span:nth-of-type(n+3), .compilebar .meter { display: none; }
+    }
+    @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; transition: none !important; } }
+  </style>
+</head>
+<body>
+  <main class="app" id="app">
+    <header class="topbar">
+      <span class="mark">PXL<i>BLZ</i></span>
+      <span class="crumb">Studio / Shows / <b>Scene Splice Showcase</b></span>
+      <span class="chip">canonical timeline design</span>
+      <span class="spacer"></span>
+      <span class="chip">Burner bag <i style="color:var(--green)">●</i></span>
+      <button class="icon-button" aria-label="Add">+</button>
+    </header>
+
+    <section class="workspace">
+      <section class="editor">
+        <header class="pane-title">
+          <h1>Scene Splice Showcase</h1>
+          <span class="chip">4 scenes · 27s loop</span>
+          <span class="spacer"></span>
+          <div class="transport">
+            <button class="icon-button" id="toStart" aria-label="Go to start">↤</button>
+            <button class="icon-button" id="play" aria-label="Play or pause">▶</button>
+            <output class="timecode" id="timecode">00:08.438 / 00:27.000</output>
+            <button class="button" id="split">Split at playhead</button>
+          </div>
+          <span class="spacer"></span>
+          <button class="button">Export .epe</button>
+          <button class="button primary">▷ Push</button>
+        </header>
+
+        <div class="timeline-shell" id="shell">
+          <div class="timeline">
+            <section class="variant canonical active" aria-label="Canonical Show timeline design">
+              <div class="axis-row">
+                <div class="corner axis-corner"><b>Scenes →</b><span>Zones and properties ↓</span></div>
+                <div class="scene-axis">
+                  <button class="scene-head"><strong>Run</strong><span>5s · time ×1</span></button>
+                  <button class="scene-head"><strong>Slow</strong><span>2s · target ×0</span></button>
+                  <button class="scene-head"><strong>Pause</strong><span>10s · time ×0</span></button>
+                  <button class="scene-head"><strong>Embers</strong><span>10s · new Pattern</span></button>
+                </div>
+              </div>
+              <div class="axis-row ruler-row"><div class="corner ruler-corner">Show time</div><div class="ruler"></div></div>
+              <div class="axis-row transition-row">
+                <div class="axis-title transition-axis">Transitions <span>2</span></div>
+                <div class="transition-grid">
+                  <div class="scene-seams"><i style="left:18.52%"></i><i style="left:25.93%"></i><i style="left:62.97%"></i></div>
+                  <button class="transition-card selected" data-inspector="property" style="left:18.52%;width:7.41%"><b>Time × ramp</b><span>1 → 0 · 2s · ease in/out</span></button>
+                  <button class="transition-card route" data-inspector="spatial" style="left:60.8%;width:7%"><b>Portal</b><span>Heat Shimmer → GlyphRain · 1.5s</span></button>
+                </div>
+              </div>
+              <div class="axis-row track">
+                <button class="row-head"><b><i style="color:var(--cyan)">▌</i> main</b><span>256 px · zone track</span></button>
+                <div class="track-grid">
+                  <div class="scene-seams"><i style="left:18.52%"></i><i style="left:25.93%"></i><i style="left:62.97%"></i></div>
+                  <div class="clip selected" style="--zone:var(--cyan);left:0;width:62.97%"><div class="clip-name">Heat Shimmer Tiles</div><div class="clip-meta">one continuous Pattern instance · split across 3 scenes</div></div>
+                  <div class="continuity" style="left:1%;width:60.9%">continue</div>
+                  <div class="clip" style="--zone:var(--violet);left:62.97%;width:37.03%"><div class="clip-name">GlyphRain</div><div class="clip-meta">entry: restart</div></div>
+                </div>
+              </div>
+              <div class="automation-lane"><div class="automation-label">↳ Time ×</div><div class="curve"><svg viewBox="0 0 1000 38" preserveAspectRatio="none"><path d="M0 8 H185 C205 8 225 30 259 30 H630" fill="none" stroke="#fbbf24" stroke-width="2"/><path d="M630 30 H1000" fill="none" stroke="#454550"/><circle cx="185" cy="8" r="3" fill="#fbbf24"/><circle cx="259" cy="30" r="3" fill="#fbbf24"/></svg></div></div>
+              <div class="automation-lane"><div class="automation-label">↳ Brightness</div><div class="curve"><svg viewBox="0 0 1000 38" preserveAspectRatio="none"><path d="M0 13 H580 C610 13 625 24 645 24 H1000" fill="none" stroke="#8c8c99" stroke-width="1.5"/></svg></div></div>
+              <div class="axis-row track">
+                <button class="row-head"><b><i style="color:var(--rose)">▌</i> under-glow</b><span>96 px · zone track</span></button>
+                <div class="track-grid"><div class="scene-seams"><i style="left:18.52%"></i><i style="left:25.93%"></i><i style="left:62.97%"></i></div><div class="clip" style="--zone:var(--rose);left:0;width:100%"><div class="clip-name">Ember Bed</div><div class="clip-meta">one continuous clip across the whole Show</div></div></div>
+              </div>
+              <div class="navigator"><div class="navigator-label">show navigator</div><div class="overview"><div class="viewport-thumb" aria-label="Visible timeline range" tabindex="0"></div></div></div>
+            </section>
+
+            <div class="playhead" id="playhead"></div>
+          </div>
+        </div>
+
+        <section class="inspector">
+          <div class="inspect-col">
+            <h2 id="selectionTitle">Selected transition · Time × ramp</h2>
+            <div class="kv"><span>Affects</span><b id="selectionAffects">Heat Shimmer Tiles</b></div>
+            <div class="kv"><span>Boundary</span><b class="hot" id="selectionBoundary">Run → Slow</b></div>
+            <label class="toggle"><span>Restart pattern on entry</span><input id="restart" type="checkbox"></label>
+            <div class="kv"><span>Split</span><b>At 00:08.438</b></div>
+          </div>
+          <div class="inspect-col">
+            <h2 id="transitionKind">Property transition</h2>
+            <div class="kv"><span id="fieldOneLabel">Property</span><b id="fieldOneValue">Time ×</b></div>
+            <div class="kv"><span id="fieldTwoLabel">Values</span><b id="fieldTwoValue">1.00 → 0.00</b></div>
+            <div class="kv"><span>Duration</span><b id="durationValue">2.000s</b></div>
+            <div class="kv"><span>Easing</span><b id="easingValue">Ease in/out</b></div>
+          </div>
+          <div class="inspect-col">
+            <h2>Transport / seek contract</h2>
+            <div class="kv"><span>Preview mode</span><b>Fast</b></div>
+            <div class="kv"><span>Seek result</span><b>Rebuild from start</b></div>
+            <div class="kv"><span>Simulation</span><b>60 fixed steps/s</b></div>
+            <div class="kv"><span>Shortcut</span><b>Space · play/pause</b></div>
+          </div>
+        </section>
+      </section>
+
+      <aside class="preview" aria-label="Show preview">
+        <div class="stage"></div>
+        <div class="preview-panel">
+          <div class="preview-state"><span class="play-dot">▷</span><span class="status-copy" id="previewStatus">preview paused · Fast</span><span class="rebuild">↻ rebuilding accurate preview from start…</span><span class="spacer"></span><span>352 px</span></div>
+          <div class="kv"><span>Stage</span><b>Square (2D)</b></div>
+          <div class="kv"><span>Current cue</span><b id="currentCue">Pause</b></div>
+          <div class="kv"><span>Active state</span><b id="activeState">Heat Shimmer · time ×0</b></div>
+          <div class="kv"><span>Zone</span><b><i style="color:var(--cyan)">●</i> main</b></div>
+          <span class="mobile-note">Preview collapses at narrow widths.</span>
+        </div>
+      </aside>
+    </section>
+
+    <footer class="compilebar">
+      <span>compiled artifact</span><span class="meter"><i></i></span><b>20.0 KB / ~66.8 KB</b><span>·</span><b>est. 66 fps @ 352 px</b><span>·</span><span class="ok">✓ one renderer/px steady state</span><span>·</span><span class="warn">worst instant: transition window</span><span class="spacer"></span><button class="button">View generated pattern</button>
+    </footer>
+  </main>
+
+  <div class="state-toast" id="toast" role="status"></div>
+  <script>
+    const durationMs = 27000;
+    let positionMs = 8438;
+    let playing = false;
+    let raf = 0;
+    let last = 0;
+    let seekToken = 0;
+    const app = document.getElementById('app');
+    const shell = document.getElementById('shell');
+    const playhead = document.getElementById('playhead');
+    const timecode = document.getElementById('timecode');
+    const play = document.getElementById('play');
+    const toast = document.getElementById('toast');
+
+    function format(ms) {
+      const s = Math.max(0, ms) / 1000;
+      return `00:${s.toFixed(3).padStart(6, '0')}`;
+    }
+    function cueAt(ms) {
+      if (ms < 5000) return ['Run', 'Heat Shimmer · time ×1'];
+      if (ms < 7000) return ['Slow', `Heat Shimmer · time ×${Math.max(0, 1 - (ms - 5000) / 2000).toFixed(2)}`];
+      if (ms < 17000) return ['Pause', 'Heat Shimmer · time ×0'];
+      return ['Embers', 'GlyphRain · restarted'];
+    }
+    function updatePosition() {
+      const pct = positionMs / durationMs;
+      playhead.style.left = `calc(var(--label-w) + ${pct * 100}%)`;
+      timecode.value = `${format(positionMs)} / 00:27.000`;
+      const [cue, state] = cueAt(positionMs);
+      document.getElementById('currentCue').textContent = cue;
+      document.getElementById('activeState').textContent = state;
+    }
+    function setPlaying(next) {
+      playing = next;
+      play.textContent = playing ? 'Ⅱ' : '▶';
+      document.getElementById('previewStatus').textContent = playing ? 'previewing Show · Fast' : 'preview paused · Fast';
+      cancelAnimationFrame(raf);
+      if (playing) { last = performance.now(); raf = requestAnimationFrame(step); }
+    }
+    function step(now) {
+      if (!playing) return;
+      positionMs = (positionMs + now - last) % durationMs;
+      last = now; updatePosition(); raf = requestAnimationFrame(step);
+    }
+    function showToast(message) {
+      toast.textContent = message; toast.classList.add('show');
+      clearTimeout(showToast.timer); showToast.timer = setTimeout(() => toast.classList.remove('show'), 1700);
+    }
+    function seek(ms) {
+      setPlaying(false); positionMs = Math.max(0, Math.min(durationMs, ms)); updatePosition();
+      const token = ++seekToken; app.classList.add('seeking');
+      window.setTimeout(() => {
+        if (token !== seekToken) return;
+        app.classList.remove('seeking');
+        showToast(`Accurate preview rebuilt to ${format(positionMs)}`);
+      }, 360);
+    }
+    function positionFromPointer(event) {
+      const ruler = event.currentTarget;
+      const rect = ruler.getBoundingClientRect();
+      return ((event.clientX - rect.left) / rect.width) * durationMs;
+    }
+    document.querySelectorAll('.ruler').forEach(ruler => {
+      ruler.innerHTML = [0,5,10,15,20,25].map(s => `<span class="ruler-label" style="left:${s/27*100}%">${s}s</span>`).join('');
+      ruler.addEventListener('pointerdown', event => {
+        ruler.setPointerCapture(event.pointerId); seek(positionFromPointer(event));
+        const move = e => { positionMs = Math.max(0, Math.min(durationMs, positionFromPointer(e))); updatePosition(); };
+        ruler.addEventListener('pointermove', move);
+        ruler.addEventListener('pointerup', () => { ruler.removeEventListener('pointermove', move); seek(positionMs); }, { once: true });
+      });
+    });
+    document.getElementById('play').onclick = () => setPlaying(!playing);
+    document.getElementById('toStart').onclick = () => seek(0);
+    document.getElementById('split').onclick = () => showToast(`Split at ${format(positionMs)} · continuity preserved`);
+    document.getElementById('restart').onchange = event => showToast(event.target.checked ? 'Destination entry: restart' : 'Destination entry: continue');
+    const transitionInspectors = {
+      property: ['Selected transition · Time × ramp', 'Heat Shimmer Tiles', 'Run → Slow', 'Property transition', 'Property', 'Time ×', 'Values', '1.00 → 0.00', '2.000s', 'Ease in/out'],
+      spatial: ['Selected transition · Portal', 'main zone', 'Pause → Embers', 'Spatial transition', 'Shape', 'Circle / portal', 'Patterns', 'Heat Shimmer → GlyphRain', '1.500s', 'Ease in/out'],
+    };
+    document.querySelectorAll('.transition-card').forEach(el => el.onclick = () => {
+      document.querySelectorAll('.transition-card').forEach(card => card.classList.toggle('selected', card === el));
+      const values = transitionInspectors[el.dataset.inspector];
+      ['selectionTitle','selectionAffects','selectionBoundary','transitionKind','fieldOneLabel','fieldOneValue','fieldTwoLabel','fieldTwoValue','durationValue','easingValue']
+        .forEach((id, index) => { document.getElementById(id).textContent = values[index]; });
+      showToast(`Selected transition · ${el.querySelector('b').textContent}`);
+    });
+    document.addEventListener('keydown', event => {
+      const editing = event.target.matches('input,textarea,[contenteditable="true"]');
+      if (!editing && event.code === 'Space') { event.preventDefault(); setPlaying(!playing); }
+      if (!editing && event.key.toLowerCase() === 's') showToast(`Split at ${format(positionMs)} · continuity preserved`);
+    });
+    document.querySelectorAll('.viewport-thumb').forEach(thumb => {
+      thumb.addEventListener('pointerdown', event => {
+        const startX = event.clientX, startLeft = parseFloat(getComputedStyle(thumb).left);
+        thumb.setPointerCapture(event.pointerId);
+        const move = e => { thumb.style.left = `clamp(0px, ${startLeft + e.clientX - startX}px, calc(100% - ${thumb.offsetWidth}px))`; };
+        thumb.addEventListener('pointermove', move);
+        thumb.addEventListener('pointerup', () => thumb.removeEventListener('pointermove', move), { once:true });
+      });
+    });
+    updatePosition();
+  </script>
+</body>
+</html>

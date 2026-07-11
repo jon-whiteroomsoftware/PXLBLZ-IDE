@@ -52,6 +52,26 @@ export function createPatternPrismShow(): ShowRecord {
   }
 }
 
+export function createAdaptivePatternPrismShow(): ShowRecord {
+  const show = createPatternPrismShow()
+  const zoneIds = show.zones.map((zone) => zone.id)
+  return {
+    ...show,
+    id: 'catalog-pattern-prism-adaptive',
+    name: 'Pattern Prism: Adaptive Layouts',
+    routingLayouts: show.routingLayouts.map((layout) => ({
+      ...layout,
+      logical: layout.id === 'layout-full'
+        ? { kind: 'single', zoneIds: [zoneIds[0]] }
+        : layout.id === 'layout-quadrants'
+          ? { kind: 'grid', zoneIds, columns: 2, rows: 2 }
+          : layout.id === 'layout-strips'
+            ? { kind: 'stripes', zoneIds, axis: 'x' }
+            : { kind: 'pinwheel', zoneIds, twist: Math.PI * 1.35 },
+    })),
+  }
+}
+
 function ribbonCell(zone: ShowZone, scene: ShowScene, sceneSpan: number, zoneSpan: number): ShowCell {
   return {
     id: 'cell-ribbon',

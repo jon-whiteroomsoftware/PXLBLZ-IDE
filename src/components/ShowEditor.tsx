@@ -1,5 +1,5 @@
-import { useMemo, useState, type CSSProperties } from 'react'
-import { Check, Code2, Copy, Download, Play, Plus, RotateCw, Route, Trash2, Zap } from 'lucide-react'
+import { useEffect, useMemo, useState, type CSSProperties } from 'react'
+import { Check, Code2, Copy, Download, Pause, Play, Plus, RotateCw, Route, SkipBack, Trash2, Zap } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   AlertDialogAction,
@@ -18,6 +18,7 @@ import {
   formatShowRoutingRanges,
   parseShowRoutingRanges,
   showLoopDurationMs,
+  projectShowTimeline,
   transitionCost,
 } from '@/engine/showModel'
 import { compileShowForPreview, type CompiledShowState } from '@/engine/showPreviewArtifact'
@@ -35,6 +36,8 @@ import { GALLERY_PATTERNS } from '@/engine/galleryCatalog'
 import { useControllerStore } from '@/store/controllerStore'
 import { useControllerProfileStore } from '@/store/controllerProfileStore'
 import { STOCK_MAPS, useMapStore } from '@/store/mapStore'
+import { usePreviewStore } from '@/store/previewStore'
+import { useShowTransportStore } from '@/store/showTransportStore'
 import { usePatternStore } from '@/store/patternStore'
 import { useShowStore } from '@/store/showStore'
 import type {
@@ -184,11 +187,9 @@ export function ShowEditor({ showId }: { showId: string }) {
   return (
     <div className="flex h-full min-h-0 flex-col bg-zinc-950/75 font-mono text-xs text-zinc-400">
       <div className="flex min-h-0 flex-1 flex-col overflow-auto">
-        <div className="min-w-[760px] p-3">
+        <div className="min-w-0 p-3">
           <div className="mb-3 flex items-center gap-2">
-            <span className="rounded border border-zinc-700 px-1.5 py-0.5 text-[10px] uppercase text-structural">
-              {formatDuration(showLoopDurationMs(activeShow))} loop
-            </span>
+            <ShowTransportControls show={activeShow} />
             <span className="flex-1" />
             <Button
               size="xs"
@@ -213,22 +214,24 @@ export function ShowEditor({ showId }: { showId: string }) {
             </Button>
           </div>
 
-          <SceneStrip
-            show={activeShow}
-            selection={selection}
-            onSelect={setSelection}
-            onAddScene={() => {
-              void addScene(activeShow.id).then(() => {
-                window.setTimeout(() => {
-                  const inputs = document.querySelectorAll<HTMLInputElement>('[data-show-scene-name]')
-                  inputs[inputs.length - 1]?.focus()
-                }, 0)
-              })
-            }}
-            onAddZone={() => void addZone(activeShow.id)}
-            onRequestRemoveScene={setScenePendingDelete}
-            onUpdateScene={(sceneId, changes) => void updateScene(activeShow.id, sceneId, changes)}
-          />
+          <section aria-label="Show timeline">
+            <SceneStrip
+              show={activeShow}
+              selection={selection}
+              onSelect={setSelection}
+              onAddScene={() => {
+                void addScene(activeShow.id).then(() => {
+                  window.setTimeout(() => {
+                    const inputs = document.querySelectorAll<HTMLInputElement>('[data-show-scene-name]')
+                    inputs[inputs.length - 1]?.focus()
+                  }, 0)
+                })
+              }}
+              onAddZone={() => void addZone(activeShow.id)}
+              onRequestRemoveScene={setScenePendingDelete}
+              onUpdateScene={(sceneId, changes) => void updateScene(activeShow.id, sceneId, changes)}
+            />
+          </section>
 
           <ContextualInspector
             show={activeShow}
@@ -289,6 +292,81 @@ export function ShowEditor({ showId }: { showId: string }) {
       />
     </div>
   )
+}
+
+function ShowTransportControls({ show }: { show: ShowRecord }) {
+  const durationMs = showLoopDurationMs(show)
+  const isRunning = usePreviewStore((state) => state.isRunning)
+  const toggle = usePreviewStore((state) => state.toggle)
+  const positionMs = useShowTransportStore((state) => state.showId === show.id ? state.positionMs : 0)
+  const seekStatus = useShowTransportStore((state) => state.showId === show.id ? state.seekStatus : 'idle')
+
+  useEffect(() => {
+    useShowTransportStore.getState().openShow(show.id, durationMs)
+  }, [durationMs, show.id])
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      const target = event.target
+      const editing = target instanceof HTMLElement && (
+        target.matches('input, select, textarea, button, [contenteditable="true"]')
+      )
+      if (!editing && event.code === 'Space') {
+        event.preventDefault()
+        usePreviewStore.getState().toggle()
+      }
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [])
+
+  return (
+    <div className="flex min-w-0 items-center gap-1.5">
+      <Button
+        size="icon-xs"
+        variant="ghost"
+        aria-label="Go to Show start"
+        title="Go to Show start"
+        className="bg-zinc-900/70 text-zinc-500 hover:bg-zinc-800 hover:text-zinc-100"
+        onClick={() => requestShowSeek(show.id, 0)}
+      >
+        <SkipBack size={13} aria-hidden />
+      </Button>
+      <Button
+        size="icon-xs"
+        variant="ghost"
+        aria-label={isRunning ? 'Pause Show preview' : 'Play Show preview'}
+        title={isRunning ? 'Pause Show preview (Space)' : 'Play Show preview (Space)'}
+        className="bg-zinc-900/70 text-zinc-300 hover:bg-zinc-800 hover:text-zinc-50"
+        onClick={toggle}
+      >
+        {isRunning ? <Pause size={13} aria-hidden /> : <Play size={13} aria-hidden />}
+      </Button>
+      <output className="w-[142px] text-[10px] tabular-nums text-zinc-300" aria-live="off">
+        {formatShowTime(positionMs)} / {formatShowTime(durationMs)}
+      </output>
+      {seekStatus === 'rebuilding' && (
+        <span className="whitespace-nowrap text-[9px] uppercase tracking-wider text-amber-300">
+          rebuilding
+        </span>
+      )}
+    </div>
+  )
+}
+
+function requestShowSeek(showId: string, targetMs: number): void {
+  if (usePreviewStore.getState().isRunning) usePreviewStore.getState().toggle()
+  const transport = useShowTransportStore.getState()
+  transport.setPosition(showId, targetMs)
+  transport.requestSeek(showId, targetMs)
+}
+
+function formatShowTime(timeMs: number): string {
+  const safeMs = Math.max(0, Math.round(Number.isFinite(timeMs) ? timeMs : 0))
+  const minutes = Math.floor(safeMs / 60_000)
+  const seconds = Math.floor((safeMs % 60_000) / 1000)
+  const milliseconds = safeMs % 1000
+  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}.${String(milliseconds).padStart(3, '0')}`
 }
 
 function ExportShowButton({
@@ -353,16 +431,33 @@ function SceneStrip({
   onUpdateScene: (sceneId: string, changes: Partial<Omit<ShowScene, 'id'>>) => void
 }) {
   const strip = projectShowStrip(show)
-  const columns = ['148px', ...show.scenes.flatMap(() => ['minmax(170px,1fr)', '36px']).slice(0, -1), '64px']
-  const rows = ['auto', '34px', ...strip.rows.map(() => '64px'), '34px']
+  const timeline = projectShowTimeline(show)
+  const columns = [
+    '148px',
+    ...show.scenes.flatMap((scene, index) => (
+      index < show.scenes.length - 1
+        ? [
+            `minmax(0, ${Math.max(1, scene.durationMs)}fr)`,
+            `minmax(0, ${Math.max(0.001, scene.transitionOut?.durationMs ?? 0)}fr)`,
+          ]
+        : [`minmax(0, ${Math.max(1, scene.durationMs)}fr)`]
+    )),
+    '64px',
+  ]
+  const rows = ['auto', '28px', '34px', ...strip.rows.map(() => '64px'), '34px']
+  const timelineWidth = Math.max(780, timeline.durationMs / 50)
   return (
     <div
       className="overflow-x-auto border-b border-seam bg-[#060608] p-4 shadow-[inset_0_6px_14px_-8px_rgba(0,0,0,0.9),inset_0_-6px_14px_-10px_rgba(0,0,0,0.9)]"
       onClick={() => onSelect({ kind: 'show' })}
     >
       <div
-        className="grid min-w-[780px] gap-2"
-        style={{ gridTemplateColumns: columns.join(' '), gridTemplateRows: rows.join(' ') }}
+        className="relative grid gap-y-2"
+        style={{
+          width: 148 + timelineWidth + 64,
+          gridTemplateColumns: columns.join(' '),
+          gridTemplateRows: rows.join(' '),
+        }}
       >
         <div className="self-end border-b border-zinc-800 px-1 pb-2 text-[9.5px] uppercase tracking-[0.12em] text-structural">
           zones ↓
@@ -391,8 +486,16 @@ function SceneStrip({
             : [node]
         ))}
         <div
-          className="flex items-center gap-2 border-b border-zinc-900 px-1 text-[9.5px] uppercase tracking-[0.12em] text-structural"
+          className="flex items-center border-b border-zinc-900 px-1 text-[9px] uppercase tracking-[0.12em] text-zinc-600"
           style={{ gridColumn: 1, gridRow: 2 }}
+        >
+          Show time
+        </div>
+        <TimelineRuler show={show} gridColumn={`2 / ${columns.length}`} />
+        <TimelinePlayhead show={show} gridColumn={`2 / ${columns.length}`} rowSpan={strip.rows.length + 3} />
+        <div
+          className="flex items-center gap-2 border-b border-zinc-900 px-1 text-[9.5px] uppercase tracking-[0.12em] text-structural"
+          style={{ gridColumn: 1, gridRow: 3 }}
         >
           <Route size={12} aria-hidden />
           routing
@@ -417,7 +520,7 @@ function SceneStrip({
                     ? 'border-emerald-900/70 bg-emerald-950/20 text-emerald-300 hover:border-emerald-700'
                     : 'border-dashed border-zinc-800 text-zinc-600 hover:border-zinc-600 hover:text-zinc-300',
               ].join(' ')}
-              style={{ gridColumn: 3 + index * 2, gridRow: 2 }}
+              style={{ gridColumn: 3 + index * 2, gridRow: 3 }}
             >
               {routingSwitch ? <Route size={12} aria-hidden /> : <Plus size={12} aria-hidden />}
             </button>
@@ -438,7 +541,7 @@ function SceneStrip({
                   ? 'bg-live/10 text-zinc-100'
                   : 'text-zinc-300 hover:text-zinc-100',
               ].join(' ')}
-              style={{ gridColumn: 1, gridRow: rowIndex + 3 }}
+              style={{ gridColumn: 1, gridRow: rowIndex + 4 }}
             >
               <span
                 aria-hidden
@@ -468,7 +571,7 @@ function SceneStrip({
                   borderLeftColor: row.color ?? '#38bdf8',
                   background: `linear-gradient(color-mix(in srgb, ${row.color ?? '#38bdf8'} 9%, #101013), color-mix(in srgb, ${row.color ?? '#38bdf8'} 6%, #0c0c0e))`,
                   gridColumn: `${cell.columnStart} / span ${cell.columnSpan}`,
-                  gridRow: `${rowIndex + 3} / span ${cell.rowSpan}`,
+                  gridRow: `${rowIndex + 4} / span ${cell.rowSpan}`,
                 } as CSSProperties}
                 onMouseEnter={(event) => {
                   event.currentTarget.style.background = `linear-gradient(color-mix(in srgb, ${row.color ?? '#38bdf8'} 14%, #131316), color-mix(in srgb, ${row.color ?? '#38bdf8'} 10%, #0e0e10))`
@@ -497,7 +600,7 @@ function SceneStrip({
             onAddZone()
           }}
           className="flex items-center justify-center rounded-[5px] border border-dashed border-zinc-800 bg-transparent text-[10px] uppercase tracking-wider text-structural hover:border-zinc-600 hover:text-zinc-200"
-          style={{ gridColumn: 1, gridRow: strip.rows.length + 3 }}
+          style={{ gridColumn: 1, gridRow: strip.rows.length + 4 }}
         >
           + zone
         </button>
@@ -509,13 +612,87 @@ function SceneStrip({
             onAddScene()
           }}
           className="flex items-center justify-center rounded-[5px] border border-dashed border-zinc-800 bg-transparent text-[10px] uppercase tracking-wider text-structural [writing-mode:vertical-rl] hover:border-zinc-600 hover:text-zinc-200"
-          style={{ gridColumn: columns.length, gridRow: `3 / span ${strip.rows.length}` }}
+          style={{ gridColumn: columns.length, gridRow: `4 / span ${strip.rows.length}` }}
         >
           + scene
         </button>
       </div>
     </div>
   )
+}
+
+function TimelineRuler({ show, gridColumn }: { show: ShowRecord; gridColumn: string }) {
+  const durationMs = showLoopDurationMs(show)
+  const positionMs = useShowTransportStore((state) => state.showId === show.id ? state.positionMs : 0)
+  const ticks = Array.from({ length: 7 }, (_, index) => ({
+    position: index / 6,
+    timeMs: durationMs * index / 6,
+  }))
+  return (
+    <div
+      className="relative overflow-hidden border-b border-zinc-800 bg-zinc-950/70"
+      style={{
+        gridColumn,
+        gridRow: 2,
+        backgroundImage: 'repeating-linear-gradient(90deg, rgba(113,113,122,.2) 0 1px, transparent 1px 20px)',
+      }}
+    >
+      {ticks.map((tick) => (
+        <span
+          key={tick.position}
+          aria-hidden
+          className="absolute top-1 text-[8.5px] tabular-nums text-zinc-600"
+          style={{ left: `${tick.position * 100}%`, transform: `translateX(${tick.position === 0 ? 0 : tick.position === 1 ? -100 : -50}%)` }}
+        >
+          {formatRulerTime(tick.timeMs)}
+        </span>
+      ))}
+      <input
+        type="range"
+        aria-label="Show playhead"
+        min={0}
+        max={durationMs}
+        step={1}
+        value={Math.min(positionMs, durationMs)}
+        onChange={(event) => requestShowSeek(show.id, Number(event.target.value))}
+        className="absolute inset-0 h-full w-full cursor-col-resize opacity-[0.01] focus:opacity-100"
+      />
+    </div>
+  )
+}
+
+function TimelinePlayhead({
+  show,
+  gridColumn,
+  rowSpan,
+}: {
+  show: ShowRecord
+  gridColumn: string
+  rowSpan: number
+}) {
+  const durationMs = showLoopDurationMs(show)
+  const positionMs = useShowTransportStore((state) => state.showId === show.id ? state.positionMs : 0)
+  const seekStatus = useShowTransportStore((state) => state.showId === show.id ? state.seekStatus : 'idle')
+  const left = durationMs > 0 ? Math.min(100, Math.max(0, positionMs / durationMs * 100)) : 0
+  return (
+    <div
+      aria-hidden
+      className="pointer-events-none relative z-20"
+      style={{ gridColumn, gridRow: `2 / span ${rowSpan}` }}
+    >
+      <span
+        className={`absolute inset-y-0 w-px ${seekStatus === 'rebuilding' ? 'bg-amber-300' : 'bg-live'}`}
+        style={{ left: `${left}%`, boxShadow: '0 0 8px color-mix(in srgb, var(--color-live) 45%, transparent)' }}
+      >
+        <span className="absolute -left-[4px] top-0 h-0 w-0 border-x-[4px] border-t-[6px] border-x-transparent border-t-current" />
+      </span>
+    </div>
+  )
+}
+
+function formatRulerTime(timeMs: number): string {
+  const seconds = Math.round(timeMs / 1000)
+  return seconds < 60 ? `${seconds}s` : `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`
 }
 
 function SceneColumnHeader({
@@ -530,28 +707,26 @@ function SceneColumnHeader({
   onUpdate: (changes: Partial<Omit<ShowScene, 'id'>>) => void
 }) {
   return (
-    <div className="group flex items-baseline gap-2 border-b border-zinc-800 px-1 pb-2 pt-0.5">
+    <div className="group relative flex min-w-0 flex-col justify-end gap-0.5 overflow-hidden border-b border-zinc-800 px-2 pb-1.5 pt-1">
       <input
         aria-label={`${scene.name} scene name`}
+        title={scene.name}
         data-show-scene-name
         value={scene.name}
         onChange={(event) => onUpdate({ name: event.target.value })}
-        className="min-w-0 flex-1 bg-transparent text-[12.5px] font-semibold text-zinc-100 outline-none group-hover:underline group-hover:decoration-dotted group-hover:underline-offset-4 focus:underline focus:decoration-live focus:underline-offset-4"
+        className="w-full min-w-0 truncate bg-transparent pr-6 text-[12px] font-semibold text-zinc-100 outline-none group-hover:underline group-hover:decoration-dotted group-hover:underline-offset-4 focus:underline focus:decoration-live focus:underline-offset-4"
       />
-      <label className="flex shrink-0 items-baseline gap-1 text-[10.5px] text-structural">
+      <label className="flex w-fit items-baseline gap-0.5 text-[9.5px] text-structural">
         <input
           aria-label={`${scene.name} duration seconds`}
           type="number"
           min={1}
           value={Math.round(scene.durationMs / 1000)}
           onChange={(event) => onUpdate({ durationMs: Number(event.target.value) * 1000 })}
-          className="h-6 w-14 rounded border border-transparent bg-transparent px-1 text-right text-[10.5px] text-structural outline-none hover:border-zinc-700 hover:bg-zinc-900 focus:border-live/70 focus:bg-zinc-900"
+          className="h-4 w-9 rounded border border-transparent bg-transparent px-0.5 text-right text-[9.5px] text-structural outline-none hover:border-zinc-700 hover:bg-zinc-900 focus:border-live/70 focus:bg-zinc-900"
         />
         s
       </label>
-      <span aria-hidden className="text-[10px] text-structural opacity-0 transition-opacity group-hover:opacity-100">
-        ✎
-      </span>
       {canRemove && (
         <button
           type="button"
@@ -561,7 +736,7 @@ function SceneColumnHeader({
             event.stopPropagation()
             onRemove()
           }}
-          className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-zinc-600 opacity-0 transition-opacity hover:bg-red-950/30 hover:text-red-300 group-hover:opacity-100 focus:opacity-100"
+          className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded text-zinc-600 opacity-0 transition-opacity hover:bg-red-950/30 hover:text-red-300 group-hover:opacity-100 focus:opacity-100"
         >
           ×
         </button>
@@ -609,7 +784,7 @@ function TransitionGlyph({
       ].join(' ')}
       style={{
         gridColumn: 3 + afterIndex * 2,
-        gridRow: `3 / span ${rowCount}`,
+        gridRow: `4 / span ${rowCount}`,
       }}
     >
       <span className={`relative z-10 bg-[#060608] px-1 ${transition.cost === 'expensive' ? 'text-amber-300' : 'text-emerald-300'}`}>{glyph}</span>
@@ -1511,7 +1686,11 @@ function CompileBar({
       </span>
       {summary?.routingRepresentation !== 'none' && (
         <span className="text-sky-300">
-          routing: {summary?.routingRepresentation === 'packed-pixels' ? 'packed pixels' : 'range branches'}
+          routing: {summary?.routingRepresentation === 'packed-pixels'
+            ? 'packed pixels'
+            : summary?.routingRepresentation === 'coordinate-predicates'
+              ? 'coordinate predicates'
+              : 'range branches'}
         </span>
       )}
       {summary && summary.clockPolicy !== 'real-time' && (

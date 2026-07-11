@@ -81,6 +81,25 @@ describe('tick sequencing', () => {
     loop.tick(16)
     expect(callOrder[0]).toBe('br')
   })
+
+  it('headless ticks execute every renderer without collecting or painting pixels', () => {
+    const handle = makeMockHandle()
+    const shim = makeMockShim()
+    const paint = vi.fn()
+    const loop = createRenderLoop({
+      handle, shim, clock: makeMockClock(),
+      ...planeCfg(3, 4),
+      getSpeed: () => 1, getBrightness: () => 1, isDimmed: () => false,
+      paint,
+    })
+
+    loop.tickHeadless(16)
+
+    expect(handle.beforeRender).toHaveBeenCalledOnce()
+    expect(handle.render2D).toHaveBeenCalledTimes(12)
+    expect(shim.capturedPixel).toHaveBeenCalledTimes(12)
+    expect(paint).not.toHaveBeenCalled()
+  })
 })
 
 // ── coordinates ───────────────────────────────────────────────────────────────

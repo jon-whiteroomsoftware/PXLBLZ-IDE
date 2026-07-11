@@ -4,7 +4,9 @@ import { parsePxlblzBanner } from './artifactStamp'
 import { compileShowForPreview } from './showPreviewArtifact'
 import { parseEpe } from './epeImport'
 import { buildShowEpeExport } from './showEpeExport'
-import { createPatternPrismShow } from './patternPrismShow'
+import { createAdaptivePatternPrismShow, createPatternPrismShow } from './patternPrismShow'
+import { loadPattern } from './loadPattern'
+import { createShim } from './shim'
 
 describe('Pattern Prism catalog Show (#401)', () => {
   it('defines the exact five-scene Ribbon Loom routing composition', () => {
@@ -95,5 +97,57 @@ describe('Pattern Prism catalog Show (#401)', () => {
     expect(parsed.src.endsWith(compiled.artifact!.code)).toBe(true)
     expect([...jpeg.subarray(0, 3)]).toEqual([0xff, 0xd8, 0xff])
     expect(jpeg.length).toBeGreaterThan(1000)
+  })
+
+  it('compiles an adaptive sibling without a fixed-pixel routing table (#409)', () => {
+    const compiled = compileShowForPreview(createAdaptivePatternPrismShow(), [], undefined, {}, { stageDimension: 2 })
+
+    expect(compiled.error).toBeNull()
+    expect(compiled.artifact?.summary.routingRepresentation).toBe('coordinate-predicates')
+    expect(compiled.artifact?.code).not.toContain('__pxlblz_show_route_pixels')
+    expect(compiled.artifact?.code).not.toContain('if (index < 256)')
+  })
+
+  it('keeps the generated adaptive EPE standalone and importable (#409)', () => {
+    const parsed = parseEpe(readFileSync(resolve('artifacts/electromage/pattern-prism-adaptive.epe'), 'utf8'))
+
+    expect(parsed.name).toBe('Pattern Prism: Adaptive Layouts')
+    expect(parsed.src).toContain('var __pxlblz_show_route_turn = frac(')
+    expect(parsed.src).not.toContain('__pxlblz_show_route_pixels')
+  })
+
+  it.each([256, 1024])('routes the adaptive artifact by Stage coordinate at %s pixels (#409)', (pixelCount) => {
+    const compiled = compileShowForPreview(createAdaptivePatternPrismShow(), [], undefined, {}, { stageDimension: 2 })
+    const shim = createShim({ pixelCount, dimensions: 2, mapPoints: [], getVirtualTime: () => 0 })
+    const handle = loadPattern(compiled.artifact!.code, compiled.artifact!.metadata, shim.builtins)
+
+    for (const delta of [16, 5000, 5000, 5000]) {
+      handle.beforeRender(delta)
+      handle.render2D(0, 0.75, 0.75)
+      const first = shim.capturedPixel()
+      handle.render2D(pixelCount - 1, 0.75, 0.75)
+
+      expect(shim.capturedPixel()).toEqual(first)
+      expect(first.every(Number.isFinite)).toBe(true)
+    }
+  })
+
+  it.each([16, 32])('produces a non-black frame in every adaptive layout at %sx%s (#409)', (size) => {
+    const compiled = compileShowForPreview(createAdaptivePatternPrismShow(), [], undefined, {}, { stageDimension: 2 })
+    const shim = createShim({ pixelCount: size * size, dimensions: 2, mapPoints: [], getVirtualTime: () => 0 })
+    const handle = loadPattern(compiled.artifact!.code, compiled.artifact!.metadata, shim.builtins)
+
+    for (const delta of [16, 5000, 5000, 5000]) {
+      handle.beforeRender(delta)
+      let brightest = 0
+      for (let row = 0; row < size; row += 1) {
+        for (let column = 0; column < size; column += 1) {
+          const index = row * size + column
+          handle.render2D(index, column / (size - 1), row / (size - 1))
+          brightest = Math.max(brightest, ...shim.capturedPixel())
+        }
+      }
+      expect(brightest).toBeGreaterThan(0)
+    }
   })
 })

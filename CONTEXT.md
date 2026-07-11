@@ -144,7 +144,7 @@ A named semantic subset of LED indexes. Controller zones are durable physical se
 _Avoid_: assuming a zone must be contiguous; treating a zone as a hardware port or a second map.
 
 **Show**:
-A saved choreography of scenes across zone rows. A scene cell references a pattern/demo plus adaptations and transitions, then the Show compiler turns the strip into one generated Pixelblaze artifact routed over Controller zones or a selected stage. Shows own timing, placement, zone routing, and clip adaptation so patterns remain reusable textures.
+A saved choreography of scenes across zone rows. Its canonical editor is a proportional timeline: scenes are duration-sized column headers, zones are rows, and transitions occupy the shared time axis between scene states. A scene cell references a pattern/demo plus adaptations; the Show compiler turns the arrangement into one generated Pixelblaze artifact routed over Controller zones or a selected stage. Shows own transport, timing, placement, zone routing, and clip adaptation so patterns remain reusable textures. Preview seeking reconstructs deterministic Pattern state from Show start in the Fast runtime; it does not mutate the saved Show.
 _Avoid_: playlist when describing compiled multi-zone choreography; implying patterns know which zone they are rendering.
 
 **Custom map**:

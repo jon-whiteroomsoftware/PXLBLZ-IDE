@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { ShowStagePreview } from './ShowStagePreview'
 import { createDefaultShow } from '@/engine/showModel'
@@ -10,6 +10,7 @@ import { patternInitialState, usePatternStore } from '@/store/patternStore'
 import { previewInitialState, usePreviewStore } from '@/store/previewStore'
 import { showInitialState, useShowStore } from '@/store/showStore'
 import { controllerProfileInitialState, useControllerProfileStore } from '@/store/controllerProfileStore'
+import { showTransportInitialState, useShowTransportStore } from '@/store/showTransportStore'
 
 function memoryProvider(seedShows: ShowRecord[] = []): PersonalContentProvider {
   const patterns = new Map<string, PatternRecord>()
@@ -63,9 +64,26 @@ beforeEach(() => {
   useMapStore.setState(mapInitialState)
   usePreviewStore.setState({ ...previewInitialState, isRunning: false })
   useControllerProfileStore.setState(controllerProfileInitialState)
+  useShowTransportStore.setState(showTransportInitialState)
 })
 
 describe('ShowStagePreview (#339)', () => {
+  it('rebuilds an accurate Fast frame for the current seek request (#414)', async () => {
+    const show = createDefaultShow('show-1', 'Opening wash', 1000)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowStagePreview showId={show.id} />)
+
+    act(() => {
+      const transport = useShowTransportStore.getState()
+      transport.openShow(show.id, 62_000)
+      transport.requestSeek(show.id, 0)
+    })
+
+    await waitFor(() => expect(useShowTransportStore.getState().seekStatus).toBe('idle'))
+    expect(screen.getByText(/show paused · Fast/i)).toBeInTheDocument()
+  })
+
   it('renders stage options and persists the selected map on the show', async () => {
     const user = userEvent.setup()
     const show = createDefaultShow('show-1', 'Opening wash', 1000)

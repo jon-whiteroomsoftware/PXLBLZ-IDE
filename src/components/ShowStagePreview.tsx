@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AlertTriangle, Eye, EyeOff, Map as MapIcon, Play } from 'lucide-react'
 import { useShowStore } from '@/store/showStore'
 import { usePatternStore } from '@/store/patternStore'
@@ -7,11 +7,13 @@ import { useMapStore, defaultPixelCountForDim, resolveMap, STOCK_MAPS } from '@/
 import { usePreviewStore } from '@/store/previewStore'
 import { useCameraStore } from '@/store/cameraStore'
 import { compileShowForPreview } from '@/engine/showPreviewArtifact'
-import { createShim, createFxShim } from '@/engine/shim'
-import { loadPattern } from '@/engine/loadPattern'
-import { selectRenderCompatibility } from '@/engine/renderCompatibility'
-import { createRenderLoop, type RenderLoop } from '@/engine/renderLoop'
-import { createVirtualClock } from '@/engine/virtualClock'
+import { nativeDimension } from '@/engine/loadPattern'
+import {
+  advanceFastReplayCooperatively,
+  createFastReplayRuntime,
+  type FastReplayResult,
+  type FastReplayRuntime,
+} from '@/engine/fastReplay'
 import { createRenderer } from '@/engine/renderer'
 import { applyNormalizeMode, type MapPoint, type PixelMap } from '@/engine/maps'
 import { advanceAutoOrbit } from '@/engine/camera'
@@ -24,6 +26,8 @@ import {
 } from '@/engine/zonePreview'
 import { OrbitControls } from '@/components/OrbitControls'
 import { LIBRARIES } from '@/pixelblaze/libs'
+import { useShowTransportStore } from '@/store/showTransportStore'
+import { showLoopDurationMs } from '@/engine/showModel'
 
 const field =
   'h-7 rounded border border-zinc-700 bg-zinc-900 px-2 text-xs text-zinc-200 outline-none focus:border-live/70'
@@ -51,10 +55,21 @@ function cube3DCanvasPx(containerWidth: number): number {
   return Math.max(220, Math.floor(containerWidth))
 }
 
+function stableShowSeed(showId: string): number {
+  let hash = 0x811c9dc5
+  for (let index = 0; index < showId.length; index += 1) {
+    hash = Math.imul((hash ^ showId.charCodeAt(index)) >>> 0, 0x01000193)
+  }
+  return hash >>> 0
+}
+
 export function ShowStagePreview({ showId }: { showId: string }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
-  const loopRef = useRef<RenderLoop | null>(null)
+  const replayRef = useRef<FastReplayRuntime | null>(null)
+  const playbackRafRef = useRef<number | null>(null)
+  const playbackLastRef = useRef<number | null>(null)
+  const runtimeGenerationRef = useRef(0)
   const rendererRef = useRef<ReturnType<typeof createRenderer> | null>(null)
   const show = useShowStore((state) => state.shows.find((item) => item.id === showId))
   const updateStageMap = useShowStore((state) => state.updateStageMap)
@@ -65,7 +80,8 @@ export function ShowStagePreview({ showId }: { showId: string }) {
   const brightness = usePreviewStore((state) => state.brightness)
   const lightSize = usePreviewStore((state) => state.lightSize)
   const diffusion = usePreviewStore((state) => state.diffusion)
-  const fidelity = usePreviewStore((state) => state.fidelity)
+  const seekRequest = useShowTransportStore((state) => state.showId === showId ? state.seekRequest : null)
+  const seekStatus = useShowTransportStore((state) => state.showId === showId ? state.seekStatus : 'idle')
   const [viewportWidth, setViewportWidth] = useState(1)
   const [soloZoneId, setSoloZoneId] = useState<string | null>(null)
   const [runtimeError, setRuntimeError] = useState<string | null>(null)
@@ -170,6 +186,18 @@ export function ShowStagePreview({ showId }: { showId: string }) {
   }, [danglingStageMap, selectedStageMap, show, targetProfile?.lastKnownPixelCount, targetProfile?.zones, userMaps])
   const effectiveSoloZoneId =
     layout?.projection.zones.some((zone) => zone.id === soloZoneId) ? soloZoneId : null
+  const durationMs = show ? showLoopDurationMs(show) : 0
+
+  const paintFastFrame = useCallback((result: FastReplayResult) => {
+    const renderer = rendererRef.current
+    if (!renderer || !layout) return
+    if (layout.draw.kind === '3d') renderer.setCamera(useCameraStore.getState().camera)
+    renderer.paint(
+      applyShowStageMask(result.pixels, layout.projection, effectiveSoloZoneId),
+      usePreviewStore.getState().brightness,
+      !usePreviewStore.getState().isRunning,
+    )
+  }, [effectiveSoloZoneId, layout])
 
   useEffect(() => {
     const element = containerRef.current
@@ -184,6 +212,9 @@ export function ShowStagePreview({ showId }: { showId: string }) {
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas || !layout || !compiled.artifact) return
+    runtimeGenerationRef.current += 1
+    if (playbackRafRef.current !== null) cancelAnimationFrame(playbackRafRef.current)
+    playbackRafRef.current = null
     setRuntimeError(null)
 
     const renderer = createRenderer(canvas, { containerWidth: viewportWidth, lightSize })
@@ -197,75 +228,121 @@ export function ShowStagePreview({ showId }: { showId: string }) {
     }
     renderer.setDiffusion(diffusion)
 
-    const clock = createVirtualClock()
-    const mapDimension: 1 | 2 | 3 = layout.kind === 'strips' ? 1 : layout.draw.kind === '3d' ? 3 : 2
-    const renderCompatibility = selectRenderCompatibility(mapDimension, compiled.artifact.metadata.renderFns)
-    const shimConfig = {
-      mapPoints: layout.mapPoints,
-      pixelCount: layout.mapPoints.length,
-      dimensions: mapDimension,
-      getVirtualTime: () => clock.getTime(),
-    }
-    const shim = fidelity === 'fast' ? createShim(shimConfig) : createFxShim(shimConfig)
-
-    let handle: ReturnType<typeof loadPattern>
     try {
-      handle = loadPattern(
-        fidelity === 'fast' ? compiled.artifact.code : compiled.artifact.fxCode,
-        compiled.artifact.metadata,
-        shim.builtins,
-      )
+      const transport = useShowTransportStore.getState()
+      transport.openShow(showId, durationMs)
+      const runtime = createFastReplayRuntime({
+        code: compiled.artifact.code,
+        metadata: compiled.artifact.metadata,
+        dimension: nativeDimension(compiled.artifact.metadata.renderFns),
+      }, {
+        mapPoints: layout.mapPoints,
+        randomSeed: stableShowSeed(showId),
+      })
+      let result = runtime.renderCurrentFrame()
+      const positionMs = useShowTransportStore.getState().positionMs
+      if (positionMs > 0) result = runtime.advanceTo(positionMs, { stepMs: 1000 / 60 })
+      replayRef.current = runtime
+      paintFastFrame(result)
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Show preview failed'
       queueMicrotask(() => setRuntimeError(message))
-      return
     }
 
-    const paint = (pixels: [number, number, number][], currentBrightness: number, dimmed: boolean) => {
-      if (layout.draw.kind === '3d') renderer.setCamera(useCameraStore.getState().camera)
-      renderer.paint(
-        applyShowStageMask(pixels, layout.projection, effectiveSoloZoneId),
-        currentBrightness,
-        dimmed,
-      )
+    return () => {
+      runtimeGenerationRef.current += 1
+      if (playbackRafRef.current !== null) cancelAnimationFrame(playbackRafRef.current)
+      playbackRafRef.current = null
+      replayRef.current = null
     }
-
-    const loop = createRenderLoop({
-      handle,
-      shim,
-      clock,
-      mapPoints: layout.mapPoints,
-      pixelCount: layout.mapPoints.length,
-      renderCompatibility,
-      getSpeed: () => usePreviewStore.getState().speed,
-      getBrightness: () => usePreviewStore.getState().brightness,
-      isDimmed: () => !usePreviewStore.getState().isRunning,
-      paint,
-      onError: (error) => setRuntimeError(error.message),
-    })
-    loopRef.current = loop
-    loop.renderPreviewFrame()
-    if (usePreviewStore.getState().isRunning) loop.start()
-    return () => loop.stop()
-  }, [compiled.artifact, diffusion, effectiveSoloZoneId, fidelity, layout, lightSize, viewportWidth])
+  }, [compiled.artifact, diffusion, durationMs, layout, lightSize, paintFastFrame, showId, viewportWidth])
 
   useEffect(() => {
     const renderer = rendererRef.current
     if (!renderer) return
     renderer.setDiffusion(diffusion)
-    if (!usePreviewStore.getState().isRunning) loopRef.current?.renderPreviewFrame()
   }, [diffusion])
 
   useEffect(() => {
-    if (!usePreviewStore.getState().isRunning) loopRef.current?.renderPreviewFrame()
-  }, [brightness])
+    const runtime = replayRef.current
+    if (!runtime || usePreviewStore.getState().isRunning) return
+    paintFastFrame(runtime.advanceTo(runtime.getElapsedMs(), { stepMs: 1000 / 60 }))
+  }, [brightness, paintFastFrame])
 
   useEffect(() => {
-    const loop = loopRef.current
-    if (!loop) return
-    if (isRunning) loop.start()
-    else loop.stop()
-  }, [isRunning])
+    if (!isRunning || !replayRef.current) return
+    playbackLastRef.current = performance.now()
+    const tick = (now: number) => {
+      const runtime = replayRef.current
+      if (!runtime || !usePreviewStore.getState().isRunning) return
+      const last = playbackLastRef.current ?? now
+      playbackLastRef.current = now
+      try {
+        const deltaMs = Math.max(0, now - last) * usePreviewStore.getState().speed
+        const result = runtime.advanceTo(runtime.getElapsedMs() + deltaMs, { stepMs: 1000 / 60 })
+        paintFastFrame(result)
+        const positionMs = durationMs > 0 ? result.elapsedMs % durationMs : 0
+        useShowTransportStore.getState().setPosition(showId, positionMs)
+        playbackRafRef.current = requestAnimationFrame(tick)
+      } catch (error) {
+        setRuntimeError(error instanceof Error ? error.message : 'Show preview failed')
+        playbackRafRef.current = null
+      }
+    }
+    playbackRafRef.current = requestAnimationFrame(tick)
+    return () => {
+      if (playbackRafRef.current !== null) cancelAnimationFrame(playbackRafRef.current)
+      playbackRafRef.current = null
+    }
+  }, [durationMs, isRunning, paintFastFrame, showId])
+
+  useEffect(() => {
+    if (!seekRequest || !layout || !compiled.artifact) return
+    if (playbackRafRef.current !== null) cancelAnimationFrame(playbackRafRef.current)
+    playbackRafRef.current = null
+    const generation = ++runtimeGenerationRef.current
+    let disposed = false
+    const isCurrent = () => (
+      !disposed
+      && runtimeGenerationRef.current === generation
+      && useShowTransportStore.getState().seekRequest?.id === seekRequest.id
+    )
+
+    const rebuild = async () => {
+      try {
+        const runtime = createFastReplayRuntime({
+          code: compiled.artifact!.code,
+          metadata: compiled.artifact!.metadata,
+          dimension: nativeDimension(compiled.artifact!.metadata.renderFns),
+        }, {
+          mapPoints: layout.mapPoints,
+          randomSeed: stableShowSeed(showId),
+        })
+        let result: FastReplayResult | null = runtime.renderCurrentFrame()
+        if (seekRequest.targetMs > 0) {
+          result = await advanceFastReplayCooperatively(runtime, seekRequest.targetMs, {
+            stepMs: 1000 / 60,
+            chunkMs: 250,
+            isCurrent,
+          })
+        }
+        if (!result || !isCurrent()) return
+        replayRef.current = runtime
+        paintFastFrame(result)
+        useShowTransportStore.getState().completeSeek(seekRequest.id, seekRequest.targetMs)
+      } catch (error) {
+        if (isCurrent()) {
+          setRuntimeError(error instanceof Error ? error.message : 'Show seek failed')
+          useShowTransportStore.getState().cancelSeek(seekRequest.id)
+        }
+      }
+    }
+    void rebuild()
+    return () => {
+      disposed = true
+      runtimeGenerationRef.current += 1
+    }
+  }, [compiled.artifact, layout, paintFastFrame, seekRequest, showId])
 
   useEffect(() => {
     if (!layout || layout.draw.kind !== '3d') return
@@ -273,9 +350,12 @@ export function ShowStagePreview({ showId }: { showId: string }) {
       const renderer = rendererRef.current
       if (!renderer) return
       renderer.setCamera(state.camera)
-      if (!usePreviewStore.getState().isRunning) loopRef.current?.renderPreviewFrame()
+      const runtime = replayRef.current
+      if (!usePreviewStore.getState().isRunning && runtime) {
+        paintFastFrame(runtime.advanceTo(runtime.getElapsedMs(), { stepMs: 1000 / 60 }))
+      }
     })
-  }, [layout])
+  }, [layout, paintFastFrame])
 
   useEffect(() => {
     if (!layout || layout.draw.kind !== '3d') return
@@ -320,7 +400,11 @@ export function ShowStagePreview({ showId }: { showId: string }) {
       <div className="min-h-0 flex-1 overflow-auto border-t border-zinc-900 px-3 py-3">
         <div className="mb-3 flex items-center gap-2 text-zinc-500">
           <Play size={13} aria-hidden className={isRunning ? 'text-green-400' : 'text-red-400'} />
-          <span>{isRunning ? 'previewing show' : 'show paused'}</span>
+          <span>
+            {seekStatus === 'rebuilding'
+              ? 'rebuilding accurate Show preview · Fast'
+              : isRunning ? 'previewing Show · Fast' : 'show paused · Fast'}
+          </span>
           <span className="ml-auto">{layout?.mapPoints.length ?? 0} px</span>
         </div>
         <label className="block text-[10px] uppercase tracking-wider text-zinc-600">

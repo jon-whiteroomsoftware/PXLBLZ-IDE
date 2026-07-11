@@ -16,6 +16,10 @@ export interface ShimConfig {
   pixelCount: number
   dimensions: 1 | 2 | 3
   getVirtualTime: () => number
+  /** Optional deterministic seed for Pixelblaze `random()`. Normal preview
+   * runtimes still begin from a fresh random seed; replay runtimes pass the
+   * original seed so rebuilding from time zero follows the same sequence. */
+  randomSeed?: number
 }
 
 export interface ShimContext {
@@ -51,7 +55,18 @@ export function createShim(config: ShimConfig): ShimContext {
   let captR = 0, captG = 0, captB = 0
   let palette: number[] = []
   let perlinWrapX = 256, perlinWrapY = 256, perlinWrapZ = 256
+  let randomState = config.randomSeed === undefined
+    ? Math.floor(Math.random() * 4294967296) >>> 0
+    : config.randomSeed >>> 0
   let prngState = 0
+
+  function nextRandom01(): number {
+    randomState = (randomState + 0x6D2B79F5) >>> 0
+    let z = randomState
+    z = Math.imul(z ^ (z >>> 15), z | 1)
+    z ^= z + Math.imul(z ^ (z >>> 7), z | 61)
+    return ((z ^ (z >>> 14)) >>> 0) / 4294967296
+  }
 
   // ── Coordinate transform stack ────────────────────────────────────────────
   // A 4x4 homogeneous matrix (row-major). Each transform call pre-multiplies a
@@ -143,7 +158,7 @@ export function createShim(config: ShimConfig): ShimContext {
     mod: (x: number, y: number) => x - Math.floor(x / y) * y,
     min: Math.min,
     max: Math.max,
-    random: (maxVal: number = 1) => Math.random() * maxVal,
+    random: (maxVal: number = 1) => nextRandom01() * maxVal,
     prngSeed(seed: number) { const old = prngState; prngState = seed >>> 0; return old },
     prng(maxVal: number = 1) {
       // mulberry32

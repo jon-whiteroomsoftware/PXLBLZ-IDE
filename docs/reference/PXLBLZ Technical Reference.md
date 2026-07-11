@@ -156,6 +156,7 @@ render in the same header on every route and in every auth state.
 | `routerStore` | the current `Route`, `navigate` (pushState/replaceState) and `syncFromLocation`; the only module that touches `history`/`location`. |
 | `mixinStore` | cloud `MixinRecord` list + CRUD through the personal content provider, the mixin-mode editing target, stock-mixin open state. |
 | `showStore` | cloud `ShowRecord` list + CRUD through the personal content provider, `activeShowId`, and scene/cell edit operations over the pure show model. |
+| `showTransportStore` | transient active-Show transport: loop duration, playhead position, monotonic seek request identity, and `idle`/`rebuilding` state. Newer seek ids supersede stale completions; no transport state is persisted. |
 | `controllerProfileStore` | durable Controller profiles: list/CRUD via `/api/controllers`, `ensureProfileForLiveController` (auto-create + refresh, with pending/suppressed device-id guards), live-metadata refresh for the profile page. |
 | `workspaceStore` | `personalWorkspaceAuthenticated` / `personalWorkspaceResolved` — the auth-state seam the Studio gate and rail read. |
 
@@ -871,8 +872,9 @@ Shows are persisted as `ShowRecord`s in `personal_shows` (migration 0007):
 `updated_at`. `showStore` owns the active Show and writes every
 scene/cell/zone/stage edit immediately through `/api/shows`. The
 pure model helpers in `showModel.ts` create the default two-scene/one-zone
-strip, seed a Show from a Controller profile's zone map, project the arrangement
-into scene columns + zone rows, append scenes by copying the prior scene's
+arrangement, seed a Show from a Controller profile's zone map, project it both
+into logical scene/zone rows and onto one millisecond timeline (`projectShowTimeline`),
+append scenes by copying the prior scene's
 covering cells per zone, remove scenes while clipping or re-anchoring spanning
 cells so every remaining zone row stays hole-free, edit show-local zone names
 and nominal pixel counts, extend cells across scene boundaries as hold shapes,
@@ -900,10 +902,14 @@ referenced layout removes its markers; the final layout cannot be removed.
 Adding a Show zone appends a sequential range to every layout, while removing a
 zone removes its layout entries.
 
-`ShowEditor` renders the scene strip as a recessed composition surface: scene
-headers are inline-editable labels, zone headers carry the zone color, cells are
-zone-tinted clips, transitions are seam buttons between scenes, and holding cells
-physically span across transition columns. UI-local selection drives one
+`ShowEditor` renders the arrangement as a proportional recessed timeline: scene
+headers are inline-editable labels sized by duration, transition windows consume
+their real time, a ruler and persistent playhead share the same axis, zone headers
+carry the zone color, cells are zone-tinted clips, and holding cells physically
+span across transition columns. The header transport reads the shared preview
+play/pause state, supports Space outside form controls, and publishes seek requests
+through `showTransportStore`; ruler interaction moves the playhead optimistically
+while the Stage rebuilds. UI-local selection drives one
 contextual inspector. The default show selection edits target Controller and
 stage-map setup; cell selection edits source pattern/adaptations/scene span/zone
 span; transition selection edits the selected scene boundary; zone selection
@@ -954,8 +960,17 @@ estimated memory/bytecode reporting. The repeatable runner and complete emulator
 [`issue-400-routing-representation-results.md`](../plans/archive/issue-400-routing-representation-results.md).
 
 `ShowStagePreview` is the right-pane Show context surface. It compiles the active
-Show through the same `compileShowForPreview` helper used by the editor and runs
-the generated artifact through the normal dimension-compatible preview render loop.
+Show through the same `compileShowForPreview` helper used by the editor and always
+runs its generated float artifact through the Fast runtime. Continuous playback
+publishes loop-relative time to `showTransportStore`. A seek creates a fresh
+deterministically seeded runtime, renders time zero, and replays from Show start at
+60 fixed steps per second. Intermediate 250 ms simulation chunks yield to the UI;
+each yield checks the current monotonic request id, so a newer seek discards stale
+work and only the requested target frame paints. The rebuilt runtime replaces the
+old live runtime, which makes resumed playback continue from the sought state.
+This direct path uses the full Stage map/pixel count; it has no checkpoint cache,
+downsampling, representative-pixel mode, or worker. Below 980 CSS pixels the Show
+Stage and its splitter collapse while the timeline retains local horizontal scroll.
 For the default strips stage, `zonePreview.ts` builds synthetic sequential
 Controller zones and a 2D strips layout so multi-range physical zones flatten into
 diagnostic rows. For a map stage, the same module builds a spatial zone
@@ -1059,9 +1074,11 @@ instance, so stop, dwell, and resume preserve state without implicit restart.
 `ShowCompileSummary.clockPolicy` distinguishes `real-time`, `scaled`,
 `scaled-ramp`, `exact-pause`, and `exact-pause-ramp` while render policy and
 `worstInstantRenderersPerPixel` continue to report the unchanged renderer cost.
-`ShowStagePreview` loads this same generated artifact (float or fixed-point)
-that hardware receives, rather than approximating pause in React or the stage
-renderer.
+`ShowStagePreview` loads the same generated float artifact intended for hardware
+and runs it through the Fast replay/runtime path, rather than approximating pause
+in React or the stage renderer. The global Precise preview preference continues
+to apply to ordinary Pattern previews; Shows deliberately use Fast for transport
+and deterministic seek reconstruction.
 
 Stepped clock (#379) is an optional clip adaptation stored as
 `steppedClock.stepMs`, normalized to `16..60000` ms. Its cadence clock advances
@@ -1140,7 +1157,7 @@ through `updatePatternSettings` (a sparse merge that does not bump
 optional controller-import provenance (§8).
 `MixinRecord` carries `name`, pass `kind`, Pixelblaze-dialect `src`, and
 `updatedAt`; `/api/mixins` persists it in `personal_mixins` (migration 0006).
-`ShowRecord` carries scene-strip data and is D1-backed through `/api/shows`.
+`ShowRecord` carries scene/zone arrangement data and is D1-backed through `/api/shows`.
 New personal pattern/map/mixin/show records use UUID ids.
 
 Selection is tri-state (pattern / library / demo). **Create** writes a runnable

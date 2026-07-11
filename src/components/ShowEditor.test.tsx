@@ -12,6 +12,8 @@ import {
 } from '@/engine/showModel'
 import { usePatternStore, patternInitialState } from '@/store/patternStore'
 import { controllerProfileInitialState, useControllerProfileStore } from '@/store/controllerProfileStore'
+import { previewInitialState, usePreviewStore } from '@/store/previewStore'
+import { showTransportInitialState, useShowTransportStore } from '@/store/showTransportStore'
 import {
   resetPersonalContentProvider,
   setPersonalContentProvider,
@@ -60,9 +62,39 @@ beforeEach(() => {
   useShowStore.setState(showInitialState)
   usePatternStore.setState(patternInitialState)
   useControllerProfileStore.setState(controllerProfileInitialState)
+  usePreviewStore.setState(previewInitialState)
+  useShowTransportStore.setState(showTransportInitialState)
 })
 
 describe('ShowEditor (#318)', () => {
+  it('drives proportional Show transport and requests an accurate seek (#414)', async () => {
+    const user = userEvent.setup()
+    const show = createDefaultShow('show-1', 'Opening wash', 1000)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+
+    expect(screen.getByRole('region', { name: 'Show timeline' })).toBeInTheDocument()
+    expect(screen.getByRole('slider', { name: 'Show playhead' })).toHaveAttribute('max', '62000')
+    expect(screen.getByText('00:00.000 / 01:02.000')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Pause Show preview' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Pause Show preview' }))
+    expect(usePreviewStore.getState().isRunning).toBe(false)
+    expect(screen.getByRole('button', { name: 'Play Show preview' })).toBeInTheDocument()
+
+    fireEvent.change(screen.getByRole('slider', { name: 'Show playhead' }), { target: { value: '31000' } })
+
+    await waitFor(() => {
+      expect(useShowTransportStore.getState().seekRequest).toMatchObject({ targetMs: 31_000 })
+    })
+    expect(useShowTransportStore.getState().seekStatus).toBe('rebuilding')
+    expect(screen.getByText('00:31.000 / 01:02.000')).toBeInTheDocument()
+
+    fireEvent.keyDown(document, { code: 'Space' })
+    expect(usePreviewStore.getState().isRunning).toBe(true)
+  })
+
   it('authors named routing layouts and scene-boundary switch markers (#398)', async () => {
     const user = userEvent.setup()
     const show = addShowZone(createDefaultShow('show-1', 'Routing Show', 1000), {
@@ -98,7 +130,7 @@ describe('ShowEditor (#318)', () => {
 
     expect(screen.queryByText('Opening wash')).not.toBeInTheDocument()
     expect(screen.queryByText(/show - 1 scenes/i)).not.toBeInTheDocument()
-    expect(screen.getByText(/1m 2s loop/i)).toBeInTheDocument()
+    expect(screen.getByText('00:00.000 / 01:02.000')).toBeInTheDocument()
     expect(screen.getByDisplayValue('Scene 1')).toBeInTheDocument()
     expect(screen.getAllByText('main').length).toBeGreaterThan(0)
     expect(screen.getByText(/compiled artifact/i)).toBeInTheDocument()

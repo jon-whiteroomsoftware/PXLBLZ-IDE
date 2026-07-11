@@ -19,6 +19,8 @@ function loadShow(code: string, metadata: ReturnType<typeof compileShow>['metada
       pixel = [h, s, v]
     },
     abs: Math.abs,
+    atan2: Math.atan2,
+    ceil: Math.ceil,
     clamp(v: number, lo: number, hi: number) {
       return Math.min(Math.max(v, lo), hi)
     },
@@ -29,6 +31,7 @@ function loadShow(code: string, metadata: ReturnType<typeof compileShow>['metada
     max: Math.max,
     min: Math.min,
     hypot: Math.hypot,
+    sqrt: Math.sqrt,
     triangle(v: number) {
       const x = v - Math.floor(v)
       return x < 0.5 ? x * 2 : 2 - x * 2
@@ -149,6 +152,46 @@ export function render2D(index, x, y) { rgb(x, y, ticks / 10) }
     expect(pixel()).toEqual([0, 0, 0.2])
     handle.render2D(7, 1, 1)
     expect(pixel()).toEqual([1, 1, 0.2])
+  })
+
+  it.each([
+    { size: 16, index: 15 * 16 + 15 },
+    { size: 32, index: 31 * 32 + 31 },
+  ])('routes one coordinate-defined Show artifact at $size x $size (#409)', ({ size, index }) => {
+    const zones = ['nw', 'ne', 'sw', 'se']
+    const artifact = compileShow({
+      clips: zones.map((zone, zoneIndex) => ({
+        id: zone,
+        zone,
+        source: `export function render2D(index, x, y) { rgb(${zoneIndex}, x, y) }`,
+      })),
+      zones: zones.map((name, zoneIndex) => ({
+        id: name,
+        name,
+        ranges: [{ start: zoneIndex * 64, end: zoneIndex * 64 + 63 }],
+      })),
+      routingLayouts: [{
+        id: 'quadrants',
+        name: 'Quadrants',
+        zones: zones.map((name, zoneIndex) => ({
+          id: name,
+          name,
+          ranges: [{ start: zoneIndex * 64, end: zoneIndex * 64 + 63 }],
+        })),
+        logical: { kind: 'grid', zoneNames: zones, columns: 2, rows: 2 },
+      }],
+      routingSwitches: [],
+      loopDurationMs: 1000,
+    }, {})
+
+    expect(artifact.summary.routingRepresentation).toBe('coordinate-predicates')
+    expect(artifact.code).not.toContain('__pxlblz_show_route_pixels')
+    expect(artifact.code).not.toContain('if (index < 256)')
+
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, size * size)
+    handle.beforeRender(16)
+    handle.render2D(index, 1, 1)
+    expect(pixel()).toEqual([3, 1, 1])
   })
 
   it('mirrors routed 2D member coordinates with the existing mirror adaptation (#401)', () => {

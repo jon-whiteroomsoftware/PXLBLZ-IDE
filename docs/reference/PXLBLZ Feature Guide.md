@@ -111,9 +111,9 @@ The app has real URLs now — every page is shareable and bookmarkable.
   Maps, Mixins, Controllers, Shows** — plus **Catalog** (back to the Gallery)
   at the bottom, with the selected kind's list beside it. Patterns and Maps
   include the dimension filter and name search; Controllers opens durable
-  hardware profile pages (§10). Shows opens the scene-strip composition editor.
+  hardware profile pages (§10). Shows opens the proportional timeline editor.
 - **Editor pane** (centre) — Monaco, in pattern, map, or mixin mode (§9), or
-  the Show scene strip (§5).
+  the Show timeline (§5).
 - **Context pane** (right) — Patterns show the animated preview canvas, transport
   row, and **control deck** (§8). Maps show a static wire-order geometry check
   with map facts and usage. Mixins show provenance.
@@ -264,9 +264,12 @@ a mixin is used and the last transform summary when that data exists, with empty
 states until bindings or generated artifacts have been recorded.
 
 **Shows** compose existing patterns into one generated Pixelblaze pattern. A Show
-opens as a scene strip: scenes are columns, zones are rows, and each cell holds a
-source pattern plus non-destructive adaptations such as mirror, phase, brightness,
-and time scale. Time scale ranges from 0× through 4×: **0× is an exact pause**
+opens as a proportional timeline: scenes are column headers sized by duration,
+transitions occupy their real time between scenes, zones are rows, and each cell
+holds a source pattern plus non-destructive adaptations such as mirror, phase,
+brightness, and time scale. A ruler and persistent playhead keep every scene,
+transition, routing marker, and zone clip on one shared time axis. Time scale
+ranges from 0× through 4×: **0× is an exact pause**
 for that clip's private clock and the `delta` delivered to its Pattern, while the
 generated outer renderer continues to draw the paused state. Adjacent cells that
 reuse the same Pattern can ramp continuously down to that pause, dwell there,
@@ -292,12 +295,23 @@ and skip that Pattern's renderer. **Continue** lets the Pattern advance behind
 the darkness; **freeze** advances its private clock only for the open portion of
 each frame interval. This is a generated evaluation mask, not a brightness
 scalar: the outer Pixelblaze render loop and LED transport still run.
-The strip is a recessed composition surface: scene headers are
+The timeline is a recessed composition surface: scene headers are
 inline-editable labels, zone rows carry their zone color, pattern cells render as
 zone-tinted clips, and transitions are clickable seams between scene columns.
 
-The contextual inspector below the strip follows the current selection. Clicking
-the strip background shows show-level setup (target Controller, stage map, loop
+The transport above the timeline goes to Show start and toggles play/pause;
+**Space** toggles the same state while focus is outside an editor control. Clicking
+or dragging the ruler pauses playback and moves the playhead. The Stage rebuilds
+the requested frame from Show start with deterministic, fixed-step **Fast** replay,
+shows a brief rebuilding state when needed, and discards stale work when another
+seek arrives. Playback resumes from the rebuilt Pattern state rather than jumping
+back to the old preview position. This guarantee covers deterministic Pattern
+state; live sensor, network, and wall-clock inputs are inherently external. At
+narrow window widths the Stage pane collapses so the timeline remains usable;
+the timeline keeps its own intentional horizontal scrollbar.
+
+The contextual inspector below the timeline follows the current selection. Clicking
+the timeline background shows show-level setup (target Controller, stage map, loop
 and zone summary, plus Add zone). Clicking a cell edits its source pattern,
 adaptations, hold span, and zone span. Clicking a transition edits that specific
 scene boundary, not just the first one. Clicking a zone edits the show-local row
@@ -632,7 +646,7 @@ The other three entity lists:
 - **Controllers** — your durable hardware profiles, each marked LIVE or IDLE
   depending on whether its physical device is currently connected. See §6 and
   §11.
-- **Shows** — your cloud shows. Each row opens a scene-strip editor with scene
+- **Shows** — your cloud shows. Each row opens a proportional timeline editor with scene
   columns, zone rows, a cell inspector, compile/budget bar, generated-source
   view, and Controller push action.
 

@@ -15,6 +15,12 @@ function makeShim(getVirtualTime: () => number = () => 0) {
   return createShim({ ...planeConfig(8, 8), getVirtualTime })
 }
 
+function randomSequence(randomSeed: number): number[] {
+  const { builtins } = createShim({ ...planeConfig(8, 8), getVirtualTime: () => 0, randomSeed })
+  const random = builtins.random as (max?: number) => number
+  return [random(), random(), random(10)]
+}
+
 // ── hsv ─────────────────────────────────────────────────────────────────────
 
 describe('hsv', () => {
@@ -474,6 +480,13 @@ describe('prng / prngSeed', () => {
       expect(v).toBeGreaterThanOrEqual(0)
       expect(v).toBeLessThan(5)
     }
+  })
+})
+
+describe('random replay seed', () => {
+  it('replays the same random sequence from the same runtime seed', () => {
+    expect(randomSequence(412)).toEqual(randomSequence(412))
+    expect(randomSequence(412)).not.toEqual(randomSequence(413))
   })
 })
 

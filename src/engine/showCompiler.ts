@@ -89,7 +89,14 @@ export interface ShowRoutingLayoutRecipe {
   id: string
   name: string
   zones: ControllerZone[]
+  logical?: ShowLogicalRoutingRecipe
 }
+
+export type ShowLogicalRoutingRecipe =
+  | { kind: 'single'; zoneNames: [string] }
+  | { kind: 'grid'; zoneNames: string[]; columns: number; rows: number }
+  | { kind: 'stripes'; zoneNames: string[]; axis: 'x' | 'y' }
+  | { kind: 'pinwheel'; zoneNames: string[]; twist: number }
 
 export interface ShowRoutingSwitchRecipe {
   atMs: number
@@ -153,7 +160,7 @@ export interface ShowCompileSummary {
   temporalPolicy: 'continuous' | 'stepped-clock' | 'mixed'
   timeOffsetPolicy: 'none' | 'per-clip'
   worstInstantRenderersPerPixel: 1 | 2
-  routingRepresentation: 'none' | 'range-branches' | 'packed-pixels'
+  routingRepresentation: 'none' | 'range-branches' | 'packed-pixels' | 'coordinate-predicates'
   clips: ShowCompileClipSummary[]
   warnings: string[]
 }
@@ -210,6 +217,7 @@ interface ResolvedRoutingLayout {
   id: string
   name: string
   routes: ResolvedRoute[]
+  logical?: ShowLogicalRoutingRecipe
   warnings: string[]
 }
 
@@ -243,7 +251,9 @@ export function compileShow(
     )),
   )
   const sequenceOutputDimension: 1 | 2 = sequenceHasPortal || members.some((member) => member.hasRender2D) ? 2 : 1
-  const routedOutputDimension: 1 | 2 = (routeMode || routingLayouts) && members.some((member) => member.hasRender2D)
+  const routedOutputDimension: 1 | 2 = routingLayouts?.some((layout) => layout.logical)
+    ? 2
+    : (routeMode || routingLayouts) && members.some((member) => member.hasRender2D)
     ? 2
     : 1
   const routingRepresentation: ShowCompileSummary['routingRepresentation'] = routingLayouts
@@ -260,7 +270,11 @@ export function compileShow(
         expandedRecipe.routingSwitches ?? [],
         expandedRecipe.loopDurationMs ?? 0,
         routedOutputDimension,
-        routingRepresentation === 'packed-pixels' ? 'packed-pixels' : 'range-branches',
+        routingRepresentation === 'packed-pixels'
+          ? 'packed-pixels'
+          : routingRepresentation === 'coordinate-predicates'
+            ? 'coordinate-predicates'
+            : 'range-branches',
       )
     : routeMode
       ? emitRouteShowCode(members, route.routes, routedOutputDimension)
@@ -925,6 +939,7 @@ function buildRoutingLayoutPlans(
       id: layout.id,
       name: layout.name,
       routes: plan?.routes ?? [],
+      logical: layout.logical,
       warnings: [...(plan?.warnings ?? []), ...routingLayoutOverlapWarnings(layout.name, plan?.routes ?? [])],
     }
   })
@@ -973,7 +988,7 @@ function emitRoutingLayoutShowCode(
   switches: ShowRoutingSwitchRecipe[],
   loopDurationMs: number,
   outputDimension: 1 | 2,
-  representation: 'range-branches' | 'packed-pixels',
+  representation: 'range-branches' | 'packed-pixels' | 'coordinate-predicates',
 ): string {
   const layoutIndex = new Map(layouts.map((layout, index) => [layout.id, index]))
   const orderedSwitches = [...switches].sort((a, b) => a.atMs - b.atMs)
@@ -982,8 +997,17 @@ function emitRoutingLayoutShowCode(
   ))
   const countBlocks = layouts.map((layout, index) => {
     const counts = members.map((member) => {
+      const logicalZoneCount = layout.logical?.zoneNames.length ?? 0
       const route = layout.routes.find((candidate) => candidate.member === member)
-      return `    ${member.pixelCountName} = ${route?.pixelCount ?? 0}`
+      const participates = layout.routes.some((candidate) => (
+        candidate.member === member && layout.logical?.zoneNames.includes(candidate.zone.name)
+      ))
+      const count = layout.logical
+        ? participates
+          ? logicalZoneCount === 1 ? 'pixelCount' : `max(1, floor(pixelCount / ${logicalZoneCount}))`
+          : '0'
+        : `${route?.pixelCount ?? 0}`
+      return `    ${member.pixelCountName} = ${count}`
     })
     return `${index === 0 ? '  if' : '  else if'} (__pxlblz_show_route_layout == ${index}) {
 ${counts.join('\n')}
@@ -994,7 +1018,9 @@ ${counts.join('\n')}
     ? emitPackedRoutingRender(layouts, outputDimension)
     : layouts.map((layout, index) => (
       `${index === 0 ? '  if' : '  else if'} (__pxlblz_show_route_layout == ${index}) {
-${emitRouteRenderBody(layout.routes, '    ', outputDimension)}
+${representation === 'coordinate-predicates'
+    ? emitLogicalRoutingRender(layout, '    ', outputDimension)
+    : emitRouteRenderBody(layout.routes, '    ', outputDimension)}
   }`
     )).join('\n')
   const packedPrelude = representation === 'packed-pixels'
@@ -1020,7 +1046,10 @@ ${renderBody}
   ].join('\n\n')
 }
 
-function selectRoutingRepresentation(layouts: ResolvedRoutingLayout[]): 'range-branches' | 'packed-pixels' {
+function selectRoutingRepresentation(
+  layouts: ResolvedRoutingLayout[],
+): 'range-branches' | 'packed-pixels' | 'coordinate-predicates' {
+  if (layouts.every((layout) => layout.logical)) return 'coordinate-predicates'
   const pixelCount = routingPixelCount(layouts)
   const arrayElements = pixelCount * layouts.length
   const runCount = layouts.reduce((sum, layout) => (
@@ -1029,6 +1058,62 @@ function selectRoutingRepresentation(layouts: ResolvedRoutingLayout[]): 'range-b
   return pixelCount > 0 && arrayElements <= 2048 && runCount >= 64
     ? 'packed-pixels'
     : 'range-branches'
+}
+
+function emitLogicalRoutingRender(
+  layout: ResolvedRoutingLayout,
+  indent: string,
+  outputDimension: 1 | 2,
+): string {
+  const logical = layout.logical
+  if (!logical) return emitRouteRenderBody(layout.routes, indent, outputDimension)
+  const setup = emitLogicalRoutingSetup(logical)
+  const routeBlocks = logical.zoneNames.map((zoneName, zoneIndex) => {
+    const route = layout.routes.find((candidate) => candidate.zone.name === zoneName)
+    if (!route) return ''
+    const render = outputDimension === 2
+      ? `${route.member.prefix}_renderCapture2D(__pxlblz_show_route_local_index, __pxlblz_show_route_local_x, __pxlblz_show_route_local_y)`
+      : `${route.member.prefix}_renderCapture(__pxlblz_show_route_local_index)`
+    return `${zoneIndex === 0 ? 'if' : 'else if'} (__pxlblz_show_route_id == ${zoneIndex}) {
+  var __pxlblz_show_route_side = ceil(sqrt(${route.member.pixelCountName}))
+  var __pxlblz_show_route_local_index = min(${route.member.pixelCountName} - 1, floor(__pxlblz_show_route_local_y * __pxlblz_show_route_side) * __pxlblz_show_route_side + floor(__pxlblz_show_route_local_x * __pxlblz_show_route_side))
+  ${render}
+  ${route.member.prefix}_emit()
+  return
+}`
+  }).filter(Boolean).join('\n')
+  return `${setup}\n${routeBlocks}`.split('\n').map((line) => `${indent}${line}`).join('\n')
+}
+
+function emitLogicalRoutingSetup(logical: ShowLogicalRoutingRecipe): string {
+  if (logical.kind === 'single') {
+    return `var __pxlblz_show_route_id = 0
+var __pxlblz_show_route_local_x = clamp(x, 0, 1)
+var __pxlblz_show_route_local_y = clamp(y, 0, 1)`
+  }
+  if (logical.kind === 'grid') {
+    return `var __pxlblz_show_route_column = min(${logical.columns - 1}, floor(clamp(x, 0, 1) * ${logical.columns}))
+var __pxlblz_show_route_row = min(${logical.rows - 1}, floor(clamp(y, 0, 1) * ${logical.rows}))
+var __pxlblz_show_route_id = __pxlblz_show_route_row * ${logical.columns} + __pxlblz_show_route_column
+var __pxlblz_show_route_local_x = clamp(x * ${logical.columns} - __pxlblz_show_route_column, 0, 1)
+var __pxlblz_show_route_local_y = clamp(y * ${logical.rows} - __pxlblz_show_route_row, 0, 1)`
+  }
+  if (logical.kind === 'stripes') {
+    const coordinate = logical.axis === 'x' ? 'x' : 'y'
+    const count = logical.zoneNames.length
+    return `var __pxlblz_show_route_id = min(${count - 1}, floor(clamp(${coordinate}, 0, 1) * ${count}))
+var __pxlblz_show_route_stripe_local = clamp(${coordinate} * ${count} - __pxlblz_show_route_id, 0, 1)
+var __pxlblz_show_route_local_x = ${logical.axis === 'x' ? '__pxlblz_show_route_stripe_local' : 'clamp(x, 0, 1)'}
+var __pxlblz_show_route_local_y = ${logical.axis === 'y' ? '__pxlblz_show_route_stripe_local' : 'clamp(y, 0, 1)'}`
+  }
+  const count = logical.zoneNames.length
+  return `var __pxlblz_show_route_dx = clamp(x, 0, 1) - 0.5
+var __pxlblz_show_route_dy = clamp(y, 0, 1) - 0.5
+var __pxlblz_show_route_radius = hypot(__pxlblz_show_route_dx, __pxlblz_show_route_dy)
+var __pxlblz_show_route_turn = frac((atan2(__pxlblz_show_route_dy, __pxlblz_show_route_dx) + __pxlblz_show_route_radius * ${logical.twist}) / 6.283185307179586 + 1)
+var __pxlblz_show_route_id = min(${count - 1}, floor(__pxlblz_show_route_turn * ${count}))
+var __pxlblz_show_route_local_x = clamp(__pxlblz_show_route_turn * ${count} - __pxlblz_show_route_id, 0, 1)
+var __pxlblz_show_route_local_y = clamp(__pxlblz_show_route_radius / 0.7071067811865476, 0, 1)`
 }
 
 function routingPixelCount(layouts: ResolvedRoutingLayout[]): number {

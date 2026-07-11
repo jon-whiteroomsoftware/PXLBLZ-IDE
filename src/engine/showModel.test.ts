@@ -8,8 +8,10 @@ import {
   formatShowRoutingRanges,
   parseShowRoutingRanges,
   projectShowStrip,
+  projectShowTimeline,
   removeShowRoutingLayout,
   removeShowScene,
+  removeShowZone,
   showLoopDurationMs,
   showRecordToCompileRecipe,
   spanShowCellZones,
@@ -90,6 +92,19 @@ describe('showModel (#318)', () => {
     expect(parseShowRoutingRanges('0-3, nope')).toBeNull()
   })
 
+  it('clears logical geometry when one of its zones is removed (#409)', () => {
+    const show = addShowZone(createDefaultShow('show-1', 'Adaptive Show'), {
+      name: 'right',
+      nominalPixelCount: 60,
+    })
+    const layout = show.routingLayouts[0]
+    const logical = updateShowRoutingLayout(show, layout.id, {
+      logical: { kind: 'stripes', zoneIds: show.zones.map((zone) => zone.id), axis: 'x' },
+    })
+
+    expect(removeShowZone(logical, show.zones[1].id).routingLayouts[0].logical).toBeUndefined()
+  })
+
   it('creates a two-scene scene-strip show with one zone and editable cells', () => {
     const show = createDefaultShow('show-1', 'Untitled Show')
 
@@ -122,6 +137,24 @@ describe('showModel (#318)', () => {
           expect.objectContaining({ sceneId: show.scenes[1].id, sceneSpan: 1 }),
         ],
       }),
+    ])
+  })
+
+  it('projects scene, transition, and cell spans onto one proportional time axis (#414)', () => {
+    const show = createDefaultShow('show-1', 'Untitled Show')
+    const timeline = projectShowTimeline(show)
+
+    expect(timeline.durationMs).toBe(62_000)
+    expect(timeline.scenes.map(({ sceneId, startMs, endMs }) => ({ sceneId, startMs, endMs }))).toEqual([
+      { sceneId: 'scene-1', startMs: 0, endMs: 30_000 },
+      { sceneId: 'scene-2', startMs: 32_000, endMs: 62_000 },
+    ])
+    expect(timeline.transitions).toEqual([
+      expect.objectContaining({ afterSceneId: 'scene-1', startMs: 30_000, endMs: 32_000 }),
+    ])
+    expect(timeline.rows[0].cells.map(({ id, startMs, endMs }) => ({ id, startMs, endMs }))).toEqual([
+      { id: 'cell-1', startMs: 0, endMs: 30_000 },
+      { id: 'cell-2', startMs: 32_000, endMs: 62_000 },
     ])
   })
 

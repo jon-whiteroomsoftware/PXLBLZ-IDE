@@ -37,6 +37,9 @@ export interface RenderLoop {
   start(): void
   stop(): void
   tick(realDelta: number): void
+  /** Advance all Pattern state and per-pixel render effects without allocating
+   * or painting an RGB frame. Used by deterministic replay before its target. */
+  tickHeadless(realDelta: number): void
   renderPreviewFrame(): void
 }
 
@@ -58,14 +61,14 @@ export function createRenderLoop(config: RenderLoopConfig): RenderLoop {
   let fpsWindowStart: number | null = null
   let fpsFrames = 0
 
-  function doTick(realDelta: number, dimmed: boolean): void {
+  function doTick(realDelta: number, dimmed: boolean, shouldPaint = true): void {
     const scaledDelta = realDelta * getSpeed()
     clock.advance(scaledDelta)
     // delta and index cross the engine→pattern boundary as scalars, so they
     // must be encoded to the active numeric domain (raw int32 in fidelity mode).
     handle.beforeRender(shim.encodeScalar(scaledDelta))
 
-    const pixels: [number, number, number][] = []
+    const pixels: [number, number, number][] | null = shouldPaint ? [] : null
 
     // Iterate the modeled pixel count, reading each pixel's `sample` from the
     // active map. Production callers supply one firmware-compatible renderer plan;
@@ -105,10 +108,11 @@ export function createRenderLoop(config: RenderLoopConfig): RenderLoop {
       } else {
         handle.render(encIndex)
       }
-      pixels.push(shim.capturedPixel())
+      const captured = shim.capturedPixel()
+      if (pixels) pixels.push(captured)
     }
 
-    paint(pixels, getBrightness(), dimmed)
+    if (pixels) paint(pixels, getBrightness(), dimmed)
     config.onFrame?.(scaledDelta, shim.builtins, clock.getTime())
   }
 
@@ -164,6 +168,9 @@ export function createRenderLoop(config: RenderLoopConfig): RenderLoop {
       }
     },
     tick,
+    tickHeadless(realDelta: number) {
+      doTick(realDelta, false, false)
+    },
     renderPreviewFrame() {
       try {
         doTick(0, false)

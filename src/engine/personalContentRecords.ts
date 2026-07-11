@@ -1,4 +1,5 @@
 import type { Settings } from './settings'
+import type { ShowLogicalRouting } from './showLogicalRouting'
 
 export interface PatternRecord {
   id: string
@@ -119,6 +120,7 @@ export interface ShowRoutingLayout {
   id: string
   name: string
   zones: ShowRoutingLayoutZone[]
+  logical?: ShowLogicalRouting
 }
 
 export interface ShowRoutingSwitch {

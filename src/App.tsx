@@ -64,7 +64,7 @@ import { docExternalHref, getUserDoc, isDocId } from '@/docs/catalog'
 import type { AuthProvider } from '@/engine/authSession'
 import { DEMOS } from '@/pixelblaze/stock/patterns'
 
-function Splitter({ onDrag }: { onDrag: (dx: number) => void }) {
+function Splitter({ onDrag, className = '' }: { onDrag: (dx: number) => void; className?: string }) {
   const lastX = useRef(0)
 
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -87,7 +87,7 @@ function Splitter({ onDrag }: { onDrag: (dx: number) => void }) {
 
   return (
     <div
-      className="w-1 shrink-0 bg-seam hover:bg-zinc-600 cursor-col-resize transition-colors select-none"
+      className={`w-1 shrink-0 bg-seam hover:bg-zinc-600 cursor-col-resize transition-colors select-none ${className}`}
       onMouseDown={handleMouseDown}
     />
   )
@@ -917,10 +917,14 @@ export default function App() {
             )}
           </div>
         </main>
-        <Splitter onDrag={handleRightDrag} />
+        <Splitter onDrag={handleRightDrag} className={studioEntityKind === 'shows' ? 'max-[980px]:hidden' : ''} />
         {/* The preview is an output/instrument surface (#150): no header strip — the
             canvas sits flush at the top and all controls live in the deck below it. */}
-        <aside data-testid="preview-pane" className="shrink-0 flex flex-col min-h-0" style={{ width: rightWidth, minWidth: MIN_PREVIEW_WIDTH }}>
+        <aside
+          data-testid="preview-pane"
+          className={`shrink-0 flex flex-col min-h-0 ${studioEntityKind === 'shows' ? 'max-[980px]:hidden' : ''}`}
+          style={{ width: rightWidth, minWidth: MIN_PREVIEW_WIDTH }}
+        >
           {editorFlavor === 'mixin' ? (
             <MixinProvenancePane />
           ) : editorFlavor === 'map' || studioEntityKind === 'maps' ? (
