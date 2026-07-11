@@ -168,6 +168,13 @@ model remains:
   state and newer seeks cancel stale work. This is accurate for deterministic
   Pattern state; wall-clock, network, and live sensor inputs remain outside the
   guarantee and must be identified honestly.
+- **Zoom and whole-Show navigation** (shipped #420): explicit zoom in/out and
+  Fit controls plus Ctrl/Command-wheel zoom preserve the playhead's Show time.
+  One bounded viewport transform drives the proportional grid width, native
+  timeline scroll, and a whole-Show navigator. Its draggable thumb is positioned
+  by visible start time and sized by the visible fraction; left/right handles
+  resize the range. Keyboard pan/resize and 1x–16x bounds keep all content
+  reachable without introducing persisted editor state.
 - **Replay optimization policy** (decided 2026-07-11): v1 ships the direct
   full-resolution replay above. Do not add checkpoints, frame/state caches,
   downsampling, representative-pixel replay, or worker infrastructure before

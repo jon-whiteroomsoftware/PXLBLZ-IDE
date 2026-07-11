@@ -332,6 +332,16 @@ state; live sensor, network, and wall-clock inputs are inherently external. At
 narrow window widths the Stage pane collapses so the timeline remains usable;
 the timeline keeps its own intentional horizontal scrollbar.
 
+Use the timeline's **Zoom out**, **Fit**, and **Zoom in** controls for precise
+editing, or hold Ctrl (Command on macOS) while using the mouse wheel to zoom
+around the playhead when it is visible. The **Show navigator** beneath the tracks
+always represents the whole Show: its amber thumb grows or shrinks with the
+visible fraction, dragging it pans, and its edge handles resize the range.
+Arrow keys pan a focused thumb or resize a focused handle. Zoom is bounded from
+Fit to 16×; it changes only the editor viewport, never Show timing or the
+playhead's time. Split, transitions, scene headers, clips, ruler, and property
+lanes remain on the same proportional grid while the timeline scrolls locally.
+
 **Split** is enabled when the playhead is at least one second inside either edge
 of a scene hold. It creates one shared scene boundary across all zone rows,
 preserves the outgoing transition at the right edge, and divides every covering

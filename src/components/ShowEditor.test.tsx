@@ -99,6 +99,35 @@ describe('ShowEditor (#318)', () => {
     expect(usePreviewStore.getState().isRunning).toBe(true)
   })
 
+  it('zooms, pans, resizes, and fits one synchronized timeline viewport (#420)', async () => {
+    const user = userEvent.setup()
+    const show = createDefaultShow('show-420', 'Zoom study', 1000)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    render(<ShowEditor showId={show.id} />)
+
+    fireEvent.change(screen.getByRole('slider', { name: 'Show playhead' }), { target: { value: '10000' } })
+    const playhead = screen.getByRole('slider', { name: 'Show playhead' })
+    const split = screen.getByRole('button', { name: 'Split at playhead' })
+    const navigator = screen.getByRole('slider', { name: 'Pan visible timeline range' })
+    expect(screen.getByRole('group', { name: 'Show navigator' })).toBeInTheDocument()
+    expect(navigator).toHaveStyle({ width: '100%' })
+
+    await user.click(screen.getByRole('button', { name: 'Zoom timeline in' }))
+    expect(navigator).toHaveStyle({ width: '80%' })
+    expect(playhead).toHaveValue('10000')
+    expect(split).toBeEnabled()
+
+    fireEvent.keyDown(navigator, { key: 'ArrowRight' })
+    expect(Number(navigator.getAttribute('aria-valuenow'))).toBeGreaterThan(0)
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Resize visible range end' }), { key: 'ArrowLeft' })
+    await waitFor(() => expect(Number(screen.getByRole('slider', { name: 'Pan visible timeline range' }).getAttribute('aria-valuemax'))).toBeGreaterThan(12400))
+
+    await user.click(screen.getByRole('button', { name: 'Fit timeline to Show' }))
+    expect(navigator).toHaveStyle({ width: '100%' })
+    expect(navigator).toHaveAttribute('aria-valuenow', '0')
+    expect(playhead).toHaveValue('10000')
+  })
+
   it('splits at the playhead and exposes explicit Continue or Restart entry behavior (#415)', async () => {
     const user = userEvent.setup()
     const show = createDefaultShow('show-1', 'Split Show', 1000)

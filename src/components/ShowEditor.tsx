@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState, type CSSProperties } from 'react'
-import { Check, Code2, Copy, Download, Pause, Play, Plus, RotateCw, Route, Scissors, SkipBack, Trash2, Zap } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react'
+import { Check, Code2, Copy, Download, Maximize2, Pause, Play, Plus, RotateCw, Route, Scissors, SkipBack, Trash2, Zap, ZoomIn, ZoomOut } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   AlertDialogAction,
@@ -24,6 +24,14 @@ import {
 } from '@/engine/showModel'
 import { compileShowForPreview, sourceForShowCell, type CompiledShowState } from '@/engine/showPreviewArtifact'
 import { discoverAutomatablePatternControls, type AutomatablePatternControl } from '@/engine/showPatternControls'
+import {
+  fitShowTimelineViewport,
+  panShowTimelineViewport,
+  resizeShowTimelineViewport,
+  showTimelineThumb,
+  zoomShowTimelineViewport,
+  type ShowTimelineViewport,
+} from '@/engine/showTimelineViewport'
 import { buildShowEpeExport, type ShowEpeExport } from '@/engine/showEpeExport'
 import { buildPreviewJpeg } from '@/engine/previewThumbnailJpeg'
 import { bytesToBase64 } from '@/engine/RelayWebSocket'
@@ -476,6 +484,32 @@ function SceneStrip({
 }) {
   const strip = projectShowStrip(show)
   const timeline = projectShowTimeline(show)
+  const positionMs = useShowTransportStore((state) => state.showId === show.id ? state.positionMs : 0)
+  const [viewport, setViewport] = useState<ShowTimelineViewport>(() => fitShowTimelineViewport(timeline.durationMs))
+  const [surfaceWidth, setSurfaceWidth] = useState(992)
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const showIdRef = useRef(show.id)
+  useEffect(() => {
+    setViewport((current) => {
+      if (showIdRef.current !== show.id) {
+        showIdRef.current = show.id
+        return fitShowTimelineViewport(timeline.durationMs)
+      }
+      if (current.totalMs === timeline.durationMs) return current
+      const zoom = current.totalMs / current.durationMs
+      return zoomShowTimelineViewport(fitShowTimelineViewport(timeline.durationMs), zoom, Math.min(positionMs, timeline.durationMs))
+    })
+  }, [positionMs, show.id, timeline.durationMs])
+  useEffect(() => {
+    const element = scrollRef.current
+    if (!element) return
+    const updateWidth = () => setSurfaceWidth(element.clientWidth)
+    updateWidth()
+    if (typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(updateWidth)
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [])
   const automatedControlNames = [...new Set([
     ...show.cells.flatMap((cell) => Object.keys(cell.controlTargets ?? {})),
     ...(show.transitions ?? []).flatMap((transition) => Object.keys(transition.propertyTransitions?.controls ?? {})),
@@ -499,21 +533,66 @@ function SceneStrip({
     '64px',
   ]
   const rows = ['auto', '28px', '34px', ...strip.rows.flatMap(() => ['64px', '26px', '26px', ...controlLanes.map(() => '26px')]), '34px']
-  const timelineWidth = Math.max(780, timeline.durationMs / 50)
+  const fitTimelineWidth = Math.max(480, surfaceWidth - 212)
+  const timelineWidth = fitTimelineWidth * viewport.totalMs / viewport.durationMs
+  useEffect(() => {
+    const element = scrollRef.current
+    if (!element) return
+    const maxScroll = Math.max(0, element.scrollWidth - element.clientWidth)
+    const maxStart = viewport.totalMs - viewport.durationMs
+    const next = maxStart > 0 ? viewport.startMs / maxStart * maxScroll : 0
+    if (Math.abs(element.scrollLeft - next) > 1) element.scrollLeft = next
+  }, [timelineWidth, viewport])
+  const zoomAroundPlayhead = (factor: number) => setViewport((current) => {
+    const visibleEnd = current.startMs + current.durationMs
+    const anchor = positionMs >= current.startMs && positionMs <= visibleEnd
+      ? positionMs
+      : current.startMs + current.durationMs / 2
+    return zoomShowTimelineViewport(current, factor, anchor)
+  })
   return (
     <div
-      className="overflow-x-auto border-b border-seam bg-[#060608] p-4 shadow-[inset_0_6px_14px_-8px_rgba(0,0,0,0.9),inset_0_-6px_14px_-10px_rgba(0,0,0,0.9)]"
+      className="border-b border-seam bg-[#060608] p-4 shadow-[inset_0_6px_14px_-8px_rgba(0,0,0,0.9),inset_0_-6px_14px_-10px_rgba(0,0,0,0.9)]"
       onClick={() => onSelect({ kind: 'show' })}
     >
+      <div className="mb-2 flex items-center justify-end gap-1" role="group" aria-label="Timeline zoom controls">
+        <Button size="icon-xs" variant="ghost" aria-label="Zoom timeline out" onClick={(event) => { event.stopPropagation(); zoomAroundPlayhead(0.8) }}>
+          <ZoomOut size={12} aria-hidden />
+        </Button>
+        <Button size="xs" variant="ghost" aria-label="Fit timeline to Show" onClick={(event) => { event.stopPropagation(); setViewport(fitShowTimelineViewport(timeline.durationMs)) }}>
+          <Maximize2 size={12} aria-hidden /> Fit
+        </Button>
+        <Button size="icon-xs" variant="ghost" aria-label="Zoom timeline in" onClick={(event) => { event.stopPropagation(); zoomAroundPlayhead(1.25) }}>
+          <ZoomIn size={12} aria-hidden />
+        </Button>
+        <span className="ml-1 text-[9px] text-zinc-600" title="Ctrl/⌘ + wheel zooms around the playhead">Ctrl/⌘ + wheel</span>
+      </div>
       <div
-        className="relative grid gap-y-2"
-        style={{
-          width: 148 + timelineWidth + 64,
-          gridTemplateColumns: columns.join(' '),
-          gridTemplateRows: rows.join(' '),
+        ref={scrollRef}
+        className="overflow-x-auto"
+        onScroll={(event) => {
+          const element = event.currentTarget
+          const maxScroll = Math.max(0, element.scrollWidth - element.clientWidth)
+          const maxStart = viewport.totalMs - viewport.durationMs
+          if (maxScroll > 0 && maxStart > 0) {
+            setViewport((current) => panShowTimelineViewport(current, element.scrollLeft / maxScroll * maxStart))
+          }
+        }}
+        onWheel={(event) => {
+          if (!event.ctrlKey && !event.metaKey) return
+          event.preventDefault()
+          zoomAroundPlayhead(event.deltaY < 0 ? 1.25 : 0.8)
         }}
       >
-        <div className="self-end border-b border-zinc-800 px-1 pb-2 text-[9.5px] uppercase tracking-[0.12em] text-structural">
+        <div
+          className="relative grid gap-y-2"
+          style={{
+            width: 148 + timelineWidth + 64,
+            gridTemplateColumns: columns.join(' '),
+            gridTemplateRows: rows.join(' '),
+          }}
+        >
+        <div className="sticky left-0 z-30 self-end border-b border-zinc-800 bg-[#060608] px-1 pb-2 text-[9.5px] uppercase tracking-[0.12em] text-structural">
           zones ↓
         </div>
         {show.scenes.map((scene) => (
@@ -528,7 +607,7 @@ function SceneStrip({
           ? [node, <div key={`boundary-header-${show.scenes[index].id}`} className="border-b border-zinc-900" />]
           : [node])}
         <div
-          className="flex items-center border-b border-zinc-900 px-1 text-[9px] uppercase tracking-[0.12em] text-zinc-600"
+          className="sticky left-0 z-30 flex items-center border-b border-zinc-900 bg-[#060608] px-1 text-[9px] uppercase tracking-[0.12em] text-zinc-600"
           style={{ gridColumn: 1, gridRow: 2 }}
         >
           Show time
@@ -537,7 +616,7 @@ function SceneStrip({
         <TimelinePlayhead show={show} gridColumn={`2 / ${columns.length}`} rowSpan={strip.rows.length * rowStride + 3} />
         <div role="group" aria-label="Transition lane" className="contents">
           <div
-            className="flex items-center gap-2 border-b border-zinc-900 px-1 text-[9.5px] uppercase tracking-[0.12em] text-structural"
+            className="sticky left-0 z-30 flex items-center gap-2 border-b border-zinc-900 bg-[#060608] px-1 text-[9.5px] uppercase tracking-[0.12em] text-structural"
             style={{ gridColumn: 1, gridRow: 3 }}
           >
             <Zap size={12} aria-hidden />
@@ -589,7 +668,7 @@ function SceneStrip({
                 onSelect({ kind: 'zone', zoneId: row.zoneId })
               }}
               className={[
-                'flex items-center gap-2 rounded-[5px] border-0 pr-2 text-left font-mono transition-colors',
+                'sticky left-0 z-30 flex items-center gap-2 rounded-[5px] border-0 bg-[#060608] pr-2 text-left font-mono transition-colors',
                 selection.kind === 'zone' && selection.zoneId === row.zoneId
                   ? 'bg-live/10 text-zinc-100'
                   : 'text-zinc-300 hover:text-zinc-100',
@@ -646,7 +725,7 @@ function SceneStrip({
             <div
               role="group"
               aria-label={`Time lane for ${row.zoneName}`}
-              className="flex items-center gap-1 border-t border-zinc-900/80 px-2 text-[9px] text-violet-300/80"
+              className="sticky left-0 z-30 flex items-center gap-1 border-t border-zinc-900/80 bg-[#060608] px-2 text-[9px] text-violet-300/80"
               style={{ gridColumn: 1, gridRow: rowIndex * rowStride + 5 }}
             >
               <span className="font-mono">↳ time ×</span>
@@ -689,7 +768,7 @@ function SceneStrip({
             <div
               role="group"
               aria-label={`Brightness lane for ${row.zoneName}`}
-              className="flex items-center gap-1 border-t border-zinc-900/80 px-2 text-[9px] text-amber-300/80"
+              className="sticky left-0 z-30 flex items-center gap-1 border-t border-zinc-900/80 bg-[#060608] px-2 text-[9px] text-amber-300/80"
               style={{ gridColumn: 1, gridRow: rowIndex * rowStride + 6 }}
             >
               <span className="font-mono">↳ bright</span>
@@ -734,7 +813,7 @@ function SceneStrip({
                 <div
                   role="group"
                   aria-label={`${control.label} control lane for ${row.zoneName}`}
-                  className="flex items-center gap-1 border-t border-zinc-900/80 px-2 text-[9px] text-cyan-300/80"
+                  className="sticky left-0 z-30 flex items-center gap-1 border-t border-zinc-900/80 bg-[#060608] px-2 text-[9px] text-cyan-300/80"
                   style={{ gridColumn: 1, gridRow: rowIndex * rowStride + 7 + controlIndex }}
                 >
                   <span className="truncate font-mono">↳ {control.label}</span>
@@ -787,7 +866,7 @@ function SceneStrip({
             event.stopPropagation()
             onAddZone()
           }}
-          className="flex items-center justify-center rounded-[5px] border border-dashed border-zinc-800 bg-transparent text-[10px] uppercase tracking-wider text-structural hover:border-zinc-600 hover:text-zinc-200"
+          className="sticky left-0 z-30 flex items-center justify-center rounded-[5px] border border-dashed border-zinc-800 bg-[#060608] text-[10px] uppercase tracking-wider text-structural hover:border-zinc-600 hover:text-zinc-200"
           style={{ gridColumn: 1, gridRow: strip.rows.length * rowStride + 4 }}
         >
           + zone
@@ -799,12 +878,101 @@ function SceneStrip({
             event.stopPropagation()
             onAddScene()
           }}
-          className="flex items-center justify-center rounded-[5px] border border-dashed border-zinc-800 bg-transparent text-[10px] uppercase tracking-wider text-structural [writing-mode:vertical-rl] hover:border-zinc-600 hover:text-zinc-200"
+          className="sticky right-0 z-30 flex items-center justify-center rounded-[5px] border border-dashed border-zinc-800 bg-[#060608] text-[10px] uppercase tracking-wider text-structural [writing-mode:vertical-rl] hover:border-zinc-600 hover:text-zinc-200"
           style={{ gridColumn: columns.length, gridRow: `4 / span ${strip.rows.length * rowStride}` }}
         >
           + scene
         </button>
+        </div>
       </div>
+      <TimelineNavigator viewport={viewport} onChange={setViewport} />
+    </div>
+  )
+}
+
+function TimelineNavigator({
+  viewport,
+  onChange,
+}: {
+  viewport: ShowTimelineViewport
+  onChange: (viewport: ShowTimelineViewport) => void
+}) {
+  const overviewRef = useRef<HTMLDivElement>(null)
+  const dragRef = useRef<{ mode: 'pan' | 'start' | 'end'; x: number; viewport: ShowTimelineViewport } | null>(null)
+  const thumb = showTimelineThumb(viewport)
+  const beginDrag = (mode: 'pan' | 'start' | 'end', event: ReactPointerEvent<HTMLElement>) => {
+    event.stopPropagation()
+    dragRef.current = { mode, x: event.clientX, viewport }
+    event.currentTarget.setPointerCapture(event.pointerId)
+  }
+  const moveDrag = (event: ReactPointerEvent<HTMLElement>) => {
+    const drag = dragRef.current
+    const width = overviewRef.current?.clientWidth ?? 0
+    if (!drag || width <= 0) return
+    const deltaMs = (event.clientX - drag.x) / width * drag.viewport.totalMs
+    if (drag.mode === 'pan') onChange(panShowTimelineViewport(drag.viewport, drag.viewport.startMs + deltaMs))
+    if (drag.mode === 'start') onChange(resizeShowTimelineViewport(drag.viewport, 'start', drag.viewport.startMs + deltaMs))
+    if (drag.mode === 'end') onChange(resizeShowTimelineViewport(drag.viewport, 'end', drag.viewport.startMs + drag.viewport.durationMs + deltaMs))
+  }
+  const endDrag = () => { dragRef.current = null }
+  const keyboardStep = viewport.durationMs * 0.05
+  return (
+    <div className="mt-2 grid h-9 grid-cols-[148px_minmax(0,1fr)_64px] border-t border-zinc-800 bg-zinc-950/65" role="group" aria-label="Show navigator">
+      <div className="flex items-center px-2 text-[9px] uppercase tracking-[0.12em] text-zinc-600">Show navigator</div>
+      <div ref={overviewRef} className="relative my-2 overflow-hidden rounded-sm bg-zinc-900/80">
+        <div className="absolute inset-y-0 left-0 right-0 opacity-40" style={{ backgroundImage: 'repeating-linear-gradient(90deg, rgba(161,161,170,.35) 0 1px, transparent 1px 8%)' }} />
+        <div
+          role="slider"
+          tabIndex={0}
+          aria-label="Pan visible timeline range"
+          aria-valuemin={0}
+          aria-valuemax={Math.round(viewport.totalMs - viewport.durationMs)}
+          aria-valuenow={Math.round(viewport.startMs)}
+          className="absolute inset-y-[-3px] cursor-grab rounded border border-amber-400 bg-amber-400/[0.07] outline-none focus:ring-1 focus:ring-amber-300"
+          style={{ left: `${thumb.leftPercent}%`, width: `${thumb.widthPercent}%` }}
+          onPointerDown={(event) => beginDrag('pan', event)}
+          onPointerMove={moveDrag}
+          onPointerUp={endDrag}
+          onPointerCancel={endDrag}
+          onKeyDown={(event) => {
+            if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
+            event.preventDefault()
+            onChange(panShowTimelineViewport(viewport, viewport.startMs + (event.key === 'ArrowLeft' ? -keyboardStep : keyboardStep)))
+          }}
+        />
+        <button
+          type="button"
+          aria-label="Resize visible range start"
+          className="absolute inset-y-1 z-10 w-1 cursor-ew-resize border-x border-amber-300/70"
+          style={{ left: `calc(${thumb.leftPercent}% + 4px)` }}
+          onPointerDown={(event) => beginDrag('start', event)}
+          onPointerMove={moveDrag}
+          onPointerUp={endDrag}
+          onPointerCancel={endDrag}
+          onKeyDown={(event) => {
+            if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
+            event.preventDefault()
+            onChange(resizeShowTimelineViewport(viewport, 'start', viewport.startMs + (event.key === 'ArrowLeft' ? -keyboardStep : keyboardStep)))
+          }}
+        />
+        <button
+          type="button"
+          aria-label="Resize visible range end"
+          className="absolute inset-y-1 z-10 w-1 cursor-ew-resize border-x border-amber-300/70"
+          style={{ left: `calc(${thumb.leftPercent + thumb.widthPercent}% - 8px)` }}
+          onPointerDown={(event) => beginDrag('end', event)}
+          onPointerMove={moveDrag}
+          onPointerUp={endDrag}
+          onPointerCancel={endDrag}
+          onKeyDown={(event) => {
+            if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
+            event.preventDefault()
+            const end = viewport.startMs + viewport.durationMs + (event.key === 'ArrowLeft' ? -keyboardStep : keyboardStep)
+            onChange(resizeShowTimelineViewport(viewport, 'end', end))
+          }}
+        />
+      </div>
+      <div className="flex items-center justify-end px-2 text-[9px] tabular-nums text-zinc-600">{Math.round(viewport.totalMs / viewport.durationMs * 100)}%</div>
     </div>
   )
 }
