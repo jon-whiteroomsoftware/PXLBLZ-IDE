@@ -77,7 +77,11 @@ model remains:
   index/count without restarting Pattern clocks or state. The hard-switch
   tracer bullet (#398) retains one renderer per physical pixel. Progressive
   transfers (#403), parametric routing (#405), and coordinate remapping (#406)
-  remain later layers rather than requirements for the first useful slice.
+  remain later layers rather than requirements for the first useful slice. The
+  routing-representation spike (#400) keeps arbitrary range branches as the
+  general default and records formula emission plus bounded packed lookup as
+  future compiler specializations (#408); detailed measurements live in the archived
+  technical plan rather than this product document.
 - **Editor direction** (decided 2026-07-08): the v1 Show editor is a **scene
   strip**, not a timeline — scenes as columns, zones as rows, a cell holds a
   pattern plus its adaptations, and transitions are first-class column

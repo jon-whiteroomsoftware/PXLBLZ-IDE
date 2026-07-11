@@ -8,10 +8,26 @@ Four complementary tools live here. Keep their questions apart:
 | **visual drift** (`drift.ts`) | "how much did the image change?" | the in-repo emulator — no hardware |
 | **hardware profiler** (`profiler.ts`, #245) | "what does each op cost on the device?" | a physical Pixelblaze on your LAN |
 | **hardware FPS bench** (`devbench.ts`, #248) | "did my pattern get faster on the device?" | a physical Pixelblaze on your LAN |
+| **routing representation spike** (`issue400.ts`) | "how should dynamic layouts be encoded?" | both emulators + device compiler + optional hardware |
 
 The emulator bench proves an edit was *output-preserving* (checksum) and counts
 ops; the drift tool quantifies intentional visual changes; the FPS bench measures
 the *whole-frame* speedup the edit actually buys on hardware.
+
+The issue #400 runner is a repeatable composite benchmark for Show routing. It
+builds contiguous, serpentine-band, interleaved, and sparse-exception fixtures at
+256 and 1,024 pixels with 2, 4, and 8 layouts; compares range branches, RLE,
+packed lookup, and eligible formulas; and records source/bytecode size, globals,
+array pressure, and Fast/Precise timing. With `--hardware`, it opens one socket,
+pushes only candidates that fit the measured device budget, samples FPS, then
+leaves a slow-switching visual probe active:
+
+```bash
+PIXELBLAZE_IP=192.168.8.224 npm run issue400 -- --hardware
+```
+
+The committed result is
+[`docs/plans/archive/issue-400-routing-representation-results.md`](../../docs/plans/archive/issue-400-routing-representation-results.md).
 
 ---
 

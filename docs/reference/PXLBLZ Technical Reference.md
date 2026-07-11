@@ -931,6 +931,20 @@ owns layout CRUD and compact range-list authoring (`0-63, 128-191`). The range
 parser and all routing mutations remain pure `showModel` operations; the React
 surface delegates edits through `showStore`.
 
+Generated range branches remain the routing compiler's general representation:
+they preserve arbitrary pixel sets, require no Pixelblaze arrays, and are the
+best measured tradeoff for layouts with a small number of contiguous runs.
+The #400 benchmark compares that emitter with RLE tables, packed per-pixel
+lookup, and generated formulas at 256 and 1,024 pixels across 2, 4, and 8
+layouts. RLE loses on both memory and runtime. Formulas are the preferred future
+specialization when a regular layout can be proven; bounded packed lookup is a
+possible escape hatch when irregular branch output would exceed the measured
+68,384-byte device budget. It is not the default because a 256x8 table already
+spends 2,048 array elements and a 1,024x8 table grows beyond device capacity.
+Follow-up #408 owns conservative formula recognition and the bounded packed
+fallback. The repeatable runner and complete emulator/compiler/hardware matrix live in
+[`issue-400-routing-representation-results.md`](../plans/archive/issue-400-routing-representation-results.md).
+
 `ShowStagePreview` is the right-pane Show context surface. It compiles the active
 Show through the same `compileShowForPreview` helper used by the editor and runs
 that generated `render(index)` artifact through the normal preview render loop.

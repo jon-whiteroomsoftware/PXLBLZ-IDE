@@ -30,6 +30,7 @@
     "issue317": "tsx test/perf-harness/issue316.ts",
     "issue316": "tsx test/perf-harness/issue316.ts",
     "issue332": "tsx test/perf-harness/issue316.ts",
+    "issue400": "tsx test/perf-harness/issue400.ts",
     "bench": "tsx test/perf-harness/bench.ts",
     "drift": "tsx test/perf-harness/drift.ts",
     "devbench": "tsx test/perf-harness/devbench.ts",
