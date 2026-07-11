@@ -5,7 +5,7 @@ How the engineering skills should consume this repo's domain documentation when 
 ## Before exploring, read these
 
 - **`CONTEXT.md`** at the repo root — the domain glossary.
-- **`docs/reference/PXLBLZ Technical Reference.md`** — the authoritative record of design decisions and their rationale. Read the sections that touch the area you're about to work in. (This repo retired its ADRs; the Technical Reference is where decisions now live.)
+- **`docs/reference/PXLBLZ Technical Reference.md`** — the authoritative description of the as-built architecture, its governing constraints, and the seams new work should extend. Read the sections that touch the area you're about to work in. The reference records the rationale needed to understand current behavior; detailed evidence, implementation history, and superseded alternatives remain in linked plans or archived reports rather than being duplicated here.
 
 If any of these files don't exist, **proceed silently**. Don't flag their absence; don't suggest creating them upfront.
 
@@ -17,7 +17,7 @@ If any of these files don't exist, **proceed silently**. Don't flag their absenc
 ├── docs/
 │   ├── plans/                              ← forward-looking plans and PRDs
 │   └── reference/
-│       └── PXLBLZ Technical Reference.md   ← authoritative design decisions
+│       └── PXLBLZ Technical Reference.md   ← authoritative as-built architecture
 └── src/
 ```
 
