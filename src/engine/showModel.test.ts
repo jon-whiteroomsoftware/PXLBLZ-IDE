@@ -6,6 +6,7 @@ import {
   createDefaultShow,
   extendShowCell,
   formatShowRoutingRanges,
+  normalizeShowTransitionState,
   parseShowRoutingRanges,
   projectShowStrip,
   projectShowTimeline,
@@ -20,6 +21,8 @@ import {
   updateShowCellAdaptations,
   updateShowCellPattern,
   updateShowCellRestartOnEntry,
+  updateShowBoundaryTransition,
+  removeShowBoundaryTransition,
   updateShowScene,
   updateShowRoutingLayout,
   updateShowRoutingSwitch,
@@ -27,7 +30,7 @@ import {
   updateShowZone,
 } from './showModel'
 import { DEMOS } from '@/pixelblaze/stock/patterns'
-import type { ShowRecord } from './personalContentRecords'
+import type { ShowRecord, ShowTransition } from './personalContentRecords'
 
 function expectHoleFreeStrip(show: ShowRecord): void {
   const strip = projectShowStrip(show)
@@ -43,6 +46,139 @@ function expectHoleFreeStrip(show: ShowRecord): void {
 }
 
 describe('showModel (#318)', () => {
+  it('losslessly migrates legacy scene transitions and routing markers into stable boundary entities (#416)', () => {
+    const base = addShowRoutingLayout(createDefaultShow('show-1', 'Legacy boundaries', 1), 'Alternate')
+    const legacy = updateShowRoutingSwitch(base, 'scene-1', base.routingLayouts[1].id)
+    delete legacy.transitions
+
+    const migrated = normalizeShowTransitionState(legacy)
+
+    expect(migrated.transitions).toEqual([
+      {
+        id: 'transition-scene-1',
+        afterSceneId: 'scene-1',
+        kind: 'crossfade',
+        durationMs: 2000,
+        easing: 'linear',
+      },
+      {
+        id: 'routing-scene-1',
+        afterSceneId: 'scene-1',
+        kind: 'routing',
+        durationMs: 0,
+        easing: 'linear',
+        layoutId: base.routingLayouts[1].id,
+      },
+    ])
+    expect(normalizeShowTransitionState(migrated)).toEqual(migrated)
+    expect(showLoopDurationMs(migrated)).toBe(showLoopDurationMs(legacy))
+    expect(projectShowStrip(migrated).transitions).toEqual(projectShowStrip(legacy).transitions)
+    expect(projectShowStrip(migrated).routingSwitches).toEqual(projectShowStrip(legacy).routingSwitches)
+    expect(projectShowStrip(migrated).boundaryTransitions).toEqual([
+      expect.objectContaining({ id: 'transition-scene-1', kind: 'crossfade', durationMs: 2000 }),
+      expect.objectContaining({ id: 'routing-scene-1', kind: 'routing', durationMs: 0, layoutName: 'Alternate' }),
+    ])
+    expect(projectShowTimeline(migrated).boundaryTransitions).toEqual([
+      expect.objectContaining({ id: 'transition-scene-1', startMs: 30_000, endMs: 32_000 }),
+      expect.objectContaining({ id: 'routing-scene-1', startMs: 30_000, endMs: 30_000 }),
+    ])
+  })
+
+  it('keeps stable boundary entities canonical through visual, routing, and split edits (#416)', () => {
+    const withLayout = addShowRoutingLayout(createDefaultShow('show-1', 'Boundary edits', 1), 'Alternate')
+    const visualEdited = updateShowTransition(withLayout, 'scene-1', 'wipe', 1500, 0.2)
+    const routed = updateShowRoutingSwitch(visualEdited, 'scene-1', withLayout.routingLayouts[1].id)
+
+    expect(routed.transitions).toEqual([
+      expect.objectContaining({
+        id: 'transition-scene-1',
+        afterSceneId: 'scene-1',
+        kind: 'wipe',
+        durationMs: 1500,
+        easing: 'linear',
+        feather: 0.2,
+      }),
+      expect.objectContaining({
+        id: 'routing-scene-1',
+        afterSceneId: 'scene-1',
+        kind: 'routing',
+        layoutId: withLayout.routingLayouts[1].id,
+      }),
+    ])
+
+    const split = splitShowAtTime(routed, 10_000)
+    expect(split.transitions).toEqual([
+      expect.objectContaining({ id: 'transition-scene-1', afterSceneId: 'scene-1', kind: 'cut' }),
+      expect.objectContaining({ id: 'transition-scene-3', afterSceneId: 'scene-3', kind: 'wipe' }),
+      expect.objectContaining({ id: 'routing-scene-3', afterSceneId: 'scene-3', kind: 'routing' }),
+    ])
+    expect(split.scenes[0].transitionOut).toBeUndefined()
+    expect(split.scenes[1].transitionOut).toMatchObject({ kind: 'wipe', durationMs: 1500, feather: 0.2 })
+    expect(split.routingSwitches).toEqual([{ afterSceneId: 'scene-3', layoutId: withLayout.routingLayouts[1].id }])
+  })
+
+  it('updates and removes a selected boundary by stable id without touching its neighbor (#416)', () => {
+    const show = addShowScene(createDefaultShow('show-1', 'Boundary identity', 1))
+    const updated = updateShowBoundaryTransition(show, 'transition-scene-2', {
+      kind: 'dither',
+      durationMs: 2500,
+      easing: 'ease-in-out',
+    })
+
+    expect(updated.transitions?.find((transition) => transition.id === 'transition-scene-1')).toMatchObject({
+      kind: 'crossfade',
+      durationMs: 2000,
+    })
+    expect(updated.transitions?.find((transition) => transition.id === 'transition-scene-2')).toMatchObject({
+      afterSceneId: 'scene-2',
+      kind: 'dither',
+      durationMs: 2500,
+      easing: 'ease-in-out',
+    })
+
+    const removedVisual = removeShowBoundaryTransition(updated, 'transition-scene-2')
+    expect(removedVisual.transitions?.find((transition) => transition.id === 'transition-scene-2')).toMatchObject({
+      kind: 'cut',
+      durationMs: 0,
+    })
+  })
+
+  it.each([
+    { kind: 'cut', durationMs: 0 },
+    { kind: 'crossfade', durationMs: 2000 },
+    { kind: 'wipe', durationMs: 1800, feather: 0.2 },
+    { kind: 'dither', durationMs: 1700 },
+    {
+      kind: 'portal',
+      durationMs: 1600,
+      feather: 0.12,
+      centerX: 0.4,
+      centerY: 0.6,
+      invert: true,
+      featherPolicy: 'blend',
+    },
+  ] satisfies ShowTransition[])('preserves $kind compiler and duration behavior through boundary migration (#416)', (legacyTransition) => {
+    const legacy = { ...createDefaultShow('show-1', `${legacyTransition.kind} legacy`, 1), stageMapId: 'plane' }
+    delete legacy.transitions
+    legacy.scenes = legacy.scenes.map((scene, index) => index === 0
+      ? { ...scene, transitionOut: legacyTransition.kind === 'cut' ? undefined : legacyTransition }
+      : scene)
+    const migrated = normalizeShowTransitionState(legacy)
+    const lookup = {
+      byCellId: { 'cell-1': DEMOS.TestPattern1D, 'cell-2': DEMOS.CometLoom },
+      stageDimension: 2 as const,
+    }
+
+    expect(migrated.transitions?.[0]).toMatchObject({
+      id: 'transition-scene-1',
+      kind: legacyTransition.kind,
+      durationMs: legacyTransition.durationMs,
+      easing: 'linear',
+    })
+    expect(showLoopDurationMs(migrated)).toBe(showLoopDurationMs(legacy))
+    expect(showRecordToCompileRecipe(migrated, lookup)).toEqual(showRecordToCompileRecipe(legacy, lookup))
+  })
+
   it('splits a scene and every covering cell without changing playback state (#415)', () => {
     const base = extendShowCell(createDefaultShow('show-1', 'Split Show', 1), 'cell-1', 2)
     const split = splitShowAtTime(base, 10_000)
@@ -258,6 +394,10 @@ describe('showModel (#318)', () => {
 
     expect(newScene).toMatchObject({ id: 'scene-3', name: 'Scene 3', durationMs: 30000 })
     expect(next.scenes[1].transitionOut).toEqual({ kind: 'crossfade', durationMs: 2000 })
+    expect(next.transitions).toEqual([
+      expect.objectContaining({ id: 'transition-scene-1', afterSceneId: 'scene-1', kind: 'crossfade' }),
+      expect.objectContaining({ id: 'transition-scene-2', afterSceneId: 'scene-2', kind: 'crossfade' }),
+    ])
     expect(newMain).toMatchObject({
       pattern: secondMain.pattern,
       patternName: secondMain.patternName,
@@ -299,6 +439,9 @@ describe('showModel (#318)', () => {
     expect(removed.cells.some((cell) => cell.sceneId === 'scene-2')).toBe(false)
     expect(removed.cells.find((cell) => cell.id === 'cell-1')).toMatchObject({ sceneSpan: 2 })
     expect(removed.scenes[1].transitionOut).toBeUndefined()
+    expect(removed.transitions).toEqual([
+      expect.objectContaining({ afterSceneId: 'scene-1', kind: 'crossfade' }),
+    ])
     expectHoleFreeStrip(removed)
   })
 
@@ -313,6 +456,7 @@ describe('showModel (#318)', () => {
       sceneId: 'scene-2',
       sceneSpan: 1,
     })
+    expect(removed.transitions).toEqual([])
     expectHoleFreeStrip(removed)
   })
 

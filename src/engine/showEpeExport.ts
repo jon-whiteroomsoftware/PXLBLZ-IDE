@@ -1,6 +1,7 @@
 import { stampArtifact } from './artifactStamp'
 import { makeProgramId } from './bytecodePush'
 import type { ShowRecord } from './personalContentRecords'
+import { normalizeShowTransitionState } from './showModel'
 
 export interface ShowEpeExport {
   filename: string
@@ -19,6 +20,7 @@ export function buildShowEpeExport(
   generatedCode: string,
   options: ShowEpeExportOptions = {},
 ): ShowEpeExport {
+  show = normalizeShowTransitionState(show)
   const name = show.name.trim() || 'Untitled Show'
   const hasSpatialTransitions = show.scenes.some((scene) => scene.transitionOut?.kind === 'portal')
   const documentedSource = `${showArtifactHeader(show)}\n${generatedCode}`

@@ -4,11 +4,14 @@ import { ShowEditor } from './ShowEditor'
 import { showInitialState, useShowStore } from '@/store/showStore'
 import {
   addShowScene,
+  addShowRoutingLayout,
   addShowZone,
   createDefaultShow,
   removeShowScene,
   updateShowCellAdaptations,
   updateShowCellPattern,
+  updateShowRoutingSwitch,
+  updateShowTransition,
 } from '@/engine/showModel'
 import { usePatternStore, patternInitialState } from '@/store/patternStore'
 import { controllerProfileInitialState, useControllerProfileStore } from '@/store/controllerProfileStore'
@@ -150,6 +153,29 @@ describe('ShowEditor (#318)', () => {
     ]))
   })
 
+  it('selects visual and routing events from one first-class transition lane and inspector (#416)', async () => {
+    const user = userEvent.setup()
+    const base = addShowRoutingLayout(createDefaultShow('show-1', 'Boundary lane', 1000), 'Alternate')
+    const show = updateShowRoutingSwitch(base, 'scene-1', base.routingLayouts[1].id)
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+
+    expect(screen.getByRole('group', { name: 'Transition lane' })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Select Scene 1 to Scene 2 transition (crossfade)' }))
+    expect(screen.getByText(/Scene 1 -> Scene 2 - crossfade transition/i)).toBeInTheDocument()
+    await user.selectOptions(screen.getByLabelText('Transition easing'), 'ease-in-out')
+    await waitFor(() => {
+      expect(useShowStore.getState().shows[0].transitions?.find((transition) => transition.id === 'transition-scene-1')?.easing)
+        .toBe('ease-in-out')
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Select Scene 1 to Scene 2 transition (routing)' }))
+    expect(screen.getByText(/Scene 1 -> Scene 2 - routing transition/i)).toBeInTheDocument()
+    expect(screen.getByLabelText('Destination routing layout')).toHaveValue(base.routingLayouts[1].id)
+  })
+
   it('renders a scene strip, selectable cell inspector, and compile bar', async () => {
     const user = userEvent.setup()
     const show = createDefaultShow('show-1', 'Opening wash', 1000)
@@ -175,7 +201,7 @@ describe('ShowEditor (#318)', () => {
     expect(screen.getByLabelText('Time x')).toHaveAttribute('min', '0')
 
     await user.click(screen.getByRole('button', { name: /Select Scene 1 to Scene 2 transition/i }))
-    expect(screen.getByText(/Scene 1 -> Scene 2 - transition/i)).toBeInTheDocument()
+    expect(screen.getByText(/Scene 1 -> Scene 2 - crossfade transition/i)).toBeInTheDocument()
     expect(screen.getByRole('option', { name: 'wipe' })).toBeInTheDocument()
   })
 
@@ -285,8 +311,7 @@ describe('ShowEditor (#318)', () => {
 
   it('explains feathered wipe as a stable one-renderer route edge', async () => {
     const user = userEvent.setup()
-    const show = createDefaultShow('show-1', 'Feathered wipe', 1000)
-    show.scenes[0].transitionOut = { kind: 'wipe', durationMs: 2000, feather: 0.2 }
+    const show = updateShowTransition(createDefaultShow('show-1', 'Feathered wipe', 1000), 'scene-1', 'wipe', 2000, 0.2)
     useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
 
     render(<ShowEditor showId={show.id} />)
@@ -299,17 +324,14 @@ describe('ShowEditor (#318)', () => {
 
   it('edits a 2D portal transition and reports bounded blend cost', async () => {
     const user = userEvent.setup()
-    const show = createDefaultShow('show-1', 'Portal', 1000)
-    show.stageMapId = 'plane'
-    show.scenes[0].transitionOut = {
-      kind: 'portal',
-      durationMs: 2000,
-      feather: 0.12,
-      centerX: 0.5,
-      centerY: 0.5,
-      invert: false,
-      featherPolicy: 'dither',
-    }
+    const show = updateShowTransition(
+      { ...createDefaultShow('show-1', 'Portal', 1000), stageMapId: 'plane' },
+      'scene-1',
+      'portal',
+      2000,
+      0.12,
+      { centerX: 0.5, centerY: 0.5, invert: false, featherPolicy: 'dither' },
+    )
     setPersonalContentProvider(memoryProvider([show]))
     useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
 

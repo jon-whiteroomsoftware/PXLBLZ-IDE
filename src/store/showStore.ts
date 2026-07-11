@@ -9,12 +9,15 @@ import {
   extendShowCell,
   importedStageMapIdForController,
   normalizeShowEntryState,
+  normalizeShowTransitionState,
   removeShowScene,
   removeShowRoutingLayout,
   removeShowZone,
   spanShowCellZones,
   splitShowAtTime,
+  removeShowBoundaryTransition,
   updateShowCellZoneMode,
+  updateShowBoundaryTransition,
   updateShowZone,
   updateShowCellAdaptations,
   updateShowCellPattern,
@@ -28,6 +31,7 @@ import { getPersonalContentProvider } from '@/engine/personalContentProvider'
 import type {
   ShowCell,
   ShowCellAdaptations,
+  ShowBoundaryTransition,
   ShowRecord,
   ShowPortalSettings,
   ShowRoutingLayout,
@@ -74,6 +78,12 @@ interface ShowState {
     patch: Pick<ShowCell, 'pattern' | 'patternName'>,
   ) => Promise<void>
   updateCellRestartOnEntry: (showId: string, cellId: string, restartOnEntry: boolean) => Promise<void>
+  updateBoundaryTransition: (
+    showId: string,
+    transitionId: string,
+    changes: Partial<Omit<ShowBoundaryTransition, 'id' | 'afterSceneId'>>,
+  ) => Promise<void>
+  removeBoundaryTransition: (showId: string, transitionId: string) => Promise<void>
   splitAtTime: (showId: string, atMs: number) => Promise<void>
   extendCell: (showId: string, cellId: string, sceneSpan: number) => Promise<void>
   spanCellZones: (showId: string, cellId: string, zoneSpan: number) => Promise<void>
@@ -99,7 +109,9 @@ export const useShowStore = create<ShowState>()((set, get) => ({
   ...showInitialState,
 
   loadShows: async () => {
-    const shows = (await getPersonalContentProvider().listShows()).map(normalizeShowEntryState)
+    const shows = (await getPersonalContentProvider().listShows())
+      .map(normalizeShowTransitionState)
+      .map(normalizeShowEntryState)
     set({ shows: shows.sort((a, b) => b.updatedAt - a.updatedAt), showsLoaded: true })
   },
 
@@ -163,6 +175,7 @@ export const useShowStore = create<ShowState>()((set, get) => ({
       cells: next.cells,
       routingLayouts: next.routingLayouts,
       routingSwitches: next.routingSwitches,
+      transitions: next.transitions,
       targetControllerProfileId: next.targetControllerProfileId,
       stageMapId: next.stageMapId ?? null,
       updatedAt: next.updatedAt,
@@ -215,6 +228,18 @@ export const useShowStore = create<ShowState>()((set, get) => ({
     const show = get().shows.find((item) => item.id === showId)
     if (!show) return
     await get().updateShow(showId, updateShowCellRestartOnEntry(show, cellId, restartOnEntry))
+  },
+
+  updateBoundaryTransition: async (showId, transitionId, changes) => {
+    const show = get().shows.find((item) => item.id === showId)
+    if (!show) return
+    await get().updateShow(showId, updateShowBoundaryTransition(show, transitionId, changes))
+  },
+
+  removeBoundaryTransition: async (showId, transitionId) => {
+    const show = get().shows.find((item) => item.id === showId)
+    if (!show) return
+    await get().updateShow(showId, removeShowBoundaryTransition(show, transitionId))
   },
 
   splitAtTime: async (showId, atMs) => {

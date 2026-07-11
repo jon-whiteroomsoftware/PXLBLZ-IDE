@@ -43,6 +43,7 @@ import { usePatternStore } from '@/store/patternStore'
 import { useShowStore } from '@/store/showStore'
 import type {
   MapRecord,
+  ShowBoundaryTransition,
   ShowCell,
   ShowPortalSettings,
   ShowRecord,
@@ -58,7 +59,7 @@ const clipBase =
 
 type ShowSelection =
   | { kind: 'cell'; cellId: string }
-  | { kind: 'transition'; afterSceneId: string }
+  | { kind: 'transition'; transitionId: string }
   | { kind: 'zone'; zoneId: string }
   | { kind: 'routing-switch'; afterSceneId: string }
   | { kind: 'show' }
@@ -70,7 +71,8 @@ export function ShowEditor({ showId }: { showId: string }) {
   const addScene = useShowStore((state) => state.addScene)
   const removeScene = useShowStore((state) => state.removeScene)
   const updateScene = useShowStore((state) => state.updateScene)
-  const updateTransition = useShowStore((state) => state.updateTransition)
+  const updateBoundaryTransition = useShowStore((state) => state.updateBoundaryTransition)
+  const removeBoundaryTransition = useShowStore((state) => state.removeBoundaryTransition)
   const updateCellAdaptations = useShowStore((state) => state.updateCellAdaptations)
   const updateCellPattern = useShowStore((state) => state.updateCellPattern)
   const updateCellRestartOnEntry = useShowStore((state) => state.updateCellRestartOnEntry)
@@ -258,7 +260,8 @@ export function ShowEditor({ showId }: { showId: string }) {
             onExtend={(cell, sceneSpan) => void extendCell(activeShow.id, cell.id, sceneSpan)}
             onSpanZones={(cell, zoneSpan) => void spanCellZones(activeShow.id, cell.id, zoneSpan)}
             onUpdateCellZoneMode={(cell, zoneMode) => void updateCellZoneMode(activeShow.id, cell.id, zoneMode)}
-            onUpdateTransition={(sceneId, kind, durationMs, feather, portal) => void updateTransition(activeShow.id, sceneId, kind, durationMs, feather, portal)}
+            onUpdateBoundaryTransition={(transitionId, changes) => void updateBoundaryTransition(activeShow.id, transitionId, changes)}
+            onRemoveBoundaryTransition={(transitionId) => void removeBoundaryTransition(activeShow.id, transitionId)}
             onAddZone={() => void addZone(activeShow.id)}
             onUpdateZone={(zoneId, changes) => void updateZone(activeShow.id, zoneId, changes)}
             onRemoveZone={(zoneId) => void removeZone(activeShow.id, zoneId)}
@@ -493,21 +496,9 @@ function SceneStrip({
             onRemove={() => onRequestRemoveScene(scene)}
             onUpdate={(changes) => onUpdateScene(scene.id, changes)}
           />
-        )).flatMap((node, index) => (
-          index < strip.transitions.length
-            ? [
-                node,
-                <TransitionGlyph
-                  key={`t-${strip.transitions[index].afterSceneId}`}
-                  show={show}
-                  transition={strip.transitions[index]}
-                  rowCount={strip.rows.length}
-                  selected={selection.kind === 'transition' && selection.afterSceneId === strip.transitions[index].afterSceneId}
-                  onSelect={() => onSelect({ kind: 'transition', afterSceneId: strip.transitions[index].afterSceneId })}
-                />,
-              ]
-            : [node]
-        ))}
+        )).flatMap((node, index) => index < show.scenes.length - 1
+          ? [node, <div key={`boundary-header-${show.scenes[index].id}`} className="border-b border-zinc-900" />]
+          : [node])}
         <div
           className="flex items-center border-b border-zinc-900 px-1 text-[9px] uppercase tracking-[0.12em] text-zinc-600"
           style={{ gridColumn: 1, gridRow: 2 }}
@@ -516,39 +507,50 @@ function SceneStrip({
         </div>
         <TimelineRuler show={show} gridColumn={`2 / ${columns.length}`} />
         <TimelinePlayhead show={show} gridColumn={`2 / ${columns.length}`} rowSpan={strip.rows.length + 3} />
-        <div
-          className="flex items-center gap-2 border-b border-zinc-900 px-1 text-[9.5px] uppercase tracking-[0.12em] text-structural"
-          style={{ gridColumn: 1, gridRow: 3 }}
-        >
-          <Route size={12} aria-hidden />
-          routing
+        <div role="group" aria-label="Transition lane" className="contents">
+          <div
+            className="flex items-center gap-2 border-b border-zinc-900 px-1 text-[9.5px] uppercase tracking-[0.12em] text-structural"
+            style={{ gridColumn: 1, gridRow: 3 }}
+          >
+            <Zap size={12} aria-hidden />
+            transitions
+          </div>
+          {show.scenes.slice(0, -1).map((scene, index) => {
+            const transitions = strip.boundaryTransitions.filter((transition) => transition.afterSceneId === scene.id)
+            const hasRouting = transitions.some((transition) => transition.kind === 'routing')
+            return (
+              <div
+                key={`boundary-${scene.id}`}
+                className="flex min-w-0 items-center justify-center gap-1 border-b border-zinc-900 px-0.5"
+                style={{ gridColumn: 3 + index * 2, gridRow: 3 }}
+              >
+                {transitions.map((transition) => (
+                  <BoundaryTransitionChip
+                    key={transition.id}
+                    show={show}
+                    transition={transition}
+                    selected={selection.kind === 'transition' && selection.transitionId === transition.id}
+                    onSelect={() => onSelect({ kind: 'transition', transitionId: transition.id })}
+                  />
+                ))}
+                {!hasRouting && (
+                  <button
+                    type="button"
+                    aria-label={`Set routing layout after ${scene.name}`}
+                    title={`Add routing transition after ${scene.name}`}
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      onSelect({ kind: 'routing-switch', afterSceneId: scene.id })
+                    }}
+                    className="flex h-5 w-5 shrink-0 items-center justify-center rounded border border-dashed border-zinc-800 text-zinc-600 hover:border-zinc-600 hover:text-zinc-300"
+                  >
+                    <Plus size={11} aria-hidden />
+                  </button>
+                )}
+              </div>
+            )
+          })}
         </div>
-        {show.scenes.slice(0, -1).map((scene, index) => {
-          const routingSwitch = strip.routingSwitches.find((candidate) => candidate.afterSceneId === scene.id)
-          return (
-            <button
-              key={`route-${scene.id}`}
-              type="button"
-              aria-label={`Set routing layout after ${scene.name}`}
-              title={routingSwitch ? `Switch to ${routingSwitch.layoutName}` : `Set routing layout after ${scene.name}`}
-              onClick={(event) => {
-                event.stopPropagation()
-                onSelect({ kind: 'routing-switch', afterSceneId: scene.id })
-              }}
-              className={[
-                'flex min-w-0 items-center justify-center gap-1 rounded border text-[9px] transition-colors',
-                selection.kind === 'routing-switch' && selection.afterSceneId === scene.id
-                  ? 'border-live/70 bg-live/10 text-live'
-                  : routingSwitch
-                    ? 'border-emerald-900/70 bg-emerald-950/20 text-emerald-300 hover:border-emerald-700'
-                    : 'border-dashed border-zinc-800 text-zinc-600 hover:border-zinc-600 hover:text-zinc-300',
-              ].join(' ')}
-              style={{ gridColumn: 3 + index * 2, gridRow: 3 }}
-            >
-              {routingSwitch ? <Route size={12} aria-hidden /> : <Plus size={12} aria-hidden />}
-            </button>
-          )
-        })}
         {strip.rows.map((row, rowIndex) => (
           <div key={row.zoneId} className="contents">
             <button
@@ -768,20 +770,20 @@ function SceneColumnHeader({
   )
 }
 
-function TransitionGlyph({
+function BoundaryTransitionChip({
   show,
   transition,
-  rowCount,
   selected,
   onSelect,
 }: {
   show: ShowRecord
-  transition: ReturnType<typeof projectShowStrip>['transitions'][number]
-  rowCount: number
+  transition: ReturnType<typeof projectShowStrip>['boundaryTransitions'][number]
   selected: boolean
   onSelect: () => void
 }) {
-  const glyph = transition.kind === 'crossfade'
+  const glyph = transition.kind === 'routing'
+    ? 'rt'
+    : transition.kind === 'crossfade'
     ? 'xf'
     : transition.kind === 'wipe'
       ? 'wp'
@@ -796,22 +798,26 @@ function TransitionGlyph({
   return (
     <button
       type="button"
-      aria-label={`Select ${from} to ${to} transition`}
+      aria-label={`Select ${from} to ${to} transition (${transition.kind})`}
+      title={transition.kind === 'routing'
+        ? `Routing to ${transition.layoutName ?? 'layout'}`
+        : `${transition.kind} · ${transition.durationMs === 0 ? 'marker' : `${transition.durationMs / 1000}s`}`}
       onClick={(event) => {
         event.stopPropagation()
         onSelect()
       }}
       className={[
-        'relative z-0 flex flex-col items-center justify-center gap-1 rounded bg-transparent text-[10px] uppercase text-zinc-500 transition-colors before:absolute before:bottom-[-8px] before:left-1/2 before:top-[-8px] before:border-l before:border-dashed before:border-zinc-700 before:content-[\'\'] hover:text-zinc-300 hover:before:border-zinc-500',
-        selected ? 'text-live before:border-live before:border-solid' : '',
+        'flex h-6 min-w-6 items-center justify-center rounded border px-1 text-[9px] font-semibold uppercase transition-colors',
+        selected
+          ? 'border-live/70 bg-live/10 text-live'
+          : transition.kind === 'routing'
+            ? 'border-emerald-800/70 bg-emerald-950/25 text-emerald-300 hover:border-emerald-600'
+            : transition.cost === 'expensive'
+              ? 'border-amber-800/60 bg-amber-950/20 text-amber-300 hover:border-amber-600'
+              : 'border-zinc-700 bg-zinc-900/70 text-zinc-400 hover:border-zinc-500 hover:text-zinc-200',
       ].join(' ')}
-      style={{
-        gridColumn: 3 + afterIndex * 2,
-        gridRow: `4 / span ${rowCount}`,
-      }}
     >
-      <span className={`relative z-10 bg-[#060608] px-1 ${transition.cost === 'expensive' ? 'text-amber-300' : 'text-emerald-300'}`}>{glyph}</span>
-      <span className="relative z-10 bg-[#060608] px-1 text-[9.5px] text-structural">{Math.round(transition.durationMs / 1000)}s</span>
+      {transition.kind === 'routing' ? <Route size={11} aria-hidden /> : glyph}
     </button>
   )
 }
@@ -841,7 +847,8 @@ function ContextualInspector({
   onExtend,
   onSpanZones,
   onUpdateCellZoneMode,
-  onUpdateTransition,
+  onUpdateBoundaryTransition,
+  onRemoveBoundaryTransition,
   onAddZone,
   onUpdateZone,
   onRemoveZone,
@@ -865,13 +872,11 @@ function ContextualInspector({
   onExtend: (cell: ShowCell, sceneSpan: number) => void
   onSpanZones: (cell: ShowCell, zoneSpan: number) => void
   onUpdateCellZoneMode: (cell: ShowCell, zoneMode: NonNullable<ShowCell['zoneMode']>) => void
-  onUpdateTransition: (
-    sceneId: string,
-    kind: NonNullable<ShowScene['transitionOut']>['kind'],
-    durationMs: number,
-    feather?: number,
-    portal?: Partial<ShowPortalSettings>,
+  onUpdateBoundaryTransition: (
+    transitionId: string,
+    changes: Partial<Omit<ShowBoundaryTransition, 'id' | 'afterSceneId'>>,
   ) => void
+  onRemoveBoundaryTransition: (transitionId: string) => void
   onAddZone: () => void
   onUpdateZone: (zoneId: string, changes: Partial<ShowRecord['zones'][number]>) => void
   onRemoveZone: (zoneId: string) => void
@@ -900,8 +905,9 @@ function ContextualInspector({
     return (
       <TransitionInspector
         show={show}
-        afterSceneId={selection.afterSceneId}
-        onUpdateTransition={onUpdateTransition}
+        transitionId={selection.transitionId}
+        onUpdate={onUpdateBoundaryTransition}
+        onRemove={onRemoveBoundaryTransition}
       />
     )
   }
@@ -1213,23 +1219,47 @@ function MotionCadenceControl({
 
 function TransitionInspector({
   show,
-  afterSceneId,
-  onUpdateTransition,
+  transitionId,
+  onUpdate,
+  onRemove,
 }: {
   show: ShowRecord
-  afterSceneId: string
-  onUpdateTransition: (
-    sceneId: string,
-    kind: NonNullable<ShowScene['transitionOut']>['kind'],
-    durationMs: number,
-    feather?: number,
-    portal?: Partial<ShowPortalSettings>,
-  ) => void
+  transitionId: string
+  onUpdate: (transitionId: string, changes: Partial<Omit<ShowBoundaryTransition, 'id' | 'afterSceneId'>>) => void
+  onRemove: (transitionId: string) => void
 }) {
-  const sceneIndex = show.scenes.findIndex((scene) => scene.id === afterSceneId)
+  const transition = show.transitions?.find((candidate) => candidate.id === transitionId)
+  if (!transition) return null
+  const sceneIndex = show.scenes.findIndex((scene) => scene.id === transition.afterSceneId)
   const scene = show.scenes[sceneIndex] ?? show.scenes[0]
   const nextScene = show.scenes[sceneIndex + 1]
-  const transition = scene.transitionOut ?? { kind: 'cut' as const, durationMs: 0 }
+  if (transition.kind === 'routing') {
+    return (
+      <InspectorPanel title={`${scene?.name ?? 'Scene'} -> ${nextScene?.name ?? 'next'} - routing transition`}>
+        <div className="grid max-w-xl gap-3">
+          <label className="text-[10px] uppercase text-zinc-600">
+            Destination routing layout
+            <select
+              aria-label="Destination routing layout"
+              value={transition.layoutId ?? ''}
+              onChange={(event) => onUpdate(transition.id, { layoutId: event.target.value || undefined })}
+              className={`${field} mt-1 w-full`}
+            >
+              {show.routingLayouts.map((layout) => (
+                <option key={layout.id} value={layout.id}>{layout.name}</option>
+              ))}
+            </select>
+          </label>
+          <p className="text-[10px] leading-4 text-zinc-500">
+            Zero-duration routing marker. The selected layout takes effect at this boundary while Pattern clocks continue.
+          </p>
+          <Button size="xs" variant="ghost" className="w-fit text-zinc-500 hover:text-red-300" onClick={() => onRemove(transition.id)}>
+            <Trash2 size={12} aria-hidden /> Remove marker
+          </Button>
+        </div>
+      </InspectorPanel>
+    )
+  }
   const cost = transitionCost(transition.kind)
   const portalSettings: ShowPortalSettings = {
     centerX: transition.centerX ?? 0.5,
@@ -1238,16 +1268,10 @@ function TransitionInspector({
     featherPolicy: transition.featherPolicy === 'blend' ? 'blend' : 'dither',
   }
   const updatePortal = (changes: Partial<ShowPortalSettings>, feather = transition.feather ?? 0.12) => {
-    onUpdateTransition(
-      scene.id,
-      'portal',
-      transition.durationMs || 2000,
-      feather,
-      changes,
-    )
+    onUpdate(transition.id, { kind: 'portal', durationMs: transition.durationMs || 2000, feather, ...changes })
   }
   return (
-    <InspectorPanel title={`${scene?.name ?? 'Scene'} -> ${nextScene?.name ?? 'next'} - transition`}>
+    <InspectorPanel title={`${scene?.name ?? 'Scene'} -> ${nextScene?.name ?? 'next'} - ${transition.kind} transition`}>
       <div className="grid grid-cols-2 gap-2">
         <label className="text-[10px] uppercase text-zinc-600">
           Boundary
@@ -1259,14 +1283,12 @@ function TransitionInspector({
             aria-label="Transition kind"
             value={transition.kind}
             onChange={(event) => {
-              const kind = event.target.value as NonNullable<ShowScene['transitionOut']>['kind']
-              onUpdateTransition(
-                scene.id,
+              const kind = event.target.value as Exclude<ShowBoundaryTransition['kind'], 'routing'>
+              onUpdate(transition.id, {
                 kind,
-                transition.durationMs || 2000,
-                kind === 'portal' ? transition.feather ?? 0.12 : transition.feather,
-                kind === 'portal' ? portalSettings : undefined,
-              )
+                durationMs: kind === 'cut' ? 0 : transition.durationMs || 2000,
+                ...(kind === 'portal' ? { feather: transition.feather ?? 0.12, ...portalSettings } : {}),
+              })
             }}
             className={`${field} mt-1 w-full`}
           >
@@ -1277,19 +1299,30 @@ function TransitionInspector({
             <option value="portal">portal (2D)</option>
           </select>
         </label>
+        <label className="text-[10px] uppercase text-zinc-600">
+          Easing
+          <select
+            aria-label="Transition easing"
+            value={transition.easing}
+            disabled={transition.kind === 'cut'}
+            onChange={(event) => onUpdate(transition.id, {
+              easing: event.target.value as ShowBoundaryTransition['easing'],
+            })}
+            className={`${field} mt-1 w-full disabled:opacity-40`}
+          >
+            <option value="linear">linear</option>
+            <option value="ease-in">ease in</option>
+            <option value="ease-out">ease out</option>
+            <option value="ease-in-out">ease in/out</option>
+          </select>
+        </label>
         <NumberField
           label="Duration seconds"
           value={Math.round(transition.durationMs / 1000)}
           min={0}
           max={30}
           step={1}
-          onChange={(seconds) => onUpdateTransition(
-            scene.id,
-            transition.kind,
-            seconds * 1000,
-            transition.feather,
-            transition.kind === 'portal' ? portalSettings : undefined,
-          )}
+          onChange={(seconds) => onUpdate(transition.id, { durationMs: seconds * 1000 })}
         />
         {transition.kind === 'wipe' && (
           <>
@@ -1299,7 +1332,7 @@ function TransitionInspector({
               min={0}
               max={1}
               step={0.05}
-              onChange={(feather) => onUpdateTransition(scene.id, transition.kind, transition.durationMs, feather)}
+              onChange={(feather) => onUpdate(transition.id, { feather })}
             />
             <div className="rounded border border-zinc-800 bg-zinc-950/55 p-2 text-[10px] leading-4 text-zinc-500">
               Feather uses a stable spatial threshold across the 1D route edge and still calls one Pattern renderer per pixel.
@@ -1367,6 +1400,11 @@ function TransitionInspector({
             {cost}
           </span>
         </div>
+        {transition.kind !== 'cut' && (
+          <Button size="xs" variant="ghost" className="w-fit text-zinc-500 hover:text-red-300" onClick={() => onRemove(transition.id)}>
+            <Trash2 size={12} aria-hidden /> Remove transition
+          </Button>
+        )}
       </div>
     </InspectorPanel>
   )

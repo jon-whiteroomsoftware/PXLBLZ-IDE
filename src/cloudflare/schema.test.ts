@@ -19,6 +19,7 @@ const controllerMapFingerprintsMigrationPath = path.resolve(
 )
 const personalLibrariesMigrationPath = path.resolve('migrations/0011_personal_libraries.sql')
 const showRoutingLayoutsMigrationPath = path.resolve('migrations/0012_show_routing_layouts.sql')
+const showTransitionBoundariesMigrationPath = path.resolve('migrations/0013_show_transition_boundaries.sql')
 
 describe('D1 personal storage migration', () => {
   it('creates the storage buckets needed for the Cloudflare personal-storage foundation', () => {
@@ -141,5 +142,12 @@ describe('D1 personal storage migration', () => {
     expect(sql).toContain('ALTER TABLE personal_shows ADD COLUMN routing_layouts_json TEXT')
     expect(sql).toContain('ALTER TABLE personal_shows ADD COLUMN routing_switches_json TEXT')
     expect(sql).toContain("VALUES ('schema_version', '12', unixepoch())")
+  })
+
+  it('adds first-class Show transition boundaries', () => {
+    const sql = fs.readFileSync(showTransitionBoundariesMigrationPath, 'utf8')
+
+    expect(sql).toContain('ALTER TABLE personal_shows ADD COLUMN transitions_json TEXT')
+    expect(sql).toContain("VALUES ('schema_version', '13', unixepoch())")
   })
 })

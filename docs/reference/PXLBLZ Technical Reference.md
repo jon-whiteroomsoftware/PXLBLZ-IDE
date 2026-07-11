@@ -868,7 +868,8 @@ attempted or implied.
 Shows are persisted as `ShowRecord`s in `personal_shows` (migration 0007):
 `name`, `scenes_json`, `zones_json`, `cells_json`, optional
 `target_controller_profile_id`, optional `stage_map_id` (migration 0009), and
-`routing_layouts_json` plus `routing_switches_json` (migration 0012), and
+`routing_layouts_json` plus `routing_switches_json` (migration 0012), canonical
+`transitions_json` (migration 0013), and
 `updated_at`. `showStore` owns the active Show and writes every
 scene/cell/zone/stage edit immediately through `/api/shows`. The
 pure model helpers in `showModel.ts` create the default two-scene/one-zone
@@ -880,7 +881,13 @@ covering cells per zone, remove scenes while clipping or re-anchoring spanning
 cells so every remaining zone row stays hole-free, edit show-local zone names
 and nominal pixel counts, extend cells across scene boundaries as hold shapes,
 edit non-destructive adaptations and explicit `restartOnEntry` state, and build
-compiler recipes. Split rejects transition windows and fragments shorter than
+compiler recipes. `normalizeShowTransitionState` losslessly migrates legacy
+`scene.transitionOut` and `routingSwitches` values into stable boundary entities
+with id, `afterSceneId`, kind, duration, easing, and type-specific fields. The
+legacy fields remain derived compatibility views during the migration; compiler,
+timeline, EPE, and persistence paths normalize before consuming them. Visual and
+routing records can coexist at one boundary, while every boundary always retains
+one explicit visual record (a zero-duration cut when no effect is active). Split rejects transition windows and fragments shorter than
 one second; a successful split moves the original outgoing transition and routing
 switch to the new right-hand scene, divides every temporally covering cell,
 deep-copies its Pattern/adaptation value objects, and persists
@@ -914,7 +921,12 @@ zone removes its layout entries.
 headers are inline-editable labels sized by duration, transition windows consume
 their real time, a ruler and persistent playhead share the same axis, zone headers
 carry the zone color, cells are zone-tinted clips, and holding cells physically
-span across transition columns. The header transport reads the shared preview
+span across transition columns. One dedicated boundary lane projects every
+visual and routing entity as a selectable chip; zero-duration markers use an
+overflowing fixed hit target without changing the proportional time axis. The
+shared inspector updates/removes by transition id, so a later boundary cannot
+silently redirect an edit to its neighbor. Removing a visual effect normalizes
+that same id to cut; removing routing deletes only its marker. The header transport reads the shared preview
 play/pause state, supports Space outside form controls, and publishes seek requests
 through `showTransportStore`; ruler interaction moves the playhead optimistically
 while the Stage rebuilds. Split is enabled only for a valid interior scene-hold

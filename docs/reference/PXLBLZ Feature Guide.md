@@ -296,8 +296,15 @@ the darkness; **freeze** advances its private clock only for the open portion of
 each frame interval. This is a generated evaluation mask, not a brightness
 scalar: the outer Pixelblaze render loop and LED transport still run.
 The timeline is a recessed composition surface: scene headers are
-inline-editable labels, zone rows carry their zone color, pattern cells render as
-zone-tinted clips, and transitions are clickable seams between scene columns.
+inline-editable labels, zone rows carry their zone color, and pattern cells render
+as zone-tinted clips. A dedicated **Transitions** lane holds selectable chips for
+cut, crossfade, wipe, dither, portal, and routing-layout events. Duration-bearing
+events occupy proportional time; zero-duration cut/routing markers retain clear
+hit targets at the shared boundary. Selecting a chip opens one inspector for its
+stable entity rather than editing either neighboring scene. Visual transitions
+expose kind, duration, easing, cost, and type-specific settings; routing markers
+select their destination layout. Removing a visual event leaves an explicit cut
+marker, while removing a routing marker removes only that routing event.
 
 The transport above the timeline goes to Show start and toggles play/pause;
 **Space** toggles the same state while focus is outside an editor control. Clicking
@@ -319,8 +326,9 @@ The new destination cells default to **Continue**.
 The contextual inspector below the timeline follows the current selection. Clicking
 the timeline background shows show-level setup (target Controller, stage map, loop
 and zone summary, plus Add zone). Clicking a cell edits its source pattern,
-adaptations, hold span, and zone span. Clicking a transition edits that specific
-scene boundary, not just the first one. Clicking a zone edits the show-local row
+adaptations, hold span, and zone span. Clicking a transition chip edits that
+specific stable boundary entity, not just the first one or a neighboring scene.
+Clicking a zone edits the show-local row
 and its nominal pixel count. Ghost affordances at the end of the strip add a new
 scene or zone; scene headers expose rename, duration, and removal controls, with
 scene removal confirmed before it mutates the strip. The editor persists shows in

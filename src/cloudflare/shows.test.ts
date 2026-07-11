@@ -49,10 +49,16 @@ describe('D1 show persistence (#318)', () => {
       cells_json: JSON.stringify(show.cells),
       routing_layouts_json: JSON.stringify(show.routingLayouts),
       routing_switches_json: JSON.stringify(show.routingSwitches),
+      transitions_json: null,
       target_controller_profile_id: 'ctrl-1',
       stage_map_id: 'map-1',
       updated_at: 123,
-    })).toEqual({ ...show, targetControllerProfileId: 'ctrl-1', stageMapId: 'map-1' })
+    })).toEqual(expect.objectContaining({
+      ...show,
+      transitions: [expect.objectContaining({ id: 'transition-scene-1', kind: 'crossfade' })],
+      targetControllerProfileId: 'ctrl-1',
+      stageMapId: 'map-1',
+    }))
   })
 
   it('scopes list, update, and delete by signed-in user', async () => {
@@ -80,6 +86,7 @@ describe('D1 show persistence (#318)', () => {
     expect(calls[0].values).toContain(JSON.stringify(show.cells))
     expect(calls[0].values).toContain(JSON.stringify(show.routingLayouts))
     expect(calls[0].values).toContain(JSON.stringify(show.routingSwitches))
+    expect(calls[0].values).toContain(JSON.stringify(show.transitions))
     expect(calls[0].values).toContain(null)
   })
 })

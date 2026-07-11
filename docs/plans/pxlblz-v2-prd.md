@@ -102,8 +102,8 @@ model remains:
   The approved interaction/design artifact is
   `docs/plans/show-timeline-overhaul-mockup.html`. The opening proportional
   timeline, transport, playhead, and accurate-seek slice shipped in #414;
-  Split/entry semantics shipped in #415; first-class transition migration,
-  automation lanes, and zoom continue through #416–#420. A cell can
+  Split/entry semantics shipped in #415 and the first-class transition lane
+  shipped in #416; automation lanes and zoom continue through #417–#420. A cell can
   span rows (**zone spanning**: adjacent zones act as one canvas — one
   domain — versus two independently re-normalized domains). A spanning cell
   may instead choose **Repeat per zone**, keeping one shared Pattern instance
@@ -123,12 +123,15 @@ model remains:
   brightness, mirror, phase, time scale, and exposed Pattern properties may
   interpolate while phase remains undisturbed. Same-Pattern transitions are
   therefore parameter-cheap and never open a two-renderer window.
-- **First-class transition ownership** (decided 2026-07-11): a transition is
+- **First-class transition ownership** (shipped #416): a transition is
   not metadata hidden on the outgoing clip. It is a selectable boundary object
   that relates the states on both sides. Zero-duration cut/routing markers and
   duration-bearing property, route, crossfade, wipe, dither, and portal
-  transitions share one lane, selection model, and inspector. A transition's
-  duration occupies visible Show time and its easing is explicit.
+  transitions share one lane, stable identity, selection model, and inspector.
+  A transition's duration occupies visible Show time and its easing is explicit.
+  The lossless migration preserves the shipped #397 routing representation and
+  gives #403 progressive transfers plus #404 layout-aware transitions the same
+  entity seam instead of another private lane or inspector.
 - **Property transitions and automation** (decided 2026-07-11): the primitive
   is CSS-like: start value, target value, duration, and optional easing (linear
   when omitted). Scene/cell state owns target values; the boundary transition

@@ -75,6 +75,7 @@ export interface LibraryRecord {
 export type ShowTransitionKind = 'cut' | 'crossfade' | 'wipe' | 'dither' | 'portal'
 export type ShowTransitionCost = 'free' | 'cheap' | 'expensive'
 export type ShowPortalFeatherPolicy = 'dither' | 'blend'
+export type ShowTransitionEasing = 'linear' | 'ease-in' | 'ease-out' | 'ease-in-out'
 
 export interface ShowPortalSettings {
   centerX: number
@@ -128,6 +129,21 @@ export interface ShowRoutingSwitch {
   layoutId: string
 }
 
+/** A selectable event on the shared boundary lane. Legacy scene/routing fields are derived compatibility views. */
+export interface ShowBoundaryTransition {
+  id: string
+  afterSceneId: string
+  kind: ShowTransitionKind | 'routing'
+  durationMs: number
+  easing: ShowTransitionEasing
+  layoutId?: string
+  feather?: number
+  centerX?: number
+  centerY?: number
+  invert?: boolean
+  featherPolicy?: ShowPortalFeatherPolicy
+}
+
 export interface ShowCellAdaptations {
   mirror: boolean
   phase: number
@@ -176,6 +192,8 @@ export interface ShowRecord {
   cells: ShowCell[]
   routingLayouts: ShowRoutingLayout[]
   routingSwitches: ShowRoutingSwitch[]
+  /** Canonical transition-lane entities. Missing only on legacy records awaiting normalization. */
+  transitions?: ShowBoundaryTransition[]
   targetControllerProfileId?: string
   stageMapId?: string | null
   updatedAt: number

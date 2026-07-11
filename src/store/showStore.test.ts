@@ -169,6 +169,37 @@ describe('showStore (#318)', () => {
     expect(useShowStore.getState().shows[0].cells.find((cell) => cell.id === destination.id)?.restartOnEntry).toBe(true)
   })
 
+  it('migrates and persists first-class transition boundary edits by id (#416)', async () => {
+    const legacy = createDefaultShow('show-1', 'Legacy boundaries', 1)
+    delete legacy.transitions
+    const provider = memoryProvider([legacy])
+    setPersonalContentProvider(provider)
+
+    await useShowStore.getState().loadShows()
+    expect(useShowStore.getState().shows[0].transitions?.[0]).toMatchObject({
+      id: 'transition-scene-1',
+      kind: 'crossfade',
+      easing: 'linear',
+    })
+
+    await useShowStore.getState().updateBoundaryTransition(legacy.id, 'transition-scene-1', {
+      kind: 'wipe',
+      durationMs: 2500,
+      easing: 'ease-out',
+      feather: 0.25,
+    })
+    useShowStore.setState(showInitialState)
+    await useShowStore.getState().loadShows()
+
+    expect(useShowStore.getState().shows[0].transitions?.[0]).toMatchObject({
+      id: 'transition-scene-1',
+      kind: 'wipe',
+      durationMs: 2500,
+      easing: 'ease-out',
+      feather: 0.25,
+    })
+  })
+
   it('persists a wipe feather width through the provider', async () => {
     const show = createDefaultShow('show-1', 'Opening wash', 1)
     setPersonalContentProvider(memoryProvider([show]))
