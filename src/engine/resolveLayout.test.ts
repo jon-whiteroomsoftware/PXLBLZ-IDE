@@ -25,6 +25,18 @@ const SOURCE: LayoutSource = {
     { id: 'reverse1d', name: 'Reverse strand', dim: 1 },
     { id: 'plane', name: 'Square', dim: 2, wrappable: true },
     { id: 'ring2d', name: 'Ring', dim: 2, wrappable: false },
+    {
+      id: 'cylinder-strand', name: 'Cylinder · Strand', dim: 1, displayDim: 3,
+      family: { id: 'cylinder', name: 'Cylinder', view: 'strand' },
+    },
+    {
+      id: 'cylinder-surface', name: 'Cylinder · Surface', dim: 2, displayDim: 3,
+      family: { id: 'cylinder', name: 'Cylinder', view: 'surface', natural: true },
+    },
+    {
+      id: 'cylinder-spatial', name: 'Cylinder · Spatial', dim: 3, displayDim: 3,
+      family: { id: 'cylinder', name: 'Cylinder', view: 'spatial' },
+    },
     { id: 'cube', name: 'Cube', dim: 3 },
     { id: 'cube-shell', name: 'Cube (shell)', dim: 3 },
     { id: 'star-shell', name: 'Star (shell)', dim: 3 },
@@ -56,6 +68,29 @@ function makeMap(opts: Partial<PixelMap> & Pick<PixelMap, 'id' | 'dim'>): PixelM
   }
 }
 
+function makeCylinderMap(
+  id: string,
+  dim: 1 | 2 | 3,
+  view: 'strand' | 'surface' | 'spatial',
+  natural = false,
+): PixelMap {
+  return {
+    id,
+    name: `Cylinder · ${view}`,
+    builtin: true,
+    dim,
+    displayDim: 3,
+    family: { id: 'cylinder', name: 'Cylinder', view, natural },
+    gridDims: (count) => ({ cols: Math.ceil(Math.sqrt(count)), rows: Math.ceil(count / Math.ceil(Math.sqrt(count))) }),
+    resolve: (count) => Array.from({ length: count }, (_, index) => {
+      const t = count > 1 ? index / (count - 1) : 0
+      const pos: [number, number, number] = [0.5 + 0.2 * Math.cos(t * Math.PI * 2), t, 0.5 + 0.2 * Math.sin(t * Math.PI * 2)]
+      const sample = dim === 1 ? [t] : dim === 2 ? [t, t] : [...pos]
+      return { sample, pos }
+    }),
+  }
+}
+
 const MAPS: Record<string, PixelMap> = {
   reverse1d: {
     id: 'reverse1d',
@@ -70,6 +105,9 @@ const MAPS: Record<string, PixelMap> = {
   },
   plane: makeMap({ id: 'plane', dim: 2, gridDims: (count) => ({ cols: count, rows: 1 }) }),
   ring2d: makeMap({ id: 'ring2d', dim: 2, bakedCount: 60 }),
+  'cylinder-strand': makeCylinderMap('cylinder-strand', 1, 'strand'),
+  'cylinder-surface': makeCylinderMap('cylinder-surface', 2, 'surface', true),
+  'cylinder-spatial': makeCylinderMap('cylinder-spatial', 3, 'spatial'),
   // A non-`plane` 2D map that still resolves to a clean lattice (the Wide 2:1 case):
   // its label must come from its own gridDims, not from a hard-coded id check.
   wide: makeMap({ id: 'wide', dim: 2, gridDims: (count) => ({ cols: count, rows: 2 }) }),
@@ -208,6 +246,30 @@ describe('resolveLayout — 2D maps', () => {
     const r = resolveLayout(input({ selection: { mapId: 'ring2d', surfaceId: 'cylinder' } }), deps)
     expect(r.draw.kind).toBe('2d')
     expect(r.displayDim).toBe(2)
+  })
+})
+
+describe('resolveLayout — generated geometry coordinate views', () => {
+  it.each([
+    ['cylinder-strand', 1],
+    ['cylinder-surface', 2],
+    ['cylinder-spatial', 3],
+  ] as const)('draws %s from its intrinsic 3D positions without a separate embedding', (mapId, dim) => {
+    const r = resolveLayout(input({ nativeDim: dim, selection: { mapId }, persistedCount: 24 }), deps)
+    expect(r.correctedSelection).toEqual({ mapId })
+    expect(r.mapDim).toBe(dim)
+    expect(r.mapPoints[0].sample).toHaveLength(dim)
+    expect(r.mapPoints[0].pos).toHaveLength(3)
+    expect(r.draw.kind).toBe('3d')
+    expect(r.displayDim).toBe(3)
+  })
+
+  it('keeps positions stable while the selected view changes samples', () => {
+    const results = ['cylinder-strand', 'cylinder-surface', 'cylinder-spatial'].map((mapId) =>
+      resolveLayout(input({ selection: { mapId }, persistedCount: 24 }), deps),
+    )
+    expect(results[0].mapPoints.map((point) => point.pos)).toEqual(results[1].mapPoints.map((point) => point.pos))
+    expect(results[1].mapPoints.map((point) => point.pos)).toEqual(results[2].mapPoints.map((point) => point.pos))
   })
 })
 

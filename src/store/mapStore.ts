@@ -138,6 +138,7 @@ export function layoutSource(state: Pick<MapState, 'userMaps'>): LayoutSource {
         name: m.name,
         dim: m.dim,
         displayDim: m.displayDim,
+        family: m.family,
         wrappable: isMapWrappable({ id: m.id, dim: m.dim }),
         stock: true,
       })),

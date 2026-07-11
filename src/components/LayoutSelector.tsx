@@ -7,6 +7,8 @@ import {
   selectionForOption,
   selectedMapId,
   selectedEmbeddingId,
+  selectedFamilyOptionId,
+  coordinateViewOptions,
 } from '@/engine/layout'
 import type { ShapeId } from '@/engine/shapes'
 import type { SurfaceId } from '@/engine/surfaces'
@@ -40,12 +42,14 @@ function useLayoutControls() {
   const maps = mapOptions(nativeDim, source)
   const sel = { mapId: activeMapId, shapeId: activeShapeId, surfaceId: activeSurfaceId }
   const selectedMap = selectedMapId(sel, nativeDim)
-  const mapValue = maps.some((option) => option.id === selectedMap) ? selectedMap : maps[0]?.id
-  const selectedMapOption = maps.find((option) => option.id === mapValue)
-  const mapDim = selectedMapOption?.mapDim ?? nativeDim
-  const activeMap = source.maps.find((m) => m.id === mapValue)
+  const familyOptionId = selectedFamilyOptionId(selectedMap, source)
+  const mapValue = maps.some((option) => option.id === familyOptionId) ? familyOptionId : maps[0]?.id
+  const selectedMapOption = source.maps.find((option) => option.id === selectedMap)
+  const mapDim = selectedMapOption?.dim ?? nativeDim
+  const activeMap = selectedMapOption
   const embeddings = embeddingOptions(mapDim, source, activeMap)
   const embeddingValue = selectedEmbeddingId(sel, mapDim)
+  const coordinateViews = coordinateViewOptions(selectedMap, source)
 
   // Route a chosen option to its live setter AND write a per-pattern cascaded
   // override: a map/shape/surface change is genuine manipulation, so it
@@ -68,7 +72,7 @@ function useLayoutControls() {
     }
   }
 
-  return { nativeDim, mapDim, maps, embeddings, mapValue, embeddingValue, route }
+  return { nativeDim, mapDim, maps, embeddings, mapValue, embeddingValue, coordinateViews, activeMapId, route }
 }
 
 function mapSelectMeta(
@@ -123,6 +127,33 @@ export function MapSelect() {
         menuWidthClass="w-full"
         menuAlign="left"
         block
+      />
+    </div>
+  )
+}
+
+export function CoordinateViewSelect() {
+  const { coordinateViews, activeMapId, route } = useLayoutControls()
+  if (coordinateViews.length < 2) return null
+  return (
+    <div className="mt-1 flex items-center justify-end gap-1.5">
+      <span className="text-[10px] lowercase tracking-wide text-structural">view</span>
+      <DeckSelect
+        ariaLabel="Coordinate view"
+        value={activeMapId}
+        options={coordinateViews.map((option) => ({
+          value: option.mapId,
+          label: option.label,
+          badge: `${option.dim}D`,
+        }))}
+        onChange={(id) => route(id, coordinateViews.map((option) => ({
+          kind: 'map' as const,
+          id: option.mapId,
+          name: option.label,
+          displayDim: 3 as const,
+          mapDim: option.dim,
+        })))}
+        menuWidthClass="w-28"
       />
     </div>
   )

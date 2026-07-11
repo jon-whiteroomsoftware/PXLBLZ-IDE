@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MapSelect, EmbeddingSelect } from './LayoutSelector'
+import { CoordinateViewSelect, MapSelect, EmbeddingSelect } from './LayoutSelector'
 import { useMapStore, mapInitialState } from '@/store/mapStore'
 import { useEditorStore, editorInitialState } from '@/store/editorStore'
 import { INDEX_MAP_ID } from '@/engine/layout'
@@ -105,6 +105,19 @@ describe('MapSelect (smoke)', () => {
     await user.click(screen.getByRole('button', { name: 'Map' }))
     await user.click(screen.getByRole('option', { name: 'Square' }))
     expect(useMapStore.getState().activeMapId).toBe('plane')
+  })
+
+  it('shows Cylinder once and progressively switches its coordinate view', async () => {
+    const user = userEvent.setup()
+    useEditorStore.setState({ nativeDim: 2 })
+    useMapStore.setState({ activeMapId: 'cylinder-surface' })
+    render(<><MapSelect /><CoordinateViewSelect /></>)
+
+    expect(screen.getByRole('button', { name: 'Map' })).toHaveTextContent('Cylinder')
+    expect(screen.getByRole('button', { name: 'Coordinate view' })).toHaveTextContent('Surface')
+    await user.click(screen.getByRole('button', { name: 'Coordinate view' }))
+    await user.click(screen.getByRole('option', { name: 'Spatial' }))
+    expect(useMapStore.getState().activeMapId).toBe('cylinder-spatial')
   })
 })
 

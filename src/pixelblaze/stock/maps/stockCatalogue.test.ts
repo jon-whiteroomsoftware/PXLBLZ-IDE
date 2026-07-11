@@ -15,6 +15,9 @@ describe('stock catalogue', () => {
       'plane',
       'wide',
       'panel-winding',
+      'cylinder-strand',
+      'cylinder-surface',
+      'cylinder-spatial',
       'cube',
       'cube-shell',
       'star-shell',
@@ -32,8 +35,12 @@ describe('stock catalogue', () => {
     }
   })
 
-  it('excludes the drape cylinder (no faithful source)', () => {
-    expect(stockMapSpec('cylinder')).toBeUndefined()
+  it('catalogues Cylinder once with three ordinary coordinate views', () => {
+    const views = STOCK_MAP_SPECS.filter((spec) => spec.family?.id === 'cylinder')
+    expect(views.map((spec) => spec.family?.view)).toEqual(['strand', 'surface', 'spatial'])
+    expect(views.filter((spec) => spec.family?.natural)).toHaveLength(1)
+    expect(views.find((spec) => spec.family?.natural)?.id).toBe('cylinder-surface')
+    expect(views.map((spec) => spec.dim)).toEqual([1, 2, 3])
   })
 
   it('builds live builtin maps of the declared dimensionality', () => {
@@ -57,6 +64,7 @@ describe('stock catalogue', () => {
     expect(mapById('seed-sphere-3d').normals).toBe('centroid')
     expect(mapById('cube-shell').normals).toBe('face')
     expect(mapById('star-shell').normals).toBe('star')
+    expect(mapById('cylinder-surface').normals).toBe('cylinder')
     expect(mapById('cube').normals).toBeUndefined()
     expect(mapById('plane').normals).toBeUndefined()
     expect(mapById('sunflower-pucks').normals).toBeUndefined()
@@ -128,9 +136,40 @@ describe('source regeneration', () => {
           expect(c).toBeGreaterThanOrEqual(0)
           expect(c).toBeLessThanOrEqual(1)
         }
-        expect(pt.pos).toEqual(pt.sample)
+        if (!m.family) expect(pt.pos).toEqual(pt.sample)
       }
     }
+  })
+
+  it('changes Cylinder samples without moving its physical wall points', () => {
+    const count = 35
+    const strand = mapById('cylinder-strand').resolve(count)
+    const surface = mapById('cylinder-surface').resolve(count)
+    const spatial = mapById('cylinder-spatial').resolve(count)
+
+    expect(strand.map((point) => point.pos)).toEqual(surface.map((point) => point.pos))
+    expect(surface.map((point) => point.pos)).toEqual(spatial.map((point) => point.pos))
+    expect(strand.every((point) => point.sample.length === 1)).toBe(true)
+    expect(surface.every((point) => point.sample.length === 2)).toBe(true)
+    expect(spatial.every((point) => point.sample.length === 3)).toBe(true)
+    expect(strand.map((point) => point.sample[0])).toEqual(
+      Array.from({ length: count }, (_, index) => index / (count - 1)),
+    )
+  })
+
+  it('keeps Cylinder row-major wire order, circumference seam, and square-cell aspect', () => {
+    const count = 35
+    const cylinder = mapById('cylinder-surface')
+    const points = cylinder.resolve(count)
+    const dims = cylinder.gridDims(count)
+    expect(dims).toEqual(squarePlaneDims(count))
+
+    const cols = dims!.cols
+    expect(points[0].sample).toEqual([0, 0])
+    expect(points[cols].sample[1]).toBeGreaterThan(points[0].sample[1])
+    expect(points[cols - 1].pos).not.toEqual(points[0].pos)
+    expect(points[cols].pos?.[0]).toBeCloseTo(points[0].pos![0], 12)
+    expect(points[cols].pos![2]!).toBeCloseTo(points[0].pos![2]!, 12)
   })
 
   it('clouds do not origin-snap on a count bump (live, not frozen)', () => {

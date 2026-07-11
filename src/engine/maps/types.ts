@@ -32,7 +32,19 @@ export interface GridDims {
 // `normalize(pos − centroid)` for a convex shell, e.g. the Sphere). Its PRESENCE
 // is the provenance gate that makes the map solid-eligible — absent for
 // volumes and irregular clouds, which never offer the solidity slider.
-export type NormalRecipe = 'face' | 'star' | 'tetra' | 'centroid'
+export type NormalRecipe = 'face' | 'star' | 'tetra' | 'centroid' | 'cylinder'
+
+export type CoordinateView = 'strand' | 'surface' | 'spatial'
+
+// A generated geometry is catalogued once while each coordinate view remains a
+// real, independently materializable Pixelblaze map. The family metadata is
+// preview/catalogue-only; hardware receives the selected view's ordinary source.
+export interface GeometryFamilyView {
+  id: string
+  name: string
+  view: CoordinateView
+  natural?: boolean
+}
 
 export interface PixelMap {
   id: string
@@ -47,6 +59,9 @@ export interface PixelMap {
   dim: 1 | 2 | 3
   // How the map is DRAWN, when it differs from `dim`. Absent ⇒ same as `dim`.
   displayDim?: 1 | 2 | 3
+  // Present when this map is one coordinate view of a shared generated geometry.
+  // All sibling views may supply different samples while resolving the same pos.
+  family?: GeometryFamilyView
   // For a baked custom map: how many points the frozen array holds.
   // A freshly selected custom map defaults the modeled count to this so it reads
   // correctly out of the gate — it stays a free knob, so changing it surfaces the

@@ -7,6 +7,7 @@ import {
   layoutSource,
   isMapWrappable,
   canDeployMap,
+  openMapForPushState,
   DEFAULT_MAP_BAKE_COUNT,
   STOCK_MAPS,
   DEFAULT_MAP_ID,
@@ -360,6 +361,20 @@ describe('editor map mode (#151)', () => {
     expect(useEditorStore.getState().editorFlavor).toBe('map')
     expect(useEditorStore.getState().isReadOnly).toBe(true)
     expect(useEditorStore.getState().source).toMatch(/function/)
+  })
+
+  it.each([
+    ['cylinder-strand', 1],
+    ['cylinder-surface', 2],
+    ['cylinder-spatial', 3],
+  ] as const)('opens and materializes the %s coordinate view as an ordinary %dD map', (id, dim) => {
+    useMapStore.setState({ activePixelCount: 35 })
+    useMapStore.getState().openStockMap(id)
+    expect(useEditorStore.getState().source).toMatch(/function/)
+    const push = openMapForPushState(useMapStore.getState())
+    expect(push?.id).toBe(id)
+    expect(push?.points).toHaveLength(35)
+    expect(push?.points.every((point) => point.length === dim)).toBe(true)
   })
 
   it('cloneStockMap creates an editable custom map copy', async () => {

@@ -557,6 +557,17 @@ canvas aspect. A pos-less 1D map therefore normalizes without inventing geometry
 An embedding owns `pos` while the map owns `sample`; all embeddings are pure
 `pos`-only generators.
 
+Generated geometry families are the hardware-real sibling of this composition.
+`SourceMapSpec.family` groups ordinary source-backed map variants, while
+`positionSource` names the family's one physical-point source. `createSourceMap`
+evaluates the selected view source into `sample` and the shared position source
+into `pos`, requiring index-aligned point counts. Cylinder ships Strand (1D),
+Surface (2D, natural), and Spatial (3D) variants; every variant uses
+`cylinder-spatial.js` for preview positions, so changing views cannot move a
+pixel. Each view's standalone source still bakes, opens in map mode, pushes, and
+reads back through the existing map contract. Cylinder is a wall distribution,
+not a volume generator.
+
 - **Shapes** (`shapes.ts`, 1D): `line`, `ring`, and `pole` (a helix on a
   cylinder, drawn in 3D via `polePositions`, wrap density in `cameraStore`).
   Shared π-cell wall math in `cylinderWall.ts`. Each Shape supplies only `pos`;
@@ -585,12 +596,15 @@ Map mode or a Controller push.
 
 `resolveLayoutSelection` restores any still-valid selected map, then derives the
 embedding from that map's dimension: shapes for Index/1D, surfaces (gated on
-`gridDims`) for 2D, none for 3D. Thus a 3D-native Pattern on a 1D map gets a Shape,
+`gridDims`) for 2D, none for 3D. A generated geometry family instead retains its
+intrinsic 3D `pos` at every coordinate-view arity and suppresses the separate
+embedding control. Thus a 3D-native Pattern on an ordinary 1D map gets a Shape,
 while a 1D-native Pattern on a 2D map gets Flat/Cylinder.
 `LayoutSelector.tsx` factors shared logic into `useLayoutControls()` and exports
 the two controls separately so the deck can place them by what they are:
 `MapSelect` renders inside the PIXELBLAZE block (stacked full-width, compatibility
-groups and dimension badges); `EmbeddingSelect` renders on the transport row.
+groups and dimension badges); `CoordinateViewSelect` appears progressively under
+a selected family; `EmbeddingSelect` renders on the transport row.
 Fill/Contain keys off selected map dimension and remains hidden for 1D because
 one axis has no aspect tradeoff.
 

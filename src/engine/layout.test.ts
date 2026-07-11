@@ -4,6 +4,8 @@ import {
   selectionForOption,
   selectedMapId,
   selectedEmbeddingId,
+  coordinateViewOptions,
+  selectedFamilyOptionId,
   resolveLayoutSelection,
   resolveSolidity,
   INDEX_MAP_ID,
@@ -23,6 +25,18 @@ const SOURCE: LayoutSource = {
     { id: 'reverse1d', name: 'Reverse strand', dim: 1 },
     { id: 'plane', name: 'Square', dim: 2, wrappable: true },
     { id: 'ring2d', name: 'Ring', dim: 2, wrappable: false },
+    {
+      id: 'cylinder-strand', name: 'Cylinder · Strand', dim: 1, displayDim: 3,
+      family: { id: 'cylinder', name: 'Cylinder', view: 'strand' },
+    },
+    {
+      id: 'cylinder-surface', name: 'Cylinder · Surface', dim: 2, displayDim: 3,
+      family: { id: 'cylinder', name: 'Cylinder', view: 'surface', natural: true },
+    },
+    {
+      id: 'cylinder-spatial', name: 'Cylinder · Spatial', dim: 3, displayDim: 3,
+      family: { id: 'cylinder', name: 'Cylinder', view: 'spatial' },
+    },
     { id: 'cube', name: 'Cube', dim: 3 },
   ],
 }
@@ -34,6 +48,7 @@ describe('mapOptions (exact dimension first)', () => {
       'reverse1d',
       'plane',
       'ring2d',
+      'cylinder-surface',
       'cube',
     ])
   })
@@ -43,11 +58,13 @@ describe('mapOptions (exact dimension first)', () => {
     expect(options.map((o) => o.id)).toEqual([
       'plane',
       'ring2d',
+      'cylinder-surface',
       INDEX_MAP_ID,
       'reverse1d',
       'cube',
     ])
     expect(options.map((o) => o.group)).toEqual([
+      'recommended',
       'recommended',
       'recommended',
       'other',
@@ -64,6 +81,17 @@ describe('mapOptions (exact dimension first)', () => {
       'reverse1d',
       'plane',
       'ring2d',
+      'cylinder-surface',
+    ])
+  })
+
+  it('catalogues Cylinder once and exposes its views progressively', () => {
+    expect(mapOptions(2, SOURCE).filter((option) => option.name === 'Cylinder')).toHaveLength(1)
+    expect(selectedFamilyOptionId('cylinder-spatial', SOURCE)).toBe('cylinder-surface')
+    expect(coordinateViewOptions('cylinder-surface', SOURCE)).toEqual([
+      { mapId: 'cylinder-strand', view: 'strand', label: 'Strand', dim: 1 },
+      { mapId: 'cylinder-surface', view: 'surface', label: 'Surface', dim: 2 },
+      { mapId: 'cylinder-spatial', view: 'spatial', label: 'Spatial', dim: 3 },
     ])
   })
 })
@@ -88,6 +116,11 @@ describe('embeddingOptions (shapes for 1D, surfaces for 2D)', () => {
 
   it('offers no embedding for a 3D pattern', () => {
     expect(embeddingOptions(3, SOURCE, SOURCE.maps.find((m) => m.id === 'cube'))).toEqual([])
+  })
+
+  it('offers no separate embedding for a geometry family that owns its positions', () => {
+    const cylinder = SOURCE.maps.find((map) => map.id === 'cylinder-surface')
+    expect(embeddingOptions(2, SOURCE, cylinder)).toEqual([])
   })
 })
 

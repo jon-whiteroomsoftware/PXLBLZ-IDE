@@ -10,7 +10,7 @@ import {
   hasActiveOverrides,
 } from '@/store/settingsCascade'
 import { effectivePixelCount } from '@/engine/layout'
-import { MapSelect, EmbeddingSelect, useMapSelectMeta } from '@/components/LayoutSelector'
+import { CoordinateViewSelect, MapSelect, EmbeddingSelect, useMapSelectMeta } from '@/components/LayoutSelector'
 import { SpeedSelector } from '@/components/SpeedSelector'
 import { DeckSelect } from '@/components/DeckSelect'
 import { DeckSlider } from '@/components/DeckSlider'
@@ -211,7 +211,10 @@ function SecondaryBand() {
               the Map control remains because Other dimensions are always available. */}
           {hasMapChoice && (
             <DeckField label="map">
-              <MapSelect />
+              <div className="flex flex-col items-end">
+                <MapSelect />
+                <CoordinateViewSelect />
+              </div>
             </DeckField>
           )}
           <DeckSlider

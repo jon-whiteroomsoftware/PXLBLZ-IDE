@@ -1,4 +1,4 @@
-import type { GridDims, MapPoint, NormalRecipe, PixelMap } from './types'
+import type { GeometryFamilyView, GridDims, MapPoint, NormalRecipe, PixelMap } from './types'
 import { evalMapSource } from './evalMapSource'
 import { normalizeAspect } from './normalize'
 import { squarePlaneDims, widePlaneDims } from './plane'
@@ -31,9 +31,13 @@ export interface SourceMapSpec {
   name: string
   dim: 1 | 2 | 3
   displayDim?: 1 | 2 | 3
+  family?: GeometryFamilyView
   // Raw Mapper JavaScript (Vite `?raw` text): either a literal coordinate array
   // or `function(pixelCount){ … return coords }`.
   source: string
+  // Optional shared physical-position source for a generated geometry family.
+  // Its selected view source still owns `sample`; this source owns preview `pos`.
+  positionSource?: string
   // Provenance-gated normal recipe: set only on a stock 3D shell
   // the catalogue vouches for, so the preview derives the matching per-point normal
   // and offers the solidity slider. Carried through onto the PixelMap.
@@ -57,13 +61,22 @@ export function createSourceMap(spec: SourceMapSpec): PixelMap {
     builtin: true,
     dim: spec.dim,
     ...(spec.displayDim !== undefined ? { displayDim: spec.displayDim } : {}),
+    ...(spec.family ? { family: spec.family } : {}),
     ...(spec.normals ? { normals: spec.normals } : {}),
     gridDims: spec.grid ? (pixelCount: number) => GRID_FNS[spec.grid!](pixelCount) : () => null,
     resolve(pixelCount: number): MapPoint[] {
-      const normalized = normalizeAspect(evalMapSource(spec.source, pixelCount))
-      return normalized.map((c) => ({
-        sample: [...c],
-        ...(spec.dim === 1 ? {} : { pos: [...c] as MapPoint['pos'] }),
+      const samples = normalizeAspect(evalMapSource(spec.source, pixelCount))
+      const positions = spec.positionSource
+        ? normalizeAspect(evalMapSource(spec.positionSource, pixelCount))
+        : samples
+      if (positions.length !== samples.length) {
+        throw new Error(`map ${spec.id} position source returned ${positions.length} points for ${samples.length} samples`)
+      }
+      return samples.map((sample, index) => ({
+        sample: [...sample],
+        ...(spec.dim === 1 && !spec.positionSource
+          ? {}
+          : { pos: [...positions[index]] as MapPoint['pos'] }),
       }))
     },
   }

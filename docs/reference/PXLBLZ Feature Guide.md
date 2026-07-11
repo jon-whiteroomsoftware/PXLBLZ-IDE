@@ -179,6 +179,14 @@ Pattern—then decides which embedding control appears:
 | 2D | ✓ | surface: **Flat** or **Cylinder** (proportions follow the map's aspect) |
 | 3D | ✓ | — (the map owns the geometry) |
 
+Generated geometry families appear once in the Map menu and own their physical
+preview positions. **Cylinder** adds a small subordinate **view** selector:
+**Surface** (circumference × height, the natural default), **Strand** (ordered
+wire progress), or **Spatial** (normalized XYZ wall positions). Changing the view
+changes the real map coordinates the Pattern reads and the Controller receives;
+the Cylinder wall itself does not move. These are three ordinary, inspectable
+Mapper sources over one wall geometry—not a filled Cylinder volume.
+
 Renderer selection is automatic and matches Pixelblaze firmware 3.66. Index/1D
 prefers `render`, then `render3D`, then `render2D`; 2D prefers `render2D`, then
 `render3D`, then `render`; 3D prefers `render3D`, then `render2D`, then `render`.
@@ -192,7 +200,7 @@ of depending on incidental firmware argument values. Known pre-3.66 unsupported
 map/fallback combinations are explained before Send and cannot be pushed as if
 they were compatible.
 
-**Stock maps** ship ready to use: Square, Wide 2:1, Ring, a 3D set in
+**Stock maps** ship ready to use: Square, Wide 2:1, Ring, the Cylinder family, a 3D set in
 shell/volume pairs — Cube, Sphere, Star, and Tetra (a d4), where "shell" puts LEDs
 on the surface and "volume" fills the interior — plus Sunflower pucks as both
 the fixed-length 160-point literal 3D coordinate array and a 2D X/Y projection

@@ -14,7 +14,7 @@
 
 import type { ShapeId } from './shapes'
 import type { SurfaceId } from './surfaces'
-import type { MapPoint, PixelMap, NormalizeMode, NormalRecipe, GridDims } from './maps'
+import type { CoordinateView, GeometryFamilyView, MapPoint, PixelMap, NormalizeMode, NormalRecipe, GridDims } from './maps'
 import { cubePixelCount, applyNormalizeMode } from './maps'
 import {
   SHAPES,
@@ -35,6 +35,12 @@ const NORMAL_FNS: Record<NormalRecipe, (positions: [number, number, number][]) =
   star: starShellNormals,
   tetra: tetraShellNormals,
   centroid: centroidNormals,
+  cylinder: (positions) => positions.map(([x, , z]) => {
+    const dx = x - 0.5
+    const dz = z - 0.5
+    const length = Math.hypot(dx, dz) || 1
+    return [dx / length, 0, dz / length]
+  }),
 }
 
 export type LayoutKind = 'shape' | 'surface' | 'map'
@@ -91,6 +97,7 @@ export interface MapMeta {
   // True for a built-in stock map, false/absent for a user-authored one — drives the
   // stock/user subgrouping in the map dropdown.
   stock?: boolean
+  family?: GeometryFamilyView
 }
 
 export interface LayoutSource {
@@ -111,10 +118,10 @@ export function mapOptions(nativeDim: 1 | 2 | 3, source: LayoutSource): LayoutOp
       mapDim: 1,
       implicit: true,
     },
-    ...source.maps.map((m) => ({
+    ...source.maps.filter((m) => !m.family || m.family.natural).map((m) => ({
       kind: 'map' as const,
       id: m.id,
-      name: m.name,
+      name: m.family?.name ?? m.name,
       displayDim: m.displayDim ?? m.dim,
       mapDim: m.dim,
       provenance: m.stock ? ('stock' as const) : ('user' as const),
@@ -129,6 +136,41 @@ export function mapOptions(nativeDim: 1 | 2 | 3, source: LayoutSource): LayoutOp
   return [...recommended, ...other]
 }
 
+export interface CoordinateViewOption {
+  mapId: string
+  view: CoordinateView
+  label: string
+  dim: 1 | 2 | 3
+}
+
+const VIEW_LABELS: Record<CoordinateView, string> = {
+  strand: 'Strand',
+  surface: 'Surface',
+  spatial: 'Spatial',
+}
+
+// The top-level Map selector shows one natural entry per family. A persisted
+// alternate view therefore resolves back to that entry without changing the
+// actual selected map id.
+export function selectedFamilyOptionId(mapId: string | undefined, source: LayoutSource): string | undefined {
+  const active = source.maps.find((map) => map.id === mapId)
+  if (!active?.family) return mapId
+  return source.maps.find((map) => map.family?.id === active.family?.id && map.family?.natural)?.id ?? mapId
+}
+
+export function coordinateViewOptions(mapId: string | undefined, source: LayoutSource): CoordinateViewOption[] {
+  const active = source.maps.find((map) => map.id === mapId)
+  if (!active?.family) return []
+  return source.maps
+    .filter((map) => map.family?.id === active.family?.id)
+    .map((map) => ({
+      mapId: map.id,
+      view: map.family!.view,
+      label: VIEW_LABELS[map.family!.view],
+      dim: map.dim,
+    }))
+}
+
 // Embedding options come from the active map: Shapes for 1D (each owns only
 // `pos`, independently of `[x]` sampling), and Surfaces for 2D. Surfaces that need a grid are offered
 // only when the active map is wrappable; an irregular 2D map gets Flat alone —
@@ -139,6 +181,7 @@ export function embeddingOptions(
   source: LayoutSource,
   activeMap?: MapMeta,
 ): LayoutOption[] {
+  if (activeMap?.family) return []
   if (mapDim === 1) {
     return source.shapes.map((s) => ({
       kind: 'shape' as const,
@@ -235,7 +278,15 @@ export function resolveLayoutSelection(
 
   const maps = mapOptions(nativeDim, source)
   // A valid persisted map wins outright; otherwise the dimension's default.
-  const map = maps.find((m) => m.id === persisted.mapId) ?? maps[0]
+  const persistedMap = source.maps.find((candidate) => candidate.id === persisted.mapId)
+  const map = persisted.mapId === INDEX_MAP_ID
+    ? maps.find((candidate) => candidate.id === INDEX_MAP_ID)
+    : persistedMap
+    ? {
+        id: persistedMap.id,
+        mapDim: persistedMap.dim,
+      }
+    : maps[0]
   if (map) sel.mapId = map.id
 
   const activeMap = sel.mapId ? source.maps.find((m) => m.id === sel.mapId) : undefined
@@ -245,7 +296,7 @@ export function resolveLayoutSelection(
     const wantId = selectedEmbeddingId(persisted, mapDim)
     const chosen = embeddings.find((e) => e.id === wantId) ?? embeddings[0]
     Object.assign(sel, selectionForOption(chosen))
-  } else if (mapDim === 2) {
+  } else if (mapDim === 2 && !activeMap?.family) {
     // Irregular 2D map: no embedding choice, but the layout is still Flat.
     sel.surfaceId = 'flat'
   }
@@ -397,46 +448,28 @@ export function resolveLayout(
       baked: map.bakedCount,
       fallback: defaultCountForDim(map.dim),
     })
-    if (map.dim === 3) {
-      if (map.id === 'cube') {
-        // 3D cube lattice: the count squares up to a side³ lattice.
-        const cubeSide = cubeSideForCount(modeledCount)
-        pixelCount = clampPixelCount(cubePixelCount(cubeSide))
-        mapPoints = applyNormalizeMode(map.resolve(pixelCount), normalizeMode)
-        // The cube owns its lattice dims (grid: 'cube'); read them back like any
-        // other grid map so the `label iff gridDims` rule has no exception.
-        layoutLabel = formatGridDims(map.gridDims(pixelCount))
-      } else {
-        // 3D point cloud: stock regenerates live; a custom replays its baked
-        // array index-aligned to the count.
-        pixelCount = clampPixelCount(modeledCount)
-        mapPoints = applyNormalizeMode(map.resolve(pixelCount), normalizeMode)
-      }
-      positions3D = mapPoints.map((p) => p.pos as [number, number, number])
-      // A solid-eligible stock 3D map carries no baked normal, so
-      // the preview re-derives one per the map's declared recipe — the faceted Cube
-      // shell uses per-face normals, the Star shell its stellation faces, a convex
-      // shell the generic centroid radial. No recipe ⇒ not solid-eligible.
-      if (map.normals) {
-        normals3D = NORMAL_FNS[map.normals](positions3D)
-      }
-      displayDim = 3
+    if (map.id === 'cube') {
+      // 3D cube lattice: the count squares up to a side³ lattice.
+      const cubeSide = cubeSideForCount(modeledCount)
+      pixelCount = clampPixelCount(cubePixelCount(cubeSide))
     } else {
-      // 2D map drawn through the pos channel. The map itself owns whether it has a
-      // clean lattice: a grid-recipe generator (Square, Wide 2:1) or a baked custom
-      // map whose points fall on a regular lattice returns non-null `gridDims`, so
-      // the readout shows `cols×rows`; an irregular cloud (Ring, blob) returns null
-      // and the readout cell stays hidden.
       pixelCount = clampPixelCount(modeledCount)
-      mapPoints = applyNormalizeMode(map.resolve(pixelCount), normalizeMode)
+    }
+    mapPoints = applyNormalizeMode(map.resolve(pixelCount), normalizeMode)
+    layoutLabel = formatGridDims(map.gridDims(pixelCount))
+    displayDim = map.displayDim ?? map.dim
+    if (displayDim === 3) {
+      positions3D = mapPoints.map((p) => p.pos as [number, number, number])
+      // A solid-eligible generated shell carries a normal recipe; no recipe means
+      // the 3D positions remain a transparent point cloud.
+      if (map.normals) normals3D = NORMAL_FNS[map.normals](positions3D)
+    } else {
       positions2D = mapPoints.map((p) => p.pos as [number, number])
-      layoutLabel = formatGridDims(map.gridDims(pixelCount))
-      displayDim = 2
     }
 
     // 2D surface embedding: the Cylinder wraps the map's grid onto a
     // 3D tube. The map still owns `sample`; the surface owns `pos`.
-    if (correctedSelection.surfaceId === 'cylinder' && displayDim === 2) {
+    if (map.dim === 2 && correctedSelection.surfaceId === 'cylinder' && displayDim === 2) {
       const gridDims = map.gridDims(pixelCount)
       if (gridDims) {
         positions3D = cylinderSurfacePositions(pixelCount, gridDims)
