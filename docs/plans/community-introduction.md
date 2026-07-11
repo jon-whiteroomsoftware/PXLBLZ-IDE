@@ -1,7 +1,7 @@
 # Introducing PXLBLZ-IDE to the Pixelblaze community
 
 PXLBLZ-IDE should be introduced by showing that existing Patterns have become
-reusable material: they can be choreographed across time and physical space,
+reusable ingredients: they can be choreographed across time and physical space,
 adapted to real hardware, and augmented with inputs and power behavior without
 rewriting their source. **Shows are the centerpiece**, Controller-aware
 augmentation is the second act, and the editor/preview/compiler work is the
@@ -49,7 +49,7 @@ model of its own.
 
 The sentence worth repeating is:
 
-> PXLBLZ turns a Pixelblaze Pattern from a finished object into reusable material.
+> PXLBLZ lets finished Pixelblaze Patterns become ingredients in something larger.
 
 ## Long-form community post
 
@@ -58,32 +58,53 @@ The sentence worth repeating is:
 I have been rebuilding PXLBLZ-IDE over the last few weeks, and somewhere along
 the way it stopped being “a nicer place to edit Pixelblaze Patterns.” That was
 the first version: good Monaco editing, reusable libraries, tree-shaken output,
-and a preview that could expose fixed-point problems before I walked over to the
-hardware. Useful things. Still an editor.
+and a preview that could expose fixed-point problems before testing on hardware.
+Useful things. Still an editor.
 
-The current version is much stranger and, I think, much more interesting.
+The current version is much stranger and much more interesting.
 
 The big idea is that an existing Pattern is no longer necessarily the finished
-thing. It can be material. PXLBLZ can place it on a timeline, run it across one
-or several zones, change the coordinate space it sees, automate its public
-sliders, alter its private clock, transition it into another Pattern, and then
-compile the entire result into one normal Pixelblaze Pattern that runs on the
-Controller with no browser attached.
+thing. It can become an ingredient in something larger.
 
-The centerpiece is **Shows**.
+Take two ordinary Patterns. PXLBLZ folds both source files into a new third
+Pattern. Each original renderer becomes a private function inside it, and a new
+outer renderer decides which one should produce each LED—or calls both when a
+true blend needs both colours. The Controller still receives and runs one
+ordinary Pixelblaze Pattern.
+
+Put a familiar video-editor-style timeline in front of that generated Pattern
+and the two ingredients can take turns, overlap, or transition into one another
+across the whole installation or within named zones. This is a **Show**, and it
+is the centerpiece of the new PXLBLZ.
+
+One LED strip can be divided into four named sections—four logical zones—and the
+same Pattern repeated across all four without calculating four complete hidden
+strips and combining them afterward. The shared Pattern advances once, each LED
+receives the local coordinates of its own zone, and that LED is rendered once.
+Many transitions are similarly selective: for a wipe, dithered edge, or
+hard-edged portal, decide which Pattern owns this LED, then render only that one.
+The image gets multiplied and rearranged; the expensive Pattern work usually
+does not.
+
+*Crossfade is the deliberately expensive exception: every LED needs the actual
+colour from both Patterns so those colours can be mixed. When a textured blend
+is acceptable, stable dithering is the clever alternative—it assigns each LED
+to one Pattern or the other in a stable pattern, creating the impression of a
+blend while still rendering only one Pattern per LED.*
 
 A Show has scenes, zone rows, Pattern cells, and real boundary objects between
 scenes. A boundary can be a cut, crossfade, wipe, dither, spatial portal, or a
 routing change. Time, brightness, and exported Pattern sliders all use the same
 transition model: start value, destination value, duration, and easing.
 
-That means I can let a Pattern run normally, ease its private time down to an
-exact pause, hold it there, ramp one of its own sliders while it is frozen, then
-bring time back or transition into something else. I can split the scene at any
-point, continue the same hidden Pattern state across the split, or deliberately
-restart it for a stutter. The timeline is proportional and zoomable, and seeking
-rebuilds state by replaying the actual Pattern rather than showing an
-approximation.
+A Pattern can run normally while its private time eases down to an exact pause.
+One of its own sliders can continue ramping while the Pattern is frozen; time can
+then resume or the Show can transition into something else. A scene split can
+preserve the motion cleanly or restart it for a deliberate stutter.
+
+The editor uses a familiar video-editor-style timeline: scenes run left to right,
+zones stack in rows, and a playhead makes it obvious where the Show is. Click or
+drag to scrub, press play, and watch the Stage or physical lights follow.
 
 Zones are not just masks. A Pattern can see a zone as its own normalized canvas,
 repeat across several physical ranges, span zones as one domain, or start at a
@@ -92,9 +113,9 @@ pixels later in the Show without resetting Pattern state. A real 2D or 3D map ca
 be the Stage, so the preview is the installation rather than a row of anonymous
 strips.
 
-At the end I can preview the whole thing, inspect it, push it, or export it as one
-Pattern. It is not a video being streamed from my desktop. I can close the
-browser and the little Pixelblaze keeps running the Show by itself.
+The completed Show can be previewed, inspected, pushed, or exported as one
+Pattern. No video is streamed from the desktop; close the browser and the little
+Pixelblaze keeps running the Show by itself.
 
 The same non-destructive idea now reaches into hardware.
 
@@ -104,28 +125,27 @@ variable without editing the original Pattern. That means the same shared
 Pattern can remain clean while one physical installation gains a knob, a button,
 or installation-specific brightness behavior.
 
-Power management has also become something I can see and tune instead of a note
-in a calculator. I can set a cap, watch recent and since-start output estimates,
-see the estimated draw change with the Controller's live brightness and pixel
-count, and adjust the running limit while watching the lights respond. It is
-modeled output rather than an ammeter, and the Controller's own brightness limit
-remains the final physical control.
+Power management has also become something visible and tunable instead of a note
+in a calculator. A cap can be set, recent and since-start output estimates can be
+watched, and the estimated draw responds to the Controller's live brightness and
+pixel count. Adjusting the running limit produces an immediate response in the
+lights. It is modeled output rather than an ammeter, and the Controller's own
+brightness limit remains the final physical control.
 
-There is a lot underneath this, but those are supporting systems. The thing I
-most want to show is a Pattern being pushed far beyond its original shape
-without the original source becoming a forked pile of installation-specific
-edits.
+There is a lot underneath this, but those are supporting systems. The clearest
+demonstration is a Pattern being pushed far beyond its original shape without
+the original source becoming a forked pile of installation-specific edits.
 
-I will post a few short videos because this is lighting software and paragraphs
-have a fairly serious brightness limit. The first will be one Pattern moving
-through time automation and several zones; the second will show a complete
-transition/routing sequence on a mapped Stage; the third will use a physical
-input and live power cap on a Controller.
+A few short videos should carry the explanation because this is lighting
+software and paragraphs have a fairly serious brightness limit. The first shows
+one Pattern moving through time automation and several zones; the second shows a
+complete transition/routing sequence on a mapped Stage; the third uses a
+physical input and live power cap on a Controller.
 
 PXLBLZ-IDE 2.0 is still in active development. The source is at
 [github.com/jon-whiteroomsoftware/PXLBLZ-IDE](https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE).
-I will add the public v2 app link when this development line becomes the deployed
-release.
+The public v2 app link belongs here when this development line becomes the
+deployed release.
 
 ## Technical follow-up / first author comment
 
@@ -138,12 +158,43 @@ and renderer. Compatible continued cells reuse one member and its private clock;
 a Restart creates a new member identity. The output is flat, inspectable
 Pixelblaze source compiled by the normal Controller compiler.
 
+For a concrete example, take a 400-pixel strip divided into four 100-pixel zones
+using **Repeat per zone**. One compatible Pattern member receives one
+`beforeRender` call. The scheduler maps each physical index into its zone's local
+`0..99` index and local `pixelCount`, then calls the source renderer 400 times in
+total—once per physical LED. It does not create four 400-pixel offscreen frames
+and pay for 1,600 source renders. The additional work is the comparatively small
+amount of routing and coordinate math needed to present each zone as its own
+canvas.
+
+This is not a cached bitmap: each LED still asks the Pattern for its own colour,
+so spatial detail and animation remain correct. What gets shared is the Pattern
+member, its state, and its once-per-frame setup—the sort of work that might
+calculate an animation window, update time, or prepare other values used by
+every pixel.
+
 The transition labels also correspond to materially different execution
 policies. A parameter ramp keeps one Pattern renderer active. A wipe or stable
 dither advances both clocks when needed but chooses one renderer per pixel. A
 crossfade evaluates two renderers during the transition window. A true feathered
-portal evaluates both only inside the band. The compiler reports those policies
-instead of collapsing them into one vague “transition cost.”
+portal renders almost every pixel once; only the narrow strip of pixels along
+the moving transition edge renders both Patterns so their colours can blend.
+The compiler reports those policies instead of collapsing them into one vague
+“transition cost.”
+
+The call counts make the distinction concrete. Across 1,000 pixels, a hard wipe,
+hard portal, or stable dither performs about 1,000 source renders: one ownership
+test and one chosen Pattern per pixel. A full crossfade deliberately performs
+about 2,000. If a feathered portal's blend strip contains roughly 2% of the
+installation, about 980 pixels render once and 20 render twice—roughly 1,020
+source renders rather than 2,000. The actual fraction depends on the Stage
+geometry and feather width, but the policy stays the same.
+
+Crossfade is therefore the pessimal baseline for source-renderer work: `2N`
+calls across `N` pixels. Stable dither is the workaround when its texture fits
+the visual intent: distribute ownership across neighbouring pixels instead of
+mixing two calculated colours at every pixel, preserving `N` source-renderer
+calls.
 
 Seeking cannot assign an arbitrary timestamp because a Pattern may mutate globals
 inside `beforeRender` or even `render`. PXLBLZ creates a fresh Fast runtime with
@@ -160,12 +211,12 @@ the member's time and state continue. The Stage is separate: it is the map used
 to present and spatially operate on the installation, not another name for
 routing.
 
-Hardware augmentation uses the same general pass engine rather than editing
-source or introducing a device-side plugin system. Ordered recipes can inject
-frame work, intercept supported colour outputs, bind an input to a Pattern
-target, or add an exact-dimensional renderer adapter. The generated source,
-applied passes, call-site counts, warnings, and rough cost are inspectable. The
-original Pattern remains the authored source of truth.
+Hardware augmentation leaves the authored Pattern unchanged and uses the same
+general pass engine as the rest of PXLBLZ. Ordered recipes can inject frame work,
+intercept supported colour outputs, bind an input to a Pattern target, or add an
+exact-dimensional renderer adapter. The generated source, applied passes,
+call-site counts, warnings, and rough cost are inspectable. The original Pattern
+remains the authored source of truth.
 
 The preview has two numeric products from one bundle. Fast mode runs the flat
 artifact with float64 math; Precise mode runs a 16.16 re-emit that models int32
@@ -188,9 +239,16 @@ the answer matters.
 
 I have been rebuilding PXLBLZ-IDE, and it has stopped being merely a nicer
 Pixelblaze editor. The new center of the project is **Shows**: existing Patterns
-become timeline material that can run across zones, transition, pause their own
+become ingredients that can run across zones, transition, pause their own
 private time, automate exported sliders, change routing, and then compile into
 one ordinary Pixelblaze Pattern that runs standalone on the Controller.
+
+The composition is deliberately selective. Repeating one Pattern across four
+logical zones does not mean rendering four complete hidden frames; compatible
+zones share the Pattern's state and frame setup, and each physical LED is
+rendered in its local zone once. Most wipes and spatial transitions likewise
+choose one Pattern per LED, reserving double rendering for an intentional
+crossfade or the narrow blended edge of a feathered transition.
 
 The same approach applies to hardware. Controller profiles can bind physical
 inputs to Pattern sliders/functions/variables, inject brightness or duty-cap
@@ -202,8 +260,8 @@ an ammeter.
 The older editor work is still underneath it: faithful preview, reusable
 libraries and mixins, first-class maps, Controller push and read-back, and flat
 Controller-ready artifacts. But the new idea is simpler:
-**PXLBLZ turns a Pixelblaze Pattern from a finished object into reusable
-material.**
+**PXLBLZ lets finished Pixelblaze Patterns become ingredients in something
+larger.**
 
 [Short Show video]
 
@@ -218,10 +276,10 @@ jump mysteriously.
 
 | Order | Claim | Best proof | What must remain visible |
 |---|---|---|---|
-| 1 | Shows turn Patterns into material | Video: play one Show while its timeline crosses three scenes and two zones | Timeline, moving playhead, Stage, and one visibly continuous Pattern |
+| 1 | Shows turn Patterns into ingredients | Video: play one Show while its timeline crosses three scenes and two zones | Timeline, moving playhead, Stage, and one visibly continuous Pattern |
 | 2 | Pattern time is an automatable property | Video: normal motion → eased slowdown → exact pause → restart, with the Time lane expanded | Time curve/values and lights in the same frame |
 | 3 | Public Pattern controls can be choreographed | Video: automate a familiar Pattern’s exported slider without opening its source | Slider lane name, source Pattern identity, and resulting visual change |
-| 4 | Zones virtualize space, not just visibility | Video: one Pattern repeats per zone, then spans the same zones as one canvas | Zone rows, Stage geometry, and the mode change |
+| 4 | Zones multiply a Pattern without naïve full-frame duplication | Video: one strip divided into four labeled zones; repeat one Pattern per zone, then span the same zones as one canvas | Zone rows, Stage geometry, mode change, and a restrained `one shared Pattern · one render per LED` annotation |
 | 5 | Transitions have distinct cost/appearance | Video: the same boundary as wipe, stable dither, crossfade, then portal | Transition inspector and Stage; use one pair of high-contrast Patterns |
 | 6 | Routing can change without resetting Pattern state | Video: boundary marker moves semantic zones to different physical ranges | Routing lane/marker and a Pattern whose continuing motion makes state continuity obvious |
 | 7 | Hardware can augment unmodified source | Split view/video: turn a physical potentiometer while a bound Pattern slider responds | Potentiometer, live Controller output, binding summary, unchanged source name |
