@@ -132,7 +132,7 @@ model remains:
   The lossless migration preserves the shipped #397 routing representation and
   gives #403 progressive transfers plus #404 layout-aware transitions the same
   entity seam instead of another private lane or inspector.
-- **Property transitions and automation** (first slice shipped #417): the primitive
+- **Property transitions and automation** (shared system shipped #417/#418): the primitive
   is CSS-like: start value, target value, duration, and optional easing (linear
   when omitted). Scene/cell state owns target values; the boundary transition
   owns how the previous state reaches them. `timeScale` is the first complete
@@ -148,6 +148,11 @@ model remains:
   the shared duration/easing controls. Generated two-scene and sequence code use
   the same polynomial easing samples as the editor; continued same-Pattern
   scenes reuse one private clock through ramp, exact-zero dwell, and resume.
+  #418 proves the descriptor is generic: Brightness uses the same destination
+  targets, boundary-owned start maps, per-property duration/easing, compiler
+  evaluator, persistence path, inspector vocabulary, and nested-lane projection.
+  Multiple properties may run different curves on one continued Pattern member;
+  the boundary window contains them and the compiler still invokes one renderer.
 - **Timeline transport and accurate seeking** (shipped #414 after spike
   #412): clicking or dragging the ruler places the persistent playhead; Space
   toggles play/pause. #415 adds Split at a valid interior playhead position and

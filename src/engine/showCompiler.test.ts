@@ -868,6 +868,38 @@ export function render(index) { rgb(time(1), elapsed, index) }
     expect(fromPause.summary.clockPolicy).toBe('exact-pause-ramp')
   })
 
+  it('evaluates independent brightness and time-scale curves on one member (#418)', () => {
+    const artifact = compileShow({
+      clips: [{ id: 'continuous', source: 'export function render(index) { rgb(1, 1, 1) }' }],
+      adaptationRamp: {
+        startMs: 0,
+        durationMs: 2000,
+        from: { brightness: 1, timeScale: 1 },
+        to: { brightness: 0.2, timeScale: 0 },
+        propertyRamps: {
+          brightness: { from: 1, to: 0.2, durationMs: 1000, easing: 'ease-in' },
+          timeScale: { from: 1, to: 0, durationMs: 2000, easing: 'ease-out' },
+        },
+      },
+    }, {})
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata)
+
+    handle.beforeRender(500)
+    handle.render(0)
+
+    expect(pixel()).toEqual([0.8, 0.8, 0.8])
+    expect(handle.getExports()).toMatchObject({
+      __pxlblz_show_c0_adapt_brightness: 0.8,
+      __pxlblz_show_c0_adapt_timeScale: 0.5625,
+    })
+    expect(artifact.summary).toMatchObject({
+      clipCount: 1,
+      renderPolicy: 'parameter-ramp-one-renderer-per-pixel',
+      transitionCost: 'parameter',
+      worstInstantRenderersPerPixel: 1,
+    })
+  })
+
   it('keeps exact pause distinct from hold rendering and explicit cut restart', () => {
     const source = `
 export var elapsed = 0
@@ -1539,7 +1571,7 @@ export function render(index) { rgb(elapsed, time(1), index) }
             timeScale: 1,
             transitionOut: {
               kind: 'crossfade', durationMs: 100, easing: 'ease-in',
-              timeScale: { from: 1, to: 0 },
+              propertyRamps: { timeScale: { from: 1, to: 0, durationMs: 100, easing: 'ease-in' } },
             },
           },
           {
@@ -1547,7 +1579,7 @@ export function render(index) { rgb(elapsed, time(1), index) }
             timeScale: 0,
             transitionOut: {
               kind: 'crossfade', durationMs: 100, easing: 'ease-out',
-              timeScale: { from: 0, to: 1 },
+              propertyRamps: { timeScale: { from: 0, to: 1, durationMs: 100, easing: 'ease-out' } },
             },
           },
           { clipId: 'continuous', holdMs: 100, timeScale: 1 },

@@ -707,7 +707,7 @@ describe('showModel (#318)', () => {
 
     const normalized = normalizeShowTransitionState(JSON.parse(JSON.stringify(show)) as ShowRecord)
     expect(normalized.transitions?.[0].propertyTransitions).toEqual({
-      timeScale: { fromByCellId: { [show.cells[1].id]: 1.5 } },
+      timeScale: { fromByCellId: { [show.cells[1].id]: 1.5 }, durationMs: 2000, easing: 'ease-in-out' },
     })
     expect(showRecordToCompileRecipe(normalized, {
       byCellId: Object.fromEntries(show.cells.map((cell) => [cell.id, DEMOS.TestPattern1D])),
@@ -746,14 +746,59 @@ describe('showModel (#318)', () => {
       expect.objectContaining({
         clipId: show.cells[0].id,
         timeScale: 0,
-        transitionOut: expect.objectContaining({ timeScale: { from: 0, to: 1 }, easing: 'ease-in' }),
+        transitionOut: expect.objectContaining({
+          propertyRamps: { timeScale: { from: 0, to: 1, durationMs: 2000, easing: 'ease-in' } },
+        }),
       }),
       expect.objectContaining({ clipId: show.cells[0].id, timeScale: 1 }),
     ])
     expect(recipe.sceneSequence?.scenes[0].transitionOut).toMatchObject({
-      timeScale: { from: 1, to: 0 },
-      easing: 'ease-out',
+      propertyRamps: { timeScale: { from: 1, to: 0, durationMs: 2000, easing: 'ease-out' } },
     })
+  })
+
+  it('compiles independent time and brightness curves through one property-ramp schema (#418)', () => {
+    let show = createDefaultShow('show-418', 'Independent properties')
+    show = updateShowCellPattern(show, show.cells[1].id, {
+      pattern: show.cells[0].pattern,
+      patternName: show.cells[0].patternName,
+    })
+    show = updateShowCellAdaptations(show, show.cells[1].id, { timeScale: 0, brightness: 0.2 })
+    show = updateShowBoundaryTransition(show, 'transition-scene-1', {
+      propertyTransitions: {
+        timeScale: { fromByCellId: { [show.cells[1].id]: 1 }, durationMs: 2000, easing: 'ease-out' },
+        brightness: { fromByCellId: { [show.cells[1].id]: 1 }, durationMs: 1000, easing: 'ease-in' },
+      },
+    })
+
+    const recipe = showRecordToCompileRecipe(show, {
+      byCellId: Object.fromEntries(show.cells.map((cell) => [cell.id, DEMOS.TestPattern1D])),
+    })
+    expect(recipe.clips).toHaveLength(1)
+    expect(recipe.adaptationRamp?.propertyRamps).toEqual({
+      timeScale: { from: 1, to: 0, durationMs: 2000, easing: 'ease-out' },
+      brightness: { from: 1, to: 0.2, durationMs: 1000, easing: 'ease-in' },
+    })
+  })
+
+  it('keeps every property descriptor synchronized when Split moves its boundary (#418)', () => {
+    const base = updateShowBoundaryTransition(createDefaultShow('show-418-split', 'Split properties'), 'transition-scene-1', {
+      propertyTransitions: {
+        timeScale: { fromByCellId: { 'cell-2': 1 }, durationMs: 1500, easing: 'ease-in' },
+        brightness: { fromByCellId: { 'cell-2': 1 }, durationMs: 700, easing: 'ease-out' },
+      },
+    })
+    const split = splitShowAtTime(base, 10_000)
+    const moved = split.transitions?.find((transition) => transition.afterSceneId === 'scene-3')
+
+    expect(moved?.propertyTransitions).toEqual({
+      timeScale: { fromByCellId: { 'cell-2': 1 }, durationMs: 1500, easing: 'ease-in' },
+      brightness: { fromByCellId: { 'cell-2': 1 }, durationMs: 700, easing: 'ease-out' },
+    })
+    expect(split.transitions?.find((transition) => transition.afterSceneId === 'scene-1')?.propertyTransitions).toBeUndefined()
+
+    const cut = updateShowBoundaryTransition(base, 'transition-scene-1', { kind: 'cut', durationMs: 0 })
+    expect(cut.transitions?.find((transition) => transition.id === 'transition-scene-1')?.propertyTransitions).toBeUndefined()
   })
 
   it('emits a route-cost transition recipe for wipe and dither boundaries', () => {

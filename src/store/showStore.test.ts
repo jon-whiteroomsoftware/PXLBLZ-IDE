@@ -187,7 +187,10 @@ describe('showStore (#318)', () => {
       durationMs: 2500,
       easing: 'ease-out',
       feather: 0.25,
-      propertyTransitions: { timeScale: { fromByCellId: { 'cell-2': 1.5 } } },
+      propertyTransitions: {
+        timeScale: { fromByCellId: { 'cell-2': 1.5 }, durationMs: 1500, easing: 'ease-in' },
+        brightness: { fromByCellId: { 'cell-2': 1 }, durationMs: 800, easing: 'ease-out' },
+      },
     })
     useShowStore.setState(showInitialState)
     await useShowStore.getState().loadShows()
@@ -198,7 +201,10 @@ describe('showStore (#318)', () => {
       durationMs: 2500,
       easing: 'ease-out',
       feather: 0.25,
-      propertyTransitions: { timeScale: { fromByCellId: { 'cell-2': 1.5 } } },
+      propertyTransitions: {
+        timeScale: { fromByCellId: { 'cell-2': 1.5 }, durationMs: 1500, easing: 'ease-in' },
+        brightness: { fromByCellId: { 'cell-2': 1 }, durationMs: 800, easing: 'ease-out' },
+      },
     })
   })
 

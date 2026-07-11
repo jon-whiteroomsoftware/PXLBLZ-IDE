@@ -768,17 +768,7 @@ function normalizeBoundaryTransition(transition: ShowBoundaryTransition): ShowBo
     easing: transition.easing === 'ease-in' || transition.easing === 'ease-out' || transition.easing === 'ease-in-out'
       ? transition.easing
       : 'linear',
-    ...(transition.propertyTransitions?.timeScale
-      ? {
-          propertyTransitions: {
-            timeScale: {
-              fromByCellId: Object.fromEntries(Object.entries(
-                transition.propertyTransitions.timeScale.fromByCellId ?? {},
-              ).map(([cellId, value]) => [cellId, clampTimeScale(value)])),
-            },
-          },
-        }
-      : {}),
+    ...(kind === 'cut' || kind === 'routing' ? {} : normalizePropertyTransitions(transition)),
   }
   if (kind === 'routing') return { ...base, layoutId: transition.layoutId }
   if (kind === 'wipe') return { ...base, feather: clamp01(transition.feather ?? 0) }
@@ -793,6 +783,26 @@ function normalizeBoundaryTransition(transition: ShowBoundaryTransition): ShowBo
     }
   }
   return base
+}
+
+function normalizePropertyTransitions(transition: ShowBoundaryTransition): Pick<ShowBoundaryTransition, 'propertyTransitions'> {
+  const normalizeProperty = (
+    property: 'timeScale' | 'brightness',
+    clamp: (value: number) => number,
+  ) => {
+    const source = transition.propertyTransitions?.[property]
+    if (!source) return undefined
+    return {
+      fromByCellId: Object.fromEntries(Object.entries(source.fromByCellId ?? {}).map(([cellId, value]) => [cellId, clamp(value)])),
+      durationMs: Math.min(clampPropertyDuration(source.durationMs ?? transition.durationMs), clampDuration(transition.durationMs)),
+      easing: (source.easing ?? transition.easing) === 'ease-in' || (source.easing ?? transition.easing) === 'ease-out' || (source.easing ?? transition.easing) === 'ease-in-out'
+        ? source.easing ?? transition.easing
+        : 'linear' as const,
+    }
+  }
+  const timeScale = normalizeProperty('timeScale', clampTimeScale)
+  const brightness = normalizeProperty('brightness', clamp01)
+  return timeScale || brightness ? { propertyTransitions: { ...(timeScale ? { timeScale } : {}), ...(brightness ? { brightness } : {}) } } : {}
 }
 
 function clampTimeScale(value: number): number {
@@ -1034,6 +1044,18 @@ export function showRecordToCompileRecipe(
       candidate.afterSceneId === transitionScene.id && candidate.kind !== 'routing'
     ))
     const explicitFrom = boundary?.propertyTransitions?.timeScale?.fromByCellId[cells[1].id]
+    const propertyRamps = boundary?.propertyTransitions
+      ? Object.fromEntries((['timeScale', 'brightness'] as const).flatMap((property) => {
+          const descriptor = boundary.propertyTransitions?.[property]
+          if (!descriptor) return []
+          return [[property, {
+            from: descriptor.fromByCellId[cells[1].id] ?? cells[0].adaptations[property],
+            to: cells[1].adaptations[property],
+            durationMs: descriptor.durationMs ?? boundary.durationMs,
+            easing: descriptor.easing ?? 'linear',
+          }]]
+        }))
+      : undefined
     return {
       clips: [{ id: cells[0].id, source: source0, adaptation: compilerAdaptation(cells[0].adaptations) }],
       adaptationRamp: {
@@ -1045,6 +1067,7 @@ export function showRecordToCompileRecipe(
         },
         to: compilerAdaptation(cells[1].adaptations),
         easing: boundary?.easing ?? 'linear',
+        ...(propertyRamps && Object.keys(propertyRamps).length > 0 ? { propertyRamps } : {}),
       },
       zones: lookup.controllerZones ?? nominalZones(show.zones),
     }
@@ -1093,8 +1116,8 @@ function showRecordToSceneSequenceRecipe(
   if (cells.some((cell) => !cell)) return null
   const resolvedCells = cells as ShowCell[]
   const transitions = show.scenes.slice(0, -1).map((scene) => scene.transitionOut)
-  const hasTimeScaleTransitions = show.transitions?.some((transition) => (
-    transition.kind !== 'routing' && Boolean(transition.propertyTransitions?.timeScale)
+  const hasPropertyTransitions = show.transitions?.some((transition) => (
+    transition.kind !== 'routing' && Boolean(transition.propertyTransitions && Object.keys(transition.propertyTransitions).length > 0)
   )) ?? false
   if (transitions.some((transition) => transition?.kind === 'portal') && (!show.stageMapId || lookup.stageDimension !== 2)) {
     throw new Error('Portal transition requires a 2D Stage Map.')
@@ -1112,14 +1135,14 @@ function showRecordToSceneSequenceRecipe(
     const incomingBoundary = previous
       ? show.transitions?.find((transition) => transition.afterSceneId === previous.sceneId && transition.kind !== 'routing')
       : undefined
-    const continuesTimeScale = Boolean(
+    const continuesPropertyRamp = Boolean(
       previous
       && !cell.restartOnEntry
-      && incomingBoundary?.propertyTransitions?.timeScale
+      && incomingBoundary?.propertyTransitions
       && isSamePattern(previous, cell)
       && hasSameDiscreteAdaptations(previous, cell),
     )
-    const continuedClipId = continuesTimeScale ? clipIdByCellId.get(previous.id) : undefined
+    const continuedClipId = continuesPropertyRamp ? clipIdByCellId.get(previous.id) : undefined
     const existing = continuedClipId
       ? [...clipByKey.values()].find((clip) => clip.id === continuedClipId)
       : clipByKey.get(key)
@@ -1142,22 +1165,27 @@ function showRecordToSceneSequenceRecipe(
         const boundary = show.transitions?.find((candidate) => (
           candidate.afterSceneId === scene.id && candidate.kind !== 'routing'
         ))
-        const timeScaleTransition = nextCell && boundary?.propertyTransitions?.timeScale
-          ? {
-              from: boundary.propertyTransitions.timeScale.fromByCellId[nextCell.id]
-                ?? cell.adaptations.timeScale,
-              to: nextCell.adaptations.timeScale,
-            }
+        const propertyRamps = nextCell && boundary?.propertyTransitions
+          ? Object.fromEntries((['timeScale', 'brightness'] as const).flatMap((property) => {
+              const descriptor = boundary.propertyTransitions?.[property]
+              if (!descriptor) return []
+              return [[property, {
+                from: descriptor.fromByCellId[nextCell.id] ?? cell.adaptations[property],
+                to: nextCell.adaptations[property],
+                durationMs: descriptor.durationMs ?? boundary.durationMs,
+                easing: descriptor.easing ?? 'linear',
+              }]]
+            }))
           : undefined
         return {
           clipId: clipIdByCellId.get(cell.id)!,
           holdMs: scene.durationMs,
-          ...(hasTimeScaleTransitions ? { timeScale: cell.adaptations.timeScale } : {}),
+          ...(hasPropertyTransitions ? { timeScale: cell.adaptations.timeScale, brightness: cell.adaptations.brightness } : {}),
           ...(transition
             ? {
                 transitionOut: {
                   ...compilerSequenceTransition(transition),
-                  ...(timeScaleTransition ? { timeScale: timeScaleTransition, easing: boundary?.easing ?? 'linear' } : {}),
+                  ...(propertyRamps && Object.keys(propertyRamps).length > 0 ? { propertyRamps } : {}),
                 },
               }
             : {}),
@@ -1267,6 +1295,10 @@ function sceneToGridColumn(index: number): number {
 
 function clampDuration(durationMs: number): number {
   return Math.max(1000, Math.round(durationMs))
+}
+
+function clampPropertyDuration(durationMs: number): number {
+  return Math.max(100, Math.round(durationMs))
 }
 
 function clampPixelCount(pixelCount: number): number {

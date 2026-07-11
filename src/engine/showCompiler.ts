@@ -55,6 +55,14 @@ export interface ShowAdaptationRampRecipe {
   from: Partial<ShowClipAdaptation>
   to: Partial<ShowClipAdaptation>
   easing?: ShowTransitionEasing
+  propertyRamps?: Partial<Record<'timeScale' | 'brightness', ShowAdaptationPropertyRampRecipe>>
+}
+
+export interface ShowAdaptationPropertyRampRecipe {
+  from: number
+  to: number
+  durationMs: number
+  easing: ShowTransitionEasing
 }
 
 export interface ShowRouteTransitionRecipe {
@@ -77,13 +85,14 @@ export interface ShowSceneSequenceTransitionRecipe {
   invert?: boolean
   featherPolicy?: 'dither' | 'blend'
   easing?: ShowTransitionEasing
-  timeScale?: { from: number; to: number }
+  propertyRamps?: Partial<Record<'timeScale' | 'brightness', ShowAdaptationPropertyRampRecipe>>
 }
 
 export interface ShowSceneSequenceSceneRecipe {
   clipId: string
   holdMs: number
   timeScale?: number
+  brightness?: number
   transitionOut?: ShowSceneSequenceTransitionRecipe
 }
 
@@ -597,6 +606,7 @@ function emitAdaptationRampShowCode(member: CompiledMember, ramp: ShowAdaptation
   const from = normalizeAdaptation(ramp.from)
   const to = normalizeAdaptation(ramp.to)
   const transitionEnd = ramp.startMs + ramp.durationMs
+  const propertyAssignments = emitPropertyRampAssignments(member, ramp.propertyRamps, `__pxlblz_show_elapsed_ms - ${ramp.startMs}`)
   return [
     emitRuntimePrelude([member]),
     member.code.trim(),
@@ -609,7 +619,7 @@ function emitAdaptationRampShowCode(member: CompiledMember, ramp: ShowAdaptation
   } else {
     __pxlblz_show_mix = 1
   }
-  ${member.prefix}_mixAdaptation(${from.brightness}, ${from.phase}, ${from.timeScale}, ${boolNumber(from.mirror)}, ${to.brightness}, ${to.phase}, ${to.timeScale}, ${boolNumber(to.mirror)}, __pxlblz_show_mix)
+  ${member.prefix}_mixAdaptation(${from.brightness}, ${from.phase}, ${from.timeScale}, ${boolNumber(from.mirror)}, ${to.brightness}, ${to.phase}, ${to.timeScale}, ${boolNumber(to.mirror)}, __pxlblz_show_mix)${propertyAssignments ? `\n${indentBlock(propertyAssignments, 2)}` : ''}
   ${member.prefix}_advance(delta)
 }`,
     `export function render(index) {
@@ -618,6 +628,21 @@ function emitAdaptationRampShowCode(member: CompiledMember, ramp: ShowAdaptation
 }`,
     '',
   ].join('\n\n')
+}
+
+function emitPropertyRampAssignments(
+  member: CompiledMember,
+  ramps: ShowAdaptationRampRecipe['propertyRamps'],
+  elapsedExpression: string,
+): string {
+  if (!ramps) return ''
+  return (['brightness', 'timeScale'] as const).flatMap((property) => {
+    const ramp = ramps[property]
+    if (!ramp) return []
+    const progress = `clamp((${elapsedExpression}) / ${ramp.durationMs}, 0, 1)`
+    const mix = emitShowEasingExpression(ramp.easing, progress)
+    return [`${member.prefix}_adapt_${property} = ${ramp.from} * (1 - ${mix}) + ${ramp.to} * ${mix}`]
+  }).join('\n')
 }
 
 function emitRouteTransitionShowCode(
@@ -733,9 +758,11 @@ function emitSceneSequenceShowCode(
       return `${condition} {
     __pxlblz_show_scene = ${segment.sceneIndex}
     __pxlblz_show_transition = -1
-    __pxlblz_show_mix = 0${scenes[segment.sceneIndex].timeScale === undefined
+    __pxlblz_show_mix = 0${scenes[segment.sceneIndex].brightness === undefined
       ? ''
-      : `\n    ${segment.from.prefix}_adapt_timeScale = ${scenes[segment.sceneIndex].timeScale}`}
+      : `\n    ${segment.from.prefix}_adapt_brightness = ${scenes[segment.sceneIndex].brightness}`}${scenes[segment.sceneIndex].timeScale === undefined
+        ? ''
+        : `\n    ${segment.from.prefix}_adapt_timeScale = ${scenes[segment.sceneIndex].timeScale}`}
     ${segment.from.prefix}_advance(delta)
   }`
     }
@@ -744,8 +771,8 @@ function emitSceneSequenceShowCode(
     return `${condition} {
     __pxlblz_show_scene = ${segment.sceneIndex}
     __pxlblz_show_transition = ${segment.sceneIndex}
-    __pxlblz_show_mix = ${emitShowEasingExpression(segment.transition!.easing ?? 'linear', `(__pxlblz_show_elapsed_ms - ${segment.startMs}) / ${segment.transition!.durationMs}`)}${segment.transition!.timeScale
-      ? `\n    ${segment.from.prefix}_adapt_timeScale = ${segment.transition!.timeScale!.from} * (1 - __pxlblz_show_mix) + ${segment.transition!.timeScale!.to} * __pxlblz_show_mix`
+    __pxlblz_show_mix = ${emitShowEasingExpression(segment.transition!.easing ?? 'linear', `(__pxlblz_show_elapsed_ms - ${segment.startMs}) / ${segment.transition!.durationMs}`)}${segment.transition!.propertyRamps
+      ? `\n${indentBlock(emitPropertyRampAssignments(segment.from, segment.transition!.propertyRamps, `__pxlblz_show_elapsed_ms - ${segment.startMs}`), 4)}`
       : ''}
     ${segment.from.prefix}_advance(delta)${advanceTo}
   }`

@@ -188,17 +188,45 @@ describe('ShowEditor (#318)', () => {
     expect(screen.getByRole('group', { name: 'Time lane for main' })).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Edit time transition from Scene 1 for main' }))
     await user.click(screen.getByLabelText('Animate time for main'))
-    fireEvent.change(screen.getByLabelText('Time start main'), { target: { value: '1.5' } })
-    fireEvent.change(screen.getByLabelText('Time target main'), { target: { value: '0' } })
+    fireEvent.change(screen.getByLabelText('Time scale start main'), { target: { value: '1.5' } })
+    fireEvent.change(screen.getByLabelText('Time scale target main'), { target: { value: '0' } })
 
     await waitFor(() => {
       const saved = useShowStore.getState().shows[0]
       expect(saved.transitions?.[0].propertyTransitions).toEqual({
-        timeScale: { fromByCellId: { 'cell-2': 1.5 } },
+        timeScale: { fromByCellId: { 'cell-2': 1.5 }, durationMs: 2000, easing: 'linear' },
       })
       expect(saved.cells[1].adaptations.timeScale).toBe(0)
     })
     expect(screen.getByText('1.5→0')).toBeInTheDocument()
+  })
+
+  it('authors independent Time and Brightness curves through one property inspector (#418)', async () => {
+    const user = userEvent.setup()
+    const show = createDefaultShow('show-418', 'Two properties', 1000)
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    render(<ShowEditor showId={show.id} />)
+
+    expect(screen.getByRole('group', { name: 'Brightness lane for main' })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Edit brightness transition from Scene 1 for main' }))
+    await user.click(screen.getByLabelText('Animate time for main'))
+    await user.click(screen.getByLabelText('Animate brightness for main'))
+    fireEvent.change(screen.getByLabelText('Time scale duration seconds'), { target: { value: '1.5' } })
+    await user.selectOptions(screen.getByLabelText('Time scale easing'), 'ease-in')
+    fireEvent.change(screen.getByLabelText('Brightness duration seconds'), { target: { value: '0.8' } })
+    await user.selectOptions(screen.getByLabelText('Brightness easing'), 'ease-out')
+    fireEvent.change(screen.getByLabelText('Brightness target main'), { target: { value: '0.25' } })
+
+    await waitFor(() => {
+      const saved = useShowStore.getState().shows[0]
+      expect(saved.transitions?.[0].propertyTransitions).toMatchObject({
+        timeScale: { durationMs: 1500, easing: 'ease-in' },
+        brightness: { durationMs: 800, easing: 'ease-out' },
+      })
+      expect(saved.cells[1].adaptations.brightness).toBe(0.25)
+    })
+    expect(screen.getByText('100%→25%')).toBeInTheDocument()
   })
 
   it('projects Time values across every row covered by a spanning cell (#417)', () => {

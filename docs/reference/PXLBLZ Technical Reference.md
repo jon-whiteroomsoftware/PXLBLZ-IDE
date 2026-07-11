@@ -884,10 +884,13 @@ edit non-destructive adaptations and explicit `restartOnEntry` state, and build
 compiler recipes. `normalizeShowTransitionState` losslessly migrates legacy
 `scene.transitionOut` and `routingSwitches` values into stable boundary entities
 with id, `afterSceneId`, kind, duration, easing, and type-specific fields. The
-optional `propertyTransitions.timeScale.fromByCellId` map stores explicit start
-values by destination cell; the destination cell's adaptation remains the target.
-Values normalize to `0..4`, survive the `transitions_json` persistence path, and
-do not create a second animation model. The
+optional `propertyTransitions` record stores one shared descriptor shape for
+`timeScale` and `brightness`: explicit `fromByCellId` starts plus independent
+duration and easing; the destination cell's adaptation remains the target.
+Time values normalize to `0..4`, brightness to `0..1`, and property duration is
+bounded by its containing transition window. Legacy #417 time descriptors fill
+missing duration/easing from that boundary. The complete record survives the
+`transitions_json` persistence path and does not create a second animation model. The
 legacy fields remain derived compatibility views during the migration; compiler,
 timeline, EPE, and persistence paths normalize before consuming them. Visual and
 routing records can coexist at one boundary, while every boundary always retains
@@ -1107,6 +1110,11 @@ even when their target scales differ. Hold segments assign the scene target;
 transition segments assign the eased start-to-target interpolation before that
 same member advances. Exact-zero holds therefore deliver zero delta without
 resetting state, and a later ramp resumes the accumulated private clock.
+Brightness uses the same generated property-ramp loop and assigns the member's
+adaptation scalar before rendering. Different time and brightness durations or
+easing functions produce independent clamped progress values on one continued
+member. The compile summary remains `transitionCost: parameter`,
+`parameter-ramp-one-renderer-per-pixel`, and one worst-instant renderer per pixel.
 `ShowCompileSummary.clockPolicy` distinguishes `real-time`, `scaled`,
 `scaled-ramp`, `exact-pause`, and `exact-pause-ramp` while render policy and
 `worstInstantRenderersPerPixel` continue to report the unchanged renderer cost.

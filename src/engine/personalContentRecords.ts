@@ -76,6 +76,14 @@ export type ShowTransitionKind = 'cut' | 'crossfade' | 'wipe' | 'dither' | 'port
 export type ShowTransitionCost = 'free' | 'cheap' | 'expensive'
 export type ShowPortalFeatherPolicy = 'dither' | 'blend'
 export type ShowTransitionEasing = 'linear' | 'ease-in' | 'ease-out' | 'ease-in-out'
+export type ShowAutomatableProperty = 'timeScale' | 'brightness'
+
+export interface ShowPropertyTransition {
+  fromByCellId: Record<string, number>
+  /** Missing only on #417 records; normalization fills from the containing boundary. */
+  durationMs?: number
+  easing?: ShowTransitionEasing
+}
 
 export interface ShowPortalSettings {
   centerX: number
@@ -143,11 +151,7 @@ export interface ShowBoundaryTransition {
   invert?: boolean
   featherPolicy?: ShowPortalFeatherPolicy
   /** Boundary-owned interpolation settings keyed by the destination cell. */
-  propertyTransitions?: {
-    timeScale?: {
-      fromByCellId: Record<string, number>
-    }
-  }
+  propertyTransitions?: Partial<Record<ShowAutomatableProperty, ShowPropertyTransition>>
 }
 
 export interface ShowCellAdaptations {
