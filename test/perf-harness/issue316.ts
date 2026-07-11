@@ -13,6 +13,8 @@
 //   PIXELBLAZE_IP=192.168.8.224 SHOW_FIXTURE=show-wipe SAMPLE_VARS=1 npm run issue316
 //   PIXELBLAZE_IP=192.168.8.224 SHOW_FIXTURE=show-dither SAMPLE_VARS=1 npm run issue316
 //   PIXELBLAZE_IP=192.168.8.224 SHOW_FIXTURE=show-crossfade-baseline SAMPLE_VARS=1 npm run issue316
+//   PIXELBLAZE_IP=192.168.8.224 SHOW_FIXTURE=show-portal-dither SAMPLE_VARS=1 npm run issue316
+//   PIXELBLAZE_IP=192.168.8.224 SHOW_FIXTURE=show-portal-blend SAMPLE_VARS=1 npm run issue316
 //   PIXELBLAZE_IP=192.168.8.224 npm run issue332
 //   PIXELBLAZE_IP=192.168.8.224 SHOW_FIXTURE=plain-dither SAMPLE_VARS=1 npm run issue332
 //   PIXELBLAZE_IP=192.168.8.224 SHOW_FIXTURE=pattern-crossfade-baseline SAMPLE_VARS=1 npm run issue332
@@ -83,6 +85,8 @@ function defaultWatchMs(fixture: string): number {
     fixture === 'zone-repeat' ||
     fixture === 'show-wipe' ||
     fixture === 'show-dither' ||
+    fixture === 'show-portal-dither' ||
+    fixture === 'show-portal-blend' ||
     fixture === 'show-crossfade-baseline'
   ) {
     return 12000
@@ -524,6 +528,30 @@ export function render(index) {
     }
   }
 
+  if (fixture === 'show-portal-dither' || fixture === 'show-portal-blend') {
+    const artifact = compileShow({
+      clips: [
+        { id: 'warm', source: routeTransitionClip('warm') },
+        { id: 'cool', source: routeTransitionClip('cool') },
+      ],
+      routeTransition: {
+        kind: 'portal',
+        startMs: 1500,
+        durationMs: 4000,
+        feather: 0.12,
+        centerX: 0.5,
+        centerY: 0.5,
+        featherPolicy: fixture === 'show-portal-blend' ? 'blend' : 'dither',
+      },
+      loopDurationMs: 7000,
+    }, {})
+    return {
+      source: artifact.code,
+      description: `generated 2D portal: warm chase -> cool bands over 4s; ${artifact.summary.routePolicy}`,
+      sourceLabel: `Generated #383 Show source: ${artifact.summary.artifactBytes} bytes; renderPolicy=${artifact.summary.renderPolicy}; transitionCost=${artifact.summary.transitionCost}; worstInstantRenderersPerPixel=${artifact.summary.worstInstantRenderersPerPixel}`,
+    }
+  }
+
   if (fixture === 'direct-fade') {
     return {
       source: directFadeSource(),
@@ -565,7 +593,7 @@ export function render(index) {
   }
 
   if (fixture !== 'diagnostic') {
-    throw new Error(`unknown SHOW_FIXTURE=${fixture}; expected diagnostic, direct-fade, pulse-fade, time-fade, delta-ms-fade, capture-fade, stock, adaptation-ramp, show-wipe, show-dither, show-crossfade-baseline, zone-repeat, or one of: ${routeTransitionFixtureList()}`)
+    throw new Error(`unknown SHOW_FIXTURE=${fixture}; expected diagnostic, direct-fade, pulse-fade, time-fade, delta-ms-fade, capture-fade, stock, adaptation-ramp, show-wipe, show-dither, show-crossfade-baseline, show-portal-dither, show-portal-blend, zone-repeat, or one of: ${routeTransitionFixtureList()}`)
   }
 
   const artifact = compileShow({

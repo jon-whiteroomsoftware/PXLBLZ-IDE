@@ -3,6 +3,7 @@ import type {
   ShowCell,
   ShowCellAdaptations,
   ShowRecord,
+  ShowPortalSettings,
   ShowRoutingLayout,
   ShowRoutingLayoutZone,
   ShowScene,
@@ -50,6 +51,7 @@ export interface ShowStripProjection {
 export interface ShowCompileRecipeSourceLookup {
   byCellId: Record<string, string>
   controllerZones?: ControllerZone[]
+  stageDimension?: 1 | 2 | 3
 }
 
 const DEFAULT_ADAPTATIONS: ShowCellAdaptations = {
@@ -487,11 +489,24 @@ export function updateShowTransition(
   kind: NonNullable<ShowScene['transitionOut']>['kind'],
   durationMs: number,
   feather = 0,
+  portal: Partial<ShowPortalSettings> = {},
 ): ShowRecord {
+  const current = show.scenes.find((scene) => scene.id === sceneId)?.transitionOut
+  const currentPortal = current?.kind === 'portal' ? current : undefined
   return updateShowScene(show, sceneId, {
     transitionOut: kind === 'cut'
       ? undefined
-      : {
+      : kind === 'portal'
+        ? {
+            kind,
+            durationMs: clampDuration(durationMs),
+            feather: clamp01(feather),
+            centerX: clamp01(portal.centerX ?? currentPortal?.centerX ?? 0.5),
+            centerY: clamp01(portal.centerY ?? currentPortal?.centerY ?? 0.5),
+            invert: portal.invert ?? currentPortal?.invert ?? false,
+            featherPolicy: (portal.featherPolicy ?? currentPortal?.featherPolicy) === 'blend' ? 'blend' : 'dither',
+          }
+        : {
           kind,
           durationMs: clampDuration(durationMs),
           ...(kind === 'wipe' ? { feather: clamp01(feather) } : {}),
@@ -530,7 +545,10 @@ export function showRecordToCompileRecipe(
   const transitionScene = show.scenes[sceneIndex(show, cells[0].sceneId)]
   const transition = transitionScene?.transitionOut
   const samePattern = isSamePattern(cells[0], cells[1])
-  if (samePattern && hasSameDiscreteAdaptations(cells[0], cells[1]) && transition && transition.kind !== 'cut') {
+  if (transition?.kind === 'portal' && (!show.stageMapId || lookup.stageDimension !== 2)) {
+    throw new Error('Portal transition requires a 2D Stage Map.')
+  }
+  if (samePattern && hasSameDiscreteAdaptations(cells[0], cells[1]) && transition && transition.kind !== 'cut' && transition.kind !== 'portal') {
     return {
       clips: [{ id: cells[0].id, source: source0, adaptation: compilerAdaptation(cells[0].adaptations) }],
       adaptationRamp: {
@@ -553,12 +571,21 @@ export function showRecordToCompileRecipe(
       ? { startMs: show.scenes[0].durationMs, durationMs: transition.durationMs }
       : undefined,
     cut: !transition || transition.kind === 'cut' ? { startMs: show.scenes[0].durationMs } : undefined,
-    routeTransition: transition && (transition.kind === 'wipe' || transition.kind === 'dither')
+    routeTransition: transition && (transition.kind === 'wipe' || transition.kind === 'dither' || transition.kind === 'portal')
       ? {
           kind: transition.kind,
           startMs: show.scenes[0].durationMs,
           durationMs: transition.durationMs,
           ...(transition.kind === 'wipe' ? { feather: clamp01(transition.feather ?? 0) } : {}),
+          ...(transition.kind === 'portal'
+            ? {
+                feather: clamp01(transition.feather ?? 0.12),
+                centerX: clamp01(transition.centerX ?? 0.5),
+                centerY: clamp01(transition.centerY ?? 0.5),
+                invert: Boolean(transition.invert),
+                featherPolicy: transition.featherPolicy === 'blend' ? 'blend' as const : 'dither' as const,
+              }
+            : {}),
         }
       : undefined,
     zones: lookup.controllerZones ?? nominalZones(show.zones),
@@ -621,6 +648,7 @@ function showRecordToRoutedFirstSceneRecipe(
 
 export function transitionCost(kind: NonNullable<ShowScene['transitionOut']>['kind']): ShowTransitionCost {
   if (kind === 'crossfade') return 'expensive'
+  if (kind === 'portal') return 'expensive'
   if (kind === 'wipe' || kind === 'dither') return 'cheap'
   return 'free'
 }

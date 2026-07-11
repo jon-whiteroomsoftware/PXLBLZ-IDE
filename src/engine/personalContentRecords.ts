@@ -71,14 +71,29 @@ export interface LibraryRecord {
   updatedAt: number
 }
 
-export type ShowTransitionKind = 'cut' | 'crossfade' | 'wipe' | 'dither'
+export type ShowTransitionKind = 'cut' | 'crossfade' | 'wipe' | 'dither' | 'portal'
 export type ShowTransitionCost = 'free' | 'cheap' | 'expensive'
+export type ShowPortalFeatherPolicy = 'dither' | 'blend'
+
+export interface ShowPortalSettings {
+  centerX: number
+  centerY: number
+  invert: boolean
+  featherPolicy: ShowPortalFeatherPolicy
+}
 
 export interface ShowTransition {
   kind: ShowTransitionKind
   durationMs: number
   /** Normalized fraction of the 1D route used as a stable wipe feather band. */
   feather?: number
+  /** Normalized Stage coordinates used by the 2D portal transition. */
+  centerX?: number
+  centerY?: number
+  /** Grows the incoming scene from the outside toward the center. */
+  invert?: boolean
+  /** Stable one-renderer threshold or true bounded-band color blend. */
+  featherPolicy?: ShowPortalFeatherPolicy
 }
 
 export interface ShowScene {

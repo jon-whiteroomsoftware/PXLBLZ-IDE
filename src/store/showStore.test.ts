@@ -165,6 +165,59 @@ describe('showStore (#318)', () => {
     })
   })
 
+  it('persists portal geometry and feather policy through the provider', async () => {
+    const show = { ...createDefaultShow('show-1', 'Portal', 1), stageMapId: 'plane' }
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], showsLoaded: true })
+
+    await useShowStore.getState().updateTransition(
+      show.id,
+      'scene-1',
+      'portal',
+      3000,
+      0.2,
+      { centerX: 0.4, centerY: 0.6, invert: false, featherPolicy: 'dither' },
+    )
+    useShowStore.setState(showInitialState)
+    await useShowStore.getState().loadShows()
+
+    expect(useShowStore.getState().shows[0].scenes[0].transitionOut).toMatchObject({
+      kind: 'portal',
+      feather: 0.2,
+      centerX: 0.4,
+      centerY: 0.6,
+      invert: false,
+      featherPolicy: 'dither',
+    })
+  })
+
+  it('preserves rapid partial portal edits', async () => {
+    const show = { ...createDefaultShow('show-1', 'Portal', 1), stageMapId: 'plane' }
+    show.scenes[0].transitionOut = {
+      kind: 'portal',
+      durationMs: 2000,
+      feather: 0.12,
+      centerX: 0.5,
+      centerY: 0.5,
+      invert: false,
+      featherPolicy: 'dither',
+    }
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    const first = useShowStore.getState().updateTransition(show.id, 'scene-1', 'portal', 2000, 0.12, { centerX: 0.35 })
+    const second = useShowStore.getState().updateTransition(show.id, 'scene-1', 'portal', 2000, 0.12, { featherPolicy: 'blend' })
+    const third = useShowStore.getState().updateTransition(show.id, 'scene-1', 'portal', 2000, 0.12, { invert: true })
+    await Promise.all([first, second, third])
+
+    expect(useShowStore.getState().shows[0].scenes[0].transitionOut).toMatchObject({
+      centerX: 0.35,
+      centerY: 0.5,
+      invert: true,
+      featherPolicy: 'blend',
+    })
+  })
+
   it('edits show-local zones and creates a show from controller zones', async () => {
     setPersonalContentProvider(memoryProvider())
 

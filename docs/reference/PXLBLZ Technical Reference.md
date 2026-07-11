@@ -947,7 +947,7 @@ fallback. The repeatable runner and complete emulator/compiler/hardware matrix l
 
 `ShowStagePreview` is the right-pane Show context surface. It compiles the active
 Show through the same `compileShowForPreview` helper used by the editor and runs
-that generated `render(index)` artifact through the normal preview render loop.
+the generated artifact through the normal dimension-compatible preview render loop.
 For the default strips stage, `zonePreview.ts` builds synthetic sequential
 Controller zones and a 2D strips layout so multi-range physical zones flatten into
 diagnostic rows. For a map stage, the same module builds a spatial zone
@@ -957,7 +957,7 @@ off-stage rows warn in the legend, uncovered map pixels are masked dim grey, and
 solo blackens every non-solo zone without moving the geometry. The stage map
 selection is saved per Show as `stageMapId`; a dangling id falls back to strips.
 
-The current Show compiler (`src/engine/showCompiler.ts`) emits seven policies:
+The current Show compiler (`src/engine/showCompiler.ts`) emits these policies:
 single continuous hold (`single-continuous-hold`), cut/restart
 (`cut-restart`), two-renderer crossfade (`steady-active-transition-both`),
 same-pattern adaptation ramp (`parameter-ramp-one-renderer-per-pixel`), and the
@@ -998,6 +998,22 @@ for the matching pixel. Multi-zone clips default to independent domains by
 expanding into one member instance per named zone; `zoneMode: 'span'` keeps one
 member and merges the zones into a single canvas. This is the 1D
 zone-local-coordinate path used by Shows; 2D zone frames remain a future slice.
+
+The #383 portal path is a spatial scene-boundary policy and emits an outer
+`render2D(index, x, y)`. Member Patterns with native `render2D` receive those
+coordinates; 1D members remain compatible through their normal `render(index)`.
+The circular threshold expands to the farthest Stage corner from the configured
+normalized center, or contracts when inverted. A zero-width hard edge reports
+`portal-hard`; a stable spatial hash through a positive feather reports
+`portal-dithered-feather`. Both use `spatial-route-one-renderer-per-pixel`,
+`transitionCost: 'route'`, and one worst-instant renderer. True blend reports
+`portal-blended-feather`, `spatial-route-bounded-feather`, and
+`transitionCost: 'bounded-renderer-window'`; it calls both members only for
+pixels inside the moving feather band. Recipe conversion requires the Show's
+saved Stage Map to resolve to dimension 2. Preview dispatch supplies that map's
+normalized coordinates, while the same standalone artifact uses the
+Pixelblaze's configured 2D map on hardware. Reproducible hardware observations
+are archived in `docs/plans/archive/issue-383-spatial-portal-results.md`.
 
 Show time scale is normalized to the closed range `0..4` (#376); negative input
 clamps to zero and `0` survives model updates, cloud persistence, recipe

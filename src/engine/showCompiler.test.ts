@@ -27,6 +27,7 @@ function loadShow(code: string, metadata: ReturnType<typeof compileShow>['metada
     },
     max: Math.max,
     min: Math.min,
+    hypot: Math.hypot,
     triangle(v: number) {
       const x = v - Math.floor(v)
       return x < 0.5 ? x * 2 : 2 - x * 2
@@ -1231,6 +1232,104 @@ export function render(index) { calls = calls + 1; rgb(0, 1, 0) }
       renderPolicy: 'route-transition-one-renderer-per-pixel',
       worstInstantRenderersPerPixel: 1,
     })
+  })
+
+  it('routes a portal feather through a stable 2D threshold with one renderer per pixel', () => {
+    const artifact = compileShow({
+      clips: [
+        {
+          id: 'from',
+          source: 'export var calls = 0\nexport function render(index) { calls = calls + 1; rgb(1, 0, 0) }',
+        },
+        {
+          id: 'to',
+          source: 'export var calls = 0\nexport function render(index) { calls = calls + 1; rgb(0, 1, 0) }',
+        },
+      ],
+      routeTransition: {
+        kind: 'portal',
+        startMs: 1000,
+        durationMs: 1000,
+        centerX: 0.5,
+        centerY: 0.5,
+        feather: 0.2,
+        invert: false,
+        featherPolicy: 'dither',
+      },
+    }, {})
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 16)
+
+    handle.beforeRender(1500)
+    handle.render2D(0, 0.5, 0.5)
+    expect(pixel()).toEqual([0, 1, 0])
+    handle.render2D(1, 0, 0)
+    expect(pixel()).toEqual([1, 0, 0])
+    expect(handle.getExports()).toMatchObject({
+      __pxlblz_show_c0_calls: 1,
+      __pxlblz_show_c1_calls: 1,
+    })
+    expect(artifact.summary).toMatchObject({
+      renderPolicy: 'spatial-route-one-renderer-per-pixel',
+      transitionCost: 'route',
+      routePolicy: 'portal-dithered-feather',
+      worstInstantRenderersPerPixel: 1,
+    })
+  })
+
+  it('runs both member renderers only inside a blended portal feather band', () => {
+    const artifact = compileShow({
+      clips: [
+        { id: 'from', source: 'export var calls = 0\nexport function render(index) { calls = calls + 1; rgb(1, 0, 0) }' },
+        { id: 'to', source: 'export var calls = 0\nexport function render(index) { calls = calls + 1; rgb(0, 1, 0) }' },
+      ],
+      routeTransition: {
+        kind: 'portal',
+        startMs: 1000,
+        durationMs: 1000,
+        centerX: 0.5,
+        centerY: 0.5,
+        feather: 0.2,
+        invert: false,
+        featherPolicy: 'blend',
+      },
+    }, {})
+    const { handle } = loadShow(artifact.code, artifact.metadata, 16)
+
+    handle.beforeRender(1500)
+    handle.render2D(0, 0.853553, 0.5)
+    expect(handle.getExports()).toMatchObject({
+      __pxlblz_show_c0_calls: 1,
+      __pxlblz_show_c1_calls: 1,
+    })
+    handle.render2D(1, 0, 0)
+    expect(handle.getExports()).toMatchObject({
+      __pxlblz_show_c0_calls: 2,
+      __pxlblz_show_c1_calls: 1,
+    })
+    expect(artifact.summary).toMatchObject({
+      renderPolicy: 'spatial-route-bounded-feather',
+      transitionCost: 'bounded-renderer-window',
+      routePolicy: 'portal-blended-feather',
+      worstInstantRenderersPerPixel: 2,
+    })
+  })
+
+  it('passes Stage coordinates through to native 2D member renderers', () => {
+    const artifact = compileShow({
+      clips: [
+        { id: 'from', source: 'export function render2D(index, x, y) { rgb(x, y, 0) }' },
+        { id: 'to', source: 'export function render2D(index, x, y) { rgb(0, x, y) }' },
+      ],
+      routeTransition: {
+        kind: 'portal', startMs: 1000, durationMs: 1000,
+        centerX: 0.5, centerY: 0.5, feather: 0, invert: false, featherPolicy: 'dither',
+      },
+    }, {})
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 16)
+
+    handle.beforeRender(1500)
+    handle.render2D(0, 0.5, 0.5)
+    expect(pixel()).toEqual([0, 0.5, 0.5])
   })
 
   it('emits a dither dissolve that hashes each pixel to one member renderer', () => {

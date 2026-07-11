@@ -481,6 +481,47 @@ describe('showModel (#318)', () => {
       .toMatchObject({ feather: 1 })
   })
 
+  it('persists portal settings and requires an explicit 2D Stage Map', () => {
+    const show = updateShowTransition(
+      { ...createDefaultShow('show-1', 'Portal'), stageMapId: 'sunflower-2d' },
+      'scene-1',
+      'portal',
+      2400,
+      0.18,
+      { centerX: 0.3, centerY: 0.7, invert: true, featherPolicy: 'blend' },
+    )
+
+    expect(show.scenes[0].transitionOut).toEqual({
+      kind: 'portal',
+      durationMs: 2400,
+      feather: 0.18,
+      centerX: 0.3,
+      centerY: 0.7,
+      invert: true,
+      featherPolicy: 'blend',
+    })
+
+    const sources = {
+      byCellId: {
+        [show.cells[0].id]: DEMOS.TestPattern1D,
+        [show.cells[1].id]: DEMOS.CometLoom,
+      },
+    }
+    expect(() => showRecordToCompileRecipe(show, sources)).toThrow(/requires a 2D Stage Map/i)
+    expect(() => showRecordToCompileRecipe(show, { ...sources, stageDimension: 3 })).toThrow(/requires a 2D Stage Map/i)
+
+    expect(showRecordToCompileRecipe(show, { ...sources, stageDimension: 2 }).routeTransition).toEqual({
+      kind: 'portal',
+      startMs: 30000,
+      durationMs: 2400,
+      feather: 0.18,
+      centerX: 0.3,
+      centerY: 0.7,
+      invert: true,
+      featherPolicy: 'blend',
+    })
+  })
+
   it('builds routed clips for every show-local zone in the first scene', () => {
     const show = addShowZone(createDefaultShow('show-1', 'Untitled Show'), {
       name: 'doorframe',

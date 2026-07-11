@@ -236,6 +236,57 @@ describe('ShowEditor (#318)', () => {
     expect(screen.getByText('worst instant: feathered wipe')).toBeInTheDocument()
   })
 
+  it('edits a 2D portal transition and reports bounded blend cost', async () => {
+    const user = userEvent.setup()
+    const show = createDefaultShow('show-1', 'Portal', 1000)
+    show.stageMapId = 'plane'
+    show.scenes[0].transitionOut = {
+      kind: 'portal',
+      durationMs: 2000,
+      feather: 0.12,
+      centerX: 0.5,
+      centerY: 0.5,
+      invert: false,
+      featherPolicy: 'dither',
+    }
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+    await user.click(screen.getByRole('button', { name: /Select Scene 1 to Scene 2 transition/i }))
+
+    expect(screen.getByLabelText('Center X')).toHaveValue(0.5)
+    expect(screen.getByLabelText('Center Y')).toHaveValue(0.5)
+    expect(screen.getByLabelText('Feather behavior')).toHaveValue('dither')
+    expect(screen.getByText('worst instant: portal dither')).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('Center X'), { target: { value: '0.35' } })
+    await user.selectOptions(screen.getByLabelText('Feather behavior'), 'blend')
+    await user.click(screen.getByLabelText('Outside in'))
+
+    await waitFor(() => {
+      expect(useShowStore.getState().shows[0].scenes[0].transitionOut).toMatchObject({
+        kind: 'portal',
+        centerX: 0.35,
+        centerY: 0.5,
+        invert: true,
+        featherPolicy: 'blend',
+      })
+    })
+    expect(screen.getByText(/Two Pattern renderers run only inside/i)).toBeInTheDocument()
+    expect(screen.getByText('worst instant: portal blend (feather band only)')).toBeInTheDocument()
+  })
+
+  it('offers stock maps in Show setup and reflects the selected stage', () => {
+    const show = createDefaultShow('show-1', 'Stock stage', 1000)
+    show.stageMapId = 'plane'
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+
+    expect(screen.getByLabelText('Stage map')).toHaveValue('plane')
+    expect(screen.getByRole('option', { name: 'Square (2D)' })).toBeInTheDocument()
+  })
+
   it('edits freestyle show zones and warns when a target controller zone is missing', async () => {
     const user = userEvent.setup()
     const show = addShowZone(createDefaultShow('show-1', 'Opening wash', 1000), {

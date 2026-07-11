@@ -34,10 +34,17 @@ import {
 import { GALLERY_PATTERNS } from '@/engine/galleryCatalog'
 import { useControllerStore } from '@/store/controllerStore'
 import { useControllerProfileStore } from '@/store/controllerProfileStore'
-import { useMapStore } from '@/store/mapStore'
+import { STOCK_MAPS, useMapStore } from '@/store/mapStore'
 import { usePatternStore } from '@/store/patternStore'
 import { useShowStore } from '@/store/showStore'
-import type { MapRecord, ShowCell, ShowRecord, ShowRoutingLayout, ShowScene } from '@/engine/personalContentRecords'
+import type {
+  MapRecord,
+  ShowCell,
+  ShowPortalSettings,
+  ShowRecord,
+  ShowRoutingLayout,
+  ShowScene,
+} from '@/engine/personalContentRecords'
 
 const card = 'rounded-md border border-zinc-800 bg-zinc-950/35'
 const field =
@@ -89,9 +96,14 @@ export function ShowEditor({ showId }: { showId: string }) {
   const targetProfile = activeShow?.targetControllerProfileId
     ? controllerProfiles.find((profile) => profile.id === activeShow.targetControllerProfileId)
     : controllerProfiles[0]
+  const stageDimension = activeShow?.stageMapId
+    ? [...STOCK_MAPS, ...userMaps].find((map) => map.id === activeShow.stageMapId)?.dim
+    : undefined
   const compiled = useMemo(
-    () => activeShow ? compileShowForPreview(activeShow, userPatterns, targetProfile?.zones, {}) : { artifact: null, error: null },
-    [activeShow, userPatterns, targetProfile?.zones],
+    () => activeShow
+      ? compileShowForPreview(activeShow, userPatterns, targetProfile?.zones, {}, { stageDimension })
+      : { artifact: null, error: null },
+    [activeShow, stageDimension, userPatterns, targetProfile?.zones],
   )
   const showExport = useMemo(
     () => activeShow && compiled.artifact
@@ -235,7 +247,7 @@ export function ShowEditor({ showId }: { showId: string }) {
             onUpdateAdaptations={(cell, changes) => void updateCellAdaptations(activeShow.id, cell.id, changes)}
             onExtend={(cell, sceneSpan) => void extendCell(activeShow.id, cell.id, sceneSpan)}
             onSpanZones={(cell, zoneSpan) => void spanCellZones(activeShow.id, cell.id, zoneSpan)}
-            onUpdateTransition={(sceneId, kind, durationMs, feather) => void updateTransition(activeShow.id, sceneId, kind, durationMs, feather)}
+            onUpdateTransition={(sceneId, kind, durationMs, feather, portal) => void updateTransition(activeShow.id, sceneId, kind, durationMs, feather, portal)}
             onAddZone={() => void addZone(activeShow.id)}
             onUpdateZone={(zoneId, changes) => void updateZone(activeShow.id, zoneId, changes)}
             onRemoveZone={(zoneId) => void removeZone(activeShow.id, zoneId)}
@@ -569,7 +581,15 @@ function TransitionGlyph({
   selected: boolean
   onSelect: () => void
 }) {
-  const glyph = transition.kind === 'crossfade' ? 'xf' : transition.kind === 'wipe' ? 'wp' : transition.kind === 'dither' ? 'dt' : 'cut'
+  const glyph = transition.kind === 'crossfade'
+    ? 'xf'
+    : transition.kind === 'wipe'
+      ? 'wp'
+      : transition.kind === 'dither'
+        ? 'dt'
+        : transition.kind === 'portal'
+          ? 'pt'
+          : 'cut'
   const afterIndex = show.scenes.findIndex((scene) => scene.id === transition.afterSceneId)
   const from = show.scenes[afterIndex]?.name ?? 'Scene'
   const to = show.scenes[afterIndex + 1]?.name ?? 'next scene'
@@ -641,7 +661,13 @@ function ContextualInspector({
   onUpdateAdaptations: (cell: ShowCell, changes: Partial<ShowCell['adaptations']>) => void
   onExtend: (cell: ShowCell, sceneSpan: number) => void
   onSpanZones: (cell: ShowCell, zoneSpan: number) => void
-  onUpdateTransition: (sceneId: string, kind: NonNullable<ShowScene['transitionOut']>['kind'], durationMs: number, feather?: number) => void
+  onUpdateTransition: (
+    sceneId: string,
+    kind: NonNullable<ShowScene['transitionOut']>['kind'],
+    durationMs: number,
+    feather?: number,
+    portal?: Partial<ShowPortalSettings>,
+  ) => void
   onAddZone: () => void
   onUpdateZone: (zoneId: string, changes: Partial<ShowRecord['zones'][number]>) => void
   onRemoveZone: (zoneId: string) => void
@@ -950,13 +976,34 @@ function TransitionInspector({
 }: {
   show: ShowRecord
   afterSceneId: string
-  onUpdateTransition: (sceneId: string, kind: NonNullable<ShowScene['transitionOut']>['kind'], durationMs: number, feather?: number) => void
+  onUpdateTransition: (
+    sceneId: string,
+    kind: NonNullable<ShowScene['transitionOut']>['kind'],
+    durationMs: number,
+    feather?: number,
+    portal?: Partial<ShowPortalSettings>,
+  ) => void
 }) {
   const sceneIndex = show.scenes.findIndex((scene) => scene.id === afterSceneId)
   const scene = show.scenes[sceneIndex] ?? show.scenes[0]
   const nextScene = show.scenes[sceneIndex + 1]
   const transition = scene.transitionOut ?? { kind: 'cut' as const, durationMs: 0 }
   const cost = transitionCost(transition.kind)
+  const portalSettings: ShowPortalSettings = {
+    centerX: transition.centerX ?? 0.5,
+    centerY: transition.centerY ?? 0.5,
+    invert: transition.invert ?? false,
+    featherPolicy: transition.featherPolicy === 'blend' ? 'blend' : 'dither',
+  }
+  const updatePortal = (changes: Partial<ShowPortalSettings>, feather = transition.feather ?? 0.12) => {
+    onUpdateTransition(
+      scene.id,
+      'portal',
+      transition.durationMs || 2000,
+      feather,
+      changes,
+    )
+  }
   return (
     <InspectorPanel title={`${scene?.name ?? 'Scene'} -> ${nextScene?.name ?? 'next'} - transition`}>
       <div className="grid grid-cols-2 gap-2">
@@ -969,13 +1016,23 @@ function TransitionInspector({
           <select
             aria-label="Transition kind"
             value={transition.kind}
-            onChange={(event) => onUpdateTransition(scene.id, event.target.value as NonNullable<ShowScene['transitionOut']>['kind'], transition.durationMs || 2000, transition.feather)}
+            onChange={(event) => {
+              const kind = event.target.value as NonNullable<ShowScene['transitionOut']>['kind']
+              onUpdateTransition(
+                scene.id,
+                kind,
+                transition.durationMs || 2000,
+                kind === 'portal' ? transition.feather ?? 0.12 : transition.feather,
+                kind === 'portal' ? portalSettings : undefined,
+              )
+            }}
             className={`${field} mt-1 w-full`}
           >
             <option value="cut">cut</option>
             <option value="crossfade">crossfade</option>
             <option value="wipe">wipe</option>
             <option value="dither">dither</option>
+            <option value="portal">portal (2D)</option>
           </select>
         </label>
         <NumberField
@@ -984,7 +1041,13 @@ function TransitionInspector({
           min={0}
           max={30}
           step={1}
-          onChange={(seconds) => onUpdateTransition(scene.id, transition.kind, seconds * 1000, transition.feather)}
+          onChange={(seconds) => onUpdateTransition(
+            scene.id,
+            transition.kind,
+            seconds * 1000,
+            transition.feather,
+            transition.kind === 'portal' ? portalSettings : undefined,
+          )}
         />
         {transition.kind === 'wipe' && (
           <>
@@ -998,6 +1061,61 @@ function TransitionInspector({
             />
             <div className="rounded border border-zinc-800 bg-zinc-950/55 p-2 text-[10px] leading-4 text-zinc-500">
               Feather uses a stable spatial threshold across the 1D route edge and still calls one Pattern renderer per pixel.
+            </div>
+          </>
+        )}
+        {transition.kind === 'portal' && (
+          <>
+            <NumberField
+              label="Center X"
+              value={portalSettings.centerX}
+              min={0}
+              max={1}
+              step={0.05}
+              onChange={(centerX) => updatePortal({ centerX })}
+            />
+            <NumberField
+              label="Center Y"
+              value={portalSettings.centerY}
+              min={0}
+              max={1}
+              step={0.05}
+              onChange={(centerY) => updatePortal({ centerY })}
+            />
+            <NumberField
+              label="Feather width"
+              value={transition.feather ?? 0.12}
+              min={0}
+              max={1}
+              step={0.02}
+              onChange={(feather) => updatePortal({}, feather)}
+            />
+            <label className="text-[10px] uppercase text-zinc-600">
+              Feather behavior
+              <select
+                aria-label="Feather behavior"
+                value={portalSettings.featherPolicy}
+                onChange={(event) => updatePortal({ featherPolicy: event.target.value === 'blend' ? 'blend' : 'dither' })}
+                className={`${field} mt-1 w-full`}
+              >
+                <option value="dither">stable dither</option>
+                <option value="blend">true blend</option>
+              </select>
+            </label>
+            <label className="flex min-h-8 items-center gap-2 self-end text-[10px] uppercase text-zinc-500">
+              <input
+                type="checkbox"
+                aria-label="Outside in"
+                checked={portalSettings.invert}
+                onChange={(event) => updatePortal({ invert: event.target.checked })}
+                className="h-3.5 w-3.5 accent-sky-400"
+              />
+              Outside in
+            </label>
+            <div className="border-l-2 border-sky-500/50 pl-2 text-[10px] leading-4 text-zinc-500">
+              {portalSettings.featherPolicy === 'blend'
+                ? 'Two Pattern renderers run only inside the circular feather band.'
+                : 'A stable threshold keeps the portal to one Pattern renderer per pixel.'}
             </div>
           </>
         )}
@@ -1100,9 +1218,18 @@ function ShowSetupInspector({
             className={`${field} mt-1 w-full`}
           >
             <option value="">none</option>
-            {userMaps.map((map) => (
-              <option key={map.id} value={map.id}>{map.name}</option>
-            ))}
+            <optgroup label="Stock maps">
+              {STOCK_MAPS.map((map) => (
+                <option key={map.id} value={map.id}>{map.name} ({map.dim}D)</option>
+              ))}
+            </optgroup>
+            {userMaps.length > 0 && (
+              <optgroup label="Your maps">
+                {userMaps.map((map) => (
+                  <option key={map.id} value={map.id}>{map.name} ({map.dim}D)</option>
+                ))}
+              </optgroup>
+            )}
           </select>
         </label>
         <div className="rounded border border-zinc-800 bg-zinc-950/55 p-2 text-[10px] uppercase text-zinc-600">
@@ -1303,12 +1430,18 @@ function CompileBar({
   const estimate = estimateFps(ratio, summary?.renderPolicy)
   const worstInstant = summary?.transitionCost === 'renderer-window'
     ? 'crossfade'
+    : summary?.transitionCost === 'bounded-renderer-window'
+      ? 'portal blend (feather band only)'
     : summary?.transitionCost === 'parameter'
       ? 'adaptation ramp'
       : summary?.transitionCost === 'route'
         ? summary.routePolicy === 'feathered-wipe'
           ? 'feathered wipe'
-          : 'route transition'
+          : summary.routePolicy === 'portal-dithered-feather'
+            ? 'portal dither'
+            : summary.routePolicy === 'portal-hard'
+              ? 'portal'
+              : 'route transition'
         : 'none'
   const clockPolicy = summary?.clockPolicy === 'exact-pause-ramp'
     ? 'exact pause ramp'
@@ -1352,7 +1485,7 @@ function CompileBar({
       <b className="text-zinc-300">est. {estimate} fps @ {targetPixels} px</b>
       <span>-</span>
       <span>steady state <span className="text-emerald-300"><Check size={12} className="inline" aria-hidden /> 1 renderer/px</span></span>
-      <span className={summary?.transitionCost === 'renderer-window' ? 'text-amber-300' : 'text-emerald-300'}>
+      <span className={summary?.transitionCost === 'renderer-window' || summary?.transitionCost === 'bounded-renderer-window' ? 'text-amber-300' : 'text-emerald-300'}>
         worst instant: {worstInstant}
       </span>
       {summary && summary.clockPolicy !== 'real-time' && (

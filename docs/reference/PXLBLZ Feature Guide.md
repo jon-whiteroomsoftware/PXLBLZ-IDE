@@ -165,7 +165,7 @@ from chain order. The IDE splits "layout" into two deliberately separate control
   `render`, `[x,y]` for `render2D`, or `[x,y,z]` for `render3D`. It lives inside
   the **PIXELBLAZE block** of the deck, with the other settings a real device
   would carry.
-- The **embedding** control picks how the dots are *drawn* — a viewport choice the
+- The **Display** control picks how the dots are *drawn* — a viewport embedding the
   device never sees. It sits on the **transport row** beside play/pause.
 
 The Map menu offers every dimensionality to every Pattern. Choices matching the
@@ -176,7 +176,7 @@ Pattern—then decides which embedding control appears:
 | Active map | Map control | Embedding control |
 |---|---|---|
 | **Index** / 1D | ✓ | shape: **line**, **ring**, or **pole** (a helix with adjustable wrap density) |
-| 2D | ✓ | surface: **Flat** or **Cylinder** (proportions follow the map's aspect) |
+| 2D | ✓ | display: **Flat** or **Cylinder wrap** (proportions follow the map's aspect) |
 | 3D | ✓ | — (the map owns the geometry) |
 
 Generated geometry families appear once in the Map menu and own their physical
@@ -373,6 +373,14 @@ two-renderer window. **Wipe** moves a split point across the zone, and
 **dither** uses a stable per-pixel hash against the animated threshold; both
 render exactly one member per pixel and show as route-cost transitions in the
 compile bar.
+
+**Portal (2D)** moves a circular boundary across the selected 2D Stage Map. Its
+inspector controls the normalized center, feather width, and inside-out versus
+outside-in direction. Stable dither softens the boundary while retaining one
+Pattern renderer per pixel. True blend evaluates both Patterns only inside the
+circular feather band, so the compile bar calls out that bounded expensive
+instant. Portal is unavailable without a 2D Stage Map; 3D and generic-strip
+stages produce a clear compile error.
 
 ## 5. Patterns, built-ins, and libraries
 

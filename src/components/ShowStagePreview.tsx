@@ -100,9 +100,11 @@ export function ShowStagePreview({ showId }: { showId: string }) {
   const compiled = useMemo(
     () =>
       show
-        ? compileShowForPreview(show, userPatterns, spatialControllerZones, LIBRARIES)
+        ? compileShowForPreview(show, userPatterns, spatialControllerZones, LIBRARIES, {
+            stageDimension: selectedStageMap?.dim,
+          })
         : { artifact: null, error: null },
-    [show, userPatterns, spatialControllerZones],
+    [selectedStageMap?.dim, show, spatialControllerZones, userPatterns],
   )
 
   const layout = useMemo((): StageLayout | null => {
@@ -129,7 +131,13 @@ export function ShowStagePreview({ showId }: { showId: string }) {
       defaultPixelCountForDim(map.dim)
     const pixelCount = Math.max(1, preferredPixelCount)
     const resolved = applyNormalizeMode(map.resolve(pixelCount), 'contain')
-    const mapPoints = resolved.map((point) => ({ sample: [], pos: point.pos }))
+    const mapPoints = resolved.map((point) => {
+      const raw = point.pos ?? point.sample
+      const pos = map.dim === 3
+        ? [raw[0] ?? 0.5, raw[1] ?? 0.5, raw[2] ?? 0.5] as [number, number, number]
+        : [raw[0] ?? 0.5, raw[1] ?? 0.5] as [number, number]
+      return { sample: [...pos], pos }
+    })
     const projection = buildShowStageProjection(show.zones, mapPoints.length, {
       controllerZones: targetProfile?.zones,
     })
@@ -190,11 +198,12 @@ export function ShowStagePreview({ showId }: { showId: string }) {
     renderer.setDiffusion(diffusion)
 
     const clock = createVirtualClock()
-    const renderCompatibility = selectRenderCompatibility(1, compiled.artifact.metadata.renderFns)
+    const mapDimension: 1 | 2 | 3 = layout.kind === 'strips' ? 1 : layout.draw.kind === '3d' ? 3 : 2
+    const renderCompatibility = selectRenderCompatibility(mapDimension, compiled.artifact.metadata.renderFns)
     const shimConfig = {
       mapPoints: layout.mapPoints,
       pixelCount: layout.mapPoints.length,
-      dimensions: 1 as const,
+      dimensions: mapDimension,
       getVirtualTime: () => clock.getTime(),
     }
     const shim = fidelity === 'fast' ? createShim(shimConfig) : createFxShim(shimConfig)

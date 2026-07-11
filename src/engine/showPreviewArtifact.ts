@@ -14,12 +14,17 @@ export function compileShowForPreview(
   userPatterns: PatternRecord[],
   controllerZones: ControllerZone[] | undefined,
   libraries: Record<string, string>,
+  options: { stageDimension?: 1 | 2 | 3 } = {},
 ): CompiledShowState {
   try {
     const byCellId = Object.fromEntries(
       show.cells.map((cell) => [cell.id, sourceForShowCell(cell, userPatterns)]),
     )
-    const recipe = showRecordToCompileRecipe(show, { byCellId, controllerZones })
+    const recipe = showRecordToCompileRecipe(show, {
+      byCellId,
+      controllerZones,
+      stageDimension: options.stageDimension,
+    })
     return { artifact: compileShow(recipe, libraries), error: null }
   } catch (error) {
     return { artifact: null, error: error instanceof Error ? error.message : 'Show compile failed' }

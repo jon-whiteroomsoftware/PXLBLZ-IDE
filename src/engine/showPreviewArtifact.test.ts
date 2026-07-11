@@ -1,5 +1,5 @@
 import { compileShowForPreview } from './showPreviewArtifact'
-import { addShowZone, createDefaultShow, extendShowCell, updateShowCellAdaptations } from './showModel'
+import { addShowZone, createDefaultShow, extendShowCell, updateShowCellAdaptations, updateShowTransition } from './showModel'
 
 describe('compileShowForPreview temporal adaptations (#379)', () => {
   it('loads the exact stepped-clock artifact used by generated Show output', () => {
@@ -41,5 +41,27 @@ describe('compileShowForPreview temporal adaptations (#379)', () => {
       ],
     })
     expect(compiled.artifact?.code).toContain('var __pxlblz_show_c1_elapsed_ms = 500')
+  })
+
+  it('validates and compiles the selected 2D Stage domain for portal transitions', () => {
+    const base = { ...createDefaultShow('show-1', 'Portal'), stageMapId: 'plane' }
+    const show = updateShowTransition(base, 'scene-1', 'portal', 2000, 0.1, {
+      centerX: 0.5,
+      centerY: 0.5,
+      invert: false,
+      featherPolicy: 'dither',
+    })
+
+    expect(compileShowForPreview(show, [], undefined, {}, { stageDimension: 3 }).error)
+      .toMatch(/requires a 2D Stage Map/i)
+
+    const compiled = compileShowForPreview(show, [], undefined, {}, { stageDimension: 2 })
+    expect(compiled.error).toBeNull()
+    expect(compiled.artifact?.metadata.renderFns).toEqual({
+      hasBeforeRender: true,
+      hasRender: false,
+      hasRender2D: true,
+      hasRender3D: false,
+    })
   })
 })

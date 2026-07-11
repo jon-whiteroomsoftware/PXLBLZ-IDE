@@ -24,7 +24,7 @@ The shipped Show baseline is no longer specified here. In current code, Shows ar
 D1-backed personal content with a scene-strip editor, show-local zones, optional
 target Controller profile, per-show stage map, generated-source inspection,
 Controller push, hold/restart semantics, adaptation ramps, crossfade,
-wipe/dither route transitions, zone routing, zone spanning, per-zone preview
+wipe/dither route transitions, 2D spatial portal transitions, zone routing, zone spanning, per-zone preview
 strips, spatial stage preview, and imported-controller-map stage support. See
 the reference docs for exact behavior.
 
@@ -35,7 +35,7 @@ model remains:
 - **Model**: zone tracks (semantic names, resolved through the target
   Controller's zone map) holding **clips** (references to patterns, never
   copies) with durations, **transitions** between clips (cut, crossfade,
-  wipe, dither, and future transition types), an optional overlay track, and
+  wipe, dither, 2D spatial portal, and future transition types), an optional overlay track, and
   per-clip **adaptations** (palette, mirror, phase offset, brightness
   envelope, and similar post-processing) that never fork the source pattern.
 - **Zone map** (decided 2026-07-08): a Controller-profile mapping from
@@ -112,6 +112,15 @@ model remains:
   steady-state runs only the active clip's `beforeRender`/render; both renderers
   evaluate only inside a crossfade window. Route transitions and routed zones
   are one-renderer-per-pixel paths in the shipped compiler.
+- **Spatial portal transition** (shipped #383): a Show with a selected 2D Stage
+  Map can expand a circular boundary from a configurable normalized center, or
+  invert it to contract from the outside inward. A hard edge and stable-dither
+  feather call exactly one Pattern renderer per pixel. Optional true blend calls
+  both renderers only for pixels inside the bounded feather band, and is labeled
+  honestly as the more expensive policy. The generated artifact exports
+  `render2D(index, x, y)`: preview coordinates come from the selected Stage Map,
+  while hardware coordinates come from the map configured on the Pixelblaze.
+  Missing or non-2D stages are compile errors rather than silent 1D fallbacks.
 - **Adaptation cost tiers** (decided 2026-07-08): prefer transforming what a
   pattern *sees* over transforming what it *emits*, and prefer both over
   running multiple renderers. The intended ladder:

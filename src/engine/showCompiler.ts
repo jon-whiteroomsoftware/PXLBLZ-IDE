@@ -55,10 +55,14 @@ export interface ShowAdaptationRampRecipe {
 }
 
 export interface ShowRouteTransitionRecipe {
-  kind: 'wipe' | 'dither'
+  kind: 'wipe' | 'dither' | 'portal'
   startMs: number
   durationMs: number
   feather?: number
+  centerX?: number
+  centerY?: number
+  invert?: boolean
+  featherPolicy?: 'dither' | 'blend'
 }
 
 export interface ShowRoutingLayoutRecipe {
@@ -111,8 +115,17 @@ export interface ShowCompileSummary {
     | 'cut-restart'
     | 'parameter-ramp-one-renderer-per-pixel'
     | 'route-transition-one-renderer-per-pixel'
-  transitionCost: 'none' | 'renderer-window' | 'route' | 'parameter'
-  routePolicy: 'none' | 'hard-wipe' | 'feathered-wipe' | 'dither'
+    | 'spatial-route-one-renderer-per-pixel'
+    | 'spatial-route-bounded-feather'
+  transitionCost: 'none' | 'renderer-window' | 'bounded-renderer-window' | 'route' | 'parameter'
+  routePolicy:
+    | 'none'
+    | 'hard-wipe'
+    | 'feathered-wipe'
+    | 'dither'
+    | 'portal-hard'
+    | 'portal-dithered-feather'
+    | 'portal-blended-feather'
   clockPolicy: 'real-time' | 'scaled' | 'scaled-ramp' | 'exact-pause' | 'exact-pause-ramp'
   evaluationPolicy: 'full' | 'masked-shutter' | 'mixed'
   expectedActiveFraction: number | null
@@ -155,8 +168,10 @@ interface CompiledMember {
   renamedBindings: string[]
   renamedPatternVars: string[]
   renderName: string
+  render2DName: string
   beforeRenderName: string
   hasRender: boolean
+  hasRender2D: boolean
   hasBeforeRender: boolean
   elapsedName: string
   pixelCountName: string
@@ -186,6 +201,14 @@ export function compileShow(
   const route = buildRoutePlan(members, expandedRecipe)
   const routingLayouts = buildRoutingLayoutPlans(members, expandedRecipe)
   const routeMode = route !== null
+  const portalTransition = expandedRecipe.routeTransition?.kind === 'portal'
+    ? expandedRecipe.routeTransition
+    : null
+  const portalBlend = Boolean(
+    portalTransition
+    && clampNumber(portalTransition.feather ?? 0, 0, 1) > 0
+    && portalTransition.featherPolicy === 'blend',
+  )
   const code = routingLayouts
     ? emitRoutingLayoutShowCode(
         members,
@@ -200,11 +223,13 @@ export function compileShow(
       : expandedRecipe.cut
         ? emitCutShowCode(members[0], members[1], expandedRecipe.cut)
         : expandedRecipe.routeTransition
-          ? emitRouteTransitionShowCode(members[0], members[1], expandedRecipe.routeTransition)
+          ? portalTransition
+            ? emitPortalTransitionShowCode(members[0], members[1], portalTransition)
+            : emitRouteTransitionShowCode(members[0], members[1], expandedRecipe.routeTransition)
         : expandedRecipe.crossfade
           ? emitShowCode(members[0], members[1], expandedRecipe.crossfade)
           : emitSingleClipShowCode(members[0])
-  const metadata = buildMetadata(members)
+  const metadata = buildMetadata(members, portalTransition ? 2 : 1)
   const sourceBytesBeforeMerge = members.reduce((sum, member) => sum + member.sourceBytes, 0)
   const artifactBytes = byteLength(code)
   const transitionCost = routeMode
@@ -214,7 +239,7 @@ export function compileShow(
       : expandedRecipe.adaptationRamp
         ? 'parameter'
         : expandedRecipe.routeTransition
-          ? 'route'
+          ? portalBlend ? 'bounded-renderer-window' : 'route'
         : 'none'
   const evaluationSummary = describeEvaluationPolicy(members)
   const summary: ShowCompileSummary = {
@@ -235,10 +260,20 @@ export function compileShow(
         : expandedRecipe.adaptationRamp
           ? 'parameter-ramp-one-renderer-per-pixel'
           : expandedRecipe.routeTransition
-            ? 'route-transition-one-renderer-per-pixel'
+            ? portalTransition
+              ? portalBlend
+                ? 'spatial-route-bounded-feather'
+                : 'spatial-route-one-renderer-per-pixel'
+              : 'route-transition-one-renderer-per-pixel'
             : 'single-continuous-hold',
     transitionCost,
-    routePolicy: expandedRecipe.routeTransition?.kind === 'dither'
+    routePolicy: portalTransition
+      ? clampNumber(portalTransition.feather ?? 0, 0, 1) <= 0
+        ? 'portal-hard'
+        : portalBlend
+          ? 'portal-blended-feather'
+          : 'portal-dithered-feather'
+      : expandedRecipe.routeTransition?.kind === 'dither'
       ? 'dither'
       : expandedRecipe.routeTransition?.kind === 'wipe'
         ? clampNumber(expandedRecipe.routeTransition.feather ?? 0, 0, 1) > 0
@@ -250,7 +285,7 @@ export function compileShow(
     expectedActiveFraction: evaluationSummary.expectedActiveFraction,
     temporalPolicy: describeTemporalPolicy(members),
     timeOffsetPolicy: members.some((member) => member.adaptation.timeOffsetMs !== 0) ? 'per-clip' : 'none',
-    worstInstantRenderersPerPixel: transitionCost === 'renderer-window' ? 2 : 1,
+    worstInstantRenderersPerPixel: transitionCost === 'renderer-window' || transitionCost === 'bounded-renderer-window' ? 2 : 1,
     clips: members.map((member) => {
       const lightShutter = member.adaptation.lightShutter
       return {
@@ -370,8 +405,10 @@ function compileMember(
     renamedBindings: [...mapping.values()].sort(),
     renamedPatternVars,
     renderName: mapping.get('render') ?? `${prefix}_render`,
+    render2DName: mapping.get('render2D') ?? `${prefix}_render2D`,
     beforeRenderName: mapping.get('beforeRender') ?? `${prefix}_beforeRender`,
     hasRender: bindings.has('render'),
+    hasRender2D: bindings.has('render2D'),
     hasBeforeRender: bindings.has('beforeRender'),
     elapsedName: `${prefix}_elapsed_ms`,
     pixelCountName: `${prefix}_pixelCount`,
@@ -495,6 +532,98 @@ ${featherPrelude}  if (__pxlblz_show_phase == 0) {
   } else {
     ${from.prefix}_renderCapture(index)
     ${from.prefix}_emit()
+  }
+}`,
+    '',
+  ].join('\n\n')
+}
+
+function emitPortalTransitionShowCode(
+  from: CompiledMember,
+  to: CompiledMember,
+  transition: ShowRouteTransitionRecipe,
+): string {
+  const centerX = clampNumber(transition.centerX ?? 0.5, 0, 1)
+  const centerY = clampNumber(transition.centerY ?? 0.5, 0, 1)
+  const feather = clampNumber(transition.feather ?? 0, 0, 1)
+  const maxRadius = Math.max(
+    Math.hypot(centerX, centerY),
+    Math.hypot(1 - centerX, centerY),
+    Math.hypot(centerX, 1 - centerY),
+    Math.hypot(1 - centerX, 1 - centerY),
+  )
+  const radius = transition.invert
+    ? `${maxRadius} * (1 - __pxlblz_show_mix)`
+    : `${maxRadius} * __pxlblz_show_mix`
+  const signedDistance = transition.invert
+    ? '__pxlblz_show_portal_radius - __pxlblz_show_portal_distance'
+    : '__pxlblz_show_portal_distance - __pxlblz_show_portal_radius'
+  const fromRender = `${from.prefix}_renderCapture2D(index, x, y)`
+  const toRender = `${to.prefix}_renderCapture2D(index, x, y)`
+
+  let transitionBody: string
+  if (feather <= 0) {
+    transitionBody = `if (__pxlblz_show_portal_signed <= 0) {
+    ${toRender}
+    ${to.prefix}_emit()
+  } else {
+    ${fromRender}
+    ${from.prefix}_emit()
+  }`
+  } else if (transition.featherPolicy === 'blend') {
+    transitionBody = `var __pxlblz_show_portal_mix = clamp(0.5 - __pxlblz_show_portal_signed / ${feather}, 0, 1)
+  if (__pxlblz_show_portal_mix <= 0) {
+    ${fromRender}
+    ${from.prefix}_emit()
+  } else if (__pxlblz_show_portal_mix >= 1) {
+    ${toRender}
+    ${to.prefix}_emit()
+  } else {
+    ${fromRender}
+    var r0 = ${from.prefix}_r
+    var g0 = ${from.prefix}_g
+    var b0 = ${from.prefix}_b
+    ${toRender}
+    rgb(
+      r0 * (1 - __pxlblz_show_portal_mix) + ${to.prefix}_r * __pxlblz_show_portal_mix,
+      g0 * (1 - __pxlblz_show_portal_mix) + ${to.prefix}_g * __pxlblz_show_portal_mix,
+      b0 * (1 - __pxlblz_show_portal_mix) + ${to.prefix}_b * __pxlblz_show_portal_mix
+    )
+  }`
+  } else {
+    transitionBody = `var __pxlblz_show_portal_mix = clamp(0.5 - __pxlblz_show_portal_signed / ${feather}, 0, 1)
+  if (__pxlblz_show_portal_mix >= 1 || (__pxlblz_show_portal_mix > 0 && __pxlblz_show_hash01(index) < __pxlblz_show_portal_mix)) {
+    ${toRender}
+    ${to.prefix}_emit()
+  } else {
+    ${fromRender}
+    ${from.prefix}_emit()
+  }`
+  }
+
+  return [
+    emitRuntimePrelude([from, to]),
+    from.code.trim(),
+    to.code.trim(),
+    emitScheduler(
+      from,
+      to,
+      transition.startMs,
+      transition.startMs + transition.durationMs,
+      transition.durationMs,
+    ),
+    `export function render2D(index, x, y) {
+  if (__pxlblz_show_phase == 0) {
+    ${fromRender}
+    ${from.prefix}_emit()
+  } else if (__pxlblz_show_phase == 2) {
+    ${toRender}
+    ${to.prefix}_emit()
+  } else {
+    var __pxlblz_show_portal_distance = hypot(x - ${centerX}, y - ${centerY})
+    var __pxlblz_show_portal_radius = ${radius}
+    var __pxlblz_show_portal_signed = ${signedDistance}
+    ${transitionBody}
   }
 }`,
     '',
@@ -747,6 +876,20 @@ ${advanceDelta('delta', '  ')}
   ${member.prefix}_clear()
   ${member.hasRender ? lightShutter ? `if (${member.prefix}_shutter_open >= 0.5) ${member.renderName}(mappedIndex)` : `${member.renderName}(mappedIndex)` : ''}
 }`,
+    `function ${member.prefix}_renderCapture2D(index, x, y) {
+  var mappedIndex = index
+  if (${member.prefix}_adapt_mirror >= 0.5) mappedIndex = ${member.pixelCountName} - 1 - index
+  ${member.prefix}_clear()
+  ${member.hasRender2D
+    ? lightShutter
+      ? `if (${member.prefix}_shutter_open >= 0.5) ${member.render2DName}(mappedIndex, x, y)`
+      : `${member.render2DName}(mappedIndex, x, y)`
+    : member.hasRender
+      ? lightShutter
+        ? `if (${member.prefix}_shutter_open >= 0.5) ${member.renderName}(mappedIndex)`
+        : `${member.renderName}(mappedIndex)`
+      : ''}
+}`,
     `function ${member.prefix}_emit() { rgb(${member.prefix}_r, ${member.prefix}_g, ${member.prefix}_b) }`,
     ]
   })
@@ -882,7 +1025,7 @@ function emitZoneLocalAssignments(zone: ControllerZone, localName: string): stri
   return lines
 }
 
-function buildMetadata(members: CompiledMember[]): BundleMetadata {
+function buildMetadata(members: CompiledMember[], outputDimension: 1 | 2): BundleMetadata {
   const showVars = [
     '__pxlblz_show_elapsed_ms',
     '__pxlblz_show_mix',
@@ -922,8 +1065,8 @@ function buildMetadata(members: CompiledMember[]): BundleMetadata {
     controls: [],
     renderFns: {
       hasBeforeRender: true,
-      hasRender: true,
-      hasRender2D: false,
+      hasRender: outputDimension === 1,
+      hasRender2D: outputDimension === 2,
       hasRender3D: false,
     },
   }

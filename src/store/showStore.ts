@@ -25,6 +25,7 @@ import type {
   ShowCell,
   ShowCellAdaptations,
   ShowRecord,
+  ShowPortalSettings,
   ShowRoutingLayout,
   ShowScene,
   ShowZone,
@@ -56,6 +57,7 @@ interface ShowState {
     kind: NonNullable<ShowScene['transitionOut']>['kind'],
     durationMs: number,
     feather?: number,
+    portal?: Partial<ShowPortalSettings>,
   ) => Promise<void>
   updateCellAdaptations: (
     showId: string,
@@ -142,6 +144,11 @@ export const useShowStore = create<ShowState>()((set, get) => ({
   },
 
   updateShow: async (id, next) => {
+    set((state) => ({
+      shows: state.shows
+        .map((show) => show.id === id ? next : show)
+        .sort((a, b) => b.updatedAt - a.updatedAt),
+    }))
     await getPersonalContentProvider().updateShow(id, {
       name: next.name,
       scenes: next.scenes,
@@ -153,11 +160,6 @@ export const useShowStore = create<ShowState>()((set, get) => ({
       stageMapId: next.stageMapId ?? null,
       updatedAt: next.updatedAt,
     })
-    set((state) => ({
-      shows: state.shows
-        .map((show) => show.id === id ? next : show)
-        .sort((a, b) => b.updatedAt - a.updatedAt),
-      }))
   },
 
   updateStageMap: async (showId, stageMapId) => {
@@ -184,10 +186,10 @@ export const useShowStore = create<ShowState>()((set, get) => ({
     await get().updateShow(showId, updateShowScene(show, sceneId, changes))
   },
 
-  updateTransition: async (showId, sceneId, kind, durationMs, feather) => {
+  updateTransition: async (showId, sceneId, kind, durationMs, feather, portal) => {
     const show = get().shows.find((item) => item.id === showId)
     if (!show) return
-    await get().updateShow(showId, updateShowTransition(show, sceneId, kind, durationMs, feather))
+    await get().updateShow(showId, updateShowTransition(show, sceneId, kind, durationMs, feather, portal))
   },
 
   updateCellAdaptations: async (showId, cellId, changes) => {
