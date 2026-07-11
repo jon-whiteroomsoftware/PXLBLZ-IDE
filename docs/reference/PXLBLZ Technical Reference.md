@@ -919,8 +919,9 @@ controller.
 program id and uses `buildPreviewJpeg` for the same 100×150 base64 waterfall JPEG
 carried by Controller exports. Before serialization it adds a human-readable
 Show summary and the normal `artifactStamp` banner with `kind=show`; filenames
-are ASCII-safe slugs. The summary lists source Pattern kind/id references, scenes,
-routing layouts, and boundary switches while leaving detailed provenance/license
+are ASCII-safe slugs; spatial portal Shows add the `spatial-transitions`
+transform. The summary lists source Pattern kind/id references, scenes, routing
+layouts, transition kind/duration/settings, and boundary switches while leaving detailed provenance/license
 comments inside the isolated member sources. `ShowEditor` displays the stamped
 source and uses it for both EPE download and connected-controller compilation, so
 the inspected, downloaded, and hardware-compiled forms cannot drift.
@@ -1026,6 +1027,19 @@ saved Stage Map to resolve to dimension 2. Preview dispatch supplies that map's
 normalized coordinates, while the same standalone artifact uses the
 Pixelblaze's configured 2D map on hardware. Reproducible hardware observations
 are archived in `docs/plans/archive/issue-383-spatial-portal-results.md`.
+
+#402 adds `portalSequence` for a single-zone Show with three or more portal-linked
+scenes. Recipe conversion deduplicates cells that reference the same Pattern and
+normalized adaptations, so an A -> B -> A loop compiles two members rather than
+three fresh instances. The generated scheduler loops over hold and transition
+segments: holds advance/render one member, portal windows advance both members,
+and the existing portal renderer still calls the second renderer only inside a
+true-blend feather. The final hold may return to the first member, making loop
+wrap continuous without an implicit restart. Studio loop duration includes
+transition windows; routing-layout schedules retain their scene-hold clock.
+The exact browser export is
+`artifacts/electromage/scene-splice-showcase.epe`; reproducible hardware results
+are archived in `docs/plans/archive/issue-402-scene-splice-results.md`.
 
 Show time scale is normalized to the closed range `0..4` (#376); negative input
 clamps to zero and `0` survives model updates, cloud persistence, recipe

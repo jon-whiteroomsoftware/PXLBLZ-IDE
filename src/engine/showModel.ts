@@ -148,7 +148,11 @@ export function importedStageMapIdForController(
 }
 
 export function showLoopDurationMs(show: Pick<ShowRecord, 'scenes'>): number {
-  return show.scenes.reduce((sum, scene) => sum + Math.max(0, scene.durationMs), 0)
+  return show.scenes.reduce((sum, scene) => (
+    sum
+    + Math.max(0, scene.durationMs)
+    + Math.max(0, scene.transitionOut?.durationMs ?? 0)
+  ), 0)
 }
 
 export function projectShowStrip(show: ShowRecord): ShowStripProjection {
@@ -540,6 +544,8 @@ export function showRecordToCompileRecipe(
 
   const firstZone = show.zones[0]
   if (!firstZone) throw new Error('Show compile requires at least one zone.')
+  const portalSequence = showRecordToPortalSequenceRecipe(show, firstZone, lookup)
+  if (portalSequence) return portalSequence
   const cells = show.cells
     .filter((cell) => cell.zoneId === firstZone.id)
     .sort((a, b) => sceneIndex(show, a.sceneId) - sceneIndex(show, b.sceneId))
@@ -608,6 +614,68 @@ export function showRecordToCompileRecipe(
   }
 }
 
+function showRecordToPortalSequenceRecipe(
+  show: ShowRecord,
+  zone: ShowZone,
+  lookup: ShowCompileRecipeSourceLookup,
+): ShowRecipe | null {
+  if (show.scenes.length < 3) return null
+  const cells = show.scenes.map((scene) => (
+    show.cells.find((cell) => cell.zoneId === zone.id && cell.sceneId === scene.id)
+  ))
+  if (cells.some((cell) => !cell)) return null
+  const resolvedCells = cells as ShowCell[]
+  const transitions = show.scenes.slice(0, -1).map((scene) => scene.transitionOut)
+  if (transitions.some((transition) => transition?.kind !== 'portal')) return null
+  if (!show.stageMapId || lookup.stageDimension !== 2) {
+    throw new Error('Portal transition requires a 2D Stage Map.')
+  }
+
+  const clipByKey = new Map<string, ShowRecipe['clips'][number]>()
+  const clipIdByCellId = new Map<string, string>()
+  for (const cell of resolvedCells) {
+    const source = lookup.byCellId[cell.id]
+    if (!source) throw new Error(`Show compile requires pattern source for cell "${cell.id}".`)
+    const adaptation = compilerAdaptation(cell.adaptations)
+    const key = `${cell.pattern.kind}:${cell.pattern.id}:${JSON.stringify(adaptation)}`
+    const existing = clipByKey.get(key)
+    if (existing) {
+      clipIdByCellId.set(cell.id, existing.id)
+    } else {
+      const clip = { id: cell.id, source, adaptation }
+      clipByKey.set(key, clip)
+      clipIdByCellId.set(cell.id, clip.id)
+    }
+  }
+
+  return {
+    clips: [...clipByKey.values()],
+    portalSequence: {
+      scenes: show.scenes.map((scene, index) => {
+        const cell = resolvedCells[index]
+        const transition = scene.transitionOut
+        return {
+          clipId: clipIdByCellId.get(cell.id)!,
+          holdMs: scene.durationMs,
+          ...(transition?.kind === 'portal'
+            ? {
+                transitionOut: {
+                  durationMs: transition.durationMs,
+                  feather: clamp01(transition.feather ?? 0.12),
+                  centerX: clamp01(transition.centerX ?? 0.5),
+                  centerY: clamp01(transition.centerY ?? 0.5),
+                  invert: Boolean(transition.invert),
+                  featherPolicy: transition.featherPolicy === 'blend' ? 'blend' as const : 'dither' as const,
+                },
+              }
+            : {}),
+        }
+      }),
+    },
+    zones: lookup.controllerZones ?? nominalZones(show.zones),
+  }
+}
+
 function showRecordToRoutedFirstSceneRecipe(
   show: ShowRecord,
   lookup: ShowCompileRecipeSourceLookup,
@@ -661,8 +729,12 @@ function showRecordToRoutedFirstSceneRecipe(
     zones: lookup.controllerZones ?? nominalZones(show.zones),
     routingLayouts,
     routingSwitches: routingLayouts ? activeSwitches : undefined,
-    loopDurationMs: routingLayouts ? showLoopDurationMs(normalized) : undefined,
+    loopDurationMs: routingLayouts ? showSceneHoldDurationMs(normalized) : undefined,
   }
+}
+
+function showSceneHoldDurationMs(show: Pick<ShowRecord, 'scenes'>): number {
+  return show.scenes.reduce((sum, scene) => sum + Math.max(0, scene.durationMs), 0)
 }
 
 export function transitionCost(kind: NonNullable<ShowScene['transitionOut']>['kind']): ShowTransitionCost {

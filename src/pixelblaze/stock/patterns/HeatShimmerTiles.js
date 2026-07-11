@@ -1,4 +1,5 @@
 // Heat Shimmer Tiles — repeated colour panes bending under a slow heat haze.
+// License: ISC
 //
 // The shimmer is just coordinate offsets from triangle waves. No perlin needed.
 

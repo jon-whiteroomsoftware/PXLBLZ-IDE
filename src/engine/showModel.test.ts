@@ -103,7 +103,7 @@ describe('showModel (#318)', () => {
       zones: [{ name: 'main', nominalPixelCount: 60 }],
     })
     expect(show.cells).toHaveLength(2)
-    expect(showLoopDurationMs(show)).toBe(60000)
+    expect(showLoopDurationMs(show)).toBe(62000)
   })
 
   it('projects cells into scene columns, transition columns, and zone rows', () => {
@@ -241,7 +241,7 @@ describe('showModel (#318)', () => {
       timeScale: 0.5,
     })
 
-    expect(showLoopDurationMs(cellEdited)).toBe(75000)
+    expect(showLoopDurationMs(cellEdited)).toBe(77000)
     expect(cellEdited.cells[0].adaptations).toEqual({
       mirror: true,
       phase: 0.25,
@@ -521,6 +521,77 @@ describe('showModel (#318)', () => {
       invert: true,
       featherPolicy: 'blend',
     })
+  })
+
+  it('compiles a multi-scene portal loop with repeated Patterns as shared members', () => {
+    let show = addShowScene({ ...createDefaultShow('show-portal-loop', 'Portal loop'), stageMapId: 'plane' })
+    const [first, second, third] = show.cells
+    show = updateShowCellPattern(show, first.id, {
+      pattern: { kind: 'stock', id: 'HeatShimmerTiles' },
+      patternName: 'Heat Shimmer Tiles',
+    })
+    show = updateShowCellPattern(show, second.id, {
+      pattern: { kind: 'stock', id: 'NeonCircuitBoard' },
+      patternName: 'Neon Circuit Board',
+    })
+    show = updateShowCellPattern(show, third.id, {
+      pattern: { kind: 'stock', id: 'HeatShimmerTiles' },
+      patternName: 'Heat Shimmer Tiles',
+    })
+    show = updateShowTransition(show, show.scenes[0].id, 'portal', 2000, 0.16, {
+      centerX: 0.5,
+      centerY: 0.5,
+      invert: false,
+      featherPolicy: 'blend',
+    })
+    show = updateShowTransition(show, show.scenes[1].id, 'portal', 1800, 0.08, {
+      centerX: 0.25,
+      centerY: 0.7,
+      invert: true,
+      featherPolicy: 'dither',
+    })
+
+    const recipe = showRecordToCompileRecipe(show, {
+      byCellId: {
+        [first.id]: DEMOS.HeatShimmerTiles,
+        [second.id]: DEMOS.NeonCircuitBoard,
+        [third.id]: DEMOS.HeatShimmerTiles,
+      },
+      stageDimension: 2,
+    })
+
+    expect(recipe.clips).toHaveLength(2)
+    expect(recipe.clips.map((clip) => clip.id)).toEqual([first.id, second.id])
+    expect(recipe.portalSequence).toEqual({
+      scenes: [
+        {
+          clipId: first.id,
+          holdMs: 30000,
+          transitionOut: {
+            durationMs: 2000,
+            feather: 0.16,
+            centerX: 0.5,
+            centerY: 0.5,
+            invert: false,
+            featherPolicy: 'blend',
+          },
+        },
+        {
+          clipId: second.id,
+          holdMs: 30000,
+          transitionOut: {
+            durationMs: 1800,
+            feather: 0.08,
+            centerX: 0.25,
+            centerY: 0.7,
+            invert: true,
+            featherPolicy: 'dither',
+          },
+        },
+        { clipId: first.id, holdMs: 30000 },
+      ],
+    })
+    expect(showLoopDurationMs(show)).toBe(93800)
   })
 
   it('builds routed clips for every show-local zone in the first scene', () => {

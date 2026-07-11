@@ -1,4 +1,5 @@
 // Neon Circuit Board — pulsing traces, vias, and packet glints.
+// License: ISC
 //
 // Built from repeated coordinates plus cheap axis/diagonal distances. The first
 // draft used true SDF capsules/circles; these approximations keep the circuit

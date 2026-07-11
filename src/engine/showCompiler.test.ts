@@ -1404,6 +1404,79 @@ export function render(index) { calls = calls + 1; rgb(0, 1, 0) }
     })
   })
 
+  it('loops a portal sequence across two shared Pattern instances', () => {
+    const artifact = compileShow({
+      clips: [
+        {
+          id: 'warm',
+          source: 'export var calls = 0\nexport function render2D(index, x, y) { calls = calls + 1; rgb(1, 0, 0) }',
+        },
+        {
+          id: 'cool',
+          source: 'export var calls = 0\nexport function render2D(index, x, y) { calls = calls + 1; rgb(0, 1, 0) }',
+        },
+      ],
+      portalSequence: {
+        scenes: [
+          {
+            clipId: 'warm',
+            holdMs: 1000,
+            transitionOut: {
+              durationMs: 1000,
+              centerX: 0.5,
+              centerY: 0.5,
+              feather: 0.2,
+              invert: false,
+              featherPolicy: 'blend',
+            },
+          },
+          {
+            clipId: 'cool',
+            holdMs: 1000,
+            transitionOut: {
+              durationMs: 1000,
+              centerX: 0.25,
+              centerY: 0.75,
+              feather: 0.08,
+              invert: true,
+              featherPolicy: 'dither',
+            },
+          },
+          { clipId: 'warm', holdMs: 1000 },
+        ],
+      },
+    }, {})
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 256)
+
+    handle.beforeRender(500)
+    handle.render2D(0, 0.5, 0.5)
+    expect(pixel()).toEqual([1, 0, 0])
+
+    handle.beforeRender(1000)
+    handle.render2D(1, 0.5, 0.5)
+    expect(pixel()).toEqual([0, 1, 0])
+
+    handle.beforeRender(1000)
+    handle.render2D(2, 0.5, 0.5)
+    expect(pixel()).toEqual([0, 1, 0])
+
+    handle.beforeRender(1000)
+    handle.render2D(3, 0, 0)
+    expect(pixel()).toEqual([1, 0, 0])
+
+    handle.beforeRender(2000)
+    handle.render2D(4, 0.5, 0.5)
+    expect(pixel()).toEqual([1, 0, 0])
+    expect(artifact.summary).toMatchObject({
+      clipCount: 2,
+      transitionCount: 2,
+      renderPolicy: 'spatial-route-bounded-feather',
+      transitionCost: 'bounded-renderer-window',
+      worstInstantRenderersPerPixel: 2,
+    })
+    expect(artifact.code).toContain('__pxlblz_show_elapsed_ms = (__pxlblz_show_elapsed_ms + delta) % 5000')
+  })
+
   it('passes Stage coordinates through to native 2D member renderers', () => {
     const artifact = compileShow({
       clips: [

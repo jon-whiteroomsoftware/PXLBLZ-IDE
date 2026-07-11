@@ -33,7 +33,7 @@ describe('Show EPE export (#399)', () => {
     expect(parsed.src).toContain('Source Patterns:')
     expect(parsed.src).toContain('- TestPattern1D [stock:TestPattern1D]')
     expect(parsed.src).toContain('Routing Layouts: Default -> Quadrants')
-    expect(parsed.src).toContain('Scene 1 (30s): switch to Quadrants after scene')
+    expect(parsed.src).toContain('Scene 1 (30s): crossfade 2s: switch to Quadrants after scene')
     expect(parsed.src).toContain('Generated orchestration follows; member bindings are isolated with collision-safe prefixes.')
     expect(parsed.src).toContain(generatedCode)
   })

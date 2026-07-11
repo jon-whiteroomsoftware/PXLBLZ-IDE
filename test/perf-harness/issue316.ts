@@ -16,6 +16,7 @@
 //   PIXELBLAZE_IP=192.168.8.224 SHOW_FIXTURE=show-portal-dither SAMPLE_VARS=1 npm run issue316
 //   PIXELBLAZE_IP=192.168.8.224 SHOW_FIXTURE=show-portal-blend SAMPLE_VARS=1 npm run issue316
 //   PIXELBLAZE_IP=192.168.8.224 npm run issue401
+//   PIXELBLAZE_IP=192.168.8.224 npm run issue402
 //   PIXELBLAZE_IP=192.168.8.224 npm run issue332
 //   PIXELBLAZE_IP=192.168.8.224 SHOW_FIXTURE=plain-dither SAMPLE_VARS=1 npm run issue332
 //   PIXELBLAZE_IP=192.168.8.224 SHOW_FIXTURE=pattern-crossfade-baseline SAMPLE_VARS=1 npm run issue332
@@ -50,6 +51,8 @@ const DEFAULT_FIXTURE = process.env.npm_lifecycle_event === 'issue332'
     ? 'zone-repeat'
     : process.env.npm_lifecycle_event === 'issue401'
       ? 'pattern-prism'
+      : process.env.npm_lifecycle_event === 'issue402'
+        ? 'scene-splice-showcase'
     : 'diagnostic'
 const SHOW_FIXTURE = process.env.SHOW_FIXTURE ?? DEFAULT_FIXTURE
 const WATCH_MS = parseInt(process.env.WATCH_MS ?? String(defaultWatchMs(SHOW_FIXTURE)), 10)
@@ -78,6 +81,7 @@ type CompileResult = CompileOk | CompileFail
 
 function defaultWatchMs(fixture: string): number {
   if (fixture === 'pattern-prism') return 30000
+  if (fixture === 'scene-splice-showcase') return 20000
   if (fixture === 'stock') return 9000
   if (fixture === 'adaptation-ramp') return 9000
   if (
@@ -447,6 +451,16 @@ function buildFixtureSource(fixture: string): FixtureSource {
     }
   }
 
+  if (fixture === 'scene-splice-showcase') {
+    const exported = readFileSync(new URL('../../artifacts/electromage/scene-splice-showcase.epe', import.meta.url), 'utf8')
+    const source = parseEpe(exported).src
+    return {
+      source,
+      description: 'Scene Splice Showcase: Heat Shimmer Tiles opens into Neon Circuit Board through a blended center portal, then returns through an inward off-center dithered portal',
+      sourceLabel: `Exported #402 EPE source: ${new TextEncoder().encode(source).length} bytes; two shared members; bounded dual-render feather`,
+    }
+  }
+
   if (fixture === 'zone-repeat') {
     const source = zoneRepeatClip()
     const artifact = compileShow({
@@ -608,7 +622,7 @@ export function render(index) {
   }
 
   if (fixture !== 'diagnostic') {
-    throw new Error(`unknown SHOW_FIXTURE=${fixture}; expected diagnostic, direct-fade, pulse-fade, time-fade, delta-ms-fade, capture-fade, stock, adaptation-ramp, show-wipe, show-dither, show-crossfade-baseline, show-portal-dither, show-portal-blend, pattern-prism, zone-repeat, or one of: ${routeTransitionFixtureList()}`)
+    throw new Error(`unknown SHOW_FIXTURE=${fixture}; expected diagnostic, direct-fade, pulse-fade, time-fade, delta-ms-fade, capture-fade, stock, adaptation-ramp, show-wipe, show-dither, show-crossfade-baseline, show-portal-dither, show-portal-blend, pattern-prism, scene-splice-showcase, zone-repeat, or one of: ${routeTransitionFixtureList()}`)
   }
 
   const artifact = compileShow({

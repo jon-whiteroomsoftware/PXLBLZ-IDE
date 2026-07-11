@@ -20,6 +20,7 @@ export function buildShowEpeExport(
   options: ShowEpeExportOptions = {},
 ): ShowEpeExport {
   const name = show.name.trim() || 'Untitled Show'
+  const hasSpatialTransitions = show.scenes.some((scene) => scene.transitionOut?.kind === 'portal')
   const documentedSource = `${showArtifactHeader(show)}\n${generatedCode}`
   const source = stampArtifact(documentedSource, {
     kind: 'show',
@@ -28,6 +29,7 @@ export function buildShowEpeExport(
     transforms: [
       'show',
       ...(show.routingLayouts.length > 1 ? ['routing-layouts'] : []),
+      ...(hasSpatialTransitions ? ['spatial-transitions'] : []),
     ],
     stampedAt: options.stampedAt,
   })
@@ -74,7 +76,8 @@ function showArtifactHeader(show: ShowRecord): string {
       const routingNote = destinationId
         ? `: switch to ${commentText(layoutName.get(destinationId) ?? destinationId)} after scene`
         : ''
-      return ` * - ${commentText(scene.name)} (${formatSeconds(scene.durationMs)})${routingNote}`
+      const transitionNote = scene.transitionOut ? `: ${describeTransition(scene.transitionOut)}` : ''
+      return ` * - ${commentText(scene.name)} (${formatSeconds(scene.durationMs)})${transitionNote}${routingNote}`
     }),
     ' *',
     ' * Generated orchestration follows; member bindings are isolated with collision-safe prefixes.',
@@ -82,6 +85,22 @@ function showArtifactHeader(show: ShowRecord): string {
     ' */',
   ]
   return lines.join('\n')
+}
+
+function describeTransition(transition: NonNullable<ShowRecord['scenes'][number]['transitionOut']>): string {
+  if (transition.kind !== 'portal') {
+    return `${transition.kind} ${formatSeconds(transition.durationMs)}`
+  }
+  const centerX = formatNormalized(transition.centerX ?? 0.5)
+  const centerY = formatNormalized(transition.centerY ?? 0.5)
+  const feather = formatNormalized(transition.feather ?? 0.12)
+  const direction = transition.invert ? 'inward' : 'outward'
+  const policy = transition.featherPolicy === 'blend' ? 'blend' : 'dither'
+  return `portal ${formatSeconds(transition.durationMs)}, center ${centerX}/${centerY}, ${direction}, ${policy} feather ${feather}`
+}
+
+function formatNormalized(value: number): string {
+  return String(Number(Math.max(0, Math.min(1, value)).toFixed(3)))
 }
 
 function epeFilenameStem(name: string): string {

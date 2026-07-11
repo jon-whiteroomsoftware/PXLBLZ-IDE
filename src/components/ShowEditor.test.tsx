@@ -98,7 +98,7 @@ describe('ShowEditor (#318)', () => {
 
     expect(screen.queryByText('Opening wash')).not.toBeInTheDocument()
     expect(screen.queryByText(/show - 1 scenes/i)).not.toBeInTheDocument()
-    expect(screen.getByText(/1m loop/i)).toBeInTheDocument()
+    expect(screen.getByText(/1m 2s loop/i)).toBeInTheDocument()
     expect(screen.getByDisplayValue('Scene 1')).toBeInTheDocument()
     expect(screen.getAllByText('main').length).toBeGreaterThan(0)
     expect(screen.getByText(/compiled artifact/i)).toBeInTheDocument()

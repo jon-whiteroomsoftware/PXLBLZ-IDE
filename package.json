@@ -33,6 +33,8 @@
     "issue400": "tsx test/perf-harness/issue400.ts",
     "issue401": "tsx test/perf-harness/issue316.ts",
     "issue401:seed": "tsx scripts/seed-pattern-prism.ts",
+    "issue402": "tsx test/perf-harness/issue316.ts",
+    "issue402:seed": "tsx scripts/seed-scene-splice.ts",
     "bench": "tsx test/perf-harness/bench.ts",
     "drift": "tsx test/perf-harness/drift.ts",
     "devbench": "tsx test/perf-harness/devbench.ts",

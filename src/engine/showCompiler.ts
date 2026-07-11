@@ -65,6 +65,25 @@ export interface ShowRouteTransitionRecipe {
   featherPolicy?: 'dither' | 'blend'
 }
 
+export interface ShowPortalSequenceTransitionRecipe {
+  durationMs: number
+  feather?: number
+  centerX?: number
+  centerY?: number
+  invert?: boolean
+  featherPolicy?: 'dither' | 'blend'
+}
+
+export interface ShowPortalSequenceSceneRecipe {
+  clipId: string
+  holdMs: number
+  transitionOut?: ShowPortalSequenceTransitionRecipe
+}
+
+export interface ShowPortalSequenceRecipe {
+  scenes: ShowPortalSequenceSceneRecipe[]
+}
+
 export interface ShowRoutingLayoutRecipe {
   id: string
   name: string
@@ -82,6 +101,7 @@ export interface ShowRecipe {
   cut?: ShowCutRecipe
   adaptationRamp?: ShowAdaptationRampRecipe
   routeTransition?: ShowRouteTransitionRecipe
+  portalSequence?: ShowPortalSequenceRecipe
   zones?: ControllerZone[]
   routingLayouts?: ShowRoutingLayoutRecipe[]
   routingSwitches?: ShowRoutingSwitchRecipe[]
@@ -205,10 +225,16 @@ export function compileShow(
   const portalTransition = expandedRecipe.routeTransition?.kind === 'portal'
     ? expandedRecipe.routeTransition
     : null
+  const sequenceTransitions = expandedRecipe.portalSequence?.scenes.flatMap((scene) => (
+    scene.transitionOut ? [scene.transitionOut] : []
+  )) ?? []
   const portalBlend = Boolean(
-    portalTransition
-    && clampNumber(portalTransition.feather ?? 0, 0, 1) > 0
-    && portalTransition.featherPolicy === 'blend',
+    (portalTransition
+      && clampNumber(portalTransition.feather ?? 0, 0, 1) > 0
+      && portalTransition.featherPolicy === 'blend')
+    || sequenceTransitions.some((transition) => (
+      clampNumber(transition.feather ?? 0, 0, 1) > 0 && transition.featherPolicy === 'blend'
+    )),
   )
   const routedOutputDimension: 1 | 2 = (routeMode || routingLayouts) && members.some((member) => member.hasRender2D)
     ? 2
@@ -218,7 +244,9 @@ export function compileShow(
     : routeMode
       ? 'range-branches' as const
       : 'none' as const
-  const code = routingLayouts
+  const code = expandedRecipe.portalSequence
+    ? emitPortalSequenceShowCode(members, expandedRecipe.portalSequence)
+    : routingLayouts
     ? emitRoutingLayoutShowCode(
         members,
         routingLayouts,
@@ -240,10 +268,12 @@ export function compileShow(
         : expandedRecipe.crossfade
           ? emitShowCode(members[0], members[1], expandedRecipe.crossfade)
           : emitSingleClipShowCode(members[0])
-  const metadata = buildMetadata(members, portalTransition ? 2 : routedOutputDimension)
+  const metadata = buildMetadata(members, portalTransition || expandedRecipe.portalSequence ? 2 : routedOutputDimension)
   const sourceBytesBeforeMerge = members.reduce((sum, member) => sum + member.sourceBytes, 0)
   const artifactBytes = byteLength(code)
-  const transitionCost = routeMode
+  const transitionCost = expandedRecipe.portalSequence
+    ? portalBlend ? 'bounded-renderer-window' : 'route'
+    : routeMode
     ? 'route'
     : expandedRecipe.crossfade
       ? 'renderer-window'
@@ -255,14 +285,20 @@ export function compileShow(
   const evaluationSummary = describeEvaluationPolicy(members)
   const summary: ShowCompileSummary = {
     clipCount: members.length,
-    transitionCount: routingLayouts
+    transitionCount: expandedRecipe.portalSequence
+      ? sequenceTransitions.length
+      : routingLayouts
       ? expandedRecipe.routingSwitches?.length ?? 0
       : expandedRecipe.crossfade || expandedRecipe.cut || expandedRecipe.adaptationRamp || expandedRecipe.routeTransition ? 1 : 0,
     sourceBytesBeforeMerge,
     artifactBytes,
     measuredDeviceBudgetBytes: MEASURED_DEVICE_BUDGET_BYTES,
     artifactBudgetRatio: artifactBytes / MEASURED_DEVICE_BUDGET_BYTES,
-    renderPolicy: routeMode
+    renderPolicy: expandedRecipe.portalSequence
+      ? portalBlend
+        ? 'spatial-route-bounded-feather'
+        : 'spatial-route-one-renderer-per-pixel'
+      : routeMode
       ? 'route-one-renderer-per-pixel'
       : expandedRecipe.crossfade
         ? 'steady-active-transition-both'
@@ -278,7 +314,13 @@ export function compileShow(
               : 'route-transition-one-renderer-per-pixel'
             : 'single-continuous-hold',
     transitionCost,
-    routePolicy: portalTransition
+    routePolicy: expandedRecipe.portalSequence
+      ? portalBlend
+        ? 'portal-blended-feather'
+        : sequenceTransitions.some((transition) => clampNumber(transition.feather ?? 0, 0, 1) > 0)
+          ? 'portal-dithered-feather'
+          : 'portal-hard'
+      : portalTransition
       ? clampNumber(portalTransition.feather ?? 0, 0, 1) <= 0
         ? 'portal-hard'
         : portalBlend
@@ -328,9 +370,9 @@ export function compileShow(
 
 function validateRecipe(recipe: ShowRecipe): void {
   const routeMode = recipe.clips.some((clip) => routeTargets(clip).length > 0)
-  const boundaryModes = [recipe.crossfade, recipe.cut, recipe.adaptationRamp, recipe.routeTransition].filter(Boolean).length
+  const boundaryModes = [recipe.crossfade, recipe.cut, recipe.adaptationRamp, recipe.routeTransition, recipe.portalSequence].filter(Boolean).length
   if (recipe.clips.length < 1) throw new Error('compileShow requires at least one clip.')
-  if (!routeMode && recipe.clips.length > 2) throw new Error('compileShow v1 requires one or two unrouted clips.')
+  if (!routeMode && !recipe.portalSequence && recipe.clips.length > 2) throw new Error('compileShow v1 requires one or two unrouted clips.')
   if (boundaryModes > 1) throw new Error('compileShow accepts only one boundary mode.')
   if (routeMode && boundaryModes > 0) throw new Error('compileShow routed clips cannot use scene boundary modes yet.')
   if (recipe.clips.length === 2 && !routeMode && boundaryModes === 0) {
@@ -353,6 +395,27 @@ function validateRecipe(recipe: ShowRecipe): void {
   }
   if (recipe.routeTransition && recipe.clips.length !== 2) {
     throw new Error('compileShow route transitions require two clips.')
+  }
+  if (recipe.portalSequence) {
+    const clipIds = new Set(recipe.clips.map((clip) => clip.id))
+    if (routeMode) throw new Error('compileShow portal sequences cannot use routed clips.')
+    if (recipe.portalSequence.scenes.length < 2) throw new Error('compileShow portal sequences require at least two scenes.')
+    recipe.portalSequence.scenes.forEach((scene, index) => {
+      if (!clipIds.has(scene.clipId)) {
+        throw new Error(`compileShow portal sequence references missing clip "${scene.clipId}".`)
+      }
+      if (scene.holdMs <= 0) throw new Error('compileShow portal sequence holds must be positive.')
+      const isFinal = index === recipe.portalSequence!.scenes.length - 1
+      if (!isFinal && !scene.transitionOut) {
+        throw new Error('compileShow portal sequence scenes require transitions except for the final hold.')
+      }
+      if (isFinal && scene.transitionOut) {
+        throw new Error('compileShow portal sequence final scene cannot transition.')
+      }
+      if (scene.transitionOut && scene.transitionOut.durationMs <= 0) {
+        throw new Error('compileShow portal sequence transitions must be positive.')
+      }
+    })
   }
   if (routeMode && !recipe.zones) {
     throw new Error('compileShow routed clips require controller zones.')
@@ -555,64 +618,8 @@ function emitPortalTransitionShowCode(
   to: CompiledMember,
   transition: ShowRouteTransitionRecipe,
 ): string {
-  const centerX = clampNumber(transition.centerX ?? 0.5, 0, 1)
-  const centerY = clampNumber(transition.centerY ?? 0.5, 0, 1)
-  const feather = clampNumber(transition.feather ?? 0, 0, 1)
-  const maxRadius = Math.max(
-    Math.hypot(centerX, centerY),
-    Math.hypot(1 - centerX, centerY),
-    Math.hypot(centerX, 1 - centerY),
-    Math.hypot(1 - centerX, 1 - centerY),
-  )
-  const radius = transition.invert
-    ? `${maxRadius} * (1 - __pxlblz_show_mix)`
-    : `${maxRadius} * __pxlblz_show_mix`
-  const signedDistance = transition.invert
-    ? '__pxlblz_show_portal_radius - __pxlblz_show_portal_distance'
-    : '__pxlblz_show_portal_distance - __pxlblz_show_portal_radius'
   const fromRender = `${from.prefix}_renderCapture2D(index, x, y)`
   const toRender = `${to.prefix}_renderCapture2D(index, x, y)`
-
-  let transitionBody: string
-  if (feather <= 0) {
-    transitionBody = `if (__pxlblz_show_portal_signed <= 0) {
-    ${toRender}
-    ${to.prefix}_emit()
-  } else {
-    ${fromRender}
-    ${from.prefix}_emit()
-  }`
-  } else if (transition.featherPolicy === 'blend') {
-    transitionBody = `var __pxlblz_show_portal_mix = clamp(0.5 - __pxlblz_show_portal_signed / ${feather}, 0, 1)
-  if (__pxlblz_show_portal_mix <= 0) {
-    ${fromRender}
-    ${from.prefix}_emit()
-  } else if (__pxlblz_show_portal_mix >= 1) {
-    ${toRender}
-    ${to.prefix}_emit()
-  } else {
-    ${fromRender}
-    var r0 = ${from.prefix}_r
-    var g0 = ${from.prefix}_g
-    var b0 = ${from.prefix}_b
-    ${toRender}
-    rgb(
-      r0 * (1 - __pxlblz_show_portal_mix) + ${to.prefix}_r * __pxlblz_show_portal_mix,
-      g0 * (1 - __pxlblz_show_portal_mix) + ${to.prefix}_g * __pxlblz_show_portal_mix,
-      b0 * (1 - __pxlblz_show_portal_mix) + ${to.prefix}_b * __pxlblz_show_portal_mix
-    )
-  }`
-  } else {
-    transitionBody = `var __pxlblz_show_portal_mix = clamp(0.5 - __pxlblz_show_portal_signed / ${feather}, 0, 1)
-  if (__pxlblz_show_portal_mix >= 1 || (__pxlblz_show_portal_mix > 0 && __pxlblz_show_hash01(index) < __pxlblz_show_portal_mix)) {
-    ${toRender}
-    ${to.prefix}_emit()
-  } else {
-    ${fromRender}
-    ${from.prefix}_emit()
-  }`
-  }
-
   return [
     emitRuntimePrelude([from, to]),
     from.code.trim(),
@@ -632,14 +639,169 @@ function emitPortalTransitionShowCode(
     ${toRender}
     ${to.prefix}_emit()
   } else {
-    var __pxlblz_show_portal_distance = hypot(x - ${centerX}, y - ${centerY})
-    var __pxlblz_show_portal_radius = ${radius}
-    var __pxlblz_show_portal_signed = ${signedDistance}
-    ${transitionBody}
+${indentBlock(emitPortalRenderBlock(from, to, transition), 4)}
   }
 }`,
     '',
   ].join('\n\n')
+}
+
+function emitPortalSequenceShowCode(
+  members: CompiledMember[],
+  sequence: ShowPortalSequenceRecipe,
+): string {
+  const memberById = new Map(members.map((member) => [member.id, member]))
+  const scenes = sequence.scenes.map((scene) => ({ ...scene, member: memberById.get(scene.clipId)! }))
+  const segments: Array<{
+    kind: 'hold' | 'transition'
+    endMs: number
+    sceneIndex: number
+    from: CompiledMember
+    to?: CompiledMember
+    transition?: ShowPortalSequenceTransitionRecipe
+    startMs: number
+  }> = []
+  let cursor = 0
+  scenes.forEach((scene, sceneIndex) => {
+    const holdStart = cursor
+    cursor += scene.holdMs
+    segments.push({ kind: 'hold', startMs: holdStart, endMs: cursor, sceneIndex, from: scene.member })
+    if (scene.transitionOut) {
+      const transitionStart = cursor
+      cursor += scene.transitionOut.durationMs
+      segments.push({
+        kind: 'transition',
+        startMs: transitionStart,
+        endMs: cursor,
+        sceneIndex,
+        from: scene.member,
+        to: scenes[sceneIndex + 1].member,
+        transition: scene.transitionOut,
+      })
+    }
+  })
+  const schedulerBranches = segments.map((segment, index) => {
+    const condition = `${index === 0 ? 'if' : 'else if'} (__pxlblz_show_elapsed_ms < ${segment.endMs})`
+    if (segment.kind === 'hold') {
+      return `${condition} {
+    __pxlblz_show_scene = ${segment.sceneIndex}
+    __pxlblz_show_transition = -1
+    __pxlblz_show_mix = 0
+    ${segment.from.prefix}_advance(delta)
+  }`
+    }
+    const to = segment.to!
+    const advanceTo = to === segment.from ? '' : `\n    ${to.prefix}_advance(delta)`
+    return `${condition} {
+    __pxlblz_show_scene = ${segment.sceneIndex}
+    __pxlblz_show_transition = ${segment.sceneIndex}
+    __pxlblz_show_mix = (__pxlblz_show_elapsed_ms - ${segment.startMs}) / ${segment.transition!.durationMs}
+    ${segment.from.prefix}_advance(delta)${advanceTo}
+  }`
+  }).join(' ')
+  const transitionBranches = segments
+    .filter((segment) => segment.kind === 'transition')
+    .map((segment, index) => `${index === 0 ? 'if' : 'else if'} (__pxlblz_show_transition == ${segment.sceneIndex}) {
+${indentBlock(emitPortalRenderBlock(segment.from, segment.to!, segment.transition!), 4)}
+  }`)
+    .join(' ')
+  const sceneBranches = scenes.map((scene, index) => `${index === 0 ? 'if' : 'else if'} (__pxlblz_show_scene == ${index}) {
+    ${scene.member.prefix}_renderCapture2D(index, x, y)
+    ${scene.member.prefix}_emit()
+  }`).join(' ')
+
+  return [
+    emitRuntimePrelude(members),
+    ...members.map((member) => member.code.trim()),
+    'var __pxlblz_show_scene = 0',
+    'var __pxlblz_show_transition = -1',
+    `export function beforeRender(delta) {
+  __pxlblz_show_elapsed_ms = (__pxlblz_show_elapsed_ms + delta) % ${cursor}
+  ${schedulerBranches}
+}`,
+    `export function render2D(index, x, y) {
+  if (__pxlblz_show_transition >= 0) {
+    ${transitionBranches}
+  } else {
+    ${sceneBranches}
+  }
+}`,
+    '',
+  ].join('\n\n')
+}
+
+function emitPortalRenderBlock(
+  from: CompiledMember,
+  to: CompiledMember,
+  transition: ShowPortalSequenceTransitionRecipe,
+): string {
+  const centerX = clampNumber(transition.centerX ?? 0.5, 0, 1)
+  const centerY = clampNumber(transition.centerY ?? 0.5, 0, 1)
+  const feather = clampNumber(transition.feather ?? 0, 0, 1)
+  const maxRadius = Math.max(
+    Math.hypot(centerX, centerY),
+    Math.hypot(1 - centerX, centerY),
+    Math.hypot(centerX, 1 - centerY),
+    Math.hypot(1 - centerX, 1 - centerY),
+  )
+  const radius = transition.invert
+    ? `${maxRadius} * (1 - __pxlblz_show_mix)`
+    : `${maxRadius} * __pxlblz_show_mix`
+  const signedDistance = transition.invert
+    ? '__pxlblz_show_portal_radius - __pxlblz_show_portal_distance'
+    : '__pxlblz_show_portal_distance - __pxlblz_show_portal_radius'
+  const fromRender = `${from.prefix}_renderCapture2D(index, x, y)`
+  const toRender = `${to.prefix}_renderCapture2D(index, x, y)`
+  let transitionBody: string
+
+  if (feather <= 0) {
+    transitionBody = `if (__pxlblz_show_portal_signed <= 0) {
+  ${toRender}
+  ${to.prefix}_emit()
+} else {
+  ${fromRender}
+  ${from.prefix}_emit()
+}`
+  } else if (transition.featherPolicy === 'blend') {
+    transitionBody = `var __pxlblz_show_portal_mix = clamp(0.5 - __pxlblz_show_portal_signed / ${feather}, 0, 1)
+if (__pxlblz_show_portal_mix <= 0) {
+  ${fromRender}
+  ${from.prefix}_emit()
+} else if (__pxlblz_show_portal_mix >= 1) {
+  ${toRender}
+  ${to.prefix}_emit()
+} else {
+  ${fromRender}
+  var r0 = ${from.prefix}_r
+  var g0 = ${from.prefix}_g
+  var b0 = ${from.prefix}_b
+  ${toRender}
+  rgb(
+    r0 * (1 - __pxlblz_show_portal_mix) + ${to.prefix}_r * __pxlblz_show_portal_mix,
+    g0 * (1 - __pxlblz_show_portal_mix) + ${to.prefix}_g * __pxlblz_show_portal_mix,
+    b0 * (1 - __pxlblz_show_portal_mix) + ${to.prefix}_b * __pxlblz_show_portal_mix
+  )
+}`
+  } else {
+    transitionBody = `var __pxlblz_show_portal_mix = clamp(0.5 - __pxlblz_show_portal_signed / ${feather}, 0, 1)
+if (__pxlblz_show_portal_mix >= 1 || (__pxlblz_show_portal_mix > 0 && __pxlblz_show_hash01(index) < __pxlblz_show_portal_mix)) {
+  ${toRender}
+  ${to.prefix}_emit()
+} else {
+  ${fromRender}
+  ${from.prefix}_emit()
+}`
+  }
+
+  return `var __pxlblz_show_portal_distance = hypot(x - ${centerX}, y - ${centerY})
+var __pxlblz_show_portal_radius = ${radius}
+var __pxlblz_show_portal_signed = ${signedDistance}
+${transitionBody}`
+}
+
+function indentBlock(block: string, spaces: number): string {
+  const indent = ' '.repeat(spaces)
+  return block.split('\n').map((line) => `${indent}${line}`).join('\n')
 }
 
 function buildRoutePlan(

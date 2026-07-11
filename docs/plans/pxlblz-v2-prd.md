@@ -125,6 +125,12 @@ model remains:
   `render2D(index, x, y)`: preview coordinates come from the selected Stage Map,
   while hardware coordinates come from the map configured on the Pixelblaze.
   Missing or non-2D stages are compile errors rather than silent 1D fallbacks.
+  Scene Splice Showcase (#402) extends that path to a short looping sequence:
+  repeated appearances of the same Pattern/adaptation pair share one isolated
+  member instance, each scene hold advances only its visible member, and each
+  portal window advances the outgoing and incoming members. This supports an
+  outward reveal plus an inverted/off-center return without duplicating source
+  Pattern state. Show duration includes both holds and transition windows.
 - **Adaptation cost tiers** (decided 2026-07-08): prefer transforming what a
   pattern *sees* over transforming what it *emits*, and prefer both over
   running multiple renderers. The intended ladder:

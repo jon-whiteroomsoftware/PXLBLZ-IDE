@@ -363,7 +363,11 @@ The repository includes the browser-exported
 `artifacts/electromage/pattern-prism.epe` catalog Show. Pattern Prism keeps one
 Ribbon Loom instance running while hard-switching among full-panel, repeated
 quadrant, alternating-strip, and pinwheel-interleave layouts before returning
-to the full panel.
+to the full panel. It also includes
+`artifacts/electromage/scene-splice-showcase.epe`: two ordinary stock Patterns
+loop through a blended outward portal and a tighter dithered inward return.
+Repeated Heat Shimmer scenes share one compiled Pattern instance, while the
+more expensive second-renderer work stays inside the blended feather band.
 
 Zone rows that reuse the same Pattern remain independent member instances. Their
 Start offsets can differ even when their source and other controls match, and
