@@ -42,6 +42,7 @@ import {
   queueControllerProfileWrite,
 } from '@/engine/controllerProfileWriteQueue'
 import { defaultControllerProfile, type ControllerProfile } from './controllerProfileStore'
+import type { FirmwareUpdateState } from '@/engine/firmwareUpdate'
 
 // A fake per-Controller provider with a real (if minimal) status machine, so we
 // can assert the keyed store's orchestration end-to-end. detectHelper acks true
@@ -63,6 +64,8 @@ class FakeProvider extends NullControllerProvider {
   ]
   connects: ControllerTarget[] = []
   disconnects = 0
+  firmwareUpdateState: FirmwareUpdateState = 'current'
+  firmwareUpdateChecks = 0
 
   detectHelper(): Promise<boolean> {
     return Promise.resolve(true)
@@ -115,6 +118,10 @@ class FakeProvider extends NullControllerProvider {
   }
   getPixelMap(): Promise<number[][] | null> {
     return Promise.resolve(this.pixelMap)
+  }
+  checkFirmwareUpdate(): Promise<FirmwareUpdateState> {
+    this.firmwareUpdateChecks++
+    return Promise.resolve(this.firmwareUpdateState)
   }
 
   // ── push surface (#202) ─────────────────────────────────────────────────────
@@ -246,6 +253,75 @@ describe('controllerStore (keyed)', () => {
     expect(entry.mapDim).toBe(2)
     expect(store().activeIp).toBe('10.0.0.5')
     expect(created.get('10.0.0.5')!.connects).toEqual([{ address: '10.0.0.5' }])
+  })
+
+  it('records an available firmware update after the Controller becomes live', async () => {
+    setControllerProviderFactory((ip) => {
+      const provider = new FakeProvider()
+      provider.firmwareUpdateState = 'available'
+      created.set(ip, provider)
+      return provider
+    })
+
+    await store().addController('10.0.0.5')
+
+    await vi.waitFor(() => {
+      expect(store().controllers['10.0.0.5'].firmwareUpdateState).toBe('available')
+    })
+    expect(created.get('10.0.0.5')!.firmwareUpdateChecks).toBe(1)
+  })
+
+  it('reuses the firmware result when the same Controller reconnects within an hour', async () => {
+    setControllerProviderFactory((ip) => {
+      const provider = new FakeProvider()
+      provider.firmwareUpdateState = 'available'
+      created.set(ip, provider)
+      return provider
+    })
+
+    await store().addController('10.0.0.5')
+    await vi.waitFor(() => {
+      expect(store().controllers['10.0.0.5'].firmwareUpdateState).toBe('available')
+    })
+    await store().addController('10.0.0.5')
+
+    expect(created.get('10.0.0.5')!.firmwareUpdateChecks).toBe(1)
+    expect(store().controllers['10.0.0.5'].firmwareUpdateState).toBe('available')
+  })
+
+  it('checks the Controller again once the hourly window expires', async () => {
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(1_000)
+    try {
+      await store().addController('10.0.0.5')
+      await vi.waitFor(() => {
+        expect(created.get('10.0.0.5')!.firmwareUpdateChecks).toBe(1)
+      })
+
+      clock.mockReturnValue(1_000 + 60 * 60 * 1000)
+      await store().addController('10.0.0.5')
+
+      await vi.waitFor(() => {
+        expect(created.get('10.0.0.5')!.firmwareUpdateChecks).toBe(2)
+      })
+    } finally {
+      clock.mockRestore()
+    }
+  })
+
+  it('keeps the Controller live when its firmware check fails', async () => {
+    setControllerProviderFactory((ip) => {
+      const provider = new FakeProvider()
+      provider.checkFirmwareUpdate = () => Promise.reject(new Error('update service offline'))
+      created.set(ip, provider)
+      return provider
+    })
+
+    await store().addController('10.0.0.5')
+
+    await vi.waitFor(() => {
+      expect(store().controllers['10.0.0.5'].firmwareUpdateState).toBe('unknown')
+    })
+    expect(store().controllers['10.0.0.5'].phase).toBe('live')
   })
 
   it('threads a discovery-picked device id into the provider target and live entry', async () => {

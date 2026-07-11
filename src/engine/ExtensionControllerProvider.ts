@@ -420,6 +420,10 @@ export class ExtensionControllerProvider implements ControllerProvider {
     return this.withConn((conn) => Promise.resolve({ fps: conn.fps }))
   }
 
+  checkFirmwareUpdate() {
+    return this.withConn((conn) => conn.checkFirmwareUpdate())
+  }
+
   listPrograms(): Promise<ProgramListEntry[]> {
     return this.withConn((conn) => conn.listPrograms())
   }

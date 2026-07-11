@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
-import { RotateCw } from 'lucide-react'
+import { CircleArrowUp, RotateCw } from 'lucide-react'
 import { useControllerStore } from '@/store/controllerStore'
 import { useControllerProfileStore } from '@/store/controllerProfileStore'
 import { useRouterStore } from '@/store/routerStore'
@@ -57,6 +57,7 @@ function ControllerPillButton({
   active,
   panelOpen,
   authorizationNeededIp,
+  firmwareUpdateAvailable,
   onActivate,
   onRemove,
   actionRow,
@@ -67,6 +68,7 @@ function ControllerPillButton({
   active: boolean
   panelOpen: boolean
   authorizationNeededIp?: string | null
+  firmwareUpdateAvailable: boolean
   onActivate: () => void
   onRemove: () => void
   actionRow: ReactNode
@@ -96,6 +98,16 @@ function ControllerPillButton({
           <ChipGlyph />
         </span>
         <span className="max-w-[10rem] truncate">{label}</span>
+        {firmwareUpdateAvailable && (
+          <span
+            role="img"
+            aria-label={`Firmware update available for ${label}`}
+            title="Firmware update available"
+            className="shrink-0 text-amber-400"
+          >
+            <CircleArrowUp size={13} aria-hidden />
+          </span>
+        )}
         {showDot && tone && <StatusDot tone={PILL_TONE[tone]} testId="controller-pill-dot" />}
       </button>
 
@@ -114,7 +126,7 @@ function ControllerPillButton({
       {panelOpen && (
         <div
           data-testid="controller-panel-popover"
-          className="absolute right-0 top-8 z-50 w-80 rounded-lg border border-zinc-700 bg-zinc-900 shadow-2xl font-mono text-xs text-zinc-300"
+          className="fixed left-2 right-2 top-16 z-50 w-auto rounded-lg border border-zinc-700 bg-zinc-900 shadow-2xl font-mono text-xs text-zinc-300 sm:absolute sm:left-auto sm:right-0 sm:top-8 sm:w-80"
         >
           <div className="flex items-center justify-between gap-2 border-b border-seam px-3 py-2">
             {/* Title mirrors the editor and preview panes: the running pattern
@@ -399,6 +411,7 @@ export function ControllerBar({ reloadPage = () => window.location.reload() }: {
           active={ip === activeIp}
           panelOpen={ip === panelOpenIp}
           authorizationNeededIp={controllers[ip].authorizationNeededIp}
+          firmwareUpdateAvailable={controllers[ip].firmwareUpdateState === 'available'}
           onActivate={() => onPillClick(ip)}
           onRemove={() => onPillRemove(ip)}
           actionRow={actionRowFor(ip)}

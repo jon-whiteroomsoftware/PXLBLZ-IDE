@@ -1,4 +1,5 @@
 import { useEffect, useSyncExternalStore } from 'react'
+import { ExternalLink } from 'lucide-react'
 import { getControllerProvider } from '@/engine/controllerProviderRegistry'
 import { useControllerStore } from '@/store/controllerStore'
 import { useControllerPanelStore } from '@/store/controllerPanelStore'
@@ -111,6 +112,9 @@ export function ControllerPanel() {
   // Re-render (and so re-subscribe to the active provider below) when the active
   // Controller changes — the panel is bound to the active Controller (#210).
   const activeIp = useControllerStore((s) => s.activeIp)
+  const controllerEntry = useControllerStore((s) =>
+    s.activeIp ? s.controllers[s.activeIp] : undefined,
+  )
   const provider = getControllerProvider()
   const status = useSyncExternalStore(
     (onChange) => provider.subscribe(onChange),
@@ -180,9 +184,36 @@ export function ControllerPanel() {
       : undefined,
   )
   const watchedVars = describeControllerVars(vars)
+  const installedFirmware = controllerEntry?.firmwareVersion
+    ? controllerEntry.firmwareVersion.startsWith('v')
+      ? controllerEntry.firmwareVersion
+      : `v${controllerEntry.firmwareVersion}`
+    : null
 
   return (
     <div className="font-mono pl-3 text-xs" data-testid="controller-panel">
+      {controllerEntry?.firmwareUpdateState === 'available' && (
+        <div
+          role="status"
+          className="mb-2 flex items-center justify-between gap-3 border-y border-amber-400/25 bg-amber-400/[0.04] px-2 py-1.5"
+        >
+          <div className="min-w-0 leading-tight">
+            <div className="font-semibold text-amber-300">Firmware update available</div>
+            <div className="mt-0.5 truncate text-[10px] text-zinc-500">
+              {installedFirmware ? `${installedFirmware} installed · ` : ''}Settings → Updates
+            </div>
+          </div>
+          <a
+            href={`http://${status.controller.address}/`}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex shrink-0 items-center gap-1 text-[11px] text-amber-300 hover:text-amber-200 focus:outline-none focus:underline"
+          >
+            Open Pixelblaze
+            <ExternalLink size={12} aria-hidden />
+          </a>
+        </div>
+      )}
       <DeckSection label="Pixelblaze" hint={PANEL_HINT}>
         {/* Two columns of unequal height (#consistency): the title moved up, so the
             old row-paired grid no longer lined up. Right column emulates the preview

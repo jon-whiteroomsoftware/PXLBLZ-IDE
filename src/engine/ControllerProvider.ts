@@ -15,6 +15,7 @@
 
 import type { ProgramListEntry } from './PixelblazeConnection'
 import type { RecoveredSavedProgram } from './controllerSavedProgramRead'
+import type { FirmwareUpdateState } from './firmwareUpdate'
 
 export type { ProgramListEntry }
 
@@ -173,6 +174,10 @@ export interface ControllerProvider {
    *  while connected; cheap and read-only. */
   getTelemetry(): Promise<ControllerTelemetry>
 
+  /** Ask the connected Controller's own update service whether compatible
+   *  firmware is available. This checks only; installation stays in its web UI. */
+  checkFirmwareUpdate(): Promise<FirmwareUpdateState>
+
   /** List the patterns stored on the Controller. */
   listPrograms(): Promise<ProgramListEntry[]>
 
@@ -292,6 +297,10 @@ export class NullControllerProvider implements ControllerProvider {
   }
 
   getTelemetry(): Promise<ControllerTelemetry> {
+    return Promise.reject(new Error('Not connected to a Controller'))
+  }
+
+  checkFirmwareUpdate(): Promise<FirmwareUpdateState> {
     return Promise.reject(new Error('Not connected to a Controller'))
   }
 

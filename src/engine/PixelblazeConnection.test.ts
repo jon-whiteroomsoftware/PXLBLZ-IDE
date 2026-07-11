@@ -240,6 +240,38 @@ describe('PixelblazeConnection', () => {
     })
   })
 
+  describe('firmware update availability', () => {
+    it('asks the Controller to check and resolves an available update', async () => {
+      const { conn, socket } = await connected()
+
+      const promise = conn.checkFirmwareUpdate()
+
+      expect(socket.sent.map((frame) => JSON.parse(frame))).toEqual([
+        { upgradeVersion: 'check' },
+        { getUpgradeState: true },
+      ])
+      socket.simulateMessage({ upgradeState: { code: 5 } })
+      await expect(promise).resolves.toBe('available')
+    })
+
+    it('polls while the Controller is still checking', async () => {
+      vi.useFakeTimers()
+      try {
+        const { conn, socket } = await connected()
+        const promise = conn.checkFirmwareUpdate()
+
+        socket.simulateMessage({ upgradeState: { code: 1 } })
+        await vi.advanceTimersByTimeAsync(250)
+        expect(socket.lastFrame()).toEqual({ getUpgradeState: true })
+
+        socket.simulateMessage({ upgradeState: { code: 4 } })
+        await expect(promise).resolves.toBe('current')
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+  })
+
   describe('lifecycle', () => {
     it('emits open / error / close to subscribers', async () => {
       const events: string[] = []
@@ -468,7 +500,7 @@ describe('PixelblazeConnection', () => {
       const promise = conn.getConfig()
       expect(socket.lastFrame()).toEqual({ getConfig: true })
       // settings packet (top-level brightness) and sequencer packet arrive separately
-      socket.simulateMessage({ brightness: 0.4, pixelCount: 256, name: 'pb', version: '3.68' })
+      socket.simulateMessage({ brightness: 0.4, pixelCount: 256, name: 'pb', ver: '3.68' })
       socket.simulateMessage({
         activeProgram: { activeProgramId: 'pat1', name: 'X', controls: { sliderA: 0.7 } },
       })

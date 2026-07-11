@@ -15,6 +15,7 @@ import {
   type ControllerTarget,
   type DiscoveredController,
 } from '@/engine/ControllerProvider'
+import type { FirmwareUpdateState } from '@/engine/firmwareUpdate'
 import { mapDimension, type MapDimension } from '@/engine/sendToController'
 import { describePreflight, type PreflightWarning } from '@/engine/preflight'
 import { recommendedMapRemedy, type RecommendedMapRemedy } from '@/engine/patternMapRemedy'
@@ -93,6 +94,8 @@ export interface ControllerEntry {
   nickname?: string
   /** Last firmware version reported by discovery or live config. */
   firmwareVersion?: string
+  /** Result of the Controller's own update-service check. Session-only. */
+  firmwareUpdateState?: FirmwareUpdateState
   phase: ControllerPhase
   /** Last error message when `phase === 'error'`. */
   error?: string
@@ -283,6 +286,8 @@ export const controllerInitialState = {
 // module-local so they never serialise and a stale render never holds a socket.
 const providers = new Map<string, ControllerProvider>()
 const unsubscribers = new Map<string, () => void>()
+const firmwareUpdateCheckedAt = new Map<string, number>()
+const FIRMWARE_UPDATE_CHECK_INTERVAL_MS = 60 * 60 * 1000
 
 /** Map a provider status to the keyed entry's mirrored fields. The nickname is
  *  only ever *set* (when the status carries a device name), never cleared — it is
@@ -466,6 +471,7 @@ export const useControllerStore = create<ControllerConnectionState>()(
                 mapDim: null,
                 nickname: seed || undefined,
                 firmwareVersion: connectTarget.firmwareVersion,
+                firmwareUpdateState: s.controllers[target]?.firmwareUpdateState,
                 authorizationNeededIp: null,
               },
             },
@@ -527,6 +533,22 @@ export const useControllerStore = create<ControllerConnectionState>()(
           // empty-then-jumping as the first lazy poll lands (#225). The panel still
           // owns the polling interval (started on open); this is a one-shot seed.
           useControllerPanelStore.getState().seed(target)
+
+          // The Controller owns compatibility and release selection. Keep this
+          // best-effort and off the connection's critical path; reconnect churn
+          // reuses the session result for an hour.
+          const firmwareCheckKey = liveDeviceId ?? target
+          const lastFirmwareCheck = firmwareUpdateCheckedAt.get(firmwareCheckKey)
+          if (
+            lastFirmwareCheck == null ||
+            Date.now() - lastFirmwareCheck >= FIRMWARE_UPDATE_CHECK_INTERVAL_MS
+          ) {
+            firmwareUpdateCheckedAt.set(firmwareCheckKey, Date.now())
+            void provider
+              .checkFirmwareUpdate()
+              .then((firmwareUpdateState) => patchController(target, { firmwareUpdateState }))
+              .catch(() => patchController(target, { firmwareUpdateState: 'unknown' }))
+          }
         },
 
         removeController: async (ip) => {
@@ -959,4 +981,5 @@ export function __resetControllerProviders(): void {
   unsubscribers.forEach((u) => u())
   unsubscribers.clear()
   providers.clear()
+  firmwareUpdateCheckedAt.clear()
 }

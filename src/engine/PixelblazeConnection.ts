@@ -16,6 +16,7 @@
 // device and the resulting capability report.
 
 import LZString from 'lz-string'
+import { decodeFirmwareUpdateState, type FirmwareUpdateState } from './firmwareUpdate'
 import { crc32 } from './bytecodePush'
 
 /** The slice of the WebSocket API this module needs — satisfied by both the
@@ -65,6 +66,8 @@ export const FrameFlag = {
 /** Chunk size for the source/bytecode frames (the editor uses 1280-byte
  *  bodies). The 2-byte header is *not* counted against this. */
 const FRAME_BODY_MAX = 1280
+const FIRMWARE_CHECK_POLL_MS = 250
+const FIRMWARE_CHECK_MAX_POLLS = 20
 
 /** One entry of the decoded program list. */
 export interface ProgramListEntry {
@@ -352,6 +355,20 @@ export class PixelblazeConnection {
     return this.request('ack', { ping: true }).then(() => undefined)
   }
 
+  /** Ask the Controller's own update service whether compatible firmware exists.
+   *  PXLBLZ deliberately does not compare versions or install the update. */
+  async checkFirmwareUpdate(): Promise<FirmwareUpdateState> {
+    this.sendJson({ upgradeVersion: 'check' })
+    for (let poll = 0; poll < FIRMWARE_CHECK_MAX_POLLS; poll++) {
+      const state = decodeFirmwareUpdateState(
+        await this.request('upgradeState', { getUpgradeState: true }),
+      )
+      if (state !== 'checking') return state
+      await new Promise<void>((resolve) => this._setTimeout(resolve, FIRMWARE_CHECK_POLL_MS))
+    }
+    return 'unknown'
+  }
+
   // ── Phase 2: binary + extended JSON protocol (capability spike, #108) ────────
 
   /** List the patterns stored on the device. Sends `{listPrograms:true}`; the
@@ -403,11 +420,13 @@ export class PixelblazeConnection {
         boardType: typeof settings?.boardType === 'string' ? settings.boardType : undefined,
         chipId: typeof settings?.chipId === 'number' ? settings.chipId : undefined,
         firmwareVersion:
-          typeof settings?.version === 'string'
-            ? settings.version
-            : typeof settings?.firmwareVersion === 'string'
-              ? settings.firmwareVersion
-              : undefined,
+          typeof settings?.ver === 'string'
+            ? settings.ver
+            : typeof settings?.version === 'string'
+              ? settings.version
+              : typeof settings?.firmwareVersion === 'string'
+                ? settings.firmwareVersion
+                : undefined,
       }
     })
   }
@@ -620,6 +639,7 @@ export class PixelblazeConnection {
     // sequencer (`activeProgram.activeProgramId`). Route each by its own key.
     if ('brightness' in msg) this.fulfil('brightness', msg.brightness)
     if ('activeProgram' in msg) this.fulfil('activeProgram', msg.activeProgram)
+    if ('upgradeState' in msg) this.fulfil('upgradeState', msg.upgradeState)
   }
 
   /** Reassemble a binary frame into its message type's buffer, completing the

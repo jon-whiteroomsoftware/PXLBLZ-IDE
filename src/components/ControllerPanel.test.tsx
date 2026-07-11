@@ -19,6 +19,7 @@ import {
   defaultControllerProfile,
   useControllerProfileStore,
 } from '@/store/controllerProfileStore'
+import { controllerInitialState, useControllerStore } from '@/store/controllerStore'
 
 class ConnectedProvider extends NullControllerProvider {
   config: ControllerConfig = {
@@ -72,6 +73,7 @@ class ConnectedProvider extends NullControllerProvider {
 }
 
 beforeEach(() => {
+  useControllerStore.setState(controllerInitialState)
   useControllerPanelStore.setState(controllerPanelInitialState)
   useEditorStore.setState(editorInitialState)
   useControllerProfileStore.setState(controllerProfileInitialState)
@@ -101,6 +103,30 @@ describe('ControllerPanel', () => {
     await waitFor(() => expect(screen.getByText('30.0')).toBeInTheDocument())
     expect(screen.getByLabelText('Controller brightness')).toBeInTheDocument()
     expect(screen.queryByLabelText('Live duty cap')).not.toBeInTheDocument()
+  })
+
+  it('shows where to install available firmware in the Controller web UI', () => {
+    setControllerProvider(new ConnectedProvider())
+    useControllerStore.setState({
+      activeIp: '10.0.0.9',
+      controllers: {
+        '10.0.0.9': {
+          ip: '10.0.0.9',
+          phase: 'live',
+          mapDim: 2,
+          firmwareVersion: '3.67',
+          firmwareUpdateState: 'available',
+        },
+      },
+    })
+
+    render(<ControllerPanel />)
+
+    expect(screen.getByText('Firmware update available')).toBeInTheDocument()
+    expect(screen.getByText(/v3\.67 installed/)).toBeInTheDocument()
+    const link = screen.getByRole('link', { name: 'Open Pixelblaze' })
+    expect(link).toHaveAttribute('href', 'http://10.0.0.9/')
+    expect(link).toHaveAttribute('target', '_blank')
   })
 
   it('renders the running pattern controls and watched vars when connected', async () => {

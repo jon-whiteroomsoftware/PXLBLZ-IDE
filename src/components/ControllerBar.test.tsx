@@ -219,6 +219,27 @@ describe('ControllerBar', () => {
     expect(screen.getByTestId('controller-entry-button')).toHaveTextContent('+')
   })
 
+  it('adds a firmware reminder without replacing the connected status dot', () => {
+    useControllerStore.setState({
+      extensionPresent: true,
+      activeIp: '10.0.0.5',
+      controllers: {
+        '10.0.0.5': {
+          ip: '10.0.0.5',
+          nickname: 'Desk',
+          phase: 'live',
+          mapDim: 2,
+          firmwareUpdateState: 'available',
+        },
+      },
+    })
+
+    render(<ControllerBar />)
+
+    expect(screen.getByTestId('controller-pill-dot')).toBeInTheDocument()
+    expect(screen.getByLabelText('Firmware update available for Desk')).toBeInTheDocument()
+  })
+
   it('a pending pill keeps a known name (no IP flash on reconnect churn)', () => {
     useControllerStore.setState({
       activeIp: '10.0.0.5',
