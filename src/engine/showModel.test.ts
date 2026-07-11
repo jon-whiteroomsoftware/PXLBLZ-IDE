@@ -13,6 +13,7 @@ import {
   showLoopDurationMs,
   showRecordToCompileRecipe,
   spanShowCellZones,
+  updateShowCellZoneMode,
   updateShowCellAdaptations,
   updateShowCellPattern,
   updateShowScene,
@@ -635,6 +636,29 @@ describe('showModel (#318)', () => {
         id: 'cell-1',
         zones: ['main', 'doorframe'],
         zoneMode: 'span',
+      }),
+    ])
+  })
+
+  it('emits a repeated zone span as one shared member over independent domains', () => {
+    const show = addShowZone(createDefaultShow('show-1', 'Untitled Show'), {
+      name: 'doorframe',
+      nominalPixelCount: 12,
+    })
+    const repeated = updateShowCellZoneMode(spanShowCellZones(show, 'cell-1', 2), 'cell-1', 'repeat')
+    const recipe = showRecordToCompileRecipe(repeated, {
+      byCellId: { 'cell-1': DEMOS.TestPattern1D },
+    })
+
+    expect(repeated.cells.find((cell) => cell.id === 'cell-1')).toMatchObject({
+      zoneSpan: 2,
+      zoneMode: 'repeat',
+    })
+    expect(recipe.clips).toEqual([
+      expect.objectContaining({
+        id: 'cell-1',
+        zones: ['main', 'doorframe'],
+        zoneMode: 'repeat',
       }),
     ])
   })

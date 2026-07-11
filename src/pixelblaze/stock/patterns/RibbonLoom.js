@@ -1,4 +1,5 @@
 // Ribbon Loom — luminous SDF ribbons weaving over and under each other.
+// License: ISC
 //
 // A small fixed set of triangle-wave paths is enough to suggest fabric. The
 // first draft used per-pixel sine paths; triangle paths keep the weave language

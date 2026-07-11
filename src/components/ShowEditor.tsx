@@ -71,6 +71,7 @@ export function ShowEditor({ showId }: { showId: string }) {
   const updateCellPattern = useShowStore((state) => state.updateCellPattern)
   const extendCell = useShowStore((state) => state.extendCell)
   const spanCellZones = useShowStore((state) => state.spanCellZones)
+  const updateCellZoneMode = useShowStore((state) => state.updateCellZoneMode)
   const addZone = useShowStore((state) => state.addZone)
   const updateZone = useShowStore((state) => state.updateZone)
   const removeZone = useShowStore((state) => state.removeZone)
@@ -247,6 +248,7 @@ export function ShowEditor({ showId }: { showId: string }) {
             onUpdateAdaptations={(cell, changes) => void updateCellAdaptations(activeShow.id, cell.id, changes)}
             onExtend={(cell, sceneSpan) => void extendCell(activeShow.id, cell.id, sceneSpan)}
             onSpanZones={(cell, zoneSpan) => void spanCellZones(activeShow.id, cell.id, zoneSpan)}
+            onUpdateCellZoneMode={(cell, zoneMode) => void updateCellZoneMode(activeShow.id, cell.id, zoneMode)}
             onUpdateTransition={(sceneId, kind, durationMs, feather, portal) => void updateTransition(activeShow.id, sceneId, kind, durationMs, feather, portal)}
             onAddZone={() => void addZone(activeShow.id)}
             onUpdateZone={(zoneId, changes) => void updateZone(activeShow.id, zoneId, changes)}
@@ -481,7 +483,7 @@ function SceneStrip({
                 <span className="block truncate text-[13px] font-semibold text-zinc-100">{cell.patternName}</span>
                 <span className="block truncate text-[10px] text-zinc-500">
                   {adaptationSummary(cell)}
-                  {(cell.zoneSpan ?? 1) > 1 ? ' - span zones' : ''}
+                  {(cell.zoneSpan ?? 1) > 1 ? cell.zoneMode === 'repeat' ? ' - repeat zones' : ' - span zones' : ''}
                 </span>
               </button>
             ))}
@@ -639,6 +641,7 @@ function ContextualInspector({
   onUpdateAdaptations,
   onExtend,
   onSpanZones,
+  onUpdateCellZoneMode,
   onUpdateTransition,
   onAddZone,
   onUpdateZone,
@@ -661,6 +664,7 @@ function ContextualInspector({
   onUpdateAdaptations: (cell: ShowCell, changes: Partial<ShowCell['adaptations']>) => void
   onExtend: (cell: ShowCell, sceneSpan: number) => void
   onSpanZones: (cell: ShowCell, zoneSpan: number) => void
+  onUpdateCellZoneMode: (cell: ShowCell, zoneMode: NonNullable<ShowCell['zoneMode']>) => void
   onUpdateTransition: (
     sceneId: string,
     kind: NonNullable<ShowScene['transitionOut']>['kind'],
@@ -686,6 +690,7 @@ function ContextualInspector({
         onUpdateAdaptations={(changes) => onUpdateAdaptations(selectedCell, changes)}
         onExtend={(sceneSpan) => onExtend(selectedCell, sceneSpan)}
         onSpanZones={(zoneSpan) => onSpanZones(selectedCell, zoneSpan)}
+        onUpdateZoneMode={(zoneMode) => onUpdateCellZoneMode(selectedCell, zoneMode)}
       />
     )
   }
@@ -750,6 +755,7 @@ function CellInspector({
   onUpdateAdaptations,
   onExtend,
   onSpanZones,
+  onUpdateZoneMode,
 }: {
   show: ShowRecord
   cell: ShowCell
@@ -758,6 +764,7 @@ function CellInspector({
   onUpdateAdaptations: (changes: Partial<ShowCell['adaptations']>) => void
   onExtend: (sceneSpan: number) => void
   onSpanZones: (zoneSpan: number) => void
+  onUpdateZoneMode: (zoneMode: NonNullable<ShowCell['zoneMode']>) => void
 }) {
   const sceneIndex = show.scenes.findIndex((scene) => scene.id === cell.sceneId)
   const maxSpan = Math.max(1, show.scenes.length - sceneIndex)
@@ -812,6 +819,20 @@ function CellInspector({
             ))}
           </select>
         </label>
+        {(cell.zoneSpan ?? 1) > 1 && (
+          <label className="text-[10px] uppercase text-zinc-600">
+            Zone domain
+            <select
+              aria-label="Zone domain"
+              value={cell.zoneMode === 'repeat' ? 'repeat' : 'span'}
+              onChange={(event) => onUpdateZoneMode(event.target.value === 'repeat' ? 'repeat' : 'span')}
+              className={`${field} mt-1 w-full`}
+            >
+              <option value="span">one canvas</option>
+              <option value="repeat">repeat per zone</option>
+            </select>
+          </label>
+        )}
         <label className="text-[10px] uppercase text-zinc-600">
           Span zones
           <select
@@ -1488,6 +1509,11 @@ function CompileBar({
       <span className={summary?.transitionCost === 'renderer-window' || summary?.transitionCost === 'bounded-renderer-window' ? 'text-amber-300' : 'text-emerald-300'}>
         worst instant: {worstInstant}
       </span>
+      {summary?.routingRepresentation !== 'none' && (
+        <span className="text-sky-300">
+          routing: {summary?.routingRepresentation === 'packed-pixels' ? 'packed pixels' : 'range branches'}
+        </span>
+      )}
       {summary && summary.clockPolicy !== 'real-time' && (
         <span className={summary.clockPolicy.includes('exact-pause') ? 'text-amber-300' : 'text-zinc-500'}>
           clock: {clockPolicy}

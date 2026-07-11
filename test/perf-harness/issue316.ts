@@ -15,6 +15,7 @@
 //   PIXELBLAZE_IP=192.168.8.224 SHOW_FIXTURE=show-crossfade-baseline SAMPLE_VARS=1 npm run issue316
 //   PIXELBLAZE_IP=192.168.8.224 SHOW_FIXTURE=show-portal-dither SAMPLE_VARS=1 npm run issue316
 //   PIXELBLAZE_IP=192.168.8.224 SHOW_FIXTURE=show-portal-blend SAMPLE_VARS=1 npm run issue316
+//   PIXELBLAZE_IP=192.168.8.224 npm run issue401
 //   PIXELBLAZE_IP=192.168.8.224 npm run issue332
 //   PIXELBLAZE_IP=192.168.8.224 SHOW_FIXTURE=plain-dither SAMPLE_VARS=1 npm run issue332
 //   PIXELBLAZE_IP=192.168.8.224 SHOW_FIXTURE=pattern-crossfade-baseline SAMPLE_VARS=1 npm run issue332
@@ -35,6 +36,7 @@ import {
 } from '../../src/engine/compilerExtraction'
 import { bytecodeHeaderReconciles, makeProgramId } from '../../src/engine/bytecodePush'
 import { compileShow } from '../../src/engine/showCompiler'
+import { parseEpe } from '../../src/engine/epeImport'
 import {
   buildRouteTransitionFixtureSource,
   routeTransitionFixtureList,
@@ -46,6 +48,8 @@ const DEFAULT_FIXTURE = process.env.npm_lifecycle_event === 'issue332'
   ? 'pattern-wipe'
   : process.env.npm_lifecycle_event === 'issue317'
     ? 'zone-repeat'
+    : process.env.npm_lifecycle_event === 'issue401'
+      ? 'pattern-prism'
     : 'diagnostic'
 const SHOW_FIXTURE = process.env.SHOW_FIXTURE ?? DEFAULT_FIXTURE
 const WATCH_MS = parseInt(process.env.WATCH_MS ?? String(defaultWatchMs(SHOW_FIXTURE)), 10)
@@ -73,6 +77,7 @@ interface CompileFail {
 type CompileResult = CompileOk | CompileFail
 
 function defaultWatchMs(fixture: string): number {
+  if (fixture === 'pattern-prism') return 30000
   if (fixture === 'stock') return 9000
   if (fixture === 'adaptation-ramp') return 9000
   if (
@@ -432,6 +437,16 @@ function buildFixtureSource(fixture: string): FixtureSource {
   const routeTransitionFixture = buildRouteTransitionFixtureSource(fixture)
   if (routeTransitionFixture) return routeTransitionFixture
 
+  if (fixture === 'pattern-prism') {
+    const exported = readFileSync(new URL('../../artifacts/electromage/pattern-prism.epe', import.meta.url), 'utf8')
+    const source = parseEpe(exported).src
+    return {
+      source,
+      description: 'Pattern Prism: Ribbon Loom stays continuous through full panel, quadrants, alternating strips, pinwheel interleave, and full-panel return',
+      sourceLabel: `Exported #401 EPE source: ${new TextEncoder().encode(source).length} bytes; packed routing; one renderer per physical pixel`,
+    }
+  }
+
   if (fixture === 'zone-repeat') {
     const source = zoneRepeatClip()
     const artifact = compileShow({
@@ -593,7 +608,7 @@ export function render(index) {
   }
 
   if (fixture !== 'diagnostic') {
-    throw new Error(`unknown SHOW_FIXTURE=${fixture}; expected diagnostic, direct-fade, pulse-fade, time-fade, delta-ms-fade, capture-fade, stock, adaptation-ramp, show-wipe, show-dither, show-crossfade-baseline, show-portal-dither, show-portal-blend, zone-repeat, or one of: ${routeTransitionFixtureList()}`)
+    throw new Error(`unknown SHOW_FIXTURE=${fixture}; expected diagnostic, direct-fade, pulse-fade, time-fade, delta-ms-fade, capture-fade, stock, adaptation-ramp, show-wipe, show-dither, show-crossfade-baseline, show-portal-dither, show-portal-blend, pattern-prism, zone-repeat, or one of: ${routeTransitionFixtureList()}`)
   }
 
   const artifact = compileShow({

@@ -941,8 +941,15 @@ specialization when a regular layout can be proven; bounded packed lookup is a
 possible escape hatch when irregular branch output would exceed the measured
 68,384-byte device budget. It is not the default because a 256x8 table already
 spends 2,048 array elements and a 1,024x8 table grows beyond device capacity.
-Follow-up #408 owns conservative formula recognition and the bounded packed
-fallback. The repeatable runner and complete emulator/compiler/hardware matrix live in
+Pattern Prism (#401) ships the bounded packed fallback from that evidence. A
+named-layout schedule selects packed lookup only when its total branch-run count
+is at least 64 and the complete `pixelCount * layoutCount` table is at most
+2,048 elements; otherwise it retains range branches. Packed entries encode both
+route ownership and dense zone-local index, preserve first-route-wins overlap
+semantics, and keep one member renderer per physical pixel. The compile summary
+reports `range-branches` or `packed-pixels`, and the Show compile bar displays
+the choice. #408 remains open for conservative formula recognition and richer
+estimated memory/bytecode reporting. The repeatable runner and complete emulator/compiler/hardware matrix live in
 [`issue-400-routing-representation-results.md`](../plans/archive/issue-400-routing-representation-results.md).
 
 `ShowStagePreview` is the right-pane Show context surface. It compiles the active
@@ -996,8 +1003,13 @@ zone-local index across multi-range zones, sets that member's virtual
 `pixelCount` to the domain's total size, and calls exactly one member renderer
 for the matching pixel. Multi-zone clips default to independent domains by
 expanding into one member instance per named zone; `zoneMode: 'span'` keeps one
-member and merges the zones into a single canvas. This is the 1D
-zone-local-coordinate path used by Shows; 2D zone frames remain a future slice.
+member and merges the zones into a single canvas. `zoneMode: 'repeat'` also
+keeps one member, but routes it through every named zone as an independently
+normalized domain and advances its `beforeRender` only once per frame. Routed
+native-2D members emit an outer `render2D`: each route derives a compact square
+frame from dense local index (256 pixels -> 16x16, 64 -> 8x8), while routed 1D
+members keep the existing index path. The cell inspector exposes **one canvas**
+and **repeat per zone** after Span zones exceeds one.
 
 The #383 portal path is a spatial scene-boundary policy and emits an outer
 `render2D(index, x, y)`. Member Patterns with native `render2D` receive those
@@ -1156,7 +1168,7 @@ containing the entire "how do we reach a Controller" decision. It exposes
 `connect`/`disconnect`, a `ControllerStatus` subscription (`no-extension |
 extension-present | connecting | connected | error`), the read/monitor surface
 (`getConfig`, telemetry, `listPrograms`, `readSavedProgram`, controls, `brightness`,
-`setPixelCount`), and the capability-gated
+`setPixelCount`, `checkFirmwareUpdate`), and the capability-gated
 `compile`/`pushBytecode`/`getPixelMap`/`pushPixelMap`. The app imports only this
 module and its types — never an extension API, `PixelblazeConnection`, or
 `RelayWebSocket`. A `NullControllerProvider` (permanently `no-extension`) lets
@@ -1310,6 +1322,18 @@ path; no separate pattern-code message channel exists.
   last-connected IP alone auto-reconnects on reload. Dot tones are the shared
   traffic-light vocabulary (`StatusDot`): dark-grey absent, grey idle, amber
   fast-blink connecting, green live, red error.
+- **Firmware availability is device-authoritative and session-only.** Once a
+  Controller is live, `PixelblazeConnection.checkFirmwareUpdate` sends
+  `{upgradeVersion:"check"}` and polls `{getUpgradeState:true}` while the device
+  reports `checking`, bounded to roughly five seconds. `firmwareUpdate.ts`
+  decodes the vendor's numeric state vocabulary. `controllerStore` caches the
+  check timestamp by stable device id (IP fallback) for one hour and mirrors the
+  result into that Controller entry without persistence. Only `available`
+  changes UI: a separate amber icon joins the still-green pill and the live
+  panel links to `http://<ip>/` with **Settings → Updates** guidance. Unknown,
+  unsupported, timeout, and service-error paths are silent and never alter the
+  Controller connection state. PXLBLZ neither compares release versions nor
+  installs firmware.
 - **The name is cached and sticky.** The store persists the last-connected IP
   *and* its nickname, so on reload the pill is born named. The name only ever
   upgrades: a fresh `getConfig` name wins, but a transient empty read must not

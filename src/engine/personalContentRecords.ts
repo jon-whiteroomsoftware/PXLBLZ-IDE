@@ -157,6 +157,8 @@ export interface ShowCell {
   sceneId: string
   sceneSpan: number
   zoneSpan?: number
+  /** How a multi-zone cell maps its Pattern domain. Defaults to one continuous span. */
+  zoneMode?: 'span' | 'repeat'
   pattern: ShowPatternRef
   patternName: string
   adaptations: ShowCellAdaptations

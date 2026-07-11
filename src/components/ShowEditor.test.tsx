@@ -322,6 +322,13 @@ describe('ShowEditor (#318)', () => {
         zoneSpan: 2,
       })
     })
+    expect(screen.getByLabelText('Zone domain')).toHaveValue('span')
+    await user.selectOptions(screen.getByLabelText('Zone domain'), 'repeat')
+    await waitFor(() => {
+      expect(useShowStore.getState().shows[0].cells.find((cell) => cell.id === 'cell-1')).toMatchObject({
+        zoneMode: 'repeat',
+      })
+    })
 
     await user.click(screen.getByRole('button', { name: /Select zone doorframe/i }))
     const nameInput = screen.getByLabelText('Zone name doorframe')

@@ -323,7 +323,23 @@ export function spanShowCellZones(show: ShowRecord, cellId: string, zoneSpan: nu
     ...show,
     cells: show.cells
       .filter((cell) => cell.id === cellId || cell.sceneId !== target.sceneId || !occupiedZoneIds.has(cell.zoneId))
-      .map((cell) => cell.id === cellId ? { ...cell, zoneSpan: nextSpan } : cell),
+      .map((cell) => cell.id === cellId
+        ? { ...cell, zoneSpan: nextSpan, ...(nextSpan > 1 ? { zoneMode: cell.zoneMode ?? 'span' as const } : { zoneMode: undefined }) }
+        : cell),
+    updatedAt: Date.now(),
+  }
+}
+
+export function updateShowCellZoneMode(
+  show: ShowRecord,
+  cellId: string,
+  zoneMode: NonNullable<ShowCell['zoneMode']>,
+): ShowRecord {
+  return {
+    ...show,
+    cells: show.cells.map((cell) => cell.id === cellId && (cell.zoneSpan ?? 1) > 1
+      ? { ...cell, zoneMode: zoneMode === 'repeat' ? 'repeat' : 'span' }
+      : cell),
     updatedAt: Date.now(),
   }
 }
@@ -634,7 +650,10 @@ function showRecordToRoutedFirstSceneRecipe(
         id: cell.id,
         source,
         ...(zoneSpan > 1
-          ? { zones: spannedZones.map((spannedZone) => spannedZone.name), zoneMode: 'span' as const }
+          ? {
+              zones: spannedZones.map((spannedZone) => spannedZone.name),
+              zoneMode: cell.zoneMode === 'repeat' ? 'repeat' as const : 'span' as const,
+            }
           : { zone: zone.name }),
         adaptation: compilerAdaptation(cell.adaptations),
       }

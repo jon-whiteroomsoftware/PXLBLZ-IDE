@@ -354,7 +354,16 @@ strips with a note rather than failing.
 Cells normally treat each zone row as its own domain. Setting **Span zones** on a
 cell stretches that one pattern across adjacent rows as a single canvas, so a
 gradient or wash can run continuously across multiple physical zones instead of
-restarting inside each one.
+restarting inside each one. A multi-zone cell can instead choose **Repeat per
+zone**: one shared Pattern instance and clock render into each covered zone's
+independently normalized local canvas. This is cheaper and more state-coherent
+than compiling several synchronized copies of the same Pattern.
+
+The repository includes the browser-exported
+`artifacts/electromage/pattern-prism.epe` catalog Show. Pattern Prism keeps one
+Ribbon Loom instance running while hard-switching among full-panel, repeated
+quadrant, alternating-strip, and pinwheel-interleave layouts before returning
+to the full panel.
 
 Zone rows that reuse the same Pattern remain independent member instances. Their
 Start offsets can differ even when their source and other controls match, and
@@ -656,6 +665,12 @@ even mid-connect. Connections **reconnect on their own** if the device blips off
 and back. Click a pill to make that Controller active and open its panel; more
 than one can stay connected.
 
+After a Controller connects, the IDE asks that Controller whether compatible
+firmware is available, at most once per hour in the current browser session. An
+available update adds a small amber update icon without replacing the green
+connection dot. PXLBLZ does not compare release numbers or install firmware;
+the Controller remains the authority for its hardware and release line.
+
 ### Live panel
 
 A pinned popover under the active pill, polled live, in rows:
@@ -677,6 +692,9 @@ A pinned popover under the active pill, polled live, in rows:
   fixed-size map apply). The input holds your entered value, dimmed, while the
   slow write is in flight.
 - **IP** and reported **frame rate**.
+- When firmware is available, a compact notice shows the installed version and
+  opens the Controller's own web UI; choose **Settings → Updates** there to
+  install it. Update-service failures stay silent and do not affect connection.
 - The running pattern's **live controls**, draggable in real time. A control
   whose device value can't be read as a real `0..1` position — run-only patterns
   report none; saved patterns report mutated variable values, not slider

@@ -13,7 +13,7 @@ export interface ShowClipRecipe {
   source: string
   zone?: string
   zones?: string[]
-  zoneMode?: 'independent' | 'span'
+  zoneMode?: 'independent' | 'span' | 'repeat'
   adaptation?: Partial<ShowClipAdaptation>
 }
 
@@ -132,6 +132,7 @@ export interface ShowCompileSummary {
   temporalPolicy: 'continuous' | 'stepped-clock' | 'mixed'
   timeOffsetPolicy: 'none' | 'per-clip'
   worstInstantRenderersPerPixel: 1 | 2
+  routingRepresentation: 'none' | 'range-branches' | 'packed-pixels'
   clips: ShowCompileClipSummary[]
   warnings: string[]
 }
@@ -209,15 +210,25 @@ export function compileShow(
     && clampNumber(portalTransition.feather ?? 0, 0, 1) > 0
     && portalTransition.featherPolicy === 'blend',
   )
+  const routedOutputDimension: 1 | 2 = (routeMode || routingLayouts) && members.some((member) => member.hasRender2D)
+    ? 2
+    : 1
+  const routingRepresentation: ShowCompileSummary['routingRepresentation'] = routingLayouts
+    ? selectRoutingRepresentation(routingLayouts)
+    : routeMode
+      ? 'range-branches' as const
+      : 'none' as const
   const code = routingLayouts
     ? emitRoutingLayoutShowCode(
         members,
         routingLayouts,
         expandedRecipe.routingSwitches ?? [],
         expandedRecipe.loopDurationMs ?? 0,
+        routedOutputDimension,
+        routingRepresentation === 'packed-pixels' ? 'packed-pixels' : 'range-branches',
       )
     : routeMode
-      ? emitRouteShowCode(members, route.routes)
+      ? emitRouteShowCode(members, route.routes, routedOutputDimension)
     : expandedRecipe.adaptationRamp
       ? emitAdaptationRampShowCode(members[0], expandedRecipe.adaptationRamp)
       : expandedRecipe.cut
@@ -229,7 +240,7 @@ export function compileShow(
         : expandedRecipe.crossfade
           ? emitShowCode(members[0], members[1], expandedRecipe.crossfade)
           : emitSingleClipShowCode(members[0])
-  const metadata = buildMetadata(members, portalTransition ? 2 : 1)
+  const metadata = buildMetadata(members, portalTransition ? 2 : routedOutputDimension)
   const sourceBytesBeforeMerge = members.reduce((sum, member) => sum + member.sourceBytes, 0)
   const artifactBytes = byteLength(code)
   const transitionCost = routeMode
@@ -286,6 +297,7 @@ export function compileShow(
     temporalPolicy: describeTemporalPolicy(members),
     timeOffsetPolicy: members.some((member) => member.adaptation.timeOffsetMs !== 0) ? 'per-clip' : 'none',
     worstInstantRenderersPerPixel: transitionCost === 'renderer-window' || transitionCost === 'bounded-renderer-window' ? 2 : 1,
+    routingRepresentation,
     clips: members.map((member) => {
       const lightShutter = member.adaptation.lightShutter
       return {
@@ -367,7 +379,7 @@ function validateRecipe(recipe: ShowRecipe): void {
 function expandRouteClips(clips: ShowClipRecipe[]): ShowClipRecipe[] {
   return clips.flatMap((clip) => {
     if (!clip.zones?.length) return [clip]
-    if (clip.zoneMode === 'span') return [clip]
+    if (clip.zoneMode === 'span' || clip.zoneMode === 'repeat') return [clip]
     return clip.zones.map((zone) => ({
       ...clip,
       id: `${clip.id}:${zone}`,
@@ -652,14 +664,16 @@ function buildRoutePlan(
     if (resolvedZones.length === 0) {
       continue
     }
-    const zone = clip.zoneMode === 'span'
-      ? mergeRouteZones(clip.id, resolvedZones)
-      : resolvedZones[0]
-    routes.push({
-      member: members[index],
-      zone,
-      pixelCount: controllerZonePixelCount(zone),
-    })
+    const routeZones = clip.zoneMode === 'repeat'
+      ? resolvedZones
+      : [clip.zoneMode === 'span' ? mergeRouteZones(clip.id, resolvedZones) : resolvedZones[0]]
+    for (const zone of routeZones) {
+      routes.push({
+        member: members[index],
+        zone,
+        pixelCount: controllerZonePixelCount(zone),
+      })
+    }
   }
   return { routes, warnings }
 }
@@ -707,12 +721,12 @@ function mergeRouteZones(id: string, zones: ControllerZone[]): ControllerZone {
   }
 }
 
-function emitRouteShowCode(members: CompiledMember[], routes: ResolvedRoute[]): string {
+function emitRouteShowCode(members: CompiledMember[], routes: ResolvedRoute[], outputDimension: 1 | 2): string {
   return [
     emitRuntimePrelude(members),
     ...members.map(member => member.code.trim()),
     emitRouteScheduler(routes),
-    emitRouteRender(routes),
+    emitRouteRender(routes, outputDimension),
     '',
   ].join('\n\n')
 }
@@ -722,6 +736,8 @@ function emitRoutingLayoutShowCode(
   layouts: ResolvedRoutingLayout[],
   switches: ShowRoutingSwitchRecipe[],
   loopDurationMs: number,
+  outputDimension: 1 | 2,
+  representation: 'range-branches' | 'packed-pixels',
 ): string {
   const layoutIndex = new Map(layouts.map((layout, index) => [layout.id, index]))
   const orderedSwitches = [...switches].sort((a, b) => a.atMs - b.atMs)
@@ -738,14 +754,20 @@ ${counts.join('\n')}
   }`
   })
   const advanceLines = members.map((member) => `  ${member.prefix}_advance(delta)`)
-  const renderBlocks = layouts.map((layout, index) => (
-    `${index === 0 ? '  if' : '  else if'} (__pxlblz_show_route_layout == ${index}) {
-${emitRouteRenderBody(layout.routes, '    ')}
+  const renderBody = representation === 'packed-pixels'
+    ? emitPackedRoutingRender(layouts, outputDimension)
+    : layouts.map((layout, index) => (
+      `${index === 0 ? '  if' : '  else if'} (__pxlblz_show_route_layout == ${index}) {
+${emitRouteRenderBody(layout.routes, '    ', outputDimension)}
   }`
-  ))
+    )).join('\n')
+  const packedPrelude = representation === 'packed-pixels'
+    ? emitPackedRoutingTable(layouts)
+    : ''
   return [
     emitRuntimePrelude(members),
     ...members.map((member) => member.code.trim()),
+    packedPrelude,
     `var __pxlblz_show_route_layout = 0`,
     `export function beforeRender(delta) {
   __pxlblz_show_elapsed_ms = (__pxlblz_show_elapsed_ms + delta) % ${loopDurationMs}
@@ -754,12 +776,95 @@ ${selectLines.join('\n')}
 ${countBlocks.join('\n')}
 ${advanceLines.join('\n')}
 }`,
-    `export function render(index) {
-${renderBlocks.join('\n')}
+    `export function ${outputDimension === 2 ? 'render2D(index, x, y)' : 'render(index)'} {
+${renderBody}
   rgb(0, 0, 0)
 }`,
     '',
   ].join('\n\n')
+}
+
+function selectRoutingRepresentation(layouts: ResolvedRoutingLayout[]): 'range-branches' | 'packed-pixels' {
+  const pixelCount = routingPixelCount(layouts)
+  const arrayElements = pixelCount * layouts.length
+  const runCount = layouts.reduce((sum, layout) => (
+    sum + layout.routes.reduce((layoutSum, route) => layoutSum + route.zone.ranges.length, 0)
+  ), 0)
+  return pixelCount > 0 && arrayElements <= 2048 && runCount >= 64
+    ? 'packed-pixels'
+    : 'range-branches'
+}
+
+function routingPixelCount(layouts: ResolvedRoutingLayout[]): number {
+  return layouts.reduce((largest, layout) => layout.routes.reduce((layoutLargest, route) => (
+    Math.max(layoutLargest, ...route.zone.ranges.map((range) => range.end + 1))
+  ), largest), 0)
+}
+
+function emitPackedRoutingTable(layouts: ResolvedRoutingLayout[]): string {
+  const pixelCount = routingPixelCount(layouts)
+  const stride = pixelCount + 1
+  const values = layouts.flatMap((layout) => {
+    const layoutValues = Array.from({ length: pixelCount }, () => 0)
+    layout.routes.forEach((route, routeIndex) => {
+      let localOffset = 0
+      for (const range of route.zone.ranges) {
+        for (let index = range.start; index <= range.end; index += 1) {
+          if (layoutValues[index] === 0) {
+            layoutValues[index] = routeIndex * stride + localOffset + index - range.start + 1
+          }
+        }
+        localOffset += range.end - range.start + 1
+      }
+    })
+    return layoutValues
+  })
+  return [
+    `var __pxlblz_show_route_pixels = array(${values.length})`,
+    ...values.map((value, index) => `__pxlblz_show_route_pixels[${index}] = ${value}`),
+  ].join('\n')
+}
+
+function emitPackedRoutingRender(layouts: ResolvedRoutingLayout[], outputDimension: 1 | 2): string {
+  const pixelCount = routingPixelCount(layouts)
+  const stride = pixelCount + 1
+  const layoutsBody = layouts.map((layout, layoutIndex) => {
+    const routeBody = layout.routes.map((route, routeIndex) => (
+      emitPackedRouteBlock(route, routeIndex, outputDimension)
+    )).join('\n')
+    return `${layoutIndex === 0 ? '    if' : '    else if'} (__pxlblz_show_route_layout == ${layoutIndex}) {
+${routeBody}
+    }`
+  }).join('\n')
+  return `  if (index < ${pixelCount}) {
+    var __pxlblz_show_route_packed = __pxlblz_show_route_pixels[__pxlblz_show_route_layout * ${pixelCount} + index]
+    if (__pxlblz_show_route_packed > 0) {
+      __pxlblz_show_route_packed = __pxlblz_show_route_packed - 1
+      var __pxlblz_show_route_id = floor(__pxlblz_show_route_packed / ${stride})
+      var __pxlblz_show_route_local = __pxlblz_show_route_packed - __pxlblz_show_route_id * ${stride}
+${layoutsBody}
+    }
+  }`
+}
+
+function emitPackedRouteBlock(route: ResolvedRoute, routeIndex: number, outputDimension: 1 | 2): string {
+  const width = Math.max(1, Math.ceil(Math.sqrt(route.pixelCount)))
+  const height = Math.max(1, Math.ceil(route.pixelCount / width))
+  const render = outputDimension === 2
+    ? [
+        `        var ${route.member.prefix}_zoneLocalX = ${width === 1 ? '0.5' : `(__pxlblz_show_route_local % ${width}) / ${width - 1}`}`,
+        `        var ${route.member.prefix}_zoneLocalY = ${height === 1 ? '0.5' : `floor(__pxlblz_show_route_local / ${width}) / ${height - 1}`}`,
+        `        ${route.member.prefix}_renderCapture2D(__pxlblz_show_route_local, ${route.member.prefix}_zoneLocalX, ${route.member.prefix}_zoneLocalY)`,
+      ]
+    : [`        ${route.member.prefix}_renderCapture(__pxlblz_show_route_local)`]
+  return [
+    `      ${routeIndex === 0 ? 'if' : 'else if'} (__pxlblz_show_route_id == ${routeIndex}) {`,
+    `        ${route.member.pixelCountName} = ${route.pixelCount}`,
+    ...render,
+    `        ${route.member.prefix}_emit()`,
+    `        return`,
+    `      }`,
+  ].join('\n')
 }
 
 function emitRuntimePrelude(members: CompiledMember[]): string {
@@ -878,12 +983,16 @@ ${advanceDelta('delta', '  ')}
 }`,
     `function ${member.prefix}_renderCapture2D(index, x, y) {
   var mappedIndex = index
-  if (${member.prefix}_adapt_mirror >= 0.5) mappedIndex = ${member.pixelCountName} - 1 - index
+  var mappedX = x
+  if (${member.prefix}_adapt_mirror >= 0.5) {
+    mappedIndex = ${member.pixelCountName} - 1 - index
+    mappedX = 1 - x
+  }
   ${member.prefix}_clear()
   ${member.hasRender2D
     ? lightShutter
-      ? `if (${member.prefix}_shutter_open >= 0.5) ${member.render2DName}(mappedIndex, x, y)`
-      : `${member.render2DName}(mappedIndex, x, y)`
+      ? `if (${member.prefix}_shutter_open >= 0.5) ${member.render2DName}(mappedIndex, mappedX, y)`
+      : `${member.render2DName}(mappedIndex, mappedX, y)`
     : member.hasRender
       ? lightShutter
         ? `if (${member.prefix}_shutter_open >= 0.5) ${member.renderName}(mappedIndex)`
@@ -950,10 +1059,14 @@ function emitScheduler(
 }
 
 function emitRouteScheduler(routes: ResolvedRoute[]): string {
-  const lines = routes.flatMap((route) => [
-    `  ${route.member.pixelCountName} = ${route.pixelCount}`,
-    `  ${route.member.prefix}_advance(delta)`,
-  ])
+  const members = [...new Set(routes.map((route) => route.member))]
+  const lines = members.flatMap((member) => {
+    const route = routes.find((candidate) => candidate.member === member)
+    return [
+      `  ${member.pixelCountName} = ${route?.pixelCount ?? 0}`,
+      `  ${member.prefix}_advance(delta)`,
+    ]
+  })
   return `export function beforeRender(delta) {
   __pxlblz_show_elapsed_ms = __pxlblz_show_elapsed_ms + delta
 ${lines.join('\n')}
@@ -983,28 +1096,37 @@ function emitRender(from: CompiledMember, to: CompiledMember): string {
 }`
 }
 
-function emitRouteRender(routes: ResolvedRoute[]): string {
-  const blocks = emitRouteRenderBody(routes, '')
-  return `export function render(index) {
+function emitRouteRender(routes: ResolvedRoute[], outputDimension: 1 | 2): string {
+  const blocks = emitRouteRenderBody(routes, '', outputDimension)
+  return `export function ${outputDimension === 2 ? 'render2D(index, x, y)' : 'render(index)'} {
 ${blocks}
   rgb(0, 0, 0)
 }`
 }
 
-function emitRouteRenderBody(routes: ResolvedRoute[], indent: string): string {
+function emitRouteRenderBody(routes: ResolvedRoute[], indent: string, outputDimension: 1 | 2): string {
   return routes
-    .map((route) => emitRouteRenderBlock(route).split('\n').map((line) => `${indent}${line}`).join('\n'))
+    .map((route) => emitRouteRenderBlock(route, outputDimension).split('\n').map((line) => `${indent}${line}`).join('\n'))
     .join('\n')
 }
 
-function emitRouteRenderBlock(route: ResolvedRoute): string {
+function emitRouteRenderBlock(route: ResolvedRoute, outputDimension: 1 | 2): string {
   const localName = `${route.member.prefix}_zoneLocalIndex`
+  const width = Math.max(1, Math.ceil(Math.sqrt(route.pixelCount)))
+  const height = Math.max(1, Math.ceil(route.pixelCount / width))
+  const render = outputDimension === 2
+    ? [
+        `    var ${route.member.prefix}_zoneLocalX = ${width === 1 ? '0.5' : `(${localName} % ${width}) / ${width - 1}`}`,
+        `    var ${route.member.prefix}_zoneLocalY = ${height === 1 ? '0.5' : `floor(${localName} / ${width}) / ${height - 1}`}`,
+        `    ${route.member.prefix}_renderCapture2D(${localName}, ${route.member.prefix}_zoneLocalX, ${route.member.prefix}_zoneLocalY)`,
+      ]
+    : [`    ${route.member.prefix}_renderCapture(${localName})`]
   return [
     `  var ${localName} = -1`,
     ...emitZoneLocalAssignments(route.zone, localName),
     `  if (${localName} >= 0) {`,
     `    ${route.member.pixelCountName} = ${route.pixelCount}`,
-    `    ${route.member.prefix}_renderCapture(${localName})`,
+    ...render,
     `    ${route.member.prefix}_emit()`,
     `    return`,
     `  }`,

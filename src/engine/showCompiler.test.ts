@@ -110,6 +110,64 @@ export function render(index) { rgb(0, ticks, index) }
     })
   })
 
+  it('routes native 2D members through normalized zone-local square coordinates (#401)', () => {
+    const artifact = compileShow({
+      clips: [{
+        id: 'ribbon',
+        zone: 'canvas',
+        source: `
+export var ticks = 0
+export function beforeRender(delta) { ticks = ticks + 1 }
+export function render2D(index, x, y) { rgb(x, y, ticks / 10) }
+`,
+      }],
+      zones: [{ id: 'canvas-a', name: 'canvas', ranges: [{ start: 0, end: 3 }] }],
+      routingLayouts: [
+        { id: 'left', name: 'Left', zones: [{ id: 'canvas-left', name: 'canvas', ranges: [{ start: 0, end: 3 }] }] },
+        { id: 'right', name: 'Right', zones: [{ id: 'canvas-right', name: 'canvas', ranges: [{ start: 4, end: 7 }] }] },
+      ],
+      routingSwitches: [{ atMs: 1000, layoutId: 'right' }],
+      loopDurationMs: 2000,
+    }, {})
+
+    expect(artifact.metadata.renderFns).toMatchObject({ hasRender: false, hasRender2D: true })
+    expect(artifact.summary.renderPolicy).toBe('route-one-renderer-per-pixel')
+    expect(artifact.summary.worstInstantRenderersPerPixel).toBe(1)
+    expect(artifact.summary.routingRepresentation).toBe('range-branches')
+    expect(artifact.code).toContain('export function render2D(index, x, y)')
+
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 8)
+    handle.beforeRender(500)
+    handle.render2D(0, 0, 0)
+    expect(pixel()).toEqual([0, 0, 0.1])
+    handle.render2D(3, 1, 1)
+    expect(pixel()).toEqual([1, 1, 0.1])
+
+    handle.beforeRender(600)
+    handle.render2D(4, 0, 0)
+    expect(pixel()).toEqual([0, 0, 0.2])
+    handle.render2D(7, 1, 1)
+    expect(pixel()).toEqual([1, 1, 0.2])
+  })
+
+  it('mirrors routed 2D member coordinates with the existing mirror adaptation (#401)', () => {
+    const artifact = compileShow({
+      clips: [{
+        id: 'mirror',
+        zone: 'canvas',
+        adaptation: { mirror: true },
+        source: 'export function render2D(index, x, y) { rgb(x, y, index) }',
+      }],
+      zones: [{ id: 'canvas', name: 'canvas', ranges: [{ start: 0, end: 3 }] }],
+    }, {})
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 4)
+
+    handle.beforeRender(16)
+    handle.render2D(0, 0, 0)
+
+    expect(pixel()).toEqual([1, 0, 3])
+  })
+
   it('warns when a routing layout assigns one physical pixel to multiple zones (#398)', () => {
     const artifact = compileShow({
       clips: [
@@ -492,6 +550,38 @@ export function render(index) {
     expect(pixel()).toEqual([2, 6, 0])
     handle.render(7)
     expect(pixel()).toEqual([5, 6, 0])
+  })
+
+  it('repeats one shared 2D member over several zone-local domains', () => {
+    const artifact = compileShow({
+      zones: [
+        { id: 'left', name: 'left', ranges: [{ start: 0, end: 3 }] },
+        { id: 'right', name: 'right', ranges: [{ start: 4, end: 7 }] },
+      ],
+      clips: [{
+        id: 'loom',
+        zones: ['left', 'right'],
+        zoneMode: 'repeat',
+        source: `
+export var ticks = 0
+export function beforeRender(delta) { ticks = ticks + 1 }
+export function render2D(index, x, y) { rgb(x, y, ticks) }
+`,
+      }],
+    }, {})
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 8)
+
+    expect(artifact.summary.clipCount).toBe(1)
+    handle.beforeRender(16)
+    handle.render2D(0, 0, 0)
+    expect(pixel()).toEqual([0, 0, 1])
+    handle.render2D(3, 1, 1)
+    expect(pixel()).toEqual([1, 1, 1])
+    handle.render2D(4, 0, 0)
+    expect(pixel()).toEqual([0, 0, 1])
+    handle.render2D(7, 1, 1)
+    expect(pixel()).toEqual([1, 1, 1])
+    expect(handle.getExports()).toMatchObject({ __pxlblz_show_c0_ticks: 1 })
   })
 
   it('spans zones when one member zone is itself multi-range', () => {

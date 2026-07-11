@@ -12,6 +12,7 @@ import {
   removeShowRoutingLayout,
   removeShowZone,
   spanShowCellZones,
+  updateShowCellZoneMode,
   updateShowZone,
   updateShowCellAdaptations,
   updateShowCellPattern,
@@ -71,6 +72,7 @@ interface ShowState {
   ) => Promise<void>
   extendCell: (showId: string, cellId: string, sceneSpan: number) => Promise<void>
   spanCellZones: (showId: string, cellId: string, zoneSpan: number) => Promise<void>
+  updateCellZoneMode: (showId: string, cellId: string, zoneMode: NonNullable<ShowCell['zoneMode']>) => Promise<void>
   addZone: (showId: string) => Promise<void>
   updateZone: (showId: string, zoneId: string, changes: Partial<Omit<ShowZone, 'id'>>) => Promise<void>
   removeZone: (showId: string, zoneId: string) => Promise<void>
@@ -214,6 +216,12 @@ export const useShowStore = create<ShowState>()((set, get) => ({
     const show = get().shows.find((item) => item.id === showId)
     if (!show) return
     await get().updateShow(showId, spanShowCellZones(show, cellId, zoneSpan))
+  },
+
+  updateCellZoneMode: async (showId, cellId, zoneMode) => {
+    const show = get().shows.find((item) => item.id === showId)
+    if (!show) return
+    await get().updateShow(showId, updateShowCellZoneMode(show, cellId, zoneMode))
   },
 
   addZone: async (showId) => {

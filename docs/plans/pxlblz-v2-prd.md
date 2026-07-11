@@ -79,8 +79,10 @@ model remains:
   transfers (#403), parametric routing (#405), and coordinate remapping (#406)
   remain later layers rather than requirements for the first useful slice. The
   routing-representation spike (#400) keeps arbitrary range branches as the
-  general default and records formula emission plus bounded packed lookup as
-  future compiler specializations (#408); detailed measurements live in the archived
+  general default. Pattern Prism (#401) ships the first bounded packed lookup:
+  high-run schedules switch only when the complete table is at most 2,048
+  elements; the compile summary names the choice. Conservative formula
+  recognition remains #408; detailed measurements live in the archived
   technical plan rather than this product document.
 - **Editor direction** (decided 2026-07-08): the v1 Show editor is a **scene
   strip**, not a timeline — scenes as columns, zones as rows, a cell holds a
@@ -91,7 +93,9 @@ model remains:
   a projection where boundaries happen to align; a zoomable timeline can
   arrive later as a second view on the same data, no migration. A cell can
   span rows (**zone spanning**: adjacent zones act as one canvas — one
-  domain — versus two independently re-normalized domains). The current
+  domain — versus two independently re-normalized domains). A spanning cell
+  may instead choose **Repeat per zone**, keeping one shared Pattern instance
+  and clock while giving every covered zone its own local canvas. The current
   canonical mockups include the scene strip, hold explainer, timeline
   frame-out, and Controller zones card. The shipped 2026-07-09 scene-strip
   overhaul is captured in `docs/plans/shows-editor-overhaul-mockup.html`: one

@@ -12,7 +12,11 @@ Emulator timings are operation-count proxies; hardware FPS is the device source 
 - Packed lookup is not a blanket default: at 1,024 pixels x 8 layouts it grows to 8,192 elements and about 164 KB of bytecode. Representation selection should therefore happen per layout or Show from measured run count, formula eligibility, estimated artifact size, and array pressure.
 - Device-compiler success alone is insufficient. During the exploratory pass the 256 x 8 interleaved branch artifact compiled to about 156 KB but the controller refused to activate it, matching the earlier measured device budget.
 
-This spike records the selector policy but deliberately leaves the production emitter unchanged. Follow-up #408 owns formula recognition and the bounded packed fallback together with real Show fixtures, so optimization cannot weaken arbitrary-set semantics.
+This spike originally left production emission unchanged. Pattern Prism (#401)
+subsequently shipped the bounded packed fallback with a real Show fixture: at
+least 64 branch runs, no more than 2,048 packed elements, first-route-wins
+overlap semantics, dense local indexes, and compile-summary disclosure. #408 now
+retains formula recognition and richer memory/bytecode estimates.
 
 ## Compile and emulator matrix
 
