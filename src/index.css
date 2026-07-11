@@ -229,6 +229,41 @@
   height: 0;
 }
 
+/* The visible playhead line applies the same 16px endpoint inset as this thumb,
+   so both indicators identify one exact Show time. */
+.show-playhead-range {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+}
+.show-playhead-range::-webkit-slider-runnable-track {
+  height: 3px;
+  border: 1px solid #71717a;
+  background: #dbeafe;
+}
+.show-playhead-range::-moz-range-track {
+  height: 3px;
+  border: 1px solid #71717a;
+  background: #dbeafe;
+}
+.show-playhead-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  margin-top: -7.5px;
+  border: 0;
+  border-radius: 9999px;
+  background: #bfdbfe;
+}
+.show-playhead-range::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border: 0;
+  border-radius: 9999px;
+  background: #bfdbfe;
+}
+
 /* Indeterminate ("unset") DeckSlider: a control whose position we don't know — a
    device value still loading, or a pattern control the firmware reports out of range
    (#speed-slider). It must read as an *interactive, not-yet-set* control, NOT a

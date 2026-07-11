@@ -27,6 +27,7 @@ import { discoverAutomatablePatternControls, type AutomatablePatternControl } fr
 import {
   fitShowTimelineViewport,
   panShowTimelineViewport,
+  rangeThumbCenterOffsetPx,
   resizeShowTimelineViewport,
   showTimelineThumb,
   zoomShowTimelineViewport,
@@ -981,16 +982,26 @@ function TimelineRuler({ show, gridColumn }: { show: ShowRecord; gridColumn: str
   const durationMs = showLoopDurationMs(show)
   const positionMs = useShowTransportStore((state) => state.showId === show.id ? state.positionMs : 0)
   const pendingSeekRef = useRef<{ showId: string; targetMs: number } | null>(null)
+  const resumeAfterSeekRef = useRef(false)
   const previewScrub = (targetMs: number) => {
-    if (usePreviewStore.getState().isRunning) usePreviewStore.getState().toggle()
+    const preview = usePreviewStore.getState()
+    if (!pendingSeekRef.current) resumeAfterSeekRef.current = preview.isRunning
+    if (preview.isRunning) preview.toggle()
     useShowTransportStore.getState().setPosition(show.id, targetMs)
     pendingSeekRef.current = { showId: show.id, targetMs }
   }
   const commitScrub = () => {
     const pending = pendingSeekRef.current
-    if (!pending || pending.showId !== show.id) return
+    if (!pending || pending.showId !== show.id) {
+      pendingSeekRef.current = null
+      resumeAfterSeekRef.current = false
+      return
+    }
+    const shouldResume = resumeAfterSeekRef.current
     pendingSeekRef.current = null
+    resumeAfterSeekRef.current = false
     useShowTransportStore.getState().requestSeek(show.id, pending.targetMs)
+    if (shouldResume && !usePreviewStore.getState().isRunning) usePreviewStore.getState().toggle()
   }
   const ticks = Array.from({ length: 7 }, (_, index) => ({
     position: index / 6,
@@ -1027,7 +1038,7 @@ function TimelineRuler({ show, gridColumn }: { show: ShowRecord; gridColumn: str
         onPointerCancel={commitScrub}
         onKeyUp={commitScrub}
         onBlur={commitScrub}
-        className="absolute inset-0 h-full w-full cursor-col-resize opacity-[0.01] focus:opacity-100"
+        className="show-playhead-range absolute inset-0 h-full w-full cursor-col-resize opacity-[0.01] focus:opacity-100"
       />
     </div>
   )
@@ -1046,6 +1057,7 @@ function TimelinePlayhead({
   const positionMs = useShowTransportStore((state) => state.showId === show.id ? state.positionMs : 0)
   const seekStatus = useShowTransportStore((state) => state.showId === show.id ? state.seekStatus : 'idle')
   const left = durationMs > 0 ? Math.min(100, Math.max(0, positionMs / durationMs * 100)) : 0
+  const thumbCenterOffsetPx = rangeThumbCenterOffsetPx(left, 16)
   return (
     <div
       aria-hidden
@@ -1053,8 +1065,9 @@ function TimelinePlayhead({
       style={{ gridColumn, gridRow: `2 / span ${rowSpan}` }}
     >
       <span
+        data-testid="show-timeline-playhead"
         className={`absolute inset-y-0 w-px ${seekStatus === 'rebuilding' ? 'bg-amber-300' : 'bg-live'}`}
-        style={{ left: `${left}%`, boxShadow: '0 0 8px color-mix(in srgb, var(--color-live) 45%, transparent)' }}
+        style={{ left: `calc(${left}% + ${thumbCenterOffsetPx}px)`, boxShadow: '0 0 8px color-mix(in srgb, var(--color-live) 45%, transparent)' }}
       >
         <span className="absolute -left-[4px] top-0 h-0 w-0 border-x-[4px] border-t-[6px] border-x-transparent border-t-current" />
       </span>

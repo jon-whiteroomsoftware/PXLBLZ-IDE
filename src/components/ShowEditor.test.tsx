@@ -133,6 +133,24 @@ describe('ShowEditor (#318)', () => {
     expect(usePreviewStore.getState().isRunning).toBe(true)
   })
 
+  it('resumes playback after scrubbing a Show that was already playing', () => {
+    const show = createDefaultShow('show-resume-scrub', 'Resume after scrub', 1000)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+
+    const playhead = screen.getByRole('slider', { name: 'Show playhead' })
+    fireEvent.change(playhead, { target: { value: '31000' } })
+    expect(usePreviewStore.getState().isRunning).toBe(false)
+
+    fireEvent.pointerUp(playhead)
+    expect(usePreviewStore.getState().isRunning).toBe(true)
+    expect(useShowTransportStore.getState()).toMatchObject({
+      positionMs: 31_000,
+      seekStatus: 'rebuilding',
+    })
+  })
+
   it('zooms, pans, resizes, and fits one synchronized timeline viewport (#420)', async () => {
     const user = userEvent.setup()
     const show = createDefaultShow('show-420', 'Zoom study', 1000)

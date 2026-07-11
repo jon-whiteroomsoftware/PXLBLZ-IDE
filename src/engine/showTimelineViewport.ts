@@ -49,6 +49,11 @@ export function showTimelineThumb(viewport: ShowTimelineViewport): { leftPercent
   }
 }
 
+export function rangeThumbCenterOffsetPx(percent: number, thumbWidthPx: number): number {
+  const fraction = clamp(percent, 0, 100) / 100
+  return Math.max(0, thumbWidthPx) / 2 * (1 - 2 * fraction)
+}
+
 export function timeToViewportPercent(viewport: ShowTimelineViewport, timeMs: number): number {
   return (timeMs - viewport.startMs) / viewport.durationMs * 100
 }

@@ -1,6 +1,7 @@
 import {
   fitShowTimelineViewport,
   panShowTimelineViewport,
+  rangeThumbCenterOffsetPx,
   resizeShowTimelineViewport,
   showTimelineThumb,
   timeToViewportPercent,
@@ -9,6 +10,12 @@ import {
 } from './showTimelineViewport'
 
 describe('Show timeline viewport (#420)', () => {
+  it('centers a playhead line on the range thumb across its inset travel', () => {
+    expect(rangeThumbCenterOffsetPx(0, 16)).toBe(8)
+    expect(rangeThumbCenterOffsetPx(50, 16)).toBe(0)
+    expect(rangeThumbCenterOffsetPx(100, 16)).toBe(-8)
+  })
+
   it('fits the whole Show and maps both ends exactly', () => {
     const viewport = fitShowTimelineViewport(60_000)
     expect(viewport).toEqual({ totalMs: 60_000, startMs: 0, durationMs: 60_000, minDurationMs: 3_750 })
