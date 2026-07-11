@@ -102,6 +102,7 @@ describe('ShowEditor (#318)', () => {
     expect(screen.getByDisplayValue('Scene 1')).toBeInTheDocument()
     expect(screen.getAllByText('main').length).toBeGreaterThan(0)
     expect(screen.getByText(/compiled artifact/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Export Show as .epe' })).toBeEnabled()
     expect(screen.getByText(/renderer\/px/i)).toBeInTheDocument()
     expect(screen.getByText('Show setup')).toBeInTheDocument()
     expect(screen.getByLabelText('Target controller')).toBeInTheDocument()

@@ -1,5 +1,5 @@
 import { useMemo, useState, type CSSProperties } from 'react'
-import { Check, Code2, Copy, Play, Plus, RotateCw, Route, Trash2, Zap } from 'lucide-react'
+import { Check, Code2, Copy, Download, Play, Plus, RotateCw, Route, Trash2, Zap } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   AlertDialogAction,
@@ -21,6 +21,9 @@ import {
   transitionCost,
 } from '@/engine/showModel'
 import { compileShowForPreview, type CompiledShowState } from '@/engine/showPreviewArtifact'
+import { buildShowEpeExport, type ShowEpeExport } from '@/engine/showEpeExport'
+import { buildPreviewJpeg } from '@/engine/previewThumbnailJpeg'
+import { bytesToBase64 } from '@/engine/RelayWebSocket'
 import { steppedClockRateHz, steppedClockStepMs } from '@/engine/steppedClock'
 import {
   controllerZonePixelCount,
@@ -90,6 +93,22 @@ export function ShowEditor({ showId }: { showId: string }) {
     () => activeShow ? compileShowForPreview(activeShow, userPatterns, targetProfile?.zones, {}) : { artifact: null, error: null },
     [activeShow, userPatterns, targetProfile?.zones],
   )
+  const showExport = useMemo(
+    () => activeShow && compiled.artifact
+      ? buildShowEpeExport(activeShow, compiled.artifact.code, { stampedAt: new Date(activeShow.updatedAt) })
+      : null,
+    [activeShow, compiled.artifact],
+  )
+  const buildDownloadExport = async (): Promise<ShowEpeExport | null> => {
+    if (!activeShow || !compiled.artifact) return null
+    const preview = await buildPreviewJpeg(compiled.artifact)
+    if (!preview) throw new Error('Could not render the EPE preview image')
+    return buildShowEpeExport(activeShow, compiled.artifact.code, {
+      id: makeProgramId(),
+      preview: bytesToBase64(preview),
+      stampedAt: new Date(activeShow.updatedAt),
+    })
+  }
 
   if (!activeShow) {
     return (
@@ -105,6 +124,7 @@ export function ShowEditor({ showId }: { showId: string }) {
         <div className="flex h-9 shrink-0 items-center gap-2 border-b border-seam px-3 font-mono text-xs text-zinc-400">
           <Code2 size={14} aria-hidden />
           <span className="flex-1 truncate text-zinc-200">Generated pattern - {activeShow.name}</span>
+          <ExportShowButton exported={showExport} buildExport={buildDownloadExport} />
           <Button
             size="xs"
             variant="ghost"
@@ -115,7 +135,7 @@ export function ShowEditor({ showId }: { showId: string }) {
           </Button>
         </div>
         <div className="min-h-0 flex-1">
-          <PixelblazeCodeEditor value={compiled.artifact.code} readOnly />
+          <PixelblazeCodeEditor value={showExport?.source ?? compiled.artifact.code} readOnly />
         </div>
       </div>
     )
@@ -127,7 +147,7 @@ export function ShowEditor({ showId }: { showId: string }) {
     setPushing(true)
     setPushResult(null)
     try {
-      const bytecode = await provider.compile(compiled.artifact.code)
+      const bytecode = await provider.compile(showExport?.source ?? compiled.artifact.code)
       await provider.pushBytecode(bytecode, { id: makeProgramId(), name: activeShow.name })
       setPushResult('Pushed')
     } catch (error) {
@@ -166,6 +186,7 @@ export function ShowEditor({ showId }: { showId: string }) {
             >
               View generated pattern
             </Button>
+            <ExportShowButton exported={showExport} buildExport={buildDownloadExport} />
             <Button
               size="xs"
               variant="ghost"
@@ -253,6 +274,50 @@ export function ShowEditor({ showId }: { showId: string }) {
         pushResult={pushResult}
       />
     </div>
+  )
+}
+
+function ExportShowButton({
+  exported,
+  buildExport,
+}: {
+  exported: ShowEpeExport | null
+  buildExport: () => Promise<ShowEpeExport | null>
+}) {
+  const [exporting, setExporting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  return (
+    <Button
+      size="xs"
+      variant="ghost"
+      aria-label="Export Show as .epe"
+      title={error ?? 'Export Show as .epe'}
+      disabled={!exported || exporting}
+      className="bg-zinc-800/70 text-xs text-zinc-400 hover:bg-zinc-700/70 hover:text-zinc-300 disabled:opacity-40"
+      onClick={() => {
+        setExporting(true)
+        setError(null)
+        void buildExport().then((ready) => {
+          if (!ready) return
+          const url = URL.createObjectURL(new Blob([ready.text], { type: 'application/json' }))
+          const anchor = document.createElement('a')
+          anchor.href = url
+          anchor.download = ready.filename
+          anchor.style.display = 'none'
+          document.body.appendChild(anchor)
+          anchor.click()
+          window.setTimeout(() => {
+            anchor.remove()
+            URL.revokeObjectURL(url)
+          }, 0)
+        }).catch((cause) => {
+          setError(cause instanceof Error ? cause.message : 'Export failed')
+        }).finally(() => setExporting(false))
+      }}
+    >
+      {exporting ? <RotateCw size={13} className="animate-spin" aria-hidden /> : <Download size={13} aria-hidden />}
+      {exporting ? 'Preparing' : error ? 'Export failed' : 'Export .epe'}
+    </Button>
   )
 }
 

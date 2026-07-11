@@ -306,7 +306,12 @@ scene or zone; scene headers expose rename, duration, and removal controls, with
 scene removal confirmed before it mutates the strip. The editor persists shows in
 your cloud workspace, supports rename/delete from the rail, inspectable compiled
 artifact budget, read-only generated source, and pushing the generated pattern to
-the connected Controller. The compile bar labels exact-pause clock recipes
+the connected Controller. **Export `.epe`** downloads that same generated source
+as a standard standalone Pixelblaze Pattern with a controller-format ID and
+100×150 waterfall JPEG preview. Its readable header identifies the
+Show, source Pattern references, scene/layout schedule, PXLBLZ URL, and
+collision-safe generated orchestration; source-level provenance/license comments
+remain embedded rather than being replaced with guessed metadata. The compile bar labels exact-pause clock recipes
 separately from renderer policy: pausing time does not claim renderer-cycle
 savings or buffered frame reuse. For shuttered clips it reports expected active
 Pattern evaluation per clip and explicitly keeps that estimate separate from

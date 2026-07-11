@@ -914,6 +914,17 @@ read-only generated-source view, and run-to-Controller action compile the
 generated source through the active provider and push bytecode to the connected
 controller.
 
+`showEpeExport.ts` wraps that exact generated source in the standard EPE envelope
+`{name,id,sources:{main},preview}`. Export mints a normal 17-character PXLBLZ
+program id and uses `buildPreviewJpeg` for the same 100×150 base64 waterfall JPEG
+carried by Controller exports. Before serialization it adds a human-readable
+Show summary and the normal `artifactStamp` banner with `kind=show`; filenames
+are ASCII-safe slugs. The summary lists source Pattern kind/id references, scenes,
+routing layouts, and boundary switches while leaving detailed provenance/license
+comments inside the isolated member sources. `ShowEditor` displays the stamped
+source and uses it for both EPE download and connected-controller compilation, so
+the inspected, downloaded, and hardware-compiled forms cannot drift.
+
 The routing lane occupies a dedicated strip row above the zone cells. Boundary
 markers select a destination layout in the contextual inspector. Show Setup
 owns layout CRUD and compact range-list authoring (`0-63, 128-191`). The range
