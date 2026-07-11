@@ -1028,13 +1028,16 @@ normalized coordinates, while the same standalone artifact uses the
 Pixelblaze's configured 2D map on hardware. Reproducible hardware observations
 are archived in `docs/plans/archive/issue-383-spatial-portal-results.md`.
 
-#402 adds `portalSequence` for a single-zone Show with three or more portal-linked
-scenes. Recipe conversion deduplicates cells that reference the same Pattern and
+#402 adds `sceneSequence` for a single-zone Show with three or more scenes.
+Each boundary independently retains cut, crossfade, wipe, dither, or portal
+semantics instead of forcing the whole Show through the first boundary's mode.
+Recipe conversion deduplicates cells that reference the same Pattern and
 normalized adaptations, so an A -> B -> A loop compiles two members rather than
 three fresh instances. The generated scheduler loops over hold and transition
-segments: holds advance/render one member, portal windows advance both members,
-and the existing portal renderer still calls the second renderer only inside a
-true-blend feather. The final hold may return to the first member, making loop
+segments: holds advance/render one member, crossfade and portal windows advance
+both members, while wipe/dither select one renderer per pixel. The existing
+portal renderer still calls the second renderer only inside a true-blend feather.
+The final hold may return to the first member, making loop
 wrap continuous without an implicit restart. Studio loop duration includes
 transition windows; routing-layout schedules retain their scene-hold clock.
 The exact browser export is

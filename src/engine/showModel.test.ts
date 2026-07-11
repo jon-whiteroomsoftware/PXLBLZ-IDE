@@ -562,12 +562,13 @@ describe('showModel (#318)', () => {
 
     expect(recipe.clips).toHaveLength(2)
     expect(recipe.clips.map((clip) => clip.id)).toEqual([first.id, second.id])
-    expect(recipe.portalSequence).toEqual({
+    expect(recipe.sceneSequence).toEqual({
       scenes: [
         {
           clipId: first.id,
           holdMs: 30000,
           transitionOut: {
+            kind: 'portal',
             durationMs: 2000,
             feather: 0.16,
             centerX: 0.5,
@@ -580,6 +581,7 @@ describe('showModel (#318)', () => {
           clipId: second.id,
           holdMs: 30000,
           transitionOut: {
+            kind: 'portal',
             durationMs: 1800,
             feather: 0.08,
             centerX: 0.25,
@@ -592,6 +594,46 @@ describe('showModel (#318)', () => {
       ],
     })
     expect(showLoopDurationMs(show)).toBe(93800)
+  })
+
+  it('keeps later wipe scenes in a sequence that begins with a portal', () => {
+    let show = addShowScene({ ...createDefaultShow('show-mixed', 'Mixed transitions'), stageMapId: 'plane' })
+    const [first, second, third] = show.cells
+    show = updateShowCellPattern(show, first.id, {
+      pattern: { kind: 'stock', id: 'HeatShimmerTiles' },
+      patternName: 'Heat Shimmer Tiles',
+    })
+    show = updateShowCellPattern(show, second.id, {
+      pattern: { kind: 'stock', id: 'NeonCircuitBoard' },
+      patternName: 'Neon Circuit Board',
+    })
+    show = updateShowCellPattern(show, third.id, {
+      pattern: { kind: 'stock', id: 'GlyphRain' },
+      patternName: 'Glyph Rain',
+    })
+    show = updateShowTransition(show, show.scenes[0].id, 'portal', 3000, 0.12, {
+      centerX: 0.5,
+      centerY: 0.5,
+      featherPolicy: 'blend',
+    })
+    show = updateShowTransition(show, show.scenes[1].id, 'wipe', 3000, 0.2)
+
+    const recipe = showRecordToCompileRecipe(show, {
+      byCellId: {
+        [first.id]: DEMOS.HeatShimmerTiles,
+        [second.id]: DEMOS.NeonCircuitBoard,
+        [third.id]: DEMOS.GlyphRain,
+      },
+      stageDimension: 2,
+    })
+
+    expect(recipe.clips).toHaveLength(3)
+    expect(recipe.sceneSequence?.scenes[1].transitionOut).toEqual({
+      kind: 'wipe',
+      durationMs: 3000,
+      feather: 0.2,
+    })
+    expect(recipe.sceneSequence?.scenes[2].clipId).toBe(third.id)
   })
 
   it('builds routed clips for every show-local zone in the first scene', () => {

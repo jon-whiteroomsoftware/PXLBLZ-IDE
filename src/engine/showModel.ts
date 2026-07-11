@@ -544,8 +544,8 @@ export function showRecordToCompileRecipe(
 
   const firstZone = show.zones[0]
   if (!firstZone) throw new Error('Show compile requires at least one zone.')
-  const portalSequence = showRecordToPortalSequenceRecipe(show, firstZone, lookup)
-  if (portalSequence) return portalSequence
+  const sceneSequence = showRecordToSceneSequenceRecipe(show, firstZone, lookup)
+  if (sceneSequence) return sceneSequence
   const cells = show.cells
     .filter((cell) => cell.zoneId === firstZone.id)
     .sort((a, b) => sceneIndex(show, a.sceneId) - sceneIndex(show, b.sceneId))
@@ -614,7 +614,7 @@ export function showRecordToCompileRecipe(
   }
 }
 
-function showRecordToPortalSequenceRecipe(
+function showRecordToSceneSequenceRecipe(
   show: ShowRecord,
   zone: ShowZone,
   lookup: ShowCompileRecipeSourceLookup,
@@ -626,8 +626,7 @@ function showRecordToPortalSequenceRecipe(
   if (cells.some((cell) => !cell)) return null
   const resolvedCells = cells as ShowCell[]
   const transitions = show.scenes.slice(0, -1).map((scene) => scene.transitionOut)
-  if (transitions.some((transition) => transition?.kind !== 'portal')) return null
-  if (!show.stageMapId || lookup.stageDimension !== 2) {
+  if (transitions.some((transition) => transition?.kind === 'portal') && (!show.stageMapId || lookup.stageDimension !== 2)) {
     throw new Error('Portal transition requires a 2D Stage Map.')
   }
 
@@ -650,29 +649,39 @@ function showRecordToPortalSequenceRecipe(
 
   return {
     clips: [...clipByKey.values()],
-    portalSequence: {
+    sceneSequence: {
       scenes: show.scenes.map((scene, index) => {
         const cell = resolvedCells[index]
         const transition = scene.transitionOut
         return {
           clipId: clipIdByCellId.get(cell.id)!,
           holdMs: scene.durationMs,
-          ...(transition?.kind === 'portal'
-            ? {
-                transitionOut: {
-                  durationMs: transition.durationMs,
-                  feather: clamp01(transition.feather ?? 0.12),
-                  centerX: clamp01(transition.centerX ?? 0.5),
-                  centerY: clamp01(transition.centerY ?? 0.5),
-                  invert: Boolean(transition.invert),
-                  featherPolicy: transition.featherPolicy === 'blend' ? 'blend' as const : 'dither' as const,
-                },
-              }
+          ...(transition
+            ? { transitionOut: compilerSequenceTransition(transition) }
             : {}),
         }
       }),
     },
     zones: lookup.controllerZones ?? nominalZones(show.zones),
+  }
+}
+
+function compilerSequenceTransition(
+  transition: NonNullable<ShowScene['transitionOut']>,
+): NonNullable<NonNullable<ShowRecipe['sceneSequence']>['scenes'][number]['transitionOut']> {
+  return {
+    kind: transition.kind,
+    durationMs: transition.durationMs,
+    ...(transition.kind === 'wipe' ? { feather: clamp01(transition.feather ?? 0) } : {}),
+    ...(transition.kind === 'portal'
+      ? {
+          feather: clamp01(transition.feather ?? 0.12),
+          centerX: clamp01(transition.centerX ?? 0.5),
+          centerY: clamp01(transition.centerY ?? 0.5),
+          invert: Boolean(transition.invert),
+          featherPolicy: transition.featherPolicy === 'blend' ? 'blend' as const : 'dither' as const,
+        }
+      : {}),
   }
 }
 

@@ -65,7 +65,8 @@ export interface ShowRouteTransitionRecipe {
   featherPolicy?: 'dither' | 'blend'
 }
 
-export interface ShowPortalSequenceTransitionRecipe {
+export interface ShowSceneSequenceTransitionRecipe {
+  kind: 'cut' | 'crossfade' | 'wipe' | 'dither' | 'portal'
   durationMs: number
   feather?: number
   centerX?: number
@@ -74,14 +75,14 @@ export interface ShowPortalSequenceTransitionRecipe {
   featherPolicy?: 'dither' | 'blend'
 }
 
-export interface ShowPortalSequenceSceneRecipe {
+export interface ShowSceneSequenceSceneRecipe {
   clipId: string
   holdMs: number
-  transitionOut?: ShowPortalSequenceTransitionRecipe
+  transitionOut?: ShowSceneSequenceTransitionRecipe
 }
 
-export interface ShowPortalSequenceRecipe {
-  scenes: ShowPortalSequenceSceneRecipe[]
+export interface ShowSceneSequenceRecipe {
+  scenes: ShowSceneSequenceSceneRecipe[]
 }
 
 export interface ShowRoutingLayoutRecipe {
@@ -101,7 +102,7 @@ export interface ShowRecipe {
   cut?: ShowCutRecipe
   adaptationRamp?: ShowAdaptationRampRecipe
   routeTransition?: ShowRouteTransitionRecipe
-  portalSequence?: ShowPortalSequenceRecipe
+  sceneSequence?: ShowSceneSequenceRecipe
   zones?: ControllerZone[]
   routingLayouts?: ShowRoutingLayoutRecipe[]
   routingSwitches?: ShowRoutingSwitchRecipe[]
@@ -225,17 +226,23 @@ export function compileShow(
   const portalTransition = expandedRecipe.routeTransition?.kind === 'portal'
     ? expandedRecipe.routeTransition
     : null
-  const sequenceTransitions = expandedRecipe.portalSequence?.scenes.flatMap((scene) => (
+  const sequenceTransitions = expandedRecipe.sceneSequence?.scenes.flatMap((scene) => (
     scene.transitionOut ? [scene.transitionOut] : []
   )) ?? []
+  const renderedSequenceTransitions = sequenceTransitions.filter((transition) => transition.kind !== 'cut')
+  const sequenceHasCrossfade = renderedSequenceTransitions.some((transition) => transition.kind === 'crossfade')
+  const sequenceHasPortal = renderedSequenceTransitions.some((transition) => transition.kind === 'portal')
   const portalBlend = Boolean(
     (portalTransition
       && clampNumber(portalTransition.feather ?? 0, 0, 1) > 0
       && portalTransition.featherPolicy === 'blend')
-    || sequenceTransitions.some((transition) => (
-      clampNumber(transition.feather ?? 0, 0, 1) > 0 && transition.featherPolicy === 'blend'
+    || renderedSequenceTransitions.some((transition) => (
+      transition.kind === 'portal'
+      && clampNumber(transition.feather ?? 0, 0, 1) > 0
+      && transition.featherPolicy === 'blend'
     )),
   )
+  const sequenceOutputDimension: 1 | 2 = sequenceHasPortal || members.some((member) => member.hasRender2D) ? 2 : 1
   const routedOutputDimension: 1 | 2 = (routeMode || routingLayouts) && members.some((member) => member.hasRender2D)
     ? 2
     : 1
@@ -244,8 +251,8 @@ export function compileShow(
     : routeMode
       ? 'range-branches' as const
       : 'none' as const
-  const code = expandedRecipe.portalSequence
-    ? emitPortalSequenceShowCode(members, expandedRecipe.portalSequence)
+  const code = expandedRecipe.sceneSequence
+    ? emitSceneSequenceShowCode(members, expandedRecipe.sceneSequence, sequenceOutputDimension)
     : routingLayouts
     ? emitRoutingLayoutShowCode(
         members,
@@ -268,11 +275,15 @@ export function compileShow(
         : expandedRecipe.crossfade
           ? emitShowCode(members[0], members[1], expandedRecipe.crossfade)
           : emitSingleClipShowCode(members[0])
-  const metadata = buildMetadata(members, portalTransition || expandedRecipe.portalSequence ? 2 : routedOutputDimension)
+  const metadata = buildMetadata(members, expandedRecipe.sceneSequence ? sequenceOutputDimension : portalTransition ? 2 : routedOutputDimension)
   const sourceBytesBeforeMerge = members.reduce((sum, member) => sum + member.sourceBytes, 0)
   const artifactBytes = byteLength(code)
-  const transitionCost = expandedRecipe.portalSequence
-    ? portalBlend ? 'bounded-renderer-window' : 'route'
+  const transitionCost = expandedRecipe.sceneSequence
+    ? sequenceHasCrossfade
+      ? 'renderer-window'
+      : portalBlend
+        ? 'bounded-renderer-window'
+        : renderedSequenceTransitions.length > 0 ? 'route' : 'none'
     : routeMode
     ? 'route'
     : expandedRecipe.crossfade
@@ -285,8 +296,8 @@ export function compileShow(
   const evaluationSummary = describeEvaluationPolicy(members)
   const summary: ShowCompileSummary = {
     clipCount: members.length,
-    transitionCount: expandedRecipe.portalSequence
-      ? sequenceTransitions.length
+    transitionCount: expandedRecipe.sceneSequence
+      ? Math.max(0, expandedRecipe.sceneSequence.scenes.length - 1)
       : routingLayouts
       ? expandedRecipe.routingSwitches?.length ?? 0
       : expandedRecipe.crossfade || expandedRecipe.cut || expandedRecipe.adaptationRamp || expandedRecipe.routeTransition ? 1 : 0,
@@ -294,10 +305,16 @@ export function compileShow(
     artifactBytes,
     measuredDeviceBudgetBytes: MEASURED_DEVICE_BUDGET_BYTES,
     artifactBudgetRatio: artifactBytes / MEASURED_DEVICE_BUDGET_BYTES,
-    renderPolicy: expandedRecipe.portalSequence
-      ? portalBlend
-        ? 'spatial-route-bounded-feather'
-        : 'spatial-route-one-renderer-per-pixel'
+    renderPolicy: expandedRecipe.sceneSequence
+      ? sequenceHasCrossfade
+        ? 'steady-active-transition-both'
+        : portalBlend
+          ? 'spatial-route-bounded-feather'
+          : sequenceHasPortal
+            ? 'spatial-route-one-renderer-per-pixel'
+            : renderedSequenceTransitions.length > 0
+              ? 'route-transition-one-renderer-per-pixel'
+              : 'cut-restart'
       : routeMode
       ? 'route-one-renderer-per-pixel'
       : expandedRecipe.crossfade
@@ -314,12 +331,24 @@ export function compileShow(
               : 'route-transition-one-renderer-per-pixel'
             : 'single-continuous-hold',
     transitionCost,
-    routePolicy: expandedRecipe.portalSequence
-      ? portalBlend
+    routePolicy: expandedRecipe.sceneSequence
+      ? sequenceHasPortal && portalBlend
         ? 'portal-blended-feather'
-        : sequenceTransitions.some((transition) => clampNumber(transition.feather ?? 0, 0, 1) > 0)
+        : sequenceHasPortal && renderedSequenceTransitions.some((transition) => (
+          transition.kind === 'portal' && clampNumber(transition.feather ?? 0, 0, 1) > 0
+        ))
           ? 'portal-dithered-feather'
-          : 'portal-hard'
+          : sequenceHasPortal
+            ? 'portal-hard'
+            : renderedSequenceTransitions.some((transition) => transition.kind === 'dither')
+              ? 'dither'
+              : renderedSequenceTransitions.some((transition) => (
+                transition.kind === 'wipe' && clampNumber(transition.feather ?? 0, 0, 1) > 0
+              ))
+                ? 'feathered-wipe'
+                : renderedSequenceTransitions.some((transition) => transition.kind === 'wipe')
+                  ? 'hard-wipe'
+                  : 'none'
       : portalTransition
       ? clampNumber(portalTransition.feather ?? 0, 0, 1) <= 0
         ? 'portal-hard'
@@ -370,9 +399,9 @@ export function compileShow(
 
 function validateRecipe(recipe: ShowRecipe): void {
   const routeMode = recipe.clips.some((clip) => routeTargets(clip).length > 0)
-  const boundaryModes = [recipe.crossfade, recipe.cut, recipe.adaptationRamp, recipe.routeTransition, recipe.portalSequence].filter(Boolean).length
+  const boundaryModes = [recipe.crossfade, recipe.cut, recipe.adaptationRamp, recipe.routeTransition, recipe.sceneSequence].filter(Boolean).length
   if (recipe.clips.length < 1) throw new Error('compileShow requires at least one clip.')
-  if (!routeMode && !recipe.portalSequence && recipe.clips.length > 2) throw new Error('compileShow v1 requires one or two unrouted clips.')
+  if (!routeMode && !recipe.sceneSequence && recipe.clips.length > 2) throw new Error('compileShow v1 requires one or two unrouted clips.')
   if (boundaryModes > 1) throw new Error('compileShow accepts only one boundary mode.')
   if (routeMode && boundaryModes > 0) throw new Error('compileShow routed clips cannot use scene boundary modes yet.')
   if (recipe.clips.length === 2 && !routeMode && boundaryModes === 0) {
@@ -396,24 +425,21 @@ function validateRecipe(recipe: ShowRecipe): void {
   if (recipe.routeTransition && recipe.clips.length !== 2) {
     throw new Error('compileShow route transitions require two clips.')
   }
-  if (recipe.portalSequence) {
+  if (recipe.sceneSequence) {
     const clipIds = new Set(recipe.clips.map((clip) => clip.id))
-    if (routeMode) throw new Error('compileShow portal sequences cannot use routed clips.')
-    if (recipe.portalSequence.scenes.length < 2) throw new Error('compileShow portal sequences require at least two scenes.')
-    recipe.portalSequence.scenes.forEach((scene, index) => {
+    if (routeMode) throw new Error('compileShow scene sequences cannot use routed clips.')
+    if (recipe.sceneSequence.scenes.length < 2) throw new Error('compileShow scene sequences require at least two scenes.')
+    recipe.sceneSequence.scenes.forEach((scene, index) => {
       if (!clipIds.has(scene.clipId)) {
-        throw new Error(`compileShow portal sequence references missing clip "${scene.clipId}".`)
+        throw new Error(`compileShow scene sequence references missing clip "${scene.clipId}".`)
       }
-      if (scene.holdMs <= 0) throw new Error('compileShow portal sequence holds must be positive.')
-      const isFinal = index === recipe.portalSequence!.scenes.length - 1
-      if (!isFinal && !scene.transitionOut) {
-        throw new Error('compileShow portal sequence scenes require transitions except for the final hold.')
-      }
+      if (scene.holdMs <= 0) throw new Error('compileShow scene sequence holds must be positive.')
+      const isFinal = index === recipe.sceneSequence!.scenes.length - 1
       if (isFinal && scene.transitionOut) {
-        throw new Error('compileShow portal sequence final scene cannot transition.')
+        throw new Error('compileShow scene sequence final scene cannot transition.')
       }
-      if (scene.transitionOut && scene.transitionOut.durationMs <= 0) {
-        throw new Error('compileShow portal sequence transitions must be positive.')
+      if (scene.transitionOut && scene.transitionOut.kind !== 'cut' && scene.transitionOut.durationMs <= 0) {
+        throw new Error('compileShow scene sequence transitions must be positive.')
       }
     })
   }
@@ -646,9 +672,10 @@ ${indentBlock(emitPortalRenderBlock(from, to, transition), 4)}
   ].join('\n\n')
 }
 
-function emitPortalSequenceShowCode(
+function emitSceneSequenceShowCode(
   members: CompiledMember[],
-  sequence: ShowPortalSequenceRecipe,
+  sequence: ShowSceneSequenceRecipe,
+  outputDimension: 1 | 2,
 ): string {
   const memberById = new Map(members.map((member) => [member.id, member]))
   const scenes = sequence.scenes.map((scene) => ({ ...scene, member: memberById.get(scene.clipId)! }))
@@ -658,7 +685,7 @@ function emitPortalSequenceShowCode(
     sceneIndex: number
     from: CompiledMember
     to?: CompiledMember
-    transition?: ShowPortalSequenceTransitionRecipe
+    transition?: ShowSceneSequenceTransitionRecipe
     startMs: number
   }> = []
   let cursor = 0
@@ -666,7 +693,7 @@ function emitPortalSequenceShowCode(
     const holdStart = cursor
     cursor += scene.holdMs
     segments.push({ kind: 'hold', startMs: holdStart, endMs: cursor, sceneIndex, from: scene.member })
-    if (scene.transitionOut) {
+    if (scene.transitionOut && scene.transitionOut.kind !== 'cut') {
       const transitionStart = cursor
       cursor += scene.transitionOut.durationMs
       segments.push({
@@ -702,11 +729,11 @@ function emitPortalSequenceShowCode(
   const transitionBranches = segments
     .filter((segment) => segment.kind === 'transition')
     .map((segment, index) => `${index === 0 ? 'if' : 'else if'} (__pxlblz_show_transition == ${segment.sceneIndex}) {
-${indentBlock(emitPortalRenderBlock(segment.from, segment.to!, segment.transition!), 4)}
+${indentBlock(emitSceneSequenceTransitionBlock(segment.from, segment.to!, segment.transition!, outputDimension), 4)}
   }`)
     .join(' ')
   const sceneBranches = scenes.map((scene, index) => `${index === 0 ? 'if' : 'else if'} (__pxlblz_show_scene == ${index}) {
-    ${scene.member.prefix}_renderCapture2D(index, x, y)
+    ${memberRenderCapture(scene.member, outputDimension)}
     ${scene.member.prefix}_emit()
   }`).join(' ')
 
@@ -719,7 +746,7 @@ ${indentBlock(emitPortalRenderBlock(segment.from, segment.to!, segment.transitio
   __pxlblz_show_elapsed_ms = (__pxlblz_show_elapsed_ms + delta) % ${cursor}
   ${schedulerBranches}
 }`,
-    `export function render2D(index, x, y) {
+    `export function ${outputDimension === 2 ? 'render2D(index, x, y)' : 'render(index)'} {
   if (__pxlblz_show_transition >= 0) {
     ${transitionBranches}
   } else {
@@ -730,10 +757,57 @@ ${indentBlock(emitPortalRenderBlock(segment.from, segment.to!, segment.transitio
   ].join('\n\n')
 }
 
+function emitSceneSequenceTransitionBlock(
+  from: CompiledMember,
+  to: CompiledMember,
+  transition: ShowSceneSequenceTransitionRecipe,
+  outputDimension: 1 | 2,
+): string {
+  if (transition.kind === 'portal') return emitPortalRenderBlock(from, to, transition)
+
+  const fromRender = memberRenderCapture(from, outputDimension)
+  const toRender = memberRenderCapture(to, outputDimension)
+  if (transition.kind === 'crossfade') {
+    return `${fromRender}
+var r0 = ${from.prefix}_r
+var g0 = ${from.prefix}_g
+var b0 = ${from.prefix}_b
+${toRender}
+rgb(
+  r0 * (1 - __pxlblz_show_mix) + ${to.prefix}_r * __pxlblz_show_mix,
+  g0 * (1 - __pxlblz_show_mix) + ${to.prefix}_g * __pxlblz_show_mix,
+  b0 * (1 - __pxlblz_show_mix) + ${to.prefix}_b * __pxlblz_show_mix
+)`
+  }
+
+  const feather = clampNumber(transition.feather ?? 0, 0, 1)
+  const featherPrelude = transition.kind === 'wipe' && feather > 0
+    ? `var __pxlblz_show_feather_progress = (__pxlblz_show_mix + ${feather / 2} - index / pixelCount) / ${feather}\n`
+    : ''
+  const pickTo = transition.kind === 'wipe'
+    ? feather > 0
+      ? `index / pixelCount < __pxlblz_show_mix - ${feather / 2} || (index / pixelCount < __pxlblz_show_mix + ${feather / 2} && __pxlblz_show_hash01(index) < clamp(__pxlblz_show_feather_progress, 0, 1))`
+      : 'index / pixelCount < __pxlblz_show_mix'
+    : '__pxlblz_show_hash01(index) < __pxlblz_show_mix'
+  return `${featherPrelude}if (${pickTo}) {
+  ${toRender}
+  ${to.prefix}_emit()
+} else {
+  ${fromRender}
+  ${from.prefix}_emit()
+}`
+}
+
+function memberRenderCapture(member: CompiledMember, outputDimension: 1 | 2): string {
+  return outputDimension === 2
+    ? `${member.prefix}_renderCapture2D(index, x, y)`
+    : `${member.prefix}_renderCapture(index)`
+}
+
 function emitPortalRenderBlock(
   from: CompiledMember,
   to: CompiledMember,
-  transition: ShowPortalSequenceTransitionRecipe,
+  transition: ShowSceneSequenceTransitionRecipe,
 ): string {
   const centerX = clampNumber(transition.centerX ?? 0.5, 0, 1)
   const centerY = clampNumber(transition.centerY ?? 0.5, 0, 1)
