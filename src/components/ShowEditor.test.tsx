@@ -8,6 +8,7 @@ import {
   addShowZone,
   createDefaultShow,
   removeShowScene,
+  spanShowCellZones,
   updateShowCellAdaptations,
   updateShowCellPattern,
   updateShowRoutingSwitch,
@@ -174,6 +175,44 @@ describe('ShowEditor (#318)', () => {
     await user.click(screen.getByRole('button', { name: 'Select Scene 1 to Scene 2 transition (routing)' }))
     expect(screen.getByText(/Scene 1 -> Scene 2 - routing transition/i)).toBeInTheDocument()
     expect(screen.getByLabelText('Destination routing layout')).toHaveValue(base.routingLayouts[1].id)
+  })
+
+  it('authors a boundary-owned time-scale ramp from the nested Time lane (#417)', async () => {
+    const user = userEvent.setup()
+    const show = createDefaultShow('show-417', 'Time lane', 1000)
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+
+    expect(screen.getByRole('group', { name: 'Time lane for main' })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Edit time transition from Scene 1 for main' }))
+    await user.click(screen.getByLabelText('Animate time for main'))
+    fireEvent.change(screen.getByLabelText('Time start main'), { target: { value: '1.5' } })
+    fireEvent.change(screen.getByLabelText('Time target main'), { target: { value: '0' } })
+
+    await waitFor(() => {
+      const saved = useShowStore.getState().shows[0]
+      expect(saved.transitions?.[0].propertyTransitions).toEqual({
+        timeScale: { fromByCellId: { 'cell-2': 1.5 } },
+      })
+      expect(saved.cells[1].adaptations.timeScale).toBe(0)
+    })
+    expect(screen.getByText('1.5→0')).toBeInTheDocument()
+  })
+
+  it('projects Time values across every row covered by a spanning cell (#417)', () => {
+    let show = addShowZone(createDefaultShow('show-417-span', 'Spanning time', 1000), {
+      name: 'edge',
+      nominalPixelCount: 16,
+    })
+    show = spanShowCellZones(show, show.cells[0].id, 2)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+
+    expect(screen.getByRole('group', { name: 'Time lane for main' }).parentElement).toHaveTextContent('1×')
+    expect(screen.getByRole('group', { name: 'Time lane for edge' }).parentElement).toHaveTextContent('1×')
   })
 
   it('renders a scene strip, selectable cell inspector, and compile bar', async () => {

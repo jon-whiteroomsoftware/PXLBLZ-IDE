@@ -132,7 +132,7 @@ model remains:
   The lossless migration preserves the shipped #397 routing representation and
   gives #403 progressive transfers plus #404 layout-aware transitions the same
   entity seam instead of another private lane or inspector.
-- **Property transitions and automation** (decided 2026-07-11): the primitive
+- **Property transitions and automation** (first slice shipped #417): the primitive
   is CSS-like: start value, target value, duration, and optional easing (linear
   when omitted). Scene/cell state owns target values; the boundary transition
   owns how the previous state reaches them. `timeScale` is the first complete
@@ -142,6 +142,12 @@ model remains:
   Automation lanes are the editable projection of these values and transitions,
   not a separate animation engine; #405 parametric routing and #406 coordinate
   remapping must consume this shared property system.
+  The first nested Time lane shows each scene target and each boundary's
+  start-to-target ramp. The boundary inspector enables the ramp per destination
+  zone, edits its explicit start, and edits the destination cell's target beside
+  the shared duration/easing controls. Generated two-scene and sequence code use
+  the same polynomial easing samples as the editor; continued same-Pattern
+  scenes reuse one private clock through ramp, exact-zero dwell, and resume.
 - **Timeline transport and accurate seeking** (shipped #414 after spike
   #412): clicking or dragging the ruler places the persistent playhead; Space
   toggles play/pause. #415 adds Split at a valid interior playhead position and

@@ -142,6 +142,12 @@ export interface ShowBoundaryTransition {
   centerY?: number
   invert?: boolean
   featherPolicy?: ShowPortalFeatherPolicy
+  /** Boundary-owned interpolation settings keyed by the destination cell. */
+  propertyTransitions?: {
+    timeScale?: {
+      fromByCellId: Record<string, number>
+    }
+  }
 }
 
 export interface ShowCellAdaptations {

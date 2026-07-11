@@ -470,7 +470,7 @@ function SceneStrip({
     )),
     '64px',
   ]
-  const rows = ['auto', '28px', '34px', ...strip.rows.map(() => '64px'), '34px']
+  const rows = ['auto', '28px', '34px', ...strip.rows.flatMap(() => ['64px', '26px']), '34px']
   const timelineWidth = Math.max(780, timeline.durationMs / 50)
   return (
     <div
@@ -506,7 +506,7 @@ function SceneStrip({
           Show time
         </div>
         <TimelineRuler show={show} gridColumn={`2 / ${columns.length}`} />
-        <TimelinePlayhead show={show} gridColumn={`2 / ${columns.length}`} rowSpan={strip.rows.length + 3} />
+        <TimelinePlayhead show={show} gridColumn={`2 / ${columns.length}`} rowSpan={strip.rows.length * 2 + 3} />
         <div role="group" aria-label="Transition lane" className="contents">
           <div
             className="flex items-center gap-2 border-b border-zinc-900 px-1 text-[9.5px] uppercase tracking-[0.12em] text-structural"
@@ -566,7 +566,7 @@ function SceneStrip({
                   ? 'bg-live/10 text-zinc-100'
                   : 'text-zinc-300 hover:text-zinc-100',
               ].join(' ')}
-              style={{ gridColumn: 1, gridRow: rowIndex + 4 }}
+              style={{ gridColumn: 1, gridRow: `${rowIndex * 2 + 4} / span 2` }}
             >
               <span
                 aria-hidden
@@ -596,7 +596,7 @@ function SceneStrip({
                   borderLeftColor: row.color ?? '#38bdf8',
                   background: `linear-gradient(color-mix(in srgb, ${row.color ?? '#38bdf8'} 9%, #101013), color-mix(in srgb, ${row.color ?? '#38bdf8'} 6%, #0c0c0e))`,
                   gridColumn: `${cell.columnStart} / span ${cell.columnSpan}`,
-                  gridRow: `${rowIndex + 4} / span ${cell.rowSpan}`,
+                  gridRow: `${rowIndex * 2 + 4} / span ${Math.max(1, cell.rowSpan * 2 - 1)}`,
                 } as CSSProperties}
                 onMouseEnter={(event) => {
                   event.currentTarget.style.background = `linear-gradient(color-mix(in srgb, ${row.color ?? '#38bdf8'} 14%, #131316), color-mix(in srgb, ${row.color ?? '#38bdf8'} 10%, #0e0e10))`
@@ -615,6 +615,49 @@ function SceneStrip({
                 </span>
               </button>
             ))}
+            <div
+              role="group"
+              aria-label={`Time lane for ${row.zoneName}`}
+              className="flex items-center gap-1 border-t border-zinc-900/80 px-2 text-[9px] text-violet-300/80"
+              style={{ gridColumn: 1, gridRow: rowIndex * 2 + 5 }}
+            >
+              <span className="font-mono">↳ time ×</span>
+            </div>
+            {show.scenes.map((scene, sceneIndex) => {
+              const cell = cellCoveringScene(show, row.zoneId, sceneIndex)
+              return cell ? (
+                <div
+                  key={`time-${row.zoneId}-${scene.id}`}
+                  className="flex items-center border-t border-zinc-900/80 px-2 font-mono text-[9px] text-zinc-500"
+                  style={{ gridColumn: 2 + sceneIndex * 2, gridRow: rowIndex * 2 + 5 }}
+                >
+                  {formatTimeScale(cell.adaptations.timeScale)}×
+                </div>
+              ) : null
+            })}
+            {show.scenes.slice(0, -1).map((scene, sceneIndex) => {
+              const transition = show.transitions?.find((candidate) => candidate.afterSceneId === scene.id && candidate.kind !== 'routing')
+              const destination = cellCoveringScene(show, row.zoneId, sceneIndex + 1)
+              const from = destination && transition?.propertyTransitions?.timeScale?.fromByCellId[destination.id]
+              return transition && destination ? (
+                <button
+                  key={`time-boundary-${row.zoneId}-${scene.id}`}
+                  type="button"
+                  aria-label={`Edit time transition from ${scene.name} for ${row.zoneName}`}
+                  className={[
+                    'flex items-center justify-center border-t border-zinc-900/80 font-mono text-[9px] transition-colors',
+                    from === undefined ? 'text-zinc-700 hover:text-violet-300' : 'bg-violet-400/10 text-violet-200',
+                  ].join(' ')}
+                  style={{ gridColumn: 3 + sceneIndex * 2, gridRow: rowIndex * 2 + 5 }}
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    onSelect({ kind: 'transition', transitionId: transition.id })
+                  }}
+                >
+                  {from === undefined ? '—' : `${formatTimeScale(from)}→${formatTimeScale(destination.adaptations.timeScale)}`}
+                </button>
+              ) : null
+            })}
           </div>
         ))}
         <button
@@ -625,7 +668,7 @@ function SceneStrip({
             onAddZone()
           }}
           className="flex items-center justify-center rounded-[5px] border border-dashed border-zinc-800 bg-transparent text-[10px] uppercase tracking-wider text-structural hover:border-zinc-600 hover:text-zinc-200"
-          style={{ gridColumn: 1, gridRow: strip.rows.length + 4 }}
+          style={{ gridColumn: 1, gridRow: strip.rows.length * 2 + 4 }}
         >
           + zone
         </button>
@@ -637,7 +680,7 @@ function SceneStrip({
             onAddScene()
           }}
           className="flex items-center justify-center rounded-[5px] border border-dashed border-zinc-800 bg-transparent text-[10px] uppercase tracking-wider text-structural [writing-mode:vertical-rl] hover:border-zinc-600 hover:text-zinc-200"
-          style={{ gridColumn: columns.length, gridRow: `4 / span ${strip.rows.length}` }}
+          style={{ gridColumn: columns.length, gridRow: `4 / span ${strip.rows.length * 2}` }}
         >
           + scene
         </button>
@@ -908,6 +951,7 @@ function ContextualInspector({
         transitionId={selection.transitionId}
         onUpdate={onUpdateBoundaryTransition}
         onRemove={onRemoveBoundaryTransition}
+        onUpdateCellAdaptations={onUpdateAdaptations}
       />
     )
   }
@@ -1222,11 +1266,13 @@ function TransitionInspector({
   transitionId,
   onUpdate,
   onRemove,
+  onUpdateCellAdaptations,
 }: {
   show: ShowRecord
   transitionId: string
   onUpdate: (transitionId: string, changes: Partial<Omit<ShowBoundaryTransition, 'id' | 'afterSceneId'>>) => void
   onRemove: (transitionId: string) => void
+  onUpdateCellAdaptations: (cell: ShowCell, changes: Partial<ShowCell['adaptations']>) => void
 }) {
   const transition = show.transitions?.find((candidate) => candidate.id === transitionId)
   if (!transition) return null
@@ -1270,6 +1316,12 @@ function TransitionInspector({
   const updatePortal = (changes: Partial<ShowPortalSettings>, feather = transition.feather ?? 0.12) => {
     onUpdate(transition.id, { kind: 'portal', durationMs: transition.durationMs || 2000, feather, ...changes })
   }
+  const destinationCells = nextScene
+    ? show.zones.flatMap((zone) => {
+        const cell = cellCoveringScene(show, zone.id, sceneIndex + 1)
+        return cell ? [{ zone, cell }] : []
+      }).filter((entry, index, entries) => entries.findIndex((candidate) => candidate.cell.id === entry.cell.id) === index)
+    : []
   return (
     <InspectorPanel title={`${scene?.name ?? 'Scene'} -> ${nextScene?.name ?? 'next'} - ${transition.kind} transition`}>
       <div className="grid grid-cols-2 gap-2">
@@ -1324,6 +1376,66 @@ function TransitionInspector({
           step={1}
           onChange={(seconds) => onUpdate(transition.id, { durationMs: seconds * 1000 })}
         />
+        <section className="col-span-2 rounded border border-violet-400/15 bg-violet-400/[0.035] p-2" aria-label="Time scale transition">
+          <div className="mb-2 text-[10px] uppercase tracking-[0.12em] text-violet-300/80">Time scale</div>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {destinationCells.map(({ zone, cell }) => {
+              const from = transition.propertyTransitions?.timeScale?.fromByCellId[cell.id]
+              const outgoing = cellCoveringScene(show, zone.id, sceneIndex)
+              const enabled = from !== undefined
+              const updateFrom = (value: number | undefined) => {
+                const fromByCellId = {
+                  ...(transition.propertyTransitions?.timeScale?.fromByCellId ?? {}),
+                }
+                if (value === undefined) delete fromByCellId[cell.id]
+                else fromByCellId[cell.id] = value
+                onUpdate(transition.id, {
+                  propertyTransitions: Object.keys(fromByCellId).length > 0
+                    ? { timeScale: { fromByCellId } }
+                    : undefined,
+                })
+              }
+              return (
+                <div key={cell.id} className="rounded border border-zinc-800 bg-zinc-950/45 p-2">
+                  <label className="flex items-center gap-2 text-[10px] text-zinc-300">
+                    <input
+                      type="checkbox"
+                      aria-label={`Animate time for ${zone.name}`}
+                      checked={enabled}
+                      disabled={transition.kind === 'cut'}
+                      onChange={(event) => updateFrom(event.target.checked ? outgoing?.adaptations.timeScale ?? 1 : undefined)}
+                      className="h-3.5 w-3.5 accent-violet-400"
+                    />
+                    {zone.name}
+                  </label>
+                  {enabled && (
+                    <div className="mt-2 grid grid-cols-2 gap-2">
+                      <NumberField
+                        label={`Time start ${zone.name}`}
+                        value={from}
+                        min={0}
+                        max={4}
+                        step={0.05}
+                        onChange={updateFrom}
+                      />
+                      <NumberField
+                        label={`Time target ${zone.name}`}
+                        value={cell.adaptations.timeScale}
+                        min={0}
+                        max={4}
+                        step={0.05}
+                        onChange={(timeScale) => onUpdateCellAdaptations(cell, { timeScale })}
+                      />
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+          <p className="mt-2 text-[10px] leading-4 text-zinc-500">
+            The destination scene owns the target. This boundary owns the start, duration, and easing; a target of 0 pauses without resetting Pattern state.
+          </p>
+        </section>
         {transition.kind === 'wipe' && (
           <>
             <NumberField
@@ -1861,6 +1973,20 @@ function formatDuration(ms: number): string {
   const minutes = Math.floor(seconds / 60)
   const rest = seconds % 60
   return rest === 0 ? `${minutes}m` : `${minutes}m ${rest}s`
+}
+
+function cellCoveringScene(show: ShowRecord, zoneId: string, targetSceneIndex: number): ShowCell | undefined {
+  return show.cells.find((cell) => {
+    const cellZoneIndex = show.zones.findIndex((zone) => zone.id === cell.zoneId)
+    const targetZoneIndex = show.zones.findIndex((zone) => zone.id === zoneId)
+    if (cellZoneIndex < 0 || targetZoneIndex < cellZoneIndex || targetZoneIndex >= cellZoneIndex + (cell.zoneSpan ?? 1)) return false
+    const start = show.scenes.findIndex((scene) => scene.id === cell.sceneId)
+    return start >= 0 && targetSceneIndex >= start && targetSceneIndex < start + cell.sceneSpan
+  })
+}
+
+function formatTimeScale(value: number): string {
+  return Number(value.toFixed(2)).toString()
 }
 
 function formatBytes(bytes: number): string {

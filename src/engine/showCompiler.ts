@@ -7,6 +7,8 @@ import {
   type ControllerZone,
 } from './controllerProfile'
 import { emitFixedPoint } from './fxEmit'
+import { emitShowEasingExpression } from './showEasing'
+import type { ShowTransitionEasing } from './personalContentRecords'
 
 export interface ShowClipRecipe {
   id: string
@@ -52,6 +54,7 @@ export interface ShowAdaptationRampRecipe {
   durationMs: number
   from: Partial<ShowClipAdaptation>
   to: Partial<ShowClipAdaptation>
+  easing?: ShowTransitionEasing
 }
 
 export interface ShowRouteTransitionRecipe {
@@ -73,11 +76,14 @@ export interface ShowSceneSequenceTransitionRecipe {
   centerY?: number
   invert?: boolean
   featherPolicy?: 'dither' | 'blend'
+  easing?: ShowTransitionEasing
+  timeScale?: { from: number; to: number }
 }
 
 export interface ShowSceneSequenceSceneRecipe {
   clipId: string
   holdMs: number
+  timeScale?: number
   transitionOut?: ShowSceneSequenceTransitionRecipe
 }
 
@@ -599,7 +605,7 @@ function emitAdaptationRampShowCode(member: CompiledMember, ramp: ShowAdaptation
   if (__pxlblz_show_elapsed_ms < ${ramp.startMs}) {
     __pxlblz_show_mix = 0
   } else if (__pxlblz_show_elapsed_ms < ${transitionEnd}) {
-    __pxlblz_show_mix = (__pxlblz_show_elapsed_ms - ${ramp.startMs}) / ${ramp.durationMs}
+    __pxlblz_show_mix = ${emitShowEasingExpression(ramp.easing ?? 'linear', `(__pxlblz_show_elapsed_ms - ${ramp.startMs}) / ${ramp.durationMs}`)}
   } else {
     __pxlblz_show_mix = 1
   }
@@ -727,7 +733,9 @@ function emitSceneSequenceShowCode(
       return `${condition} {
     __pxlblz_show_scene = ${segment.sceneIndex}
     __pxlblz_show_transition = -1
-    __pxlblz_show_mix = 0
+    __pxlblz_show_mix = 0${scenes[segment.sceneIndex].timeScale === undefined
+      ? ''
+      : `\n    ${segment.from.prefix}_adapt_timeScale = ${scenes[segment.sceneIndex].timeScale}`}
     ${segment.from.prefix}_advance(delta)
   }`
     }
@@ -736,7 +744,9 @@ function emitSceneSequenceShowCode(
     return `${condition} {
     __pxlblz_show_scene = ${segment.sceneIndex}
     __pxlblz_show_transition = ${segment.sceneIndex}
-    __pxlblz_show_mix = (__pxlblz_show_elapsed_ms - ${segment.startMs}) / ${segment.transition!.durationMs}
+    __pxlblz_show_mix = ${emitShowEasingExpression(segment.transition!.easing ?? 'linear', `(__pxlblz_show_elapsed_ms - ${segment.startMs}) / ${segment.transition!.durationMs}`)}${segment.transition!.timeScale
+      ? `\n    ${segment.from.prefix}_adapt_timeScale = ${segment.transition!.timeScale!.from} * (1 - __pxlblz_show_mix) + ${segment.transition!.timeScale!.to} * __pxlblz_show_mix`
+      : ''}
     ${segment.from.prefix}_advance(delta)${advanceTo}
   }`
   }).join(' ')

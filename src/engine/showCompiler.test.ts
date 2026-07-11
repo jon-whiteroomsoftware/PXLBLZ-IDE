@@ -784,6 +784,7 @@ export function render(index) {
         durationMs: 1000,
         from: { brightness: 1, phase: 0 },
         to: { brightness: 0.25, phase: 0.2 },
+        easing: 'ease-in',
       },
     }, {})
 
@@ -792,11 +793,11 @@ export function render(index) {
     handle.beforeRender(1500)
     handle.render(0)
 
-    expect(pixel()).toEqual([0.625, 0.625, 0.625])
+    expect(pixel()).toEqual([0.8125, 0.8125, 0.8125])
     expect(handle.getExports()).toMatchObject({
       __pxlblz_show_c0_renderCalls: 1,
-      __pxlblz_show_c0_adapt_brightness: 0.625,
-      __pxlblz_show_c0_adapt_phase: 0.1,
+      __pxlblz_show_c0_adapt_brightness: 0.8125,
+      __pxlblz_show_c0_adapt_phase: 0.05,
     })
     expect(artifact.summary).toMatchObject({
       clipCount: 1,
@@ -1521,6 +1522,56 @@ export function render(index) { calls = calls + 1; rgb(0, 1, 0) }
       worstInstantRenderersPerPixel: 2,
     })
     expect(artifact.code).toContain('__pxlblz_show_elapsed_ms = (__pxlblz_show_elapsed_ms + delta) % 5000')
+  })
+
+  it('eases one private clock to exact pause and back across a scene sequence (#417)', () => {
+    const source = `
+export var elapsed = 0
+export function beforeRender(delta) { elapsed = elapsed + delta }
+export function render(index) { rgb(elapsed, time(1), index) }
+`
+    const artifact = compileShow({
+      clips: [{ id: 'continuous', source }],
+      sceneSequence: {
+        scenes: [
+          {
+            clipId: 'continuous', holdMs: 100,
+            timeScale: 1,
+            transitionOut: {
+              kind: 'crossfade', durationMs: 100, easing: 'ease-in',
+              timeScale: { from: 1, to: 0 },
+            },
+          },
+          {
+            clipId: 'continuous', holdMs: 500,
+            timeScale: 0,
+            transitionOut: {
+              kind: 'crossfade', durationMs: 100, easing: 'ease-out',
+              timeScale: { from: 0, to: 1 },
+            },
+          },
+          { clipId: 'continuous', holdMs: 100, timeScale: 1 },
+        ],
+      },
+    }, {})
+    const { handle } = loadShow(artifact.code, artifact.metadata)
+
+    handle.beforeRender(100) // transition begins at scale 1
+    handle.beforeRender(50) // ease-in midpoint: scale .75
+    handle.beforeRender(50) // exact zero
+    handle.beforeRender(500) // pause hold remains exact zero
+    expect(handle.getExports()).toMatchObject({
+      __pxlblz_show_c0_elapsed: 137.5,
+      __pxlblz_show_c0_adapt_timeScale: 0,
+    })
+
+    handle.beforeRender(50) // ease-out midpoint: scale .75
+    handle.beforeRender(50) // resumed at scale 1
+    expect(handle.getExports()).toMatchObject({
+      __pxlblz_show_c0_elapsed: 225,
+      __pxlblz_show_c0_adapt_timeScale: 1,
+    })
+    expect(artifact.summary.clipCount).toBe(1)
   })
 
   it('plays every scene when portal and wipe boundaries are mixed', () => {

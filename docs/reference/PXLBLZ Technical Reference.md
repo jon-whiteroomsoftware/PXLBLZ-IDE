@@ -884,6 +884,10 @@ edit non-destructive adaptations and explicit `restartOnEntry` state, and build
 compiler recipes. `normalizeShowTransitionState` losslessly migrates legacy
 `scene.transitionOut` and `routingSwitches` values into stable boundary entities
 with id, `afterSceneId`, kind, duration, easing, and type-specific fields. The
+optional `propertyTransitions.timeScale.fromByCellId` map stores explicit start
+values by destination cell; the destination cell's adaptation remains the target.
+Values normalize to `0..4`, survive the `transitions_json` persistence path, and
+do not create a second animation model. The
 legacy fields remain derived compatibility views during the migration; compiler,
 timeline, EPE, and persistence paths normalize before consuming them. Visual and
 routing records can coexist at one boundary, while every boundary always retains
@@ -1094,6 +1098,15 @@ zero. The generated outer `beforeRender` and per-pixel `render` still execute:
 this is a clock pause, not an evaluation mask or buffered frame hold. A
 same-Pattern adaptation ramp interpolates through zero on the existing member
 instance, so stop, dwell, and resume preserve state without implicit restart.
+Boundary easing is emitted as deterministic arithmetic: linear `t`, quadratic
+ease-in `t²`, quadratic ease-out `1-(1-t)²`, and piecewise quadratic ease-in-out.
+The editor helper and generated expression are sampled against each other in
+tests. For three-or-more-scene sequences, an explicit time-scale property ramp
+also changes clip continuity identity: matching continued cells share one member
+even when their target scales differ. Hold segments assign the scene target;
+transition segments assign the eased start-to-target interpolation before that
+same member advances. Exact-zero holds therefore deliver zero delta without
+resetting state, and a later ramp resumes the accumulated private clock.
 `ShowCompileSummary.clockPolicy` distinguishes `real-time`, `scaled`,
 `scaled-ramp`, `exact-pause`, and `exact-pause-ramp` while render policy and
 `worstInstantRenderersPerPixel` continue to report the unchanged renderer cost.

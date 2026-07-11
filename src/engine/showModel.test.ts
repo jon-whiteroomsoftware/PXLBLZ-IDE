@@ -688,8 +688,72 @@ describe('showModel (#318)', () => {
       durationMs: 2000,
       from: { brightness: 1, phase: 0, timeScale: 1, mirror: false, timeOffsetMs: 0 },
       to: { brightness: 0.4, phase: 0.25, timeScale: 0, mirror: false, timeOffsetMs: 0 },
+      easing: 'linear',
     })
     expect(recipe.crossfade).toBeUndefined()
+  })
+
+  it('persists and compiles boundary-owned time-scale interpolation settings (#417)', () => {
+    let show = createDefaultShow('show-417', 'Time transition')
+    show = updateShowCellPattern(show, show.cells[1].id, {
+      pattern: show.cells[0].pattern,
+      patternName: show.cells[0].patternName,
+    })
+    show = updateShowCellAdaptations(show, show.cells[1].id, { timeScale: 0 })
+    show = updateShowBoundaryTransition(show, 'transition-scene-1', {
+      easing: 'ease-in-out',
+      propertyTransitions: { timeScale: { fromByCellId: { [show.cells[1].id]: 1.5 } } },
+    })
+
+    const normalized = normalizeShowTransitionState(JSON.parse(JSON.stringify(show)) as ShowRecord)
+    expect(normalized.transitions?.[0].propertyTransitions).toEqual({
+      timeScale: { fromByCellId: { [show.cells[1].id]: 1.5 } },
+    })
+    expect(showRecordToCompileRecipe(normalized, {
+      byCellId: Object.fromEntries(show.cells.map((cell) => [cell.id, DEMOS.TestPattern1D])),
+    }).adaptationRamp).toMatchObject({
+      from: { timeScale: 1.5 },
+      to: { timeScale: 0 },
+      easing: 'ease-in-out',
+    })
+  })
+
+  it('keeps one Pattern instance through a ramp, exact pause, and resume sequence (#417)', () => {
+    let show = addShowScene(createDefaultShow('show-417-sequence', 'Pause sequence'))
+    for (const cell of show.cells.slice(1)) {
+      show = updateShowCellPattern(show, cell.id, {
+        pattern: show.cells[0].pattern,
+        patternName: show.cells[0].patternName,
+      })
+    }
+    show = updateShowCellAdaptations(show, show.cells[1].id, { timeScale: 0 })
+    show = updateShowCellAdaptations(show, show.cells[2].id, { timeScale: 1 })
+    show = updateShowBoundaryTransition(show, 'transition-scene-1', {
+      easing: 'ease-out',
+      propertyTransitions: { timeScale: { fromByCellId: { [show.cells[1].id]: 1 } } },
+    })
+    show = updateShowBoundaryTransition(show, 'transition-scene-2', {
+      easing: 'ease-in',
+      propertyTransitions: { timeScale: { fromByCellId: { [show.cells[2].id]: 0 } } },
+    })
+
+    const recipe = showRecordToCompileRecipe(show, {
+      byCellId: Object.fromEntries(show.cells.map((cell) => [cell.id, DEMOS.TestPattern1D])),
+    })
+    expect(recipe.clips).toHaveLength(1)
+    expect(recipe.sceneSequence?.scenes).toEqual([
+      expect.objectContaining({ clipId: show.cells[0].id, timeScale: 1 }),
+      expect.objectContaining({
+        clipId: show.cells[0].id,
+        timeScale: 0,
+        transitionOut: expect.objectContaining({ timeScale: { from: 0, to: 1 }, easing: 'ease-in' }),
+      }),
+      expect.objectContaining({ clipId: show.cells[0].id, timeScale: 1 }),
+    ])
+    expect(recipe.sceneSequence?.scenes[0].transitionOut).toMatchObject({
+      timeScale: { from: 1, to: 0 },
+      easing: 'ease-out',
+    })
   })
 
   it('emits a route-cost transition recipe for wipe and dither boundaries', () => {

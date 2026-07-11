@@ -768,6 +768,17 @@ function normalizeBoundaryTransition(transition: ShowBoundaryTransition): ShowBo
     easing: transition.easing === 'ease-in' || transition.easing === 'ease-out' || transition.easing === 'ease-in-out'
       ? transition.easing
       : 'linear',
+    ...(transition.propertyTransitions?.timeScale
+      ? {
+          propertyTransitions: {
+            timeScale: {
+              fromByCellId: Object.fromEntries(Object.entries(
+                transition.propertyTransitions.timeScale.fromByCellId ?? {},
+              ).map(([cellId, value]) => [cellId, clampTimeScale(value)])),
+            },
+          },
+        }
+      : {}),
   }
   if (kind === 'routing') return { ...base, layoutId: transition.layoutId }
   if (kind === 'wipe') return { ...base, feather: clamp01(transition.feather ?? 0) }
@@ -782,6 +793,10 @@ function normalizeBoundaryTransition(transition: ShowBoundaryTransition): ShowBo
     }
   }
   return base
+}
+
+function clampTimeScale(value: number): number {
+  return Math.max(0, Math.min(4, Number.isFinite(value) ? value : 1))
 }
 
 function boundaryToLegacyTransition(
@@ -1015,13 +1030,21 @@ export function showRecordToCompileRecipe(
     throw new Error('Portal transition requires a 2D Stage Map.')
   }
   if (samePattern && hasSameDiscreteAdaptations(cells[0], cells[1]) && transition && transition.kind !== 'cut' && transition.kind !== 'portal') {
+    const boundary = show.transitions?.find((candidate) => (
+      candidate.afterSceneId === transitionScene.id && candidate.kind !== 'routing'
+    ))
+    const explicitFrom = boundary?.propertyTransitions?.timeScale?.fromByCellId[cells[1].id]
     return {
       clips: [{ id: cells[0].id, source: source0, adaptation: compilerAdaptation(cells[0].adaptations) }],
       adaptationRamp: {
         startMs: show.scenes[0].durationMs,
         durationMs: transition.durationMs,
-        from: compilerAdaptation(cells[0].adaptations),
+        from: {
+          ...compilerAdaptation(cells[0].adaptations),
+          ...(explicitFrom === undefined ? {} : { timeScale: explicitFrom }),
+        },
         to: compilerAdaptation(cells[1].adaptations),
+        easing: boundary?.easing ?? 'linear',
       },
       zones: lookup.controllerZones ?? nominalZones(show.zones),
     }
@@ -1070,19 +1093,36 @@ function showRecordToSceneSequenceRecipe(
   if (cells.some((cell) => !cell)) return null
   const resolvedCells = cells as ShowCell[]
   const transitions = show.scenes.slice(0, -1).map((scene) => scene.transitionOut)
+  const hasTimeScaleTransitions = show.transitions?.some((transition) => (
+    transition.kind !== 'routing' && Boolean(transition.propertyTransitions?.timeScale)
+  )) ?? false
   if (transitions.some((transition) => transition?.kind === 'portal') && (!show.stageMapId || lookup.stageDimension !== 2)) {
     throw new Error('Portal transition requires a 2D Stage Map.')
   }
 
   const clipByKey = new Map<string, ShowRecipe['clips'][number]>()
   const clipIdByCellId = new Map<string, string>()
-  for (const cell of resolvedCells) {
+  for (const [index, cell] of resolvedCells.entries()) {
     const source = lookup.byCellId[cell.id]
     if (!source) throw new Error(`Show compile requires pattern source for cell "${cell.id}".`)
     const adaptation = compilerAdaptation(cell.adaptations)
     const continuityKey = `${cell.pattern.kind}:${cell.pattern.id}:${JSON.stringify(adaptation)}`
     const key = cell.restartOnEntry ? `${continuityKey}:restart:${cell.id}` : continuityKey
-    const existing = clipByKey.get(key)
+    const previous = resolvedCells[index - 1]
+    const incomingBoundary = previous
+      ? show.transitions?.find((transition) => transition.afterSceneId === previous.sceneId && transition.kind !== 'routing')
+      : undefined
+    const continuesTimeScale = Boolean(
+      previous
+      && !cell.restartOnEntry
+      && incomingBoundary?.propertyTransitions?.timeScale
+      && isSamePattern(previous, cell)
+      && hasSameDiscreteAdaptations(previous, cell),
+    )
+    const continuedClipId = continuesTimeScale ? clipIdByCellId.get(previous.id) : undefined
+    const existing = continuedClipId
+      ? [...clipByKey.values()].find((clip) => clip.id === continuedClipId)
+      : clipByKey.get(key)
     if (existing) {
       clipIdByCellId.set(cell.id, existing.id)
     } else {
@@ -1098,11 +1138,28 @@ function showRecordToSceneSequenceRecipe(
       scenes: show.scenes.map((scene, index) => {
         const cell = resolvedCells[index]
         const transition = scene.transitionOut
+        const nextCell = resolvedCells[index + 1]
+        const boundary = show.transitions?.find((candidate) => (
+          candidate.afterSceneId === scene.id && candidate.kind !== 'routing'
+        ))
+        const timeScaleTransition = nextCell && boundary?.propertyTransitions?.timeScale
+          ? {
+              from: boundary.propertyTransitions.timeScale.fromByCellId[nextCell.id]
+                ?? cell.adaptations.timeScale,
+              to: nextCell.adaptations.timeScale,
+            }
+          : undefined
         return {
           clipId: clipIdByCellId.get(cell.id)!,
           holdMs: scene.durationMs,
+          ...(hasTimeScaleTransitions ? { timeScale: cell.adaptations.timeScale } : {}),
           ...(transition
-            ? { transitionOut: compilerSequenceTransition(transition) }
+            ? {
+                transitionOut: {
+                  ...compilerSequenceTransition(transition),
+                  ...(timeScaleTransition ? { timeScale: timeScaleTransition, easing: boundary?.easing ?? 'linear' } : {}),
+                },
+              }
             : {}),
         }
       }),

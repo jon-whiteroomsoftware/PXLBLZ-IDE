@@ -305,6 +305,12 @@ stable entity rather than editing either neighboring scene. Visual transitions
 expose kind, duration, easing, cost, and type-specific settings; routing markers
 select their destination layout. Removing a visual event leaves an explicit cut
 marker, while removing a routing marker removes only that routing event.
+Each zone row includes a compact nested **Time ×** lane. Scene columns display
+their target time scale; a highlighted boundary segment displays an authored
+start-to-target ramp. Select that segment (or its transition chip) to enable the
+ramp for a destination zone, set its start and target, and choose the boundary's
+duration and easing. Linear, ease-in, ease-out, and ease-in-out use the same
+deterministic curves in preview and generated controller code.
 
 The transport above the timeline goes to Show start and toggles play/pause;
 **Space** toggles the same state while focus is outside an editor control. Clicking

@@ -187,6 +187,7 @@ describe('showStore (#318)', () => {
       durationMs: 2500,
       easing: 'ease-out',
       feather: 0.25,
+      propertyTransitions: { timeScale: { fromByCellId: { 'cell-2': 1.5 } } },
     })
     useShowStore.setState(showInitialState)
     await useShowStore.getState().loadShows()
@@ -197,6 +198,7 @@ describe('showStore (#318)', () => {
       durationMs: 2500,
       easing: 'ease-out',
       feather: 0.25,
+      propertyTransitions: { timeScale: { fromByCellId: { 'cell-2': 1.5 } } },
     })
   })
 
