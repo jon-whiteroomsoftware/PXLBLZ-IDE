@@ -1037,6 +1037,9 @@ three fresh instances. The generated scheduler loops over hold and transition
 segments: holds advance/render one member, crossfade and portal windows advance
 both members, while wipe/dither select one renderer per pixel. The existing
 portal renderer still calls the second renderer only inside a true-blend feather.
+The shared HSV-to-RGB capture dispatch is generated for every isolated member;
+it is not limited to the first two scene slots, so later scenes emit through
+their own capture registers.
 The final hold may return to the first member, making loop
 wrap continuous without an implicit restart. Studio loop duration includes
 transition windows; routing-layout schedules retain their scene-hold clock.

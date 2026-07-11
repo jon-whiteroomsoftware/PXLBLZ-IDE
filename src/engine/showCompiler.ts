@@ -1239,14 +1239,20 @@ ${advanceDelta('delta', '  ')}
     ]
   })
 
+  const captureBranches = members.length <= 2
+    ? `if (slot == 0) { __pxlblz_show_c0_r = r; __pxlblz_show_c0_g = g; __pxlblz_show_c0_b = b }
+  else { __pxlblz_show_c1_r = r; __pxlblz_show_c1_g = g; __pxlblz_show_c1_b = b }`
+    : members.map((member, index) => (
+        `${index === 0 ? 'if' : 'else if'} (slot == ${index}) { ${member.prefix}_r = r; ${member.prefix}_g = g; ${member.prefix}_b = b }`
+      )).join('\n  ')
+
   return [
     'var __pxlblz_show_elapsed_ms = 0',
     'var __pxlblz_show_mix = 0',
     'var __pxlblz_show_phase = 0',
     ...memberVars,
     `function __pxlblz_show_capture_rgb(slot, r, g, b) {
-  if (slot == 0) { __pxlblz_show_c0_r = r; __pxlblz_show_c0_g = g; __pxlblz_show_c0_b = b }
-  else { __pxlblz_show_c1_r = r; __pxlblz_show_c1_g = g; __pxlblz_show_c1_b = b }
+  ${captureBranches}
 }`,
     `function __pxlblz_show_capture_hsv(slot, h, s, v) {
   h = h - floor(h)

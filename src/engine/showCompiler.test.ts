@@ -1,5 +1,6 @@
 import { loadPattern, type PatternHandle } from './loadPattern'
 import { compileShow } from './showCompiler'
+import { createShim } from './shim'
 import { DEMOS } from '@/pixelblaze/stock/patterns'
 
 interface LoadedShow {
@@ -1524,6 +1525,55 @@ export function render(index) { calls = calls + 1; rgb(0, 1, 0) }
     handle.render2D(0, 0, 0)
     expect(pixel()).toEqual([1, 0, 0])
     expect(artifact.summary).toMatchObject({ clipCount: 3, transitionCount: 2 })
+  })
+
+  it('initializes and renders the real Glyph Rain source as a third scene', () => {
+    const artifact = compileShow({
+      clips: [
+        { id: 'heat', source: DEMOS.HeatShimmerTiles },
+        { id: 'circuit', source: DEMOS.NeonCircuitBoard },
+        { id: 'glyphs', source: DEMOS.GlyphRain },
+      ],
+      sceneSequence: {
+        scenes: [
+          {
+            clipId: 'heat',
+            holdMs: 1000,
+            transitionOut: {
+              kind: 'portal',
+              durationMs: 1000,
+              centerX: 0.5,
+              centerY: 0.5,
+              feather: 0.12,
+              featherPolicy: 'blend',
+            },
+          },
+          {
+            clipId: 'circuit',
+            holdMs: 1000,
+            transitionOut: { kind: 'wipe', durationMs: 1000, feather: 0.2 },
+          },
+          { clipId: 'glyphs', holdMs: 1000 },
+        ],
+      },
+    }, {})
+    const mapPoints = Array.from({ length: 256 }, (_, index) => ({
+      sample: [(index % 16) / 15, Math.floor(index / 16) / 15],
+    }))
+    const shim = createShim({ pixelCount: 256, dimensions: 2, mapPoints, getVirtualTime: () => 0 })
+    const handle = loadPattern(artifact.code, artifact.metadata, shim.builtins)
+
+    handle.beforeRender(4500)
+    let brightest = 0
+    for (let index = 0; index < 256; index += 1) {
+      const x = (index % 16) / 15
+      const y = Math.floor(index / 16) / 15
+      handle.render2D(index, x, y)
+      brightest = Math.max(brightest, ...shim.capturedPixel())
+    }
+
+    expect(handle.getExports()).toMatchObject({ __pxlblz_show_c2_built: 1 })
+    expect(brightest).toBeGreaterThan(0)
   })
 
   it('passes Stage coordinates through to native 2D member renderers', () => {
