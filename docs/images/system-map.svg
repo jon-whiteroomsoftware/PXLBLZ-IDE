@@ -1,77 +1,78 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 470" font-family="'IBM Plex Mono','SF Mono',ui-monospace,Menlo,monospace">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 560" font-family="'IBM Plex Mono','SF Mono',ui-monospace,Menlo,monospace">
   <defs>
     <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
       <path d="M0,0 L10,5 L0,10 z" fill="#4a7aa8"/>
     </marker>
   </defs>
-  <rect width="720" height="470" fill="#ffffff"/>
+  <rect width="900" height="560" fill="#ffffff"/>
 
-  <!-- UI + stores -->
-  <rect x="40" y="30" width="300" height="56" rx="6" fill="#f5f7f9" stroke="#2b3036"/>
-  <text x="56" y="54" font-size="12" font-weight="bold" fill="#2b3036">UI — React components</text>
-  <text x="56" y="72" font-size="10" fill="#6b7480">thin views; no business logic</text>
+  <rect x="24" y="28" width="852" height="360" rx="10" fill="#fbfcfd" stroke="#aab3bd" stroke-width="1.5"/>
+  <text x="44" y="54" font-size="11" font-weight="bold" fill="#6b7480" letter-spacing="2">BROWSER</text>
 
-  <rect x="420" y="30" width="260" height="56" rx="6" fill="#f5f7f9" stroke="#2b3036"/>
-  <text x="436" y="54" font-size="12" font-weight="bold" fill="#2b3036">Zustand stores</text>
-  <text x="436" y="72" font-size="10" fill="#6b7480">readable outside React</text>
+  <rect x="48" y="76" width="238" height="72" rx="6" fill="#f5f7f9" stroke="#2b3036"/>
+  <text x="64" y="101" font-size="12" font-weight="bold" fill="#2b3036">React UI</text>
+  <text x="64" y="121" font-size="10.5" fill="#6b7480">Gallery · Studio · docs</text>
+  <text x="64" y="137" font-size="10.5" fill="#6b7480">thin views and event delegation</text>
 
-  <line x1="340" y1="58" x2="416" y2="58" stroke="#4a7aa8" stroke-width="1.5" marker-start="url(#arr)" marker-end="url(#arr)"/>
+  <rect x="331" y="76" width="238" height="72" rx="6" fill="#f5f7f9" stroke="#2b3036"/>
+  <text x="347" y="101" font-size="12" font-weight="bold" fill="#2b3036">Zustand stores</text>
+  <text x="347" y="121" font-size="10.5" fill="#6b7480">shared application state</text>
+  <text x="347" y="137" font-size="10.5" fill="#6b7480">orchestration and providers</text>
 
-  <line x1="190" y1="86" x2="190" y2="126" stroke="#4a7aa8" stroke-width="1.5" marker-start="url(#arr)" marker-end="url(#arr)"/>
-  <line x1="550" y1="86" x2="550" y2="126" stroke="#4a7aa8" stroke-width="1.5" marker-start="url(#arr)" marker-end="url(#arr)"/>
+  <line x1="286" y1="112" x2="327" y2="112" stroke="#4a7aa8" stroke-width="1.6" marker-start="url(#arr)" marker-end="url(#arr)"/>
 
-  <!-- engine -->
-  <rect x="40" y="130" width="640" height="158" rx="6" fill="none" stroke="#2b3036" stroke-width="1.5"/>
-  <text x="56" y="156" font-size="12" font-weight="bold" fill="#2b3036">ENGINE — pure TypeScript, zero React imports</text>
+  <rect x="48" y="194" width="521" height="160" rx="7" fill="#ffffff" stroke="#2b3036" stroke-width="1.5"/>
+  <text x="64" y="221" font-size="12" font-weight="bold" fill="#2b3036">Engine — framework-free TypeScript</text>
 
-  <g font-size="11" fill="#2b3036">
-    <rect x="56" y="172" width="186" height="40" rx="4" fill="#f5f7f9" stroke="#aab3bd"/>
-    <text x="68" y="190">bundle · passEngine</text>
-    <text x="68" y="204" font-size="10" fill="#6b7480">Acorn AST · artifacts</text>
+  <rect x="66" y="240" width="145" height="76" rx="5" fill="#f5f7f9" stroke="#aab3bd"/>
+  <text x="78" y="263" font-size="11" font-weight="bold" fill="#2b3036">Artifacts</text>
+  <text x="78" y="282" font-size="10" fill="#6b7480">bundle · passes</text>
+  <text x="78" y="299" font-size="10" fill="#6b7480">Show compiler</text>
 
-    <rect x="256" y="172" width="186" height="40" rx="4" fill="#f5f7f9" stroke="#aab3bd"/>
-    <text x="268" y="190">fixedpoint · fxEmit · shim</text>
-    <text x="268" y="204" font-size="10" fill="#6b7480">Fast / Precise</text>
+  <rect x="228" y="240" width="145" height="76" rx="5" fill="#f5f7f9" stroke="#aab3bd"/>
+  <text x="240" y="263" font-size="11" font-weight="bold" fill="#2b3036">Runtime</text>
+  <text x="240" y="282" font-size="10" fill="#6b7480">shim · frame loop</text>
+  <text x="240" y="299" font-size="10" fill="#6b7480">Fast / Precise</text>
 
-    <rect x="456" y="172" width="208" height="40" rx="4" fill="#f5f7f9" stroke="#aab3bd"/>
-    <text x="468" y="190">maps · layout · camera</text>
-    <text x="468" y="204" font-size="10" fill="#6b7480">sample / pos split</text>
+  <rect x="390" y="240" width="161" height="76" rx="5" fill="#f5f7f9" stroke="#aab3bd"/>
+  <text x="402" y="263" font-size="11" font-weight="bold" fill="#2b3036">Models + protocols</text>
+  <text x="402" y="282" font-size="10" fill="#6b7480">maps · Shows · routes</text>
+  <text x="402" y="299" font-size="10" fill="#6b7480">Controller core</text>
 
-    <rect x="56" y="226" width="186" height="40" rx="4" fill="#f5f7f9" stroke="#aab3bd"/>
-    <text x="68" y="244">renderLoop · showCompiler</text>
-    <text x="68" y="258" font-size="10" fill="#6b7480">frames · composition</text>
+  <line x1="167" y1="148" x2="167" y2="190" stroke="#4a7aa8" stroke-width="1.5" marker-end="url(#arr)"/>
+  <line x1="450" y1="148" x2="450" y2="190" stroke="#4a7aa8" stroke-width="1.5" marker-start="url(#arr)" marker-end="url(#arr)"/>
 
-    <rect x="256" y="226" width="186" height="40" rx="4" fill="#f5f7f9" stroke="#aab3bd"/>
-    <text x="268" y="244">models · personal content</text>
-    <text x="268" y="258" font-size="10" fill="#6b7480">six Studio entity kinds</text>
+  <rect x="626" y="76" width="222" height="72" rx="6" fill="#eef2f6" stroke="#2b3036"/>
+  <text x="642" y="101" font-size="12" font-weight="bold" fill="#2b3036">Pages Functions</text>
+  <text x="642" y="121" font-size="10.5" fill="#6b7480">auth · user-scoped API</text>
+  <text x="642" y="137" font-size="10.5" fill="#6b7480">personal-content provider</text>
 
-    <rect x="456" y="226" width="208" height="40" rx="4" fill="#f5f7f9" stroke="#aab3bd"/>
-    <text x="468" y="244">ControllerProvider</text>
-    <text x="468" y="258" font-size="10" fill="#6b7480">protocol + transport seam</text>
-  </g>
+  <rect x="626" y="194" width="222" height="72" rx="6" fill="#eef2f6" stroke="#2b3036"/>
+  <text x="642" y="219" font-size="12" font-weight="bold" fill="#2b3036">Extension relay</text>
+  <text x="642" y="239" font-size="10.5" fill="#6b7480">optional LAN transport</text>
+  <text x="642" y="255" font-size="10.5" fill="#6b7480">page → content → worker</text>
 
-  <!-- outputs -->
-  <line x1="149" y1="288" x2="149" y2="328" stroke="#4a7aa8" stroke-width="1.5" marker-end="url(#arr)"/>
-  <line x1="349" y1="288" x2="349" y2="328" stroke="#4a7aa8" stroke-width="1.5" marker-end="url(#arr)"/>
-  <line x1="560" y1="288" x2="560" y2="328" stroke="#4a7aa8" stroke-width="1.5" marker-end="url(#arr)"/>
+  <rect x="626" y="304" width="222" height="50" rx="6" fill="#eef2f6" stroke="#2b3036"/>
+  <text x="642" y="326" font-size="12" font-weight="bold" fill="#2b3036">WebGL canvas</text>
+  <text x="642" y="343" font-size="10.5" fill="#6b7480">local point renderer</text>
 
-  <rect x="64" y="332" width="170" height="48" rx="6" fill="#f5f7f9" stroke="#2b3036"/>
-  <text x="80" y="352" font-size="12" font-weight="bold" fill="#2b3036">WebGL canvas</text>
-  <text x="80" y="368" font-size="10" fill="#6b7480">one gl.POINTS pass</text>
+  <line x1="569" y1="112" x2="622" y2="112" stroke="#4a7aa8" stroke-width="1.5" marker-start="url(#arr)" marker-end="url(#arr)"/>
+  <line x1="569" y1="230" x2="622" y2="230" stroke="#4a7aa8" stroke-width="1.5" marker-start="url(#arr)" marker-end="url(#arr)"/>
+  <line x1="569" y1="329" x2="622" y2="329" stroke="#4a7aa8" stroke-width="1.5" marker-end="url(#arr)"/>
 
-  <rect x="264" y="332" width="170" height="48" rx="6" fill="#f5f7f9" stroke="#2b3036"/>
-  <text x="280" y="352" font-size="12" font-weight="bold" fill="#2b3036">D1 + API</text>
-  <text x="280" y="368" font-size="10" fill="#6b7480">all personal entities</text>
+  <rect x="626" y="432" width="222" height="72" rx="6" fill="#f5f7f9" stroke="#2b3036"/>
+  <text x="642" y="457" font-size="12" font-weight="bold" fill="#2b3036">Cloudflare D1</text>
+  <text x="642" y="477" font-size="10.5" fill="#6b7480">durable personal content</text>
+  <text x="642" y="493" font-size="10.5" fill="#6b7480">stable user ownership</text>
 
-  <rect x="464" y="332" width="200" height="48" rx="6" fill="#f5f7f9" stroke="#2b3036"/>
-  <text x="480" y="352" font-size="12" font-weight="bold" fill="#2b3036">extension relay</text>
-  <text x="480" y="368" font-size="10" fill="#6b7480">page &#8594; content &#8594; worker</text>
+  <rect x="48" y="432" width="521" height="72" rx="6" fill="#f5f7f9" stroke="#2b3036"/>
+  <text x="64" y="457" font-size="12" font-weight="bold" fill="#2b3036">Pixelblaze Controller(s)</text>
+  <text x="64" y="477" font-size="10.5" fill="#6b7480">plain generated Pattern / explicit map crosses the boundary</text>
+  <text x="64" y="493" font-size="10.5" fill="#6b7480">WebSocket + HTTP on the local network</text>
 
-  <!-- device -->
-  <line x1="560" y1="380" x2="560" y2="420" stroke="#4a7aa8" stroke-width="1.5" marker-start="url(#arr)" marker-end="url(#arr)"/>
-  <line x1="430" y1="400" x2="700" y2="400" stroke="#aab3bd" stroke-dasharray="5 5"/>
-  <text x="436" y="394" font-size="10" fill="#6b7480" letter-spacing="2">WIFI</text>
+  <path d="M848 112 L868 112 L868 468 L852 468" fill="none" stroke="#4a7aa8" stroke-width="1.5" marker-end="url(#arr)"/>
+  <line x1="626" y1="230" x2="589" y2="230" stroke="#4a7aa8" stroke-width="0"/>
+  <path d="M626 230 L594 230 L594 408 L309 408 L309 428" fill="none" stroke="#4a7aa8" stroke-width="1.5" marker-end="url(#arr)"/>
 
-  <rect x="464" y="424" width="200" height="36" rx="6" fill="#eef2f6" stroke="#2b3036"/>
-  <text x="480" y="447" font-size="10.5" font-weight="bold" fill="#2b3036">Pixelblaze — ws://&#60;ip&#62;:81</text>
+  <text x="450" y="542" text-anchor="middle" font-size="10.5" fill="#6b7480">browser state stays in the browser · durable content crosses the API · hardware intent crosses the relay</text>
 </svg>

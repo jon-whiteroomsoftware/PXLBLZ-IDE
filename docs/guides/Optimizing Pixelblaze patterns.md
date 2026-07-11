@@ -5,14 +5,11 @@ hardware, with measured numbers for our firmware (3.67) rather than folklore. It
 covers general patterns and, with extra attention, GLSL/ShaderToy ports — the
 patterns that most often blow the budget.
 
-**The whole document in two sentences.** Pixelblaze evaluates pixels one at a time
-on a single core, so a frame costs `beforeRender + pixelCount × (per-pixel body)` —
-and every optimization is judged by how much of the *whole frame* it removes, not
-how clever it is locally. Part 1 gives the cost model, the toolbox in order of
-leverage, and the measured facts that overturn folklore; Part 2 is the
-benchmarking toolchain and the measured cost table; Part 3 is the reference — the
-optimization catalogue, the case studies, and the full scoreboard, each claim
-tagged with how it was proven.
+Pixelblaze evaluates pixels one at a time on a single core, so a frame costs
+`beforeRender + pixelCount × (per-pixel body)`. An optimization matters only in
+proportion to how much of that whole frame it removes, not how clever it looks in
+isolation. The principles establish that cost model, the toolchain measures it,
+and the reference turns the evidence into reusable techniques and case studies.
 
 ---
 

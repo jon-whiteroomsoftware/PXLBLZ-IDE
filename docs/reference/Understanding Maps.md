@@ -5,13 +5,12 @@ how they're authored, what actually reaches the device, and the behaviours worth
 knowing about around them. It assumes the platform basics from the **Pixelblaze Ecosystem Primer**;
 for how the PXLBLZ IDE handles maps, see the **PXLBLZ Feature Guide**.
 
-**The whole document in two sentences.** A pixel map records the coordinate each
-LED samples, decoupling a Pattern's domain from wiring order — and the map
-*function* is full JavaScript that runs once in your browser, with only the baked
-coordinate array ever reaching the device. The device stores one map shared by
-every pattern, normalizes whatever units you authored in into the `0..1` range
-patterns actually see (the Fill/Contain choice), and around `pixelCount` changes
-it goes silently stale or silently drops a mismatched map — all by design.
+A pixel map records the coordinate each LED samples, decoupling a Pattern's
+domain from wiring order. The map *function* is full JavaScript that runs once
+in your browser; only its baked coordinate array reaches the device. Pixelblaze
+stores one map shared by every Pattern, normalizes authored units into the
+`0..1` range Patterns see, and deliberately permits that map to become stale or
+be dropped when `pixelCount` changes.
 
 ---
 

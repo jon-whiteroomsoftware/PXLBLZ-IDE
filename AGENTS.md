@@ -1,191 +1,130 @@
-# AGENTS.md
+# PXLBLZ-IDE Agent Guide
 
-This file provides guidance to Codex (Codex.ai/code) when working with code in this repository.
+PXLBLZ-IDE is a browser IDE for authoring, previewing, composing, and sending
+Pixelblaze Patterns. Keep this file short and operational; use the linked domain
+and reference docs for current product and architecture detail.
 
-## Environment notes
+## Start here
 
-This project lives under a path containing spaces (Google Drive folder). Never warn about embedded spaces in paths when running commands within this project directory.
+- Read `CONTEXT.md` for canonical domain language.
+- Read the relevant part of `docs/reference/PXLBLZ Technical Reference.md`
+  before changing architecture or behavior.
+- Use `docs/reference/PXLBLZ Feature Guide.md` for current user-visible behavior.
+- Use `docs/reference/Pixelblaze Ecosystem Primer.md` and
+  `docs/reference/Understanding Maps.md` for Pixelblaze platform semantics.
+- Use `docs/plans/` only for forward-looking designs and open decisions.
+- Ask before editing `README.md`; it is the public entry point for the published
+  v1 release and intentionally changes on a different cadence.
 
-### Preview screenshots / browser automation (`?capture`)
+## Writing
 
-This project is configured around a long-lived Vite dev server on port `5174`. Prefer using the existing server at `http://localhost:5174/` (or `http://localhost:5174/?capture`) for browser checks. Do not casually start and stop per-task dev servers; hot reload is reliable and the persistent server is part of the normal workflow. If the server is not responding, report that and only start it when needed.
+- Lead with the conclusion or largest useful context. Make the first sentence
+  answer what the thing is before adding mechanics, history, or exceptions.
+- Structure substantial writing as successive levels of detail: whole shape,
+  high-level model, then specialized sections. Let readers stop at any depth
+  without losing the governing idea.
+- Open each major section with natural framing that explains its scope and
+  relationship to the whole. Never label the craft with phrases such as
+  "two-sentence summary" or spend words announcing the structure.
+- Apply this standard to docs, issues, comments, plans, and handoffs. Prefer
+  direct, information-dense engineering prose; cut boilerplate, repetition,
+  throat-clearing, and meta-commentary. Occasional dry humor is welcome.
 
-Local authenticated Studio data goes through the Vite `/api` proxy to Wrangler
-Pages dev on port `8788`, backed by Wrangler's local D1 store. Whenever new D1
-migrations land, run `npm run db:migrate:local` as well as any remote migration.
-If localhost Studio loads but personal content endpoints (`/api/maps`,
-`/api/controllers`, `/api/shows`, etc.) throw `Remote personal content request
-failed: 500`, check local D1 schema drift first; stale local migrations often
-manifest as remote-provider errors in the browser console.
+## Architecture map
 
-For visual UI work, expect the Codex in-app Browser to be available and use it
-before falling back to standalone Playwright, Chrome, or Computer Use. In Codex
-Desktop this browser is not exposed as a separate `mcp__browser__...` namespace;
-it is bootstrapped through the Browser Plugin's `control-in-app-browser` skill
-using the Node REPL and the plugin's `scripts/browser-client.mjs` runtime:
+- `src/engine/`: pure TypeScript for parsers, transforms, compilers, models,
+  geometry, protocol logic, preview runtime, and renderer support. Keep React
+  imports out.
+- `src/components/` and `src/App.tsx`: thin React surfaces. Render state,
+  delegate events, and call engine/store operations; do not reimplement rules.
+- `src/store/`: Zustand application state and orchestration. Stores may call
+  providers and pure engine functions; reusable transformations stay in the
+  engine.
+- `src/engine/bundle.ts`, `passEngine.ts`, `fxEmit.ts`, `preview.ts`, and
+  `renderer.ts`: Pattern artifact and preview pipeline.
+- `src/engine/layout.ts`, `src/engine/maps/`, and `src/pixelblaze/stock/maps/`:
+  map baking, normalization, sample/position layout, and stock geometry.
+- `src/engine/ControllerProvider.ts`, `PixelblazeConnection.ts`, and
+  `ExtensionControllerProvider.ts`: transport seam, device protocol, and relay.
+  The MV3 extension lives in `extension/`.
+- `src/engine/showModel.ts`, `showCompiler.ts`, `fastReplay.ts`, and
+  `showTimelineViewport.ts`: Show domain rules, compilation, deterministic seek,
+  and timeline geometry.
+- `src/cloudflare/`, `functions/api/`, and `migrations/`: authentication,
+  user-scoped Pages Functions, D1 persistence, and schema history.
+- `src/docs/catalog.ts`: repository Markdown exposed by the in-app docs route.
 
-```js
-if (globalThis.agent?.browsers == null) {
-  const { setupBrowserRuntime } = await import('<browser-plugin-root>/scripts/browser-client.mjs');
-  await setupBrowserRuntime({ globals: globalThis });
-}
-globalThis.browser = await agent.browsers.get('iab');
-nodeRepl.write(await browser.documentation());
-```
+Preserve these invariants:
 
-If the `browser:control-in-app-browser` skill is listed in the session, read it
-and follow its bootstrap instructions before claiming the browser is missing.
-The skill can disappear from the session catalogue when the standalone Browser
-plugin has been uninstalled even though Codex's in-app browser service is still
-live. In that case, do not infer absence from the skill list: if another bundled
-browser plugin (currently Chrome) exposes `scripts/browser-client.mjs`, bootstrap
-that shared runtime, call `agent.browsers.list()`, and use the entry whose
-`type` is `"iab"` via `agent.browsers.get("iab")`. Only fall back after the live
-browser registry has no `iab` entry or that documented connection actually
-fails, and say briefly what failed. This is important because the in-app browser
-is the fastest feedback loop for inspecting this app's UI.
+- Hardware-bound Patterns remain plain Pixelblaze code. Preview metadata,
+  Precise-mode re-emits, viewport state, and visual settings never leak into a
+  push unless an explicit authored transform generates code.
+- Fast preview uses float64; Precise preview emulates 16.16 behavior. Accepted
+  firmware divergences are documented and measured, not silently claimed away.
+- Map `sample` coordinates and preview `pos` geometry are separate concerns.
+- Personal content is durable in authenticated D1 storage. Local storage holds
+  only small session/device preferences, not a second workspace.
+- A Show saves choreography but compiles into one portable Pixelblaze Pattern.
+- Pattern execution is main-thread `new Function()` plus rAF. Valid source can
+  still freeze the tab with an infinite loop.
 
-The WebGL preview render loop keeps the page perpetually busy, so naive screenshot tools time out and the canvas drawing buffer is unreadable by default. When you need to screenshot the app — and especially the preview renderer — load the dev server with the `?capture` query param (e.g. `http://localhost:5174/?capture`). This is dev-only and inert without the param. It enables `preserveDrawingBuffer` and installs deterministic capture tooling (added in #263/#265):
+## Development and verification
 
-- **In-page automation API** on `window.__pxlblz` (only present under `?capture`):
-  - `setPreview(patch)` — merges a partial into the preview store, firing the deck control effects so a *paused* preview repaints (e.g. `setPreview({ brightness: 0.5, diffusion: 0.3 })`).
-  - `capture(name = 'capture.png')` — forces a fresh paint on the next macrotask (so any setState-driven control effects flush first), snapshots the frame from *inside* `paint()`, POSTs it, and resolves once saved.
-- **Capture sink**: `POST /__capture?name=foo.png` (Vite dev-server endpoint) writes the posted PNG bytes to `/tmp/pxlblz-captures/`. Never registered in a production build.
-
-Prefer this path over out-of-band canvas readback (`drawImage`/`toBlob` from outside), which catches the buffer at unpredictable moments and can return stale or cleared frames.
-
-### Playwright browser checks
-
-Before claiming that the Playwright Chromium binary is missing, run:
+Use the long-lived Vite server at `http://localhost:5174/`. Do not restart it
+casually; report an unavailable server before starting one. Local authenticated
+Studio calls proxy through Wrangler on port `8788`.
 
 ```bash
+npm run dev                 # only when the persistent server is absent
+npm run lint
+npm test
+npm run build
+npm run test:e2e
 npm run check:playwright
+npx vitest run path/to/test.ts
+npm run db:migrate:local
+npm run db:migrate:remote
 ```
 
-That check verifies the repo's own `node_modules/playwright` resolution and the
-matching browser cache revisions. In Codex Desktop, bare
-`import('playwright')` from the Node REPL can resolve Codex.app's bundled
-Playwright instead of this repo's package; that bundled copy may expect a
-different browser revision and produce a misleading "Executable doesn't exist"
-error. If you must drive Playwright from `node_repl`, load it through CommonJS
-resolution instead:
+The pre-commit hook runs lint and the full Vitest suite. Use TDD for behavior
+changes: fail, implement, refactor. Concentrate coverage on pure engine logic;
+keep component tests light and add Playwright coverage for cross-layer flows.
 
-```js
-const { createRequire } = await import('node:module');
-const require = createRequire(import.meta.url);
-const { chromium } = require('playwright');
-```
+When D1 migrations change, apply both local and remote migrations. If local
+Studio personal-content requests return misleading remote-provider 500 errors,
+check the local D1 schema first.
 
-For repo UI smoke tests, prefer `npx playwright ...`, `npm run test:e2e`, or a
-shell-launched script from this workspace. Browser launches require unsandboxed
-execution on macOS in Codex Desktop; sandboxed launches can fail after the binary
-is found with `bootstrap_check_in ... MachPortRendezvousServer ... Permission
-denied (1100)`. That is a launch permission issue, not a missing Chromium
-install.
+## Browser and visual checks
 
-### Code search (Morph / Warp Grip)
+- Use the Codex in-app browser first for UI work, then repo Playwright. If the
+  dedicated in-app-browser skill is absent, bootstrap `scripts/browser-client.mjs`
+  from an installed browser plugin, list browsers, and select the entry whose
+  type is `iab`; absence from the skill catalogue is not proof the browser is
+  unavailable.
+- Run `npm run check:playwright` before claiming Chromium is missing. Use the
+  repo package through `npx playwright`, `npm run test:e2e`, or CommonJS
+  resolution from the workspace; Codex.app's bundled package may expect a
+  different browser revision.
+- Use `http://localhost:5174/?capture` for preview screenshots. The WebGL loop
+  keeps pages busy and ordinary canvas readback may be stale or empty.
+- Under `?capture`, call `window.__pxlblz.setPreview(patch)` and then
+  `window.__pxlblz.capture(name)`. Captures are written to
+  `/tmp/pxlblz-captures/` by the dev-only sink.
+- Check desktop and narrow-window behavior, console errors, keyboard flow, and
+  relevant accessibility basics for substantial UI changes.
 
-For code exploration, use Morph Warp Grip first. In Codex this is exposed as `mcp__morph_mcp.codebase_search`; pass the repo path and a natural-language question. It runs grep/read work in a separate subagent and returns curated excerpts, which keeps the main context lean.
+## Search, issues, and documentation
 
-Default to Warp Grip for "where/how does X work?", architecture tracing, feature discovery, bug investigation, and any search where the exact file or symbol is not already known. Do not start with `rg`, `grep`, broad `find`, or manual file reading for those tasks.
-
-Use direct shell/file search only when there is a specific good reason: checking whether an exact literal string exists, listing known files, opening a file already identified by Morph, or performing a small mechanical verification after Morph has found the relevant area. If direct search is used for exploration anyway, pause first and state why Warp Grip is not the better tool for that query.
-
-## Commands
-
-```bash
-npm run dev          # start the long-lived Vite dev server on port 5174 if it is not already running
-npm test             # run full test suite (Vitest, one-shot)
-npm run test:watch   # Vitest in watch mode
-npm run build        # tsc + Vite build
-npx tsc --noEmit     # type-check only
-```
-
-To run a single test file:
-```bash
-npx vitest run src/store/previewStore.test.ts
-```
-
-The pre-commit hook runs `npm test` automatically via Husky.
-
-## Frontend direction
-
-Use the `frontend-design` and `frontend-workflow` skills for visible UI changes.
-This is an expressive IDE for a small LED light controller, so the UI may be
-more visually dramatic than a conservative business tool, while still preserving
-editor clarity, preview performance, and dense tool ergonomics.
-
-Prefer the existing Vite dev server at `http://localhost:5174/` for browser
-verification. For screenshot or preview-renderer checks, use
-`http://localhost:5174/?capture` and the `window.__pxlblz` capture API described
-above. Check desktop and narrow-window resilience for substantial layout work,
-and verify relevant console/runtime errors.
-
-## Architecture
-
-### Engine / UI boundary
-
-The codebase enforces a hard split between engine code and UI code:
-
-- **Engine** (`src/engine/`, coming) — pure TypeScript, zero React imports. Exposes functions and Zustand store slices. Covers: transpiler, runtime shim, eval loop, canvas renderer, IndexedDB storage.
-- **UI** (`src/`, React components) — calls engine functions, reads from Zustand stores. No business logic inline.
-
-Enforce this by checking for React imports: engine files must have none.
-
-### State (Zustand stores)
-
-Three stores live in `src/store/`:
-
-| Store | State |
-|---|---|
-| `previewStore` | `isRunning`, `speed`, `brightness`, `grid` config |
-| `patternStore` | `activePatternId` |
-| `editorStore` | `compileStatus` (`'good' \| 'broken'`) |
-
-Each store exports its initial state as `*InitialState` — use `store.setState(initialState)` (merge, not replace) in `beforeEach` to reset between tests.
-
-### Testing conventions
-
-- Store tests: reset with `useXxxStore.setState(xxxInitialState)` (merge mode — no second `true` arg, which would drop actions).
-- Test setup is in `src/test/setup.ts` (imports `@testing-library/jest-dom`).
-- Vitest globals are enabled; no need to import `describe`/`it`/`expect` explicitly.
-- React component tests are smoke-only. Engine logic is the primary test target.
-
-### Transpiler (Phase 2, not yet built)
-
-When built, `bundle(patternSrc)` will return `{ code, metadata }`:
-- `code` — flat JS artifact, used for both browser eval and hardware download.
-- `metadata` — `{ exportedVars, controls, renderFns }`, preview-side only, never sent to hardware.
-
-Library files go under `src/pixelblaze/lib/` as plain `.js` (not `.ts`) — Acorn parses them directly and they must be valid Pixelblaze dialect. The filename is the namespace (`sdf.js` → `sdf.*`).
-
-### Key constraints
-
-- **Faithful fixed-point preview** (Tech Reference §2/§5): the preview *defaults* to emulating the device's 16.16 fixed-point arithmetic (Precise), with a float64 "Fast" escape hatch. Two divergence classes are accepted: transcendental precision and algorithmic identity (`perlin`/`prng`/`wave`); only pure integer arithmetic is bit-identical.
-- **Main thread execution** (Tech Reference §17): patterns run on the main thread via `new Function()` + rAF. A syntactically valid infinite loop freezes the tab. The periodic-sync-tick gate (not per-keystroke eval) reduces but does not eliminate this risk.
-
-## Key docs
-
-- **As-built reference**: `docs/reference/PXLBLZ Technical Reference.md` — authoritative description of how the system is built (engine internals, maps, fidelity, connectivity)
-- **Feature guide**: `docs/reference/PXLBLZ Feature Guide.md` — the user-facing view of what the IDE does
-- **Domain glossary**: `CONTEXT.md`
-- **Forward-looking plans**: `docs/plans/`
-
-## Agent skills
-
-### Issue tracker
-
-Issues live in GitHub Issues. See `docs/agents/issue-tracker.md`.
-
-### Triage labels
-
-Triage and coordination labels are mapped in `docs/agents/triage-labels.md`.
-
-### Domain docs
-
-Single-context repo: `CONTEXT.md` at root. The Technical Reference (`docs/reference/PXLBLZ Technical Reference.md`) is the authoritative record of design decisions and their rationale. See `docs/agents/domain.md`.
-
-### Documentation cadence
-
-Use the `doc-sweep` skill when a commit, issue, or feature completion needs
-`CONTEXT.md`, `docs/plans/`, and `docs/reference/` brought back into sync.
+- Start open-ended code exploration with Morph Warp Grip
+  (`mcp__morph_mcp.codebase_search`). Use `rg` for exact literals, known files,
+  and narrow verification.
+- Use GitHub Issues as implementation state. Follow
+  `docs/agents/issue-tracker.md`, `docs/agents/triage-labels.md`, and the
+  `issue-workflow` skill for claiming, progress, review state, and commits.
+- Use `docs/agents/domain.md` when preparing issues, plans, or architectural
+  work. Name concepts exactly as `CONTEXT.md` defines them.
+- Use `doc-sweep` after feature or issue completion. Keep current truth in
+  `docs/reference/`, future intent in `docs/plans/`, vocabulary in `CONTEXT.md`,
+  and executable progress in issues.
+- Keep `CLAUDE.md` as a symlink to this file unless genuinely Claude-specific
+  guidance is required.

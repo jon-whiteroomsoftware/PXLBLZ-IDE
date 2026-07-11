@@ -17,6 +17,11 @@ directly.
 
 # Part 1 — Architecture
 
+The browser is the center of PXLBLZ: it owns the product surfaces, shared state,
+editing engine, preview runtime, and hardware artifact generation. Cloud storage
+and live Controllers sit behind narrow provider boundaries, keeping durable
+content and LAN transport out of the core engine.
+
 ## 1. Stack and system boundaries
 
 | Concern | Implementation |
@@ -31,7 +36,7 @@ directly.
 | Tests | Vitest/jsdom plus Playwright route smoke tests and hardware harnesses |
 | Commit gate | Husky: lint and full Vitest suite |
 
-![System map: UI and stores over a pure engine, with WebGL, D1/API storage, and the extension relay below](../images/system-map.svg)
+![System boundaries: the browser contains UI, shared state, and the pure engine; only durable content and explicit hardware intent cross its boundary](../images/system-map.svg)
 
 ### Engine versus UI
 
@@ -196,6 +201,11 @@ replace or mutate the last running Pattern preview.
 
 # Part 2 — Pattern compilation and preview
 
+An authored Pattern becomes several related but deliberately separate products:
+a flat Pixelblaze artifact, preview metadata, and a fixed-point preview re-emit.
+The same engine then validates, loads, advances, and draws those products without
+turning browser-only state into hardware code.
+
 ## 5. Transpiler and library model
 
 `bundle(patternSource, libraries)` returns:
@@ -260,6 +270,8 @@ outside this library contract.
 `bundleWithPasses(source, libraries, recipe)` applies an ordered,
 JSON-serializable recipe to the flat artifact. An empty recipe is byte-compatible
 with `bundle()` and produces an empty transform summary.
+
+![Pattern artifact pipeline: authored source branches into Fast and Precise preview products, while explicit passes and provenance produce outbound Pixelblaze artifacts](../images/artifact-pipeline.svg)
 
 Pass kinds:
 
@@ -402,6 +414,11 @@ active sparse override bag. Fast/Precise is a separate global machine setting.
 
 # Part 3 — Maps and spatial presentation
 
+Maps decide what coordinates each LED gives a Pattern; geometry decides where
+the preview draws those LEDs. Keeping sampling and presentation separate lets
+one wiring order support virtual 1D domains, 2D surfaces, and 3D structures
+without inventing coordinates that would not exist on hardware.
+
 ## 11. Map source and persistence
 
 A map is an index-ordered coordinate set; `pixelCount` is modeled separately.
@@ -432,6 +449,8 @@ Each resolved map point carries two channels:
   pos?: number[]   // preview position
 }
 ```
+
+![Resolved layout pipeline: map coordinates feed Pattern sampling while intrinsic geometry or an embedding independently places the same lights in WebGL](../images/layout-pipeline.svg)
 
 Ordinary 1D maps provide only `sample`; Line, Ring, or Pole provides preview
 position. Ordinary 2D maps may be displayed Flat or wrapped around a Cylinder.
@@ -480,6 +499,12 @@ cloud does not. Normals and solidity remain preview-only.
 ---
 
 # Part 4 — Controller integration
+
+Controller integration extends the browser IDE across a constrained network
+boundary rather than turning PXLBLZ into a device-management service. A typed
+provider and optional extension relay carry explicit Pattern, map, and live
+control operations while profiles preserve durable intent about physical
+hardware.
 
 ## 14. Provider and extension architecture
 
@@ -665,12 +690,19 @@ source; a miss becomes a frozen imported map.
 
 # Part 5 — Shows
 
+A Show is authored as timeline choreography but shipped as one ordinary,
+portable Pixelblaze Pattern. Its model preserves human intent—scenes, zones,
+boundaries, routing, and automation—while the compiler flattens that intent into
+a scheduler and isolated Pattern members the Controller can run by itself.
+
 ## 19. Show domain model and persistence
 
 A Show is saved choreography over scenes, zones, cells, boundaries, routing
 layouts, and one optional Stage map. `showModel.ts` owns creation, normalization,
 projection, split, growth/removal, range parsing, and mutation. `showStore`
 persists normalized records through `/api/shows`.
+
+![Show model and runtime: scenes and zones meet in cells, boundary entities own cross-scene behavior, and the compiler flattens the saved model into one scheduled Pixelblaze Pattern](../images/show-model-runtime.svg)
 
 Core ownership rules:
 
@@ -826,6 +858,11 @@ replace human-readable provenance.
 ---
 
 # Part 6 — Supporting systems and limits
+
+The core architecture is surrounded by export, documentation, testing, and
+evidence systems that make its promises inspectable. The remaining limits mark
+where PXLBLZ deliberately stops, where browser and firmware behavior can still
+diverge, and which assurances are measured rather than assumed.
 
 ## 26. Export and in-app documentation
 

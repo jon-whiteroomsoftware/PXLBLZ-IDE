@@ -27,6 +27,11 @@ The shortest useful mental model is:
 
 # Part 1 — Working in PXLBLZ
 
+Most work moves between three places: the public Gallery for discovery, Studio
+for authoring, and the global Controller surface for live hardware. The same
+Pattern and preview engine runs underneath them, so opening, editing, testing,
+and sending work are different views of one workflow rather than separate tools.
+
 ## 1. Gallery, Studio, and accounts
 
 ### Gallery
@@ -556,6 +561,11 @@ three subtly different orchestration programs.
 ---
 
 # Part 2 — Boundaries worth remembering
+
+PXLBLZ stays focused by leaving device administration to Pixelblaze and by
+being explicit about the few places where a browser preview cannot perfectly
+reproduce firmware. These boundaries are product constraints, not hidden modes
+or promises deferred to a later screen.
 
 ## 11. What PXLBLZ deliberately does not do
 
