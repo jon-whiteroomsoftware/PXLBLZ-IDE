@@ -37,7 +37,7 @@ export const USER_DOCS: UserDoc[] = [
     title: 'Pixelblaze Ecosystem Primer',
     menuLabel: 'Ecosystem Primer',
     menuKicker: 'Start here',
-    summary: 'Hardware, maps, fixed-point math, and the device/browser split.',
+    summary: 'A beginner-friendly mental model for Controllers, Patterns, maps, and the browser workbench.',
     source: ecosystemPrimer,
     assets: sharedAssets,
   },

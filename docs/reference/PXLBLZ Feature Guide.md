@@ -401,9 +401,9 @@ understood; artifact inspection makes those boundaries visible.
 **Run** and **Save** compile with the Controller's own compiler.
 
 - **Run** loads transient bytecode. It is not added to Saved Patterns.
-- **Save** writes a standard PBP with name, bytecode, and stamped source, then
-  activates it. Repeated saves overwrite the same bound Controller program when
-  that program still exists.
+- **Save** writes the Controller's standard saved Pattern package, containing
+  its name, compiled code, and stamped source, then activates it. Repeated saves
+  overwrite the same bound Controller program when that program still exists.
 
 Run and Save have independent dirty state. Changing Pattern source, an enabled
 profile transform, a matching binding, or the Controller's installed map
@@ -427,10 +427,10 @@ record:
 - **stale** — profile transforms changed; push again; and
 - **unmanaged** — no Studio push record is available.
 
-Import reads the saved PBP. A stamped Pattern may open its existing Studio
-record or restore a deleted one with its original id. Foreign source-bearing
-programs become new personal Patterns. A source-less PBP is listed honestly but
-cannot be reconstructed.
+Import reads the selected saved Pattern. A stamped Pattern may open its existing
+Studio record or restore a deleted one with its original id. Foreign Patterns
+that contain source become new personal Patterns. A saved Pattern containing
+compiled code but no source remains visible but cannot be reconstructed.
 
 ### Sending and importing maps
 
@@ -573,7 +573,8 @@ or promises deferred to a later screen.
   other Controller settings. Use the Pixelblaze web UI.
 - It lists and imports Saved Patterns but does not rename, delete, or arrange
   device playlists.
-- It cannot recover Pattern source that was never stored in a PBP.
+- It cannot recover source from a saved Pattern that contains only compiled
+  code.
 - It does not continuously synchronize hardware control positions with Studio
   preview controls.
 - It does not publish personal Patterns to public Gallery URLs.
