@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { AlertTriangle, Eye, EyeOff, Map as MapIcon, Play } from 'lucide-react'
+import { AlertTriangle, Eye, EyeOff, LoaderCircle, Map as MapIcon, Play } from 'lucide-react'
 import { useShowStore } from '@/store/showStore'
 import { usePatternStore } from '@/store/patternStore'
 import { useControllerProfileStore } from '@/store/controllerProfileStore'
@@ -26,7 +26,7 @@ import {
 } from '@/engine/zonePreview'
 import { OrbitControls } from '@/components/OrbitControls'
 import { LIBRARIES } from '@/pixelblaze/libs'
-import { useShowTransportStore } from '@/store/showTransportStore'
+import { canAdvanceShowPlayback, useShowTransportStore } from '@/store/showTransportStore'
 import { showLoopDurationMs } from '@/engine/showModel'
 
 const field =
@@ -85,6 +85,7 @@ export function ShowStagePreview({ showId }: { showId: string }) {
   const [viewportWidth, setViewportWidth] = useState(1)
   const [soloZoneId, setSoloZoneId] = useState<string | null>(null)
   const [runtimeError, setRuntimeError] = useState<string | null>(null)
+  const [badgedSeekRequestId, setBadgedSeekRequestId] = useState<number | null>(null)
 
   const targetProfile = show?.targetControllerProfileId
     ? controllerProfiles.find((profile) => profile.id === show.targetControllerProfileId)
@@ -188,6 +189,13 @@ export function ShowStagePreview({ showId }: { showId: string }) {
     layout?.projection.zones.some((zone) => zone.id === soloZoneId) ? soloZoneId : null
   const durationMs = show ? showLoopDurationMs(show) : 0
 
+  useEffect(() => {
+    if (seekStatus !== 'rebuilding' || !seekRequest) return
+    const requestId = seekRequest.id
+    const timer = window.setTimeout(() => setBadgedSeekRequestId(requestId), 150)
+    return () => window.clearTimeout(timer)
+  }, [seekRequest, seekStatus])
+
   const paintFastFrame = useCallback((result: FastReplayResult) => {
     const renderer = rendererRef.current
     if (!renderer || !layout) return
@@ -270,11 +278,12 @@ export function ShowStagePreview({ showId }: { showId: string }) {
   }, [brightness, paintFastFrame])
 
   useEffect(() => {
-    if (!isRunning || !replayRef.current) return
+    if (!canAdvanceShowPlayback(isRunning, seekStatus) || !replayRef.current) return
     playbackLastRef.current = performance.now()
     const tick = (now: number) => {
       const runtime = replayRef.current
-      if (!runtime || !usePreviewStore.getState().isRunning) return
+      const transport = useShowTransportStore.getState()
+      if (!runtime || !canAdvanceShowPlayback(usePreviewStore.getState().isRunning, transport.seekStatus)) return
       const last = playbackLastRef.current ?? now
       playbackLastRef.current = now
       try {
@@ -294,7 +303,7 @@ export function ShowStagePreview({ showId }: { showId: string }) {
       if (playbackRafRef.current !== null) cancelAnimationFrame(playbackRafRef.current)
       playbackRafRef.current = null
     }
-  }, [durationMs, isRunning, paintFastFrame, showId])
+  }, [durationMs, isRunning, paintFastFrame, seekStatus, showId])
 
   useEffect(() => {
     if (!seekRequest || !layout || !compiled.artifact) return
@@ -387,6 +396,16 @@ export function ShowStagePreview({ showId }: { showId: string }) {
       <div ref={containerRef} className="relative shrink-0 bg-black/70">
         <div className="relative inline-block">
           <canvas ref={canvasRef} className="rounded-sm" />
+          {seekStatus === 'rebuilding' && seekRequest?.id === badgedSeekRequestId && (
+            <div
+              role="status"
+              aria-label="Rebuilding Show preview"
+              title="Rebuilding preview"
+              className="pointer-events-none absolute right-2 top-2 z-20 grid size-7 place-items-center rounded-md border border-amber-300/20 bg-zinc-950/70 text-amber-300 shadow-lg shadow-black/20 backdrop-blur-sm"
+            >
+              <LoaderCircle size={14} aria-hidden className="animate-spin motion-reduce:animate-none" />
+            </div>
+          )}
           {layout?.draw.kind === '3d' && <OrbitControls canvasRef={canvasRef} showPoleControls={false} />}
           {error && (
             <div className="absolute inset-0 flex items-center justify-center p-4 pointer-events-none">

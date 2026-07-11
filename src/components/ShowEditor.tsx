@@ -980,6 +980,18 @@ function TimelineNavigator({
 function TimelineRuler({ show, gridColumn }: { show: ShowRecord; gridColumn: string }) {
   const durationMs = showLoopDurationMs(show)
   const positionMs = useShowTransportStore((state) => state.showId === show.id ? state.positionMs : 0)
+  const pendingSeekRef = useRef<{ showId: string; targetMs: number } | null>(null)
+  const previewScrub = (targetMs: number) => {
+    if (usePreviewStore.getState().isRunning) usePreviewStore.getState().toggle()
+    useShowTransportStore.getState().setPosition(show.id, targetMs)
+    pendingSeekRef.current = { showId: show.id, targetMs }
+  }
+  const commitScrub = () => {
+    const pending = pendingSeekRef.current
+    if (!pending || pending.showId !== show.id) return
+    pendingSeekRef.current = null
+    useShowTransportStore.getState().requestSeek(show.id, pending.targetMs)
+  }
   const ticks = Array.from({ length: 7 }, (_, index) => ({
     position: index / 6,
     timeMs: durationMs * index / 6,
@@ -1010,7 +1022,11 @@ function TimelineRuler({ show, gridColumn }: { show: ShowRecord; gridColumn: str
         max={durationMs}
         step={1}
         value={Math.min(positionMs, durationMs)}
-        onChange={(event) => requestShowSeek(show.id, Number(event.target.value))}
+        onChange={(event) => previewScrub(Number(event.target.value))}
+        onPointerUp={commitScrub}
+        onPointerCancel={commitScrub}
+        onKeyUp={commitScrub}
+        onBlur={commitScrub}
         className="absolute inset-0 h-full w-full cursor-col-resize opacity-[0.01] focus:opacity-100"
       />
     </div>

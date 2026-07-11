@@ -1,10 +1,16 @@
-import { showTransportInitialState, useShowTransportStore } from './showTransportStore'
+import { canAdvanceShowPlayback, showTransportInitialState, useShowTransportStore } from './showTransportStore'
 
 beforeEach(() => {
   useShowTransportStore.setState(showTransportInitialState)
 })
 
 describe('showTransportStore (#414)', () => {
+  it('queues requested playback until the seek runtime is ready', () => {
+    expect(canAdvanceShowPlayback(true, 'rebuilding')).toBe(false)
+    expect(canAdvanceShowPlayback(true, 'idle')).toBe(true)
+    expect(canAdvanceShowPlayback(false, 'idle')).toBe(false)
+  })
+
   it('lets a newer seek supersede stale replay work', () => {
     const transport = useShowTransportStore.getState()
     transport.openShow('show-a', 10_000)

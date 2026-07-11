@@ -2,6 +2,10 @@ import { create } from 'zustand'
 
 export type ShowSeekStatus = 'idle' | 'rebuilding'
 
+export function canAdvanceShowPlayback(isRunning: boolean, seekStatus: ShowSeekStatus): boolean {
+  return isRunning && seekStatus === 'idle'
+}
+
 export interface ShowSeekRequest {
   id: number
   targetMs: number

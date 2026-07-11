@@ -68,6 +68,31 @@ beforeEach(() => {
 })
 
 describe('ShowStagePreview (#339)', () => {
+  it('shows an icon-only seek badge only when rebuilding lasts beyond the short delay', () => {
+    vi.useFakeTimers()
+    try {
+      const show = createDefaultShow('show-seek-badge', 'Seek badge', 1000)
+      useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+      render(<ShowStagePreview showId={show.id} />)
+      act(() => {
+        useShowTransportStore.setState({
+          seekStatus: 'rebuilding',
+          seekRequest: { id: 1, targetMs: 50_000 },
+        })
+      })
+
+      expect(screen.queryByRole('status', { name: 'Rebuilding Show preview' })).not.toBeInTheDocument()
+      act(() => vi.advanceTimersByTime(149))
+      expect(screen.queryByRole('status', { name: 'Rebuilding Show preview' })).not.toBeInTheDocument()
+
+      act(() => vi.advanceTimersByTime(1))
+      expect(screen.getByRole('status', { name: 'Rebuilding Show preview' })).toBeInTheDocument()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('rebuilds an accurate Fast frame for the current seek request (#414)', async () => {
     const show = createDefaultShow('show-1', 'Opening wash', 1000)
     useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })

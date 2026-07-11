@@ -116,13 +116,18 @@ describe('ShowEditor (#318)', () => {
     expect(usePreviewStore.getState().isRunning).toBe(false)
     expect(screen.getByRole('button', { name: 'Play Show preview' })).toBeInTheDocument()
 
-    fireEvent.change(screen.getByRole('slider', { name: 'Show playhead' }), { target: { value: '31000' } })
+    const playhead = screen.getByRole('slider', { name: 'Show playhead' })
+    fireEvent.change(playhead, { target: { value: '31000' } })
+
+    expect(useShowTransportStore.getState().seekRequest).toBeNull()
+    expect(screen.getByText('00:31.000 / 01:02.000')).toBeInTheDocument()
+
+    fireEvent.pointerUp(playhead)
 
     await waitFor(() => {
       expect(useShowTransportStore.getState().seekRequest).toMatchObject({ targetMs: 31_000 })
     })
     expect(useShowTransportStore.getState().seekStatus).toBe('rebuilding')
-    expect(screen.getByText('00:31.000 / 01:02.000')).toBeInTheDocument()
 
     fireEvent.keyDown(document, { code: 'Space' })
     expect(usePreviewStore.getState().isRunning).toBe(true)
