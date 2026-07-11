@@ -13,6 +13,7 @@ import {
 import type { ShapeId } from '@/engine/shapes'
 import type { SurfaceId } from '@/engine/surfaces'
 import { DeckSelect } from '@/components/DeckSelect'
+import { mapCatalogueKindLabel } from '@/engine/mapCatalogue'
 
 // The Layout controls: two orthogonal knobs over the layout's two
 // code owners — a MAP control (owns `sample`) and an EMBEDDING control (owns
@@ -121,7 +122,9 @@ export function MapSelect() {
           value: o.id,
           label: o.name,
           badge: o.mapDim ? `${o.mapDim}D` : undefined,
-          group: o.group === 'recommended' ? 'Recommended' : 'Other dimensions',
+          group: `${o.group === 'recommended' ? 'Recommended' : 'Other dimensions'}${
+            o.catalogueKind ? ` · ${mapCatalogueKindLabel(o.catalogueKind)}` : ''
+          }`,
         }))}
         onChange={(id) => route(id, maps)}
         menuWidthClass="w-full"

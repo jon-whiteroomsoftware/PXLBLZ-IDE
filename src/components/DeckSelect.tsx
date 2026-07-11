@@ -47,6 +47,8 @@ export function DeckSelect<T extends string | number>({
 }) {
   const [isOpen, setIsOpen] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const optionRefs = useRef<Array<HTMLButtonElement | null>>([])
   const current = options.find((o) => o.value === value) ?? options[0]
   // Only show subgroup headers when the options actually span more than one group;
   // a lone group (the common no-user-maps case) reads cleaner with no header.
@@ -63,14 +65,45 @@ export function DeckSelect<T extends string | number>({
     return () => document.removeEventListener('mousedown', handleMouseDown)
   }, [isOpen])
 
+  function focusOption(index: number) {
+    window.setTimeout(() => optionRefs.current[index]?.focus(), 0)
+  }
+
+  function handleTriggerKeyDown(event: React.KeyboardEvent<HTMLButtonElement>) {
+    if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return
+    event.preventDefault()
+    setIsOpen(true)
+    const currentIndex = Math.max(0, options.findIndex((option) => option.value === current?.value))
+    focusOption(currentIndex)
+  }
+
+  function handleOptionKeyDown(event: React.KeyboardEvent<HTMLButtonElement>, index: number) {
+    let nextIndex: number | null = null
+    if (event.key === 'ArrowDown') nextIndex = Math.min(options.length - 1, index + 1)
+    else if (event.key === 'ArrowUp') nextIndex = Math.max(0, index - 1)
+    else if (event.key === 'Home') nextIndex = 0
+    else if (event.key === 'End') nextIndex = options.length - 1
+    else if (event.key === 'Escape') {
+      event.preventDefault()
+      setIsOpen(false)
+      window.setTimeout(() => triggerRef.current?.focus(), 0)
+      return
+    }
+    if (nextIndex === null) return
+    event.preventDefault()
+    optionRefs.current[nextIndex]?.focus()
+  }
+
   return (
     <div ref={containerRef} className={`relative ${block ? 'w-full' : ''}`}>
       <button
+        ref={triggerRef}
         aria-label={ariaLabel}
         title={`${ariaLabel}: ${current?.label ?? ''}`}
         aria-haspopup="listbox"
         aria-expanded={isOpen}
         onClick={() => setIsOpen((o) => !o)}
+        onKeyDown={handleTriggerKeyDown}
         className={`flex items-center gap-0.5 h-5 pl-1 pr-0.5 rounded border border-zinc-500 text-[11px] tabular-nums text-zinc-300 hover:border-zinc-400 hover:text-amber-400/80 transition-colors ${
           block ? 'w-full justify-between' : 'shrink-0'
         }`}
@@ -110,6 +143,7 @@ export function DeckSelect<T extends string | number>({
               <div key={String(opt.value)}>
                 {header}
                 <button
+                  ref={(element) => { optionRefs.current[i] = element }}
                   role="option"
                   aria-selected={opt.value === current?.value}
                   title={opt.title}
@@ -117,6 +151,7 @@ export function DeckSelect<T extends string | number>({
                     onChange(opt.value)
                     setIsOpen(false)
                   }}
+                  onKeyDown={(event) => handleOptionKeyDown(event, i)}
                   className={`block w-full whitespace-nowrap text-left px-3 py-0.5 text-xs tabular-nums transition-colors hover:bg-zinc-800 ${
                     opt.value === current?.value ? 'text-amber-400' : 'text-zinc-300'
                   }`}

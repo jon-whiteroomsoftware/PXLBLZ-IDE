@@ -1,4 +1,4 @@
-import type { GeometryFamilyView, GridDims, MapPoint, NormalRecipe, PixelMap } from './types'
+import type { GeometryFamilyView, GridDims, MapCatalogueKind, MapPoint, NormalRecipe, PixelMap } from './types'
 import { evalMapSource } from './evalMapSource'
 import { normalizeAspect } from './normalize'
 import { squarePlaneDims, widePlaneDims } from './plane'
@@ -29,6 +29,7 @@ const GRID_FNS: Record<GridRecipe, (pixelCount: number) => GridDims> = {
 export interface SourceMapSpec {
   id: string
   name: string
+  kind: MapCatalogueKind
   dim: 1 | 2 | 3
   displayDim?: 1 | 2 | 3
   family?: GeometryFamilyView
@@ -59,6 +60,7 @@ export function createSourceMap(spec: SourceMapSpec): PixelMap {
     id: spec.id,
     name: spec.name,
     builtin: true,
+    kind: spec.kind,
     dim: spec.dim,
     ...(spec.displayDim !== undefined ? { displayDim: spec.displayDim } : {}),
     ...(spec.family ? { family: spec.family } : {}),

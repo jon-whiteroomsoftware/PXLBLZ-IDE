@@ -139,6 +139,7 @@ export function layoutSource(state: Pick<MapState, 'userMaps'>): LayoutSource {
         dim: m.dim,
         displayDim: m.displayDim,
         family: m.family,
+        kind: m.kind,
         wrappable: isMapWrappable({ id: m.id, dim: m.dim }),
         stock: true,
       })),
@@ -152,6 +153,7 @@ export function layoutSource(state: Pick<MapState, 'userMaps'>): LayoutSource {
           id: m.id,
           name: m.name,
           dim: m.dim,
+          kind: 'custom' as const,
           wrappable: isMapWrappable({ id: m.id, dim: m.dim, gridDims: m.gridDims }),
           stock: false,
         })),
@@ -516,4 +518,6 @@ export const STOCK_MAP_ITEMS = STOCK_MAP_SPECS.map((spec) => ({
   id: spec.id,
   name: spec.name,
   dim: spec.dim,
+  kind: spec.kind,
+  family: spec.family,
 }))

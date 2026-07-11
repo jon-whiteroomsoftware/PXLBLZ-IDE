@@ -208,6 +208,13 @@ of the same measured LED clusters. Every stock map is real, pasteable Mapper
 code: reveal **Stock Maps** in the Maps rail, open one read-only at its stable
 `/studio/maps/<id>` route, and **Clone** it into an editable copy.
 
+The catalogue is grouped by physical type: **Paths**, **Surfaces**, **Shells**,
+**Volumes**, and **Custom / imported**. The Maps rail retains its Cloud/Stock
+ownership sections and groups within Stock; the Pattern menu retains
+Recommended/Other dimensions and adds type inside those groups. Empty categories
+stay hidden, dimension and name filters keep working across groups, and a family
+such as Cylinder remains one item with its coordinate views nested beneath it.
+
 **Custom maps**: click **New Map** and you get an editor for real Pixelblaze
 Mapper source: either a literal coordinate array (`[[x], ...]`, `[[x,y], ...]`,
 or `[[x,y,z], ...]`) or a plain `function(pixelCount)` returning one. Function maps

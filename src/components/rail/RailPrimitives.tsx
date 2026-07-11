@@ -411,6 +411,13 @@ export function StockListItem({
   return (
     <li
       onClick={onSelect}
+      onKeyDown={(event) => {
+        if (event.key !== 'Enter' && event.key !== ' ') return
+        event.preventDefault()
+        onSelect()
+      }}
+      role="button"
+      tabIndex={0}
       style={{ paddingLeft: ROW_PAD }}
       className={[rowClass(active), active ? '' : 'text-zinc-500'].join(' ')}
     >

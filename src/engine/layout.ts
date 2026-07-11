@@ -26,6 +26,8 @@ import { clampPixelCount, cubeSideForCount } from './camera'
 import { centroidNormals, faceNormals } from './centroidNormals'
 import { starShellNormals } from './maps/starGeometry'
 import { tetraShellNormals } from './maps/tetraGeometry'
+import { mapCatalogueKindRank } from './mapCatalogue'
+import type { MapCatalogueKind } from './maps'
 
 // The map a NormalRecipe tag resolves to its derivation: the
 // catalogue declares the recipe NAME; the resolver owns the function lookup, so
@@ -62,6 +64,7 @@ export interface LayoutOption {
   // The 1D Index option represents Pixelblaze's no-map coordinate convention,
   // not a persisted Map entity or a blob that can be sent to hardware.
   implicit?: boolean
+  catalogueKind?: MapCatalogueKind
 }
 
 // Reversible default for 1D Patterns: no installed map, so firmware supplies
@@ -98,6 +101,7 @@ export interface MapMeta {
   // stock/user subgrouping in the map dropdown.
   stock?: boolean
   family?: GeometryFamilyView
+  kind?: MapCatalogueKind
 }
 
 export interface LayoutSource {
@@ -125,13 +129,16 @@ export function mapOptions(nativeDim: 1 | 2 | 3, source: LayoutSource): LayoutOp
       displayDim: m.displayDim ?? m.dim,
       mapDim: m.dim,
       provenance: m.stock ? ('stock' as const) : ('user' as const),
+      catalogueKind: m.kind,
     })),
   ]
   const recommended: LayoutOption[] = candidates
     .filter((option) => option.mapDim === nativeDim)
+    .sort((left, right) => mapCatalogueKindRank(left.catalogueKind) - mapCatalogueKindRank(right.catalogueKind))
     .map((option) => ({ ...option, group: 'recommended' }))
   const other: LayoutOption[] = candidates
     .filter((option) => option.mapDim !== nativeDim)
+    .sort((left, right) => mapCatalogueKindRank(left.catalogueKind) - mapCatalogueKindRank(right.catalogueKind))
     .map((option) => ({ ...option, group: 'other' }))
   return [...recommended, ...other]
 }

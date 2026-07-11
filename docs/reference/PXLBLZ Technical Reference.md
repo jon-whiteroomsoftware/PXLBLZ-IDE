@@ -558,7 +558,11 @@ An embedding owns `pos` while the map owns `sample`; all embeddings are pure
 `pos`-only generators.
 
 Generated geometry families are the hardware-real sibling of this composition.
-`SourceMapSpec.family` groups ordinary source-backed map variants, while
+Every `SourceMapSpec` declares `kind: path | surface | shell | volume | custom`;
+the classification is copied onto `PixelMap`/`MapMeta` and is never inferred from
+an id or display name. `mapCatalogue.ts` owns stable group order, family collapse,
+dimension/search filtering, and Custom/imported provenance. Empty groups are
+omitted. `SourceMapSpec.family` groups ordinary source-backed map variants, while
 `positionSource` names the family's one physical-point source. `createSourceMap`
 evaluates the selected view source into `sample` and the shared position source
 into `pos`, requiring index-aligned point counts. Cylinder ships Strand (1D),

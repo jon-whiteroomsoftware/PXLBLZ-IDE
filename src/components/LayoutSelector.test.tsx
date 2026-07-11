@@ -52,7 +52,7 @@ describe('MapSelect (smoke)', () => {
     expect(screen.getByRole('button', { name: 'Map' })).toHaveTextContent('Index')
     await user.click(screen.getByRole('button', { name: 'Map' }))
     expect(screen.getByText('Recommended')).toBeInTheDocument()
-    expect(screen.getByText('Other dimensions')).toBeInTheDocument()
+    expect(screen.getAllByText(/Other dimensions/).length).toBeGreaterThan(0)
     expect(screen.getByRole('option', { name: 'Square' })).toBeInTheDocument()
   })
 

@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { vi } from 'vitest'
-import { EditableListItem } from './RailPrimitives'
+import { EditableListItem, StockListItem } from './RailPrimitives'
 
 function renderEditableListItem({
   name = 'Lib1',
@@ -54,5 +54,16 @@ describe('EditableListItem', () => {
     await user.type(input, 'Bad Name-1')
 
     expect(input).toHaveValue('Bad Name-1')
+  })
+})
+
+describe('StockListItem', () => {
+  it('opens from the keyboard', async () => {
+    const user = userEvent.setup()
+    const onSelect = vi.fn()
+    render(<ul><StockListItem name="Square" active={false} onSelect={onSelect} /></ul>)
+    screen.getByRole('button', { name: 'Square' }).focus()
+    await user.keyboard('{Enter}')
+    expect(onSelect).toHaveBeenCalledOnce()
   })
 })

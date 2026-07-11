@@ -44,6 +44,7 @@ export function createCustomMap(
     id: opts.id,
     name: opts.name,
     builtin: false,
+    kind: 'custom',
     dim,
     // Replay the grid dims recorded at bake for the layout readout,
     // count-independent; null when the baked points are an irregular cloud.

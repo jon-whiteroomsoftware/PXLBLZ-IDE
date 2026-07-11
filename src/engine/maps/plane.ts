@@ -61,6 +61,7 @@ export function createPlaneMap(params: PlaneParams, opts: { id?: string; name?: 
     id: opts.id ?? 'plane',
     name: opts.name ?? 'Plane',
     builtin: true,
+    kind: 'surface',
     dim: 2,
     // A fixed-grid plane: its dims are the explicit params, count-independent.
     gridDims: () => ({ cols: params.cols, rows: params.rows }),

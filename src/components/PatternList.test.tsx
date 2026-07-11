@@ -393,6 +393,35 @@ describe('PatternList', () => {
     expect(useEditorStore.getState().isReadOnly).toBe(true)
   })
 
+  it('groups stock maps by physical type and nests Cylinder coordinate views', async () => {
+    const user = userEvent.setup()
+    render(<PatternList />)
+    await switchToMaps(user)
+
+    for (const label of ['Paths', 'Surfaces', 'Shells', 'Volumes', 'Custom / imported']) {
+      expect(screen.getByText(label)).toBeInTheDocument()
+    }
+    expect(screen.getAllByText('Cylinder')).toHaveLength(1)
+    expect(screen.getByRole('button', { name: /Strand 1D/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Surface 2D/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Spatial 3D/ })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /Spatial 3D/ }))
+    expect(window.location.pathname).toBe('/studio/maps/cylinder-spatial')
+    expect(useMapStore.getState().editingMap).toEqual({ kind: 'stock', id: 'cylinder-spatial' })
+  })
+
+  it('keeps a family recognizable when the dimension lens leaves one view', async () => {
+    const user = userEvent.setup()
+    render(<PatternList />)
+    await switchToMaps(user)
+    await user.click(screen.getByRole('radio', { name: '1D' }))
+
+    expect(screen.getByText('Cylinder')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Surface 2D/ })).not.toBeInTheDocument()
+    expect(screen.queryByText('Cube shell')).not.toBeInTheDocument()
+  })
+
   it('shows the 1D dimension lens in Maps mode', async () => {
     mockMaps = [CUSTOM_MAP]
     const user = userEvent.setup()

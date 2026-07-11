@@ -46,6 +46,8 @@ export interface GeometryFamilyView {
   natural?: boolean
 }
 
+export type MapCatalogueKind = 'path' | 'surface' | 'shell' | 'volume' | 'custom'
+
 export interface PixelMap {
   id: string
   name: string
@@ -62,6 +64,8 @@ export interface PixelMap {
   // Present when this map is one coordinate view of a shared generated geometry.
   // All sibling views may supply different samples while resolving the same pos.
   family?: GeometryFamilyView
+  // Explicit physical catalogue taxonomy; never inferred from an id or label.
+  kind?: MapCatalogueKind
   // For a baked custom map: how many points the frozen array holds.
   // A freshly selected custom map defaults the modeled count to this so it reads
   // correctly out of the gate — it stays a free knob, so changing it surfaces the

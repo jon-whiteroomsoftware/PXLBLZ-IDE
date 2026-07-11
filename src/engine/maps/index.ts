@@ -5,6 +5,7 @@ export type {
   NormalRecipe,
   CoordinateView,
   GeometryFamilyView,
+  MapCatalogueKind,
 } from './types'
 export { bakeMapSource, detectGridDims } from './bake'
 export type { BakedMap } from './bake'

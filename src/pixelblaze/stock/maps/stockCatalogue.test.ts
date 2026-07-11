@@ -43,6 +43,15 @@ describe('stock catalogue', () => {
     expect(views.map((spec) => spec.dim)).toEqual([1, 2, 3])
   })
 
+  it('declares physical catalogue classification explicitly on every stock entry', () => {
+    expect(STOCK_MAP_SPECS.every((spec) => spec.kind)).toBe(true)
+    expect(stockMapSpec('seed-ring-2d')?.kind).toBe('path')
+    expect(stockMapSpec('plane')?.kind).toBe('surface')
+    expect(stockMapSpec('seed-sphere-3d')?.kind).toBe('shell')
+    expect(stockMapSpec('sphere-volume')?.kind).toBe('volume')
+    expect(stockMapSpec('sunflower-pucks')?.kind).toBe('custom')
+  })
+
   it('builds live builtin maps of the declared dimensionality', () => {
     for (const m of SOURCE_STOCK_MAPS) {
       expect(m.builtin).toBe(true)
