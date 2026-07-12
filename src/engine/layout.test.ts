@@ -203,6 +203,19 @@ describe('resolveLayoutSelection (open / restore)', () => {
     expect(resolveLayoutSelection({}, 2, SOURCE)).toEqual({ mapId: 'plane', surfaceId: 'flat' })
   })
 
+  it('defaults 2D to Square instead of the first catalogue category', () => {
+    const source: LayoutSource = {
+      ...SOURCE,
+      maps: [
+        { id: 'plane', name: 'Square', dim: 2, kind: 'surface', wrappable: true },
+        { id: 'seed-ring-2d', name: 'Ring', dim: 2, kind: 'path' },
+      ],
+    }
+
+    expect(mapOptions(2, source).map((option) => option.id)).toEqual(['plane', 'seed-ring-2d', INDEX_MAP_ID])
+    expect(resolveLayoutSelection({}, 2, source)).toEqual({ mapId: 'plane', surfaceId: 'flat' })
+  })
+
   it('drops a stale cylinder back to Flat on an irregular map', () => {
     expect(resolveLayoutSelection({ mapId: 'ring2d', surfaceId: 'cylinder' }, 2, SOURCE)).toEqual({
       mapId: 'ring2d',
@@ -219,6 +232,19 @@ describe('resolveLayoutSelection (open / restore)', () => {
 
   it('resolves just the map for a 3D pattern', () => {
     expect(resolveLayoutSelection({ mapId: 'cube' }, 3, SOURCE)).toEqual({ mapId: 'cube' })
+  })
+
+  it('defaults 3D to Cube volume instead of the first catalogue category', () => {
+    const source: LayoutSource = {
+      ...SOURCE,
+      maps: [
+        { id: 'cube', name: 'Cube volume', dim: 3, kind: 'volume' },
+        { id: 'seed-sphere-3d', name: 'Sphere shell', dim: 3, kind: 'shell' },
+      ],
+    }
+
+    expect(mapOptions(3, source).map((option) => option.id)).toEqual(['cube', 'seed-sphere-3d', INDEX_MAP_ID])
+    expect(resolveLayoutSelection({}, 3, source)).toEqual({ mapId: 'cube' })
   })
 
   it('still offers the implicit Index view when no real maps exist', () => {

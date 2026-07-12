@@ -15,7 +15,7 @@
 import type { ShapeId } from './shapes'
 import type { SurfaceId } from './surfaces'
 import type { CoordinateView, GeometryFamilyView, MapPoint, PixelMap, NormalizeMode, NormalRecipe, GridDims } from './maps'
-import { cubePixelCount, applyNormalizeMode } from './maps'
+import { cubePixelCount, applyNormalizeMode, capMapSampleEndpoints } from './maps'
 import {
   SHAPES,
   embedPositions,
@@ -71,6 +71,14 @@ export interface LayoutOption {
 // x = index / pixelCount. Kept outside the map catalogue because it is not a
 // Map entity and must never appear in Map mode or Controller map pushes.
 export const INDEX_MAP_ID = '__index__'
+
+// Automatic layout is a product default, not a side effect of catalogue sorting.
+// These choices preserve the full native coordinate domain in each dimension.
+const DEFAULT_MAP_ID_BY_DIM: Record<1 | 2 | 3, string> = {
+  1: INDEX_MAP_ID,
+  2: 'plane',
+  3: 'cube',
+}
 
 export interface ShapeMeta {
   id: ShapeId
@@ -134,7 +142,12 @@ export function mapOptions(nativeDim: 1 | 2 | 3, source: LayoutSource): LayoutOp
   ]
   const recommended: LayoutOption[] = candidates
     .filter((option) => option.mapDim === nativeDim)
-    .sort((left, right) => mapCatalogueKindRank(left.catalogueKind) - mapCatalogueKindRank(right.catalogueKind))
+    .sort((left, right) => {
+      const defaultId = DEFAULT_MAP_ID_BY_DIM[nativeDim]
+      if (left.id === defaultId) return -1
+      if (right.id === defaultId) return 1
+      return mapCatalogueKindRank(left.catalogueKind) - mapCatalogueKindRank(right.catalogueKind)
+    })
     .map((option) => ({ ...option, group: 'recommended' }))
   const other: LayoutOption[] = candidates
     .filter((option) => option.mapDim !== nativeDim)
@@ -271,7 +284,8 @@ export function effectivePixelCount(opts: {
 }
 
 // Resolve the layout a Pattern opens with against the live catalogue:
-//   • any valid persisted map wins; otherwise the first Recommended option.
+//   • any valid persisted map wins; otherwise the dimension's named natural map.
+//     A reduced/custom catalogue without that map falls back to its first Recommended option.
 //   • the embedding is restored/defaulted by selected map dimension — first
 //     Shape for 1D, Flat for 2D, none for 3D.
 // A stale cylinder on a now-irregular map falls back to Flat (cylinder drops out
@@ -290,6 +304,7 @@ export function resolveLayoutSelection(
   const maps = mapOptions(nativeDim, source)
   // A valid persisted map wins outright; otherwise the dimension's default.
   const persistedMap = source.maps.find((candidate) => candidate.id === persisted.mapId)
+  const defaultMap = maps.find((candidate) => candidate.id === DEFAULT_MAP_ID_BY_DIM[nativeDim])
   const map = persisted.mapId === INDEX_MAP_ID
     ? maps.find((candidate) => candidate.id === INDEX_MAP_ID)
     : persistedMap
@@ -297,7 +312,7 @@ export function resolveLayoutSelection(
         id: persistedMap.id,
         mapDim: persistedMap.dim,
       }
-    : maps[0]
+    : defaultMap ?? maps[0]
   if (map) sel.mapId = map.id
 
   const activeMap = sel.mapId ? source.maps.find((m) => m.id === sel.mapId) : undefined
@@ -436,7 +451,9 @@ export function resolveLayout(
       }),
     )
     const samples = selected1DMap
-      ? applyNormalizeMode(selected1DMap.resolve(pixelCount), normalizeMode).map((p) => p.sample)
+      ? capMapSampleEndpoints(
+          applyNormalizeMode(selected1DMap.resolve(pixelCount), normalizeMode),
+        ).map((p) => p.sample)
       : Array.from({ length: pixelCount }, (_, index) => [index / pixelCount])
     if (shape.displayDim === 3) {
       // Pole: a 1D strip wrapped onto a cylinder, drawn in 3D.
@@ -466,7 +483,7 @@ export function resolveLayout(
     } else {
       pixelCount = clampPixelCount(modeledCount)
     }
-    mapPoints = applyNormalizeMode(map.resolve(pixelCount), normalizeMode)
+    mapPoints = capMapSampleEndpoints(applyNormalizeMode(map.resolve(pixelCount), normalizeMode))
     layoutLabel = formatGridDims(map.gridDims(pixelCount))
     displayDim = map.displayDim ?? map.dim
     if (displayDim === 3) {

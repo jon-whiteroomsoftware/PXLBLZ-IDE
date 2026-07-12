@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { ShowEditor } from './ShowEditor'
 import { showInitialState, useShowStore } from '@/store/showStore'
@@ -71,6 +71,31 @@ beforeEach(() => {
 })
 
 describe('ShowEditor (#318)', () => {
+  it('switches from an existing Show to a newly created Show during playback without an update loop', async () => {
+    const existing = createDefaultShow('show-existing', 'Existing Show', 1000)
+    existing.scenes[0] = { ...existing.scenes[0], durationMs: 12_000 }
+    const created = createDefaultShow('show-created', 'Untitled Show', 2000)
+    useShowStore.setState({
+      shows: [created, existing],
+      activeShowId: existing.id,
+      showsLoaded: true,
+    })
+
+    useShowTransportStore.getState().openShow(existing.id, 43_000)
+    const view = render(<ShowEditor showId={existing.id} />)
+    view.rerender(<ShowEditor showId={created.id} />)
+    useShowTransportStore.getState().openShow(created.id, 62_000)
+
+    for (let frame = 1; frame <= 60; frame += 1) {
+      await act(async () => {
+        useShowTransportStore.getState().setPosition(created.id, frame * 16)
+      })
+    }
+
+    expect(screen.getByText('Untitled Show')).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Show timeline' })).toBeInTheDocument()
+  })
+
   it('keeps the Show workspace scrollable without exposing a vertical scrollbar', () => {
     const show = createDefaultShow('show-scroll', 'Long Show', 1000)
     useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })

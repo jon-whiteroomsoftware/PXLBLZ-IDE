@@ -15,7 +15,13 @@ export { cubePixelCount } from './cube'
 export { createCustomMap, inferDim } from './custom'
 export type { Coord } from './custom'
 export { evalMapSource } from './evalMapSource'
-export { normalizeAspect, normalizeFill, applyNormalizeMode } from './normalize'
+export {
+  normalizeAspect,
+  normalizeFill,
+  applyNormalizeMode,
+  capMapSampleEndpoints,
+  PIXELBLAZE_NORMALIZED_MAP_MAX,
+} from './normalize'
 export type { NormalizeMode } from './normalize'
 export { createSourceMap } from './sourceMap'
 export type { SourceMapSpec } from './sourceMap'

@@ -168,7 +168,7 @@ describe('resolveLayout — 1D shapes', () => {
     )
     expect(r.correctedSelection).toEqual({ mapId: 'reverse1d', shapeId: 'ring' })
     expect(r.pixelCount).toBe(3)
-    expect(r.mapPoints.map((p) => p.sample)).toEqual([[1], [0.5], [0]])
+    expect(r.mapPoints.map((p) => p.sample)).toEqual([[65535 / 65536], [0.5], [0]])
     expect(r.mapPoints.every((p) => p.pos?.length === 2)).toBe(true)
     expect(r.draw.kind).toBe('2d')
     expect(r.displayDim).toBe(2)
@@ -211,6 +211,18 @@ describe('resolveLayout — 1D shapes', () => {
 })
 
 describe('resolveLayout — 2D maps', () => {
+  it.each(['contain', 'fill'] as const)(
+    'caps %s sample endpoints to the hardware maximum without shrinking preview positions',
+    (normalizeMode) => {
+      const r = resolveLayout(
+        input({ selection: { mapId: 'plane', surfaceId: 'flat' }, persistedCount: 2, normalizeMode }),
+        deps,
+      )
+      expect(r.mapPoints[1].sample).toEqual([65535 / 65536, 65535 / 65536])
+      expect(r.mapPoints[1].pos).toEqual([1, 1])
+    },
+  )
+
   it('plane reports a cols×rows label and draws 2D', () => {
     const r = resolveLayout(input({ selection: { mapId: 'plane', surfaceId: 'flat' } }), deps)
     expect(r.draw.kind).toBe('2d')

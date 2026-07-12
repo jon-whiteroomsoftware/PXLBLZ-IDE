@@ -580,7 +580,12 @@ export default function App() {
   return (
     <div className="flex flex-col h-screen bg-zinc-950 text-zinc-100">
       <header data-testid="top-bar" className="flex min-h-10 shrink-0 flex-wrap items-center gap-y-1 border-b border-seam bg-panel px-3 py-1 sm:h-10 sm:flex-nowrap sm:px-4 sm:py-0">
-        <span className="flex items-center gap-2 select-none">
+        <a
+          href={import.meta.env.BASE_URL}
+          aria-label="PXLBLZ home"
+          title="Go to home"
+          className="flex items-center gap-2 rounded-sm select-none transition-[filter] hover:brightness-125 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-live/70"
+        >
           <svg width="26" height="20" viewBox="0 0 26 20" aria-hidden className="shrink-0">
             <path d="M1 10 Q5 1 9 10 T17 10 T25 10" fill="none" stroke="#fbbf24" strokeWidth="2.4" strokeLinecap="round" />
             <circle cx="25" cy="10" r="2.6" fill="#fbbf24" />
@@ -598,7 +603,7 @@ export default function App() {
               </span>
             ))}
           </span>
-        </span>
+        </a>
         {/* Left zone = identity + authoring reference (#254): Docs and Code sit beside
             the wordmark, mirroring the Controller pill family on the right. */}
         <span className="ml-2 flex items-center sm:ml-5">

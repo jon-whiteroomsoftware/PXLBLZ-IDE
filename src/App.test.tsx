@@ -117,6 +117,11 @@ describe('App smoke test', () => {
     expect(screen.getByTestId('top-bar')).toBeInTheDocument()
   })
 
+  it('links the PXLBLZ wordmark to the app root', () => {
+    render(<App />)
+    expect(screen.getByRole('link', { name: 'PXLBLZ home' })).toHaveAttribute('href', import.meta.env.BASE_URL)
+  })
+
   it('has a left pane', () => {
     window.history.replaceState(null, '', '/studio')
     seedSignedInWorkspace()

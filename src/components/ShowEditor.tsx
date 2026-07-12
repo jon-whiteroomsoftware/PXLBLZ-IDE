@@ -272,6 +272,7 @@ export function ShowEditor({ showId }: { showId: string }) {
 
           <section aria-label="Show timeline">
             <SceneStrip
+              key={activeShow.id}
               show={activeShow}
               patternControlsByCellId={patternControlsByCellId}
               selection={selection}
@@ -516,31 +517,17 @@ function SceneStrip({
   const strip = projectShowStrip(show)
   const timeline = projectShowTimeline(show)
   const positionMs = useShowTransportStore((state) => state.showId === show.id ? state.positionMs : 0)
-  const [viewport, setViewport] = useState<ShowTimelineViewport>(() => fitShowTimelineViewport(timeline.durationMs))
-  const [surfaceWidth, setSurfaceWidth] = useState(992)
+  const fittedViewport = fitShowTimelineViewport(timeline.durationMs)
+  const [storedViewport, setViewport] = useState<ShowTimelineViewport>(fittedViewport)
+  let viewport = storedViewport
+  if (viewport.totalMs !== fittedViewport.totalMs) {
+    const zoom = viewport.totalMs / viewport.durationMs
+    const transport = useShowTransportStore.getState()
+    const anchorMs = transport.showId === show.id ? transport.positionMs : 0
+    viewport = zoomShowTimelineViewport(fittedViewport, zoom, Math.min(anchorMs, fittedViewport.totalMs))
+    setViewport(viewport)
+  }
   const scrollRef = useRef<HTMLDivElement>(null)
-  const showIdRef = useRef(show.id)
-  useEffect(() => {
-    setViewport((current) => {
-      if (showIdRef.current !== show.id) {
-        showIdRef.current = show.id
-        return fitShowTimelineViewport(timeline.durationMs)
-      }
-      if (current.totalMs === timeline.durationMs) return current
-      const zoom = current.totalMs / current.durationMs
-      return zoomShowTimelineViewport(fitShowTimelineViewport(timeline.durationMs), zoom, Math.min(positionMs, timeline.durationMs))
-    })
-  }, [positionMs, show.id, timeline.durationMs])
-  useEffect(() => {
-    const element = scrollRef.current
-    if (!element) return
-    const updateWidth = () => setSurfaceWidth(element.clientWidth)
-    updateWidth()
-    if (typeof ResizeObserver === 'undefined') return
-    const observer = new ResizeObserver(updateWidth)
-    observer.observe(element)
-    return () => observer.disconnect()
-  }, [])
   const automatedControlNames = [...new Set([
     ...show.cells.flatMap((cell) => Object.keys(cell.controlTargets ?? {})),
     ...(show.transitions ?? []).flatMap((transition) => Object.keys(transition.propertyTransitions?.controls ?? {})),
@@ -564,8 +551,8 @@ function SceneStrip({
     '64px',
   ]
   const rows = ['auto', '28px', '34px', ...strip.rows.flatMap(() => ['64px', '26px', '26px', ...controlLanes.map(() => '26px')]), '34px']
-  const fitTimelineWidth = Math.max(480, surfaceWidth - 212)
-  const timelineWidth = fitTimelineWidth * viewport.totalMs / viewport.durationMs
+  const timelineScale = viewport.totalMs / viewport.durationMs
+  const timelineWidth = `calc(${timelineScale * 100}% + ${212 * (1 - timelineScale)}px)`
   useEffect(() => {
     const element = scrollRef.current
     if (!element) return
@@ -573,7 +560,7 @@ function SceneStrip({
     const maxStart = viewport.totalMs - viewport.durationMs
     const next = maxStart > 0 ? viewport.startMs / maxStart * maxScroll : 0
     if (Math.abs(element.scrollLeft - next) > 1) element.scrollLeft = next
-  }, [timelineWidth, viewport])
+  }, [timelineScale, viewport])
   const zoomAroundPlayhead = (factor: number) => setViewport((current) => {
     const visibleEnd = current.startMs + current.durationMs
     const anchor = positionMs >= current.startMs && positionMs <= visibleEnd
@@ -618,7 +605,8 @@ function SceneStrip({
         <div
           className="relative grid gap-y-2"
           style={{
-            width: 148 + timelineWidth + 64,
+            width: timelineWidth,
+            minWidth: 692,
             gridTemplateColumns: columns.join(' '),
             gridTemplateRows: rows.join(' '),
           }}

@@ -124,7 +124,6 @@ export const useShowStore = create<ShowState>()((set, get) => ({
     const name = uniquePatternName('Untitled Show', get().shows.map((show) => show.name))
     const show = createDefaultShow(id, name)
     await get().addShow(show)
-    get().openShow(show.id)
     return show
   },
 
@@ -134,11 +133,11 @@ export const useShowStore = create<ShowState>()((set, get) => ({
     const stageMapId = importedStageMapIdForController(profile, useMapStore.getState().userMaps)
     const show = createDefaultShowFromController(id, name, profile, stageMapId)
     await get().addShow(show)
-    get().openShow(show.id)
     return show
   },
 
   openShow: (id) => {
+    if (get().activeShowId === id) return
     set({ activeShowId: id })
     if (id !== null) getPersonalContentProvider().setLastActive({ type: 'show', id }).catch(() => {})
   },

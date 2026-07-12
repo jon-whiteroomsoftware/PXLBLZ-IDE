@@ -58,7 +58,11 @@ export function MapsRailSection({
   const stockGroups = groupMapCatalogue(visibleStockMaps.map((map) => ({
     ...map,
     provenance: 'stock' as const,
-  })))
+  }))).sort((left, right) => {
+    if (left.kind === 'custom') return -1
+    if (right.kind === 'custom') return 1
+    return 0
+  })
   return (
     <>
       <RailEntityHeader
@@ -138,7 +142,7 @@ export function MapsRailSection({
                     ) : (
                       <li key={item.familyId} className="px-3 py-1.5 text-zinc-500">
                         <details>
-                          <summary className="flex cursor-pointer list-none items-center justify-between text-[11px] text-zinc-400 hover:text-zinc-200 [&::-webkit-details-marker]:hidden">
+                          <summary className="flex cursor-pointer list-none items-center justify-between text-xs text-zinc-500 hover:text-zinc-300 [&::-webkit-details-marker]:hidden">
                             <span>{item.name}</span>
                             <span className="text-[9px] text-zinc-600">{item.views.length} views</span>
                           </summary>

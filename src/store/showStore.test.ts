@@ -67,6 +67,7 @@ describe('showStore (#318)', () => {
     setPersonalContentProvider(memoryProvider())
 
     const show = await useShowStore.getState().createNewShow()
+    expect(useShowStore.getState().activeShowId).toBeNull()
     await useShowStore.getState().renameShow(show.id, 'Opening wash')
     await useShowStore.getState().updateScene(show.id, show.scenes[0].id, { durationMs: 45000 })
     await useShowStore.getState().updateCellAdaptations(show.id, show.cells[0].id, { mirror: true })
@@ -345,7 +346,7 @@ describe('showStore (#318)', () => {
       ['arch-left', 120],
       ['arch-right', 120],
     ])
-    expect(useShowStore.getState().activeShowId).toBe(seeded.id)
+    expect(useShowStore.getState().activeShowId).toBeNull()
   })
 
   it('seeds and persists a show stage map from controller imports', async () => {

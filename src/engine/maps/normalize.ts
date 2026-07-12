@@ -32,6 +32,19 @@ import type { MapPoint } from './types'
 // aspect (longest axis anchors); Fill stretches each axis independently to [0,1].
 export type NormalizeMode = 'contain' | 'fill'
 
+// Pixelblaze stores normalized map coordinates as unsigned 16-bit fractions.
+// The top endpoint is therefore 0xffff / 0x10000, not exact 1.0. Preserve exact
+// preview positions, but cap the sample channel so array-indexing Patterns see
+// the same endpoint on hardware and in the float preview.
+export const PIXELBLAZE_NORMALIZED_MAP_MAX = 65535 / 65536
+
+export function capMapSampleEndpoints(points: MapPoint[]): MapPoint[] {
+  return points.map((point) => ({
+    ...point,
+    sample: point.sample.map((value) => Math.min(value, PIXELBLAZE_NORMALIZED_MAP_MAX)),
+  }))
+}
+
 // Re-normalize resolved map points to the given mode (#174). Contain is the baked/
 // resolved default (every map already emits Contain coords), so it's a pass-through.
 //

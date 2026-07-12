@@ -402,6 +402,12 @@ describe('PatternList', () => {
     for (const label of ['Paths', 'Surfaces', 'Shells', 'Volumes', 'Custom / imported']) {
       expect(screen.getByText(label)).toBeInTheDocument()
     }
+    expect(
+      screen.getByText('Custom / imported').compareDocumentPosition(screen.getByText('Paths'))
+        & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+    expect(screen.getByText('Ring').closest('[role="button"]')).toHaveClass('text-xs', 'text-zinc-500')
+    expect(screen.getByText('Square').closest('summary')).toHaveClass('text-xs', 'text-zinc-500')
     expect(screen.getAllByText('Cylinder')).toHaveLength(1)
     await user.click(screen.getByText('Cylinder'))
     expect(screen.getByRole('button', { name: 'Cylinder Strand 1D' })).toBeInTheDocument()

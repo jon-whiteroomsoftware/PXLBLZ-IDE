@@ -419,7 +419,7 @@ export function StockListItem({
       role="button"
       tabIndex={0}
       style={{ paddingLeft: ROW_PAD }}
-      className={[rowClass(active), active ? '' : 'text-zinc-500'].join(' ')}
+      className={[rowClass(active), 'text-xs', active ? '' : 'text-zinc-500'].join(' ')}
     >
       {active && <ActiveBar />}
       <span className="flex-1 min-w-0 truncate">{name}</span>
