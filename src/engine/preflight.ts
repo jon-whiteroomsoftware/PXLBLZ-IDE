@@ -36,6 +36,7 @@ export type PreflightWarningKind =
   | 'pattern-dim-mismatch'
   | 'pattern-firmware-unsupported'
   | 'pattern-firmware-unknown'
+  | 'show-map-compatibility'
 
 export interface PreflightWarning {
   kind: PreflightWarningKind

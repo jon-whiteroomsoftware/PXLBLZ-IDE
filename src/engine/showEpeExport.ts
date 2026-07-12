@@ -1,6 +1,11 @@
-import { stampArtifact } from './artifactStamp'
+import {
+  stampArtifact,
+  type ArtifactMapCompatibility,
+  type ArtifactPreferredMap,
+} from './artifactStamp'
 import { makeProgramId } from './bytecodePush'
-import type { ShowRecord } from './personalContentRecords'
+import { STOCK_MAP_SPECS } from './maps'
+import type { MapRecord, ShowRecord } from './personalContentRecords'
 import { normalizeShowTransitionState } from './showModel'
 
 export interface ShowEpeExport {
@@ -13,6 +18,7 @@ export interface ShowEpeExportOptions {
   id?: string
   preview?: string
   stampedAt?: Date | string
+  userMaps?: readonly MapRecord[]
 }
 
 export function buildShowEpeExport(
@@ -23,7 +29,8 @@ export function buildShowEpeExport(
   show = normalizeShowTransitionState(show)
   const name = show.name.trim() || 'Untitled Show'
   const hasSpatialTransitions = show.scenes.some((scene) => scene.transitionOut?.kind === 'portal')
-  const documentedSource = `${showArtifactHeader(show)}\n${generatedCode}`
+  const mapMetadata = deriveShowArtifactMapMetadata(show, options.userMaps ?? [])
+  const documentedSource = `${showArtifactHeader(show, mapMetadata)}\n${generatedCode}`
   const source = stampArtifact(documentedSource, {
     kind: 'show',
     id: show.id,
@@ -33,6 +40,8 @@ export function buildShowEpeExport(
       ...(show.routingLayouts.length > 1 ? ['routing-layouts'] : []),
       ...(hasSpatialTransitions ? ['spatial-transitions'] : []),
     ],
+    preferredMap: mapMetadata.preferredMap,
+    compatibility: mapMetadata.compatibility,
     stampedAt: options.stampedAt,
   })
   return {
@@ -47,7 +56,10 @@ export function buildShowEpeExport(
   }
 }
 
-function showArtifactHeader(show: ShowRecord): string {
+function showArtifactHeader(
+  show: ShowRecord,
+  mapMetadata: ReturnType<typeof deriveShowArtifactMapMetadata>,
+): string {
   const uniquePatterns = new Map<string, { kind: string; id: string; name: string }>()
   for (const cell of show.cells) {
     const key = `${cell.pattern.kind}:${cell.pattern.id}`
@@ -72,6 +84,10 @@ function showArtifactHeader(show: ShowRecord): string {
     ' *   Detailed provenance and license comments remain embedded in each isolated member source.',
     ' *',
     ` * Routing Layouts: ${show.routingLayouts.map((layout) => commentText(layout.name)).join(' -> ') || 'Default'}`,
+    ...(mapMetadata.preferredMap
+      ? [` * Preferred map: ${commentText(mapMetadata.preferredMap.name)} [${preferredMapReference(mapMetadata.preferredMap)}].`]
+      : [' * Preferred map: none recorded.']),
+    ` * Compatibility: ${describeMapCompatibility(mapMetadata.compatibility)}`,
     ' * Scenes:',
     ...show.scenes.map((scene) => {
       const destinationId = switchByScene.get(scene.id)
@@ -87,6 +103,45 @@ function showArtifactHeader(show: ShowRecord): string {
     ' */',
   ]
   return lines.join('\n')
+}
+
+function deriveShowArtifactMapMetadata(
+  show: ShowRecord,
+  userMaps: readonly MapRecord[],
+): { preferredMap?: ArtifactPreferredMap; compatibility: ArtifactMapCompatibility } {
+  const stock = show.stageMapId ? STOCK_MAP_SPECS.find((map) => map.id === show.stageMapId) : undefined
+  const custom = show.stageMapId ? userMaps.find((map) => map.id === show.stageMapId) : undefined
+  const preferredMap: ArtifactPreferredMap | undefined = stock
+    ? { kind: 'stock', id: stock.id, name: stock.name }
+    : custom
+      ? { kind: 'custom', name: custom.name }
+      : undefined
+  const adaptive = show.routingLayouts.length > 0 && show.routingLayouts.every((layout) => layout.logical !== undefined)
+  const dimension = stock?.dim ?? custom?.dim
+  const mapClass = stock?.kind ?? (custom ? 'custom' : undefined)
+  return {
+    preferredMap,
+    compatibility: {
+      portability: adaptive ? 'adaptive' : 'installation-bound',
+      dimensions: dimension ? [dimension] : [],
+      mapClasses: mapClass ? [mapClass] : [],
+      resolution: adaptive ? 'adaptive' : 'fixed',
+      exactMap: !adaptive,
+    },
+  }
+}
+
+function preferredMapReference(map: ArtifactPreferredMap): string {
+  return map.kind === 'stock' ? `stock:${map.id}` : 'custom map name'
+}
+
+function describeMapCompatibility(compatibility: ArtifactMapCompatibility): string {
+  const dimensions = compatibility.dimensions.map((dimension) => `${dimension}D`).join('/') || 'unspecified-dimension'
+  const classes = compatibility.mapClasses.join('/') || 'unspecified-class'
+  if (compatibility.exactMap) {
+    return `installation-bound ${dimensions} ${classes} map at fixed resolution; this artifact expects the authored installation/map.`
+  }
+  return `adaptive ${dimensions} ${classes} maps at adaptive resolution; other compatible maps may change the composition.`
 }
 
 function describeTransition(transition: NonNullable<ShowRecord['scenes'][number]['transitionOut']>): string {

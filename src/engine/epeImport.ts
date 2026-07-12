@@ -1,6 +1,9 @@
+import { parsePxlblzBanner, type ParsedPxlblzBanner } from './artifactStamp'
+
 export interface EpeFile {
   name: string
   src: string
+  stamp: ParsedPxlblzBanner | null
 }
 
 export function parseEpe(text: string): EpeFile {
@@ -26,5 +29,5 @@ export function parseEpe(text: string): EpeFile {
   if (typeof main !== 'string') {
     throw new Error('EPE file is missing sources.main')
   }
-  return { name: name.trim(), src: main }
+  return { name: name.trim(), src: main, stamp: parsePxlblzBanner(main) }
 }

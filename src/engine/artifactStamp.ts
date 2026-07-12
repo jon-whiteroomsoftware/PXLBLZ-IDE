@@ -1,12 +1,28 @@
 import { crc32 } from './bytecodePush'
 
 export type ArtifactKind = 'pattern' | 'show'
+export type ArtifactMapClass = 'path' | 'surface' | 'shell' | 'volume' | 'custom'
+
+export type ArtifactPreferredMap =
+  | { kind: 'stock'; id: string; name: string }
+  | { kind: 'custom'; name: string }
+
+export interface ArtifactMapCompatibility {
+  portability: 'adaptive' | 'installation-bound'
+  dimensions: Array<1 | 2 | 3>
+  mapClasses: ArtifactMapClass[]
+  resolution: 'adaptive' | 'fixed'
+  aspectRatio?: { min: number; max: number }
+  exactMap: boolean
+}
 
 export interface ArtifactStampMeta {
   kind: ArtifactKind
   id: string
   name?: string
   transforms?: string[]
+  preferredMap?: ArtifactPreferredMap
+  compatibility?: ArtifactMapCompatibility
   stampedAt?: Date | string
 }
 
@@ -18,11 +34,15 @@ export interface ParsedPxlblzBanner {
   hash: string
   stamped: string
   transforms: string[]
+  preferredMap?: ArtifactPreferredMap
+  compatibility?: ArtifactMapCompatibility
 }
 
 const HEADER = '// Built with PXLBLZ-IDE https://pxlblz-ide.whiteroomsoftware.com/'
 const META_PREFIX = '// pxlblz:1 '
 const TRANSFORMS_PREFIX = '// pxlblz:transforms '
+const MAP_PREFIX = '// pxlblz:map '
+const COMPAT_PREFIX = '// pxlblz:compat '
 const HASH_BYTES = new TextEncoder()
 
 export function artifactHash(code: string): string {
@@ -41,6 +61,8 @@ export function stampArtifact(code: string, meta: ArtifactStampMeta): string {
   ]
   const transforms = uniqueSafeTokens(meta.transforms ?? [])
   if (transforms.length > 0) lines.push(`${TRANSFORMS_PREFIX}${transforms.join(' ')}`)
+  if (meta.preferredMap) lines.push(formatPreferredMap(meta.preferredMap))
+  if (meta.compatibility) lines.push(formatCompatibility(meta.compatibility))
   return `${lines.join('\n')}\n${body}`
 }
 
@@ -56,6 +78,8 @@ export function parsePxlblzBanner(code: string): ParsedPxlblzBanner | null {
   const transforms = lines[2]?.startsWith(TRANSFORMS_PREFIX)
     ? lines[2].slice(TRANSFORMS_PREFIX.length).trim().split(/\s+/).filter(Boolean)
     : []
+  const preferredMap = parsePreferredMap(lines.find((line) => line.startsWith(MAP_PREFIX)))
+  const compatibility = parseCompatibility(lines.find((line) => line.startsWith(COMPAT_PREFIX)))
 
   return {
     version: 1,
@@ -65,6 +89,8 @@ export function parsePxlblzBanner(code: string): ParsedPxlblzBanner | null {
     hash: fields.hash,
     stamped: fields.stamped,
     transforms,
+    ...(preferredMap ? { preferredMap } : {}),
+    ...(compatibility ? { compatibility } : {}),
   }
 }
 
@@ -100,6 +126,66 @@ function uniqueSafeTokens(values: string[]): string[] {
     tokens.push(value)
   }
   return tokens
+}
+
+function formatPreferredMap(map: ArtifactPreferredMap): string {
+  const preferred = map.kind === 'stock' ? `stock:${tokenValue(map.id)}` : 'custom'
+  return `${MAP_PREFIX}preferred=${preferred} name=${quotedValue(map.name)}`
+}
+
+function formatCompatibility(compatibility: ArtifactMapCompatibility): string {
+  const fields = [
+    `portability=${compatibility.portability}`,
+    `dimensions=${compatibility.dimensions.join(',')}`,
+    `classes=${compatibility.mapClasses.join(',')}`,
+    ...(compatibility.aspectRatio
+      ? [`aspect=${compatibility.aspectRatio.min}:${compatibility.aspectRatio.max}`]
+      : []),
+    `resolution=${compatibility.resolution}`,
+    `exact=${compatibility.exactMap}`,
+  ]
+  return `${COMPAT_PREFIX}${fields.join(' ')}`
+}
+
+function parsePreferredMap(line: string | undefined): ArtifactPreferredMap | null {
+  if (!line) return null
+  const fields = parseFields(line.slice(MAP_PREFIX.length))
+  const name = fields.name?.trim()
+  if (!name) return null
+  if (fields.preferred === 'custom') return { kind: 'custom', name }
+  if (!fields.preferred?.startsWith('stock:')) return null
+  const id = fields.preferred.slice('stock:'.length)
+  return id ? { kind: 'stock', id, name } : null
+}
+
+function parseCompatibility(line: string | undefined): ArtifactMapCompatibility | null {
+  if (!line) return null
+  const fields = parseFields(line.slice(COMPAT_PREFIX.length))
+  if (fields.portability !== 'adaptive' && fields.portability !== 'installation-bound') return null
+  if (fields.resolution !== 'adaptive' && fields.resolution !== 'fixed') return null
+  if (fields.exact !== 'true' && fields.exact !== 'false') return null
+  const dimensions = uniqueSafeTokens((fields.dimensions ?? '').split(','))
+    .map(Number)
+    .filter((value): value is 1 | 2 | 3 => value === 1 || value === 2 || value === 3)
+  const allowedClasses = new Set<ArtifactMapClass>(['path', 'surface', 'shell', 'volume', 'custom'])
+  const mapClasses = uniqueSafeTokens((fields.classes ?? '').split(','))
+    .filter((value): value is ArtifactMapClass => allowedClasses.has(value as ArtifactMapClass))
+  const aspect = parseAspectRatio(fields.aspect)
+  return {
+    portability: fields.portability,
+    dimensions,
+    mapClasses,
+    resolution: fields.resolution,
+    ...(aspect ? { aspectRatio: aspect } : {}),
+    exactMap: fields.exact === 'true',
+  }
+}
+
+function parseAspectRatio(value: string | undefined): { min: number; max: number } | null {
+  if (!value) return null
+  const [min, max, extra] = value.split(':').map(Number)
+  if (extra !== undefined || !Number.isFinite(min) || !Number.isFinite(max) || min <= 0 || max < min) return null
+  return { min, max }
 }
 
 function parseFields(input: string): Record<string, string> {

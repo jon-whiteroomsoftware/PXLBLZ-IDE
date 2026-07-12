@@ -24,10 +24,21 @@ export function prepareShowControllerArtifact(
     id: banner.id,
     name: banner.name,
     transforms: banner.transforms,
+    preferredMap: banner.preferredMap,
+    compatibility: banner.compatibility,
     stampedAt: banner.stamped,
   }
+  const mapWarnings = banner.compatibility?.exactMap && banner.preferredMap
+    ? [{
+        kind: 'show-map-compatibility' as const,
+        message: banner.preferredMap.kind === 'custom'
+          ? `This Show expects its authored custom map "${banner.preferredMap.name}".`
+          : `This Show expects its authored map "${banner.preferredMap.name}".`,
+        detail: 'Sending the Show does not change the Controller\'s installed map. Confirm the Controller already has the intended map and installation geometry.',
+      }]
+    : []
   if (mapDim === null) {
-    return { source: canonicalSource, artifactStamp: baseStamp, warnings: [], blocked: false }
+    return { source: canonicalSource, artifactStamp: baseStamp, warnings: mapWarnings, blocked: false }
   }
 
   const base = bundleWithPasses(canonicalSource, {})
@@ -37,7 +48,7 @@ export function prepareShowControllerArtifact(
     return {
       source: canonicalSource,
       artifactStamp: baseStamp,
-      warnings: preflight.warnings,
+      warnings: [...mapWarnings, ...preflight.warnings],
       blocked: preflight.blocking,
     }
   }
@@ -56,7 +67,7 @@ export function prepareShowControllerArtifact(
   return {
     source: stampArtifact(adapted.code, artifactStamp),
     artifactStamp,
-    warnings: preflight.warnings,
+    warnings: [...mapWarnings, ...preflight.warnings],
     blocked: preflight.blocking,
   }
 }

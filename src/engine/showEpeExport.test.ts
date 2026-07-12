@@ -2,6 +2,7 @@ import { parseEpe } from './epeImport'
 import { parsePxlblzBanner } from './artifactStamp'
 import { addShowRoutingLayout, createDefaultShow, updateShowRoutingSwitch } from './showModel'
 import { buildShowEpeExport } from './showEpeExport'
+import { createAdaptivePatternPrismShow } from './patternPrismShow'
 
 describe('Show EPE export (#399)', () => {
   it('round-trips a stamped generated Show through the standard EPE importer', () => {
@@ -46,5 +47,54 @@ describe('Show EPE export (#399)', () => {
 
     expect(exported.filename).toBe('ribbons-stars.epe')
     expect(parseEpe(exported.text).name).toBe('Ribbons / Stars!')
+  })
+
+  it('derives an adaptive preferred stock-map contract into machine and human-readable source (#411)', () => {
+    const show = createAdaptivePatternPrismShow()
+    const exported = buildShowEpeExport(show, 'export function render2D(index, x, y) {}', {
+      stampedAt: '2026-07-12T00:00:00.000Z',
+    })
+
+    expect(parsePxlblzBanner(exported.source)).toMatchObject({
+      preferredMap: { kind: 'stock', id: 'plane', name: 'Square' },
+      compatibility: {
+        portability: 'adaptive',
+        dimensions: [2],
+        mapClasses: ['surface'],
+        resolution: 'adaptive',
+        exactMap: false,
+      },
+    })
+    expect(exported.source).toContain('Preferred map: Square [stock:plane].')
+    expect(exported.source).toContain('Compatibility: adaptive 2D surface maps at adaptive resolution; other compatible maps may change the composition.')
+  })
+
+  it('exports a custom-map name without leaking its local database id (#411)', () => {
+    const show = { ...createDefaultShow('show-custom', 'Measured installation'), stageMapId: 'local-map-42' }
+    const exported = buildShowEpeExport(show, 'export function render2D(index, x, y) {}', {
+      userMaps: [{
+        id: 'local-map-42',
+        name: 'Measured wall',
+        dim: 2,
+        generator: 'custom',
+        params: {},
+        points: [[0, 0]],
+        updatedAt: 1,
+      }],
+      stampedAt: '2026-07-12T00:00:00.000Z',
+    })
+
+    expect(parsePxlblzBanner(exported.source)).toMatchObject({
+      preferredMap: { kind: 'custom', name: 'Measured wall' },
+      compatibility: {
+        portability: 'installation-bound',
+        dimensions: [2],
+        mapClasses: ['custom'],
+        resolution: 'fixed',
+        exactMap: true,
+      },
+    })
+    expect(exported.source).not.toContain('local-map-42')
+    expect(exported.source).toContain('this artifact expects the authored installation/map')
   })
 })

@@ -572,16 +572,28 @@ device derivative before sending it.
 
 **Export `.epe`** packages the canonical generated source with a normal
 Controller-format id, preview JPEG, readable Show summary, and provenance
-comments. Inspection, direct send, and download therefore begin from one
-orchestration program; only an explicitly reported Controller renderer adapter
-may derive the directly sent source.
+comments. The source also records the authored Stage map when one exists and a
+separate compatibility contract: adaptive versus installation-bound,
+dimensions, map class, resolution policy, optional aspect range, and whether the
+exact map is required. A stock map uses its stable catalogue id; a custom map
+uses its human-readable name without leaking a local database id.
+
+Inspection, direct send, and download therefore begin from one orchestration
+program. Only an explicitly reported Controller renderer adapter may derive the
+directly sent source, and that derivative retains the same map metadata. Sending
+never changes the Controller's shared map. An installation-bound Show with an
+authored map opens an explicit compatibility confirmation so the user can verify
+that map is already installed.
 
 ## 10. Files and manual workflows
 
 - **Copy Code** and **Download** emit one flat, tree-shaken `.js` artifact with
   a PXLBLZ identity banner. Precise-mode code and preview metadata never leave
   the browser.
-- **Import `.epe`** creates a personal Pattern from `sources.main`.
+- **Import `.epe`** creates a personal Pattern from `sources.main`. A PXLBLZ
+  artifact restores an available preferred stock map, or reconnects a custom map
+  only through one exact-name match. Missing or duplicate custom names preserve
+  the source and show a fallback-map notice.
 - Built-in Patterns may be run or saved directly; cloning is needed only to edit
   their source.
 - Show `.epe` exports are standalone generated Patterns and can be used by

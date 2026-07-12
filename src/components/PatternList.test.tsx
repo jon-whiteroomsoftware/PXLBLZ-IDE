@@ -17,6 +17,7 @@ import { DEMOS } from '@/pixelblaze/stock/patterns'
 import { getAuthSession } from '@/engine/authSession'
 import { useRouterStore, routerInitialState } from '@/store/routerStore'
 import { showInitialState, useShowStore } from '@/store/showStore'
+import { stampArtifact } from '@/engine/artifactStamp'
 
 vi.mock('@/engine/authSession', () => ({
   getAuthSession: vi.fn(),
@@ -172,6 +173,63 @@ describe('PatternList', () => {
 
     expect(await screen.findByText('Untitled Pattern')).toBeInTheDocument()
     expect(usePatternStore.getState().activePatternId).not.toBeNull()
+  })
+
+  it('restores an imported artifact preferred stock map for preview (#411)', async () => {
+    const user = userEvent.setup()
+    render(<PatternList />)
+    await screen.findByText('Seed Pattern')
+    const source = stampArtifact('export function render2D(index, x, y) {}', {
+      kind: 'show',
+      id: 'show-import',
+      preferredMap: { kind: 'stock', id: 'wide', name: 'Wide 2:1' },
+      compatibility: {
+        portability: 'adaptive',
+        dimensions: [2],
+        mapClasses: ['surface'],
+        resolution: 'adaptive',
+        exactMap: false,
+      },
+      stampedAt: '2026-07-12T00:00:00.000Z',
+    })
+    const file = new File([
+      JSON.stringify({ name: 'Imported adaptive Show', sources: { main: source } }),
+    ], 'adaptive-show.epe', { type: 'application/json' })
+
+    await user.upload(document.querySelector('input[type="file"]') as HTMLInputElement, file)
+
+    await waitFor(() => expect(usePatternStore.getState().activePatternId).not.toBeNull())
+    const imported = usePatternStore.getState().userPatterns.find((pattern) => pattern.name === 'Imported adaptive Show')
+    expect(imported?.settings?.mapId).toBe('wide')
+    expect(useMapStore.getState().activeMapId).toBe('wide')
+  })
+
+  it('imports source while disclosing a missing preferred custom map (#411)', async () => {
+    const user = userEvent.setup()
+    render(<PatternList />)
+    await screen.findByText('Seed Pattern')
+    const source = stampArtifact('export function render2D(index, x, y) {}', {
+      kind: 'show',
+      id: 'show-custom-map',
+      preferredMap: { kind: 'custom', name: 'Measured wall' },
+      compatibility: {
+        portability: 'installation-bound',
+        dimensions: [2],
+        mapClasses: ['custom'],
+        resolution: 'fixed',
+        exactMap: true,
+      },
+      stampedAt: '2026-07-12T00:00:00.000Z',
+    })
+    const file = new File([
+      JSON.stringify({ name: 'Installation Show', sources: { main: source } }),
+    ], 'installation-show.epe', { type: 'application/json' })
+
+    await user.upload(document.querySelector('input[type="file"]') as HTMLInputElement, file)
+
+    expect(await screen.findByText(/Preferred custom map "Measured wall" is not available/)).toBeInTheDocument()
+    expect(await screen.findByText('Installation Show')).toBeInTheDocument()
+    expect(useMapStore.getState().activeMapId).toBe(mapInitialState.activeMapId)
   })
 
   it('opens IridescentFibers for visitors without a saved last-active pattern', async () => {

@@ -194,9 +194,12 @@ export function ShowEditor({ showId }: { showId: string }) {
   })), [activeShow, userPatterns]) as Record<string, AutomatablePatternControl[]>
   const showExport = useMemo(
     () => activeShow && compiled.artifact
-      ? buildShowEpeExport(activeShow, compiled.artifact.code, { stampedAt: new Date(activeShow.updatedAt) })
+      ? buildShowEpeExport(activeShow, compiled.artifact.code, {
+          stampedAt: new Date(activeShow.updatedAt),
+          userMaps,
+        })
       : null,
-    [activeShow, compiled.artifact],
+    [activeShow, compiled.artifact, userMaps],
   )
   const activeControllerMapDim = activeController?.mapDim ?? null
   const activeControllerFirmware = activeController?.firmwareVersion
@@ -232,6 +235,7 @@ export function ShowEditor({ showId }: { showId: string }) {
       id: makeProgramId(),
       preview: bytesToBase64(preview),
       stampedAt: new Date(activeShow.updatedAt),
+      userMaps,
     })
   }
 

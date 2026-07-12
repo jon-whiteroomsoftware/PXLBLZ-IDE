@@ -4,6 +4,7 @@ import { DEMOS } from '@/pixelblaze/stock/patterns'
 import { uniquePatternName } from '@/engine/patternName'
 import { NEW_PATTERN_SRC } from '@/pixelblaze/newPattern'
 import { parseEpe } from '@/engine/epeImport'
+import { resolveArtifactPreferredMap } from '@/engine/artifactMapCompatibility'
 import { nativeDim, matchesLens, matchesQuery, type DimLens } from '@/engine/dimLens'
 import { GALLERY_PATTERNS } from '@/engine/galleryCatalog'
 import {
@@ -113,9 +114,14 @@ export function PatternList() {
   // a pattern, so they sit together on the Patterns header.
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [importError, setImportError] = useState<string | null>(null)
+  const [importNotice, setImportNotice] = useState<string | null>(null)
   const importErrorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const importNoticeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  useEffect(() => () => { if (importErrorTimerRef.current) clearTimeout(importErrorTimerRef.current) }, [])
+  useEffect(() => () => {
+    if (importErrorTimerRef.current) clearTimeout(importErrorTimerRef.current)
+    if (importNoticeTimerRef.current) clearTimeout(importNoticeTimerRef.current)
+  }, [])
 
   function showImportError(msg: string) {
     setImportError(msg)
@@ -123,10 +129,17 @@ export function PatternList() {
     importErrorTimerRef.current = setTimeout(() => setImportError(null), 4000)
   }
 
+  function showImportNotice(msg: string) {
+    setImportNotice(msg)
+    if (importNoticeTimerRef.current) clearTimeout(importNoticeTimerRef.current)
+    importNoticeTimerRef.current = setTimeout(() => setImportNotice(null), 8000)
+  }
+
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
     e.target.value = ''
+    setImportNotice(null)
     const reader = new FileReader()
     reader.onload = async (ev) => {
       const text = ev.target?.result
@@ -140,8 +153,18 @@ export function PatternList() {
       }
       const id = newPersonalContentId()
       const name = uniquePatternName(parsed.name, userPatterns.map((p) => p.name))
-      const record: PatternRecord = { id, name, src: parsed.src, controls: {}, updatedAt: Date.now() }
+      const mapResolution = resolveArtifactPreferredMap(parsed.stamp, userMaps)
+      const record: PatternRecord = {
+        id,
+        name,
+        src: parsed.src,
+        controls: {},
+        ...(mapResolution.status === 'resolved' ? { settings: { mapId: mapResolution.mapId } } : {}),
+        updatedAt: Date.now(),
+      }
       await addPattern(record)
+      if (mapResolution.status === 'resolved') useMapStore.getState().setActiveMap(mapResolution.mapId)
+      else if (mapResolution.message) showImportNotice(mapResolution.message)
       useMapStore.getState().closeMapEditor()
       useMixinStore.getState().closeMixinEditor()
       useDocsStore.getState().closeDocs()
@@ -686,6 +709,7 @@ export function PatternList() {
           <PatternsRailSection
             fileInputRef={fileInputRef}
             importError={importError}
+            importNotice={importNotice}
             personalWorkspaceAuthenticated={personalWorkspaceAuthenticated}
             dimLens={dimLens}
             query={query}

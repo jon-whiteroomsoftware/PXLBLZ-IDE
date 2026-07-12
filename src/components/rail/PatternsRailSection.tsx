@@ -17,6 +17,7 @@ import {
 export function PatternsRailSection({
   fileInputRef,
   importError,
+  importNotice,
   personalWorkspaceAuthenticated,
   dimLens,
   query,
@@ -42,6 +43,7 @@ export function PatternsRailSection({
 }: {
   fileInputRef: RefObject<HTMLInputElement | null>
   importError: string | null
+  importNotice: string | null
   personalWorkspaceAuthenticated: boolean
   dimLens: DimLens
   query: string
@@ -95,6 +97,11 @@ export function PatternsRailSection({
       >
         {importError && (
           <p className="pl-3 pr-3 py-1 text-red-400 truncate" title={importError}>{importError}</p>
+        )}
+        {importNotice && (
+          <p role="status" className="border-l-2 border-amber-500/60 py-1 pl-2 pr-3 text-[10px] leading-4 text-amber-200/85" title={importNotice}>
+            {importNotice}
+          </p>
         )}
         {personalWorkspaceAuthenticated ? (
           visibleUserPatterns.length === 0 ? (

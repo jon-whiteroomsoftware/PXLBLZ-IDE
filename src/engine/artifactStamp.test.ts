@@ -29,6 +29,37 @@ describe('artifactStamp', () => {
     })
   })
 
+  it('round-trips preferred-map and compatibility metadata for portable Show artifacts (#411)', () => {
+    const stamped = stampArtifact(SOURCE, {
+      kind: 'show',
+      id: 'show-1',
+      name: 'Adaptive stage',
+      preferredMap: { kind: 'stock', id: 'plane', name: 'Square' },
+      compatibility: {
+        portability: 'adaptive',
+        dimensions: [2],
+        mapClasses: ['surface'],
+        resolution: 'adaptive',
+        aspectRatio: { min: 0.75, max: 1.33 },
+        exactMap: false,
+      },
+      stampedAt: '2026-07-12T00:00:00.000Z',
+    })
+
+    expect(stamped).toContain('// pxlblz:map preferred=stock:plane name="Square"')
+    expect(parsePxlblzBanner(stamped)).toMatchObject({
+      preferredMap: { kind: 'stock', id: 'plane', name: 'Square' },
+      compatibility: {
+        portability: 'adaptive',
+        dimensions: [2],
+        mapClasses: ['surface'],
+        resolution: 'adaptive',
+        aspectRatio: { min: 0.75, max: 1.33 },
+        exactMap: false,
+      },
+    })
+  })
+
   it('hashes the artifact body, not the banner, so restamping is stable', () => {
     const first = stampArtifact(SOURCE, {
       kind: 'pattern',
@@ -66,11 +97,38 @@ describe('artifactStamp', () => {
 
   it('keeps comments harmless to the pattern compiler', () => {
     const stamped = stampArtifact(SOURCE, {
-      kind: 'pattern',
-      id: 'pat-1',
+      kind: 'show',
+      id: 'show-1',
+      preferredMap: { kind: 'stock', id: 'plane', name: 'Square' },
+      compatibility: {
+        portability: 'adaptive',
+        dimensions: [2],
+        mapClasses: ['surface'],
+        resolution: 'adaptive',
+        exactMap: false,
+      },
       stampedAt: '2026-07-08T00:00:00.000Z',
     })
 
     expect(bundle(stamped, {}).metadata.renderFns).toEqual(bundle(SOURCE, {}).metadata.renderFns)
+  })
+
+  it('ignores malformed optional map lines without invalidating version-1 identity', () => {
+    const stamped = stampArtifact(SOURCE, {
+      kind: 'show',
+      id: 'show-legacy-safe',
+      stampedAt: '2026-07-12T00:00:00.000Z',
+    }).replace(
+      SOURCE,
+      `// pxlblz:map preferred=custom name=""\n// pxlblz:compat portability=maybe dimensions=x exact=sometimes\n${SOURCE}`,
+    )
+
+    expect(parsePxlblzBanner(stamped)).toMatchObject({
+      version: 1,
+      kind: 'show',
+      id: 'show-legacy-safe',
+    })
+    expect(parsePxlblzBanner(stamped)).not.toHaveProperty('preferredMap')
+    expect(parsePxlblzBanner(stamped)).not.toHaveProperty('compatibility')
   })
 })

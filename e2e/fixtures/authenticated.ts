@@ -38,10 +38,10 @@ export const test = base.extend<AuthenticatedFixtures>({
   },
 
   authenticatedBoundary: [async ({ page, request }, use) => {
-    await removeSyntheticShows(request)
+    await removeSyntheticContent(request)
     const errors = watchSeriousErrors(page)
     await use()
-    await removeSyntheticShows(request)
+    await removeSyntheticContent(request)
     expect(errors, `Unexpected browser errors:\n${errors.join('\n')}`).toEqual([])
   }, { auto: true }],
 })
@@ -68,12 +68,14 @@ function watchSeriousErrors(page: Page): string[] {
   return errors
 }
 
-async function removeSyntheticShows(request: APIRequestContext): Promise<void> {
-  const response = await request.get('/api/shows')
-  if (!response.ok()) throw new Error(`GET /api/shows -> ${response.status()}`)
-  const { shows } = await response.json() as { shows: Array<{ id: string }> }
-  for (const show of shows) {
-    const removed = await request.delete(`/api/shows/${encodeURIComponent(show.id)}`)
-    if (!removed.ok()) throw new Error(`DELETE /api/shows/${show.id} -> ${removed.status()}`)
+async function removeSyntheticContent(request: APIRequestContext): Promise<void> {
+  for (const resource of ['shows', 'patterns'] as const) {
+    const response = await request.get(`/api/${resource}`)
+    if (!response.ok()) throw new Error(`GET /api/${resource} -> ${response.status()}`)
+    const body = await response.json() as Record<string, Array<{ id: string }>>
+    for (const record of body[resource] ?? []) {
+      const removed = await request.delete(`/api/${resource}/${encodeURIComponent(record.id)}`)
+      if (!removed.ok()) throw new Error(`DELETE /api/${resource}/${record.id} -> ${removed.status()}`)
+    }
   }
 }

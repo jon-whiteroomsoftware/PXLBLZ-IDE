@@ -1,4 +1,5 @@
 import { parseEpe } from './epeImport'
+import { stampArtifact } from './artifactStamp'
 
 const validEpe = JSON.stringify({
   name: 'Doom Fire',
@@ -17,6 +18,27 @@ describe('parseEpe', () => {
   it('trims whitespace from the name', () => {
     const epe = JSON.stringify({ name: '  My Pattern  ', sources: { main: 'code' } })
     expect(parseEpe(epe).name).toBe('My Pattern')
+  })
+
+  it('recovers PXLBLZ map compatibility metadata from sources.main (#411)', () => {
+    const src = stampArtifact('export function render2D(index, x, y) {}', {
+      kind: 'show',
+      id: 'show-1',
+      preferredMap: { kind: 'stock', id: 'plane', name: 'Square' },
+      compatibility: {
+        portability: 'adaptive',
+        dimensions: [2],
+        mapClasses: ['surface'],
+        resolution: 'adaptive',
+        exactMap: false,
+      },
+      stampedAt: '2026-07-12T00:00:00.000Z',
+    })
+
+    expect(parseEpe(JSON.stringify({ name: 'Adaptive Show', sources: { main: src } })).stamp).toMatchObject({
+      preferredMap: { kind: 'stock', id: 'plane', name: 'Square' },
+      compatibility: { portability: 'adaptive', dimensions: [2], exactMap: false },
+    })
   })
 
   it('throws on invalid JSON', () => {

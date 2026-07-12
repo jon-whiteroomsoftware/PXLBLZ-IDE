@@ -879,6 +879,21 @@ Controller compilation into the standard EPE envelope. Export adds:
 - PXLBLZ artifact provenance; and
 - source Pattern provenance/license comments retained inside isolated members.
 
+Version-1 source banners may also carry two optional comment records:
+
+```js
+// pxlblz:map preferred=stock:plane name="Square"
+// pxlblz:compat portability=adaptive dimensions=2 classes=surface aspect=0.75:1.33 resolution=adaptive exact=false
+```
+
+The preferred map and compatibility contract are independent. Preferred stock
+maps use stable catalogue ids. Custom maps carry names only; an import reconnects
+one unambiguous exact-name match and otherwise retains the metadata while using
+the normal preview fallback. Compatibility records dimension and physical map
+class lists, adaptive/fixed resolution, an optional aspect-ratio interval, and
+exact-map intent. Older banners without either line parse unchanged; malformed
+optional lines do not invalidate the core artifact identity.
+
 The summary lists Pattern references, scenes, routing layouts, and transition
 configuration. Generated orchestration names are collision-safe and do not
 replace human-readable provenance.
@@ -896,6 +911,10 @@ map and firmware. A compatible artifact stays byte-identical. A required
 exact-arity adapter is appended through the pass engine, restamped as the same
 Show with `renderer-adapter` provenance, and presented through the ordinary
 compatibility confirmation. Known unsupported firmware blocks the send.
+Restamping preserves preferred-map and compatibility fields. An exact-map Show
+adds a separate non-blocking warning: program delivery does not mutate the
+Controller's one shared map, so the intended map and installation must already
+be present.
 
 ---
 
@@ -909,7 +928,11 @@ diverge, and which assurances are measured rather than assumed.
 ## 26. Export and in-app documentation
 
 Pattern Copy/Download emits stamped `bundle(...).code`; `fxCode` and metadata are
-preview-only. `.epe` import reads `sources.main` into a new personal Pattern.
+preview-only. `.epe` import reads `sources.main` into a new personal Pattern and
+parses any PXLBLZ map metadata before selecting preview settings. A resolved map
+is persisted as that Pattern's map override. Missing or ambiguous custom-map
+references leave the source banner intact and surface an import notice instead
+of guessing.
 
 User documentation is imported as raw Markdown in `src/docs/catalog.ts` and
 served at `/docs/<id>`. `docsMarkdown.ts` is a purpose-built safe parser for the

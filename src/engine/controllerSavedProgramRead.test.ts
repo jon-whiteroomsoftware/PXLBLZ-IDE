@@ -52,6 +52,35 @@ describe('recoverSavedProgram', () => {
     })
   })
 
+  it('recovers preferred-map and compatibility metadata from a Controller-read Show (#411)', () => {
+    const source = 'export function render2D(index, x, y) { hsv(x, 1, y) }'
+    const stamped = stampArtifact(source, {
+      kind: 'show',
+      id: 'show-1',
+      name: 'Adaptive stage',
+      preferredMap: { kind: 'stock', id: 'plane', name: 'Square' },
+      compatibility: {
+        portability: 'adaptive',
+        dimensions: [2],
+        mapClasses: ['surface'],
+        resolution: 'adaptive',
+        exactMap: false,
+      },
+      stampedAt: '2026-07-12T00:00:00.000Z',
+    })
+
+    expect(recoverSavedProgram('SHOW_PROGRAM', programBlob('Adaptive stage', stamped))).toMatchObject({
+      ok: true,
+      value: {
+        sourceCode: source,
+        stamp: {
+          preferredMap: { kind: 'stock', id: 'plane', name: 'Square' },
+          compatibility: { portability: 'adaptive', dimensions: [2], exactMap: false },
+        },
+      },
+    })
+  })
+
   it('keeps a valid sourceless PBP recoverable', () => {
     expect(recoverSavedProgram('SOURCELESS', programBlob('Compiled only', ''))).toEqual({
       ok: true,

@@ -117,12 +117,11 @@ geometry, not a universal replacement for fixed physical ranges.
 
 ### 3.6 Artifact compatibility metadata (#411)
 
-Show artifacts should be self-describing about their preferred/authored map and
-their compatibility class without breaking ordinary Pixelblaze use. Source
-comments are the transport: Pixelblaze ignores them, while PXLBLZ may recover
-them from imported EPE or Controller-read source.
-
-Keep preferred preview map separate from hard compatibility requirements.
+This foundation is shipped. Show artifacts describe their preferred/authored
+map separately from their compatibility class through Pixelblaze-safe source
+comments. PXLBLZ recovers the fields from imported EPE and Controller-read
+source, restores available map preferences, and discloses exact-map intent
+without changing Controller map state.
 
 ## 4. Show directions that need more evidence
 
