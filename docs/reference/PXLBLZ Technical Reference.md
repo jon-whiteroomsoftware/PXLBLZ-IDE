@@ -929,7 +929,8 @@ coverage over delegation and rendering. The repository also carries:
 - compiler and generated-artifact execution tests;
 - Show model/compiler/runtime equivalence tests;
 - performance harnesses for Pixelblaze built-in costs and generated strategies;
-- Playwright route-level smoke tests; and
+- Playwright public route smoke plus synthetic authenticated D1-backed Studio
+  persistence and complex Show-authoring flows; and
 - explicit live-hardware probes and archived result reports.
 
 The pre-commit gate runs lint and the full Vitest suite. E2E, performance, and

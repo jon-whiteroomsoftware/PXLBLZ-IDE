@@ -4,6 +4,7 @@ import { defineConfig, devices } from '@playwright/test'
 // The dev server is reused if already running on 5174; otherwise Playwright starts it.
 export default defineConfig({
   testDir: './e2e',
+  testIgnore: '**/*.auth.spec.ts',
   fullyParallel: true,
   reporter: 'list',
   use: {

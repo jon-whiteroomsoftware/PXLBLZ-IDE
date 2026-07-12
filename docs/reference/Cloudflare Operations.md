@@ -111,6 +111,19 @@ console errors such as `Remote personal content request failed: 500` on
 endpoints. Treat that symptom as a local schema-drift check before chasing
 OAuth/provider configuration.
 
+The authenticated Playwright tier creates its own signed synthetic user and
+cleans that user's Shows after every test. It never invokes OAuth or reads a
+personal account:
+
+```bash
+npm run test:e2e:auth-smoke  # fast create/edit/reload persistence path
+npm run test:e2e:shows       # deeper clip, transition, automation, and routing flows
+```
+
+Both commands build the Pages output, apply local migrations, and start or reuse
+Vite and Wrangler. They require `SESSION_SECRET` in `.dev.vars`; OAuth client
+credentials are not required.
+
 After deploy, open the Pages URL and smoke-test:
 
 1. Visit `/api/d1/health`; expect `{"ok":true,"schemaVersion":"13"}` or the
