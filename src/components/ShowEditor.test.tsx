@@ -349,6 +349,15 @@ describe('ShowEditor (#318)', () => {
     await user.click(screen.getByRole('button', { name: 'Select Scene 1 to Scene 2 transition (routing)' }))
     expect(screen.getByText(/Scene 1 → Scene 2 · routing/i)).toBeInTheDocument()
     expect(screen.getByLabelText('Destination routing layout')).toHaveValue(base.routingLayouts[1].id)
+
+    fireEvent.change(screen.getByLabelText('Routing transfer duration seconds'), { target: { value: '2' } })
+    await user.selectOptions(screen.getByLabelText('Routing transfer easing'), 'ease-in-out')
+    await user.selectOptions(screen.getByLabelText('Routing transfer direction'), 'reverse')
+    expect(screen.getByLabelText('Routing transfer cost')).toHaveTextContent('Cost tier: cheap')
+    await waitFor(() => {
+      expect(useShowStore.getState().shows[0].transitions?.find((transition) => transition.kind === 'routing'))
+        .toMatchObject({ durationMs: 2000, easing: 'ease-in-out', routingDirection: 'reverse' })
+    })
   })
 
   it('authors a boundary-owned time-scale ramp from the nested Time lane (#417)', async () => {

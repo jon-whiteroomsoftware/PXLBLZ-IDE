@@ -76,6 +76,7 @@ export type ShowTransitionKind = 'cut' | 'crossfade' | 'wipe' | 'dither' | 'port
 export type ShowTransitionCost = 'free' | 'cheap' | 'expensive'
 export type ShowPortalFeatherPolicy = 'dither' | 'blend'
 export type ShowTransitionEasing = 'linear' | 'ease-in' | 'ease-out' | 'ease-in-out'
+export type ShowRoutingDirection = 'forward' | 'reverse'
 export type ShowAutomatableProperty = 'timeScale' | 'brightness'
 
 export interface ShowPropertyTransition {
@@ -152,6 +153,8 @@ export interface ShowBoundaryTransition {
   durationMs: number
   easing: ShowTransitionEasing
   layoutId?: string
+  /** Stable directional threshold used when a routing marker has nonzero duration. */
+  routingDirection?: ShowRoutingDirection
   feather?: number
   centerX?: number
   centerY?: number

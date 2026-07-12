@@ -68,6 +68,10 @@ test.describe('authenticated Show authoring', () => {
     await ranges.blur()
     await page.getByRole('button', { name: 'Set routing layout after Scene 1' }).click()
     await page.getByLabel('Destination routing layout').selectOption({ label: 'Alternating' })
+    await page.getByRole('button', { name: 'Select Scene 1 to Scene 2 transition (routing)' }).click()
+    await page.getByLabel('Routing transfer duration seconds').fill('2')
+    await page.getByLabel('Routing transfer easing').selectOption('ease-in-out')
+    await page.getByLabel('Routing transfer direction').selectOption('reverse')
 
     await waitForCurrentShow(page, (show) => (
       show.routingLayouts.some((layout) => (
@@ -76,6 +80,12 @@ test.describe('authenticated Show authoring', () => {
         && layout.zones[0]?.ranges[0]?.end === 29
       ))
       && show.routingSwitches.some((routingSwitch) => routingSwitch.afterSceneId === 'scene-1')
+      && show.transitions?.some((transition) => (
+        transition.kind === 'routing'
+        && transition.durationMs === 2000
+        && transition.easing === 'ease-in-out'
+        && transition.routingDirection === 'reverse'
+      ))
     ))
 
     await page.reload()
@@ -84,6 +94,9 @@ test.describe('authenticated Show authoring', () => {
     await expect(page.getByLabel('Alternating main pixel ranges')).toHaveValue('0-29')
     await page.getByRole('button', { name: 'Select Scene 1 to Scene 2 transition (routing)' }).click()
     await expect(page.getByLabel('Destination routing layout')).toHaveValue('layout-2')
+    await expect(page.getByLabel('Routing transfer duration seconds')).toHaveValue('2')
+    await expect(page.getByLabel('Routing transfer easing')).toHaveValue('ease-in-out')
+    await expect(page.getByLabel('Routing transfer direction')).toHaveValue('reverse')
   })
 })
 
@@ -98,7 +111,9 @@ type PersistedShow = {
   }>
   transitions?: Array<{
     kind: string
+    durationMs: number
     easing: string
+    routingDirection?: string
     propertyTransitions?: { timeScale?: unknown }
   }>
   routingLayouts: Array<{

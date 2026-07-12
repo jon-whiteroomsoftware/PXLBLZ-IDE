@@ -62,10 +62,12 @@ animation, or timing models.
 
 ### 3.1 Progressive routing transitions (#403)
 
-Interpolate ownership between two named routing layouts. Start with one stable,
-spatially coherent transfer policy. Every pixel must select exactly one route
-and one Pattern renderer on every frame. Author it through the existing boundary
-transition entity, duration/easing controls, lane, and inspector.
+Shipped foundation: a routing boundary cuts at zero duration or transfers
+ownership with one stable directional threshold, configurable duration, shared
+easing, and forward/reverse direction. Every pixel selects exactly one adjacent
+layout route and one Pattern renderer on every frame. The shared boundary lane
+and inspector own the controls; generated artifacts preserve continuous Pattern
+clocks and warn when physical pixels are unassigned.
 
 This is progressive reassignment between two discrete layouts, not continuous
 coordinate interpolation.

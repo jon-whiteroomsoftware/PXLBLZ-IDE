@@ -171,6 +171,34 @@ describe('showModel (#318)', () => {
     ])
   })
 
+  it('persists a progressive routing transfer on the shared boundary entity (#403)', () => {
+    const base = addShowRoutingLayout(createDefaultShow('show-403', 'Progressive routing'), 'Alternate')
+    const routed = updateShowRoutingSwitch(base, 'scene-1', base.routingLayouts[1].id)
+    const transition = routed.transitions?.find((candidate) => candidate.kind === 'routing')
+    const updated = updateShowBoundaryTransition(routed, transition!.id, {
+      durationMs: 2000,
+      easing: 'ease-in-out',
+      routingDirection: 'reverse',
+    })
+
+    expect(updated.transitions?.find((candidate) => candidate.kind === 'routing')).toMatchObject({
+      durationMs: 2000,
+      easing: 'ease-in-out',
+      routingDirection: 'reverse',
+    })
+    expect(projectShowTimeline(updated).boundaryTransitions.find((candidate) => candidate.kind === 'routing'))
+      .toMatchObject({ startMs: 30_000, endMs: 32_000 })
+    expect(showRecordToCompileRecipe(updated, {
+      byCellId: { 'cell-1': DEMOS.TestPattern1D, 'cell-2': DEMOS.CometLoom },
+    }).routingSwitches).toEqual([{
+      atMs: 30_000,
+      layoutId: base.routingLayouts[1].id,
+      durationMs: 2000,
+      easing: 'ease-in-out',
+      direction: 'reverse',
+    }])
+  })
+
   it('keeps stable boundary entities canonical through visual, routing, and split edits (#416)', () => {
     const withLayout = addShowRoutingLayout(createDefaultShow('show-1', 'Boundary edits', 1), 'Alternate')
     const visualEdited = updateShowTransition(withLayout, 'scene-1', 'wipe', 1500, 0.2)

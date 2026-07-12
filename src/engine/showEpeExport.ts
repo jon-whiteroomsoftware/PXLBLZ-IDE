@@ -72,6 +72,9 @@ function showArtifactHeader(
     }
   }
   const switchByScene = new Map(show.routingSwitches.map((routingSwitch) => [routingSwitch.afterSceneId, routingSwitch.layoutId]))
+  const routingTransitionByScene = new Map((show.transitions ?? []).flatMap((transition) => (
+    transition.kind === 'routing' ? [[transition.afterSceneId, transition] as const] : []
+  )))
   const layoutName = new Map(show.routingLayouts.map((layout) => [layout.id, layout.name]))
   const lines = [
     '/*',
@@ -91,8 +94,11 @@ function showArtifactHeader(
     ' * Scenes:',
     ...show.scenes.map((scene) => {
       const destinationId = switchByScene.get(scene.id)
+      const routingTransition = routingTransitionByScene.get(scene.id)
       const routingNote = destinationId
-        ? `: switch to ${commentText(layoutName.get(destinationId) ?? destinationId)} after scene`
+        ? routingTransition && routingTransition.durationMs > 0
+          ? `: transfer ${routingTransition.routingDirection ?? 'forward'} to ${commentText(layoutName.get(destinationId) ?? destinationId)} over ${formatSeconds(routingTransition.durationMs)} (${routingTransition.easing}) after scene`
+          : `: switch to ${commentText(layoutName.get(destinationId) ?? destinationId)} after scene`
         : ''
       const transitionNote = scene.transitionOut ? `: ${describeTransition(scene.transitionOut)}` : ''
       return ` * - ${commentText(scene.name)} (${formatSeconds(scene.durationMs)})${transitionNote}${routingNote}`

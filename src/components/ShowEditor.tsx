@@ -1360,7 +1360,7 @@ function BoundaryTransitionChip({
       type="button"
       aria-label={`Select ${from} to ${to} transition (${transition.kind})`}
       title={transition.kind === 'routing'
-        ? `Routing to ${transition.layoutName ?? 'layout'}`
+        ? `Routing to ${transition.layoutName ?? 'layout'} · ${transition.durationMs === 0 ? 'cut' : `${transition.durationMs / 1000}s directional transfer`}`
         : `${transition.kind} · ${transition.durationMs === 0 ? 'marker' : `${transition.durationMs / 1000}s`}`}
       onClick={(event) => {
         event.stopPropagation()
@@ -2045,7 +2045,7 @@ function TransitionInspector({
           </Button>
         )}
       >
-        <div className="grid max-w-xl gap-3">
+        <div className="grid max-w-xl grid-cols-2 gap-3">
           <label className="text-[10px] uppercase text-zinc-600">
             Destination routing layout
             <select
@@ -2059,9 +2059,58 @@ function TransitionInspector({
               ))}
             </select>
           </label>
-          <p className="text-[10px] leading-4 text-zinc-500">
-            Zero-duration routing marker. The selected layout takes effect at this boundary while Pattern clocks continue.
+          <NumberField
+            label="Routing transfer duration seconds"
+            value={transition.durationMs / 1000}
+            min={0}
+            max={Math.max(0, (nextScene?.durationMs ?? 0) / 1000)}
+            step={1}
+            onChange={(seconds) => onUpdate(transition.id, {
+              durationMs: seconds * 1000,
+              ...(seconds > 0 && !transition.routingDirection ? { routingDirection: 'forward' } : {}),
+            })}
+          />
+          <label className="text-[10px] uppercase text-zinc-600">
+            Routing transfer easing
+            <select
+              aria-label="Routing transfer easing"
+              value={transition.easing}
+              disabled={transition.durationMs === 0}
+              onChange={(event) => onUpdate(transition.id, {
+                easing: event.target.value as ShowBoundaryTransition['easing'],
+              })}
+              className={`${field} mt-1 w-full disabled:opacity-40`}
+            >
+              <option value="linear">linear</option>
+              <option value="ease-in">ease in</option>
+              <option value="ease-out">ease out</option>
+              <option value="ease-in-out">ease in/out</option>
+            </select>
+          </label>
+          <label className="text-[10px] uppercase text-zinc-600">
+            Routing transfer direction
+            <select
+              aria-label="Routing transfer direction"
+              value={transition.routingDirection ?? 'forward'}
+              disabled={transition.durationMs === 0}
+              onChange={(event) => onUpdate(transition.id, {
+                routingDirection: event.target.value === 'reverse' ? 'reverse' : 'forward',
+              })}
+              className={`${field} mt-1 w-full disabled:opacity-40`}
+            >
+              <option value="forward">forward</option>
+              <option value="reverse">reverse</option>
+            </select>
+          </label>
+          <p className="col-span-2 text-[10px] leading-4 text-zinc-500">
+            {transition.durationMs === 0
+              ? 'Cut: the destination layout takes effect at this boundary.'
+              : 'Directional transfer: a stable spatial threshold moves pixel ownership to the destination layout.'}
+            {' '}Each pixel invokes one Pattern renderer, and all Pattern clocks continue.
           </p>
+          <output aria-label="Routing transfer cost" className="col-span-2 text-[10px] text-emerald-300/80">
+            Cost tier: {transition.durationMs > 0 ? 'cheap' : 'free'} · one renderer per physical pixel
+          </output>
         </div>
       </InspectorPanel>
     )

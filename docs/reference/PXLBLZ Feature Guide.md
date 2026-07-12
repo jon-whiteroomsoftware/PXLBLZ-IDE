@@ -542,10 +542,15 @@ numeric properties.
 ### Routing layouts and Stage
 
 A Show may own several named routing layouts. Each maps semantic zones to pixel
-ranges; zero-duration boundary markers switch the active layout without
-resetting Pattern state. The compiler chooses range branches or a bounded packed
-lookup according to measured layout complexity while keeping first-route-wins
-overlap semantics.
+ranges. A routing boundary may cut immediately or move a stable directional
+threshold across the installation for a configured duration and easing. Each
+physical pixel belongs to exactly one of the adjacent layouts on every frame,
+so the transfer invokes one Pattern renderer per pixel while every Pattern clock
+continues. Reverse direction moves the same threshold from the opposite edge.
+
+The compiler chooses range branches or a bounded packed lookup according to
+measured layout complexity while keeping first-route-wins overlap semantics.
+Unassigned physical pixels render black and produce a compile warning.
 
 The right pane is the Show **Stage**. Generic zone strips are always available
 and honest for freestyle Shows. A saved 2D/3D Stage map instead draws the Show

@@ -728,8 +728,9 @@ Core ownership rules:
   type-specific configuration;
 - a destination clip owns property targets; the incoming boundary owns each
   interpolation's explicit start, duration, and easing;
-- routing layouts own `zoneId → ranges`; boundary routing markers choose the
-  destination layout; and
+- routing layouts own `zoneId → ranges`; boundary routing transitions choose
+  the destination layout plus optional transfer duration, easing, and direction;
+  and
 - the Show owns target Controller profile and Stage map.
 
 Legacy scene-owned transitions and routing switches normalize into the boundary
@@ -809,7 +810,8 @@ Current compiler policies:
 | Wipe / dither | Both clocks may advance; one renderer selected per pixel |
 | 2D portal hard/dither | One renderer per pixel from Stage-space boundary |
 | 2D portal true blend | Two renderers only inside the feather band |
-| Routing-layout marker | Immediate destination layout selection |
+| Routing-layout cut | Immediate destination layout selection |
+| Routing-layout directional transfer | Both clocks advance; one adjacent layout and renderer selected per pixel |
 
 Easing is deterministic arithmetic shared by editor helpers and generated code:
 linear, quadratic ease-in, quadratic ease-out, and piecewise quadratic
@@ -837,8 +839,16 @@ arbitrary stateful Patterns are not reversible.
 ## 23. Routing representation
 
 Named routing layouts preserve arbitrary inclusive range lists. First matching
-route wins; uncovered pixels render black. Loop wrap returns layout selection to
-the first layout without resetting member state.
+route wins; uncovered pixels render black and produce a compile warning. Loop
+wrap returns layout selection to the first layout without resetting member
+state.
+
+A nonzero routing transition progressively reassigns ownership between its
+source and destination layouts. `beforeRender` computes one eased progress
+threshold. The outer renderer compares that threshold with stable normalized
+Stage `x` in 2D or physical index position in 1D, optionally reversed, then runs
+only the selected layout route. It does not blend renderers or interpolate zone
+coordinates. Member `beforeRender` functions continue throughout the transfer.
 
 The general compiler uses generated range branches. For high-run layouts it may
 use bounded packed per-pixel lookup only when the complete

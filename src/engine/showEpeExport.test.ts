@@ -1,6 +1,6 @@
 import { parseEpe } from './epeImport'
 import { parsePxlblzBanner } from './artifactStamp'
-import { addShowRoutingLayout, createDefaultShow, updateShowRoutingSwitch } from './showModel'
+import { addShowRoutingLayout, createDefaultShow, updateShowBoundaryTransition, updateShowRoutingSwitch } from './showModel'
 import { buildShowEpeExport } from './showEpeExport'
 import { createAdaptivePatternPrismShow } from './patternPrismShow'
 
@@ -47,6 +47,23 @@ describe('Show EPE export (#399)', () => {
 
     expect(exported.filename).toBe('ribbons-stars.epe')
     expect(parseEpe(exported.text).name).toBe('Ribbons / Stars!')
+  })
+
+  it('explains a progressive routing transfer in exported source', () => {
+    const base = addShowRoutingLayout(createDefaultShow('show-403', 'Routing transfer'), 'Alternate')
+    const routed = updateShowRoutingSwitch(base, 'scene-1', base.routingLayouts[1].id)
+    const transition = routed.transitions?.find((candidate) => candidate.kind === 'routing')
+    const show = updateShowBoundaryTransition(routed, transition!.id, {
+      durationMs: 2000,
+      easing: 'ease-in-out',
+      routingDirection: 'reverse',
+    })
+
+    const exported = buildShowEpeExport(show, 'export function render() {}')
+
+    expect(parseEpe(exported.text).src).toContain(
+      'transfer reverse to Alternate over 2s (ease-in-out) after scene',
+    )
   })
 
   it('derives an adaptive preferred stock-map contract into machine and human-readable source (#411)', () => {

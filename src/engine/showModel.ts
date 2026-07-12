@@ -238,7 +238,7 @@ export function projectShowTimeline(show: ShowRecord): ShowTimelineProjection {
       return {
         ...transition,
         startMs,
-        endMs: transition.kind === 'routing' ? startMs : startMs + transition.durationMs,
+        endMs: startMs + transition.durationMs,
       }
     }),
     routingSwitches: strip.routingSwitches,
@@ -275,7 +275,9 @@ export function projectShowStrip(show: ShowRecord): ShowStripProjection {
       })),
     boundaryTransitions: (show.transitions ?? []).map((transition) => ({
       ...transition,
-      cost: transition.kind === 'routing' ? 'free' : transitionCost(transition.kind),
+      cost: transition.kind === 'routing'
+        ? transition.durationMs > 0 ? 'cheap' : 'free'
+        : transitionCost(transition.kind),
       ...(transition.kind === 'routing' && transition.layoutId
         ? { layoutName: layoutById.get(transition.layoutId)?.name }
         : {}),
@@ -981,13 +983,25 @@ function normalizeBoundaryTransition(transition: ShowBoundaryTransition): ShowBo
     id: transition.id || `${kind === 'routing' ? 'routing' : 'transition'}-${transition.afterSceneId}`,
     afterSceneId: transition.afterSceneId,
     kind,
-    durationMs: kind === 'cut' || kind === 'routing' ? 0 : clampDuration(transition.durationMs),
+    durationMs: kind === 'cut'
+      ? 0
+      : kind === 'routing' && transition.durationMs <= 0
+        ? 0
+        : clampDuration(transition.durationMs),
     easing: transition.easing === 'ease-in' || transition.easing === 'ease-out' || transition.easing === 'ease-in-out'
       ? transition.easing
       : 'linear',
     ...(kind === 'cut' || kind === 'routing' ? {} : normalizePropertyTransitions(transition)),
   }
-  if (kind === 'routing') return { ...base, layoutId: transition.layoutId }
+  if (kind === 'routing') {
+    return {
+      ...base,
+      layoutId: transition.layoutId,
+      ...(transition.routingDirection
+        ? { routingDirection: transition.routingDirection === 'reverse' ? 'reverse' as const : 'forward' as const }
+        : {}),
+    }
+  }
   if (kind === 'wipe') return { ...base, feather: clamp01(transition.feather ?? 0) }
   if (kind === 'portal') {
     return {
@@ -1238,7 +1252,7 @@ export function showRecordToCompileRecipe(
   lookup: ShowCompileRecipeSourceLookup,
 ): ShowRecipe {
   show = normalizeShowTransitionState(show)
-  if (show.zones.length > 1) {
+  if (show.zones.length > 1 || show.routingSwitches.length > 0) {
     return showRecordToRoutedFirstSceneRecipe(show, lookup)
   }
 
@@ -1493,13 +1507,23 @@ function showRecordToRoutedFirstSceneRecipe(
   if (cells.length === 0) throw new Error('Show compile requires at least one first-scene zone clip.')
 
   const normalized = normalizeShowRoutingState(show)
+  const loopDurationMs = showSceneHoldDurationMs(normalized)
   const activeSwitches = normalized.routingSwitches.flatMap((routingSwitch) => {
     const sceneIndex = normalized.scenes.findIndex((scene) => scene.id === routingSwitch.afterSceneId)
     if (sceneIndex < 0 || sceneIndex >= normalized.scenes.length - 1) return []
     const atMs = normalized.scenes
       .slice(0, sceneIndex + 1)
       .reduce((sum, scene) => sum + Math.max(0, scene.durationMs), 0)
-    return [{ atMs, layoutId: routingSwitch.layoutId }]
+    const transition = normalized.transitions?.find((candidate) => (
+      candidate.kind === 'routing' && candidate.afterSceneId === routingSwitch.afterSceneId
+    ))
+    return [{
+      atMs,
+      layoutId: routingSwitch.layoutId,
+      durationMs: Math.min(transition?.durationMs ?? 0, Math.max(0, loopDurationMs - atMs)),
+      easing: transition?.easing ?? 'linear',
+      direction: transition?.routingDirection ?? 'forward',
+    }]
   })
   const routingLayouts = activeSwitches.length > 0
     ? normalized.routingLayouts.map((layout) => ({
@@ -1535,7 +1559,7 @@ function showRecordToRoutedFirstSceneRecipe(
     zones: lookup.controllerZones ?? nominalZones(show.zones),
     routingLayouts,
     routingSwitches: routingLayouts ? activeSwitches : undefined,
-    loopDurationMs: routingLayouts ? showSceneHoldDurationMs(normalized) : undefined,
+    loopDurationMs: routingLayouts ? loopDurationMs : undefined,
   }
 }
 

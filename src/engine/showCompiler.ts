@@ -120,6 +120,9 @@ export type ShowLogicalRoutingRecipe =
 export interface ShowRoutingSwitchRecipe {
   atMs: number
   layoutId: string
+  durationMs?: number
+  easing?: ShowTransitionEasing
+  direction?: 'forward' | 'reverse'
 }
 
 export interface ShowRecipe {
@@ -494,6 +497,9 @@ function validateRecipe(recipe: ShowRecipe): void {
       }
       if (routingSwitch.atMs <= 0 || routingSwitch.atMs >= recipe.loopDurationMs) {
         throw new Error('compileShow routing switches must fall inside the loop duration.')
+      }
+      if ((routingSwitch.durationMs ?? 0) < 0 || routingSwitch.atMs + (routingSwitch.durationMs ?? 0) > recipe.loopDurationMs) {
+        throw new Error('compileShow routing transfer must fit inside the loop duration.')
       }
     }
   }
@@ -1017,16 +1023,40 @@ function buildRoutingLayoutPlans(
   recipe: ShowRecipe,
 ): ResolvedRoutingLayout[] | null {
   if (!recipe.routingLayouts) return null
+  const physicalPixelCount = (recipe.zones ?? []).reduce((largest, zone) => (
+    Math.max(largest, ...zone.ranges.map((range) => range.end + 1))
+  ), 0)
   return recipe.routingLayouts.map((layout) => {
     const plan = buildRoutePlan(members, { ...recipe, zones: layout.zones, routingLayouts: undefined })
+    const routes = plan?.routes ?? []
     return {
       id: layout.id,
       name: layout.name,
-      routes: plan?.routes ?? [],
+      routes,
       logical: layout.logical,
-      warnings: [...(plan?.warnings ?? []), ...routingLayoutOverlapWarnings(layout.name, plan?.routes ?? [])],
+      warnings: [
+        ...(plan?.warnings ?? []),
+        ...routingLayoutOverlapWarnings(layout.name, routes),
+        ...routingLayoutGapWarnings(layout.name, routes, layout.logical ? 0 : physicalPixelCount),
+      ],
     }
   })
+}
+
+function routingLayoutGapWarnings(name: string, routes: ResolvedRoute[], physicalPixelCount: number): string[] {
+  if (physicalPixelCount <= 0) return []
+  const assigned = new Set<number>()
+  for (const route of routes) {
+    for (const range of route.zone.ranges) {
+      for (let index = Math.max(0, range.start); index <= Math.min(physicalPixelCount - 1, range.end); index += 1) {
+        assigned.add(index)
+      }
+    }
+  }
+  const missing = physicalPixelCount - assigned.size
+  return missing > 0
+    ? [`Routing layout "${name}" leaves ${missing} of ${physicalPixelCount} physical pixels unassigned; those pixels render black.`]
+    : []
 }
 
 function routingLayoutOverlapWarnings(name: string, routes: ResolvedRoute[]): string[] {
@@ -1076,9 +1106,31 @@ function emitRoutingLayoutShowCode(
 ): string {
   const layoutIndex = new Map(layouts.map((layout, index) => [layout.id, index]))
   const orderedSwitches = [...switches].sort((a, b) => a.atMs - b.atMs)
-  const selectLines = orderedSwitches.map((routingSwitch) => (
-    `  if (__pxlblz_show_elapsed_ms >= ${routingSwitch.atMs}) __pxlblz_show_route_layout = ${layoutIndex.get(routingSwitch.layoutId) ?? 0}`
-  ))
+  const hasProgressiveTransfer = orderedSwitches.some((routingSwitch) => (routingSwitch.durationMs ?? 0) > 0)
+  const renderLayoutName = hasProgressiveTransfer
+    ? '__pxlblz_show_route_render_layout'
+    : '__pxlblz_show_route_layout'
+  let previousLayoutIndex = 0
+  const selectLines = orderedSwitches.map((routingSwitch) => {
+    const destinationLayoutIndex = layoutIndex.get(routingSwitch.layoutId) ?? 0
+    const durationMs = Math.max(0, routingSwitch.durationMs ?? 0)
+    const sourceLayoutIndex = previousLayoutIndex
+    previousLayoutIndex = destinationLayoutIndex
+    if (durationMs === 0) {
+      return `  if (__pxlblz_show_elapsed_ms >= ${routingSwitch.atMs}) __pxlblz_show_route_layout = ${destinationLayoutIndex}`
+    }
+    const progress = '__pxlblz_show_route_progress'
+    return `  if (__pxlblz_show_elapsed_ms >= ${routingSwitch.atMs}) {
+    __pxlblz_show_route_layout = ${destinationLayoutIndex}
+    __pxlblz_show_route_from_layout = ${sourceLayoutIndex}
+    __pxlblz_show_route_progress = 1
+    if (__pxlblz_show_elapsed_ms < ${routingSwitch.atMs + durationMs}) {
+      __pxlblz_show_route_progress = clamp((__pxlblz_show_elapsed_ms - ${routingSwitch.atMs}) / ${durationMs}, 0, 1)
+      __pxlblz_show_route_progress = ${emitShowEasingExpression(routingSwitch.easing ?? 'linear', progress)}
+      __pxlblz_show_route_reverse = ${routingSwitch.direction === 'reverse' ? 1 : 0}
+    }
+  }`
+  })
   const countBlocks = layouts.map((layout, index) => {
     const counts = members.map((member) => {
       const logicalZoneCount = layout.logical?.zoneNames.length ?? 0
@@ -1099,9 +1151,9 @@ ${counts.join('\n')}
   })
   const advanceLines = members.map((member) => `  ${member.prefix}_advance(delta)`)
   const renderBody = representation === 'packed-pixels'
-    ? emitPackedRoutingRender(layouts, outputDimension)
+    ? emitPackedRoutingRender(layouts, outputDimension, renderLayoutName)
     : layouts.map((layout, index) => (
-      `${index === 0 ? '  if' : '  else if'} (__pxlblz_show_route_layout == ${index}) {
+      `${index === 0 ? '  if' : '  else if'} (${renderLayoutName} == ${index}) {
 ${representation === 'coordinate-predicates'
     ? emitLogicalRoutingRender(layout, '    ', outputDimension)
     : emitRouteRenderBody(layout.routes, '    ', outputDimension)}
@@ -1110,20 +1162,43 @@ ${representation === 'coordinate-predicates'
   const packedPrelude = representation === 'packed-pixels'
     ? emitPackedRoutingTable(layouts)
     : ''
+  const progressiveGlobals = hasProgressiveTransfer
+    ? [
+        `var __pxlblz_show_route_from_layout = 0`,
+        `var __pxlblz_show_route_progress = 1`,
+        `var __pxlblz_show_route_reverse = 0`,
+      ]
+    : []
+  const progressiveReset = hasProgressiveTransfer
+    ? `
+  __pxlblz_show_route_from_layout = 0
+  __pxlblz_show_route_progress = 1
+  __pxlblz_show_route_reverse = 0`
+    : ''
+  const progressiveRender = hasProgressiveTransfer
+    ? `  var __pxlblz_show_route_render_layout = __pxlblz_show_route_layout
+  if (__pxlblz_show_route_progress < 1) {
+    var __pxlblz_show_route_position = ${outputDimension === 2 ? 'clamp(x, 0, 1)' : 'index / max(1, pixelCount - 1)'}
+    if (__pxlblz_show_route_reverse) __pxlblz_show_route_position = 1 - __pxlblz_show_route_position
+    if (__pxlblz_show_route_position >= __pxlblz_show_route_progress) __pxlblz_show_route_render_layout = __pxlblz_show_route_from_layout
+  }
+`
+    : ''
   return [
     emitRuntimePrelude(members),
     ...members.map((member) => member.code.trim()),
     packedPrelude,
     `var __pxlblz_show_route_layout = 0`,
+    ...progressiveGlobals,
     `export function beforeRender(delta) {
   __pxlblz_show_elapsed_ms = (__pxlblz_show_elapsed_ms + delta) % ${loopDurationMs}
-  __pxlblz_show_route_layout = 0
+  __pxlblz_show_route_layout = 0${progressiveReset}
 ${selectLines.join('\n')}
 ${countBlocks.join('\n')}
 ${advanceLines.join('\n')}
 }`,
     `export function ${outputDimension === 2 ? 'render2D(index, x, y)' : 'render(index)'} {
-${renderBody}
+${progressiveRender}${renderBody}
   rgb(0, 0, 0)
 }`,
     '',
@@ -1230,19 +1305,23 @@ function emitPackedRoutingTable(layouts: ResolvedRoutingLayout[]): string {
   ].join('\n')
 }
 
-function emitPackedRoutingRender(layouts: ResolvedRoutingLayout[], outputDimension: 1 | 2): string {
+function emitPackedRoutingRender(
+  layouts: ResolvedRoutingLayout[],
+  outputDimension: 1 | 2,
+  renderLayoutName: string,
+): string {
   const pixelCount = routingPixelCount(layouts)
   const stride = pixelCount + 1
   const layoutsBody = layouts.map((layout, layoutIndex) => {
     const routeBody = layout.routes.map((route, routeIndex) => (
       emitPackedRouteBlock(route, routeIndex, outputDimension)
     )).join('\n')
-    return `${layoutIndex === 0 ? '    if' : '    else if'} (__pxlblz_show_route_layout == ${layoutIndex}) {
+    return `${layoutIndex === 0 ? '    if' : '    else if'} (${renderLayoutName} == ${layoutIndex}) {
 ${routeBody}
     }`
   }).join('\n')
   return `  if (index < ${pixelCount}) {
-    var __pxlblz_show_route_packed = __pxlblz_show_route_pixels[__pxlblz_show_route_layout * ${pixelCount} + index]
+    var __pxlblz_show_route_packed = __pxlblz_show_route_pixels[${renderLayoutName} * ${pixelCount} + index]
     if (__pxlblz_show_route_packed > 0) {
       __pxlblz_show_route_packed = __pxlblz_show_route_packed - 1
       var __pxlblz_show_route_id = floor(__pxlblz_show_route_packed / ${stride})

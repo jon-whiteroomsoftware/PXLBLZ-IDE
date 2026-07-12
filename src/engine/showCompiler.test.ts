@@ -19,6 +19,9 @@ function loadShow(code: string, metadata: ReturnType<typeof compileShow>['metada
       pixel = [h, s, v]
     },
     abs: Math.abs,
+    array(length: number) {
+      return Array.from({ length }, () => 0)
+    },
     atan2: Math.atan2,
     ceil: Math.ceil,
     clamp(v: number, lo: number, hi: number) {
@@ -41,6 +44,127 @@ function loadShow(code: string, metadata: ReturnType<typeof compileShow>['metada
 }
 
 describe('compileShow', () => {
+  it('progressively transfers routing ownership with one renderer per pixel while clocks continue (#403)', () => {
+    const artifact = compileShow({
+      clips: [
+        {
+          id: 'red',
+          zone: 'red-zone',
+          source: 'export var ticks = 0\nexport function beforeRender(delta) { ticks = ticks + 1 }\nexport function render(index) { rgb(1, ticks, index) }',
+        },
+        {
+          id: 'blue',
+          zone: 'blue-zone',
+          source: 'export var ticks = 0\nexport function beforeRender(delta) { ticks = ticks + 1 }\nexport function render(index) { rgb(0, ticks, index) }',
+        },
+      ],
+      zones: [
+        { id: 'red-a', name: 'red-zone', ranges: [{ start: 0, end: 1 }] },
+        { id: 'blue-a', name: 'blue-zone', ranges: [{ start: 2, end: 3 }] },
+      ],
+      routingLayouts: [
+        { id: 'layout-a', name: 'Red left', zones: [
+          { id: 'red-a', name: 'red-zone', ranges: [{ start: 0, end: 1 }] },
+          { id: 'blue-a', name: 'blue-zone', ranges: [{ start: 2, end: 3 }] },
+        ] },
+        { id: 'layout-b', name: 'Blue left', zones: [
+          { id: 'red-b', name: 'red-zone', ranges: [{ start: 2, end: 3 }] },
+          { id: 'blue-b', name: 'blue-zone', ranges: [{ start: 0, end: 1 }] },
+        ] },
+      ],
+      routingSwitches: [{
+        atMs: 1000,
+        layoutId: 'layout-b',
+        durationMs: 1000,
+        easing: 'linear',
+        direction: 'forward',
+      }],
+      loopDurationMs: 3000,
+    }, {})
+
+    expect(artifact.summary.renderPolicy).toBe('route-one-renderer-per-pixel')
+    expect(artifact.summary.worstInstantRenderersPerPixel).toBe(1)
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 4)
+
+    handle.beforeRender(1500)
+    handle.render(0)
+    expect(pixel()).toEqual([0, 1, 0])
+    handle.render(3)
+    expect(pixel()).toEqual([0, 1, 1])
+
+    handle.beforeRender(600)
+    handle.render(3)
+    expect(pixel()).toEqual([1, 2, 1])
+    expect(handle.getExports()).toMatchObject({
+      __pxlblz_show_c0_ticks: 2,
+      __pxlblz_show_c1_ticks: 2,
+    })
+  })
+
+  it('applies progressive ownership through coordinate-defined routing layouts (#403)', () => {
+    const zones = [
+      { id: 'a', name: 'a', ranges: [{ start: 0, end: 1 }] },
+      { id: 'b', name: 'b', ranges: [{ start: 2, end: 3 }] },
+    ]
+    const artifact = compileShow({
+      clips: [
+        { id: 'a', zone: 'a', source: 'export function render2D(index, x, y) { rgb(1, 0, 0) }' },
+        { id: 'b', zone: 'b', source: 'export function render2D(index, x, y) { rgb(0, 0, 1) }' },
+      ],
+      zones,
+      routingLayouts: [
+        { id: 'ab', name: 'A then B', zones, logical: { kind: 'stripes', zoneNames: ['a', 'b'], axis: 'x' } },
+        { id: 'ba', name: 'B then A', zones, logical: { kind: 'stripes', zoneNames: ['b', 'a'], axis: 'x' } },
+      ],
+      routingSwitches: [{ atMs: 1000, layoutId: 'ba', durationMs: 1000 }],
+      loopDurationMs: 3000,
+    }, {})
+
+    expect(artifact.summary.routingRepresentation).toBe('coordinate-predicates')
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 4)
+    handle.beforeRender(1500)
+    handle.render2D(0, 0.25, 0.5)
+    expect(pixel()).toEqual([0, 0, 1])
+    handle.render2D(3, 0.75, 0.5)
+    expect(pixel()).toEqual([0, 0, 1])
+  })
+
+  it('applies progressive ownership through packed routing tables (#403)', () => {
+    const alternatingRanges = (parity: number) => Array.from({ length: 32 }, (_, run) => ({
+      start: run * 2 + parity,
+      end: run * 2 + parity,
+    }))
+    const layout = (id: string, swapped: boolean) => ({
+      id,
+      name: id,
+      zones: [
+        { id: `${id}-a`, name: 'a', ranges: alternatingRanges(swapped ? 1 : 0) },
+        { id: `${id}-b`, name: 'b', ranges: alternatingRanges(swapped ? 0 : 1) },
+      ],
+    })
+    const artifact = compileShow({
+      clips: [
+        { id: 'a', zone: 'a', source: 'export function render(index) { rgb(1, 0, 0) }' },
+        { id: 'b', zone: 'b', source: 'export function render(index) { rgb(0, 0, 1) }' },
+      ],
+      zones: [
+        { id: 'a', name: 'a', ranges: alternatingRanges(0) },
+        { id: 'b', name: 'b', ranges: alternatingRanges(1) },
+      ],
+      routingLayouts: [layout('source', false), layout('destination', true)],
+      routingSwitches: [{ atMs: 1000, layoutId: 'destination', durationMs: 1000 }],
+      loopDurationMs: 3000,
+    }, {})
+
+    expect(artifact.summary.routingRepresentation).toBe('packed-pixels')
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 64)
+    handle.beforeRender(1500)
+    handle.render(0)
+    expect(pixel()).toEqual([0, 0, 1])
+    handle.render(63)
+    expect(pixel()).toEqual([0, 0, 1])
+  })
+
   it('switches named routing layouts on a looping schedule without restarting members (#398)', () => {
     const artifact = compileShow({
       clips: [
@@ -236,6 +360,23 @@ export function render2D(index, x, y) { rgb(x, y, ticks / 10) }
 
     expect(artifact.summary.warnings).toContain(
       'Routing layout "Overlap" assigns overlapping pixels to clips "a" and "b"; the first route wins.',
+    )
+  })
+
+  it('warns that pixels missing from a routing layout render black deterministically (#403)', () => {
+    const artifact = compileShow({
+      clips: [{ id: 'a', zone: 'a', source: 'export function render(index) { rgb(1, 0, 0) }' }],
+      zones: [{ id: 'all', name: 'a', ranges: [{ start: 0, end: 3 }] }],
+      routingLayouts: [
+        { id: 'complete', name: 'Complete', zones: [{ id: 'all', name: 'a', ranges: [{ start: 0, end: 3 }] }] },
+        { id: 'gap', name: 'Gap', zones: [{ id: 'partial', name: 'a', ranges: [{ start: 0, end: 1 }] }] },
+      ],
+      routingSwitches: [{ atMs: 1000, layoutId: 'gap', durationMs: 500 }],
+      loopDurationMs: 2000,
+    }, {})
+
+    expect(artifact.summary.warnings).toContain(
+      'Routing layout "Gap" leaves 2 of 4 physical pixels unassigned; those pixels render black.',
     )
   })
 
