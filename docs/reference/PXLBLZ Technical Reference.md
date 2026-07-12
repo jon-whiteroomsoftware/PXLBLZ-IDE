@@ -485,6 +485,16 @@ selected map/view/embedding, count, normalization, and injected map lookups, it
 returns corrected selection, map dimension, `sample`/`pos` points, modeled count,
 display dimension, readout label, and a 2D or 3D draw description.
 
+`previewResolution.ts` derives the Preview's discrete quick-selection ladder
+from explicit stock-map `gridRecipe` metadata. Square, Wide, and Cube use complete
+natural lattices; regenerating geometry without a lattice uses a bounded generic
+ladder; fixed baked maps offer no ladder. Exact entry remains independent and
+unbounded by the 2,048 quick-selection ceiling. Off-ladder values use the shared
+indeterminate slider treatment, and Cube reports the complete side-cubed lattice
+that `resolveLayout` actually realizes. `PixelCountPopover` receives this feature
+only from `PreviewDeck`; the live Controller panel retains its exact, explicitly
+applied hardware editor.
+
 `LayoutSelector` exposes separate controls:
 
 - Map owns `sample`;

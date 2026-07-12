@@ -1,4 +1,4 @@
-import type { GeometryFamilyView, GridDims, MapCatalogueKind, MapPoint, NormalRecipe, PixelMap } from './types'
+import type { GeometryFamilyView, GridDims, GridRecipe, MapCatalogueKind, MapPoint, NormalRecipe, PixelMap } from './types'
 import { evalMapSource } from './evalMapSource'
 import { normalizeAspect } from './normalize'
 import { squarePlaneDims, widePlaneDims } from './plane'
@@ -7,11 +7,9 @@ import { squarePlaneDims, widePlaneDims } from './plane'
 // createSourceMap maps the tag to the live derivation. Absent ⇒ the map exposes no
 // clean grid (an irregular cloud, a shell), so `gridDims` returns null. The 2D
 // recipes back a wrappable plane; `cube` describes the volumetric side³ lattice.
-export type GridRecipe = 'square' | 'wide' | 'cube'
-
-// The cube source cubes the count up to a side³ lattice with side = round(cbrt(n))
-// (sources/cube.js). By the time dims are read the count is the realized side³, so
-// the same formula recovers the side exactly — no clamp needed here.
+// Cube layout rounds the modeled count to a side³ lattice before resolution;
+// Preview controls may also ask for the dimensions of an off-ladder modeled
+// count. The same nearest-side formula serves both paths.
 function cubeGridDims(pixelCount: number): GridDims {
   const side = Math.max(1, Math.round(Math.cbrt(Math.max(1, Math.floor(pixelCount) || 1))))
   return { cols: side, rows: side, depth: side }
@@ -65,6 +63,7 @@ export function createSourceMap(spec: SourceMapSpec): PixelMap {
     ...(spec.displayDim !== undefined ? { displayDim: spec.displayDim } : {}),
     ...(spec.family ? { family: spec.family } : {}),
     ...(spec.normals ? { normals: spec.normals } : {}),
+    ...(spec.grid ? { gridRecipe: spec.grid } : {}),
     gridDims: spec.grid ? (pixelCount: number) => GRID_FNS[spec.grid!](pixelCount) : () => null,
     resolve(pixelCount: number): MapPoint[] {
       const samples = normalizeAspect(evalMapSource(spec.source, pixelCount))

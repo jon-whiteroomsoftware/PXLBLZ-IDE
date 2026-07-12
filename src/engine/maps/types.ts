@@ -25,6 +25,8 @@ export interface GridDims {
   depth?: number
 }
 
+export type GridRecipe = 'square' | 'wide' | 'cube'
+
 // The recipe for a 3D shell map's per-point outward normals, a
 // declarative tag the catalogue stamps on a map and the layout resolver maps to
 // the matching derivation: `face` (the faceted Cube shell's dominant-axis normal),
@@ -76,6 +78,9 @@ export interface PixelMap {
   // the count. Callers (the layout readout, the cylinder wrap) read it without
   // branching on provenance — that switch used to live in `mapStore.mapGridDims`.
   gridDims(pixelCount: number): GridDims | null
+  // Regenerating stock lattices expose their count-to-dimensions policy so
+  // Preview controls can offer complete natural resolutions without id checks.
+  gridRecipe?: GridRecipe
   // Provenance-gated solidity eligibility: the normal RECIPE the stock
   // catalogue vouches for a 3D shell (`face`/`star`/`centroid`). The preview derives
   // the per-point outward normal accordingly and offers the solidity slider; its

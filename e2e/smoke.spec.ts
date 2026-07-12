@@ -40,6 +40,20 @@ test('Pattern detail uses the shared recommended presentation', async ({ page })
   await expect(page.getByText('12×12×12')).toBeVisible()
 })
 
+test('Preview resolution moves through natural geometry stops', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: /LatticeWarp3D/ }).click()
+  await page.getByRole('button', { name: 'Edit pixel count' }).click()
+
+  await expect(page.getByRole('slider', { name: 'Preview resolution' })).toHaveValue('3')
+  await page.getByRole('button', { name: 'Decrease preview resolution' }).click()
+
+  await expect(page.getByRole('button', { name: 'Edit pixel count' })).toHaveText('1000')
+  const editor = page.getByRole('dialog', { name: 'Pixel count editor' })
+  await expect(editor.getByText('10×10×10')).toBeVisible()
+  await expect(editor.getByText('1,000 LEDs')).toBeVisible()
+})
+
 test('signed-out /studio shows the Studio welcome gate', async ({ page }) => {
   await page.goto('studio')
   await expect(page).toHaveURL(/\/studio-welcome$/)

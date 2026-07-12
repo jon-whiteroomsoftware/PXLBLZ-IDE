@@ -2,6 +2,7 @@ export type {
   MapPoint,
   PixelMap,
   GridDims,
+  GridRecipe,
   NormalRecipe,
   CoordinateView,
   GeometryFamilyView,

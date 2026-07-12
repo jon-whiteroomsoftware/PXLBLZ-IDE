@@ -169,7 +169,10 @@ The deck separates settings by whether hardware could carry them.
 **PIXELBLAZE** settings:
 
 - **Map** — coordinates supplied to the Pattern;
-- **Pixels** — modeled pixel count;
+- **Pixels** — modeled pixel count. Its popover offers a geometry-aware ladder
+  of natural resolutions with previous/next controls, plus exact entry. An exact
+  count may sit between ladder stops or exceed the 2,048-LED quick-selection
+  ceiling. Fixed imported maps keep their measured count and omit the ladder.
 - **Fit** — Fill or Contain normalization for 2D/3D maps; and
 - **Brightness** — preview output level, displayed on a logarithmic slider.
 
@@ -345,8 +348,10 @@ Click the active Controller pill to open live state:
   service.
 
 Brightness and live control writes are volatile. Pixel count is a deliberate
-saved hardware write. If the count is reduced, PXLBLZ first clocks the old tail
-black so LEDs beyond the new count do not freeze at their previous color.
+saved hardware write. The Controller therefore retains exact entry with an
+explicit apply action; it does not use the Preview's exploratory resolution
+ladder. If the count is reduced, PXLBLZ first clocks the old tail black so LEDs
+beyond the new count do not freeze at their previous color.
 
 PXLBLZ never installs firmware. The notice opens the Controller's own web UI and
 points to **Settings → Updates**.

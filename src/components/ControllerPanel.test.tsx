@@ -243,6 +243,7 @@ describe('ControllerPanel', () => {
 
     const input = screen.getByLabelText('Controller pixel count') as HTMLInputElement
     await waitFor(() => expect(input).toHaveFocus())
+    expect(screen.queryByRole('slider', { name: 'Preview resolution' })).not.toBeInTheDocument()
     fireEvent.change(input, { target: { value: '16' } })
     fireEvent.click(screen.getByRole('button', { name: 'Apply controller pixel count' }))
 

@@ -1,7 +1,7 @@
 import { Play, Pause, RotateCcw } from 'lucide-react'
 import { usePreviewStore, MIN_LIGHT_SIZE, MAX_LIGHT_SIZE } from '@/store/previewStore'
 import { useEditorStore } from '@/store/editorStore'
-import { useMapStore, defaultPixelCountForDim } from '@/store/mapStore'
+import { useMapStore, defaultPixelCountForDim, resolveMap } from '@/store/mapStore'
 import { usePatternStore } from '@/store/patternStore'
 import {
   writeCascadedOverride,
@@ -19,6 +19,7 @@ import { DimPills } from '@/components/DimPills'
 import { exportedDims } from '@/engine/exportedDims'
 import { Variables } from '@/components/Variables'
 import { PixelCountPopover } from '@/components/PixelCountPopover'
+import { previewResolutionSteps, realizedResolutionCount } from '@/engine/previewResolution'
 import {
   DeckSection,
   DeckSectionHint,
@@ -136,8 +137,16 @@ function PrimaryBand() {
 
 function PixelCountInput() {
   const activePixelCount = useMapStore((s) => s.activePixelCount)
+  const activeMapId = useMapStore((s) => s.activeMapId)
+  const userMaps = useMapStore((s) => s.userMaps)
   const setActivePixelCount = useMapStore((s) => s.setActivePixelCount)
   const { mapDim } = useMapSelectMeta()
+  const activeMap = resolveMap(activeMapId, userMaps)
+  const resolutionSteps = previewResolutionSteps({
+    mapDim,
+    gridRecipe: mapDim === 1 ? undefined : activeMap.gridRecipe,
+    bakedCount: activeMap.bakedCount,
+  })
 
   // The effective modeled count, via the same `effectivePixelCount` selector the
   // renderer feeds every layout branch through — the per-pattern value
@@ -159,6 +168,12 @@ function PixelCountInput() {
       value={effectiveCount}
       triggerLabel="Edit pixel count"
       inputLabel="Pixel count"
+      quickSelect={resolutionSteps.length > 0 ? {
+        steps: resolutionSteps,
+        dimensionsFor: (count) => mapDim === 1 ? null : activeMap.gridDims(count),
+        realizedCountFor: (count, dimensions) => realizedResolutionCount(count, dimensions, activeMap.gridRecipe),
+        onSelect: commit,
+      } : undefined}
       onApply={commit}
     />
   )

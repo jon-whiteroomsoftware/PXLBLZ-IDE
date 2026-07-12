@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Check } from 'lucide-react'
+import { Check, Minus, Plus } from 'lucide-react'
 import { parsePixelCountDraft, sanitizePixelCountDraft } from '@/engine/pixelCountDraft'
+import { adjacentPreviewResolution, resolutionStepIndex } from '@/engine/previewResolution'
+import type { GridDims } from '@/engine/maps'
 
 function formatPixelCount(value: number | null): string {
   return value == null ? '' : String(value)
@@ -12,6 +14,7 @@ export function PixelCountPopover({
   inputLabel,
   disabled = false,
   pending = false,
+  quickSelect,
   onApply,
 }: {
   value: number | null
@@ -19,6 +22,12 @@ export function PixelCountPopover({
   inputLabel: string
   disabled?: boolean
   pending?: boolean
+  quickSelect?: {
+    steps: readonly number[]
+    dimensionsFor: (count: number) => GridDims | null
+    realizedCountFor?: (count: number, dimensions: GridDims | null) => number
+    onSelect: (count: number) => void
+  }
   onApply: (count: number) => void
 }) {
   const [open, setOpen] = useState(false)
@@ -26,6 +35,13 @@ export function PixelCountPopover({
   const rootRef = useRef<HTMLSpanElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const parsed = parsePixelCountDraft(draft)
+  const stepIndex = quickSelect ? resolutionStepIndex(quickSelect.steps, value) : null
+  const previous = quickSelect ? adjacentPreviewResolution(quickSelect.steps, value, -1) : null
+  const next = quickSelect ? adjacentPreviewResolution(quickSelect.steps, value, 1) : null
+  const dimensions = value != null && quickSelect ? quickSelect.dimensionsFor(value) : null
+  const realizedCount = value != null && quickSelect
+    ? quickSelect.realizedCountFor?.(value, dimensions) ?? value
+    : value
 
   const [lastValue, setLastValue] = useState(value)
   if (value !== lastValue) {
@@ -84,8 +100,62 @@ export function PixelCountPopover({
         <div
           role="dialog"
           aria-label={`${inputLabel} editor`}
-          className="absolute -right-2 top-6 z-50 w-36 rounded-lg border border-zinc-700 bg-zinc-900 p-2 shadow-2xl font-mono text-xs text-zinc-300"
+          className={`absolute -right-2 top-6 z-50 rounded-lg border border-zinc-700 bg-zinc-900 p-2 shadow-2xl font-mono text-xs text-zinc-300 ${quickSelect ? 'w-60' : 'w-36'}`}
         >
+          {quickSelect && (
+            <div className="mb-2 border-b border-zinc-700/80 pb-2">
+              <div className="mb-1 flex items-center justify-between text-[10px] uppercase tracking-wide text-zinc-500">
+                <span>Resolution</span>
+                <span className={stepIndex == null ? 'text-zinc-500' : 'text-live'}>
+                  {stepIndex == null ? '—' : value?.toLocaleString()}
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  aria-label="Decrease preview resolution"
+                  title="Previous natural resolution"
+                  disabled={previous == null}
+                  onClick={() => { if (previous != null) quickSelect.onSelect(previous) }}
+                  className="grid size-7 shrink-0 place-items-center rounded border border-zinc-700 text-zinc-400 transition-colors hover:border-zinc-500 hover:text-zinc-100 disabled:opacity-30"
+                >
+                  <Minus size={13} aria-hidden />
+                </button>
+                <input
+                  type="range"
+                  aria-label="Preview resolution"
+                  aria-valuetext={stepIndex == null ? 'Between natural resolution stops' : `${value} LEDs`}
+                  min={0}
+                  max={quickSelect.steps.length - 1}
+                  step={1}
+                  value={stepIndex ?? (quickSelect.steps.length - 1) / 2}
+                  onChange={(event) => quickSelect.onSelect(quickSelect.steps[Math.round(Number(event.target.value))])}
+                  className={`min-w-0 flex-1 ${stepIndex == null ? 'deck-slider-unset' : 'accent-live'}`}
+                />
+                <button
+                  type="button"
+                  aria-label="Increase preview resolution"
+                  title="Next natural resolution"
+                  disabled={next == null}
+                  onClick={() => { if (next != null) quickSelect.onSelect(next) }}
+                  className="grid size-7 shrink-0 place-items-center rounded border border-zinc-700 text-zinc-400 transition-colors hover:border-zinc-500 hover:text-zinc-100 disabled:opacity-30"
+                >
+                  <Plus size={13} aria-hidden />
+                </button>
+              </div>
+              <div className="mt-1.5 flex items-baseline justify-between gap-2 text-[10px] tabular-nums">
+                <span className="text-zinc-400">
+                  {dimensions
+                    ? dimensions.depth == null
+                      ? `${dimensions.cols}×${dimensions.rows}`
+                      : `${dimensions.cols}×${dimensions.rows}×${dimensions.depth}`
+                    : 'Freeform'}
+                </span>
+                <span className="text-zinc-500">{realizedCount?.toLocaleString() ?? '—'} LEDs</span>
+              </div>
+            </div>
+          )}
+          {quickSelect && <div className="mb-1 text-[10px] uppercase tracking-wide text-zinc-500">Exact count</div>}
           <div className="flex items-center gap-2">
             <input
               ref={inputRef}

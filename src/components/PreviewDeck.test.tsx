@@ -130,6 +130,76 @@ describe('PreviewDeck (smoke)', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
+  it('shows an indeterminate quick-resolution slider for an off-ladder exact count', async () => {
+    useEditorStore.setState({ nativeDim: 2 })
+    useMapStore.setState({ activeMapId: 'plane', activePixelCount: 1000 })
+    usePatternStore.setState({ activeDemoName: 'TestPattern2D' })
+    render(<PreviewDeck />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit pixel count' }))
+    const slider = screen.getByRole('slider', { name: 'Preview resolution' }) as HTMLInputElement
+    expect(slider).toHaveClass('deck-slider-unset')
+    expect(screen.getByText('32×32')).toBeInTheDocument()
+    expect(screen.getByText('1,000 LEDs')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Increase preview resolution' }))
+    expect(useMapStore.getState().activePixelCount).toBe(1024)
+    await waitFor(() => expect(usePatternStore.getState().demoOverrides.TestPattern2D?.pixelCount).toBe(1024))
+  })
+
+  it('moves the Preview immediately through natural resolution stops', () => {
+    useEditorStore.setState({ nativeDim: 2 })
+    useMapStore.setState({ activeMapId: 'wide', activePixelCount: 512 })
+    render(<PreviewDeck />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit pixel count' }))
+    const slider = screen.getByRole('slider', { name: 'Preview resolution' })
+    fireEvent.change(slider, { target: { value: '4' } })
+
+    expect(useMapStore.getState().activePixelCount).toBe(1568)
+    expect(screen.getByText('56×28')).toBeInTheDocument()
+  })
+
+  it('reports the complete cube lattice realized by an off-ladder exact count', () => {
+    useEditorStore.setState({ nativeDim: 3 })
+    useMapStore.setState({ activeMapId: 'cube', activePixelCount: 1600 })
+    render(<PreviewDeck />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit pixel count' }))
+    expect(screen.getByText('12×12×12')).toBeInTheDocument()
+    expect(screen.getByText('1,728 LEDs')).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: 'Pixel count' })).toHaveValue('1600')
+  })
+
+  it('keeps exact Preview entry available above the quick-resolution ceiling', () => {
+    useEditorStore.setState({ nativeDim: 2 })
+    useMapStore.setState({ activeMapId: 'plane', activePixelCount: 1024 })
+    render(<PreviewDeck />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit pixel count' }))
+    fireEvent.change(screen.getByRole('textbox', { name: 'Pixel count' }), { target: { value: '4096' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Apply pixel count' }))
+
+    expect(useMapStore.getState().activePixelCount).toBe(4096)
+  })
+
+  it('keeps quick resolution absent for a fixed baked map', () => {
+    useEditorStore.setState({ nativeDim: 2 })
+    useMapStore.setState({
+      activeMapId: 'fixed-map',
+      activePixelCount: 4,
+      userMaps: [{
+        id: 'fixed-map', name: 'Fixed map', dim: 2, generator: 'custom', params: {},
+        points: [[0, 0], [1, 0], [0, 1], [1, 1]], source: '[[0,0],[1,0],[0,1],[1,1]]', updatedAt: 1,
+      }],
+    })
+    render(<PreviewDeck />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit pixel count' }))
+    expect(screen.queryByRole('slider', { name: 'Preview resolution' })).not.toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: 'Pixel count' })).toHaveValue('4')
+  })
+
   it('shows the layout telemetry cell only when a regular grid is live', () => {
     const { rerender } = render(<PreviewDeck />)
     expect(screen.queryByText('layout')).not.toBeInTheDocument()
