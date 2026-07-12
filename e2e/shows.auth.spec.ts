@@ -99,6 +99,49 @@ test.describe('authenticated Show authoring', () => {
     await expect(page.getByLabel('Routing transfer direction')).toHaveValue('reverse')
   })
 
+  test('authors and reloads a shared moving-split property', async ({ page }) => {
+    await page.goto('studio/shows')
+    await page.getByRole('button', { name: 'New show' }).click()
+    await page.getByRole('button', { name: 'Add zone' }).last().click()
+    await page.getByLabel('Default routing mode').selectOption('split-x')
+    await expect(page.getByRole('group', { name: 'Split position lane' })).toBeVisible()
+
+    await page.getByRole('group', { name: 'Scene Scene 1' }).click()
+    await page.getByRole('spinbutton', { name: 'Split position', exact: true }).fill('0.25')
+    await page.getByRole('group', { name: 'Scene Scene 2' }).click()
+    await page.getByRole('spinbutton', { name: 'Split position', exact: true }).fill('0.75')
+    await page.getByRole('button', { name: 'Select Scene 1 to Scene 2 transition (crossfade)' }).click()
+    await page.getByText('Advanced transition controls').click()
+    await page.getByLabel('Animate split position').check()
+    await page.getByLabel('Split position start').fill('0.2')
+    await page.getByLabel('Split position duration seconds').fill('1.2')
+    await page.getByLabel('Split position easing').selectOption('ease-in-out')
+
+    await waitForCurrentShow(page, (show) => (
+      show.routingLayouts[0]?.logical?.kind === 'split'
+      && show.scenes[0]?.routingTargets?.splitPosition === 0.25
+      && show.scenes[1]?.routingTargets?.splitPosition === 0.75
+      && show.transitions?.[0]?.propertyTransitions?.routing?.splitPosition?.from === 0.2
+      && show.transitions[0].propertyTransitions.routing.splitPosition.durationMs === 1200
+      && show.transitions[0].propertyTransitions.routing.splitPosition.easing === 'ease-in-out'
+    ))
+
+    await page.reload()
+    await expect(page.getByLabel('Default routing mode')).toHaveValue('split-x')
+    await page.getByRole('group', { name: 'Scene Scene 2' }).click()
+    await expect(page.getByRole('spinbutton', { name: 'Split position', exact: true })).toHaveValue('0.75')
+    await expect(page.getByText(/moving split: 1 scalar/i)).toBeVisible()
+
+    await page.setViewportSize({ width: 720, height: 900 })
+    await expect(page.getByRole('group', { name: 'Split position lane' })).toBeVisible()
+    await expect(page.getByRole('spinbutton', { name: 'Split position', exact: true })).toBeVisible()
+    const pageOverflow = await page.evaluate(() => ({
+      scrollWidth: document.documentElement.scrollWidth,
+      clientWidth: document.documentElement.clientWidth,
+    }))
+    expect(pageOverflow.scrollWidth - pageOverflow.clientWidth).toBeLessThanOrEqual(8)
+  })
+
   test('authors shape-aware diamond and ring spatial transitions', async ({ page }) => {
     await page.goto('studio/shows')
     await page.getByRole('button', { name: 'New show' }).click()
@@ -143,7 +186,7 @@ test.describe('authenticated Show authoring', () => {
 
 type PersistedShow = {
   id: string
-  scenes: Array<{ name: string; durationMs: number }>
+  scenes: Array<{ name: string; durationMs: number; routingTargets?: { splitPosition?: number } }>
   cells: Array<{
     sceneId: string
     patternName: string
@@ -159,11 +202,15 @@ type PersistedShow = {
     rotation?: number
     spin?: number
     ringWidth?: number
-    propertyTransitions?: { timeScale?: unknown }
+    propertyTransitions?: {
+      timeScale?: unknown
+      routing?: { splitPosition?: { from: number; durationMs: number; easing: string } }
+    }
   }>
   routingLayouts: Array<{
     name: string
     zones: Array<{ ranges: Array<{ start: number; end: number }> }>
+    logical?: { kind: string }
   }>
   routingSwitches: Array<{ afterSceneId: string; layoutId: string }>
 }

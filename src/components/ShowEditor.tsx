@@ -673,6 +673,8 @@ function SceneStrip({
     label: Object.values(patternControlsByCellId).flat().find((control) => control.exportName === exportName)?.label
       ?? exportName.replace(/^slider/, '').replace(/([A-Z])/g, ' $1').trim(),
   }))
+  const movingSplitLayout = show.routingLayouts.find((layout) => layout.logical?.kind === 'split')
+  const routingLaneRows = movingSplitLayout ? 1 : 0
   const rowStride = 3 + controlLanes.length
   const columns = [
     '148px',
@@ -686,7 +688,14 @@ function SceneStrip({
     )),
     '64px',
   ]
-  const rows = ['auto', '28px', '34px', ...strip.rows.flatMap(() => ['64px', '26px', '26px', ...controlLanes.map(() => '26px')]), '34px']
+  const rows = [
+    'auto',
+    '28px',
+    '34px',
+    ...(movingSplitLayout ? ['26px'] : []),
+    ...strip.rows.flatMap(() => ['64px', '26px', '26px', ...controlLanes.map(() => '26px')]),
+    '34px',
+  ]
   const timelineScale = viewport.totalMs / viewport.durationMs
   const timelineWidth = `calc(${timelineScale * 100}% + ${212 * (1 - timelineScale)}px)`
   useEffect(() => {
@@ -770,7 +779,7 @@ function SceneStrip({
           Show time
         </div>
         <TimelineRuler show={show} gridColumn={`2 / ${columns.length}`} />
-        <TimelinePlayhead show={show} gridColumn={`2 / ${columns.length}`} rowSpan={strip.rows.length * rowStride + 3} />
+        <TimelinePlayhead show={show} gridColumn={`2 / ${columns.length}`} rowSpan={strip.rows.length * rowStride + routingLaneRows + 3} />
         <div role="group" aria-label="Transition lane" className="contents">
           <div
             className="sticky left-0 z-30 flex items-center gap-2 border-b border-zinc-900 bg-[#060608] px-1 text-[9.5px] uppercase tracking-[0.12em] text-structural"
@@ -815,6 +824,57 @@ function SceneStrip({
             )
           })}
         </div>
+        {movingSplitLayout?.logical?.kind === 'split' && (() => {
+          const [firstZoneId, secondZoneId] = movingSplitLayout.logical.zoneIds
+          const firstColor = show.zones.find((zone) => zone.id === firstZoneId)?.color ?? '#38bdf8'
+          const secondColor = show.zones.find((zone) => zone.id === secondZoneId)?.color ?? '#f97316'
+          return (
+            <div role="group" aria-label="Split position lane" className="contents">
+              <div
+                className="sticky left-0 z-30 flex items-center gap-1 border-t border-zinc-900/80 bg-[#060608] px-2 font-mono text-[9px] text-sky-300/80"
+                style={{ gridColumn: 1, gridRow: 4 }}
+              >
+                ↳ split {movingSplitLayout.logical.axis.toUpperCase()}
+              </div>
+              {show.scenes.map((scene, sceneIndex) => {
+                const position = scene.routingTargets?.splitPosition ?? 0.5
+                return (
+                  <div
+                    key={`split-${scene.id}`}
+                    className="flex items-center justify-center border-t border-zinc-900/80 font-mono text-[9px] text-zinc-100"
+                    style={{
+                      gridColumn: 2 + sceneIndex * 2,
+                      gridRow: 4,
+                      background: `linear-gradient(90deg, color-mix(in srgb, ${firstColor} 35%, #08080a) 0 ${position * 100}%, color-mix(in srgb, ${secondColor} 35%, #08080a) ${position * 100}% 100%)`,
+                    }}
+                  >
+                    {Math.round(position * 100)}%
+                  </div>
+                )
+              })}
+              {show.scenes.slice(0, -1).map((scene, sceneIndex) => {
+                const transition = show.transitions?.find((candidate) => candidate.afterSceneId === scene.id && candidate.kind !== 'routing')
+                const descriptor = transition?.propertyTransitions?.routing?.splitPosition
+                const target = show.scenes[sceneIndex + 1]?.routingTargets?.splitPosition ?? 0.5
+                return transition ? (
+                  <button
+                    key={`split-boundary-${scene.id}`}
+                    type="button"
+                    aria-label={`Edit split position transition from ${scene.name}`}
+                    className={descriptor ? 'border-t border-zinc-900/80 bg-sky-400/10 font-mono text-[9px] text-sky-200' : 'border-t border-zinc-900/80 font-mono text-[9px] text-zinc-700 hover:text-sky-300'}
+                    style={{ gridColumn: 3 + sceneIndex * 2, gridRow: 4 }}
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      onSelect({ kind: 'transition', transitionId: transition.id })
+                    }}
+                  >
+                    {descriptor ? `${Math.round(descriptor.from * 100)}→${Math.round(target * 100)}` : '—'}
+                  </button>
+                ) : null
+              })}
+            </div>
+          )
+        })()}
         {strip.rows.map((row, rowIndex) => (
           <div key={row.zoneId} className="contents">
             <button
@@ -830,7 +890,7 @@ function SceneStrip({
                   ? 'bg-live/10 text-zinc-100'
                   : 'text-zinc-300 hover:text-zinc-100',
               ].join(' ')}
-              style={{ gridColumn: 1, gridRow: `${rowIndex * rowStride + 4} / span ${rowStride}` }}
+              style={{ gridColumn: 1, gridRow: `${rowIndex * rowStride + 4 + routingLaneRows} / span ${rowStride}` }}
             >
               <span
                 aria-hidden
@@ -861,7 +921,7 @@ function SceneStrip({
                   borderLeftColor: row.color ?? '#38bdf8',
                   background: `linear-gradient(color-mix(in srgb, ${row.color ?? '#38bdf8'} 9%, #101013), color-mix(in srgb, ${row.color ?? '#38bdf8'} 6%, #0c0c0e))`,
                   gridColumn: `${cell.columnStart} / span ${cell.columnSpan}`,
-                  gridRow: `${rowIndex * rowStride + 4} / span ${Math.max(1, cell.rowSpan * rowStride - (rowStride - 1))}`,
+                  gridRow: `${rowIndex * rowStride + 4 + routingLaneRows} / span ${Math.max(1, cell.rowSpan * rowStride - (rowStride - 1))}`,
                 } as CSSProperties}
                 onMouseEnter={(event) => {
                   event.currentTarget.style.background = `linear-gradient(color-mix(in srgb, ${row.color ?? '#38bdf8'} 14%, #131316), color-mix(in srgb, ${row.color ?? '#38bdf8'} 10%, #0e0e10))`
@@ -901,7 +961,7 @@ function SceneStrip({
                       ? 'border-live/70 bg-live/10 text-zinc-200'
                       : 'border-zinc-800 bg-zinc-950/20 text-zinc-600 hover:border-zinc-600 hover:text-zinc-300',
                   ].join(' ')}
-                  style={{ gridColumn: 2 + sceneIndex * 2, gridRow: rowIndex * rowStride + 4 }}
+                  style={{ gridColumn: 2 + sceneIndex * 2, gridRow: rowIndex * rowStride + 4 + routingLaneRows }}
                 >
                   <span className="flex items-center gap-1"><Plus size={11} aria-hidden /> clip</span>
                 </button>
@@ -911,7 +971,7 @@ function SceneStrip({
               role="group"
               aria-label={`Time lane for ${row.zoneName}`}
               className="sticky left-0 z-30 flex items-center gap-1 border-t border-zinc-900/80 bg-[#060608] px-2 text-[9px] text-violet-300/80"
-              style={{ gridColumn: 1, gridRow: rowIndex * rowStride + 5 }}
+              style={{ gridColumn: 1, gridRow: rowIndex * rowStride + 5 + routingLaneRows }}
             >
               <span className="font-mono">↳ time ×</span>
             </div>
@@ -921,7 +981,7 @@ function SceneStrip({
                 <div
                   key={`time-${row.zoneId}-${scene.id}`}
                   className="flex items-center border-t border-zinc-900/80 px-2 font-mono text-[9px] text-zinc-500"
-                  style={{ gridColumn: 2 + sceneIndex * 2, gridRow: rowIndex * rowStride + 5 }}
+                  style={{ gridColumn: 2 + sceneIndex * 2, gridRow: rowIndex * rowStride + 5 + routingLaneRows }}
                 >
                   {formatTimeScale(cell.adaptations.timeScale)}×
                 </div>
@@ -940,7 +1000,7 @@ function SceneStrip({
                     'flex items-center justify-center border-t border-zinc-900/80 font-mono text-[9px] transition-colors',
                     from === undefined ? 'text-zinc-700 hover:text-violet-300' : 'bg-violet-400/10 text-violet-200',
                   ].join(' ')}
-                  style={{ gridColumn: 3 + sceneIndex * 2, gridRow: rowIndex * rowStride + 5 }}
+                  style={{ gridColumn: 3 + sceneIndex * 2, gridRow: rowIndex * rowStride + 5 + routingLaneRows }}
                   onClick={(event) => {
                     event.stopPropagation()
                     onSelect({ kind: 'transition', transitionId: transition.id })
@@ -954,7 +1014,7 @@ function SceneStrip({
               role="group"
               aria-label={`Brightness lane for ${row.zoneName}`}
               className="sticky left-0 z-30 flex items-center gap-1 border-t border-zinc-900/80 bg-[#060608] px-2 text-[9px] text-amber-300/80"
-              style={{ gridColumn: 1, gridRow: rowIndex * rowStride + 6 }}
+              style={{ gridColumn: 1, gridRow: rowIndex * rowStride + 6 + routingLaneRows }}
             >
               <span className="font-mono">↳ bright</span>
             </div>
@@ -964,7 +1024,7 @@ function SceneStrip({
                 <div
                   key={`brightness-${row.zoneId}-${scene.id}`}
                   className="flex items-center border-t border-zinc-900/80 px-2 font-mono text-[9px] text-zinc-500"
-                  style={{ gridColumn: 2 + sceneIndex * 2, gridRow: rowIndex * rowStride + 6 }}
+                  style={{ gridColumn: 2 + sceneIndex * 2, gridRow: rowIndex * rowStride + 6 + routingLaneRows }}
                 >
                   {formatBrightness(cell.adaptations.brightness)}
                 </div>
@@ -983,7 +1043,7 @@ function SceneStrip({
                     'flex items-center justify-center border-t border-zinc-900/80 font-mono text-[9px] transition-colors',
                     from === undefined ? 'text-zinc-700 hover:text-amber-300' : 'bg-amber-400/10 text-amber-200',
                   ].join(' ')}
-                  style={{ gridColumn: 3 + sceneIndex * 2, gridRow: rowIndex * rowStride + 6 }}
+                  style={{ gridColumn: 3 + sceneIndex * 2, gridRow: rowIndex * rowStride + 6 + routingLaneRows }}
                   onClick={(event) => {
                     event.stopPropagation()
                     onSelect({ kind: 'transition', transitionId: transition.id })
@@ -999,7 +1059,7 @@ function SceneStrip({
                   role="group"
                   aria-label={`${control.label} control lane for ${row.zoneName}`}
                   className="sticky left-0 z-30 flex items-center gap-1 border-t border-zinc-900/80 bg-[#060608] px-2 text-[9px] text-cyan-300/80"
-                  style={{ gridColumn: 1, gridRow: rowIndex * rowStride + 7 + controlIndex }}
+                  style={{ gridColumn: 1, gridRow: rowIndex * rowStride + 7 + controlIndex + routingLaneRows }}
                 >
                   <span className="truncate font-mono">↳ {control.label}</span>
                 </div>
@@ -1010,7 +1070,7 @@ function SceneStrip({
                     <div
                       key={`control-${row.zoneId}-${control.exportName}-${scene.id}`}
                       className="flex items-center border-t border-zinc-900/80 px-2 font-mono text-[9px] text-zinc-500"
-                      style={{ gridColumn: 2 + sceneIndex * 2, gridRow: rowIndex * rowStride + 7 + controlIndex }}
+                      style={{ gridColumn: 2 + sceneIndex * 2, gridRow: rowIndex * rowStride + 7 + controlIndex + routingLaneRows }}
                     >
                       {target === undefined ? 'unset' : formatControlValue(target)}
                     </div>
@@ -1030,7 +1090,7 @@ function SceneStrip({
                         'flex items-center justify-center border-t border-zinc-900/80 font-mono text-[9px] transition-colors',
                         from === undefined ? 'text-zinc-700 hover:text-cyan-300' : 'bg-cyan-400/10 text-cyan-200',
                       ].join(' ')}
-                      style={{ gridColumn: 3 + sceneIndex * 2, gridRow: rowIndex * rowStride + 7 + controlIndex }}
+                      style={{ gridColumn: 3 + sceneIndex * 2, gridRow: rowIndex * rowStride + 7 + controlIndex + routingLaneRows }}
                       onClick={(event) => {
                         event.stopPropagation()
                         onSelect({ kind: 'transition', transitionId: transition.id })
@@ -1052,7 +1112,7 @@ function SceneStrip({
             onAddZone()
           }}
           className="sticky left-0 z-30 flex items-center justify-center rounded-[5px] border border-dashed border-zinc-800 bg-[#060608] text-[10px] uppercase tracking-wider text-structural hover:border-zinc-600 hover:text-zinc-200"
-          style={{ gridColumn: 1, gridRow: strip.rows.length * rowStride + 4 }}
+          style={{ gridColumn: 1, gridRow: strip.rows.length * rowStride + 4 + routingLaneRows }}
         >
           + zone
         </button>
@@ -1064,7 +1124,7 @@ function SceneStrip({
             onAddScene()
           }}
           className="sticky right-0 z-30 flex items-center justify-center rounded-[5px] border border-dashed border-zinc-800 bg-[#060608] text-[10px] uppercase tracking-wider text-structural [writing-mode:vertical-rl] hover:border-zinc-600 hover:text-zinc-200"
-          style={{ gridColumn: columns.length, gridRow: `4 / span ${strip.rows.length * rowStride}` }}
+          style={{ gridColumn: columns.length, gridRow: `${4 + routingLaneRows} / span ${strip.rows.length * rowStride}` }}
         >
           + scene
         </button>
@@ -1500,6 +1560,7 @@ function ContextualInspector({
       return (
         <SceneInspector
           scene={scene}
+          hasMovingSplit={show.routingLayouts.some((layout) => layout.logical?.kind === 'split')}
           canRemove={show.scenes.length > 1}
           onUpdate={(changes) => onUpdateScene(scene, changes)}
           onDuplicate={() => onDuplicateScene(scene)}
@@ -1626,12 +1687,14 @@ function EmptyClipInspector({
 
 function SceneInspector({
   scene,
+  hasMovingSplit,
   canRemove,
   onUpdate,
   onDuplicate,
   onRemove,
 }: {
   scene: ShowScene
+  hasMovingSplit: boolean
   canRemove: boolean
   onUpdate: (changes: Partial<Omit<ShowScene, 'id'>>) => void
   onDuplicate: () => void
@@ -1680,6 +1743,16 @@ function SceneInspector({
             <span className="text-[10px] text-zinc-500">s</span>
           </span>
         </label>
+        {hasMovingSplit && (
+          <NumberField
+            label="Split position"
+            value={scene.routingTargets?.splitPosition ?? 0.5}
+            min={0}
+            max={1}
+            step={0.01}
+            onChange={(splitPosition) => onUpdate({ routingTargets: { splitPosition } })}
+          />
+        )}
       </div>
     </InspectorPanel>
   )
@@ -2228,6 +2301,14 @@ function TransitionInspector({
               onUpdateCellAdaptations={onUpdateCellAdaptations}
             />
           ))}
+          {show.routingLayouts.some((layout) => layout.logical?.kind === 'split') && nextScene && (
+            <RoutingSplitTransitionEditor
+              transition={transition}
+              fromTarget={scene?.routingTargets?.splitPosition ?? 0.5}
+              toTarget={nextScene.routingTargets?.splitPosition ?? 0.5}
+              onUpdate={onUpdate}
+            />
+          )}
           {boundaryControls.map((control) => (
             <PatternControlTransitionEditor
               key={control.exportName}
@@ -2372,6 +2453,94 @@ function TransitionInspector({
         </div>
       </details>
     </InspectorPanel>
+  )
+}
+
+function RoutingSplitTransitionEditor({
+  transition,
+  fromTarget,
+  toTarget,
+  onUpdate,
+}: {
+  transition: ShowBoundaryTransition
+  fromTarget: number
+  toTarget: number
+  onUpdate: (transitionId: string, changes: Partial<Omit<ShowBoundaryTransition, 'id' | 'afterSceneId'>>) => void
+}) {
+  const descriptor = transition.propertyTransitions?.routing?.splitPosition
+  const updateDescriptor = (changes: Partial<NonNullable<typeof descriptor>>) => {
+    onUpdate(transition.id, {
+      propertyTransitions: {
+        ...(transition.propertyTransitions ?? {}),
+        routing: {
+          ...(transition.propertyTransitions?.routing ?? {}),
+          splitPosition: {
+            from: changes.from ?? descriptor?.from ?? fromTarget,
+            durationMs: changes.durationMs ?? descriptor?.durationMs ?? transition.durationMs,
+            easing: changes.easing ?? descriptor?.easing ?? transition.easing,
+          },
+        },
+      },
+    })
+  }
+  const removeDescriptor = () => {
+    const propertyTransitions = { ...(transition.propertyTransitions ?? {}) }
+    const routing = { ...(propertyTransitions.routing ?? {}) }
+    delete routing.splitPosition
+    if (Object.keys(routing).length > 0) propertyTransitions.routing = routing
+    else delete propertyTransitions.routing
+    onUpdate(transition.id, {
+      propertyTransitions: Object.keys(propertyTransitions).length > 0 ? propertyTransitions : undefined,
+    })
+  }
+  return (
+    <section className="col-span-2 rounded border border-sky-900/50 bg-sky-950/10 p-2">
+      <label className="flex items-center gap-2 text-[10px] uppercase text-sky-300/80">
+        <input
+          type="checkbox"
+          aria-label="Animate split position"
+          checked={Boolean(descriptor)}
+          onChange={(event) => event.target.checked ? updateDescriptor({}) : removeDescriptor()}
+          className="h-3.5 w-3.5 accent-sky-400"
+        />
+        Split position
+        <span className="ml-auto font-mono text-zinc-500">{Math.round(fromTarget * 100)}% → {Math.round(toTarget * 100)}%</span>
+      </label>
+      {descriptor && (
+        <div className="mt-2 grid grid-cols-3 gap-2">
+          <NumberField
+            label="Split position start"
+            value={descriptor.from}
+            min={0}
+            max={1}
+            step={0.01}
+            onChange={(from) => updateDescriptor({ from })}
+          />
+          <NumberField
+            label="Split position duration seconds"
+            value={(descriptor.durationMs ?? transition.durationMs) / 1000}
+            min={0}
+            max={Math.max(0, transition.durationMs / 1000)}
+            step={0.1}
+            onChange={(seconds) => updateDescriptor({ durationMs: seconds * 1000 })}
+          />
+          <label className="text-[10px] uppercase text-zinc-600">
+            Split position easing
+            <select
+              aria-label="Split position easing"
+              value={descriptor.easing ?? transition.easing}
+              onChange={(event) => updateDescriptor({ easing: event.target.value as ShowBoundaryTransition['easing'] })}
+              className={`${field} mt-1 w-full`}
+            >
+              <option value="linear">linear</option>
+              <option value="ease-in">ease in</option>
+              <option value="ease-out">ease out</option>
+              <option value="ease-in-out">ease in/out</option>
+            </select>
+          </label>
+        </div>
+      )}
+    </section>
   )
 }
 
@@ -2802,6 +2971,37 @@ function ShowSetupInspector({
                   <Trash2 size={13} aria-hidden />
                 </button>
               </div>
+              <label className="mt-2 block text-[9.5px] uppercase text-zinc-600">
+                Routing mode
+                <select
+                  aria-label={`${layout.name} routing mode`}
+                  value={layout.logical?.kind === 'split' ? `split-${layout.logical.axis}` : 'physical'}
+                  disabled={show.zones.length < 2}
+                  onChange={(event) => {
+                    const value = event.target.value
+                    onUpdateRoutingLayout(layout.id, {
+                      logical: value === 'split-x' || value === 'split-y'
+                        ? {
+                            kind: 'split',
+                            zoneIds: [show.zones[0].id, show.zones[1].id],
+                            axis: value === 'split-y' ? 'y' : 'x',
+                          }
+                        : undefined,
+                    })
+                  }}
+                  className={`${field} mt-1 w-full max-w-xs`}
+                >
+                  <option value="physical">physical pixel ranges</option>
+                  <option value="split-x">moving split X</option>
+                  <option value="split-y">moving split Y</option>
+                </select>
+              </label>
+              {layout.logical?.kind === 'split' ? (
+                <p className="mt-2 rounded border border-sky-900/40 bg-sky-950/10 px-2 py-1.5 text-[10px] leading-4 text-zinc-500">
+                  {show.zones.find((zone) => zone.id === layout.logical?.zoneIds[0])?.name ?? 'First zone'} and{' '}
+                  {show.zones.find((zone) => zone.id === layout.logical?.zoneIds[1])?.name ?? 'second zone'} share a normalized Stage axis. Scene targets move the split continuously.
+                </p>
+              ) : (
               <div className="mt-2 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
                 {show.zones.map((zone) => {
                   const layoutZone = layout.zones.find((candidate) => candidate.zoneId === zone.id)
@@ -2831,6 +3031,7 @@ function ShowSetupInspector({
                   )
                 })}
               </div>
+              )}
             </div>
           ))}
         </div>
@@ -2978,7 +3179,7 @@ function CompileBar({
     ? [...new Set(timeOffsets)].join(', ')
     : null
   return (
-    <div className="flex min-h-10 shrink-0 items-center gap-2 border-t border-seam bg-zinc-950 px-3 font-mono text-xs text-zinc-500">
+    <div className="flex min-h-10 shrink-0 items-center gap-2 overflow-x-auto whitespace-nowrap border-t border-seam bg-zinc-950 px-3 font-mono text-xs text-zinc-500">
       <span>compiled artifact</span>
       <span className="h-2 w-28 overflow-hidden rounded-sm bg-zinc-800">
         <span className="block h-full bg-live" style={{ width: `${Math.min(100, ratio * 100)}%` }} />
@@ -3007,6 +3208,11 @@ function CompileBar({
                 : ''}
             </>
           )}
+        </span>
+      )}
+      {summary?.routingParameterEstimate && (
+        <span className="text-sky-200">
+          moving split: 1 scalar · 1 route test/px · avoids {summary.routingParameterEstimate.equivalentEnumeratedArrayElements} table entries
         </span>
       )}
       {summary && summary.clockPolicy !== 'real-time' && (

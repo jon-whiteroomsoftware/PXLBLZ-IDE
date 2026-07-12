@@ -320,7 +320,14 @@ export function updateShowScene(
     ...show,
     scenes: show.scenes.map((scene) => (
       scene.id === sceneId
-        ? { ...scene, ...changes, durationMs: clampDuration(changes.durationMs ?? scene.durationMs) }
+        ? {
+            ...scene,
+            ...changes,
+            durationMs: clampDuration(changes.durationMs ?? scene.durationMs),
+            ...(changes.routingTargets
+              ? { routingTargets: { splitPosition: clamp01(changes.routingTargets.splitPosition ?? 0.5) } }
+              : {}),
+          }
         : scene
     )),
     updatedAt: Date.now(),
@@ -330,10 +337,14 @@ export function updateShowScene(
 export function addShowScene(show: ShowRecord): ShowRecord {
   show = normalizeShowTransitionState(show)
   const id = nextEntityId('scene-', show.scenes)
+  const previousScene = show.scenes[show.scenes.length - 1]
   const scene: ShowScene = {
     id,
     name: uniqueSceneName(`Scene ${show.scenes.length + 1}`, show.scenes),
     durationMs: 30000,
+    ...(previousScene?.routingTargets
+      ? { routingTargets: { ...previousScene.routingTargets } }
+      : {}),
   }
   const lastSceneIndex = show.scenes.length - 1
   const defaultTransition: NonNullable<ShowScene['transitionOut']> = {
@@ -966,10 +977,16 @@ export function normalizeShowTransitionState(show: ShowRecord): ShowRecord {
     ...show,
     transitions: normalized,
     scenes: show.scenes.map((scene, index) => {
-      if (index === show.scenes.length - 1) return { ...scene, transitionOut: undefined }
+      const normalizedScene = {
+        ...scene,
+        ...(scene.routingTargets
+          ? { routingTargets: { splitPosition: clamp01(scene.routingTargets.splitPosition ?? 0.5) } }
+          : {}),
+      }
+      if (index === show.scenes.length - 1) return { ...normalizedScene, transitionOut: undefined }
       const transition = visualByScene.get(scene.id)
       return {
-        ...scene,
+        ...normalizedScene,
         transitionOut: transition && transition.kind !== 'cut' && transition.kind !== 'routing'
           ? boundaryToLegacyTransition(transition)
           : undefined,
@@ -1048,8 +1065,26 @@ function normalizePropertyTransitions(transition: ShowBoundaryTransition): Pick<
     }
     return [exportName, normalized]
   }))
-  return timeScale || brightness || Object.keys(controls).length > 0
-    ? { propertyTransitions: { ...(timeScale ? { timeScale } : {}), ...(brightness ? { brightness } : {}), ...(Object.keys(controls).length > 0 ? { controls } : {}) } }
+  const splitPositionSource = transition.propertyTransitions?.routing?.splitPosition
+  const splitPosition = splitPositionSource
+    ? {
+        from: clamp01(splitPositionSource.from),
+        durationMs: Math.min(
+          clampPropertyDuration(splitPositionSource.durationMs ?? transition.durationMs),
+          clampDuration(transition.durationMs),
+        ),
+        easing: normalizeEasing(splitPositionSource.easing ?? transition.easing),
+      }
+    : undefined
+  return timeScale || brightness || Object.keys(controls).length > 0 || splitPosition
+    ? {
+        propertyTransitions: {
+          ...(timeScale ? { timeScale } : {}),
+          ...(brightness ? { brightness } : {}),
+          ...(Object.keys(controls).length > 0 ? { controls } : {}),
+          ...(splitPosition ? { routing: { splitPosition } } : {}),
+        },
+      }
     : {}
 }
 
@@ -1569,13 +1604,39 @@ function showRecordToRoutedFirstSceneRecipe(
       direction: transition?.routingDirection ?? 'forward',
     }]
   })
-  const routingLayouts = activeSwitches.length > 0
-    ? normalized.routingLayouts.map((layout) => ({
+  const splitLayout = normalized.routingLayouts.find((layout) => layout.logical?.kind === 'split')
+  const selectedLayouts = activeSwitches.length > 0
+    ? normalized.routingLayouts
+    : splitLayout
+      ? [splitLayout]
+      : []
+  const routingLayouts = selectedLayouts.length > 0
+    ? selectedLayouts.map((layout) => ({
         id: layout.id,
         name: layout.name,
         zones: routingLayoutControllerZones(normalized.zones, layout),
         logical: layout.logical ? logicalRoutingRecipe(normalized.zones, layout.logical) : undefined,
       }))
+    : undefined
+  const splitPosition = splitLayout
+    ? {
+        initial: clamp01(normalized.scenes[0]?.routingTargets?.splitPosition ?? 0.5),
+        ramps: normalized.scenes.slice(0, -1).map((scene, sceneIndex) => {
+          const target = clamp01(normalized.scenes[sceneIndex + 1]?.routingTargets?.splitPosition ?? 0.5)
+          const boundary = normalized.transitions?.find((transition) => (
+            transition.afterSceneId === scene.id && transition.kind !== 'routing'
+          ))
+          const descriptor = boundary?.propertyTransitions?.routing?.splitPosition
+          return {
+            atMs: normalized.scenes.slice(0, sceneIndex + 1)
+              .reduce((sum, candidate) => sum + Math.max(0, candidate.durationMs), 0),
+            from: clamp01(descriptor?.from ?? scene.routingTargets?.splitPosition ?? 0.5),
+            to: target,
+            durationMs: descriptor?.durationMs ?? 0,
+            easing: descriptor?.easing ?? 'linear',
+          }
+        }),
+      }
     : undefined
 
   return {
@@ -1603,6 +1664,7 @@ function showRecordToRoutedFirstSceneRecipe(
     zones: lookup.controllerZones ?? nominalZones(show.zones),
     routingLayouts,
     routingSwitches: routingLayouts ? activeSwitches : undefined,
+    routingPropertyRamps: splitPosition ? { splitPosition } : undefined,
     loopDurationMs: routingLayouts ? loopDurationMs : undefined,
   }
 }
@@ -1809,6 +1871,7 @@ function logicalRoutingRecipe(
     return { kind: logical.kind, zoneNames, columns: logical.columns, rows: logical.rows }
   }
   if (logical.kind === 'stripes') return { kind: logical.kind, zoneNames, axis: logical.axis }
+  if (logical.kind === 'split') return { kind: logical.kind, zoneNames: [zoneNames[0], zoneNames[1]], axis: logical.axis }
   return { kind: logical.kind, zoneNames, twist: logical.twist }
 }
 

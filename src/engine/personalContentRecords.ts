@@ -87,11 +87,20 @@ export interface ShowPropertyTransition {
   easing?: ShowTransitionEasing
 }
 
+export interface ShowScalarPropertyTransition {
+  from: number
+  durationMs?: number
+  easing?: ShowTransitionEasing
+}
+
 export interface ShowPropertyTransitions {
   timeScale?: ShowPropertyTransition
   brightness?: ShowPropertyTransition
   /** Public Pixelblaze slider export name -> the same shared transition descriptor. */
   controls?: Record<string, ShowPropertyTransition>
+  routing?: {
+    splitPosition?: ShowScalarPropertyTransition
+  }
 }
 
 export interface ShowPortalSettings {
@@ -130,6 +139,12 @@ export interface ShowScene {
   name: string
   durationMs: number
   transitionOut?: ShowTransition
+  /** Show-wide property targets that take effect during this scene. */
+  routingTargets?: ShowRoutingTargets
+}
+
+export interface ShowRoutingTargets {
+  splitPosition?: number
 }
 
 export interface ShowZone {

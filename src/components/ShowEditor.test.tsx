@@ -11,7 +11,9 @@ import {
   spanShowCellZones,
   updateShowCellAdaptations,
   updateShowCellPattern,
+  updateShowRoutingLayout,
   updateShowRoutingSwitch,
+  updateShowScene,
   updateShowTransition,
 } from '@/engine/showModel'
 import { usePatternStore, patternInitialState } from '@/store/patternStore'
@@ -325,6 +327,83 @@ describe('ShowEditor (#318)', () => {
     await waitFor(() => expect(useShowStore.getState().shows[0].routingSwitches).toEqual([
       { afterSceneId: 'scene-1', layoutId: added.id },
     ]))
+  })
+
+  it('turns a named routing layout into a two-zone moving split (#405)', async () => {
+    const user = userEvent.setup()
+    const show = addShowZone(createDefaultShow('show-405-layout', 'Moving split setup', 1000), {
+      name: 'right',
+      nominalPixelCount: 4,
+    })
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+    await user.selectOptions(screen.getByLabelText('Default routing mode'), 'split-x')
+
+    await waitFor(() => {
+      expect(useShowStore.getState().shows[0].routingLayouts[0].logical).toEqual({
+        kind: 'split',
+        zoneIds: ['zone-1', 'zone-2'],
+        axis: 'x',
+      })
+    })
+    expect(screen.getByText(/scene targets move the split continuously/i)).toBeInTheDocument()
+  })
+
+  it('authors scene-owned moving-split targets from the shared property lane (#405)', async () => {
+    const user = userEvent.setup()
+    let show = addShowZone(createDefaultShow('show-405-editor', 'Moving split', 1000), {
+      name: 'right',
+      nominalPixelCount: 4,
+    })
+    show = updateShowRoutingLayout(show, show.routingLayouts[0].id, {
+      logical: { kind: 'split', zoneIds: [show.zones[0].id, show.zones[1].id], axis: 'x' },
+    })
+    show = updateShowScene(show, show.scenes[0].id, { routingTargets: { splitPosition: 0.25 } })
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+
+    expect(screen.getByRole('group', { name: 'Split position lane' })).toBeInTheDocument()
+    expect(screen.getByText(/moving split: 1 scalar/i)).toBeInTheDocument()
+    await user.click(screen.getByRole('group', { name: 'Scene Scene 1' }))
+    expect(screen.getByLabelText('Split position')).toHaveValue(0.25)
+    fireEvent.change(screen.getByLabelText('Split position'), { target: { value: '0.4' } })
+    await waitFor(() => {
+      expect(useShowStore.getState().shows[0].scenes[0].routingTargets?.splitPosition).toBe(0.4)
+    })
+  })
+
+  it('authors moving-split interpolation on the incoming shared boundary (#405)', async () => {
+    const user = userEvent.setup()
+    let show = addShowZone(createDefaultShow('show-405-boundary', 'Moving split boundary', 1000), {
+      name: 'right',
+      nominalPixelCount: 4,
+    })
+    show = updateShowRoutingLayout(show, show.routingLayouts[0].id, {
+      logical: { kind: 'split', zoneIds: [show.zones[0].id, show.zones[1].id], axis: 'x' },
+    })
+    show = updateShowScene(show, show.scenes[0].id, { routingTargets: { splitPosition: 0.25 } })
+    show = updateShowScene(show, show.scenes[1].id, { routingTargets: { splitPosition: 0.75 } })
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+    await user.click(screen.getByRole('button', { name: 'Select Scene 1 to Scene 2 transition (crossfade)' }))
+    await user.click(screen.getByLabelText('Animate split position'))
+    fireEvent.change(screen.getByLabelText('Split position start'), { target: { value: '0.2' } })
+    fireEvent.change(screen.getByLabelText('Split position duration seconds'), { target: { value: '1.2' } })
+    await user.selectOptions(screen.getByLabelText('Split position easing'), 'ease-in-out')
+
+    await waitFor(() => {
+      expect(useShowStore.getState().shows[0].transitions?.[0].propertyTransitions?.routing?.splitPosition).toEqual({
+        from: 0.2,
+        durationMs: 1200,
+        easing: 'ease-in-out',
+      })
+    })
   })
 
   it('selects visual and routing events from one first-class transition lane and inspector (#416)', async () => {

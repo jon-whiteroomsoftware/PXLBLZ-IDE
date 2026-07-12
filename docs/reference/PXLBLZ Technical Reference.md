@@ -720,14 +720,15 @@ persists normalized records through `/api/shows`.
 
 Core ownership rules:
 
-- a scene owns name and hold duration;
+- a scene owns name, hold duration, and Show-wide property targets;
 - a zone owns semantic identity and nominal preview count;
 - a clip owns Pattern reference, scene/zone span, adaptations, control targets,
   and Continue/Restart entry behavior;
 - a transition is a stable boundary entity with kind, duration, easing, and
   type-specific configuration;
-- a destination clip owns property targets; the incoming boundary owns each
-  interpolation's explicit start, duration, and easing;
+- a destination clip owns clip-level property targets, a destination scene owns
+  Show-wide property targets, and the incoming boundary owns each interpolation's
+  explicit start, duration, and easing;
 - routing layouts own `zoneId → ranges`; boundary routing transitions choose
   the destination layout plus optional transfer duration, easing, and direction;
   and
@@ -757,7 +758,9 @@ new right scene, and defaults destination clips to Continue.
 ## 20. Timeline editor and Stage preview
 
 `ShowEditor` renders one proportional grid for scene headers, ruler, transition
-lane, zone rows, clips, property lanes, and playhead. `showTimelineViewport.ts`
+lane, zone rows, clips, property lanes, and playhead. A moving-split layout adds
+one Show-wide Split lane whose colored cells depict the authored ownership
+boundary. `showTimelineViewport.ts`
 owns Fit-to-16x zoom, playhead-anchored zoom, pan, navigator thumb geometry, and
 range resizing. Zoom is local editor state.
 
@@ -795,7 +798,7 @@ domains and advances `beforeRender` once.
 
 The summary separates code size, render policy, transition cost, clock policy,
 evaluation policy, temporal policy, time-offset policy, routing representation,
-expected active fraction, and warnings. Renderer count and clock behavior remain
+routing-parameter pressure, expected active fraction, and warnings. Renderer count and clock behavior remain
 separate: exact pause is not described as a cached frame or renderer saving.
 
 ## 22. Transition and adaptation policies
@@ -818,8 +821,9 @@ linear, quadratic ease-in, quadratic ease-out, and piecewise quadratic
 ease-in-out.
 
 Property transitions share one descriptor model. Time scale (`0..4`), brightness
-(`0..1`), and exported slider controls carry destination targets on clips and
-boundary-owned starts/durations/easing. Generated control values call the
+(`0..1`), and exported slider controls carry destination targets on clips. Moving
+split position (`0..1`) carries its target on the destination scene. Every form
+uses boundary-owned starts, durations, and easing. Generated control values call the
 alpha-renamed slider once before member `beforeRender`. Missing, renamed, or
 non-slider controls are compile errors rather than dropped automation.
 
@@ -883,6 +887,16 @@ Production replay advances 250 ms of simulated Show time per cooperative chunk,
 yields, and checks the current seek id. Newer seeks supersede old work. The
 rebuilt runtime becomes the live runtime so playback continues from the sought
 state.
+
+A named logical moving-split layout owns an X or Y axis and an ordered two-zone
+pair. Scene targets place the split; the incoming visual boundary supplies its
+explicit start, duration, and easing. `beforeRender` updates one scalar split
+position. The outer renderer selects one side, renormalizes that side to a local
+`0..1` domain, updates each member's virtual `pixelCount` from its current share,
+and invokes one Pattern renderer. Endpoint positions give the
+complete Stage to one zone without dividing by zero. The routing state uses one
+scalar and no arrays; the compile summary compares that constant storage with a
+keyframe-equivalent enumerated table.
 
 The current path always uses the selected Stage's full pixel count and has no
 checkpoint cache, frame history, downsampling, representative pixels, alternate

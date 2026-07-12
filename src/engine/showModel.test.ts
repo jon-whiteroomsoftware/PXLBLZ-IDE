@@ -625,6 +625,34 @@ describe('showModel (#318)', () => {
     })
   })
 
+  it('clamps a scene-owned moving-split target to its normalized domain (#405)', () => {
+    const show = createDefaultShow('show-405-target', 'Moving split')
+
+    const updated = updateShowScene(show, show.scenes[0].id, {
+      routingTargets: { splitPosition: 1.4 },
+    })
+
+    expect(updated.scenes[0].routingTargets).toEqual({ splitPosition: 1 })
+  })
+
+  it('normalizes persisted moving-split scene targets on load (#405)', () => {
+    const show = createDefaultShow('show-405-loaded-target', 'Loaded moving split')
+    show.scenes[0].routingTargets = { splitPosition: -0.3 }
+
+    const normalized = normalizeShowTransitionState(JSON.parse(JSON.stringify(show)) as ShowRecord)
+
+    expect(normalized.scenes[0].routingTargets).toEqual({ splitPosition: 0 })
+  })
+
+  it('carries the moving-split target forward when a scene is added (#405)', () => {
+    let show = createDefaultShow('show-405-add-scene', 'Moving split scenes')
+    show = updateShowScene(show, show.scenes[1].id, { routingTargets: { splitPosition: 0.7 } })
+
+    const added = addShowScene(show)
+
+    expect(added.scenes[2].routingTargets).toEqual({ splitPosition: 0.7 })
+  })
+
   it('removes one Show clip and its boundary automation references', () => {
     const show = createDefaultShow('show-1', 'Clip deletion', 1)
     const clip = show.cells[1]
@@ -866,6 +894,62 @@ describe('showModel (#318)', () => {
       from: { timeScale: 1.5 },
       to: { timeScale: 0 },
       easing: 'ease-in-out',
+    })
+  })
+
+  it('normalizes boundary-owned moving-split interpolation settings (#405)', () => {
+    let show = createDefaultShow('show-405-transition', 'Moving split transition')
+    show = updateShowBoundaryTransition(show, 'transition-scene-1', {
+      propertyTransitions: {
+        routing: {
+          splitPosition: { from: 1.4, durationMs: 1200, easing: 'ease-out' },
+        },
+      },
+    })
+
+    const normalized = normalizeShowTransitionState(JSON.parse(JSON.stringify(show)) as ShowRecord)
+    expect(normalized.transitions?.[0].propertyTransitions?.routing?.splitPosition).toEqual({
+      from: 1,
+      durationMs: 1200,
+      easing: 'ease-out',
+    })
+  })
+
+  it('lowers moving-split scene targets through the shared boundary descriptor (#405)', () => {
+    let show = addShowZone(createDefaultShow('show-405-recipe', 'Moving split recipe'), {
+      name: 'right',
+      nominalPixelCount: 30,
+    })
+    show = updateShowRoutingLayout(show, show.routingLayouts[0].id, {
+      logical: {
+        kind: 'split',
+        zoneIds: [show.zones[0].id, show.zones[1].id],
+        axis: 'x',
+      },
+    })
+    show = updateShowScene(show, show.scenes[0].id, { routingTargets: { splitPosition: 0.25 } })
+    show = updateShowScene(show, show.scenes[1].id, { routingTargets: { splitPosition: 0.75 } })
+    show = updateShowBoundaryTransition(show, 'transition-scene-1', {
+      propertyTransitions: {
+        routing: {
+          splitPosition: { from: 0.2, durationMs: 1200, easing: 'ease-in-out' },
+        },
+      },
+    })
+
+    const recipe = showRecordToCompileRecipe(show, {
+      byCellId: Object.fromEntries(show.cells.map((cell) => [cell.id, DEMOS.TestPattern1D])),
+      stageDimension: 2,
+    })
+
+    expect(recipe.routingLayouts?.[0].logical).toEqual({
+      kind: 'split',
+      zoneNames: ['main', 'right'],
+      axis: 'x',
+    })
+    expect(recipe.routingPropertyRamps?.splitPosition).toEqual({
+      initial: 0.25,
+      ramps: [{ atMs: 30000, from: 0.2, to: 0.75, durationMs: 1200, easing: 'ease-in-out' }],
     })
   })
 

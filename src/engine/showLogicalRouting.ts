@@ -2,6 +2,7 @@ export type ShowLogicalRouting =
   | { kind: 'single'; zoneIds: [string] }
   | { kind: 'grid'; zoneIds: string[]; columns: number; rows: number }
   | { kind: 'stripes'; zoneIds: string[]; axis: 'x' | 'y' }
+  | { kind: 'split'; zoneIds: [string, string]; axis: 'x' | 'y' }
   | { kind: 'pinwheel'; zoneIds: string[]; twist: number }
 
 export interface ShowLogicalRoutePoint {
@@ -14,6 +15,7 @@ export function routeShowLogicalPoint(
   routing: ShowLogicalRouting,
   x: number,
   y: number,
+  parameters: { splitPosition?: number } = {},
 ): ShowLogicalRoutePoint {
   const stageX = clamp01(x)
   const stageY = clamp01(y)
@@ -42,6 +44,19 @@ export function routeShowLogicalPoint(
       zoneId: routing.zoneIds[stripe],
       localX: routing.axis === 'x' ? local : stageX,
       localY: routing.axis === 'y' ? local : stageY,
+    }
+  }
+  if (routing.kind === 'split') {
+    const position = clamp01(parameters.splitPosition ?? 0.5)
+    const coordinate = routing.axis === 'x' ? stageX : stageY
+    const first = position >= 1 || (position > 0 && coordinate < position)
+    const local = first
+      ? coordinate / Math.max(position, Number.EPSILON)
+      : (coordinate - position) / Math.max(1 - position, Number.EPSILON)
+    return {
+      zoneId: routing.zoneIds[first ? 0 : 1],
+      localX: routing.axis === 'x' ? clamp01(local) : stageX,
+      localY: routing.axis === 'y' ? clamp01(local) : stageY,
     }
   }
 

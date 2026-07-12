@@ -538,8 +538,9 @@ Diamond alone exposes rotation and animated spin; ring alone exposes band
 width. The inspector hides parameters that do not affect the selected shape.
 
 Property automation uses one shared CSS-like model: destination clips own
-targets; the incoming boundary owns the explicit start, duration, and easing.
-Time, Brightness, and exported `sliderName(v)` controls use the same system.
+clip-level targets, destination scenes own Show-wide targets, and the incoming
+boundary owns the explicit start, duration, and easing. Time, Brightness,
+exported `sliderName(v)` controls, and moving Split position use the same system.
 Each property may have its own duration and easing on one continued Pattern
 instance. Private locals, toggles, and pickers are not exposed as automatable
 numeric properties.
@@ -552,6 +553,14 @@ threshold across the installation for a configured duration and easing. Each
 physical pixel belongs to exactly one of the adjacent layouts on every frame,
 so the transfer invokes one Pattern renderer per pixel while every Pattern clock
 continues. Reverse direction moves the same threshold from the opposite edge.
+
+A two-zone layout may instead use a moving X or Y split. Each scene owns a
+normalized Split target, displayed as a colored Show-wide property lane. The
+incoming boundary may animate from an explicit start with its own duration and
+easing. Each side is renormalized to its own local Pattern domain as it grows or
+shrinks, including a virtual pixel count that follows its current share; targets
+at 0% or 100% give the complete Stage to one zone. The effect
+keeps both Pattern clocks continuous and invokes one renderer per pixel.
 
 The compiler emits compact formulas for provably regular contiguous, row-band,
 and interleaved layouts. Irregular layouts use range branches or a bounded packed
@@ -572,7 +581,9 @@ state, routes pixels through zone-local domains, and emits one ordinary
 Pixelblaze Pattern. The compile bar reports code size, renderer policy,
 transition cost, clock policy, evaluation masks, routing representation, and
 warnings. Routed Shows also report separate estimated bytecode and permanent
-array costs for the selected routing representation.
+array costs for the selected routing representation. Moving splits additionally
+report one scalar, one route test per pixel, and the table entries an equivalent
+enumerated sequence would require.
 
 **View generated pattern** shows the source read-only. Push compiles that source
 with the connected Controller's compiler through the same grouped identity,

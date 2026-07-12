@@ -85,13 +85,34 @@ blend. Do not turn the inspector into a generic shader editor.
 
 ### 3.3 Parametric routing properties (#405)
 
-Build one routing layout whose topology changes continuously from a small set of
-properties: a moving split, expanding bands, changing tile count, or another
-regular formula with clear visual value.
+Shipped foundation: the tracer is a two-zone moving split on normalized Stage X or Y. The split
+position changes ownership continuously while each side is renormalized to its
+own `0..1` local domain, so the two source Patterns behave like canvases that
+grow and shrink. Position `0` gives the whole Stage to the second zone; position
+`1` gives it to the first.
 
-Scene clips own targets and incoming boundaries own interpolation through the
-shared property system. No routing-only curve engine, private clock, or special
-timeline lane.
+One named logical routing layout owns the axis and ordered zone pair. Each scene
+owns its normalized split-position target. The incoming visual boundary owns an
+explicit start, duration, and easing through the shared property-transition
+model. The timeline exposes one Show-wide nested Split lane; scene and transition
+inspectors edit the same targets and descriptors used by Time, Brightness, and
+public slider controls. Routing markers remain responsible only for switching
+named layouts.
+
+Compilation lowers those saved targets into one scalar value updated in
+`beforeRender`. The outer renderer compares normalized Stage position with that
+value, computes zone-local coordinates for the selected side, and invokes exactly
+one Pattern renderer. Preview, generated-code inspection, export, and Controller
+send therefore share the same equation. The formula uses constant routing
+storage; an equivalent animation made from enumerated layouts grows with
+`pixelCount * layoutCount` and steps rather than moves continuously.
+
+This slice animates routing while the routed Pattern members continue across the
+Show. Changing the routed Patterns by scene remains separate choreography work.
+The moving split introduces no routing-only curve editor, keyframes, private
+clock, or additional renderer window.
+
+Measured production comparison: [issue 405 moving-split results](archive/issue-405-moving-split-results.md).
 
 ### 3.4 Coordinate remapping (#406)
 

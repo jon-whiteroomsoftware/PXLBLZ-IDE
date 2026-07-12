@@ -46,6 +46,55 @@ function loadShow(code: string, metadata: ReturnType<typeof compileShow>['metada
 }
 
 describe('compileShow', () => {
+  it('animates a moving split through one routed renderer per pixel (#405)', () => {
+    const zones = [
+      { id: 'left', name: 'left', ranges: [{ start: 0, end: 3 }] },
+      { id: 'right', name: 'right', ranges: [{ start: 4, end: 7 }] },
+    ]
+    const artifact = compileShow({
+      clips: [
+        { id: 'left', zone: 'left', source: 'export function render2D(index, x, y) { rgb(1, x, pixelCount / 10) }' },
+        { id: 'right', zone: 'right', source: 'export function render2D(index, x, y) { rgb(0, x, pixelCount / 10) }' },
+      ],
+      zones,
+      routingLayouts: [{
+        id: 'split',
+        name: 'Moving split',
+        zones,
+        logical: { kind: 'split', zoneNames: ['left', 'right'], axis: 'x' },
+      }],
+      routingPropertyRamps: {
+        splitPosition: {
+          initial: 0.25,
+          ramps: [{ atMs: 30000, from: 0.25, to: 0.75, durationMs: 1000, easing: 'linear' }],
+        },
+      },
+      loopDurationMs: 60000,
+    }, {})
+
+    expect(artifact.summary.routingRepresentation).toBe('coordinate-predicates')
+    expect(artifact.summary.transitionCount).toBe(1)
+    expect(artifact.summary.worstInstantRenderersPerPixel).toBe(1)
+    expect(artifact.summary.routingParameterEstimate).toEqual({
+      kind: 'moving-split',
+      scalarGlobals: 1,
+      arrayElements: 0,
+      routeComparisonsPerPixel: 1,
+      equivalentEnumeratedArrayElements: 16,
+    })
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 8)
+    handle.beforeRender(29500)
+    handle.render2D(2, 0.3, 0.5)
+    expect(pixel()[0]).toBe(0)
+    expect(pixel()[1]).toBeCloseTo((0.3 - 0.25) / 0.75)
+    expect(pixel()[2]).toBe(0.6)
+    handle.beforeRender(1100)
+    handle.render2D(2, 0.3, 0.5)
+    expect(pixel()[0]).toBe(1)
+    expect(pixel()[1]).toBeCloseTo(0.3 / 0.55)
+    expect(pixel()[2]).toBe(0.4)
+  })
+
   it('compiles equivalent contiguous routing layouts to a generated formula (#408)', () => {
     const artifact = compileShow({
       clips: [
