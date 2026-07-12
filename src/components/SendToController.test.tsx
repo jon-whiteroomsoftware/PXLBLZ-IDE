@@ -41,9 +41,7 @@ afterEach(() => resetControllerProvider())
 describe('SendToController', () => {
   it('shows Controller identity and Connect when no Controller is connected', () => {
     render(<SendToController />)
-    expect(screen.getByTestId('controller-deployment-identity')).toHaveTextContent(
-      'Controller · Not connected',
-    )
+    expect(screen.getByTestId('controller-deployment-identity')).toHaveTextContent(/^Not connected$/)
     expect(screen.getByRole('button', { name: 'Connect' })).toBeEnabled()
     expect(screen.queryByTestId('run-on-controller')).not.toBeInTheDocument()
     expect(screen.queryByTestId('save-to-controller')).not.toBeInTheDocument()
@@ -251,7 +249,7 @@ describe('SendToController', () => {
     useControllerStore.setState({ requestPush })
     render(<SendToController />)
 
-    expect(screen.getByTestId('controller-deployment-identity')).toHaveTextContent('Controller · Desk')
+    expect(screen.getByTestId('controller-deployment-identity')).toHaveTextContent(/^Desk$/)
     fireEvent.click(screen.getByRole('button', { name: 'Save to Desk' }))
 
     expect(useControllerStore.getState().saveArmed).toBe(true)
@@ -348,6 +346,6 @@ describe('SendToController', () => {
       controllers: { '10.0.0.9': { ip: '10.0.0.9', nickname: 'Desk', phase: 'live', mapDim: 2 } },
     })
     render(<SendToController />)
-    expect(screen.getByTestId('controller-deployment-identity')).toHaveTextContent('Controller · Desk')
+    expect(screen.getByTestId('controller-deployment-identity')).toHaveTextContent(/^Desk$/)
   })
 })

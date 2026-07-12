@@ -37,7 +37,6 @@ export function PatternDeploymentActions({
   const heightClass = density === 'compact' ? 'h-6 text-[10px]' : 'h-8 text-[11px]'
   const actionPadding = density === 'compact' ? 'px-2' : 'px-2.5'
   const identityWidth = density === 'compact' ? 'max-w-36' : 'max-w-44'
-  const compactPrefixClass = density === 'compact' ? 'hidden xl:inline' : ''
 
   const actionIcon = (mode: SendMode) => {
     if (pushing && activeMode === mode) {
@@ -69,18 +68,15 @@ export function PatternDeploymentActions({
     >
       <span
         data-testid="controller-deployment-identity"
-        title={connected ? `Controller: ${target}` : 'Controller: Not connected'}
+        aria-label={connected ? `Controller ${target}` : 'Controller not connected'}
+        title={connected ? target : 'Not connected'}
         className={`flex min-w-0 flex-1 items-center gap-1.5 border-r border-zinc-800 px-2 text-zinc-500 ${identityWidth}`}
       >
         <span className="shrink-0" aria-hidden>
           {connected ? <ChipGlyph /> : <ConnectGlyph />}
         </span>
-        <span className="truncate">
-          <span className={`text-zinc-600 ${compactPrefixClass}`}>Controller</span>
-          <span className={compactPrefixClass} aria-hidden> · </span>
-          <span className={connected ? 'text-zinc-300' : 'text-zinc-500'}>
-            {connected ? target : 'Not connected'}
-          </span>
+        <span className={`truncate ${connected ? 'text-zinc-300' : 'text-zinc-500'}`}>
+          {connected ? target : 'Not connected'}
         </span>
       </span>
 

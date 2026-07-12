@@ -48,7 +48,7 @@ describe('PatternDetailActionBar', () => {
     render(<PatternDetailActionBar stageView="preview" onToggleStage={() => {}} />)
 
     expect(screen.queryByRole('button', { name: 'Connect' })).not.toBeInTheDocument()
-    expect(screen.getByTestId('controller-deployment-identity')).toHaveTextContent('Controller · Desk')
+    expect(screen.getByTestId('controller-deployment-identity')).toHaveTextContent(/^Desk$/)
     fireEvent.click(screen.getByRole('button', { name: 'Run on Desk' }))
     expect(useControllerStore.getState().saveArmed).toBe(false)
     fireEvent.click(screen.getByRole('button', { name: 'Save to Desk' }))
