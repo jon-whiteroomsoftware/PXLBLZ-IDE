@@ -269,7 +269,8 @@ describe('routing (#308)', () => {
     render(<App />)
 
     await screen.findAllByText('Deep Linked')
-    await user.click(screen.getByRole('button', { name: 'Copy Code' }))
+    await user.click(screen.getByRole('button', { name: 'Pattern actions' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Copy code' }))
 
     expect(writeText).toHaveBeenCalledOnce()
     const copied = writeText.mock.calls[0][0] as string
@@ -507,7 +508,8 @@ describe('routing (#308)', () => {
     render(<App />)
 
     await screen.findAllByText('Deep Linked')
-    await user.click(screen.getByRole('button', { name: /delete/i }))
+    await user.click(screen.getByRole('button', { name: 'Pattern actions' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Delete pattern' }))
     await user.click(screen.getByRole('button', { name: /^delete$/i }))
 
     await waitFor(() => expect(window.location.pathname).toBe('/studio/patterns'))
@@ -700,8 +702,10 @@ describe('routing (#308)', () => {
     expect(usePatternStore.getState().activePatternId).toBeNull()
     expect(usePatternStore.getState().activeDemoName).toBe('IridescentFibers')
     expect(screen.getByTestId('editor-pane')).toBeInTheDocument()
-    expect(within(screen.getByTestId('editor-pane')).getByRole('button', { name: 'View in Gallery' })).toBeInTheDocument()
-    expect(within(screen.getByTestId('editor-pane')).getByRole('button', { name: 'Clone' })).toBeInTheDocument()
+    const editorPane = within(screen.getByTestId('editor-pane'))
+    await userEvent.click(editorPane.getByRole('button', { name: 'Pattern actions' }))
+    expect(editorPane.getByRole('menuitem', { name: 'View in Gallery' })).toBeInTheDocument()
+    expect(editorPane.getByRole('menuitem', { name: 'Clone into Patterns' })).toBeInTheDocument()
   })
 
   it('opens a Gallery pattern in Studio signed out without queuing a clone', async () => {
@@ -723,11 +727,13 @@ describe('routing (#308)', () => {
   it('shows pattern source in a read-only detail-stage code view', async () => {
     window.history.replaceState(null, '', '/p/iridescent-fibers')
     render(<App />)
-    await userEvent.click(screen.getByRole('button', { name: /Code/i }))
+    await userEvent.click(screen.getByRole('button', { name: 'Pattern actions' }))
+    await userEvent.click(screen.getByRole('menuitem', { name: 'View code' }))
     expect(window.location.pathname).toBe('/p/iridescent-fibers')
     expect(screen.getByTestId('pattern-code-stage')).toBeInTheDocument()
     expect(screen.queryByText(/read-only/i)).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Preview' })).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Pattern actions' }))
+    expect(screen.getByRole('menuitem', { name: 'View preview' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Open in Studio' })).toBeInTheDocument()
   })
 

@@ -54,11 +54,13 @@ export function PushConfirmPopover({
   testId,
   anchor,
   children,
+  className = '',
 }: {
   open: boolean
   onCancel: () => void
   title: string
   testId: string
+  className?: string
   /** The trigger button — rendered as the popover's anchor. */
   anchor: ReactNode
   /** Popover body + footer (warnings/checkboxes and the action buttons). */
@@ -84,7 +86,7 @@ export function PushConfirmPopover({
   }, [open, onCancel])
 
   return (
-    <span ref={rootRef} className="relative inline-flex">
+    <span ref={rootRef} className={`relative inline-flex ${className}`}>
       {anchor}
       {open && (
         <div

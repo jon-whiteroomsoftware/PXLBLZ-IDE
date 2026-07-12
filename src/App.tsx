@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useRef, useEffect, useLayoutEffect } from 'react'
-import { Braces, Code2, Cpu, Download, ExternalLink, FileText, Images, Lock, LogIn, Map as MapIcon, PanelsTopLeft, Trash2 } from 'lucide-react'
+import { Braces, Code2, Cpu, ExternalLink, FileText, Images, Lock, LogIn, Map as MapIcon, PanelsTopLeft } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   AlertDialogRoot,
@@ -22,6 +22,7 @@ import { LibrariesMenu } from '@/components/LibrariesMenu'
 import { DocsMenu } from '@/components/DocsMenu'
 import { DocsReader } from '@/components/DocsReader'
 import { SendToController } from '@/components/SendToController'
+import { PatternActionsMenu } from '@/components/PatternActionsMenu'
 import { GalleryPage } from '@/components/GalleryPage'
 import { PatternDetailPage } from '@/components/PatternDetailPage'
 import { ControllerProfilePage } from '@/components/ControllerProfilePage'
@@ -797,64 +798,23 @@ export default function App() {
               <DimPills dims={exportedDims(source)} />
               {activePatternId !== null && <CompileStatusBadge />}
             </span>
-            {activeDemoName !== null && (
-              <Button
-                size="xs"
-                variant="ghost"
-                className="text-xs text-zinc-400 bg-zinc-800/70 hover:bg-zinc-700/70 hover:text-zinc-300"
-                onClick={() => navigate({ kind: 'pattern-detail', slug: patternSlug(activeDemoName) })}
-                title="View in Gallery"
-              >
-                View in Gallery
-              </Button>
-            )}
-            {activeDemoName !== null && personalWorkspaceAuthenticated && (
-              <Button
-                size="xs"
-                variant="ghost"
-                className="text-xs text-zinc-400 bg-zinc-800/70 hover:bg-zinc-700/70 hover:text-zinc-300"
-                onClick={handleForkDemo}
-                title="Clone into Patterns"
-              >
-                Clone
-              </Button>
-            )}
-            {activePatternId !== null && (
-              <>
-                <Button
-                  size="xs"
-                  variant="ghost"
-                  className="text-xs text-zinc-400 bg-zinc-800/70 hover:bg-zinc-700/70 hover:text-zinc-300 disabled:opacity-30"
-                  disabled={compileStatus === 'broken'}
-                  onClick={handleCopy}
-                >
-                  {copied ? 'Copied!' : 'Copy Code'}
-                </Button>
-                <Button
-                  size="xs"
-                  variant="ghost"
-                  className="text-xs text-zinc-400 bg-zinc-800/70 hover:bg-zinc-700/70 hover:text-zinc-300 disabled:opacity-30"
-                  disabled={compileStatus === 'broken'}
-                  onClick={handleDownload}
-                  title="Download artifact"
-                >
-                  <Download size={13} aria-hidden />
-                  Download
-                </Button>
-              </>
+            {(activePatternId !== null || activeDemoName !== null) && (
+              <PatternActionsMenu
+                copied={copied}
+                compileBroken={compileStatus === 'broken'}
+                onViewInGallery={activeDemoName !== null
+                  ? () => navigate({ kind: 'pattern-detail', slug: patternSlug(activeDemoName) })
+                  : undefined}
+                onClone={activeDemoName !== null && personalWorkspaceAuthenticated
+                  ? handleForkDemo
+                  : undefined}
+                onCopy={activePatternId !== null ? handleCopy : undefined}
+                onDownload={activePatternId !== null ? handleDownload : undefined}
+                onDelete={activePattern !== undefined ? () => setDeletePatternOpen(true) : undefined}
+              />
             )}
             {activePattern !== undefined && (
               <AlertDialogRoot open={deletePatternOpen} onOpenChange={setDeletePatternOpen}>
-                <Button
-                  size="xs"
-                  variant="ghost"
-                  className="text-xs text-zinc-500 bg-zinc-900/50 hover:bg-red-950/50 hover:text-red-300"
-                  onClick={() => setDeletePatternOpen(true)}
-                  title="Delete pattern"
-                >
-                  <Trash2 size={13} aria-hidden />
-                  Delete
-                </Button>
                 <AlertDialogContent>
                   <AlertDialogTitle>Delete pattern?</AlertDialogTitle>
                   <AlertDialogDescription>

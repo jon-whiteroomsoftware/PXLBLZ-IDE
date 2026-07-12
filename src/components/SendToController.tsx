@@ -1,12 +1,12 @@
 import { useEffect, useState, useSyncExternalStore } from 'react'
-import { RotateCw, Check, Play, Save } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { PatternDeploymentActions } from '@/components/PatternDeploymentActions'
+import { requestControllerEntryOpen } from '@/components/controllerEntryEvents'
 import { getControllerProvider } from '@/engine/controllerProviderRegistry'
 import { useControllerStore } from '@/store/controllerStore'
 import { useControllerProfileStore } from '@/store/controllerProfileStore'
 import { useEditorStore } from '@/store/editorStore'
 import { usePatternStore, activePushKey } from '@/store/patternStore'
-import { describeSendToController, isAlreadyPushed, describeSendAction } from '@/engine/sendToController'
+import { describeSendToController, isAlreadyPushed, type SendMode } from '@/engine/sendToController'
 import {
   controllerProfileArtifactSignature,
   findProfileForLiveController,
@@ -137,11 +137,7 @@ export function SendToController() {
     return () => clearTimeout(t)
   }, [pushResult, clearPushResult])
 
-  // The dirty gate, split by armed mode (#238): a push is redundant when the open
-  // pattern's current clean source already matches what was last pushed to this
-  // Controller *in this mode*. Run and save are distinct acts, so arming the other
-  // mode after a clean push re-enables Send.
-  const mode = saveArmed ? 'save' : 'run'
+  // Run and Save are distinct acts, so each direct action has its own dirty gate.
   const controllerProfile = active
     ? findProfileForLiveController(controllerProfiles, active)
     : null
@@ -150,7 +146,7 @@ export function SendToController() {
     patternId,
     { mapDim: active?.mapDim ?? null },
   )
-  const alreadyPushed =
+  const alreadyPushed = (mode: SendMode) => (
     !!activeIp &&
     !!patternId &&
     isAlreadyPushed({
@@ -162,58 +158,22 @@ export function SendToController() {
       lastRunProfileSignature: lastPushedProfileSignature[activeIp]?.[patternId],
       lastSavedProfileSignature: lastSavedProfileSignature[activeIp]?.[patternId],
     })
+  )
 
-  const { enabled, reason } = describeSendToController({
+  const runGate = describeSendToController({
     status,
     compileStatus,
-    alreadyPushed,
+    alreadyPushed: alreadyPushed('run'),
   })
-  // The button names the active Controller: a leading glyph + the Controller's name
-  // (nickname, else IP, else a generic word). Only the glyph morphs — Play/Save (idle,
-  // per the armed mode #238) → spinner (pushing) → check (done) — so the name holds
-  // its place and the button keeps its width.
+  const saveGate = describeSendToController({
+    status,
+    compileStatus,
+    alreadyPushed: alreadyPushed('save'),
+  })
   const target = active ? active.nickname || activeIp : null
-  const name = target ?? 'Controller'
 
-  // Idle glyph reflects the armed mode (#238): Play (run on device) / Save (persist).
-  // Amber spinner → working; check → landed. The error case is the only one that swaps
-  // the text, transiently. When enabled and idle, the tooltip names the mode action
-  // ("Play on <name>" / "Save to <name>"); the gate's reason wins when disabled.
-  let title = enabled ? describeSendAction(mode, name).tooltip : reason
-  let glyph = saveArmed ? (
-    <Save size={14} strokeWidth={2.75} aria-hidden />
-  ) : (
-    <Play size={14} strokeWidth={2.75} aria-hidden />
-  )
-  if (pushing) {
-    glyph = (
-      <RotateCw size={14} strokeWidth={2.75} className="animate-spin text-amber-400" aria-hidden />
-    )
-  } else if (pushResult?.ok) {
-    glyph = <Check size={14} strokeWidth={2.75} aria-hidden />
-  }
-
-  let content = (
-    <span className="flex items-center gap-1.5">
-      {glyph}
-      {name}
-    </span>
-  )
-  if (!pushing && pushResult && !pushResult.ok) {
-    content = <span>Send failed</span>
-    title = pushResult.message
-  }
-
-  // The button is inert (no click) while a push runs AND through the brief check
-  // afterwards, but those "working/just-finished" states should read as active, not
-  // "unavailable" — so only the gate-disabled state takes the heavy 30% dim. The
-  // working states barely dim (the amber spinner / check carries them).
-  const working = pushing || !!pushResult?.ok
-  const dimClass = working ? 'opacity-95' : 'disabled:opacity-30'
-  const modeDisabled = status.kind !== 'connected' || working
-  const runTitle = modeDisabled && reason ? reason : 'Run transiently on the Controller'
-  const saveTitle = modeDisabled && reason ? reason : "Save to the Controller's Saved Patterns"
-  const handleSendClick = () => {
+  const send = (mode: SendMode) => {
+    setSaveArmed(mode === 'save')
     trackEvent('send_to_controller', {
       mode,
       pattern_key: patternId,
@@ -222,46 +182,20 @@ export function SendToController() {
     void requestPush()
   }
 
-  const modeSelector = (
-    <span
-      role="radiogroup"
-      aria-label="Controller send mode"
-      className="flex h-6 shrink-0 overflow-hidden rounded-md border border-zinc-800 bg-zinc-900/70"
-    >
-      <button
-        type="button"
-        role="radio"
-        aria-checked={!saveArmed}
-        aria-label="Run on Controller"
-        title={runTitle}
-        disabled={modeDisabled}
-        onClick={() => setSaveArmed(false)}
-        className={`h-full px-2 text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
-          !saveArmed
-            ? 'bg-zinc-700/80 text-zinc-100'
-            : 'text-zinc-500 hover:bg-zinc-800/70 hover:text-zinc-300'
-        }`}
-      >
-        Run
-      </button>
-      <button
-        type="button"
-        role="radio"
-        aria-checked={saveArmed}
-        aria-label="Save to Controller"
-        title={saveTitle}
-        disabled={modeDisabled}
-        onClick={() => setSaveArmed(true)}
-        data-testid="save-toggle"
-        className={`h-full border-l border-zinc-800 px-2 text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
-          saveArmed
-            ? 'bg-amber-500/15 text-amber-300'
-            : 'text-zinc-500 hover:bg-zinc-800/70 hover:text-zinc-300'
-        }`}
-      >
-        Save
-      </button>
-    </span>
+  const deploymentActions = (
+    <PatternDeploymentActions
+      connected={status.kind === 'connected'}
+      controllerName={target}
+      runGate={runGate}
+      saveGate={saveGate}
+      activeMode={saveArmed ? 'save' : 'run'}
+      pushing={pushing}
+      pushResult={pushResult}
+      density="compact"
+      onConnect={requestControllerEntryOpen}
+      onRun={() => send('run')}
+      onSave={() => send('save')}
+    />
   )
 
   // A clean exact Pattern push goes straight through. Cross-dimensional renderer plans
@@ -269,26 +203,13 @@ export function SendToController() {
   // unknown cases may proceed, while known unsupported firmware is blocked.
   const patternWarnings = (preflight ?? []).filter((warning) => warning.kind.startsWith('pattern-'))
   return (
-    <span className="ml-2 inline-flex h-6 items-stretch gap-1">
-      {modeSelector}
+    <span className="ml-2 inline-flex h-6 min-w-0 items-stretch">
       <PushConfirmPopover
         open={patternWarnings.length > 0}
         onCancel={cancelPush}
         title="Send pattern"
         testId="pattern-preflight-dialog"
-        anchor={
-          <Button
-            size="xs"
-            variant="ghost"
-            className={`h-6 rounded-md border border-zinc-800 bg-zinc-800/70 text-xs text-zinc-400 hover:bg-zinc-700/70 hover:text-zinc-300 ${dimClass}`}
-            disabled={!enabled || working}
-            title={title}
-            onClick={handleSendClick}
-            data-testid="send-to-controller"
-          >
-            {content}
-          </Button>
-        }
+        anchor={deploymentActions}
       >
         <PatternPushChoices
           warnings={patternWarnings}

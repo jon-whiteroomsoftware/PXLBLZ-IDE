@@ -39,17 +39,14 @@ beforeEach(() => {
 afterEach(() => resetControllerProvider())
 
 describe('SendToController', () => {
-  it('is disabled with an explanation when no Controller is connected', () => {
+  it('shows Controller identity and Connect when no Controller is connected', () => {
     render(<SendToController />)
-    const button = screen.getByTestId('send-to-controller')
-    const runToggle = screen.getByRole('radio', { name: /run on controller/i })
-    const saveToggle = screen.getByRole('radio', { name: /save to controller/i })
-    expect(button).toBeDisabled()
-    expect(button).toHaveAttribute('title', expect.stringMatching(/connect a controller/i))
-    expect(runToggle).toBeDisabled()
-    expect(saveToggle).toBeDisabled()
-    expect(runToggle).toHaveAttribute('title', expect.stringMatching(/connect a controller/i))
-    expect(saveToggle).toHaveAttribute('title', expect.stringMatching(/connect a controller/i))
+    expect(screen.getByTestId('controller-deployment-identity')).toHaveTextContent(
+      'Controller · Not connected',
+    )
+    expect(screen.getByRole('button', { name: 'Connect' })).toBeEnabled()
+    expect(screen.queryByTestId('run-on-controller')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('save-to-controller')).not.toBeInTheDocument()
   })
 
   it('is enabled when connected and the dimensions match', () => {
@@ -60,7 +57,8 @@ describe('SendToController', () => {
       controllers: { '10.0.0.9': { ip: '10.0.0.9', phase: 'live', mapDim: 2 } },
     })
     render(<SendToController />)
-    expect(screen.getByTestId('send-to-controller')).toBeEnabled()
+    expect(screen.getByTestId('run-on-controller')).toBeEnabled()
+    expect(screen.getByTestId('save-to-controller')).toBeEnabled()
   })
 
   it('tracks a send intent when the enabled send button is clicked', () => {
@@ -75,7 +73,7 @@ describe('SendToController', () => {
     })
     render(<SendToController />)
 
-    fireEvent.click(screen.getByTestId('send-to-controller'))
+    fireEvent.click(screen.getByTestId('run-on-controller'))
 
     expect(trackEvent).toHaveBeenCalledWith('send_to_controller', {
       mode: 'run',
@@ -93,7 +91,7 @@ describe('SendToController', () => {
       controllers: { '10.0.0.9': { ip: '10.0.0.9', phase: 'live', mapDim: 1 } },
     })
     render(<SendToController />)
-    expect(screen.getByTestId('send-to-controller')).toBeEnabled()
+    expect(screen.getByTestId('run-on-controller')).toBeEnabled()
   })
 
   it('opens the preflight popover (warn, do not block) on a dim mismatch, and Send anyway pushes', () => {
@@ -108,7 +106,7 @@ describe('SendToController', () => {
     // No dialog until the click.
     expect(screen.queryByTestId('pattern-preflight-dialog')).not.toBeInTheDocument()
 
-    fireEvent.click(screen.getByTestId('send-to-controller'))
+    fireEvent.click(screen.getByTestId('run-on-controller'))
     const dialog = screen.getByTestId('pattern-preflight-dialog')
     expect(dialog).toHaveTextContent(/2D/)
     expect(dialog).toHaveTextContent(/1D/)
@@ -141,7 +139,7 @@ describe('SendToController', () => {
     })
     render(<SendToController />)
 
-    fireEvent.click(screen.getByTestId('send-to-controller'))
+    fireEvent.click(screen.getByTestId('run-on-controller'))
 
     const dialog = screen.getByTestId('pattern-preflight-dialog')
     expect(dialog).toHaveTextContent(/requires Pixelblaze firmware 3\.66 or newer/i)
@@ -163,7 +161,7 @@ describe('SendToController', () => {
       confirmPatternPushWithMap,
     })
     render(<SendToController />)
-    fireEvent.click(screen.getByTestId('send-to-controller'))
+    fireEvent.click(screen.getByTestId('run-on-controller'))
 
     const dialog = screen.getByTestId('pattern-preflight-dialog')
     expect(screen.getByRole('checkbox')).toBeChecked()
@@ -185,7 +183,7 @@ describe('SendToController', () => {
       confirmPatternPush,
     })
     render(<SendToController />)
-    fireEvent.click(screen.getByTestId('send-to-controller'))
+    fireEvent.click(screen.getByTestId('run-on-controller'))
 
     fireEvent.click(screen.getByRole('checkbox'))
     fireEvent.click(screen.getByRole('button', { name: /send anyway/i }))
@@ -203,7 +201,7 @@ describe('SendToController', () => {
       pushActivePattern,
     })
     render(<SendToController />)
-    fireEvent.click(screen.getByTestId('send-to-controller'))
+    fireEvent.click(screen.getByTestId('run-on-controller'))
     expect(screen.queryByTestId('pattern-preflight-dialog')).not.toBeInTheDocument()
     expect(pushActivePattern).toHaveBeenCalledOnce()
   })
@@ -218,7 +216,7 @@ describe('SendToController', () => {
       requestPush,
     })
     render(<SendToController />)
-    fireEvent.click(screen.getByTestId('send-to-controller'))
+    fireEvent.click(screen.getByTestId('run-on-controller'))
     expect(requestPush).toHaveBeenCalledOnce()
   })
 
@@ -231,11 +229,10 @@ describe('SendToController', () => {
       pushing: true,
     })
     render(<SendToController />)
-    const button = screen.getByTestId('send-to-controller')
-    // The name is held (no collapse); only the leading glyph (spinner) shows.
-    expect(button).toHaveTextContent('Burner Bag')
-    expect(button.querySelector('svg')).toBeTruthy()
-    expect(button).toBeDisabled()
+    expect(screen.getByTestId('controller-deployment-identity')).toHaveTextContent('Burner Bag')
+    expect(screen.getByTestId('run-on-controller').querySelector('svg')).toBeTruthy()
+    expect(screen.getByTestId('run-on-controller')).toBeDisabled()
+    expect(screen.getByTestId('save-to-controller')).toBeDisabled()
   })
 
   const connectActive = () => {
@@ -247,31 +244,28 @@ describe('SendToController', () => {
     })
   }
 
-  it('flips the armed mode when the Save segment is clicked', () => {
+  it('shows the Controller identity and makes Run and Save direct actions', () => {
+    connectActive()
+    const requestPush = vi.fn()
+    usePatternStore.setState({ activePatternId: 'p1' })
+    useControllerStore.setState({ requestPush })
+    render(<SendToController />)
+
+    expect(screen.getByTestId('controller-deployment-identity')).toHaveTextContent('Controller · Desk')
+    fireEvent.click(screen.getByRole('button', { name: 'Save to Desk' }))
+
+    expect(useControllerStore.getState().saveArmed).toBe(true)
+    expect(requestPush).toHaveBeenCalledOnce()
+  })
+
+  it('names both direct actions after the active Controller', () => {
     connectActive()
     render(<SendToController />)
-    const toggle = screen.getByTestId('save-toggle')
-    expect(toggle).toHaveAttribute('aria-checked', 'false')
-    fireEvent.click(toggle)
-    expect(useControllerStore.getState().saveArmed).toBe(true)
+    expect(screen.getByTestId('run-on-controller')).toHaveAttribute('title', 'Run on Desk')
+    expect(screen.getByTestId('save-to-controller')).toHaveAttribute('title', 'Save to Desk')
   })
 
-  it('tooltips Play when run-armed and Save when save-armed', () => {
-    connectActive()
-    const { rerender } = render(<SendToController />)
-    expect(screen.getByTestId('send-to-controller')).toHaveAttribute(
-      'title',
-      expect.stringMatching(/play on desk/i),
-    )
-    useControllerStore.setState({ saveArmed: true })
-    rerender(<SendToController />)
-    expect(screen.getByTestId('send-to-controller')).toHaveAttribute(
-      'title',
-      expect.stringMatching(/save to desk/i),
-    )
-  })
-
-  it('re-enables Send when the toggle is flipped after a clean push of the other mode', () => {
+  it('keeps Save enabled after a clean Run push', () => {
     connectActive()
     useEditorStore.setState({ previewSource: 'export function render() {}' })
     // A clean run push: the run record matches the current source, so run-mode Send
@@ -286,9 +280,8 @@ describe('SendToController', () => {
     })
     usePatternStore.setState({ activePatternId: 'p1' })
     render(<SendToController />)
-    expect(screen.getByTestId('send-to-controller')).toBeDisabled()
-    fireEvent.click(screen.getByTestId('save-toggle'))
-    expect(screen.getByTestId('send-to-controller')).toBeEnabled()
+    expect(screen.getByTestId('run-on-controller')).toBeDisabled()
+    expect(screen.getByTestId('save-to-controller')).toBeEnabled()
   })
 
   it('re-enables Send when generated Controller Profile configuration changes', () => {
@@ -308,7 +301,7 @@ describe('SendToController', () => {
       lastPushedProfileSignature: { '10.0.0.9': { p1: previousSignature } },
     })
     render(<SendToController />)
-    expect(screen.getByTestId('send-to-controller')).toBeDisabled()
+    expect(screen.getByTestId('run-on-controller')).toBeDisabled()
 
     act(() => {
       useControllerProfileStore.setState({
@@ -321,7 +314,7 @@ describe('SendToController', () => {
       })
     })
 
-    expect(screen.getByTestId('send-to-controller')).toBeEnabled()
+    expect(screen.getByTestId('run-on-controller')).toBeEnabled()
   })
 
   it('re-enables Send when the Controller map dimension changes the generated artifact', () => {
@@ -344,7 +337,7 @@ describe('SendToController', () => {
 
     render(<SendToController />)
 
-    expect(screen.getByTestId('send-to-controller')).toBeEnabled()
+    expect(screen.getByTestId('run-on-controller')).toBeEnabled()
   })
 
   it('names the action after the active Controller', () => {
@@ -355,6 +348,6 @@ describe('SendToController', () => {
       controllers: { '10.0.0.9': { ip: '10.0.0.9', nickname: 'Desk', phase: 'live', mapDim: 2 } },
     })
     render(<SendToController />)
-    expect(screen.getByTestId('send-to-controller')).toHaveTextContent('Desk')
+    expect(screen.getByTestId('controller-deployment-identity')).toHaveTextContent('Controller · Desk')
   })
 })
