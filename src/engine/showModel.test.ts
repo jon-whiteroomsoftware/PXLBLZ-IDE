@@ -9,6 +9,7 @@ import {
   formatShowRoutingRanges,
   normalizeShowTransitionState,
   parseShowRoutingRanges,
+  placeShowClip,
   projectShowStrip,
   projectShowTimeline,
   removeShowClip,
@@ -19,6 +20,7 @@ import {
   showRecordToCompileRecipe,
   splitShowAtTime,
   spanShowCellZones,
+  showCellAtSlot,
   updateShowCellZoneMode,
   updateShowCellAdaptations,
   updateShowCellControlTarget,
@@ -49,6 +51,88 @@ function expectHoleFreeStrip(show: ShowRecord): void {
 }
 
 describe('showModel (#318)', () => {
+  it('places a clip only into an empty scene and zone slot (#430)', () => {
+    const base = createDefaultShow('show-430-place', 'Clip placement', 1)
+    const withHole = removeShowClip(base, 'cell-1')
+
+    const placed = placeShowClip(withHole, 'zone-1', 'scene-1', {
+      pattern: { kind: 'stock', id: 'TestPattern2D' },
+      patternName: 'TestPattern2D',
+    })
+
+    expect(placed).not.toBe(withHole)
+    expect(showCellAtSlot(placed, 'zone-1', 'scene-1')).toMatchObject({
+      id: 'cell-3',
+      sceneId: 'scene-1',
+      zoneId: 'zone-1',
+      sceneSpan: 1,
+      zoneSpan: 1,
+      pattern: { kind: 'stock', id: 'TestPattern2D' },
+      patternName: 'TestPattern2D',
+      adaptations: { mirror: false, phase: 0, brightness: 1, timeScale: 1 },
+      restartOnEntry: false,
+    })
+    expect(placeShowClip(placed, 'zone-1', 'scene-1', {
+      pattern: { kind: 'stock', id: 'CometLoom' },
+      patternName: 'CometLoom',
+    })).toBe(placed)
+  })
+
+  it('treats every slot beneath a spanning clip as occupied (#430)', () => {
+    const withSecondZone = addShowZone(createDefaultShow('show-430-span', 'Spanning clip', 1))
+    const spanning = spanShowCellZones(withSecondZone, 'cell-1', 2)
+
+    expect(showCellAtSlot(spanning, 'zone-2', 'scene-1')?.id).toBe('cell-1')
+    expect(placeShowClip(spanning, 'zone-2', 'scene-1', {
+      pattern: { kind: 'stock', id: 'TestPattern2D' },
+      patternName: 'TestPattern2D',
+    })).toBe(spanning)
+  })
+
+  it('clears every conflicting clip when a zone span is extended into a hold (#430)', () => {
+    const base = addShowZone(createDefaultShow('show-430-span-hold', 'Span then hold', 1))
+    const spanning = spanShowCellZones(base, 'cell-1', 2)
+
+    const held = extendShowCell(spanning, 'cell-1', 2)
+
+    expect(held.cells).toEqual([expect.objectContaining({ id: 'cell-1', sceneSpan: 2, zoneSpan: 2 })])
+  })
+
+  it('clears every conflicting clip when a hold is expanded across zones (#430)', () => {
+    const base = addShowZone(createDefaultShow('show-430-hold-span', 'Hold then span', 1))
+    const held = extendShowCell(base, 'cell-1', 2)
+
+    const spanning = spanShowCellZones(held, 'cell-1', 2)
+
+    expect(spanning.cells).toEqual([expect.objectContaining({ id: 'cell-1', sceneSpan: 2, zoneSpan: 2 })])
+  })
+
+  it('shrinks a spanning clip when its covered zone is removed (#430)', () => {
+    const base = addShowZone(createDefaultShow('show-430-remove-zone', 'Remove covered zone', 1))
+    const spanning = spanShowCellZones(base, 'cell-1', 2)
+
+    const removed = removeShowZone(spanning, 'zone-2')
+
+    expect(removed.cells.find((cell) => cell.id === 'cell-1')).toMatchObject({
+      zoneId: 'zone-1',
+      zoneSpan: 1,
+      zoneMode: undefined,
+    })
+  })
+
+  it('reanchors a spanning clip when its starting zone is removed (#430)', () => {
+    const base = addShowZone(createDefaultShow('show-430-reanchor-zone', 'Remove anchor zone', 1))
+    const spanning = spanShowCellZones(base, 'cell-1', 2)
+
+    const removed = removeShowZone(spanning, 'zone-1')
+
+    expect(removed.cells.find((cell) => cell.id === 'cell-1')).toMatchObject({
+      zoneId: 'zone-2',
+      zoneSpan: 1,
+      zoneMode: undefined,
+    })
+  })
+
   it('losslessly migrates legacy scene transitions and routing markers into stable boundary entities (#416)', () => {
     const base = addShowRoutingLayout(createDefaultShow('show-1', 'Legacy boundaries', 1), 'Alternate')
     const legacy = updateShowRoutingSwitch(base, 'scene-1', base.routingLayouts[1].id)

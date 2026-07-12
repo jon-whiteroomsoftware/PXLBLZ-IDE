@@ -606,6 +606,53 @@ export function removeShowClip(show: ShowRecord, clipId: string): ShowRecord {
   }
 }
 
+export function showCellAtSlot(
+  show: ShowRecord,
+  zoneId: string,
+  sceneId: string,
+): ShowCell | undefined {
+  const zoneIndex = show.zones.findIndex((zone) => zone.id === zoneId)
+  const sceneIndex = show.scenes.findIndex((scene) => scene.id === sceneId)
+  if (zoneIndex === -1 || sceneIndex === -1) return undefined
+
+  return show.cells.find((cell) => {
+    const cellZoneIndex = show.zones.findIndex((zone) => zone.id === cell.zoneId)
+    const cellSceneIndex = show.scenes.findIndex((scene) => scene.id === cell.sceneId)
+    if (cellZoneIndex === -1 || cellSceneIndex === -1) return false
+    return zoneIndex >= cellZoneIndex
+      && zoneIndex < cellZoneIndex + Math.max(1, cell.zoneSpan ?? 1)
+      && sceneIndex >= cellSceneIndex
+      && sceneIndex < cellSceneIndex + Math.max(1, cell.sceneSpan)
+  })
+}
+
+export function placeShowClip(
+  show: ShowRecord,
+  zoneId: string,
+  sceneId: string,
+  patch: Pick<ShowCell, 'pattern' | 'patternName'>,
+): ShowRecord {
+  if (showCellAtSlot(show, zoneId, sceneId)) return show
+  if (!show.zones.some((zone) => zone.id === zoneId)) return show
+  if (!show.scenes.some((scene) => scene.id === sceneId)) return show
+
+  const cell: ShowCell = {
+    id: nextEntityId('cell-', show.cells),
+    zoneId,
+    sceneId,
+    sceneSpan: 1,
+    zoneSpan: 1,
+    ...patch,
+    adaptations: { ...DEFAULT_ADAPTATIONS },
+    restartOnEntry: false,
+  }
+  return {
+    ...show,
+    cells: [...show.cells, cell],
+    updatedAt: Math.max(Date.now(), show.updatedAt + 1),
+  }
+}
+
 export function updateShowCellAdaptations(
   show: ShowRecord,
   cellId: string,
@@ -659,14 +706,20 @@ export function extendShowCell(show: ShowRecord, cellId: string, sceneSpan: numb
   const target = show.cells.find((cell) => cell.id === cellId)
   if (!target) return show
   const targetSceneIndex = show.scenes.findIndex((scene) => scene.id === target.sceneId)
+  const targetZoneIndex = show.zones.findIndex((zone) => zone.id === target.zoneId)
+  if (targetSceneIndex === -1 || targetZoneIndex === -1) return show
   const nextSpan = Math.max(1, Math.min(sceneSpan, show.scenes.length - targetSceneIndex))
-  const occupiedSceneIds = new Set(
-    show.scenes.slice(targetSceneIndex, targetSceneIndex + nextSpan).map((scene) => scene.id),
-  )
   return {
     ...show,
     cells: show.cells
-      .filter((cell) => cell.id === cellId || cell.zoneId !== target.zoneId || !occupiedSceneIds.has(cell.sceneId))
+      .filter((cell) => cell.id === cellId || !showCellIntersects(
+        show,
+        cell,
+        targetZoneIndex,
+        Math.max(1, target.zoneSpan ?? 1),
+        targetSceneIndex,
+        nextSpan,
+      ))
       .map((cell) => cell.id === cellId ? { ...cell, sceneSpan: nextSpan } : cell),
     updatedAt: Date.now(),
   }
@@ -676,20 +729,42 @@ export function spanShowCellZones(show: ShowRecord, cellId: string, zoneSpan: nu
   const target = show.cells.find((cell) => cell.id === cellId)
   if (!target) return show
   const targetZoneIndex = show.zones.findIndex((zone) => zone.id === target.zoneId)
-  if (targetZoneIndex === -1) return show
+  const targetSceneIndex = show.scenes.findIndex((scene) => scene.id === target.sceneId)
+  if (targetZoneIndex === -1 || targetSceneIndex === -1) return show
   const nextSpan = Math.max(1, Math.min(zoneSpan, show.zones.length - targetZoneIndex))
-  const occupiedZoneIds = new Set(
-    show.zones.slice(targetZoneIndex, targetZoneIndex + nextSpan).map((zone) => zone.id),
-  )
   return {
     ...show,
     cells: show.cells
-      .filter((cell) => cell.id === cellId || cell.sceneId !== target.sceneId || !occupiedZoneIds.has(cell.zoneId))
+      .filter((cell) => cell.id === cellId || !showCellIntersects(
+        show,
+        cell,
+        targetZoneIndex,
+        nextSpan,
+        targetSceneIndex,
+        Math.max(1, target.sceneSpan),
+      ))
       .map((cell) => cell.id === cellId
         ? { ...cell, zoneSpan: nextSpan, ...(nextSpan > 1 ? { zoneMode: cell.zoneMode ?? 'span' as const } : { zoneMode: undefined }) }
         : cell),
     updatedAt: Date.now(),
   }
+}
+
+function showCellIntersects(
+  show: ShowRecord,
+  cell: ShowCell,
+  zoneStart: number,
+  zoneSpan: number,
+  sceneStart: number,
+  sceneSpan: number,
+): boolean {
+  const cellZoneStart = show.zones.findIndex((zone) => zone.id === cell.zoneId)
+  const cellSceneStart = show.scenes.findIndex((scene) => scene.id === cell.sceneId)
+  if (cellZoneStart === -1 || cellSceneStart === -1) return false
+  return cellZoneStart < zoneStart + zoneSpan
+    && zoneStart < cellZoneStart + Math.max(1, cell.zoneSpan ?? 1)
+    && cellSceneStart < sceneStart + sceneSpan
+    && sceneStart < cellSceneStart + Math.max(1, cell.sceneSpan)
 }
 
 export function updateShowCellZoneMode(
@@ -764,10 +839,37 @@ export function updateShowZone(
 
 export function removeShowZone(show: ShowRecord, zoneId: string): ShowRecord {
   if (show.zones.length <= 1) return show
+  const removedZoneIndex = show.zones.findIndex((zone) => zone.id === zoneId)
+  if (removedZoneIndex === -1) return show
+  const zoneIndexById = new Map(show.zones.map((zone, index) => [zone.id, index]))
+  const cells = show.cells.flatMap((cell) => {
+    const start = zoneIndexById.get(cell.zoneId)
+    if (start == null) return []
+    const span = Math.max(1, cell.zoneSpan ?? 1)
+    const end = start + span - 1
+    if (cell.zoneId === zoneId) {
+      const nextZoneId = show.zones[removedZoneIndex + 1]?.id
+      if (span > 1 && nextZoneId) return [{
+        ...cell,
+        zoneId: nextZoneId,
+        zoneSpan: span - 1,
+        zoneMode: span - 1 > 1 ? cell.zoneMode ?? 'span' : undefined,
+      }]
+      return []
+    }
+    if (start < removedZoneIndex && removedZoneIndex <= end) {
+      return [{
+        ...cell,
+        zoneSpan: span - 1,
+        zoneMode: span - 1 > 1 ? cell.zoneMode ?? 'span' : undefined,
+      }]
+    }
+    return [cell]
+  })
   return {
     ...show,
     zones: show.zones.filter((zone) => zone.id !== zoneId),
-    cells: show.cells.filter((cell) => cell.zoneId !== zoneId),
+    cells,
     routingLayouts: show.routingLayouts.map((layout) => ({
       ...layout,
       zones: layout.zones.filter((zone) => zone.zoneId !== zoneId),

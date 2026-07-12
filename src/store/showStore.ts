@@ -11,6 +11,7 @@ import {
   importedStageMapIdForController,
   normalizeShowEntryState,
   normalizeShowTransitionState,
+  placeShowClip,
   removeShowClip,
   removeShowScene,
   removeShowRoutingLayout,
@@ -29,6 +30,7 @@ import {
   updateShowRoutingLayout,
   updateShowRoutingSwitch,
   updateShowTransition,
+  showCellAtSlot,
 } from '@/engine/showModel'
 import { getPersonalContentProvider } from '@/engine/personalContentProvider'
 import type {
@@ -72,6 +74,12 @@ interface ShowState {
     portal?: Partial<ShowPortalSettings>,
   ) => Promise<void>
   removeClip: (showId: string, clipId: string) => Promise<void>
+  placeClip: (
+    showId: string,
+    zoneId: string,
+    sceneId: string,
+    patch: Pick<ShowCell, 'pattern' | 'patternName'>,
+  ) => Promise<ShowCell | null>
   updateCellAdaptations: (
     showId: string,
     cellId: string,
@@ -227,6 +235,15 @@ export const useShowStore = create<ShowState>()((set, get) => ({
     const show = get().shows.find((item) => item.id === showId)
     if (!show) return
     await get().updateShow(showId, removeShowClip(show, clipId))
+  },
+
+  placeClip: async (showId, zoneId, sceneId, patch) => {
+    const show = get().shows.find((item) => item.id === showId)
+    if (!show) return null
+    const next = placeShowClip(show, zoneId, sceneId, patch)
+    if (next === show) return null
+    await get().updateShow(showId, next)
+    return showCellAtSlot(next, zoneId, sceneId) ?? null
   },
 
   updateCellAdaptations: async (showId, cellId, changes) => {

@@ -741,6 +741,13 @@ The persisted record still uses the `cells` field and `ShowCell` type for
 compatibility with existing saved Shows. Product language and editor behavior
 call these entities clips.
 
+A clip occupies a rectangular scene-by-zone footprint. `showCellAtSlot()` is
+the shared occupancy query for direct cells and slots covered by either span.
+Placement succeeds only in an empty slot. Growing a hold or zone span removes
+every intersecting clip across both axes; scene and zone removal shrink or
+re-anchor surviving spans so the record cannot retain overlapping or out-of-range
+geometry.
+
 Split is an atomic pure-model operation. It rejects transition windows and
 sub-one-second fragments, creates one boundary across zones, divides covering
 clips, deep-copies value objects, moves the original outgoing boundary to the
@@ -754,8 +761,11 @@ owns Fit-to-16x zoom, playhead-anchored zoom, pan, navigator thumb geometry, and
 range resizing. Zoom is local editor state.
 
 Selection is UI-local and opens one contextual inspector for Show setup, clip,
-transition, or zone. Model mutations delegate through `showStore`; the React
-surface does not reproduce split/transition/routing rules.
+empty slot, transition, or zone. An empty slot presents the same personal and
+built-in Pattern catalogue used by clip source replacement, then delegates
+placement and persistence through `showStore`. Other model mutations follow the
+same route; the React surface does not reproduce occupancy,
+split/transition/routing rules.
 
 `showTransportStore` holds ephemeral play/pause-adjacent timeline state:
 duration, position, rebuilding status, and monotonic seek identity. The global

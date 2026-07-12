@@ -27,6 +27,7 @@ import {
   parseShowRoutingRanges,
   showLoopDurationMs,
   projectShowTimeline,
+  showCellAtSlot,
   transitionCost,
 } from '@/engine/showModel'
 import { compileShowForPreview, sourceForShowCell, type CompiledShowState } from '@/engine/showPreviewArtifact'
@@ -78,6 +79,7 @@ const clipBase =
 type ShowSelection =
   | { kind: 'scene'; sceneId: string }
   | { kind: 'clip'; clipId: string }
+  | { kind: 'empty-slot'; zoneId: string; sceneId: string }
   | { kind: 'transition'; transitionId: string }
   | { kind: 'zone'; zoneId: string }
   | { kind: 'routing-switch'; afterSceneId: string }
@@ -94,6 +96,7 @@ export function ShowEditor({ showId }: { showId: string }) {
   const updateBoundaryTransition = useShowStore((state) => state.updateBoundaryTransition)
   const removeBoundaryTransition = useShowStore((state) => state.removeBoundaryTransition)
   const removeClip = useShowStore((state) => state.removeClip)
+  const placeClip = useShowStore((state) => state.placeClip)
   const updateCellAdaptations = useShowStore((state) => state.updateCellAdaptations)
   const updateCellPattern = useShowStore((state) => state.updateCellPattern)
   const updateCellControlTarget = useShowStore((state) => state.updateCellControlTarget)
@@ -423,6 +426,11 @@ export function ShowEditor({ showId }: { showId: string }) {
             })}
             onUpdateStageMap={(stageMapId) => void updateStageMap(activeShow.id, stageMapId)}
             onUpdatePattern={(cell, patch) => void updateCellPattern(activeShow.id, cell.id, patch)}
+            onPlaceClip={(zoneId, sceneId, patch) => {
+              void placeClip(activeShow.id, zoneId, sceneId, patch).then((clip) => {
+                if (clip) setSelection({ kind: 'clip', clipId: clip.id })
+              })
+            }}
             onRemoveClip={(clip) => {
               setSelection({ kind: 'show' })
               void removeClip(activeShow.id, clip.id)
@@ -870,6 +878,30 @@ function SceneStrip({
                   {(cell.zoneSpan ?? 1) > 1 ? cell.zoneMode === 'repeat' ? ' - repeat zones' : ' - span zones' : ''}
                 </span>
               </button>
+            ))}
+            {show.scenes.map((scene, sceneIndex) => (
+              showCellAtSlot(show, row.zoneId, scene.id) ? null : (
+                <button
+                  key={`empty-${row.zoneId}-${scene.id}`}
+                  type="button"
+                  aria-label={`Add clip to ${row.zoneName} in ${scene.name}`}
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    onSelect({ kind: 'empty-slot', zoneId: row.zoneId, sceneId: scene.id })
+                  }}
+                  className={[
+                    'relative z-10 flex min-h-16 items-center justify-center rounded-[5px] border border-dashed text-[10px] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-live',
+                    selection.kind === 'empty-slot'
+                      && selection.zoneId === row.zoneId
+                      && selection.sceneId === scene.id
+                      ? 'border-live/70 bg-live/10 text-zinc-200'
+                      : 'border-zinc-800 bg-zinc-950/20 text-zinc-600 hover:border-zinc-600 hover:text-zinc-300',
+                  ].join(' ')}
+                  style={{ gridColumn: 2 + sceneIndex * 2, gridRow: rowIndex * rowStride + 4 }}
+                >
+                  <span className="flex items-center gap-1"><Plus size={11} aria-hidden /> clip</span>
+                </button>
+              )
             ))}
             <div
               role="group"
@@ -1387,6 +1419,7 @@ function ContextualInspector({
   onUpdateTargetProfile,
   onUpdateStageMap,
   onUpdatePattern,
+  onPlaceClip,
   onRemoveClip,
   onUpdateScene,
   onDuplicateScene,
@@ -1418,6 +1451,7 @@ function ContextualInspector({
   onUpdateTargetProfile: (targetControllerProfileId: string) => void
   onUpdateStageMap: (stageMapId: string | null) => void
   onUpdatePattern: (cell: ShowCell, patch: Pick<ShowCell, 'pattern' | 'patternName'>) => void
+  onPlaceClip: (zoneId: string, sceneId: string, patch: Pick<ShowCell, 'pattern' | 'patternName'>) => void
   onRemoveClip: (clip: ShowCell) => void
   onUpdateScene: (scene: ShowScene, changes: Partial<Omit<ShowScene, 'id'>>) => void
   onDuplicateScene: (scene: ShowScene) => void
@@ -1441,6 +1475,21 @@ function ContextualInspector({
   onRemoveRoutingLayout: (layoutId: string) => void
   onUpdateRoutingSwitch: (afterSceneId: string, layoutId: string | null) => void
 }) {
+  if (selection.kind === 'empty-slot') {
+    const zone = show.zones.find((candidate) => candidate.id === selection.zoneId)
+    const scene = show.scenes.find((candidate) => candidate.id === selection.sceneId)
+    if (zone && scene) {
+      return (
+        <EmptyClipInspector
+          zone={zone}
+          scene={scene}
+          patternOptions={patternOptions}
+          onPlace={(patch) => onPlaceClip(zone.id, scene.id, patch)}
+        />
+      )
+    }
+  }
+
   if (selection.kind === 'scene') {
     const scene = show.scenes.find((candidate) => candidate.id === selection.sceneId)
     if (scene) {
@@ -1528,6 +1577,46 @@ function ContextualInspector({
       onUpdateRoutingLayout={onUpdateRoutingLayout}
       onRemoveRoutingLayout={onRemoveRoutingLayout}
     />
+  )
+}
+
+function EmptyClipInspector({
+  zone,
+  scene,
+  patternOptions,
+  onPlace,
+}: {
+  zone: ShowRecord['zones'][number]
+  scene: ShowScene
+  patternOptions: Array<{ label: string; ref: ShowCell['pattern'] }>
+  onPlace: (patch: Pick<ShowCell, 'pattern' | 'patternName'>) => void
+}) {
+  return (
+    <InspectorPanel
+      family="Clip"
+      title={`${zone.name} · ${scene.name}`}
+      icon={<Grid2X2 size={13} aria-hidden />}
+    >
+      <label className="block max-w-md text-[9px] uppercase tracking-[0.1em] text-zinc-600">
+        Pattern
+        <select
+          aria-label="Pattern for new clip"
+          defaultValue=""
+          onChange={(event) => {
+            const option = patternOptions.find((item) => `${item.ref.kind}:${item.ref.id}` === event.target.value)
+            if (option) onPlace({ pattern: option.ref, patternName: option.label })
+          }}
+          className={`${field} mt-1 w-full`}
+        >
+          <option value="" disabled>Choose a Pattern...</option>
+          {patternOptions.map((option) => (
+            <option key={`${option.ref.kind}:${option.ref.id}`} value={`${option.ref.kind}:${option.ref.id}`}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </label>
+    </InspectorPanel>
   )
 }
 

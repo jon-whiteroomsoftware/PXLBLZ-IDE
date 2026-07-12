@@ -94,6 +94,27 @@ describe('showStore (#318)', () => {
     expect(useShowStore.getState().shows[0].cells.map((clip) => clip.id)).toEqual([show.cells[1].id])
   })
 
+  it('places a replacement clip and persists it through the provider (#430)', async () => {
+    const show = createDefaultShow('show-430-place', 'Clip placement', 1)
+    const provider = memoryProvider([show])
+    setPersonalContentProvider(provider)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    await useShowStore.getState().removeClip(show.id, 'cell-1')
+    const placed = await useShowStore.getState().placeClip(show.id, 'zone-1', 'scene-1', {
+      pattern: { kind: 'stock', id: 'TestPattern2D' },
+      patternName: 'TestPattern2D',
+    })
+    useShowStore.setState(showInitialState)
+    await useShowStore.getState().loadShows()
+
+    expect(placed).toMatchObject({ id: 'cell-3', zoneId: 'zone-1', sceneId: 'scene-1' })
+    expect(useShowStore.getState().shows[0].cells).toContainEqual(expect.objectContaining({
+      id: 'cell-3',
+      patternName: 'TestPattern2D',
+    }))
+  })
+
   it('persists an exact-zero clip time scale through the provider', async () => {
     const show = createDefaultShow('show-1', 'Opening wash', 1)
     const provider = memoryProvider([show])

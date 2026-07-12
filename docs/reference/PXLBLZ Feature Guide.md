@@ -492,6 +492,12 @@ A clip references a personal or built-in Pattern and applies non-destructive
 adaptations. Continue reuses compatible private Pattern state across a boundary;
 Restart creates a fresh instance and clock.
 
+Delete removes a selected clip without a confirmation step and leaves an
+explicit empty slot in its scene and zone. Select that slot and choose a Pattern
+to create a fresh clip there. The timeline does not use freeform drag ordering:
+clips are anchored to the scene/zone grid, so delete and place is the supported
+way to relocate one.
+
 Time controls include:
 
 - **Time ×** from exact `0` through `4`; zero freezes the Pattern's private
@@ -507,7 +513,9 @@ renderer. The generated outer renderer and LED transport still run.
 Clips may span adjacent zones as one canvas or **Repeat per zone** with one
 shared Pattern instance and independently normalized local domains. Show zones
 may be freestyle nominal rows or bind by name to the real multi-range zones on a
-Controller profile.
+Controller profile. Hold and zone spans form one rectangular footprint. Growing
+either span removes clips it covers; removing a covered scene or zone shrinks or
+re-anchors the surviving footprint.
 
 ### Transitions and automation
 

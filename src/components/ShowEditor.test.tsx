@@ -572,6 +572,55 @@ describe('ShowEditor (#318)', () => {
     expect(screen.getByRole('heading', { name: 'Show properties' })).toBeInTheDocument()
   })
 
+  it('replaces a deleted Clip through its empty timeline slot (#430)', async () => {
+    const user = userEvent.setup()
+    const show = createDefaultShow('show-430-place', 'Clip placement', 1000)
+    const provider = memoryProvider([show])
+    setPersonalContentProvider(provider)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+    await user.click(screen.getAllByRole('button', { name: /Select TestPattern1D/i })[0])
+    await user.click(screen.getByRole('button', { name: 'Delete clip TestPattern1D' }))
+    await user.click(await screen.findByRole('button', { name: 'Add clip to main in Scene 1' }))
+    await user.selectOptions(screen.getByLabelText('Pattern for new clip'), 'stock:TestPattern2D')
+
+    await waitFor(() => expect(useShowStore.getState().shows[0].cells).toContainEqual(expect.objectContaining({
+      zoneId: 'zone-1',
+      sceneId: 'scene-1',
+      patternName: 'TestPattern2D',
+    })))
+    expect(screen.getByRole('button', { name: 'Select TestPattern2D' })).toBeInTheDocument()
+    expect(screen.getByText(/TestPattern2D · main · Scene 1/i)).toBeInTheDocument()
+  })
+
+  it('composes source replacement, a hold, and a zone span without overlapping clips (#430)', async () => {
+    const user = userEvent.setup()
+    const show = addShowZone(createDefaultShow('show-430-compose', 'Clip composition', 1000), {
+      name: 'edge',
+      nominalPixelCount: 16,
+    })
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+    await user.click(screen.getAllByRole('button', { name: /Select TestPattern1D/i })[0])
+    await user.selectOptions(screen.getByLabelText('Source pattern'), 'stock:TestPattern2D')
+    await user.click(screen.getByText('Advanced clip controls'))
+    await user.selectOptions(screen.getByLabelText('Span zones'), '2')
+    await user.selectOptions(screen.getByLabelText('Hold scenes'), '2')
+
+    await waitFor(() => expect(useShowStore.getState().shows[0].cells).toEqual([
+      expect.objectContaining({
+        id: 'cell-1',
+        patternName: 'TestPattern2D',
+        sceneSpan: 2,
+        zoneSpan: 2,
+      }),
+    ]))
+    expect(screen.queryByRole('button', { name: /^Add clip to/ })).not.toBeInTheDocument()
+  })
+
   it('deletes the selected Clip with the Delete key', async () => {
     const user = userEvent.setup()
     const show = createDefaultShow('show-clip-delete-key', 'Clip keyboard deletion', 1000)
