@@ -92,7 +92,7 @@ is acceptable, stable dithering is the clever alternative—it assigns each LED
 to one Pattern or the other in a stable pattern, creating the impression of a
 blend while still rendering only one Pattern per LED.*
 
-A Show has scenes, zone rows, Pattern cells, and real boundary objects between
+A Show has scenes, zone rows, Pattern clips, and real boundary objects between
 scenes. A boundary can be a cut, crossfade, wipe, dither, spatial portal, or a
 routing change. Time, brightness, and exported Pattern sliders all use the same
 transition model: start value, destination value, duration, and easing.
@@ -154,7 +154,7 @@ deployed release.
 The unusual part of Shows is that there is no Show runtime on the Controller.
 PXLBLZ parses the member Patterns, alpha-renames their globals and functions,
 isolates the state that must be independent, and generates an outer scheduler
-and renderer. Compatible continued cells reuse one member and its private clock;
+and renderer. Compatible continued clips reuse one member and its private clock;
 a Restart creates a new member identity. The output is flat, inspectable
 Pixelblaze source compiled by the normal Controller compiler.
 

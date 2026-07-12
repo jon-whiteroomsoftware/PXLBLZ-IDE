@@ -697,22 +697,22 @@ a scheduler and isolated Pattern members the Controller can run by itself.
 
 ## 19. Show domain model and persistence
 
-A Show is saved choreography over scenes, zones, cells, boundaries, routing
+A Show is saved choreography over scenes, zones, clips, boundaries, routing
 layouts, and one optional Stage map. `showModel.ts` owns creation, normalization,
 projection, split, growth/removal, range parsing, and mutation. `showStore`
 persists normalized records through `/api/shows`.
 
-![Show model and runtime: scenes and zones meet in cells, boundary entities own cross-scene behavior, and the compiler flattens the saved model into one scheduled Pixelblaze Pattern](../images/show-model-runtime.svg)
+![Show model and runtime: scenes and zones meet in clips, boundary entities own cross-scene behavior, and the compiler flattens the saved model into one scheduled Pixelblaze Pattern](../images/show-model-runtime.svg)
 
 Core ownership rules:
 
 - a scene owns name and hold duration;
 - a zone owns semantic identity and nominal preview count;
-- a cell owns Pattern reference, scene/zone span, adaptations, control targets,
+- a clip owns Pattern reference, scene/zone span, adaptations, control targets,
   and Continue/Restart entry behavior;
 - a transition is a stable boundary entity with kind, duration, easing, and
   type-specific configuration;
-- a destination cell owns property targets; the incoming boundary owns each
+- a destination clip owns property targets; the incoming boundary owns each
   interpolation's explicit start, duration, and easing;
 - routing layouts own `zoneId → ranges`; boundary routing markers choose the
   destination layout; and
@@ -723,19 +723,23 @@ model before compiler, editor, EPE, or persistence consumption. Every boundary
 retains one explicit visual transition, with zero-duration cut as the neutral
 form. Visual and routing entities may coexist.
 
+The persisted record still uses the `cells` field and `ShowCell` type for
+compatibility with existing saved Shows. Product language and editor behavior
+call these entities clips.
+
 Split is an atomic pure-model operation. It rejects transition windows and
 sub-one-second fragments, creates one boundary across zones, divides covering
-cells, deep-copies value objects, moves the original outgoing boundary to the
-new right scene, and defaults destination cells to Continue.
+clips, deep-copies value objects, moves the original outgoing boundary to the
+new right scene, and defaults destination clips to Continue.
 
 ## 20. Timeline editor and Stage preview
 
 `ShowEditor` renders one proportional grid for scene headers, ruler, transition
-lane, zone rows, cells, property lanes, and playhead. `showTimelineViewport.ts`
+lane, zone rows, clips, property lanes, and playhead. `showTimelineViewport.ts`
 owns Fit-to-16x zoom, playhead-anchored zoom, pan, navigator thumb geometry, and
 range resizing. Zoom is local editor state.
 
-Selection is UI-local and opens one contextual inspector for Show setup, cell,
+Selection is UI-local and opens one contextual inspector for Show setup, clip,
 transition, or zone. Model mutations delegate through `showStore`; the React
 surface does not reproduce split/transition/routing rules.
 
@@ -753,7 +757,7 @@ solo geometry by blacking non-solo zones.
 
 `showCompiler.ts` turns a normalized Show recipe into one flat Pixelblaze
 Pattern. Member sources are alpha-renamed and isolated. Compatible continued
-cells reuse a member; Restart adds cell identity and a fresh time base. Repeated
+clips reuse a member; Restart adds clip identity and a fresh time base. Repeated
 appearances later in a sequence reuse compatible state rather than compiling a
 new member per visual block.
 
@@ -788,7 +792,7 @@ linear, quadratic ease-in, quadratic ease-out, and piecewise quadratic
 ease-in-out.
 
 Property transitions share one descriptor model. Time scale (`0..4`), brightness
-(`0..1`), and exported slider controls carry destination targets on cells and
+(`0..1`), and exported slider controls carry destination targets on clips and
 boundary-owned starts/durations/easing. Generated control values call the
 alpha-renamed slider once before member `beforeRender`. Missing, renamed, or
 non-slider controls are compile errors rather than dropped automation.

@@ -572,6 +572,40 @@ export function removeShowScene(show: ShowRecord, sceneId: string): ShowRecord {
   })
 }
 
+export function removeShowClip(show: ShowRecord, clipId: string): ShowRecord {
+  if (!show.cells.some((cell) => cell.id === clipId)) return show
+  const omitClipStart = <T extends { fromByCellId: Record<string, number> }>(transition: T): T => {
+    const fromByCellId = { ...transition.fromByCellId }
+    delete fromByCellId[clipId]
+    return { ...transition, fromByCellId }
+  }
+
+  return {
+    ...show,
+    cells: show.cells.filter((cell) => cell.id !== clipId),
+    transitions: show.transitions?.map((transition) => {
+      const propertyTransitions = transition.propertyTransitions
+      if (!propertyTransitions) return transition
+      return {
+        ...transition,
+        propertyTransitions: {
+          ...propertyTransitions,
+          ...(propertyTransitions.timeScale ? { timeScale: omitClipStart(propertyTransitions.timeScale) } : {}),
+          ...(propertyTransitions.brightness ? { brightness: omitClipStart(propertyTransitions.brightness) } : {}),
+          ...(propertyTransitions.controls
+            ? {
+                controls: Object.fromEntries(Object.entries(propertyTransitions.controls).map(([name, descriptor]) => (
+                  [name, omitClipStart(descriptor)]
+                ))),
+              }
+            : {}),
+        },
+      }
+    }),
+    updatedAt: Date.now(),
+  }
+}
+
 export function updateShowCellAdaptations(
   show: ShowRecord,
   cellId: string,
@@ -1114,9 +1148,9 @@ export function showRecordToCompileRecipe(
     .filter((cell) => cell.zoneId === firstZone.id)
     .sort((a, b) => sceneIndex(show, a.sceneId) - sceneIndex(show, b.sceneId))
     .slice(0, 2)
-  if (cells.length === 0) throw new Error('Show compile requires at least one cell on the first zone.')
+  if (cells.length === 0) throw new Error('Show compile requires at least one clip on the first zone.')
   const source0 = lookup.byCellId[cells[0].id]
-  if (!source0) throw new Error('Show compile requires pattern source for the first cell.')
+  if (!source0) throw new Error('Show compile requires pattern source for the first clip.')
 
   if (cells[0].sceneSpan > 1 || cells.length === 1) {
     return {
@@ -1126,7 +1160,7 @@ export function showRecordToCompileRecipe(
   }
 
   const source1 = lookup.byCellId[cells[1].id]
-  if (!source1) throw new Error('Show compile requires pattern source for both cells.')
+  if (!source1) throw new Error('Show compile requires pattern source for both clips.')
 
   const transitionScene = show.scenes[sceneIndex(show, cells[0].sceneId)]
   const transition = transitionScene?.transitionOut
@@ -1238,7 +1272,7 @@ function showRecordToSceneSequenceRecipe(
   const clipIdByCellId = new Map<string, string>()
   for (const [index, cell] of resolvedCells.entries()) {
     const source = lookup.byCellId[cell.id]
-    if (!source) throw new Error(`Show compile requires pattern source for cell "${cell.id}".`)
+    if (!source) throw new Error(`Show compile requires pattern source for clip "${cell.id}".`)
     const adaptation = compilerAdaptation(cell.adaptations)
     const continuityKey = `${cell.pattern.kind}:${cell.pattern.id}:${JSON.stringify(adaptation)}`
     const key = cell.restartOnEntry ? `${continuityKey}:restart:${cell.id}` : continuityKey
@@ -1354,7 +1388,7 @@ function showRecordToRoutedFirstSceneRecipe(
   const cells = show.zones
     .map((zone) => show.cells.find((cell) => cell.zoneId === zone.id && cell.sceneId === firstScene.id))
     .filter((cell): cell is ShowCell => Boolean(cell))
-  if (cells.length === 0) throw new Error('Show compile requires at least one first-scene zone cell.')
+  if (cells.length === 0) throw new Error('Show compile requires at least one first-scene zone clip.')
 
   const normalized = normalizeShowRoutingState(show)
   const activeSwitches = normalized.routingSwitches.flatMap((routingSwitch) => {
@@ -1377,9 +1411,9 @@ function showRecordToRoutedFirstSceneRecipe(
   return {
     clips: cells.map((cell) => {
       const source = lookup.byCellId[cell.id]
-      if (!source) throw new Error(`Show compile requires pattern source for cell "${cell.id}".`)
+      if (!source) throw new Error(`Show compile requires pattern source for clip "${cell.id}".`)
       const zone = zoneById.get(cell.zoneId)
-      if (!zone) throw new Error(`Show compile requires zone for cell "${cell.id}".`)
+      if (!zone) throw new Error(`Show compile requires zone for clip "${cell.id}".`)
       const zoneIndex = show.zones.findIndex((candidate) => candidate.id === cell.zoneId)
       const zoneSpan = Math.max(1, Math.min(cell.zoneSpan ?? 1, show.zones.length - zoneIndex))
       const spannedZones = show.zones.slice(zoneIndex, zoneIndex + zoneSpan)

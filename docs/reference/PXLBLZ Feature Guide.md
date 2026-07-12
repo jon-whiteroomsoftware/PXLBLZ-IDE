@@ -456,7 +456,7 @@ The canonical editor is a proportional, zoomable timeline:
 
 - scene headers are sized by duration;
 - zones are explicit rows;
-- cells place Patterns across one or more scenes and zones;
+- clips place Patterns across one or more scenes and zones;
 - one transition lane holds selectable boundary entities;
 - nested lanes expose Time, Brightness, and active public Pattern controls;
 - a ruler, playhead, transport, and whole-Show navigator share one time axis.
@@ -471,12 +471,12 @@ and a newer seek supersedes older work. There is no approximate seek renderer,
 frame cache, downsampling, or checkpoint system in the current implementation.
 
 **Split** creates one shared boundary across every zone row when the playhead is
-safely inside a scene hold. Cells on the right default to **Continue**. Turn on
+safely inside a scene hold. Clips on the right default to **Continue**. Turn on
 **Restart Pattern on entry** for a deliberate reset or stutter.
 
-### Scenes, cells, and private time
+### Scenes, clips, and private time
 
-A cell references a personal or built-in Pattern and applies non-destructive
+A clip references a personal or built-in Pattern and applies non-destructive
 adaptations. Continue reuses compatible private Pattern state across a boundary;
 Restart creates a fresh instance and clock.
 
@@ -492,7 +492,7 @@ Time controls include:
 The shutter is an evaluation mask: closed pixels emit black and skip the source
 renderer. The generated outer renderer and LED transport still run.
 
-Cells may span adjacent zones as one canvas or **Repeat per zone** with one
+Clips may span adjacent zones as one canvas or **Repeat per zone** with one
 shared Pattern instance and independently normalized local domains. Show zones
 may be freestyle nominal rows or bind by name to the real multi-range zones on a
 Controller profile.
@@ -512,7 +512,7 @@ Transition cost is explicit:
 - portal can use a hard/stable-dither one-renderer edge or a true blended
   feather that evaluates both Patterns only inside the band.
 
-Property automation uses one shared CSS-like model: destination cells own
+Property automation uses one shared CSS-like model: destination clips own
 targets; the incoming boundary owns the explicit start, duration, and easing.
 Time, Brightness, and exported `sliderName(v)` controls use the same system.
 Each property may have its own duration and easing on one continued Pattern

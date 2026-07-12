@@ -85,7 +85,7 @@ Build one routing layout whose topology changes continuously from a small set of
 properties: a moving split, expanding bands, changing tile count, or another
 regular formula with clear visual value.
 
-Scene cells own targets and incoming boundaries own interpolation through the
+Scene clips own targets and incoming boundaries own interpolation through the
 shared property system. No routing-only curve engine, private clock, or special
 timeline lane.
 

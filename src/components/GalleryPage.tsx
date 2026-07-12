@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { ArrowRight, ChevronDown, Images, Search, X } from 'lucide-react'
 import {
   GALLERY_ALL_CATEGORY,
@@ -17,6 +17,10 @@ const DIM_OPTIONS: { label: string; value: DimLens }[] = [
   { label: '2D', value: 2 },
   { label: '3D', value: 3 },
 ]
+
+export function galleryAnchorId(slug: string): string {
+  return `gallery-${slug}`
+}
 
 function FilterChip({
   active,
@@ -47,11 +51,17 @@ function FilterChip({
 function GalleryCard({ pattern, index }: { pattern: GalleryPattern; index: number }) {
   const navigate = useRouterStore((s) => s.navigate)
   const [attended, setAttended] = useState(false)
+  const anchorId = galleryAnchorId(pattern.slug)
 
   return (
     <button
+      id={anchorId}
       type="button"
-      onClick={() => navigate({ kind: 'pattern-detail', slug: pattern.slug })}
+      onClick={() => {
+        const galleryUrl = `${window.location.pathname}${window.location.search}#${anchorId}`
+        window.history.replaceState(window.history.state, '', galleryUrl)
+        navigate({ kind: 'pattern-detail', slug: pattern.slug })
+      }}
       onFocus={() => setAttended(true)}
       onBlur={() => setAttended(false)}
       onMouseEnter={() => setAttended(true)}
@@ -100,6 +110,15 @@ export function GalleryPage() {
     () => filterGalleryPatterns(GALLERY_PATTERNS, { lens, category, query }),
     [lens, category, query],
   )
+
+  useEffect(() => {
+    const anchorId = decodeURIComponent(window.location.hash.slice(1))
+    if (!anchorId.startsWith('gallery-')) return
+    const frame = window.requestAnimationFrame(() => {
+      document.getElementById(anchorId)?.scrollIntoView({ block: 'center' })
+    })
+    return () => window.cancelAnimationFrame(frame)
+  }, [])
 
   return (
     <main className="flex-1 overflow-auto bg-zinc-950" data-testid="gallery-page">

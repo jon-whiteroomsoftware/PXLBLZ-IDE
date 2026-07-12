@@ -18,7 +18,7 @@
   <line x1="344" y1="152" x2="278" y2="194" stroke="#4a7aa8" stroke-width="1.5" marker-end="url(#arr)"/>
 
   <rect x="128" y="198" width="220" height="84" rx="6" fill="#eef2f6" stroke="#2b3036"/>
-  <text x="144" y="223" font-size="12" font-weight="bold" fill="#2b3036">Cell</text>
+  <text x="144" y="223" font-size="12" font-weight="bold" fill="#2b3036">Clip</text>
   <text x="144" y="243" font-size="10.5" fill="#6b7480">Pattern · scene/zone span</text>
   <text x="144" y="260" font-size="10.5" fill="#6b7480">adaptations · Continue/Restart</text>
   <text x="144" y="277" font-size="10.5" fill="#4a7aa8">owns property targets</text>
@@ -29,7 +29,7 @@
   <text x="228" y="374" font-size="10.5" fill="#2b3036">routing marker</text>
   <text x="68" y="394" font-size="10.5" fill="#2b3036">property starts</text>
   <text x="228" y="394" font-size="10.5" fill="#2b3036">duration + easing</text>
-  <text x="68" y="417" font-size="10" fill="#4a7aa8">interpolates toward the destination cell's targets</text>
+  <text x="68" y="417" font-size="10" fill="#4a7aa8">interpolates toward the destination clip's targets</text>
 
   <line x1="238" y1="282" x2="238" y2="322" stroke="#4a7aa8" stroke-width="1.5" marker-start="url(#arr)" marker-end="url(#arr)"/>
 
@@ -49,7 +49,7 @@
   <rect x="532" y="206" width="316" height="92" rx="6" fill="#f5f7f9" stroke="#2b3036"/>
   <text x="548" y="231" font-size="12" font-weight="bold" fill="#2b3036">Isolated Pattern members</text>
   <text x="548" y="251" font-size="10.5" fill="#6b7480">alpha-renamed source · private time</text>
-  <text x="548" y="268" font-size="10.5" fill="#6b7480">compatible Continue cells reuse state</text>
+  <text x="548" y="268" font-size="10.5" fill="#6b7480">compatible Continue clips reuse state</text>
   <text x="548" y="285" font-size="10.5" fill="#6b7480">Restart creates a fresh member identity</text>
 
   <line x1="690" y1="298" x2="690" y2="336" stroke="#4a7aa8" stroke-width="1.5" marker-end="url(#arr)"/>

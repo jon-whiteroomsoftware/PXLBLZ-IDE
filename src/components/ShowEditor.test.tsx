@@ -433,7 +433,7 @@ describe('ShowEditor (#318)', () => {
     expect(screen.getByRole('group', { name: 'Time lane for edge' }).parentElement).toHaveTextContent('1×')
   })
 
-  it('renders a scene strip, selectable cell inspector, and compile bar', async () => {
+  it('renders a scene strip, selectable clip inspector, and compile bar', async () => {
     const user = userEvent.setup()
     const show = createDefaultShow('show-1', 'Opening wash', 1000)
     useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
@@ -451,18 +451,51 @@ describe('ShowEditor (#318)', () => {
     expect(screen.getByText(/renderer\/px/i)).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Show properties' })).toBeInTheDocument()
     expect(screen.getByLabelText('Target controller')).toBeInTheDocument()
+    expect(screen.getByRole('group', { name: 'Scene Scene 1' }).querySelector('svg')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Select zone main' }).querySelector('svg')).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: /Select TestPattern1D/i })[0].querySelector('svg')).toBeInTheDocument()
 
     await user.click(screen.getAllByRole('button', { name: /Select TestPattern1D/i })[0])
 
-    expect(screen.getByRole('heading', { name: 'Cell properties' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Clip properties' })).toBeInTheDocument()
     expect(screen.getByText(/TestPattern1D · main · Scene 1/i)).toBeInTheDocument()
-    expect(screen.getByLabelText('Mirror cell')).toBeInTheDocument()
+    expect(screen.getByLabelText('Mirror clip')).toBeInTheDocument()
     expect(screen.getByLabelText('Time x')).toHaveAttribute('min', '0')
 
     await user.click(screen.getByRole('button', { name: /Select Scene 1 to Scene 2 transition/i }))
     expect(screen.getByRole('heading', { name: 'Transition properties' })).toBeInTheDocument()
     expect(screen.getByText(/Scene 1 → Scene 2 · crossfade/i)).toBeInTheDocument()
     expect(screen.getByRole('option', { name: 'wipe' })).toBeInTheDocument()
+  })
+
+  it('deletes a selected Clip from Properties without confirmation', async () => {
+    const user = userEvent.setup()
+    const show = createDefaultShow('show-clip-delete', 'Clip deletion', 1000)
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+    await user.click(screen.getAllByRole('button', { name: /Select TestPattern1D/i })[0])
+    await user.click(screen.getByRole('button', { name: 'Delete clip TestPattern1D' }))
+
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+    await waitFor(() => expect(useShowStore.getState().shows[0].cells).toHaveLength(1))
+    expect(screen.getByRole('heading', { name: 'Show properties' })).toBeInTheDocument()
+  })
+
+  it('deletes the selected Clip with the Delete key', async () => {
+    const user = userEvent.setup()
+    const show = createDefaultShow('show-clip-delete-key', 'Clip keyboard deletion', 1000)
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+    await user.click(screen.getAllByRole('button', { name: /Select TestPattern1D/i })[0])
+    await user.keyboard('{Delete}')
+
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+    await waitFor(() => expect(useShowStore.getState().shows[0].cells).toHaveLength(1))
+    expect(screen.getByRole('heading', { name: 'Show properties' })).toBeInTheDocument()
   })
 
   it('identifies an exact-pause clock ramp without changing renderer policy', async () => {
@@ -563,7 +596,7 @@ describe('ShowEditor (#318)', () => {
     await waitFor(() => {
       expect(useShowStore.getState().shows[0].cells[0].adaptations.timeOffsetMs).toBe(500)
     })
-    expect(screen.getByText(/shift this cell's private Pattern clock/i)).toHaveTextContent('rounds across zones')
+    expect(screen.getByText(/shift this clip's private Pattern clock/i)).toHaveTextContent('rounds across zones')
     expect(screen.getAllByText(/offset 500ms/i).length).toBeGreaterThan(0)
     expect(screen.getByText(/Clock offset:/i)).toHaveTextContent('500ms')
     expect(screen.getByText(/Clock offset:/i)).toHaveTextContent('renderer cost unchanged')

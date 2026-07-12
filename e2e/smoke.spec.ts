@@ -17,6 +17,20 @@ test('signed-out visitors can load the public app shell at root', async ({ page 
   await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible()
 })
 
+test('gallery Back navigation restores the originating Pattern card', async ({ page }) => {
+  await page.goto('/')
+  const cards = page.locator('[id^="gallery-"]')
+  const origin = cards.last()
+  const anchorId = await origin.getAttribute('id')
+  await origin.scrollIntoViewIfNeeded()
+  await origin.click()
+
+  await page.goBack()
+
+  await expect(page).toHaveURL(new RegExp(`#${anchorId}$`))
+  await expect(page.locator(`#${anchorId}`)).toBeInViewport()
+})
+
 test('signed-out /studio shows the Studio welcome gate', async ({ page }) => {
   await page.goto('studio')
   await expect(page).toHaveURL(/\/studio-welcome$/)

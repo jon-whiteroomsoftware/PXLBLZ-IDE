@@ -1195,9 +1195,9 @@
   <h2>Show editor — scene strip v1 (scenes × zones)</h2>
   <p class="sub">Decided 2026-07-08 (PRD §1 "Editor direction", #318): v1 is a <b>scene strip</b>, not a
      timeline — "click patterns and transitions together and map them across stages." Scenes are columns,
-     zones are rows, a cell is a pattern + its adaptations, and the narrow columns between scenes are the
-     transitions, first-class and glyphed by cost. A cell spanning columns <em>holds</em> (keeps playing,
-     phase intact — #335); a cell spanning rows treats adjacent zones as one canvas (#336). The data model
+     zones are rows, a clip is a pattern + its adaptations, and the narrow columns between scenes are the
+     transitions, first-class and glyphed by cost. A clip spanning columns <em>holds</em> (keeps playing,
+     phase intact — #335); a clip spanning rows treats adjacent zones as one canvas (#336). The data model
      underneath is an arrangement, so a zoomable timeline can arrive later as a second view, no migration.</p>
 
   <div class="frame">
@@ -1258,14 +1258,14 @@
             <span><b>◧ wipe</b> · route cut, 1 renderer/px</span>
             <span><b>▒ dither</b> · hashed dissolve, 1 renderer/px</span>
             <span><b>⧉ crossfade</b> · 2-renderer window (budgeted)</span>
-            <span><b>long cell</b> · hold: keeps playing through the cut</span>
-            <span><b>tall cell</b> · span: zones act as one canvas</span>
+            <span><b>long clip</b> · hold: keeps playing through the cut</span>
+            <span><b>tall clip</b> · span: zones act as one canvas</span>
           </div>
         </div>
 
         <div class="inspector">
           <div class="insp-col">
-            <h6>Cell — zellij-drift</h6>
+            <h6>Clip — zellij-drift</h6>
             <div class="kv"><span>source pattern</span><b>zellij-drift</b></div>
             <div class="kv"><span>scenes</span><b>build → peak (hold)</b></div>
             <div class="kv"><span>in transition</span><b>◧ wipe · 2 s</b></div>
@@ -1348,14 +1348,14 @@
          no controller, nominal sizes for preview — and bind by name at compile, with unbound zones
          warning on the compile bar (#333). Retargeting = the other controller defines the same names.</p></div>
     <div class="note"><h4>Hold is geometry, not a setting</h4>
-      <p>A cell spanning a boundary keeps playing, phase intact — the compiler emits nothing there. Same
+      <p>A clip spanning a boundary keeps playing, phase intact — the compiler emits nothing there. Same
          pattern on both sides defaults to a hold, and a transition on that boundary compiles to an
-         <em>adaptation ramp</em> (parameters interpolate, one renderer, #335). Two separate cells restart.</p></div>
+         <em>adaptation ramp</em> (parameters interpolate, one renderer, #335). Two separate clips restart.</p></div>
     <div class="note"><h4>Transitions are priced</h4>
       <p>Wipe and dither are route-cost — every pixel evaluates exactly one renderer (#334). Crossfade is
          the only 2-renderer window, and the compile bar names the worst instant. Steady state stays at
          1 renderer/px — the feasibility line.</p></div>
-    <div class="note"><h4>Adaptations live on the cell; everything inspectable</h4>
+    <div class="note"><h4>Adaptations live on the clip; everything inspectable</h4>
       <p>Palette, mirror, phase, envelopes, time base attach to the pattern-in-this-show — the source
          pattern is never forked. "View generated pattern" opens the compiled artifact read-only: a Show
          is ultimately a plain Pixelblaze pattern you could paste anywhere.</p></div>

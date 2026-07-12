@@ -157,7 +157,7 @@ export interface ShowBoundaryTransition {
   centerY?: number
   invert?: boolean
   featherPolicy?: ShowPortalFeatherPolicy
-  /** Boundary-owned interpolation settings keyed by the destination cell. */
+  /** Boundary-owned interpolation settings keyed by the destination clip. */
   propertyTransitions?: ShowPropertyTransitions
 }
 
@@ -192,7 +192,7 @@ export interface ShowCell {
   sceneId: string
   sceneSpan: number
   zoneSpan?: number
-  /** How a multi-zone cell maps its Pattern domain. Defaults to one continuous span. */
+  /** How a multi-zone clip maps its Pattern domain. Defaults to one continuous span. */
   zoneMode?: 'span' | 'repeat'
   pattern: ShowPatternRef
   patternName: string

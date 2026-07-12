@@ -140,7 +140,7 @@ export function MapsRailSection({
                         onSelect={() => onOpenStockMap(item.id)}
                       />
                     ) : (
-                      <li key={item.familyId} className="px-3 py-1.5 text-zinc-500">
+                      <li key={item.familyId} className="min-h-[19px] px-3 py-px text-zinc-500">
                         <details>
                           <summary className="flex cursor-pointer list-none items-center justify-between text-xs text-zinc-500 hover:text-zinc-300 [&::-webkit-details-marker]:hidden">
                             <span>{item.name}</span>

@@ -60,6 +60,11 @@ Use the long-lived Vite server at `http://localhost:5174/`. Do not restart it
 casually; report an unavailable server before starting one. Local authenticated
 Studio calls proxy through Wrangler on port `8788`.
 
+Codex's command sandbox may be unable to reach host localhost even while these
+services are healthy. A sandboxed `curl` refusal is not evidence that a server
+stopped: recheck outside the network sandbox or verify port ownership before
+reporting or restarting either service.
+
 ```bash
 npm run dev                 # only when the persistent server is absent
 npm run lint

@@ -70,7 +70,7 @@ const clipBase =
 
 type ShowSelection =
   | { kind: 'scene'; sceneId: string }
-  | { kind: 'cell'; cellId: string }
+  | { kind: 'clip'; clipId: string }
   | { kind: 'transition'; transitionId: string }
   | { kind: 'zone'; zoneId: string }
   | { kind: 'routing-switch'; afterSceneId: string }
@@ -86,6 +86,7 @@ export function ShowEditor({ showId }: { showId: string }) {
   const updateScene = useShowStore((state) => state.updateScene)
   const updateBoundaryTransition = useShowStore((state) => state.updateBoundaryTransition)
   const removeBoundaryTransition = useShowStore((state) => state.removeBoundaryTransition)
+  const removeClip = useShowStore((state) => state.removeClip)
   const updateCellAdaptations = useShowStore((state) => state.updateCellAdaptations)
   const updateCellPattern = useShowStore((state) => state.updateCellPattern)
   const updateCellControlTarget = useShowStore((state) => state.updateCellControlTarget)
@@ -112,8 +113,8 @@ export function ShowEditor({ showId }: { showId: string }) {
   const [scenePendingDelete, setScenePendingDelete] = useState<ShowScene | null>(null)
 
   const activeShow = show ?? null
-  const selectedCell = selection.kind === 'cell'
-    ? activeShow?.cells.find((cell) => cell.id === selection.cellId) ?? null
+  const selectedClip = selection.kind === 'clip'
+    ? activeShow?.cells.find((clip) => clip.id === selection.clipId) ?? null
     : null
   const targetProfile = activeShow?.targetControllerProfileId
     ? controllerProfiles.find((profile) => profile.id === activeShow.targetControllerProfileId)
@@ -138,11 +139,18 @@ export function ShowEditor({ showId }: { showId: string }) {
         if (!transition || transition.kind === 'cut') return
         event.preventDefault()
         void removeBoundaryTransition(activeShow.id, transition.id)
+        return
+      }
+
+      if (selection.kind === 'clip') {
+        event.preventDefault()
+        setSelection({ kind: 'show' })
+        void removeClip(activeShow.id, selection.clipId)
       }
     }
     document.addEventListener('keydown', handleDelete)
     return () => document.removeEventListener('keydown', handleDelete)
-  }, [activeShow, removeBoundaryTransition, selection])
+  }, [activeShow, removeBoundaryTransition, removeClip, selection])
   const stageDimension = activeShow?.stageMapId
     ? [...STOCK_MAPS, ...userMaps].find((map) => map.id === activeShow.stageMapId)?.dim
     : undefined
@@ -294,7 +302,7 @@ export function ShowEditor({ showId }: { showId: string }) {
           <ContextualInspector
             show={activeShow}
             selection={selection}
-            selectedCell={selectedCell}
+            selectedClip={selectedClip}
             patternOptions={patternOptions}
             patternControlsByCellId={patternControlsByCellId}
             controllerProfiles={controllerProfiles}
@@ -307,6 +315,10 @@ export function ShowEditor({ showId }: { showId: string }) {
             })}
             onUpdateStageMap={(stageMapId) => void updateStageMap(activeShow.id, stageMapId)}
             onUpdatePattern={(cell, patch) => void updateCellPattern(activeShow.id, cell.id, patch)}
+            onRemoveClip={(clip) => {
+              setSelection({ kind: 'show' })
+              void removeClip(activeShow.id, clip.id)
+            }}
             onUpdateScene={(scene, changes) => void updateScene(activeShow.id, scene.id, changes)}
             onDuplicateScene={(scene) => void duplicateScene(activeShow.id, scene.id)}
             onRequestRemoveScene={setScenePendingDelete}
@@ -331,7 +343,7 @@ export function ShowEditor({ showId }: { showId: string }) {
               <AlertDialogTitle>Remove scene?</AlertDialogTitle>
               <AlertDialogDescription>
                 {scenePendingDelete
-                  ? `"${scenePendingDelete.name}" will be removed from this show. Cells anchored in it will be removed or clipped.`
+                  ? `"${scenePendingDelete.name}" will be removed from this show. Clips anchored in it will be removed or shortened.`
                   : 'This scene will be removed from the show.'}
               </AlertDialogDescription>
               <AlertDialogFooter>
@@ -701,6 +713,7 @@ function SceneStrip({
                 className="w-1 self-stretch rounded-sm"
                 style={{ backgroundColor: row.color ?? '#38bdf8' }}
               />
+              <MapIcon size={11} aria-hidden className="shrink-0 text-zinc-600" />
               <span className="truncate text-[12px] font-medium">{row.zoneName}</span>
               <span className="ml-auto text-[10px] text-structural">{row.nominalPixelCount}px</span>
             </button>
@@ -711,11 +724,11 @@ function SceneStrip({
                 aria-label={`Select ${cell.patternName}`}
                 onClick={(event) => {
                   event.stopPropagation()
-                  onSelect({ kind: 'cell', cellId: cell.id })
+                  onSelect({ kind: 'clip', clipId: cell.id })
                 }}
                 className={[
                   clipBase,
-                  selection.kind === 'cell' && selection.cellId === cell.id
+                  selection.kind === 'clip' && selection.clipId === cell.id
                     ? 'text-zinc-100 shadow-[0_0_0_1.5px_var(--color-live),0_8px_18px_-10px_rgba(0,0,0,0.9)]'
                     : 'text-zinc-300 hover:text-zinc-100',
                 ].join(' ')}
@@ -736,7 +749,10 @@ function SceneStrip({
                 {cell.sceneSpan > 1 && (
                   <span className="absolute right-2 top-1.5 text-[9px] uppercase tracking-wider text-structural">hold</span>
                 )}
-                <span className="block truncate text-[13px] font-semibold text-zinc-100">{cell.patternName}</span>
+                <span className="flex min-w-0 items-center gap-1.5">
+                  <Grid2X2 size={11} aria-hidden className="shrink-0 text-zinc-500" />
+                  <span className="truncate text-[13px] font-semibold text-zinc-100">{cell.patternName}</span>
+                </span>
                 <span className="block truncate text-[10px] text-zinc-500">
                   {adaptationSummary(cell)}
                   {(cell.zoneSpan ?? 1) > 1 ? cell.zoneMode === 'repeat' ? ' - repeat zones' : ' - span zones' : ''}
@@ -1126,14 +1142,17 @@ function SceneColumnHeader({
       onFocusCapture={onSelect}
       className={`group relative flex min-w-0 flex-col justify-end gap-0.5 overflow-hidden border-b px-2 pb-1.5 pt-1 ${selected ? 'border-live bg-live/[0.045]' : 'border-zinc-800'}`}
     >
-      <input
-        aria-label={`${scene.name} scene name`}
-        title={scene.name}
-        data-show-scene-name
-        value={scene.name}
-        onChange={(event) => onUpdate({ name: event.target.value })}
-        className="w-full min-w-0 truncate bg-transparent pr-6 text-[12px] font-semibold text-zinc-100 outline-none group-hover:underline group-hover:decoration-dotted group-hover:underline-offset-4 focus:underline focus:decoration-live focus:underline-offset-4"
-      />
+      <div className="flex min-w-0 items-center gap-1.5 pr-6">
+        <Clapperboard size={11} aria-hidden className="shrink-0 text-zinc-600" />
+        <input
+          aria-label={`${scene.name} scene name`}
+          title={scene.name}
+          data-show-scene-name
+          value={scene.name}
+          onChange={(event) => onUpdate({ name: event.target.value })}
+          className="w-full min-w-0 truncate bg-transparent text-[12px] font-semibold text-zinc-100 outline-none group-hover:underline group-hover:decoration-dotted group-hover:underline-offset-4 focus:underline focus:decoration-live focus:underline-offset-4"
+        />
+      </div>
       <label className="flex w-fit items-baseline gap-0.5 text-[9.5px] text-structural">
         <input
           aria-label={`${scene.name} duration seconds`}
@@ -1222,7 +1241,7 @@ function InspectorPanel({
   actions,
   children,
 }: {
-  family: 'Scene' | 'Cell' | 'Transition' | 'Zone' | 'Show'
+  family: 'Scene' | 'Clip' | 'Transition' | 'Zone' | 'Show'
   title: string
   icon: React.ReactNode
   actions?: React.ReactNode
@@ -1247,7 +1266,7 @@ function InspectorPanel({
 function ContextualInspector({
   show,
   selection,
-  selectedCell,
+  selectedClip,
   patternOptions,
   patternControlsByCellId,
   controllerProfiles,
@@ -1256,6 +1275,7 @@ function ContextualInspector({
   onUpdateTargetProfile,
   onUpdateStageMap,
   onUpdatePattern,
+  onRemoveClip,
   onUpdateScene,
   onDuplicateScene,
   onRequestRemoveScene,
@@ -1277,7 +1297,7 @@ function ContextualInspector({
 }: {
   show: ShowRecord
   selection: ShowSelection
-  selectedCell: ShowCell | null
+  selectedClip: ShowCell | null
   patternOptions: Array<{ label: string; ref: ShowCell['pattern'] }>
   patternControlsByCellId: Record<string, AutomatablePatternControl[]>
   controllerProfiles: ControllerProfile[]
@@ -1286,6 +1306,7 @@ function ContextualInspector({
   onUpdateTargetProfile: (targetControllerProfileId: string) => void
   onUpdateStageMap: (stageMapId: string | null) => void
   onUpdatePattern: (cell: ShowCell, patch: Pick<ShowCell, 'pattern' | 'patternName'>) => void
+  onRemoveClip: (clip: ShowCell) => void
   onUpdateScene: (scene: ShowScene, changes: Partial<Omit<ShowScene, 'id'>>) => void
   onDuplicateScene: (scene: ShowScene) => void
   onRequestRemoveScene: (scene: ShowScene) => void
@@ -1323,20 +1344,21 @@ function ContextualInspector({
     }
   }
 
-  if (selection.kind === 'cell' && selectedCell) {
+  if (selection.kind === 'clip' && selectedClip) {
     return (
-      <CellInspector
+      <ClipInspector
         show={show}
-        cell={selectedCell}
+        clip={selectedClip}
         patternOptions={patternOptions}
-        patternControls={patternControlsByCellId[selectedCell.id] ?? []}
-        onUpdatePattern={(patch) => onUpdatePattern(selectedCell, patch)}
-        onUpdateAdaptations={(changes) => onUpdateAdaptations(selectedCell, changes)}
-        onUpdateControlTarget={(exportName, value) => onUpdateControlTarget(selectedCell, exportName, value)}
-        onUpdateRestartOnEntry={(restartOnEntry) => onUpdateRestartOnEntry(selectedCell, restartOnEntry)}
-        onExtend={(sceneSpan) => onExtend(selectedCell, sceneSpan)}
-        onSpanZones={(zoneSpan) => onSpanZones(selectedCell, zoneSpan)}
-        onUpdateZoneMode={(zoneMode) => onUpdateCellZoneMode(selectedCell, zoneMode)}
+        patternControls={patternControlsByCellId[selectedClip.id] ?? []}
+        onUpdatePattern={(patch) => onUpdatePattern(selectedClip, patch)}
+        onRemove={() => onRemoveClip(selectedClip)}
+        onUpdateAdaptations={(changes) => onUpdateAdaptations(selectedClip, changes)}
+        onUpdateControlTarget={(exportName, value) => onUpdateControlTarget(selectedClip, exportName, value)}
+        onUpdateRestartOnEntry={(restartOnEntry) => onUpdateRestartOnEntry(selectedClip, restartOnEntry)}
+        onExtend={(sceneSpan) => onExtend(selectedClip, sceneSpan)}
+        onSpanZones={(zoneSpan) => onSpanZones(selectedClip, zoneSpan)}
+        onUpdateZoneMode={(zoneMode) => onUpdateCellZoneMode(selectedClip, zoneMode)}
       />
     )
   }
@@ -1458,12 +1480,13 @@ function SceneInspector({
   )
 }
 
-function CellInspector({
+function ClipInspector({
   show,
-  cell,
+  clip,
   patternOptions,
   patternControls,
   onUpdatePattern,
+  onRemove,
   onUpdateAdaptations,
   onUpdateControlTarget,
   onUpdateRestartOnEntry,
@@ -1472,10 +1495,11 @@ function CellInspector({
   onUpdateZoneMode,
 }: {
   show: ShowRecord
-  cell: ShowCell
+  clip: ShowCell
   patternOptions: Array<{ label: string; ref: ShowCell['pattern'] }>
   patternControls: AutomatablePatternControl[]
   onUpdatePattern: (patch: Pick<ShowCell, 'pattern' | 'patternName'>) => void
+  onRemove: () => void
   onUpdateAdaptations: (changes: Partial<ShowCell['adaptations']>) => void
   onUpdateControlTarget: (exportName: string, value: number | undefined) => void
   onUpdateRestartOnEntry: (restartOnEntry: boolean) => void
@@ -1483,6 +1507,7 @@ function CellInspector({
   onSpanZones: (zoneSpan: number) => void
   onUpdateZoneMode: (zoneMode: NonNullable<ShowCell['zoneMode']>) => void
 }) {
+  const cell = clip
   const sceneIndex = show.scenes.findIndex((scene) => scene.id === cell.sceneId)
   const maxSpan = Math.max(1, show.scenes.length - sceneIndex)
   const zoneIndex = show.zones.findIndex((zone) => zone.id === cell.zoneId)
@@ -1495,7 +1520,16 @@ function CellInspector({
     onUpdateAdaptations({ lightShutter: { ...lightShutter, ...changes } })
   }
   return (
-    <InspectorPanel family="Cell" title={`${cell.patternName} · ${zone?.name ?? 'zone'} · ${scene?.name ?? 'scene'}`} icon={<Grid2X2 size={13} aria-hidden />}>
+    <InspectorPanel
+      family="Clip"
+      title={`${cell.patternName} · ${zone?.name ?? 'zone'} · ${scene?.name ?? 'scene'}`}
+      icon={<Grid2X2 size={13} aria-hidden />}
+      actions={(
+        <Button size="icon-xs" variant="ghost" aria-label={`Delete clip ${cell.patternName}`} title={`Delete ${cell.patternName}`} className="text-zinc-500 hover:bg-red-950/30 hover:text-red-300" onClick={onRemove}>
+          <Trash2 size={12} aria-hidden />
+        </Button>
+      )}
+    >
       <div className="grid items-end gap-2 sm:grid-cols-[minmax(14rem,1fr)_7rem_7rem]">
         <label className="block text-[9px] uppercase tracking-[0.1em] text-zinc-600">
           Source pattern
@@ -1559,7 +1593,7 @@ function CellInspector({
         </details>
       )}
       <details className="mt-2 rounded border border-zinc-800 bg-zinc-950/35">
-        <summary className="cursor-pointer px-2 py-1.5 text-[9px] uppercase tracking-[0.12em] text-zinc-500">Advanced cell controls</summary>
+        <summary className="cursor-pointer px-2 py-1.5 text-[9px] uppercase tracking-[0.12em] text-zinc-500">Advanced clip controls</summary>
         <div className="border-t border-zinc-800 p-2">
           <div className="grid grid-cols-2 gap-2">
             <label className="flex items-center gap-2 text-zinc-300">
@@ -1568,7 +1602,7 @@ function CellInspector({
                 checked={cell.adaptations.mirror}
                 onChange={(event) => onUpdateAdaptations({ mirror: event.target.checked })}
               />
-              Mirror cell
+              Mirror clip
             </label>
             <label className="text-[10px] uppercase text-zinc-600">
               Hold scenes
@@ -1726,7 +1760,7 @@ function MotionCadenceControl({
       </div>
       <div className="mt-3 grid grid-cols-[minmax(0,1fr)_10rem] items-end gap-3 border-t border-violet-400/10 pt-3">
         <p className="text-[10px] leading-relaxed text-zinc-500">
-          Shift this cell&apos;s private Pattern clock for rounds across zones.
+          Shift this clip&apos;s private Pattern clock for rounds across zones.
         </p>
         <NumberField
           label="Start offset (ms)"
@@ -2249,7 +2283,7 @@ function PatternControlTransitionEditor({
                   aria-label={`Animate ${control.label} for ${zone.name}`}
                   checked={enabled}
                   disabled={transition.kind === 'cut' || !bothTargets}
-                  title={bothTargets ? undefined : 'Set targets on both adjacent cells first'}
+                  title={bothTargets ? undefined : 'Set targets on both adjacent clips first'}
                   onChange={(event) => {
                     if (!event.target.checked) return removeCell(cell.id)
                     updateDescriptor({}, { ...(descriptor?.fromByCellId ?? {}), [cell.id]: outgoing?.controlTargets?.[control.exportName] ?? control.defaultValue })
@@ -2258,7 +2292,7 @@ function PatternControlTransitionEditor({
                 />
                 {zone.name}
               </label>
-              {!bothTargets && <p className="mt-1 text-[9px] text-amber-300/70">Set this target on both adjacent cells first.</p>}
+              {!bothTargets && <p className="mt-1 text-[9px] text-amber-300/70">Set this target on both adjacent clips first.</p>}
               {enabled && (
                 <div className="mt-2 grid grid-cols-2 gap-2">
                   <NumberField

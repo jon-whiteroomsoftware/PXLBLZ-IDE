@@ -273,7 +273,7 @@
   <div class="eyebrow">PXLBLZ · Design proposal · Shows</div>
   <h1>The scene strip should read like a stage plot, not a form</h1>
   <p class="lede">Today every element of the Show editor — axis legend, scene headers, zone labels, pattern
-  cells, transition markers, and all three inspector panels — is the same 1px-bordered zinc box at the same
+  clips, transition markers, and all three inspector panels — is the same 1px-bordered zinc box at the same
   font size. Nothing tells you what is <b>content</b>, what is <b>structure</b>, and what is <b>controls</b>.</p>
   <p class="lede dim">The fix is not decoration. It is three different visual vocabularies for the three
   different kinds of thing on screen, plus one inspector that follows your selection instead of three
@@ -340,12 +340,12 @@
         <button class="cell" style="grid-row:3;grid-column:4;--zc:var(--z-violet)" data-sel="c4" type="button">
           <span class="c-pattern">AuroraSphere</span><span class="c-adapt">mirror</span>
         </button>
-        <!-- zone-spanning cell: arch-left + arch-right act as one canvas -->
+        <!-- zone-spanning clip: arch-left + arch-right act as one canvas -->
         <button class="cell" style="grid-row:2 / span 2;grid-column:6;--zc:var(--z-sky)" data-sel="c5" type="button">
           <span class="c-pattern">NebulaSphere</span><span class="c-adapt">spans arch-left + arch-right</span>
         </button>
 
-        <!-- zone: canopy — hold cell crosses the first seam -->
+        <!-- zone: canopy — hold clip crosses the first seam -->
         <button class="zone-head" style="grid-row:4" data-sel="z3" type="button">
           <span class="bar" style="background:var(--z-rose)"></span>
           <span class="z-name">canopy</span><span class="z-px">300px</span>
@@ -371,7 +371,7 @@
         <div class="insp-head">
           <span class="chip" style="background:var(--z-sky)"></span>
           <span class="i-name" id="cell-name">AuroraSphere</span>
-          <span class="i-kind">cell · arch-left · main set</span>
+          <span class="i-kind">clip · arch-left · main set</span>
         </div>
         <div class="fields">
           <div class="f" style="min-width:180px"><label>Source pattern</label>
@@ -485,7 +485,7 @@
       type in the grid — they are the content. Headers lose their boxes and become labels.</p>
     </div>
     <div class="move">
-      <div class="m-title">4 · Transitions are seams, not cells</div>
+      <div class="m-title">4 · Transitions are boundaries, not clips</div>
       <p>A transition is a <b>dashed vertical seam</b> between scene columns with a cost-colored glyph —
       visibly a different species from a clip. A holding clip physically crosses the seam, which makes the
       hold-vs-restart geometry self-explanatory. Seams are clickable, which fixes the panel that today can
@@ -493,7 +493,7 @@
     </div>
     <div class="move">
       <div class="m-title">5 · One inspector, driven by selection</div>
-      <p>Cell, Transition, and Zones panels collapse into <b>one contextual inspector</b>: click a thing,
+      <p>Clip, Transition, and Zones panels collapse into <b>one contextual inspector</b>: click a thing,
       edit that thing. Nothing selected shows show-level setup. This is the editing model every video and
       audio tool trains people on, and it removes six identical boxes from the default view.</p>
     </div>
@@ -529,9 +529,9 @@
   const variants = document.querySelectorAll('.insp-variant');
   const cellNames = { c1:'CometLoom', c2:'AuroraSphere', c3:'CometLoom', c4:'AuroraSphere', c5:'NebulaSphere', c6:'SlowPlasma', c7:'EmberFade' };
   const cellKinds = {
-    c1:'cell · arch-left · doors open', c2:'cell · arch-left · main set',
-    c3:'cell · arch-right · doors open', c4:'cell · arch-right · main set',
-    c5:'cell · arch-left + arch-right · wind down', c6:'cell · canopy · holds 2 scenes', c7:'cell · canopy · wind down' };
+    c1:'clip · arch-left · doors open', c2:'clip · arch-left · main set',
+    c3:'clip · arch-right · doors open', c4:'clip · arch-right · main set',
+    c5:'clip · arch-left + arch-right · wind down', c6:'clip · canopy · holds 2 scenes', c7:'clip · canopy · wind down' };
   const cellColors = { c1:'--z-sky', c2:'--z-sky', c3:'--z-violet', c4:'--z-violet', c5:'--z-sky', c6:'--z-rose', c7:'--z-rose' };
   const zoneNames = { z1:'arch-left', z2:'arch-right', z3:'canopy' };
   const zoneColors = { z1:'--z-sky', z2:'--z-violet', z3:'--z-rose' };

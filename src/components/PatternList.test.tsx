@@ -407,7 +407,9 @@ describe('PatternList', () => {
         & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy()
     expect(screen.getByText('Ring').closest('[role="button"]')).toHaveClass('text-xs', 'text-zinc-500')
-    expect(screen.getByText('Square').closest('summary')).toHaveClass('text-xs', 'text-zinc-500')
+    const squareSummary = screen.getByText('Square').closest('summary')
+    expect(squareSummary).toHaveClass('text-xs', 'text-zinc-500')
+    expect(squareSummary?.closest('li')).toHaveClass('min-h-[19px]', 'py-px')
     expect(screen.getAllByText('Cylinder')).toHaveLength(1)
     await user.click(screen.getByText('Cylinder'))
     expect(screen.getByRole('button', { name: 'Cylinder Strand 1D' })).toBeInTheDocument()

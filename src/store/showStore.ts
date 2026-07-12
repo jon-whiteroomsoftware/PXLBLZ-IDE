@@ -11,6 +11,7 @@ import {
   importedStageMapIdForController,
   normalizeShowEntryState,
   normalizeShowTransitionState,
+  removeShowClip,
   removeShowScene,
   removeShowRoutingLayout,
   removeShowZone,
@@ -70,6 +71,7 @@ interface ShowState {
     feather?: number,
     portal?: Partial<ShowPortalSettings>,
   ) => Promise<void>
+  removeClip: (showId: string, clipId: string) => Promise<void>
   updateCellAdaptations: (
     showId: string,
     cellId: string,
@@ -219,6 +221,12 @@ export const useShowStore = create<ShowState>()((set, get) => ({
     const show = get().shows.find((item) => item.id === showId)
     if (!show) return
     await get().updateShow(showId, updateShowTransition(show, sceneId, kind, durationMs, feather, portal))
+  },
+
+  removeClip: async (showId, clipId) => {
+    const show = get().shows.find((item) => item.id === showId)
+    if (!show) return
+    await get().updateShow(showId, removeShowClip(show, clipId))
   },
 
   updateCellAdaptations: async (showId, cellId, changes) => {

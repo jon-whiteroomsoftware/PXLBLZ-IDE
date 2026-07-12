@@ -84,6 +84,16 @@ describe('showStore (#318)', () => {
     expect(useShowStore.getState().activeShowId).toBeNull()
   })
 
+  it('removes a Show clip through the persistence provider', async () => {
+    const show = createDefaultShow('show-clip-delete', 'Clip deletion', 1)
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    await useShowStore.getState().removeClip(show.id, show.cells[0].id)
+
+    expect(useShowStore.getState().shows[0].cells.map((clip) => clip.id)).toEqual([show.cells[1].id])
+  })
+
   it('persists an exact-zero clip time scale through the provider', async () => {
     const show = createDefaultShow('show-1', 'Opening wash', 1)
     const provider = memoryProvider([show])

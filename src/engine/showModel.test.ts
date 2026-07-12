@@ -11,6 +11,7 @@ import {
   parseShowRoutingRanges,
   projectShowStrip,
   projectShowTimeline,
+  removeShowClip,
   removeShowRoutingLayout,
   removeShowScene,
   removeShowZone,
@@ -510,6 +511,25 @@ describe('showModel (#318)', () => {
       brightness: 0.7,
       timeScale: 0.5,
     })
+  })
+
+  it('removes one Show clip and its boundary automation references', () => {
+    const show = createDefaultShow('show-1', 'Clip deletion', 1)
+    const clip = show.cells[1]
+    const automated = updateShowBoundaryTransition(show, 'transition-scene-1', {
+      propertyTransitions: {
+        timeScale: { fromByCellId: { [clip.id]: 0.5 } },
+        controls: {
+          sliderSpeed: { fromByCellId: { [clip.id]: 0.25 } },
+        },
+      },
+    })
+
+    const removed = removeShowClip(automated, clip.id)
+
+    expect(removed.cells.map((candidate) => candidate.id)).not.toContain(clip.id)
+    expect(removed.transitions?.[0].propertyTransitions?.timeScale?.fromByCellId).not.toHaveProperty(clip.id)
+    expect(removed.transitions?.[0].propertyTransitions?.controls?.sliderSpeed.fromByCellId).not.toHaveProperty(clip.id)
   })
 
   it('accepts an exact-zero time scale and clamps negative values back to zero', () => {
