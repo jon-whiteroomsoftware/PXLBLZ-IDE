@@ -3,7 +3,7 @@ import {
   Copy,
   CopyPlus,
   Download,
-  Ellipsis,
+  EllipsisVertical,
   ExternalLink,
   Eye,
   Trash2,
@@ -82,7 +82,7 @@ export function PatternActionsMenu({
         onClick={() => setOpen((value) => !value)}
         className={`inline-flex items-center justify-center rounded-md border border-zinc-800 bg-zinc-900/70 text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-zinc-100 focus:outline-none focus-visible:ring-1 focus-visible:ring-zinc-500 ${triggerHeight}`}
       >
-        <Ellipsis size={15} aria-hidden />
+        <EllipsisVertical size={15} aria-hidden />
       </button>
 
       {open && (
