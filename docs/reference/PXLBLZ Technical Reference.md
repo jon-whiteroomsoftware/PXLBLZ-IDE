@@ -106,8 +106,12 @@ Cloudflare helpers and Pages Functions.
 `galleryCatalog.ts` is the built-in Pattern catalogue. Gallery cards use the
 real bundle/shim/render pipeline at bounded pixel counts, with a global animation
 slot limit, IntersectionObserver pausing, staggered startup, and a static frame
-for reduced-motion users. Pattern detail uses the ordinary preview stores and
-Controller push flow; its Code view is read-only Monaco.
+for reduced-motion users. Cards, Pattern detail, and Studio resolve one shared
+recommended presentation per Pattern; cards may reduce only its count. Layout
+resolution enforces the Gallery ceiling after grid realization, so a Cube cannot
+round a bounded request above 2,048 LEDs. Pattern detail uses the ordinary preview
+stores and Controller push flow without a count multiplier; its Code view is
+read-only Monaco.
 
 ### Analytics
 

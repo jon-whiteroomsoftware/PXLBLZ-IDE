@@ -36,7 +36,7 @@ export const RECOMMENDED_SETTINGS: Record<string, Partial<Settings>> = {
   GyroidGlow3D: { mapId: 'cube-shell', pixelCount: 2048, normalize: 'contain', brightness: 0.9, lightSize: 0.75, diffusion: 0.71, solidity: 0.47 },
   HelixForge3D: { mapId: 'sphere-volume', pixelCount: 1024, normalize: 'fill', brightness: 1, lightSize: 0.62, diffusion: 0.53, solidity: 1 },
   KineticSculpture: { mapId: 'cube', pixelCount: 1728, normalize: 'fill', brightness: 0.9, lightSize: 0.7, diffusion: 0.66, solidity: 0.5 },
-  LatticeWarp3D: { mapId: 'seed-cube-3d', pixelCount: 1728, brightness: 0.9, diffusion: 0.30, solidity: 1 },
+  LatticeWarp3D: { mapId: 'cube', pixelCount: 1728, brightness: 0.9, lightSize: 0.62, diffusion: 0.30, solidity: 1 },
   LavaLamp3D: { mapId: 'cube', pixelCount: 1728, normalize: 'fill', brightness: 0.9, lightSize: 0.72, diffusion: 0.74, solidity: 0.55 },
   MandelbulbHeartbeat: { mapId: 'sphere-volume', pixelCount: 1024, normalize: 'fill', brightness: 1, lightSize: 0.58, diffusion: 0.34, solidity: 1 },
   NebulaShells3D: { mapId: 'star-shell', pixelCount: 2048, normalize: 'contain', brightness: 0.9, lightSize: 0.85, diffusion: 0.65, solidity: 0.36 },
@@ -87,8 +87,8 @@ export const RECOMMENDED_SETTINGS: Record<string, Partial<Settings>> = {
   ZippyZaps: { mapId: 'plane', surfaceId: 'flat', pixelCount: 1024, normalize: 'fill', brightness: 0.9, lightSize: 0.85, diffusion: 0.72 },
 
   TestPattern1D: { shapeId: 'line', pixelCount: 256, brightness: 0.9, lightSize: 0.68, diffusion: 0.24 },
-  TestPattern2D: { mapId: 'plane', surfaceId: 'flat', pixelCount: 1024, brightness: 0.9, diffusion: 0.28 },
-  TestPattern3D: { mapId: 'seed-cube-3d', pixelCount: 512, brightness: 0.9, diffusion: 0.30, solidity: 1 },
+  TestPattern2D: { mapId: 'plane', surfaceId: 'flat', pixelCount: 1024, brightness: 0.9, lightSize: 0.68, diffusion: 0.28 },
+  TestPattern3D: { mapId: 'cube', pixelCount: 512, brightness: 0.9, lightSize: 0.62, diffusion: 0.30, solidity: 1 },
 }
 
 // The recommended settings for a demo (cascade layer 2), or an empty object for a

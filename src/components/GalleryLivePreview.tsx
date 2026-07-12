@@ -8,7 +8,7 @@ import { createVirtualClock } from '@/engine/virtualClock'
 import { loadPattern, nativeDimension } from '@/engine/loadPattern'
 import { selectRenderCompatibility } from '@/engine/renderCompatibility'
 import { resolveLayout } from '@/engine/layout'
-import { galleryThumbnailPixelCount } from '@/engine/previewPixelCount'
+import { GALLERY_THUMBNAIL_PIXEL_COUNT_CAPS, galleryThumbnailPixelCount } from '@/engine/previewPixelCount'
 import { DEV_DEFAULTS } from '@/engine/settings'
 import type { SurfaceId } from '@/engine/surfaces'
 import { LIBRARIES } from '@/pixelblaze/libs'
@@ -239,6 +239,7 @@ export function GalleryLivePreview({
           normalizeMode: settings.normalize,
           poleCols: null,
           shapeDefaultCount: DEFAULT_SHAPE_PIXEL_COUNT,
+          maxPixelCount: GALLERY_THUMBNAIL_PIXEL_COUNT_CAPS[nativeDim],
         },
         {
           resolveMap: (mapId) => resolveMap(mapId ?? DEFAULT_MAP_ID, []),

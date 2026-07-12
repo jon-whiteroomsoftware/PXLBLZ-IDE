@@ -293,6 +293,28 @@ describe('resolveLayout — 3D maps', () => {
     expect(r.pixelCount).toBe(512)
   })
 
+  it('keeps a rounded cube lattice within an optional realized-count ceiling', () => {
+    const r = resolveLayout(input({
+      nativeDim: 3,
+      selection: { mapId: 'cube' },
+      persistedCount: 2048,
+      maxPixelCount: 2048,
+    }), deps)
+
+    expect(r.layoutLabel).toBe('12×12×12')
+    expect(r.pixelCount).toBe(1728)
+  })
+
+  it('caps exact-count layouts at the same optional ceiling', () => {
+    const r = resolveLayout(input({
+      selection: { mapId: 'plane', surfaceId: 'flat' },
+      persistedCount: 4096,
+      maxPixelCount: 2048,
+    }), deps)
+
+    expect(r.pixelCount).toBe(2048)
+  })
+
   it.each([
     ['cube-shell', 'face normals'],
     ['star-shell', 'star normals'],

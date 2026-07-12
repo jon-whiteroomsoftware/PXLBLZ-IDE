@@ -1,7 +1,7 @@
 import {
+  GALLERY_DETAIL_PIXEL_COUNT_CAP,
   galleryThumbnailPixelCount,
-  PATTERN_DETAIL_PIXEL_COUNT_MULTIPLIER,
-  scaledPreviewPixelCount,
+  cappedPreviewPixelCount,
 } from './previewPixelCount'
 
 describe('previewPixelCount', () => {
@@ -16,8 +16,9 @@ describe('previewPixelCount', () => {
     expect(galleryThumbnailPixelCount(2, null, 1024)).toBe(1024)
   })
 
-  it('doubles detail preview counts without changing null defaults', () => {
-    expect(scaledPreviewPixelCount(1024, PATTERN_DETAIL_PIXEL_COUNT_MULTIPLIER)).toBe(2048)
-    expect(scaledPreviewPixelCount(null, PATTERN_DETAIL_PIXEL_COUNT_MULTIPLIER)).toBeNull()
+  it('keeps detail recommendations intact and caps only oversized values', () => {
+    expect(cappedPreviewPixelCount(1024, GALLERY_DETAIL_PIXEL_COUNT_CAP)).toBe(1024)
+    expect(cappedPreviewPixelCount(4096, GALLERY_DETAIL_PIXEL_COUNT_CAP)).toBe(2048)
+    expect(cappedPreviewPixelCount(null, GALLERY_DETAIL_PIXEL_COUNT_CAP)).toBeNull()
   })
 })

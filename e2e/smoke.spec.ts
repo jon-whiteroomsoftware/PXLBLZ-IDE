@@ -31,6 +31,15 @@ test('gallery Back navigation restores the originating Pattern card', async ({ p
   await expect(page.locator(`#${anchorId}`)).toBeInViewport()
 })
 
+test('Pattern detail uses the shared recommended presentation', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: /LatticeWarp3D/ }).click()
+
+  await expect(page.getByRole('button', { name: 'Map', exact: true })).toContainText('Cube volume')
+  await expect(page.getByRole('button', { name: 'Edit pixel count' })).toHaveText('1728')
+  await expect(page.getByText('12×12×12')).toBeVisible()
+})
+
 test('signed-out /studio shows the Studio welcome gate', async ({ page }) => {
   await page.goto('studio')
   await expect(page).toHaveURL(/\/studio-welcome$/)

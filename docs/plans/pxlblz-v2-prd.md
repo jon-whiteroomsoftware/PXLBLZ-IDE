@@ -221,8 +221,6 @@ Do not infer topology or coordinate views from arbitrary imported coordinates.
 
 - Build additional flagship and educational Shows (#363) using the real editor
   and export path.
-- Decide whether higher-resolution Gallery previews (#381) improve evaluation
-  enough to justify CPU/GPU cost.
 - Add flagship Patterns (#382) only when they broaden the visual vocabulary or
   teach a reusable technique; raw count is not the goal.
 - Create small example personal entities (#360) only if they clarify the

@@ -405,6 +405,9 @@ export interface ResolveLayoutInput {
   // The 1D-shape on-open count (DEFAULT_SHAPE_PIXEL_COUNT), injected to keep
   // this module free of store constants.
   shapeDefaultCount: number
+  // Optional presentation ceiling. Applied to the realized layout, so a lattice
+  // cannot round a bounded Gallery request back above its budget.
+  maxPixelCount?: number
 }
 
 export function resolveLayout(
@@ -419,6 +422,7 @@ export function resolveLayout(
     normalizeMode,
     poleCols,
     shapeDefaultCount,
+    maxPixelCount,
   } = input
   const { resolveMap, defaultCountForDim } = deps
 
@@ -443,12 +447,13 @@ export function resolveLayout(
       correctedSelection.mapId && correctedSelection.mapId !== INDEX_MAP_ID
         ? resolveMap(correctedSelection.mapId)
         : null
-    pixelCount = clampPixelCount(
-      effectivePixelCount({
+    pixelCount = Math.min(
+      clampPixelCount(effectivePixelCount({
         persisted: persistedCount,
         baked: selected1DMap?.bakedCount,
         fallback: shapeDefaultCount,
-      }),
+      })),
+      maxPixelCount == null ? Infinity : clampPixelCount(maxPixelCount),
     )
     const samples = selected1DMap
       ? capMapSampleEndpoints(
@@ -478,10 +483,17 @@ export function resolveLayout(
     })
     if (map.id === 'cube') {
       // 3D cube lattice: the count squares up to a side³ lattice.
-      const cubeSide = cubeSideForCount(modeledCount)
+      const requestedSide = cubeSideForCount(modeledCount)
+      const maxSide = maxPixelCount == null
+        ? requestedSide
+        : Math.max(2, Math.floor(Math.cbrt(clampPixelCount(maxPixelCount))))
+      const cubeSide = Math.min(requestedSide, maxSide)
       pixelCount = clampPixelCount(cubePixelCount(cubeSide))
     } else {
-      pixelCount = clampPixelCount(modeledCount)
+      pixelCount = Math.min(
+        clampPixelCount(modeledCount),
+        maxPixelCount == null ? Infinity : clampPixelCount(maxPixelCount),
+      )
     }
     mapPoints = capMapSampleEndpoints(applyNormalizeMode(map.resolve(pixelCount), normalizeMode))
     layoutLabel = formatGridDims(map.gridDims(pixelCount))

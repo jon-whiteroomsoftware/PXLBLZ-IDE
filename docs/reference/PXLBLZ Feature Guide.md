@@ -53,6 +53,13 @@ A detail page gives the Pattern room to breathe:
 Built-in Pattern slugs are public. Personal Patterns do not have public detail
 pages yet.
 
+Each built-in Pattern has one shared recommended presentation: map or shape,
+surface, modeled LED count, light size, diffusion, normalization, brightness,
+and solidity where supported. Gallery cards render a lower-density version when
+needed for performance; Pattern detail and Studio keep the same presentation.
+Gallery rendering never exceeds 2,048 realized LEDs, including rounded lattice
+layouts such as Cube volume.
+
 ### Studio
 
 `/studio/...` is the working environment. It uses stable routes for six entity

@@ -6,7 +6,7 @@ export const GALLERY_THUMBNAIL_PIXEL_COUNT_CAPS: Record<1 | 2 | 3, number> = {
   3: 1536,
 }
 
-export const PATTERN_DETAIL_PIXEL_COUNT_MULTIPLIER = 2
+export const GALLERY_DETAIL_PIXEL_COUNT_CAP = 2048
 
 export function galleryThumbnailPixelCount(
   dim: 1 | 2 | 3,
@@ -17,10 +17,12 @@ export function galleryThumbnailPixelCount(
   return Math.min(base, GALLERY_THUMBNAIL_PIXEL_COUNT_CAPS[dim])
 }
 
-export function scaledPreviewPixelCount(
+export function cappedPreviewPixelCount(
   pixelCount: number | null,
-  multiplier: number,
+  cap: number | null,
 ): number | null {
   if (pixelCount == null) return null
-  return clampPixelCount(pixelCount * multiplier)
+  return cap == null
+    ? clampPixelCount(pixelCount)
+    : Math.min(clampPixelCount(pixelCount), clampPixelCount(cap))
 }

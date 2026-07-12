@@ -3,7 +3,7 @@ import { ArrowLeft, Code2, Pause, Play, RotateCcw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Preview } from '@/components/Preview'
 import { PreviewDeck } from '@/components/PreviewDeck'
-import { PATTERN_DETAIL_PIXEL_COUNT_MULTIPLIER } from '@/engine/previewPixelCount'
+import { GALLERY_DETAIL_PIXEL_COUNT_CAP } from '@/engine/previewPixelCount'
 import { PixelblazeCodeEditor } from '@/components/PixelblazeCodeEditor'
 import { PatternDetailActionBar } from '@/components/PatternDetailActionBar'
 import { EmbeddingSelect, useEmbeddingSelectMeta } from '@/components/LayoutSelector'
@@ -64,7 +64,7 @@ export function PatternDetailPage({
             >
               <Preview
                 showDeck={false}
-                pixelCountMultiplier={PATTERN_DETAIL_PIXEL_COUNT_MULTIPLIER}
+                pixelCountCap={GALLERY_DETAIL_PIXEL_COUNT_CAP}
               />
             </div>
 

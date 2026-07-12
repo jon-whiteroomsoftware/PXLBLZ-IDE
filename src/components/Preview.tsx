@@ -22,7 +22,7 @@ import { createRenderer } from '@/engine/renderer'
 import { createRenderLoop, type RenderLoop } from '@/engine/renderLoop'
 import { createVirtualClock } from '@/engine/virtualClock'
 import { clampPixelCount, advanceAutoOrbit } from '@/engine/camera'
-import { scaledPreviewPixelCount } from '@/engine/previewPixelCount'
+import { cappedPreviewPixelCount } from '@/engine/previewPixelCount'
 import { layoutSource as buildLayoutSource } from '@/store/mapStore'
 import { resolveLayout } from '@/engine/layout'
 import { resolvePole, type ShapeId } from '@/engine/shapes'
@@ -52,10 +52,10 @@ function cube3DCanvasPx(containerWidth: number, containerHeight: number): number
 
 export function Preview({
   showDeck = true,
-  pixelCountMultiplier = 1,
+  pixelCountCap = null,
 }: {
   showDeck?: boolean
-  pixelCountMultiplier?: number
+  pixelCountCap?: number | null
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -77,7 +77,7 @@ export function Preview({
   const activeShapeId = useMapStore((s) => s.activeShapeId)
   const activeSurfaceId = useMapStore((s) => s.activeSurfaceId)
   const activePixelCount = useMapStore((s) => s.activePixelCount)
-  const previewPixelCount = scaledPreviewPixelCount(activePixelCount, pixelCountMultiplier)
+  const previewPixelCount = cappedPreviewPixelCount(activePixelCount, pixelCountCap)
   const activeSolidity = useMapStore((s) => s.activeSolidity)
   const activeNormalizeMode = useMapStore((s) => s.activeNormalizeMode)
   const userLibraries = useLibraryStore((s) => s.userLibraries)
@@ -187,6 +187,7 @@ export function Preview({
         normalizeMode: activeNormalizeMode,
         poleCols: useCameraStore.getState().poleCols,
         shapeDefaultCount: DEFAULT_SHAPE_PIXEL_COUNT,
+        maxPixelCount: pixelCountCap ?? undefined,
       },
       {
         resolveMap: (mapId) => resolveMap(mapId ?? DEFAULT_MAP_ID, userMaps),
@@ -367,7 +368,7 @@ export function Preview({
     if (usePreviewStore.getState().isRunning) loop.start()
 
     return () => loop.stop()
-  }, [previewSource, viewport, fidelity, libraries, activeMapId, activeShapeId, activeSurfaceId, previewPixelCount, activeNormalizeMode, activeDemoName, activeZones])
+  }, [previewSource, viewport, fidelity, libraries, activeMapId, activeShapeId, activeSurfaceId, previewPixelCount, pixelCountCap, activeNormalizeMode, activeDemoName, activeZones])
 
   // Seed the live working state from the resolved settings cascade on open:
   // one pass that composes per-pattern override → recommended (demos) → global-sticky
