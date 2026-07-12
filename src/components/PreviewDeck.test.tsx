@@ -160,6 +160,21 @@ describe('PreviewDeck (smoke)', () => {
     expect(screen.getByText('56×28')).toBeInTheDocument()
   })
 
+  it('closes the pixel-count popover without undoing a live resolution change', () => {
+    useEditorStore.setState({ nativeDim: 2 })
+    useMapStore.setState({ activeMapId: 'wide', activePixelCount: 512 })
+    render(<PreviewDeck />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit pixel count' }))
+    fireEvent.change(screen.getByRole('slider', { name: 'Preview resolution' }), {
+      target: { value: '4' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Close pixel count editor' }))
+
+    expect(useMapStore.getState().activePixelCount).toBe(1568)
+    expect(screen.queryByRole('dialog', { name: 'Pixel count editor' })).not.toBeInTheDocument()
+  })
+
   it('reports the complete cube lattice realized by an off-ladder exact count', () => {
     useEditorStore.setState({ nativeDim: 3 })
     useMapStore.setState({ activeMapId: 'cube', activePixelCount: 1600 })

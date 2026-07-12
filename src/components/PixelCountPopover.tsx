@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Check, Minus, Plus } from 'lucide-react'
+import { Check, Minus, Plus, X } from 'lucide-react'
 import { parsePixelCountDraft, sanitizePixelCountDraft } from '@/engine/pixelCountDraft'
 import { adjacentPreviewResolution, resolutionStepIndex } from '@/engine/previewResolution'
 import type { GridDims } from '@/engine/maps'
@@ -106,8 +106,19 @@ export function PixelCountPopover({
             <div className="mb-2 border-b border-zinc-700/80 pb-2">
               <div className="mb-1 flex items-center justify-between text-[10px] uppercase tracking-wide text-zinc-500">
                 <span>Resolution</span>
-                <span className={stepIndex == null ? 'text-zinc-500' : 'text-live'}>
-                  {stepIndex == null ? '—' : value?.toLocaleString()}
+                <span className="flex items-center gap-1">
+                  <span className={stepIndex == null ? 'text-zinc-500' : 'text-live'}>
+                    {stepIndex == null ? '—' : value?.toLocaleString()}
+                  </span>
+                  <button
+                    type="button"
+                    aria-label={`Close ${inputLabel.toLowerCase()} editor`}
+                    title="Close"
+                    onClick={close}
+                    className="grid size-5 place-items-center rounded text-zinc-600 transition-colors hover:bg-zinc-800 hover:text-zinc-300 focus:outline-none focus:text-zinc-200"
+                  >
+                    <X size={11} aria-hidden />
+                  </button>
                 </span>
               </div>
               <div className="flex items-center gap-1.5">
