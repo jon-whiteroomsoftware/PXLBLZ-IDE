@@ -9,6 +9,11 @@ import {
 import { emitFixedPoint } from './fxEmit'
 import { emitShowEasingExpression } from './showEasing'
 import type { ShowSpatialShape, ShowTransitionEasing } from './personalContentRecords'
+import {
+  planPhysicalRoutingRepresentation,
+  type GeneratedRoutingFormula,
+  type RoutingRepresentationEstimate,
+} from './showRoutingRepresentation'
 
 export interface ShowClipRecipe {
   id: string
@@ -192,7 +197,8 @@ export interface ShowCompileSummary {
   temporalPolicy: 'continuous' | 'stepped-clock' | 'mixed'
   timeOffsetPolicy: 'none' | 'per-clip'
   worstInstantRenderersPerPixel: 1 | 2
-  routingRepresentation: 'none' | 'range-branches' | 'packed-pixels' | 'coordinate-predicates'
+  routingRepresentation: 'none' | 'range-branches' | 'packed-pixels' | 'generated-formula' | 'coordinate-predicates'
+  routingEstimate: RoutingRepresentationEstimate | null
   clips: ShowCompileClipSummary[]
   warnings: string[]
 }
@@ -289,8 +295,18 @@ export function compileShow(
     : (routeMode || routingLayouts) && members.some((member) => member.hasRender2D)
     ? 2
     : 1
+  const routingPlan = routingLayouts && !routingLayouts.every((layout) => layout.logical)
+    ? planPhysicalRoutingRepresentation(
+        routingLayouts.map((layout) => ({
+          routes: layout.routes.map((route) => ({ ranges: route.zone.ranges })),
+        })),
+        MEASURED_DEVICE_BUDGET_BYTES,
+      )
+    : null
   const routingRepresentation: ShowCompileSummary['routingRepresentation'] = routingLayouts
-    ? selectRoutingRepresentation(routingLayouts)
+    ? routingLayouts.every((layout) => layout.logical)
+      ? 'coordinate-predicates'
+      : routingPlan!.representation
     : routeMode
       ? 'range-branches' as const
       : 'none' as const
@@ -305,9 +321,12 @@ export function compileShow(
         routedOutputDimension,
         routingRepresentation === 'packed-pixels'
           ? 'packed-pixels'
+          : routingRepresentation === 'generated-formula'
+            ? 'generated-formula'
           : routingRepresentation === 'coordinate-predicates'
             ? 'coordinate-predicates'
             : 'range-branches',
+        routingPlan?.formula,
       )
     : routeMode
       ? emitRouteShowCode(members, route.routes, routedOutputDimension)
@@ -416,6 +435,7 @@ export function compileShow(
     timeOffsetPolicy: members.some((member) => member.adaptation.timeOffsetMs !== 0) ? 'per-clip' : 'none',
     worstInstantRenderersPerPixel: transitionCost === 'renderer-window' || transitionCost === 'bounded-renderer-window' ? 2 : 1,
     routingRepresentation,
+    routingEstimate: routingPlan,
     clips: members.map((member) => {
       const lightShutter = member.adaptation.lightShutter
       return {
@@ -1131,7 +1151,8 @@ function emitRoutingLayoutShowCode(
   switches: ShowRoutingSwitchRecipe[],
   loopDurationMs: number,
   outputDimension: 1 | 2,
-  representation: 'range-branches' | 'packed-pixels' | 'coordinate-predicates',
+  representation: 'range-branches' | 'packed-pixels' | 'generated-formula' | 'coordinate-predicates',
+  formula?: GeneratedRoutingFormula,
 ): string {
   const layoutIndex = new Map(layouts.map((layout, index) => [layout.id, index]))
   const orderedSwitches = [...switches].sort((a, b) => a.atMs - b.atMs)
@@ -1181,6 +1202,8 @@ ${counts.join('\n')}
   const advanceLines = members.map((member) => `  ${member.prefix}_advance(delta)`)
   const renderBody = representation === 'packed-pixels'
     ? emitPackedRoutingRender(layouts, outputDimension, renderLayoutName)
+    : representation === 'generated-formula' && formula
+      ? emitFormulaRoutingRender(layouts, formula, outputDimension, renderLayoutName)
     : layouts.map((layout, index) => (
       `${index === 0 ? '  if' : '  else if'} (${renderLayoutName} == ${index}) {
 ${representation === 'coordinate-predicates'
@@ -1232,20 +1255,6 @@ ${progressiveRender}${renderBody}
 }`,
     '',
   ].join('\n\n')
-}
-
-function selectRoutingRepresentation(
-  layouts: ResolvedRoutingLayout[],
-): 'range-branches' | 'packed-pixels' | 'coordinate-predicates' {
-  if (layouts.every((layout) => layout.logical)) return 'coordinate-predicates'
-  const pixelCount = routingPixelCount(layouts)
-  const arrayElements = pixelCount * layouts.length
-  const runCount = layouts.reduce((sum, layout) => (
-    sum + layout.routes.reduce((layoutSum, route) => layoutSum + route.zone.ranges.length, 0)
-  ), 0)
-  return pixelCount > 0 && arrayElements <= 2048 && runCount >= 64
-    ? 'packed-pixels'
-    : 'range-branches'
 }
 
 function emitLogicalRoutingRender(
@@ -1358,6 +1367,43 @@ ${routeBody}
 ${layoutsBody}
     }
   }`
+}
+
+function emitFormulaRoutingRender(
+  layouts: ResolvedRoutingLayout[],
+  formula: GeneratedRoutingFormula,
+  outputDimension: 1 | 2,
+  renderLayoutName: string,
+): string {
+  const shiftLines = formula.layoutShifts.slice(1).map((shift, layoutIndex) => (
+    `    if (${renderLayoutName} == ${layoutIndex + 1}) __pxlblz_show_route_shift = ${shift}`
+  ))
+  const formulaLines = formula.kind === 'contiguous'
+    ? [
+        `    var __pxlblz_show_route_id = (floor(index / ${formula.blockSize}) + __pxlblz_show_route_shift) % ${formula.routeCount}`,
+        `    var __pxlblz_show_route_local = index % ${formula.blockSize}`,
+      ]
+    : formula.kind === 'row-bands'
+      ? [
+          `    var __pxlblz_show_route_row = floor(index / ${formula.rowWidth})`,
+          `    var __pxlblz_show_route_id = (__pxlblz_show_route_row + __pxlblz_show_route_shift) % ${formula.routeCount}`,
+          `    var __pxlblz_show_route_local = floor(__pxlblz_show_route_row / ${formula.routeCount}) * ${formula.rowWidth} + index % ${formula.rowWidth}`,
+        ]
+      : [
+          `    var __pxlblz_show_route_id = (index + __pxlblz_show_route_shift) % ${formula.routeCount}`,
+          `    var __pxlblz_show_route_local = floor(index / ${formula.routeCount})`,
+        ]
+  const routeBody = layouts[0].routes.map((route, routeIndex) => (
+    emitPackedRouteBlock(route, routeIndex, outputDimension)
+  )).join('\n')
+  return [
+    `  if (index < ${formula.pixelCount}) {`,
+    `    var __pxlblz_show_route_shift = ${formula.layoutShifts[0] ?? 0}`,
+    ...shiftLines,
+    ...formulaLines,
+    routeBody,
+    `  }`,
+  ].join('\n')
 }
 
 function emitPackedRouteBlock(route: ResolvedRoute, routeIndex: number, outputDimension: 1 | 2): string {

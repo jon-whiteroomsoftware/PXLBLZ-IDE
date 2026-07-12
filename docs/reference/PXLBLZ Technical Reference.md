@@ -857,11 +857,20 @@ Stage `x` in 2D or physical index position in 1D, optionally reversed, then runs
 only the selected layout route. It does not blend renderers or interpolate zone
 coordinates. Member `beforeRender` functions continue throughout the transfer.
 
-The general compiler uses generated range branches. For high-run layouts it may
-use bounded packed per-pixel lookup only when the complete
-`pixelCount * layoutCount` table fits the measured 2,048-element policy. The
-summary names the representation. RLE was measured worse; formula specialization
-is reserved for cases where regular geometry can be proven.
+The representation planner proves exact route ownership and dense zone-local
+indexing before specializing a complete, non-overlapping physical layout.
+Contiguous blocks, repeated row bands, and interleaved pixels compile to formulas
+when every layout is a cyclic reassignment of the same topology. A gap, overlap,
+exception, reordered local index, or unrecognized shape rejects the formula.
+
+Arbitrary layouts retain generated range branches. High-run irregular layouts
+may use a packed per-pixel lookup only when the complete
+`pixelCount * layoutCount` table fits the 2,048-element policy and its bytecode
+estimate remains below the measured 68,384-byte activation budget. The compile
+summary and compile bar name the selected representation and report separate
+estimated bytecode and permanent-array costs. These estimates are conservative
+selection diagnostics derived from the routing spike, not Controller compiler
+measurements. RLE remains excluded because the hardware spike measured it worse.
 
 ## 24. Deterministic seek replay
 

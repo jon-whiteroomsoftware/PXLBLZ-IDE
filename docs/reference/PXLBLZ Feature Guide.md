@@ -553,9 +553,11 @@ physical pixel belongs to exactly one of the adjacent layouts on every frame,
 so the transfer invokes one Pattern renderer per pixel while every Pattern clock
 continues. Reverse direction moves the same threshold from the opposite edge.
 
-The compiler chooses range branches or a bounded packed lookup according to
-measured layout complexity while keeping first-route-wins overlap semantics.
-Unassigned physical pixels render black and produce a compile warning.
+The compiler emits compact formulas for provably regular contiguous, row-band,
+and interleaved layouts. Irregular layouts use range branches or a bounded packed
+lookup according to measured layout complexity while keeping first-route-wins
+overlap semantics. Unassigned physical pixels render black and produce a compile
+warning.
 
 The right pane is the Show **Stage**. Generic zone strips are always available
 and honest for freestyle Shows. A saved 2D/3D Stage map instead draws the Show
@@ -569,7 +571,8 @@ The compiler alpha-renames member Patterns, gives each required member isolated
 state, routes pixels through zone-local domains, and emits one ordinary
 Pixelblaze Pattern. The compile bar reports code size, renderer policy,
 transition cost, clock policy, evaluation masks, routing representation, and
-warnings.
+warnings. Routed Shows also report separate estimated bytecode and permanent
+array costs for the selected routing representation.
 
 **View generated pattern** shows the source read-only. Push compiles that source
 with the connected Controller's compiler through the same grouped identity,

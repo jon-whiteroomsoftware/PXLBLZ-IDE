@@ -46,6 +46,81 @@ function loadShow(code: string, metadata: ReturnType<typeof compileShow>['metada
 }
 
 describe('compileShow', () => {
+  it('compiles equivalent contiguous routing layouts to a generated formula (#408)', () => {
+    const artifact = compileShow({
+      clips: [
+        { id: 'red', zone: 'red-zone', source: 'export function render(index) { rgb(1, index / 10, 0) }' },
+        { id: 'blue', zone: 'blue-zone', source: 'export function render(index) { rgb(0, index / 10, 1) }' },
+      ],
+      zones: [
+        { id: 'red-a', name: 'red-zone', ranges: [{ start: 0, end: 3 }] },
+        { id: 'blue-a', name: 'blue-zone', ranges: [{ start: 4, end: 7 }] },
+      ],
+      routingLayouts: [
+        { id: 'red-first', name: 'Red first', zones: [
+          { id: 'red-a', name: 'red-zone', ranges: [{ start: 0, end: 3 }] },
+          { id: 'blue-a', name: 'blue-zone', ranges: [{ start: 4, end: 7 }] },
+        ] },
+        { id: 'blue-first', name: 'Blue first', zones: [
+          { id: 'red-b', name: 'red-zone', ranges: [{ start: 4, end: 7 }] },
+          { id: 'blue-b', name: 'blue-zone', ranges: [{ start: 0, end: 3 }] },
+        ] },
+      ],
+      routingSwitches: [{ atMs: 1000, layoutId: 'blue-first' }],
+      loopDurationMs: 2000,
+    }, {})
+
+    expect(artifact.summary.routingRepresentation).toBe('generated-formula')
+    expect(artifact.summary.routingEstimate).toMatchObject({
+      pixelCount: 8,
+      layoutCount: 2,
+      runCount: 4,
+      arrayElements: 0,
+      estimatedArrayBytes: 0,
+    })
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 8)
+    handle.beforeRender(500)
+    handle.render(6)
+    expect(pixel()).toEqual([0, 0.2, 1])
+    handle.beforeRender(600)
+    handle.render(6)
+    expect(pixel()).toEqual([1, 0.2, 0])
+  })
+
+  it('compiles equivalent row-band routing layouts to a generated formula (#408)', () => {
+    const artifact = compileShow({
+      clips: [
+        { id: 'red', zone: 'red-zone', source: 'export function render(index) { rgb(1, index / 10, 0) }' },
+        { id: 'blue', zone: 'blue-zone', source: 'export function render(index) { rgb(0, index / 10, 1) }' },
+      ],
+      zones: [
+        { id: 'red-a', name: 'red-zone', ranges: [{ start: 0, end: 3 }, { start: 8, end: 11 }] },
+        { id: 'blue-a', name: 'blue-zone', ranges: [{ start: 4, end: 7 }, { start: 12, end: 15 }] },
+      ],
+      routingLayouts: [
+        { id: 'red-first', name: 'Red first', zones: [
+          { id: 'red-a', name: 'red-zone', ranges: [{ start: 0, end: 3 }, { start: 8, end: 11 }] },
+          { id: 'blue-a', name: 'blue-zone', ranges: [{ start: 4, end: 7 }, { start: 12, end: 15 }] },
+        ] },
+        { id: 'blue-first', name: 'Blue first', zones: [
+          { id: 'red-b', name: 'red-zone', ranges: [{ start: 4, end: 7 }, { start: 12, end: 15 }] },
+          { id: 'blue-b', name: 'blue-zone', ranges: [{ start: 0, end: 3 }, { start: 8, end: 11 }] },
+        ] },
+      ],
+      routingSwitches: [{ atMs: 1000, layoutId: 'blue-first' }],
+      loopDurationMs: 2000,
+    }, {})
+
+    expect(artifact.summary.routingRepresentation).toBe('generated-formula')
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 16)
+    handle.beforeRender(500)
+    handle.render(14)
+    expect(pixel()).toEqual([0, 0.6, 1])
+    handle.beforeRender(600)
+    handle.render(14)
+    expect(pixel()).toEqual([1, 0.6, 0])
+  })
+
   it('progressively transfers routing ownership with one renderer per pixel while clocks continue (#403)', () => {
     const artifact = compileShow({
       clips: [
@@ -131,7 +206,7 @@ describe('compileShow', () => {
     expect(pixel()).toEqual([0, 0, 1])
   })
 
-  it('applies progressive ownership through packed routing tables (#403)', () => {
+  it('applies progressive ownership through an interleaved routing formula (#403, #408)', () => {
     const alternatingRanges = (parity: number) => Array.from({ length: 32 }, (_, run) => ({
       start: run * 2 + parity,
       end: run * 2 + parity,
@@ -158,13 +233,52 @@ describe('compileShow', () => {
       loopDurationMs: 3000,
     }, {})
 
-    expect(artifact.summary.routingRepresentation).toBe('packed-pixels')
+    expect(artifact.summary.routingRepresentation).toBe('generated-formula')
     const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 64)
     handle.beforeRender(1500)
     handle.render(0)
     expect(pixel()).toEqual([0, 0, 1])
     handle.render(63)
     expect(pixel()).toEqual([0, 0, 1])
+  })
+
+  it('uses the bounded packed fallback for irregular high-run routing layouts (#408)', () => {
+    const singletonRanges = (indices: number[]) => indices.map((index) => ({ start: index, end: index }))
+    const even = Array.from({ length: 32 }, (_, index) => index * 2)
+    const odd = Array.from({ length: 32 }, (_, index) => index * 2 + 1)
+    const irregularRed = [0, ...odd.filter((index) => index !== 1)]
+    const irregularBlue = [1, ...even.filter((index) => index !== 0)]
+    const layout = (id: string, red: number[], blue: number[]) => ({
+      id,
+      name: id,
+      zones: [
+        { id: `${id}-red`, name: 'red', ranges: singletonRanges(red) },
+        { id: `${id}-blue`, name: 'blue', ranges: singletonRanges(blue) },
+      ],
+    })
+    const artifact = compileShow({
+      clips: [
+        { id: 'red', zone: 'red', source: 'export function render(index) { rgb(1, index / 100, 0) }' },
+        { id: 'blue', zone: 'blue', source: 'export function render(index) { rgb(0, index / 100, 1) }' },
+      ],
+      zones: layout('base', even, odd).zones,
+      routingLayouts: [
+        layout('alternating', even, odd),
+        layout('irregular', irregularRed, irregularBlue),
+      ],
+      routingSwitches: [{ atMs: 1000, layoutId: 'irregular' }],
+      loopDurationMs: 2000,
+    }, {})
+
+    expect(artifact.summary.routingRepresentation).toBe('packed-pixels')
+    expect(artifact.summary.routingEstimate).toMatchObject({
+      arrayElements: 128,
+      estimatedArrayBytes: 512,
+    })
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 64)
+    handle.beforeRender(1100)
+    handle.render(3)
+    expect(pixel()).toEqual([1, 0.01, 0])
   })
 
   it('switches named routing layouts on a looping schedule without restarting members (#398)', () => {

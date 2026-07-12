@@ -2995,9 +2995,18 @@ function CompileBar({
         <span className="text-sky-300">
           routing: {summary?.routingRepresentation === 'packed-pixels'
             ? 'packed pixels'
+            : summary?.routingRepresentation === 'generated-formula'
+              ? 'generated formula'
             : summary?.routingRepresentation === 'coordinate-predicates'
               ? 'coordinate predicates'
               : 'range branches'}
+          {summary?.routingEstimate && (
+            <> · est. {formatBytes(summary.routingEstimate.estimatedBytecodeBytes)} bytecode
+              {summary.routingEstimate.estimatedArrayBytes > 0
+                ? ` + ${formatBytes(summary.routingEstimate.estimatedArrayBytes)} array`
+                : ''}
+            </>
+          )}
         </span>
       )}
       {summary && summary.clockPolicy !== 'real-time' && (

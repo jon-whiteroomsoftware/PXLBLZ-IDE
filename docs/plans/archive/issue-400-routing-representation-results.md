@@ -7,7 +7,7 @@ Emulator timings are operation-count proxies; hardware FPS is the device source 
 
 - Keep generated range branches as the general default. They preserve arbitrary pixel sets, consume no arrays, and remain compact and fast when layouts contain few runs.
 - Do not adopt RLE tables. They add four globals/arrays, still scale with run count, and were consistently much slower than branches or direct lookup.
-- A future compiler may recognize regular contiguous, row-band, and interleaved layouts and emit formulas. The 256-pixel formula probes compiled to 292-408 bytes and sustained 121-125 FPS on hardware with no arrays.
+- The production compiler recognizes regular contiguous, row-band, and interleaved layouts only after proving route ownership and dense local indexes for every pixel. The 256-pixel formula probes compiled to 292-408 bytes and sustained 121-125 FPS on hardware with no arrays.
 - A packed per-pixel table is a proven fallback for irregular layouts only when a formula is unavailable, branch output would exceed the measured 68,384-byte device budget or impose unacceptable route-scan cost, and the table fits an explicit array-element budget. At 256 pixels x 8 layouts it used 2,048 elements and about 41 KB of bytecode while sustaining about 124 FPS.
 - Packed lookup is not a blanket default: at 1,024 pixels x 8 layouts it grows to 8,192 elements and about 164 KB of bytecode. Representation selection should therefore happen per layout or Show from measured run count, formula eligibility, estimated artifact size, and array pressure.
 - Device-compiler success alone is insufficient. During the exploratory pass the 256 x 8 interleaved branch artifact compiled to about 156 KB but the controller refused to activate it, matching the earlier measured device budget.
@@ -16,7 +16,9 @@ This spike originally left production emission unchanged. Pattern Prism (#401)
 subsequently shipped the bounded packed fallback with a real Show fixture: at
 least 64 branch runs, no more than 2,048 packed elements, first-route-wins
 overlap semantics, dense local indexes, and compile-summary disclosure. #408 now
-retains formula recognition and richer memory/bytecode estimates.
+adds the formula recognizer, an estimated-bytecode guard for packed lookup, and
+separate source, bytecode, and permanent-array estimates. Comparative activation
+and FPS verification for the production artifacts remains the #408 human gate.
 
 ## Compile and emulator matrix
 

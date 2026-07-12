@@ -110,14 +110,16 @@ their semantics and dimensional compatibility are proven.
 
 ### 3.5 Routing representation maturity (#408)
 
-Retain arbitrary range branches as the general representation. Add formulas only
-for provably regular layouts and use bounded packed lookup only when measurements
-justify it. Report source/bytecode/memory implications rather than presenting a
-single generic “cost” number.
+Shipped foundation: arbitrary layouts retain range branches, while exact
+contiguous, row-band, and interleaved layouts compile to formulas. Irregular
+high-run layouts use packed lookup only inside explicit element and estimated
+bytecode guards. The compile summary and compile bar report the selected
+representation with separate estimated bytecode and permanent-array costs.
 
 Adaptive logical routing research shows direct Stage-space predicates can be
 small and hardware-competitive. Treat that as a compiler option for compatible
-geometry, not a universal replacement for fixed physical ranges.
+geometry, not a universal replacement for fixed physical ranges. Controller
+comparison and activation checks remain the human verification gate.
 
 ### 3.6 Artifact compatibility metadata (#411)
 
