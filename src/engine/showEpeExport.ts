@@ -159,7 +159,16 @@ function describeTransition(transition: NonNullable<ShowRecord['scenes'][number]
   const feather = formatNormalized(transition.feather ?? 0.12)
   const direction = transition.invert ? 'inward' : 'outward'
   const policy = transition.featherPolicy === 'blend' ? 'blend' : 'dither'
-  return `portal ${formatSeconds(transition.durationMs)}, center ${centerX}/${centerY}, ${direction}, ${policy} feather ${feather}`
+  if (!transition.shape) {
+    return `portal ${formatSeconds(transition.durationMs)}, center ${centerX}/${centerY}, ${direction}, ${policy} feather ${feather}`
+  }
+  const shape = transition.shape ?? 'circle'
+  const shapeDetails = shape === 'diamond'
+    ? `, rotation ${transition.rotation ?? 0}, spin ${transition.spin ?? 0}`
+    : shape === 'ring'
+      ? `, width ${transition.ringWidth ?? 0.12}`
+      : ''
+  return `${shape} ${formatSeconds(transition.durationMs)}, center ${centerX}/${centerY}, scale ${transition.scale ?? 1}${shapeDetails}, ${direction}, ${policy} feather ${feather}`
 }
 
 function formatNormalized(value: number): string {

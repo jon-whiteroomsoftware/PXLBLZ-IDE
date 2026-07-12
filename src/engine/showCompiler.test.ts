@@ -27,12 +27,14 @@ function loadShow(code: string, metadata: ReturnType<typeof compileShow>['metada
     clamp(v: number, lo: number, hi: number) {
       return Math.min(Math.max(v, lo), hi)
     },
+    cos: Math.cos,
     floor: Math.floor,
     frac(v: number) {
       return v - Math.floor(v)
     },
     max: Math.max,
     min: Math.min,
+    sin: Math.sin,
     hypot: Math.hypot,
     sqrt: Math.sqrt,
     triangle(v: number) {
@@ -1629,6 +1631,48 @@ export function render(index) { calls = calls + 1; rgb(0, 1, 0) }
       routePolicy: 'portal-dithered-feather',
       worstInstantRenderersPerPixel: 1,
     })
+  })
+
+  it.each([
+    {
+      shape: 'diamond' as const,
+      transition: { shape: 'diamond' as const, rotation: 0.125, spin: 0.5 },
+      incoming: [0.5, 0.5] as const,
+      outgoing: [0, 0] as const,
+    },
+    {
+      shape: 'ring' as const,
+      transition: { shape: 'ring' as const, ringWidth: 0.2 },
+      incoming: [0.853553, 0.5] as const,
+      outgoing: [0.5, 0.5] as const,
+    },
+  ])('renders a frame-stable $shape spatial transition with one renderer per pixel (#404)', ({ transition, incoming, outgoing }) => {
+    const artifact = compileShow({
+      clips: [
+        { id: 'from', source: 'export function render(index) { rgb(1, 0, 0) }' },
+        { id: 'to', source: 'export function render(index) { rgb(0, 1, 0) }' },
+      ],
+      routeTransition: {
+        kind: 'portal',
+        startMs: 1000,
+        durationMs: 1000,
+        centerX: 0.5,
+        centerY: 0.5,
+        feather: 0,
+        invert: false,
+        featherPolicy: 'dither',
+        scale: 1,
+        ...transition,
+      },
+    }, {})
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 16)
+
+    handle.beforeRender(1500)
+    handle.render2D(0, incoming[0], incoming[1])
+    expect(pixel()).toEqual([0, 1, 0])
+    handle.render2D(1, outgoing[0], outgoing[1])
+    expect(pixel()).toEqual([1, 0, 0])
+    expect(artifact.summary.worstInstantRenderersPerPixel).toBe(1)
   })
 
   it('runs both member renderers only inside a blended portal feather band', () => {

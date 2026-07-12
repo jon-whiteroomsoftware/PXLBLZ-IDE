@@ -75,6 +75,7 @@ export interface LibraryRecord {
 export type ShowTransitionKind = 'cut' | 'crossfade' | 'wipe' | 'dither' | 'portal'
 export type ShowTransitionCost = 'free' | 'cheap' | 'expensive'
 export type ShowPortalFeatherPolicy = 'dither' | 'blend'
+export type ShowSpatialShape = 'circle' | 'diamond' | 'ring'
 export type ShowTransitionEasing = 'linear' | 'ease-in' | 'ease-out' | 'ease-in-out'
 export type ShowRoutingDirection = 'forward' | 'reverse'
 export type ShowAutomatableProperty = 'timeScale' | 'brightness'
@@ -98,6 +99,11 @@ export interface ShowPortalSettings {
   centerY: number
   invert: boolean
   featherPolicy: ShowPortalFeatherPolicy
+  shape?: ShowSpatialShape
+  scale?: number
+  rotation?: number
+  spin?: number
+  ringWidth?: number
 }
 
 export interface ShowTransition {
@@ -112,6 +118,11 @@ export interface ShowTransition {
   invert?: boolean
   /** Stable one-renderer threshold or true bounded-band color blend. */
   featherPolicy?: ShowPortalFeatherPolicy
+  shape?: ShowSpatialShape
+  scale?: number
+  rotation?: number
+  spin?: number
+  ringWidth?: number
 }
 
 export interface ShowScene {
@@ -160,6 +171,11 @@ export interface ShowBoundaryTransition {
   centerY?: number
   invert?: boolean
   featherPolicy?: ShowPortalFeatherPolicy
+  shape?: ShowSpatialShape
+  scale?: number
+  rotation?: number
+  spin?: number
+  ringWidth?: number
   /** Boundary-owned interpolation settings keyed by the destination clip. */
   propertyTransitions?: ShowPropertyTransitions
 }

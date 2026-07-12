@@ -520,7 +520,7 @@ re-anchors the surviving footprint.
 ### Transitions and automation
 
 A transition is its own boundary object, not a property hidden on either scene.
-The lane supports cut, crossfade, wipe, dither, 2D portal, and routing-layout
+The lane supports cut, crossfade, wipe, dither, 2D spatial shapes, and routing-layout
 markers. Duration-bearing transitions occupy visible time; a zero-duration cut
 still has a stable selectable marker.
 
@@ -529,8 +529,13 @@ Transition cost is explicit:
 - parameter ramps keep one renderer per pixel;
 - wipe and dither route each pixel to one member renderer;
 - crossfade runs both renderers during its window; and
-- portal can use a hard/stable-dither one-renderer edge or a true blended
-  feather that evaluates both Patterns only inside the band.
+- circle/portal, diamond iris, and ring/shockwave shapes can use a hard or
+  stable-dither one-renderer edge, or a true blended feather that evaluates both
+  Patterns only inside the band.
+
+All spatial shapes share center, scale, direction, and feather behavior.
+Diamond alone exposes rotation and animated spin; ring alone exposes band
+width. The inspector hides parameters that do not affect the selected shape.
 
 Property automation uses one shared CSS-like model: destination clips own
 targets; the incoming boundary owns the explicit start, duration, and easing.

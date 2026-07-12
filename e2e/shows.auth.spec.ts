@@ -98,6 +98,47 @@ test.describe('authenticated Show authoring', () => {
     await expect(page.getByLabel('Routing transfer easing')).toHaveValue('ease-in-out')
     await expect(page.getByLabel('Routing transfer direction')).toHaveValue('reverse')
   })
+
+  test('authors shape-aware diamond and ring spatial transitions', async ({ page }) => {
+    await page.goto('studio/shows')
+    await page.getByRole('button', { name: 'New show' }).click()
+    await page.getByLabel('Stage map').selectOption('plane')
+    await page.getByRole('button', { name: 'Select Scene 1 to Scene 2 transition (crossfade)' }).click()
+    await page.getByLabel('Transition kind').selectOption('portal')
+    await page.getByText('Advanced transition controls').click()
+    await page.getByLabel('Spatial shape').selectOption('diamond')
+    await page.getByLabel('Rotation turns').fill('0.125')
+    await page.getByLabel('Spin turns').fill('1')
+    await expect(page.getByLabel('Ring width')).toHaveCount(0)
+
+    await waitForCurrentShow(page, (show) => show.transitions?.some((transition) => (
+      transition.kind === 'portal'
+      && transition.shape === 'diamond'
+      && transition.rotation === 0.125
+      && transition.spin === 1
+    )) ?? false)
+
+    await page.getByLabel('Spatial shape').selectOption('ring')
+    await expect(page.getByLabel('Rotation turns')).toHaveCount(0)
+    await expect(page.getByLabel('Spin turns')).toHaveCount(0)
+    await page.getByLabel('Ring width').fill('0.2')
+
+    await waitForCurrentShow(page, (show) => show.transitions?.some((transition) => (
+      transition.kind === 'portal'
+      && transition.shape === 'ring'
+      && transition.ringWidth === 0.2
+      && transition.rotation === undefined
+      && transition.spin === undefined
+    )) ?? false)
+
+    await page.reload()
+    await page.getByRole('button', { name: 'Select Scene 1 to Scene 2 transition (portal)' }).click()
+    await page.getByText('Advanced transition controls').click()
+    await expect(page.getByLabel('Spatial shape')).toHaveValue('ring')
+    await expect(page.getByLabel('Ring width')).toHaveValue('0.2')
+    await page.getByRole('button', { name: 'View generated pattern' }).first().click()
+    await expect(page.getByText('Generated pattern - Untitled Show')).toBeVisible()
+  })
 })
 
 type PersistedShow = {
@@ -114,6 +155,10 @@ type PersistedShow = {
     durationMs: number
     easing: string
     routingDirection?: string
+    shape?: string
+    rotation?: number
+    spin?: number
+    ringWidth?: number
     propertyTransitions?: { timeScale?: unknown }
   }>
   routingLayouts: Array<{

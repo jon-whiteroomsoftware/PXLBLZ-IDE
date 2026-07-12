@@ -8,7 +8,7 @@ import {
 } from './controllerProfile'
 import { emitFixedPoint } from './fxEmit'
 import { emitShowEasingExpression } from './showEasing'
-import type { ShowTransitionEasing } from './personalContentRecords'
+import type { ShowSpatialShape, ShowTransitionEasing } from './personalContentRecords'
 
 export interface ShowClipRecipe {
   id: string
@@ -76,6 +76,11 @@ export interface ShowRouteTransitionRecipe {
   centerY?: number
   invert?: boolean
   featherPolicy?: 'dither' | 'blend'
+  shape?: ShowSpatialShape
+  scale?: number
+  rotation?: number
+  spin?: number
+  ringWidth?: number
 }
 
 export interface ShowSceneSequenceTransitionRecipe {
@@ -86,6 +91,11 @@ export interface ShowSceneSequenceTransitionRecipe {
   centerY?: number
   invert?: boolean
   featherPolicy?: 'dither' | 'blend'
+  shape?: ShowSpatialShape
+  scale?: number
+  rotation?: number
+  spin?: number
+  ringWidth?: number
   easing?: ShowTransitionEasing
   propertyRamps?: Partial<Record<'timeScale' | 'brightness', ShowAdaptationPropertyRampRecipe>>
   controlRamps?: Record<string, ShowAdaptationPropertyRampRecipe>
@@ -916,18 +926,37 @@ function emitPortalRenderBlock(
   const centerX = clampNumber(transition.centerX ?? 0.5, 0, 1)
   const centerY = clampNumber(transition.centerY ?? 0.5, 0, 1)
   const feather = clampNumber(transition.feather ?? 0, 0, 1)
+  const shape = transition.shape === 'diamond' || transition.shape === 'ring' ? transition.shape : 'circle'
+  const scale = clampNumber(transition.scale ?? 1, 0.25, 2)
+  const rotation = clampNumber(transition.rotation ?? 0, -1, 1)
+  const spin = clampNumber(transition.spin ?? 0, -4, 4)
+  const ringWidth = clampNumber(transition.ringWidth ?? 0.12, 0.02, 1)
   const maxRadius = Math.max(
     Math.hypot(centerX, centerY),
     Math.hypot(1 - centerX, centerY),
     Math.hypot(centerX, 1 - centerY),
     Math.hypot(1 - centerX, 1 - centerY),
   )
+  const shapeRadius = shape === 'diamond' ? maxRadius * Math.SQRT2 : maxRadius
+  const radiusScale = transition.scale === undefined ? '' : ` * ${scale}`
   const radius = transition.invert
-    ? `${maxRadius} * (1 - __pxlblz_show_mix)`
-    : `${maxRadius} * __pxlblz_show_mix`
-  const signedDistance = transition.invert
-    ? '__pxlblz_show_portal_radius - __pxlblz_show_portal_distance'
-    : '__pxlblz_show_portal_distance - __pxlblz_show_portal_radius'
+    ? `${shapeRadius} * (1 - __pxlblz_show_mix)${radiusScale}`
+    : `${shapeRadius} * __pxlblz_show_mix${radiusScale}`
+  const distancePrelude = shape === 'diamond'
+    ? `var __pxlblz_show_portal_dx = x - ${centerX}
+var __pxlblz_show_portal_dy = y - ${centerY}
+var __pxlblz_show_portal_angle = (${rotation} + ${spin} * __pxlblz_show_mix) * 6.283185307179586
+var __pxlblz_show_portal_cos = cos(__pxlblz_show_portal_angle)
+var __pxlblz_show_portal_sin = sin(__pxlblz_show_portal_angle)
+var __pxlblz_show_portal_rx = __pxlblz_show_portal_dx * __pxlblz_show_portal_cos + __pxlblz_show_portal_dy * __pxlblz_show_portal_sin
+var __pxlblz_show_portal_ry = -__pxlblz_show_portal_dx * __pxlblz_show_portal_sin + __pxlblz_show_portal_dy * __pxlblz_show_portal_cos
+var __pxlblz_show_portal_distance = abs(__pxlblz_show_portal_rx) + abs(__pxlblz_show_portal_ry)`
+    : `var __pxlblz_show_portal_distance = hypot(x - ${centerX}, y - ${centerY})`
+  const signedDistance = shape === 'ring'
+    ? `abs(__pxlblz_show_portal_distance - __pxlblz_show_portal_radius) - ${ringWidth / 2}`
+    : transition.invert
+      ? '__pxlblz_show_portal_radius - __pxlblz_show_portal_distance'
+      : '__pxlblz_show_portal_distance - __pxlblz_show_portal_radius'
   const fromRender = `${from.prefix}_renderCapture2D(index, x, y)`
   const toRender = `${to.prefix}_renderCapture2D(index, x, y)`
   let transitionBody: string
@@ -971,7 +1000,7 @@ if (__pxlblz_show_portal_mix >= 1 || (__pxlblz_show_portal_mix > 0 && __pxlblz_s
 }`
   }
 
-  return `var __pxlblz_show_portal_distance = hypot(x - ${centerX}, y - ${centerY})
+  return `${distancePrelude}
 var __pxlblz_show_portal_radius = ${radius}
 var __pxlblz_show_portal_signed = ${signedDistance}
 ${transitionBody}`

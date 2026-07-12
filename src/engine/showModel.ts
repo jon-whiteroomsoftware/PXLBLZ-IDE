@@ -8,6 +8,7 @@ import type {
   ShowRoutingLayout,
   ShowRoutingLayoutZone,
   ShowScene,
+  ShowSpatialShape,
   ShowTransitionCost,
   ShowZone,
 } from './personalContentRecords'
@@ -917,6 +918,11 @@ export function normalizeShowTransitionState(show: ShowRecord): ShowRecord {
                 centerY: scene.transitionOut.centerY,
                 invert: scene.transitionOut.invert,
                 featherPolicy: scene.transitionOut.featherPolicy,
+                shape: scene.transitionOut.shape,
+                scale: scene.transitionOut.scale,
+                rotation: scene.transitionOut.rotation,
+                spin: scene.transitionOut.spin,
+                ringWidth: scene.transitionOut.ringWidth,
               }
             : {}),
         })),
@@ -1011,6 +1017,7 @@ function normalizeBoundaryTransition(transition: ShowBoundaryTransition): ShowBo
       centerY: clamp01(transition.centerY ?? 0.5),
       invert: Boolean(transition.invert),
       featherPolicy: transition.featherPolicy === 'blend' ? 'blend' : 'dither',
+      ...normalizeSpatialShapeSettings(transition),
     }
   }
   return base
@@ -1046,6 +1053,31 @@ function normalizePropertyTransitions(transition: ShowBoundaryTransition): Pick<
     : {}
 }
 
+function normalizeSpatialShapeSettings(transition: {
+  shape?: ShowSpatialShape
+  scale?: number
+  rotation?: number
+  spin?: number
+  ringWidth?: number
+}): Pick<ShowBoundaryTransition, 'shape' | 'scale' | 'rotation' | 'spin' | 'ringWidth'> {
+  if (transition.shape !== 'circle' && transition.shape !== 'diamond' && transition.shape !== 'ring') return {}
+  const base = {
+    shape: transition.shape,
+    scale: clampRange(transition.scale ?? 1, 0.25, 2),
+  }
+  if (transition.shape === 'diamond') {
+    return {
+      ...base,
+      rotation: clampRange(transition.rotation ?? 0, -1, 1),
+      spin: clampRange(transition.spin ?? 0, -4, 4),
+    }
+  }
+  if (transition.shape === 'ring') {
+    return { ...base, ringWidth: clampRange(transition.ringWidth ?? 0.12, 0.02, 1) }
+  }
+  return base
+}
+
 function normalizeEasing(easing: ShowBoundaryTransition['easing'] | undefined): ShowBoundaryTransition['easing'] {
   return easing === 'ease-in' || easing === 'ease-out' || easing === 'ease-in-out' ? easing : 'linear'
 }
@@ -1069,6 +1101,11 @@ function boundaryToLegacyTransition(
           centerY: transition.centerY,
           invert: transition.invert,
           featherPolicy: transition.featherPolicy,
+          shape: transition.shape,
+          scale: transition.scale,
+          rotation: transition.rotation,
+          spin: transition.spin,
+          ringWidth: transition.ringWidth,
         }
       : {}),
   }
@@ -1194,6 +1231,11 @@ export function updateShowTransition(
         centerY: clamp01(portal.centerY ?? currentPortal?.centerY ?? 0.5),
         invert: portal.invert ?? currentPortal?.invert ?? false,
         featherPolicy: (portal.featherPolicy ?? currentPortal?.featherPolicy) === 'blend' ? 'blend' : 'dither',
+        shape: portal.shape ?? currentPortal?.shape,
+        scale: portal.scale ?? currentPortal?.scale,
+        rotation: portal.rotation ?? currentPortal?.rotation,
+        spin: portal.spin ?? currentPortal?.spin,
+        ringWidth: portal.ringWidth ?? currentPortal?.ringWidth,
       }
     : {
         id: current?.id ?? `transition-${sceneId}`,
@@ -1357,6 +1399,7 @@ export function showRecordToCompileRecipe(
                 centerY: clamp01(transition.centerY ?? 0.5),
                 invert: Boolean(transition.invert),
                 featherPolicy: transition.featherPolicy === 'blend' ? 'blend' as const : 'dither' as const,
+                ...normalizeSpatialShapeSettings(transition),
               }
             : {}),
         }
@@ -1489,6 +1532,7 @@ function compilerSequenceTransition(
           centerY: clamp01(transition.centerY ?? 0.5),
           invert: Boolean(transition.invert),
           featherPolicy: transition.featherPolicy === 'blend' ? 'blend' as const : 'dither' as const,
+          ...normalizeSpatialShapeSettings(transition),
         }
       : {}),
   }
@@ -1623,6 +1667,11 @@ function normalizeAdaptations(adaptations: ShowCellAdaptations): ShowCellAdaptat
 
 function clamp01(value: number): number {
   return Math.max(0, Math.min(1, value))
+}
+
+function clampRange(value: number, min: number, max: number): number {
+  if (!Number.isFinite(value)) return min
+  return Math.max(min, Math.min(max, value))
 }
 
 function compilerAdaptation(adaptations: ShowCellAdaptations): ShowClipAdaptation {

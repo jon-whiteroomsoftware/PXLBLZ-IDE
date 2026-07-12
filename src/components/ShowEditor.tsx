@@ -2121,6 +2121,11 @@ function TransitionInspector({
     centerY: transition.centerY ?? 0.5,
     invert: transition.invert ?? false,
     featherPolicy: transition.featherPolicy === 'blend' ? 'blend' : 'dither',
+    shape: transition.shape ?? 'circle',
+    scale: transition.scale ?? 1,
+    rotation: transition.rotation ?? 0,
+    spin: transition.spin ?? 0,
+    ringWidth: transition.ringWidth ?? 0.12,
   }
   const updatePortal = (changes: Partial<ShowPortalSettings>, feather = transition.feather ?? 0.12) => {
     onUpdate(transition.id, { kind: 'portal', durationMs: transition.durationMs || 2000, feather, ...changes })
@@ -2252,6 +2257,29 @@ function TransitionInspector({
           )}
           {transition.kind === 'portal' && (
             <>
+            <label className="text-[10px] uppercase text-zinc-600">
+              Spatial shape
+              <select
+                aria-label="Spatial shape"
+                value={portalSettings.shape}
+                onChange={(event) => updatePortal({
+                  shape: event.target.value === 'diamond' ? 'diamond' : event.target.value === 'ring' ? 'ring' : 'circle',
+                })}
+                className={`${field} mt-1 w-full`}
+              >
+                <option value="circle">circle / portal</option>
+                <option value="diamond">diamond iris</option>
+                <option value="ring">ring / shockwave</option>
+              </select>
+            </label>
+            <NumberField
+              label="Spatial scale"
+              value={portalSettings.scale ?? 1}
+              min={0.25}
+              max={2}
+              step={0.05}
+              onChange={(scale) => updatePortal({ scale })}
+            />
             <NumberField
               label="Center X"
               value={portalSettings.centerX}
@@ -2268,6 +2296,36 @@ function TransitionInspector({
               step={0.05}
               onChange={(centerY) => updatePortal({ centerY })}
             />
+            {portalSettings.shape === 'diamond' && (
+              <>
+                <NumberField
+                  label="Rotation turns"
+                  value={portalSettings.rotation ?? 0}
+                  min={-1}
+                  max={1}
+                  step={0.025}
+                  onChange={(rotation) => updatePortal({ rotation })}
+                />
+                <NumberField
+                  label="Spin turns"
+                  value={portalSettings.spin ?? 0}
+                  min={-4}
+                  max={4}
+                  step={0.25}
+                  onChange={(spin) => updatePortal({ spin })}
+                />
+              </>
+            )}
+            {portalSettings.shape === 'ring' && (
+              <NumberField
+                label="Ring width"
+                value={portalSettings.ringWidth ?? 0.12}
+                min={0.02}
+                max={1}
+                step={0.02}
+                onChange={(ringWidth) => updatePortal({ ringWidth })}
+              />
+            )}
             <NumberField
               label="Feather width"
               value={transition.feather ?? 0.12}
@@ -2300,8 +2358,8 @@ function TransitionInspector({
             </label>
             <div className="border-l-2 border-sky-500/50 pl-2 text-[10px] leading-4 text-zinc-500">
               {portalSettings.featherPolicy === 'blend'
-                ? 'Two Pattern renderers run only inside the circular feather band.'
-                : 'A stable threshold keeps the portal to one Pattern renderer per pixel.'}
+                ? `Two Pattern renderers run only inside the ${portalSettings.shape} feather band.`
+                : `A stable ${portalSettings.shape} threshold keeps this transition to one Pattern renderer per pixel.`}
             </div>
             </>
           )}

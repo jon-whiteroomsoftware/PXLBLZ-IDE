@@ -770,7 +770,16 @@ describe('ShowEditor (#318)', () => {
       'portal',
       2000,
       0.12,
-      { centerX: 0.5, centerY: 0.5, invert: false, featherPolicy: 'dither' },
+      {
+        centerX: 0.5,
+        centerY: 0.5,
+        invert: false,
+        featherPolicy: 'dither',
+        shape: 'diamond',
+        scale: 1,
+        rotation: 0.125,
+        spin: 0,
+      },
     )
     setPersonalContentProvider(memoryProvider([show]))
     useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
@@ -780,11 +789,20 @@ describe('ShowEditor (#318)', () => {
 
     expect(screen.getByLabelText('Center X')).toHaveValue(0.5)
     expect(screen.getByLabelText('Center Y')).toHaveValue(0.5)
+    expect(screen.getByLabelText('Spatial shape')).toHaveValue('diamond')
+    expect(screen.getByLabelText('Rotation turns')).toHaveValue(0.125)
+    expect(screen.getByLabelText('Spin turns')).toHaveValue(0)
+    expect(screen.queryByLabelText('Ring width')).not.toBeInTheDocument()
     expect(screen.getByLabelText('Feather behavior')).toHaveValue('dither')
     expect(screen.getByText('worst instant: portal dither')).toBeInTheDocument()
     fireEvent.change(screen.getByLabelText('Center X'), { target: { value: '0.35' } })
     await user.selectOptions(screen.getByLabelText('Feather behavior'), 'blend')
     await user.click(screen.getByLabelText('Outside in'))
+    await user.selectOptions(screen.getByLabelText('Spatial shape'), 'ring')
+    fireEvent.change(screen.getByLabelText('Ring width'), { target: { value: '0.2' } })
+
+    expect(screen.queryByLabelText('Rotation turns')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Spin turns')).not.toBeInTheDocument()
 
     await waitFor(() => {
       expect(useShowStore.getState().shows[0].scenes[0].transitionOut).toMatchObject({
@@ -793,6 +811,9 @@ describe('ShowEditor (#318)', () => {
         centerY: 0.5,
         invert: true,
         featherPolicy: 'blend',
+        shape: 'ring',
+        scale: 1,
+        ringWidth: 0.2,
       })
     })
     expect(screen.getByText(/Two Pattern renderers run only inside/i)).toBeInTheDocument()

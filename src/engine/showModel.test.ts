@@ -1071,7 +1071,16 @@ describe('showModel (#318)', () => {
       'portal',
       2400,
       0.18,
-      { centerX: 0.3, centerY: 0.7, invert: true, featherPolicy: 'blend' },
+      {
+        centerX: 0.3,
+        centerY: 0.7,
+        invert: true,
+        featherPolicy: 'blend',
+        shape: 'diamond',
+        scale: 1.2,
+        rotation: 0.125,
+        spin: 0.5,
+      },
     )
 
     expect(show.scenes[0].transitionOut).toEqual({
@@ -1082,6 +1091,10 @@ describe('showModel (#318)', () => {
       centerY: 0.7,
       invert: true,
       featherPolicy: 'blend',
+      shape: 'diamond',
+      scale: 1.2,
+      rotation: 0.125,
+      spin: 0.5,
     })
 
     const sources = {
@@ -1102,6 +1115,10 @@ describe('showModel (#318)', () => {
       centerY: 0.7,
       invert: true,
       featherPolicy: 'blend',
+      shape: 'diamond',
+      scale: 1.2,
+      rotation: 0.125,
+      spin: 0.5,
     })
   })
 

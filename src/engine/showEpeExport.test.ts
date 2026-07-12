@@ -1,6 +1,6 @@
 import { parseEpe } from './epeImport'
 import { parsePxlblzBanner } from './artifactStamp'
-import { addShowRoutingLayout, createDefaultShow, updateShowBoundaryTransition, updateShowRoutingSwitch } from './showModel'
+import { addShowRoutingLayout, createDefaultShow, updateShowBoundaryTransition, updateShowRoutingSwitch, updateShowTransition } from './showModel'
 import { buildShowEpeExport } from './showEpeExport'
 import { createAdaptivePatternPrismShow } from './patternPrismShow'
 
@@ -63,6 +63,23 @@ describe('Show EPE export (#399)', () => {
 
     expect(parseEpe(exported.text).src).toContain(
       'transfer reverse to Alternate over 2s (ease-in-out) after scene',
+    )
+  })
+
+  it('explains the selected spatial shape in exported source (#404)', () => {
+    const show = updateShowTransition(
+      { ...createDefaultShow('show-404', 'Shockwave'), stageMapId: 'plane' },
+      'scene-1',
+      'portal',
+      2000,
+      0.1,
+      { centerX: 0.4, centerY: 0.6, invert: false, featherPolicy: 'dither', shape: 'ring', scale: 1.2, ringWidth: 0.2 },
+    )
+
+    const exported = buildShowEpeExport(show, 'export function render2D() {}')
+
+    expect(parseEpe(exported.text).src).toContain(
+      'ring 2s, center 0.4/0.6, scale 1.2, width 0.2, outward, dither feather 0.1',
     )
   })
 

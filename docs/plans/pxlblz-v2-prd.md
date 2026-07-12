@@ -74,9 +74,11 @@ coordinate interpolation.
 
 ### 3.2 Spatial transition family (#404)
 
-Grow the proven circular portal into a small family of high-impact SDF masks,
-likely star/iris, box/diamond, line/slash, or ring/shockwave. Reuse shared center,
-scale, rotation, direction, and feather vocabulary only where it remains honest.
+Shipped foundation: the existing circle/portal now shares one SDF transition
+path with a diamond iris and ring/shockwave. Center, scale, direction, and
+feather policy remain shared; diamond alone exposes rotation/spin and ring alone
+exposes band width. Hard and stable-dither edges keep one renderer per pixel,
+while true blend remains bounded to the feather band.
 
 Keep one-renderer hard/stable-dither policies distinct from bounded dual-render
 blend. Do not turn the inspector into a generic shader editor.

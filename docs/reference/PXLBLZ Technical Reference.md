@@ -808,8 +808,8 @@ Current compiler policies:
 | Parameter ramp | One continued member, values updated once per frame |
 | Crossfade | Two member renderers during the transition window |
 | Wipe / dither | Both clocks may advance; one renderer selected per pixel |
-| 2D portal hard/dither | One renderer per pixel from Stage-space boundary |
-| 2D portal true blend | Two renderers only inside the feather band |
+| 2D circle/diamond/ring hard or dither | One renderer per pixel from the Stage-space SDF boundary |
+| 2D circle/diamond/ring true blend | Two renderers only inside the feather band |
 | Routing-layout cut | Immediate destination layout selection |
 | Routing-layout directional transfer | Both clocks advance; one adjacent layout and renderer selected per pixel |
 
@@ -835,6 +835,13 @@ Discrete adaptations remain part of member compatibility:
 Time scale zero keeps private elapsed time and delivered Pattern delta at zero
 while the outer Show renderer continues. Negative time is not supported because
 arbitrary stateful Patterns are not reversible.
+
+Spatial transitions share one `portal` boundary/compiler path. Circle uses
+Euclidean distance, diamond uses the L1 norm after optional static rotation and
+progress-driven spin, and ring uses the absolute distance from an expanding or
+contracting radius with a shape-specific band width. Center, scale, invert, and
+feather policy are shared. Preview runs the generated artifact, so editor and
+hardware use the same equations and renderer-cost policy.
 
 ## 23. Routing representation
 
