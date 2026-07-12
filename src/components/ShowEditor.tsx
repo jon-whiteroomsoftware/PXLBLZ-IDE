@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react'
-import { Check, Code2, Copy, Download, Maximize2, Pause, Play, Plus, RotateCw, Route, Scissors, SkipBack, Trash2, Zap, ZoomIn, ZoomOut } from 'lucide-react'
+import { Check, Clapperboard, Code2, Copy, Download, Grid2X2, Map as MapIcon, Maximize2, Pause, Play, Plus, RotateCw, Route, Scissors, Settings2, SkipBack, Trash2, Zap, ZoomIn, ZoomOut } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   AlertDialogAction,
@@ -69,6 +69,7 @@ const clipBase =
   'relative z-10 flex min-h-16 flex-col justify-center gap-0.5 overflow-hidden rounded-[5px] border-0 border-l-[3px] px-3 py-2 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-live'
 
 type ShowSelection =
+  | { kind: 'scene'; sceneId: string }
   | { kind: 'cell'; cellId: string }
   | { kind: 'transition'; transitionId: string }
   | { kind: 'zone'; zoneId: string }
@@ -80,6 +81,7 @@ export function ShowEditor({ showId }: { showId: string }) {
   const updateShow = useShowStore((state) => state.updateShow)
   const updateStageMap = useShowStore((state) => state.updateStageMap)
   const addScene = useShowStore((state) => state.addScene)
+  const duplicateScene = useShowStore((state) => state.duplicateScene)
   const removeScene = useShowStore((state) => state.removeScene)
   const updateScene = useShowStore((state) => state.updateScene)
   const updateBoundaryTransition = useShowStore((state) => state.updateBoundaryTransition)
@@ -116,6 +118,31 @@ export function ShowEditor({ showId }: { showId: string }) {
   const targetProfile = activeShow?.targetControllerProfileId
     ? controllerProfiles.find((profile) => profile.id === activeShow.targetControllerProfileId)
     : controllerProfiles[0]
+
+  useEffect(() => {
+    const handleDelete = (event: KeyboardEvent) => {
+      if (event.key !== 'Delete' || !activeShow) return
+      const target = event.target
+      if (target instanceof Element && target.closest('input, textarea, select, [contenteditable="true"], [role="textbox"]')) return
+
+      if (selection.kind === 'scene') {
+        const scene = activeShow.scenes.find((candidate) => candidate.id === selection.sceneId)
+        if (!scene || activeShow.scenes.length <= 1) return
+        event.preventDefault()
+        setScenePendingDelete(scene)
+        return
+      }
+
+      if (selection.kind === 'transition') {
+        const transition = activeShow.transitions?.find((candidate) => candidate.id === selection.transitionId)
+        if (!transition || transition.kind === 'cut') return
+        event.preventDefault()
+        void removeBoundaryTransition(activeShow.id, transition.id)
+      }
+    }
+    document.addEventListener('keydown', handleDelete)
+    return () => document.removeEventListener('keydown', handleDelete)
+  }, [activeShow, removeBoundaryTransition, selection])
   const stageDimension = activeShow?.stageMapId
     ? [...STOCK_MAPS, ...userMaps].find((map) => map.id === activeShow.stageMapId)?.dim
     : undefined
@@ -279,6 +306,9 @@ export function ShowEditor({ showId }: { showId: string }) {
             })}
             onUpdateStageMap={(stageMapId) => void updateStageMap(activeShow.id, stageMapId)}
             onUpdatePattern={(cell, patch) => void updateCellPattern(activeShow.id, cell.id, patch)}
+            onUpdateScene={(scene, changes) => void updateScene(activeShow.id, scene.id, changes)}
+            onDuplicateScene={(scene) => void duplicateScene(activeShow.id, scene.id)}
+            onRequestRemoveScene={setScenePendingDelete}
             onUpdateAdaptations={(cell, changes) => void updateCellAdaptations(activeShow.id, cell.id, changes)}
             onUpdateControlTarget={(cell, exportName, value) => void updateCellControlTarget(activeShow.id, cell.id, exportName, value)}
             onUpdateRestartOnEntry={(cell, restartOnEntry) => void updateCellRestartOnEntry(activeShow.id, cell.id, restartOnEntry)}
@@ -600,7 +630,9 @@ function SceneStrip({
           <SceneColumnHeader
             key={scene.id}
             scene={scene}
+            selected={selection.kind === 'scene' && selection.sceneId === scene.id}
             canRemove={show.scenes.length > 1}
+            onSelect={() => onSelect({ kind: 'scene', sceneId: scene.id })}
             onRemove={() => onRequestRemoveScene(scene)}
             onUpdate={(changes) => onUpdateScene(scene.id, changes)}
           />
@@ -1082,17 +1114,30 @@ function formatRulerTime(timeMs: number): string {
 
 function SceneColumnHeader({
   scene,
+  selected,
   canRemove,
+  onSelect,
   onRemove,
   onUpdate,
 }: {
   scene: ShowScene
+  selected: boolean
   canRemove: boolean
+  onSelect: () => void
   onRemove: () => void
   onUpdate: (changes: Partial<Omit<ShowScene, 'id'>>) => void
 }) {
   return (
-    <div className="group relative flex min-w-0 flex-col justify-end gap-0.5 overflow-hidden border-b border-zinc-800 px-2 pb-1.5 pt-1">
+    <div
+      role="group"
+      aria-label={`Scene ${scene.name}`}
+      onClick={(event) => {
+        event.stopPropagation()
+        onSelect()
+      }}
+      onFocusCapture={onSelect}
+      className={`group relative flex min-w-0 flex-col justify-end gap-0.5 overflow-hidden border-b px-2 pb-1.5 pt-1 ${selected ? 'border-live bg-live/[0.045]' : 'border-zinc-800'}`}
+    >
       <input
         aria-label={`${scene.name} scene name`}
         title={scene.name}
@@ -1182,11 +1227,31 @@ function BoundaryTransitionChip({
   )
 }
 
-function InspectorPanel({ title, children }: { title: string; children: React.ReactNode }) {
+function InspectorPanel({
+  family,
+  title,
+  icon,
+  actions,
+  children,
+}: {
+  family: 'Scene' | 'Cell' | 'Transition' | 'Zone' | 'Show'
+  title: string
+  icon: React.ReactNode
+  actions?: React.ReactNode
+  children: React.ReactNode
+}) {
+  const label = `${family} properties`
   return (
-    <section className={`${card} mt-3 min-h-36 p-3`}>
-      <h3 className="mb-2 text-[11px] font-semibold uppercase text-zinc-500">{title}</h3>
-      {children}
+    <section role="region" aria-label={label} className={`${card} mt-2 flex max-h-[220px] min-h-0 flex-col overflow-hidden`}>
+      <header className="flex h-10 shrink-0 items-center gap-2 border-b border-zinc-800/90 bg-zinc-950/65 px-2.5">
+        <span className="grid size-6 shrink-0 place-items-center rounded border border-zinc-800 bg-zinc-900/80 text-live">{icon}</span>
+        <div className="min-w-0">
+          <h3 className="text-[10px] font-semibold uppercase tracking-[0.12em] text-zinc-300">{label}</h3>
+          <p className="truncate text-[9px] text-zinc-600">{title}</p>
+        </div>
+        {actions && <div className="ml-auto flex items-center gap-1">{actions}</div>}
+      </header>
+      <div className="min-h-0 overflow-auto p-2.5">{children}</div>
     </section>
   )
 }
@@ -1203,6 +1268,9 @@ function ContextualInspector({
   onUpdateTargetProfile,
   onUpdateStageMap,
   onUpdatePattern,
+  onUpdateScene,
+  onDuplicateScene,
+  onRequestRemoveScene,
   onUpdateAdaptations,
   onUpdateControlTarget,
   onUpdateRestartOnEntry,
@@ -1230,6 +1298,9 @@ function ContextualInspector({
   onUpdateTargetProfile: (targetControllerProfileId: string) => void
   onUpdateStageMap: (stageMapId: string | null) => void
   onUpdatePattern: (cell: ShowCell, patch: Pick<ShowCell, 'pattern' | 'patternName'>) => void
+  onUpdateScene: (scene: ShowScene, changes: Partial<Omit<ShowScene, 'id'>>) => void
+  onDuplicateScene: (scene: ShowScene) => void
+  onRequestRemoveScene: (scene: ShowScene) => void
   onUpdateAdaptations: (cell: ShowCell, changes: Partial<ShowCell['adaptations']>) => void
   onUpdateControlTarget: (cell: ShowCell, exportName: string, value: number | undefined) => void
   onUpdateRestartOnEntry: (cell: ShowCell, restartOnEntry: boolean) => void
@@ -1249,6 +1320,21 @@ function ContextualInspector({
   onRemoveRoutingLayout: (layoutId: string) => void
   onUpdateRoutingSwitch: (afterSceneId: string, layoutId: string | null) => void
 }) {
+  if (selection.kind === 'scene') {
+    const scene = show.scenes.find((candidate) => candidate.id === selection.sceneId)
+    if (scene) {
+      return (
+        <SceneInspector
+          scene={scene}
+          canRemove={show.scenes.length > 1}
+          onUpdate={(changes) => onUpdateScene(scene, changes)}
+          onDuplicate={() => onDuplicateScene(scene)}
+          onRemove={() => onRequestRemoveScene(scene)}
+        />
+      )
+    }
+  }
+
   if (selection.kind === 'cell' && selectedCell) {
     return (
       <CellInspector
@@ -1323,6 +1409,67 @@ function ContextualInspector({
   )
 }
 
+function SceneInspector({
+  scene,
+  canRemove,
+  onUpdate,
+  onDuplicate,
+  onRemove,
+}: {
+  scene: ShowScene
+  canRemove: boolean
+  onUpdate: (changes: Partial<Omit<ShowScene, 'id'>>) => void
+  onDuplicate: () => void
+  onRemove: () => void
+}) {
+  return (
+    <InspectorPanel
+      family="Scene"
+      title={scene.name}
+      icon={<Clapperboard size={13} aria-hidden />}
+      actions={(
+        <>
+          <Button size="icon-xs" variant="ghost" aria-label={`Duplicate scene ${scene.name}`} title={`Duplicate ${scene.name}`} className="text-zinc-500 hover:text-zinc-200" onClick={onDuplicate}>
+            <Copy size={12} aria-hidden />
+          </Button>
+          {canRemove && (
+            <Button size="icon-xs" variant="ghost" aria-label={`Delete scene ${scene.name}`} title={`Delete ${scene.name}`} className="text-zinc-500 hover:bg-red-950/30 hover:text-red-300" onClick={onRemove}>
+              <Trash2 size={12} aria-hidden />
+            </Button>
+          )}
+        </>
+      )}
+    >
+      <div className="grid items-end gap-2 sm:grid-cols-[minmax(12rem,1fr)_8rem]">
+        <label className="text-[9px] uppercase tracking-[0.1em] text-zinc-600">
+          Name
+          <input
+            aria-label="Scene name"
+            value={scene.name}
+            onChange={(event) => onUpdate({ name: event.target.value })}
+            className={`${field} mt-1 w-full`}
+          />
+        </label>
+        <label className="text-[9px] uppercase tracking-[0.1em] text-zinc-600">
+          Duration
+          <span className="mt-1 flex items-center gap-1">
+            <input
+              aria-label="Scene duration seconds"
+              type="number"
+              min={1}
+              step={1}
+              value={Math.round(scene.durationMs / 1000)}
+              onChange={(event) => onUpdate({ durationMs: Number(event.target.value) * 1000 })}
+              className={`${field} w-20 text-right tabular-nums`}
+            />
+            <span className="text-[10px] text-zinc-500">s</span>
+          </span>
+        </label>
+      </div>
+    </InspectorPanel>
+  )
+}
+
 function CellInspector({
   show,
   cell,
@@ -1360,29 +1507,33 @@ function CellInspector({
     onUpdateAdaptations({ lightShutter: { ...lightShutter, ...changes } })
   }
   return (
-    <InspectorPanel title={`${cell.patternName} - cell - ${zone?.name ?? 'zone'} - ${scene?.name ?? 'scene'}`}>
-      <label className="block text-[10px] uppercase text-zinc-600">
-        Source pattern
-        <select
-          aria-label="Source pattern"
-          value={`${cell.pattern.kind}:${cell.pattern.id}`}
-          onChange={(event) => {
-            const option = patternOptions.find((item) => `${item.ref.kind}:${item.ref.id}` === event.target.value)
-            if (option) onUpdatePattern({ pattern: option.ref, patternName: option.label })
-          }}
-          className={`${field} mt-1 w-full`}
-        >
-          {patternOptions.map((option) => (
-            <option key={`${option.ref.kind}:${option.ref.id}`} value={`${option.ref.kind}:${option.ref.id}`}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-      </label>
+    <InspectorPanel family="Cell" title={`${cell.patternName} · ${zone?.name ?? 'zone'} · ${scene?.name ?? 'scene'}`} icon={<Grid2X2 size={13} aria-hidden />}>
+      <div className="grid items-end gap-2 sm:grid-cols-[minmax(14rem,1fr)_7rem_7rem]">
+        <label className="block text-[9px] uppercase tracking-[0.1em] text-zinc-600">
+          Source pattern
+          <select
+            aria-label="Source pattern"
+            value={`${cell.pattern.kind}:${cell.pattern.id}`}
+            onChange={(event) => {
+              const option = patternOptions.find((item) => `${item.ref.kind}:${item.ref.id}` === event.target.value)
+              if (option) onUpdatePattern({ pattern: option.ref, patternName: option.label })
+            }}
+            className={`${field} mt-1 w-full`}
+          >
+            {patternOptions.map((option) => (
+              <option key={`${option.ref.kind}:${option.ref.id}`} value={`${option.ref.kind}:${option.ref.id}`}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <NumberField label="Time x" value={cell.adaptations.timeScale} min={0} max={4} step={0.1} onChange={(timeScale) => onUpdateAdaptations({ timeScale })} />
+        <NumberField label="Brightness" value={cell.adaptations.brightness} min={0} max={1} step={0.01} onChange={(brightness) => onUpdateAdaptations({ brightness })} />
+      </div>
       {patternControls.length > 0 && (
-        <section className="mt-2 rounded border border-cyan-400/15 bg-cyan-400/[0.035] p-2" aria-label="Pattern automation targets">
-          <div className="mb-2 text-[10px] uppercase tracking-[0.12em] text-cyan-300/80">Pattern controls</div>
-          <div className="grid gap-2 sm:grid-cols-2">
+        <details className="mt-2 rounded border border-cyan-400/15 bg-cyan-400/[0.035]" aria-label="Pattern automation targets">
+          <summary className="cursor-pointer px-2 py-1.5 text-[9px] uppercase tracking-[0.12em] text-cyan-300/80">Add or edit pattern controls</summary>
+          <div className="grid gap-2 border-t border-cyan-400/10 p-2 sm:grid-cols-2">
             {patternControls.map((control) => {
               const target = cell.controlTargets?.[control.exportName]
               const enabled = target !== undefined
@@ -1417,125 +1568,128 @@ function CellInspector({
               )
             })}
           </div>
-        </section>
+        </details>
       )}
-      <div className="mt-2 grid grid-cols-2 gap-2">
-        <label className="flex items-center gap-2 text-zinc-300">
-          <input
-            type="checkbox"
-            checked={cell.adaptations.mirror}
-            onChange={(event) => onUpdateAdaptations({ mirror: event.target.checked })}
-          />
-          Mirror cell
-        </label>
-        <label className="text-[10px] uppercase text-zinc-600">
-          Hold scenes
-          <select
-            aria-label="Hold scenes"
-            value={cell.sceneSpan}
-            onChange={(event) => onExtend(Number(event.target.value))}
-            className={`${field} mt-1 w-full`}
-          >
-            {Array.from({ length: maxSpan }, (_, index) => index + 1).map((span) => (
-              <option key={span} value={span}>{span}</option>
-            ))}
-          </select>
-        </label>
-        {(cell.zoneSpan ?? 1) > 1 && (
-          <label className="text-[10px] uppercase text-zinc-600">
-            Zone domain
-            <select
-              aria-label="Zone domain"
-              value={cell.zoneMode === 'repeat' ? 'repeat' : 'span'}
-              onChange={(event) => onUpdateZoneMode(event.target.value === 'repeat' ? 'repeat' : 'span')}
-              className={`${field} mt-1 w-full`}
-            >
-              <option value="span">one canvas</option>
-              <option value="repeat">repeat per zone</option>
-            </select>
-          </label>
-        )}
-        <label className="text-[10px] uppercase text-zinc-600">
-          Span zones
-          <select
-            aria-label="Span zones"
-            value={cell.zoneSpan ?? 1}
-            onChange={(event) => onSpanZones(Number(event.target.value))}
-            className={`${field} mt-1 w-full`}
-          >
-            {Array.from({ length: maxZoneSpan }, (_, index) => index + 1).map((span) => (
-              <option key={span} value={span}>{span}</option>
-            ))}
-          </select>
-        </label>
-        <NumberField label="Phase" value={cell.adaptations.phase} min={0} max={1} step={0.01} onChange={(phase) => onUpdateAdaptations({ phase })} />
-        <NumberField label="Brightness" value={cell.adaptations.brightness} min={0} max={1} step={0.01} onChange={(brightness) => onUpdateAdaptations({ brightness })} />
-        <NumberField label="Time x" value={cell.adaptations.timeScale} min={0} max={4} step={0.1} onChange={(timeScale) => onUpdateAdaptations({ timeScale })} />
-      </div>
-      {sceneIndex > 0 && (
-        <section className="mt-3 rounded-md border border-sky-400/20 bg-sky-400/[0.04] p-3">
-          <label className="flex items-center gap-2 text-zinc-200">
-            <input
-              type="checkbox"
-              aria-label="Restart Pattern on entry"
-              checked={Boolean(cell.restartOnEntry)}
-              onChange={(event) => onUpdateRestartOnEntry(event.target.checked)}
-            />
-            Restart Pattern on entry
-          </label>
-          <p className="mt-1.5 text-[10px] leading-relaxed text-zinc-500">
-            {cell.restartOnEntry
-              ? 'Starts a fresh Pattern instance and private time base at this scene boundary.'
-              : 'Continues the matching Pattern instance, private clock, and accumulated state across this boundary.'}
-          </p>
-        </section>
-      )}
-      <MotionCadenceControl
-        stepMs={cell.adaptations.steppedClock?.stepMs}
-        timeOffsetMs={cell.adaptations.timeOffsetMs ?? 0}
-        onChange={(stepMs) => onUpdateAdaptations({
-          steppedClock: stepMs === null ? undefined : { stepMs },
-        })}
-        onOffsetChange={(timeOffsetMs) => onUpdateAdaptations({ timeOffsetMs })}
-      />
-      <div className="mt-3 border-t border-zinc-800 pt-3">
-        <label className="flex items-center gap-2 text-zinc-300">
-          <input
-            type="checkbox"
-            checked={Boolean(lightShutter)}
-            onChange={(event) => onUpdateAdaptations({
-              lightShutter: event.target.checked
-                ? { rateHz: 8, duty: 0.5, phase: 0, clockBehavior: 'continue' }
-                : undefined,
-            })}
-          />
-          Light shutter
-        </label>
-        {lightShutter && (
-          <>
-            <div className="mt-2 grid grid-cols-2 gap-2 xl:grid-cols-4">
-              <NumberField label="Shutter rate (Hz)" value={lightShutter.rateHz} min={0.01} max={60} step={0.1} onChange={(rateHz) => updateLightShutter({ rateHz })} />
-              <NumberField label="Light on fraction" value={lightShutter.duty} min={0} max={1} step={0.01} onChange={(duty) => updateLightShutter({ duty })} />
-              <NumberField label="Shutter phase" value={lightShutter.phase} min={0} max={1} step={0.01} onChange={(phase) => updateLightShutter({ phase })} />
+      <details className="mt-2 rounded border border-zinc-800 bg-zinc-950/35">
+        <summary className="cursor-pointer px-2 py-1.5 text-[9px] uppercase tracking-[0.12em] text-zinc-500">Advanced cell controls</summary>
+        <div className="border-t border-zinc-800 p-2">
+          <div className="grid grid-cols-2 gap-2">
+            <label className="flex items-center gap-2 text-zinc-300">
+              <input
+                type="checkbox"
+                checked={cell.adaptations.mirror}
+                onChange={(event) => onUpdateAdaptations({ mirror: event.target.checked })}
+              />
+              Mirror cell
+            </label>
+            <label className="text-[10px] uppercase text-zinc-600">
+              Hold scenes
+              <select
+                aria-label="Hold scenes"
+                value={cell.sceneSpan}
+                onChange={(event) => onExtend(Number(event.target.value))}
+                className={`${field} mt-1 w-full`}
+              >
+                {Array.from({ length: maxSpan }, (_, index) => index + 1).map((span) => (
+                  <option key={span} value={span}>{span}</option>
+                ))}
+              </select>
+            </label>
+            {(cell.zoneSpan ?? 1) > 1 && (
               <label className="text-[10px] uppercase text-zinc-600">
-                Clock while dark
+                Zone domain
                 <select
-                  aria-label="Clock while dark"
-                  value={lightShutter.clockBehavior}
-                  onChange={(event) => updateLightShutter({ clockBehavior: event.target.value === 'freeze' ? 'freeze' : 'continue' })}
+                  aria-label="Zone domain"
+                  value={cell.zoneMode === 'repeat' ? 'repeat' : 'span'}
+                  onChange={(event) => onUpdateZoneMode(event.target.value === 'repeat' ? 'repeat' : 'span')}
                   className={`${field} mt-1 w-full`}
                 >
-                  <option value="continue">continue</option>
-                  <option value="freeze">freeze</option>
+                  <option value="span">one canvas</option>
+                  <option value="repeat">repeat per zone</option>
                 </select>
               </label>
-            </div>
-            <p className="mt-2 text-[10px] leading-relaxed text-zinc-500">
-              Closed frames emit black and skip Pattern rendering. Continue advances motion behind darkness; freeze pauses Pattern time while dark.
-            </p>
-          </>
-        )}
-      </div>
+            )}
+            <label className="text-[10px] uppercase text-zinc-600">
+              Span zones
+              <select
+                aria-label="Span zones"
+                value={cell.zoneSpan ?? 1}
+                onChange={(event) => onSpanZones(Number(event.target.value))}
+                className={`${field} mt-1 w-full`}
+              >
+                {Array.from({ length: maxZoneSpan }, (_, index) => index + 1).map((span) => (
+                  <option key={span} value={span}>{span}</option>
+                ))}
+              </select>
+            </label>
+            <NumberField label="Phase" value={cell.adaptations.phase} min={0} max={1} step={0.01} onChange={(phase) => onUpdateAdaptations({ phase })} />
+          </div>
+          {sceneIndex > 0 && (
+            <section className="mt-3 rounded-md border border-sky-400/20 bg-sky-400/[0.04] p-3">
+              <label className="flex items-center gap-2 text-zinc-200">
+                <input
+                  type="checkbox"
+                  aria-label="Restart Pattern on entry"
+                  checked={Boolean(cell.restartOnEntry)}
+                  onChange={(event) => onUpdateRestartOnEntry(event.target.checked)}
+                />
+                Restart Pattern on entry
+              </label>
+              <p className="mt-1.5 text-[10px] leading-relaxed text-zinc-500">
+                {cell.restartOnEntry
+                  ? 'Starts a fresh Pattern instance and private time base at this scene boundary.'
+                  : 'Continues the matching Pattern instance, private clock, and accumulated state across this boundary.'}
+              </p>
+            </section>
+          )}
+          <MotionCadenceControl
+            stepMs={cell.adaptations.steppedClock?.stepMs}
+            timeOffsetMs={cell.adaptations.timeOffsetMs ?? 0}
+            onChange={(stepMs) => onUpdateAdaptations({
+              steppedClock: stepMs === null ? undefined : { stepMs },
+            })}
+            onOffsetChange={(timeOffsetMs) => onUpdateAdaptations({ timeOffsetMs })}
+          />
+          <div className="mt-3 border-t border-zinc-800 pt-3">
+            <label className="flex items-center gap-2 text-zinc-300">
+              <input
+                type="checkbox"
+                checked={Boolean(lightShutter)}
+                onChange={(event) => onUpdateAdaptations({
+                  lightShutter: event.target.checked
+                    ? { rateHz: 8, duty: 0.5, phase: 0, clockBehavior: 'continue' }
+                    : undefined,
+                })}
+              />
+              Light shutter
+            </label>
+            {lightShutter && (
+              <>
+                <div className="mt-2 grid grid-cols-2 gap-2 xl:grid-cols-4">
+                  <NumberField label="Shutter rate (Hz)" value={lightShutter.rateHz} min={0.01} max={60} step={0.1} onChange={(rateHz) => updateLightShutter({ rateHz })} />
+                  <NumberField label="Light on fraction" value={lightShutter.duty} min={0} max={1} step={0.01} onChange={(duty) => updateLightShutter({ duty })} />
+                  <NumberField label="Shutter phase" value={lightShutter.phase} min={0} max={1} step={0.01} onChange={(phase) => updateLightShutter({ phase })} />
+                  <label className="text-[10px] uppercase text-zinc-600">
+                    Clock while dark
+                    <select
+                      aria-label="Clock while dark"
+                      value={lightShutter.clockBehavior}
+                      onChange={(event) => updateLightShutter({ clockBehavior: event.target.value === 'freeze' ? 'freeze' : 'continue' })}
+                      className={`${field} mt-1 w-full`}
+                    >
+                      <option value="continue">continue</option>
+                      <option value="freeze">freeze</option>
+                    </select>
+                  </label>
+                </div>
+                <p className="mt-2 text-[10px] leading-relaxed text-zinc-500">
+                  Closed frames emit black and skip Pattern rendering. Continue advances motion behind darkness; freeze pauses Pattern time while dark.
+                </p>
+              </>
+            )}
+          </div>
+        </div>
+      </details>
     </InspectorPanel>
   )
 }
@@ -1654,7 +1808,16 @@ function TransitionInspector({
   const nextScene = show.scenes[sceneIndex + 1]
   if (transition.kind === 'routing') {
     return (
-      <InspectorPanel title={`${scene?.name ?? 'Scene'} -> ${nextScene?.name ?? 'next'} - routing transition`}>
+      <InspectorPanel
+        family="Transition"
+        title={`${scene?.name ?? 'Scene'} → ${nextScene?.name ?? 'next'} · routing`}
+        icon={<Route size={13} aria-hidden />}
+        actions={(
+          <Button size="icon-xs" variant="ghost" aria-label="Remove routing marker" title="Remove routing marker" className="text-zinc-500 hover:bg-red-950/30 hover:text-red-300" onClick={() => onRemove(transition.id)}>
+            <Trash2 size={12} aria-hidden />
+          </Button>
+        )}
+      >
         <div className="grid max-w-xl gap-3">
           <label className="text-[10px] uppercase text-zinc-600">
             Destination routing layout
@@ -1672,9 +1835,6 @@ function TransitionInspector({
           <p className="text-[10px] leading-4 text-zinc-500">
             Zero-duration routing marker. The selected layout takes effect at this boundary while Pattern clocks continue.
           </p>
-          <Button size="xs" variant="ghost" className="w-fit text-zinc-500 hover:text-red-300" onClick={() => onRemove(transition.id)}>
-            <Trash2 size={12} aria-hidden /> Remove marker
-          </Button>
         </div>
       </InspectorPanel>
     )
@@ -1709,7 +1869,16 @@ function TransitionInspector({
     ))
   }).filter((control, index, controls) => controls.findIndex((candidate) => candidate.exportName === control.exportName) === index)
   return (
-    <InspectorPanel title={`${scene?.name ?? 'Scene'} -> ${nextScene?.name ?? 'next'} - ${transition.kind} transition`}>
+    <InspectorPanel
+      family="Transition"
+      title={`${scene?.name ?? 'Scene'} → ${nextScene?.name ?? 'next'} · ${transition.kind}`}
+      icon={<Zap size={13} aria-hidden />}
+      actions={transition.kind !== 'cut' ? (
+        <Button size="icon-xs" variant="ghost" aria-label="Reset transition to cut" title="Reset to cut" className="text-zinc-500 hover:bg-red-950/30 hover:text-red-300" onClick={() => onRemove(transition.id)}>
+          <Trash2 size={12} aria-hidden />
+        </Button>
+      ) : null}
+    >
       <div className="grid grid-cols-2 gap-2">
         <label className="text-[10px] uppercase text-zinc-600">
           Boundary
@@ -1762,47 +1931,51 @@ function TransitionInspector({
           step={1}
           onChange={(seconds) => onUpdate(transition.id, { durationMs: seconds * 1000 })}
         />
-        {(['timeScale', 'brightness'] as const).map((property) => (
-          <PropertyTransitionEditor
-            key={property}
-            property={property}
-            show={show}
-            transition={transition}
-            sceneIndex={sceneIndex}
-            destinationCells={destinationCells}
-            onUpdate={onUpdate}
-            onUpdateCellAdaptations={onUpdateCellAdaptations}
-          />
-        ))}
-        {boundaryControls.map((control) => (
-          <PatternControlTransitionEditor
-            key={control.exportName}
-            control={control}
-            show={show}
-            transition={transition}
-            sceneIndex={sceneIndex}
-            destinationCells={destinationCells}
-            onUpdate={onUpdate}
-            onUpdateControlTarget={onUpdateControlTarget}
-          />
-        ))}
-        {transition.kind === 'wipe' && (
-          <>
-            <NumberField
-              label="Feather width"
-              value={transition.feather ?? 0}
-              min={0}
-              max={1}
-              step={0.05}
-              onChange={(feather) => onUpdate(transition.id, { feather })}
+      </div>
+      <details className="mt-2 rounded border border-zinc-800 bg-zinc-950/35">
+        <summary className="cursor-pointer px-2 py-1.5 text-[9px] uppercase tracking-[0.12em] text-zinc-500">Advanced transition controls</summary>
+        <div className="grid grid-cols-2 gap-2 border-t border-zinc-800 p-2">
+          {(['timeScale', 'brightness'] as const).map((property) => (
+            <PropertyTransitionEditor
+              key={property}
+              property={property}
+              show={show}
+              transition={transition}
+              sceneIndex={sceneIndex}
+              destinationCells={destinationCells}
+              onUpdate={onUpdate}
+              onUpdateCellAdaptations={onUpdateCellAdaptations}
             />
-            <div className="rounded border border-zinc-800 bg-zinc-950/55 p-2 text-[10px] leading-4 text-zinc-500">
-              Feather uses a stable spatial threshold across the 1D route edge and still calls one Pattern renderer per pixel.
-            </div>
-          </>
-        )}
-        {transition.kind === 'portal' && (
-          <>
+          ))}
+          {boundaryControls.map((control) => (
+            <PatternControlTransitionEditor
+              key={control.exportName}
+              control={control}
+              show={show}
+              transition={transition}
+              sceneIndex={sceneIndex}
+              destinationCells={destinationCells}
+              onUpdate={onUpdate}
+              onUpdateControlTarget={onUpdateControlTarget}
+            />
+          ))}
+          {transition.kind === 'wipe' && (
+            <>
+              <NumberField
+                label="Feather width"
+                value={transition.feather ?? 0}
+                min={0}
+                max={1}
+                step={0.05}
+                onChange={(feather) => onUpdate(transition.id, { feather })}
+              />
+              <div className="rounded border border-zinc-800 bg-zinc-950/55 p-2 text-[10px] leading-4 text-zinc-500">
+                Feather uses a stable spatial threshold across the 1D route edge and still calls one Pattern renderer per pixel.
+              </div>
+            </>
+          )}
+          {transition.kind === 'portal' && (
+            <>
             <NumberField
               label="Center X"
               value={portalSettings.centerX}
@@ -1854,20 +2027,16 @@ function TransitionInspector({
                 ? 'Two Pattern renderers run only inside the circular feather band.'
                 : 'A stable threshold keeps the portal to one Pattern renderer per pixel.'}
             </div>
-          </>
-        )}
-        <div className="rounded border border-zinc-800 bg-zinc-950/55 p-2 text-[10px] text-zinc-500">
-          Cost tier:{' '}
-          <span className={cost === 'expensive' ? 'text-amber-300' : cost === 'cheap' ? 'text-emerald-300' : 'text-zinc-300'}>
-            {cost}
-          </span>
+            </>
+          )}
+          <div className="rounded border border-zinc-800 bg-zinc-950/55 p-2 text-[10px] text-zinc-500">
+            Cost tier:{' '}
+            <span className={cost === 'expensive' ? 'text-amber-300' : cost === 'cheap' ? 'text-emerald-300' : 'text-zinc-300'}>
+              {cost}
+            </span>
+          </div>
         </div>
-        {transition.kind !== 'cut' && (
-          <Button size="xs" variant="ghost" className="w-fit text-zinc-500 hover:text-red-300" onClick={() => onRemove(transition.id)}>
-            <Trash2 size={12} aria-hidden /> Remove transition
-          </Button>
-        )}
-      </div>
+      </details>
     </InspectorPanel>
   )
 }
@@ -2144,7 +2313,7 @@ function RoutingSwitchInspector({
   const to = show.scenes[sceneIndex + 1]?.name ?? 'next scene'
   const routingSwitch = show.routingSwitches.find((candidate) => candidate.afterSceneId === afterSceneId)
   return (
-    <InspectorPanel title={`${from} -> ${to} - routing layout`}>
+    <InspectorPanel family="Transition" title={`${from} → ${to} · routing layout`} icon={<Route size={13} aria-hidden />}>
       <div className="grid max-w-xl gap-2">
         <label className="text-[10px] uppercase text-zinc-600">
           Destination routing layout
@@ -2193,7 +2362,7 @@ function ShowSetupInspector({
 }) {
   const zonePixels = show.zones.reduce((sum, zone) => sum + zone.nominalPixelCount, 0)
   return (
-    <InspectorPanel title="Show setup">
+    <InspectorPanel family="Show" title={show.name} icon={<Settings2 size={13} aria-hidden />}>
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <label className="text-[10px] uppercase text-zinc-600">
           Target controller
@@ -2352,7 +2521,7 @@ function ZoneInspector({
   onRemoveZone: () => void
 }) {
   return (
-    <InspectorPanel title={`${zone.name} - zone${targetName ? ` - ${targetName}` : ''}`}>
+    <InspectorPanel family="Zone" title={`${zone.name}${targetName ? ` · ${targetName}` : ''}`} icon={<MapIcon size={13} aria-hidden />}>
       <div className="grid gap-2 rounded border border-zinc-800 bg-zinc-950/55 p-2 md:grid-cols-[minmax(140px,1fr)_96px_36px]">
         <label className="flex min-w-0 items-center gap-2">
           <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: zone.color ?? '#38bdf8' }} />

@@ -372,6 +372,68 @@ export function addShowScene(show: ShowRecord): ShowRecord {
   })
 }
 
+export function duplicateShowScene(show: ShowRecord, sceneId: string): ShowRecord {
+  show = normalizeShowTransitionState(show)
+  const sceneIndex = show.scenes.findIndex((scene) => scene.id === sceneId)
+  if (sceneIndex === -1) return show
+
+  const sourceScene = show.scenes[sceneIndex]
+  const duplicateId = nextEntityId('scene-', show.scenes)
+  const duplicate: ShowScene = {
+    ...sourceScene,
+    id: duplicateId,
+    name: uniqueSceneName(`${sourceScene.name} copy`, show.scenes),
+  }
+  const scenes = [
+    ...show.scenes.slice(0, sceneIndex),
+    { ...sourceScene, transitionOut: undefined },
+    duplicate,
+    ...show.scenes.slice(sceneIndex + 1),
+  ]
+
+  const sceneIndexById = new Map(show.scenes.map((scene, index) => [scene.id, index]))
+  const usedCellIds = new Set(show.cells.map((cell) => cell.id))
+  const cells = show.cells.flatMap((cell) => {
+    const start = sceneIndexById.get(cell.sceneId)
+    if (start == null) return [cell]
+    const end = start + Math.max(1, cell.sceneSpan) - 1
+    if (sceneIndex < start || sceneIndex > end) return [cell]
+    if (end > sceneIndex) return [{ ...cell, sceneSpan: Math.max(1, cell.sceneSpan) + 1 }]
+
+    const cellId = nextStringId('cell-', usedCellIds)
+    usedCellIds.add(cellId)
+    const copy = copyCellForScene(cell, cellId, cell.zoneId, duplicateId, sceneIndex + 1)
+    return [cell, { ...copy, zoneSpan: cell.zoneSpan, zoneMode: cell.zoneMode }]
+  })
+
+  const transitions: ShowBoundaryTransition[] = [
+    ...(show.transitions ?? []).map((transition) => (
+      transition.afterSceneId === sceneId
+        ? {
+            ...transition,
+            id: `${transition.kind === 'routing' ? 'routing' : 'transition'}-${duplicateId}`,
+            afterSceneId: duplicateId,
+          }
+        : transition
+    )),
+    {
+      id: `transition-${sceneId}`,
+      afterSceneId: sceneId,
+      kind: 'cut',
+      durationMs: 0,
+      easing: 'linear',
+    },
+  ]
+
+  return normalizeShowTransitionState({
+    ...show,
+    scenes,
+    cells,
+    transitions,
+    updatedAt: Math.max(Date.now(), show.updatedAt + 1),
+  })
+}
+
 /**
  * Split the scene hold containing `atMs`. The operation is atomic: invalid
  * boundaries and transition windows return the original record unchanged.

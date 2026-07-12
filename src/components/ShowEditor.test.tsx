@@ -133,6 +133,51 @@ describe('ShowEditor (#318)', () => {
     expect(usePreviewStore.getState().isRunning).toBe(true)
   })
 
+  it('selects a scene and exposes compact Scene properties (#424)', async () => {
+    const show = createDefaultShow('show-scene-properties', 'Scene properties study', 1000)
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+
+    fireEvent.click(screen.getByRole('group', { name: 'Scene Scene 1' }))
+
+    expect(screen.getByRole('region', { name: 'Scene properties' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Scene properties' })).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: 'Scene name' })).toHaveValue('Scene 1')
+    expect(screen.getByRole('spinbutton', { name: 'Scene duration seconds' })).toHaveValue(30)
+
+    fireEvent.change(screen.getByRole('spinbutton', { name: 'Scene duration seconds' }), { target: { value: '12' } })
+    await waitFor(() => expect(useShowStore.getState().shows[0].scenes[0].durationMs).toBe(12_000))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Duplicate scene Scene 1' }))
+    await waitFor(() => expect(useShowStore.getState().shows[0].scenes).toHaveLength(3))
+  })
+
+  it('uses Delete for the selected timeline entity while protecting editors (#424)', async () => {
+    const user = userEvent.setup()
+    const show = createDefaultShow('show-424-delete', 'Delete study', 1000)
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+
+    await user.click(screen.getByRole('group', { name: 'Scene Scene 1' }))
+    fireEvent.keyDown(screen.getByLabelText('Scene name'), { key: 'Delete' })
+    expect(screen.queryByText('Remove scene?')).not.toBeInTheDocument()
+
+    fireEvent.keyDown(document, { key: 'Delete' })
+    expect(screen.getByText('Remove scene?')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+
+    await user.click(screen.getByRole('button', { name: 'Select Scene 1 to Scene 2 transition (crossfade)' }))
+    fireEvent.keyDown(document, { key: 'Delete' })
+    await waitFor(() => {
+      expect(useShowStore.getState().shows[0].transitions?.find((transition) => transition.id === 'transition-scene-1')?.kind)
+        .toBe('cut')
+    })
+  })
+
   it('resumes playback after scrubbing a Show that was already playing', () => {
     const show = createDefaultShow('show-resume-scrub', 'Resume after scrub', 1000)
     useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
@@ -246,7 +291,8 @@ describe('ShowEditor (#318)', () => {
 
     expect(screen.getByRole('group', { name: 'Transition lane' })).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Select Scene 1 to Scene 2 transition (crossfade)' }))
-    expect(screen.getByText(/Scene 1 -> Scene 2 - crossfade transition/i)).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Transition properties' })).toBeInTheDocument()
+    expect(screen.getByText(/Scene 1 → Scene 2 · crossfade/i)).toBeInTheDocument()
     await user.selectOptions(screen.getByLabelText('Transition easing'), 'ease-in-out')
     await waitFor(() => {
       expect(useShowStore.getState().shows[0].transitions?.find((transition) => transition.id === 'transition-scene-1')?.easing)
@@ -254,7 +300,7 @@ describe('ShowEditor (#318)', () => {
     })
 
     await user.click(screen.getByRole('button', { name: 'Select Scene 1 to Scene 2 transition (routing)' }))
-    expect(screen.getByText(/Scene 1 -> Scene 2 - routing transition/i)).toBeInTheDocument()
+    expect(screen.getByText(/Scene 1 → Scene 2 · routing/i)).toBeInTheDocument()
     expect(screen.getByLabelText('Destination routing layout')).toHaveValue(base.routingLayouts[1].id)
   })
 
@@ -369,7 +415,8 @@ describe('ShowEditor (#318)', () => {
 
     render(<ShowEditor showId={show.id} />)
 
-    expect(screen.queryByText('Opening wash')).not.toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Show properties' })).toBeInTheDocument()
+    expect(screen.getByText('Opening wash')).toBeInTheDocument()
     expect(screen.queryByText(/show - 1 scenes/i)).not.toBeInTheDocument()
     expect(screen.getByText('00:00.000 / 01:02.000')).toBeInTheDocument()
     expect(screen.getByDisplayValue('Scene 1')).toBeInTheDocument()
@@ -377,17 +424,19 @@ describe('ShowEditor (#318)', () => {
     expect(screen.getByText(/compiled artifact/i)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Export Show as .epe' })).toBeEnabled()
     expect(screen.getByText(/renderer\/px/i)).toBeInTheDocument()
-    expect(screen.getByText('Show setup')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Show properties' })).toBeInTheDocument()
     expect(screen.getByLabelText('Target controller')).toBeInTheDocument()
 
     await user.click(screen.getAllByRole('button', { name: /Select TestPattern1D/i })[0])
 
-    expect(screen.getByText(/TestPattern1D - cell - main - Scene 1/i)).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Cell properties' })).toBeInTheDocument()
+    expect(screen.getByText(/TestPattern1D · main · Scene 1/i)).toBeInTheDocument()
     expect(screen.getByLabelText('Mirror cell')).toBeInTheDocument()
     expect(screen.getByLabelText('Time x')).toHaveAttribute('min', '0')
 
     await user.click(screen.getByRole('button', { name: /Select Scene 1 to Scene 2 transition/i }))
-    expect(screen.getByText(/Scene 1 -> Scene 2 - crossfade transition/i)).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Transition properties' })).toBeInTheDocument()
+    expect(screen.getByText(/Scene 1 → Scene 2 · crossfade/i)).toBeInTheDocument()
     expect(screen.getByRole('option', { name: 'wipe' })).toBeInTheDocument()
   })
 
@@ -643,7 +692,7 @@ describe('ShowEditor (#318)', () => {
     await waitFor(() => {
       expect(useShowStore.getState().shows[0].scenes).toHaveLength(3)
     })
-    expect(screen.getByDisplayValue('Scene 3')).toBeInTheDocument()
+    expect(screen.getByRole('group', { name: 'Scene Scene 3' })).toBeInTheDocument()
 
     await user.click(screen.getAllByRole('button', { name: 'Add zone' })[0])
     await waitFor(() => {

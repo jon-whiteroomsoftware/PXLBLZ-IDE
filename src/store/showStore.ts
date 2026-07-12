@@ -6,6 +6,7 @@ import {
   addShowZone,
   createDefaultShowFromController,
   createDefaultShow,
+  duplicateShowScene,
   extendShowCell,
   importedStageMapIdForController,
   normalizeShowEntryState,
@@ -58,6 +59,7 @@ interface ShowState {
   updateShow: (id: string, next: ShowRecord) => Promise<void>
   updateStageMap: (showId: string, stageMapId: string | null) => Promise<void>
   addScene: (showId: string) => Promise<void>
+  duplicateScene: (showId: string, sceneId: string) => Promise<void>
   removeScene: (showId: string, sceneId: string) => Promise<void>
   updateScene: (showId: string, sceneId: string, changes: Partial<Omit<ShowScene, 'id'>>) => Promise<void>
   updateTransition: (
@@ -194,6 +196,12 @@ export const useShowStore = create<ShowState>()((set, get) => ({
     const show = get().shows.find((item) => item.id === showId)
     if (!show) return
     await get().updateShow(showId, addShowScene(show))
+  },
+
+  duplicateScene: async (showId, sceneId) => {
+    const show = get().shows.find((item) => item.id === showId)
+    if (!show) return
+    await get().updateShow(showId, duplicateShowScene(show, sceneId))
   },
 
   removeScene: async (showId, sceneId) => {

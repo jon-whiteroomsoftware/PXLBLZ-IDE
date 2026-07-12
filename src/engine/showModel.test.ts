@@ -1,6 +1,7 @@
 import {
   addShowRoutingLayout,
   addShowScene,
+  duplicateShowScene,
   addShowZone,
   createDefaultShowFromController,
   createDefaultShow,
@@ -204,6 +205,23 @@ describe('showModel (#318)', () => {
     expect(split.cells[1].pattern).not.toBe(base.cells[0].pattern)
     expect(split.cells[1].adaptations).not.toBe(base.cells[0].adaptations)
     expect(split.updatedAt).toBeGreaterThan(base.updatedAt)
+  })
+
+  it('duplicates a scene with its cells and preserves the following boundary (#424)', () => {
+    const show = createDefaultShow('show-424-duplicate', 'Duplicate study', 1)
+
+    const duplicated = duplicateShowScene(show, show.scenes[0].id)
+
+    expect(duplicated.scenes).toHaveLength(3)
+    expect(duplicated.scenes[1]).toMatchObject({ name: 'Scene 1 copy', durationMs: show.scenes[0].durationMs })
+    expect(duplicated.cells.find((cell) => cell.sceneId === duplicated.scenes[1].id)).toMatchObject({
+      pattern: show.cells[0].pattern,
+      adaptations: show.cells[0].adaptations,
+      sceneSpan: 1,
+    })
+    expect(duplicated.transitions?.find((transition) => transition.afterSceneId === show.scenes[0].id)).toMatchObject({ kind: 'cut' })
+    expect(duplicated.transitions?.find((transition) => transition.afterSceneId === duplicated.scenes[1].id)).toMatchObject({ kind: 'crossfade' })
+    expectHoleFreeStrip(duplicated)
   })
 
   it('rejects split points at boundaries, transitions, and sub-second fragments (#415)', () => {
