@@ -13,6 +13,7 @@ import type {
   ShowZone,
 } from './personalContentRecords'
 import type { ShowClipAdaptation, ShowRecipe, ShowRoutingLayoutRecipe } from './showCompiler'
+import { clampShowRepeatScale } from './showCoordinateRemap'
 import {
   controllerZonePixelCount,
   controllerProfileDisplayName,
@@ -327,6 +328,9 @@ export function updateShowScene(
             ...(changes.routingTargets
               ? { routingTargets: { splitPosition: clamp01(changes.routingTargets.splitPosition ?? 0.5) } }
               : {}),
+            ...(changes.sampleTargets
+              ? { sampleTargets: { repeatScale: clampShowRepeatScale(changes.sampleTargets.repeatScale ?? 1) } }
+              : {}),
           }
         : scene
     )),
@@ -344,6 +348,9 @@ export function addShowScene(show: ShowRecord): ShowRecord {
     durationMs: 30000,
     ...(previousScene?.routingTargets
       ? { routingTargets: { ...previousScene.routingTargets } }
+      : {}),
+    ...(previousScene?.sampleTargets
+      ? { sampleTargets: { ...previousScene.sampleTargets } }
       : {}),
   }
   const lastSceneIndex = show.scenes.length - 1
@@ -982,6 +989,9 @@ export function normalizeShowTransitionState(show: ShowRecord): ShowRecord {
         ...(scene.routingTargets
           ? { routingTargets: { splitPosition: clamp01(scene.routingTargets.splitPosition ?? 0.5) } }
           : {}),
+        ...(scene.sampleTargets
+          ? { sampleTargets: { repeatScale: clampShowRepeatScale(scene.sampleTargets.repeatScale ?? 1) } }
+          : {}),
       }
       if (index === show.scenes.length - 1) return { ...normalizedScene, transitionOut: undefined }
       const transition = visualByScene.get(scene.id)
@@ -1074,15 +1084,27 @@ function normalizePropertyTransitions(transition: ShowBoundaryTransition): Pick<
           clampDuration(transition.durationMs),
         ),
         easing: normalizeEasing(splitPositionSource.easing ?? transition.easing),
+    }
+    : undefined
+  const repeatScaleSource = transition.propertyTransitions?.sample?.repeatScale
+  const repeatScale = repeatScaleSource
+    ? {
+        from: clampShowRepeatScale(repeatScaleSource.from),
+        durationMs: Math.min(
+          clampPropertyDuration(repeatScaleSource.durationMs ?? transition.durationMs),
+          clampDuration(transition.durationMs),
+        ),
+        easing: normalizeEasing(repeatScaleSource.easing ?? transition.easing),
       }
     : undefined
-  return timeScale || brightness || Object.keys(controls).length > 0 || splitPosition
+  return timeScale || brightness || Object.keys(controls).length > 0 || splitPosition || repeatScale
     ? {
         propertyTransitions: {
           ...(timeScale ? { timeScale } : {}),
           ...(brightness ? { brightness } : {}),
           ...(Object.keys(controls).length > 0 ? { controls } : {}),
           ...(splitPosition ? { routing: { splitPosition } } : {}),
+          ...(repeatScale ? { sample: { repeatScale } } : {}),
         },
       }
     : {}
@@ -1337,6 +1359,7 @@ export function showRecordToCompileRecipe(
   if (!firstZone) throw new Error('Show compile requires at least one zone.')
   const sceneSequence = showRecordToSceneSequenceRecipe(show, firstZone, lookup)
   if (sceneSequence) return sceneSequence
+  const samplePropertyRamps = showSamplePropertyRamps(show, true)
   const cells = show.cells
     .filter((cell) => cell.zoneId === firstZone.id)
     .sort((a, b) => sceneIndex(show, a.sceneId) - sceneIndex(show, b.sceneId))
@@ -1349,6 +1372,7 @@ export function showRecordToCompileRecipe(
     return {
       clips: [{ id: cells[0].id, source: source0, adaptation: compilerAdaptation(cells[0].adaptations), controlTargets: cells[0].controlTargets }],
       zones: lookup.controllerZones ?? nominalZones(show.zones),
+      samplePropertyRamps,
     }
   }
 
@@ -1408,6 +1432,7 @@ export function showRecordToCompileRecipe(
         ...(controlRamps && Object.keys(controlRamps).length > 0 ? { controlRamps } : {}),
       },
       zones: lookup.controllerZones ?? nominalZones(show.zones),
+      samplePropertyRamps,
     }
   }
 
@@ -1440,6 +1465,7 @@ export function showRecordToCompileRecipe(
         }
       : undefined,
     zones: lookup.controllerZones ?? nominalZones(show.zones),
+    samplePropertyRamps,
   }
 }
 
@@ -1550,6 +1576,7 @@ function showRecordToSceneSequenceRecipe(
       }),
     },
     zones: lookup.controllerZones ?? nominalZones(show.zones),
+    samplePropertyRamps: showSamplePropertyRamps(show, true),
   }
 }
 
@@ -1665,7 +1692,41 @@ function showRecordToRoutedFirstSceneRecipe(
     routingLayouts,
     routingSwitches: routingLayouts ? activeSwitches : undefined,
     routingPropertyRamps: splitPosition ? { splitPosition } : undefined,
+    samplePropertyRamps: showSamplePropertyRamps(normalized, false),
     loopDurationMs: routingLayouts ? loopDurationMs : undefined,
+  }
+}
+
+function showSamplePropertyRamps(
+  show: ShowRecord,
+  includeTransitionDurations: boolean,
+): ShowRecipe['samplePropertyRamps'] {
+  const hasAuthoredValue = show.scenes.some((scene) => scene.sampleTargets?.repeatScale !== undefined)
+    || Boolean(show.transitions?.some((transition) => transition.propertyTransitions?.sample?.repeatScale))
+  if (!hasAuthoredValue) return undefined
+
+  let cursorMs = 0
+  const ramps = show.scenes.slice(0, -1).map((scene, sceneIndex) => {
+    cursorMs += Math.max(0, scene.durationMs)
+    const boundary = show.transitions?.find((transition) => (
+      transition.afterSceneId === scene.id && transition.kind !== 'routing'
+    ))
+    const descriptor = boundary?.propertyTransitions?.sample?.repeatScale
+    const ramp = {
+      atMs: cursorMs,
+      from: clampShowRepeatScale(descriptor?.from ?? scene.sampleTargets?.repeatScale ?? 1),
+      to: clampShowRepeatScale(show.scenes[sceneIndex + 1]?.sampleTargets?.repeatScale ?? 1),
+      durationMs: descriptor?.durationMs ?? 0,
+      easing: descriptor?.easing ?? 'linear' as const,
+    }
+    if (includeTransitionDurations) cursorMs += Math.max(0, scene.transitionOut?.durationMs ?? 0)
+    return ramp
+  })
+  return {
+    repeatScale: {
+      initial: clampShowRepeatScale(show.scenes[0]?.sampleTargets?.repeatScale ?? 1),
+      ramps,
+    },
   }
 }
 

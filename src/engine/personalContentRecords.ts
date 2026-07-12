@@ -101,6 +101,9 @@ export interface ShowPropertyTransitions {
   routing?: {
     splitPosition?: ShowScalarPropertyTransition
   }
+  sample?: {
+    repeatScale?: ShowScalarPropertyTransition
+  }
 }
 
 export interface ShowPortalSettings {
@@ -141,10 +144,15 @@ export interface ShowScene {
   transitionOut?: ShowTransition
   /** Show-wide property targets that take effect during this scene. */
   routingTargets?: ShowRoutingTargets
+  sampleTargets?: ShowSampleTargets
 }
 
 export interface ShowRoutingTargets {
   splitPosition?: number
+}
+
+export interface ShowSampleTargets {
+  repeatScale?: number
 }
 
 export interface ShowZone {

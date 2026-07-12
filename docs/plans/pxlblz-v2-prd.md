@@ -116,18 +116,26 @@ Measured production comparison: [issue 405 moving-split results](archive/issue-4
 
 ### 3.4 Coordinate remapping (#406)
 
-Prototype two cheap transforms that change coordinates sampled by a Pattern
-rather than zone ownership. Strong candidates are synchronized tiling and one of
-mirror, rotation, zoom, or fold.
+Shipped tracer: synchronized tiling repeats the post-routing local Pattern
+sample with one continuous `repeatScale` from `1..8`; `1` is exact identity.
+The destination scene owns the Show-wide target and the incoming visual
+boundary owns start, duration, and easing through the shared property model. A
+nested Sample lane, scene inspector, transition inspector, compile summary, and
+generated artifact all expose the same authored state.
 
-The design must preserve three distinct concepts:
+The Stage Map still owns the original hardware-real `sample` and preview `pos`.
+Routing still owns zone selection and local normalization. Remapping runs only
+after those steps and changes the arguments presented to unedited source
+Patterns. It repeats normalized index position for 1D renderers and local X/Y
+for 2D renderers; no 3D policy is inferred.
 
-- routing layout — which zone owns a physical pixel;
-- Stage Map — where the installation is previewed; and
-- coordinate remapping — the local domain supplied to the source Pattern.
+The selected transform adds one scalar, up to two multiplies and two `frac`
+calls per pixel, and zero renderers. Center rotation was prototyped but rejected
+for this slice because it requires three scalars, two per-frame trig calls, more
+pixel arithmetic, and a larger artifact.
 
-Continuous transform controls join the shared property-transition model after
-their semantics and dimensional compatibility are proven.
+Technical design and comparison: [coordinate-remapping design](issue-406-coordinate-remapping-design.md)
+and [prototype results](archive/issue-406-coordinate-remapping-results.md).
 
 ### 3.5 Routing representation maturity (#408)
 

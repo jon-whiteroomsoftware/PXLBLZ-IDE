@@ -674,7 +674,9 @@ function SceneStrip({
       ?? exportName.replace(/^slider/, '').replace(/([A-Z])/g, ' $1').trim(),
   }))
   const movingSplitLayout = show.routingLayouts.find((layout) => layout.logical?.kind === 'split')
-  const routingLaneRows = movingSplitLayout ? 1 : 0
+  const hasSampleRemap = show.scenes.some((scene) => scene.sampleTargets?.repeatScale !== undefined)
+    || Boolean(show.transitions?.some((transition) => transition.propertyTransitions?.sample?.repeatScale))
+  const routingLaneRows = (movingSplitLayout ? 1 : 0) + (hasSampleRemap ? 1 : 0)
   const rowStride = 3 + controlLanes.length
   const columns = [
     '148px',
@@ -693,6 +695,7 @@ function SceneStrip({
     '28px',
     '34px',
     ...(movingSplitLayout ? ['26px'] : []),
+    ...(hasSampleRemap ? ['26px'] : []),
     ...strip.rows.flatMap(() => ['64px', '26px', '26px', ...controlLanes.map(() => '26px')]),
     '34px',
   ]
@@ -875,6 +878,48 @@ function SceneStrip({
             </div>
           )
         })()}
+        {hasSampleRemap && (
+          <div role="group" aria-label="Sample repeat lane" className="contents">
+            <div
+              className="sticky left-0 z-30 flex items-center gap-1 border-t border-zinc-900/80 bg-[#060608] px-2 font-mono text-[9px] text-cyan-300/80"
+              style={{ gridColumn: 1, gridRow: 4 + (movingSplitLayout ? 1 : 0) }}
+            >
+              ↳ sample repeat
+            </div>
+            {show.scenes.map((scene, sceneIndex) => {
+              const scale = scene.sampleTargets?.repeatScale ?? 1
+              return (
+                <div
+                  key={`sample-repeat-${scene.id}`}
+                  className="flex items-center justify-center border-t border-zinc-900/80 bg-[repeating-linear-gradient(135deg,rgba(34,211,238,0.12)_0_3px,transparent_3px_8px)] font-mono text-[9px] text-cyan-100"
+                  style={{ gridColumn: 2 + sceneIndex * 2, gridRow: 4 + (movingSplitLayout ? 1 : 0) }}
+                >
+                  {formatRepeatScale(scale)}×
+                </div>
+              )
+            })}
+            {show.scenes.slice(0, -1).map((scene, sceneIndex) => {
+              const transition = show.transitions?.find((candidate) => candidate.afterSceneId === scene.id && candidate.kind !== 'routing')
+              const descriptor = transition?.propertyTransitions?.sample?.repeatScale
+              const target = show.scenes[sceneIndex + 1]?.sampleTargets?.repeatScale ?? 1
+              return transition ? (
+                <button
+                  key={`sample-repeat-boundary-${scene.id}`}
+                  type="button"
+                  aria-label={`Edit repeat scale transition from ${scene.name}`}
+                  className={descriptor ? 'border-t border-zinc-900/80 bg-cyan-400/10 font-mono text-[9px] text-cyan-200' : 'border-t border-zinc-900/80 font-mono text-[9px] text-zinc-700 hover:text-cyan-300'}
+                  style={{ gridColumn: 3 + sceneIndex * 2, gridRow: 4 + (movingSplitLayout ? 1 : 0) }}
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    onSelect({ kind: 'transition', transitionId: transition.id })
+                  }}
+                >
+                  {descriptor ? `${formatRepeatScale(descriptor.from)}→${formatRepeatScale(target)}` : '—'}
+                </button>
+              ) : null
+            })}
+          </div>
+        )}
         {strip.rows.map((row, rowIndex) => (
           <div key={row.zoneId} className="contents">
             <button
@@ -1753,6 +1798,14 @@ function SceneInspector({
             onChange={(splitPosition) => onUpdate({ routingTargets: { splitPosition } })}
           />
         )}
+        <NumberField
+          label="Repeat scale"
+          value={scene.sampleTargets?.repeatScale ?? 1}
+          min={1}
+          max={8}
+          step={0.1}
+          onChange={(repeatScale) => onUpdate({ sampleTargets: { repeatScale } })}
+        />
       </div>
     </InspectorPanel>
   )
@@ -2309,6 +2362,14 @@ function TransitionInspector({
               onUpdate={onUpdate}
             />
           )}
+          {nextScene && (
+            <SampleRepeatTransitionEditor
+              transition={transition}
+              fromTarget={scene?.sampleTargets?.repeatScale ?? 1}
+              toTarget={nextScene.sampleTargets?.repeatScale ?? 1}
+              onUpdate={onUpdate}
+            />
+          )}
           {boundaryControls.map((control) => (
             <PatternControlTransitionEditor
               key={control.exportName}
@@ -2453,6 +2514,94 @@ function TransitionInspector({
         </div>
       </details>
     </InspectorPanel>
+  )
+}
+
+function SampleRepeatTransitionEditor({
+  transition,
+  fromTarget,
+  toTarget,
+  onUpdate,
+}: {
+  transition: ShowBoundaryTransition
+  fromTarget: number
+  toTarget: number
+  onUpdate: (transitionId: string, changes: Partial<Omit<ShowBoundaryTransition, 'id' | 'afterSceneId'>>) => void
+}) {
+  const descriptor = transition.propertyTransitions?.sample?.repeatScale
+  const updateDescriptor = (changes: Partial<NonNullable<typeof descriptor>>) => {
+    onUpdate(transition.id, {
+      propertyTransitions: {
+        ...(transition.propertyTransitions ?? {}),
+        sample: {
+          ...(transition.propertyTransitions?.sample ?? {}),
+          repeatScale: {
+            from: changes.from ?? descriptor?.from ?? fromTarget,
+            durationMs: changes.durationMs ?? descriptor?.durationMs ?? transition.durationMs,
+            easing: changes.easing ?? descriptor?.easing ?? transition.easing,
+          },
+        },
+      },
+    })
+  }
+  const removeDescriptor = () => {
+    const propertyTransitions = { ...(transition.propertyTransitions ?? {}) }
+    const sample = { ...(propertyTransitions.sample ?? {}) }
+    delete sample.repeatScale
+    if (Object.keys(sample).length > 0) propertyTransitions.sample = sample
+    else delete propertyTransitions.sample
+    onUpdate(transition.id, {
+      propertyTransitions: Object.keys(propertyTransitions).length > 0 ? propertyTransitions : undefined,
+    })
+  }
+  return (
+    <section className="col-span-2 rounded border border-cyan-900/50 bg-cyan-950/10 p-2">
+      <label className="flex items-center gap-2 text-[10px] uppercase text-cyan-300/80">
+        <input
+          type="checkbox"
+          aria-label="Animate repeat scale"
+          checked={Boolean(descriptor)}
+          onChange={(event) => event.target.checked ? updateDescriptor({}) : removeDescriptor()}
+          className="h-3.5 w-3.5 accent-cyan-400"
+        />
+        Repeat scale
+        <span className="ml-auto font-mono text-zinc-500">{formatRepeatScale(fromTarget)}× → {formatRepeatScale(toTarget)}×</span>
+      </label>
+      {descriptor && (
+        <div className="mt-2 grid grid-cols-3 gap-2">
+          <NumberField
+            label="Repeat scale start"
+            value={descriptor.from}
+            min={1}
+            max={8}
+            step={0.1}
+            onChange={(from) => updateDescriptor({ from })}
+          />
+          <NumberField
+            label="Repeat scale duration seconds"
+            value={(descriptor.durationMs ?? transition.durationMs) / 1000}
+            min={0}
+            max={Math.max(0, transition.durationMs / 1000)}
+            step={0.1}
+            onChange={(seconds) => updateDescriptor({ durationMs: seconds * 1000 })}
+          />
+          <label className="text-[10px] uppercase text-zinc-600">
+            Repeat scale easing
+            <select
+              aria-label="Repeat scale easing"
+              value={descriptor.easing ?? transition.easing}
+              onChange={(event) => updateDescriptor({ easing: event.target.value as ShowBoundaryTransition['easing'] })}
+              className={`${field} mt-1 w-full`}
+            >
+              <option value="linear">linear</option>
+              <option value="ease-in">ease in</option>
+              <option value="ease-out">ease out</option>
+              <option value="ease-in-out">ease in/out</option>
+            </select>
+          </label>
+        </div>
+      )}
+    </section>
   )
 }
 
@@ -3215,6 +3364,11 @@ function CompileBar({
           moving split: 1 scalar · 1 route test/px · avoids {summary.routingParameterEstimate.equivalentEnumeratedArrayElements} table entries
         </span>
       )}
+      {summary?.sampleRemappingEstimate && (
+        <span className="text-cyan-200">
+          sample repeat: 1 scalar · up to 2 multiply + 2 frac/px · +0 renderers
+        </span>
+      )}
       {summary && summary.clockPolicy !== 'real-time' && (
         <span className={summary.clockPolicy.includes('exact-pause') ? 'text-amber-300' : 'text-zinc-500'}>
           clock: {clockPolicy}
@@ -3312,6 +3466,10 @@ function cellCoveringScene(show: ShowRecord, zoneId: string, targetSceneIndex: n
 }
 
 function formatTimeScale(value: number): string {
+  return Number(value.toFixed(2)).toString()
+}
+
+function formatRepeatScale(value: number): string {
   return Number(value.toFixed(2)).toString()
 }
 

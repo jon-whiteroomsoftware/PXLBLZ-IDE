@@ -406,6 +406,49 @@ describe('ShowEditor (#318)', () => {
     })
   })
 
+  it('authors scene-owned synchronized tiling from the shared Sample lane (#406)', async () => {
+    const user = userEvent.setup()
+    let show = createDefaultShow('show-406-editor', 'Synchronized tiling', 1000)
+    show = updateShowScene(show, show.scenes[0].id, { sampleTargets: { repeatScale: 2 } })
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+
+    expect(screen.getByRole('group', { name: 'Sample repeat lane' })).toBeInTheDocument()
+    expect(screen.getByText(/sample repeat: 1 scalar/i)).toBeInTheDocument()
+    await user.click(screen.getByRole('group', { name: 'Scene Scene 1' }))
+    expect(screen.getByLabelText('Repeat scale')).toHaveValue(2)
+    fireEvent.change(screen.getByLabelText('Repeat scale'), { target: { value: '3' } })
+    await waitFor(() => {
+      expect(useShowStore.getState().shows[0].scenes[0].sampleTargets?.repeatScale).toBe(3)
+    })
+  })
+
+  it('authors repeat-scale interpolation on the incoming shared boundary (#406)', async () => {
+    const user = userEvent.setup()
+    let show = createDefaultShow('show-406-boundary', 'Repeated sample boundary', 1000)
+    show = updateShowScene(show, show.scenes[0].id, { sampleTargets: { repeatScale: 1.5 } })
+    show = updateShowScene(show, show.scenes[1].id, { sampleTargets: { repeatScale: 3 } })
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+    await user.click(screen.getByRole('button', { name: 'Select Scene 1 to Scene 2 transition (crossfade)' }))
+    await user.click(screen.getByLabelText('Animate repeat scale'))
+    fireEvent.change(screen.getByLabelText('Repeat scale start'), { target: { value: '1.25' } })
+    fireEvent.change(screen.getByLabelText('Repeat scale duration seconds'), { target: { value: '1.2' } })
+    await user.selectOptions(screen.getByLabelText('Repeat scale easing'), 'ease-in-out')
+
+    await waitFor(() => {
+      expect(useShowStore.getState().shows[0].transitions?.[0].propertyTransitions?.sample?.repeatScale).toEqual({
+        from: 1.25,
+        durationMs: 1200,
+        easing: 'ease-in-out',
+      })
+    })
+  })
+
   it('selects visual and routing events from one first-class transition lane and inspector (#416)', async () => {
     const user = userEvent.setup()
     const base = addShowRoutingLayout(createDefaultShow('show-1', 'Boundary lane', 1000), 'Alternate')

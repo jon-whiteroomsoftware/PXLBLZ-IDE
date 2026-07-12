@@ -2,6 +2,7 @@ import { loadPattern, type PatternHandle } from './loadPattern'
 import { compileShow } from './showCompiler'
 import { createShim } from './shim'
 import { DEMOS } from '@/pixelblaze/stock/patterns'
+import { remapShowIndex, remapShowSample } from './showCoordinateRemap'
 
 interface LoadedShow {
   handle: PatternHandle
@@ -46,6 +47,86 @@ function loadShow(code: string, metadata: ReturnType<typeof compileShow>['metada
 }
 
 describe('compileShow', () => {
+  it('animates synchronized tiling once per frame without adding renderers (#406)', () => {
+    const source = 'export function render2D(index, x, y) { rgb(x, y, 0) }'
+    const artifact = compileShow({
+      clips: [
+        { id: 'first', source },
+        { id: 'second', source },
+        { id: 'third', source },
+      ],
+      sceneSequence: {
+        scenes: [
+          { clipId: 'first', holdMs: 1000, transitionOut: { kind: 'cut', durationMs: 0 } },
+          { clipId: 'second', holdMs: 1000, transitionOut: { kind: 'cut', durationMs: 0 } },
+          { clipId: 'third', holdMs: 1000 },
+        ],
+      },
+      samplePropertyRamps: {
+        repeatScale: {
+          initial: 1,
+          ramps: [{ atMs: 1000, from: 1, to: 3, durationMs: 1000, easing: 'linear' }],
+        },
+      },
+    }, {})
+
+    expect(artifact.summary.sampleRemappingEstimate).toEqual({
+      kind: 'synchronized-tiling',
+      scalarGlobals: 1,
+      rendererDelta: 0,
+      dimensions: '1D/2D',
+      maxMultiplicationsPerPixel: 2,
+      maxFracCallsPerPixel: 2,
+    })
+    expect(artifact.summary.worstInstantRenderersPerPixel).toBe(1)
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 16)
+    handle.beforeRender(1500)
+    handle.render2D(0, 0.25, 0.75)
+    const expected = remapShowSample([0.25, 0.75], 2)
+    expect(pixel()[0]).toBeCloseTo(expected[0])
+    expect(pixel()[1]).toBeCloseTo(expected[1])
+  })
+
+  it('remaps a 1D renderer through the repeated normalized index domain (#406)', () => {
+    const artifact = compileShow({
+      clips: [{ id: 'strip', source: 'export function render(index) { rgb(index / 4, 0, 0) }' }],
+      samplePropertyRamps: { repeatScale: { initial: 2, ramps: [] } },
+    }, {})
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 5)
+
+    handle.beforeRender(16)
+    handle.render(2)
+    expect(pixel()[0]).toBe(remapShowIndex(2, 5, 2) / 4)
+  })
+
+  it('applies tiling after routing has produced zone-local coordinates (#406)', () => {
+    const zones = [
+      { id: 'left', name: 'left', ranges: [{ start: 0, end: 3 }] },
+      { id: 'right', name: 'right', ranges: [{ start: 4, end: 7 }] },
+    ]
+    const artifact = compileShow({
+      clips: [
+        { id: 'left', zone: 'left', source: 'export function render2D(index, x, y) { rgb(1, x, y) }' },
+        { id: 'right', zone: 'right', source: 'export function render2D(index, x, y) { rgb(0, x, y) }' },
+      ],
+      zones,
+      routingLayouts: [{
+        id: 'split',
+        name: 'Split',
+        zones,
+        logical: { kind: 'split', zoneNames: ['left', 'right'], axis: 'x' },
+      }],
+      routingPropertyRamps: { splitPosition: { initial: 0.25, ramps: [] } },
+      samplePropertyRamps: { repeatScale: { initial: 2, ramps: [] } },
+      loopDurationMs: 1000,
+    }, {})
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 8)
+
+    handle.beforeRender(16)
+    handle.render2D(0, 0.0625, 0.25)
+    expect(pixel()).toEqual([1, 0.5, 0.5])
+  })
+
   it('animates a moving split through one routed renderer per pixel (#405)', () => {
     const zones = [
       { id: 'left', name: 'left', ranges: [{ start: 0, end: 3 }] },

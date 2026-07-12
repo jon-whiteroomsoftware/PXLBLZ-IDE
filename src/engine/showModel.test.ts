@@ -653,6 +653,19 @@ describe('showModel (#318)', () => {
     expect(added.scenes[2].routingTargets).toEqual({ splitPosition: 0.7 })
   })
 
+  it('clamps, normalizes, and inherits a scene-owned repeat-scale target (#406)', () => {
+    let show = createDefaultShow('show-406-target', 'Repeated sample')
+    show = updateShowScene(show, show.scenes[0].id, { sampleTargets: { repeatScale: 20 } })
+    show.scenes[1].sampleTargets = { repeatScale: 0.2 }
+
+    const normalized = normalizeShowTransitionState(JSON.parse(JSON.stringify(show)) as ShowRecord)
+    const added = addShowScene(normalized)
+
+    expect(normalized.scenes[0].sampleTargets).toEqual({ repeatScale: 8 })
+    expect(normalized.scenes[1].sampleTargets).toEqual({ repeatScale: 1 })
+    expect(added.scenes[2].sampleTargets).toEqual({ repeatScale: 1 })
+  })
+
   it('removes one Show clip and its boundary automation references', () => {
     const show = createDefaultShow('show-1', 'Clip deletion', 1)
     const clip = show.cells[1]
@@ -950,6 +963,35 @@ describe('showModel (#318)', () => {
     expect(recipe.routingPropertyRamps?.splitPosition).toEqual({
       initial: 0.25,
       ramps: [{ atMs: 30000, from: 0.2, to: 0.75, durationMs: 1200, easing: 'ease-in-out' }],
+    })
+  })
+
+  it('normalizes and lowers repeat scale through the shared scene property contract (#406)', () => {
+    let show = createDefaultShow('show-406-recipe', 'Repeated sample recipe')
+    show = updateShowScene(show, show.scenes[0].id, { sampleTargets: { repeatScale: 1.5 } })
+    show = updateShowScene(show, show.scenes[1].id, { sampleTargets: { repeatScale: 3 } })
+    show = updateShowBoundaryTransition(show, 'transition-scene-1', {
+      propertyTransitions: {
+        sample: {
+          repeatScale: { from: 1.25, durationMs: 1200, easing: 'ease-in-out' },
+        },
+      },
+    })
+
+    const normalized = normalizeShowTransitionState(JSON.parse(JSON.stringify(show)) as ShowRecord)
+    expect(normalized.transitions?.[0].propertyTransitions?.sample?.repeatScale).toEqual({
+      from: 1.25,
+      durationMs: 1200,
+      easing: 'ease-in-out',
+    })
+
+    const recipe = showRecordToCompileRecipe(normalized, {
+      byCellId: Object.fromEntries(show.cells.map((cell) => [cell.id, DEMOS.TestPattern2D])),
+      stageDimension: 2,
+    })
+    expect(recipe.samplePropertyRamps?.repeatScale).toEqual({
+      initial: 1.5,
+      ramps: [{ atMs: 30000, from: 1.25, to: 3, durationMs: 1200, easing: 'ease-in-out' }],
     })
   })
 

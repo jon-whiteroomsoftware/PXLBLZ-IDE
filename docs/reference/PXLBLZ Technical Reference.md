@@ -720,7 +720,8 @@ persists normalized records through `/api/shows`.
 
 Core ownership rules:
 
-- a scene owns name, hold duration, and Show-wide property targets;
+- a scene owns name, hold duration, and Show-wide property targets, including
+  moving-split position and sample repeat scale;
 - a zone owns semantic identity and nominal preview count;
 - a clip owns Pattern reference, scene/zone span, adaptations, control targets,
   and Continue/Restart entry behavior;
@@ -822,10 +823,31 @@ ease-in-out.
 
 Property transitions share one descriptor model. Time scale (`0..4`), brightness
 (`0..1`), and exported slider controls carry destination targets on clips. Moving
-split position (`0..1`) carries its target on the destination scene. Every form
+split position (`0..1`) and sample repeat scale (`1..8`) carry their targets on
+the destination scene. Every form
 uses boundary-owned starts, durations, and easing. Generated control values call the
 alpha-renamed slider once before member `beforeRender`. Missing, renamed, or
 non-slider controls are compile errors rather than dropped automation.
+
+### Show sample remapping
+
+Coordinate remapping is a generated outer-renderer stage, not a Stage Map or
+routing layout. Runtime order is Stage Map sample, zone selection and local
+normalization, Show remap, then renderer compatibility and member invocation.
+Preview `pos` never enters the path.
+
+The synchronized-tiling transform stores one `repeatScale`. Generated
+`beforeRender` evaluates its shared scene/boundary ramp once per frame. Scale
+`1` takes an exact identity branch. Other values apply `frac(position * scale)`
+to normalized 1D local index position or to 2D local X and Y. Native 2D members
+retain the routing-produced index argument while reading repeated X/Y; 1D
+members receive the repeated bounded index domain. Existing source Patterns are
+unchanged.
+
+The transform adds zero member renderers. Its worst 2D pixel cost is two
+multiplies and two `frac` calls; 1D uses one of each. Compile summary exposes
+that ceiling separately from routing and transition renderer cost. No 3D remap
+is emitted until Z semantics are explicitly designed.
 
 Discrete adaptations remain part of member compatibility:
 

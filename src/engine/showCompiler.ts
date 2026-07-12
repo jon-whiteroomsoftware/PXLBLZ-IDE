@@ -148,6 +148,13 @@ export interface ShowRoutingPropertyRampsRecipe {
   }
 }
 
+export interface ShowSamplePropertyRampsRecipe {
+  repeatScale: {
+    initial: number
+    ramps: ShowRoutingPropertyRampRecipe[]
+  }
+}
+
 export interface ShowRoutingSwitchRecipe {
   atMs: number
   layoutId: string
@@ -167,6 +174,7 @@ export interface ShowRecipe {
   routingLayouts?: ShowRoutingLayoutRecipe[]
   routingSwitches?: ShowRoutingSwitchRecipe[]
   routingPropertyRamps?: ShowRoutingPropertyRampsRecipe
+  samplePropertyRamps?: ShowSamplePropertyRampsRecipe
   loopDurationMs?: number
 }
 
@@ -223,6 +231,14 @@ export interface ShowCompileSummary {
     routeComparisonsPerPixel: 1
     equivalentEnumeratedArrayElements: number
   } | null
+  sampleRemappingEstimate: {
+    kind: 'synchronized-tiling'
+    scalarGlobals: 1
+    rendererDelta: 0
+    dimensions: '1D/2D'
+    maxMultiplicationsPerPixel: 2
+    maxFracCallsPerPixel: 2
+  } | null
   clips: ShowCompileClipSummary[]
   warnings: string[]
 }
@@ -267,6 +283,7 @@ interface CompiledMember {
   elapsedName: string
   pixelCountName: string
   adaptation: ShowClipAdaptation
+  samplePropertyRamps?: ShowSamplePropertyRampsRecipe
   controls: Array<{ exportName: string; functionName: string; valueName: string; initialValue: number }>
 }
 
@@ -290,7 +307,10 @@ export function compileShow(
 ): GeneratedShowArtifact {
   const expandedRecipe = { ...recipe, clips: expandRouteClips(recipe.clips) }
   validateRecipe(expandedRecipe)
-  const members = expandedRecipe.clips.map((clip, index) => compileMember(clip, index, libraries))
+  const members = expandedRecipe.clips.map((clip, index) => ({
+    ...compileMember(clip, index, libraries),
+    samplePropertyRamps: expandedRecipe.samplePropertyRamps,
+  }))
   const route = buildRoutePlan(members, expandedRecipe)
   const routingLayouts = buildRoutingLayoutPlans(members, expandedRecipe)
   const routeMode = route !== null
@@ -346,7 +366,7 @@ export function compileShow(
           : 0,
       }
     : null
-  const code = expandedRecipe.sceneSequence
+  const emittedCode = expandedRecipe.sceneSequence
     ? emitSceneSequenceShowCode(members, expandedRecipe.sceneSequence, sequenceOutputDimension)
     : routingLayouts
     ? emitRoutingLayoutShowCode(
@@ -378,6 +398,9 @@ export function compileShow(
         : expandedRecipe.crossfade
           ? emitShowCode(members[0], members[1], expandedRecipe.crossfade)
           : emitSingleClipShowCode(members[0])
+  const code = expandedRecipe.samplePropertyRamps
+    ? injectSampleRemappingUpdate(emittedCode)
+    : emittedCode
   const metadata = buildMetadata(members, expandedRecipe.sceneSequence ? sequenceOutputDimension : portalTransition ? 2 : routedOutputDimension)
   const sourceBytesBeforeMerge = members.reduce((sum, member) => sum + member.sourceBytes, 0)
   const artifactBytes = byteLength(code)
@@ -477,6 +500,16 @@ export function compileShow(
     routingRepresentation,
     routingEstimate: routingPlan,
     routingParameterEstimate,
+    sampleRemappingEstimate: expandedRecipe.samplePropertyRamps
+      ? {
+          kind: 'synchronized-tiling',
+          scalarGlobals: 1,
+          rendererDelta: 0,
+          dimensions: '1D/2D',
+          maxMultiplicationsPerPixel: 2,
+          maxFracCallsPerPixel: 2,
+        }
+      : null,
     clips: members.map((member) => {
       const lightShutter = member.adaptation.lightShutter
       return {
@@ -1504,7 +1537,42 @@ function emitPackedRouteBlock(route: ResolvedRoute, routeIndex: number, outputDi
   ].join('\n')
 }
 
+function emitSampleRemappingRuntime(propertyRamps: ShowSamplePropertyRampsRecipe | undefined): string {
+  if (!propertyRamps) return ''
+  const repeatScale = propertyRamps.repeatScale
+  const assignments = [
+    `  __pxlblz_show_sample_repeat_scale = ${clampNumber(repeatScale.initial, 1, 8)}`,
+    ...repeatScale.ramps.map((ramp) => {
+      const from = clampNumber(ramp.from, 1, 8)
+      const to = clampNumber(ramp.to, 1, 8)
+      const durationMs = Math.max(0, ramp.durationMs)
+      const progress = `clamp((__pxlblz_show_elapsed_ms - ${ramp.atMs}) / ${Math.max(1, durationMs)}, 0, 1)`
+      const mix = emitShowEasingExpression(ramp.easing, progress)
+      return `  if (__pxlblz_show_elapsed_ms >= ${ramp.atMs}) {
+    __pxlblz_show_sample_repeat_scale = ${to}
+    if (__pxlblz_show_elapsed_ms < ${ramp.atMs + durationMs}) __pxlblz_show_sample_repeat_scale = ${from} * (1 - ${mix}) + ${to} * ${mix}
+  }`
+    }),
+  ]
+  return `var __pxlblz_show_sample_repeat_scale = ${clampNumber(repeatScale.initial, 1, 8)}
+function __pxlblz_show_update_sample_remap() {
+${assignments.join('\n')}
+}`
+}
+
+function injectSampleRemappingUpdate(code: string): string {
+  const functionStart = code.indexOf('export function beforeRender(delta) {')
+  const assignmentStart = code.indexOf('__pxlblz_show_elapsed_ms =', functionStart)
+  const lineEnd = code.indexOf('\n', assignmentStart)
+  if (functionStart < 0 || assignmentStart < 0 || lineEnd < 0) {
+    throw new Error('Show coordinate remapping requires an outer beforeRender scheduler.')
+  }
+  return `${code.slice(0, lineEnd + 1)}  __pxlblz_show_update_sample_remap()\n${code.slice(lineEnd + 1)}`
+}
+
 function emitRuntimePrelude(members: CompiledMember[]): string {
+  const samplePropertyRamps = members[0]?.samplePropertyRamps
+  const sampleRuntime = emitSampleRemappingRuntime(samplePropertyRamps)
   const memberVars = members.flatMap((member, index) => {
     const lightShutter = member.adaptation.lightShutter
     const steppedClock = member.adaptation.steppedClock
@@ -1617,21 +1685,30 @@ ${advanceDelta('delta', '  ')}
     `function ${member.prefix}_renderCapture(index) {
   var mappedIndex = index
   if (${member.prefix}_adapt_mirror >= 0.5) mappedIndex = ${member.pixelCountName} - 1 - index
-  ${member.prefix}_clear()
+${samplePropertyRamps ? `  if (__pxlblz_show_sample_repeat_scale != 1) {
+    var mappedPosition = mappedIndex / max(1, ${member.pixelCountName} - 1)
+    mappedIndex = min(${member.pixelCountName} - 1, floor(frac(mappedPosition * __pxlblz_show_sample_repeat_scale) * ${member.pixelCountName}))
+  }
+` : ''}  ${member.prefix}_clear()
   ${member.hasRender ? lightShutter ? `if (${member.prefix}_shutter_open >= 0.5) ${member.renderName}(mappedIndex)` : `${member.renderName}(mappedIndex)` : ''}
 }`,
     `function ${member.prefix}_renderCapture2D(index, x, y) {
   var mappedIndex = index
   var mappedX = x
-  if (${member.prefix}_adapt_mirror >= 0.5) {
+${samplePropertyRamps ? '  var mappedY = y\n' : ''}  if (${member.prefix}_adapt_mirror >= 0.5) {
     mappedIndex = ${member.pixelCountName} - 1 - index
     mappedX = 1 - x
   }
-  ${member.prefix}_clear()
+${samplePropertyRamps ? `  if (__pxlblz_show_sample_repeat_scale != 1) {
+    mappedX = frac(clamp(mappedX, 0, 1) * __pxlblz_show_sample_repeat_scale)
+    mappedY = frac(clamp(mappedY, 0, 1) * __pxlblz_show_sample_repeat_scale)${!member.hasRender2D && member.hasRender ? `
+    mappedIndex = min(${member.pixelCountName} - 1, floor(mappedX * ${member.pixelCountName}))` : ''}
+  }
+` : ''}  ${member.prefix}_clear()
   ${member.hasRender2D
     ? lightShutter
-      ? `if (${member.prefix}_shutter_open >= 0.5) ${member.render2DName}(mappedIndex, mappedX, y)`
-      : `${member.render2DName}(mappedIndex, mappedX, y)`
+      ? `if (${member.prefix}_shutter_open >= 0.5) ${member.render2DName}(mappedIndex, mappedX, ${samplePropertyRamps ? 'mappedY' : 'y'})`
+      : `${member.render2DName}(mappedIndex, mappedX, ${samplePropertyRamps ? 'mappedY' : 'y'})`
     : member.hasRender
       ? lightShutter
         ? `if (${member.prefix}_shutter_open >= 0.5) ${member.renderName}(mappedIndex)`
@@ -1653,6 +1730,7 @@ ${advanceDelta('delta', '  ')}
     'var __pxlblz_show_elapsed_ms = 0',
     'var __pxlblz_show_mix = 0',
     'var __pxlblz_show_phase = 0',
+    ...(sampleRuntime ? [sampleRuntime] : []),
     ...memberVars,
     `function __pxlblz_show_capture_rgb(slot, r, g, b) {
   ${captureBranches}

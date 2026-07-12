@@ -142,6 +142,49 @@ test.describe('authenticated Show authoring', () => {
     expect(pageOverflow.scrollWidth - pageOverflow.clientWidth).toBeLessThanOrEqual(8)
   })
 
+  test('authors and reloads synchronized sample tiling', async ({ page }) => {
+    await page.goto('studio/shows')
+    await page.getByRole('button', { name: 'New show' }).click()
+
+    await page.getByRole('group', { name: 'Scene Scene 1' }).click()
+    await page.getByRole('spinbutton', { name: 'Repeat scale', exact: true }).fill('1.5')
+    await expect(page.getByRole('group', { name: 'Sample repeat lane' })).toBeVisible()
+    await page.getByRole('group', { name: 'Scene Scene 2' }).click()
+    await page.getByRole('spinbutton', { name: 'Repeat scale', exact: true }).fill('3')
+    await page.getByRole('button', { name: 'Select Scene 1 to Scene 2 transition (crossfade)' }).click()
+    await page.getByText('Advanced transition controls').click()
+    await page.getByLabel('Animate repeat scale').check()
+    await page.getByLabel('Repeat scale start').fill('1.25')
+    await page.getByLabel('Repeat scale duration seconds').fill('1.2')
+    await page.getByLabel('Repeat scale easing').selectOption('ease-in-out')
+
+    await waitForCurrentShow(page, (show) => (
+      show.scenes[0]?.sampleTargets?.repeatScale === 1.5
+      && show.scenes[1]?.sampleTargets?.repeatScale === 3
+      && show.transitions?.[0]?.propertyTransitions?.sample?.repeatScale?.from === 1.25
+      && show.transitions[0].propertyTransitions.sample.repeatScale.durationMs === 1200
+      && show.transitions[0].propertyTransitions.sample.repeatScale.easing === 'ease-in-out'
+    ))
+
+    await page.reload()
+    await expect(page.getByRole('group', { name: 'Sample repeat lane' })).toBeVisible()
+    await page.getByRole('group', { name: 'Scene Scene 2' }).click()
+    await expect(page.getByRole('spinbutton', { name: 'Repeat scale', exact: true })).toHaveValue('3')
+    await expect(page.getByText(/sample repeat: 1 scalar/i)).toBeVisible()
+
+    await page.setViewportSize({ width: 720, height: 900 })
+    await expect(page.getByRole('group', { name: 'Sample repeat lane' })).toBeVisible()
+    await expect(page.getByRole('spinbutton', { name: 'Repeat scale', exact: true })).toBeVisible()
+    const pageOverflow = await page.evaluate(() => ({
+      scrollWidth: document.documentElement.scrollWidth,
+      clientWidth: document.documentElement.clientWidth,
+    }))
+    expect(pageOverflow.scrollWidth - pageOverflow.clientWidth).toBeLessThanOrEqual(8)
+
+    await page.getByRole('button', { name: 'View generated pattern' }).first().click()
+    await expect(page.getByText('Generated pattern - Untitled Show')).toBeVisible()
+  })
+
   test('authors shape-aware diamond and ring spatial transitions', async ({ page }) => {
     await page.goto('studio/shows')
     await page.getByRole('button', { name: 'New show' }).click()
@@ -186,7 +229,12 @@ test.describe('authenticated Show authoring', () => {
 
 type PersistedShow = {
   id: string
-  scenes: Array<{ name: string; durationMs: number; routingTargets?: { splitPosition?: number } }>
+  scenes: Array<{
+    name: string
+    durationMs: number
+    routingTargets?: { splitPosition?: number }
+    sampleTargets?: { repeatScale?: number }
+  }>
   cells: Array<{
     sceneId: string
     patternName: string
@@ -205,6 +253,7 @@ type PersistedShow = {
     propertyTransitions?: {
       timeScale?: unknown
       routing?: { splitPosition?: { from: number; durationMs: number; easing: string } }
+      sample?: { repeatScale?: { from: number; durationMs: number; easing: string } }
     }
   }>
   routingLayouts: Array<{

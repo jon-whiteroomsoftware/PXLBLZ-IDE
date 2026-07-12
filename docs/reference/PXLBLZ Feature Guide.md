@@ -541,6 +541,7 @@ Property automation uses one shared CSS-like model: destination clips own
 clip-level targets, destination scenes own Show-wide targets, and the incoming
 boundary owns the explicit start, duration, and easing. Time, Brightness,
 exported `sliderName(v)` controls, and moving Split position use the same system.
+Synchronized Sample repeat uses it as well.
 Each property may have its own duration and easing on one continued Pattern
 instance. Private locals, toggles, and pickers are not exposed as automatable
 numeric properties.
@@ -561,6 +562,21 @@ easing. Each side is renormalized to its own local Pattern domain as it grows or
 shrinks, including a virtual pixel count that follows its current share; targets
 at 0% or 100% give the complete Stage to one zone. The effect
 keeps both Pattern clocks continuous and invokes one renderer per pixel.
+
+### Coordinate remapping
+
+Synchronized tiling changes the local sample a Pattern reads without changing
+the Stage Map, the drawn LED positions, or zone ownership. Each scene may set a
+Show-wide **Repeat scale** from 1x to 8x. The nested Sample repeat lane shows the
+target; the incoming transition may animate from an explicit start with its own
+duration and easing. At 1x the transform is an exact identity.
+
+On 2D Shows, local X and Y repeat together after routing has normalized the
+selected zone, so every active Pattern sees synchronized tiles without source
+edits. On 1D Shows, the same rule repeats normalized local index position. The
+current control does not claim a 3D policy. Remapping adds no Pattern renderer;
+the compile bar reports one scalar and at most two multiplies plus two
+fractional-part operations per pixel.
 
 The compiler emits compact formulas for provably regular contiguous, row-band,
 and interleaved layouts. Irregular layouts use range branches or a bounded packed
@@ -584,6 +600,8 @@ warnings. Routed Shows also report separate estimated bytecode and permanent
 array costs for the selected routing representation. Moving splits additionally
 report one scalar, one route test per pixel, and the table entries an equivalent
 enumerated sequence would require.
+Synchronized tiling reports its one scalar, coordinate-operation ceiling, and
+zero-renderer delta separately from routing cost.
 
 **View generated pattern** shows the source read-only. Push compiles that source
 with the connected Controller's compiler through the same grouped identity,
