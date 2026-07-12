@@ -26,6 +26,7 @@ import { applyControllerPixelCount } from '@/engine/applyControllerPixelCount'
 import { availableDiscoveredControllers } from '@/engine/controllerDiscovery'
 import type { ControllerPhase } from '@/engine/controllerPillView'
 import { pushPattern } from '@/engine/pushPattern'
+import type { ArtifactStampMeta } from '@/engine/artifactStamp'
 import {
   getControllerBindings,
   setControllerBindings,
@@ -205,6 +206,9 @@ interface ControllerConnectionState {
    *  (#202). Reads the last-clean preview source and active pattern id; a no-op when
    *  nothing is active. Sets `pushing`/`pushResult` for the button to reflect. */
   pushActivePattern: () => Promise<void>
+  /** Send an already-generated artifact (currently a Show) through the same Run/Save
+   * identity and device policy as an ordinary Pattern without making it editor-active. */
+  pushGeneratedArtifact: (artifact: GeneratedArtifactPush) => Promise<void>
   /** Push the active pattern to the active Controller. Pixel count is irrelevant, but
    * cross-dimensional renderer/firmware compatibility is reconciled against the live
    * installed map before the one-click or confirmation path. */
@@ -249,6 +253,15 @@ interface ControllerConnectionState {
   setSaveArmed: (armed: boolean) => void
   /** Clear the transient push result (e.g. after the toast/badge times out). */
   clearPushResult: () => void
+}
+
+export interface GeneratedArtifactPush {
+  artifactId: string
+  source: string
+  name: string
+  persist: boolean
+  artifactStamp: ArtifactStampMeta
+  previewImage?: Uint8Array
 }
 
 /** The outcome of a single Send-to-Controller push, surfaced on the button. */
@@ -585,6 +598,59 @@ export const useControllerStore = create<ControllerConnectionState>()(
         setSaveArmed: (armed) => set({ saveArmed: armed }),
 
         clearPushResult: () => set({ pushResult: null }),
+
+        pushGeneratedArtifact: async (artifact) => {
+          const controllerId = get().activeIp
+          if (!controllerId || artifact.source.length === 0) return
+
+          set({ pushing: true, pushResult: null })
+          try {
+            const { created, programId } = await pushPattern({
+              provider: getControllerProvider(),
+              controllerId,
+              patternId: artifact.artifactId,
+              source: artifact.source,
+              name: artifact.name,
+              persist: artifact.persist,
+              previewImage: artifact.previewImage,
+              artifactStamp: artifact.artifactStamp,
+              transforms: artifact.artifactStamp.transforms,
+              stampedAt: artifact.artifactStamp.stampedAt,
+              loadBindings: getControllerBindings,
+              saveBindings: setControllerBindings,
+              loadPushRecords: getPushRecords,
+              savePushRecords: setPushRecords,
+            })
+
+            if (artifact.name) {
+              const labels = withProgramLabel(
+                await getProgramLabels(),
+                controllerId,
+                programId,
+                artifact.name,
+              )
+              await setProgramLabels(labels)
+              useControllerPanelStore.getState().noteProgramLabel(programId, artifact.name)
+            }
+            if (artifact.persist) void useControllerPanelStore.getState().refreshPrograms()
+
+            const recordKey = artifact.persist ? 'lastSavedSource' : 'lastPushedSource'
+            set((state) => ({
+              pushing: false,
+              pushResult: { ok: true, created },
+              [recordKey]: {
+                ...state[recordKey],
+                [controllerId]: {
+                  ...state[recordKey][controllerId],
+                  [artifact.artifactId]: artifact.source,
+                },
+              },
+            }))
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error)
+            set({ pushing: false, pushResult: { ok: false, message } })
+          }
+        },
 
         requestPush: async () => {
           // A pattern push has no *count* preflight (#239) — it sends bytecode only and

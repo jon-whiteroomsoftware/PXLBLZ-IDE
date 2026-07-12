@@ -18,6 +18,9 @@ import { usePatternStore, patternInitialState } from '@/store/patternStore'
 import { controllerProfileInitialState, useControllerProfileStore } from '@/store/controllerProfileStore'
 import { previewInitialState, usePreviewStore } from '@/store/previewStore'
 import { showTransportInitialState, useShowTransportStore } from '@/store/showTransportStore'
+import { controllerInitialState, useControllerStore } from '@/store/controllerStore'
+import { resetControllerProvider, setControllerProvider } from '@/engine/controllerProviderRegistry'
+import { NullControllerProvider, type ControllerStatus } from '@/engine/ControllerProvider'
 import {
   resetPersonalContentProvider,
   setPersonalContentProvider,
@@ -61,6 +64,21 @@ function memoryProvider(seedShows: ShowRecord[] = []): PersonalContentProvider {
   }
 }
 
+class ConnectedControllerProvider extends NullControllerProvider {
+  private readonly connectedStatus: ControllerStatus = {
+    kind: 'connected',
+    controller: { id: 'ctrl-live', address: '10.0.0.5', deviceId: null, name: 'Bench PB' },
+  }
+
+  getStatus(): ControllerStatus {
+    return this.connectedStatus
+  }
+
+  subscribe(): () => void {
+    return () => {}
+  }
+}
+
 beforeEach(() => {
   resetPersonalContentProvider()
   useShowStore.setState(showInitialState)
@@ -68,7 +86,11 @@ beforeEach(() => {
   useControllerProfileStore.setState(controllerProfileInitialState)
   usePreviewStore.setState(previewInitialState)
   useShowTransportStore.setState(showTransportInitialState)
+  useControllerStore.setState(controllerInitialState)
+  resetControllerProvider()
 })
+
+afterEach(() => resetControllerProvider())
 
 describe('ShowEditor (#318)', () => {
   it('switches from an existing Show to a newly created Show during playback without an update loop', async () => {
@@ -466,6 +488,73 @@ describe('ShowEditor (#318)', () => {
     expect(screen.getByRole('heading', { name: 'Transition properties' })).toBeInTheDocument()
     expect(screen.getByText(/Scene 1 → Scene 2 · crossfade/i)).toBeInTheDocument()
     expect(screen.getByRole('option', { name: 'wipe' })).toBeInTheDocument()
+  })
+
+  it('offers first-class Run and Save actions for the canonical generated Show (#429)', async () => {
+    const user = userEvent.setup()
+    const show = createDefaultShow('show-send', 'Opening Night', 1000)
+    const pushGeneratedArtifact = vi.fn().mockResolvedValue(undefined)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    useControllerStore.setState({
+      controllers: {
+        '10.0.0.5': {
+          ip: '10.0.0.5',
+          nickname: 'Bench PB',
+          phase: 'live',
+          mapDim: 1,
+          firmwareVersion: '3.67',
+        },
+      },
+      activeIp: '10.0.0.5',
+      pushGeneratedArtifact,
+    })
+    setControllerProvider(new ConnectedControllerProvider())
+
+    render(<ShowEditor showId={show.id} />)
+
+    await user.click(screen.getByRole('button', { name: 'Run on Bench PB' }))
+    expect(pushGeneratedArtifact).toHaveBeenLastCalledWith(expect.objectContaining({
+      artifactId: 'show:show-send',
+      name: 'Opening Night',
+      persist: false,
+      artifactStamp: expect.objectContaining({ kind: 'show', id: 'show-send' }),
+    }))
+
+    await user.click(screen.getByRole('button', { name: 'Save to Bench PB' }))
+    expect(pushGeneratedArtifact).toHaveBeenLastCalledWith(expect.objectContaining({
+      artifactId: 'show:show-send',
+      persist: true,
+    }))
+  })
+
+  it('confirms a Controller renderer adaptation before sending the adapted Show (#429)', async () => {
+    const user = userEvent.setup()
+    let show = createDefaultShow('show-adapt', 'Spatial Show', 1000)
+    show = { ...show, stageMapId: 'plane' }
+    show = updateShowTransition(show, show.scenes[0].id, 'portal', 2000, 0.1)
+    const pushGeneratedArtifact = vi.fn().mockResolvedValue(undefined)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    useControllerStore.setState({
+      controllers: {
+        '10.0.0.5': {
+          ip: '10.0.0.5', nickname: 'Bench PB', phase: 'live', mapDim: 1, firmwareVersion: '3.67',
+        },
+      },
+      activeIp: '10.0.0.5',
+      pushGeneratedArtifact,
+    })
+    setControllerProvider(new ConnectedControllerProvider())
+
+    render(<ShowEditor showId={show.id} />)
+    await user.click(screen.getByRole('button', { name: 'Run on Bench PB' }))
+
+    expect(screen.getByTestId('show-preflight-dialog')).toBeInTheDocument()
+    expect(pushGeneratedArtifact).not.toHaveBeenCalled()
+    await user.click(screen.getByRole('button', { name: 'Send anyway' }))
+    await waitFor(() => expect(pushGeneratedArtifact).toHaveBeenCalledWith(expect.objectContaining({
+      source: expect.stringContaining('export function render(index, x)'),
+      artifactStamp: expect.objectContaining({ transforms: expect.arrayContaining(['renderer-adapter']) }),
+    })))
   })
 
   it('deletes a selected Clip from Properties without confirmation', async () => {

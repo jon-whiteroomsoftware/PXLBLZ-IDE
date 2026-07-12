@@ -858,7 +858,7 @@ Determinism covers owned random seed, fixed cadence, initial property/control
 values, and scheduled Show automation. Unrecorded wall-clock, network, and live
 sensor history is outside the guarantee.
 
-## 25. Show export
+## 25. Show delivery and export
 
 `showEpeExport.ts` packages the exact generated source used for inspection and
 Controller compilation into the standard EPE envelope. Export adds:
@@ -872,6 +872,20 @@ Controller compilation into the standard EPE envelope. Export adds:
 The summary lists Pattern references, scenes, routing layouts, and transition
 configuration. Generated orchestration names are collision-safe and do not
 replace human-readable provenance.
+
+The Show editor sends that canonical stamped source through the shared
+`pushPattern` transport policy under identity `show:<show-id>`. Run compiles and
+starts a throwaway id without touching saved bindings. Save writes a PBP preview,
+starts the same stable id, records the per-Controller binding, and overwrites it
+on later saves. Both modes update the Controller panel's local program label;
+Save also refreshes its saved-program inventory.
+
+`showControllerArtifact.ts` is the only device-derivation seam. It compares the
+Show's generated renderer capabilities with the connected Controller's installed
+map and firmware. A compatible artifact stays byte-identical. A required
+exact-arity adapter is appended through the pass engine, restamped as the same
+Show with `renderer-adapter` provenance, and presented through the ordinary
+compatibility confirmation. Known unsupported firmware blocks the send.
 
 ---
 

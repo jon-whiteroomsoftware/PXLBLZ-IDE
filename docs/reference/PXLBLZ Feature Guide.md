@@ -554,10 +554,19 @@ transition cost, clock policy, evaluation masks, routing representation, and
 warnings.
 
 **View generated pattern** shows the source read-only. Push compiles that source
-with the connected Controller's compiler. **Export `.epe`** packages the same
-source with a normal Controller-format id, preview JPEG, readable Show summary,
-and provenance comments. The inspected, pushed, and downloaded sources are not
-three subtly different orchestration programs.
+with the connected Controller's compiler through the same grouped identity,
+**Run**, and **Save** actions used for ordinary Patterns. Run starts a transient
+program. Save writes and starts a durable program, then overwrites that same
+Controller-bound program on later saves of the Show. Neither action creates a
+personal Pattern or requires an EPE round trip. If the installed Controller map
+requires an exact-arity renderer adapter, PXLBLZ explains and confirms that
+device derivative before sending it.
+
+**Export `.epe`** packages the canonical generated source with a normal
+Controller-format id, preview JPEG, readable Show summary, and provenance
+comments. Inspection, direct send, and download therefore begin from one
+orchestration program; only an explicitly reported Controller renderer adapter
+may derive the directly sent source.
 
 ## 10. Files and manual workflows
 

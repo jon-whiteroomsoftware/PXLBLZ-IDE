@@ -26,7 +26,7 @@
 // flow is unit-testable with a fake provider + in-memory binding store.
 
 import type { ControllerProvider } from './ControllerProvider'
-import { parsePxlblzBanner, stampArtifact } from './artifactStamp'
+import { parsePxlblzBanner, stampArtifact, type ArtifactStampMeta } from './artifactStamp'
 import { bytecodeHeaderReconciles, makeProgramId } from './bytecodePush'
 import { encodePbp } from './pbpEncode'
 import { resolvePushTarget, withBinding, type BindingStore } from './controllerBinding'
@@ -67,6 +67,9 @@ export interface PushPatternDeps {
   previewImage?: Uint8Array
   /** Transform/pass names baked into the generated source, for the artifact banner. */
   transforms?: string[]
+  /** Override the saved artifact's provenance. Shows pass their canonical Show stamp;
+   * ordinary Pattern sends omit this and retain the historical Pattern stamp. */
+  artifactStamp?: ArtifactStampMeta
   /** Injectable artifact stamp time for deterministic tests. Defaults to now. */
   stampedAt?: Date | string
 }
@@ -118,7 +121,7 @@ export async function pushPattern(deps: PushPatternDeps): Promise<PushPatternRes
     mint,
   )
 
-  const stampedSource = stampArtifact(deps.source, {
+  const stampedSource = stampArtifact(deps.source, deps.artifactStamp ?? {
     kind: 'pattern',
     id: deps.patternId,
     name: deps.name ?? '',

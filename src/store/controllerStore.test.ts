@@ -43,6 +43,7 @@ import {
 } from '@/engine/controllerProfileWriteQueue'
 import { defaultControllerProfile, type ControllerProfile } from './controllerProfileStore'
 import type { FirmwareUpdateState } from '@/engine/firmwareUpdate'
+import { stampArtifact } from '@/engine/artifactStamp'
 
 // A fake per-Controller provider with a real (if minimal) status machine, so we
 // can assert the keyed store's orchestration end-to-end. detectHelper acks true
@@ -665,6 +666,61 @@ describe('controllerStore (keyed)', () => {
       // Save mode records the overwrite binding (#236).
       const bindings = await getControllerBindings()
       expect(bindings['10.0.0.5']['pat-1']).toBe(provider.saved[0].opts.id)
+    })
+
+    it('runs and overwrite-saves a generated Show under its own stable identity (#429)', async () => {
+      await store().addController('10.0.0.5')
+      const source = stampArtifact(PATTERN_SRC, {
+        kind: 'show',
+        id: 'show-1',
+        name: 'Opening Night',
+        transforms: ['show'],
+        stampedAt: '2026-07-11T12:00:00.000Z',
+      })
+      const artifact = {
+        artifactId: 'show:show-1',
+        source,
+        name: 'Opening Night',
+        artifactStamp: {
+          kind: 'show' as const,
+          id: 'show-1',
+          name: 'Opening Night',
+          transforms: ['show'],
+          stampedAt: '2026-07-11T12:00:00.000Z',
+        },
+      }
+
+      await store().pushGeneratedArtifact({ ...artifact, persist: false })
+      const provider = created.get('10.0.0.5')!
+      const runId = provider.pushed[0].opts.id
+      expect(provider.compiledSources[0]).toBe(source)
+      expect(store().lastPushedSource['10.0.0.5']['show:show-1']).toBe(source)
+      expect((await getProgramLabels())['10.0.0.5'][runId]).toBe('Opening Night')
+
+      await store().pushGeneratedArtifact({ ...artifact, persist: true })
+      const savedId = provider.saved[0].opts.id
+      provider.programs = [{ id: savedId, name: 'Opening Night' }]
+      await store().pushGeneratedArtifact({ ...artifact, persist: true })
+
+      expect(provider.saved.map((entry) => entry.opts.id)).toEqual([savedId, savedId])
+      expect(store().lastSavedSource['10.0.0.5']['show:show-1']).toBe(source)
+      expect((await getControllerBindings())['10.0.0.5']['show:show-1']).toBe(savedId)
+    })
+
+    it('surfaces a generated Show compile failure without pushing (#429)', async () => {
+      await store().addController('10.0.0.5')
+      created.get('10.0.0.5')!.compileError = new Error('Show compile failed on device')
+
+      await store().pushGeneratedArtifact({
+        artifactId: 'show:show-1',
+        source: PATTERN_SRC,
+        name: 'Opening Night',
+        persist: false,
+        artifactStamp: { kind: 'show', id: 'show-1', name: 'Opening Night' },
+      })
+
+      expect(created.get('10.0.0.5')!.pushed).toHaveLength(0)
+      expect(store().pushResult).toEqual({ ok: false, message: 'Show compile failed on device' })
     })
 
     it('is a no-op when no pattern is active', async () => {

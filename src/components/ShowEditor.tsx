@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react'
 import { Check, Clapperboard, Code2, Copy, Download, Grid2X2, Map as MapIcon, Maximize2, Pause, Play, Plus, RotateCw, Route, Scissors, Settings2, SkipBack, Trash2, Zap, ZoomIn, ZoomOut } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -13,6 +13,13 @@ import {
 import { PixelblazeCodeEditor } from '@/components/PixelblazeCodeEditor'
 import { getControllerProvider } from '@/engine/controllerProviderRegistry'
 import { makeProgramId } from '@/engine/bytecodePush'
+import { PatternDeploymentActions } from '@/components/PatternDeploymentActions'
+import { requestControllerEntryOpen } from '@/components/controllerEntryEvents'
+import { PatternPushChoices } from '@/components/SendToController'
+import { PushConfirmPopover } from '@/components/PushConfirmPopover'
+import { describeSendToController, isAlreadyPushed, type SendMode } from '@/engine/sendToController'
+import { prepareShowControllerArtifact } from '@/engine/showControllerArtifact'
+import { trackEvent } from '@/analytics'
 import {
   projectShowStrip,
   canSplitShowAtTime,
@@ -106,11 +113,23 @@ export function ShowEditor({ showId }: { showId: string }) {
   const controllerProfiles = useControllerProfileStore((state) => state.profiles)
   const activeIp = useControllerStore((state) => state.activeIp)
   const activeController = useControllerStore((state) => (state.activeIp ? state.controllers[state.activeIp] : undefined))
+  const controllerPushing = useControllerStore((state) => state.pushing)
+  const controllerPushResult = useControllerStore((state) => state.pushResult)
+  const lastPushedSource = useControllerStore((state) => state.lastPushedSource)
+  const lastSavedSource = useControllerStore((state) => state.lastSavedSource)
+  const pushGeneratedArtifact = useControllerStore((state) => state.pushGeneratedArtifact)
+  const clearPushResult = useControllerStore((state) => state.clearPushResult)
   const [selection, setSelection] = useState<ShowSelection>({ kind: 'show' })
   const [generatedOpen, setGeneratedOpen] = useState(false)
-  const [pushing, setPushing] = useState(false)
-  const [pushResult, setPushResult] = useState<string | null>(null)
+  const [showSendMode, setShowSendMode] = useState<SendMode>('run')
+  const [pendingSendMode, setPendingSendMode] = useState<SendMode | null>(null)
+  const [preparingSave, setPreparingSave] = useState(false)
   const [scenePendingDelete, setScenePendingDelete] = useState<ShowScene | null>(null)
+  const controllerProvider = getControllerProvider()
+  const controllerStatus = useSyncExternalStore(
+    (onChange) => controllerProvider.subscribe(onChange),
+    () => controllerProvider.getStatus(),
+  )
 
   const activeShow = show ?? null
   const selectedClip = selection.kind === 'clip'
@@ -176,6 +195,32 @@ export function ShowEditor({ showId }: { showId: string }) {
       : null,
     [activeShow, compiled.artifact],
   )
+  const activeControllerMapDim = activeController?.mapDim ?? null
+  const activeControllerFirmware = activeController?.firmwareVersion
+  const preparedControllerArtifact = useMemo(() => {
+    if (!showExport) return { value: null, error: null }
+    try {
+      return {
+        value: prepareShowControllerArtifact(
+          showExport.source,
+          activeControllerMapDim,
+          activeControllerFirmware,
+        ),
+        error: null,
+      }
+    } catch (error) {
+      return {
+        value: null,
+        error: error instanceof Error ? error.message : 'Could not prepare Show for Controller',
+      }
+    }
+  }, [activeControllerFirmware, activeControllerMapDim, showExport])
+
+  useEffect(() => {
+    if (!controllerPushResult) return
+    const timeout = window.setTimeout(clearPushResult, 3500)
+    return () => window.clearTimeout(timeout)
+  }, [clearPushResult, controllerPushResult])
   const buildDownloadExport = async (): Promise<ShowEpeExport | null> => {
     if (!activeShow || !compiled.artifact) return null
     const preview = await buildPreviewJpeg(compiled.artifact)
@@ -218,20 +263,62 @@ export function ShowEditor({ showId }: { showId: string }) {
     )
   }
 
-  async function handlePushShow() {
-    if (!compiled.artifact || !activeController || !activeIp || !activeShow) return
-    const provider = getControllerProvider()
-    setPushing(true)
-    setPushResult(null)
+  const showArtifactId = `show:${activeShow.id}`
+  const activeShowName = activeShow.name
+  const preparedSource = preparedControllerArtifact.value?.source ?? ''
+  const alreadySent = (mode: SendMode) => isAlreadyPushed({
+    mode,
+    source: preparedSource,
+    lastRunSource: activeIp ? lastPushedSource[activeIp]?.[showArtifactId] : undefined,
+    lastSavedSource: activeIp ? lastSavedSource[activeIp]?.[showArtifactId] : undefined,
+  })
+  const runGate = describeSendToController({
+    status: controllerStatus,
+    compileStatus: preparedControllerArtifact.value ? 'good' : 'broken',
+    alreadyPushed: alreadySent('run'),
+  })
+  const saveGate = describeSendToController({
+    status: controllerStatus,
+    compileStatus: preparedControllerArtifact.value ? 'good' : 'broken',
+    alreadyPushed: alreadySent('save'),
+  })
+  const controllerName = activeController ? activeController.nickname || activeIp : null
+
+  async function sendShow(mode: SendMode) {
+    const prepared = preparedControllerArtifact.value
+    if (!prepared || !compiled.artifact) return
+    setPendingSendMode(null)
+    setShowSendMode(mode)
+    setPreparingSave(mode === 'save')
     try {
-      const bytecode = await provider.compile(showExport?.source ?? compiled.artifact.code)
-      await provider.pushBytecode(bytecode, { id: makeProgramId(), name: activeShow.name })
-      setPushResult('Pushed')
-    } catch (error) {
-      setPushResult(error instanceof Error ? error.message : 'Push failed')
+      const previewImage = mode === 'save'
+        ? (await buildPreviewJpeg(compiled.artifact).catch(() => null)) ?? undefined
+        : undefined
+      trackEvent('send_to_controller', {
+        mode,
+        pattern_key: showArtifactId,
+        controller_phase: activeController?.phase ?? controllerStatus.kind,
+      })
+      await pushGeneratedArtifact({
+        artifactId: showArtifactId,
+        source: prepared.source,
+        name: activeShowName,
+        persist: mode === 'save',
+        artifactStamp: prepared.artifactStamp,
+        previewImage,
+      })
     } finally {
-      setPushing(false)
+      setPreparingSave(false)
     }
+  }
+
+  function requestShowSend(mode: SendMode) {
+    setShowSendMode(mode)
+    if ((preparedControllerArtifact.value?.warnings.length ?? 0) > 0) {
+      setPendingSendMode(mode)
+      return
+    }
+    void sendShow(mode)
   }
 
   const patternOptions = [
@@ -264,17 +351,38 @@ export function ShowEditor({ showId }: { showId: string }) {
                 View generated pattern
               </Button>
               <ExportShowButton exported={showExport} buildExport={buildDownloadExport} />
-              <Button
-                size="xs"
-                variant="ghost"
-                className="bg-live/15 text-xs text-live hover:bg-live/20 disabled:opacity-40"
-                disabled={!compiled.artifact || !activeController || pushing}
-                onClick={() => void handlePushShow()}
-                title={activeController ? `Push to ${activeController.nickname || activeIp}` : 'Connect a Controller to push'}
+              <PushConfirmPopover
+                open={pendingSendMode !== null}
+                onCancel={() => setPendingSendMode(null)}
+                title="Send Show"
+                testId="show-preflight-dialog"
+                anchor={(
+                  <PatternDeploymentActions
+                    connected={controllerStatus.kind === 'connected'}
+                    controllerName={controllerName}
+                    runGate={runGate}
+                    saveGate={saveGate}
+                    activeMode={showSendMode}
+                    pushing={controllerPushing || preparingSave}
+                    pushResult={controllerPushResult}
+                    density="compact"
+                    onConnect={requestControllerEntryOpen}
+                    onRun={() => requestShowSend('run')}
+                    onSave={() => requestShowSend('save')}
+                  />
+                )}
               >
-                {pushing ? <RotateCw size={13} className="animate-spin" aria-hidden /> : <Play size={13} aria-hidden />}
-                {activeController ? `Push to ${activeController.nickname || activeIp}` : 'Push to Controller'}
-              </Button>
+                <PatternPushChoices
+                  warnings={preparedControllerArtifact.value?.warnings ?? []}
+                  blocked={preparedControllerArtifact.value?.blocked ?? true}
+                  remedy={null}
+                  onCancel={() => setPendingSendMode(null)}
+                  confirmWithMap={async () => {}}
+                  confirmOnly={async () => {
+                    if (pendingSendMode) await sendShow(pendingSendMode)
+                  }}
+                />
+              </PushConfirmPopover>
             </div>
           </div>
 
@@ -365,7 +473,11 @@ export function ShowEditor({ showId }: { showId: string }) {
         compiled={compiled}
         targetPixels={targetProfile?.lastKnownPixelCount ?? zonePixelTotal(activeShow)}
         onViewGenerated={() => setGeneratedOpen(true)}
-        pushResult={pushResult}
+        pushResult={preparedControllerArtifact.error ?? (
+          controllerPushResult
+            ? controllerPushResult.ok ? 'Sent to Controller' : controllerPushResult.message
+            : null
+        )}
       />
     </div>
   )

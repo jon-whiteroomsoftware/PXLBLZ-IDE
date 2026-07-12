@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { pushPattern, type PushPatternDeps } from './pushPattern'
 import { decodePbp } from './pbpEncode'
-import { parsePxlblzBanner, stripPxlblzBanner } from './artifactStamp'
+import { parsePxlblzBanner, stampArtifact, stripPxlblzBanner } from './artifactStamp'
 import type { BindingStore } from './controllerBinding'
 
 // A reconciling bytecode blob: header declares 0 opcode + 0 export bytes, len 8.
@@ -119,6 +119,42 @@ describe('pushPattern — save mode (persist: true)', () => {
     const runId = (deps.provider.pushBytecode as ReturnType<typeof vi.fn>).mock.calls[0][1].id
     expect(runId).toBe(saveId)
     expect(runId).toBe('DEVPROG1')
+  })
+
+  it('preserves a canonical pre-stamped Show source in the saved PBP', async () => {
+    const source = stampArtifact('export function render(index) { rgb(1, 0, 0) }', {
+      kind: 'show',
+      id: 'show-1',
+      name: 'Opening Night',
+      transforms: ['show'],
+      stampedAt: '2026-07-11T12:00:00.000Z',
+    })
+    const { deps } = makeDeps({
+      persist: true,
+      patternId: 'show:show-1',
+      name: 'Opening Night',
+      source,
+      artifactStamp: {
+        kind: 'show',
+        id: 'show-1',
+        name: 'Opening Night',
+        transforms: ['show'],
+        stampedAt: '2026-07-11T12:00:00.000Z',
+      },
+    })
+
+    await pushPattern(deps)
+
+    const blob = (deps.provider.saveProgram as ReturnType<typeof vi.fn>).mock.calls[0][0]
+    const decoded = decodePbp(blob)
+    if (!decoded) throw new Error('Expected a decodable saved Show PBP')
+    expect(decoded.sourceCode).toBe(source)
+    expect(parsePxlblzBanner(decoded.sourceCode)).toMatchObject({
+      kind: 'show',
+      id: 'show-1',
+      name: 'Opening Night',
+      transforms: ['show'],
+    })
   })
 
   it('encodes the PBP blob with the pattern name and stamped source', async () => {
