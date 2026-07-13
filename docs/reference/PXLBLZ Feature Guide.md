@@ -460,7 +460,41 @@ frozen import only when no match exists.
 
 A Show composes existing Patterns into one generated Pixelblaze Pattern. The
 source Patterns remain reusable textures; the Show owns timing, zones, routing,
-transitions, adaptations, and Controller targeting.
+transitions, adaptations, Controller targeting, and one permanent output
+contract.
+
+### Creating a Show
+
+**New Show** opens a two-column comparison before it creates anything.
+**Portable** leads with LED-resolution independence across compatible 2D mapped
+surfaces; its selected map and pixel count are an editable reference for
+authoring, not exact LED identity.
+**Installation** fixes one pixel count and output map for a known physical build.
+A measured custom map supplies and locks its point count, while a generated map
+accepts the entered count. Its initial physical zone covers that complete output.
+
+Choosing a column opens setup for the Show name, count, and map. The record does
+not exist until **Create Show**. **Cancel** or workspace Escape returns to the
+previously open Show, or to the Shows empty state when none was open. Inputs and
+open native controls consume Escape before the enclosing creation flow.
+
+The timeline header and Show properties keep the chosen contract visible after
+creation and reload. PXLBLZ classifies an older Show automatically only when its
+saved target Controller or physical LED ranges prove Installation intent. Every
+other older Show opens the same one-time comparison with its current Stage,
+modeled count, Controller, and routing facts prefilled. A 2D Stage, logical
+routing, or missing physical ranges never proves Portable by itself.
+
+Confirming the one-time choice adds the contract without rewriting timeline
+choreography. Cancel returns to the previously open Show or the Shows list and
+does not save anything. Once confirmed, reopening the Show goes directly to the
+timeline; there is no later conversion command.
+
+Portable Show properties separate the **Artifact promise** from **Reference
+preview**. Changing the 2D reference map or count redraws the same choreography;
+it does not rewrite scenes, clips, zones, or require the exported artifact to use
+that count. Portable hides Controller targeting, physical ranges, nominal pixel
+editing, and Controller-zone binding.
 
 ### Timeline model
 
@@ -470,12 +504,31 @@ The canonical editor is a proportional, zoomable timeline:
 - zones are explicit rows;
 - clips place Patterns across one or more scenes and zones;
 - one transition lane holds selectable boundary entities;
-- nested lanes expose Time, Brightness, and active public Pattern controls;
+- nested lanes expose Animation speed, Brightness, and active public Pattern controls;
 - a ruler, playhead, transport, and whole-Show navigator share one time axis.
+
+Scene and transition duration fields accept tenths of a second.
 
 Use **Fit**, zoom buttons, or Ctrl/Command-wheel to change the viewport. The
 navigator thumb shows the visible fraction; drag it to pan or drag its edges to
 resize the visible range. Zoom is editor state only and never changes Show time.
+**Snap** magnetically aligns pointer scrubbing to scene, clip, transition, and
+zoom-aware time-grid boundaries. It is on by default; hold Alt to temporarily
+reverse the current Snap setting.
+
+The Show workspace supports a mouse-free edit-and-preview loop. After a native
+inspector menu commits a discrete choice, focus returns to the selected timeline
+entity (or the timeline workspace when no entity is selected). **Space** then
+toggles Show playback, **Left Arrow** and **Right Arrow** seek exactly one second,
+and **Home** returns to Show start. Keyboard seeks clamp at the Show boundaries,
+use the same deterministic replay as the playhead, and preserve whether playback
+was running. The visible start button also advertises **Home** in its tooltip.
+
+Text, number, range, and menu controls retain ordinary Space and Arrow behavior
+while focused. Timeline navigator handles retain their pan/resize keys, and
+ordinary buttons retain Space activation. Delete and Backspace likewise remain
+local to editors; elsewhere they apply only to the selected scene, transition,
+clip, or zone under the existing confirmation rules.
 
 Click or drag the ruler to seek. PXLBLZ rebuilds deterministic Pattern state by
 replaying from Show start in Fast mode at full Stage resolution. Replay yields
@@ -492,15 +545,18 @@ A clip references a personal or built-in Pattern and applies non-destructive
 adaptations. Continue reuses compatible private Pattern state across a boundary;
 Restart creates a fresh instance and clock.
 
+The Pattern field is a type-down chooser grouped into personal and built-in
+results. Typing narrows the catalogue without requiring a long native menu.
+
 Delete removes a selected clip without a confirmation step and leaves an
 explicit empty slot in its scene and zone. Select that slot and choose a Pattern
 to create a fresh clip there. The timeline does not use freeform drag ordering:
 clips are anchored to the scene/zone grid, so delete and place is the supported
 way to relocate one.
 
-Time controls include:
+Animation controls include:
 
-- **Time ×** from exact `0` through `4`; zero freezes the Pattern's private
+- **Animation speed** from exact `0×` through `4×`; zero freezes the Pattern's private
   clock without pretending renderer work disappeared;
 - **Start offset** for staggered instances and rounds;
 - **Smooth / Stepped** cadence, where stepped motion accumulates time and
@@ -516,6 +572,9 @@ may be freestyle nominal rows or bind by name to the real multi-range zones on a
 Controller profile. Hold and zone spans form one rectangular footprint. Growing
 either span removes clips it covers; removing a covered scene or zone shrinks or
 re-anchors the surviving footprint.
+
+Adding a Zone creates an empty timeline row. Place Clips in its slots or extend
+an existing Clip across it; the editor does not clone another Zone's Patterns.
 
 ### Transitions and automation
 
@@ -539,21 +598,46 @@ width. The inspector hides parameters that do not affect the selected shape.
 
 Property automation uses one shared CSS-like model: destination clips own
 clip-level targets, destination scenes own Show-wide targets, and the incoming
-boundary owns the explicit start, duration, and easing. Time, Brightness,
+boundary owns the explicit start, duration, and easing. Animation speed, Brightness,
 exported `sliderName(v)` controls, and moving Split position use the same system.
 Synchronized Sample repeat uses it as well.
 Each property may have its own duration and easing on one continued Pattern
 instance. Private locals, toggles, and pickers are not exposed as automatable
 numeric properties.
+Changing a Clip to a different Pattern clears the former Pattern's developer-
+slider targets so unavailable controls cannot remain attached to the Clip.
 
 ### Routing layouts and Stage
 
-A Show may own several named routing layouts. Each maps semantic zones to pixel
-ranges. A routing boundary may cut immediately or move a stable directional
+A Show may own several named routing layouts. An Installation layout maps
+semantic zones to physical pixel ranges. A routing boundary may cut immediately or move a stable directional
 threshold across the installation for a configured duration and easing. Each
 physical pixel belongs to exactly one of the adjacent layouts on every frame,
 so the transfer invokes one Pattern renderer per pixel while every Pattern clock
 continues. Reverse direction moves the same threshold from the opposite edge.
+
+For a saved 2D Installation output map, select a zone and choose **Select LEDs on
+map** to edit that zone spatially in the center pane. Drag **Replace**, **Add**,
+or **Subtract** across map points; the surface previews the exact LED indexes,
+their compact ranges, and assigned/missing/overlap/out-of-range coverage before
+Save. Spatially adjacent LEDs may remain separate ranges when their wiring
+indexes are discontinuous or serpentine. Saving changes physical ownership only:
+the zone name, color, clips, scenes, and right-hand Stage remain unchanged.
+
+Portable Shows do not offer physical selection because their zones own normalized
+positions rather than LED identities. 3D maps and fixed maps whose point count
+does not match the Installation output explain that spatial selection is
+unavailable; PXLBLZ does not pretend a screen-space projection proves physical
+ownership.
+
+Portable layouts instead map logical zones with normalized coordinate predicates.
+Full surface, equal left/right or top/bottom stripes, 2x2 grids, and moving X/Y
+splits derive membership and zone-local X/Y from every runtime map point. The
+generated Pattern uses runtime `pixelCount`, X, and Y; it never embeds the
+reference count as physical ownership. A 32x32 square and 128x12 wide surface
+therefore keep the same authored coordinate boundary. Because maps preserve
+physical aspect, a compressed coordinate axis may make some grid zones narrow or
+empty; the Stage reports that consequence rather than stretching or hiding it.
 
 A two-zone layout may instead use a moving X or Y split. Each scene owns a
 normalized Split target, displayed as a colored Show-wide property lane. The
@@ -580,15 +664,21 @@ fractional-part operations per pixel.
 
 The compiler emits compact formulas for provably regular contiguous, row-band,
 and interleaved layouts. Irregular layouts use range branches or a bounded packed
-lookup according to measured layout complexity while keeping first-route-wins
-overlap semantics. Unassigned physical pixels render black and produce a compile
-warning.
+lookup according to measured layout complexity. An Installation validates every
+physical routing layout against its saved pixel count: out-of-range indexes,
+overlap, and missing indexes are errors. Show properties report assigned,
+overlapping, missing, and total pixels. Invalid coverage remains editable and
+previewable, but one actionable explanation blocks generated inspection,
+export, Run, and Save until the ranges cover every output index exactly once.
+Logical layouts route over the complete saved output without physical ranges.
 
-The right pane is the Show **Stage**. Generic zone strips are always available
-and honest for freestyle Shows. A saved 2D/3D Stage map instead draws the Show
-over installation geometry, uses real Controller ranges when available, marks
-uncovered pixels dim grey, and warns about off-stage zones. Stage selection is
-Show-wide, not per scene.
+The right pane is the read-only Show **Stage**. Generic zone strips remain honest
+for a Show without a saved map. A saved 2D/3D map instead draws the Show over its
+output geometry. An Installation always uses its saved count and physical-zone
+ranges rather than borrowing the connected Controller's setup. The Stage reports
+the saved map, fixed count, and coverage, marks uncovered pixels dim grey, and
+warns about off-stage zones. Durable map/count choices live in creation and Show
+properties, not in the output pane.
 
 ### Compile, push, and export
 
@@ -603,7 +693,7 @@ enumerated sequence would require.
 Synchronized tiling reports its one scalar, coordinate-operation ceiling, and
 zero-renderer delta separately from routing cost.
 
-**View generated pattern** shows the source read-only. Push compiles that source
+**View code** shows the generated source read-only. Push compiles that source
 with the connected Controller's compiler through the same grouped identity,
 **Run**, and **Save** actions used for ordinary Patterns. Run starts a transient
 program. Save writes and starts a durable program, then overwrites that same
@@ -611,6 +701,11 @@ Controller-bound program on later saves of the Show. Neither action creates a
 personal Pattern or requires an EPE round trip. If the installed Controller map
 requires an exact-arity renderer adapter, PXLBLZ explains and confirms that
 device derivative before sending it.
+
+The generated header names the Show output contract. Installation records its
+fixed count and map identity plus a fingerprint when PXLBLZ can bake or recognize
+the map. Portable records variable-resolution 2D surface compatibility without
+turning its reference map or count into a device requirement.
 
 **Export `.epe`** packages the canonical generated source with a normal
 Controller-format id, preview JPEG, readable Show summary, and provenance
@@ -620,12 +715,21 @@ dimensions, map class, resolution policy, optional aspect range, and whether the
 exact map is required. A stock map uses its stable catalogue id; a custom map
 uses its human-readable name without leaking a local database id.
 
+EPE import and Controller saved-program read-back recover the same versioned
+contract. Missing or ambiguous preferred maps produce a notice and normal preview
+fallback; usable Pattern source remains intact. Malformed optional contract
+metadata is ignored without invalidating the source banner.
+
 Inspection, direct send, and download therefore begin from one orchestration
 program. Only an explicitly reported Controller renderer adapter may derive the
-directly sent source, and that derivative retains the same map metadata. Sending
-never changes the Controller's shared map. An installation-bound Show with an
-authored map opens an explicit compatibility confirmation so the user can verify
-that map is already installed.
+directly sent source, and that derivative retains the same map and output-contract
+metadata. Sending never changes the Controller's shared map or pixel count. An
+Installation exact match sends cleanly; an unknown map requires explicit
+confirmation; a known count, identity, or fingerprint mismatch blocks Send.
+Portable compares 2D dimension, surface class, and any authored aspect interval
+as advisories, never its reference count or exact map. Saved-program inventory
+shows Installation/Portable and the decisive output facts recorded on the last
+Studio Save.
 
 ## 10. Files and manual workflows
 

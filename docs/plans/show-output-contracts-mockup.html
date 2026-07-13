@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PXLBLZ Show output contracts mockup</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #08080a;
+      color: #e4e4e7;
+      --panel: #111114;
+      --seam: #29292f;
+      --muted: #71717a;
+      --soft: #a1a1aa;
+      --live: #facc15;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-width: 680px; min-height: 100vh; background: #08080a; font-size: 12px; }
+    button, input, select { font: inherit; }
+    button { color: inherit; }
+    .topbar { height: 44px; border-bottom: 1px solid var(--seam); background: #141416; display: flex; align-items: center; padding: 0 18px; gap: 18px; }
+    .brand { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 16px; font-weight: 700; letter-spacing: .2em; color: #f4f4f5; }
+    .brand::before { content: "~"; color: var(--live); margin-right: 8px; }
+    .top-action { border: 1px solid #3f3f46; background: #18181b; border-radius: 6px; padding: 6px 10px; color: #d4d4d8; }
+    .spacer { flex: 1; }
+    .shell { height: calc(100vh - 44px); display: grid; grid-template-columns: 46px 182px minmax(450px, 1fr) 1px 36%; }
+    .icon-rail { border-right: 1px solid var(--seam); background: #0d0d10; display: flex; flex-direction: column; align-items: center; gap: 22px; padding-top: 18px; color: #52525b; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 8px; }
+    .icon-rail .active { color: var(--live); border: 1px solid #806600; background: #2c2400; border-radius: 5px; padding: 7px; }
+    .rail { border-right: 1px solid var(--seam); background: #101013; }
+    .rail-title, .pane-title { height: 32px; display: flex; align-items: center; border-bottom: 1px solid var(--seam); padding: 0 14px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 600; }
+    .rail-empty { padding: 16px 14px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-style: italic; color: #52525b; }
+    .rail-empty strong { color: var(--live); }
+    .editor { min-width: 0; background: #0b0b0d; overflow: auto; }
+    .pane-title { background: #111114; gap: 8px; }
+    .badge { border: 1px solid #755d00; background: #2a2200; color: var(--live); border-radius: 4px; padding: 2px 6px; font-size: 9px; text-transform: uppercase; letter-spacing: .08em; }
+    .splitter { background: var(--seam); }
+    .output { background: #08080a; }
+    .page { width: min(100%, 610px); margin: 0 auto; padding: 12px 20px 24px; }
+    .page-heading { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+    h1 { margin: 0; font-size: 18px; line-height: 1.3; font-weight: 650; }
+    .intro { margin: 5px 0 0; color: var(--soft); line-height: 1.65; }
+    .text-button { border: 0; background: transparent; color: var(--muted); padding: 5px 7px; border-radius: 4px; cursor: pointer; }
+    .text-button:hover { color: #e4e4e7; background: #27272a; }
+    .comparison { margin-top: 10px; border: 1px solid var(--seam); border-radius: 6px; background: var(--panel); overflow: hidden; display: grid; grid-template-columns: 1fr 1fr; }
+    .column { min-width: 0; display: flex; flex-direction: column; }
+    .column:first-child { border-right: 1px solid var(--seam); }
+    .column-head { padding: 9px 15px 8px; border-bottom: 1px solid var(--seam); }
+    .column-head h2 { margin: 0; font-size: 14px; line-height: 1.3; }
+    .kicker, .section-label { margin-top: 3px; color: #64646d; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 8px; letter-spacing: .14em; text-transform: uppercase; }
+    .visual { height: 64px; border-bottom: 1px solid var(--seam); background: #0b0b0d; display: grid; place-items: center; }
+    .portable-visual { display: flex; align-items: center; gap: 12px; color: #3f3f46; }
+    .dots { display: grid; gap: 4px; }
+    .dots.square { grid-template-columns: repeat(4, 4px); }
+    .dots.wide { grid-template-columns: repeat(6, 4px); }
+    .dot { width: 4px; height: 4px; border-radius: 50%; background: #3f3f46; }
+    .dot.on { background: var(--live); }
+    .ring { width: 38px; height: 38px; border: 1px solid #3f3f46; border-radius: 50%; position: relative; }
+    .ring .dot { position: absolute; }
+    .installation-dots { grid-template-columns: repeat(6, 5px); padding: 12px; border: 1px solid #3f3f46; border-radius: 50%; }
+    .installation-dots .dot { width: 5px; height: 5px; }
+    .installation-dots .dot:nth-child(-n+8) { background: #38bdf8; }
+    .installation-dots .dot:nth-child(n+9):nth-child(-n+22) { background: var(--live); }
+    .installation-dots .dot:nth-child(n+23) { background: #a78bfa; }
+    .column-body { flex: 1; display: flex; flex-direction: column; padding: 8px 15px 9px; }
+    .description { min-height: 36px; margin: 0; color: #b5b5bd; line-height: 1.45; }
+    .list-section { border-top: 1px solid var(--seam); margin-top: 6px; padding-top: 6px; }
+    ul { list-style: none; padding: 0; margin: 4px 0 0; color: #a1a1aa; font-size: 11px; line-height: 1.4; }
+    li { display: flex; gap: 8px; margin-top: 2px; }
+    li::before { content: "•"; color: #52525b; }
+    .includes li::before { content: "✓"; }
+    .primary { margin-top: 8px; min-height: 34px; width: 100%; display: flex; align-items: center; justify-content: space-between; border: 1px solid #3f3f46; border-radius: 4px; background: #18181b; padding: 0 12px; font-weight: 600; cursor: pointer; }
+    .primary:hover { border-color: #8a7000; color: var(--live); background: #211d0c; }
+    .setup { margin-top: 16px; border: 1px solid var(--seam); border-radius: 6px; background: var(--panel); padding: 16px; }
+    .setup-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    label { display: block; color: #71717a; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 9px; letter-spacing: .09em; text-transform: uppercase; }
+    label.full { grid-column: 1 / -1; }
+    input, select { width: 100%; height: 34px; margin-top: 5px; border: 1px solid #3f3f46; border-radius: 4px; background: #09090b; color: #e4e4e7; padding: 0 10px; text-transform: none; letter-spacing: 0; }
+    input:disabled { color: #71717a; border-color: #27272a; }
+    .note { grid-column: 1 / -1; border: 1px solid #27272a; background: #0b0b0d; border-radius: 4px; padding: 10px; color: #a1a1aa; line-height: 1.55; }
+    .setup-actions { grid-column: 1 / -1; border-top: 1px solid var(--seam); padding-top: 12px; display: flex; justify-content: flex-end; gap: 8px; }
+    .hidden { display: none; }
+    .cancelled { margin-top: 14px; border: 1px solid #3f3f46; background: #111114; border-radius: 6px; padding: 16px; color: #a1a1aa; }
+    @media (max-width: 980px) {
+      .shell { grid-template-columns: 46px 182px minmax(450px, 1fr); }
+      .splitter, .output { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">PXLBLZ</div>
+    <button class="top-action">Docs</button>
+    <button class="top-action">Code</button>
+    <div class="spacer"></div>
+    <button class="top-action">Connect</button>
+    <button class="top-action">Gallery</button>
+    <button class="top-action">Sign in</button>
+  </header>
+  <div class="shell">
+    <nav class="icon-rail" aria-label="Studio entities">
+      <span>PTRN</span><span>MAPS</span><span>MIXN</span><span>LIBS</span><span>CTRL</span><span class="active">SHOW</span>
+    </nav>
+    <aside class="rail">
+      <div class="rail-title">Shows</div>
+      <div class="rail-empty"><strong>Sign in</strong> to save Shows</div>
+    </aside>
+    <main class="editor">
+      <div class="pane-title">Show creation mockup <span class="badge">Plan artifact</span></div>
+      <section id="choose" class="page">
+        <div class="page-heading">
+          <h1>Choose the output for this Show</h1>
+          <button class="text-button" data-cancel title="Cancel new Show (Escape)">Cancel</button>
+        </div>
+        <p class="intro">This choice is permanent. It determines the maps, zones, and Controller checks available in the Show.</p>
+        <div class="comparison">
+          <article class="column">
+            <header class="column-head"><h2>Portable</h2><div class="kicker">Resolution-independent 2D</div></header>
+            <div class="visual"><div class="portable-visual"><div id="square" class="dots square"></div><span>→</span><div id="wide" class="dots wide"></div><span>→</span><div id="ring" class="ring"></div></div></div>
+            <div class="column-body">
+              <p class="description">Compose once, then run the Show on compatible 2D maps with different LED counts.</p>
+              <div class="list-section"><div class="section-label">Best for</div><ul><li>Shows meant to move between different 2D installations.</li></ul></div>
+              <div class="list-section includes"><div class="section-label">Includes</div><ul><li>LED-resolution independent — 32×32, 128×12, or another compatible output</li><li>Divide by position — left/right, top/bottom, or a 2×2 grid</li><li>Choose one map and pixel count for the authoring preview</li></ul></div>
+              <div class="list-section"><div class="section-label">Limits</div><ul><li>Cannot target specific LED numbers</li><li>Cannot select physical LED clusters on a map</li><li>2D mapped surfaces only for now</li></ul></div>
+              <button class="primary" data-kind="portable">Create Portable Show <span>›</span></button>
+            </div>
+          </article>
+          <article class="column">
+            <header class="column-head"><h2>Installation</h2><div class="kicker">Exact physical output</div></header>
+            <div class="visual"><div id="installation" class="dots installation-dots"></div></div>
+            <div class="column-body">
+              <p class="description">Lock the Show to one pixel count and map, then route Patterns to exact LED groups.</p>
+              <div class="list-section"><div class="section-label">Best for</div><ul><li>Shows whose physical wiring or LED groups are part of the design.</li></ul></div>
+              <div class="list-section includes"><div class="section-label">Includes</div><ul><li>One fixed pixel count and output map</li><li>Zones made from exact LED numbers or ranges</li><li>Warnings when the Controller count or map does not match</li></ul></div>
+              <div class="list-section"><div class="section-label">Limits</div><ul><li>Built for one installation, not a family of outputs</li><li>Changing the output map or count requires a new Show</li><li>Sending the Show never changes the Controller's map</li></ul></div>
+              <button class="primary" data-kind="installation">Create Installation Show <span>›</span></button>
+            </div>
+          </article>
+        </div>
+      </section>
+      <section id="setup" class="page hidden">
+        <div class="page-heading"><h1 id="setup-title">Set up the output</h1><button class="text-button" data-back>Back</button></div>
+        <p id="setup-intro" class="intro"></p>
+        <div class="setup">
+          <div class="setup-grid">
+            <label class="full">Show name<input value="Saturday lights"></label>
+            <label id="pixel-label">Pixels<input id="pixels" type="number" min="1" value="256"></label>
+            <label id="map-label">Output map<select id="map"><option value="plane">Square plane · generated</option><option value="measured">Measured sculpture · 384 fixed</option></select></label>
+            <div id="setup-note" class="note"></div>
+            <div class="setup-actions"><button class="text-button" data-cancel>Cancel</button><button id="finish" class="primary" style="width:auto;margin:0;gap:24px">Create Show <span>›</span></button></div>
+          </div>
+        </div>
+      </section>
+      <section id="cancelled" class="page hidden">
+        <div class="cancelled">Creation cancelled. No Show record was created. <button class="text-button" data-reopen>Open chooser</button></div>
+      </section>
+    </main>
+    <div class="splitter"></div>
+    <aside class="output" aria-label="Reserved Show output pane"></aside>
+  </div>
+  <script>
+    const makeDots = (element, count, lit) => {
+      for (let index = 0; index < count; index += 1) {
+        const dot = document.createElement('span')
+        dot.className = `dot${lit(index) ? ' on' : ''}`
+        element.append(dot)
+      }
+    }
+    makeDots(document.querySelector('#square'), 16, (index) => index % 5 === 0 || index === 6 || index === 9)
+    makeDots(document.querySelector('#wide'), 18, (index) => index === 0 || index === 7 || index > 14)
+    makeDots(document.querySelector('#installation'), 30, () => false)
+    const ring = document.querySelector('#ring')
+    for (let index = 0; index < 10; index += 1) {
+      const dot = document.createElement('span')
+      dot.className = `dot${index < 4 ? ' on' : ''}`
+      const angle = index / 10 * Math.PI * 2
+      dot.style.left = `calc(50% + ${Math.cos(angle) * 15}px - 2px)`
+      dot.style.top = `calc(50% + ${Math.sin(angle) * 15}px - 2px)`
+      ring.append(dot)
+    }
+    const choose = document.querySelector('#choose')
+    const setup = document.querySelector('#setup')
+    const cancelled = document.querySelector('#cancelled')
+    const pixels = document.querySelector('#pixels')
+    const map = document.querySelector('#map')
+    const show = (target) => {
+      for (const element of [choose, setup, cancelled]) element.classList.toggle('hidden', element !== target)
+    }
+    const openSetup = (kind) => {
+      const portable = kind === 'portable'
+      document.querySelector('#setup-title').textContent = `Set up the ${portable ? 'reference output' : 'installation'}`
+      document.querySelector('#setup-intro').textContent = portable
+        ? 'These values make the preview concrete without becoming deployment requirements.'
+        : 'These values become requirements carried by the Show artifact.'
+      document.querySelector('#pixel-label').firstChild.textContent = portable ? 'Reference pixels' : 'Pixels'
+      document.querySelector('#map-label').firstChild.textContent = portable ? 'Reference map' : 'Output map'
+      document.querySelector('#setup-note').textContent = portable
+        ? 'The Show remains LED-resolution independent across compatible 2D mapped surfaces.'
+        : `The initial main zone receives all ${pixels.value} pixels. Later physical zones must account for the same total.`
+      document.querySelector('#finish').firstChild.textContent = `Create ${portable ? 'Portable' : 'Installation'} Show `
+      map.dataset.kind = kind
+      show(setup)
+    }
+    document.querySelectorAll('[data-kind]').forEach((button) => button.addEventListener('click', () => openSetup(button.dataset.kind)))
+    document.querySelectorAll('[data-back]').forEach((button) => button.addEventListener('click', () => show(choose)))
+    document.querySelectorAll('[data-cancel]').forEach((button) => button.addEventListener('click', () => show(cancelled)))
+    document.querySelectorAll('[data-reopen]').forEach((button) => button.addEventListener('click', () => show(choose)))
+    map.addEventListener('change', () => {
+      const fixed = map.dataset.kind === 'installation' && map.value === 'measured'
+      pixels.disabled = fixed
+      if (fixed) pixels.value = '384'
+      if (map.dataset.kind === 'installation') document.querySelector('#setup-note').textContent = `The initial main zone receives all ${pixels.value} pixels. Later physical zones must account for the same total.`
+    })
+    document.addEventListener('keydown', (event) => {
+      if (event.key !== 'Escape') return
+      if (!setup.classList.contains('hidden')) show(choose)
+      else if (!choose.classList.contains('hidden')) show(cancelled)
+    })
+  </script>
+</body>
+</html>

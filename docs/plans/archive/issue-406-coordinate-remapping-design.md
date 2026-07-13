@@ -28,7 +28,7 @@ roughly doubles the per-pixel coordinate arithmetic. Emulator timings showed no
 candidate regression but were too JIT-sensitive to rank these small kernels;
 the structural counts and physical hardware gate remain authoritative.
 
-Measured comparison: [issue 406 coordinate-remapping results](archive/issue-406-coordinate-remapping-results.md).
+Measured comparison: [issue 406 coordinate-remapping results](issue-406-coordinate-remapping-results.md).
 
 ## Coordinate-space contract
 

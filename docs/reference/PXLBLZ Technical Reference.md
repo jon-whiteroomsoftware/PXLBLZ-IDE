@@ -656,15 +656,17 @@ id. Repeated saves reuse the id while it exists; a deleted device record causes
 a new id to be minted. Bindings carry identity only, never control values.
 
 A successful Save also writes a push record from the exact embedded banner:
-artifact hash, transform ids, timestamp, and name. This makes transform freshness
-locally computable without downloading every PBP.
+artifact hash, transform ids, timestamp, name, and optional Show output contract.
+This makes transform freshness and saved-Show output facts locally computable
+without downloading every PBP.
 
 ### Inventory and recovery
 
 The live Controller-profile context pane joins `listPrograms` with overwrite
 bindings, push records, personal Patterns, and built-ins. Bound entries link to
 Studio; foreign entries remain visible. Transform sets compare order-independently
-as current, stale, or unmanaged.
+as current, stale, or unmanaged. A saved Show row also reports Installation versus
+Portable plus fixed count/map or variable-resolution class from its push record.
 
 `readSavedProgram` fetches `/p/<id>`, decodes PBP, retains the device-stored name,
 separates PXLBLZ provenance from stripped source, and permits source-less records.
@@ -705,16 +707,19 @@ source; a miss becomes a frozen imported map.
 # Part 5 — Shows
 
 A Show is authored as timeline choreography but shipped as one ordinary,
-portable Pixelblaze Pattern. Its model preserves human intent—scenes, zones,
+self-contained Pixelblaze Pattern. Its model preserves human intent—scenes, zones,
 boundaries, routing, and automation—while the compiler flattens that intent into
 a scheduler and isolated Pattern members the Controller can run by itself.
 
 ## 19. Show domain model and persistence
 
-A Show is saved choreography over scenes, zones, clips, boundaries, routing
-layouts, and one optional Stage map. `showModel.ts` owns creation, normalization,
-projection, split, growth/removal, range parsing, and mutation. `showStore`
-persists normalized records through `/api/shows`.
+A Show is saved choreography over scenes, zones, clips, boundaries, and routing
+layouts under one immutable output-contract kind. New records carry a versioned
+`installation` or `portable-2d` discriminated object. Installation stores an
+exact pixel count and output map; Portable 2D stores a reference count/map plus
+its variable-resolution 2D compatibility declaration. `showModel.ts` owns
+creation, normalization, projection, split, growth/removal, range parsing, and
+mutation. `showStore` persists normalized records through `/api/shows`.
 
 ![Show model and runtime: scenes and zones meet in clips, boundary entities own cross-scene behavior, and the compiler flattens the saved model into one scheduled Pixelblaze Pattern](../images/show-model-runtime.svg)
 
@@ -730,10 +735,52 @@ Core ownership rules:
 - a destination clip owns clip-level property targets, a destination scene owns
   Show-wide property targets, and the incoming boundary owns each interpolation's
   explicit start, duration, and easing;
-- routing layouts own `zoneId → ranges`; boundary routing transitions choose
-  the destination layout plus optional transfer duration, easing, and direction;
-  and
-- the Show owns target Controller profile and Stage map.
+- routing layouts own either Installation `zoneId → ranges` or Portable logical
+  geometry; boundary routing transitions choose the destination layout plus
+  optional transfer duration, easing, and direction; and
+- the Show owns target Controller profile, output contract, and the Stage map
+  derived from that contract.
+
+`showInstallationCoverage.ts` validates each Installation routing layout against
+the contract's master pixel count. Physical layouts must assign every index in
+`0..pixelCount - 1` exactly once; missing, overlapping, and out-of-range indexes
+are distinct diagnostics. Logical layouts instead project their semantic zones
+across the complete output. A new Installation starts with one full-output
+physical range, so creation produces a valid model before later zone edits.
+
+`showPortableCompatibility.ts` enforces the complementary contract boundary.
+Every Portable routing layout must carry logical geometry; physical ranges,
+non-2D reference maps, missing logical zones, malformed grids, and member
+Patterns without `render2D` or `render` are artifact-blocking diagnostics. A
+1D `render` member remains compatible through an explicit normalized-local-index
+adaptation and is reported as an advisory. `render3D`-only members remain
+previewable for repair but cannot leave the editor as Portable output.
+
+`ShowCreationFlow` keeps contract comparison and setup provisional. Opening the
+flow stores only the previous Show id in `showStore`; the first durable write is
+the final Create Show action. Cancel or workspace Escape clears the provisional
+state and restores that id. Inputs and native menus retain their own first
+Escape so an edit or open control closes before the enclosing flow.
+
+The D1 record stores the contract as `output_contract_json`. Row loading accepts
+only the known version and discriminants, then reconstructs canonical
+compatibility literals rather than trusting display copy.
+
+`showLegacyClassification.ts` is the pure compatibility boundary for rows
+without a contract. A known version returns its stored discriminant directly.
+For a legacy row, an explicit target Controller or at least one non-empty
+physical index range proves Installation; the classifier derives its fixed count
+from the saved zone model and retains the saved Stage map. Stage dimension,
+logical routing, and the absence of ranges are deliberately non-evidence, so no
+legacy combination silently becomes Portable.
+
+`showStore.openShow()` persists a proven contract as a narrow contract/Stage
+patch. An ambiguous row instead creates provisional classification state with
+the previous Show id, modeled count, and inspectable reasons. Confirmation
+persists exactly one contract while retaining scenes, clips, transitions,
+routing, and Pattern state. Cancel clears the provisional state without a write
+and restores the previous Shows context. A successful write makes every later
+open follow the ordinary versioned path.
 
 Legacy scene-owned transitions and routing switches normalize into the boundary
 model before compiler, editor, EPE, or persistence consumption. Every boundary
@@ -756,6 +803,22 @@ sub-one-second fragments, creates one boundary across zones, divides covering
 clips, deep-copies value objects, moves the original outgoing boundary to the
 new right scene, and defaults destination clips to Continue.
 
+`showSpatialSelection.ts` owns Installation spatial authoring as pure data
+operations. A normalized 2D drag rectangle returns enclosed map-point indexes;
+replace/add/subtract combine immutable index sets; sorted indexes compact into
+minimal inclusive runs. `updateShowPhysicalZoneSelection()` replaces only one
+physical `layoutId + zoneId` range entry and preserves the semantic zone record
+and all choreography. The draft record passes through
+`validateInstallationCoverage()`, so assigned, missing, overlap, out-of-range,
+and total facts use the same authority as artifact gating.
+
+`ShowZoneSpatialSelector` resolves the saved Installation output map at the
+contract pixel count and renders its normalized points in the center pane. The
+right Stage remains mounted as read-only preview context. The selector is
+available only for an exact-count 2D map; Portable, 3D, missing, and fixed-count
+mismatch cases never enter screen-space editing. Pointer drags preview indexes
+and coverage before an explicit Save; Escape cancels without persistence.
+
 ## 20. Timeline editor and Stage preview
 
 `ShowEditor` renders one proportional grid for scene headers, ruler, transition
@@ -763,7 +826,10 @@ lane, zone rows, clips, property lanes, and playhead. A moving-split layout adds
 one Show-wide Split lane whose colored cells depict the authored ownership
 boundary. `showTimelineViewport.ts`
 owns Fit-to-16x zoom, playhead-anchored zoom, pan, navigator thumb geometry, and
-range resizing. Zoom is local editor state.
+range resizing. It also owns magnetic playhead snapping: structural Show
+boundaries take priority over a zoom-aware nice-number time grid. Snap is local
+editor state, defaults on, and Alt temporarily inverts it. Zoom and Snap never
+change the saved Show.
 
 Selection is UI-local and opens one contextual inspector for Show setup, clip,
 empty slot, transition, or zone. An empty slot presents the same personal and
@@ -772,15 +838,43 @@ placement and persistence through `showStore`. Other model mutations follow the
 same route; the React surface does not reproduce occupancy,
 split/transition/routing rules.
 
+The Show timeline owns a local focus-return seam. Focus capture remembers the
+last focusable selected timeline entity, while the timeline region is the
+fallback workspace target. A change-capture handler on the contextual inspector
+recognizes committed native `select` choices and schedules focus restoration
+after React applies the saved update. It does not blur controls globally;
+checkboxes, text-like editors, ranges, buttons, and navigator handles retain
+their native keyboard ownership.
+
+While `ShowTransportControls` is mounted, its document handler accepts Space,
+Left/Right, and Home only when the Show workspace or a marked timeline entity
+owns focus. Interactive controls consume those keys first. Relative and zero
+commands clamp through `showTransportStore`, create ordinary deterministic seek
+requests, and pause/resume around reconstruction so the previous playback state
+is preserved. Unmount removes the handler, preventing shortcuts from leaking
+into other Studio modes.
+
 `showTransportStore` holds ephemeral play/pause-adjacent timeline state:
 duration, position, rebuilding status, and monotonic seek identity. The global
 preview run state remains the transport source of truth.
 
-`ShowStagePreview` compiles the same generated float artifact used elsewhere.
+`ShowStagePreview` compiles the same generated float source used elsewhere, but
+does not apply the artifact-action coverage gate: an invalid Installation stays
+visible and repairable. Generated inspection, export, Run, and Save use
+`compileShowForArtifact`, which rejects invalid physical coverage with the same
+actionable diagnostic shown in Show properties.
 Generic strips build synthetic sequential map points and diagnostic zone rows.
-A selected 2D/3D Stage resolves the real map, projects Controller ranges when
-available, masks uncovered pixels grey, warns for off-stage zones, and preserves
-solo geometry by blacking non-solo zones.
+A selected 2D/3D Stage resolves the real map. Installation preview uses the
+contract's saved pixel count and physical ranges even when a connected Controller
+reports different setup; unclassified records may still project Controller
+ranges. The Stage masks uncovered pixels grey, reports saved map/count/coverage,
+warns for off-stage zones, and preserves solo geometry by blacking non-solo zones.
+
+Portable preview takes its pixel count from the saved reference configuration,
+never from a connected Controller. `buildShowLogicalStageProjection()` evaluates
+the active logical predicate against resolved map coordinates for zone counts,
+masking, and solo. `showLogicalAspectAdvisory()` reports when aspect-preserving
+coordinates compress an axis used by stripes, grids, splits, or pinwheel routing.
 
 ## 21. Show compiler
 
@@ -789,6 +883,24 @@ Pattern. Member sources are alpha-renamed and isolated. Compatible continued
 clips reuse a member; Restart adds clip identity and a fresh time base. Repeated
 appearances later in a sequence reuse compatible state rather than compiling a
 new member per visual block.
+
+An Installation recipe carries the contract pixel count as `masterPixelCount`.
+Routing, coordinate normalization, transitions, deterministic seek, preview, and
+artifact generation therefore share one output extent instead of inferring it
+from the largest authored range or a connected Controller.
+
+A one-zone Installation with no routing switch keeps the ordinary full scene
+sequence and transition scheduler. Its sole physical zone already covers the
+entire validated output, so the recipe adds the exact master count and saved
+zone range without switching to the multi-zone first-scene routing path. This
+preserves legacy playback when a proven one-zone Show gains its contract.
+
+A Portable recipe carries no master count. Once a Show has multiple zones or
+logical layout switching, `showRecordToCompileRecipe()` emits the existing
+coordinate-predicate routing representation. `emitLogicalRoutingSetup()` derives
+zone id and local X/Y from runtime coordinates for single-surface, stripe, grid,
+split, and pinwheel layouts. Generated member counts use runtime `pixelCount`;
+the reference preview count is absent from routing ownership.
 
 Each member has private elapsed time and adaptation state. The outer scheduler
 advances members according to holds and transition windows, then routes each
@@ -821,13 +933,14 @@ Easing is deterministic arithmetic shared by editor helpers and generated code:
 linear, quadratic ease-in, quadratic ease-out, and piecewise quadratic
 ease-in-out.
 
-Property transitions share one descriptor model. Time scale (`0..4`), brightness
+Property transitions share one descriptor model. Animation speed (`0×..4×`), brightness
 (`0..1`), and exported slider controls carry destination targets on clips. Moving
 split position (`0..1`) and sample repeat scale (`1..8`) carry their targets on
 the destination scene. Every form
 uses boundary-owned starts, durations, and easing. Generated control values call the
 alpha-renamed slider once before member `beforeRender`. Missing, renamed, or
-non-slider controls are compile errors rather than dropped automation.
+non-slider controls are compile errors rather than dropped automation. Replacing
+a Clip's Pattern clears that Clip's prior control targets at the model boundary.
 
 ### Show sample remapping
 
@@ -941,11 +1054,13 @@ Controller compilation into the standard EPE envelope. Export adds:
 - PXLBLZ artifact provenance; and
 - source Pattern provenance/license comments retained inside isolated members.
 
-Version-1 source banners may also carry two optional comment records:
+Version-1 source banners may also carry optional map, compatibility, and Show
+output-contract comment records:
 
 ```js
 // pxlblz:map preferred=stock:plane name="Square"
 // pxlblz:compat portability=adaptive dimensions=2 classes=surface aspect=0.75:1.33 resolution=adaptive exact=false
+// pxlblz:show-output version=1 kind=portable-2d dimensions=2 classes=surface resolution=variable
 ```
 
 The preferred map and compatibility contract are independent. Preferred stock
@@ -953,8 +1068,17 @@ maps use stable catalogue ids. Custom maps carry names only; an import reconnect
 one unambiguous exact-name match and otherwise retains the metadata while using
 the normal preview fallback. Compatibility records dimension and physical map
 class lists, adaptive/fixed resolution, an optional aspect-ratio interval, and
-exact-map intent. Older banners without either line parse unchanged; malformed
+exact-map intent. Older banners without any optional line parse unchanged; malformed
 optional lines do not invalidate the core artifact identity.
+
+`pxlblz:show-output` is the authoritative artifact-level Show contract. Its
+Installation variant records `pixels` and optional stock/custom map identity plus
+an eight-hex map-data fingerprint. Its Portable variant records 2D, compatible
+map classes, variable resolution, and an optional aspect interval. It never
+serializes Portable reference pixels as physical identity. `parseEpe()` and
+`recoverSavedProgram()` return the parsed record beside intact source; banner
+stripping removes all recognized optional lines. Unknown versions or malformed
+fields omit only this optional record.
 
 The summary lists Pattern references, scenes, routing layouts, and transition
 configuration. Generated orchestration names are collision-safe and do not
@@ -973,10 +1097,13 @@ map and firmware. A compatible artifact stays byte-identical. A required
 exact-arity adapter is appended through the pass engine, restamped as the same
 Show with `renderer-adapter` provenance, and presented through the ordinary
 compatibility confirmation. Known unsupported firmware blocks the send.
-Restamping preserves preferred-map and compatibility fields. An exact-map Show
-adds a separate non-blocking warning: program delivery does not mutate the
-Controller's one shared map, so the intended map and installation must already
-be present.
+Restamping preserves preferred-map, compatibility, and Show output-contract
+fields. Controller preparation compares Installation pixel count and map
+id/name/fingerprint when known. Exact matches are clean, unknown map state
+requires explicit confirmation, and known mismatches block. Portable dimension,
+class, and aspect differences are advisory; reference count and exact reference
+map are never compared. Program delivery does not mutate the Controller's shared
+map or pixel count.
 
 ---
 
@@ -1048,5 +1175,8 @@ environment requirements.
 - Adaptive routing/operators —
   `docs/plans/archive/issue-409-adaptive-show-routing-results.md` and
   `docs/plans/archive/issue-410-adaptive-spatial-operator-results.md`
+- Coordinate-remapping decision and measurements —
+  `docs/plans/archive/issue-406-coordinate-remapping-design.md` and
+  `docs/plans/archive/issue-406-coordinate-remapping-results.md`
 - Seek replay decision —
   `docs/plans/archive/issue-421-show-seek-replay-decision.md`

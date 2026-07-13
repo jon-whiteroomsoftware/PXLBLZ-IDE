@@ -33,9 +33,15 @@ remain open only as review state; they should not be read as unimplemented scope
 
 ## 2. Review and issue-hygiene queue
 
-Several completed arcs are intentionally open for human review:
+Several completed arcs are intentionally open for human review rather than
+future implementation:
 
 - #413 and #415-#421 — Show timeline and accurate transport;
+- #397 and #403-#406/#408 — routing, spatial effects, remapping, and their
+  remaining physical visual/FPS checks;
+- #434-#439 and #340 — Show output contracts, guided creation, Installation and
+  Portable enforcement, artifact round-trip, legacy classification, keyboard
+  flow, and spatial zone selection;
 - #401/#402 — catalog Show artifacts and physical/visual review;
 - #388 — map geometry/coordinate-space epic whose implementation children have
   landed; and
@@ -54,109 +60,20 @@ Known issue cleanup:
 - #276, #296, #381, #382, #384, and #387 need product triage before they enter
   sequencing.
 
-## 3. Shows: the next capability arc
+## 3. Shows: next product step
 
-Shows are now a real authoring system rather than a compiler demonstration. The
-next work should deepen visual range without creating parallel transition,
-animation, or timing models.
+The second Show implementation round is software-complete and awaiting human
+review. It shipped Installation and Portable 2D output contracts, guided creation,
+coverage and compatibility gates, artifact round-trip, legacy classification,
+keyboard authoring, and spatial Installation-zone selection (#434-#439 and
+#340). Current behavior belongs in the Feature Guide and Technical Reference;
+the completed decisions and delivery slices remain in the
+[archived output-contract plan](archive/show-output-contracts.md).
 
-### 3.1 Progressive routing transitions (#403)
-
-Shipped foundation: a routing boundary cuts at zero duration or transfers
-ownership with one stable directional threshold, configurable duration, shared
-easing, and forward/reverse direction. Every pixel selects exactly one adjacent
-layout route and one Pattern renderer on every frame. The shared boundary lane
-and inspector own the controls; generated artifacts preserve continuous Pattern
-clocks and warn when physical pixels are unassigned.
-
-This is progressive reassignment between two discrete layouts, not continuous
-coordinate interpolation.
-
-### 3.2 Spatial transition family (#404)
-
-Shipped foundation: the existing circle/portal now shares one SDF transition
-path with a diamond iris and ring/shockwave. Center, scale, direction, and
-feather policy remain shared; diamond alone exposes rotation/spin and ring alone
-exposes band width. Hard and stable-dither edges keep one renderer per pixel,
-while true blend remains bounded to the feather band.
-
-Keep one-renderer hard/stable-dither policies distinct from bounded dual-render
-blend. Do not turn the inspector into a generic shader editor.
-
-### 3.3 Parametric routing properties (#405)
-
-Shipped foundation: the tracer is a two-zone moving split on normalized Stage X or Y. The split
-position changes ownership continuously while each side is renormalized to its
-own `0..1` local domain, so the two source Patterns behave like canvases that
-grow and shrink. Position `0` gives the whole Stage to the second zone; position
-`1` gives it to the first.
-
-One named logical routing layout owns the axis and ordered zone pair. Each scene
-owns its normalized split-position target. The incoming visual boundary owns an
-explicit start, duration, and easing through the shared property-transition
-model. The timeline exposes one Show-wide nested Split lane; scene and transition
-inspectors edit the same targets and descriptors used by Time, Brightness, and
-public slider controls. Routing markers remain responsible only for switching
-named layouts.
-
-Compilation lowers those saved targets into one scalar value updated in
-`beforeRender`. The outer renderer compares normalized Stage position with that
-value, computes zone-local coordinates for the selected side, and invokes exactly
-one Pattern renderer. Preview, generated-code inspection, export, and Controller
-send therefore share the same equation. The formula uses constant routing
-storage; an equivalent animation made from enumerated layouts grows with
-`pixelCount * layoutCount` and steps rather than moves continuously.
-
-This slice animates routing while the routed Pattern members continue across the
-Show. Changing the routed Patterns by scene remains separate choreography work.
-The moving split introduces no routing-only curve editor, keyframes, private
-clock, or additional renderer window.
-
-Measured production comparison: [issue 405 moving-split results](archive/issue-405-moving-split-results.md).
-
-### 3.4 Coordinate remapping (#406)
-
-Shipped tracer: synchronized tiling repeats the post-routing local Pattern
-sample with one continuous `repeatScale` from `1..8`; `1` is exact identity.
-The destination scene owns the Show-wide target and the incoming visual
-boundary owns start, duration, and easing through the shared property model. A
-nested Sample lane, scene inspector, transition inspector, compile summary, and
-generated artifact all expose the same authored state.
-
-The Stage Map still owns the original hardware-real `sample` and preview `pos`.
-Routing still owns zone selection and local normalization. Remapping runs only
-after those steps and changes the arguments presented to unedited source
-Patterns. It repeats normalized index position for 1D renderers and local X/Y
-for 2D renderers; no 3D policy is inferred.
-
-The selected transform adds one scalar, up to two multiplies and two `frac`
-calls per pixel, and zero renderers. Center rotation was prototyped but rejected
-for this slice because it requires three scalars, two per-frame trig calls, more
-pixel arithmetic, and a larger artifact.
-
-Technical design and comparison: [coordinate-remapping design](issue-406-coordinate-remapping-design.md)
-and [prototype results](archive/issue-406-coordinate-remapping-results.md).
-
-### 3.5 Routing representation maturity (#408)
-
-Shipped foundation: arbitrary layouts retain range branches, while exact
-contiguous, row-band, and interleaved layouts compile to formulas. Irregular
-high-run layouts use packed lookup only inside explicit element and estimated
-bytecode guards. The compile summary and compile bar report the selected
-representation with separate estimated bytecode and permanent-array costs.
-
-Adaptive logical routing research shows direct Stage-space predicates can be
-small and hardware-competitive. Treat that as a compiler option for compatible
-geometry, not a universal replacement for fixed physical ranges. Controller
-comparison and activation checks remain the human verification gate.
-
-### 3.6 Artifact compatibility metadata (#411)
-
-This foundation is shipped. Show artifacts describe their preferred/authored
-map separately from their compatibility class through Pixelblaze-safe source
-comments. PXLBLZ recovers the fields from imported EPE and Controller-read
-source, restores available map preferences, and discloses exact-map intent
-without changing Controller map state.
+The next independent Show product step is the paired educational progression in
+#363. Each contract needs examples that teach its distinct routing vocabulary
+through the real create, inspect, export, and Controller-check paths. Example
+content must not reopen the contract model or create a second authoring path.
 
 ## 4. Show directions that need more evidence
 
@@ -225,13 +142,6 @@ redesign the pass engine or Show model.
 - Complete anti-griefing/rate-limit policy for public API and D1 mutation paths
   (#407) before broader public exposure increases write volume.
 
-### Stage authoring (#340)
-
-Marquee selection on a spatial Stage remains deferred. The likely home is
-Controller-profile zone authoring: select pixels on an imported installation map
-and derive index ranges. It must handle discontinuous wiring, additive/removal
-selection, overlap, and non-2D maps honestly before implementation.
-
 ## 6. Maps and geometry later directions
 
 The coordinate-space overhaul is complete enough to use. Future additions
@@ -253,8 +163,9 @@ Do not infer topology or coordinate views from arbitrary imported coordinates.
 
 ### Content
 
-- Build additional flagship and educational Shows (#363) using the real editor
-  and export path.
+- Build paired flagship and educational Show progressions (#363). Both output
+  contracts now run through the real editor; each track should advance from one
+  simple Show to an example that uses its distinctive routing vocabulary.
 - Add flagship Patterns (#382) only when they broaden the visual vocabulary or
   teach a reusable technique; raw count is not the goal.
 - Create small example personal entities (#360) only if they clarify the
@@ -294,15 +205,12 @@ underlying model.
 
 Keep each increment independently reviewable and leave the app shippable:
 
-1. Resolve the current ready-for-review queue and stale issue state.
-2. Progressive routing transition (#403).
-3. Small spatial transition family (#404).
-4. Parametric routing tracer (#405), then coordinate-remapping prototypes (#406).
-5. Representation and compatibility metadata (#408/#411) as measurements or
-   artifact distribution require them.
-6. Hardware-validation batch (#289/#319/#336) when the physical setup is ready.
-7. Rate limiting and public-release operations (#407).
-8. Content/onboarding polish selected from real user friction.
+1. Review and close the software-complete Show output-contract issues
+   (#434-#439 and #340), recording specific follow-ups instead of retaining
+   completed scope as roadmap work.
+2. Build the paired educational Show progressions (#363).
+3. Run hardware validation (#289/#319/#336) when the physical setup is ready,
+   and continue independent rate-limiting/public-release work (#407).
 
 Do not begin caching, downsampling, replay checkpoints, or worker infrastructure
 for Show seeking without real editor evidence. The direct deterministic replay
@@ -315,6 +223,10 @@ path remains the baseline and fallback.
   transport, automation lanes, and navigator direction.
 - `docs/plans/shows-editor-overhaul-mockup.html` — earlier scene-strip baseline,
   retained for design history rather than current interaction authority.
+- `docs/plans/archive/show-output-contracts.md` — completed second-round Show
+  product contract, creation flow, validation model, and delivery slices.
+- `docs/plans/show-output-contracts-mockup.html` — approved compact comparison
+  and setup-flow artifact for the second-round New Show experience.
 - `docs/plans/archive/` — completed hardware/performance research, catalog Show
   results, and replay decisions. Reference docs state the resulting rule; these
   reports retain the measurements.

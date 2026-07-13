@@ -126,7 +126,7 @@ credentials are not required.
 
 After deploy, open the Pages URL and smoke-test:
 
-1. Visit `/api/d1/health`; expect `{"ok":true,"schemaVersion":"13"}` or the
+1. Visit `/api/d1/health`; expect `{"ok":true,"schemaVersion":"14"}` or the
    latest migration number in `migrations/`.
 2. Visit `/api/me`; signed out should report `{ "authenticated": false }`.
 3. Click **Sign in**, complete GitHub OAuth, and confirm `/api/me` reports the
@@ -141,7 +141,8 @@ After deploy, open the Pages URL and smoke-test:
 8. Create, edit, reload, and delete a custom map.
 9. Create, edit, reload, and delete a cloud mixin.
 10. Create, edit, reload, rename, and delete a cloud library.
-11. Create, edit, reload, and delete a Show.
+11. Create, edit, reload, and delete one Installation Show and one Portable
+    Show; confirm each retains its output contract after reload.
 12. Connect a Controller when hardware is available and confirm a stable-id
    connection creates or refreshes a Controller profile.
 13. Select a personal pattern, reload, and confirm last-active restore.
@@ -165,7 +166,7 @@ npx wrangler d1 execute pxlblz-ide --remote --command "SELECT user_id, id, name,
 npx wrangler d1 execute pxlblz-ide --remote --command "SELECT user_id, id, name, updated_at FROM personal_maps ORDER BY updated_at DESC LIMIT 20;"
 npx wrangler d1 execute pxlblz-ide --remote --command "SELECT user_id, id, name, kind, updated_at FROM personal_mixins ORDER BY updated_at DESC LIMIT 20;"
 npx wrangler d1 execute pxlblz-ide --remote --command "SELECT user_id, id, name, updated_at FROM personal_libraries ORDER BY updated_at DESC LIMIT 20;"
-npx wrangler d1 execute pxlblz-ide --remote --command "SELECT user_id, id, name, updated_at FROM personal_shows ORDER BY updated_at DESC LIMIT 20;"
+npx wrangler d1 execute pxlblz-ide --remote --command "SELECT user_id, id, name, output_contract_json, updated_at FROM personal_shows ORDER BY updated_at DESC LIMIT 20;"
 npx wrangler d1 execute pxlblz-ide --remote --command "SELECT user_id, id, name, device_id, last_seen_ip, updated_at FROM controller_profiles ORDER BY updated_at DESC LIMIT 20;"
 npx wrangler d1 execute pxlblz-ide --remote --command "SELECT user_id, key, updated_at FROM personal_settings;"
 npx wrangler d1 execute pxlblz-ide --remote --command "SELECT user_id, key, updated_at FROM controller_metadata;"
