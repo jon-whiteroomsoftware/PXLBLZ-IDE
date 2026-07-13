@@ -108,6 +108,9 @@ export interface ControllerProfile {
   board: ControllerBoardProfile
   inputs: ControllerInput[]
   globalTransforms: GlobalTransform[]
+  /** Opt-in non-destructive reconciliation of PXLBLZ-managed saved artifacts.
+   * Missing on legacy records and therefore treated as false. */
+  keepPatternsUpToDate?: boolean
   patternBindings: PatternBinding[]
   zones: ControllerZone[]
   updatedAt: number

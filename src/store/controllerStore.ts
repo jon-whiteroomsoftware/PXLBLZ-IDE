@@ -26,6 +26,7 @@ import { applyControllerPixelCount } from '@/engine/applyControllerPixelCount'
 import { availableDiscoveredControllers } from '@/engine/controllerDiscovery'
 import type { ControllerPhase } from '@/engine/controllerPillView'
 import { pushPattern } from '@/engine/pushPattern'
+import { queueControllerDeviceWrite } from '@/engine/controllerDeviceWriteQueue'
 import type { ArtifactStampMeta } from '@/engine/artifactStamp'
 import {
   getControllerBindings,
@@ -49,15 +50,27 @@ import { LIBRARIES } from '@/pixelblaze/libs'
 import { usePatternStore, activePushKey } from '@/store/patternStore'
 import { useEditorStore } from '@/store/editorStore'
 import { useLibraryStore } from '@/store/libraryStore'
-import { useMapStore, openMapForPushState } from '@/store/mapStore'
+import { STOCK_MAPS, useMapStore, openMapForPushState } from '@/store/mapStore'
 import { useControllerPanelStore } from '@/store/controllerPanelStore'
 import { getPersonalContentProvider } from '@/engine/personalContentProvider'
 import { waitForControllerProfileWrites } from '@/engine/controllerProfileWriteQueue'
 import {
   controllerProfileArtifactSignature,
   controllerProfilePassRecipe,
+  controllerProfileReconciliationSignature,
   findProfileForLiveController,
 } from '@/engine/controllerProfilePassRecipe'
+import { controllerForProfile } from '@/engine/controllerProfileConnection'
+import {
+  executeControllerReconciliation,
+  planControllerReconciliation,
+  type ControllerReconciliationJob,
+} from '@/engine/controllerReconciliation'
+import { DEMOS } from '@/pixelblaze/stock/patterns'
+import { useShowStore } from '@/store/showStore'
+import { compileShowForArtifact } from '@/engine/showPreviewArtifact'
+import { buildShowEpeExport } from '@/engine/showEpeExport'
+import { prepareShowControllerArtifact } from '@/engine/showControllerArtifact'
 
 function artifactTransformIds(passes: Array<Pick<PassSummary, 'id' | 'kind'>>): string[] {
   const ids = new Set<string>()
@@ -103,6 +116,24 @@ export interface ControllerEntry {
   /** Non-null while Chrome is waiting for the helper popup's per-IP grant (#235). */
   authorizationNeededIp?: string | null
   mapDim: MapDimension
+}
+
+export type ControllerReconciliationProgramState = 'current' | 'queued' | 'updating' | 'failed'
+
+export interface ControllerReconciliationProgram {
+  programId: string
+  bindingKey: string
+  name: string
+  state: ControllerReconciliationProgramState
+  message?: string
+}
+
+export interface ControllerReconciliationState {
+  phase: 'idle' | 'pending' | 'running' | 'current' | 'attention'
+  managedCount: number
+  unmanagedCount: number
+  completedCount: number
+  programs: ControllerReconciliationProgram[]
 }
 
 interface ControllerConnectionState {
@@ -158,6 +189,8 @@ interface ControllerConnectionState {
   /** Last inspectable generated artifact by Controller and pattern. Populated
    *  alongside `lastTransformSummary`, including source and pass warnings. */
   lastTransformArtifacts: TransformArtifactInspectionStore
+  /** Background saved-artifact reconciliation state keyed by Controller profile id. */
+  controllerReconciliations: Record<string, ControllerReconciliationState>
   /** Pending preflight warnings (#203): non-null opens the reconciliation dialog,
    *  which Send must clear (confirm or cancel) before the push proceeds. `null` =
    *  no dialog. An empty array never appears here — a clean preflight pushes
@@ -253,6 +286,10 @@ interface ControllerConnectionState {
   setSaveArmed: (armed: boolean) => void
   /** Clear the transient push result (e.g. after the toast/badge times out). */
   clearPushResult: () => void
+  /** Reconcile installed PXLBLZ-managed artifacts for one opted-in Controller profile. */
+  reconcileControllerProfile: (profileId: string) => Promise<void>
+  /** Debounced entry point used after profile edits and reconnect. */
+  scheduleControllerReconciliation: (profileId: string) => void
 }
 
 export interface GeneratedArtifactPush {
@@ -287,6 +324,7 @@ export const controllerInitialState = {
   lastPushedMap: {} as Record<string, Record<string, string>>,
   lastTransformSummary: {} as Record<string, Record<string, TransformSummary>>,
   lastTransformArtifacts: {} as TransformArtifactInspectionStore,
+  controllerReconciliations: {} as Record<string, ControllerReconciliationState>,
   preflight: null as PreflightWarning[] | null,
   mapPushRemedyCount: null as number | null,
   patternMapRemedy: null as RecommendedMapRemedy | null,
@@ -300,6 +338,7 @@ export const controllerInitialState = {
 const providers = new Map<string, ControllerProvider>()
 const unsubscribers = new Map<string, () => void>()
 const firmwareUpdateCheckedAt = new Map<string, number>()
+const reconciliationTimers = new Map<string, ReturnType<typeof setTimeout>>()
 const FIRMWARE_UPDATE_CHECK_INTERVAL_MS = 60 * 60 * 1000
 
 /** Map a provider status to the keyed entry's mirrored fields. The nickname is
@@ -547,6 +586,18 @@ export const useControllerStore = create<ControllerConnectionState>()(
           // owns the polling interval (started on open); this is a one-shot seed.
           useControllerPanelStore.getState().seed(target)
 
+          // A disconnected Controller cannot be reconciled. Re-evaluate an opted-in
+          // profile as soon as its device returns; the planner still excludes every
+          // foreign or otherwise unmanaged program before any write is queued.
+          const profiles = await getPersonalContentProvider().listControllerProfiles().catch(() => [])
+          const connectedProfile = findProfileForLiveController(
+            profiles,
+            get().controllers[target],
+          )
+          if (connectedProfile?.keepPatternsUpToDate) {
+            get().scheduleControllerReconciliation(connectedProfile.id)
+          }
+
           // The Controller owns compatibility and release selection. Keep this
           // best-effort and off the connection's critical path; reconnect churn
           // reuses the session result for an hour.
@@ -599,13 +650,315 @@ export const useControllerStore = create<ControllerConnectionState>()(
 
         clearPushResult: () => set({ pushResult: null }),
 
+        scheduleControllerReconciliation: (profileId) => {
+          const existing = reconciliationTimers.get(profileId)
+          if (existing) clearTimeout(existing)
+          set((state) => ({
+            controllerReconciliations: {
+              ...state.controllerReconciliations,
+              [profileId]: {
+                ...(state.controllerReconciliations[profileId] ?? {
+                  managedCount: 0,
+                  unmanagedCount: 0,
+                  completedCount: 0,
+                  programs: [],
+                }),
+                phase: 'pending',
+              },
+            },
+          }))
+          reconciliationTimers.set(profileId, setTimeout(() => {
+            reconciliationTimers.delete(profileId)
+            void get().reconcileControllerProfile(profileId)
+          }, 600))
+        },
+
+        reconcileControllerProfile: async (profileId) => {
+          await waitForControllerProfileWrites()
+          const profiles = await getPersonalContentProvider().listControllerProfiles().catch(() => [])
+          const profile = profiles.find((candidate) => candidate.id === profileId)
+          if (!profile?.keepPatternsUpToDate) {
+            set((state) => ({
+              controllerReconciliations: {
+                ...state.controllerReconciliations,
+                [profileId]: {
+                  phase: 'idle',
+                  managedCount: 0,
+                  unmanagedCount: 0,
+                  completedCount: 0,
+                  programs: [],
+                },
+              },
+            }))
+            return
+          }
+          const live = controllerForProfile(profile, get().controllers)
+          if (!live || live.phase !== 'live') {
+            set((state) => ({
+              controllerReconciliations: {
+                ...state.controllerReconciliations,
+                [profileId]: {
+                  ...(state.controllerReconciliations[profileId] ?? {
+                    managedCount: 0,
+                    unmanagedCount: 0,
+                    completedCount: 0,
+                    programs: [],
+                  }),
+                  phase: 'pending',
+                },
+              },
+            }))
+            return
+          }
+          const provider = providers.get(live.ip) ?? (get().activeIp === live.ip ? getControllerProvider() : null)
+          if (!provider) return
+
+          const [programs, bindings, pushRecords, config] = await Promise.all([
+            provider.listPrograms(),
+            getControllerBindings(),
+            getPushRecords(),
+            provider.getConfig().catch(() => null),
+          ])
+          const patternState = usePatternStore.getState()
+          const libraryState = useLibraryStore.getState()
+          const mapState = useMapStore.getState()
+          const showArtifacts = useShowStore.getState().shows.flatMap((show) => {
+            const stageMap = show.stageMapId
+              ? [...STOCK_MAPS, ...mapState.userMaps].find((map) => map.id === show.stageMapId)
+              : undefined
+            const compiled = compileShowForArtifact(
+              show,
+              patternState.userPatterns,
+              profile.zones,
+              Object.fromEntries(libraryState.userLibraries.map((library) => [library.name, library.src])),
+              { stageDimension: stageMap?.dim },
+            )
+            if (!compiled.artifact) return []
+            try {
+              const canonical = buildShowEpeExport(show, compiled.artifact.code, {
+                stampedAt: new Date(show.updatedAt),
+                userMaps: mapState.userMaps,
+              })
+              const prepared = prepareShowControllerArtifact(
+                canonical.source,
+                live.mapDim,
+                live.firmwareVersion,
+                profile.lastKnownPixelCount === undefined
+                  ? {}
+                  : { pixelCount: profile.lastKnownPixelCount },
+              )
+              if (prepared.blocked) return []
+              const bindingKey = `show:${show.id}`
+              return [{
+                bindingKey,
+                name: show.name,
+                source: prepared.source,
+                artifactStamp: prepared.artifactStamp,
+                profileSignature: controllerProfileArtifactSignature(
+                  profile,
+                  bindingKey,
+                  { mapDim: live.mapDim },
+                ),
+              }]
+            } catch {
+              return []
+            }
+          })
+          const artifacts = [
+            ...patternState.userPatterns.map((pattern) => ({
+              bindingKey: pattern.id,
+              name: pattern.name,
+              source: pattern.src,
+              profileSignature: controllerProfileArtifactSignature(
+                profile,
+                pattern.id,
+                { mapDim: live.mapDim },
+              ),
+            })),
+            ...Object.entries(DEMOS).map(([name, source]) => ({
+              bindingKey: `demo:${name}`,
+              name,
+              source,
+              profileSignature: controllerProfileArtifactSignature(
+                profile,
+                `demo:${name}`,
+                { mapDim: live.mapDim },
+              ),
+            })),
+            ...showArtifacts,
+          ]
+          const plan = planControllerReconciliation({
+            controllerId: live.ip,
+            programs,
+            bindings,
+            pushRecords,
+            artifacts,
+          })
+          const initialPrograms: ControllerReconciliationProgram[] = [
+            ...plan.current.map((artifact) => ({
+              programId: artifact.programId,
+              bindingKey: artifact.bindingKey,
+              name: artifact.name,
+              state: 'current' as const,
+            })),
+            ...plan.jobs.map((job) => ({
+              programId: job.programId,
+              bindingKey: job.bindingKey,
+              name: job.name,
+              state: 'queued' as const,
+            })),
+          ]
+          set((state) => ({
+            controllerReconciliations: {
+              ...state.controllerReconciliations,
+              [profileId]: {
+                phase: plan.jobs.length > 0 ? 'running' : 'current',
+                managedCount: plan.managedCount,
+                unmanagedCount: plan.unmanaged.length,
+                completedCount: plan.current.length,
+                programs: initialPrograms,
+              },
+            },
+          }))
+          if (plan.jobs.length === 0) return
+
+          const compiledLibraries = compileLibraries(LIBRARIES, libraryState.userLibraries)
+          const reconciliationSignature = controllerProfileReconciliationSignature(profile)
+          const updateProgram = (
+            job: ControllerReconciliationJob,
+            patch: Partial<ControllerReconciliationProgram>,
+          ) => set((state) => {
+            const current = state.controllerReconciliations[profileId]
+            if (!current) return state
+            return {
+              controllerReconciliations: {
+                ...state.controllerReconciliations,
+                [profileId]: {
+                  ...current,
+                  programs: current.programs.map((program) => (
+                    program.programId === job.programId ? { ...program, ...patch } : program
+                  )),
+                },
+              },
+            }
+          })
+          const result = await executeControllerReconciliation({
+            jobs: plan.jobs,
+            activeProgramId: config?.activeProgramId,
+            shouldContinue: async () => {
+              const latestProfiles = await getPersonalContentProvider()
+                .listControllerProfiles()
+                .catch(() => [])
+              const latest = latestProfiles.find((candidate) => candidate.id === profileId)
+              const latestLive = latest
+                ? controllerForProfile(latest, get().controllers)
+                : null
+              return Boolean(
+                latest?.keepPatternsUpToDate &&
+                latestLive?.phase === 'live' &&
+                controllerProfileReconciliationSignature(latest) === reconciliationSignature,
+              )
+            },
+            onJobStart: (job) => updateProgram(job, { state: 'updating', message: undefined }),
+            onJobComplete: (job) => set((state) => {
+              const current = state.controllerReconciliations[profileId]
+              if (!current) return state
+              return {
+                controllerReconciliations: {
+                  ...state.controllerReconciliations,
+                  [profileId]: {
+                    ...current,
+                    completedCount: current.completedCount + 1,
+                    programs: current.programs.map((program) => (
+                      program.programId === job.programId
+                        ? { ...program, state: 'current' as const, message: undefined }
+                        : program
+                    )),
+                  },
+                },
+              }
+            }),
+            onJobFailed: ({ job, message }) => updateProgram(job, { state: 'failed', message }),
+            overwrite: async (job, activate) => {
+              const recipe = controllerProfilePassRecipe(profile, job.source, job.bindingKey)
+              if (live.mapDim && job.artifactStamp?.kind !== 'show') {
+                recipe.push({ id: 'renderer-adapter', kind: 'renderer-adapter', mapDim: live.mapDim })
+              }
+              const bundled = bundleWithPasses(job.source, compiledLibraries, recipe)
+              if (live.mapDim) {
+                const hardwarePlan = planHardwareRenderer(
+                  live.mapDim,
+                  bundled.metadata.renderFns,
+                  live.firmwareVersion,
+                )
+                if (hardwarePlan.firmwareSupport === 'unsupported') {
+                  throw new Error(hardwarePlan.reason ?? 'Unsupported Controller renderer/map combination')
+                }
+              }
+              const adapterCollision = bundled.warnings.find(
+                (warning) => warning.code === 'renderer-adapter-name-collision',
+              )
+              if (adapterCollision) throw new Error(adapterCollision.message)
+              const previewImage = (await buildPreviewJpeg(bundled)) ?? undefined
+              const transforms = artifactTransformIds(bundled.summary.passes)
+              const artifactStamp = job.artifactStamp
+                ? {
+                    ...job.artifactStamp,
+                    transforms: [...new Set([
+                      ...(job.artifactStamp.transforms ?? []),
+                      ...transforms,
+                    ])],
+                  }
+                : undefined
+              await queueControllerDeviceWrite(live.ip, () => pushPattern({
+                provider,
+                controllerId: live.ip,
+                patternId: job.bindingKey,
+                source: bundled.code,
+                name: job.name,
+                persist: true,
+                activateOnSave: activate,
+                requireExisting: true,
+                previewImage,
+                transforms,
+                artifactStamp,
+                profileSignature: job.profileSignature,
+                loadBindings: getControllerBindings,
+                saveBindings: setControllerBindings,
+                loadPushRecords: getPushRecords,
+                savePushRecords: setPushRecords,
+              }))
+            },
+          })
+          set((state) => {
+            const current = state.controllerReconciliations[profileId]
+            if (!current) return state
+            return {
+              controllerReconciliations: {
+                ...state.controllerReconciliations,
+                [profileId]: {
+                  ...current,
+                  phase: result.stopped
+                    ? 'pending'
+                    : result.failed.length > 0
+                      ? 'attention'
+                      : 'current',
+                },
+              },
+            }
+          })
+          void useControllerPanelStore.getState().refreshPrograms()
+        },
+
         pushGeneratedArtifact: async (artifact) => {
           const controllerId = get().activeIp
           if (!controllerId || artifact.source.length === 0) return
 
           set({ pushing: true, pushResult: null })
           try {
-            const { created, programId } = await pushPattern({
+            const { created, programId } = await queueControllerDeviceWrite(
+              controllerId,
+              () => pushPattern({
               provider: getControllerProvider(),
               controllerId,
               patternId: artifact.artifactId,
@@ -620,7 +973,8 @@ export const useControllerStore = create<ControllerConnectionState>()(
               saveBindings: setControllerBindings,
               loadPushRecords: getPushRecords,
               savePushRecords: setPushRecords,
-            })
+              }),
+            )
 
             if (artifact.name) {
               const labels = withProgramLabel(
@@ -955,7 +1309,9 @@ export const useControllerStore = create<ControllerConnectionState>()(
             const previewImage = persist
               ? (await buildPreviewJpeg(bundled)) ?? undefined
               : undefined
-            const { created, programId } = await pushPattern({
+            const { created, programId } = await queueControllerDeviceWrite(
+              controllerId,
+              () => pushPattern({
               provider: getControllerProvider(),
               controllerId,
               patternId,
@@ -964,11 +1320,13 @@ export const useControllerStore = create<ControllerConnectionState>()(
               persist,
               previewImage,
               transforms: artifactTransformIds(bundled.summary.passes),
+              profileSignature,
               loadBindings: getControllerBindings,
               saveBindings: setControllerBindings,
               loadPushRecords: getPushRecords,
               savePushRecords: setPushRecords,
-            })
+              }),
+            )
             // Record the name we pushed against the device program id (#237) so the
             // panel resolves a run-only program — which never enters the device's
             // program list — to the pattern's name instead of the raw generated id.

@@ -26,6 +26,7 @@ import { useControllerPanelStore, controllerPanelInitialState } from '@/store/co
 import {
   getControllerBindings,
   setControllerBindings,
+  setPushRecords,
   getProgramLabels,
   resetControllerMetadataStorage,
   setControllerMetadataStorage,
@@ -240,6 +241,62 @@ afterEach(() => {
 const store = () => useControllerStore.getState()
 
 describe('controllerStore (keyed)', () => {
+  it('reconciles only managed saved Patterns and never writes foreign programs', async () => {
+    const profile = {
+      ...defaultControllerProfile({
+        id: 'profile-1',
+        deviceId: 'pixelblaze_pb32_managed',
+        ip: '10.0.0.5',
+      }),
+      keepPatternsUpToDate: true,
+    }
+    setControllerProfiles([profile])
+    usePatternStore.setState({
+      userPatterns: [{
+        id: 'pat-1',
+        name: 'Managed Pattern',
+        src: 'export function render(index) { hsv(index, 1, 1) }',
+        controls: {},
+        updatedAt: 1,
+      }],
+      patternsLoaded: true,
+    })
+    await setControllerBindings({ '10.0.0.5': { 'pat-1': 'MANAGED1' } })
+    await setPushRecords({
+      '10.0.0.5': {
+        'pat-1': {
+          transforms: [],
+          profileSignature: 'old-signature',
+          artifactHash: 'old-hash',
+          stampedAt: '2026-07-12T00:00:00.000Z',
+          name: 'Managed Pattern',
+        },
+      },
+    })
+
+    await store().addController({
+      id: 'pixelblaze_pb32_managed',
+      address: '10.0.0.5',
+      name: 'Managed Controller',
+    })
+    const provider = created.get('10.0.0.5')!
+    provider.programs = [
+      { id: 'MANAGED1', name: 'Managed Pattern' },
+      { id: 'FOREIGN1', name: 'Someone else\'s Pattern' },
+    ]
+
+    await store().reconcileControllerProfile('profile-1')
+
+    expect(provider.saved.map((write) => write.opts.id)).toEqual(['MANAGED1'])
+    expect(provider.pushed).toEqual([])
+    expect(store().controllerReconciliations['profile-1']).toMatchObject({
+      phase: 'current',
+      managedCount: 1,
+      unmanagedCount: 1,
+      completedCount: 1,
+    })
+  })
+
   it('detectExtension records global extension presence', async () => {
     await store().detectExtension()
     expect(store().extensionPresent).toBe(true)
@@ -254,6 +311,21 @@ describe('controllerStore (keyed)', () => {
     expect(entry.mapDim).toBe(2)
     expect(store().activeIp).toBe('10.0.0.5')
     expect(created.get('10.0.0.5')!.connects).toEqual([{ address: '10.0.0.5' }])
+  })
+
+  it('schedules opted-in managed Pattern reconciliation when a Controller reconnects', async () => {
+    const scheduled: string[] = []
+    setControllerProfiles([{
+      ...defaultControllerProfile({ id: 'profile-1', ip: '10.0.0.5', now: 1 }),
+      keepPatternsUpToDate: true,
+    }])
+    useControllerStore.setState({
+      scheduleControllerReconciliation: (profileId) => scheduled.push(profileId),
+    })
+
+    await store().addController('10.0.0.5')
+
+    expect(scheduled).toEqual(['profile-1'])
   })
 
   it('records an available firmware update after the Controller becomes live', async () => {

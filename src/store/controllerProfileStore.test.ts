@@ -124,6 +124,10 @@ beforeEach(() => {
 })
 
 describe('controllerProfileStore', () => {
+  it('defaults automatic managed-pattern reconciliation off', () => {
+    expect(defaultControllerProfile({ id: 'profile-1' }).keepPatternsUpToDate).toBe(false)
+  })
+
   it('creates a valid default profile with disabled global transforms', () => {
     const profile = defaultControllerProfile({
       id: 'ctrl-1',
@@ -212,6 +216,34 @@ describe('controllerProfileStore', () => {
     ).rejects.toThrow('save failed')
 
     expect(useControllerProfileStore.getState().profiles[0].name).toBe('Original')
+  })
+
+  it('schedules reconciliation only when managed generated code or the opt-in changes', async () => {
+    const profile = defaultControllerProfile({ id: 'ctrl-1', now: 1 })
+    const scheduled: string[] = []
+    setPersonalContentProvider(memoryProvider([profile]))
+    useControllerStore.setState({
+      scheduleControllerReconciliation: (profileId) => scheduled.push(profileId),
+    })
+    await useControllerProfileStore.getState().loadProfiles()
+
+    await useControllerProfileStore.getState().updateProfile('ctrl-1', { name: 'Renamed' })
+    expect(scheduled).toEqual([])
+
+    await useControllerProfileStore.getState().updateProfile('ctrl-1', {
+      keepPatternsUpToDate: true,
+    })
+    expect(scheduled).toEqual(['ctrl-1'])
+
+    const enabled = useControllerProfileStore.getState().profiles[0].globalTransforms.map(
+      (transform) => transform.type === 'power-cap'
+        ? { ...transform, enabled: true }
+        : transform,
+    )
+    await useControllerProfileStore.getState().updateProfile('ctrl-1', {
+      globalTransforms: enabled,
+    })
+    expect(scheduled).toEqual(['ctrl-1', 'ctrl-1'])
   })
 
   it('keeps bindings consistent when removing an input', async () => {

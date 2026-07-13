@@ -194,6 +194,80 @@ describe('ControllerProfilePage', () => {
     expect(screen.getByRole('button', { name: 'Refresh saved programs' })).toBeDisabled()
   })
 
+  it('makes managed reconciliation explicit while keeping unmanaged programs exempt', () => {
+    const profile = { ...seedProfile(), keepPatternsUpToDate: true }
+    useControllerProfileStore.setState({ profiles: [profile] })
+    useControllerStore.setState({
+      controllerReconciliations: {
+        'ctrl-1': {
+          phase: 'running',
+          managedCount: 3,
+          unmanagedCount: 2,
+          completedCount: 1,
+          programs: [
+            { programId: 'CURRENT', bindingKey: 'pat-1', name: 'Current', state: 'current' },
+            { programId: 'WORKING', bindingKey: 'pat-2', name: 'Working', state: 'updating' },
+            { programId: 'QUEUED', bindingKey: 'pat-3', name: 'Queued', state: 'queued' },
+          ],
+        },
+      },
+    })
+
+    render(<ControllerSavedProgramsPane profile={profile} />)
+
+    expect(screen.getByRole('checkbox', { name: 'Keep PXLBLZ patterns up to date' })).toBeChecked()
+    expect(screen.getByText('1 of 3 managed Patterns current')).toBeInTheDocument()
+    expect(screen.getByText(/2 unmanaged programs are completely exempt/i)).toBeInTheDocument()
+    expect(screen.getByLabelText('Managed Pattern refresh progress')).toHaveTextContent(
+      '1 current, 1 updating, 1 queued, 0 failed',
+    )
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Keep PXLBLZ patterns up to date' }))
+    expect(useControllerProfileStore.getState().profiles[0].keepPatternsUpToDate).toBe(false)
+  })
+
+  it('keeps offline work pending and removes the progress rail once current', () => {
+    const profile = { ...seedProfile(), keepPatternsUpToDate: true }
+    useControllerProfileStore.setState({ profiles: [profile] })
+    useControllerStore.setState({
+      controllerReconciliations: {
+        'ctrl-1': {
+          phase: 'pending',
+          managedCount: 2,
+          unmanagedCount: 1,
+          completedCount: 0,
+          programs: [
+            { programId: 'A', bindingKey: 'pat-a', name: 'A', state: 'queued' },
+            { programId: 'B', bindingKey: 'pat-b', name: 'B', state: 'queued' },
+          ],
+        },
+      },
+    })
+    const { rerender } = render(<ControllerSavedProgramsPane profile={profile} />)
+
+    expect(screen.getByText('2 updates pending - reconnect to continue')).toBeInTheDocument()
+    expect(screen.getByLabelText('Managed Pattern refresh progress')).toBeInTheDocument()
+
+    useControllerStore.setState({
+      controllerReconciliations: {
+        'ctrl-1': {
+          phase: 'current',
+          managedCount: 2,
+          unmanagedCount: 1,
+          completedCount: 2,
+          programs: [
+            { programId: 'A', bindingKey: 'pat-a', name: 'A', state: 'current' },
+            { programId: 'B', bindingKey: 'pat-b', name: 'B', state: 'current' },
+          ],
+        },
+      },
+    })
+    rerender(<ControllerSavedProgramsPane profile={profile} />)
+
+    expect(screen.getByText('2 of 2 managed Patterns current')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Managed Pattern refresh progress')).not.toBeInTheDocument()
+  })
+
   it('groups saved programs by Studio ownership, links owned rows, and refreshes', async () => {
     const profile = seedProfile()
     const provider = new ProgramListProvider()

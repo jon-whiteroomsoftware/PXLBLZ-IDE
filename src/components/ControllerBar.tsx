@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { CircleArrowUp, RotateCw } from 'lucide-react'
-import { useControllerStore } from '@/store/controllerStore'
+import {
+  useControllerStore,
+  type ControllerReconciliationState,
+} from '@/store/controllerStore'
 import { useControllerProfileStore } from '@/store/controllerProfileStore'
 import { useRouterStore } from '@/store/routerStore'
 import { useWorkspaceStore } from '@/store/workspaceStore'
@@ -58,6 +61,8 @@ function ControllerPillButton({
   panelOpen,
   authorizationNeededIp,
   firmwareUpdateAvailable,
+  managedRefreshPhase,
+  onManagedRefresh,
   onActivate,
   onRemove,
   actionRow,
@@ -69,6 +74,8 @@ function ControllerPillButton({
   panelOpen: boolean
   authorizationNeededIp?: string | null
   firmwareUpdateAvailable: boolean
+  managedRefreshPhase?: ControllerReconciliationState['phase']
+  onManagedRefresh: () => void
   onActivate: () => void
   onRemove: () => void
   actionRow: ReactNode
@@ -110,6 +117,25 @@ function ControllerPillButton({
         )}
         {showDot && tone && <StatusDot tone={PILL_TONE[tone]} testId="controller-pill-dot" />}
       </button>
+
+      {(managedRefreshPhase === 'pending' || managedRefreshPhase === 'running') && (
+        <button
+          type="button"
+          aria-label="Refreshing managed Patterns"
+          title="Refreshing managed Patterns - open Controller profile"
+          onClick={onManagedRefresh}
+          className="absolute -right-1 -top-1 h-2.5 w-2.5 animate-pulse rounded-full border border-zinc-950 bg-amber-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-300"
+        />
+      )}
+      {managedRefreshPhase === 'attention' && (
+        <button
+          type="button"
+          aria-label="Managed Pattern refresh needs attention"
+          title="Managed Pattern refresh needs attention - open Controller profile"
+          onClick={onManagedRefresh}
+          className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full border border-zinc-950 bg-red-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-300"
+        />
+      )}
 
       {phase === 'pending' && authorizationNeededIp && (
         <div
@@ -178,6 +204,7 @@ const RESCAN_SPIN_CLASS = '[animation:spin_0.6s_linear_infinite] text-amber-400'
 export function ControllerBar({ reloadPage = () => window.location.reload() }: { reloadPage?: () => void } = {}) {
   const extensionPresent = useControllerStore((s) => s.extensionPresent)
   const controllers = useControllerStore((s) => s.controllers)
+  const controllerReconciliations = useControllerStore((s) => s.controllerReconciliations)
   const activeIp = useControllerStore((s) => s.activeIp)
   const detectExtension = useControllerStore((s) => s.detectExtension)
   const discover = useControllerStore((s) => s.discover)
@@ -402,21 +429,31 @@ export function ControllerBar({ reloadPage = () => window.location.reload() }: {
 
   return (
     <div ref={rootRef} className="relative flex items-center gap-2" data-testid="controller-bar">
-      {ips.map((ip) => (
-        <ControllerPillButton
-          key={ip}
-          ip={ip}
-          nickname={controllers[ip].nickname}
-          phase={controllers[ip].phase}
-          active={ip === activeIp}
-          panelOpen={ip === panelOpenIp}
-          authorizationNeededIp={controllers[ip].authorizationNeededIp}
-          firmwareUpdateAvailable={controllers[ip].firmwareUpdateState === 'available'}
-          onActivate={() => onPillClick(ip)}
-          onRemove={() => onPillRemove(ip)}
-          actionRow={actionRowFor(ip)}
-        />
-      ))}
+      {ips.map((ip) => {
+        const controllerProfile = findControllerProfileForDevice(
+          controllerProfiles,
+          controllers[ip].deviceId,
+        )
+        return (
+          <ControllerPillButton
+            key={ip}
+            ip={ip}
+            nickname={controllers[ip].nickname}
+            phase={controllers[ip].phase}
+            active={ip === activeIp}
+            panelOpen={ip === panelOpenIp}
+            authorizationNeededIp={controllers[ip].authorizationNeededIp}
+            firmwareUpdateAvailable={controllers[ip].firmwareUpdateState === 'available'}
+            managedRefreshPhase={controllerProfile
+              ? controllerReconciliations[controllerProfile.id]?.phase
+              : undefined}
+            onActivate={() => onPillClick(ip)}
+            onManagedRefresh={() => void openProfileForController(ip)}
+            onRemove={() => onPillRemove(ip)}
+            actionRow={actionRowFor(ip)}
+          />
+        )
+      })}
 
       <button
         type="button"

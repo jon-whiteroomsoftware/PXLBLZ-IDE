@@ -585,6 +585,7 @@ A profile contains:
 - board and last-seen Controller facts;
 - typed hardware inputs with board-safe pin validation;
 - enabled global transforms;
+- the opt-in managed-artifact reconciliation preference;
 - per-Pattern bindings;
 - named, possibly multi-range zones;
 - map fingerprint records; and
@@ -678,6 +679,33 @@ Import then chooses one of four outcomes:
 - explain that source recovery is unavailable.
 
 Import never mutates the Controller program.
+
+### Managed-artifact reconciliation
+
+The Controller profile can opt into keeping its PXLBLZ-managed saved artifacts
+current. A program is eligible only when the installed program id has both an
+overwrite binding and a successful push record, and its Pattern, demo, or Show
+source remains regenerable. Every other program is unmanaged. The planner keeps
+foreign, unproven, source-less, and Controller-deleted programs outside the
+write set; background work never creates, renames, or deletes a program.
+
+Code-affecting profile edits schedule reconciliation after the serialized
+profile write completes. Descriptive edits do not. The planner compares each
+eligible push record with a per-artifact signature covering global transforms,
+referenced inputs and bindings, and the installed map dimension. Ordinary
+Pattern source edits remain on explicit Run/Save.
+
+Reconciliation processes stale artifacts serially through the same per-
+Controller device-write queue as explicit pushes. It saves over the existing id
+without activating each intermediate Pattern. The active managed program is
+updated last and reactivated under the same id. Independent failures do not stop
+the batch. A newer profile edit or disabling the setting stops additional jobs
+after the current device write reaches its boundary; reconnect schedules a new
+plan from current Controller and profile state.
+
+The inventory exposes current, queued, updating, and failed row state, aggregate
+progress only while work is active, and one retry action. The Controller pill
+keeps active or failed work discoverable outside the profile route.
 
 ## 18. Map push, read-back, and fingerprints
 

@@ -2,6 +2,9 @@ import type { ArtifactShowOutputContract } from './artifactStamp'
 
 export interface ControllerPushRecord {
   transforms: string[]
+  /** Generated-code profile signature used for the saved artifact. Missing on
+   * legacy records, which makes the artifact eligible for one reconciliation. */
+  profileSignature?: string
   artifactHash: string
   stampedAt: string
   name: string

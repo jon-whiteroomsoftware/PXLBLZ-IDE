@@ -51,6 +51,12 @@ export interface PushPatternDeps {
    *  in-place via the binding). When false/undefined, run-only — load + run under a
    *  throwaway id, no binding. */
   persist?: boolean
+  /** Save mode normally activates the saved Pattern. Background reconciliation
+   * disables this so a batch does not visibly cycle through every program. */
+  activateOnSave?: boolean
+  /** Refuse to mint a replacement when the bound saved program disappeared. Used
+   * by non-destructive reconciliation, which never recreates device-deleted content. */
+  requireExisting?: boolean
   /** Load the persisted binding store (e.g. from the API/D1 metadata backend). Save mode only. */
   loadBindings: () => Promise<BindingStore>
   /** Persist the binding store after a freshly-minted binding. Save mode only. */
@@ -67,6 +73,8 @@ export interface PushPatternDeps {
   previewImage?: Uint8Array
   /** Transform/pass names baked into the generated source, for the artifact banner. */
   transforms?: string[]
+  /** Generated-code Controller profile signature stored with the push record. */
+  profileSignature?: string
   /** Override the saved artifact's provenance. Shows pass their canonical Show stamp;
    * ordinary Pattern sends omit this and retain the historical Pattern stamp. */
   artifactStamp?: ArtifactStampMeta
@@ -120,6 +128,9 @@ export async function pushPattern(deps: PushPatternDeps): Promise<PushPatternRes
     programs.map((p) => p.id),
     mint,
   )
+  if (deps.requireExisting && isNew) {
+    throw new Error('Managed saved program no longer exists on the Controller')
+  }
 
   const stampedSource = stampArtifact(deps.source, deps.artifactStamp ?? {
     kind: 'pattern',
@@ -148,13 +159,16 @@ export async function pushPattern(deps: PushPatternDeps): Promise<PushPatternRes
   // stock IDE's save-and-run and is robust whether or not firmware auto-activates on
   // putSourceCode. Unlike run-only, the run carries the real name — S is a real saved
   // program, so its setCode name is no phantom.
-  await deps.provider.pushBytecode(bytecode, { id: programId, name: deps.name ?? '' })
+  if (deps.activateOnSave !== false) {
+    await deps.provider.pushBytecode(bytecode, { id: programId, name: deps.name ?? '' })
+  }
 
   if (isNew) {
     await deps.saveBindings(withBinding(bindings, deps.controllerId, deps.patternId, programId))
   }
   await deps.savePushRecords(withPushRecord(pushRecords, deps.controllerId, deps.patternId, {
     transforms: stamp.transforms,
+    ...(deps.profileSignature ? { profileSignature: deps.profileSignature } : {}),
     artifactHash: stamp.hash,
     stampedAt: stamp.stamped,
     name: deps.name ?? '',

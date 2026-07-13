@@ -121,6 +121,45 @@ describe('pushPattern — save mode (persist: true)', () => {
     expect(runId).toBe('DEVPROG1')
   })
 
+  it('can overwrite a managed saved program without activating it', async () => {
+    const { deps, pushRecords } = makeDeps({
+      persist: true,
+      activateOnSave: false,
+      requireExisting: true,
+      profileSignature: 'profile-signature-v2',
+      loadBindings: async () => ({ 'ctrl-A': { 'pat-1': 'DEVPROG1' } }),
+      provider: makeProvider({
+        listPrograms: vi.fn().mockResolvedValue([{ id: 'DEVPROG1', name: 'My Pattern' }]),
+      }),
+    })
+
+    const result = await pushPattern(deps)
+
+    expect(result).toEqual({ programId: 'DEVPROG1', created: false })
+    expect(deps.provider.saveProgram).toHaveBeenCalledWith(expect.any(Uint8Array), { id: 'DEVPROG1' })
+    expect(deps.provider.pushBytecode).not.toHaveBeenCalled()
+    expect(pushRecords[0]).toMatchObject({
+      'ctrl-A': { 'pat-1': { profileSignature: 'profile-signature-v2' } },
+    })
+  })
+
+  it('never recreates a missing managed program during background reconciliation', async () => {
+    const { deps, saved, pushRecords } = makeDeps({
+      persist: true,
+      requireExisting: true,
+      loadBindings: async () => ({ 'ctrl-A': { 'pat-1': 'DELETED1' } }),
+      provider: makeProvider({ listPrograms: vi.fn().mockResolvedValue([]) }),
+    })
+
+    await expect(pushPattern(deps)).rejects.toThrow(
+      'Managed saved program no longer exists on the Controller',
+    )
+    expect(deps.provider.saveProgram).not.toHaveBeenCalled()
+    expect(deps.provider.pushBytecode).not.toHaveBeenCalled()
+    expect(saved).toEqual([])
+    expect(pushRecords).toEqual([])
+  })
+
   it('preserves a canonical pre-stamped Show source in the saved PBP', async () => {
     const source = stampArtifact('export function render(index) { rgb(1, 0, 0) }', {
       kind: 'show',

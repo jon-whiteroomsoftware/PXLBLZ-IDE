@@ -57,7 +57,7 @@ Known issue cleanup:
 - #278 has no reliable original intent and needs clarification before work.
 - #357 (README update) is owner-controlled and must not be picked up without
   explicit approval.
-- #276, #296, #381, #382, #384, and #387 need product triage before they enter
+- #276, #296, #381, #382, and #384 need product triage before they enter
   sequencing.
 
 ## 3. Shows: next product step

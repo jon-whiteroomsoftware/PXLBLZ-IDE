@@ -1,6 +1,7 @@
 import { defaultControllerProfile } from '@/store/controllerProfileStore'
 import {
   controllerProfileArtifactSignature,
+  controllerProfileReconciliationSignature,
   controllerProfilePassRecipe,
   findProfileForLiveController,
 } from './controllerProfilePassRecipe'
@@ -42,6 +43,25 @@ describe('controller profile pass recipe', () => {
     )
     expect(controllerProfileArtifactSignature(enabled, 'pat-1')).not.toBe(
       controllerProfileArtifactSignature(profile, 'pat-1'),
+    )
+  })
+
+  it('signs every profile field that can require managed Patterns to be regenerated', () => {
+    const profile = patternBindingProfile()
+    const renamed = { ...profile, name: 'Renamed', updatedAt: profile.updatedAt + 1 }
+    const rebound = {
+      ...renamed,
+      patternBindings: renamed.patternBindings.map((binding) => ({
+        ...binding,
+        target: { kind: 'call-function' as const, name: 'setDifferentSpeed' },
+      })),
+    }
+
+    expect(controllerProfileReconciliationSignature(renamed)).toBe(
+      controllerProfileReconciliationSignature(profile),
+    )
+    expect(controllerProfileReconciliationSignature(rebound)).not.toBe(
+      controllerProfileReconciliationSignature(profile),
     )
   })
 

@@ -58,6 +58,7 @@ const profile: ControllerProfile = {
       milliampsPerPixel: 60,
     },
   ],
+  keepPatternsUpToDate: true,
   patternBindings: [
     {
       id: 'p1-pot0-speed',
@@ -117,6 +118,7 @@ describe('D1 controller profile persistence', () => {
       board_json: JSON.stringify(profile.board),
       inputs_json: JSON.stringify(profile.inputs),
       global_transforms_json: JSON.stringify(profile.globalTransforms),
+      keep_patterns_up_to_date: 1,
       pattern_bindings_json: JSON.stringify(profile.patternBindings),
       zones_json: JSON.stringify(profile.zones),
       updated_at: 100,
@@ -136,6 +138,7 @@ describe('D1 controller profile persistence', () => {
       board_json: JSON.stringify(profile.board),
       inputs_json: JSON.stringify([]),
       global_transforms_json: JSON.stringify([]),
+      keep_patterns_up_to_date: 0,
       pattern_bindings_json: JSON.stringify([]),
       zones_json: JSON.stringify([{ id: 'legacy', name: 'Legacy', start: 2, end: 5 }]),
       updated_at: 100,
@@ -166,12 +169,13 @@ describe('D1 controller profile persistence', () => {
       lastKnownMapDim: 3,
       mapFingerprints: [],
       globalTransforms: profile.globalTransforms,
+      keepPatternsUpToDate: false,
       updatedAt: 200,
     })
     await deleteD1ControllerProfile(db, 'github:123', 'ctrl-1')
 
     expect(calls[0].values.slice(0, 2)).toEqual(['github:123', 'ctrl-1'])
-    expect(calls[0].values).toHaveLength(16)
+    expect(calls[0].values).toHaveLength(17)
     expect(calls[0].values).toContain('Pixelblaze shelf')
     expect(calls[0].values).toContain('192.168.8.224')
     expect(calls[0].values).toContain(256)
@@ -183,6 +187,7 @@ describe('D1 controller profile persistence', () => {
     expect(calls[1].sql).toContain('last_known_map_dim = ?')
     expect(calls[1].sql).toContain('map_fingerprints_json = ?')
     expect(calls[1].sql).toContain('global_transforms_json = ?')
+    expect(calls[1].sql).toContain('keep_patterns_up_to_date = ?')
     expect(calls[1].values).toContain('Renamed on device')
     expect(calls[1].values).toContain('192.168.8.99')
     expect(calls[1].values).toContain(512)

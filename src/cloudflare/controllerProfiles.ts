@@ -34,6 +34,7 @@ export interface D1ControllerProfileRow {
   board_json: string
   inputs_json: string
   global_transforms_json: string
+  keep_patterns_up_to_date: number | null
   pattern_bindings_json: string
   zones_json: string
   updated_at: number
@@ -56,6 +57,7 @@ export function controllerProfileFromRow(row: D1ControllerProfileRow): Controlle
     board: parseJson<ControllerBoardProfile>(row.board_json),
     inputs: parseJson<ControllerInput[]>(row.inputs_json),
     globalTransforms: parseJson<GlobalTransform[]>(row.global_transforms_json),
+    keepPatternsUpToDate: row.keep_patterns_up_to_date === 1,
     patternBindings: parseJson<PatternBinding[]>(row.pattern_bindings_json),
     zones: normalizeControllerZones(parseJson<ControllerZone[]>(row.zones_json)),
     updatedAt: row.updated_at,
@@ -69,7 +71,7 @@ export async function listD1ControllerProfiles(
   const { results } = await db
     .prepare(`
       SELECT id, name, device_id, board_json, inputs_json, global_transforms_json,
-             pattern_bindings_json, zones_json, last_known_device_name, last_seen_ip,
+             keep_patterns_up_to_date, pattern_bindings_json, zones_json, last_known_device_name, last_seen_ip,
              last_known_pixel_count, last_known_map_dim, map_fingerprints_json, updated_at
       FROM controller_profiles
       WHERE user_id = ?
@@ -88,7 +90,7 @@ export async function getD1ControllerProfile(
   const row = await db
     .prepare(`
       SELECT id, name, device_id, board_json, inputs_json, global_transforms_json,
-             pattern_bindings_json, zones_json, last_known_device_name, last_seen_ip,
+             keep_patterns_up_to_date, pattern_bindings_json, zones_json, last_known_device_name, last_seen_ip,
              last_known_pixel_count, last_known_map_dim, map_fingerprints_json, updated_at
       FROM controller_profiles
       WHERE user_id = ? AND id = ?
@@ -111,10 +113,10 @@ export async function createD1ControllerProfile(
       INSERT INTO controller_profiles (
         user_id, id, name, device_id, last_known_device_name, last_seen_ip,
         last_known_pixel_count, last_known_map_dim, map_fingerprints_json, board_json, inputs_json,
-        global_transforms_json, pattern_bindings_json, zones_json,
+        global_transforms_json, keep_patterns_up_to_date, pattern_bindings_json, zones_json,
         created_at, updated_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
     .bind(
       userId,
@@ -129,6 +131,7 @@ export async function createD1ControllerProfile(
       JSON.stringify(profile.board),
       JSON.stringify(profile.inputs),
       JSON.stringify(profile.globalTransforms),
+      profile.keepPatternsUpToDate ? 1 : 0,
       JSON.stringify(profile.patternBindings),
       JSON.stringify(profile.zones),
       now,
@@ -155,6 +158,14 @@ export async function updateD1ControllerProfile(
   addAssignment(assignments, values, 'board_json', changes.board, true)
   addAssignment(assignments, values, 'inputs_json', changes.inputs, true)
   addAssignment(assignments, values, 'global_transforms_json', changes.globalTransforms, true)
+  addAssignment(
+    assignments,
+    values,
+    'keep_patterns_up_to_date',
+    changes.keepPatternsUpToDate ? 1 : 0,
+    false,
+    changes.keepPatternsUpToDate !== undefined,
+  )
   addAssignment(assignments, values, 'pattern_bindings_json', changes.patternBindings, true)
   addAssignment(assignments, values, 'zones_json', changes.zones, true)
   addAssignment(assignments, values, 'updated_at', changes.updatedAt)

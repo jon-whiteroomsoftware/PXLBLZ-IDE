@@ -56,6 +56,17 @@ export function controllerProfileArtifactSignature(
   return JSON.stringify({ transforms, inputs, bindings, ...(renderer ? { renderer } : {}) })
 }
 
+/** Stable signature of every profile field that can change at least one
+ * generated Pattern. It is used only to decide whether reconciliation needs
+ * to be scheduled; each Pattern still gets its narrower artifact signature. */
+export function controllerProfileReconciliationSignature(profile: ControllerProfile): string {
+  return JSON.stringify({
+    globalTransforms: profile.globalTransforms,
+    inputs: profile.inputs,
+    patternBindings: profile.patternBindings,
+  })
+}
+
 type HardwareBrightnessTransform = Extract<GlobalTransform, { type: 'hardware-brightness' }>
 type PowerCapTransform = Extract<GlobalTransform, { type: 'power-cap' }>
 

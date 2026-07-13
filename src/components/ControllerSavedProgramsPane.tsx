@@ -31,8 +31,13 @@ import {
 } from '@/engine/savedProgramImport'
 import { newPersonalContentId } from '@/engine/personalContentMetadata'
 import { DEMOS } from '@/pixelblaze/stock/patterns'
-import { useControllerStore } from '@/store/controllerStore'
+import {
+  useControllerStore,
+  type ControllerReconciliationState,
+} from '@/store/controllerStore'
+import { useControllerProfileStore } from '@/store/controllerProfileStore'
 import { usePatternStore } from '@/store/patternStore'
+import { useShowStore } from '@/store/showStore'
 import { useRouterStore } from '@/store/routerStore'
 import type { ArtifactShowOutputContract } from '@/engine/artifactStamp'
 
@@ -82,6 +87,25 @@ function FreshnessBadge({ freshness }: { freshness: TransformFreshness }) {
   )
 }
 
+const reconciliationPresentation = {
+  current: { label: 'current', className: 'border-emerald-700/55 bg-emerald-950/55 text-emerald-300' },
+  queued: { label: 'queued', className: 'border-zinc-700/80 bg-zinc-900/70 text-zinc-400' },
+  updating: { label: 'updating', className: 'animate-pulse border-amber-700/60 bg-amber-950/50 text-amber-300' },
+  failed: { label: 'failed', className: 'border-red-700/60 bg-red-950/45 text-red-300' },
+} as const
+
+function ReconciliationBadge({ state }: { state: keyof typeof reconciliationPresentation }) {
+  const presentation = reconciliationPresentation[state]
+  return (
+    <span
+      title={`Managed refresh: ${presentation.label}`}
+      className={`inline-flex whitespace-nowrap border px-1.5 py-0.5 font-mono text-[9px] font-semibold uppercase tracking-wide ${presentation.className}`}
+    >
+      {presentation.label}
+    </span>
+  )
+}
+
 function SavedProgramOutputContract({ contract }: { contract?: ArtifactShowOutputContract }) {
   if (!contract) return <span>-</span>
   if (contract.kind === 'installation') {
@@ -99,6 +123,98 @@ function EmptyState({ children }: { children: React.ReactNode }) {
     <div className="border border-dashed border-zinc-700/80 bg-zinc-950/30 px-3 py-3 text-xs text-zinc-500">
       {children}
     </div>
+  )
+}
+
+function ManagedPatternReconciliation({
+  profile,
+  reconciliation,
+  managedCount,
+  unmanagedCount,
+  online,
+  onRetry,
+}: {
+  profile: ControllerProfile
+  reconciliation?: ControllerReconciliationState
+  managedCount: number
+  unmanagedCount: number
+  online: boolean
+  onRetry: () => void
+}) {
+  const updateProfile = useControllerProfileStore((state) => state.updateProfile)
+  const programs = reconciliation?.programs ?? []
+  const current = programs.filter((program) => program.state === 'current').length
+  const updating = programs.filter((program) => program.state === 'updating').length
+  const queued = programs.filter((program) => program.state === 'queued').length
+  const failed = programs.filter((program) => program.state === 'failed').length
+  const phase = reconciliation?.phase ?? 'idle'
+  const showProgress = profile.keepPatternsUpToDate && ['pending', 'running', 'attention'].includes(phase)
+  const total = Math.max(managedCount, 1)
+
+  return (
+    <section className="border-b border-seam bg-zinc-950/55 px-4 py-3">
+      <label className="flex cursor-pointer items-start justify-between gap-4">
+        <span>
+          <span className="block text-xs font-medium text-zinc-200">Keep PXLBLZ patterns up to date</span>
+          <span className="mt-0.5 block max-w-xl text-[11px] leading-4 text-zinc-500">
+            Refresh managed Patterns when Controller settings change.
+          </span>
+        </span>
+        <span className="relative mt-0.5 inline-flex h-5 w-9 shrink-0 items-center">
+          <input
+            type="checkbox"
+            aria-label="Keep PXLBLZ patterns up to date"
+            checked={profile.keepPatternsUpToDate === true}
+            onChange={(event) => void updateProfile(profile.id, {
+              keepPatternsUpToDate: event.target.checked,
+            })}
+            className="peer sr-only"
+          />
+          <span className="absolute inset-0 rounded-full border border-zinc-700 bg-zinc-900 transition peer-checked:border-emerald-600/70 peer-checked:bg-emerald-950 peer-focus-visible:ring-2 peer-focus-visible:ring-live/60" />
+          <span className="relative ml-0.5 h-4 w-4 rounded-full bg-zinc-500 transition-transform peer-checked:translate-x-4 peer-checked:bg-emerald-400" />
+        </span>
+      </label>
+
+      <div className="mt-3 border border-zinc-800/80 bg-zinc-950/70 px-2.5 py-2">
+        <div className="flex items-center justify-between gap-3 text-[10px] uppercase tracking-wide">
+          <span className="text-zinc-400">
+            {profile.keepPatternsUpToDate && phase === 'pending' && !online
+              ? `${managedCount} updates pending - reconnect to continue`
+              : profile.keepPatternsUpToDate
+              ? `${current || reconciliation?.completedCount || 0} of ${managedCount} managed Patterns current`
+              : `${managedCount} managed Patterns`}
+          </span>
+          {phase === 'attention' && (
+            <Button
+              type="button"
+              size="xs"
+              variant="ghost"
+              className="h-5 bg-red-950/30 px-1.5 text-[9px] text-red-300 hover:bg-red-950/60"
+              onClick={onRetry}
+            >
+              Retry failed updates
+            </Button>
+          )}
+        </div>
+
+        {showProgress && (
+          <div
+            aria-label="Managed Pattern refresh progress"
+            className="mt-2 flex h-1.5 w-full overflow-hidden rounded-full bg-zinc-900"
+          >
+            <span className="sr-only">{current} current, {updating} updating, {queued} queued, {failed} failed</span>
+            {current > 0 && <span className="bg-emerald-500" style={{ width: `${(current / total) * 100}%` }} />}
+            {updating > 0 && <span className="animate-pulse bg-amber-400" style={{ width: `${(updating / total) * 100}%` }} />}
+            {queued > 0 && <span className="bg-zinc-700" style={{ width: `${(queued / total) * 100}%` }} />}
+            {failed > 0 && <span className="bg-red-500" style={{ width: `${(failed / total) * 100}%` }} />}
+          </div>
+        )}
+
+        <p className="mt-1.5 text-[10px] leading-4 text-zinc-600">
+          {unmanagedCount} unmanaged {unmanagedCount === 1 ? 'program is' : 'programs are'} completely exempt from automatic changes.
+        </p>
+      </div>
+    </section>
   )
 }
 
@@ -200,6 +316,7 @@ function SavedProgramsInventory({
   onImport,
   importingProgramId,
   error,
+  reconciliation,
 }: {
   status: SavedProgramsRead['status']
   programs: ControllerSavedProgramsView
@@ -208,8 +325,12 @@ function SavedProgramsInventory({
   onImport: (program: ControllerSavedProgramRow) => void
   importingProgramId: string | null
   error: string | null
+  reconciliation?: ControllerReconciliationState
 }) {
   const count = programs.owned.length + programs.foreign.length
+  const reconciliationByProgramId = new Map(
+    (reconciliation?.programs ?? []).map((program) => [program.programId, program.state]),
+  )
   return (
     <section className="border-b border-seam px-4 py-4">
       <div className="mb-2 flex items-center justify-between gap-3">
@@ -273,7 +394,9 @@ function SavedProgramsInventory({
                   </td>
                   <td className={`${tableCellClass} font-mono text-zinc-400`}>{program.programId}</td>
                   <td className={tableCellClass}>
-                    <FreshnessBadge freshness={program.freshness} />
+                    {reconciliationByProgramId.has(program.programId)
+                      ? <ReconciliationBadge state={reconciliationByProgramId.get(program.programId)!} />
+                      : <FreshnessBadge freshness={program.freshness} />}
                   </td>
                   <td className={`${tableCellClass} text-[10px] text-zinc-400`}>
                     <SavedProgramOutputContract contract={program.showOutputContract} />
@@ -332,7 +455,10 @@ function SavedProgramsInventory({
 export function ControllerSavedProgramsPane({ profile }: { profile: ControllerProfile }) {
   const controllers = useControllerStore((state) => state.controllers)
   const setActiveController = useControllerStore((state) => state.setActive)
+  const reconciliation = useControllerStore((state) => state.controllerReconciliations[profile.id])
+  const reconcileControllerProfile = useControllerStore((state) => state.reconcileControllerProfile)
   const userPatterns = usePatternStore((state) => state.userPatterns)
+  const shows = useShowStore((state) => state.shows)
   const addPattern = usePatternStore((state) => state.addPattern)
   const navigate = useRouterStore((state) => state.navigate)
   const profileController = controllerForProfile(profile, controllers)
@@ -407,8 +533,23 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
         routeId: name,
         name,
       })),
+      ...shows.map((show) => ({
+        bindingKey: `show:${show.id}`,
+        routeId: `show:${show.id}`,
+        name: show.name,
+      })),
     ],
   })
+  const inventoryManagedCount = programs.owned.filter((program) => program.freshness !== 'unmanaged').length
+  const inventoryUnmanagedCount = programs.foreign.length +
+    programs.owned.filter((program) => program.freshness === 'unmanaged').length
+  const hasReconciliationScope = reconciliation && reconciliation.phase !== 'idle'
+  const managedCount = hasReconciliationScope
+    ? reconciliation.managedCount
+    : inventoryManagedCount
+  const unmanagedCount = hasReconciliationScope
+    ? reconciliation.unmanagedCount
+    : inventoryUnmanagedCount
 
   async function beginProgramImport(program: ControllerSavedProgramRow) {
     if (!liveIp) return
@@ -475,14 +616,28 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
         onCancel={() => setPendingImport(null)}
         onConfirm={() => void confirmProgramImport()}
       />
+      <ManagedPatternReconciliation
+        profile={profile}
+        reconciliation={reconciliation}
+        managedCount={managedCount}
+        unmanagedCount={unmanagedCount}
+        online={Boolean(liveIp)}
+        onRetry={() => void reconcileControllerProfile(profile.id)}
+      />
       <SavedProgramsInventory
         status={read.status}
         programs={programs}
         onRefresh={() => setRefresh((value) => value + 1)}
-        onOpen={(routeId) => navigate({ kind: 'studio', entity: { kind: 'patterns', id: routeId } })}
+        onOpen={(routeId) => navigate({
+          kind: 'studio',
+          entity: routeId.startsWith('show:')
+            ? { kind: 'shows', id: routeId.slice('show:'.length) }
+            : { kind: 'patterns', id: routeId },
+        })}
         onImport={(program) => void beginProgramImport(program)}
         importingProgramId={importingProgramId}
         error={importError}
+        reconciliation={reconciliation}
       />
     </div>
   )

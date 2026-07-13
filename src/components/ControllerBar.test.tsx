@@ -219,6 +219,43 @@ describe('ControllerBar', () => {
     expect(screen.getByTestId('controller-entry-button')).toHaveTextContent('+')
   })
 
+  it('keeps managed Pattern refresh activity visible after leaving the profile page', () => {
+    const controllerProfile = profile('profile-1', 'device-1', 1, 'Desk')
+    seedSignedInProfiles([controllerProfile])
+    useControllerStore.setState({
+      extensionPresent: true,
+      activeIp: '10.0.0.5',
+      controllers: {
+        '10.0.0.5': {
+          ip: '10.0.0.5',
+          deviceId: 'device-1',
+          nickname: 'Desk',
+          phase: 'live',
+          mapDim: 2,
+        },
+      },
+      controllerReconciliations: {
+        'profile-1': {
+          phase: 'running',
+          managedCount: 2,
+          unmanagedCount: 1,
+          completedCount: 1,
+          programs: [],
+        },
+      },
+    })
+
+    render(<ControllerBar />)
+
+    const activity = screen.getByRole('button', { name: 'Refreshing managed Patterns' })
+    expect(activity).toBeInTheDocument()
+    fireEvent.click(activity)
+    expect(useRouterStore.getState().route).toEqual({
+      kind: 'studio',
+      entity: { kind: 'controllers', id: 'profile-1' },
+    })
+  })
+
   it('adds a firmware reminder without replacing the connected status dot', () => {
     useControllerStore.setState({
       extensionPresent: true,

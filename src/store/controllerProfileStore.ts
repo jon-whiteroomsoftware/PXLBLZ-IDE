@@ -6,6 +6,7 @@ import { newPersonalContentId } from '@/engine/personalContentMetadata'
 import { DEFAULT_POWER_CAP_MILLIAMPS_PER_PIXEL } from '@/engine/powerCap'
 import { queueControllerProfileWrite } from '@/engine/controllerProfileWriteQueue'
 import { mapDimension } from '@/engine/sendToController'
+import { controllerProfileReconciliationSignature } from '@/engine/controllerProfilePassRecipe'
 import {
   controllerProfileCreateSeed,
   findControllerProfileForDevice,
@@ -112,6 +113,7 @@ export function defaultControllerProfile(seed: {
         milliampsPerPixel: DEFAULT_POWER_CAP_MILLIAMPS_PER_PIXEL,
       },
     ],
+    keepPatternsUpToDate: false,
     patternBindings: [],
     zones: [],
     updatedAt,
@@ -232,6 +234,15 @@ export const useControllerProfileStore = create<ControllerProfileState>()((set, 
         ),
       }))
       throw error
+    }
+    if (previous && optimistic) {
+      const optInChanged = previous.keepPatternsUpToDate !== optimistic.keepPatternsUpToDate
+      const generatedCodeChanged =
+        controllerProfileReconciliationSignature(previous) !==
+        controllerProfileReconciliationSignature(optimistic)
+      if (optInChanged || (optimistic.keepPatternsUpToDate && generatedCodeChanged)) {
+        useControllerStore.getState().scheduleControllerReconciliation(id)
+      }
     }
   },
 

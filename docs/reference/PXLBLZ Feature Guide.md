@@ -447,6 +447,28 @@ record:
 - **stale** — profile transforms changed; push again; and
 - **unmanaged** — no Studio push record is available.
 
+### Keeping managed Patterns current
+
+**Keep PXLBLZ patterns up to date** is an opt-in at the top of Saved programs.
+When enabled, a code-affecting Controller-profile edit automatically rebuilds
+the saved Patterns, demos, and Shows that PXLBLZ can prove it manages. Each
+refresh overwrites the existing Controller program id. It does not cycle the
+Controller through every Pattern, and it preserves the active managed Pattern.
+
+Management is deliberately narrow. An installed program needs a matching
+PXLBLZ binding, a successful prior Save record, and regenerable Studio source.
+Foreign programs, rows without a push record, missing source, and Patterns
+deleted from the Controller are completely exempt: PXLBLZ does not modify,
+recreate, rename, or delete them. The scope summary reports managed and
+unmanaged counts before work begins.
+
+The progress rail appears only while work is pending, running, or needs
+attention. Rows report Current, Queued, Updating, or Failed, and one aggregate
+retry handles independent failures. Offline work stays pending until the
+Controller reconnects. Turning the setting off stops new automatic writes after
+the current write finishes; it does not roll back artifacts already refreshed.
+Ordinary Pattern source edits still require Run or Save.
+
 Import reads the selected saved Pattern. A stamped Pattern may open its existing
 Studio record or restore a deleted one with its original id. Foreign Patterns
 that contain source become new personal Patterns. A saved Pattern containing
