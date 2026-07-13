@@ -14,6 +14,7 @@ import {
   type GeneratedRoutingFormula,
   type RoutingRepresentationEstimate,
 } from './showRoutingRepresentation'
+import { selectRenderCompatibility } from './renderCompatibility'
 
 export interface ShowClipRecipe {
   id: string
@@ -276,9 +277,11 @@ interface CompiledMember {
   renamedPatternVars: string[]
   renderName: string
   render2DName: string
+  render3DName: string
   beforeRenderName: string
   hasRender: boolean
   hasRender2D: boolean
+  hasRender3D: boolean
   hasBeforeRender: boolean
   elapsedName: string
   pixelCountName: string
@@ -292,6 +295,8 @@ interface ResolvedRoute {
   zone: ControllerZone
   pixelCount: number
 }
+
+type ShowOutputDimension = 1 | 2
 
 interface ResolvedRoutingLayout {
   id: string
@@ -333,12 +338,13 @@ export function compileShow(
       && transition.featherPolicy === 'blend'
     )),
   )
-  const sequenceOutputDimension: 1 | 2 = sequenceHasPortal || members.some((member) => member.hasRender2D) ? 2 : 1
+  const memberOutputDimension = showOutputDimensionForMembers(members)
+  const sequenceOutputDimension: ShowOutputDimension = sequenceHasPortal ? 2 : memberOutputDimension
   const routedOutputDimension: 1 | 2 = routingLayouts?.some((layout) => layout.logical)
     ? 2
-    : (routeMode || routingLayouts) && members.some((member) => member.hasRender2D)
-    ? 2
-    : 1
+    : routeMode || routingLayouts
+      ? memberOutputDimension
+      : 1
   const hasLogicalRouting = routingLayouts?.some((layout) => layout.logical) ?? false
   const routingPlan = routingLayouts && !hasLogicalRouting
     ? planPhysicalRoutingRepresentation(
@@ -388,20 +394,29 @@ export function compileShow(
     : routeMode
       ? emitRouteShowCode(members, route.routes, routedOutputDimension)
     : expandedRecipe.adaptationRamp
-      ? emitAdaptationRampShowCode(members[0], expandedRecipe.adaptationRamp)
+      ? emitAdaptationRampShowCode(members[0], expandedRecipe.adaptationRamp, memberOutputDimension)
       : expandedRecipe.cut
-        ? emitCutShowCode(members[0], members[1], expandedRecipe.cut)
+        ? emitCutShowCode(members[0], members[1], expandedRecipe.cut, memberOutputDimension)
         : expandedRecipe.routeTransition
           ? portalTransition
             ? emitPortalTransitionShowCode(members[0], members[1], portalTransition)
-            : emitRouteTransitionShowCode(members[0], members[1], expandedRecipe.routeTransition)
+            : emitRouteTransitionShowCode(members[0], members[1], expandedRecipe.routeTransition, memberOutputDimension)
         : expandedRecipe.crossfade
-          ? emitShowCode(members[0], members[1], expandedRecipe.crossfade)
-          : emitSingleClipShowCode(members[0])
+          ? emitShowCode(members[0], members[1], expandedRecipe.crossfade, memberOutputDimension)
+          : emitSingleClipShowCode(members[0], memberOutputDimension)
   const code = expandedRecipe.samplePropertyRamps
     ? injectSampleRemappingUpdate(emittedCode)
     : emittedCode
-  const metadata = buildMetadata(members, expandedRecipe.sceneSequence ? sequenceOutputDimension : portalTransition ? 2 : routedOutputDimension)
+  const metadata = buildMetadata(
+    members,
+    expandedRecipe.sceneSequence
+      ? sequenceOutputDimension
+      : portalTransition
+        ? 2
+        : routeMode || routingLayouts
+          ? routedOutputDimension
+          : memberOutputDimension,
+  )
   const sourceBytesBeforeMerge = members.reduce((sum, member) => sum + member.sourceBytes, 0)
   const artifactBytes = byteLength(code)
   const transitionCost = expandedRecipe.sceneSequence
@@ -665,9 +680,11 @@ function compileMember(
     renamedPatternVars,
     renderName: mapping.get('render') ?? `${prefix}_render`,
     render2DName: mapping.get('render2D') ?? `${prefix}_render2D`,
+    render3DName: mapping.get('render3D') ?? `${prefix}_render3D`,
     beforeRenderName: mapping.get('beforeRender') ?? `${prefix}_beforeRender`,
     hasRender: bindings.has('render'),
     hasRender2D: bindings.has('render2D'),
+    hasRender3D: bindings.has('render3D'),
     hasBeforeRender: bindings.has('beforeRender'),
     elapsedName: `${prefix}_elapsed_ms`,
     pixelCountName: `${prefix}_pixelCount`,
@@ -676,19 +693,26 @@ function compileMember(
   }
 }
 
-function emitShowCode(from: CompiledMember, to: CompiledMember, crossfade: ShowCrossfadeRecipe): string {
+function emitShowCode(
+  from: CompiledMember,
+  to: CompiledMember,
+  crossfade: ShowCrossfadeRecipe,
+  outputDimension: ShowOutputDimension,
+): string {
   const transitionEnd = crossfade.startMs + crossfade.durationMs
   const members = [from, to]
   return [
     emitRuntimePrelude(members),
     ...members.map(member => member.code.trim()),
     emitScheduler(from, to, crossfade.startMs, transitionEnd, crossfade.durationMs),
-    emitRender(from, to),
+    emitRender(from, to, outputDimension),
     '',
   ].join('\n\n')
 }
 
-function emitSingleClipShowCode(member: CompiledMember): string {
+function emitSingleClipShowCode(member: CompiledMember, outputDimension: ShowOutputDimension): string {
+  const render = emitOuterRenderer(outputDimension, `  ${emitMemberCaptureCall(member, outputDimension)}
+  ${member.prefix}_emit()`)
   return [
     emitRuntimePrelude([member]),
     member.code.trim(),
@@ -696,15 +720,17 @@ function emitSingleClipShowCode(member: CompiledMember): string {
   __pxlblz_show_elapsed_ms = __pxlblz_show_elapsed_ms + delta
   ${member.prefix}_advance(delta)
 }`,
-    `export function render(index) {
-  ${member.prefix}_renderCapture(index)
-  ${member.prefix}_emit()
-}`,
+    render,
     '',
   ].join('\n\n')
 }
 
-function emitCutShowCode(from: CompiledMember, to: CompiledMember, cut: ShowCutRecipe): string {
+function emitCutShowCode(
+  from: CompiledMember,
+  to: CompiledMember,
+  cut: ShowCutRecipe,
+  outputDimension: ShowOutputDimension,
+): string {
   return [
     emitRuntimePrelude([from, to]),
     from.code.trim(),
@@ -719,20 +745,22 @@ function emitCutShowCode(from: CompiledMember, to: CompiledMember, cut: ShowCutR
     ${to.prefix}_advance(delta)
   }
 }`,
-    `export function render(index) {
-  if (__pxlblz_show_phase == 0) {
-    ${from.prefix}_renderCapture(index)
+    emitOuterRenderer(outputDimension, `  if (__pxlblz_show_phase == 0) {
+    ${emitMemberCaptureCall(from, outputDimension)}
     ${from.prefix}_emit()
   } else {
-    ${to.prefix}_renderCapture(index)
+    ${emitMemberCaptureCall(to, outputDimension)}
     ${to.prefix}_emit()
-  }
-}`,
+  }`),
     '',
   ].join('\n\n')
 }
 
-function emitAdaptationRampShowCode(member: CompiledMember, ramp: ShowAdaptationRampRecipe): string {
+function emitAdaptationRampShowCode(
+  member: CompiledMember,
+  ramp: ShowAdaptationRampRecipe,
+  outputDimension: ShowOutputDimension,
+): string {
   const from = normalizeAdaptation(ramp.from)
   const to = normalizeAdaptation(ramp.to)
   const transitionEnd = ramp.startMs + ramp.durationMs
@@ -753,10 +781,8 @@ function emitAdaptationRampShowCode(member: CompiledMember, ramp: ShowAdaptation
   ${member.prefix}_mixAdaptation(${from.brightness}, ${from.phase}, ${from.timeScale}, ${boolNumber(from.mirror)}, ${to.brightness}, ${to.phase}, ${to.timeScale}, ${boolNumber(to.mirror)}, __pxlblz_show_mix)${propertyAssignments ? `\n${indentBlock(propertyAssignments, 2)}` : ''}${controlAssignments ? `\n${indentBlock(controlAssignments, 2)}` : ''}
   ${member.prefix}_advance(delta)
 }`,
-    `export function render(index) {
-  ${member.prefix}_renderCapture(index)
-  ${member.prefix}_emit()
-}`,
+    emitOuterRenderer(outputDimension, `  ${emitMemberCaptureCall(member, outputDimension)}
+  ${member.prefix}_emit()`),
     '',
   ].join('\n\n')
 }
@@ -795,6 +821,7 @@ function emitRouteTransitionShowCode(
   from: CompiledMember,
   to: CompiledMember,
   transition: ShowRouteTransitionRecipe,
+  outputDimension: ShowOutputDimension,
 ): string {
   const transitionEnd = transition.startMs + transition.durationMs
   const feather = clampNumber(transition.feather ?? 0, 0, 1)
@@ -811,21 +838,19 @@ function emitRouteTransitionShowCode(
     from.code.trim(),
     to.code.trim(),
     emitScheduler(from, to, transition.startMs, transitionEnd, transition.durationMs),
-    `export function render(index) {
-${featherPrelude}  if (__pxlblz_show_phase == 0) {
-    ${from.prefix}_renderCapture(index)
+    emitOuterRenderer(outputDimension, `${featherPrelude}  if (__pxlblz_show_phase == 0) {
+    ${emitMemberCaptureCall(from, outputDimension)}
     ${from.prefix}_emit()
   } else if (__pxlblz_show_phase == 2) {
-    ${to.prefix}_renderCapture(index)
+    ${emitMemberCaptureCall(to, outputDimension)}
     ${to.prefix}_emit()
   } else if (${pickTo}) {
-    ${to.prefix}_renderCapture(index)
+    ${emitMemberCaptureCall(to, outputDimension)}
     ${to.prefix}_emit()
   } else {
-    ${from.prefix}_renderCapture(index)
+    ${emitMemberCaptureCall(from, outputDimension)}
     ${from.prefix}_emit()
-  }
-}`,
+  }`),
     '',
   ].join('\n\n')
 }
@@ -1570,6 +1595,36 @@ function injectSampleRemappingUpdate(code: string): string {
   return `${code.slice(0, lineEnd + 1)}  __pxlblz_show_update_sample_remap()\n${code.slice(lineEnd + 1)}`
 }
 
+function showOutputDimensionForMembers(members: CompiledMember[]): ShowOutputDimension {
+  return members.some((member) => member.hasRender2D) ? 2 : 1
+}
+
+function emitSelectedMemberRendererCall(
+  member: CompiledMember,
+  outputDimension: ShowOutputDimension,
+  args: { index: string; x?: string; y?: string },
+): string {
+  const compatibility = selectRenderCompatibility(outputDimension, {
+    hasBeforeRender: member.hasBeforeRender,
+    hasRender: member.hasRender,
+    hasRender2D: member.hasRender2D,
+    hasRender3D: member.hasRender3D,
+  })
+  const x = args.x ?? `${args.index} / max(1, ${member.pixelCountName} - 1)`
+  const y = args.y ?? '0.5'
+  const call = compatibility.renderer === 'render3D'
+    ? `${member.render3DName}(${args.index}, ${x}, ${y}, 0.5)`
+    : compatibility.renderer === 'render2D'
+      ? `${member.render2DName}(${args.index}, ${x}, ${y})`
+      : compatibility.renderer === 'render'
+        ? `${member.renderName}(${args.index})`
+        : ''
+  if (!call) return ''
+  return member.adaptation.lightShutter
+    ? `if (${member.prefix}_shutter_open >= 0.5) ${call}`
+    : call
+}
+
 function emitRuntimePrelude(members: CompiledMember[]): string {
   const samplePropertyRamps = members[0]?.samplePropertyRamps
   const sampleRuntime = emitSampleRemappingRuntime(samplePropertyRamps)
@@ -1690,7 +1745,7 @@ ${samplePropertyRamps ? `  if (__pxlblz_show_sample_repeat_scale != 1) {
     mappedIndex = min(${member.pixelCountName} - 1, floor(frac(mappedPosition * __pxlblz_show_sample_repeat_scale) * ${member.pixelCountName}))
   }
 ` : ''}  ${member.prefix}_clear()
-  ${member.hasRender ? lightShutter ? `if (${member.prefix}_shutter_open >= 0.5) ${member.renderName}(mappedIndex)` : `${member.renderName}(mappedIndex)` : ''}
+  ${member.hasRender ? emitSelectedMemberRendererCall(member, 1, { index: 'mappedIndex' }) : ''}
 }`,
     `function ${member.prefix}_renderCapture2D(index, x, y) {
   var mappedIndex = index
@@ -1705,15 +1760,11 @@ ${samplePropertyRamps ? `  if (__pxlblz_show_sample_repeat_scale != 1) {
     mappedIndex = min(${member.pixelCountName} - 1, floor(mappedX * ${member.pixelCountName}))` : ''}
   }
 ` : ''}  ${member.prefix}_clear()
-  ${member.hasRender2D
-    ? lightShutter
-      ? `if (${member.prefix}_shutter_open >= 0.5) ${member.render2DName}(mappedIndex, mappedX, ${samplePropertyRamps ? 'mappedY' : 'y'})`
-      : `${member.render2DName}(mappedIndex, mappedX, ${samplePropertyRamps ? 'mappedY' : 'y'})`
-    : member.hasRender
-      ? lightShutter
-        ? `if (${member.prefix}_shutter_open >= 0.5) ${member.renderName}(mappedIndex)`
-        : `${member.renderName}(mappedIndex)`
-      : ''}
+  ${emitSelectedMemberRendererCall(member, 2, {
+    index: 'mappedIndex',
+    x: 'mappedX',
+    y: samplePropertyRamps ? 'mappedY' : 'y',
+  })}
 }`,
     `function ${member.prefix}_emit() { rgb(${member.prefix}_r, ${member.prefix}_g, ${member.prefix}_b) }`,
     ]
@@ -1796,27 +1847,42 @@ ${lines.join('\n')}
 }`
 }
 
-function emitRender(from: CompiledMember, to: CompiledMember): string {
-  return `export function render(index) {
-  if (__pxlblz_show_phase == 0) {
-    ${from.prefix}_renderCapture(index)
+function emitRender(
+  from: CompiledMember,
+  to: CompiledMember,
+  outputDimension: ShowOutputDimension,
+): string {
+  return emitOuterRenderer(outputDimension, `  if (__pxlblz_show_phase == 0) {
+    ${emitMemberCaptureCall(from, outputDimension)}
     ${from.prefix}_emit()
   } else if (__pxlblz_show_phase == 2) {
-    ${to.prefix}_renderCapture(index)
+    ${emitMemberCaptureCall(to, outputDimension)}
     ${to.prefix}_emit()
   } else {
-    ${from.prefix}_renderCapture(index)
+    ${emitMemberCaptureCall(from, outputDimension)}
     var r0 = ${from.prefix}_r
     var g0 = ${from.prefix}_g
     var b0 = ${from.prefix}_b
-    ${to.prefix}_renderCapture(index)
+    ${emitMemberCaptureCall(to, outputDimension)}
     rgb(
       r0 * (1 - __pxlblz_show_mix) + ${to.prefix}_r * __pxlblz_show_mix,
       g0 * (1 - __pxlblz_show_mix) + ${to.prefix}_g * __pxlblz_show_mix,
       b0 * (1 - __pxlblz_show_mix) + ${to.prefix}_b * __pxlblz_show_mix
     )
-  }
+  }`)
+}
+
+function emitOuterRenderer(outputDimension: ShowOutputDimension, body: string): string {
+  const signature = outputDimension === 2 ? 'render2D(index, x, y)' : 'render(index)'
+  return `export function ${signature} {
+${body}
 }`
+}
+
+function emitMemberCaptureCall(member: CompiledMember, outputDimension: ShowOutputDimension): string {
+  return outputDimension === 2
+    ? `${member.prefix}_renderCapture2D(index, x, y)`
+    : `${member.prefix}_renderCapture(index)`
 }
 
 function emitRouteRender(routes: ResolvedRoute[], outputDimension: 1 | 2): string {

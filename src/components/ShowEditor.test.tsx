@@ -703,6 +703,24 @@ describe('ShowEditor (#318)', () => {
     expect(screen.getByRole('heading', { name: 'Show properties' })).toBeInTheDocument()
   })
 
+  it('compiles a library-backed 2D Pattern for generated Show actions', () => {
+    const show = createDefaultShow('show-library-pattern', 'Shape study', 1000)
+    show.stageMapId = 'plane'
+    show.cells = [{
+      ...show.cells[0],
+      pattern: { kind: 'stock', id: 'ShapeShifter' },
+      patternName: 'ShapeShifter',
+    }]
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+
+    expect(screen.queryByText(/Unknown library namespace "SDF"/i)).not.toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: 'View generated pattern' })
+      .every((button) => !button.hasAttribute('disabled'))).toBe(true)
+    expect(screen.getByRole('button', { name: 'Export Show as .epe' })).toBeEnabled()
+  })
+
   it('replaces a deleted Clip through its empty timeline slot (#430)', async () => {
     const user = userEvent.setup()
     const show = createDefaultShow('show-430-place', 'Clip placement', 1000)

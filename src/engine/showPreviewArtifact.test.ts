@@ -7,9 +7,41 @@ import {
   updateShowCellAdaptations,
   updateShowCellRestartOnEntry,
   updateShowTransition,
+  removeShowBoundaryTransition,
+  removeShowClip,
+  updateShowCellPattern,
 } from './showModel'
+import { createFastReplayRuntime } from './fastReplay'
+import { nativeDimension } from './loadPattern'
+import { LIBRARIES } from '@/pixelblaze/libs'
 
 describe('compileShowForPreview temporal adaptations (#379)', () => {
+  it('renders a library-backed 2D Pattern after the second clip and transition are removed', () => {
+    const initial = createDefaultShow('show-single-2d', 'Shape study', 1)
+    const oneClip = removeShowClip(initial, 'cell-2')
+    const cut = removeShowBoundaryTransition(oneClip, 'transition-scene-1')
+    const show = updateShowCellPattern(cut, 'cell-1', {
+      pattern: { kind: 'stock', id: 'ShapeShifter' },
+      patternName: 'ShapeShifter',
+    })
+    const compiled = compileShowForPreview(show, [], undefined, LIBRARIES, { stageDimension: 2 })
+    const artifact = compiled.artifact!
+    const mapPoints = Array.from({ length: 256 }, (_, index) => ({
+      sample: [(index % 16) / 15, Math.floor(index / 16) / 15],
+    }))
+    const runtime = createFastReplayRuntime({
+      code: artifact.code,
+      metadata: artifact.metadata,
+      dimension: nativeDimension(artifact.metadata.renderFns),
+    }, { mapPoints, randomSeed: 1 })
+
+    const frame = runtime.advanceTo(8_000, { stepMs: 1000 / 60 })
+
+    expect(compiled.error).toBeNull()
+    expect(artifact.metadata.renderFns).toMatchObject({ hasRender: false, hasRender2D: true })
+    expect(frame.pixels.some((pixel) => pixel.some((channel) => channel > 0))).toBe(true)
+  })
+
   it('loads the exact stepped-clock artifact used by generated Show output', () => {
     const base = extendShowCell(createDefaultShow('show-1', 'Stepped hold'), 'cell-1', 2)
     const show = updateShowCellAdaptations(base, 'cell-1', {

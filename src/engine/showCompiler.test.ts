@@ -689,6 +689,22 @@ export function render(index) {
     })
   })
 
+  it('uses the shared renderer cascade for a mixed 2D and 1D crossfade', () => {
+    const artifact = compileShow({
+      clips: [
+        { id: 'surface', source: 'export function render2D(index, x, y) { rgb(x, y, 0) }' },
+        { id: 'strand', source: 'export function render(index) { rgb(index, 0, 0) }' },
+      ],
+      crossfade: { startMs: 1000, durationMs: 1000 },
+    }, {})
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata)
+
+    expect(artifact.metadata.renderFns).toMatchObject({ hasRender: false, hasRender2D: true })
+    handle.beforeRender(1500)
+    handle.render2D(2, 0.25, 0.75)
+    expect(pixel()).toEqual([1.125, 0.375, 0])
+  })
+
   it('captures member output and emits an RGB crossfade during the transition', () => {
     const artifact = compileShow({
       clips: [
@@ -1114,6 +1130,26 @@ export function render(index) { rgb(elapsed, index, 0) }
     })
   })
 
+  it('preserves a single clip native 2D renderer and Stage coordinates', () => {
+    const artifact = compileShow({
+      clips: [{
+        id: 'surface',
+        source: 'export function render2D(index, x, y) { rgb(x, y, index) }',
+      }],
+    }, {})
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata)
+
+    expect(artifact.metadata.renderFns).toEqual({
+      hasBeforeRender: true,
+      hasRender: false,
+      hasRender2D: true,
+      hasRender3D: false,
+    })
+    handle.beforeRender(16)
+    handle.render2D(2, 0.25, 0.75)
+    expect(pixel()).toEqual([0.25, 0.75, 2])
+  })
+
   it('emits a cut boundary where the same pattern restarts as a fresh clip instance', () => {
     const source = `
 export var elapsed = 0
@@ -1150,6 +1186,26 @@ export function render(index) { rgb(elapsed, index, 0) }
       transitionCost: 'none',
       worstInstantRenderersPerPixel: 1,
     })
+  })
+
+  it('preserves native 2D renderers across a cut boundary', () => {
+    const artifact = compileShow({
+      clips: [
+        { id: 'from', source: 'export function render2D(index, x, y) { rgb(x, y, 0) }' },
+        { id: 'to', source: 'export function render2D(index, x, y) { rgb(0, x, y) }' },
+      ],
+      cut: { startMs: 1000 },
+    }, {})
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata)
+
+    expect(artifact.metadata.renderFns).toMatchObject({ hasRender: false, hasRender2D: true })
+    handle.beforeRender(500)
+    handle.render2D(0, 0.25, 0.75)
+    expect(pixel()).toEqual([0.25, 0.75, 0])
+
+    handle.beforeRender(500)
+    handle.render2D(0, 0.25, 0.75)
+    expect(pixel()).toEqual([0, 0.25, 0.75])
   })
 
   it('emits a same-pattern adaptation ramp as parameter-cost with one renderer per pixel', () => {

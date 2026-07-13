@@ -3,6 +3,7 @@ import type { PatternRecord, ShowCell, ShowRecord } from './personalContentRecor
 import { compileShow, type GeneratedShowArtifact } from './showCompiler'
 import { showRecordToCompileRecipe } from './showModel'
 import { DEMOS } from '@/pixelblaze/stock/patterns'
+import { LIBRARIES } from '@/pixelblaze/libs'
 
 export interface CompiledShowState {
   artifact: GeneratedShowArtifact | null
@@ -25,7 +26,7 @@ export function compileShowForPreview(
       controllerZones,
       stageDimension: options.stageDimension,
     })
-    return { artifact: compileShow(recipe, libraries), error: null }
+    return { artifact: compileShow(recipe, { ...LIBRARIES, ...libraries }), error: null }
   } catch (error) {
     return { artifact: null, error: error instanceof Error ? error.message : 'Show compile failed' }
   }
