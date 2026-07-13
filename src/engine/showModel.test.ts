@@ -5,6 +5,7 @@ import {
   addShowZone,
   createDefaultShowFromController,
   createDefaultShow,
+  createShowWithOutputContract,
   extendShowCell,
   formatShowRoutingRanges,
   normalizeShowTransitionState,
@@ -36,6 +37,7 @@ import {
 } from './showModel'
 import { DEMOS } from '@/pixelblaze/stock/patterns'
 import type { ShowRecord, ShowTransition } from './personalContentRecords'
+import { createInstallationShowOutputContract, createPortableShowOutputContract } from './showOutputContract'
 
 function expectHoleFreeStrip(show: ShowRecord): void {
   const strip = projectShowStrip(show)
@@ -51,6 +53,24 @@ function expectHoleFreeStrip(show: ShowRecord): void {
 }
 
 describe('showModel (#318)', () => {
+  it('compiles an Installation against its exact output count and physical layout (#435)', () => {
+    const show = createShowWithOutputContract(
+      'show-installation',
+      'Installation',
+      createInstallationShowOutputContract({ outputMapId: 'plane', pixelCount: 240 }),
+      1,
+    )
+    const recipe = showRecordToCompileRecipe(show, {
+      byCellId: Object.fromEntries(show.cells.map((cell) => [cell.id, DEMOS[cell.pattern.id]])),
+    })
+
+    expect(recipe.masterPixelCount).toBe(240)
+    expect(recipe.zones).toEqual([
+      expect.objectContaining({ name: 'main', ranges: [{ start: 0, end: 239 }] }),
+    ])
+    expect(recipe.routingLayouts).toBeUndefined()
+  })
+
   it('places a clip only into an empty scene and zone slot (#430)', () => {
     const base = createDefaultShow('show-430-place', 'Clip placement', 1)
     const withHole = removeShowClip(base, 'cell-1')
@@ -76,6 +96,29 @@ describe('showModel (#318)', () => {
       pattern: { kind: 'stock', id: 'CometLoom' },
       patternName: 'CometLoom',
     })).toBe(placed)
+  })
+
+  it('adds a Zone with empty timeline slots (#63)', () => {
+    const base = createDefaultShow('show-63-zone', 'Empty Zone', 1)
+
+    const changed = addShowZone(base, { name: 'accent' })
+
+    const addedZone = changed.zones[changed.zones.length - 1]
+    expect(addedZone?.name).toBe('accent')
+    expect(changed.cells).toEqual(base.cells)
+    expect(showCellAtSlot(changed, addedZone.id, changed.scenes[0].id)).toBeUndefined()
+  })
+
+  it('clears developer-slider targets when a clip changes Pattern (#63)', () => {
+    const base = createDefaultShow('show-63-controls', 'Pattern controls', 1)
+    const withTarget = updateShowCellControlTarget(base, 'cell-1', 'sliderTwist', 0.75)
+
+    const changed = updateShowCellPattern(withTarget, 'cell-1', {
+      pattern: { kind: 'stock', id: 'LineBouncer2D' },
+      patternName: 'Line Bouncer 2D',
+    })
+
+    expect(changed.cells[0].controlTargets).toBeUndefined()
   })
 
   it('treats every slot beneath a spanning clip as occupied (#430)', () => {
@@ -455,6 +498,29 @@ describe('showModel (#318)', () => {
     expect(showLoopDurationMs(show)).toBe(62000)
   })
 
+  it('creates Portable 2D Shows with logical full-surface routing (#436)', () => {
+    const show = createShowWithOutputContract(
+      'show-portable',
+      'Portable wall',
+      createPortableShowOutputContract({ referenceMapId: 'plane', referencePixelCount: 1024 }),
+      1000,
+    )
+
+    expect(show.routingLayouts[0]).toMatchObject({
+      name: 'Default',
+      logical: { kind: 'single', zoneIds: [show.zones[0].id] },
+    })
+    const recipe = showRecordToCompileRecipe(show, {
+      byCellId: Object.fromEntries(show.cells.map((cell) => [cell.id, 'export function render2D(index, x, y) { rgb(x, y, 1) }'])),
+      stageDimension: 2,
+    })
+    expect(recipe.masterPixelCount).toBeUndefined()
+    expect(addShowRoutingLayout(show).routingLayouts[1].logical).toEqual({
+      kind: 'single',
+      zoneIds: [show.zones[0].id],
+    })
+  })
+
   it('projects cells into scene columns, transition columns, and zone rows', () => {
     const show = createDefaultShow('show-1', 'Untitled Show')
     const strip = projectShowStrip(show)
@@ -504,9 +570,17 @@ describe('showModel (#318)', () => {
   })
 
   it('appends a scene by copying the prior scene cells per zone', () => {
-    const base = addShowZone(createDefaultShow('show-1', 'Untitled Show'), {
+    const withZone = addShowZone(createDefaultShow('show-1', 'Untitled Show'), {
       name: 'doorframe',
       nominalPixelCount: 12,
+    })
+    const withFirstDoorClip = placeShowClip(withZone, 'zone-2', 'scene-1', {
+      pattern: { kind: 'stock', id: 'TestPattern1D' },
+      patternName: 'TestPattern1D',
+    })
+    const base = placeShowClip(withFirstDoorClip, 'zone-2', 'scene-2', {
+      pattern: { kind: 'stock', id: 'CometLoom' },
+      patternName: 'CometLoom',
     })
     const secondMain = base.cells.find((cell) => cell.zoneId === 'zone-1' && cell.sceneId === 'scene-2')!
     const secondDoor = base.cells.find((cell) => cell.zoneId === 'zone-2' && cell.sceneId === 'scene-2')!
@@ -1362,9 +1436,13 @@ describe('showModel (#318)', () => {
   })
 
   it('builds routed clips for every show-local zone in the first scene', () => {
-    const show = addShowZone(createDefaultShow('show-1', 'Untitled Show'), {
+    const withZone = addShowZone(createDefaultShow('show-1', 'Untitled Show'), {
       name: 'doorframe',
       nominalPixelCount: 12,
+    })
+    const show = placeShowClip(withZone, 'zone-2', 'scene-1', {
+      pattern: { kind: 'stock', id: 'CometLoom' },
+      patternName: 'CometLoom',
     })
     const doorCell = show.cells.find((cell) => cell.zoneId === 'zone-2' && cell.sceneId === 'scene-1')!
     const recipe = showRecordToCompileRecipe(show, {
@@ -1385,9 +1463,13 @@ describe('showModel (#318)', () => {
   })
 
   it('binds show-local zone names to controller zones when a target is available', () => {
-    const show = addShowZone(createDefaultShow('show-1', 'Untitled Show'), {
+    const withZone = addShowZone(createDefaultShow('show-1', 'Untitled Show'), {
       name: 'doorframe',
       nominalPixelCount: 12,
+    })
+    const show = placeShowClip(withZone, 'zone-2', 'scene-1', {
+      pattern: { kind: 'stock', id: 'CometLoom' },
+      patternName: 'CometLoom',
     })
     const doorCell = show.cells.find((cell) => cell.zoneId === 'zone-2' && cell.sceneId === 'scene-1')!
     const controllerZones = [

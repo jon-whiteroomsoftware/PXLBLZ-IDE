@@ -2,6 +2,10 @@ import { showInitialState, useShowStore } from './showStore'
 import { mapInitialState, useMapStore } from './mapStore'
 import { createDefaultShow } from '@/engine/showModel'
 import {
+  createInstallationShowOutputContract,
+  createPortableShowOutputContract,
+} from '@/engine/showOutputContract'
+import {
   resetPersonalContentProvider,
   setPersonalContentProvider,
   type PersonalContentProvider,
@@ -51,6 +55,55 @@ beforeEach(() => {
 })
 
 describe('showStore (#318)', () => {
+  it('keeps Show creation provisional and restores the previously open Show on cancel (#434)', async () => {
+    const previous = createDefaultShow('show-previous', 'Previous', 1)
+    setPersonalContentProvider(memoryProvider([previous]))
+    useShowStore.setState({ shows: [previous], activeShowId: previous.id, showsLoaded: true })
+
+    useShowStore.getState().beginShowCreation()
+    expect(useShowStore.getState()).toMatchObject({
+      shows: [previous],
+      activeShowId: previous.id,
+      showCreation: { previousShowId: previous.id },
+    })
+
+    useShowStore.getState().cancelShowCreation()
+    expect(useShowStore.getState()).toMatchObject({
+      shows: [previous],
+      activeShowId: previous.id,
+      showCreation: null,
+    })
+  })
+
+  it('persists and reloads configured Shows only when final creation is requested (#434)', async () => {
+    const provider = memoryProvider()
+    setPersonalContentProvider(provider)
+    const portable = createPortableShowOutputContract({ referenceMapId: 'plane', referencePixelCount: 1024 })
+
+    expect(useShowStore.getState().shows).toEqual([])
+    const created = await useShowStore.getState().createNewShow({ name: 'Touring field', outputContract: portable })
+    useShowStore.setState(showInitialState)
+    await useShowStore.getState().loadShows()
+
+    expect(created).toMatchObject({
+      name: 'Touring field',
+      stageMapId: 'plane',
+      outputContract: portable,
+    })
+    expect(useShowStore.getState().shows).toEqual([expect.objectContaining({
+      id: created.id,
+      outputContract: portable,
+    })])
+
+    const installation = createInstallationShowOutputContract({ outputMapId: 'custom-map', pixelCount: 240 })
+    const installed = await useShowStore.getState().createNewShow({ name: 'Lobby wall', outputContract: installation })
+    expect(installed).toMatchObject({
+      stageMapId: 'custom-map',
+      zones: [expect.objectContaining({ nominalPixelCount: 240 })],
+      outputContract: installation,
+    })
+  })
+
   it('loads shows sorted by recency and opens one as active', async () => {
     const older = createDefaultShow('show-1', 'Older', 1)
     const newer = createDefaultShow('show-2', 'Newer', 2)
@@ -61,6 +114,98 @@ describe('showStore (#318)', () => {
 
     expect(useShowStore.getState().shows.map((show) => show.id)).toEqual(['show-2', 'show-1'])
     expect(useShowStore.getState().activeShowId).toBe('show-1')
+  })
+
+  it('automatically persists a proven legacy Installation contract on open (#438)', async () => {
+    const legacy = createDefaultShow('show-legacy-installation', 'Legacy Installation', 1)
+    const choreography = structuredClone({
+      scenes: legacy.scenes,
+      cells: legacy.cells,
+      transitions: legacy.transitions,
+    })
+    const provider = memoryProvider([legacy])
+    setPersonalContentProvider(provider)
+    useShowStore.setState({ shows: [legacy], showsLoaded: true })
+
+    await useShowStore.getState().openShow(legacy.id)
+
+    expect(useShowStore.getState()).toMatchObject({
+      activeShowId: legacy.id,
+      showClassification: null,
+      shows: [expect.objectContaining({
+        outputContract: expect.objectContaining({ kind: 'installation', pixelCount: 60 }),
+      })],
+    })
+    expect(useShowStore.getState().shows[0]).toMatchObject(choreography)
+
+    useShowStore.setState(showInitialState)
+    await useShowStore.getState().loadShows()
+    expect(useShowStore.getState().shows[0].outputContract?.kind).toBe('installation')
+  })
+
+  it('prompts for an ambiguous legacy Show and cancel performs no write (#438)', async () => {
+    const previous = {
+      ...createDefaultShow('show-previous', 'Previous', 2),
+      outputContract: createInstallationShowOutputContract({ outputMapId: null, pixelCount: 60 }),
+    }
+    const ambiguous = createDefaultShow('show-ambiguous', 'Ambiguous', 1)
+    ambiguous.stageMapId = 'plane'
+    ambiguous.routingLayouts[0].zones = []
+    ambiguous.routingLayouts[0].logical = { kind: 'single', zoneIds: ['zone-1'] }
+    const provider = memoryProvider([previous, ambiguous])
+    setPersonalContentProvider(provider)
+    useShowStore.setState({ shows: [previous, ambiguous], activeShowId: previous.id, showsLoaded: true })
+
+    await useShowStore.getState().openShow(ambiguous.id)
+    expect(useShowStore.getState()).toMatchObject({
+      activeShowId: null,
+      showClassification: {
+        showId: ambiguous.id,
+        previousShowId: previous.id,
+        modeledPixelCount: 60,
+      },
+    })
+
+    useShowStore.getState().cancelShowClassification()
+    expect(useShowStore.getState()).toMatchObject({
+      activeShowId: previous.id,
+      showClassification: null,
+    })
+
+    useShowStore.setState(showInitialState)
+    await useShowStore.getState().loadShows()
+    expect(useShowStore.getState().shows.find((show) => show.id === ambiguous.id)?.outputContract).toBeUndefined()
+  })
+
+  it('persists one prompted contract without rewriting choreography and never asks again (#438)', async () => {
+    const ambiguous = createDefaultShow('show-ambiguous', 'Ambiguous', 1)
+    ambiguous.stageMapId = 'plane'
+    ambiguous.routingLayouts[0].zones = []
+    const choreography = structuredClone({
+      scenes: ambiguous.scenes,
+      cells: ambiguous.cells,
+      routingLayouts: ambiguous.routingLayouts,
+      routingSwitches: ambiguous.routingSwitches,
+      transitions: ambiguous.transitions,
+    })
+    const provider = memoryProvider([ambiguous])
+    setPersonalContentProvider(provider)
+    useShowStore.setState({ shows: [ambiguous], showsLoaded: true })
+
+    await useShowStore.getState().openShow(ambiguous.id)
+    await useShowStore.getState().confirmShowClassification(
+      createPortableShowOutputContract({ referenceMapId: 'plane', referencePixelCount: 60 }),
+    )
+
+    const classified = useShowStore.getState().shows[0]
+    expect(classified.outputContract?.kind).toBe('portable-2d')
+    expect(classified).toMatchObject(choreography)
+    expect(useShowStore.getState()).toMatchObject({ activeShowId: ambiguous.id, showClassification: null })
+
+    useShowStore.setState(showInitialState)
+    await useShowStore.getState().loadShows()
+    await useShowStore.getState().openShow(ambiguous.id)
+    expect(useShowStore.getState()).toMatchObject({ activeShowId: ambiguous.id, showClassification: null })
   })
 
   it('creates, renames, edits, and deletes shows through the provider', async () => {

@@ -201,6 +201,7 @@ describe('ControllerProfilePage', () => {
       { id: 'DEV1', name: 'Device Twinkle' },
       { id: 'FOREIGN1', name: 'sound bar kit' },
       { id: 'DEV2', name: 'Device Aurora' },
+      { id: 'SHOW1', name: 'Measured wall Show' },
     ]
     usePatternStore.setState({
       userPatterns: [{
@@ -219,6 +220,7 @@ describe('ControllerProfilePage', () => {
         '192.168.8.224': {
           'pat-1': 'DEV1',
           'demo:AuroraSphere': 'DEV2',
+          'show:show-1': 'SHOW1',
         },
       }),
       getPushRecords: async () => ({
@@ -228,6 +230,18 @@ describe('ControllerProfilePage', () => {
             artifactHash: 'twinkle-hash',
             stampedAt: '2026-07-09T00:00:00.000Z',
             name: 'Twinkle',
+          },
+          'show:show-1': {
+            transforms: ['show'],
+            artifactHash: 'show-hash',
+            stampedAt: '2026-07-12T00:00:00.000Z',
+            name: 'Measured wall Show',
+            showOutputContract: {
+              version: 1,
+              kind: 'installation',
+              pixelCount: 256,
+              outputMap: { kind: 'custom', name: 'Measured wall', fingerprint: '11111111' },
+            },
           },
         },
       }),
@@ -254,6 +268,8 @@ describe('ControllerProfilePage', () => {
     expect(screen.getByText('sound bar kit')).toBeInTheDocument()
     expect(screen.getByText('DEV1')).toBeInTheDocument()
     expect(screen.getByText('FOREIGN1')).toBeInTheDocument()
+    expect(screen.getByText('Installation · 256 px · Measured wall')).toBeInTheDocument()
+    expect(screen.getByTitle('Map fingerprint 11111111')).toBeInTheDocument()
     expect(screen.getByTitle('Current: pushed with the transforms enabled on this profile.')).toHaveTextContent('current')
     expect(screen.getAllByTitle('Unmanaged: no Studio push record is available for this saved program.')).toHaveLength(2)
 
@@ -265,9 +281,9 @@ describe('ControllerProfilePage', () => {
       ),
     }
     rerender(<ControllerSavedProgramsPane profile={changedProfile} />)
-    expect(screen.getByTitle(
+    expect(screen.getAllByTitle(
       'Stale: profile transforms changed since this program was pushed. Push it again to update.',
-    )).toHaveTextContent('stale')
+    )).toHaveLength(2)
     expect(provider.listCalls).toBe(readsBeforeToggle)
 
     fireEvent.click(screen.getByRole('button', { name: 'Twinkle' }))

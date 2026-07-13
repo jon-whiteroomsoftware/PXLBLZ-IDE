@@ -14,6 +14,7 @@ import { useMapStore, STOCK_MAP_ITEMS } from '@/store/mapStore'
 import { useWorkspaceStore } from '@/store/workspaceStore'
 import { SendMapToController } from '@/components/SendMapToController'
 import { useRouterStore } from '@/store/routerStore'
+import { InlineEntityTitle } from '@/components/InlineEntityTitle'
 
 // The editor header strip in map mode (#151/#268): source identity, parse-only
 // compile badge, and document actions. Stock maps are read-only but cloneable and
@@ -22,6 +23,7 @@ export function MapModeHeader() {
   const editingMap = useMapStore((s) => s.editingMap)
   const userMaps = useMapStore((s) => s.userMaps)
   const cloneStockMap = useMapStore((s) => s.cloneStockMap)
+  const renameMap = useMapStore((s) => s.renameMap)
   const removeMap = useMapStore((s) => s.removeMap)
   const mapEvalError = useMapStore((s) => s.mapEvalError)
   const navigate = useRouterStore((s) => s.navigate)
@@ -51,7 +53,7 @@ export function MapModeHeader() {
   return (
     <>
       <span className="flex-1 min-w-0 flex items-center gap-1.5">
-        <span className="truncate text-zinc-200">{name}</span>
+        <InlineEntityTitle name={name} noun="map" onRename={openRecord ? (nextName) => renameMap(openRecord.id, nextName) : undefined} takenNames={userMaps.filter((map) => map.id !== openRecord?.id).map((map) => map.name)} />
         <CompileStatusBadge />
         <span className="shrink-0 px-1.5 py-0.5 rounded text-[9px] font-medium tracking-wide uppercase text-zinc-400 border border-zinc-700 leading-none">
           map

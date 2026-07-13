@@ -1,7 +1,7 @@
 import { act, render, screen, waitFor } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
 import { ShowStagePreview } from './ShowStagePreview'
-import { createDefaultShow } from '@/engine/showModel'
+import { createDefaultShow, createShowWithOutputContract } from '@/engine/showModel'
+import { createInstallationShowOutputContract, createPortableShowOutputContract } from '@/engine/showOutputContract'
 import { resetPersonalContentProvider, setPersonalContentProvider, type PersonalContentProvider } from '@/engine/personalContentProvider'
 import type { ControllerProfile } from '@/engine/controllerProfile'
 import type { MapRecord, MixinRecord, PatternRecord, ShowRecord } from '@/engine/personalContentRecords'
@@ -109,20 +109,77 @@ describe('ShowStagePreview (#339)', () => {
     expect(screen.getByText(/show paused · Fast/i)).toBeInTheDocument()
   })
 
-  it('renders stage options and persists the selected map on the show', async () => {
-    const user = userEvent.setup()
+  it('shows the saved Stage as read-only output context (#434)', () => {
     const show = createDefaultShow('show-1', 'Opening wash', 1000)
+    show.stageMapId = 'map-1'
     setPersonalContentProvider(memoryProvider([show]))
     useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
     useMapStore.setState({ userMaps: [importedMap], mapsLoaded: true })
 
     render(<ShowStagePreview showId={show.id} />)
 
-    await user.selectOptions(screen.getByLabelText('Show stage'), 'map-1')
+    expect(screen.getByLabelText('Show stage')).toHaveTextContent('North Arch map')
+    expect(screen.queryByRole('combobox', { name: 'Show stage' })).not.toBeInTheDocument()
+  })
 
-    await waitFor(() => {
-      expect(useShowStore.getState().shows[0].stageMapId).toBe('map-1')
+  it('uses and reports the Installation master count and physical coverage (#435)', () => {
+    const show = createShowWithOutputContract(
+      'show-installation',
+      'Installation',
+      createInstallationShowOutputContract({ outputMapId: 'plane', pixelCount: 8 }),
+      1000,
+    )
+    show.routingLayouts[0].zones[0].ranges = [{ start: 0, end: 5 }]
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    useControllerProfileStore.setState({
+      profilesLoaded: true,
+      profiles: [{
+        id: 'controller-1',
+        name: 'Different controller',
+        board: { kind: 'pixelblaze-v3-standard' },
+        inputs: [],
+        globalTransforms: [],
+        patternBindings: [],
+        zones: [],
+        lastKnownPixelCount: 99,
+        updatedAt: 1,
+      }],
     })
+
+    render(<ShowStagePreview showId={show.id} />)
+
+    expect(screen.getByText('8 px')).toBeInTheDocument()
+    expect(screen.getByText(/6 assigned · 2 missing · 0 overlapping · 0 out of range · 8 total/i)).toBeInTheDocument()
+  })
+
+  it('uses the Portable reference count without borrowing Controller physical setup (#436)', () => {
+    const show = createShowWithOutputContract(
+      'show-portable',
+      'Portable',
+      createPortableShowOutputContract({ referenceMapId: 'wide', referencePixelCount: 1536 }),
+      1000,
+    )
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    useControllerProfileStore.setState({
+      profilesLoaded: true,
+      profiles: [{
+        id: 'controller-1',
+        name: 'Physical controller',
+        board: { kind: 'pixelblaze-v3-standard' },
+        inputs: [],
+        globalTransforms: [],
+        patternBindings: [],
+        zones: [{ id: 'physical', name: 'main', ranges: [{ start: 0, end: 98 }] }],
+        lastKnownPixelCount: 99,
+        updatedAt: 1,
+      }],
+    })
+
+    render(<ShowStagePreview showId={show.id} />)
+
+    expect(screen.getAllByText('1536 px')).toHaveLength(2)
+    expect(screen.getByLabelText('Show stage')).toHaveTextContent('Wide 2:1')
+    expect(screen.queryByText('99 px')).not.toBeInTheDocument()
   })
 
   it('falls back to strips when the saved stage map is missing', () => {
@@ -132,6 +189,6 @@ describe('ShowStagePreview (#339)', () => {
     render(<ShowStagePreview showId={show.id} />)
 
     expect(screen.getByText(/saved stage map is gone/i)).toBeInTheDocument()
-    expect(screen.getByLabelText('Show stage')).toHaveValue('')
+    expect(screen.getByLabelText('Show stage')).toHaveTextContent('Zone strips - generic')
   })
 })

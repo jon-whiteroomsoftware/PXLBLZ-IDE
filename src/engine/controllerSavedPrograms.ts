@@ -1,6 +1,7 @@
 import type { ProgramListEntry } from './PixelblazeConnection'
 import type { BindingStore } from './controllerBinding'
 import type { ControllerPushRecord, ControllerPushRecords } from './controllerPushRecord'
+import type { ArtifactShowOutputContract } from './artifactStamp'
 
 export type TransformFreshness = 'current' | 'stale' | 'unmanaged'
 
@@ -38,6 +39,7 @@ export interface ControllerSavedProgramRow {
   routeId: string | null
   studioPatternMissing: boolean
   freshness: TransformFreshness
+  showOutputContract?: ArtifactShowOutputContract
 }
 
 export interface ControllerSavedProgramsView {
@@ -80,6 +82,7 @@ export function describeControllerSavedPrograms(input: {
     }
 
     const studioPattern = studioByBindingKey.get(bindingKey)
+    const pushRecord = input.pushRecords[input.controllerId]?.[bindingKey]
     owned.push({
       kind: 'owned',
       programId: program.id,
@@ -88,9 +91,10 @@ export function describeControllerSavedPrograms(input: {
       routeId: studioPattern?.routeId ?? null,
       studioPatternMissing: !studioPattern,
       freshness: describeTransformFreshness(
-        input.pushRecords[input.controllerId]?.[bindingKey],
+        pushRecord,
         input.enabledTransforms,
       ),
+      ...(pushRecord?.showOutputContract ? { showOutputContract: pushRecord.showOutputContract } : {}),
     })
   }
 

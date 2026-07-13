@@ -173,6 +173,8 @@ export interface ShowRecipe {
   sceneSequence?: ShowSceneSequenceRecipe
   zones?: ControllerZone[]
   routingLayouts?: ShowRoutingLayoutRecipe[]
+  /** Authoritative physical output size for fixed Installation routing. */
+  masterPixelCount?: number
   routingSwitches?: ShowRoutingSwitchRecipe[]
   routingPropertyRamps?: ShowRoutingPropertyRampsRecipe
   samplePropertyRamps?: ShowSamplePropertyRampsRecipe
@@ -1171,7 +1173,7 @@ function buildRoutingLayoutPlans(
   recipe: ShowRecipe,
 ): ResolvedRoutingLayout[] | null {
   if (!recipe.routingLayouts) return null
-  const physicalPixelCount = (recipe.zones ?? []).reduce((largest, zone) => (
+  const physicalPixelCount = recipe.masterPixelCount ?? (recipe.zones ?? []).reduce((largest, zone) => (
     Math.max(largest, ...zone.ranges.map((range) => range.end + 1))
   ), 0)
   return recipe.routingLayouts.map((layout) => {

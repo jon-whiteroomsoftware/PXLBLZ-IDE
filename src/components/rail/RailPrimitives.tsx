@@ -59,10 +59,14 @@ export function RailEntityHeader({
   action?: React.ReactNode
   children?: React.ReactNode
 }) {
+  const compact = children === undefined || children === null
   return (
-    <div className="border-b border-seam px-3 py-2">
-      <div className="flex min-h-5 items-center gap-2">
-        <div className="flex-1 truncate text-sm font-semibold text-zinc-200">{title}</div>
+    <div className={compact
+      ? 'flex h-[calc(1.75rem+1px)] shrink-0 items-center border-b border-seam px-3'
+      : 'border-b border-seam px-3 py-2'}
+    >
+      <div className="flex min-h-5 w-full items-center gap-2">
+        <div className="flex-1 truncate text-sm font-normal text-zinc-200">{title}</div>
         {action && <div className="flex items-center gap-1.5">{action}</div>}
       </div>
       {children}

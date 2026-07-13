@@ -98,7 +98,7 @@ export function PatternList() {
   const userShows = useShowStore((s) => s.shows)
   const activeShowId = useShowStore((s) => s.activeShowId)
   const loadShows = useShowStore((s) => s.loadShows)
-  const createNewShow = useShowStore((s) => s.createNewShow)
+  const beginShowCreation = useShowStore((s) => s.beginShowCreation)
   const openShow = useShowStore((s) => s.openShow)
   const renameShow = useShowStore((s) => s.renameShow)
   const removeShow = useShowStore((s) => s.removeShow)
@@ -568,13 +568,12 @@ export function PatternList() {
     navigate({ kind: 'studio', entity: { kind: 'controllers', id: profileId } })
   }
 
-  async function handleCreateShow() {
+  function handleCreateShow() {
     closeMapEditor()
     closeMixinEditor()
     closeLibraryEditor()
     closeDocs()
-    const show = await createNewShow()
-    navigate({ kind: 'studio', entity: { kind: 'shows', id: show.id } })
+    beginShowCreation()
   }
 
   async function handleCreateShowFromController() {
@@ -816,7 +815,7 @@ export function PatternList() {
             scrollRef={scrollRef}
             scrollMetrics={scrollMetrics}
             onScroll={updateScrollMetrics}
-            onCreateShow={() => void handleCreateShow()}
+            onCreateShow={handleCreateShow}
             onCreateShowFromController={() => void handleCreateShowFromController()}
             onOpenShow={openUserShow}
             onRenameShow={renameShow}

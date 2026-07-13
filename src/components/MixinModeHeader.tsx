@@ -13,11 +13,13 @@ import {
 import { STOCK_MIXIN_ITEMS, useMixinStore } from '@/store/mixinStore'
 import { useRouterStore } from '@/store/routerStore'
 import { useWorkspaceStore } from '@/store/workspaceStore'
+import { InlineEntityTitle } from '@/components/InlineEntityTitle'
 
 export function MixinModeHeader() {
   const editingMixin = useMixinStore((s) => s.editingMixin)
   const userMixins = useMixinStore((s) => s.userMixins)
   const cloneStockMixin = useMixinStore((s) => s.cloneStockMixin)
+  const renameMixin = useMixinStore((s) => s.renameMixin)
   const removeMixin = useMixinStore((s) => s.removeMixin)
   const navigate = useRouterStore((s) => s.navigate)
   const personalWorkspaceAuthenticated = useWorkspaceStore((s) => s.personalWorkspaceAuthenticated)
@@ -46,7 +48,7 @@ export function MixinModeHeader() {
   return (
     <>
       <span className="flex-1 min-w-0 flex items-center gap-1.5">
-        <span className="truncate text-zinc-200">{name}</span>
+        <InlineEntityTitle name={name} noun="mixin" onRename={openRecord ? (nextName) => renameMixin(openRecord.id, nextName) : undefined} takenNames={userMixins.filter((mixin) => mixin.id !== openRecord?.id).map((mixin) => mixin.name)} />
         <CompileStatusBadge />
         <span className="shrink-0 px-1.5 py-0.5 rounded text-[9px] font-medium tracking-wide uppercase text-zinc-400 border border-zinc-700 leading-none">
           mixin

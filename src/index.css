@@ -237,31 +237,31 @@
   background: transparent;
 }
 .show-playhead-range::-webkit-slider-runnable-track {
-  height: 3px;
-  border: 1px solid #71717a;
-  background: #dbeafe;
+  height: 100%;
+  border: 0;
+  background: transparent;
 }
 .show-playhead-range::-moz-range-track {
-  height: 3px;
-  border: 1px solid #71717a;
-  background: #dbeafe;
+  height: 100%;
+  border: 0;
+  background: transparent;
 }
 .show-playhead-range::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
   width: 16px;
   height: 16px;
-  margin-top: -7.5px;
+  margin-top: 0;
   border: 0;
-  border-radius: 9999px;
-  background: #bfdbfe;
+  border-radius: 0;
+  background: transparent;
 }
 .show-playhead-range::-moz-range-thumb {
   width: 16px;
   height: 16px;
   border: 0;
-  border-radius: 9999px;
-  background: #bfdbfe;
+  border-radius: 0;
+  background: transparent;
 }
 
 /* Indeterminate ("unset") DeckSlider: a control whose position we don't know — a

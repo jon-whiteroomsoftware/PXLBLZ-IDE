@@ -4,6 +4,7 @@ import type {
   ShowCellAdaptations,
   ShowBoundaryTransition,
   ShowRecord,
+  ShowOutputContract,
   ShowPortalSettings,
   ShowRoutingLayout,
   ShowRoutingLayoutZone,
@@ -98,6 +99,9 @@ const DEFAULT_ADAPTATIONS: ShowCellAdaptations = {
   timeScale: 1,
 }
 
+const EMPTY_SHOW_PATTERN_ID = '__pxlblz_empty'
+const EMPTY_SHOW_PATTERN_SOURCE = 'export function render(index) { rgb(0, 0, 0) }'
+
 const ZONE_COLORS = ['#38bdf8', '#f97316', '#a78bfa', '#22c55e', '#f43f5e', '#eab308']
 
 export function createDefaultShow(id: string, name: string, updatedAt = Date.now()): ShowRecord {
@@ -139,6 +143,37 @@ export function createDefaultShow(id: string, name: string, updatedAt = Date.now
     ],
     stageMapId: null,
     updatedAt,
+  }
+}
+
+export function createShowWithOutputContract(
+  id: string,
+  name: string,
+  outputContract: ShowOutputContract,
+  updatedAt = Date.now(),
+): ShowRecord {
+  const base = createDefaultShow(id, name, updatedAt)
+  const pixelCount = outputContract.kind === 'installation'
+    ? outputContract.pixelCount
+    : outputContract.referencePixelCount
+  const stageMapId = outputContract.kind === 'installation'
+    ? outputContract.outputMapId
+    : outputContract.referenceMapId
+  const zones = base.zones.map((zone, index) => (
+    index === 0 ? { ...zone, nominalPixelCount: clampPixelCount(pixelCount) } : zone
+  ))
+  const initialLayout = routingLayoutFromZones('layout-1', 'Default', zones)
+  return {
+    ...base,
+    zones,
+    routingLayouts: [{
+      ...initialLayout,
+      ...(outputContract.kind === 'portable-2d'
+        ? { logical: { kind: 'single' as const, zoneIds: [zones[0].id] as [string] } }
+        : {}),
+    }],
+    stageMapId,
+    outputContract,
   }
 }
 
@@ -809,7 +844,11 @@ export function updateShowCellPattern(
 ): ShowRecord {
   return {
     ...show,
-    cells: show.cells.map((cell) => cell.id === cellId ? { ...cell, ...patch } : cell),
+    cells: show.cells.map((cell) => {
+      if (cell.id !== cellId) return cell
+      const changesPattern = cell.pattern.kind !== patch.pattern.kind || cell.pattern.id !== patch.pattern.id
+      return { ...cell, ...patch, ...(changesPattern ? { controlTargets: undefined } : {}) }
+    }),
     updatedAt: Date.now(),
   }
 }
@@ -828,7 +867,7 @@ export function addShowZone(
   const next = {
     ...show,
     zones: [...show.zones, zone],
-    cells: [...show.cells, ...createCellsForZone(show.scenes, zone, show.cells)],
+    cells: show.cells,
     updatedAt: Date.now(),
   }
   return {
@@ -1190,7 +1229,13 @@ export function addShowRoutingLayout(show: ShowRecord, name = 'New layout', sour
     zones: source
       ? source.zones.map(cloneRoutingLayoutZone)
       : routingLayoutFromZones(id, name, normalized.zones).zones,
-    logical: source?.logical ? cloneLogicalRouting(source.logical) : undefined,
+    logical: source?.logical
+      ? cloneLogicalRouting(source.logical)
+      : normalized.outputContract?.kind === 'portable-2d'
+        ? normalized.routingLayouts[0]?.logical
+          ? cloneLogicalRouting(normalized.routingLayouts[0].logical)
+          : { kind: 'single', zoneIds: [normalized.zones[0].id] }
+        : undefined,
   }
   return { ...normalized, routingLayouts: [...normalized.routingLayouts, layout], updatedAt: Date.now() }
 }
@@ -1351,7 +1396,21 @@ export function showRecordToCompileRecipe(
   lookup: ShowCompileRecipeSourceLookup,
 ): ShowRecipe {
   show = normalizeShowTransitionState(show)
-  if (show.zones.length > 1 || show.routingSwitches.length > 0) {
+  if (
+    show.outputContract?.kind === 'installation'
+    && show.zones.length === 1
+    && show.routingSwitches.length === 0
+  ) {
+    const legacyRecipe = showRecordToCompileRecipe({ ...show, outputContract: undefined }, lookup)
+    return {
+      ...legacyRecipe,
+      zones: show.routingLayouts[0]
+        ? routingLayoutControllerZones(show.zones, show.routingLayouts[0])
+        : nominalZones(show.zones),
+      masterPixelCount: show.outputContract.pixelCount,
+    }
+  }
+  if (show.outputContract?.kind === 'installation' || show.zones.length > 1 || show.routingSwitches.length > 0) {
     return showRecordToRoutedFirstSceneRecipe(show, lookup)
   }
 
@@ -1474,12 +1533,22 @@ function showRecordToSceneSequenceRecipe(
   zone: ShowZone,
   lookup: ShowCompileRecipeSourceLookup,
 ): ShowRecipe | null {
-  if (show.scenes.length < 3) return null
   const cells = show.scenes.map((scene) => (
-    show.cells.find((cell) => cell.zoneId === zone.id && cell.sceneId === scene.id)
+    showCellAtSlot(show, zone.id, scene.id)
   ))
-  if (cells.some((cell) => !cell)) return null
-  const resolvedCells = cells as ShowCell[]
+  const hasEmptyScene = cells.some((cell) => !cell)
+  if (show.scenes.length < 3 && !hasEmptyScene) return null
+  const resolvedCells = cells.map((cell, index): ShowCell => cell ?? ({
+    id: `${EMPTY_SHOW_PATTERN_ID}-${show.scenes[index].id}`,
+    zoneId: zone.id,
+    sceneId: show.scenes[index].id,
+    sceneSpan: 1,
+    zoneSpan: 1,
+    pattern: { kind: 'stock', id: EMPTY_SHOW_PATTERN_ID },
+    patternName: 'Empty',
+    adaptations: { ...DEFAULT_ADAPTATIONS },
+    restartOnEntry: false,
+  }))
   const transitions = show.scenes.slice(0, -1).map((scene) => scene.transitionOut)
   const hasPropertyTransitions = show.transitions?.some((transition) => (
     transition.kind !== 'routing' && Boolean(transition.propertyTransitions && Object.keys(transition.propertyTransitions).length > 0)
@@ -1491,7 +1560,9 @@ function showRecordToSceneSequenceRecipe(
   const clipByKey = new Map<string, ShowRecipe['clips'][number]>()
   const clipIdByCellId = new Map<string, string>()
   for (const [index, cell] of resolvedCells.entries()) {
-    const source = lookup.byCellId[cell.id]
+    const source = cell.pattern.id === EMPTY_SHOW_PATTERN_ID
+      ? EMPTY_SHOW_PATTERN_SOURCE
+      : lookup.byCellId[cell.id]
     if (!source) throw new Error(`Show compile requires pattern source for clip "${cell.id}".`)
     const adaptation = compilerAdaptation(cell.adaptations)
     const continuityKey = `${cell.pattern.kind}:${cell.pattern.id}:${JSON.stringify(adaptation)}`
@@ -1632,11 +1703,13 @@ function showRecordToRoutedFirstSceneRecipe(
     }]
   })
   const splitLayout = normalized.routingLayouts.find((layout) => layout.logical?.kind === 'split')
-  const selectedLayouts = activeSwitches.length > 0
+  const installationContract = normalized.outputContract?.kind === 'installation'
+    ? normalized.outputContract
+    : null
+  const portableContract = normalized.outputContract?.kind === 'portable-2d'
+  const selectedLayouts = installationContract || portableContract || activeSwitches.length > 0
     ? normalized.routingLayouts
-    : splitLayout
-      ? [splitLayout]
-      : []
+    : splitLayout ? [splitLayout] : []
   const routingLayouts = selectedLayouts.length > 0
     ? selectedLayouts.map((layout) => ({
         id: layout.id,
@@ -1665,6 +1738,9 @@ function showRecordToRoutedFirstSceneRecipe(
         }),
       }
     : undefined
+  const installationZones = installationContract && normalized.routingLayouts[0]
+    ? routingLayoutControllerZones(normalized.zones, normalized.routingLayouts[0])
+    : undefined
 
   return {
     clips: cells.map((cell) => {
@@ -1688,8 +1764,9 @@ function showRecordToRoutedFirstSceneRecipe(
         controlTargets: cell.controlTargets,
       }
     }),
-    zones: lookup.controllerZones ?? nominalZones(show.zones),
+    zones: installationZones ?? lookup.controllerZones ?? nominalZones(show.zones),
     routingLayouts,
+    masterPixelCount: installationContract?.pixelCount,
     routingSwitches: routingLayouts ? activeSwitches : undefined,
     routingPropertyRamps: splitPosition ? { splitPosition } : undefined,
     samplePropertyRamps: showSamplePropertyRamps(normalized, false),
@@ -1940,21 +2017,6 @@ function createCellsForZones(scenes: ShowScene[], zones: ShowZone[]): ShowCell[]
   return zones.flatMap((zone, zoneIndex) =>
     scenes.map((scene, sceneIndex) => defaultCell(`cell-${zoneIndex * scenes.length + sceneIndex + 1}`, zone.id, scene.id, sceneIndex)),
   )
-}
-
-function createCellsForZone(
-  scenes: ShowScene[],
-  zone: ShowZone,
-  existingCells: ShowCell[],
-): ShowCell[] {
-  const cells: ShowCell[] = []
-  const used = new Set(existingCells.map((cell) => cell.id))
-  for (const [index, scene] of scenes.entries()) {
-    const id = nextStringId('cell-', used)
-    used.add(id)
-    cells.push(defaultCell(id, zone.id, scene.id, index))
-  }
-  return cells
 }
 
 function cellCoveringScene(show: ShowRecord, zoneId: string, sceneIndex: number): ShowCell | undefined {

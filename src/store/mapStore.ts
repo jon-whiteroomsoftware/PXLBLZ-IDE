@@ -514,10 +514,16 @@ export const useMapStore = create<MapState>()((set, get) => ({
   },
 }))
 
-export const STOCK_MAP_ITEMS = STOCK_MAP_SPECS.map((spec) => ({
-  id: spec.id,
-  name: spec.name,
-  dim: spec.dim,
-  kind: spec.kind,
-  family: spec.family,
-}))
+export const STOCK_MAP_ITEMS = STOCK_MAP_SPECS.map((spec) => {
+  const fixedPixelCount = spec.source.trimStart().startsWith('[')
+    ? createSourceMap(spec).resolve(1).length
+    : undefined
+  return {
+    id: spec.id,
+    name: spec.name,
+    dim: spec.dim,
+    kind: spec.kind,
+    family: spec.family,
+    ...(fixedPixelCount !== undefined ? { fixedPixelCount } : {}),
+  }
+})

@@ -1,4 +1,4 @@
-import { compileShowForPreview } from './showPreviewArtifact'
+import { compileShowForArtifact, compileShowForPreview } from './showPreviewArtifact'
 import {
   addShowZone,
   createDefaultShow,
@@ -7,15 +7,43 @@ import {
   updateShowCellAdaptations,
   updateShowCellRestartOnEntry,
   updateShowTransition,
+  createShowWithOutputContract,
   removeShowBoundaryTransition,
   removeShowClip,
+  placeShowClip,
   updateShowCellPattern,
 } from './showModel'
+import { createInstallationShowOutputContract, createPortableShowOutputContract } from './showOutputContract'
 import { createFastReplayRuntime } from './fastReplay'
 import { nativeDimension } from './loadPattern'
 import { LIBRARIES } from '@/pixelblaze/libs'
 
 describe('compileShowForPreview temporal adaptations (#379)', () => {
+  it('renders an empty first scene black after its clip is deleted', () => {
+    const initial = updateShowCellPattern(createDefaultShow('show-empty-first', 'Empty first scene', 1), 'cell-2', {
+      pattern: { kind: 'stock', id: 'ShapeShifter' },
+      patternName: 'ShapeShifter',
+    })
+    const show = removeShowClip(initial, 'cell-1')
+    const compiled = compileShowForPreview(show, [], undefined, LIBRARIES, { stageDimension: 2 })
+    const artifact = compiled.artifact!
+    const mapPoints = Array.from({ length: 64 }, (_, index) => ({
+      sample: [(index % 8) / 7, Math.floor(index / 8) / 7],
+    }))
+    const createRuntime = () => createFastReplayRuntime({
+      code: artifact.code,
+      metadata: artifact.metadata,
+      dimension: nativeDimension(artifact.metadata.renderFns),
+    }, { mapPoints, randomSeed: 1 })
+
+    const emptyFrame = createRuntime().advanceTo(8_000, { stepMs: 1000 / 60 })
+    const secondSceneFrame = createRuntime().advanceTo(35_000, { stepMs: 1000 / 60 })
+
+    expect(compiled.error).toBeNull()
+    expect(emptyFrame.pixels.every((pixel) => pixel.every((channel) => channel === 0))).toBe(true)
+    expect(secondSceneFrame.pixels.some((pixel) => pixel.some((channel) => channel > 0))).toBe(true)
+  })
+
   it('renders a library-backed 2D Pattern after the second clip and transition are removed', () => {
     const initial = createDefaultShow('show-single-2d', 'Shape study', 1)
     const oneClip = removeShowClip(initial, 'cell-2')
@@ -36,10 +64,53 @@ describe('compileShowForPreview temporal adaptations (#379)', () => {
     }, { mapPoints, randomSeed: 1 })
 
     const frame = runtime.advanceTo(8_000, { stepMs: 1000 / 60 })
+    const emptySecondScene = runtime.advanceTo(45_000, { stepMs: 1000 / 60 })
 
     expect(compiled.error).toBeNull()
     expect(artifact.metadata.renderFns).toMatchObject({ hasRender: false, hasRender2D: true })
     expect(frame.pixels.some((pixel) => pixel.some((channel) => channel > 0))).toBe(true)
+    expect(emptySecondScene.pixels.every((pixel) => pixel.every((channel) => channel === 0))).toBe(true)
+  })
+
+  it('keeps invalid Installation coverage previewable but blocks artifact compilation (#435)', () => {
+    const show = createShowWithOutputContract(
+      'show-installation',
+      'Installation',
+      createInstallationShowOutputContract({ outputMapId: 'plane', pixelCount: 8 }),
+    )
+    show.routingLayouts[0].zones[0].ranges = [{ start: 0, end: 5 }]
+
+    expect(compileShowForPreview(show, [], undefined, {}).artifact).not.toBeNull()
+    expect(compileShowForArtifact(show, [], undefined, {})).toEqual({
+      artifact: null,
+      error: 'Installation output is incomplete: Default assigns 6 of 8 pixels (2 missing). Repair physical pixel ranges in Show properties.',
+    })
+  })
+
+  it('keeps incompatible Portable members previewable but blocks artifact output (#436)', () => {
+    const show = createShowWithOutputContract(
+      'show-portable',
+      'Portable',
+      createPortableShowOutputContract({ referenceMapId: 'plane', referencePixelCount: 1024 }),
+    )
+    const patterns = [{
+      id: 'three-d',
+      name: 'Volumetric only',
+      src: 'export function render3D(index, x, y, z) { rgb(x, y, z) }',
+      controls: {},
+      updatedAt: 1,
+    }]
+    show.cells = show.cells.map((cell) => ({
+      ...cell,
+      pattern: { kind: 'user' as const, id: 'three-d' },
+      patternName: 'Volumetric only',
+    }))
+
+    expect(compileShowForPreview(show, patterns, undefined, {}, { stageDimension: 2 }).artifact).not.toBeNull()
+    expect(compileShowForArtifact(show, patterns, undefined, {}, { stageDimension: 2 })).toEqual({
+      artifact: null,
+      error: 'Portable 2D compatibility failed: Volumetric only defines only render3D. Choose a Pattern with render2D or render, or author that renderer before export or send.',
+    })
   })
 
   it('loads the exact stepped-clock artifact used by generated Show output', () => {
@@ -60,9 +131,13 @@ describe('compileShowForPreview temporal adaptations (#379)', () => {
   })
 
   it('loads routed multi-range zone offsets into the exact Stage artifact', () => {
-    const base = addShowZone(createDefaultShow('show-1', 'Rounds'), {
+    const withRightZone = addShowZone(createDefaultShow('show-1', 'Rounds'), {
       name: 'right',
       nominalPixelCount: 4,
+    })
+    const base = placeShowClip(withRightZone, 'zone-2', 'scene-1', {
+      pattern: { kind: 'stock', id: 'TestPattern1D' },
+      patternName: 'TestPattern1D',
     })
     const rightCell = base.cells.find((cell) => cell.zoneId === 'zone-2' && cell.sceneId === 'scene-1')!
     const show = updateShowCellAdaptations(base, rightCell.id, { timeOffsetMs: 500 })

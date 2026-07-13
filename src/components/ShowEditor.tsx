@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react'
-import { Check, Clapperboard, Code2, Copy, Download, Grid2X2, Map as MapIcon, Maximize2, Pause, Play, Plus, RotateCw, Route, Scissors, Settings2, SkipBack, Trash2, Zap, ZoomIn, ZoomOut } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react'
+import { createPortal } from 'react-dom'
+import { Check, Clapperboard, Code2, Copy, Download, Grid2X2, Magnet, Map as MapIcon, Maximize2, Pause, Play, Plus, RotateCw, Route, Scissors, Settings2, SkipBack, Trash2, Zap, ZoomIn, ZoomOut } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   AlertDialogAction,
@@ -11,14 +12,17 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { PixelblazeCodeEditor } from '@/components/PixelblazeCodeEditor'
+import { ShowZoneSpatialSelector } from '@/components/ShowZoneSpatialSelector'
 import { getControllerProvider } from '@/engine/controllerProviderRegistry'
 import { makeProgramId } from '@/engine/bytecodePush'
 import { PatternDeploymentActions } from '@/components/PatternDeploymentActions'
+import { PatternCombobox, type PatternComboboxOption } from '@/components/PatternCombobox'
 import { requestControllerEntryOpen } from '@/components/controllerEntryEvents'
 import { PatternPushChoices } from '@/components/SendToController'
 import { PushConfirmPopover } from '@/components/PushConfirmPopover'
 import { describeSendToController, isAlreadyPushed, type SendMode } from '@/engine/sendToController'
 import { prepareShowControllerArtifact } from '@/engine/showControllerArtifact'
+import type { ArtifactMapClass } from '@/engine/artifactStamp'
 import { trackEvent } from '@/analytics'
 import {
   projectShowStrip,
@@ -30,7 +34,10 @@ import {
   showCellAtSlot,
   transitionCost,
 } from '@/engine/showModel'
-import { compileShowForPreview, sourceForShowCell, type CompiledShowState } from '@/engine/showPreviewArtifact'
+import { compileShowForArtifact, sourceForShowCell, type CompiledShowState } from '@/engine/showPreviewArtifact'
+import { validateInstallationCoverage } from '@/engine/showInstallationCoverage'
+import { updateShowPhysicalZoneSelection } from '@/engine/showSpatialSelection'
+import { createPortableShowOutputContract } from '@/engine/showOutputContract'
 import { discoverAutomatablePatternControls, type AutomatablePatternControl } from '@/engine/showPatternControls'
 import {
   fitShowTimelineViewport,
@@ -38,6 +45,7 @@ import {
   rangeThumbCenterOffsetPx,
   resizeShowTimelineViewport,
   showTimelineThumb,
+  snapShowTimelineTime,
   zoomShowTimelineViewport,
   type ShowTimelineViewport,
 } from '@/engine/showTimelineViewport'
@@ -45,6 +53,7 @@ import { buildShowEpeExport, type ShowEpeExport } from '@/engine/showEpeExport'
 import { buildPreviewJpeg } from '@/engine/previewThumbnailJpeg'
 import { bytesToBase64 } from '@/engine/RelayWebSocket'
 import { steppedClockRateHz, steppedClockStepMs } from '@/engine/steppedClock'
+import { showKeyboardSeekStepMs } from '@/engine/showKeyboardSeek'
 import {
   controllerZonePixelCount,
   findControllerZoneByName,
@@ -54,7 +63,8 @@ import {
 import { GALLERY_PATTERNS } from '@/engine/galleryCatalog'
 import { useControllerStore } from '@/store/controllerStore'
 import { useControllerProfileStore } from '@/store/controllerProfileStore'
-import { STOCK_MAPS, useMapStore } from '@/store/mapStore'
+import { resolveMap, STOCK_MAPS, useMapStore } from '@/store/mapStore'
+import { applyNormalizeMode } from '@/engine/maps'
 import { usePreviewStore } from '@/store/previewStore'
 import { useShowTransportStore } from '@/store/showTransportStore'
 import { usePatternStore } from '@/store/patternStore'
@@ -85,10 +95,21 @@ type ShowSelection =
   | { kind: 'routing-switch'; afterSceneId: string }
   | { kind: 'show' }
 
-export function ShowEditor({ showId }: { showId: string }) {
+type ShowPatternOption = {
+  label: string
+  ref: ShowCell['pattern']
+  group: PatternComboboxOption['group']
+}
+
+export function ShowEditor({
+  showId,
+  headerActionsTarget = null,
+}: {
+  showId: string
+  headerActionsTarget?: HTMLElement | null
+}) {
   const show = useShowStore((state) => state.shows.find((item) => item.id === showId))
   const updateShow = useShowStore((state) => state.updateShow)
-  const updateStageMap = useShowStore((state) => state.updateStageMap)
   const addScene = useShowStore((state) => state.addScene)
   const duplicateScene = useShowStore((state) => state.duplicateScene)
   const removeScene = useShowStore((state) => state.removeScene)
@@ -128,6 +149,21 @@ export function ShowEditor({ showId }: { showId: string }) {
   const [pendingSendMode, setPendingSendMode] = useState<SendMode | null>(null)
   const [preparingSave, setPreparingSave] = useState(false)
   const [scenePendingDelete, setScenePendingDelete] = useState<ShowScene | null>(null)
+  const [spatialZoneSelection, setSpatialZoneSelection] = useState<{ zoneId: string; layoutId: string } | null>(null)
+  const timelineWorkspaceRef = useRef<HTMLElement>(null)
+  const lastTimelineFocusRef = useRef<HTMLElement | null>(null)
+  const showPropertiesRef = useRef<HTMLDivElement>(null)
+  const selectTimeline = useCallback((next: ShowSelection) => {
+    if (next.kind === 'show') lastTimelineFocusRef.current = timelineWorkspaceRef.current
+    setSelection(next)
+  }, [])
+  const openShowProperties = useCallback(() => {
+    setGeneratedOpen(false)
+    selectTimeline({ kind: 'show' })
+    window.setTimeout(() => {
+      showPropertiesRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'nearest' })
+    }, 0)
+  }, [selectTimeline])
   const controllerProvider = getControllerProvider()
   const controllerStatus = useSyncExternalStore(
     (onChange) => controllerProvider.subscribe(onChange),
@@ -138,47 +174,78 @@ export function ShowEditor({ showId }: { showId: string }) {
   const selectedClip = selection.kind === 'clip'
     ? activeShow?.cells.find((clip) => clip.id === selection.clipId) ?? null
     : null
-  const targetProfile = activeShow?.targetControllerProfileId
+  const targetProfile = activeShow?.outputContract?.kind === 'portable-2d'
+    ? undefined
+    : activeShow?.targetControllerProfileId
     ? controllerProfiles.find((profile) => profile.id === activeShow.targetControllerProfileId)
     : controllerProfiles[0]
 
+  const requestDeleteSelection = useCallback((targetSelection: ShowSelection): boolean => {
+    if (!activeShow) return false
+    if (targetSelection.kind === 'scene') {
+      const scene = activeShow.scenes.find((candidate) => candidate.id === targetSelection.sceneId)
+      if (!scene || activeShow.scenes.length <= 1) return false
+      setScenePendingDelete(scene)
+      return true
+    }
+    if (targetSelection.kind === 'transition') {
+      const transition = activeShow.transitions?.find((candidate) => candidate.id === targetSelection.transitionId)
+      if (!transition || transition.kind === 'cut') return false
+      selectTimeline({ kind: 'show' })
+      void removeBoundaryTransition(activeShow.id, transition.id)
+      return true
+    }
+    if (targetSelection.kind === 'clip') {
+      if (!activeShow.cells.some((cell) => cell.id === targetSelection.clipId)) return false
+      selectTimeline({ kind: 'show' })
+      void removeClip(activeShow.id, targetSelection.clipId)
+      return true
+    }
+    if (targetSelection.kind === 'zone') {
+      if (activeShow.zones.length <= 1 || !activeShow.zones.some((zone) => zone.id === targetSelection.zoneId)) return false
+      selectTimeline({ kind: 'show' })
+      void removeZone(activeShow.id, targetSelection.zoneId)
+      return true
+    }
+    return false
+  }, [activeShow, removeBoundaryTransition, removeClip, removeZone, selectTimeline])
+
   useEffect(() => {
     const handleDelete = (event: KeyboardEvent) => {
-      if (event.key !== 'Delete' || !activeShow) return
+      if (event.key !== 'Delete' && event.key !== 'Backspace') return
       const target = event.target
       if (target instanceof Element && target.closest('input, textarea, select, [contenteditable="true"], [role="textbox"]')) return
-
-      if (selection.kind === 'scene') {
-        const scene = activeShow.scenes.find((candidate) => candidate.id === selection.sceneId)
-        if (!scene || activeShow.scenes.length <= 1) return
-        event.preventDefault()
-        setScenePendingDelete(scene)
-        return
-      }
-
-      if (selection.kind === 'transition') {
-        const transition = activeShow.transitions?.find((candidate) => candidate.id === selection.transitionId)
-        if (!transition || transition.kind === 'cut') return
-        event.preventDefault()
-        void removeBoundaryTransition(activeShow.id, transition.id)
-        return
-      }
-
-      if (selection.kind === 'clip') {
-        event.preventDefault()
-        setSelection({ kind: 'show' })
-        void removeClip(activeShow.id, selection.clipId)
-      }
+      if (requestDeleteSelection(selection)) event.preventDefault()
     }
     document.addEventListener('keydown', handleDelete)
     return () => document.removeEventListener('keydown', handleDelete)
-  }, [activeShow, removeBoundaryTransition, removeClip, selection])
+  }, [requestDeleteSelection, selection])
   const stageDimension = activeShow?.stageMapId
     ? [...STOCK_MAPS, ...userMaps].find((map) => map.id === activeShow.stageMapId)?.dim
     : undefined
+  const savedStageMap = activeShow?.stageMapId
+    ? [...STOCK_MAPS, ...userMaps].find((map) => map.id === activeShow.stageMapId)
+    : undefined
+  const savedStageFixedCount = savedStageMap
+    ? 'generator' in savedStageMap
+      ? savedStageMap.generator === 'custom' ? savedStageMap.points?.length : undefined
+      : savedStageMap.bakedCount
+    : undefined
+  const spatialRoutingLayout = activeShow?.routingLayouts.find((candidate) => !candidate.logical)
+  const spatialSelectionUnavailableReason = activeShow?.outputContract?.kind === 'installation'
+    ? !spatialRoutingLayout
+      ? 'Spatial selection needs a physical routing layout.'
+      : !savedStageMap
+      ? 'Spatial selection needs a saved output map.'
+      : savedStageMap.dim !== 2
+        ? `Spatial selection is unavailable for ${savedStageMap.dim}D maps.`
+        : savedStageFixedCount !== undefined && savedStageFixedCount !== activeShow.outputContract.pixelCount
+          ? `Spatial selection needs the map's ${savedStageFixedCount} points to match the ${activeShow.outputContract.pixelCount}-pixel output.`
+          : null
+    : null
   const compiled = useMemo(
     () => activeShow
-      ? compileShowForPreview(activeShow, userPatterns, targetProfile?.zones, {}, { stageDimension })
+      ? compileShowForArtifact(activeShow, userPatterns, targetProfile?.zones, {}, { stageDimension })
       : { artifact: null, error: null },
     [activeShow, stageDimension, userPatterns, targetProfile?.zones],
   )
@@ -203,6 +270,36 @@ export function ShowEditor({ showId }: { showId: string }) {
   )
   const activeControllerMapDim = activeController?.mapDim ?? null
   const activeControllerFirmware = activeController?.firmwareVersion
+  const activeControllerProfile = controllerProfiles.find((profile) => (
+    activeController?.deviceId
+      ? profile.deviceId === activeController.deviceId
+      : Boolean(activeIp && profile.lastSeenIp === activeIp)
+  )) ?? targetProfile
+  const controllerCompatibilityContext = useMemo(() => {
+    const pixelCount = activeControllerProfile?.lastKnownPixelCount
+    const fingerprint = activeControllerProfile?.mapFingerprints?.find((record) => (
+      pixelCount === undefined || record.devicePixelCount === pixelCount
+    )) ?? activeControllerProfile?.mapFingerprints?.[0]
+    const installedMap = fingerprint
+      ? [...STOCK_MAPS, ...userMaps].find((map) => map.id === fingerprint.mapId)
+      : undefined
+    const mapClass = installedMap
+      ? ('kind' in installedMap ? installedMap.kind : 'custom') as ArtifactMapClass
+      : undefined
+    return {
+      ...(pixelCount !== undefined ? { pixelCount } : {}),
+      ...(fingerprint
+        ? {
+            map: {
+              id: fingerprint.mapId,
+              name: fingerprint.mapName,
+              fingerprint: fingerprint.hash,
+              ...(mapClass ? { mapClass } : {}),
+            },
+          }
+        : {}),
+    }
+  }, [activeControllerProfile, userMaps])
   const preparedControllerArtifact = useMemo(() => {
     if (!showExport) return { value: null, error: null }
     try {
@@ -211,6 +308,7 @@ export function ShowEditor({ showId }: { showId: string }) {
           showExport.source,
           activeControllerMapDim,
           activeControllerFirmware,
+          controllerCompatibilityContext,
         ),
         error: null,
       }
@@ -220,7 +318,7 @@ export function ShowEditor({ showId }: { showId: string }) {
         error: error instanceof Error ? error.message : 'Could not prepare Show for Controller',
       }
     }
-  }, [activeControllerFirmware, activeControllerMapDim, showExport])
+  }, [activeControllerFirmware, activeControllerMapDim, controllerCompatibilityContext, showExport])
 
   useEffect(() => {
     if (!controllerPushResult) return
@@ -245,6 +343,38 @@ export function ShowEditor({ showId }: { showId: string }) {
         Show not found
       </div>
     )
+  }
+
+  if (spatialZoneSelection && activeShow.outputContract?.kind === 'installation' && savedStageMap?.dim === 2) {
+    const zone = activeShow.zones.find((candidate) => candidate.id === spatialZoneSelection.zoneId)
+    const map = resolveMap(savedStageMap.id, userMaps)
+    const resolved = applyNormalizeMode(map.resolve(activeShow.outputContract.pixelCount), 'contain')
+    if (zone && resolved.length === activeShow.outputContract.pixelCount) {
+      const points = resolved.map((point) => {
+        const raw = point.pos ?? point.sample
+        return { x: raw[0] ?? 0.5, y: raw[1] ?? 0.5 }
+      })
+      return (
+        <ShowZoneSpatialSelector
+          show={activeShow}
+          zone={zone}
+          layoutId={spatialZoneSelection.layoutId}
+          mapName={savedStageMap.name}
+          points={points}
+          onCancel={() => setSpatialZoneSelection(null)}
+          onCommit={(indexes) => {
+            const next = updateShowPhysicalZoneSelection(
+              activeShow,
+              spatialZoneSelection.layoutId,
+              zone.id,
+              indexes,
+            )
+            setSpatialZoneSelection(null)
+            void updateShow(activeShow.id, next)
+          }}
+        />
+      )
+    }
   }
 
   if (generatedOpen && compiled.artifact) {
@@ -332,74 +462,121 @@ export function ShowEditor({ showId }: { showId: string }) {
     ...userPatterns.map((pattern) => ({
       label: pattern.name,
       ref: { kind: 'user' as const, id: pattern.id },
+      group: 'Personal' as const,
     })),
     ...GALLERY_PATTERNS.map((pattern) => ({
       label: pattern.name,
       ref: { kind: 'stock' as const, id: pattern.name },
+      group: 'Built-in' as const,
     })),
   ]
 
+  function rememberTimelineFocus(event: React.FocusEvent<HTMLElement>) {
+    const target = event.target
+    if (!(target instanceof HTMLElement)) return
+    const focusTarget = target.closest<HTMLElement>('[data-show-timeline-focus], button')
+    if (focusTarget) lastTimelineFocusRef.current = focusTarget
+  }
+
+  function returnFocusAfterDiscreteCommit(event: React.FormEvent<HTMLDivElement>) {
+    if (!(event.target instanceof HTMLSelectElement)) return
+    returnFocusToTimelineSelection()
+  }
+
+  function returnFocusToTimelineSelection() {
+    window.setTimeout(() => {
+      const previous = lastTimelineFocusRef.current
+      if (previous?.isConnected) previous.focus()
+      else timelineWorkspaceRef.current?.focus()
+    }, 0)
+  }
+
+  const headerActions = (
+    <>
+      <Button
+        size="xs"
+        variant="ghost"
+        aria-label="Show properties"
+        title="Show properties"
+        aria-pressed={selection.kind === 'show'}
+        className={selection.kind === 'show'
+          ? 'bg-zinc-800/70 text-xs text-zinc-300 hover:bg-zinc-700/70 hover:text-zinc-200'
+          : 'bg-zinc-900/60 text-xs text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300'}
+        onClick={openShowProperties}
+      >
+        <Settings2 size={13} aria-hidden />
+        Properties
+      </Button>
+      <Button
+        size="xs"
+        variant="ghost"
+        aria-label="View code"
+        title="View final generated code"
+        className="bg-zinc-800/70 text-xs text-zinc-400 hover:bg-zinc-700/70 hover:text-zinc-300 disabled:opacity-40"
+        disabled={!compiled.artifact}
+        onClick={() => setGeneratedOpen(true)}
+      >
+        <Code2 size={13} aria-hidden />
+        View code
+      </Button>
+      <ExportShowButton exported={showExport} buildExport={buildDownloadExport} />
+      <PushConfirmPopover
+        open={pendingSendMode !== null}
+        onCancel={() => setPendingSendMode(null)}
+        title="Send Show"
+        testId="show-preflight-dialog"
+        anchor={(
+          <PatternDeploymentActions
+            connected={controllerStatus.kind === 'connected'}
+            controllerName={controllerName}
+            runGate={runGate}
+            saveGate={saveGate}
+            activeMode={showSendMode}
+            pushing={controllerPushing || preparingSave}
+            pushResult={controllerPushResult}
+            density="compact"
+            onConnect={requestControllerEntryOpen}
+            onRun={() => requestShowSend('run')}
+            onSave={() => requestShowSend('save')}
+          />
+        )}
+      >
+        <PatternPushChoices
+          warnings={preparedControllerArtifact.value?.warnings ?? []}
+          blocked={preparedControllerArtifact.value?.blocked ?? true}
+          remedy={null}
+          onCancel={() => setPendingSendMode(null)}
+          confirmWithMap={async () => {}}
+          confirmOnly={async () => {
+            if (pendingSendMode) await sendShow(pendingSendMode)
+          }}
+        />
+      </PushConfirmPopover>
+    </>
+  )
+
   return (
     <div className="flex h-full min-h-0 flex-col bg-zinc-950/75 font-mono text-xs text-zinc-400">
+      {headerActionsTarget
+        ? createPortal(headerActions, headerActionsTarget)
+        : <div className="mb-2 flex shrink-0 items-center justify-end gap-1.5 px-3 pt-3">{headerActions}</div>}
       <div data-testid="show-editor-scroll" className="scrollbar-hidden flex min-h-0 flex-1 flex-col overflow-auto">
         <div className="min-w-0 p-3">
-          <div className="mb-3 flex flex-wrap items-center gap-2">
-            <div className="min-w-0 flex-1 basis-[22rem]">
-              <ShowTransportControls show={activeShow} />
-            </div>
-            <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
-              <Button
-              size="xs"
-              variant="ghost"
-              className="bg-zinc-800/70 text-xs text-zinc-400 hover:bg-zinc-700/70 hover:text-zinc-300 disabled:opacity-40"
-              disabled={!compiled.artifact}
-              onClick={() => setGeneratedOpen(true)}
-              >
-                View generated pattern
-              </Button>
-              <ExportShowButton exported={showExport} buildExport={buildDownloadExport} />
-              <PushConfirmPopover
-                open={pendingSendMode !== null}
-                onCancel={() => setPendingSendMode(null)}
-                title="Send Show"
-                testId="show-preflight-dialog"
-                anchor={(
-                  <PatternDeploymentActions
-                    connected={controllerStatus.kind === 'connected'}
-                    controllerName={controllerName}
-                    runGate={runGate}
-                    saveGate={saveGate}
-                    activeMode={showSendMode}
-                    pushing={controllerPushing || preparingSave}
-                    pushResult={controllerPushResult}
-                    density="compact"
-                    onConnect={requestControllerEntryOpen}
-                    onRun={() => requestShowSend('run')}
-                    onSave={() => requestShowSend('save')}
-                  />
-                )}
-              >
-                <PatternPushChoices
-                  warnings={preparedControllerArtifact.value?.warnings ?? []}
-                  blocked={preparedControllerArtifact.value?.blocked ?? true}
-                  remedy={null}
-                  onCancel={() => setPendingSendMode(null)}
-                  confirmWithMap={async () => {}}
-                  confirmOnly={async () => {
-                    if (pendingSendMode) await sendShow(pendingSendMode)
-                  }}
-                />
-              </PushConfirmPopover>
-            </div>
-          </div>
-
-          <section aria-label="Show timeline">
+          <section
+            ref={timelineWorkspaceRef}
+            aria-label="Show timeline"
+            tabIndex={-1}
+            data-show-timeline-focus
+            className="outline-none"
+            onFocusCapture={rememberTimelineFocus}
+          >
             <SceneStrip
               key={activeShow.id}
               show={activeShow}
               patternControlsByCellId={patternControlsByCellId}
               selection={selection}
-              onSelect={setSelection}
+              onSelect={selectTimeline}
+              onDeleteSelection={() => requestDeleteSelection(selection)}
               onAddScene={() => {
                 void addScene(activeShow.id).then(() => {
                   window.setTimeout(() => {
@@ -408,14 +585,18 @@ export function ShowEditor({ showId }: { showId: string }) {
                   }, 0)
                 })
               }}
-              onAddZone={() => void addZone(activeShow.id)}
+              onAddZone={() => {
+                timelineWorkspaceRef.current?.focus()
+                void addZone(activeShow.id)
+              }}
               onRequestRemoveScene={setScenePendingDelete}
               onUpdateScene={(sceneId, changes) => void updateScene(activeShow.id, sceneId, changes)}
             />
           </section>
 
-          <ContextualInspector
-            show={activeShow}
+          <div ref={showPropertiesRef} onChangeCapture={returnFocusAfterDiscreteCommit}>
+            <ContextualInspector
+              show={activeShow}
             selection={selection}
             selectedClip={selectedClip}
             patternOptions={patternOptions}
@@ -423,20 +604,32 @@ export function ShowEditor({ showId }: { showId: string }) {
             controllerProfiles={controllerProfiles}
             targetProfile={targetProfile}
             userMaps={userMaps}
+            spatialSelectionUnavailableReason={spatialSelectionUnavailableReason}
+            onOpenSpatialSelection={(zoneId) => {
+              if (spatialRoutingLayout && !spatialSelectionUnavailableReason) {
+                setSpatialZoneSelection({ zoneId, layoutId: spatialRoutingLayout.id })
+              }
+            }}
             onUpdateTargetProfile={(targetControllerProfileId) => void updateShow(activeShow.id, {
               ...activeShow,
               targetControllerProfileId: targetControllerProfileId || undefined,
               updatedAt: Date.now(),
             })}
-            onUpdateStageMap={(stageMapId) => void updateStageMap(activeShow.id, stageMapId)}
+            onUpdatePortableReference={(referenceMapId, referencePixelCount) => void updateShow(activeShow.id, {
+              ...activeShow,
+              stageMapId: referenceMapId,
+              outputContract: createPortableShowOutputContract({ referenceMapId, referencePixelCount }),
+              updatedAt: Date.now(),
+            })}
             onUpdatePattern={(cell, patch) => void updateCellPattern(activeShow.id, cell.id, patch)}
+            onPatternCommit={returnFocusToTimelineSelection}
             onPlaceClip={(zoneId, sceneId, patch) => {
               void placeClip(activeShow.id, zoneId, sceneId, patch).then((clip) => {
-                if (clip) setSelection({ kind: 'clip', clipId: clip.id })
+                if (clip) selectTimeline({ kind: 'clip', clipId: clip.id })
               })
             }}
             onRemoveClip={(clip) => {
-              setSelection({ kind: 'show' })
+              selectTimeline({ kind: 'show' })
               void removeClip(activeShow.id, clip.id)
             }}
             onUpdateScene={(scene, changes) => void updateScene(activeShow.id, scene.id, changes)}
@@ -450,14 +643,18 @@ export function ShowEditor({ showId }: { showId: string }) {
             onUpdateCellZoneMode={(cell, zoneMode) => void updateCellZoneMode(activeShow.id, cell.id, zoneMode)}
             onUpdateBoundaryTransition={(transitionId, changes) => void updateBoundaryTransition(activeShow.id, transitionId, changes)}
             onRemoveBoundaryTransition={(transitionId) => void removeBoundaryTransition(activeShow.id, transitionId)}
-            onAddZone={() => void addZone(activeShow.id)}
+            onAddZone={() => {
+              timelineWorkspaceRef.current?.focus()
+              void addZone(activeShow.id)
+            }}
             onUpdateZone={(zoneId, changes) => void updateZone(activeShow.id, zoneId, changes)}
             onRemoveZone={(zoneId) => void removeZone(activeShow.id, zoneId)}
             onAddRoutingLayout={(sourceLayoutId) => void addRoutingLayout(activeShow.id, sourceLayoutId)}
             onUpdateRoutingLayout={(layoutId, changes) => void updateRoutingLayout(activeShow.id, layoutId, changes)}
             onRemoveRoutingLayout={(layoutId) => void removeRoutingLayout(activeShow.id, layoutId)}
-            onUpdateRoutingSwitch={(afterSceneId, layoutId) => void updateRoutingSwitch(activeShow.id, afterSceneId, layoutId)}
-          />
+              onUpdateRoutingSwitch={(afterSceneId, layoutId) => void updateRoutingSwitch(activeShow.id, afterSceneId, layoutId)}
+            />
+          </div>
           <AlertDialogRoot open={scenePendingDelete !== null} onOpenChange={(open) => { if (!open) setScenePendingDelete(null) }}>
             <AlertDialogContent>
               <AlertDialogTitle>Remove scene?</AlertDialogTitle>
@@ -483,8 +680,9 @@ export function ShowEditor({ showId }: { showId: string }) {
       </div>
       <CompileBar
         compiled={compiled}
-        targetPixels={targetProfile?.lastKnownPixelCount ?? zonePixelTotal(activeShow)}
-        onViewGenerated={() => setGeneratedOpen(true)}
+        targetPixels={activeShow.outputContract?.kind === 'portable-2d'
+          ? activeShow.outputContract.referencePixelCount
+          : targetProfile?.lastKnownPixelCount ?? zonePixelTotal(activeShow)}
         pushResult={preparedControllerArtifact.error ?? (
           controllerPushResult
             ? controllerPushResult.ok ? 'Sent to Controller' : controllerPushResult.message
@@ -500,9 +698,6 @@ function ShowTransportControls({ show }: { show: ShowRecord }) {
   const isRunning = usePreviewStore((state) => state.isRunning)
   const toggle = usePreviewStore((state) => state.toggle)
   const positionMs = useShowTransportStore((state) => state.showId === show.id ? state.positionMs : 0)
-  const seekStatus = useShowTransportStore((state) => state.showId === show.id ? state.seekStatus : 'idle')
-  const splitAtTime = useShowStore((state) => state.splitAtTime)
-  const canSplit = canSplitShowAtTime(show, positionMs)
 
   useEffect(() => {
     useShowTransportStore.getState().openShow(show.id, durationMs)
@@ -510,18 +705,25 @@ function ShowTransportControls({ show }: { show: ShowRecord }) {
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      const target = event.target
-      const editing = target instanceof HTMLElement && (
-        target.closest('input:not([type="range"]), select, textarea, [contenteditable="true"], [role="textbox"]') !== null
-      )
-      if (!editing && event.code === 'Space') {
+      if (showControlOwnsKeyboardEvent(event.target)) return
+      if (event.code === 'Space') {
         event.preventDefault()
         usePreviewStore.getState().toggle()
+        return
+      }
+      const transport = useShowTransportStore.getState()
+      if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+        event.preventDefault()
+        const deltaMs = event.key === 'ArrowLeft' ? -1_000 : 1_000
+        requestShowSeek(show.id, transport.positionMs + deltaMs)
+      } else if (event.key === 'Home') {
+        event.preventDefault()
+        requestShowSeek(show.id, 0)
       }
     }
     document.addEventListener('keydown', onKeyDown)
     return () => document.removeEventListener('keydown', onKeyDown)
-  }, [])
+  }, [show.id])
 
   return (
     <div className="flex min-w-0 items-center gap-1.5">
@@ -529,7 +731,7 @@ function ShowTransportControls({ show }: { show: ShowRecord }) {
         size="icon-xs"
         variant="ghost"
         aria-label="Go to Show start"
-        title="Go to Show start"
+        title="Go to Show start (Home)"
         className="bg-zinc-900/70 text-zinc-500 hover:bg-zinc-800 hover:text-zinc-100"
         onClick={() => requestShowSeek(show.id, 0)}
       >
@@ -540,21 +742,59 @@ function ShowTransportControls({ show }: { show: ShowRecord }) {
         variant="ghost"
         aria-label={isRunning ? 'Pause Show preview' : 'Play Show preview'}
         title={isRunning ? 'Pause Show preview (Space)' : 'Play Show preview (Space)'}
-        className="bg-zinc-900/70 text-zinc-300 hover:bg-zinc-800 hover:text-zinc-50"
+        className="bg-zinc-900/70 text-amber-300 hover:bg-amber-400/10 hover:text-amber-200"
         onClick={toggle}
       >
-        {isRunning ? <Pause size={13} aria-hidden /> : <Play size={13} aria-hidden />}
+        {isRunning ? <Play size={13} aria-hidden /> : <Pause size={13} aria-hidden />}
       </Button>
-      <output className="w-[142px] text-[10px] tabular-nums text-zinc-300" aria-live="off">
+      <output className="w-[112px] text-[10px] tabular-nums text-zinc-300" aria-live="off">
         {formatShowTime(positionMs)} / {formatShowTime(durationMs)}
       </output>
+    </div>
+  )
+}
+
+function ShowSelectionActions({
+  show,
+  selection,
+  onDeleteSelection,
+}: {
+  show: ShowRecord
+  selection: ShowSelection
+  onDeleteSelection: () => void
+}) {
+  const positionMs = useShowTransportStore((state) => state.showId === show.id ? state.positionMs : 0)
+  const splitAtTime = useShowStore((state) => state.splitAtTime)
+  const canSplit = canSplitShowAtTime(show, positionMs)
+  const deleteTarget = selection.kind === 'clip'
+    ? show.cells.find((cell) => cell.id === selection.clipId)
+      ? { label: `Delete selected clip ${show.cells.find((cell) => cell.id === selection.clipId)?.patternName}` }
+      : null
+    : selection.kind === 'scene'
+      ? show.scenes.length > 1 && show.scenes.find((scene) => scene.id === selection.sceneId)
+        ? { label: `Delete selected scene ${show.scenes.find((scene) => scene.id === selection.sceneId)?.name}` }
+        : null
+      : selection.kind === 'transition'
+        ? show.transitions?.find((transition) => transition.id === selection.transitionId && transition.kind !== 'cut')
+          ? { label: 'Delete selected transition' }
+          : null
+        : selection.kind === 'zone'
+          ? show.zones.length > 1 && show.zones.find((zone) => zone.id === selection.zoneId)
+            ? { label: `Delete selected zone ${show.zones.find((zone) => zone.id === selection.zoneId)?.name}` }
+            : null
+          : null
+
+  return (
+    <div className="flex shrink-0 items-center gap-1" role="group" aria-label="Selection actions">
       <Button
         size="xs"
         variant="ghost"
         aria-label="Split at playhead"
-        title={canSplit ? 'Split scene at playhead' : 'Place the playhead inside a scene to split'}
+        title={canSplit
+          ? 'Split this scene at the playhead. Each new scene will be at least 1 second.'
+          : 'Move the playhead inside a scene, at least 1 second from either edge. Transitions cannot be split.'}
         disabled={!canSplit}
-        className="border border-zinc-800 bg-zinc-900/60 text-[10px] text-zinc-400 hover:border-amber-400/40 hover:bg-amber-400/10 hover:text-amber-200"
+        className="bg-zinc-800/70 text-[10px] text-zinc-400 hover:bg-amber-400/15 hover:text-amber-200"
         onClick={() => {
           if (usePreviewStore.getState().isRunning) usePreviewStore.getState().toggle()
           void splitAtTime(show.id, positionMs)
@@ -563,28 +803,45 @@ function ShowTransportControls({ show }: { show: ShowRecord }) {
         <Scissors size={12} aria-hidden />
         Split
       </Button>
-      {seekStatus === 'rebuilding' && (
-        <span className="whitespace-nowrap text-[9px] uppercase tracking-wider text-amber-300">
-          rebuilding
-        </span>
-      )}
+      <span className="inline-flex h-6 w-6 items-center justify-center">
+        {deleteTarget && (
+          <Button
+            size="icon-xs"
+            variant="ghost"
+            aria-label={deleteTarget.label}
+            title={`${deleteTarget.label} (Delete)`}
+            className="bg-zinc-800/70 text-zinc-400 hover:bg-red-950/50 hover:text-red-300"
+            onClick={onDeleteSelection}
+          >
+            <Trash2 size={12} aria-hidden />
+          </Button>
+        )}
+      </span>
     </div>
   )
 }
 
 function requestShowSeek(showId: string, targetMs: number): void {
-  if (usePreviewStore.getState().isRunning) usePreviewStore.getState().toggle()
+  const preview = usePreviewStore.getState()
+  const shouldResume = preview.isRunning
+  if (shouldResume) preview.toggle()
   const transport = useShowTransportStore.getState()
   transport.setPosition(showId, targetMs)
   transport.requestSeek(showId, targetMs)
+  if (shouldResume && !usePreviewStore.getState().isRunning) usePreviewStore.getState().toggle()
+}
+
+function showControlOwnsKeyboardEvent(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false
+  if (target.closest('[data-show-timeline-focus]') && target.matches('[data-show-timeline-focus]')) return false
+  return target.closest('input, select, textarea, button, a[href], summary, [contenteditable="true"], [role="textbox"], [role="slider"]') !== null
 }
 
 function formatShowTime(timeMs: number): string {
-  const safeMs = Math.max(0, Math.round(Number.isFinite(timeMs) ? timeMs : 0))
-  const minutes = Math.floor(safeMs / 60_000)
-  const seconds = Math.floor((safeMs % 60_000) / 1000)
-  const milliseconds = safeMs % 1000
-  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}.${String(milliseconds).padStart(3, '0')}`
+  const tenths = Math.max(0, Math.round((Number.isFinite(timeMs) ? timeMs : 0) / 100))
+  const minutes = Math.floor(tenths / 600)
+  const seconds = Math.floor((tenths % 600) / 10)
+  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}.${tenths % 10}`
 }
 
 function ExportShowButton({
@@ -626,7 +883,7 @@ function ExportShowButton({
       }}
     >
       {exporting ? <RotateCw size={13} className="animate-spin" aria-hidden /> : <Download size={13} aria-hidden />}
-      {exporting ? 'Preparing' : error ? 'Export failed' : 'Export .epe'}
+      {exporting ? 'Preparing' : error ? 'Export failed' : '.epe'}
     </Button>
   )
 }
@@ -636,6 +893,7 @@ function SceneStrip({
   patternControlsByCellId,
   selection,
   onSelect,
+  onDeleteSelection,
   onAddScene,
   onAddZone,
   onRequestRemoveScene,
@@ -645,6 +903,7 @@ function SceneStrip({
   patternControlsByCellId: Record<string, AutomatablePatternControl[]>
   selection: ShowSelection
   onSelect: (selection: ShowSelection) => void
+  onDeleteSelection: () => void
   onAddScene: () => void
   onAddZone: () => void
   onRequestRemoveScene: (scene: ShowScene) => void
@@ -655,6 +914,7 @@ function SceneStrip({
   const positionMs = useShowTransportStore((state) => state.showId === show.id ? state.positionMs : 0)
   const fittedViewport = fitShowTimelineViewport(timeline.durationMs)
   const [storedViewport, setViewport] = useState<ShowTimelineViewport>(fittedViewport)
+  const [snapEnabled, setSnapEnabled] = useState(true)
   let viewport = storedViewport
   if (viewport.totalMs !== fittedViewport.totalMs) {
     const zoom = viewport.totalMs / viewport.durationMs
@@ -664,6 +924,14 @@ function SceneStrip({
     setViewport(viewport)
   }
   const scrollRef = useRef<HTMLDivElement>(null)
+  const structuralTimesMs = [...new Set([
+    0,
+    timeline.durationMs,
+    ...timeline.scenes.flatMap((scene) => [scene.startMs, scene.endMs]),
+    ...timeline.transitions.flatMap((transition) => [transition.startMs, transition.endMs]),
+    ...timeline.boundaryTransitions.flatMap((transition) => [transition.startMs, transition.endMs]),
+    ...timeline.rows.flatMap((row) => row.cells.flatMap((cell) => [cell.startMs, cell.endMs])),
+  ])]
   const automatedControlNames = [...new Set([
     ...show.cells.flatMap((cell) => Object.keys(cell.controlTargets ?? {})),
     ...(show.transitions ?? []).flatMap((transition) => Object.keys(transition.propertyTransitions?.controls ?? {})),
@@ -721,17 +989,43 @@ function SceneStrip({
       className="border-b border-seam bg-[#060608] p-4 shadow-[inset_0_6px_14px_-8px_rgba(0,0,0,0.9),inset_0_-6px_14px_-10px_rgba(0,0,0,0.9)]"
       onClick={() => onSelect({ kind: 'show' })}
     >
-      <div className="mb-2 flex items-center justify-end gap-1" role="group" aria-label="Timeline zoom controls">
-        <Button size="icon-xs" variant="ghost" aria-label="Zoom timeline out" onClick={(event) => { event.stopPropagation(); zoomAroundPlayhead(0.8) }}>
-          <ZoomOut size={12} aria-hidden />
-        </Button>
-        <Button size="xs" variant="ghost" aria-label="Fit timeline to Show" onClick={(event) => { event.stopPropagation(); setViewport(fitShowTimelineViewport(timeline.durationMs)) }}>
-          <Maximize2 size={12} aria-hidden /> Fit
-        </Button>
-        <Button size="icon-xs" variant="ghost" aria-label="Zoom timeline in" onClick={(event) => { event.stopPropagation(); zoomAroundPlayhead(1.25) }}>
-          <ZoomIn size={12} aria-hidden />
-        </Button>
-        <span className="ml-1 text-[9px] text-zinc-600" title="Ctrl/⌘ + wheel zooms around the playhead">Ctrl/⌘ + wheel</span>
+      <div
+        data-testid="show-timeline-toolbar"
+        className="mb-2 flex min-w-0 flex-nowrap items-center gap-2 border-b border-zinc-900 pb-2"
+        role="toolbar"
+        aria-label="Show timeline controls"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="scrollbar-hidden min-w-0 flex-1 overflow-x-auto">
+          <div className="flex min-w-max items-center gap-2" role="group" aria-label="Show navigation controls">
+            <ShowTransportControls show={show} />
+            <div className="flex shrink-0 items-center gap-1 border-l border-zinc-800 pl-2" role="group" aria-label="Timeline zoom controls">
+              <Button size="icon-xs" variant="ghost" aria-label="Zoom timeline out" title="Zoom timeline out" onClick={() => zoomAroundPlayhead(0.8)}>
+                <ZoomOut size={12} aria-hidden />
+              </Button>
+              <Button size="xs" variant="ghost" aria-label="Fit timeline to Show" title="Fit the complete Show" onClick={() => setViewport(fitShowTimelineViewport(timeline.durationMs))}>
+                <Maximize2 size={12} aria-hidden /> Fit
+              </Button>
+              <Button size="icon-xs" variant="ghost" aria-label="Zoom timeline in" title="Zoom timeline in" onClick={() => zoomAroundPlayhead(1.25)}>
+                <ZoomIn size={12} aria-hidden />
+              </Button>
+              <Button
+                size="xs"
+                variant="ghost"
+                aria-label="Snap playhead"
+                aria-pressed={snapEnabled}
+                title="Snap to scene, clip, transition, and time-grid boundaries. Hold Alt to temporarily reverse."
+                className={snapEnabled ? 'bg-zinc-800/80 text-zinc-200' : 'text-zinc-600'}
+                onClick={() => setSnapEnabled((enabled) => !enabled)}
+              >
+                <Magnet size={12} aria-hidden /> Snap
+              </Button>
+            </div>
+          </div>
+        </div>
+        <div className="shrink-0 pl-1">
+          <ShowSelectionActions show={show} selection={selection} onDeleteSelection={onDeleteSelection} />
+        </div>
       </div>
       <div
         ref={scrollRef}
@@ -781,7 +1075,14 @@ function SceneStrip({
         >
           Show time
         </div>
-        <TimelineRuler show={show} gridColumn={`2 / ${columns.length}`} />
+        <TimelineRuler
+          show={show}
+          gridColumn={`2 / ${columns.length}`}
+          viewport={viewport}
+          snapEnabled={snapEnabled}
+          structuralTimesMs={structuralTimesMs}
+          getVisibleWidth={() => Math.max(1, (scrollRef.current?.clientWidth ?? 812) - 212)}
+        />
         <TimelinePlayhead show={show} gridColumn={`2 / ${columns.length}`} rowSpan={strip.rows.length * rowStride + routingLaneRows + 3} />
         <div role="group" aria-label="Transition lane" className="contents">
           <div
@@ -813,6 +1114,7 @@ function SceneStrip({
                   <button
                     type="button"
                     aria-label={`Set routing layout after ${scene.name}`}
+                    data-show-timeline-focus
                     title={`Add routing transition after ${scene.name}`}
                     onClick={(event) => {
                       event.stopPropagation()
@@ -864,6 +1166,7 @@ function SceneStrip({
                     key={`split-boundary-${scene.id}`}
                     type="button"
                     aria-label={`Edit split position transition from ${scene.name}`}
+                    data-show-timeline-focus
                     className={descriptor ? 'border-t border-zinc-900/80 bg-sky-400/10 font-mono text-[9px] text-sky-200' : 'border-t border-zinc-900/80 font-mono text-[9px] text-zinc-700 hover:text-sky-300'}
                     style={{ gridColumn: 3 + sceneIndex * 2, gridRow: 4 }}
                     onClick={(event) => {
@@ -907,6 +1210,7 @@ function SceneStrip({
                   key={`sample-repeat-boundary-${scene.id}`}
                   type="button"
                   aria-label={`Edit repeat scale transition from ${scene.name}`}
+                  data-show-timeline-focus
                   className={descriptor ? 'border-t border-zinc-900/80 bg-cyan-400/10 font-mono text-[9px] text-cyan-200' : 'border-t border-zinc-900/80 font-mono text-[9px] text-zinc-700 hover:text-cyan-300'}
                   style={{ gridColumn: 3 + sceneIndex * 2, gridRow: 4 + (movingSplitLayout ? 1 : 0) }}
                   onClick={(event) => {
@@ -925,15 +1229,17 @@ function SceneStrip({
             <button
               type="button"
               aria-label={`Select zone ${row.zoneName}`}
+              title={`Open ${row.zoneName} properties`}
+              data-show-timeline-focus
               onClick={(event) => {
                 event.stopPropagation()
                 onSelect({ kind: 'zone', zoneId: row.zoneId })
               }}
               className={[
-                'sticky left-0 z-30 flex items-center gap-2 rounded-[5px] border-0 bg-[#060608] pr-2 text-left font-mono transition-colors',
+                'group sticky left-0 z-30 flex cursor-pointer items-center gap-2 rounded-[5px] border border-transparent bg-[#060608] pr-2 text-left font-mono transition-all focus-visible:border-live/60 focus-visible:outline-none',
                 selection.kind === 'zone' && selection.zoneId === row.zoneId
-                  ? 'bg-live/10 text-zinc-100'
-                  : 'text-zinc-300 hover:text-zinc-100',
+                  ? 'border-live/25 bg-live/10 text-zinc-100'
+                  : 'text-zinc-300 hover:border-zinc-800 hover:bg-zinc-900/65 hover:text-zinc-100',
               ].join(' ')}
               style={{ gridColumn: 1, gridRow: `${rowIndex * rowStride + 4 + routingLaneRows} / span ${rowStride}` }}
             >
@@ -942,15 +1248,17 @@ function SceneStrip({
                 className="w-1 self-stretch rounded-sm"
                 style={{ backgroundColor: row.color ?? '#38bdf8' }}
               />
-              <MapIcon size={11} aria-hidden className="shrink-0 text-zinc-600" />
-              <span className="truncate text-[12px] font-medium">{row.zoneName}</span>
-              <span className="ml-auto text-[10px] text-structural">{row.nominalPixelCount}px</span>
+              <MapIcon size={11} aria-hidden className="shrink-0 text-zinc-600 transition-colors group-hover:text-zinc-300" />
+              <span className="truncate text-[12px] font-medium group-hover:underline group-hover:decoration-dotted group-hover:underline-offset-4">{row.zoneName}</span>
+              <span className="ml-auto text-[10px] text-structural transition-colors group-hover:text-zinc-400">{row.nominalPixelCount}px</span>
+              <Settings2 size={11} aria-hidden className="shrink-0 text-zinc-400 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100" />
             </button>
             {row.cells.map((cell) => (
               <button
                 key={cell.id}
                 type="button"
                 aria-label={`Select ${cell.patternName}`}
+                data-show-timeline-focus
                 onClick={(event) => {
                   event.stopPropagation()
                   onSelect({ kind: 'clip', clipId: cell.id })
@@ -994,6 +1302,7 @@ function SceneStrip({
                   key={`empty-${row.zoneId}-${scene.id}`}
                   type="button"
                   aria-label={`Add clip to ${row.zoneName} in ${scene.name}`}
+                  data-show-timeline-focus
                   onClick={(event) => {
                     event.stopPropagation()
                     onSelect({ kind: 'empty-slot', zoneId: row.zoneId, sceneId: scene.id })
@@ -1014,11 +1323,11 @@ function SceneStrip({
             ))}
             <div
               role="group"
-              aria-label={`Time lane for ${row.zoneName}`}
+              aria-label={`Animation speed lane for ${row.zoneName}`}
               className="sticky left-0 z-30 flex items-center gap-1 border-t border-zinc-900/80 bg-[#060608] px-2 text-[9px] text-violet-300/80"
               style={{ gridColumn: 1, gridRow: rowIndex * rowStride + 5 + routingLaneRows }}
             >
-              <span className="font-mono">↳ time ×</span>
+              <span className="font-mono">↳ animation speed</span>
             </div>
             {show.scenes.map((scene, sceneIndex) => {
               const cell = cellCoveringScene(show, row.zoneId, sceneIndex)
@@ -1040,7 +1349,8 @@ function SceneStrip({
                 <button
                   key={`time-boundary-${row.zoneId}-${scene.id}`}
                   type="button"
-                  aria-label={`Edit time transition from ${scene.name} for ${row.zoneName}`}
+                  aria-label={`Edit animation speed transition from ${scene.name} for ${row.zoneName}`}
+                  data-show-timeline-focus
                   className={[
                     'flex items-center justify-center border-t border-zinc-900/80 font-mono text-[9px] transition-colors',
                     from === undefined ? 'text-zinc-700 hover:text-violet-300' : 'bg-violet-400/10 text-violet-200',
@@ -1084,6 +1394,7 @@ function SceneStrip({
                   key={`brightness-boundary-${row.zoneId}-${scene.id}`}
                   type="button"
                   aria-label={`Edit brightness transition from ${scene.name} for ${row.zoneName}`}
+                  data-show-timeline-focus
                   className={[
                     'flex items-center justify-center border-t border-zinc-900/80 font-mono text-[9px] transition-colors',
                     from === undefined ? 'text-zinc-700 hover:text-amber-300' : 'bg-amber-400/10 text-amber-200',
@@ -1114,10 +1425,17 @@ function SceneStrip({
                   return (
                     <div
                       key={`control-${row.zoneId}-${control.exportName}-${scene.id}`}
-                      className="flex items-center border-t border-zinc-900/80 px-2 font-mono text-[9px] text-zinc-500"
+                      className="flex min-w-0 items-center justify-center overflow-hidden border-t border-zinc-900/80 px-1 font-mono text-[9px] text-zinc-500"
                       style={{ gridColumn: 2 + sceneIndex * 2, gridRow: rowIndex * rowStride + 7 + controlIndex + routingLaneRows }}
                     >
-                      {target === undefined ? 'unset' : formatControlValue(target)}
+                      {target === undefined
+                        ? (
+                            <span title={`${control.label} unset in ${scene.name}`}>
+                              <span aria-hidden>—</span>
+                              <span className="sr-only">unset</span>
+                            </span>
+                          )
+                        : formatControlValue(target)}
                     </div>
                   )
                 })}
@@ -1131,6 +1449,7 @@ function SceneStrip({
                       key={`control-boundary-${row.zoneId}-${control.exportName}-${scene.id}`}
                       type="button"
                       aria-label={`Edit ${control.label} transition from ${scene.name} for ${row.zoneName}`}
+                      data-show-timeline-focus
                       className={[
                         'flex items-center justify-center border-t border-zinc-900/80 font-mono text-[9px] transition-colors',
                         from === undefined ? 'text-zinc-700 hover:text-cyan-300' : 'bg-cyan-400/10 text-cyan-200',
@@ -1192,8 +1511,9 @@ function TimelineNavigator({
   const thumb = showTimelineThumb(viewport)
   const beginDrag = (mode: 'pan' | 'start' | 'end', event: ReactPointerEvent<HTMLElement>) => {
     event.stopPropagation()
+    event.currentTarget.focus()
     dragRef.current = { mode, x: event.clientX, viewport }
-    event.currentTarget.setPointerCapture(event.pointerId)
+    event.currentTarget.setPointerCapture?.(event.pointerId)
   }
   const moveDrag = (event: ReactPointerEvent<HTMLElement>) => {
     const drag = dragRef.current
@@ -1206,6 +1526,12 @@ function TimelineNavigator({
   }
   const endDrag = () => { dragRef.current = null }
   const keyboardStep = viewport.durationMs * 0.05
+  const togglePlaybackOnSpace = (event: React.KeyboardEvent<HTMLElement>) => {
+    if (event.code !== 'Space') return false
+    event.preventDefault()
+    usePreviewStore.getState().toggle()
+    return true
+  }
   return (
     <div className="mt-2 grid h-9 grid-cols-[148px_minmax(0,1fr)_64px] border-t border-zinc-800 bg-zinc-950/65" role="group" aria-label="Show navigator">
       <div className="flex items-center px-2 text-[9px] uppercase tracking-[0.12em] text-zinc-600">Show navigator</div>
@@ -1225,6 +1551,7 @@ function TimelineNavigator({
           onPointerUp={endDrag}
           onPointerCancel={endDrag}
           onKeyDown={(event) => {
+            if (togglePlaybackOnSpace(event)) return
             if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
             event.preventDefault()
             onChange(panShowTimelineViewport(viewport, viewport.startMs + (event.key === 'ArrowLeft' ? -keyboardStep : keyboardStep)))
@@ -1240,6 +1567,7 @@ function TimelineNavigator({
           onPointerUp={endDrag}
           onPointerCancel={endDrag}
           onKeyDown={(event) => {
+            if (togglePlaybackOnSpace(event)) return
             if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
             event.preventDefault()
             onChange(resizeShowTimelineViewport(viewport, 'start', viewport.startMs + (event.key === 'ArrowLeft' ? -keyboardStep : keyboardStep)))
@@ -1255,6 +1583,7 @@ function TimelineNavigator({
           onPointerUp={endDrag}
           onPointerCancel={endDrag}
           onKeyDown={(event) => {
+            if (togglePlaybackOnSpace(event)) return
             if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
             event.preventDefault()
             const end = viewport.startMs + viewport.durationMs + (event.key === 'ArrowLeft' ? -keyboardStep : keyboardStep)
@@ -1267,17 +1596,41 @@ function TimelineNavigator({
   )
 }
 
-function TimelineRuler({ show, gridColumn }: { show: ShowRecord; gridColumn: string }) {
+function TimelineRuler({
+  show,
+  gridColumn,
+  viewport,
+  snapEnabled,
+  structuralTimesMs,
+  getVisibleWidth,
+}: {
+  show: ShowRecord
+  gridColumn: string
+  viewport: ShowTimelineViewport
+  snapEnabled: boolean
+  structuralTimesMs: number[]
+  getVisibleWidth: () => number
+}) {
   const durationMs = showLoopDurationMs(show)
   const positionMs = useShowTransportStore((state) => state.showId === show.id ? state.positionMs : 0)
   const pendingSeekRef = useRef<{ showId: string; targetMs: number } | null>(null)
   const resumeAfterSeekRef = useRef(false)
-  const previewScrub = (targetMs: number) => {
+  const keyboardHoldRef = useRef<{ key: 'ArrowLeft' | 'ArrowRight'; startedAt: number } | null>(null)
+  const pointerScrubRef = useRef({ active: false, inverted: false })
+  const previewScrub = (targetMs: number, snap = false) => {
+    const resolvedTimeMs = snap
+      ? snapShowTimelineTime(targetMs, {
+          visibleDurationMs: viewport.durationMs,
+          visibleWidthPx: getVisibleWidth(),
+          structuralTimesMs,
+          maxTimeMs: durationMs,
+        }).timeMs
+      : targetMs
     const preview = usePreviewStore.getState()
     if (!pendingSeekRef.current) resumeAfterSeekRef.current = preview.isRunning
     if (preview.isRunning) preview.toggle()
-    useShowTransportStore.getState().setPosition(show.id, targetMs)
-    pendingSeekRef.current = { showId: show.id, targetMs }
+    useShowTransportStore.getState().setPosition(show.id, resolvedTimeMs)
+    pendingSeekRef.current = { showId: show.id, targetMs: resolvedTimeMs }
   }
   const commitScrub = () => {
     const pending = pendingSeekRef.current
@@ -1298,7 +1651,7 @@ function TimelineRuler({ show, gridColumn }: { show: ShowRecord; gridColumn: str
   }))
   return (
     <div
-      className="relative overflow-hidden border-b border-zinc-800 bg-zinc-950/70"
+      className="group/timeline-ruler relative overflow-hidden border-b border-zinc-800 bg-zinc-950/70 ring-1 ring-inset ring-transparent transition-colors hover:bg-zinc-900/70 hover:ring-zinc-700/70 focus-within:bg-zinc-900/70 focus-within:ring-live/25"
       style={{
         gridColumn,
         gridRow: 2,
@@ -1309,7 +1662,7 @@ function TimelineRuler({ show, gridColumn }: { show: ShowRecord; gridColumn: str
         <span
           key={tick.position}
           aria-hidden
-          className="absolute top-1 text-[8.5px] tabular-nums text-zinc-600"
+          className="absolute top-1 text-[8.5px] tabular-nums text-zinc-600 transition-colors group-hover/timeline-ruler:text-zinc-400"
           style={{ left: `${tick.position * 100}%`, transform: `translateX(${tick.position === 0 ? 0 : tick.position === 1 ? -100 : -50}%)` }}
         >
           {formatRulerTime(tick.timeMs)}
@@ -1322,12 +1675,50 @@ function TimelineRuler({ show, gridColumn }: { show: ShowRecord; gridColumn: str
         max={durationMs}
         step={1}
         value={Math.min(positionMs, durationMs)}
-        onChange={(event) => previewScrub(Number(event.target.value))}
-        onPointerUp={commitScrub}
-        onPointerCancel={commitScrub}
-        onKeyUp={commitScrub}
-        onBlur={commitScrub}
-        className="show-playhead-range absolute inset-0 h-full w-full cursor-col-resize opacity-[0.01] focus:opacity-100"
+        onChange={(event) => previewScrub(
+          Number(event.target.value),
+          pointerScrubRef.current.active && snapEnabled !== pointerScrubRef.current.inverted,
+        )}
+        onPointerDown={(event) => {
+          pointerScrubRef.current = { active: true, inverted: event.altKey }
+        }}
+        onPointerMove={(event) => {
+          if (pointerScrubRef.current.active) pointerScrubRef.current.inverted = event.altKey
+        }}
+        onKeyDown={(event) => {
+          if (event.code === 'Space') {
+            event.preventDefault()
+            usePreviewStore.getState().toggle()
+            return
+          }
+          if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
+          event.preventDefault()
+          const key = event.key
+          const current = keyboardHoldRef.current
+          if (!event.repeat || !current || current.key !== key) {
+            keyboardHoldRef.current = { key, startedAt: event.timeStamp }
+          }
+          const heldForMs = event.timeStamp - (keyboardHoldRef.current?.startedAt ?? event.timeStamp)
+          const direction = key === 'ArrowLeft' ? -1 : 1
+          previewScrub(positionMs + direction * showKeyboardSeekStepMs(heldForMs))
+        }}
+        onPointerUp={() => {
+          commitScrub()
+          pointerScrubRef.current = { active: false, inverted: false }
+        }}
+        onPointerCancel={() => {
+          commitScrub()
+          pointerScrubRef.current = { active: false, inverted: false }
+        }}
+        onKeyUp={(event) => {
+          if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') keyboardHoldRef.current = null
+          commitScrub()
+        }}
+        onBlur={() => {
+          keyboardHoldRef.current = null
+          commitScrub()
+        }}
+        className="show-playhead-range absolute inset-0 h-full w-full cursor-col-resize opacity-0 outline-none"
       />
     </div>
   )
@@ -1388,35 +1779,50 @@ function SceneColumnHeader({
     <div
       role="group"
       aria-label={`Scene ${scene.name}`}
+      title={`Open ${scene.name} properties`}
+      tabIndex={-1}
+      data-show-timeline-focus
       onClick={(event) => {
         event.stopPropagation()
+        event.currentTarget.focus()
         onSelect()
       }}
       onFocusCapture={onSelect}
-      className={`group relative flex min-w-0 flex-col justify-end gap-0.5 overflow-hidden border-b px-2 pb-1.5 pt-1 ${selected ? 'border-live bg-live/[0.045]' : 'border-zinc-800'}`}
+      className={`group flex min-w-0 cursor-pointer items-center gap-1.5 overflow-hidden border-b px-2 py-1.5 transition-colors ${selected ? 'border-live bg-live/[0.045]' : 'border-zinc-800 hover:border-zinc-700 hover:bg-zinc-900/55'}`}
     >
-      <div className="flex min-w-0 items-center gap-1.5 pr-6">
-        <Clapperboard size={11} aria-hidden className="shrink-0 text-zinc-600" />
-        <input
-          aria-label={`${scene.name} scene name`}
-          title={scene.name}
-          data-show-scene-name
-          value={scene.name}
-          onChange={(event) => onUpdate({ name: event.target.value })}
-          className="w-full min-w-0 truncate bg-transparent text-[12px] font-semibold text-zinc-100 outline-none group-hover:underline group-hover:decoration-dotted group-hover:underline-offset-4 focus:underline focus:decoration-live focus:underline-offset-4"
-        />
-      </div>
-      <label className="flex w-fit items-baseline gap-0.5 text-[9.5px] text-structural">
+      <Clapperboard size={11} aria-hidden className="shrink-0 text-zinc-600 transition-colors group-hover:text-zinc-300" />
+      <input
+        aria-label={`${scene.name} scene name`}
+        title={scene.name}
+        data-show-scene-name
+        value={scene.name}
+        onChange={(event) => onUpdate({ name: event.target.value })}
+        className="min-w-0 flex-1 cursor-pointer truncate bg-transparent text-[12px] font-semibold text-zinc-100 outline-none group-hover:underline group-hover:decoration-dotted group-hover:underline-offset-4 focus:cursor-text focus:underline focus:decoration-live focus:underline-offset-4"
+      />
+      <label className="flex shrink-0 items-baseline gap-0.5 text-[9.5px] text-structural" title={`${scene.name} duration`}>
         <input
           aria-label={`${scene.name} duration seconds`}
           type="number"
-          min={1}
-          value={Math.round(scene.durationMs / 1000)}
+          min={0.1}
+          step={0.1}
+          value={Number((scene.durationMs / 1000).toFixed(1))}
           onChange={(event) => onUpdate({ durationMs: Number(event.target.value) * 1000 })}
-          className="h-4 w-9 rounded border border-transparent bg-transparent px-0.5 text-right text-[9.5px] text-structural outline-none hover:border-zinc-700 hover:bg-zinc-900 focus:border-live/70 focus:bg-zinc-900"
+          className="h-5 w-10 rounded border border-transparent bg-transparent px-0.5 text-right text-[9.5px] text-structural outline-none hover:border-zinc-700 hover:bg-zinc-900 focus:border-live/70 focus:bg-zinc-900"
         />
         s
       </label>
+      <button
+        type="button"
+        aria-label={`Open ${scene.name} properties`}
+        title={`${scene.name} properties`}
+        onClick={(event) => {
+          event.stopPropagation()
+          onSelect()
+        }}
+        className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-zinc-600 opacity-0 transition-opacity hover:bg-zinc-800 hover:text-zinc-200 group-hover:opacity-100 focus:opacity-100"
+      >
+        <Settings2 size={11} aria-hidden />
+      </button>
       {canRemove && (
         <button
           type="button"
@@ -1426,9 +1832,9 @@ function SceneColumnHeader({
             event.stopPropagation()
             onRemove()
           }}
-          className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded text-zinc-600 opacity-0 transition-opacity hover:bg-red-950/30 hover:text-red-300 group-hover:opacity-100 focus:opacity-100"
+          className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-zinc-600 opacity-0 transition-opacity hover:bg-red-950/30 hover:text-red-300 group-hover:opacity-100 focus:opacity-100"
         >
-          ×
+          <Trash2 size={11} aria-hidden />
         </button>
       )}
     </div>
@@ -1464,6 +1870,7 @@ function BoundaryTransitionChip({
     <button
       type="button"
       aria-label={`Select ${from} to ${to} transition (${transition.kind})`}
+      data-show-timeline-focus
       title={transition.kind === 'routing'
         ? `Routing to ${transition.layoutName ?? 'layout'} · ${transition.durationMs === 0 ? 'cut' : `${transition.durationMs / 1000}s directional transfer`}`
         : `${transition.kind} · ${transition.durationMs === 0 ? 'marker' : `${transition.durationMs / 1000}s`}`}
@@ -1502,7 +1909,7 @@ function InspectorPanel({
 }) {
   const label = `${family} properties`
   return (
-    <section role="region" aria-label={label} className={`${card} mt-2 flex max-h-[220px] min-h-0 flex-col overflow-hidden`}>
+    <section role="region" aria-label={label} className={`${card} mt-2`}>
       <header className="flex h-10 shrink-0 items-center gap-2 border-b border-zinc-800/90 bg-zinc-950/65 px-2.5">
         <span className="grid size-6 shrink-0 place-items-center rounded border border-zinc-800 bg-zinc-900/80 text-live">{icon}</span>
         <div className="min-w-0">
@@ -1511,7 +1918,7 @@ function InspectorPanel({
         </div>
         {actions && <div className="ml-auto flex items-center gap-1">{actions}</div>}
       </header>
-      <div className="min-h-0 overflow-auto p-2.5">{children}</div>
+      <div className="p-2.5">{children}</div>
     </section>
   )
 }
@@ -1525,9 +1932,12 @@ function ContextualInspector({
   controllerProfiles,
   targetProfile,
   userMaps,
+  spatialSelectionUnavailableReason,
+  onOpenSpatialSelection,
   onUpdateTargetProfile,
-  onUpdateStageMap,
+  onUpdatePortableReference,
   onUpdatePattern,
+  onPatternCommit,
   onPlaceClip,
   onRemoveClip,
   onUpdateScene,
@@ -1552,14 +1962,17 @@ function ContextualInspector({
   show: ShowRecord
   selection: ShowSelection
   selectedClip: ShowCell | null
-  patternOptions: Array<{ label: string; ref: ShowCell['pattern'] }>
+  patternOptions: ShowPatternOption[]
   patternControlsByCellId: Record<string, AutomatablePatternControl[]>
   controllerProfiles: ControllerProfile[]
   targetProfile?: ControllerProfile
   userMaps: MapRecord[]
+  spatialSelectionUnavailableReason: string | null
+  onOpenSpatialSelection: (zoneId: string) => void
   onUpdateTargetProfile: (targetControllerProfileId: string) => void
-  onUpdateStageMap: (stageMapId: string | null) => void
+  onUpdatePortableReference: (referenceMapId: string | null, referencePixelCount: number) => void
   onUpdatePattern: (cell: ShowCell, patch: Pick<ShowCell, 'pattern' | 'patternName'>) => void
+  onPatternCommit: () => void
   onPlaceClip: (zoneId: string, sceneId: string, patch: Pick<ShowCell, 'pattern' | 'patternName'>) => void
   onRemoveClip: (clip: ShowCell) => void
   onUpdateScene: (scene: ShowScene, changes: Partial<Omit<ShowScene, 'id'>>) => void
@@ -1618,11 +2031,13 @@ function ContextualInspector({
   if (selection.kind === 'clip' && selectedClip) {
     return (
       <ClipInspector
+        key={selectedClip.id}
         show={show}
         clip={selectedClip}
         patternOptions={patternOptions}
         patternControls={patternControlsByCellId[selectedClip.id] ?? []}
         onUpdatePattern={(patch) => onUpdatePattern(selectedClip, patch)}
+        onPatternCommit={onPatternCommit}
         onRemove={() => onRemoveClip(selectedClip)}
         onUpdateAdaptations={(changes) => onUpdateAdaptations(selectedClip, changes)}
         onUpdateControlTarget={(exportName, value) => onUpdateControlTarget(selectedClip, exportName, value)}
@@ -1657,6 +2072,8 @@ function ContextualInspector({
           zone={zone}
           targetName={targetProfile?.name}
           targetZones={targetProfile?.zones ?? []}
+          spatialSelectionUnavailableReason={spatialSelectionUnavailableReason}
+          onOpenSpatialSelection={() => onOpenSpatialSelection(zone.id)}
           onUpdateZone={(changes) => onUpdateZone(zone.id, changes)}
           onRemoveZone={() => onRemoveZone(zone.id)}
         />
@@ -1681,7 +2098,7 @@ function ContextualInspector({
       targetProfile={targetProfile}
       userMaps={userMaps}
       onUpdateTargetProfile={onUpdateTargetProfile}
-      onUpdateStageMap={onUpdateStageMap}
+      onUpdatePortableReference={onUpdatePortableReference}
       onAddZone={onAddZone}
       onAddRoutingLayout={onAddRoutingLayout}
       onUpdateRoutingLayout={onUpdateRoutingLayout}
@@ -1698,7 +2115,7 @@ function EmptyClipInspector({
 }: {
   zone: ShowRecord['zones'][number]
   scene: ShowScene
-  patternOptions: Array<{ label: string; ref: ShowCell['pattern'] }>
+  patternOptions: ShowPatternOption[]
   onPlace: (patch: Pick<ShowCell, 'pattern' | 'patternName'>) => void
 }) {
   return (
@@ -1709,22 +2126,19 @@ function EmptyClipInspector({
     >
       <label className="block max-w-md text-[9px] uppercase tracking-[0.1em] text-zinc-600">
         Pattern
-        <select
-          aria-label="Pattern for new clip"
-          defaultValue=""
-          onChange={(event) => {
-            const option = patternOptions.find((item) => `${item.ref.kind}:${item.ref.id}` === event.target.value)
+        <PatternCombobox
+          ariaLabel="Pattern for new clip"
+          value={null}
+          options={patternOptions.map((option) => ({
+            value: `${option.ref.kind}:${option.ref.id}`,
+            label: option.label,
+            group: option.group,
+          }))}
+          onChange={(value) => {
+            const option = patternOptions.find((item) => `${item.ref.kind}:${item.ref.id}` === value)
             if (option) onPlace({ pattern: option.ref, patternName: option.label })
           }}
-          className={`${field} mt-1 w-full`}
-        >
-          <option value="" disabled>Choose a Pattern...</option>
-          {patternOptions.map((option) => (
-            <option key={`${option.ref.kind}:${option.ref.id}`} value={`${option.ref.kind}:${option.ref.id}`}>
-              {option.label}
-            </option>
-          ))}
-        </select>
+        />
       </label>
     </InspectorPanel>
   )
@@ -1779,9 +2193,9 @@ function SceneInspector({
             <input
               aria-label="Scene duration seconds"
               type="number"
-              min={1}
-              step={1}
-              value={Math.round(scene.durationMs / 1000)}
+              min={0.1}
+              step={0.1}
+              value={Number((scene.durationMs / 1000).toFixed(1))}
               onChange={(event) => onUpdate({ durationMs: Number(event.target.value) * 1000 })}
               className={`${field} w-20 text-right tabular-nums`}
             />
@@ -1817,6 +2231,7 @@ function ClipInspector({
   patternOptions,
   patternControls,
   onUpdatePattern,
+  onPatternCommit,
   onRemove,
   onUpdateAdaptations,
   onUpdateControlTarget,
@@ -1827,9 +2242,10 @@ function ClipInspector({
 }: {
   show: ShowRecord
   clip: ShowCell
-  patternOptions: Array<{ label: string; ref: ShowCell['pattern'] }>
+  patternOptions: ShowPatternOption[]
   patternControls: AutomatablePatternControl[]
   onUpdatePattern: (patch: Pick<ShowCell, 'pattern' | 'patternName'>) => void
+  onPatternCommit: () => void
   onRemove: () => void
   onUpdateAdaptations: (changes: Partial<ShowCell['adaptations']>) => void
   onUpdateControlTarget: (exportName: string, value: number | undefined) => void
@@ -1846,6 +2262,18 @@ function ClipInspector({
   const zone = show.zones[zoneIndex]
   const scene = show.scenes[sceneIndex]
   const lightShutter = cell.adaptations.lightShutter
+  const hasAuthoredPatternControls = Object.values(cell.controlTargets ?? {}).some((value) => value !== undefined)
+  const hasAdvancedOverrides = cell.adaptations.mirror
+    || cell.sceneSpan > 1
+    || (cell.zoneSpan ?? 1) > 1
+    || cell.zoneMode === 'repeat'
+    || cell.adaptations.phase !== 0
+    || Boolean(cell.restartOnEntry)
+    || cell.adaptations.steppedClock !== undefined
+    || (cell.adaptations.timeOffsetMs ?? 0) !== 0
+    || lightShutter !== undefined
+  const [patternControlsOpen, setPatternControlsOpen] = useState(hasAuthoredPatternControls)
+  const [advancedControlsOpen, setAdvancedControlsOpen] = useState(hasAdvancedOverrides)
   const updateLightShutter = (changes: Partial<NonNullable<ShowCell['adaptations']['lightShutter']>>) => {
     if (!lightShutter) return
     onUpdateAdaptations({ lightShutter: { ...lightShutter, ...changes } })
@@ -1864,70 +2292,92 @@ function ClipInspector({
       <div className="grid items-end gap-2 sm:grid-cols-[minmax(14rem,1fr)_7rem_7rem]">
         <label className="block text-[9px] uppercase tracking-[0.1em] text-zinc-600">
           Source pattern
-          <select
-            aria-label="Source pattern"
+          <PatternCombobox
+            key={`${cell.id}:${cell.pattern.kind}:${cell.pattern.id}`}
+            ariaLabel="Source pattern"
             value={`${cell.pattern.kind}:${cell.pattern.id}`}
-            onChange={(event) => {
-              const option = patternOptions.find((item) => `${item.ref.kind}:${item.ref.id}` === event.target.value)
+            options={patternOptions.map((option) => ({
+              value: `${option.ref.kind}:${option.ref.id}`,
+              label: option.label,
+              group: option.group,
+            }))}
+            onChange={(value) => {
+              const option = patternOptions.find((item) => `${item.ref.kind}:${item.ref.id}` === value)
               if (option) onUpdatePattern({ pattern: option.ref, patternName: option.label })
             }}
-            className={`${field} mt-1 w-full`}
-          >
-            {patternOptions.map((option) => (
-              <option key={`${option.ref.kind}:${option.ref.id}`} value={`${option.ref.kind}:${option.ref.id}`}>
-                {option.label}
-              </option>
-            ))}
-          </select>
+            onCommit={onPatternCommit}
+          />
         </label>
-        <NumberField label="Time x" value={cell.adaptations.timeScale} min={0} max={4} step={0.1} onChange={(timeScale) => onUpdateAdaptations({ timeScale })} />
+        <NumberField
+          label="Animation speed"
+          value={cell.adaptations.timeScale}
+          min={0}
+          max={4}
+          step={0.1}
+          suffix="×"
+          help="How quickly Pattern animation advances. Does not change Clip duration or frame rate."
+          onChange={(timeScale) => onUpdateAdaptations({ timeScale })}
+        />
         <NumberField label="Brightness" value={cell.adaptations.brightness} min={0} max={1} step={0.01} onChange={(brightness) => onUpdateAdaptations({ brightness })} />
       </div>
-      {patternControls.length > 0 && (
-        <details className="mt-2 rounded border border-cyan-400/15 bg-cyan-400/[0.035]" aria-label="Pattern automation targets">
-          <summary className="cursor-pointer px-2 py-1.5 text-[9px] uppercase tracking-[0.12em] text-cyan-300/80">Add or edit pattern controls</summary>
-          <div className="grid gap-2 border-t border-cyan-400/10 p-2 sm:grid-cols-2">
-            {patternControls.map((control) => {
-              const target = cell.controlTargets?.[control.exportName]
-              const enabled = target !== undefined
-              return (
-                <div key={control.exportName} className="rounded border border-zinc-800 bg-zinc-950/45 p-2">
-                  <label className="flex items-center gap-2 text-[10px] text-zinc-300">
-                    <input
-                      type="checkbox"
-                      aria-label={`Set ${control.label} target`}
-                      checked={enabled}
-                      onChange={(event) => onUpdateControlTarget(control.exportName, event.target.checked ? control.defaultValue : undefined)}
-                      className="h-3.5 w-3.5 accent-cyan-400"
-                    />
-                    {control.label}
-                  </label>
-                  <div className="mt-1 text-[9px] text-zinc-600">
-                    {control.exportName} · 0–1 · Studio default {control.defaultValue}
-                  </div>
-                  {enabled && (
-                    <div className="mt-2">
-                      <NumberField
-                        label={`${control.label} target`}
-                        value={target}
-                        min={control.min}
-                        max={control.max}
-                        step={0.01}
-                        onChange={(value) => onUpdateControlTarget(control.exportName, value)}
-                      />
+      <div data-testid="clip-control-trays" className="mt-2 grid items-start gap-2 lg:grid-cols-2">
+        {patternControls.length > 0 && (
+          <details
+            className="min-w-0 rounded border border-cyan-400/15 bg-cyan-400/[0.035]"
+            aria-label="Pattern automation targets"
+            open={patternControlsOpen}
+            onToggle={(event) => setPatternControlsOpen(event.currentTarget.open)}
+          >
+            <summary className="cursor-pointer px-2 py-1.5 text-[9px] uppercase tracking-[0.12em] text-cyan-300/80">Add or edit pattern controls</summary>
+            <div className="grid gap-1.5 border-t border-cyan-400/10 p-2 sm:grid-cols-2">
+              {patternControls.map((control) => {
+                const target = cell.controlTargets?.[control.exportName]
+                const enabled = target !== undefined
+                return (
+                  <div key={control.exportName} className="min-w-0 rounded border border-zinc-800 bg-zinc-950/45 p-1.5">
+                    <div className="flex min-w-0 items-center justify-between gap-2">
+                      <label className="flex shrink-0 items-center gap-1.5 text-[10px] text-zinc-300">
+                        <input
+                          type="checkbox"
+                          aria-label={`Set ${control.label} target`}
+                          checked={enabled}
+                          onChange={(event) => onUpdateControlTarget(control.exportName, event.target.checked ? control.defaultValue : undefined)}
+                          className="h-3.5 w-3.5 accent-cyan-400"
+                        />
+                        {control.label}
+                      </label>
+                      <span className="truncate text-right text-[8px] text-zinc-600" title={`${control.exportName} · ${control.min}–${control.max} · Studio default ${control.defaultValue}`}>
+                        {control.exportName} · {control.min}–{control.max} · Studio default {control.defaultValue}
+                      </span>
                     </div>
-                  )}
-                </div>
-              )
-            })}
-          </div>
-        </details>
-      )}
-      <details className="mt-2 rounded border border-zinc-800 bg-zinc-950/35">
-        <summary className="cursor-pointer px-2 py-1.5 text-[9px] uppercase tracking-[0.12em] text-zinc-500">Advanced clip controls</summary>
-        <div className="border-t border-zinc-800 p-2">
-          <div className="grid grid-cols-2 gap-2">
-            <label className="flex items-center gap-2 text-zinc-300">
+                    {enabled && (
+                      <div className="mt-1.5">
+                        <NumberField
+                          label={`${control.label} target`}
+                          value={target}
+                          min={control.min}
+                          max={control.max}
+                          step={0.01}
+                          onChange={(value) => onUpdateControlTarget(control.exportName, value)}
+                        />
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </details>
+        )}
+        <details
+          className={`min-w-0 rounded border border-zinc-800 bg-zinc-950/35 ${patternControls.length === 0 ? 'lg:col-span-2' : ''}`}
+          aria-label="Advanced Clip controls"
+          open={advancedControlsOpen}
+          onToggle={(event) => setAdvancedControlsOpen(event.currentTarget.open)}
+        >
+          <summary className="cursor-pointer px-2 py-1.5 text-[9px] uppercase tracking-[0.12em] text-zinc-500">Advanced clip controls</summary>
+          <div className="border-t border-zinc-800 p-2">
+            <div className="grid grid-cols-2 items-end gap-x-2 gap-y-1.5 xl:grid-cols-4">
+            <label className="flex h-7 items-center gap-2 text-zinc-300">
               <input
                 type="checkbox"
                 checked={cell.adaptations.mirror}
@@ -1976,10 +2426,10 @@ function ClipInspector({
               </select>
             </label>
             <NumberField label="Phase" value={cell.adaptations.phase} min={0} max={1} step={0.01} onChange={(phase) => onUpdateAdaptations({ phase })} />
-          </div>
-          {sceneIndex > 0 && (
-            <section className="mt-3 rounded-md border border-sky-400/20 bg-sky-400/[0.04] p-3">
-              <label className="flex items-center gap-2 text-zinc-200">
+            </div>
+            {sceneIndex > 0 && (
+              <section className="mt-2 flex min-w-0 items-center gap-3 rounded border border-sky-400/20 bg-sky-400/[0.04] px-2 py-1.5">
+                <label className="flex shrink-0 items-center gap-2 text-zinc-200">
                 <input
                   type="checkbox"
                   aria-label="Restart Pattern on entry"
@@ -1987,24 +2437,26 @@ function ClipInspector({
                   onChange={(event) => onUpdateRestartOnEntry(event.target.checked)}
                 />
                 Restart Pattern on entry
-              </label>
-              <p className="mt-1.5 text-[10px] leading-relaxed text-zinc-500">
-                {cell.restartOnEntry
+                </label>
+                <p className="min-w-0 flex-1 truncate text-[9px] text-zinc-500" title={cell.restartOnEntry
                   ? 'Starts a fresh Pattern instance and private time base at this scene boundary.'
-                  : 'Continues the matching Pattern instance, private clock, and accumulated state across this boundary.'}
-              </p>
-            </section>
-          )}
-          <MotionCadenceControl
-            stepMs={cell.adaptations.steppedClock?.stepMs}
-            timeOffsetMs={cell.adaptations.timeOffsetMs ?? 0}
-            onChange={(stepMs) => onUpdateAdaptations({
-              steppedClock: stepMs === null ? undefined : { stepMs },
-            })}
-            onOffsetChange={(timeOffsetMs) => onUpdateAdaptations({ timeOffsetMs })}
-          />
-          <div className="mt-3 border-t border-zinc-800 pt-3">
-            <label className="flex items-center gap-2 text-zinc-300">
+                  : 'Continues the matching Pattern instance, private clock, and accumulated state across this boundary.'}>
+                  {cell.restartOnEntry
+                    ? 'Starts a fresh Pattern instance and private time base at this scene boundary.'
+                    : 'Continues the matching Pattern instance, private clock, and accumulated state across this boundary.'}
+                </p>
+              </section>
+            )}
+            <MotionCadenceControl
+              stepMs={cell.adaptations.steppedClock?.stepMs}
+              timeOffsetMs={cell.adaptations.timeOffsetMs ?? 0}
+              onChange={(stepMs) => onUpdateAdaptations({
+                steppedClock: stepMs === null ? undefined : { stepMs },
+              })}
+              onOffsetChange={(timeOffsetMs) => onUpdateAdaptations({ timeOffsetMs })}
+            />
+            <div className="mt-2 border-t border-zinc-800 pt-2">
+              <label className="flex items-center gap-2 text-zinc-300">
               <input
                 type="checkbox"
                 checked={Boolean(lightShutter)}
@@ -2015,10 +2467,10 @@ function ClipInspector({
                 })}
               />
               Light shutter
-            </label>
-            {lightShutter && (
-              <>
-                <div className="mt-2 grid grid-cols-2 gap-2 xl:grid-cols-4">
+              </label>
+              {lightShutter && (
+                <>
+                  <div className="mt-2 grid grid-cols-2 gap-1.5">
                   <NumberField label="Shutter rate (Hz)" value={lightShutter.rateHz} min={0.01} max={60} step={0.1} onChange={(rateHz) => updateLightShutter({ rateHz })} />
                   <NumberField label="Light on fraction" value={lightShutter.duty} min={0} max={1} step={0.01} onChange={(duty) => updateLightShutter({ duty })} />
                   <NumberField label="Shutter phase" value={lightShutter.phase} min={0} max={1} step={0.01} onChange={(phase) => updateLightShutter({ phase })} />
@@ -2034,15 +2486,16 @@ function ClipInspector({
                       <option value="freeze">freeze</option>
                     </select>
                   </label>
-                </div>
-                <p className="mt-2 text-[10px] leading-relaxed text-zinc-500">
-                  Closed frames emit black and skip Pattern rendering. Continue advances motion behind darkness; freeze pauses Pattern time while dark.
-                </p>
-              </>
-            )}
+                  </div>
+                  <p className="mt-1.5 text-[9px] leading-4 text-zinc-500">
+                    Closed frames emit black and skip Pattern rendering. Continue advances motion; freeze pauses Pattern time.
+                  </p>
+                </>
+              )}
+            </div>
           </div>
-        </div>
-      </details>
+        </details>
+      </div>
     </InspectorPanel>
   )
 }
@@ -2062,11 +2515,14 @@ function MotionCadenceControl({
   const rateHz = steppedClockRateHz(stepMs ?? 125)
   const rateLabel = formatCadenceRate(rateHz)
   return (
-    <section className="mt-3 rounded-md border border-violet-400/25 bg-violet-400/[0.04] p-3">
-      <div className="flex items-center justify-between gap-3">
-        <div>
+    <section className="mt-2 rounded border border-violet-400/25 bg-violet-400/[0.04] p-2">
+      <div className="grid items-end gap-2 sm:grid-cols-[minmax(0,1fr)_auto_8rem]">
+        <div className="min-w-0 self-center">
           <div className="text-[10px] uppercase tracking-[0.12em] text-violet-300">Motion cadence</div>
-          <div className="mt-0.5 text-[10px] text-zinc-500">How often Pattern time is released</div>
+          <div className="truncate text-[9px] text-zinc-500" title="Shift this clip's private Pattern clock for rounds across zones.">
+            <span aria-hidden>Private Pattern clock</span>
+            <span className="sr-only">Shift this clip&apos;s private Pattern clock for rounds across zones.</span>
+          </div>
         </div>
         <div className="flex rounded border border-zinc-700 bg-zinc-950 p-0.5 text-[10px]">
           <button
@@ -2088,11 +2544,6 @@ function MotionCadenceControl({
             stepped
           </button>
         </div>
-      </div>
-      <div className="mt-3 grid grid-cols-[minmax(0,1fr)_10rem] items-end gap-3 border-t border-violet-400/10 pt-3">
-        <p className="text-[10px] leading-relaxed text-zinc-500">
-          Shift this clip&apos;s private Pattern clock for rounds across zones.
-        </p>
         <NumberField
           label="Start offset (ms)"
           value={timeOffsetMs}
@@ -2104,7 +2555,7 @@ function MotionCadenceControl({
       </div>
       {stepped && (
         <>
-          <div className="mt-3 grid grid-cols-[minmax(0,1fr)_auto] items-end gap-3">
+          <div className="mt-2 grid grid-cols-[minmax(0,1fr)_auto] items-end gap-2 border-t border-violet-400/10 pt-2">
             <label className="text-[10px] uppercase text-zinc-600">
               Jumps per second
               <input
@@ -2123,12 +2574,12 @@ function MotionCadenceControl({
               <span className="text-[9px] text-zinc-500">every {Math.round(stepMs)} ms</span>
             </div>
           </div>
-          <div className="mt-2 flex gap-1" aria-hidden>
+          <div className="mt-1.5 flex gap-1" aria-hidden>
             {Array.from({ length: 12 }, (_, index) => (
               <span key={index} className={index % 3 === 0 ? 'h-2 flex-1 bg-violet-300/70' : 'h-2 flex-1 bg-zinc-800'} />
             ))}
           </div>
-          <p className="mt-2 text-[10px] text-zinc-500">
+          <p className="mt-1.5 text-[9px] text-zinc-500">
             Motion freezes and jumps; unlike Light shutter, pixels do not blink off and the renderer keeps running.
           </p>
         </>
@@ -2190,7 +2641,7 @@ function TransitionInspector({
             value={transition.durationMs / 1000}
             min={0}
             max={Math.max(0, (nextScene?.durationMs ?? 0) / 1000)}
-            step={1}
+            step={0.1}
             onChange={(seconds) => onUpdate(transition.id, {
               durationMs: seconds * 1000,
               ...(seconds > 0 && !transition.routingDirection ? { routingDirection: 'forward' } : {}),
@@ -2332,10 +2783,10 @@ function TransitionInspector({
         </label>
         <NumberField
           label="Duration seconds"
-          value={Math.round(transition.durationMs / 1000)}
+          value={Number((transition.durationMs / 1000).toFixed(1))}
           min={0}
           max={30}
-          step={1}
+          step={0.1}
           onChange={(seconds) => onUpdate(transition.id, { durationMs: seconds * 1000 })}
         />
       </div>
@@ -2712,7 +3163,7 @@ function PropertyTransitionEditor({
 }) {
   const isTime = property === 'timeScale'
   const descriptor = transition.propertyTransitions?.[property]
-  const title = isTime ? 'Time scale' : 'Brightness'
+  const title = isTime ? 'Animation speed' : 'Brightness'
   const updateDescriptor = (changes: Partial<NonNullable<typeof descriptor>>, fromByCellId = descriptor?.fromByCellId ?? {}) => {
     const nextDescriptor = {
       fromByCellId,
@@ -2785,7 +3236,7 @@ function PropertyTransitionEditor({
               <label className="flex items-center gap-2 text-[10px] text-zinc-300">
                 <input
                   type="checkbox"
-                  aria-label={`Animate ${isTime ? 'time' : 'brightness'} for ${zone.name}`}
+                  aria-label={`Animate ${isTime ? 'speed' : 'brightness'} for ${zone.name}`}
                   checked={enabled}
                   disabled={transition.kind === 'cut'}
                   onChange={(event) => updateFrom(event.target.checked ? outgoing?.adaptations[property] ?? 1 : undefined)}
@@ -2989,13 +3440,49 @@ function RoutingSwitchInspector({
   )
 }
 
+function routingModeValue(layout: ShowRoutingLayout): string {
+  const logical = layout.logical
+  if (!logical) return 'physical'
+  if (logical.kind === 'single') return 'single'
+  if (logical.kind === 'grid' && logical.columns === 2 && logical.rows === 2) return 'grid-2x2'
+  if (logical.kind === 'stripes') return `stripes-${logical.axis}`
+  if (logical.kind === 'split') return `split-${logical.axis}`
+  return 'physical'
+}
+
+function logicalRoutingForMode(
+  mode: string,
+  zoneIds: string[],
+): ShowRoutingLayout['logical'] | undefined {
+  if (mode === 'single') return { kind: 'single', zoneIds: [zoneIds[0]] }
+  if (mode === 'grid-2x2') return { kind: 'grid', zoneIds: zoneIds.slice(0, 4), columns: 2, rows: 2 }
+  if (mode === 'stripes-x' || mode === 'stripes-y') {
+    return { kind: 'stripes', zoneIds: [...zoneIds], axis: mode === 'stripes-y' ? 'y' : 'x' }
+  }
+  if (mode === 'split-x' || mode === 'split-y') {
+    return { kind: 'split', zoneIds: [zoneIds[0], zoneIds[1]], axis: mode === 'split-y' ? 'y' : 'x' }
+  }
+  return undefined
+}
+
+function logicalRoutingDescription(layout: ShowRoutingLayout, show: ShowRecord): string {
+  const logical = layout.logical
+  if (!logical) return ''
+  const names = logical.zoneIds.map((zoneId) => show.zones.find((zone) => zone.id === zoneId)?.name ?? zoneId)
+  if (logical.kind === 'single') return `${names[0]} receives the complete normalized Stage.`
+  if (logical.kind === 'grid') return `${names.join(', ')} fill a ${logical.columns} x ${logical.rows} normalized grid.`
+  if (logical.kind === 'stripes') return `${names.join(', ')} divide the normalized ${logical.axis.toUpperCase()} axis into equal position-based stripes.`
+  if (logical.kind === 'split') return `${names[0]} and ${names[1]} share a normalized Stage axis. Scene targets move the split continuously.`
+  return `${names.join(', ')} route by normalized Stage position.`
+}
+
 function ShowSetupInspector({
   show,
   controllerProfiles,
   targetProfile,
   userMaps,
   onUpdateTargetProfile,
-  onUpdateStageMap,
+  onUpdatePortableReference,
   onAddZone,
   onAddRoutingLayout,
   onUpdateRoutingLayout,
@@ -3006,53 +3493,119 @@ function ShowSetupInspector({
   targetProfile?: ControllerProfile
   userMaps: MapRecord[]
   onUpdateTargetProfile: (targetControllerProfileId: string) => void
-  onUpdateStageMap: (stageMapId: string | null) => void
+  onUpdatePortableReference: (referenceMapId: string | null, referencePixelCount: number) => void
   onAddZone: () => void
   onAddRoutingLayout: (sourceLayoutId?: string) => void
   onUpdateRoutingLayout: (layoutId: string, changes: Partial<Omit<ShowRoutingLayout, 'id'>>) => void
   onRemoveRoutingLayout: (layoutId: string) => void
 }) {
   const zonePixels = show.zones.reduce((sum, zone) => sum + zone.nominalPixelCount, 0)
+  const contract = show.outputContract
+  const outputMapId = contract?.kind === 'portable-2d'
+    ? contract.referenceMapId
+    : contract?.kind === 'installation'
+      ? contract.outputMapId
+      : show.stageMapId ?? null
+  const outputMapName = [...STOCK_MAPS, ...userMaps].find((map) => map.id === outputMapId)?.name
+  const installationCoverage = validateInstallationCoverage(show)
+  const coverageLayout = installationCoverage?.layouts[0]
+  const portable = contract?.kind === 'portable-2d' ? contract : null
+  const portableMaps = [...STOCK_MAPS, ...userMaps].filter((map) => map.dim === 2)
   return (
     <InspectorPanel family="Show" title={show.name} icon={<Settings2 size={13} aria-hidden />}>
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <label className="text-[10px] uppercase text-zinc-600">
-          Target controller
-          <select
-            aria-label="Target controller"
-            value={show.targetControllerProfileId ?? ''}
-            onChange={(event) => onUpdateTargetProfile(event.target.value)}
-            className={`${field} mt-1 w-full`}
-          >
-            <option value="">automatic</option>
-            {controllerProfiles.map((profile) => (
-              <option key={profile.id} value={profile.id}>{profile.name}</option>
-            ))}
-          </select>
-        </label>
-        <label className="text-[10px] uppercase text-zinc-600">
-          Stage map
-          <select
-            aria-label="Stage map"
-            value={show.stageMapId ?? ''}
-            onChange={(event) => onUpdateStageMap(event.target.value || null)}
-            className={`${field} mt-1 w-full`}
-          >
-            <option value="">none</option>
-            <optgroup label="Stock maps">
-              {STOCK_MAPS.map((map) => (
-                <option key={map.id} value={map.id}>{map.name} ({map.dim}D)</option>
+      <div className="grid gap-3 md:grid-cols-2">
+        {!portable && (
+          <label className="text-[10px] uppercase text-zinc-600">
+            Target controller
+            <select
+              aria-label="Target controller"
+              value={show.targetControllerProfileId ?? ''}
+              onChange={(event) => onUpdateTargetProfile(event.target.value)}
+              className={`${field} mt-1 w-full`}
+            >
+              <option value="">automatic</option>
+              {controllerProfiles.map((profile) => (
+                <option key={profile.id} value={profile.id}>{profile.name}</option>
               ))}
-            </optgroup>
-            {userMaps.length > 0 && (
-              <optgroup label="Your maps">
-                {userMaps.map((map) => (
-                  <option key={map.id} value={map.id}>{map.name} ({map.dim}D)</option>
-                ))}
-              </optgroup>
-            )}
-          </select>
-        </label>
+            </select>
+          </label>
+        )}
+        <div className="rounded border border-zinc-800 bg-zinc-950/55 p-2 text-[10px] uppercase text-zinc-600">
+          Output contract
+          {contract ? (
+            <>
+              <div className="mt-1 text-xs normal-case text-zinc-200">
+                {contract.kind === 'portable-2d'
+                  ? 'Portable · Resolution-independent 2D'
+                  : 'Installation · Exact physical output'}
+              </div>
+              <div className="mt-1 normal-case text-zinc-500">
+                <span>
+                  {contract.kind === 'portable-2d'
+                    ? `${contract.referencePixelCount} px reference`
+                    : `${contract.pixelCount} px fixed`}
+                </span>
+                <span>{' · '}</span>
+                <span>{outputMapName ?? (outputMapId ? 'Missing map' : 'No map')}</span>
+              </div>
+            </>
+          ) : (
+            <div className="mt-1 text-xs normal-case text-amber-300">Legacy · Not classified</div>
+          )}
+        </div>
+        {portable && (
+          <div className="rounded border border-sky-900/50 bg-sky-950/15 p-2 text-[10px] uppercase text-sky-500">
+            Artifact promise
+            <div className="mt-1 text-xs normal-case text-zinc-200">
+              Compatible 2D mapped surfaces at variable resolution.
+            </div>
+            <div className="mt-1 normal-case text-zinc-500">No exact LED identity, physical ranges, or 3D portability.</div>
+          </div>
+        )}
+        {portable && (
+          <div className="rounded border border-zinc-800 bg-zinc-950/55 p-2 text-[10px] uppercase text-zinc-600 md:col-span-2">
+            Reference preview
+            <div className="mt-1 grid gap-1.5 sm:grid-cols-[minmax(8rem,1fr)_7rem]">
+              <select
+                aria-label="Portable reference map"
+                value={portable.referenceMapId ?? ''}
+                onChange={(event) => onUpdatePortableReference(event.target.value || null, portable.referencePixelCount)}
+                className={`${field} w-full normal-case`}
+              >
+                <option value="">Choose 2D map</option>
+                {portableMaps.map((map) => <option key={map.id} value={map.id}>{map.name}</option>)}
+              </select>
+              <input
+                key={portable.referencePixelCount}
+                aria-label="Portable reference pixels"
+                type="number"
+                min={1}
+                defaultValue={portable.referencePixelCount}
+                onBlur={(event) => onUpdatePortableReference(portable.referenceMapId, Number(event.currentTarget.value))}
+                className={field}
+              />
+            </div>
+            <div className="mt-1 normal-case text-zinc-500">Preview only; changing it does not rewrite choreography.</div>
+          </div>
+        )}
+        {coverageLayout && (
+          <div className={`rounded border p-2 text-[10px] uppercase ${coverageLayout.valid
+            ? 'border-emerald-900/60 bg-emerald-950/15 text-emerald-500'
+            : 'border-amber-800/60 bg-amber-950/20 text-amber-300'}`}
+          >
+            Physical coverage
+            <div className="mt-1 text-xs normal-case text-zinc-300">
+              {coverageLayout.layoutName} assigns {coverageLayout.assignedPixelCount} of {coverageLayout.totalPixelCount} pixels
+              {coverageLayout.valid
+                ? ' exactly once.'
+                : ` (${[
+                    coverageLayout.missingPixelCount ? `${coverageLayout.missingPixelCount} missing` : null,
+                    coverageLayout.overlappingPixelCount ? `${coverageLayout.overlappingPixelCount} overlapping` : null,
+                    coverageLayout.outOfRangePixelCount ? `${coverageLayout.outOfRangePixelCount} out of range` : null,
+                  ].filter(Boolean).join(', ')}).`}
+            </div>
+          </div>
+        )}
         <div className="rounded border border-zinc-800 bg-zinc-950/55 p-2 text-[10px] uppercase text-zinc-600">
           Loop
           <div className="mt-1 text-xs text-zinc-300">{formatDuration(showLoopDurationMs(show))}</div>
@@ -3060,12 +3613,14 @@ function ShowSetupInspector({
         <div className="rounded border border-zinc-800 bg-zinc-950/55 p-2 text-[10px] uppercase text-zinc-600">
           Zones
           <div className="mt-1 text-xs text-zinc-300">
-            {show.zones.length} zone{show.zones.length === 1 ? '' : 's'} - {zonePixels} px
+            {show.zones.length} zone{show.zones.length === 1 ? '' : 's'}{portable ? ' · logical' : ` - ${zonePixels} px`}
           </div>
         </div>
       </div>
       <div className="mt-3 flex items-center gap-2 text-[10px] text-zinc-500">
-        <span>Using {targetProfile?.name ?? 'nominal zones'} for compile estimates.</span>
+        <span>{portable
+          ? 'Portable routing uses normalized Stage positions at runtime.'
+          : `Using ${targetProfile?.name ?? 'nominal zones'} for compile estimates.`}</span>
         <span className="flex-1" />
         <button
           type="button"
@@ -3124,31 +3679,27 @@ function ShowSetupInspector({
                 Routing mode
                 <select
                   aria-label={`${layout.name} routing mode`}
-                  value={layout.logical?.kind === 'split' ? `split-${layout.logical.axis}` : 'physical'}
-                  disabled={show.zones.length < 2}
+                  value={routingModeValue(layout)}
                   onChange={(event) => {
                     const value = event.target.value
                     onUpdateRoutingLayout(layout.id, {
-                      logical: value === 'split-x' || value === 'split-y'
-                        ? {
-                            kind: 'split',
-                            zoneIds: [show.zones[0].id, show.zones[1].id],
-                            axis: value === 'split-y' ? 'y' : 'x',
-                          }
-                        : undefined,
+                      logical: logicalRoutingForMode(value, show.zones.map((zone) => zone.id)),
                     })
                   }}
                   className={`${field} mt-1 w-full max-w-xs`}
                 >
-                  <option value="physical">physical pixel ranges</option>
+                  {!portable && <option value="physical">physical pixel ranges</option>}
+                  {portable && <option value="single">full surface</option>}
+                  <option value="stripes-x">left / right stripes</option>
+                  <option value="stripes-y">top / bottom stripes</option>
+                  <option value="grid-2x2" disabled={show.zones.length < 4}>2 x 2 grid</option>
                   <option value="split-x">moving split X</option>
                   <option value="split-y">moving split Y</option>
                 </select>
               </label>
-              {layout.logical?.kind === 'split' ? (
+              {layout.logical ? (
                 <p className="mt-2 rounded border border-sky-900/40 bg-sky-950/10 px-2 py-1.5 text-[10px] leading-4 text-zinc-500">
-                  {show.zones.find((zone) => zone.id === layout.logical?.zoneIds[0])?.name ?? 'First zone'} and{' '}
-                  {show.zones.find((zone) => zone.id === layout.logical?.zoneIds[1])?.name ?? 'second zone'} share a normalized Stage axis. Scene targets move the split continuously.
+                  {logicalRoutingDescription(layout, show)}
                 </p>
               ) : (
               <div className="mt-2 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
@@ -3194,6 +3745,8 @@ function ZoneInspector({
   zone,
   targetName,
   targetZones,
+  spatialSelectionUnavailableReason,
+  onOpenSpatialSelection,
   onUpdateZone,
   onRemoveZone,
 }: {
@@ -3201,6 +3754,8 @@ function ZoneInspector({
   zone: ShowRecord['zones'][number]
   targetName?: string
   targetZones: ControllerZone[]
+  spatialSelectionUnavailableReason: string | null
+  onOpenSpatialSelection: () => void
   onUpdateZone: (changes: Partial<ShowRecord['zones'][number]>) => void
   onRemoveZone: () => void
 }) {
@@ -3216,14 +3771,16 @@ function ZoneInspector({
             className={`${field} w-full`}
           />
         </label>
-        <input
-          aria-label={`Nominal pixels ${zone.name}`}
-          type="number"
-          min={1}
-          value={zone.nominalPixelCount}
-          onChange={(event) => onUpdateZone({ nominalPixelCount: Number(event.target.value) })}
-          className={field}
-        />
+        {show.outputContract?.kind !== 'portable-2d' && (
+          <input
+            aria-label={`Nominal pixels ${zone.name}`}
+            type="number"
+            min={1}
+            value={zone.nominalPixelCount}
+            onChange={(event) => onUpdateZone({ nominalPixelCount: Number(event.target.value) })}
+            className={field}
+          />
+        )}
         <button
           type="button"
           aria-label={`Remove zone ${zone.name}`}
@@ -3235,8 +3792,24 @@ function ZoneInspector({
           <Trash2 size={13} />
         </button>
         <div className="text-[10px] uppercase tracking-wider md:col-span-3">
-          <ZoneBindingStatus zone={zone} targetZones={targetZones} />
+          {show.outputContract?.kind === 'portable-2d'
+            ? <span className="text-sky-400">logical - normalized position membership</span>
+            : <ZoneBindingStatus zone={zone} targetZones={targetZones} />}
         </div>
+        {show.outputContract?.kind === 'installation' && (
+          <div className="flex flex-wrap items-center gap-2 md:col-span-3">
+            <button
+              type="button"
+              aria-label={`Select ${zone.name} LEDs on output map`}
+              disabled={spatialSelectionUnavailableReason !== null}
+              onClick={onOpenSpatialSelection}
+              className="h-7 rounded border border-amber-500/30 bg-amber-500/10 px-2.5 text-[10px] font-semibold text-amber-200 hover:bg-amber-500/15 disabled:cursor-not-allowed disabled:border-zinc-800 disabled:bg-zinc-900 disabled:text-zinc-600"
+            >
+              Select LEDs on map
+            </button>
+            {spatialSelectionUnavailableReason && <span className="text-[10px] normal-case tracking-normal text-zinc-600">{spatialSelectionUnavailableReason}</span>}
+          </div>
+        )}
       </div>
     </InspectorPanel>
   )
@@ -3262,12 +3835,10 @@ function ZoneBindingStatus({
 function CompileBar({
   compiled,
   targetPixels,
-  onViewGenerated,
   pushResult,
 }: {
   compiled: CompiledShowState
   targetPixels: number
-  onViewGenerated: () => void
   pushResult: string | null
 }) {
   if (compiled.error) {
@@ -3391,10 +3962,6 @@ function CompileBar({
       )}
       {summary?.warnings.map((warning) => <span key={warning} className="text-amber-300">{warning}</span>)}
       {pushResult && <span className="text-zinc-300">{pushResult}</span>}
-      <span className="flex-1" />
-      <button type="button" className="text-zinc-400 hover:text-zinc-200" onClick={onViewGenerated}>
-        View generated pattern
-      </button>
     </div>
   )
 }
@@ -3405,6 +3972,8 @@ function NumberField({
   min,
   max,
   step,
+  suffix,
+  help,
   onChange,
 }: {
   label: string
@@ -3412,21 +3981,27 @@ function NumberField({
   min: number
   max: number
   step: number
+  suffix?: string
+  help?: string
   onChange: (value: number) => void
 }) {
   return (
-    <label className="text-[10px] uppercase text-zinc-600">
+    <label className="text-[10px] uppercase text-zinc-600" title={help}>
       {label}
-      <input
-        aria-label={label}
-        type="number"
-        min={min}
-        max={max}
-        step={step}
-        value={value}
-        onChange={(event) => onChange(Number(event.target.value))}
-        className={`${field} mt-1 w-full`}
-      />
+      <span className="mt-1 flex items-center gap-1">
+        <input
+          aria-label={label}
+          title={help}
+          type="number"
+          min={min}
+          max={max}
+          step={step}
+          value={value}
+          onChange={(event) => onChange(Number(event.target.value))}
+          className={`${field} min-w-0 flex-1`}
+        />
+        {suffix && <span className="text-[10px] text-zinc-500">{suffix}</span>}
+      </span>
     </label>
   )
 }
@@ -3436,7 +4011,7 @@ function adaptationSummary(cell: ShowCell): string {
   if (cell.adaptations.mirror) parts.push('mirror')
   if (cell.adaptations.phase !== 0) parts.push(`phase ${cell.adaptations.phase.toFixed(2)}`)
   if (cell.adaptations.brightness !== 1) parts.push(`dim ${cell.adaptations.brightness.toFixed(2)}`)
-  if (cell.adaptations.timeScale !== 1) parts.push(`time x${cell.adaptations.timeScale.toFixed(1)}`)
+  if (cell.adaptations.timeScale !== 1) parts.push(`animation speed ${cell.adaptations.timeScale.toFixed(1)}×`)
   if (cell.adaptations.lightShutter) parts.push(`shutter ${Math.round(cell.adaptations.lightShutter.duty * 100)}%`)
   if (cell.adaptations.steppedClock) parts.push(`step ${formatCadenceRate(steppedClockRateHz(cell.adaptations.steppedClock.stepMs))}/s`)
   if ((cell.adaptations.timeOffsetMs ?? 0) > 0) parts.push(`offset ${Math.round(cell.adaptations.timeOffsetMs!)}ms`)

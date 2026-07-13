@@ -131,4 +131,49 @@ describe('artifactStamp', () => {
     expect(parsePxlblzBanner(stamped)).not.toHaveProperty('preferredMap')
     expect(parsePxlblzBanner(stamped)).not.toHaveProperty('compatibility')
   })
+
+  it.each([
+    {
+      contract: {
+        version: 1 as const,
+        kind: 'installation' as const,
+        pixelCount: 256,
+        outputMap: { kind: 'stock' as const, id: 'plane', name: 'Square', fingerprint: '00a1b2c3' },
+      },
+      line: '// pxlblz:show-output version=1 kind=installation pixels=256 map=stock:plane name="Square" fingerprint=00a1b2c3',
+    },
+    {
+      contract: {
+        version: 1 as const,
+        kind: 'portable-2d' as const,
+        dimensions: [2] as [2],
+        mapClasses: ['surface' as const],
+        resolution: 'variable' as const,
+        aspectRatio: { min: 1, max: 2 },
+      },
+      line: '// pxlblz:show-output version=1 kind=portable-2d dimensions=2 classes=surface resolution=variable aspect=1:2',
+    },
+  ])('round-trips a versioned $contract.kind Show output contract (#437)', ({ contract, line }) => {
+    const stamped = stampArtifact(SOURCE, {
+      kind: 'show',
+      id: 'show-contract',
+      showOutputContract: contract,
+      stampedAt: '2026-07-12T00:00:00.000Z',
+    })
+
+    expect(stamped).toContain(line)
+    expect(parsePxlblzBanner(stamped)?.showOutputContract).toEqual(contract)
+  })
+
+  it('ignores malformed optional Show output metadata without invalidating source (#437)', () => {
+    const stamped = stampArtifact(SOURCE, {
+      kind: 'show',
+      id: 'show-contract',
+      stampedAt: '2026-07-12T00:00:00.000Z',
+    }).replace(SOURCE, '// pxlblz:show-output version=1 kind=installation pixels=nope\n' + SOURCE)
+
+    expect(parsePxlblzBanner(stamped)).toMatchObject({ kind: 'show', id: 'show-contract' })
+    expect(parsePxlblzBanner(stamped)).not.toHaveProperty('showOutputContract')
+    expect(stripPxlblzBanner(stamped)).toBe(SOURCE)
+  })
 })

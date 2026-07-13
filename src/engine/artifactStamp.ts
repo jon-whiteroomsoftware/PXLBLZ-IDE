@@ -16,6 +16,26 @@ export interface ArtifactMapCompatibility {
   exactMap: boolean
 }
 
+export type ArtifactShowOutputMap =
+  | { kind: 'stock'; id: string; name: string; fingerprint?: string }
+  | { kind: 'custom'; name: string; fingerprint?: string }
+
+export type ArtifactShowOutputContract =
+  | {
+      version: 1
+      kind: 'installation'
+      pixelCount: number
+      outputMap?: ArtifactShowOutputMap
+    }
+  | {
+      version: 1
+      kind: 'portable-2d'
+      dimensions: [2]
+      mapClasses: ArtifactMapClass[]
+      resolution: 'variable'
+      aspectRatio?: { min: number; max: number }
+    }
+
 export interface ArtifactStampMeta {
   kind: ArtifactKind
   id: string
@@ -23,6 +43,7 @@ export interface ArtifactStampMeta {
   transforms?: string[]
   preferredMap?: ArtifactPreferredMap
   compatibility?: ArtifactMapCompatibility
+  showOutputContract?: ArtifactShowOutputContract
   stampedAt?: Date | string
 }
 
@@ -36,6 +57,7 @@ export interface ParsedPxlblzBanner {
   transforms: string[]
   preferredMap?: ArtifactPreferredMap
   compatibility?: ArtifactMapCompatibility
+  showOutputContract?: ArtifactShowOutputContract
 }
 
 const HEADER = '// Built with PXLBLZ-IDE https://pxlblz-ide.whiteroomsoftware.com/'
@@ -43,6 +65,7 @@ const META_PREFIX = '// pxlblz:1 '
 const TRANSFORMS_PREFIX = '// pxlblz:transforms '
 const MAP_PREFIX = '// pxlblz:map '
 const COMPAT_PREFIX = '// pxlblz:compat '
+const SHOW_OUTPUT_PREFIX = '// pxlblz:show-output '
 const HASH_BYTES = new TextEncoder()
 
 export function artifactHash(code: string): string {
@@ -63,6 +86,7 @@ export function stampArtifact(code: string, meta: ArtifactStampMeta): string {
   if (transforms.length > 0) lines.push(`${TRANSFORMS_PREFIX}${transforms.join(' ')}`)
   if (meta.preferredMap) lines.push(formatPreferredMap(meta.preferredMap))
   if (meta.compatibility) lines.push(formatCompatibility(meta.compatibility))
+  if (meta.showOutputContract) lines.push(formatShowOutputContract(meta.showOutputContract))
   return `${lines.join('\n')}\n${body}`
 }
 
@@ -80,6 +104,7 @@ export function parsePxlblzBanner(code: string): ParsedPxlblzBanner | null {
     : []
   const preferredMap = parsePreferredMap(lines.find((line) => line.startsWith(MAP_PREFIX)))
   const compatibility = parseCompatibility(lines.find((line) => line.startsWith(COMPAT_PREFIX)))
+  const showOutputContract = parseShowOutputContract(lines.find((line) => line.startsWith(SHOW_OUTPUT_PREFIX)))
 
   return {
     version: 1,
@@ -91,6 +116,7 @@ export function parsePxlblzBanner(code: string): ParsedPxlblzBanner | null {
     transforms,
     ...(preferredMap ? { preferredMap } : {}),
     ...(compatibility ? { compatibility } : {}),
+    ...(showOutputContract ? { showOutputContract } : {}),
   }
 }
 
@@ -179,6 +205,73 @@ function parseCompatibility(line: string | undefined): ArtifactMapCompatibility 
     ...(aspect ? { aspectRatio: aspect } : {}),
     exactMap: fields.exact === 'true',
   }
+}
+
+function formatShowOutputContract(contract: ArtifactShowOutputContract): string {
+  if (contract.kind === 'installation') {
+    const map = contract.outputMap
+    return `${SHOW_OUTPUT_PREFIX}${[
+      'version=1',
+      'kind=installation',
+      `pixels=${contract.pixelCount}`,
+      ...(map ? [`map=${map.kind === 'stock' ? `stock:${tokenValue(map.id)}` : 'custom'}`, `name=${quotedValue(map.name)}`] : []),
+      ...(map?.fingerprint ? [`fingerprint=${tokenValue(map.fingerprint)}`] : []),
+    ].join(' ')}`
+  }
+  return `${SHOW_OUTPUT_PREFIX}${[
+    'version=1',
+    'kind=portable-2d',
+    'dimensions=2',
+    `classes=${contract.mapClasses.join(',')}`,
+    'resolution=variable',
+    ...(contract.aspectRatio ? [`aspect=${contract.aspectRatio.min}:${contract.aspectRatio.max}`] : []),
+  ].join(' ')}`
+}
+
+function parseShowOutputContract(line: string | undefined): ArtifactShowOutputContract | null {
+  if (!line) return null
+  const fields = parseFields(line.slice(SHOW_OUTPUT_PREFIX.length))
+  if (fields.version !== '1') return null
+  if (fields.kind === 'installation') {
+    const pixelCount = Number(fields.pixels)
+    if (!Number.isInteger(pixelCount) || pixelCount < 1) return null
+    const outputMap = parseShowOutputMap(fields)
+    if (fields.map && !outputMap) return null
+    return {
+      version: 1,
+      kind: 'installation',
+      pixelCount,
+      ...(outputMap ? { outputMap } : {}),
+    }
+  }
+  if (fields.kind !== 'portable-2d' || fields.resolution !== 'variable') return null
+  if (fields.dimensions !== '2') return null
+  const allowedClasses = new Set<ArtifactMapClass>(['path', 'surface', 'shell', 'volume', 'custom'])
+  const mapClasses = uniqueSafeTokens((fields.classes ?? '').split(','))
+    .filter((value): value is ArtifactMapClass => allowedClasses.has(value as ArtifactMapClass))
+  if (mapClasses.length === 0) return null
+  const aspectRatio = parseAspectRatio(fields.aspect)
+  return {
+    version: 1,
+    kind: 'portable-2d',
+    dimensions: [2],
+    mapClasses,
+    resolution: 'variable',
+    ...(aspectRatio ? { aspectRatio } : {}),
+  }
+}
+
+function parseShowOutputMap(fields: Record<string, string>): ArtifactShowOutputMap | null {
+  if (!fields.map) return null
+  const name = fields.name?.trim()
+  if (!name) return null
+  const fingerprint = /^[0-9a-f]{8}$/i.test(fields.fingerprint ?? '')
+    ? fields.fingerprint.toLowerCase()
+    : undefined
+  if (fields.map === 'custom') return { kind: 'custom', name, ...(fingerprint ? { fingerprint } : {}) }
+  if (!fields.map.startsWith('stock:')) return null
+  const id = fields.map.slice('stock:'.length)
+  return id ? { kind: 'stock', id, name, ...(fingerprint ? { fingerprint } : {}) } : null
 }
 
 function parseAspectRatio(value: string | undefined): { min: number; max: number } | null {

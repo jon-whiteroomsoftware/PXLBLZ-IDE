@@ -332,15 +332,17 @@ describe('PatternList', () => {
     expect(screen.getAllByText('Mixins')).toHaveLength(1)
   })
 
-  it('creates a new show from the Shows title row', async () => {
+  it('opens provisional Show creation without creating a record', async () => {
     const user = userEvent.setup()
     render(<PatternList />)
 
     await user.click(screen.getByRole('radio', { name: 'Shows' }))
     await user.click(await screen.findByRole('button', { name: 'New show' }))
 
-    expect(await screen.findByText('Untitled Show')).toBeInTheDocument()
-    expect(window.location.pathname).toMatch(/^\/studio\/shows\//)
+    expect(useShowStore.getState().showCreation).toEqual({ previousShowId: null })
+    expect(useShowStore.getState().shows).toEqual([])
+    expect(requests.some(({ url, init }) => url === '/api/shows' && init?.method === 'POST')).toBe(false)
+    expect(window.location.pathname).toBe('/studio/shows')
   })
 
   it('shows the empty state when there are no custom maps', async () => {

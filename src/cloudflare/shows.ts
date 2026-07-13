@@ -1,5 +1,6 @@
 import type { ShowRecord } from '../engine/personalContentRecords'
 import { normalizeShowRoutingState, normalizeShowTransitionState } from '../engine/showModel'
+import { normalizeShowOutputContract } from '../engine/showOutputContract'
 
 export interface D1ShowStatementLike {
   bind(...values: unknown[]): D1ShowStatementLike
@@ -20,12 +21,16 @@ export interface D1ShowRow {
   routing_layouts_json?: string | null
   routing_switches_json?: string | null
   transitions_json?: string | null
+  output_contract_json?: string | null
   target_controller_profile_id: string | null
   stage_map_id: string | null
   updated_at: number
 }
 
 export function showRecordFromRow(row: D1ShowRow): ShowRecord {
+  const outputContract = row.output_contract_json
+    ? normalizeShowOutputContract(parseJson(row.output_contract_json, null))
+    : undefined
   return normalizeShowTransitionState(normalizeShowRoutingState({
     id: row.id,
     name: row.name,
@@ -37,6 +42,7 @@ export function showRecordFromRow(row: D1ShowRow): ShowRecord {
     ...(row.transitions_json ? { transitions: parseJson(row.transitions_json, []) } : {}),
     ...(row.target_controller_profile_id ? { targetControllerProfileId: row.target_controller_profile_id } : {}),
     stageMapId: row.stage_map_id ?? null,
+    ...(outputContract ? { outputContract } : {}),
     updatedAt: row.updated_at,
   }))
 }
@@ -45,7 +51,7 @@ export async function listD1Shows(db: D1DatabaseShowsLike, userId: string): Prom
   const { results } = await db
     .prepare(`
       SELECT id, name, scenes_json, zones_json, cells_json, routing_layouts_json, routing_switches_json, transitions_json,
-             target_controller_profile_id, stage_map_id, updated_at
+             target_controller_profile_id, stage_map_id, output_contract_json, updated_at
       FROM personal_shows
       WHERE user_id = ?
       ORDER BY updated_at DESC
@@ -65,9 +71,9 @@ export async function createD1Show(
     .prepare(`
       INSERT INTO personal_shows (
         user_id, id, name, scenes_json, zones_json, cells_json, routing_layouts_json, routing_switches_json, transitions_json,
-        target_controller_profile_id, stage_map_id, created_at, updated_at
+        target_controller_profile_id, stage_map_id, output_contract_json, created_at, updated_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
     .bind(
       userId,
@@ -81,6 +87,7 @@ export async function createD1Show(
       JSON.stringify(normalizeShowTransitionState(record).transitions),
       record.targetControllerProfileId ?? null,
       record.stageMapId ?? null,
+      record.outputContract ? JSON.stringify(record.outputContract) : null,
       now,
       record.updatedAt,
     )
@@ -104,6 +111,7 @@ export async function updateD1Show(
   addAssignment(assignments, values, 'transitions_json', changes.transitions, true)
   addAssignment(assignments, values, 'target_controller_profile_id', changes.targetControllerProfileId)
   addAssignment(assignments, values, 'stage_map_id', changes.stageMapId)
+  addAssignment(assignments, values, 'output_contract_json', changes.outputContract, true)
   addAssignment(assignments, values, 'updated_at', changes.updatedAt)
   if (assignments.length === 0) return
 

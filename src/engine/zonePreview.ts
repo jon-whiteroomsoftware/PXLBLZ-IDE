@@ -8,6 +8,7 @@ import {
 } from '@/engine/controllerProfile'
 import type { MapPoint } from '@/engine/maps'
 import type { ShowZone } from '@/engine/personalContentRecords'
+import { routeShowLogicalPoint, type ShowLogicalRouting } from '@/engine/showLogicalRouting'
 
 export type PixelColor = [number, number, number]
 
@@ -219,6 +220,55 @@ export function buildShowStageProjection(
 ): ShowStageProjection {
   const rows = stageRangesForShowZones(zones, options.controllerZones)
   return buildProjectionFromRows(rows, stagePixelCount, options.fallbackColors)
+}
+
+export function buildShowLogicalStageProjection(
+  zones: ShowZone[],
+  mapPoints: MapPoint[],
+  logical: ShowLogicalRouting,
+  parameters: { splitPosition?: number } = {},
+  fallbackColors?: string[],
+): ShowStageProjection {
+  const colors = fallbackColors?.length ? fallbackColors : DEFAULT_ZONE_COLORS
+  const pixelZoneIds = mapPoints.map((point) => {
+    const sample = point.sample.length >= 2 ? point.sample : point.pos ?? point.sample
+    return routeShowLogicalPoint(logical, sample[0] ?? 0.5, sample[1] ?? 0.5, parameters).zoneId
+  })
+  return {
+    zones: zones.map((zone, index) => {
+      const pixelCount = pixelZoneIds.filter((zoneId) => zoneId === zone.id).length
+      return {
+        id: zone.id,
+        name: zone.name,
+        color: zone.color ?? colors[index % colors.length],
+        pixelCount,
+        offStage: pixelCount === 0,
+      }
+    }),
+    pixelZoneIds,
+    unstagedPixelCount: 0,
+  }
+}
+
+export function showLogicalAspectAdvisory(
+  mapPoints: MapPoint[],
+  logical: ShowLogicalRouting,
+): string | null {
+  if (logical.kind === 'single' || mapPoints.length === 0) return null
+  const samples = mapPoints.map((point) => point.sample.length >= 2 ? point.sample : point.pos ?? point.sample)
+  const xs = samples.map((sample) => sample[0] ?? 0.5)
+  const ys = samples.map((sample) => sample[1] ?? 0.5)
+  const spanX = Math.max(...xs) - Math.min(...xs)
+  const spanY = Math.max(...ys) - Math.min(...ys)
+  const usesX = logical.kind === 'grid' || logical.kind === 'pinwheel' || logical.axis === 'x'
+  const usesY = logical.kind === 'grid' || logical.kind === 'pinwheel' || logical.axis === 'y'
+  const narrowAxis = usesY && spanY < spanX * 0.75
+    ? { name: 'Y', min: Math.min(...ys), max: Math.max(...ys), ratio: spanX / Math.max(spanY, Number.EPSILON) }
+    : usesX && spanX < spanY * 0.75
+      ? { name: 'X', min: Math.min(...xs), max: Math.max(...xs), ratio: spanY / Math.max(spanX, Number.EPSILON) }
+      : null
+  if (!narrowAxis) return null
+  return `Reference map preserves about a ${narrowAxis.ratio.toFixed(1)}:1 aspect. ${narrowAxis.name} boundaries use its ${narrowAxis.min.toFixed(2)}-${narrowAxis.max.toFixed(2)} normalized coordinate range, so some position-based zones may be narrow or empty.`
 }
 
 export function buildShowStageStrips(

@@ -116,7 +116,9 @@ export function readMixinHeader(source: string): MixinHeader {
 const POT_BINDING_SOURCE = `// Pot Binding - read an analog input once per frame and drive one
 // pattern control. The pass engine fills the @params where this mixin is bound.
 //
-// @param PIN analog input pin, e.g. A2 on ADC1-safe Pixelblaze pins
+// Pixelblaze V3 Standard analog inputs use the numeric part of their IO label:
+// IO33 -> 33 on every V3 Standard; IO34, IO35, IO36, and IO39 require HW >= 3.5.
+// @param PIN analog input pin number, e.g. 33 for IO33
 // @param SMOOTHING 0..1 exponential smoothing per frame
 // @param FALLBACK value used before the first stable read
 // @target CONTROL slider function or variable slot to drive

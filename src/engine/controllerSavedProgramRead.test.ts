@@ -66,6 +66,13 @@ describe('recoverSavedProgram', () => {
         resolution: 'adaptive',
         exactMap: false,
       },
+      showOutputContract: {
+        version: 1,
+        kind: 'portable-2d',
+        dimensions: [2],
+        mapClasses: ['surface'],
+        resolution: 'variable',
+      },
       stampedAt: '2026-07-12T00:00:00.000Z',
     })
 
@@ -76,6 +83,7 @@ describe('recoverSavedProgram', () => {
         stamp: {
           preferredMap: { kind: 'stock', id: 'plane', name: 'Square' },
           compatibility: { portability: 'adaptive', dimensions: [2], exactMap: false },
+          showOutputContract: { kind: 'portable-2d', resolution: 'variable' },
         },
       },
     })

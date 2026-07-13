@@ -10,6 +10,7 @@ import {
   openMapForPushState,
   DEFAULT_MAP_BAKE_COUNT,
   STOCK_MAPS,
+  STOCK_MAP_ITEMS,
   DEFAULT_MAP_ID,
   DEFAULT_SHAPE_ID,
   DEFAULT_NORMALIZE_MODE,
@@ -197,6 +198,12 @@ describe('mapFromRecord', () => {
 })
 
 describe('seed clouds relocated to stock (#141)', () => {
+  it('exposes measured stock-map counts to output-contract setup (#434)', () => {
+    expect(STOCK_MAP_ITEMS.find((map) => map.id === 'sunflower-pucks')).toMatchObject({ fixedPixelCount: 160 })
+    expect(STOCK_MAP_ITEMS.find((map) => map.id === 'sunflower-pucks-2d')).toMatchObject({ fixedPixelCount: 160 })
+    expect(STOCK_MAP_ITEMS.find((map) => map.id === 'plane')?.fixedPixelCount).toBeUndefined()
+  })
+
   it('exposes the example clouds as stock maps, not user maps', () => {
     expect(STOCK_MAPS.some((m) => m.id === 'seed-ring-2d')).toBe(true)
     expect(STOCK_MAPS.some((m) => m.id === 'seed-sphere-3d')).toBe(true)

@@ -142,4 +142,33 @@ describe('describeControllerSavedPrograms', () => {
     expect(view.owned.map((row) => row.programId)).toEqual(['B2', 'B1'])
     expect(view.foreign).toMatchObject([{ programId: 'F1', name: 'Unnamed program' }])
   })
+
+  it('carries decisive Show output facts from the saved push record (#437)', () => {
+    const view = describeControllerSavedPrograms({
+      controllerId: 'ctrl-A',
+      programs: [{ id: 'SHOW1', name: 'Measured wall Show' }],
+      bindings: { 'ctrl-A': { 'show:show-1': 'SHOW1' } },
+      studioPatterns: [{ bindingKey: 'show:show-1', routeId: 'show-1', name: 'Measured wall Show' }],
+      pushRecords: {
+        'ctrl-A': {
+          'show:show-1': {
+            ...pushRecord(['show']),
+            showOutputContract: {
+              version: 1,
+              kind: 'installation',
+              pixelCount: 256,
+              outputMap: { kind: 'stock', id: 'plane', name: 'Square', fingerprint: '11111111' },
+            },
+          },
+        },
+      },
+      enabledTransforms: ['show'],
+    })
+
+    expect(view.owned[0].showOutputContract).toMatchObject({
+      kind: 'installation',
+      pixelCount: 256,
+      outputMap: { name: 'Square', fingerprint: '11111111' },
+    })
+  })
 })

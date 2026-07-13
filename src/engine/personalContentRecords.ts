@@ -245,6 +245,30 @@ export interface ShowCell {
   controlTargets?: Record<string, number>
 }
 
+export interface Portable2DShowOutputContract {
+  version: 1
+  kind: 'portable-2d'
+  referenceMapId: string | null
+  referencePixelCount: number
+  compatibility: {
+    dimensions: [2]
+    mapClass: 'continuous-surface'
+    resolution: 'variable'
+  }
+}
+
+export interface InstallationShowOutputContract {
+  version: 1
+  kind: 'installation'
+  pixelCount: number
+  outputMapId: string | null
+  resolution: 'fixed'
+}
+
+export type ShowOutputContract =
+  | Portable2DShowOutputContract
+  | InstallationShowOutputContract
+
 export interface ShowRecord {
   id: string
   name: string
@@ -257,5 +281,7 @@ export interface ShowRecord {
   transitions?: ShowBoundaryTransition[]
   targetControllerProfileId?: string
   stageMapId?: string | null
+  /** Immutable authored promise for new Shows. Absent on legacy records awaiting classification. */
+  outputContract?: ShowOutputContract
   updatedAt: number
 }

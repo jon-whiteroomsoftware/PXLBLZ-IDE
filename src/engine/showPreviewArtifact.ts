@@ -1,4 +1,6 @@
 import type { ControllerZone } from './controllerProfile'
+import { installationCoverageBlockingMessage, validateInstallationCoverage } from './showInstallationCoverage'
+import { portableCompatibilityBlockingMessage, validatePortableShowCompatibility } from './showPortableCompatibility'
 import type { PatternRecord, ShowCell, ShowRecord } from './personalContentRecords'
 import { compileShow, type GeneratedShowArtifact } from './showCompiler'
 import { showRecordToCompileRecipe } from './showModel'
@@ -30,6 +32,29 @@ export function compileShowForPreview(
   } catch (error) {
     return { artifact: null, error: error instanceof Error ? error.message : 'Show compile failed' }
   }
+}
+
+export function compileShowForArtifact(
+  show: ShowRecord,
+  userPatterns: PatternRecord[],
+  controllerZones: ControllerZone[] | undefined,
+  libraries: Record<string, string>,
+  options: { stageDimension?: 1 | 2 | 3 } = {},
+): CompiledShowState {
+  const coverageError = installationCoverageBlockingMessage(validateInstallationCoverage(show))
+  if (coverageError) return { artifact: null, error: coverageError }
+  const portableError = portableCompatibilityBlockingMessage(validatePortableShowCompatibility(
+    show,
+    show.cells.map((cell) => ({
+      cellId: cell.id,
+      patternName: cell.patternName,
+      source: sourceForShowCell(cell, userPatterns),
+    })),
+    options.stageDimension,
+  ))
+  return portableError
+    ? { artifact: null, error: portableError }
+    : compileShowForPreview(show, userPatterns, controllerZones, libraries, options)
 }
 
 export function sourceForShowCell(cell: ShowCell, userPatterns: PatternRecord[]): string {

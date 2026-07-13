@@ -5,6 +5,8 @@ test('authenticated Studio creates, edits, and reloads a persisted Show', async 
 
   await expect(page.getByRole('button', { name: /Account menu for playwright-shows/i })).toBeVisible()
   await page.getByRole('button', { name: 'New show' }).click()
+  await page.getByRole('button', { name: 'Create Installation Show' }).click()
+  await page.getByRole('button', { name: 'Create Show' }).click()
   await expect(page).toHaveURL(/\/studio\/shows\/[a-z0-9-]+$/)
 
   const sceneName = page.getByLabel('Scene 1 scene name')

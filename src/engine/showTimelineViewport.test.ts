@@ -4,6 +4,8 @@ import {
   rangeThumbCenterOffsetPx,
   resizeShowTimelineViewport,
   showTimelineThumb,
+  showTimelineGridStepMs,
+  snapShowTimelineTime,
   timeToViewportPercent,
   viewportPercentToTime,
   zoomShowTimelineViewport,
@@ -48,5 +50,31 @@ describe('Show timeline viewport (#420)', () => {
     expect(resizeShowTimelineViewport(viewport, 'start', 20_000)).toMatchObject({ startMs: 20_000, durationMs: 25_000 })
     expect(resizeShowTimelineViewport(viewport, 'end', 40_000)).toMatchObject({ startMs: 15_000, durationMs: 25_000 })
     expect(resizeShowTimelineViewport(viewport, 'start', 44_900)).toMatchObject({ startMs: 41_250, durationMs: 3_750 })
+  })
+
+  it('uses a finer magnetic time grid as the timeline zooms in (#63)', () => {
+    expect(showTimelineGridStepMs(60_000, 600)).toBe(10_000)
+    expect(showTimelineGridStepMs(6_000, 600)).toBe(1_000)
+    expect(showTimelineGridStepMs(1_000, 600)).toBe(200)
+  })
+
+  it('snaps near structural boundaries before the zoom-aware time grid (#63)', () => {
+    expect(snapShowTimelineTime(5_930, {
+      visibleDurationMs: 60_000,
+      visibleWidthPx: 600,
+      structuralTimesMs: [6_000, 30_000],
+    })).toEqual({ timeMs: 6_000, kind: 'boundary' })
+
+    expect(snapShowTimelineTime(10_650, {
+      visibleDurationMs: 60_000,
+      visibleWidthPx: 600,
+      structuralTimesMs: [6_000, 30_000],
+    })).toEqual({ timeMs: 10_000, kind: 'grid' })
+
+    expect(snapShowTimelineTime(11_500, {
+      visibleDurationMs: 60_000,
+      visibleWidthPx: 600,
+      structuralTimesMs: [6_000, 30_000],
+    })).toEqual({ timeMs: 11_500 })
   })
 })

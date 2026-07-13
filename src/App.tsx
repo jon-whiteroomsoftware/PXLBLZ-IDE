@@ -29,6 +29,8 @@ import { ControllerProfilePage } from '@/components/ControllerProfilePage'
 import { ControllerSavedProgramsPane } from '@/components/ControllerSavedProgramsPane'
 import { ShowEditor } from '@/components/ShowEditor'
 import { ShowStagePreview } from '@/components/ShowStagePreview'
+import { ShowCreationFlow, type ShowCreationMapOption } from '@/components/ShowCreationFlow'
+import { ShowClassificationFlow } from '@/components/ShowClassificationFlow'
 import { useControllerStore } from '@/store/controllerStore'
 import { MapModeHeader } from '@/components/MapModeHeader'
 import { LibraryModeHeader } from '@/components/LibraryModeHeader'
@@ -64,6 +66,7 @@ import { galleryPatternBySlug, patternSlug, type GalleryPattern } from '@/engine
 import { docExternalHref, getUserDoc, isDocId } from '@/docs/catalog'
 import type { AuthProvider } from '@/engine/authSession'
 import { DEMOS } from '@/pixelblaze/stock/patterns'
+import { InlineEntityTitle } from '@/components/InlineEntityTitle'
 
 function Splitter({ onDrag, className = '' }: { onDrag: (dx: number) => void; className?: string }) {
   const lastX = useRef(0)
@@ -248,6 +251,7 @@ export default function App() {
   const activeDemoName = usePatternStore((s) => s.activeDemoName)
   const userPatterns = usePatternStore((s) => s.userPatterns)
   const addPattern = usePatternStore((s) => s.addPattern)
+  const renamePattern = usePatternStore((s) => s.renamePattern)
   const setActivePattern = usePatternStore((s) => s.setActivePattern)
   const removePattern = usePatternStore((s) => s.removePattern)
   const personalWorkspaceAuthenticated = useWorkspaceStore((s) => s.personalWorkspaceAuthenticated)
@@ -278,6 +282,13 @@ export default function App() {
   const shows = useShowStore((s) => s.shows)
   const showsLoaded = useShowStore((s) => s.showsLoaded)
   const openShow = useShowStore((s) => s.openShow)
+  const renameShow = useShowStore((s) => s.renameShow)
+  const showCreation = useShowStore((s) => s.showCreation)
+  const showClassification = useShowStore((s) => s.showClassification)
+  const createNewShow = useShowStore((s) => s.createNewShow)
+  const cancelShowCreation = useShowStore((s) => s.cancelShowCreation)
+  const confirmShowClassification = useShowStore((s) => s.confirmShowClassification)
+  const cancelShowClassification = useShowStore((s) => s.cancelShowClassification)
   const personalWorkspaceResolved = useWorkspaceStore((s) => s.personalWorkspaceResolved)
   const routeSyncedRef = useRef(false)
   const lastTrackedPathRef = useRef<string | null>(null)
@@ -288,6 +299,33 @@ export default function App() {
       return false
     }
   })
+  const [showHeaderActionsTarget, setShowHeaderActionsTarget] = useState<HTMLSpanElement | null>(null)
+  const showCreationMaps = useMemo((): ShowCreationMapOption[] => [
+    ...STOCK_MAP_ITEMS.map((map) => ({
+      id: map.id,
+      name: map.name,
+      dim: map.dim,
+      source: 'stock' as const,
+      ...(map.fixedPixelCount !== undefined ? { fixedPixelCount: map.fixedPixelCount } : {}),
+    })),
+    ...userMaps
+      .filter((map) => map.generator !== 'custom' || (map.points?.length ?? 0) > 0)
+      .map((map) => ({
+        id: map.id,
+        name: map.name,
+        dim: map.dim,
+        source: 'user' as const,
+        ...(map.generator === 'custom' && map.points?.length
+          ? { fixedPixelCount: map.points.length }
+          : {}),
+      })),
+  ], [userMaps])
+  const showBeingClassified = showClassification
+    ? shows.find((show) => show.id === showClassification.showId) ?? null
+    : null
+  const classificationTargetControllerName = showBeingClassified?.targetControllerProfileId
+    ? controllerProfiles.find((profile) => profile.id === showBeingClassified.targetControllerProfileId)?.name ?? null
+    : null
 
   // History wiring (#308): parse the URL on mount and on back/forward. The
   // hashchange listener keeps legacy #/docs/<id> links (still emitted for
@@ -742,9 +780,10 @@ export default function App() {
             ) : activeControllerProfileId !== null ? (
               <span className="flex-1 min-w-0 flex items-center gap-1.5">
                 <Cpu size={14} aria-hidden className="shrink-0 text-zinc-500" />
-                <span className="truncate text-zinc-200">
-                  {activeControllerProfile ? controllerProfileDisplayName(activeControllerProfile) : 'Controller profile'}
-                </span>
+                <InlineEntityTitle
+                  name={activeControllerProfile ? controllerProfileDisplayName(activeControllerProfile) : 'Controller profile'}
+                  noun="controller"
+                />
                 <span className="hidden rounded border border-zinc-700 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-structural sm:inline">
                   Controller
                 </span>
@@ -758,15 +797,40 @@ export default function App() {
                 </span>
               </span>
             ) : studioEntityKind === 'shows' ? (
-              <span className="flex-1 min-w-0 flex items-center gap-1.5">
-                <PanelsTopLeft size={14} aria-hidden className="shrink-0 text-zinc-500" />
-                <span className="truncate text-zinc-200">{activeShow?.name ?? 'Shows'}</span>
+              <>
+                <span className="flex min-w-0 flex-1 items-center gap-1.5">
+                  <PanelsTopLeft size={14} aria-hidden className="shrink-0 text-zinc-500" />
+                  <InlineEntityTitle
+                    name={activeShow?.name ?? 'Shows'}
+                    noun="show"
+                    onRename={activeShow ? (nextName) => renameShow(activeShow.id, nextName) : undefined}
+                    takenNames={shows.filter((show) => show.id !== activeShow?.id).map((show) => show.name)}
+                  />
+                  {activeShow && (
+                    <>
+                      <span
+                        title="Show output contract"
+                        className="hidden rounded border border-zinc-800 bg-zinc-900/45 px-1.5 py-0.5 text-[9px] uppercase tracking-wide text-zinc-500 sm:inline"
+                      >
+                        {activeShow.outputContract?.kind === 'installation'
+                          ? 'Installation'
+                          : activeShow.outputContract?.kind === 'portable-2d'
+                            ? 'Portable 2D'
+                            : 'Legacy output'}
+                      </span>
+                      <span className="hidden rounded border border-zinc-800 bg-zinc-900/45 px-1.5 py-0.5 text-[9px] uppercase tracking-wide text-zinc-500 sm:inline">
+                        {activeShow.scenes.length} scenes
+                      </span>
+                    </>
+                  )}
+                </span>
                 {activeShow && (
-                  <span className="hidden rounded border border-zinc-700 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-structural sm:inline">
-                    {activeShow.scenes.length} scenes
-                  </span>
+                  <span
+                    ref={setShowHeaderActionsTarget}
+                    className="scrollbar-hidden ml-auto flex min-w-0 shrink-0 items-center gap-1.5 overflow-x-auto"
+                  />
                 )}
-              </span>
+              </>
             ) : studioEntityKind === 'maps' && editorFlavor !== 'map' ? (
               <span className="flex-1 min-w-0 flex items-center gap-1.5">
                 <MapIcon size={14} aria-hidden className="shrink-0 text-zinc-500" />
@@ -791,7 +855,12 @@ export default function App() {
             ) : (
               <>
             <span className="flex-1 min-w-0 flex items-center gap-1.5">
-              <span className="truncate text-zinc-200">{activeFileName}</span>
+              <InlineEntityTitle
+                name={activeFileName}
+                noun="pattern"
+                onRename={activePattern ? (nextName) => renamePattern(activePattern.id, nextName) : undefined}
+                takenNames={userPatterns.filter((pattern) => pattern.id !== activePattern?.id).map((pattern) => pattern.name)}
+              />
               {(activeLibraryName !== null || activeDemoName !== null) && (
                 <Lock
                   size={13}
@@ -850,8 +919,37 @@ export default function App() {
                 detail="Create or select a controller profile from the rail."
               />
             ) : studioEntityKind === 'shows' ? (
-              activeShowId !== null ? (
-                <ShowEditor showId={activeShowId} />
+              showCreation ? (
+                <ShowCreationFlow
+                  maps={showCreationMaps}
+                  onCancel={cancelShowCreation}
+                  onCreate={async (input) => {
+                    const created = await createNewShow(input)
+                    openShow(created.id)
+                  }}
+                />
+              ) : showClassification && showBeingClassified ? (
+                <ShowClassificationFlow
+                  show={showBeingClassified}
+                  maps={showCreationMaps}
+                  modeledPixelCount={showClassification.modeledPixelCount}
+                  targetControllerName={classificationTargetControllerName}
+                  reasons={showClassification.reasons}
+                  onCancel={() => {
+                    const previousShowId = showClassification.previousShowId
+                    cancelShowClassification()
+                    navigate({ kind: 'studio', entity: { kind: 'shows', id: previousShowId } })
+                  }}
+                  onConfirm={async (outputContract) => {
+                    await confirmShowClassification(outputContract)
+                    navigate({ kind: 'studio', entity: { kind: 'shows', id: showBeingClassified.id } }, { replace: true })
+                  }}
+                />
+              ) : activeShowId !== null ? (
+                <ShowEditor
+                  showId={activeShowId}
+                  headerActionsTarget={showHeaderActionsTarget}
+                />
               ) : (
                 <StudioPaneMessage
                   icon={<PanelsTopLeft size={18} aria-hidden />}
@@ -901,7 +999,11 @@ export default function App() {
               ? <ControllerSavedProgramsPane profile={activeControllerProfile} />
               : <EmptyContextPane label="Controller" />
           ) : studioEntityKind === 'shows' ? (
-            activeShowId !== null ? <ShowStagePreview showId={activeShowId} /> : <EmptyContextPane label="Shows" />
+            showCreation
+              ? <EmptyContextPane label="Output contract setup" />
+              : showClassification
+                ? <EmptyContextPane label="Legacy Show classification" />
+              : activeShowId !== null ? <ShowStagePreview showId={activeShowId} /> : <EmptyContextPane label="Shows" />
           ) : (
             <Preview />
           )}

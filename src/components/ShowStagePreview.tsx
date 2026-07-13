@@ -20,6 +20,8 @@ import { advanceAutoOrbit } from '@/engine/camera'
 import {
   applyShowStageMask,
   buildShowStageProjection,
+  buildShowLogicalStageProjection,
+  showLogicalAspectAdvisory,
   buildShowStripsLayout,
   buildShowStripControllerZones,
   type ShowStageProjection,
@@ -28,9 +30,10 @@ import { OrbitControls } from '@/components/OrbitControls'
 import { LIBRARIES } from '@/pixelblaze/libs'
 import { canAdvanceShowPlayback, useShowTransportStore } from '@/store/showTransportStore'
 import { showLoopDurationMs } from '@/engine/showModel'
-
-const field =
-  'h-7 rounded border border-zinc-700 bg-zinc-900 px-2 text-xs text-zinc-200 outline-none focus:border-live/70'
+import {
+  installationPhysicalZones,
+  validateInstallationCoverage,
+} from '@/engine/showInstallationCoverage'
 
 interface StageMapOption {
   id: string
@@ -72,7 +75,6 @@ export function ShowStagePreview({ showId }: { showId: string }) {
   const runtimeGenerationRef = useRef(0)
   const rendererRef = useRef<ReturnType<typeof createRenderer> | null>(null)
   const show = useShowStore((state) => state.shows.find((item) => item.id === showId))
-  const updateStageMap = useShowStore((state) => state.updateStageMap)
   const userPatterns = usePatternStore((state) => state.userPatterns)
   const userMaps = useMapStore((state) => state.userMaps)
   const controllerProfiles = useControllerProfileStore((state) => state.profiles)
@@ -90,6 +92,8 @@ export function ShowStagePreview({ showId }: { showId: string }) {
   const targetProfile = show?.targetControllerProfileId
     ? controllerProfiles.find((profile) => profile.id === show.targetControllerProfileId)
     : controllerProfiles[0]
+  const installationCoverage = show ? validateInstallationCoverage(show) : null
+  const savedPhysicalZones = show ? installationPhysicalZones(show) : undefined
 
   const stageMaps = useMemo((): StageMapOption[] => [
     ...STOCK_MAPS
@@ -113,7 +117,9 @@ export function ShowStagePreview({ showId }: { showId: string }) {
     () => show ? buildShowStripControllerZones(show.zones, targetProfile?.zones) : [],
     [show, targetProfile?.zones],
   )
-  const spatialControllerZones = selectedStageMap ? targetProfile?.zones : stripControllerZones
+  const portable = show?.outputContract?.kind === 'portable-2d'
+  const spatialControllerZones = savedPhysicalZones
+    ?? (portable ? undefined : selectedStageMap ? targetProfile?.zones : stripControllerZones)
   const compiled = useMemo(
     () =>
       show
@@ -141,6 +147,8 @@ export function ShowStagePreview({ showId }: { showId: string }) {
     const map = resolveMap(selectedStageMap.id, userMaps)
     const zoneTotal = show.zones.reduce((sum, zone) => sum + Math.max(0, Math.floor(zone.nominalPixelCount)), 0)
     const preferredPixelCount =
+      (show.outputContract?.kind === 'installation' ? show.outputContract.pixelCount : undefined) ??
+      (show.outputContract?.kind === 'portable-2d' ? show.outputContract.referencePixelCount : undefined) ??
       map.bakedCount ??
       selectedStageMap.bakedCount ??
       targetProfile?.lastKnownPixelCount ??
@@ -155,9 +163,16 @@ export function ShowStagePreview({ showId }: { showId: string }) {
         : [raw[0] ?? 0.5, raw[1] ?? 0.5] as [number, number]
       return { sample: [...pos], pos }
     })
-    const projection = buildShowStageProjection(show.zones, mapPoints.length, {
-      controllerZones: targetProfile?.zones,
-    })
+    const logical = show.outputContract?.kind === 'portable-2d'
+      ? show.routingLayouts[0]?.logical
+      : undefined
+    const projection = logical
+      ? buildShowLogicalStageProjection(show.zones, mapPoints, logical, {
+          splitPosition: show.scenes[0]?.routingTargets?.splitPosition ?? 0.5,
+        })
+      : buildShowStageProjection(show.zones, mapPoints.length, {
+          controllerZones: savedPhysicalZones ?? targetProfile?.zones,
+        })
 
     if (map.dim === 3) {
       return {
@@ -169,7 +184,7 @@ export function ShowStagePreview({ showId }: { showId: string }) {
         },
         projection,
         label: map.name,
-        note: null,
+        note: logical ? showLogicalAspectAdvisory(mapPoints, logical) : null,
       }
     }
 
@@ -182,9 +197,9 @@ export function ShowStagePreview({ showId }: { showId: string }) {
       },
       projection,
       label: map.name,
-      note: null,
+      note: logical ? showLogicalAspectAdvisory(mapPoints, logical) : null,
     }
-  }, [danglingStageMap, selectedStageMap, show, targetProfile?.lastKnownPixelCount, targetProfile?.zones, userMaps])
+  }, [danglingStageMap, savedPhysicalZones, selectedStageMap, show, targetProfile?.lastKnownPixelCount, targetProfile?.zones, userMaps])
   const effectiveSoloZoneId =
     layout?.projection.zones.some((zone) => zone.id === soloZoneId) ? soloZoneId : null
   const durationMs = show ? showLoopDurationMs(show) : 0
@@ -426,27 +441,12 @@ export function ShowStagePreview({ showId }: { showId: string }) {
           </span>
           <span className="ml-auto">{layout?.mapPoints.length ?? 0} px</span>
         </div>
-        <label className="block text-[10px] uppercase tracking-wider text-zinc-600">
+        <div aria-label="Show stage" className="block text-[10px] uppercase tracking-wider text-zinc-600">
           Stage
-          <select
-            aria-label="Show stage"
-            value={selectedStageMap?.id ?? ''}
-            onChange={(event) => void updateStageMap(show.id, event.target.value || null)}
-            className={`${field} mt-1 w-full`}
-          >
-            <option value="">Zone strips - generic</option>
-            <optgroup label="Stock maps">
-              {stageMaps.filter((map) => map.group === 'stock').map((map) => (
-                <option key={map.id} value={map.id}>{map.name}</option>
-              ))}
-            </optgroup>
-            <optgroup label="Your maps">
-              {stageMaps.filter((map) => map.group === 'user').map((map) => (
-                <option key={map.id} value={map.id}>{map.name}</option>
-              ))}
-            </optgroup>
-          </select>
-        </label>
+          <div className="mt-1 rounded border border-zinc-800 bg-zinc-900/60 px-2 py-1.5 text-xs normal-case tracking-normal text-zinc-300">
+            {selectedStageMap?.name ?? 'Zone strips - generic'}
+          </div>
+        </div>
         <div className="mt-2 rounded border border-zinc-800 bg-zinc-950/60 p-2 text-[10px] leading-4 text-zinc-500">
           <span className="inline-flex items-center gap-1 text-zinc-300">
             <MapIcon size={12} aria-hidden />
@@ -457,6 +457,18 @@ export function ShowStagePreview({ showId }: { showId: string }) {
             <div className="mt-1">{layout.projection.unstagedPixelCount} stage pixels are not covered by a show zone.</div>
           )}
         </div>
+        {installationCoverage?.layouts[0] && (
+          <div className={`mt-2 rounded border p-2 text-[10px] leading-4 ${installationCoverage.valid
+            ? 'border-emerald-900/60 bg-emerald-950/15 text-emerald-500'
+            : 'border-amber-800/60 bg-amber-950/20 text-amber-300'}`}
+          >
+            {installationCoverage.layouts[0].assignedPixelCount} assigned ·{' '}
+            {installationCoverage.layouts[0].missingPixelCount} missing ·{' '}
+            {installationCoverage.layouts[0].overlappingPixelCount} overlapping ·{' '}
+            {installationCoverage.layouts[0].outOfRangePixelCount} out of range ·{' '}
+            {installationCoverage.pixelCount} total
+          </div>
+        )}
 
         <div className="mt-4 flex items-center justify-between gap-2">
           <h3 className="text-[11px] font-semibold uppercase tracking-wider text-structural">Zones - solo</h3>

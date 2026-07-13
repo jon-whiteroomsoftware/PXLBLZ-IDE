@@ -2,11 +2,13 @@ import {
   stampArtifact,
   type ArtifactMapCompatibility,
   type ArtifactPreferredMap,
+  type ArtifactShowOutputContract,
 } from './artifactStamp'
 import { makeProgramId } from './bytecodePush'
 import { STOCK_MAP_SPECS } from './maps'
 import type { MapRecord, ShowRecord } from './personalContentRecords'
 import { normalizeShowTransitionState } from './showModel'
+import { buildStudioMapFingerprintCandidates } from './mapFingerprint'
 
 export interface ShowEpeExport {
   filename: string
@@ -42,6 +44,7 @@ export function buildShowEpeExport(
     ],
     preferredMap: mapMetadata.preferredMap,
     compatibility: mapMetadata.compatibility,
+    showOutputContract: mapMetadata.showOutputContract,
     stampedAt: options.stampedAt,
   })
   return {
@@ -91,6 +94,9 @@ function showArtifactHeader(
       ? [` * Preferred map: ${commentText(mapMetadata.preferredMap.name)} [${preferredMapReference(mapMetadata.preferredMap)}].`]
       : [' * Preferred map: none recorded.']),
     ` * Compatibility: ${describeMapCompatibility(mapMetadata.compatibility)}`,
+    ...(mapMetadata.showOutputContract
+      ? [` * Output contract: ${describeShowOutputContract(mapMetadata.showOutputContract)}`]
+      : []),
     ' * Scenes:',
     ...show.scenes.map((scene) => {
       const destinationId = switchByScene.get(scene.id)
@@ -114,7 +120,11 @@ function showArtifactHeader(
 function deriveShowArtifactMapMetadata(
   show: ShowRecord,
   userMaps: readonly MapRecord[],
-): { preferredMap?: ArtifactPreferredMap; compatibility: ArtifactMapCompatibility } {
+): {
+  preferredMap?: ArtifactPreferredMap
+  compatibility: ArtifactMapCompatibility
+  showOutputContract?: ArtifactShowOutputContract
+} {
   const stock = show.stageMapId ? STOCK_MAP_SPECS.find((map) => map.id === show.stageMapId) : undefined
   const custom = show.stageMapId ? userMaps.find((map) => map.id === show.stageMapId) : undefined
   const preferredMap: ArtifactPreferredMap | undefined = stock
@@ -125,15 +135,50 @@ function deriveShowArtifactMapMetadata(
   const adaptive = show.routingLayouts.length > 0 && show.routingLayouts.every((layout) => layout.logical !== undefined)
   const dimension = stock?.dim ?? custom?.dim
   const mapClass = stock?.kind ?? (custom ? 'custom' : undefined)
+  const showOutputContract = deriveArtifactShowOutputContract(show, userMaps, preferredMap)
+  const contractPortable = show.outputContract?.kind === 'portable-2d'
+  const contractInstallation = show.outputContract?.kind === 'installation'
   return {
     preferredMap,
     compatibility: {
-      portability: adaptive ? 'adaptive' : 'installation-bound',
-      dimensions: dimension ? [dimension] : [],
-      mapClasses: mapClass ? [mapClass] : [],
-      resolution: adaptive ? 'adaptive' : 'fixed',
-      exactMap: !adaptive,
+      portability: contractPortable ? 'adaptive' : contractInstallation ? 'installation-bound' : adaptive ? 'adaptive' : 'installation-bound',
+      dimensions: contractPortable ? [2] : dimension ? [dimension] : [],
+      mapClasses: contractPortable ? ['surface'] : mapClass ? [mapClass] : [],
+      resolution: contractPortable ? 'adaptive' : contractInstallation ? 'fixed' : adaptive ? 'adaptive' : 'fixed',
+      exactMap: contractInstallation ? true : contractPortable ? false : !adaptive,
     },
+    ...(showOutputContract ? { showOutputContract } : {}),
+  }
+}
+
+function deriveArtifactShowOutputContract(
+  show: ShowRecord,
+  userMaps: readonly MapRecord[],
+  preferredMap: ArtifactPreferredMap | undefined,
+): ArtifactShowOutputContract | undefined {
+  const contract = show.outputContract
+  if (!contract) return undefined
+  if (contract.kind === 'portable-2d') {
+    return {
+      version: 1,
+      kind: 'portable-2d',
+      dimensions: [2],
+      mapClasses: ['surface'],
+      resolution: 'variable',
+    }
+  }
+  const fingerprint = contract.outputMapId
+    ? buildStudioMapFingerprintCandidates({ userMaps: [...userMaps], pixelCount: contract.pixelCount })
+      .find((candidate) => candidate.id === contract.outputMapId)?.hash
+    : undefined
+  const outputMap = preferredMap
+    ? { ...preferredMap, ...(fingerprint ? { fingerprint } : {}) }
+    : undefined
+  return {
+    version: 1,
+    kind: 'installation',
+    pixelCount: contract.pixelCount,
+    ...(outputMap ? { outputMap } : {}),
   }
 }
 
@@ -148,6 +193,15 @@ function describeMapCompatibility(compatibility: ArtifactMapCompatibility): stri
     return `installation-bound ${dimensions} ${classes} map at fixed resolution; this artifact expects the authored installation/map.`
   }
   return `adaptive ${dimensions} ${classes} maps at adaptive resolution; other compatible maps may change the composition.`
+}
+
+function describeShowOutputContract(contract: ArtifactShowOutputContract): string {
+  if (contract.kind === 'installation') {
+    return `Installation · ${contract.pixelCount} px fixed${contract.outputMap ? ` · ${contract.outputMap.name}` : ''}${contract.outputMap?.fingerprint ? ` · fingerprint ${contract.outputMap.fingerprint}` : ''}`
+  }
+  const classes = contract.mapClasses.join('/') || 'compatible'
+  const aspect = contract.aspectRatio ? ` · aspect ${contract.aspectRatio.min}:${contract.aspectRatio.max}` : ''
+  return `Portable 2D · variable resolution · compatible ${classes} maps${aspect}`
 }
 
 function describeTransition(transition: NonNullable<ShowRecord['scenes'][number]['transitionOut']>): string {

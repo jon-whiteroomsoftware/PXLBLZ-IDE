@@ -1,8 +1,9 @@
 import { parseEpe } from './epeImport'
 import { parsePxlblzBanner } from './artifactStamp'
-import { addShowRoutingLayout, createDefaultShow, updateShowBoundaryTransition, updateShowRoutingSwitch, updateShowTransition } from './showModel'
+import { addShowRoutingLayout, createDefaultShow, createShowWithOutputContract, updateShowBoundaryTransition, updateShowRoutingSwitch, updateShowTransition } from './showModel'
 import { buildShowEpeExport } from './showEpeExport'
 import { createAdaptivePatternPrismShow } from './patternPrismShow'
+import { createInstallationShowOutputContract, createPortableShowOutputContract } from './showOutputContract'
 
 describe('Show EPE export (#399)', () => {
   it('round-trips a stamped generated Show through the standard EPE importer', () => {
@@ -130,5 +131,60 @@ describe('Show EPE export (#399)', () => {
     })
     expect(exported.source).not.toContain('local-map-42')
     expect(exported.source).toContain('this artifact expects the authored installation/map')
+  })
+
+  it('round-trips exact Installation output facts and a map fingerprint (#437)', () => {
+    const show = createShowWithOutputContract(
+      'show-fixed',
+      'Measured wall Show',
+      createInstallationShowOutputContract({ outputMapId: 'local-map-42', pixelCount: 4 }),
+      1000,
+    )
+    const exported = buildShowEpeExport(show, 'export function render2D() {}', {
+      userMaps: [{
+        id: 'local-map-42',
+        name: 'Measured wall',
+        dim: 2,
+        generator: 'custom',
+        params: {},
+        points: [[0, 0], [1, 0], [0, 1], [1, 1]],
+        updatedAt: 1,
+      }],
+      stampedAt: '2026-07-12T00:00:00.000Z',
+    })
+
+    expect(parseEpe(exported.text).stamp?.showOutputContract).toEqual({
+      version: 1,
+      kind: 'installation',
+      pixelCount: 4,
+      outputMap: {
+        kind: 'custom',
+        name: 'Measured wall',
+        fingerprint: expect.stringMatching(/^[0-9a-f]{8}$/),
+      },
+    })
+    expect(exported.source).toContain('Output contract: Installation · 4 px fixed · Measured wall')
+  })
+
+  it('round-trips Portable compatibility without promoting its reference output (#437)', () => {
+    const show = createShowWithOutputContract(
+      'show-portable',
+      'Portable Show',
+      createPortableShowOutputContract({ referenceMapId: 'wide', referencePixelCount: 1536 }),
+      1000,
+    )
+    const exported = buildShowEpeExport(show, 'export function render2D() {}', {
+      stampedAt: '2026-07-12T00:00:00.000Z',
+    })
+
+    expect(parseEpe(exported.text).stamp?.showOutputContract).toEqual({
+      version: 1,
+      kind: 'portable-2d',
+      dimensions: [2],
+      mapClasses: ['surface'],
+      resolution: 'variable',
+    })
+    expect(exported.source).toContain('Output contract: Portable 2D · variable resolution · compatible surface maps')
+    expect(exported.source).not.toContain('1536 px fixed')
   })
 })

@@ -62,6 +62,47 @@ export function viewportPercentToTime(viewport: ShowTimelineViewport, percent: n
   return clamp(viewport.startMs + viewport.durationMs * percent / 100, 0, viewport.totalMs)
 }
 
+export function showTimelineGridStepMs(visibleDurationMs: number, visibleWidthPx: number): number {
+  const rawStep = Math.max(100, visibleDurationMs * 80 / Math.max(1, visibleWidthPx))
+  const magnitude = 10 ** Math.floor(Math.log10(rawStep))
+  const normalized = rawStep / magnitude
+  const multiplier = normalized <= 1 ? 1 : normalized <= 2 ? 2 : normalized <= 5 ? 5 : 10
+  return multiplier * magnitude
+}
+
+export interface ShowTimelineSnapOptions {
+  visibleDurationMs: number
+  visibleWidthPx: number
+  structuralTimesMs: number[]
+  minTimeMs?: number
+  maxTimeMs?: number
+}
+
+export interface ShowTimelineSnapResult {
+  timeMs: number
+  kind?: 'boundary' | 'grid'
+}
+
+export function snapShowTimelineTime(
+  candidateTimeMs: number,
+  options: ShowTimelineSnapOptions,
+): ShowTimelineSnapResult {
+  const min = options.minTimeMs ?? 0
+  const max = options.maxTimeMs ?? Number.POSITIVE_INFINITY
+  const candidate = clamp(candidateTimeMs, min, max)
+  const thresholdMs = options.visibleDurationMs / Math.max(1, options.visibleWidthPx) * 10
+  const boundary = options.structuralTimesMs
+    .map((timeMs) => clamp(timeMs, min, max))
+    .filter((timeMs) => Math.abs(timeMs - candidate) <= thresholdMs)
+    .sort((left, right) => Math.abs(left - candidate) - Math.abs(right - candidate))[0]
+  if (boundary !== undefined) return { timeMs: boundary, kind: 'boundary' }
+
+  const gridStepMs = showTimelineGridStepMs(options.visibleDurationMs, options.visibleWidthPx)
+  const gridTimeMs = clamp(Math.round(candidate / gridStepMs) * gridStepMs, min, max)
+  if (Math.abs(gridTimeMs - candidate) <= thresholdMs) return { timeMs: gridTimeMs, kind: 'grid' }
+  return { timeMs: candidate }
+}
+
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value))
 }

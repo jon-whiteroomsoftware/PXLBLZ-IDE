@@ -56,9 +56,10 @@ Preserve these invariants:
 
 ## Development and verification
 
-Use the long-lived Vite server at `http://localhost:5174/`. Do not restart it
-casually; report an unavailable server before starting one. Local authenticated
-Studio calls proxy through Wrangler on port `8788`.
+Keep Vite on `5174` and Wrangler on `8788` running between tasks. If either is
+absent or unreachable, start it; never stop these servers when finishing a task.
+Run `npm run check:node` before starting them and activate a `package.json`
+supported Node version instead of macOS's system Node when it fails.
 
 Codex's command sandbox may be unable to reach host localhost even while these
 services are healthy. A sandboxed `curl` refusal is not evidence that a server

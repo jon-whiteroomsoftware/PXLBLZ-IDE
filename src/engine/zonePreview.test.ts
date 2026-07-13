@@ -1,6 +1,8 @@
 import {
   applyShowStageMask,
   buildShowStageProjection,
+  buildShowLogicalStageProjection,
+  showLogicalAspectAdvisory,
   buildShowStageStrips,
   buildShowStripsLayout,
   buildZonePreviewStrips,
@@ -196,6 +198,45 @@ describe('selectControllerPreviewZones', () => {
 })
 
 describe('show stage projection', () => {
+  it.each([
+    { columns: 32, rows: 32 },
+    { columns: 128, rows: 12 },
+  ])('preserves normalized left/right boundaries at $columns x $rows (#436)', ({ columns, rows }) => {
+    const mapPoints = Array.from({ length: columns * rows }, (_, index) => ({
+      sample: [(index % columns) / (columns - 1), Math.floor(index / columns) / (rows - 1)],
+    }))
+    const projection = buildShowLogicalStageProjection(showZones, mapPoints, {
+      kind: 'stripes',
+      axis: 'x',
+      zoneIds: ['arch', 'wash'],
+    })
+
+    expect(projection.unstagedPixelCount).toBe(0)
+    expect(projection.zones.map((zone) => zone.pixelCount)).toEqual([
+      columns / 2 * rows,
+      columns / 2 * rows,
+    ])
+    expect(projection.pixelZoneIds[columns / 2 - 1]).toBe('arch')
+    expect(projection.pixelZoneIds[columns / 2]).toBe('wash')
+  })
+
+  it('discloses a narrow coordinate axis used by a logical grid (#436)', () => {
+    const mapPoints = [
+      { sample: [0, 0] },
+      { sample: [1, 0] },
+      { sample: [0, 0.5] },
+      { sample: [1, 0.5] },
+    ]
+    expect(showLogicalAspectAdvisory(mapPoints, {
+      kind: 'grid',
+      columns: 2,
+      rows: 2,
+      zoneIds: ['nw', 'ne', 'sw', 'se'],
+    })).toBe(
+      'Reference map preserves about a 2.0:1 aspect. Y boundaries use its 0.00-0.50 normalized coordinate range, so some position-based zones may be narrow or empty.',
+    )
+  })
+
   const showZones: ShowZone[] = [
     { id: 'arch', name: 'arch-left', nominalPixelCount: 3, color: '#38bdf8' },
     { id: 'wash', name: 'rock-wash', nominalPixelCount: 2, color: '#f97316' },

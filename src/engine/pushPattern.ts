@@ -158,6 +158,7 @@ export async function pushPattern(deps: PushPatternDeps): Promise<PushPatternRes
     artifactHash: stamp.hash,
     stampedAt: stamp.stamped,
     name: deps.name ?? '',
+    ...(stamp.showOutputContract ? { showOutputContract: stamp.showOutputContract } : {}),
   }))
 
   return { programId, created: isNew }

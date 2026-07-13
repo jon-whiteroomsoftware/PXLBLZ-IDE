@@ -127,9 +127,15 @@ describe('pushPattern — save mode (persist: true)', () => {
       id: 'show-1',
       name: 'Opening Night',
       transforms: ['show'],
+      showOutputContract: {
+        version: 1,
+        kind: 'installation',
+        pixelCount: 256,
+        outputMap: { kind: 'stock', id: 'plane', name: 'Square', fingerprint: '11111111' },
+      },
       stampedAt: '2026-07-11T12:00:00.000Z',
     })
-    const { deps } = makeDeps({
+    const { deps, pushRecords } = makeDeps({
       persist: true,
       patternId: 'show:show-1',
       name: 'Opening Night',
@@ -139,6 +145,12 @@ describe('pushPattern — save mode (persist: true)', () => {
         id: 'show-1',
         name: 'Opening Night',
         transforms: ['show'],
+        showOutputContract: {
+          version: 1,
+          kind: 'installation',
+          pixelCount: 256,
+          outputMap: { kind: 'stock', id: 'plane', name: 'Square', fingerprint: '11111111' },
+        },
         stampedAt: '2026-07-11T12:00:00.000Z',
       },
     })
@@ -154,6 +166,18 @@ describe('pushPattern — save mode (persist: true)', () => {
       id: 'show-1',
       name: 'Opening Night',
       transforms: ['show'],
+      showOutputContract: { kind: 'installation', pixelCount: 256 },
+    })
+    expect(pushRecords[0]).toMatchObject({
+      'ctrl-A': {
+        'show:show-1': {
+          showOutputContract: {
+            kind: 'installation',
+            pixelCount: 256,
+            outputMap: { name: 'Square', fingerprint: '11111111' },
+          },
+        },
+      },
     })
   })
 

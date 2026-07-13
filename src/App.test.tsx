@@ -21,6 +21,8 @@ import {
   initializePersonalContentProvider,
   resetPersonalContentProvider,
 } from '@/engine/personalContentProvider'
+import { createDefaultShow } from '@/engine/showModel'
+import { createPortableShowOutputContract } from '@/engine/showOutputContract'
 
 // Hold the startup auth probe pending so the smoke tests exercise the studio
 // shell without the signed-out Gallery redirect kicking in mid-test; the
@@ -191,6 +193,78 @@ describe('routing (#308)', () => {
     src: '// @param PIN input\n// @target CONTROL\n// @wraps beforeRender\nexport var x = 0',
     updatedAt: 1,
   }
+
+  it('renames a user Pattern from the middle-pane title', async () => {
+    const user = userEvent.setup()
+    const renamePattern = vi.fn()
+    window.history.replaceState(null, '', '/studio/patterns/p-1')
+    seedSignedInWorkspace()
+    usePatternStore.setState({ userPatterns: [record], patternsLoaded: true, renamePattern })
+
+    render(<App />)
+
+    const editorPane = screen.getByTestId('editor-pane')
+    await user.click(await within(editorPane).findByRole('button', { name: 'Rename pattern Deep Linked' }))
+    await user.clear(within(editorPane).getByRole('textbox', { name: 'Pattern name' }))
+    await user.type(within(editorPane).getByRole('textbox', { name: 'Pattern name' }), 'Night Pattern{Enter}')
+    expect(renamePattern).toHaveBeenCalledWith(record.id, 'Night Pattern')
+  })
+
+  it('renames a Show from the middle-pane title', async () => {
+    const user = userEvent.setup()
+    const renameShow = vi.fn()
+    const show = createDefaultShow('show-header', 'Aurora Show', 1000)
+    show.outputContract = createPortableShowOutputContract({ referenceMapId: 'plane', referencePixelCount: 1024 })
+    window.history.replaceState(null, '', '/studio/shows/show-header')
+    seedSignedInWorkspace()
+    useShowStore.setState({ shows: [show], showsLoaded: true, activeShowId: show.id, renameShow })
+
+    render(<App />)
+
+    const editorPane = screen.getByTestId('editor-pane')
+    await user.click(within(editorPane).getByRole('button', { name: 'Rename show Aurora Show' }))
+    await user.clear(within(editorPane).getByRole('textbox', { name: 'Show name' }))
+    await user.type(within(editorPane).getByRole('textbox', { name: 'Show name' }), 'Night Show')
+    await user.click(within(editorPane).getByRole('button', { name: 'Apply show name' }))
+    expect(renameShow).toHaveBeenCalledWith(show.id, 'Night Show')
+  })
+
+  it('keeps Controller profile titles non-editable', () => {
+    window.history.replaceState(null, '', '/studio/controllers/ctrl-1')
+    seedSignedInWorkspace()
+    useControllerProfileStore.setState({ profiles: [controllerProfile], profilesLoaded: true })
+
+    render(<App />)
+
+    const editorPane = screen.getByTestId('editor-pane')
+    expect(within(editorPane).getAllByText('Pixelblaze shelf').length).toBeGreaterThan(0)
+    expect(within(editorPane).queryByRole('button', { name: /Rename controller/ })).not.toBeInTheDocument()
+  })
+
+  it('puts Show details and quiet Show metadata in the title row', async () => {
+    const user = userEvent.setup()
+    const show = createDefaultShow('show-header', 'Simplest possible show', 1000)
+    show.outputContract = createPortableShowOutputContract({ referenceMapId: 'plane', referencePixelCount: 1024 })
+    window.history.replaceState(null, '', '/studio/shows/show-header')
+    seedSignedInWorkspace()
+    useShowStore.setState({ shows: [show], showsLoaded: true, activeShowId: show.id })
+
+    render(<App />)
+
+    const editorPane = screen.getByTestId('editor-pane')
+    expect(within(editorPane).getAllByText('Simplest possible show').length).toBeGreaterThan(0)
+    expect(within(editorPane).getByText('Portable 2D')).toBeInTheDocument()
+    expect(within(editorPane).getByText('2 scenes')).toBeInTheDocument()
+    expect(within(editorPane).getByRole('button', { name: 'Show properties' })).toBeInTheDocument()
+    expect(within(editorPane).getByRole('button', { name: 'View code' })).toBeInTheDocument()
+    expect(within(editorPane).getByRole('button', { name: 'Export Show as .epe' })).toHaveTextContent('.epe')
+    expect(within(editorPane).queryByText('View generated pattern')).not.toBeInTheDocument()
+
+    await user.click(within(editorPane).getAllByRole('button', { name: /Select TestPattern1D/i })[0])
+    expect(within(editorPane).getByRole('heading', { name: 'Clip properties' })).toBeInTheDocument()
+    await user.click(within(editorPane).getByRole('button', { name: 'Show properties' }))
+    expect(within(editorPane).getByRole('heading', { name: 'Show properties' })).toBeInTheDocument()
+  })
 
   it('sends signed-out visitors from /studio to the one-time Studio welcome page', () => {
     window.history.replaceState(null, '', '/studio')

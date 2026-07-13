@@ -34,6 +34,7 @@ import { DEMOS } from '@/pixelblaze/stock/patterns'
 import { useControllerStore } from '@/store/controllerStore'
 import { usePatternStore } from '@/store/patternStore'
 import { useRouterStore } from '@/store/routerStore'
+import type { ArtifactShowOutputContract } from '@/engine/artifactStamp'
 
 const tableHeadClass = 'px-2 py-1 text-left text-[10px] font-semibold uppercase text-zinc-500'
 const tableCellClass = 'border-t border-zinc-800/85 px-2 py-1.5 align-middle'
@@ -79,6 +80,18 @@ function FreshnessBadge({ freshness }: { freshness: TransformFreshness }) {
       {presentation.label}
     </span>
   )
+}
+
+function SavedProgramOutputContract({ contract }: { contract?: ArtifactShowOutputContract }) {
+  if (!contract) return <span>-</span>
+  if (contract.kind === 'installation') {
+    return (
+      <span title={contract.outputMap?.fingerprint ? `Map fingerprint ${contract.outputMap.fingerprint}` : undefined}>
+        Installation · {contract.pixelCount} px{contract.outputMap ? ` · ${contract.outputMap.name}` : ''}
+      </span>
+    )
+  }
+  return <span>Portable 2D · variable · {contract.mapClasses.join('/')}</span>
 }
 
 function EmptyState({ children }: { children: React.ReactNode }) {
@@ -235,6 +248,7 @@ function SavedProgramsInventory({
                 <th className={tableHeadClass}>Pattern</th>
                 <th className={tableHeadClass}>Program id</th>
                 <th className={tableHeadClass}>Transforms</th>
+                <th className={tableHeadClass}>Output</th>
                 <th className={tableHeadClass}><span className="sr-only">Actions</span></th>
               </tr>
             </thead>
@@ -261,6 +275,9 @@ function SavedProgramsInventory({
                   <td className={tableCellClass}>
                     <FreshnessBadge freshness={program.freshness} />
                   </td>
+                  <td className={`${tableCellClass} text-[10px] text-zinc-400`}>
+                    <SavedProgramOutputContract contract={program.showOutputContract} />
+                  </td>
                   <td className={`${tableCellClass} text-right`}>
                     <ProgramImportButton
                       program={program}
@@ -274,7 +291,7 @@ function SavedProgramsInventory({
               {programs.foreign.length > 0 && (
                 <tr>
                   <td
-                    colSpan={4}
+                    colSpan={5}
                     className="border-t border-zinc-800 bg-zinc-950/70 px-2 py-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-500"
                   >
                     Foreign programs · {programs.foreign.length}
@@ -288,6 +305,7 @@ function SavedProgramsInventory({
                   <td className={tableCellClass}>
                     <FreshnessBadge freshness={program.freshness} />
                   </td>
+                  <td className={`${tableCellClass} text-[10px] text-zinc-600`}>-</td>
                   <td className={`${tableCellClass} text-right`}>
                     <ProgramImportButton
                       program={program}

@@ -1,8 +1,11 @@
+import type { ArtifactShowOutputContract } from './artifactStamp'
+
 export interface ControllerPushRecord {
   transforms: string[]
   artifactHash: string
   stampedAt: string
   name: string
+  showOutputContract?: ArtifactShowOutputContract
 }
 
 export type ControllerPushRecords = Record<string, Record<string, ControllerPushRecord>>
@@ -23,6 +26,7 @@ export function withPushRecord(
       [patternId]: {
         ...record,
         transforms: [...record.transforms],
+        ...(record.showOutputContract ? { showOutputContract: structuredClone(record.showOutputContract) } : {}),
       },
     },
   }

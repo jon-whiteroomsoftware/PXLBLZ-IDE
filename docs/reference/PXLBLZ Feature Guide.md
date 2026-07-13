@@ -90,6 +90,14 @@ The Studio is a three-pane environment:
 - the right pane supplies context: Pattern preview, map wiring check, mixin
   provenance, library API reference, saved Controller programs, or Show Stage.
 
+The center-pane title is also the rename control for personal Patterns, maps,
+mixins, libraries, and Shows. Click the title, edit the name, and confirm with
+Return or the check button; Escape or the cancel button leaves the name
+unchanged. Library names remain Pixelblaze identifiers because the name is also
+the namespace. Built-in and stock content is read-only, and Controller profile
+names continue to mirror the physical Controller instead of being renamed in
+Studio.
+
 PXLBLZ remains a single-document editor. Opening a map or library changes the
 editor context; it does not create a tab or silently apply that object to the
 running Pattern.
