@@ -303,6 +303,60 @@ export function createShowToolkitFixtureRecipes(): ShowToolkitFixtureRecipe[] {
         },
       }))
     )),
+    ...(['grow-incoming', 'shrink-outgoing'] as const).flatMap((revealMode) => (
+      (['ellipse', 'rounded-box', 'cross', 'heart', 'star', 'crescent', 'cat-head', 'cat-side-profile', 'bastet'] as const)
+        .map((shape): ShowToolkitFixtureRecipe => {
+          const shapeSettings = catalogueShapeSettings(shape)
+          return {
+            ...shared,
+            id: `shape-reveal-${shape}-${revealMode}`,
+            familyId: 'shape-reveal',
+            variantId: shape,
+            persistedRecord: persistedRecord(`shape-reveal-${shape}-${revealMode}`, {
+              kind: 'portal', durationMs: 1000,
+              centerX: 0.5, centerY: 0.5, feather: 0.05,
+              revealMode, invert: revealMode === 'shrink-outgoing',
+              edgePolicy: 'dither', featherPolicy: 'dither',
+              shape, scale: 0.9, ...shapeSettings,
+            }),
+            recipe: {
+              clips: clips(),
+              routeTransition: {
+                kind: 'portal', startMs: 1000, durationMs: 1000,
+                centerX: 0.5, centerY: 0.5, feather: 0.05,
+                revealMode, invert: revealMode === 'shrink-outgoing',
+                edgePolicy: 'dither', featherPolicy: 'dither',
+                shape, scale: 0.9, ...shapeSettings,
+              },
+            },
+          }
+        })
+    )),
+    ...(['grow-incoming', 'shrink-outgoing'] as const).flatMap((revealMode) => (
+      ([3, 4, 5, 6, 7, 8] as const).map((polygonSides): ShowToolkitFixtureRecipe => ({
+        ...shared,
+        id: `shape-reveal-polygon-${polygonSides}-${revealMode}`,
+        familyId: 'shape-reveal',
+        variantId: 'polygon',
+        persistedRecord: persistedRecord(`shape-reveal-polygon-${polygonSides}-${revealMode}`, {
+          kind: 'portal', durationMs: 1000,
+          centerX: 0.5, centerY: 0.5, feather: 0.05,
+          revealMode, invert: revealMode === 'shrink-outgoing',
+          edgePolicy: 'dither', featherPolicy: 'dither',
+          shape: 'polygon', scale: 0.9, polygonSides, rotation: 0.05, aspect: 1,
+        }),
+        recipe: {
+          clips: clips(),
+          routeTransition: {
+            kind: 'portal', startMs: 1000, durationMs: 1000,
+            centerX: 0.5, centerY: 0.5, feather: 0.05,
+            revealMode, invert: revealMode === 'shrink-outgoing',
+            edgePolicy: 'dither', featherPolicy: 'dither',
+            shape: 'polygon', scale: 0.9, polygonSides, rotation: 0.05, aspect: 1,
+          },
+        },
+      }))
+    )),
     ...(['cover', 'reveal', 'push', 'content-grow', 'content-shrink'] as const).map((motionVariant): ShowToolkitFixtureRecipe => ({
       ...shared,
       id: `motion-${motionVariant}`,
@@ -328,6 +382,22 @@ export function createShowToolkitFixtureRecipes(): ShowToolkitFixtureRecipe[] {
       },
     })),
   ]
+}
+
+function catalogueShapeSettings(
+  shape: 'ellipse' | 'rounded-box' | 'cross' | 'heart' | 'star' | 'crescent' | 'cat-head' | 'cat-side-profile' | 'bastet',
+): Partial<Pick<
+  ShowBoundaryTransition,
+  'aspect' | 'rotation' | 'cornerRadius' | 'crossWidth' | 'starPoints' | 'starInner' | 'crescentOffset'
+>> {
+  if (shape === 'ellipse') return { aspect: 1.6, rotation: 0.08 }
+  if (shape === 'rounded-box') return { aspect: 1.4, rotation: 0.08, cornerRadius: 0.35 }
+  if (shape === 'cross') return { aspect: 1.2, rotation: 0.125, crossWidth: 0.3 }
+  if (shape === 'star') return { aspect: 1, rotation: 0.05, starPoints: 5, starInner: 0.45 }
+  if (shape === 'crescent') return { aspect: 1.1, rotation: 0.08, crescentOffset: 0.45 }
+  if (shape === 'cat-side-profile') return { aspect: 1.6, rotation: 0 }
+  if (shape === 'bastet') return { aspect: 0.65, rotation: 0 }
+  return { aspect: 1, rotation: 0 }
 }
 
 function directionalWipeRecord(

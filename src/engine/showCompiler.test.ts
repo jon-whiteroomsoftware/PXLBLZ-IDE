@@ -5,6 +5,7 @@ import { DEMOS } from '@/pixelblaze/stock/patterns'
 import { remapShowIndex, remapShowSample } from './showCoordinateRemap'
 import { showWipeMaskPosition, type ShowWipeSettings } from './showWipe'
 import { showCoherentDissolveField } from './showDissolve'
+import { showShapeRevealSignedDistance } from './showShapeReveal'
 
 interface LoadedShow {
   handle: PatternHandle
@@ -2389,6 +2390,44 @@ export function render(index) { rgb(elapsed, time(1), index) }
       transitionCost: 'route', routePolicy: 'portal-hard', worstInstantRenderersPerPixel: 1,
       cost: { cpu: { patternEvaluations: { formula: 'N', basePerPixel: 1 } } },
     })
+  })
+
+  it.each([
+    ['ellipse', { shape: 'ellipse', aspect: 1.6, rotation: 0.125 }],
+    ['rounded-box', { shape: 'rounded-box', aspect: 1.4, rotation: 0.125, cornerRadius: 0.35 }],
+    ['cross', { shape: 'cross', aspect: 1.2, rotation: 0.125, crossWidth: 0.3 }],
+    ['heart', { shape: 'heart', aspect: 1, rotation: 0 }],
+    ['star', { shape: 'star', starPoints: 5, starInner: 0.45, rotation: 0.05 }],
+    ['crescent', { shape: 'crescent', aspect: 1.1, crescentOffset: 0.45, rotation: 0.1 }],
+    ['triangle', { shape: 'polygon', polygonSides: 3, rotation: 0.05 }],
+    ['octagon', { shape: 'polygon', polygonSides: 8, rotation: 0.05 }],
+    ['cat-head', { shape: 'cat-head', aspect: 1, rotation: 0 }],
+    ['cat-side-profile', { shape: 'cat-side-profile', aspect: 1.6, rotation: 0 }],
+    ['bastet', { shape: 'bastet', aspect: 0.65, rotation: 0 }],
+  ] as const)('matches the pure %s SDF sign in generated output (#452)', (_name, settings) => {
+    const x = 0.28
+    const y = 0.47
+    const artifact = compileShow({
+      clips: [
+        { id: 'from', source: 'export function render2D(index, x, y) { rgb(1, 0, 0) }' },
+        { id: 'to', source: 'export function render2D(index, x, y) { rgb(0, 1, 0) }' },
+      ],
+      routeTransition: {
+        kind: 'portal', startMs: 1000, durationMs: 1000,
+        centerX: 0.5, centerY: 0.5, revealMode: 'grow-incoming',
+        scale: 1, feather: 0, edgePolicy: 'hard', ...settings,
+      },
+    }, {})
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 16)
+
+    handle.beforeRender(1550)
+    handle.render2D(0, x, y)
+    const signed = showShapeRevealSignedDistance({
+      x, y, centerX: 0.5, centerY: 0.5, progress: 0.55,
+      revealMode: 'grow-incoming', scale: 1, ...settings,
+    })
+    expect(pixel()).toEqual(signed <= 0 ? [0, 1, 0] : [1, 0, 0])
+    expect(artifact.summary.artifactBudgetRatio).toBeLessThan(1)
   })
 
   it('runs hard Cover through transformed incoming coordinates with one renderer per pixel (#449)', () => {

@@ -101,6 +101,21 @@ describe('Show visual-toolkit contract', () => {
         { value: 'shrink-outgoing', label: 'Shrink outgoing' },
       ]) }),
     ]))
+    expect(getShowToolkitFamily('transition', 'shape-reveal')?.variants.map((variant) => variant.id))
+      .toEqual([
+        'circle', 'ellipse', 'box', 'rounded-box', 'diamond', 'cross', 'ring',
+        'heart', 'star', 'crescent', 'polygon', 'cat-head', 'cat-side-profile', 'bastet',
+      ])
+    expect(resolveShowToolkitParameters('transition', 'shape-reveal', 'star', {}).map((parameter) => parameter.id))
+      .toEqual(expect.arrayContaining(['starPoints', 'starInner', 'aspect', 'rotation']))
+    expect(resolveShowToolkitParameters('transition', 'shape-reveal', 'crescent', {}).map((parameter) => parameter.id))
+      .toContain('crescentOffset')
+    expect(resolveShowToolkitParameters('transition', 'shape-reveal', 'polygon', {}).map((parameter) => parameter.id))
+      .toContain('polygonSides')
+    const catParameters = resolveShowToolkitParameters('transition', 'shape-reveal', 'cat-head', {}).map((parameter) => parameter.id)
+    expect(catParameters).not.toContain('starPoints')
+    expect(catParameters).not.toContain('polygonSides')
+    expect(catParameters).not.toContain('ringWidth')
 
     expect(getShowToolkitFamily('transition', 'blend')?.variants.find((variant) => variant.id === 'crossfade')?.presets)
       .toEqual(expect.arrayContaining([
@@ -275,6 +290,12 @@ describe('Show visual-toolkit contract', () => {
       'shape-reveal-box-grow-incoming',
       'shape-reveal-circle-shrink-outgoing',
       'shape-reveal-box-shrink-outgoing',
+      ...['ellipse', 'rounded-box', 'cross', 'heart', 'star', 'crescent', 'cat-head', 'cat-side-profile', 'bastet']
+        .map((shape) => `shape-reveal-${shape}-grow-incoming`),
+      ...['ellipse', 'rounded-box', 'cross', 'heart', 'star', 'crescent', 'cat-head', 'cat-side-profile', 'bastet']
+        .map((shape) => `shape-reveal-${shape}-shrink-outgoing`),
+      ...[3, 4, 5, 6, 7, 8].map((sides) => `shape-reveal-polygon-${sides}-grow-incoming`),
+      ...[3, 4, 5, 6, 7, 8].map((sides) => `shape-reveal-polygon-${sides}-shrink-outgoing`),
       'motion-cover',
       'motion-reveal',
       'motion-push',

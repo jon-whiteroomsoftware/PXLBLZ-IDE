@@ -80,7 +80,10 @@ export type ShowDissolveVariant = 'pixel' | 'block' | 'coherent-noise' | 'soft-t
 export type ShowWipeVariant = 'linear' | 'split' | 'barn-doors' | 'blinds' | 'clock' | 'checker' | 'grid'
 export type ShowWipeMode = 'center-out' | 'center-in'
 export type ShowWipeOrientation = 'horizontal' | 'vertical'
-export type ShowSpatialShape = 'circle' | 'box' | 'diamond' | 'ring'
+export type ShowSpatialShape =
+  | 'circle' | 'ellipse' | 'box' | 'rounded-box' | 'diamond' | 'cross' | 'ring'
+  | 'heart' | 'star' | 'crescent' | 'polygon'
+  | 'cat-head' | 'cat-side-profile' | 'bastet'
 export type ShowRevealMode = 'grow-incoming' | 'shrink-outgoing'
 export type ShowMotionTransitionVariant = 'cover' | 'reveal' | 'push' | 'content-grow' | 'content-shrink'
 export type ShowMotionAddressPolicy = 'clip' | 'wrap'
@@ -148,6 +151,12 @@ export interface ShowPortalSettings {
   revealMode?: ShowRevealMode
   aspect?: number
   edgePolicy?: ShowTransitionEdgePolicy
+  cornerRadius?: number
+  crossWidth?: number
+  starPoints?: number
+  starInner?: number
+  crescentOffset?: number
+  polygonSides?: number
 }
 
 export interface ShowTransition {
@@ -184,6 +193,12 @@ export interface ShowTransition {
   ringWidth?: number
   revealMode?: ShowRevealMode
   aspect?: number
+  cornerRadius?: number
+  crossWidth?: number
+  starPoints?: number
+  starInner?: number
+  crescentOffset?: number
+  polygonSides?: number
   motionVariant?: ShowMotionTransitionVariant
   anchorX?: number
   anchorY?: number
@@ -268,6 +283,12 @@ export interface ShowBoundaryTransition {
   ringWidth?: number
   revealMode?: ShowRevealMode
   aspect?: number
+  cornerRadius?: number
+  crossWidth?: number
+  starPoints?: number
+  starInner?: number
+  crescentOffset?: number
+  polygonSides?: number
   motionVariant?: ShowMotionTransitionVariant
   anchorX?: number
   anchorY?: number

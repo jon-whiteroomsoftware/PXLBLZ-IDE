@@ -1125,6 +1125,36 @@ band and reports `N + E`. Deterministic fixtures cover both reveal modes for
 Circle and rotated/aspect-scaled Box while retaining the legacy Circle,
 Diamond, and Ring fixtures.
 
+The expanded catalogue adds Ellipse, Rounded box, Cross, Heart, Star,
+Crescent, Regular polygon, Cat head, Side-profile cat, and Bastet. Regular
+polygon clamps Sides to `3..8`; Star uses `3..12` points and Inner radius
+`0.2..0.8`. Rounded box blends the box and elliptical norms through Corner
+roundness. Cross takes the union of horizontal and vertical rectangular norms.
+Crescent subtracts an offset inner circle from an aspect-scaled outer ellipse,
+so its cutout is a real hole rather than a concave outline approximation.
+
+The remaining silhouettes use cheap homogeneous polar metrics. Heart varies
+its radial boundary with first- and second-order sine/cosine terms. Star and
+regular polygons use repeated angular sectors. The three signature cats use
+distinct low-order angular bumps: paired ears around a head, asymmetric
+head/tail/leg lobes for the side profile, and a narrow seated body with paired
+ears for Bastet. These candidates deliberately trade anatomical detail for
+low-resolution readability and generated-math cost. Their engine contract is
+shipped, but visual approval remains an explicit #452 human gate.
+
+All catalogue shapes share center, scale, reveal mode, feather, edge policy,
+and easing. Aspect and rotation appear only on shapes whose metric uses them;
+Corner roundness, Arm width, Star points/inner radius, Crescent cutout offset,
+Polygon sides, and Ring width are shape-specific. Both Grow Incoming and Shrink
+Outgoing use the same metric with opposite polarity. Hard/dither remain `N`;
+Blend remains `N + E`.
+
+Twenty-four representative Heart/Star/Crescent/Polygon/cat fixtures compile to
+8,246-8,680 bytes. The largest candidate is 12.693% of the measured 68,384-byte
+device budget. These measurements cover generated artifact size, not hardware
+FPS; representative-device FPS and silhouette approval remain recorded in the
+focused #452 review plan.
+
 Motion is a separate Transition family because it remaps Pattern coordinates
 rather than changing a coverage shape. Cover moves the incoming content across
 a stationary outgoing source. Reveal moves the outgoing content away from a

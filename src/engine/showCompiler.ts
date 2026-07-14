@@ -141,6 +141,12 @@ export interface ShowRouteTransitionRecipe {
   rotation?: number
   spin?: number
   ringWidth?: number
+  cornerRadius?: number
+  crossWidth?: number
+  starPoints?: number
+  starInner?: number
+  crescentOffset?: number
+  polygonSides?: number
   motionVariant?: ShowMotionTransitionVariant
   anchorX?: number
   anchorY?: number
@@ -176,6 +182,12 @@ export interface ShowSceneSequenceTransitionRecipe {
   rotation?: number
   spin?: number
   ringWidth?: number
+  cornerRadius?: number
+  crossWidth?: number
+  starPoints?: number
+  starInner?: number
+  crescentOffset?: number
+  polygonSides?: number
   motionVariant?: ShowMotionTransitionVariant
   anchorX?: number
   anchorY?: number
@@ -1676,12 +1688,24 @@ function emitPortalRenderBlock(
   const centerX = clampNumber(transition.centerX ?? 0.5, 0, 1)
   const centerY = clampNumber(transition.centerY ?? 0.5, 0, 1)
   const feather = clampNumber(transition.feather ?? 0, 0, 1)
-  const shape = transition.shape === 'box' || transition.shape === 'diamond' || transition.shape === 'ring' ? transition.shape : 'circle'
+  const supportedShapes: ShowSpatialShape[] = [
+    'circle', 'ellipse', 'box', 'rounded-box', 'diamond', 'cross', 'ring',
+    'heart', 'star', 'crescent', 'polygon', 'cat-head', 'cat-side-profile', 'bastet',
+  ]
+  const shape = supportedShapes.includes(transition.shape as ShowSpatialShape)
+    ? transition.shape as ShowSpatialShape
+    : 'circle'
   const scale = clampNumber(transition.scale ?? 1, 0.25, 2)
   const rotation = clampNumber(transition.rotation ?? 0, -1, 1)
   const spin = clampNumber(transition.spin ?? 0, -4, 4)
   const ringWidth = clampNumber(transition.ringWidth ?? 0.12, 0.02, 1)
   const aspect = clampNumber(transition.aspect ?? 1, 0.25, 4)
+  const cornerRadius = clampNumber(transition.cornerRadius ?? 0.3, 0, 1)
+  const crossWidth = clampNumber(transition.crossWidth ?? 0.32, 0.1, 0.9)
+  const starPoints = Math.round(clampNumber(transition.starPoints ?? 5, 3, 12))
+  const starInner = clampNumber(transition.starInner ?? 0.45, 0.2, 0.8)
+  const crescentOffset = clampNumber(transition.crescentOffset ?? 0.45, 0.15, 0.8)
+  const polygonSides = Math.round(clampNumber(transition.polygonSides ?? 6, 3, 8))
   const revealMode = normalizeShowRevealMode(transition.revealMode, transition.invert)
   const edgePolicy = resolvePortalEdgePolicy(transition)
   const maxRadius = Math.max(
@@ -1694,7 +1718,12 @@ function emitPortalRenderBlock(
     ? maxRadius * Math.SQRT2
     : shape === 'box'
       ? showShapeRevealMaxDistance({ centerX, centerY, shape, aspect, rotation })
-      : maxRadius
+      : shape === 'circle' || shape === 'ring'
+        ? maxRadius
+        : showShapeRevealMaxDistance({
+            centerX, centerY, shape, aspect, rotation,
+            cornerRadius, crossWidth, starPoints, starInner, polygonSides,
+          })
   const radiusScale = transition.scale === undefined ? '' : ` * ${scale}`
   const radius = revealMode === 'shrink-outgoing'
     ? `${shapeRadius} * (1 - __pxlblz_show_mix)${radiusScale}`
@@ -1706,6 +1735,10 @@ var __pxlblz_show_portal_cos = cos(__pxlblz_show_portal_angle)
 var __pxlblz_show_portal_sin = sin(__pxlblz_show_portal_angle)
 var __pxlblz_show_portal_rx = __pxlblz_show_portal_dx * __pxlblz_show_portal_cos + __pxlblz_show_portal_dy * __pxlblz_show_portal_sin
 var __pxlblz_show_portal_ry = -__pxlblz_show_portal_dx * __pxlblz_show_portal_sin + __pxlblz_show_portal_dy * __pxlblz_show_portal_cos`
+  const rootAspect = Math.sqrt(aspect)
+  const catalogueMetric = portalCatalogueMetricExpression({
+    shape, cornerRadius, crossWidth, starPoints, starInner, polygonSides,
+  })
   const distancePrelude = shape === 'diamond'
     ? `var __pxlblz_show_portal_dx = x - ${centerX}
 var __pxlblz_show_portal_dy = y - ${centerY}
@@ -1718,9 +1751,20 @@ var __pxlblz_show_portal_distance = abs(__pxlblz_show_portal_rx) + abs(__pxlblz_
     : shape === 'box'
       ? `${rotatedPrelude}
 var __pxlblz_show_portal_distance = max(abs(__pxlblz_show_portal_rx) / ${Math.sqrt(aspect)}, abs(__pxlblz_show_portal_ry) * ${Math.sqrt(aspect)})`
-    : `var __pxlblz_show_portal_distance = hypot(x - ${centerX}, y - ${centerY})`
+    : shape === 'circle' || shape === 'ring'
+      ? `var __pxlblz_show_portal_distance = hypot(x - ${centerX}, y - ${centerY})`
+      : `${rotatedPrelude}
+var __pxlblz_show_portal_sx = __pxlblz_show_portal_rx / ${rootAspect}
+var __pxlblz_show_portal_sy = __pxlblz_show_portal_ry * ${rootAspect}
+${catalogueMetric.prelude ? `${catalogueMetric.prelude}\n` : ''}var __pxlblz_show_portal_distance = ${catalogueMetric.expression}`
+  const crescentSigned = `max(
+  hypot(__pxlblz_show_portal_sx, __pxlblz_show_portal_sy) - __pxlblz_show_portal_radius,
+  __pxlblz_show_portal_radius * 0.78 - hypot(__pxlblz_show_portal_sx - ${crescentOffset} * __pxlblz_show_portal_radius, __pxlblz_show_portal_sy)
+)`
   const signedDistance = shape === 'ring'
     ? `abs(__pxlblz_show_portal_distance - __pxlblz_show_portal_radius) - ${ringWidth / 2}`
+    : shape === 'crescent'
+      ? revealMode === 'shrink-outgoing' ? `-(${crescentSigned})` : crescentSigned
     : revealMode === 'shrink-outgoing'
       ? '__pxlblz_show_portal_radius - __pxlblz_show_portal_distance'
       : '__pxlblz_show_portal_distance - __pxlblz_show_portal_radius'
@@ -1771,6 +1815,77 @@ if (__pxlblz_show_portal_mix >= 1 || (__pxlblz_show_portal_mix > 0 && __pxlblz_s
 var __pxlblz_show_portal_radius = ${radius}
 var __pxlblz_show_portal_signed = ${signedDistance}
 ${transitionBody}`
+}
+
+function portalCatalogueMetricExpression(input: {
+  shape: ShowSpatialShape
+  cornerRadius: number
+  crossWidth: number
+  starPoints: number
+  starInner: number
+  polygonSides: number
+}): { prelude: string; expression: string } {
+  const x = '__pxlblz_show_portal_sx'
+  const y = '__pxlblz_show_portal_sy'
+  const radial = `hypot(${x}, ${y})`
+  const box = `max(abs(${x}), abs(${y}))`
+  if (input.shape === 'ellipse' || input.shape === 'crescent') return { prelude: '', expression: radial }
+  if (input.shape === 'rounded-box') {
+    return {
+      prelude: '',
+      expression: `${box} * ${1 - input.cornerRadius} + ${radial} * ${input.cornerRadius}`,
+    }
+  }
+  if (input.shape === 'cross') {
+    return {
+      prelude: '',
+      expression: `min(max(abs(${x}), abs(${y}) / ${input.crossWidth}), max(abs(${x}) / ${input.crossWidth}, abs(${y})))`,
+    }
+  }
+  const angle = '__pxlblz_show_portal_shape_angle'
+  const prelude = `var ${angle} = atan2(${y}, ${x})`
+  if (input.shape === 'polygon') {
+    const sector = Math.PI * 2 / input.polygonSides
+    const local = `(frac((${angle} + ${sector / 2}) / ${sector}) * ${sector} - ${sector / 2})`
+    return {
+      prelude,
+      expression: `${radial} * cos(${local}) / ${Math.cos(Math.PI / input.polygonSides)}`,
+    }
+  }
+  if (input.shape === 'star') {
+    const phase = `frac(${angle} / ${Math.PI * 2} * ${input.starPoints})`
+    const spike = `1 - 2 * abs(${phase} - 0.5)`
+    return {
+      prelude,
+      expression: `${radial} / (${input.starInner} + ${1 - input.starInner} * (${spike}))`,
+    }
+  }
+  if (input.shape === 'heart') {
+    return {
+      prelude,
+      expression: `${radial} / max(0.25, 0.75 + 0.2 * sin(${angle}) - 0.15 * cos(${angle} * 2))`,
+    }
+  }
+  if (input.shape === 'cat-head') {
+    const ears = `${angularBumpExpression(angle, -2.2, 0.38)} + ${angularBumpExpression(angle, -0.94, 0.38)}`
+    return { prelude, expression: `${radial} / (0.72 + 0.42 * (${ears}))` }
+  }
+  if (input.shape === 'cat-side-profile') {
+    return {
+      prelude,
+      expression: `${radial} / (0.62 + 0.3 * ${angularBumpExpression(angle, -0.2, 0.65)} + 0.38 * ${angularBumpExpression(angle, -2.75, 0.42)} + 0.22 * ${angularBumpExpression(angle, 1.35, 0.34)})`,
+    }
+  }
+  const ears = `${angularBumpExpression(angle, -1.96, 0.3)} + ${angularBumpExpression(angle, -1.18, 0.3)}`
+  return {
+    prelude,
+    expression: `${radial} / (0.55 + 0.34 * (${ears}) + 0.38 * ${angularBumpExpression(angle, Math.PI / 2, 0.68)})`,
+  }
+}
+
+function angularBumpExpression(angle: string, target: number, width: number): string {
+  const tau = Math.PI * 2
+  return `max(0, 1 - abs(frac((${angle} - ${target} + ${Math.PI}) / ${tau}) * ${tau} - ${Math.PI}) / ${width})`
 }
 
 function resolvePortalEdgePolicy(

@@ -1,5 +1,6 @@
 import {
   normalizeShowRevealMode,
+  showShapeRevealDistance,
   showShapeRevealSignedDistance,
 } from './showShapeReveal'
 import { createDefaultShow, normalizeShowTransitionState, showRecordToCompileRecipe } from './showModel'
@@ -66,5 +67,44 @@ describe('Grow Incoming and Shrink Outgoing shape reveals (#448)', () => {
     expect(compileShow(recipe, {}).summary.cost.cpu.patternEvaluations).toEqual({
       formula: 'N + E', basePerPixel: 1, additionalPerEdgePixel: 1,
     })
+  })
+})
+
+describe('common and signature SDF catalogue (#452)', () => {
+  it('evaluates every common, polygon, and signature metric deterministically', () => {
+    const shapes = [
+      'ellipse', 'rounded-box', 'cross', 'heart', 'star', 'crescent',
+      'polygon', 'cat-head', 'cat-side-profile', 'bastet',
+    ] as const
+    const metrics = shapes.map((shape) => showShapeRevealDistance({
+      x: 0.76, y: 0.31, centerX: 0.5, centerY: 0.5, shape,
+      aspect: 1.4, rotation: 0.125, cornerRadius: 0.35, crossWidth: 0.3,
+      starPoints: 5, starInner: 0.45, polygonSides: 6,
+    }))
+    metrics.forEach((metric) => {
+      expect(metric).toBeGreaterThanOrEqual(0)
+      expect(Number.isFinite(metric)).toBe(true)
+    })
+    expect(new Set(metrics.map((metric) => metric.toFixed(6))).size).toBeGreaterThanOrEqual(8)
+    expect(showShapeRevealDistance({
+      x: 0.76, y: 0.31, centerX: 0.5, centerY: 0.5,
+      shape: 'polygon', polygonSides: 3,
+    })).not.toBe(showShapeRevealDistance({
+      x: 0.76, y: 0.31, centerX: 0.5, centerY: 0.5,
+      shape: 'polygon', polygonSides: 8,
+    }))
+  })
+
+  it('cuts a real crescent hole while preserving Grow and Shrink polarity', () => {
+    const shared = {
+      centerX: 0.5, centerY: 0.5, shape: 'crescent' as const,
+      progress: 0.65, scale: 1, crescentOffset: 0.45,
+    }
+    const litCrescent = showShapeRevealSignedDistance({ ...shared, x: 0.32, y: 0.5, revealMode: 'grow-incoming' })
+    const cutout = showShapeRevealSignedDistance({ ...shared, x: 0.58, y: 0.5, revealMode: 'grow-incoming' })
+    expect(litCrescent).toBeLessThan(0)
+    expect(cutout).toBeGreaterThan(0)
+    expect(showShapeRevealSignedDistance({ ...shared, x: 0.32, y: 0.5, revealMode: 'shrink-outgoing' }))
+      .toBeGreaterThan(0)
   })
 })

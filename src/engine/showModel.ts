@@ -1075,6 +1075,12 @@ export function normalizeShowTransitionState(show: ShowRecord): ShowRecord {
                 ringWidth: scene.transitionOut.ringWidth,
                 revealMode: scene.transitionOut.revealMode,
                 aspect: scene.transitionOut.aspect,
+                cornerRadius: scene.transitionOut.cornerRadius,
+                crossWidth: scene.transitionOut.crossWidth,
+                starPoints: scene.transitionOut.starPoints,
+                starInner: scene.transitionOut.starInner,
+                crescentOffset: scene.transitionOut.crescentOffset,
+                polygonSides: scene.transitionOut.polygonSides,
                 edgePolicy: scene.transitionOut.edgePolicy,
               }
             : {}),
@@ -1378,8 +1384,22 @@ function normalizeSpatialShapeSettings(transition: {
   spin?: number
   ringWidth?: number
   aspect?: number
-}): Pick<ShowBoundaryTransition, 'shape' | 'scale' | 'rotation' | 'spin' | 'ringWidth' | 'aspect'> {
-  if (transition.shape !== 'circle' && transition.shape !== 'box' && transition.shape !== 'diamond' && transition.shape !== 'ring') return {}
+  cornerRadius?: number
+  crossWidth?: number
+  starPoints?: number
+  starInner?: number
+  crescentOffset?: number
+  polygonSides?: number
+}): Partial<Pick<
+  ShowBoundaryTransition,
+  | 'shape' | 'scale' | 'rotation' | 'spin' | 'ringWidth' | 'aspect'
+  | 'cornerRadius' | 'crossWidth' | 'starPoints' | 'starInner' | 'crescentOffset' | 'polygonSides'
+>> {
+  const shapes: ShowSpatialShape[] = [
+    'circle', 'ellipse', 'box', 'rounded-box', 'diamond', 'cross', 'ring',
+    'heart', 'star', 'crescent', 'polygon', 'cat-head', 'cat-side-profile', 'bastet',
+  ]
+  if (!shapes.includes(transition.shape as ShowSpatialShape)) return {}
   const base = {
     shape: transition.shape,
     scale: clampRange(transition.scale ?? 1, 0.25, 2),
@@ -1398,10 +1418,51 @@ function normalizeSpatialShapeSettings(transition: {
       rotation: clampRange(transition.rotation ?? 0, -1, 1),
     }
   }
+  if (transition.shape === 'ellipse') {
+    return {
+      ...base,
+      aspect: clampRange(transition.aspect ?? 1.5, 0.25, 4),
+      rotation: clampRange(transition.rotation ?? 0, -1, 1),
+    }
+  }
+  if (transition.shape === 'rounded-box') {
+    return {
+      ...base,
+      aspect: clampRange(transition.aspect ?? 1, 0.25, 4),
+      rotation: clampRange(transition.rotation ?? 0, -1, 1),
+      cornerRadius: clamp01(transition.cornerRadius ?? 0.3),
+    }
+  }
+  if (transition.shape === 'cross') {
+    return {
+      ...base,
+      aspect: clampRange(transition.aspect ?? 1, 0.25, 4),
+      rotation: clampRange(transition.rotation ?? 0, -1, 1),
+      crossWidth: clampRange(transition.crossWidth ?? 0.32, 0.1, 0.9),
+    }
+  }
   if (transition.shape === 'ring') {
     return { ...base, ringWidth: clampRange(transition.ringWidth ?? 0.12, 0.02, 1) }
   }
-  return base
+  const shaped = {
+    ...base,
+    aspect: clampRange(transition.aspect ?? (transition.shape === 'cat-side-profile' ? 1.6 : transition.shape === 'bastet' ? 0.65 : 1), 0.25, 4),
+    rotation: clampRange(transition.rotation ?? 0, -1, 1),
+  }
+  if (transition.shape === 'star') {
+    return {
+      ...shaped,
+      starPoints: Math.round(clampRange(transition.starPoints ?? 5, 3, 12)),
+      starInner: clampRange(transition.starInner ?? 0.45, 0.2, 0.8),
+    }
+  }
+  if (transition.shape === 'crescent') {
+    return { ...shaped, crescentOffset: clampRange(transition.crescentOffset ?? 0.45, 0.15, 0.8) }
+  }
+  if (transition.shape === 'polygon') {
+    return { ...shaped, polygonSides: Math.round(clampRange(transition.polygonSides ?? 6, 3, 8)) }
+  }
+  return shaped
 }
 
 function normalizeEasing(easing: ShowBoundaryTransition['easing'] | undefined): ShowBoundaryTransition['easing'] {
@@ -1450,6 +1511,12 @@ function boundaryToLegacyTransition(
           rotation: transition.rotation,
           spin: transition.spin,
           ringWidth: transition.ringWidth,
+          cornerRadius: transition.cornerRadius,
+          crossWidth: transition.crossWidth,
+          starPoints: transition.starPoints,
+          starInner: transition.starInner,
+          crescentOffset: transition.crescentOffset,
+          polygonSides: transition.polygonSides,
           revealMode: transition.revealMode,
           aspect: transition.aspect,
           edgePolicy: transition.edgePolicy,
@@ -1600,6 +1667,12 @@ export function updateShowTransition(
         rotation: portal.rotation ?? currentPortal?.rotation,
         spin: portal.spin ?? currentPortal?.spin,
         ringWidth: portal.ringWidth ?? currentPortal?.ringWidth,
+        cornerRadius: portal.cornerRadius ?? currentPortal?.cornerRadius,
+        crossWidth: portal.crossWidth ?? currentPortal?.crossWidth,
+        starPoints: portal.starPoints ?? currentPortal?.starPoints,
+        starInner: portal.starInner ?? currentPortal?.starInner,
+        crescentOffset: portal.crescentOffset ?? currentPortal?.crescentOffset,
+        polygonSides: portal.polygonSides ?? currentPortal?.polygonSides,
         revealMode: portal.revealMode ?? currentPortal?.revealMode,
         aspect: portal.aspect ?? currentPortal?.aspect,
         edgePolicy: portal.edgePolicy ?? currentPortal?.edgePolicy,
