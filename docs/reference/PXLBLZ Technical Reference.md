@@ -1215,11 +1215,46 @@ a Clip's Pattern clears that Clip's prior control targets at the model boundary.
 ### Show Effects
 
 An Effect is a clip-owned single-source operation. The persisted stack contains
-stable Effect ids and preserves authored order. Opacity, translate, rotate,
-scale, and shear expose numeric targets through the same boundary-owned Property
-descriptor used by Animation speed and Brightness. Wrap has no curve; it is an
+stable Effect ids and preserves authored order. Opacity, brightness, hue,
+saturation, contrast, invert, threshold, posterize, color map, translate,
+rotate, scale, and shear expose numeric targets through the same boundary-owned
+Property descriptor used by Animation speed. Wrap has no curve; it is an
 address policy applied after the complete affine transform. Add, update, move,
 remove, JSON reload, and normalization remain pure `showModel.ts` operations.
+
+The stack has two explicit evaluation stages because coordinate operations must
+run before the Pattern renderer and output operations must run after it.
+Translate, rotate, scale, and shear compose in their relative authored order;
+Wrap applies once after that matrix. The renderer captures raw RGB. Legacy Clip
+brightness then runs as the implicit first output operation, followed by
+Opacity and color/output Effects in their relative authored order. The Clip
+border mask runs last so an out-of-bounds coordinate remains the black Show
+background even when Invert or Color map is active. Interleaving a coordinate
+Effect and an output Effect in the persisted list does not move either across
+the renderer boundary.
+
+Legacy `adaptations.brightness` records and their Property animations retain
+their schema compatibility view, but RGB and HSV capture no longer evaluate
+brightness. Both legacy brightness and the explicit Brightness Effect use the
+single post-capture output evaluator. Existing output is unchanged, and there
+is no second brightness path.
+
+The common output catalogue uses these normalized parameters:
+
+- Brightness multiplies RGB by `0..2`; `1` is neutral.
+- Hue rotates RGB around the neutral-gray axis in turns; `0` is neutral.
+- Saturation blends each channel around Rec. 709 luma; `1` is neutral.
+- Contrast scales each channel around `0.5`; `1` is neutral.
+- Invert blends toward `1 - channel`; Amount `0` is neutral.
+- Threshold blends toward a black/white Rec. 709 luma comparison; Amount `0`
+  is neutral.
+- Posterize rounds each channel to `2..32` levels; Amount `0` is neutral.
+- Color map remaps Rec. 709 luma between authored shadow and highlight RGB
+  endpoints; Amount `0` is neutral.
+
+Every neutral static output Effect is eliminated with no generated-code change.
+Non-neutral operations clamp only where their definition requires it, and
+preview uses the same formulas and authored order as generated Pixelblaze code.
 
 Affine order describes content motion. The compiler composes forward content
 matrices in list order around normalized center `(0.5, 0.5)`, then inverts the
@@ -1232,8 +1267,9 @@ per frame. This produces the literal runtime order:
 3. mirror adaptation;
 4. the inverse composed clip Effect matrix;
 5. post-transform Clip or Wrap addressing;
-6. one member renderer call; and
-7. clip-border masking and Opacity toward the black Show background.
+6. one member renderer call;
+7. legacy brightness and ordered output Effects; and
+8. clip-border masking toward the black Show background.
 
 Clip addressing clamps the source coordinate for a deterministic renderer call,
 then masks samples outside `[0, 1]` to black. Wrap instead uses
@@ -1244,10 +1280,13 @@ emits exactly the pre-Effect artifact.
 
 The compiled cost contract reports `N` Pattern evaluations for the single-source
 path plus independent Effect facts: affine operations and animated parameters
-updated per frame, eight scalar affine operations per evaluated pixel, three
-Opacity multiplies per evaluated pixel when active, generated scalar globals,
-and Clip versus Wrap addressing. These facts remain separate from Transition
-renderer cost such as `2N` Crossfade.
+updated per frame, eight scalar affine operations per evaluated pixel, active
+output-Effect count, color scalar operations, floor calls, trigonometric calls,
+three Opacity multiplies per evaluated pixel when active, generated scalar
+globals, and Clip versus Wrap addressing. Static Hue uses two trigonometric
+calls per evaluated pixel in the current generated implementation; the cost
+report exposes that expense rather than hiding it. These facts remain separate
+from Transition renderer cost such as `2N` Crossfade.
 
 ### Show sample remapping
 

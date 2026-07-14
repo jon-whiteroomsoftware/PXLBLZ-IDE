@@ -15,6 +15,10 @@ export interface ShowCompiledCostMetadata {
       animatedParametersPerFrame: number
       affineScalarOpsPerEvaluatedPixel: number
       opacityMultipliesPerEvaluatedPixel: number
+      colorEffectsPerEvaluatedPixel: number
+      colorScalarOpsPerEvaluatedPixel: number
+      colorFloorCallsPerEvaluatedPixel: number
+      colorTrigCallsPerEvaluatedPixel: number
       addressPolicy: 'none' | 'clip' | 'wrap'
     }
   }
@@ -119,16 +123,34 @@ export const SHOW_VISUAL_TOOLKIT_REGISTRY: ShowToolkitFamilyDescriptor[] = [
     kind: 'effect',
     id: 'output',
     label: 'Output',
-    variants: [{
-      id: 'opacity',
-      label: 'Opacity',
-      costPolicies: ['single-source', 'parameter'],
-      compatibility: { stageDimensions: [1, 2, 3] },
-      presets: [{ id: 'half', label: 'Half', values: { opacity: 0.5 } }],
-    }],
-    parameters: [{
-      id: 'opacity', label: 'Opacity', kind: 'number', defaultValue: 1, min: 0, max: 1, step: 0.01,
-    }, EASING],
+    variants: [
+      { id: 'opacity', label: 'Opacity', costPolicies: ['single-source', 'parameter'], compatibility: { stageDimensions: [1, 2, 3] }, presets: [{ id: 'half', label: 'Half', values: { opacity: 0.5 } }] },
+      { id: 'brightness', label: 'Brightness', costPolicies: ['single-source', 'parameter'], compatibility: { stageDimensions: [1, 2, 3] } },
+      { id: 'hue', label: 'Hue', costPolicies: ['single-source', 'parameter'], compatibility: { stageDimensions: [1, 2, 3] } },
+      { id: 'saturation', label: 'Saturation', costPolicies: ['single-source', 'parameter'], compatibility: { stageDimensions: [1, 2, 3] }, presets: [{ id: 'grayscale', label: 'Grayscale', values: { saturation: 0 } }] },
+      { id: 'contrast', label: 'Contrast', costPolicies: ['single-source', 'parameter'], compatibility: { stageDimensions: [1, 2, 3] } },
+      { id: 'invert', label: 'Invert', costPolicies: ['single-source', 'parameter'], compatibility: { stageDimensions: [1, 2, 3] }, presets: [{ id: 'full', label: 'Full', values: { amount: 1 } }] },
+      { id: 'threshold', label: 'Threshold', costPolicies: ['single-source', 'parameter'], compatibility: { stageDimensions: [1, 2, 3] } },
+      { id: 'posterize', label: 'Posterize', costPolicies: ['single-source', 'parameter'], compatibility: { stageDimensions: [1, 2, 3] } },
+      { id: 'color-map', label: 'Color map', costPolicies: ['single-source', 'parameter'], compatibility: { stageDimensions: [1, 2, 3] } },
+    ],
+    parameters: [
+      { id: 'opacity', label: 'Opacity', kind: 'number', defaultValue: 1, min: 0, max: 1, step: 0.01, variantIds: ['opacity'] },
+      { id: 'brightness', label: 'Brightness', kind: 'number', defaultValue: 1, min: 0, max: 2, step: 0.01, variantIds: ['brightness'] },
+      { id: 'turns', label: 'Hue shift', kind: 'number', defaultValue: 0, min: -8, max: 8, step: 0.01, unit: 'turn', variantIds: ['hue'] },
+      { id: 'saturation', label: 'Saturation', kind: 'number', defaultValue: 1, min: 0, max: 2, step: 0.01, variantIds: ['saturation'] },
+      { id: 'contrast', label: 'Contrast', kind: 'number', defaultValue: 1, min: 0, max: 4, step: 0.01, variantIds: ['contrast'] },
+      { id: 'amount', label: 'Amount', kind: 'number', defaultValue: 0, min: 0, max: 1, step: 0.01, variantIds: ['invert', 'threshold', 'posterize', 'color-map'] },
+      { id: 'threshold', label: 'Threshold', kind: 'number', defaultValue: 0.5, min: 0, max: 1, step: 0.01, variantIds: ['threshold'] },
+      { id: 'levels', label: 'Levels', kind: 'number', defaultValue: 8, min: 2, max: 32, step: 1, variantIds: ['posterize'] },
+      { id: 'shadowR', label: 'Shadow red', kind: 'number', defaultValue: 0, min: 0, max: 1, step: 0.01, variantIds: ['color-map'] },
+      { id: 'shadowG', label: 'Shadow green', kind: 'number', defaultValue: 0, min: 0, max: 1, step: 0.01, variantIds: ['color-map'] },
+      { id: 'shadowB', label: 'Shadow blue', kind: 'number', defaultValue: 0, min: 0, max: 1, step: 0.01, variantIds: ['color-map'] },
+      { id: 'highlightR', label: 'Highlight red', kind: 'number', defaultValue: 1, min: 0, max: 1, step: 0.01, variantIds: ['color-map'] },
+      { id: 'highlightG', label: 'Highlight green', kind: 'number', defaultValue: 1, min: 0, max: 1, step: 0.01, variantIds: ['color-map'] },
+      { id: 'highlightB', label: 'Highlight blue', kind: 'number', defaultValue: 1, min: 0, max: 1, step: 0.01, variantIds: ['color-map'] },
+      EASING,
+    ],
   },
   {
     kind: 'effect',
@@ -508,6 +530,10 @@ export function buildShowCompiledCostMetadata(input: {
         animatedParametersPerFrame: input.effects?.animatedParametersPerFrame ?? 0,
         affineScalarOpsPerEvaluatedPixel: input.effects?.affineScalarOpsPerEvaluatedPixel ?? 0,
         opacityMultipliesPerEvaluatedPixel: input.effects?.opacityMultipliesPerEvaluatedPixel ?? 0,
+        colorEffectsPerEvaluatedPixel: input.effects?.colorEffectsPerEvaluatedPixel ?? 0,
+        colorScalarOpsPerEvaluatedPixel: input.effects?.colorScalarOpsPerEvaluatedPixel ?? 0,
+        colorFloorCallsPerEvaluatedPixel: input.effects?.colorFloorCallsPerEvaluatedPixel ?? 0,
+        colorTrigCallsPerEvaluatedPixel: input.effects?.colorTrigCallsPerEvaluatedPixel ?? 0,
         addressPolicy: input.effects?.addressPolicy ?? 'none',
       },
     },

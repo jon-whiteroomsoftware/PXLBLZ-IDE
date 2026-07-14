@@ -17,6 +17,8 @@ export interface ShowEffectSample {
   addressPolicy: 'clip' | 'wrap'
 }
 
+export type ShowRgb = [number, number, number]
+
 const IDENTITY: ShowAffineMatrix = { a: 1, b: 0, c: 0, d: 1, tx: 0, ty: 0 }
 
 export function normalizeShowClipEffects(effects: readonly ShowClipEffect[] | null | undefined): ShowClipEffect[] {
@@ -29,6 +31,24 @@ export function normalizeShowClipEffects(effects: readonly ShowClipEffect[] | nu
     while (ids.has(id)) id = `${baseId}-${suffix++}`
     ids.add(id)
     if (effect.kind === 'opacity') return [{ id, kind: 'opacity' as const, opacity: clamp(effect.opacity, 0, 1, 1) }]
+    if (effect.kind === 'brightness') return [{ id, kind: 'brightness' as const, brightness: clamp(effect.brightness, 0, 2, 1) }]
+    if (effect.kind === 'hue') return [{ id, kind: 'hue' as const, turns: clamp(effect.turns, -8, 8, 0) }]
+    if (effect.kind === 'saturation') return [{ id, kind: 'saturation' as const, saturation: clamp(effect.saturation, 0, 2, 1) }]
+    if (effect.kind === 'contrast') return [{ id, kind: 'contrast' as const, contrast: clamp(effect.contrast, 0, 4, 1) }]
+    if (effect.kind === 'invert') return [{ id, kind: 'invert' as const, amount: clamp(effect.amount, 0, 1, 0) }]
+    if (effect.kind === 'threshold') return [{
+      id, kind: 'threshold' as const,
+      threshold: clamp(effect.threshold, 0, 1, 0.5), amount: clamp(effect.amount, 0, 1, 0),
+    }]
+    if (effect.kind === 'posterize') return [{
+      id, kind: 'posterize' as const,
+      levels: Math.round(clamp(effect.levels, 2, 32, 8)), amount: clamp(effect.amount, 0, 1, 0),
+    }]
+    if (effect.kind === 'color-map') return [{
+      id, kind: 'color-map' as const, amount: clamp(effect.amount, 0, 1, 0),
+      shadowR: clamp(effect.shadowR, 0, 1, 0), shadowG: clamp(effect.shadowG, 0, 1, 0), shadowB: clamp(effect.shadowB, 0, 1, 0),
+      highlightR: clamp(effect.highlightR, 0, 1, 1), highlightG: clamp(effect.highlightG, 0, 1, 1), highlightB: clamp(effect.highlightB, 0, 1, 1),
+    }]
     if (effect.kind === 'translate') return [{
       id, kind: 'translate' as const,
       x: clamp(effect.x, -2, 2, 0), y: clamp(effect.y, -2, 2, 0),
@@ -49,7 +69,14 @@ export function normalizeShowClipEffects(effects: readonly ShowClipEffect[] | nu
 
 export function showEffectParameterNames(effect: ShowClipEffect): string[] {
   if (effect.kind === 'opacity') return ['opacity']
-  if (effect.kind === 'rotate') return ['turns']
+  if (effect.kind === 'brightness') return ['brightness']
+  if (effect.kind === 'hue' || effect.kind === 'rotate') return ['turns']
+  if (effect.kind === 'saturation') return ['saturation']
+  if (effect.kind === 'contrast') return ['contrast']
+  if (effect.kind === 'invert') return ['amount']
+  if (effect.kind === 'threshold') return ['threshold', 'amount']
+  if (effect.kind === 'posterize') return ['levels', 'amount']
+  if (effect.kind === 'color-map') return ['amount', 'shadowR', 'shadowG', 'shadowB', 'highlightR', 'highlightG', 'highlightB']
   if (effect.kind === 'wrap') return []
   return ['x', 'y']
 }
@@ -71,7 +98,97 @@ export function showEffectsAreIdentity(effects: readonly ShowClipEffect[] | unde
     || (effect.kind === 'shear' && (effect.x !== 0 || effect.y !== 0))
   ))
   const hasOpacity = normalized.some((effect) => effect.kind === 'opacity' && effect.opacity !== 1)
-  return !hasAffine && !hasOpacity
+  const hasColor = normalized.some((effect) => (
+    (effect.kind === 'brightness' && effect.brightness !== 1)
+    || (effect.kind === 'hue' && effect.turns !== 0)
+    || (effect.kind === 'saturation' && effect.saturation !== 1)
+    || (effect.kind === 'contrast' && effect.contrast !== 1)
+    || (effect.kind === 'invert' && effect.amount !== 0)
+    || (effect.kind === 'threshold' && effect.amount !== 0)
+    || (effect.kind === 'posterize' && effect.amount !== 0)
+    || (effect.kind === 'color-map' && effect.amount !== 0)
+  ))
+  return !hasAffine && !hasOpacity && !hasColor
+}
+
+export function isShowColorEffect(effect: ShowClipEffect): boolean {
+  return !['translate', 'rotate', 'scale', 'shear', 'wrap'].includes(effect.kind)
+}
+
+export function showEffectNumericValue(effect: ShowClipEffect, parameter: string): number {
+  if (parameter in effect && typeof (effect as unknown as Record<string, unknown>)[parameter] === 'number') {
+    return (effect as unknown as Record<string, number>)[parameter]
+  }
+  throw new Error(`Effect "${effect.id}" has no numeric parameter "${parameter}".`)
+}
+
+export function applyShowColorEffects(
+  effects: readonly ShowClipEffect[] | undefined,
+  color: ShowRgb,
+  legacyBrightness = 1,
+): ShowRgb {
+  let current: ShowRgb = color.map((channel) => channel * legacyBrightness) as ShowRgb
+  for (const effect of normalizeShowClipEffects(effects)) {
+    if (effect.kind === 'opacity') {
+      current = current.map((channel) => channel * effect.opacity) as ShowRgb
+    } else if (effect.kind === 'brightness') {
+      current = current.map((channel) => clamp01(channel * effect.brightness)) as ShowRgb
+    } else if (effect.kind === 'hue') {
+      const matrix = showHueRotationMatrix(effect.turns)
+      current = applyColorMatrix(current, matrix)
+    } else if (effect.kind === 'saturation') {
+      const luma = showColorLuma(current)
+      current = current.map((channel) => clamp01(luma + (channel - luma) * effect.saturation)) as ShowRgb
+    } else if (effect.kind === 'contrast') {
+      current = current.map((channel) => clamp01((channel - 0.5) * effect.contrast + 0.5)) as ShowRgb
+    } else if (effect.kind === 'invert') {
+      current = current.map((channel) => channel * (1 - effect.amount) + (1 - channel) * effect.amount) as ShowRgb
+    } else if (effect.kind === 'threshold') {
+      const target = showColorLuma(current) >= effect.threshold ? 1 : 0
+      current = current.map((channel) => channel * (1 - effect.amount) + target * effect.amount) as ShowRgb
+    } else if (effect.kind === 'posterize') {
+      const span = effect.levels - 1
+      current = current.map((channel) => {
+        const target = Math.floor(channel * span + 0.5) / span
+        return channel * (1 - effect.amount) + target * effect.amount
+      }) as ShowRgb
+    } else if (effect.kind === 'color-map') {
+      const luma = clamp01(showColorLuma(current))
+      const mapped: ShowRgb = [
+        effect.shadowR + (effect.highlightR - effect.shadowR) * luma,
+        effect.shadowG + (effect.highlightG - effect.shadowG) * luma,
+        effect.shadowB + (effect.highlightB - effect.shadowB) * luma,
+      ]
+      current = current.map((channel, index) => channel * (1 - effect.amount) + mapped[index] * effect.amount) as ShowRgb
+    }
+  }
+  return current
+}
+
+export function showColorLuma([r, g, b]: ShowRgb): number {
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b
+}
+
+export function showHueRotationMatrix(turns: number): readonly [number, number, number, number, number, number, number, number, number] {
+  const radians = turns * Math.PI * 2
+  const cosine = Math.cos(radians)
+  const sine = Math.sin(radians)
+  const third = (1 - cosine) / 3
+  const cross = sine / Math.sqrt(3)
+  const diagonal = cosine + third
+  return [
+    diagonal, third - cross, third + cross,
+    third + cross, diagonal, third - cross,
+    third - cross, third + cross, diagonal,
+  ]
+}
+
+function applyColorMatrix(color: ShowRgb, matrix: ReturnType<typeof showHueRotationMatrix>): ShowRgb {
+  return [
+    clamp01(matrix[0] * color[0] + matrix[1] * color[1] + matrix[2] * color[2]),
+    clamp01(matrix[3] * color[0] + matrix[4] * color[1] + matrix[5] * color[2]),
+    clamp01(matrix[6] * color[0] + matrix[7] * color[1] + matrix[8] * color[2]),
+  ]
 }
 
 /**
@@ -161,4 +278,8 @@ function invert(matrix: ShowAffineMatrix): ShowAffineMatrix {
 
 function clamp(value: number, min: number, max: number, fallback: number): number {
   return Number.isFinite(value) ? Math.max(min, Math.min(max, value)) : fallback
+}
+
+function clamp01(value: number): number {
+  return Math.max(0, Math.min(1, value))
 }

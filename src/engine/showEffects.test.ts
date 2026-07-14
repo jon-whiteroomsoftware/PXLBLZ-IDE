@@ -1,8 +1,10 @@
 import {
   applyShowEffectsToSample,
+  applyShowColorEffects,
   buildShowEffectSampleMatrix,
   normalizeShowClipEffects,
   sameShowEffectStructure,
+  showEffectParameterNames,
   showEffectsAreIdentity,
 } from './showEffects'
 import {
@@ -269,14 +271,130 @@ describe('Show clip Effects (#444)', () => {
     const fixtures = createShowEffectToolkitFixtureRecipes()
     expect(fixtures.map((fixture) => fixture.id)).toEqual([
       'effect-opacity',
+      'effect-color-brightness',
+      'effect-color-hue',
+      'effect-color-saturation',
+      'effect-color-contrast',
+      'effect-color-invert',
+      'effect-color-threshold',
+      'effect-color-posterize',
+      'effect-color-color-map',
       'effect-affine-wrap',
       'effect-animated',
+      'effect-color-composed-animated',
     ])
     for (const fixture of fixtures) {
       expect(captureShowToolkitFixture(fixture)).toEqual(captureShowToolkitFixture(fixture))
       expect(roundTripShowToolkitFixtureRecord(fixture)).toEqual(fixture.persistedRecord)
     }
-    const animated = captureShowToolkitFixture(fixtures[2])
+    const animated = captureShowToolkitFixture(fixtures.find((fixture) => fixture.id === 'effect-color-composed-animated')!)
     expect(new Set(animated.frames.map((frame) => frame.checksum)).size).toBeGreaterThan(2)
+  })
+
+  it('applies the common output Effects in authored order (#454)', () => {
+    const brightenThenThreshold = applyShowColorEffects([
+      { id: 'light', kind: 'brightness', brightness: 2 },
+      { id: 'cut', kind: 'threshold', threshold: 0.5, amount: 1 },
+    ], [0.4, 0.4, 0.4])
+    const thresholdThenBrighten = applyShowColorEffects([
+      { id: 'cut', kind: 'threshold', threshold: 0.5, amount: 1 },
+      { id: 'light', kind: 'brightness', brightness: 2 },
+    ], [0.4, 0.4, 0.4])
+
+    expect(brightenThenThreshold).toEqual([1, 1, 1])
+    expect(thresholdThenBrighten).toEqual([0, 0, 0])
+  })
+
+  it('evaluates hue, saturation, contrast, invert, posterize, and gradient color mapping (#454)', () => {
+    expect(applyShowColorEffects([{ id: 'hue', kind: 'hue', turns: 0 }], [0.2, 0.4, 0.6]))
+      .toEqual([0.2, 0.4, 0.6])
+    expect(applyShowColorEffects([{ id: 'sat', kind: 'saturation', saturation: 0 }], [1, 0, 0]))
+      .toEqual([expect.closeTo(0.2126, 12), expect.closeTo(0.2126, 12), expect.closeTo(0.2126, 12)])
+    expect(applyShowColorEffects([{ id: 'contrast', kind: 'contrast', contrast: 2 }], [0.25, 0.5, 0.75]))
+      .toEqual([0, 0.5, 1])
+    expect(applyShowColorEffects([{ id: 'invert', kind: 'invert', amount: 1 }], [0.2, 0.4, 0.6]))
+      .toEqual([0.8, 0.6, 0.4])
+    expect(applyShowColorEffects([{ id: 'poster', kind: 'posterize', levels: 3, amount: 1 }], [0.2, 0.6, 0.9]))
+      .toEqual([0, 0.5, 1])
+    expect(applyShowColorEffects([{
+      id: 'map', kind: 'color-map', amount: 1,
+      shadowR: 1, shadowG: 0, shadowB: 0,
+      highlightR: 0, highlightG: 0, highlightB: 1,
+    }], [0, 0, 0])).toEqual([1, 0, 0])
+  })
+
+  it('normalizes every color parameter and recognizes exact neutral identities (#454)', () => {
+    const neutral = normalizeShowClipEffects([
+      { id: 'light', kind: 'brightness', brightness: Number.NaN },
+      { id: 'hue', kind: 'hue', turns: 0 },
+      { id: 'sat', kind: 'saturation', saturation: 1 },
+      { id: 'contrast', kind: 'contrast', contrast: 1 },
+      { id: 'invert', kind: 'invert', amount: 0 },
+      { id: 'cut', kind: 'threshold', threshold: 0.5, amount: 0 },
+      { id: 'poster', kind: 'posterize', levels: 8, amount: 0 },
+      {
+        id: 'map', kind: 'color-map', amount: 0,
+        shadowR: 0, shadowG: 0, shadowB: 0,
+        highlightR: 1, highlightG: 1, highlightB: 1,
+      },
+    ])
+    expect(neutral[0]).toEqual({ id: 'light', kind: 'brightness', brightness: 1 })
+    expect(showEffectsAreIdentity(neutral)).toBe(true)
+  })
+
+  it('persists, orders, animates, and reloads all common output Effects (#454)', () => {
+    const effects = [
+      { id: 'light', kind: 'brightness' as const, brightness: 1.2 },
+      { id: 'hue', kind: 'hue' as const, turns: 0.2 },
+      { id: 'sat', kind: 'saturation' as const, saturation: 0.7 },
+      { id: 'contrast', kind: 'contrast' as const, contrast: 1.4 },
+      { id: 'invert', kind: 'invert' as const, amount: 0.3 },
+      { id: 'cut', kind: 'threshold' as const, threshold: 0.4, amount: 0.5 },
+      { id: 'poster', kind: 'posterize' as const, levels: 6, amount: 0.8 },
+      { id: 'map', kind: 'color-map' as const, amount: 0.6, shadowR: 0.1, shadowG: 0.2, shadowB: 0.3, highlightR: 1, highlightG: 0.8, highlightB: 0.6 },
+    ]
+    const show = updateShowCellEffects(createDefaultShow('colors', 'Colors', 454), 'cell-1', effects)
+    expect(normalizeShowTransitionState(JSON.parse(JSON.stringify(show))).cells[0].effects).toEqual(effects)
+    expect(showEffectParameterNames(effects[7])).toEqual([
+      'amount', 'shadowR', 'shadowG', 'shadowB', 'highlightR', 'highlightG', 'highlightB',
+    ])
+  })
+
+  it('keeps legacy brightness in the single ordered output evaluator (#454)', () => {
+    const source = 'export function render2D(index, x, y) { rgb(0.4, 0.2, 0.1) }'
+    const legacy = compileShow({ clips: [{ id: 'clip', source, adaptation: { brightness: 0.5 } }] }, {})
+    const runtime = createFastReplayRuntime({
+      code: legacy.code, metadata: legacy.metadata, dimension: nativeDimension(legacy.metadata.renderFns),
+    }, { mapPoints: [{ sample: [0.5, 0.5] }], randomSeed: 454 })
+    expect(runtime.renderCurrentFrame().pixels[0]).toEqual([0.2, 0.1, 0.05])
+    expect(legacy.code).not.toMatch(/function __pxlblz_show_c0_rgb\([^)]*\) \{[^}]*adapt_brightness/)
+    expect(legacy.code).not.toMatch(/function __pxlblz_show_c0_hsv\([^)]*\) \{[^}]*adapt_brightness/)
+  })
+
+  it('matches composed pure and generated color output and reports N plus color math (#454)', () => {
+    const effects = [
+      { id: 'hue', kind: 'hue' as const, turns: 0.125 },
+      { id: 'sat', kind: 'saturation' as const, saturation: 0.5 },
+      { id: 'invert', kind: 'invert' as const, amount: 0.25 },
+      { id: 'poster', kind: 'posterize' as const, levels: 5, amount: 0.5 },
+    ]
+    const input: [number, number, number] = [0.2, 0.4, 0.7]
+    const artifact = compileShow({
+      clips: [{ id: 'clip', source: `export function render(index) { rgb(${input.join(',')}) }`, effects }],
+    }, {})
+    const runtime = createFastReplayRuntime({
+      code: artifact.code, metadata: artifact.metadata, dimension: nativeDimension(artifact.metadata.renderFns),
+    }, { mapPoints: [{ sample: [0.5, 0.5] }], randomSeed: 454 })
+    const actual = runtime.renderCurrentFrame().pixels[0]
+    const expected = applyShowColorEffects(effects, input)
+    expect(actual).toEqual(expected.map((value) => expect.closeTo(value, 10)))
+    expect(artifact.summary.cost.cpu).toMatchObject({
+      patternEvaluations: { formula: 'N', basePerPixel: 1 },
+      effects: {
+        colorEffectsPerEvaluatedPixel: 4,
+        colorScalarOpsPerEvaluatedPixel: expect.any(Number),
+        colorFloorCallsPerEvaluatedPixel: 3,
+      },
+    })
   })
 })

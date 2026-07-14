@@ -135,6 +135,24 @@ export interface ShowPropertyTransitions {
 
 export type ShowClipEffect =
   | { id: string; kind: 'opacity'; opacity: number }
+  | { id: string; kind: 'brightness'; brightness: number }
+  | { id: string; kind: 'hue'; turns: number }
+  | { id: string; kind: 'saturation'; saturation: number }
+  | { id: string; kind: 'contrast'; contrast: number }
+  | { id: string; kind: 'invert'; amount: number }
+  | { id: string; kind: 'threshold'; threshold: number; amount: number }
+  | { id: string; kind: 'posterize'; levels: number; amount: number }
+  | {
+      id: string
+      kind: 'color-map'
+      amount: number
+      shadowR: number
+      shadowG: number
+      shadowB: number
+      highlightR: number
+      highlightG: number
+      highlightB: number
+    }
   | { id: string; kind: 'translate'; x: number; y: number }
   | { id: string; kind: 'rotate'; turns: number }
   | { id: string; kind: 'scale'; x: number; y: number }

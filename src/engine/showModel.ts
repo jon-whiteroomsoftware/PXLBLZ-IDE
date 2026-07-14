@@ -35,6 +35,7 @@ import { normalizeShowMotionTransition } from './showMotionTransition'
 import {
   normalizeShowClipEffects,
   sameShowEffectStructure,
+  showEffectNumericValue,
   showEffectParameterNames,
   showEffectsAreIdentity,
 } from './showEffects'
@@ -2324,15 +2325,6 @@ function compileShowEffectRamps(
     }
   }
   return Object.keys(ramps).length > 0 ? ramps : undefined
-}
-
-function showEffectNumericValue(effect: ShowClipEffect, parameter: string): number {
-  if (effect.kind === 'opacity' && parameter === 'opacity') return effect.opacity
-  if (effect.kind === 'rotate' && parameter === 'turns') return effect.turns
-  if ((effect.kind === 'translate' || effect.kind === 'scale' || effect.kind === 'shear') && (parameter === 'x' || parameter === 'y')) {
-    return effect[parameter]
-  }
-  throw new Error(`Effect "${effect.id}" has no numeric parameter "${parameter}".`)
 }
 
 function compilerAdaptation(adaptations: ShowCellAdaptations): ShowClipAdaptation {

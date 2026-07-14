@@ -456,6 +456,16 @@ function spatialWipeRecord(
 export function createShowEffectToolkitFixtureRecipes(): ShowToolkitFixtureRecipe[] {
   const shared = { progressSamples: [...PROGRESS_SAMPLES], capturePixelCount: 256, stageDimension: 2 as const }
   const opacity = [{ id: 'fade', kind: 'opacity' as const, opacity: 0.5 }]
+  const colorEffects: Array<[string, ShowClipEffect]> = [
+    ['brightness', { id: 'brightness', kind: 'brightness', brightness: 1.5 }],
+    ['hue', { id: 'hue', kind: 'hue', turns: 0.2 }],
+    ['saturation', { id: 'saturation', kind: 'saturation', saturation: 0 }],
+    ['contrast', { id: 'contrast', kind: 'contrast', contrast: 1.8 }],
+    ['invert', { id: 'invert', kind: 'invert', amount: 1 }],
+    ['threshold', { id: 'threshold', kind: 'threshold', threshold: 0.45, amount: 1 }],
+    ['posterize', { id: 'posterize', kind: 'posterize', levels: 4, amount: 1 }],
+    ['color-map', { id: 'color-map', kind: 'color-map', amount: 1, shadowR: 0.05, shadowG: 0, shadowB: 0.2, highlightR: 1, highlightG: 0.7, highlightB: 0.1 }],
+  ]
   const affineWrap: ShowClipEffect[] = [
     { id: 'move', kind: 'translate', x: 0.35, y: -0.2 },
     { id: 'turn', kind: 'rotate', turns: 0.125 },
@@ -476,6 +486,14 @@ export function createShowEffectToolkitFixtureRecipes(): ShowToolkitFixtureRecip
       recipe: { clips: [{ id: 'outgoing', source: OUTGOING_SOURCE, effects: opacity }] },
       persistedRecord: persistedEffectRecord('effect-opacity', opacity),
     },
+    ...colorEffects.map(([variantId, effect]): ShowToolkitFixtureRecipe => ({
+      ...shared,
+      id: `effect-color-${variantId}`,
+      familyId: 'output',
+      variantId,
+      recipe: { clips: [{ id: 'outgoing', source: OUTGOING_SOURCE, effects: [effect] }] },
+      persistedRecord: persistedEffectRecord(`effect-color-${variantId}`, [effect]),
+    })),
     {
       ...shared,
       id: 'effect-affine-wrap',
@@ -504,7 +522,55 @@ export function createShowEffectToolkitFixtureRecipes(): ShowToolkitFixtureRecip
       },
       persistedRecord: persistedAnimatedEffectRecord('effect-animated', animatedTarget),
     },
+    {
+      ...shared,
+      id: 'effect-color-composed-animated',
+      familyId: 'output',
+      variantId: 'hue',
+      recipe: {
+        clips: [{
+          id: 'outgoing', source: OUTGOING_SOURCE,
+          effects: [
+            { id: 'hue', kind: 'hue', turns: 0.25 },
+            { id: 'poster', kind: 'posterize', levels: 4, amount: 1 },
+          ],
+        }],
+        adaptationRamp: {
+          startMs: 1000, durationMs: 1000, from: {}, to: {},
+          effectRamps: {
+            hue: { turns: { from: 0, to: 0.25, durationMs: 1000, easing: { curve: 'sine', direction: 'in-out' } } },
+            poster: { amount: { from: 0, to: 1, durationMs: 1000, easing: { curve: 'sine', direction: 'in-out' } } },
+          },
+        },
+      },
+      persistedRecord: persistedAnimatedColorEffectRecord('effect-color-composed-animated'),
+    },
   ]
+}
+
+function persistedAnimatedColorEffectRecord(id: string): ShowRecord {
+  let record = createDefaultShow(`fixture-${id}`, id, 454)
+  record = updateShowCellPattern(record, 'cell-2', {
+    pattern: record.cells[0].pattern,
+    patternName: record.cells[0].patternName,
+  })
+  record = updateShowCellEffects(record, 'cell-1', [
+    { id: 'hue', kind: 'hue', turns: 0 },
+    { id: 'poster', kind: 'posterize', levels: 4, amount: 0 },
+  ])
+  record = updateShowCellEffects(record, 'cell-2', [
+    { id: 'hue', kind: 'hue', turns: 0.25 },
+    { id: 'poster', kind: 'posterize', levels: 4, amount: 1 },
+  ])
+  record = updateShowBoundaryTransition(record, 'transition-scene-1', {
+    propertyTransitions: {
+      effects: {
+        hue: { turns: { fromByCellId: { 'cell-2': 0 }, durationMs: 1000, easing: { curve: 'sine', direction: 'in-out' } } },
+        poster: { amount: { fromByCellId: { 'cell-2': 0 }, durationMs: 1000, easing: { curve: 'sine', direction: 'in-out' } } },
+      },
+    },
+  })
+  return { ...record, updatedAt: 454 }
 }
 
 function persistedEffectRecord(id: string, effects: ShowClipEffect[]): ShowRecord {

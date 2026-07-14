@@ -135,6 +135,17 @@ describe('Show visual-toolkit contract', () => {
     expect(resolveShowToolkitParameters('transition', 'fade', 'through-color', {}))
       .toContainEqual(expect.objectContaining({ id: 'color', kind: 'color', defaultValue: '#000000' }))
 
+    const output = getShowToolkitFamily('effect', 'output')
+    expect(output?.variants.map((variant) => variant.id)).toEqual([
+      'opacity', 'brightness', 'hue', 'saturation', 'contrast', 'invert', 'threshold', 'posterize', 'color-map',
+    ])
+    expect(resolveShowToolkitParameters('effect', 'output', 'hue', {}).map((parameter) => parameter.id))
+      .toEqual(['turns', 'easing'])
+    expect(resolveShowToolkitParameters('effect', 'output', 'posterize', {}).map((parameter) => parameter.id))
+      .toEqual(['amount', 'levels', 'easing'])
+    expect(resolveShowToolkitParameters('effect', 'output', 'color-map', {}).map((parameter) => parameter.id))
+      .toEqual(['amount', 'shadowR', 'shadowG', 'shadowB', 'highlightR', 'highlightG', 'highlightB', 'easing'])
+
     const wipe = getShowToolkitFamily('transition', 'wipe')
     expect(wipe?.variants[0].presets?.map((preset) => [preset.id, preset.values.direction])).toEqual([
       ['east', 0], ['south-east', 0.125], ['south', 0.25], ['south-west', 0.375],

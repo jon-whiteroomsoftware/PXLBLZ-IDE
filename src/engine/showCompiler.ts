@@ -36,7 +36,9 @@ import { normalizeShowMotionTransition, showMotionTransitionVector } from './sho
 import {
   applyShowEffectsToSample,
   buildShowEffectSampleMatrix,
+  isShowColorEffect,
   normalizeShowClipEffects,
+  showEffectNumericValue,
   showEffectParameterNames,
   showEffectsAreIdentity,
 } from './showEffects'
@@ -2426,16 +2428,15 @@ function describeMemberEffectRuntime(member: CompiledMember): {
   if (showEffectsAreIdentity(member.effects) && !member.animatedEffects) return null
   const matrix = buildShowEffectSampleMatrix(member.effects)
   const opacity = applyShowEffectsToSample(member.effects, 0.5, 0.5).opacity
-  const hasAffine = member.effects.some((effect) => effect.kind !== 'opacity' && effect.kind !== 'wrap')
+  const hasAffine = member.effects.some((effect) => (
+    effect.kind === 'translate' || effect.kind === 'rotate' || effect.kind === 'scale' || effect.kind === 'shear'
+  ))
   const wrap = member.effects.some((effect) => effect.kind === 'wrap') && hasAffine
   const parameterDeclarations = member.effects.flatMap((effect) => showEffectParameterNames(effect).map((parameter) => (
     `var ${effectParameterVariable(member, effect.id, parameter)} = ${effectParameterValue(effect, parameter)}`
   )))
   const operationAssignments = member.effects.flatMap((effect, index) => {
-    if (effect.kind === 'opacity') {
-      return [`  ${member.prefix}_fx_opacity = ${member.prefix}_fx_opacity * ${effectParameterVariable(member, effect.id, 'opacity')}`]
-    }
-    if (effect.kind === 'wrap') return []
+    if (effect.kind === 'wrap' || isShowColorEffect(effect)) return []
     const suffix = `${member.prefix}_fx_o${index}`
     const operation = effect.kind === 'translate'
       ? `  var ${suffix}_a = 1
@@ -2487,7 +2488,6 @@ function describeMemberEffectRuntime(member: CompiledMember): {
   ${member.prefix}_fx_md = 1
   ${member.prefix}_fx_mtx = 0
   ${member.prefix}_fx_mty = 0
-  ${member.prefix}_fx_opacity = 1
 ${operationAssignments.join('\n')}
   var ${member.prefix}_fx_det = ${member.prefix}_fx_ma * ${member.prefix}_fx_md - ${member.prefix}_fx_mb * ${member.prefix}_fx_mc
   if (abs(${member.prefix}_fx_det) < 0.000001) ${member.prefix}_fx_det = ${member.prefix}_fx_det < 0 ? -0.000001 : 0.000001
@@ -2518,7 +2518,6 @@ ${operationAssignments.join('\n')}
       `var ${member.prefix}_fx_d = ${matrix.d}`,
       `var ${member.prefix}_fx_tx = ${matrix.tx}`,
       `var ${member.prefix}_fx_ty = ${matrix.ty}`,
-      `var ${member.prefix}_fx_opacity = ${opacity}`,
       ...(member.animatedEffects ? [updateFunction] : []),
     ],
   }
@@ -2531,12 +2530,92 @@ function effectParameterVariable(member: CompiledMember, effectId: string, param
 }
 
 function effectParameterValue(effect: ShowClipEffect, parameter: string): number {
-  if (effect.kind === 'opacity' && parameter === 'opacity') return effect.opacity
-  if (effect.kind === 'rotate' && parameter === 'turns') return effect.turns
-  if ((effect.kind === 'translate' || effect.kind === 'scale' || effect.kind === 'shear') && (parameter === 'x' || parameter === 'y')) {
-    return effect[parameter]
+  return showEffectNumericValue(effect, parameter)
+}
+
+function emitMemberOutputEffectFunction(member: CompiledMember): string {
+  const r = `${member.prefix}_r`
+  const g = `${member.prefix}_g`
+  const b = `${member.prefix}_b`
+  const value = (effect: ShowClipEffect, parameter: string): string => member.animatedEffects
+    ? effectParameterVariable(member, effect.id, parameter)
+    : String(showEffectNumericValue(effect, parameter))
+  const lines = [
+    `  ${r} = ${r} * ${member.prefix}_adapt_brightness`,
+    `  ${g} = ${g} * ${member.prefix}_adapt_brightness`,
+    `  ${b} = ${b} * ${member.prefix}_adapt_brightness`,
+  ]
+  for (const [index, effect] of normalizeShowClipEffects(member.effects).entries()) {
+    if (!isShowColorEffect(effect) || (!member.animatedEffects && showEffectsAreIdentity([effect]))) continue
+    const name = `${member.prefix}_fx_color_${index}`
+    if (effect.kind === 'opacity') {
+      const amount = value(effect, 'opacity')
+      lines.push(`  ${r} = ${r} * ${amount}`, `  ${g} = ${g} * ${amount}`, `  ${b} = ${b} * ${amount}`)
+    } else if (effect.kind === 'brightness') {
+      const amount = value(effect, 'brightness')
+      lines.push(`  ${r} = clamp(${r} * ${amount}, 0, 1)`, `  ${g} = clamp(${g} * ${amount}, 0, 1)`, `  ${b} = clamp(${b} * ${amount}, 0, 1)`)
+    } else if (effect.kind === 'hue') {
+      const turns = value(effect, 'turns')
+      lines.push(
+        `  var ${name}_r = ${r}`,
+        `  var ${name}_g = ${g}`,
+        `  var ${name}_b = ${b}`,
+        `  var ${name}_cos = cos(${turns} * 6.283185307179586)`,
+        `  var ${name}_sin = sin(${turns} * 6.283185307179586)`,
+        `  var ${name}_third = (1 - ${name}_cos) / 3`,
+        `  var ${name}_cross = ${name}_sin / 1.7320508075688772`,
+        `  var ${name}_diagonal = ${name}_cos + ${name}_third`,
+        `  ${r} = clamp(${name}_diagonal * ${name}_r + (${name}_third - ${name}_cross) * ${name}_g + (${name}_third + ${name}_cross) * ${name}_b, 0, 1)`,
+        `  ${g} = clamp((${name}_third + ${name}_cross) * ${name}_r + ${name}_diagonal * ${name}_g + (${name}_third - ${name}_cross) * ${name}_b, 0, 1)`,
+        `  ${b} = clamp((${name}_third - ${name}_cross) * ${name}_r + (${name}_third + ${name}_cross) * ${name}_g + ${name}_diagonal * ${name}_b, 0, 1)`,
+      )
+    } else if (effect.kind === 'saturation') {
+      const amount = value(effect, 'saturation')
+      lines.push(
+        `  var ${name}_luma = 0.2126 * ${r} + 0.7152 * ${g} + 0.0722 * ${b}`,
+        `  ${r} = clamp(${name}_luma + (${r} - ${name}_luma) * ${amount}, 0, 1)`,
+        `  ${g} = clamp(${name}_luma + (${g} - ${name}_luma) * ${amount}, 0, 1)`,
+        `  ${b} = clamp(${name}_luma + (${b} - ${name}_luma) * ${amount}, 0, 1)`,
+      )
+    } else if (effect.kind === 'contrast') {
+      const amount = value(effect, 'contrast')
+      lines.push(`  ${r} = clamp((${r} - 0.5) * ${amount} + 0.5, 0, 1)`, `  ${g} = clamp((${g} - 0.5) * ${amount} + 0.5, 0, 1)`, `  ${b} = clamp((${b} - 0.5) * ${amount} + 0.5, 0, 1)`)
+    } else if (effect.kind === 'invert') {
+      const amount = value(effect, 'amount')
+      lines.push(`  ${r} = ${r} * (1 - ${amount}) + (1 - ${r}) * ${amount}`, `  ${g} = ${g} * (1 - ${amount}) + (1 - ${g}) * ${amount}`, `  ${b} = ${b} * (1 - ${amount}) + (1 - ${b}) * ${amount}`)
+    } else if (effect.kind === 'threshold') {
+      const threshold = value(effect, 'threshold')
+      const amount = value(effect, 'amount')
+      lines.push(
+        `  var ${name}_luma = 0.2126 * ${r} + 0.7152 * ${g} + 0.0722 * ${b}`,
+        `  var ${name}_target = ${name}_luma >= ${threshold}`,
+        `  ${r} = ${r} * (1 - ${amount}) + ${name}_target * ${amount}`,
+        `  ${g} = ${g} * (1 - ${amount}) + ${name}_target * ${amount}`,
+        `  ${b} = ${b} * (1 - ${amount}) + ${name}_target * ${amount}`,
+      )
+    } else if (effect.kind === 'posterize') {
+      const levels = value(effect, 'levels')
+      const amount = value(effect, 'amount')
+      lines.push(
+        `  var ${name}_span = ${member.animatedEffects ? `max(1, floor(${levels}) - 1)` : Number(effect.levels - 1)}`,
+        `  ${r} = ${r} * (1 - ${amount}) + floor(${r} * ${name}_span + 0.5) / ${name}_span * ${amount}`,
+        `  ${g} = ${g} * (1 - ${amount}) + floor(${g} * ${name}_span + 0.5) / ${name}_span * ${amount}`,
+        `  ${b} = ${b} * (1 - ${amount}) + floor(${b} * ${name}_span + 0.5) / ${name}_span * ${amount}`,
+      )
+    } else if (effect.kind === 'color-map') {
+      const amount = value(effect, 'amount')
+      lines.push(
+        `  var ${name}_luma = clamp(0.2126 * ${r} + 0.7152 * ${g} + 0.0722 * ${b}, 0, 1)`,
+        `  var ${name}_r = ${value(effect, 'shadowR')} + (${value(effect, 'highlightR')} - ${value(effect, 'shadowR')}) * ${name}_luma`,
+        `  var ${name}_g = ${value(effect, 'shadowG')} + (${value(effect, 'highlightG')} - ${value(effect, 'shadowG')}) * ${name}_luma`,
+        `  var ${name}_b = ${value(effect, 'shadowB')} + (${value(effect, 'highlightB')} - ${value(effect, 'shadowB')}) * ${name}_luma`,
+        `  ${r} = ${r} * (1 - ${amount}) + ${name}_r * ${amount}`,
+        `  ${g} = ${g} * (1 - ${amount}) + ${name}_g * ${amount}`,
+        `  ${b} = ${b} * (1 - ${amount}) + ${name}_b * ${amount}`,
+      )
+    }
   }
-  throw new Error(`Effect "${effect.id}" has no numeric parameter "${parameter}".`)
+  return `function ${member.prefix}_applyOutputEffects() {\n${lines.join('\n')}\n}`
 }
 
 function emitRuntimePrelude(members: CompiledMember[]): string {
@@ -2636,8 +2715,9 @@ ${advanceDelta('delta', '  ')}
     ...steppedClockVars,
     ...shutterVars,
     `function ${member.prefix}_clear() { ${member.prefix}_r = 0; ${member.prefix}_g = 0; ${member.prefix}_b = 0 }`,
-    `function ${member.prefix}_rgb(r, g, b) { ${member.prefix}_r = r * ${member.prefix}_adapt_brightness; ${member.prefix}_g = g * ${member.prefix}_adapt_brightness; ${member.prefix}_b = b * ${member.prefix}_adapt_brightness }`,
-    `function ${member.prefix}_hsv(h, s, v) { __pxlblz_show_capture_hsv(${index}, h + ${member.prefix}_adapt_phase, s, v * ${member.prefix}_adapt_brightness) }`,
+    `function ${member.prefix}_rgb(r, g, b) { ${member.prefix}_r = r; ${member.prefix}_g = g; ${member.prefix}_b = b }`,
+    `function ${member.prefix}_hsv(h, s, v) { __pxlblz_show_capture_hsv(${index}, h + ${member.prefix}_adapt_phase, s, v) }`,
+    emitMemberOutputEffectFunction(member),
     `function ${member.prefix}_time(interval) { return ((${member.elapsedName} * 0.001) / interval) % 1 }`,
     `function ${member.prefix}_setAdaptation(brightness, phase, timeScale, mirror) {
   ${member.prefix}_adapt_brightness = brightness
@@ -2669,6 +2749,7 @@ ${samplePropertyRamps ? `  if (__pxlblz_show_sample_repeat_scale != 1) {
   mappedIndex = min(${member.pixelCountName} - 1, floor(effectX * ${member.pixelCountName}))
 ` : ''}  ${member.prefix}_clear()
   ${member.hasRender ? emitSelectedMemberRendererCall(member, 1, { index: 'mappedIndex' }) : ''}
+  ${member.prefix}_applyOutputEffects()
 ${effectRuntime?.hasAffine && !effectRuntime.wrap ? `  if (!effectInside) ${member.prefix}_clear()
 ` : ''}}`,
     `function ${member.prefix}_renderCapture2D(index, x, y) {
@@ -2693,9 +2774,10 @@ ${samplePropertyRamps ? `  if (__pxlblz_show_sample_repeat_scale != 1) {
     x: 'mappedX',
     y: samplePropertyRamps || effectRuntime?.hasAffine ? 'mappedY' : 'y',
   })}
+  ${member.prefix}_applyOutputEffects()
 ${effectRuntime?.hasAffine && !effectRuntime.wrap ? `  if (!effectInside) ${member.prefix}_clear()
 ` : ''}}`,
-    `function ${member.prefix}_emit() { rgb(${member.prefix}_r${effectRuntime ? ` * ${member.prefix}_fx_opacity` : ''}, ${member.prefix}_g${effectRuntime ? ` * ${member.prefix}_fx_opacity` : ''}, ${member.prefix}_b${effectRuntime ? ` * ${member.prefix}_fx_opacity` : ''}) }`,
+    `function ${member.prefix}_emit() { rgb(${member.prefix}_r, ${member.prefix}_g, ${member.prefix}_b) }`,
     ]
   })
 
@@ -2972,7 +3054,7 @@ function describeEffectCost(
     )) ?? []),
   ]
   const affineCounts = members.map((member) => member.effects.filter((effect) => (
-    effect.kind !== 'opacity' && effect.kind !== 'wrap'
+    effect.kind === 'translate' || effect.kind === 'rotate' || effect.kind === 'scale' || effect.kind === 'shear'
   )).length)
   const affineOperationsPerFrame = Math.max(0, ...members.map((member, index) => (
     member.animatedEffects ? affineCounts[index] : 0
@@ -2989,11 +3071,44 @@ function describeEffectCost(
   const hasWrap = hasAffine && members.some((member) => (
     member.effects.some((effect) => effect.kind === 'wrap')
   )) || motionTransitions.some((transition) => transition.addressPolicy === 'wrap')
+  const legacyBrightnessAnimated = Boolean(
+    recipe.adaptationRamp?.propertyRamps?.brightness
+    || recipe.sceneSequence?.scenes.some((scene) => scene.transitionOut?.propertyRamps?.brightness),
+  )
+  const memberColorCosts = members.map((member) => {
+    const active = member.effects.filter((effect) => (
+      isShowColorEffect(effect) && (member.animatedEffects || !showEffectsAreIdentity([effect]))
+    ))
+    const legacyBrightness = member.adaptation.brightness !== 1 || legacyBrightnessAnimated ? 1 : 0
+    return active.reduce((cost, effect) => {
+      const scalar = effect.kind === 'opacity' || effect.kind === 'brightness' ? 3
+        : effect.kind === 'hue' ? 36
+          : effect.kind === 'saturation' ? 18
+            : effect.kind === 'contrast' ? 9
+              : effect.kind === 'invert' ? 12
+                : effect.kind === 'threshold' ? 16
+                  : effect.kind === 'posterize' ? 21
+                    : 28
+      return {
+        count: cost.count + 1,
+        scalar: cost.scalar + scalar,
+        floor: cost.floor + (effect.kind === 'posterize' ? 3 + (member.animatedEffects ? 1 : 0) : 0),
+        trig: cost.trig + (effect.kind === 'hue' ? 2 : 0),
+      }
+    }, { count: legacyBrightness, scalar: legacyBrightness * 3, floor: 0, trig: 0 })
+  })
+  const maxColor = memberColorCosts.reduce((worst, cost) => (
+    cost.scalar > worst.scalar ? cost : worst
+  ), { count: 0, scalar: 0, floor: 0, trig: 0 })
   return {
     affineOperationsPerFrame,
     animatedParametersPerFrame: Math.max(adaptationAnimated, sequenceAnimated),
     affineScalarOpsPerEvaluatedPixel: hasAffine || hasMotion ? 8 : 0,
     opacityMultipliesPerEvaluatedPixel: hasOpacity ? 3 : 0,
+    colorEffectsPerEvaluatedPixel: maxColor.count,
+    colorScalarOpsPerEvaluatedPixel: maxColor.scalar,
+    colorFloorCallsPerEvaluatedPixel: maxColor.floor,
+    colorTrigCallsPerEvaluatedPixel: maxColor.trig,
     addressPolicy: !hasAffine && !hasMotion ? 'none' : hasWrap ? 'wrap' : 'clip',
   }
 }
