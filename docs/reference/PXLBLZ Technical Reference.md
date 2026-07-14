@@ -979,8 +979,8 @@ Current compiler policies:
 | Fade through color | One outgoing renderer before the midpoint, one incoming renderer after it |
 | Hard or stable-dither Wipe | Both clocks may advance; one renderer selected per pixel |
 | True feather-blend Wipe | Two renderers only inside the projected edge band |
-| 2D circle/diamond/ring hard or dither | One renderer per pixel from the Stage-space SDF boundary |
-| 2D circle/diamond/ring true blend | Two renderers only inside the feather band |
+| 2D circle/box/diamond/ring hard or dither | One renderer per pixel from the Stage-space SDF boundary |
+| 2D circle/box/diamond/ring true blend | Two renderers only inside the feather band |
 | Routing-layout cut | Immediate destination layout selection |
 | Routing-layout directional transfer | Both clocks advance; one adjacent layout and renderer selected per pixel |
 
@@ -997,7 +997,7 @@ variants own parameter descriptors and conditional parameters; presets are
 named parameter bundles rather than separate runtime implementations. The
 registry currently describes the shipped property-animation targets, Opacity
 and affine/wrap Effects, plus blend, Fade through color, directional linear wipe, pixel dissolve, and
-circle/diamond/ring shape-reveal Transitions.
+circle/box/diamond/ring shape-reveal Transitions.
 Validation rejects duplicate ids, missing parameter references, and presets that
 do not resolve through their variant's public parameter contract. React may
 project this catalogue, but engine code does not import the UI framework.
@@ -1060,6 +1060,29 @@ Headless fixtures preserve the field-absent legacy Pixel form and add seeded
 Pixel plus 8- and 32-pixel Block captures. The fixture harness recompiles and
 replays them at fixed progress points to verify stable output and JSON
 round-trip behavior.
+
+Shape reveal stores explicit `grow-incoming` and `shrink-outgoing` reveal modes
+for new records. Grow Incoming expands the incoming side from the selected
+center. Shrink Outgoing keeps the incoming Pattern behind a contracting
+outgoing mask. Legacy Portal records retain field-absent mode and continue to
+derive the exact same behavior from `invert=false` and `invert=true`,
+respectively; equivalent explicit modes generate byte-identical artifacts.
+
+Circle uses Euclidean distance. Diamond uses rotated Manhattan distance. Box
+uses a rotated rectangular distance
+`max(abs(rx)/sqrt(aspect), abs(ry)*sqrt(aspect))`, with aspect clamped to
+`0.25..4`. Scale changes the SDF radius, rotation changes the mask axes, and
+center changes the mask origin. None of these parameters remap Pattern sample
+coordinates. **Shape Shrink** therefore reveals the incoming Pattern through a
+contracting mask, while **Content Shrink** is a coordinate Effect that resizes
+the rendered Pattern itself.
+
+New shape records use the shared Hard, Stable dither, or Blend edge policy.
+Field-absent records continue to read the legacy Portal feather policy. Hard
+and dither report `N`; Blend evaluates both Patterns only inside the SDF edge
+band and reports `N + E`. Deterministic fixtures cover both reveal modes for
+Circle and rotated/aspect-scaled Box while retaining the legacy Circle,
+Diamond, and Ring fixtures.
 
 Property transitions share one descriptor model. Animation speed (`0×..4×`), brightness
 (`0..1`), and exported slider controls carry destination targets on clips. Moving

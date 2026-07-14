@@ -228,6 +228,33 @@ export function createShowToolkitFixtureRecipes(): ShowToolkitFixtureRecipe[] {
         },
       },
     })),
+    ...(['grow-incoming', 'shrink-outgoing'] as const).flatMap((revealMode) => (
+      (['circle', 'box'] as const).map((shape): ShowToolkitFixtureRecipe => ({
+        ...shared,
+        id: `shape-reveal-${shape}-${revealMode}`,
+        familyId: 'shape-reveal',
+        variantId: shape,
+        persistedRecord: persistedRecord(`shape-reveal-${shape}-${revealMode}`, {
+          kind: 'portal', durationMs: 1000,
+          centerX: 0.5, centerY: 0.5, feather: 0.08,
+          revealMode, invert: revealMode === 'shrink-outgoing',
+          edgePolicy: 'dither', featherPolicy: 'dither',
+          shape, scale: 1,
+          ...(shape === 'box' ? { aspect: 1.6, rotation: 0.125 } : {}),
+        }),
+        recipe: {
+          clips: clips(),
+          routeTransition: {
+            kind: 'portal', startMs: 1000, durationMs: 1000,
+            centerX: 0.5, centerY: 0.5, feather: 0.08,
+            revealMode, invert: revealMode === 'shrink-outgoing',
+            edgePolicy: 'dither', featherPolicy: 'dither',
+            shape, scale: 1,
+            ...(shape === 'box' ? { aspect: 1.6, rotation: 0.125 } : {}),
+          },
+        },
+      }))
+    )),
   ]
 }
 

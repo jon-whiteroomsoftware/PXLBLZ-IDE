@@ -252,6 +252,7 @@ export const SHOW_VISUAL_TOOLKIT_REGISTRY: ShowToolkitFamilyDescriptor[] = [
     label: 'Shape reveal',
     variants: [
       { id: 'circle', label: 'Circle', costPolicies: ['selector', 'bounded-blend'], compatibility: { stageDimensions: [2] } },
+      { id: 'box', label: 'Box', costPolicies: ['selector', 'bounded-blend'], compatibility: { stageDimensions: [2] } },
       { id: 'diamond', label: 'Diamond', costPolicies: ['selector', 'bounded-blend'], compatibility: { stageDimensions: [2] } },
       { id: 'ring', label: 'Ring', costPolicies: ['selector', 'bounded-blend'], compatibility: { stageDimensions: [2] } },
     ],
@@ -282,7 +283,8 @@ export const SHOW_VISUAL_TOOLKIT_REGISTRY: ShowToolkitFamilyDescriptor[] = [
           { value: 'shrink-outgoing', label: 'Shrink outgoing' },
         ],
       },
-      { id: 'rotation', label: 'Rotation', kind: 'number', defaultValue: 0, min: -1, max: 1, step: 0.01, variantIds: ['diamond'] },
+      { id: 'aspect', label: 'Aspect', kind: 'number', defaultValue: 1, min: 0.25, max: 4, step: 0.01, variantIds: ['box'] },
+      { id: 'rotation', label: 'Rotation', kind: 'number', defaultValue: 0, min: -1, max: 1, step: 0.01, variantIds: ['box', 'diamond'] },
       { id: 'spin', label: 'Spin', kind: 'number', defaultValue: 0, min: -4, max: 4, step: 0.01, variantIds: ['diamond'] },
       { id: 'ringWidth', label: 'Ring width', kind: 'number', defaultValue: 0.12, min: 0.02, max: 1, step: 0.01, variantIds: ['ring'] },
     ],

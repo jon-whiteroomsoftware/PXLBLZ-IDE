@@ -2306,6 +2306,57 @@ export function render(index) { rgb(elapsed, time(1), index) }
     expect(pixel()).toEqual([0, 0.5, 0.5])
   })
 
+  it('keeps legacy invert byte-identical to the equivalent explicit reveal mode (#448)', () => {
+    const clips = [
+      { id: 'from', source: 'export function render2D(index, x, y) { rgb(1, 0, 0) }' },
+      { id: 'to', source: 'export function render2D(index, x, y) { rgb(0, 1, 0) }' },
+    ]
+    const legacy = compileShow({
+      clips,
+      routeTransition: {
+        kind: 'portal', startMs: 1000, durationMs: 1000,
+        centerX: 0.5, centerY: 0.5, shape: 'circle', invert: true, feather: 0.1, featherPolicy: 'dither',
+      },
+    }, {})
+    const explicit = compileShow({
+      clips,
+      routeTransition: {
+        kind: 'portal', startMs: 1000, durationMs: 1000,
+        centerX: 0.5, centerY: 0.5, shape: 'circle', invert: true,
+        revealMode: 'shrink-outgoing', feather: 0.1, featherPolicy: 'dither',
+      },
+    }, {})
+
+    expect(explicit.code).toBe(legacy.code)
+    expect(explicit.fxCode).toBe(legacy.fxCode)
+  })
+
+  it('routes a rotated Box SDF without moving member coordinates (#448)', () => {
+    const artifact = compileShow({
+      clips: [
+        { id: 'from', source: 'export function render2D(index, x, y) { rgb(1, x, y) }' },
+        { id: 'to', source: 'export function render2D(index, x, y) { rgb(0, x, y) }' },
+      ],
+      routeTransition: {
+        kind: 'portal', startMs: 1000, durationMs: 1000,
+        centerX: 0.5, centerY: 0.5, shape: 'box', aspect: 2, rotation: 0.125,
+        revealMode: 'grow-incoming', feather: 0, edgePolicy: 'hard',
+      },
+    }, {})
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 16)
+
+    handle.beforeRender(1250)
+    handle.render2D(0, 0.5, 0.5)
+    expect(pixel()).toEqual([0, 0.5, 0.5])
+    handle.render2D(1, 0, 0)
+    expect(pixel()).toEqual([1, 0, 0])
+    expect(artifact.code).toContain('max(abs(__pxlblz_show_portal_rx)')
+    expect(artifact.summary).toMatchObject({
+      transitionCost: 'route', routePolicy: 'portal-hard', worstInstantRenderersPerPixel: 1,
+      cost: { cpu: { patternEvaluations: { formula: 'N', basePerPixel: 1 } } },
+    })
+  })
+
   it('emits a dither dissolve that hashes each pixel to one member renderer', () => {
     const artifact = compileShow({
       clips: [

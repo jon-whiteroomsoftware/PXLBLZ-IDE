@@ -91,6 +91,16 @@ describe('Show visual-toolkit contract', () => {
       .not.toContainEqual(expect.objectContaining({ id: 'ringWidth' }))
     expect(resolveShowToolkitParameters('transition', 'shape-reveal', 'ring', {}))
       .toContainEqual(expect.objectContaining({ id: 'ringWidth', defaultValue: 0.12 }))
+    expect(getShowToolkitFamily('transition', 'shape-reveal')?.variants)
+      .toContainEqual(expect.objectContaining({ id: 'box', label: 'Box' }))
+    expect(resolveShowToolkitParameters('transition', 'shape-reveal', 'box', {})).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: 'aspect', defaultValue: 1 }),
+      expect.objectContaining({ id: 'rotation', defaultValue: 0 }),
+      expect.objectContaining({ id: 'revealMode', options: expect.arrayContaining([
+        { value: 'grow-incoming', label: 'Grow incoming' },
+        { value: 'shrink-outgoing', label: 'Shrink outgoing' },
+      ]) }),
+    ]))
 
     expect(getShowToolkitFamily('transition', 'blend')?.variants.find((variant) => variant.id === 'crossfade')?.presets)
       .toEqual(expect.arrayContaining([
@@ -224,6 +234,10 @@ describe('Show visual-toolkit contract', () => {
       'shape-reveal-circle',
       'shape-reveal-diamond',
       'shape-reveal-ring',
+      'shape-reveal-circle-grow-incoming',
+      'shape-reveal-box-grow-incoming',
+      'shape-reveal-circle-shrink-outgoing',
+      'shape-reveal-box-shrink-outgoing',
     ])
 
     for (const fixture of fixtures) {

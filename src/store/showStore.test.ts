@@ -509,6 +509,28 @@ describe('showStore (#318)', () => {
     })
   })
 
+  it('persists and reloads an explicit Box reveal mode (#448)', async () => {
+    const show = { ...createDefaultShow('show-448', 'Box reveal persistence', 1), stageMapId: 'plane' }
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], showsLoaded: true })
+
+    await useShowStore.getState().updateBoundaryTransition(show.id, 'transition-scene-1', {
+      kind: 'portal', durationMs: 1900,
+      revealMode: 'shrink-outgoing', shape: 'box', aspect: 1.75, rotation: 0.125,
+      centerX: 0.4, centerY: 0.6, scale: 1.2, feather: 0.1, edgePolicy: 'blend',
+    })
+    useShowStore.setState(showInitialState)
+    await useShowStore.getState().loadShows()
+
+    expect(useShowStore.getState().shows[0].transitions?.[0]).toMatchObject({
+      kind: 'portal', revealMode: 'shrink-outgoing', invert: true,
+      shape: 'box', aspect: 1.75, rotation: 0.125, edgePolicy: 'blend',
+    })
+    expect(useShowStore.getState().shows[0].scenes[0].transitionOut).toMatchObject({
+      revealMode: 'shrink-outgoing', shape: 'box', aspect: 1.75,
+    })
+  })
+
   it('persists a wipe feather width through the provider', async () => {
     const show = createDefaultShow('show-1', 'Opening wash', 1)
     setPersonalContentProvider(memoryProvider([show]))

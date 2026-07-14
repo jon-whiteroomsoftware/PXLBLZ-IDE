@@ -8,11 +8,12 @@ import {
 } from './controllerProfile'
 import { emitFixedPoint } from './fxEmit'
 import { emitShowEasingExpression } from './showEasing'
-import type { ShowClipEffect, ShowDissolveVariant, ShowSpatialShape, ShowTransitionEasing, ShowTransitionEdgePolicy } from './personalContentRecords'
+import type { ShowClipEffect, ShowDissolveVariant, ShowRevealMode, ShowSpatialShape, ShowTransitionEasing, ShowTransitionEdgePolicy } from './personalContentRecords'
 import { normalizeShowTransitionColor, showTransitionColorToRgb } from './showFadeThroughColor'
 import { normalizeShowTransitionEdgePolicy } from './showTransitionEdge'
 import { showWipeProjectionCoefficients } from './showWipe'
 import { normalizeShowDissolveBlockSize, normalizeShowDissolveSeed } from './showDissolve'
+import { normalizeShowRevealMode, showShapeRevealMaxDistance } from './showShapeReveal'
 import {
   applyShowEffectsToSample,
   buildShowEffectSampleMatrix,
@@ -103,6 +104,8 @@ export interface ShowRouteTransitionRecipe {
   dissolveVariant?: ShowDissolveVariant
   seed?: number
   blockSize?: number
+  revealMode?: ShowRevealMode
+  aspect?: number
   feather?: number
   centerX?: number
   centerY?: number
@@ -124,6 +127,8 @@ export interface ShowSceneSequenceTransitionRecipe {
   dissolveVariant?: ShowDissolveVariant
   seed?: number
   blockSize?: number
+  revealMode?: ShowRevealMode
+  aspect?: number
   feather?: number
   centerX?: number
   centerY?: number
@@ -383,11 +388,11 @@ export function compileShow(
   const portalBlend = Boolean(
     (portalTransition
       && clampNumber(portalTransition.feather ?? 0, 0, 1) > 0
-      && portalTransition.featherPolicy === 'blend')
+      && resolvePortalEdgePolicy(portalTransition) === 'blend')
     || renderedSequenceTransitions.some((transition) => (
       transition.kind === 'portal'
       && clampNumber(transition.feather ?? 0, 0, 1) > 0
-      && transition.featherPolicy === 'blend'
+      && resolvePortalEdgePolicy(transition) === 'blend'
     )),
   )
   const wipeBlend = Boolean(
@@ -561,7 +566,9 @@ export function compileShow(
       ? sequenceHasPortal && portalBlend
         ? 'portal-blended-feather'
         : sequenceHasPortal && renderedSequenceTransitions.some((transition) => (
-          transition.kind === 'portal' && clampNumber(transition.feather ?? 0, 0, 1) > 0
+          transition.kind === 'portal'
+          && clampNumber(transition.feather ?? 0, 0, 1) > 0
+          && resolvePortalEdgePolicy(transition) !== 'hard'
         ))
           ? 'portal-dithered-feather'
           : sequenceHasPortal
@@ -580,7 +587,7 @@ export function compileShow(
                   ? 'hard-wipe'
                   : 'none'
       : portalTransition
-      ? clampNumber(portalTransition.feather ?? 0, 0, 1) <= 0
+      ? clampNumber(portalTransition.feather ?? 0, 0, 1) <= 0 || resolvePortalEdgePolicy(portalTransition) === 'hard'
         ? 'portal-hard'
         : portalBlend
           ? 'portal-blended-feather'
@@ -1321,22 +1328,36 @@ function emitPortalRenderBlock(
   const centerX = clampNumber(transition.centerX ?? 0.5, 0, 1)
   const centerY = clampNumber(transition.centerY ?? 0.5, 0, 1)
   const feather = clampNumber(transition.feather ?? 0, 0, 1)
-  const shape = transition.shape === 'diamond' || transition.shape === 'ring' ? transition.shape : 'circle'
+  const shape = transition.shape === 'box' || transition.shape === 'diamond' || transition.shape === 'ring' ? transition.shape : 'circle'
   const scale = clampNumber(transition.scale ?? 1, 0.25, 2)
   const rotation = clampNumber(transition.rotation ?? 0, -1, 1)
   const spin = clampNumber(transition.spin ?? 0, -4, 4)
   const ringWidth = clampNumber(transition.ringWidth ?? 0.12, 0.02, 1)
+  const aspect = clampNumber(transition.aspect ?? 1, 0.25, 4)
+  const revealMode = normalizeShowRevealMode(transition.revealMode, transition.invert)
+  const edgePolicy = resolvePortalEdgePolicy(transition)
   const maxRadius = Math.max(
     Math.hypot(centerX, centerY),
     Math.hypot(1 - centerX, centerY),
     Math.hypot(centerX, 1 - centerY),
     Math.hypot(1 - centerX, 1 - centerY),
   )
-  const shapeRadius = shape === 'diamond' ? maxRadius * Math.SQRT2 : maxRadius
+  const shapeRadius = shape === 'diamond'
+    ? maxRadius * Math.SQRT2
+    : shape === 'box'
+      ? showShapeRevealMaxDistance({ centerX, centerY, shape, aspect, rotation })
+      : maxRadius
   const radiusScale = transition.scale === undefined ? '' : ` * ${scale}`
-  const radius = transition.invert
+  const radius = revealMode === 'shrink-outgoing'
     ? `${shapeRadius} * (1 - __pxlblz_show_mix)${radiusScale}`
     : `${shapeRadius} * __pxlblz_show_mix${radiusScale}`
+  const rotatedPrelude = `var __pxlblz_show_portal_dx = x - ${centerX}
+var __pxlblz_show_portal_dy = y - ${centerY}
+var __pxlblz_show_portal_angle = (${rotation} + ${shape === 'diamond' ? spin : 0} * __pxlblz_show_mix) * 6.283185307179586
+var __pxlblz_show_portal_cos = cos(__pxlblz_show_portal_angle)
+var __pxlblz_show_portal_sin = sin(__pxlblz_show_portal_angle)
+var __pxlblz_show_portal_rx = __pxlblz_show_portal_dx * __pxlblz_show_portal_cos + __pxlblz_show_portal_dy * __pxlblz_show_portal_sin
+var __pxlblz_show_portal_ry = -__pxlblz_show_portal_dx * __pxlblz_show_portal_sin + __pxlblz_show_portal_dy * __pxlblz_show_portal_cos`
   const distancePrelude = shape === 'diamond'
     ? `var __pxlblz_show_portal_dx = x - ${centerX}
 var __pxlblz_show_portal_dy = y - ${centerY}
@@ -1346,17 +1367,20 @@ var __pxlblz_show_portal_sin = sin(__pxlblz_show_portal_angle)
 var __pxlblz_show_portal_rx = __pxlblz_show_portal_dx * __pxlblz_show_portal_cos + __pxlblz_show_portal_dy * __pxlblz_show_portal_sin
 var __pxlblz_show_portal_ry = -__pxlblz_show_portal_dx * __pxlblz_show_portal_sin + __pxlblz_show_portal_dy * __pxlblz_show_portal_cos
 var __pxlblz_show_portal_distance = abs(__pxlblz_show_portal_rx) + abs(__pxlblz_show_portal_ry)`
+    : shape === 'box'
+      ? `${rotatedPrelude}
+var __pxlblz_show_portal_distance = max(abs(__pxlblz_show_portal_rx) / ${Math.sqrt(aspect)}, abs(__pxlblz_show_portal_ry) * ${Math.sqrt(aspect)})`
     : `var __pxlblz_show_portal_distance = hypot(x - ${centerX}, y - ${centerY})`
   const signedDistance = shape === 'ring'
     ? `abs(__pxlblz_show_portal_distance - __pxlblz_show_portal_radius) - ${ringWidth / 2}`
-    : transition.invert
+    : revealMode === 'shrink-outgoing'
       ? '__pxlblz_show_portal_radius - __pxlblz_show_portal_distance'
       : '__pxlblz_show_portal_distance - __pxlblz_show_portal_radius'
   const fromRender = `${from.prefix}_renderCapture2D(index, x, y)`
   const toRender = `${to.prefix}_renderCapture2D(index, x, y)`
   let transitionBody: string
 
-  if (feather <= 0) {
+  if (feather <= 0 || edgePolicy === 'hard') {
     transitionBody = `if (__pxlblz_show_portal_signed <= 0) {
   ${toRender}
   ${to.prefix}_emit()
@@ -1364,7 +1388,7 @@ var __pxlblz_show_portal_distance = abs(__pxlblz_show_portal_rx) + abs(__pxlblz_
   ${fromRender}
   ${from.prefix}_emit()
 }`
-  } else if (transition.featherPolicy === 'blend') {
+  } else if (edgePolicy === 'blend') {
     transitionBody = `var __pxlblz_show_portal_mix = clamp(0.5 - __pxlblz_show_portal_signed / ${feather}, 0, 1)
 if (__pxlblz_show_portal_mix <= 0) {
   ${fromRender}
@@ -1399,6 +1423,15 @@ if (__pxlblz_show_portal_mix >= 1 || (__pxlblz_show_portal_mix > 0 && __pxlblz_s
 var __pxlblz_show_portal_radius = ${radius}
 var __pxlblz_show_portal_signed = ${signedDistance}
 ${transitionBody}`
+}
+
+function resolvePortalEdgePolicy(
+  transition: Pick<ShowRouteTransitionRecipe, 'edgePolicy' | 'featherPolicy'>,
+): ShowTransitionEdgePolicy {
+  if (transition.edgePolicy === 'hard' || transition.edgePolicy === 'dither' || transition.edgePolicy === 'blend') {
+    return transition.edgePolicy
+  }
+  return transition.featherPolicy === 'blend' ? 'blend' : 'dither'
 }
 
 function indentBlock(block: string, spaces: number): string {

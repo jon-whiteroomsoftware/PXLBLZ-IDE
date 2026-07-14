@@ -77,7 +77,8 @@ export type ShowTransitionCost = 'free' | 'cheap' | 'expensive'
 export type ShowPortalFeatherPolicy = 'dither' | 'blend'
 export type ShowTransitionEdgePolicy = 'hard' | 'dither' | 'blend'
 export type ShowDissolveVariant = 'pixel' | 'block'
-export type ShowSpatialShape = 'circle' | 'diamond' | 'ring'
+export type ShowSpatialShape = 'circle' | 'box' | 'diamond' | 'ring'
+export type ShowRevealMode = 'grow-incoming' | 'shrink-outgoing'
 export type LegacyShowTransitionEasing = 'linear' | 'ease-in' | 'ease-out' | 'ease-in-out'
 export type ShowEasingDirection = 'in' | 'out' | 'in-out'
 export type ShowStructuredEasing =
@@ -139,6 +140,9 @@ export interface ShowPortalSettings {
   rotation?: number
   spin?: number
   ringWidth?: number
+  revealMode?: ShowRevealMode
+  aspect?: number
+  edgePolicy?: ShowTransitionEdgePolicy
 }
 
 export interface ShowTransition {
@@ -166,6 +170,8 @@ export interface ShowTransition {
   rotation?: number
   spin?: number
   ringWidth?: number
+  revealMode?: ShowRevealMode
+  aspect?: number
 }
 
 export interface ShowScene {
@@ -236,6 +242,8 @@ export interface ShowBoundaryTransition {
   rotation?: number
   spin?: number
   ringWidth?: number
+  revealMode?: ShowRevealMode
+  aspect?: number
   /** Boundary-owned interpolation settings keyed by the destination clip. */
   propertyTransitions?: ShowPropertyTransitions
 }

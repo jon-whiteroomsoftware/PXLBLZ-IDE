@@ -25,6 +25,7 @@ import { normalizeShowEasing } from './showEasing'
 import { normalizeShowTransitionColor } from './showFadeThroughColor'
 import { normalizeShowWipeDirection } from './showWipe'
 import { normalizeShowDissolveBlockSize, normalizeShowDissolveSeed } from './showDissolve'
+import { normalizeShowRevealMode } from './showShapeReveal'
 import {
   normalizeShowClipEffects,
   sameShowEffectStructure,
@@ -1056,6 +1057,9 @@ export function normalizeShowTransitionState(show: ShowRecord): ShowRecord {
                 rotation: scene.transitionOut.rotation,
                 spin: scene.transitionOut.spin,
                 ringWidth: scene.transitionOut.ringWidth,
+                revealMode: scene.transitionOut.revealMode,
+                aspect: scene.transitionOut.aspect,
+                edgePolicy: scene.transitionOut.edgePolicy,
               }
             : {}),
         })),
@@ -1180,13 +1184,23 @@ function normalizeBoundaryTransition(transition: ShowBoundaryTransition): ShowBo
     }
   }
   if (kind === 'portal') {
+    const explicitRevealMode = transition.revealMode === 'grow-incoming' || transition.revealMode === 'shrink-outgoing'
+      ? transition.revealMode
+      : undefined
+    const explicitEdgePolicy = transition.edgePolicy === 'hard' || transition.edgePolicy === 'dither' || transition.edgePolicy === 'blend'
+      ? transition.edgePolicy
+      : undefined
     return {
       ...base,
       feather: clamp01(transition.feather ?? 0.12),
       centerX: clamp01(transition.centerX ?? 0.5),
       centerY: clamp01(transition.centerY ?? 0.5),
-      invert: Boolean(transition.invert),
+      invert: explicitRevealMode
+        ? normalizeShowRevealMode(explicitRevealMode, transition.invert) === 'shrink-outgoing'
+        : Boolean(transition.invert),
       featherPolicy: transition.featherPolicy === 'blend' ? 'blend' : 'dither',
+      ...(explicitRevealMode ? { revealMode: explicitRevealMode } : {}),
+      ...(explicitEdgePolicy ? { edgePolicy: explicitEdgePolicy } : {}),
       ...normalizeSpatialShapeSettings(transition),
     }
   }
@@ -1274,8 +1288,9 @@ function normalizeSpatialShapeSettings(transition: {
   rotation?: number
   spin?: number
   ringWidth?: number
-}): Pick<ShowBoundaryTransition, 'shape' | 'scale' | 'rotation' | 'spin' | 'ringWidth'> {
-  if (transition.shape !== 'circle' && transition.shape !== 'diamond' && transition.shape !== 'ring') return {}
+  aspect?: number
+}): Pick<ShowBoundaryTransition, 'shape' | 'scale' | 'rotation' | 'spin' | 'ringWidth' | 'aspect'> {
+  if (transition.shape !== 'circle' && transition.shape !== 'box' && transition.shape !== 'diamond' && transition.shape !== 'ring') return {}
   const base = {
     shape: transition.shape,
     scale: clampRange(transition.scale ?? 1, 0.25, 2),
@@ -1285,6 +1300,13 @@ function normalizeSpatialShapeSettings(transition: {
       ...base,
       rotation: clampRange(transition.rotation ?? 0, -1, 1),
       spin: clampRange(transition.spin ?? 0, -4, 4),
+    }
+  }
+  if (transition.shape === 'box') {
+    return {
+      ...base,
+      aspect: clampRange(transition.aspect ?? 1, 0.25, 4),
+      rotation: clampRange(transition.rotation ?? 0, -1, 1),
     }
   }
   if (transition.shape === 'ring') {
@@ -1336,6 +1358,9 @@ function boundaryToLegacyTransition(
           rotation: transition.rotation,
           spin: transition.spin,
           ringWidth: transition.ringWidth,
+          revealMode: transition.revealMode,
+          aspect: transition.aspect,
+          edgePolicy: transition.edgePolicy,
         }
       : {}),
   }
@@ -1472,6 +1497,9 @@ export function updateShowTransition(
         rotation: portal.rotation ?? currentPortal?.rotation,
         spin: portal.spin ?? currentPortal?.spin,
         ringWidth: portal.ringWidth ?? currentPortal?.ringWidth,
+        revealMode: portal.revealMode ?? currentPortal?.revealMode,
+        aspect: portal.aspect ?? currentPortal?.aspect,
+        edgePolicy: portal.edgePolicy ?? currentPortal?.edgePolicy,
       }
     : {
         id: current?.id ?? `transition-${sceneId}`,
@@ -1676,6 +1704,8 @@ export function showRecordToCompileRecipe(
                 centerY: clamp01(transition.centerY ?? 0.5),
                 invert: Boolean(transition.invert),
                 featherPolicy: transition.featherPolicy === 'blend' ? 'blend' as const : 'dither' as const,
+                ...(transition.revealMode ? { revealMode: transition.revealMode } : {}),
+                ...(transition.edgePolicy ? { edgePolicy: transition.edgePolicy } : {}),
                 ...normalizeSpatialShapeSettings(transition),
               }
             : {}),
@@ -1849,6 +1879,8 @@ function compilerSequenceTransition(
           centerY: clamp01(transition.centerY ?? 0.5),
           invert: Boolean(transition.invert),
           featherPolicy: transition.featherPolicy === 'blend' ? 'blend' as const : 'dither' as const,
+          ...(transition.revealMode ? { revealMode: transition.revealMode } : {}),
+          ...(transition.edgePolicy ? { edgePolicy: transition.edgePolicy } : {}),
           ...normalizeSpatialShapeSettings(transition),
         }
       : {}),
