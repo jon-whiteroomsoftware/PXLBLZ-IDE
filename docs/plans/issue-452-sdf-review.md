@@ -7,7 +7,7 @@ deterministic fixtures are implemented. The user approved the common shapes,
 polygons, and Cat head on 2026-07-14 after reviewing the actual engine metrics
 at representative matrix resolutions. Side-profile cat and Bastet remain
 implemented but provisional by explicit choice; neither blocks use of the
-approved catalogue. Hardware FPS is still unmeasured.
+approved catalogue. The representative hardware gate passed on 2026-07-14.
 
 This review is intentionally separate from the production picker and inspector
 work in #457 and the final Feature Guide update in #460.
@@ -70,8 +70,21 @@ require refreshed fixtures and compiler parity tests.
 
 ## Hardware review
 
-Run representative fixtures on the target Pixelblaze class and record pixel
-count, map dimensions, frame rate, and edge policy. At minimum, measure Bastet,
-Side-profile cat, Star, Crescent, and an eight-sided Polygon under Hard and
-Blend. Hardware approval remains open until those measurements are attached to
-#452.
+The required matrix ran on a `pb32` Pixelblaze named Burner bag, firmware 3.67,
+with a 256-point 2D map. Each generated Pattern was pushed run-only, confirmed
+as the active program, allowed to settle for 500 ms, and sampled for 1,500 ms.
+
+| Shape | Hard artifact | Hard FPS | Blend artifact | Blend FPS |
+| --- | ---: | ---: | ---: | ---: |
+| Bastet | 8,938 bytes | 53.38 | 9,575 bytes | 51.74 |
+| Side-profile cat | 8,931 bytes | 51.86 | 9,568 bytes | 50.16 |
+| Star | 8,510 bytes | 53.69 | 9,147 bytes | 52.76 |
+| Crescent | 8,523 bytes | 54.30 | 9,160 bytes | 52.89 |
+| Polygon, 8 sides | 8,565 bytes | 54.39 | 9,202 bytes | 52.54 |
+
+Every probe compiled, became active, and returned usable telemetry. The full
+frozen SDF matrix also passed both reveal polarities. The user accepted the
+deterministic render as the visual reference before this run; the physical run
+establishes compiler and performance viability, not a new anatomical judgment.
+Side-profile cat and Bastet therefore remain provisional without blocking the
+approved catalogue.

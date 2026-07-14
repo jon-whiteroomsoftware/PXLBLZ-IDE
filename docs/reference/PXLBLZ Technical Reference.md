@@ -1048,8 +1048,12 @@ The frozen matrix uses 256-point 2D captures. One hundred fixtures compile to
 artifact is 10,004 of the measured 68,384-byte budget, the largest generated
 scalar allocation is 16, and the matrix uses no generated array elements. The
 automated matrix emits no compatibility warnings under each fixture's declared
-dimension. Representative hardware FPS remains an explicit external result,
-not an inferred field.
+dimension. A 2026-07-14 external run on a firmware-3.67 `pb32` with a 256-point
+2D map completed all 104 frozen fixtures plus ten SDF edge-policy probes. Every
+Pattern compiled, became active, and returned telemetry; the frozen matrix
+measured 29.47-80.49 mean FPS. The deterministic CI result keeps hardware FPS
+`null` because hardware measurements remain dated external evidence rather than
+an inferred field.
 
 Fade through color is a boundary-owned two-phase Transition. The persisted
 `#RRGGBB` color is an ordinary editable parameter; Black, White, and Custom are
@@ -1184,7 +1188,8 @@ ears for Bastet. These candidates deliberately trade anatomical detail for
 low-resolution readability and generated-math cost. Their engine contract is
 shipped. The 2026-07-14 visual review approved the common catalogue and Cat
 head; Side-profile cat and Bastet remain provisional pending stronger
-high-resolution or physical-Controller silhouettes.
+high-resolution silhouettes. Both nevertheless compiled and ran successfully
+in the representative physical-Controller matrix.
 
 All catalogue shapes share center, scale, reveal mode, feather, edge policy,
 and easing. Aspect and rotation appear only on shapes whose metric uses them;
@@ -1195,9 +1200,10 @@ Blend remains `N + E`.
 
 Twenty-four representative Heart/Star/Crescent/Polygon/cat fixtures compile to
 8,246-8,680 bytes. The largest candidate is 12.693% of the measured 68,384-byte
-device budget. These measurements cover generated artifact size, not hardware
-FPS. Representative-Controller FPS and the provisional signature-shape
-disposition remain recorded in the focused #452 review plan.
+device budget. On the representative 256-point 2D Controller, the required
+Bastet, Side-profile cat, Star, Crescent, and eight-sided Polygon probes measured
+50.16-54.39 FPS across Hard and Blend policies. The complete table and the
+provisional signature-shape disposition live in the focused #452 review plan.
 
 Motion is a separate Transition family because it remaps Pattern coordinates
 rather than changing a coverage shape. Cover moves the incoming content across
@@ -1321,9 +1327,11 @@ The registry labels Pixelate **Cheap**. Ripple, Swirl, Bulge / Pinch, and
 Kaleidoscope are **Smooth** because they use radial or polar math. Stretch does
 not enter the production registry because Scale and Shear already cover it.
 Glitch remains outside the persisted schema and registry pending a stronger,
-animation-stable visual policy. The candidate and compiler measurements live in
-`docs/plans/issue-456-distortion-review.md`; human review approved the selected
-set on 2026-07-14, while representative-Controller FPS remains open.
+animation-stable visual policy. The candidate, compiler, and hardware
+measurements live in `docs/plans/issue-456-distortion-review.md`; human review
+approved the selected set on 2026-07-14. The representative 256-point 2D
+Controller measured 35.03-42.05 FPS for the individual selected distortions and
+31.37 FPS for the animated Ripple plus Pixelate composition.
 
 Affine order describes content motion. The compiler composes forward content
 matrices in list order around normalized center `(0.5, 0.5)`, then inverts the

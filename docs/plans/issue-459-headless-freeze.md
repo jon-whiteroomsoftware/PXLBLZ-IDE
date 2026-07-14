@@ -57,21 +57,33 @@ summarize them, while its advanced view can preserve the literal formula,
 Effect operation counts, memory, artifact bytes, budget ratio, coverage, and
 compatibility warnings.
 
-## External gates
+## Hardware freeze evidence
 
-Representative hardware FPS remains `null`. The repository has no connected
-Pixelblaze result from which to derive it. Complete the gate by recording:
+The external hardware gate passed on 2026-07-14 using a `pb32` Pixelblaze named
+Burner bag, firmware 3.67, with a 256-point 2D map. The run compiled and pushed
+all 104 frozen fixtures plus ten explicit Hard/Blend SDF policy probes. Every
+Pattern became the reported active program and returned usable FPS telemetry:
+114 of 114 measurements completed without a compiler, transport, activation,
+or watchdog failure.
 
-- Pixelblaze model and firmware;
-- map dimensions and pixel count;
-- fixture id and generated artifact bytes;
-- steady-state frames per second; and
-- any visible divergence from the deterministic capture.
+The 104 frozen fixtures measured 29.47-80.49 mean FPS. The slowest was
+`effect-color-composed-animated` at 29.47 FPS; the fastest was
+`property-pattern-control` at 80.49 FPS. The selected distortion set measured
+31.37-42.05 FPS, including the animated Ripple plus Pixelate composition. The
+required Hard/Blend SDF probes measured 50.16-54.39 FPS. The focused tables in
+`issue-452-sdf-review.md` and `issue-456-distortion-review.md` pair each required
+fixture with its generated artifact size and mean FPS.
 
-The 2026-07-14 human review approved the common SDF catalogue, Cat head, and the
-selected distortion set. Side-profile cat and Bastet remain implemented but
-provisional. Representative-Controller FPS remains open for #452, #456, and
-this freeze; deterministic evidence is not substituted for that measurement.
+The user approved the deterministic silhouettes and distortion output before
+the hardware run. The physical measurement therefore verifies compiler and
+performance viability; it does not replace that visual review. Side-profile
+cat and Bastet remain implemented but provisional by choice. The benchmark used
+run-only pushes, created no saved Patterns, and restored the prior
+`ClockworkIris` program (`pxbg3carHT6eYhdRh`) after completion.
+
+`representativeHardwareFps` remains `null` in the deterministic CI result
+because CI has no Controller. The dated external report is the source of truth
+for hardware performance rather than a context-free constant in the engine.
 
 ## Reproduction
 
@@ -80,6 +92,14 @@ npx vitest run src/engine/showVisualToolkitFreeze.test.ts
 npm run lint
 npm test -- --run
 npm run build
+```
+
+For a live rerun, compile `allShowVisualToolkitFixtures()` to temporary `.js`
+files with `compileShow()`, then pass the complete file list to the existing
+hardware runner:
+
+```bash
+PIXELBLAZE_IP=192.168.8.224 npm run devbench -- /tmp/show-toolkit/*.js --settle 500 --sample 1500
 ```
 
 The focused freeze test audits registry validity, fixture coverage, the version

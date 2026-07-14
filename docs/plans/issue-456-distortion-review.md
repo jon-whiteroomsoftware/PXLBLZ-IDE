@@ -10,7 +10,7 @@ This recommendation is implemented so the compiler, persistence model, cost
 report, and deterministic fixtures can be reviewed together. The user approved
 the selected production set on 2026-07-14 after comparing low, medium, and high
 Amount values at representative matrix resolutions. Representative-Controller
-frame rates remain the only open review gate on issue #456.
+frame rates were measured on 2026-07-14, completing the review gate.
 
 ## Candidate evidence
 
@@ -50,16 +50,36 @@ counts, Clip addressing, zero retained buffers, and deterministic generated
 frames. The animated Ripple plus Pixelate fixture exercises the shared Effect
 Property path and produces more than two distinct frame hashes.
 
+## Representative hardware measurements
+
+The selected fixtures ran on a `pb32` Pixelblaze named Burner bag, firmware
+3.67, with a 256-point 2D map. Each Pattern was pushed run-only, confirmed as
+active, allowed to settle for 500 ms, and sampled for 1,500 ms.
+
+| Effect fixture | Artifact bytes | Mean FPS |
+| --- | ---: | ---: |
+| Ripple | 5,882 | 40.49 |
+| Swirl | 6,424 | 37.74 |
+| Bulge | 5,806 | 41.14 |
+| Pinch | 5,808 | 40.84 |
+| Pixelate | 5,222 | 42.05 |
+| Kaleidoscope | 6,582 | 35.03 |
+| Animated Ripple + Pixelate | 9,018 | 31.37 |
+
+All seven fixtures compiled, became active, and returned usable telemetry. No
+watchdog, transport, or activation failure occurred.
+
 ## Review gates
 
 - [x] Review the six selected fixtures at low, medium, and high Amount values.
 - [x] Confirm that Bulge and Pinch read as presets of one operation.
 - [x] Confirm that Ripple, Swirl, and Kaleidoscope remain useful on low-resolution
   matrices rather than becoming noise.
-- [ ] Run the fixtures on a representative Pixelblaze target and record pixels,
+- [x] Run the fixtures on a representative Pixelblaze target and record pixels,
   firmware, artifact bytes, and steady-state frames per second.
 - [x] Accept Ripple, Swirl, Bulge / Pinch, Pixelate, and Kaleidoscope. Stretch
   remains covered by affine Effects; Glitch remains deferred.
 
-The harness intentionally stores representative hardware FPS as `null` until
-that measurement occurs. A blank benchmark is better than a very precise lie.
+The deterministic CI measurement remains `null` because CI has no Controller.
+This dated external measurement is the hardware ground truth rather than a
+fabricated value in the headless test result.
