@@ -2,11 +2,17 @@ import { compileShow, type ShowRecipe } from './showCompiler'
 import { createFastReplayRuntime } from './fastReplay'
 import { nativeDimension } from './loadPattern'
 import {
+  addShowZone,
   createDefaultShow,
   normalizeShowTransitionState,
+  showRecordToCompileRecipe,
   updateShowBoundaryTransition,
+  updateShowCellAdaptations,
+  updateShowCellControlTarget,
   updateShowCellEffects,
   updateShowCellPattern,
+  updateShowRoutingLayout,
+  updateShowScene,
 } from './showModel'
 import type { ShowBoundaryTransition, ShowClipEffect, ShowRecord } from './personalContentRecords'
 import {
@@ -24,6 +30,9 @@ export interface ShowToolkitFixtureRecipe {
   capturePixelCount: number
   stageDimension: 1 | 2 | 3
   persistedRecord: ShowRecord
+  captureStartMs?: number
+  /** Additional registry variants exercised by this fixture. */
+  coveredVariantIds?: string[]
 }
 
 export interface ShowToolkitFixtureCapture {
@@ -420,6 +429,88 @@ export function createShowToolkitFixtureRecipes(): ShowToolkitFixtureRecipe[] {
   ]
 }
 
+export function createShowPropertyToolkitFixtureRecipes(): ShowToolkitFixtureRecipe[] {
+  const shared = {
+    progressSamples: [...PROGRESS_SAMPLES],
+    capturePixelCount: 256,
+    stageDimension: 2 as const,
+    captureStartMs: 30_000,
+    familyId: 'property',
+  }
+  const source = 'export function render2D(index, x, y) { rgb(x, y, time(1)) }'
+  const controlSource = 'var speed = 0\nexport function sliderSpeed(v) { speed = v }\nexport function render2D(index, x, y) { rgb(speed, x, y) }'
+  const prepare = (id: string): ShowRecord => {
+    let record = createDefaultShow(`fixture-${id}`, id, 459)
+    record = updateShowCellPattern(record, 'cell-2', {
+      pattern: record.cells[0].pattern,
+      patternName: record.cells[0].patternName,
+    })
+    return record
+  }
+  const compileRecord = (record: ShowRecord, patternSource = source): ShowRecipe => showRecordToCompileRecipe(record, {
+    byCellId: Object.fromEntries(record.cells.map((cell) => [cell.id, patternSource])),
+    stageDimension: 2,
+  })
+
+  let speed = prepare('property-animation-speed')
+  speed = updateShowCellAdaptations(speed, 'cell-1', { timeScale: 1 })
+  speed = updateShowCellAdaptations(speed, 'cell-2', { timeScale: 2 })
+  speed = updateShowBoundaryTransition(speed, 'transition-scene-1', {
+    propertyTransitions: {
+      timeScale: { fromByCellId: { 'cell-2': 1 }, durationMs: 1000, easing: { curve: 'sine', direction: 'in-out' } },
+    },
+  })
+
+  let brightness = prepare('property-brightness')
+  brightness = updateShowCellAdaptations(brightness, 'cell-1', { brightness: 1 })
+  brightness = updateShowCellAdaptations(brightness, 'cell-2', { brightness: 0.25 })
+  brightness = updateShowBoundaryTransition(brightness, 'transition-scene-1', {
+    propertyTransitions: {
+      brightness: { fromByCellId: { 'cell-2': 1 }, durationMs: 1000, easing: { curve: 'quadratic', direction: 'in-out' } },
+    },
+  })
+
+  let control = prepare('property-pattern-control')
+  control = updateShowCellControlTarget(control, 'cell-1', 'sliderSpeed', 0.2)
+  control = updateShowCellControlTarget(control, 'cell-2', 'sliderSpeed', 0.8)
+  control = updateShowBoundaryTransition(control, 'transition-scene-1', {
+    propertyTransitions: {
+      controls: {
+        sliderSpeed: { fromByCellId: { 'cell-2': 0.2 }, durationMs: 1000, easing: { curve: 'cubic', direction: 'in-out' } },
+      },
+    },
+  })
+
+  let split = addShowZone(prepare('property-split-position'), { name: 'right', nominalPixelCount: 128 })
+  split = updateShowRoutingLayout(split, split.routingLayouts[0].id, {
+    logical: { kind: 'split', zoneIds: [split.zones[0].id, split.zones[1].id], axis: 'x' },
+  })
+  split = updateShowScene(split, split.scenes[0].id, { routingTargets: { splitPosition: 0.25 } })
+  split = updateShowScene(split, split.scenes[1].id, { routingTargets: { splitPosition: 0.75 } })
+  split = updateShowBoundaryTransition(split, 'transition-scene-1', {
+    propertyTransitions: {
+      routing: { splitPosition: { from: 0.25, durationMs: 1000, easing: { curve: 'sine', direction: 'in-out' } } },
+    },
+  })
+
+  let repeat = prepare('property-repeat-scale')
+  repeat = updateShowScene(repeat, repeat.scenes[0].id, { sampleTargets: { repeatScale: 1 } })
+  repeat = updateShowScene(repeat, repeat.scenes[1].id, { sampleTargets: { repeatScale: 4 } })
+  repeat = updateShowBoundaryTransition(repeat, 'transition-scene-1', {
+    propertyTransitions: {
+      sample: { repeatScale: { from: 1, durationMs: 1000, easing: { curve: 'sine', direction: 'in-out' } } },
+    },
+  })
+
+  return [
+    { ...shared, id: 'property-animation-speed', variantId: 'animation-speed', recipe: compileRecord(speed), persistedRecord: normalizeShowTransitionState(speed) },
+    { ...shared, id: 'property-brightness', variantId: 'brightness', recipe: compileRecord(brightness), persistedRecord: normalizeShowTransitionState(brightness) },
+    { ...shared, id: 'property-pattern-control', variantId: 'pattern-control', recipe: compileRecord(control, controlSource), persistedRecord: normalizeShowTransitionState(control) },
+    { ...shared, id: 'property-split-position', variantId: 'split-position', recipe: compileRecord(split), persistedRecord: normalizeShowTransitionState(split) },
+    { ...shared, id: 'property-repeat-scale', variantId: 'repeat-scale', recipe: compileRecord(repeat), persistedRecord: normalizeShowTransitionState(repeat) },
+  ]
+}
+
 function catalogueShapeSettings(
   shape: 'ellipse' | 'rounded-box' | 'cross' | 'heart' | 'star' | 'crescent' | 'cat-head' | 'cat-side-profile' | 'bastet',
 ): Partial<Pick<
@@ -514,6 +605,7 @@ export function createShowEffectToolkitFixtureRecipes(): ShowToolkitFixtureRecip
       id: 'effect-affine-wrap',
       familyId: 'affine',
       variantId: 'wrap',
+      coveredVariantIds: ['translate', 'rotate', 'scale', 'shear'],
       recipe: { clips: [{ id: 'outgoing', source: OUTGOING_SOURCE, effects: affineWrap }] },
       persistedRecord: persistedEffectRecord('effect-affine-wrap', affineWrap),
     },
@@ -705,7 +797,7 @@ export function captureShowToolkitFixture(fixture: ShowToolkitFixtureRecipe): Sh
     fixtureId: fixture.id,
     generatedCode: artifact.code,
     frames: fixture.progressSamples.map((progress) => {
-      const frame = runtime.advanceTo(1000 + progress * 1000, { stepMs: 50 })
+      const frame = runtime.advanceTo((fixture.captureStartMs ?? 1000) + progress * 1000, { stepMs: 50 })
       return {
         progress,
         checksum: frame.checksum,

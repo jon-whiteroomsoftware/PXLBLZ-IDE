@@ -1019,19 +1019,33 @@ is visible by comparing those factual fields with a non-Bezier build.
 animations, effects, and transitions. Families own stable ids and cost policy;
 variants own parameter descriptors and conditional parameters; presets are
 named parameter bundles rather than separate runtime implementations. The
-registry currently describes the shipped property-animation targets, Opacity
-and affine/wrap Effects, plus blend, Fade through color, directional linear wipe, pixel dissolve, and
-circle/box/diamond/ring shape-reveal Transitions.
+registry describes the complete headless property-animation, output, affine,
+distortion, blend, Fade, Wipe, Dissolve, shape-reveal, and motion catalogue.
 Validation rejects duplicate ids, missing parameter references, and presets that
 do not resolve through their variant's public parameter contract. React may
 project this catalogue, but engine code does not import the UI framework.
 
 `showVisualToolkitFixtures.ts` provides deterministic headless evidence for
-every registered Effect and Transition tracer that the compiler currently
-lowers. Each fixture uses fixed outgoing/incoming Patterns, standard progress
-samples, and generated minimum/default/maximum or enum parameter sweeps. The
-fixture harness compiles artifacts; it is not a temporary editor and does not
-establish production UI.
+every registered Property animation, Effect, and Transition variant that the
+compiler lowers. Each fixture uses fixed Patterns, progress samples at `0`,
+`0.25`, `0.5`, `0.75`, and `1`, and generated minimum/default/maximum or enum
+parameter sweeps. The fixture harness compiles artifacts; it is not a temporary
+editor and does not establish production UI.
+
+`showVisualToolkitFreeze.ts` joins the registry to that evidence without UI
+imports. Contract version 1 has fingerprint `68ba010c`, 59 registered variants,
+and 104 fixtures. The freeze test rejects an uncovered or unknown variant,
+duplicate fixture, registry validation error, or unacknowledged descriptor
+change. An intentional catalogue change increments the version and refreshes
+the fingerprint plus `docs/plans/issue-459-headless-freeze.md`.
+
+The frozen matrix uses 256-point 2D captures. One hundred fixtures compile to
+`N`, two to `N + E`, and two to `2N`; none use `S * N`. The largest generated
+artifact is 10,004 of the measured 68,384-byte budget, the largest generated
+scalar allocation is 16, and the matrix uses no generated array elements. The
+automated matrix emits no compatibility warnings under each fixture's declared
+dimension. Representative hardware FPS remains an explicit external result,
+not an inferred field.
 
 Fade through color is a boundary-owned two-phase Transition. The persisted
 `#RRGGBB` color is an ordinary editable parameter; Black, White, and Custom are
