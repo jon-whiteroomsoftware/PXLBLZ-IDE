@@ -9,6 +9,7 @@ import {
 import { emitFixedPoint } from './fxEmit'
 import { emitShowEasingExpression } from './showEasing'
 import type { ShowClipEffect, ShowSpatialShape, ShowTransitionEasing } from './personalContentRecords'
+import { normalizeShowTransitionColor, showTransitionColorToRgb } from './showFadeThroughColor'
 import {
   applyShowEffectsToSample,
   buildShowEffectSampleMatrix,
@@ -89,9 +90,11 @@ export interface ShowAdaptationPropertyRampRecipe {
 export type ShowEffectPropertyRampsRecipe = Record<string, Record<string, ShowAdaptationPropertyRampRecipe>>
 
 export interface ShowRouteTransitionRecipe {
-  kind: 'wipe' | 'dither' | 'portal'
+  kind: 'fade-color' | 'wipe' | 'dither' | 'portal'
   startMs: number
   durationMs: number
+  easing?: ShowTransitionEasing
+  color?: string
   feather?: number
   centerX?: number
   centerY?: number
@@ -105,8 +108,9 @@ export interface ShowRouteTransitionRecipe {
 }
 
 export interface ShowSceneSequenceTransitionRecipe {
-  kind: 'cut' | 'crossfade' | 'wipe' | 'dither' | 'portal'
+  kind: 'cut' | 'crossfade' | 'fade-color' | 'wipe' | 'dither' | 'portal'
   durationMs: number
+  color?: string
   feather?: number
   centerX?: number
   centerY?: number
@@ -891,6 +895,9 @@ function emitRouteTransitionShowCode(
   transition: ShowRouteTransitionRecipe,
   outputDimension: ShowOutputDimension,
 ): string {
+  if (transition.kind === 'fade-color') {
+    return emitFadeThroughColorShowCode(from, to, transition, outputDimension)
+  }
   const transitionEnd = transition.startMs + transition.durationMs
   const feather = clampNumber(transition.feather ?? 0, 0, 1)
   const featherPrelude = transition.kind === 'wipe' && feather > 0
@@ -905,7 +912,7 @@ function emitRouteTransitionShowCode(
     emitRuntimePrelude([from, to]),
     from.code.trim(),
     to.code.trim(),
-    emitScheduler(from, to, transition.startMs, transitionEnd, transition.durationMs),
+    emitScheduler(from, to, transition.startMs, transitionEnd, transition.durationMs, transition.easing),
     emitOuterRenderer(outputDimension, `${featherPrelude}  if (__pxlblz_show_phase == 0) {
     ${emitMemberCaptureCall(from, outputDimension)}
     ${from.prefix}_emit()
@@ -918,6 +925,37 @@ function emitRouteTransitionShowCode(
   } else {
     ${emitMemberCaptureCall(from, outputDimension)}
     ${from.prefix}_emit()
+  }`),
+    '',
+  ].join('\n\n')
+}
+
+function emitFadeThroughColorShowCode(
+  from: CompiledMember,
+  to: CompiledMember,
+  transition: ShowRouteTransitionRecipe,
+  outputDimension: ShowOutputDimension,
+): string {
+  return [
+    emitRuntimePrelude([from, to]),
+    from.code.trim(),
+    to.code.trim(),
+    emitScheduler(
+      from,
+      to,
+      transition.startMs,
+      transition.startMs + transition.durationMs,
+      transition.durationMs,
+      transition.easing,
+    ),
+    emitOuterRenderer(outputDimension, `  if (__pxlblz_show_phase == 0) {
+    ${emitMemberCaptureCall(from, outputDimension)}
+    ${from.prefix}_emit()
+  } else if (__pxlblz_show_phase == 2) {
+    ${emitMemberCaptureCall(to, outputDimension)}
+    ${to.prefix}_emit()
+  } else {
+${indentBlock(emitFadeThroughColorRenderBlock(from, to, transition, outputDimension), 4)}
   }`),
     '',
   ].join('\n\n')
@@ -940,6 +978,7 @@ function emitPortalTransitionShowCode(
       transition.startMs,
       transition.startMs + transition.durationMs,
       transition.durationMs,
+      transition.easing,
     ),
     `export function render2D(index, x, y) {
   if (__pxlblz_show_phase == 0) {
@@ -1076,6 +1115,7 @@ function emitSceneSequenceTransitionBlock(
   outputDimension: 1 | 2,
 ): string {
   if (transition.kind === 'portal') return emitPortalRenderBlock(from, to, transition)
+  if (transition.kind === 'fade-color') return emitFadeThroughColorRenderBlock(from, to, transition, outputDimension)
 
   const fromRender = memberRenderCapture(from, outputDimension)
   const toRender = memberRenderCapture(to, outputDimension)
@@ -1107,6 +1147,34 @@ rgb(
 } else {
   ${fromRender}
   ${from.prefix}_emit()
+}`
+}
+
+function emitFadeThroughColorRenderBlock(
+  from: CompiledMember,
+  to: CompiledMember,
+  transition: Pick<ShowRouteTransitionRecipe, 'color'>,
+  outputDimension: ShowOutputDimension,
+): string {
+  const [red, green, blue] = showTransitionColorToRgb(normalizeShowTransitionColor(transition.color))
+  const fromRender = memberRenderCapture(from, outputDimension)
+  const toRender = memberRenderCapture(to, outputDimension)
+  return `if (__pxlblz_show_mix < 0.5) {
+  ${fromRender}
+  var __pxlblz_show_color_mix = __pxlblz_show_mix * 2
+  rgb(
+    ${from.prefix}_r * (1 - __pxlblz_show_color_mix) + ${red} * __pxlblz_show_color_mix,
+    ${from.prefix}_g * (1 - __pxlblz_show_color_mix) + ${green} * __pxlblz_show_color_mix,
+    ${from.prefix}_b * (1 - __pxlblz_show_color_mix) + ${blue} * __pxlblz_show_color_mix
+  )
+} else {
+  ${toRender}
+  var __pxlblz_show_color_mix = __pxlblz_show_mix * 2 - 1
+  rgb(
+    ${red} * (1 - __pxlblz_show_color_mix) + ${to.prefix}_r * __pxlblz_show_color_mix,
+    ${green} * (1 - __pxlblz_show_color_mix) + ${to.prefix}_g * __pxlblz_show_color_mix,
+    ${blue} * (1 - __pxlblz_show_color_mix) + ${to.prefix}_b * __pxlblz_show_color_mix
+  )
 }`
 }
 
@@ -2028,6 +2096,7 @@ function emitScheduler(
   transitionStart: number,
   transitionEnd: number,
   duration: number,
+  easing: ShowTransitionEasing = 'linear',
 ): string {
   return `export function beforeRender(delta) {
   __pxlblz_show_elapsed_ms = __pxlblz_show_elapsed_ms + delta
@@ -2037,7 +2106,7 @@ function emitScheduler(
     ${from.prefix}_advance(delta)
   } else if (__pxlblz_show_elapsed_ms < ${transitionEnd}) {
     __pxlblz_show_phase = 1
-    __pxlblz_show_mix = (__pxlblz_show_elapsed_ms - ${transitionStart}) / ${duration}
+    __pxlblz_show_mix = ${emitShowEasingExpression(easing, `(__pxlblz_show_elapsed_ms - ${transitionStart}) / ${duration}`)}
     ${from.prefix}_advance(delta)
     ${to.prefix}_advance(delta)
   } else {

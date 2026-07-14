@@ -7,6 +7,7 @@ import {
 } from './showEasing'
 import { createDefaultShow, normalizeShowTransitionState } from './showModel'
 import { compileShow } from './showCompiler'
+import { evaluateFadeThroughColor, showTransitionColorToRgb } from './showFadeThroughColor'
 import {
   SHOW_VISUAL_TOOLKIT_REGISTRY,
   evaluateShowCostAtPixelCount,
@@ -96,6 +97,18 @@ describe('Show visual-toolkit contract', () => {
         expect.objectContaining({ id: 'quick' }),
         expect.objectContaining({ id: 'smooth' }),
       ]))
+
+    const fade = getShowToolkitFamily('transition', 'fade')
+    expect(fade?.variants.find((variant) => variant.id === 'through-color')).toMatchObject({
+      costPolicies: ['single-source'],
+      presets: [
+        { id: 'black', label: 'Black', values: { color: '#000000' } },
+        { id: 'white', label: 'White', values: { color: '#ffffff' } },
+        { id: 'custom', label: 'Custom', values: { color: '#7c3aed' } },
+      ],
+    })
+    expect(resolveShowToolkitParameters('transition', 'fade', 'through-color', {}))
+      .toContainEqual(expect.objectContaining({ id: 'color', kind: 'color', defaultValue: '#000000' }))
   })
 
   it('rejects descriptors whose conditions or presets reference private parameters', () => {
@@ -168,6 +181,9 @@ describe('Show visual-toolkit contract', () => {
     expect(fixtures.map((fixture) => fixture.id)).toEqual([
       'blend-cut',
       'blend-crossfade',
+      'fade-color-black',
+      'fade-color-white',
+      'fade-color-custom',
       'wipe-linear',
       'dissolve-pixel',
       'shape-reveal-circle',
@@ -206,5 +222,15 @@ describe('Show visual-toolkit contract', () => {
       kind: 'crossfade',
       easing: { curve: 'linear' },
     })
+
+    const fade = captureShowToolkitFixture(fixtures.find((fixture) => fixture.id === 'fade-color-custom')!)
+    const y = 8 / 15
+    for (const frame of fade.frames) {
+      const eased = applyShowEasing({ curve: 'sine', direction: 'in-out' }, frame.progress)
+      const expected = evaluateFadeThroughColor([0, 0, y], [1, 0, 1 - y], showTransitionColorToRgb('#7c3aed'), eased)
+      frame.representativePixels[1].forEach((channel, index) => {
+        expect(channel).toBeCloseTo(expected[index], 10)
+      })
+    }
   })
 })

@@ -72,7 +72,7 @@ export interface LibraryRecord {
   updatedAt: number
 }
 
-export type ShowTransitionKind = 'cut' | 'crossfade' | 'wipe' | 'dither' | 'portal'
+export type ShowTransitionKind = 'cut' | 'crossfade' | 'fade-color' | 'wipe' | 'dither' | 'portal'
 export type ShowTransitionCost = 'free' | 'cheap' | 'expensive'
 export type ShowPortalFeatherPolicy = 'dither' | 'blend'
 export type ShowSpatialShape = 'circle' | 'diamond' | 'ring'
@@ -142,6 +142,8 @@ export interface ShowPortalSettings {
 export interface ShowTransition {
   kind: ShowTransitionKind
   durationMs: number
+  /** Editable sRGB color used by the two-phase Fade-through-color Transition. */
+  color?: string
   /** Normalized fraction of the 1D route used as a stable wipe feather band. */
   feather?: number
   /** Normalized Stage coordinates used by the 2D portal transition. */
@@ -210,6 +212,7 @@ export interface ShowBoundaryTransition {
   layoutId?: string
   /** Stable directional threshold used when a routing marker has nonzero duration. */
   routingDirection?: ShowRoutingDirection
+  color?: string
   feather?: number
   centerX?: number
   centerY?: number

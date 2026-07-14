@@ -78,6 +78,32 @@ export function createShowToolkitFixtureRecipes(): ShowToolkitFixtureRecipe[] {
       recipe: { clips: clips(), crossfade: { startMs: 1000, durationMs: 1000 } },
       persistedRecord: persistedRecord('blend-crossfade', { kind: 'crossfade', durationMs: 1000 }),
     },
+    ...([
+      ['black', '#000000'],
+      ['white', '#ffffff'],
+      ['custom', '#7c3aed'],
+    ] as const).map(([name, color]): ShowToolkitFixtureRecipe => ({
+      ...shared,
+      id: `fade-color-${name}`,
+      familyId: 'fade',
+      variantId: 'through-color',
+      recipe: {
+        clips: clips(),
+        routeTransition: {
+          kind: 'fade-color',
+          startMs: 1000,
+          durationMs: 1000,
+          easing: { curve: 'sine', direction: 'in-out' },
+          color,
+        },
+      },
+      persistedRecord: persistedRecord(`fade-color-${name}`, {
+        kind: 'fade-color',
+        durationMs: 1000,
+        easing: { curve: 'sine', direction: 'in-out' },
+        color,
+      }),
+    })),
     {
       ...shared,
       id: 'wipe-linear',

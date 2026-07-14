@@ -22,6 +22,7 @@ import type {
 } from './showCompiler'
 import { clampShowRepeatScale } from './showCoordinateRemap'
 import { normalizeShowEasing } from './showEasing'
+import { normalizeShowTransitionColor } from './showFadeThroughColor'
 import {
   normalizeShowClipEffects,
   sameShowEffectStructure,
@@ -1026,6 +1027,9 @@ export function normalizeShowTransitionState(show: ShowRecord): ShowRecord {
           ...(scene.transitionOut?.kind === 'wipe'
             ? { feather: scene.transitionOut.feather }
             : {}),
+          ...(scene.transitionOut?.kind === 'fade-color'
+            ? { color: scene.transitionOut.color }
+            : {}),
           ...(scene.transitionOut?.kind === 'portal'
             ? {
                 feather: scene.transitionOut.feather,
@@ -1135,6 +1139,7 @@ function normalizeBoundaryTransition(transition: ShowBoundaryTransition): ShowBo
     }
   }
   if (kind === 'wipe') return { ...base, feather: clamp01(transition.feather ?? 0) }
+  if (kind === 'fade-color') return { ...base, color: normalizeShowTransitionColor(transition.color) }
   if (kind === 'portal') {
     return {
       ...base,
@@ -1264,6 +1269,7 @@ function boundaryToLegacyTransition(
   return {
     kind,
     durationMs: transition.durationMs,
+    ...(kind === 'fade-color' ? { color: normalizeShowTransitionColor(transition.color) } : {}),
     ...(kind === 'wipe' ? { feather: transition.feather } : {}),
     ...(kind === 'portal'
       ? {
@@ -1515,14 +1521,16 @@ export function showRecordToCompileRecipe(
 
   const transitionScene = show.scenes[sceneIndex(show, cells[0].sceneId)]
   const transition = transitionScene?.transitionOut
+  const boundary = transitionScene
+    ? show.transitions?.find((candidate) => (
+        candidate.afterSceneId === transitionScene.id && candidate.kind !== 'routing'
+      ))
+    : undefined
   const samePattern = isSamePattern(cells[0], cells[1])
   if (transition?.kind === 'portal' && (!show.stageMapId || lookup.stageDimension !== 2)) {
     throw new Error('Portal transition requires a 2D Stage Map.')
   }
-  if (samePattern && hasSameDiscreteAdaptations(cells[0], cells[1]) && transition && transition.kind !== 'cut' && transition.kind !== 'portal') {
-    const boundary = show.transitions?.find((candidate) => (
-      candidate.afterSceneId === transitionScene.id && candidate.kind !== 'routing'
-    ))
+  if (samePattern && hasSameDiscreteAdaptations(cells[0], cells[1]) && transition && transition.kind !== 'cut' && transition.kind !== 'portal' && transition.kind !== 'fade-color') {
     const explicitFrom = boundary?.propertyTransitions?.timeScale?.fromByCellId[cells[1].id]
     const propertyRamps = boundary?.propertyTransitions
       ? Object.fromEntries((['timeScale', 'brightness'] as const).flatMap((property) => {
@@ -1582,11 +1590,14 @@ export function showRecordToCompileRecipe(
       ? { startMs: show.scenes[0].durationMs, durationMs: transition.durationMs }
       : undefined,
     cut: !transition || transition.kind === 'cut' ? { startMs: show.scenes[0].durationMs } : undefined,
-    routeTransition: transition && (transition.kind === 'wipe' || transition.kind === 'dither' || transition.kind === 'portal')
+    routeTransition: transition && (transition.kind === 'fade-color' || transition.kind === 'wipe' || transition.kind === 'dither' || transition.kind === 'portal')
       ? {
           kind: transition.kind,
           startMs: show.scenes[0].durationMs,
           durationMs: transition.durationMs,
+          ...(transition.kind === 'fade-color'
+            ? { easing: boundary?.easing ?? 'linear', color: normalizeShowTransitionColor(transition.color) }
+            : {}),
           ...(transition.kind === 'wipe' ? { feather: clamp01(transition.feather ?? 0) } : {}),
           ...(transition.kind === 'portal'
             ? {
@@ -1720,6 +1731,7 @@ function showRecordToSceneSequenceRecipe(
             ? {
                 transitionOut: {
                   ...compilerSequenceTransition(transition),
+                  ...(transition.kind === 'fade-color' ? { easing: boundary?.easing ?? 'linear' } : {}),
                   ...(propertyRamps && Object.keys(propertyRamps).length > 0 ? { propertyRamps } : {}),
                   ...(controlRamps && Object.keys(controlRamps).length > 0 ? { controlRamps } : {}),
                   ...(effectRamps ? { effectRamps } : {}),
@@ -1740,6 +1752,7 @@ function compilerSequenceTransition(
   return {
     kind: transition.kind,
     durationMs: transition.durationMs,
+    ...(transition.kind === 'fade-color' ? { color: normalizeShowTransitionColor(transition.color) } : {}),
     ...(transition.kind === 'wipe' ? { feather: clamp01(transition.feather ?? 0) } : {}),
     ...(transition.kind === 'portal'
       ? {
@@ -1898,7 +1911,7 @@ function showSceneHoldDurationMs(show: Pick<ShowRecord, 'scenes'>): number {
 export function transitionCost(kind: NonNullable<ShowScene['transitionOut']>['kind']): ShowTransitionCost {
   if (kind === 'crossfade') return 'expensive'
   if (kind === 'portal') return 'expensive'
-  if (kind === 'wipe' || kind === 'dither') return 'cheap'
+  if (kind === 'fade-color' || kind === 'wipe' || kind === 'dither') return 'cheap'
   return 'free'
 }
 

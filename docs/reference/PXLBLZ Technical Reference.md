@@ -976,6 +976,7 @@ Current compiler policies:
 | Cut / Restart | One active member; optional fresh state |
 | Parameter ramp | One continued member, values updated once per frame |
 | Crossfade | Two member renderers during the transition window |
+| Fade through color | One outgoing renderer before the midpoint, one incoming renderer after it |
 | Wipe / dither | Both clocks may advance; one renderer selected per pixel |
 | 2D circle/diamond/ring hard or dither | One renderer per pixel from the Stage-space SDF boundary |
 | 2D circle/diamond/ring true blend | Two renderers only inside the feather band |
@@ -994,7 +995,7 @@ animations, effects, and transitions. Families own stable ids and cost policy;
 variants own parameter descriptors and conditional parameters; presets are
 named parameter bundles rather than separate runtime implementations. The
 registry currently describes the shipped property-animation targets, Opacity
-and affine/wrap Effects, plus blend, linear wipe, pixel dissolve, and
+and affine/wrap Effects, plus blend, Fade through color, linear wipe, pixel dissolve, and
 circle/diamond/ring shape-reveal Transitions.
 Validation rejects duplicate ids, missing parameter references, and presets that
 do not resolve through their variant's public parameter contract. React may
@@ -1006,6 +1007,17 @@ lowers. Each fixture uses fixed outgoing/incoming Patterns, standard progress
 samples, and generated minimum/default/maximum or enum parameter sweeps. The
 fixture harness compiles artifacts; it is not a temporary editor and does not
 establish production UI.
+
+Fade through color is a boundary-owned two-phase Transition. The persisted
+`#RRGGBB` color is an ordinary editable parameter; Black, White, and Custom are
+presets that write that same field. Shared easing first transforms the complete
+transition progress. During the first half, the compiler evaluates only the
+outgoing Pattern and blends its captured RGB toward the selected color. At the
+exact midpoint the output is the selected color. During the second half, it
+evaluates only the incoming Pattern and blends from the color toward that
+Pattern. Both the two-scene and scene-sequence lowering paths therefore report
+`N`, not Crossfade's `2N`, while deterministic fixtures cover start, quarter,
+midpoint, three-quarter, and end frames for black, white, and custom colors.
 
 Property transitions share one descriptor model. Animation speed (`0×..4×`), brightness
 (`0..1`), and exported slider controls carry destination targets on clips. Moving

@@ -50,7 +50,7 @@ export interface ShowToolkitParameterCondition {
 export interface ShowToolkitParameterDescriptor {
   id: string
   label: string
-  kind: 'number' | 'boolean' | 'enum' | 'easing'
+  kind: 'number' | 'boolean' | 'enum' | 'easing' | 'color'
   defaultValue: ShowToolkitParameterValue
   min?: number
   max?: number
@@ -167,6 +167,26 @@ export const SHOW_VISUAL_TOOLKIT_REGISTRY: ShowToolkitFamilyDescriptor[] = [
       },
     ],
     parameters: [DURATION, EASING],
+  },
+  {
+    kind: 'transition',
+    id: 'fade',
+    label: 'Fade',
+    variants: [{
+      id: 'through-color',
+      label: 'Through color',
+      costPolicies: ['single-source'],
+      presets: [
+        { id: 'black', label: 'Black', values: { color: '#000000' } },
+        { id: 'white', label: 'White', values: { color: '#ffffff' } },
+        { id: 'custom', label: 'Custom', values: { color: '#7c3aed' } },
+      ],
+    }],
+    parameters: [
+      DURATION,
+      EASING,
+      { id: 'color', label: 'Color', kind: 'color', defaultValue: '#000000' },
+    ],
   },
   {
     kind: 'transition',
