@@ -2357,6 +2357,94 @@ export function render(index) { rgb(elapsed, time(1), index) }
     })
   })
 
+  it('runs hard Cover through transformed incoming coordinates with one renderer per pixel (#449)', () => {
+    const artifact = compileShow({
+      clips: [
+        { id: 'from', source: 'export var calls = 0\nexport function render2D(index, x, y) { calls = calls + 1; rgb(1, x, y) }' },
+        { id: 'to', source: 'export var calls = 0\nexport function render2D(index, x, y) { calls = calls + 1; rgb(0, x, y) }' },
+      ],
+      routeTransition: {
+        kind: 'motion', motionVariant: 'cover', startMs: 1000, durationMs: 1000,
+        direction: 0, addressPolicy: 'clip', edgePolicy: 'hard',
+      },
+    }, {})
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 16)
+
+    handle.beforeRender(1500)
+    handle.render2D(0, 0.25, 0.5)
+    expect(pixel()).toEqual([0, 0.75, 0.5])
+    handle.render2D(1, 0.75, 0.5)
+    expect(pixel()).toEqual([1, 0.75, 0.5])
+    expect(handle.getExports()).toMatchObject({ __pxlblz_show_c0_calls: 1, __pxlblz_show_c1_calls: 1 })
+    expect(artifact.summary).toMatchObject({
+      renderPolicy: 'spatial-route-one-renderer-per-pixel',
+      transitionCost: 'route', routePolicy: 'motion-selector', worstInstantRenderersPerPixel: 1,
+      cost: { cpu: { patternEvaluations: { formula: 'N', basePerPixel: 1 } } },
+    })
+  })
+
+  it('anchors Content Grow and reports full motion blending as 2N (#449)', () => {
+    const artifact = compileShow({
+      clips: [
+        { id: 'from', source: 'export var calls = 0\nexport function render2D(index, x, y) { calls = calls + 1; rgb(1, 0, 0) }' },
+        { id: 'to', source: 'export var calls = 0\nexport function render2D(index, x, y) { calls = calls + 1; rgb(0, x, y) }' },
+      ],
+      routeTransition: {
+        kind: 'motion', motionVariant: 'content-grow', startMs: 1000, durationMs: 1000,
+        anchorX: 0, anchorY: 0, contentScale: 0.25, addressPolicy: 'wrap', edgePolicy: 'blend',
+      },
+    }, {})
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 16)
+
+    handle.beforeRender(1000)
+    handle.render2D(0, 0.125, 0.125)
+    expect(pixel()).toEqual([1, 0, 0])
+    handle.beforeRender(500)
+    handle.render2D(1, 0.125, 0.125)
+    expect(pixel()[0]).toBeCloseTo(0.5)
+    expect(handle.getExports()).toMatchObject({ __pxlblz_show_c0_calls: 2, __pxlblz_show_c1_calls: 2 })
+    expect(artifact.summary).toMatchObject({
+      renderPolicy: 'steady-active-transition-both',
+      transitionCost: 'renderer-window', routePolicy: 'motion-full-blend', worstInstantRenderersPerPixel: 2,
+      cost: { cpu: {
+        patternEvaluations: { formula: '2N', basePerPixel: 2 },
+        effects: { addressPolicy: 'wrap', affineScalarOpsPerEvaluatedPixel: 8 },
+      } },
+    })
+  })
+
+  it('reuses motion coordinate semantics inside a scene sequence (#449)', () => {
+    const artifact = compileShow({
+      clips: [
+        { id: 'from', source: 'export function render2D(index, x, y) { rgb(1, x, y) }' },
+        { id: 'to', source: 'export function render2D(index, x, y) { rgb(0, x, y) }' },
+      ],
+      sceneSequence: {
+        scenes: [
+          {
+            clipId: 'from', holdMs: 1000,
+            transitionOut: {
+              kind: 'motion', motionVariant: 'reveal', durationMs: 1000,
+              direction: 0, addressPolicy: 'clip', edgePolicy: 'hard',
+            },
+          },
+          { clipId: 'to', holdMs: 1000 },
+        ],
+      },
+    }, {})
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 16)
+
+    handle.beforeRender(1500)
+    handle.render2D(0, 0.25, 0.5)
+    expect(pixel()).toEqual([0, 0.25, 0.5])
+    handle.render2D(1, 0.75, 0.5)
+    expect(pixel()).toEqual([1, 0.25, 0.5])
+    expect(artifact.summary).toMatchObject({
+      routePolicy: 'motion-selector', renderPolicy: 'spatial-route-one-renderer-per-pixel',
+      worstInstantRenderersPerPixel: 1,
+    })
+  })
+
   it('emits a dither dissolve that hashes each pixel to one member renderer', () => {
     const artifact = compileShow({
       clips: [

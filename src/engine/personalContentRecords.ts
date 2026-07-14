@@ -72,13 +72,15 @@ export interface LibraryRecord {
   updatedAt: number
 }
 
-export type ShowTransitionKind = 'cut' | 'crossfade' | 'fade-color' | 'wipe' | 'dither' | 'portal'
+export type ShowTransitionKind = 'cut' | 'crossfade' | 'fade-color' | 'wipe' | 'dither' | 'portal' | 'motion'
 export type ShowTransitionCost = 'free' | 'cheap' | 'expensive'
 export type ShowPortalFeatherPolicy = 'dither' | 'blend'
 export type ShowTransitionEdgePolicy = 'hard' | 'dither' | 'blend'
 export type ShowDissolveVariant = 'pixel' | 'block'
 export type ShowSpatialShape = 'circle' | 'box' | 'diamond' | 'ring'
 export type ShowRevealMode = 'grow-incoming' | 'shrink-outgoing'
+export type ShowMotionTransitionVariant = 'cover' | 'reveal' | 'push' | 'content-grow' | 'content-shrink'
+export type ShowMotionAddressPolicy = 'clip' | 'wrap'
 export type LegacyShowTransitionEasing = 'linear' | 'ease-in' | 'ease-out' | 'ease-in-out'
 export type ShowEasingDirection = 'in' | 'out' | 'in-out'
 export type ShowStructuredEasing =
@@ -172,6 +174,11 @@ export interface ShowTransition {
   ringWidth?: number
   revealMode?: ShowRevealMode
   aspect?: number
+  motionVariant?: ShowMotionTransitionVariant
+  anchorX?: number
+  anchorY?: number
+  contentScale?: number
+  addressPolicy?: ShowMotionAddressPolicy
 }
 
 export interface ShowScene {
@@ -244,6 +251,11 @@ export interface ShowBoundaryTransition {
   ringWidth?: number
   revealMode?: ShowRevealMode
   aspect?: number
+  motionVariant?: ShowMotionTransitionVariant
+  anchorX?: number
+  anchorY?: number
+  contentScale?: number
+  addressPolicy?: ShowMotionAddressPolicy
   /** Boundary-owned interpolation settings keyed by the destination clip. */
   propertyTransitions?: ShowPropertyTransitions
 }

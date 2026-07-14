@@ -238,6 +238,11 @@ describe('Show visual-toolkit contract', () => {
       'shape-reveal-box-grow-incoming',
       'shape-reveal-circle-shrink-outgoing',
       'shape-reveal-box-shrink-outgoing',
+      'motion-cover',
+      'motion-reveal',
+      'motion-push',
+      'motion-content-grow',
+      'motion-content-shrink',
     ])
 
     for (const fixture of fixtures) {

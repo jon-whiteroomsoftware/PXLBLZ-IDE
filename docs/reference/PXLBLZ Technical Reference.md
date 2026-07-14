@@ -1084,6 +1084,33 @@ band and reports `N + E`. Deterministic fixtures cover both reveal modes for
 Circle and rotated/aspect-scaled Box while retaining the legacy Circle,
 Diamond, and Ring fixtures.
 
+Motion is a separate Transition family because it remaps Pattern coordinates
+rather than changing a coverage shape. Cover moves the incoming content across
+a stationary outgoing source. Reveal moves the outgoing content away from a
+stationary incoming source. Push moves both sources in the same direction, with
+the incoming source one projected Stage span behind the outgoing source.
+Content Grow scales the incoming coordinates from Minimum scale to `1`; Content
+Shrink scales the outgoing coordinates from `1` to Minimum scale. The latter is
+therefore visibly and structurally distinct from Shape Shrink.
+
+Motion stores direction in turns and uses the same inverse-affine sampling
+contract as clip Effects. A direction vector is multiplied by the unit-square
+projection span `abs(dx) + abs(dy)`, which places the moving rectangle fully
+outside the Stage at its endpoint for cardinal and arbitrary directions.
+Content scaling uses the authored Anchor X/Y as its fixed point. Clip addressing
+clamps transformed sample coordinates; Wrap addressing applies `frac` after the
+same inverse transform. Motion requires a 2D Stage Map, and both direct
+two-scene and scene-sequence compilation use the same coordinate equations.
+
+Hard composition uses transformed coverage to select exactly one Pattern per
+output pixel and reports `N`. Full blend evaluates the outgoing and incoming
+sources with their respective transforms across the transition window, mixes
+them by eased progress, and reports `2N`. Cost metadata also reports the active
+Clip/Wrap address policy and affine scalar work. Deterministic fixtures cover
+Cover, Reveal, Push, Content Grow, and Content Shrink; compiler tests cover
+boundary, midpoint, anchored scaling, transformed sampling, and both renderer
+policies.
+
 Property transitions share one descriptor model. Animation speed (`0×..4×`), brightness
 (`0..1`), and exported slider controls carry destination targets on clips. Moving
 split position (`0..1`) and sample repeat scale (`1..8`) carry their targets on

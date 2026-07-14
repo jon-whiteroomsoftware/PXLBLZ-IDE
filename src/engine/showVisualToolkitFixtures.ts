@@ -255,6 +255,30 @@ export function createShowToolkitFixtureRecipes(): ShowToolkitFixtureRecipe[] {
         },
       }))
     )),
+    ...(['cover', 'reveal', 'push', 'content-grow', 'content-shrink'] as const).map((motionVariant): ShowToolkitFixtureRecipe => ({
+      ...shared,
+      id: `motion-${motionVariant}`,
+      familyId: 'motion',
+      variantId: motionVariant,
+      recipe: {
+        clips: clips(),
+        routeTransition: {
+          kind: 'motion', motionVariant, startMs: 1000, durationMs: 1000,
+          direction: 0.125, anchorX: 0.25, anchorY: 0.75, contentScale: 0.2,
+          addressPolicy: motionVariant === 'push' ? 'wrap' : 'clip',
+          edgePolicy: motionVariant === 'push' ? 'blend' : 'hard',
+        },
+      },
+      persistedRecord: {
+        ...persistedRecord(`motion-${motionVariant}`, {
+          kind: 'motion', durationMs: 1000, motionVariant,
+          direction: 0.125, anchorX: 0.25, anchorY: 0.75, contentScale: 0.2,
+          addressPolicy: motionVariant === 'push' ? 'wrap' : 'clip',
+          edgePolicy: motionVariant === 'push' ? 'blend' : 'hard',
+        }),
+        stageMapId: 'fixture-stage-2d',
+      },
+    })),
   ]
 }
 

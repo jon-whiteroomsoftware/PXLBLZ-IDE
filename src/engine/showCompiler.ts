@@ -8,12 +8,22 @@ import {
 } from './controllerProfile'
 import { emitFixedPoint } from './fxEmit'
 import { emitShowEasingExpression } from './showEasing'
-import type { ShowClipEffect, ShowDissolveVariant, ShowRevealMode, ShowSpatialShape, ShowTransitionEasing, ShowTransitionEdgePolicy } from './personalContentRecords'
+import type {
+  ShowClipEffect,
+  ShowDissolveVariant,
+  ShowMotionAddressPolicy,
+  ShowMotionTransitionVariant,
+  ShowRevealMode,
+  ShowSpatialShape,
+  ShowTransitionEasing,
+  ShowTransitionEdgePolicy,
+} from './personalContentRecords'
 import { normalizeShowTransitionColor, showTransitionColorToRgb } from './showFadeThroughColor'
 import { normalizeShowTransitionEdgePolicy } from './showTransitionEdge'
 import { showWipeProjectionCoefficients } from './showWipe'
 import { normalizeShowDissolveBlockSize, normalizeShowDissolveSeed } from './showDissolve'
 import { normalizeShowRevealMode, showShapeRevealMaxDistance } from './showShapeReveal'
+import { normalizeShowMotionTransition, showMotionTransitionVector } from './showMotionTransition'
 import {
   applyShowEffectsToSample,
   buildShowEffectSampleMatrix,
@@ -94,7 +104,7 @@ export interface ShowAdaptationPropertyRampRecipe {
 export type ShowEffectPropertyRampsRecipe = Record<string, Record<string, ShowAdaptationPropertyRampRecipe>>
 
 export interface ShowRouteTransitionRecipe {
-  kind: 'fade-color' | 'wipe' | 'dither' | 'portal'
+  kind: 'fade-color' | 'wipe' | 'dither' | 'portal' | 'motion'
   startMs: number
   durationMs: number
   easing?: ShowTransitionEasing
@@ -116,10 +126,15 @@ export interface ShowRouteTransitionRecipe {
   rotation?: number
   spin?: number
   ringWidth?: number
+  motionVariant?: ShowMotionTransitionVariant
+  anchorX?: number
+  anchorY?: number
+  contentScale?: number
+  addressPolicy?: ShowMotionAddressPolicy
 }
 
 export interface ShowSceneSequenceTransitionRecipe {
-  kind: 'cut' | 'crossfade' | 'fade-color' | 'wipe' | 'dither' | 'portal'
+  kind: 'cut' | 'crossfade' | 'fade-color' | 'wipe' | 'dither' | 'portal' | 'motion'
   durationMs: number
   color?: string
   direction?: number
@@ -139,6 +154,11 @@ export interface ShowSceneSequenceTransitionRecipe {
   rotation?: number
   spin?: number
   ringWidth?: number
+  motionVariant?: ShowMotionTransitionVariant
+  anchorX?: number
+  anchorY?: number
+  contentScale?: number
+  addressPolicy?: ShowMotionAddressPolicy
   easing?: ShowTransitionEasing
   propertyRamps?: Partial<Record<'timeScale' | 'brightness', ShowAdaptationPropertyRampRecipe>>
   controlRamps?: Record<string, ShowAdaptationPropertyRampRecipe>
@@ -259,6 +279,8 @@ export interface ShowCompileSummary {
     | 'portal-hard'
     | 'portal-dithered-feather'
     | 'portal-blended-feather'
+    | 'motion-selector'
+    | 'motion-full-blend'
   clockPolicy: 'real-time' | 'scaled' | 'scaled-ramp' | 'exact-pause' | 'exact-pause-ramp'
   evaluationPolicy: 'full' | 'masked-shutter' | 'mixed'
   expectedActiveFraction: number | null
@@ -376,6 +398,9 @@ export function compileShow(
     : null
   const directionalWipeTransition = expandedRecipe.routeTransition?.kind === 'wipe'
     && expandedRecipe.routeTransition.direction !== undefined
+  const motionTransition = expandedRecipe.routeTransition?.kind === 'motion'
+    ? expandedRecipe.routeTransition
+    : null
   const sequenceTransitions = expandedRecipe.sceneSequence?.scenes.flatMap((scene) => (
     scene.transitionOut ? [scene.transitionOut] : []
   )) ?? []
@@ -385,6 +410,11 @@ export function compileShow(
   const sequenceHasDirectionalWipe = renderedSequenceTransitions.some((transition) => (
     transition.kind === 'wipe' && transition.direction !== undefined
   ))
+  const sequenceHasMotion = renderedSequenceTransitions.some((transition) => transition.kind === 'motion')
+  const motionBlend = Boolean(
+    motionTransition?.edgePolicy === 'blend'
+    || renderedSequenceTransitions.some((transition) => transition.kind === 'motion' && transition.edgePolicy === 'blend'),
+  )
   const portalBlend = Boolean(
     (portalTransition
       && clampNumber(portalTransition.feather ?? 0, 0, 1) > 0
@@ -407,8 +437,8 @@ export function compileShow(
   )
   const boundedBlend = portalBlend || wipeBlend
   const memberOutputDimension = showOutputDimensionForMembers(members)
-  const sequenceOutputDimension: ShowOutputDimension = sequenceHasPortal || sequenceHasDirectionalWipe ? 2 : memberOutputDimension
-  const transitionOutputDimension: ShowOutputDimension = portalTransition || directionalWipeTransition ? 2 : memberOutputDimension
+  const sequenceOutputDimension: ShowOutputDimension = sequenceHasPortal || sequenceHasDirectionalWipe || sequenceHasMotion ? 2 : memberOutputDimension
+  const transitionOutputDimension: ShowOutputDimension = portalTransition || directionalWipeTransition || motionTransition ? 2 : memberOutputDimension
   const routedOutputDimension: 1 | 2 = routingLayouts?.some((layout) => layout.logical)
     ? 2
     : routeMode || routingLayouts
@@ -480,7 +510,7 @@ export function compileShow(
     members,
     expandedRecipe.sceneSequence
       ? sequenceOutputDimension
-      : portalTransition || directionalWipeTransition
+      : portalTransition || directionalWipeTransition || motionTransition
         ? 2
         : routeMode || routingLayouts
           ? routedOutputDimension
@@ -489,7 +519,7 @@ export function compileShow(
   const sourceBytesBeforeMerge = members.reduce((sum, member) => sum + member.sourceBytes, 0)
   const artifactBytes = byteLength(code)
   const transitionCost = expandedRecipe.sceneSequence
-    ? sequenceHasCrossfade
+    ? sequenceHasCrossfade || motionBlend
       ? 'renderer-window'
       : boundedBlend
         ? 'bounded-renderer-window'
@@ -501,7 +531,7 @@ export function compileShow(
       : expandedRecipe.adaptationRamp
         ? 'parameter'
         : expandedRecipe.routeTransition
-          ? boundedBlend ? 'bounded-renderer-window' : 'route'
+          ? motionBlend ? 'renderer-window' : boundedBlend ? 'bounded-renderer-window' : 'route'
         : 'none'
   const evaluationSummary = describeEvaluationPolicy(members)
   const effectCost = describeEffectCost(members, expandedRecipe)
@@ -537,11 +567,11 @@ export function compileShow(
     measuredDeviceBudgetBytes: MEASURED_DEVICE_BUDGET_BYTES,
     artifactBudgetRatio: artifactBytes / MEASURED_DEVICE_BUDGET_BYTES,
     renderPolicy: expandedRecipe.sceneSequence
-      ? sequenceHasCrossfade
+      ? sequenceHasCrossfade || motionBlend
         ? 'steady-active-transition-both'
         : boundedBlend
           ? 'spatial-route-bounded-feather'
-          : sequenceHasPortal || sequenceHasDirectionalWipe
+          : sequenceHasPortal || sequenceHasDirectionalWipe || sequenceHasMotion
             ? 'spatial-route-one-renderer-per-pixel'
             : renderedSequenceTransitions.length > 0
               ? 'route-transition-one-renderer-per-pixel'
@@ -555,15 +585,19 @@ export function compileShow(
         : expandedRecipe.adaptationRamp
           ? 'parameter-ramp-one-renderer-per-pixel'
           : expandedRecipe.routeTransition
-            ? portalTransition || directionalWipeTransition
-              ? boundedBlend
+            ? portalTransition || directionalWipeTransition || motionTransition
+              ? motionBlend
+                ? 'steady-active-transition-both'
+                : boundedBlend
                 ? 'spatial-route-bounded-feather'
                 : 'spatial-route-one-renderer-per-pixel'
               : 'route-transition-one-renderer-per-pixel'
             : 'single-continuous-hold',
     transitionCost,
     routePolicy: expandedRecipe.sceneSequence
-      ? sequenceHasPortal && portalBlend
+      ? sequenceHasMotion
+        ? motionBlend ? 'motion-full-blend' : 'motion-selector'
+        : sequenceHasPortal && portalBlend
         ? 'portal-blended-feather'
         : sequenceHasPortal && renderedSequenceTransitions.some((transition) => (
           transition.kind === 'portal'
@@ -586,6 +620,8 @@ export function compileShow(
                 : renderedSequenceTransitions.some((transition) => transition.kind === 'wipe')
                   ? 'hard-wipe'
                   : 'none'
+      : motionTransition
+      ? motionBlend ? 'motion-full-blend' : 'motion-selector'
       : portalTransition
       ? clampNumber(portalTransition.feather ?? 0, 0, 1) <= 0 || resolvePortalEdgePolicy(portalTransition) === 'hard'
         ? 'portal-hard'
@@ -947,6 +983,9 @@ function emitRouteTransitionShowCode(
   if (transition.kind === 'wipe') {
     return emitWipeTransitionShowCode(from, to, transition, outputDimension)
   }
+  if (transition.kind === 'motion') {
+    return emitMotionTransitionShowCode(from, to, transition)
+  }
   const transitionEnd = transition.startMs + transition.durationMs
   const pickTo = emitDissolvePickExpression(transition)
   return [
@@ -997,6 +1036,36 @@ function emitWipeTransitionShowCode(
     ${to.prefix}_emit()
   } else {
 ${indentBlock(emitWipeTransitionRenderBlock(from, to, transition, outputDimension), 4)}
+  }`),
+    '',
+  ].join('\n\n')
+}
+
+function emitMotionTransitionShowCode(
+  from: CompiledMember,
+  to: CompiledMember,
+  transition: ShowRouteTransitionRecipe,
+): string {
+  return [
+    emitRuntimePrelude([from, to]),
+    from.code.trim(),
+    to.code.trim(),
+    emitScheduler(
+      from,
+      to,
+      transition.startMs,
+      transition.startMs + transition.durationMs,
+      transition.durationMs,
+      transition.easing,
+    ),
+    emitOuterRenderer(2, `  if (__pxlblz_show_phase == 0) {
+    ${from.prefix}_renderCapture2D(index, x, y)
+    ${from.prefix}_emit()
+  } else if (__pxlblz_show_phase == 2) {
+    ${to.prefix}_renderCapture2D(index, x, y)
+    ${to.prefix}_emit()
+  } else {
+${indentBlock(emitMotionTransitionRenderBlock(from, to, transition), 4)}
   }`),
     '',
   ].join('\n\n')
@@ -1189,6 +1258,7 @@ function emitSceneSequenceTransitionBlock(
   if (transition.kind === 'portal') return emitPortalRenderBlock(from, to, transition)
   if (transition.kind === 'fade-color') return emitFadeThroughColorRenderBlock(from, to, transition, outputDimension)
   if (transition.kind === 'wipe') return emitWipeTransitionRenderBlock(from, to, transition, outputDimension)
+  if (transition.kind === 'motion') return emitMotionTransitionRenderBlock(from, to, transition)
 
   const fromRender = memberRenderCapture(from, outputDimension)
   const toRender = memberRenderCapture(to, outputDimension)
@@ -1278,6 +1348,102 @@ if (__pxlblz_show_feather_progress <= 0) {
     b0 * (1 - __pxlblz_show_edge_mix) + ${to.prefix}_b * __pxlblz_show_edge_mix
   )
 }`
+}
+
+function emitMotionTransitionRenderBlock(
+  from: CompiledMember,
+  to: CompiledMember,
+  transition: ShowRouteTransitionRecipe | ShowSceneSequenceTransitionRecipe,
+): string {
+  const settings = normalizeShowMotionTransition(transition)
+  const vector = showMotionTransitionVector(settings.direction)
+  const fromMoves = settings.motionVariant === 'reveal'
+    || settings.motionVariant === 'push'
+    || settings.motionVariant === 'content-shrink'
+  const toMoves = settings.motionVariant === 'cover'
+    || settings.motionVariant === 'push'
+    || settings.motionVariant === 'content-grow'
+  const scaleExpression = settings.motionVariant === 'content-grow'
+    ? `${settings.contentScale} + ${1 - settings.contentScale} * __pxlblz_show_mix`
+    : `1 - ${1 - settings.contentScale} * __pxlblz_show_mix`
+  const fromCoordinates = settings.motionVariant === 'reveal' || settings.motionVariant === 'push'
+    ? {
+        x: `x - ${vector.x} * __pxlblz_show_mix`,
+        y: `y - ${vector.y} * __pxlblz_show_mix`,
+      }
+    : settings.motionVariant === 'content-shrink'
+      ? {
+          x: `${settings.anchorX} + (x - ${settings.anchorX}) / __pxlblz_show_motion_scale`,
+          y: `${settings.anchorY} + (y - ${settings.anchorY}) / __pxlblz_show_motion_scale`,
+        }
+      : { x: 'x', y: 'y' }
+  const toCoordinates = settings.motionVariant === 'cover' || settings.motionVariant === 'push'
+    ? {
+        x: `x + ${vector.x} * (1 - __pxlblz_show_mix)`,
+        y: `y + ${vector.y} * (1 - __pxlblz_show_mix)`,
+      }
+    : settings.motionVariant === 'content-grow'
+      ? {
+          x: `${settings.anchorX} + (x - ${settings.anchorX}) / __pxlblz_show_motion_scale`,
+          y: `${settings.anchorY} + (y - ${settings.anchorY}) / __pxlblz_show_motion_scale`,
+        }
+      : { x: 'x', y: 'y' }
+  const address = (name: 'from' | 'to', moves: boolean) => !moves
+    ? ''
+    : settings.addressPolicy === 'wrap'
+      ? `\n__pxlblz_show_motion_${name}_x = frac(__pxlblz_show_motion_${name}_x)
+__pxlblz_show_motion_${name}_y = frac(__pxlblz_show_motion_${name}_y)`
+      : `\n__pxlblz_show_motion_${name}_x = clamp(__pxlblz_show_motion_${name}_x, 0, 1)
+__pxlblz_show_motion_${name}_y = clamp(__pxlblz_show_motion_${name}_y, 0, 1)`
+  const prelude = `${settings.motionVariant === 'content-grow' || settings.motionVariant === 'content-shrink'
+    ? `var __pxlblz_show_motion_scale = ${scaleExpression}\n`
+    : ''}var __pxlblz_show_motion_from_x = ${fromCoordinates.x}
+var __pxlblz_show_motion_from_y = ${fromCoordinates.y}
+var __pxlblz_show_motion_to_x = ${toCoordinates.x}
+var __pxlblz_show_motion_to_y = ${toCoordinates.y}
+var __pxlblz_show_motion_from_inside = __pxlblz_show_motion_from_x >= 0 && __pxlblz_show_motion_from_x <= 1 && __pxlblz_show_motion_from_y >= 0 && __pxlblz_show_motion_from_y <= 1
+var __pxlblz_show_motion_to_inside = __pxlblz_show_motion_to_x >= 0 && __pxlblz_show_motion_to_x <= 1 && __pxlblz_show_motion_to_y >= 0 && __pxlblz_show_motion_to_y <= 1${address('from', fromMoves)}${address('to', toMoves)}`
+  const fromRender = `${from.prefix}_renderCapture2D(index, __pxlblz_show_motion_from_x, __pxlblz_show_motion_from_y)`
+  const toRender = `${to.prefix}_renderCapture2D(index, __pxlblz_show_motion_to_x, __pxlblz_show_motion_to_y)`
+  if (settings.edgePolicy === 'hard') {
+    const incomingPrimary = settings.motionVariant === 'cover'
+      || settings.motionVariant === 'push'
+      || settings.motionVariant === 'content-grow'
+    return incomingPrimary
+      ? `${prelude}
+if (__pxlblz_show_motion_to_inside) {
+  ${toRender}
+  ${to.prefix}_emit()
+} else {
+  ${fromRender}
+  ${from.prefix}_emit()
+}`
+      : `${prelude}
+if (__pxlblz_show_motion_from_inside) {
+  ${fromRender}
+  ${from.prefix}_emit()
+} else {
+  ${toRender}
+  ${to.prefix}_emit()
+}`
+  }
+  const clearFrom = fromMoves && settings.addressPolicy === 'clip'
+    ? `\nif (!__pxlblz_show_motion_from_inside) ${from.prefix}_clear()`
+    : ''
+  const clearTo = toMoves && settings.addressPolicy === 'clip'
+    ? `\nif (!__pxlblz_show_motion_to_inside) ${to.prefix}_clear()`
+    : ''
+  return `${prelude}
+${fromRender}${clearFrom}
+var r0 = ${from.prefix}_r
+var g0 = ${from.prefix}_g
+var b0 = ${from.prefix}_b
+${toRender}${clearTo}
+rgb(
+  r0 * (1 - __pxlblz_show_mix) + ${to.prefix}_r * __pxlblz_show_mix,
+  g0 * (1 - __pxlblz_show_mix) + ${to.prefix}_g * __pxlblz_show_mix,
+  b0 * (1 - __pxlblz_show_mix) + ${to.prefix}_b * __pxlblz_show_mix
+)`
 }
 
 function showWipePositionExpression(direction: number | undefined, outputDimension: ShowOutputDimension): string {
@@ -2482,6 +2648,12 @@ function describeEffectCost(
   members: CompiledMember[],
   recipe: ShowRecipe,
 ): ShowCompiledCostMetadata['cpu']['effects'] {
+  const motionTransitions = [
+    ...(recipe.routeTransition?.kind === 'motion' ? [recipe.routeTransition] : []),
+    ...(recipe.sceneSequence?.scenes.flatMap((scene) => (
+      scene.transitionOut?.kind === 'motion' ? [scene.transitionOut] : []
+    )) ?? []),
+  ]
   const affineCounts = members.map((member) => member.effects.filter((effect) => (
     effect.kind !== 'opacity' && effect.kind !== 'wrap'
   )).length)
@@ -2489,6 +2661,7 @@ function describeEffectCost(
     member.animatedEffects ? affineCounts[index] : 0
   )))
   const hasAffine = affineCounts.some((count) => count > 0)
+  const hasMotion = motionTransitions.length > 0
   const adaptationAnimated = countEffectRamps(recipe.adaptationRamp?.effectRamps)
   const sequenceAnimated = Math.max(0, ...(recipe.sceneSequence?.scenes.map((scene) => (
     countEffectRamps(scene.transitionOut?.effectRamps)
@@ -2498,13 +2671,13 @@ function describeEffectCost(
   ))) || Object.values(recipe.adaptationRamp?.effectRamps ?? {}).some((parameters) => parameters.opacity !== undefined)
   const hasWrap = hasAffine && members.some((member) => (
     member.effects.some((effect) => effect.kind === 'wrap')
-  ))
+  )) || motionTransitions.some((transition) => transition.addressPolicy === 'wrap')
   return {
     affineOperationsPerFrame,
     animatedParametersPerFrame: Math.max(adaptationAnimated, sequenceAnimated),
-    affineScalarOpsPerEvaluatedPixel: hasAffine ? 8 : 0,
+    affineScalarOpsPerEvaluatedPixel: hasAffine || hasMotion ? 8 : 0,
     opacityMultipliesPerEvaluatedPixel: hasOpacity ? 3 : 0,
-    addressPolicy: !hasAffine ? 'none' : hasWrap ? 'wrap' : 'clip',
+    addressPolicy: !hasAffine && !hasMotion ? 'none' : hasWrap ? 'wrap' : 'clip',
   }
 }
 

@@ -26,6 +26,7 @@ import { normalizeShowTransitionColor } from './showFadeThroughColor'
 import { normalizeShowWipeDirection } from './showWipe'
 import { normalizeShowDissolveBlockSize, normalizeShowDissolveSeed } from './showDissolve'
 import { normalizeShowRevealMode } from './showShapeReveal'
+import { normalizeShowMotionTransition } from './showMotionTransition'
 import {
   normalizeShowClipEffects,
   sameShowEffectStructure,
@@ -1062,6 +1063,17 @@ export function normalizeShowTransitionState(show: ShowRecord): ShowRecord {
                 edgePolicy: scene.transitionOut.edgePolicy,
               }
             : {}),
+          ...(scene.transitionOut?.kind === 'motion'
+            ? {
+                motionVariant: scene.transitionOut.motionVariant,
+                direction: scene.transitionOut.direction,
+                anchorX: scene.transitionOut.anchorX,
+                anchorY: scene.transitionOut.anchorY,
+                contentScale: scene.transitionOut.contentScale,
+                addressPolicy: scene.transitionOut.addressPolicy,
+                edgePolicy: scene.transitionOut.edgePolicy,
+              }
+            : {}),
         })),
         ...show.routingSwitches.map((routingSwitch): ShowBoundaryTransition => ({
           id: `routing-${routingSwitch.afterSceneId}`,
@@ -1203,6 +1215,10 @@ function normalizeBoundaryTransition(transition: ShowBoundaryTransition): ShowBo
       ...(explicitEdgePolicy ? { edgePolicy: explicitEdgePolicy } : {}),
       ...normalizeSpatialShapeSettings(transition),
     }
+  }
+  if (kind === 'motion') {
+    const motion = normalizeShowMotionTransition(transition)
+    return { ...base, ...motion }
   }
   return base
 }
@@ -1360,6 +1376,17 @@ function boundaryToLegacyTransition(
           ringWidth: transition.ringWidth,
           revealMode: transition.revealMode,
           aspect: transition.aspect,
+          edgePolicy: transition.edgePolicy,
+        }
+      : {}),
+    ...(kind === 'motion'
+      ? {
+          motionVariant: transition.motionVariant,
+          direction: transition.direction,
+          anchorX: transition.anchorX,
+          anchorY: transition.anchorY,
+          contentScale: transition.contentScale,
+          addressPolicy: transition.addressPolicy,
           edgePolicy: transition.edgePolicy,
         }
       : {}),
@@ -1614,7 +1641,10 @@ export function showRecordToCompileRecipe(
   if (transition?.kind === 'wipe' && transition.direction !== undefined && (!show.stageMapId || lookup.stageDimension !== 2)) {
     throw new Error('Directional Wipe requires a 2D Stage Map; select a 2D Stage or remove Direction.')
   }
-  if (samePattern && hasSameDiscreteAdaptations(cells[0], cells[1]) && transition && transition.kind !== 'cut' && transition.kind !== 'portal' && transition.kind !== 'fade-color') {
+  if (transition?.kind === 'motion' && (!show.stageMapId || lookup.stageDimension !== 2)) {
+    throw new Error('Motion transition requires a 2D Stage Map.')
+  }
+  if (samePattern && hasSameDiscreteAdaptations(cells[0], cells[1]) && transition && transition.kind !== 'cut' && transition.kind !== 'portal' && transition.kind !== 'fade-color' && transition.kind !== 'motion') {
     const explicitFrom = boundary?.propertyTransitions?.timeScale?.fromByCellId[cells[1].id]
     const propertyRamps = boundary?.propertyTransitions
       ? Object.fromEntries((['timeScale', 'brightness'] as const).flatMap((property) => {
@@ -1674,7 +1704,7 @@ export function showRecordToCompileRecipe(
       ? { startMs: show.scenes[0].durationMs, durationMs: transition.durationMs }
       : undefined,
     cut: !transition || transition.kind === 'cut' ? { startMs: show.scenes[0].durationMs } : undefined,
-    routeTransition: transition && (transition.kind === 'fade-color' || transition.kind === 'wipe' || transition.kind === 'dither' || transition.kind === 'portal')
+    routeTransition: transition && (transition.kind === 'fade-color' || transition.kind === 'wipe' || transition.kind === 'dither' || transition.kind === 'portal' || transition.kind === 'motion')
       ? {
           kind: transition.kind,
           startMs: show.scenes[0].durationMs,
@@ -1709,6 +1739,7 @@ export function showRecordToCompileRecipe(
                 ...normalizeSpatialShapeSettings(transition),
               }
             : {}),
+          ...(transition.kind === 'motion' ? normalizeShowMotionTransition(transition) : {}),
         }
       : undefined,
     zones: lookup.controllerZones ?? nominalZones(show.zones),
@@ -1747,6 +1778,9 @@ function showRecordToSceneSequenceRecipe(
   if (transitions.some((transition) => transition?.kind === 'wipe' && transition.direction !== undefined)
     && (!show.stageMapId || lookup.stageDimension !== 2)) {
     throw new Error('Directional Wipe requires a 2D Stage Map; select a 2D Stage or remove Direction.')
+  }
+  if (transitions.some((transition) => transition?.kind === 'motion') && (!show.stageMapId || lookup.stageDimension !== 2)) {
+    throw new Error('Motion transition requires a 2D Stage Map.')
   }
 
   const clipByKey = new Map<string, ShowRecipe['clips'][number]>()
@@ -1884,6 +1918,7 @@ function compilerSequenceTransition(
           ...normalizeSpatialShapeSettings(transition),
         }
       : {}),
+    ...(transition.kind === 'motion' ? normalizeShowMotionTransition(transition) : {}),
   }
 }
 
@@ -2031,6 +2066,7 @@ function showSceneHoldDurationMs(show: Pick<ShowRecord, 'scenes'>): number {
 export function transitionCost(kind: NonNullable<ShowScene['transitionOut']>['kind']): ShowTransitionCost {
   if (kind === 'crossfade') return 'expensive'
   if (kind === 'portal') return 'expensive'
+  if (kind === 'motion') return 'expensive'
   if (kind === 'fade-color' || kind === 'wipe' || kind === 'dither') return 'cheap'
   return 'free'
 }

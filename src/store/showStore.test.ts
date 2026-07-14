@@ -531,6 +531,28 @@ describe('showStore (#318)', () => {
     })
   })
 
+  it('persists and reloads a Content Shrink motion transition (#449)', async () => {
+    const show = { ...createDefaultShow('show-449', 'Motion persistence', 1), stageMapId: 'plane' }
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], showsLoaded: true })
+
+    await useShowStore.getState().updateBoundaryTransition(show.id, 'transition-scene-1', {
+      kind: 'motion', durationMs: 1700, motionVariant: 'content-shrink',
+      anchorX: 0.2, anchorY: 0.8, contentScale: 0.3,
+      addressPolicy: 'wrap', edgePolicy: 'blend',
+    })
+    useShowStore.setState(showInitialState)
+    await useShowStore.getState().loadShows()
+
+    expect(useShowStore.getState().shows[0].transitions?.[0]).toMatchObject({
+      kind: 'motion', motionVariant: 'content-shrink', anchorX: 0.2, anchorY: 0.8,
+      contentScale: 0.3, addressPolicy: 'wrap', edgePolicy: 'blend',
+    })
+    expect(useShowStore.getState().shows[0].scenes[0].transitionOut).toMatchObject({
+      kind: 'motion', motionVariant: 'content-shrink', contentScale: 0.3,
+    })
+  })
+
   it('persists a wipe feather width through the provider', async () => {
     const show = createDefaultShow('show-1', 'Opening wash', 1)
     setPersonalContentProvider(memoryProvider([show]))

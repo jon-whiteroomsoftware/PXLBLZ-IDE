@@ -289,6 +289,34 @@ export const SHOW_VISUAL_TOOLKIT_REGISTRY: ShowToolkitFamilyDescriptor[] = [
       { id: 'ringWidth', label: 'Ring width', kind: 'number', defaultValue: 0.12, min: 0.02, max: 1, step: 0.01, variantIds: ['ring'] },
     ],
   },
+  {
+    kind: 'transition',
+    id: 'motion',
+    label: 'Motion',
+    variants: [
+      { id: 'cover', label: 'Cover', costPolicies: ['selector', 'full-blend'], compatibility: { stageDimensions: [2] } },
+      { id: 'reveal', label: 'Reveal', costPolicies: ['selector', 'full-blend'], compatibility: { stageDimensions: [2] } },
+      { id: 'push', label: 'Push', costPolicies: ['selector', 'full-blend'], compatibility: { stageDimensions: [2] } },
+      { id: 'content-grow', label: 'Content grow', costPolicies: ['selector', 'full-blend'], compatibility: { stageDimensions: [2] } },
+      { id: 'content-shrink', label: 'Content shrink', costPolicies: ['selector', 'full-blend'], compatibility: { stageDimensions: [2] } },
+    ],
+    parameters: [
+      DURATION,
+      EASING,
+      { id: 'direction', label: 'Direction', kind: 'number', defaultValue: 0, min: 0, max: 1, step: 0.001, unit: 'turn', variantIds: ['cover', 'reveal', 'push'] },
+      { id: 'anchorX', label: 'Anchor X', kind: 'number', defaultValue: 0.5, min: 0, max: 1, step: 0.01, variantIds: ['content-grow', 'content-shrink'] },
+      { id: 'anchorY', label: 'Anchor Y', kind: 'number', defaultValue: 0.5, min: 0, max: 1, step: 0.01, variantIds: ['content-grow', 'content-shrink'] },
+      { id: 'contentScale', label: 'Minimum scale', kind: 'number', defaultValue: 0.01, min: 0.01, max: 1, step: 0.01, variantIds: ['content-grow', 'content-shrink'] },
+      {
+        id: 'addressPolicy', label: 'Addressing', kind: 'enum', defaultValue: 'clip',
+        options: [{ value: 'clip', label: 'Clip' }, { value: 'wrap', label: 'Wrap' }],
+      },
+      {
+        id: 'edgePolicy', label: 'Composition', kind: 'enum', defaultValue: 'hard',
+        options: [{ value: 'hard', label: 'Hard selector' }, { value: 'blend', label: 'Full blend' }],
+      },
+    ],
+  },
 ]
 
 export function getShowToolkitFamily(
