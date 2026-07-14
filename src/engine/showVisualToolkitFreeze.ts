@@ -48,8 +48,9 @@ export function allShowVisualToolkitFixtures(): ShowToolkitFixtureRecipe[] {
   ]
 }
 
-export function buildShowVisualToolkitFreeze(): ShowVisualToolkitFreeze {
-  const fixtures = allShowVisualToolkitFixtures()
+export function buildShowVisualToolkitFreeze(
+  fixtures: readonly ShowToolkitFixtureRecipe[] = allShowVisualToolkitFixtures(),
+): ShowVisualToolkitFreeze {
   const errors = [...validateShowToolkitRegistry()]
   const fixtureIds = new Set<string>()
   for (const fixture of fixtures) {
@@ -76,10 +77,24 @@ export function buildShowVisualToolkitFreeze(): ShowVisualToolkitFreeze {
     return { kind: family.kind, familyId: family.id, id: variant.id, fixtureIds: matching }
   }))
 
-  const signature = JSON.stringify({
+  const signature = stableStringify({
     version: SHOW_VISUAL_TOOLKIT_CONTRACT_VERSION,
     registry: SHOW_VISUAL_TOOLKIT_REGISTRY,
     variants,
+    fixtures: fixtures.map((fixture) => ({
+      id: fixture.id,
+      familyId: fixture.familyId,
+      variantId: fixture.variantId,
+      coveredVariantIds: fixture.coveredVariantIds,
+      recipe: fixture.recipe,
+      persistedRecord: Object.fromEntries(
+        Object.entries(fixture.persistedRecord).filter(([key]) => key !== 'updatedAt'),
+      ),
+      progressSamples: fixture.progressSamples,
+      capturePixelCount: fixture.capturePixelCount,
+      stageDimension: fixture.stageDimension,
+      captureStartMs: fixture.captureStartMs,
+    })),
   })
   return {
     version: SHOW_VISUAL_TOOLKIT_CONTRACT_VERSION,
@@ -123,6 +138,21 @@ export function measureShowVisualToolkitFreeze(): ShowVisualToolkitFreezeMeasure
     overBudgetFixtureIds,
     representativeHardwareFps: null,
   }
+}
+
+function stableStringify(value: unknown): string {
+  return JSON.stringify(sortSignatureValue(value))
+}
+
+function sortSignatureValue(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(sortSignatureValue)
+  if (value === null || typeof value !== 'object') return value
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>)
+      .filter(([, entry]) => entry !== undefined)
+      .sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0)
+      .map(([key, entry]) => [key, sortSignatureValue(entry)]),
+  )
 }
 
 function fnv1a(value: string): string {

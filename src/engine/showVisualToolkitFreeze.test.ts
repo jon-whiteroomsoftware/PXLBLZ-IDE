@@ -27,11 +27,37 @@ describe('Show visual-toolkit integration freeze (#459)', () => {
 
     expect(SHOW_VISUAL_TOOLKIT_CONTRACT_VERSION).toBe(1)
     expect(freeze.errors).toEqual([])
-    expect(freeze.fingerprint).toBe('68ba010c')
+    expect(freeze.fingerprint).toBe('f81bca37')
+    expect(buildShowVisualToolkitFreeze().fingerprint).toBe(freeze.fingerprint)
     expect(freeze.variants.length).toBeGreaterThan(0)
     expect(freeze.variants.every((variant) => variant.fixtureIds.length > 0)).toBe(true)
     expect(freeze.variants.filter((variant) => variant.kind === 'property-animation').map((variant) => variant.id))
       .toEqual(['animation-speed', 'brightness', 'pattern-control', 'split-position', 'repeat-scale'])
+  })
+
+  it('changes the contract fingerprint when frozen fixture evidence changes', () => {
+    const fixtures = allShowVisualToolkitFixtures()
+    const baseline = buildShowVisualToolkitFreeze(fixtures).fingerprint
+    const first = fixtures[0]
+    const replacements = [
+      { ...first, recipe: { ...first.recipe, clips: first.recipe.clips.map((clip, index) => (
+        index === 0 ? { ...clip, source: `${clip.source}\n// changed fixture source` } : clip
+      )) } },
+      { ...first, persistedRecord: { ...first.persistedRecord, name: 'Changed fixture record' } },
+      { ...first, progressSamples: [...first.progressSamples, 0.125] },
+      { ...first, capturePixelCount: first.capturePixelCount + 1 },
+      { ...first, captureStartMs: (first.captureStartMs ?? 1000) + 1 },
+    ]
+
+    for (const replacement of replacements) {
+      const candidate = fixtures.map((fixture, index) => index === 0 ? replacement : fixture)
+      expect(buildShowVisualToolkitFreeze(candidate).fingerprint).not.toBe(baseline)
+    }
+
+    const timestampOnly = fixtures.map((fixture, index) => index === 0
+      ? { ...fixture, persistedRecord: { ...fixture.persistedRecord, updatedAt: fixture.persistedRecord.updatedAt + 1 } }
+      : fixture)
+    expect(buildShowVisualToolkitFreeze(timestampOnly).fingerprint).toBe(baseline)
   })
 
   it('measures source size, renderer formulas, memory, and compatibility across the frozen matrix', () => {

@@ -1,9 +1,12 @@
 # Show visual-toolkit headless freeze
 
 The UI-neutral Show visual-toolkit contract is frozen at version 1 with
-fingerprint `68ba010c`. The fingerprint covers the complete registry and its
-variant-to-fixture mapping. An intentional descriptor change must update the
-contract version, fingerprint assertion, and this evidence record together.
+fingerprint `f81bca37`. The fingerprint covers the complete registry, its
+variant-to-fixture mapping, and every fixture's compile recipe, persisted
+record behavior (excluding the volatile `updatedAt` storage timestamp),
+progress samples, capture geometry, stage dimension, and start time.
+An intentional descriptor or fixture change must update the contract version,
+fingerprint assertion, and this evidence record together.
 
 The freeze does not approve the production authoring UI. It establishes the
 stable engine contract that #457 can render without family-specific rules.
@@ -79,5 +82,6 @@ npm run build
 ```
 
 The focused freeze test audits registry validity, fixture coverage, the version
-fingerprint, deterministic capture and seek, persistence normalization,
-compiled budgets, EPE export/reload, and legacy visual equivalence.
+fingerprint, fingerprint sensitivity to fixture evidence, deterministic capture
+and seek, persistence normalization, compiled budgets, EPE export/reload, and
+legacy visual equivalence.

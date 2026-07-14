@@ -1033,11 +1033,15 @@ parameter sweeps. The fixture harness compiles artifacts; it is not a temporary
 editor and does not establish production UI.
 
 `showVisualToolkitFreeze.ts` joins the registry to that evidence without UI
-imports. Contract version 1 has fingerprint `68ba010c`, 59 registered variants,
+imports. Contract version 1 has fingerprint `f81bca37`, 59 registered variants,
 and 104 fixtures. The freeze test rejects an uncovered or unknown variant,
 duplicate fixture, registry validation error, or unacknowledged descriptor
 change. An intentional catalogue change increments the version and refreshes
-the fingerprint plus `docs/plans/issue-459-headless-freeze.md`.
+the fingerprint plus `docs/plans/issue-459-headless-freeze.md`. The fingerprint
+seals the registry, variant-to-fixture mapping, compile recipes, persisted
+record behavior, progress samples, capture geometry, stage dimensions, and
+capture start times; changing any of those inputs changes the fingerprint.
+The volatile Show `updatedAt` storage timestamp is intentionally excluded.
 
 The frozen matrix uses 256-point 2D captures. One hundred fixtures compile to
 `N`, two to `N + E`, and two to `2N`; none use `S * N`. The largest generated
