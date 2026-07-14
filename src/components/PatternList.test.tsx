@@ -440,18 +440,19 @@ describe('PatternList', () => {
     expect(screen.queryByText('Cube shell')).not.toBeInTheDocument()
   })
 
-  it('opens a revealed stock map read-only at a stable map route', async () => {
+  it('opens a stock map family at its natural coordinate view while revealing alternatives', async () => {
     const user = userEvent.setup()
     render(<PatternList />)
     await switchToMaps(user)
 
-    await user.click(screen.getByText('Cube shell'))
-    await user.click(screen.getByRole('button', { name: 'Cube shell Spatial 3D' }))
+    await user.click(screen.getByText('Square'))
 
-    expect(window.location.pathname).toBe('/studio/maps/cube-shell')
-    expect(useMapStore.getState().editingMap).toEqual({ kind: 'stock', id: 'cube-shell' })
+    expect(window.location.pathname).toBe('/studio/maps/plane')
+    expect(useMapStore.getState().editingMap).toEqual({ kind: 'stock', id: 'plane' })
     expect(useEditorStore.getState().editorFlavor).toBe('map')
     expect(useEditorStore.getState().isReadOnly).toBe(true)
+    expect(screen.getByRole('button', { name: 'Square Strand 1D' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Square Surface 2D' })).toBeInTheDocument()
   })
 
   it('groups stock maps by physical type and nests Cylinder coordinate views', async () => {

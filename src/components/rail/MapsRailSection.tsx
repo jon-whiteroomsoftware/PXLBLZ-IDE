@@ -142,7 +142,10 @@ export function MapsRailSection({
                     ) : (
                       <li key={item.familyId} className="min-h-[19px] px-3 py-px text-zinc-500">
                         <details>
-                          <summary className="flex cursor-pointer list-none items-center justify-between text-xs text-zinc-500 hover:text-zinc-300 [&::-webkit-details-marker]:hidden">
+                          <summary
+                            onClick={() => onOpenStockMap(item.id)}
+                            className="flex cursor-pointer list-none items-center justify-between text-xs text-zinc-500 hover:text-zinc-300 [&::-webkit-details-marker]:hidden"
+                          >
                             <span>{item.name}</span>
                             <span className="text-[9px] text-zinc-600">{item.views.length} views</span>
                           </summary>
