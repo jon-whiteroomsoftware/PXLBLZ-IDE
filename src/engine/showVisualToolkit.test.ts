@@ -77,6 +77,31 @@ describe('Show visual-toolkit contract', () => {
     expect(normalizeShowTransitionState(normalized)).toEqual(normalized)
   })
 
+  it('round-trips custom, discrete, and overshooting easing on every property path (#455)', () => {
+    const custom = { curve: 'cubic-bezier' as const, x1: 0.13, y1: -0.5, x2: 0.87, y2: 1.5 }
+    const show = createDefaultShow('complete-easing', 'Complete easing', 455)
+    show.transitions![0] = {
+      ...show.transitions![0],
+      easing: custom,
+      propertyTransitions: {
+        brightness: { fromByCellId: { 'cell-2': 1 }, easing: { curve: 'steps', steps: 6, position: 'end' } },
+        effects: {
+          fade: {
+            opacity: { fromByCellId: { 'cell-2': 1 }, easing: { curve: 'back', direction: 'out', overshoot: 1.8 } },
+          },
+        },
+      },
+    }
+
+    const normalized = normalizeShowTransitionState(show)
+    expect(normalized.transitions![0].easing).toEqual(custom)
+    expect(normalized.transitions![0].propertyTransitions?.brightness?.easing)
+      .toEqual({ curve: 'steps', steps: 6, position: 'end' })
+    expect(normalized.transitions![0].propertyTransitions?.effects?.fade.opacity.easing)
+      .toEqual({ curve: 'back', direction: 'out', overshoot: 1.8 })
+    expect(normalizeShowTransitionState(JSON.parse(JSON.stringify(normalized)))).toEqual(normalized)
+  })
+
   it('describes current families and conditional parameters without UI rules', () => {
     expect(validateShowToolkitRegistry()).toEqual([])
     expect(getShowToolkitFamily('transition', 'shape-reveal')).toMatchObject({
@@ -145,6 +170,14 @@ describe('Show visual-toolkit contract', () => {
       .toEqual(['amount', 'levels', 'easing'])
     expect(resolveShowToolkitParameters('effect', 'output', 'color-map', {}).map((parameter) => parameter.id))
       .toEqual(['amount', 'shadowR', 'shadowG', 'shadowB', 'highlightR', 'highlightG', 'highlightB', 'easing'])
+
+    const easingDescriptor = resolveShowToolkitParameters('transition', 'blend', 'crossfade', {})
+      .find((parameter) => parameter.id === 'easing')
+    expect(easingDescriptor?.easingOptions?.find((option) => option.id === 'css-ease')).toMatchObject({
+      label: 'CSS ease',
+      controls: expect.arrayContaining([expect.objectContaining({ id: 'x1', min: 0, max: 1 })]),
+      samples: expect.arrayContaining([expect.objectContaining({ progress: 0.5 })]),
+    })
 
     const wipe = getShowToolkitFamily('transition', 'wipe')
     expect(wipe?.variants[0].presets?.map((preset) => [preset.id, preset.values.direction])).toEqual([

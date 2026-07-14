@@ -7,7 +7,7 @@ import {
   type ControllerZone,
 } from './controllerProfile'
 import { emitFixedPoint } from './fxEmit'
-import { emitShowEasingExpression } from './showEasing'
+import { emitShowEasingExpression, showCubicBezierRuntimeSource } from './showEasing'
 import type {
   ShowClipEffect,
   ShowDissolveVariant,
@@ -566,9 +566,12 @@ export function compileShow(
         : expandedRecipe.crossfade
           ? emitShowCode(members[0], members[1], expandedRecipe.crossfade, memberOutputDimension)
           : emitSingleClipShowCode(members[0], memberOutputDimension)
-  const code = expandedRecipe.samplePropertyRamps
-    ? injectSampleRemappingUpdate(emittedCode)
+  const emittedWithEasingRuntime = emittedCode.includes('__pxlblz_show_cubicBezier(')
+    ? `${showCubicBezierRuntimeSource()}\n${emittedCode}`
     : emittedCode
+  const code = expandedRecipe.samplePropertyRamps
+    ? injectSampleRemappingUpdate(emittedWithEasingRuntime)
+    : emittedWithEasingRuntime
   const metadata = buildMetadata(
     members,
     expandedRecipe.sceneSequence

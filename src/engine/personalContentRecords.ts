@@ -95,6 +95,10 @@ export type ShowEasingDirection = 'in' | 'out' | 'in-out'
 export type ShowStructuredEasing =
   | { curve: 'linear' }
   | { curve: 'quadratic' | 'cubic' | 'sine'; direction: ShowEasingDirection }
+  | { curve: 'cubic-bezier'; x1: number; y1: number; x2: number; y2: number }
+  | { curve: 'steps'; steps: number; position: 'start' | 'end' }
+  | { curve: 'hold'; at: number }
+  | { curve: 'back'; direction: ShowEasingDirection; overshoot: number }
 
 /**
  * Persisted records normalize to the structured form. Legacy names remain an

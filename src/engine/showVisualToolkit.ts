@@ -1,3 +1,5 @@
+import { SHOW_EASING_OPTIONS, type ShowEasingOption } from './showEasing'
+
 export type ShowToolkitKind = 'property-animation' | 'effect' | 'transition'
 export type ShowToolkitCostPolicy = 'none' | 'parameter' | 'single-source' | 'selector' | 'bounded-blend' | 'full-blend'
 export type ShowToolkitParameterValue = number | boolean | string
@@ -62,6 +64,7 @@ export interface ShowToolkitParameterDescriptor {
   unit?: string
   options?: Array<{ value: string; label: string }>
   optionsByVariant?: Record<string, Array<{ value: string; label: string }>>
+  easingOptions?: ShowEasingOption[]
   compatibility?: { stageDimensions: Array<1 | 2 | 3> }
   variantIds?: string[]
   when?: ShowToolkitParameterCondition
@@ -94,6 +97,7 @@ const DURATION: ShowToolkitParameterDescriptor = {
 }
 const EASING: ShowToolkitParameterDescriptor = {
   id: 'easing', label: 'Easing', kind: 'easing', defaultValue: 'linear',
+  easingOptions: SHOW_EASING_OPTIONS,
 }
 const FEATHER: ShowToolkitParameterDescriptor = {
   id: 'feather', label: 'Feather', kind: 'number', defaultValue: 0, min: 0, max: 1, step: 0.01,

@@ -825,12 +825,21 @@ retains one explicit visual transition, with zero-duration cut as the neutral
 form. Visual and routing entities may coexist.
 
 Easing also normalizes at this boundary. Persisted transitions and property
-descriptors use a structured curve: linear has only its curve name, while
-quadratic, cubic, and sine curves also carry `in`, `out`, or `in-out` direction.
+descriptors use one structured curve representation shared by visual
+Transitions, Pattern/property animations, routing/sample animations, and
+animated Effect parameters. Linear has only its curve name. Quadratic, cubic,
+sine, and Back carry `in`, `out`, or `in-out` direction; Back also carries a
+nonnegative Overshoot. Cubic Bezier carries CSS control points `x1`, `y1`,
+`x2`, and `y2`. Steps carries an integer count and start/end jump position.
+Hold carries its normalized switch point.
+
 The legacy `linear`, `ease-in`, `ease-out`, and `ease-in-out` strings remain
-accepted inputs and map to the exact prior linear or quadratic behavior. A
+accepted inputs and map to the exact prior linear or quadratic behavior. Valid
+custom structures survive JSON reload and repeated normalization unchanged. A
 second normalization pass is therefore idempotent without making old Shows
-timing-incompatible.
+timing-incompatible. Invalid structures normalize safely to Linear, while the
+headless validator returns field-addressed `not-finite`, `not-integer`,
+`out-of-range`, or `invalid-option` issues for a later editor to present.
 
 The persisted record still uses the `cells` field and `ShowCell` type for
 compatibility with existing saved Shows. Product language and editor behavior
@@ -984,12 +993,27 @@ Current compiler policies:
 | Routing-layout cut | Immediate destination layout selection |
 | Routing-layout directional transfer | Both clocks advance; one adjacent layout and renderer selected per pixel |
 
-Easing is deterministic arithmetic shared by editor helpers and generated code.
-The supported basis curves are linear, quadratic, cubic, and sine; every
-nonlinear curve supports `in`, `out`, and `in-out`. Legacy ease names retain
-their quadratic definitions. Generated sine expressions use the Pixelblaze
-`cos` and `PI` primitives, while all progress values clamp to `[0, 1]` before
-the curve is evaluated.
+Easing is deterministic arithmetic shared by preview helpers and generated
+code. The standard set is Linear; Quadratic, Cubic, and Sine in/out/in-out;
+CSS-compatible Cubic Bezier; Steps start/end; Hold; and Back in/out/in-out.
+Named Bezier presets include CSS ease, ease-in, ease-out, and ease-in-out.
+Legacy ease names retain their quadratic definitions.
+
+Cubic Bezier accepts CSS-compatible Y overshoot but requires both X control
+points in `[0, 1]` so X remains invertible. The pure evaluator finds the curve
+parameter by bounded binary inversion, then samples Y. Generated Shows inject
+one fixed-iteration solver only when a Bezier curve is present. The solver is
+called from `beforeRender` or the member advance path, so its work occurs once
+per frame for Transition progress and property/Effect parameters, never once
+per pixel. Steps uses an integer `1..64`; Hold switches at `0..1`; Back accepts
+Overshoot `0..10`. Input progress clamps to `[0, 1]`, while Bezier Y and Back
+may intentionally produce controlled output overshoot.
+
+The UI-neutral easing descriptors publish stable ids, labels, defaults,
+parameter constraints, and samples at progress `0`, `0.25`, `0.5`, `0.75`, and
+`1`. The compiled cost record already reports exact artifact bytes and budget
+ratio; because the Bezier helper is conditionally emitted, its code-size impact
+is visible by comparing those factual fields with a non-Bezier build.
 
 `showVisualToolkit.ts` is the framework-independent catalogue for property
 animations, effects, and transitions. Families own stable ids and cost policy;
