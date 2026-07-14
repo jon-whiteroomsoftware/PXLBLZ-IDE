@@ -114,6 +114,26 @@ non-durable demo mode: the Gallery, built-in Patterns, stock maps, stock mixins,
 stock libraries, documentation, preview, and live Controller connection still
 work, but personal create/update/delete actions require sign-in.
 
+### Documentation and API reference
+
+**Docs** and **API** in the global header open public, read-only reference
+workspaces without entering Studio. Each uses the left side as a catalog and the
+remaining width as a focused reading surface. The routes are deep-linkable:
+`/docs/<id>` selects a checked-in guide and `/reference/<library>` selects a
+Pixelblaze built-in or stock Library reference.
+
+The buttons also act as return toggles. Open Docs or API while authoring, switch
+between them as needed, then press the active button to return to the exact
+Studio route that opened the reference. Browser Back and Forward continue to
+work normally.
+
+The public API Reference shows Pixelblaze built-ins and PXLBLZ's stock
+Libraries. Entering it from Studio appends **My libraries**, generated from the
+`//` comments above functions in the already-loaded cloud Libraries. It shows
+signatures and documentation, not source. **Edit in Libraries** returns a cloud
+Library to Library mode; a Library without doc comments remains visible with a
+prompt explaining how to document it.
+
 ## 2. Patterns and the editor
 
 The center editor is Monaco, the engine behind VS Code, configured for the
@@ -302,8 +322,8 @@ through every Pattern path: preview, Copy Code, Download, Controller send, and
 artifact inspection.
 
 Library API documentation comes from `//` comments directly above function
-declarations. Those comments drive both hover cards and the live API reference
-in the right pane. Rename and delete are confirmation-guarded because references
+declarations. Those comments drive editor help, the live API reference in the
+right pane, and the separate read-only API Reference workspace. Rename and delete are confirmation-guarded because references
 are intentionally soft: a dependent Pattern fails compilation until its
 namespace call is updated.
 

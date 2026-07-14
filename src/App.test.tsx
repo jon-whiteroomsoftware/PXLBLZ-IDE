@@ -10,6 +10,10 @@ import { useMixinStore, mixinInitialState, type MixinRecord } from '@/store/mixi
 import { useLibraryStore, libraryInitialState, type LibraryRecord } from '@/store/libraryStore'
 import { useEditorStore, editorInitialState } from '@/store/editorStore'
 import { useDocsStore, docsInitialState } from '@/store/docsStore'
+import {
+  referenceNavigationInitialState,
+  useReferenceNavigationStore,
+} from '@/store/referenceNavigationStore'
 import { controllerInitialState, useControllerStore } from '@/store/controllerStore'
 import {
   controllerProfileInitialState,
@@ -42,6 +46,7 @@ beforeEach(() => {
   useLibraryStore.setState(libraryInitialState)
   useEditorStore.setState(editorInitialState)
   useDocsStore.setState(docsInitialState)
+  useReferenceNavigationStore.setState(referenceNavigationInitialState)
   useControllerStore.setState(controllerInitialState)
   useControllerProfileStore.setState(controllerProfileInitialState)
   useShowStore.setState(showInitialState)
@@ -638,6 +643,87 @@ describe('routing (#308)', () => {
     expect(useDocsStore.getState().activeDocId).toBe('feature-guide')
   })
 
+  it('renders public docs without mounting the Studio entity panes', () => {
+    window.history.replaceState(null, '', '/docs/feature-guide')
+    render(<App />)
+
+    expect(screen.getByTestId('docs-reader')).toHaveTextContent('PXLBLZ — Feature Guide')
+    expect(screen.queryByTestId('studio-rail')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('preview-pane')).not.toBeInTheDocument()
+  })
+
+  it('shows the document catalog beside the active public document', () => {
+    window.history.replaceState(null, '', '/docs/feature-guide')
+    render(<App />)
+
+    const catalog = screen.getByTestId('docs-catalog')
+    expect(within(catalog).getByRole('link', { name: /Feature Guide/ })).toHaveAttribute('aria-current', 'page')
+    expect(within(catalog).getByRole('link', { name: /Ecosystem Primer/ })).toBeInTheDocument()
+    expect(within(catalog).getByRole('link', { name: 'View source' })).toHaveAttribute(
+      'href',
+      expect.stringContaining('PXLBLZ%20Feature%20Guide.md'),
+    )
+    expect(within(catalog).getByRole('link', { name: 'Report a bug' })).toHaveAttribute(
+      'href',
+      'https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/issues',
+    )
+  })
+
+  it('uses Docs and API as direct reference toggles', async () => {
+    const user = userEvent.setup()
+    window.history.replaceState(null, '', '/gallery')
+    render(<App />)
+
+    const topBar = screen.getByTestId('top-bar')
+    await user.click(within(topBar).getByRole('button', { name: 'Docs' }))
+    expect(window.location.pathname).toBe('/docs')
+    expect(screen.getByTestId('docs-workspace')).toBeInTheDocument()
+    expect(screen.queryByTestId('docs-menu-dropdown')).not.toBeInTheDocument()
+
+    await user.click(within(topBar).getByRole('button', { name: 'API' }))
+    expect(window.location.pathname).toBe('/reference')
+    expect(screen.getByTestId('api-reference-workspace')).toBeInTheDocument()
+
+    await user.click(within(topBar).getByRole('button', { name: 'API' }))
+    expect(window.location.pathname).toBe('/gallery')
+    expect(screen.getByTestId('gallery-page')).toBeInTheDocument()
+  })
+
+  it('renders the public API reference without mounting Studio panes', () => {
+    window.history.replaceState(null, '', '/reference/Anim')
+    render(<App />)
+
+    const workspace = screen.getByTestId('api-reference-workspace')
+    expect(workspace).toHaveTextContent('Anim.easeIn2(t)')
+    expect(within(workspace).getByRole('link', { name: /Pixelblaze/ })).toBeInTheDocument()
+    expect(screen.queryByTestId('studio-rail')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('preview-pane')).not.toBeInTheDocument()
+  })
+
+  it('appends personal API documentation in Studio context without exposing source', () => {
+    window.history.replaceState(null, '', '/reference/personal%3Alib-1')
+    useReferenceNavigationStore.setState({ studioContext: true })
+    useLibraryStore.setState({
+      userLibraries: [{
+        id: 'lib-1',
+        name: 'MyLib',
+        src: '// Paint one pixel.\nfunction paint(index) { hsv(index, 1, 1) }',
+        updatedAt: 1,
+      }],
+      librariesLoaded: true,
+    })
+    render(<App />)
+
+    const workspace = screen.getByTestId('api-reference-workspace')
+    expect(workspace).toHaveTextContent('My libraries')
+    expect(workspace).toHaveTextContent('MyLib.paint(index)')
+    expect(within(workspace).getByRole('link', { name: 'Edit in Libraries' })).toHaveAttribute(
+      'href',
+      '/studio/libraries/lib-1',
+    )
+    expect(workspace).not.toHaveTextContent('hsv(index, 1, 1)')
+  })
+
   it('renders the Gallery grid at /gallery', () => {
     window.history.replaceState(null, '', '/gallery')
     render(<App />)
@@ -678,8 +764,8 @@ describe('routing (#308)', () => {
     expect(screen.queryByTestId('left-pane')).not.toBeInTheDocument()
   })
 
-  it('keeps the global Controller surface visible on gallery, detail, studio, and docs routes (#323)', () => {
-    const routes = ['/gallery', '/p/iridescent-fibers', '/studio', '/docs/feature-guide']
+  it('keeps the global Controller surface visible on gallery, detail, studio, docs, and API routes (#323)', () => {
+    const routes = ['/gallery', '/p/iridescent-fibers', '/studio', '/docs/feature-guide', '/reference/Anim']
 
     for (const path of routes) {
       window.history.replaceState(null, '', path)

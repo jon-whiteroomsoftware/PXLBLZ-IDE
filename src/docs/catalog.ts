@@ -2,6 +2,8 @@ import ecosystemPrimer from '../../docs/reference/Pixelblaze Ecosystem Primer.md
 import featureGuide from '../../docs/reference/PXLBLZ Feature Guide.md?raw'
 import understandingMaps from '../../docs/reference/Understanding Maps.md?raw'
 import optimizationGuide from '../../docs/guides/Optimizing Pixelblaze patterns.md?raw'
+import technicalReference from '../../docs/reference/PXLBLZ Technical Reference.md?raw'
+import aboutPxlblz from '../../docs/reference/About PXLBLZ.md?raw'
 
 import builtinCostsUrl from '../../docs/images/builtin-costs.svg?url'
 import deviceBrowserBoundaryUrl from '../../docs/images/device-browser-boundary.svg?url'
@@ -9,7 +11,13 @@ import fillVsContainUrl from '../../docs/images/fill-vs-contain.svg?url'
 import mapPipelineUrl from '../../docs/images/map-pipeline.svg?url'
 import wholeFrameModelUrl from '../../docs/images/whole-frame-model.svg?url'
 
-export type DocId = 'ecosystem-primer' | 'feature-guide' | 'optimization-guide' | 'understanding-maps'
+export type DocId =
+  | 'ecosystem-primer'
+  | 'feature-guide'
+  | 'optimization-guide'
+  | 'understanding-maps'
+  | 'technical-reference'
+  | 'about'
 
 export type UserDoc = {
   id: DocId
@@ -69,6 +77,26 @@ export const USER_DOCS: UserDoc[] = [
     menuKicker: 'Writing faster patterns',
     summary: 'Frame costs, profiling tools, measured wins, and porting tactics.',
     source: optimizationGuide,
+    assets: sharedAssets,
+  },
+  {
+    id: 'technical-reference',
+    path: 'docs/reference/PXLBLZ Technical Reference.md',
+    title: 'PXLBLZ Technical Reference',
+    menuLabel: 'Technical Reference',
+    menuKicker: 'Engineering',
+    summary: 'As-built architecture, boundaries, data flow, and implementation seams.',
+    source: technicalReference,
+    assets: sharedAssets,
+  },
+  {
+    id: 'about',
+    path: 'docs/reference/About PXLBLZ.md',
+    title: 'About PXLBLZ',
+    menuLabel: 'About PXLBLZ',
+    menuKicker: 'Project',
+    summary: 'Why PXLBLZ exists, who built it, and how the project operates.',
+    source: aboutPxlblz,
     assets: sharedAssets,
   },
 ]
