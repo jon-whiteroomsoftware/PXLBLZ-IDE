@@ -24,7 +24,12 @@ import type {
 import { normalizeShowTransitionColor, showTransitionColorToRgb } from './showFadeThroughColor'
 import { normalizeShowTransitionEdgePolicy } from './showTransitionEdge'
 import { showWipeMaskPositionExpression } from './showWipe'
-import { normalizeShowDissolveBlockSize, normalizeShowDissolveSeed } from './showDissolve'
+import {
+  normalizeShowDissolveBlockSize,
+  normalizeShowDissolveScale,
+  normalizeShowDissolveSeed,
+  normalizeShowDissolveSoftness,
+} from './showDissolve'
 import { normalizeShowRevealMode, showShapeRevealMaxDistance } from './showShapeReveal'
 import { normalizeShowMotionTransition, showMotionTransitionVector } from './showMotionTransition'
 import {
@@ -123,6 +128,7 @@ export interface ShowRouteTransitionRecipe {
   dissolveVariant?: ShowDissolveVariant
   seed?: number
   blockSize?: number
+  softness?: number
   revealMode?: ShowRevealMode
   aspect?: number
   feather?: number
@@ -157,6 +163,7 @@ export interface ShowSceneSequenceTransitionRecipe {
   dissolveVariant?: ShowDissolveVariant
   seed?: number
   blockSize?: number
+  softness?: number
   revealMode?: ShowRevealMode
   aspect?: number
   feather?: number
@@ -291,6 +298,9 @@ export interface ShowCompileSummary {
     | 'feathered-wipe'
     | 'blended-wipe'
     | 'dither'
+    | 'dissolve-hard'
+    | 'dissolve-dithered-edge'
+    | 'dissolve-blended-edge'
     | 'portal-hard'
     | 'portal-dithered-feather'
     | 'portal-blended-feather'
@@ -417,6 +427,10 @@ export function compileShow(
   const motionTransition = expandedRecipe.routeTransition?.kind === 'motion'
     ? expandedRecipe.routeTransition
     : null
+  const spatialDissolveTransition = expandedRecipe.routeTransition?.kind === 'dither'
+    && isSpatialDissolve(expandedRecipe.routeTransition)
+    ? expandedRecipe.routeTransition
+    : null
   const sequenceTransitions = expandedRecipe.sceneSequence?.scenes.flatMap((scene) => (
     scene.transitionOut ? [scene.transitionOut] : []
   )) ?? []
@@ -428,6 +442,9 @@ export function compileShow(
       || (transition.wipeVariant !== undefined && transition.wipeVariant !== 'linear'))
   ))
   const sequenceHasMotion = renderedSequenceTransitions.some((transition) => transition.kind === 'motion')
+  const sequenceHasSpatialDissolve = renderedSequenceTransitions.some((transition) => (
+    transition.kind === 'dither' && isSpatialDissolve(transition)
+  ))
   const motionBlend = Boolean(
     motionTransition?.edgePolicy === 'blend'
     || renderedSequenceTransitions.some((transition) => transition.kind === 'motion' && transition.edgePolicy === 'blend'),
@@ -452,10 +469,22 @@ export function compileShow(
       && transition.edgePolicy === 'blend'
     )),
   )
-  const boundedBlend = portalBlend || wipeBlend
+  const dissolveBlend = Boolean(
+    (spatialDissolveTransition
+      && spatialDissolveTransition.dissolveVariant === 'soft-threshold'
+      && normalizeShowDissolveSoftness(spatialDissolveTransition.softness ?? 0.15) > 0
+      && spatialDissolveTransition.edgePolicy === 'blend')
+    || renderedSequenceTransitions.some((transition) => (
+      transition.kind === 'dither'
+      && transition.dissolveVariant === 'soft-threshold'
+      && normalizeShowDissolveSoftness(transition.softness ?? 0.15) > 0
+      && transition.edgePolicy === 'blend'
+    )),
+  )
+  const boundedBlend = portalBlend || wipeBlend || dissolveBlend
   const memberOutputDimension = showOutputDimensionForMembers(members)
-  const sequenceOutputDimension: ShowOutputDimension = sequenceHasPortal || sequenceHasDirectionalWipe || sequenceHasMotion ? 2 : memberOutputDimension
-  const transitionOutputDimension: ShowOutputDimension = portalTransition || directionalWipeTransition || motionTransition ? 2 : memberOutputDimension
+  const sequenceOutputDimension: ShowOutputDimension = sequenceHasPortal || sequenceHasDirectionalWipe || sequenceHasMotion || sequenceHasSpatialDissolve ? 2 : memberOutputDimension
+  const transitionOutputDimension: ShowOutputDimension = portalTransition || directionalWipeTransition || motionTransition || spatialDissolveTransition ? 2 : memberOutputDimension
   const routedOutputDimension: 1 | 2 = routingLayouts?.some((layout) => layout.logical)
     ? 2
     : routeMode || routingLayouts
@@ -527,7 +556,7 @@ export function compileShow(
     members,
     expandedRecipe.sceneSequence
       ? sequenceOutputDimension
-      : portalTransition || directionalWipeTransition || motionTransition
+      : portalTransition || directionalWipeTransition || motionTransition || spatialDissolveTransition
         ? 2
         : routeMode || routingLayouts
           ? routedOutputDimension
@@ -588,7 +617,7 @@ export function compileShow(
         ? 'steady-active-transition-both'
         : boundedBlend
           ? 'spatial-route-bounded-feather'
-          : sequenceHasPortal || sequenceHasDirectionalWipe || sequenceHasMotion
+          : sequenceHasPortal || sequenceHasDirectionalWipe || sequenceHasMotion || sequenceHasSpatialDissolve
             ? 'spatial-route-one-renderer-per-pixel'
             : renderedSequenceTransitions.length > 0
               ? 'route-transition-one-renderer-per-pixel'
@@ -602,7 +631,7 @@ export function compileShow(
         : expandedRecipe.adaptationRamp
           ? 'parameter-ramp-one-renderer-per-pixel'
           : expandedRecipe.routeTransition
-            ? portalTransition || directionalWipeTransition || motionTransition
+            ? portalTransition || directionalWipeTransition || motionTransition || spatialDissolveTransition
               ? motionBlend
                 ? 'steady-active-transition-both'
                 : boundedBlend
@@ -614,6 +643,15 @@ export function compileShow(
     routePolicy: expandedRecipe.sceneSequence
       ? sequenceHasMotion
         ? motionBlend ? 'motion-full-blend' : 'motion-selector'
+        : sequenceHasSpatialDissolve
+          ? dissolveBlend
+            ? 'dissolve-blended-edge'
+            : renderedSequenceTransitions.some((transition) => transition.kind === 'dither'
+              && transition.dissolveVariant === 'soft-threshold'
+              && normalizeShowDissolveSoftness(transition.softness ?? 0.15) > 0
+              && transition.edgePolicy !== 'hard')
+              ? 'dissolve-dithered-edge'
+              : 'dissolve-hard'
         : sequenceHasPortal && portalBlend
         ? 'portal-blended-feather'
         : sequenceHasPortal && renderedSequenceTransitions.some((transition) => (
@@ -639,6 +677,14 @@ export function compileShow(
                   : 'none'
       : motionTransition
       ? motionBlend ? 'motion-full-blend' : 'motion-selector'
+      : spatialDissolveTransition
+      ? dissolveBlend
+        ? 'dissolve-blended-edge'
+        : spatialDissolveTransition.dissolveVariant === 'soft-threshold'
+          && normalizeShowDissolveSoftness(spatialDissolveTransition.softness ?? 0.15) > 0
+          && spatialDissolveTransition.edgePolicy !== 'hard'
+          ? 'dissolve-dithered-edge'
+          : 'dissolve-hard'
       : portalTransition
       ? clampNumber(portalTransition.feather ?? 0, 0, 1) <= 0 || resolvePortalEdgePolicy(portalTransition) === 'hard'
         ? 'portal-hard'
@@ -1003,6 +1049,9 @@ function emitRouteTransitionShowCode(
   if (transition.kind === 'motion') {
     return emitMotionTransitionShowCode(from, to, transition)
   }
+  if (transition.kind === 'dither' && isSpatialDissolve(transition)) {
+    return emitSpatialDissolveTransitionShowCode(from, to, transition)
+  }
   const transitionEnd = transition.startMs + transition.durationMs
   const pickTo = emitDissolvePickExpression(transition)
   return [
@@ -1083,6 +1132,36 @@ function emitMotionTransitionShowCode(
     ${to.prefix}_emit()
   } else {
 ${indentBlock(emitMotionTransitionRenderBlock(from, to, transition), 4)}
+  }`),
+    '',
+  ].join('\n\n')
+}
+
+function emitSpatialDissolveTransitionShowCode(
+  from: CompiledMember,
+  to: CompiledMember,
+  transition: ShowRouteTransitionRecipe,
+): string {
+  return [
+    emitRuntimePrelude([from, to]),
+    from.code.trim(),
+    to.code.trim(),
+    emitScheduler(
+      from,
+      to,
+      transition.startMs,
+      transition.startMs + transition.durationMs,
+      transition.durationMs,
+      transition.easing,
+    ),
+    emitOuterRenderer(2, `  if (__pxlblz_show_phase == 0) {
+    ${from.prefix}_renderCapture2D(index, x, y)
+    ${from.prefix}_emit()
+  } else if (__pxlblz_show_phase == 2) {
+    ${to.prefix}_renderCapture2D(index, x, y)
+    ${to.prefix}_emit()
+  } else {
+${indentBlock(emitSpatialDissolveRenderBlock(from, to, transition), 4)}
   }`),
     '',
   ].join('\n\n')
@@ -1276,6 +1355,9 @@ function emitSceneSequenceTransitionBlock(
   if (transition.kind === 'fade-color') return emitFadeThroughColorRenderBlock(from, to, transition, outputDimension)
   if (transition.kind === 'wipe') return emitWipeTransitionRenderBlock(from, to, transition, outputDimension)
   if (transition.kind === 'motion') return emitMotionTransitionRenderBlock(from, to, transition)
+  if (transition.kind === 'dither' && isSpatialDissolve(transition)) {
+    return emitSpatialDissolveRenderBlock(from, to, transition)
+  }
 
   const fromRender = memberRenderCapture(from, outputDimension)
   const toRender = memberRenderCapture(to, outputDimension)
@@ -1311,6 +1393,88 @@ function emitDissolvePickExpression(
     : 'index'
   const hashInput = seedOffset === 0 ? cell : `${cell} + ${seedOffset}`
   return `__pxlblz_show_hash01(${hashInput}) < __pxlblz_show_mix`
+}
+
+function isSpatialDissolve(
+  transition: Pick<ShowRouteTransitionRecipe, 'dissolveVariant'>,
+): boolean {
+  return transition.dissolveVariant === 'coherent-noise' || transition.dissolveVariant === 'soft-threshold'
+}
+
+function emitSpatialDissolveRenderBlock(
+  from: CompiledMember,
+  to: CompiledMember,
+  transition: Pick<ShowRouteTransitionRecipe, 'dissolveVariant' | 'seed' | 'scale' | 'softness' | 'edgePolicy'>,
+): string {
+  const seedOffset = normalizeShowDissolveSeed(transition.seed ?? 0) * 131
+  const scale = normalizeShowDissolveScale(transition.scale ?? 6)
+  const softness = transition.dissolveVariant === 'soft-threshold'
+    ? normalizeShowDissolveSoftness(transition.softness ?? 0.15)
+    : 0
+  const policy = transition.dissolveVariant === 'soft-threshold'
+    ? transition.edgePolicy === 'hard' || transition.edgePolicy === 'blend'
+      ? transition.edgePolicy
+      : 'dither'
+    : 'hard'
+  const seedTerm = seedOffset === 0 ? '' : ` + ${seedOffset}`
+  const prelude = `var __pxlblz_show_dissolve_x = x * ${scale}
+var __pxlblz_show_dissolve_y = y * ${scale}
+var __pxlblz_show_dissolve_ix = floor(__pxlblz_show_dissolve_x)
+var __pxlblz_show_dissolve_iy = floor(__pxlblz_show_dissolve_y)
+var __pxlblz_show_dissolve_fx = __pxlblz_show_dissolve_x - __pxlblz_show_dissolve_ix
+var __pxlblz_show_dissolve_fy = __pxlblz_show_dissolve_y - __pxlblz_show_dissolve_iy
+var __pxlblz_show_dissolve_sx = __pxlblz_show_dissolve_fx * __pxlblz_show_dissolve_fx * (3 - 2 * __pxlblz_show_dissolve_fx)
+var __pxlblz_show_dissolve_sy = __pxlblz_show_dissolve_fy * __pxlblz_show_dissolve_fy * (3 - 2 * __pxlblz_show_dissolve_fy)
+var __pxlblz_show_dissolve_h00 = __pxlblz_show_hash01(__pxlblz_show_dissolve_ix + __pxlblz_show_dissolve_iy * 4096${seedTerm})
+var __pxlblz_show_dissolve_h10 = __pxlblz_show_hash01(__pxlblz_show_dissolve_ix + 1 + __pxlblz_show_dissolve_iy * 4096${seedTerm})
+var __pxlblz_show_dissolve_h01 = __pxlblz_show_hash01(__pxlblz_show_dissolve_ix + (__pxlblz_show_dissolve_iy + 1) * 4096${seedTerm})
+var __pxlblz_show_dissolve_h11 = __pxlblz_show_hash01(__pxlblz_show_dissolve_ix + 1 + (__pxlblz_show_dissolve_iy + 1) * 4096${seedTerm})
+var __pxlblz_show_dissolve_top = __pxlblz_show_dissolve_h00 + (__pxlblz_show_dissolve_h10 - __pxlblz_show_dissolve_h00) * __pxlblz_show_dissolve_sx
+var __pxlblz_show_dissolve_bottom = __pxlblz_show_dissolve_h01 + (__pxlblz_show_dissolve_h11 - __pxlblz_show_dissolve_h01) * __pxlblz_show_dissolve_sx
+var __pxlblz_show_dissolve_field = __pxlblz_show_dissolve_top + (__pxlblz_show_dissolve_bottom - __pxlblz_show_dissolve_top) * __pxlblz_show_dissolve_sy`
+  const fromRender = `${from.prefix}_renderCapture2D(index, x, y)`
+  const toRender = `${to.prefix}_renderCapture2D(index, x, y)`
+  if (policy === 'hard' || softness === 0) {
+    return `${prelude}
+if (__pxlblz_show_dissolve_field < __pxlblz_show_mix) {
+  ${toRender}
+  ${to.prefix}_emit()
+} else {
+  ${fromRender}
+  ${from.prefix}_emit()
+}`
+  }
+  const edgePrelude = `${prelude}
+var __pxlblz_show_dissolve_edge_mix = clamp((__pxlblz_show_mix + ${softness / 2} - __pxlblz_show_dissolve_field) / ${softness}, 0, 1)`
+  if (policy === 'dither') {
+    return `${edgePrelude}
+if (__pxlblz_show_hash01(index + ${seedOffset + 7919}) < __pxlblz_show_dissolve_edge_mix) {
+  ${toRender}
+  ${to.prefix}_emit()
+} else {
+  ${fromRender}
+  ${from.prefix}_emit()
+}`
+  }
+  return `${edgePrelude}
+if (__pxlblz_show_dissolve_edge_mix <= 0) {
+  ${fromRender}
+  ${from.prefix}_emit()
+} else if (__pxlblz_show_dissolve_edge_mix >= 1) {
+  ${toRender}
+  ${to.prefix}_emit()
+} else {
+  ${fromRender}
+  var r0 = ${from.prefix}_r
+  var g0 = ${from.prefix}_g
+  var b0 = ${from.prefix}_b
+  ${toRender}
+  rgb(
+    r0 * (1 - __pxlblz_show_dissolve_edge_mix) + ${to.prefix}_r * __pxlblz_show_dissolve_edge_mix,
+    g0 * (1 - __pxlblz_show_dissolve_edge_mix) + ${to.prefix}_g * __pxlblz_show_dissolve_edge_mix,
+    b0 * (1 - __pxlblz_show_dissolve_edge_mix) + ${to.prefix}_b * __pxlblz_show_dissolve_edge_mix
+  )
+}`
 }
 
 function emitWipeTransitionRenderBlock(

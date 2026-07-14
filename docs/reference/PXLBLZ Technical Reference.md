@@ -1084,6 +1084,24 @@ Pixel plus 8- and 32-pixel Block captures. The fixture harness recompiles and
 replays them at fixed progress points to verify stable output and JSON
 round-trip behavior.
 
+Coherent Noise Dissolve evaluates a stable 2D value-noise field. Stage
+coordinates are multiplied by Spatial scale (`1..32`), four surrounding lattice
+points are hashed with the normalized 16-bit seed, and smooth cubic interpolation
+combines them. The field has no time input: seek, replay, reload, preview, and
+generated output therefore see the same spatial structure. Coherent Noise uses
+a hard field threshold and evaluates one Pattern per output pixel (`N`). It
+requires a 2D Stage Map.
+
+Soft Threshold uses the same coherent field and adds Softness (`0..1`) through
+the shared edge contract. Hard compares the field directly with eased progress.
+Stable dither converts the active softness band to one deterministic source
+choice and remains `N`. Blend evaluates one source outside the band and both
+inside it, so cost is `N + E`; at Softness `1`, the active band may cover the
+full Stage and `E` may equal `N`. The UI-neutral descriptor restricts Pixel and
+Block to Stable dither, Coherent Noise to Hard, and Soft Threshold to
+Hard/Stable dither/Blend. Deterministic fixtures cover two spatial scales and
+both dithered and blended soft edges.
+
 Shape reveal stores explicit `grow-incoming` and `shrink-outgoing` reveal modes
 for new records. Grow Incoming expands the incoming side from the selected
 center. Shrink Outgoing keeps the incoming Pattern behind a contracting

@@ -76,7 +76,7 @@ export type ShowTransitionKind = 'cut' | 'crossfade' | 'fade-color' | 'wipe' | '
 export type ShowTransitionCost = 'free' | 'cheap' | 'expensive'
 export type ShowPortalFeatherPolicy = 'dither' | 'blend'
 export type ShowTransitionEdgePolicy = 'hard' | 'dither' | 'blend'
-export type ShowDissolveVariant = 'pixel' | 'block'
+export type ShowDissolveVariant = 'pixel' | 'block' | 'coherent-noise' | 'soft-threshold'
 export type ShowWipeVariant = 'linear' | 'split' | 'barn-doors' | 'blinds' | 'clock' | 'checker' | 'grid'
 export type ShowWipeMode = 'center-out' | 'center-in'
 export type ShowWipeOrientation = 'horizontal' | 'vertical'
@@ -167,6 +167,7 @@ export interface ShowTransition {
   dissolveVariant?: ShowDissolveVariant
   seed?: number
   blockSize?: number
+  softness?: number
   /** Normalized fraction of the 1D route used as a stable wipe feather band. */
   feather?: number
   /** Normalized Stage coordinates used by the 2D portal transition. */
@@ -254,6 +255,7 @@ export interface ShowBoundaryTransition {
   dissolveVariant?: ShowDissolveVariant
   seed?: number
   blockSize?: number
+  softness?: number
   feather?: number
   centerX?: number
   centerY?: number

@@ -24,7 +24,12 @@ import { clampShowRepeatScale } from './showCoordinateRemap'
 import { normalizeShowEasing } from './showEasing'
 import { normalizeShowTransitionColor } from './showFadeThroughColor'
 import { normalizeShowWipeDirection, normalizeShowWipeSettings } from './showWipe'
-import { normalizeShowDissolveBlockSize, normalizeShowDissolveSeed } from './showDissolve'
+import {
+  normalizeShowDissolveBlockSize,
+  normalizeShowDissolveScale,
+  normalizeShowDissolveSeed,
+  normalizeShowDissolveSoftness,
+} from './showDissolve'
 import { normalizeShowRevealMode } from './showShapeReveal'
 import { normalizeShowMotionTransition } from './showMotionTransition'
 import {
@@ -1051,6 +1056,8 @@ export function normalizeShowTransitionState(show: ShowRecord): ShowRecord {
                 dissolveVariant: scene.transitionOut.dissolveVariant,
                 seed: scene.transitionOut.seed,
                 blockSize: scene.transitionOut.blockSize,
+                scale: scene.transitionOut.scale,
+                softness: scene.transitionOut.softness,
                 edgePolicy: scene.transitionOut.edgePolicy,
               }
             : {}),
@@ -1196,6 +1203,10 @@ function normalizeBoundaryTransition(transition: ShowBoundaryTransition): ShowBo
       ? 'block' as const
       : transition.dissolveVariant === 'pixel'
         ? 'pixel' as const
+        : transition.dissolveVariant === 'coherent-noise'
+          ? 'coherent-noise' as const
+          : transition.dissolveVariant === 'soft-threshold'
+            ? 'soft-threshold' as const
         : undefined
     return {
       ...base,
@@ -1204,7 +1215,19 @@ function normalizeBoundaryTransition(transition: ShowBoundaryTransition): ShowBo
       ...(variant === 'block'
         ? { blockSize: normalizeShowDissolveBlockSize(transition.blockSize ?? 8) }
         : {}),
-      ...(transition.edgePolicy === 'dither' ? { edgePolicy: 'dither' as const } : {}),
+      ...(variant === 'coherent-noise' || variant === 'soft-threshold'
+        ? { scale: normalizeShowDissolveScale(transition.scale ?? 6) }
+        : {}),
+      ...(variant === 'soft-threshold'
+        ? { softness: normalizeShowDissolveSoftness(transition.softness ?? 0.15) }
+        : {}),
+      ...(variant === 'soft-threshold'
+        ? transition.edgePolicy === 'hard' || transition.edgePolicy === 'dither' || transition.edgePolicy === 'blend'
+          ? { edgePolicy: transition.edgePolicy }
+          : { edgePolicy: 'dither' as const }
+        : transition.edgePolicy === 'dither' || transition.edgePolicy === 'hard'
+          ? { edgePolicy: transition.edgePolicy }
+          : {}),
     }
   }
   if (kind === 'portal') {
@@ -1402,7 +1425,9 @@ function boundaryToLegacyTransition(
           ...(transition.dissolveVariant === undefined ? {} : { dissolveVariant: transition.dissolveVariant }),
           ...(transition.seed === undefined ? {} : { seed: transition.seed }),
           ...(transition.blockSize === undefined ? {} : { blockSize: transition.blockSize }),
-          ...(transition.edgePolicy === 'dither' ? { edgePolicy: 'dither' as const } : {}),
+          ...(transition.scale === undefined ? {} : { scale: transition.scale }),
+          ...(transition.softness === undefined ? {} : { softness: transition.softness }),
+          ...(transition.edgePolicy === undefined ? {} : { edgePolicy: transition.edgePolicy }),
         }
       : {}),
     ...(kind === 'wipe'
@@ -1695,6 +1720,11 @@ export function showRecordToCompileRecipe(
   if (transition?.kind === 'motion' && (!show.stageMapId || lookup.stageDimension !== 2)) {
     throw new Error('Motion transition requires a 2D Stage Map.')
   }
+  if (transition?.kind === 'dither'
+    && (transition.dissolveVariant === 'coherent-noise' || transition.dissolveVariant === 'soft-threshold')
+    && (!show.stageMapId || lookup.stageDimension !== 2)) {
+    throw new Error('Spatial Dissolve requires a 2D Stage Map.')
+  }
   if (samePattern && hasSameDiscreteAdaptations(cells[0], cells[1]) && transition && transition.kind !== 'cut' && transition.kind !== 'portal' && transition.kind !== 'fade-color' && transition.kind !== 'motion') {
     const explicitFrom = boundary?.propertyTransitions?.timeScale?.fromByCellId[cells[1].id]
     const propertyRamps = boundary?.propertyTransitions
@@ -1768,7 +1798,9 @@ export function showRecordToCompileRecipe(
                 ...(transition.dissolveVariant === undefined ? {} : { dissolveVariant: transition.dissolveVariant }),
                 ...(transition.seed === undefined ? {} : { seed: normalizeShowDissolveSeed(transition.seed) }),
                 ...(transition.blockSize === undefined ? {} : { blockSize: normalizeShowDissolveBlockSize(transition.blockSize) }),
-                ...(transition.edgePolicy === 'dither' ? { edgePolicy: 'dither' as const } : {}),
+                ...(transition.scale === undefined ? {} : { scale: normalizeShowDissolveScale(transition.scale) }),
+                ...(transition.softness === undefined ? {} : { softness: normalizeShowDissolveSoftness(transition.softness) }),
+                ...(transition.edgePolicy === undefined ? {} : { edgePolicy: transition.edgePolicy }),
               }
             : {}),
           ...(transition.kind === 'wipe'
@@ -1833,6 +1865,11 @@ function showRecordToSceneSequenceRecipe(
   }
   if (transitions.some((transition) => transition?.kind === 'motion') && (!show.stageMapId || lookup.stageDimension !== 2)) {
     throw new Error('Motion transition requires a 2D Stage Map.')
+  }
+  if (transitions.some((transition) => transition?.kind === 'dither'
+    && (transition.dissolveVariant === 'coherent-noise' || transition.dissolveVariant === 'soft-threshold'))
+    && (!show.stageMapId || lookup.stageDimension !== 2)) {
+    throw new Error('Spatial Dissolve requires a 2D Stage Map.')
   }
 
   const clipByKey = new Map<string, ShowRecipe['clips'][number]>()
@@ -1948,7 +1985,9 @@ function compilerSequenceTransition(
           ...(transition.dissolveVariant === undefined ? {} : { dissolveVariant: transition.dissolveVariant }),
           ...(transition.seed === undefined ? {} : { seed: normalizeShowDissolveSeed(transition.seed) }),
           ...(transition.blockSize === undefined ? {} : { blockSize: normalizeShowDissolveBlockSize(transition.blockSize) }),
-          ...(transition.edgePolicy === 'dither' ? { edgePolicy: 'dither' as const } : {}),
+          ...(transition.scale === undefined ? {} : { scale: normalizeShowDissolveScale(transition.scale) }),
+          ...(transition.softness === undefined ? {} : { softness: normalizeShowDissolveSoftness(transition.softness) }),
+          ...(transition.edgePolicy === undefined ? {} : { edgePolicy: transition.edgePolicy }),
         }
       : {}),
     ...(transition.kind === 'wipe'

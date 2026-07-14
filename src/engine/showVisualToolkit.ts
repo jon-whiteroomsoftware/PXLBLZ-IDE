@@ -57,6 +57,7 @@ export interface ShowToolkitParameterDescriptor {
   step?: number
   unit?: string
   options?: Array<{ value: string; label: string }>
+  optionsByVariant?: Record<string, Array<{ value: string; label: string }>>
   compatibility?: { stageDimensions: Array<1 | 2 | 3> }
   variantIds?: string[]
   when?: ShowToolkitParameterCondition
@@ -255,6 +256,8 @@ export const SHOW_VISUAL_TOOLKIT_REGISTRY: ShowToolkitFamilyDescriptor[] = [
     variants: [
       { id: 'pixel', label: 'Pixel', costPolicies: ['selector'] },
       { id: 'block', label: 'Block', costPolicies: ['selector'] },
+      { id: 'coherent-noise', label: 'Coherent noise', costPolicies: ['selector'], compatibility: { stageDimensions: [2] } },
+      { id: 'soft-threshold', label: 'Soft threshold', costPolicies: ['selector', 'bounded-blend'], compatibility: { stageDimensions: [2] } },
     ],
     parameters: [
       DURATION,
@@ -262,9 +265,25 @@ export const SHOW_VISUAL_TOOLKIT_REGISTRY: ShowToolkitFamilyDescriptor[] = [
       { id: 'seed', label: 'Seed', kind: 'number', defaultValue: 0, min: 0, max: 65_535, step: 1 },
       {
         id: 'edgePolicy', label: 'Edge', kind: 'enum', defaultValue: 'dither',
-        options: [{ value: 'dither', label: 'Stable dither' }],
+        options: [
+          { value: 'hard', label: 'Hard' },
+          { value: 'dither', label: 'Stable dither' },
+          { value: 'blend', label: 'Blend' },
+        ],
+        optionsByVariant: {
+          pixel: [{ value: 'dither', label: 'Stable dither' }],
+          block: [{ value: 'dither', label: 'Stable dither' }],
+          'coherent-noise': [{ value: 'hard', label: 'Hard' }],
+          'soft-threshold': [
+            { value: 'hard', label: 'Hard' },
+            { value: 'dither', label: 'Stable dither' },
+            { value: 'blend', label: 'Blend' },
+          ],
+        },
       },
       { id: 'blockSize', label: 'Block size', kind: 'number', defaultValue: 8, min: 1, max: 1024, step: 1, unit: 'pixels', variantIds: ['block'] },
+      { id: 'scale', label: 'Spatial scale', kind: 'number', defaultValue: 6, min: 1, max: 32, step: 0.1, variantIds: ['coherent-noise', 'soft-threshold'] },
+      { id: 'softness', label: 'Softness', kind: 'number', defaultValue: 0.15, min: 0, max: 1, step: 0.01, variantIds: ['soft-threshold'] },
     ],
   },
   {
@@ -358,7 +377,17 @@ export function resolveShowToolkitParameters(
   return family.parameters.filter((parameter) => (
     (!parameter.variantIds || parameter.variantIds.includes(variantId))
     && (!parameter.when || values[parameter.when.parameterId] === parameter.when.equals)
-  ))
+  )).map((parameter) => {
+    const options = parameter.optionsByVariant?.[variantId]
+    if (!options) return parameter
+    return {
+      ...parameter,
+      options,
+      defaultValue: options.some((option) => option.value === parameter.defaultValue)
+        ? parameter.defaultValue
+        : options[0]?.value ?? parameter.defaultValue,
+    }
+  })
 }
 
 export function validateShowToolkitRegistry(
@@ -384,6 +413,9 @@ export function validateShowToolkitRegistry(
       duplicateParameterIds.add(parameter.id)
       for (const variantId of parameter.variantIds ?? []) {
         if (!variantIds.has(variantId)) errors.push(`Unknown variant ${familyKey}:${variantId} for ${parameter.id}.`)
+      }
+      for (const variantId of Object.keys(parameter.optionsByVariant ?? {})) {
+        if (!variantIds.has(variantId)) errors.push(`Unknown option variant ${familyKey}:${variantId} for ${parameter.id}.`)
       }
       if (parameter.when && !parameterIds.has(parameter.when.parameterId)) {
         errors.push(`Unknown condition parameter ${familyKey}:${parameter.when.parameterId} for ${parameter.id}.`)

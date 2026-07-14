@@ -4,6 +4,7 @@ import { createShim } from './shim'
 import { DEMOS } from '@/pixelblaze/stock/patterns'
 import { remapShowIndex, remapShowSample } from './showCoordinateRemap'
 import { showWipeMaskPosition, type ShowWipeSettings } from './showWipe'
+import { showCoherentDissolveField } from './showDissolve'
 
 interface LoadedShow {
   handle: PatternHandle
@@ -2517,6 +2518,60 @@ export function render(index) { calls = calls + 1; rgb(0, 1, 0) }
       transitionCost: 'route',
       worstInstantRenderersPerPixel: 1,
       routePolicy: 'dither',
+    })
+  })
+
+  it('matches the pure Coherent Noise field in generated output (#451)', () => {
+    const x = 0.37
+    const y = 0.62
+    const field = showCoherentDissolveField(x, y, 6, 17)
+    const artifact = compileShow({
+      clips: [
+        { id: 'from', source: 'export function render2D(index, x, y) { rgb(1, 0, 0) }' },
+        { id: 'to', source: 'export function render2D(index, x, y) { rgb(0, 1, 0) }' },
+      ],
+      routeTransition: {
+        kind: 'dither', dissolveVariant: 'coherent-noise', startMs: 1000, durationMs: 1000,
+        seed: 17, scale: 6, edgePolicy: 'hard',
+      },
+    }, {})
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 16)
+
+    handle.beforeRender(1500)
+    handle.render2D(0, x, y)
+    expect(pixel()).toEqual(field < 0.5 ? [0, 1, 0] : [1, 0, 0])
+    expect(artifact.summary).toMatchObject({
+      renderPolicy: 'spatial-route-one-renderer-per-pixel', transitionCost: 'route',
+      routePolicy: 'dissolve-hard', worstInstantRenderersPerPixel: 1,
+      cost: { cpu: { patternEvaluations: { formula: 'N', basePerPixel: 1 } } },
+    })
+  })
+
+  it('blends Soft Threshold only inside its active band and reports N + E (#451)', () => {
+    const x = 0.37
+    const y = 0.62
+    const field = showCoherentDissolveField(x, y, 6, 17)
+    const artifact = compileShow({
+      clips: [
+        { id: 'from', source: 'export var calls = 0\nexport function render2D(index, x, y) { calls = calls + 1; rgb(1, 0, 0) }' },
+        { id: 'to', source: 'export var calls = 0\nexport function render2D(index, x, y) { calls = calls + 1; rgb(0, 1, 0) }' },
+      ],
+      routeTransition: {
+        kind: 'dither', dissolveVariant: 'soft-threshold', startMs: 1000, durationMs: 1000,
+        seed: 17, scale: 6, softness: 0.2, edgePolicy: 'blend',
+      },
+    }, {})
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 16)
+
+    handle.beforeRender(1000 + field * 1000)
+    handle.render2D(0, x, y)
+    expect(pixel()[0]).toBeCloseTo(0.5, 9)
+    expect(pixel()[1]).toBeCloseTo(0.5, 9)
+    expect(handle.getExports()).toMatchObject({ __pxlblz_show_c0_calls: 1, __pxlblz_show_c1_calls: 1 })
+    expect(artifact.summary).toMatchObject({
+      renderPolicy: 'spatial-route-bounded-feather', transitionCost: 'bounded-renderer-window',
+      routePolicy: 'dissolve-blended-edge', worstInstantRenderersPerPixel: 2,
+      cost: { cpu: { patternEvaluations: { formula: 'N + E', basePerPixel: 1, additionalPerEdgePixel: 1 } } },
     })
   })
 

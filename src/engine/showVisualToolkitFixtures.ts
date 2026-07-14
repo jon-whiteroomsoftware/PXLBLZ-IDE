@@ -217,6 +217,31 @@ export function createShowToolkitFixtureRecipes(): ShowToolkitFixtureRecipe[] {
         dissolveVariant: 'block', seed: 47, blockSize, edgePolicy: 'dither',
       }),
     })),
+    ...([
+      ['coherent-noise-4', 'coherent-noise', 4, 0, 'hard'],
+      ['coherent-noise-9', 'coherent-noise', 9, 0, 'hard'],
+      ['soft-threshold-dither', 'soft-threshold', 6, 0.18, 'dither'],
+      ['soft-threshold-blend', 'soft-threshold', 6, 0.24, 'blend'],
+    ] as const).map(([name, dissolveVariant, scale, softness, edgePolicy]): ShowToolkitFixtureRecipe => ({
+      ...shared,
+      id: `dissolve-${name}`,
+      familyId: 'dissolve',
+      variantId: dissolveVariant,
+      recipe: {
+        clips: clips(),
+        routeTransition: {
+          kind: 'dither', startMs: 1000, durationMs: 1000,
+          dissolveVariant, seed: 53, scale, softness, edgePolicy,
+        },
+      },
+      persistedRecord: {
+        ...persistedRecord(`dissolve-${name}`, {
+          kind: 'dither', durationMs: 1000,
+          dissolveVariant, seed: 53, scale, softness, edgePolicy,
+        }),
+        stageMapId: 'fixture-stage-2d',
+      },
+    })),
     ...(['circle', 'diamond', 'ring'] as const).map((shape): ShowToolkitFixtureRecipe => ({
       ...shared,
       id: `shape-reveal-${shape}`,

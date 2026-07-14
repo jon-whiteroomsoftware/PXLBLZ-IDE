@@ -143,6 +143,8 @@ describe('Show visual-toolkit contract', () => {
     expect(dissolve?.variants).toEqual([
       expect.objectContaining({ id: 'pixel', label: 'Pixel' }),
       expect.objectContaining({ id: 'block', label: 'Block' }),
+      expect.objectContaining({ id: 'coherent-noise', label: 'Coherent noise' }),
+      expect.objectContaining({ id: 'soft-threshold', label: 'Soft threshold' }),
     ])
     expect(resolveShowToolkitParameters('transition', 'dissolve', 'pixel', {})).toEqual(expect.arrayContaining([
       expect.objectContaining({ id: 'seed', defaultValue: 0 }),
@@ -150,6 +152,20 @@ describe('Show visual-toolkit contract', () => {
     ]))
     expect(resolveShowToolkitParameters('transition', 'dissolve', 'block', {}))
       .toContainEqual(expect.objectContaining({ id: 'blockSize', unit: 'pixels', defaultValue: 8 }))
+    expect(resolveShowToolkitParameters('transition', 'dissolve', 'coherent-noise', {}))
+      .toEqual(expect.arrayContaining([
+        expect.objectContaining({ id: 'scale', min: 1, max: 32 }),
+        expect.objectContaining({ id: 'edgePolicy', defaultValue: 'hard', options: [{ value: 'hard', label: 'Hard' }] }),
+      ]))
+    expect(resolveShowToolkitParameters('transition', 'dissolve', 'soft-threshold', {}))
+      .toEqual(expect.arrayContaining([
+        expect.objectContaining({ id: 'softness', min: 0, max: 1 }),
+        expect.objectContaining({ id: 'edgePolicy', options: expect.arrayContaining([
+          expect.objectContaining({ value: 'hard' }),
+          expect.objectContaining({ value: 'dither' }),
+          expect.objectContaining({ value: 'blend' }),
+        ]) }),
+      ]))
   })
 
   it('rejects descriptors whose conditions or presets reference private parameters', () => {
@@ -248,6 +264,10 @@ describe('Show visual-toolkit contract', () => {
       'dissolve-pixel-seeded',
       'dissolve-block-8',
       'dissolve-block-32',
+      'dissolve-coherent-noise-4',
+      'dissolve-coherent-noise-9',
+      'dissolve-soft-threshold-dither',
+      'dissolve-soft-threshold-blend',
       'shape-reveal-circle',
       'shape-reveal-diamond',
       'shape-reveal-ring',

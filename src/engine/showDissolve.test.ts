@@ -1,9 +1,13 @@
 import {
   normalizeShowDissolveBlockSize,
+  normalizeShowDissolveScale,
   normalizeShowDissolveSeed,
+  normalizeShowDissolveSoftness,
+  showCoherentDissolveField,
   showDissolveCell,
   showDissolveHash,
   showDissolveSelectsIncoming,
+  showSoftDissolveEdge,
 } from './showDissolve'
 import { addShowScene, createDefaultShow, normalizeShowTransitionState, showRecordToCompileRecipe } from './showModel'
 import { compileShow } from './showCompiler'
@@ -80,6 +84,60 @@ describe('Pixel and Block Dissolve (#447)', () => {
     expect(compileShow(recipe, {}).summary).toMatchObject({
       transitionCost: 'route', worstInstantRenderersPerPixel: 1,
       cost: { cpu: { patternEvaluations: { formula: 'N', basePerPixel: 1 } } },
+    })
+  })
+})
+
+describe('Coherent Noise and Soft Threshold Dissolve (#451)', () => {
+  it('normalizes useful spatial scale and softness ranges', () => {
+    expect(normalizeShowDissolveScale(0)).toBe(1)
+    expect(normalizeShowDissolveScale(99)).toBe(32)
+    expect(normalizeShowDissolveSoftness(-1)).toBe(0)
+    expect(normalizeShowDissolveSoftness(2)).toBe(1)
+  })
+
+  it('produces a stable coherent field from coordinates, scale, and seed', () => {
+    const first = showCoherentDissolveField(0.37, 0.62, 6, 17)
+    expect(first).toBeGreaterThanOrEqual(0)
+    expect(first).toBeLessThan(1)
+    expect(showCoherentDissolveField(0.37, 0.62, 6, 17)).toBe(first)
+    expect(showCoherentDissolveField(0.37, 0.62, 6, 18)).not.toBe(first)
+    expect(showCoherentDissolveField(0.37, 0.62, 7, 17)).not.toBe(first)
+  })
+
+  it('maps Soft Threshold to the shared edge contract', () => {
+    expect(showSoftDissolveEdge({ field: 0.5, progress: 0.5, softness: 0, policy: 'hard', hash: 0 }))
+      .toEqual({ mode: 'outgoing', mix: 0 })
+    expect(showSoftDissolveEdge({ field: 0.5, progress: 0.5, softness: 0.2, policy: 'dither', hash: 0.2 }))
+      .toEqual({ mode: 'incoming', mix: 1 })
+    expect(showSoftDissolveEdge({ field: 0.55, progress: 0.5, softness: 0.2, policy: 'blend', hash: 0 }))
+      .toEqual({ mode: 'blend', mix: expect.closeTo(0.25, 12) })
+  })
+
+  it('requires a 2D Stage and lowers Soft Threshold through scene sequences', () => {
+    let show = addShowScene(createDefaultShow('soft-sequence', 'Soft sequence', 451))
+    show.transitions![0] = {
+      ...show.transitions![0], kind: 'dither', durationMs: 1000,
+      dissolveVariant: 'soft-threshold', seed: 17, scale: 6, softness: 0.2, edgePolicy: 'blend',
+    }
+    show.transitions![1] = { ...show.transitions![1], kind: 'cut', durationMs: 0 }
+    const sources = Object.fromEntries(show.cells.map((cell) => [cell.id, 'export function render2D(index, x, y) { rgb(x, y, 0) }']))
+    expect(() => showRecordToCompileRecipe(normalizeShowTransitionState(show), { byCellId: sources }))
+      .toThrow(/Spatial Dissolve requires a 2D Stage Map/i)
+
+    show = { ...show, stageMapId: 'plane' }
+    const recipe = showRecordToCompileRecipe(normalizeShowTransitionState(show), {
+      stageDimension: 2,
+      byCellId: sources,
+    })
+    expect(recipe.sceneSequence?.scenes[0].transitionOut).toMatchObject({
+      kind: 'dither', dissolveVariant: 'soft-threshold', seed: 17,
+      scale: 6, softness: 0.2, edgePolicy: 'blend',
+    })
+    expect(compileShow(recipe, {}).summary).toMatchObject({
+      renderPolicy: 'spatial-route-bounded-feather',
+      transitionCost: 'bounded-renderer-window', routePolicy: 'dissolve-blended-edge',
+      worstInstantRenderersPerPixel: 2,
     })
   })
 })
