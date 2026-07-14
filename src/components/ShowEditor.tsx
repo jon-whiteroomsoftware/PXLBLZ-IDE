@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { PixelblazeCodeEditor } from '@/components/PixelblazeCodeEditor'
 import { ShowZoneSpatialSelector } from '@/components/ShowZoneSpatialSelector'
+import { ShowVisualToolkitPrototype } from '@/components/ShowVisualToolkitPrototype'
 import { getControllerProvider } from '@/engine/controllerProviderRegistry'
 import { makeProgramId } from '@/engine/bytecodePush'
 import { PatternDeploymentActions } from '@/components/PatternDeploymentActions'
@@ -343,6 +344,10 @@ export function ShowEditor({
         Show not found
       </div>
     )
+  }
+
+  if (import.meta.env.DEV && new URLSearchParams(window.location.search).get('prototype') === 'visual-toolkit') {
+    return <ShowVisualToolkitPrototype showName={activeShow.name} />
   }
 
   if (spatialZoneSelection && activeShow.outputContract?.kind === 'installation' && savedStageMap?.dim === 2) {
