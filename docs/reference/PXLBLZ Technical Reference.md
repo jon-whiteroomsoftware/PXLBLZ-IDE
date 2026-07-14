@@ -766,7 +766,7 @@ Core ownership rules:
   moving-split position and sample repeat scale;
 - a zone owns semantic identity and nominal preview count;
 - a clip owns Pattern reference, scene/zone span, adaptations, control targets,
-  and Continue/Restart entry behavior;
+  an ordered Effect stack, and Continue/Restart entry behavior;
 - a transition is a stable boundary entity with kind, duration, easing, and
   type-specific configuration;
 - a destination clip owns clip-level property targets, a destination scene owns
@@ -993,17 +993,19 @@ the curve is evaluated.
 animations, effects, and transitions. Families own stable ids and cost policy;
 variants own parameter descriptors and conditional parameters; presets are
 named parameter bundles rather than separate runtime implementations. The
-registry currently describes the shipped property-animation targets plus blend,
-linear wipe, pixel dissolve, and circle/diamond/ring shape-reveal transitions.
+registry currently describes the shipped property-animation targets, Opacity
+and affine/wrap Effects, plus blend, linear wipe, pixel dissolve, and
+circle/diamond/ring shape-reveal Transitions.
 Validation rejects duplicate ids, missing parameter references, and presets that
 do not resolve through their variant's public parameter contract. React may
 project this catalogue, but engine code does not import the UI framework.
 
 `showVisualToolkitFixtures.ts` provides deterministic headless evidence for
-every registered transition that the compiler currently lowers. Each fixture
-uses fixed outgoing/incoming Patterns, standard progress samples, and generated
-minimum/default/maximum or enum parameter sweeps. The fixture harness compiles
-artifacts; it is not a temporary editor and does not establish production UI.
+every registered Effect and Transition tracer that the compiler currently
+lowers. Each fixture uses fixed outgoing/incoming Patterns, standard progress
+samples, and generated minimum/default/maximum or enum parameter sweeps. The
+fixture harness compiles artifacts; it is not a temporary editor and does not
+establish production UI.
 
 Property transitions share one descriptor model. Animation speed (`0×..4×`), brightness
 (`0..1`), and exported slider controls carry destination targets on clips. Moving
@@ -1013,6 +1015,43 @@ uses boundary-owned starts, durations, and easing. Generated control values call
 alpha-renamed slider once before member `beforeRender`. Missing, renamed, or
 non-slider controls are compile errors rather than dropped automation. Replacing
 a Clip's Pattern clears that Clip's prior control targets at the model boundary.
+
+### Show Effects
+
+An Effect is a clip-owned single-source operation. The persisted stack contains
+stable Effect ids and preserves authored order. Opacity, translate, rotate,
+scale, and shear expose numeric targets through the same boundary-owned Property
+descriptor used by Animation speed and Brightness. Wrap has no curve; it is an
+address policy applied after the complete affine transform. Add, update, move,
+remove, JSON reload, and normalization remain pure `showModel.ts` operations.
+
+Affine order describes content motion. The compiler composes forward content
+matrices in list order around normalized center `(0.5, 0.5)`, then inverts the
+result because the renderer maps each output sample back into the source
+Pattern. Static matrices fold at compile time; animated matrices recompute once
+per frame. This produces the literal runtime order:
+
+1. Stage Map sample and zone-local normalization;
+2. Show-wide sample remapping;
+3. mirror adaptation;
+4. the inverse composed clip Effect matrix;
+5. post-transform Clip or Wrap addressing;
+6. one member renderer call; and
+7. clip-border masking and Opacity toward the black Show background.
+
+Clip addressing clamps the source coordinate for a deterministic renderer call,
+then masks samples outside `[0, 1]` to black. Wrap instead uses
+`value - floor(value)` on both axes, including negative coordinates, and removes
+that border mask. Both policies therefore retain one Pattern evaluation per
+output pixel. An absent stack, or a stack containing only identity values,
+emits exactly the pre-Effect artifact.
+
+The compiled cost contract reports `N` Pattern evaluations for the single-source
+path plus independent Effect facts: affine operations and animated parameters
+updated per frame, eight scalar affine operations per evaluated pixel, three
+Opacity multiplies per evaluated pixel when active, generated scalar globals,
+and Clip versus Wrap addressing. These facts remain separate from Transition
+renderer cost such as `2N` Crossfade.
 
 ### Show sample remapping
 

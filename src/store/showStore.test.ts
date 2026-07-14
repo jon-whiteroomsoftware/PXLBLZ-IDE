@@ -417,6 +417,26 @@ describe('showStore (#318)', () => {
     })
   })
 
+  it('persists and reloads an ordered headless Effect stack (#444)', async () => {
+    const show = createDefaultShow('show-444', 'Effect persistence', 1)
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], showsLoaded: true })
+
+    await useShowStore.getState().updateCellEffects(show.id, 'cell-1', [
+      { id: 'move', kind: 'translate', x: 0.25, y: -0.1 },
+      { id: 'fade', kind: 'opacity', opacity: 0.6 },
+      { id: 'wrap', kind: 'wrap' },
+    ])
+    useShowStore.setState(showInitialState)
+    await useShowStore.getState().loadShows()
+
+    expect(useShowStore.getState().shows[0].cells[0].effects).toEqual([
+      { id: 'move', kind: 'translate', x: 0.25, y: -0.1 },
+      { id: 'fade', kind: 'opacity', opacity: 0.6 },
+      { id: 'wrap', kind: 'wrap' },
+    ])
+  })
+
   it('persists a wipe feather width through the provider', async () => {
     const show = createDefaultShow('show-1', 'Opening wash', 1)
     setPersonalContentProvider(memoryProvider([show]))

@@ -24,6 +24,7 @@ import {
   updateShowBoundaryTransition,
   updateShowZone,
   updateShowCellAdaptations,
+  updateShowCellEffects,
   updateShowCellControlTarget,
   updateShowCellPattern,
   updateShowCellRestartOnEntry,
@@ -37,6 +38,7 @@ import { getPersonalContentProvider } from '@/engine/personalContentProvider'
 import type {
   ShowCell,
   ShowCellAdaptations,
+  ShowClipEffect,
   ShowBoundaryTransition,
   ShowRecord,
   ShowOutputContract,
@@ -105,6 +107,7 @@ interface ShowState {
     cellId: string,
     changes: Partial<ShowCellAdaptations>,
   ) => Promise<void>
+  updateCellEffects: (showId: string, cellId: string, effects: ShowClipEffect[]) => Promise<void>
   updateCellPattern: (
     showId: string,
     cellId: string,
@@ -344,6 +347,12 @@ export const useShowStore = create<ShowState>()((set, get) => ({
     const show = get().shows.find((item) => item.id === showId)
     if (!show) return
     await get().updateShow(showId, updateShowCellAdaptations(show, cellId, changes))
+  },
+
+  updateCellEffects: async (showId, cellId, effects) => {
+    const show = get().shows.find((item) => item.id === showId)
+    if (!show) return
+    await get().updateShow(showId, updateShowCellEffects(show, cellId, effects))
   },
 
   updateCellControlTarget: async (showId, cellId, exportName, value) => {

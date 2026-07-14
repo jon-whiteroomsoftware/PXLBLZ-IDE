@@ -115,7 +115,17 @@ export interface ShowPropertyTransitions {
   sample?: {
     repeatScale?: ShowScalarPropertyTransition
   }
+  /** Stable Effect id -> public numeric parameter -> shared clip-property descriptor. */
+  effects?: Record<string, Record<string, ShowPropertyTransition>>
 }
+
+export type ShowClipEffect =
+  | { id: string; kind: 'opacity'; opacity: number }
+  | { id: string; kind: 'translate'; x: number; y: number }
+  | { id: string; kind: 'rotate'; turns: number }
+  | { id: string; kind: 'scale'; x: number; y: number }
+  | { id: string; kind: 'shear'; x: number; y: number }
+  | { id: string; kind: 'wrap' }
 
 export interface ShowPortalSettings {
   centerX: number
@@ -254,6 +264,8 @@ export interface ShowCell {
   restartOnEntry?: boolean
   /** Scene-owned 0..1 targets for public slider control functions. */
   controlTargets?: Record<string, number>
+  /** Ordered single-source visual Effects. Affine operation order is significant. */
+  effects?: ShowClipEffect[]
 }
 
 export interface Portable2DShowOutputContract {

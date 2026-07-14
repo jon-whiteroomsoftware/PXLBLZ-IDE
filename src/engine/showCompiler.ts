@@ -8,7 +8,14 @@ import {
 } from './controllerProfile'
 import { emitFixedPoint } from './fxEmit'
 import { emitShowEasingExpression } from './showEasing'
-import type { ShowSpatialShape, ShowTransitionEasing } from './personalContentRecords'
+import type { ShowClipEffect, ShowSpatialShape, ShowTransitionEasing } from './personalContentRecords'
+import {
+  applyShowEffectsToSample,
+  buildShowEffectSampleMatrix,
+  normalizeShowClipEffects,
+  showEffectParameterNames,
+  showEffectsAreIdentity,
+} from './showEffects'
 import {
   buildShowCompiledCostMetadata,
   type ShowCompiledCostMetadata,
@@ -28,6 +35,7 @@ export interface ShowClipRecipe {
   zoneMode?: 'independent' | 'span' | 'repeat'
   adaptation?: Partial<ShowClipAdaptation>
   controlTargets?: Record<string, number>
+  effects?: ShowClipEffect[]
 }
 
 export interface ShowCrossfadeRecipe {
@@ -68,6 +76,7 @@ export interface ShowAdaptationRampRecipe {
   easing?: ShowTransitionEasing
   propertyRamps?: Partial<Record<'timeScale' | 'brightness', ShowAdaptationPropertyRampRecipe>>
   controlRamps?: Record<string, ShowAdaptationPropertyRampRecipe>
+  effectRamps?: ShowEffectPropertyRampsRecipe
 }
 
 export interface ShowAdaptationPropertyRampRecipe {
@@ -76,6 +85,8 @@ export interface ShowAdaptationPropertyRampRecipe {
   durationMs: number
   easing: ShowTransitionEasing
 }
+
+export type ShowEffectPropertyRampsRecipe = Record<string, Record<string, ShowAdaptationPropertyRampRecipe>>
 
 export interface ShowRouteTransitionRecipe {
   kind: 'wipe' | 'dither' | 'portal'
@@ -109,6 +120,7 @@ export interface ShowSceneSequenceTransitionRecipe {
   easing?: ShowTransitionEasing
   propertyRamps?: Partial<Record<'timeScale' | 'brightness', ShowAdaptationPropertyRampRecipe>>
   controlRamps?: Record<string, ShowAdaptationPropertyRampRecipe>
+  effectRamps?: ShowEffectPropertyRampsRecipe
 }
 
 export interface ShowSceneSequenceSceneRecipe {
@@ -117,6 +129,7 @@ export interface ShowSceneSequenceSceneRecipe {
   timeScale?: number
   brightness?: number
   controlTargets?: Record<string, number>
+  effects?: ShowClipEffect[]
   transitionOut?: ShowSceneSequenceTransitionRecipe
 }
 
@@ -295,6 +308,8 @@ interface CompiledMember {
   adaptation: ShowClipAdaptation
   samplePropertyRamps?: ShowSamplePropertyRampsRecipe
   controls: Array<{ exportName: string; functionName: string; valueName: string; initialValue: number }>
+  effects: ShowClipEffect[]
+  animatedEffects: boolean
 }
 
 interface ResolvedRoute {
@@ -319,8 +334,15 @@ export function compileShow(
 ): GeneratedShowArtifact {
   const expandedRecipe = { ...recipe, clips: expandRouteClips(recipe.clips) }
   validateRecipe(expandedRecipe)
+  const animatedEffectClipIds = new Set<string>()
+  if (expandedRecipe.adaptationRamp?.effectRamps && expandedRecipe.clips[0]) {
+    animatedEffectClipIds.add(expandedRecipe.clips[0].id)
+  }
+  for (const scene of expandedRecipe.sceneSequence?.scenes ?? []) {
+    if (scene.transitionOut?.effectRamps) animatedEffectClipIds.add(scene.clipId)
+  }
   const members = expandedRecipe.clips.map((clip, index) => ({
-    ...compileMember(clip, index, libraries),
+    ...compileMember(clip, index, libraries, animatedEffectClipIds.has(clip.id)),
     samplePropertyRamps: expandedRecipe.samplePropertyRamps,
   }))
   const route = buildRoutePlan(members, expandedRecipe)
@@ -442,15 +464,23 @@ export function compileShow(
           ? portalBlend ? 'bounded-renderer-window' : 'route'
         : 'none'
   const evaluationSummary = describeEvaluationPolicy(members)
+  const effectCost = describeEffectCost(members, expandedRecipe)
   const warnings = routingLayouts?.flatMap((layout) => layout.warnings) ?? route?.warnings ?? []
   const cost = buildShowCompiledCostMetadata({
     transitionCost,
     artifactBytes,
     budgetBytes: MEASURED_DEVICE_BUDGET_BYTES,
     expectedActiveFraction: evaluationSummary.expectedActiveFraction,
-    generatedScalarGlobals: (routingParameterEstimate?.scalarGlobals ?? 0) + (expandedRecipe.samplePropertyRamps ? 1 : 0),
+    generatedScalarGlobals: (routingParameterEstimate?.scalarGlobals ?? 0)
+      + (expandedRecipe.samplePropertyRamps ? 1 : 0)
+      + members.reduce((count, member) => count + (showEffectsAreIdentity(member.effects) && !member.animatedEffects
+        ? 0
+        : member.animatedEffects
+          ? 13 + member.effects.reduce((parameters, effect) => parameters + showEffectParameterNames(effect).length, 0)
+          : 7), 0),
     generatedArrayElements: routingParameterEstimate?.arrayElements ?? 0,
     warnings,
+    effects: effectCost,
   })
   const summary: ShowCompileSummary = {
     clipCount: members.length,
@@ -665,6 +695,7 @@ function compileMember(
   clip: ShowClipRecipe,
   index: number,
   libraries: Record<string, string>,
+  animatedEffects = false,
 ): CompiledMember {
   const bundled = bundle(clip.source, libraries)
   const prefix = `__pxlblz_show_c${index}`
@@ -708,6 +739,8 @@ function compileMember(
     pixelCountName: `${prefix}_pixelCount`,
     adaptation: normalizeAdaptation(clip.adaptation),
     controls,
+    effects: normalizeShowClipEffects(clip.effects),
+    animatedEffects,
   }
 }
 
@@ -784,6 +817,7 @@ function emitAdaptationRampShowCode(
   const transitionEnd = ramp.startMs + ramp.durationMs
   const propertyAssignments = emitPropertyRampAssignments(member, ramp.propertyRamps, `__pxlblz_show_elapsed_ms - ${ramp.startMs}`)
   const controlAssignments = emitControlRampAssignments(member, ramp.controlRamps, `__pxlblz_show_elapsed_ms - ${ramp.startMs}`)
+  const effectAssignments = emitEffectRampAssignments(member, ramp.effectRamps, `__pxlblz_show_elapsed_ms - ${ramp.startMs}`)
   return [
     emitRuntimePrelude([member]),
     member.code.trim(),
@@ -796,7 +830,7 @@ function emitAdaptationRampShowCode(
   } else {
     __pxlblz_show_mix = 1
   }
-  ${member.prefix}_mixAdaptation(${from.brightness}, ${from.phase}, ${from.timeScale}, ${boolNumber(from.mirror)}, ${to.brightness}, ${to.phase}, ${to.timeScale}, ${boolNumber(to.mirror)}, __pxlblz_show_mix)${propertyAssignments ? `\n${indentBlock(propertyAssignments, 2)}` : ''}${controlAssignments ? `\n${indentBlock(controlAssignments, 2)}` : ''}
+  ${member.prefix}_mixAdaptation(${from.brightness}, ${from.phase}, ${from.timeScale}, ${boolNumber(from.mirror)}, ${to.brightness}, ${to.phase}, ${to.timeScale}, ${boolNumber(to.mirror)}, __pxlblz_show_mix)${propertyAssignments ? `\n${indentBlock(propertyAssignments, 2)}` : ''}${controlAssignments ? `\n${indentBlock(controlAssignments, 2)}` : ''}${effectAssignments ? `\n${indentBlock(effectAssignments, 2)}` : ''}
   ${member.prefix}_advance(delta)
 }`,
     emitOuterRenderer(outputDimension, `  ${emitMemberCaptureCall(member, outputDimension)}
@@ -833,6 +867,22 @@ function emitPropertyRampAssignments(
     const mix = emitShowEasingExpression(ramp.easing, progress)
     return [`${member.prefix}_adapt_${property} = ${ramp.from} * (1 - ${mix}) + ${ramp.to} * ${mix}`]
   }).join('\n')
+}
+
+function emitEffectRampAssignments(
+  member: CompiledMember,
+  ramps: ShowEffectPropertyRampsRecipe | undefined,
+  elapsedExpression: string,
+): string {
+  if (!ramps) return ''
+  return Object.entries(ramps).flatMap(([effectId, parameters]) => (
+    Object.entries(parameters).map(([parameter, ramp]) => {
+      const variable = effectParameterVariable(member, effectId, parameter)
+      const progress = `clamp((${elapsedExpression}) / ${ramp.durationMs}, 0, 1)`
+      const mix = emitShowEasingExpression(ramp.easing, progress)
+      return `${variable} = ${ramp.from} * (1 - ${mix}) + ${ramp.to} * ${mix}`
+    })
+  )).join('\n')
 }
 
 function emitRouteTransitionShowCode(
@@ -947,7 +997,7 @@ function emitSceneSequenceShowCode(
       return `${condition} {
     __pxlblz_show_scene = ${segment.sceneIndex}
     __pxlblz_show_transition = -1
-    __pxlblz_show_mix = 0${emitSceneControlTargets(segment.from, scenes[segment.sceneIndex].controlTargets)}${scenes[segment.sceneIndex].brightness === undefined
+    __pxlblz_show_mix = 0${emitSceneControlTargets(segment.from, scenes[segment.sceneIndex].controlTargets)}${emitSceneEffectTargets(segment.from, scenes[segment.sceneIndex].effects)}${scenes[segment.sceneIndex].brightness === undefined
       ? ''
       : `\n    ${segment.from.prefix}_adapt_brightness = ${scenes[segment.sceneIndex].brightness}`}${scenes[segment.sceneIndex].timeScale === undefined
         ? ''
@@ -964,6 +1014,8 @@ function emitSceneSequenceShowCode(
       ? `\n${indentBlock(emitPropertyRampAssignments(segment.from, segment.transition!.propertyRamps, `__pxlblz_show_elapsed_ms - ${segment.startMs}`), 4)}`
       : ''}${segment.transition!.controlRamps
         ? `\n${indentBlock(emitControlRampAssignments(segment.from, segment.transition!.controlRamps, `__pxlblz_show_elapsed_ms - ${segment.startMs}`), 4)}`
+        : ''}${segment.transition!.effectRamps
+          ? `\n${indentBlock(emitEffectRampAssignments(segment.from, segment.transition!.effectRamps, `__pxlblz_show_elapsed_ms - ${segment.startMs}`), 4)}`
         : ''}
     ${segment.from.prefix}_advance(delta)${advanceTo}
   }`
@@ -1006,6 +1058,15 @@ function emitSceneControlTargets(member: CompiledMember, targets: Record<string,
     if (!control) throw new Error(`Clip "${member.id}" cannot set "${exportName}": public slider control not found.`)
     return `\n    ${control.valueName} = ${clampNumber(value, 0, 1)}`
   }).join('')
+}
+
+function emitSceneEffectTargets(member: CompiledMember, effects: ShowClipEffect[] | undefined): string {
+  if (!effects || !member.animatedEffects) return ''
+  return normalizeShowClipEffects(effects).flatMap((effect) => (
+    showEffectParameterNames(effect).map((parameter) => (
+      `\n    ${effectParameterVariable(member, effect.id, parameter)} = ${effectParameterValue(effect, parameter)}`
+    ))
+  )).join('')
 }
 
 function emitSceneSequenceTransitionBlock(
@@ -1643,10 +1704,133 @@ function emitSelectedMemberRendererCall(
     : call
 }
 
+function describeMemberEffectRuntime(member: CompiledMember): {
+  declarations: string[]
+  hasAffine: boolean
+  wrap: boolean
+  opacity: number
+} | null {
+  if (showEffectsAreIdentity(member.effects) && !member.animatedEffects) return null
+  const matrix = buildShowEffectSampleMatrix(member.effects)
+  const opacity = applyShowEffectsToSample(member.effects, 0.5, 0.5).opacity
+  const hasAffine = member.effects.some((effect) => effect.kind !== 'opacity' && effect.kind !== 'wrap')
+  const wrap = member.effects.some((effect) => effect.kind === 'wrap') && hasAffine
+  const parameterDeclarations = member.effects.flatMap((effect) => showEffectParameterNames(effect).map((parameter) => (
+    `var ${effectParameterVariable(member, effect.id, parameter)} = ${effectParameterValue(effect, parameter)}`
+  )))
+  const operationAssignments = member.effects.flatMap((effect, index) => {
+    if (effect.kind === 'opacity') {
+      return [`  ${member.prefix}_fx_opacity = ${member.prefix}_fx_opacity * ${effectParameterVariable(member, effect.id, 'opacity')}`]
+    }
+    if (effect.kind === 'wrap') return []
+    const suffix = `${member.prefix}_fx_o${index}`
+    const operation = effect.kind === 'translate'
+      ? `  var ${suffix}_a = 1
+  var ${suffix}_b = 0
+  var ${suffix}_c = 0
+  var ${suffix}_d = 1
+  var ${suffix}_tx = ${effectParameterVariable(member, effect.id, 'x')}
+  var ${suffix}_ty = ${effectParameterVariable(member, effect.id, 'y')}`
+      : effect.kind === 'rotate'
+        ? `  var ${suffix}_cos = cos(${effectParameterVariable(member, effect.id, 'turns')} * PI * 2)
+  var ${suffix}_sin = sin(${effectParameterVariable(member, effect.id, 'turns')} * PI * 2)
+  var ${suffix}_a = ${suffix}_cos
+  var ${suffix}_b = ${suffix}_sin
+  var ${suffix}_c = -${suffix}_sin
+  var ${suffix}_d = ${suffix}_cos
+  var ${suffix}_tx = 0.5 - ${suffix}_a * 0.5 - ${suffix}_c * 0.5
+  var ${suffix}_ty = 0.5 - ${suffix}_b * 0.5 - ${suffix}_d * 0.5`
+        : effect.kind === 'scale'
+          ? `  var ${suffix}_a = ${effectParameterVariable(member, effect.id, 'x')}
+  var ${suffix}_b = 0
+  var ${suffix}_c = 0
+  var ${suffix}_d = ${effectParameterVariable(member, effect.id, 'y')}
+  var ${suffix}_tx = 0.5 - ${suffix}_a * 0.5
+  var ${suffix}_ty = 0.5 - ${suffix}_d * 0.5`
+          : `  var ${suffix}_a = 1
+  var ${suffix}_b = ${effectParameterVariable(member, effect.id, 'y')}
+  var ${suffix}_c = ${effectParameterVariable(member, effect.id, 'x')}
+  var ${suffix}_d = 1
+  var ${suffix}_tx = 0.5 - ${suffix}_a * 0.5 - ${suffix}_c * 0.5
+  var ${suffix}_ty = 0.5 - ${suffix}_b * 0.5 - ${suffix}_d * 0.5`
+    return [`${operation}
+  var ${suffix}_next_a = ${suffix}_a * ${member.prefix}_fx_ma + ${suffix}_c * ${member.prefix}_fx_mb
+  var ${suffix}_next_b = ${suffix}_b * ${member.prefix}_fx_ma + ${suffix}_d * ${member.prefix}_fx_mb
+  var ${suffix}_next_c = ${suffix}_a * ${member.prefix}_fx_mc + ${suffix}_c * ${member.prefix}_fx_md
+  var ${suffix}_next_d = ${suffix}_b * ${member.prefix}_fx_mc + ${suffix}_d * ${member.prefix}_fx_md
+  var ${suffix}_next_tx = ${suffix}_a * ${member.prefix}_fx_mtx + ${suffix}_c * ${member.prefix}_fx_mty + ${suffix}_tx
+  var ${suffix}_next_ty = ${suffix}_b * ${member.prefix}_fx_mtx + ${suffix}_d * ${member.prefix}_fx_mty + ${suffix}_ty
+  ${member.prefix}_fx_ma = ${suffix}_next_a
+  ${member.prefix}_fx_mb = ${suffix}_next_b
+  ${member.prefix}_fx_mc = ${suffix}_next_c
+  ${member.prefix}_fx_md = ${suffix}_next_d
+  ${member.prefix}_fx_mtx = ${suffix}_next_tx
+  ${member.prefix}_fx_mty = ${suffix}_next_ty`]
+  })
+  const updateFunction = `function ${member.prefix}_fx_update() {
+  ${member.prefix}_fx_ma = 1
+  ${member.prefix}_fx_mb = 0
+  ${member.prefix}_fx_mc = 0
+  ${member.prefix}_fx_md = 1
+  ${member.prefix}_fx_mtx = 0
+  ${member.prefix}_fx_mty = 0
+  ${member.prefix}_fx_opacity = 1
+${operationAssignments.join('\n')}
+  var ${member.prefix}_fx_det = ${member.prefix}_fx_ma * ${member.prefix}_fx_md - ${member.prefix}_fx_mb * ${member.prefix}_fx_mc
+  if (abs(${member.prefix}_fx_det) < 0.000001) ${member.prefix}_fx_det = ${member.prefix}_fx_det < 0 ? -0.000001 : 0.000001
+  ${member.prefix}_fx_a = ${member.prefix}_fx_md / ${member.prefix}_fx_det
+  ${member.prefix}_fx_b = -${member.prefix}_fx_mb / ${member.prefix}_fx_det
+  ${member.prefix}_fx_c = -${member.prefix}_fx_mc / ${member.prefix}_fx_det
+  ${member.prefix}_fx_d = ${member.prefix}_fx_ma / ${member.prefix}_fx_det
+  ${member.prefix}_fx_tx = (${member.prefix}_fx_mc * ${member.prefix}_fx_mty - ${member.prefix}_fx_md * ${member.prefix}_fx_mtx) / ${member.prefix}_fx_det
+  ${member.prefix}_fx_ty = (${member.prefix}_fx_mb * ${member.prefix}_fx_mtx - ${member.prefix}_fx_ma * ${member.prefix}_fx_mty) / ${member.prefix}_fx_det
+}`
+  return {
+    hasAffine,
+    wrap,
+    opacity,
+    declarations: [
+      ...(member.animatedEffects ? [
+        ...parameterDeclarations,
+        `var ${member.prefix}_fx_ma = 1`,
+        `var ${member.prefix}_fx_mb = 0`,
+        `var ${member.prefix}_fx_mc = 0`,
+        `var ${member.prefix}_fx_md = 1`,
+        `var ${member.prefix}_fx_mtx = 0`,
+        `var ${member.prefix}_fx_mty = 0`,
+      ] : []),
+      `var ${member.prefix}_fx_a = ${matrix.a}`,
+      `var ${member.prefix}_fx_b = ${matrix.b}`,
+      `var ${member.prefix}_fx_c = ${matrix.c}`,
+      `var ${member.prefix}_fx_d = ${matrix.d}`,
+      `var ${member.prefix}_fx_tx = ${matrix.tx}`,
+      `var ${member.prefix}_fx_ty = ${matrix.ty}`,
+      `var ${member.prefix}_fx_opacity = ${opacity}`,
+      ...(member.animatedEffects ? [updateFunction] : []),
+    ],
+  }
+}
+
+function effectParameterVariable(member: CompiledMember, effectId: string, parameter: string): string {
+  const index = member.effects.findIndex((effect) => effect.id === effectId)
+  if (index < 0) throw new Error(`Clip "${member.id}" cannot animate missing Effect "${effectId}".`)
+  return `${member.prefix}_fx_p${index}_${parameter}`
+}
+
+function effectParameterValue(effect: ShowClipEffect, parameter: string): number {
+  if (effect.kind === 'opacity' && parameter === 'opacity') return effect.opacity
+  if (effect.kind === 'rotate' && parameter === 'turns') return effect.turns
+  if ((effect.kind === 'translate' || effect.kind === 'scale' || effect.kind === 'shear') && (parameter === 'x' || parameter === 'y')) {
+    return effect[parameter]
+  }
+  throw new Error(`Effect "${effect.id}" has no numeric parameter "${parameter}".`)
+}
+
 function emitRuntimePrelude(members: CompiledMember[]): string {
   const samplePropertyRamps = members[0]?.samplePropertyRamps
   const sampleRuntime = emitSampleRemappingRuntime(samplePropertyRamps)
   const memberVars = members.flatMap((member, index) => {
+    const effectRuntime = describeMemberEffectRuntime(member)
     const lightShutter = member.adaptation.lightShutter
     const steppedClock = member.adaptation.steppedClock
     const steppedClockVars = steppedClock
@@ -1707,8 +1891,9 @@ function emitRuntimePrelude(members: CompiledMember[]): string {
 ${indent}${member.elapsedName} = ${member.elapsedName} + scaledDelta
 ${indent}${member.hasBeforeRender ? `${member.beforeRenderName}(scaledDelta)` : ''}`
     const controlCalls = member.controls.map((control) => `  ${control.functionName}(${control.valueName})`).join('\n')
+    const effectUpdateCall = effectRuntime && member.animatedEffects ? `\n  ${member.prefix}_fx_update()` : ''
     const advance = lightShutter?.clockBehavior === 'freeze'
-      ? `function ${member.prefix}_advance(delta) {${controlCalls ? `\n${controlCalls}` : ''}
+      ? `function ${member.prefix}_advance(delta) {${controlCalls ? `\n${controlCalls}` : ''}${effectUpdateCall}
   ${member.prefix}_updateShutter()
   var activeDelta = ${member.prefix}_shutterActiveMs(__pxlblz_show_elapsed_ms - delta, __pxlblz_show_elapsed_ms)
   if (activeDelta > 0) {
@@ -1716,11 +1901,11 @@ ${advanceDelta('activeDelta', '    ')}
   }
 }`
       : lightShutter
-        ? `function ${member.prefix}_advance(delta) {${controlCalls ? `\n${controlCalls}` : ''}
+        ? `function ${member.prefix}_advance(delta) {${controlCalls ? `\n${controlCalls}` : ''}${effectUpdateCall}
   ${member.prefix}_updateShutter()
 ${advanceDelta('delta', '  ')}
 }`
-        : `function ${member.prefix}_advance(delta) {${controlCalls ? `\n${controlCalls}` : ''}
+        : `function ${member.prefix}_advance(delta) {${controlCalls ? `\n${controlCalls}` : ''}${effectUpdateCall}
 ${advanceDelta('delta', '  ')}
 }`
     return [
@@ -1734,6 +1919,7 @@ ${advanceDelta('delta', '  ')}
     `var ${member.prefix}_r = 0`,
     `var ${member.prefix}_g = 0`,
     `var ${member.prefix}_b = 0`,
+    ...(effectRuntime?.declarations ?? []),
     ...steppedClockVars,
     ...shutterVars,
     `function ${member.prefix}_clear() { ${member.prefix}_r = 0; ${member.prefix}_g = 0; ${member.prefix}_b = 0 }`,
@@ -1762,13 +1948,20 @@ ${samplePropertyRamps ? `  if (__pxlblz_show_sample_repeat_scale != 1) {
     var mappedPosition = mappedIndex / max(1, ${member.pixelCountName} - 1)
     mappedIndex = min(${member.pixelCountName} - 1, floor(frac(mappedPosition * __pxlblz_show_sample_repeat_scale) * ${member.pixelCountName}))
   }
+` : ''}${effectRuntime?.hasAffine ? `  var effectPosition = mappedIndex / max(1, ${member.pixelCountName} - 1)
+  var effectX = ${member.prefix}_fx_a * effectPosition + ${member.prefix}_fx_c * 0.5 + ${member.prefix}_fx_tx
+  var effectY = ${member.prefix}_fx_b * effectPosition + ${member.prefix}_fx_d * 0.5 + ${member.prefix}_fx_ty
+  var effectInside = effectX >= 0 && effectX <= 1 && effectY >= 0 && effectY <= 1
+  ${effectRuntime.wrap ? 'effectX = effectX - floor(effectX)' : 'effectX = clamp(effectX, 0, 1)'}
+  mappedIndex = min(${member.pixelCountName} - 1, floor(effectX * ${member.pixelCountName}))
 ` : ''}  ${member.prefix}_clear()
   ${member.hasRender ? emitSelectedMemberRendererCall(member, 1, { index: 'mappedIndex' }) : ''}
-}`,
+${effectRuntime?.hasAffine && !effectRuntime.wrap ? `  if (!effectInside) ${member.prefix}_clear()
+` : ''}}`,
     `function ${member.prefix}_renderCapture2D(index, x, y) {
   var mappedIndex = index
   var mappedX = x
-${samplePropertyRamps ? '  var mappedY = y\n' : ''}  if (${member.prefix}_adapt_mirror >= 0.5) {
+${samplePropertyRamps || effectRuntime?.hasAffine ? '  var mappedY = y\n' : ''}  if (${member.prefix}_adapt_mirror >= 0.5) {
     mappedIndex = ${member.pixelCountName} - 1 - index
     mappedX = 1 - x
   }
@@ -1777,14 +1970,19 @@ ${samplePropertyRamps ? `  if (__pxlblz_show_sample_repeat_scale != 1) {
     mappedY = frac(clamp(mappedY, 0, 1) * __pxlblz_show_sample_repeat_scale)${!member.hasRender2D && member.hasRender ? `
     mappedIndex = min(${member.pixelCountName} - 1, floor(mappedX * ${member.pixelCountName}))` : ''}
   }
+` : ''}${effectRuntime?.hasAffine ? `  var effectX = ${member.prefix}_fx_a * mappedX + ${member.prefix}_fx_c * mappedY + ${member.prefix}_fx_tx
+  var effectY = ${member.prefix}_fx_b * mappedX + ${member.prefix}_fx_d * mappedY + ${member.prefix}_fx_ty
+  var effectInside = effectX >= 0 && effectX <= 1 && effectY >= 0 && effectY <= 1
+  ${effectRuntime.wrap ? 'mappedX = effectX - floor(effectX)\n  mappedY = effectY - floor(effectY)' : 'mappedX = clamp(effectX, 0, 1)\n  mappedY = clamp(effectY, 0, 1)'}
 ` : ''}  ${member.prefix}_clear()
   ${emitSelectedMemberRendererCall(member, 2, {
     index: 'mappedIndex',
     x: 'mappedX',
-    y: samplePropertyRamps ? 'mappedY' : 'y',
+    y: samplePropertyRamps || effectRuntime?.hasAffine ? 'mappedY' : 'y',
   })}
-}`,
-    `function ${member.prefix}_emit() { rgb(${member.prefix}_r, ${member.prefix}_g, ${member.prefix}_b) }`,
+${effectRuntime?.hasAffine && !effectRuntime.wrap ? `  if (!effectInside) ${member.prefix}_clear()
+` : ''}}`,
+    `function ${member.prefix}_emit() { rgb(${member.prefix}_r${effectRuntime ? ` * ${member.prefix}_fx_opacity` : ''}, ${member.prefix}_g${effectRuntime ? ` * ${member.prefix}_fx_opacity` : ''}, ${member.prefix}_b${effectRuntime ? ` * ${member.prefix}_fx_opacity` : ''}) }`,
     ]
   })
 
@@ -2047,6 +2245,40 @@ function describeEvaluationPolicy(members: CompiledMember[]): {
     }
   }
   return { policy: 'mixed', expectedActiveFraction: null }
+}
+
+function describeEffectCost(
+  members: CompiledMember[],
+  recipe: ShowRecipe,
+): ShowCompiledCostMetadata['cpu']['effects'] {
+  const affineCounts = members.map((member) => member.effects.filter((effect) => (
+    effect.kind !== 'opacity' && effect.kind !== 'wrap'
+  )).length)
+  const affineOperationsPerFrame = Math.max(0, ...members.map((member, index) => (
+    member.animatedEffects ? affineCounts[index] : 0
+  )))
+  const hasAffine = affineCounts.some((count) => count > 0)
+  const adaptationAnimated = countEffectRamps(recipe.adaptationRamp?.effectRamps)
+  const sequenceAnimated = Math.max(0, ...(recipe.sceneSequence?.scenes.map((scene) => (
+    countEffectRamps(scene.transitionOut?.effectRamps)
+  )) ?? []))
+  const hasOpacity = members.some((member) => member.effects.some((effect) => (
+    effect.kind === 'opacity' && effect.opacity !== 1
+  ))) || Object.values(recipe.adaptationRamp?.effectRamps ?? {}).some((parameters) => parameters.opacity !== undefined)
+  const hasWrap = hasAffine && members.some((member) => (
+    member.effects.some((effect) => effect.kind === 'wrap')
+  ))
+  return {
+    affineOperationsPerFrame,
+    animatedParametersPerFrame: Math.max(adaptationAnimated, sequenceAnimated),
+    affineScalarOpsPerEvaluatedPixel: hasAffine ? 8 : 0,
+    opacityMultipliesPerEvaluatedPixel: hasOpacity ? 3 : 0,
+    addressPolicy: !hasAffine ? 'none' : hasWrap ? 'wrap' : 'clip',
+  }
+}
+
+function countEffectRamps(ramps: ShowEffectPropertyRampsRecipe | undefined): number {
+  return Object.values(ramps ?? {}).reduce((count, parameters) => count + Object.keys(parameters).length, 0)
 }
 
 function initialShutterOpen(shutter: ShowLightShutter): 0 | 1 {

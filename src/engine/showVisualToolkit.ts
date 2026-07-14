@@ -10,6 +10,13 @@ export interface ShowCompiledCostMetadata {
       | { formula: 'N + E'; basePerPixel: 1; additionalPerEdgePixel: 1 }
       | { formula: '2N'; basePerPixel: 2 }
       | { formula: 'S * N'; samplesPerPixel: number }
+    effects: {
+      affineOperationsPerFrame: number
+      animatedParametersPerFrame: number
+      affineScalarOpsPerEvaluatedPixel: number
+      opacityMultipliesPerEvaluatedPixel: number
+      addressPolicy: 'none' | 'clip' | 'wrap'
+    }
   }
   memory: {
     generatedScalarGlobals: number
@@ -105,6 +112,43 @@ export const SHOW_VISUAL_TOOLKIT_REGISTRY: ShowToolkitFamilyDescriptor[] = [
       { id: 'repeat-scale', label: 'Repeat scale', costPolicies: ['parameter'] },
     ],
     parameters: [DURATION, EASING],
+  },
+  {
+    kind: 'effect',
+    id: 'output',
+    label: 'Output',
+    variants: [{
+      id: 'opacity',
+      label: 'Opacity',
+      costPolicies: ['single-source', 'parameter'],
+      compatibility: { stageDimensions: [1, 2, 3] },
+      presets: [{ id: 'half', label: 'Half', values: { opacity: 0.5 } }],
+    }],
+    parameters: [{
+      id: 'opacity', label: 'Opacity', kind: 'number', defaultValue: 1, min: 0, max: 1, step: 0.01,
+    }, EASING],
+  },
+  {
+    kind: 'effect',
+    id: 'affine',
+    label: 'Transform',
+    variants: [
+      { id: 'translate', label: 'Translate', costPolicies: ['single-source', 'parameter'], compatibility: { stageDimensions: [2] } },
+      { id: 'rotate', label: 'Rotate', costPolicies: ['single-source', 'parameter'], compatibility: { stageDimensions: [2] } },
+      { id: 'scale', label: 'Scale', costPolicies: ['single-source', 'parameter'], compatibility: { stageDimensions: [2] } },
+      { id: 'shear', label: 'Shear', costPolicies: ['single-source', 'parameter'], compatibility: { stageDimensions: [2] } },
+      { id: 'wrap', label: 'Wrap', costPolicies: ['single-source'], compatibility: { stageDimensions: [2] } },
+    ],
+    parameters: [
+      { id: 'translateX', label: 'X', kind: 'number', defaultValue: 0, min: -2, max: 2, step: 0.01, variantIds: ['translate'] },
+      { id: 'translateY', label: 'Y', kind: 'number', defaultValue: 0, min: -2, max: 2, step: 0.01, variantIds: ['translate'] },
+      { id: 'turns', label: 'Turns', kind: 'number', defaultValue: 0, min: -8, max: 8, step: 0.01, unit: 'turn', variantIds: ['rotate'] },
+      { id: 'scaleX', label: 'X scale', kind: 'number', defaultValue: 1, min: 0.01, max: 8, step: 0.01, variantIds: ['scale'] },
+      { id: 'scaleY', label: 'Y scale', kind: 'number', defaultValue: 1, min: 0.01, max: 8, step: 0.01, variantIds: ['scale'] },
+      { id: 'shearX', label: 'X shear', kind: 'number', defaultValue: 0, min: -4, max: 4, step: 0.01, variantIds: ['shear'] },
+      { id: 'shearY', label: 'Y shear', kind: 'number', defaultValue: 0, min: -4, max: 4, step: 0.01, variantIds: ['shear'] },
+      { ...EASING, variantIds: ['translate', 'rotate', 'scale', 'shear'] },
+    ],
   },
   {
     kind: 'transition',
@@ -256,6 +300,7 @@ export function buildShowCompiledCostMetadata(input: {
   generatedScalarGlobals?: number
   generatedArrayElements?: number
   warnings?: string[]
+  effects?: Partial<ShowCompiledCostMetadata['cpu']['effects']>
 }): ShowCompiledCostMetadata {
   const patternEvaluations: ShowCompiledCostMetadata['cpu']['patternEvaluations'] = input.transitionCost === 'renderer-window'
     ? { formula: '2N', basePerPixel: 2 }
@@ -263,7 +308,16 @@ export function buildShowCompiledCostMetadata(input: {
       ? { formula: 'N + E', basePerPixel: 1, additionalPerEdgePixel: 1 }
       : { formula: 'N', basePerPixel: 1 }
   return {
-    cpu: { patternEvaluations },
+    cpu: {
+      patternEvaluations,
+      effects: {
+        affineOperationsPerFrame: input.effects?.affineOperationsPerFrame ?? 0,
+        animatedParametersPerFrame: input.effects?.animatedParametersPerFrame ?? 0,
+        affineScalarOpsPerEvaluatedPixel: input.effects?.affineScalarOpsPerEvaluatedPixel ?? 0,
+        opacityMultipliesPerEvaluatedPixel: input.effects?.opacityMultipliesPerEvaluatedPixel ?? 0,
+        addressPolicy: input.effects?.addressPolicy ?? 'none',
+      },
+    },
     memory: {
       generatedScalarGlobals: input.generatedScalarGlobals ?? 0,
       generatedArrayElements: input.generatedArrayElements ?? 0,

@@ -5,8 +5,10 @@ import {
   createDefaultShow,
   normalizeShowTransitionState,
   updateShowBoundaryTransition,
+  updateShowCellEffects,
+  updateShowCellPattern,
 } from './showModel'
-import type { ShowBoundaryTransition, ShowRecord } from './personalContentRecords'
+import type { ShowBoundaryTransition, ShowClipEffect, ShowRecord } from './personalContentRecords'
 import {
   resolveShowToolkitParameters,
   type ShowToolkitKind,
@@ -127,6 +129,87 @@ export function createShowToolkitFixtureRecipes(): ShowToolkitFixtureRecipe[] {
       },
     })),
   ]
+}
+
+export function createShowEffectToolkitFixtureRecipes(): ShowToolkitFixtureRecipe[] {
+  const shared = { progressSamples: [...PROGRESS_SAMPLES], capturePixelCount: 256, stageDimension: 2 as const }
+  const opacity = [{ id: 'fade', kind: 'opacity' as const, opacity: 0.5 }]
+  const affineWrap: ShowClipEffect[] = [
+    { id: 'move', kind: 'translate', x: 0.35, y: -0.2 },
+    { id: 'turn', kind: 'rotate', turns: 0.125 },
+    { id: 'size', kind: 'scale', x: 1.4, y: 0.8 },
+    { id: 'slant', kind: 'shear', x: 0.2, y: 0 },
+    { id: 'wrap', kind: 'wrap' },
+  ]
+  const animatedTarget: ShowClipEffect[] = [
+    { id: 'move', kind: 'translate', x: 0.4, y: 0 },
+    { id: 'fade', kind: 'opacity', opacity: 0.4 },
+  ]
+  return [
+    {
+      ...shared,
+      id: 'effect-opacity',
+      familyId: 'output',
+      variantId: 'opacity',
+      recipe: { clips: [{ id: 'outgoing', source: OUTGOING_SOURCE, effects: opacity }] },
+      persistedRecord: persistedEffectRecord('effect-opacity', opacity),
+    },
+    {
+      ...shared,
+      id: 'effect-affine-wrap',
+      familyId: 'affine',
+      variantId: 'wrap',
+      recipe: { clips: [{ id: 'outgoing', source: OUTGOING_SOURCE, effects: affineWrap }] },
+      persistedRecord: persistedEffectRecord('effect-affine-wrap', affineWrap),
+    },
+    {
+      ...shared,
+      id: 'effect-animated',
+      familyId: 'affine',
+      variantId: 'translate',
+      recipe: {
+        clips: [{ id: 'outgoing', source: OUTGOING_SOURCE, effects: animatedTarget }],
+        adaptationRamp: {
+          startMs: 1000,
+          durationMs: 1000,
+          from: {},
+          to: {},
+          effectRamps: {
+            move: { x: { from: 0, to: 0.4, durationMs: 1000, easing: { curve: 'cubic', direction: 'in-out' } } },
+            fade: { opacity: { from: 1, to: 0.4, durationMs: 1000, easing: { curve: 'sine', direction: 'in-out' } } },
+          },
+        },
+      },
+      persistedRecord: persistedAnimatedEffectRecord('effect-animated', animatedTarget),
+    },
+  ]
+}
+
+function persistedEffectRecord(id: string, effects: ShowClipEffect[]): ShowRecord {
+  const record = updateShowCellEffects(createDefaultShow(`fixture-${id}`, id, 444), 'cell-1', effects)
+  return { ...normalizeShowTransitionState(record), updatedAt: 444 }
+}
+
+function persistedAnimatedEffectRecord(id: string, targetEffects: ShowClipEffect[]): ShowRecord {
+  let record = createDefaultShow(`fixture-${id}`, id, 444)
+  record = updateShowCellPattern(record, 'cell-2', {
+    pattern: record.cells[0].pattern,
+    patternName: record.cells[0].patternName,
+  })
+  record = updateShowCellEffects(record, 'cell-1', [
+    { id: 'move', kind: 'translate', x: 0, y: 0 },
+    { id: 'fade', kind: 'opacity', opacity: 1 },
+  ])
+  record = updateShowCellEffects(record, 'cell-2', targetEffects)
+  record = updateShowBoundaryTransition(record, 'transition-scene-1', {
+    propertyTransitions: {
+      effects: {
+        move: { x: { fromByCellId: { 'cell-2': 0 }, durationMs: 1000, easing: { curve: 'cubic', direction: 'in-out' } } },
+        fade: { opacity: { fromByCellId: { 'cell-2': 1 }, durationMs: 1000, easing: { curve: 'sine', direction: 'in-out' } } },
+      },
+    },
+  })
+  return { ...record, updatedAt: 444 }
 }
 
 export function captureShowToolkitFixture(fixture: ShowToolkitFixtureRecipe): ShowToolkitFixtureCapture {
