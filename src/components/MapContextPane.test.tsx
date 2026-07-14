@@ -48,6 +48,7 @@ describe('MapContextPane', () => {
     expect(screen.getByText('2D')).toBeInTheDocument()
     expect(screen.getByText('2 x 2')).toBeInTheDocument()
     expect(screen.getByText('Panel Pattern')).toBeInTheDocument()
+    expect(screen.getByLabelText('Baked size: 4 pixels')).toHaveTextContent('Baked size · 4 px')
   })
 
   it('holds the last successful custom map bake when eval fails', async () => {
@@ -77,6 +78,31 @@ describe('MapContextPane', () => {
     expect(screen.getByRole('button', { name: 'Reset view' })).toBeInTheDocument()
     expect(screen.queryByRole('slider', { name: 'Pole wrap density' })).not.toBeInTheDocument()
     expect(screen.getByText('3D')).toBeInTheDocument()
+  })
+
+  it('labels a literal stock map with its fixed size', async () => {
+    useMapStore.setState({
+      editingMap: { kind: 'stock', id: 'sunflower-pucks' },
+      activePixelCount: 1024,
+    })
+
+    render(<MapContextPane />)
+
+    expect(await screen.findByTestId('map-wiring-canvas')).toBeInTheDocument()
+    expect(screen.getByText('Sunflower pucks')).toBeInTheDocument()
+    expect(screen.getByLabelText('Fixed size: 160 pixels')).toHaveTextContent('Fixed size · 160 px')
+  })
+
+  it('labels a generated stock map with the active Preview size', async () => {
+    useMapStore.setState({
+      editingMap: { kind: 'stock', id: 'plane' },
+      activePixelCount: 1024,
+    })
+
+    render(<MapContextPane />)
+
+    expect(await screen.findByTestId('map-wiring-canvas')).toBeInTheDocument()
+    expect(screen.getByLabelText('Preview size: 1,024 pixels')).toHaveTextContent('Preview size · 1,024 px')
   })
 
   it('shows an empty selection state without a stale pattern preview', () => {

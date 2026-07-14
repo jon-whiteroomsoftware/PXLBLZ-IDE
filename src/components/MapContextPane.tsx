@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Box, GitBranch, Map as MapIcon } from 'lucide-react'
+import { Box, GitBranch, Lock, Map as MapIcon, SlidersHorizontal } from 'lucide-react'
 import { createRenderer, type Renderer } from '@/engine/renderer'
 import {
   explicitPatternMapUsers,
@@ -35,6 +35,7 @@ interface OpenMapContext {
   gridDims: GridDims | null
   evalError: string | null
   readOnly: boolean
+  countMode: 'fixed' | 'preview' | 'baked'
   importMetadata?: MapImportMetadata
 }
 
@@ -60,6 +61,7 @@ function resolveOpenMapContext(
       gridDims: map.gridDims(points.length),
       evalError: null,
       readOnly: true,
+      countMode: map.fixedPixelCount !== undefined ? 'fixed' : 'preview',
     }
   }
   if (editingMap?.kind !== 'existing') return null
@@ -77,6 +79,7 @@ function resolveOpenMapContext(
       gridDims: map.gridDims(points.length),
       evalError: mapEvalError,
       readOnly: false,
+      countMode: map.fixedPixelCount !== undefined ? 'fixed' : 'preview',
       importMetadata: record.importMetadata,
     }
   }
@@ -92,6 +95,7 @@ function resolveOpenMapContext(
     gridDims: record.gridDims ?? null,
     evalError: mapEvalError,
     readOnly: false,
+    countMode: 'baked',
     importMetadata: record.importMetadata,
   }
 }
@@ -121,6 +125,47 @@ function SectionTitle({ icon, children }: { icon: React.ReactNode; children: Rea
       {icon}
       {children}
     </h3>
+  )
+}
+
+function MapCountStatus({ context }: { context: OpenMapContext }) {
+  const count = context.points.length.toLocaleString()
+  if (context.countMode === 'fixed') {
+    const title = `This map always contains ${count} coordinates. Changing Preview pixel count cannot resize it.`
+    return (
+      <span
+        aria-label={`Fixed size: ${count} pixels`}
+        title={title}
+        className="inline-flex shrink-0 items-center gap-1 rounded border border-zinc-700/80 bg-zinc-900/80 px-1.5 py-0.5 text-[10px] text-zinc-300"
+      >
+        <Lock size={10} aria-hidden />
+        Fixed size · {count} px
+      </span>
+    )
+  }
+  if (context.countMode === 'baked') {
+    const title = `This custom map uses its last ${count}-point bake. Edit its source to create a new bake.`
+    return (
+      <span
+        aria-label={`Baked size: ${count} pixels`}
+        title={title}
+        className="inline-flex shrink-0 items-center gap-1 rounded border border-zinc-700/80 bg-zinc-900/80 px-1.5 py-0.5 text-[10px] text-zinc-400"
+      >
+        <Box size={10} aria-hidden />
+        Baked size · {count} px
+      </span>
+    )
+  }
+  const title = `This map generates one coordinate per Preview pixel. Change Pixel count in Preview to regenerate it.`
+  return (
+    <span
+      aria-label={`Preview size: ${count} pixels`}
+      title={title}
+      className="inline-flex shrink-0 items-center gap-1 rounded border border-zinc-700/80 bg-zinc-900/80 px-1.5 py-0.5 text-[10px] text-zinc-400"
+    >
+      <SlidersHorizontal size={10} aria-hidden />
+      Preview size · {count} px
+    </span>
   )
 }
 
@@ -248,6 +293,12 @@ export function MapContextPane() {
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-zinc-950 font-mono text-xs text-zinc-500">
+      <div className="flex h-9 shrink-0 items-center gap-3 border-b border-seam bg-panel/40 px-3">
+        <h2 className="min-w-0 flex-1 truncate text-[11px] font-semibold text-zinc-300" title={context.name}>
+          {context.name}
+        </h2>
+        <MapCountStatus context={context} />
+      </div>
       <div ref={containerRef} className="relative shrink-0 border-b border-seam bg-black">
         {hasGeometry ? (
           <div className="relative inline-block max-w-full">

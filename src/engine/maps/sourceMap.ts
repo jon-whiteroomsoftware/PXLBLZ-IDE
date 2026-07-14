@@ -54,6 +54,9 @@ export interface SourceMapSpec {
 // map (e.g. a count the plane squares to N×M) shows its true proportion on both
 // channels.
 export function createSourceMap(spec: SourceMapSpec): PixelMap {
+  const fixedPixelCount = spec.source.trimStart().startsWith('[')
+    ? evalMapSource(spec.source, 1).length
+    : undefined
   return {
     id: spec.id,
     name: spec.name,
@@ -64,6 +67,7 @@ export function createSourceMap(spec: SourceMapSpec): PixelMap {
     ...(spec.family ? { family: spec.family } : {}),
     ...(spec.normals ? { normals: spec.normals } : {}),
     ...(spec.grid ? { gridRecipe: spec.grid } : {}),
+    ...(fixedPixelCount !== undefined ? { fixedPixelCount } : {}),
     gridDims: spec.grid ? (pixelCount: number) => GRID_FNS[spec.grid!](pixelCount) : () => null,
     resolve(pixelCount: number): MapPoint[] {
       const samples = normalizeAspect(evalMapSource(spec.source, pixelCount))

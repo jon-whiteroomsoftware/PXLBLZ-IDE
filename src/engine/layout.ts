@@ -447,14 +447,16 @@ export function resolveLayout(
       correctedSelection.mapId && correctedSelection.mapId !== INDEX_MAP_ID
         ? resolveMap(correctedSelection.mapId)
         : null
-    pixelCount = Math.min(
-      clampPixelCount(effectivePixelCount({
-        persisted: persistedCount,
-        baked: selected1DMap?.bakedCount,
-        fallback: shapeDefaultCount,
-      })),
-      maxPixelCount == null ? Infinity : clampPixelCount(maxPixelCount),
-    )
+    pixelCount = selected1DMap?.fixedPixelCount !== undefined
+      ? clampPixelCount(selected1DMap.fixedPixelCount)
+      : Math.min(
+          clampPixelCount(effectivePixelCount({
+            persisted: persistedCount,
+            baked: selected1DMap?.bakedCount,
+            fallback: shapeDefaultCount,
+          })),
+          maxPixelCount == null ? Infinity : clampPixelCount(maxPixelCount),
+        )
     const samples = selected1DMap
       ? capMapSampleEndpoints(
           applyNormalizeMode(selected1DMap.resolve(pixelCount), normalizeMode),
@@ -481,7 +483,9 @@ export function resolveLayout(
       baked: map.bakedCount,
       fallback: defaultCountForDim(map.dim),
     })
-    if (map.id === 'cube') {
+    if (map.fixedPixelCount !== undefined) {
+      pixelCount = clampPixelCount(map.fixedPixelCount)
+    } else if (map.id === 'cube') {
       // 3D cube lattice: the count squares up to a side³ lattice.
       const requestedSide = cubeSideForCount(modeledCount)
       const maxSide = maxPixelCount == null

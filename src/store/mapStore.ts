@@ -101,11 +101,11 @@ export function mapFromRecord(r: MapRecord): PixelMap {
   return buildMap(r.id, r.name, r.generator)
 }
 
-// Built-in stock maps — source-backed, regenerated live, never
-// persisted. The plane and cube run their `.js` source. The relocated #140
-// example clouds (sphere/ring) are now live builtin generators too — stock
-// by provenance, never listed in the user's Maps section (#141). The cylinder is no longer a
-// stock map: it is a viewport Surface composed onto the Square.
+// Built-in stock maps — source-backed and never persisted. Generator sources
+// resolve at the active Preview count; literal coordinate arrays retain their
+// authored fixed count. The relocated #140 example clouds (sphere/ring) are
+// stock by provenance, never listed in the user's Maps section (#141). The
+// cylinder is a viewport Surface composed onto the Square, not a stock map.
 export const STOCK_MAPS: PixelMap[] = SOURCE_STOCK_MAPS
 
 // Resolve a map id to its runtime PixelMap (stock or user). Falls back to the
@@ -515,9 +515,7 @@ export const useMapStore = create<MapState>()((set, get) => ({
 }))
 
 export const STOCK_MAP_ITEMS = STOCK_MAP_SPECS.map((spec) => {
-  const fixedPixelCount = spec.source.trimStart().startsWith('[')
-    ? createSourceMap(spec).resolve(1).length
-    : undefined
+  const fixedPixelCount = STOCK_MAPS.find((map) => map.id === spec.id)?.fixedPixelCount
   return {
     id: spec.id,
     name: spec.name,

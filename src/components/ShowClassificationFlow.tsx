@@ -124,7 +124,11 @@ export function ShowClassificationFlow({
                 className="mt-1 block h-9 w-full rounded border border-zinc-700 bg-zinc-900 px-3 text-xs normal-case tracking-normal text-zinc-100 outline-none focus:border-live/70"
               >
                 {eligibleMaps.map((map) => (
-                  <option key={map.id} value={map.id}>{map.name} · {map.fixedPixelCount ? `${map.fixedPixelCount} fixed` : 'generated'}</option>
+                  <option key={map.id} value={map.id}>
+                    {map.name} · {map.fixedPixelCount !== undefined
+                      ? `Fixed size · ${map.fixedPixelCount.toLocaleString()} px`
+                      : 'Preview size'}
+                  </option>
                 ))}
               </select>
             </label>

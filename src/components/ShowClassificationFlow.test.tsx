@@ -36,6 +36,7 @@ describe('ShowClassificationFlow (#438)', () => {
     expect(screen.getByText(/logical Stage routing/i)).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Use Portable contract' }))
+    expect(screen.getByRole('option', { name: 'Square · Preview size' })).toBeInTheDocument()
     expect(screen.getByLabelText('Reference map')).toHaveValue('plane')
     expect(screen.getByLabelText('Reference pixels')).toHaveValue(60)
     await user.click(screen.getByRole('button', { name: 'Confirm classification' }))

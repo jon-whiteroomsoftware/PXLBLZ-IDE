@@ -1,4 +1,4 @@
-import { Play, Pause, RotateCcw } from 'lucide-react'
+import { Lock, Play, Pause, RotateCcw } from 'lucide-react'
 import { usePreviewStore, MIN_LIGHT_SIZE, MAX_LIGHT_SIZE } from '@/store/previewStore'
 import { useEditorStore } from '@/store/editorStore'
 import { useMapStore, defaultPixelCountForDim, resolveMap } from '@/store/mapStore'
@@ -142,6 +142,19 @@ function PixelCountInput() {
   const setActivePixelCount = useMapStore((s) => s.setActivePixelCount)
   const { mapDim } = useMapSelectMeta()
   const activeMap = resolveMap(activeMapId, userMaps)
+  if (activeMap.fixedPixelCount !== undefined) {
+    const count = activeMap.fixedPixelCount.toLocaleString()
+    return (
+      <span
+        aria-label={`Fixed pixel count: ${count}`}
+        title={`This map has a fixed size of ${count} pixels. Pixel count cannot resize it.`}
+        className="inline-flex h-5 min-w-[42px] items-center justify-center gap-1 rounded border border-zinc-700 bg-zinc-900/60 px-1.5 text-[10px] tabular-nums text-zinc-400"
+      >
+        <Lock size={10} aria-hidden />
+        {count}
+      </span>
+    )
+  }
   const resolutionSteps = previewResolutionSteps({
     mapDim,
     gridRecipe: mapDim === 1 ? undefined : activeMap.gridRecipe,

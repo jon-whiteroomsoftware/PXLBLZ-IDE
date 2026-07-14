@@ -215,6 +215,16 @@ describe('PreviewDeck (smoke)', () => {
     expect(screen.getByRole('textbox', { name: 'Pixel count' })).toHaveValue('4')
   })
 
+  it('shows a fixed stock map point count as locked instead of editable', () => {
+    useEditorStore.setState({ nativeDim: 3 })
+    useMapStore.setState({ activeMapId: 'sunflower-pucks', activePixelCount: 1024 })
+
+    render(<PreviewDeck />)
+
+    expect(screen.queryByRole('button', { name: 'Edit pixel count' })).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Fixed pixel count: 160')).toHaveTextContent('160')
+  })
+
   it('shows the layout telemetry cell only when a regular grid is live', () => {
     const { rerender } = render(<PreviewDeck />)
     expect(screen.queryByText('layout')).not.toBeInTheDocument()

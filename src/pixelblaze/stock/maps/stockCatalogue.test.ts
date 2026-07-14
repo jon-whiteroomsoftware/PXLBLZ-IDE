@@ -156,6 +156,9 @@ describe('source regeneration', () => {
   it('keeps literal coordinate-array stock maps at their measured point count', () => {
     const pucks = mapById('sunflower-pucks')
     const pucks2d = mapById('sunflower-pucks-2d')
+    expect(pucks.fixedPixelCount).toBe(160)
+    expect(pucks2d.fixedPixelCount).toBe(160)
+    expect(mapById('plane').fixedPixelCount).toBeUndefined()
     expect(evalMapSource(stockMapSpec('sunflower-pucks')!.source, 7)).toHaveLength(160)
     expect(evalMapSource(stockMapSpec('sunflower-pucks-2d')!.source, 7)).toHaveLength(160)
     expect(pucks.resolve(7)).toHaveLength(160)

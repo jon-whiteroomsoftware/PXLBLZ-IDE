@@ -25,6 +25,7 @@ const SOURCE: LayoutSource = {
     { id: 'reverse1d', name: 'Reverse strand', dim: 1 },
     { id: 'plane', name: 'Square', dim: 2, wrappable: true },
     { id: 'ring2d', name: 'Ring', dim: 2, wrappable: false },
+    { id: 'fixed2d', name: 'Measured panel', dim: 2, wrappable: false },
     {
       id: 'cylinder-strand', name: 'Cylinder · Strand', dim: 1, displayDim: 3,
       family: { id: 'cylinder', name: 'Cylinder', view: 'strand' },
@@ -105,6 +106,7 @@ const MAPS: Record<string, PixelMap> = {
   },
   plane: makeMap({ id: 'plane', dim: 2, gridDims: (count) => ({ cols: count, rows: 1 }) }),
   ring2d: makeMap({ id: 'ring2d', dim: 2, bakedCount: 60 }),
+  fixed2d: makeMap({ id: 'fixed2d', dim: 2, fixedPixelCount: 4 }),
   'cylinder-strand': makeCylinderMap('cylinder-strand', 1, 'strand'),
   'cylinder-surface': makeCylinderMap('cylinder-surface', 2, 'surface', true),
   'cylinder-spatial': makeCylinderMap('cylinder-spatial', 3, 'spatial'),
@@ -313,6 +315,16 @@ describe('resolveLayout — 3D maps', () => {
     }), deps)
 
     expect(r.pixelCount).toBe(2048)
+  })
+
+  it('uses a fixed stock map point count instead of the persisted Preview count', () => {
+    const r = resolveLayout(input({
+      selection: { mapId: 'fixed2d', surfaceId: 'flat' },
+      persistedCount: 1024,
+    }), deps)
+
+    expect(r.pixelCount).toBe(4)
+    expect(r.mapPoints).toHaveLength(4)
   })
 
   it.each([

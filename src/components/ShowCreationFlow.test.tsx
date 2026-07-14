@@ -52,6 +52,8 @@ describe('ShowCreationFlow (#434)', () => {
     render(<ShowCreationFlow maps={maps} onCreate={vi.fn()} onCancel={onCancel} />)
 
     await user.click(screen.getByRole('button', { name: 'Create Installation Show' }))
+    expect(screen.getByRole('option', { name: 'Square · Preview size' })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: 'Measured sculpture · Fixed size · 384 px' })).toBeInTheDocument()
     await user.selectOptions(screen.getByLabelText('Output map'), 'measured')
 
     expect(screen.getByLabelText('Pixels')).toHaveValue(384)

@@ -180,7 +180,8 @@ The deck separates settings by whether hardware could carry them.
 - **Pixels** — modeled pixel count. Its popover offers a geometry-aware ladder
   of natural resolutions with previous/next controls, plus exact entry. An exact
   count may sit between ladder stops or exceed the 2,048-LED quick-selection
-  ceiling. Fixed imported maps keep their measured count and omit the ladder.
+  ceiling. Custom baked maps retain exact entry without a ladder; stock literal
+  coordinate arrays replace the editor with their locked authored count.
 - **Fit** — Fill or Contain normalization for 2D/3D maps; and
 - **Brightness** — preview output level, displayed on a logarithmic slider.
 
@@ -263,7 +264,10 @@ Pattern's selected map; choose it explicitly in the Pattern deck.
 
 The map context pane is a wiring check, not a Pattern preview. It colors points
 in wire order, labels regular indexes, reports bounds and dimensions, and uses
-the orbit viewport for 3D.
+the orbit viewport for 3D. Its header distinguishes **Preview size** generators,
+fixed-size stock coordinate arrays, and the last successful **Baked size** of a
+custom map; hovering the status explains whether changing Preview pixels can
+regenerate the geometry.
 
 A connected Controller profile can import `/pixelmap.dat`. If its bytes match a
 known Studio map, the import flow opens that map instead of creating a duplicate.

@@ -134,7 +134,9 @@ export function ShowCreationFlow({
               >
                 {eligibleMaps.map((map) => (
                   <option key={map.id} value={map.id}>
-                    {map.name} · {map.fixedPixelCount ? `${map.fixedPixelCount} fixed` : 'generated'}
+                    {map.name} · {map.fixedPixelCount !== undefined
+                      ? `Fixed size · ${map.fixedPixelCount.toLocaleString()} px`
+                      : 'Preview size'}
                   </option>
                 ))}
               </select>

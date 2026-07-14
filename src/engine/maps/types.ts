@@ -71,6 +71,10 @@ export interface PixelMap {
   // correctly out of the gate — it stays a free knob, so changing it surfaces the
   // count/map drift. Absent for live-regenerating stock maps.
   bakedCount?: number
+  // Exact point count for a stock map backed by a literal coordinate array.
+  // Unlike `bakedCount`, this is authoritative: the map cannot regenerate for a
+  // different Preview pixel count, so layout and controls must use this value.
+  fixedPixelCount?: number
   // The map's integer `cols×rows(×depth)` grid at a modeled count,
   // or null when it has no clean lattice (an irregular cloud, a 3D map). A stock
   // grid generator derives its dims live from the count (Square squares up, Wide
