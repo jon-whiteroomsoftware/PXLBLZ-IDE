@@ -64,15 +64,15 @@ Known issue cleanup:
 
 The next Show product step is an expressive but inexpensive visual toolkit. It
 must give authors the familiar breadth of a video editor without hiding the
-Pixelblaze cost of producing each frame. The product should specify the full
-destination now, then deliver it in three breadth-first passes. Each pass must
-leave every major family usable before the next pass deepens the catalogue.
-GitHub epic #442 and its child issues hold executable implementation state.
+Pixelblaze cost of producing each frame. The product specifies the full
+destination now, then builds the headless engine and catalogue before choosing
+the evolved production UI. GitHub epic #442 and its child issues hold executable
+implementation state.
 
-The paired educational progression in #363 begins after Pass 1. Those Shows
-should exercise the real authoring, export, and Controller-check paths while the
-toolkit is still small enough to teach. Passes 2 and 3 can enrich the same
-progression; example content must not create a second authoring path.
+The paired educational progression in #363 begins after the production UI in
+#457. Those Shows should teach the finished authoring, export, and
+Controller-check paths rather than an interim interaction model. The
+user-facing visual-toolkit guide in #460 follows the same UI and vocabulary.
 
 The second Show implementation round remains software-complete and awaiting
 human review. Its output-contract decisions and delivery history remain in the
@@ -332,9 +332,12 @@ Do not infer topology or coordinate views from arbitrary imported coordinates.
 ### Content
 
 - Begin the paired flagship and educational Show progressions (#363) after the
-  first visual-toolkit pass. Both output contracts run through the real editor;
-  each track should advance from one simple Show to examples that teach the new
-  Effect and Transition vocabulary as later passes land.
+  evolved visual-toolkit UI in #457. Both output contracts run through the real
+  editor; each track should advance from one simple Show to examples that teach
+  the complete Effect, Property animation, and Transition vocabulary.
+- Publish the visual-toolkit guide (#460) after #457 fixes the production UI and
+  user-facing terminology. The guide teaches the classes and workflows; engine
+  slices record only the technical contracts and evidence it will need.
 - Add flagship Patterns (#382) only when they broaden the visual vocabulary or
   teach a reusable technique; raw count is not the goal.
 - Create small example personal entities (#360) only if they clarify the
@@ -394,54 +397,70 @@ Pattern work they avoid while acknowledging outer render and LED transport that
 remain. Cost metadata must be derived from the compiled strategy, not maintained
 as marketing copy beside it.
 
-## 9. Delivery passes and verification
+## 9. Delivery waves and verification
 
-Keep each slice independently reviewable and leave the app shippable. Complete
-the shared substrate and a representative of every major family before adding
-catalogue depth.
+Keep each slice independently reviewable and leave the app shippable. Production
+UI decisions do not gate schema, compiler, preview, migration, cost, or catalogue
+work. The UI begins only after the complete headless contract is stable.
 
-### Pass 1 - substrate and useful breadth
+### Wave 0 - headless contract and evidence harness
 
-- Establish the canonical Effect, Property animation, and Transition schema,
-  including migration of existing easing names and boundary records.
-- Add structured easing, shared progress/mask/affine primitives, edge policies,
-  and compiled cost metadata with both summary and renderer-math UI.
-- Make opacity, render speed, Pattern controls, and Effect parameters use the
-  same Property animation path.
-- Ship a usable representative set: Cut and Crossfade; fade through color;
-  arbitrary-direction linear wipe; pixel and block dissolve; circle and box
-  Grow Incoming/Shrink Outgoing; Push/Cover/Reveal; and basic translate, rotate,
-  scale, shear, and wrap Effects.
-- Begin #363 with small Shows that teach the Pass 1 vocabulary.
+- #443 establishes structured easing; the family, variant, preset, and parameter
+  registry; persistence/migration seams; and compiled cost metadata.
+- Deterministic fixtures, parameter sweeps, captures, generated artifacts, and
+  hardware output provide visual evidence without creating a temporary general
+  editor.
 
-### Pass 2 - standard editor breadth and signature shapes
+### Wave 1 - representative family tracers
 
-- Add split, barn-door, blinds, clock, checker, and grid wipe variants.
-- Add coherent-noise and soft-threshold dissolves.
-- Add the common SDF library, regular polygons, heart, star, crescent, cat head,
-  side-profile cat, and Bastet, all through the shared shape contract.
-- Add Content Shrink/Grow, Zoom, Spin, combined motion presets, and the common
-  color/output Effects.
-- Add custom cubic Bezier editing and the remaining standard curve presets.
-- Extend #363 with examples that compare variants and cost policies.
+- #444 adds opacity plus the affine/wrap Effect substrate.
+- #445-#448 add Fade through color, arbitrary-direction Wipe, Pixel/Block
+  Dissolve, and Circle/Box Grow Incoming/Shrink Outgoing.
+- #455 may add the remaining easing evaluators and serialization after #443;
+  the production curve editor remains deferred.
 
-### Pass 3 - professional polish and bounded experimentation
+Each tracer publishes UI-neutral descriptors and fixtures. Production forms,
+pickers, thumbnails, authoring Playwright flows, and user instructions remain
+out of these slices.
 
-- Add color/light boundary presets and only those distortion Effects that remain
-  professional and predictable within measured Pixelblaze budgets.
-- Add Bounce/Elastic only if their value justifies generated code and UI weight.
-- Tune presets, labels, thumbnails/previews, keyboard flow, accessibility, error
-  handling, migration, and generated-code size.
-- Fix toolkit bugs, run representative hardware/FPS checks, and finish the
-  flagship Show progression before considering overlay lanes or other extra
-  credit.
+### Wave 2 - catalogue breadth
+
+- #449 and #453 add motion, Content Shrink/Grow, Zoom, and Spin.
+- #450 and #451 add the standard Wipe and Dissolve variants.
+- #452 adds the common SDF library, polygons, heart, star, crescent, cat head,
+  side-profile cat, and Bastet.
+- #454 adds the common color/output Effects.
+- #456 selects only distortion Effects that remain professional and predictable
+  within measured Pixelblaze budgets.
+
+Independent families may proceed in parallel once their shared substrate lands.
+Human visual review remains necessary for signature shapes and distortion
+selection even though production UI is deferred.
+
+### Wave 3 - headless integration freeze
+
+#459 runs migration, preview/compiler equivalence, generated-size, factual cost,
+deterministic visual, and representative hardware gates over the complete
+catalogue. It freezes the declarative authoring contract so the UI can remain a
+general renderer of shared descriptors rather than a collection of
+family-specific forms.
+
+### Wave 4 - evolved UI, Shows, and documentation
+
+- #457 chooses and implements the production authoring experience, visual
+  discovery, cost disclosure, keyboard/accessibility behavior, and narrow
+  layouts across the complete catalogue.
+- #363 builds the flagship and educational Shows through that finished UI.
+- #460 publishes the user-facing guide after the UI fixes the vocabulary and
+  workflows.
+- #458 remains extra-credit overlay-lane design after the core toolkit.
 
 Pure engine tests cover easing, affine composition, masks, migration, renderer
-selection, and cost formulas. Compiler tests cover generated source and semantic
-equivalence. Component tests cover editing and summaries; Playwright covers the
-authoring-to-preview-to-export path. Visual quality uses deterministic captures
-and representative hardware because “looks professional” cannot be established
-by unit tests alone.
+selection, descriptor validation, and cost formulas. Compiler tests cover
+generated source and semantic equivalence. Deterministic captures and
+representative hardware establish visual quality during Waves 1-3 because
+“looks professional” cannot be established by unit tests alone. Component,
+accessibility, and production Playwright authoring coverage begins with #457.
 
 Review and close software-complete issues in parallel, recording specific
 follow-ups instead of retaining completed scope as roadmap work. Run unrelated
