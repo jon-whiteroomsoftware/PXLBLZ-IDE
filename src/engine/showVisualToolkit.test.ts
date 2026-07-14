@@ -109,6 +109,16 @@ describe('Show visual-toolkit contract', () => {
     })
     expect(resolveShowToolkitParameters('transition', 'fade', 'through-color', {}))
       .toContainEqual(expect.objectContaining({ id: 'color', kind: 'color', defaultValue: '#000000' }))
+
+    const wipe = getShowToolkitFamily('transition', 'wipe')
+    expect(wipe?.variants[0].presets?.map((preset) => [preset.id, preset.values.direction])).toEqual([
+      ['east', 0], ['south-east', 0.125], ['south', 0.25], ['south-west', 0.375],
+      ['west', 0.5], ['north-west', 0.625], ['north', 0.75], ['north-east', 0.875],
+    ])
+    expect(resolveShowToolkitParameters('transition', 'wipe', 'linear', {})).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: 'direction', defaultValue: 0, compatibility: { stageDimensions: [2] } }),
+      expect.objectContaining({ id: 'edgePolicy', defaultValue: 'hard' }),
+    ]))
   })
 
   it('rejects descriptors whose conditions or presets reference private parameters', () => {
@@ -185,6 +195,16 @@ describe('Show visual-toolkit contract', () => {
       'fade-color-white',
       'fade-color-custom',
       'wipe-linear',
+      'wipe-direction-east',
+      'wipe-direction-south-east',
+      'wipe-direction-south',
+      'wipe-direction-south-west',
+      'wipe-direction-west',
+      'wipe-direction-north-west',
+      'wipe-direction-north',
+      'wipe-direction-north-east',
+      'wipe-arbitrary-dither',
+      'wipe-arbitrary-blend',
       'dissolve-pixel',
       'shape-reveal-circle',
       'shape-reveal-diamond',

@@ -977,7 +977,8 @@ Current compiler policies:
 | Parameter ramp | One continued member, values updated once per frame |
 | Crossfade | Two member renderers during the transition window |
 | Fade through color | One outgoing renderer before the midpoint, one incoming renderer after it |
-| Wipe / dither | Both clocks may advance; one renderer selected per pixel |
+| Hard or stable-dither Wipe | Both clocks may advance; one renderer selected per pixel |
+| True feather-blend Wipe | Two renderers only inside the projected edge band |
 | 2D circle/diamond/ring hard or dither | One renderer per pixel from the Stage-space SDF boundary |
 | 2D circle/diamond/ring true blend | Two renderers only inside the feather band |
 | Routing-layout cut | Immediate destination layout selection |
@@ -995,7 +996,7 @@ animations, effects, and transitions. Families own stable ids and cost policy;
 variants own parameter descriptors and conditional parameters; presets are
 named parameter bundles rather than separate runtime implementations. The
 registry currently describes the shipped property-animation targets, Opacity
-and affine/wrap Effects, plus blend, Fade through color, linear wipe, pixel dissolve, and
+and affine/wrap Effects, plus blend, Fade through color, directional linear wipe, pixel dissolve, and
 circle/diamond/ring shape-reveal Transitions.
 Validation rejects duplicate ids, missing parameter references, and presets that
 do not resolve through their variant's public parameter contract. React may
@@ -1018,6 +1019,27 @@ evaluates only the incoming Pattern and blends from the color toward that
 Pattern. Both the two-scene and scene-sequence lowering paths therefore report
 `N`, not Crossfade's `2N`, while deterministic fixtures cover start, quarter,
 midpoint, three-quarter, and end frames for black, white, and custom colors.
+
+A new directional Wipe stores one ordinary `direction` parameter in turns:
+east is `0`, south is `0.25`, west is `0.5`, and north is `0.75`. Diagonal
+names are presets at eighth-turn increments; arbitrary angles use the same
+field and persisted Transition kind. For direction vector `(dx, dy)`, the Stage
+position is projected and normalized across the unit square as
+`(x*dx + y*dy - minDot) / (abs(dx) + abs(dy))`. The incoming side advances
+where that value falls below eased progress. This equation is shared by pure
+preview helpers and generated code.
+
+Legacy Wipes have no `direction`. They retain their index-domain west-to-east
+equation, including the old rule that a positive feather with no explicit edge
+policy means stable dither. A saved direction requires a 2D Stage Map; Show
+lowering reports that requirement directly instead of silently changing the
+angle on a 1D installation.
+
+The shared edge contract has Hard, Stable dither, and Blend policies. Hard and
+dither select exactly one Pattern for each output pixel and report `N`. Blend
+still selects one Pattern outside the projected feather band, evaluates both
+inside it, and reports `N + E`. Deterministic fixtures cover all eight named
+directions plus an arbitrary angle under dither and true blend.
 
 Property transitions share one descriptor model. Animation speed (`0×..4×`), brightness
 (`0..1`), and exported slider controls carry destination targets on clips. Moving

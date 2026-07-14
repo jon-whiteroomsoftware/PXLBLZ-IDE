@@ -1857,6 +1857,60 @@ export function render(index) { calls = calls + 1; rgb(0, 1, 0) }
     expect(zero.fxCode).toBe(hard.fxCode)
   })
 
+  it('projects a directional Wipe through normalized 2D Stage coordinates with one renderer per pixel (#446)', () => {
+    const artifact = compileShow({
+      clips: [
+        { id: 'from', source: 'export var calls = 0\nexport function render2D(index, x, y) { calls = calls + 1; rgb(1, 0, 0) }' },
+        { id: 'to', source: 'export var calls = 0\nexport function render2D(index, x, y) { calls = calls + 1; rgb(0, 1, 0) }' },
+      ],
+      routeTransition: { kind: 'wipe', startMs: 1000, durationMs: 1000, direction: 0.25, edgePolicy: 'hard' },
+    }, {})
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 16)
+
+    handle.beforeRender(1500)
+    handle.render2D(0, 0.9, 0.25)
+    expect(pixel()).toEqual([0, 1, 0])
+    handle.render2D(1, 0.1, 0.75)
+    expect(pixel()).toEqual([1, 0, 0])
+    expect(handle.getExports()).toMatchObject({ __pxlblz_show_c0_calls: 1, __pxlblz_show_c1_calls: 1 })
+    expect(artifact.summary).toMatchObject({
+      renderPolicy: 'spatial-route-one-renderer-per-pixel',
+      transitionCost: 'route',
+      routePolicy: 'hard-wipe',
+      worstInstantRenderersPerPixel: 1,
+      cost: { cpu: { patternEvaluations: { formula: 'N', basePerPixel: 1 } } },
+    })
+    expect(artifact.code).toContain('export function render2D(index, x, y)')
+    expect(artifact.code).toContain('y * 1')
+  })
+
+  it('limits true Wipe blending to the feather band and reports N + E (#446)', () => {
+    const artifact = compileShow({
+      clips: [
+        { id: 'from', source: 'export var calls = 0\nexport function render2D(index, x, y) { calls = calls + 1; rgb(1, 0, 0) }' },
+        { id: 'to', source: 'export var calls = 0\nexport function render2D(index, x, y) { calls = calls + 1; rgb(0, 1, 0) }' },
+      ],
+      routeTransition: {
+        kind: 'wipe', startMs: 1000, durationMs: 1000,
+        direction: 0, feather: 0.2, edgePolicy: 'blend',
+      },
+    }, {})
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 16)
+
+    handle.beforeRender(1500)
+    handle.render2D(0, 0.5, 0.2)
+    expect(pixel()[0]).toBeCloseTo(0.5)
+    expect(pixel()[1]).toBeCloseTo(0.5)
+    expect(handle.getExports()).toMatchObject({ __pxlblz_show_c0_calls: 1, __pxlblz_show_c1_calls: 1 })
+    expect(artifact.summary).toMatchObject({
+      renderPolicy: 'spatial-route-bounded-feather',
+      transitionCost: 'bounded-renderer-window',
+      routePolicy: 'blended-wipe',
+      worstInstantRenderersPerPixel: 2,
+      cost: { cpu: { patternEvaluations: { formula: 'N + E', basePerPixel: 1, additionalPerEdgePixel: 1 } } },
+    })
+  })
+
   it('routes a feathered wipe through a stable spatial threshold with one renderer per pixel', () => {
     const artifact = compileShow({
       clips: [

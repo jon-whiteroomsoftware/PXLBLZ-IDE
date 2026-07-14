@@ -112,6 +112,46 @@ export function createShowToolkitFixtureRecipes(): ShowToolkitFixtureRecipe[] {
       recipe: { clips: clips(), routeTransition: { kind: 'wipe', startMs: 1000, durationMs: 1000, feather: 0 } },
       persistedRecord: persistedRecord('wipe-linear', { kind: 'wipe', durationMs: 1000, feather: 0 }),
     },
+    ...([
+      ['east', 0],
+      ['south-east', 0.125],
+      ['south', 0.25],
+      ['south-west', 0.375],
+      ['west', 0.5],
+      ['north-west', 0.625],
+      ['north', 0.75],
+      ['north-east', 0.875],
+    ] as const).map(([name, direction]): ShowToolkitFixtureRecipe => ({
+      ...shared,
+      id: `wipe-direction-${name}`,
+      familyId: 'wipe',
+      variantId: 'linear',
+      recipe: {
+        clips: clips(),
+        routeTransition: {
+          kind: 'wipe', startMs: 1000, durationMs: 1000,
+          direction, feather: 0, edgePolicy: 'hard',
+        },
+      },
+      persistedRecord: directionalWipeRecord(`wipe-direction-${name}`, direction, 0, 'hard'),
+    })),
+    ...([
+      ['dither', 'dither'],
+      ['blend', 'blend'],
+    ] as const).map(([name, edgePolicy]): ShowToolkitFixtureRecipe => ({
+      ...shared,
+      id: `wipe-arbitrary-${name}`,
+      familyId: 'wipe',
+      variantId: 'linear',
+      recipe: {
+        clips: clips(),
+        routeTransition: {
+          kind: 'wipe', startMs: 1000, durationMs: 1000,
+          direction: 0.173, feather: 0.14, edgePolicy,
+        },
+      },
+      persistedRecord: directionalWipeRecord(`wipe-arbitrary-${name}`, 0.173, 0.14, edgePolicy),
+    })),
     {
       ...shared,
       id: 'dissolve-pixel',
@@ -155,6 +195,18 @@ export function createShowToolkitFixtureRecipes(): ShowToolkitFixtureRecipe[] {
       },
     })),
   ]
+}
+
+function directionalWipeRecord(
+  id: string,
+  direction: number,
+  feather: number,
+  edgePolicy: 'hard' | 'dither' | 'blend',
+): ShowRecord {
+  return {
+    ...persistedRecord(id, { kind: 'wipe', durationMs: 1000, direction, feather, edgePolicy }),
+    stageMapId: 'fixture-stage-2d',
+  }
 }
 
 export function createShowEffectToolkitFixtureRecipes(): ShowToolkitFixtureRecipe[] {

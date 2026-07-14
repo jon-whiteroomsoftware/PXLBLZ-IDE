@@ -8,8 +8,10 @@ import {
 } from './controllerProfile'
 import { emitFixedPoint } from './fxEmit'
 import { emitShowEasingExpression } from './showEasing'
-import type { ShowClipEffect, ShowSpatialShape, ShowTransitionEasing } from './personalContentRecords'
+import type { ShowClipEffect, ShowSpatialShape, ShowTransitionEasing, ShowTransitionEdgePolicy } from './personalContentRecords'
 import { normalizeShowTransitionColor, showTransitionColorToRgb } from './showFadeThroughColor'
+import { normalizeShowTransitionEdgePolicy } from './showTransitionEdge'
+import { showWipeProjectionCoefficients } from './showWipe'
 import {
   applyShowEffectsToSample,
   buildShowEffectSampleMatrix,
@@ -95,6 +97,8 @@ export interface ShowRouteTransitionRecipe {
   durationMs: number
   easing?: ShowTransitionEasing
   color?: string
+  direction?: number
+  edgePolicy?: ShowTransitionEdgePolicy
   feather?: number
   centerX?: number
   centerY?: number
@@ -111,6 +115,8 @@ export interface ShowSceneSequenceTransitionRecipe {
   kind: 'cut' | 'crossfade' | 'fade-color' | 'wipe' | 'dither' | 'portal'
   durationMs: number
   color?: string
+  direction?: number
+  edgePolicy?: ShowTransitionEdgePolicy
   feather?: number
   centerX?: number
   centerY?: number
@@ -236,6 +242,7 @@ export interface ShowCompileSummary {
     | 'none'
     | 'hard-wipe'
     | 'feathered-wipe'
+    | 'blended-wipe'
     | 'dither'
     | 'portal-hard'
     | 'portal-dithered-feather'
@@ -355,12 +362,17 @@ export function compileShow(
   const portalTransition = expandedRecipe.routeTransition?.kind === 'portal'
     ? expandedRecipe.routeTransition
     : null
+  const directionalWipeTransition = expandedRecipe.routeTransition?.kind === 'wipe'
+    && expandedRecipe.routeTransition.direction !== undefined
   const sequenceTransitions = expandedRecipe.sceneSequence?.scenes.flatMap((scene) => (
     scene.transitionOut ? [scene.transitionOut] : []
   )) ?? []
   const renderedSequenceTransitions = sequenceTransitions.filter((transition) => transition.kind !== 'cut')
   const sequenceHasCrossfade = renderedSequenceTransitions.some((transition) => transition.kind === 'crossfade')
   const sequenceHasPortal = renderedSequenceTransitions.some((transition) => transition.kind === 'portal')
+  const sequenceHasDirectionalWipe = renderedSequenceTransitions.some((transition) => (
+    transition.kind === 'wipe' && transition.direction !== undefined
+  ))
   const portalBlend = Boolean(
     (portalTransition
       && clampNumber(portalTransition.feather ?? 0, 0, 1) > 0
@@ -371,8 +383,20 @@ export function compileShow(
       && transition.featherPolicy === 'blend'
     )),
   )
+  const wipeBlend = Boolean(
+    (expandedRecipe.routeTransition?.kind === 'wipe'
+      && clampNumber(expandedRecipe.routeTransition.feather ?? 0, 0, 1) > 0
+      && expandedRecipe.routeTransition.edgePolicy === 'blend')
+    || renderedSequenceTransitions.some((transition) => (
+      transition.kind === 'wipe'
+      && clampNumber(transition.feather ?? 0, 0, 1) > 0
+      && transition.edgePolicy === 'blend'
+    )),
+  )
+  const boundedBlend = portalBlend || wipeBlend
   const memberOutputDimension = showOutputDimensionForMembers(members)
-  const sequenceOutputDimension: ShowOutputDimension = sequenceHasPortal ? 2 : memberOutputDimension
+  const sequenceOutputDimension: ShowOutputDimension = sequenceHasPortal || sequenceHasDirectionalWipe ? 2 : memberOutputDimension
+  const transitionOutputDimension: ShowOutputDimension = portalTransition || directionalWipeTransition ? 2 : memberOutputDimension
   const routedOutputDimension: 1 | 2 = routingLayouts?.some((layout) => layout.logical)
     ? 2
     : routeMode || routingLayouts
@@ -433,7 +457,7 @@ export function compileShow(
         : expandedRecipe.routeTransition
           ? portalTransition
             ? emitPortalTransitionShowCode(members[0], members[1], portalTransition)
-            : emitRouteTransitionShowCode(members[0], members[1], expandedRecipe.routeTransition, memberOutputDimension)
+            : emitRouteTransitionShowCode(members[0], members[1], expandedRecipe.routeTransition, transitionOutputDimension)
         : expandedRecipe.crossfade
           ? emitShowCode(members[0], members[1], expandedRecipe.crossfade, memberOutputDimension)
           : emitSingleClipShowCode(members[0], memberOutputDimension)
@@ -444,7 +468,7 @@ export function compileShow(
     members,
     expandedRecipe.sceneSequence
       ? sequenceOutputDimension
-      : portalTransition
+      : portalTransition || directionalWipeTransition
         ? 2
         : routeMode || routingLayouts
           ? routedOutputDimension
@@ -455,7 +479,7 @@ export function compileShow(
   const transitionCost = expandedRecipe.sceneSequence
     ? sequenceHasCrossfade
       ? 'renderer-window'
-      : portalBlend
+      : boundedBlend
         ? 'bounded-renderer-window'
         : renderedSequenceTransitions.length > 0 ? 'route' : 'none'
     : routeMode
@@ -465,7 +489,7 @@ export function compileShow(
       : expandedRecipe.adaptationRamp
         ? 'parameter'
         : expandedRecipe.routeTransition
-          ? portalBlend ? 'bounded-renderer-window' : 'route'
+          ? boundedBlend ? 'bounded-renderer-window' : 'route'
         : 'none'
   const evaluationSummary = describeEvaluationPolicy(members)
   const effectCost = describeEffectCost(members, expandedRecipe)
@@ -503,9 +527,9 @@ export function compileShow(
     renderPolicy: expandedRecipe.sceneSequence
       ? sequenceHasCrossfade
         ? 'steady-active-transition-both'
-        : portalBlend
+        : boundedBlend
           ? 'spatial-route-bounded-feather'
-          : sequenceHasPortal
+          : sequenceHasPortal || sequenceHasDirectionalWipe
             ? 'spatial-route-one-renderer-per-pixel'
             : renderedSequenceTransitions.length > 0
               ? 'route-transition-one-renderer-per-pixel'
@@ -519,8 +543,8 @@ export function compileShow(
         : expandedRecipe.adaptationRamp
           ? 'parameter-ramp-one-renderer-per-pixel'
           : expandedRecipe.routeTransition
-            ? portalTransition
-              ? portalBlend
+            ? portalTransition || directionalWipeTransition
+              ? boundedBlend
                 ? 'spatial-route-bounded-feather'
                 : 'spatial-route-one-renderer-per-pixel'
               : 'route-transition-one-renderer-per-pixel'
@@ -537,10 +561,14 @@ export function compileShow(
             ? 'portal-hard'
             : renderedSequenceTransitions.some((transition) => transition.kind === 'dither')
               ? 'dither'
-              : renderedSequenceTransitions.some((transition) => (
-                transition.kind === 'wipe' && clampNumber(transition.feather ?? 0, 0, 1) > 0
+            : renderedSequenceTransitions.some((transition) => (
+                transition.kind === 'wipe'
+                && clampNumber(transition.feather ?? 0, 0, 1) > 0
+                && normalizeShowTransitionEdgePolicy(transition.edgePolicy, transition.feather ?? 0) !== 'hard'
               ))
-                ? 'feathered-wipe'
+              ? renderedSequenceTransitions.some((transition) => transition.kind === 'wipe' && transition.edgePolicy === 'blend')
+                ? 'blended-wipe'
+                : 'feathered-wipe'
                 : renderedSequenceTransitions.some((transition) => transition.kind === 'wipe')
                   ? 'hard-wipe'
                   : 'none'
@@ -554,7 +582,11 @@ export function compileShow(
       ? 'dither'
       : expandedRecipe.routeTransition?.kind === 'wipe'
         ? clampNumber(expandedRecipe.routeTransition.feather ?? 0, 0, 1) > 0
-          ? 'feathered-wipe'
+          && normalizeShowTransitionEdgePolicy(
+            expandedRecipe.routeTransition.edgePolicy,
+            expandedRecipe.routeTransition.feather ?? 0,
+          ) !== 'hard'
+          ? expandedRecipe.routeTransition.edgePolicy === 'blend' ? 'blended-wipe' : 'feathered-wipe'
           : 'hard-wipe'
         : 'none',
     clockPolicy: describeClockPolicy(expandedRecipe, members),
@@ -898,22 +930,17 @@ function emitRouteTransitionShowCode(
   if (transition.kind === 'fade-color') {
     return emitFadeThroughColorShowCode(from, to, transition, outputDimension)
   }
+  if (transition.kind === 'wipe') {
+    return emitWipeTransitionShowCode(from, to, transition, outputDimension)
+  }
   const transitionEnd = transition.startMs + transition.durationMs
-  const feather = clampNumber(transition.feather ?? 0, 0, 1)
-  const featherPrelude = transition.kind === 'wipe' && feather > 0
-    ? `  var __pxlblz_show_feather_progress = (__pxlblz_show_mix + ${feather / 2} - index / pixelCount) / ${feather}\n`
-    : ''
-  const pickTo = transition.kind === 'wipe'
-    ? feather > 0
-      ? `index / pixelCount < __pxlblz_show_mix - ${feather / 2} || (index / pixelCount < __pxlblz_show_mix + ${feather / 2} && __pxlblz_show_hash01(index) < clamp(__pxlblz_show_feather_progress, 0, 1))`
-      : 'index / pixelCount < __pxlblz_show_mix'
-    : '__pxlblz_show_hash01(index) < __pxlblz_show_mix'
+  const pickTo = '__pxlblz_show_hash01(index) < __pxlblz_show_mix'
   return [
     emitRuntimePrelude([from, to]),
     from.code.trim(),
     to.code.trim(),
     emitScheduler(from, to, transition.startMs, transitionEnd, transition.durationMs, transition.easing),
-    emitOuterRenderer(outputDimension, `${featherPrelude}  if (__pxlblz_show_phase == 0) {
+    emitOuterRenderer(outputDimension, `  if (__pxlblz_show_phase == 0) {
     ${emitMemberCaptureCall(from, outputDimension)}
     ${from.prefix}_emit()
   } else if (__pxlblz_show_phase == 2) {
@@ -925,6 +952,37 @@ function emitRouteTransitionShowCode(
   } else {
     ${emitMemberCaptureCall(from, outputDimension)}
     ${from.prefix}_emit()
+  }`),
+    '',
+  ].join('\n\n')
+}
+
+function emitWipeTransitionShowCode(
+  from: CompiledMember,
+  to: CompiledMember,
+  transition: ShowRouteTransitionRecipe,
+  outputDimension: ShowOutputDimension,
+): string {
+  return [
+    emitRuntimePrelude([from, to]),
+    from.code.trim(),
+    to.code.trim(),
+    emitScheduler(
+      from,
+      to,
+      transition.startMs,
+      transition.startMs + transition.durationMs,
+      transition.durationMs,
+      transition.easing,
+    ),
+    emitOuterRenderer(outputDimension, `  if (__pxlblz_show_phase == 0) {
+    ${emitMemberCaptureCall(from, outputDimension)}
+    ${from.prefix}_emit()
+  } else if (__pxlblz_show_phase == 2) {
+    ${emitMemberCaptureCall(to, outputDimension)}
+    ${to.prefix}_emit()
+  } else {
+${indentBlock(emitWipeTransitionRenderBlock(from, to, transition, outputDimension), 4)}
   }`),
     '',
   ].join('\n\n')
@@ -1116,6 +1174,7 @@ function emitSceneSequenceTransitionBlock(
 ): string {
   if (transition.kind === 'portal') return emitPortalRenderBlock(from, to, transition)
   if (transition.kind === 'fade-color') return emitFadeThroughColorRenderBlock(from, to, transition, outputDimension)
+  if (transition.kind === 'wipe') return emitWipeTransitionRenderBlock(from, to, transition, outputDimension)
 
   const fromRender = memberRenderCapture(from, outputDimension)
   const toRender = memberRenderCapture(to, outputDimension)
@@ -1132,22 +1191,74 @@ rgb(
 )`
   }
 
-  const feather = clampNumber(transition.feather ?? 0, 0, 1)
-  const featherPrelude = transition.kind === 'wipe' && feather > 0
-    ? `var __pxlblz_show_feather_progress = (__pxlblz_show_mix + ${feather / 2} - index / pixelCount) / ${feather}\n`
-    : ''
-  const pickTo = transition.kind === 'wipe'
-    ? feather > 0
-      ? `index / pixelCount < __pxlblz_show_mix - ${feather / 2} || (index / pixelCount < __pxlblz_show_mix + ${feather / 2} && __pxlblz_show_hash01(index) < clamp(__pxlblz_show_feather_progress, 0, 1))`
-      : 'index / pixelCount < __pxlblz_show_mix'
-    : '__pxlblz_show_hash01(index) < __pxlblz_show_mix'
-  return `${featherPrelude}if (${pickTo}) {
+  const pickTo = '__pxlblz_show_hash01(index) < __pxlblz_show_mix'
+  return `if (${pickTo}) {
   ${toRender}
   ${to.prefix}_emit()
 } else {
   ${fromRender}
   ${from.prefix}_emit()
 }`
+}
+
+function emitWipeTransitionRenderBlock(
+  from: CompiledMember,
+  to: CompiledMember,
+  transition: Pick<ShowRouteTransitionRecipe, 'direction' | 'edgePolicy' | 'feather'>,
+  outputDimension: ShowOutputDimension,
+): string {
+  const feather = clampNumber(transition.feather ?? 0, 0, 1)
+  const edgePolicy = normalizeShowTransitionEdgePolicy(transition.edgePolicy, feather)
+  const position = showWipePositionExpression(transition.direction, outputDimension)
+  const fromRender = memberRenderCapture(from, outputDimension)
+  const toRender = memberRenderCapture(to, outputDimension)
+  if (edgePolicy === 'hard' || feather === 0) {
+    return `if (${position} < __pxlblz_show_mix) {
+  ${toRender}
+  ${to.prefix}_emit()
+} else {
+  ${fromRender}
+  ${from.prefix}_emit()
+}`
+  }
+  const prelude = `var __pxlblz_show_wipe_position = ${position}
+var __pxlblz_show_feather_progress = (__pxlblz_show_mix + ${feather / 2} - __pxlblz_show_wipe_position) / ${feather}`
+  if (edgePolicy === 'dither') {
+    return `${prelude}
+if (__pxlblz_show_wipe_position < __pxlblz_show_mix - ${feather / 2} || (__pxlblz_show_wipe_position < __pxlblz_show_mix + ${feather / 2} && __pxlblz_show_hash01(index) < clamp(__pxlblz_show_feather_progress, 0, 1))) {
+  ${toRender}
+  ${to.prefix}_emit()
+} else {
+  ${fromRender}
+  ${from.prefix}_emit()
+}`
+  }
+  return `${prelude}
+if (__pxlblz_show_feather_progress <= 0) {
+  ${fromRender}
+  ${from.prefix}_emit()
+} else if (__pxlblz_show_feather_progress >= 1) {
+  ${toRender}
+  ${to.prefix}_emit()
+} else {
+  ${fromRender}
+  var r0 = ${from.prefix}_r
+  var g0 = ${from.prefix}_g
+  var b0 = ${from.prefix}_b
+  ${toRender}
+  var __pxlblz_show_edge_mix = clamp(__pxlblz_show_feather_progress, 0, 1)
+  rgb(
+    r0 * (1 - __pxlblz_show_edge_mix) + ${to.prefix}_r * __pxlblz_show_edge_mix,
+    g0 * (1 - __pxlblz_show_edge_mix) + ${to.prefix}_g * __pxlblz_show_edge_mix,
+    b0 * (1 - __pxlblz_show_edge_mix) + ${to.prefix}_b * __pxlblz_show_edge_mix
+  )
+}`
+}
+
+function showWipePositionExpression(direction: number | undefined, outputDimension: ShowOutputDimension): string {
+  if (direction === undefined || outputDimension !== 2) return 'index / pixelCount'
+  const projection = showWipeProjectionCoefficients(direction)
+  return `((x * ${projection.x} + y * ${projection.y}) - ${projection.minimum}) / ${projection.span}`
 }
 
 function emitFadeThroughColorRenderBlock(

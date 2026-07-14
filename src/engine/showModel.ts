@@ -23,6 +23,7 @@ import type {
 import { clampShowRepeatScale } from './showCoordinateRemap'
 import { normalizeShowEasing } from './showEasing'
 import { normalizeShowTransitionColor } from './showFadeThroughColor'
+import { normalizeShowWipeDirection } from './showWipe'
 import {
   normalizeShowClipEffects,
   sameShowEffectStructure,
@@ -1025,7 +1026,11 @@ export function normalizeShowTransitionState(show: ShowRecord): ShowRecord {
           durationMs: scene.transitionOut?.durationMs ?? 0,
           easing: 'linear',
           ...(scene.transitionOut?.kind === 'wipe'
-            ? { feather: scene.transitionOut.feather }
+            ? {
+                feather: scene.transitionOut.feather,
+                direction: scene.transitionOut.direction,
+                edgePolicy: scene.transitionOut.edgePolicy,
+              }
             : {}),
           ...(scene.transitionOut?.kind === 'fade-color'
             ? { color: scene.transitionOut.color }
@@ -1138,7 +1143,16 @@ function normalizeBoundaryTransition(transition: ShowBoundaryTransition): ShowBo
         : {}),
     }
   }
-  if (kind === 'wipe') return { ...base, feather: clamp01(transition.feather ?? 0) }
+  if (kind === 'wipe') {
+    return {
+      ...base,
+      feather: clamp01(transition.feather ?? 0),
+      ...(transition.direction === undefined ? {} : { direction: normalizeShowWipeDirection(transition.direction) }),
+      ...(transition.edgePolicy === 'hard' || transition.edgePolicy === 'dither' || transition.edgePolicy === 'blend'
+        ? { edgePolicy: transition.edgePolicy }
+        : {}),
+    }
+  }
   if (kind === 'fade-color') return { ...base, color: normalizeShowTransitionColor(transition.color) }
   if (kind === 'portal') {
     return {
@@ -1270,7 +1284,13 @@ function boundaryToLegacyTransition(
     kind,
     durationMs: transition.durationMs,
     ...(kind === 'fade-color' ? { color: normalizeShowTransitionColor(transition.color) } : {}),
-    ...(kind === 'wipe' ? { feather: transition.feather } : {}),
+    ...(kind === 'wipe'
+      ? {
+          feather: transition.feather,
+          ...(transition.direction === undefined ? {} : { direction: transition.direction }),
+          ...(transition.edgePolicy === undefined ? {} : { edgePolicy: transition.edgePolicy }),
+        }
+      : {}),
     ...(kind === 'portal'
       ? {
           feather: transition.feather,
@@ -1530,6 +1550,9 @@ export function showRecordToCompileRecipe(
   if (transition?.kind === 'portal' && (!show.stageMapId || lookup.stageDimension !== 2)) {
     throw new Error('Portal transition requires a 2D Stage Map.')
   }
+  if (transition?.kind === 'wipe' && transition.direction !== undefined && (!show.stageMapId || lookup.stageDimension !== 2)) {
+    throw new Error('Directional Wipe requires a 2D Stage Map; select a 2D Stage or remove Direction.')
+  }
   if (samePattern && hasSameDiscreteAdaptations(cells[0], cells[1]) && transition && transition.kind !== 'cut' && transition.kind !== 'portal' && transition.kind !== 'fade-color') {
     const explicitFrom = boundary?.propertyTransitions?.timeScale?.fromByCellId[cells[1].id]
     const propertyRamps = boundary?.propertyTransitions
@@ -1598,7 +1621,13 @@ export function showRecordToCompileRecipe(
           ...(transition.kind === 'fade-color'
             ? { easing: boundary?.easing ?? 'linear', color: normalizeShowTransitionColor(transition.color) }
             : {}),
-          ...(transition.kind === 'wipe' ? { feather: clamp01(transition.feather ?? 0) } : {}),
+          ...(transition.kind === 'wipe'
+            ? {
+                feather: clamp01(transition.feather ?? 0),
+                ...(transition.direction === undefined ? {} : { direction: normalizeShowWipeDirection(transition.direction) }),
+                ...(transition.edgePolicy === undefined ? {} : { edgePolicy: transition.edgePolicy }),
+              }
+            : {}),
           ...(transition.kind === 'portal'
             ? {
                 feather: clamp01(transition.feather ?? 0.12),
@@ -1643,6 +1672,10 @@ function showRecordToSceneSequenceRecipe(
   )) ?? false
   if (transitions.some((transition) => transition?.kind === 'portal') && (!show.stageMapId || lookup.stageDimension !== 2)) {
     throw new Error('Portal transition requires a 2D Stage Map.')
+  }
+  if (transitions.some((transition) => transition?.kind === 'wipe' && transition.direction !== undefined)
+    && (!show.stageMapId || lookup.stageDimension !== 2)) {
+    throw new Error('Directional Wipe requires a 2D Stage Map; select a 2D Stage or remove Direction.')
   }
 
   const clipByKey = new Map<string, ShowRecipe['clips'][number]>()
@@ -1753,7 +1786,13 @@ function compilerSequenceTransition(
     kind: transition.kind,
     durationMs: transition.durationMs,
     ...(transition.kind === 'fade-color' ? { color: normalizeShowTransitionColor(transition.color) } : {}),
-    ...(transition.kind === 'wipe' ? { feather: clamp01(transition.feather ?? 0) } : {}),
+    ...(transition.kind === 'wipe'
+      ? {
+          feather: clamp01(transition.feather ?? 0),
+          ...(transition.direction === undefined ? {} : { direction: normalizeShowWipeDirection(transition.direction) }),
+          ...(transition.edgePolicy === undefined ? {} : { edgePolicy: transition.edgePolicy }),
+        }
+      : {}),
     ...(transition.kind === 'portal'
       ? {
           feather: clamp01(transition.feather ?? 0.12),

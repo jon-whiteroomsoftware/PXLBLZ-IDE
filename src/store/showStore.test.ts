@@ -464,6 +464,30 @@ describe('showStore (#318)', () => {
     })
   })
 
+  it('persists and reloads a directional Wipe boundary (#446)', async () => {
+    const show = { ...createDefaultShow('show-446', 'Directional wipe persistence', 1), stageMapId: 'plane' }
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], showsLoaded: true })
+
+    await useShowStore.getState().updateBoundaryTransition(show.id, 'transition-scene-1', {
+      kind: 'wipe',
+      durationMs: 1500,
+      easing: { curve: 'cubic', direction: 'in-out' },
+      direction: 1.875,
+      feather: 0.12,
+      edgePolicy: 'dither',
+    })
+    useShowStore.setState(showInitialState)
+    await useShowStore.getState().loadShows()
+
+    expect(useShowStore.getState().shows[0].transitions?.[0]).toMatchObject({
+      kind: 'wipe', direction: 0.875, feather: 0.12, edgePolicy: 'dither',
+    })
+    expect(useShowStore.getState().shows[0].scenes[0].transitionOut).toMatchObject({
+      kind: 'wipe', direction: 0.875, feather: 0.12, edgePolicy: 'dither',
+    })
+  })
+
   it('persists a wipe feather width through the provider', async () => {
     const show = createDefaultShow('show-1', 'Opening wash', 1)
     setPersonalContentProvider(memoryProvider([show]))

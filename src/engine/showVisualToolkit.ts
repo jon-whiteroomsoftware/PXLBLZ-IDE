@@ -57,6 +57,7 @@ export interface ShowToolkitParameterDescriptor {
   step?: number
   unit?: string
   options?: Array<{ value: string; label: string }>
+  compatibility?: { stageDimensions: Array<1 | 2 | 3> }
   variantIds?: string[]
   when?: ShowToolkitParameterCondition
 }
@@ -192,8 +193,39 @@ export const SHOW_VISUAL_TOOLKIT_REGISTRY: ShowToolkitFamilyDescriptor[] = [
     kind: 'transition',
     id: 'wipe',
     label: 'Wipe',
-    variants: [{ id: 'linear', label: 'Linear', costPolicies: ['selector', 'bounded-blend'] }],
-    parameters: [DURATION, EASING, FEATHER],
+    variants: [{
+      id: 'linear',
+      label: 'Linear',
+      costPolicies: ['selector', 'bounded-blend'],
+      compatibility: { stageDimensions: [1, 2] },
+      presets: [
+        { id: 'east', label: 'East', values: { direction: 0 } },
+        { id: 'south-east', label: 'South-east', values: { direction: 0.125 } },
+        { id: 'south', label: 'South', values: { direction: 0.25 } },
+        { id: 'south-west', label: 'South-west', values: { direction: 0.375 } },
+        { id: 'west', label: 'West', values: { direction: 0.5 } },
+        { id: 'north-west', label: 'North-west', values: { direction: 0.625 } },
+        { id: 'north', label: 'North', values: { direction: 0.75 } },
+        { id: 'north-east', label: 'North-east', values: { direction: 0.875 } },
+      ],
+    }],
+    parameters: [
+      DURATION,
+      EASING,
+      { id: 'direction', label: 'Direction', kind: 'number', defaultValue: 0, min: 0, max: 1, step: 0.001, unit: 'turn', compatibility: { stageDimensions: [2] } },
+      {
+        id: 'edgePolicy',
+        label: 'Edge',
+        kind: 'enum',
+        defaultValue: 'hard',
+        options: [
+          { value: 'hard', label: 'Hard' },
+          { value: 'dither', label: 'Stable dither' },
+          { value: 'blend', label: 'Blend' },
+        ],
+      },
+      FEATHER,
+    ],
   },
   {
     kind: 'transition',
