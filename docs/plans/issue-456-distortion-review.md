@@ -7,9 +7,10 @@ Shear. Glitch remains deferred because its scanline jumps are style-specific
 and discontinuous under animation.
 
 This recommendation is implemented so the compiler, persistence model, cost
-report, and deterministic fixtures can be reviewed together. It is not final
-product approval. Representative-device frame rates and human visual review
-remain open gates on issue #456.
+report, and deterministic fixtures can be reviewed together. The user approved
+the selected production set on 2026-07-14 after comparing low, medium, and high
+Amount values at representative matrix resolutions. Representative-Controller
+frame rates remain the only open review gate on issue #456.
 
 ## Candidate evidence
 
@@ -51,13 +52,14 @@ Property path and produces more than two distinct frame hashes.
 
 ## Review gates
 
-- [ ] Review the six selected fixtures at low, medium, and high Amount values.
-- [ ] Confirm that Bulge and Pinch read as presets of one operation.
-- [ ] Confirm that Ripple, Swirl, and Kaleidoscope remain useful on low-resolution
+- [x] Review the six selected fixtures at low, medium, and high Amount values.
+- [x] Confirm that Bulge and Pinch read as presets of one operation.
+- [x] Confirm that Ripple, Swirl, and Kaleidoscope remain useful on low-resolution
   matrices rather than becoming noise.
 - [ ] Run the fixtures on a representative Pixelblaze target and record pixels,
   firmware, artifact bytes, and steady-state frames per second.
-- [ ] Accept, tune, or remove each provisional production variant.
+- [x] Accept Ripple, Swirl, Bulge / Pinch, Pixelate, and Kaleidoscope. Stretch
+  remains covered by affine Effects; Glitch remains deferred.
 
 The harness intentionally stores representative hardware FPS as `null` until
 that measurement occurs. A blank benchmark is better than a very precise lie.

@@ -68,9 +68,10 @@ Pixelblaze result from which to derive it. Complete the gate by recording:
 - steady-state frames per second; and
 - any visible divergence from the deterministic capture.
 
-The signature SDF review in #452 and distortion review in #456 also remain
-human gates. This freeze does not convert deterministic evidence into visual
-approval.
+The 2026-07-14 human review approved the common SDF catalogue, Cat head, and the
+selected distortion set. Side-profile cat and Bastet remain implemented but
+provisional. Representative-Controller FPS remains open for #452, #456, and
+this freeze; deterministic evidence is not substituted for that measurement.
 
 ## Reproduction
 

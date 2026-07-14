@@ -3,10 +3,11 @@
 ## Status
 
 The headless shape model, persistence, compiler path, cost policy, and
-deterministic fixtures are implemented. The common shapes are mechanically
-verifiable. Cat head, Side-profile cat, and Bastet remain candidate silhouettes
-until a person approves them at representative LED resolutions. Hardware FPS is
-also unmeasured.
+deterministic fixtures are implemented. The user approved the common shapes,
+polygons, and Cat head on 2026-07-14 after reviewing the actual engine metrics
+at representative matrix resolutions. Side-profile cat and Bastet remain
+implemented but provisional by explicit choice; neither blocks use of the
+approved catalogue. Hardware FPS is still unmeasured.
 
 This review is intentionally separate from the production picker and inspector
 work in #457 and the final Feature Guide update in #460.
@@ -42,6 +43,17 @@ Polygon, and signature-cat fixtures across both reveal modes.
 
 ## Human silhouette review
 
+The 2026-07-14 review approved Heart, Star, Crescent, polygons with three
+through eight sides, and Cat head. The same SDF construction used by the
+existing transitions is accepted for higher-resolution output.
+
+Side-profile cat and Bastet did not read strongly enough at the reviewed low
+resolutions. They remain available as provisional signature shapes so future
+high-resolution and physical-Controller review can tune them without blocking
+the rest of the catalogue.
+
+The original review criteria remain the standard for future tuning:
+
 Review both reveal modes at minimum on 16x16, 32x16, and 64x32 Stage maps.
 
 - Cat head reads as a head with two ears, not a crown or generic star.
@@ -53,9 +65,8 @@ Review both reveal modes at minimum on 16x16, 32x16, and 64x32 Stage maps.
 - Crescent preserves a visible hole rather than becoming an offset oval.
 - Polygon sides 3-8 remain distinguishable where the target resolution permits.
 
-Record approval or requested parameter changes on #452. Parameter changes that
-alter persisted normalization or generated equations require refreshed fixtures
-and compiler parity tests.
+Parameter changes that alter persisted normalization or generated equations
+require refreshed fixtures and compiler parity tests.
 
 ## Hardware review
 

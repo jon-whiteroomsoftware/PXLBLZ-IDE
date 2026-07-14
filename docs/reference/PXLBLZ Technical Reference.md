@@ -1182,7 +1182,9 @@ distinct low-order angular bumps: paired ears around a head, asymmetric
 head/tail/leg lobes for the side profile, and a narrow seated body with paired
 ears for Bastet. These candidates deliberately trade anatomical detail for
 low-resolution readability and generated-math cost. Their engine contract is
-shipped, but visual approval remains an explicit #452 human gate.
+shipped. The 2026-07-14 visual review approved the common catalogue and Cat
+head; Side-profile cat and Bastet remain provisional pending stronger
+high-resolution or physical-Controller silhouettes.
 
 All catalogue shapes share center, scale, reveal mode, feather, edge policy,
 and easing. Aspect and rotation appear only on shapes whose metric uses them;
@@ -1194,8 +1196,8 @@ Blend remains `N + E`.
 Twenty-four representative Heart/Star/Crescent/Polygon/cat fixtures compile to
 8,246-8,680 bytes. The largest candidate is 12.693% of the measured 68,384-byte
 device budget. These measurements cover generated artifact size, not hardware
-FPS; representative-device FPS and silhouette approval remain recorded in the
-focused #452 review plan.
+FPS. Representative-Controller FPS and the provisional signature-shape
+disposition remain recorded in the focused #452 review plan.
 
 Motion is a separate Transition family because it remaps Pattern coordinates
 rather than changing a coverage shape. Cover moves the incoming content across
@@ -1298,7 +1300,7 @@ Every neutral static output Effect is eliminated with no generated-code change.
 Non-neutral operations clamp only where their definition requires it, and
 preview uses the same formulas and authored order as generated Pixelblaze code.
 
-The provisional distortion catalogue contains Ripple, Swirl, Bulge / Pinch,
+The approved distortion catalogue contains Ripple, Swirl, Bulge / Pinch,
 Pixelate, and Kaleidoscope. Each operation remaps the normalized source
 coordinate and then evaluates the Pattern once. Amount `0` is exact identity,
 so a neutral static distortion emits no runtime and every Amount can use the
@@ -1320,7 +1322,8 @@ Kaleidoscope are **Smooth** because they use radial or polar math. Stretch does
 not enter the production registry because Scale and Shear already cover it.
 Glitch remains outside the persisted schema and registry pending a stronger,
 animation-stable visual policy. The candidate and compiler measurements live in
-`docs/plans/issue-456-distortion-review.md` until human and hardware gates close.
+`docs/plans/issue-456-distortion-review.md`; human review approved the selected
+set on 2026-07-14, while representative-Controller FPS remains open.
 
 Affine order describes content motion. The compiler composes forward content
 matrices in list order around normalized center `(0.5, 0.5)`, then inverts the
