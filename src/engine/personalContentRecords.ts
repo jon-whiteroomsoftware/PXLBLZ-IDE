@@ -161,6 +161,11 @@ export type ShowClipEffect =
   | { id: string; kind: 'rotate'; turns: number }
   | { id: string; kind: 'scale'; x: number; y: number }
   | { id: string; kind: 'shear'; x: number; y: number }
+  | { id: string; kind: 'ripple'; amount: number; frequency: number; phase: number; centerX: number; centerY: number }
+  | { id: string; kind: 'swirl'; amount: number; radius: number; centerX: number; centerY: number }
+  | { id: string; kind: 'bulge'; amount: number; radius: number; centerX: number; centerY: number }
+  | { id: string; kind: 'pixelate'; amount: number; columns: number; rows: number }
+  | { id: string; kind: 'kaleidoscope'; amount: number; segments: number; rotation: number; centerX: number; centerY: number }
   | { id: string; kind: 'wrap' }
 
 export interface ShowPortalSettings {

@@ -37,6 +37,7 @@ import {
   applyShowEffectsToSample,
   buildShowEffectSampleMatrix,
   isShowColorEffect,
+  isShowDistortionEffect,
   normalizeShowClipEffects,
   showEffectNumericValue,
   showEffectParameterNames,
@@ -46,6 +47,7 @@ import {
   buildShowCompiledCostMetadata,
   type ShowCompiledCostMetadata,
 } from './showVisualToolkit'
+import { SHOW_DISTORTION_CANDIDATES } from './showDistortionBenchmark'
 import {
   planPhysicalRoutingRepresentation,
   type GeneratedRoutingFormula,
@@ -609,11 +611,14 @@ export function compileShow(
     expectedActiveFraction: evaluationSummary.expectedActiveFraction,
     generatedScalarGlobals: (routingParameterEstimate?.scalarGlobals ?? 0)
       + (expandedRecipe.samplePropertyRamps ? 1 : 0)
-      + members.reduce((count, member) => count + (showEffectsAreIdentity(member.effects) && !member.animatedEffects
-        ? 0
-        : member.animatedEffects
-          ? 13 + member.effects.reduce((parameters, effect) => parameters + showEffectParameterNames(effect).length, 0)
-          : 7), 0),
+      + members.reduce((count, member) => {
+        if (showEffectsAreIdentity(member.effects) && !member.animatedEffects) return count
+        const hasAffine = member.effects.some((effect) => ['translate', 'rotate', 'scale', 'shear'].includes(effect.kind))
+        const parameters = member.animatedEffects
+          ? member.effects.reduce((total, effect) => total + showEffectParameterNames(effect).length, 0)
+          : 0
+        return count + parameters + (hasAffine ? member.animatedEffects ? 13 : 7 : 0)
+      }, 0),
     generatedArrayElements: routingParameterEstimate?.arrayElements ?? 0,
     warnings,
     effects: effectCost,
@@ -2425,6 +2430,7 @@ function emitSelectedMemberRendererCall(
 function describeMemberEffectRuntime(member: CompiledMember): {
   declarations: string[]
   hasAffine: boolean
+  hasCoordinates: boolean
   wrap: boolean
   opacity: number
 } | null {
@@ -2434,12 +2440,14 @@ function describeMemberEffectRuntime(member: CompiledMember): {
   const hasAffine = member.effects.some((effect) => (
     effect.kind === 'translate' || effect.kind === 'rotate' || effect.kind === 'scale' || effect.kind === 'shear'
   ))
-  const wrap = member.effects.some((effect) => effect.kind === 'wrap') && hasAffine
+  const hasDistortion = member.effects.some((effect) => isShowDistortionEffect(effect) && effect.amount !== 0)
+  const hasCoordinates = hasAffine || hasDistortion || (member.animatedEffects && member.effects.some(isShowDistortionEffect))
+  const wrap = member.effects.some((effect) => effect.kind === 'wrap') && hasCoordinates
   const parameterDeclarations = member.effects.flatMap((effect) => showEffectParameterNames(effect).map((parameter) => (
     `var ${effectParameterVariable(member, effect.id, parameter)} = ${effectParameterValue(effect, parameter)}`
   )))
   const operationAssignments = member.effects.flatMap((effect, index) => {
-    if (effect.kind === 'wrap' || isShowColorEffect(effect)) return []
+    if (!['translate', 'rotate', 'scale', 'shear'].includes(effect.kind)) return []
     const suffix = `${member.prefix}_fx_o${index}`
     const operation = effect.kind === 'translate'
       ? `  var ${suffix}_a = 1
@@ -2503,11 +2511,14 @@ ${operationAssignments.join('\n')}
 }`
   return {
     hasAffine,
+    hasCoordinates,
     wrap,
     opacity,
     declarations: [
       ...(member.animatedEffects ? [
         ...parameterDeclarations,
+      ] : []),
+      ...(member.animatedEffects && hasAffine ? [
         `var ${member.prefix}_fx_ma = 1`,
         `var ${member.prefix}_fx_mb = 0`,
         `var ${member.prefix}_fx_mc = 0`,
@@ -2515,15 +2526,74 @@ ${operationAssignments.join('\n')}
         `var ${member.prefix}_fx_mtx = 0`,
         `var ${member.prefix}_fx_mty = 0`,
       ] : []),
-      `var ${member.prefix}_fx_a = ${matrix.a}`,
-      `var ${member.prefix}_fx_b = ${matrix.b}`,
-      `var ${member.prefix}_fx_c = ${matrix.c}`,
-      `var ${member.prefix}_fx_d = ${matrix.d}`,
-      `var ${member.prefix}_fx_tx = ${matrix.tx}`,
-      `var ${member.prefix}_fx_ty = ${matrix.ty}`,
-      ...(member.animatedEffects ? [updateFunction] : []),
+      ...(hasAffine ? [
+        `var ${member.prefix}_fx_a = ${matrix.a}`,
+        `var ${member.prefix}_fx_b = ${matrix.b}`,
+        `var ${member.prefix}_fx_c = ${matrix.c}`,
+        `var ${member.prefix}_fx_d = ${matrix.d}`,
+        `var ${member.prefix}_fx_tx = ${matrix.tx}`,
+        `var ${member.prefix}_fx_ty = ${matrix.ty}`,
+      ] : []),
+      ...(member.animatedEffects && hasAffine ? [updateFunction] : []),
     ],
   }
+}
+
+function emitMemberDistortionSampling(member: CompiledMember, x: string, y: string): string {
+  const value = (effect: ShowClipEffect, parameter: string): string => member.animatedEffects
+    ? effectParameterVariable(member, effect.id, parameter)
+    : String(showEffectNumericValue(effect, parameter))
+  return member.effects.flatMap((effect, index): string[] => {
+    if (!isShowDistortionEffect(effect)) return []
+    const amount = value(effect, 'amount')
+    const name = `${member.prefix}_fx_distort_${index}`
+    if (effect.kind === 'ripple') {
+      return [`  var ${name}_dx = ${x} - ${value(effect, 'centerX')}
+  var ${name}_dy = ${y} - ${value(effect, 'centerY')}
+  var ${name}_radius = hypot(${name}_dx, ${name}_dy)
+  if (${name}_radius > 0.000001) {
+    var ${name}_offset = ${amount} * sin((${name}_radius * ${value(effect, 'frequency')} + ${value(effect, 'phase')}) * 6.283185307179586)
+    ${x} = ${x} + ${name}_dx * ${name}_offset / ${name}_radius
+    ${y} = ${y} + ${name}_dy * ${name}_offset / ${name}_radius
+  }`]
+    }
+    if (effect.kind === 'swirl') {
+      return [`  var ${name}_dx = ${x} - ${value(effect, 'centerX')}
+  var ${name}_dy = ${y} - ${value(effect, 'centerY')}
+  var ${name}_radius = hypot(${name}_dx, ${name}_dy)
+  var ${name}_falloff = max(0, 1 - ${name}_radius / ${value(effect, 'radius')})
+  var ${name}_angle = ${amount} * ${name}_falloff * ${name}_falloff * 6.283185307179586
+  var ${name}_cos = cos(${name}_angle)
+  var ${name}_sin = sin(${name}_angle)
+  ${x} = ${value(effect, 'centerX')} + ${name}_dx * ${name}_cos - ${name}_dy * ${name}_sin
+  ${y} = ${value(effect, 'centerY')} + ${name}_dx * ${name}_sin + ${name}_dy * ${name}_cos`]
+    }
+    if (effect.kind === 'bulge') {
+      return [`  var ${name}_dx = ${x} - ${value(effect, 'centerX')}
+  var ${name}_dy = ${y} - ${value(effect, 'centerY')}
+  var ${name}_radius = hypot(${name}_dx, ${name}_dy)
+  var ${name}_falloff = max(0, 1 - ${name}_radius / ${value(effect, 'radius')})
+  var ${name}_scale = max(0.05, 1 + ${amount} * ${name}_falloff * ${name}_falloff)
+  ${x} = ${value(effect, 'centerX')} + ${name}_dx / ${name}_scale
+  ${y} = ${value(effect, 'centerY')} + ${name}_dy / ${name}_scale`]
+    }
+    if (effect.kind === 'pixelate') {
+      return [`  var ${name}_target_x = (min(${value(effect, 'columns')} - 1, floor(clamp(${x}, 0, 1) * ${value(effect, 'columns')})) + 0.5) / ${value(effect, 'columns')}
+  var ${name}_target_y = (min(${value(effect, 'rows')} - 1, floor(clamp(${y}, 0, 1) * ${value(effect, 'rows')})) + 0.5) / ${value(effect, 'rows')}
+  ${x} = ${x} + (${name}_target_x - ${x}) * ${amount}
+  ${y} = ${y} + (${name}_target_y - ${y}) * ${amount}`]
+    }
+    return [`  var ${name}_dx = ${x} - ${value(effect, 'centerX')}
+  var ${name}_dy = ${y} - ${value(effect, 'centerY')}
+  var ${name}_radius = hypot(${name}_dx, ${name}_dy)
+  var ${name}_turn = (atan2(${name}_dy, ${name}_dx) / 6.283185307179586 + ${value(effect, 'rotation')}) * ${value(effect, 'segments')}
+  var ${name}_sector = ${name}_turn - floor(${name}_turn)
+  var ${name}_angle = abs(${name}_sector - 0.5) / ${value(effect, 'segments')} * 6.283185307179586
+  var ${name}_target_x = ${value(effect, 'centerX')} + ${name}_radius * cos(${name}_angle)
+  var ${name}_target_y = ${value(effect, 'centerY')} + ${name}_radius * sin(${name}_angle)
+  ${x} = ${x} + (${name}_target_x - ${x}) * ${amount}
+  ${y} = ${y} + (${name}_target_y - ${y}) * ${amount}`]
+  }).join('\n')
 }
 
 function effectParameterVariable(member: CompiledMember, effectId: string, parameter: string): string {
@@ -2686,7 +2756,7 @@ function emitRuntimePrelude(members: CompiledMember[]): string {
 ${indent}${member.elapsedName} = ${member.elapsedName} + scaledDelta
 ${indent}${member.hasBeforeRender ? `${member.beforeRenderName}(scaledDelta)` : ''}`
     const controlCalls = member.controls.map((control) => `  ${control.functionName}(${control.valueName})`).join('\n')
-    const effectUpdateCall = effectRuntime && member.animatedEffects ? `\n  ${member.prefix}_fx_update()` : ''
+    const effectUpdateCall = effectRuntime?.hasAffine && member.animatedEffects ? `\n  ${member.prefix}_fx_update()` : ''
     const advance = lightShutter?.clockBehavior === 'freeze'
       ? `function ${member.prefix}_advance(delta) {${controlCalls ? `\n${controlCalls}` : ''}${effectUpdateCall}
   ${member.prefix}_updateShutter()
@@ -2744,21 +2814,22 @@ ${samplePropertyRamps ? `  if (__pxlblz_show_sample_repeat_scale != 1) {
     var mappedPosition = mappedIndex / max(1, ${member.pixelCountName} - 1)
     mappedIndex = min(${member.pixelCountName} - 1, floor(frac(mappedPosition * __pxlblz_show_sample_repeat_scale) * ${member.pixelCountName}))
   }
-` : ''}${effectRuntime?.hasAffine ? `  var effectPosition = mappedIndex / max(1, ${member.pixelCountName} - 1)
-  var effectX = ${member.prefix}_fx_a * effectPosition + ${member.prefix}_fx_c * 0.5 + ${member.prefix}_fx_tx
-  var effectY = ${member.prefix}_fx_b * effectPosition + ${member.prefix}_fx_d * 0.5 + ${member.prefix}_fx_ty
+` : ''}${effectRuntime?.hasCoordinates ? `  var effectPosition = mappedIndex / max(1, ${member.pixelCountName} - 1)
+  var effectX = ${effectRuntime.hasAffine ? `${member.prefix}_fx_a * effectPosition + ${member.prefix}_fx_c * 0.5 + ${member.prefix}_fx_tx` : 'effectPosition'}
+  var effectY = ${effectRuntime.hasAffine ? `${member.prefix}_fx_b * effectPosition + ${member.prefix}_fx_d * 0.5 + ${member.prefix}_fx_ty` : '0.5'}
+${emitMemberDistortionSampling(member, 'effectX', 'effectY')}
   var effectInside = effectX >= 0 && effectX <= 1 && effectY >= 0 && effectY <= 1
   ${effectRuntime.wrap ? 'effectX = effectX - floor(effectX)' : 'effectX = clamp(effectX, 0, 1)'}
   mappedIndex = min(${member.pixelCountName} - 1, floor(effectX * ${member.pixelCountName}))
 ` : ''}  ${member.prefix}_clear()
   ${member.hasRender ? emitSelectedMemberRendererCall(member, 1, { index: 'mappedIndex' }) : ''}
   ${member.prefix}_applyOutputEffects()
-${effectRuntime?.hasAffine && !effectRuntime.wrap ? `  if (!effectInside) ${member.prefix}_clear()
+${effectRuntime?.hasCoordinates && !effectRuntime.wrap ? `  if (!effectInside) ${member.prefix}_clear()
 ` : ''}}`,
     `function ${member.prefix}_renderCapture2D(index, x, y) {
   var mappedIndex = index
   var mappedX = x
-${samplePropertyRamps || effectRuntime?.hasAffine ? '  var mappedY = y\n' : ''}  if (${member.prefix}_adapt_mirror >= 0.5) {
+${samplePropertyRamps || effectRuntime?.hasCoordinates ? '  var mappedY = y\n' : ''}  if (${member.prefix}_adapt_mirror >= 0.5) {
     mappedIndex = ${member.pixelCountName} - 1 - index
     mappedX = 1 - x
   }
@@ -2767,18 +2838,19 @@ ${samplePropertyRamps ? `  if (__pxlblz_show_sample_repeat_scale != 1) {
     mappedY = frac(clamp(mappedY, 0, 1) * __pxlblz_show_sample_repeat_scale)${!member.hasRender2D && member.hasRender ? `
     mappedIndex = min(${member.pixelCountName} - 1, floor(mappedX * ${member.pixelCountName}))` : ''}
   }
-` : ''}${effectRuntime?.hasAffine ? `  var effectX = ${member.prefix}_fx_a * mappedX + ${member.prefix}_fx_c * mappedY + ${member.prefix}_fx_tx
-  var effectY = ${member.prefix}_fx_b * mappedX + ${member.prefix}_fx_d * mappedY + ${member.prefix}_fx_ty
+` : ''}${effectRuntime?.hasCoordinates ? `  var effectX = ${effectRuntime.hasAffine ? `${member.prefix}_fx_a * mappedX + ${member.prefix}_fx_c * mappedY + ${member.prefix}_fx_tx` : 'mappedX'}
+  var effectY = ${effectRuntime.hasAffine ? `${member.prefix}_fx_b * mappedX + ${member.prefix}_fx_d * mappedY + ${member.prefix}_fx_ty` : 'mappedY'}
+${emitMemberDistortionSampling(member, 'effectX', 'effectY')}
   var effectInside = effectX >= 0 && effectX <= 1 && effectY >= 0 && effectY <= 1
   ${effectRuntime.wrap ? 'mappedX = effectX - floor(effectX)\n  mappedY = effectY - floor(effectY)' : 'mappedX = clamp(effectX, 0, 1)\n  mappedY = clamp(effectY, 0, 1)'}
 ` : ''}  ${member.prefix}_clear()
   ${emitSelectedMemberRendererCall(member, 2, {
     index: 'mappedIndex',
     x: 'mappedX',
-    y: samplePropertyRamps || effectRuntime?.hasAffine ? 'mappedY' : 'y',
+    y: samplePropertyRamps || effectRuntime?.hasCoordinates ? 'mappedY' : 'y',
   })}
   ${member.prefix}_applyOutputEffects()
-${effectRuntime?.hasAffine && !effectRuntime.wrap ? `  if (!effectInside) ${member.prefix}_clear()
+${effectRuntime?.hasCoordinates && !effectRuntime.wrap ? `  if (!effectInside) ${member.prefix}_clear()
 ` : ''}}`,
     `function ${member.prefix}_emit() { rgb(${member.prefix}_r, ${member.prefix}_g, ${member.prefix}_b) }`,
     ]
@@ -3063,6 +3135,26 @@ function describeEffectCost(
     member.animatedEffects ? affineCounts[index] : 0
   )))
   const hasAffine = affineCounts.some((count) => count > 0)
+  const memberDistortionCosts = members.map((member) => member.effects
+    .filter((effect) => isShowDistortionEffect(effect) && (member.animatedEffects || effect.amount !== 0))
+    .reduce((cost, effect) => {
+      const candidate = SHOW_DISTORTION_CANDIDATES.find((item) => item.id === effect.kind)
+      if (!candidate) return cost
+      return {
+        count: cost.count + 1,
+        scalar: cost.scalar + candidate.operations.scalar,
+        floor: cost.floor + candidate.operations.floor,
+        trig: cost.trig + candidate.operations.trig,
+        sqrt: cost.sqrt + candidate.operations.sqrt,
+        atan2: cost.atan2 + candidate.operations.atan2,
+        cheap: cost.cheap + (candidate.qualityPolicy === 'cheap' ? 1 : 0),
+        smooth: cost.smooth + (candidate.qualityPolicy === 'smooth' ? 1 : 0),
+      }
+    }, { count: 0, scalar: 0, floor: 0, trig: 0, sqrt: 0, atan2: 0, cheap: 0, smooth: 0 }))
+  const maxDistortion = memberDistortionCosts.reduce((worst, cost) => (
+    cost.scalar > worst.scalar ? cost : worst
+  ), { count: 0, scalar: 0, floor: 0, trig: 0, sqrt: 0, atan2: 0, cheap: 0, smooth: 0 })
+  const hasDistortion = memberDistortionCosts.some((cost) => cost.count > 0)
   const hasMotion = motionTransitions.length > 0
   const adaptationAnimated = countEffectRamps(recipe.adaptationRamp?.effectRamps)
   const sequenceAnimated = Math.max(0, ...(recipe.sceneSequence?.scenes.map((scene) => (
@@ -3071,7 +3163,8 @@ function describeEffectCost(
   const hasOpacity = members.some((member) => member.effects.some((effect) => (
     effect.kind === 'opacity' && effect.opacity !== 1
   ))) || Object.values(recipe.adaptationRamp?.effectRamps ?? {}).some((parameters) => parameters.opacity !== undefined)
-  const hasWrap = hasAffine && members.some((member) => (
+  const hasCoordinates = hasAffine || hasDistortion
+  const hasWrap = hasCoordinates && members.some((member) => (
     member.effects.some((effect) => effect.kind === 'wrap')
   )) || motionTransitions.some((transition) => transition.addressPolicy === 'wrap')
   const legacyBrightnessAnimated = Boolean(
@@ -3112,7 +3205,14 @@ function describeEffectCost(
     colorScalarOpsPerEvaluatedPixel: maxColor.scalar,
     colorFloorCallsPerEvaluatedPixel: maxColor.floor,
     colorTrigCallsPerEvaluatedPixel: maxColor.trig,
-    addressPolicy: !hasAffine && !hasMotion ? 'none' : hasWrap ? 'wrap' : 'clip',
+    distortionEffectsPerEvaluatedPixel: maxDistortion.count,
+    distortionScalarOpsPerEvaluatedPixel: maxDistortion.scalar,
+    distortionFloorCallsPerEvaluatedPixel: maxDistortion.floor,
+    distortionTrigCallsPerEvaluatedPixel: maxDistortion.trig,
+    distortionSqrtCallsPerEvaluatedPixel: maxDistortion.sqrt,
+    distortionAtan2CallsPerEvaluatedPixel: maxDistortion.atan2,
+    distortionPolicies: { cheap: maxDistortion.cheap, smooth: maxDistortion.smooth },
+    addressPolicy: !hasCoordinates && !hasMotion ? 'none' : hasWrap ? 'wrap' : 'clip',
   }
 }
 

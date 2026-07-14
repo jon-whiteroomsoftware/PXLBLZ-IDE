@@ -21,6 +21,13 @@ export interface ShowCompiledCostMetadata {
       colorScalarOpsPerEvaluatedPixel: number
       colorFloorCallsPerEvaluatedPixel: number
       colorTrigCallsPerEvaluatedPixel: number
+      distortionEffectsPerEvaluatedPixel: number
+      distortionScalarOpsPerEvaluatedPixel: number
+      distortionFloorCallsPerEvaluatedPixel: number
+      distortionTrigCallsPerEvaluatedPixel: number
+      distortionSqrtCallsPerEvaluatedPixel: number
+      distortionAtan2CallsPerEvaluatedPixel: number
+      distortionPolicies: { cheap: number; smooth: number }
       addressPolicy: 'none' | 'clip' | 'wrap'
     }
   }
@@ -64,6 +71,7 @@ export interface ShowToolkitParameterDescriptor {
   unit?: string
   options?: Array<{ value: string; label: string }>
   optionsByVariant?: Record<string, Array<{ value: string; label: string }>>
+  constraintsByVariant?: Record<string, Partial<Pick<ShowToolkitParameterDescriptor, 'defaultValue' | 'min' | 'max' | 'step'>>>
   easingOptions?: ShowEasingOption[]
   compatibility?: { stageDimensions: Array<1 | 2 | 3> }
   variantIds?: string[]
@@ -81,6 +89,7 @@ export interface ShowToolkitVariantDescriptor {
   label: string
   costPolicies: ShowToolkitCostPolicy[]
   compatibility?: { stageDimensions: Array<1 | 2 | 3> }
+  qualityPolicy?: 'cheap' | 'smooth'
   presets?: ShowToolkitPresetDescriptor[]
 }
 
@@ -176,6 +185,46 @@ export const SHOW_VISUAL_TOOLKIT_REGISTRY: ShowToolkitFamilyDescriptor[] = [
       { id: 'shearX', label: 'X shear', kind: 'number', defaultValue: 0, min: -4, max: 4, step: 0.01, variantIds: ['shear'] },
       { id: 'shearY', label: 'Y shear', kind: 'number', defaultValue: 0, min: -4, max: 4, step: 0.01, variantIds: ['shear'] },
       { ...EASING, variantIds: ['translate', 'rotate', 'scale', 'shear'] },
+    ],
+  },
+  {
+    kind: 'effect',
+    id: 'distortion',
+    label: 'Distortion',
+    variants: [
+      { id: 'ripple', label: 'Ripple', costPolicies: ['single-source', 'parameter'], qualityPolicy: 'smooth', compatibility: { stageDimensions: [2] } },
+      { id: 'swirl', label: 'Swirl', costPolicies: ['single-source', 'parameter'], qualityPolicy: 'smooth', compatibility: { stageDimensions: [2] } },
+      {
+        id: 'bulge', label: 'Bulge / Pinch', costPolicies: ['single-source', 'parameter'], qualityPolicy: 'smooth', compatibility: { stageDimensions: [2] },
+        presets: [
+          { id: 'bulge', label: 'Bulge', values: { amount: 0.65 } },
+          { id: 'pinch', label: 'Pinch', values: { amount: -0.65 } },
+        ],
+      },
+      { id: 'pixelate', label: 'Pixelate', costPolicies: ['single-source', 'parameter'], qualityPolicy: 'cheap', compatibility: { stageDimensions: [2] } },
+      { id: 'kaleidoscope', label: 'Kaleidoscope', costPolicies: ['single-source', 'parameter'], qualityPolicy: 'smooth', compatibility: { stageDimensions: [2] } },
+    ],
+    parameters: [
+      {
+        id: 'amount', label: 'Amount', kind: 'number', defaultValue: 0, min: -4, max: 4, step: 0.01,
+        constraintsByVariant: {
+          ripple: { min: -0.5, max: 0.5 },
+          swirl: { min: -4, max: 4 },
+          bulge: { min: -0.95, max: 2 },
+          pixelate: { min: 0, max: 1 },
+          kaleidoscope: { min: 0, max: 1 },
+        },
+      },
+      { id: 'frequency', label: 'Frequency', kind: 'number', defaultValue: 8, min: 1, max: 32, step: 0.1, variantIds: ['ripple'] },
+      { id: 'phase', label: 'Phase', kind: 'number', defaultValue: 0, min: -8, max: 8, step: 0.01, unit: 'turn', variantIds: ['ripple'] },
+      { id: 'radius', label: 'Radius', kind: 'number', defaultValue: 0.7, min: 0.05, max: 2, step: 0.01, variantIds: ['swirl', 'bulge'] },
+      { ...CENTER_X, variantIds: ['ripple', 'swirl', 'bulge', 'kaleidoscope'] },
+      { ...CENTER_Y, variantIds: ['ripple', 'swirl', 'bulge', 'kaleidoscope'] },
+      { id: 'columns', label: 'Columns', kind: 'number', defaultValue: 12, min: 1, max: 128, step: 1, variantIds: ['pixelate'] },
+      { id: 'rows', label: 'Rows', kind: 'number', defaultValue: 12, min: 1, max: 128, step: 1, variantIds: ['pixelate'] },
+      { id: 'segments', label: 'Segments', kind: 'number', defaultValue: 6, min: 2, max: 16, step: 1, variantIds: ['kaleidoscope'] },
+      { id: 'rotation', label: 'Rotation', kind: 'number', defaultValue: 0, min: -8, max: 8, step: 0.01, unit: 'turn', variantIds: ['kaleidoscope'] },
+      EASING,
     ],
   },
   {
@@ -450,14 +499,18 @@ export function resolveShowToolkitParameters(
     (!parameter.variantIds || parameter.variantIds.includes(variantId))
     && (!parameter.when || values[parameter.when.parameterId] === parameter.when.equals)
   )).map((parameter) => {
+    const constraints = parameter.constraintsByVariant?.[variantId]
     const options = parameter.optionsByVariant?.[variantId]
-    if (!options) return parameter
+    if (!options && !constraints) return parameter
     return {
       ...parameter,
-      options,
-      defaultValue: options.some((option) => option.value === parameter.defaultValue)
-        ? parameter.defaultValue
-        : options[0]?.value ?? parameter.defaultValue,
+      ...constraints,
+      ...(options ? { options } : {}),
+      defaultValue: options
+        ? options.some((option) => option.value === parameter.defaultValue)
+          ? parameter.defaultValue
+          : options[0]?.value ?? parameter.defaultValue
+        : constraints?.defaultValue ?? parameter.defaultValue,
     }
   })
 }
@@ -488,6 +541,9 @@ export function validateShowToolkitRegistry(
       }
       for (const variantId of Object.keys(parameter.optionsByVariant ?? {})) {
         if (!variantIds.has(variantId)) errors.push(`Unknown option variant ${familyKey}:${variantId} for ${parameter.id}.`)
+      }
+      for (const variantId of Object.keys(parameter.constraintsByVariant ?? {})) {
+        if (!variantIds.has(variantId)) errors.push(`Unknown constraint variant ${familyKey}:${variantId} for ${parameter.id}.`)
       }
       if (parameter.when && !parameterIds.has(parameter.when.parameterId)) {
         errors.push(`Unknown condition parameter ${familyKey}:${parameter.when.parameterId} for ${parameter.id}.`)
@@ -538,6 +594,13 @@ export function buildShowCompiledCostMetadata(input: {
         colorScalarOpsPerEvaluatedPixel: input.effects?.colorScalarOpsPerEvaluatedPixel ?? 0,
         colorFloorCallsPerEvaluatedPixel: input.effects?.colorFloorCallsPerEvaluatedPixel ?? 0,
         colorTrigCallsPerEvaluatedPixel: input.effects?.colorTrigCallsPerEvaluatedPixel ?? 0,
+        distortionEffectsPerEvaluatedPixel: input.effects?.distortionEffectsPerEvaluatedPixel ?? 0,
+        distortionScalarOpsPerEvaluatedPixel: input.effects?.distortionScalarOpsPerEvaluatedPixel ?? 0,
+        distortionFloorCallsPerEvaluatedPixel: input.effects?.distortionFloorCallsPerEvaluatedPixel ?? 0,
+        distortionTrigCallsPerEvaluatedPixel: input.effects?.distortionTrigCallsPerEvaluatedPixel ?? 0,
+        distortionSqrtCallsPerEvaluatedPixel: input.effects?.distortionSqrtCallsPerEvaluatedPixel ?? 0,
+        distortionAtan2CallsPerEvaluatedPixel: input.effects?.distortionAtan2CallsPerEvaluatedPixel ?? 0,
+        distortionPolicies: input.effects?.distortionPolicies ?? { cheap: 0, smooth: 0 },
         addressPolicy: input.effects?.addressPolicy ?? 'none',
       },
     },

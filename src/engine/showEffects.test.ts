@@ -78,6 +78,50 @@ describe('Show clip Effects (#444)', () => {
     expect(sameShowEffectStructure(identity, identity.slice().reverse())).toBe(false)
   })
 
+  it('normalizes the selected distortion set and treats zero Amount as exact identity (#456)', () => {
+    const normalized = normalizeShowClipEffects([
+      { id: 'ripple', kind: 'ripple', amount: Number.NaN, frequency: 99, phase: 2, centerX: -1, centerY: 3 },
+      { id: 'swirl', kind: 'swirl', amount: 9, radius: 0, centerX: 0.5, centerY: 0.5 },
+      { id: 'bulge', kind: 'bulge', amount: -9, radius: 9, centerX: 0.5, centerY: 0.5 },
+      { id: 'pixels', kind: 'pixelate', amount: 0, columns: 4.4, rows: 999 },
+      { id: 'kaleido', kind: 'kaleidoscope', amount: 0, segments: 1, rotation: 9, centerX: 0.5, centerY: 0.5 },
+    ])
+
+    expect(normalized).toEqual([
+      { id: 'ripple', kind: 'ripple', amount: 0, frequency: 32, phase: 2, centerX: 0, centerY: 1 },
+      { id: 'swirl', kind: 'swirl', amount: 4, radius: 0.05, centerX: 0.5, centerY: 0.5 },
+      { id: 'bulge', kind: 'bulge', amount: -0.95, radius: 2, centerX: 0.5, centerY: 0.5 },
+      { id: 'pixels', kind: 'pixelate', amount: 0, columns: 4, rows: 128 },
+      { id: 'kaleido', kind: 'kaleidoscope', amount: 0, segments: 2, rotation: 8, centerX: 0.5, centerY: 0.5 },
+    ])
+    expect(showEffectsAreIdentity(normalized.filter((effect) => (
+      effect.kind === 'ripple' || effect.kind === 'pixelate' || effect.kind === 'kaleidoscope'
+    )))).toBe(true)
+    expect(showEffectParameterNames(normalized[0])).toEqual(['amount', 'frequency', 'phase', 'centerX', 'centerY'])
+  })
+
+  it('samples every selected distortion deterministically and stays finite at degenerate coordinates (#456)', () => {
+    expect(applyShowEffectsToSample([
+      { id: 'pixels', kind: 'pixelate', amount: 1, columns: 4, rows: 2 },
+    ], 0.3, 0.7)).toMatchObject({ x: 0.375, y: 0.75, inside: true })
+
+    const effects = [
+      { id: 'ripple', kind: 'ripple' as const, amount: 0.1, frequency: 8, phase: 0.125, centerX: 0.5, centerY: 0.5 },
+      { id: 'swirl', kind: 'swirl' as const, amount: 0.75, radius: 0.7, centerX: 0.5, centerY: 0.5 },
+      { id: 'bulge', kind: 'bulge' as const, amount: -0.95, radius: 0.7, centerX: 0.5, centerY: 0.5 },
+      { id: 'kaleido', kind: 'kaleidoscope' as const, amount: 1, segments: 6, rotation: 0.125, centerX: 0.5, centerY: 0.5 },
+    ]
+    for (const sample of [[0.5, 0.5], [0, 0], [1, 1], [0.51, 0.49]] as const) {
+      const first = applyShowEffectsToSample(effects, sample[0], sample[1])
+      expect(first).toEqual(applyShowEffectsToSample(effects, sample[0], sample[1]))
+      expect(Number.isFinite(first.x)).toBe(true)
+      expect(Number.isFinite(first.y)).toBe(true)
+    }
+    expect(applyShowEffectsToSample(effects, 0.2, 0.7)).not.toMatchObject({ x: 0.2, y: 0.7 })
+    expect(applyShowEffectsToSample(effects.map((effect) => ({ ...effect, amount: 0 })), 0.2, 0.7))
+      .toMatchObject({ x: 0.2, y: 0.7, inside: true })
+  })
+
   it('persists, edits, reorders, removes, and reloads an ordered Effect stack', () => {
     const base = createDefaultShow('effects', 'Effects', 1)
     let authored = addShowCellEffect(base, 'cell-1', { id: 'move', kind: 'translate', x: 0.25, y: 0 })
@@ -105,6 +149,11 @@ describe('Show clip Effects (#444)', () => {
           { id: 'fade', kind: 'opacity', opacity: 1 },
           { id: 'move', kind: 'translate', x: 0, y: 0 },
           { id: 'size', kind: 'scale', x: 1, y: 1 },
+          { id: 'ripple', kind: 'ripple', amount: 0, frequency: 8, phase: 0, centerX: 0.5, centerY: 0.5 },
+          { id: 'swirl', kind: 'swirl', amount: 0, radius: 0.7, centerX: 0.5, centerY: 0.5 },
+          { id: 'bulge', kind: 'bulge', amount: 0, radius: 0.7, centerX: 0.5, centerY: 0.5 },
+          { id: 'pixels', kind: 'pixelate', amount: 0, columns: 12, rows: 12 },
+          { id: 'kaleido', kind: 'kaleidoscope', amount: 0, segments: 6, rotation: 0, centerX: 0.5, centerY: 0.5 },
           { id: 'wrap', kind: 'wrap' },
         ],
       }],
@@ -280,6 +329,13 @@ describe('Show clip Effects (#444)', () => {
       'effect-color-posterize',
       'effect-color-color-map',
       'effect-affine-wrap',
+      'effect-distortion-ripple',
+      'effect-distortion-swirl',
+      'effect-distortion-bulge',
+      'effect-distortion-pinch',
+      'effect-distortion-pixelate',
+      'effect-distortion-kaleidoscope',
+      'effect-distortion-animated',
       'effect-animated',
       'effect-color-composed-animated',
     ])
@@ -289,6 +345,8 @@ describe('Show clip Effects (#444)', () => {
     }
     const animated = captureShowToolkitFixture(fixtures.find((fixture) => fixture.id === 'effect-color-composed-animated')!)
     expect(new Set(animated.frames.map((frame) => frame.checksum)).size).toBeGreaterThan(2)
+    const animatedDistortion = captureShowToolkitFixture(fixtures.find((fixture) => fixture.id === 'effect-distortion-animated')!)
+    expect(new Set(animatedDistortion.frames.map((frame) => frame.checksum)).size).toBeGreaterThan(2)
   })
 
   it('applies the common output Effects in authored order (#454)', () => {
@@ -396,5 +454,117 @@ describe('Show clip Effects (#444)', () => {
         colorFloorCallsPerEvaluatedPixel: 3,
       },
     })
+  })
+
+  it('matches composed pure and generated distortion sampling and reports its literal math (#456)', () => {
+    const effects = [
+      { id: 'ripple', kind: 'ripple' as const, amount: 0.06, frequency: 7, phase: 0.1, centerX: 0.5, centerY: 0.5 },
+      { id: 'swirl', kind: 'swirl' as const, amount: 0.35, radius: 0.8, centerX: 0.5, centerY: 0.5 },
+      { id: 'bulge', kind: 'bulge' as const, amount: -0.4, radius: 0.75, centerX: 0.5, centerY: 0.5 },
+      { id: 'pixels', kind: 'pixelate' as const, amount: 0.4, columns: 9, rows: 7 },
+      { id: 'kaleido', kind: 'kaleidoscope' as const, amount: 0.7, segments: 6, rotation: 0.08, centerX: 0.5, centerY: 0.5 },
+      { id: 'wrap', kind: 'wrap' as const },
+    ]
+    const sample: [number, number] = [0.32, 0.61]
+    const expected = applyShowEffectsToSample(effects, ...sample)
+    const artifact = compileShow({
+      clips: [{ id: 'clip', source: 'export function render2D(index, x, y) { rgb(x, y, 1) }', effects }],
+    }, {})
+    const actual = createFastReplayRuntime({
+      code: artifact.code, metadata: artifact.metadata, dimension: nativeDimension(artifact.metadata.renderFns),
+    }, { mapPoints: [{ sample }], randomSeed: 456 }).renderCurrentFrame().pixels[0]
+
+    expect(actual).toEqual([
+      expect.closeTo(expected.x, 10),
+      expect.closeTo(expected.y, 10),
+      1,
+    ])
+    expect(artifact.summary.cost.cpu).toMatchObject({
+      patternEvaluations: { formula: 'N', basePerPixel: 1 },
+      effects: {
+        distortionEffectsPerEvaluatedPixel: 5,
+        distortionScalarOpsPerEvaluatedPixel: 84,
+        distortionFloorCallsPerEvaluatedPixel: 3,
+        distortionTrigCallsPerEvaluatedPixel: 5,
+        distortionSqrtCallsPerEvaluatedPixel: 4,
+        distortionAtan2CallsPerEvaluatedPixel: 1,
+        distortionPolicies: { cheap: 1, smooth: 4 },
+        addressPolicy: 'wrap',
+      },
+    })
+  })
+
+  it('animates distortion Amounts through the shared Effect property path (#456)', () => {
+    const effects = [
+      { id: 'ripple', kind: 'ripple' as const, amount: 0.1, frequency: 6, phase: 0, centerX: 0.5, centerY: 0.5 },
+      { id: 'pixels', kind: 'pixelate' as const, amount: 1, columns: 5, rows: 7 },
+    ]
+    const artifact = compileShow({
+      clips: [{ id: 'clip', source: 'export function render2D(index, x, y) { rgb(x, y, 1) }', effects }],
+      adaptationRamp: {
+        startMs: 0, durationMs: 1000, from: {}, to: {},
+        effectRamps: {
+          ripple: { amount: { from: 0, to: 0.1, durationMs: 1000, easing: { curve: 'linear' } } },
+          pixels: { amount: { from: 0, to: 1, durationMs: 1000, easing: { curve: 'linear' } } },
+        },
+      },
+    }, {})
+    const sample: [number, number] = [0.31, 0.68]
+    const runtime = createFastReplayRuntime({
+      code: artifact.code, metadata: artifact.metadata, dimension: nativeDimension(artifact.metadata.renderFns),
+    }, { mapPoints: [{ sample }], randomSeed: 456 })
+    const expected = applyShowEffectsToSample([
+      { ...effects[0], amount: 0.05 },
+      { ...effects[1], amount: 0.5 },
+    ], ...sample)
+
+    expect(runtime.advanceTo(500, { stepMs: 50 }).pixels[0]).toEqual([
+      expect.closeTo(expected.x, 10), expect.closeTo(expected.y, 10), 1,
+    ])
+    expect(artifact.summary.cost.cpu.effects).toMatchObject({
+      animatedParametersPerFrame: 2,
+      distortionEffectsPerEvaluatedPixel: 2,
+      distortionPolicies: { cheap: 1, smooth: 1 },
+    })
+    expect(artifact.summary.cost.memory.generatedScalarGlobals).toBe(8)
+  })
+
+  it('persists the selected distortion set without admitting deferred candidates (#456)', () => {
+    const effects = [
+      { id: 'ripple', kind: 'ripple' as const, amount: 0.08, frequency: 7, phase: 0.1, centerX: 0.4, centerY: 0.6 },
+      { id: 'swirl', kind: 'swirl' as const, amount: 0.7, radius: 0.8, centerX: 0.5, centerY: 0.5 },
+      { id: 'bulge', kind: 'bulge' as const, amount: -0.65, radius: 0.7, centerX: 0.5, centerY: 0.5 },
+      { id: 'pixelate', kind: 'pixelate' as const, amount: 1, columns: 8, rows: 10 },
+      { id: 'kaleidoscope', kind: 'kaleidoscope' as const, amount: 1, segments: 6, rotation: 0.125, centerX: 0.5, centerY: 0.5 },
+    ]
+    const show = updateShowCellEffects(createDefaultShow('distortions', 'Distortions', 456), 'cell-1', effects)
+    expect(normalizeShowTransitionState(JSON.parse(JSON.stringify(show))).cells[0].effects).toEqual(effects)
+    expect(normalizeShowClipEffects([
+      { id: 'stretch', kind: 'stretch', amount: 1 } as never,
+      { id: 'glitch', kind: 'glitch', amount: 1 } as never,
+    ])).toEqual([])
+  })
+
+  it('keeps selected distortions finite on one-pixel and corner-only maps (#456)', () => {
+    const effects = [
+      { id: 'ripple', kind: 'ripple' as const, amount: 0.5, frequency: 32, phase: 8, centerX: 0.5, centerY: 0.5 },
+      { id: 'swirl', kind: 'swirl' as const, amount: 4, radius: 0.05, centerX: 0.5, centerY: 0.5 },
+      { id: 'bulge', kind: 'bulge' as const, amount: -0.95, radius: 0.05, centerX: 0.5, centerY: 0.5 },
+      { id: 'pixelate', kind: 'pixelate' as const, amount: 1, columns: 1, rows: 1 },
+      { id: 'kaleidoscope', kind: 'kaleidoscope' as const, amount: 1, segments: 16, rotation: 8, centerX: 0.5, centerY: 0.5 },
+      { id: 'wrap', kind: 'wrap' as const },
+    ]
+    const artifact = compileShow({
+      clips: [{ id: 'clip', source: 'export function render2D(index, x, y) { rgb(x, y, 1) }', effects }],
+    }, {})
+    for (const mapPoints of [
+      [{ sample: [0.5, 0.5] }],
+      [{ sample: [0, 0] }, { sample: [1, 0] }, { sample: [0, 1] }, { sample: [1, 1] }],
+    ]) {
+      const pixels = createFastReplayRuntime({
+        code: artifact.code, metadata: artifact.metadata, dimension: nativeDimension(artifact.metadata.renderFns),
+      }, { mapPoints, randomSeed: 456 }).renderCurrentFrame().pixels
+      expect(pixels.flat().every(Number.isFinite)).toBe(true)
+    }
   })
 })

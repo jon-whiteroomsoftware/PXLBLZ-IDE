@@ -62,6 +62,30 @@ export function normalizeShowClipEffects(effects: readonly ShowClipEffect[] | nu
       id, kind: 'shear' as const,
       x: clamp(effect.x, -4, 4, 0), y: clamp(effect.y, -4, 4, 0),
     }]
+    if (effect.kind === 'ripple') return [{
+      id, kind: 'ripple' as const,
+      amount: clamp(effect.amount, -0.5, 0.5, 0), frequency: clamp(effect.frequency, 1, 32, 8),
+      phase: clamp(effect.phase, -8, 8, 0), centerX: clamp(effect.centerX, 0, 1, 0.5), centerY: clamp(effect.centerY, 0, 1, 0.5),
+    }]
+    if (effect.kind === 'swirl') return [{
+      id, kind: 'swirl' as const,
+      amount: clamp(effect.amount, -4, 4, 0), radius: clamp(effect.radius, 0.05, 2, 0.7),
+      centerX: clamp(effect.centerX, 0, 1, 0.5), centerY: clamp(effect.centerY, 0, 1, 0.5),
+    }]
+    if (effect.kind === 'bulge') return [{
+      id, kind: 'bulge' as const,
+      amount: clamp(effect.amount, -0.95, 2, 0), radius: clamp(effect.radius, 0.05, 2, 0.7),
+      centerX: clamp(effect.centerX, 0, 1, 0.5), centerY: clamp(effect.centerY, 0, 1, 0.5),
+    }]
+    if (effect.kind === 'pixelate') return [{
+      id, kind: 'pixelate' as const, amount: clamp(effect.amount, 0, 1, 0),
+      columns: Math.round(clamp(effect.columns, 1, 128, 12)), rows: Math.round(clamp(effect.rows, 1, 128, 12)),
+    }]
+    if (effect.kind === 'kaleidoscope') return [{
+      id, kind: 'kaleidoscope' as const, amount: clamp(effect.amount, 0, 1, 0),
+      segments: Math.round(clamp(effect.segments, 2, 16, 6)), rotation: clamp(effect.rotation, -8, 8, 0),
+      centerX: clamp(effect.centerX, 0, 1, 0.5), centerY: clamp(effect.centerY, 0, 1, 0.5),
+    }]
     if (effect.kind === 'wrap') return [{ id, kind: 'wrap' as const }]
     return []
   })
@@ -77,6 +101,10 @@ export function showEffectParameterNames(effect: ShowClipEffect): string[] {
   if (effect.kind === 'threshold') return ['threshold', 'amount']
   if (effect.kind === 'posterize') return ['levels', 'amount']
   if (effect.kind === 'color-map') return ['amount', 'shadowR', 'shadowG', 'shadowB', 'highlightR', 'highlightG', 'highlightB']
+  if (effect.kind === 'ripple') return ['amount', 'frequency', 'phase', 'centerX', 'centerY']
+  if (effect.kind === 'swirl' || effect.kind === 'bulge') return ['amount', 'radius', 'centerX', 'centerY']
+  if (effect.kind === 'pixelate') return ['amount', 'columns', 'rows']
+  if (effect.kind === 'kaleidoscope') return ['amount', 'segments', 'rotation', 'centerX', 'centerY']
   if (effect.kind === 'wrap') return []
   return ['x', 'y']
 }
@@ -98,6 +126,7 @@ export function showEffectsAreIdentity(effects: readonly ShowClipEffect[] | unde
     || (effect.kind === 'shear' && (effect.x !== 0 || effect.y !== 0))
   ))
   const hasOpacity = normalized.some((effect) => effect.kind === 'opacity' && effect.opacity !== 1)
+  const hasDistortion = normalized.some((effect) => isShowDistortionEffect(effect) && effect.amount !== 0)
   const hasColor = normalized.some((effect) => (
     (effect.kind === 'brightness' && effect.brightness !== 1)
     || (effect.kind === 'hue' && effect.turns !== 0)
@@ -108,11 +137,15 @@ export function showEffectsAreIdentity(effects: readonly ShowClipEffect[] | unde
     || (effect.kind === 'posterize' && effect.amount !== 0)
     || (effect.kind === 'color-map' && effect.amount !== 0)
   ))
-  return !hasAffine && !hasOpacity && !hasColor
+  return !hasAffine && !hasDistortion && !hasOpacity && !hasColor
 }
 
 export function isShowColorEffect(effect: ShowClipEffect): boolean {
-  return !['translate', 'rotate', 'scale', 'shear', 'wrap'].includes(effect.kind)
+  return ['opacity', 'brightness', 'hue', 'saturation', 'contrast', 'invert', 'threshold', 'posterize', 'color-map'].includes(effect.kind)
+}
+
+export function isShowDistortionEffect(effect: ShowClipEffect): effect is Extract<ShowClipEffect, { amount: number }> {
+  return ['ripple', 'swirl', 'bulge', 'pixelate', 'kaleidoscope'].includes(effect.kind)
 }
 
 export function showEffectNumericValue(effect: ShowClipEffect, parameter: string): number {
@@ -213,6 +246,10 @@ export function applyShowEffectsToSample(
   const matrix = buildShowEffectSampleMatrix(normalized)
   let mappedX = matrix.a * x + matrix.c * y + matrix.tx
   let mappedY = matrix.b * x + matrix.d * y + matrix.ty
+  for (const effect of normalized) {
+    if (!isShowDistortionEffect(effect) || effect.amount === 0) continue
+    ;[mappedX, mappedY] = applyDistortion(effect, mappedX, mappedY)
+  }
   const inside = mappedX >= 0 && mappedX <= 1 && mappedY >= 0 && mappedY <= 1
   const wrap = normalized.some((effect) => effect.kind === 'wrap')
   if (wrap) {
@@ -229,6 +266,58 @@ export function applyShowEffectsToSample(
     inside: wrap || inside,
     addressPolicy: wrap ? 'wrap' : 'clip',
   }
+}
+
+function applyDistortion(
+  effect: Extract<ShowClipEffect, { amount: number }>,
+  x: number,
+  y: number,
+): [number, number] {
+  if (effect.kind === 'ripple') {
+    const dx = x - effect.centerX
+    const dy = y - effect.centerY
+    const radius = Math.hypot(dx, dy)
+    if (radius <= 0.000001) return [x, y]
+    const offset = effect.amount * Math.sin((radius * effect.frequency + effect.phase) * Math.PI * 2)
+    return [x + dx * offset / radius, y + dy * offset / radius]
+  }
+  if (effect.kind === 'swirl') {
+    const dx = x - effect.centerX
+    const dy = y - effect.centerY
+    const radius = Math.hypot(dx, dy)
+    const falloff = Math.max(0, 1 - radius / effect.radius)
+    const angle = effect.amount * falloff * falloff * Math.PI * 2
+    const cosine = Math.cos(angle)
+    const sine = Math.sin(angle)
+    return [
+      effect.centerX + dx * cosine - dy * sine,
+      effect.centerY + dx * sine + dy * cosine,
+    ]
+  }
+  if (effect.kind === 'bulge') {
+    const dx = x - effect.centerX
+    const dy = y - effect.centerY
+    const radius = Math.hypot(dx, dy)
+    const falloff = Math.max(0, 1 - radius / effect.radius)
+    const scale = Math.max(0.05, 1 + effect.amount * falloff * falloff)
+    return [effect.centerX + dx / scale, effect.centerY + dy / scale]
+  }
+  if (effect.kind === 'pixelate') {
+    const targetX = (Math.min(effect.columns - 1, Math.floor(clamp01(x) * effect.columns)) + 0.5) / effect.columns
+    const targetY = (Math.min(effect.rows - 1, Math.floor(clamp01(y) * effect.rows)) + 0.5) / effect.rows
+    return [x + (targetX - x) * effect.amount, y + (targetY - y) * effect.amount]
+  }
+  if (effect.kind === 'kaleidoscope') {
+    const dx = x - effect.centerX
+    const dy = y - effect.centerY
+    const radius = Math.hypot(dx, dy)
+    const sectorTurn = positiveFraction((Math.atan2(dy, dx) / (Math.PI * 2) + effect.rotation) * effect.segments)
+    const foldedAngle = Math.abs(sectorTurn - 0.5) / effect.segments * Math.PI * 2
+    const targetX = effect.centerX + radius * Math.cos(foldedAngle)
+    const targetY = effect.centerY + radius * Math.sin(foldedAngle)
+    return [x + (targetX - x) * effect.amount, y + (targetY - y) * effect.amount]
+  }
+  return [x, y]
 }
 
 function effectMatrix(effect: ShowClipEffect): ShowAffineMatrix | null {
@@ -282,4 +371,8 @@ function clamp(value: number, min: number, max: number, fallback: number): numbe
 
 function clamp01(value: number): number {
   return Math.max(0, Math.min(1, value))
+}
+
+function positiveFraction(value: number): number {
+  return value - Math.floor(value)
 }

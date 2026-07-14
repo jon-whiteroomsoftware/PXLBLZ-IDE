@@ -1280,6 +1280,30 @@ Every neutral static output Effect is eliminated with no generated-code change.
 Non-neutral operations clamp only where their definition requires it, and
 preview uses the same formulas and authored order as generated Pixelblaze code.
 
+The provisional distortion catalogue contains Ripple, Swirl, Bulge / Pinch,
+Pixelate, and Kaleidoscope. Each operation remaps the normalized source
+coordinate and then evaluates the Pattern once. Amount `0` is exact identity,
+so a neutral static distortion emits no runtime and every Amount can use the
+shared Effect Property animation path.
+
+- Ripple displaces the coordinate radially with a sine wave over Radius,
+  Frequency, and Phase.
+- Swirl rotates the coordinate with a squared falloff inside Radius.
+- Bulge / Pinch divides the centered coordinate by a bounded radial scale.
+  Positive Amount is Bulge and negative Amount is Pinch; the minimum scale is
+  `0.05`, so the center remains finite.
+- Pixelate blends toward the center of a bounded Columns by Rows coordinate
+  cell. Columns and Rows normalize to integers from `1..128`.
+- Kaleidoscope folds the polar angle into `2..16` mirrored Segments, applies
+  Rotation, and blends toward the folded coordinate.
+
+The registry labels Pixelate **Cheap**. Ripple, Swirl, Bulge / Pinch, and
+Kaleidoscope are **Smooth** because they use radial or polar math. Stretch does
+not enter the production registry because Scale and Shear already cover it.
+Glitch remains outside the persisted schema and registry pending a stronger,
+animation-stable visual policy. The candidate and compiler measurements live in
+`docs/plans/issue-456-distortion-review.md` until human and hardware gates close.
+
 Affine order describes content motion. The compiler composes forward content
 matrices in list order around normalized center `(0.5, 0.5)`, then inverts the
 result because the renderer maps each output sample back into the source
@@ -1289,11 +1313,12 @@ per frame. This produces the literal runtime order:
 1. Stage Map sample and zone-local normalization;
 2. Show-wide sample remapping;
 3. mirror adaptation;
-4. the inverse composed clip Effect matrix;
-5. post-transform Clip or Wrap addressing;
-6. one member renderer call;
-7. legacy brightness and ordered output Effects; and
-8. clip-border masking toward the black Show background.
+4. the inverse composed affine Effect matrix;
+5. ordered distortion coordinate remaps;
+6. post-transform Clip or Wrap addressing;
+7. one member renderer call;
+8. legacy brightness and ordered output Effects; and
+9. clip-border masking toward the black Show background.
 
 Clip addressing clamps the source coordinate for a deterministic renderer call,
 then masks samples outside `[0, 1]` to black. Wrap instead uses
@@ -1306,11 +1331,13 @@ The compiled cost contract reports `N` Pattern evaluations for the single-source
 path plus independent Effect facts: affine operations and animated parameters
 updated per frame, eight scalar affine operations per evaluated pixel, active
 output-Effect count, color scalar operations, floor calls, trigonometric calls,
-three Opacity multiplies per evaluated pixel when active, generated scalar
-globals, and Clip versus Wrap addressing. Static Hue uses two trigonometric
-calls per evaluated pixel in the current generated implementation; the cost
-report exposes that expense rather than hiding it. These facts remain separate
-from Transition renderer cost such as `2N` Crossfade.
+distortion count, scalar operations, floor calls, trigonometric calls, square
+roots, `atan2` calls, Cheap versus Smooth counts, three Opacity multiplies per
+evaluated pixel when active, generated scalar globals, and Clip versus Wrap
+addressing. Static Hue uses two trigonometric calls per evaluated pixel in the
+current generated implementation; the cost report exposes that expense rather
+than hiding it. Distortion costs likewise remain separate from Transition
+renderer cost such as `2N` Crossfade.
 
 ### Show sample remapping
 

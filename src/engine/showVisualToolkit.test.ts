@@ -171,6 +171,26 @@ describe('Show visual-toolkit contract', () => {
     expect(resolveShowToolkitParameters('effect', 'output', 'color-map', {}).map((parameter) => parameter.id))
       .toEqual(['amount', 'shadowR', 'shadowG', 'shadowB', 'highlightR', 'highlightG', 'highlightB', 'easing'])
 
+    const distortion = getShowToolkitFamily('effect', 'distortion')
+    expect(distortion?.variants.map((variant) => variant.id)).toEqual([
+      'ripple', 'swirl', 'bulge', 'pixelate', 'kaleidoscope',
+    ])
+    expect(distortion?.variants).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: 'bulge', presets: expect.arrayContaining([
+        { id: 'bulge', label: 'Bulge', values: { amount: 0.65 } },
+        { id: 'pinch', label: 'Pinch', values: { amount: -0.65 } },
+      ]) }),
+      expect.objectContaining({ id: 'pixelate', qualityPolicy: 'cheap' }),
+      expect.objectContaining({ id: 'kaleidoscope', qualityPolicy: 'smooth' }),
+    ]))
+    expect(resolveShowToolkitParameters('effect', 'distortion', 'pixelate', {}))
+      .toEqual(expect.arrayContaining([
+        expect.objectContaining({ id: 'amount', defaultValue: 0, min: 0, max: 1 }),
+        expect.objectContaining({ id: 'columns', defaultValue: 12, min: 1, max: 128 }),
+        expect.objectContaining({ id: 'rows', defaultValue: 12, min: 1, max: 128 }),
+      ]))
+    expect(distortion?.variants.some((variant) => variant.id === 'stretch' || variant.id === 'glitch')).toBe(false)
+
     const easingDescriptor = resolveShowToolkitParameters('transition', 'blend', 'crossfade', {})
       .find((parameter) => parameter.id === 'easing')
     expect(easingDescriptor?.easingOptions?.find((option) => option.id === 'css-ease')).toMatchObject({

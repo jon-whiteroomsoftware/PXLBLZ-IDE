@@ -36,6 +36,13 @@ export interface ShowToolkitFixtureCapture {
   }>
 }
 
+export interface ShowDistortionArtifactBenchmark {
+  id: string
+  artifactBytes: number
+  addedBytes: number
+  cost: ReturnType<typeof compileShow>['summary']['cost']['cpu']['effects']
+}
+
 const PROGRESS_SAMPLES = [0, 0.25, 0.5, 0.75, 1]
 const OUTGOING_SOURCE = 'export function render2D(index, x, y) { rgb(0, x, y) }'
 const INCOMING_SOURCE = 'export function render2D(index, x, y) { rgb(1 - x, 0, 1 - y) }'
@@ -473,6 +480,14 @@ export function createShowEffectToolkitFixtureRecipes(): ShowToolkitFixtureRecip
     { id: 'slant', kind: 'shear', x: 0.2, y: 0 },
     { id: 'wrap', kind: 'wrap' },
   ]
+  const distortionEffects: Array<[string, string, ShowClipEffect]> = [
+    ['ripple', 'ripple', { id: 'ripple', kind: 'ripple', amount: 0.08, frequency: 7, phase: 0.125, centerX: 0.5, centerY: 0.5 }],
+    ['swirl', 'swirl', { id: 'swirl', kind: 'swirl', amount: 0.75, radius: 0.7, centerX: 0.5, centerY: 0.5 }],
+    ['bulge', 'bulge', { id: 'bulge', kind: 'bulge', amount: 0.65, radius: 0.7, centerX: 0.5, centerY: 0.5 }],
+    ['pinch', 'bulge', { id: 'bulge', kind: 'bulge', amount: -0.65, radius: 0.7, centerX: 0.5, centerY: 0.5 }],
+    ['pixelate', 'pixelate', { id: 'pixelate', kind: 'pixelate', amount: 1, columns: 8, rows: 8 }],
+    ['kaleidoscope', 'kaleidoscope', { id: 'kaleidoscope', kind: 'kaleidoscope', amount: 1, segments: 6, rotation: 0.125, centerX: 0.5, centerY: 0.5 }],
+  ]
   const animatedTarget: ShowClipEffect[] = [
     { id: 'move', kind: 'translate', x: 0.4, y: 0 },
     { id: 'fade', kind: 'opacity', opacity: 0.4 },
@@ -501,6 +516,37 @@ export function createShowEffectToolkitFixtureRecipes(): ShowToolkitFixtureRecip
       variantId: 'wrap',
       recipe: { clips: [{ id: 'outgoing', source: OUTGOING_SOURCE, effects: affineWrap }] },
       persistedRecord: persistedEffectRecord('effect-affine-wrap', affineWrap),
+    },
+    ...distortionEffects.map(([name, variantId, effect]): ShowToolkitFixtureRecipe => ({
+      ...shared,
+      id: `effect-distortion-${name}`,
+      familyId: 'distortion',
+      variantId,
+      recipe: { clips: [{ id: 'outgoing', source: OUTGOING_SOURCE, effects: [effect] }] },
+      persistedRecord: persistedEffectRecord(`effect-distortion-${name}`, [effect]),
+    })),
+    {
+      ...shared,
+      id: 'effect-distortion-animated',
+      familyId: 'distortion',
+      variantId: 'ripple',
+      recipe: {
+        clips: [{
+          id: 'outgoing', source: OUTGOING_SOURCE,
+          effects: [
+            { id: 'ripple', kind: 'ripple', amount: 0.1, frequency: 8, phase: 0.125, centerX: 0.5, centerY: 0.5 },
+            { id: 'pixelate', kind: 'pixelate', amount: 1, columns: 7, rows: 7 },
+          ],
+        }],
+        adaptationRamp: {
+          startMs: 1000, durationMs: 1000, from: {}, to: {},
+          effectRamps: {
+            ripple: { amount: { from: 0, to: 0.1, durationMs: 1000, easing: { curve: 'sine', direction: 'in-out' } } },
+            pixelate: { amount: { from: 0, to: 1, durationMs: 1000, easing: { curve: 'sine', direction: 'in-out' } } },
+          },
+        },
+      },
+      persistedRecord: persistedAnimatedDistortionEffectRecord('effect-distortion-animated'),
     },
     {
       ...shared,
@@ -548,6 +594,21 @@ export function createShowEffectToolkitFixtureRecipes(): ShowToolkitFixtureRecip
   ]
 }
 
+export function benchmarkSelectedShowDistortionArtifacts(): ShowDistortionArtifactBenchmark[] {
+  const baselineBytes = compileShow({ clips: [{ id: 'outgoing', source: OUTGOING_SOURCE }] }, {}).summary.cost.code.artifactBytes
+  return createShowEffectToolkitFixtureRecipes()
+    .filter((fixture) => fixture.familyId === 'distortion' && fixture.id !== 'effect-distortion-animated')
+    .map((fixture) => {
+      const artifact = compileShow(fixture.recipe, {})
+      return {
+        id: fixture.id.replace('effect-distortion-', ''),
+        artifactBytes: artifact.summary.cost.code.artifactBytes,
+        addedBytes: artifact.summary.cost.code.artifactBytes - baselineBytes,
+        cost: artifact.summary.cost.cpu.effects,
+      }
+    })
+}
+
 function persistedAnimatedColorEffectRecord(id: string): ShowRecord {
   let record = createDefaultShow(`fixture-${id}`, id, 454)
   record = updateShowCellPattern(record, 'cell-2', {
@@ -571,6 +632,31 @@ function persistedAnimatedColorEffectRecord(id: string): ShowRecord {
     },
   })
   return { ...record, updatedAt: 454 }
+}
+
+function persistedAnimatedDistortionEffectRecord(id: string): ShowRecord {
+  const effects: ShowClipEffect[] = [
+    { id: 'ripple', kind: 'ripple', amount: 0.1, frequency: 8, phase: 0.125, centerX: 0.5, centerY: 0.5 },
+    { id: 'pixelate', kind: 'pixelate', amount: 1, columns: 7, rows: 7 },
+  ]
+  let record = createDefaultShow(`fixture-${id}`, id, 456)
+  record = updateShowCellPattern(record, 'cell-2', {
+    pattern: record.cells[0].pattern,
+    patternName: record.cells[0].patternName,
+  })
+  record = updateShowCellEffects(record, 'cell-1', effects.map((effect) => (
+    'amount' in effect ? { ...effect, amount: 0 } : effect
+  )))
+  record = updateShowCellEffects(record, 'cell-2', effects)
+  record = updateShowBoundaryTransition(record, 'transition-scene-1', {
+    propertyTransitions: {
+      effects: {
+        ripple: { amount: { fromByCellId: { 'cell-2': 0 }, durationMs: 1000, easing: { curve: 'sine', direction: 'in-out' } } },
+        pixelate: { amount: { fromByCellId: { 'cell-2': 0 }, durationMs: 1000, easing: { curve: 'sine', direction: 'in-out' } } },
+      },
+    },
+  })
+  return { ...record, updatedAt: 456 }
 }
 
 function persistedEffectRecord(id: string, effects: ShowClipEffect[]): ShowRecord {
