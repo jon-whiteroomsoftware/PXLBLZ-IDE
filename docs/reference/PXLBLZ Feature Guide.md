@@ -122,10 +122,10 @@ remaining width as a focused reading surface. The routes are deep-linkable:
 `/docs/<id>` selects a checked-in guide and `/reference/<library>` selects a
 Pixelblaze built-in or stock Library reference.
 
-The buttons also act as return toggles. Open Docs or API while authoring, switch
-between them as needed, then press the active button to return to the exact
-Studio route that opened the reference. Browser Back and Forward continue to
-work normally.
+Open Docs or API while authoring and switch between them as needed. **Back** in
+the global header returns to the exact Gallery, Pattern, or Studio route that
+opened the reference; pressing the active Docs or API button is a shortcut for
+the same action. Browser Back and Forward continue to work normally.
 
 The public API Reference shows Pixelblaze built-ins and PXLBLZ's stock
 Libraries. Entering it from Studio appends **My libraries**, generated from the

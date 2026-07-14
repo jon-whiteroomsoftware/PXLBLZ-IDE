@@ -1,4 +1,5 @@
-import { BookOpen, Braces } from 'lucide-react'
+import { ArrowLeft, BookOpen, Braces } from 'lucide-react'
+import type { Route } from '@/engine/routes'
 import { useReferenceNavigationStore } from '@/store/referenceNavigationStore'
 import { useRouterStore } from '@/store/routerStore'
 
@@ -33,23 +34,46 @@ function ReferenceButton({
   )
 }
 
+function returnDestinationLabel(route: Route | null): string {
+  if (!route) return 'Gallery'
+  if (route.kind === 'studio' || route.kind === 'studio-welcome') return 'Studio'
+  if (route.kind === 'pattern-detail') return 'Pattern'
+  return 'Gallery'
+}
+
 export function ReferenceButtons() {
   const routeKind = useRouterStore((state) => state.route.kind)
+  const returnRoute = useReferenceNavigationStore((state) => state.returnRoute)
+  const returnToOrigin = useReferenceNavigationStore((state) => state.returnToOrigin)
   const toggleDocs = useReferenceNavigationStore((state) => state.toggleDocs)
   const toggleApi = useReferenceNavigationStore((state) => state.toggleApi)
+  const isReferenceRoute = routeKind === 'docs' || routeKind === 'api-reference'
+  const backLabel = `Back to ${returnDestinationLabel(returnRoute)}`
 
   return (
     <div className="flex items-center gap-2">
+      {isReferenceRoute && (
+        <button
+          type="button"
+          aria-label={backLabel}
+          title={backLabel}
+          onClick={returnToOrigin}
+          className="inline-flex h-6 items-center gap-1.5 rounded border border-zinc-700 bg-zinc-900 px-2 font-mono text-xs text-zinc-300 transition-colors select-none hover:border-zinc-500 hover:text-zinc-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-live/60"
+        >
+          <ArrowLeft size={14} aria-hidden className="shrink-0 text-current" />
+          <span>Back</span>
+        </button>
+      )}
       <ReferenceButton
         label="Docs"
         active={routeKind === 'docs'}
-        icon={<BookOpen size={14} aria-hidden className="shrink-0 text-zinc-400" />}
+        icon={<BookOpen size={14} aria-hidden className="shrink-0 text-current" />}
         onClick={toggleDocs}
       />
       <ReferenceButton
         label="API"
         active={routeKind === 'api-reference'}
-        icon={<Braces size={14} aria-hidden className="shrink-0 text-zinc-400" />}
+        icon={<Braces size={14} aria-hidden className="shrink-0 text-current" />}
         onClick={toggleApi}
       />
     </div>

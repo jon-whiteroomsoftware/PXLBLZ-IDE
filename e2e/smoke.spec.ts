@@ -95,13 +95,35 @@ test('About and API reference are public deep-linkable workspaces', async ({ pag
   expect(runtimeErrors).toEqual([])
 })
 
+test('API entries use two columns when the reference reader has room', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto('reference/Anim')
+
+  const first = await page.getByText('Anim.easeIn2(t)', { exact: true }).boundingBox()
+  const second = await page.getByText('Anim.easeOut2(t)', { exact: true }).boundingBox()
+
+  expect(first).not.toBeNull()
+  expect(second).not.toBeNull()
+  expect(Math.abs(first!.y - second!.y)).toBeLessThan(4)
+  expect(second!.x).toBeGreaterThan(first!.x + first!.width)
+})
+
 test('Docs and API header buttons preserve one public return origin', async ({ page }) => {
   await page.goto('gallery')
   await page.getByRole('button', { name: 'Docs' }).click()
   await expect(page).toHaveURL(/\/docs$/)
+
+  const docsButton = page.getByRole('button', { name: 'Docs' })
+  await expect(docsButton).toHaveAttribute('aria-pressed', 'true')
+  const [docsColor, docsIconColor] = await Promise.all([
+    docsButton.evaluate((element) => getComputedStyle(element).color),
+    docsButton.locator('svg').evaluate((element) => getComputedStyle(element).color),
+  ])
+  expect(docsIconColor).toBe(docsColor)
+
   await page.getByRole('button', { name: 'API' }).click()
   await expect(page).toHaveURL(/\/reference$/)
-  await page.getByRole('button', { name: 'API' }).click()
+  await page.getByRole('button', { name: 'Back to Gallery' }).click()
   await expect(page).toHaveURL(/\/gallery$/)
 })
 

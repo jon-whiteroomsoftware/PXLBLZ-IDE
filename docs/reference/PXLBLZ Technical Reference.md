@@ -1174,9 +1174,10 @@ catalogued and fall back to repository URLs otherwise.
 The public `ApiReferenceWorkspace` at `/reference/<library>` uses a pure catalog
 model built from the Pixelblaze built-in cheatsheet and parsed Library `//`
 comments. Its public catalog contains built-ins and stock Libraries. The
-reference-navigation store records a Studio origin when the header toggle opens
-the surface; that context appends already-loaded cloud Libraries and lets the
-active Docs or API button return to the exact origin. API entries never render
+reference-navigation store records a Gallery, Pattern, or Studio origin when a
+header button opens the surface; that context appends already-loaded cloud
+Libraries and returns to the origin through the explicit Back control or active
+Docs/API button. API entries use a two-column grid when space permits and never render
 Library source. Stock entries may link to repository source and cloud entries
 link back to `/studio/libraries/<id>` for editing.
 

@@ -669,7 +669,7 @@ describe('routing (#308)', () => {
     )
   })
 
-  it('uses Docs and API as direct reference toggles', async () => {
+  it('uses Docs and API as direct reference workspaces with an explicit return', async () => {
     const user = userEvent.setup()
     window.history.replaceState(null, '', '/gallery')
     render(<App />)
@@ -684,7 +684,7 @@ describe('routing (#308)', () => {
     expect(window.location.pathname).toBe('/reference')
     expect(screen.getByTestId('api-reference-workspace')).toBeInTheDocument()
 
-    await user.click(within(topBar).getByRole('button', { name: 'API' }))
+    await user.click(within(topBar).getByRole('button', { name: 'Back to Gallery' }))
     expect(window.location.pathname).toBe('/gallery')
     expect(screen.getByTestId('gallery-page')).toBeInTheDocument()
   })

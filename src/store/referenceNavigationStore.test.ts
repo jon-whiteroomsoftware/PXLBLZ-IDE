@@ -41,6 +41,19 @@ describe('reference navigation', () => {
     expect(useReferenceNavigationStore.getState()).toMatchObject(referenceNavigationInitialState)
   })
 
+  it('returns explicitly to the captured origin from either reference workspace', () => {
+    useReferenceNavigationStore.getState().toggleDocs()
+    useReferenceNavigationStore.getState().toggleApi()
+
+    useReferenceNavigationStore.getState().returnToOrigin()
+
+    expect(useRouterStore.getState().route).toEqual({
+      kind: 'studio',
+      entity: { kind: 'patterns', id: 'p-1' },
+    })
+    expect(useReferenceNavigationStore.getState()).toMatchObject(referenceNavigationInitialState)
+  })
+
   it('can be reset with the shared initial state', () => {
     useRouterStore.setState(routerInitialState)
     expect(useReferenceNavigationStore.getState()).toMatchObject(referenceNavigationInitialState)

@@ -63,9 +63,9 @@ export function ApiReferenceReader({ document }: { document: ApiReferenceDocumen
                 <h2 className="mb-2 font-mono text-xs font-semibold uppercase tracking-wide text-zinc-500">
                   {section.title}
                 </h2>
-                <div className="divide-y divide-zinc-900/90 border-y border-zinc-900/90">
+                <div className="grid grid-cols-1 border-t border-zinc-900/90 lg:grid-cols-2 lg:gap-x-8">
                   {section.entries.map((entry, index) => (
-                    <div key={`${entry.signature}-${index}`} className="py-2.5">
+                    <div key={`${entry.signature}-${index}`} className="border-b border-zinc-900/90 py-2.5">
                       <code className="font-mono text-xs leading-5 text-[#9CDCFE]">{entry.signature}</code>
                       {entry.description && (
                         <p className="mt-0.5 text-xs leading-5 text-zinc-500">{entry.description}</p>
