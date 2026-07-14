@@ -129,6 +129,15 @@ describe('Show visual-toolkit contract', () => {
       expect.objectContaining({ id: 'direction', defaultValue: 0, compatibility: { stageDimensions: [2] } }),
       expect.objectContaining({ id: 'edgePolicy', defaultValue: 'hard' }),
     ]))
+    expect(wipe?.variants.map((variant) => variant.id)).toEqual([
+      'linear', 'split', 'barn-doors', 'blinds', 'clock', 'checker', 'grid',
+    ])
+    expect(resolveShowToolkitParameters('transition', 'wipe', 'split', {}).map((parameter) => parameter.id))
+      .toEqual(['durationMs', 'easing', 'wipeMode', 'orientation', 'edgePolicy', 'feather'])
+    expect(resolveShowToolkitParameters('transition', 'wipe', 'clock', {}).map((parameter) => parameter.id))
+      .toEqual(['durationMs', 'easing', 'centerX', 'centerY', 'phase', 'clockwise', 'edgePolicy', 'feather'])
+    expect(resolveShowToolkitParameters('transition', 'wipe', 'checker', {}).map((parameter) => parameter.id))
+      .toEqual(['durationMs', 'easing', 'count', 'edgePolicy', 'feather'])
 
     const dissolve = getShowToolkitFamily('transition', 'dissolve')
     expect(dissolve?.variants).toEqual([
@@ -227,6 +236,14 @@ describe('Show visual-toolkit contract', () => {
       'wipe-direction-north-east',
       'wipe-arbitrary-dither',
       'wipe-arbitrary-blend',
+      'wipe-split-center-out',
+      'wipe-split-center-in',
+      'wipe-barn-doors',
+      'wipe-blinds-horizontal',
+      'wipe-blinds-vertical',
+      'wipe-clock',
+      'wipe-checker',
+      'wipe-grid',
       'dissolve-pixel',
       'dissolve-pixel-seeded',
       'dissolve-block-8',

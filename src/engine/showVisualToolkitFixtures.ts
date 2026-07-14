@@ -152,6 +152,29 @@ export function createShowToolkitFixtureRecipes(): ShowToolkitFixtureRecipe[] {
       },
       persistedRecord: directionalWipeRecord(`wipe-arbitrary-${name}`, 0.173, 0.14, edgePolicy),
     })),
+    ...([
+      ['split-center-out', { wipeVariant: 'split', wipeMode: 'center-out', orientation: 'vertical' }],
+      ['split-center-in', { wipeVariant: 'split', wipeMode: 'center-in', orientation: 'horizontal' }],
+      ['barn-doors', { wipeVariant: 'barn-doors', wipeMode: 'center-out', centerX: 0.4, centerY: 0.6 }],
+      ['blinds-horizontal', { wipeVariant: 'blinds', orientation: 'horizontal', count: 6, phase: 0.125 }],
+      ['blinds-vertical', { wipeVariant: 'blinds', orientation: 'vertical', count: 8, phase: 0 }],
+      ['clock', { wipeVariant: 'clock', centerX: 0.5, centerY: 0.5, phase: 0.125, clockwise: true }],
+      ['checker', { wipeVariant: 'checker', count: 8 }],
+      ['grid', { wipeVariant: 'grid', count: 6 }],
+    ] as const).map(([name, settings]): ShowToolkitFixtureRecipe => ({
+      ...shared,
+      id: `wipe-${name}`,
+      familyId: 'wipe',
+      variantId: settings.wipeVariant,
+      recipe: {
+        clips: clips(),
+        routeTransition: {
+          kind: 'wipe', startMs: 1000, durationMs: 1000,
+          feather: 0.08, edgePolicy: 'dither', ...settings,
+        },
+      },
+      persistedRecord: spatialWipeRecord(`wipe-${name}`, settings),
+    })),
     {
       ...shared,
       id: 'dissolve-pixel',
@@ -290,6 +313,18 @@ function directionalWipeRecord(
 ): ShowRecord {
   return {
     ...persistedRecord(id, { kind: 'wipe', durationMs: 1000, direction, feather, edgePolicy }),
+    stageMapId: 'fixture-stage-2d',
+  }
+}
+
+function spatialWipeRecord(
+  id: string,
+  settings: Partial<Omit<ShowBoundaryTransition, 'id' | 'afterSceneId' | 'kind' | 'durationMs'>>,
+): ShowRecord {
+  return {
+    ...persistedRecord(id, {
+      kind: 'wipe', durationMs: 1000, feather: 0.08, edgePolicy: 'dither', ...settings,
+    }),
     stageMapId: 'fixture-stage-2d',
   }
 }

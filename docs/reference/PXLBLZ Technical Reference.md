@@ -1035,6 +1035,29 @@ policy means stable dither. A saved direction requires a 2D Stage Map; Show
 lowering reports that requirement directly instead of silently changing the
 angle on a 1D installation.
 
+New Wipe records may select one catalogue variant while retaining the same
+persisted `wipe` Transition kind. Linear uses the directional projection above.
+Split maps distance from the selected horizontal or vertical center line to
+`0..1`; Center out uses that distance directly and Center in reverses it. Barn
+Doors uses the maximum normalized X/Y distance from an editable center, which
+opens or closes a rectangular aperture.
+
+Blinds applies `frac(axis * count + phase)` to horizontal or vertical bands.
+Clock maps `atan2(y-centerY, x-centerX)` into one turn, then applies phase and
+clockwise/counter-clockwise direction. Checker alternates cell parity and local
+cell progress. Grid uses the maximum local distance from each cell center, so
+all cells expand together. Count is an integer from `1..32`. Variant
+normalization removes parameters that have no meaning for the selected mask;
+the UI-neutral registry exposes Direction only for Linear, Mode only for Split
+and Barn Doors, Orientation only for Split and Blinds, Center only for Barn
+Doors and Clock, and Count only for Blinds, Checker, and Grid.
+
+Every catalogue mask produces the same normalized position scalar consumed by
+the existing Wipe edge evaluator. Pure preview helpers and generated
+Pixelblaze expressions implement the same equations. Non-linear variants
+require a 2D Stage Map. Deterministic fixtures cover both Split modes, Barn
+Doors, both Blinds orientations, Clock, Checker, and Grid.
+
 The shared edge contract has Hard, Stable dither, and Blend policies. Hard and
 dither select exactly one Pattern for each output pixel and report `N`. Blend
 still selects one Pattern outside the projected feather band, evaluates both

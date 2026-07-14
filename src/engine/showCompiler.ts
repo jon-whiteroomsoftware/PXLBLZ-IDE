@@ -17,10 +17,13 @@ import type {
   ShowSpatialShape,
   ShowTransitionEasing,
   ShowTransitionEdgePolicy,
+  ShowWipeMode,
+  ShowWipeOrientation,
+  ShowWipeVariant,
 } from './personalContentRecords'
 import { normalizeShowTransitionColor, showTransitionColorToRgb } from './showFadeThroughColor'
 import { normalizeShowTransitionEdgePolicy } from './showTransitionEdge'
-import { showWipeProjectionCoefficients } from './showWipe'
+import { showWipeMaskPositionExpression } from './showWipe'
 import { normalizeShowDissolveBlockSize, normalizeShowDissolveSeed } from './showDissolve'
 import { normalizeShowRevealMode, showShapeRevealMaxDistance } from './showShapeReveal'
 import { normalizeShowMotionTransition, showMotionTransitionVector } from './showMotionTransition'
@@ -110,6 +113,12 @@ export interface ShowRouteTransitionRecipe {
   easing?: ShowTransitionEasing
   color?: string
   direction?: number
+  wipeVariant?: ShowWipeVariant
+  wipeMode?: ShowWipeMode
+  orientation?: ShowWipeOrientation
+  count?: number
+  phase?: number
+  clockwise?: boolean
   edgePolicy?: ShowTransitionEdgePolicy
   dissolveVariant?: ShowDissolveVariant
   seed?: number
@@ -138,6 +147,12 @@ export interface ShowSceneSequenceTransitionRecipe {
   durationMs: number
   color?: string
   direction?: number
+  wipeVariant?: ShowWipeVariant
+  wipeMode?: ShowWipeMode
+  orientation?: ShowWipeOrientation
+  count?: number
+  phase?: number
+  clockwise?: boolean
   edgePolicy?: ShowTransitionEdgePolicy
   dissolveVariant?: ShowDissolveVariant
   seed?: number
@@ -397,7 +412,8 @@ export function compileShow(
     ? expandedRecipe.routeTransition
     : null
   const directionalWipeTransition = expandedRecipe.routeTransition?.kind === 'wipe'
-    && expandedRecipe.routeTransition.direction !== undefined
+    && (expandedRecipe.routeTransition.direction !== undefined
+      || (expandedRecipe.routeTransition.wipeVariant !== undefined && expandedRecipe.routeTransition.wipeVariant !== 'linear'))
   const motionTransition = expandedRecipe.routeTransition?.kind === 'motion'
     ? expandedRecipe.routeTransition
     : null
@@ -408,7 +424,8 @@ export function compileShow(
   const sequenceHasCrossfade = renderedSequenceTransitions.some((transition) => transition.kind === 'crossfade')
   const sequenceHasPortal = renderedSequenceTransitions.some((transition) => transition.kind === 'portal')
   const sequenceHasDirectionalWipe = renderedSequenceTransitions.some((transition) => (
-    transition.kind === 'wipe' && transition.direction !== undefined
+    transition.kind === 'wipe' && (transition.direction !== undefined
+      || (transition.wipeVariant !== undefined && transition.wipeVariant !== 'linear'))
   ))
   const sequenceHasMotion = renderedSequenceTransitions.some((transition) => transition.kind === 'motion')
   const motionBlend = Boolean(
@@ -1299,12 +1316,12 @@ function emitDissolvePickExpression(
 function emitWipeTransitionRenderBlock(
   from: CompiledMember,
   to: CompiledMember,
-  transition: Pick<ShowRouteTransitionRecipe, 'direction' | 'edgePolicy' | 'feather'>,
+  transition: Pick<ShowRouteTransitionRecipe, 'direction' | 'wipeVariant' | 'wipeMode' | 'orientation' | 'count' | 'centerX' | 'centerY' | 'phase' | 'clockwise' | 'edgePolicy' | 'feather'>,
   outputDimension: ShowOutputDimension,
 ): string {
   const feather = clampNumber(transition.feather ?? 0, 0, 1)
   const edgePolicy = normalizeShowTransitionEdgePolicy(transition.edgePolicy, feather)
-  const position = showWipePositionExpression(transition.direction, outputDimension)
+  const position = showWipePositionExpression(transition, outputDimension)
   const fromRender = memberRenderCapture(from, outputDimension)
   const toRender = memberRenderCapture(to, outputDimension)
   if (edgePolicy === 'hard' || feather === 0) {
@@ -1446,10 +1463,11 @@ rgb(
 )`
 }
 
-function showWipePositionExpression(direction: number | undefined, outputDimension: ShowOutputDimension): string {
-  if (direction === undefined || outputDimension !== 2) return 'index / pixelCount'
-  const projection = showWipeProjectionCoefficients(direction)
-  return `((x * ${projection.x} + y * ${projection.y}) - ${projection.minimum}) / ${projection.span}`
+function showWipePositionExpression(
+  transition: Pick<ShowRouteTransitionRecipe, 'direction' | 'wipeVariant' | 'wipeMode' | 'orientation' | 'count' | 'centerX' | 'centerY' | 'phase' | 'clockwise'>,
+  outputDimension: ShowOutputDimension,
+): string {
+  return showWipeMaskPositionExpression(transition, outputDimension)
 }
 
 function emitFadeThroughColorRenderBlock(

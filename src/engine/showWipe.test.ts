@@ -4,7 +4,9 @@ import {
 } from './showTransitionEdge'
 import {
   normalizeShowWipeDirection,
+  normalizeShowWipeSettings,
   projectShowWipePosition,
+  showWipeMaskPosition,
   showWipeProjectionCoefficients,
 } from './showWipe'
 import { addShowScene, createDefaultShow, normalizeShowTransitionState, showRecordToCompileRecipe } from './showModel'
@@ -113,5 +115,33 @@ describe('arbitrary-direction Wipe (#446)', () => {
       routePolicy: 'blended-wipe',
       worstInstantRenderersPerPixel: 2,
     })
+  })
+})
+
+describe('standard Wipe catalogue (#450)', () => {
+  it('normalizes shared variant parameters', () => {
+    expect(normalizeShowWipeSettings({
+      wipeVariant: 'blinds', wipeMode: 'center-in', orientation: 'horizontal',
+      count: 99.4, centerX: -1, centerY: 2, phase: -0.25, clockwise: false,
+    })).toEqual({
+      wipeVariant: 'blinds', wipeMode: 'center-in', orientation: 'horizontal',
+      direction: 0, count: 32, centerX: 0, centerY: 1, phase: 0.75, clockwise: false,
+    })
+  })
+
+  it('evaluates Split center-out and center-in over one shared axis', () => {
+    expect(showWipeMaskPosition({ wipeVariant: 'split', wipeMode: 'center-out', orientation: 'vertical' }, 0.5, 0.2)).toBe(0)
+    expect(showWipeMaskPosition({ wipeVariant: 'split', wipeMode: 'center-out', orientation: 'vertical' }, 0, 0.2)).toBe(1)
+    expect(showWipeMaskPosition({ wipeVariant: 'split', wipeMode: 'center-in', orientation: 'vertical' }, 0.5, 0.2)).toBe(1)
+    expect(showWipeMaskPosition({ wipeVariant: 'split', wipeMode: 'center-in', orientation: 'vertical' }, 0, 0.2)).toBe(0)
+  })
+
+  it('evaluates Barn Doors, Blinds, Clock, Checker, and Grid deterministically', () => {
+    expect(showWipeMaskPosition({ wipeVariant: 'barn-doors', centerX: 0.5, centerY: 0.5 }, 0.5, 0.5)).toBe(0)
+    expect(showWipeMaskPosition({ wipeVariant: 'barn-doors', centerX: 0.5, centerY: 0.5 }, 0, 0)).toBe(1)
+    expect(showWipeMaskPosition({ wipeVariant: 'blinds', orientation: 'horizontal', count: 4 }, 0.2, 0.3)).toBeCloseTo(0.2)
+    expect(showWipeMaskPosition({ wipeVariant: 'clock', centerX: 0.5, centerY: 0.5, phase: 0 }, 1, 0.5)).toBe(0)
+    expect(showWipeMaskPosition({ wipeVariant: 'checker', count: 4 }, 0.1, 0.1)).toBeCloseTo(0.2)
+    expect(showWipeMaskPosition({ wipeVariant: 'grid', count: 4 }, 0.125, 0.125)).toBe(0)
   })
 })

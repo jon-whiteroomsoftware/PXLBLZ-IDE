@@ -553,6 +553,28 @@ describe('showStore (#318)', () => {
     })
   })
 
+  it('persists and reloads a Clock Wipe variant (#450)', async () => {
+    const show = { ...createDefaultShow('show-450', 'Clock wipe persistence', 1), stageMapId: 'plane' }
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], showsLoaded: true })
+
+    await useShowStore.getState().updateBoundaryTransition(show.id, 'transition-scene-1', {
+      kind: 'wipe', durationMs: 1400, wipeVariant: 'clock',
+      centerX: 0.3, centerY: 0.7, phase: 0.125, clockwise: false,
+      feather: 0.08, edgePolicy: 'dither',
+    })
+    useShowStore.setState(showInitialState)
+    await useShowStore.getState().loadShows()
+
+    expect(useShowStore.getState().shows[0].transitions?.[0]).toMatchObject({
+      kind: 'wipe', wipeVariant: 'clock', centerX: 0.3, centerY: 0.7,
+      phase: 0.125, clockwise: false, edgePolicy: 'dither',
+    })
+    expect(useShowStore.getState().shows[0].scenes[0].transitionOut).toMatchObject({
+      kind: 'wipe', wipeVariant: 'clock', phase: 0.125,
+    })
+  })
+
   it('persists a wipe feather width through the provider', async () => {
     const show = createDefaultShow('show-1', 'Opening wash', 1)
     setPersonalContentProvider(memoryProvider([show]))

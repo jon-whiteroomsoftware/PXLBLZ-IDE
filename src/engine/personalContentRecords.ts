@@ -77,6 +77,9 @@ export type ShowTransitionCost = 'free' | 'cheap' | 'expensive'
 export type ShowPortalFeatherPolicy = 'dither' | 'blend'
 export type ShowTransitionEdgePolicy = 'hard' | 'dither' | 'blend'
 export type ShowDissolveVariant = 'pixel' | 'block'
+export type ShowWipeVariant = 'linear' | 'split' | 'barn-doors' | 'blinds' | 'clock' | 'checker' | 'grid'
+export type ShowWipeMode = 'center-out' | 'center-in'
+export type ShowWipeOrientation = 'horizontal' | 'vertical'
 export type ShowSpatialShape = 'circle' | 'box' | 'diamond' | 'ring'
 export type ShowRevealMode = 'grow-incoming' | 'shrink-outgoing'
 export type ShowMotionTransitionVariant = 'cover' | 'reveal' | 'push' | 'content-grow' | 'content-shrink'
@@ -154,6 +157,12 @@ export interface ShowTransition {
   color?: string
   /** Stage-space motion direction in turns. Absent preserves the legacy index-domain Wipe. */
   direction?: number
+  wipeVariant?: ShowWipeVariant
+  wipeMode?: ShowWipeMode
+  orientation?: ShowWipeOrientation
+  count?: number
+  phase?: number
+  clockwise?: boolean
   edgePolicy?: ShowTransitionEdgePolicy
   dissolveVariant?: ShowDissolveVariant
   seed?: number
@@ -235,6 +244,12 @@ export interface ShowBoundaryTransition {
   routingDirection?: ShowRoutingDirection
   color?: string
   direction?: number
+  wipeVariant?: ShowWipeVariant
+  wipeMode?: ShowWipeMode
+  orientation?: ShowWipeOrientation
+  count?: number
+  phase?: number
+  clockwise?: boolean
   edgePolicy?: ShowTransitionEdgePolicy
   dissolveVariant?: ShowDissolveVariant
   seed?: number

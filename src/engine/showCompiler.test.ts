@@ -3,6 +3,7 @@ import { compileShow } from './showCompiler'
 import { createShim } from './shim'
 import { DEMOS } from '@/pixelblaze/stock/patterns'
 import { remapShowIndex, remapShowSample } from './showCoordinateRemap'
+import { showWipeMaskPosition, type ShowWipeSettings } from './showWipe'
 
 interface LoadedShow {
   handle: PatternHandle
@@ -1908,6 +1909,38 @@ export function render(index) { calls = calls + 1; rgb(0, 1, 0) }
       routePolicy: 'blended-wipe',
       worstInstantRenderersPerPixel: 2,
       cost: { cpu: { patternEvaluations: { formula: 'N + E', basePerPixel: 1, additionalPerEdgePixel: 1 } } },
+    })
+  })
+
+  it.each([
+    ['split-out', { wipeVariant: 'split', wipeMode: 'center-out', orientation: 'vertical' }, 0.5, 0.2],
+    ['split-in', { wipeVariant: 'split', wipeMode: 'center-in', orientation: 'vertical' }, 0.5, 0.2],
+    ['barn-doors', { wipeVariant: 'barn-doors', centerX: 0.5, centerY: 0.5 }, 0.5, 0.5],
+    ['horizontal-blinds', { wipeVariant: 'blinds', orientation: 'horizontal', count: 4 }, 0.2, 0.3],
+    ['clock', { wipeVariant: 'clock', centerX: 0.5, centerY: 0.5, phase: 0 }, 1, 0.5],
+    ['checker', { wipeVariant: 'checker', count: 4 }, 0.1, 0.1],
+    ['grid', { wipeVariant: 'grid', count: 4 }, 0.125, 0.125],
+  ] as const)('matches the pure %s Wipe mask in generated output (#450)', (_name, settings, x, y) => {
+    const artifact = compileShow({
+      clips: [
+        { id: 'from', source: 'export function render2D(index, x, y) { rgb(1, 0, 0) }' },
+        { id: 'to', source: 'export function render2D(index, x, y) { rgb(0, 1, 0) }' },
+      ],
+      routeTransition: {
+        kind: 'wipe', startMs: 1000, durationMs: 1000, edgePolicy: 'hard',
+        ...settings,
+      },
+    }, {})
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 16)
+
+    handle.beforeRender(1500)
+    handle.render2D(0, x, y)
+    expect(pixel()).toEqual(showWipeMaskPosition(settings as ShowWipeSettings, x, y) < 0.5
+      ? [0, 1, 0]
+      : [1, 0, 0])
+    expect(artifact.summary).toMatchObject({
+      renderPolicy: 'spatial-route-one-renderer-per-pixel',
+      transitionCost: 'route', routePolicy: 'hard-wipe', worstInstantRenderersPerPixel: 1,
     })
   })
 

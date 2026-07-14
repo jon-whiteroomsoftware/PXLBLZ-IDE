@@ -23,7 +23,7 @@ import type {
 import { clampShowRepeatScale } from './showCoordinateRemap'
 import { normalizeShowEasing } from './showEasing'
 import { normalizeShowTransitionColor } from './showFadeThroughColor'
-import { normalizeShowWipeDirection } from './showWipe'
+import { normalizeShowWipeDirection, normalizeShowWipeSettings } from './showWipe'
 import { normalizeShowDissolveBlockSize, normalizeShowDissolveSeed } from './showDissolve'
 import { normalizeShowRevealMode } from './showShapeReveal'
 import { normalizeShowMotionTransition } from './showMotionTransition'
@@ -1032,6 +1032,14 @@ export function normalizeShowTransitionState(show: ShowRecord): ShowRecord {
             ? {
                 feather: scene.transitionOut.feather,
                 direction: scene.transitionOut.direction,
+                wipeVariant: scene.transitionOut.wipeVariant,
+                wipeMode: scene.transitionOut.wipeMode,
+                orientation: scene.transitionOut.orientation,
+                count: scene.transitionOut.count,
+                centerX: scene.transitionOut.centerX,
+                centerY: scene.transitionOut.centerY,
+                phase: scene.transitionOut.phase,
+                clockwise: scene.transitionOut.clockwise,
                 edgePolicy: scene.transitionOut.edgePolicy,
               }
             : {}),
@@ -1169,10 +1177,14 @@ function normalizeBoundaryTransition(transition: ShowBoundaryTransition): ShowBo
     }
   }
   if (kind === 'wipe') {
+    const explicitVariant = transition.wipeVariant
+    const settings = normalizeShowWipeSettings(transition)
     return {
       ...base,
       feather: clamp01(transition.feather ?? 0),
-      ...(transition.direction === undefined ? {} : { direction: normalizeShowWipeDirection(transition.direction) }),
+      ...(explicitVariant === undefined
+        ? transition.direction === undefined ? {} : { direction: normalizeShowWipeDirection(transition.direction) }
+        : normalizeWipeVariantSettings(settings)),
       ...(transition.edgePolicy === 'hard' || transition.edgePolicy === 'dither' || transition.edgePolicy === 'blend'
         ? { edgePolicy: transition.edgePolicy }
         : {}),
@@ -1298,6 +1310,44 @@ function normalizePropertyTransitions(transition: ShowBoundaryTransition): Pick<
     : {}
 }
 
+function normalizeWipeVariantSettings(
+  settings: ReturnType<typeof normalizeShowWipeSettings>,
+): Partial<Pick<
+  ShowBoundaryTransition,
+  'wipeVariant' | 'direction' | 'wipeMode' | 'orientation' | 'count' | 'centerX' | 'centerY' | 'phase' | 'clockwise'
+>> {
+  if (settings.wipeVariant === 'linear') {
+    return { wipeVariant: 'linear', direction: settings.direction }
+  }
+  if (settings.wipeVariant === 'split') {
+    return { wipeVariant: 'split', wipeMode: settings.wipeMode, orientation: settings.orientation }
+  }
+  if (settings.wipeVariant === 'barn-doors') {
+    return {
+      wipeVariant: 'barn-doors', wipeMode: settings.wipeMode,
+      centerX: settings.centerX, centerY: settings.centerY,
+    }
+  }
+  if (settings.wipeVariant === 'blinds') {
+    return {
+      wipeVariant: 'blinds', orientation: settings.orientation,
+      count: settings.count, phase: settings.phase,
+    }
+  }
+  if (settings.wipeVariant === 'clock') {
+    return {
+      wipeVariant: 'clock', centerX: settings.centerX, centerY: settings.centerY,
+      phase: settings.phase, clockwise: settings.clockwise,
+    }
+  }
+  return { wipeVariant: settings.wipeVariant, count: settings.count }
+}
+
+function showWipeRequires2D(transition: Pick<ShowBoundaryTransition, 'direction' | 'wipeVariant'>): boolean {
+  return transition.direction !== undefined
+    || (transition.wipeVariant !== undefined && transition.wipeVariant !== 'linear')
+}
+
 function normalizeSpatialShapeSettings(transition: {
   shape?: ShowSpatialShape
   scale?: number
@@ -1359,6 +1409,7 @@ function boundaryToLegacyTransition(
       ? {
           feather: transition.feather,
           ...(transition.direction === undefined ? {} : { direction: transition.direction }),
+          ...(transition.wipeVariant === undefined ? {} : normalizeWipeVariantSettings(normalizeShowWipeSettings(transition))),
           ...(transition.edgePolicy === undefined ? {} : { edgePolicy: transition.edgePolicy }),
         }
       : {}),
@@ -1638,7 +1689,7 @@ export function showRecordToCompileRecipe(
   if (transition?.kind === 'portal' && (!show.stageMapId || lookup.stageDimension !== 2)) {
     throw new Error('Portal transition requires a 2D Stage Map.')
   }
-  if (transition?.kind === 'wipe' && transition.direction !== undefined && (!show.stageMapId || lookup.stageDimension !== 2)) {
+  if (transition?.kind === 'wipe' && showWipeRequires2D(transition) && (!show.stageMapId || lookup.stageDimension !== 2)) {
     throw new Error('Directional Wipe requires a 2D Stage Map; select a 2D Stage or remove Direction.')
   }
   if (transition?.kind === 'motion' && (!show.stageMapId || lookup.stageDimension !== 2)) {
@@ -1724,6 +1775,7 @@ export function showRecordToCompileRecipe(
             ? {
                 feather: clamp01(transition.feather ?? 0),
                 ...(transition.direction === undefined ? {} : { direction: normalizeShowWipeDirection(transition.direction) }),
+                ...(transition.wipeVariant === undefined ? {} : normalizeWipeVariantSettings(normalizeShowWipeSettings(transition))),
                 ...(transition.edgePolicy === undefined ? {} : { edgePolicy: transition.edgePolicy }),
               }
             : {}),
@@ -1775,7 +1827,7 @@ function showRecordToSceneSequenceRecipe(
   if (transitions.some((transition) => transition?.kind === 'portal') && (!show.stageMapId || lookup.stageDimension !== 2)) {
     throw new Error('Portal transition requires a 2D Stage Map.')
   }
-  if (transitions.some((transition) => transition?.kind === 'wipe' && transition.direction !== undefined)
+  if (transitions.some((transition) => transition?.kind === 'wipe' && showWipeRequires2D(transition))
     && (!show.stageMapId || lookup.stageDimension !== 2)) {
     throw new Error('Directional Wipe requires a 2D Stage Map; select a 2D Stage or remove Direction.')
   }
@@ -1903,6 +1955,7 @@ function compilerSequenceTransition(
       ? {
           feather: clamp01(transition.feather ?? 0),
           ...(transition.direction === undefined ? {} : { direction: normalizeShowWipeDirection(transition.direction) }),
+          ...(transition.wipeVariant === undefined ? {} : normalizeWipeVariantSettings(normalizeShowWipeSettings(transition))),
           ...(transition.edgePolicy === undefined ? {} : { edgePolicy: transition.edgePolicy }),
         }
       : {}),
