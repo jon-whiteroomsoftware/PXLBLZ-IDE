@@ -4,13 +4,14 @@ import {
   listD1ControllerProfiles,
   type D1DatabaseControllerProfilesLike,
 } from '../../../src/cloudflare/controllerProfiles'
+import { readProtectedJson, type D1ResourceProtectionDatabaseLike } from '../../../src/cloudflare/resourceProtection'
 import type { ControllerProfile } from '../../../src/engine/controllerProfile'
 
 interface PagesFunctionContext {
   request: Request
   env: {
     SESSION_SECRET?: string
-    PXLBLZ_DB?: D1DatabaseControllerProfilesLike
+    PXLBLZ_DB?: D1DatabaseControllerProfilesLike & D1ResourceProtectionDatabaseLike
   }
 }
 
@@ -28,7 +29,12 @@ export async function onRequestPost(context: PagesFunctionContext): Promise<Resp
   if (!session) return Response.json({ error: 'Unauthorized' }, { status: 401 })
   if (!context.env.PXLBLZ_DB) return Response.json({ error: 'D1 database is not configured' }, { status: 503 })
 
-  const profile = await context.request.json() as ControllerProfile
+  const profile = await readProtectedJson<ControllerProfile>(
+    context.request,
+    context.env.PXLBLZ_DB,
+    session.userId,
+    { createsEntity: true },
+  )
   const error = await tryWrite(() => createD1ControllerProfile(context.env.PXLBLZ_DB!, session.userId, profile))
   if (error) return error
   return Response.json({ controller: profile }, { status: 201 })

@@ -7,6 +7,7 @@ import {
   type ControllerProfileChanges,
   type D1DatabaseControllerProfilesLike,
 } from '../../../src/cloudflare/controllerProfiles'
+import { readProtectedJson, type D1ResourceProtectionDatabaseLike } from '../../../src/cloudflare/resourceProtection'
 
 interface PagesFunctionContext {
   request: Request
@@ -15,7 +16,7 @@ interface PagesFunctionContext {
   }
   env: {
     SESSION_SECRET?: string
-    PXLBLZ_DB?: D1DatabaseControllerProfilesLike
+    PXLBLZ_DB?: D1DatabaseControllerProfilesLike & D1ResourceProtectionDatabaseLike
   }
 }
 
@@ -34,10 +35,14 @@ export async function onRequestPatch(context: PagesFunctionContext): Promise<Res
   if (!session) return Response.json({ error: 'Unauthorized' }, { status: 401 })
   if (!context.env.PXLBLZ_DB) return Response.json({ error: 'D1 database is not configured' }, { status: 503 })
 
+  const body = await readProtectedJson<ControllerProfileChanges & { id?: string }>(
+    context.request,
+    context.env.PXLBLZ_DB,
+    session.userId,
+  )
   const existing = await getD1ControllerProfile(context.env.PXLBLZ_DB, session.userId, context.params.id)
   if (!existing) return Response.json({ error: 'Controller profile not found' }, { status: 404 })
 
-  const body = await context.request.json() as ControllerProfileChanges & { id?: string }
   const { id: _ignoredId, ...changes } = body
   const next = { ...existing, ...changes, id: existing.id }
   try {

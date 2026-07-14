@@ -146,6 +146,15 @@ There is no browser-local durable workspace and no implied migration between
 local storage and D1. Local storage is used only for small device/session
 preferences and the Studio-welcome acknowledgement.
 
+The API treats authenticated storage limits as coarse anti-griefing tripwires,
+not ordinary product quotas. Every durable create or update rejects JSON bodies
+above 1,900,000 bytes and accounts above 100,000,000 stored content bytes;
+creates also stop at 1,000,000 total personal rows across all resource families.
+Settings and Controller metadata routes accept only the keys owned by the
+application. Guard failures use stable JSON error codes. Reads and deletes are
+not subject to these write guards, and transient request-rate flooding remains
+the responsibility of the hosting edge rather than this storage layer.
+
 The D1 health endpoint checks binding/schema availability; it is not an
 alternate personal-content path. Local development uses Wrangler's D1 database
 behind the Vite `/api` proxy, so migrations must be applied locally as well as

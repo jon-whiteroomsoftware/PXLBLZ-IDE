@@ -1,5 +1,6 @@
 import { readSessionFromRequest } from '../../../src/cloudflare/auth'
 import { deleteD1Library, updateD1Library, type D1DatabaseLibrariesLike } from '../../../src/cloudflare/libraries'
+import { readProtectedJson, type D1ResourceProtectionDatabaseLike } from '../../../src/cloudflare/resourceProtection'
 import type { LibraryRecord } from '../../../src/engine/personalContentRecords'
 
 interface PagesFunctionContext {
@@ -9,7 +10,7 @@ interface PagesFunctionContext {
   }
   env: {
     SESSION_SECRET?: string
-    PXLBLZ_DB?: D1DatabaseLibrariesLike
+    PXLBLZ_DB?: D1DatabaseLibrariesLike & D1ResourceProtectionDatabaseLike
   }
 }
 
@@ -18,7 +19,11 @@ export async function onRequestPatch(context: PagesFunctionContext): Promise<Res
   if (!session) return Response.json({ error: 'Unauthorized' }, { status: 401 })
   if (!context.env.PXLBLZ_DB) return Response.json({ error: 'D1 database is not configured' }, { status: 503 })
 
-  const changes = await context.request.json() as Partial<Omit<LibraryRecord, 'id'>>
+  const changes = await readProtectedJson<Partial<Omit<LibraryRecord, 'id'>>>(
+    context.request,
+    context.env.PXLBLZ_DB,
+    session.userId,
+  )
   await updateD1Library(context.env.PXLBLZ_DB, session.userId, context.params.id, changes)
   return Response.json({ ok: true })
 }
