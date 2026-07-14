@@ -1091,6 +1091,8 @@ export function normalizeShowTransitionState(show: ShowRecord): ShowRecord {
                 anchorX: scene.transitionOut.anchorX,
                 anchorY: scene.transitionOut.anchorY,
                 contentScale: scene.transitionOut.contentScale,
+                rotation: scene.transitionOut.rotation,
+                spinDirection: scene.transitionOut.spinDirection,
                 addressPolicy: scene.transitionOut.addressPolicy,
                 edgePolicy: scene.transitionOut.edgePolicy,
               }
@@ -1529,6 +1531,8 @@ function boundaryToLegacyTransition(
           anchorX: transition.anchorX,
           anchorY: transition.anchorY,
           contentScale: transition.contentScale,
+          rotation: transition.rotation,
+          spinDirection: transition.spinDirection,
           addressPolicy: transition.addressPolicy,
           edgePolicy: transition.edgePolicy,
         }

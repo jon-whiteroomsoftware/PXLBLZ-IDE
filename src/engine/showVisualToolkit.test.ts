@@ -181,6 +181,22 @@ describe('Show visual-toolkit contract', () => {
           expect.objectContaining({ value: 'blend' }),
         ]) }),
       ]))
+
+    const motion = getShowToolkitFamily('transition', 'motion')
+    expect(motion?.variants.map((variant) => variant.id)).toEqual([
+      'cover', 'reveal', 'push', 'content-grow', 'content-shrink', 'zoom-in', 'zoom-out',
+    ])
+    expect(motion?.variants.find((variant) => variant.id === 'zoom-in')?.presets).toEqual([
+      expect.objectContaining({ id: 'zoom', values: expect.objectContaining({ contentScale: 0.2, rotation: 0 }) }),
+      expect.objectContaining({ id: 'spin-clockwise', values: expect.objectContaining({ rotation: 1, spinDirection: 'clockwise' }) }),
+      expect.objectContaining({ id: 'spin-counterclockwise', values: expect.objectContaining({ rotation: 1, spinDirection: 'counterclockwise' }) }),
+      expect.objectContaining({ id: 'zoom-spin-clockwise', values: expect.objectContaining({ contentScale: 0.25, rotation: 0.5, spinDirection: 'clockwise' }) }),
+      expect.objectContaining({ id: 'zoom-spin-counterclockwise', values: expect.objectContaining({ contentScale: 0.25, rotation: 0.5, spinDirection: 'counterclockwise' }) }),
+    ])
+    expect(resolveShowToolkitParameters('transition', 'motion', 'zoom-in', {}).map((parameter) => parameter.id))
+      .toEqual(['durationMs', 'easing', 'anchorX', 'anchorY', 'contentScale', 'rotation', 'spinDirection', 'addressPolicy', 'edgePolicy'])
+    expect(motion?.variants.find((variant) => variant.id === 'zoom-in')?.costPolicies)
+      .toEqual(['selector', 'full-blend'])
   })
 
   it('rejects descriptors whose conditions or presets reference private parameters', () => {
@@ -301,6 +317,12 @@ describe('Show visual-toolkit contract', () => {
       'motion-push',
       'motion-content-grow',
       'motion-content-shrink',
+      'motion-zoom-in-zoom',
+      'motion-zoom-in-spin-clockwise',
+      'motion-zoom-in-spin-counterclockwise',
+      'motion-zoom-in-zoom-spin-clockwise',
+      'motion-zoom-in-zoom-spin-counterclockwise',
+      'motion-zoom-out-zoom',
     ])
 
     for (const fixture of fixtures) {

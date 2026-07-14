@@ -381,6 +381,35 @@ export function createShowToolkitFixtureRecipes(): ShowToolkitFixtureRecipe[] {
         stageMapId: 'fixture-stage-2d',
       },
     })),
+    ...([
+      ['zoom-in', 'zoom', 0.2, 0, 'clockwise', 0.5, 0.5],
+      ['zoom-in', 'spin-clockwise', 0.01, 1, 'clockwise', 0.5, 0.5],
+      ['zoom-in', 'spin-counterclockwise', 0.01, 1, 'counterclockwise', 0.5, 0.5],
+      ['zoom-in', 'zoom-spin-clockwise', 0.25, 0.5, 'clockwise', 0.35, 0.65],
+      ['zoom-in', 'zoom-spin-counterclockwise', 0.25, 0.5, 'counterclockwise', 0.65, 0.35],
+      ['zoom-out', 'zoom', 0.2, 0, 'clockwise', 0.5, 0.5],
+    ] as const).map(([motionVariant, preset, contentScale, rotation, spinDirection, anchorX, anchorY]): ShowToolkitFixtureRecipe => ({
+      ...shared,
+      id: `motion-${motionVariant}-${preset}`,
+      familyId: 'motion',
+      variantId: motionVariant,
+      recipe: {
+        clips: clips(),
+        routeTransition: {
+          kind: 'motion', motionVariant, startMs: 1000, durationMs: 1000,
+          contentScale, rotation, spinDirection, anchorX, anchorY,
+          addressPolicy: 'clip', edgePolicy: 'hard',
+        },
+      },
+      persistedRecord: {
+        ...persistedRecord(`motion-${motionVariant}-${preset}`, {
+          kind: 'motion', durationMs: 1000, motionVariant,
+          contentScale, rotation, spinDirection, anchorX, anchorY,
+          addressPolicy: 'clip', edgePolicy: 'hard',
+        }),
+        stageMapId: 'fixture-stage-2d',
+      },
+    })),
   ]
 }
 

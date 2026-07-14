@@ -85,8 +85,11 @@ export type ShowSpatialShape =
   | 'heart' | 'star' | 'crescent' | 'polygon'
   | 'cat-head' | 'cat-side-profile' | 'bastet'
 export type ShowRevealMode = 'grow-incoming' | 'shrink-outgoing'
-export type ShowMotionTransitionVariant = 'cover' | 'reveal' | 'push' | 'content-grow' | 'content-shrink'
+export type ShowMotionTransitionVariant =
+  | 'cover' | 'reveal' | 'push' | 'content-grow' | 'content-shrink'
+  | 'zoom-in' | 'zoom-out'
 export type ShowMotionAddressPolicy = 'clip' | 'wrap'
+export type ShowMotionSpinDirection = 'clockwise' | 'counterclockwise'
 export type LegacyShowTransitionEasing = 'linear' | 'ease-in' | 'ease-out' | 'ease-in-out'
 export type ShowEasingDirection = 'in' | 'out' | 'in-out'
 export type ShowStructuredEasing =
@@ -203,6 +206,7 @@ export interface ShowTransition {
   anchorX?: number
   anchorY?: number
   contentScale?: number
+  spinDirection?: ShowMotionSpinDirection
   addressPolicy?: ShowMotionAddressPolicy
 }
 
@@ -293,6 +297,7 @@ export interface ShowBoundaryTransition {
   anchorX?: number
   anchorY?: number
   contentScale?: number
+  spinDirection?: ShowMotionSpinDirection
   addressPolicy?: ShowMotionAddressPolicy
   /** Boundary-owned interpolation settings keyed by the destination clip. */
   propertyTransitions?: ShowPropertyTransitions

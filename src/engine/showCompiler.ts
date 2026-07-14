@@ -12,6 +12,7 @@ import type {
   ShowClipEffect,
   ShowDissolveVariant,
   ShowMotionAddressPolicy,
+  ShowMotionSpinDirection,
   ShowMotionTransitionVariant,
   ShowRevealMode,
   ShowSpatialShape,
@@ -151,6 +152,7 @@ export interface ShowRouteTransitionRecipe {
   anchorX?: number
   anchorY?: number
   contentScale?: number
+  spinDirection?: ShowMotionSpinDirection
   addressPolicy?: ShowMotionAddressPolicy
 }
 
@@ -192,6 +194,7 @@ export interface ShowSceneSequenceTransitionRecipe {
   anchorX?: number
   anchorY?: number
   contentScale?: number
+  spinDirection?: ShowMotionSpinDirection
   addressPolicy?: ShowMotionAddressPolicy
   easing?: ShowTransitionEasing
   propertyRamps?: Partial<Record<'timeScale' | 'brightness', ShowAdaptationPropertyRampRecipe>>
@@ -1553,21 +1556,34 @@ function emitMotionTransitionRenderBlock(
   const fromMoves = settings.motionVariant === 'reveal'
     || settings.motionVariant === 'push'
     || settings.motionVariant === 'content-shrink'
+    || settings.motionVariant === 'zoom-out'
   const toMoves = settings.motionVariant === 'cover'
     || settings.motionVariant === 'push'
     || settings.motionVariant === 'content-grow'
-  const scaleExpression = settings.motionVariant === 'content-grow'
-    ? `${settings.contentScale} + ${1 - settings.contentScale} * __pxlblz_show_mix`
-    : `1 - ${1 - settings.contentScale} * __pxlblz_show_mix`
+    || settings.motionVariant === 'zoom-in'
+  const grows = settings.motionVariant === 'content-grow' || settings.motionVariant === 'zoom-in'
+  const scales = grows || settings.motionVariant === 'content-shrink' || settings.motionVariant === 'zoom-out'
+  const spins = settings.motionVariant === 'zoom-in' || settings.motionVariant === 'zoom-out'
+  const scaleExpression = grows
+    ? `${settings.contentScale} * (1 - __pxlblz_show_mix) + __pxlblz_show_mix`
+    : `(1 - __pxlblz_show_mix) + ${settings.contentScale} * __pxlblz_show_mix`
+  const rotationSign = settings.spinDirection === 'counterclockwise' ? -1 : 1
+  const rotationExpression = settings.motionVariant === 'zoom-in'
+    ? `${rotationSign * settings.rotation} * (1 - __pxlblz_show_mix)`
+    : `${rotationSign * settings.rotation} * __pxlblz_show_mix`
+  const affineCoordinates = {
+    x: `${settings.anchorX} + (__pxlblz_show_motion_cos * (x - ${settings.anchorX}) + __pxlblz_show_motion_sin * (y - ${settings.anchorY})) / __pxlblz_show_motion_scale`,
+    y: `${settings.anchorY} + (-__pxlblz_show_motion_sin * (x - ${settings.anchorX}) + __pxlblz_show_motion_cos * (y - ${settings.anchorY})) / __pxlblz_show_motion_scale`,
+  }
   const fromCoordinates = settings.motionVariant === 'reveal' || settings.motionVariant === 'push'
     ? {
         x: `x - ${vector.x} * __pxlblz_show_mix`,
         y: `y - ${vector.y} * __pxlblz_show_mix`,
       }
-    : settings.motionVariant === 'content-shrink'
+    : settings.motionVariant === 'content-shrink' || settings.motionVariant === 'zoom-out'
       ? {
-          x: `${settings.anchorX} + (x - ${settings.anchorX}) / __pxlblz_show_motion_scale`,
-          y: `${settings.anchorY} + (y - ${settings.anchorY}) / __pxlblz_show_motion_scale`,
+          x: spins ? affineCoordinates.x : `${settings.anchorX} + (x - ${settings.anchorX}) / __pxlblz_show_motion_scale`,
+          y: spins ? affineCoordinates.y : `${settings.anchorY} + (y - ${settings.anchorY}) / __pxlblz_show_motion_scale`,
         }
       : { x: 'x', y: 'y' }
   const toCoordinates = settings.motionVariant === 'cover' || settings.motionVariant === 'push'
@@ -1575,21 +1591,24 @@ function emitMotionTransitionRenderBlock(
         x: `x + ${vector.x} * (1 - __pxlblz_show_mix)`,
         y: `y + ${vector.y} * (1 - __pxlblz_show_mix)`,
       }
-    : settings.motionVariant === 'content-grow'
+    : settings.motionVariant === 'content-grow' || settings.motionVariant === 'zoom-in'
       ? {
-          x: `${settings.anchorX} + (x - ${settings.anchorX}) / __pxlblz_show_motion_scale`,
-          y: `${settings.anchorY} + (y - ${settings.anchorY}) / __pxlblz_show_motion_scale`,
+          x: spins ? affineCoordinates.x : `${settings.anchorX} + (x - ${settings.anchorX}) / __pxlblz_show_motion_scale`,
+          y: spins ? affineCoordinates.y : `${settings.anchorY} + (y - ${settings.anchorY}) / __pxlblz_show_motion_scale`,
         }
       : { x: 'x', y: 'y' }
   const address = (name: 'from' | 'to', moves: boolean) => !moves
     ? ''
     : settings.addressPolicy === 'wrap'
       ? `\n__pxlblz_show_motion_${name}_x = frac(__pxlblz_show_motion_${name}_x)
-__pxlblz_show_motion_${name}_y = frac(__pxlblz_show_motion_${name}_y)`
+__pxlblz_show_motion_${name}_y = frac(__pxlblz_show_motion_${name}_y)
+__pxlblz_show_motion_${name}_inside = 1`
       : `\n__pxlblz_show_motion_${name}_x = clamp(__pxlblz_show_motion_${name}_x, 0, 1)
 __pxlblz_show_motion_${name}_y = clamp(__pxlblz_show_motion_${name}_y, 0, 1)`
-  const prelude = `${settings.motionVariant === 'content-grow' || settings.motionVariant === 'content-shrink'
+  const prelude = `${scales
     ? `var __pxlblz_show_motion_scale = ${scaleExpression}\n`
+    : ''}${spins
+    ? `var __pxlblz_show_motion_rotation = ${rotationExpression}\nvar __pxlblz_show_motion_cos = cos(__pxlblz_show_motion_rotation * 6.283185307179586)\nvar __pxlblz_show_motion_sin = sin(__pxlblz_show_motion_rotation * 6.283185307179586)\n`
     : ''}var __pxlblz_show_motion_from_x = ${fromCoordinates.x}
 var __pxlblz_show_motion_from_y = ${fromCoordinates.y}
 var __pxlblz_show_motion_to_x = ${toCoordinates.x}
@@ -1602,6 +1621,7 @@ var __pxlblz_show_motion_to_inside = __pxlblz_show_motion_to_x >= 0 && __pxlblz_
     const incomingPrimary = settings.motionVariant === 'cover'
       || settings.motionVariant === 'push'
       || settings.motionVariant === 'content-grow'
+      || settings.motionVariant === 'zoom-in'
     return incomingPrimary
       ? `${prelude}
 if (__pxlblz_show_motion_to_inside) {

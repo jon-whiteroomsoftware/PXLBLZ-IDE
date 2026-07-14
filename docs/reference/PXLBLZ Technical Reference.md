@@ -1173,12 +1173,33 @@ clamps transformed sample coordinates; Wrap addressing applies `frac` after the
 same inverse transform. Motion requires a 2D Stage Map, and both direct
 two-scene and scene-sequence compilation use the same coordinate equations.
 
+Zoom In transforms the incoming source from Endpoint scale to full size; Zoom
+Out transforms the outgoing source from full size to Endpoint scale. Both keep
+Anchor X/Y fixed. Rotation is an ordinary nonnegative turn count paired with a
+clockwise or counterclockwise direction, so Spin is a preset rather than a
+separate compiler primitive. The Zoom, Spin clockwise/counterclockwise, and
+combined Zoom + Spin presets write only endpoint scale, rotation, rotation
+direction, and anchor values. Authors can edit every value after choosing a
+preset, and persisted Shows contain no preset enum.
+
+The compiler evaluates scale, sine, and cosine inside the shared motion block,
+then applies one inverse uniform-scale/rotation transform around the authored
+anchor. Zoom In/Out therefore use the same pure affine equations in direct
+boundaries, scene sequences, deterministic fixtures, and generated Pixelblaze
+code. Clip addressing preserves transformed coverage and clears an
+out-of-bounds source to the black Show background during full blend. Wrap
+addresses the same transformed coordinates with `frac` and treats every sample
+as covered. Motion exposes hard selector (`N`) and full blend (`2N`) only;
+bounded feather is not offered because these transforms do not define a narrow
+spatial transition seam.
+
 Hard composition uses transformed coverage to select exactly one Pattern per
 output pixel and reports `N`. Full blend evaluates the outgoing and incoming
 sources with their respective transforms across the transition window, mixes
 them by eased progress, and reports `2N`. Cost metadata also reports the active
 Clip/Wrap address policy and affine scalar work. Deterministic fixtures cover
-Cover, Reveal, Push, Content Grow, and Content Shrink; compiler tests cover
+Cover, Reveal, Push, Content Grow, Content Shrink, Zoom In/Out, clockwise and
+counterclockwise Spin, and combined Zoom + Spin; compiler tests cover
 boundary, midpoint, anchored scaling, transformed sampling, and both renderer
 policies.
 

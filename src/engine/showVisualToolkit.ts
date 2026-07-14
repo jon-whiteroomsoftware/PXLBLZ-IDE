@@ -355,14 +355,44 @@ export const SHOW_VISUAL_TOOLKIT_REGISTRY: ShowToolkitFamilyDescriptor[] = [
       { id: 'push', label: 'Push', costPolicies: ['selector', 'full-blend'], compatibility: { stageDimensions: [2] } },
       { id: 'content-grow', label: 'Content grow', costPolicies: ['selector', 'full-blend'], compatibility: { stageDimensions: [2] } },
       { id: 'content-shrink', label: 'Content shrink', costPolicies: ['selector', 'full-blend'], compatibility: { stageDimensions: [2] } },
+      {
+        id: 'zoom-in',
+        label: 'Zoom in',
+        costPolicies: ['selector', 'full-blend'],
+        compatibility: { stageDimensions: [2] },
+        presets: [
+          { id: 'zoom', label: 'Zoom', values: { contentScale: 0.2, rotation: 0, anchorX: 0.5, anchorY: 0.5, spinDirection: 'clockwise' } },
+          { id: 'spin-clockwise', label: 'Spin clockwise', values: { contentScale: 0.01, rotation: 1, anchorX: 0.5, anchorY: 0.5, spinDirection: 'clockwise' } },
+          { id: 'spin-counterclockwise', label: 'Spin counterclockwise', values: { contentScale: 0.01, rotation: 1, anchorX: 0.5, anchorY: 0.5, spinDirection: 'counterclockwise' } },
+          { id: 'zoom-spin-clockwise', label: 'Zoom + spin clockwise', values: { contentScale: 0.25, rotation: 0.5, anchorX: 0.35, anchorY: 0.65, spinDirection: 'clockwise' } },
+          { id: 'zoom-spin-counterclockwise', label: 'Zoom + spin counterclockwise', values: { contentScale: 0.25, rotation: 0.5, anchorX: 0.65, anchorY: 0.35, spinDirection: 'counterclockwise' } },
+        ],
+      },
+      {
+        id: 'zoom-out',
+        label: 'Zoom out',
+        costPolicies: ['selector', 'full-blend'],
+        compatibility: { stageDimensions: [2] },
+        presets: [
+          { id: 'zoom', label: 'Zoom', values: { contentScale: 0.2, rotation: 0, anchorX: 0.5, anchorY: 0.5, spinDirection: 'clockwise' } },
+        ],
+      },
     ],
     parameters: [
       DURATION,
       EASING,
       { id: 'direction', label: 'Direction', kind: 'number', defaultValue: 0, min: 0, max: 1, step: 0.001, unit: 'turn', variantIds: ['cover', 'reveal', 'push'] },
-      { id: 'anchorX', label: 'Anchor X', kind: 'number', defaultValue: 0.5, min: 0, max: 1, step: 0.01, variantIds: ['content-grow', 'content-shrink'] },
-      { id: 'anchorY', label: 'Anchor Y', kind: 'number', defaultValue: 0.5, min: 0, max: 1, step: 0.01, variantIds: ['content-grow', 'content-shrink'] },
-      { id: 'contentScale', label: 'Minimum scale', kind: 'number', defaultValue: 0.01, min: 0.01, max: 1, step: 0.01, variantIds: ['content-grow', 'content-shrink'] },
+      { id: 'anchorX', label: 'Anchor X', kind: 'number', defaultValue: 0.5, min: 0, max: 1, step: 0.01, variantIds: ['content-grow', 'content-shrink', 'zoom-in', 'zoom-out'] },
+      { id: 'anchorY', label: 'Anchor Y', kind: 'number', defaultValue: 0.5, min: 0, max: 1, step: 0.01, variantIds: ['content-grow', 'content-shrink', 'zoom-in', 'zoom-out'] },
+      { id: 'contentScale', label: 'Endpoint scale', kind: 'number', defaultValue: 0.01, min: 0.01, max: 1, step: 0.01, variantIds: ['content-grow', 'content-shrink', 'zoom-in', 'zoom-out'] },
+      { id: 'rotation', label: 'Rotation', kind: 'number', defaultValue: 0, min: 0, max: 8, step: 0.01, unit: 'turn', variantIds: ['zoom-in', 'zoom-out'] },
+      {
+        id: 'spinDirection', label: 'Rotation direction', kind: 'enum', defaultValue: 'clockwise', variantIds: ['zoom-in', 'zoom-out'],
+        options: [
+          { value: 'clockwise', label: 'Clockwise' },
+          { value: 'counterclockwise', label: 'Counterclockwise' },
+        ],
+      },
       {
         id: 'addressPolicy', label: 'Addressing', kind: 'enum', defaultValue: 'clip',
         options: [{ value: 'clip', label: 'Clip' }, { value: 'wrap', label: 'Wrap' }],

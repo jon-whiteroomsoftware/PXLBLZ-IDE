@@ -12,7 +12,8 @@ describe('Show motion transitions', () => {
       contentScale: 0, addressPolicy: 'wrap', edgePolicy: 'blend',
     })).toEqual({
       motionVariant: 'cover', direction: 0.25, anchorX: 0, anchorY: 1,
-      contentScale: 0.01, addressPolicy: 'wrap', edgePolicy: 'blend',
+      contentScale: 0.01, rotation: 0, spinDirection: 'clockwise',
+      addressPolicy: 'wrap', edgePolicy: 'blend',
     })
   })
 
@@ -55,5 +56,58 @@ describe('Show motion transitions', () => {
     }, 0.5, 0.75, 0.5)
     expect(wrapped.incoming).toMatchObject({ x: 0.25, addressPolicy: 'wrap' })
     expect(wrapped.pick).toBe('blend')
+  })
+
+  it('normalizes Zoom endpoint scale, rotation turns, and rotation direction (#453)', () => {
+    expect(normalizeShowMotionTransition({
+      motionVariant: 'zoom-in', contentScale: 9, rotation: 12,
+      spinDirection: 'counterclockwise', anchorX: -1, anchorY: 2,
+    })).toMatchObject({
+      motionVariant: 'zoom-in', contentScale: 1, rotation: 8,
+      spinDirection: 'counterclockwise', anchorX: 0, anchorY: 1,
+    })
+  })
+
+  it('builds Zoom In and clockwise Spin from ordinary affine Effects (#453)', () => {
+    const effects = showMotionTransitionEffects({
+      motionVariant: 'zoom-in', contentScale: 0.25, rotation: 0.25,
+      spinDirection: 'clockwise', anchorX: 0.25, anchorY: 0.75,
+    }, 0)
+    expect(effects.outgoing).toEqual([])
+    expect(effects.incoming).toEqual([
+      expect.objectContaining({ kind: 'scale', x: 0.25, y: 0.25 }),
+      expect.objectContaining({ kind: 'rotate', turns: 0.25 }),
+      expect.objectContaining({ kind: 'translate' }),
+    ])
+
+    const anchor = sampleShowMotionTransition({
+      motionVariant: 'zoom-in', contentScale: 0.25, rotation: 0.25,
+      spinDirection: 'clockwise', anchorX: 0.25, anchorY: 0.75,
+    }, 0, 0.25, 0.75)
+    expect(anchor.incoming).toMatchObject({ x: 0.25, y: 0.75, inside: true })
+    expect(anchor.pick).toBe('incoming')
+  })
+
+  it('reverses the affine endpoint for Zoom Out and counterclockwise Spin (#453)', () => {
+    const start = showMotionTransitionEffects({
+      motionVariant: 'zoom-out', contentScale: 0.2, rotation: 0.5,
+      spinDirection: 'counterclockwise',
+    }, 0)
+    expect(start.outgoing).toEqual([
+      expect.objectContaining({ kind: 'scale', x: 1, y: 1 }),
+      expect.objectContaining({ kind: 'rotate', turns: 0 }),
+      expect.objectContaining({ kind: 'translate', x: 0, y: 0 }),
+    ])
+
+    const end = showMotionTransitionEffects({
+      motionVariant: 'zoom-out', contentScale: 0.2, rotation: 0.5,
+      spinDirection: 'counterclockwise',
+    }, 1)
+    expect(end.outgoing).toEqual([
+      expect.objectContaining({ kind: 'scale', x: 0.2, y: 0.2 }),
+      expect.objectContaining({ kind: 'rotate', turns: -0.5 }),
+      expect.objectContaining({ kind: 'translate' }),
+    ])
+    expect(end.incoming).toEqual([])
   })
 })

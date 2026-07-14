@@ -6,6 +6,7 @@ import { remapShowIndex, remapShowSample } from './showCoordinateRemap'
 import { showWipeMaskPosition, type ShowWipeSettings } from './showWipe'
 import { showCoherentDissolveField } from './showDissolve'
 import { showShapeRevealSignedDistance } from './showShapeReveal'
+import { sampleShowMotionTransition } from './showMotionTransition'
 
 interface LoadedShow {
   handle: PatternHandle
@@ -2515,6 +2516,72 @@ export function render(index) { rgb(elapsed, time(1), index) }
     expect(artifact.summary).toMatchObject({
       routePolicy: 'motion-selector', renderPolicy: 'spatial-route-one-renderer-per-pixel',
       worstInstantRenderersPerPixel: 1,
+    })
+  })
+
+  it('matches anchored Zoom In plus clockwise Spin in pure and generated sampling (#453)', () => {
+    const transition = {
+      kind: 'motion' as const, motionVariant: 'zoom-in' as const,
+      startMs: 1000, durationMs: 1000, contentScale: 0.25,
+      rotation: 0.25, spinDirection: 'clockwise' as const,
+      anchorX: 0.25, anchorY: 0.75, addressPolicy: 'clip' as const, edgePolicy: 'hard' as const,
+    }
+    const artifact = compileShow({
+      clips: [
+        { id: 'from', source: 'export function render2D(index, x, y) { rgb(1, x, y) }' },
+        { id: 'to', source: 'export function render2D(index, x, y) { rgb(0, x, y) }' },
+      ],
+      routeTransition: transition,
+    }, {})
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 16)
+
+    handle.beforeRender(1250)
+    const x = 0.25
+    const y = 0.75
+    handle.render2D(0, x, y)
+    const pure = sampleShowMotionTransition(transition, 0.25, x, y)
+    expect(pure.pick).toBe('incoming')
+    expect(pixel()[0]).toBe(0)
+    expect(pixel()[1]).toBeCloseTo(pure.incoming.x)
+    expect(pixel()[2]).toBeCloseTo(pure.incoming.y)
+    expect(artifact.summary).toMatchObject({
+      transitionCost: 'route', routePolicy: 'motion-selector', worstInstantRenderersPerPixel: 1,
+      cost: { cpu: { patternEvaluations: { formula: 'N', basePerPixel: 1 } } },
+    })
+  })
+
+  it('compiles counterclockwise Zoom Out with Wrap and full blend in scene sequences (#453)', () => {
+    const artifact = compileShow({
+      clips: [
+        { id: 'from', source: 'export function render2D(index, x, y) { rgb(1, x, y) }' },
+        { id: 'to', source: 'export function render2D(index, x, y) { rgb(0, x, y) }' },
+      ],
+      sceneSequence: {
+        scenes: [
+          {
+            clipId: 'from', holdMs: 1000,
+            transitionOut: {
+              kind: 'motion', motionVariant: 'zoom-out', durationMs: 1000,
+              contentScale: 0.2, rotation: 0.5, spinDirection: 'counterclockwise',
+              anchorX: 0.5, anchorY: 0.5, addressPolicy: 'wrap', edgePolicy: 'blend',
+            },
+          },
+          { clipId: 'to', holdMs: 1000 },
+        ],
+      },
+    }, {})
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 16)
+
+    handle.beforeRender(1500)
+    handle.render2D(0, 0.25, 0.5)
+    expect(pixel().every(Number.isFinite)).toBe(true)
+    expect(artifact.summary).toMatchObject({
+      transitionCost: 'renderer-window', routePolicy: 'motion-full-blend',
+      worstInstantRenderersPerPixel: 2,
+      cost: { cpu: {
+        patternEvaluations: { formula: '2N', basePerPixel: 2 },
+        effects: { addressPolicy: 'wrap', affineScalarOpsPerEvaluatedPixel: 8 },
+      } },
     })
   })
 
