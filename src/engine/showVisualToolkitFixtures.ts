@@ -160,6 +160,40 @@ export function createShowToolkitFixtureRecipes(): ShowToolkitFixtureRecipe[] {
       recipe: { clips: clips(), routeTransition: { kind: 'dither', startMs: 1000, durationMs: 1000 } },
       persistedRecord: persistedRecord('dissolve-pixel', { kind: 'dither', durationMs: 1000 }),
     },
+    {
+      ...shared,
+      id: 'dissolve-pixel-seeded',
+      familyId: 'dissolve',
+      variantId: 'pixel',
+      recipe: {
+        clips: clips(),
+        routeTransition: {
+          kind: 'dither', startMs: 1000, durationMs: 1000,
+          dissolveVariant: 'pixel', seed: 23, edgePolicy: 'dither',
+        },
+      },
+      persistedRecord: persistedRecord('dissolve-pixel-seeded', {
+        kind: 'dither', durationMs: 1000,
+        dissolveVariant: 'pixel', seed: 23, edgePolicy: 'dither',
+      }),
+    },
+    ...([8, 32] as const).map((blockSize): ShowToolkitFixtureRecipe => ({
+      ...shared,
+      id: `dissolve-block-${blockSize}`,
+      familyId: 'dissolve',
+      variantId: 'block',
+      recipe: {
+        clips: clips(),
+        routeTransition: {
+          kind: 'dither', startMs: 1000, durationMs: 1000,
+          dissolveVariant: 'block', seed: 47, blockSize, edgePolicy: 'dither',
+        },
+      },
+      persistedRecord: persistedRecord(`dissolve-block-${blockSize}`, {
+        kind: 'dither', durationMs: 1000,
+        dissolveVariant: 'block', seed: 47, blockSize, edgePolicy: 'dither',
+      }),
+    })),
     ...(['circle', 'diamond', 'ring'] as const).map((shape): ShowToolkitFixtureRecipe => ({
       ...shared,
       id: `shape-reveal-${shape}`,

@@ -1041,6 +1041,26 @@ still selects one Pattern outside the projected feather band, evaluates both
 inside it, and reports `N + E`. Deterministic fixtures cover all eight named
 directions plus an arbitrary angle under dither and true blend.
 
+Dissolve remains the persisted `dither` Transition kind for compatibility. A
+record with no new Dissolve fields is the Pixel variant and emits the exact
+legacy expression `hash(index) < progress`; existing Shows and generated
+artifacts therefore retain their appearance. New Pixel records may add a
+16-bit integer seed while keeping one hash cell per output index.
+
+Block Dissolve groups adjacent output indices with
+`floor(index / blockSize)`, where Block size is an integer count of output
+pixels from `1..1024`. The stable cell id plus the normalized 16-bit seed feeds
+the same deterministic fractional hash used by Pixel Dissolve. Every member of
+a block therefore makes the same source choice across frames, reloads, and
+deterministic seeks. Pixel and Block share duration, easing, seed, and the
+Stable dither edge-policy descriptor; Block alone exposes Block size. Both
+variants select exactly one Pattern per output pixel and report `N`.
+
+Headless fixtures preserve the field-absent legacy Pixel form and add seeded
+Pixel plus 8- and 32-pixel Block captures. The fixture harness recompiles and
+replays them at fixed progress points to verify stable output and JSON
+round-trip behavior.
+
 Property transitions share one descriptor model. Animation speed (`0×..4×`), brightness
 (`0..1`), and exported slider controls carry destination targets on clips. Moving
 split position (`0..1`) and sample repeat scale (`1..8`) carry their targets on

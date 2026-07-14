@@ -76,6 +76,7 @@ export type ShowTransitionKind = 'cut' | 'crossfade' | 'fade-color' | 'wipe' | '
 export type ShowTransitionCost = 'free' | 'cheap' | 'expensive'
 export type ShowPortalFeatherPolicy = 'dither' | 'blend'
 export type ShowTransitionEdgePolicy = 'hard' | 'dither' | 'blend'
+export type ShowDissolveVariant = 'pixel' | 'block'
 export type ShowSpatialShape = 'circle' | 'diamond' | 'ring'
 export type LegacyShowTransitionEasing = 'linear' | 'ease-in' | 'ease-out' | 'ease-in-out'
 export type ShowEasingDirection = 'in' | 'out' | 'in-out'
@@ -148,6 +149,9 @@ export interface ShowTransition {
   /** Stage-space motion direction in turns. Absent preserves the legacy index-domain Wipe. */
   direction?: number
   edgePolicy?: ShowTransitionEdgePolicy
+  dissolveVariant?: ShowDissolveVariant
+  seed?: number
+  blockSize?: number
   /** Normalized fraction of the 1D route used as a stable wipe feather band. */
   feather?: number
   /** Normalized Stage coordinates used by the 2D portal transition. */
@@ -219,6 +223,9 @@ export interface ShowBoundaryTransition {
   color?: string
   direction?: number
   edgePolicy?: ShowTransitionEdgePolicy
+  dissolveVariant?: ShowDissolveVariant
+  seed?: number
+  blockSize?: number
   feather?: number
   centerX?: number
   centerY?: number

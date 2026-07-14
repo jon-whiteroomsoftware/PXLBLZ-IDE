@@ -24,6 +24,7 @@ import { clampShowRepeatScale } from './showCoordinateRemap'
 import { normalizeShowEasing } from './showEasing'
 import { normalizeShowTransitionColor } from './showFadeThroughColor'
 import { normalizeShowWipeDirection } from './showWipe'
+import { normalizeShowDissolveBlockSize, normalizeShowDissolveSeed } from './showDissolve'
 import {
   normalizeShowClipEffects,
   sameShowEffectStructure,
@@ -1035,6 +1036,14 @@ export function normalizeShowTransitionState(show: ShowRecord): ShowRecord {
           ...(scene.transitionOut?.kind === 'fade-color'
             ? { color: scene.transitionOut.color }
             : {}),
+          ...(scene.transitionOut?.kind === 'dither'
+            ? {
+                dissolveVariant: scene.transitionOut.dissolveVariant,
+                seed: scene.transitionOut.seed,
+                blockSize: scene.transitionOut.blockSize,
+                edgePolicy: scene.transitionOut.edgePolicy,
+              }
+            : {}),
           ...(scene.transitionOut?.kind === 'portal'
             ? {
                 feather: scene.transitionOut.feather,
@@ -1154,6 +1163,22 @@ function normalizeBoundaryTransition(transition: ShowBoundaryTransition): ShowBo
     }
   }
   if (kind === 'fade-color') return { ...base, color: normalizeShowTransitionColor(transition.color) }
+  if (kind === 'dither') {
+    const variant = transition.dissolveVariant === 'block'
+      ? 'block' as const
+      : transition.dissolveVariant === 'pixel'
+        ? 'pixel' as const
+        : undefined
+    return {
+      ...base,
+      ...(variant ? { dissolveVariant: variant } : {}),
+      ...(transition.seed === undefined ? {} : { seed: normalizeShowDissolveSeed(transition.seed) }),
+      ...(variant === 'block'
+        ? { blockSize: normalizeShowDissolveBlockSize(transition.blockSize ?? 8) }
+        : {}),
+      ...(transition.edgePolicy === 'dither' ? { edgePolicy: 'dither' as const } : {}),
+    }
+  }
   if (kind === 'portal') {
     return {
       ...base,
@@ -1284,6 +1309,14 @@ function boundaryToLegacyTransition(
     kind,
     durationMs: transition.durationMs,
     ...(kind === 'fade-color' ? { color: normalizeShowTransitionColor(transition.color) } : {}),
+    ...(kind === 'dither'
+      ? {
+          ...(transition.dissolveVariant === undefined ? {} : { dissolveVariant: transition.dissolveVariant }),
+          ...(transition.seed === undefined ? {} : { seed: transition.seed }),
+          ...(transition.blockSize === undefined ? {} : { blockSize: transition.blockSize }),
+          ...(transition.edgePolicy === 'dither' ? { edgePolicy: 'dither' as const } : {}),
+        }
+      : {}),
     ...(kind === 'wipe'
       ? {
           feather: transition.feather,
@@ -1621,6 +1654,14 @@ export function showRecordToCompileRecipe(
           ...(transition.kind === 'fade-color'
             ? { easing: boundary?.easing ?? 'linear', color: normalizeShowTransitionColor(transition.color) }
             : {}),
+          ...(transition.kind === 'dither'
+            ? {
+                ...(transition.dissolveVariant === undefined ? {} : { dissolveVariant: transition.dissolveVariant }),
+                ...(transition.seed === undefined ? {} : { seed: normalizeShowDissolveSeed(transition.seed) }),
+                ...(transition.blockSize === undefined ? {} : { blockSize: normalizeShowDissolveBlockSize(transition.blockSize) }),
+                ...(transition.edgePolicy === 'dither' ? { edgePolicy: 'dither' as const } : {}),
+              }
+            : {}),
           ...(transition.kind === 'wipe'
             ? {
                 feather: clamp01(transition.feather ?? 0),
@@ -1786,6 +1827,14 @@ function compilerSequenceTransition(
     kind: transition.kind,
     durationMs: transition.durationMs,
     ...(transition.kind === 'fade-color' ? { color: normalizeShowTransitionColor(transition.color) } : {}),
+    ...(transition.kind === 'dither'
+      ? {
+          ...(transition.dissolveVariant === undefined ? {} : { dissolveVariant: transition.dissolveVariant }),
+          ...(transition.seed === undefined ? {} : { seed: normalizeShowDissolveSeed(transition.seed) }),
+          ...(transition.blockSize === undefined ? {} : { blockSize: normalizeShowDissolveBlockSize(transition.blockSize) }),
+          ...(transition.edgePolicy === 'dither' ? { edgePolicy: 'dither' as const } : {}),
+        }
+      : {}),
     ...(transition.kind === 'wipe'
       ? {
           feather: clamp01(transition.feather ?? 0),

@@ -8,10 +8,11 @@ import {
 } from './controllerProfile'
 import { emitFixedPoint } from './fxEmit'
 import { emitShowEasingExpression } from './showEasing'
-import type { ShowClipEffect, ShowSpatialShape, ShowTransitionEasing, ShowTransitionEdgePolicy } from './personalContentRecords'
+import type { ShowClipEffect, ShowDissolveVariant, ShowSpatialShape, ShowTransitionEasing, ShowTransitionEdgePolicy } from './personalContentRecords'
 import { normalizeShowTransitionColor, showTransitionColorToRgb } from './showFadeThroughColor'
 import { normalizeShowTransitionEdgePolicy } from './showTransitionEdge'
 import { showWipeProjectionCoefficients } from './showWipe'
+import { normalizeShowDissolveBlockSize, normalizeShowDissolveSeed } from './showDissolve'
 import {
   applyShowEffectsToSample,
   buildShowEffectSampleMatrix,
@@ -99,6 +100,9 @@ export interface ShowRouteTransitionRecipe {
   color?: string
   direction?: number
   edgePolicy?: ShowTransitionEdgePolicy
+  dissolveVariant?: ShowDissolveVariant
+  seed?: number
+  blockSize?: number
   feather?: number
   centerX?: number
   centerY?: number
@@ -117,6 +121,9 @@ export interface ShowSceneSequenceTransitionRecipe {
   color?: string
   direction?: number
   edgePolicy?: ShowTransitionEdgePolicy
+  dissolveVariant?: ShowDissolveVariant
+  seed?: number
+  blockSize?: number
   feather?: number
   centerX?: number
   centerY?: number
@@ -934,7 +941,7 @@ function emitRouteTransitionShowCode(
     return emitWipeTransitionShowCode(from, to, transition, outputDimension)
   }
   const transitionEnd = transition.startMs + transition.durationMs
-  const pickTo = '__pxlblz_show_hash01(index) < __pxlblz_show_mix'
+  const pickTo = emitDissolvePickExpression(transition)
   return [
     emitRuntimePrelude([from, to]),
     from.code.trim(),
@@ -1191,7 +1198,7 @@ rgb(
 )`
   }
 
-  const pickTo = '__pxlblz_show_hash01(index) < __pxlblz_show_mix'
+  const pickTo = emitDissolvePickExpression(transition)
   return `if (${pickTo}) {
   ${toRender}
   ${to.prefix}_emit()
@@ -1199,6 +1206,17 @@ rgb(
   ${fromRender}
   ${from.prefix}_emit()
 }`
+}
+
+function emitDissolvePickExpression(
+  transition: Pick<ShowRouteTransitionRecipe, 'dissolveVariant' | 'seed' | 'blockSize'>,
+): string {
+  const seedOffset = normalizeShowDissolveSeed(transition.seed ?? 0) * 131
+  const cell = transition.dissolveVariant === 'block'
+    ? `floor(index / ${normalizeShowDissolveBlockSize(transition.blockSize ?? 8)})`
+    : 'index'
+  const hashInput = seedOffset === 0 ? cell : `${cell} + ${seedOffset}`
+  return `__pxlblz_show_hash01(${hashInput}) < __pxlblz_show_mix`
 }
 
 function emitWipeTransitionRenderBlock(

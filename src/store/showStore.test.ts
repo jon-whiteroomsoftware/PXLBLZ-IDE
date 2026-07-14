@@ -488,6 +488,27 @@ describe('showStore (#318)', () => {
     })
   })
 
+  it('persists and reloads a Block Dissolve boundary (#447)', async () => {
+    const show = createDefaultShow('show-447', 'Block dissolve persistence', 1)
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], showsLoaded: true })
+
+    await useShowStore.getState().updateBoundaryTransition(show.id, 'transition-scene-1', {
+      kind: 'dither', durationMs: 1800,
+      easing: { curve: 'quadratic', direction: 'out' },
+      dissolveVariant: 'block', seed: 1234, blockSize: 12, edgePolicy: 'dither',
+    })
+    useShowStore.setState(showInitialState)
+    await useShowStore.getState().loadShows()
+
+    expect(useShowStore.getState().shows[0].transitions?.[0]).toMatchObject({
+      kind: 'dither', dissolveVariant: 'block', seed: 1234, blockSize: 12, edgePolicy: 'dither',
+    })
+    expect(useShowStore.getState().shows[0].scenes[0].transitionOut).toMatchObject({
+      kind: 'dither', dissolveVariant: 'block', seed: 1234, blockSize: 12, edgePolicy: 'dither',
+    })
+  })
+
   it('persists a wipe feather width through the provider', async () => {
     const show = createDefaultShow('show-1', 'Opening wash', 1)
     setPersonalContentProvider(memoryProvider([show]))

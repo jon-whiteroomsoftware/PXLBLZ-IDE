@@ -119,6 +119,18 @@ describe('Show visual-toolkit contract', () => {
       expect.objectContaining({ id: 'direction', defaultValue: 0, compatibility: { stageDimensions: [2] } }),
       expect.objectContaining({ id: 'edgePolicy', defaultValue: 'hard' }),
     ]))
+
+    const dissolve = getShowToolkitFamily('transition', 'dissolve')
+    expect(dissolve?.variants).toEqual([
+      expect.objectContaining({ id: 'pixel', label: 'Pixel' }),
+      expect.objectContaining({ id: 'block', label: 'Block' }),
+    ])
+    expect(resolveShowToolkitParameters('transition', 'dissolve', 'pixel', {})).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: 'seed', defaultValue: 0 }),
+      expect.objectContaining({ id: 'edgePolicy', defaultValue: 'dither' }),
+    ]))
+    expect(resolveShowToolkitParameters('transition', 'dissolve', 'block', {}))
+      .toContainEqual(expect.objectContaining({ id: 'blockSize', unit: 'pixels', defaultValue: 8 }))
   })
 
   it('rejects descriptors whose conditions or presets reference private parameters', () => {
@@ -206,6 +218,9 @@ describe('Show visual-toolkit contract', () => {
       'wipe-arbitrary-dither',
       'wipe-arbitrary-blend',
       'dissolve-pixel',
+      'dissolve-pixel-seeded',
+      'dissolve-block-8',
+      'dissolve-block-32',
       'shape-reveal-circle',
       'shape-reveal-diamond',
       'shape-reveal-ring',

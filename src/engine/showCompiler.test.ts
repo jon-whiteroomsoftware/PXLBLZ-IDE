@@ -2347,4 +2347,52 @@ export function render(index) { calls = calls + 1; rgb(0, 1, 0) }
       routePolicy: 'dither',
     })
   })
+
+  it('keeps legacy Dither byte-identical to explicit zero-seed Pixel Dissolve (#447)', () => {
+    const clips = [
+      { id: 'from', source: 'export function render(index) { rgb(1, 0, 0) }' },
+      { id: 'to', source: 'export function render(index) { rgb(0, 1, 0) }' },
+    ]
+    const legacy = compileShow({
+      clips, routeTransition: { kind: 'dither', startMs: 1000, durationMs: 1000 },
+    }, {})
+    const pixel = compileShow({
+      clips,
+      routeTransition: {
+        kind: 'dither', startMs: 1000, durationMs: 1000,
+        dissolveVariant: 'pixel', seed: 0, edgePolicy: 'dither',
+      },
+    }, {})
+
+    expect(pixel.code).toBe(legacy.code)
+    expect(pixel.fxCode).toBe(legacy.fxCode)
+    expect(pixel.summary.cost.cpu.patternEvaluations).toEqual({ formula: 'N', basePerPixel: 1 })
+  })
+
+  it('hashes every member of a Block Dissolve cell to one stable source renderer (#447)', () => {
+    const artifact = compileShow({
+      clips: [
+        { id: 'from', source: 'export var calls = 0\nexport function render(index) { calls = calls + 1; rgb(1, 0, 0) }' },
+        { id: 'to', source: 'export var calls = 0\nexport function render(index) { calls = calls + 1; rgb(0, 1, 0) }' },
+      ],
+      routeTransition: {
+        kind: 'dither', startMs: 1000, durationMs: 1000,
+        dissolveVariant: 'block', seed: 17, blockSize: 8, edgePolicy: 'dither',
+      },
+    }, {})
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 32)
+
+    handle.beforeRender(1500)
+    handle.render(8)
+    const first = pixel()
+    handle.render(15)
+    expect(pixel()).toEqual(first)
+    const exports = handle.getExports()
+    expect(Number(exports.__pxlblz_show_c0_calls) + Number(exports.__pxlblz_show_c1_calls)).toBe(2)
+    expect(artifact.code).toContain('__pxlblz_show_hash01(floor(index / 8) + 2227)')
+    expect(artifact.summary).toMatchObject({
+      transitionCost: 'route', worstInstantRenderersPerPixel: 1,
+      cost: { cpu: { patternEvaluations: { formula: 'N', basePerPixel: 1 } } },
+    })
+  })
 })

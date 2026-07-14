@@ -231,8 +231,20 @@ export const SHOW_VISUAL_TOOLKIT_REGISTRY: ShowToolkitFamilyDescriptor[] = [
     kind: 'transition',
     id: 'dissolve',
     label: 'Dissolve',
-    variants: [{ id: 'pixel', label: 'Pixel', costPolicies: ['selector'] }],
-    parameters: [DURATION, EASING],
+    variants: [
+      { id: 'pixel', label: 'Pixel', costPolicies: ['selector'] },
+      { id: 'block', label: 'Block', costPolicies: ['selector'] },
+    ],
+    parameters: [
+      DURATION,
+      EASING,
+      { id: 'seed', label: 'Seed', kind: 'number', defaultValue: 0, min: 0, max: 65_535, step: 1 },
+      {
+        id: 'edgePolicy', label: 'Edge', kind: 'enum', defaultValue: 'dither',
+        options: [{ value: 'dither', label: 'Stable dither' }],
+      },
+      { id: 'blockSize', label: 'Block size', kind: 'number', defaultValue: 8, min: 1, max: 1024, step: 1, unit: 'pixels', variantIds: ['block'] },
+    ],
   },
   {
     kind: 'transition',
