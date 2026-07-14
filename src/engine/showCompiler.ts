@@ -10,6 +10,10 @@ import { emitFixedPoint } from './fxEmit'
 import { emitShowEasingExpression } from './showEasing'
 import type { ShowSpatialShape, ShowTransitionEasing } from './personalContentRecords'
 import {
+  buildShowCompiledCostMetadata,
+  type ShowCompiledCostMetadata,
+} from './showVisualToolkit'
+import {
   planPhysicalRoutingRepresentation,
   type GeneratedRoutingFormula,
   type RoutingRepresentationEstimate,
@@ -244,6 +248,7 @@ export interface ShowCompileSummary {
   } | null
   clips: ShowCompileClipSummary[]
   warnings: string[]
+  cost: ShowCompiledCostMetadata
 }
 
 export interface GeneratedShowArtifact {
@@ -437,6 +442,16 @@ export function compileShow(
           ? portalBlend ? 'bounded-renderer-window' : 'route'
         : 'none'
   const evaluationSummary = describeEvaluationPolicy(members)
+  const warnings = routingLayouts?.flatMap((layout) => layout.warnings) ?? route?.warnings ?? []
+  const cost = buildShowCompiledCostMetadata({
+    transitionCost,
+    artifactBytes,
+    budgetBytes: MEASURED_DEVICE_BUDGET_BYTES,
+    expectedActiveFraction: evaluationSummary.expectedActiveFraction,
+    generatedScalarGlobals: (routingParameterEstimate?.scalarGlobals ?? 0) + (expandedRecipe.samplePropertyRamps ? 1 : 0),
+    generatedArrayElements: routingParameterEstimate?.arrayElements ?? 0,
+    warnings,
+  })
   const summary: ShowCompileSummary = {
     clipCount: members.length,
     transitionCount: expandedRecipe.sceneSequence
@@ -544,7 +559,8 @@ export function compileShow(
         timeOffsetMs: member.adaptation.timeOffsetMs,
       }
     }),
-    warnings: routingLayouts?.flatMap((layout) => layout.warnings) ?? route?.warnings ?? [],
+    warnings,
+    cost,
   }
 
   return {

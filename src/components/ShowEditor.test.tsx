@@ -685,7 +685,7 @@ describe('ShowEditor (#318)', () => {
       expect(useShowStore.getState().shows[0].transitions?.[0].propertyTransitions?.routing?.splitPosition).toEqual({
         from: 0.2,
         durationMs: 1200,
-        easing: 'ease-in-out',
+        easing: { curve: 'quadratic', direction: 'in-out' },
       })
     })
   })
@@ -728,7 +728,7 @@ describe('ShowEditor (#318)', () => {
       expect(useShowStore.getState().shows[0].transitions?.[0].propertyTransitions?.sample?.repeatScale).toEqual({
         from: 1.25,
         durationMs: 1200,
-        easing: 'ease-in-out',
+        easing: { curve: 'quadratic', direction: 'in-out' },
       })
     })
   })
@@ -751,7 +751,7 @@ describe('ShowEditor (#318)', () => {
     fireEvent.change(screen.getByLabelText('Duration seconds'), { target: { value: '1.5' } })
     await waitFor(() => {
       expect(useShowStore.getState().shows[0].transitions?.find((transition) => transition.id === 'transition-scene-1'))
-        .toMatchObject({ durationMs: 1500, easing: 'ease-in-out' })
+        .toMatchObject({ durationMs: 1500, easing: { curve: 'quadratic', direction: 'in-out' } })
     })
 
     await user.click(screen.getByRole('button', { name: 'Select Scene 1 to Scene 2 transition (routing)' }))
@@ -764,7 +764,11 @@ describe('ShowEditor (#318)', () => {
     expect(screen.getByLabelText('Routing transfer cost')).toHaveTextContent('Cost tier: cheap')
     await waitFor(() => {
       expect(useShowStore.getState().shows[0].transitions?.find((transition) => transition.kind === 'routing'))
-        .toMatchObject({ durationMs: 2000, easing: 'ease-in-out', routingDirection: 'reverse' })
+        .toMatchObject({
+          durationMs: 2000,
+          easing: { curve: 'quadratic', direction: 'in-out' },
+          routingDirection: 'reverse',
+        })
     })
   })
 
@@ -785,7 +789,7 @@ describe('ShowEditor (#318)', () => {
     await waitFor(() => {
       const saved = useShowStore.getState().shows[0]
       expect(saved.transitions?.[0].propertyTransitions).toEqual({
-        timeScale: { fromByCellId: { 'cell-2': 1.5 }, durationMs: 2000, easing: 'linear' },
+        timeScale: { fromByCellId: { 'cell-2': 1.5 }, durationMs: 2000, easing: { curve: 'linear' } },
       })
       expect(saved.cells[1].adaptations.timeScale).toBe(0)
     })
@@ -812,8 +816,8 @@ describe('ShowEditor (#318)', () => {
     await waitFor(() => {
       const saved = useShowStore.getState().shows[0]
       expect(saved.transitions?.[0].propertyTransitions).toMatchObject({
-        timeScale: { durationMs: 1500, easing: 'ease-in' },
-        brightness: { durationMs: 800, easing: 'ease-out' },
+        timeScale: { durationMs: 1500, easing: { curve: 'quadratic', direction: 'in' } },
+        brightness: { durationMs: 800, easing: { curve: 'quadratic', direction: 'out' } },
       })
       expect(saved.cells[1].adaptations.brightness).toBe(0.25)
     })
@@ -851,7 +855,7 @@ describe('ShowEditor (#318)', () => {
       expect(saved.cells.map((cell) => cell.controlTargets?.sliderSpeed)).toEqual([0.2, 0.8])
       expect(saved.transitions?.[0].propertyTransitions?.controls?.sliderSpeed).toMatchObject({
         fromByCellId: { 'cell-2': 0.2 },
-        easing: 'ease-in-out',
+        easing: { curve: 'quadratic', direction: 'in-out' },
       })
     })
     expect(screen.getByRole('group', { name: 'Speed control lane for main' })).toBeInTheDocument()

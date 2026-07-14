@@ -76,7 +76,18 @@ export type ShowTransitionKind = 'cut' | 'crossfade' | 'wipe' | 'dither' | 'port
 export type ShowTransitionCost = 'free' | 'cheap' | 'expensive'
 export type ShowPortalFeatherPolicy = 'dither' | 'blend'
 export type ShowSpatialShape = 'circle' | 'diamond' | 'ring'
-export type ShowTransitionEasing = 'linear' | 'ease-in' | 'ease-out' | 'ease-in-out'
+export type LegacyShowTransitionEasing = 'linear' | 'ease-in' | 'ease-out' | 'ease-in-out'
+export type ShowEasingDirection = 'in' | 'out' | 'in-out'
+export type ShowStructuredEasing =
+  | { curve: 'linear' }
+  | { curve: 'quadratic' | 'cubic' | 'sine'; direction: ShowEasingDirection }
+
+/**
+ * Persisted records normalize to the structured form. Legacy names remain an
+ * accepted input so existing Shows and direct compiler recipes retain their
+ * exact timing while they cross the normalization boundary.
+ */
+export type ShowTransitionEasing = LegacyShowTransitionEasing | ShowStructuredEasing
 export type ShowRoutingDirection = 'forward' | 'reverse'
 export type ShowAutomatableProperty = 'timeScale' | 'brightness'
 

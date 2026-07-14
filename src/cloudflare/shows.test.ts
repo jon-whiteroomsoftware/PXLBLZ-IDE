@@ -6,7 +6,7 @@ import {
   updateD1Show,
   type D1DatabaseShowsLike,
 } from './shows'
-import { createDefaultShow } from '../engine/showModel'
+import { createDefaultShow, normalizeShowTransitionState } from '../engine/showModel'
 import { createInstallationShowOutputContract } from '../engine/showOutputContract'
 
 function fakeDb(rows: Record<string, unknown>[] = []): {
@@ -93,7 +93,7 @@ describe('D1 show persistence (#318)', () => {
     expect(calls[0].values).toContain(JSON.stringify(show.cells))
     expect(calls[0].values).toContain(JSON.stringify(show.routingLayouts))
     expect(calls[0].values).toContain(JSON.stringify(show.routingSwitches))
-    expect(calls[0].values).toContain(JSON.stringify(show.transitions))
+    expect(calls[0].values).toContain(JSON.stringify(normalizeShowTransitionState(show).transitions))
     expect(calls[0].values).toContain(JSON.stringify(show.outputContract))
     expect(calls[0].values).toContain(null)
   })

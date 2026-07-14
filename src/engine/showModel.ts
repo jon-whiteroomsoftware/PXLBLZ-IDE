@@ -15,6 +15,7 @@ import type {
 } from './personalContentRecords'
 import type { ShowClipAdaptation, ShowRecipe, ShowRoutingLayoutRecipe } from './showCompiler'
 import { clampShowRepeatScale } from './showCoordinateRemap'
+import { normalizeShowEasing } from './showEasing'
 import {
   controllerZonePixelCount,
   controllerProfileDisplayName,
@@ -1060,9 +1061,7 @@ function normalizeBoundaryTransition(transition: ShowBoundaryTransition): ShowBo
       : kind === 'routing' && transition.durationMs <= 0
         ? 0
         : clampDuration(transition.durationMs),
-    easing: transition.easing === 'ease-in' || transition.easing === 'ease-out' || transition.easing === 'ease-in-out'
-      ? transition.easing
-      : 'linear',
+    easing: normalizeShowEasing(transition.easing),
     ...(kind === 'cut' || kind === 'routing' ? {} : normalizePropertyTransitions(transition)),
   }
   if (kind === 'routing') {
@@ -1099,9 +1098,7 @@ function normalizePropertyTransitions(transition: ShowBoundaryTransition): Pick<
     return {
       fromByCellId: Object.fromEntries(Object.entries(source.fromByCellId ?? {}).map(([cellId, value]) => [cellId, clamp(value)])),
       durationMs: Math.min(clampPropertyDuration(source.durationMs ?? transition.durationMs), clampDuration(transition.durationMs)),
-      easing: (source.easing ?? transition.easing) === 'ease-in' || (source.easing ?? transition.easing) === 'ease-out' || (source.easing ?? transition.easing) === 'ease-in-out'
-        ? source.easing ?? transition.easing
-        : 'linear' as const,
+      easing: normalizeEasing(source.easing ?? transition.easing),
     }
   }
   const timeScale = normalizeProperty('timeScale', clampTimeScale)
@@ -1175,7 +1172,7 @@ function normalizeSpatialShapeSettings(transition: {
 }
 
 function normalizeEasing(easing: ShowBoundaryTransition['easing'] | undefined): ShowBoundaryTransition['easing'] {
-  return easing === 'ease-in' || easing === 'ease-out' || easing === 'ease-in-out' ? easing : 'linear'
+  return normalizeShowEasing(easing)
 }
 
 function clampTimeScale(value: number): number {

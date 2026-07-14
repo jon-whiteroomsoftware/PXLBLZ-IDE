@@ -824,6 +824,14 @@ model before compiler, editor, EPE, or persistence consumption. Every boundary
 retains one explicit visual transition, with zero-duration cut as the neutral
 form. Visual and routing entities may coexist.
 
+Easing also normalizes at this boundary. Persisted transitions and property
+descriptors use a structured curve: linear has only its curve name, while
+quadratic, cubic, and sine curves also carry `in`, `out`, or `in-out` direction.
+The legacy `linear`, `ease-in`, `ease-out`, and `ease-in-out` strings remain
+accepted inputs and map to the exact prior linear or quadratic behavior. A
+second normalization pass is therefore idempotent without making old Shows
+timing-incompatible.
+
 The persisted record still uses the `cells` field and `ShowCell` type for
 compatibility with existing saved Shows. Product language and editor behavior
 call these entities clips.
@@ -948,8 +956,16 @@ domains and advances `beforeRender` once.
 
 The summary separates code size, render policy, transition cost, clock policy,
 evaluation policy, temporal policy, time-offset policy, routing representation,
-routing-parameter pressure, expected active fraction, and warnings. Renderer count and clock behavior remain
-separate: exact pause is not described as a cached frame or renderer saving.
+routing-parameter pressure, expected active fraction, and warnings. It also
+emits machine-readable cost metadata on five independent axes: Pattern
+evaluations, generated scalar/array memory, artifact bytes against the measured
+budget, output coverage, and compatibility warnings. Pattern evaluations use
+literal formulas: ordinary selector and parameter work is `N`, bounded feather
+blending is `N + E`, and full crossfade is `2N`. Here `N` is the output pixel
+count and `E` is the measured feather-edge pixel count; the compiler does not
+invent an `E` estimate when one is unavailable. Renderer count and clock
+behavior remain separate: exact pause is not described as a cached frame or
+renderer saving.
 
 ## 22. Transition and adaptation policies
 
@@ -966,9 +982,28 @@ Current compiler policies:
 | Routing-layout cut | Immediate destination layout selection |
 | Routing-layout directional transfer | Both clocks advance; one adjacent layout and renderer selected per pixel |
 
-Easing is deterministic arithmetic shared by editor helpers and generated code:
-linear, quadratic ease-in, quadratic ease-out, and piecewise quadratic
-ease-in-out.
+Easing is deterministic arithmetic shared by editor helpers and generated code.
+The supported basis curves are linear, quadratic, cubic, and sine; every
+nonlinear curve supports `in`, `out`, and `in-out`. Legacy ease names retain
+their quadratic definitions. Generated sine expressions use the Pixelblaze
+`cos` and `PI` primitives, while all progress values clamp to `[0, 1]` before
+the curve is evaluated.
+
+`showVisualToolkit.ts` is the framework-independent catalogue for property
+animations, effects, and transitions. Families own stable ids and cost policy;
+variants own parameter descriptors and conditional parameters; presets are
+named parameter bundles rather than separate runtime implementations. The
+registry currently describes the shipped property-animation targets plus blend,
+linear wipe, pixel dissolve, and circle/diamond/ring shape-reveal transitions.
+Validation rejects duplicate ids, missing parameter references, and presets that
+do not resolve through their variant's public parameter contract. React may
+project this catalogue, but engine code does not import the UI framework.
+
+`showVisualToolkitFixtures.ts` provides deterministic headless evidence for
+every registered transition that the compiler currently lowers. Each fixture
+uses fixed outgoing/incoming Patterns, standard progress samples, and generated
+minimum/default/maximum or enum parameter sweeps. The fixture harness compiles
+artifacts; it is not a temporary editor and does not establish production UI.
 
 Property transitions share one descriptor model. Animation speed (`0×..4×`), brightness
 (`0..1`), and exported slider controls carry destination targets on clips. Moving

@@ -5,6 +5,7 @@ import {
   type ArtifactShowOutputContract,
 } from './artifactStamp'
 import { makeProgramId } from './bytecodePush'
+import { showEasingOptionId } from './showEasing'
 import { STOCK_MAP_SPECS } from './maps'
 import type { MapRecord, ShowRecord } from './personalContentRecords'
 import { normalizeShowTransitionState } from './showModel'
@@ -103,7 +104,7 @@ function showArtifactHeader(
       const routingTransition = routingTransitionByScene.get(scene.id)
       const routingNote = destinationId
         ? routingTransition && routingTransition.durationMs > 0
-          ? `: transfer ${routingTransition.routingDirection ?? 'forward'} to ${commentText(layoutName.get(destinationId) ?? destinationId)} over ${formatSeconds(routingTransition.durationMs)} (${routingTransition.easing}) after scene`
+          ? `: transfer ${routingTransition.routingDirection ?? 'forward'} to ${commentText(layoutName.get(destinationId) ?? destinationId)} over ${formatSeconds(routingTransition.durationMs)} (${showEasingOptionId(routingTransition.easing)}) after scene`
           : `: switch to ${commentText(layoutName.get(destinationId) ?? destinationId)} after scene`
         : ''
       const transitionNote = scene.transitionOut ? `: ${describeTransition(scene.transitionOut)}` : ''

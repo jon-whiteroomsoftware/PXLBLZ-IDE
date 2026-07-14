@@ -189,14 +189,14 @@ describe('showModel (#318)', () => {
         afterSceneId: 'scene-1',
         kind: 'crossfade',
         durationMs: 2000,
-        easing: 'linear',
+        easing: { curve: 'linear' },
       },
       {
         id: 'routing-scene-1',
         afterSceneId: 'scene-1',
         kind: 'routing',
         durationMs: 0,
-        easing: 'linear',
+        easing: { curve: 'linear' },
         layoutId: base.routingLayouts[1].id,
       },
     ])
@@ -226,7 +226,7 @@ describe('showModel (#318)', () => {
 
     expect(updated.transitions?.find((candidate) => candidate.kind === 'routing')).toMatchObject({
       durationMs: 2000,
-      easing: 'ease-in-out',
+      easing: { curve: 'quadratic', direction: 'in-out' },
       routingDirection: 'reverse',
     })
     expect(projectShowTimeline(updated).boundaryTransitions.find((candidate) => candidate.kind === 'routing'))
@@ -237,7 +237,7 @@ describe('showModel (#318)', () => {
       atMs: 30_000,
       layoutId: base.routingLayouts[1].id,
       durationMs: 2000,
-      easing: 'ease-in-out',
+      easing: { curve: 'quadratic', direction: 'in-out' },
       direction: 'reverse',
     }])
   })
@@ -253,7 +253,7 @@ describe('showModel (#318)', () => {
         afterSceneId: 'scene-1',
         kind: 'wipe',
         durationMs: 1500,
-        easing: 'linear',
+        easing: { curve: 'linear' },
         feather: 0.2,
       }),
       expect.objectContaining({
@@ -291,7 +291,7 @@ describe('showModel (#318)', () => {
       afterSceneId: 'scene-2',
       kind: 'dither',
       durationMs: 2500,
-      easing: 'ease-in-out',
+      easing: { curve: 'quadratic', direction: 'in-out' },
     })
 
     const removedVisual = removeShowBoundaryTransition(updated, 'transition-scene-2')
@@ -331,7 +331,7 @@ describe('showModel (#318)', () => {
       id: 'transition-scene-1',
       kind: legacyTransition.kind,
       durationMs: legacyTransition.durationMs,
-      easing: 'linear',
+      easing: { curve: 'linear' },
     })
     expect(showLoopDurationMs(migrated)).toBe(showLoopDurationMs(legacy))
     expect(showRecordToCompileRecipe(migrated, lookup)).toEqual(showRecordToCompileRecipe(legacy, lookup))
@@ -954,7 +954,7 @@ describe('showModel (#318)', () => {
       durationMs: 2000,
       from: { brightness: 1, phase: 0, timeScale: 1, mirror: false, timeOffsetMs: 0 },
       to: { brightness: 0.4, phase: 0.25, timeScale: 0, mirror: false, timeOffsetMs: 0 },
-      easing: 'linear',
+      easing: { curve: 'linear' },
     })
     expect(recipe.crossfade).toBeUndefined()
   })
@@ -973,14 +973,18 @@ describe('showModel (#318)', () => {
 
     const normalized = normalizeShowTransitionState(JSON.parse(JSON.stringify(show)) as ShowRecord)
     expect(normalized.transitions?.[0].propertyTransitions).toEqual({
-      timeScale: { fromByCellId: { [show.cells[1].id]: 1.5 }, durationMs: 2000, easing: 'ease-in-out' },
+      timeScale: {
+        fromByCellId: { [show.cells[1].id]: 1.5 },
+        durationMs: 2000,
+        easing: { curve: 'quadratic', direction: 'in-out' },
+      },
     })
     expect(showRecordToCompileRecipe(normalized, {
       byCellId: Object.fromEntries(show.cells.map((cell) => [cell.id, DEMOS.TestPattern1D])),
     }).adaptationRamp).toMatchObject({
       from: { timeScale: 1.5 },
       to: { timeScale: 0 },
-      easing: 'ease-in-out',
+      easing: { curve: 'quadratic', direction: 'in-out' },
     })
   })
 
@@ -998,7 +1002,7 @@ describe('showModel (#318)', () => {
     expect(normalized.transitions?.[0].propertyTransitions?.routing?.splitPosition).toEqual({
       from: 1,
       durationMs: 1200,
-      easing: 'ease-out',
+      easing: { curve: 'quadratic', direction: 'out' },
     })
   })
 
@@ -1036,7 +1040,13 @@ describe('showModel (#318)', () => {
     })
     expect(recipe.routingPropertyRamps?.splitPosition).toEqual({
       initial: 0.25,
-      ramps: [{ atMs: 30000, from: 0.2, to: 0.75, durationMs: 1200, easing: 'ease-in-out' }],
+      ramps: [{
+        atMs: 30000,
+        from: 0.2,
+        to: 0.75,
+        durationMs: 1200,
+        easing: { curve: 'quadratic', direction: 'in-out' },
+      }],
     })
   })
 
@@ -1056,7 +1066,7 @@ describe('showModel (#318)', () => {
     expect(normalized.transitions?.[0].propertyTransitions?.sample?.repeatScale).toEqual({
       from: 1.25,
       durationMs: 1200,
-      easing: 'ease-in-out',
+      easing: { curve: 'quadratic', direction: 'in-out' },
     })
 
     const recipe = showRecordToCompileRecipe(normalized, {
@@ -1065,7 +1075,13 @@ describe('showModel (#318)', () => {
     })
     expect(recipe.samplePropertyRamps?.repeatScale).toEqual({
       initial: 1.5,
-      ramps: [{ atMs: 30000, from: 1.25, to: 3, durationMs: 1200, easing: 'ease-in-out' }],
+      ramps: [{
+        atMs: 30000,
+        from: 1.25,
+        to: 3,
+        durationMs: 1200,
+        easing: { curve: 'quadratic', direction: 'in-out' },
+      }],
     })
   })
 
@@ -1098,13 +1114,27 @@ describe('showModel (#318)', () => {
         clipId: show.cells[0].id,
         timeScale: 0,
         transitionOut: expect.objectContaining({
-          propertyRamps: { timeScale: { from: 0, to: 1, durationMs: 2000, easing: 'ease-in' } },
+          propertyRamps: {
+            timeScale: {
+              from: 0,
+              to: 1,
+              durationMs: 2000,
+              easing: { curve: 'quadratic', direction: 'in' },
+            },
+          },
         }),
       }),
       expect.objectContaining({ clipId: show.cells[0].id, timeScale: 1 }),
     ])
     expect(recipe.sceneSequence?.scenes[0].transitionOut).toMatchObject({
-      propertyRamps: { timeScale: { from: 1, to: 0, durationMs: 2000, easing: 'ease-out' } },
+      propertyRamps: {
+        timeScale: {
+          from: 1,
+          to: 0,
+          durationMs: 2000,
+          easing: { curve: 'quadratic', direction: 'out' },
+        },
+      },
     })
   })
 
@@ -1127,8 +1157,18 @@ describe('showModel (#318)', () => {
     })
     expect(recipe.clips).toHaveLength(1)
     expect(recipe.adaptationRamp?.propertyRamps).toEqual({
-      timeScale: { from: 1, to: 0, durationMs: 2000, easing: 'ease-out' },
-      brightness: { from: 1, to: 0.2, durationMs: 1000, easing: 'ease-in' },
+      timeScale: {
+        from: 1,
+        to: 0,
+        durationMs: 2000,
+        easing: { curve: 'quadratic', direction: 'out' },
+      },
+      brightness: {
+        from: 1,
+        to: 0.2,
+        durationMs: 1000,
+        easing: { curve: 'quadratic', direction: 'in' },
+      },
     })
   })
 
@@ -1143,8 +1183,16 @@ describe('showModel (#318)', () => {
     const moved = split.transitions?.find((transition) => transition.afterSceneId === 'scene-3')
 
     expect(moved?.propertyTransitions).toEqual({
-      timeScale: { fromByCellId: { 'cell-2': 1 }, durationMs: 1500, easing: 'ease-in' },
-      brightness: { fromByCellId: { 'cell-2': 1 }, durationMs: 700, easing: 'ease-out' },
+      timeScale: {
+        fromByCellId: { 'cell-2': 1 },
+        durationMs: 1500,
+        easing: { curve: 'quadratic', direction: 'in' },
+      },
+      brightness: {
+        fromByCellId: { 'cell-2': 1 },
+        durationMs: 700,
+        easing: { curve: 'quadratic', direction: 'out' },
+      },
     })
     expect(split.transitions?.find((transition) => transition.afterSceneId === 'scene-1')?.propertyTransitions).toBeUndefined()
 
@@ -1179,7 +1227,12 @@ describe('showModel (#318)', () => {
     expect(recipe.clips).toHaveLength(1)
     expect(recipe.clips[0].controlTargets).toEqual({ sliderSpeed: 0.2 })
     expect(recipe.adaptationRamp?.controlRamps).toEqual({
-      sliderSpeed: { from: 0.25, to: 0.8, durationMs: 1200, easing: 'ease-in-out' },
+      sliderSpeed: {
+        from: 0.25,
+        to: 0.8,
+        durationMs: 1200,
+        easing: { curve: 'quadratic', direction: 'in-out' },
+      },
     })
   })
 

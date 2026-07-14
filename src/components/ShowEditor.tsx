@@ -55,6 +55,7 @@ import { buildPreviewJpeg } from '@/engine/previewThumbnailJpeg'
 import { bytesToBase64 } from '@/engine/RelayWebSocket'
 import { steppedClockRateHz, steppedClockStepMs } from '@/engine/steppedClock'
 import { showKeyboardSeekStepMs } from '@/engine/showKeyboardSeek'
+import { SHOW_EASING_OPTIONS, showEasingFromOptionId, showEasingOptionId } from '@/engine/showEasing'
 import {
   controllerZonePixelCount,
   findControllerZoneByName,
@@ -86,6 +87,12 @@ const field =
   'h-7 rounded border border-zinc-700 bg-zinc-900 px-2 text-xs text-zinc-200 outline-none focus:border-live/70'
 const clipBase =
   'relative z-10 flex min-h-16 flex-col justify-center gap-0.5 overflow-hidden rounded-[5px] border-0 border-l-[3px] px-3 py-2 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-live'
+
+function ShowEasingOptions() {
+  return SHOW_EASING_OPTIONS.map((option) => (
+    <option key={option.id} value={option.id}>{option.label}</option>
+  ))
+}
 
 type ShowSelection =
   | { kind: 'scene'; sceneId: string }
@@ -2656,17 +2663,14 @@ function TransitionInspector({
             Routing transfer easing
             <select
               aria-label="Routing transfer easing"
-              value={transition.easing}
+              value={showEasingOptionId(transition.easing)}
               disabled={transition.durationMs === 0}
               onChange={(event) => onUpdate(transition.id, {
-                easing: event.target.value as ShowBoundaryTransition['easing'],
+                easing: showEasingFromOptionId(event.target.value),
               })}
               className={`${field} mt-1 w-full disabled:opacity-40`}
             >
-              <option value="linear">linear</option>
-              <option value="ease-in">ease in</option>
-              <option value="ease-out">ease out</option>
-              <option value="ease-in-out">ease in/out</option>
+              <ShowEasingOptions />
             </select>
           </label>
           <label className="text-[10px] uppercase text-zinc-600">
@@ -2773,17 +2777,14 @@ function TransitionInspector({
           Easing
           <select
             aria-label="Transition easing"
-            value={transition.easing}
+            value={showEasingOptionId(transition.easing)}
             disabled={transition.kind === 'cut'}
             onChange={(event) => onUpdate(transition.id, {
-              easing: event.target.value as ShowBoundaryTransition['easing'],
+              easing: showEasingFromOptionId(event.target.value),
             })}
             className={`${field} mt-1 w-full disabled:opacity-40`}
           >
-            <option value="linear">linear</option>
-            <option value="ease-in">ease in</option>
-            <option value="ease-out">ease out</option>
-            <option value="ease-in-out">ease in/out</option>
+            <ShowEasingOptions />
           </select>
         </label>
         <NumberField
@@ -3045,14 +3046,11 @@ function SampleRepeatTransitionEditor({
             Repeat scale easing
             <select
               aria-label="Repeat scale easing"
-              value={descriptor.easing ?? transition.easing}
-              onChange={(event) => updateDescriptor({ easing: event.target.value as ShowBoundaryTransition['easing'] })}
+              value={showEasingOptionId(descriptor.easing ?? transition.easing)}
+              onChange={(event) => updateDescriptor({ easing: showEasingFromOptionId(event.target.value) })}
               className={`${field} mt-1 w-full`}
             >
-              <option value="linear">linear</option>
-              <option value="ease-in">ease in</option>
-              <option value="ease-out">ease out</option>
-              <option value="ease-in-out">ease in/out</option>
+              <ShowEasingOptions />
             </select>
           </label>
         </div>
@@ -3133,14 +3131,11 @@ function RoutingSplitTransitionEditor({
             Split position easing
             <select
               aria-label="Split position easing"
-              value={descriptor.easing ?? transition.easing}
-              onChange={(event) => updateDescriptor({ easing: event.target.value as ShowBoundaryTransition['easing'] })}
+              value={showEasingOptionId(descriptor.easing ?? transition.easing)}
+              onChange={(event) => updateDescriptor({ easing: showEasingFromOptionId(event.target.value) })}
               className={`${field} mt-1 w-full`}
             >
-              <option value="linear">linear</option>
-              <option value="ease-in">ease in</option>
-              <option value="ease-out">ease out</option>
-              <option value="ease-in-out">ease in/out</option>
+              <ShowEasingOptions />
             </select>
           </label>
         </div>
@@ -3214,14 +3209,11 @@ function PropertyTransitionEditor({
             {title} easing
             <select
               aria-label={`${title} easing`}
-              value={descriptor.easing ?? transition.easing}
-              onChange={(event) => updateDescriptor({ easing: event.target.value as ShowBoundaryTransition['easing'] })}
+              value={showEasingOptionId(descriptor.easing ?? transition.easing)}
+              onChange={(event) => updateDescriptor({ easing: showEasingFromOptionId(event.target.value) })}
               className={`${field} mt-1 w-full`}
             >
-              <option value="linear">linear</option>
-              <option value="ease-in">ease in</option>
-              <option value="ease-out">ease out</option>
-              <option value="ease-in-out">ease in/out</option>
+              <ShowEasingOptions />
             </select>
           </label>
         </div>
@@ -3343,14 +3335,11 @@ function PatternControlTransitionEditor({
             {control.label} easing
             <select
               aria-label={`${control.label} easing`}
-              value={descriptor.easing ?? transition.easing}
-              onChange={(event) => updateDescriptor({ easing: event.target.value as ShowBoundaryTransition['easing'] })}
+              value={showEasingOptionId(descriptor.easing ?? transition.easing)}
+              onChange={(event) => updateDescriptor({ easing: showEasingFromOptionId(event.target.value) })}
               className={`${field} mt-1 w-full`}
             >
-              <option value="linear">linear</option>
-              <option value="ease-in">ease in</option>
-              <option value="ease-out">ease out</option>
-              <option value="ease-in-out">ease in/out</option>
+              <ShowEasingOptions />
             </select>
           </label>
         </div>

@@ -1,0 +1,210 @@
+import {
+  applyShowEasing,
+  emitShowEasingExpression,
+  normalizeShowEasing,
+  showEasingFromOptionId,
+  showEasingOptionId,
+} from './showEasing'
+import { createDefaultShow, normalizeShowTransitionState } from './showModel'
+import { compileShow } from './showCompiler'
+import {
+  SHOW_VISUAL_TOOLKIT_REGISTRY,
+  evaluateShowCostAtPixelCount,
+  getShowToolkitFamily,
+  resolveShowToolkitParameters,
+  validateShowToolkitRegistry,
+} from './showVisualToolkit'
+import {
+  captureShowToolkitFixture,
+  createShowToolkitFixtureRecipes,
+  createShowToolkitParameterSweep,
+  roundTripShowToolkitFixtureRecord,
+} from './showVisualToolkitFixtures'
+
+describe('Show visual-toolkit contract', () => {
+  it('normalizes legacy easing names into the shared structured representation (#443)', () => {
+    const easing = normalizeShowEasing('ease-in-out')
+
+    expect(easing).toEqual({ curve: 'quadratic', direction: 'in-out' })
+    expect(applyShowEasing(easing, 0.25)).toBe(0.125)
+
+    const expression = emitShowEasingExpression(easing, 't')
+    const evaluate = new Function('t', `return ${expression}`) as (t: number) => number
+    expect(evaluate(0.75)).toBeCloseTo(applyShowEasing(easing, 0.75), 12)
+  })
+
+  it.each([
+    [{ curve: 'quadratic', direction: 'in' } as const, 0.25, 0.0625],
+    [{ curve: 'cubic', direction: 'out' } as const, 0.25, 0.578125],
+    [{ curve: 'sine', direction: 'in-out' } as const, 0.25, (1 - Math.cos(Math.PI / 4)) / 2],
+  ])('evaluates and emits the structured %j curve', (easing, progress, expected) => {
+    expect(applyShowEasing(easing, progress)).toBeCloseTo(expected, 12)
+
+    const expression = emitShowEasingExpression(easing, 't')
+    const evaluate = new Function('t', 'cos', 'PI', `return ${expression}`) as (
+      t: number,
+      cos: typeof Math.cos,
+      pi: number,
+    ) => number
+    expect(evaluate(progress, Math.cos, Math.PI)).toBeCloseTo(expected, 12)
+  })
+
+  it('round-trips structured curves through stable option identifiers', () => {
+    expect(showEasingOptionId(normalizeShowEasing('ease-out'))).toBe('ease-out')
+    expect(showEasingFromOptionId('sine-in')).toEqual({ curve: 'sine', direction: 'in' })
+  })
+
+  it('migrates boundary and property easing to the structured persisted form', () => {
+    const show = createDefaultShow('structured-easing', 'Structured easing', 1)
+    show.transitions![0] = {
+      ...show.transitions![0],
+      easing: 'ease-out',
+      propertyTransitions: {
+        brightness: {
+          fromByCellId: { 'cell-2': 1 },
+          durationMs: 800,
+          easing: 'ease-in',
+        },
+      },
+    }
+
+    const normalized = normalizeShowTransitionState(show)
+
+    expect(normalized.transitions![0].easing).toEqual({ curve: 'quadratic', direction: 'out' })
+    expect(normalized.transitions![0].propertyTransitions?.brightness?.easing)
+      .toEqual({ curve: 'quadratic', direction: 'in' })
+    expect(normalizeShowTransitionState(normalized)).toEqual(normalized)
+  })
+
+  it('describes current families and conditional parameters without UI rules', () => {
+    expect(validateShowToolkitRegistry()).toEqual([])
+    expect(getShowToolkitFamily('transition', 'shape-reveal')).toMatchObject({
+      label: 'Shape reveal',
+      variants: expect.arrayContaining([
+        expect.objectContaining({ id: 'circle' }),
+        expect.objectContaining({ id: 'ring' }),
+      ]),
+    })
+
+    expect(resolveShowToolkitParameters('transition', 'shape-reveal', 'circle', {}))
+      .not.toContainEqual(expect.objectContaining({ id: 'ringWidth' }))
+    expect(resolveShowToolkitParameters('transition', 'shape-reveal', 'ring', {}))
+      .toContainEqual(expect.objectContaining({ id: 'ringWidth', defaultValue: 0.12 }))
+
+    expect(getShowToolkitFamily('transition', 'blend')?.variants.find((variant) => variant.id === 'crossfade')?.presets)
+      .toEqual(expect.arrayContaining([
+        expect.objectContaining({ id: 'quick' }),
+        expect.objectContaining({ id: 'smooth' }),
+      ]))
+  })
+
+  it('rejects descriptors whose conditions or presets reference private parameters', () => {
+    const invalid = structuredClone(SHOW_VISUAL_TOOLKIT_REGISTRY)
+    invalid[0].parameters.push({
+      id: 'conditional',
+      label: 'Conditional',
+      kind: 'number',
+      defaultValue: 0,
+      when: { parameterId: 'missing', equals: true },
+    })
+    invalid[0].variants[0].presets = [{ id: 'invalid', label: 'Invalid', values: { missing: 1 } }]
+
+    expect(validateShowToolkitRegistry(invalid)).toEqual(expect.arrayContaining([
+      expect.stringMatching(/unknown condition parameter.*missing/i),
+      expect.stringMatching(/unknown preset parameter.*missing/i),
+    ]))
+  })
+
+  it('compiles factual renderer math that can be evaluated for a target pixel count', () => {
+    const source = 'export function render(index) { rgb(1, 0, 0) }'
+    const artifact = compileShow({
+      clips: [
+        { id: 'outgoing', source },
+        { id: 'incoming', source },
+      ],
+      crossfade: { startMs: 1000, durationMs: 500 },
+    }, {})
+
+    expect(artifact.summary.cost.cpu.patternEvaluations).toEqual({ formula: '2N', basePerPixel: 2 })
+    expect(artifact.summary.cost.code).toMatchObject({
+      artifactBytes: artifact.summary.artifactBytes,
+      budgetBytes: artifact.summary.measuredDeviceBudgetBytes,
+    })
+    expect(evaluateShowCostAtPixelCount(artifact.summary.cost, { pixelCount: 512 }))
+      .toMatchObject({ patternEvaluations: 1024, expression: '2 × 512' })
+  })
+
+  it('keeps bounded edge work explicit until the edge coverage is known', () => {
+    const source = 'export function render2D(index, x, y) { rgb(x, y, 0) }'
+    const artifact = compileShow({
+      clips: [
+        { id: 'outgoing', source },
+        { id: 'incoming', source },
+      ],
+      routeTransition: {
+        kind: 'portal',
+        startMs: 1000,
+        durationMs: 500,
+        feather: 0.1,
+        featherPolicy: 'blend',
+        centerX: 0.5,
+        centerY: 0.5,
+      },
+    }, {})
+
+    expect(artifact.summary.cost.cpu.patternEvaluations).toEqual({
+      formula: 'N + E',
+      basePerPixel: 1,
+      additionalPerEdgePixel: 1,
+    })
+    expect(evaluateShowCostAtPixelCount(artifact.summary.cost, { pixelCount: 512 }))
+      .toMatchObject({ patternEvaluations: null, expression: '512 + E' })
+    expect(evaluateShowCostAtPixelCount(artifact.summary.cost, { pixelCount: 512, edgePixels: 64 }))
+      .toMatchObject({ patternEvaluations: 576, expression: '512 + 64' })
+  })
+
+  it('builds deterministic compilable fixtures and parameter sweeps for every current Transition family', () => {
+    const fixtures = createShowToolkitFixtureRecipes()
+    expect(fixtures.map((fixture) => fixture.id)).toEqual([
+      'blend-cut',
+      'blend-crossfade',
+      'wipe-linear',
+      'dissolve-pixel',
+      'shape-reveal-circle',
+      'shape-reveal-diamond',
+      'shape-reveal-ring',
+    ])
+
+    for (const fixture of fixtures) {
+      expect(compileShow(fixture.recipe, {}).code).toBe(compileShow(fixture.recipe, {}).code)
+      expect(fixture.progressSamples).toEqual([0, 0.25, 0.5, 0.75, 1])
+    }
+
+    expect(createShowToolkitParameterSweep('transition', 'shape-reveal', 'ring'))
+      .toEqual(expect.arrayContaining([
+        expect.objectContaining({ ringWidth: 0.02 }),
+        expect.objectContaining({ ringWidth: 0.12 }),
+        expect.objectContaining({ ringWidth: 1 }),
+      ]))
+  })
+
+  it('captures deterministic generated preview frames and round-trips persisted fixture records', () => {
+    const fixtures = createShowToolkitFixtureRecipes()
+    for (const fixture of fixtures) {
+      const first = captureShowToolkitFixture(fixture)
+      expect(first).toEqual(captureShowToolkitFixture(fixture))
+      expect(first.frames).toHaveLength(5)
+      expect(first.generatedCode).toContain('export function render2D')
+      expect(roundTripShowToolkitFixtureRecord(fixture)).toEqual(fixture.persistedRecord)
+    }
+
+    const crossfade = captureShowToolkitFixture(fixtures.find((fixture) => fixture.id === 'blend-crossfade')!)
+    expect(new Set(crossfade.frames.map((frame) => frame.checksum)).size).toBeGreaterThan(2)
+    expect(crossfade.frames[0].representativePixels[0]).toEqual([0, 0, 0])
+    expect(crossfade.frames[crossfade.frames.length - 1].representativePixels[0]).toEqual([1, 0, 1])
+    expect(fixtures.find((fixture) => fixture.id === 'blend-crossfade')?.persistedRecord.transitions?.[0]).toMatchObject({
+      kind: 'crossfade',
+      easing: { curve: 'linear' },
+    })
+  })
+})

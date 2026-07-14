@@ -356,7 +356,7 @@ describe('showStore (#318)', () => {
     expect(useShowStore.getState().shows[0].transitions?.[0]).toMatchObject({
       id: 'transition-scene-1',
       kind: 'crossfade',
-      easing: 'linear',
+      easing: { curve: 'linear' },
     })
 
     await useShowStore.getState().updateBoundaryTransition(legacy.id, 'transition-scene-1', {
@@ -376,11 +376,19 @@ describe('showStore (#318)', () => {
       id: 'transition-scene-1',
       kind: 'wipe',
       durationMs: 2500,
-      easing: 'ease-out',
+      easing: { curve: 'quadratic', direction: 'out' },
       feather: 0.25,
       propertyTransitions: {
-        timeScale: { fromByCellId: { 'cell-2': 1.5 }, durationMs: 1500, easing: 'ease-in' },
-        brightness: { fromByCellId: { 'cell-2': 1 }, durationMs: 800, easing: 'ease-out' },
+        timeScale: {
+          fromByCellId: { 'cell-2': 1.5 },
+          durationMs: 1500,
+          easing: { curve: 'quadratic', direction: 'in' },
+        },
+        brightness: {
+          fromByCellId: { 'cell-2': 1 },
+          durationMs: 800,
+          easing: { curve: 'quadratic', direction: 'out' },
+        },
       },
     })
   })
@@ -403,7 +411,9 @@ describe('showStore (#318)', () => {
     const loaded = useShowStore.getState().shows[0]
     expect(loaded.cells.map((cell) => cell.controlTargets?.sliderSpeed)).toEqual([0.2, 0.8])
     expect(loaded.transitions?.[0].propertyTransitions?.controls?.sliderSpeed).toEqual({
-      fromByCellId: { 'cell-2': 0.2 }, durationMs: 1200, easing: 'ease-in',
+      fromByCellId: { 'cell-2': 0.2 },
+      durationMs: 1200,
+      easing: { curve: 'quadratic', direction: 'in' },
     })
   })
 
