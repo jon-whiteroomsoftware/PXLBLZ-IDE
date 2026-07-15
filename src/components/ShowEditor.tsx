@@ -4595,10 +4595,6 @@ function NumberField({
           onChange={(event) => {
             const nextDraft = event.target.value
             setDraft(nextDraft)
-            const parsed = Number(nextDraft)
-            if (nextDraft.trim() !== '' && Number.isFinite(parsed) && parsed >= min && parsed <= max) {
-              onChange(parsed)
-            }
           }}
           onBlur={(event) => commit(event.currentTarget.value)}
           onKeyDown={(event) => {

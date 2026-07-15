@@ -1300,7 +1300,7 @@ describe('ShowEditor (#318)', () => {
 
     await user.type(speed, '4')
     expect(speed).toHaveValue(4)
-    expect(useShowStore.getState().shows[0].cells[0].adaptations.timeScale).toBe(4)
+    expect(useShowStore.getState().shows[0].cells[0].adaptations.timeScale).toBe(1)
 
     await user.type(speed, '4')
     expect(speed).toHaveValue(44)
