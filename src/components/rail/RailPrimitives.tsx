@@ -339,6 +339,7 @@ export function EditableListItem({
         onKeyDown={!editing && navKey ? (e) => onRowKeyDown?.(e, navKey) : undefined}
         tabIndex={!editing && navKey ? 0 : undefined}
         data-pattern-nav-key={navKey}
+        data-studio-space-preview={!editing ? 'true' : undefined}
         style={{ paddingLeft: ROW_PAD }}
         className={rowClass(active)}
       >
@@ -429,12 +430,13 @@ export function StockListItem({
     <li
       onClick={onSelect}
       onKeyDown={(event) => {
-        if (event.key !== 'Enter' && event.key !== ' ') return
+        if (event.key !== 'Enter') return
         event.preventDefault()
         onSelect()
       }}
       role="button"
       tabIndex={0}
+      data-studio-space-preview="true"
       style={{ paddingLeft: ROW_PAD }}
       className={[rowClass(active), 'text-xs', active ? '' : 'text-zinc-500'].join(' ')}
     >

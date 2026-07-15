@@ -2,6 +2,7 @@ import { loadPattern, type PatternHandle } from './loadPattern'
 import { compileShow } from './showCompiler'
 import { createShim } from './shim'
 import { DEMOS } from '@/pixelblaze/stock/patterns'
+import { LIBRARIES } from '@/pixelblaze/libs'
 import { remapShowIndex, remapShowSample } from './showCoordinateRemap'
 import { showWipeMaskPosition, type ShowWipeSettings } from './showWipe'
 import { showCoherentDissolveField } from './showDissolve'
@@ -17,6 +18,7 @@ function loadShow(code: string, metadata: ReturnType<typeof compileShow>['metada
   let pixel: [number, number, number] = [0, 0, 0]
   const handle = loadPattern(code, metadata, {
     pixelCount,
+    PI2: Math.PI * 2,
     rgb(r: number, g: number, b: number) {
       pixel = [r, g, b]
     },
@@ -51,6 +53,288 @@ function loadShow(code: string, metadata: ReturnType<typeof compileShow>['metada
 }
 
 describe('compileShow', () => {
+  it('routes every Zone through the active top-level Scene schedule (#478)', () => {
+    const zones = [
+      { id: 'left', name: 'left', ranges: [{ start: 0, end: 1 }] },
+      { id: 'right', name: 'right', ranges: [{ start: 2, end: 3 }] },
+    ]
+    const artifact = compileShow({
+      clips: [
+        { id: 'red', source: 'export function render(index) { rgb(1, 0, 0) }' },
+        { id: 'green', source: 'export function render(index) { rgb(0, 1, 0) }' },
+        { id: 'blue', source: 'export function render(index) { rgb(0, 0, 1) }' },
+      ],
+      zones,
+      routingLayouts: [{ id: 'default', name: 'Default', zones }],
+      routedSceneSequence: {
+        scenes: [
+          {
+            holdMs: 1000,
+            placements: [{ zoneName: 'left', clipId: 'red' }, { zoneName: 'right', clipId: 'green' }],
+            transitionOut: { kind: 'cut', durationMs: 0 },
+          },
+          {
+            holdMs: 1000,
+            placements: [{ zoneName: 'left', clipId: 'blue' }, { zoneName: 'right', clipId: 'red' }],
+          },
+        ],
+      },
+      loopDurationMs: 2000,
+    }, {})
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 4)
+
+    handle.beforeRender(500)
+    handle.render(0)
+    expect(pixel()).toEqual([1, 0, 0])
+    handle.render(2)
+    expect(pixel()).toEqual([0, 1, 0])
+
+    handle.beforeRender(1000)
+    handle.render(0)
+    expect(pixel()).toEqual([0, 0, 1])
+    handle.render(2)
+    expect(pixel()).toEqual([1, 0, 0])
+    expect(artifact.summary).toMatchObject({ clipCount: 3, transitionCount: 1 })
+  })
+
+  it('advances one shared Pattern instance once when several Zones place it (#478)', () => {
+    const zones = [
+      { id: 'left', name: 'left', ranges: [{ start: 0, end: 1 }] },
+      { id: 'right', name: 'right', ranges: [{ start: 2, end: 3 }] },
+    ]
+    const artifact = compileShow({
+      clips: [{
+        id: 'shared',
+        source: 'export var elapsed = 0\nexport function beforeRender(delta) { elapsed = elapsed + delta }\nexport function render(index) { rgb(elapsed, 0, 0) }',
+      }],
+      zones,
+      routingLayouts: [{ id: 'default', name: 'Default', zones }],
+      routedSceneSequence: {
+        scenes: [
+          {
+            holdMs: 1000,
+            placements: [{ zoneName: 'left', clipId: 'shared' }, { zoneName: 'right', clipId: 'shared' }],
+            transitionOut: { kind: 'cut', durationMs: 0 },
+          },
+          {
+            holdMs: 1000,
+            placements: [{ zoneName: 'left', clipId: 'shared' }, { zoneName: 'right', clipId: 'shared' }],
+          },
+        ],
+      },
+      loopDurationMs: 2000,
+    }, {})
+    const { handle } = loadShow(artifact.code, artifact.metadata, 4)
+
+    handle.beforeRender(100)
+
+    expect(handle.getExports()).toMatchObject({ __pxlblz_show_c0_elapsed: 100 })
+    expect(artifact.code.match(/function __pxlblz_show_c0_beforeRender/g)).toHaveLength(1)
+  })
+
+  it('crossfades every routed Zone at the same Scene boundary (#478)', () => {
+    const zones = [
+      { id: 'left', name: 'left', ranges: [{ start: 0, end: 1 }] },
+      { id: 'right', name: 'right', ranges: [{ start: 2, end: 3 }] },
+    ]
+    const artifact = compileShow({
+      clips: [
+        { id: 'red', source: 'export function render(index) { rgb(1, 0, 0) }' },
+        { id: 'green', source: 'export function render(index) { rgb(0, 1, 0) }' },
+        { id: 'blue', source: 'export function render(index) { rgb(0, 0, 1) }' },
+      ],
+      zones,
+      routingLayouts: [{ id: 'default', name: 'Default', zones }],
+      routedSceneSequence: {
+        scenes: [
+          {
+            holdMs: 1000,
+            placements: [{ zoneName: 'left', clipId: 'red' }, { zoneName: 'right', clipId: 'green' }],
+            transitionOut: { kind: 'crossfade', durationMs: 1000 },
+          },
+          {
+            holdMs: 1000,
+            placements: [{ zoneName: 'left', clipId: 'blue' }, { zoneName: 'right', clipId: 'red' }],
+          },
+        ],
+      },
+      loopDurationMs: 3000,
+    }, {})
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 4)
+
+    handle.beforeRender(1500)
+    handle.render(0)
+    expect(pixel()).toEqual([0.5, 0, 0.5])
+    handle.render(2)
+    expect(pixel()).toEqual([0.5, 0.5, 0])
+  })
+
+  it('routes Scene placements through a normalized logical split (#478)', () => {
+    const artifact = compileShow({
+      clips: [
+        { id: 'red', source: 'export function render2D(index, x, y) { rgb(1, 0, 0) }' },
+        { id: 'green', source: 'export function render2D(index, x, y) { rgb(0, 1, 0) }' },
+        { id: 'blue', source: 'export function render2D(index, x, y) { rgb(0, 0, 1) }' },
+      ],
+      routingLayouts: [{
+        id: 'normalized',
+        name: 'Normalized',
+        zones: [],
+        logical: { kind: 'split', axis: 'x', zoneNames: ['left', 'right'] },
+      }],
+      routedSceneSequence: {
+        scenes: [
+          {
+            holdMs: 1000,
+            placements: [{ zoneName: 'left', clipId: 'red' }, { zoneName: 'right', clipId: 'green' }],
+            transitionOut: { kind: 'cut', durationMs: 0 },
+          },
+          {
+            holdMs: 1000,
+            placements: [{ zoneName: 'left', clipId: 'blue' }, { zoneName: 'right', clipId: 'red' }],
+          },
+        ],
+      },
+      routingPropertyRamps: { splitPosition: { initial: 0.5, ramps: [] } },
+      loopDurationMs: 2000,
+    }, {})
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 4)
+
+    handle.beforeRender(500)
+    handle.render2D(0, 0.25, 0.5)
+    expect(pixel()).toEqual([1, 0, 0])
+    handle.render2D(2, 0.75, 0.5)
+    expect(pixel()).toEqual([0, 1, 0])
+
+    handle.beforeRender(1000)
+    handle.render2D(0, 0.25, 0.5)
+    expect(pixel()).toEqual([0, 0, 1])
+    handle.render2D(2, 0.75, 0.5)
+    expect(pixel()).toEqual([1, 0, 0])
+  })
+
+  it('animates a shared routed Pattern property through a Scene boundary (#478)', () => {
+    const zones = [{ id: 'main', name: 'main', ranges: [{ start: 0, end: 3 }] }]
+    const artifact = compileShow({
+      clips: [{
+        id: 'shared',
+        source: 'export var elapsed = 0\nexport function beforeRender(delta) { elapsed = elapsed + delta }\nexport function render(index) { rgb(elapsed, 0, 0) }',
+      }],
+      zones,
+      routingLayouts: [{ id: 'default', name: 'Default', zones }],
+      routedSceneSequence: {
+        scenes: [
+          {
+            holdMs: 1000,
+            placements: [{ zoneName: 'main', clipId: 'shared', timeScale: 1 }],
+            transitionOut: { kind: 'crossfade', durationMs: 1000 },
+            transitionRamps: [{
+              clipId: 'shared',
+              propertyRamps: { timeScale: { from: 1, to: 0, durationMs: 1000, easing: 'linear' } },
+            }],
+          },
+          { holdMs: 1000, placements: [{ zoneName: 'main', clipId: 'shared', timeScale: 0 }] },
+        ],
+      },
+      loopDurationMs: 3000,
+    }, {})
+    const { handle } = loadShow(artifact.code, artifact.metadata, 4)
+
+    handle.beforeRender(1000)
+    handle.beforeRender(500)
+
+    expect(handle.getExports()).toMatchObject({
+      __pxlblz_show_c0_elapsed: 1250,
+      __pxlblz_show_c0_adapt_timeScale: 0.5,
+    })
+  })
+
+  it('keeps one routed span continuous while Repeat resets each Zone domain (#478)', () => {
+    const zones = [
+      { id: 'left', name: 'left', ranges: [{ start: 0, end: 1 }] },
+      { id: 'right', name: 'right', ranges: [{ start: 2, end: 3 }] },
+    ]
+    const compile = (zoneMode: 'span' | 'repeat') => compileShow({
+      clips: [{ id: 'shared', source: 'export function render(index) { rgb(index / max(1, pixelCount - 1), 0, 0) }' }],
+      zones,
+      routingLayouts: [{ id: 'default', name: 'Default', zones }],
+      routedSceneSequence: {
+        scenes: [
+          {
+            holdMs: 1000,
+            placements: ['left', 'right'].map((zoneName) => ({
+              zoneName,
+              clipId: 'shared',
+              domainZoneNames: ['left', 'right'],
+              zoneMode,
+            })),
+            transitionOut: { kind: 'cut', durationMs: 0 },
+          },
+          {
+            holdMs: 1000,
+            placements: ['left', 'right'].map((zoneName) => ({
+              zoneName,
+              clipId: 'shared',
+              domainZoneNames: ['left', 'right'],
+              zoneMode,
+            })),
+          },
+        ],
+      },
+      loopDurationMs: 2000,
+    }, {})
+    const sample = (zoneMode: 'span' | 'repeat') => {
+      const artifact = compile(zoneMode)
+      const runtime = loadShow(artifact.code, artifact.metadata, 4)
+      runtime.handle.beforeRender(100)
+      return [0, 1, 2, 3].map((index) => {
+        runtime.handle.render(index)
+        return runtime.pixel()[0]
+      })
+    }
+
+    expect(sample('span')).toEqual([0, 1 / 3, 2 / 3, 1])
+    expect(sample('repeat')).toEqual([0, 1, 0, 1])
+  })
+
+  it('keeps a logical split span in one canvas while Repeat normalizes each side (#478)', () => {
+    const compile = (zoneMode: 'span' | 'repeat') => compileShow({
+      clips: [{ id: 'shared', source: 'export function render2D(index, x, y) { rgb(x, 0, 0) }' }],
+      routingLayouts: [{
+        id: 'logical',
+        name: 'Logical',
+        zones: [],
+        logical: { kind: 'split', axis: 'x', zoneNames: ['left', 'right'] },
+      }],
+      routedSceneSequence: {
+        scenes: [0, 1].map((sceneIndex) => ({
+          holdMs: 1000,
+          placements: ['left', 'right'].map((zoneName) => ({
+            zoneName,
+            clipId: 'shared',
+            domainZoneNames: ['left', 'right'],
+            zoneMode,
+          })),
+          ...(sceneIndex === 0 ? { transitionOut: { kind: 'cut' as const, durationMs: 0 } } : {}),
+        })),
+      },
+      routingPropertyRamps: { splitPosition: { initial: 0.5, ramps: [] } },
+      loopDurationMs: 2000,
+    }, {})
+    const sample = (zoneMode: 'span' | 'repeat') => {
+      const artifact = compile(zoneMode)
+      const runtime = loadShow(artifact.code, artifact.metadata, 4)
+      runtime.handle.beforeRender(100)
+      return [0.25, 0.75].map((x, index) => {
+        runtime.handle.render2D(index, x, 0.5)
+        return runtime.pixel()[0]
+      })
+    }
+
+    expect(sample('span')).toEqual([0.25, 0.75])
+    expect(sample('repeat')).toEqual([0.5, 0.5])
+  })
+
   it('animates synchronized tiling once per frame without adding renderers (#406)', () => {
     const source = 'export function render2D(index, x, y) { rgb(x, y, 0) }'
     const artifact = compileShow({
@@ -778,8 +1062,8 @@ export function render(index) { rgb(0, t, 0) }
     expect(handle.getExports()).toMatchObject({
       __pxlblz_show_c0_elapsed_ms: 1500,
       __pxlblz_show_c1_elapsed_ms: 2000,
-      __pxlblz_show_c0_t: 0.5,
-      __pxlblz_show_c1_t: 0,
+      __pxlblz_show_c0_t: 1500 / 65_536,
+      __pxlblz_show_c1_t: 2000 / 65_536,
     })
   })
 
@@ -1255,6 +1539,36 @@ export function render(index) {
     })
   })
 
+  it('preserves Pixelblaze time() periods inside a compiled Show', () => {
+    const artifact = compileShow({
+      clips: [{
+        id: 'clock',
+        source: 'export function render(index) { rgb(time(1), 0, 0) }',
+      }],
+    }, {})
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata)
+
+    handle.beforeRender(32_768)
+    handle.render(0)
+
+    // Pixelblaze time(1) has a 65.536-second period.
+    expect(pixel()[0]).toBeCloseTo(0.5, 10)
+  })
+
+  it('keeps the real Caustics clock at its ordinary Pattern rate inside a Show', () => {
+    const artifact = compileShow({
+      clips: [{ id: 'caustics', source: DEMOS.Caustics }],
+    }, LIBRARIES)
+    const { handle } = loadShow(artifact.code, artifact.metadata)
+
+    handle.beforeRender(1_000)
+
+    expect(handle.getExports()).toMatchObject({
+      // Caustics: time(0.1) * (0.5 + speed * 3), with speed defaulting to 0.5.
+      __pxlblz_show_c0_t: (1_000 / (0.1 * 65_536)) * 2,
+    })
+  })
+
   it('ramps to exact pause, dwells, and resumes the same private clock without restart', () => {
     const source = `
 export var elapsed = 0
@@ -1279,7 +1593,7 @@ export function render(index) { rgb(time(1), elapsed, index) }
     paused.handle.beforeRender(500)
     paused.handle.render(3)
 
-    expect(paused.pixel()).toEqual([0.1, 100, 3])
+    expect(paused.pixel()).toEqual([100 / 65_536, 100, 3])
     expect(paused.handle.getExports()).toMatchObject({
       __pxlblz_show_c0_elapsed_ms: 100,
       __pxlblz_show_c0_elapsed: 100,
@@ -1716,14 +2030,14 @@ export function render(index) { rgb(time(1), frames, index) }
     const runtime = loadShow(artifact.code, artifact.metadata)
 
     runtime.handle.render(3)
-    expect(runtime.pixel()).toEqual([0.25, 0, 3])
+    expect(runtime.pixel()).toEqual([250 / 65_536, 0, 3])
     runtime.handle.beforeRender(50)
     runtime.handle.render(3)
-    expect(runtime.pixel()).toEqual([0.25, 0, 3])
+    expect(runtime.pixel()).toEqual([250 / 65_536, 0, 3])
     runtime.handle.beforeRender(50)
     runtime.handle.render(3)
 
-    expect(runtime.pixel()[0]).toBeCloseTo(0.35)
+    expect(runtime.pixel()[0]).toBeCloseTo(350 / 65_536)
     expect(runtime.pixel().slice(1)).toEqual([1, 3])
     expect(artifact.summary).toMatchObject({
       timeOffsetPolicy: 'per-clip',
@@ -1745,11 +2059,11 @@ export function render(index) { rgb(time(1), frames, index) }
 
     runtime.handle.beforeRender(60)
     runtime.handle.render(0)
-    expect(runtime.pixel()[0]).toBeCloseTo(0.16)
+    expect(runtime.pixel()[0]).toBeCloseTo(160 / 65_536)
     runtime.handle.beforeRender(60)
     runtime.handle.render(0)
 
-    expect(runtime.pixel()[0]).toBeCloseTo(0.56)
+    expect(runtime.pixel()[0]).toBeCloseTo(560 / 65_536)
     expect(runtime.handle.getExports()).toMatchObject({
       __pxlblz_show_c0_elapsed_ms: 160,
       __pxlblz_show_c1_elapsed_ms: 560,
@@ -1775,10 +2089,10 @@ export function render(index) { renders = renders + 1; rgb(time(1), index, rende
 
     runtime.handle.beforeRender(100)
     runtime.handle.render(4)
-    expect(runtime.pixel()).toEqual([0.1, 2, 1])
+    expect(runtime.pixel()).toEqual([100 / 65_536, 2, 1])
     runtime.handle.render(6)
 
-    expect(runtime.pixel()[0]).toBeCloseTo(0.35)
+    expect(runtime.pixel()[0]).toBeCloseTo(350 / 65_536)
     expect(runtime.pixel().slice(1)).toEqual([2, 1])
     expect(artifact.summary).toMatchObject({
       renderPolicy: 'route-one-renderer-per-pixel',

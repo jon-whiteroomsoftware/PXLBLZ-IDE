@@ -43,6 +43,7 @@ interface PreviewState {
   zonePreviewStrips: ZonePreviewStrip[]
   zoneSoloId: string | null
   toggle: () => void
+  setRunning: (isRunning: boolean) => void
   setFps: (fps: number | null) => void
   setElapsed: (elapsed: number | null) => void
   setFidelity: (fidelity: FidelityMode) => void
@@ -130,6 +131,7 @@ export const usePreviewStore = create<PreviewState>()(
     (set) => ({
       ...previewInitialState,
       toggle: () => set((s) => ({ isRunning: !s.isRunning })),
+      setRunning: (isRunning) => set({ isRunning }),
       setFps: (fps) => set({ fps }),
       setElapsed: (elapsed) => set({ elapsed }),
       setFidelity: (fidelity) => set({ fidelity }),

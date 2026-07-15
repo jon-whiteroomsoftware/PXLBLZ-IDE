@@ -41,7 +41,7 @@ export const STOCK_SHOWS: StockShow[] = [
     lesson: 'One composition, two normalized halves',
     description: 'A moving left/right split introduces resolution-independent logical Zones.',
     mapId: 'plane',
-    pixelCount: 1024,
+    pixelCount: 2304,
     zoneNames: ['Left', 'Right'],
     logical: { kind: 'split', axis: 'x' },
   }),
@@ -63,7 +63,7 @@ export const STOCK_SHOWS: StockShow[] = [
     lesson: 'A complete 2x2 composition with a spatial Transition',
     description: 'Four logical quadrants combine a shape reveal, distortions, and visible renderer cost.',
     mapId: 'panel-winding',
-    pixelCount: 1024,
+    pixelCount: 2304,
     zoneNames: ['Northwest', 'Northeast', 'Southwest', 'Southeast'],
     logical: { kind: 'grid', columns: 2, rows: 2 },
     effects: true,
@@ -132,6 +132,7 @@ function portableShow(input: {
   const cells = buildCells(input.id, zones, PORTABLE_PATTERNS, {
     effects: input.effects,
     propertyAnimation: input.propertyAnimation,
+    baseTimeScale: 0.4,
   })
   const transitions = buildTransitions(cells, { spatial: input.spatialTransition, propertyAnimation: input.propertyAnimation })
   const scenes = buildScenes(transitions)
@@ -179,6 +180,7 @@ function installationShow(input: {
   const cells = buildCells(input.id, zones, INSTALLATION_PATTERNS, {
     effects: input.effects,
     propertyAnimation: input.propertyAnimation,
+    baseTimeScale: 0.5,
   })
   const transitions = buildTransitions(cells, { spatial: input.spatialTransition, propertyAnimation: input.propertyAnimation })
   const scenes = buildScenes(transitions)
@@ -226,7 +228,7 @@ function buildCells(
   showId: string,
   zones: ShowZone[],
   patterns: readonly string[],
-  options: { effects?: boolean; propertyAnimation?: boolean },
+  options: { effects?: boolean; propertyAnimation?: boolean; baseTimeScale?: number },
 ): ShowCell[] {
   return zones.flatMap((zone, zoneIndex) => SCENES.map((scene, sceneIndex) => {
     const id = `${showId}-cell-${zoneIndex + 1}-${sceneIndex + 1}`
@@ -247,7 +249,9 @@ function buildCells(
       adaptations: {
         ...DEFAULT_ADAPTATIONS,
         brightness: options.propertyAnimation ? [0.62, 1, 0.78][sceneIndex] : 1,
-        timeScale: options.propertyAnimation ? [0.7, 1.35, 0.9][sceneIndex] : 1,
+        timeScale: options.propertyAnimation
+          ? [0.35, 0.7, 0.48][sceneIndex]
+          : options.baseTimeScale ?? 1,
       },
       restartOnEntry: false,
       ...(effects ? { effects } : {}),
@@ -284,7 +288,7 @@ function buildTransitions(
           easing: transition.easing,
         },
         timeScale: {
-          fromByCellId: Object.fromEntries(destinationCells.map((cell) => [cell.id, transition.afterSceneId === 'scene-1' ? 0.7 : 1.35])),
+          fromByCellId: Object.fromEntries(destinationCells.map((cell) => [cell.id, transition.afterSceneId === 'scene-1' ? 0.35 : 0.7])),
           durationMs: transition.durationMs,
           easing: transition.easing,
         },

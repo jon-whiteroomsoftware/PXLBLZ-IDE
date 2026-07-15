@@ -353,7 +353,7 @@ test.describe('authenticated Show authoring', () => {
     await page.getByRole('button', { name: 'Create Show' }).click()
 
     await expect(page).toHaveURL(/\/studio\/shows\/[a-z0-9-]+$/)
-    await expect(page.getByTitle('Show output contract')).toHaveText('Portable 2D')
+    await expect(page.getByTitle('Show output summary')).toContainText('Portable 2D')
     await waitForCurrentShow(page, (show) => (
       show.outputContract?.kind === 'portable-2d'
       && show.outputContract.referencePixelCount === 1024
@@ -361,7 +361,7 @@ test.describe('authenticated Show authoring', () => {
     ))
 
     await page.reload()
-    await expect(page.getByTitle('Show output contract')).toHaveText('Portable 2D')
+    await expect(page.getByTitle('Show output summary')).toContainText('Portable 2D')
     await expect(page.getByText('Portable · Resolution-independent 2D')).toBeVisible()
     await expect(page.getByText('Compatible 2D mapped surfaces at variable resolution.')).toBeVisible()
     await expect(page.getByLabel('Portable reference map')).toHaveValue('plane')
@@ -439,16 +439,16 @@ test.describe('authenticated Show authoring', () => {
     await expect(page.getByLabel('Reference map')).toHaveValue('plane')
     await expect(page.getByLabel('Reference pixels')).toHaveValue('60')
     await page.getByRole('button', { name: 'Confirm classification' }).click()
-    await expect(page.getByTitle('Show output contract')).toHaveText('Portable 2D')
+    await expect(page.getByTitle('Show output summary')).toContainText('Portable 2D')
     await waitForCurrentShow(page, (show) => show.outputContract?.kind === 'portable-2d')
 
     await page.reload()
     await expect(page.getByRole('heading', { name: 'Classify this legacy Show' })).toHaveCount(0)
-    await expect(page.getByTitle('Show output contract')).toHaveText('Portable 2D')
+    await expect(page.getByTitle('Show output summary')).toContainText('Portable 2D')
 
     await page.goto(`studio/shows/${proven.id}`)
     await expect(page.getByRole('heading', { name: 'Classify this legacy Show' })).toHaveCount(0)
-    await expect(page.getByTitle('Show output contract')).toHaveText('Installation')
+    await expect(page.getByTitle('Show output summary')).toContainText('Installation')
     await expect.poll(async () => (await persistedShow(page, proven.id))?.outputContract?.kind).toBe('installation')
   })
 
@@ -558,7 +558,7 @@ test.describe('authenticated Show authoring', () => {
     await expect(page.getByLabel('Pixels')).toBeDisabled()
     await page.getByRole('button', { name: 'Create Show' }).click()
 
-    await expect(page.getByTitle('Show output contract')).toHaveText('Installation')
+    await expect(page.getByTitle('Show output summary')).toContainText('Installation')
     await waitForCurrentShow(page, (show) => (
       show.outputContract?.kind === 'installation'
       && show.outputContract.pixelCount === 4

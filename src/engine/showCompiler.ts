@@ -220,6 +220,35 @@ export interface ShowSceneSequenceRecipe {
   scenes: ShowSceneSequenceSceneRecipe[]
 }
 
+export interface ShowRoutedScenePlacementRecipe {
+  zoneName: string
+  clipId: string
+  domainZoneNames?: string[]
+  zoneMode?: 'span' | 'repeat'
+  timeScale?: number
+  brightness?: number
+  controlTargets?: Record<string, number>
+  effects?: ShowClipEffect[]
+}
+
+export interface ShowRoutedScenePlacementRampRecipe {
+  clipId: string
+  propertyRamps?: Partial<Record<'timeScale' | 'brightness', ShowAdaptationPropertyRampRecipe>>
+  controlRamps?: Record<string, ShowAdaptationPropertyRampRecipe>
+  effectRamps?: ShowEffectPropertyRampsRecipe
+}
+
+export interface ShowRoutedSceneSequenceSceneRecipe {
+  placements: ShowRoutedScenePlacementRecipe[]
+  holdMs: number
+  transitionOut?: ShowSceneSequenceTransitionRecipe
+  transitionRamps?: ShowRoutedScenePlacementRampRecipe[]
+}
+
+export interface ShowRoutedSceneSequenceRecipe {
+  scenes: ShowRoutedSceneSequenceSceneRecipe[]
+}
+
 export interface ShowRoutingLayoutRecipe {
   id: string
   name: string
@@ -271,6 +300,7 @@ export interface ShowRecipe {
   adaptationRamp?: ShowAdaptationRampRecipe
   routeTransition?: ShowRouteTransitionRecipe
   sceneSequence?: ShowSceneSequenceRecipe
+  routedSceneSequence?: ShowRoutedSceneSequenceRecipe
   zones?: ControllerZone[]
   routingLayouts?: ShowRoutingLayoutRecipe[]
   /** Authoritative physical output size for fixed Installation routing. */
@@ -430,6 +460,14 @@ export function compileShow(
   for (const scene of expandedRecipe.sceneSequence?.scenes ?? []) {
     if (scene.transitionOut?.effectRamps) animatedEffectClipIds.add(scene.clipId)
   }
+  for (const scene of expandedRecipe.routedSceneSequence?.scenes ?? []) {
+    for (const placement of scene.placements) {
+      if (placement.effects) animatedEffectClipIds.add(placement.clipId)
+    }
+    for (const ramp of scene.transitionRamps ?? []) {
+      if (ramp.effectRamps) animatedEffectClipIds.add(ramp.clipId)
+    }
+  }
   const members = expandedRecipe.clips.map((clip, index) => ({
     ...compileMember(clip, index, libraries, animatedEffectClipIds.has(clip.id)),
     samplePropertyRamps: expandedRecipe.samplePropertyRamps,
@@ -450,7 +488,7 @@ export function compileShow(
     && isSpatialDissolve(expandedRecipe.routeTransition)
     ? expandedRecipe.routeTransition
     : null
-  const sequenceTransitions = expandedRecipe.sceneSequence?.scenes.flatMap((scene) => (
+  const sequenceTransitions = (expandedRecipe.sceneSequence?.scenes ?? expandedRecipe.routedSceneSequence?.scenes)?.flatMap((scene) => (
     scene.transitionOut ? [scene.transitionOut] : []
   )) ?? []
   const renderedSequenceTransitions = sequenceTransitions.filter((transition) => transition.kind !== 'cut')
@@ -506,6 +544,8 @@ export function compileShow(
   const transitionOutputDimension: ShowOutputDimension = portalTransition || directionalWipeTransition || motionTransition || spatialDissolveTransition ? 2 : memberOutputDimension
   const routedOutputDimension: 1 | 2 = routingLayouts?.some((layout) => layout.logical)
     ? 2
+    : expandedRecipe.routedSceneSequence
+      ? sequenceOutputDimension
     : routeMode || routingLayouts
       ? memberOutputDimension
       : 1
@@ -536,7 +576,16 @@ export function compileShow(
           : 0,
       }
     : null
-  const emittedCode = expandedRecipe.sceneSequence
+  const emittedCode = expandedRecipe.routedSceneSequence
+      ? emitRoutedSceneSequenceShowCode(
+        members,
+        expandedRecipe.routingLayouts ?? [],
+        expandedRecipe.routedSceneSequence,
+        routedOutputDimension,
+        expandedRecipe.routingSwitches ?? [],
+        expandedRecipe.routingPropertyRamps,
+      )
+    : expandedRecipe.sceneSequence
     ? emitSceneSequenceShowCode(members, expandedRecipe.sceneSequence, sequenceOutputDimension)
     : routingLayouts
     ? emitRoutingLayoutShowCode(
@@ -576,8 +625,8 @@ export function compileShow(
     : emittedWithEasingRuntime
   const metadata = buildMetadata(
     members,
-    expandedRecipe.sceneSequence
-      ? sequenceOutputDimension
+    expandedRecipe.sceneSequence || expandedRecipe.routedSceneSequence
+      ? expandedRecipe.routedSceneSequence ? routedOutputDimension : sequenceOutputDimension
       : portalTransition || directionalWipeTransition || motionTransition || spatialDissolveTransition
         ? 2
         : routeMode || routingLayouts
@@ -586,7 +635,7 @@ export function compileShow(
   )
   const sourceBytesBeforeMerge = members.reduce((sum, member) => sum + member.sourceBytes, 0)
   const artifactBytes = byteLength(code)
-  const transitionCost = expandedRecipe.sceneSequence
+  const transitionCost = expandedRecipe.sceneSequence || expandedRecipe.routedSceneSequence
     ? sequenceHasCrossfade || motionBlend
       ? 'renderer-window'
       : boundedBlend
@@ -603,7 +652,9 @@ export function compileShow(
         : 'none'
   const evaluationSummary = describeEvaluationPolicy(members)
   const effectCost = describeEffectCost(members, expandedRecipe)
-  const warnings = routingLayouts?.flatMap((layout) => layout.warnings) ?? route?.warnings ?? []
+  const warnings = expandedRecipe.routedSceneSequence
+    ? []
+    : routingLayouts?.flatMap((layout) => layout.warnings) ?? route?.warnings ?? []
   const cost = buildShowCompiledCostMetadata({
     transitionCost,
     artifactBytes,
@@ -625,8 +676,8 @@ export function compileShow(
   })
   const summary: ShowCompileSummary = {
     clipCount: members.length,
-    transitionCount: expandedRecipe.sceneSequence
-      ? Math.max(0, expandedRecipe.sceneSequence.scenes.length - 1)
+    transitionCount: expandedRecipe.sceneSequence || expandedRecipe.routedSceneSequence
+      ? Math.max(0, (expandedRecipe.sceneSequence?.scenes ?? expandedRecipe.routedSceneSequence!.scenes).length - 1)
       : routingLayouts
       ? Math.max(
           expandedRecipe.routingSwitches?.length ?? 0,
@@ -637,7 +688,7 @@ export function compileShow(
     artifactBytes,
     measuredDeviceBudgetBytes: MEASURED_DEVICE_BUDGET_BYTES,
     artifactBudgetRatio: artifactBytes / MEASURED_DEVICE_BUDGET_BYTES,
-    renderPolicy: expandedRecipe.sceneSequence
+    renderPolicy: expandedRecipe.sceneSequence || expandedRecipe.routedSceneSequence
       ? sequenceHasCrossfade || motionBlend
         ? 'steady-active-transition-both'
         : boundedBlend
@@ -665,7 +716,7 @@ export function compileShow(
               : 'route-transition-one-renderer-per-pixel'
             : 'single-continuous-hold',
     transitionCost,
-    routePolicy: expandedRecipe.sceneSequence
+    routePolicy: expandedRecipe.sceneSequence || expandedRecipe.routedSceneSequence
       ? sequenceHasMotion
         ? motionBlend ? 'motion-full-blend' : 'motion-selector'
         : sequenceHasSpatialDissolve
@@ -777,11 +828,11 @@ export function compileShow(
 
 function validateRecipe(recipe: ShowRecipe): void {
   const routeMode = recipe.clips.some((clip) => routeTargets(clip).length > 0)
-  const boundaryModes = [recipe.crossfade, recipe.cut, recipe.adaptationRamp, recipe.routeTransition, recipe.sceneSequence].filter(Boolean).length
+  const boundaryModes = [recipe.crossfade, recipe.cut, recipe.adaptationRamp, recipe.routeTransition, recipe.sceneSequence, recipe.routedSceneSequence].filter(Boolean).length
   if (recipe.clips.length < 1) throw new Error('compileShow requires at least one clip.')
-  if (!routeMode && !recipe.sceneSequence && recipe.clips.length > 2) throw new Error('compileShow v1 requires one or two unrouted clips.')
+  if (!routeMode && !recipe.sceneSequence && !recipe.routedSceneSequence && recipe.clips.length > 2) throw new Error('compileShow v1 requires one or two unrouted clips.')
   if (boundaryModes > 1) throw new Error('compileShow accepts only one boundary mode.')
-  if (routeMode && boundaryModes > 0) throw new Error('compileShow routed clips cannot use scene boundary modes yet.')
+  if (routeMode && boundaryModes > 0 && !recipe.routedSceneSequence) throw new Error('compileShow routed clips cannot use scene boundary modes yet.')
   if (recipe.clips.length === 2 && !routeMode && boundaryModes === 0) {
     throw new Error('compileShow requires a crossfade, cut, ramp, or routed clips for two clips.')
   }
@@ -821,11 +872,40 @@ function validateRecipe(recipe: ShowRecipe): void {
       }
     })
   }
+  if (recipe.routedSceneSequence) {
+    const clipIds = new Set(recipe.clips.map((clip) => clip.id))
+    const zoneNames = new Set((recipe.routingLayouts ?? []).flatMap((layout) => (
+      layout.logical?.zoneNames ?? layout.zones.map((zone) => zone.name)
+    )))
+    if (!recipe.routingLayouts?.length) throw new Error('compileShow routed scene sequences require at least one routing layout.')
+    if (recipe.routedSceneSequence.scenes.length < 2) throw new Error('compileShow routed scene sequences require at least two scenes.')
+    recipe.routedSceneSequence.scenes.forEach((scene, index) => {
+      if (scene.holdMs <= 0) throw new Error('compileShow routed scene sequence holds must be positive.')
+      const placedZones = new Set<string>()
+      for (const placement of scene.placements) {
+        if (!clipIds.has(placement.clipId)) {
+          throw new Error(`compileShow routed scene sequence references missing clip "${placement.clipId}".`)
+        }
+        if (!zoneNames.has(placement.zoneName)) {
+          throw new Error(`compileShow routed scene sequence references missing zone "${placement.zoneName}".`)
+        }
+        if (placedZones.has(placement.zoneName)) {
+          throw new Error(`compileShow routed scene sequence places more than one clip in zone "${placement.zoneName}".`)
+        }
+        placedZones.add(placement.zoneName)
+      }
+      const isFinal = index === recipe.routedSceneSequence!.scenes.length - 1
+      if (isFinal && scene.transitionOut) throw new Error('compileShow routed scene sequence final scene cannot transition.')
+      if (scene.transitionOut && scene.transitionOut.kind !== 'cut' && scene.transitionOut.durationMs <= 0) {
+        throw new Error('compileShow routed scene sequence transitions must be positive.')
+      }
+    })
+  }
   if (routeMode && !recipe.zones) {
     throw new Error('compileShow routed clips require controller zones.')
   }
   if (recipe.routingLayouts) {
-    if (!routeMode) throw new Error('compileShow routing layouts require routed clips.')
+    if (!routeMode && !recipe.routedSceneSequence) throw new Error('compileShow routing layouts require routed clips.')
     if (recipe.routingLayouts.length === 0) throw new Error('compileShow requires at least one routing layout.')
     if (!recipe.loopDurationMs || recipe.loopDurationMs <= 0) {
       throw new Error('compileShow routing layouts require a positive loop duration.')
@@ -1352,6 +1432,501 @@ ${indentBlock(emitSceneSequenceTransitionBlock(segment.from, segment.to!, segmen
   ].join('\n\n')
 }
 
+function emitRoutedSceneSequenceShowCode(
+  members: CompiledMember[],
+  layouts: ShowRoutingLayoutRecipe[],
+  sequence: ShowRoutedSceneSequenceRecipe,
+  outputDimension: 1 | 2,
+  switches: ShowRoutingSwitchRecipe[],
+  propertyRamps?: ShowRoutingPropertyRampsRecipe,
+): string {
+  if (layouts.length === 0) throw new Error('compileShow routed scene sequence requires a routing layout.')
+  const layoutIndex = new Map(layouts.map((layout, index) => [layout.id, index]))
+  const memberById = new Map(members.map((member) => [member.id, member]))
+  const physicalZonesByName = new Map(layouts.flatMap((layout) => layout.zones).map((zone) => [zone.name, zone]))
+  const logicalZoneCount = Math.max(1, ...layouts.map((layout) => layout.logical?.zoneNames.length ?? 0))
+  const scenes = sequence.scenes.map((scene) => ({
+    ...scene,
+    placements: scene.placements.map((placement) => ({ ...placement, member: memberById.get(placement.clipId)! })),
+    transitionRamps: scene.transitionRamps?.map((ramp) => ({ ...ramp, member: memberById.get(ramp.clipId)! })),
+  }))
+  const segments: Array<{
+    kind: 'hold' | 'transition'
+    startMs: number
+    endMs: number
+    sceneIndex: number
+    transition?: ShowSceneSequenceTransitionRecipe
+  }> = []
+  let cursor = 0
+  scenes.forEach((scene, sceneIndex) => {
+    const startMs = cursor
+    cursor += scene.holdMs
+    segments.push({ kind: 'hold', startMs, endMs: cursor, sceneIndex })
+    if (scene.transitionOut && scene.transitionOut.kind !== 'cut') {
+      const transitionStart = cursor
+      cursor += scene.transitionOut.durationMs
+      segments.push({
+        kind: 'transition',
+        startMs: transitionStart,
+        endMs: cursor,
+        sceneIndex,
+        transition: scene.transitionOut,
+      })
+    }
+  })
+
+  const setupForPlacements = (
+    placements: typeof scenes[number]['placements'],
+    ramps?: ResolvedRoutedScenePlacementRamp[],
+  ): string => {
+    const byMember = new Map<CompiledMember, typeof placements>()
+    for (const placement of placements) {
+      byMember.set(placement.member, [...(byMember.get(placement.member) ?? []), placement])
+    }
+    return [...byMember.entries()].map(([member, memberPlacements]) => {
+      const placement = memberPlacements[0]
+      const physicalPixelCount = Math.max(0, ...memberPlacements.map((candidate) => {
+        if (candidate.zoneMode === 'span' && candidate.domainZoneNames?.length) {
+          return candidate.domainZoneNames.reduce((sum, name) => {
+            const zone = physicalZonesByName.get(name)
+            return sum + (zone ? controllerZonePixelCount(zone) : 0)
+          }, 0)
+        }
+        const zone = physicalZonesByName.get(candidate.zoneName)
+        return zone ? controllerZonePixelCount(zone) : 0
+      }))
+      const pixelCount = physicalPixelCount > 0
+        ? `${physicalPixelCount}`
+        : `max(1, floor(pixelCount / ${logicalZoneCount}))`
+      const rampAssignments = emitRoutedSceneRampAssignments(
+        ramps?.filter((ramp) => ramp.member === member),
+        '__pxlblz_show_elapsed_ms - __pxlblz_show_transition_start_ms',
+      )
+      return `    ${member.pixelCountName} = ${pixelCount}${emitSceneControlTargets(member, placement.controlTargets)}${emitSceneEffectTargets(member, placement.effects)}${placement.brightness === undefined
+        ? ''
+        : `\n    ${member.prefix}_adapt_brightness = ${placement.brightness}`}${placement.timeScale === undefined
+          ? ''
+          : `\n    ${member.prefix}_adapt_timeScale = ${placement.timeScale}`}${rampAssignments
+            ? `\n${indentBlock(rampAssignments, 4)}`
+            : ''}
+    ${member.prefix}_advance(delta)`
+    }).join('\n')
+  }
+
+  const schedulerBranches = segments.map((segment, index) => {
+    const condition = `${index === 0 ? 'if' : 'else if'} (__pxlblz_show_elapsed_ms < ${segment.endMs})`
+    if (segment.kind === 'hold') {
+      return `${condition} {
+    __pxlblz_show_scene = ${segment.sceneIndex}
+    __pxlblz_show_transition = -1
+    __pxlblz_show_mix = 0
+${setupForPlacements(scenes[segment.sceneIndex].placements)}
+  }`
+    }
+    const from = scenes[segment.sceneIndex].placements
+    const to = scenes[segment.sceneIndex + 1].placements
+    return `${condition} {
+    __pxlblz_show_scene = ${segment.sceneIndex}
+    __pxlblz_show_transition = ${segment.sceneIndex}
+    __pxlblz_show_transition_start_ms = ${segment.startMs}
+    __pxlblz_show_mix = ${emitShowEasingExpression(segment.transition!.easing ?? 'linear', `(__pxlblz_show_elapsed_ms - ${segment.startMs}) / ${segment.transition!.durationMs}`)}
+${setupForPlacements([...from, ...to], scenes[segment.sceneIndex].transitionRamps)}
+  }
+`
+  }).join(' ')
+
+  const layoutSelectLines = [...switches]
+    .sort((left, right) => left.atMs - right.atMs)
+    .map((routingSwitch) => `  if (__pxlblz_show_elapsed_ms >= ${routingSwitch.atMs}) __pxlblz_show_route_layout = ${layoutIndex.get(routingSwitch.layoutId) ?? 0}`)
+    .join('\n')
+
+  const sceneBranches = scenes.map((scene, index) => `${index === 0 ? 'if' : 'else if'} (__pxlblz_show_scene == ${index}) {
+${indentBlock(emitRoutedScenePlacements(layouts, scene.placements, outputDimension), 4)}
+  }`).join(' ')
+  const transitionBranches = segments
+    .filter((segment) => segment.kind === 'transition')
+    .map((segment, index) => `${index === 0 ? 'if' : 'else if'} (__pxlblz_show_transition == ${segment.sceneIndex}) {
+${indentBlock(emitRoutedSceneTransition(
+    layouts,
+    scenes[segment.sceneIndex].placements,
+    scenes[segment.sceneIndex + 1].placements,
+    segment.transition!,
+    outputDimension,
+  ), 4)}
+  }`)
+    .join(' ')
+
+  return [
+    emitRuntimePrelude(members),
+    ...members.map((member) => member.code.trim()),
+    'var __pxlblz_show_scene = 0',
+    'var __pxlblz_show_transition = -1',
+    'var __pxlblz_show_transition_start_ms = 0',
+    'var __pxlblz_show_route_layout = 0',
+    ...(propertyRamps ? [`var __pxlblz_show_route_split_position = ${clampNumber(propertyRamps.splitPosition.initial, 0, 1)}`] : []),
+    `export function beforeRender(delta) {
+  __pxlblz_show_elapsed_ms = (__pxlblz_show_elapsed_ms + delta) % ${cursor}
+  __pxlblz_show_route_layout = 0
+${layoutSelectLines}${layoutSelectLines ? '\n' : ''}${propertyRamps ? `${emitRoutingPropertyAssignments(propertyRamps)}\n` : ''}  ${schedulerBranches}
+}`,
+    `export function ${outputDimension === 2 ? 'render2D(index, x, y)' : 'render(index)'} {
+  if (__pxlblz_show_transition >= 0) {
+    ${transitionBranches}
+  } else {
+    ${sceneBranches}
+  }
+  rgb(0, 0, 0)
+}`,
+    '',
+  ].join('\n\n')
+}
+
+type ResolvedRoutedScenePlacement = ShowRoutedScenePlacementRecipe & { member: CompiledMember }
+type ResolvedRoutedScenePlacementRamp = ShowRoutedScenePlacementRampRecipe & { member: CompiledMember }
+
+function emitRoutedSceneRampAssignments(
+  ramps: ResolvedRoutedScenePlacementRamp[] | undefined,
+  elapsedExpression: string,
+): string {
+  return (ramps ?? []).flatMap((ramp) => [
+    emitPropertyRampAssignments(ramp.member, ramp.propertyRamps, elapsedExpression),
+    emitControlRampAssignments(ramp.member, ramp.controlRamps, elapsedExpression),
+    emitEffectRampAssignments(ramp.member, ramp.effectRamps, elapsedExpression),
+  ]).filter(Boolean).join('\n')
+}
+
+function emitRoutedScenePlacements(
+  layouts: ShowRoutingLayoutRecipe[],
+  placements: ResolvedRoutedScenePlacement[],
+  outputDimension: 1 | 2,
+): string {
+  return layouts.map((layout, layoutIndex) => `${layoutIndex === 0 ? 'if' : 'else if'} (__pxlblz_show_route_layout == ${layoutIndex}) {
+${indentBlock(layout.logical
+    ? emitLogicalScenePlacements(layout, placements)
+    : emitPhysicalScenePlacements(layout, placements, outputDimension), 2)}
+}`).join(' ')
+}
+
+function emitRoutedSceneTransition(
+  layouts: ShowRoutingLayoutRecipe[],
+  fromPlacements: ResolvedRoutedScenePlacement[],
+  toPlacements: ResolvedRoutedScenePlacement[],
+  transition: ShowSceneSequenceTransitionRecipe,
+  outputDimension: 1 | 2,
+): string {
+  return layouts.map((layout, layoutIndex) => `${layoutIndex === 0 ? 'if' : 'else if'} (__pxlblz_show_route_layout == ${layoutIndex}) {
+${indentBlock(layout.logical
+    ? emitLogicalSceneTransition(layout, fromPlacements, toPlacements, transition)
+    : emitPhysicalSceneTransition(layout, fromPlacements, toPlacements, transition, outputDimension), 2)}
+}`).join(' ')
+}
+
+function emitLogicalScenePlacements(
+  layout: ShowRoutingLayoutRecipe,
+  placements: ResolvedRoutedScenePlacement[],
+): string {
+  const logical = layout.logical!
+  const placementByZone = new Map(placements.map((placement) => [placement.zoneName, placement]))
+  const blocks = logical.zoneNames.flatMap((zoneName, zoneIndex) => {
+    const placement = placementByZone.get(zoneName)
+    if (!placement) return []
+    const member = placement.member
+    const domain = logicalScenePlacementDomain(logical, placement, zoneIndex)
+    return [`${zoneIndex === 0 ? 'if' : 'else if'} (__pxlblz_show_route_id == ${zoneIndex}) {
+  ${member.pixelCountName} = ${domain.pixelCount}
+  var __pxlblz_show_route_side = ceil(sqrt(${member.pixelCountName}))
+  var __pxlblz_show_scene_local_x = ${domain.x}
+  var __pxlblz_show_scene_local_y = ${domain.y}
+  var __pxlblz_show_route_local_index = min(${member.pixelCountName} - 1, floor(__pxlblz_show_scene_local_y * __pxlblz_show_route_side) * __pxlblz_show_route_side + floor(__pxlblz_show_scene_local_x * __pxlblz_show_route_side))
+  ${member.prefix}_renderCapture2D(__pxlblz_show_route_local_index, __pxlblz_show_scene_local_x, __pxlblz_show_scene_local_y)
+  ${member.prefix}_emit()
+  return
+}`]
+  })
+  return `${emitLogicalRoutingSetup(logical)}\n${blocks.join('\n')}`
+}
+
+function emitLogicalSceneTransition(
+  layout: ShowRoutingLayoutRecipe,
+  fromPlacements: ResolvedRoutedScenePlacement[],
+  toPlacements: ResolvedRoutedScenePlacement[],
+  transition: ShowSceneSequenceTransitionRecipe,
+): string {
+  const logical = layout.logical!
+  const fromByZone = new Map(fromPlacements.map((placement) => [placement.zoneName, placement]))
+  const toByZone = new Map(toPlacements.map((placement) => [placement.zoneName, placement]))
+  const blocks = logical.zoneNames.flatMap((zoneName, zoneIndex) => {
+    const fromPlacement = fromByZone.get(zoneName)
+    const toPlacement = toByZone.get(zoneName)
+    if (!fromPlacement || !toPlacement) return []
+    const from = fromPlacement.member
+    const to = toPlacement.member
+    const fromDomain = logicalScenePlacementDomain(logical, fromPlacement, zoneIndex)
+    const toDomain = logicalScenePlacementDomain(logical, toPlacement, zoneIndex)
+    const localIndex = '__pxlblz_show_route_local_index'
+    const toLocalIndex = '__pxlblz_show_route_to_local_index'
+    const fromCapture = `${from.prefix}_renderCapture2D(${localIndex}, __pxlblz_show_scene_local_x, __pxlblz_show_scene_local_y)`
+    const toCapture = `${to.prefix}_renderCapture2D(${toLocalIndex}, __pxlblz_show_scene_to_local_x, __pxlblz_show_scene_to_local_y)`
+    const transitionBlock = emitSceneTransitionWithCaptures(
+      from,
+      to,
+      transition,
+      2,
+      fromCapture,
+      toCapture,
+      { index: localIndex, x: '__pxlblz_show_scene_local_x', y: '__pxlblz_show_scene_local_y' },
+    )
+    return [`${zoneIndex === 0 ? 'if' : 'else if'} (__pxlblz_show_route_id == ${zoneIndex}) {
+  ${from.pixelCountName} = ${fromDomain.pixelCount}
+  ${to.pixelCountName} = ${toDomain.pixelCount}
+  var __pxlblz_show_route_side = ceil(sqrt(${from.pixelCountName}))
+  var __pxlblz_show_route_to_side = ceil(sqrt(${to.pixelCountName}))
+  var __pxlblz_show_scene_local_x = ${fromDomain.x}
+  var __pxlblz_show_scene_local_y = ${fromDomain.y}
+  var __pxlblz_show_scene_to_local_x = ${toDomain.x}
+  var __pxlblz_show_scene_to_local_y = ${toDomain.y}
+  var ${localIndex} = min(${from.pixelCountName} - 1, floor(__pxlblz_show_scene_local_y * __pxlblz_show_route_side) * __pxlblz_show_route_side + floor(__pxlblz_show_scene_local_x * __pxlblz_show_route_side))
+  var ${toLocalIndex} = min(${to.pixelCountName} - 1, floor(__pxlblz_show_scene_to_local_y * __pxlblz_show_route_to_side) * __pxlblz_show_route_to_side + floor(__pxlblz_show_scene_to_local_x * __pxlblz_show_route_to_side))
+${indentBlock(transitionBlock, 2)}
+  return
+}`]
+  })
+  return `${emitLogicalRoutingSetup(logical)}\n${blocks.join('\n')}`
+}
+
+function logicalScenePlacementDomain(
+  logical: ShowLogicalRoutingRecipe,
+  placement: ResolvedRoutedScenePlacement,
+  zoneIndex: number,
+): { x: string; y: string; pixelCount: string } {
+  const zoneCount = Math.max(1, logical.zoneNames.length)
+  const domainIndices = placement.zoneMode === 'span' && placement.domainZoneNames?.length
+    ? placement.domainZoneNames.map((name) => logical.zoneNames.indexOf(name)).filter((index) => index >= 0)
+    : [zoneIndex]
+  if (domainIndices.length > 1) {
+    const start = Math.min(...domainIndices)
+    const end = Math.max(...domainIndices)
+    const count = end - start + 1
+    if (logical.kind === 'stripes') {
+      const local = `clamp((${logical.axis === 'x' ? 'x' : 'y'} * ${zoneCount} - ${start}) / ${count}, 0, 1)`
+      return {
+        x: logical.axis === 'x' ? local : 'clamp(x, 0, 1)',
+        y: logical.axis === 'y' ? local : 'clamp(y, 0, 1)',
+        pixelCount: `max(1, floor(pixelCount * ${count} / ${zoneCount}))`,
+      }
+    }
+    if (logical.kind === 'grid') {
+      const columns = logical.columns
+      const rows = Math.ceil(zoneCount / columns)
+      const minColumn = Math.min(...domainIndices.map((index) => index % columns))
+      const maxColumn = Math.max(...domainIndices.map((index) => index % columns))
+      const minRow = Math.min(...domainIndices.map((index) => Math.floor(index / columns)))
+      const maxRow = Math.max(...domainIndices.map((index) => Math.floor(index / columns)))
+      const width = maxColumn - minColumn + 1
+      const height = maxRow - minRow + 1
+      return {
+        x: `clamp((x * ${columns} - ${minColumn}) / ${width}, 0, 1)`,
+        y: `clamp((y * ${rows} - ${minRow}) / ${height}, 0, 1)`,
+        pixelCount: `max(1, floor(pixelCount * ${domainIndices.length} / ${zoneCount}))`,
+      }
+    }
+    return {
+      x: 'clamp(x, 0, 1)',
+      y: 'clamp(y, 0, 1)',
+      pixelCount: domainIndices.length === zoneCount
+        ? 'pixelCount'
+        : `max(1, floor(pixelCount * ${domainIndices.length} / ${zoneCount}))`,
+    }
+  }
+  if (logical.kind === 'single') return { x: '__pxlblz_show_route_local_x', y: '__pxlblz_show_route_local_y', pixelCount: 'pixelCount' }
+  if (logical.kind === 'split') {
+    return {
+      x: '__pxlblz_show_route_local_x',
+      y: '__pxlblz_show_route_local_y',
+      pixelCount: zoneIndex === 0
+        ? 'max(1, floor(pixelCount * __pxlblz_show_route_split_position))'
+        : 'max(1, pixelCount - floor(pixelCount * __pxlblz_show_route_split_position))',
+    }
+  }
+  return {
+    x: '__pxlblz_show_route_local_x',
+    y: '__pxlblz_show_route_local_y',
+    pixelCount: `max(1, floor(pixelCount / ${zoneCount}))`,
+  }
+}
+
+function emitPhysicalScenePlacements(
+  layout: ShowRoutingLayoutRecipe,
+  placements: ResolvedRoutedScenePlacement[],
+  outputDimension: 1 | 2,
+): string {
+  const emitted = new Set<string>()
+  return placements.flatMap((placement, placementIndex) => {
+    const domain = physicalPlacementDomain(layout, placement)
+    if (!domain) return []
+    const domainKey = placement.zoneMode === 'span'
+      ? placement.domainZoneNames?.join('|') ?? placement.zoneName
+      : placement.zoneName
+    const key = `${placement.clipId}:${placement.zoneMode ?? 'repeat'}:${domainKey}`
+    if (emitted.has(key)) return []
+    emitted.add(key)
+    return [emitPhysicalSceneZone(domain, placementIndex, placement.member, outputDimension)]
+  }).join('\n')
+}
+
+function emitPhysicalSceneTransition(
+  layout: ShowRoutingLayoutRecipe,
+  fromPlacements: ResolvedRoutedScenePlacement[],
+  toPlacements: ResolvedRoutedScenePlacement[],
+  transition: ShowSceneSequenceTransitionRecipe,
+  outputDimension: 1 | 2,
+): string {
+  const fromPlacementByZone = new Map(fromPlacements.map((placement) => [placement.zoneName, placement]))
+  const toPlacementByZone = new Map(toPlacements.map((placement) => [placement.zoneName, placement]))
+  const emitted = new Set<string>()
+  return layout.zones.flatMap((zone, zoneIndex) => {
+    const fromPlacement = fromPlacementByZone.get(zone.name)
+    const toPlacement = toPlacementByZone.get(zone.name)
+    if (!fromPlacement || !toPlacement) return []
+    const fromZone = physicalPlacementDomain(layout, fromPlacement)
+    const toZone = physicalPlacementDomain(layout, toPlacement)
+    if (!fromZone || !toZone) return []
+    const key = `${fromPlacement.clipId}:${fromZone.name}->${toPlacement.clipId}:${toZone.name}`
+    if (emitted.has(key)) return []
+    emitted.add(key)
+    return [emitPhysicalSceneZoneTransition(fromZone, toZone, zoneIndex, fromPlacement.member, toPlacement.member, transition, outputDimension)]
+  }).join('\n')
+}
+
+function physicalPlacementDomain(
+  layout: ShowRoutingLayoutRecipe,
+  placement: ResolvedRoutedScenePlacement,
+): ControllerZone | undefined {
+  const names = placement.zoneMode === 'span' && placement.domainZoneNames?.length
+    ? placement.domainZoneNames
+    : [placement.zoneName]
+  const zones = names.flatMap((name) => {
+    const zone = layout.zones.find((candidate) => candidate.name === name)
+    return zone ? [zone] : []
+  })
+  if (zones.length === 0) return undefined
+  return zones.length === 1 ? zones[0] : mergeRouteZones(placement.clipId, zones)
+}
+
+function emitPhysicalSceneZone(
+  zone: ControllerZone,
+  zoneIndex: number,
+  member: CompiledMember,
+  outputDimension: 1 | 2,
+): string {
+  const local = `__pxlblz_show_scene_zone_${zoneIndex}_index`
+  const pixelCount = Math.max(1, controllerZonePixelCount(zone))
+  const capture = routedSceneMemberCapture(member, local, pixelCount, outputDimension, zoneIndex)
+  return [
+    `var ${local} = -1`,
+    ...emitZoneLocalAssignments(zone, local),
+    `if (${local} >= 0) {`,
+    `  ${member.pixelCountName} = ${pixelCount}`,
+    indentBlock(capture, 2),
+    `  ${member.prefix}_emit()`,
+    `  return`,
+    `}`,
+  ].join('\n')
+}
+
+function emitPhysicalSceneZoneTransition(
+  fromZone: ControllerZone,
+  toZone: ControllerZone,
+  zoneIndex: number,
+  from: CompiledMember,
+  to: CompiledMember,
+  transition: ShowSceneSequenceTransitionRecipe,
+  outputDimension: 1 | 2,
+): string {
+  const fromLocal = `__pxlblz_show_scene_zone_${zoneIndex}_from_index`
+  const toLocal = `__pxlblz_show_scene_zone_${zoneIndex}_to_index`
+  const fromPixelCount = Math.max(1, controllerZonePixelCount(fromZone))
+  const toPixelCount = Math.max(1, controllerZonePixelCount(toZone))
+  const localX = `__pxlblz_show_scene_zone_${zoneIndex}_x`
+  const localY = `__pxlblz_show_scene_zone_${zoneIndex}_y`
+  const toLocalX = `__pxlblz_show_scene_zone_${zoneIndex}_to_x`
+  const toLocalY = `__pxlblz_show_scene_zone_${zoneIndex}_to_y`
+  const width = Math.max(1, Math.ceil(Math.sqrt(fromPixelCount)))
+  const height = Math.max(1, Math.ceil(fromPixelCount / width))
+  const toWidth = Math.max(1, Math.ceil(Math.sqrt(toPixelCount)))
+  const toHeight = Math.max(1, Math.ceil(toPixelCount / toWidth))
+  const coordinatePrelude = outputDimension === 2
+    ? [
+        `  var ${localX} = ${width === 1 ? '0.5' : `(${fromLocal} % ${width}) / ${width - 1}`}`,
+        `  var ${localY} = ${height === 1 ? '0.5' : `floor(${fromLocal} / ${width}) / ${height - 1}`}`,
+        `  var ${toLocalX} = ${toWidth === 1 ? '0.5' : `(${toLocal} % ${toWidth}) / ${toWidth - 1}`}`,
+        `  var ${toLocalY} = ${toHeight === 1 ? '0.5' : `floor(${toLocal} / ${toWidth}) / ${toHeight - 1}`}`,
+      ]
+    : []
+  const fromCapture = outputDimension === 2
+    ? `${from.prefix}_renderCapture2D(${fromLocal}, ${localX}, ${localY})`
+    : `${from.prefix}_renderCapture(${fromLocal})`
+  const toCapture = outputDimension === 2
+    ? `${to.prefix}_renderCapture2D(${toLocal}, ${toLocalX}, ${toLocalY})`
+    : `${to.prefix}_renderCapture(${toLocal})`
+  const transitionBlock = emitSceneTransitionWithCaptures(
+    from,
+    to,
+    transition,
+    outputDimension,
+    fromCapture,
+    toCapture,
+    { index: fromLocal, x: localX, y: localY },
+  )
+  return [
+    `var ${fromLocal} = -1`,
+    ...emitZoneLocalAssignments(fromZone, fromLocal),
+    `var ${toLocal} = -1`,
+    ...emitZoneLocalAssignments(toZone, toLocal),
+    `if (${fromLocal} >= 0 && ${toLocal} >= 0) {`,
+    `  ${from.pixelCountName} = ${fromPixelCount}`,
+    `  ${to.pixelCountName} = ${toPixelCount}`,
+    ...coordinatePrelude,
+    indentBlock(transitionBlock, 2),
+    `  return`,
+    `}`,
+  ].join('\n')
+}
+
+function emitSceneTransitionWithCaptures(
+  from: CompiledMember,
+  to: CompiledMember,
+  transition: ShowSceneSequenceTransitionRecipe,
+  outputDimension: 1 | 2,
+  fromCapture: string,
+  toCapture: string,
+  localCoordinates: { index: string; x: string; y: string },
+): string {
+  if (transition.kind === 'motion') {
+    return emitMotionTransitionRenderBlock(from, to, transition, localCoordinates)
+  }
+  return emitSceneSequenceTransitionBlock(from, to, transition, outputDimension)
+    .split(memberRenderCapture(from, outputDimension)).join(fromCapture)
+    .split(memberRenderCapture(to, outputDimension)).join(toCapture)
+}
+
+function routedSceneMemberCapture(
+  member: CompiledMember,
+  localIndex: string,
+  pixelCount: number,
+  outputDimension: 1 | 2,
+  zoneIndex: number,
+): string {
+  if (outputDimension === 1) return `${member.prefix}_renderCapture(${localIndex})`
+  const width = Math.max(1, Math.ceil(Math.sqrt(pixelCount)))
+  const height = Math.max(1, Math.ceil(pixelCount / width))
+  const localX = `__pxlblz_show_scene_zone_${zoneIndex}_x`
+  const localY = `__pxlblz_show_scene_zone_${zoneIndex}_y`
+  return `var ${localX} = ${width === 1 ? '0.5' : `(${localIndex} % ${width}) / ${width - 1}`}
+var ${localY} = ${height === 1 ? '0.5' : `floor(${localIndex} / ${width}) / ${height - 1}`}
+${member.prefix}_renderCapture2D(${localIndex}, ${localX}, ${localY})`
+}
+
 function emitSceneControlTargets(member: CompiledMember, targets: Record<string, number> | undefined): string {
   if (!targets) return ''
   return Object.entries(targets).map(([exportName, value]) => {
@@ -1560,7 +2135,9 @@ function emitMotionTransitionRenderBlock(
   from: CompiledMember,
   to: CompiledMember,
   transition: ShowRouteTransitionRecipe | ShowSceneSequenceTransitionRecipe,
+  coordinates: { index: string; x: string; y: string } = { index: 'index', x: 'x', y: 'y' },
 ): string {
+  const { index, x, y } = coordinates
   const settings = normalizeShowMotionTransition(transition)
   const vector = showMotionTransitionVector(settings.direction)
   const fromMoves = settings.motionVariant === 'reveal'
@@ -1582,31 +2159,31 @@ function emitMotionTransitionRenderBlock(
     ? `${rotationSign * settings.rotation} * (1 - __pxlblz_show_mix)`
     : `${rotationSign * settings.rotation} * __pxlblz_show_mix`
   const affineCoordinates = {
-    x: `${settings.anchorX} + (__pxlblz_show_motion_cos * (x - ${settings.anchorX}) + __pxlblz_show_motion_sin * (y - ${settings.anchorY})) / __pxlblz_show_motion_scale`,
-    y: `${settings.anchorY} + (-__pxlblz_show_motion_sin * (x - ${settings.anchorX}) + __pxlblz_show_motion_cos * (y - ${settings.anchorY})) / __pxlblz_show_motion_scale`,
+    x: `${settings.anchorX} + (__pxlblz_show_motion_cos * (${x} - ${settings.anchorX}) + __pxlblz_show_motion_sin * (${y} - ${settings.anchorY})) / __pxlblz_show_motion_scale`,
+    y: `${settings.anchorY} + (-__pxlblz_show_motion_sin * (${x} - ${settings.anchorX}) + __pxlblz_show_motion_cos * (${y} - ${settings.anchorY})) / __pxlblz_show_motion_scale`,
   }
   const fromCoordinates = settings.motionVariant === 'reveal' || settings.motionVariant === 'push'
     ? {
-        x: `x - ${vector.x} * __pxlblz_show_mix`,
-        y: `y - ${vector.y} * __pxlblz_show_mix`,
+        x: `${x} - ${vector.x} * __pxlblz_show_mix`,
+        y: `${y} - ${vector.y} * __pxlblz_show_mix`,
       }
     : settings.motionVariant === 'content-shrink' || settings.motionVariant === 'zoom-out'
       ? {
-          x: spins ? affineCoordinates.x : `${settings.anchorX} + (x - ${settings.anchorX}) / __pxlblz_show_motion_scale`,
-          y: spins ? affineCoordinates.y : `${settings.anchorY} + (y - ${settings.anchorY}) / __pxlblz_show_motion_scale`,
+          x: spins ? affineCoordinates.x : `${settings.anchorX} + (${x} - ${settings.anchorX}) / __pxlblz_show_motion_scale`,
+          y: spins ? affineCoordinates.y : `${settings.anchorY} + (${y} - ${settings.anchorY}) / __pxlblz_show_motion_scale`,
         }
-      : { x: 'x', y: 'y' }
+      : { x, y }
   const toCoordinates = settings.motionVariant === 'cover' || settings.motionVariant === 'push'
     ? {
-        x: `x + ${vector.x} * (1 - __pxlblz_show_mix)`,
-        y: `y + ${vector.y} * (1 - __pxlblz_show_mix)`,
+        x: `${x} + ${vector.x} * (1 - __pxlblz_show_mix)`,
+        y: `${y} + ${vector.y} * (1 - __pxlblz_show_mix)`,
       }
     : settings.motionVariant === 'content-grow' || settings.motionVariant === 'zoom-in'
       ? {
-          x: spins ? affineCoordinates.x : `${settings.anchorX} + (x - ${settings.anchorX}) / __pxlblz_show_motion_scale`,
-          y: spins ? affineCoordinates.y : `${settings.anchorY} + (y - ${settings.anchorY}) / __pxlblz_show_motion_scale`,
+          x: spins ? affineCoordinates.x : `${settings.anchorX} + (${x} - ${settings.anchorX}) / __pxlblz_show_motion_scale`,
+          y: spins ? affineCoordinates.y : `${settings.anchorY} + (${y} - ${settings.anchorY}) / __pxlblz_show_motion_scale`,
         }
-      : { x: 'x', y: 'y' }
+      : { x, y }
   const address = (name: 'from' | 'to', moves: boolean) => !moves
     ? ''
     : settings.addressPolicy === 'wrap'
@@ -1625,8 +2202,8 @@ var __pxlblz_show_motion_to_x = ${toCoordinates.x}
 var __pxlblz_show_motion_to_y = ${toCoordinates.y}
 var __pxlblz_show_motion_from_inside = __pxlblz_show_motion_from_x >= 0 && __pxlblz_show_motion_from_x <= 1 && __pxlblz_show_motion_from_y >= 0 && __pxlblz_show_motion_from_y <= 1
 var __pxlblz_show_motion_to_inside = __pxlblz_show_motion_to_x >= 0 && __pxlblz_show_motion_to_x <= 1 && __pxlblz_show_motion_to_y >= 0 && __pxlblz_show_motion_to_y <= 1${address('from', fromMoves)}${address('to', toMoves)}`
-  const fromRender = `${from.prefix}_renderCapture2D(index, __pxlblz_show_motion_from_x, __pxlblz_show_motion_from_y)`
-  const toRender = `${to.prefix}_renderCapture2D(index, __pxlblz_show_motion_to_x, __pxlblz_show_motion_to_y)`
+  const fromRender = `${from.prefix}_renderCapture2D(${index}, __pxlblz_show_motion_from_x, __pxlblz_show_motion_from_y)`
+  const toRender = `${to.prefix}_renderCapture2D(${index}, __pxlblz_show_motion_to_x, __pxlblz_show_motion_to_y)`
   if (settings.edgePolicy === 'hard') {
     const incomingPrimary = settings.motionVariant === 'cover'
       || settings.motionVariant === 'push'
@@ -2791,7 +3368,7 @@ ${advanceDelta('delta', '  ')}
     `function ${member.prefix}_rgb(r, g, b) { ${member.prefix}_r = r; ${member.prefix}_g = g; ${member.prefix}_b = b }`,
     `function ${member.prefix}_hsv(h, s, v) { __pxlblz_show_capture_hsv(${index}, h + ${member.prefix}_adapt_phase, s, v) }`,
     emitMemberOutputEffectFunction(member),
-    `function ${member.prefix}_time(interval) { return ((${member.elapsedName} * 0.001) / interval) % 1 }`,
+    `function ${member.prefix}_time(interval) { return (${member.elapsedName} / (interval * 65536)) % 1 }`,
     `function ${member.prefix}_setAdaptation(brightness, phase, timeScale, mirror) {
   ${member.prefix}_adapt_brightness = brightness
   ${member.prefix}_adapt_phase = phase

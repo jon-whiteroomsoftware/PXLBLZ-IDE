@@ -60,7 +60,7 @@ describe('Scene read-only projection (#471)', () => {
     })
   })
 
-  it('marks compiler-omitted placements as unavailable instead of presenting false activity', () => {
+  it('marks later routed Scene placements as compiled and available (#478)', () => {
     let show = addShowZone(createDefaultShow('scene-diagnostic', 'Diagnostic bridge', 1))
     show = placeShowClip(show, 'zone-2', 'scene-2', {
       pattern: { kind: 'stock', id: 'CometLoom' },
@@ -74,8 +74,7 @@ describe('Scene read-only projection (#471)', () => {
     const detail = projectSceneReadOnlyBridge(projection, 'scene-2')
     const comet = detail.zones.flatMap((zone) => zone.placements).find((placement) => placement.patternName === 'CometLoom')
 
-    expect(comet).toMatchObject({ compiled: false })
-    expect(comet?.diagnostics[0]).toContain('does not select a runtime Pattern')
-    expect(detail.diagnostics).toContain(comet?.diagnostics[0])
+    expect(comet).toMatchObject({ compiled: true, diagnostics: [] })
+    expect(detail.diagnostics).toEqual([])
   })
 })

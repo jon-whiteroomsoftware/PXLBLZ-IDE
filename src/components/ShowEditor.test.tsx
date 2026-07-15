@@ -115,6 +115,26 @@ describe('ShowEditor (#318)', () => {
     expect(useShowStore.getState().shows).toEqual([])
   })
 
+  it('presents built-in Clip values as legible read-only inspection instead of failed editing (#482)', async () => {
+    const user = userEvent.setup()
+    const stock = STOCK_SHOWS[0]
+    const clip = stock.show.cells[0]
+
+    render(<ShowEditor showId={stock.id} showOverride={stock.show} readOnly />)
+    await user.click(screen.getAllByRole('button', { name: `Select ${clip.patternName}` })[0])
+
+    const panel = screen.getByRole('dialog', { name: 'Entity Detail Panel' })
+    expect(within(panel).getByText('Built-in values')).toBeInTheDocument()
+    expect(within(panel).getByText('Inspect here; create your own Show to edit.')).toBeInTheDocument()
+    expect(panel.querySelector('fieldset')).toHaveAttribute('data-read-only', 'true')
+    expect(within(panel).getByRole('combobox', { name: 'Source pattern' })).toBeDisabled()
+    expect(within(panel).getByRole('spinbutton', { name: 'Animation speed' })).toBeDisabled()
+    expect(within(panel).getByRole('button', { name: `Delete clip ${clip.patternName}` })).toBeDisabled()
+
+    await user.click(within(panel).getByText('Advanced clip controls'))
+    expect(within(panel).getByRole('combobox', { name: 'Hold scenes' })).toBeDisabled()
+  })
+
   it('discloses one stable read-only Scene X-ray and transfers Super Detail between owners (#471)', async () => {
     const user = userEvent.setup()
     const show = createDefaultShow('show-scene-xray', 'Scene X-ray', 1000)
@@ -378,6 +398,37 @@ describe('ShowEditor (#318)', () => {
     expect(usePreviewStore.getState().isRunning).toBe(true)
   })
 
+  it('drags the one-pixel playhead through a wider direct pointer target (#480)', async () => {
+    const show = createDefaultShow('show-direct-playhead', 'Direct playhead drag', 1000)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+
+    const hitTarget = screen.getByTestId('show-timeline-playhead-hit-target')
+    const track = hitTarget.parentElement!
+    vi.spyOn(track, 'getBoundingClientRect').mockReturnValue({
+      left: 100,
+      right: 720,
+      top: 0,
+      bottom: 300,
+      width: 620,
+      height: 300,
+      x: 100,
+      y: 0,
+      toJSON: () => ({}),
+    })
+
+    fireEvent.pointerDown(hitTarget, { pointerId: 7, clientX: 100 })
+    fireEvent.pointerMove(hitTarget, { pointerId: 7, clientX: 410 })
+    expect(useShowTransportStore.getState().positionMs).toBe(30_000)
+    expect(useShowTransportStore.getState().seekRequest).toBeNull()
+
+    fireEvent.pointerUp(hitTarget, { pointerId: 7, clientX: 410 })
+    await waitFor(() => {
+      expect(useShowTransportStore.getState().seekRequest).toMatchObject({ targetMs: 30_000 })
+    })
+  })
+
   it('snaps pointer scrubbing to Show boundaries and allows snapping to be disabled (#63)', async () => {
     const user = userEvent.setup()
     const show = createDefaultShow('show-63-snap', 'Snapping', 1000)
@@ -419,7 +470,7 @@ describe('ShowEditor (#318)', () => {
       'Go to Show start',
     ])
     const playback = within(transport).getByRole('button', { name: 'Pause Show preview' })
-    expect(playback.querySelector('.lucide-pause')).toBeInTheDocument()
+    expect(playback.querySelector('.lucide-play')).toBeInTheDocument()
     expect(within(transport).getByRole('status', { name: 'Show time' })).toHaveTextContent('00:00.0/01:02.0')
 
     const zoom = screen.getByRole('group', { name: 'Timeline zoom controls' })
@@ -441,7 +492,7 @@ describe('ShowEditor (#318)', () => {
     expect(screen.getByTestId('show-timeline-grid').style.gridTemplateRows).toContain('44px')
 
     await user.click(playback)
-    expect(screen.getByRole('button', { name: 'Play Show preview' }).querySelector('.lucide-play')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Play Show preview' }).querySelector('.lucide-pause')).toBeInTheDocument()
 
     const split = within(commands).getByRole('button', { name: 'Split at playhead' })
     expect(split).toHaveAttribute(
@@ -1192,12 +1243,40 @@ describe('ShowEditor (#318)', () => {
       'How quickly Pattern animation advances. Does not change Clip duration or frame rate.',
     )
 
+    const primaryFields = screen.getByTestId('clip-primary-fields')
+    expect(primaryFields).toHaveClass('min-w-0')
+    expect(screen.getByLabelText('Brightness').closest('label')).toHaveClass('min-w-0')
+
     await user.click(screen.getByRole('button', { name: /Select Scene 1 to Scene 2 transition/i }))
     expect(screen.getByRole('heading', { name: 'Transition properties' })).toBeInTheDocument()
     expect(screen.getByText(/Scene 1 → Scene 2 · crossfade/i)).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: /Crossfade · Change/i }))
     expect(screen.getByRole('button', { name: 'Use Linear Transition' })).toBeInTheDocument()
     await user.keyboard('{Escape}')
+  })
+
+  it('lets a Clip numeric field be cleared and edited before committing a bounded value', async () => {
+    const user = userEvent.setup()
+    const show = createDefaultShow('show-number-edit', 'Number edit', 1000)
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+    await user.click(screen.getAllByRole('button', { name: /Select TestPattern1D/i })[0])
+
+    const speed = screen.getByRole('spinbutton', { name: 'Animation speed' })
+    await user.clear(speed)
+    expect(speed).toHaveValue(null)
+
+    await user.type(speed, '4')
+    expect(speed).toHaveValue(4)
+    expect(useShowStore.getState().shows[0].cells[0].adaptations.timeScale).toBe(4)
+
+    await user.type(speed, '4')
+    expect(speed).toHaveValue(44)
+    fireEvent.blur(speed)
+    expect(speed).toHaveValue(4)
+    expect(useShowStore.getState().shows[0].cells[0].adaptations.timeScale).toBe(4)
   })
 
   it('opens Show properties from the Show header action', async () => {

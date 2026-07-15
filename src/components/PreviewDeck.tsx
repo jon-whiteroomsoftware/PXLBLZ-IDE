@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { Lock, Play, Pause, RotateCcw } from 'lucide-react'
 import { usePreviewStore, MIN_LIGHT_SIZE, MAX_LIGHT_SIZE } from '@/store/previewStore'
 import { useEditorStore } from '@/store/editorStore'
@@ -60,6 +61,18 @@ const PREVIEW_HINT = (
   />
 )
 
+const SHOW_PREVIEW_HINT = (
+  <DeckSectionHint
+    heading="Show Stage preview settings"
+    items={[
+      ['light size', 'on-screen LED size'],
+      ['diffusion', 'soften and blend lights'],
+      ['renderer', 'Fast (native float math) or Precise (hardware-accurate fixed-point)'],
+      ['fps', 'live Stage frame rate'],
+    ]}
+  />
+)
+
 // The preview control deck (#150): everything below the canvas, stacked by visual
 // prominence. Primary band = the pattern name, layout, and play/pause; secondary
 // band = the remaining controls split into a Pixelblaze group (real device settings)
@@ -82,6 +95,12 @@ function PrimaryBand() {
   const toggle = usePreviewStore((s) => s.toggle)
   const previewPatternName = useEditorStore((s) => s.previewPatternName)
   const previewSource = useEditorStore((s) => s.previewSource)
+  const hasPattern = Boolean(previewPatternName.trim() || previewSource.trim())
+  const displayRunning = hasPattern && isRunning
+
+  useEffect(() => {
+    if (!hasPattern) usePreviewStore.getState().setRunning(false)
+  }, [hasPattern])
 
   // The layer-1 reset affordance (#63): a rewind icon in the primary action cluster,
   // immediately before the viewport embedding chooser. It stays in the main row so it
@@ -122,14 +141,19 @@ function PrimaryBand() {
       )}
       <EmbeddingSelect />
       <button
-        aria-label={isRunning ? 'Pause' : 'Run'}
-        title={isRunning ? 'Pause preview' : 'Run preview'}
-        onClick={toggle}
+        aria-label={hasPattern ? (isRunning ? 'Pause' : 'Run') : 'No pattern loaded'}
+        title={hasPattern ? (isRunning ? 'Pause preview' : 'Run preview') : 'No pattern loaded'}
+        disabled={!hasPattern}
+        onClick={hasPattern ? toggle : undefined}
         className={`flex items-center justify-center w-8 h-8 rounded shrink-0 hover:bg-zinc-700 transition-colors ${
-          isRunning ? 'text-green-500 hover:text-green-400' : 'text-red-500 hover:text-red-400'
+          displayRunning
+            ? 'text-green-500 hover:text-green-400'
+            : hasPattern
+              ? 'text-red-500 hover:text-red-400'
+              : 'cursor-default text-red-500/45'
         }`}
       >
-        {isRunning ? <Play size={20} /> : <Pause size={20} />}
+        {displayRunning ? <Play size={20} /> : <Pause size={20} />}
       </button>
     </div>
   )
@@ -202,15 +226,6 @@ function PixelCountInput() {
 function SecondaryBand() {
   const brightness = usePreviewStore((s) => s.brightness)
   const setBrightness = usePreviewStore((s) => s.setBrightness)
-  const lightSize = usePreviewStore((s) => s.lightSize)
-  const setLightSize = usePreviewStore((s) => s.setLightSize)
-  const diffusion = usePreviewStore((s) => s.diffusion)
-  const setDiffusion = usePreviewStore((s) => s.setDiffusion)
-  const fidelity = usePreviewStore((s) => s.fidelity)
-  const setFidelity = usePreviewStore((s) => s.setFidelity)
-  const fps = usePreviewStore((s) => s.fps)
-  const elapsed = usePreviewStore((s) => s.elapsed)
-  const layoutLabel = useEditorStore((s) => s.layoutLabel)
   const renderAdaptation = useEditorStore((s) => s.renderAdaptation)
   // Fill/Contain (#174): a real Mapper map-coordinate normalization setting, so it
   // sits in the Pixelblaze section. Contain (default) preserves aspect; Fill stretches
@@ -221,9 +236,6 @@ function SecondaryBand() {
   // solid-eligible (it supplies a per-point normal); it appears/disappears as a unit
   // with that embedding. The canonical term is `solidity`; the slider is labelled
   // by its physical spectrum, Transparent ↔ Solid.
-  const solidEligible = useEditorStore((s) => s.solidEligible)
-  const solidity = useMapStore((s) => s.activeSolidity)
-  const setSolidity = useMapStore((s) => s.setActiveSolidity)
   // Map stays available across dimensions. Fit keys off the selected map and is
   // absent for 1D because Contain and Fill are equivalent on one axis.
   const { hasMapChoice, hasMappedCoordinates } = useMapSelectMeta()
@@ -288,78 +300,103 @@ function SecondaryBand() {
           </div>
         )}
       </DeckSection>
-      <DeckSection label="Preview" hint={PREVIEW_HINT}>
-        {/* Sliders on top, then renderer/speed dropdowns, then read-only telemetry at
-            the bottom of the section (#63). */}
-        <DeckGrid className="mb-2">
+      <PreviewViewportSection profile="pattern" />
+    </div>
+  )
+}
+
+export function PreviewViewportSection({ profile }: { profile: 'pattern' | 'show' }) {
+  const lightSize = usePreviewStore((s) => s.lightSize)
+  const setLightSize = usePreviewStore((s) => s.setLightSize)
+  const setLightSizeSticky = usePreviewStore((s) => s.setLightSizeSticky)
+  const diffusion = usePreviewStore((s) => s.diffusion)
+  const setDiffusion = usePreviewStore((s) => s.setDiffusion)
+  const setDiffusionSticky = usePreviewStore((s) => s.setDiffusionSticky)
+  const fidelity = usePreviewStore((s) => s.fidelity)
+  const setFidelity = usePreviewStore((s) => s.setFidelity)
+  const fps = usePreviewStore((s) => s.fps)
+  const elapsed = usePreviewStore((s) => s.elapsed)
+  const layoutLabel = useEditorStore((s) => s.layoutLabel)
+  const solidEligible = useEditorStore((s) => s.solidEligible)
+  const solidity = useMapStore((s) => s.activeSolidity)
+  const setSolidity = useMapStore((s) => s.setActiveSolidity)
+  const pattern = profile === 'pattern'
+
+  const updateLightSize = (value: number) => {
+    setLightSize(value)
+    if (pattern) writeHybrid('lightSize', value)
+    else setLightSizeSticky(value)
+  }
+  const updateDiffusion = (value: number) => {
+    setDiffusion(value)
+    if (pattern) writeHybrid('diffusion', value)
+    else setDiffusionSticky(value)
+  }
+
+  return (
+    <DeckSection label="Preview" hint={pattern ? PREVIEW_HINT : SHOW_PREVIEW_HINT}>
+      <DeckGrid className="mb-2">
+        <DeckSlider
+          label="light size"
+          ariaLabel="Light size"
+          value={lightSize}
+          min={MIN_LIGHT_SIZE}
+          max={MAX_LIGHT_SIZE}
+          step={0.05}
+          onChange={updateLightSize}
+        />
+        <DeckSlider
+          label="diffusion"
+          ariaLabel="Diffusion"
+          value={diffusion}
+          min={0}
+          max={1}
+          step={0.01}
+          onChange={updateDiffusion}
+        />
+        {pattern && solidEligible && (
           <DeckSlider
-            label="light size"
-            ariaLabel="Light size"
-            value={lightSize}
-            min={MIN_LIGHT_SIZE}
-            max={MAX_LIGHT_SIZE}
-            step={0.05}
-            onChange={(v) => {
-              setLightSize(v)
-              writeHybrid('lightSize', v)
-            }}
-          />
-          <DeckSlider
-            label="diffusion"
-            ariaLabel="Diffusion"
-            value={diffusion}
+            label="interior opacity"
+            ariaLabel="Interior opacity (Transparent ↔ Solid)"
+            value={solidity}
             min={0}
             max={1}
             step={0.01}
-            onChange={(v) => {
-              setDiffusion(v)
-              writeHybrid('diffusion', v)
+            onChange={(value) => {
+              setSolidity(value)
+              writeCascadedOverride('solidity', value)
             }}
           />
-          {solidEligible && (
-            <DeckSlider
-              label="interior opacity"
-              ariaLabel="Interior opacity (Transparent ↔ Solid)"
-              value={solidity}
-              min={0}
-              max={1}
-              step={0.01}
-              onChange={(v) => {
-                setSolidity(v)
-                writeCascadedOverride('solidity', v)
-              }}
-            />
-          )}
-        </DeckGrid>
-        <DeckGrid gapY="gap-y-1" className="mb-2">
-          <DeckCell label="renderer">
-            <DeckSelect
-              ariaLabel="Renderer"
-              value={fidelity}
-              options={[
-                { value: 'fast', label: 'Fast', title: 'Fast (float64, plain JS preview)' },
-                { value: 'fidelity', label: 'Precise', title: 'Precise (16.16 fixed-point, hardware-accurate)' },
-              ]}
-              onChange={setFidelity}
-              menuWidthClass="w-28"
-            />
-          </DeckCell>
+        )}
+      </DeckGrid>
+      <DeckGrid gapY="gap-y-1" className="mb-2">
+        <DeckCell label="renderer">
+          <DeckSelect
+            ariaLabel="Renderer"
+            value={fidelity}
+            options={[
+              { value: 'fast', label: 'Fast', title: 'Fast (float64, plain JS preview)' },
+              { value: 'fidelity', label: 'Precise', title: 'Precise (16.16 fixed-point, hardware-accurate)' },
+            ]}
+            onChange={setFidelity}
+            menuWidthClass="w-28"
+          />
+        </DeckCell>
+        {pattern ? (
           <DeckCell label="speed">
             <SpeedSelector />
           </DeckCell>
-        </DeckGrid>
-        {/* Pull the telemetry text up (#63): the dropdown row above is 20px tall (text
-            vertically centered), so without this the renderer→fps text baselines sit
-            farther apart than the pure-text telemetry rows below. The negative top
-            margin cancels the prior grid's mb-2 plus the dropdown's centering slack, so
-            the fps baseline lands the same distance below renderer as elapsed/layout is
-            below fps — keeping the text-line rhythm even. */}
+        ) : (
+          <DeckTelemetry label="fps" value={fps === null ? '—' : fps.toFixed(1)} />
+        )}
+      </DeckGrid>
+      {pattern && (
         <DeckGrid gapY="gap-y-1" className="mb-2 -mt-1.5">
           <DeckTelemetry label="fps" value={fps === null ? '—' : fps.toFixed(1)} />
           <DeckTelemetry label="elapsed" value={elapsed === null ? '—' : `${(elapsed / 1000).toFixed(1)}s`} />
           {layoutLabel && <DeckTelemetry label="layout" value={layoutLabel} />}
         </DeckGrid>
-      </DeckSection>
-    </div>
+      )}
+    </DeckSection>
   )
 }

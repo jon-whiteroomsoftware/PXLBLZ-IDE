@@ -3,8 +3,10 @@
 Status: UI direction approved and additive normalization spike complete,
 2026-07-14. This document captures the intended one-level Scene-composition
 destination. The global/Scene-local interaction model has passed human review.
-The #462 proof establishes a safe projection seam and identifies two compiler
-gaps; it does not freeze or ship a production composition schema.
+The #462 proof established a safe projection seam and identified two compiler
+gaps. The #478 lowering closes the top-level routed-Scene gap; explicit durable
+instance automation for Scene-local composition remains. This document does not
+freeze or ship a production composition schema.
 
 ## Conclusion
 
@@ -213,9 +215,9 @@ several independent containers.
 
 The state-model exercise validated this hybrid ownership against multi-zone
 placements, cross-Scene Continue, split, duplicate, extend, trim, and local
-keyframe rebasing. It did not validate compiler migration. The current compiler
-has specialized recipe paths whose implicit instance-reuse behavior must be
-made equivalent before this recommendation becomes a frozen schema decision.
+keyframe rebasing. Issue #478 subsequently unified top-level multi-Zone Scene
+selection in production compilation. Scene-local overlays, Cuts, and keyframes
+remain unimplemented, so the durable nested schema is still not frozen.
 
 Existing flat Shows need one canonical projection into the new model. Each
 Scene/zone slot becomes one full-duration base placement. A clip spanning
@@ -596,7 +598,7 @@ The fixture matrix covers every current recipe branch:
 | One-zone held Clip | steady hold | One compiled instance; one Scene-owned placement per covered Scene |
 | Ordinary two-Scene Show | two-Scene boundary | Two instances and the unchanged top-level boundary |
 | Three-Scene sequence | scene sequence | Runtime Clip ids preserve inferred Continue/Restart identity |
-| Multi-Zone Show | routed first Scene | First-Scene cells compile; persisted later-Scene cells are reported as omitted |
+| Multi-Zone Show | routed Scene sequence | Every persisted Scene/Zone cell selects a runtime Pattern instance |
 | Fixed Installation | Installation single-zone wrapper | Output contract, physical routing, count, and generated artifact remain unchanged |
 | Time-scale Property ramp | adaptation ramp | One runtime instance plus an explicit ownership-conflict diagnostic for the changing instance target |
 
@@ -608,15 +610,12 @@ continues the copied Pattern by default, matching shipped behavior. Top-level
 visual and routing Transitions remain Scene-boundary objects and never become
 placement properties.
 
-The proof also found the compiler-path inconsistency the durable schema must not
-hide. `showRecordToRoutedFirstSceneRecipe()` compiles only cells anchored in the
-first Scene. Later Scenes control loop duration, routing switches, and Show-wide
-property ramps, but later-Scene Pattern cells do not select runtime Patterns.
-The projection marks each such cell `compiler-omits-cell`. The general one-zone
-scene-sequence path, by contrast, selects a runtime Clip for every Scene and
-deduplicates Clip ids to express Continue. A durable migration cannot claim
-uniform Scene placement semantics until routed compilation also consumes the
-per-Scene zone schedule.
+The #478 lowering closes the compiler-path inconsistency found by the spike.
+`showRecordToRoutedSceneSequenceRecipe()` now lowers every top-level Scene/Zone
+slot, maps Continue to one runtime Pattern instance, gives Restart a fresh
+instance, and combines each outgoing and incoming Zone set through the existing
+boundary Transition families. The projection no longer marks supported later
+Scene cells `compiler-omits-cell`.
 
 The second gap is explicit instance automation. The adaptation-ramp compiler can
 keep one runtime member while flat destination cells carry different time-scale
@@ -636,8 +635,8 @@ The safe next seam is the version-0 sidecar projection:
 4. Expand each flat cell into one full-duration Scene-owned base placement per
    covered Scene and carry render-view adaptations and Effects on that
    placement.
-5. Report persisted cells the compiler omits and shared-instance values that
-   require automation.
+5. Report unsupported composition facts and shared-instance values that still
+   require explicit durable automation.
 6. Continue saving and compiling the flat record until those diagnostics are
    eliminated by a unified lowering path.
 
@@ -650,7 +649,7 @@ record.
 The first production consumer now uses this seam. The global Timeline can
 disclose one fixed-height Scene X-ray and magnify it into one modeless Super
 Detail overlay. Both surfaces remain read-only and surface compiler diagnostics
-instead of presenting omitted placements as active. The overlay intentionally
+for genuinely unsupported facts. The overlay intentionally
 omits `Open Scene` until the Scene-local authoring scope can edit and lower the
 same facts it presents.
 

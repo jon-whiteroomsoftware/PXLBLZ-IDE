@@ -826,7 +826,12 @@ metadata. The route resolves a built-in id without inserting it into `showStore`
 override. The editor disables mutation affordances while retaining transport,
 inspection, compilation, cost, EPE export, and Controller actions. This keeps
 the learning path on production behavior without creating D1 rows or a second
-Show runtime.
+Show runtime. A disabled fieldset still provides the native mutation boundary in
+Entity Details. The panel adds a `Built-in values` note and read-only descendant
+styling that removes active-field cues while restoring full text opacity; action
+buttons retain an explicit disabled treatment. The wrapper applies to every
+contextual entity inspector, while `details` summaries remain operable for
+inspection.
 
 Legacy scene-owned transitions and routing switches normalize into the boundary
 model before compiler, editor, EPE, or persistence consumption. Every boundary
@@ -1058,25 +1063,45 @@ after React applies the saved update. It does not blur controls globally;
 checkboxes, text-like editors, ranges, buttons, and navigator handles retain
 their native keyboard ownership.
 
-While `ShowTransportControls` is mounted, its document handler accepts Space,
-Left/Right, and Home only when the Show workspace or a marked timeline entity
-owns focus. Interactive controls consume those keys first. Relative and zero
+`StudioApp` owns the shared Space preview shortcut. Its document handler uses
+`studioControlOwnsKeyboardEvent()` to leave text entry, Monaco, buttons, links,
+menus, sliders, and contenteditable surfaces untouched. The Show handler keeps
+the same guarded Space behavior as a local fallback and additionally accepts
+Left/Right and Home when the Show workspace or a marked timeline entity owns
+focus. Both handlers ignore an already prevented event, so one Space keydown can
+toggle only once regardless of listener order. Relative and zero
 commands clamp through `showTransportStore`, create ordinary deterministic seek
 requests, and pause/resume around reconstruction so the previous playback state
 is preserved. Unmount removes the handler, preventing shortcuts from leaking
 into other Studio modes.
 
+The ruler's transparent range input remains the primary full-width scrubbing
+surface. `TimelinePlayhead` adds a five-pixel pointer target around its one-pixel
+rendered line across the timeline body. Pointer capture maps movement through the
+same range-thumb inset, Snap/Alt policy, pause-preview, deterministic-seek, and
+resume sequence as ruler scrubbing.
+
 `showTransportStore` holds ephemeral play/pause-adjacent timeline state:
 duration, position, rebuilding status, and monotonic seek identity. The global
 preview run state remains the transport source of truth.
 
-`ShowStagePreview` compiles the same generated float source used elsewhere, but
-does not apply the artifact-action coverage gate: an invalid Installation stays
-visible and repairable. Generated inspection, export, Run, and Save use
+`ShowStagePreview` compiles both generated artifacts used by Pattern preview.
+Fast uses the float source; Precise uses the fixed-point source and FX shim. The
+Stage reports measured animation-frame FPS and shares the preview store's sticky
+Light size and Diffusion comfort settings. It deliberately omits Pattern speed,
+elapsed time, user controls, and watch variables. Show transport is the canonical
+clock, and a compiled Show can contain many Pattern instances whose controls and
+variables do not form one coherent panel.
+
+Stage preview does not apply the artifact-action coverage gate: an invalid
+Installation stays visible and repairable. Generated inspection, export, Run, and Save use
 `compileShowForArtifact`, which rejects invalid physical coverage with the same
 actionable diagnostic shown in Show properties.
 Generic strips build synthetic sequential map points and diagnostic zone rows.
-A selected 2D/3D Stage resolves the real map. Installation preview uses the
+A selected 2D/3D Stage resolves the real map. The identity row labels it once as
+a reference map, output map, or generic preview layout and shows its fixed pixel
+count; the diagnostic card is conditional on a note or uncovered-pixel warning.
+Installation preview uses the
 contract's saved pixel count and physical ranges even when a connected Controller
 reports different setup; unclassified records may still project Controller
 ranges. The Stage masks uncovered pixels grey, reports saved map/count/coverage,
@@ -1102,21 +1127,40 @@ artifact generation therefore share one output extent instead of inferring it
 from the largest authored range or a connected Controller.
 
 A one-zone Installation with no routing switch keeps the ordinary full scene
-sequence and transition scheduler. Its sole physical zone already covers the
-entire validated output, so the recipe adds the exact master count and saved
-zone range without switching to the multi-zone first-scene routing path. This
-preserves legacy playback when a proven one-zone Show gains its contract.
+sequence and transition scheduler. Multi-zone and routing-switch Shows instead
+lower every top-level Scene into a routed Scene sequence: each Scene maps every
+Zone to a Pattern instance, and its outgoing boundary combines the complete
+outgoing and incoming Zone sets. The compiler no longer substitutes the first
+Scene's Zone placements for the complete Show schedule.
+
+If every Scene resolves to the same Pattern placements and member targets, the
+lowering retains the compact static-routing recipe. Routing-layout switches and
+Show-wide routing or sample ramps still run, but an unchanged Pattern schedule
+does not acquire a redundant Scene scheduler or duplicate compiled members. For
+a dynamic routed sequence without an authored output layout, the connected
+Controller zones supply the physical ranges, including ordered, non-contiguous
+ranges. Installation and Portable contracts continue to own their saved
+physical or logical layouts instead.
 
 A Portable recipe carries no master count. Once a Show has multiple zones or
-logical layout switching, `showRecordToCompileRecipe()` emits the existing
-coordinate-predicate routing representation. `emitLogicalRoutingSetup()` derives
+logical layout switching, `showRecordToCompileRecipe()` emits the routed Scene
+schedule over the coordinate-predicate routing representation.
+`emitLogicalRoutingSetup()` derives
 zone id and local X/Y from runtime coordinates for single-surface, stripe, grid,
 split, and pinwheel layouts. Generated member counts use runtime `pixelCount`;
 the reference preview count is absent from routing ownership.
 
-Each member has private elapsed time and adaptation state. The outer scheduler
-advances members according to holds and transition windows, then routes each
-physical pixel through the active domain. Zone-local index and virtual
+Each member has private elapsed time and adaptation state. A semantic Pattern
+instance emits one alpha-renamed member even when several Zone placements use
+it. The scheduler advances that member once per frame. Separate clocks or
+resumable private state remain separate members and may carry separate source
+bodies; the compiler does not attempt speculative lifetime-slot reuse or
+source-body deduplication.
+
+The outer scheduler selects every Zone placement for the active top-level Scene,
+applies boundary-owned property, control, and Effect ramps, advances the unique
+active members, then routes each physical pixel through the active domain.
+Zone-local index and virtual
 `pixelCount` are computed from ordered multi-range zones. Span mode merges zones
 into one domain; Repeat mode reuses one member over separately normalized
 domains and advances `beforeRender` once.

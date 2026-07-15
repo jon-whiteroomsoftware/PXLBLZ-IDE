@@ -73,6 +73,8 @@ import type { AuthProvider } from '@/engine/authSession'
 import { DEMOS } from '@/pixelblaze/stock/patterns'
 import { stockShowById } from '@/pixelblaze/stock/shows'
 import { InlineEntityTitle } from '@/components/InlineEntityTitle'
+import { usePreviewStore } from '@/store/previewStore'
+import { studioControlOwnsKeyboardEvent } from '@/engine/keyboardShortcuts'
 
 function Splitter({ onDrag, className = '' }: { onDrag: (dx: number) => void; className?: string }) {
   const lastX = useRef(0)
@@ -325,6 +327,17 @@ function StudioApp() {
     }
   })
   const [showHeaderActionsTarget, setShowHeaderActionsTarget] = useState<HTMLSpanElement | null>(null)
+  useEffect(() => {
+    if (route.kind !== 'studio') return
+    const togglePreviewWithSpace = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || event.code !== 'Space') return
+      if (studioControlOwnsKeyboardEvent(event.target)) return
+      event.preventDefault()
+      usePreviewStore.getState().toggle()
+    }
+    document.addEventListener('keydown', togglePreviewWithSpace)
+    return () => document.removeEventListener('keydown', togglePreviewWithSpace)
+  }, [route.kind])
   const showCreationMaps = useMemo((): ShowCreationMapOption[] => [
     ...STOCK_MAP_ITEMS.map((map) => ({
       id: map.id,
@@ -376,12 +389,16 @@ function StudioApp() {
       return
     }
     syncDocsFromRoute(null)
-    if (route.kind === 'studio' && route.entity !== null && route.entity.kind === 'patterns' && route.entity.id !== null) {
-      const entityId = route.entity.id
+    if (route.kind === 'studio' && route.entity !== null && route.entity.kind === 'patterns') {
       const { userPatterns, activePatternId, activeDemoName } = usePatternStore.getState()
-      const record = userPatterns.find((p) => p.id === entityId)
-      if (record && activePatternId !== entityId) openPatternRecord(record)
-      else if (!record && DEMOS[entityId] && activeDemoName !== entityId) openDemoPattern(entityId)
+      const entityId = route.entity.id
+      if (entityId !== null) {
+        const record = userPatterns.find((p) => p.id === entityId)
+        if (record && activePatternId !== entityId) openPatternRecord(record)
+        else if (!record && DEMOS[entityId] && activeDemoName !== entityId) openDemoPattern(entityId)
+      } else if (patternsLoaded && activePatternId === null && activeDemoName === null && userPatterns.length > 0) {
+        openPatternRecord(userPatterns[0])
+      }
     } else if (route.kind === 'studio' && route.entity !== null && route.entity.kind === 'maps' && route.entity.id !== null) {
       const entityId = route.entity.id
       const { userMaps, editingMap, openExistingMap, openStockMap } = useMapStore.getState()
@@ -411,7 +428,7 @@ function StudioApp() {
         if (activeShowId !== null) void openShow(null)
       } else if (shows.some((show) => show.id === entityId) && activeShowId !== entityId) openShow(entityId)
     }
-  }, [route, patternsLoaded, mapsLoaded, mixinsLoaded, librariesLoaded, showsLoaded, syncDocsFromRoute, shows, activeShowId, activeLibraryName, openShow])
+  }, [route, patternsLoaded, mapsLoaded, mixinsLoaded, librariesLoaded, showsLoaded, syncDocsFromRoute, shows, activeShowId, activeLibraryName, userPatterns, openShow])
 
   // State → URL: the active studio entity is addressable. Push when moving
   // between entities so back/forward walk them; replace when a plain /studio
@@ -838,21 +855,17 @@ function StudioApp() {
                     takenNames={shows.filter((show) => show.id !== activeShow?.id).map((show) => show.name)}
                   />
                   {activeShow && (
-                    <>
-                      <span
-                        title="Show output contract"
-                        className="hidden rounded border border-zinc-800 bg-zinc-900/45 px-1.5 py-0.5 text-[9px] uppercase tracking-wide text-zinc-500 sm:inline"
-                      >
-                        {activeShow.outputContract?.kind === 'installation'
-                          ? 'Installation'
-                          : activeShow.outputContract?.kind === 'portable-2d'
-                            ? 'Portable 2D'
-                            : 'Legacy output'}
-                      </span>
-                      <span className="hidden rounded border border-zinc-800 bg-zinc-900/45 px-1.5 py-0.5 text-[9px] uppercase tracking-wide text-zinc-500 sm:inline">
-                        {activeShow.scenes.length} scenes
-                      </span>
-                    </>
+                    <span
+                      title="Show output summary"
+                      className="hidden rounded border border-zinc-800 bg-zinc-900/45 px-1.5 py-0.5 text-[9px] uppercase tracking-wide text-zinc-500 sm:inline"
+                    >
+                      {activeShow.outputContract?.kind === 'installation'
+                        ? 'Installation'
+                        : activeShow.outputContract?.kind === 'portable-2d'
+                          ? 'Portable 2D'
+                          : 'Legacy output'}
+                      {' · '}{activeShow.scenes.length} scenes
+                    </span>
                   )}
                 </span>
                 {activeShow && (

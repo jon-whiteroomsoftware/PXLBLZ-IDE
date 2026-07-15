@@ -737,7 +737,23 @@ export function ShowEditor({
               onClose={() => closeDetailPanel(true)}
             >
               <div onChangeCapture={returnFocusAfterDiscreteCommit}>
-                <fieldset disabled={readOnly} className="contents">
+                {readOnly && (
+                  <div
+                    role="note"
+                    className="flex min-h-8 items-center gap-2 border-b border-amber-300/15 bg-amber-300/[0.04] px-2.5 pr-10 text-[9px] leading-4"
+                  >
+                    <Lock size={11} aria-hidden className="shrink-0 text-amber-300/75" />
+                    <strong className="shrink-0 font-semibold uppercase tracking-[0.1em] text-amber-200/80">Built-in values</strong>
+                    <span className="truncate text-zinc-400">Inspect here; create your own Show to edit.</span>
+                  </div>
+                )}
+                <fieldset
+                  disabled={readOnly}
+                  data-read-only={readOnly ? 'true' : undefined}
+                  className={readOnly
+                    ? 'contents [&_input:disabled]:cursor-default [&_input:disabled]:border-zinc-800 [&_input:disabled]:bg-zinc-950/35 [&_input:disabled]:text-zinc-300 [&_input:disabled]:opacity-100 [&_select:disabled]:cursor-default [&_select:disabled]:border-zinc-800 [&_select:disabled]:bg-zinc-950/35 [&_select:disabled]:text-zinc-300 [&_select:disabled]:opacity-100 [&_button:disabled]:cursor-not-allowed [&_button:disabled]:opacity-45'
+                    : 'contents'}
+                >
                   <ContextualInspector
               show={activeShow}
                   selection={selection}
@@ -890,6 +906,7 @@ function ShowTransportControls({ show }: { show: ShowRecord }) {
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented) return
       if (showControlOwnsKeyboardEvent(event.target)) return
       if (event.code === 'Space') {
         event.preventDefault()
@@ -917,10 +934,12 @@ function ShowTransportControls({ show }: { show: ShowRecord }) {
         variant="ghost"
         aria-label={isRunning ? 'Pause Show preview' : 'Play Show preview'}
         title={isRunning ? 'Pause Show preview (Space)' : 'Play Show preview (Space)'}
-        className="bg-zinc-900/70 text-amber-300 hover:bg-amber-400/10 hover:text-amber-200"
+        className={`bg-zinc-900/70 hover:bg-amber-400/10 ${
+          isRunning ? 'text-green-400 hover:text-green-300' : 'text-red-400 hover:text-red-300'
+        }`}
         onClick={toggle}
       >
-        {isRunning ? <Pause size={13} aria-hidden /> : <Play size={13} aria-hidden />}
+        {isRunning ? <Play size={13} aria-hidden /> : <Pause size={13} aria-hidden />}
       </Button>
       <Button
         size="icon-xs"
@@ -1481,7 +1500,15 @@ function SceneStrip({
           structuralTimesMs={structuralTimesMs}
           getVisibleWidth={() => Math.max(1, (scrollRef.current?.clientWidth ?? 812) - 212)}
         />
-        <TimelinePlayhead show={show} gridColumn={`2 / ${columns.length}`} rowSpan={strip.rows.length * rowStride + routingLaneRows + (xrayOpen ? 4 : 3)} />
+        <TimelinePlayhead
+          show={show}
+          gridColumn={`2 / ${columns.length}`}
+          rowSpan={strip.rows.length * rowStride + routingLaneRows + (xrayOpen ? 4 : 3)}
+          viewport={viewport}
+          snapEnabled={snapEnabled}
+          structuralTimesMs={structuralTimesMs}
+          getVisibleWidth={() => Math.max(1, (scrollRef.current?.clientWidth ?? 812) - 212)}
+        />
         <div role="group" aria-label="Transition lane" className="contents">
           <div
             className="sticky left-0 z-30 flex items-center gap-2 border-b border-zinc-900 bg-[#060608] px-1 text-[9.5px] uppercase tracking-[0.12em] text-structural"
@@ -2182,16 +2209,63 @@ function TimelinePlayhead({
   show,
   gridColumn,
   rowSpan,
+  viewport,
+  snapEnabled,
+  structuralTimesMs,
+  getVisibleWidth,
 }: {
   show: ShowRecord
   gridColumn: string
   rowSpan: number
+  viewport: ShowTimelineViewport
+  snapEnabled: boolean
+  structuralTimesMs: number[]
+  getVisibleWidth: () => number
 }) {
   const durationMs = showLoopDurationMs(show)
   const positionMs = useShowTransportStore((state) => state.showId === show.id ? state.positionMs : 0)
   const seekStatus = useShowTransportStore((state) => state.showId === show.id ? state.seekStatus : 'idle')
+  const pendingSeekRef = useRef<{ showId: string; targetMs: number } | null>(null)
+  const resumeAfterSeekRef = useRef(false)
+  const activePointerRef = useRef<number | null>(null)
   const left = durationMs > 0 ? Math.min(100, Math.max(0, positionMs / durationMs * 100)) : 0
   const thumbCenterOffsetPx = rangeThumbCenterOffsetPx(left, 16)
+  const previewPointerPosition = (event: ReactPointerEvent<HTMLSpanElement>) => {
+    const track = event.currentTarget.parentElement
+    if (!track) return
+    const rect = track.getBoundingClientRect()
+    const thumbRadius = 8
+    const usableWidth = Math.max(1, rect.width - thumbRadius * 2)
+    const fraction = Math.min(1, Math.max(0, (event.clientX - rect.left - thumbRadius) / usableWidth))
+    const targetMs = fraction * durationMs
+    const resolvedTimeMs = snapEnabled !== event.altKey
+      ? snapShowTimelineTime(targetMs, {
+          visibleDurationMs: viewport.durationMs,
+          visibleWidthPx: getVisibleWidth(),
+          structuralTimesMs,
+          maxTimeMs: durationMs,
+        }).timeMs
+      : targetMs
+    const preview = usePreviewStore.getState()
+    if (!pendingSeekRef.current) resumeAfterSeekRef.current = preview.isRunning
+    if (preview.isRunning) preview.toggle()
+    useShowTransportStore.getState().setPosition(show.id, resolvedTimeMs)
+    pendingSeekRef.current = { showId: show.id, targetMs: resolvedTimeMs }
+  }
+  const commitPointerPosition = () => {
+    const pending = pendingSeekRef.current
+    pendingSeekRef.current = null
+    activePointerRef.current = null
+    if (!pending || pending.showId !== show.id) {
+      resumeAfterSeekRef.current = false
+      return
+    }
+    useShowTransportStore.getState().requestSeek(show.id, pending.targetMs)
+    if (resumeAfterSeekRef.current && !usePreviewStore.getState().isRunning) {
+      usePreviewStore.getState().toggle()
+    }
+    resumeAfterSeekRef.current = false
+  }
   return (
     <div
       aria-hidden
@@ -2199,11 +2273,34 @@ function TimelinePlayhead({
       style={{ gridColumn, gridRow: `2 / span ${rowSpan}` }}
     >
       <span
-        data-testid="show-timeline-playhead"
-        className={`absolute inset-y-0 w-px ${seekStatus === 'rebuilding' ? 'bg-amber-300' : 'bg-live'}`}
-        style={{ left: `calc(${left}% + ${thumbCenterOffsetPx}px)`, boxShadow: '0 0 8px color-mix(in srgb, var(--color-live) 45%, transparent)' }}
+        data-testid="show-timeline-playhead-hit-target"
+        className="pointer-events-auto absolute inset-y-0 w-[5px] -translate-x-1/2 cursor-col-resize touch-none"
+        style={{ left: `calc(${left}% + ${thumbCenterOffsetPx}px)` }}
+        onPointerDown={(event) => {
+          event.stopPropagation()
+          activePointerRef.current = event.pointerId
+          event.currentTarget.setPointerCapture?.(event.pointerId)
+          previewPointerPosition(event)
+        }}
+        onPointerMove={(event) => {
+          if (activePointerRef.current !== event.pointerId) return
+          previewPointerPosition(event)
+        }}
+        onPointerUp={(event) => {
+          if (activePointerRef.current !== event.pointerId) return
+          previewPointerPosition(event)
+          event.currentTarget.releasePointerCapture?.(event.pointerId)
+          commitPointerPosition()
+        }}
+        onPointerCancel={commitPointerPosition}
       >
-        <span className="absolute -left-[4px] top-0 h-0 w-0 border-x-[4px] border-t-[6px] border-x-transparent border-t-current" />
+        <span
+          data-testid="show-timeline-playhead"
+          className={`pointer-events-none absolute inset-y-0 left-1/2 w-px -translate-x-1/2 ${seekStatus === 'rebuilding' ? 'bg-amber-300' : 'bg-live'}`}
+          style={{ boxShadow: '0 0 8px color-mix(in srgb, var(--color-live) 45%, transparent)' }}
+        >
+          <span className="absolute -left-[4px] top-0 h-0 w-0 border-x-[4px] border-t-[6px] border-x-transparent border-t-current" />
+        </span>
       </span>
     </div>
   )
@@ -2795,7 +2892,7 @@ function ClipInspector({
         </Button>
       )}
     >
-      <div className="grid items-end gap-2 sm:grid-cols-[minmax(14rem,1fr)_7rem_7rem]">
+      <div data-testid="clip-primary-fields" className="grid min-w-0 items-end gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,7rem)_minmax(0,7rem)]">
         <label className="block text-[9px] uppercase tracking-[0.1em] text-zinc-600">
           Source pattern
           <PatternCombobox
@@ -4310,10 +4407,29 @@ function NumberField({
   help?: string
   onChange: (value: number) => void
 }) {
+  const [draft, setDraft] = useState(() => String(value))
+  const focusedRef = useRef(false)
+
+  useEffect(() => {
+    if (!focusedRef.current) setDraft(String(value))
+  }, [value])
+
+  const commit = (raw = draft) => {
+    focusedRef.current = false
+    const parsed = Number(raw)
+    if (raw.trim() === '' || !Number.isFinite(parsed)) {
+      setDraft(String(value))
+      return
+    }
+    const bounded = Math.max(min, Math.min(max, parsed))
+    setDraft(String(bounded))
+    if (bounded !== value) onChange(bounded)
+  }
+
   return (
-    <label className="text-[10px] uppercase text-zinc-600" title={help}>
+    <label className="min-w-0 text-[10px] uppercase text-zinc-600" title={help}>
       {label}
-      <span className="mt-1 flex items-center gap-1">
+      <span className="mt-1 flex min-w-0 items-center gap-1">
         <input
           aria-label={label}
           title={help}
@@ -4321,9 +4437,26 @@ function NumberField({
           min={min}
           max={max}
           step={step}
-          value={value}
-          onChange={(event) => onChange(Number(event.target.value))}
-          className={`${field} min-w-0 flex-1`}
+          value={draft}
+          onFocus={() => { focusedRef.current = true }}
+          onChange={(event) => {
+            const nextDraft = event.target.value
+            setDraft(nextDraft)
+            const parsed = Number(nextDraft)
+            if (nextDraft.trim() !== '' && Number.isFinite(parsed) && parsed >= min && parsed <= max) {
+              onChange(parsed)
+            }
+          }}
+          onBlur={(event) => commit(event.currentTarget.value)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') event.currentTarget.blur()
+            if (event.key === 'Escape') {
+              event.currentTarget.value = String(value)
+              setDraft(String(value))
+              event.currentTarget.blur()
+            }
+          }}
+          className={`${field} min-w-0 w-full flex-1`}
         />
         {suffix && <span className="text-[10px] text-zinc-500">{suffix}</span>}
       </span>

@@ -112,16 +112,16 @@ describe('flat Show Scene-composition projection spike (#462)', () => {
     expect(projection.scenes[1].outgoingTransitionIds).toEqual([`transition-${projection.scenes[1].id}`])
   })
 
-  it('reports the routed compiler path inconsistency instead of claiming later Scene cells are active', () => {
+  it('projects every routed Scene cell as an active compiled instance (#478)', () => {
     let show = addShowZone(createDefaultShow('projection-routed-gap', 'Routed gap', 1))
     show = placeShowClip(show, 'zone-2', 'scene-1', { pattern: { kind: 'stock', id: 'TestPattern1D' }, patternName: 'TestPattern1D' })
     show = placeShowClip(show, 'zone-2', 'scene-2', { pattern: { kind: 'stock', id: 'CometLoom' }, patternName: 'CometLoom' })
     const projection = projectFlatShowComposition(show, lookup(show))
     const ignored = projection.diagnostics.filter((diagnostic) => diagnostic.kind === 'compiler-omits-cell')
 
-    expect(projection.compilerPath).toBe('routed-first-scene')
-    expect(ignored.map((diagnostic) => diagnostic.cellId).sort()).toEqual(['cell-2', 'cell-4'])
-    expect(projection.patternInstances.filter((instance) => !instance.compiled).map((instance) => instance.sourceCellIds[0]).sort()).toEqual(['cell-2', 'cell-4'])
+    expect(projection.compilerPath).toBe('routed-scene-sequence')
+    expect(ignored).toEqual([])
+    expect(projection.patternInstances.every((instance) => instance.compiled)).toBe(true)
   })
 
   it('reports instance-owned time changes that need explicit automation in a durable schema', () => {

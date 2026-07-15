@@ -18,6 +18,7 @@ import type {
   ShowClipAdaptation,
   ShowEffectPropertyRampsRecipe,
   ShowRecipe,
+  ShowRoutedScenePlacementRampRecipe,
   ShowRoutingLayoutRecipe,
 } from './showCompiler'
 import { clampShowRepeatScale } from './showCoordinateRemap'
@@ -259,6 +260,10 @@ export function showLoopDurationMs(show: Pick<ShowRecord, 'scenes'>): number {
     + Math.max(0, scene.durationMs)
     + Math.max(0, scene.transitionOut?.durationMs ?? 0)
   ), 0)
+}
+
+function showSceneHoldDurationMs(show: Pick<ShowRecord, 'scenes'>): number {
+  return show.scenes.reduce((sum, scene) => sum + Math.max(0, scene.durationMs), 0)
 }
 
 export function projectShowTimeline(show: ShowRecord): ShowTimelineProjection {
@@ -1858,7 +1863,7 @@ export function showRecordToCompileRecipe(
     }
   }
   if (show.outputContract?.kind === 'installation' || show.zones.length > 1 || show.routingSwitches.length > 0) {
-    return showRecordToRoutedFirstSceneRecipe(show, lookup)
+    return showRecordToRoutedSceneSequenceRecipe(show, lookup)
   }
 
   const firstZone = show.zones[0]
@@ -2196,7 +2201,7 @@ function compilerSequenceTransition(
   }
 }
 
-function showRecordToRoutedFirstSceneRecipe(
+function showRecordToStaticRoutedRecipe(
   show: ShowRecord,
   lookup: ShowCompileRecipeSourceLookup,
 ): ShowRecipe {
@@ -2300,6 +2305,231 @@ function showRecordToRoutedFirstSceneRecipe(
   }
 }
 
+function showRecordToRoutedSceneSequenceRecipe(
+  show: ShowRecord,
+  lookup: ShowCompileRecipeSourceLookup,
+): ShowRecipe {
+  const firstScene = show.scenes[0]
+  if (!firstScene) throw new Error('Show compile requires at least one scene.')
+
+  const normalized = normalizeShowRoutingState(show)
+  const loopDurationMs = showLoopDurationMs(normalized)
+  const activeSwitches = normalized.routingSwitches.flatMap((routingSwitch) => {
+    const sceneIndex = normalized.scenes.findIndex((scene) => scene.id === routingSwitch.afterSceneId)
+    if (sceneIndex < 0 || sceneIndex >= normalized.scenes.length - 1) return []
+    const atMs = normalized.scenes.slice(0, sceneIndex).reduce((sum, scene) => (
+      sum + Math.max(0, scene.durationMs) + Math.max(0, scene.transitionOut?.durationMs ?? 0)
+    ), 0) + Math.max(0, normalized.scenes[sceneIndex].durationMs)
+    const transition = normalized.transitions?.find((candidate) => (
+      candidate.kind === 'routing' && candidate.afterSceneId === routingSwitch.afterSceneId
+    ))
+    return [{
+      atMs,
+      layoutId: routingSwitch.layoutId,
+      durationMs: Math.min(transition?.durationMs ?? 0, Math.max(0, loopDurationMs - atMs)),
+      easing: transition?.easing ?? 'linear',
+      direction: transition?.routingDirection ?? 'forward',
+    }]
+  })
+  const splitLayout = normalized.routingLayouts.find((layout) => layout.logical?.kind === 'split')
+  const installationContract = normalized.outputContract?.kind === 'installation'
+    ? normalized.outputContract
+    : null
+  const portableContract = normalized.outputContract?.kind === 'portable-2d'
+  const usesAuthoredRoutingLayouts = Boolean(
+    installationContract || portableContract || activeSwitches.length > 0 || splitLayout,
+  )
+  const selectedLayouts = installationContract || portableContract || activeSwitches.length > 0
+    ? normalized.routingLayouts
+    : splitLayout ? [splitLayout] : []
+  const routingLayouts = usesAuthoredRoutingLayouts && selectedLayouts.length > 0
+    ? selectedLayouts.map((layout) => ({
+        id: layout.id,
+        name: layout.name,
+        zones: routingLayoutControllerZones(normalized.zones, layout),
+        logical: layout.logical ? logicalRoutingRecipe(normalized.zones, layout.logical) : undefined,
+      }))
+    : [{
+        id: normalized.routingLayouts[0]?.id ?? 'layout-1',
+        name: normalized.routingLayouts[0]?.name ?? 'Default',
+        zones: lookup.controllerZones ?? nominalZones(normalized.zones),
+      }]
+  const splitPosition = splitLayout
+    ? {
+        initial: clamp01(normalized.scenes[0]?.routingTargets?.splitPosition ?? 0.5),
+        ramps: normalized.scenes.slice(0, -1).map((scene, sceneIndex) => {
+          const target = clamp01(normalized.scenes[sceneIndex + 1]?.routingTargets?.splitPosition ?? 0.5)
+          const boundary = normalized.transitions?.find((transition) => (
+            transition.afterSceneId === scene.id && transition.kind !== 'routing'
+          ))
+          const descriptor = boundary?.propertyTransitions?.routing?.splitPosition
+          return {
+            atMs: normalized.scenes.slice(0, sceneIndex + 1)
+              .reduce((sum, candidate) => sum + Math.max(0, candidate.durationMs), 0),
+            from: clamp01(descriptor?.from ?? scene.routingTargets?.splitPosition ?? 0.5),
+            to: target,
+            durationMs: descriptor?.durationMs ?? 0,
+            easing: descriptor?.easing ?? 'linear',
+          }
+        }),
+      }
+    : undefined
+  const installationZones = installationContract && normalized.routingLayouts[0]
+    ? routingLayoutControllerZones(normalized.zones, normalized.routingLayouts[0])
+    : undefined
+
+  const clipIdByCellId = new Map<string, string>()
+  for (const zone of normalized.zones) {
+    normalized.scenes.forEach((scene, sceneIndex) => {
+      const cell = showCellAtSlot(normalized, zone.id, scene.id)
+      if (!cell || clipIdByCellId.has(cell.id)) return
+      const previousScene = normalized.scenes[sceneIndex - 1]
+      const previous = previousScene ? showCellAtSlot(normalized, zone.id, previousScene.id) : undefined
+      const continuedClipId = previous
+        && !cell.restartOnEntry
+        && isSamePattern(previous, cell)
+        && hasSameDiscreteAdaptations(previous, cell)
+        ? clipIdByCellId.get(previous.id)
+        : undefined
+      clipIdByCellId.set(cell.id, continuedClipId ?? cell.id)
+    })
+  }
+
+  const clipById = new Map<string, ShowRecipe['clips'][number]>()
+  const emptyClipId = `${EMPTY_SHOW_PATTERN_ID}-routed`
+  for (const scene of normalized.scenes) {
+    for (const zone of normalized.zones) {
+      const cell = showCellAtSlot(normalized, zone.id, scene.id)
+      if (!cell) {
+        if (!clipById.has(emptyClipId)) {
+          clipById.set(emptyClipId, { id: emptyClipId, source: EMPTY_SHOW_PATTERN_SOURCE })
+        }
+        continue
+      }
+      const clipId = clipIdByCellId.get(cell.id) ?? cell.id
+      if (clipById.has(clipId)) continue
+      const source = lookup.byCellId[cell.id]
+      if (!source) throw new Error(`Show compile requires pattern source for clip "${cell.id}".`)
+      clipById.set(clipId, {
+        id: clipId,
+        source,
+        adaptation: compilerAdaptation(cell.adaptations),
+        effects: cell.effects,
+        controlTargets: cell.controlTargets,
+      })
+    }
+  }
+  if (clipById.size === 0) throw new Error('Show compile requires at least one routed clip.')
+
+  const routedScenes = normalized.scenes.map((scene, sceneIndex) => {
+    const transitionRamps = routedScenePlacementRamps(normalized, sceneIndex, clipIdByCellId)
+    return {
+          holdMs: scene.durationMs,
+          placements: normalized.zones.map((zone) => {
+            const cell = showCellAtSlot(normalized, zone.id, scene.id)
+            const cellZoneIndex = cell ? normalized.zones.findIndex((candidate) => candidate.id === cell.zoneId) : -1
+            const domainZoneNames = cell && cellZoneIndex >= 0
+              ? normalized.zones.slice(cellZoneIndex, cellZoneIndex + Math.max(1, cell.zoneSpan ?? 1)).map((candidate) => candidate.name)
+              : []
+            return {
+              zoneName: zone.name,
+              clipId: cell ? clipIdByCellId.get(cell.id) ?? cell.id : emptyClipId,
+              ...(cell ? {
+                ...(domainZoneNames.length > 1 ? {
+                  domainZoneNames,
+                  zoneMode: cell.zoneMode === 'repeat' ? 'repeat' as const : 'span' as const,
+                } : {}),
+                timeScale: cell.adaptations.timeScale,
+                brightness: cell.adaptations.brightness,
+                ...(cell.controlTargets ? { controlTargets: { ...cell.controlTargets } } : {}),
+                ...(cell.effects ? { effects: normalizeShowClipEffects(cell.effects) } : {}),
+              } : {}),
+            }
+          }),
+          ...(scene.transitionOut ? { transitionOut: compilerSequenceTransition(scene.transitionOut) } : {}),
+          ...(transitionRamps.length > 0 ? { transitionRamps } : {}),
+        }
+  })
+
+  const firstPlacements = routedScenes[0]?.placements
+  const hasStaticPatternSchedule = Boolean(firstPlacements)
+    && routedScenes.every((scene) => !scene.transitionRamps?.length
+      && scene.placements.every((placement, index) => (
+        JSON.stringify(placement) === JSON.stringify(firstPlacements[index])
+      )))
+  if (hasStaticPatternSchedule) return showRecordToStaticRoutedRecipe(normalized, lookup)
+
+  return {
+    clips: [...clipById.values()],
+    routedSceneSequence: {
+      scenes: routedScenes,
+    },
+    zones: installationZones ?? lookup.controllerZones ?? nominalZones(show.zones),
+    routingLayouts,
+    masterPixelCount: installationContract?.pixelCount,
+    routingSwitches: routingLayouts ? activeSwitches : undefined,
+    routingPropertyRamps: splitPosition ? { splitPosition } : undefined,
+    samplePropertyRamps: showSamplePropertyRamps(normalized, false),
+    loopDurationMs: routingLayouts ? loopDurationMs : undefined,
+  }
+}
+
+function routedScenePlacementRamps(
+  show: ShowRecord,
+  sceneIndex: number,
+  clipIdByCellId: Map<string, string>,
+): ShowRoutedScenePlacementRampRecipe[] {
+  const scene = show.scenes[sceneIndex]
+  const nextScene = show.scenes[sceneIndex + 1]
+  if (!scene || !nextScene) return []
+  const boundary = show.transitions?.find((candidate) => (
+    candidate.afterSceneId === scene.id && candidate.kind !== 'routing'
+  ))
+  const propertyTransitions = boundary?.propertyTransitions
+  if (!boundary || !propertyTransitions) return []
+
+  return show.zones.flatMap((zone) => {
+    const current = showCellAtSlot(show, zone.id, scene.id)
+    const next = showCellAtSlot(show, zone.id, nextScene.id)
+    if (!current || !next) return []
+    const propertyRamps = Object.fromEntries((['timeScale', 'brightness'] as const).flatMap((property) => {
+      const descriptor = propertyTransitions[property]
+      if (!descriptor) return []
+      return [[property, {
+        from: descriptor.fromByCellId[next.id] ?? current.adaptations[property],
+        to: next.adaptations[property],
+        durationMs: descriptor.durationMs ?? boundary.durationMs,
+        easing: descriptor.easing ?? 'linear',
+      }]]
+    }))
+    const controlRamps = propertyTransitions.controls
+      ? Object.fromEntries(Object.entries(propertyTransitions.controls).map(([exportName, descriptor]) => {
+          const from = current.controlTargets?.[exportName]
+          const to = next.controlTargets?.[exportName]
+          if (from === undefined || to === undefined) {
+            throw new Error(`Show control "${exportName}" needs targets in both adjacent scenes.`)
+          }
+          return [exportName, {
+            from: descriptor.fromByCellId[next.id] ?? from,
+            to,
+            durationMs: descriptor.durationMs ?? boundary.durationMs,
+            easing: descriptor.easing ?? 'linear',
+          }]
+        }))
+      : undefined
+    const effectRamps = propertyTransitions.effects
+      ? compileShowEffectRamps(current, next, boundary)
+      : undefined
+    if (Object.keys(propertyRamps).length === 0 && !controlRamps && !effectRamps) return []
+    return [{
+      clipId: clipIdByCellId.get(next.id) ?? next.id,
+      ...(Object.keys(propertyRamps).length > 0 ? { propertyRamps } : {}),
+      ...(controlRamps ? { controlRamps } : {}),
+      ...(effectRamps ? { effectRamps } : {}),
+    }]
+  })
+}
+
 function showSamplePropertyRamps(
   show: ShowRecord,
   includeTransitionDurations: boolean,
@@ -2331,10 +2561,6 @@ function showSamplePropertyRamps(
       ramps,
     },
   }
-}
-
-function showSceneHoldDurationMs(show: Pick<ShowRecord, 'scenes'>): number {
-  return show.scenes.reduce((sum, scene) => sum + Math.max(0, scene.durationMs), 0)
 }
 
 export function transitionCost(kind: NonNullable<ShowScene['transitionOut']>['kind']): ShowTransitionCost {

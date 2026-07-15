@@ -130,7 +130,7 @@ describe('compileShowForPreview temporal adaptations (#379)', () => {
     expect(compiled.artifact?.code).toContain('var __pxlblz_show_c0_step_ms = 125')
   })
 
-  it('loads routed multi-range zone offsets into the exact Stage artifact', () => {
+  it('loads routed multi-range offsets and the later Scene schedule into the exact Stage artifact', () => {
     const withRightZone = addShowZone(createDefaultShow('show-1', 'Rounds'), {
       name: 'right',
       nominalPixelCount: 4,
@@ -145,17 +145,37 @@ describe('compileShowForPreview temporal adaptations (#379)', () => {
       { id: 'left', name: 'main', ranges: [{ start: 0, end: 1 }, { start: 4, end: 5 }] },
       { id: 'right', name: 'right', ranges: [{ start: 2, end: 3 }, { start: 6, end: 7 }] },
     ], {})
+    const artifact = compiled.artifact!
+    const runtime = createFastReplayRuntime({
+      code: artifact.code,
+      metadata: artifact.metadata,
+      dimension: nativeDimension(artifact.metadata.renderFns),
+    }, {
+      mapPoints: Array.from({ length: 8 }, (_, index) => ({ sample: [index / 7] })),
+      randomSeed: 379,
+    })
+    const firstScene = runtime.advanceTo(8_000, { stepMs: 1000 / 60 })
+    const secondScene = runtime.advanceTo(35_000, { stepMs: 1000 / 60 })
+    const leftPixels = [0, 1, 4, 5]
+    const rightPixels = [2, 3, 6, 7]
 
     expect(compiled.error).toBeNull()
-    expect(compiled.artifact?.summary).toMatchObject({
-      renderPolicy: 'route-one-renderer-per-pixel',
+    expect(artifact.summary).toMatchObject({
+      clipCount: 4,
+      transitionCount: 1,
+      renderPolicy: 'steady-active-transition-both',
       timeOffsetPolicy: 'per-clip',
       clips: [
         expect.objectContaining({ timeOffsetMs: 0 }),
         expect.objectContaining({ timeOffsetMs: 500 }),
+        expect.objectContaining({ id: 'cell-2', timeOffsetMs: 0 }),
+        expect.objectContaining({ id: '__pxlblz_empty-routed', timeOffsetMs: 0 }),
       ],
     })
-    expect(compiled.artifact?.code).toContain('var __pxlblz_show_c1_elapsed_ms = 500')
+    expect(artifact.code).toContain('var __pxlblz_show_c1_elapsed_ms = 500')
+    expect(rightPixels.some((index) => firstScene.pixels[index].some((channel) => channel > 0))).toBe(true)
+    expect(leftPixels.some((index) => secondScene.pixels[index].some((channel) => channel > 0))).toBe(true)
+    expect(rightPixels.every((index) => secondScene.pixels[index].every((channel) => channel === 0))).toBe(true)
   })
 
   it('validates and compiles the selected 2D Stage domain for portal transitions', () => {

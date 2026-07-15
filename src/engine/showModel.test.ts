@@ -1582,7 +1582,7 @@ describe('showModel (#318)', () => {
     expect(recipe.sceneSequence?.scenes[2].clipId).toBe(third.id)
   })
 
-  it('builds routed clips for every show-local zone in the first scene', () => {
+  it('builds routed placements for every Show-local Zone in every Scene', () => {
     const withZone = addShowZone(createDefaultShow('show-1', 'Untitled Show'), {
       name: 'doorframe',
       nominalPixelCount: 12,
@@ -1595,18 +1595,61 @@ describe('showModel (#318)', () => {
     const recipe = showRecordToCompileRecipe(show, {
       byCellId: {
         [show.cells[0].id]: DEMOS.TestPattern1D,
+        [show.cells[1].id]: DEMOS.CometLoom,
         [doorCell.id]: DEMOS.CometLoom,
       },
     })
 
-    expect(recipe.clips).toEqual([
-      expect.objectContaining({ id: 'cell-1', zone: 'main' }),
-      expect.objectContaining({ id: doorCell.id, zone: 'doorframe' }),
+    expect(recipe.routedSceneSequence?.scenes).toEqual([
+      expect.objectContaining({
+        placements: [
+          expect.objectContaining({ zoneName: 'main', clipId: 'cell-1' }),
+          expect.objectContaining({ zoneName: 'doorframe', clipId: doorCell.id }),
+        ],
+      }),
+      expect.objectContaining({
+        placements: [
+          expect.objectContaining({ zoneName: 'main', clipId: 'cell-2' }),
+          expect.objectContaining({ zoneName: 'doorframe', clipId: '__pxlblz_empty-routed' }),
+        ],
+      }),
     ])
     expect(recipe.zones).toEqual([
       { id: 'zone-1', name: 'main', ranges: [{ start: 0, end: 59 }] },
       { id: 'zone-2', name: 'doorframe', ranges: [{ start: 60, end: 71 }] },
     ])
+  })
+
+  it('shares a routed Pattern instance across adjacent Scenes until Restart is explicit (#478)', () => {
+    let show = addShowZone(createDefaultShow('show-routed-clock', 'Routed clock', 1), {
+      name: 'right',
+      nominalPixelCount: 12,
+    })
+    show = placeShowClip(show, 'zone-2', 'scene-1', {
+      pattern: { kind: 'stock', id: 'CometLoom' },
+      patternName: 'CometLoom',
+    })
+    show = updateShowCellPattern(show, 'cell-2', {
+      pattern: { kind: 'stock', id: 'TestPattern1D' },
+      patternName: 'TestPattern1D',
+    })
+    const sources = () => ({
+      byCellId: Object.fromEntries(show.cells.map((cell) => [cell.id, DEMOS[cell.pattern.id]])),
+    })
+
+    const continued = showRecordToCompileRecipe(show, sources())
+    const continuedIds = continued.routedSceneSequence!.scenes.map((scene) => (
+      scene.placements.find((placement) => placement.zoneName === 'main')!.clipId
+    ))
+    expect(continuedIds).toEqual(['cell-1', 'cell-1'])
+    expect(continued.clips.filter((clip) => clip.id === 'cell-1')).toHaveLength(1)
+
+    show = updateShowCellRestartOnEntry(show, 'cell-2', true)
+    const restarted = showRecordToCompileRecipe(show, sources())
+    const restartedIds = restarted.routedSceneSequence!.scenes.map((scene) => (
+      scene.placements.find((placement) => placement.zoneName === 'main')!.clipId
+    ))
+    expect(restartedIds).toEqual(['cell-1', 'cell-2'])
   })
 
   it('binds show-local zone names to controller zones when a target is available', () => {
@@ -1633,12 +1676,14 @@ describe('showModel (#318)', () => {
     const recipe = showRecordToCompileRecipe(show, {
       byCellId: {
         [show.cells[0].id]: DEMOS.TestPattern1D,
+        [show.cells[1].id]: DEMOS.CometLoom,
         [doorCell.id]: DEMOS.CometLoom,
       },
       controllerZones,
     })
 
     expect(recipe.zones).toEqual(controllerZones)
+    expect(recipe.routingLayouts?.[0].zones).toEqual(controllerZones)
   })
 
   it('edits show-local zone rows and seeds a show from controller zones', () => {
@@ -1695,15 +1740,14 @@ describe('showModel (#318)', () => {
     const recipe = showRecordToCompileRecipe(spanned, {
       byCellId: {
         'cell-1': DEMOS.TestPattern1D,
+        'cell-2': DEMOS.CometLoom,
       },
     })
 
-    expect(recipe.clips).toEqual([
-      expect.objectContaining({
-        id: 'cell-1',
-        zones: ['main', 'doorframe'],
-        zoneMode: 'span',
-      }),
+    expect(recipe.clips.filter((clip) => clip.id === 'cell-1')).toHaveLength(1)
+    expect(recipe.routedSceneSequence?.scenes[0].placements).toEqual([
+      expect.objectContaining({ zoneName: 'main', clipId: 'cell-1' }),
+      expect.objectContaining({ zoneName: 'doorframe', clipId: 'cell-1' }),
     ])
   })
 
@@ -1714,19 +1758,17 @@ describe('showModel (#318)', () => {
     })
     const repeated = updateShowCellZoneMode(spanShowCellZones(show, 'cell-1', 2), 'cell-1', 'repeat')
     const recipe = showRecordToCompileRecipe(repeated, {
-      byCellId: { 'cell-1': DEMOS.TestPattern1D },
+      byCellId: { 'cell-1': DEMOS.TestPattern1D, 'cell-2': DEMOS.CometLoom },
     })
 
     expect(repeated.cells.find((cell) => cell.id === 'cell-1')).toMatchObject({
       zoneSpan: 2,
       zoneMode: 'repeat',
     })
-    expect(recipe.clips).toEqual([
-      expect.objectContaining({
-        id: 'cell-1',
-        zones: ['main', 'doorframe'],
-        zoneMode: 'repeat',
-      }),
+    expect(recipe.clips.filter((clip) => clip.id === 'cell-1')).toHaveLength(1)
+    expect(recipe.routedSceneSequence?.scenes[0].placements).toEqual([
+      expect.objectContaining({ zoneName: 'main', clipId: 'cell-1' }),
+      expect.objectContaining({ zoneName: 'doorframe', clipId: 'cell-1' }),
     ])
   })
 })

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { AlertTriangle, Eye, EyeOff, LoaderCircle, Map as MapIcon, Play } from 'lucide-react'
+import { AlertTriangle, Eye, EyeOff, LoaderCircle, Map as MapIcon, Pause, Play } from 'lucide-react'
 import { useShowStore } from '@/store/showStore'
 import { usePatternStore } from '@/store/patternStore'
 import { useControllerProfileStore } from '@/store/controllerProfileStore'
@@ -36,6 +36,7 @@ import {
   validateInstallationCoverage,
 } from '@/engine/showInstallationCoverage'
 import type { ShowRecord } from '@/engine/personalContentRecords'
+import { PreviewViewportSection } from '@/components/PreviewDeck'
 
 interface StageMapOption {
   id: string
@@ -74,6 +75,8 @@ export function ShowStagePreview({ showId, showOverride }: { showId: string; sho
   const replayRef = useRef<FastReplayRuntime | null>(null)
   const playbackRafRef = useRef<number | null>(null)
   const playbackLastRef = useRef<number | null>(null)
+  const fpsWindowStartRef = useRef<number | null>(null)
+  const fpsFramesRef = useRef(0)
   const runtimeGenerationRef = useRef(0)
   const rendererRef = useRef<ReturnType<typeof createRenderer> | null>(null)
   const savedShow = useShowStore((state) => state.shows.find((item) => item.id === showId))
@@ -86,12 +89,21 @@ export function ShowStagePreview({ showId, showOverride }: { showId: string; sho
   const brightness = usePreviewStore((state) => state.brightness)
   const lightSize = usePreviewStore((state) => state.lightSize)
   const diffusion = usePreviewStore((state) => state.diffusion)
+  const fidelity = usePreviewStore((state) => state.fidelity)
   const seekRequest = useShowTransportStore((state) => state.showId === showId ? state.seekRequest : null)
   const seekStatus = useShowTransportStore((state) => state.showId === showId ? state.seekStatus : 'idle')
   const [viewportWidth, setViewportWidth] = useState(1)
   const [soloZoneId, setSoloZoneId] = useState<string | null>(null)
+  const effectiveSoloZoneIdRef = useRef<string | null>(null)
   const [runtimeError, setRuntimeError] = useState<string | null>(null)
   const [badgedSeekRequestId, setBadgedSeekRequestId] = useState<number | null>(null)
+
+  useEffect(() => {
+    const preview = usePreviewStore.getState()
+    preview.setRunning(false)
+    preview.setLightSize(preview.lightSizeSticky)
+    preview.setDiffusion(preview.diffusionSticky)
+  }, [showId])
 
   const targetProfile = show?.targetControllerProfileId
     ? controllerProfiles.find((profile) => profile.id === show.targetControllerProfileId)
@@ -116,6 +128,13 @@ export function ShowStagePreview({ showId, showOverride }: { showId: string; sho
 
   const selectedStageMap = stageMaps.find((map) => map.id === show?.stageMapId)
   const danglingStageMap = Boolean(show?.stageMapId && !selectedStageMap)
+  const stageIdentityRole = show?.outputContract?.kind === 'installation'
+    ? 'Output map'
+    : show?.outputContract?.kind === 'portable-2d'
+      ? 'Reference map'
+      : selectedStageMap
+        ? 'Stage map'
+        : 'Preview layout'
 
   const stripControllerZones = useMemo(
     () => show ? buildShowStripControllerZones(show.zones, targetProfile?.zones) : [],
@@ -220,11 +239,18 @@ export function ShowStagePreview({ showId, showOverride }: { showId: string; sho
     if (!renderer || !layout) return
     if (layout.draw.kind === '3d') renderer.setCamera(useCameraStore.getState().camera)
     renderer.paint(
-      applyShowStageMask(result.pixels, layout.projection, effectiveSoloZoneId),
+      applyShowStageMask(result.pixels, layout.projection, effectiveSoloZoneIdRef.current),
       usePreviewStore.getState().brightness,
       !usePreviewStore.getState().isRunning,
     )
-  }, [effectiveSoloZoneId, layout])
+  }, [layout])
+
+  useEffect(() => {
+    effectiveSoloZoneIdRef.current = effectiveSoloZoneId
+    const runtime = replayRef.current
+    if (!runtime) return
+    paintFastFrame(runtime.renderCurrentFrame())
+  }, [effectiveSoloZoneId, paintFastFrame])
 
   useEffect(() => {
     const element = containerRef.current
@@ -260,11 +286,13 @@ export function ShowStagePreview({ showId, showOverride }: { showId: string; sho
       transport.openShow(showId, durationMs)
       const runtime = createFastReplayRuntime({
         code: compiled.artifact.code,
+        fxCode: compiled.artifact.fxCode,
         metadata: compiled.artifact.metadata,
         dimension: nativeDimension(compiled.artifact.metadata.renderFns),
       }, {
         mapPoints: layout.mapPoints,
         randomSeed: stableShowSeed(showId),
+        fidelity,
       })
       let result = runtime.renderCurrentFrame()
       const positionMs = useShowTransportStore.getState().positionMs
@@ -282,7 +310,7 @@ export function ShowStagePreview({ showId, showOverride }: { showId: string; sho
       playbackRafRef.current = null
       replayRef.current = null
     }
-  }, [compiled.artifact, diffusion, durationMs, layout, lightSize, paintFastFrame, showId, viewportWidth])
+  }, [compiled.artifact, diffusion, durationMs, fidelity, layout, lightSize, paintFastFrame, showId, viewportWidth])
 
   useEffect(() => {
     const renderer = rendererRef.current
@@ -297,6 +325,10 @@ export function ShowStagePreview({ showId, showOverride }: { showId: string; sho
   }, [brightness, paintFastFrame])
 
   useEffect(() => {
+    const preview = usePreviewStore.getState()
+    preview.setFps(null)
+    fpsWindowStartRef.current = null
+    fpsFramesRef.current = 0
     if (!canAdvanceShowPlayback(isRunning, seekStatus) || !replayRef.current) return
     playbackLastRef.current = performance.now()
     const tick = (now: number) => {
@@ -311,6 +343,17 @@ export function ShowStagePreview({ showId, showOverride }: { showId: string; sho
         paintFastFrame(result)
         const positionMs = durationMs > 0 ? result.elapsedMs % durationMs : 0
         useShowTransportStore.getState().setPosition(showId, positionMs)
+        if (fpsWindowStartRef.current === null) {
+          fpsWindowStartRef.current = now
+        } else {
+          fpsFramesRef.current += 1
+          const windowMs = now - fpsWindowStartRef.current
+          if (windowMs >= 500) {
+            usePreviewStore.getState().setFps((fpsFramesRef.current * 1000) / windowMs)
+            fpsWindowStartRef.current = now
+            fpsFramesRef.current = 0
+          }
+        }
         playbackRafRef.current = requestAnimationFrame(tick)
       } catch (error) {
         setRuntimeError(error instanceof Error ? error.message : 'Show preview failed')
@@ -321,6 +364,7 @@ export function ShowStagePreview({ showId, showOverride }: { showId: string; sho
     return () => {
       if (playbackRafRef.current !== null) cancelAnimationFrame(playbackRafRef.current)
       playbackRafRef.current = null
+      usePreviewStore.getState().setFps(null)
     }
   }, [durationMs, isRunning, paintFastFrame, seekStatus, showId])
 
@@ -340,11 +384,13 @@ export function ShowStagePreview({ showId, showOverride }: { showId: string; sho
       try {
         const runtime = createFastReplayRuntime({
           code: compiled.artifact!.code,
+          fxCode: compiled.artifact!.fxCode,
           metadata: compiled.artifact!.metadata,
           dimension: nativeDimension(compiled.artifact!.metadata.renderFns),
         }, {
           mapPoints: layout.mapPoints,
           randomSeed: stableShowSeed(showId),
+          fidelity,
         })
         let result: FastReplayResult | null = runtime.renderCurrentFrame()
         if (seekRequest.targetMs > 0) {
@@ -370,7 +416,7 @@ export function ShowStagePreview({ showId, showOverride }: { showId: string; sho
       disposed = true
       runtimeGenerationRef.current += 1
     }
-  }, [compiled.artifact, layout, paintFastFrame, seekRequest, showId])
+  }, [compiled.artifact, fidelity, layout, paintFastFrame, seekRequest, showId])
 
   useEffect(() => {
     if (!layout || layout.draw.kind !== '3d') return
@@ -409,6 +455,7 @@ export function ShowStagePreview({ showId, showOverride }: { showId: string; sho
   }
 
   const error = compiled.error ?? runtimeError
+  const rendererLabel = fidelity === 'fast' ? 'Fast' : 'Precise'
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-zinc-950 font-mono text-xs text-zinc-400">
@@ -437,60 +484,73 @@ export function ShowStagePreview({ showId, showOverride }: { showId: string; sho
       </div>
       <div className="min-h-0 flex-1 overflow-auto border-t border-zinc-900 px-3 py-3">
         <div className="mb-3 flex items-center gap-2 text-zinc-500">
-          <Play size={13} aria-hidden className={isRunning ? 'text-green-400' : 'text-red-400'} />
+          {isRunning
+            ? <Play size={13} aria-hidden className="text-green-400" />
+            : <Pause size={13} aria-hidden className="text-red-400" />}
           <span>
             {seekStatus === 'rebuilding'
-              ? 'rebuilding accurate Show preview · Fast'
-              : isRunning ? 'previewing Show · Fast' : 'show paused · Fast'}
+              ? `rebuilding accurate Show preview · ${rendererLabel}`
+              : isRunning ? `previewing Show · ${rendererLabel}` : `show paused · ${rendererLabel}`}
           </span>
-          <span className="ml-auto">{layout?.mapPoints.length ?? 0} px</span>
         </div>
-        <div aria-label="Show stage" className="block text-[10px] uppercase tracking-wider text-zinc-600">
-          Stage
-          <div className="mt-1 rounded border border-zinc-800 bg-zinc-900/60 px-2 py-1.5 text-xs normal-case tracking-normal text-zinc-300">
-            {selectedStageMap?.name ?? 'Zone strips - generic'}
+        <div aria-label="Show stage" className="text-[10px] text-zinc-500">
+          <h3 className="font-semibold uppercase tracking-wider text-structural">Stage</h3>
+          <div className="mt-1.5 flex min-w-0 items-center gap-1.5 leading-5">
+            <MapIcon size={12} aria-hidden className="shrink-0 text-zinc-600" />
+            <span className="shrink-0 text-zinc-500">{stageIdentityRole}</span>
+            <span aria-hidden className="text-zinc-700">·</span>
+            <span className="truncate text-zinc-200">{selectedStageMap?.name ?? 'Zone strips - generic'}</span>
+            <span aria-hidden className="text-zinc-700">·</span>
+            <span className="shrink-0 tabular-nums text-zinc-400">{layout?.mapPoints.length ?? 0} px</span>
           </div>
         </div>
-        <div className="mt-2 rounded border border-zinc-800 bg-zinc-950/60 p-2 text-[10px] leading-4 text-zinc-500">
-          <span className="inline-flex items-center gap-1 text-zinc-300">
-            <MapIcon size={12} aria-hidden />
-            {layout?.label ?? 'Stage'}
-          </span>
+        {(layout?.note || (layout?.kind === 'map' && layout.projection.unstagedPixelCount > 0)) && (
+          <div className="mt-2 rounded border border-zinc-800 bg-zinc-950/60 p-2 text-[10px] leading-4 text-zinc-500">
           {layout?.note && <div className="mt-1 text-amber-300">{layout.note}</div>}
           {layout?.kind === 'map' && layout.projection.unstagedPixelCount > 0 && (
             <div className="mt-1">{layout.projection.unstagedPixelCount} stage pixels are not covered by a show zone.</div>
           )}
-        </div>
-        {installationCoverage?.layouts[0] && (
-          <div className={`mt-2 rounded border p-2 text-[10px] leading-4 ${installationCoverage.valid
-            ? 'border-emerald-900/60 bg-emerald-950/15 text-emerald-500'
-            : 'border-amber-800/60 bg-amber-950/20 text-amber-300'}`}
-          >
-            {installationCoverage.layouts[0].assignedPixelCount} assigned ·{' '}
-            {installationCoverage.layouts[0].missingPixelCount} missing ·{' '}
-            {installationCoverage.layouts[0].overlappingPixelCount} overlapping ·{' '}
-            {installationCoverage.layouts[0].outOfRangePixelCount} out of range ·{' '}
-            {installationCoverage.pixelCount} total
           </div>
         )}
+        <PreviewViewportSection profile="show" />
 
-        <div className="mt-4 flex items-center justify-between gap-2">
-          <h3 className="text-[11px] font-semibold uppercase tracking-wider text-structural">Zones - solo</h3>
-          {effectiveSoloZoneId && (
+        <section aria-label="Zones" className="mt-2.5">
+          <div className="flex h-6 items-center justify-between gap-2">
+            <h3 className="text-[11px] font-semibold uppercase tracking-wider text-structural">Zones - solo</h3>
             <button
               type="button"
+              aria-label="Show all zones"
+              disabled={!effectiveSoloZoneId}
               onClick={() => setSoloZoneId(null)}
-              className="h-6 rounded px-2 text-[10px] uppercase tracking-wider text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100"
+              className="h-6 rounded px-2 text-[10px] uppercase tracking-wider text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100 disabled:pointer-events-none disabled:invisible"
             >
               All
             </button>
-          )}
-        </div>
-        <div className="mt-2 space-y-1.5">
+          </div>
+          {installationCoverage?.layouts[0] && (() => {
+            const coverage = installationCoverage.layouts[0]
+            const fullCoverage = `${coverage.assignedPixelCount} assigned · ${coverage.missingPixelCount} missing · ${coverage.overlappingPixelCount} overlapping · ${coverage.outOfRangePixelCount} out of range · ${installationCoverage.pixelCount} total`
+            const compactCoverage = installationCoverage.valid
+              ? `${coverage.assignedPixelCount}/${installationCoverage.pixelCount} assigned · complete coverage`
+              : `${coverage.assignedPixelCount}/${installationCoverage.pixelCount} assigned · ${coverage.missingPixelCount} missing · ${coverage.overlappingPixelCount} overlap · ${coverage.outOfRangePixelCount} out of range`
+            return (
+              <div
+                role="status"
+                aria-label="Zone coverage"
+                title={fullCoverage}
+                className={`mt-1 flex h-6 min-w-0 items-center overflow-hidden rounded border px-2 text-[9px] leading-none whitespace-nowrap ${installationCoverage.valid
+                  ? 'border-emerald-900/60 bg-emerald-950/15 text-emerald-500'
+                  : 'border-amber-800/60 bg-amber-950/20 text-amber-300'}`}
+              >
+                <span className="truncate">{compactCoverage}</span>
+              </div>
+            )
+          })()}
+          <div className="mt-1.5 space-y-1">
           {layout?.projection.zones.map((zone) => {
             const active = zone.id === effectiveSoloZoneId
             return (
-              <div key={zone.id} className="grid grid-cols-[1fr_auto_auto] items-center gap-2 rounded border border-zinc-800 bg-zinc-950/55 px-2 py-1.5">
+              <div key={zone.id} className="grid h-9 grid-cols-[1fr_auto_auto] items-center gap-2 rounded border border-zinc-800 bg-zinc-950/55 px-2">
                 <div className="flex min-w-0 items-center gap-2">
                   <span className="h-2 w-2 shrink-0 rounded-sm" style={{ backgroundColor: zone.color }} />
                   <span className="truncate text-zinc-200" title={zone.name}>{zone.name}</span>
@@ -519,7 +579,8 @@ export function ShowStagePreview({ showId, showOverride }: { showId: string; sho
               </div>
             )
           })}
-        </div>
+          </div>
+        </section>
       </div>
     </div>
   )

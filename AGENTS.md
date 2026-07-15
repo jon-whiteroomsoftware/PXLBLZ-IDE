@@ -103,7 +103,7 @@ check the local D1 schema first.
   repo package through `npx playwright`, `npm run test:e2e`, or CommonJS
   resolution from the workspace; Codex.app's bundled package may expect a
   different browser revision.
-- Use `http://localhost:5174/?capture` for preview screenshots. The WebGL loop
+- Use `http://localhost:5174/PXLBLZ-IDE/?capture` for preview screenshots. The WebGL loop
   keeps pages busy and ordinary canvas readback may be stale or empty.
 - Under `?capture`, call `window.__pxlblz.setPreview(patch)` and then
   `window.__pxlblz.capture(name)`. Captures are written to

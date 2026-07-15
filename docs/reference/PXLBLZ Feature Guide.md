@@ -545,7 +545,11 @@ lesson and keeps the output-contract kind visible.
 Built-in Shows open in the production timeline and Stage. Transport, zoom,
 Scene X-ray, Super Detail, Entity Details, generated code, `.epe` export, cost
 disclosure, and Controller send remain available. Mutation controls are read-only,
-and opening an example does not create or seed a personal Show record.
+and opening an example does not create or seed a personal Show record. Entity
+Details place a compact lock explanation above the selected entity and present
+disabled fields as high-contrast inspection values rather than editable-looking
+inputs. Expandable detail sections remain available; editing requires a personal
+Show.
 
 The dedicated [Show Visual Toolkit](../guides/Show visual toolkit.md) guide uses
 these examples to explain Property animation, one-source Effects, boundary
@@ -583,10 +587,15 @@ Zoom is editor state only and never changes Show time.
 zoom-aware time-grid boundaries. It is on by default and remembered as an editor
 preference; hold Alt to temporarily reverse the current Snap setting.
 
-The Show workspace supports a mouse-free edit-and-preview loop. After a native
+Every Studio authoring view supports the same first keyboard step: **Space**
+toggles its active preview as soon as the document owns the key, including the
+first keypress after a page load. Text fields, code editors, buttons, links,
+sliders, menus, and other interactive controls keep their native Space behavior.
+
+The Show workspace extends that shared preview loop. After a native
 inspector menu commits a discrete choice, focus returns to the selected timeline
-entity (or the timeline workspace when no entity is selected). **Space** then
-toggles Show playback, **Left Arrow** and **Right Arrow** seek exactly one second,
+entity (or the timeline workspace when no entity is selected). **Left Arrow** and
+**Right Arrow** seek exactly one second,
 and **Home** returns to Show start. Keyboard seeks clamp at the Show boundaries,
 use the same deterministic replay as the playhead, and preserve whether playback
 was running. The visible start button also advertises **Home** in its tooltip.
@@ -597,7 +606,9 @@ ordinary buttons retain Space activation. Delete and Backspace likewise remain
 local to editors; elsewhere they apply only to the selected scene, transition,
 clip, or zone under the existing confirmation rules.
 
-Click or drag the ruler to seek. PXLBLZ rebuilds deterministic Pattern state by
+Click or drag the ruler to seek. The visible playhead remains one pixel wide,
+but a narrow invisible target around it also supports direct dragging through
+the timeline body. Both paths honor Snap and its Alt inversion. PXLBLZ rebuilds deterministic Pattern state by
 replaying from Show start in Fast mode at full Stage resolution. Replay yields
 and a newer seek supersedes older work. There is no approximate seek renderer,
 frame cache, downsampling, or checkpoint system in the current implementation.
@@ -834,15 +845,24 @@ Logical layouts route over the complete saved output without physical ranges.
 The right pane is the read-only Show **Stage**. Generic zone strips remain honest
 for a Show without a saved map. A saved 2D/3D map instead draws the Show over its
 output geometry. An Installation always uses its saved count and physical-zone
-ranges rather than borrowing the connected Controller's setup. The Stage reports
-the saved map, fixed count, and coverage, marks uncovered pixels dim grey, and
-warns about off-stage zones. Durable map/count choices live in creation and Show
+ranges rather than borrowing the connected Controller's setup. The Stage names
+that identity once as a reference map, output map, or generic preview layout and
+reports its fixed pixel count. Coverage diagnostics appear only when they have
+something actionable to report; uncovered pixels remain dim grey and off-stage
+zones produce a warning. Durable map/count choices live in creation and Show
 properties, not in the output pane.
+
+The Stage reuses the Preview comfort and fidelity controls: **Light size**,
+**Diffusion**, **Fast/Precise renderer**, and live **FPS**. These settings change
+only the local view. Pattern speed, elapsed time, Pattern controls, and watch
+variables stay out of the Stage because Show transport already owns time and a
+compiled Show may contain many independent Pattern instances.
 
 ### Compile, push, and export
 
 The compiler alpha-renames member Patterns, gives each required member isolated
-state, routes pixels through zone-local domains, and emits one ordinary
+state, selects every Zone's Pattern for every top-level Scene, routes pixels
+through zone-local domains, and emits one ordinary
 Pixelblaze Pattern. The compile bar reports code size, renderer policy,
 transition cost, clock policy, evaluation masks, routing representation, and
 warnings. Routed Shows also report separate estimated bytecode and permanent
@@ -851,6 +871,12 @@ report one scalar, one route test per pixel, and the table entries an equivalent
 enumerated sequence would require.
 Synchronized tiling reports its one scalar, coordinate-operation ceiling, and
 zero-renderer delta separately from routing cost.
+
+Several Zone placements may share one Pattern instance, clock, and generated
+source body; that instance still advances only once per frame. Clips that need
+independent clocks or resumable private state compile as independent members.
+The compiler favors this direct state model over speculative source
+deduplication, and the artifact-size report exposes its actual cost.
 
 **View code** shows the generated source read-only. Push compiles that source
 with the connected Controller's compiler through the same grouped identity,

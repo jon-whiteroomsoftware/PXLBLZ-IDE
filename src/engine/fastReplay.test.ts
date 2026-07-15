@@ -48,6 +48,17 @@ describe('Fast replay reconstruction', () => {
     expect(result.pixels).toHaveLength(4)
   })
 
+  it('runs the generated fixed-point artifact when Precise fidelity is selected (#484)', () => {
+    const prepared = prepareFastReplay('export function render(index) { rgb(0.1 + 0.2, 0, 0) }', {})
+    const options = { mapPoints: lineMap(1), randomSeed: 412 }
+
+    const fast = createFastReplayRuntime(prepared, options).renderCurrentFrame()
+    const precise = createFastReplayRuntime(prepared, { ...options, fidelity: 'fidelity' }).renderCurrentFrame()
+
+    expect(fast.pixels[0][0]).not.toBe(precise.pixels[0][0])
+    expect(precise.pixels[0][0]).toBeCloseTo(0.3, 4)
+  })
+
   it('executes every intermediate per-pixel render call while rebuilding', () => {
     const prepared = prepareFastReplay(RENDER_MUTATING_PATTERN, {})
     const result = createFastReplayRuntime(prepared, {

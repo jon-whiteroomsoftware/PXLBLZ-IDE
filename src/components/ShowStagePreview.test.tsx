@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { ShowStagePreview } from './ShowStagePreview'
 import { createDefaultShow, createShowWithOutputContract } from '@/engine/showModel'
 import { createInstallationShowOutputContract, createPortableShowOutputContract } from '@/engine/showOutputContract'
@@ -68,6 +68,41 @@ beforeEach(() => {
 })
 
 describe('ShowStagePreview (#339)', () => {
+  it('pauses on initial Show load and whenever the Show identity changes', () => {
+    const first = createDefaultShow('show-first', 'First Show', 1000)
+    const second = createDefaultShow('show-second', 'Second Show', 1000)
+    useShowStore.setState({ shows: [first, second], activeShowId: first.id, showsLoaded: true })
+    usePreviewStore.setState({ ...previewInitialState, isRunning: true })
+
+    const { rerender } = render(<ShowStagePreview showId={first.id} />)
+
+    expect(usePreviewStore.getState().isRunning).toBe(false)
+    expect(screen.getByText(/show paused · Fast/i).parentElement?.querySelector('.lucide-pause')).toBeInTheDocument()
+
+    act(() => usePreviewStore.setState({ isRunning: true }))
+    rerender(<ShowStagePreview showId={second.id} />)
+
+    expect(usePreviewStore.getState().isRunning).toBe(false)
+  })
+
+  it('keeps Zone isolation independent from playback and reserves a stable reset control', () => {
+    const show = createDefaultShow('show-zone-isolation', 'Zone isolation', 1000)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    usePreviewStore.setState({ ...previewInitialState, isRunning: true })
+
+    render(<ShowStagePreview showId={show.id} />)
+    act(() => usePreviewStore.setState({ isRunning: true }))
+
+    const showAll = screen.getByRole('button', { name: 'Show all zones' })
+    expect(showAll).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: 'Solo zone main' }))
+    expect(usePreviewStore.getState().isRunning).toBe(true)
+    expect(showAll).toBeEnabled()
+    fireEvent.click(showAll)
+    expect(usePreviewStore.getState().isRunning).toBe(true)
+    expect(showAll).toBeDisabled()
+  })
+
   it('shows an icon-only seek badge only when rebuilding lasts beyond the short delay', () => {
     vi.useFakeTimers()
     try {
@@ -122,6 +157,105 @@ describe('ShowStagePreview (#339)', () => {
     expect(screen.queryByRole('combobox', { name: 'Show stage' })).not.toBeInTheDocument()
   })
 
+  it('names an Installation output map once without presenting a faux input (#484)', () => {
+    const show = createShowWithOutputContract(
+      'show-stage-identity',
+      'Measured installation',
+      createInstallationShowOutputContract({ outputMapId: 'map-1', pixelCount: 4 }),
+      1000,
+    )
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    useMapStore.setState({ userMaps: [importedMap], mapsLoaded: true })
+
+    render(<ShowStagePreview showId={show.id} />)
+
+    const stage = screen.getByLabelText('Show stage')
+    expect(stage).toHaveTextContent(/Output map.*North Arch map.*4 px/)
+    expect(screen.getAllByText(/North Arch map/)).toHaveLength(1)
+  })
+
+  it('shares Light size and Diffusion controls with the preview comfort baseline (#484)', async () => {
+    const show = createDefaultShow('show-stage-comfort', 'Stage comfort', 1000)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    usePreviewStore.setState({
+      ...previewInitialState,
+      isRunning: false,
+      lightSize: 0.3,
+      diffusion: 0.4,
+      lightSizeSticky: 0.7,
+      diffusionSticky: 0.2,
+    })
+
+    render(<ShowStagePreview showId={show.id} />)
+
+    const lightSize = screen.getByRole('slider', { name: 'Light size' })
+    const diffusion = screen.getByRole('slider', { name: 'Diffusion' })
+    await waitFor(() => expect(lightSize).toHaveValue('0.7'))
+    expect(diffusion).toHaveValue('0.2')
+
+    fireEvent.change(lightSize, { target: { value: '0.8' } })
+    fireEvent.change(diffusion, { target: { value: '0.6' } })
+
+    expect(usePreviewStore.getState()).toMatchObject({
+      lightSize: 0.8,
+      lightSizeSticky: 0.8,
+      diffusion: 0.6,
+      diffusionSticky: 0.6,
+    })
+  })
+
+  it('switches the actual Show renderer without exposing Pattern-only controls (#484)', async () => {
+    const show = createDefaultShow('show-stage-renderer', 'Stage renderer', 1000)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowStagePreview showId={show.id} />)
+
+    expect(screen.queryByRole('button', { name: 'Speed' })).not.toBeInTheDocument()
+    expect(screen.queryByText('elapsed')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Renderer' }))
+    fireEvent.click(screen.getByRole('option', { name: 'Precise' }))
+
+    expect(usePreviewStore.getState().fidelity).toBe('fidelity')
+    await waitFor(() => expect(screen.getByText(/show paused · Precise/i)).toBeInTheDocument())
+  })
+
+  it('reports the Show Stage frame rate without duplicating elapsed time (#484)', async () => {
+    const callbacks = new Map<number, FrameRequestCallback>()
+    let nextFrameId = 1
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+      const id = nextFrameId++
+      callbacks.set(id, callback)
+      return id
+    })
+    vi.stubGlobal('cancelAnimationFrame', (id: number) => { callbacks.delete(id) })
+    try {
+      const show = createDefaultShow('show-stage-fps', 'Stage FPS', 1000)
+      useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+      usePreviewStore.setState({ ...previewInitialState, isRunning: true })
+
+      render(<ShowStagePreview showId={show.id} />)
+      act(() => usePreviewStore.getState().setRunning(true))
+      await waitFor(() => expect(callbacks.size).toBeGreaterThan(0))
+
+      const runFrame = (timestamp: number) => {
+        const entries = [...callbacks.entries()]
+        const entry = entries[entries.length - 1]
+        expect(entry).toBeDefined()
+        callbacks.delete(entry![0])
+        act(() => entry![1](timestamp))
+      }
+      runFrame(0)
+      runFrame(250)
+      runFrame(500)
+
+      expect(usePreviewStore.getState().fps).toBeCloseTo(4)
+      expect(screen.getByText('4.0')).toBeInTheDocument()
+      expect(screen.queryByText('elapsed')).not.toBeInTheDocument()
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
   it('uses and reports the Installation master count and physical coverage (#435)', () => {
     const show = createShowWithOutputContract(
       'show-installation',
@@ -149,7 +283,11 @@ describe('ShowStagePreview (#339)', () => {
     render(<ShowStagePreview showId={show.id} />)
 
     expect(screen.getByText('8 px')).toBeInTheDocument()
-    expect(screen.getByText(/6 assigned · 2 missing · 0 overlapping · 0 out of range · 8 total/i)).toBeInTheDocument()
+    const zones = screen.getByRole('region', { name: 'Zones' })
+    expect(within(zones).getByRole('status', { name: 'Zone coverage' })).toHaveTextContent(
+      '6/8 assigned · 2 missing · 0 overlap · 0 out of range',
+    )
+    expect(within(zones).getByRole('status', { name: 'Zone coverage' })).toHaveClass('h-6', 'whitespace-nowrap')
   })
 
   it('uses the Portable reference count without borrowing Controller physical setup (#436)', () => {

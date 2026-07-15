@@ -16,6 +16,16 @@ beforeEach(() => {
 })
 
 describe('PreviewDeck (smoke)', () => {
+  it('shows a disabled paused state when no Pattern is loaded', () => {
+    usePreviewStore.setState({ ...previewInitialState, isRunning: true })
+
+    render(<PreviewDeck />)
+
+    const transport = screen.getByRole('button', { name: 'No pattern loaded' })
+    expect(transport).toBeDisabled()
+    expect(transport.querySelector('.lucide-pause')).toBeInTheDocument()
+  })
+
   it('renders the deck sections inline (no dialog over the canvas)', () => {
     useEditorStore.setState({ nativeDim: 2, previewPatternName: 'Demo' })
     render(<PreviewDeck />)

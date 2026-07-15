@@ -18,7 +18,7 @@ export type ShowCompositionCompilerPath =
   | 'two-scene-boundary'
   | 'adaptation-ramp'
   | 'scene-sequence'
-  | 'routed-first-scene'
+  | 'routed-scene-sequence'
   | 'installation-single-zone'
 
 export interface ShowCompositionPatternInstanceProjection {
@@ -110,9 +110,7 @@ export function projectFlatShowComposition(
       diagnostics.push({
         kind: 'compiler-omits-cell',
         cellId: cell.id,
-        message: compilerPath === 'routed-first-scene'
-          ? 'The current routed compiler consumes first-Scene cells only; this later cell is persisted but does not select a runtime Pattern.'
-          : 'The current compiler recipe does not reference this persisted cell.',
+        message: 'The current compiler recipe does not reference this persisted cell.',
       })
     }
   }
@@ -214,7 +212,7 @@ function classifyCompilerPath(show: ShowRecord, recipe: ShowRecipe): ShowComposi
     return 'installation-single-zone'
   }
   if (show.outputContract?.kind === 'installation' || show.zones.length > 1 || show.routingSwitches.length > 0) {
-    return 'routed-first-scene'
+    return 'routed-scene-sequence'
   }
   if (recipe.sceneSequence) return 'scene-sequence'
   if (recipe.adaptationRamp) return 'adaptation-ramp'
@@ -228,6 +226,18 @@ function mapCellsToCompiledInstances(
   compilerPath: ShowCompositionCompilerPath,
 ): Map<string, string> {
   const result = new Map<string, string>()
+  if (recipe.routedSceneSequence) {
+    recipe.routedSceneSequence.scenes.forEach((compiledScene, sceneIndex) => {
+      const scene = show.scenes[sceneIndex]
+      if (!scene) return
+      for (const placement of compiledScene.placements) {
+        const zone = show.zones.find((candidate) => candidate.name === placement.zoneName)
+        const cell = zone ? showCellAtSlot(show, zone.id, scene.id) : undefined
+        if (cell) result.set(cell.id, placement.clipId)
+      }
+    })
+    return result
+  }
   if (recipe.sceneSequence) {
     const firstZone = show.zones[0]
     if (!firstZone) return result

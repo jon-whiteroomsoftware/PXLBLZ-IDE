@@ -34,7 +34,7 @@ export function ActivityStrip({
     <div
       role="radiogroup"
       aria-label="Studio activity"
-      className="flex w-[46px] shrink-0 flex-col items-center border-r border-seam bg-zinc-950/35 py-2"
+      className="relative flex w-[46px] shrink-0 flex-col items-center border-r border-seam bg-zinc-950/35 py-2"
     >
       {ACTIVITY_ENTRIES.map((entry) => {
         const active = mode === entry.kind
@@ -69,12 +69,9 @@ export function ActivityStrip({
           aria-label="Expand library"
           title="Expand library"
           onClick={onToggleCollapsed}
-          className={`mt-auto flex w-full flex-col items-center gap-0.5 px-1 py-1 font-semibold uppercase tracking-wide text-zinc-500 transition-colors hover:bg-zinc-900/55 hover:text-zinc-300 ${IDE_MICROTYPE.required.sizeClassName}`}
+          className={`absolute left-1/2 top-3 z-20 grid size-7 -translate-x-1/2 place-items-center rounded border border-zinc-700 bg-zinc-950 text-zinc-400 shadow-sm transition-colors hover:border-live/60 hover:bg-zinc-900 hover:text-live ${IDE_MICROTYPE.required.sizeClassName}`}
         >
-          <span className="grid size-7 place-items-center rounded border border-transparent">
-            <PanelLeftOpen size={17} />
-          </span>
-          <span>OPEN</span>
+          <PanelLeftOpen size={17} aria-hidden />
         </button>
       )}
     </div>

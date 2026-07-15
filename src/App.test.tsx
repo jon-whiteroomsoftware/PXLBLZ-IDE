@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { act, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import App from './App'
 import { useRouterStore, routerInitialState } from '@/store/routerStore'
@@ -23,6 +23,7 @@ import {
 } from '@/engine/personalContentProvider'
 import { createDefaultShow } from '@/engine/showModel'
 import { createPortableShowOutputContract } from '@/engine/showOutputContract'
+import { previewInitialState, usePreviewStore } from '@/store/previewStore'
 
 // Hold the startup auth probe pending so the smoke tests exercise the studio
 // shell without the signed-out Gallery redirect kicking in mid-test; the
@@ -45,6 +46,7 @@ beforeEach(() => {
   useControllerStore.setState(controllerInitialState)
   useControllerProfileStore.setState(controllerProfileInitialState)
   useShowStore.setState(showInitialState)
+  usePreviewStore.setState(previewInitialState)
 })
 
 afterEach(() => {
@@ -145,7 +147,14 @@ describe('App smoke test', () => {
     expect(screen.getByRole('radiogroup', { name: 'Studio activity' })).toBeInTheDocument()
     expect(screen.getByRole('radio', { name: 'Patterns' })).toHaveClass('text-[10px]')
     expect(screen.getByRole('radio', { name: 'Maps' })).toHaveClass('text-zinc-500')
-    expect(screen.getByRole('button', { name: 'Expand library' })).toHaveClass('text-[10px]', 'text-zinc-500')
+    expect(screen.getByRole('button', { name: 'Expand library' })).toHaveClass(
+      'absolute',
+      'left-1/2',
+      'top-3',
+      'size-7',
+      '-translate-x-1/2',
+    )
+    expect(screen.getByRole('button', { name: 'Expand library' })).not.toHaveTextContent('OPEN')
 
     await userEvent.click(screen.getByRole('radio', { name: 'Shows' }))
     expect(screen.getByRole('button', { name: 'Expand library' })).toBeInTheDocument()
@@ -278,8 +287,7 @@ describe('routing (#308)', () => {
 
     const editorPane = screen.getByTestId('editor-pane')
     expect(within(editorPane).getAllByText('Simplest possible show').length).toBeGreaterThan(0)
-    expect(within(editorPane).getByText('Portable 2D')).toBeInTheDocument()
-    expect(within(editorPane).getByText('2 scenes')).toBeInTheDocument()
+    expect(within(editorPane).getByTitle('Show output summary')).toHaveTextContent('Portable 2D · 2 scenes')
     expect(within(editorPane).getByRole('button', { name: 'Show properties' })).toBeInTheDocument()
     expect(within(editorPane).getByRole('button', { name: 'View code' })).toBeInTheDocument()
     expect(within(editorPane).getByRole('button', { name: 'Export Show as .epe' })).toHaveTextContent('.epe')
@@ -289,6 +297,36 @@ describe('routing (#308)', () => {
     expect(screen.getByRole('heading', { name: 'Clip properties' })).toBeInTheDocument()
     await user.click(within(editorPane).getByRole('button', { name: 'Show properties' }))
     expect(screen.getByRole('heading', { name: 'Show properties' })).toBeInTheDocument()
+  })
+
+  it('toggles the active Studio preview once with Space outside an editing control', () => {
+    window.history.replaceState(null, '', '/studio/patterns/TestPattern1D')
+    seedSignedInWorkspace()
+
+    render(<App />)
+
+    fireEvent.keyDown(document.body, { code: 'Space', key: ' ' })
+    expect(usePreviewStore.getState().isRunning).toBe(true)
+    fireEvent.keyDown(document.body, { code: 'Space', key: ' ' })
+    expect(usePreviewStore.getState().isRunning).toBe(false)
+
+    const input = document.createElement('input')
+    document.body.append(input)
+    fireEvent.keyDown(input, { code: 'Space', key: ' ' })
+    expect(usePreviewStore.getState().isRunning).toBe(false)
+    input.remove()
+  })
+
+  it('toggles a Show preview only once when shared and Show shortcuts are mounted', () => {
+    const show = createDefaultShow('show-space-once', 'One toggle', 1000)
+    window.history.replaceState(null, '', `/studio/shows/${show.id}`)
+    seedSignedInWorkspace()
+    useShowStore.setState({ shows: [show], showsLoaded: true, activeShowId: show.id })
+
+    render(<App />)
+
+    fireEvent.keyDown(document.body, { code: 'Space', key: ' ' })
+    expect(usePreviewStore.getState().isRunning).toBe(true)
   })
 
   it('sends signed-out visitors from /studio to the one-time Studio welcome page', () => {
@@ -342,6 +380,25 @@ describe('routing (#308)', () => {
     render(<App />)
     expect(usePatternStore.getState().activePatternId).toBe('p-1')
     expect(screen.getByTestId('editor-pane')).toBeInTheDocument()
+  })
+
+  it('opens the first user Pattern when the Patterns route has no selection', async () => {
+    const older = { ...record, id: 'p-older', name: 'Older Pattern', updatedAt: 1 }
+    const first = { ...record, id: 'p-first', name: 'First Pattern', updatedAt: 2 }
+    window.history.replaceState(null, '', '/studio/patterns')
+    seedSignedInWorkspace()
+    usePatternStore.setState({
+      userPatterns: [first, older],
+      patternsLoaded: true,
+      activePatternId: null,
+      activeDemoName: null,
+    })
+
+    render(<App />)
+
+    await waitFor(() => expect(usePatternStore.getState().activePatternId).toBe('p-first'))
+    expect(useEditorStore.getState().source).toBe(first.src)
+    expect(window.location.pathname).toBe('/studio/patterns/p-first')
   })
 
   it('copies active pattern artifacts bundled with user cloud libraries', async () => {

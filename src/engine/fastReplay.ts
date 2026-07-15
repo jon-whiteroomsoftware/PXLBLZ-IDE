@@ -3,11 +3,13 @@ import { loadPattern, nativeDimension, type PatternMetadata } from './loadPatter
 import type { MapPoint } from './maps/types'
 import { createRenderLoop } from './renderLoop'
 import { selectRenderCompatibility } from './renderCompatibility'
-import { createShim } from './shim'
+import { createFxShim, createShim } from './shim'
 import { createVirtualClock } from './virtualClock'
+import { emitFixedPoint } from './fxEmit'
 
 export interface PreparedFastReplay {
   code: string
+  fxCode?: string
   metadata: PatternMetadata
   dimension: 1 | 2 | 3
 }
@@ -15,6 +17,7 @@ export interface PreparedFastReplay {
 export interface FastReplayRuntimeOptions {
   mapPoints: MapPoint[]
   randomSeed: number
+  fidelity?: 'fast' | 'fidelity'
 }
 
 export interface FastReplayAdvanceOptions {
@@ -46,8 +49,8 @@ export function prepareFastReplay(
   source: string,
   libraries: Record<string, string>,
 ): PreparedFastReplay {
-  const { code, metadata } = bundle(source, libraries)
-  return { code, metadata, dimension: nativeDimension(metadata.renderFns) }
+  const { code, fxCode, metadata } = bundle(source, libraries)
+  return { code, fxCode, metadata, dimension: nativeDimension(metadata.renderFns) }
 }
 
 export function createFastReplayRuntime(
@@ -56,14 +59,20 @@ export function createFastReplayRuntime(
 ): FastReplayRuntime {
   const clock = createVirtualClock()
   const pixelCount = options.mapPoints.length
-  const shim = createShim({
+  const precise = options.fidelity === 'fidelity'
+  const shimConfig = {
     mapPoints: options.mapPoints,
     pixelCount,
     dimensions: prepared.dimension,
     getVirtualTime: () => clock.getTime(),
     randomSeed: options.randomSeed,
-  })
-  const handle = loadPattern(prepared.code, prepared.metadata, shim.builtins)
+  }
+  const shim = precise ? createFxShim(shimConfig) : createShim(shimConfig)
+  const handle = loadPattern(
+    precise ? prepared.fxCode ?? emitFixedPoint(prepared.code) : prepared.code,
+    prepared.metadata,
+    shim.builtins,
+  )
   const renderCompatibility = selectRenderCompatibility(prepared.dimension, prepared.metadata.renderFns)
   let pixels: [number, number, number][] = []
   let simulatedFrames = 0
