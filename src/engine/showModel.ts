@@ -592,7 +592,36 @@ export function splitShowAtTime(show: ShowRecord, atMs: number): ShowRecord {
 }
 
 export function canSplitShowAtTime(show: ShowRecord, atMs: number): boolean {
-  return showSplitTarget(show, atMs) !== null
+  return showSplitCapability(show, atMs).enabled
+}
+
+export type ShowSplitCapability =
+  | { enabled: true; code: 'ready'; reason: string }
+  | { enabled: false; code: 'scene-edge-margin' | 'no-scene'; reason: string }
+
+export function showSplitCapability(show: ShowRecord, atMs: number): ShowSplitCapability {
+  if (!Number.isFinite(atMs)) {
+    return { enabled: false, code: 'no-scene', reason: 'Move the playhead inside a Scene.' }
+  }
+
+  let cursorMs = 0
+  for (const scene of show.scenes) {
+    const holdEndMs = cursorMs + Math.max(0, scene.durationMs)
+    if (cursorMs <= atMs && atMs <= holdEndMs) {
+      const leftDurationMs = Math.round(atMs - cursorMs)
+      const rightDurationMs = scene.durationMs - leftDurationMs
+      return leftDurationMs >= 1000 && rightDurationMs >= 1000
+        ? { enabled: true, code: 'ready', reason: 'Split this Scene at the playhead.' }
+        : {
+            enabled: false,
+            code: 'scene-edge-margin',
+            reason: 'Leave at least 1.0 s on both sides of the playhead.',
+          }
+    }
+    cursorMs = holdEndMs + Math.max(0, scene.transitionOut?.durationMs ?? 0)
+  }
+
+  return { enabled: false, code: 'no-scene', reason: 'Move the playhead inside a Scene.' }
 }
 
 function showSplitTarget(

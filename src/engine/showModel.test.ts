@@ -20,6 +20,7 @@ import {
   removeShowScene,
   removeShowZone,
   showLoopDurationMs,
+  showSplitCapability,
   showRecordToCompileRecipe,
   splitShowAtTime,
   spanShowCellZones,
@@ -451,6 +452,36 @@ describe('showModel (#318)', () => {
     expect(splitShowAtTime(show, 29_500)).toBe(show)
     expect(splitShowAtTime(show, 30_500)).toBe(show)
     expect(splitShowAtTime(show, showLoopDurationMs(show))).toBe(show)
+  })
+
+  it('explains Scene-edge Split refusal separately from an invalid playhead (#473)', () => {
+    const show = createDefaultShow('show-473', 'Split guidance', 1)
+
+    expect(showSplitCapability(show, Number.NaN)).toEqual({
+      enabled: false,
+      code: 'no-scene',
+      reason: 'Move the playhead inside a Scene.',
+    })
+    expect(showSplitCapability(show, 0)).toEqual({
+      enabled: false,
+      code: 'scene-edge-margin',
+      reason: 'Leave at least 1.0 s on both sides of the playhead.',
+    })
+    expect(showSplitCapability(show, 500)).toEqual({
+      enabled: false,
+      code: 'scene-edge-margin',
+      reason: 'Leave at least 1.0 s on both sides of the playhead.',
+    })
+    expect(showSplitCapability(show, 1_000)).toEqual({
+      enabled: true,
+      code: 'ready',
+      reason: 'Split this Scene at the playhead.',
+    })
+    expect(showSplitCapability(show, 30_500)).toEqual({
+      enabled: false,
+      code: 'no-scene',
+      reason: 'Move the playhead inside a Scene.',
+    })
   })
 
   it('compiles Continue as shared Pattern state and Restart as a fresh instance (#415)', () => {

@@ -586,6 +586,11 @@ frame cache, downsampling, or checkpoint system in the current implementation.
 **Split** creates one shared boundary across every zone row when the playhead is
 safely inside a scene hold. Clips on the right default to **Continue**. Turn on
 **Restart Pattern on entry** for a deliberate reset or stutter.
+Split remains focusable when unavailable: focus or click reveals a compact
+reason beside the command. A scene edge asks for at least 1.0 second on both
+sides; a transition window asks the user to move inside a scene. The explanation
+updates immediately as the playhead moves and does not rely on a disabled-control
+tooltip.
 
 **Clone** duplicates a selected scene immediately after itself, including its
 clip snapshots, and ripples later Show time. A simple one-scene, one-zone clip

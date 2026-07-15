@@ -429,9 +429,15 @@ describe('ShowEditor (#318)', () => {
     await user.click(playback)
     expect(screen.getByRole('button', { name: 'Play Show preview' }).querySelector('.lucide-play')).toBeInTheDocument()
 
-    expect(within(commands).getByRole('button', { name: 'Split at playhead' })).toHaveAttribute(
+    const split = within(commands).getByRole('button', { name: 'Split at playhead' })
+    expect(split).toHaveAttribute(
       'title',
-      'Move the playhead inside a scene, at least 1 second from either edge. Transitions cannot be split.',
+      'Leave at least 1.0 s on both sides of the playhead.',
+    )
+    expect(split).toHaveAttribute('aria-disabled', 'true')
+    await user.click(split)
+    expect(within(commands).getByRole('status', { name: 'Split unavailable' })).toHaveTextContent(
+      'Split needs 1.0 s on both sides',
     )
 
     useShowTransportStore.setState({ seekStatus: 'rebuilding' })
@@ -709,9 +715,9 @@ describe('ShowEditor (#318)', () => {
     render(<ShowEditor showId={show.id} />)
 
     const splitButton = screen.getByRole('button', { name: 'Split at playhead' })
-    expect(splitButton).toBeDisabled()
+    expect(splitButton).toHaveAttribute('aria-disabled', 'true')
     fireEvent.change(screen.getByRole('slider', { name: 'Show playhead' }), { target: { value: '10000' } })
-    expect(splitButton).toBeEnabled()
+    expect(splitButton).not.toHaveAttribute('aria-disabled')
     await user.click(splitButton)
 
     await waitFor(() => expect(useShowStore.getState().shows[0].scenes).toHaveLength(3))
@@ -727,6 +733,39 @@ describe('ShowEditor (#318)', () => {
       expect(useShowStore.getState().shows[0].cells.find((cell) => cell.sceneId === 'scene-3')?.restartOnEntry).toBe(true)
     })
     expect(screen.getByText(/starts a fresh Pattern instance/i)).toBeInTheDocument()
+  })
+
+  it('updates the visible Split refusal at Scene boundaries and valid positions (#473)', () => {
+    const show = createDefaultShow('show-473', 'Split guidance', 1000)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+
+    const playhead = screen.getByRole('slider', { name: 'Show playhead' })
+    const split = screen.getByRole('button', { name: 'Split at playhead' })
+    const commands = screen.getByRole('group', { name: 'Timeline commands' })
+    const refusal = () => within(commands).queryByRole('status', { name: 'Split unavailable' })
+
+    expect(split).toHaveAttribute('aria-disabled', 'true')
+    expect(refusal()).not.toBeInTheDocument()
+    fireEvent.focus(split)
+    expect(refusal()).toHaveTextContent('Split needs 1.0 s on both sides')
+
+    fireEvent.change(playhead, { target: { value: '500' } })
+    expect(split).toHaveAttribute('aria-disabled', 'true')
+    expect(refusal()).toHaveTextContent('Split needs 1.0 s on both sides')
+
+    fireEvent.change(playhead, { target: { value: '1000' } })
+    expect(split).not.toHaveAttribute('aria-disabled')
+    expect(refusal()).not.toBeInTheDocument()
+
+    fireEvent.change(playhead, { target: { value: '30000' } })
+    expect(split).toHaveAttribute('aria-disabled', 'true')
+    fireEvent.click(split)
+    expect(refusal()).toHaveTextContent('Split needs 1.0 s on both sides')
+
+    fireEvent.change(playhead, { target: { value: '30500' } })
+    expect(refusal()).toHaveTextContent('Split only works inside a Scene')
   })
 
   it('authors named routing layouts and scene-boundary switch markers (#398)', async () => {

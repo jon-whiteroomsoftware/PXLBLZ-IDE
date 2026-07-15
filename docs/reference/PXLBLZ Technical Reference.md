@@ -856,6 +856,11 @@ Split is an atomic pure-model operation. It rejects transition windows and
 sub-one-second fragments, creates one boundary across zones, divides covering
 clips, deep-copies value objects, moves the original outgoing boundary to the
 new right scene, and defaults destination clips to Continue.
+`showSplitCapability()` projects the same rule into `ready`,
+`scene-edge-margin`, and `no-scene` states with actionable text. The timeline
+renders unavailable Split as an `aria-disabled` but focusable command; focus or
+activation discloses an anchored live status, so keyboard and pointer paths do
+not depend on native disabled-button tooltip behavior.
 
 `duplicateShowScene()` is the global-time Clone operation: it inserts one new
 stable Scene identity after the owner, deep-copies terminating clips, extends

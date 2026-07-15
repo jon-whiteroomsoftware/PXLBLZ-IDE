@@ -30,7 +30,7 @@ import type { ArtifactMapClass } from '@/engine/artifactStamp'
 import { trackEvent } from '@/analytics'
 import {
   projectShowStrip,
-  canSplitShowAtTime,
+  showSplitCapability,
   formatShowRoutingRanges,
   parseShowRoutingRanges,
   showLoopDurationMs,
@@ -940,7 +940,9 @@ function ShowTimelineCommands({
   const undoShow = useShowStore((state) => state.undoShow)
   const redoShow = useShowStore((state) => state.redoShow)
   const history = useShowStore((state) => state.showHistories[show.id])
-  const canSplit = canSplitShowAtTime(show, positionMs)
+  const splitCapability = showSplitCapability(show, positionMs)
+  const splitReasonId = `show-split-reason-${show.id}`
+  const [splitReasonOpen, setSplitReasonOpen] = useState(false)
   const cloneCapability = showCloneCapability(show, selection)
 
   const cloneSelection = async () => {
@@ -987,23 +989,47 @@ function ShowTimelineCommands({
       >
         <Maximize2 size={12} aria-hidden /> <span className="timeline-command-label">Fit</span>
       </Button>
-      <Button
-        size="xs"
-        variant="ghost"
-        aria-label="Split at playhead"
-        title={canSplit
-          ? 'Split this scene at the playhead. Each new scene will be at least 1 second.'
-          : 'Move the playhead inside a scene, at least 1 second from either edge. Transitions cannot be split.'}
-        disabled={!canSplit}
-        className="bg-zinc-800/70 text-[10px] text-zinc-400 hover:bg-amber-400/15 hover:text-amber-200"
-        onClick={() => {
-          if (usePreviewStore.getState().isRunning) usePreviewStore.getState().toggle()
-          void splitAtTime(show.id, positionMs)
-        }}
-      >
-        <Scissors size={12} aria-hidden />
-        <span className="timeline-command-label">Split</span>
-      </Button>
+      <span className="relative inline-flex">
+        <Button
+          size="xs"
+          variant="ghost"
+          aria-label="Split at playhead"
+          aria-disabled={splitCapability.enabled ? undefined : true}
+          aria-describedby={!splitCapability.enabled && splitReasonOpen ? splitReasonId : undefined}
+          title={splitCapability.reason}
+          className={`bg-zinc-800/70 text-[10px] text-zinc-400 hover:bg-amber-400/15 hover:text-amber-200 ${
+            splitCapability.enabled ? '' : 'cursor-not-allowed opacity-50'
+          }`}
+          onFocus={() => {
+            if (!splitCapability.enabled) setSplitReasonOpen(true)
+          }}
+          onBlur={() => setSplitReasonOpen(false)}
+          onClick={() => {
+            if (!splitCapability.enabled) {
+              setSplitReasonOpen(true)
+              return
+            }
+            if (usePreviewStore.getState().isRunning) usePreviewStore.getState().toggle()
+            void splitAtTime(show.id, positionMs)
+          }}
+        >
+          <Scissors size={12} aria-hidden />
+          <span className="timeline-command-label">Split</span>
+        </Button>
+        {!splitCapability.enabled && splitReasonOpen && (
+          <span
+            id={splitReasonId}
+            role="status"
+            aria-label="Split unavailable"
+            aria-live="polite"
+            className="absolute right-0 top-[calc(100%+5px)] z-40 w-44 rounded border border-amber-400/30 bg-zinc-950 px-2 py-1.5 text-left text-[9px] leading-3 text-amber-200 shadow-lg"
+          >
+            {splitCapability.code === 'scene-edge-margin'
+              ? 'Split needs 1.0 s on both sides'
+              : 'Split only works inside a Scene'}
+          </span>
+        )}
+      </span>
       <Button
         size="xs"
         variant="ghost"
