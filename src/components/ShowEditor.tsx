@@ -15,6 +15,7 @@ import { PixelblazeCodeEditor } from '@/components/PixelblazeCodeEditor'
 import { ShowZoneSpatialSelector } from '@/components/ShowZoneSpatialSelector'
 import { ShowEntityDetailPanel } from '@/components/ShowEntityDetailPanel'
 import { ShowSceneSuperDetail, ShowSceneXray } from '@/components/ShowSceneReadOnlyBridge'
+import { ShowSceneZoneEditor } from '@/components/ShowSceneZoneEditor'
 import { ShowEffectPalette, ShowEffectStack } from '@/components/ShowEffectsAuthoring'
 import { ShowTransitionPalette, ShowTransitionParameters } from '@/components/ShowTransitionAuthoring'
 import { getControllerProvider } from '@/engine/controllerProviderRegistry'
@@ -41,6 +42,7 @@ import {
 import { compileShowForArtifact, sourceForShowCell, type CompiledShowState } from '@/engine/showPreviewArtifact'
 import { projectFlatShowComposition, type FlatShowCompositionProjection } from '@/engine/showCompositionProjection'
 import { projectSceneReadOnlyBridge } from '@/engine/showSceneReadOnlyProjection'
+import { resolveShowSceneEditorScope, type ShowSceneEditorScope } from '@/engine/showSceneEditorScope'
 import { validateInstallationCoverage } from '@/engine/showInstallationCoverage'
 import { updateShowPhysicalZoneSelection } from '@/engine/showSpatialSelection'
 import { createPortableShowOutputContract } from '@/engine/showOutputContract'
@@ -200,6 +202,7 @@ export function ShowEditor({
   const [detailAnchor, setDetailAnchor] = useState<HTMLElement | null>(null)
   const [effectPaletteClipId, setEffectPaletteClipId] = useState<string | null>(null)
   const [transitionPaletteId, setTransitionPaletteId] = useState<string | null>(null)
+  const [sceneEditorScope, setSceneEditorScope] = useState<ShowSceneEditorScope | null>(null)
   const detailShowIdRef = useRef(showId)
   const timelineWorkspaceRef = useRef<HTMLElement>(null)
   const lastTimelineFocusRef = useRef<HTMLElement | null>(null)
@@ -241,6 +244,7 @@ export function ShowEditor({
     setDetailAnchor(null)
     setEffectPaletteClipId(null)
     setTransitionPaletteId(null)
+    setSceneEditorScope(null)
   }, [showId])
   useEffect(() => {
     const handleHistoryShortcut = (event: KeyboardEvent) => {
@@ -262,6 +266,9 @@ export function ShowEditor({
   )
 
   const activeShow = showOverride ?? savedShow ?? null
+  const resolvedSceneEditorScope = activeShow && sceneEditorScope
+    ? resolveShowSceneEditorScope(activeShow, sceneEditorScope)
+    : null
   const selectedClip = selection.kind === 'clip'
     ? activeShow?.cells.find((clip) => clip.id === selection.clipId) ?? null
     : null
@@ -313,13 +320,19 @@ export function ShowEditor({
   }, [requestDeleteSelection, selection])
   useEffect(() => {
     const handleEscape = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape' || !detailPanelOpen || effectPaletteClipId !== null || transitionPaletteId !== null) return
+      if (event.key !== 'Escape' || effectPaletteClipId !== null || transitionPaletteId !== null) return
+      if (!detailPanelOpen && !sceneEditorScope) return
       event.preventDefault()
-      closeDetailPanel(true)
+      if (detailPanelOpen) {
+        closeDetailPanel(true)
+        return
+      }
+      setSceneEditorScope(null)
+      window.setTimeout(() => timelineWorkspaceRef.current?.focus(), 0)
     }
     document.addEventListener('keydown', handleEscape)
     return () => document.removeEventListener('keydown', handleEscape)
-  }, [closeDetailPanel, detailPanelOpen, effectPaletteClipId, transitionPaletteId])
+  }, [closeDetailPanel, detailPanelOpen, effectPaletteClipId, sceneEditorScope, transitionPaletteId])
   const stageDimension = activeShow?.stageMapId
     ? [...STOCK_MAPS, ...userMaps].find((map) => map.id === activeShow.stageMapId)?.dim
     : undefined
@@ -699,35 +712,64 @@ export function ShowEditor({
             className="outline-none"
             onFocusCapture={rememberTimelineFocus}
           >
-            <SceneStrip
-              key={activeShow.id}
-              show={activeShow}
-              readOnly={readOnly}
-              compositionProjection={compositionProjection}
-              patternControlsByCellId={patternControlsByCellId}
-              selection={selection}
-              onSelect={selectTimeline}
-              onDismiss={closeDetailPanel}
-              onAddScene={() => {
-                void addScene(activeShow.id).then(() => {
-                  window.setTimeout(() => {
-                    const inputs = document.querySelectorAll<HTMLInputElement>('[data-show-scene-name]')
-                    inputs[inputs.length - 1]?.focus()
-                  }, 0)
-                })
-              }}
-              onAddZone={() => {
-                timelineWorkspaceRef.current?.focus()
-                void addZone(activeShow.id)
-              }}
-              onRequestRemoveScene={setScenePendingDelete}
-              onUpdateScene={(sceneId, changes) => void updateScene(activeShow.id, sceneId, changes)}
-              onMoveClip={(cellId, zoneId, sceneId) => {
-                void moveClip(activeShow.id, cellId, zoneId, sceneId).then((moved) => {
-                  if (moved) selectTimeline({ kind: 'clip', clipId: cellId })
-                })
-              }}
-            />
+            <div hidden={Boolean(resolvedSceneEditorScope)} aria-hidden={resolvedSceneEditorScope ? true : undefined}>
+              <SceneStrip
+                key={activeShow.id}
+                show={activeShow}
+                readOnly={readOnly}
+                transportActive={!resolvedSceneEditorScope}
+                compositionProjection={compositionProjection}
+                patternControlsByCellId={patternControlsByCellId}
+                selection={selection}
+                onSelect={selectTimeline}
+                onDismiss={closeDetailPanel}
+                onOpenScene={(sceneId) => {
+                  const scope = resolveShowSceneEditorScope(activeShow, {
+                    sceneId,
+                    zoneId: activeShow.zones[0]?.id ?? '',
+                  })
+                  if (!scope) return
+                  closeDetailPanel()
+                  setSceneEditorScope(scope)
+                }}
+                onAddScene={() => {
+                  void addScene(activeShow.id).then(() => {
+                    window.setTimeout(() => {
+                      const inputs = document.querySelectorAll<HTMLInputElement>('[data-show-scene-name]')
+                      inputs[inputs.length - 1]?.focus()
+                    }, 0)
+                  })
+                }}
+                onAddZone={() => {
+                  timelineWorkspaceRef.current?.focus()
+                  void addZone(activeShow.id)
+                }}
+                onRequestRemoveScene={setScenePendingDelete}
+                onUpdateScene={(sceneId, changes) => void updateScene(activeShow.id, sceneId, changes)}
+                onMoveClip={(cellId, zoneId, sceneId) => {
+                  void moveClip(activeShow.id, cellId, zoneId, sceneId).then((moved) => {
+                    if (moved) selectTimeline({ kind: 'clip', clipId: cellId })
+                  })
+                }}
+              />
+            </div>
+            {resolvedSceneEditorScope && compositionProjection && (
+              <ShowSceneZoneEditor
+                show={activeShow}
+                compositionProjection={compositionProjection}
+                scope={resolvedSceneEditorScope}
+                readOnly={readOnly}
+                selectedClipId={selection.kind === 'clip' ? selection.clipId : null}
+                transport={<ShowTransportControls show={activeShow} />}
+                onBack={() => {
+                  closeDetailPanel()
+                  setSceneEditorScope(null)
+                }}
+                onZoneChange={(zoneId) => setSceneEditorScope({ ...resolvedSceneEditorScope, zoneId })}
+                onSelectClip={(clipId, anchor) => selectTimeline({ kind: 'clip', clipId }, anchor)}
+                onSeek={(globalTimeMs) => requestShowSeek(activeShow.id, globalTimeMs)}
+              />
+            )}
           </section>
 
           {detailPanelOpen && detailAnchor && (
@@ -1183,11 +1225,13 @@ function ExportShowButton({
 function SceneStrip({
   show,
   readOnly,
+  transportActive,
   compositionProjection,
   patternControlsByCellId,
   selection,
   onSelect,
   onDismiss,
+  onOpenScene,
   onAddScene,
   onAddZone,
   onRequestRemoveScene,
@@ -1196,11 +1240,13 @@ function SceneStrip({
 }: {
   show: ShowRecord
   readOnly: boolean
+  transportActive: boolean
   compositionProjection: FlatShowCompositionProjection | null
   patternControlsByCellId: Record<string, AutomatablePatternControl[]>
   selection: ShowSelection
   onSelect: (selection: ShowSelection, anchor?: HTMLElement | null) => void
   onDismiss: () => void
+  onOpenScene: (sceneId: string) => void
   onAddScene: () => void
   onAddZone: () => void
   onRequestRemoveScene: (scene: ShowScene) => void
@@ -1379,7 +1425,7 @@ function SceneStrip({
         onClick={(event) => event.stopPropagation()}
       >
         <div className="min-w-0 justify-self-start">
-          <ShowTransportControls show={show} />
+          {transportActive && <ShowTransportControls show={show} />}
         </div>
         <div className="flex min-w-0 items-center justify-center gap-1" role="group" aria-label="Timeline zoom controls">
           <Button
@@ -1960,7 +2006,13 @@ function SceneStrip({
         </div>
       </div>
       <TimelineNavigator viewport={viewport} onChange={setViewport} />
-      {superDetail && <ShowSceneSuperDetail detail={superDetail} onClose={() => setSuperDetailSceneId(null)} />}
+      {superDetail && (
+        <ShowSceneSuperDetail
+          detail={superDetail}
+          onClose={() => setSuperDetailSceneId(null)}
+          onOpenScene={onOpenScene}
+        />
+      )}
     </div>
   )
 }

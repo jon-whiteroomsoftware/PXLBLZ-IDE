@@ -12,6 +12,13 @@ gaps. The #478 lowering closes the top-level routed-Scene gap; explicit durable
 instance automation for local composition remains. This document does not freeze
 or ship a production composition schema.
 
+The implementation stack is tracked by epic #486. Slice #487 integrates the
+production Scene x Zone shell over the lossless version-0 projection and current
+flat authority. It intentionally ships no invented local entities. #488 adds
+Main clips and intra-Scene Cuts; #489 adds ordered overlay layers and compositor
+lowering; #490 adds typed Property animation; #491 completes advanced Layer Rail
+interaction and density; #492 freezes migration, parity, and hardware budgets.
+
 ## Conclusion
 
 A Scene remains the cross-zone semantic unit of a Show. Each Scene-zone cell may
@@ -709,9 +716,12 @@ record.
 The first production consumer now uses this seam. The global Timeline can
 disclose one fixed-height Scene X-ray and magnify it into one modeless Super
 Detail overlay. Both surfaces remain read-only and surface compiler diagnostics
-for genuinely unsupported facts. The overlay intentionally
-omits `Open Scene` until the Scene-local authoring scope can edit and lower the
-same facts it presents.
+for genuinely unsupported facts. Super Detail now exposes `Open Scene`, which
+enters the production one-Scene x one-Zone shell. That shell selects and edits
+only real Main placements backed by current flat cells, preserves the global
+Timeline state while it is open, and keeps the shared Stage on final all-zone
+output. It is an additive integration seam, not evidence that overlays, local
+Cuts, keyframes, or a version-1 schema have shipped.
 
 ### Dense fixture measurement
 

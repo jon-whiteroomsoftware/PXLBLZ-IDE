@@ -676,8 +676,22 @@ boundary context, active zone placements, Effect spans, property shapes,
 Continue state, and any compiler limitation that makes a saved placement
 inactive. It contains no editable fields and does not move Timeline rows.
 Selecting another Scene's X-ray transfers the open layer; click elsewhere,
-press Escape, or use its close button to dismiss it. Scene-local authoring is a
-later scope, so this release deliberately has no **Open Scene** command.
+press Escape, or use its close button to dismiss it.
+
+Choose **Open Scene** to enter the production Scene x Zone editor. The header
+keeps **Show** as a separate Back command, then identifies the Scene, active Zone
+Layout, and focused Zone. The shared Stage continues to show final all-zone
+output. The local ruler maps directly onto the selected Scene's private time,
+the locked Transition row retains incoming/outgoing Show-boundary context, and
+the **Main clips** row selects the same real clips and Entity Details as the
+global Timeline. Changing the Zone changes only the authoring scope; playback,
+playhead position, Stage state, and the global Timeline's zoom/X-ray state are
+preserved. Escape closes Entity Details first and then returns to the Show.
+
+This first additive slice is deliberately labeled **Main only**. It edits the
+current flat Show authority and does not imply that overlay layers, local Cuts,
+or keyframes already persist or compile. Those capabilities arrive as later
+Scene-composition slices rather than placeholder controls in this editor.
 
 Selecting a Show, scene, transition, clip, empty slot, zone, or routing switch
 opens one **Entity Detail Panel** beside that entity. The panel is modeless and

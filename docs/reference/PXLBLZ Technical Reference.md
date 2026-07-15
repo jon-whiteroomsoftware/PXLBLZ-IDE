@@ -948,8 +948,25 @@ Show.
 `showCompositionProjection.ts` builds a lossless version-0 read sidecar from the
 normalized flat Show and its unchanged compile recipe. It separates runtime
 Pattern-instance summaries from Scene-owned full-duration base placements and
-retains compiler omissions and instance-ownership conflicts as diagnostics.
-The flat record remains persistence and compiler authority.
+retains the normalized flat record as the mutation and compiler authority.
+`showSceneEditorScope.ts` narrows that sidecar to one resolved Scene x Zone,
+including the active routing layout, global/local bounds, actual incoming and
+outgoing boundaries, available zones, Main placements, and diagnostics. A
+missing Scene closes the scope; a stale Zone falls back to the first occupied
+Zone and then the first Show Zone.
+
+`ShowSceneZoneEditor` is the first production authoring consumer of that scope.
+Super Detail's Open Scene command swaps the center timeline surface while the
+global `SceneStrip` remains mounted, preserving viewport and X-ray state. Only
+one `ShowTransportControls` instance remains active, so document-level Space,
+arrow, and Home shortcuts cannot be handled twice. The local ruler translates
+between Scene-local time and the existing global Show transport; Main placement
+selection reuses the existing Entity Detail and flat-cell mutations. The right
+Stage remains mounted and continues to render final all-zone output. No local
+overlay, Cut, or keyframe state is synthesized by this shell.
+
+Compiler omissions and instance-ownership conflicts remain explicit projection
+diagnostics. The flat record remains persistence and compiler authority.
 
 `showSceneReadOnlyProjection.ts` narrows that sidecar to one Scene's global and
 local bounds, boundary context, cut references, Effect activity, property beats,
@@ -957,9 +974,10 @@ active zone placements, Continue relationships, and diagnostics. It does not
 synthesize local cuts, overlays, or keyframes that the current model cannot
 represent. `ShowSceneXray` renders that projection in one explicit 36-pixel grid
 row. `ShowSceneSuperDetail` portals the same read model to one modeless overlay,
-handles Escape and click-away dismissal, and exposes no authoring controls.
-Switching the disclosed Scene transfers an open overlay without changing
-Timeline height; ordinary zoom changes horizontal geometry only.
+handles Escape and click-away dismissal, and exposes only navigation into the
+production local scope rather than inline authoring controls. Switching the
+disclosed Scene transfers an open overlay without changing Timeline height;
+ordinary zoom changes horizontal geometry only.
 
 The production timeline frame uses 44-pixel clip rows and one three-region
 toolbar grid. `ShowTransportControls` owns Play/Pause, Start, and the

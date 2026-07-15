@@ -1,6 +1,6 @@
 import { useEffect, useRef, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { ScanSearch, X } from 'lucide-react'
+import { Clapperboard, ScanSearch, X } from 'lucide-react'
 import type {
   SceneReadOnlyBridgeProjection,
   SceneXrayPropertyBeat,
@@ -96,9 +96,11 @@ function PropertySparkline({ beats, durationMs }: { beats: SceneXrayPropertyBeat
 export function ShowSceneSuperDetail({
   detail,
   onClose,
+  onOpenScene,
 }: {
   detail: SceneReadOnlyBridgeProjection
   onClose: () => void
+  onOpenScene?: (sceneId: string) => void
 }) {
   const panelRef = useRef<HTMLElement>(null)
   useEffect(() => {
@@ -136,6 +138,20 @@ export function ShowSceneSuperDetail({
         <span className="ml-auto whitespace-nowrap tabular-nums text-[9px] text-zinc-500">
           Global {formatTimelineTime(detail.globalStartMs)}–{formatTimelineTime(detail.globalEndMs)}
         </span>
+        {onOpenScene && (
+          <button
+            type="button"
+            aria-label={`Open ${detail.sceneName} editor`}
+            onClick={() => {
+              onOpenScene(detail.sceneId)
+              onClose()
+            }}
+            className="flex h-6 items-center gap-1 rounded border border-cyan-300/35 bg-cyan-300/10 px-2 text-[9px] font-semibold text-cyan-100 hover:border-cyan-200/60 hover:bg-cyan-300/15 focus-visible:outline focus-visible:outline-1 focus-visible:outline-amber-300"
+          >
+            <Clapperboard size={11} aria-hidden />
+            Open Scene
+          </button>
+        )}
         <button
           type="button"
           aria-label="Close Super Detail"

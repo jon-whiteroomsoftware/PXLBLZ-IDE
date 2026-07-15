@@ -52,6 +52,22 @@ describe('Show Scene read-only bridge (#471)', () => {
     fireEvent.keyDown(document, { key: 'Escape' })
     expect(onClose).toHaveBeenCalledOnce()
   })
+
+  it('offers the production Scene editor only when an open handler is available (#487)', () => {
+    const onClose = vi.fn()
+    const onOpenScene = vi.fn()
+    render(
+      <ShowSceneSuperDetail
+        detail={detailFixture()}
+        onClose={onClose}
+        onOpenScene={onOpenScene}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Scene 2 editor' }))
+    expect(onOpenScene).toHaveBeenCalledWith('scene-2')
+    expect(onClose).toHaveBeenCalledOnce()
+  })
 })
 
 function withinInputs(element: HTMLElement): Element[] {

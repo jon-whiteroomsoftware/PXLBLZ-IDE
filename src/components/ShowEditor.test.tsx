@@ -145,7 +145,7 @@ describe('ShowEditor (#318)', () => {
     expect(screen.getByRole('group', { name: 'Scene 1 Scene X-ray, read only' })).toHaveClass('h-[36px]')
     await user.click(screen.getByRole('button', { name: 'Inspect Scene 1 in Super Detail' }))
     expect(screen.getByRole('dialog', { name: 'Scene 1 Super Detail' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Open Scene' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Open Scene 1 editor' })).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Show Scene 2 Scene X-ray' }))
     expect(screen.queryByRole('group', { name: 'Scene 1 Scene X-ray, read only' })).not.toBeInTheDocument()
@@ -157,6 +157,33 @@ describe('ShowEditor (#318)', () => {
     expect(screen.getByRole('group', { name: 'Scene 2 Scene X-ray, read only' })).toHaveClass('h-[36px]')
     await user.keyboard('{Escape}')
     expect(screen.queryByRole('dialog', { name: 'Scene 2 Super Detail' })).not.toBeInTheDocument()
+  })
+
+  it('enters the production Scene x Zone editor and returns without unmounting the global Timeline (#487)', async () => {
+    const user = userEvent.setup()
+    const show = createDefaultShow('show-scene-editor', 'Scene editor', 1000)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+    fireEvent.change(screen.getByRole('slider', { name: 'Timeline zoom' }), { target: { value: '5.1' } })
+    await user.click(screen.getByRole('button', { name: 'Inspect Scene 1 in Super Detail' }))
+    await user.click(screen.getByRole('button', { name: 'Open Scene 1 editor' }))
+
+    expect(screen.getByRole('region', { name: 'Scene 1 main Scene editor' })).toBeInTheDocument()
+    expect(screen.getByTestId('show-timeline-grid')).not.toBeVisible()
+    usePreviewStore.setState({ isRunning: false })
+    fireEvent.keyDown(document, { code: 'Space', key: ' ' })
+    expect(usePreviewStore.getState().isRunning).toBe(true)
+    await user.click(screen.getByRole('button', { name: 'Select TestPattern1D Main clip' }))
+    expect(screen.getByRole('dialog', { name: 'Entity Detail Panel' })).toBeInTheDocument()
+
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog', { name: 'Entity Detail Panel' })).not.toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Scene 1 main Scene editor' })).toBeInTheDocument()
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('region', { name: 'Scene 1 main Scene editor' })).not.toBeInTheDocument()
+    expect(screen.getByTestId('show-timeline-grid')).toBeVisible()
+    expect(screen.getByRole('slider', { name: 'Timeline zoom' })).toHaveValue('5.1')
   })
 
   it('switches from an existing Show to a newly created Show during playback without an update loop', async () => {
