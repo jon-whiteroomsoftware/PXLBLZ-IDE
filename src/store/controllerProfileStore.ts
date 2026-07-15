@@ -49,7 +49,7 @@ interface ControllerProfileState {
   updateZone: (profileId: string, zoneId: string, changes: Partial<ControllerZone>) => Promise<void>
   removeZone: (profileId: string, zoneId: string) => Promise<void>
   toggleGlobalTransform: (profileId: string, transformId: string, enabled: boolean) => Promise<void>
-  addPatternBinding: (profileId: string) => Promise<void>
+  addPatternBinding: (profileId: string, patternId: string) => Promise<void>
   updatePatternBinding: (
     profileId: string,
     bindingId: string,
@@ -317,10 +317,11 @@ export const useControllerProfileStore = create<ControllerProfileState>()((set, 
     })
   },
 
-  addPatternBinding: async (profileId) => {
+  addPatternBinding: async (profileId, patternId) => {
     const profile = get().profiles.find((p) => p.id === profileId)
     if (!profile) return
     if (!profile.inputs[0]) return
+    if (!patternId.trim()) return
     const id = nextId('binding', profile.patternBindings)
     const target: ControllerBindingTarget = { kind: 'call-exported-slider', name: 'sliderSpeed' }
     await get().updateProfile(profileId, {
@@ -328,7 +329,7 @@ export const useControllerProfileStore = create<ControllerProfileState>()((set, 
         ...profile.patternBindings,
         {
           id,
-          patternId: '',
+          patternId,
           inputId: profile.inputs[0].id,
           target,
         },

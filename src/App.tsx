@@ -33,6 +33,7 @@ import { ShowSceneCompositionPrototype } from '@/components/ShowSceneComposition
 import { ShowTimelineDualModelPrototype } from '@/components/ShowTimelineDualModelPrototype'
 import { ShowTimelineRoundTwoPrototype } from '@/components/ShowTimelineRoundTwoPrototype'
 import { ShowSemanticZoomPrototype } from '@/components/ShowSemanticZoomPrototype'
+import { ShowOverlayPlacementPrototype } from '@/components/ShowOverlayPlacementPrototype'
 import { ShowStagePreview } from '@/components/ShowStagePreview'
 import { ShowCreationFlow, type ShowCreationMapOption } from '@/components/ShowCreationFlow'
 import { ShowClassificationFlow } from '@/components/ShowClassificationFlow'
@@ -261,6 +262,9 @@ export default function App() {
     return <ShowSceneCompositionPrototype showName="Cathedral Signal" />
   }
   if (import.meta.env.DEV && new URLSearchParams(window.location.search).get('prototype') === 'timeline-dual') {
+    if (new URLSearchParams(window.location.search).get('study') === 'scene-overlays') {
+      return <ShowOverlayPlacementPrototype />
+    }
     if (new URLSearchParams(window.location.search).get('study') === 'semantic-zoom') {
       return <ShowSemanticZoomPrototype />
     }

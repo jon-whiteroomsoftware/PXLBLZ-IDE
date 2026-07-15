@@ -106,13 +106,14 @@ describe('controllerPanelStore', () => {
   })
 
   it('seed() warms config + telemetry + program list without starting the interval', async () => {
-    useControllerPanelStore.getState().seed()
+    useControllerPanelStore.getState().seed('192.168.8.224')
     await flush()
     const s = useControllerPanelStore.getState()
     expect(s.brightness).toBe(0.5)
     expect(s.activeProgramId).toBe('def')
     expect(s.fps).toBe(30)
     expect(s.programs).toHaveLength(2)
+    expect(s.programsByController['192.168.8.224']).toEqual(provider.programs)
     // No interval was started: a later device change is not picked up.
     provider.telemetry = { fps: 99 }
     await vi.advanceTimersByTimeAsync(CONTROLLER_POLL_INTERVAL_MS * 3)

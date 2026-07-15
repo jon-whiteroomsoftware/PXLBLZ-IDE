@@ -1,5 +1,11 @@
 import * as acorn from 'acorn'
-import type { ControllerInput, ControllerProfile, GlobalTransform, PatternBinding } from './controllerProfile'
+import {
+  patternBindingOverridesHardwareBrightness,
+  type ControllerInput,
+  type ControllerProfile,
+  type GlobalTransform,
+  type PatternBinding,
+} from './controllerProfile'
 import type { PassRecipe } from './passEngine'
 import { stockMixinSpec } from './mixins'
 import {
@@ -89,6 +95,9 @@ export function controllerProfilePassRecipe(
   if (!profile) return []
   const recipe: PassRecipe = []
   const usedNames = collectIdentifiers(patternSource)
+  const activePatternBindings = patternId
+    ? profile.patternBindings.filter((binding) => binding.patternId === patternId)
+    : []
   const hardwareBrightness = profile.globalTransforms.find(
     (transform): transform is HardwareBrightnessTransform =>
       transform.type === 'hardware-brightness' && transform.enabled,
@@ -98,7 +107,15 @@ export function controllerProfilePassRecipe(
       transform.type === 'power-cap' && transform.enabled && transform.maxDuty >= 0,
   )
 
-  if (hardwareBrightness && hardwareBrightness.mode === 'multiply-output') {
+  const patternOverridesHardwareBrightness = activePatternBindings.some((binding) =>
+    patternBindingOverridesHardwareBrightness(profile, binding),
+  )
+
+  if (
+    hardwareBrightness &&
+    hardwareBrightness.mode === 'multiply-output' &&
+    !patternOverridesHardwareBrightness
+  ) {
     const input = profile.inputs.find((candidate) => candidate.id === hardwareBrightness.inputId)
     if (input?.signal === 'analog') {
       const brightnessName = reserveIdentifier(usedNames, 'hardwareBrightnessValue')
@@ -162,8 +179,7 @@ export function controllerProfilePassRecipe(
   }
 
   if (patternId) {
-    for (const binding of profile.patternBindings) {
-      if (binding.patternId !== patternId) continue
+    for (const binding of activePatternBindings) {
       const input = profile.inputs.find((candidate) => candidate.id === binding.inputId)
       if (!input) continue
       const valueName = reserveIdentifier(usedNames, `${identifierStem(input.id)}Value`)

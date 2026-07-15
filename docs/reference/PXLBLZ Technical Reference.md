@@ -607,9 +607,28 @@ push waits for that barrier before deriving generated code.
 ### Hardware inputs and bindings
 
 Input records describe pin, signal, semantic role, smoothing, fallback, and
-invert. Pattern bindings target an exported slider, named function, or variable
-with optional min/max/quantize. The pass recipe samples the input once per frame
-and applies the target without editing original Pattern source.
+inversion. The user-facing Direction control shows the current normalized
+mapping (`0 → 1` or `1 → 0`) beside **Invert**. Pattern bindings target an
+exported slider, named function, or variable with optional min/max/quantize. The
+pass recipe samples the input once per frame and applies the target without
+editing original Pattern source.
+
+The Controller panel retains program inventories by Controller IP after the
+connection-time read. Controller-profile views consume that cache and only
+invoke `listPrograms()` for an explicit refresh. Binding creation remains local
+UI draft state until the user selects an installed, PXLBLZ-managed Pattern;
+foreign programs have no regenerable source and are not binding candidates.
+When the Controller is offline, configured rows resolve their names against
+Studio Pattern identity and disable selection rather than exposing raw ids or
+implying that the installed inventory is still available.
+
+For a concrete Pattern artifact, bindings are resolved before global-input
+precedence. If an active Pattern binding and enabled hardware-brightness
+transform name the same input, the recipe omits the hardware-brightness sample
+and intercept passes and emits only the Pattern binding for that input. The
+profile UI derives its neutral `Brightness override` status pill from the same
+predicate. Other Patterns and bindings on other inputs retain global hardware
+brightness.
 
 ### Power model
 
@@ -661,6 +680,10 @@ Save stamps generated source, encodes a normal PBP, writes the saved program,
 then activates matching bytecode under the same id. The PBP contains the name,
 optional JPEG, bytecode, and compressed `{"main": source}` section.
 
+The cached program inventory retains firmware order. Presentation may sort
+owned and foreign rows case-insensitively for **A–Z** or expose the original
+order as **Device** without another Controller request.
+
 Overwrite bindings key `(Controller, Studio Pattern/demo)` to Controller program
 id. Repeated saves reuse the id while it exists; a deleted device record causes
 a new id to be minted. Bindings carry identity only, never control values.
@@ -688,6 +711,10 @@ Import then chooses one of four outcomes:
 - explain that source recovery is unavailable.
 
 Import never mutates the Controller program.
+The inventory renders Import only for foreign rows; managed rows navigate to
+their existing Studio source. Its fixed table layout truncates long device ids
+inside their cells so the Controller context rail does not acquire horizontal
+scrolling.
 
 ### Managed-artifact reconciliation
 

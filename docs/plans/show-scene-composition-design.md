@@ -1,20 +1,25 @@
 # Show Scene composition design
 
-Status: UI direction approved and additive normalization spike complete,
-2026-07-14. This document captures the intended one-level Scene-composition
-destination. The global/Scene-local interaction model has passed human review.
+Status: global and local interaction directions approved; additive normalization
+spike complete. Human review selected #458's explicit Layer Rail on 2026-07-15.
+A semantic Scene still spans zones, but local authoring targets one Scene x Zone
+composition at a time. The former all-zones Scene-detail direction and its
+candidate persisted shape are superseded; do not implement them. Durable schema
+and production work now proceed as end-to-end vertical slices through storage,
+editing, preview, compilation, and migration.
 The #462 proof established a safe projection seam and identified two compiler
 gaps. The #478 lowering closes the top-level routed-Scene gap; explicit durable
-instance automation for Scene-local composition remains. This document does not
-freeze or ship a production composition schema.
+instance automation for local composition remains. This document does not freeze
+or ship a production composition schema.
 
 ## Conclusion
 
-A Scene should remain the semantic unit of a Show while gaining one optional
-level of internal composition. The global timeline continues to answer which
-Scenes happen, where zones route, and how one Scene transitions to the next. A
-Scene detail view answers what happens inside one Scene: rapid Pattern changes,
-additional Pattern sources, Effect automation, and keyframes.
+A Scene remains the cross-zone semantic unit of a Show. Each Scene-zone cell may
+gain one optional local composition containing rapid Pattern changes, additional
+Pattern sources, Effect automation, and keyframes. The global timeline answers
+which Scenes happen, where zones route, and how one Scene transitions to the
+next. Local authoring fixes the selected Scene and zone, then edits only time and
+layers. The Stage continues to render the final composite across every zone.
 
 The hierarchy exists for authors, not for the Pixelblaze runtime. Compilation
 flattens each Scene composition into the same kind of timed schedule the Show
@@ -25,16 +30,21 @@ Scene's flattened output.
 ```text
 Show
   Scene
-    zone base sources + overlay sources + Property animation
-    -> flattened Scene output
+    Zone composition
+      Main sources + overlay layers + Property animation
+      -> flattened zone output
+    Zone composition
+      -> flattened zone output
+    -> composited Scene output
   boundary Transition
   Scene
     ...
 ```
 
-V2 should support exactly one detail level. A Scene cannot contain another
-Scene composition. Later reuse may package a composition as a named object,
-but it must not introduce recursive timelines.
+V2 should support exactly one detail level. A zone composition cannot contain
+another composition. Later reuse may package or clone a composition, but it
+must not introduce recursive timelines. Cross-zone local overlays and linked
+zone compositions remain later evidence work.
 
 ## Why this belongs before the current UI commitment
 
@@ -103,21 +113,23 @@ owns its duration, zone-level composition, Show-wide property targets, and
 outgoing Transition. Moving, duplicating, or deleting a Scene treats its entire
 internal composition as one structural object.
 
-### Scene detail view
+### Zone-composition detail view
 
-Scene detail is the editor mode for one Scene composition. It reuses the Stage,
-transport, playhead, catalogue, and inspector but changes the timeline's scope
-from the complete Show to local Scene time. A breadcrumb and persistent Scene
-name make that scope unmistakable. Escape or Back returns to the same global
-playhead and selection.
+Local detail edits one Scene x Zone composition. It reuses the Stage, transport,
+playhead, catalogue, and Inspector but changes the Timeline's scope from the
+complete Show to one zone in local Scene time. A breadcrumb such as `Orchard
+Wake / Canopy` makes both fixed dimensions explicit. Escape or Back returns to
+the same global playhead and selection.
 
-The detail view displays all of the Scene's zones together so rapid cuts and
-overlays can align across the installation. It is not a separate editor per
-clip, though selecting one source narrows the inspector to that source.
+The Stage continues to render the final output of every zone while diagnostics
+identify the focused zone. Other-zone events may appear as optional read-only
+guides and snap targets; their editable lanes remain outside this view. Authors
+clone a zone composition when the same treatment should begin in another zone.
+Linked reuse remains later work.
 
 ### Source placement
 
-A source placement puts one Pattern instance on one or more zones for a local
+A source placement puts one Pattern instance into the selected zone for a local
 time range. Placements own render-view adaptations and an ordered Effect stack.
 A placement is the unit selected, moved, trimmed, duplicated, or removed in
 Scene detail.
@@ -126,8 +138,8 @@ V2 needs two placement roles:
 
 - a **base placement** contributes the ordinary mutually exclusive source for
   its zone and time range; and
-- an **overlay placement** contributes another rendered source with position,
-  scale, rotation, opacity, Effects, and z-order.
+- an **overlay placement** contributes another rendered source with opacity,
+  Effects, and layer order. Direct spatial editing on the Stage is deferred.
 
 Base placements in one zone cannot overlap. Their Cuts divide local Scene time.
 An explicit Empty placement represents a gap. Overlay placements may overlap
@@ -451,6 +463,34 @@ content, and a temporary Hand tool pans viewport state only. Space-drag,
 middle-button drag, trackpad navigation, and the exact playback shortcut remain
 candidates rather than frozen bindings.
 
+## Approved Zone-composition interaction
+
+The local editor uses the explicit Layer Rail from #458. The breadcrumb separates
+a visible Back-to-Show command from `Scene -> Zone Layout -> Zone` context. The
+Timeline keeps every overlay layer visible above one structural Main clips lane;
+the top visible layer renders in front. It does not number layers, annotate
+Front/Back, or compress inactive layers. A future high/low-resolution treatment
+may compress very large stacks, but it is not part of the first implementation.
+
+Each overlay layer accepts several non-overlapping clips. Horizontal dragging
+stays lane-locked through ordinary pointer drift. Deliberate vertical movement
+crosses drag hysteresis and reassigns the clip only on a legal drop. An invalid
+overlapping drop snaps to the nearest legal before/after position when one fits;
+otherwise it returns to its origin. Layer reordering uses a hover/focus drag
+handle without spending persistent label width on arrow controls or counts.
+
+The Stage continues to show final all-zone output and remains read-only. Compact
+independent switches reveal Zone outlines, active-clip outlines, and other-zone
+timing guides. Zone and clip diagnostics use distinct restrained hairline
+treatments so selection remains legible without implying direct Stage editing.
+
+One modeless Entity Detail Panel opens near the selected clip. Plain readouts are
+unboxed, immutable Pattern and Zone identity use a small lock, and boxed controls
+communicate editability without repeating `editable` or `read-only` in every
+label. Entry behavior exposes the user-facing Continue/Restart choice while
+Pattern-instance ids remain hidden. Incoming and outgoing top-level Transitions
+share one compact locked context row.
+
 ## Stress scenario
 
 `Neon orchard` remains one 2-second top-level Scene containing:
@@ -498,14 +538,15 @@ arbitrary keyframes. It should:
 - reserve global Scene summaries and an Open Scene affordance in the visual
   hierarchy without shipping an empty drill-down shell.
 
-### Additive Scene-composition dot release
+### Additive local-composition dot release
 
-The later increment adds one-level Scene composition with Scene-owned local
-time, multi-zone base placements, Cuts, overlay placements, structured
-Property-animation keyframes, explicit Pattern-instance identity, global
-summary, and a reviewed Scene detail view. It is an optional drill-down that
-reuses the shipped Show workspace; flat Shows and all global editing semantics
-remain valid. Compilation flattens the hierarchy before top-level Transitions.
+The later increment adds one-level Scene x Zone composition with local time,
+Main clips, manually ordered overlay layers, structured Property-animation
+keyframes, explicit Pattern-instance identity, global summaries, and a reviewed
+zone-composition detail view. It is an optional drill-down that reuses the
+shipped Show workspace; flat Shows and all global editing semantics remain
+valid. Compilation flattens each zone composition, combines the Scene output,
+then applies top-level Transitions.
 
 The V2 schema should be committed only after a migration spike proves that
 existing one-zone, multi-zone, routing, two-Scene, and general scene-sequence
@@ -525,16 +566,36 @@ immutable or snapshot treatment cannot solve the need more safely.
 ## Decisions already captured
 
 - A top-level Scene remains the semantic global unit.
-- Scene detail is one level deep and shows all zones together.
+- Local detail edits one Scene x Zone composition; the Stage still shows the
+  final all-zone output.
+- Other-zone events may be projected as read-only guides and snap targets
+  without adding editable zone lanes.
+- A full-Stage Pattern interval inside an otherwise zoned Show switches to a
+  one-zone Full Stage layout for that Scene, then may switch back. It does not
+  become a local clip that silently escapes its zone. Simultaneous global
+  content over active zones remains later cross-zone compositor evidence.
+- Zone layouts are reusable named definitions selected by each Scene. Local
+  detail exposes layout then zone as navigation context; changing a Scene's
+  layout is a structural Scene-details operation with explicit remapping, not
+  an incidental per-clip edit. A mid-Scene layout change requires a Scene split.
 - The compiler flattens Scene composition; the Controller does not execute a
   nested editor model.
 - Placement identity, Pattern-instance identity, and Effect identity are
   distinct.
 - Pattern instances belong to the Show; placements and local keyframes belong
-  to a Scene.
+  to a Scene x Zone composition.
 - Simulation time and Pattern controls belong to instances; render-view
   adaptations and Effects belong to placements.
 - Base sources are mutually exclusive; overlays are composited sources.
+- Overlay layers are manually ordered, accept multiple non-overlapping clips,
+  and use drag hysteresis before a horizontal move changes layers.
+- The approved local UI is an explicit uncompressed Layer Rail with no layer
+  numbers, clip counts, or Front/Back ornaments. Top-to-bottom position carries
+  compositing order.
+- Zone, active-clip, and other-zone-guide diagnostics are independently
+  switchable on the read-only all-zone Stage and local Timeline.
+- Continue/Restart is editable Entry behavior in the selected clip's Entity
+  Detail Panel; persisted Pattern-instance identity remains hidden.
 - Top-level Transitions consume flattened Scene outputs.
 - V2 starts with internal Cuts rather than full internal Transitions.
 - Property animation uses typed targets and authored lanes only.
@@ -555,10 +616,9 @@ immutable or snapshot treatment cannot solve the need more safely.
    visible through more than one placement?
 3. How many simultaneous overlay sources remain useful on representative
    hardware before warning or blocking?
-4. Which of Property shelf, Docked Inspector, and Inline command strip provides
-   the densest understandable property workflow without weakening the Timeline?
-5. Which global summary communicates internal activity without recreating the
-   detail timeline in miniature?
+4. When a Zone Layout removes a zone for one or more Scenes and later restores
+   it, how should the editor present Continue versus Restart for Pattern
+   instances that were not visible during the intervening Scenes?
 
 The first two questions belong in a compiler/migration spike. The last two
 belong in interactive prototype review. Hardware evidence answers the active-
@@ -675,15 +735,15 @@ the lower bound as a forecast.
 - Pattern reference, private state, virtual time policy, and exported controls
   remain Show-owned Pattern-instance concerns.
 - Brightness, phase, mirror, spatial transforms, opacity, and the ordered stable-
-  id Effect stack remain Scene-placement concerns.
+  id Effect stack remain placement concerns inside one zone composition.
 - A changing instance-owned value requires an explicit instance animation track;
   it must not be duplicated onto placements.
 - Top-level Transition and routing ownership remains unchanged.
 - The flat record remains accepted, saved, and compiled without destructive
   migration through the additive release.
-- Version 1 schema work waits on routed per-Scene lowering and a real overlay/
-  local-schedule compiler path. The version-0 sidecar must not leak into durable
-  storage as an accidental final schema.
+- Version 1 schema work waits on #458's revised zone-focused interaction and a
+  real overlay/local-schedule compiler path. The earlier all-zones candidate and
+  version-0 sidecar must not leak into durable storage as accidental schemas.
 
 ## Relationship to current plans
 
@@ -694,7 +754,8 @@ the lower bound as a forecast.
   research evidence.
 - [`pxlblz-v2-prd.md`](pxlblz-v2-prd.md) owns release sequencing and the broader
   Show product contract.
-- GitHub #458 should be reconsidered as one consumer of Scene composition rather
-  than an isolated overlay-lane design.
+- GitHub #458 records the approved zone-focused Layer Rail interaction. Its first
+  all-zones prototype and compact B/C variants remain evidence, not production
+  contracts.
 - GitHub #457 remains the current human-review umbrella until this direction and
   the visual-toolkit prototype are reviewed together.

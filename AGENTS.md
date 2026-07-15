@@ -119,6 +119,11 @@ check the local D1 schema first.
 - Use GitHub Issues as implementation state. Follow
   `docs/agents/issue-tracker.md`, `docs/agents/triage-labels.md`, and the
   `issue-workflow` skill for claiming, progress, review state, and commits.
+- GitHub CLI credentials are stored in macOS Keychain. A sandboxed
+  `gh auth status` may falsely report an invalid token when Keychain access is
+  denied. Re-run the same read-only check outside the sandbox before asking the
+  user to authenticate; only an unsandboxed failure is evidence that login is
+  actually stale.
 - Use `docs/agents/domain.md` when preparing issues, plans, or architectural
   work. Name concepts exactly as `CONTEXT.md` defines them.
 - Use `doc-sweep` after feature or issue completion. Keep current truth in

@@ -41,6 +41,9 @@ interface ControllerPanelState {
   activeProgramId?: string
   /** The Controller's program list, fetched once on start for id→name resolution. */
   programs: ProgramListEntry[]
+  /** Connection-time program inventories keyed by Controller IP. Controller profile
+   *  views reuse these snapshots instead of re-reading the device when opened. */
+  programsByController: Record<string, ProgramListEntry[]>
   /** Per-program label cache for the active Controller (program id → label), loaded
    *  on seed and merged after each push (#237). Resolves a run-only program's name —
    *  one that never enters the device list — so the panel shows the pattern's name
@@ -88,7 +91,7 @@ interface ControllerPanelState {
   /** Re-fetch the device's program list into `programs`. Called after a save-mode push
    *  (#238) so the freshly-saved id is in the list and the panel resolves it via the list
    *  tier → the `unsaved` marker clears. Tolerates transient failure. */
-  refreshPrograms: () => Promise<void>
+  refreshPrograms: (ip?: string) => Promise<void>
   /** Set brightness on the device — volatile, never `save:true`. Optimistic local. */
   setBrightness: (value: number) => void
   /** Set the device's pixel count — persisted (`save:true`), since it is wiring
@@ -109,6 +112,7 @@ export const controllerPanelInitialState = {
   brightness: null,
   activeProgramId: undefined,
   programs: [] as ProgramListEntry[],
+  programsByController: {} as Record<string, ProgramListEntry[]>,
   fps: null,
   pixelCount: null,
   pixelCountPending: null,
@@ -183,11 +187,14 @@ export const useControllerPanelStore = create<ControllerPanelState>()((set, get)
       panelSession += 1
       const cached = ip ? panelSnapshots.get(ip) : undefined
       controlsSeededFor = cached?.activeProgramId
-      set(cached ?? controllerPanelInitialState)
+      set({
+        ...(cached ?? controllerPanelInitialState),
+        programsByController: get().programsByController,
+      })
     }
     const session = panelSession
     // Program names rarely change; fetch the list once and tolerate failure.
-    void get().refreshPrograms()
+    void get().refreshPrograms(ip)
     // The installed map rarely changes and read-back is a one-off HTTP fetch, so
     // read it once (not every poll) to surface its point count (#205).
     getControllerProvider()
@@ -263,11 +270,16 @@ export const useControllerPanelStore = create<ControllerPanelState>()((set, get)
     if (vars) set({ vars })
   },
 
-  refreshPrograms: async () => {
+  refreshPrograms: async (ip = seededForIp) => {
     const session = panelSession
     try {
       const programs = await getControllerProvider().listPrograms()
-      if (session === panelSession) set({ programs })
+      set((state) => ({
+        ...(session === panelSession && (!ip || ip === seededForIp) ? { programs } : {}),
+        ...(ip
+          ? { programsByController: { ...state.programsByController, [ip]: programs } }
+          : {}),
+      }))
     } catch {
       // Transient — keep the last-known list.
     }

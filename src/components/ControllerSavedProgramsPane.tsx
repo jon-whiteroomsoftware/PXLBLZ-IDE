@@ -21,6 +21,8 @@ import { getControllerProvider } from '@/engine/controllerProviderRegistry'
 import {
   describeControllerSavedPrograms,
   enabledControllerTransformIds,
+  sortControllerSavedPrograms,
+  type ControllerSavedProgramSort,
   type TransformFreshness,
   type ControllerSavedProgramRow,
   type ControllerSavedProgramsView,
@@ -36,6 +38,7 @@ import {
   useControllerStore,
   type ControllerReconciliationState,
 } from '@/store/controllerStore'
+import { useControllerPanelStore } from '@/store/controllerPanelStore'
 import { useControllerProfileStore } from '@/store/controllerProfileStore'
 import { usePatternStore } from '@/store/patternStore'
 import { useShowStore } from '@/store/showStore'
@@ -43,6 +46,7 @@ import { useRouterStore } from '@/store/routerStore'
 import type { ArtifactShowOutputContract } from '@/engine/artifactStamp'
 
 const tableHeadClass = 'px-2 py-1 text-left text-[10px] font-semibold uppercase text-zinc-500'
+const EMPTY_CONTROLLER_PROGRAMS: ProgramListEntry[] = []
 const tableCellClass = 'border-t border-zinc-800/85 px-2 py-1.5 align-middle'
 
 type SavedProgramsRead = {
@@ -328,7 +332,9 @@ function SavedProgramsInventory({
   error: string | null
   reconciliation?: ControllerReconciliationState
 }) {
-  const count = programs.owned.length + programs.foreign.length
+  const [sort, setSort] = useState<ControllerSavedProgramSort>('alphabetical')
+  const presentedPrograms = sortControllerSavedPrograms(programs, sort)
+  const count = presentedPrograms.owned.length + presentedPrograms.foreign.length
   const reconciliationByProgramId = new Map(
     (reconciliation?.programs ?? []).map((program) => [program.programId, program.state]),
   )
@@ -336,18 +342,38 @@ function SavedProgramsInventory({
     <section className="border-b border-seam px-4 py-4">
       <div className="mb-2 flex items-center justify-between gap-3">
         <h2 className="font-mono text-xs font-semibold uppercase tracking-wide text-zinc-300">Saved programs</h2>
-        <Button
-          type="button"
-          size="xs"
-          variant="ghost"
-          aria-label="Refresh saved programs"
-          disabled={status === 'offline' || status === 'loading'}
-          className="bg-zinc-900/70 text-xs text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 disabled:opacity-35"
-          onClick={onRefresh}
-        >
-          <RefreshCw size={13} aria-hidden className={status === 'loading' ? 'animate-spin' : ''} />
-          Refresh
-        </Button>
+        <div className="flex items-center gap-1">
+          <div className="flex items-center rounded border border-zinc-800 bg-zinc-950/60 p-0.5" aria-label="Saved program order">
+            {([
+              ['alphabetical', 'A–Z'],
+              ['device', 'Device'],
+            ] as const).map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                aria-pressed={sort === value}
+                onClick={() => setSort(value)}
+                className={`rounded-sm px-1.5 py-1 text-[10px] transition-colors ${
+                  sort === value ? 'bg-zinc-800 text-zinc-200' : 'text-zinc-500 hover:text-zinc-300'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <Button
+            type="button"
+            size="xs"
+            variant="ghost"
+            aria-label="Refresh saved programs"
+            disabled={status === 'offline' || status === 'loading'}
+            className="bg-zinc-900/70 text-xs text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 disabled:opacity-35"
+            onClick={onRefresh}
+          >
+            <RefreshCw size={13} aria-hidden className={status === 'loading' ? 'animate-spin' : ''} />
+            Refresh
+          </Button>
+        </div>
       </div>
       {error && (
         <div role="alert" className="mb-2 border border-red-500/30 bg-red-950/20 px-2.5 py-2 text-[11px] text-red-200">
@@ -363,8 +389,15 @@ function SavedProgramsInventory({
       ) : count === 0 ? (
         <EmptyState>No saved programs are installed on this controller.</EmptyState>
       ) : (
-        <div className="overflow-x-auto border border-zinc-800/80 bg-zinc-950/25">
-          <table className="w-full border-collapse text-xs" aria-label="Saved programs inventory">
+        <div className="overflow-hidden border border-zinc-800/80 bg-zinc-950/25">
+          <table className="w-full table-fixed border-collapse text-xs" aria-label="Saved programs inventory">
+            <colgroup>
+              <col className="w-[25%]" />
+              <col className="w-[23%]" />
+              <col className="w-[19%]" />
+              <col className="w-[14%]" />
+              <col className="w-[19%]" />
+            </colgroup>
             <thead>
               <tr>
                 <th className={tableHeadClass}>Pattern</th>
@@ -375,13 +408,14 @@ function SavedProgramsInventory({
               </tr>
             </thead>
             <tbody>
-              {programs.owned.map((program) => (
+              {presentedPrograms.owned.map((program) => (
                 <tr key={program.programId} className="bg-zinc-900/20">
-                  <td className={tableCellClass}>
+                  <td className={`${tableCellClass} overflow-hidden`}>
                     {program.routeId ? (
                       <button
                         type="button"
-                        className="text-left font-medium text-live transition-colors hover:text-amber-300"
+                        title={program.name}
+                        className="block max-w-full truncate text-left font-medium text-live transition-colors hover:text-amber-300"
                         onClick={() => onOpen(program.routeId!)}
                       >
                         {program.name}
@@ -393,39 +427,32 @@ function SavedProgramsInventory({
                       </div>
                     )}
                   </td>
-                  <td className={`${tableCellClass} font-mono text-zinc-400`}>{program.programId}</td>
+                  <td title={program.programId} className={`${tableCellClass} truncate font-mono text-zinc-400`}>{program.programId}</td>
                   <td className={tableCellClass}>
                     {reconciliationByProgramId.has(program.programId)
                       ? <ReconciliationBadge state={reconciliationByProgramId.get(program.programId)!} />
                       : <FreshnessBadge freshness={program.freshness} />}
                   </td>
-                  <td className={`${tableCellClass} text-[10px] text-zinc-400`}>
+                  <td className={`${tableCellClass} truncate text-[10px] text-zinc-400`}>
                     <SavedProgramOutputContract contract={program.showOutputContract} />
                   </td>
-                  <td className={`${tableCellClass} text-right`}>
-                    <ProgramImportButton
-                      program={program}
-                      disabled={status !== 'ready' || importingProgramId !== null}
-                      importing={importingProgramId === program.programId}
-                      onImport={onImport}
-                    />
-                  </td>
+                  <td className={tableCellClass} />
                 </tr>
               ))}
-              {programs.foreign.length > 0 && (
+              {presentedPrograms.foreign.length > 0 && (
                 <tr>
                   <td
                     colSpan={5}
                     className="border-t border-zinc-800 bg-zinc-950/70 px-2 py-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-500"
                   >
-                    Foreign programs · {programs.foreign.length}
+                    Foreign programs · {presentedPrograms.foreign.length}
                   </td>
                 </tr>
               )}
-              {programs.foreign.map((program) => (
+              {presentedPrograms.foreign.map((program) => (
                 <tr key={program.programId} className="bg-zinc-950/40">
-                  <td className={`${tableCellClass} text-zinc-500`}>{program.name}</td>
-                  <td className={`${tableCellClass} font-mono text-zinc-500`}>{program.programId}</td>
+                  <td title={program.name} className={`${tableCellClass} truncate text-zinc-500`}>{program.name}</td>
+                  <td title={program.programId} className={`${tableCellClass} truncate font-mono text-zinc-500`}>{program.programId}</td>
                   <td className={tableCellClass}>
                     <FreshnessBadge freshness={program.freshness} />
                   </td>
@@ -442,7 +469,7 @@ function SavedProgramsInventory({
               ))}
             </tbody>
           </table>
-          {programs.foreign.length > 0 && (
+          {presentedPrograms.foreign.length > 0 && (
             <p className="border-t border-zinc-800/80 px-2 py-2 text-[10px] leading-4 text-zinc-500">
               Foreign means saved on this controller but not linked to a pattern in this Studio.
             </p>
@@ -464,6 +491,10 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
   const navigate = useRouterStore((state) => state.navigate)
   const profileController = controllerForProfile(profile, controllers)
   const liveIp = profileController?.phase === 'live' ? profileController.ip : undefined
+  const controllerPrograms = useControllerPanelStore((state) => (
+    liveIp ? state.programsByController[liveIp] ?? EMPTY_CONTROLLER_PROGRAMS : EMPTY_CONTROLLER_PROGRAMS
+  ))
+  const refreshControllerPrograms = useControllerPanelStore((state) => state.refreshPrograms)
   const requestRef = useRef(0)
   const [refresh, setRefresh] = useState(0)
   const [pendingImport, setPendingImport] = useState<PendingProgramImport | null>(null)
@@ -500,13 +531,19 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
       if (useControllerStore.getState().activeIp !== liveIp) setActiveController(liveIp)
 
       try {
-        const [programs, bindings, pushRecords] = await Promise.all([
-          getControllerProvider().listPrograms(),
+        const [, bindings, pushRecords] = await Promise.all([
+          refresh > 0 ? refreshControllerPrograms(liveIp) : Promise.resolve(),
           getControllerBindings(),
           getPushRecords(),
         ])
         if (cancelled || requestRef.current !== request) return
-        setRead({ controllerId: liveIp, status: 'ready', programs, bindings, pushRecords })
+        setRead({
+          controllerId: liveIp,
+          status: 'ready',
+          programs: useControllerPanelStore.getState().programs,
+          bindings,
+          pushRecords,
+        })
       } catch {
         if (cancelled || requestRef.current !== request) return
         setRead((current) => ({ ...current, controllerId: liveIp, status: 'error' }))
@@ -515,11 +552,11 @@ export function ControllerSavedProgramsPane({ profile }: { profile: ControllerPr
     return () => {
       cancelled = true
     }
-  }, [liveIp, refresh, setActiveController])
+  }, [liveIp, refresh, refreshControllerPrograms, setActiveController])
 
   const programs = describeControllerSavedPrograms({
     controllerId: read.controllerId ?? liveIp ?? '',
-    programs: read.programs,
+    programs: liveIp ? controllerPrograms : read.programs,
     bindings: read.bindings,
     pushRecords: read.pushRecords,
     enabledTransforms: enabledControllerTransformIds(profile.globalTransforms),

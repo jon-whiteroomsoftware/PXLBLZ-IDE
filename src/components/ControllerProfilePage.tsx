@@ -8,6 +8,7 @@ import {
   Trash2,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { IDE_MICROTYPE } from '@/components/ui/ideMicrotype'
 import {
   AlertDialogRoot,
   AlertDialogContent,
@@ -22,6 +23,7 @@ import {
   controllerZonePixelCount,
   formatControllerZoneRanges,
   parseControllerZoneRanges,
+  patternBindingOverridesHardwareBrightness,
   validateControllerProfile,
   type ControllerBindingTarget,
   type ControllerInput,
@@ -48,6 +50,10 @@ import {
   type MapFingerprintMatch,
 } from '@/engine/mapFingerprint'
 import { decodeMapData } from '@/engine/mapPush'
+import type { ProgramListEntry } from '@/engine/PixelblazeConnection'
+import type { BindingStore } from '@/engine/controllerBinding'
+import { getControllerBindings } from '@/engine/controllerMetadataStorage'
+import { installedControllerPatternChoices } from '@/engine/controllerSavedPrograms'
 import { newPersonalContentId } from '@/engine/personalContentMetadata'
 import { uniquePatternName } from '@/engine/patternName'
 import {
@@ -68,7 +74,10 @@ import {
   useControllerProfileStore,
 } from '@/store/controllerProfileStore'
 import { useMapStore } from '@/store/mapStore'
+import { usePatternStore } from '@/store/patternStore'
+import { useControllerPanelStore } from '@/store/controllerPanelStore'
 import { useRouterStore } from '@/store/routerStore'
+import { DEMOS } from '@/pixelblaze/stock/patterns'
 import { StatusDot, type StatusTone } from './StatusDot'
 import { TransformInspectionPanel } from './TransformInspectionPanel'
 
@@ -76,6 +85,7 @@ const fieldClass =
   'h-7 min-w-0 rounded border border-zinc-700 bg-zinc-900 px-2 text-xs text-zinc-200 outline-none focus:border-live/70'
 const tableHeadClass = 'px-2 py-1 text-left text-[10px] font-semibold uppercase text-zinc-500'
 const tableCellClass = 'border-t border-zinc-800/85 px-2 py-1.5 align-middle'
+const EMPTY_CONTROLLER_PROGRAMS: ProgramListEntry[] = []
 
 type SelectOption<T extends string | number> = {
   value: T
@@ -449,7 +459,7 @@ function InputsTable({
             <th className={tableHeadClass}>Role</th>
             <th className={tableHeadClass}>Smoothing</th>
             <th className={tableHeadClass}>Fallback</th>
-            <th className={tableHeadClass}>Invert</th>
+            <th className={tableHeadClass}>Direction</th>
             <th className={tableHeadClass}>Live</th>
             <th className={tableHeadClass} />
           </tr>
@@ -518,13 +528,24 @@ function InputsTable({
                   />
                 </td>
                 <td className={tableCellClass}>
-                  <input
-                    type="checkbox"
-                    aria-label={`${input.name} invert`}
-                    checked={input.invert}
-                    onChange={(event) => onUpdateInput(input.id, { invert: event.target.checked })}
-                    className="accent-live"
-                  />
+                  <div className="flex items-center gap-2 whitespace-nowrap">
+                    <span className="font-mono text-zinc-300">
+                      {input.invert ? '1 → 0' : '0 → 1'}
+                    </span>
+                    <label
+                      className="flex cursor-pointer items-center gap-1.5 text-zinc-400"
+                      title="Invert the normalized hardware input direction"
+                    >
+                      <input
+                        type="checkbox"
+                        aria-label={`${input.name} invert`}
+                        checked={input.invert}
+                        onChange={(event) => onUpdateInput(input.id, { invert: event.target.checked })}
+                        className="accent-live"
+                      />
+                      <span>Invert</span>
+                    </label>
+                  </div>
                 </td>
                 <td className={`${tableCellClass} font-mono text-zinc-600`}>-</td>
                 <td className={tableCellClass}>
@@ -789,14 +810,24 @@ function PowerCapField({
 
 function PatternBindingsTable({
   profile,
+  patternOptions,
+  online,
+  draftOpen,
+  onAddBinding,
+  onCancelDraft,
   onUpdateBinding,
   onRemoveBinding,
 }: {
   profile: ControllerProfile
+  patternOptions: SelectOption<string>[]
+  online: boolean
+  draftOpen: boolean
+  onAddBinding: (patternId: string) => void
+  onCancelDraft: () => void
   onUpdateBinding: (bindingId: string, changes: Partial<PatternBinding>) => void
   onRemoveBinding: (bindingId: string) => void
 }) {
-  if (profile.patternBindings.length === 0) {
+  if (profile.patternBindings.length === 0 && !draftOpen) {
     return <EmptyState>No pattern bindings are configured for this controller.</EmptyState>
   }
 
@@ -814,22 +845,85 @@ function PatternBindingsTable({
           </tr>
         </thead>
         <tbody>
+          {draftOpen && (
+            <tr>
+              <td className={tableCellClass}>
+                <select
+                  aria-label="New binding Pattern"
+                  defaultValue=""
+                  disabled={!online || patternOptions.length === 0}
+                  onClick={stopFieldPropagation}
+                  onPointerDown={stopFieldPropagation}
+                  onKeyDown={stopFieldPropagation}
+                  onChange={(event) => {
+                    if (event.target.value) onAddBinding(event.target.value)
+                  }}
+                  className={`${fieldClass} w-full max-w-64 disabled:opacity-40`}
+                >
+                  <option value="">
+                    {!online
+                      ? 'Connect this controller to add a binding'
+                      : patternOptions.length > 0
+                      ? 'Choose an installed managed Pattern'
+                      : 'No managed saved Patterns are installed'}
+                  </option>
+                  {patternOptions.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
+              </td>
+              <td className={`${tableCellClass} text-zinc-500`}>
+                {profile.inputs[0]?.name ?? '-'}
+              </td>
+              <td className={`${tableCellClass} text-zinc-500`}>exported slider</td>
+              <td className={`${tableCellClass} font-mono text-zinc-500`}>sliderSpeed</td>
+              <td className={`${tableCellClass} font-mono text-zinc-600`}>-</td>
+              <td className={tableCellClass}>
+                <button
+                  type="button"
+                  aria-label="Cancel new binding"
+                  title="Cancel new binding"
+                  onClick={onCancelDraft}
+                  className="text-zinc-500 hover:text-red-300"
+                >
+                  <Trash2 size={14} aria-hidden />
+                </button>
+              </td>
+            </tr>
+          )}
           {profile.patternBindings.map((binding) => (
             <tr key={binding.id}>
               <td className={tableCellClass}>
-                <TextField
-                  ariaLabel="Pattern id"
+                <SelectField
+                  ariaLabel="Binding Pattern"
                   value={binding.patternId}
+                  options={patternOptions.some((option) => option.value === binding.patternId)
+                    ? patternOptions
+                    : [
+                        { value: binding.patternId, label: `${binding.patternId} (not installed)` },
+                        ...patternOptions,
+                      ]}
                   onChange={(patternId) => onUpdateBinding(binding.id, { patternId })}
+                  disabled={!online}
                 />
               </td>
               <td className={tableCellClass}>
-                <SelectField
-                  ariaLabel="Binding input"
-                  value={binding.inputId}
-                  options={profile.inputs.map((input) => ({ value: input.id, label: input.name }))}
-                  onChange={(inputId) => onUpdateBinding(binding.id, { inputId })}
-                />
+                <div className="flex items-center gap-2">
+                  <SelectField
+                    ariaLabel="Binding input"
+                    value={binding.inputId}
+                    options={profile.inputs.map((input) => ({ value: input.id, label: input.name }))}
+                    onChange={(inputId) => onUpdateBinding(binding.id, { inputId })}
+                  />
+                  {patternBindingOverridesHardwareBrightness(profile, binding) && (
+                    <span
+                      title="This input controls the Pattern binding instead of hardware brightness while this Pattern runs."
+                      className={`inline-flex whitespace-nowrap border border-zinc-700/80 bg-zinc-900/70 px-1.5 py-0.5 font-mono font-semibold uppercase tracking-wide text-zinc-400 ${IDE_MICROTYPE.required.sizeClassName}`}
+                    >
+                      Brightness override
+                    </span>
+                  )}
+                </div>
               </td>
               <td className={tableCellClass}>
                 <SelectField
@@ -1071,15 +1165,24 @@ export function ControllerProfilePage({ profileId }: { profileId: string }) {
   const openExistingMap = useMapStore((state) => state.openExistingMap)
   const openStockMap = useMapStore((state) => state.openStockMap)
   const navigate = useRouterStore((state) => state.navigate)
+  const userPatterns = usePatternStore((state) => state.userPatterns)
   const profile = profiles.find((item) => item.id === profileId)
   const profileController = profile ? controllerForProfile(profile, controllers) : null
   const liveIp = profileController?.phase === 'live' ? profileController.ip : undefined
+  const controllerPrograms = useControllerPanelStore((state) => (
+    liveIp ? state.programsByController[liveIp] ?? EMPTY_CONTROLLER_PROGRAMS : EMPTY_CONTROLLER_PROGRAMS
+  ))
   const profileRefreshId = profile?.id
   const [importingMap, setImportingMap] = useState(false)
   const [importError, setImportError] = useState<string | null>(null)
   const [pendingImport, setPendingImport] = useState<PendingMapImport | null>(null)
   const [importName, setImportName] = useState('')
   const [liveBrightnessRead, setLiveBrightnessRead] = useState<{ ip: string; value: number } | null>(null)
+  const [controllerBindingsRead, setControllerBindingsRead] = useState<{
+    controllerId: string
+    bindings: BindingStore
+  } | null>(null)
+  const [bindingDraftOpen, setBindingDraftOpen] = useState(false)
   const liveBrightness = liveBrightnessRead && liveBrightnessRead.ip === liveIp
     ? liveBrightnessRead.value
     : null
@@ -1103,6 +1206,19 @@ export function ControllerProfilePage({ profileId }: { profileId: string }) {
     }
   }, [activeIp, liveIp])
 
+  useEffect(() => {
+    let cancelled = false
+    if (!liveIp) return
+    void getControllerBindings()
+      .then((bindings) => {
+        if (!cancelled) setControllerBindingsRead({ controllerId: liveIp, bindings })
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [controllerPrograms, liveIp])
+
   if (!profile) {
     return (
       <div className="flex h-full items-center justify-center px-6 text-sm text-zinc-500">
@@ -1117,6 +1233,27 @@ export function ControllerProfilePage({ profileId }: { profileId: string }) {
     profileController?.ip ?? profile.lastSeenIp ?? null,
     null,
   )
+  const installedBindingPatternOptions = liveIp
+    ? installedControllerPatternChoices({
+        controllerId: liveIp,
+        programs: controllerPrograms,
+        bindings: controllerBindingsRead?.controllerId === liveIp
+          ? controllerBindingsRead.bindings
+          : {},
+      }).map((choice) => ({ value: choice.patternId, label: choice.name }))
+    : []
+  const localPatternNameById = new Map<string, string>([
+    ...userPatterns.map((pattern) => [pattern.id, pattern.name] as const),
+    ...Object.keys(DEMOS).map((name) => [`demo:${name}`, name] as const),
+  ])
+  const offlineBindingPatternOptions = [...new Set(profile.patternBindings.map((binding) => binding.patternId))]
+    .map((patternId) => ({
+      value: patternId,
+      label: localPatternNameById.get(patternId) ?? `${patternId} (not installed)`,
+    }))
+  const bindingPatternOptions = liveIp
+    ? installedBindingPatternOptions
+    : offlineBindingPatternOptions
 
   async function beginMapImport() {
     if (!profile || profileController?.phase !== 'live') return
@@ -1266,7 +1403,7 @@ export function ControllerProfilePage({ profileId }: { profileId: string }) {
             variant="ghost"
             disabled={profile.inputs.length === 0}
             className="bg-zinc-900/70 text-xs text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 disabled:opacity-35"
-            onClick={() => void addPatternBinding(profile.id)}
+            onClick={() => setBindingDraftOpen(true)}
             title="Add pattern binding"
           >
             <Plus size={13} aria-hidden />
@@ -1276,6 +1413,14 @@ export function ControllerProfilePage({ profileId }: { profileId: string }) {
       >
         <PatternBindingsTable
           profile={profile}
+          patternOptions={bindingPatternOptions}
+          online={Boolean(liveIp)}
+          draftOpen={bindingDraftOpen}
+          onAddBinding={(patternId) => {
+            setBindingDraftOpen(false)
+            void addPatternBinding(profile.id, patternId)
+          }}
+          onCancelDraft={() => setBindingDraftOpen(false)}
           onUpdateBinding={(bindingId, changes) => void updatePatternBinding(profile.id, bindingId, changes)}
           onRemoveBinding={(bindingId) => void removePatternBinding(profile.id, bindingId)}
         />

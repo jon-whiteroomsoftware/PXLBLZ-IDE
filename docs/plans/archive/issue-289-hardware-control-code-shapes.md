@@ -51,6 +51,12 @@ socket pool.
   `IO25` toggling (`pot0Changes: 2`) and updating the slider target on the
   controller. `IO26` stayed high in that sample (`pot1Changes: 0`), so only
   `IO25` is validated as physically changing so far.
+- A rewired potentiometer on an ADC1-safe analog input was validated through a
+  real Controller profile on 2026-07-15. The input drove hardware Brightness
+  across its usable range and drove exported Pattern controls (Line Dancer
+  Twist and Caustics Speed) through the generated pot-binding path without
+  editing either Pattern. The pot was physically wired in the reverse
+  direction; the profile's software Invert setting corrected it as intended.
 
 ## Measurements
 
@@ -81,16 +87,13 @@ socket pool.
   probe to GPIO 33. The ElectroMage table confirms `IO33` is analog-capable, so
   treat that timeout as inconclusive controller/socket state, not as evidence
   against `IO33`. Do not brute-force GPIOs on a live controller.
-- The attached test controller's analog pot behavior has not been independently
-  validated yet. The pots appear to be wired to the top two 8-pin through-hole
-  header pads, which the v3 Standard pinout labels `IO26` and `IO25`;
-  ElectroMage marks those labels as digital-only. Treat the physical pot wiring
-  as an open hardware-validation question, separate from the confirmed
-  Pixelblaze code shapes above.
-- The through-hole wiring can still keep mixin/input plumbing work unblocked:
-  `digitalRead(25)` has now verified that generated code reads a hardware input
-  and routes it into injected logic/exported slider calls. This does not validate
-  analog range, smoothing, deadband, or fallback behavior.
+- The original through-hole potentiometer wiring used the v3 Standard header
+  pads labelled `IO26` and `IO25`, which ElectroMage marks as digital-only. The
+  later analog validation required moving the wiper to an ADC1-safe input.
+- The real-pot run confirmed stable usable control and the configured smoothing
+  and inversion path. It did not add device telemetry for automatic
+  disconnected-input detection; the rail-pinned/high-variance guard above
+  remains the concrete design if that diagnostic is implemented later.
 - Touch constants `T0`, `T2`, `T4`, `T6`, and `T7` compile as constants, but
   they are for `touchRead`, not the analog pot path.
 

@@ -102,12 +102,14 @@ send complete Shows through that release. Drag selection, multi-selection,
 grouped movement, and general copy/paste remain a later interaction-efficiency
 increment.
 
-Scene composition is a later additive increment suitable for a dot release. It
-adds an optional Open Scene workflow for local cuts, overlays, and expanded
-Property-animation keyframes. Existing flat Shows, global Timeline semantics,
-and the complete first-release workflow remain valid. The Scene-composition UI
-reuses the shipped Stage, transport, catalogue, Inspector, commands, shortcuts,
-snapping, zoom, and Timeline primitives rather than replacing the workspace.
+Local composition is a later additive increment suitable for a dot release. It
+adds an optional drill-down from one Scene x Zone cell for local clips, overlay
+layers, and expanded Property-animation keyframes. Existing flat Shows, global
+Timeline semantics, and the complete first-release workflow remain valid. The
+local UI reuses the shipped Stage, transport, catalogue, Inspector, commands,
+shortcuts, snapping, zoom, and Timeline primitives rather than replacing the
+workspace. The Stage continues to show final all-zone output while the Timeline
+edits only the selected zone.
 
 The first increment reserves only inexpensive seams needed by the second:
 stable authored identities, semantic undo transactions, a compact Scene-
@@ -301,21 +303,38 @@ form meets the cost budget.
 17. **Learn in stages.** As a new author, I can build useful Shows after Pass 1
     and encounter richer variants without the core concepts changing.
 
-### 4.7 Scene composition destination
+### 4.7 Local composition destination
 
-Scene composition is not a dependency of the initial static Effect and
-Transition UI, but it is now a deliberate V2 destination rather than unrelated
-overlay extra credit. One optional detail level inside a semantic Scene owns
-local base placements, overlay placements, and Property-animation keyframes.
-The Show owns explicit Pattern instances so runtime state may Continue across
-Scene boundaries. The compiler flattens each Scene before its top-level
-Transition; recursive nested timelines remain outside the direction.
+Local composition is not a dependency of the initial static Effect and
+Transition UI, but it is a deliberate V2 destination rather than unrelated
+overlay extra credit. A semantic Scene continues to span zones. One optional
+detail level inside a Scene x Zone cell owns local Main placements, manually
+ordered overlay layers, and Property-animation keyframes. The Show owns explicit
+Pattern instances so runtime state may Continue across Scene boundaries. The
+compiler flattens each zone composition and combines the Scene before its
+top-level Transition; recursive nested timelines remain outside the direction.
+
+The local editor fixes the Scene and zone so the Timeline represents only time
+and layers. The Stage renders final output across all zones. Optional read-only
+other-zone guides support alignment without recreating a three-dimensional
+time/layer/zone editor. Cross-zone overlays and linked compositions remain later
+evidence work.
+
+A Show that needs one Pattern across the whole Stage for an interval uses a
+one-zone Full Stage layout for that Scene. The global Timeline exposes the
+layout switch from the surrounding multi-zone layout and back; a local clip
+does not silently draw outside its selected zone.
+
+Each Scene selects one reusable named Zone layout. The local editor identifies
+the selected layout and Zone, while layout replacement remains a structural
+Scene-details command with explicit remapping consequences. Authors split a
+Scene where its layout must change.
 
 [`show-scene-composition-design.md`](show-scene-composition-design.md) owns the
-model, editing algebra, release horizons, UI variants, and open evidence. Do not
-add multi-source persistence or compiler work during the initial visual-toolkit
-passes. Do preserve stable Effect identity, semantic undo, and ownership seams
-that the later model requires.
+model, editing algebra, release horizons, approved Layer Rail, and open evidence.
+Production work proceeds through integration-first slices that keep storage,
+editing, preview, compilation, and migration runnable together. Preserve stable
+Effect identity, semantic undo, and ownership seams throughout those slices.
 
 ### 4.8 Directions that still need evidence
 
@@ -326,6 +345,11 @@ light. Audio and sensor behavior requires real hardware evidence.
 A unified final-output pipeline could eventually fuse brightness, color,
 calibration, and power work. It needs an explicit policy for `paint()` and
 library abstractions before replacing current narrow intercept passes.
+
+As that pipeline grows beyond a single duty cap, the user-facing transform
+family should become **Power Manager**. Keep the persisted/internal `power-cap`
+identity compatible while the UI gathers cap, estimation, calibration, and
+future management strategies under the broader name.
 
 The durable authoring model remains the Show record edited through the timeline.
 A fluent/Strudel-style composition DSL, geometric Pattern language, and
@@ -612,8 +636,11 @@ follow-ups rather than reopening their acceptance criteria.
 - #363 builds the flagship and educational Shows through that finished UI.
 - #460 publishes the user-facing guide after the UI fixes the vocabulary and
   workflows.
-- #458 should be reconsidered after design review as the overlay consumer of
-  Scene composition, not implemented as an isolated nested lane.
+- #458 records the approved zone-focused local-composition interaction. Its
+  explicit Layer Rail is the production direction; the original all-zones and
+  compact-focus variants are superseded evidence. Implementation begins with a
+  minimal runnable Scene x Zone tracer bullet before richer overlays and
+  Property animation are connected.
 
 Pure engine tests cover easing, affine composition, masks, migration, renderer
 selection, descriptor validation, and cost formulas. Compiler tests cover

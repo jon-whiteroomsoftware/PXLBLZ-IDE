@@ -47,6 +47,43 @@ export interface ControllerSavedProgramsView {
   foreign: ControllerSavedProgramRow[]
 }
 
+export type ControllerSavedProgramSort = 'device' | 'alphabetical'
+
+export interface InstalledControllerPatternChoice {
+  patternId: string
+  name: string
+}
+
+function compareProgramNames(a: ControllerSavedProgramRow, b: ControllerSavedProgramRow): number {
+  return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
+}
+
+export function sortControllerSavedPrograms(
+  view: ControllerSavedProgramsView,
+  sort: ControllerSavedProgramSort,
+): ControllerSavedProgramsView {
+  if (sort === 'device') return view
+  return {
+    owned: [...view.owned].sort(compareProgramNames),
+    foreign: [...view.foreign].sort(compareProgramNames),
+  }
+}
+
+export function installedControllerPatternChoices(input: {
+  controllerId: string
+  programs: readonly ProgramListEntry[]
+  bindings: BindingStore
+}): InstalledControllerPatternChoice[] {
+  const installedById = new Map(input.programs.map((program) => [program.id, program]))
+  return Object.entries(input.bindings[input.controllerId] ?? {})
+    .filter(([patternId, programId]) => !patternId.startsWith('show:') && installedById.has(programId))
+    .map(([patternId, programId]) => ({
+      patternId,
+      name: installedById.get(programId)?.name.trim() || 'Unnamed program',
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }))
+}
+
 export function describeControllerSavedPrograms(input: {
   controllerId: string
   programs: readonly ProgramListEntry[]
@@ -98,5 +135,8 @@ export function describeControllerSavedPrograms(input: {
     })
   }
 
-  return { owned, foreign }
+  return {
+    owned,
+    foreign,
+  }
 }

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ControllerProfilePage } from './ControllerProfilePage'
 import { ControllerSavedProgramsPane } from './ControllerSavedProgramsPane'
@@ -23,6 +23,10 @@ import {
   useControllerProfileStore,
 } from '@/store/controllerProfileStore'
 import { controllerInitialState, useControllerStore } from '@/store/controllerStore'
+import {
+  controllerPanelInitialState,
+  useControllerPanelStore,
+} from '@/store/controllerPanelStore'
 import { mapInitialState, useMapStore } from '@/store/mapStore'
 import { routerInitialState, useRouterStore } from '@/store/routerStore'
 import { patternInitialState, usePatternStore } from '@/store/patternStore'
@@ -83,6 +87,7 @@ class ProgramListProvider extends MapReadbackProvider {
 beforeEach(() => {
   useControllerProfileStore.setState(controllerProfileInitialState)
   useControllerStore.setState(controllerInitialState)
+  useControllerPanelStore.setState(controllerPanelInitialState)
   useMapStore.setState(mapInitialState)
   useRouterStore.setState(routerInitialState)
   usePatternStore.setState(patternInitialState)
@@ -113,6 +118,150 @@ function seedProfile() {
 }
 
 describe('ControllerProfilePage', () => {
+  it('shows the current hardware input direction and persists inversion', async () => {
+    const profile = seedProfile()
+    useControllerProfileStore.setState({
+      profiles: [{
+        ...profile,
+        inputs: [{
+          id: 'brightness-pot',
+          name: 'Brightness knob',
+          pin: 33,
+          signal: 'analog',
+          role: 'brightness',
+          smoothing: 0.2,
+          fallback: 0.5,
+          invert: false,
+        }],
+      }],
+    })
+
+    render(<ControllerProfilePage profileId="ctrl-1" />)
+
+    const invert = screen.getByRole('checkbox', { name: 'Brightness knob invert' })
+    expect(invert).not.toBeChecked()
+    expect(screen.getByText('0 → 1')).toBeInTheDocument()
+
+    fireEvent.click(invert)
+
+    await waitFor(() => {
+      expect(useControllerProfileStore.getState().profiles[0].inputs[0].invert).toBe(true)
+      expect(screen.getByText('1 → 0')).toBeInTheDocument()
+    })
+  })
+
+  it('creates a Pattern binding only after choosing an installed managed Pattern', async () => {
+    const base = seedProfile()
+    const profile = {
+      ...base,
+      keepPatternsUpToDate: true,
+      inputs: [{
+        id: 'green-pot',
+        name: 'Green pot',
+        pin: 36,
+        signal: 'analog' as const,
+        role: 'brightness' as const,
+        smoothing: 0.2,
+        fallback: 0.5,
+        invert: false,
+      }],
+      globalTransforms: base.globalTransforms.map((transform) =>
+        transform.type === 'hardware-brightness'
+          ? { ...transform, enabled: true, inputId: 'green-pot' }
+          : transform,
+      ),
+    }
+    const scheduleReconciliation = vi.fn()
+    useControllerProfileStore.setState({ profiles: [profile] })
+    usePatternStore.setState({
+      userPatterns: [{
+        id: 'pat-line',
+        name: 'Line Dancer',
+        src: 'export function render(index) { hsv(0, 1, 1) }',
+        controls: {},
+        updatedAt: 1,
+      }],
+      patternsLoaded: true,
+    })
+    useControllerStore.setState({
+      activeIp: '192.168.8.224',
+      scheduleControllerReconciliation: scheduleReconciliation,
+      controllers: {
+        '192.168.8.224': {
+          ip: '192.168.8.224',
+          deviceId: profile.deviceId,
+          nickname: 'Burner bag',
+          phase: 'live',
+          mapDim: 2,
+        },
+      },
+    })
+    useControllerPanelStore.setState({
+      programsByController: {
+        '192.168.8.224': [
+          { id: 'DEV_LINE', name: 'Line Dancer' },
+          { id: 'FOREIGN', name: 'Foreign pattern' },
+        ],
+      },
+    })
+    setControllerMetadataStorage({
+      ...demoControllerMetadataStorage,
+      id: 'binding-pattern-choices',
+      getControllerBindings: async () => ({
+        '192.168.8.224': {
+          'pat-line': 'DEV_LINE',
+          'pat-not-installed': 'DEV_MISSING',
+        },
+      }),
+    })
+
+    render(<ControllerProfilePage profileId="ctrl-1" />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Binding' }))
+    expect(useControllerProfileStore.getState().profiles[0].patternBindings).toEqual([])
+    expect(scheduleReconciliation).not.toHaveBeenCalled()
+
+    const pattern = await screen.findByRole('combobox', { name: 'New binding Pattern' })
+    expect(pattern.closest('tr')?.querySelectorAll('td')).toHaveLength(6)
+    expect(pattern).toHaveTextContent('Line Dancer')
+    expect(pattern).not.toHaveTextContent('Foreign pattern')
+    expect(pattern).not.toHaveTextContent('DEV_MISSING')
+
+    fireEvent.change(pattern, { target: { value: 'pat-line' } })
+
+    await waitFor(() => {
+      expect(useControllerProfileStore.getState().profiles[0].patternBindings).toMatchObject([
+        { patternId: 'pat-line', inputId: 'green-pot' },
+      ])
+      expect(scheduleReconciliation).toHaveBeenCalledTimes(1)
+    })
+    const override = await screen.findByText('Brightness override')
+    expect(override).toHaveAttribute(
+      'title',
+      'This input controls the Pattern binding instead of hardware brightness while this Pattern runs.',
+    )
+    expect(override).toHaveClass('border', 'uppercase')
+    expect(override).not.toHaveClass('text-amber-300/85')
+
+    expect(screen.getByRole('combobox', { name: 'Binding Pattern' })).toHaveTextContent('Line Dancer')
+    act(() => {
+      useControllerStore.setState({
+        activeIp: '192.168.8.224',
+        controllers: {
+          '192.168.8.224': {
+            ip: '192.168.8.224',
+            deviceId: profile.deviceId,
+            nickname: 'Burner bag',
+            phase: 'error',
+            mapDim: 2,
+          },
+        },
+      })
+    })
+    expect(screen.getByRole('combobox', { name: 'Binding Pattern' })).toHaveTextContent('Line Dancer')
+    expect(screen.getByRole('combobox', { name: 'Binding Pattern' })).not.toHaveTextContent('pat-line')
+  })
+
   it('explains when profile transforms apply and which output calls they cover', () => {
     seedProfile()
 
@@ -321,6 +470,10 @@ describe('ControllerProfilePage', () => {
       }),
     })
     setControllerProvider(provider)
+    useControllerPanelStore.setState({
+      programs: provider.programs,
+      programsByController: { '192.168.8.224': provider.programs },
+    })
     useControllerStore.setState({
       activeIp: '192.168.8.224',
       controllers: {
@@ -346,8 +499,25 @@ describe('ControllerProfilePage', () => {
     expect(screen.getByTitle('Map fingerprint 11111111')).toBeInTheDocument()
     expect(screen.getByTitle('Current: pushed with the transforms enabled on this profile.')).toHaveTextContent('current')
     expect(screen.getAllByTitle('Unmanaged: no Studio push record is available for this saved program.')).toHaveLength(2)
+    expect(provider.listCalls).toBe(0)
 
-    const readsBeforeToggle = provider.listCalls
+    const inventory = screen.getByRole('table', { name: 'Saved programs inventory' })
+    expect(inventory).toHaveClass('table-fixed')
+    expect(screen.queryByRole('button', { name: 'Import Twinkle' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Import AuroraSphere' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Import sound bar kit' })).toBeInTheDocument()
+    const rowText = () => within(inventory).getAllByRole('row').map((row) => row.textContent ?? '')
+    expect(screen.getByRole('button', { name: 'A–Z' })).toHaveAttribute('aria-pressed', 'true')
+    expect(rowText().findIndex((text) => text.includes('AuroraSphere'))).toBeLessThan(
+      rowText().findIndex((text) => text.includes('Twinkle')),
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Device' }))
+    expect(screen.getByRole('button', { name: 'Device' })).toHaveAttribute('aria-pressed', 'true')
+    expect(rowText().findIndex((text) => text.includes('Twinkle'))).toBeLessThan(
+      rowText().findIndex((text) => text.includes('AuroraSphere')),
+    )
+
     const changedProfile = {
       ...profile,
       globalTransforms: profile.globalTransforms.map((transform) =>
@@ -358,7 +528,7 @@ describe('ControllerProfilePage', () => {
     expect(screen.getAllByTitle(
       'Stale: profile transforms changed since this program was pushed. Push it again to update.',
     )).toHaveLength(2)
-    expect(provider.listCalls).toBe(readsBeforeToggle)
+    expect(provider.listCalls).toBe(0)
 
     fireEvent.click(screen.getByRole('button', { name: 'Twinkle' }))
     expect(useRouterStore.getState().route).toEqual({
@@ -369,7 +539,7 @@ describe('ControllerProfilePage', () => {
     provider.programs = [...provider.programs, { id: 'FOREIGN2', name: 'New Pattern 14' }]
     fireEvent.click(screen.getByRole('button', { name: 'Refresh saved programs' }))
     expect(await screen.findByText('New Pattern 14')).toBeInTheDocument()
-    expect(provider.listCalls).toBeGreaterThanOrEqual(2)
+    expect(provider.listCalls).toBe(1)
   })
 
   it('imports recovered foreign source as a new Studio pattern', async () => {
@@ -389,6 +559,9 @@ describe('ControllerProfilePage', () => {
       updateControllerProfile: async () => {},
     })
     setControllerProvider(provider)
+    useControllerPanelStore.setState({
+      programsByController: { '192.168.8.224': provider.programs },
+    })
     useControllerStore.setState({
       activeIp: '192.168.8.224',
       controllers: {

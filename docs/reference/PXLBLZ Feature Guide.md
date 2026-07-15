@@ -398,9 +398,24 @@ variable with optional min/max scaling and quantization. The pass engine applies
 it once per frame without editing Pattern source. Missing targets produce
 transform warnings rather than silent partial behavior.
 
+**Binding** opens a draft chooser rather than immediately saving an incomplete
+profile entry. The chooser contains only managed Patterns currently installed
+on that Controller. Selecting one creates the binding and, when managed updates
+are enabled, schedules its first reconciliation. If the Controller disconnects,
+existing rows keep their Studio Pattern names and become read-only until it
+returns; raw Pattern ids do not replace the labels.
+
 For an analog potentiometer, a linear 10k part is a good default: outer lugs to
 3.3V and GND, wiper to one of the ADC1-safe pins offered by the profile. Never
-feed 5V into a Pixelblaze analog input.
+feed 5V into a Pixelblaze analog input. If the physical control runs backward,
+enable **Invert** beside its current `0 → 1` direction; PXLBLZ then shows
+`1 → 0` and reverses the normalized signal before every global transform or
+Pattern binding that uses it.
+
+When one input is assigned both to global hardware brightness and to a binding
+for the Pattern currently running, the Pattern binding wins. The binding row
+shows a neutral **Brightness override** status pill. Hardware brightness remains
+enabled for every other Pattern and for bindings that use a different input.
 
 ### Hardware brightness and power cap
 
@@ -448,8 +463,12 @@ source boundary.
 
 The Controller profile's right pane lists Saved Patterns while that Controller
 is live. Studio-owned rows link back to their Pattern or built-in source;
-foreign rows remain visible. Transform freshness is computed from the saved push
-record:
+foreign rows remain visible. **A–Z** sorts both groups alphabetically without
+regard to case; **Device** restores the Controller's physical next-Pattern
+order. The pane reuses the program inventory captured when the Controller
+connected; reopening the profile does not query the device again. **Refresh**
+performs an explicit new inventory read. Transform freshness is computed from
+the saved push record:
 
 - **current** — saved transforms match the profile now;
 - **stale** — profile transforms changed; push again; and
@@ -477,10 +496,11 @@ Controller reconnects. Turning the setting off stops new automatic writes after
 the current write finishes; it does not roll back artifacts already refreshed.
 Ordinary Pattern source edits still require Run or Save.
 
-Import reads the selected saved Pattern. A stamped Pattern may open its existing
-Studio record or restore a deleted one with its original id. Foreign Patterns
-that contain source become new personal Patterns. A saved Pattern containing
-compiled code but no source remains visible but cannot be reconstructed.
+Import is offered only for unmanaged/foreign saved Programs. Managed rows link
+directly to their existing Studio source instead of repeating an Import action.
+A foreign Pattern that contains source becomes a new personal Pattern. A saved
+Pattern containing compiled code but no source remains visible but cannot be
+reconstructed.
 
 ### Sending and importing maps
 
@@ -777,12 +797,13 @@ numeric properties.
 Changing a Clip to a different Pattern clears the former Pattern's developer-
 slider targets so unavailable controls cannot remain attached to the Clip.
 
-### Routing layouts and Stage
+### Zone Layouts and Stage
 
-A Show may own several named routing layouts. An Installation layout maps
-semantic zones to physical pixel ranges. A routing boundary may cut immediately or move a stable directional
-threshold across the installation for a configured duration and easing. Each
-physical pixel belongs to exactly one of the adjacent layouts on every frame,
+A Show may own several named Zone Layouts. An Installation Zone Layout maps
+semantic zones to physical pixel ranges. Its incoming boundary may cut
+immediately or move a stable directional threshold across the installation for
+a configured duration and easing. Each
+physical pixel belongs to exactly one of the adjacent Zone Layouts on every frame,
 so the transfer invokes one Pattern renderer per pixel while every Pattern clock
 continues. Reverse direction moves the same threshold from the opposite edge.
 
@@ -800,7 +821,8 @@ does not match the Installation output explain that spatial selection is
 unavailable; PXLBLZ does not pretend a screen-space projection proves physical
 ownership.
 
-Portable layouts instead map logical zones with normalized coordinate predicates.
+Portable Zone Layouts instead map logical zones with normalized coordinate
+predicates.
 Full surface, equal left/right or top/bottom stripes, 2x2 grids, and moving X/Y
 splits derive membership and zone-local X/Y from every runtime map point. The
 generated Pattern uses runtime `pixelCount`, X, and Y; it never embeds the
@@ -809,8 +831,8 @@ therefore keep the same authored coordinate boundary. Because maps preserve
 physical aspect, a compressed coordinate axis may make some grid zones narrow or
 empty; the Stage reports that consequence rather than stretching or hiding it.
 
-A two-zone layout may instead use a moving X or Y split. Each scene owns a
-normalized Split target, displayed as a colored Show-wide property lane. The
+A Zone Layout with two zones may instead use a moving X or Y split. Each scene
+owns a normalized Split target, displayed as a colored Show-wide property lane. The
 incoming boundary may animate from an explicit start with its own duration and
 easing. Each side is renormalized to its own local Pattern domain as it grows or
 shrinks, including a virtual pixel count that follows its current share; targets
@@ -833,14 +855,14 @@ the compile bar reports one scalar and at most two multiplies plus two
 fractional-part operations per pixel.
 
 The compiler emits compact formulas for provably regular contiguous, row-band,
-and interleaved layouts. Irregular layouts use range branches or a bounded packed
-lookup according to measured layout complexity. An Installation validates every
-physical routing layout against its saved pixel count: out-of-range indexes,
+and interleaved Zone Layouts. Irregular Zone Layouts use range branches or a
+bounded packed lookup according to measured layout complexity. An Installation
+validates every physical Zone Layout against its saved pixel count: out-of-range indexes,
 overlap, and missing indexes are errors. Show properties report assigned,
 overlapping, missing, and total pixels. Invalid coverage remains editable and
 previewable, but one actionable explanation blocks generated inspection,
 export, Run, and Save until the ranges cover every output index exactly once.
-Logical layouts route over the complete saved output without physical ranges.
+Logical Zone Layouts route over the complete saved output without physical ranges.
 
 The right pane is the read-only Show **Stage**. Generic zone strips remain honest
 for a Show without a saved map. A saved 2D/3D map instead draws the Show over its

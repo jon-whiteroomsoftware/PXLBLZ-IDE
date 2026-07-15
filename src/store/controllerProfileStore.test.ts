@@ -251,7 +251,7 @@ describe('controllerProfileStore', () => {
     setPersonalContentProvider(memoryProvider([profile]))
     await useControllerProfileStore.getState().loadProfiles()
     await useControllerProfileStore.getState().addInput('ctrl-1')
-    await useControllerProfileStore.getState().addPatternBinding('ctrl-1')
+    await useControllerProfileStore.getState().addPatternBinding('ctrl-1', 'pat-1')
 
     expect(useControllerProfileStore.getState().profiles[0].patternBindings).toHaveLength(1)
 

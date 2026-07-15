@@ -2,6 +2,7 @@ import {
   describeControllerSavedPrograms,
   describeTransformFreshness,
   enabledControllerTransformIds,
+  sortControllerSavedPrograms,
 } from './controllerSavedPrograms'
 
 function pushRecord(transforms: string[]) {
@@ -77,16 +78,9 @@ describe('describeControllerSavedPrograms', () => {
       enabledTransforms: ['power-cap'],
     })
 
-    expect(view.owned).toEqual([
-      {
-        kind: 'owned',
-        programId: 'DEV1',
-        name: 'Twinkle',
-        deviceName: 'Device copy of Twinkle',
-        routeId: 'pat-1',
-        studioPatternMissing: false,
-        freshness: 'current',
-      },
+    const alphabetical = sortControllerSavedPrograms(view, 'alphabetical')
+
+    expect(alphabetical.owned).toEqual([
       {
         kind: 'owned',
         programId: 'DEV2',
@@ -105,8 +99,17 @@ describe('describeControllerSavedPrograms', () => {
         studioPatternMissing: true,
         freshness: 'unmanaged',
       },
+      {
+        kind: 'owned',
+        programId: 'DEV1',
+        name: 'Twinkle',
+        deviceName: 'Device copy of Twinkle',
+        routeId: 'pat-1',
+        studioPatternMissing: false,
+        freshness: 'current',
+      },
     ])
-    expect(view.foreign).toEqual([
+    expect(alphabetical.foreign).toEqual([
       {
         kind: 'foreign',
         programId: 'FOREIGN1',
@@ -119,28 +122,48 @@ describe('describeControllerSavedPrograms', () => {
     ])
   })
 
-  it('uses only bindings for the requested Controller and keeps device order within groups', () => {
+  it('uses only bindings for the requested Controller and preserves device order', () => {
     const view = describeControllerSavedPrograms({
       controllerId: 'ctrl-B',
       programs: [
-        { id: 'F1', name: '' },
-        { id: 'B2', name: 'Second' },
-        { id: 'B1', name: 'First' },
+        { id: 'F2', name: 'zebra' },
+        { id: 'B2', name: 'Device second' },
+        { id: 'F1', name: 'apple' },
+        { id: 'B1', name: 'Device first' },
       ],
       bindings: {
         'ctrl-A': { 'pat-a': 'F1' },
         'ctrl-B': { 'pat-1': 'B1', 'pat-2': 'B2' },
       },
       studioPatterns: [
-        { bindingKey: 'pat-1', routeId: 'pat-1', name: 'One' },
-        { bindingKey: 'pat-2', routeId: 'pat-2', name: 'Two' },
+        { bindingKey: 'pat-1', routeId: 'pat-1', name: 'alpha' },
+        { bindingKey: 'pat-2', routeId: 'pat-2', name: 'Beta' },
       ],
       pushRecords: {},
       enabledTransforms: [],
     })
 
     expect(view.owned.map((row) => row.programId)).toEqual(['B2', 'B1'])
-    expect(view.foreign).toMatchObject([{ programId: 'F1', name: 'Unnamed program' }])
+    expect(view.foreign.map((row) => row.programId)).toEqual(['F2', 'F1'])
+  })
+
+  it('can present saved programs alphabetically without losing device order', () => {
+    const view = {
+      owned: [
+        savedProgramRow('B2', 'Beta'),
+        savedProgramRow('B1', 'alpha'),
+      ],
+      foreign: [
+        savedProgramRow('F2', 'zebra', 'foreign'),
+        savedProgramRow('F1', 'Apple', 'foreign'),
+      ],
+    }
+
+    const alphabetical = sortControllerSavedPrograms(view, 'alphabetical')
+
+    expect(alphabetical.owned.map((row) => row.programId)).toEqual(['B1', 'B2'])
+    expect(alphabetical.foreign.map((row) => row.programId)).toEqual(['F1', 'F2'])
+    expect(view.owned.map((row) => row.programId)).toEqual(['B2', 'B1'])
   })
 
   it('carries decisive Show output facts from the saved push record (#437)', () => {
@@ -172,3 +195,19 @@ describe('describeControllerSavedPrograms', () => {
     })
   })
 })
+
+function savedProgramRow(
+  programId: string,
+  name: string,
+  kind: 'owned' | 'foreign' = 'owned',
+) {
+  return {
+    kind,
+    programId,
+    name,
+    deviceName: name,
+    routeId: null,
+    studioPatternMissing: false,
+    freshness: kind === 'owned' ? 'current' as const : 'unmanaged' as const,
+  }
+}

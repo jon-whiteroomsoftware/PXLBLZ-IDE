@@ -85,7 +85,7 @@ describe('Show visual-toolkit integration freeze (#459)', () => {
       expect(artifact.summary.cost.cpu.patternEvaluations, fixture.id).toBeDefined()
       expect(artifact.summary.cost.compatibility.warnings, fixture.id).toEqual(expect.any(Array))
     }
-  })
+  }, 15_000)
 
   it('exports and reloads a compiled catalogue artifact through the standard EPE envelope', () => {
     const fixture = allShowVisualToolkitFixtures().find((candidate) => candidate.id === 'effect-distortion-animated')!

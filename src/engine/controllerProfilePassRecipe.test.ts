@@ -208,6 +208,53 @@ describe('controller profile pass recipe', () => {
     })
   })
 
+  it('lets a Pattern binding override hardware brightness when both use the same input', () => {
+    const profile: ControllerProfile = {
+      ...hardwareBrightnessProfile(),
+      patternBindings: [{
+        id: 'speed-binding',
+        patternId: 'pat-1',
+        inputId: 'brightness-pot',
+        target: { kind: 'call-exported-slider', name: 'sliderSpeed' },
+      }],
+    }
+
+    const recipe = controllerProfilePassRecipe(
+      profile,
+      'export function sliderSpeed(v) { speed = v }\nexport function render(i) {}',
+      'pat-1',
+    )
+
+    expect(recipe.map((pass) => pass.id)).toEqual([
+      'speed-binding-sample',
+      'speed-binding-drive',
+    ])
+  })
+
+  it('keeps hardware brightness when a Pattern binding uses a different input', () => {
+    const profile: ControllerProfile = {
+      ...hardwareBrightnessProfile(),
+      inputs: [
+        ...hardwareBrightnessProfile().inputs,
+        patternBindingProfile().inputs[0],
+      ],
+      patternBindings: patternBindingProfile().patternBindings,
+    }
+
+    const recipe = controllerProfilePassRecipe(
+      profile,
+      'export function sliderSpeed(v) { speed = v }\nexport function render(i) { hsv(i, 1, 1) }',
+      'pat-1',
+    )
+
+    expect(recipe.map((pass) => pass.id)).toEqual([
+      'hardware-brightness-sample',
+      'hardware-brightness',
+      'speed-binding-sample',
+      'speed-binding-drive',
+    ])
+  })
+
   it('maps explicit function targets to function-call bind passes', () => {
     const profile = {
       ...patternBindingProfile(),

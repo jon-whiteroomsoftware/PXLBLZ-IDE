@@ -64,6 +64,20 @@ export interface PatternBinding {
   target: ControllerBindingTarget
 }
 
+/** A Pattern-specific use of an input takes precedence over the global
+ * hardware-brightness use of that same input while the Pattern is running. */
+export function patternBindingOverridesHardwareBrightness(
+  profile: ControllerProfile,
+  binding: PatternBinding,
+): boolean {
+  return profile.globalTransforms.some((transform) =>
+    transform.type === 'hardware-brightness' &&
+    transform.enabled &&
+    transform.mode === 'multiply-output' &&
+    transform.inputId === binding.inputId,
+  )
+}
+
 export interface ControllerZoneRange {
   start: number
   end: number
