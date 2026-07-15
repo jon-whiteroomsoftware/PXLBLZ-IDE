@@ -74,6 +74,21 @@ test.describe('authenticated Show authoring', () => {
     expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(8)
   })
 
+  test('pans the zoomed Show timeline horizontally with an ordinary mouse wheel (#476)', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('studio/shows/stock-show-installation-finale')
+    await page.getByRole('slider', { name: 'Timeline zoom' }).fill('5.1')
+
+    const timeline = page.getByTestId('show-timeline-scroll-region')
+    await expect.poll(() => timeline.evaluate((element) => element.scrollWidth > element.clientWidth)).toBe(true)
+    const before = await timeline.evaluate((element) => element.scrollLeft)
+
+    await timeline.hover()
+    await page.mouse.wheel(0, 480)
+
+    await expect.poll(() => timeline.evaluate((element) => element.scrollLeft)).toBeGreaterThan(before)
+  })
+
   test('bridges Global Show to one read-only Scene X-ray and Super Detail layer', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 })
     await page.goto('studio/shows')

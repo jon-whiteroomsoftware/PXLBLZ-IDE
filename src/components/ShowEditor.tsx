@@ -1208,6 +1208,10 @@ function SceneStrip({
     setViewport(viewport)
   }
   const scrollRef = useRef<HTMLDivElement>(null)
+  const positionMsRef = useRef(positionMs)
+  useEffect(() => {
+    positionMsRef.current = positionMs
+  }, [positionMs])
   const structuralTimesMs = [...new Set([
     0,
     timeline.durationMs,
@@ -1291,13 +1295,14 @@ function SceneStrip({
     const next = maxStart > 0 ? viewport.startMs / maxStart * maxScroll : 0
     if (Math.abs(element.scrollLeft - next) > 1) element.scrollLeft = next
   }, [timelineScale, viewport])
-  const zoomAroundPlayhead = (factor: number) => setViewport((current) => {
+  const zoomAroundPlayhead = useCallback((factor: number) => setViewport((current) => {
     const visibleEnd = current.startMs + current.durationMs
-    const anchor = positionMs >= current.startMs && positionMs <= visibleEnd
-      ? positionMs
+    const playheadMs = positionMsRef.current
+    const anchor = playheadMs >= current.startMs && playheadMs <= visibleEnd
+      ? playheadMs
       : current.startMs + current.durationMs / 2
     return zoomShowTimelineViewport(current, factor, anchor)
-  })
+  }), [setViewport])
   const zoomLevel = viewport.totalMs / viewport.durationMs
   const setZoomLevel = (target: number) => setViewport((current) => {
     const currentZoom = current.totalMs / current.durationMs
@@ -1307,6 +1312,40 @@ function SceneStrip({
       : current.startMs + current.durationMs / 2
     return zoomShowTimelineViewport(current, target / currentZoom, anchor)
   })
+  useEffect(() => {
+    const element = scrollRef.current
+    if (!element) return
+
+    const handleWheel = (event: WheelEvent) => {
+      if (event.ctrlKey || event.metaKey) {
+        event.preventDefault()
+        zoomAroundPlayhead(event.deltaY < 0 ? 1.25 : 0.8)
+        return
+      }
+
+      const maxScroll = Math.max(0, element.scrollWidth - element.clientWidth)
+      if (maxScroll <= 0) return
+
+      const wheelDelta = Math.abs(event.deltaX) > Math.abs(event.deltaY)
+        ? event.deltaX
+        : event.deltaY
+      if (wheelDelta === 0) return
+
+      const deltaScale = event.deltaMode === WheelEvent.DOM_DELTA_LINE
+        ? 40
+        : event.deltaMode === WheelEvent.DOM_DELTA_PAGE
+          ? element.clientWidth
+          : 1
+      const nextScroll = Math.max(0, Math.min(maxScroll, element.scrollLeft + wheelDelta * deltaScale))
+      if (nextScroll === element.scrollLeft) return
+
+      event.preventDefault()
+      element.scrollLeft = nextScroll
+    }
+
+    element.addEventListener('wheel', handleWheel, { passive: false })
+    return () => element.removeEventListener('wheel', handleWheel)
+  }, [zoomAroundPlayhead])
   return (
     <div
       className="border-b border-seam bg-[#060608] p-4 shadow-[inset_0_6px_14px_-8px_rgba(0,0,0,0.9),inset_0_-6px_14px_-10px_rgba(0,0,0,0.9)]"
@@ -1371,6 +1410,7 @@ function SceneStrip({
       </div>
       <div
         ref={scrollRef}
+        data-testid="show-timeline-scroll-region"
         className="overflow-x-auto"
         onScroll={(event) => {
           const element = event.currentTarget
@@ -1379,11 +1419,6 @@ function SceneStrip({
           if (maxScroll > 0 && maxStart > 0) {
             setViewport((current) => panShowTimelineViewport(current, element.scrollLeft / maxScroll * maxStart))
           }
-        }}
-        onWheel={(event) => {
-          if (!event.ctrlKey && !event.metaKey) return
-          event.preventDefault()
-          zoomAroundPlayhead(event.deltaY < 0 ? 1.25 : 0.8)
         }}
       >
         <div

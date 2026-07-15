@@ -720,6 +720,51 @@ describe('ShowEditor (#318)', () => {
     expect(playhead).toHaveValue('10000')
   })
 
+  it('pans the Show timeline horizontally with an ordinary vertical mouse wheel (#476)', () => {
+    const show = createDefaultShow('show-476-wheel', 'Wheel pan study', 1000)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    render(<ShowEditor showId={show.id} />)
+
+    const timeline = screen.getByTestId('show-timeline-scroll-region')
+    Object.defineProperties(timeline, {
+      clientWidth: { configurable: true, value: 600 },
+      scrollWidth: { configurable: true, value: 1200 },
+      scrollLeft: { configurable: true, writable: true, value: 100 },
+    })
+
+    fireEvent.wheel(timeline, { deltaY: 120 })
+
+    expect(timeline.scrollLeft).toBe(220)
+  })
+
+  it('uses the dominant trackpad axis without adding diagonal wheel deltas (#476)', () => {
+    const show = createDefaultShow('show-476-trackpad', 'Trackpad pan study', 1000)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    render(<ShowEditor showId={show.id} />)
+
+    const timeline = screen.getByTestId('show-timeline-scroll-region')
+    Object.defineProperties(timeline, {
+      clientWidth: { configurable: true, value: 600 },
+      scrollWidth: { configurable: true, value: 1200 },
+      scrollLeft: { configurable: true, writable: true, value: 300 },
+    })
+
+    fireEvent.wheel(timeline, { deltaX: -75, deltaY: 20 })
+
+    expect(timeline.scrollLeft).toBe(225)
+  })
+
+  it('keeps Ctrl or Command wheel input assigned to timeline zoom (#476)', () => {
+    const show = createDefaultShow('show-476-modifier', 'Modifier zoom study', 1000)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    render(<ShowEditor showId={show.id} />)
+
+    const timeline = screen.getByTestId('show-timeline-scroll-region')
+    fireEvent.wheel(timeline, { ctrlKey: true, deltaY: -120 })
+
+    expect(screen.getByLabelText('Timeline zoom level')).toHaveTextContent('1.3x')
+  })
+
   it('splits at the playhead and exposes explicit Continue or Restart entry behavior (#415)', async () => {
     const user = userEvent.setup()
     const show = createDefaultShow('show-1', 'Split Show', 1000)
