@@ -31,8 +31,10 @@ describe('ShowCreationFlow (#434)', () => {
     await user.click(portableAction)
     await user.clear(screen.getByLabelText('Show name'))
     await user.type(screen.getByLabelText('Show name'), 'Touring field')
-    await user.clear(screen.getByLabelText('Reference pixels'))
-    await user.type(screen.getByLabelText('Reference pixels'), '1024')
+    const previewPixels = screen.getByLabelText('Preview pixels')
+    expect(previewPixels).toHaveAttribute('max', '2000')
+    await user.clear(previewPixels)
+    await user.type(previewPixels, '5000')
     await user.click(screen.getByRole('button', { name: 'Create Show' }))
 
     expect(onCreate).toHaveBeenCalledWith(expect.objectContaining({
@@ -41,7 +43,7 @@ describe('ShowCreationFlow (#434)', () => {
         version: 1,
         kind: 'portable-2d',
         referenceMapId: 'plane',
-        referencePixelCount: 1024,
+        referencePixelCount: 2000,
       }),
     }))
   })

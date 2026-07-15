@@ -6,6 +6,18 @@ import {
 } from './showOutputContract'
 
 describe('Show output contracts (#434)', () => {
+  it('caps Portable preview pixels without changing Installation output limits (#493)', () => {
+    expect(createPortableShowOutputContract({
+      referenceMapId: 'plane',
+      referencePixelCount: 50_000,
+    }).referencePixelCount).toBe(2_000)
+
+    expect(createInstallationShowOutputContract({
+      outputMapId: 'plane',
+      pixelCount: 50_000,
+    }).pixelCount).toBe(50_000)
+  })
+
   it('normalizes both versioned contract variants without depending on display copy', () => {
     expect(normalizeShowOutputContract(createPortableShowOutputContract({
       referenceMapId: 'plane',

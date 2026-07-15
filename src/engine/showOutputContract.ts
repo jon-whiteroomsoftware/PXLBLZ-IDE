@@ -11,6 +11,8 @@ const PORTABLE_COMPATIBILITY: Portable2DShowOutputContract['compatibility'] = {
   resolution: 'variable',
 }
 
+export const MAX_PORTABLE_PREVIEW_PIXELS = 2_000
+
 export function createPortableShowOutputContract(input: {
   referenceMapId: string | null
   referencePixelCount: number
@@ -19,7 +21,10 @@ export function createPortableShowOutputContract(input: {
     version: 1,
     kind: 'portable-2d',
     referenceMapId: normalizeMapId(input.referenceMapId),
-    referencePixelCount: clampPixelCount(input.referencePixelCount),
+    referencePixelCount: Math.min(
+      MAX_PORTABLE_PREVIEW_PIXELS,
+      clampPixelCount(input.referencePixelCount),
+    ),
     compatibility: { ...PORTABLE_COMPATIBILITY, dimensions: [2] },
   }
 }

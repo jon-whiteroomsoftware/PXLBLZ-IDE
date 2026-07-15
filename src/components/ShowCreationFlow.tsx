@@ -3,6 +3,7 @@ import { ArrowLeft, ArrowRight, MapPinned, Waves } from 'lucide-react'
 import {
   createInstallationShowOutputContract,
   createPortableShowOutputContract,
+  MAX_PORTABLE_PREVIEW_PIXELS,
   resolveShowOutputMapSelection,
 } from '@/engine/showOutputContract'
 import type { ShowOutputContract } from '@/engine/personalContentRecords'
@@ -60,6 +61,17 @@ export function ShowCreationFlow({
     setPixelCountText(String(next.pixelCount))
   }
 
+  function updatePixelCount(nextValue: string) {
+    if (kind !== 'portable-2d' || nextValue === '') {
+      setPixelCountText(nextValue)
+      return
+    }
+    const numericValue = Number(nextValue)
+    setPixelCountText(Number.isFinite(numericValue) && numericValue > MAX_PORTABLE_PREVIEW_PIXELS
+      ? String(MAX_PORTABLE_PREVIEW_PIXELS)
+      : nextValue)
+  }
+
   function submit(event: React.FormEvent) {
     event.preventDefault()
     if (!kind) return
@@ -109,15 +121,15 @@ export function ShowCreationFlow({
               />
             </label>
             <label className="text-[10px] uppercase tracking-[0.12em] text-zinc-500">
-              {portable ? 'Reference pixels' : 'Pixels'}
+              {portable ? 'Preview pixels' : 'Pixels'}
               <input
-                aria-label={portable ? 'Reference pixels' : 'Pixels'}
+                aria-label={portable ? 'Preview pixels' : 'Pixels'}
                 type="number"
                 min={1}
-                max={65536}
+                max={portable ? MAX_PORTABLE_PREVIEW_PIXELS : 65536}
                 disabled={selection.pixelCountLocked}
                 value={selection.pixelCountLocked ? selection.pixelCount : pixelCountText}
-                onChange={(event) => setPixelCountText(event.target.value)}
+                onChange={(event) => updatePixelCount(event.target.value)}
                 className="mt-1 block h-9 w-full rounded border border-zinc-700 bg-zinc-900 px-3 text-sm normal-case tracking-normal text-zinc-100 outline-none focus:border-live/70 disabled:cursor-not-allowed disabled:text-zinc-500"
               />
               {selection.pixelCountLocked && (

@@ -64,9 +64,9 @@ describe('stock Show curriculum (#363)', () => {
       const item = STOCK_SHOWS.find((candidate) => candidate.id === id)!
       expect(item.show.outputContract).toMatchObject({
         kind: 'portable-2d',
-        referencePixelCount: 2_304,
+        referencePixelCount: 2_000,
       })
-      expect(item.show.zones.reduce((sum, zone) => sum + zone.nominalPixelCount, 0)).toBe(2_304)
+      expect(item.show.zones.reduce((sum, zone) => sum + zone.nominalPixelCount, 0)).toBe(2_000)
     }
   })
 
