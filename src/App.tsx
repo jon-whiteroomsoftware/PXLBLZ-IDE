@@ -173,7 +173,7 @@ function StudioPaneMessage({
           {icon}
         </div>
         <h2 className="text-sm font-semibold text-zinc-300">{title}</h2>
-        <p className="mt-2 text-xs leading-5 text-zinc-600">{detail}</p>
+        <p className="mt-2 text-xs leading-5 text-zinc-500">{detail}</p>
       </div>
     </div>
   )

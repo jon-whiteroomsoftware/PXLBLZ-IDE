@@ -3,6 +3,7 @@ import type { RefObject } from 'react'
 import type { DimLens } from '@/engine/dimLens'
 import { STOCK_MAP_ITEMS, type EditingMap, type MapRecord } from '@/store/mapStore'
 import { groupMapCatalogue } from '@/engine/mapCatalogue'
+import { IDE_MICROTYPE } from '@/components/ui/ideMicrotype'
 import {
   EditableListItem,
   HeaderAction,
@@ -88,13 +89,13 @@ export function MapsRailSection({
         onScroll={onScroll}
       >
         {!personalWorkspaceAuthenticated ? (
-          <p className="pl-3 pr-3 py-2 text-zinc-600 italic select-none">
+          <p className="pl-3 pr-3 py-2 text-zinc-500 italic select-none">
             <a href="/api/auth/login" className="text-live hover:underline">Sign in</a>
             {' '}to save maps
           </p>
         ) : visibleMaps.length === 0 ? (
           userMaps.length === 0 ? (
-            <p className="pl-3 pr-3 py-1 text-zinc-600 italic select-none">
+            <p className="pl-3 pr-3 py-1 text-zinc-500 italic select-none">
               No custom maps yet
             </p>
           ) : (
@@ -125,12 +126,12 @@ export function MapsRailSection({
         />
         {showStockMaps && (
           visibleStockMaps.length === 0 ? (
-            <p className="pl-3 pr-3 py-1 text-zinc-600 italic select-none">No stock maps match</p>
+            <p className="pl-3 pr-3 py-1 text-zinc-500 italic select-none">No stock maps match</p>
           ) : (
             <ul className="pt-1 opacity-85">
               {stockGroups.map((group) => (
                 <li key={group.kind} className="pt-1.5">
-                  <div className="px-3 pb-1 text-[9px] font-semibold uppercase tracking-[0.12em] text-zinc-600">
+                  <div className={`px-3 pb-1 font-semibold uppercase tracking-[0.12em] ${IDE_MICROTYPE.required.className}`}>
                     {group.label}
                   </div>
                   <ul>
@@ -150,7 +151,7 @@ export function MapsRailSection({
                             className="flex cursor-pointer list-none items-center justify-between text-xs text-zinc-500 hover:text-zinc-300 [&::-webkit-details-marker]:hidden"
                           >
                             <span>{item.name}</span>
-                            <span className="text-[9px] text-zinc-600">{item.views.length} views</span>
+                            <span className={IDE_MICROTYPE.secondary.className}>{item.views.length} views</span>
                           </summary>
                           <div className="mt-1 flex flex-wrap gap-1" aria-label={`${item.name} coordinate views`}>
                             {item.views.map((view) => {
@@ -168,7 +169,7 @@ export function MapsRailSection({
                                       : 'border-zinc-700 text-zinc-500 hover:border-zinc-500 hover:text-zinc-300'
                                   }`}
                                 >
-                                  {label} <span className="text-zinc-600">{view.dim}D</span>
+                                  {label} <span className="text-zinc-500">{view.dim}D</span>
                                 </button>
                               )
                             })}

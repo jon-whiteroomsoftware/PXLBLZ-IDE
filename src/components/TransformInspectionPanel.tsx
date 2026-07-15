@@ -30,7 +30,7 @@ export function TransformInspectionPanel({
             <div className="truncate text-[11px] font-semibold text-zinc-200">
               {artifact.patternName ?? 'Generated artifact'}
             </div>
-            <div className="mt-0.5 font-mono text-[10px] uppercase text-zinc-600">
+            <div className="mt-0.5 font-mono text-[10px] uppercase text-zinc-400">
               {summary.passes.length} passes - beforeRender {summary.beforeRender} - cost +{summary.estimatedPixelCost}
             </div>
           </div>
@@ -74,7 +74,7 @@ export function TransformInspectionPanel({
         </dl>
 
         <div className="mt-3 border-t border-zinc-800/80 pt-2">
-          <div className="font-mono text-[10px] uppercase text-zinc-600">Pass tree</div>
+          <div className="font-mono text-[10px] uppercase text-zinc-400">Pass tree</div>
           <ol className="mt-1.5 space-y-1.5">
             {summary.passes.map((pass) => (
               <li key={pass.id} className="rounded bg-zinc-900/45 px-2 py-1.5 text-[11px] text-zinc-400">
@@ -112,7 +112,7 @@ export function TransformInspectionPanel({
               <Code2 size={15} className="text-zinc-500" aria-hidden />
               <div className="min-w-0 flex-1">
                 <div className="truncate text-xs font-semibold text-zinc-200">Generated read-only artifact</div>
-                <div className="text-[10px] uppercase text-zinc-600">Not editable source</div>
+                <div className="text-[10px] uppercase text-zinc-400">Not editable source</div>
               </div>
               <Button
                 type="button"
@@ -137,7 +137,7 @@ export function TransformInspectionPanel({
 function SummaryItem({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0">
-      <dt className="font-mono text-[10px] uppercase text-zinc-600">{label}</dt>
+      <dt className="font-mono text-[10px] uppercase text-zinc-400">{label}</dt>
       <dd className="mt-0.5 truncate text-zinc-300" title={value}>{value}</dd>
     </div>
   )

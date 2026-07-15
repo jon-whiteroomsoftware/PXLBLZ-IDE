@@ -113,7 +113,7 @@ function formatImportDate(timestamp: number): string {
 function FactRow({ label, value }: { label: string; value: string | number }) {
   return (
     <div className="flex items-baseline justify-between gap-3 border-b border-zinc-900/80 py-1.5">
-      <span className="text-zinc-600">{label}</span>
+      <span className="text-zinc-500">{label}</span>
       <b className="min-w-0 truncate text-right font-mono text-[11px] font-semibold text-zinc-300">{value}</b>
     </div>
   )
@@ -177,7 +177,7 @@ function EmptyMapPane() {
           <MapIcon size={18} aria-hidden />
         </div>
         <h2 className="text-sm font-semibold text-zinc-300">No map selected</h2>
-        <p className="mt-2 text-xs leading-5 text-zinc-600">Create or select a map from the rail.</p>
+        <p className="mt-2 text-xs leading-5 text-zinc-500">Create or select a map from the rail.</p>
       </div>
     </div>
   )
@@ -317,7 +317,7 @@ export function MapContextPane() {
             </div>
           </div>
         ) : (
-          <div className="flex aspect-square w-full items-center justify-center px-6 text-center text-[11px] leading-5 text-zinc-600">
+          <div className="flex aspect-square w-full items-center justify-center px-6 text-center text-[11px] leading-5 text-zinc-500">
             This map has no successful bake yet.
           </div>
         )}
@@ -331,7 +331,7 @@ export function MapContextPane() {
         <span>1</span>
         <span className="h-1.5 flex-1 rounded-full bg-gradient-to-r from-[#2a2a30] to-[#fbbf24]" />
         <span>{Math.max(1, context.points.length)}</span>
-        <span className="ml-1 text-zinc-600">gradient follows wire order</span>
+        <span className="ml-1 text-zinc-500">gradient follows wire order</span>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
         <SectionTitle icon={<MapIcon size={12} aria-hidden />}>Map</SectionTitle>
@@ -363,16 +363,16 @@ export function MapContextPane() {
         <SectionTitle icon={<GitBranch size={12} aria-hidden />}>Used by</SectionTitle>
         <div className="mt-1 space-y-1.5">
           {controllerProfiles.length === 0 ? (
-            <div className="rounded border border-zinc-900 bg-zinc-950/50 px-2 py-2 text-[11px] text-zinc-600">
+            <div className="rounded border border-zinc-900 bg-zinc-950/50 px-2 py-2 text-[11px] text-zinc-500">
               No controller profiles yet.
             </div>
           ) : (
-            <div className="rounded border border-zinc-900 bg-zinc-950/50 px-2 py-2 text-[11px] text-zinc-600">
+            <div className="rounded border border-zinc-900 bg-zinc-950/50 px-2 py-2 text-[11px] text-zinc-500">
               Controller profiles do not record map identity yet.
             </div>
           )}
           {patternUsers.length === 0 ? (
-            <div className="rounded border border-zinc-900 bg-zinc-950/50 px-2 py-2 text-[11px] text-zinc-600">
+            <div className="rounded border border-zinc-900 bg-zinc-950/50 px-2 py-2 text-[11px] text-zinc-500">
               No saved patterns explicitly select this map.
             </div>
           ) : (
@@ -385,7 +385,7 @@ export function MapContextPane() {
                 </div>
               ))}
               {patternUsers.length > 5 && (
-                <div className="px-2 text-[10px] text-zinc-600">+{patternUsers.length - 5} more patterns</div>
+                <div className="px-2 text-[10px] text-zinc-500">+{patternUsers.length - 5} more patterns</div>
               )}
             </div>
           )}

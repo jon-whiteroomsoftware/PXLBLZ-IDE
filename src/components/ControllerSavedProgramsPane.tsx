@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Download, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { IDE_MICROTYPE } from '@/components/ui/ideMicrotype'
 import {
   AlertDialogRoot,
   AlertDialogContent,
@@ -80,7 +81,7 @@ function FreshnessBadge({ freshness }: { freshness: TransformFreshness }) {
   return (
     <span
       title={presentation.title}
-      className={`inline-flex whitespace-nowrap border px-1.5 py-0.5 font-mono text-[9px] font-semibold uppercase tracking-wide ${presentation.className}`}
+      className={`inline-flex whitespace-nowrap border px-1.5 py-0.5 font-mono font-semibold uppercase tracking-wide ${IDE_MICROTYPE.required.sizeClassName} ${presentation.className}`}
     >
       {presentation.label}
     </span>
@@ -99,7 +100,7 @@ function ReconciliationBadge({ state }: { state: keyof typeof reconciliationPres
   return (
     <span
       title={`Managed refresh: ${presentation.label}`}
-      className={`inline-flex whitespace-nowrap border px-1.5 py-0.5 font-mono text-[9px] font-semibold uppercase tracking-wide ${presentation.className}`}
+      className={`inline-flex whitespace-nowrap border px-1.5 py-0.5 font-mono font-semibold uppercase tracking-wide ${IDE_MICROTYPE.required.sizeClassName} ${presentation.className}`}
     >
       {presentation.label}
     </span>
@@ -189,7 +190,7 @@ function ManagedPatternReconciliation({
               type="button"
               size="xs"
               variant="ghost"
-              className="h-5 bg-red-950/30 px-1.5 text-[9px] text-red-300 hover:bg-red-950/60"
+              className={`h-5 bg-red-950/30 px-1.5 text-red-300 hover:bg-red-950/60 ${IDE_MICROTYPE.required.sizeClassName}`}
               onClick={onRetry}
             >
               Retry failed updates
@@ -210,7 +211,7 @@ function ManagedPatternReconciliation({
           </div>
         )}
 
-        <p className="mt-1.5 text-[10px] leading-4 text-zinc-600">
+        <p className="mt-1.5 text-[10px] leading-4 text-zinc-500">
           {unmanagedCount} unmanaged {unmanagedCount === 1 ? 'program is' : 'programs are'} completely exempt from automatic changes.
         </p>
       </div>
@@ -424,7 +425,7 @@ function SavedProgramsInventory({
               {programs.foreign.map((program) => (
                 <tr key={program.programId} className="bg-zinc-950/40">
                   <td className={`${tableCellClass} text-zinc-500`}>{program.name}</td>
-                  <td className={`${tableCellClass} font-mono text-zinc-600`}>{program.programId}</td>
+                  <td className={`${tableCellClass} font-mono text-zinc-500`}>{program.programId}</td>
                   <td className={tableCellClass}>
                     <FreshnessBadge freshness={program.freshness} />
                   </td>
@@ -442,7 +443,7 @@ function SavedProgramsInventory({
             </tbody>
           </table>
           {programs.foreign.length > 0 && (
-            <p className="border-t border-zinc-800/80 px-2 py-2 text-[10px] leading-4 text-zinc-600">
+            <p className="border-t border-zinc-800/80 px-2 py-2 text-[10px] leading-4 text-zinc-500">
               Foreign means saved on this controller but not linked to a pattern in this Studio.
             </p>
           )}

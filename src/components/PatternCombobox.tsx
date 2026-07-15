@@ -1,5 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { Search } from 'lucide-react'
+import { IDE_MICROTYPE } from '@/components/ui/ideMicrotype'
 
 export interface PatternComboboxOption {
   value: string
@@ -127,7 +128,7 @@ export function PatternCombobox({
             return (
               <div key={option.value}>
                 {showGroups && option.group !== previousGroup && (
-                  <div role="presentation" className="px-2 pb-1 pt-2 text-[9px] font-semibold uppercase tracking-wider text-zinc-600 first:pt-1">
+                  <div role="presentation" className={`px-2 pb-1 pt-2 font-semibold uppercase tracking-wider first:pt-1 ${IDE_MICROTYPE.required.className}`}>
                     {option.group}
                   </div>
                 )}

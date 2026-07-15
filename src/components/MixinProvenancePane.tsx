@@ -39,15 +39,15 @@ export function MixinProvenancePane() {
           <h3 className="font-mono text-[11px] uppercase tracking-wide text-zinc-500">Header</h3>
           <div className="mt-2 space-y-1.5 text-[11px] text-zinc-400">
             <div className="flex gap-2">
-              <span className="w-12 shrink-0 text-zinc-600">target</span>
+              <span className="w-12 shrink-0 text-zinc-500">target</span>
               <span className="min-w-0 truncate text-zinc-300">{header.target || '-'}</span>
             </div>
             <div className="flex gap-2">
-              <span className="w-12 shrink-0 text-zinc-600">wraps</span>
+              <span className="w-12 shrink-0 text-zinc-500">wraps</span>
               <span className="min-w-0 truncate text-zinc-300">{header.wraps || '-'}</span>
             </div>
             <div className="flex gap-2">
-              <span className="w-12 shrink-0 text-zinc-600">params</span>
+              <span className="w-12 shrink-0 text-zinc-500">params</span>
               <span className="min-w-0 truncate text-zinc-300">
                 {header.params.length ? header.params.map((param) => param.name).join(', ') : '-'}
               </span>

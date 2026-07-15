@@ -954,6 +954,16 @@ never alter the flag, so Shows can borrow horizontal space without creating
 Show-only navigation behavior. Gallery navigation remains in the top bar; the
 activity strip does not duplicate it.
 
+`ui/ideMicrotype.ts` records the application-wide dense-tool baseline against
+the near-black `#0b0c0f` panel. Required persistent microcopy is 10px zinc-400
+(7.63:1 measured contrast); secondary labels may use 9px but retain zinc-400;
+8px zinc-500 is reserved for nonessential ornament or transient annotations.
+Disabled controls may remain dimmer because their state is itself semantic.
+The shared Activity strip, catalogue group labels, rail empty states, entity
+facts, compact Controller badges, and inspection labels follow those roles.
+Containers recover density through line height and padding rather than making
+required text smaller or darker.
+
 Selection is UI-local and has one explicit open owner across Show setup, scene,
 clip, empty slot, transition, zone, and routing switch. `ShowEditor` records the
 owner key and its live Timeline element separately from the selected model

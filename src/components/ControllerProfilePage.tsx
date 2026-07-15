@@ -618,7 +618,7 @@ function GlobalTransformsTable({
                       </div>
                     ) : (
                       <div className="grid gap-1">
-                        <span className="text-[10px] uppercase tracking-wide text-zinc-600">Configured below</span>
+                        <span className="text-[10px] uppercase tracking-wide text-zinc-500">Configured below</span>
                         <p className="text-[10px] leading-4 text-zinc-500">
                           Limits estimated output duty for hsv() and rgb(). paint() output is not covered.
                         </p>
@@ -780,7 +780,7 @@ function PowerCapField({
       <span className="min-w-0 text-[10px] leading-tight text-zinc-500">{label}</span>
       <span className="flex min-w-0 items-center gap-1.5">
         {children}
-        <span className="shrink-0 text-[10px] text-zinc-600">{unit}</span>
+        <span className="shrink-0 text-[10px] text-zinc-500">{unit}</span>
       </span>
       {hint && <span className="col-span-full text-[10px] text-amber-300/80">⚡ {hint}</span>}
     </label>

@@ -328,7 +328,7 @@ export function ControllerPanel() {
             <div className="col-span-2">
               <DeckTelemetry label="est. draw" value={powerTelemetry.estimatedDrawLabel} />
               {powerTelemetry.estimatedDrawAssumptions && (
-                <div className="mt-0.5 text-right text-[10px] leading-tight text-zinc-600">
+                <div className="mt-0.5 text-right text-[10px] leading-tight text-zinc-500">
                   {powerTelemetry.estimatedDrawAssumptions}
                 </div>
               )}

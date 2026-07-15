@@ -8,7 +8,7 @@ import { usePatternStore } from '@/store/patternStore'
 function FactRow({ label, value }: { label: string; value: string | number }) {
   return (
     <div className="flex items-baseline justify-between gap-3 border-b border-zinc-900/80 py-1.5">
-      <span className="text-zinc-600">{label}</span>
+      <span className="text-zinc-500">{label}</span>
       <b className="min-w-0 truncate text-right font-mono text-[11px] font-semibold text-zinc-300">{value}</b>
     </div>
   )
@@ -22,7 +22,7 @@ function EmptyLibraryPane() {
           <Code2 size={18} aria-hidden />
         </div>
         <h2 className="text-sm font-semibold text-zinc-300">No library selected</h2>
-        <p className="mt-2 text-xs leading-5 text-zinc-600">Select a stock or cloud library from the rail.</p>
+        <p className="mt-2 text-xs leading-5 text-zinc-500">Select a stock or cloud library from the rail.</p>
       </div>
     </div>
   )

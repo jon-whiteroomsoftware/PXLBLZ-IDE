@@ -64,12 +64,12 @@ export function LibrariesRailSection({
         onScroll={onScroll}
       >
         {!personalWorkspaceAuthenticated ? (
-          <p className="pl-3 pr-3 py-2 text-zinc-600 italic select-none">
+          <p className="pl-3 pr-3 py-2 text-zinc-500 italic select-none">
             <a href="/api/auth/login" className="text-live hover:underline">Sign in</a>
             {' '}to save libraries
           </p>
         ) : userLibraries.length === 0 ? (
-          <p className="pl-3 pr-3 py-1 text-zinc-600 italic select-none">
+          <p className="pl-3 pr-3 py-1 text-zinc-500 italic select-none">
             No cloud libraries yet
           </p>
         ) : (

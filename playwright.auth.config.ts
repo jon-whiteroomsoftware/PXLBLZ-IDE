@@ -1,5 +1,7 @@
 import { defineConfig, devices } from '@playwright/test'
 
+const studioBaseUrl = process.env.PLAYWRIGHT_STUDIO_URL ?? 'http://localhost:5174/PXLBLZ-IDE/'
+
 export default defineConfig({
   testDir: './e2e',
   testMatch: '**/*.auth.spec.ts',
@@ -8,7 +10,7 @@ export default defineConfig({
   reporter: 'list',
   globalSetup: './e2e/auth.global-setup.ts',
   use: {
-    baseURL: 'http://localhost:5174/PXLBLZ-IDE/',
+    baseURL: studioBaseUrl,
     trace: 'on-first-retry',
   },
   projects: [
@@ -23,7 +25,7 @@ export default defineConfig({
     },
     {
       command: 'npm run dev',
-      url: 'http://localhost:5174/PXLBLZ-IDE/',
+      url: studioBaseUrl,
       reuseExistingServer: true,
       timeout: 120_000,
     },

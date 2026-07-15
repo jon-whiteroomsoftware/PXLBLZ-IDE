@@ -143,7 +143,9 @@ describe('App smoke test', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Collapse library' }))
     expect(pane).toHaveStyle({ width: '46px' })
     expect(screen.getByRole('radiogroup', { name: 'Studio activity' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Expand library' })).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: 'Patterns' })).toHaveClass('text-[10px]')
+    expect(screen.getByRole('radio', { name: 'Maps' })).toHaveClass('text-zinc-500')
+    expect(screen.getByRole('button', { name: 'Expand library' })).toHaveClass('text-[10px]', 'text-zinc-500')
 
     await userEvent.click(screen.getByRole('radio', { name: 'Shows' }))
     expect(screen.getByRole('button', { name: 'Expand library' })).toBeInTheDocument()

@@ -1,6 +1,7 @@
 import { BookOpen, Braces, Cpu, FileCode2, Map as MapIcon, PanelLeftOpen, PanelsTopLeft } from 'lucide-react'
 import type React from 'react'
 import type { StudioEntityKind } from '@/engine/routes'
+import { IDE_MICROTYPE } from '@/components/ui/ideMicrotype'
 
 export type RailMode = StudioEntityKind
 
@@ -46,10 +47,10 @@ export function ActivityStrip({
             title={entry.label}
             onClick={() => onModeChange(entry.kind)}
             className={[
-              'mb-1 flex w-full flex-col items-center gap-0.5 px-1 py-1 text-[9px] font-semibold uppercase tracking-wide transition-colors',
+              `mb-1 flex w-full flex-col items-center gap-0.5 px-1 py-1 font-semibold uppercase tracking-wide transition-colors ${IDE_MICROTYPE.required.sizeClassName}`,
               active
                 ? 'text-live'
-                : 'text-zinc-600 hover:bg-zinc-900/55 hover:text-zinc-300',
+                : 'text-zinc-500 hover:bg-zinc-900/55 hover:text-zinc-300',
             ].join(' ')}
           >
             <span className={[
@@ -68,7 +69,7 @@ export function ActivityStrip({
           aria-label="Expand library"
           title="Expand library"
           onClick={onToggleCollapsed}
-          className="mt-auto flex w-full flex-col items-center gap-0.5 px-1 py-1 text-[9px] font-semibold uppercase tracking-wide text-zinc-600 transition-colors hover:bg-zinc-900/55 hover:text-zinc-300"
+          className={`mt-auto flex w-full flex-col items-center gap-0.5 px-1 py-1 font-semibold uppercase tracking-wide text-zinc-500 transition-colors hover:bg-zinc-900/55 hover:text-zinc-300 ${IDE_MICROTYPE.required.sizeClassName}`}
         >
           <span className="grid size-7 place-items-center rounded border border-transparent">
             <PanelLeftOpen size={17} />

@@ -584,7 +584,7 @@ export function ControllerBar({ reloadPage = () => window.location.reload() }: {
                   </p>
                 )}
                 {!discovering && discovered.length === 0 && (
-                  <p className="text-zinc-600" data-testid="controller-discover-empty">
+                  <p className="text-zinc-500" data-testid="controller-discover-empty">
                     {hasPills
                       ? 'No other Controllers found. They must have network discovery enabled.'
                       : 'No Controllers found yet. They must have network discovery enabled.'}
