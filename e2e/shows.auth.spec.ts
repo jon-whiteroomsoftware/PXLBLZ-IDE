@@ -74,19 +74,31 @@ test.describe('authenticated Show authoring', () => {
     expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(8)
   })
 
-  test('pans the zoomed Show timeline horizontally with an ordinary mouse wheel (#476)', async ({ page }) => {
-    await page.setViewportSize({ width: 1440, height: 900 })
+  test('keeps vertical scroll, horizontal trackpad pan, and Shift-wheel pan distinct (#476)', async ({ page }) => {
+    await page.setViewportSize({ width: 1200, height: 500 })
     await page.goto('studio/shows/stock-show-installation-finale')
     await page.getByRole('slider', { name: 'Timeline zoom' }).fill('5.1')
 
     const timeline = page.getByTestId('show-timeline-scroll-region')
+    const editor = page.getByTestId('show-editor-scroll')
     await expect.poll(() => timeline.evaluate((element) => element.scrollWidth > element.clientWidth)).toBe(true)
-    const before = await timeline.evaluate((element) => element.scrollLeft)
+    await expect.poll(() => editor.evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(true)
+    const beforeHorizontal = await timeline.evaluate((element) => element.scrollLeft)
+    const beforeVertical = await editor.evaluate((element) => element.scrollTop)
 
     await timeline.hover()
     await page.mouse.wheel(0, 480)
+    await expect.poll(() => editor.evaluate((element) => element.scrollTop)).toBeGreaterThan(beforeVertical)
+    expect(await timeline.evaluate((element) => element.scrollLeft)).toBe(beforeHorizontal)
 
-    await expect.poll(() => timeline.evaluate((element) => element.scrollLeft)).toBeGreaterThan(before)
+    await page.mouse.wheel(480, 0)
+    await expect.poll(() => timeline.evaluate((element) => element.scrollLeft)).toBeGreaterThan(beforeHorizontal)
+    const afterTrackpad = await timeline.evaluate((element) => element.scrollLeft)
+
+    await page.keyboard.down('Shift')
+    await page.mouse.wheel(0, 480)
+    await page.keyboard.up('Shift')
+    await expect.poll(() => timeline.evaluate((element) => element.scrollLeft)).toBeGreaterThan(afterTrackpad)
   })
 
   test('bridges Global Show to one read-only Scene X-ray and Super Detail layer', async ({ page }) => {

@@ -720,7 +720,7 @@ describe('ShowEditor (#318)', () => {
     expect(playhead).toHaveValue('10000')
   })
 
-  it('pans the Show timeline horizontally with an ordinary vertical mouse wheel (#476)', () => {
+  it('leaves ordinary vertical wheel input available to the Show editor scroll owner (#476)', () => {
     const show = createDefaultShow('show-476-wheel', 'Wheel pan study', 1000)
     useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
     render(<ShowEditor showId={show.id} />)
@@ -732,13 +732,14 @@ describe('ShowEditor (#318)', () => {
       scrollLeft: { configurable: true, writable: true, value: 100 },
     })
 
-    fireEvent.wheel(timeline, { deltaY: 120 })
+    const defaultAllowed = fireEvent.wheel(timeline, { deltaY: 120 })
 
-    expect(timeline.scrollLeft).toBe(220)
+    expect(defaultAllowed).toBe(true)
+    expect(timeline.scrollLeft).toBe(100)
   })
 
-  it('uses the dominant trackpad axis without adding diagonal wheel deltas (#476)', () => {
-    const show = createDefaultShow('show-476-trackpad', 'Trackpad pan study', 1000)
+  it('pans the Show timeline horizontally with Shift and a vertical mouse wheel (#476)', () => {
+    const show = createDefaultShow('show-476-shift-wheel', 'Shift wheel pan study', 1000)
     useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
     render(<ShowEditor showId={show.id} />)
 
@@ -749,7 +750,7 @@ describe('ShowEditor (#318)', () => {
       scrollLeft: { configurable: true, writable: true, value: 300 },
     })
 
-    fireEvent.wheel(timeline, { deltaX: -75, deltaY: 20 })
+    fireEvent.wheel(timeline, { shiftKey: true, deltaY: -75 })
 
     expect(timeline.scrollLeft).toBe(225)
   })

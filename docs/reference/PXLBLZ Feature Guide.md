@@ -575,10 +575,10 @@ command labels disappear before controls move; at the smallest supported width,
 current time stacks above total time.
 
 Use **Fit**, zoom buttons, or Ctrl/Command-wheel to change the viewport. An
-unmodified mouse wheel over the timeline pans it horizontally; horizontal
-trackpad motion follows the same axis. The navigator thumb shows the visible
-fraction; drag it to pan or drag its edges to resize the visible range. Zoom is
-editor state only and never changes Show time.
+ordinary mouse wheel scrolls the editor vertically. Horizontal trackpad motion
+or Shift-wheel pans the timeline horizontally. The navigator thumb shows the
+visible fraction; drag it to pan or drag its edges to resize the visible range.
+Zoom is editor state only and never changes Show time.
 **Snap** magnetically aligns pointer scrubbing to scene, clip, transition, and
 zoom-aware time-grid boundaries. It is on by default and remembered as an editor
 preference; hold Alt to temporarily reverse the current Snap setting.

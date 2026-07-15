@@ -1322,6 +1322,7 @@ function SceneStrip({
         zoomAroundPlayhead(event.deltaY < 0 ? 1.25 : 0.8)
         return
       }
+      if (!event.shiftKey) return
 
       const maxScroll = Math.max(0, element.scrollWidth - element.clientWidth)
       if (maxScroll <= 0) return
