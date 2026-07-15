@@ -209,6 +209,76 @@
   }
 }
 
+/* Effect palette mnemonics stay local: no Stage preview or React animation loop. */
+.show-effect-mnemonic [data-effect-motion-part] {
+  transform-box: view-box;
+  transform-origin: center;
+}
+
+.show-effect-choice:is(:hover, :focus-visible) .show-effect-mnemonic[data-effect-motion='fade'] [data-effect-motion-part] {
+  animation: effect-mnemonic-fade 700ms ease-in-out infinite alternate;
+}
+
+.show-effect-choice:is(:hover, :focus-visible) .show-effect-mnemonic[data-effect-motion='brightness'] [data-effect-motion-part],
+.show-effect-choice:is(:hover, :focus-visible) .show-effect-mnemonic[data-effect-motion='saturation'] [data-effect-motion-part] {
+  animation: effect-mnemonic-pulse 700ms ease-in-out infinite alternate;
+}
+
+.show-effect-choice:is(:hover, :focus-visible) .show-effect-mnemonic[data-effect-motion='cycle'] [data-effect-motion-part],
+.show-effect-choice:is(:hover, :focus-visible) .show-effect-mnemonic[data-effect-motion='wrap'] [data-effect-motion-part],
+.show-effect-choice:is(:hover, :focus-visible) .show-effect-mnemonic[data-effect-motion='ripple'] [data-effect-motion-part] {
+  animation: effect-mnemonic-flow 850ms linear infinite;
+  stroke-dasharray: 5 2;
+}
+
+.show-effect-choice:is(:hover, :focus-visible) .show-effect-mnemonic[data-effect-motion='contrast'] [data-effect-motion-part] {
+  animation: effect-mnemonic-contrast 700ms ease-in-out infinite alternate;
+}
+
+.show-effect-choice:is(:hover, :focus-visible) .show-effect-mnemonic[data-effect-motion='invert'] [data-effect-motion-part] {
+  animation: effect-mnemonic-invert 900ms steps(2, jump-none) infinite;
+}
+
+.show-effect-choice:is(:hover, :focus-visible) .show-effect-mnemonic[data-effect-motion='threshold'] [data-effect-motion-part],
+.show-effect-choice:is(:hover, :focus-visible) .show-effect-mnemonic[data-effect-motion='steps'] [data-effect-motion-part] {
+  animation: effect-mnemonic-steps 750ms steps(3, end) infinite alternate;
+}
+
+.show-effect-choice:is(:hover, :focus-visible) .show-effect-mnemonic[data-effect-motion='translate'] [data-effect-motion-part] {
+  animation: effect-mnemonic-translate 650ms ease-in-out infinite alternate;
+}
+
+.show-effect-choice:is(:hover, :focus-visible) .show-effect-mnemonic[data-effect-motion='rotate'] [data-effect-motion-part] {
+  animation: effect-mnemonic-rotate 900ms linear infinite;
+}
+
+.show-effect-choice:is(:hover, :focus-visible) .show-effect-mnemonic[data-effect-motion='scale'] [data-effect-motion-part] {
+  animation: effect-mnemonic-scale 650ms ease-in-out infinite alternate;
+}
+
+.show-effect-choice:is(:hover, :focus-visible) .show-effect-mnemonic[data-effect-motion='shear'] [data-effect-motion-part] {
+  animation: effect-mnemonic-shear 700ms ease-in-out infinite alternate;
+}
+
+@keyframes effect-mnemonic-fade { to { opacity: .25; } }
+@keyframes effect-mnemonic-pulse { to { transform: scale(1.13); opacity: 1; } }
+@keyframes effect-mnemonic-flow { to { stroke-dashoffset: -14; } }
+@keyframes effect-mnemonic-contrast { to { transform: scaleY(1.3); } }
+@keyframes effect-mnemonic-invert { 50% { transform: rotate(180deg); } }
+@keyframes effect-mnemonic-steps { to { transform: translateY(-1.5px); opacity: .55; } }
+@keyframes effect-mnemonic-translate { to { transform: translateX(4px); } }
+@keyframes effect-mnemonic-rotate { to { transform: rotate(360deg); } }
+@keyframes effect-mnemonic-scale { to { transform: scale(.72); } }
+@keyframes effect-mnemonic-shear { to { transform: skewX(14deg); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .show-effect-choice .show-effect-mnemonic [data-effect-motion-part] {
+    animation: none !important;
+    transform: none !important;
+    stroke-dashoffset: 0 !important;
+  }
+}
+
 /* Left rail list scrolling uses a custom overlay thumb so switching between a long
    pattern list and a short map list never changes the rail's content width. */
 .rail-list-scroll {

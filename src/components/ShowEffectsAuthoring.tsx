@@ -150,7 +150,7 @@ export function ShowEffectPalette({
             onPointerEnter={() => inspectItem(item)}
             onFocus={() => inspectItem(item)}
             onClick={() => applyItem(item)}
-            className="group flex h-10 min-w-0 items-center gap-2 bg-[#101115] px-2 text-left hover:bg-[#171920] focus-visible:relative focus-visible:z-10 focus-visible:outline focus-visible:outline-1 focus-visible:outline-cyan-300 disabled:cursor-not-allowed disabled:opacity-40"
+            className="show-effect-choice group flex h-10 min-w-0 items-center gap-2 bg-[#101115] px-2 text-left hover:bg-[#171920] focus-visible:relative focus-visible:z-10 focus-visible:outline focus-visible:outline-1 focus-visible:outline-cyan-300 disabled:cursor-not-allowed disabled:opacity-40"
             title={item.compatible ? item.summary : item.compatibilityReason ?? undefined}
           >
             <EffectMnemonic kind={item.variantId} />
@@ -294,17 +294,93 @@ function stageLabel(stage: ShowEffectPipelineStage | null): string {
   return STAGES.find((candidate) => candidate.id === stage)?.label ?? 'Effect'
 }
 
+const EFFECT_MNEMONIC_MOTION: Record<string, string> = {
+  opacity: 'fade',
+  brightness: 'brightness',
+  hue: 'cycle',
+  saturation: 'saturation',
+  contrast: 'contrast',
+  invert: 'invert',
+  threshold: 'threshold',
+  posterize: 'steps',
+  'color-map': 'cycle',
+  translate: 'translate',
+  rotate: 'rotate',
+  scale: 'scale',
+  shear: 'shear',
+  wrap: 'wrap',
+  ripple: 'ripple',
+  swirl: 'rotate',
+  bulge: 'scale',
+  pixelate: 'steps',
+  kaleidoscope: 'rotate',
+}
+
 function EffectMnemonic({ kind }: { kind: string }) {
-  const path = kind === 'ripple' ? 'M1 7 C5 1 9 13 13 7 S21 1 25 7'
-    : kind === 'swirl' || kind === 'rotate' ? 'M13 2 C21 2 23 12 15 12 C8 12 7 5 13 5 C17 5 18 9 14 9'
-      : kind === 'translate' ? 'M2 7 H23 M18 3 L23 7 L18 11'
-        : kind === 'scale' || kind === 'bulge' ? 'M3 7 H23 M3 7 L8 3 M3 7 L8 11 M23 7 L18 3 M23 7 L18 11'
-          : kind === 'pixelate' || kind === 'posterize' ? 'M2 3 H8 V9 H2 Z M10 5 H16 V11 H10 Z M18 2 H24 V8 H18 Z'
-            : kind === 'wrap' ? 'M3 4 H20 C24 4 24 10 20 10 H6 M9 7 L6 10 L9 13'
-              : 'M2 11 L8 7 L13 9 L19 3 L24 5'
+  const motion = EFFECT_MNEMONIC_MOTION[kind] ?? 'fade'
   return (
-    <svg viewBox="0 0 26 14" className="h-3.5 w-7 shrink-0 overflow-visible text-cyan-400/65 transition-transform duration-300 group-hover:scale-110" aria-hidden>
-      <path d={path} fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+    <svg
+      viewBox="0 0 26 14"
+      className="show-effect-mnemonic h-3.5 w-7 shrink-0 overflow-visible text-cyan-400/70"
+      data-effect-mnemonic={kind}
+      data-effect-motion={motion}
+      aria-hidden
+    >
+      <g
+        data-effect-motion-part
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.15"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        {effectMnemonicShape(kind)}
+      </g>
     </svg>
   )
+}
+
+function effectMnemonicShape(kind: string): React.ReactNode {
+  switch (kind) {
+    case 'opacity':
+      return <><path d="M2 3 H24" opacity=".3" /><path d="M2 7 H24" opacity=".65" /><path d="M2 11 H24" /></>
+    case 'brightness':
+      return <><circle cx="13" cy="7" r="2.6" /><path d="M13 1 V2.5 M13 11.5 V13 M7 7 H5.5 M20.5 7 H19 M8.8 2.8 L9.9 3.9 M16.1 10.1 L17.2 11.2 M17.2 2.8 L16.1 3.9 M9.9 10.1 L8.8 11.2" /></>
+    case 'hue':
+      return <><path d="M4 10 A9 9 0 0 1 8 3" /><path d="M9.5 2.2 A9 9 0 0 1 17 3" opacity=".7" /><path d="M18.3 4 A9 9 0 0 1 22 10" opacity=".4" /><path d="M4 10 H22" /></>
+    case 'saturation':
+      return <><circle cx="6" cy="7" r="3" opacity=".25" /><circle cx="13" cy="7" r="3" opacity=".6" /><circle cx="20" cy="7" r="3" /></>
+    case 'contrast':
+      return <><path d="M2 10 L10 8 L16 6 L24 4" opacity=".35" /><path d="M2 11 L10 10 L16 3 L24 2" /></>
+    case 'invert':
+      return <><circle cx="13" cy="7" r="5" /><path d="M13 2 A5 5 0 0 0 13 12 Z" fill="currentColor" stroke="none" /><path d="M13 2 V12" /></>
+    case 'threshold':
+      return <path d="M2 11 H11 V3 H24" />
+    case 'posterize':
+      return <path d="M2 11 H7 V8 H12 V6 H17 V3 H24" />
+    case 'color-map':
+      return <><path d="M2 10 C6 2 9 2 13 7 S20 12 24 4" /><path d="M2 12 H8 M10 12 H16 M18 12 H24" opacity=".45" /></>
+    case 'translate':
+      return <path d="M2 7 H23 M18 3 L23 7 L18 11" />
+    case 'rotate':
+      return <><path d="M20 5 A7 7 0 1 0 20 9" /><path d="M18 3 L21 5 L18 7" /></>
+    case 'scale':
+      return <><path d="M12 7 H3 M3 7 L7 3 M3 7 L7 11 M14 7 H23 M23 7 L19 3 M23 7 L19 11" /></>
+    case 'shear':
+      return <path d="M7 2 H22 L18 12 H3 Z M9 4 L6 10 M14 4 L11 10 M19 4 L16 10" />
+    case 'wrap':
+      return <><path d="M2 4 H19 C24 4 24 10 19 10 H6" /><path d="M9 7 L6 10 L9 13" /></>
+    case 'ripple':
+      return <path d="M1 7 C5 1 9 13 13 7 S21 1 25 7" />
+    case 'swirl':
+      return <path d="M13 2 C21 2 23 12 15 12 C8 12 7 5 13 5 C17 5 18 9 14 9" />
+    case 'bulge':
+      return <><path d="M7 2 C2 5 2 9 7 12 M19 2 C24 5 24 9 19 12" /><circle cx="13" cy="7" r="1.5" /></>
+    case 'pixelate':
+      return <><path d="M2 3 H8 V9 H2 Z M10 5 H16 V11 H10 Z M18 2 H24 V8 H18 Z" /></>
+    case 'kaleidoscope':
+      return <><path d="M13 1 L17 7 L13 13 L9 7 Z M13 1 L9 7 L3 4 Z M17 7 L23 10 L13 13" /><circle cx="13" cy="7" r="1" /></>
+    default:
+      return <path d="M2 11 L8 7 L13 9 L19 3 L24 5" />
+  }
 }

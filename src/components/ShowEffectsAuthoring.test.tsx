@@ -60,6 +60,48 @@ describe('Show Effect authoring UI', () => {
     expect(within(screen.getByRole('contentinfo')).getByText('Bend the source coordinates before the Pattern renders.')).toBeInTheDocument()
   })
 
+  it('renders a complete CSS-local Effect motion vocabulary for hover and focus (#474)', () => {
+    const show = createDefaultShow('show-effects-motion', 'Effect motion', 1)
+    render(<ShowEffectPalette clip={show.cells[0]} stageDimensions={2} onApply={vi.fn()} onClose={vi.fn()} />)
+
+    const expectedMotion: Record<string, string> = {
+      opacity: 'fade',
+      brightness: 'brightness',
+      hue: 'cycle',
+      saturation: 'saturation',
+      contrast: 'contrast',
+      invert: 'invert',
+      threshold: 'threshold',
+      posterize: 'steps',
+      'color-map': 'cycle',
+      translate: 'translate',
+      rotate: 'rotate',
+      scale: 'scale',
+      shear: 'shear',
+      wrap: 'wrap',
+      ripple: 'ripple',
+      swirl: 'rotate',
+      bulge: 'scale',
+      pixelate: 'steps',
+      kaleidoscope: 'rotate',
+    }
+
+    for (const [variantId, motion] of Object.entries(expectedMotion)) {
+      const glyph = document.querySelector<SVGElement>(`[data-effect-mnemonic="${variantId}"]`)
+      expect(glyph, variantId).not.toBeNull()
+      expect(glyph).toHaveAttribute('data-effect-motion', motion)
+      expect(glyph?.querySelector('[data-effect-motion-part]')).not.toBeNull()
+      expect(glyph).toHaveClass('show-effect-mnemonic')
+    }
+
+    expect(document.querySelectorAll('[data-effect-mnemonic]')).toHaveLength(19)
+    expect(document.querySelectorAll('.show-effect-choice')).toHaveLength(19)
+
+    fireEvent.pointerEnter(screen.getByRole('button', { name: 'Add Translate Effect' }))
+    fireEvent.focus(screen.getByRole('button', { name: 'Add Ripple Effect' }))
+    expect(useShowPreviewOverrideStore.getState().show).toBeNull()
+  })
+
   it('edits, duplicates, removes, and reorders only inside visible compiler stages', async () => {
     const user = userEvent.setup()
     const effects: ShowClipEffect[] = [

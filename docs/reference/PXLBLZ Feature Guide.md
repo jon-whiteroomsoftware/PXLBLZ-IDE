@@ -678,7 +678,10 @@ Select a clip and use **Effects > Add** to open the compact registry palette.
 Search, family tabs, and the compatibility filter reduce the complete frozen
 Effect registry. Rows stay terse; hover or keyboard focus reveals the family
 description and factual cost policy without changing playback or rebuilding the
-Stage runtime. Clicking a row applies its default values; named preset buttons
+Stage runtime. The row's small SVG mnemonic animates locally to demonstrate the
+Effect class: transforms move, turn, scale, or shear; distortions ripple or
+reshape; output Effects pulse or step. Reduced-motion users retain the same
+static mnemonic. Clicking a row applies its default values; named preset buttons
 apply a documented starting preset. The existing Stage then shows the applied
 Effect, and Entity Details exposes its exact parameters.
 

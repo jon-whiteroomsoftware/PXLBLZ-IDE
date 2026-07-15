@@ -988,10 +988,13 @@ logic into the clip Entity Detail Panel and compact palette; it does not encode
 family-specific compiler behavior in React.
 
 Effect-palette hover/focus changes only the palette's progressive description
-and cost disclosure. It never writes `showPreviewOverrideStore` or recompiles
-the Stage: rebuilding the compiled Pattern runtime for every hovered Effect
-reconstructs private Pattern state and produces repeated playback stutter. Apply
-alone sends the normalized Effect stack through
+and cost disclosure. Each row owns a static SVG mnemonic whose child group runs
+one CSS keyframe vocabulary under row hover or focus; no animation frame or
+component-state loop exists. A reduced-motion media query disables every
+mnemonic keyframe while preserving the glyph. The palette never writes
+`showPreviewOverrideStore` or recompiles the Stage: rebuilding the compiled
+Pattern runtime for every hovered Effect reconstructs private Pattern state and
+produces repeated playback stutter. Apply alone sends the normalized Effect stack through
 `showStore.updateCellEffects()` and persistence; the existing Stage then renders
 the saved result. The applied stack groups records by the compiler's Transform,
 Distort, Address, and Color/output stages; move commands swap only siblings in
@@ -1009,7 +1012,8 @@ a second family-specific normalization model.
 
 Transition hover/focus builds an immutable candidate Show with
 `replaceShowBoundaryTransition()` and writes it to the same ephemeral preview
-override used by Effects. It also requests a deterministic seek to the
+override seam used by other temporary Show previews. Effects deliberately do
+not use that seam. Transition preview also requests a deterministic seek to the
 candidate boundary midpoint so the existing Stage actually shows both outgoing
 and incoming sources. Leave, Escape, close, apply, and unmount clear the
 candidate and restore the captured playhead position. Apply alone sends the

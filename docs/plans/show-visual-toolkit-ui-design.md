@@ -45,7 +45,7 @@ requiring a saved Show. It demonstrates:
 
 - a searchable catalogue containing all 59 shipped variants and presets;
 - compatibility filtering against a 1D or 2D Stage;
-- progressive Effect description, static motion mnemonics, and explicit apply language;
+- progressive Effect description, locally animated motion mnemonics, and explicit apply language;
 - scene-versus-boundary inspector ownership;
 - the Transform, Distort, Address, and Color & output signal path;
 - Effect expansion, parameters, animation state, cost, and proposed bypass;
@@ -115,8 +115,9 @@ semantics.
 
 Each dense row needs a name, motion mnemonic, compatibility state, and simple
 cost label. For Effects, hover or keyboard focus reveals the one-sentence
-distinction without changing playback; animated glyphs are a later discovery
-enhancement. Selecting the row applies editable starting values in one durable
+distinction and animates the row's schematic SVG mnemonic without changing
+playback or compiling a candidate Show. Reduced-motion users retain the static
+glyph. Selecting the row applies editable starting values in one durable
 authoring transaction, after which the Stage renders the saved Effect. Boundary
 Transitions may still compile an ephemeral Show draft because evaluating their
 two-source behavior requires the boundary context; leaving or pressing Escape
