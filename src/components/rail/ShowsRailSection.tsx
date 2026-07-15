@@ -1,11 +1,14 @@
 import { Cpu, Plus } from 'lucide-react'
 import type { RefObject } from 'react'
 import type { ShowRecord } from '@/store/showStore'
+import type { StockShow } from '@/pixelblaze/stock/shows'
 import {
   EditableListItem,
   HeaderAction,
   RailEntityHeader,
   RailSectionScroller,
+  StockListItem,
+  StockSectionHeader,
   type ScrollMetrics,
 } from '@/components/rail/RailPrimitives'
 
@@ -13,6 +16,9 @@ export function ShowsRailSection({
   personalWorkspaceAuthenticated,
   userShows,
   activeShowId,
+  stockShows,
+  activeStockShowId,
+  showStockShows,
   showSeedProfileName,
   scrollRef,
   scrollMetrics,
@@ -20,6 +26,8 @@ export function ShowsRailSection({
   onCreateShow,
   onCreateShowFromController,
   onOpenShow,
+  onOpenStockShow,
+  onToggleStockShows,
   onRenameShow,
   onDeleteShow,
   onCollapse,
@@ -27,6 +35,9 @@ export function ShowsRailSection({
   personalWorkspaceAuthenticated: boolean
   userShows: ShowRecord[]
   activeShowId: string | null
+  stockShows: StockShow[]
+  activeStockShowId: string | null
+  showStockShows: boolean
   showSeedProfileName: string | null
   scrollRef: RefObject<HTMLDivElement | null>
   scrollMetrics: ScrollMetrics
@@ -34,6 +45,8 @@ export function ShowsRailSection({
   onCreateShow: () => void
   onCreateShowFromController: () => void
   onOpenShow: (show: ShowRecord) => void
+  onOpenStockShow: (show: StockShow) => void
+  onToggleStockShows: () => void
   onRenameShow: (id: string, name: string) => void
   onDeleteShow: (id: string) => void
   onCollapse?: () => void
@@ -90,6 +103,29 @@ export function ShowsRailSection({
             ))}
           </ul>
         )}
+        <StockSectionHeader
+          label="Built-in Shows"
+          open={showStockShows}
+          onToggle={onToggleStockShows}
+        />
+        {showStockShows && (['portable', 'installation'] as const).map((track) => (
+          <section key={track} aria-label={`${track === 'portable' ? 'Portable' : 'Installation'} built-in Shows`}>
+            <h3 className="px-3 pb-1 pt-2 text-[9px] font-semibold uppercase tracking-[0.12em] text-zinc-600">
+              {track === 'portable' ? 'Portable' : 'Installation'}
+            </h3>
+            <ul className="opacity-90">
+              {stockShows.filter((item) => item.track === track).map((item) => (
+                <StockListItem
+                  key={item.id}
+                  name={item.name}
+                  active={activeStockShowId === item.id}
+                  meta={`${item.show.scenes.length} SC`}
+                  onSelect={() => onOpenStockShow(item)}
+                />
+              ))}
+            </ul>
+          </section>
+        ))}
       </RailSectionScroller>
     </>
   )

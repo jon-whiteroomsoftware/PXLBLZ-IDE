@@ -34,6 +34,7 @@ import type { MapRecord, MixinRecord, PatternRecord, ShowRecord } from '@/engine
 import { createInstallationShowOutputContract, createPortableShowOutputContract } from '@/engine/showOutputContract'
 import { showPreviewOverrideInitialState, useShowPreviewOverrideStore } from '@/store/showPreviewOverrideStore'
 import { showEditorSessionInitialState, useShowEditorSessionStore } from '@/store/showEditorSessionStore'
+import { STOCK_SHOWS } from '@/pixelblaze/stock/shows'
 
 function memoryProvider(seedShows: ShowRecord[] = []): PersonalContentProvider {
   const patterns = new Map<string, PatternRecord>()
@@ -101,6 +102,19 @@ beforeEach(() => {
 afterEach(() => resetControllerProvider())
 
 describe('ShowEditor (#318)', () => {
+  it('opens a stock Show in the real editor without creating a personal record (#363)', async () => {
+    const stock = STOCK_SHOWS[0]
+
+    render(<ShowEditor showId={stock.id} showOverride={stock.show} readOnly />)
+
+    expect(screen.getByText('Built-in Show')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Show preview/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Show properties' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Split at playhead' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Clone selection' })).toBeDisabled()
+    expect(useShowStore.getState().shows).toEqual([])
+  })
+
   it('discloses one stable read-only Scene X-ray and transfers Super Detail between owners (#471)', async () => {
     const user = userEvent.setup()
     const show = createDefaultShow('show-scene-xray', 'Scene X-ray', 1000)

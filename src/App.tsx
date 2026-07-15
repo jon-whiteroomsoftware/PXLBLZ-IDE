@@ -71,6 +71,7 @@ import { galleryPatternBySlug, patternSlug, type GalleryPattern } from '@/engine
 import { docExternalHref, getUserDoc, isDocId } from '@/docs/catalog'
 import type { AuthProvider } from '@/engine/authSession'
 import { DEMOS } from '@/pixelblaze/stock/patterns'
+import { stockShowById } from '@/pixelblaze/stock/shows'
 import { InlineEntityTitle } from '@/components/InlineEntityTitle'
 
 function Splitter({ onDrag, className = '' }: { onDrag: (dx: number) => void; className?: string }) {
@@ -406,7 +407,9 @@ function StudioApp() {
       }
     } else if (route.kind === 'studio' && route.entity !== null && route.entity.kind === 'shows' && route.entity.id !== null) {
       const entityId = route.entity.id
-      if (shows.some((show) => show.id === entityId) && activeShowId !== entityId) openShow(entityId)
+      if (stockShowById(entityId)) {
+        if (activeShowId !== null) void openShow(null)
+      } else if (shows.some((show) => show.id === entityId) && activeShowId !== entityId) openShow(entityId)
     }
   }, [route, patternsLoaded, mapsLoaded, mixinsLoaded, librariesLoaded, showsLoaded, syncDocsFromRoute, shows, activeShowId, activeLibraryName, openShow])
 
@@ -555,7 +558,10 @@ function StudioApp() {
     route.kind === 'studio' && route.entity?.kind === 'controllers' ? route.entity.id : null
   const activeControllerProfile =
     activeControllerProfileId ? controllerProfiles.find((profile) => profile.id === activeControllerProfileId) : undefined
-  const activeShow = activeShowId ? shows.find((show) => show.id === activeShowId) : undefined
+  const routedStockShow = route.kind === 'studio' && route.entity?.kind === 'shows'
+    ? stockShowById(route.entity.id)
+    : undefined
+  const activeShow = routedStockShow?.show ?? (activeShowId ? shows.find((show) => show.id === activeShowId) : undefined)
 
   const handleDeletePattern = useCallback(async () => {
     if (!activePatternId) return
@@ -603,7 +609,7 @@ function StudioApp() {
       : routeEntity.kind === 'controllers'
         ? controllerProfilesLoaded && !controllerProfiles.some((profile) => profile.id === routeEntity.id)
       : routeEntity.kind === 'shows'
-        ? showsLoaded && !shows.some((show) => show.id === routeEntity.id)
+        ? showsLoaded && !shows.some((show) => show.id === routeEntity.id) && !stockShowById(routeEntity.id)
         : true)
   const invalidDocRoute = route.kind === 'docs' && !isDocId(route.docId)
   const browseRoute = route.kind === 'gallery' || route.kind === 'pattern-detail'
@@ -828,7 +834,7 @@ function StudioApp() {
                   <InlineEntityTitle
                     name={activeShow?.name ?? 'Shows'}
                     noun="show"
-                    onRename={activeShow ? (nextName) => renameShow(activeShow.id, nextName) : undefined}
+                    onRename={activeShow && !routedStockShow ? (nextName) => renameShow(activeShow.id, nextName) : undefined}
                     takenNames={shows.filter((show) => show.id !== activeShow?.id).map((show) => show.name)}
                   />
                   {activeShow && (
@@ -970,9 +976,16 @@ function StudioApp() {
                     navigate({ kind: 'studio', entity: { kind: 'shows', id: showBeingClassified.id } }, { replace: true })
                   }}
                 />
-              ) : activeShowId !== null ? (
+              ) : activeShow ? (
                 <ShowEditor
-                  showId={activeShowId}
+                  showId={activeShow.id}
+                  showOverride={routedStockShow?.show}
+                  readOnly={Boolean(routedStockShow)}
+                  builtInContext={routedStockShow ? {
+                    track: routedStockShow.track,
+                    lesson: routedStockShow.lesson,
+                    description: routedStockShow.description,
+                  } : undefined}
                   headerActionsTarget={showHeaderActionsTarget}
                 />
               ) : (
@@ -1028,7 +1041,7 @@ function StudioApp() {
               ? <EmptyContextPane label="Output contract setup" />
               : showClassification
                 ? <EmptyContextPane label="Legacy Show classification" />
-              : activeShowId !== null ? <ShowStagePreview showId={activeShowId} /> : <EmptyContextPane label="Shows" />
+              : activeShow ? <ShowStagePreview showId={activeShow.id} showOverride={routedStockShow?.show} /> : <EmptyContextPane label="Shows" />
           ) : (
             <Preview />
           )}

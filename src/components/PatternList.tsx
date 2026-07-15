@@ -46,6 +46,7 @@ import { MixinsRailSection } from '@/components/rail/MixinsRailSection'
 import { LibrariesRailSection } from '@/components/rail/LibrariesRailSection'
 import { ControllersRailSection } from '@/components/rail/ControllersRailSection'
 import { ShowsRailSection } from '@/components/rail/ShowsRailSection'
+import { STOCK_SHOWS, type StockShow } from '@/pixelblaze/stock/shows'
 
 const DEFAULT_DEMO_NAME = 'IridescentFibers'
 
@@ -111,6 +112,10 @@ export function PatternList({
   const liveControllers = useControllerStore((s) => s.controllers)
   const navigate = useRouterStore((s) => s.navigate)
   const route = useRouterStore((s) => s.route)
+  const activeStockShowId = route.kind === 'studio' && route.entity?.kind === 'shows'
+    && STOCK_SHOWS.some((item) => item.id === route.entity?.id)
+    ? route.entity.id
+    : null
   const createShowFromController = useShowStore((s) => s.createShowFromController)
   const showSeedProfile = controllerProfiles.find((profile) => (
     profile.zones.length > 0 && profileMatchesLive(profile, liveControllers)
@@ -121,6 +126,7 @@ export function PatternList({
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [importError, setImportError] = useState<string | null>(null)
   const [importNotice, setImportNotice] = useState<string | null>(null)
+  const [showStockShows, setShowStockShows] = useState(true)
   const importErrorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const importNoticeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -597,6 +603,15 @@ export function PatternList({
     navigate({ kind: 'studio', entity: { kind: 'shows', id: show.id } })
   }
 
+  function openStockShowRoute(item: StockShow) {
+    closeMapEditor()
+    closeMixinEditor()
+    closeLibraryEditor()
+    closeDocs()
+    void openShow(null)
+    navigate({ kind: 'studio', entity: { kind: 'shows', id: item.id } })
+  }
+
   async function handleRemoveControllerProfile(profileId: string) {
     await removeControllerProfile(profileId)
     if (route.kind === 'studio' && route.entity?.kind === 'controllers' && route.entity.id === profileId) {
@@ -820,6 +835,9 @@ export function PatternList({
             personalWorkspaceAuthenticated={personalWorkspaceAuthenticated}
             userShows={userShows}
             activeShowId={activeShowId}
+            stockShows={STOCK_SHOWS}
+            activeStockShowId={activeStockShowId}
+            showStockShows={showStockShows}
             showSeedProfileName={showSeedProfile ? controllerProfileDisplayName(showSeedProfile) : null}
             scrollRef={scrollRef}
             scrollMetrics={scrollMetrics}
@@ -827,6 +845,8 @@ export function PatternList({
             onCreateShow={handleCreateShow}
             onCreateShowFromController={() => void handleCreateShowFromController()}
             onOpenShow={openUserShow}
+            onOpenStockShow={openStockShowRoute}
+            onToggleStockShows={() => setShowStockShows((visible) => !visible)}
             onRenameShow={renameShow}
             onDeleteShow={(showId) => void handleRemoveShow(showId)}
           />

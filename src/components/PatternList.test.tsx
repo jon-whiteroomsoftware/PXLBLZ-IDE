@@ -345,6 +345,22 @@ describe('PatternList', () => {
     expect(window.location.pathname).toBe('/studio/shows')
   })
 
+  it('opens the paired built-in Show curriculum without creating personal records (#363)', async () => {
+    const user = userEvent.setup()
+    render(<PatternList />)
+
+    await user.click(screen.getByRole('radio', { name: 'Shows' }))
+    expect(await screen.findByRole('button', { name: 'Built-in Shows' })).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByRole('region', { name: 'Portable built-in Shows' })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Installation built-in Shows' })).toBeInTheDocument()
+
+    await user.click(screen.getByText('Portable Split'))
+
+    expect(window.location.pathname).toBe('/studio/shows/stock-show-portable-split')
+    expect(useShowStore.getState().shows).toEqual([])
+    expect(requests.some(({ url, init }) => url === '/api/shows' && init?.method === 'POST')).toBe(false)
+  })
+
   it('shows the empty state when there are no custom maps', async () => {
     const user = userEvent.setup()
     render(<PatternList />)

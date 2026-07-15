@@ -2,6 +2,37 @@ import { expect, test } from './fixtures/authenticated'
 import type { Page } from '@playwright/test'
 
 test.describe('authenticated Show authoring', () => {
+  test('opens built-in Show lessons read-only through the production editor (#363)', async ({ page }) => {
+    const showWrites: string[] = []
+    page.on('request', (request) => {
+      if (request.url().includes('/api/shows') && request.method() !== 'GET') showWrites.push(request.method())
+    })
+
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('studio/shows/stock-show-portable-split')
+
+    await expect(page.getByText('Built-in Show', { exact: true })).toBeVisible()
+    await expect(page.getByText('One composition, two normalized halves', { exact: true })).toBeVisible()
+    await expect(page.getByRole('region', { name: 'Show timeline' })).toBeVisible()
+    await expect(page.getByLabel('Show stage')).toContainText('Square')
+    await expect(page.getByRole('button', { name: 'Split at playhead' })).toBeDisabled()
+    await expect(page.getByRole('button', { name: 'Clone selection' })).toBeDisabled()
+    await expect(page.getByRole('button', { name: 'Remove scene Establish' })).toHaveCount(0)
+    await page.getByRole('button', { name: 'Select KaleidoBloom', exact: true }).first().click()
+    await expect(page.getByRole('dialog', { name: 'Entity Detail Panel' }).locator('fieldset')).toHaveAttribute('disabled', '')
+    expect(showWrites).toEqual([])
+
+    await page.getByRole('radio', { name: 'Shows' }).click()
+    await expect(page.getByRole('button', { name: 'Built-in Shows' })).toHaveAttribute('aria-expanded', 'true')
+    await page.getByText('Installation Bands', { exact: true }).click()
+    await expect(page).toHaveURL(/\/studio\/shows\/stock-show-installation-bands$/)
+    await expect(page.getByText('256 assigned · 0 missing · 0 overlapping · 0 out of range · 256 total')).toBeVisible()
+    expect(showWrites).toEqual([])
+
+    await page.setViewportSize({ width: 600, height: 800 })
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(8)
+  })
+
   test('ships the dense Timeline frame across desktop and narrow workspaces', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 })
     await page.goto('studio/shows')

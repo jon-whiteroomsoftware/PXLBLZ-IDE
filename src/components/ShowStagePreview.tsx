@@ -35,6 +35,7 @@ import {
   installationPhysicalZones,
   validateInstallationCoverage,
 } from '@/engine/showInstallationCoverage'
+import type { ShowRecord } from '@/engine/personalContentRecords'
 
 interface StageMapOption {
   id: string
@@ -67,7 +68,7 @@ function stableShowSeed(showId: string): number {
   return hash >>> 0
 }
 
-export function ShowStagePreview({ showId }: { showId: string }) {
+export function ShowStagePreview({ showId, showOverride }: { showId: string; showOverride?: ShowRecord }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const replayRef = useRef<FastReplayRuntime | null>(null)
@@ -77,7 +78,7 @@ export function ShowStagePreview({ showId }: { showId: string }) {
   const rendererRef = useRef<ReturnType<typeof createRenderer> | null>(null)
   const savedShow = useShowStore((state) => state.shows.find((item) => item.id === showId))
   const previewShow = useShowPreviewOverrideStore((state) => state.show?.id === showId ? state.show : null)
-  const show = previewShow ?? savedShow
+  const show = previewShow ?? showOverride ?? savedShow
   const userPatterns = usePatternStore((state) => state.userPatterns)
   const userMaps = useMapStore((state) => state.userMaps)
   const controllerProfiles = useControllerProfileStore((state) => state.profiles)

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react'
 import { createPortal } from 'react-dom'
-import { Check, ChevronDown, Clapperboard, Code2, Copy, Download, Grid2X2, Magnet, Map as MapIcon, Maximize2, Pause, Play, Plus, Redo2, RotateCw, Route, Scissors, Settings2, SkipBack, Trash2, Undo2, Zap, ZoomIn, ZoomOut } from 'lucide-react'
+import { Check, ChevronDown, Clapperboard, Code2, Copy, Download, Grid2X2, Lock, Magnet, Map as MapIcon, Maximize2, Pause, Play, Plus, Redo2, RotateCw, Route, Scissors, Settings2, SkipBack, Trash2, Undo2, Zap, ZoomIn, ZoomOut } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   AlertDialogAction,
@@ -141,12 +141,18 @@ type ShowPatternOption = {
 
 export function ShowEditor({
   showId,
+  showOverride,
+  readOnly = false,
+  builtInContext,
   headerActionsTarget = null,
 }: {
   showId: string
+  showOverride?: ShowRecord
+  readOnly?: boolean
+  builtInContext?: { track: 'portable' | 'installation'; lesson: string; description: string }
   headerActionsTarget?: HTMLElement | null
 }) {
-  const show = useShowStore((state) => state.shows.find((item) => item.id === showId))
+  const savedShow = useShowStore((state) => state.shows.find((item) => item.id === showId))
   const updateShow = useShowStore((state) => state.updateShow)
   const addScene = useShowStore((state) => state.addScene)
   const duplicateScene = useShowStore((state) => state.duplicateScene)
@@ -238,6 +244,7 @@ export function ShowEditor({
   }, [showId])
   useEffect(() => {
     const handleHistoryShortcut = (event: KeyboardEvent) => {
+      if (readOnly) return
       if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== 'z') return
       if (showControlOwnsKeyboardEvent(event.target)) return
       event.preventDefault()
@@ -247,14 +254,14 @@ export function ShowEditor({
     }
     document.addEventListener('keydown', handleHistoryShortcut)
     return () => document.removeEventListener('keydown', handleHistoryShortcut)
-  }, [showId])
+  }, [readOnly, showId])
   const controllerProvider = getControllerProvider()
   const controllerStatus = useSyncExternalStore(
     (onChange) => controllerProvider.subscribe(onChange),
     () => controllerProvider.getStatus(),
   )
 
-  const activeShow = show ?? null
+  const activeShow = showOverride ?? savedShow ?? null
   const selectedClip = selection.kind === 'clip'
     ? activeShow?.cells.find((clip) => clip.id === selection.clipId) ?? null
     : null
@@ -265,7 +272,7 @@ export function ShowEditor({
     : controllerProfiles[0]
 
   const requestDeleteSelection = useCallback((targetSelection: ShowSelection): boolean => {
-    if (!activeShow) return false
+    if (!activeShow || readOnly) return false
     if (targetSelection.kind === 'scene') {
       const scene = activeShow.scenes.find((candidate) => candidate.id === targetSelection.sceneId)
       if (!scene || activeShow.scenes.length <= 1) return false
@@ -292,7 +299,7 @@ export function ShowEditor({
       return true
     }
     return false
-  }, [activeShow, closeDetailPanel, removeBoundaryTransition, removeClip, removeZone])
+  }, [activeShow, closeDetailPanel, readOnly, removeBoundaryTransition, removeClip, removeZone])
 
   useEffect(() => {
     const handleDelete = (event: KeyboardEvent) => {
@@ -665,6 +672,23 @@ export function ShowEditor({
       {headerActionsTarget
         ? createPortal(headerActions, headerActionsTarget)
         : <div className="mb-2 flex shrink-0 items-center justify-end gap-1.5 px-3 pt-3">{headerActions}</div>}
+      {readOnly && (
+        <div className="flex shrink-0 items-start gap-2 border-b border-amber-300/15 bg-amber-300/[0.035] px-3 py-1.5 text-[10px] text-zinc-500">
+          <Lock size={12} aria-hidden className="text-amber-300/70" />
+          <span className="shrink-0 font-semibold uppercase tracking-[0.12em] text-amber-200/75">Built-in Show</span>
+          {builtInContext ? (
+            <span className="min-w-0">
+              <span className="mr-1.5 rounded border border-zinc-700/80 px-1 py-0.5 text-[8px] uppercase tracking-wider text-zinc-500">
+                {builtInContext.track}
+              </span>
+              <strong className="font-medium text-zinc-300">{builtInContext.lesson}</strong>
+              <span className="ml-1.5 text-zinc-500">{builtInContext.description}</span>
+            </span>
+          ) : (
+            <span>Read only - inspect, preview, export, or send this example.</span>
+          )}
+        </div>
+      )}
       <div data-testid="show-editor-scroll" className="scrollbar-hidden flex min-h-0 flex-1 flex-col overflow-auto">
         <div className="min-w-0 p-3">
           <section
@@ -678,6 +702,7 @@ export function ShowEditor({
             <SceneStrip
               key={activeShow.id}
               show={activeShow}
+              readOnly={readOnly}
               compositionProjection={compositionProjection}
               patternControlsByCellId={patternControlsByCellId}
               selection={selection}
@@ -712,7 +737,8 @@ export function ShowEditor({
               onClose={() => closeDetailPanel(true)}
             >
               <div onChangeCapture={returnFocusAfterDiscreteCommit}>
-                <ContextualInspector
+                <fieldset disabled={readOnly} className="contents">
+                  <ContextualInspector
               show={activeShow}
                   selection={selection}
                   selectedClip={selectedClip}
@@ -780,7 +806,8 @@ export function ShowEditor({
                   onUpdateRoutingLayout={(layoutId, changes) => void updateRoutingLayout(activeShow.id, layoutId, changes)}
                   onRemoveRoutingLayout={(layoutId) => void removeRoutingLayout(activeShow.id, layoutId)}
                   onUpdateRoutingSwitch={(afterSceneId, layoutId) => void updateRoutingSwitch(activeShow.id, afterSceneId, layoutId)}
-                />
+                  />
+                </fieldset>
               </div>
             </ShowEntityDetailPanel>
           )}
@@ -920,6 +947,7 @@ function ShowTransportControls({ show }: { show: ShowRecord }) {
 
 function ShowTimelineCommands({
   show,
+  readOnly,
   selection,
   onSelect,
   snapEnabled,
@@ -927,6 +955,7 @@ function ShowTimelineCommands({
   onFit,
 }: {
   show: ShowRecord
+  readOnly: boolean
   selection: ShowSelection
   onSelect: (selection: ShowSelection, anchor?: HTMLElement | null) => void
   snapEnabled: boolean
@@ -963,10 +992,10 @@ function ShowTimelineCommands({
 
   return (
     <div className="flex shrink-0 items-center justify-end gap-1" role="group" aria-label="Timeline commands">
-      <Button size="icon-xs" variant="ghost" aria-label="Undo Show edit" title="Undo Show edit (Command/Ctrl+Z)" disabled={!history?.past.length} onClick={() => void undoShow(show.id)}>
+      <Button size="icon-xs" variant="ghost" aria-label="Undo Show edit" title="Undo Show edit (Command/Ctrl+Z)" disabled={readOnly || !history?.past.length} onClick={() => void undoShow(show.id)}>
         <Undo2 size={12} aria-hidden />
       </Button>
-      <Button size="icon-xs" variant="ghost" aria-label="Redo Show edit" title="Redo Show edit (Command/Ctrl+Shift+Z)" disabled={!history?.future.length} onClick={() => void redoShow(show.id)}>
+      <Button size="icon-xs" variant="ghost" aria-label="Redo Show edit" title="Redo Show edit (Command/Ctrl+Shift+Z)" disabled={readOnly || !history?.future.length} onClick={() => void redoShow(show.id)}>
         <Redo2 size={12} aria-hidden />
       </Button>
       <Button
@@ -994,6 +1023,7 @@ function ShowTimelineCommands({
           size="xs"
           variant="ghost"
           aria-label="Split at playhead"
+          disabled={readOnly}
           aria-disabled={splitCapability.enabled ? undefined : true}
           aria-describedby={!splitCapability.enabled && splitReasonOpen ? splitReasonId : undefined}
           title={splitCapability.reason}
@@ -1035,7 +1065,7 @@ function ShowTimelineCommands({
         variant="ghost"
         aria-label="Clone selection"
         title={cloneCapability.reason}
-        disabled={!cloneCapability.enabled}
+        disabled={readOnly || !cloneCapability.enabled}
         className="bg-zinc-800/70 text-[10px] text-zinc-400"
         onClick={() => void cloneSelection()}
       >
@@ -1133,6 +1163,7 @@ function ExportShowButton({
 
 function SceneStrip({
   show,
+  readOnly,
   compositionProjection,
   patternControlsByCellId,
   selection,
@@ -1145,6 +1176,7 @@ function SceneStrip({
   onMoveClip,
 }: {
   show: ShowRecord
+  readOnly: boolean
   compositionProjection: FlatShowCompositionProjection | null
   patternControlsByCellId: Record<string, AutomatablePatternControl[]>
   selection: ShowSelection
@@ -1328,6 +1360,7 @@ function SceneStrip({
         <div className="min-w-0 justify-self-end">
           <ShowTimelineCommands
             show={show}
+            readOnly={readOnly}
             selection={selection}
             onSelect={onSelect}
             snapEnabled={snapEnabled}
@@ -1372,6 +1405,7 @@ function SceneStrip({
             scene={scene}
             selected={selection.kind === 'scene' && selection.sceneId === scene.id}
             canRemove={show.scenes.length > 1}
+            readOnly={readOnly}
             selectionKey={`scene:${scene.id}`}
             xrayOpen={xraySceneId === scene.id}
             onToggleXray={() => toggleXray(scene.id)}
@@ -1591,8 +1625,9 @@ function SceneStrip({
                 aria-label={`Select ${cell.patternName}`}
                 data-show-timeline-focus
                 data-show-selection-key={`clip:${cell.id}`}
-                draggable={Math.max(1, cell.sceneSpan) === 1 && Math.max(1, cell.zoneSpan ?? 1) === 1}
+                draggable={!readOnly && Math.max(1, cell.sceneSpan) === 1 && Math.max(1, cell.zoneSpan ?? 1) === 1}
                 onDragStart={(event) => {
+                  if (readOnly) return
                   setDraggingCellId(cell.id)
                   event.dataTransfer.effectAllowed = 'move'
                   event.dataTransfer.setData('application/x-pxlblz-show-cell', cell.id)
@@ -1660,6 +1695,7 @@ function SceneStrip({
                   }}
                   onDragLeave={() => setDropTargetKey((current) => current === `${row.zoneId}:${scene.id}` ? null : current)}
                   onDrop={(event) => {
+                    if (readOnly) return
                     if (!isLegalClipMove(show, draggingCellId, row.zoneId, scene.id) || !draggingCellId) return
                     event.preventDefault()
                     onMoveClip(draggingCellId, row.zoneId, scene.id)
@@ -1834,7 +1870,7 @@ function SceneStrip({
             ))}
           </div>
         ))}
-        <button
+        {!readOnly && <button
           type="button"
           aria-label="Add zone"
           onClick={(event) => {
@@ -1845,8 +1881,8 @@ function SceneStrip({
           style={{ gridColumn: 1, gridRow: strip.rows.length * rowStride + contentStartRow + routingLaneRows }}
         >
           + zone
-        </button>
-        <button
+        </button>}
+        {!readOnly && <button
           type="button"
           aria-label="Add scene"
           onClick={(event) => {
@@ -1857,7 +1893,7 @@ function SceneStrip({
           style={{ gridColumn: columns.length, gridRow: `${contentStartRow + routingLaneRows} / span ${strip.rows.length * rowStride}` }}
         >
           + scene
-        </button>
+        </button>}
         </div>
       </div>
       <TimelineNavigator viewport={viewport} onChange={setViewport} />
@@ -2146,6 +2182,7 @@ function SceneColumnHeader({
   scene,
   selected,
   canRemove,
+  readOnly,
   selectionKey,
   xrayOpen,
   onToggleXray,
@@ -2156,6 +2193,7 @@ function SceneColumnHeader({
   scene: ShowScene
   selected: boolean
   canRemove: boolean
+  readOnly: boolean
   selectionKey: string
   xrayOpen: boolean
   onToggleXray: () => void
@@ -2184,6 +2222,7 @@ function SceneColumnHeader({
         title={scene.name}
         data-show-scene-name
         value={scene.name}
+        readOnly={readOnly}
         onChange={(event) => onUpdate({ name: event.target.value })}
         className="min-w-0 flex-1 cursor-pointer truncate bg-transparent text-[12px] font-semibold text-zinc-100 outline-none group-hover:underline group-hover:decoration-dotted group-hover:underline-offset-4 focus:cursor-text focus:underline focus:decoration-live focus:underline-offset-4"
       />
@@ -2194,6 +2233,7 @@ function SceneColumnHeader({
           min={0.1}
           step={0.1}
           value={Number((scene.durationMs / 1000).toFixed(1))}
+          readOnly={readOnly}
           onChange={(event) => onUpdate({ durationMs: Number(event.target.value) * 1000 })}
           className="h-5 w-10 rounded border border-transparent bg-transparent px-0.5 text-right text-[9.5px] text-structural outline-none hover:border-zinc-700 hover:bg-zinc-900 focus:border-live/70 focus:bg-zinc-900"
         />
@@ -2225,7 +2265,7 @@ function SceneColumnHeader({
       >
         <Settings2 size={11} aria-hidden />
       </button>
-      {canRemove && (
+      {canRemove && !readOnly && (
         <button
           type="button"
           aria-label={`Remove scene ${scene.name}`}
