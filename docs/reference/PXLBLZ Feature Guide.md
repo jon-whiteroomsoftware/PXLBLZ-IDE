@@ -672,9 +672,10 @@ re-anchors the surviving footprint.
 Select a clip and use **Effects > Add** to open the compact registry palette.
 Search, family tabs, and the compatibility filter reduce the complete frozen
 Effect registry. Rows stay terse; hover or keyboard focus reveals the family
-description and factual cost policy while temporarily previewing that candidate
-in the existing Stage. The preview does not save. Clicking a row applies its
-default values; named preset buttons apply a documented starting preset.
+description and factual cost policy without changing playback or rebuilding the
+Stage runtime. Clicking a row applies its default values; named preset buttons
+apply a documented starting preset. The existing Stage then shows the applied
+Effect, and Entity Details exposes its exact parameters.
 
 The clip's Entity Detail Panel groups applied Effects by the compiler's fixed
 Transform, Distort, Address, and Color & output stages. Expand an Effect for

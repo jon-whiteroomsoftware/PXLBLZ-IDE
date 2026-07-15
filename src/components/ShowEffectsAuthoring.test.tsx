@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createDefaultShow } from '@/engine/showModel'
 import type { ShowClipEffect } from '@/engine/personalContentRecords'
@@ -9,13 +9,13 @@ import { ShowEffectPalette, ShowEffectStack } from './ShowEffectsAuthoring'
 describe('Show Effect authoring UI', () => {
   beforeEach(() => useShowPreviewOverrideStore.setState(showPreviewOverrideInitialState))
 
-  it('searches the compact registry, previews in the existing Stage seam, and applies once', async () => {
+  it('searches the compact registry, reveals hover guidance without rebuilding the Stage, and applies once', async () => {
     const user = userEvent.setup()
     const show = createDefaultShow('show-effects', 'Effects', 1)
     const clip = show.cells[0]
     const onApply = vi.fn()
     const onClose = vi.fn()
-    render(<ShowEffectPalette show={show} clip={clip} stageDimensions={2} onApply={onApply} onClose={onClose} />)
+    render(<ShowEffectPalette clip={clip} stageDimensions={2} onApply={onApply} onClose={onClose} />)
 
     expect(screen.getAllByRole('button', { name: /Add .* Effect/ })).toHaveLength(19)
     await user.type(screen.getByRole('searchbox', { name: 'Search Effects' }), 'ripple')
@@ -23,9 +23,10 @@ describe('Show Effect authoring UI', () => {
     expect(screen.getAllByRole('button', { name: /Add .* Effect/ })).toHaveLength(1)
 
     fireEvent.pointerEnter(ripple)
-    await waitFor(() => expect(useShowPreviewOverrideStore.getState().show?.cells[0].effects?.[0]).toMatchObject({ kind: 'ripple' }))
+    expect(screen.getByText('Bend the source coordinates before the Pattern renders.')).toBeInTheDocument()
+    await new Promise((resolve) => window.setTimeout(resolve, 120))
+    expect(useShowPreviewOverrideStore.getState().show).toBeNull()
     fireEvent.pointerLeave(ripple)
-    await waitFor(() => expect(useShowPreviewOverrideStore.getState().show).toBeNull())
 
     await user.click(ripple)
     expect(onApply).toHaveBeenCalledWith(expect.objectContaining({ kind: 'ripple' }))
@@ -33,22 +34,19 @@ describe('Show Effect authoring UI', () => {
     expect(useShowPreviewOverrideStore.getState().show).toBeNull()
   })
 
-  it('clears candidate preview and closes on Escape', async () => {
+  it('closes on Escape without touching the Stage preview seam', () => {
     const show = createDefaultShow('show-effects', 'Effects', 1)
-    render(<ShowEffectPalette show={show} clip={show.cells[0]} stageDimensions={2} onApply={vi.fn()} onClose={vi.fn()} />)
+    const onClose = vi.fn()
+    render(<ShowEffectPalette clip={show.cells[0]} stageDimensions={2} onApply={vi.fn()} onClose={onClose} />)
     fireEvent.focus(screen.getByRole('button', { name: 'Add Ripple Effect' }))
-    await waitFor(() => expect(useShowPreviewOverrideStore.getState().show).not.toBeNull())
     fireEvent.keyDown(document, { key: 'Escape' })
     expect(useShowPreviewOverrideStore.getState().show).toBeNull()
+    expect(onClose).toHaveBeenCalledTimes(1)
   })
 
-  it('coalesces rapid pointer travel before replacing the Stage preview', async () => {
+  it('never replaces the Stage preview while the pointer traverses Effects', async () => {
     const show = createDefaultShow('show-effects-hover', 'Effects hover', 1)
-    const previewKinds: Array<string | null> = []
-    const unsubscribe = useShowPreviewOverrideStore.subscribe((state) => {
-      previewKinds.push(state.show?.cells[0].effects?.[0]?.kind ?? null)
-    })
-    render(<ShowEffectPalette show={show} clip={show.cells[0]} stageDimensions={2} onApply={vi.fn()} onClose={vi.fn()} />)
+    render(<ShowEffectPalette clip={show.cells[0]} stageDimensions={2} onApply={vi.fn()} onClose={vi.fn()} />)
 
     const ripple = screen.getByRole('button', { name: 'Add Ripple Effect' })
     const swirl = screen.getByRole('button', { name: 'Add Swirl Effect' })
@@ -57,9 +55,9 @@ describe('Show Effect authoring UI', () => {
     fireEvent.pointerEnter(swirl)
 
     expect(useShowPreviewOverrideStore.getState().show).toBeNull()
-    await waitFor(() => expect(useShowPreviewOverrideStore.getState().show?.cells[0].effects?.[0]?.kind).toBe('swirl'))
-    expect(previewKinds).toEqual(['swirl'])
-    unsubscribe()
+    await new Promise((resolve) => window.setTimeout(resolve, 120))
+    expect(useShowPreviewOverrideStore.getState().show).toBeNull()
+    expect(within(screen.getByRole('contentinfo')).getByText('Bend the source coordinates before the Pattern renders.')).toBeInTheDocument()
   })
 
   it('edits, duplicates, removes, and reorders only inside visible compiler stages', async () => {

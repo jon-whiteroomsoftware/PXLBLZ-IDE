@@ -982,15 +982,16 @@ stage-constrained reorder transformations. `ShowEffectsAuthoring` projects that
 logic into the clip Entity Detail Panel and compact palette; it does not encode
 family-specific compiler behavior in React.
 
-Palette hover/focus creates an immutable candidate Show with
-`updateShowCellEffects()` and writes it to the ephemeral
-`showPreviewOverrideStore`. `ShowStagePreview` compiles that record instead of
-the saved record while the candidate exists. Leave, Escape, apply, palette
-close, and unmount clear the override. Apply alone sends the normalized Effect
-stack through `showStore.updateCellEffects()` and persistence. The applied stack
-groups records by the compiler's Transform, Distort, Address, and Color/output
-stages; move commands swap only siblings in one stage. Its advanced disclosure
-reads aggregate cost evidence from `GeneratedShowArtifact.summary.cost`.
+Effect-palette hover/focus changes only the palette's progressive description
+and cost disclosure. It never writes `showPreviewOverrideStore` or recompiles
+the Stage: rebuilding the compiled Pattern runtime for every hovered Effect
+reconstructs private Pattern state and produces repeated playback stutter. Apply
+alone sends the normalized Effect stack through
+`showStore.updateCellEffects()` and persistence; the existing Stage then renders
+the saved result. The applied stack groups records by the compiler's Transform,
+Distort, Address, and Color/output stages; move commands swap only siblings in
+one stage. Its advanced disclosure reads aggregate cost evidence from
+`GeneratedShowArtifact.summary.cost`.
 
 The expanded Transition catalogue is production-authorable.
 `showTransitionAuthoring.ts` maps the shared family/variant/preset vocabulary to

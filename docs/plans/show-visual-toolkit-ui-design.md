@@ -12,8 +12,10 @@ Expanded Property animation authoring remains deferred by product decision.
 The production UI combines a compact registry palette with one anchored Entity
 Detail Panel. The palette answers what can be added. Entity Details show what
 the selected clip or boundary currently owns. The Timeline shows when values
-change. The existing Stage previews both saved output and temporary candidates;
-the palette does not contain a second preview viewport.
+change. The existing Stage previews saved output and applied Effects;
+Effect-palette hover never rebuilds it. Transition candidates may still use the
+Stage because their two-source boundary behavior is otherwise difficult to
+evaluate. The palette does not contain a second preview viewport.
 
 This is not a fourth generic layer system. Four product concepts remain
 separate:
@@ -43,7 +45,7 @@ requiring a saved Show. It demonstrates:
 
 - a searchable catalogue containing all 59 shipped variants and presets;
 - compatibility filtering against a 1D or 2D Stage;
-- temporary candidate preview and explicit apply language;
+- progressive Effect description, static motion mnemonics, and explicit apply language;
 - scene-versus-boundary inspector ownership;
 - the Transform, Distort, Address, and Color & output signal path;
 - Effect expansion, parameters, animation state, cost, and proposed bypass;
@@ -112,11 +114,13 @@ choices, and favorites. These are presentation state, not persisted Show
 semantics.
 
 Each dense row needs a name, motion mnemonic, compatibility state, and simple
-cost label. Hover or keyboard focus reveals the one-sentence distinction and
-temporarily previews the candidate against the selected clip or boundary in the
-Stage by compiling an ephemeral Show draft. Leaving the row or pressing Escape
-restores the saved preview. Selecting the row chooses editable starting values;
-Apply performs one durable authoring transaction.
+cost label. For Effects, hover or keyboard focus reveals the one-sentence
+distinction without changing playback; animated glyphs are a later discovery
+enhancement. Selecting the row applies editable starting values in one durable
+authoring transaction, after which the Stage renders the saved Effect. Boundary
+Transitions may still compile an ephemeral Show draft because evaluating their
+two-source behavior requires the boundary context; leaving or pressing Escape
+restores the saved preview.
 
 ### Effect stack
 

@@ -12,8 +12,7 @@ import {
   Trash2,
   X,
 } from 'lucide-react'
-import type { ShowCell, ShowClipEffect, ShowRecord } from '@/engine/personalContentRecords'
-import { updateShowCellEffects } from '@/engine/showModel'
+import type { ShowCell, ShowClipEffect } from '@/engine/personalContentRecords'
 import {
   createShowClipEffect,
   duplicateShowClipEffect,
@@ -32,7 +31,6 @@ import {
   type ShowEffectPipelineStage,
   type ShowToolkitPresentationItem,
 } from '@/engine/showVisualToolkitPresentation'
-import { useShowPreviewOverrideStore } from '@/store/showPreviewOverrideStore'
 
 const STAGES: Array<{ id: ShowEffectPipelineStage; label: string; detail: string }> = [
   { id: 'transform', label: 'Transform', detail: 'source coordinates' },
@@ -41,29 +39,22 @@ const STAGES: Array<{ id: ShowEffectPipelineStage; label: string; detail: string
   { id: 'color-output', label: 'Color & output', detail: 'rendered pixels' },
 ]
 
-const EFFECT_PREVIEW_INTENT_MS = 90
-
 export function ShowEffectPalette({
-  show,
   clip,
   stageDimensions,
   onApply,
   onClose,
 }: {
-  show: ShowRecord
   clip: ShowCell
   stageDimensions: 1 | 2 | 3
   onApply: (effect: ShowClipEffect) => void
   onClose: () => void
 }) {
   const searchRef = useRef<HTMLInputElement>(null)
-  const previewTimerRef = useRef<number | null>(null)
   const [query, setQuery] = useState('')
   const [familyId, setFamilyId] = useState<string | null>(null)
   const [compatibleOnly, setCompatibleOnly] = useState(true)
   const [activeItem, setActiveItem] = useState<ShowToolkitPresentationItem | null>(null)
-  const preview = useShowPreviewOverrideStore((state) => state.preview)
-  const clearPreview = useShowPreviewOverrideStore((state) => state.clear)
   const catalogue = useMemo(
     () => buildShowToolkitPresentationCatalogue({ stageDimensions }),
     [stageDimensions],
@@ -75,35 +66,10 @@ export function ShowEffectPalette({
   }).filter((item) => familyId === null || item.familyId === familyId), [catalogue, compatibleOnly, familyId, query])
   const families = useMemo(() => SHOW_VISUAL_TOOLKIT_REGISTRY.filter((family) => family.kind === 'effect'), [])
 
-  const cancelPendingPreview = () => {
-    if (previewTimerRef.current === null) return
-    window.clearTimeout(previewTimerRef.current)
-    previewTimerRef.current = null
-  }
-  const clearPreviewNow = () => {
-    cancelPendingPreview()
-    clearPreview(show.id)
-  }
-  const close = () => {
-    clearPreviewNow()
-    onClose()
-  }
-  const schedulePreviewItem = (item: ShowToolkitPresentationItem, presetId?: string) => {
+  const close = onClose
+  const inspectItem = (item: ShowToolkitPresentationItem) => {
     if (!item.compatible) return
-    cancelPendingPreview()
     setActiveItem(item)
-    previewTimerRef.current = window.setTimeout(() => {
-      previewTimerRef.current = null
-      const effect = createShowClipEffect(item, '__candidate__', presetId)
-      preview(updateShowCellEffects(show, clip.id, [...(clip.effects ?? []), effect]))
-    }, EFFECT_PREVIEW_INTENT_MS)
-  }
-  const schedulePreviewClear = () => {
-    cancelPendingPreview()
-    previewTimerRef.current = window.setTimeout(() => {
-      previewTimerRef.current = null
-      clearPreview(show.id)
-    }, EFFECT_PREVIEW_INTENT_MS)
   }
   const applyItem = (item: ShowToolkitPresentationItem, presetId?: string) => {
     if (!item.compatible) return
@@ -122,13 +88,10 @@ export function ShowEffectPalette({
     document.addEventListener('keydown', onKeyDown)
     return () => {
       document.removeEventListener('keydown', onKeyDown)
-      cancelPendingPreview()
-      clearPreview(show.id)
     }
-  // The open palette owns this cleanup lifecycle; callbacks deliberately use
-  // the current mounted Show rather than re-registering for every hover.
+  // The open palette owns this keyboard lifecycle.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [show.id])
+  }, [])
 
   const activeVariant = activeItem
     ? SHOW_VISUAL_TOOLKIT_REGISTRY
@@ -149,7 +112,7 @@ export function ShowEffectPalette({
         <Sparkles size={13} className="text-cyan-300" aria-hidden />
         <div className="min-w-0">
           <h3 className="text-[10px] font-semibold uppercase tracking-[0.12em] text-zinc-200">Add Effect</h3>
-          <p className="truncate text-[9px] text-zinc-600">{clip.patternName} · preview in Stage, click to apply</p>
+          <p className="truncate text-[9px] text-zinc-600">{clip.patternName} · choose an Effect, then edit it in Clip properties</p>
         </div>
         <button type="button" onClick={close} className="ml-auto grid size-6 place-items-center rounded text-zinc-500 hover:bg-zinc-800 hover:text-zinc-100" aria-label="Close Effects palette"><X size={13} /></button>
       </header>
@@ -184,10 +147,8 @@ export function ShowEffectPalette({
             type="button"
             aria-label={`Add ${item.label} Effect`}
             disabled={!item.compatible}
-            onPointerEnter={() => schedulePreviewItem(item)}
-            onPointerLeave={schedulePreviewClear}
-            onFocus={() => schedulePreviewItem(item)}
-            onBlur={schedulePreviewClear}
+            onPointerEnter={() => inspectItem(item)}
+            onFocus={() => inspectItem(item)}
             onClick={() => applyItem(item)}
             className="group flex h-10 min-w-0 items-center gap-2 bg-[#101115] px-2 text-left hover:bg-[#171920] focus-visible:relative focus-visible:z-10 focus-visible:outline focus-visible:outline-1 focus-visible:outline-cyan-300 disabled:cursor-not-allowed disabled:opacity-40"
             title={item.compatible ? item.summary : item.compatibilityReason ?? undefined}
@@ -210,10 +171,6 @@ export function ShowEffectPalette({
               <button
                 key={preset.id}
                 type="button"
-                onPointerEnter={() => schedulePreviewItem(activeItem, preset.id)}
-                onPointerLeave={schedulePreviewClear}
-                onFocus={() => schedulePreviewItem(activeItem, preset.id)}
-                onBlur={schedulePreviewClear}
                 onClick={() => applyItem(activeItem, preset.id)}
                 className="h-6 shrink-0 rounded border border-zinc-700 px-2 text-[8px] text-zinc-300 hover:border-cyan-400/50 hover:text-cyan-200"
               >
@@ -221,7 +178,7 @@ export function ShowEffectPalette({
               </button>
             ))}
           </div>
-        ) : <p className="text-[9px] text-zinc-600">Hover or focus an Effect to preview it on the existing Stage.</p>}
+        ) : <p className="text-[9px] text-zinc-600">Hover or focus an Effect to see details. Click to apply.</p>}
       </footer>
     </section>,
     document.body,

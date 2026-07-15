@@ -786,7 +786,6 @@ export function ShowEditor({
           )}
           {effectPaletteClipId && activeShow.cells.find((cell) => cell.id === effectPaletteClipId) && (
             <ShowEffectPalette
-              show={activeShow}
               clip={activeShow.cells.find((cell) => cell.id === effectPaletteClipId)!}
               stageDimensions={(stageDimension ?? 2) as 1 | 2 | 3}
               onApply={(effect) => {
