@@ -33,6 +33,7 @@ import {
 } from './showDissolve'
 import { normalizeShowRevealMode } from './showShapeReveal'
 import { normalizeShowMotionTransition } from './showMotionTransition'
+import { lowerShowCompositionForCompile } from './showCompositionLowering'
 import {
   normalizeShowClipEffects,
   sameShowEffectStructure,
@@ -113,6 +114,10 @@ export interface ShowTimelineProjection {
 
 export interface ShowCompileRecipeSourceLookup {
   byCellId: Record<string, string>
+  /** Composition-only source table keyed by explicit runtime Pattern instance. */
+  byPatternInstanceId?: Record<string, string>
+  /** Transient lowering identity; never persisted on flat Show cells. */
+  instanceIdByCellId?: Record<string, string>
   controllerZones?: ControllerZone[]
   stageDimension?: 1 | 2 | 3
 }
@@ -1848,6 +1853,10 @@ export function showRecordToCompileRecipe(
   lookup: ShowCompileRecipeSourceLookup,
 ): ShowRecipe {
   show = normalizeShowTransitionState(show)
+  if (show.composition) {
+    const lowered = lowerShowCompositionForCompile(show, lookup)
+    return showRecordToCompileRecipe(lowered.show, lowered.lookup)
+  }
   if (
     show.outputContract?.kind === 'installation'
     && show.zones.length === 1
@@ -2067,8 +2076,11 @@ function showRecordToSceneSequenceRecipe(
       : lookup.byCellId[cell.id]
     if (!source) throw new Error(`Show compile requires pattern source for clip "${cell.id}".`)
     const adaptation = compilerAdaptation(cell.adaptations)
+    const explicitInstanceId = lookup.instanceIdByCellId?.[cell.id]
     const continuityKey = `${cell.pattern.kind}:${cell.pattern.id}:${JSON.stringify(adaptation)}:${JSON.stringify(cell.effects ?? [])}`
-    const key = cell.restartOnEntry ? `${continuityKey}:restart:${cell.id}` : continuityKey
+    const key = explicitInstanceId
+      ? `composition-instance:${explicitInstanceId}`
+      : cell.restartOnEntry ? `${continuityKey}:restart:${cell.id}` : continuityKey
     const previous = resolvedCells[index - 1]
     const incomingBoundary = previous
       ? show.transitions?.find((transition) => transition.afterSceneId === previous.sceneId && transition.kind !== 'routing')
@@ -2081,14 +2093,16 @@ function showRecordToSceneSequenceRecipe(
       && hasSameDiscreteAdaptations(previous, cell),
     )
     const continuedClipId = continuesPropertyRamp ? clipIdByCellId.get(previous.id) : undefined
-    const existing = continuedClipId
+    const existing = explicitInstanceId
+      ? clipByKey.get(key)
+      : continuedClipId
       ? [...clipByKey.values()].find((clip) => clip.id === continuedClipId)
       : clipByKey.get(key)
     if (existing) {
       if (showEffectsAreIdentity(existing.effects) && !showEffectsAreIdentity(cell.effects)) existing.effects = cell.effects
       clipIdByCellId.set(cell.id, existing.id)
     } else {
-      const clip = { id: cell.id, source, adaptation, effects: cell.effects }
+      const clip = { id: explicitInstanceId ?? cell.id, source, adaptation, effects: cell.effects }
       Object.assign(clip, { controlTargets: cell.controlTargets })
       clipByKey.set(key, clip)
       clipIdByCellId.set(cell.id, clip.id)
@@ -2138,7 +2152,9 @@ function showRecordToSceneSequenceRecipe(
         return {
           clipId: clipIdByCellId.get(cell.id)!,
           holdMs: scene.durationMs,
-          ...(hasPropertyTransitions ? { timeScale: cell.adaptations.timeScale, brightness: cell.adaptations.brightness } : {}),
+          ...(hasPropertyTransitions || lookup.instanceIdByCellId
+            ? { timeScale: cell.adaptations.timeScale, brightness: cell.adaptations.brightness }
+            : {}),
           ...(cell.controlTargets ? { controlTargets: { ...cell.controlTargets } } : {}),
           ...(cell.effects ? { effects: normalizeShowClipEffects(cell.effects) } : {}),
           ...(transition
@@ -2383,6 +2399,11 @@ function showRecordToRoutedSceneSequenceRecipe(
     normalized.scenes.forEach((scene, sceneIndex) => {
       const cell = showCellAtSlot(normalized, zone.id, scene.id)
       if (!cell || clipIdByCellId.has(cell.id)) return
+      const explicitInstanceId = lookup.instanceIdByCellId?.[cell.id]
+      if (explicitInstanceId) {
+        clipIdByCellId.set(cell.id, explicitInstanceId)
+        return
+      }
       const previousScene = normalized.scenes[sceneIndex - 1]
       const previous = previousScene ? showCellAtSlot(normalized, zone.id, previousScene.id) : undefined
       const continuedClipId = previous

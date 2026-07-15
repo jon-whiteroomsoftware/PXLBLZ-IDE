@@ -1,7 +1,7 @@
 import type { ControllerZone } from './controllerProfile'
 import { installationCoverageBlockingMessage, validateInstallationCoverage } from './showInstallationCoverage'
 import { portableCompatibilityBlockingMessage, validatePortableShowCompatibility } from './showPortableCompatibility'
-import type { PatternRecord, ShowCell, ShowRecord } from './personalContentRecords'
+import type { PatternRecord, ShowCell, ShowPatternRef, ShowRecord } from './personalContentRecords'
 import { compileShow, type GeneratedShowArtifact } from './showCompiler'
 import { showRecordToCompileRecipe } from './showModel'
 import { DEMOS } from '@/pixelblaze/stock/patterns'
@@ -23,8 +23,15 @@ export function compileShowForPreview(
     const byCellId = Object.fromEntries(
       show.cells.map((cell) => [cell.id, sourceForShowCell(cell, userPatterns)]),
     )
+    const byPatternInstanceId = Object.fromEntries(
+      (show.composition?.patternInstances ?? []).map((instance) => [
+        instance.id,
+        sourceForShowPatternRef(instance.pattern, userPatterns),
+      ]),
+    )
     const recipe = showRecordToCompileRecipe(show, {
       byCellId,
+      byPatternInstanceId,
       controllerZones,
       stageDimension: options.stageDimension,
     })
@@ -45,11 +52,18 @@ export function compileShowForArtifact(
   if (coverageError) return { artifact: null, error: coverageError }
   const portableError = portableCompatibilityBlockingMessage(validatePortableShowCompatibility(
     show,
-    show.cells.map((cell) => ({
-      cellId: cell.id,
-      patternName: cell.patternName,
-      source: sourceForShowCell(cell, userPatterns),
-    })),
+    [
+      ...show.cells.map((cell) => ({
+        cellId: cell.id,
+        patternName: cell.patternName,
+        source: sourceForShowCell(cell, userPatterns),
+      })),
+      ...(show.composition?.patternInstances ?? []).map((instance) => ({
+        cellId: instance.id,
+        patternName: instance.patternName,
+        source: sourceForShowPatternRef(instance.pattern, userPatterns),
+      })),
+    ],
     options.stageDimension,
   ))
   return portableError
@@ -58,6 +72,10 @@ export function compileShowForArtifact(
 }
 
 export function sourceForShowCell(cell: ShowCell, userPatterns: PatternRecord[]): string {
-  if (cell.pattern.kind === 'stock') return DEMOS[cell.pattern.id] ?? DEMOS.TestPattern1D
-  return userPatterns.find((pattern) => pattern.id === cell.pattern.id)?.src ?? DEMOS.TestPattern1D
+  return sourceForShowPatternRef(cell.pattern, userPatterns)
+}
+
+export function sourceForShowPatternRef(pattern: ShowPatternRef, userPatterns: PatternRecord[]): string {
+  if (pattern.kind === 'stock') return DEMOS[pattern.id] ?? DEMOS.TestPattern1D
+  return userPatterns.find((candidate) => candidate.id === pattern.id)?.src ?? DEMOS.TestPattern1D
 }

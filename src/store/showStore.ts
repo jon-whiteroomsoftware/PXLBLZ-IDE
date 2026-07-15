@@ -58,6 +58,7 @@ import {
   classifyShowOutputContract,
   legacyShowModeledPixelCount,
 } from '@/engine/showLegacyClassification'
+import { normalizeShowComposition } from '@/engine/showCompositionModel'
 
 const showPersistenceQueues = new Map<string, Promise<void>>()
 
@@ -164,8 +165,7 @@ export const useShowStore = create<ShowState>()((set, get) => ({
 
   loadShows: async () => {
     const shows = (await getPersonalContentProvider().listShows())
-      .map(normalizeShowTransitionState)
-      .map(normalizeShowEntryState)
+      .map(normalizeShowRecord)
     set({ shows: shows.sort((a, b) => b.updatedAt - a.updatedAt), showsLoaded: true })
   },
 
@@ -562,7 +562,10 @@ function replaceShowRecord(shows: ShowRecord[], next: ShowRecord): ShowRecord[] 
 }
 
 function normalizeShowRecord(show: ShowRecord): ShowRecord {
-  return normalizeShowEntryState(normalizeShowTransitionState(show))
+  const normalized = normalizeShowEntryState(normalizeShowTransitionState(show))
+  return normalized.composition
+    ? { ...normalized, composition: normalizeShowComposition(normalized, normalized.composition) }
+    : withoutComposition(normalized)
 }
 
 function showPersistenceChanges(next: ShowRecord): Partial<Omit<ShowRecord, 'id'>> {
@@ -574,11 +577,17 @@ function showPersistenceChanges(next: ShowRecord): Partial<Omit<ShowRecord, 'id'
     routingLayouts: next.routingLayouts,
     routingSwitches: next.routingSwitches,
     transitions: next.transitions,
+    composition: next.composition ?? null,
     targetControllerProfileId: next.targetControllerProfileId,
     stageMapId: next.stageMapId ?? null,
     outputContract: next.outputContract,
     updatedAt: next.updatedAt,
   }
+}
+
+function withoutComposition(show: ShowRecord): ShowRecord {
+  const { composition: _composition, ...flat } = show
+  return flat
 }
 
 async function persistShowRecord(next: ShowRecord): Promise<void> {

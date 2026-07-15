@@ -398,6 +398,55 @@ export type ShowOutputContract =
   | Portable2DShowOutputContract
   | InstallationShowOutputContract
 
+/** Show-owned private Pattern state referenced by one or more local placements. */
+export interface ShowPatternInstance {
+  id: string
+  pattern: ShowPatternRef
+  patternName: string
+  time: {
+    timeScale: number
+    timeOffsetMs: number
+    lightShutter?: ShowLightShutter
+    steppedClock?: ShowSteppedClock
+  }
+  controlTargets?: Record<string, number>
+}
+
+/** Placement-owned render values; simulation and exported controls stay on the instance. */
+export interface ShowMainPlacement {
+  id: string
+  instanceId: string
+  startMs: number
+  durationMs: number
+  view: {
+    mirror: boolean
+    phase: number
+    brightness: number
+  }
+  effects?: ShowClipEffect[]
+}
+
+export interface ShowZoneComposition {
+  zoneId: string
+  main: ShowMainPlacement[]
+}
+
+export interface ShowSceneComposition {
+  sceneId: string
+  zones: ShowZoneComposition[]
+}
+
+/**
+ * Additive Scene-composition sidecar. Version 1 initially carries only mutually
+ * exclusive Main schedules; overlay layers and Property animation extend this
+ * versioned boundary in later slices.
+ */
+export interface ShowCompositionV1 {
+  version: 1
+  patternInstances: ShowPatternInstance[]
+  scenes: ShowSceneComposition[]
+}
+
 export interface ShowRecord {
   id: string
   name: string
@@ -412,5 +461,7 @@ export interface ShowRecord {
   stageMapId?: string | null
   /** Immutable authored promise for new Shows. Absent on legacy records awaiting classification. */
   outputContract?: ShowOutputContract
+  /** Optional additive local composition; flat fields remain the legacy compatibility authority. */
+  composition?: ShowCompositionV1 | null
   updatedAt: number
 }

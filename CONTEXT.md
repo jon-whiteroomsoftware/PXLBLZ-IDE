@@ -164,11 +164,11 @@ _Avoid_: zone map, zone set, routing layout in user-facing copy, or bare layout 
 A named time interval spanning the complete Show rather than one zone row. A Scene selects one **Zone Layout**, owns Show-wide property targets, and meets its neighbors at stable **Transition** boundaries. Clips may preserve a **Pattern instance** across that boundary with Continue. The global timeline edits Scenes; planned local composition drills into one Scene-zone cell without turning that cell into another Scene.
 _Avoid_: using scene for one zone's clip; treating each zone row as an independent Scene; nesting Scenes inside Scenes.
 
-**Zone composition** (planned Show detail):
+**Zone composition** (Show detail):
 The optional local schedule for exactly one **Scene** x **Zone** cell. It owns a **Main clips** schedule, manually ordered **overlay layers**, and local Property-animation keyframes. Its timeline fixes Scene and Zone so it represents only time and layers; the Stage continues to show the final output of every zone. Other-zone events may appear as read-only alignment guides, but never as editable lanes. Compilation flattens each Zone composition before the Scene's top-level Transition.
 _Avoid_: Scene composition when the scope is one zone; an all-zones local timeline; recursive timelines; cross-zone local overlays.
 
-**Main clips** (in a Zone composition):
+**Main clips** (shipped in a Zone composition):
 The structural source lane for a Zone composition. Main clips are mutually exclusive in local time, may leave intentional gaps, and render beneath overlay layers. The lane always exists in the editor even if its schedule is empty.
 _Avoid_: Base Cuts; assuming the lane must cover the whole Scene; treating Main as a special Pattern type.
 

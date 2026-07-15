@@ -41,6 +41,15 @@ import {
 } from '@/engine/showModel'
 import { compileShowForArtifact, sourceForShowCell, type CompiledShowState } from '@/engine/showPreviewArtifact'
 import { projectFlatShowComposition, type FlatShowCompositionProjection } from '@/engine/showCompositionProjection'
+import {
+  addShowMainClip,
+  deleteShowMainPlacement,
+  projectFlatShowToCompositionV1,
+  replaceShowPatternInstance,
+  restartShowMainPlacement,
+  splitShowMainPlacement,
+  trimShowMainPlacement,
+} from '@/engine/showCompositionModel'
 import { projectSceneReadOnlyBridge } from '@/engine/showSceneReadOnlyProjection'
 import { resolveShowSceneEditorScope, type ShowSceneEditorScope } from '@/engine/showSceneEditorScope'
 import { validateInstallationCoverage } from '@/engine/showInstallationCoverage'
@@ -84,6 +93,7 @@ import { useShowTransportStore } from '@/store/showTransportStore'
 import { usePatternStore } from '@/store/patternStore'
 import { useShowStore } from '@/store/showStore'
 import { useShowEditorSessionStore } from '@/store/showEditorSessionStore'
+import { newPersonalContentId } from '@/engine/personalContentMetadata'
 import type {
   MapRecord,
   ShowBoundaryTransition,
@@ -768,6 +778,94 @@ export function ShowEditor({
                 onZoneChange={(zoneId) => setSceneEditorScope({ ...resolvedSceneEditorScope, zoneId })}
                 onSelectClip={(clipId, anchor) => selectTimeline({ kind: 'clip', clipId }, anchor)}
                 onSeek={(globalTimeMs) => requestShowSeek(activeShow.id, globalTimeMs)}
+                patternOptions={patternOptions}
+                onEnableComposition={() => {
+                  const composition = projectFlatShowToCompositionV1(activeShow, {
+                    byCellId: Object.fromEntries(activeShow.cells.map((cell) => [cell.id, sourceForShowCell(cell, userPatterns)])),
+                    stageDimension,
+                  })
+                  void updateShow(activeShow.id, { ...activeShow, composition, updatedAt: Date.now() })
+                }}
+                onAddMain={({ pattern, patternName, startMs, durationMs }) => {
+                  const composition = activeShow.composition
+                  if (!composition) return
+                  const instanceId = newPersonalContentId()
+                  const instance = {
+                      id: instanceId,
+                      pattern,
+                      patternName,
+                      time: { timeScale: 1, timeOffsetMs: 0 },
+                  }
+                  const next = addShowMainClip(activeShow, composition, {
+                    sceneId: resolvedSceneEditorScope.sceneId,
+                    zoneId: resolvedSceneEditorScope.zoneId,
+                    instance,
+                    placement: {
+                      id: newPersonalContentId(),
+                      instanceId,
+                      startMs,
+                      durationMs,
+                      view: { mirror: false, phase: 0, brightness: 1 },
+                    },
+                  })
+                  if (next === composition) return
+                  void updateShow(activeShow.id, { ...activeShow, composition: next, updatedAt: Date.now() })
+                }}
+                onUpdateMain={(placementId, changes) => {
+                  if (!activeShow.composition) return
+                  const next = trimShowMainPlacement(activeShow, activeShow.composition, {
+                    sceneId: resolvedSceneEditorScope.sceneId,
+                    zoneId: resolvedSceneEditorScope.zoneId,
+                    placementId,
+                    ...changes,
+                  })
+                  if (next === activeShow.composition) return
+                  void updateShow(activeShow.id, { ...activeShow, composition: next, updatedAt: Date.now() })
+                }}
+                onSplitMain={(placementId, atMs) => {
+                  if (!activeShow.composition) return
+                  const next = splitShowMainPlacement(activeShow, activeShow.composition, {
+                    sceneId: resolvedSceneEditorScope.sceneId,
+                    zoneId: resolvedSceneEditorScope.zoneId,
+                    placementId,
+                    atMs,
+                    newPlacementId: newPersonalContentId(),
+                  })
+                  if (next === activeShow.composition) return
+                  void updateShow(activeShow.id, { ...activeShow, composition: next, updatedAt: Date.now() })
+                }}
+                onRestartMain={(placementId) => {
+                  if (!activeShow.composition) return
+                  const next = restartShowMainPlacement(activeShow.composition, {
+                    sceneId: resolvedSceneEditorScope.sceneId,
+                    zoneId: resolvedSceneEditorScope.zoneId,
+                    placementId,
+                    newInstanceId: newPersonalContentId(),
+                  })
+                  if (next === activeShow.composition) return
+                  void updateShow(activeShow.id, { ...activeShow, composition: next, updatedAt: Date.now() })
+                }}
+                onReplaceMainPattern={(placementId, pattern, patternName) => {
+                  if (!activeShow.composition) return
+                  const placement = activeShow.composition.scenes
+                    .find((scene) => scene.sceneId === resolvedSceneEditorScope.sceneId)?.zones
+                    .find((zone) => zone.zoneId === resolvedSceneEditorScope.zoneId)?.main
+                    .find((candidate) => candidate.id === placementId)
+                  if (!placement) return
+                  const next = replaceShowPatternInstance(activeShow.composition, placement.instanceId, { pattern, patternName })
+                  if (next === activeShow.composition) return
+                  void updateShow(activeShow.id, { ...activeShow, composition: next, updatedAt: Date.now() })
+                }}
+                onDeleteMain={(placementId) => {
+                  if (!activeShow.composition) return
+                  const next = deleteShowMainPlacement(activeShow.composition, {
+                    sceneId: resolvedSceneEditorScope.sceneId,
+                    zoneId: resolvedSceneEditorScope.zoneId,
+                    placementId,
+                  })
+                  if (next === activeShow.composition) return
+                  void updateShow(activeShow.id, { ...activeShow, composition: next, updatedAt: Date.now() })
+                }}
               />
             )}
           </section>

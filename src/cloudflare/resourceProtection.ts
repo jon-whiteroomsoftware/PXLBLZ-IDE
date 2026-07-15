@@ -45,7 +45,8 @@ const personalStorageUsageSql = `
       SELECT COUNT(*) AS entity_count,
         COALESCE(SUM(LENGTH(id) + LENGTH(name) + LENGTH(scenes_json) + LENGTH(zones_json) + LENGTH(cells_json)
           + COALESCE(LENGTH(routing_layouts_json), 0) + COALESCE(LENGTH(routing_switches_json), 0)
-          + COALESCE(LENGTH(transitions_json), 0) + COALESCE(LENGTH(output_contract_json), 0)), 0) AS content_bytes
+          + COALESCE(LENGTH(transitions_json), 0) + COALESCE(LENGTH(output_contract_json), 0)
+          + COALESCE(LENGTH(composition_json), 0)), 0) AS content_bytes
       FROM personal_shows WHERE user_id = ?
     ),
     controllers AS (

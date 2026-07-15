@@ -75,6 +75,16 @@ function showArtifactHeader(
       })
     }
   }
+  for (const instance of show.composition?.patternInstances ?? []) {
+    const key = `${instance.pattern.kind}:${instance.pattern.id}`
+    if (!uniquePatterns.has(key)) {
+      uniquePatterns.set(key, {
+        kind: instance.pattern.kind,
+        id: instance.pattern.id,
+        name: instance.patternName,
+      })
+    }
+  }
   const switchByScene = new Map(show.routingSwitches.map((routingSwitch) => [routingSwitch.afterSceneId, routingSwitch.layoutId]))
   const routingTransitionByScene = new Map((show.transitions ?? []).flatMap((transition) => (
     transition.kind === 'routing' ? [[transition.afterSceneId, transition] as const] : []

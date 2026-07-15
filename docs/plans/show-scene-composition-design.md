@@ -1,21 +1,24 @@
 # Show Scene composition design
 
-Status: global and local interaction directions approved; additive normalization
-spike complete. Human review selected #458's explicit Layer Rail on 2026-07-15.
+Status: global and local interaction directions approved; the #487 production
+shell and #488 version-1 Main-schedule tracer bullet are implemented. Human
+review selected #458's explicit Layer Rail on 2026-07-15.
 A semantic Scene still spans zones, but local authoring targets one Scene x Zone
 composition at a time. The former all-zones Scene-detail direction and its
-candidate persisted shape are superseded; do not implement them. Durable schema
-and production work now proceed as end-to-end vertical slices through storage,
+candidate persisted shape are superseded; do not implement them. Durable work
+now proceeds as end-to-end vertical slices through storage,
 editing, preview, compilation, and migration.
 The #462 proof established a safe projection seam and identified two compiler
 gaps. The #478 lowering closes the top-level routed-Scene gap; explicit durable
-instance automation for local composition remains. This document does not freeze
-or ship a production composition schema.
+instance automation for local composition remains. The Main-only version-1
+ownership and persistence boundary is frozen below; overlay and Property
+animation extensions are not.
 
 The implementation stack is tracked by epic #486. Slice #487 integrates the
 production Scene x Zone shell over the lossless version-0 projection and current
-flat authority. It intentionally ships no invented local entities. #488 adds
-Main clips and intra-Scene Cuts; #489 adds ordered overlay layers and compositor
+flat authority. #488 adds persisted Main clips and intra-Scene Cuts while
+retaining the flat record as a non-destructively projected compatibility model.
+#489 adds ordered overlay layers and compositor
 lowering; #490 adds typed Property animation; #491 completes advanced Layer Rail
 interaction and density; #492 freezes migration, parity, and hardware budgets.
 
@@ -187,21 +190,23 @@ placements and does not place full visual Transitions inside a Scene. This
 preserves a strong distinction between local source scheduling and semantic
 Scene changes. Internal visual Transitions remain beyond-V2 evidence work.
 
-## Candidate persisted shape
+## Frozen version-1 Main persistence shape
 
-The exact TypeScript schema remains a prototype question, but the semantic
-shape should be explicit enough to test editing rules:
+One optional `ShowRecord.composition` sidecar owns the explicit runtime
+instances and Scene x Zone Main schedules. D1 stores it as `composition_json`
+on the existing `personal_shows` row. It creates no per-Scene, per-placement,
+or per-keyframe database rows.
 
 ```ts
 interface ShowRecord {
-  patternInstances?: ShowPatternInstance[]
-  // existing Show fields remain
+  // existing flat compatibility fields remain
+  composition?: ShowCompositionV1 | null
 }
 
-interface ShowSceneComposition {
+interface ShowCompositionV1 {
   version: 1
-  placements: ShowSourcePlacement[]
-  animations: ShowPropertyAnimationTrack[]
+  patternInstances: ShowPatternInstance[]
+  scenes: ShowSceneComposition[]
 }
 
 interface ShowPatternInstance {
@@ -212,31 +217,51 @@ interface ShowPatternInstance {
   controlTargets?: Record<string, number>
 }
 
-interface ShowSourcePlacement {
+interface ShowSceneComposition {
+  sceneId: string
+  zones: ShowZoneComposition[]
+}
+
+interface ShowZoneComposition {
+  zoneId: string
+  main: ShowMainPlacement[]
+}
+
+interface ShowMainPlacement {
   id: string
   instanceId: string
-  role: 'base' | 'overlay'
-  zoneIds: string[]
   startMs: number
   durationMs: number
   view: ShowPlacementView
   effects?: ShowClipEffect[]
-  zIndex?: number
 }
 ```
 
-`ShowRecord` owns the Pattern-instance registry because a continuing instance
-may cross Scene boundaries. `ShowScene` owns its optional composition because
-the Scene is the unit the design intends to contain and reuse. A cell-owned
-nested composition would preserve more of the current schema but would make
-aligned multi-zone editing, Scene copying, and Scene-level keyframes depend on
-several independent containers.
+`ShowRecord` owns the Pattern-instance registry because one explicit instance
+may Continue through several placements and Scenes. Each Scene entry owns one
+schedule per Zone. Main placements in one schedule may leave gaps but cannot
+overlap. Split preserves `instanceId`; Restart duplicates the instance under a
+new id. Instance time policy and exported controls stay instance-owned, while
+placement view values and Effects stay placement-owned.
 
 The state-model exercise validated this hybrid ownership against multi-zone
 placements, cross-Scene Continue, split, duplicate, extend, trim, and local
 keyframe rebasing. Issue #478 subsequently unified top-level multi-Zone Scene
-selection in production compilation. Scene-local overlays, Cuts, and keyframes
-remain unimplemented, so the durable nested schema is still not frozen.
+selection in production compilation. Scene-local Main Cuts now lower through
+the shared Show compiler. Overlay layers and local keyframes remain
+unimplemented and must extend this boundary without changing its existing
+ownership meanings.
+
+`showCompositionLowering.ts` expands the union of local placement boundaries
+into transient flat Scenes. Internal boundaries are zero-duration Cuts; gaps
+become the existing Empty Pattern. A transient cell-to-instance map forces one
+compiled member per explicit Pattern instance, including across gaps. The last
+derived interval retains the top-level outgoing Transition and routing switch.
+Property-transition start values keyed by flat destination cells remap to the
+first derived destination cell, so enabling local Cuts does not drop an existing
+parent-Scene ramp.
+Shows without `composition` bypass lowering and retain their previous compile
+recipe and generated bytes.
 
 Existing flat Shows need one canonical projection into the new model. Each
 Scene/zone slot becomes one full-duration base placement. A clip spanning

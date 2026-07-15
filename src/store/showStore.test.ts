@@ -12,6 +12,32 @@ import {
 } from '@/engine/personalContentProvider'
 import type { ControllerProfile } from '@/engine/controllerProfile'
 import type { MapRecord, MixinRecord, PatternRecord, ShowRecord } from '@/engine/personalContentRecords'
+import type { ShowCompositionV1 } from '@/engine/personalContentRecords'
+
+function composition(): ShowCompositionV1 {
+  return {
+    version: 1,
+    patternInstances: [{
+      id: 'instance-1',
+      pattern: { kind: 'stock', id: 'TestPattern1D' },
+      patternName: 'TestPattern1D',
+      time: { timeScale: 1, timeOffsetMs: 0 },
+    }],
+    scenes: [{
+      sceneId: 'scene-1',
+      zones: [{
+        zoneId: 'zone-1',
+        main: [{
+          id: 'placement-1',
+          instanceId: 'instance-1',
+          startMs: 0,
+          durationMs: 10_000,
+          view: { mirror: false, phase: 0, brightness: 1 },
+        }],
+      }],
+    }],
+  }
+}
 
 function memoryProvider(seedShows: ShowRecord[] = []): PersonalContentProvider {
   const patterns = new Map<string, PatternRecord>()
@@ -111,6 +137,36 @@ describe('showStore (#318)', () => {
     releaseFirst()
     await Promise.all([first, second])
     expect(writes.map((write) => write.name)).toEqual(['First', 'Second'])
+  })
+
+  it('persists and reloads the optional Scene composition sidecar', async () => {
+    const show = createDefaultShow('show-composition-persistence', 'Composition persistence', 1)
+    const provider = memoryProvider([show])
+    setPersonalContentProvider(provider)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    await useShowStore.getState().updateShow(show.id, {
+      ...show,
+      composition: composition(),
+      updatedAt: 2,
+    })
+    useShowStore.setState(showInitialState)
+    await useShowStore.getState().loadShows()
+
+    expect(useShowStore.getState().shows[0].composition).toEqual(composition())
+  })
+
+  it('preserves stable composition ids through undo and redo', async () => {
+    const show = createDefaultShow('show-composition-history', 'Composition history', 1)
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    const authored = composition()
+
+    await useShowStore.getState().updateShow(show.id, { ...show, composition: authored, updatedAt: 2 })
+    expect(await useShowStore.getState().undoShow(show.id)).toBe(true)
+    expect(useShowStore.getState().shows[0].composition).toBeUndefined()
+    expect(await useShowStore.getState().redoShow(show.id)).toBe(true)
+    expect(useShowStore.getState().shows[0].composition).toEqual(authored)
   })
 
   it('keeps Show creation provisional and restores the previously open Show on cancel (#434)', async () => {

@@ -683,15 +683,22 @@ keeps **Show** as a separate Back command, then identifies the Scene, active Zon
 Layout, and focused Zone. The shared Stage continues to show final all-zone
 output. The local ruler maps directly onto the selected Scene's private time,
 the locked Transition row retains incoming/outgoing Show-boundary context, and
-the **Main clips** row selects the same real clips and Entity Details as the
-global Timeline. Changing the Zone changes only the authoring scope; playback,
+the **Main clips** row initially shows the real full-Scene compatibility clip.
+Choose **Enable local cuts** to create the non-destructive version-1 local
+schedule. Changing the Zone changes only the authoring scope; playback,
 playhead position, Stage state, and the global Timeline's zoom/X-ray state are
 preserved. Escape closes Entity Details first and then returns to the Show.
 
-This first additive slice is deliberately labeled **Main only**. It edits the
-current flat Show authority and does not imply that overlay layers, local Cuts,
-or keyframes already persist or compile. Those capabilities arrive as later
-Scene-composition slices rather than placeholder controls in this editor.
+The **Main only** slice supports several mutually exclusive clips and explicit
+empty gaps inside one Scene x Zone. Select a clip to edit exact Start and
+Duration milliseconds, replace its Pattern instance, split at the playhead,
+Restart its private clock, or delete it. Drag the clip body horizontally;
+nearby clip edges and Scene bounds are magnetic, and an overlapping drop moves
+to the nearest legal edge. Add at playhead fills the available interval up to
+the next clip or Scene end. Split defaults to Continue.
+
+Overlay layers and local Property animation are later Scene-composition slices;
+the editor does not show placeholder controls for either.
 
 Selecting a Show, scene, transition, clip, empty slot, zone, or routing switch
 opens one **Entity Detail Panel** beside that entity. The panel is modeless and

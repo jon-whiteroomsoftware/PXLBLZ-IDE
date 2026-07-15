@@ -4,8 +4,43 @@ import { addShowRoutingLayout, createDefaultShow, createShowWithOutputContract, 
 import { buildShowEpeExport } from './showEpeExport'
 import { createAdaptivePatternPrismShow } from './patternPrismShow'
 import { createInstallationShowOutputContract, createPortableShowOutputContract } from './showOutputContract'
+import { compileShowForArtifact } from './showPreviewArtifact'
 
 describe('Show EPE export (#399)', () => {
+  it('exports the exact compiled Scene composition artifact with instance provenance (#488)', () => {
+    const show = createDefaultShow('show-composition-epe', 'Local cuts', 1)
+    const patterns = [{
+      id: 'private-member',
+      name: 'Private member',
+      src: 'export function render(index) { rgb(0.2, 0.4, 0.6) }',
+      controls: {},
+      updatedAt: 1,
+    }]
+    show.composition = {
+      version: 1,
+      patternInstances: [{
+        id: 'private-instance',
+        pattern: { kind: 'user', id: 'private-member' },
+        patternName: 'Private member',
+        time: { timeScale: 1, timeOffsetMs: 0 },
+      }],
+      scenes: [
+        { sceneId: 'scene-1', zones: [{ zoneId: 'zone-1', main: [{
+          id: 'private-placement', instanceId: 'private-instance', startMs: 0, durationMs: 30_000,
+          view: { mirror: false, phase: 0, brightness: 1 },
+        }] }] },
+        { sceneId: 'scene-2', zones: [{ zoneId: 'zone-1', main: [] }] },
+      ],
+    }
+    const artifact = compileShowForArtifact(show, patterns, undefined, {}).artifact!
+
+    const exported = buildShowEpeExport(show, artifact.code)
+    const source = parseEpe(exported.text).src
+
+    expect(source).toContain('- Private member [user:private-member]')
+    expect(source).toContain('__pxlblz_show_c0_rgb(0.2, 0.4, 0.6)')
+  })
+
   it('round-trips a stamped generated Show through the standard EPE importer', () => {
     const base = createDefaultShow('show-1', 'Pattern Prism', 1000)
     const withLayout = addShowRoutingLayout(base, 'Quadrants', base.routingLayouts[0].id)

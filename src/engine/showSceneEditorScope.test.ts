@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { projectFlatShowComposition } from './showCompositionProjection'
 import { createDefaultShow, normalizeShowTransitionState } from './showModel'
+import { projectFlatShowToCompositionV1, splitShowMainPlacement } from './showCompositionModel'
 import {
   projectShowSceneEditorScope,
   resolveShowSceneEditorScope,
@@ -74,5 +75,32 @@ describe('Show Scene editor scope (#487)', () => {
       startMs: 0,
       endMs: 30_000,
     })
+  })
+
+  it('projects authored local Main placements instead of the flat compatibility cell', () => {
+    const show = normalizeShowTransitionState(createDefaultShow('show-local-projection', 'Local projection'))
+    const lookup = {
+      byCellId: Object.fromEntries(show.cells.map((cell) => [cell.id, source])),
+      stageDimension: 1 as const,
+    }
+    const initial = projectFlatShowToCompositionV1(show, lookup)
+    const firstPlacement = initial.scenes[0].zones[0].main[0]
+    show.composition = splitShowMainPlacement(show, initial, {
+      sceneId: 'scene-1',
+      zoneId: 'zone-1',
+      placementId: firstPlacement.id,
+      atMs: 12_000,
+      newPlacementId: 'placement-right',
+    })
+
+    const projection = projectShowSceneEditorScope(
+      projectFlatShowComposition(show, lookup),
+      { sceneId: 'scene-1', zoneId: 'zone-1' },
+    )
+
+    expect(projection?.mainPlacements).toEqual([
+      expect.objectContaining({ id: firstPlacement.id, startMs: 0, endMs: 12_000 }),
+      expect.objectContaining({ id: 'placement-right', startMs: 12_000, endMs: 30_000 }),
+    ])
   })
 })

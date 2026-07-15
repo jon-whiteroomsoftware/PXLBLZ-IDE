@@ -20,6 +20,7 @@ const controllerMapFingerprintsMigrationPath = path.resolve(
 const personalLibrariesMigrationPath = path.resolve('migrations/0011_personal_libraries.sql')
 const showRoutingLayoutsMigrationPath = path.resolve('migrations/0012_show_routing_layouts.sql')
 const showTransitionBoundariesMigrationPath = path.resolve('migrations/0013_show_transition_boundaries.sql')
+const showCompositionMigrationPath = path.resolve('migrations/0016_show_composition.sql')
 
 describe('D1 personal storage migration', () => {
   it('creates the storage buckets needed for the Cloudflare personal-storage foundation', () => {
@@ -149,5 +150,13 @@ describe('D1 personal storage migration', () => {
 
     expect(sql).toContain('ALTER TABLE personal_shows ADD COLUMN transitions_json TEXT')
     expect(sql).toContain("VALUES ('schema_version', '13', unixepoch())")
+  })
+
+  it('adds the versioned Scene composition sidecar without creating relational sub-entities', () => {
+    const sql = fs.readFileSync(showCompositionMigrationPath, 'utf8')
+
+    expect(sql).toContain('ALTER TABLE personal_shows ADD COLUMN composition_json TEXT')
+    expect(sql).toContain("VALUES ('schema_version', '16', unixepoch())")
+    expect(sql).not.toContain('CREATE TABLE')
   })
 })

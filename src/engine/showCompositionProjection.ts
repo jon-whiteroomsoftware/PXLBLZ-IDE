@@ -98,7 +98,9 @@ export function projectFlatShowComposition(
   lookup: ShowCompileRecipeSourceLookup,
 ): FlatShowCompositionProjection {
   const show = cloneJson(normalizeShowEntryState(normalizeShowTransitionState(input)))
-  const recipe = showRecordToCompileRecipe(show, lookup)
+  // Version 0 always describes the flat compatibility record, even after the
+  // additive version-1 sidecar exists.
+  const recipe = showRecordToCompileRecipe({ ...show, composition: undefined }, lookup)
   const compilerPath = classifyCompilerPath(show, recipe)
   const instanceIdByCellId = mapCellsToCompiledInstances(show, recipe, compilerPath)
   const diagnostics: ShowCompositionProjectionDiagnostic[] = []

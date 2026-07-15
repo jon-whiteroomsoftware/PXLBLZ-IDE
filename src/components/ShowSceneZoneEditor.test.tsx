@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { projectFlatShowComposition } from '@/engine/showCompositionProjection'
 import { createDefaultShow } from '@/engine/showModel'
+import { projectFlatShowToCompositionV1, splitShowMainPlacement } from '@/engine/showCompositionModel'
 import { showTransportInitialState, useShowTransportStore } from '@/store/showTransportStore'
 import { ShowSceneZoneEditor } from './ShowSceneZoneEditor'
 
@@ -14,6 +15,42 @@ function fixture() {
     stageDimension: 1,
   })
   return { show, projection }
+}
+
+function compositionFixture() {
+  const { show, projection: initialProjection } = fixture()
+  const initial = projectFlatShowToCompositionV1(show, {
+    byCellId: Object.fromEntries(show.cells.map((cell) => [cell.id, source])),
+    stageDimension: 1,
+  })
+  const placement = initial.scenes[0].zones[0].main[0]
+  show.composition = splitShowMainPlacement(show, initial, {
+    sceneId: 'scene-1',
+    zoneId: 'zone-1',
+    placementId: placement.id,
+    atMs: 12_000,
+    newPlacementId: 'right-placement',
+  })
+  return {
+    show,
+    placement,
+    projection: projectFlatShowComposition(show, {
+      byCellId: Object.fromEntries(show.cells.map((cell) => [cell.id, source])),
+      stageDimension: 1,
+    }),
+    initialProjection,
+  }
+}
+
+const editingProps = {
+  patternOptions: [{ label: 'TestPattern1D', ref: { kind: 'stock' as const, id: 'TestPattern1D' } }],
+  onEnableComposition: vi.fn(),
+  onAddMain: vi.fn(),
+  onUpdateMain: vi.fn(),
+  onSplitMain: vi.fn(),
+  onRestartMain: vi.fn(),
+  onReplaceMainPattern: vi.fn(),
+  onDeleteMain: vi.fn(),
 }
 
 describe('ShowSceneZoneEditor (#487)', () => {
@@ -35,6 +72,7 @@ describe('ShowSceneZoneEditor (#487)', () => {
         onZoneChange={vi.fn()}
         onSelectClip={onSelectClip}
         onSeek={vi.fn()}
+        {...editingProps}
       />,
     )
 
@@ -65,6 +103,7 @@ describe('ShowSceneZoneEditor (#487)', () => {
         onZoneChange={onZoneChange}
         onSelectClip={vi.fn()}
         onSeek={vi.fn()}
+        {...editingProps}
       />,
     )
 
@@ -89,6 +128,7 @@ describe('ShowSceneZoneEditor (#487)', () => {
         onZoneChange={vi.fn()}
         onSelectClip={vi.fn()}
         onSeek={onSeek}
+        {...editingProps}
       />,
     )
 
@@ -96,5 +136,118 @@ describe('ShowSceneZoneEditor (#487)', () => {
     fireEvent.click(screen.getByTestId('scene-local-time-track'), { clientX: 50 })
     expect(onSeek).toHaveBeenCalled()
     expect(onSeek.mock.calls[0][0]).toBeGreaterThanOrEqual(32_000)
+  })
+
+  it('makes conversion to an editable local Main schedule explicit', () => {
+    const { show, projection } = fixture()
+    const onEnableComposition = vi.fn()
+    render(
+      <ShowSceneZoneEditor
+        show={show}
+        compositionProjection={projection}
+        scope={{ sceneId: 'scene-1', zoneId: 'zone-1' }}
+        readOnly={false}
+        selectedClipId={null}
+        transport={null}
+        onBack={vi.fn()}
+        onZoneChange={vi.fn()}
+        onSelectClip={vi.fn()}
+        onSeek={vi.fn()}
+        {...editingProps}
+        onEnableComposition={onEnableComposition}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Enable local cuts' }))
+    expect(onEnableComposition).toHaveBeenCalledOnce()
+  })
+
+  it('edits exact local bounds and exposes Continue/Restart and Pattern-instance actions', () => {
+    const { show, projection, placement } = compositionFixture()
+    const onUpdateMain = vi.fn()
+    const onSplitMain = vi.fn()
+    const onRestartMain = vi.fn()
+    const onDeleteMain = vi.fn()
+    useShowTransportStore.getState().openShow(show.id, 62_000)
+    useShowTransportStore.getState().setPosition(show.id, 6_000)
+    render(
+      <ShowSceneZoneEditor
+        show={show}
+        compositionProjection={projection}
+        scope={{ sceneId: 'scene-1', zoneId: 'zone-1' }}
+        readOnly={false}
+        selectedClipId={null}
+        transport={null}
+        onBack={vi.fn()}
+        onZoneChange={vi.fn()}
+        onSelectClip={vi.fn()}
+        onSeek={vi.fn()}
+        {...editingProps}
+        patternOptions={[
+          { label: 'TestPattern1D', ref: { kind: 'stock', id: 'TestPattern1D' } },
+          { label: 'CometLoom', ref: { kind: 'stock', id: 'CometLoom' } },
+        ]}
+        onUpdateMain={onUpdateMain}
+        onSplitMain={onSplitMain}
+        onRestartMain={onRestartMain}
+        onDeleteMain={onDeleteMain}
+      />,
+    )
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Select TestPattern1D Main clip' })[0])
+    fireEvent.change(screen.getByRole('spinbutton', { name: 'Start ms' }), { target: { value: '250' } })
+    fireEvent.blur(screen.getByRole('spinbutton', { name: 'Start ms' }))
+    expect(onUpdateMain).toHaveBeenCalledWith(placement.id, { startMs: 250, durationMs: 12_000 })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Split Main clip at playhead' }))
+    expect(onSplitMain).toHaveBeenCalledWith(placement.id, 6_000)
+    fireEvent.click(screen.getByRole('button', { name: 'Restart Main clip instance' }))
+    expect(onRestartMain).toHaveBeenCalledWith(placement.id)
+    fireEvent.click(screen.getByRole('button', { name: 'Delete Main clip' }))
+    expect(onDeleteMain).toHaveBeenCalledWith(placement.id)
+  })
+
+  it('commits magnetic horizontal movement from the clip body', () => {
+    const { show, placement } = compositionFixture()
+    const zone = show.composition!.scenes[0].zones[0]
+    zone.main[0].durationMs = 5_000
+    zone.main[1].startMs = 10_000
+    zone.main[1].durationMs = 5_000
+    const authoredProjection = projectFlatShowComposition(show, {
+      byCellId: Object.fromEntries(show.cells.map((cell) => [cell.id, source])),
+      stageDimension: 1,
+    })
+    const onUpdateMain = vi.fn()
+    render(
+      <ShowSceneZoneEditor
+        show={show}
+        compositionProjection={authoredProjection}
+        scope={{ sceneId: 'scene-1', zoneId: 'zone-1' }}
+        readOnly={false}
+        selectedClipId={null}
+        transport={null}
+        onBack={vi.fn()}
+        onZoneChange={vi.fn()}
+        onSelectClip={vi.fn()}
+        onSeek={vi.fn()}
+        {...editingProps}
+        onUpdateMain={onUpdateMain}
+      />,
+    )
+    const clip = screen.getAllByRole('button', { name: 'Select TestPattern1D Main clip' })[0]
+    Object.defineProperties(clip, {
+      setPointerCapture: { value: vi.fn() },
+      hasPointerCapture: { value: () => true },
+      releasePointerCapture: { value: vi.fn() },
+    })
+    vi.spyOn(clip.parentElement!, 'getBoundingClientRect').mockReturnValue({
+      x: 0, y: 0, left: 0, top: 0, right: 100, bottom: 20, width: 100, height: 20, toJSON: () => ({}),
+    })
+
+    fireEvent.pointerDown(clip, { pointerId: 1, button: 0, clientX: 0 })
+    fireEvent.pointerMove(clip, { pointerId: 1, buttons: 1, clientX: 10 })
+    fireEvent.pointerUp(clip, { pointerId: 1, button: 0, clientX: 10 })
+
+    expect(onUpdateMain).toHaveBeenCalledWith(placement.id, { startMs: 5_000, durationMs: 5_000 })
   })
 })

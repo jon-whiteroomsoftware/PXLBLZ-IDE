@@ -19,6 +19,83 @@ import { nativeDimension } from './loadPattern'
 import { LIBRARIES } from '@/pixelblaze/libs'
 
 describe('compileShowForPreview temporal adaptations (#379)', () => {
+  it('resolves explicit Scene composition instances through the shared preview compiler (#488)', () => {
+    const show = createDefaultShow('show-composition-preview', 'Composition preview', 1)
+    const source = 'export function render(index) { rgb(0.25, index / pixelCount, 0.75) }'
+    const patterns = [{ id: 'user-composition', name: 'Composition member', src: source, controls: {}, updatedAt: 1 }]
+    show.composition = {
+      version: 1,
+      patternInstances: [{
+        id: 'instance-user',
+        pattern: { kind: 'user', id: 'user-composition' },
+        patternName: 'Composition member',
+        time: { timeScale: 1, timeOffsetMs: 0 },
+      }],
+      scenes: [
+        {
+          sceneId: 'scene-1',
+          zones: [{
+            zoneId: 'zone-1',
+            main: [
+              { id: 'placement-a', instanceId: 'instance-user', startMs: 0, durationMs: 10_000, view: { mirror: false, phase: 0, brightness: 1 } },
+              { id: 'placement-b', instanceId: 'instance-user', startMs: 20_000, durationMs: 10_000, view: { mirror: false, phase: 0, brightness: 0.5 } },
+            ],
+          }],
+        },
+        {
+          sceneId: 'scene-2',
+          zones: [{
+            zoneId: 'zone-1',
+            main: [{ id: 'placement-c', instanceId: 'instance-user', startMs: 0, durationMs: 30_000, view: { mirror: false, phase: 0, brightness: 1 } }],
+          }],
+        },
+      ],
+    }
+
+    const compiled = compileShowForPreview(show, patterns, undefined, {})
+
+    expect(compiled.error).toBeNull()
+    expect(compiled.artifact?.summary.clips.filter((clip) => clip.id === 'instance-user')).toHaveLength(1)
+    expect(compiled.artifact?.code).toContain('__pxlblz_show_c0_rgb(0.25')
+  })
+
+  it('seeks deterministically across local Cut boundaries and explicit empty gaps (#488)', () => {
+    const show = createDefaultShow('show-composition-seek', 'Composition seek', 1)
+    const patterns = [
+      { id: 'solid-red', name: 'Solid red', src: 'export function render(index) { rgb(1, 0, 0) }', controls: {}, updatedAt: 1 },
+      { id: 'solid-blue', name: 'Solid blue', src: 'export function render(index) { rgb(0, 0, 1) }', controls: {}, updatedAt: 1 },
+    ]
+    show.composition = {
+      version: 1,
+      patternInstances: [
+        { id: 'red', pattern: { kind: 'user', id: 'solid-red' }, patternName: 'Solid red', time: { timeScale: 1, timeOffsetMs: 0 } },
+        { id: 'blue', pattern: { kind: 'user', id: 'solid-blue' }, patternName: 'Solid blue', time: { timeScale: 1, timeOffsetMs: 0 } },
+      ],
+      scenes: [
+        {
+          sceneId: 'scene-1',
+          zones: [{ zoneId: 'zone-1', main: [
+            { id: 'red-a', instanceId: 'red', startMs: 0, durationMs: 1_000, view: { mirror: false, phase: 0, brightness: 1 } },
+            { id: 'blue-a', instanceId: 'blue', startMs: 2_000, durationMs: 1_000, view: { mirror: false, phase: 0, brightness: 1 } },
+          ] }],
+        },
+        { sceneId: 'scene-2', zones: [{ zoneId: 'zone-1', main: [] }] },
+      ],
+    }
+    const artifact = compileShowForPreview(show, patterns, undefined, {}).artifact!
+    const createRuntime = () => createFastReplayRuntime({
+      code: artifact.code,
+      metadata: artifact.metadata,
+      dimension: nativeDimension(artifact.metadata.renderFns),
+    }, { mapPoints: Array.from({ length: 4 }, (_, index) => ({ sample: [index / 3] })), randomSeed: 1 })
+    const runtime = createRuntime()
+
+    expect(runtime.advanceTo(500, { stepMs: 1000 / 60 }).pixels[0]).toEqual([1, 0, 0])
+    expect(createRuntime().advanceTo(1_500, { stepMs: 1000 / 60 }).pixels[0]).toEqual([0, 0, 0])
+    expect(runtime.advanceTo(2_500, { stepMs: 1000 / 60 }).pixels[0]).toEqual([0, 0, 1])
+    expect(createRuntime().advanceTo(1_500, { stepMs: 1000 / 60 }).pixels[0]).toEqual([0, 0, 0])
+  })
+
   it('renders an empty first scene black after its clip is deleted', () => {
     const initial = updateShowCellPattern(createDefaultShow('show-empty-first', 'Empty first scene', 1), 'cell-2', {
       pattern: { kind: 'stock', id: 'ShapeShifter' },

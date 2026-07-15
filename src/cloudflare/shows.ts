@@ -1,6 +1,7 @@
-import type { ShowRecord } from '../engine/personalContentRecords'
+import type { ShowCompositionV1, ShowRecord } from '../engine/personalContentRecords'
 import { normalizeShowRoutingState, normalizeShowTransitionState } from '../engine/showModel'
 import { normalizeShowOutputContract } from '../engine/showOutputContract'
+import { normalizeShowComposition } from '../engine/showCompositionModel'
 
 export interface D1ShowStatementLike {
   bind(...values: unknown[]): D1ShowStatementLike
@@ -21,6 +22,7 @@ export interface D1ShowRow {
   routing_layouts_json?: string | null
   routing_switches_json?: string | null
   transitions_json?: string | null
+  composition_json?: string | null
   output_contract_json?: string | null
   target_controller_profile_id: string | null
   stage_map_id: string | null
@@ -31,7 +33,7 @@ export function showRecordFromRow(row: D1ShowRow): ShowRecord {
   const outputContract = row.output_contract_json
     ? normalizeShowOutputContract(parseJson(row.output_contract_json, null))
     : undefined
-  return normalizeShowTransitionState(normalizeShowRoutingState({
+  const show = normalizeShowTransitionState(normalizeShowRoutingState({
     id: row.id,
     name: row.name,
     scenes: parseJson(row.scenes_json, []),
@@ -45,13 +47,19 @@ export function showRecordFromRow(row: D1ShowRow): ShowRecord {
     ...(outputContract ? { outputContract } : {}),
     updatedAt: row.updated_at,
   }))
+  const composition = row.composition_json
+    ? parseJson<ShowCompositionV1 | null>(row.composition_json, null)
+    : null
+  return composition?.version === 1
+    ? { ...show, composition: normalizeShowComposition(show, composition) }
+    : show
 }
 
 export async function listD1Shows(db: D1DatabaseShowsLike, userId: string): Promise<ShowRecord[]> {
   const { results } = await db
     .prepare(`
       SELECT id, name, scenes_json, zones_json, cells_json, routing_layouts_json, routing_switches_json, transitions_json,
-             target_controller_profile_id, stage_map_id, output_contract_json, updated_at
+             composition_json, target_controller_profile_id, stage_map_id, output_contract_json, updated_at
       FROM personal_shows
       WHERE user_id = ?
       ORDER BY updated_at DESC
@@ -71,9 +79,9 @@ export async function createD1Show(
     .prepare(`
       INSERT INTO personal_shows (
         user_id, id, name, scenes_json, zones_json, cells_json, routing_layouts_json, routing_switches_json, transitions_json,
-        target_controller_profile_id, stage_map_id, output_contract_json, created_at, updated_at
+        composition_json, target_controller_profile_id, stage_map_id, output_contract_json, created_at, updated_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
     .bind(
       userId,
@@ -85,6 +93,7 @@ export async function createD1Show(
       JSON.stringify(record.routingLayouts),
       JSON.stringify(record.routingSwitches),
       JSON.stringify(normalizeShowTransitionState(record).transitions),
+      record.composition ? JSON.stringify(normalizeShowComposition(record, record.composition)) : null,
       record.targetControllerProfileId ?? null,
       record.stageMapId ?? null,
       record.outputContract ? JSON.stringify(record.outputContract) : null,
@@ -109,6 +118,7 @@ export async function updateD1Show(
   addAssignment(assignments, values, 'routing_layouts_json', changes.routingLayouts, true)
   addAssignment(assignments, values, 'routing_switches_json', changes.routingSwitches, true)
   addAssignment(assignments, values, 'transitions_json', changes.transitions, true)
+  addAssignment(assignments, values, 'composition_json', changes.composition, true)
   addAssignment(assignments, values, 'target_controller_profile_id', changes.targetControllerProfileId)
   addAssignment(assignments, values, 'stage_map_id', changes.stageMapId)
   addAssignment(assignments, values, 'output_contract_json', changes.outputContract, true)
@@ -141,7 +151,7 @@ function addAssignment(
 ): void {
   if (value === undefined) return
   assignments.push(`${column} = ?`)
-  values.push(json ? JSON.stringify(value) : value)
+  values.push(json && value !== null ? JSON.stringify(value) : value)
 }
 
 function parseJson<T>(value: string, fallback: T): T {
