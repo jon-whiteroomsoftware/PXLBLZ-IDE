@@ -26,7 +26,8 @@ The major v2 foundations are built:
 - one generated-artifact/pass-engine pipeline with provenance; and
 - Show composition with a proportional timeline, transport, seeking, Split,
   Continue/Restart, boundary transitions, property automation, routing layouts,
-  Stage preview, Controller push, and EPE export.
+  Stage preview, Controller push, EPE export, the complete visual toolkit,
+  paired built-in Show lessons, and the user-facing toolkit guide.
 
 These are not roadmap items. Open implementation tickets for completed work may
 remain open only as review state; they should not be read as unimplemented scope.
@@ -42,6 +43,8 @@ future implementation:
 - #434-#439 and #340 — Show output contracts, guided creation, Installation and
   Portable enforcement, artifact round-trip, legacy classification, keyboard
   flow, and spatial zone selection;
+- #363 and #460 — the built-in Show curriculum and visual-toolkit guide are
+  implemented but require explicit visual/editorial approval before #442 closes;
 - #401/#402 — catalog Show artifacts and physical/visual review;
 - #388 — map geometry/coordinate-space epic whose implementation children have
   landed; and
@@ -62,33 +65,27 @@ Known issue cleanup:
 
 ## 3. Shows: next product step
 
-The headless Show visual toolkit is complete. Contract version 1 freezes 59
-registered Property animation, Effect, and Transition variants against 104
-deterministic fixtures, compiler and persistence parity, and representative
-hardware evidence. The next Show product step is the evolved production UI:
-visual discovery, applied Effect stacks, boundary Transition authoring, cost and
-compatibility disclosure, and efficient reuse without hiding the Pixelblaze cost
-of producing each frame. Expanded Property animation authoring is deferred; the
-existing boundary-ramp contract remains supported but is not broadened through
-this UI pass.
+The Show visual toolkit, evolved production UI, and teaching layer are
+implemented. Contract version 1 freezes 59 registered Property animation,
+Effect, and Transition variants against 104 deterministic fixtures, compiler and
+persistence parity, and representative hardware evidence. The production editor
+projects that vocabulary through compact palettes, one Entity Detail Panel,
+Scene X-ray and Super Detail, property sparklines, and factual cost disclosure.
+The paired built-in curriculum and user guide use those same production paths.
 
-[`show-visual-toolkit-ui-design.md`](show-visual-toolkit-ui-design.md) owns the
-focused interaction design. The comparative research remains in
+The remaining core release step is review: approve #363's names, ordering,
+descriptions, screenshots, and visual results; approve #460's screenshots and
+editorial copy; then close #442. Expanded Property animation authoring remains
+deferred. #458's overlay placement and Feature Inbox ideas such as floating
+Inspectors or multi-selection are additive later work, not blockers for the
+visual-toolkit release.
+
+[`show-visual-toolkit-ui-design.md`](show-visual-toolkit-ui-design.md) retains the
+focused design rationale. The comparative research remains in
 [`show-editor-interaction-research-draft.md`](show-editor-interaction-research-draft.md).
-[`show-scene-composition-design.md`](show-scene-composition-design.md) now owns
-the exploratory destination for bounded in-Scene cuts, overlays, and Property
-animation. It is not implementation-ready and does not expand #457's first UI
-slice.
-GitHub #457 remains the open UI umbrella. The production direction was approved
-on 2026-07-14 and is recorded in
-[`final-production-design.md`](../collaboration/show-timeline-production-density-2026-07-14/final-production-design.md).
-Thin child issues now carry executable implementation state rather than turning
-#457 into one multi-agent catch-all.
-
-The paired educational progression in #363 begins after the production UI in
-#457. Those Shows should teach the finished authoring, export, and
-Controller-check paths rather than an interim interaction model. The
-user-facing visual-toolkit guide in #460 follows the same UI and vocabulary.
+[`show-scene-composition-design.md`](show-scene-composition-design.md) owns the
+exploratory destination for bounded in-Scene cuts, overlays, and expanded
+Property animation; it is not implementation-ready.
 
 The second Show implementation round remains software-complete and awaiting
 human review. Its output-contract decisions and delivery history remain in the
@@ -511,13 +508,12 @@ Do not infer topology or coordinate views from arbitrary imported coordinates.
 
 ### Content
 
-- Begin the paired flagship and educational Show progressions (#363) after the
-  evolved visual-toolkit UI in #457. Both output contracts run through the real
-  editor; each track should advance from one simple Show to examples that teach
-  the complete Effect, Property animation, and Transition vocabulary.
-- Publish the visual-toolkit guide (#460) after #457 fixes the production UI and
-  user-facing terminology. The guide teaches the classes and workflows; engine
-  slices record only the technical contracts and evidence it will need.
+- Review and approve the paired built-in Show progression (#363). Both output
+  contracts already run through the real editor; publication waits only on the
+  required visual/content decision.
+- Review and approve the visual-toolkit guide (#460). The guide and final-UI
+  screenshots are implemented; publication waits on the required editorial
+  decision.
 - Add flagship Patterns (#382) only when they broaden the visual vocabulary or
   teach a reusable technique; raw count is not the goal.
 - Create small example personal entities (#360) only if they clarify the

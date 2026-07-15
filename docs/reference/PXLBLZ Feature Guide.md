@@ -534,6 +534,23 @@ it does not rewrite scenes, clips, zones, or require the exported artifact to us
 that count. Portable hides Controller targeting, physical ranges, nominal pixel
 editing, and Controller-zone binding.
 
+### Learning from built-in Shows
+
+The Shows rail includes a collapsible **Built-in Shows** curriculum beneath
+personal Shows. Its Portable and Installation tracks each begin with a simple
+composition and add one routing, Effect, Property animation, Transition, or
+cost idea at a time. The compact banner above the timeline states the example's
+lesson and keeps the output-contract kind visible.
+
+Built-in Shows open in the production timeline and Stage. Transport, zoom,
+Scene X-ray, Super Detail, Entity Details, generated code, `.epe` export, cost
+disclosure, and Controller send remain available. Mutation controls are read-only,
+and opening an example does not create or seed a personal Show record.
+
+The dedicated [Show Visual Toolkit](../guides/Show visual toolkit.md) guide uses
+these examples to explain Property animation, one-source Effects, boundary
+Transitions, shared catalogue vocabulary, and renderer cost.
+
 ### Timeline model
 
 The canonical editor is a proportional, zoomable timeline:

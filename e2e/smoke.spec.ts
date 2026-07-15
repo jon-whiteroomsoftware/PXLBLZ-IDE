@@ -68,6 +68,16 @@ test('docs deep links render the docs reader without signing in', async ({ page 
   await expect(page.getByTestId('editor-pane')).toContainText('PXLBLZ Feature Guide')
 })
 
+test('Show visual-toolkit guide renders its final-UI workflow and screenshots (#460)', async ({ page }) => {
+  await page.goto('docs/show-visual-toolkit')
+  await expect(page).toHaveURL(/\/docs\/show-visual-toolkit$/)
+  const reader = page.getByTestId('editor-pane')
+  await expect(reader).toContainText('The ownership rule')
+  await expect(reader).toContainText(/cheap selector/i)
+  await expect(reader.getByRole('img')).toHaveCount(2)
+  await expect(reader.getByRole('img').first()).toBeVisible()
+})
+
 test('legacy #/docs/<id> hash links redirect to the path route', async ({ page }) => {
   await page.goto('/#/docs/optimization-guide')
   await expect(page).toHaveURL(/\/docs\/optimization-guide$/)

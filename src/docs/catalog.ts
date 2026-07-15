@@ -2,14 +2,17 @@ import ecosystemPrimer from '../../docs/reference/Pixelblaze Ecosystem Primer.md
 import featureGuide from '../../docs/reference/PXLBLZ Feature Guide.md?raw'
 import understandingMaps from '../../docs/reference/Understanding Maps.md?raw'
 import optimizationGuide from '../../docs/guides/Optimizing Pixelblaze patterns.md?raw'
+import showVisualToolkitGuide from '../../docs/guides/Show visual toolkit.md?raw'
 
 import builtinCostsUrl from '../../docs/images/builtin-costs.svg?url'
 import deviceBrowserBoundaryUrl from '../../docs/images/device-browser-boundary.svg?url'
 import fillVsContainUrl from '../../docs/images/fill-vs-contain.svg?url'
 import mapPipelineUrl from '../../docs/images/map-pipeline.svg?url'
 import wholeFrameModelUrl from '../../docs/images/whole-frame-model.svg?url'
+import showVisualToolkitOverviewUrl from '../../docs/screenshots/show-visual-toolkit-overview.png?url'
+import showVisualToolkitEntityDetailUrl from '../../docs/screenshots/show-visual-toolkit-entity-detail.png?url'
 
-export type DocId = 'ecosystem-primer' | 'feature-guide' | 'optimization-guide' | 'understanding-maps'
+export type DocId = 'ecosystem-primer' | 'feature-guide' | 'show-visual-toolkit' | 'optimization-guide' | 'understanding-maps'
 
 export type UserDoc = {
   id: DocId
@@ -28,6 +31,8 @@ const sharedAssets = {
   '../images/fill-vs-contain.svg': fillVsContainUrl,
   '../images/map-pipeline.svg': mapPipelineUrl,
   '../images/whole-frame-model.svg': wholeFrameModelUrl,
+  '../screenshots/show-visual-toolkit-overview.png': showVisualToolkitOverviewUrl,
+  '../screenshots/show-visual-toolkit-entity-detail.png': showVisualToolkitEntityDetailUrl,
 }
 
 export const USER_DOCS: UserDoc[] = [
@@ -49,6 +54,16 @@ export const USER_DOCS: UserDoc[] = [
     menuKicker: 'Using PXLBLZ',
     summary: 'Gallery, Studio authoring, preview, maps, Controllers, and Shows.',
     source: featureGuide,
+    assets: sharedAssets,
+  },
+  {
+    id: 'show-visual-toolkit',
+    path: 'docs/guides/Show visual toolkit.md',
+    title: 'Show Visual Toolkit',
+    menuLabel: 'Show Visual Toolkit',
+    menuKicker: 'Effects and transitions',
+    summary: 'Property animation, Effects, Transitions, and the cost of combining Patterns.',
+    source: showVisualToolkitGuide,
     assets: sharedAssets,
   },
   {

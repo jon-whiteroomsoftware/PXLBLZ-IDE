@@ -819,6 +819,15 @@ routing, and Pattern state. Cancel clears the provisional state without a write
 and restores the previous Shows context. A successful write makes every later
 open follow the ordinary versioned path.
 
+`src/pixelblaze/stock/shows.ts` owns the immutable built-in Show curriculum as
+ordinary `ShowRecord` fixtures plus catalogue-only track, lesson, and description
+metadata. The route resolves a built-in id without inserting it into `showStore`;
+`ShowEditor` and `ShowStagePreview` accept the resolved record as an explicit
+override. The editor disables mutation affordances while retaining transport,
+inspection, compilation, cost, EPE export, and Controller actions. This keeps
+the learning path on production behavior without creating D1 rows or a second
+Show runtime.
+
 Legacy scene-owned transitions and routing switches normalize into the boundary
 model before compiler, editor, EPE, or persistence consumption. Every boundary
 retains one explicit visual transition, with zero-duration cut as the neutral
