@@ -3108,6 +3108,7 @@ function ClipInspector({
                       <div className="mt-1.5">
                         <NumberField
                           label={`${control.label} target`}
+                          hideLabel
                           value={target}
                           min={control.min}
                           max={control.max}
@@ -3129,7 +3130,7 @@ function ClipInspector({
           onToggle={(event) => setAdvancedControlsOpen(event.currentTarget.open)}
         >
           <summary className="cursor-pointer px-2 py-1.5 text-[9px] uppercase tracking-[0.12em] text-zinc-500">Advanced clip controls</summary>
-          <div className="border-t border-zinc-800 p-2">
+          <div className="border-t border-zinc-800 p-2 text-[10px]">
             <div className="grid grid-cols-2 items-end gap-x-2 gap-y-1.5 xl:grid-cols-4">
             <label className="flex h-7 items-center gap-2 text-zinc-300">
               <input
@@ -4546,6 +4547,7 @@ function NumberField({
   step,
   suffix,
   help,
+  hideLabel = false,
   onChange,
 }: {
   label: string
@@ -4555,6 +4557,7 @@ function NumberField({
   step: number
   suffix?: string
   help?: string
+  hideLabel?: boolean
   onChange: (value: number) => void
 }) {
   const [draft, setDraft] = useState(() => String(value))
@@ -4578,8 +4581,8 @@ function NumberField({
 
   return (
     <label className="min-w-0 text-[10px] uppercase text-zinc-600" title={help}>
-      {label}
-      <span className="mt-1 flex min-w-0 items-center gap-1">
+      <span className={hideLabel ? 'sr-only' : undefined}>{label}</span>
+      <span className={`${hideLabel ? '' : 'mt-1'} flex min-w-0 items-center gap-1`}>
         <input
           aria-label={label}
           title={help}

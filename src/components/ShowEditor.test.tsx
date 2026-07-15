@@ -133,6 +133,7 @@ describe('ShowEditor (#318)', () => {
 
     await user.click(within(panel).getByText('Advanced clip controls'))
     expect(within(panel).getByRole('combobox', { name: 'Hold scenes' })).toBeDisabled()
+    expect(panel.querySelector('details[aria-label="Advanced Clip controls"] > div')).toHaveClass('text-[10px]')
   })
 
   it('discloses one stable read-only Scene X-ray and transfers Super Detail between owners (#471)', async () => {
@@ -1161,7 +1162,9 @@ describe('ShowEditor (#318)', () => {
     await user.click(screen.getAllByRole('button', { name: 'Select Ribbon Loom' })[0])
     expect(screen.getByText('sliderSpeed · 0–1 · Studio default 0.5')).toBeInTheDocument()
     await user.click(screen.getByLabelText('Set Speed target'))
-    fireEvent.change(screen.getByLabelText('Speed target'), { target: { value: '0.2' } })
+    const firstSpeedTarget = screen.getByLabelText('Speed target')
+    expect(firstSpeedTarget.closest('label')?.querySelector('.sr-only')).toHaveTextContent('Speed target')
+    fireEvent.change(firstSpeedTarget, { target: { value: '0.2' } })
 
     await user.click(screen.getAllByRole('button', { name: 'Select Ribbon Loom' })[1])
     await user.click(screen.getByLabelText('Set Speed target'))
