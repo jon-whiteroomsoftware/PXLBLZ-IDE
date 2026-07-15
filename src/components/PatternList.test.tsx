@@ -262,14 +262,14 @@ describe('PatternList', () => {
     expect(screen.queryByText('AuroraSphere')).not.toBeInTheDocument()
   })
 
-  it('renders the six-entity activity strip plus Catalog entry', async () => {
+  it('renders only the six entity modes in the activity strip', async () => {
     render(<PatternList />)
 
     expect(await screen.findByRole('radio', { name: 'Patterns' })).toHaveAttribute('aria-checked', 'true')
     for (const name of ['Maps', 'Mixins', 'Libraries', 'Controllers', 'Shows']) {
       expect(screen.getByRole('radio', { name })).toBeInTheDocument()
     }
-    expect(screen.getByRole('button', { name: 'Catalog' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Catalog' })).not.toBeInTheDocument()
   })
 
   it('opens a stock library read-only from the Libraries rail without changing preview source', async () => {
@@ -668,10 +668,10 @@ describe('PatternList', () => {
     expect(screen.getByText('My Tree')).toBeInTheDocument()
   })
 
-  it('the Catalog entry navigates to the Gallery', async () => {
+  it('does not duplicate the top-bar Gallery destination in another entity mode', async () => {
     const user = userEvent.setup()
     render(<PatternList />)
-    await user.click(screen.getByRole('button', { name: 'Catalog' }))
-    expect(window.location.pathname).toBe('/gallery')
+    await user.click(screen.getByRole('radio', { name: 'Shows' }))
+    expect(screen.queryByRole('button', { name: 'Catalog' })).not.toBeInTheDocument()
   })
 })

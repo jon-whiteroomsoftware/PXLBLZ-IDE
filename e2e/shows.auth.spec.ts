@@ -2,6 +2,283 @@ import { expect, test } from './fixtures/authenticated'
 import type { Page } from '@playwright/test'
 
 test.describe('authenticated Show authoring', () => {
+  test('ships the dense Timeline frame across desktop and narrow workspaces', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('studio/shows')
+    await createInstallationShow(page)
+
+    const toolbar = page.getByTestId('show-timeline-toolbar')
+    await expect(toolbar.getByRole('group', { name: 'Show transport controls' })).toBeVisible()
+    await expect(toolbar.getByRole('group', { name: 'Timeline zoom controls' })).toBeVisible()
+    await expect(toolbar.getByRole('group', { name: 'Timeline commands' })).toBeVisible()
+    const transportToggle = toolbar.locator('button[aria-label="Play Show preview"], button[aria-label="Pause Show preview"]')
+    await expect(transportToggle).toHaveCount(1)
+    await expect(transportToggle).toBeVisible()
+    await expect(toolbar.getByRole('button', { name: 'Go to Show start' })).toBeVisible()
+    await expect(toolbar.getByLabel('Show time')).toHaveText(/^\d{2}:\d{2}\.\d\/\d{2}:\d{2}\.\d$/)
+    await expect(toolbar.getByRole('slider', { name: 'Timeline zoom' })).toHaveValue('1')
+    await expect(toolbar.getByLabel('Timeline zoom level')).toHaveText('1.0x')
+
+    const commands = toolbar.getByRole('group', { name: 'Timeline commands' })
+    await expect(commands.getByRole('button')).toHaveText(['', '', 'Snap', 'Fit', 'Split', 'Clone'])
+    await expect(commands.getByRole('button', { name: 'Clone selection' })).toBeDisabled()
+    await expect(page.getByRole('button', { name: 'Select TestPattern1D', exact: true })).toHaveCSS('min-height', '44px')
+
+    await page.getByRole('button', { name: 'Collapse library' }).click()
+    await expect(page.getByTestId('left-pane')).toHaveCSS('width', '46px')
+    await page.getByRole('radio', { name: 'Patterns' }).click()
+    await expect(page.getByRole('button', { name: 'Expand library' })).toBeVisible()
+    await page.getByRole('radio', { name: 'Shows' }).click()
+    await expect(page.getByTestId('left-pane')).toHaveCSS('width', '46px')
+    await page.getByRole('button', { name: 'Expand library' }).click()
+
+    await page.setViewportSize({ width: 760, height: 900 })
+    await expect(toolbar).toBeVisible()
+    await expect(toolbar.getByLabel('Show time')).toBeVisible()
+    await expect(toolbar.getByRole('slider', { name: 'Timeline zoom' })).toBeVisible()
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(8)
+
+    await page.setViewportSize({ width: 600, height: 900 })
+    await expect(toolbar.getByLabel('Show time')).toHaveCSS('display', 'grid')
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(8)
+  })
+
+  test('bridges Global Show to one read-only Scene X-ray and Super Detail layer', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('studio/shows')
+    await createInstallationShow(page)
+
+    const timeline = page.getByRole('region', { name: 'Show timeline' })
+    const before = await timeline.boundingBox()
+    const xray = page.getByRole('group', { name: 'Scene 1 Scene X-ray, read only' })
+    await expect(xray).toHaveCSS('height', '36px')
+    await expect(xray.locator('input, select, textarea, [contenteditable="true"]')).toHaveCount(0)
+
+    await page.getByRole('button', { name: 'Inspect Scene 1 in Super Detail' }).click()
+    const firstDetail = page.getByRole('dialog', { name: 'Scene 1 Super Detail' })
+    await expect(firstDetail).toHaveAttribute('aria-modal', 'false')
+    await expect(firstDetail).toContainText('Global')
+    await expect(firstDetail).toContainText('Local')
+    await expect(firstDetail.locator('input, select, textarea, [contenteditable="true"]')).toHaveCount(0)
+    await expect(firstDetail.getByRole('button', { name: 'Open Scene' })).toHaveCount(0)
+    expect((await timeline.boundingBox())?.height).toBe(before?.height)
+
+    await page.getByRole('slider', { name: 'Timeline zoom' }).fill('5.1')
+    await expect(xray).toHaveCSS('height', '36px')
+    await page.getByRole('button', { name: 'Show Scene 2 Scene X-ray' }).click()
+    await expect(page.getByRole('dialog')).toHaveCount(1)
+    await expect(page.getByRole('dialog', { name: 'Scene 2 Super Detail' })).toBeVisible()
+
+    await page.setViewportSize({ width: 600, height: 720 })
+    const detailBounds = await page.getByRole('dialog', { name: 'Scene 2 Super Detail' }).boundingBox()
+    expect(detailBounds?.x).toBeGreaterThanOrEqual(0)
+    expect((detailBounds?.x ?? 0) + (detailBounds?.width ?? 0)).toBeLessThanOrEqual(600)
+    expect((detailBounds?.y ?? 0) + (detailBounds?.height ?? 0)).toBeLessThanOrEqual(720)
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(8)
+
+    await page.keyboard.press('Escape')
+    await expect(page.getByRole('dialog', { name: 'Scene 2 Super Detail' })).toHaveCount(0)
+  })
+
+  test('clones and magnetically moves one owner with session undo, redo, and durable Snap', async ({ page }) => {
+    const consoleErrors: string[] = []
+    page.on('console', (message) => {
+      if (message.type() === 'error') consoleErrors.push(message.text())
+    })
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('studio/shows')
+    await createInstallationShow(page)
+    const showId = new URL(page.url()).pathname.split('/').at(-1)!
+
+    await page.getByRole('button', { name: 'Select CometLoom', exact: true }).click()
+    await page.keyboard.press('Delete')
+    await waitForCurrentShow(page, (show) => show.cells.length === 1)
+
+    const source = page.getByRole('button', { name: 'Select TestPattern1D', exact: true })
+    const destination = page.getByRole('button', { name: 'Add clip to main in Scene 2' })
+    await source.dragTo(destination)
+    await waitForCurrentShow(page, (show) => show.cells[0]?.sceneId === 'scene-2')
+
+    await page.getByRole('button', { name: 'Undo Show edit' }).click()
+    await waitForCurrentShow(page, (show) => show.cells[0]?.sceneId === 'scene-1')
+    await page.getByRole('button', { name: 'Redo Show edit' }).click()
+    await waitForCurrentShow(page, (show) => show.cells[0]?.sceneId === 'scene-2')
+    await page.getByRole('button', { name: 'Undo Show edit' }).click()
+    await waitForCurrentShow(page, (show) => show.cells[0]?.sceneId === 'scene-1')
+
+    await page.getByRole('button', { name: 'Select TestPattern1D', exact: true }).click()
+    await expect(page.getByRole('button', { name: 'Clone selection' })).toHaveAttribute('title', 'Clone TestPattern1D into Scene 2')
+    await page.getByRole('button', { name: 'Clone selection' }).click()
+    await waitForCurrentShow(page, (show) => show.cells.length === 2 && show.cells.some((cell) => cell.sceneId === 'scene-2'))
+
+    await page.getByRole('button', { name: 'Open Scene 1 properties' }).click()
+    await expect(page.getByRole('button', { name: 'Clone selection' })).toHaveAttribute('title', 'Clone Scene 1 after itself')
+    await page.getByRole('button', { name: 'Clone selection' }).click()
+    await waitForCurrentShow(page, (show) => show.scenes.length === 3 && new Set(show.scenes.map((scene) => scene.id)).size === 3)
+
+    const snap = page.getByRole('button', { name: 'Snap playhead' })
+    await snap.click()
+    await expect(snap).toHaveAttribute('aria-pressed', 'false')
+    await page.reload()
+    await expect(page.getByRole('button', { name: 'Snap playhead' })).toHaveAttribute('aria-pressed', 'false')
+    await expect.poll(async () => (await persistedShow(page, showId))?.scenes.length).toBe(3)
+
+    await page.setViewportSize({ width: 600, height: 800 })
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(8)
+    expect(consoleErrors).toEqual([])
+  })
+
+  test('anchors one Entity Detail Panel without reflow and preserves exact edits', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('studio/shows')
+    await createInstallationShow(page)
+    const showId = new URL(page.url()).pathname.split('/').at(-1)!
+    const show = await persistedShow(page, showId)
+    const firstClip = show?.cells[0]
+    if (!firstClip) throw new Error('Created Show has no first clip.')
+
+    const timeline = page.getByRole('region', { name: 'Show timeline' })
+    const before = await timeline.boundingBox()
+    const clip = page.getByRole('button', { name: 'Select TestPattern1D', exact: true })
+    await clip.click()
+
+    const panel = page.getByRole('dialog', { name: 'Entity Detail Panel' })
+    await expect(panel).toHaveCount(1)
+    await expect(panel).toHaveAttribute('data-owner-key', `clip:${firstClip.id}`)
+    await expect(panel.getByRole('region', { name: 'Clip properties' })).toBeVisible()
+    await expect(panel.getByTestId('show-entity-detail-stem')).toBeVisible()
+    expect((await timeline.boundingBox())?.height).toBe(before?.height)
+    const panelBounds = await panel.boundingBox()
+    expect(panelBounds?.x).toBeGreaterThanOrEqual(0)
+    expect((panelBounds?.x ?? 0) + (panelBounds?.width ?? 0)).toBeLessThanOrEqual(1440)
+    expect(panelBounds?.y).toBeGreaterThanOrEqual(0)
+    expect((panelBounds?.y ?? 0) + (panelBounds?.height ?? 0)).toBeLessThanOrEqual(900)
+
+    await panel.getByLabel('Brightness').fill('0.63')
+    await panel.getByLabel('Brightness').blur()
+    await waitForCurrentShow(page, (candidate) => candidate.cells.find((cell) => cell.id === firstClip.id)?.adaptations.brightness === 0.63)
+
+    await page.keyboard.press('Escape')
+    await expect(panel).toHaveCount(0)
+    await expect(clip).toBeFocused()
+
+    await page.reload()
+    await expect(page.getByRole('dialog', { name: 'Entity Detail Panel' })).toHaveCount(0)
+    await page.getByRole('button', { name: 'Select TestPattern1D', exact: true }).click()
+    await expect(page.getByRole('dialog', { name: 'Entity Detail Panel' }).getByRole('spinbutton', { name: 'Brightness' })).toHaveValue('0.63')
+    await page.getByRole('button', { name: 'Select Scene 1 to Scene 2 transition (crossfade)' }).click()
+    await expect(page.getByRole('dialog', { name: 'Entity Detail Panel' })).toHaveCount(1)
+    await expect(page.getByRole('dialog', { name: 'Entity Detail Panel' })).toHaveAttribute('data-owner-key', `transition:${show?.transitions?.[0].id}`)
+
+    await page.setViewportSize({ width: 600, height: 700 })
+    await expect(page.getByRole('dialog', { name: 'Entity Detail Panel' })).toBeVisible()
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(8)
+    await page.getByText('Show time', { exact: true }).click()
+    await expect(page.getByRole('dialog', { name: 'Entity Detail Panel' })).toHaveCount(0)
+  })
+
+  test('authors, previews, edits, duplicates, removes, and reloads static Effects', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('studio/shows')
+    await createInstallationShow(page)
+
+    await page.getByRole('button', { name: 'Select TestPattern1D', exact: true }).click()
+    const panel = page.getByRole('dialog', { name: 'Entity Detail Panel' })
+    const stack = panel.getByRole('region', { name: 'Clip Effects' })
+    await stack.getByRole('button', { name: 'Add' }).click()
+    const palette = page.getByRole('dialog', { name: 'Add Effect' })
+    await expect(palette.getByRole('button', { name: /Add .* Effect/ })).toHaveCount(19)
+
+    await palette.getByRole('button', { name: 'Add Ripple Effect' }).hover()
+    await expect.poll(async () => (await persistedShow(page, new URL(page.url()).pathname.split('/').at(-1)!))?.cells[0].effects?.length ?? 0).toBe(0)
+    await page.keyboard.press('Escape')
+    await expect(palette).toHaveCount(0)
+    await expect(panel).toBeVisible()
+
+    await stack.getByRole('button', { name: 'Add' }).click()
+    await page.getByRole('searchbox', { name: 'Search Effects' }).fill('ripple')
+    await page.getByRole('button', { name: 'Add Ripple Effect' }).click()
+    await waitForCurrentShow(page, (show) => show.cells[0].effects?.[0]?.kind === 'ripple')
+    await expect(stack.getByRole('button', { name: 'Edit Ripple Effect' })).toBeFocused()
+
+    await stack.getByRole('button', { name: 'Edit Ripple Effect' }).click()
+    await stack.getByRole('spinbutton', { name: 'Amount' }).fill('0.2')
+    await stack.getByRole('spinbutton', { name: 'Frequency' }).fill('6')
+    await waitForCurrentShow(page, (show) => (
+      show.cells[0].effects?.[0]?.kind === 'ripple'
+      && show.cells[0].effects[0].amount === 0.2
+      && show.cells[0].effects[0].frequency === 6
+    ))
+
+    await stack.getByRole('button', { name: 'Duplicate Ripple Effect' }).click()
+    await waitForCurrentShow(page, (show) => show.cells[0].effects?.map((effect) => effect.id).join(',') === 'ripple,ripple-2')
+    await stack.getByRole('button', { name: 'Move Ripple Effect earlier' }).last().click()
+    await waitForCurrentShow(page, (show) => show.cells[0].effects?.map((effect) => effect.id).join(',') === 'ripple-2,ripple')
+    await page.getByTestId('show-effect-ripple-2').getByRole('button', { name: 'Remove Ripple Effect' }).click()
+    await waitForCurrentShow(page, (show) => show.cells[0].effects?.map((effect) => effect.id).join(',') === 'ripple')
+
+    await page.reload()
+    await page.getByRole('button', { name: 'Select TestPattern1D', exact: true }).click()
+    const reloadedStack = page.getByRole('dialog', { name: 'Entity Detail Panel' }).getByRole('region', { name: 'Clip Effects' })
+    await expect(reloadedStack.getByRole('button', { name: 'Edit Ripple Effect' })).toBeVisible()
+    await reloadedStack.getByRole('button', { name: 'Edit Ripple Effect' }).click()
+    await expect(reloadedStack.getByRole('spinbutton', { name: 'Amount' })).toHaveValue('0.2')
+    await expect(reloadedStack.getByRole('spinbutton', { name: 'Frequency' })).toHaveValue('6')
+
+    await page.setViewportSize({ width: 600, height: 700 })
+    await reloadedStack.getByRole('button', { name: 'Add' }).click()
+    await expect(page.getByRole('dialog', { name: 'Add Effect' })).toBeVisible()
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(8)
+  })
+
+  test('previews, authors, configures, reloads, and resets registry Transitions', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('studio/shows')
+    await createInstallationShow(page)
+    const showId = new URL(page.url()).pathname.split('/').at(-1)!
+
+    await page.getByRole('button', { name: 'Select Scene 1 to Scene 2 transition (crossfade)' }).click()
+    const panel = page.getByRole('dialog', { name: 'Entity Detail Panel' })
+    await panel.getByRole('button', { name: /Crossfade · Change/ }).click()
+    const palette = page.getByRole('dialog', { name: 'Choose Transition' })
+    await expect(palette.getByRole('button', { name: /Use .* Transition/ })).toHaveCount(35)
+
+    await palette.getByRole('button', { name: 'Use Star Transition' }).hover()
+    await expect.poll(async () => (await persistedShow(page, showId))?.transitions?.[0]?.kind).toBe('crossfade')
+    await page.keyboard.press('Escape')
+    await expect(palette).toHaveCount(0)
+    await expect(panel).toBeVisible()
+
+    await panel.getByRole('button', { name: /Crossfade · Change/ }).click()
+    await page.getByRole('searchbox', { name: 'Search Transitions' }).fill('star')
+    await page.getByRole('button', { name: 'Use Star Transition' }).click()
+    await panel.getByRole('spinbutton', { name: 'Duration' }).fill('3400')
+    await waitForCurrentShow(page, (show) => show.transitions?.[0]?.durationMs === 3400)
+    await panel.getByRole('spinbutton', { name: 'Points' }).fill('7')
+    await expect.poll(async () => JSON.stringify((await persistedShow(page, showId))?.transitions?.[0])).toContain('"starPoints":7')
+    await panel.getByRole('combobox', { name: 'Edge' }).selectOption('blend')
+    await waitForCurrentShow(page, (show) => show.transitions?.[0]?.kind === 'portal'
+      && show.transitions[0].shape === 'star'
+      && show.transitions[0].durationMs === 3400
+      && show.transitions[0].starPoints === 7
+      && show.transitions[0].edgePolicy === 'blend')
+
+    await page.reload()
+    await page.getByRole('button', { name: 'Select Scene 1 to Scene 2 transition (portal)' }).click()
+    const reloadedPanel = page.getByRole('dialog', { name: 'Entity Detail Panel' })
+    await expect(reloadedPanel.getByRole('button', { name: /Star · Change/ })).toBeVisible()
+    await expect(reloadedPanel.getByRole('spinbutton', { name: 'Duration' })).toHaveValue('3400')
+    await expect(reloadedPanel.getByRole('spinbutton', { name: 'Points' })).toHaveValue('7')
+    await expect(reloadedPanel.getByRole('combobox', { name: 'Edge' })).toHaveValue('blend')
+
+    await page.setViewportSize({ width: 600, height: 700 })
+    await reloadedPanel.getByRole('button', { name: /Star · Change/ }).click()
+    await expect(page.getByRole('dialog', { name: 'Choose Transition' })).toBeVisible()
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(8)
+    await page.getByRole('button', { name: 'Use Cut Transition' }).click()
+    await waitForCurrentShow(page, (show) => show.transitions?.[0]?.kind === 'cut' && show.transitions[0].durationMs === 0)
+  })
+
   test('creates and reloads a Portable output contract at desktop and narrow widths', async ({ page }) => {
     const seriousConsoleErrors: string[] = []
     page.on('console', (message) => {
@@ -271,15 +548,16 @@ test.describe('authenticated Show authoring', () => {
     await page.getByRole('button', { name: 'Select CometLoom' }).click()
     await page.getByLabel('Source pattern').selectOption('stock:TestPattern1D')
     await page.getByRole('button', { name: 'Select Scene 1 to Scene 2 transition (crossfade)' }).click()
-    await page.getByLabel('Transition kind').selectOption('wipe')
-    await page.getByLabel('Transition easing').selectOption('ease-in-out')
+    await page.getByRole('button', { name: /Crossfade · Change/ }).click()
+    await page.getByRole('button', { name: 'Use Linear Transition' }).click()
+    await page.getByLabel('Easing').selectOption('ease-in-out')
     await page.getByText('Advanced transition controls').click()
     await page.getByLabel('Animate time for main').check()
     await page.getByLabel('Time scale target main').fill('0.25')
 
     await waitForCurrentShow(page, (show) => (
       show.transitions?.[0]?.kind === 'wipe'
-      && show.transitions[0].easing === 'ease-in-out'
+      && showEasingId(show.transitions[0].easing) === 'ease-in-out'
       && show.transitions[0].propertyTransitions?.timeScale !== undefined
       && show.cells.some((clip) => clip.sceneId === 'scene-2' && clip.adaptations.timeScale === 0.25)
     ))
@@ -315,7 +593,7 @@ test.describe('authenticated Show authoring', () => {
       && show.transitions?.some((transition) => (
         transition.kind === 'routing'
         && transition.durationMs === 2000
-        && transition.easing === 'ease-in-out'
+        && showEasingId(transition.easing) === 'ease-in-out'
         && transition.routingDirection === 'reverse'
       ))
     ))
@@ -355,7 +633,7 @@ test.describe('authenticated Show authoring', () => {
       && show.scenes[1]?.routingTargets?.splitPosition === 0.75
       && show.transitions?.[0]?.propertyTransitions?.routing?.splitPosition?.from === 0.2
       && show.transitions[0].propertyTransitions.routing.splitPosition.durationMs === 1200
-      && show.transitions[0].propertyTransitions.routing.splitPosition.easing === 'ease-in-out'
+      && showEasingId(show.transitions[0].propertyTransitions.routing.splitPosition.easing) === 'ease-in-out'
     ))
 
     await page.reload()
@@ -395,7 +673,7 @@ test.describe('authenticated Show authoring', () => {
       && show.scenes[1]?.sampleTargets?.repeatScale === 3
       && show.transitions?.[0]?.propertyTransitions?.sample?.repeatScale?.from === 1.25
       && show.transitions[0].propertyTransitions.sample.repeatScale.durationMs === 1200
-      && show.transitions[0].propertyTransitions.sample.repeatScale.easing === 'ease-in-out'
+      && showEasingId(show.transitions[0].propertyTransitions.sample.repeatScale.easing) === 'ease-in-out'
     ))
 
     await page.reload()
@@ -421,11 +699,10 @@ test.describe('authenticated Show authoring', () => {
     await page.goto('studio/shows')
     await createInstallationShow(page)
     await page.getByRole('button', { name: 'Select Scene 1 to Scene 2 transition (crossfade)' }).click()
-    await page.getByLabel('Transition kind').selectOption('portal')
-    await page.getByText('Advanced transition controls').click()
-    await page.getByLabel('Spatial shape').selectOption('diamond')
-    await page.getByLabel('Rotation turns').fill('0.125')
-    await page.getByLabel('Spin turns').fill('1')
+    await page.getByRole('button', { name: /Crossfade · Change/ }).click()
+    await page.getByRole('button', { name: 'Use Diamond Transition' }).click()
+    await page.getByLabel('Rotation').fill('0.125')
+    await page.getByLabel('Spin').fill('1')
     await expect(page.getByLabel('Ring width')).toHaveCount(0)
 
     await waitForCurrentShow(page, (show) => show.transitions?.some((transition) => (
@@ -435,9 +712,10 @@ test.describe('authenticated Show authoring', () => {
       && transition.spin === 1
     )) ?? false)
 
-    await page.getByLabel('Spatial shape').selectOption('ring')
-    await expect(page.getByLabel('Rotation turns')).toHaveCount(0)
-    await expect(page.getByLabel('Spin turns')).toHaveCount(0)
+    await page.getByRole('button', { name: /Diamond · Change/ }).click()
+    await page.getByRole('button', { name: 'Use Ring Transition' }).click()
+    await expect(page.getByLabel('Rotation')).toHaveCount(0)
+    await expect(page.getByLabel('Spin')).toHaveCount(0)
     await page.getByLabel('Ring width').fill('0.2')
 
     await waitForCurrentShow(page, (show) => show.transitions?.some((transition) => (
@@ -450,8 +728,7 @@ test.describe('authenticated Show authoring', () => {
 
     await page.reload()
     await page.getByRole('button', { name: 'Select Scene 1 to Scene 2 transition (portal)' }).click()
-    await page.getByText('Advanced transition controls').click()
-    await expect(page.getByLabel('Spatial shape')).toHaveValue('ring')
+    await expect(page.getByRole('button', { name: /Ring · Change/ })).toBeVisible()
     await expect(page.getByLabel('Ring width')).toHaveValue('0.2')
     await page.getByRole('button', { name: 'View code' }).first().click()
     await expect(page.getByText('Generated pattern - Untitled Show')).toBeVisible()
@@ -470,24 +747,29 @@ type PersistedShow = {
     sampleTargets?: { repeatScale?: number }
   }>
   cells: Array<{
+    id: string
     sceneId: string
     patternName: string
     restartOnEntry?: boolean
-    adaptations: { timeScale: number }
+    adaptations: { timeScale: number; brightness: number }
+    effects?: Array<{ id: string; kind: string; amount?: number; frequency?: number }>
   }>
   transitions?: Array<{
+    id: string
     kind: string
     durationMs: number
-    easing: string
+    easing: string | { curve: string; direction?: string }
     routingDirection?: string
     shape?: string
     rotation?: number
     spin?: number
     ringWidth?: number
+    starPoints?: number
+    edgePolicy?: string
     propertyTransitions?: {
       timeScale?: unknown
-      routing?: { splitPosition?: { from: number; durationMs: number; easing: string } }
-      sample?: { repeatScale?: { from: number; durationMs: number; easing: string } }
+      routing?: { splitPosition?: { from: number; durationMs: number; easing: string | { curve: string; direction?: string } } }
+      sample?: { repeatScale?: { from: number; durationMs: number; easing: string | { curve: string; direction?: string } } }
     }
   }>
   routingLayouts: Array<{
@@ -521,6 +803,12 @@ async function persistedShow(page: Page, id: string): Promise<PersistedShow | un
   if (!response.ok()) return undefined
   const { shows } = await response.json() as { shows: PersistedShow[] }
   return shows.find((show) => show.id === id)
+}
+
+function showEasingId(easing: string | { curve: string; direction?: string }): string {
+  if (typeof easing === 'string') return easing
+  if (easing.curve === 'quadratic' && easing.direction === 'in-out') return 'ease-in-out'
+  return easing.direction ? `${easing.curve}-${easing.direction}` : easing.curve
 }
 
 function legacyShowFixture(id: string, name: string, ranges: Array<{ start: number; end: number }>) {

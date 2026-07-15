@@ -1,6 +1,6 @@
 import { useRef, useState, type RefObject } from 'react'
 import type React from 'react'
-import { ChevronDown, Pencil, Search, Trash2, X } from 'lucide-react'
+import { ChevronDown, PanelLeftClose, Pencil, Search, Trash2, X } from 'lucide-react'
 import { nameConflicts } from '@/engine/patternName'
 import { sanitizeLibraryNameInput } from '@/engine/libraries'
 import type { DimLens } from '@/engine/dimLens'
@@ -53,10 +53,12 @@ export function HeaderAction({
 export function RailEntityHeader({
   title,
   action,
+  onCollapse,
   children,
 }: {
   title: string
   action?: React.ReactNode
+  onCollapse?: () => void
   children?: React.ReactNode
 }) {
   const compact = children === undefined || children === null
@@ -67,7 +69,18 @@ export function RailEntityHeader({
     >
       <div className="flex min-h-5 w-full items-center gap-2">
         <div className="flex-1 truncate text-sm font-normal text-zinc-200">{title}</div>
-        {action && <div className="flex items-center gap-1.5">{action}</div>}
+        {(action || onCollapse) && (
+          <div className="flex items-center gap-1.5">
+            {action}
+            {onCollapse && (
+              <HeaderAction
+                icon={<PanelLeftClose size={14} />}
+                title="Collapse library"
+                onClick={onCollapse}
+              />
+            )}
+          </div>
+        )}
       </div>
       {children}
     </div>

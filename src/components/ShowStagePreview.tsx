@@ -30,6 +30,7 @@ import { OrbitControls } from '@/components/OrbitControls'
 import { LIBRARIES } from '@/pixelblaze/libs'
 import { canAdvanceShowPlayback, useShowTransportStore } from '@/store/showTransportStore'
 import { showLoopDurationMs } from '@/engine/showModel'
+import { useShowPreviewOverrideStore } from '@/store/showPreviewOverrideStore'
 import {
   installationPhysicalZones,
   validateInstallationCoverage,
@@ -74,7 +75,9 @@ export function ShowStagePreview({ showId }: { showId: string }) {
   const playbackLastRef = useRef<number | null>(null)
   const runtimeGenerationRef = useRef(0)
   const rendererRef = useRef<ReturnType<typeof createRenderer> | null>(null)
-  const show = useShowStore((state) => state.shows.find((item) => item.id === showId))
+  const savedShow = useShowStore((state) => state.shows.find((item) => item.id === showId))
+  const previewShow = useShowPreviewOverrideStore((state) => state.show?.id === showId ? state.show : null)
+  const show = previewShow ?? savedShow
   const userPatterns = usePatternStore((state) => state.userPatterns)
   const userMaps = useMapStore((state) => state.userMaps)
   const controllerProfiles = useControllerProfileStore((state) => state.profiles)

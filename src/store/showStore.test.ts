@@ -55,6 +55,64 @@ beforeEach(() => {
 })
 
 describe('showStore (#318)', () => {
+  it('groups each Show edit as one session transaction with undo and redo (#470)', async () => {
+    const show = createDefaultShow('show-history', 'History', 1)
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    await useShowStore.getState().updateScene(show.id, 'scene-1', { name: 'Opening' })
+    expect(useShowStore.getState().shows[0].scenes[0].name).toBe('Opening')
+    expect(useShowStore.getState().showHistories[show.id].past).toHaveLength(1)
+
+    await useShowStore.getState().undoShow(show.id)
+    expect(useShowStore.getState().shows[0].scenes[0].name).toBe('Scene 1')
+    expect(useShowStore.getState().showHistories[show.id].future).toHaveLength(1)
+
+    await useShowStore.getState().redoShow(show.id)
+    expect(useShowStore.getState().shows[0].scenes[0].name).toBe('Opening')
+    expect(useShowStore.getState().showHistories[show.id].future).toHaveLength(0)
+  })
+
+  it('restores the previous normalized Show and history when persistence fails (#470)', async () => {
+    const show = createDefaultShow('show-rollback', 'Rollback', 1)
+    delete show.transitions
+    const provider = memoryProvider([show])
+    provider.updateShow = async () => { throw new Error('offline') }
+    setPersonalContentProvider(provider)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    await expect(useShowStore.getState().updateScene(show.id, 'scene-1', { name: 'Lost edit' })).rejects.toThrow('offline')
+
+    const restored = useShowStore.getState().shows[0]
+    expect(restored.scenes[0].name).toBe('Scene 1')
+    expect(restored.transitions?.[0]).toMatchObject({ kind: 'crossfade' })
+    expect(useShowStore.getState().showHistories[show.id]?.past ?? []).toHaveLength(0)
+  })
+  it('serializes full-record persistence so rapid inspector edits cannot land out of order', async () => {
+    const show = createDefaultShow('show-write-order', 'Write order', 1)
+    const provider = memoryProvider([show])
+    const writes: Array<Partial<Omit<ShowRecord, 'id'>>> = []
+    let releaseFirst!: () => void
+    const firstPending = new Promise<void>((resolve) => { releaseFirst = resolve })
+    provider.updateShow = async (_id, changes) => {
+      writes.push(changes)
+      if (writes.length === 1) await firstPending
+    }
+    setPersonalContentProvider(provider)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    const first = useShowStore.getState().updateShow(show.id, { ...show, name: 'First', updatedAt: 2 })
+    const second = useShowStore.getState().updateShow(show.id, { ...show, name: 'Second', updatedAt: 3 })
+    await Promise.resolve()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(writes.map((write) => write.name)).toEqual(['First'])
+    releaseFirst()
+    await Promise.all([first, second])
+    expect(writes.map((write) => write.name)).toEqual(['First', 'Second'])
+  })
+
   it('keeps Show creation provisional and restores the previously open Show on cancel (#434)', async () => {
     const previous = createDefaultShow('show-previous', 'Previous', 1)
     setPersonalContentProvider(memoryProvider([previous]))

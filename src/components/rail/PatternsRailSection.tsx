@@ -40,6 +40,7 @@ export function PatternsRailSection({
   onDeletePattern,
   onRowRef,
   onRowKeyDown,
+  onCollapse,
 }: {
   fileInputRef: RefObject<HTMLInputElement | null>
   importError: string | null
@@ -66,11 +67,13 @@ export function PatternsRailSection({
   onDeletePattern: (id: string) => void
   onRowRef: (key: string, el: HTMLLIElement | null) => void
   onRowKeyDown: (e: React.KeyboardEvent<HTMLLIElement>, key: string) => void
+  onCollapse?: () => void
 }) {
   return (
     <>
       <RailEntityHeader
         title="Patterns"
+        onCollapse={onCollapse}
         action={personalWorkspaceAuthenticated ? (
           <>
             <HeaderAction

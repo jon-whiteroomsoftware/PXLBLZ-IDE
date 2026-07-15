@@ -857,6 +857,19 @@ sub-one-second fragments, creates one boundary across zones, divides covering
 clips, deep-copies value objects, moves the original outgoing boundary to the
 new right scene, and defaults destination clips to Continue.
 
+`duplicateShowScene()` is the global-time Clone operation: it inserts one new
+stable Scene identity after the owner, deep-copies terminating clips, extends
+holds that cross the insertion, preserves the following boundary on the copy,
+and inserts a Cut after the original. `cloneShowCellAfter()` accepts a
+one-scene, one-zone owner. It reuses an empty following slot when available;
+otherwise it inserts a Scene through `duplicateShowScene()`, preserves unrelated
+cells and holds, and places only the selected Clip copy in the new slot. Both
+paths assign new clip and Effect identities and deep-copy nested editable
+values. `moveShowCellToSlot()` accepts the same simple owner, preserves its Zone,
+and commits only to an explicit empty Scene slot. Returning the input record is
+the common refusal contract for collision, span, ownership, and range
+violations.
+
 `showSpatialSelection.ts` owns Installation spatial authoring as pure data
 operations. A normalized 2D drag rectangle returns enclosed map-point indexes;
 replace/add/subtract combine immutable index sets; sorted indexes compact into
@@ -881,16 +894,132 @@ one Show-wide Split lane whose colored cells depict the authored ownership
 boundary. `showTimelineViewport.ts`
 owns Fit-to-16x zoom, playhead-anchored zoom, pan, navigator thumb geometry, and
 range resizing. It also owns magnetic playhead snapping: structural Show
-boundaries take priority over a zoom-aware nice-number time grid. Snap is local
-editor state, defaults on, and Alt temporarily inverts it. Zoom and Snap never
-change the saved Show.
+boundaries take priority over a zoom-aware nice-number time grid. Snap defaults
+on and `showEditorSessionStore` persists only that editor preference; Alt
+temporarily inverts it where supported. Zoom and Snap never change the saved
+Show.
 
-Selection is UI-local and opens one contextual inspector for Show setup, clip,
-empty slot, transition, or zone. An empty slot presents the same personal and
-built-in Pattern catalogue used by clip source replacement, then delegates
-placement and persistence through `showStore`. Other model mutations follow the
-same route; the React surface does not reproduce occupancy,
-split/transition/routing rules.
+`showCompositionProjection.ts` builds a lossless version-0 read sidecar from the
+normalized flat Show and its unchanged compile recipe. It separates runtime
+Pattern-instance summaries from Scene-owned full-duration base placements and
+retains compiler omissions and instance-ownership conflicts as diagnostics.
+The flat record remains persistence and compiler authority.
+
+`showSceneReadOnlyProjection.ts` narrows that sidecar to one Scene's global and
+local bounds, boundary context, cut references, Effect activity, property beats,
+active zone placements, Continue relationships, and diagnostics. It does not
+synthesize local cuts, overlays, or keyframes that the current model cannot
+represent. `ShowSceneXray` renders that projection in one explicit 36-pixel grid
+row. `ShowSceneSuperDetail` portals the same read model to one modeless overlay,
+handles Escape and click-away dismissal, and exposes no authoring controls.
+Switching the disclosed Scene transfers an open overlay without changing
+Timeline height; ordinary zoom changes horizontal geometry only.
+
+The production timeline frame uses 44-pixel clip rows and one three-region
+toolbar grid. `ShowTransportControls` owns Play/Pause, Start, and the
+tenth-second current/total readout. The center group writes through
+`zoomShowTimelineViewport()` and anchors zoom to the playhead when visible or to
+the viewport center otherwise. `ShowTimelineCommands` owns Snap, Fit, Split,
+Clone, and compact session Undo/Redo. Clone enablement is derived from the one
+selected owner: simple Clips can ripple an occupied or missing destination;
+held, multi-zone, and unsupported owners provide a disabled reason. CSS container queries
+remove command labels before they stack the time readout, so the toolbar adapts
+to the center-pane width rather than the outer browser alone.
+
+`showStore` keeps per-Show `past` and `future` snapshot stacks in memory. Every
+successful `updateShow()` call records one semantic transaction; undo and redo
+move normalized snapshots between those stacks and persist the selected state.
+The stacks are never serialized. Full-record writes are queued per Show so
+rapid edits cannot land out of order. A failed write restores the previous
+normalized record and its prior history when the failed optimistic state is
+still current; a later queued full snapshot remains authoritative when editing
+has already advanced.
+
+Timeline clip buttons use native drag events only for simple owners. Empty slots
+become drop targets after the pure ownership and occupancy checks pass, show the
+magnetic destination before drop, and delegate the single transaction back to
+the store. Occupied slots and other zones never accept the drag.
+
+`App` owns one ephemeral `libraryCollapsed` flag above every Studio mode.
+`PatternList` always retains `ActivityStrip`; the active entity header exposes
+**Collapse library**, which hides only the detail rail and fixes the left pane at
+46 pixels. The collapsed strip exposes **Expand library**. The prior resized
+width remains in memory and returns on explicit expansion. Entity-mode changes
+never alter the flag, so Shows can borrow horizontal space without creating
+Show-only navigation behavior. Gallery navigation remains in the top bar; the
+activity strip does not duplicate it.
+
+Selection is UI-local and has one explicit open owner across Show setup, scene,
+clip, empty slot, transition, zone, and routing switch. `ShowEditor` records the
+owner key and its live Timeline element separately from the selected model
+entity. A second click on the same owner toggles the panel closed; another owner
+transfers it; Timeline-background click and Escape close it. Escape restores
+focus to the live anchor. Removing an owner or changing Shows clears both the
+open owner and anchor.
+
+`ShowEntityDetailPanel` portals the existing contextual inspector to
+`document.body` as one modeless application overlay. It stops pointer bubbling
+without trapping focus or changing Timeline layout. The pure
+`showEntityDetailPlacement.ts` helper chooses above or below, clamps the panel
+to viewport margins, and keeps the stem aimed at the anchor. Resize, scrolling,
+and anchor/panel size changes recompute placement. An empty slot presents the
+same personal and built-in Pattern catalogue used by clip source replacement,
+then delegates placement and persistence through `showStore`. Other model
+mutations follow the same route; the React surface does not reproduce
+occupancy, split/transition/routing rules.
+
+The shipped property lanes are structural scene projections, not arbitrary
+keyframe tracks. A destination clip or scene owns its target; the incoming
+boundary owns an optional start, duration, and easing. Authoring a change inside
+a scene first uses Split to create that boundary. Effect-parameter animation
+additionally requires the adjacent clips to retain the same stable Effect ids
+and kinds.
+
+Static version-1 Effects are production-authorable. `showEffectAuthoring.ts`
+adapts the shared registry's family, variant, preset, and parameter vocabulary
+to the normalized `ShowClipEffect` union. It also owns stable duplicate ids and
+stage-constrained reorder transformations. `ShowEffectsAuthoring` projects that
+logic into the clip Entity Detail Panel and compact palette; it does not encode
+family-specific compiler behavior in React.
+
+Palette hover/focus creates an immutable candidate Show with
+`updateShowCellEffects()` and writes it to the ephemeral
+`showPreviewOverrideStore`. `ShowStagePreview` compiles that record instead of
+the saved record while the candidate exists. Leave, Escape, apply, palette
+close, and unmount clear the override. Apply alone sends the normalized Effect
+stack through `showStore.updateCellEffects()` and persistence. The applied stack
+groups records by the compiler's Transform, Distort, Address, and Color/output
+stages; move commands swap only siblings in one stage. Its advanced disclosure
+reads aggregate cost evidence from `GeneratedShowArtifact.summary.cost`.
+
+The expanded Transition catalogue is production-authorable.
+`showTransitionAuthoring.ts` maps the shared family/variant/preset vocabulary to
+the persisted compatibility kinds (`fade-color`, `dither`, `portal`, and
+`motion`) and their normalized fields. Replacement retains the stable boundary
+id, `afterSceneId`, property animation, and any separate routing marker.
+`ShowTransitionAuthoring` projects the same presentation catalogue into a compact
+modeless palette and registry-driven exact parameter grid. React does not carry
+a second family-specific normalization model.
+
+Transition hover/focus builds an immutable candidate Show with
+`replaceShowBoundaryTransition()` and writes it to the same ephemeral preview
+override used by Effects. It also requests a deterministic seek to the
+candidate boundary midpoint so the existing Stage actually shows both outgoing
+and incoming sources. Leave, Escape, close, apply, and unmount clear the
+candidate and restore the captured playhead position. Apply alone sends the
+normalized boundary through `showStore.updateBoundaryTransition()`.
+
+Show persistence writes complete records. `showStore` therefore serializes
+updates per Show after applying each optimistic state change; rapid parameter
+edits cannot let an older network response overwrite a newer full-record
+snapshot. Failures reject their originating operation but do not prevent the
+next queued snapshot from attempting to persist.
+
+`showVisualToolkitPresentation.ts` builds stable presentation keys, family
+summaries, search text, dimensional compatibility, and Effect pipeline stages
+for all frozen variants without modifying the version-1 runtime registry or
+fingerprint. Effects, Transitions, and the retained review prototype consume
+this one presentation seam.
 
 The Show timeline owns a local focus-return seam. Focus capture remembers the
 last focusable selected timeline entity, while the timeline region is the

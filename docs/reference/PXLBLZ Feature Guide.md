@@ -74,8 +74,12 @@ kinds:
 | Controllers | Durable profiles for physical Controllers |
 | Shows | Timeline-based multi-Pattern choreography |
 
-**Catalog** at the bottom of the rail returns to the Gallery. Switching rail
-modes remembers the last open item for each mode during the session.
+The top-bar **Gallery** link returns to the Gallery. Switching rail modes
+remembers the last open item for each mode during the session. **Collapse
+library** in the active entity header reduces the complete detail rail to the
+46-pixel activity strip when the center pane needs more horizontal room. The
+collapsed strip exposes **Expand library**. This state is shared across Studio
+modes; switching from Shows to Patterns does not reopen it.
 
 Patterns and Maps have a dimension lens and name search. Personal content is
 listed first; stock or built-in content lives in a collapsible group beneath it.
@@ -543,12 +547,22 @@ The canonical editor is a proportional, zoomable timeline:
 
 Scene and transition duration fields accept tenths of a second.
 
+The production toolbar keeps three stable groups. Playback sits left as
+**Play/Pause**, **Start**, and current/total time at tenth-second precision.
+Zoom sits in the center as borderless minus/plus controls, a slider, and its
+numeric multiplier. Commands sit right in **Snap**, **Fit**, **Split**, and
+**Clone** order, with compact **Undo** and **Redo** controls before them. Clone
+activates for one selected scene or a simple one-scene, one-zone clip; its
+tooltip explains why other owners are unavailable. In narrower center panes,
+command labels disappear before controls move; at the smallest supported width,
+current time stacks above total time.
+
 Use **Fit**, zoom buttons, or Ctrl/Command-wheel to change the viewport. The
 navigator thumb shows the visible fraction; drag it to pan or drag its edges to
 resize the visible range. Zoom is editor state only and never changes Show time.
 **Snap** magnetically aligns pointer scrubbing to scene, clip, transition, and
-zoom-aware time-grid boundaries. It is on by default; hold Alt to temporarily
-reverse the current Snap setting.
+zoom-aware time-grid boundaries. It is on by default and remembered as an editor
+preference; hold Alt to temporarily reverse the current Snap setting.
 
 The Show workspace supports a mouse-free edit-and-preview loop. After a native
 inspector menu commits a discrete choice, focus returns to the selected timeline
@@ -573,6 +587,52 @@ frame cache, downsampling, or checkpoint system in the current implementation.
 safely inside a scene hold. Clips on the right default to **Continue**. Turn on
 **Restart Pattern on entry** for a deliberate reset or stutter.
 
+**Clone** duplicates a selected scene immediately after itself, including its
+clip snapshots, and ripples later Show time. A simple one-scene, one-zone clip
+also duplicates immediately after itself: Clone reuses an empty following slot
+or inserts a Scene and ripples later Show time when that slot is occupied or
+absent. The copy receives new stable clip and Effect identities and independent
+editable value objects. Held clips, multi-zone clips, and non-cloneable owners
+remain disabled with a reason instead of making an implicit ownership choice.
+
+Drag a simple clip onto an empty slot in the same zone to preview and commit one
+magnetic move. The destination highlight appears before drop. This first release
+does not move clips between zones, displace occupied clips, drag scenes or
+Transitions, or silently change their ownership.
+
+Each add, remove, Split, Clone, move, or property commit is one session undo
+transaction. **Undo**/**Redo** and Command/Ctrl+Z restore normalized Show
+snapshots and persist the result. Command/Ctrl+Shift+Z redoes. Text fields and
+other editable controls retain their native undo behavior. History is per Show
+and ends with the browser session; it is not another durable Show copy.
+
+Timeline rows use the production 44-pixel clip height. This is the ordinary
+editing density, not a compact preference or prototype-only view.
+
+One scene at a time can disclose a 36-pixel **Scene X-ray** beneath the scene
+headers. Its three compact strata summarize entry/exit references, active
+Effects, and boundary-authored property changes. The row is read-only: zoom
+spreads the same facts and snap references without changing its height or
+turning its small marks into drag handles.
+
+Use the X-ray's magnify button to open **Super Detail**. This one modeless layer
+keeps global and local Scene bounds together, then expands incoming/outgoing
+boundary context, active zone placements, Effect spans, property shapes,
+Continue state, and any compiler limitation that makes a saved placement
+inactive. It contains no editable fields and does not move Timeline rows.
+Selecting another Scene's X-ray transfers the open layer; click elsewhere,
+press Escape, or use its close button to dismiss it. Scene-local authoring is a
+later scope, so this release deliberately has no **Open Scene** command.
+
+Selecting a Show, scene, transition, clip, empty slot, zone, or routing switch
+opens one **Entity Detail Panel** beside that entity. The panel is modeless and
+floats in the application overlay layer, so opening properties never changes
+row heights or pushes the Timeline. Selecting a different entity transfers the
+same panel; selecting its current owner again, clicking Timeline background, or
+pressing Escape closes it. Escape restores focus to the owner when it still
+exists. The panel flips above or below its owner and stays inside the viewport,
+including at narrow center-pane widths.
+
 ### Scenes, clips, and private time
 
 A clip references a personal or built-in Pattern and applies non-destructive
@@ -584,9 +644,9 @@ results. Typing narrows the catalogue without requiring a long native menu.
 
 Delete removes a selected clip without a confirmation step and leaves an
 explicit empty slot in its scene and zone. Select that slot and choose a Pattern
-to create a fresh clip there. The timeline does not use freeform drag ordering:
-clips are anchored to the scene/zone grid, so delete and place is the supported
-way to relocate one.
+to create a fresh clip there, or drag one simple clip from the same zone into the
+empty structural slot. The timeline does not use freeform ordering or collision
+displacement.
 
 Animation controls include:
 
@@ -607,28 +667,65 @@ Controller profile. Hold and zone spans form one rectangular footprint. Growing
 either span removes clips it covers; removing a covered scene or zone shrinks or
 re-anchors the surviving footprint.
 
+### Static Effects
+
+Select a clip and use **Effects > Add** to open the compact registry palette.
+Search, family tabs, and the compatibility filter reduce the complete frozen
+Effect registry. Rows stay terse; hover or keyboard focus reveals the family
+description and factual cost policy while temporarily previewing that candidate
+in the existing Stage. The preview does not save. Clicking a row applies its
+default values; named preset buttons apply a documented starting preset.
+
+The clip's Entity Detail Panel groups applied Effects by the compiler's fixed
+Transform, Distort, Address, and Color & output stages. Expand an Effect for
+exact keyboard-editable parameters. Duplicate and remove operate on one Effect.
+Move earlier/later reorders only within the same compiler stage, so the UI never
+implies a cross-stage order the generated Pattern cannot produce. All changes
+save through the normal Show record and survive reload. **Advanced compiled
+cost** reports aggregate Pattern-evaluation, operation, allocation, and artifact
+facts from the compiler rather than UI estimates.
+
 Adding a Zone creates an empty timeline row. Place Clips in its slots or extend
 an existing Clip across it; the editor does not clone another Zone's Patterns.
 
 ### Transitions and automation
 
 A transition is its own boundary object, not a property hidden on either scene.
-The lane supports cut, crossfade, wipe, dither, 2D spatial shapes, and routing-layout
-markers. Duration-bearing transitions occupy visible time; a zero-duration cut
-still has a stable selectable marker.
+The lane supports visual transitions and separate routing-layout markers.
+Duration-bearing transitions occupy visible time; a zero-duration cut still has
+a stable selectable marker.
+
+Select a visual boundary and use **Change** to open the compact Transition
+registry. Search, family tabs, and the compatibility filter cover Blend, Fade,
+Wipe, Dissolve, Shape reveal, and Motion without turning the Entity Detail Panel
+into a long kind menu. Rows use small motion mnemonics and factual compiler cost
+policies. Hover or keyboard focus temporarily seeks the existing Stage to the
+middle of that boundary and previews the outgoing/incoming result without
+saving; leaving or closing restores the prior Show and playhead position.
+Click a row to apply its defaults, or choose a named preset from the terse
+description footer.
+
+The boundary's Entity Detail Panel then exposes only the selected variant's
+legal exact fields, including duration, easing, geometry, edge policy, and
+family-specific controls. Changing a family or variant uses the registry's
+documented defaults; subsequent edits save through the ordinary Show record and
+survive reload. **Reset to cut** and choosing Cut both retain the boundary id,
+set duration to zero, and leave any separate routing marker intact.
 
 Transition cost is explicit:
 
 - parameter ramps keep one renderer per pixel;
 - wipe and dither route each pixel to one member renderer;
 - crossfade runs both renderers during its window; and
-- circle/portal, diamond iris, and ring/shockwave shapes can use a hard or
-  stable-dither one-renderer edge, or a true blended feather that evaluates both
-  Patterns only inside the band.
+- spatial Shape reveals can use a hard or stable-dither one-renderer edge, or a
+  true blended feather that evaluates both Patterns only inside the band; and
+- Motion variants disclose their full-blend policy.
 
-All spatial shapes share center, scale, direction, and feather behavior.
-Diamond alone exposes rotation and animated spin; ring alone exposes band
-width. The inspector hides parameters that do not affect the selected shape.
+All spatial shapes share center, scale, reveal mode, feather, edge policy, and
+easing. Variant-specific controls include rotation and spin, Ring width, Star
+points and inner radius, Crescent offset, Polygon sides, aspect, and shape
+geometry. The inspector hides parameters that do not affect the selected
+variant.
 
 Property automation uses one shared CSS-like model: destination clips own
 clip-level targets, destination scenes own Show-wide targets, and the incoming

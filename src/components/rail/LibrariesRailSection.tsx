@@ -28,6 +28,7 @@ export function LibrariesRailSection({
   onRenameLibrary,
   onDeleteLibrary,
   validateLibraryName,
+  onCollapse,
 }: {
   personalWorkspaceAuthenticated: boolean
   userLibraries: LibraryRecord[]
@@ -45,11 +46,13 @@ export function LibrariesRailSection({
   onRenameLibrary: (id: string, name: string) => void
   onDeleteLibrary: (id: string) => void
   validateLibraryName: (name: string, currentId?: string) => string | null
+  onCollapse?: () => void
 }) {
   return (
     <>
       <RailEntityHeader
         title="Libraries"
+        onCollapse={onCollapse}
         action={personalWorkspaceAuthenticated
           ? <HeaderAction icon={<Plus size={14} />} title="New library" onClick={onCreateLibrary} />
           : null}

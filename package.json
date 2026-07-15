@@ -46,6 +46,7 @@
     "drift": "tsx test/perf-harness/drift.ts",
     "devbench": "tsx test/perf-harness/devbench.ts",
     "spike": "tsx test/capability-spike/spike.ts",
+    "prototype:scene-composition": "tsx scripts/prototypes/show-scene-composition.ts",
     "prepare": "husky"
   },
   "engines": {

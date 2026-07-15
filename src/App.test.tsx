@@ -131,6 +131,29 @@ describe('App smoke test', () => {
     expect(screen.getByTestId('left-pane')).toBeInTheDocument()
   })
 
+  it('collapses the shared library to its activity strip without changing entity mode automatically (#466)', async () => {
+    window.history.replaceState(null, '', '/studio')
+    seedSignedInWorkspace()
+    render(<App />)
+
+    const pane = screen.getByTestId('left-pane')
+    expect(pane).toHaveStyle({ width: '224px' })
+    expect(screen.queryByRole('button', { name: 'Catalog' })).not.toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Collapse library' }))
+    expect(pane).toHaveStyle({ width: '46px' })
+    expect(screen.getByRole('radiogroup', { name: 'Studio activity' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Expand library' })).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('radio', { name: 'Shows' }))
+    expect(screen.getByRole('button', { name: 'Expand library' })).toBeInTheDocument()
+    expect(pane).toHaveStyle({ width: '46px' })
+
+    await userEvent.click(screen.getByRole('button', { name: 'Expand library' }))
+    expect(pane).toHaveStyle({ width: '224px' })
+    expect(screen.getByRole('button', { name: 'Collapse library' })).toBeInTheDocument()
+  })
+
   it('has an editor pane', () => {
     window.history.replaceState(null, '', '/studio')
     seedSignedInWorkspace()
@@ -261,9 +284,9 @@ describe('routing (#308)', () => {
     expect(within(editorPane).queryByText('View generated pattern')).not.toBeInTheDocument()
 
     await user.click(within(editorPane).getAllByRole('button', { name: /Select TestPattern1D/i })[0])
-    expect(within(editorPane).getByRole('heading', { name: 'Clip properties' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Clip properties' })).toBeInTheDocument()
     await user.click(within(editorPane).getByRole('button', { name: 'Show properties' }))
-    expect(within(editorPane).getByRole('heading', { name: 'Show properties' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Show properties' })).toBeInTheDocument()
   })
 
   it('sends signed-out visitors from /studio to the one-time Studio welcome page', () => {

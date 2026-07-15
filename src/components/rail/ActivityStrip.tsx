@@ -1,4 +1,4 @@
-import { BookOpen, Braces, Cpu, FileCode2, Images, Map as MapIcon, PanelsTopLeft } from 'lucide-react'
+import { BookOpen, Braces, Cpu, FileCode2, Map as MapIcon, PanelLeftOpen, PanelsTopLeft } from 'lucide-react'
 import type React from 'react'
 import type { StudioEntityKind } from '@/engine/routes'
 
@@ -21,11 +21,13 @@ const ACTIVITY_ENTRIES: Array<{
 export function ActivityStrip({
   mode,
   onModeChange,
-  onCatalog,
+  collapsed = false,
+  onToggleCollapsed,
 }: {
   mode: RailMode
   onModeChange: (mode: RailMode) => void
-  onCatalog: () => void
+  collapsed?: boolean
+  onToggleCollapsed?: () => void
 }) {
   return (
     <div
@@ -60,18 +62,20 @@ export function ActivityStrip({
           </button>
         )
       })}
-      <button
-        type="button"
-        aria-label="Catalog"
-        title="Catalog"
-        onClick={onCatalog}
-        className="mt-auto flex w-full flex-col items-center gap-0.5 px-1 py-1 text-[9px] font-semibold uppercase tracking-wide text-zinc-600 transition-colors hover:bg-zinc-900/55 hover:text-zinc-300"
-      >
-        <span className="grid size-7 place-items-center rounded border border-transparent">
-          <Images size={17} />
-        </span>
-        <span>CTLG</span>
-      </button>
+      {collapsed && onToggleCollapsed && (
+        <button
+          type="button"
+          aria-label="Expand library"
+          title="Expand library"
+          onClick={onToggleCollapsed}
+          className="mt-auto flex w-full flex-col items-center gap-0.5 px-1 py-1 text-[9px] font-semibold uppercase tracking-wide text-zinc-600 transition-colors hover:bg-zinc-900/55 hover:text-zinc-300"
+        >
+          <span className="grid size-7 place-items-center rounded border border-transparent">
+            <PanelLeftOpen size={17} />
+          </span>
+          <span>OPEN</span>
+        </button>
+      )}
     </div>
   )
 }

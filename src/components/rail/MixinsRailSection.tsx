@@ -25,6 +25,7 @@ export function MixinsRailSection({
   onOpenStockMixin,
   onRenameMixin,
   onDeleteMixin,
+  onCollapse,
 }: {
   personalWorkspaceAuthenticated: boolean
   userMixins: MixinRecord[]
@@ -39,11 +40,13 @@ export function MixinsRailSection({
   onOpenStockMixin: (id: string) => void
   onRenameMixin: (id: string, name: string) => void
   onDeleteMixin: (id: string) => void
+  onCollapse?: () => void
 }) {
   return (
     <>
       <RailEntityHeader
         title="Mixins"
+        onCollapse={onCollapse}
         action={personalWorkspaceAuthenticated
           ? <HeaderAction icon={<Plus size={14} />} title="New mixin" onClick={onCreateMixin} />
           : null}

@@ -34,6 +34,7 @@ export function MapsRailSection({
   onOpenStockMap,
   onRenameMap,
   onDeleteMap,
+  onCollapse,
 }: {
   personalWorkspaceAuthenticated: boolean
   dimLens: DimLens
@@ -54,6 +55,7 @@ export function MapsRailSection({
   onOpenStockMap: (id: string) => void
   onRenameMap: (id: string, name: string) => void
   onDeleteMap: (id: string) => void
+  onCollapse?: () => void
 }) {
   const stockGroups = groupMapCatalogue(visibleStockMaps.map((map) => ({
     ...map,
@@ -67,6 +69,7 @@ export function MapsRailSection({
     <>
       <RailEntityHeader
         title="Maps"
+        onCollapse={onCollapse}
         action={personalWorkspaceAuthenticated
           ? <HeaderAction icon={<Plus size={14} />} title="New map" onClick={onCreateMap} />
           : null}

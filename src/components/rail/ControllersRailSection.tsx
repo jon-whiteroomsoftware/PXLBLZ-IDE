@@ -18,6 +18,7 @@ export function ControllersRailSection({
   profileIsLive,
   onOpenControllerProfile,
   onDeleteControllerProfile,
+  onCollapse,
 }: {
   personalWorkspaceAuthenticated: boolean
   controllerProfiles: ControllerProfile[]
@@ -28,10 +29,11 @@ export function ControllersRailSection({
   profileIsLive: (profile: ControllerProfile) => boolean
   onOpenControllerProfile: (profileId: string) => void
   onDeleteControllerProfile: (profileId: string) => void
+  onCollapse?: () => void
 }) {
   return (
     <>
-      <RailEntityHeader title="Controllers" />
+      <RailEntityHeader title="Controllers" onCollapse={onCollapse} />
       <RailSectionScroller
         testId="controller-list-scroll"
         scrollRef={scrollRef}

@@ -7,9 +7,11 @@ import {
   createDefaultShowFromController,
   createDefaultShow,
   createShowWithOutputContract,
+  cloneShowCellAfter,
   duplicateShowScene,
   extendShowCell,
   importedStageMapIdForController,
+  moveShowCellToSlot,
   normalizeShowEntryState,
   normalizeShowTransitionState,
   placeShowClip,
@@ -57,6 +59,8 @@ import {
   legacyShowModeledPixelCount,
 } from '@/engine/showLegacyClassification'
 
+const showPersistenceQueues = new Map<string, Promise<void>>()
+
 export interface ShowClassificationState {
   showId: string
   previousShowId: string | null
@@ -70,6 +74,7 @@ interface ShowState {
   activeShowId: string | null
   showCreation: { previousShowId: string | null } | null
   showClassification: ShowClassificationState | null
+  showHistories: Record<string, ShowHistory>
   loadShows: () => Promise<void>
   createNewShow: (input?: { name?: string; outputContract?: ShowOutputContract }) => Promise<ShowRecord>
   createShowFromController: (profile: ControllerProfile) => Promise<ShowRecord>
@@ -85,6 +90,8 @@ interface ShowState {
   updateStageMap: (showId: string, stageMapId: string | null) => Promise<void>
   addScene: (showId: string) => Promise<void>
   duplicateScene: (showId: string, sceneId: string) => Promise<void>
+  cloneClip: (showId: string, cellId: string) => Promise<ShowCell | null>
+  moveClip: (showId: string, cellId: string, zoneId: string, sceneId: string) => Promise<boolean>
   removeScene: (showId: string, sceneId: string) => Promise<void>
   updateScene: (showId: string, sceneId: string, changes: Partial<Omit<ShowScene, 'id'>>) => Promise<void>
   updateTransition: (
@@ -132,6 +139,13 @@ interface ShowState {
   updateRoutingLayout: (showId: string, layoutId: string, changes: Partial<Omit<ShowRoutingLayout, 'id'>>) => Promise<void>
   removeRoutingLayout: (showId: string, layoutId: string) => Promise<void>
   updateRoutingSwitch: (showId: string, afterSceneId: string, layoutId: string | null) => Promise<void>
+  undoShow: (showId: string) => Promise<boolean>
+  redoShow: (showId: string) => Promise<boolean>
+}
+
+export interface ShowHistory {
+  past: ShowRecord[]
+  future: ShowRecord[]
 }
 
 export type { ShowRecord }
@@ -142,6 +156,7 @@ export const showInitialState = {
   activeShowId: null as string | null,
   showCreation: null as { previousShowId: string | null } | null,
   showClassification: null as ShowClassificationState | null,
+  showHistories: {} as Record<string, ShowHistory>,
 }
 
 export const useShowStore = create<ShowState>()((set, get) => ({
@@ -272,24 +287,33 @@ export const useShowStore = create<ShowState>()((set, get) => ({
   },
 
   updateShow: async (id, next) => {
+    const previousRecord = get().shows.find((show) => show.id === id)
+    if (!previousRecord || next === previousRecord) return
+    const previous = normalizeShowRecord(previousRecord)
+    const normalizedNext = normalizeShowRecord(next)
+    const previousHistory = get().showHistories[id] ?? { past: [], future: [] }
     set((state) => ({
       shows: state.shows
-        .map((show) => show.id === id ? next : show)
+        .map((show) => show.id === id ? normalizedNext : show)
         .sort((a, b) => b.updatedAt - a.updatedAt),
+      showHistories: {
+        ...state.showHistories,
+        [id]: { past: [...previousHistory.past, previous], future: [] },
+      },
     }))
-    await getPersonalContentProvider().updateShow(id, {
-      name: next.name,
-      scenes: next.scenes,
-      zones: next.zones,
-      cells: next.cells,
-      routingLayouts: next.routingLayouts,
-      routingSwitches: next.routingSwitches,
-      transitions: next.transitions,
-      targetControllerProfileId: next.targetControllerProfileId,
-      stageMapId: next.stageMapId ?? null,
-      outputContract: next.outputContract,
-      updatedAt: next.updatedAt,
-    })
+    try {
+      await persistShowRecord(normalizedNext)
+    } catch (cause) {
+      set((state) => {
+        const current = state.shows.find((show) => show.id === id)
+        if (current !== normalizedNext) return state
+        return {
+          shows: replaceShowRecord(state.shows, previous),
+          showHistories: { ...state.showHistories, [id]: previousHistory },
+        }
+      })
+      throw cause
+    }
   },
 
   updateStageMap: async (showId, stageMapId) => {
@@ -308,6 +332,24 @@ export const useShowStore = create<ShowState>()((set, get) => ({
     const show = get().shows.find((item) => item.id === showId)
     if (!show) return
     await get().updateShow(showId, duplicateShowScene(show, sceneId))
+  },
+
+  cloneClip: async (showId, cellId) => {
+    const show = get().shows.find((item) => item.id === showId)
+    if (!show) return null
+    const next = cloneShowCellAfter(show, cellId)
+    if (next === show) return null
+    await get().updateShow(showId, next)
+    return next.cells.find((cell) => !show.cells.some((previous) => previous.id === cell.id)) ?? null
+  },
+
+  moveClip: async (showId, cellId, zoneId, sceneId) => {
+    const show = get().shows.find((item) => item.id === showId)
+    if (!show) return false
+    const next = moveShowCellToSlot(show, cellId, zoneId, sceneId)
+    if (next === show) return false
+    await get().updateShow(showId, next)
+    return true
   },
 
   removeScene: async (showId, sceneId) => {
@@ -452,6 +494,58 @@ export const useShowStore = create<ShowState>()((set, get) => ({
     if (!show) return
     await get().updateShow(showId, updateShowRoutingSwitch(show, afterSceneId, layoutId))
   },
+
+  undoShow: async (showId) => {
+    const show = get().shows.find((item) => item.id === showId)
+    const history = get().showHistories[showId]
+    const snapshot = history?.past[history.past.length - 1]
+    if (!show || !history || !snapshot) return false
+    const next = { ...normalizeShowRecord(snapshot), updatedAt: Math.max(Date.now(), show.updatedAt + 1) }
+    const nextHistory = {
+      past: history.past.slice(0, -1),
+      future: [normalizeShowRecord(show), ...history.future],
+    }
+    set((state) => ({
+      shows: replaceShowRecord(state.shows, next),
+      showHistories: { ...state.showHistories, [showId]: nextHistory },
+    }))
+    try {
+      await persistShowRecord(next)
+      return true
+    } catch (cause) {
+      set((state) => ({
+        shows: replaceShowRecord(state.shows, show),
+        showHistories: { ...state.showHistories, [showId]: history },
+      }))
+      throw cause
+    }
+  },
+
+  redoShow: async (showId) => {
+    const show = get().shows.find((item) => item.id === showId)
+    const history = get().showHistories[showId]
+    const snapshot = history?.future[0]
+    if (!show || !history || !snapshot) return false
+    const next = { ...normalizeShowRecord(snapshot), updatedAt: Math.max(Date.now(), show.updatedAt + 1) }
+    const nextHistory = {
+      past: [...history.past, normalizeShowRecord(show)],
+      future: history.future.slice(1),
+    }
+    set((state) => ({
+      shows: replaceShowRecord(state.shows, next),
+      showHistories: { ...state.showHistories, [showId]: nextHistory },
+    }))
+    try {
+      await persistShowRecord(next)
+      return true
+    } catch (cause) {
+      set((state) => ({
+        shows: replaceShowRecord(state.shows, show),
+        showHistories: { ...state.showHistories, [showId]: history },
+      }))
+      throw cause
+    }
+  },
 }))
 
 function showWithOutputContract(show: ShowRecord, outputContract: ShowOutputContract): ShowRecord {
@@ -465,6 +559,39 @@ function replaceShowRecord(shows: ShowRecord[], next: ShowRecord): ShowRecord[] 
   return shows
     .map((show) => show.id === next.id ? next : show)
     .sort((a, b) => b.updatedAt - a.updatedAt)
+}
+
+function normalizeShowRecord(show: ShowRecord): ShowRecord {
+  return normalizeShowEntryState(normalizeShowTransitionState(show))
+}
+
+function showPersistenceChanges(next: ShowRecord): Partial<Omit<ShowRecord, 'id'>> {
+  return {
+    name: next.name,
+    scenes: next.scenes,
+    zones: next.zones,
+    cells: next.cells,
+    routingLayouts: next.routingLayouts,
+    routingSwitches: next.routingSwitches,
+    transitions: next.transitions,
+    targetControllerProfileId: next.targetControllerProfileId,
+    stageMapId: next.stageMapId ?? null,
+    outputContract: next.outputContract,
+    updatedAt: next.updatedAt,
+  }
+}
+
+async function persistShowRecord(next: ShowRecord): Promise<void> {
+  const previous = showPersistenceQueues.get(next.id) ?? Promise.resolve()
+  const persistence = previous
+    .catch(() => undefined)
+    .then(() => getPersonalContentProvider().updateShow(next.id, showPersistenceChanges(next)))
+  showPersistenceQueues.set(next.id, persistence)
+  try {
+    await persistence
+  } finally {
+    if (showPersistenceQueues.get(next.id) === persistence) showPersistenceQueues.delete(next.id)
+  }
 }
 
 async function persistShowOutputContract(show: ShowRecord): Promise<void> {

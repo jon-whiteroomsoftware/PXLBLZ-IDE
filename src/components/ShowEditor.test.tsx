@@ -32,6 +32,8 @@ import {
 import type { ControllerProfile } from '@/engine/controllerProfile'
 import type { MapRecord, MixinRecord, PatternRecord, ShowRecord } from '@/engine/personalContentRecords'
 import { createInstallationShowOutputContract, createPortableShowOutputContract } from '@/engine/showOutputContract'
+import { showPreviewOverrideInitialState, useShowPreviewOverrideStore } from '@/store/showPreviewOverrideStore'
+import { showEditorSessionInitialState, useShowEditorSessionStore } from '@/store/showEditorSessionStore'
 
 function memoryProvider(seedShows: ShowRecord[] = []): PersonalContentProvider {
   const patterns = new Map<string, PatternRecord>()
@@ -90,6 +92,8 @@ beforeEach(() => {
   useControllerProfileStore.setState(controllerProfileInitialState)
   usePreviewStore.setState(previewInitialState)
   useShowTransportStore.setState(showTransportInitialState)
+  useShowPreviewOverrideStore.setState(showPreviewOverrideInitialState)
+  useShowEditorSessionStore.setState(showEditorSessionInitialState)
   useControllerStore.setState(controllerInitialState)
   resetControllerProvider()
 })
@@ -97,6 +101,30 @@ beforeEach(() => {
 afterEach(() => resetControllerProvider())
 
 describe('ShowEditor (#318)', () => {
+  it('discloses one stable read-only Scene X-ray and transfers Super Detail between owners (#471)', async () => {
+    const user = userEvent.setup()
+    const show = createDefaultShow('show-scene-xray', 'Scene X-ray', 1000)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+
+    expect(screen.getByRole('group', { name: 'Scene 1 Scene X-ray, read only' })).toHaveClass('h-[36px]')
+    await user.click(screen.getByRole('button', { name: 'Inspect Scene 1 in Super Detail' }))
+    expect(screen.getByRole('dialog', { name: 'Scene 1 Super Detail' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Open Scene' })).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Show Scene 2 Scene X-ray' }))
+    expect(screen.queryByRole('group', { name: 'Scene 1 Scene X-ray, read only' })).not.toBeInTheDocument()
+    expect(screen.getByRole('group', { name: 'Scene 2 Scene X-ray, read only' })).toHaveClass('h-[36px]')
+    expect(screen.queryByRole('dialog', { name: 'Scene 1 Super Detail' })).not.toBeInTheDocument()
+    expect(screen.getByRole('dialog', { name: 'Scene 2 Super Detail' })).toBeInTheDocument()
+
+    fireEvent.change(screen.getByRole('slider', { name: 'Timeline zoom' }), { target: { value: '5.1' } })
+    expect(screen.getByRole('group', { name: 'Scene 2 Scene X-ray, read only' })).toHaveClass('h-[36px]')
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog', { name: 'Scene 2 Super Detail' })).not.toBeInTheDocument()
+  })
+
   it('switches from an existing Show to a newly created Show during playback without an update loop', async () => {
     const existing = createDefaultShow('show-existing', 'Existing Show', 1000)
     existing.scenes[0] = { ...existing.scenes[0], durationMs: 12_000 }
@@ -118,6 +146,7 @@ describe('ShowEditor (#318)', () => {
       })
     }
 
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Show properties' }))
     expect(screen.getByText('Untitled Show')).toBeInTheDocument()
     expect(screen.getByRole('region', { name: 'Show timeline' })).toBeInTheDocument()
   })
@@ -311,7 +340,7 @@ describe('ShowEditor (#318)', () => {
 
     expect(screen.getByRole('region', { name: 'Show timeline' })).toBeInTheDocument()
     expect(screen.getByRole('slider', { name: 'Show playhead' })).toHaveAttribute('max', '62000')
-    expect(screen.getByText('00:00.0 / 01:02.0')).toBeInTheDocument()
+    expect(screen.getByRole('status', { name: 'Show time' })).toHaveTextContent('00:00.0/01:02.0')
     expect(screen.getByRole('button', { name: 'Pause Show preview' })).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Pause Show preview' }))
@@ -322,7 +351,7 @@ describe('ShowEditor (#318)', () => {
     fireEvent.change(playhead, { target: { value: '31000' } })
 
     expect(useShowTransportStore.getState().seekRequest).toBeNull()
-    expect(screen.getByText('00:31.0 / 01:02.0')).toBeInTheDocument()
+    expect(screen.getByRole('status', { name: 'Show time' })).toHaveTextContent('00:31.0/01:02.0')
 
     fireEvent.pointerUp(playhead)
 
@@ -362,7 +391,7 @@ describe('ShowEditor (#318)', () => {
     fireEvent.pointerUp(playhead)
   })
 
-  it('keeps Show navigation stable while exposing selection actions', async () => {
+  it('organizes the production Timeline header by transport, zoom, and command priority (#466)', async () => {
     const user = userEvent.setup()
     const show = createDefaultShow('show-toolbar-groups', 'Toolbar study', 1000)
     setPersonalContentProvider(memoryProvider([show]))
@@ -370,29 +399,142 @@ describe('ShowEditor (#318)', () => {
 
     render(<ShowEditor showId={show.id} />)
 
-    const navigation = screen.getByRole('group', { name: 'Show navigation controls' })
-    expect(within(navigation).getByRole('button', { name: 'Go to Show start' })).toBeInTheDocument()
-    const playback = within(navigation).getByRole('button', { name: 'Pause Show preview' })
-    expect(playback.querySelector('.lucide-play')).toBeInTheDocument()
-    expect(within(navigation).getByRole('button', { name: 'Zoom timeline out' })).toBeInTheDocument()
-    expect(within(navigation).getByRole('button', { name: 'Fit timeline to Show' })).toBeInTheDocument()
-    expect(within(navigation).getByRole('button', { name: 'Zoom timeline in' })).toBeInTheDocument()
+    const transport = screen.getByRole('group', { name: 'Show transport controls' })
+    expect(within(transport).getAllByRole('button').map((button) => button.getAttribute('aria-label'))).toEqual([
+      'Pause Show preview',
+      'Go to Show start',
+    ])
+    const playback = within(transport).getByRole('button', { name: 'Pause Show preview' })
+    expect(playback.querySelector('.lucide-pause')).toBeInTheDocument()
+    expect(within(transport).getByRole('status', { name: 'Show time' })).toHaveTextContent('00:00.0/01:02.0')
+
+    const zoom = screen.getByRole('group', { name: 'Timeline zoom controls' })
+    expect(within(zoom).getByRole('button', { name: 'Zoom timeline out' })).toBeInTheDocument()
+    expect(within(zoom).getByRole('slider', { name: 'Timeline zoom' })).toHaveValue('1')
+    expect(within(zoom).getByRole('button', { name: 'Zoom timeline in' })).toBeInTheDocument()
+    expect(within(zoom).getByText('1.0x')).toBeInTheDocument()
+
+    const commands = screen.getByRole('group', { name: 'Timeline commands' })
+    expect(within(commands).getAllByRole('button').map((button) => button.getAttribute('aria-label'))).toEqual([
+      'Undo Show edit',
+      'Redo Show edit',
+      'Snap playhead',
+      'Fit timeline to Show',
+      'Split at playhead',
+      'Clone selection',
+    ])
+    expect(within(commands).getByRole('button', { name: 'Clone selection' })).toBeDisabled()
+    expect(screen.getByTestId('show-timeline-grid').style.gridTemplateRows).toContain('44px')
 
     await user.click(playback)
-    expect(screen.getByRole('button', { name: 'Play Show preview' }).querySelector('.lucide-pause')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Play Show preview' }).querySelector('.lucide-play')).toBeInTheDocument()
 
-    const actions = screen.getByRole('group', { name: 'Selection actions' })
-    expect(within(actions).getByRole('button', { name: 'Split at playhead' })).toHaveAttribute(
+    expect(within(commands).getByRole('button', { name: 'Split at playhead' })).toHaveAttribute(
       'title',
       'Move the playhead inside a scene, at least 1 second from either edge. Transitions cannot be split.',
     )
-    expect(within(actions).queryByRole('button', { name: /Delete selected/i })).not.toBeInTheDocument()
-
-    await user.click(screen.getAllByRole('button', { name: /Select TestPattern1D/i })[0])
-    expect(within(actions).getByRole('button', { name: 'Delete selected clip TestPattern1D' })).toBeInTheDocument()
 
     useShowTransportStore.setState({ seekStatus: 'rebuilding' })
     expect(screen.queryByText('rebuilding')).not.toBeInTheDocument()
+  })
+
+  it('clones the selected Scene and a supported simple Clip, then undoes and redoes the Scene transaction (#470)', async () => {
+    const user = userEvent.setup()
+    const sceneShow = createDefaultShow('show-470-scene-clone', 'Scene clone', 1000)
+    setPersonalContentProvider(memoryProvider([sceneShow]))
+    useShowStore.setState({ shows: [sceneShow], activeShowId: sceneShow.id, showsLoaded: true })
+
+    const view = render(<ShowEditor showId={sceneShow.id} />)
+    await user.click(screen.getByRole('button', { name: 'Open Scene 1 properties' }))
+    const clone = screen.getByRole('button', { name: 'Clone selection' })
+    expect(clone).toBeEnabled()
+    expect(clone).toHaveAttribute('title', 'Clone Scene 1 after itself')
+    await user.click(clone)
+    await waitFor(() => expect(useShowStore.getState().shows[0].scenes).toHaveLength(3))
+    expect(screen.getByRole('textbox', { name: 'Scene name' })).toHaveValue('Scene 1 copy')
+
+    await user.click(screen.getByRole('button', { name: 'Undo Show edit' }))
+    await waitFor(() => expect(useShowStore.getState().shows[0].scenes).toHaveLength(2))
+    await user.click(screen.getByRole('button', { name: 'Redo Show edit' }))
+    await waitFor(() => expect(useShowStore.getState().shows[0].scenes).toHaveLength(3))
+
+    const clipShow = createDefaultShow('show-470-clip-clone', 'Clip clone', 2000)
+    clipShow.cells = clipShow.cells.filter((cell) => cell.sceneId !== 'scene-2')
+    setPersonalContentProvider(memoryProvider([clipShow]))
+    useShowStore.setState({ ...showInitialState, shows: [clipShow], activeShowId: clipShow.id, showsLoaded: true })
+    view.rerender(<ShowEditor showId={clipShow.id} />)
+    await user.click(screen.getByRole('button', { name: 'Select TestPattern1D' }))
+    expect(screen.getByRole('button', { name: 'Clone selection' })).toBeEnabled()
+    await user.click(screen.getByRole('button', { name: 'Clone selection' }))
+    await waitFor(() => expect(useShowStore.getState().shows[0].cells).toHaveLength(2))
+    expect(useShowStore.getState().shows[0].cells.find((cell) => cell.sceneId === 'scene-2')?.patternName).toBe('TestPattern1D')
+  })
+
+  it('enables Clip Clone by rippling an occupied following slot (#470)', async () => {
+    const user = userEvent.setup()
+    const show = createDefaultShow('show-470-ripple-clone', 'Ripple clone', 2000)
+    show.cells[0] = { ...show.cells[0], patternName: 'Clone source' }
+    show.cells[1] = { ...show.cells[1], patternName: 'Occupied next' }
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+    await user.click(screen.getByRole('button', { name: 'Select Clone source' }))
+
+    const clone = screen.getByRole('button', { name: 'Clone selection' })
+    expect(clone).toBeEnabled()
+    expect(clone).toHaveAttribute('title', 'Clone Clone source immediately after itself')
+    await user.click(clone)
+
+    await waitFor(() => expect(useShowStore.getState().shows[0].scenes).toHaveLength(3))
+    expect(screen.getByRole('heading', { name: 'Clip properties' })).toBeInTheDocument()
+  })
+
+  it('explains unsupported Clone owners and previews a legal magnetic Clip destination before drop (#470)', async () => {
+    const show = createDefaultShow('show-470-move', 'Magnetic move', 1000)
+    show.cells = show.cells.filter((cell) => cell.sceneId !== 'scene-2')
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+    const clone = screen.getByRole('button', { name: 'Clone selection' })
+    expect(clone).toBeDisabled()
+    expect(clone).toHaveAttribute('title', 'Select one Scene or simple Clip to Clone')
+
+    const clip = screen.getByRole('button', { name: 'Select TestPattern1D' })
+    const destination = screen.getByRole('button', { name: 'Add clip to main in Scene 2' })
+    const dataTransfer = { setData: () => {}, effectAllowed: 'none', dropEffect: 'none' }
+    fireEvent.dragStart(clip, { dataTransfer })
+    fireEvent.dragEnter(destination, { dataTransfer })
+    fireEvent.dragOver(destination, { dataTransfer })
+    expect(destination).toHaveAttribute('data-drop-active', 'true')
+    expect(destination).toHaveTextContent('Move here')
+    fireEvent.drop(destination, { dataTransfer })
+
+    await waitFor(() => {
+      expect(useShowStore.getState().shows[0].cells.find((cell) => cell.id === 'cell-1')?.sceneId).toBe('scene-2')
+    })
+  })
+
+  it('keeps Snap durable and excludes editable controls from Show undo shortcuts (#470)', async () => {
+    const user = userEvent.setup()
+    const show = createDefaultShow('show-470-shortcuts', 'Shortcuts', 1000)
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    render(<ShowEditor showId={show.id} />)
+
+    await user.click(screen.getByRole('button', { name: 'Snap playhead' }))
+    expect(useShowEditorSessionStore.getState().snapEnabled).toBe(false)
+    await user.click(screen.getByRole('button', { name: 'Open Scene 1 properties' }))
+    await user.click(screen.getByRole('button', { name: 'Clone selection' }))
+    await waitFor(() => expect(useShowStore.getState().shows[0].scenes).toHaveLength(3))
+
+    const name = screen.getByRole('textbox', { name: 'Scene name' })
+    name.focus()
+    fireEvent.keyDown(name, { key: 'z', metaKey: true })
+    expect(useShowStore.getState().shows[0].scenes).toHaveLength(3)
+    fireEvent.keyDown(document.body, { key: 'z', metaKey: true })
+    await waitFor(() => expect(useShowStore.getState().shows[0].scenes).toHaveLength(2))
   })
 
   it('selects a scene and exposes compact Scene properties (#424)', async () => {
@@ -598,6 +740,7 @@ describe('ShowEditor (#318)', () => {
 
     render(<ShowEditor showId={show.id} />)
 
+    await user.click(screen.getByRole('button', { name: 'Show properties' }))
     expect(screen.getByText('Routing layouts')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Add routing layout' }))
     await waitFor(() => expect(useShowStore.getState().shows[0].routingLayouts).toHaveLength(2))
@@ -623,6 +766,7 @@ describe('ShowEditor (#318)', () => {
     useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
 
     render(<ShowEditor showId={show.id} />)
+    await user.click(screen.getByRole('button', { name: 'Show properties' }))
     await user.selectOptions(screen.getByLabelText('Default routing mode'), 'split-x')
 
     await waitFor(() => {
@@ -746,9 +890,9 @@ describe('ShowEditor (#318)', () => {
     await user.click(screen.getByRole('button', { name: 'Select Scene 1 to Scene 2 transition (crossfade)' }))
     expect(screen.getByRole('heading', { name: 'Transition properties' })).toBeInTheDocument()
     expect(screen.getByText(/Scene 1 → Scene 2 · crossfade/i)).toBeInTheDocument()
-    await user.selectOptions(screen.getByLabelText('Transition easing'), 'ease-in-out')
-    expect(screen.getByLabelText('Duration seconds')).toHaveAttribute('step', '0.1')
-    fireEvent.change(screen.getByLabelText('Duration seconds'), { target: { value: '1.5' } })
+    await user.selectOptions(screen.getByLabelText('Easing'), 'ease-in-out')
+    expect(screen.getByLabelText('Duration')).toHaveAttribute('step', '100')
+    fireEvent.change(screen.getByLabelText('Duration'), { target: { value: '1500' } })
     await waitFor(() => {
       expect(useShowStore.getState().shows[0].transitions?.find((transition) => transition.id === 'transition-scene-1'))
         .toMatchObject({ durationMs: 1500, easing: { curve: 'quadratic', direction: 'in-out' } })
@@ -904,6 +1048,16 @@ describe('ShowEditor (#318)', () => {
     expect(screen.getByRole('group', { name: 'Animation speed lane for edge' }).parentElement).toHaveTextContent('1×')
   })
 
+  it('keeps zone selection in the clip row instead of covering automation lanes (#466)', () => {
+    const show = createDefaultShow('show-466-zone-target', 'Zone target', 1000)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+
+    expect(screen.getByRole('button', { name: 'Select zone main' })).toHaveStyle({ gridRow: '5' })
+    expect(screen.getByRole('group', { name: 'Animation speed lane for main' })).toHaveStyle({ gridRow: '6' })
+  })
+
   it('renders a scene strip, selectable clip inspector, and compile bar', async () => {
     const user = userEvent.setup()
     const show = createDefaultShow('show-1', 'Opening wash', 1000)
@@ -911,10 +1065,12 @@ describe('ShowEditor (#318)', () => {
 
     render(<ShowEditor showId={show.id} />)
 
+    expect(screen.queryByRole('dialog', { name: 'Entity Detail Panel' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Show properties' }))
     expect(screen.getByRole('heading', { name: 'Show properties' })).toBeInTheDocument()
     expect(screen.getByText('Opening wash')).toBeInTheDocument()
     expect(screen.queryByText(/show - 1 scenes/i)).not.toBeInTheDocument()
-    expect(screen.getByText('00:00.0 / 01:02.0')).toBeInTheDocument()
+    expect(screen.getByRole('status', { name: 'Show time' })).toHaveTextContent('00:00.0/01:02.0')
     expect(screen.getByDisplayValue('Scene 1')).toBeInTheDocument()
     expect(screen.getAllByText('main').length).toBeGreaterThan(0)
     expect(screen.getByText(/compiled artifact/i)).toBeInTheDocument()
@@ -940,7 +1096,9 @@ describe('ShowEditor (#318)', () => {
     await user.click(screen.getByRole('button', { name: /Select Scene 1 to Scene 2 transition/i }))
     expect(screen.getByRole('heading', { name: 'Transition properties' })).toBeInTheDocument()
     expect(screen.getByText(/Scene 1 → Scene 2 · crossfade/i)).toBeInTheDocument()
-    expect(screen.getByRole('option', { name: 'wipe' })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /Crossfade · Change/i }))
+    expect(screen.getByRole('button', { name: 'Use Linear Transition' })).toBeInTheDocument()
+    await user.keyboard('{Escape}')
   })
 
   it('opens Show properties from the Show header action', async () => {
@@ -955,6 +1113,94 @@ describe('ShowEditor (#318)', () => {
 
     await user.click(screen.getByRole('button', { name: 'Show properties' }))
     expect(screen.getByRole('heading', { name: 'Show properties' })).toBeInTheDocument()
+  })
+
+  it('opens one anchored Entity Detail Panel, transfers it, and closes it predictably (#467)', async () => {
+    const user = userEvent.setup()
+    const show = createDefaultShow('show-entity-detail', 'Entity detail', 1000)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+
+    expect(screen.queryByRole('dialog', { name: 'Entity Detail Panel' })).not.toBeInTheDocument()
+    const clip = screen.getAllByRole('button', { name: /Select TestPattern1D/i })[0]
+    await user.click(clip)
+    expect(screen.getByRole('dialog', { name: 'Entity Detail Panel' })).toHaveAttribute('data-owner-key', `clip:${show.cells[0].id}`)
+    expect(screen.getByTestId('show-entity-detail-stem')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Clip properties' })).toBeInTheDocument()
+
+    const scene = screen.getByRole('group', { name: 'Scene Scene 1' })
+    await user.click(scene)
+    expect(screen.getAllByRole('dialog', { name: 'Entity Detail Panel' })).toHaveLength(1)
+    expect(screen.getByRole('dialog', { name: 'Entity Detail Panel' })).toHaveAttribute('data-owner-key', `scene:${show.scenes[0].id}`)
+    expect(screen.getByRole('heading', { name: 'Scene properties' })).toBeInTheDocument()
+
+    await user.click(scene)
+    expect(screen.queryByRole('dialog', { name: 'Entity Detail Panel' })).not.toBeInTheDocument()
+    await user.click(clip)
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog', { name: 'Entity Detail Panel' })).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Show properties' }))
+    expect(screen.getByRole('dialog', { name: 'Entity Detail Panel' })).toHaveAttribute('data-owner-key', 'show')
+    await user.click(screen.getByText('Show time'))
+    expect(screen.queryByRole('dialog', { name: 'Entity Detail Panel' })).not.toBeInTheDocument()
+  })
+
+  it('adds and edits a registry Effect through the selected Clip panel (#468)', async () => {
+    const user = userEvent.setup()
+    const show = createDefaultShow('show-effects-ui', 'Effect authoring', 1000)
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+    await user.click(screen.getAllByRole('button', { name: /Select TestPattern1D/i })[0])
+    const effectStack = screen.getByRole('region', { name: 'Clip Effects' })
+    await user.click(within(effectStack).getByRole('button', { name: 'Add' }))
+    expect(screen.getByRole('dialog', { name: 'Add Effect' })).toBeInTheDocument()
+
+    await user.type(screen.getByRole('searchbox', { name: 'Search Effects' }), 'ripple')
+    await user.click(screen.getByRole('button', { name: 'Add Ripple Effect' }))
+    await waitFor(() => expect(useShowStore.getState().shows[0].cells[0].effects).toEqual([
+      expect.objectContaining({ id: 'ripple', kind: 'ripple', amount: 0 }),
+    ]))
+    expect(screen.queryByRole('dialog', { name: 'Add Effect' })).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Edit Ripple Effect' }))
+    fireEvent.change(screen.getByRole('spinbutton', { name: 'Amount' }), { target: { value: '0.2' } })
+    await waitFor(() => expect(useShowStore.getState().shows[0].cells[0].effects?.[0]).toMatchObject({
+      id: 'ripple',
+      kind: 'ripple',
+      amount: 0.2,
+    }))
+
+    await useShowStore.getState().loadShows()
+    expect(useShowStore.getState().shows[0].cells[0].effects?.[0]).toMatchObject({ amount: 0.2 })
+  })
+
+  it('anchors every remaining Timeline selection family in the same panel (#467)', async () => {
+    const user = userEvent.setup()
+    const show = createDefaultShow('show-entity-families', 'Entity families', 1000)
+    show.cells = show.cells.filter((cell) => !(cell.zoneId === 'zone-1' && cell.sceneId === 'scene-1'))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+
+    await user.click(screen.getByRole('button', { name: 'Select Scene 1 to Scene 2 transition (crossfade)' }))
+    expect(screen.getByRole('dialog', { name: 'Entity Detail Panel' })).toHaveAttribute('data-owner-key', `transition:${show.transitions?.[0].id}`)
+    expect(screen.getByRole('region', { name: 'Transition properties' })).toHaveAttribute('data-entity-family', 'transition')
+
+    await user.click(screen.getByRole('button', { name: 'Select zone main' }))
+    expect(screen.getByRole('dialog', { name: 'Entity Detail Panel' })).toHaveAttribute('data-owner-key', 'zone:zone-1')
+    expect(screen.getByRole('region', { name: 'Zone properties' })).toHaveAttribute('data-entity-family', 'zone')
+
+    await user.click(screen.getByRole('button', { name: 'Add clip to main in Scene 1' }))
+    expect(screen.getByRole('dialog', { name: 'Entity Detail Panel' })).toHaveAttribute('data-owner-key', 'empty:zone-1:scene-1')
+    expect(screen.getByRole('region', { name: 'Clip properties' })).toHaveAttribute('data-entity-family', 'clip')
+
+    await user.click(screen.getByRole('button', { name: 'Set routing layout after Scene 1' }))
+    expect(screen.getByRole('dialog', { name: 'Entity Detail Panel' })).toHaveAttribute('data-owner-key', 'routing:scene-1')
+    expect(screen.getByRole('region', { name: 'Transition properties' })).toHaveAttribute('data-entity-family', 'transition')
   })
 
   it('offers first-class Run and Save actions for the canonical generated Show (#429)', async () => {
@@ -1089,7 +1335,7 @@ describe('ShowEditor (#318)', () => {
 
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
     await waitFor(() => expect(useShowStore.getState().shows[0].cells).toHaveLength(1))
-    expect(screen.getByRole('heading', { name: 'Show properties' })).toBeInTheDocument()
+    expect(screen.queryByRole('dialog', { name: 'Entity Detail Panel' })).not.toBeInTheDocument()
   })
 
   it('compiles a library-backed 2D Pattern for generated Show actions', () => {
@@ -1194,7 +1440,7 @@ describe('ShowEditor (#318)', () => {
 
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
     await waitFor(() => expect(useShowStore.getState().shows[0].cells).toHaveLength(1))
-    expect(screen.getByRole('heading', { name: 'Show properties' })).toBeInTheDocument()
+    expect(screen.queryByRole('dialog', { name: 'Entity Detail Panel' })).not.toBeInTheDocument()
   })
 
   it('identifies an exact-pause clock ramp without changing renderer policy', async () => {
@@ -1309,8 +1555,8 @@ describe('ShowEditor (#318)', () => {
     render(<ShowEditor showId={show.id} />)
     await user.click(screen.getByRole('button', { name: /Select Scene 1 to Scene 2 transition/i }))
 
-    expect(screen.getByLabelText('Feather width')).toHaveValue(0.2)
-    expect(screen.getByText(/stable spatial threshold/i)).toHaveTextContent('one Pattern renderer')
+    expect(screen.getByLabelText('Feather')).toHaveValue(0.2)
+    expect(screen.getByText(/Cost tier:/i)).toHaveTextContent('cheap')
     expect(screen.getByText('worst instant: feathered wipe')).toBeInTheDocument()
   })
 
@@ -1341,20 +1587,21 @@ describe('ShowEditor (#318)', () => {
 
     expect(screen.getByLabelText('Center X')).toHaveValue(0.5)
     expect(screen.getByLabelText('Center Y')).toHaveValue(0.5)
-    expect(screen.getByLabelText('Spatial shape')).toHaveValue('diamond')
-    expect(screen.getByLabelText('Rotation turns')).toHaveValue(0.125)
-    expect(screen.getByLabelText('Spin turns')).toHaveValue(0)
+    expect(screen.getByRole('button', { name: /Diamond · Change/i })).toBeInTheDocument()
+    expect(screen.getByLabelText('Rotation')).toHaveValue(0.125)
+    expect(screen.getByLabelText('Spin')).toHaveValue(0)
     expect(screen.queryByLabelText('Ring width')).not.toBeInTheDocument()
-    expect(screen.getByLabelText('Feather behavior')).toHaveValue('dither')
+    expect(screen.getByLabelText('Edge')).toHaveValue('dither')
     expect(screen.getByText('worst instant: portal dither')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /Diamond · Change/i }))
+    await user.click(screen.getByRole('button', { name: 'Use Ring Transition' }))
     fireEvent.change(screen.getByLabelText('Center X'), { target: { value: '0.35' } })
-    await user.selectOptions(screen.getByLabelText('Feather behavior'), 'blend')
-    await user.click(screen.getByLabelText('Outside in'))
-    await user.selectOptions(screen.getByLabelText('Spatial shape'), 'ring')
+    await user.selectOptions(screen.getByLabelText('Edge'), 'blend')
+    await user.selectOptions(screen.getByLabelText('Reveal mode'), 'shrink-outgoing')
     fireEvent.change(screen.getByLabelText('Ring width'), { target: { value: '0.2' } })
 
-    expect(screen.queryByLabelText('Rotation turns')).not.toBeInTheDocument()
-    expect(screen.queryByLabelText('Spin turns')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Rotation')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Spin')).not.toBeInTheDocument()
 
     await waitFor(() => {
       expect(useShowStore.getState().shows[0].scenes[0].transitionOut).toMatchObject({
@@ -1362,23 +1609,24 @@ describe('ShowEditor (#318)', () => {
         centerX: 0.35,
         centerY: 0.5,
         invert: true,
-        featherPolicy: 'blend',
+        edgePolicy: 'blend',
         shape: 'ring',
         scale: 1,
         ringWidth: 0.2,
       })
     })
-    expect(screen.getByText(/Two Pattern renderers run only inside/i)).toBeInTheDocument()
-    expect(screen.getByText('worst instant: portal blend (feather band only)')).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByText(/worst instant:/)).toHaveTextContent('portal'))
   })
 
-  it('discloses the output contract in Show properties without a Stage mutation control (#434)', () => {
+  it('discloses the output contract in Show properties without a Stage mutation control (#434)', async () => {
+    const user = userEvent.setup()
     const contract = createPortableShowOutputContract({ referenceMapId: 'plane', referencePixelCount: 1024 })
     const show = { ...createDefaultShow('show-1', 'Portable field', 1000), stageMapId: 'plane', outputContract: contract }
     useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
 
     render(<ShowEditor showId={show.id} />)
 
+    await user.click(screen.getByRole('button', { name: 'Show properties' }))
     expect(screen.getByText('Portable · Resolution-independent 2D')).toBeInTheDocument()
     expect(screen.getByText('1024 px reference')).toBeInTheDocument()
     expect(screen.getAllByText('Square')).not.toHaveLength(0)
@@ -1401,6 +1649,7 @@ describe('ShowEditor (#318)', () => {
 
     render(<ShowEditor showId={show.id} />)
 
+    await user.click(screen.getByRole('button', { name: 'Show properties' }))
     expect(screen.getByText('Compatible 2D mapped surfaces at variable resolution.')).toBeInTheDocument()
     expect(screen.queryByLabelText('Target controller')).not.toBeInTheDocument()
     expect(screen.queryByText(/pixel ranges/i)).not.toBeInTheDocument()
@@ -1443,6 +1692,7 @@ describe('ShowEditor (#318)', () => {
 
     render(<ShowEditor showId={show.id} />)
 
+    await user.click(screen.getByRole('button', { name: 'Show properties' }))
     expect(screen.getAllByText(/assigns 6 of 8 pixels \(2 missing\)/i)).toHaveLength(2)
     expect(screen.getByLabelText('Default main pixel ranges')).toHaveValue('0-5')
     expect(screen.getByRole('button', { name: 'View code' })).toBeDisabled()
@@ -1526,7 +1776,8 @@ describe('ShowEditor (#318)', () => {
     render(<ShowEditor showId={show.id} />)
 
     await user.click(screen.getByRole('button', { name: /Select Scene 2 to Scene 3 transition/i }))
-    await user.selectOptions(screen.getByLabelText('Transition kind'), 'dither')
+    await user.click(screen.getByRole('button', { name: /Crossfade · Change/i }))
+    await user.click(screen.getByRole('button', { name: 'Use Pixel Transition' }))
 
     await waitFor(() => {
       const updated = useShowStore.getState().shows[0]

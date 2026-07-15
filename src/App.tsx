@@ -28,6 +28,11 @@ import { PatternDetailPage } from '@/components/PatternDetailPage'
 import { ControllerProfilePage } from '@/components/ControllerProfilePage'
 import { ControllerSavedProgramsPane } from '@/components/ControllerSavedProgramsPane'
 import { ShowEditor } from '@/components/ShowEditor'
+import { ShowVisualToolkitPrototype } from '@/components/ShowVisualToolkitPrototype'
+import { ShowSceneCompositionPrototype } from '@/components/ShowSceneCompositionPrototype'
+import { ShowTimelineDualModelPrototype } from '@/components/ShowTimelineDualModelPrototype'
+import { ShowTimelineRoundTwoPrototype } from '@/components/ShowTimelineRoundTwoPrototype'
+import { ShowSemanticZoomPrototype } from '@/components/ShowSemanticZoomPrototype'
 import { ShowStagePreview } from '@/components/ShowStagePreview'
 import { ShowCreationFlow, type ShowCreationMapOption } from '@/components/ShowCreationFlow'
 import { ShowClassificationFlow } from '@/components/ShowClassificationFlow'
@@ -246,6 +251,25 @@ function StudioWelcomePage({
 }
 
 export default function App() {
+  if (import.meta.env.DEV && new URLSearchParams(window.location.search).get('prototype') === 'visual-toolkit') {
+    return <ShowVisualToolkitPrototype showName="Visual toolkit stress test" />
+  }
+  if (import.meta.env.DEV && new URLSearchParams(window.location.search).get('prototype') === 'scene-composition') {
+    return <ShowSceneCompositionPrototype showName="Cathedral Signal" />
+  }
+  if (import.meta.env.DEV && new URLSearchParams(window.location.search).get('prototype') === 'timeline-dual') {
+    if (new URLSearchParams(window.location.search).get('study') === 'semantic-zoom') {
+      return <ShowSemanticZoomPrototype />
+    }
+    if (new URLSearchParams(window.location.search).get('round') === '2' || new URLSearchParams(window.location.search).get('round') === 'final') {
+      return <ShowTimelineRoundTwoPrototype />
+    }
+    return <ShowTimelineDualModelPrototype />
+  }
+  return <StudioApp />
+}
+
+function StudioApp() {
   const activePatternId = usePatternStore((s) => s.activePatternId)
   const activeLibraryName = usePatternStore((s) => s.activeLibraryName)
   const activeDemoName = usePatternStore((s) => s.activeDemoName)
@@ -519,6 +543,7 @@ export default function App() {
   }, [activePatternId, source, userPatterns, compileLibrarySet])
 
   const [leftWidth, setLeftWidth] = useState(224)
+  const [libraryCollapsed, setLibraryCollapsed] = useState(false)
   const [rightWidth, setRightWidth] = useState(460)
   const MIN_PREVIEW_WIDTH = 300
 
@@ -747,14 +772,14 @@ export default function App() {
         />
       ) : (
       <div className="flex flex-1 min-h-0">
-        <aside data-testid="left-pane" className="shrink-0 flex flex-col" style={{ width: leftWidth }}>
+        <aside data-testid="left-pane" className="shrink-0 flex flex-col" style={{ width: libraryCollapsed ? 46 : leftWidth }}>
           <div className="flex-1 min-h-0 overflow-hidden">
-            <PatternList />
+            <PatternList collapsed={libraryCollapsed} onCollapsedChange={setLibraryCollapsed} />
           </div>
           {/* The live Controller dashboard moved out of this slot (#211): it now
               opens as a pinned popover anchored under its pill in the header. */}
         </aside>
-        <Splitter onDrag={handleLeftDrag} />
+        {!libraryCollapsed && <Splitter onDrag={handleLeftDrag} />}
         <main data-testid="editor-pane" className="flex-1 min-w-0 flex flex-col overflow-hidden">
           <PaneHeader>
             {activeDoc ? (

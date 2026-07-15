@@ -66,6 +66,12 @@ services are healthy. A sandboxed `curl` refusal is not evidence that a server
 stopped: recheck outside the network sandbox or verify port ownership before
 reporting or restarting either service.
 
+The sandbox may also be unable to read macOS Keychain-backed credentials. If a
+sandboxed `gh auth status`, Claude, or other CLI auth check reports logged out,
+recheck outside the sandbox before asking the user to authenticate again. A
+successful authenticated operation outside the sandbox is stronger evidence
+than the sandboxed status result.
+
 ```bash
 npm run dev                 # only when the persistent server is absent
 npm run lint

@@ -264,6 +264,58 @@
   background: transparent;
 }
 
+/* The Show header responds to the authoring pane, not the browser viewport.
+   Preserve transport, zoom, and command priority as the library/Stage consume
+   different amounts of horizontal space. */
+.show-timeline-toolbar {
+  container-type: inline-size;
+}
+
+@container (max-width: 820px) {
+  .show-timeline-toolbar .timeline-command-label {
+    display: none;
+  }
+
+  .show-timeline-toolbar .timeline-zoom-slider {
+    width: 96px;
+  }
+}
+
+@container (max-width: 640px) {
+  .show-timeline-toolbar .timeline-zoom-slider {
+    width: 72px;
+  }
+
+  .show-timeline-toolbar .timeline-time-display {
+    display: grid;
+    min-width: 58px;
+    grid-template-columns: 6px auto;
+    align-items: center;
+    column-gap: 4px;
+    line-height: 1.05;
+  }
+
+  .show-timeline-toolbar .timeline-time-display::before {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+    width: 5px;
+    height: 5px;
+    justify-self: center;
+    transform: rotate(45deg);
+    background: #e6b85c;
+    content: '';
+  }
+
+  .show-timeline-toolbar .timeline-time-display > :first-child,
+  .show-timeline-toolbar .timeline-time-display > :last-child {
+    grid-column: 2;
+  }
+
+  .show-timeline-toolbar .timeline-time-separator {
+    display: none;
+  }
+}
+
 /* Indeterminate ("unset") DeckSlider: a control whose position we don't know — a
    device value still loading, or a pattern control the firmware reports out of range
    (#speed-slider). It must read as an *interactive, not-yet-set* control, NOT a

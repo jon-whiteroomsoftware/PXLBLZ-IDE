@@ -62,12 +62,28 @@ Known issue cleanup:
 
 ## 3. Shows: next product step
 
-The next Show product step is an expressive but inexpensive visual toolkit. It
-must give authors the familiar breadth of a video editor without hiding the
-Pixelblaze cost of producing each frame. The product specifies the full
-destination now, then builds the headless engine and catalogue before choosing
-the evolved production UI. GitHub epic #442 and its child issues hold executable
-implementation state.
+The headless Show visual toolkit is complete. Contract version 1 freezes 59
+registered Property animation, Effect, and Transition variants against 104
+deterministic fixtures, compiler and persistence parity, and representative
+hardware evidence. The next Show product step is the evolved production UI:
+visual discovery, applied Effect stacks, boundary Transition authoring, cost and
+compatibility disclosure, and efficient reuse without hiding the Pixelblaze cost
+of producing each frame. Expanded Property animation authoring is deferred; the
+existing boundary-ramp contract remains supported but is not broadened through
+this UI pass.
+
+[`show-visual-toolkit-ui-design.md`](show-visual-toolkit-ui-design.md) owns the
+focused interaction design. The comparative research remains in
+[`show-editor-interaction-research-draft.md`](show-editor-interaction-research-draft.md).
+[`show-scene-composition-design.md`](show-scene-composition-design.md) now owns
+the exploratory destination for bounded in-Scene cuts, overlays, and Property
+animation. It is not implementation-ready and does not expand #457's first UI
+slice.
+GitHub #457 remains the open UI umbrella. The production direction was approved
+on 2026-07-14 and is recorded in
+[`final-production-design.md`](../collaboration/show-timeline-production-density-2026-07-14/final-production-design.md).
+Thin child issues now carry executable implementation state rather than turning
+#457 into one multi-agent catch-all.
 
 The paired educational progression in #363 begins after the production UI in
 #457. Those Shows should teach the finished authoring, export, and
@@ -77,6 +93,30 @@ user-facing visual-toolkit guide in #460 follows the same UI and vocabulary.
 The second Show implementation round remains software-complete and awaiting
 human review. Its output-contract decisions and delivery history remain in the
 [archived output-contract plan](archive/show-output-contracts.md).
+
+### 3.1 Two independently releasable Show-editor increments
+
+The main Show-editor release must be complete without Scene composition. It
+ships the updated global Timeline, static Effect and Transition authoring,
+single-owner selection, an anchored Entity Detail Panel, single-item magnetic
+movement and insertion, Split, Clone, semantic undo, keyboard operation, and the
+required fidelity and polish. Authors can build, preview, compile, export, and
+send complete Shows through that release. Drag selection, multi-selection,
+grouped movement, and general copy/paste remain a later interaction-efficiency
+increment.
+
+Scene composition is a later additive increment suitable for a dot release. It
+adds an optional Open Scene workflow for local cuts, overlays, and expanded
+Property-animation keyframes. Existing flat Shows, global Timeline semantics,
+and the complete first-release workflow remain valid. The Scene-composition UI
+reuses the shipped Stage, transport, catalogue, Inspector, commands, shortcuts,
+snapping, zoom, and Timeline primitives rather than replacing the workspace.
+
+The first increment reserves only inexpensive seams needed by the second:
+stable authored identities, semantic undo transactions, a compact Scene-
+complexity summary, an eventual Open Scene affordance, and engine commands that
+do not assume every timing event is a top-level Scene. It does not ship an empty
+Scene-detail shell, overlay persistence, or arbitrary keyframes.
 
 ## 4. Show visual language and product contract
 
@@ -264,15 +304,21 @@ form meets the cost budget.
 17. **Learn in stages.** As a new author, I can build useful Shows after Pass 1
     and encounter richer variants without the core concepts changing.
 
-### 4.7 Deferred composition
+### 4.7 Scene composition destination
 
-Layered clips are extra credit, not a dependency of this toolkit. The preferred
-future direction is a compact overlay lane nested beneath a zone or clip,
-collapsed by default. An overlay would inherit routing and expose position,
-scale, rotation, opacity, Effects, and z-order, then flatten before the boundary
-Transition. This preserves the distinction between mutually exclusive zone rows
-and composited sources. Do not add multi-source schema, editor layout, compiler
-work, or cost promises for overlays during the three delivery passes.
+Scene composition is not a dependency of the initial static Effect and
+Transition UI, but it is now a deliberate V2 destination rather than unrelated
+overlay extra credit. One optional detail level inside a semantic Scene owns
+local base placements, overlay placements, and Property-animation keyframes.
+The Show owns explicit Pattern instances so runtime state may Continue across
+Scene boundaries. The compiler flattens each Scene before its top-level
+Transition; recursive nested timelines remain outside the direction.
+
+[`show-scene-composition-design.md`](show-scene-composition-design.md) owns the
+model, editing algebra, release horizons, UI variants, and open evidence. Do not
+add multi-source persistence or compiler work during the initial visual-toolkit
+passes. Do preserve stable Effect identity, semantic undo, and ownership seams
+that the later model requires.
 
 ### 4.8 Directions that still need evidence
 
@@ -287,6 +333,140 @@ library abstractions before replacing current narrow intercept passes.
 The durable authoring model remains the Show record edited through the timeline.
 A fluent/Strudel-style composition DSL, geometric Pattern language, and
 cross-Pattern routing remain later research.
+
+### 4.9 Show-editor UI operating principles
+
+PXLBLZ is a specialist IDE, not a sequence of approachable settings pages. The
+Show editor optimizes for sustained expert use: high information density,
+stable pane geometry, short pointer travel, keyboard fluency, and efficient
+repeated edits. Initial approachability still matters, but it must come from
+clear hierarchy, progressive disclosure, and consistent interaction—not from
+giving every entity a large card or dedicated page.
+
+The main Show workspace and future Scene-detail scope follow these rules:
+
+- Preserve the existing IDE frame. The current right-hand Stage remains the
+  default preview surface; Scene detail changes what it previews, not where the
+  preview lives.
+- Treat the Timeline as the primary Show-authoring surface. It receives the
+  largest useful share of the workspace and must not become a vertically nested
+  scroll region beneath a permanently enlarged Stage.
+- Keep entity details compact. Prefer terse rows, two-column property grids,
+  summaries, collapsible groups, and contextual disclosure over full-width
+  stacked forms. A selected entity must not consume most of the workspace merely
+  because it has many possible properties.
+- Reuse interaction grammar across global and Scene-local editing: transport,
+  playhead, zoom, snapping, selection, drag insertion, undo, catalogue, Entity
+  Detail Panel, and keyboard commands. Later clipboard and multi-selection work
+  must extend this grammar rather than introduce another one.
+- Distinguish scope without inventing a second application. Breadcrumbs, ruler
+  origin, lane vocabulary, and a restrained scope accent make Show time and
+  Scene-local time unmistakable. Full-bleed Stage or Timeline layouts are
+  optional focus modes, not defaults.
+- Reveal complexity progressively. The global Timeline exposes Scenes, zones,
+  and top-level Transitions. A Scene shows a compact internal-complexity summary
+  until opened. Scene detail exposes placements; a property's keyframes appear
+  only when that property or its authored lane is selected.
+- Tolerate learnable expert interactions when they materially improve speed or
+  density. Every pointer-only operation still needs a discoverable command and
+  keyboard-accessible path.
+- Preserve legibility while increasing density. Persistent information-bearing
+  microcopy should normally render at 10-11 pixels; 9-pixel type is reserved
+  for compact secondary labels with adequate contrast, and 8-pixel type for
+  nonessential ornament or transient diagram annotation. Required text must not
+  use the darkest gray tokens on black. Recover space through line-height,
+  padding, abbreviation, and disclosure before shrinking or dimming text.
+- Use color as a semantic binding across surfaces, not as redundant row
+  decoration. A restrained class accent may connect a Timeline span, catalogue
+  tile, icon, Entity Detail Panel, and Stage affordance. Labels, icons, shapes,
+  indentation, and position remain sufficient without color.
+
+### 4.10 Contextual inspection and Timeline navigation
+
+The production global Show Timeline establishes the interaction grammar before
+Scene detail. Scene-local editing later reuses its lane density, entity
+selection, Inspector, transport, viewport navigation, and keyboard behavior.
+Scene prototypes may test future pressure, but they must not silently define a
+different primary Timeline.
+
+Selected-entity properties use one contextual inspection surface at a time. A
+click on a closed entity selects it and opens a compact Entity Detail Panel anchored
+near that entity. Clicking the same entity again closes the Inspector while
+leaving selection intact. Selecting another entity transfers the Inspector
+rather than leaving several property views open across the Timeline. `Escape`
+closes it, and a keyboard command toggles it for the focused or selected entity.
+Pointer hover may supply the target as a convenience, but keyboard focus and
+selection remain the reliable target model.
+
+The Entity Detail Panel repeats the selected entity's Timeline icon, type
+accent, and name. The first release has exactly one selection owner. Complicated
+entities may disclose more content inside the same constrained panel, but the
+Stage does not become property space. Stage visibility is an independent
+workspace choice.
+
+The default Entity Detail Panel is modeless and anchored near the selected
+Timeline entity. It flips above or below according to available application
+space and may render in the application's top overlay layer rather than being
+clipped to the Timeline. Temporary overlap with the library or Stage is
+acceptable when it preserves Timeline legibility. The Inspector must not move
+authored lanes when it opens or closes.
+
+The production property layout follows a shared rubric rather than one rigid
+grid. Every entity begins with the same compact identity header and orders
+groups from immediate timing and placement through visual parameters,
+animation, compatibility, and cost. Individual entity types may use different
+column counts when their controls demand it, but labels, value alignment, group
+order, icons, and disclosure behavior remain learnable across the editor.
+Density is not the absence of whitespace: whitespace separates concepts while
+padding that carries no information is removed.
+
+A detachable in-app floating palette remains a Feature Inbox option in #464.
+It would let an author park the same Inspector over any application pane, but it
+is not required for the first global-Timeline release or the first Scene-detail
+design.
+
+The default Timeline lane should be only as tall as its visible information and
+hit targets require. The current 48-pixel Scene-study rows are not a production
+dimension; the next global-Timeline study should test a roughly 28-32-pixel base
+lane with expanded automation or rich-content lanes where necessary. Invisible
+hit padding and explicit handles make short clips operable without making every
+lane tall.
+
+Automation summaries may be substantially terser than authored placement rows.
+Several properties can stack as 8-10-pixel visual sparklines inside compact
+selectable rows because the line's purpose is recognition: approximate value,
+shape, and change timing. Authored times appear as roughly four-pixel round dots,
+not handles. Selecting a property reveals exact time, value, and easing in the
+Entity Detail Panel and may expand that property to a focused 22-pixel lane with
+small selectable diamonds. Direct keyframe dragging and larger handles belong
+in an explicit expanded curve editor. Visual weight therefore increases with
+importance and edit authority; visual footprint and interaction footprint are
+separate design budgets.
+
+Global Show sparklines render saved placement targets and boundary-owned ramps;
+their points select those existing owners and do not imply arbitrary freeform
+keyframes. Scene-local sparklines may summarize actual placement-owned keys.
+Both scopes provide exact numeric time and value entry after selection even when
+snapping is enabled.
+
+Viewport movement remains distinct from authored editing:
+
+- dragging the playhead changes preview time;
+- dragging an entity changes Show content and creates an undoable transaction;
+- temporary Hand dragging pans the viewport without changing time or content;
+- middle-button and trackpad gestures provide direct viewport navigation; and
+- wheel, modified-wheel, and zoom gestures should follow familiar IDE and media-
+  tool conventions.
+
+Space toggles playback when focus is outside an editable control. A later
+viewport-navigation refinement may use hold-Space plus drag as a temporary Hand
+gesture, but that gesture is not persistent toolbar chrome and is not required
+for the first implementation slice. Any implementation must suppress playback
+when a pan begins and must never capture typing inside an input or code editor.
+
+Scene-detail prototypes must preserve this frame while comparing genuinely
+different scope and Inspector arrangements. Prototype review rejects a design
+that wins only by moving or enlarging existing panes.
 
 ## 5. Controller and hardware residuals
 
@@ -403,57 +583,41 @@ Keep each slice independently reviewable and leave the app shippable. Production
 UI decisions do not gate schema, compiler, preview, migration, cost, or catalogue
 work. The UI begins only after the complete headless contract is stable.
 
-### Wave 0 - headless contract and evidence harness
+### Waves 0-3 - completed headless contract and catalogue
 
-- #443 establishes structured easing; the family, variant, preset, and parameter
-  registry; persistence/migration seams; and compiled cost metadata.
-- Deterministic fixtures, parameter sweeps, captures, generated artifacts, and
-  hardware output provide visual evidence without creating a temporary general
-  editor.
+- #443-#456 established structured easing; the registry and persistence seams;
+  opacity, affine, output, and distortion Effects; Blend, Fade, Wipe, Dissolve,
+  shape-reveal, and Motion Transitions; deterministic fixtures; and factual
+  compiled cost.
+- #452 and #456 completed human catalogue selection and representative hardware
+  review. Side-profile cat and Bastet remain shipped but explicitly provisional.
+- #459 froze runtime contract version 1 at fingerprint `f81bca37`: 59 variants,
+  104 deterministic fixtures, 209 test files / 2,649 tests, and a 114-probe
+  physical matrix with no compiler, activation, transport, or watchdog failure.
 
-### Wave 1 - representative family tracers
+These issues are completed implementation history. New usability requirements
+that change persistence or compiler behavior receive explicit versioned
+follow-ups rather than reopening their acceptance criteria.
 
-- #444 adds opacity plus the affine/wrap Effect substrate.
-- #445-#448 add Fade through color, arbitrary-direction Wipe, Pixel/Block
-  Dissolve, and Circle/Box Grow Incoming/Shrink Outgoing.
-- #455 may add the remaining easing evaluators and serialization after #443;
-  the production curve editor remains deferred.
+### Wave 4 - production interaction design and UI
 
-Each tracer publishes UI-neutral descriptors and fixtures. Production forms,
-pickers, thumbnails, authoring Playwright flows, and user instructions remain
-out of these slices.
-
-### Wave 2 - catalogue breadth
-
-- #449 and #453 add motion, Content Shrink/Grow, Zoom, and Spin.
-- #450 and #451 add the standard Wipe and Dissolve variants.
-- #452 adds the common SDF library, polygons, heart, star, crescent, cat head,
-  side-profile cat, and Bastet.
-- #454 adds the common color/output Effects.
-- #456 selects only distortion Effects that remain professional and predictable
-  within measured Pixelblaze budgets.
-
-Independent families may proceed in parallel once their shared substrate lands.
-Human visual review remains necessary for signature shapes and distortion
-selection even though production UI is deferred.
-
-### Wave 3 - headless integration freeze
-
-#459 runs migration, preview/compiler equivalence, generated-size, factual cost,
-deterministic visual, and representative hardware gates over the complete
-catalogue. It freezes the declarative authoring contract so the UI can remain a
-general renderer of shared descriptors rather than a collection of
-family-specific forms.
-
-### Wave 4 - evolved UI, Shows, and documentation
-
-- #457 chooses and implements the production authoring experience, visual
-  discovery, cost disclosure, keyboard/accessibility behavior, and narrow
-  layouts across the complete catalogue.
+- #457 owns the approved production interaction model over the real catalogue
+  and a deliberately dense stress-case Show. Thin implementation issues own the
+  production Timeline frame, Entity Detail Panel, visual discovery, Effect stacks,
+  boundary Transition authoring, cost/compatibility disclosure,
+  keyboard/accessibility behavior, and narrow layouts. Expanded Property
+  animation authoring remains a later model-and-UI sequence after the current
+  structural boundary semantics receive focused review.
+- Small versioned prerequisites such as persistent Effect bypass and semantic
+  Show undo remain follow-up slices rather than UI-only state.
+- The main Show-editor increment is a complete release gate. Scene composition
+  does not block it and begins implementation only after that editor is shipped
+  and polished.
 - #363 builds the flagship and educational Shows through that finished UI.
 - #460 publishes the user-facing guide after the UI fixes the vocabulary and
   workflows.
-- #458 remains extra-credit overlay-lane design after the core toolkit.
+- #458 should be reconsidered after design review as the overlay consumer of
+  Scene composition, not implemented as an isolated nested lane.
 
 Pure engine tests cover easing, affine composition, masks, migration, renderer
 selection, descriptor validation, and cost formulas. Compiler tests cover
@@ -473,6 +637,29 @@ path remains the baseline and fallback.
 
 ## 10. Design and evidence artifacts
 
+- `docs/plans/show-visual-toolkit-ui-design.md` - current production interaction
+  design and stress-case prototype contract.
+- `docs/plans/show-editor-interaction-research-draft.md` - comparative research
+  behind the magnetic structural timeline and catalogue/inspector direction;
+  retained as evidence rather than implementation authority.
+- `docs/plans/show-scene-composition-design.md` - exploratory one-level Scene
+  detail model, edit algebra, release horizons, and required evidence.
+- `scripts/prototypes/show-scene-composition.ts` - interactive state-model
+  exercise for split, duplicate, Continue/Restart, trim, and extend ownership.
+- `src/components/ShowSceneCompositionPrototype.tsx` - three Scene-detail UI
+  variants available through `?prototype=scene-composition&variant=A|B|C` in
+  development. The first round demonstrated what not to change; the second
+  round preserves the IDE frame and tests dense scope/Inspector arrangements.
+  These variants are rejected/combined design history rather than production
+  authority.
+- `docs/collaboration/show-timeline-production-density-2026-07-14/final-production-design.md`
+  - approved production authority for the global Timeline, compact registry
+  palette, Entity Detail Panel, Scene X-ray, Super Detail bridge, and additive
+  Scene-local scope.
+- `src/components/ShowVisualToolkitPrototype.tsx` - registry-backed production
+  interaction candidate available through `?prototype=visual-toolkit` in
+  development. It is non-persistent and uses representative Stage/timeline
+  content; the design document records which behaviors remain synthetic.
 - `docs/plans/show-timeline-overhaul-mockup.html` — canonical timeline design
   artifact; the current editor implements its proportional grid, headers,
   transport, automation lanes, and navigator direction.
@@ -494,7 +681,7 @@ path remains the baseline and fallback.
 - Public publishing of personal Patterns.
 - Multi-Controller synchronized Shows.
 - A second Show animation/keyframe system beside Property animation.
-- Layered clips, overlay lanes, and general multi-source composition during the
-  three visual-toolkit passes.
+- Scene composition, overlay placements, and expanded keyframe authoring during
+  the initial visual-toolkit passes; these remain the specified V2 destination.
 - History buffers, multi-pass blur/glow/feedback, or other sampling-heavy Effects
   without measured target evidence.

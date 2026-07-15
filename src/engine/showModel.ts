@@ -733,6 +733,81 @@ export function placeShowClip(
   }
 }
 
+/**
+ * Clone one independently editable, single-slot clip immediately after itself.
+ * An empty following slot is reused. Otherwise a Scene is inserted so later
+ * global time ripples without replacing another Clip. Held and multi-zone Clips
+ * remain unsupported because their ownership cannot be split implicitly.
+ */
+export function cloneShowCellAfter(show: ShowRecord, cellId: string): ShowRecord {
+  const source = show.cells.find((cell) => cell.id === cellId)
+  if (!source || Math.max(1, source.sceneSpan) !== 1 || Math.max(1, source.zoneSpan ?? 1) !== 1) return show
+  const sourceSceneIndex = show.scenes.findIndex((scene) => scene.id === source.sceneId)
+  const destinationScene = show.scenes[sourceSceneIndex + 1]
+  if (sourceSceneIndex < 0) return show
+
+  if (!destinationScene || showCellAtSlot(show, source.zoneId, destinationScene.id)) {
+    const originalCellIds = new Set(show.cells.map((cell) => cell.id))
+    const duplicated = duplicateShowScene(show, source.sceneId)
+    const insertedScene = duplicated.scenes[sourceSceneIndex + 1]
+    if (!insertedScene) return show
+    return {
+      ...duplicated,
+      cells: [
+        ...duplicated.cells.filter((cell) => originalCellIds.has(cell.id)),
+        cloneShowCellIntoScene(duplicated, source, insertedScene.id),
+      ],
+    }
+  }
+
+  const copy = cloneShowCellIntoScene(show, source, destinationScene.id)
+  return {
+    ...show,
+    cells: [...show.cells, copy],
+    updatedAt: Math.max(Date.now(), show.updatedAt + 1),
+  }
+}
+
+function cloneShowCellIntoScene(show: ShowRecord, source: ShowCell, sceneId: string): ShowCell {
+  const usedEffectIds = new Set(show.cells.flatMap((cell) => (cell.effects ?? []).map((effect) => effect.id)))
+  const effects = source.effects?.map((effect) => {
+    const id = nextStringId('effect-', usedEffectIds)
+    usedEffectIds.add(id)
+    return { ...effect, id } as ShowClipEffect
+  })
+  const copy: ShowCell = {
+    ...source,
+    id: nextEntityId('cell-', show.cells),
+    sceneId,
+    sceneSpan: 1,
+    zoneSpan: 1,
+    pattern: { ...source.pattern },
+    adaptations: cloneShowCellAdaptations(source.adaptations),
+    ...(source.controlTargets ? { controlTargets: { ...source.controlTargets } } : {}),
+    ...(effects ? { effects } : {}),
+  }
+  return copy
+}
+
+/** Move one simple clip to an explicit empty Scene slot without changing Zone ownership. */
+export function moveShowCellToSlot(
+  show: ShowRecord,
+  cellId: string,
+  zoneId: string,
+  sceneId: string,
+): ShowRecord {
+  const source = show.cells.find((cell) => cell.id === cellId)
+  if (!source || Math.max(1, source.sceneSpan) !== 1 || Math.max(1, source.zoneSpan ?? 1) !== 1) return show
+  if (source.zoneId !== zoneId || source.sceneId === sceneId) return show
+  if (!show.scenes.some((scene) => scene.id === sceneId)) return show
+  if (showCellAtSlot(show, zoneId, sceneId)) return show
+  return {
+    ...show,
+    cells: show.cells.map((cell) => cell.id === cellId ? { ...cell, sceneId } : cell),
+    updatedAt: Math.max(Date.now(), show.updatedAt + 1),
+  }
+}
+
 export function updateShowCellAdaptations(
   show: ShowRecord,
   cellId: string,
@@ -2510,6 +2585,14 @@ function copyCellForScene(
     },
     ...(source.controlTargets ? { controlTargets: { ...source.controlTargets } } : {}),
     restartOnEntry: false,
+  }
+}
+
+function cloneShowCellAdaptations(adaptations: ShowCellAdaptations): ShowCellAdaptations {
+  return {
+    ...adaptations,
+    ...(adaptations.lightShutter ? { lightShutter: { ...adaptations.lightShutter } } : {}),
+    ...(adaptations.steppedClock ? { steppedClock: { ...adaptations.steppedClock } } : {}),
   }
 }
 

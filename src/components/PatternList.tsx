@@ -49,7 +49,13 @@ import { ShowsRailSection } from '@/components/rail/ShowsRailSection'
 
 const DEFAULT_DEMO_NAME = 'IridescentFibers'
 
-export function PatternList() {
+export function PatternList({
+  collapsed = false,
+  onCollapsedChange,
+}: {
+  collapsed?: boolean
+  onCollapsedChange?: (collapsed: boolean) => void
+}) {
   const setSource = useEditorStore((s) => s.setSource)
   const setEditorFlavor = useEditorStore((s) => s.setEditorFlavor)
   const setIsReadOnly = useEditorStore((s) => s.setIsReadOnly)
@@ -275,10 +281,6 @@ export function PatternList() {
         ? (userMixins.some((m) => m.id === last) || STOCK_MIXIN_ITEMS.some((m) => m.id === last) ? last : null)
       : null
     navigate({ kind: 'studio', entity: { kind: next, id } })
-  }
-
-  function openCatalog() {
-    navigate({ kind: 'gallery' })
   }
 
   function updateScrollMetrics() {
@@ -701,11 +703,13 @@ export function PatternList() {
       <ActivityStrip
         mode={railMode}
         onModeChange={handleRailModeChange}
-        onCatalog={openCatalog}
+        collapsed={collapsed}
+        onToggleCollapsed={onCollapsedChange ? () => onCollapsedChange(!collapsed) : undefined}
       />
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className={collapsed ? 'hidden' : 'flex min-w-0 flex-1 flex-col'}>
         {railMode === 'patterns' && (
           <PatternsRailSection
+            onCollapse={onCollapsedChange ? () => onCollapsedChange(true) : undefined}
             fileInputRef={fileInputRef}
             importError={importError}
             importNotice={importNotice}
@@ -735,6 +739,7 @@ export function PatternList() {
         )}
         {railMode === 'maps' && (
           <MapsRailSection
+            onCollapse={onCollapsedChange ? () => onCollapsedChange(true) : undefined}
             personalWorkspaceAuthenticated={personalWorkspaceAuthenticated}
             dimLens={dimLens}
             query={query}
@@ -758,6 +763,7 @@ export function PatternList() {
         )}
         {railMode === 'libraries' && (
           <LibrariesRailSection
+            onCollapse={onCollapsedChange ? () => onCollapsedChange(true) : undefined}
             personalWorkspaceAuthenticated={personalWorkspaceAuthenticated}
             userLibraries={userLibraries}
             editingLibrary={editingLibrary}
@@ -778,6 +784,7 @@ export function PatternList() {
         )}
         {railMode === 'controllers' && (
           <ControllersRailSection
+            onCollapse={onCollapsedChange ? () => onCollapsedChange(true) : undefined}
             personalWorkspaceAuthenticated={personalWorkspaceAuthenticated}
             controllerProfiles={controllerProfiles}
             activeControllerProfileId={activeControllerProfileId}
@@ -791,6 +798,7 @@ export function PatternList() {
         )}
         {railMode === 'mixins' && (
           <MixinsRailSection
+            onCollapse={onCollapsedChange ? () => onCollapsedChange(true) : undefined}
             personalWorkspaceAuthenticated={personalWorkspaceAuthenticated}
             userMixins={userMixins}
             editingMixin={editingMixin}
@@ -808,6 +816,7 @@ export function PatternList() {
         )}
         {railMode === 'shows' && (
           <ShowsRailSection
+            onCollapse={onCollapsedChange ? () => onCollapsedChange(true) : undefined}
             personalWorkspaceAuthenticated={personalWorkspaceAuthenticated}
             userShows={userShows}
             activeShowId={activeShowId}

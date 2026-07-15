@@ -22,6 +22,7 @@ export function ShowsRailSection({
   onOpenShow,
   onRenameShow,
   onDeleteShow,
+  onCollapse,
 }: {
   personalWorkspaceAuthenticated: boolean
   userShows: ShowRecord[]
@@ -35,11 +36,13 @@ export function ShowsRailSection({
   onOpenShow: (show: ShowRecord) => void
   onRenameShow: (id: string, name: string) => void
   onDeleteShow: (id: string) => void
+  onCollapse?: () => void
 }) {
   return (
     <>
       <RailEntityHeader
         title="Shows"
+        onCollapse={onCollapse}
         action={personalWorkspaceAuthenticated
           ? (
               <>
