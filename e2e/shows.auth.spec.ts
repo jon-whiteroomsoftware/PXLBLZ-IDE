@@ -824,6 +824,7 @@ test.describe('authenticated Show authoring', () => {
 
     await page.getByRole('button', { name: 'Inspect Scene 1 in Super Detail' }).click()
     await page.getByRole('button', { name: 'Open Scene 1 editor' }).click()
+    await expect(page.getByTestId('scene-transition-playhead-line')).toBeVisible()
 
     await expect(page.getByRole('button', { name: 'Go to Scene start' })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Go to Show start' })).toHaveCount(0)
@@ -896,6 +897,7 @@ test.describe('authenticated Show authoring', () => {
     await createInstallationShow(page)
     await page.getByRole('button', { name: 'Inspect Scene 1 in Super Detail' }).click()
     await page.getByRole('button', { name: 'Open Scene 1 editor' }).click()
+    await expect(page.getByTestId('scene-transition-playhead-line')).toBeVisible()
     await page.getByRole('button', { name: 'Enable local cuts' }).click()
     await page.getByRole('combobox', { name: 'New Main clip Pattern' }).selectOption({ label: 'TestPattern1D' })
     await page.getByRole('button', { name: 'Overlay layer' }).click()
@@ -912,6 +914,7 @@ test.describe('authenticated Show authoring', () => {
     await expect(page.getByTestId('scene-overlay-drag-ghost')).toContainText('TestPattern1D')
     await expect(page.locator('[data-drop-target="true"]')).toHaveCount(1)
     await page.mouse.up()
+    await expect(page.getByTestId('scene-overlay-drag-ghost')).toHaveCount(0)
 
     // A fully occupied target has no legal before/after position, so the first
     // drop returns to its source layer without creating a partial edit.
@@ -929,6 +932,7 @@ test.describe('authenticated Show authoring', () => {
     await page.mouse.move(retryBounds!.x + Math.min(18, retryBounds!.width / 2), retryBounds!.y + retryBounds!.height / 2 + 48, { steps: 4 })
     await expect(page.getByTestId('scene-overlay-drag-ghost')).toContainText('TestPattern1D')
     await page.mouse.up()
+    await expect(page.getByTestId('scene-overlay-drag-ghost')).toHaveCount(0)
 
     await waitForCurrentShow(page, (show) => (
       show.composition?.scenes[0]?.zones?.[0]?.overlays?.[0]?.placements.length === 0
@@ -938,8 +942,20 @@ test.describe('authenticated Show authoring', () => {
     await expect(page.getByRole('spinbutton', { name: 'Overlay start ms' })).toBeVisible()
     await expect(page.getByRole('slider', { name: 'Scene playhead' })).toHaveValue(playheadBeforeDrag)
 
-    await page.getByRole('button', { name: 'Reorder Overlay 2 layer' }).press('ArrowUp')
+    const layerHandle = page.getByRole('button', { name: 'Reorder Overlay 2 layer' })
+    const layerHandleBounds = await layerHandle.boundingBox()
+    expect(layerHandleBounds).not.toBeNull()
+    await page.mouse.move(layerHandleBounds!.x + layerHandleBounds!.width / 2, layerHandleBounds!.y + layerHandleBounds!.height / 2)
+    await page.mouse.down()
+    await page.mouse.move(layerHandleBounds!.x + layerHandleBounds!.width / 2, layerHandleBounds!.y - 54, { steps: 4 })
+    await expect(page.getByTestId('scene-layer-drag-ghost')).toContainText('Overlay 2')
+    await expect(page.locator('[data-layer-drop-target="true"]')).toHaveCount(1)
+    await page.mouse.up()
+    await expect(page.getByTestId('scene-layer-drag-ghost')).toHaveCount(0)
     await waitForCurrentShow(page, (show) => show.composition?.scenes[0]?.zones?.[0]?.overlays?.[0]?.name === 'Overlay 2')
+
+    await page.getByRole('button', { name: 'Reorder Overlay 2 layer' }).press('ArrowDown')
+    await waitForCurrentShow(page, (show) => show.composition?.scenes[0]?.zones?.[0]?.overlays?.[1]?.name === 'Overlay 2')
 
     // Keep the narrow check representative of a busy layer rail rather than a
     // two-row happy path.

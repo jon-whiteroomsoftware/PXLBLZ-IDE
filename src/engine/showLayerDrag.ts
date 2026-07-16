@@ -25,3 +25,30 @@ export function resolveShowLayerDragTarget(
   const targetIndex = Math.max(0, Math.min(layers.length - 1, initialIndex + direction * steps))
   return layers[targetIndex]?.id ?? initialLayerId
 }
+
+/**
+ * Resolve a vertical layer target from the lanes' live viewport geometry.
+ *
+ * Scene detail rows can expand between otherwise fixed-height lanes. Using
+ * their measured centers keeps the pointer attached to what the author sees
+ * instead of assuming every layer is still one lane-height apart.
+ */
+export function resolveShowLayerDragTargetFromBounds(
+  layers: Array<{ id: string; top: number; bottom: number }>,
+  initialLayerId: string,
+  originClientY: number,
+  pointerClientY: number,
+  options: { hysteresisPx?: number } = {},
+): string {
+  if (!layers.some((layer) => layer.id === initialLayerId)) return initialLayerId
+  const hysteresisPx = Math.max(0, options.hysteresisPx ?? DEFAULT_HYSTERESIS_PX)
+  if (Math.abs(pointerClientY - originClientY) < hysteresisPx) return initialLayerId
+
+  return layers.reduce((nearest, layer) => {
+    const center = (layer.top + layer.bottom) / 2
+    const nearestCenter = (nearest.top + nearest.bottom) / 2
+    return Math.abs(pointerClientY - center) < Math.abs(pointerClientY - nearestCenter)
+      ? layer
+      : nearest
+  }, layers[0]).id
+}

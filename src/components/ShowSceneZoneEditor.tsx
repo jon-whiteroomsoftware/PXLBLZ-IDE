@@ -17,7 +17,7 @@ import type {
   ShowRecord,
 } from '@/engine/personalContentRecords'
 import { resolveShowMainPlacementStart } from '@/engine/showCompositionModel'
-import { resolveShowLayerDragTarget } from '@/engine/showLayerDrag'
+import { resolveShowLayerDragTargetFromBounds } from '@/engine/showLayerDrag'
 import {
   evaluateShowPropertyTrack,
   propertyTargetKey,
@@ -32,6 +32,34 @@ import { SHOW_EASING_OPTIONS, showEasingFromOptionId, showEasingOptionId } from 
 import { useShowTransportStore } from '@/store/showTransportStore'
 import { useShowEditorSessionStore } from '@/store/showEditorSessionStore'
 import { usePreviewStore } from '@/store/previewStore'
+
+type OverlayClipDrag = {
+  kind: 'overlay'
+  placementId: string
+  patternName: string
+  sourceLayerId: string
+  targetLayerId: string
+  grabOffsetMs: number
+  startMs: number
+  originClientY: number
+  pointerClientX: number
+  pointerClientY: number
+  grabOffsetPx: number
+  widthPx: number
+}
+
+type SceneClipDrag =
+  | { kind: 'main'; placementId: string; grabOffsetMs: number; startMs: number }
+  | OverlayClipDrag
+
+type SceneLayerDrag = {
+  layerId: string
+  layerName: string
+  targetLayerId: string
+  originClientY: number
+  pointerClientX: number
+  pointerClientY: number
+}
 
 export function ShowSceneZoneEditor({
   show,
@@ -105,31 +133,17 @@ export function ShowSceneZoneEditor({
   const [selectedMainId, setSelectedMainId] = useState<string | null>(null)
   const [selectedOverlayId, setSelectedOverlayId] = useState<string | null>(null)
   const [newPatternKey, setNewPatternKey] = useState('')
-  const [drag, setDrag] = useState<
-    | { kind: 'main'; placementId: string; grabOffsetMs: number; startMs: number }
-    | {
-      kind: 'overlay'
-      placementId: string
-      patternName: string
-      sourceLayerId: string
-      targetLayerId: string
-      grabOffsetMs: number
-      startMs: number
-      originClientY: number
-      pointerClientX: number
-      pointerClientY: number
-      grabOffsetPx: number
-      widthPx: number
-    }
-    | null
-  >(null)
-  const [layerDrag, setLayerDrag] = useState<{ layerId: string; targetLayerId: string; originClientY: number } | null>(null)
+  const [drag, setDrag] = useState<SceneClipDrag | null>(null)
+  const [layerDrag, setLayerDrag] = useState<SceneLayerDrag | null>(null)
   const [newTrackTargetKey, setNewTrackTargetKey] = useState('')
   const [selectedKeyframe, setSelectedKeyframe] = useState<{ trackId: string; keyframeId: string } | null>(null)
   const pendingLocalSeekRef = useRef<number | null>(null)
   const resumeAfterLocalSeekRef = useRef(false)
   const suppressTrackSeekUntilRef = useRef(0)
   const localScrollRef = useRef<HTMLDivElement>(null)
+  const overlayDragLiveRef = useRef<OverlayClipDrag | null>(null)
+  const overlayDragGhostRef = useRef<HTMLDivElement>(null)
+  const layerDragGhostRef = useRef<HTMLDivElement>(null)
   const detail = projectShowSceneEditorScope(compositionProjection, scope)
   const hasDetail = Boolean(detail)
   const positionMs = useShowTransportStore((state) => state.showId === show.id ? state.positionMs : 0)
@@ -419,6 +433,12 @@ export function ShowSceneZoneEditor({
                 {detail.outgoingBoundary.kind} · OUT
               </span>
             )}
+            <i
+              aria-hidden
+              data-testid="scene-transition-playhead-line"
+              className="pointer-events-none absolute inset-y-0 z-20 w-px bg-amber-300 shadow-[0_0_5px_rgba(252,211,77,.75)]"
+              style={{ left: `${localTimeMs / durationMs * 100}%` }}
+            />
           </span>
         </div>
 
@@ -426,7 +446,15 @@ export function ShowSceneZoneEditor({
           const addSpan = availableSpanAt(layer.placements, addStartMs, durationMs)
           return (
             <div key={layer.id}>
-              <div className="group grid h-10 grid-cols-[136px_minmax(0,1fr)] border-x border-b border-zinc-800">
+              <div
+                data-overlay-layer-id={layer.id}
+                data-layer-drop-target={layerDrag?.targetLayerId === layer.id ? 'true' : 'false'}
+                className={`group grid h-10 grid-cols-[136px_minmax(0,1fr)] border-x border-b border-zinc-800 transition-[box-shadow,background-color] ${
+                  layerDrag?.targetLayerId === layer.id
+                    ? 'bg-cyan-300/[0.04] shadow-[inset_0_0_0_1px_rgba(103,232,249,0.28)]'
+                    : ''
+                }`}
+              >
                 <span className="flex min-w-0 items-center gap-0.5 border-r border-zinc-800 bg-[#0d1116] px-1 text-[9px] text-zinc-300">
                   <i aria-hidden className="ml-1 size-1.5 shrink-0 rounded-full bg-emerald-300/80" />
                   <input
@@ -462,26 +490,46 @@ export function ShowSceneZoneEditor({
                     onPointerDown={(event) => {
                       if (readOnly || event.button !== 0) return
                       event.currentTarget.setPointerCapture(event.pointerId)
-                      setLayerDrag({ layerId: layer.id, targetLayerId: layer.id, originClientY: event.clientY })
+                      setLayerDrag({
+                        layerId: layer.id,
+                        layerName: layer.name,
+                        targetLayerId: layer.id,
+                        originClientY: event.clientY,
+                        pointerClientX: event.clientX,
+                        pointerClientY: event.clientY,
+                      })
                     }}
                     onPointerMove={(event) => {
                       if (!layerDrag || layerDrag.layerId !== layer.id || !event.currentTarget.hasPointerCapture(event.pointerId)) return
+                      if (layerDragGhostRef.current) {
+                        layerDragGhostRef.current.style.left = `${event.clientX + 10}px`
+                        layerDragGhostRef.current.style.top = `${event.clientY - 12}px`
+                      }
                       setLayerDrag({
                         ...layerDrag,
-                        targetLayerId: resolveShowLayerDragTarget(detail.overlayLayers, layer.id, event.clientY - layerDrag.originClientY, {
-                          laneHeightPx: 40,
-                          hysteresisPx: 8,
-                        }),
+                        targetLayerId: resolveShowLayerDragTargetFromBounds(
+                          readOverlayLayerBounds(localScrollRef.current),
+                          layer.id,
+                          layerDrag.originClientY,
+                          event.clientY,
+                          { hysteresisPx: 8 },
+                        ),
+                        pointerClientX: event.clientX,
+                        pointerClientY: event.clientY,
                       })
                     }}
                     onPointerUp={(event) => {
                       if (!layerDrag || layerDrag.layerId !== layer.id) return
                       event.currentTarget.releasePointerCapture(event.pointerId)
                       const targetIndex = detail.overlayLayers.findIndex((candidate) => candidate.id === layerDrag.targetLayerId)
+                      if (layerDragGhostRef.current) layerDragGhostRef.current.style.display = 'none'
+                      setLayerDrag(null)
                       if (targetIndex >= 0 && targetIndex !== layerIndex) onReorderOverlayLayer(layer.id, targetIndex)
+                    }}
+                    onPointerCancel={() => {
+                      if (layerDragGhostRef.current) layerDragGhostRef.current.style.display = 'none'
                       setLayerDrag(null)
                     }}
-                    onPointerCancel={() => setLayerDrag(null)}
                     className="grid size-5 shrink-0 cursor-grab place-items-center text-zinc-700 opacity-0 transition-opacity hover:text-zinc-200 focus:opacity-100 group-hover:opacity-100 active:cursor-grabbing disabled:opacity-20"
                   ><GripVertical size={11} aria-hidden /></button>
                   <button
@@ -530,10 +578,8 @@ export function ShowSceneZoneEditor({
                         const clipBounds = event.currentTarget.getBoundingClientRect()
                         const atMs = clamp((event.clientX - track.left) / Math.max(1, track.width), 0, 1) * durationMs
                         suppressTrackSeekUntilRef.current = Date.now() + 500
-                        setSelectedMainId(null)
-                        setSelectedOverlayId(placement.id)
                         event.currentTarget.setPointerCapture(event.pointerId)
-                        setDrag({
+                        const nextDrag: OverlayClipDrag = {
                           kind: 'overlay',
                           placementId: placement.id,
                           patternName: placement.patternName,
@@ -546,17 +592,20 @@ export function ShowSceneZoneEditor({
                           pointerClientY: event.clientY,
                           grabOffsetPx: event.clientX - clipBounds.left,
                           widthPx: clipBounds.width,
-                        })
+                        }
+                        overlayDragLiveRef.current = nextDrag
+                        setDrag(nextDrag)
                       }}
                       onPointerMove={(event: PointerEvent<HTMLButtonElement>) => {
-                        if (drag?.kind !== 'overlay' || drag.placementId !== placement.id || !event.currentTarget.hasPointerCapture(event.pointerId)) return
+                        const liveDrag = overlayDragLiveRef.current
+                        if (!liveDrag || liveDrag.placementId !== placement.id || !event.currentTarget.hasPointerCapture(event.pointerId)) return
                         const track = event.currentTarget.parentElement?.getBoundingClientRect()
                         if (!track) return
-                        const targetLayerId = resolveShowLayerDragTarget(
-                          detail.overlayLayers,
-                          drag.sourceLayerId,
-                          event.clientY - drag.originClientY,
-                          { laneHeightPx: 40 },
+                        const targetLayerId = resolveShowLayerDragTargetFromBounds(
+                          readOverlayLayerBounds(localScrollRef.current),
+                          liveDrag.sourceLayerId,
+                          liveDrag.originClientY,
+                          event.clientY,
                         )
                         const targetLayer = detail.overlayLayers.find((candidate) => candidate.id === targetLayerId)
                         const atMs = clamp((event.clientX - track.left) / Math.max(1, track.width), 0, 1) * durationMs
@@ -568,28 +617,43 @@ export function ShowSceneZoneEditor({
                             startMs: candidate.startMs,
                             durationMs: candidate.endMs - candidate.startMs,
                           })),
-                          atMs - drag.grabOffsetMs,
+                          atMs - liveDrag.grabOffsetMs,
                           durationMs * 8 / Math.max(1, track.width),
                         )
-                        setDrag({
-                          ...drag,
+                        const nextDrag: OverlayClipDrag = {
+                          ...liveDrag,
                           targetLayerId,
                           startMs,
                           pointerClientX: event.clientX,
                           pointerClientY: event.clientY,
-                        })
+                        }
+                        overlayDragLiveRef.current = nextDrag
+                        if (overlayDragGhostRef.current) {
+                          overlayDragGhostRef.current.style.left = `${event.clientX - nextDrag.grabOffsetPx}px`
+                          overlayDragGhostRef.current.style.top = `${event.clientY - 16}px`
+                        }
+                        if (targetLayerId !== liveDrag.targetLayerId) setDrag(nextDrag)
                       }}
                       onPointerUp={(event) => {
-                        if (drag?.kind !== 'overlay' || drag.placementId !== placement.id) return
+                        const completedDrag = overlayDragLiveRef.current
+                        if (!completedDrag || completedDrag.placementId !== placement.id) return
                         event.currentTarget.releasePointerCapture(event.pointerId)
+                        if (overlayDragGhostRef.current) overlayDragGhostRef.current.style.display = 'none'
+                        overlayDragLiveRef.current = null
+                        setDrag(null)
+                        setSelectedMainId(null)
+                        setSelectedOverlayId(placement.id)
                         onUpdateOverlay(layer.id, placement.id, {
-                          startMs: drag.startMs,
+                          startMs: completedDrag.startMs,
                           durationMs: placementDurationMs,
-                          targetLayerId: drag.targetLayerId,
+                          targetLayerId: completedDrag.targetLayerId,
                         })
+                      }}
+                      onPointerCancel={() => {
+                        if (overlayDragGhostRef.current) overlayDragGhostRef.current.style.display = 'none'
+                        overlayDragLiveRef.current = null
                         setDrag(null)
                       }}
-                      onPointerCancel={() => setDrag(null)}
                       className={`absolute inset-y-1 overflow-hidden rounded-[4px] border-l-[3px] px-2 text-left text-[9px] ${
                         selectedOverlayId === placement.id
                           ? 'border-emerald-200 bg-emerald-700/40 text-white outline outline-1 outline-emerald-300/60'
@@ -831,6 +895,7 @@ export function ShowSceneZoneEditor({
 
       {drag?.kind === 'overlay' && (
         <div
+          ref={overlayDragGhostRef}
           data-testid="scene-overlay-drag-ghost"
           className="pointer-events-none fixed z-[90] flex h-8 items-center overflow-hidden rounded-[4px] border border-emerald-200/80 border-l-[3px] bg-emerald-700/75 px-2 text-[9px] text-white opacity-90 shadow-[0_8px_24px_rgba(0,0,0,0.5),0_0_0_1px_rgba(110,231,183,0.35)]"
           style={{
@@ -845,8 +910,31 @@ export function ShowSceneZoneEditor({
           </span>
         </div>
       )}
+      {layerDrag && (
+        <div
+          ref={layerDragGhostRef}
+          data-testid="scene-layer-drag-ghost"
+          className="pointer-events-none fixed z-[90] flex h-6 items-center gap-1 rounded border border-cyan-200/70 bg-[#10242b]/95 px-2 text-[9px] text-cyan-50 shadow-[0_7px_20px_rgba(0,0,0,0.45)]"
+          style={{ left: layerDrag.pointerClientX + 10, top: layerDrag.pointerClientY - 12 }}
+        >
+          <GripVertical size={10} aria-hidden className="text-cyan-300" />
+          <strong className="font-medium">{layerDrag.layerName}</strong>
+        </div>
+      )}
     </section>
   )
+}
+
+function readOverlayLayerBounds(root: HTMLElement | null): Array<{ id: string; top: number; bottom: number }> {
+  if (!root) return []
+  return Array.from(root.querySelectorAll<HTMLElement>('[data-overlay-layer-id]')).map((element) => {
+    const bounds = element.getBoundingClientRect()
+    return {
+      id: element.dataset.overlayLayerId ?? '',
+      top: bounds.top,
+      bottom: bounds.bottom,
+    }
+  }).filter((layer) => layer.id)
 }
 
 interface ShowAutomationOption {

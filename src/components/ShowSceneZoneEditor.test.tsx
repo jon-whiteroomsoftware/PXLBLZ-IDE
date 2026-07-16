@@ -97,6 +97,7 @@ describe('ShowSceneZoneEditor (#487)', () => {
     expect(screen.getByRole('region', { name: 'Scene 2 main Scene editor' })).toHaveTextContent('Default')
     expect(screen.getByText('CometLoom')).toBeInTheDocument()
     expect(screen.getByText('Transitions')).toBeInTheDocument()
+    expect(screen.getByTestId('scene-transition-playhead-line')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Select CometLoom Main clip' }))
     expect(onSelectClip).toHaveBeenCalledWith('cell-2', expect.any(HTMLElement))
@@ -409,6 +410,14 @@ describe('ShowSceneZoneEditor (#487)', () => {
     />)
 
     const clip = screen.getByRole('button', { name: 'Select CometLoom clip in Front texture' })
+    const frontLayer = document.querySelector<HTMLElement>('[data-overlay-layer-id="overlay-front"]')!
+    const backLayer = document.querySelector<HTMLElement>('[data-overlay-layer-id="overlay-back"]')!
+    vi.spyOn(frontLayer, 'getBoundingClientRect').mockReturnValue({
+      x: 0, y: 0, left: 0, top: 0, right: 100, bottom: 40, width: 100, height: 40, toJSON: () => ({}),
+    })
+    vi.spyOn(backLayer, 'getBoundingClientRect').mockReturnValue({
+      x: 0, y: 40, left: 0, top: 40, right: 100, bottom: 80, width: 100, height: 40, toJSON: () => ({}),
+    })
     Object.defineProperties(clip, {
       setPointerCapture: { value: vi.fn() },
       hasPointerCapture: { value: () => true },
@@ -419,17 +428,21 @@ describe('ShowSceneZoneEditor (#487)', () => {
     })
 
     fireEvent.pointerDown(clip, { pointerId: 1, button: 0, clientX: 4, clientY: 10 })
+    expect(screen.getByTestId('scene-overlay-drag-ghost')).toHaveTextContent('CometLoom')
+    expect(screen.queryByRole('spinbutton', { name: 'Overlay start ms' })).not.toBeInTheDocument()
     fireEvent.pointerMove(clip, { pointerId: 1, buttons: 1, clientX: 8, clientY: 20 })
     fireEvent.pointerUp(clip, { pointerId: 1, button: 0, clientX: 8, clientY: 20 })
+    expect(screen.queryByTestId('scene-overlay-drag-ghost')).not.toBeInTheDocument()
+    expect(screen.getByRole('spinbutton', { name: 'Overlay start ms' })).toBeVisible()
     expect(onUpdateOverlay).toHaveBeenLastCalledWith('overlay-front', 'overlay-placement', expect.objectContaining({
       targetLayerId: 'overlay-front',
     }))
 
     fireEvent.pointerDown(clip, { pointerId: 2, button: 0, clientX: 4, clientY: 10 })
-    fireEvent.pointerMove(clip, { pointerId: 2, buttons: 1, clientX: 8, clientY: 30 })
+    fireEvent.pointerMove(clip, { pointerId: 2, buttons: 1, clientX: 8, clientY: 50 })
     expect(screen.getByTestId('scene-overlay-drag-ghost')).toHaveTextContent('CometLoom')
     expect(screen.getByTestId('scene-overlay-lane-overlay-back')).toHaveAttribute('data-drop-target', 'true')
-    fireEvent.pointerUp(clip, { pointerId: 2, button: 0, clientX: 8, clientY: 30 })
+    fireEvent.pointerUp(clip, { pointerId: 2, button: 0, clientX: 8, clientY: 50 })
     expect(onUpdateOverlay).toHaveBeenLastCalledWith('overlay-front', 'overlay-placement', expect.objectContaining({
       targetLayerId: 'overlay-back',
     }))
@@ -538,6 +551,15 @@ describe('ShowSceneZoneEditor (#487)', () => {
     />)
 
     const handle = screen.getByRole('button', { name: 'Reorder Front texture layer' })
+    Object.defineProperties(handle, {
+      setPointerCapture: { value: vi.fn() },
+      hasPointerCapture: { value: () => true },
+      releasePointerCapture: { value: vi.fn() },
+    })
+    fireEvent.pointerDown(handle, { pointerId: 3, button: 0, clientX: 20, clientY: 20 })
+    expect(screen.getByTestId('scene-layer-drag-ghost')).toHaveTextContent('Front texture')
+    fireEvent.pointerUp(handle, { pointerId: 3, button: 0, clientX: 20, clientY: 20 })
+    expect(screen.queryByTestId('scene-layer-drag-ghost')).not.toBeInTheDocument()
     fireEvent.keyDown(handle, { key: 'ArrowDown' })
     expect(onReorderOverlayLayer).toHaveBeenCalledWith('overlay-front', 1)
   })
