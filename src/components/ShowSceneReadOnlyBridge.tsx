@@ -134,7 +134,7 @@ export function ShowSceneSuperDetail({
       <header className="flex h-10 shrink-0 items-center gap-2 border-b border-zinc-700 bg-[#11151a] px-3">
         <ScanSearch size={13} aria-hidden className="text-amber-200" />
         <h2 className="min-w-0 truncate text-[12px] font-semibold text-zinc-100">{detail.sceneName} · Super Detail</h2>
-        <span className="rounded-sm border border-amber-300/30 bg-amber-300/10 px-1.5 py-0.5 text-[8px] font-semibold uppercase tracking-[0.12em] text-amber-200">Read only</span>
+        <span className="rounded-sm border border-zinc-700 bg-zinc-900/70 px-1.5 py-0.5 text-[8px] font-medium uppercase tracking-[0.12em] text-zinc-500">Read only</span>
         <span className="ml-auto whitespace-nowrap tabular-nums text-[9px] text-zinc-500">
           Global {formatTimelineTime(detail.globalStartMs)}–{formatTimelineTime(detail.globalEndMs)}
         </span>

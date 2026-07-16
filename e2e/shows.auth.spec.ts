@@ -103,6 +103,24 @@ test.describe('authenticated Show authoring', () => {
 
     await page.setViewportSize({ width: 600, height: 900 })
     await expect(toolbar.getByLabel('Show time')).toHaveCSS('display', 'grid')
+    const narrowTransport = await toolbar.getByRole('group', { name: 'Show transport controls' }).boundingBox()
+    const narrowZoom = await toolbar.getByRole('group', { name: 'Timeline zoom controls' }).boundingBox()
+    const narrowCommands = await toolbar.getByRole('group', { name: 'Timeline commands' }).boundingBox()
+    expect(rectanglesOverlap(narrowTransport, narrowZoom)).toBe(false)
+    expect(rectanglesOverlap(narrowZoom, narrowCommands)).toBe(false)
+    expect(rectanglesOverlap(narrowTransport, narrowCommands)).toBe(false)
+    const outputSummary = await page.getByTitle('Show output summary').boundingBox()
+    const showProperties = await page.getByRole('button', { name: 'Show properties' }).boundingBox()
+    expect(
+      rectanglesOverlap(outputSummary, showProperties),
+      `Show output summary ${JSON.stringify(outputSummary)} overlaps Properties ${JSON.stringify(showProperties)}`,
+    ).toBe(false)
+    const compileBar = page.getByText('compiled artifact', { exact: true }).locator('..')
+    await expect(compileBar).toHaveCSS('font-size', '10px')
+    await compileBar.evaluate((element) => { element.scrollLeft = element.scrollWidth })
+    const compileBarBox = await compileBar.boundingBox()
+    const finalCompileStatusBox = await compileBar.getByText(/worst instant:/i).boundingBox()
+    expect(finalCompileStatusBox && compileBarBox && finalCompileStatusBox.x + finalCompileStatusBox.width <= compileBarBox.x + compileBarBox.width + 1).toBe(true)
     expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(8)
   })
 
@@ -1028,6 +1046,17 @@ async function persistedShow(page: Page, id: string): Promise<PersistedShow | un
   if (!response.ok()) return undefined
   const { shows } = await response.json() as { shows: PersistedShow[] }
   return shows.find((show) => show.id === id)
+}
+
+function rectanglesOverlap(
+  left: { x: number; y: number; width: number; height: number } | null,
+  right: { x: number; y: number; width: number; height: number } | null,
+): boolean {
+  if (!left || !right) return false
+  return left.x < right.x + right.width
+    && left.x + left.width > right.x
+    && left.y < right.y + right.height
+    && left.y + left.height > right.y
 }
 
 function showEasingId(easing: string | { curve: string; direction?: string }): string {

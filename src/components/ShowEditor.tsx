@@ -1758,10 +1758,10 @@ function SceneStrip({
         aria-label="Show timeline controls"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="min-w-0 justify-self-start">
+        <div className="timeline-transport-cluster min-w-0 justify-self-start">
           {transportActive && <ShowTransportControls show={show} />}
         </div>
-        <div className="flex min-w-0 items-center justify-center gap-1" role="group" aria-label="Timeline zoom controls">
+        <div className="timeline-zoom-cluster flex min-w-0 items-center justify-center gap-1" role="group" aria-label="Timeline zoom controls">
           <Button
             size="icon-xs"
             variant="ghost"
@@ -1796,7 +1796,7 @@ function SceneStrip({
             {zoomLevel.toFixed(1)}x
           </output>
         </div>
-        <div className="min-w-0 justify-self-end">
+        <div className="timeline-command-cluster min-w-0 justify-self-end">
           <ShowTimelineCommands
             show={show}
             readOnly={readOnly}
@@ -4602,7 +4602,8 @@ function CompileBar({
     ? [...new Set(timeOffsets)].join(', ')
     : null
   return (
-    <div className="flex min-h-10 shrink-0 items-center gap-2 overflow-x-auto whitespace-nowrap border-t border-seam bg-zinc-950 px-3 font-mono text-xs text-zinc-500">
+    <div data-testid="show-compile-bar" className="min-h-8 shrink-0 overflow-x-auto border-t border-seam bg-zinc-950 px-3 font-mono text-[10px] text-zinc-500">
+      <div className="flex min-h-8 min-w-max items-center gap-2 whitespace-nowrap">
       <span>compiled artifact</span>
       <span className="h-2 w-28 overflow-hidden rounded-sm bg-zinc-800">
         <span
@@ -4670,6 +4671,7 @@ function CompileBar({
       )}
       {summary?.warnings.map((warning) => <span key={warning} className="text-amber-300">{warning}</span>)}
       {pushResult && <span className="text-zinc-300">{pushResult}</span>}
+      </div>
     </div>
   )
 }

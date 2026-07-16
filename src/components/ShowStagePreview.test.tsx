@@ -70,6 +70,16 @@ beforeEach(() => {
 })
 
 describe('ShowStagePreview (#339)', () => {
+  it('omits the redundant Zone solo inventory for a healthy single-zone Show', () => {
+    const show = createDefaultShow('show-single-zone', 'Single zone', 1000)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowStagePreview showId={show.id} />)
+
+    expect(screen.getByLabelText('Show stage')).toHaveTextContent('60 px')
+    expect(screen.queryByRole('region', { name: 'Zones' })).not.toBeInTheDocument()
+  })
+
   it('pauses on initial Show load and whenever the Show identity changes', () => {
     const first = createDefaultShow('show-first', 'First Show', 1000)
     const second = createDefaultShow('show-second', 'Second Show', 1000)
@@ -89,6 +99,7 @@ describe('ShowStagePreview (#339)', () => {
 
   it('keeps Zone isolation independent from playback and reserves a stable reset control', () => {
     const show = createDefaultShow('show-zone-isolation', 'Zone isolation', 1000)
+    show.zones.push({ ...show.zones[0], id: 'accent', name: 'accent', color: '#f97316' })
     useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
     usePreviewStore.setState({ ...previewInitialState, isRunning: true })
 
@@ -337,7 +348,7 @@ describe('ShowStagePreview (#339)', () => {
 
     render(<ShowStagePreview showId={show.id} />)
 
-    expect(screen.getAllByText('1536 px')).toHaveLength(2)
+    expect(screen.getAllByText('1536 px')).toHaveLength(1)
     expect(screen.getByLabelText('Show stage')).toHaveTextContent('Wide 2:1')
     expect(screen.queryByText('99 px')).not.toBeInTheDocument()
   })

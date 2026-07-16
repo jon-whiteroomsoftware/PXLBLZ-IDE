@@ -809,7 +809,8 @@ function StudioApp() {
         </aside>
         {!libraryCollapsed && <Splitter onDrag={handleLeftDrag} />}
         <main data-testid="editor-pane" className="flex-1 min-w-0 flex flex-col overflow-hidden">
-          <PaneHeader>
+          <div className={studioEntityKind === 'shows' ? 'show-pane-header-container shrink-0' : 'shrink-0'}>
+            <PaneHeader className={studioEntityKind === 'shows' ? 'show-pane-header' : ''}>
             {activeDoc ? (
               <>
                 <span className="flex-1 min-w-0 flex items-center gap-1.5">
@@ -851,18 +852,20 @@ function StudioApp() {
               </span>
             ) : studioEntityKind === 'shows' ? (
               <>
-                <span className="flex min-w-0 flex-1 items-center gap-1.5">
-                  <PanelsTopLeft size={14} aria-hidden className="shrink-0 text-zinc-500" />
-                  <InlineEntityTitle
-                    name={activeShow?.name ?? 'Shows'}
-                    noun="show"
-                    onRename={activeShow && !routedStockShow ? (nextName) => renameShow(activeShow.id, nextName) : undefined}
-                    takenNames={shows.filter((show) => show.id !== activeShow?.id).map((show) => show.name)}
-                  />
+                <span className="show-header-identity flex min-w-0 flex-1 items-center gap-1.5">
+                  <span className="show-header-title flex min-w-0 items-center gap-1.5">
+                    <PanelsTopLeft size={14} aria-hidden className="shrink-0 text-zinc-500" />
+                    <InlineEntityTitle
+                      name={activeShow?.name ?? 'Shows'}
+                      noun="show"
+                      onRename={activeShow && !routedStockShow ? (nextName) => renameShow(activeShow.id, nextName) : undefined}
+                      takenNames={shows.filter((show) => show.id !== activeShow?.id).map((show) => show.name)}
+                    />
+                  </span>
                   {activeShow && (
                     <span
                       title="Show output summary"
-                      className={`hidden rounded border border-zinc-800 bg-zinc-900/45 px-1.5 py-0.5 uppercase tracking-wide sm:inline ${IDE_MICROTYPE.secondary.className}`}
+                      className={`show-output-summary rounded border border-zinc-800 bg-zinc-900/45 px-1.5 py-0.5 uppercase tracking-wide ${IDE_MICROTYPE.secondary.className}`}
                     >
                       {activeShow.outputContract?.kind === 'installation'
                         ? 'Installation'
@@ -876,7 +879,7 @@ function StudioApp() {
                 {activeShow && (
                   <span
                     ref={setShowHeaderActionsTarget}
-                    className="scrollbar-hidden ml-auto flex min-w-0 shrink-0 items-center gap-1.5 overflow-x-auto"
+                    className="show-header-actions scrollbar-hidden ml-auto flex min-w-0 shrink-0 items-center gap-1.5 overflow-x-auto"
                   />
                 )}
               </>
@@ -955,7 +958,8 @@ function StudioApp() {
             {(activePatternId !== null || activeDemoName !== null) && <SendToController />}
               </>
             )}
-          </PaneHeader>
+            </PaneHeader>
+          </div>
           <div className="flex-1 overflow-hidden">
             {activeDoc ? (
               <DocsReader doc={activeDoc} />

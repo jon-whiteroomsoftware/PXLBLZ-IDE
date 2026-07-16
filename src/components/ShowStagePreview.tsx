@@ -469,6 +469,7 @@ export function ShowStagePreview({ showId, showOverride }: { showId: string; sho
 
   const error = compiled.error ?? runtimeError
   const rendererLabel = fidelity === 'fast' ? 'Fast' : 'Precise'
+  const showZoneInventory = (layout?.projection.zones.length ?? 0) > 1 || installationCoverage?.valid === false
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-zinc-950 font-mono text-xs text-zinc-400">
@@ -587,7 +588,7 @@ export function ShowStagePreview({ showId, showOverride }: { showId: string; sho
         )}
         <PreviewViewportSection profile="show" />
 
-        <section aria-label="Zones" className="mt-2.5">
+        {showZoneInventory && <section aria-label="Zones" className="mt-2.5">
           <div className="flex h-6 items-center justify-between gap-2">
             <h3 className="text-[11px] font-semibold uppercase tracking-wider text-structural">Zones - solo</h3>
             <button
@@ -653,7 +654,7 @@ export function ShowStagePreview({ showId, showOverride }: { showId: string; sho
             )
           })}
           </div>
-        </section>
+        </section>}
       </div>
     </div>
   )
