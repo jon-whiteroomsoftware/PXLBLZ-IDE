@@ -45,6 +45,7 @@ type OverlayClipDrag = {
   pointerClientX: number
   pointerClientY: number
   grabOffsetPx: number
+  grabOffsetYPx: number
   widthPx: number
 }
 
@@ -591,6 +592,7 @@ export function ShowSceneZoneEditor({
                           pointerClientX: event.clientX,
                           pointerClientY: event.clientY,
                           grabOffsetPx: event.clientX - clipBounds.left,
+                          grabOffsetYPx: event.clientY - clipBounds.top,
                           widthPx: clipBounds.width,
                         }
                         overlayDragLiveRef.current = nextDrag
@@ -630,7 +632,7 @@ export function ShowSceneZoneEditor({
                         overlayDragLiveRef.current = nextDrag
                         if (overlayDragGhostRef.current) {
                           overlayDragGhostRef.current.style.left = `${event.clientX - nextDrag.grabOffsetPx}px`
-                          overlayDragGhostRef.current.style.top = `${event.clientY - 16}px`
+                          overlayDragGhostRef.current.style.top = `${event.clientY - nextDrag.grabOffsetYPx}px`
                         }
                         if (targetLayerId !== liveDrag.targetLayerId) setDrag(nextDrag)
                       }}
@@ -677,8 +679,8 @@ export function ShowSceneZoneEditor({
               {selectedOverlayLayer?.id === layer.id && selectedOverlayPlacement && (
                 <div className="flex min-h-9 items-center gap-2 border-x border-b border-zinc-800 bg-[#0b0e12] px-2 text-[9px] text-zinc-400">
                   <strong className="shrink-0 font-medium text-zinc-200">{selectedOverlayPlacement.patternName}</strong>
-                  <ExactTimeInput label="Overlay start ms" value={selectedOverlayPlacement.startMs} disabled={readOnly} onCommit={(startMs) => onUpdateOverlay(layer.id, selectedOverlayPlacement.id, { startMs, durationMs: selectedOverlayPlacement.endMs - selectedOverlayPlacement.startMs })} />
-                  <ExactTimeInput label="Overlay duration ms" value={selectedOverlayPlacement.endMs - selectedOverlayPlacement.startMs} disabled={readOnly} onCommit={(nextDurationMs) => onUpdateOverlay(layer.id, selectedOverlayPlacement.id, { startMs: selectedOverlayPlacement.startMs, durationMs: nextDurationMs })} />
+                  <ExactTimeInput label="Overlay start" value={selectedOverlayPlacement.startMs} disabled={readOnly} onCommit={(startMs) => onUpdateOverlay(layer.id, selectedOverlayPlacement.id, { startMs, durationMs: selectedOverlayPlacement.endMs - selectedOverlayPlacement.startMs })} />
+                  <ExactTimeInput label="Overlay duration" value={selectedOverlayPlacement.endMs - selectedOverlayPlacement.startMs} disabled={readOnly} onCommit={(nextDurationMs) => onUpdateOverlay(layer.id, selectedOverlayPlacement.id, { startMs: selectedOverlayPlacement.startMs, durationMs: nextDurationMs })} />
                   <ExactNumberInput label="Opacity" value={selectedOverlayPlacement.opacity} min={0} max={1} step={0.01} disabled={readOnly} onCommit={(opacity) => onUpdateOverlay(layer.id, selectedOverlayPlacement.id, { startMs: selectedOverlayPlacement.startMs, durationMs: selectedOverlayPlacement.endMs - selectedOverlayPlacement.startMs, opacity })} />
                   <label className="flex min-w-0 items-center gap-1">Layer
                     <select aria-label="Overlay target layer" value={layer.id} disabled={readOnly} onChange={(event) => onUpdateOverlay(layer.id, selectedOverlayPlacement.id, { startMs: selectedOverlayPlacement.startMs, durationMs: selectedOverlayPlacement.endMs - selectedOverlayPlacement.startMs, targetLayerId: event.target.value })} className="h-6 max-w-28 rounded border border-zinc-800 bg-zinc-950 px-1 text-[9px] text-zinc-200">
@@ -806,7 +808,7 @@ export function ShowSceneZoneEditor({
           <div className="flex min-h-9 items-center gap-2 border-x border-b border-zinc-800 bg-[#0b0e12] px-2 text-[9px] text-zinc-400">
             <strong className="shrink-0 font-medium text-zinc-200">{selectedMain.patternName}</strong>
             <ExactTimeInput
-              label="Start ms"
+              label="Start"
               value={selectedMain.startMs}
               disabled={readOnly}
               onCommit={(startMs) => onUpdateMain(selectedMain.id, {
@@ -815,7 +817,7 @@ export function ShowSceneZoneEditor({
               })}
             />
             <ExactTimeInput
-              label="Duration ms"
+              label="Duration"
               value={selectedMain.endMs - selectedMain.startMs}
               disabled={readOnly}
               onCommit={(duration) => onUpdateMain(selectedMain.id, {
@@ -900,7 +902,7 @@ export function ShowSceneZoneEditor({
           className="pointer-events-none fixed z-[90] flex h-8 items-center overflow-hidden rounded-[4px] border border-emerald-200/80 border-l-[3px] bg-emerald-700/75 px-2 text-[9px] text-white opacity-90 shadow-[0_8px_24px_rgba(0,0,0,0.5),0_0_0_1px_rgba(110,231,183,0.35)]"
           style={{
             left: drag.pointerClientX - drag.grabOffsetPx,
-            top: drag.pointerClientY - 16,
+            top: drag.pointerClientY - drag.grabOffsetYPx,
             width: Math.max(28, drag.widthPx),
           }}
         >
@@ -1058,7 +1060,7 @@ function PropertyAnimationPanel({
               <div className="flex min-h-8 items-center gap-1.5 border-b border-zinc-800 bg-[#0b0e12] px-2 text-[8px] text-zinc-500">
                 <span className="font-medium text-violet-200">Point</span>
                 <ExactTimeInput
-                  label="Keyframe time ms"
+                  label="Keyframe time"
                   value={selectedPoint.timeMs}
                   max={durationMs}
                   disabled={readOnly}
@@ -1218,33 +1220,38 @@ function ExactTimeInput({
   disabled: boolean
   onCommit: (value: number) => void
 }) {
+  const seconds = formatTimeInputSeconds(value)
+  const maxSeconds = max === undefined ? undefined : max / 1_000
   return (
     <label className="flex shrink-0 items-center gap-1">
       {label}
       <input
         key={value}
-        aria-label={label}
+        aria-label={`${label} seconds`}
         type="number"
         min={0}
-        max={max}
-        step={1}
-        defaultValue={value}
+        max={maxSeconds}
+        step={0.1}
+        defaultValue={seconds}
         disabled={disabled}
         onBlur={(event) => {
           const next = Number(event.target.value)
-          const committed = Number.isFinite(next) ? Math.round(clamp(next, 0, max ?? Number.MAX_SAFE_INTEGER)) : value
-          event.currentTarget.value = String(committed)
+          const committed = Number.isFinite(next)
+            ? Math.round(clamp(next, 0, maxSeconds ?? Number.MAX_SAFE_INTEGER) * 1_000)
+            : value
+          event.currentTarget.value = formatTimeInputSeconds(committed)
           if (committed !== value) onCommit(committed)
         }}
         onKeyDown={(event) => {
           if (event.key === 'Enter') event.currentTarget.blur()
           if (event.key === 'Escape') {
-            event.currentTarget.value = String(value)
+            event.currentTarget.value = seconds
             event.currentTarget.blur()
           }
         }}
-        className="h-6 w-20 rounded border border-zinc-800 bg-zinc-950 px-1.5 text-right text-[9px] tabular-nums text-zinc-200"
+        className="h-6 w-16 rounded border border-zinc-800 bg-zinc-950 px-1.5 text-right text-[9px] tabular-nums text-zinc-200"
       />
+      <span aria-hidden className="text-zinc-600">s</span>
     </label>
   )
 }
@@ -1354,4 +1361,8 @@ function formatTime(timeMs: number): string {
   const minutes = Math.floor(tenths / 600)
   const seconds = Math.floor((tenths % 600) / 10)
   return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}.${tenths % 10}`
+}
+
+function formatTimeInputSeconds(timeMs: number): string {
+  return (timeMs / 1_000).toFixed(3).replace(/\.?0+$/, '')
 }

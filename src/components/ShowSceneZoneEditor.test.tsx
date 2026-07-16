@@ -249,8 +249,9 @@ describe('ShowSceneZoneEditor (#487)', () => {
     )
 
     fireEvent.click(screen.getAllByRole('button', { name: 'Select TestPattern1D Main clip' })[0])
-    fireEvent.change(screen.getByRole('spinbutton', { name: 'Start ms' }), { target: { value: '250' } })
-    fireEvent.blur(screen.getByRole('spinbutton', { name: 'Start ms' }))
+    expect(screen.getByRole('spinbutton', { name: 'Duration seconds' })).toHaveValue(12)
+    fireEvent.change(screen.getByRole('spinbutton', { name: 'Start seconds' }), { target: { value: '0.25' } })
+    fireEvent.blur(screen.getByRole('spinbutton', { name: 'Start seconds' }))
     expect(onUpdateMain).toHaveBeenCalledWith(placement.id, { startMs: 250, durationMs: 12_000 })
 
     fireEvent.click(screen.getByRole('button', { name: 'Split Main clip at playhead' }))
@@ -293,6 +294,9 @@ describe('ShowSceneZoneEditor (#487)', () => {
       setPointerCapture: { value: vi.fn() },
       hasPointerCapture: { value: () => true },
       releasePointerCapture: { value: vi.fn() },
+    })
+    vi.spyOn(clip, 'getBoundingClientRect').mockReturnValue({
+      x: 0, y: 0, left: 0, top: 0, right: 100, bottom: 32, width: 100, height: 32, toJSON: () => ({}),
     })
     vi.spyOn(clip.parentElement!, 'getBoundingClientRect').mockReturnValue({
       x: 0, y: 0, left: 0, top: 0, right: 100, bottom: 20, width: 100, height: 20, toJSON: () => ({}),
@@ -427,18 +431,20 @@ describe('ShowSceneZoneEditor (#487)', () => {
       x: 0, y: 0, left: 0, top: 0, right: 100, bottom: 40, width: 100, height: 40, toJSON: () => ({}),
     })
 
-    fireEvent.pointerDown(clip, { pointerId: 1, button: 0, clientX: 4, clientY: 10 })
+    fireEvent.pointerDown(clip, { pointerId: 1, button: 0, clientX: 4, clientY: 28 })
     expect(screen.getByTestId('scene-overlay-drag-ghost')).toHaveTextContent('CometLoom')
-    expect(screen.queryByRole('spinbutton', { name: 'Overlay start ms' })).not.toBeInTheDocument()
+    expect(screen.getByTestId('scene-overlay-drag-ghost')).toHaveStyle({ top: '0px' })
+    expect(screen.queryByRole('spinbutton', { name: 'Overlay start seconds' })).not.toBeInTheDocument()
     fireEvent.pointerMove(clip, { pointerId: 1, buttons: 1, clientX: 8, clientY: 20 })
     fireEvent.pointerUp(clip, { pointerId: 1, button: 0, clientX: 8, clientY: 20 })
     expect(screen.queryByTestId('scene-overlay-drag-ghost')).not.toBeInTheDocument()
-    expect(screen.getByRole('spinbutton', { name: 'Overlay start ms' })).toBeVisible()
+    expect(screen.getByRole('spinbutton', { name: 'Overlay start seconds' })).toHaveValue(1)
+    expect(screen.getByRole('spinbutton', { name: 'Overlay duration seconds' })).toHaveValue(5)
     expect(onUpdateOverlay).toHaveBeenLastCalledWith('overlay-front', 'overlay-placement', expect.objectContaining({
       targetLayerId: 'overlay-front',
     }))
 
-    fireEvent.pointerDown(clip, { pointerId: 2, button: 0, clientX: 4, clientY: 10 })
+    fireEvent.pointerDown(clip, { pointerId: 2, button: 0, clientX: 4, clientY: 28 })
     fireEvent.pointerMove(clip, { pointerId: 2, buttons: 1, clientX: 8, clientY: 50 })
     expect(screen.getByTestId('scene-overlay-drag-ghost')).toHaveTextContent('CometLoom')
     expect(screen.getByTestId('scene-overlay-lane-overlay-back')).toHaveAttribute('data-drop-target', 'true')

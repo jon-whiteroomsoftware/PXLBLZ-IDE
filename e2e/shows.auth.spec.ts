@@ -908,8 +908,11 @@ test.describe('authenticated Show authoring', () => {
     const clip = page.getByRole('button', { name: 'Select TestPattern1D clip in Overlay 1' })
     const bounds = await clip.boundingBox()
     expect(bounds).not.toBeNull()
-    await page.mouse.move(bounds!.x + Math.min(12, bounds!.width / 2), bounds!.y + bounds!.height / 2)
+    await page.mouse.move(bounds!.x + Math.min(12, bounds!.width / 2), bounds!.y + bounds!.height - 3)
     await page.mouse.down()
+    const liftedBounds = await page.getByTestId('scene-overlay-drag-ghost').boundingBox()
+    expect(liftedBounds).not.toBeNull()
+    expect(Math.abs(liftedBounds!.y - bounds!.y)).toBeLessThanOrEqual(1)
     await page.mouse.move(bounds!.x + Math.min(18, bounds!.width / 2), bounds!.y + bounds!.height / 2 + 48, { steps: 4 })
     await expect(page.getByTestId('scene-overlay-drag-ghost')).toContainText('TestPattern1D')
     await expect(page.locator('[data-drop-target="true"]')).toHaveCount(1)
@@ -939,7 +942,7 @@ test.describe('authenticated Show authoring', () => {
       && show.composition.scenes[0].zones[0].overlays[1]?.placements.length === 1
     ))
     await expect(page.getByRole('button', { name: 'Select TestPattern1D clip in Overlay 2' })).toHaveAttribute('aria-pressed', 'true')
-    await expect(page.getByRole('spinbutton', { name: 'Overlay start ms' })).toBeVisible()
+    await expect(page.getByRole('spinbutton', { name: 'Overlay start seconds' })).toBeVisible()
     await expect(page.getByRole('slider', { name: 'Scene playhead' })).toHaveValue(playheadBeforeDrag)
 
     const layerHandle = page.getByRole('button', { name: 'Reorder Overlay 2 layer' })
