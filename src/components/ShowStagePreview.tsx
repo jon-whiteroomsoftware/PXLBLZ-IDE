@@ -28,7 +28,7 @@ import {
 } from '@/engine/zonePreview'
 import { OrbitControls } from '@/components/OrbitControls'
 import { LIBRARIES } from '@/pixelblaze/libs'
-import { canAdvanceShowPlayback, useShowTransportStore } from '@/store/showTransportStore'
+import { canAdvanceShowPlayback, resolveShowPlaybackStep, useShowTransportStore } from '@/store/showTransportStore'
 import { showLoopDurationMs } from '@/engine/showModel'
 import { useShowPreviewOverrideStore } from '@/store/showPreviewOverrideStore'
 import {
@@ -352,7 +352,15 @@ export function ShowStagePreview({ showId, showOverride }: { showId: string; sho
       playbackLastRef.current = now
       try {
         const deltaMs = Math.max(0, now - last) * usePreviewStore.getState().speed
-        const result = runtime.advanceTo(runtime.getElapsedMs() + deltaMs, { stepMs: 1000 / 60 })
+        const step = resolveShowPlaybackStep(runtime.getElapsedMs(), deltaMs, transport.playbackWindow)
+        if (step.kind === 'rewind') {
+          usePreviewStore.getState().setRunning(false)
+          transport.setPosition(showId, step.targetMs)
+          transport.requestSeek(showId, step.targetMs)
+          playbackRafRef.current = null
+          return
+        }
+        const result = runtime.advanceTo(step.targetMs, { stepMs: 1000 / 60 })
         paintFastFrame(result)
         const positionMs = durationMs > 0 ? result.elapsedMs % durationMs : 0
         useShowTransportStore.getState().setPosition(showId, positionMs)

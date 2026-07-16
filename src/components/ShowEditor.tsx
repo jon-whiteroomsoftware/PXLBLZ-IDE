@@ -69,7 +69,11 @@ import {
   deleteShowPropertyTrack,
   updateShowPropertyKeyframe,
 } from '@/engine/showPropertyAnimation'
-import { resolveShowSceneEditorScope, type ShowSceneEditorScope } from '@/engine/showSceneEditorScope'
+import {
+  projectShowSceneEditorScope,
+  resolveShowSceneEditorScope,
+  type ShowSceneEditorScope,
+} from '@/engine/showSceneEditorScope'
 import { validateInstallationCoverage } from '@/engine/showInstallationCoverage'
 import { updateShowPhysicalZoneSelection } from '@/engine/showSpatialSelection'
 import { createPortableShowOutputContract } from '@/engine/showOutputContract'
@@ -419,6 +423,9 @@ export function ShowEditor({
       return null
     }
   }, [activeShow, stageDimension, userPatterns])
+  const sceneEditorDetail = resolvedSceneEditorScope && compositionProjection
+    ? projectShowSceneEditorScope(compositionProjection, resolvedSceneEditorScope)
+    : null
   const showExport = useMemo(
     () => activeShow && compiled.artifact && compilePressure?.status !== 'blocked'
       ? buildShowEpeExport(activeShow, compiled.artifact.code, {
@@ -799,7 +806,13 @@ export function ShowEditor({
                 scope={resolvedSceneEditorScope}
                 readOnly={readOnly}
                 selectedClipId={selection.kind === 'clip' ? selection.clipId : null}
-                transport={<ShowTransportControls show={activeShow} />}
+                transport={sceneEditorDetail ? (
+                  <ShowSceneTransportControls
+                    show={activeShow}
+                    globalStartMs={sceneEditorDetail.globalStartMs}
+                    durationMs={sceneEditorDetail.scene.durationMs}
+                  />
+                ) : null}
                 onBack={() => {
                   closeDetailPanel()
                   setSceneEditorScope(null)
@@ -1289,6 +1302,95 @@ function ShowTransportControls({ show }: { show: ShowRecord }) {
         <span className="timeline-time-separator text-zinc-600" aria-hidden>/</span>
         <span className="text-zinc-500">{formatShowTime(durationMs)}</span>
       </output>
+    </div>
+  )
+}
+
+function ShowSceneTransportControls({
+  show,
+  globalStartMs,
+  durationMs,
+}: {
+  show: ShowRecord
+  globalStartMs: number
+  durationMs: number
+}) {
+  const sceneEndMs = globalStartMs + durationMs
+  const showDurationMs = showLoopDurationMs(show)
+  const isRunning = usePreviewStore((state) => state.isRunning)
+  const positionMs = useShowTransportStore((state) => state.showId === show.id ? state.positionMs : globalStartMs)
+
+  useEffect(() => {
+    const preview = usePreviewStore.getState()
+    preview.setRunning(false)
+    useShowTransportStore.getState().openShow(show.id, showDurationMs)
+    const previousPositionMs = useShowTransportStore.getState().positionMs
+    useShowTransportStore.getState().setPlaybackWindow(show.id, { startMs: globalStartMs, endMs: sceneEndMs })
+    const boundedPositionMs = useShowTransportStore.getState().positionMs
+    if (boundedPositionMs !== previousPositionMs) requestShowSeek(show.id, boundedPositionMs)
+    return () => {
+      usePreviewStore.getState().setRunning(false)
+      useShowTransportStore.getState().clearPlaybackWindow(show.id)
+    }
+  }, [globalStartMs, sceneEndMs, show.id, showDurationMs])
+
+  const seekToStart = useCallback(() => requestShowSeek(show.id, globalStartMs), [globalStartMs, show.id])
+  const toggleScene = useCallback(() => {
+    const preview = usePreviewStore.getState()
+    const transport = useShowTransportStore.getState()
+    if (!preview.isRunning && transport.positionMs >= sceneEndMs) {
+      requestShowSeek(show.id, globalStartMs)
+    }
+    preview.setRunning(!preview.isRunning)
+  }, [globalStartMs, sceneEndMs, show.id])
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || showControlOwnsKeyboardEvent(event.target)) return
+      if (event.code === 'Space') {
+        event.preventDefault()
+        toggleScene()
+        return
+      }
+      const transport = useShowTransportStore.getState()
+      if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+        event.preventDefault()
+        requestShowSeek(show.id, transport.positionMs + (event.key === 'ArrowLeft' ? -1_000 : 1_000))
+      } else if (event.key === 'Home') {
+        event.preventDefault()
+        seekToStart()
+      }
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [seekToStart, show.id, toggleScene])
+
+  return (
+    <div className="flex min-w-0 items-center gap-1.5" role="group" aria-label="Scene transport controls">
+      <Button
+        size="icon-xs"
+        variant="ghost"
+        aria-label={isRunning ? 'Pause Scene preview' : 'Play Scene preview'}
+        title={isRunning ? 'Pause Scene preview (Space)' : 'Play Scene preview (Space)'}
+        className={`bg-zinc-900/70 hover:bg-amber-400/10 ${
+          isRunning ? 'text-green-400 hover:text-green-300' : 'text-red-400 hover:text-red-300'
+        }`}
+        onClick={toggleScene}
+      >
+        {isRunning ? <Play size={13} aria-hidden /> : <Pause size={13} aria-hidden />}
+      </Button>
+      <Button
+        size="icon-xs"
+        variant="ghost"
+        aria-label="Go to Scene start"
+        title="Go to Scene start (Home)"
+        className="bg-zinc-900/70 text-zinc-500 hover:bg-zinc-800 hover:text-zinc-100"
+        onClick={seekToStart}
+      >
+        <SkipBack size={13} aria-hidden />
+      </Button>
+      <span className="whitespace-nowrap text-[8px] uppercase tracking-[0.12em] text-zinc-600">Scene only</span>
+      <span className="sr-only">Position {formatShowTime(positionMs - globalStartMs)}</span>
     </div>
   )
 }

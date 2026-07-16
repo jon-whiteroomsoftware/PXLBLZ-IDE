@@ -289,6 +289,44 @@ describe('ShowStagePreview (#339)', () => {
     }
   })
 
+  it('pauses and rewinds when Scene-local playback reaches its end', async () => {
+    const callbacks = new Map<number, FrameRequestCallback>()
+    let nextFrameId = 1
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+      const id = nextFrameId++
+      callbacks.set(id, callback)
+      return id
+    })
+    vi.stubGlobal('cancelAnimationFrame', (id: number) => { callbacks.delete(id) })
+    try {
+      const show = createDefaultShow('show-scene-playback', 'Scene playback', 1000)
+      useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+      const transport = useShowTransportStore.getState()
+      transport.openShow(show.id, 62_000)
+      transport.setPosition(show.id, 90)
+      transport.setPlaybackWindow(show.id, { startMs: 0, endMs: 100 })
+
+      render(<ShowStagePreview showId={show.id} />)
+      act(() => usePreviewStore.getState().setRunning(true))
+      await waitFor(() => expect(callbacks.size).toBeGreaterThan(0))
+
+      const runFrame = (timestamp: number) => {
+        const entries = [...callbacks.entries()]
+        const entry = entries[entries.length - 1]
+        expect(entry).toBeDefined()
+        callbacks.delete(entry![0])
+        act(() => entry![1](timestamp))
+      }
+      runFrame(0)
+      runFrame(20)
+
+      expect(usePreviewStore.getState().isRunning).toBe(false)
+      expect(useShowTransportStore.getState().positionMs).toBe(0)
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
   it('uses and reports the Installation master count and physical coverage (#435)', () => {
     const show = createShowWithOutputContract(
       'show-installation',

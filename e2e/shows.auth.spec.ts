@@ -817,6 +817,38 @@ test.describe('authenticated Show authoring', () => {
     await expect(page.getByText('Generated pattern - Untitled Show')).toBeVisible()
   })
 
+  test('keeps Scene-local transport bounded and explicit (#487)', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('studio/shows')
+    await createInstallationShow(page)
+
+    await page.getByRole('button', { name: 'Inspect Scene 1 in Super Detail' }).click()
+    await page.getByRole('button', { name: 'Open Scene 1 editor' }).click()
+
+    await expect(page.getByRole('button', { name: 'Go to Scene start' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Go to Show start' })).toHaveCount(0)
+    const playhead = page.getByRole('slider', { name: 'Scene playhead' })
+    await playhead.fill('5000')
+    await playhead.blur()
+    await expect(page.getByLabel('Scene local time')).toContainText('00:05.0')
+
+    await page.getByRole('button', { name: 'Go to Scene start' }).click()
+    await expect(page.getByLabel('Scene local time')).toContainText('00:00.0')
+    await playhead.fill('30000')
+    await playhead.blur()
+    await page.getByRole('button', { name: 'Play Scene preview' }).click()
+    expect(Number(await playhead.inputValue())).toBeLessThan(1_000)
+    await page.getByRole('button', { name: 'Pause Scene preview' }).click()
+
+    await page.setViewportSize({ width: 720, height: 900 })
+    await expect(page.getByRole('group', { name: 'Scene transport controls' })).toBeVisible()
+    const pageOverflow = await page.evaluate(() => ({
+      scrollWidth: document.documentElement.scrollWidth,
+      clientWidth: document.documentElement.clientWidth,
+    }))
+    expect(pageOverflow.scrollWidth - pageOverflow.clientWidth).toBeLessThanOrEqual(8)
+  })
+
   test('authors and reloads exact Scene-local Property animation (#490)', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 })
     await page.goto('studio/shows')

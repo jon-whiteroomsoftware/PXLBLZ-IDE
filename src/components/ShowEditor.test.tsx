@@ -179,6 +179,9 @@ describe('ShowEditor (#318)', () => {
 
     expect(screen.getByRole('region', { name: 'Scene 1 main Scene editor' })).toBeInTheDocument()
     expect(screen.getByTestId('show-timeline-grid')).not.toBeVisible()
+    expect(screen.getByRole('button', { name: 'Go to Scene start' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Go to Show start' })).not.toBeInTheDocument()
+    expect(useShowTransportStore.getState().playbackWindow).toEqual({ startMs: 0, endMs: 30_000 })
     usePreviewStore.setState({ isRunning: false })
     fireEvent.keyDown(document, { code: 'Space', key: ' ' })
     expect(usePreviewStore.getState().isRunning).toBe(true)
@@ -191,6 +194,8 @@ describe('ShowEditor (#318)', () => {
     await user.keyboard('{Escape}')
     expect(screen.queryByRole('region', { name: 'Scene 1 main Scene editor' })).not.toBeInTheDocument()
     expect(screen.getByTestId('show-timeline-grid')).toBeVisible()
+    expect(usePreviewStore.getState().isRunning).toBe(false)
+    expect(useShowTransportStore.getState().playbackWindow).toBeNull()
     expect(screen.getByRole('slider', { name: 'Timeline zoom' })).toHaveValue('5.1')
   })
 

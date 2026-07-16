@@ -1,4 +1,4 @@
-import { canAdvanceShowPlayback, showTransportInitialState, useShowTransportStore } from './showTransportStore'
+import { canAdvanceShowPlayback, resolveShowPlaybackStep, showTransportInitialState, useShowTransportStore } from './showTransportStore'
 
 beforeEach(() => {
   useShowTransportStore.setState(showTransportInitialState)
@@ -43,5 +43,35 @@ describe('showTransportStore (#414)', () => {
 
     useShowTransportStore.getState().cancelSeek(requestId)
     expect(useShowTransportStore.getState()).toMatchObject({ seekStatus: 'idle', seekRequest: null })
+  })
+
+  it('keeps Scene-local transport inside its playback window', () => {
+    const transport = useShowTransportStore.getState()
+    transport.openShow('show-a', 60_000)
+    transport.setPosition('show-a', 45_000)
+
+    transport.setPlaybackWindow('show-a', { startMs: 10_000, endMs: 20_000 })
+    expect(useShowTransportStore.getState()).toMatchObject({
+      positionMs: 10_000,
+      playbackWindow: { startMs: 10_000, endMs: 20_000 },
+    })
+
+    useShowTransportStore.getState().requestSeek('show-a', 25_000)
+    expect(useShowTransportStore.getState().seekRequest).toMatchObject({ targetMs: 20_000 })
+
+    useShowTransportStore.getState().clearPlaybackWindow('show-a')
+    useShowTransportStore.getState().requestSeek('show-a', 0)
+    expect(useShowTransportStore.getState()).toMatchObject({
+      playbackWindow: null,
+      seekRequest: { targetMs: 0 },
+    })
+  })
+
+  it('pauses and rewinds instead of crossing the Scene end', () => {
+    const window = { startMs: 10_000, endMs: 20_000 }
+
+    expect(resolveShowPlaybackStep(19_900, 50, window)).toEqual({ kind: 'advance', targetMs: 19_950 })
+    expect(resolveShowPlaybackStep(19_900, 100, window)).toEqual({ kind: 'rewind', targetMs: 10_000 })
+    expect(resolveShowPlaybackStep(19_900, 500, null)).toEqual({ kind: 'advance', targetMs: 20_400 })
   })
 })

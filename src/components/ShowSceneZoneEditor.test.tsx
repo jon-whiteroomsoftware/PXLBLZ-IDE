@@ -149,6 +149,13 @@ describe('ShowSceneZoneEditor (#487)', () => {
     )
 
     expect(screen.getByLabelText('Scene local time')).toHaveTextContent('00:15.0/00:30.0')
+    const playhead = screen.getByRole('slider', { name: 'Scene playhead' })
+    expect(playhead).toHaveValue('15000')
+    fireEvent.change(playhead, { target: { value: '5000' } })
+    expect(useShowTransportStore.getState().positionMs).toBe(37_000)
+    expect(onSeek).not.toHaveBeenCalled()
+    fireEvent.pointerUp(playhead)
+    expect(onSeek).toHaveBeenLastCalledWith(37_000)
     fireEvent.click(screen.getByTestId('scene-local-time-track'), { clientX: 50 })
     expect(onSeek).toHaveBeenCalled()
     expect(onSeek.mock.calls[0][0]).toBeGreaterThanOrEqual(32_000)

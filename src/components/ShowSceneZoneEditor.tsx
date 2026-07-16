@@ -1,5 +1,5 @@
 import { Activity, ChevronLeft, ChevronRight, Clapperboard, GripVertical, Lock, Plus, RotateCw, Scissors, SkipBack, SkipForward, Trash2 } from 'lucide-react'
-import { useEffect, useMemo, useState, type MouseEvent, type PointerEvent, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type MouseEvent, type PointerEvent, type ReactNode } from 'react'
 import { ShowPropertySparkline } from '@/components/ShowPropertySparkline'
 import type { FlatShowCompositionProjection } from '@/engine/showCompositionProjection'
 import {
@@ -31,6 +31,7 @@ import {
 import { SHOW_EASING_OPTIONS, showEasingFromOptionId, showEasingOptionId } from '@/engine/showEasing'
 import { useShowTransportStore } from '@/store/showTransportStore'
 import { useShowEditorSessionStore } from '@/store/showEditorSessionStore'
+import { usePreviewStore } from '@/store/previewStore'
 
 export function ShowSceneZoneEditor({
   show,
@@ -110,6 +111,8 @@ export function ShowSceneZoneEditor({
   const [layerDrag, setLayerDrag] = useState<{ layerId: string; targetLayerId: string; originClientY: number } | null>(null)
   const [newTrackTargetKey, setNewTrackTargetKey] = useState('')
   const [selectedKeyframe, setSelectedKeyframe] = useState<{ trackId: string; keyframeId: string } | null>(null)
+  const pendingLocalSeekRef = useRef<number | null>(null)
+  const resumeAfterLocalSeekRef = useRef(false)
   const detail = projectShowSceneEditorScope(compositionProjection, scope)
   const hasDetail = Boolean(detail)
   const positionMs = useShowTransportStore((state) => state.showId === show.id ? state.positionMs : 0)
@@ -142,6 +145,23 @@ export function ShowSceneZoneEditor({
 
   const durationMs = Math.max(1, detail.scene.durationMs)
   const localTimeMs = clamp(positionMs - detail.globalStartMs, 0, durationMs)
+  const previewLocalSeek = (nextLocalTimeMs: number) => {
+    const targetGlobalMs = detail.globalStartMs + clamp(nextLocalTimeMs, 0, durationMs)
+    const preview = usePreviewStore.getState()
+    if (pendingLocalSeekRef.current === null) resumeAfterLocalSeekRef.current = preview.isRunning
+    if (preview.isRunning) preview.setRunning(false)
+    pendingLocalSeekRef.current = targetGlobalMs
+    useShowTransportStore.getState().setPosition(show.id, targetGlobalMs)
+  }
+  const commitLocalSeek = () => {
+    const targetGlobalMs = pendingLocalSeekRef.current
+    if (targetGlobalMs === null) return
+    const shouldResume = resumeAfterLocalSeekRef.current
+    pendingLocalSeekRef.current = null
+    resumeAfterLocalSeekRef.current = false
+    onSeek(targetGlobalMs)
+    if (shouldResume) usePreviewStore.getState().setRunning(true)
+  }
   const compositionMode = Boolean(show.composition)
   const selectedMain = compositionMode
     ? detail.mainPlacements.find((placement) => placement.id === selectedMainId) ?? null
@@ -316,10 +336,29 @@ export function ShowSceneZoneEditor({
       <div className="min-w-[620px] px-3 pb-4 pt-2">
         <div className="grid h-6 grid-cols-[136px_minmax(0,1fr)] border border-zinc-800 bg-[#0d1014] text-[9px] text-zinc-500">
           <span className="flex items-center border-r border-zinc-800 px-2 uppercase tracking-[0.1em]">Local time</span>
-          <span className="flex items-center justify-between px-1 tabular-nums">
+          <span className="relative flex items-center justify-between px-1 tabular-nums">
             <i className="not-italic">0</i>
             <i className="not-italic">{formatTime(durationMs / 2)}</i>
             <i className="not-italic">{formatTime(durationMs)}</i>
+            <i
+              aria-hidden
+              className="pointer-events-none absolute inset-y-0 z-10 w-px bg-amber-300 shadow-[0_0_5px_rgba(252,211,77,.75)]"
+              style={{ left: `${localTimeMs / durationMs * 100}%` }}
+            />
+            <input
+              type="range"
+              aria-label="Scene playhead"
+              min={0}
+              max={durationMs}
+              step={1}
+              value={localTimeMs}
+              onChange={(event) => previewLocalSeek(Number(event.target.value))}
+              onPointerUp={commitLocalSeek}
+              onPointerCancel={commitLocalSeek}
+              onKeyUp={commitLocalSeek}
+              onBlur={commitLocalSeek}
+              className="show-playhead-range absolute inset-0 z-20 h-full w-full cursor-col-resize opacity-0 outline-none"
+            />
           </span>
         </div>
 
