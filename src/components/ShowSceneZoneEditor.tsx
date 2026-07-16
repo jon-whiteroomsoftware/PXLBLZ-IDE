@@ -1,6 +1,7 @@
 import { Activity, ChevronLeft, ChevronRight, Clapperboard, GripVertical, Lock, Plus, RotateCw, Scissors, SkipBack, SkipForward, Trash2 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type MouseEvent, type PointerEvent, type ReactNode } from 'react'
 import { ShowPropertySparkline } from '@/components/ShowPropertySparkline'
+import { PatternCombobox, type PatternComboboxOption } from '@/components/PatternCombobox'
 import type { FlatShowCompositionProjection } from '@/engine/showCompositionProjection'
 import {
   projectShowSceneEditorScope,
@@ -23,7 +24,7 @@ import {
   propertyTargetKey,
   showPropertyTrackNeighbors,
 } from '@/engine/showPropertyAnimation'
-import { projectShowPropertyTrackLane } from '@/engine/showPropertyLaneProjection'
+import { projectShowPropertyTrackLane, unprojectShowPropertyLaneValue } from '@/engine/showPropertyLaneProjection'
 import {
   showClipEffectParameterValue,
   showClipEffectParameters,
@@ -105,7 +106,7 @@ export function ShowSceneZoneEditor({
   onZoneChange: (zoneId: string) => void
   onSelectClip: (clipId: string, anchor: HTMLElement) => void
   onSeek: (globalTimeMs: number) => void
-  patternOptions: Array<{ label: string; ref: ShowPatternRef }>
+  patternOptions: Array<{ label: string; ref: ShowPatternRef; group?: PatternComboboxOption['group'] }>
   onEnableComposition: () => void
   onAddMain: (input: { pattern: ShowPatternRef; patternName: string; startMs: number; durationMs: number }) => void
   onUpdateMain: (placementId: string, changes: { startMs: number; durationMs: number }) => void
@@ -140,6 +141,8 @@ export function ShowSceneZoneEditor({
   const [selectedKeyframe, setSelectedKeyframe] = useState<{ trackId: string; keyframeId: string } | null>(null)
   const pendingLocalSeekRef = useRef<number | null>(null)
   const resumeAfterLocalSeekRef = useRef(false)
+  const scenePlayheadPointerRef = useRef<number | null>(null)
+  const timeAxisRef = useRef<HTMLSpanElement>(null)
   const suppressTrackSeekUntilRef = useRef(0)
   const localScrollRef = useRef<HTMLDivElement>(null)
   const overlayDragLiveRef = useRef<OverlayClipDrag | null>(null)
@@ -214,6 +217,12 @@ export function ShowSceneZoneEditor({
     onSeek(targetGlobalMs)
     if (shouldResume) usePreviewStore.getState().setRunning(true)
   }
+  const previewLocalSeekFromClientX = (clientX: number) => {
+    const bounds = timeAxisRef.current?.getBoundingClientRect()
+    if (!bounds) return
+    const fraction = clamp((clientX - bounds.left) / Math.max(1, bounds.width), 0, 1)
+    previewLocalSeek(fraction * durationMs)
+  }
   const compositionMode = Boolean(show.composition)
   const selectedMain = compositionMode
     ? detail.mainPlacements.find((placement) => placement.id === selectedMainId) ?? null
@@ -265,6 +274,11 @@ export function ShowSceneZoneEditor({
   const resolvedNewPattern = patternOptions.find((option) => (
     patternKey(option.ref) === (newPatternKey || patternKey(patternOptions[0]?.ref))
   )) ?? patternOptions[0]
+  const comboboxPatternOptions: PatternComboboxOption[] = patternOptions.map((option) => ({
+    value: patternKey(option.ref),
+    label: option.label,
+    group: option.group ?? (option.ref.kind === 'user' ? 'Personal' : 'Built-in'),
+  }))
   const addStartMs = Math.round(localTimeMs)
   const nextStartMs = detail.mainPlacements
     .filter((placement) => placement.startMs >= addStartMs)
@@ -339,15 +353,15 @@ export function ShowSceneZoneEditor({
         <div className="flex min-w-0 items-center justify-self-end gap-1">
           {compositionMode ? (
             <>
-              <select
-                aria-label="New Main clip Pattern"
+              <PatternCombobox
+                ariaLabel="New Main clip Pattern"
                 value={newPatternKey || patternKey(patternOptions[0]?.ref)}
-                onChange={(event) => setNewPatternKey(event.target.value)}
+                options={comboboxPatternOptions}
+                onChange={setNewPatternKey}
                 disabled={readOnly || patternOptions.length === 0}
-                className="h-6 max-w-40 rounded border border-zinc-800 bg-zinc-950 px-1.5 text-[9px] text-zinc-300"
-              >
-                {patternOptions.map((option) => <option key={patternKey(option.ref)} value={patternKey(option.ref)}>{option.label}</option>)}
-              </select>
+                compact
+                className="!w-40 max-w-[40vw]"
+              />
               <button
                 type="button"
                 disabled={readOnly || !canAddAtPlayhead}
@@ -390,10 +404,10 @@ export function ShowSceneZoneEditor({
         data-testid="scene-local-scroll"
         className="min-w-0 overflow-x-auto overscroll-x-contain"
       >
-      <div className="min-w-[620px] px-3 pb-4 pt-2">
+      <div className="relative min-w-[620px] px-3 pb-4 pt-2">
         <div className="grid h-6 grid-cols-[136px_minmax(0,1fr)] border border-zinc-800 bg-[#0d1014] text-[9px] text-zinc-500">
           <span className="flex items-center border-r border-zinc-800 px-2 uppercase tracking-[0.1em]">Local time</span>
-          <span className="relative flex items-center justify-between px-1 tabular-nums">
+          <span ref={timeAxisRef} data-testid="scene-local-time-axis" className="relative flex items-center justify-between px-1 tabular-nums">
             <i className="not-italic">0</i>
             <i className="not-italic">{formatTime(durationMs / 2)}</i>
             <i className="not-italic">{formatTime(durationMs)}</i>
@@ -827,18 +841,19 @@ export function ShowSceneZoneEditor({
             />
             <label className="flex min-w-0 items-center gap-1">
               Pattern
-              <select
-                aria-label="Main clip Pattern"
+              <PatternCombobox
+                key={`${selectedMain.id}:${selectedInstance ? patternKey(selectedInstance.pattern) : 'missing'}`}
+                ariaLabel="Main clip Pattern"
                 value={selectedInstance ? patternKey(selectedInstance.pattern) : ''}
+                options={comboboxPatternOptions}
                 disabled={readOnly}
-                onChange={(event) => {
-                  const option = patternOptions.find((candidate) => patternKey(candidate.ref) === event.target.value)
+                onChange={(value) => {
+                  const option = patternOptions.find((candidate) => patternKey(candidate.ref) === value)
                   if (option) onReplaceMainPattern(selectedMain.id, option.ref, option.label)
                 }}
-                className="h-6 max-w-36 rounded border border-zinc-800 bg-zinc-950 px-1 text-[9px] text-zinc-200"
-              >
-                {patternOptions.map((option) => <option key={patternKey(option.ref)} value={patternKey(option.ref)}>{option.label}</option>)}
-              </select>
+                compact
+                className="!w-36"
+              />
             </label>
             <span className="ml-auto flex shrink-0 items-center gap-1">
               <button
@@ -892,6 +907,35 @@ export function ShowSceneZoneEditor({
             {detail.diagnostics.join(' ')}
           </div>
         )}
+        <div aria-hidden className="pointer-events-none absolute bottom-4 left-[148px] right-3 top-8 z-40">
+          <span
+            data-testid="scene-local-playhead-hit-target"
+            className="pointer-events-auto absolute inset-y-0 w-[5px] -translate-x-1/2 cursor-col-resize touch-none"
+            style={{ left: `${localTimeMs / durationMs * 100}%` }}
+            onPointerDown={(event) => {
+              if (event.button !== 0) return
+              event.stopPropagation()
+              scenePlayheadPointerRef.current = event.pointerId
+              event.currentTarget.setPointerCapture?.(event.pointerId)
+              previewLocalSeekFromClientX(event.clientX)
+            }}
+            onPointerMove={(event) => {
+              if (scenePlayheadPointerRef.current !== event.pointerId) return
+              previewLocalSeekFromClientX(event.clientX)
+            }}
+            onPointerUp={(event) => {
+              if (scenePlayheadPointerRef.current !== event.pointerId) return
+              previewLocalSeekFromClientX(event.clientX)
+              event.currentTarget.releasePointerCapture?.(event.pointerId)
+              scenePlayheadPointerRef.current = null
+              commitLocalSeek()
+            }}
+            onPointerCancel={() => {
+              scenePlayheadPointerRef.current = null
+              commitLocalSeek()
+            }}
+          />
+        </div>
       </div>
       </div>
 
@@ -1041,6 +1085,7 @@ function PropertyAnimationPanel({
                 <button
                   type="button"
                   aria-label={`Delete ${option?.label ?? 'property'} animation`}
+                  title={`Delete entire ${option?.label ?? 'property'} animation`}
                   disabled={readOnly}
                   onClick={() => { onDeleteTrack(track.id); onSelectKeyframe(null) }}
                   className="grid size-4 shrink-0 place-items-center text-zinc-700 hover:text-red-300 disabled:opacity-20"
@@ -1054,6 +1099,21 @@ function PropertyAnimationPanel({
                 defaultValue={option?.value ?? 0}
                 selectedBeatId={selectedPoint?.id ?? null}
                 onSelectBeat={(keyframeId) => onSelectKeyframe({ trackId: track.id, keyframeId })}
+                onMoveBeat={readOnly ? undefined : (keyframeId, displayY) => {
+                  const value = unprojectShowPropertyLaneValue(
+                    projectShowPropertyTrackLane({
+                      track,
+                      durationMs,
+                      constraint: { min: option?.min ?? 0, max: option?.max ?? 1 },
+                      defaultValue: option?.value ?? 0,
+                    }),
+                    { min: option?.min ?? 0, max: option?.max ?? 1 },
+                    displayY,
+                  )
+                  const step = option?.step ?? 0.01
+                  const snappedValue = Number((Math.round(value / step) * step).toFixed(6))
+                  onUpdateKeyframe(track.id, keyframeId, { value: snappedValue })
+                }}
               />
             </div>
             {selectedPoint && option && (
@@ -1094,6 +1154,7 @@ function PropertyAnimationPanel({
                 <button
                   type="button"
                   aria-label="Delete keyframe"
+                  title="Delete selected keyframe"
                   disabled={readOnly || track.keyframes.length <= 2}
                   onClick={() => { onDeleteKeyframe(track.id, selectedPoint.id); onSelectKeyframe(null) }}
                   className="ml-auto grid size-6 place-items-center rounded border border-zinc-800 text-zinc-600 hover:text-red-300 disabled:opacity-25"
@@ -1118,6 +1179,7 @@ function PropertyAnimationSparkline({
   defaultValue,
   selectedBeatId,
   onSelectBeat,
+  onMoveBeat,
 }: {
   track: ShowPropertyAnimationTrack
   durationMs: number
@@ -1126,6 +1188,7 @@ function PropertyAnimationSparkline({
   defaultValue: number
   selectedBeatId: string | null
   onSelectBeat: (keyframeId: string) => void
+  onMoveBeat?: (keyframeId: string, displayY: number) => void
 }) {
   const projection = useMemo(() => projectShowPropertyTrackLane({
     track,
@@ -1139,6 +1202,7 @@ function PropertyAnimationSparkline({
       projection={projection}
       selectedBeatId={selectedBeatId}
       onSelectBeat={(beat) => onSelectBeat(beat.id)}
+      onMoveBeat={onMoveBeat ? (beat, displayY) => onMoveBeat(beat.id, displayY) : undefined}
       className="h-full w-full bg-[#080a0d]"
     />
   )
@@ -1152,8 +1216,8 @@ function KeyframeNavigation({ track, keyframeId, onSelect }: {
   const neighbors = showPropertyTrackNeighbors(track, keyframeId)
   return (
     <span className="flex items-center gap-0.5">
-      <button type="button" aria-label="Previous keyframe" disabled={!neighbors.previousId} onClick={() => neighbors.previousId && onSelect(neighbors.previousId)} className="grid size-6 place-items-center rounded border border-zinc-800 text-zinc-500 hover:text-white disabled:opacity-20"><SkipBack size={9} /></button>
-      <button type="button" aria-label="Next keyframe" disabled={!neighbors.nextId} onClick={() => neighbors.nextId && onSelect(neighbors.nextId)} className="grid size-6 place-items-center rounded border border-zinc-800 text-zinc-500 hover:text-white disabled:opacity-20"><SkipForward size={9} /></button>
+      <button type="button" aria-label="Previous keyframe" title="Previous keyframe" disabled={!neighbors.previousId} onClick={() => neighbors.previousId && onSelect(neighbors.previousId)} className="grid size-6 place-items-center rounded border border-zinc-800 text-zinc-500 hover:text-white disabled:opacity-20"><SkipBack size={9} /></button>
+      <button type="button" aria-label="Next keyframe" title="Next keyframe" disabled={!neighbors.nextId} onClick={() => neighbors.nextId && onSelect(neighbors.nextId)} className="grid size-6 place-items-center rounded border border-zinc-800 text-zinc-500 hover:text-white disabled:opacity-20"><SkipForward size={9} /></button>
     </span>
   )
 }
@@ -1249,7 +1313,7 @@ function ExactTimeInput({
             event.currentTarget.blur()
           }
         }}
-        className="h-6 w-16 rounded border border-zinc-800 bg-zinc-950 px-1.5 text-right text-[9px] tabular-nums text-zinc-200"
+        className="h-6 w-16 appearance-none rounded border border-zinc-800 bg-zinc-950 px-1.5 text-right text-[9px] tabular-nums text-zinc-200 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
       />
       <span aria-hidden className="text-zinc-600">s</span>
     </label>
@@ -1291,7 +1355,7 @@ function ExactNumberInput({ label, value, min, max, step, disabled, onCommit }: 
             event.currentTarget.blur()
           }
         }}
-        className="h-6 w-16 rounded border border-zinc-800 bg-zinc-950 px-1.5 text-right text-[9px] tabular-nums text-zinc-200"
+        className="h-6 w-16 appearance-none rounded border border-zinc-800 bg-zinc-950 px-1.5 text-right text-[9px] tabular-nums text-zinc-200 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
       />
     </label>
   )

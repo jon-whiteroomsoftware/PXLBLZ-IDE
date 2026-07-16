@@ -4864,7 +4864,7 @@ function NumberField({
               event.currentTarget.blur()
             }
           }}
-          className={`${field} min-w-0 w-full flex-1`}
+          className={`${field} min-w-0 w-full flex-1 appearance-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none`}
         />
         {suffix && <span className="text-[10px] text-zinc-500">{suffix}</span>}
       </span>

@@ -4,9 +4,24 @@ import {
   projectGlobalShowPropertyLane,
   projectShowPropertyLane,
   projectShowPropertyTrackLane,
+  unprojectShowPropertyLaneValue,
 } from './showPropertyLaneProjection'
 
 describe('Show property lane projection (#483)', () => {
+  it('keeps flat normalized tracks at their truthful vertical level (#496)', () => {
+    const projectFlatValue = (value: number) => projectShowPropertyLane({
+      durationMs: 1_000,
+      constraint: { min: 0, max: 1 },
+      defaultValue: value,
+      segments: [],
+      beats: [{ id: `flat-${value}`, timeMs: 0, value, kind: 'authored' }],
+    }).beats[0].displayY
+
+    expect(projectFlatValue(1)).toBeCloseTo(0)
+    expect(projectFlatValue(0.5)).toBeCloseTo(0.5)
+    expect(projectFlatValue(0)).toBeCloseTo(1)
+  })
+
   it('keeps authored values truthful while magnifying a small variation for legibility', () => {
     const lane = projectShowPropertyLane({
       durationMs: 1_000,
@@ -32,6 +47,10 @@ describe('Show property lane projection (#483)', () => {
     expect(lane.extrema).toEqual({ min: 0.8, max: 0.85 })
     expect(lane.displayRange.max - lane.displayRange.min).toBeCloseTo(0.12)
     expect(lane.samples[0].displayY).toBeGreaterThan(lane.samples[lane.samples.length - 1].displayY)
+    expect(unprojectShowPropertyLaneValue(lane, { min: 0, max: 1 }, lane.beats[0].displayY)).toBeCloseTo(0.8)
+    expect(unprojectShowPropertyLaneValue(lane, { min: 0, max: 1 }, lane.beats[1].displayY)).toBeCloseTo(0.85)
+    expect(unprojectShowPropertyLaneValue(lane, { min: 0, max: 1 }, -1)).toBeGreaterThan(0.85)
+    expect(unprojectShowPropertyLaneValue(lane, { min: 0, max: 1 }, 2)).toBeLessThan(0.8)
   })
 
   it('projects authored Scene keyframes with stable selectable ownership', () => {

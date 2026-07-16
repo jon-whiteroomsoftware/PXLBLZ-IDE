@@ -194,6 +194,8 @@ describe('Scene-local property animation (#490)', () => {
       { id: 'key-b', timeMs: 1_000 },
     ])
     expect(showPropertyTrackNeighbors(currentTrack!, 'key-middle')).toEqual({ previousId: 'key-a', nextId: 'key-b' })
+    expect(showPropertyTrackNeighbors(currentTrack!, 'key-a')).toEqual({ previousId: 'key-b', nextId: 'key-middle' })
+    expect(showPropertyTrackNeighbors(currentTrack!, 'key-b')).toEqual({ previousId: 'key-middle', nextId: 'key-a' })
     expect(deleteShowPropertyKeyframe(moved, 'scene-1', 'track-a', 'key-middle').scenes[0].propertyTracks?.[0].keyframes)
       .toHaveLength(2)
     expect(composition.scenes[0].propertyTracks).toEqual([])

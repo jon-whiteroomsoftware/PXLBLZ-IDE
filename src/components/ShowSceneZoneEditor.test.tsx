@@ -158,6 +158,23 @@ describe('ShowSceneZoneEditor (#487)', () => {
     expect(onSeek).not.toHaveBeenCalled()
     fireEvent.pointerUp(playhead)
     expect(onSeek).toHaveBeenLastCalledWith(37_000)
+    const timeAxis = screen.getByTestId('scene-local-time-axis')
+    Object.defineProperty(timeAxis, 'getBoundingClientRect', {
+      value: () => ({ top: 0, height: 24, left: 100, right: 300, bottom: 24, width: 200, x: 100, y: 0, toJSON: () => ({}) }),
+    })
+    const lineTarget = screen.getByTestId('scene-local-playhead-hit-target')
+    let lineCaptured = false
+    Object.defineProperties(lineTarget, {
+      setPointerCapture: { value: () => { lineCaptured = true } },
+      hasPointerCapture: { value: () => lineCaptured },
+      releasePointerCapture: { value: () => { lineCaptured = false } },
+    })
+    fireEvent.pointerDown(lineTarget, { pointerId: 3, button: 0, clientX: 200 })
+    fireEvent.pointerMove(lineTarget, { pointerId: 3, buttons: 1, clientX: 250 })
+    expect(useShowTransportStore.getState().positionMs).toBe(54_500)
+    fireEvent.pointerUp(lineTarget, { pointerId: 3, button: 0, clientX: 250 })
+    expect(onSeek).toHaveBeenLastCalledWith(54_500)
+    expect(lineCaptured).toBe(false)
     fireEvent.click(screen.getByTestId('scene-local-time-track'), { clientX: 50 })
     expect(onSeek).toHaveBeenCalled()
     expect(onSeek.mock.calls[0][0]).toBeGreaterThanOrEqual(32_000)
@@ -609,6 +626,31 @@ describe('ShowSceneZoneEditor (#487)', () => {
     expect(screen.getAllByLabelText('Property sparkline')).toHaveLength(1)
 
     fireEvent.click(screen.getByRole('button', { name: 'Keyframe at 0 ms, value 1' }))
+    expect(screen.getByRole('button', { name: 'Previous keyframe' })).toHaveAttribute('title', 'Previous keyframe')
+    expect(screen.getByRole('button', { name: 'Next keyframe' })).toHaveAttribute('title', 'Next keyframe')
+    expect(screen.getByRole('button', { name: 'Delete Brightness animation' })).toHaveAttribute(
+      'title',
+      'Delete entire Brightness animation',
+    )
+    expect(screen.getByRole('button', { name: 'Delete keyframe' })).toHaveAttribute('title', 'Delete selected keyframe')
+    const sparkline = screen.getByLabelText('Property sparkline')
+    Object.defineProperty(sparkline, 'getBoundingClientRect', {
+      value: () => ({ top: 0, height: 100, left: 0, right: 100, bottom: 100, width: 100, x: 0, y: 0, toJSON: () => ({}) }),
+    })
+    const firstPoint = screen.getByRole('button', { name: 'Keyframe at 0 ms, value 1' })
+    let pointCaptured = false
+    Object.defineProperties(firstPoint, {
+      setPointerCapture: { value: () => { pointCaptured = true } },
+      hasPointerCapture: { value: () => pointCaptured },
+      releasePointerCapture: { value: () => { pointCaptured = false } },
+    })
+    fireEvent.pointerDown(firstPoint, { pointerId: 9, button: 0, clientY: 10 })
+    fireEvent.pointerMove(firstPoint, { pointerId: 9, buttons: 1, clientY: 50 })
+    expect(onUpdatePropertyKeyframe).toHaveBeenCalledWith('brightness-track', 'brightness-a', { value: 0.5 })
+    fireEvent.pointerUp(firstPoint, { pointerId: 9, button: 0, clientY: 50 })
+    fireEvent.click(screen.getByRole('button', { name: 'Previous keyframe' }))
+    expect(screen.getByRole('spinbutton', { name: 'Keyframe value' })).toHaveValue(0.4)
+    fireEvent.click(screen.getByRole('button', { name: 'Next keyframe' }))
     const value = screen.getByRole('spinbutton', { name: 'Keyframe value' })
     fireEvent.change(value, { target: { value: '0.25' } })
     fireEvent.blur(value)
@@ -623,5 +665,41 @@ describe('ShowSceneZoneEditor (#487)', () => {
       initialValue: 0,
       atMs: 0,
     })
+  })
+
+  it('searches and replaces a Main clip Pattern through the shared grouped picker (#496)', () => {
+    const { show, projection, placement } = compositionFixture()
+    const onReplaceMainPattern = vi.fn()
+    render(<ShowSceneZoneEditor
+      show={show}
+      compositionProjection={projection}
+      scope={{ sceneId: 'scene-1', zoneId: 'zone-1' }}
+      readOnly={false}
+      selectedClipId={null}
+      transport={null}
+      onBack={vi.fn()}
+      onZoneChange={vi.fn()}
+      onSelectClip={vi.fn()}
+      onSeek={vi.fn()}
+      {...editingProps}
+      patternOptions={[
+        { label: 'My Test Pattern', ref: { kind: 'user', id: 'personal-test' }, group: 'Personal' },
+        { label: 'CometLoom', ref: { kind: 'stock', id: 'CometLoom' }, group: 'Built-in' },
+      ]}
+      onReplaceMainPattern={onReplaceMainPattern}
+    />)
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Select TestPattern1D Main clip' })[0])
+    const chooser = screen.getByRole('combobox', { name: 'Main clip Pattern' })
+    fireEvent.focus(chooser)
+    fireEvent.change(chooser, { target: { value: 'comet' } })
+    expect(screen.getByRole('listbox', { name: 'Main clip Pattern matches' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('option', { name: 'CometLoom' }))
+
+    expect(onReplaceMainPattern).toHaveBeenCalledWith(
+      placement.id,
+      { kind: 'stock', id: 'CometLoom' },
+      'CometLoom',
+    )
   })
 })

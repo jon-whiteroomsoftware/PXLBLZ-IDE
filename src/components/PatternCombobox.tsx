@@ -13,6 +13,9 @@ export function PatternCombobox({
   value,
   options,
   placeholder = 'Find a Pattern...',
+  disabled = false,
+  compact = false,
+  className = '',
   onChange,
   onCommit,
 }: {
@@ -20,6 +23,9 @@ export function PatternCombobox({
   value: string | null
   options: PatternComboboxOption[]
   placeholder?: string
+  disabled?: boolean
+  compact?: boolean
+  className?: string
   onChange: (value: string) => void
   onCommit?: () => void
 }) {
@@ -88,17 +94,18 @@ export function PatternCombobox({
   }
 
   return (
-    <div ref={containerRef} className="relative mt-1 w-full normal-case tracking-normal">
+    <div ref={containerRef} className={`relative w-full normal-case tracking-normal ${compact ? '' : 'mt-1'} ${className}`}>
       <input
         ref={inputRef}
         role="combobox"
         aria-label={ariaLabel}
         aria-autocomplete="list"
         aria-controls={listboxId}
-        aria-expanded={open}
+        aria-expanded={!disabled && open}
         aria-activedescendant={open && filteredOptions[activeIndex] ? `${listboxId}-${activeIndex}` : undefined}
         value={query}
         placeholder={placeholder}
+        disabled={disabled}
         autoComplete="off"
         onFocus={(event) => {
           setOpen(true)
@@ -111,10 +118,10 @@ export function PatternCombobox({
           setActiveIndex(0)
         }}
         onKeyDown={handleKeyDown}
-        className="h-7 w-full rounded border border-zinc-700 bg-zinc-900 pl-2 pr-7 text-xs text-zinc-200 outline-none focus:border-live/70"
+        className={`${compact ? 'h-6 pl-1.5 pr-6 text-[9px]' : 'h-7 pl-2 pr-7 text-xs'} w-full rounded border border-zinc-700 bg-zinc-900 text-zinc-200 outline-none focus:border-live/70 disabled:cursor-default disabled:border-zinc-800 disabled:bg-zinc-950/35 disabled:text-zinc-500`}
       />
-      <Search size={12} aria-hidden className="pointer-events-none absolute right-2 top-2 text-zinc-500" />
-      {open && (
+      <Search size={compact ? 10 : 12} aria-hidden className={`pointer-events-none absolute right-2 ${compact ? 'top-[7px]' : 'top-2'} text-zinc-500`} />
+      {open && !disabled && (
         <div
           id={listboxId}
           role="listbox"

@@ -66,6 +66,27 @@ export type ShowGlobalPropertyLaneTarget =
 
 const MINIMUM_VISIBLE_CONSTRAINT_FRACTION = 0.12
 
+function propertyLaneDisplayTransform(
+  constraint: { min: number; max: number },
+  authoredMin: number,
+  authoredMax: number,
+) {
+  const constraintSpan = Math.max(0.000001, constraint.max - constraint.min)
+  const minimumVisibleSpan = constraintSpan * MINIMUM_VISIBLE_CONSTRAINT_FRACTION
+  const authoredSpan = authoredMax - authoredMin
+  const center = (authoredMin + authoredMax) / 2
+  return {
+    constraintSpan,
+    center,
+    normalizedCenter: clamp((center - constraint.min) / constraintSpan, 0, 1),
+    variationScale: authoredSpan > 0.000001 && authoredSpan < minimumVisibleSpan
+      ? minimumVisibleSpan / authoredSpan
+      : 1,
+    displayMin: authoredSpan < minimumVisibleSpan ? center - minimumVisibleSpan / 2 : authoredMin,
+    displayMax: authoredSpan < minimumVisibleSpan ? center + minimumVisibleSpan / 2 : authoredMax,
+  }
+}
+
 /**
  * Projects truthful property values into a compact, deliberately legible lane.
  * The display range may magnify a small variation, but sample values, extrema,
@@ -99,14 +120,16 @@ export function projectShowPropertyLane(input: ShowPropertyLaneInput): ShowPrope
   const values = [...rawSamples.map((sample) => sample.value), ...beatInputs.map((beat) => beat.value)]
   const authoredMin = values.length > 0 ? Math.min(...values) : input.defaultValue
   const authoredMax = values.length > 0 ? Math.max(...values) : input.defaultValue
-  const constraintSpan = Math.max(0.000001, input.constraint.max - input.constraint.min)
-  const minimumVisibleSpan = constraintSpan * MINIMUM_VISIBLE_CONSTRAINT_FRACTION
-  const authoredSpan = authoredMax - authoredMin
-  const center = (authoredMin + authoredMax) / 2
-  const displayMin = authoredSpan < minimumVisibleSpan ? center - minimumVisibleSpan / 2 : authoredMin
-  const displayMax = authoredSpan < minimumVisibleSpan ? center + minimumVisibleSpan / 2 : authoredMax
-  const displayY = (value: number) => 1 - clamp(
-    (value - displayMin) / Math.max(0.000001, displayMax - displayMin),
+  const {
+    constraintSpan,
+    center,
+    normalizedCenter,
+    variationScale,
+    displayMin,
+    displayMax,
+  } = propertyLaneDisplayTransform(input.constraint, authoredMin, authoredMax)
+  const displayY = (value: number) => clamp(
+    1 - normalizedCenter - ((value - center) / constraintSpan) * variationScale,
     0,
     1,
   )
@@ -131,6 +154,23 @@ export function projectShowPropertyLane(input: ShowPropertyLaneInput): ShowPrope
       displayY: displayY(beat.value),
     })),
   }
+}
+
+export function unprojectShowPropertyLaneValue(
+  projection: Pick<ShowPropertyLaneProjection, 'extrema'>,
+  constraint: { min: number; max: number },
+  displayY: number,
+): number {
+  const { constraintSpan, center, normalizedCenter, variationScale } = propertyLaneDisplayTransform(
+    constraint,
+    projection.extrema.min,
+    projection.extrema.max,
+  )
+  return clamp(
+    center + ((1 - normalizedCenter - clamp(displayY, 0, 1)) * constraintSpan) / variationScale,
+    constraint.min,
+    constraint.max,
+  )
 }
 
 export function projectShowPropertyTrackLane(input: {

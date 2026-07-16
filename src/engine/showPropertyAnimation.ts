@@ -224,9 +224,10 @@ export function showPropertyTrackNeighbors(
 ): { previousId: string | null; nextId: string | null } {
   const keyframes = [...track.keyframes].sort((left, right) => left.timeMs - right.timeMs || left.id.localeCompare(right.id))
   const index = keyframes.findIndex((candidate) => candidate.id === keyframeId)
+  if (index < 0 || keyframes.length === 0) return { previousId: null, nextId: null }
   return {
-    previousId: index > 0 ? keyframes[index - 1].id : null,
-    nextId: index >= 0 && index < keyframes.length - 1 ? keyframes[index + 1].id : null,
+    previousId: keyframes[(index - 1 + keyframes.length) % keyframes.length].id,
+    nextId: keyframes[(index + 1) % keyframes.length].id,
   }
 }
 
