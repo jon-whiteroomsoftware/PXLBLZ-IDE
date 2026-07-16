@@ -66,4 +66,11 @@ describe('StockListItem', () => {
     await user.keyboard('{Enter}')
     expect(onSelect).toHaveBeenCalledOnce()
   })
+
+  it('uses the shared legible entity and fact hierarchy', () => {
+    render(<ul><StockListItem name="Square" active={false} meta="2D" onSelect={vi.fn()} /></ul>)
+    const row = screen.getByRole('button', { name: 'Square' })
+    expect(row).toHaveClass('min-h-[21px]', 'text-xs', 'leading-4', 'text-zinc-400')
+    expect(screen.getByText('2D')).toHaveClass('text-[9px]', 'text-zinc-400')
+  })
 })

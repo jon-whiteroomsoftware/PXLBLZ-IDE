@@ -50,7 +50,7 @@ export function ActivityStrip({
                 `mb-1 flex w-full flex-col items-center gap-0.5 px-1 py-1 font-semibold uppercase tracking-wide transition-colors ${IDE_MICROTYPE.required.sizeClassName}`,
                 active
                   ? 'text-live'
-                  : 'text-zinc-500 hover:bg-zinc-900/55 hover:text-zinc-300',
+                  : 'text-zinc-400 hover:bg-zinc-900/55 hover:text-zinc-200',
               ].join(' ')}
             >
               <span className={[

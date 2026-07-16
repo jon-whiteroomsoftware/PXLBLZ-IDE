@@ -4,6 +4,7 @@ import type { EditingLibrary, LibraryRecord } from '@/store/libraryStore'
 import {
   EditableListItem,
   HeaderAction,
+  RailEmptyState,
   RailEntityHeader,
   RailSectionScroller,
   StockListItem,
@@ -64,14 +65,14 @@ export function LibrariesRailSection({
         onScroll={onScroll}
       >
         {!personalWorkspaceAuthenticated ? (
-          <p className="pl-3 pr-3 py-2 text-zinc-500 italic select-none">
+          <RailEmptyState roomy>
             <a href="/api/auth/login" className="text-live hover:underline">Sign in</a>
             {' '}to save libraries
-          </p>
+          </RailEmptyState>
         ) : userLibraries.length === 0 ? (
-          <p className="pl-3 pr-3 py-1 text-zinc-500 italic select-none">
+          <RailEmptyState>
             No cloud libraries yet
-          </p>
+          </RailEmptyState>
         ) : (
           <>
             <StockSectionHeader label="Cloud Libraries" open onToggle={() => {}} />
@@ -100,7 +101,7 @@ export function LibrariesRailSection({
           onToggle={onToggleStockLibraries}
         />
         {showStockLibraries && (
-          <ul className="pt-2 opacity-85">
+          <ul className="pt-2">
             {libraryNames.map((name) => (
               <StockListItem
                 key={name}

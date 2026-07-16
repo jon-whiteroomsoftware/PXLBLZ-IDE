@@ -7,9 +7,11 @@ import { IDE_MICROTYPE } from '@/components/ui/ideMicrotype'
 import {
   EditableListItem,
   HeaderAction,
+  RailEmptyState,
   RailEntityHeader,
   RailFilterBar,
   RailSectionScroller,
+  RailSubsectionLabel,
   StockListItem,
   StockSectionHeader,
   type ScrollMetrics,
@@ -89,15 +91,15 @@ export function MapsRailSection({
         onScroll={onScroll}
       >
         {!personalWorkspaceAuthenticated ? (
-          <p className="pl-3 pr-3 py-2 text-zinc-500 italic select-none">
+          <RailEmptyState roomy>
             <a href="/api/auth/login" className="text-live hover:underline">Sign in</a>
             {' '}to save maps
-          </p>
+          </RailEmptyState>
         ) : visibleMaps.length === 0 ? (
           userMaps.length === 0 ? (
-            <p className="pl-3 pr-3 py-1 text-zinc-500 italic select-none">
+            <RailEmptyState>
               No custom maps yet
-            </p>
+            </RailEmptyState>
           ) : (
             null
           )
@@ -126,14 +128,12 @@ export function MapsRailSection({
         />
         {showStockMaps && (
           visibleStockMaps.length === 0 ? (
-            <p className="pl-3 pr-3 py-1 text-zinc-500 italic select-none">No stock maps match</p>
+            <RailEmptyState>No stock maps match</RailEmptyState>
           ) : (
-            <ul className="pt-1 opacity-85">
+            <ul className="pt-1">
               {stockGroups.map((group) => (
                 <li key={group.kind} className="pt-1.5">
-                  <div className={`px-3 pb-1 font-semibold uppercase tracking-[0.12em] ${IDE_MICROTYPE.required.className}`}>
-                    {group.label}
-                  </div>
+                  <RailSubsectionLabel>{group.label}</RailSubsectionLabel>
                   <ul>
                     {group.items.map((item) => item.views.length === 1 ? (
                       <StockListItem
@@ -144,11 +144,11 @@ export function MapsRailSection({
                         onSelect={() => onOpenStockMap(item.id)}
                       />
                     ) : (
-                      <li key={item.familyId} className="min-h-[19px] px-3 py-px text-zinc-500">
+                      <li key={item.familyId} className="min-h-[21px] px-3 py-0.5 text-zinc-400">
                         <details>
                           <summary
                             onClick={() => onOpenStockMap(item.id)}
-                            className="flex cursor-pointer list-none items-center justify-between text-xs text-zinc-500 hover:text-zinc-300 [&::-webkit-details-marker]:hidden"
+                            className={`flex cursor-pointer list-none items-center justify-between hover:text-zinc-200 [&::-webkit-details-marker]:hidden ${IDE_MICROTYPE.entity.className}`}
                           >
                             <span>{item.name}</span>
                             <span className={IDE_MICROTYPE.secondary.className}>{item.views.length} views</span>
@@ -163,13 +163,13 @@ export function MapsRailSection({
                                   type="button"
                                   aria-label={`${item.name} ${label} ${view.dim}D`}
                                   onClick={() => onOpenStockMap(view.id)}
-                                  className={`rounded border px-1.5 py-0.5 text-[10px] transition-colors ${
+                                  className={`rounded border px-1.5 py-0.5 transition-colors ${IDE_MICROTYPE.required.sizeClassName} ${
                                     active
                                       ? 'border-amber-500/60 bg-amber-500/10 text-amber-300'
-                                      : 'border-zinc-700 text-zinc-500 hover:border-zinc-500 hover:text-zinc-300'
+                                      : 'border-zinc-700 text-zinc-400 hover:border-zinc-500 hover:text-zinc-200'
                                   }`}
                                 >
-                                  {label} <span className="text-zinc-500">{view.dim}D</span>
+                                  {label} <span className="text-zinc-400">{view.dim}D</span>
                                 </button>
                               )
                             })}

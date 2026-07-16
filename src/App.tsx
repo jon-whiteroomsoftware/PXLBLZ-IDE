@@ -76,6 +76,7 @@ import { stockShowById } from '@/pixelblaze/stock/shows'
 import { InlineEntityTitle } from '@/components/InlineEntityTitle'
 import { usePreviewStore } from '@/store/previewStore'
 import { studioControlOwnsKeyboardEvent } from '@/engine/keyboardShortcuts'
+import { IDE_MICROTYPE } from '@/components/ui/ideMicrotype'
 
 function Splitter({ onDrag, className = '' }: { onDrag: (dx: number) => void; className?: string }) {
   const lastX = useRef(0)
@@ -861,7 +862,7 @@ function StudioApp() {
                   {activeShow && (
                     <span
                       title="Show output summary"
-                      className="hidden rounded border border-zinc-800 bg-zinc-900/45 px-1.5 py-0.5 text-[9px] uppercase tracking-wide text-zinc-500 sm:inline"
+                      className={`hidden rounded border border-zinc-800 bg-zinc-900/45 px-1.5 py-0.5 uppercase tracking-wide sm:inline ${IDE_MICROTYPE.secondary.className}`}
                     >
                       {activeShow.outputContract?.kind === 'installation'
                         ? 'Installation'

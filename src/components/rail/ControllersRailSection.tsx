@@ -3,6 +3,7 @@ import { controllerProfileDisplayName } from '@/engine/controllerProfile'
 import type { ControllerProfile } from '@/store/controllerProfileStore'
 import {
   EditableListItem,
+  RailEmptyState,
   RailEntityHeader,
   RailSectionScroller,
   type ScrollMetrics,
@@ -41,14 +42,14 @@ export function ControllersRailSection({
         onScroll={onScroll}
       >
         {!personalWorkspaceAuthenticated ? (
-          <p className="pl-3 pr-3 py-2 text-zinc-500 italic select-none">
+          <RailEmptyState roomy>
             <a href="/api/auth/login" className="text-live hover:underline">Sign in</a>
             {' '}to save controllers
-          </p>
+          </RailEmptyState>
         ) : controllerProfiles.length === 0 ? (
-          <p className="pl-3 pr-3 py-1 text-zinc-500 italic select-none">
+          <RailEmptyState>
             Connect a Controller to create its profile
-          </p>
+          </RailEmptyState>
         ) : (
           <ul className="pt-2">
             {controllerProfiles.map((profile) => (

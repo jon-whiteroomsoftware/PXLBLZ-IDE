@@ -1126,14 +1126,25 @@ Show-only navigation behavior. Gallery navigation remains in the top bar; the
 activity strip does not duplicate it.
 
 `ui/ideMicrotype.ts` records the application-wide dense-tool baseline against
-the near-black `#0b0c0f` panel. Required persistent microcopy is 10px zinc-400
-(7.63:1 measured contrast); secondary labels may use 9px but retain zinc-400;
-8px zinc-500 is reserved for nonessential ornament or transient annotations.
-Disabled controls may remain dimmer because their state is itself semantic.
-The shared Activity strip, catalogue group labels, rail empty states, entity
-facts, compact Controller badges, and inspection labels follow those roles.
-Containers recover density through line height and padding rather than making
-required text smaller or darker.
+the near-black `#0b0c0f` panel. Entity-rail and pane headers are semantic
+headings at 14px zinc-200; selectable entity names and empty states are 12px
+zinc-400 in a 16px line box, with shared rail rows no shorter than 21px.
+Required persistent microcopy is 10px zinc-400 (7.63:1 measured contrast);
+secondary labels may use 9px but retain zinc-400; 8px zinc-500 is reserved for
+nonessential ornament or transient annotations. Disabled controls may remain
+dimmer because their state is itself semantic. The shared Activity strip,
+catalogue group labels, rail empty states, entity facts, compact Controller
+badges, and inspection labels follow those roles. Stock catalogues do not apply
+parent opacity on top of these colors. Containers recover density through line
+height and padding rather than making required text smaller or darker.
+
+The authenticated responsive smoke test traverses Pattern, Map, Library,
+Controller, and Show routes at desktop and narrow widths. It verifies the
+shared heading hierarchy, keyboard reachability, the 46px collapsed Activity
+strip, and absence of document-level horizontal overflow. Map wire-order
+labels clip at the preview boundary, and the authenticated account control can
+shrink and truncate its visible handle at narrow widths without losing its
+accessible name.
 
 Selection is UI-local and has one explicit open owner across Show setup, scene,
 clip, empty slot, transition, zone, and routing switch. `ShowEditor` records the

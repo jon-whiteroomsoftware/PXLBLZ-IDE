@@ -483,10 +483,15 @@ describe('PatternList', () => {
       screen.getByText('Custom / imported').compareDocumentPosition(screen.getByText('Paths'))
         & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy()
-    expect(screen.getByText('Ring').closest('[role="button"]')).toHaveClass('text-xs', 'text-zinc-500')
+    expect(screen.getByText('Ring').closest('[role="button"]')).toHaveClass(
+      'min-h-[21px]',
+      'text-xs',
+      'leading-4',
+      'text-zinc-400',
+    )
     const squareSummary = screen.getByText('Square').closest('summary')
-    expect(squareSummary).toHaveClass('text-xs', 'text-zinc-500')
-    expect(squareSummary?.closest('li')).toHaveClass('min-h-[19px]', 'py-px')
+    expect(squareSummary).toHaveClass('text-xs', 'leading-4', 'text-zinc-400')
+    expect(squareSummary?.closest('li')).toHaveClass('min-h-[21px]', 'py-0.5')
     expect(screen.getAllByText('Cylinder')).toHaveLength(1)
     await user.click(screen.getByText('Cylinder'))
     expect(screen.getByRole('button', { name: 'Cylinder Strand 1D' })).toBeInTheDocument()
@@ -689,5 +694,15 @@ describe('PatternList', () => {
     render(<PatternList />)
     await user.click(screen.getByRole('radio', { name: 'Shows' }))
     expect(screen.queryByRole('button', { name: 'Catalog' })).not.toBeInTheDocument()
+  })
+
+  it('uses the shared legible hierarchy for Show subgroup and empty-state labels (#479)', async () => {
+    const user = userEvent.setup()
+    render(<PatternList />)
+    await user.click(screen.getByRole('radio', { name: 'Shows' }))
+
+    expect(await screen.findByText('No shows yet')).toHaveClass('text-xs', 'leading-4', 'text-zinc-400')
+    expect(screen.getByText('Portable')).toHaveClass('text-[10px]', 'text-zinc-400')
+    expect(screen.getByText('Installation')).toHaveClass('text-[10px]', 'text-zinc-400')
   })
 })

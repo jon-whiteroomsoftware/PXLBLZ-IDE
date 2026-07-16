@@ -6,6 +6,7 @@ import type { PatternRecord } from '@/store/patternStore'
 import {
   EditableListItem,
   HeaderAction,
+  RailEmptyState,
   RailEntityHeader,
   RailFilterBar,
   RailSectionScroller,
@@ -108,7 +109,7 @@ export function PatternsRailSection({
         )}
         {personalWorkspaceAuthenticated ? (
           visibleUserPatterns.length === 0 ? (
-            <p className="pl-3 pr-3 py-1 text-zinc-500 italic select-none">No patterns yet</p>
+            <RailEmptyState>No patterns yet</RailEmptyState>
           ) : (
             <ul className="pt-2">
               {visibleUserPatterns.map((pattern) => (
@@ -130,10 +131,10 @@ export function PatternsRailSection({
             </ul>
           )
         ) : (
-          <p className="pl-3 pr-3 py-2 text-zinc-500 italic select-none">
+          <RailEmptyState roomy>
             <a href="/api/auth/login" className="text-live hover:underline">Sign in</a>
             {' '}to save patterns
-          </p>
+          </RailEmptyState>
         )}
         <StockSectionHeader
           label="Built-in Patterns"
@@ -142,9 +143,9 @@ export function PatternsRailSection({
         />
         {showStockPatterns && (
           visibleStockPatterns.length === 0 ? (
-            <p className="pl-3 pr-3 py-1 text-zinc-500 italic select-none">No built-in patterns match</p>
+            <RailEmptyState>No built-in patterns match</RailEmptyState>
           ) : (
-            <ul className="pt-2 opacity-85">
+            <ul className="pt-2">
               {visibleStockPatterns.map((pattern) => (
                 <StockListItem
                   key={pattern.name}

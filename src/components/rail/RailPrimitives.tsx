@@ -4,6 +4,7 @@ import { ChevronDown, PanelLeftClose, Pencil, Search, Trash2, X } from 'lucide-r
 import { nameConflicts } from '@/engine/patternName'
 import { sanitizeLibraryNameInput } from '@/engine/libraries'
 import type { DimLens } from '@/engine/dimLens'
+import { IDE_MICROTYPE } from '@/components/ui/ideMicrotype'
 import {
   AlertDialogRoot,
   AlertDialogTrigger,
@@ -68,7 +69,7 @@ export function RailEntityHeader({
       : 'border-b border-seam px-3 py-2'}
     >
       <div className="flex min-h-5 w-full items-center gap-2">
-        <div className="flex-1 truncate text-sm font-normal text-zinc-200">{title}</div>
+        <h2 className={`flex-1 truncate font-normal ${IDE_MICROTYPE.header.className}`}>{title}</h2>
         {(action || onCollapse) && (
           <div className="flex items-center gap-1.5">
             {action}
@@ -91,7 +92,7 @@ const ROW_PAD = '12px'
 
 const rowClass = (active: boolean) =>
   [
-    'group relative flex items-center gap-1.5 pr-3 min-h-[19px] py-px cursor-pointer select-none outline-none focus-visible:ring-1 focus-visible:ring-live/70 focus-visible:ring-inset',
+    `group relative flex min-h-[21px] items-center gap-1.5 py-0.5 pr-3 cursor-pointer select-none outline-none focus-visible:ring-1 focus-visible:ring-live/70 focus-visible:ring-inset ${IDE_MICROTYPE.entity.sizeClassName}`,
     active ? 'text-live bg-live/5' : 'text-zinc-400 hover:text-zinc-300 hover:bg-zinc-800/60',
   ].join(' ')
 
@@ -103,7 +104,7 @@ function DimPill({ dim }: { dim: string }) {
   return (
     <span
       aria-hidden
-      className="shrink-0 rounded border border-zinc-700 px-1 text-[8px] leading-[1.5] font-mono uppercase tracking-wide text-zinc-400 transition-opacity group-hover:opacity-0"
+      className={`shrink-0 rounded border border-zinc-700 px-1 font-mono uppercase tracking-wide transition-opacity group-hover:opacity-0 ${IDE_MICROTYPE.secondary.className}`}
     >
       {dim}
     </span>
@@ -370,7 +371,7 @@ export function EditableListItem({
             {badge && (
               <span
                 title={badge}
-                className="shrink-0 rounded border border-live/25 bg-live/10 px-1 text-[8px] font-mono uppercase leading-[1.5] text-live/80 transition-opacity group-hover:opacity-0"
+                className={`shrink-0 rounded border border-live/25 bg-live/10 px-1 font-mono uppercase text-live/90 transition-opacity group-hover:opacity-0 ${IDE_MICROTYPE.secondary.sizeClassName}`}
               >
                 {badge}
               </span>
@@ -438,7 +439,7 @@ export function StockListItem({
       tabIndex={0}
       data-studio-space-preview="true"
       style={{ paddingLeft: ROW_PAD }}
-      className={[rowClass(active), 'text-xs', active ? '' : 'text-zinc-500'].join(' ')}
+      className={rowClass(active)}
     >
       {active && <ActiveBar />}
       <span className="flex-1 min-w-0 truncate">{name}</span>
@@ -471,6 +472,25 @@ export function StockSectionHeader({
       />
       {label}
     </button>
+  )
+}
+
+export function RailEmptyState({ children, roomy = false }: {
+  children: React.ReactNode
+  roomy?: boolean
+}) {
+  return (
+    <p className={`select-none px-3 italic ${roomy ? 'py-2' : 'py-1'} ${IDE_MICROTYPE.entity.className}`}>
+      {children}
+    </p>
+  )
+}
+
+export function RailSubsectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <h3 className={`px-3 pb-1 pt-2 font-semibold uppercase tracking-[0.12em] ${IDE_MICROTYPE.required.className}`}>
+      {children}
+    </h3>
   )
 }
 

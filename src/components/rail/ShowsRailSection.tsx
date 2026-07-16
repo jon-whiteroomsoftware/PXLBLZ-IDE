@@ -5,8 +5,10 @@ import type { StockShow } from '@/pixelblaze/stock/shows'
 import {
   EditableListItem,
   HeaderAction,
+  RailEmptyState,
   RailEntityHeader,
   RailSectionScroller,
+  RailSubsectionLabel,
   StockListItem,
   StockSectionHeader,
   type ScrollMetrics,
@@ -78,14 +80,14 @@ export function ShowsRailSection({
         onScroll={onScroll}
       >
         {!personalWorkspaceAuthenticated ? (
-          <p className="pl-3 pr-3 py-2 text-zinc-600 italic select-none">
+          <RailEmptyState roomy>
             <a href="/api/auth/login" className="text-live hover:underline">Sign in</a>
             {' '}to save shows
-          </p>
+          </RailEmptyState>
         ) : userShows.length === 0 ? (
-          <p className="pl-3 pr-3 py-1 text-zinc-600 italic select-none">
+          <RailEmptyState>
             No shows yet
-          </p>
+          </RailEmptyState>
         ) : (
           <ul className="pt-2">
             {userShows.map((show) => (
@@ -110,10 +112,10 @@ export function ShowsRailSection({
         />
         {showStockShows && (['portable', 'installation'] as const).map((track) => (
           <section key={track} aria-label={`${track === 'portable' ? 'Portable' : 'Installation'} built-in Shows`}>
-            <h3 className="px-3 pb-1 pt-2 text-[9px] font-semibold uppercase tracking-[0.12em] text-zinc-600">
+            <RailSubsectionLabel>
               {track === 'portable' ? 'Portable' : 'Installation'}
-            </h3>
-            <ul className="opacity-90">
+            </RailSubsectionLabel>
+            <ul>
               {stockShows.filter((item) => item.track === track).map((item) => (
                 <StockListItem
                   key={item.id}

@@ -299,7 +299,7 @@ export function MapContextPane() {
         </h2>
         <MapCountStatus context={context} />
       </div>
-      <div ref={containerRef} className="relative shrink-0 border-b border-seam bg-black">
+      <div ref={containerRef} className="relative shrink-0 overflow-hidden border-b border-seam bg-black">
         {hasGeometry ? (
           <div className="relative inline-block max-w-full">
             <canvas ref={canvasRef} data-testid="map-wiring-canvas" className="block max-w-full rounded-sm" />

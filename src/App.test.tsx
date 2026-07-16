@@ -146,7 +146,7 @@ describe('App smoke test', () => {
     expect(pane).toHaveStyle({ width: '46px' })
     expect(screen.getByRole('radiogroup', { name: 'Studio activity' })).toBeInTheDocument()
     expect(screen.getByRole('radio', { name: 'Patterns' })).toHaveClass('text-[10px]')
-    expect(screen.getByRole('radio', { name: 'Maps' })).toHaveClass('text-zinc-500')
+    expect(screen.getByRole('radio', { name: 'Maps' })).toHaveClass('text-zinc-400')
     expect(screen.getByRole('button', { name: 'Expand library' })).toHaveClass(
       'absolute',
       'left-1/2',

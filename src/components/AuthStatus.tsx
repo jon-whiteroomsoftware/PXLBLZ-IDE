@@ -77,14 +77,14 @@ export function AuthStatus() {
       .filter((provider) => !connectedProviders.has(provider))
 
     return (
-      <div ref={accountRef} className="relative flex max-w-52 items-center max-[980px]:max-w-36">
+      <div ref={accountRef} className="relative flex min-w-0 max-w-52 items-center max-[980px]:max-w-36 max-[760px]:max-w-28">
         <button
           type="button"
           aria-label={`Account menu for ${label}`}
           aria-haspopup="menu"
           aria-expanded={accountOpen}
           onClick={() => setAccountOpen((open) => !open)}
-          className={`flex h-7 w-full cursor-pointer items-center gap-1.5 rounded-[min(var(--radius-md),12px)] border pl-1.5 pr-1.5 font-mono text-xs transition-colors select-none focus:outline-none focus-visible:ring-2 focus-visible:ring-zinc-500/40 ${
+          className={`flex h-7 min-w-0 w-full cursor-pointer items-center gap-1.5 rounded-[min(var(--radius-md),12px)] border pl-1.5 pr-1.5 font-mono text-xs transition-colors select-none focus:outline-none focus-visible:ring-2 focus-visible:ring-zinc-500/40 ${
             accountOpen
               ? 'border-zinc-500 bg-zinc-800 text-zinc-100'
               : 'border-zinc-700 bg-zinc-900 text-zinc-300 hover:border-zinc-500 hover:text-zinc-100'
@@ -100,7 +100,7 @@ export function AuthStatus() {
           ) : (
             <CircleUser size={16} className="shrink-0 text-zinc-500" aria-hidden />
           )}
-          <span className="max-w-32 truncate">{label}</span>
+          <span className="min-w-0 max-w-32 truncate">{label}</span>
           <ChevronDown
             size={13}
             aria-hidden

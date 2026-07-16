@@ -4,6 +4,7 @@ import { STOCK_MIXIN_ITEMS, type EditingMixin, type MixinRecord } from '@/store/
 import {
   EditableListItem,
   HeaderAction,
+  RailEmptyState,
   RailEntityHeader,
   RailSectionScroller,
   StockListItem,
@@ -58,14 +59,14 @@ export function MixinsRailSection({
         onScroll={onScroll}
       >
         {!personalWorkspaceAuthenticated ? (
-          <p className="pl-3 pr-3 py-2 text-zinc-500 italic select-none">
+          <RailEmptyState roomy>
             <a href="/api/auth/login" className="text-live hover:underline">Sign in</a>
             {' '}to save mixins
-          </p>
+          </RailEmptyState>
         ) : userMixins.length === 0 ? (
-          <p className="pl-3 pr-3 py-1 text-zinc-500 italic select-none">
+          <RailEmptyState>
             No cloud mixins yet
-          </p>
+          </RailEmptyState>
         ) : (
           <ul className="pt-2">
             {userMixins.map((mixin) => (
@@ -89,7 +90,7 @@ export function MixinsRailSection({
           onToggle={onToggleStockMixins}
         />
         {showStockMixins && (
-          <ul className="pt-2 opacity-85">
+          <ul className="pt-2">
             {STOCK_MIXIN_ITEMS.map((mixin) => (
               <StockListItem
                 key={mixin.id}
