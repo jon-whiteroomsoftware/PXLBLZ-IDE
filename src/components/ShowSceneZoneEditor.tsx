@@ -58,6 +58,7 @@ export function ShowSceneZoneEditor({
   onDeleteOverlayLayer,
   onAddOverlay,
   onUpdateOverlay,
+  onSplitOverlay,
   onDeleteOverlay,
   onAddPropertyTrack,
   onDeletePropertyTrack,
@@ -89,6 +90,7 @@ export function ShowSceneZoneEditor({
   onDeleteOverlayLayer: (layerId: string) => void
   onAddOverlay: (layerId: string, input: { pattern: ShowPatternRef; patternName: string; startMs: number; durationMs: number }) => void
   onUpdateOverlay: (layerId: string, placementId: string, changes: { startMs: number; durationMs: number; opacity?: number; targetLayerId?: string }) => void
+  onSplitOverlay: (layerId: string, placementId: string, atMs: number) => void
   onDeleteOverlay: (layerId: string, placementId: string) => void
   onAddPropertyTrack: (input: { target: ShowPropertyAnimationTarget; initialValue: number; atMs: number }) => void
   onDeletePropertyTrack: (trackId: string) => void
@@ -101,11 +103,24 @@ export function ShowSceneZoneEditor({
   onDeletePropertyKeyframe: (trackId: string, keyframeId: string) => void
 }) {
   const [selectedMainId, setSelectedMainId] = useState<string | null>(null)
-  const [selectedOverlay, setSelectedOverlay] = useState<{ layerId: string; placementId: string } | null>(null)
+  const [selectedOverlayId, setSelectedOverlayId] = useState<string | null>(null)
   const [newPatternKey, setNewPatternKey] = useState('')
   const [drag, setDrag] = useState<
     | { kind: 'main'; placementId: string; grabOffsetMs: number; startMs: number }
-    | { kind: 'overlay'; placementId: string; sourceLayerId: string; targetLayerId: string; grabOffsetMs: number; startMs: number; originClientY: number }
+    | {
+      kind: 'overlay'
+      placementId: string
+      patternName: string
+      sourceLayerId: string
+      targetLayerId: string
+      grabOffsetMs: number
+      startMs: number
+      originClientY: number
+      pointerClientX: number
+      pointerClientY: number
+      grabOffsetPx: number
+      widthPx: number
+    }
     | null
   >(null)
   const [layerDrag, setLayerDrag] = useState<{ layerId: string; targetLayerId: string; originClientY: number } | null>(null)
@@ -113,13 +128,15 @@ export function ShowSceneZoneEditor({
   const [selectedKeyframe, setSelectedKeyframe] = useState<{ trackId: string; keyframeId: string } | null>(null)
   const pendingLocalSeekRef = useRef<number | null>(null)
   const resumeAfterLocalSeekRef = useRef(false)
+  const suppressTrackSeekUntilRef = useRef(0)
+  const localScrollRef = useRef<HTMLDivElement>(null)
   const detail = projectShowSceneEditorScope(compositionProjection, scope)
   const hasDetail = Boolean(detail)
   const positionMs = useShowTransportStore((state) => state.showId === show.id ? state.positionMs : 0)
   const diagnostics = useShowEditorSessionStore((state) => state.diagnostics)
   const setDiagnostic = useShowEditorSessionStore((state) => state.setDiagnostic)
   const setDiagnosticFocus = useShowEditorSessionStore((state) => state.setDiagnosticFocus)
-  const focusedPlacementId = selectedMainId ?? selectedOverlay?.placementId ?? null
+  const focusedPlacementId = selectedMainId ?? selectedOverlayId
 
   useEffect(() => {
     if (!hasDetail) return
@@ -134,6 +151,26 @@ export function ShowSceneZoneEditor({
   useEffect(() => () => {
     if (useShowEditorSessionStore.getState().diagnosticFocus?.showId === show.id) setDiagnosticFocus(null)
   }, [setDiagnosticFocus, show.id])
+
+  useEffect(() => {
+    const element = localScrollRef.current
+    if (!element) return
+    const handleWheel = (event: globalThis.WheelEvent) => {
+      const horizontalDelta = Math.abs(event.deltaX) > Math.abs(event.deltaY)
+        ? event.deltaX
+        : event.shiftKey
+          ? event.deltaY
+          : 0
+      if (!horizontalDelta) return
+      const maxScrollLeft = Math.max(0, element.scrollWidth - element.clientWidth)
+      const nextScrollLeft = clamp(element.scrollLeft + horizontalDelta, 0, maxScrollLeft)
+      if (nextScrollLeft === element.scrollLeft) return
+      event.preventDefault()
+      element.scrollLeft = nextScrollLeft
+    }
+    element.addEventListener('wheel', handleWheel, { passive: false })
+    return () => element.removeEventListener('wheel', handleWheel)
+  }, [hasDetail])
 
   if (!detail) {
     return (
@@ -169,18 +206,18 @@ export function ShowSceneZoneEditor({
   const selectedInstance = selectedMain
     ? show.composition?.patternInstances.find((instance) => instance.id === selectedMain.instanceId)
     : null
-  const selectedOverlayLayer = selectedOverlay
-    ? detail.overlayLayers.find((layer) => layer.id === selectedOverlay.layerId) ?? null
+  const selectedOverlayLayer = selectedOverlayId
+    ? detail.overlayLayers.find((layer) => layer.placements.some((placement) => placement.id === selectedOverlayId)) ?? null
     : null
   const selectedOverlayPlacement = selectedOverlayLayer
-    ?.placements.find((placement) => placement.id === selectedOverlay?.placementId) ?? null
+    ?.placements.find((placement) => placement.id === selectedOverlayId) ?? null
   const sceneComposition = show.composition?.scenes.find((scene) => scene.sceneId === scope.sceneId)
   const zoneComposition = sceneComposition?.zones.find((zone) => zone.zoneId === scope.zoneId)
   const selectedAuthoredPlacement = selectedMainId
     ? zoneComposition?.main.find((placement) => placement.id === selectedMainId)
-    : selectedOverlay
-      ? zoneComposition?.overlays.find((layer) => layer.id === selectedOverlay.layerId)
-        ?.placements.find((placement) => placement.id === selectedOverlay.placementId)
+    : selectedOverlayId
+      ? zoneComposition?.overlays.flatMap((layer) => layer.placements)
+        .find((placement) => placement.id === selectedOverlayId)
       : undefined
   const selectedAuthoredInstance = selectedAuthoredPlacement
     ? show.composition?.patternInstances.find((instance) => instance.id === selectedAuthoredPlacement.instanceId)
@@ -222,17 +259,17 @@ export function ShowSceneZoneEditor({
     && !detail.mainPlacements.some((placement) => placement.startMs <= addStartMs && placement.endMs > addStartMs)
     && nextStartMs > addStartMs
   const seekFromTrack = (event: MouseEvent<HTMLDivElement>) => {
+    if (Date.now() < suppressTrackSeekUntilRef.current) return
     const bounds = event.currentTarget.getBoundingClientRect()
     const fraction = clamp((event.clientX - bounds.left) / Math.max(1, bounds.width), 0, 1)
     onSeek(detail.globalStartMs + fraction * durationMs)
   }
-
   return (
     <section
       role="region"
       aria-label={`${detail.scene.name} ${detail.zone.name} Scene editor`}
       data-testid="show-scene-zone-editor"
-      className="border-b border-seam bg-[#060608] shadow-[inset_0_6px_14px_-8px_rgba(0,0,0,0.9),inset_0_-6px_14px_-10px_rgba(0,0,0,0.9)]"
+      className="min-w-0 overflow-hidden border-b border-seam bg-[#060608] shadow-[inset_0_6px_14px_-8px_rgba(0,0,0,0.9),inset_0_-6px_14px_-10px_rgba(0,0,0,0.9)]"
     >
       <header className="flex h-9 min-w-0 items-center gap-1 border-b border-zinc-800 bg-[#0d1116] px-2 text-[10px]">
         <button
@@ -333,6 +370,11 @@ export function ShowSceneZoneEditor({
         </div>
       </div>
 
+      <div
+        ref={localScrollRef}
+        data-testid="scene-local-scroll"
+        className="min-w-0 overflow-x-auto overscroll-x-contain"
+      >
       <div className="min-w-[620px] px-3 pb-4 pt-2">
         <div className="grid h-6 grid-cols-[136px_minmax(0,1fr)] border border-zinc-800 bg-[#0d1014] text-[9px] text-zinc-500">
           <span className="flex items-center border-r border-zinc-800 px-2 uppercase tracking-[0.1em]">Local time</span>
@@ -454,42 +496,56 @@ export function ShowSceneZoneEditor({
                     })}
                     className="grid size-5 shrink-0 place-items-center text-emerald-500 hover:text-emerald-200 disabled:opacity-20"
                   ><Plus size={10} /></button>
-                  <button type="button" aria-label={`Delete ${layer.name} layer`} disabled={readOnly} onClick={() => { onDeleteOverlayLayer(layer.id); setSelectedOverlay(null) }} className="grid size-5 shrink-0 place-items-center text-zinc-600 hover:text-red-300 disabled:opacity-20"><Trash2 size={10} /></button>
+                  <button type="button" aria-label={`Delete ${layer.name} layer`} disabled={readOnly} onClick={() => { onDeleteOverlayLayer(layer.id); setSelectedOverlayId(null) }} className="grid size-5 shrink-0 place-items-center text-zinc-600 hover:text-red-300 disabled:opacity-20"><Trash2 size={10} /></button>
                 </span>
-                <div className="relative bg-[repeating-linear-gradient(90deg,transparent_0_calc(12.5%-1px),#181d23_calc(12.5%-1px)_12.5%)]" onClick={seekFromTrack}>
+                <div
+                  data-testid={`scene-overlay-lane-${layer.id}`}
+                  data-drop-target={drag?.kind === 'overlay' && drag.targetLayerId === layer.id ? 'true' : 'false'}
+                  className={`relative bg-[repeating-linear-gradient(90deg,transparent_0_calc(12.5%-1px),#181d23_calc(12.5%-1px)_12.5%)] transition-[box-shadow,background-color] ${
+                    drag?.kind === 'overlay' && drag.targetLayerId === layer.id
+                      ? 'bg-emerald-400/[0.06] shadow-[inset_0_0_0_1px_rgba(110,231,183,0.35)]'
+                      : ''
+                  }`}
+                  onClick={seekFromTrack}
+                >
                   <SceneTimingGuides timesMs={otherZoneGuideTimes} durationMs={durationMs} />
                   {layer.placements.map((placement) => {
                     const placementDurationMs = placement.endMs - placement.startMs
-                    const renderedStartMs = drag?.kind === 'overlay' && drag.placementId === placement.id
-                      ? drag.startMs
-                      : placement.startMs
-                    const targetLayerIndex = drag?.kind === 'overlay' && drag.placementId === placement.id
-                      ? detail.overlayLayers.findIndex((candidate) => candidate.id === drag.targetLayerId)
-                      : layerIndex
+                    const isDragging = drag?.kind === 'overlay' && drag.placementId === placement.id
                     return (
                     <button
                       key={placement.id}
                       type="button"
                       aria-label={`Select ${placement.patternName} clip in ${layer.name}`}
+                      aria-pressed={selectedOverlayId === placement.id}
                       onClick={(event) => {
                         event.stopPropagation()
                         setSelectedMainId(null)
-                        setSelectedOverlay({ layerId: layer.id, placementId: placement.id })
+                        setSelectedOverlayId(placement.id)
                       }}
                       onPointerDown={(event) => {
                         if (readOnly || event.button !== 0) return
                         const track = event.currentTarget.parentElement?.getBoundingClientRect()
                         if (!track) return
+                        const clipBounds = event.currentTarget.getBoundingClientRect()
                         const atMs = clamp((event.clientX - track.left) / Math.max(1, track.width), 0, 1) * durationMs
+                        suppressTrackSeekUntilRef.current = Date.now() + 500
+                        setSelectedMainId(null)
+                        setSelectedOverlayId(placement.id)
                         event.currentTarget.setPointerCapture(event.pointerId)
                         setDrag({
                           kind: 'overlay',
                           placementId: placement.id,
+                          patternName: placement.patternName,
                           sourceLayerId: layer.id,
                           targetLayerId: layer.id,
                           grabOffsetMs: atMs - placement.startMs,
                           startMs: placement.startMs,
                           originClientY: event.clientY,
+                          pointerClientX: event.clientX,
+                          pointerClientY: event.clientY,
+                          grabOffsetPx: event.clientX - clipBounds.left,
+                          widthPx: clipBounds.width,
                         })
                       }}
                       onPointerMove={(event: PointerEvent<HTMLButtonElement>) => {
@@ -515,7 +571,13 @@ export function ShowSceneZoneEditor({
                           atMs - drag.grabOffsetMs,
                           durationMs * 8 / Math.max(1, track.width),
                         )
-                        setDrag({ ...drag, targetLayerId, startMs })
+                        setDrag({
+                          ...drag,
+                          targetLayerId,
+                          startMs,
+                          pointerClientX: event.clientX,
+                          pointerClientY: event.clientY,
+                        })
                       }}
                       onPointerUp={(event) => {
                         if (drag?.kind !== 'overlay' || drag.placementId !== placement.id) return
@@ -529,15 +591,13 @@ export function ShowSceneZoneEditor({
                       }}
                       onPointerCancel={() => setDrag(null)}
                       className={`absolute inset-y-1 overflow-hidden rounded-[4px] border-l-[3px] px-2 text-left text-[9px] ${
-                        selectedOverlay?.layerId === layer.id && selectedOverlay.placementId === placement.id
+                        selectedOverlayId === placement.id
                           ? 'border-emerald-200 bg-emerald-700/40 text-white outline outline-1 outline-emerald-300/60'
                           : 'border-emerald-400/70 bg-emerald-900/30 text-emerald-50 hover:bg-emerald-800/40'
-                      }`}
+                      } ${isDragging ? 'border-dashed opacity-25' : ''}`}
                       style={{
-                        left: `${renderedStartMs / durationMs * 100}%`,
+                        left: `${placement.startMs / durationMs * 100}%`,
                         width: `${Math.max(2, (placement.endMs - placement.startMs) / durationMs * 100)}%`,
-                        transform: targetLayerIndex === layerIndex ? undefined : `translateY(${(targetLayerIndex - layerIndex) * 40}px)`,
-                        zIndex: targetLayerIndex === layerIndex ? undefined : 30,
                       }}
                     >
                       <strong className="font-medium">{placement.patternName}</strong>
@@ -561,7 +621,14 @@ export function ShowSceneZoneEditor({
                       {detail.overlayLayers.map((candidate) => <option key={candidate.id} value={candidate.id}>{candidate.name}</option>)}
                     </select>
                   </label>
-                  <button type="button" aria-label="Delete overlay clip" disabled={readOnly} onClick={() => { onDeleteOverlay(layer.id, selectedOverlayPlacement.id); setSelectedOverlay(null) }} className="ml-auto grid size-6 shrink-0 place-items-center rounded border border-zinc-800 text-zinc-500 hover:text-red-300 disabled:opacity-30"><Trash2 size={11} /></button>
+                  <button
+                    type="button"
+                    aria-label="Split overlay clip at playhead"
+                    disabled={readOnly || localTimeMs <= selectedOverlayPlacement.startMs || localTimeMs >= selectedOverlayPlacement.endMs}
+                    onClick={() => onSplitOverlay(layer.id, selectedOverlayPlacement.id, Math.round(localTimeMs))}
+                    className="ml-auto grid size-6 shrink-0 place-items-center rounded border border-zinc-800 text-zinc-400 hover:text-white disabled:opacity-30"
+                  ><Scissors size={11} aria-hidden /></button>
+                  <button type="button" aria-label="Delete overlay clip" disabled={readOnly} onClick={() => { onDeleteOverlay(layer.id, selectedOverlayPlacement.id); setSelectedOverlayId(null) }} className="grid size-6 shrink-0 place-items-center rounded border border-zinc-800 text-zinc-500 hover:text-red-300 disabled:opacity-30"><Trash2 size={11} /></button>
                 </div>
               )}
             </div>
@@ -592,7 +659,7 @@ export function ShowSceneZoneEditor({
                 onClick={(event) => {
                   event.stopPropagation()
                   if (compositionMode) {
-                    setSelectedOverlay(null)
+                    setSelectedOverlayId(null)
                     setSelectedMainId(placement.id)
                   }
                   else onSelectClip(placement.sourceCellId, event.currentTarget)
@@ -602,6 +669,9 @@ export function ShowSceneZoneEditor({
                   const track = event.currentTarget.parentElement?.getBoundingClientRect()
                   if (!track) return
                   const atMs = clamp((event.clientX - track.left) / Math.max(1, track.width), 0, 1) * durationMs
+                  suppressTrackSeekUntilRef.current = Date.now() + 500
+                  setSelectedOverlayId(null)
+                  setSelectedMainId(placement.id)
                   event.currentTarget.setPointerCapture(event.pointerId)
                   setDrag({
                     kind: 'main',
@@ -757,6 +827,24 @@ export function ShowSceneZoneEditor({
           </div>
         )}
       </div>
+      </div>
+
+      {drag?.kind === 'overlay' && (
+        <div
+          data-testid="scene-overlay-drag-ghost"
+          className="pointer-events-none fixed z-[90] flex h-8 items-center overflow-hidden rounded-[4px] border border-emerald-200/80 border-l-[3px] bg-emerald-700/75 px-2 text-[9px] text-white opacity-90 shadow-[0_8px_24px_rgba(0,0,0,0.5),0_0_0_1px_rgba(110,231,183,0.35)]"
+          style={{
+            left: drag.pointerClientX - drag.grabOffsetPx,
+            top: drag.pointerClientY - 16,
+            width: Math.max(28, drag.widthPx),
+          }}
+        >
+          <strong className="truncate font-medium">{drag.patternName}</strong>
+          <span className="ml-auto shrink-0 pl-2 text-[8px] text-emerald-100/80">
+            → {detail.overlayLayers.find((layer) => layer.id === drag.targetLayerId)?.name}
+          </span>
+        </div>
+      )}
     </section>
   )
 }

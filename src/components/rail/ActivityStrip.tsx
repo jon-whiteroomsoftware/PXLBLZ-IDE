@@ -12,9 +12,9 @@ const ACTIVITY_ENTRIES: Array<{
   icon: React.ReactNode
 }> = [
   { kind: 'patterns', label: 'Patterns', short: 'PTRN', icon: <FileCode2 size={17} /> },
-  { kind: 'maps', label: 'Maps', short: 'MAPS', icon: <MapIcon size={17} /> },
+  { kind: 'maps', label: 'Maps', short: 'MAP', icon: <MapIcon size={17} /> },
   { kind: 'mixins', label: 'Mixins', short: 'MIXN', icon: <Braces size={17} /> },
-  { kind: 'libraries', label: 'Libraries', short: 'LIBS', icon: <BookOpen size={17} /> },
+  { kind: 'libraries', label: 'Libraries', short: 'LIB', icon: <BookOpen size={17} /> },
   { kind: 'controllers', label: 'Controllers', short: 'CTRL', icon: <Cpu size={17} /> },
   { kind: 'shows', label: 'Shows', short: 'SHOW', icon: <PanelsTopLeft size={17} /> },
 ]

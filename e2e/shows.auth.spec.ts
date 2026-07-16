@@ -909,6 +909,8 @@ test.describe('authenticated Show authoring', () => {
     await page.mouse.move(bounds!.x + Math.min(12, bounds!.width / 2), bounds!.y + bounds!.height / 2)
     await page.mouse.down()
     await page.mouse.move(bounds!.x + Math.min(18, bounds!.width / 2), bounds!.y + bounds!.height / 2 + 48, { steps: 4 })
+    await expect(page.getByTestId('scene-overlay-drag-ghost')).toContainText('TestPattern1D')
+    await expect(page.locator('[data-drop-target="true"]')).toHaveCount(1)
     await page.mouse.up()
 
     // A fully occupied target has no legal before/after position, so the first
@@ -921,15 +923,20 @@ test.describe('authenticated Show authoring', () => {
     const retryClip = page.getByRole('button', { name: 'Select TestPattern1D clip in Overlay 1' })
     const retryBounds = await retryClip.boundingBox()
     expect(retryBounds).not.toBeNull()
+    const playheadBeforeDrag = await page.getByRole('slider', { name: 'Scene playhead' }).inputValue()
     await page.mouse.move(retryBounds!.x + Math.min(12, retryBounds!.width / 2), retryBounds!.y + retryBounds!.height / 2)
     await page.mouse.down()
     await page.mouse.move(retryBounds!.x + Math.min(18, retryBounds!.width / 2), retryBounds!.y + retryBounds!.height / 2 + 48, { steps: 4 })
+    await expect(page.getByTestId('scene-overlay-drag-ghost')).toContainText('TestPattern1D')
     await page.mouse.up()
 
     await waitForCurrentShow(page, (show) => (
       show.composition?.scenes[0]?.zones?.[0]?.overlays?.[0]?.placements.length === 0
       && show.composition.scenes[0].zones[0].overlays[1]?.placements.length === 1
     ))
+    await expect(page.getByRole('button', { name: 'Select TestPattern1D clip in Overlay 2' })).toHaveAttribute('aria-pressed', 'true')
+    await expect(page.getByRole('spinbutton', { name: 'Overlay start ms' })).toBeVisible()
+    await expect(page.getByRole('slider', { name: 'Scene playhead' })).toHaveValue(playheadBeforeDrag)
 
     await page.getByRole('button', { name: 'Reorder Overlay 2 layer' }).press('ArrowUp')
     await waitForCurrentShow(page, (show) => show.composition?.scenes[0]?.zones?.[0]?.overlays?.[0]?.name === 'Overlay 2')
@@ -949,6 +956,19 @@ test.describe('authenticated Show authoring', () => {
 
     await page.setViewportSize({ width: 720, height: 900 })
     await expect(page.getByTestId('show-scene-zone-editor')).toBeVisible()
+    const localScroller = page.getByTestId('scene-local-scroll')
+    const scrollMetrics = await localScroller.evaluate((element) => ({
+      clientWidth: element.clientWidth,
+      scrollWidth: element.scrollWidth,
+      scrollLeft: element.scrollLeft,
+    }))
+    expect(scrollMetrics.scrollWidth).toBeGreaterThan(scrollMetrics.clientWidth)
+    await localScroller.hover()
+    await page.mouse.wheel(0, 120)
+    await page.keyboard.down('Shift')
+    await page.mouse.wheel(0, 120)
+    await page.keyboard.up('Shift')
+    await expect.poll(() => localScroller.evaluate((element) => element.scrollLeft)).toBeGreaterThan(scrollMetrics.scrollLeft)
     expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(8)
     expect(consoleErrors).toEqual([])
   })

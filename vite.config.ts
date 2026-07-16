@@ -107,6 +107,9 @@ export default defineConfig(({ mode }) => {
       environment: 'jsdom',
       globals: true,
       setupFiles: ['./src/test/setup.ts'],
+      // Unbounded file fan-out overwhelms jsdom on developer Macs and causes
+      // otherwise healthy tests to exceed their local per-test timeouts.
+      maxWorkers: 4,
       // Playwright E2E specs live in e2e/ and are run by Playwright, not Vitest.
       exclude: ['e2e/**', 'node_modules/**'],
     },

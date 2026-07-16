@@ -347,6 +347,33 @@ export function trimShowOverlayPlacement(
   })
 }
 
+export function splitShowOverlayPlacement(
+  show: Pick<ShowRecord, 'scenes' | 'zones'>,
+  composition: ShowCompositionV1,
+  input: ShowOverlayPlacementOwner & { atMs: number; newPlacementId: string },
+): ShowCompositionV1 {
+  return commitValidEdit(show, composition, (draft) => {
+    const layer = findOverlayLayer(draft, input)
+    const placement = layer?.placements.find((candidate) => candidate.id === input.placementId)
+    if (!layer || !placement) return false
+    const endMs = placement.startMs + placement.durationMs
+    if (input.atMs <= placement.startMs || input.atMs >= endMs) return false
+    const idExists = draft.scenes.some((scene) => scene.zones.some((zone) => (
+      zone.main.some((candidate) => candidate.id === input.newPlacementId)
+      || zone.overlays.some((candidate) => candidate.placements.some((item) => item.id === input.newPlacementId))
+    )))
+    if (idExists) return false
+    const right = cloneJson(placement)
+    right.id = input.newPlacementId
+    right.startMs = input.atMs
+    right.durationMs = endMs - input.atMs
+    placement.durationMs = input.atMs - placement.startMs
+    layer.placements.push(right)
+    clonePlacementTracks(draft, input.sceneId, placement.id, input.newPlacementId)
+    return true
+  })
+}
+
 export function deleteShowOverlayPlacement(
   composition: ShowCompositionV1,
   input: ShowOverlayPlacementOwner,

@@ -58,6 +58,7 @@ const editingProps = {
   onDeleteOverlayLayer: vi.fn(),
   onAddOverlay: vi.fn(),
   onUpdateOverlay: vi.fn(),
+  onSplitOverlay: vi.fn(),
   onDeleteOverlay: vi.fn(),
   onAddPropertyTrack: vi.fn(),
   onDeletePropertyTrack: vi.fn(),
@@ -391,6 +392,7 @@ describe('ShowSceneZoneEditor (#487)', () => {
       stageDimension: 1,
     })
     const onUpdateOverlay = vi.fn()
+    const onSeek = vi.fn()
     render(<ShowSceneZoneEditor
       show={show}
       compositionProjection={projection}
@@ -401,7 +403,7 @@ describe('ShowSceneZoneEditor (#487)', () => {
       onBack={vi.fn()}
       onZoneChange={vi.fn()}
       onSelectClip={vi.fn()}
-      onSeek={vi.fn()}
+      onSeek={onSeek}
       {...editingProps}
       onUpdateOverlay={onUpdateOverlay}
     />)
@@ -425,10 +427,85 @@ describe('ShowSceneZoneEditor (#487)', () => {
 
     fireEvent.pointerDown(clip, { pointerId: 2, button: 0, clientX: 4, clientY: 10 })
     fireEvent.pointerMove(clip, { pointerId: 2, buttons: 1, clientX: 8, clientY: 30 })
+    expect(screen.getByTestId('scene-overlay-drag-ghost')).toHaveTextContent('CometLoom')
+    expect(screen.getByTestId('scene-overlay-lane-overlay-back')).toHaveAttribute('data-drop-target', 'true')
     fireEvent.pointerUp(clip, { pointerId: 2, button: 0, clientX: 8, clientY: 30 })
     expect(onUpdateOverlay).toHaveBeenLastCalledWith('overlay-front', 'overlay-placement', expect.objectContaining({
       targetLayerId: 'overlay-back',
     }))
+    expect(screen.getByRole('button', { name: 'Select CometLoom clip in Front texture' })).toHaveAttribute('aria-pressed', 'true')
+    fireEvent.click(screen.getByTestId('scene-overlay-lane-overlay-back'), { clientX: 50 })
+    expect(onSeek).not.toHaveBeenCalled()
+  })
+
+  it('owns narrow horizontal overflow and maps Shift+wheel to the Scene-local rail (#491)', () => {
+    const { show, projection } = compositionFixture()
+    render(<ShowSceneZoneEditor
+      show={show}
+      compositionProjection={projection}
+      scope={{ sceneId: 'scene-1', zoneId: 'zone-1' }}
+      readOnly={false}
+      selectedClipId={null}
+      transport={null}
+      onBack={vi.fn()}
+      onZoneChange={vi.fn()}
+      onSelectClip={vi.fn()}
+      onSeek={vi.fn()}
+      {...editingProps}
+    />)
+
+    const scroller = screen.getByTestId('scene-local-scroll')
+    Object.defineProperties(scroller, {
+      clientWidth: { configurable: true, value: 400 },
+      scrollWidth: { configurable: true, value: 620 },
+      scrollLeft: { configurable: true, writable: true, value: 0 },
+    })
+    fireEvent.wheel(scroller, { deltaY: 80 })
+    expect(scroller.scrollLeft).toBe(0)
+    fireEvent.wheel(scroller, { deltaY: 80, shiftKey: true })
+    expect(scroller.scrollLeft).toBe(80)
+  })
+
+  it('offers Split for a selected overlay clip at the local playhead (#491)', () => {
+    const { show } = compositionFixture()
+    const composition = addShowOverlayLayer(show, show.composition!, {
+      sceneId: 'scene-1', zoneId: 'zone-1', layer: { id: 'overlay-front', name: 'Front texture', placements: [] },
+    })
+    show.composition = addShowOverlayClip(show, composition, {
+      sceneId: 'scene-1', zoneId: 'zone-1', layerId: 'overlay-front',
+      instance: {
+        id: 'overlay-instance', pattern: { kind: 'stock', id: 'CometLoom' }, patternName: 'CometLoom',
+        time: { timeScale: 1, timeOffsetMs: 0 },
+      },
+      placement: {
+        id: 'overlay-placement', instanceId: 'overlay-instance', startMs: 1_000, durationMs: 5_000,
+        opacity: 0.6, view: { mirror: false, phase: 0, brightness: 1 },
+      },
+    })
+    const projection = projectFlatShowComposition(show, {
+      byCellId: Object.fromEntries(show.cells.map((cell) => [cell.id, source])),
+      stageDimension: 1,
+    })
+    useShowTransportStore.setState({ showId: show.id, positionMs: 3_000 })
+    const onSplitOverlay = vi.fn()
+    render(<ShowSceneZoneEditor
+      show={show}
+      compositionProjection={projection}
+      scope={{ sceneId: 'scene-1', zoneId: 'zone-1' }}
+      readOnly={false}
+      selectedClipId={null}
+      transport={null}
+      onBack={vi.fn()}
+      onZoneChange={vi.fn()}
+      onSelectClip={vi.fn()}
+      onSeek={vi.fn()}
+      {...editingProps}
+      onSplitOverlay={onSplitOverlay}
+    />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Select CometLoom clip in Front texture' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Split overlay clip at playhead' }))
+    expect(onSplitOverlay).toHaveBeenCalledWith('overlay-front', 'overlay-placement', 3_000)
   })
 
   it('offers keyboard-equivalent layer reordering from one compact handle (#491)', () => {

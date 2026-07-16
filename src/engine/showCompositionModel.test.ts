@@ -24,6 +24,7 @@ import {
   resolveShowMainPlacementStart,
   restartShowMainPlacement,
   splitShowMainPlacement,
+  splitShowOverlayPlacement,
   trimShowMainPlacement,
   trimShowOverlayPlacement,
   validateShowComposition,
@@ -443,5 +444,45 @@ describe('Show composition v1 Main schedule (#488)', () => {
       sceneId: 'scene-1', zoneId: 'zone-1', layerId: 'layer-front', placementId: 'overlay-back',
     })
     expect(deleted.scenes[0].zones[0].overlays[0].placements.map((item) => item.id)).toEqual(['overlay-front'])
+  })
+
+  it('splits an overlay clip at the local playhead while preserving Continue identity and animation tracks', () => {
+    const { show, composition } = fixture()
+    const withLayer = addShowOverlayLayer(show, composition, {
+      sceneId: 'scene-1', zoneId: 'zone-1', layer: { id: 'layer-front', name: 'Front', placements: [] },
+    })
+    const withClip = addShowOverlayClip(show, withLayer, {
+      sceneId: 'scene-1', zoneId: 'zone-1', layerId: 'layer-front',
+      instance: {
+        id: 'instance-overlay', pattern: { kind: 'stock', id: 'Caustics' }, patternName: 'Caustics',
+        time: { timeScale: 1, timeOffsetMs: 0 },
+      },
+      placement: {
+        id: 'overlay-left', instanceId: 'instance-overlay', startMs: 1_000, durationMs: 4_000, opacity: 0.6,
+        view: { mirror: false, phase: 0, brightness: 1 },
+      },
+    })
+    withClip.scenes[0].propertyTracks = [{
+      id: 'overlay-brightness',
+      target: { kind: 'placement-view', placementId: 'overlay-left', property: 'brightness' },
+      keyframes: [
+        { id: 'brightness-a', timeMs: 1_000, value: 0.5, easing: { curve: 'linear' } },
+        { id: 'brightness-b', timeMs: 4_000, value: 1, easing: { curve: 'linear' } },
+      ],
+    }]
+
+    const split = splitShowOverlayPlacement(show, withClip, {
+      sceneId: 'scene-1', zoneId: 'zone-1', layerId: 'layer-front', placementId: 'overlay-left',
+      atMs: 2_500, newPlacementId: 'overlay-right',
+    })
+
+    expect(split.scenes[0].zones[0].overlays[0].placements).toMatchObject([
+      { id: 'overlay-left', instanceId: 'instance-overlay', startMs: 1_000, durationMs: 1_500, opacity: 0.6 },
+      { id: 'overlay-right', instanceId: 'instance-overlay', startMs: 2_500, durationMs: 2_500, opacity: 0.6 },
+    ])
+    expect(split.scenes[0].propertyTracks?.map((track) => track.target)).toEqual(expect.arrayContaining([
+      { kind: 'placement-view', placementId: 'overlay-left', property: 'brightness' },
+      { kind: 'placement-view', placementId: 'overlay-right', property: 'brightness' },
+    ]))
   })
 })

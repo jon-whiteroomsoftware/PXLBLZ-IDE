@@ -57,6 +57,7 @@ import {
   replaceShowPatternInstance,
   restartShowMainPlacement,
   splitShowMainPlacement,
+  splitShowOverlayPlacement,
   trimShowMainPlacement,
   trimShowOverlayPlacement,
 } from '@/engine/showCompositionModel'
@@ -1003,6 +1004,19 @@ export function ShowEditor({
                       targetLayerId: changes.targetLayerId,
                     })
                   }
+                  if (next === activeShow.composition) return
+                  void updateShow(activeShow.id, { ...activeShow, composition: next, updatedAt: Date.now() })
+                }}
+                onSplitOverlay={(layerId, placementId, atMs) => {
+                  if (!activeShow.composition) return
+                  const next = splitShowOverlayPlacement(activeShow, activeShow.composition, {
+                    sceneId: resolvedSceneEditorScope.sceneId,
+                    zoneId: resolvedSceneEditorScope.zoneId,
+                    layerId,
+                    placementId,
+                    atMs,
+                    newPlacementId: newPersonalContentId(),
+                  })
                   if (next === activeShow.composition) return
                   void updateShow(activeShow.id, { ...activeShow, composition: next, updatedAt: Date.now() })
                 }}
