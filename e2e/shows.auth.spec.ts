@@ -805,6 +805,7 @@ test.describe('authenticated Show authoring', () => {
     await page.getByRole('button', { name: 'Overlay layer' }).click()
     await page.getByRole('button', { name: 'Overlay layer' }).click()
     await page.getByRole('button', { name: 'Add clip to Overlay 1 at playhead' }).click()
+    await page.getByRole('button', { name: 'Add clip to Overlay 2 at playhead' }).click()
 
     const clip = page.getByRole('button', { name: 'Select TestPattern1D clip in Overlay 1' })
     const bounds = await clip.boundingBox()
@@ -814,6 +815,21 @@ test.describe('authenticated Show authoring', () => {
     await page.mouse.move(bounds!.x + Math.min(18, bounds!.width / 2), bounds!.y + bounds!.height / 2 + 48, { steps: 4 })
     await page.mouse.up()
 
+    // A fully occupied target has no legal before/after position, so the first
+    // drop returns to its source layer without creating a partial edit.
+    await expect(page.getByRole('button', { name: 'Select TestPattern1D clip in Overlay 1' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Select TestPattern1D clip in Overlay 2' })).toBeVisible()
+    await page.getByRole('button', { name: 'Select TestPattern1D clip in Overlay 2' }).click()
+    await page.getByRole('button', { name: 'Delete overlay clip' }).click()
+
+    const retryClip = page.getByRole('button', { name: 'Select TestPattern1D clip in Overlay 1' })
+    const retryBounds = await retryClip.boundingBox()
+    expect(retryBounds).not.toBeNull()
+    await page.mouse.move(retryBounds!.x + Math.min(12, retryBounds!.width / 2), retryBounds!.y + retryBounds!.height / 2)
+    await page.mouse.down()
+    await page.mouse.move(retryBounds!.x + Math.min(18, retryBounds!.width / 2), retryBounds!.y + retryBounds!.height / 2 + 48, { steps: 4 })
+    await page.mouse.up()
+
     await waitForCurrentShow(page, (show) => (
       show.composition?.scenes[0]?.zones?.[0]?.overlays?.[0]?.placements.length === 0
       && show.composition.scenes[0].zones[0].overlays[1]?.placements.length === 1
@@ -821,6 +837,13 @@ test.describe('authenticated Show authoring', () => {
 
     await page.getByRole('button', { name: 'Reorder Overlay 2 layer' }).press('ArrowUp')
     await waitForCurrentShow(page, (show) => show.composition?.scenes[0]?.zones?.[0]?.overlays?.[0]?.name === 'Overlay 2')
+
+    // Keep the narrow check representative of a busy layer rail rather than a
+    // two-row happy path.
+    await page.getByRole('button', { name: 'Overlay layer' }).click()
+    await page.getByRole('button', { name: 'Overlay layer' }).click()
+    await page.getByRole('button', { name: 'Add clip to Overlay 3 at playhead' }).click()
+    await page.getByRole('button', { name: 'Add clip to Overlay 4 at playhead' }).click()
 
     await page.getByRole('button', { name: 'Select TestPattern1D clip in Overlay 2' }).click()
     await page.getByRole('button', { name: 'Show Zone outlines' }).click()

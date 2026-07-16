@@ -1,9 +1,8 @@
 # Show Scene composition design
 
 Status: global and local interaction directions approved; the #487 production
-shell, #488 version-1 Main schedule, #489 ordered overlay compositor, and #490
-typed Property animation are implemented. #491's Layer Rail interaction is in
-final browser verification. Human
+shell, #488 version-1 Main schedule, #489 ordered overlay compositor, #490 typed
+Property animation, and #491 Layer Rail interaction are implemented. Human
 review selected #458's explicit Layer Rail on 2026-07-15.
 A semantic Scene still spans zones, but local authoring targets one Scene x Zone
 composition at a time. The former all-zones Scene-detail direction and its

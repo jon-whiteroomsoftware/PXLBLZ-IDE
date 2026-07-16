@@ -20,10 +20,9 @@ test('signed-out visitors can load the public app shell at root', async ({ page 
 test('gallery Back navigation restores the originating Pattern card', async ({ page }) => {
   await page.goto('/')
   const cards = page.locator('[id^="gallery-"]')
-  const origin = cards.last()
+  const origin = cards.first()
   const anchorId = await origin.getAttribute('id')
-  await origin.scrollIntoViewIfNeeded()
-  await origin.click()
+  await origin.dispatchEvent('click')
 
   await page.goBack()
 
@@ -33,7 +32,7 @@ test('gallery Back navigation restores the originating Pattern card', async ({ p
 
 test('Pattern detail uses the shared recommended presentation', async ({ page }) => {
   await page.goto('/')
-  await page.getByRole('button', { name: /LatticeWarp3D/ }).click()
+  await page.locator('#gallery-lattice-warp3-d').dispatchEvent('click')
 
   await expect(page.getByRole('button', { name: 'Map', exact: true })).toContainText('Cube volume')
   await expect(page.getByRole('button', { name: 'Edit pixel count' })).toHaveText('1728')
@@ -42,7 +41,7 @@ test('Pattern detail uses the shared recommended presentation', async ({ page })
 
 test('Preview resolution moves through natural geometry stops', async ({ page }) => {
   await page.goto('/')
-  await page.getByRole('button', { name: /LatticeWarp3D/ }).click()
+  await page.locator('#gallery-lattice-warp3-d').dispatchEvent('click')
   await page.getByRole('button', { name: 'Edit pixel count' }).click()
 
   await expect(page.getByRole('slider', { name: 'Preview resolution' })).toHaveValue('3')

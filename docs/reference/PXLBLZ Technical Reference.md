@@ -967,7 +967,13 @@ Stage remains mounted and continues to render final all-zone output.
 The first local edit explicitly projects the flat compatibility cells into
 `ShowRecord.composition` version 1. `showCompositionModel.ts` normalizes and
 validates the sidecar, owns atomic Main and overlay layer/placement operations,
-and resolves magnetic horizontal movement to legal millisecond bounds. Main
+and resolves magnetic horizontal movement to legal millisecond bounds.
+`showLayerDrag.ts` adds a vertical dead band before overlay movement can change
+layers; after the threshold, each lane-height of pointer travel advances one
+ordered layer. The UI resolves the target layer and nearest legal start before
+calling one persisted update, so a pointer drop is one semantic undo operation.
+Layer handles use the same ordering callback for pointer and Arrow-key input.
+Main
 placements and placements inside one overlay layer may leave gaps but cannot
 overlap; placements in different overlay layers may overlap. Exact numeric
 fields commit on blur or Enter. Normalized fields clamp to `0..1`. Split
@@ -1019,6 +1025,17 @@ add at the playhead, move to the previous or next point, delete a point, or
 delete the track. Split and Restart clone affected placement- or instance-owned
 tracks under new stable targets, while deletion removes tracks whose owner no
 longer exists.
+
+`showEditorSessionStore` retains three independent diagnostic flags outside the
+Show record: Zone outlines, selected-clip outline, and other-zone timing guides.
+Only Snap is included in the store's persisted subset, so all diagnostics and
+their selected Scene/Zone/placement focus reset with the application session.
+`showStageDiagnostics.ts` projects the 2D Stage positions and `pixelZoneIds`
+into read-only Zone bounds. `ShowStagePreview` draws those bounds in SVG above
+the renderer canvas; it never masks, recolors, or otherwise mutates compiled
+Show pixels. Other-zone timing boundaries render as non-interactive guides in
+the local rail. The 3D Stage continues to render normally without pretending a
+camera-independent 2D rectangle is a faithful spatial diagnostic.
 
 `showSceneReadOnlyProjection.ts` narrows that sidecar to one Scene's global and
 local bounds, boundary context, cut references, Effect activity, property beats,
