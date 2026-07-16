@@ -35,6 +35,7 @@ import {
 import { normalizeShowRevealMode } from './showShapeReveal'
 import { normalizeShowMotionTransition } from './showMotionTransition'
 import { lowerShowCompositionForCompile } from './showCompositionLowering'
+import { splitShowCompositionScene } from './showCompositionSplit'
 import {
   normalizeShowClipEffects,
   sameShowEffectStructure,
@@ -539,6 +540,7 @@ export function duplicateShowScene(show: ShowRecord, sceneId: string): ShowRecor
  * boundaries and transition windows return the original record unchanged.
  */
 export function splitShowAtTime(show: ShowRecord, atMs: number): ShowRecord {
+  if (!showSplitCapability(show, atMs).enabled) return show
   const target = showSplitTarget(show, atMs)
   if (!target) return show
   show = normalizeShowTransitionState(show)
@@ -597,11 +599,20 @@ export function splitShowAtTime(show: ShowRecord, atMs: number): ShowRecord {
       easing: 'linear',
     },
   ]
+  const composition = show.composition
+    ? splitShowCompositionScene(show.composition, {
+        sourceSceneId: sourceScene.id,
+        destinationSceneId: newSceneId,
+        splitMs: leftDurationMs,
+        sourceDurationMs: sourceScene.durationMs,
+      })
+    : undefined
   return normalizeShowTransitionState({
     ...show,
     scenes,
     cells,
     transitions,
+    ...(composition ? { composition } : {}),
     routingSwitches: show.routingSwitches.map((routingSwitch) => (
       routingSwitch.afterSceneId === sourceScene.id
         ? { ...routingSwitch, afterSceneId: newSceneId }
@@ -617,7 +628,7 @@ export function canSplitShowAtTime(show: ShowRecord, atMs: number): boolean {
 
 export type ShowSplitCapability =
   | { enabled: true; code: 'ready'; reason: string }
-  | { enabled: false; code: 'scene-edge-margin' | 'no-scene'; reason: string }
+  | { enabled: false; code: 'scene-edge-margin' | 'no-scene' | 'nonlinear-property-animation'; reason: string }
 
 export function showSplitCapability(show: ShowRecord, atMs: number): ShowSplitCapability {
   if (!Number.isFinite(atMs)) {
@@ -630,18 +641,39 @@ export function showSplitCapability(show: ShowRecord, atMs: number): ShowSplitCa
     if (cursorMs <= atMs && atMs <= holdEndMs) {
       const leftDurationMs = Math.round(atMs - cursorMs)
       const rightDurationMs = scene.durationMs - leftDurationMs
-      return leftDurationMs >= 1000 && rightDurationMs >= 1000
-        ? { enabled: true, code: 'ready', reason: 'Split this Scene at the playhead.' }
-        : {
-            enabled: false,
-            code: 'scene-edge-margin',
-            reason: 'Leave at least 1.0 s on both sides of the playhead.',
-          }
+      if (leftDurationMs < 1000 || rightDurationMs < 1000) {
+        return {
+          enabled: false,
+          code: 'scene-edge-margin',
+          reason: 'Leave at least 1.0 s on both sides of the playhead.',
+        }
+      }
+      if (nonlinearPropertySegmentCrosses(show, scene.id, leftDurationMs)) {
+        return {
+          enabled: false,
+          code: 'nonlinear-property-animation',
+          reason: 'Add a keyframe at the playhead or change the crossing segment to Linear before splitting this Scene.',
+        }
+      }
+      return { enabled: true, code: 'ready', reason: 'Split this Scene at the playhead.' }
     }
     cursorMs = holdEndMs + Math.max(0, scene.transitionOut?.durationMs ?? 0)
   }
 
   return { enabled: false, code: 'no-scene', reason: 'Move the playhead inside a Scene.' }
+}
+
+function nonlinearPropertySegmentCrosses(show: ShowRecord, sceneId: string, localTimeMs: number): boolean {
+  const scene = show.composition?.scenes.find((candidate) => candidate.sceneId === sceneId)
+  return (scene?.propertyTracks ?? []).some((track) => {
+    const keyframes = [...track.keyframes].sort((left, right) => left.timeMs - right.timeMs || left.id.localeCompare(right.id))
+    return keyframes.slice(0, -1).some((left, index) => {
+      const right = keyframes[index + 1]
+      if (left.timeMs >= localTimeMs || right.timeMs <= localTimeMs) return false
+      if (Math.abs(right.value - left.value) <= 0.000001) return false
+      return normalizeShowEasing(left.easing).curve !== 'linear'
+    })
+  })
 }
 
 function showSplitTarget(

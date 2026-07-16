@@ -1078,6 +1078,15 @@ to the same real placement, Effect, public-control, Animation-speed, and
 Brightness targets; outgoing boundaries resolve their destination Scene rather
 than borrowing the current Scene's value.
 
+`showCompositionSplit.ts` partitions Scene-local Main and overlay placements,
+overlay-layer identities, placement targets, and Property tracks when the
+global timeline splits a composed Scene. Linear crossings gain evaluated
+boundary keyframes on both sides; a split on an existing keyframe preserves the
+easing leaving that point. `showSplitCapability()` refuses only a value-changing
+nonlinear segment crossed between keyframes and reports the repair: add a
+keyframe at the playhead or change that segment to Linear. The operation never
+accepts silent curve drift.
+
 `showEditorSessionStore` retains three independent diagnostic flags outside the
 Show record: Zone outlines, selected-clip outline, and other-zone timing guides.
 Only Snap is included in the store's persisted subset, so all diagnostics and

@@ -1520,7 +1520,9 @@ function ShowTimelineCommands({
           >
             {splitCapability.code === 'scene-edge-margin'
               ? 'Split needs 1.0 s on both sides'
-              : 'Split only works inside a Scene'}
+              : splitCapability.code === 'nonlinear-property-animation'
+                ? 'Add a keyframe here or make this segment Linear before splitting'
+                : 'Split only works inside a Scene'}
           </span>
         )}
       </span>

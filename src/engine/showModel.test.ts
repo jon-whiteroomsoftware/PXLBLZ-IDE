@@ -41,6 +41,7 @@ import {
 import { DEMOS } from '@/pixelblaze/stock/patterns'
 import type { ShowRecord, ShowTransition } from './personalContentRecords'
 import { createInstallationShowOutputContract, createPortableShowOutputContract } from './showOutputContract'
+import { projectFlatShowToCompositionV1, validateShowComposition } from './showCompositionModel'
 
 function expectHoleFreeStrip(show: ShowRecord): void {
   const strip = projectShowStrip(show)
@@ -481,6 +482,133 @@ describe('showModel (#318)', () => {
       enabled: false,
       code: 'no-scene',
       reason: 'Move the playhead inside a Scene.',
+    })
+  })
+
+  it('refuses a top-level Scene Split through a nonlinear local Property segment (#490)', () => {
+    const show = createDefaultShow('show-490-nonlinear-split', 'Nonlinear split', 1)
+    show.composition = projectFlatShowToCompositionV1(show, {
+      byCellId: Object.fromEntries(show.cells.map((cell) => [cell.id, DEMOS[cell.pattern.id]])),
+    })
+    const sceneComposition = show.composition.scenes.find((scene) => scene.sceneId === show.scenes[0].id)!
+    const placement = sceneComposition.zones[0].main[0]
+    sceneComposition.propertyTracks = [{
+      id: 'brightness-track',
+      target: { kind: 'placement-view', placementId: placement.id, property: 'brightness' },
+      keyframes: [
+        { id: 'brightness-start', timeMs: 0, value: 0, easing: { curve: 'hold', at: 0.5 } },
+        { id: 'brightness-end', timeMs: show.scenes[0].durationMs, value: 1, easing: { curve: 'linear' } },
+      ],
+    }]
+
+    expect(showSplitCapability(show, 10_000)).toEqual({
+      enabled: false,
+      code: 'nonlinear-property-animation',
+      reason: 'Add a keyframe at the playhead or change the crossing segment to Linear before splitting this Scene.',
+    })
+    expect(splitShowAtTime(show, 10_000)).toBe(show)
+  })
+
+  it('partitions linear local Property animation when splitting a composed Scene (#490)', () => {
+    const show = createDefaultShow('show-490-linear-split', 'Linear split', 1)
+    show.composition = projectFlatShowToCompositionV1(show, {
+      byCellId: Object.fromEntries(show.cells.map((cell) => [cell.id, DEMOS[cell.pattern.id]])),
+    })
+    const sceneComposition = show.composition.scenes.find((scene) => scene.sceneId === show.scenes[0].id)!
+    const placement = sceneComposition.zones[0].main[0]
+    sceneComposition.propertyTracks = [{
+      id: 'brightness-track',
+      target: { kind: 'placement-view', placementId: placement.id, property: 'brightness' },
+      keyframes: [
+        { id: 'brightness-start', timeMs: 0, value: 0, easing: { curve: 'linear' } },
+        { id: 'brightness-end', timeMs: show.scenes[0].durationMs, value: 1, easing: { curve: 'linear' } },
+      ],
+    }]
+
+    const split = splitShowAtTime(show, 10_000)
+    const left = split.composition?.scenes.find((scene) => scene.sceneId === 'scene-1')
+    const right = split.composition?.scenes.find((scene) => scene.sceneId === 'scene-3')
+
+    expect(split).not.toBe(show)
+    expect(validateShowComposition(split, split.composition!)).toEqual([])
+    expect(left?.zones[0].main[0]).toMatchObject({ startMs: 0, durationMs: 10_000 })
+    expect(left?.propertyTracks?.[0].keyframes).toMatchObject([
+      { timeMs: 0, value: 0 },
+      { timeMs: 10_000, value: 1 / 3 },
+    ])
+    expect(right?.zones[0].main[0]).toMatchObject({ startMs: 0, durationMs: 20_000 })
+    expect(right?.propertyTracks?.[0].keyframes).toMatchObject([
+      { timeMs: 0, value: 1 / 3 },
+      { timeMs: 20_000, value: 1 },
+    ])
+  })
+
+  it('allows a composed Scene Split on an authored keyframe between nonlinear segments (#490)', () => {
+    const show = createDefaultShow('show-490-keyframe-split', 'Keyframe split', 1)
+    show.composition = projectFlatShowToCompositionV1(show, {
+      byCellId: Object.fromEntries(show.cells.map((cell) => [cell.id, DEMOS[cell.pattern.id]])),
+    })
+    const sceneComposition = show.composition.scenes.find((scene) => scene.sceneId === show.scenes[0].id)!
+    const placement = sceneComposition.zones[0].main[0]
+    sceneComposition.propertyTracks = [{
+      id: 'brightness-track',
+      target: { kind: 'placement-view', placementId: placement.id, property: 'brightness' },
+      keyframes: [
+        { id: 'brightness-start', timeMs: 0, value: 0, easing: { curve: 'hold', at: 0.5 } },
+        { id: 'brightness-middle', timeMs: 10_000, value: 0.5, easing: { curve: 'sine', direction: 'in-out' } },
+        { id: 'brightness-end', timeMs: show.scenes[0].durationMs, value: 1, easing: { curve: 'linear' } },
+      ],
+    }]
+
+    expect(showSplitCapability(show, 10_000)).toMatchObject({ enabled: true, code: 'ready' })
+    const split = splitShowAtTime(show, 10_000)
+    expect(validateShowComposition(split, split.composition!)).toEqual([])
+    expect(split.composition?.scenes.find((scene) => scene.sceneId === 'scene-3')?.propertyTracks?.[0].keyframes[0])
+      .toMatchObject({ timeMs: 0, value: 0.5, easing: { curve: 'sine', direction: 'in-out' } })
+  })
+
+  it('partitions a crossing overlay and retargets its Property track on Scene Split (#490)', () => {
+    const show = createDefaultShow('show-490-overlay-split', 'Overlay split', 1)
+    show.composition = projectFlatShowToCompositionV1(show, {
+      byCellId: Object.fromEntries(show.cells.map((cell) => [cell.id, DEMOS[cell.pattern.id]])),
+    })
+    const sceneComposition = show.composition.scenes.find((scene) => scene.sceneId === show.scenes[0].id)!
+    const zone = sceneComposition.zones[0]
+    zone.overlays = [{
+      id: 'overlay-layer',
+      name: 'Texture',
+      placements: [{
+        id: 'overlay-placement',
+        instanceId: zone.main[0].instanceId,
+        startMs: 5_000,
+        durationMs: 10_000,
+        opacity: 1,
+        view: { mirror: false, phase: 0, brightness: 1 },
+      }],
+    }]
+    sceneComposition.propertyTracks = [{
+      id: 'opacity-track',
+      target: { kind: 'placement-opacity', placementId: 'overlay-placement' },
+      keyframes: [
+        { id: 'opacity-start', timeMs: 0, value: 0, easing: { curve: 'linear' } },
+        { id: 'opacity-end', timeMs: show.scenes[0].durationMs, value: 1, easing: { curve: 'linear' } },
+      ],
+    }]
+
+    const split = splitShowAtTime(show, 10_000)
+    const composition = split.composition!
+    const left = composition.scenes.find((scene) => scene.sceneId === 'scene-1')!
+    const right = composition.scenes.find((scene) => scene.sceneId === 'scene-3')!
+    const leftOverlay = left.zones[0].overlays[0]
+    const rightOverlay = right.zones[0].overlays[0]
+
+    expect(validateShowComposition(split, split.composition!)).toEqual([])
+    expect(leftOverlay.placements[0]).toMatchObject({ id: 'overlay-placement', startMs: 5_000, durationMs: 5_000 })
+    expect(rightOverlay.id).not.toBe(leftOverlay.id)
+    expect(rightOverlay.placements[0]).toMatchObject({ startMs: 0, durationMs: 5_000 })
+    expect(right.propertyTracks?.[0].target).toEqual({
+      kind: 'placement-opacity',
+      placementId: rightOverlay.placements[0].id,
     })
   })
 

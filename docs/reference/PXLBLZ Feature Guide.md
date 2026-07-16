@@ -889,6 +889,13 @@ ramp connects values as a Show crosses a Scene boundary, while a local track can
 change repeatedly inside one Scene. The Stage, deterministic seek, generated
 Pattern, exported artifact, and Controller output all use the same curve.
 
+Splitting the owning Scene at a linear segment partitions its placements and
+local tracks into two equivalent Scenes. A split exactly on an authored
+keyframe is also exact. The editor refuses a split through a nonlinear segment
+because rebasing Steps, Hold, Bezier, Sine, or Back easing would silently change
+the curve. Add a keyframe at the playhead or change that crossing segment to
+Linear, then split.
+
 ### Zone Layouts and Stage
 
 A Show may own several named Zone Layouts. An Installation Zone Layout maps
