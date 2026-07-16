@@ -43,12 +43,20 @@ import { compileShowForArtifact, sourceForShowCell, type CompiledShowState } fro
 import { projectFlatShowComposition, type FlatShowCompositionProjection } from '@/engine/showCompositionProjection'
 import {
   addShowMainClip,
+  addShowOverlayClip,
+  addShowOverlayLayer,
   deleteShowMainPlacement,
+  deleteShowOverlayLayer,
+  deleteShowOverlayPlacement,
+  moveShowOverlayPlacement,
   projectFlatShowToCompositionV1,
+  renameShowOverlayLayer,
+  reorderShowOverlayLayer,
   replaceShowPatternInstance,
   restartShowMainPlacement,
   splitShowMainPlacement,
   trimShowMainPlacement,
+  trimShowOverlayPlacement,
 } from '@/engine/showCompositionModel'
 import { projectSceneReadOnlyBridge } from '@/engine/showSceneReadOnlyProjection'
 import { resolveShowSceneEditorScope, type ShowSceneEditorScope } from '@/engine/showSceneEditorScope'
@@ -861,6 +869,115 @@ export function ShowEditor({
                   const next = deleteShowMainPlacement(activeShow.composition, {
                     sceneId: resolvedSceneEditorScope.sceneId,
                     zoneId: resolvedSceneEditorScope.zoneId,
+                    placementId,
+                  })
+                  if (next === activeShow.composition) return
+                  void updateShow(activeShow.id, { ...activeShow, composition: next, updatedAt: Date.now() })
+                }}
+                onAddOverlayLayer={() => {
+                  if (!activeShow.composition) return
+                  const zone = activeShow.composition.scenes
+                    .find((scene) => scene.sceneId === resolvedSceneEditorScope.sceneId)?.zones
+                    .find((candidate) => candidate.zoneId === resolvedSceneEditorScope.zoneId)
+                  const next = addShowOverlayLayer(activeShow, activeShow.composition, {
+                    sceneId: resolvedSceneEditorScope.sceneId,
+                    zoneId: resolvedSceneEditorScope.zoneId,
+                    layer: {
+                      id: newPersonalContentId(),
+                      name: `Overlay ${(zone?.overlays.length ?? 0) + 1}`,
+                      placements: [],
+                    },
+                  })
+                  if (next === activeShow.composition) return
+                  void updateShow(activeShow.id, { ...activeShow, composition: next, updatedAt: Date.now() })
+                }}
+                onRenameOverlayLayer={(layerId, name) => {
+                  if (!activeShow.composition) return
+                  const next = renameShowOverlayLayer(activeShow.composition, {
+                    sceneId: resolvedSceneEditorScope.sceneId,
+                    zoneId: resolvedSceneEditorScope.zoneId,
+                    layerId,
+                    name,
+                  })
+                  if (next === activeShow.composition) return
+                  void updateShow(activeShow.id, { ...activeShow, composition: next, updatedAt: Date.now() })
+                }}
+                onReorderOverlayLayer={(layerId, targetIndex) => {
+                  if (!activeShow.composition) return
+                  const next = reorderShowOverlayLayer(activeShow.composition, {
+                    sceneId: resolvedSceneEditorScope.sceneId,
+                    zoneId: resolvedSceneEditorScope.zoneId,
+                    layerId,
+                    targetIndex,
+                  })
+                  if (next === activeShow.composition) return
+                  void updateShow(activeShow.id, { ...activeShow, composition: next, updatedAt: Date.now() })
+                }}
+                onDeleteOverlayLayer={(layerId) => {
+                  if (!activeShow.composition) return
+                  const next = deleteShowOverlayLayer(activeShow.composition, {
+                    sceneId: resolvedSceneEditorScope.sceneId,
+                    zoneId: resolvedSceneEditorScope.zoneId,
+                    layerId,
+                  })
+                  if (next === activeShow.composition) return
+                  void updateShow(activeShow.id, { ...activeShow, composition: next, updatedAt: Date.now() })
+                }}
+                onAddOverlay={(layerId, { pattern, patternName, startMs, durationMs }) => {
+                  if (!activeShow.composition) return
+                  const instanceId = newPersonalContentId()
+                  const next = addShowOverlayClip(activeShow, activeShow.composition, {
+                    sceneId: resolvedSceneEditorScope.sceneId,
+                    zoneId: resolvedSceneEditorScope.zoneId,
+                    layerId,
+                    instance: {
+                      id: instanceId,
+                      pattern,
+                      patternName,
+                      time: { timeScale: 1, timeOffsetMs: 0 },
+                    },
+                    placement: {
+                      id: newPersonalContentId(),
+                      instanceId,
+                      startMs,
+                      durationMs,
+                      opacity: 1,
+                      view: { mirror: false, phase: 0, brightness: 1 },
+                    },
+                  })
+                  if (next === activeShow.composition) return
+                  void updateShow(activeShow.id, { ...activeShow, composition: next, updatedAt: Date.now() })
+                }}
+                onUpdateOverlay={(layerId, placementId, changes) => {
+                  if (!activeShow.composition) return
+                  let next = trimShowOverlayPlacement(activeShow, activeShow.composition, {
+                    sceneId: resolvedSceneEditorScope.sceneId,
+                    zoneId: resolvedSceneEditorScope.zoneId,
+                    layerId,
+                    placementId,
+                    startMs: changes.startMs,
+                    durationMs: changes.durationMs,
+                    opacity: changes.opacity,
+                  })
+                  if (changes.targetLayerId && changes.targetLayerId !== layerId) {
+                    next = moveShowOverlayPlacement(activeShow, next, {
+                      sceneId: resolvedSceneEditorScope.sceneId,
+                      zoneId: resolvedSceneEditorScope.zoneId,
+                      layerId,
+                      placementId,
+                      startMs: changes.startMs,
+                      targetLayerId: changes.targetLayerId,
+                    })
+                  }
+                  if (next === activeShow.composition) return
+                  void updateShow(activeShow.id, { ...activeShow, composition: next, updatedAt: Date.now() })
+                }}
+                onDeleteOverlay={(layerId, placementId) => {
+                  if (!activeShow.composition) return
+                  const next = deleteShowOverlayPlacement(activeShow.composition, {
+                    sceneId: resolvedSceneEditorScope.sceneId,
+                    zoneId: resolvedSceneEditorScope.zoneId,
+                    layerId,
                     placementId,
                   })
                   if (next === activeShow.composition) return
@@ -4153,6 +4270,7 @@ function ShowSetupInspector({
                 aria-label="Portable reference pixels"
                 type="number"
                 min={1}
+                max={2000}
                 defaultValue={portable.referencePixelCount}
                 onBlur={(event) => onUpdatePortableReference(portable.referenceMapId, Number(event.currentTarget.value))}
                 className={field}
@@ -4562,6 +4680,7 @@ function NumberField({
 }) {
   const [draft, setDraft] = useState(() => String(value))
   const focusedRef = useRef(false)
+  const normalized = min === 0 && max === 1
 
   useEffect(() => {
     if (!focusedRef.current) setDraft(String(value))
@@ -4581,7 +4700,10 @@ function NumberField({
 
   return (
     <label className="min-w-0 text-[10px] uppercase text-zinc-600" title={help}>
-      <span className={hideLabel ? 'sr-only' : undefined}>{label}</span>
+      <span className={hideLabel ? 'sr-only' : 'flex items-center justify-between gap-2'}>
+        <span>{label}</span>
+        {normalized && <span className="font-mono text-[8px] tracking-normal text-zinc-700" title="Normalized value from zero to one">0–1</span>}
+      </span>
       <span className={`${hideLabel ? '' : 'mt-1'} flex min-w-0 items-center gap-1`}>
         <input
           aria-label={label}

@@ -2,6 +2,7 @@ import type {
   ShowBoundaryTransition,
   ShowCell,
   ShowMainPlacement,
+  ShowOverlayPlacement,
   ShowRecord,
   ShowScene,
 } from './personalContentRecords'
@@ -34,6 +35,7 @@ export function lowerShowCompositionForCompile(
   const sceneCompositionById = new Map(composition.scenes.map((scene) => [scene.sceneId, scene]))
   const byCellId = { ...lookup.byCellId }
   const instanceIdByCellId = { ...(lookup.instanceIdByCellId ?? {}) }
+  const compositionLayerByCellId = { ...(lookup.compositionLayerByCellId ?? {}) }
   const cells: ShowCell[] = []
   const scenes: ShowScene[] = []
   const lastDerivedSceneId = new Map<string, string>()
@@ -46,6 +48,12 @@ export function lowerShowCompositionForCompile(
       for (const placement of zone.main) {
         boundaries.add(placement.startMs)
         boundaries.add(placement.startMs + placement.durationMs)
+      }
+      for (const layer of zone.overlays) {
+        for (const placement of layer.placements) {
+          boundaries.add(placement.startMs)
+          boundaries.add(placement.startMs + placement.durationMs)
+        }
       }
     }
     const ordered = [...boundaries].sort((a, b) => a - b)
@@ -73,38 +81,53 @@ export function lowerShowCompositionForCompile(
 
       for (const zone of show.zones) {
         const zoneComposition = sceneComposition?.zones.find((candidate) => candidate.zoneId === zone.id)
-        const placement = zoneComposition?.main.find((candidate) => placementCovers(candidate, interval.startMs))
-        if (!placement) continue
-        const instance = instanceById.get(placement.instanceId)!
-        const cellId = `${placement.id}@${sceneId}`
-        const source = lookup.byPatternInstanceId?.[instance.id]
-        if (!source) throw new Error(`Show composition requires pattern source for instance "${instance.id}".`)
-        cells.push({
-          id: cellId,
-          zoneId: zone.id,
-          sceneId,
-          sceneSpan: 1,
-          zoneSpan: 1,
-          pattern: { ...instance.pattern },
-          patternName: instance.patternName,
-          adaptations: {
-            mirror: placement.view.mirror,
-            phase: placement.view.phase,
-            brightness: placement.view.brightness,
-            timeScale: instance.time.timeScale,
-            timeOffsetMs: instance.time.timeOffsetMs,
-            ...(instance.time.lightShutter ? { lightShutter: { ...instance.time.lightShutter } } : {}),
-            ...(instance.time.steppedClock ? { steppedClock: { ...instance.time.steppedClock } } : {}),
-          },
-          restartOnEntry: false,
-          ...(instance.controlTargets ? { controlTargets: { ...instance.controlTargets } } : {}),
-          ...(placement.effects ? { effects: structuredClone(placement.effects) } : {}),
+        const main = zoneComposition?.main.find((candidate) => placementCovers(candidate, interval.startMs))
+        const activeOverlays = (zoneComposition?.overlays ?? []).flatMap((layer, layerIndex, layers) => {
+          const placement = layer.placements.find((candidate) => placementCovers(candidate, interval.startMs))
+          return placement ? [{ placement, stackOrder: layers.length - layerIndex }] : []
         })
-        byCellId[cellId] = source
-        instanceIdByCellId[cellId] = instance.id
-        if (intervalIndex === 0) {
-          const flatCell = flatCellAtSlot(show, zone.id, scene.id)
-          if (flatCell) derivedCellIdByFlatCellId.set(flatCell.id, cellId)
+        const activePlacements: Array<{
+          placement: ShowMainPlacement | ShowOverlayPlacement
+          stackOrder: number
+          opacity: number
+        }> = [
+          ...(main ? [{ placement: main, stackOrder: 0, opacity: 1 }] : []),
+          ...activeOverlays.map(({ placement, stackOrder }) => ({ placement, stackOrder, opacity: placement.opacity })),
+        ].sort((left, right) => left.stackOrder - right.stackOrder)
+
+        for (const { placement, stackOrder, opacity } of activePlacements) {
+          const instance = instanceById.get(placement.instanceId)!
+          const cellId = `${placement.id}@${sceneId}`
+          const source = lookup.byPatternInstanceId?.[instance.id]
+          if (!source) throw new Error(`Show composition requires pattern source for instance "${instance.id}".`)
+          cells.push({
+            id: cellId,
+            zoneId: zone.id,
+            sceneId,
+            sceneSpan: 1,
+            zoneSpan: 1,
+            pattern: { ...instance.pattern },
+            patternName: instance.patternName,
+            adaptations: {
+              mirror: placement.view.mirror,
+              phase: placement.view.phase,
+              brightness: placement.view.brightness,
+              timeScale: instance.time.timeScale,
+              timeOffsetMs: instance.time.timeOffsetMs,
+              ...(instance.time.lightShutter ? { lightShutter: { ...instance.time.lightShutter } } : {}),
+              ...(instance.time.steppedClock ? { steppedClock: { ...instance.time.steppedClock } } : {}),
+            },
+            restartOnEntry: false,
+            ...(instance.controlTargets ? { controlTargets: { ...instance.controlTargets } } : {}),
+            ...(placement.effects ? { effects: structuredClone(placement.effects) } : {}),
+          })
+          byCellId[cellId] = source
+          instanceIdByCellId[cellId] = instance.id
+          compositionLayerByCellId[cellId] = { stackOrder, opacity }
+          if (intervalIndex === 0 && stackOrder === 0) {
+            const flatCell = flatCellAtSlot(show, zone.id, scene.id)
+            if (flatCell) derivedCellIdByFlatCellId.set(flatCell.id, cellId)
+          }
         }
       }
     })
@@ -131,6 +154,7 @@ export function lowerShowCompositionForCompile(
       ...lookup,
       byCellId,
       instanceIdByCellId,
+      compositionLayerByCellId,
     },
   }
 }

@@ -19,6 +19,51 @@ import { nativeDimension } from './loadPattern'
 import { LIBRARIES } from '@/pixelblaze/libs'
 
 describe('compileShowForPreview temporal adaptations (#379)', () => {
+  it('uses the same ordered overlay compositor for preview and artifact output (#489)', () => {
+    const show = createDefaultShow('show-overlay-preview', 'Overlay preview', 1)
+    const patterns = [
+      { id: 'solid-red', name: 'Solid red', src: 'export function render(index) { rgb(1, 0, 0) }', controls: {}, updatedAt: 1 },
+      { id: 'solid-blue', name: 'Solid blue', src: 'export function render(index) { rgb(0, 0, 1) }', controls: {}, updatedAt: 1 },
+    ]
+    show.composition = {
+      version: 1,
+      patternInstances: [
+        { id: 'red', pattern: { kind: 'user', id: 'solid-red' }, patternName: 'Solid red', time: { timeScale: 1, timeOffsetMs: 0 } },
+        { id: 'blue', pattern: { kind: 'user', id: 'solid-blue' }, patternName: 'Solid blue', time: { timeScale: 1, timeOffsetMs: 0 } },
+      ],
+      scenes: [
+        { sceneId: 'scene-1', zones: [{
+          zoneId: 'zone-1',
+          main: [{ id: 'red-main', instanceId: 'red', startMs: 0, durationMs: 30_000, view: { mirror: false, phase: 0, brightness: 1 } }],
+          overlays: [{
+            id: 'blue-layer', name: 'Blue wash', placements: [{
+              id: 'blue-overlay', instanceId: 'blue', startMs: 0, durationMs: 30_000, opacity: 0.5,
+              view: { mirror: false, phase: 0, brightness: 1 },
+            }],
+          }],
+        }] },
+        { sceneId: 'scene-2', zones: [{
+          zoneId: 'zone-1',
+          main: [{ id: 'red-main-2', instanceId: 'red', startMs: 0, durationMs: 30_000, view: { mirror: false, phase: 0, brightness: 1 } }],
+          overlays: [],
+        }] },
+      ],
+    }
+
+    const preview = compileShowForPreview(show, patterns, undefined, {})
+    const artifact = compileShowForArtifact(show, patterns, undefined, {})
+    const runtime = createFastReplayRuntime({
+      code: preview.artifact!.code,
+      metadata: preview.artifact!.metadata,
+      dimension: nativeDimension(preview.artifact!.metadata.renderFns),
+    }, { mapPoints: [{ sample: [0] }], randomSeed: 1 })
+
+    expect(preview.error).toBeNull()
+    expect(artifact.error).toBeNull()
+    expect(artifact.artifact?.code).toBe(preview.artifact?.code)
+    expect(runtime.advanceTo(500, { stepMs: 1000 / 60 }).pixels[0]).toEqual([0.5, 0, 0.5])
+  })
+
   it('resolves explicit Scene composition instances through the shared preview compiler (#488)', () => {
     const show = createDefaultShow('show-composition-preview', 'Composition preview', 1)
     const source = 'export function render(index) { rgb(0.25, index / pixelCount, 0.75) }'
@@ -40,6 +85,7 @@ describe('compileShowForPreview temporal adaptations (#379)', () => {
               { id: 'placement-a', instanceId: 'instance-user', startMs: 0, durationMs: 10_000, view: { mirror: false, phase: 0, brightness: 1 } },
               { id: 'placement-b', instanceId: 'instance-user', startMs: 20_000, durationMs: 10_000, view: { mirror: false, phase: 0, brightness: 0.5 } },
             ],
+            overlays: [],
           }],
         },
         {
@@ -47,6 +93,7 @@ describe('compileShowForPreview temporal adaptations (#379)', () => {
           zones: [{
             zoneId: 'zone-1',
             main: [{ id: 'placement-c', instanceId: 'instance-user', startMs: 0, durationMs: 30_000, view: { mirror: false, phase: 0, brightness: 1 } }],
+            overlays: [],
           }],
         },
       ],
@@ -77,9 +124,9 @@ describe('compileShowForPreview temporal adaptations (#379)', () => {
           zones: [{ zoneId: 'zone-1', main: [
             { id: 'red-a', instanceId: 'red', startMs: 0, durationMs: 1_000, view: { mirror: false, phase: 0, brightness: 1 } },
             { id: 'blue-a', instanceId: 'blue', startMs: 2_000, durationMs: 1_000, view: { mirror: false, phase: 0, brightness: 1 } },
-          ] }],
+          ], overlays: [] }],
         },
-        { sceneId: 'scene-2', zones: [{ zoneId: 'zone-1', main: [] }] },
+        { sceneId: 'scene-2', zones: [{ zoneId: 'zone-1', main: [], overlays: [] }] },
       ],
     }
     const artifact = compileShowForPreview(show, patterns, undefined, {}).artifact!

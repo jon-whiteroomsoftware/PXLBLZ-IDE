@@ -28,8 +28,8 @@ describe('Show EPE export (#399)', () => {
         { sceneId: 'scene-1', zones: [{ zoneId: 'zone-1', main: [{
           id: 'private-placement', instanceId: 'private-instance', startMs: 0, durationMs: 30_000,
           view: { mirror: false, phase: 0, brightness: 1 },
-        }] }] },
-        { sceneId: 'scene-2', zones: [{ zoneId: 'zone-1', main: [] }] },
+        }], overlays: [] }] },
+        { sceneId: 'scene-2', zones: [{ zoneId: 'zone-1', main: [], overlays: [] }] },
       ],
     }
     const artifact = compileShowForArtifact(show, patterns, undefined, {}).artifact!

@@ -24,6 +24,11 @@ export interface ShowSceneEditorProjection {
   incomingBoundary: ShowBoundaryTransition | null
   outgoingBoundary: ShowBoundaryTransition | null
   mainPlacements: SceneReadOnlyPlacement[]
+  overlayLayers: Array<{
+    id: string
+    name: string
+    placements: Array<SceneReadOnlyPlacement & { opacity: number }>
+  }>
   availableZones: Array<Pick<ShowZone, 'id' | 'name' | 'nominalPixelCount'>>
   diagnostics: string[]
 }
@@ -124,6 +129,33 @@ export function projectShowSceneEditorScope(
         diagnostics: [],
       }
     })
+    const overlayLayers = (zoneComposition?.overlays ?? []).map((layer) => ({
+      id: layer.id,
+      name: layer.name,
+      placements: layer.placements.map((placement, index) => {
+        const instance = instances.get(placement.instanceId)
+        const previous = layer.placements[index - 1]
+        const next = layer.placements[index + 1]
+        return {
+          id: placement.id,
+          sourceCellId: placement.id,
+          instanceId: placement.instanceId,
+          patternName: instance?.patternName ?? 'Missing Pattern',
+          compiled: Boolean(instance),
+          startMs: placement.startMs,
+          endMs: placement.startMs + placement.durationMs,
+          opacity: placement.opacity,
+          effectKinds: (placement.effects ?? []).map((effect) => effect.kind),
+          continuesFromPrevious: Boolean(previous
+            && previous.instanceId === placement.instanceId
+            && previous.startMs + previous.durationMs === placement.startMs),
+          continuesToNext: Boolean(next
+            && next.instanceId === placement.instanceId
+            && placement.startMs + placement.durationMs === next.startMs),
+          diagnostics: [],
+        }
+      }),
+    }))
     return {
       scene,
       zone,
@@ -133,6 +165,7 @@ export function projectShowSceneEditorScope(
       incomingBoundary,
       outgoingBoundary,
       mainPlacements,
+      overlayLayers,
       availableZones: show.zones.map((candidate) => ({
         id: candidate.id,
         name: candidate.name,
@@ -154,6 +187,7 @@ export function projectShowSceneEditorScope(
     incomingBoundary,
     outgoingBoundary,
     mainPlacements: zoneDetail?.placements ?? [],
+    overlayLayers: [],
     availableZones: detail.zones.map((candidate) => {
       const source = show.zones.find((item) => item.id === candidate.zoneId)!
       return { id: source.id, name: source.name, nominalPixelCount: source.nominalPixelCount }

@@ -51,6 +51,7 @@ function composition(): ShowCompositionV1 {
               view: { mirror: false, phase: 0, brightness: 0.6 },
             },
           ],
+          overlays: [],
         }],
       },
       {
@@ -64,6 +65,7 @@ function composition(): ShowCompositionV1 {
             durationMs: 30_000,
             view: { mirror: false, phase: 0, brightness: 1 },
           }],
+          overlays: [],
         }],
       },
     ],
@@ -119,21 +121,63 @@ describe('Show composition compiler lowering (#488)', () => {
     const recipe = showRecordToCompileRecipe(show, lookup(show))
 
     expect(recipe.clips.map((clip) => clip.id).sort()).toEqual([
-      '__pxlblz_empty-scene-1--local-4000-5000',
+      '__pxlblz_empty-routed',
       'instance-a',
       'instance-b',
     ].sort())
-    expect(recipe.sceneSequence?.scenes.map((scene) => scene.clipId)).toEqual([
+    expect(recipe.routedSceneSequence?.scenes.map((scene) => scene.placements[0].clipId)).toEqual([
       'instance-a',
-      '__pxlblz_empty-scene-1--local-4000-5000',
+      '__pxlblz_empty-routed',
       'instance-b',
       'instance-a',
-      '__pxlblz_empty-scene-1--local-4000-5000',
+      '__pxlblz_empty-routed',
       'instance-b',
     ])
-    expect(recipe.sceneSequence?.scenes.map((scene) => scene.brightness)).toEqual([
+    expect(recipe.routedSceneSequence?.scenes.map((scene) => scene.placements[0].brightness ?? 1)).toEqual([
       0.8, 1, 1, 0.6, 1, 1,
     ])
+  })
+
+  it('lowers Main plus ordered overlays into one routed Zone stack (#489)', () => {
+    const show = fixture()
+    const firstZone = show.composition!.scenes[0].zones[0]
+    firstZone.overlays = [
+      {
+        id: 'front-fx',
+        name: 'Front FX',
+        placements: [{
+          id: 'overlay-front',
+          instanceId: 'instance-b',
+          startMs: 0,
+          durationMs: 4_000,
+          opacity: 0.25,
+          view: { mirror: false, phase: 0, brightness: 1 },
+        }],
+      },
+      {
+        id: 'back-fx',
+        name: 'Back FX',
+        placements: [{
+          id: 'overlay-back',
+          instanceId: 'instance-a',
+          startMs: 0,
+          durationMs: 4_000,
+          opacity: 0.5,
+          view: { mirror: false, phase: 0, brightness: 0.7 },
+        }],
+      },
+    ]
+
+    const recipe = showRecordToCompileRecipe(show, lookup(show))
+    const firstScene = recipe.routedSceneSequence?.scenes[0]
+
+    expect(firstScene?.placements).toEqual([
+      expect.objectContaining({ clipId: 'instance-a', stackOrder: 0, opacity: 1 }),
+      expect.objectContaining({ clipId: 'instance-a', stackOrder: 1, opacity: 0.5 }),
+      expect.objectContaining({ clipId: 'instance-b', stackOrder: 2, opacity: 0.25 }),
+    ])
+    expect(recipe.clips.map((clip) => clip.id)).toEqual(expect.arrayContaining(['instance-a', 'instance-b']))
+    expect(recipe.clips.filter((clip) => clip.id === 'instance-a')).toHaveLength(1)
   })
 
   it('remaps parent-boundary property starts onto the first derived local cell', () => {

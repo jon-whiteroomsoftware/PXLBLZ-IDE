@@ -1,7 +1,8 @@
 # Show Scene composition design
 
 Status: global and local interaction directions approved; the #487 production
-shell and #488 version-1 Main-schedule tracer bullet are implemented. Human
+shell, #488 version-1 Main schedule, and #489 ordered overlay compositor are
+implemented. Human
 review selected #458's explicit Layer Rail on 2026-07-15.
 A semantic Scene still spans zones, but local authoring targets one Scene x Zone
 composition at a time. The former all-zones Scene-detail direction and its
@@ -10,9 +11,9 @@ now proceeds as end-to-end vertical slices through storage,
 editing, preview, compilation, and migration.
 The #462 proof established a safe projection seam and identified two compiler
 gaps. The #478 lowering closes the top-level routed-Scene gap; explicit durable
-instance automation for local composition remains. The Main-only version-1
-ownership and persistence boundary is frozen below; overlay and Property
-animation extensions are not.
+instance automation for local composition remains. The version-1 ownership and
+persistence boundary now includes Main and ordered overlay placements; typed
+Property animation remains additive.
 
 The implementation stack is tracked by epic #486. Slice #487 integrates the
 production Scene x Zone shell over the lossless version-0 projection and current
@@ -715,9 +716,9 @@ or Pattern-control targets. Version 1 therefore needs typed instance tracks (or
 equivalent normalized segments); copying one static value from either cell onto
 the instance would lose behavior.
 
-### Smallest production seam
+### Implemented production seam
 
-The safe next seam is the version-0 sidecar projection:
+The version-0 sidecar projection established the migration boundary:
 
 1. Normalize a flat Show through the existing entry, Transition, and routing
    normalizers.
@@ -732,21 +733,14 @@ The safe next seam is the version-0 sidecar projection:
 6. Continue saving and compiling the flat record until those diagnostics are
    eliminated by a unified lowering path.
 
-This seam is useful immediately for read-only Scene summaries and migration
-instrumentation because it cannot change output. It is not sufficient for
-Scene-local editing: overlays, local Cuts, and keyframes still have no production
-lowering, and the explicit fields cannot yet replace the flat compatibility
-record.
-
-The first production consumer now uses this seam. The global Timeline can
+The global Timeline uses this seam to
 disclose one fixed-height Scene X-ray and magnify it into one modeless Super
 Detail overlay. Both surfaces remain read-only and surface compiler diagnostics
 for genuinely unsupported facts. Super Detail now exposes `Open Scene`, which
-enters the production one-Scene x one-Zone shell. That shell selects and edits
-only real Main placements backed by current flat cells, preserves the global
-Timeline state while it is open, and keeps the shared Stage on final all-zone
-output. It is an additive integration seam, not evidence that overlays, local
-Cuts, keyframes, or a version-1 schema have shipped.
+enters the production one-Scene x one-Zone editor. The version-1 sidecar now
+persists Main placements and ordered overlay layers. One lowering path drives
+preview, seek, export, and Controller code while the flat compatibility model
+remains accepted. Typed local Property animation is the remaining model slice.
 
 ### Dense fixture measurement
 
@@ -756,14 +750,14 @@ fixture contains three top-level Scenes, four Pattern instances, eight
 placements, and three keyframes. Its serialized candidate document is **2,534
 bytes**, or **0.133%** of the 1,900,000-byte protected-write ceiling.
 
-The exact candidate cannot yet compile because the current flat compiler has no
-overlay compositor or intra-Scene Cut schedule. The script therefore labels its
-generated cost honestly as a two-active-source lower bound: **10,976 artifact
+This was a pre-lowering baseline, not a current compiler result. At that point
+the script labeled its generated cost as a two-active-source lower bound:
+**10,976 artifact
 bytes**, **246 source bytes before merge**, **16.05%** of the measured device
 artifact budget, two compiled Clips, and a renderer-window policy. These numbers
 do not include the four local Cuts, overlay compositing branches, or keyframe
-schedules. Hardware budgeting must wait for that lowering instead of treating
-the lower bound as a forecast.
+schedules and must not be used as current budget evidence. #492 owns measured
+parity and hardware budgets for the production lowering.
 
 ### Ownership decisions after the spike
 
@@ -776,9 +770,8 @@ the lower bound as a forecast.
 - Top-level Transition and routing ownership remains unchanged.
 - The flat record remains accepted, saved, and compiled without destructive
   migration through the additive release.
-- Version 1 schema work waits on #458's revised zone-focused interaction and a
-  real overlay/local-schedule compiler path. The earlier all-zones candidate and
-  version-0 sidecar must not leak into durable storage as accidental schemas.
+- Version 1 is the durable zone-focused schema. The earlier all-zones candidate
+  remains design evidence and must not leak into storage as an alternate shape.
 
 ## Relationship to current plans
 

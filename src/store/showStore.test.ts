@@ -22,6 +22,11 @@ function composition(): ShowCompositionV1 {
       pattern: { kind: 'stock', id: 'TestPattern1D' },
       patternName: 'TestPattern1D',
       time: { timeScale: 1, timeOffsetMs: 0 },
+    }, {
+      id: 'instance-overlay',
+      pattern: { kind: 'stock', id: 'CometLoom' },
+      patternName: 'CometLoom',
+      time: { timeScale: 1, timeOffsetMs: 0 },
     }],
     scenes: [{
       sceneId: 'scene-1',
@@ -33,6 +38,18 @@ function composition(): ShowCompositionV1 {
           startMs: 0,
           durationMs: 10_000,
           view: { mirror: false, phase: 0, brightness: 1 },
+        }],
+        overlays: [{
+          id: 'overlay-layer-1',
+          name: 'Atmosphere',
+          placements: [{
+            id: 'overlay-placement-1',
+            instanceId: 'instance-overlay',
+            startMs: 1_000,
+            durationMs: 4_000,
+            opacity: 0.4,
+            view: { mirror: false, phase: 0, brightness: 1 },
+          }],
         }],
       }],
     }],

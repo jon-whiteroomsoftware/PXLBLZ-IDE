@@ -689,7 +689,7 @@ schedule. Changing the Zone changes only the authoring scope; playback,
 playhead position, Stage state, and the global Timeline's zoom/X-ray state are
 preserved. Escape closes Entity Details first and then returns to the Show.
 
-The **Main only** slice supports several mutually exclusive clips and explicit
+The **Main clips** lane supports several mutually exclusive clips and explicit
 empty gaps inside one Scene x Zone. Select a clip to edit exact Start and
 Duration milliseconds, replace its Pattern instance, split at the playhead,
 Restart its private clock, or delete it. Drag the clip body horizontally;
@@ -697,8 +697,21 @@ nearby clip edges and Scene bounds are magnetic, and an overlapping drop moves
 to the nearest legal edge. Add at playhead fills the available interval up to
 the next clip or Scene end. Split defaults to Continue.
 
-Overlay layers and local Property animation are later Scene-composition slices;
-the editor does not show placeholder controls for either.
+Choose **Overlay layer** to add a compositing lane above Main. The first row is
+the visual front: rename rows in place, move them up or down, or delete them.
+Each layer accepts several clips as long as they do not overlap inside that
+layer; clips on different layers may overlap. The row's plus command adds the
+toolbar's selected Pattern at the playhead and fills the open interval. Select
+an overlay clip to enter exact Start and Duration milliseconds, set normalized
+Opacity, move it to another layer, or delete it. Opacity and other normalized
+numeric fields carry a subtle `0–1` label and clamp on commit. Main and overlay
+Pattern instances retain independent clocks unless placements explicitly reuse
+one instance.
+
+The local compiler composites Main and active overlays from back to front, then
+passes the flattened Scene output to the ordinary top-level Transition. Local
+Property animation remains a later Scene-composition slice; no placeholder
+lanes appear before it is authored.
 
 Selecting a Show, scene, transition, clip, empty slot, zone, or routing switch
 opens one **Entity Detail Panel** beside that entity. The panel is modeless and

@@ -413,22 +413,37 @@ export interface ShowPatternInstance {
 }
 
 /** Placement-owned render values; simulation and exported controls stay on the instance. */
+export interface ShowPlacementView {
+  mirror: boolean
+  phase: number
+  brightness: number
+}
+
 export interface ShowMainPlacement {
   id: string
   instanceId: string
   startMs: number
   durationMs: number
-  view: {
-    mirror: boolean
-    phase: number
-    brightness: number
-  }
+  view: ShowPlacementView
   effects?: ShowClipEffect[]
+}
+
+export interface ShowOverlayPlacement extends Omit<ShowMainPlacement, 'view'> {
+  opacity: number
+  view: ShowPlacementView
+}
+
+/** Front-to-back manual order; the first layer renders visually on top. */
+export interface ShowOverlayLayer {
+  id: string
+  name: string
+  placements: ShowOverlayPlacement[]
 }
 
 export interface ShowZoneComposition {
   zoneId: string
   main: ShowMainPlacement[]
+  overlays: ShowOverlayLayer[]
 }
 
 export interface ShowSceneComposition {
@@ -438,8 +453,8 @@ export interface ShowSceneComposition {
 
 /**
  * Additive Scene-composition sidecar. Version 1 initially carries only mutually
- * exclusive Main schedules; overlay layers and Property animation extend this
- * versioned boundary in later slices.
+ * exclusive Main schedules and manually ordered overlay layers. Property
+ * animation extends this versioned boundary in a later slice.
  */
 export interface ShowCompositionV1 {
   version: 1

@@ -1,4 +1,4 @@
-import { ChevronLeft, ChevronRight, Clapperboard, Lock, Plus, RotateCw, Scissors, Trash2 } from 'lucide-react'
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clapperboard, Lock, Plus, RotateCw, Scissors, Trash2 } from 'lucide-react'
 import { useState, type MouseEvent, type PointerEvent, type ReactNode } from 'react'
 import type { FlatShowCompositionProjection } from '@/engine/showCompositionProjection'
 import {
@@ -29,6 +29,13 @@ export function ShowSceneZoneEditor({
   onRestartMain,
   onReplaceMainPattern,
   onDeleteMain,
+  onAddOverlayLayer,
+  onRenameOverlayLayer,
+  onReorderOverlayLayer,
+  onDeleteOverlayLayer,
+  onAddOverlay,
+  onUpdateOverlay,
+  onDeleteOverlay,
 }: {
   show: ShowRecord
   compositionProjection: FlatShowCompositionProjection
@@ -48,8 +55,16 @@ export function ShowSceneZoneEditor({
   onRestartMain: (placementId: string) => void
   onReplaceMainPattern: (placementId: string, pattern: ShowPatternRef, patternName: string) => void
   onDeleteMain: (placementId: string) => void
+  onAddOverlayLayer: () => void
+  onRenameOverlayLayer: (layerId: string, name: string) => void
+  onReorderOverlayLayer: (layerId: string, targetIndex: number) => void
+  onDeleteOverlayLayer: (layerId: string) => void
+  onAddOverlay: (layerId: string, input: { pattern: ShowPatternRef; patternName: string; startMs: number; durationMs: number }) => void
+  onUpdateOverlay: (layerId: string, placementId: string, changes: { startMs: number; durationMs: number; opacity?: number; targetLayerId?: string }) => void
+  onDeleteOverlay: (layerId: string, placementId: string) => void
 }) {
   const [selectedMainId, setSelectedMainId] = useState<string | null>(null)
+  const [selectedOverlay, setSelectedOverlay] = useState<{ layerId: string; placementId: string } | null>(null)
   const [newPatternKey, setNewPatternKey] = useState('')
   const [drag, setDrag] = useState<{ placementId: string; grabOffsetMs: number; startMs: number } | null>(null)
   const detail = projectShowSceneEditorScope(compositionProjection, scope)
@@ -71,6 +86,11 @@ export function ShowSceneZoneEditor({
   const selectedInstance = selectedMain
     ? show.composition?.patternInstances.find((instance) => instance.id === selectedMain.instanceId)
     : null
+  const selectedOverlayLayer = selectedOverlay
+    ? detail.overlayLayers.find((layer) => layer.id === selectedOverlay.layerId) ?? null
+    : null
+  const selectedOverlayPlacement = selectedOverlayLayer
+    ?.placements.find((placement) => placement.id === selectedOverlay?.placementId) ?? null
   const resolvedNewPattern = patternOptions.find((option) => (
     patternKey(option.ref) === (newPatternKey || patternKey(patternOptions[0]?.ref))
   )) ?? patternOptions[0]
@@ -173,7 +193,16 @@ export function ShowSceneZoneEditor({
               Enable local cuts
             </button>
           )}
-          <span className="rounded border border-zinc-800 px-2 py-1 text-[8px] uppercase tracking-[0.1em] text-zinc-600">Main only</span>
+          {compositionMode && (
+            <button
+              type="button"
+              disabled={readOnly}
+              onClick={onAddOverlayLayer}
+              className="flex h-6 items-center gap-1 rounded border border-emerald-400/25 bg-emerald-400/[0.05] px-1.5 text-[9px] text-emerald-200 hover:border-emerald-300/50 disabled:opacity-35"
+            >
+              <Plus size={10} aria-hidden /> Overlay layer
+            </button>
+          )}
         </div>
       </div>
 
@@ -205,6 +234,96 @@ export function ShowSceneZoneEditor({
           </span>
         </div>
 
+        {detail.overlayLayers.map((layer, layerIndex) => {
+          const addSpan = availableSpanAt(layer.placements, addStartMs, durationMs)
+          return (
+            <div key={layer.id}>
+              <div className="grid h-10 grid-cols-[136px_minmax(0,1fr)] border-x border-b border-zinc-800">
+                <span className="flex min-w-0 items-center gap-0.5 border-r border-zinc-800 bg-[#0d1116] px-1 text-[9px] text-zinc-300">
+                  <i aria-hidden className="ml-1 size-1.5 shrink-0 rounded-full bg-emerald-300/80" />
+                  <input
+                    key={layer.name}
+                    aria-label={`${layer.name} layer name`}
+                    defaultValue={layer.name}
+                    disabled={readOnly}
+                    onBlur={(event) => {
+                      const name = event.currentTarget.value.trim()
+                      if (name && name !== layer.name) onRenameOverlayLayer(layer.id, name)
+                      else event.currentTarget.value = layer.name
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter') event.currentTarget.blur()
+                      if (event.key === 'Escape') {
+                        event.currentTarget.value = layer.name
+                        event.currentTarget.blur()
+                      }
+                    }}
+                    className="h-6 min-w-0 flex-1 bg-transparent px-1 text-[9px] text-zinc-200 outline-none focus:bg-zinc-950"
+                  />
+                  <button type="button" aria-label={`Move ${layer.name} layer up`} disabled={readOnly || layerIndex === 0} onClick={() => onReorderOverlayLayer(layer.id, layerIndex - 1)} className="grid size-5 shrink-0 place-items-center text-zinc-600 hover:text-zinc-200 disabled:opacity-20"><ChevronUp size={10} /></button>
+                  <button type="button" aria-label={`Move ${layer.name} layer down`} disabled={readOnly || layerIndex === detail.overlayLayers.length - 1} onClick={() => onReorderOverlayLayer(layer.id, layerIndex + 1)} className="grid size-5 shrink-0 place-items-center text-zinc-600 hover:text-zinc-200 disabled:opacity-20"><ChevronDown size={10} /></button>
+                  <button
+                    type="button"
+                    aria-label={`Add clip to ${layer.name} at playhead`}
+                    disabled={readOnly || !compositionMode || !resolvedNewPattern || !addSpan}
+                    onClick={() => resolvedNewPattern && addSpan && onAddOverlay(layer.id, {
+                      pattern: resolvedNewPattern.ref,
+                      patternName: resolvedNewPattern.label,
+                      startMs: addSpan.startMs,
+                      durationMs: addSpan.durationMs,
+                    })}
+                    className="grid size-5 shrink-0 place-items-center text-emerald-500 hover:text-emerald-200 disabled:opacity-20"
+                  ><Plus size={10} /></button>
+                  <button type="button" aria-label={`Delete ${layer.name} layer`} disabled={readOnly} onClick={() => { onDeleteOverlayLayer(layer.id); setSelectedOverlay(null) }} className="grid size-5 shrink-0 place-items-center text-zinc-600 hover:text-red-300 disabled:opacity-20"><Trash2 size={10} /></button>
+                </span>
+                <div className="relative bg-[repeating-linear-gradient(90deg,transparent_0_calc(12.5%-1px),#181d23_calc(12.5%-1px)_12.5%)]" onClick={seekFromTrack}>
+                  {layer.placements.map((placement) => (
+                    <button
+                      key={placement.id}
+                      type="button"
+                      aria-label={`Select ${placement.patternName} clip in ${layer.name}`}
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        setSelectedMainId(null)
+                        setSelectedOverlay({ layerId: layer.id, placementId: placement.id })
+                      }}
+                      className={`absolute inset-y-1 overflow-hidden rounded-[4px] border-l-[3px] px-2 text-left text-[9px] ${
+                        selectedOverlay?.layerId === layer.id && selectedOverlay.placementId === placement.id
+                          ? 'border-emerald-200 bg-emerald-700/40 text-white outline outline-1 outline-emerald-300/60'
+                          : 'border-emerald-400/70 bg-emerald-900/30 text-emerald-50 hover:bg-emerald-800/40'
+                      }`}
+                      style={{
+                        left: `${placement.startMs / durationMs * 100}%`,
+                        width: `${Math.max(2, (placement.endMs - placement.startMs) / durationMs * 100)}%`,
+                      }}
+                    >
+                      <strong className="font-medium">{placement.patternName}</strong>
+                      {placement.opacity < 1 && <span className="ml-1.5 text-[8px] text-emerald-300">{Math.round(placement.opacity * 100)}%</span>}
+                      {placement.effectKinds.length > 0 && <span className="ml-1.5 text-[8px] text-cyan-300">{placement.effectKinds.length} FX</span>}
+                    </button>
+                  ))}
+                  {layer.placements.length === 0 && <span className="absolute inset-1 flex items-center justify-center border border-dashed border-zinc-800 text-[8px] text-zinc-700">Empty overlay</span>}
+                  <i aria-hidden className="pointer-events-none absolute inset-y-0 z-20 w-px bg-amber-300 shadow-[0_0_5px_rgba(252,211,77,.75)]" style={{ left: `${localTimeMs / durationMs * 100}%` }} />
+                </div>
+              </div>
+              {selectedOverlayLayer?.id === layer.id && selectedOverlayPlacement && (
+                <div className="flex min-h-9 items-center gap-2 border-x border-b border-zinc-800 bg-[#0b0e12] px-2 text-[9px] text-zinc-400">
+                  <strong className="shrink-0 font-medium text-zinc-200">{selectedOverlayPlacement.patternName}</strong>
+                  <ExactTimeInput label="Overlay start ms" value={selectedOverlayPlacement.startMs} disabled={readOnly} onCommit={(startMs) => onUpdateOverlay(layer.id, selectedOverlayPlacement.id, { startMs, durationMs: selectedOverlayPlacement.endMs - selectedOverlayPlacement.startMs })} />
+                  <ExactTimeInput label="Overlay duration ms" value={selectedOverlayPlacement.endMs - selectedOverlayPlacement.startMs} disabled={readOnly} onCommit={(nextDurationMs) => onUpdateOverlay(layer.id, selectedOverlayPlacement.id, { startMs: selectedOverlayPlacement.startMs, durationMs: nextDurationMs })} />
+                  <ExactNumberInput label="Opacity" value={selectedOverlayPlacement.opacity} min={0} max={1} step={0.01} disabled={readOnly} onCommit={(opacity) => onUpdateOverlay(layer.id, selectedOverlayPlacement.id, { startMs: selectedOverlayPlacement.startMs, durationMs: selectedOverlayPlacement.endMs - selectedOverlayPlacement.startMs, opacity })} />
+                  <label className="flex min-w-0 items-center gap-1">Layer
+                    <select aria-label="Overlay target layer" value={layer.id} disabled={readOnly} onChange={(event) => onUpdateOverlay(layer.id, selectedOverlayPlacement.id, { startMs: selectedOverlayPlacement.startMs, durationMs: selectedOverlayPlacement.endMs - selectedOverlayPlacement.startMs, targetLayerId: event.target.value })} className="h-6 max-w-28 rounded border border-zinc-800 bg-zinc-950 px-1 text-[9px] text-zinc-200">
+                      {detail.overlayLayers.map((candidate) => <option key={candidate.id} value={candidate.id}>{candidate.name}</option>)}
+                    </select>
+                  </label>
+                  <button type="button" aria-label="Delete overlay clip" disabled={readOnly} onClick={() => { onDeleteOverlay(layer.id, selectedOverlayPlacement.id); setSelectedOverlay(null) }} className="ml-auto grid size-6 shrink-0 place-items-center rounded border border-zinc-800 text-zinc-500 hover:text-red-300 disabled:opacity-30"><Trash2 size={11} /></button>
+                </div>
+              )}
+            </div>
+          )
+        })}
+
         <div className="grid h-11 grid-cols-[136px_minmax(0,1fr)] border-x border-b border-zinc-800">
           <span className="flex min-w-0 items-center gap-1.5 border-r border-zinc-800 bg-[#0d1116] px-2 text-[9px] text-zinc-300">
             <i aria-hidden className="size-1.5 shrink-0 bg-zinc-300" />
@@ -227,7 +346,10 @@ export function ShowSceneZoneEditor({
                 data-show-selection-key={`clip:${placement.sourceCellId}`}
                 onClick={(event) => {
                   event.stopPropagation()
-                  if (compositionMode) setSelectedMainId(placement.id)
+                  if (compositionMode) {
+                    setSelectedOverlay(null)
+                    setSelectedMainId(placement.id)
+                  }
                   else onSelectClip(placement.sourceCellId, event.currentTarget)
                 }}
                 onPointerDown={(event) => {
@@ -409,6 +531,59 @@ function ExactTimeInput({
       />
     </label>
   )
+}
+
+function ExactNumberInput({ label, value, min, max, step, disabled, onCommit }: {
+  label: string
+  value: number
+  min: number
+  max: number
+  step: number
+  disabled: boolean
+  onCommit: (value: number) => void
+}) {
+  return (
+    <label className="flex shrink-0 items-center gap-1">
+      {label}
+      {min === 0 && max === 1 && <span className="font-mono text-[8px] text-zinc-700" title="Normalized value from zero to one">0–1</span>}
+      <input
+        key={value}
+        aria-label={label}
+        type="number"
+        min={min}
+        max={max}
+        step={step}
+        defaultValue={value}
+        disabled={disabled}
+        onBlur={(event) => {
+          const parsed = Number(event.currentTarget.value)
+          const next = Number.isFinite(parsed) ? clamp(parsed, min, max) : value
+          event.currentTarget.value = String(next)
+          if (next !== value) onCommit(next)
+        }}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') event.currentTarget.blur()
+          if (event.key === 'Escape') {
+            event.currentTarget.value = String(value)
+            event.currentTarget.blur()
+          }
+        }}
+        className="h-6 w-16 rounded border border-zinc-800 bg-zinc-950 px-1.5 text-right text-[9px] tabular-nums text-zinc-200"
+      />
+    </label>
+  )
+}
+
+function availableSpanAt(
+  placements: ReadonlyArray<{ startMs: number; endMs: number }>,
+  atMs: number,
+  sceneDurationMs: number,
+): { startMs: number; durationMs: number } | null {
+  if (placements.some((placement) => placement.startMs <= atMs && placement.endMs > atMs)) return null
+  const nextStartMs = placements
+    .filter((placement) => placement.startMs >= atMs)
+    .reduce((nearest, placement) => Math.min(nearest, placement.startMs), sceneDurationMs)
+  return nextStartMs > atMs ? { startMs: atMs, durationMs: nextStartMs - atMs } : null
 }
 
 function patternKey(pattern: ShowPatternRef | undefined): string {

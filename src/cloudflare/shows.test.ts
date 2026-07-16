@@ -30,6 +30,7 @@ function composition(): ShowCompositionV1 {
           durationMs: 10_000,
           view: { mirror: false, phase: 0, brightness: 1 },
         }],
+        overlays: [],
       }],
     }],
   }

@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { projectFlatShowComposition } from '@/engine/showCompositionProjection'
 import { createDefaultShow } from '@/engine/showModel'
-import { projectFlatShowToCompositionV1, splitShowMainPlacement } from '@/engine/showCompositionModel'
+import { addShowOverlayClip, addShowOverlayLayer, projectFlatShowToCompositionV1, splitShowMainPlacement } from '@/engine/showCompositionModel'
 import { showTransportInitialState, useShowTransportStore } from '@/store/showTransportStore'
 import { ShowSceneZoneEditor } from './ShowSceneZoneEditor'
 
@@ -51,6 +51,13 @@ const editingProps = {
   onRestartMain: vi.fn(),
   onReplaceMainPattern: vi.fn(),
   onDeleteMain: vi.fn(),
+  onAddOverlayLayer: vi.fn(),
+  onRenameOverlayLayer: vi.fn(),
+  onReorderOverlayLayer: vi.fn(),
+  onDeleteOverlayLayer: vi.fn(),
+  onAddOverlay: vi.fn(),
+  onUpdateOverlay: vi.fn(),
+  onDeleteOverlay: vi.fn(),
 }
 
 describe('ShowSceneZoneEditor (#487)', () => {
@@ -249,5 +256,69 @@ describe('ShowSceneZoneEditor (#487)', () => {
     fireEvent.pointerUp(clip, { pointerId: 1, button: 0, clientX: 10 })
 
     expect(onUpdateMain).toHaveBeenCalledWith(placement.id, { startMs: 5_000, durationMs: 5_000 })
+  })
+
+  it('authors compact overlay layers and clamps normalized opacity on commit', () => {
+    const { show } = compositionFixture()
+    const withLayer = addShowOverlayLayer(show, show.composition!, {
+      sceneId: 'scene-1', zoneId: 'zone-1', layer: { id: 'overlay-front', name: 'Front texture', placements: [] },
+    })
+    show.composition = addShowOverlayClip(show, withLayer, {
+      sceneId: 'scene-1', zoneId: 'zone-1', layerId: 'overlay-front',
+      instance: {
+        id: 'overlay-instance',
+        pattern: { kind: 'stock', id: 'CometLoom' },
+        patternName: 'CometLoom',
+        time: { timeScale: 1, timeOffsetMs: 0 },
+      },
+      placement: {
+        id: 'overlay-placement',
+        instanceId: 'overlay-instance',
+        startMs: 1_000,
+        durationMs: 5_000,
+        opacity: 0.6,
+        view: { mirror: false, phase: 0, brightness: 1 },
+      },
+    })
+    const projection = projectFlatShowComposition(show, {
+      byCellId: Object.fromEntries(show.cells.map((cell) => [cell.id, source])),
+      stageDimension: 1,
+    })
+    const onRenameOverlayLayer = vi.fn()
+    const onUpdateOverlay = vi.fn()
+    const onDeleteOverlay = vi.fn()
+
+    render(<ShowSceneZoneEditor
+      show={show}
+      compositionProjection={projection}
+      scope={{ sceneId: 'scene-1', zoneId: 'zone-1' }}
+      readOnly={false}
+      selectedClipId={null}
+      transport={null}
+      onBack={vi.fn()}
+      onZoneChange={vi.fn()}
+      onSelectClip={vi.fn()}
+      onSeek={vi.fn()}
+      {...editingProps}
+      onRenameOverlayLayer={onRenameOverlayLayer}
+      onUpdateOverlay={onUpdateOverlay}
+      onDeleteOverlay={onDeleteOverlay}
+    />)
+
+    fireEvent.change(screen.getByRole('textbox', { name: 'Front texture layer name' }), { target: { value: 'Atmosphere' } })
+    fireEvent.blur(screen.getByRole('textbox', { name: 'Front texture layer name' }))
+    expect(onRenameOverlayLayer).toHaveBeenCalledWith('overlay-front', 'Atmosphere')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Select CometLoom clip in Front texture' }))
+    const opacity = screen.getByRole('spinbutton', { name: 'Opacity' })
+    fireEvent.change(opacity, { target: { value: '9' } })
+    fireEvent.blur(opacity)
+    expect(opacity).toHaveValue(1)
+    expect(onUpdateOverlay).toHaveBeenCalledWith('overlay-front', 'overlay-placement', {
+      startMs: 1_000, durationMs: 5_000, opacity: 1,
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete overlay clip' }))
+    expect(onDeleteOverlay).toHaveBeenCalledWith('overlay-front', 'overlay-placement')
   })
 })

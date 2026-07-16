@@ -36,6 +36,12 @@ import { showPreviewOverrideInitialState, useShowPreviewOverrideStore } from '@/
 import { showEditorSessionInitialState, useShowEditorSessionStore } from '@/store/showEditorSessionStore'
 import { STOCK_SHOWS } from '@/pixelblaze/stock/shows'
 
+function changeCommittedNumber(label: string, value: string): void {
+  const input = screen.getByLabelText(label)
+  fireEvent.change(input, { target: { value } })
+  fireEvent.blur(input)
+}
+
 function memoryProvider(seedShows: ShowRecord[] = []): PersonalContentProvider {
   const patterns = new Map<string, PatternRecord>()
   const maps = new Map<string, MapRecord>()
@@ -976,7 +982,7 @@ describe('ShowEditor (#318)', () => {
     expect(screen.getByText(/moving split: 1 scalar/i)).toBeInTheDocument()
     await user.click(screen.getByRole('group', { name: 'Scene Scene 1' }))
     expect(screen.getByLabelText('Split position')).toHaveValue(0.25)
-    fireEvent.change(screen.getByLabelText('Split position'), { target: { value: '0.4' } })
+    changeCommittedNumber('Split position', '0.4')
     await waitFor(() => {
       expect(useShowStore.getState().shows[0].scenes[0].routingTargets?.splitPosition).toBe(0.4)
     })
@@ -999,8 +1005,8 @@ describe('ShowEditor (#318)', () => {
     render(<ShowEditor showId={show.id} />)
     await user.click(screen.getByRole('button', { name: 'Select Scene 1 to Scene 2 transition (crossfade)' }))
     await user.click(screen.getByLabelText('Animate split position'))
-    fireEvent.change(screen.getByLabelText('Split position start'), { target: { value: '0.2' } })
-    fireEvent.change(screen.getByLabelText('Split position duration seconds'), { target: { value: '1.2' } })
+    changeCommittedNumber('Split position start', '0.2')
+    changeCommittedNumber('Split position duration seconds', '1.2')
     await user.selectOptions(screen.getByLabelText('Split position easing'), 'ease-in-out')
 
     await waitFor(() => {
@@ -1025,7 +1031,7 @@ describe('ShowEditor (#318)', () => {
     expect(screen.getByText(/sample repeat: 1 scalar/i)).toBeInTheDocument()
     await user.click(screen.getByRole('group', { name: 'Scene Scene 1' }))
     expect(screen.getByLabelText('Repeat scale')).toHaveValue(2)
-    fireEvent.change(screen.getByLabelText('Repeat scale'), { target: { value: '3' } })
+    changeCommittedNumber('Repeat scale', '3')
     await waitFor(() => {
       expect(useShowStore.getState().shows[0].scenes[0].sampleTargets?.repeatScale).toBe(3)
     })
@@ -1042,8 +1048,8 @@ describe('ShowEditor (#318)', () => {
     render(<ShowEditor showId={show.id} />)
     await user.click(screen.getByRole('button', { name: 'Select Scene 1 to Scene 2 transition (crossfade)' }))
     await user.click(screen.getByLabelText('Animate repeat scale'))
-    fireEvent.change(screen.getByLabelText('Repeat scale start'), { target: { value: '1.25' } })
-    fireEvent.change(screen.getByLabelText('Repeat scale duration seconds'), { target: { value: '1.2' } })
+    changeCommittedNumber('Repeat scale start', '1.25')
+    changeCommittedNumber('Repeat scale duration seconds', '1.2')
     await user.selectOptions(screen.getByLabelText('Repeat scale easing'), 'ease-in-out')
 
     await waitFor(() => {
@@ -1070,7 +1076,7 @@ describe('ShowEditor (#318)', () => {
     expect(screen.getByText(/Scene 1 → Scene 2 · crossfade/i)).toBeInTheDocument()
     await user.selectOptions(screen.getByLabelText('Easing'), 'ease-in-out')
     expect(screen.getByLabelText('Duration')).toHaveAttribute('step', '100')
-    fireEvent.change(screen.getByLabelText('Duration'), { target: { value: '1500' } })
+    changeCommittedNumber('Duration', '1500')
     await waitFor(() => {
       expect(useShowStore.getState().shows[0].transitions?.find((transition) => transition.id === 'transition-scene-1'))
         .toMatchObject({ durationMs: 1500, easing: { curve: 'quadratic', direction: 'in-out' } })
@@ -1080,7 +1086,7 @@ describe('ShowEditor (#318)', () => {
     expect(screen.getByText(/Scene 1 → Scene 2 · routing/i)).toBeInTheDocument()
     expect(screen.getByLabelText('Destination routing layout')).toHaveValue(base.routingLayouts[1].id)
 
-    fireEvent.change(screen.getByLabelText('Routing transfer duration seconds'), { target: { value: '2' } })
+    changeCommittedNumber('Routing transfer duration seconds', '2')
     await user.selectOptions(screen.getByLabelText('Routing transfer easing'), 'ease-in-out')
     await user.selectOptions(screen.getByLabelText('Routing transfer direction'), 'reverse')
     expect(screen.getByLabelText('Routing transfer cost')).toHaveTextContent('Cost tier: cheap')
@@ -1105,8 +1111,8 @@ describe('ShowEditor (#318)', () => {
     expect(screen.getByRole('group', { name: 'Animation speed lane for main' })).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Edit animation speed transition from Scene 1 for main' }))
     await user.click(screen.getByLabelText('Animate speed for main'))
-    fireEvent.change(screen.getByLabelText('Animation speed start main'), { target: { value: '1.5' } })
-    fireEvent.change(screen.getByLabelText('Animation speed target main'), { target: { value: '0' } })
+    changeCommittedNumber('Animation speed start main', '1.5')
+    changeCommittedNumber('Animation speed target main', '0')
 
     await waitFor(() => {
       const saved = useShowStore.getState().shows[0]
@@ -1129,11 +1135,11 @@ describe('ShowEditor (#318)', () => {
     await user.click(screen.getByRole('button', { name: 'Edit brightness transition from Scene 1 for main' }))
     await user.click(screen.getByLabelText('Animate speed for main'))
     await user.click(screen.getByLabelText('Animate brightness for main'))
-    fireEvent.change(screen.getByLabelText('Animation speed duration seconds'), { target: { value: '1.5' } })
+    changeCommittedNumber('Animation speed duration seconds', '1.5')
     await user.selectOptions(screen.getByLabelText('Animation speed easing'), 'ease-in')
-    fireEvent.change(screen.getByLabelText('Brightness duration seconds'), { target: { value: '0.8' } })
+    changeCommittedNumber('Brightness duration seconds', '0.8')
     await user.selectOptions(screen.getByLabelText('Brightness easing'), 'ease-out')
-    fireEvent.change(screen.getByLabelText('Brightness target main'), { target: { value: '0.25' } })
+    changeCommittedNumber('Brightness target main', '0.25')
 
     await waitFor(() => {
       const saved = useShowStore.getState().shows[0]
@@ -1165,10 +1171,11 @@ describe('ShowEditor (#318)', () => {
     const firstSpeedTarget = screen.getByLabelText('Speed target')
     expect(firstSpeedTarget.closest('label')?.querySelector('.sr-only')).toHaveTextContent('Speed target')
     fireEvent.change(firstSpeedTarget, { target: { value: '0.2' } })
+    fireEvent.blur(firstSpeedTarget)
 
     await user.click(screen.getAllByRole('button', { name: 'Select Ribbon Loom' })[1])
     await user.click(screen.getByLabelText('Set Speed target'))
-    fireEvent.change(screen.getByLabelText('Speed target'), { target: { value: '0.8' } })
+    changeCommittedNumber('Speed target', '0.8')
 
     await user.click(screen.getByRole('button', { name: 'Edit Speed transition from Scene 1 for main' }))
     await user.click(screen.getByLabelText('Animate Speed for main'))
@@ -1307,6 +1314,14 @@ describe('ShowEditor (#318)', () => {
     fireEvent.blur(speed)
     expect(speed).toHaveValue(4)
     expect(useShowStore.getState().shows[0].cells[0].adaptations.timeScale).toBe(4)
+
+    const brightness = screen.getByRole('spinbutton', { name: 'Brightness' })
+    expect(brightness.closest('label')).toHaveTextContent('0–1')
+    await user.clear(brightness)
+    await user.type(brightness, '9')
+    fireEvent.blur(brightness)
+    expect(brightness).toHaveValue(1)
+    expect(useShowStore.getState().shows[0].cells[0].adaptations.brightness).toBe(1)
   })
 
   it('opens Show properties from the Show header action', async () => {
@@ -1376,6 +1391,7 @@ describe('ShowEditor (#318)', () => {
 
     await user.click(screen.getByRole('button', { name: 'Edit Ripple Effect' }))
     fireEvent.change(screen.getByRole('spinbutton', { name: 'Amount' }), { target: { value: '0.2' } })
+    fireEvent.blur(screen.getByRole('spinbutton', { name: 'Amount' }))
     await waitFor(() => expect(useShowStore.getState().shows[0].cells[0].effects?.[0]).toMatchObject({
       id: 'ripple',
       kind: 'ripple',
@@ -1684,7 +1700,7 @@ describe('ShowEditor (#318)', () => {
     expect(screen.getByText(/Pattern eval:/i)).toHaveTextContent('50% expected')
     expect(screen.getByText(/Pattern eval:/i)).toHaveTextContent('outer loop + LEDs unchanged')
 
-    fireEvent.change(screen.getByLabelText('Light on fraction'), { target: { value: '0.35' } })
+    changeCommittedNumber('Light on fraction', '0.35')
     await user.selectOptions(screen.getByLabelText('Clock while dark'), 'freeze')
 
     await waitFor(() => {
@@ -1744,7 +1760,7 @@ describe('ShowEditor (#318)', () => {
     await user.click(screen.getAllByRole('button', { name: /Select TestPattern1D/i })[0])
 
     expect(screen.getByLabelText('Start offset (ms)')).toHaveValue(0)
-    fireEvent.change(screen.getByLabelText('Start offset (ms)'), { target: { value: '500' } })
+    changeCommittedNumber('Start offset (ms)', '500')
 
     await waitFor(() => {
       expect(useShowStore.getState().shows[0].cells[0].adaptations.timeOffsetMs).toBe(500)
@@ -1863,6 +1879,7 @@ describe('ShowEditor (#318)', () => {
     expect(screen.queryByText(/pixel ranges/i)).not.toBeInTheDocument()
     expect(screen.getByLabelText('Portable reference map')).toHaveValue('plane')
     expect(screen.getByLabelText('Portable reference pixels')).toHaveValue(1024)
+    expect(screen.getByLabelText('Portable reference pixels')).toHaveAttribute('max', '2000')
 
     await user.selectOptions(screen.getByLabelText('Portable reference map'), 'wide')
     fireEvent.change(screen.getByLabelText('Portable reference pixels'), { target: { value: '1536' } })

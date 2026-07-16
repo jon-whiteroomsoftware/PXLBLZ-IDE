@@ -951,7 +951,8 @@ Pattern-instance summaries from Scene-owned full-duration base placements and
 retains the normalized flat record as the compatibility authority.
 `showSceneEditorScope.ts` narrows that sidecar to one resolved Scene x Zone,
 including the active routing layout, global/local bounds, actual incoming and
-outgoing boundaries, available zones, Main placements, and diagnostics. A
+outgoing boundaries, available zones, Main placements, ordered overlay layers,
+and diagnostics. A
 missing Scene closes the scope; a stale Zone falls back to the first occupied
 Zone and then the first Show Zone.
 
@@ -965,35 +966,41 @@ Stage remains mounted and continues to render final all-zone output.
 
 The first local edit explicitly projects the flat compatibility cells into
 `ShowRecord.composition` version 1. `showCompositionModel.ts` normalizes and
-validates the sidecar, owns atomic add/move/trim/split/delete/replace operations,
+validates the sidecar, owns atomic Main and overlay layer/placement operations,
 and resolves magnetic horizontal movement to legal millisecond bounds. Main
-placements in one Scene x Zone may leave gaps but cannot overlap. Exact numeric
-fields commit on blur or Enter. Split preserves the explicit Pattern-instance
-id; Restart creates a new instance and virtual time base.
+placements and placements inside one overlay layer may leave gaps but cannot
+overlap; placements in different overlay layers may overlap. Exact numeric
+fields commit on blur or Enter. Normalized fields clamp to `0..1`. Split
+preserves the explicit Pattern-instance id; Restart creates a new instance and
+virtual time base.
 
 `migrations/0016_show_composition.sql` adds one nullable `composition_json`
 column to the existing Show row. Save, load, undo, and redo serialize this
 versioned value without creating relational sub-entities. Returning to a flat
 Show writes SQL `NULL` rather than retaining stale authored state.
 
-`showCompositionLowering.ts` validates the sidecar, unions every local Main
-boundary, and emits transient flat Scene intervals for the existing compiler.
-Interior boundaries are Cuts; uncovered intervals use the existing Empty
-Pattern. A transient cell-to-instance identity table preserves Continue and
-Restart literally, including across gaps. The final interval retains its
-top-level outgoing Transition and routing switch. Flat-cell property-transition
-starts remap to the first derived destination cell. Preview, fast replay,
-artifact generation, Controller output, and EPE export all consume this same lowering.
-Shows without authored composition bypass it.
+`showCompositionLowering.ts` validates the sidecar and unions every local Main
+and overlay boundary. Each derived interval becomes an ordered routed stack:
+Main is the back source, overlay array order determines front-to-back layering,
+and every placement contributes opacity, render-view adaptations, and its
+stable-id Effect stack. The compiler alpha-composites the active stack, advances
+each unique Pattern instance once per frame even when several placements
+reference it, and flattens the Scene before applying its top-level Transition or
+routing switch. Uncovered intervals use the existing Empty Pattern. A transient
+cell-to-instance identity table preserves Continue and Restart literally,
+including across gaps. Flat-cell property-transition starts remap to the first
+derived destination cell. Preview, fast replay, artifact generation, Controller
+output, and EPE export all consume this same lowering. Shows without authored
+composition bypass it.
 
 Compiler omissions and instance-ownership conflicts remain explicit projection
-diagnostics. Overlay layers and local Property animation are still absent.
+diagnostics. Typed local Property animation is still absent.
 
 `showSceneReadOnlyProjection.ts` narrows that sidecar to one Scene's global and
 local bounds, boundary context, cut references, Effect activity, property beats,
 active zone placements, Continue relationships, and diagnostics. It does not
-synthesize local cuts, overlays, or keyframes that the current model cannot
-represent. `ShowSceneXray` renders that projection in one explicit 36-pixel grid
+synthesize local cuts, overlays, or keyframes that are absent from the saved
+model. `ShowSceneXray` renders that projection in one explicit 36-pixel grid
 row. `ShowSceneSuperDetail` portals the same read model to one modeless overlay,
 handles Escape and click-away dismissal, and exposes only navigation into the
 production local scope rather than inline authoring controls. Switching the

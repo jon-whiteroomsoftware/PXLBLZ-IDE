@@ -6,17 +6,26 @@ import {
   updateShowCellRestartOnEntry,
 } from './showModel'
 import {
+  addShowOverlayLayer,
+  addShowOverlayClip,
+  addShowOverlayPlacement,
   addShowMainPlacement,
   addShowMainClip,
   deleteShowMainPlacement,
+  deleteShowOverlayLayer,
+  deleteShowOverlayPlacement,
   moveShowMainPlacement,
+  moveShowOverlayPlacement,
   normalizeShowComposition,
   projectFlatShowToCompositionV1,
   replaceShowPatternInstance,
+  renameShowOverlayLayer,
+  reorderShowOverlayLayer,
   resolveShowMainPlacementStart,
   restartShowMainPlacement,
   splitShowMainPlacement,
   trimShowMainPlacement,
+  trimShowOverlayPlacement,
   validateShowComposition,
 } from './showCompositionModel'
 import type { ShowCompositionV1, ShowRecord } from './personalContentRecords'
@@ -68,6 +77,7 @@ function fixture(): { show: ShowRecord; composition: ShowCompositionV1 } {
             view: { mirror: true, phase: 0.25, brightness: 0.7 },
           },
         ],
+        overlays: [],
       }],
     }],
   }
@@ -174,6 +184,7 @@ describe('Show composition v1 Main schedule (#488)', () => {
             { ...composition.scenes[0].zones[0].main[0], durationMs: 6_000 },
             { ...composition.scenes[0].zones[0].main[1], startMs: 5_000, durationMs: 40_000, instanceId: 'missing' },
           ],
+          overlays: [],
         }],
       }],
     }
@@ -254,5 +265,138 @@ describe('Show composition v1 Main schedule (#488)', () => {
     })
     expect(deleted.scenes[0].zones[0].main.map((placement) => placement.id))
       .toEqual(['placement-a', 'placement-b'])
+  })
+
+  it('preserves manual overlay order while normalizing clips inside each layer', () => {
+    const { show, composition } = fixture()
+    const zone = composition.scenes[0].zones[0]
+    const withOverlays: ShowCompositionV1 = {
+      ...composition,
+      scenes: [{
+        ...composition.scenes[0],
+        zones: [{
+          ...zone,
+          overlays: [
+            {
+              id: 'layer-front',
+              name: 'Front light',
+              placements: [
+                { id: 'overlay-late', instanceId: 'instance-a', startMs: 4_000, durationMs: 1_000, opacity: 0.5, view: { mirror: false, phase: 0, brightness: 1 } },
+                { id: 'overlay-early', instanceId: 'instance-b', startMs: 500, durationMs: 1_500, opacity: 0.8, view: { mirror: false, phase: 0, brightness: 1 } },
+              ],
+            },
+            { id: 'layer-back', name: 'Back light', placements: [] },
+          ],
+        }],
+      }],
+    }
+
+    const normalized = normalizeShowComposition(show, withOverlays)
+
+    expect(normalized.scenes[0].zones[0].overlays.map((layer) => layer.id))
+      .toEqual(['layer-front', 'layer-back'])
+    expect(normalized.scenes[0].zones[0].overlays[0].placements.map((placement) => placement.id))
+      .toEqual(['overlay-early', 'overlay-late'])
+  })
+
+  it('rejects overlap inside one overlay layer but permits the same interval across layers', () => {
+    const { show, composition } = fixture()
+    const zone = composition.scenes[0].zones[0]
+    const overlay = (id: string, startMs: number) => ({
+      id,
+      instanceId: 'instance-a',
+      startMs,
+      durationMs: 2_000,
+      opacity: 0.75,
+      view: { mirror: false, phase: 0, brightness: 1 },
+    })
+    zone.overlays = [
+      { id: 'layer-front', name: 'Front', placements: [overlay('overlay-a', 1_000), overlay('overlay-b', 2_000)] },
+      { id: 'layer-back', name: 'Back', placements: [overlay('overlay-c', 1_000)] },
+    ]
+
+    expect(validateShowComposition(show, composition)).toEqual([
+      expect.objectContaining({
+        path: 'scenes[0].zones[0].overlays[0].placements[1].startMs',
+        code: 'overlap',
+      }),
+    ])
+  })
+
+  it('adds, renames, manually reorders, and deletes stable overlay layers', () => {
+    const { show, composition } = fixture()
+    const frontAdded = addShowOverlayLayer(show, composition, {
+      sceneId: 'scene-1', zoneId: 'zone-1', layer: { id: 'layer-front', name: 'Front', placements: [] },
+    })
+    const backAdded = addShowOverlayLayer(show, frontAdded, {
+      sceneId: 'scene-1', zoneId: 'zone-1', layer: { id: 'layer-back', name: 'Back', placements: [] },
+    })
+    const renamed = renameShowOverlayLayer(backAdded, {
+      sceneId: 'scene-1', zoneId: 'zone-1', layerId: 'layer-back', name: 'Atmosphere',
+    })
+    const reordered = reorderShowOverlayLayer(renamed, {
+      sceneId: 'scene-1', zoneId: 'zone-1', layerId: 'layer-back', targetIndex: 0,
+    })
+
+    expect(reordered.scenes[0].zones[0].overlays).toMatchObject([
+      { id: 'layer-back', name: 'Atmosphere' },
+      { id: 'layer-front', name: 'Front' },
+    ])
+
+    const deleted = deleteShowOverlayLayer(reordered, {
+      sceneId: 'scene-1', zoneId: 'zone-1', layerId: 'layer-front',
+    })
+    expect(deleted.scenes[0].zones[0].overlays.map((layer) => layer.id)).toEqual(['layer-back'])
+  })
+
+  it('edits overlay clips per layer while allowing one instance across overlapping layers', () => {
+    const { show, composition } = fixture()
+    const withFront = addShowOverlayLayer(show, composition, {
+      sceneId: 'scene-1', zoneId: 'zone-1', layer: { id: 'layer-front', name: 'Front', placements: [] },
+    })
+    const withLayers = addShowOverlayLayer(show, withFront, {
+      sceneId: 'scene-1', zoneId: 'zone-1', layer: { id: 'layer-back', name: 'Back', placements: [] },
+    })
+    const instance = {
+      id: 'instance-overlay',
+      pattern: { kind: 'stock' as const, id: 'Caustics' },
+      patternName: 'Caustics',
+      time: { timeScale: 1, timeOffsetMs: 0 },
+    }
+    const placement = {
+      id: 'overlay-front', instanceId: instance.id, startMs: 1_000, durationMs: 2_000, opacity: 0.6,
+      view: { mirror: false, phase: 0, brightness: 1 },
+    }
+    const withClip = addShowOverlayClip(show, withLayers, {
+      sceneId: 'scene-1', zoneId: 'zone-1', layerId: 'layer-front', instance, placement,
+    })
+    const crossLayer = addShowOverlayPlacement(show, withClip, {
+      sceneId: 'scene-1', zoneId: 'zone-1', layerId: 'layer-back',
+      placement: { ...placement, id: 'overlay-back' },
+    })
+    expect(crossLayer.scenes[0].zones[0].overlays.map((layer) => layer.placements.length)).toEqual([1, 1])
+
+    const rejectedSameLayer = moveShowOverlayPlacement(show, crossLayer, {
+      sceneId: 'scene-1', zoneId: 'zone-1', layerId: 'layer-back', placementId: 'overlay-back',
+      targetLayerId: 'layer-front', startMs: 1_000,
+    })
+    expect(rejectedSameLayer).toEqual(crossLayer)
+
+    const moved = moveShowOverlayPlacement(show, crossLayer, {
+      sceneId: 'scene-1', zoneId: 'zone-1', layerId: 'layer-back', placementId: 'overlay-back',
+      targetLayerId: 'layer-front', startMs: 4_000,
+    })
+    const trimmed = trimShowOverlayPlacement(show, moved, {
+      sceneId: 'scene-1', zoneId: 'zone-1', layerId: 'layer-front', placementId: 'overlay-back',
+      startMs: 4_500, durationMs: 1_000, opacity: 0.35,
+    })
+    expect(trimmed.scenes[0].zones[0].overlays[0].placements[1]).toMatchObject({
+      id: 'overlay-back', startMs: 4_500, durationMs: 1_000, opacity: 0.35,
+    })
+
+    const deleted = deleteShowOverlayPlacement(trimmed, {
+      sceneId: 'scene-1', zoneId: 'zone-1', layerId: 'layer-front', placementId: 'overlay-back',
+    })
+    expect(deleted.scenes[0].zones[0].overlays[0].placements.map((item) => item.id)).toEqual(['overlay-front'])
   })
 })

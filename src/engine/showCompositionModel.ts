@@ -3,6 +3,8 @@ import type { ShowCompileRecipeSourceLookup } from './showModel'
 import type {
   ShowCompositionV1,
   ShowMainPlacement,
+  ShowOverlayLayer,
+  ShowOverlayPlacement,
   ShowPatternInstance,
   ShowRecord,
   ShowSceneComposition,
@@ -28,6 +30,16 @@ export interface ShowCompositionValidationIssue {
 export interface ShowMainPlacementOwner {
   sceneId: string
   zoneId: string
+  placementId: string
+}
+
+export interface ShowOverlayLayerOwner {
+  sceneId: string
+  zoneId: string
+  layerId: string
+}
+
+export interface ShowOverlayPlacementOwner extends ShowOverlayLayerOwner {
   placementId: string
 }
 
@@ -78,9 +90,10 @@ export function projectFlatShowToCompositionV1(
           },
           ...(placement.appearance.effects
             ? { effects: cloneJson(placement.appearance.effects) }
-            : {}),
+          : {}),
         }]
       }),
+      overlays: [],
     })),
   }))
   return normalizeShowComposition(show, { version: 1, patternInstances, scenes })
@@ -106,6 +119,10 @@ export function normalizeShowComposition(
           .map((zone) => ({
             ...zone,
             main: zone.main.sort((a, b) => a.startMs - b.startMs || a.id.localeCompare(b.id)),
+            overlays: (zone.overlays ?? []).map((layer) => ({
+              ...layer,
+              placements: layer.placements.sort((a, b) => a.startMs - b.startMs || a.id.localeCompare(b.id)),
+            })),
           })),
       })),
   }
@@ -120,6 +137,7 @@ export function validateShowComposition(
   const zoneIds = new Set(show.zones.map((zone) => zone.id))
   const instanceIds = new Set<string>()
   const placementIds = new Set<string>()
+  const layerIds = new Set<string>()
 
   composition.patternInstances.forEach((instance, instanceIndex) => {
     const path = `patternInstances[${instanceIndex}]`
@@ -157,6 +175,33 @@ export function validateShowComposition(
           addIssue(issues, `${path}.startMs`, 'overlap', 'Main placements in one Scene and Zone cannot overlap.')
         }
       })
+      zone.overlays.forEach((layer, layerIndex) => {
+        const layerPath = `${zonePath}.overlays[${layerIndex}]`
+        if (layerIds.has(layer.id)) addIssue(issues, `${layerPath}.id`, 'duplicate-id', `Overlay layer id "${layer.id}" is duplicated.`)
+        layerIds.add(layer.id)
+        const orderedPlacements = [...layer.placements].sort((a, b) => a.startMs - b.startMs || a.id.localeCompare(b.id))
+        orderedPlacements.forEach((placement, orderedIndex) => {
+          const placementIndex = layer.placements.findIndex((candidate) => candidate === placement)
+          const path = `${layerPath}.placements[${placementIndex}]`
+          if (placementIds.has(placement.id)) addIssue(issues, `${path}.id`, 'duplicate-id', `Placement id "${placement.id}" is duplicated.`)
+          placementIds.add(placement.id)
+          if (!instanceIds.has(placement.instanceId)) {
+            addIssue(issues, `${path}.instanceId`, 'missing-instance', `Pattern instance "${placement.instanceId}" does not exist.`)
+          }
+          validateFiniteInteger(issues, `${path}.startMs`, placement.startMs)
+          validateFiniteInteger(issues, `${path}.durationMs`, placement.durationMs)
+          if (placement.startMs < 0 || placement.durationMs <= 0 || (owner && placement.startMs + placement.durationMs > owner.durationMs)) {
+            addIssue(issues, `${path}.durationMs`, 'out-of-bounds', 'Overlay placement must stay inside positive Scene-local time.')
+          }
+          if (!Number.isFinite(placement.opacity) || placement.opacity < 0 || placement.opacity > 1) {
+            addIssue(issues, `${path}.opacity`, 'out-of-bounds', 'Overlay opacity must be between 0 and 1.')
+          }
+          const previous = orderedPlacements[orderedIndex - 1]
+          if (previous && previous.startMs + previous.durationMs > placement.startMs) {
+            addIssue(issues, `${path}.startMs`, 'overlap', 'Overlay placements in one layer cannot overlap.')
+          }
+        })
+      })
     })
   })
   return issues
@@ -173,6 +218,131 @@ export function addShowMainPlacement(
     zone.main.push(cloneJson(input.placement))
     return true
   })
+}
+
+export function addShowOverlayLayer(
+  show: Pick<ShowRecord, 'scenes' | 'zones'>,
+  composition: ShowCompositionV1,
+  input: { sceneId: string; zoneId: string; layer: ShowOverlayLayer },
+): ShowCompositionV1 {
+  return commitValidEdit(show, composition, (draft) => {
+    const zone = findZoneComposition(draft, input.sceneId, input.zoneId)
+    if (!zone) return false
+    zone.overlays.push(cloneJson(input.layer))
+    return true
+  })
+}
+
+export function renameShowOverlayLayer(
+  composition: ShowCompositionV1,
+  input: ShowOverlayLayerOwner & { name: string },
+): ShowCompositionV1 {
+  const name = input.name.trim()
+  if (!name) return composition
+  const draft = cloneJson(composition)
+  const layer = findOverlayLayer(draft, input)
+  if (!layer) return composition
+  layer.name = name
+  return draft
+}
+
+export function reorderShowOverlayLayer(
+  composition: ShowCompositionV1,
+  input: ShowOverlayLayerOwner & { targetIndex: number },
+): ShowCompositionV1 {
+  const draft = cloneJson(composition)
+  const zone = findZoneComposition(draft, input.sceneId, input.zoneId)
+  const currentIndex = zone?.overlays.findIndex((layer) => layer.id === input.layerId) ?? -1
+  if (!zone || currentIndex < 0 || !Number.isInteger(input.targetIndex)) return composition
+  const targetIndex = Math.max(0, Math.min(zone.overlays.length - 1, input.targetIndex))
+  if (targetIndex === currentIndex) return composition
+  const [layer] = zone.overlays.splice(currentIndex, 1)
+  zone.overlays.splice(targetIndex, 0, layer)
+  return draft
+}
+
+export function deleteShowOverlayLayer(
+  composition: ShowCompositionV1,
+  input: ShowOverlayLayerOwner,
+): ShowCompositionV1 {
+  const draft = cloneJson(composition)
+  const zone = findZoneComposition(draft, input.sceneId, input.zoneId)
+  if (!zone?.overlays.some((layer) => layer.id === input.layerId)) return composition
+  zone.overlays = zone.overlays.filter((layer) => layer.id !== input.layerId)
+  return draft
+}
+
+export function addShowOverlayPlacement(
+  show: Pick<ShowRecord, 'scenes' | 'zones'>,
+  composition: ShowCompositionV1,
+  input: ShowOverlayLayerOwner & { placement: ShowOverlayPlacement },
+): ShowCompositionV1 {
+  return commitValidEdit(show, composition, (draft) => {
+    const layer = findOverlayLayer(draft, input)
+    if (!layer) return false
+    layer.placements.push(cloneJson(input.placement))
+    return true
+  })
+}
+
+export function addShowOverlayClip(
+  show: Pick<ShowRecord, 'scenes' | 'zones'>,
+  composition: ShowCompositionV1,
+  input: ShowOverlayLayerOwner & { instance: ShowPatternInstance; placement: ShowOverlayPlacement },
+): ShowCompositionV1 {
+  return commitValidEdit(show, composition, (draft) => {
+    if (draft.patternInstances.some((candidate) => candidate.id === input.instance.id)) return false
+    const layer = findOverlayLayer(draft, input)
+    if (!layer) return false
+    draft.patternInstances.push(cloneJson(input.instance))
+    layer.placements.push(cloneJson(input.placement))
+    return true
+  })
+}
+
+export function moveShowOverlayPlacement(
+  show: Pick<ShowRecord, 'scenes' | 'zones'>,
+  composition: ShowCompositionV1,
+  input: ShowOverlayPlacementOwner & { startMs: number; targetLayerId?: string },
+): ShowCompositionV1 {
+  return commitValidEdit(show, composition, (draft) => {
+    const sourceLayer = findOverlayLayer(draft, input)
+    const placement = sourceLayer?.placements.find((candidate) => candidate.id === input.placementId)
+    const targetLayer = findOverlayLayer(draft, { ...input, layerId: input.targetLayerId ?? input.layerId })
+    if (!sourceLayer || !placement || !targetLayer) return false
+    placement.startMs = input.startMs
+    if (targetLayer.id !== sourceLayer.id) {
+      sourceLayer.placements = sourceLayer.placements.filter((candidate) => candidate.id !== placement.id)
+      targetLayer.placements.push(placement)
+    }
+    return true
+  })
+}
+
+export function trimShowOverlayPlacement(
+  show: Pick<ShowRecord, 'scenes' | 'zones'>,
+  composition: ShowCompositionV1,
+  input: ShowOverlayPlacementOwner & { startMs: number; durationMs: number; opacity?: number },
+): ShowCompositionV1 {
+  return commitValidEdit(show, composition, (draft) => {
+    const placement = findOverlayPlacement(draft, input)
+    if (!placement) return false
+    placement.startMs = input.startMs
+    placement.durationMs = input.durationMs
+    if (input.opacity !== undefined) placement.opacity = input.opacity
+    return true
+  })
+}
+
+export function deleteShowOverlayPlacement(
+  composition: ShowCompositionV1,
+  input: ShowOverlayPlacementOwner,
+): ShowCompositionV1 {
+  const draft = cloneJson(composition)
+  const layer = findOverlayLayer(draft, input)
+  if (!layer?.placements.some((placement) => placement.id === input.placementId)) return composition
+  layer.placements = layer.placements.filter((placement) => placement.id !== input.placementId)
+  return draft
 }
 
 export function addShowMainClip(
@@ -339,6 +509,22 @@ function findPlacement(
 ): ShowMainPlacement | undefined {
   return findZoneComposition(composition, owner.sceneId, owner.zoneId)
     ?.main.find((placement) => placement.id === owner.placementId)
+}
+
+function findOverlayLayer(
+  composition: ShowCompositionV1,
+  owner: ShowOverlayLayerOwner,
+): ShowOverlayLayer | undefined {
+  return findZoneComposition(composition, owner.sceneId, owner.zoneId)
+    ?.overlays.find((layer) => layer.id === owner.layerId)
+}
+
+function findOverlayPlacement(
+  composition: ShowCompositionV1,
+  owner: ShowOverlayPlacementOwner,
+): ShowOverlayPlacement | undefined {
+  return findOverlayLayer(composition, owner)
+    ?.placements.find((placement) => placement.id === owner.placementId)
 }
 
 function validateFiniteInteger(

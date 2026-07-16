@@ -53,6 +53,206 @@ function loadShow(code: string, metadata: ReturnType<typeof compileShow>['metada
 }
 
 describe('compileShow', () => {
+  it('honors zero, full, and intermediate overlay opacity deterministically (#489)', () => {
+    const zones = [{ id: 'main', name: 'main', ranges: [{ start: 0, end: 0 }] }]
+    const artifact = compileShow({
+      clips: [
+        { id: 'red', source: 'export function render(index) { rgb(1, 0, 0) }' },
+        { id: 'blue', source: 'export function render(index) { rgb(0, 0, 1) }' },
+      ],
+      zones,
+      routingLayouts: [{ id: 'default', name: 'Default', zones }],
+      routedSceneSequence: {
+        scenes: [0, 1, 0.25].map((opacity, index) => ({
+          holdMs: 1000,
+          placements: [
+            { zoneName: 'main', clipId: 'red', stackOrder: 0 },
+            { zoneName: 'main', clipId: 'blue', stackOrder: 1, opacity },
+          ],
+          ...(index < 2 ? { transitionOut: { kind: 'cut' as const, durationMs: 0 } } : {}),
+        })),
+      },
+      loopDurationMs: 3000,
+    }, {})
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 1)
+
+    handle.beforeRender(500)
+    handle.render(0)
+    expect(pixel()).toEqual([1, 0, 0])
+    handle.beforeRender(1000)
+    handle.render(0)
+    expect(pixel()).toEqual([0, 0, 1])
+    handle.beforeRender(1000)
+    handle.render(0)
+    expect(pixel()).toEqual([0.75, 0, 0.25])
+  })
+
+  it('composites ordered routed Scene layers before applying the parent Scene transition (#489)', () => {
+    const zones = [{ id: 'main', name: 'main', ranges: [{ start: 0, end: 3 }] }]
+    const artifact = compileShow({
+      clips: [
+        { id: 'red', source: 'export function render(index) { rgb(1, 0, 0) }' },
+        { id: 'blue', source: 'export function render(index) { rgb(0, 0, 1) }' },
+        { id: 'green', source: 'export function render(index) { rgb(0, 1, 0) }' },
+      ],
+      zones,
+      routingLayouts: [{ id: 'default', name: 'Default', zones }],
+      routedSceneSequence: {
+        scenes: [
+          {
+            holdMs: 1000,
+            placements: [
+              { zoneName: 'main', clipId: 'red', stackOrder: 0 },
+              { zoneName: 'main', clipId: 'blue', stackOrder: 1, opacity: 0.5 },
+            ],
+            transitionOut: { kind: 'crossfade', durationMs: 1000 },
+          },
+          {
+            holdMs: 1000,
+            placements: [{ zoneName: 'main', clipId: 'green', stackOrder: 0 }],
+          },
+        ],
+      },
+      loopDurationMs: 3000,
+    }, {})
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 4)
+
+    handle.beforeRender(500)
+    handle.render(0)
+    expect(pixel()).toEqual([0.5, 0, 0.5])
+
+    handle.beforeRender(1000)
+    handle.render(0)
+    expect(pixel()).toEqual([0.25, 0.5, 0.25])
+    expect(artifact.summary.worstInstantRenderersPerPixel).toBe(3)
+  })
+
+  it('advances a semantic Pattern instance once when two layers reference it (#489)', () => {
+    const zones = [{ id: 'main', name: 'main', ranges: [{ start: 0, end: 3 }] }]
+    const artifact = compileShow({
+      clips: [{
+        id: 'shared',
+        source: 'export var elapsed = 0\nexport function beforeRender(delta) { elapsed = elapsed + delta }\nexport function render(index) { rgb(elapsed, 0, 0) }',
+      }],
+      zones,
+      routingLayouts: [{ id: 'default', name: 'Default', zones }],
+      routedSceneSequence: {
+        scenes: [
+          {
+            holdMs: 1000,
+            placements: [
+              { zoneName: 'main', clipId: 'shared', stackOrder: 0 },
+              { zoneName: 'main', clipId: 'shared', stackOrder: 1, opacity: 0.5 },
+            ],
+            transitionOut: { kind: 'cut', durationMs: 0 },
+          },
+          {
+            holdMs: 1000,
+            placements: [{ zoneName: 'main', clipId: 'shared', stackOrder: 0 }],
+          },
+        ],
+      },
+      loopDurationMs: 2000,
+    }, {})
+    const { handle } = loadShow(artifact.code, artifact.metadata, 4)
+
+    handle.beforeRender(100)
+
+    expect(handle.getExports()).toMatchObject({ __pxlblz_show_c0_elapsed: 100 })
+    expect(artifact.code.match(/function __pxlblz_show_c0_beforeRender/g)).toHaveLength(1)
+  })
+
+  it('applies placement-owned view and effects while reusing one Pattern instance (#489)', () => {
+    const zones = [{ id: 'main', name: 'main', ranges: [{ start: 0, end: 3 }] }]
+    const artifact = compileShow({
+      clips: [{
+        id: 'shared',
+        source: 'export function render(index) { rgb(1, 0, 0) }',
+        effects: [{ id: 'invert', kind: 'invert', amount: 1 }],
+      }],
+      zones,
+      routingLayouts: [{ id: 'default', name: 'Default', zones }],
+      routedSceneSequence: {
+        scenes: [
+          {
+            holdMs: 1000,
+            placements: [
+              { zoneName: 'main', clipId: 'shared', stackOrder: 0, effects: [] },
+              {
+                zoneName: 'main',
+                clipId: 'shared',
+                stackOrder: 1,
+                opacity: 0.5,
+                phase: 0.25,
+                mirror: true,
+                effects: [{ id: 'invert', kind: 'invert', amount: 1 }],
+              },
+            ],
+            transitionOut: { kind: 'cut', durationMs: 0 },
+          },
+          {
+            holdMs: 1000,
+            placements: [{ zoneName: 'main', clipId: 'shared', stackOrder: 0, effects: [] }],
+          },
+        ],
+      },
+      loopDurationMs: 2000,
+    }, {})
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 4)
+
+    handle.beforeRender(500)
+    handle.render(0)
+
+    expect(pixel()[0]).toBeCloseTo(0.5)
+    expect(pixel()[1]).toBeCloseTo(0.5)
+    expect(pixel()[2]).toBeCloseTo(0.5)
+    expect(handle.getExports()).toMatchObject({ __pxlblz_show_c0_elapsed_ms: 500 })
+  })
+
+  it('composites Scene layers through normalized 2D routing (#489)', () => {
+    const artifact = compileShow({
+      clips: [
+        { id: 'red', source: 'export function render2D(index, x, y) { rgb(1, 0, 0) }' },
+        { id: 'blue', source: 'export function render2D(index, x, y) { rgb(0, 0, 1) }' },
+        { id: 'green', source: 'export function render2D(index, x, y) { rgb(0, 1, 0) }' },
+      ],
+      routingLayouts: [{
+        id: 'normalized',
+        name: 'Normalized',
+        zones: [],
+        logical: { kind: 'single', zoneNames: ['main'] },
+      }],
+      routedSceneSequence: {
+        scenes: [
+          {
+            holdMs: 1000,
+            placements: [
+              { zoneName: 'main', clipId: 'red', stackOrder: 0 },
+              { zoneName: 'main', clipId: 'blue', stackOrder: 1, opacity: 0.5 },
+            ],
+            transitionOut: { kind: 'wipe', durationMs: 1000 },
+          },
+          {
+            holdMs: 1000,
+            placements: [{ zoneName: 'main', clipId: 'green', stackOrder: 0 }],
+          },
+        ],
+      },
+      loopDurationMs: 3000,
+    }, {})
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 4)
+
+    handle.beforeRender(500)
+    handle.render2D(0, 0.25, 0.5)
+    expect(pixel()).toEqual([0.5, 0, 0.5])
+
+    handle.beforeRender(1000)
+    handle.render2D(0, 0.25, 0.5)
+    expect(pixel()).toEqual([0, 1, 0])
+    handle.render2D(3, 0.75, 0.5)
+    expect(pixel()).toEqual([0.5, 0, 0.5])
+  })
+
   it('routes every Zone through the active top-level Scene schedule (#478)', () => {
     const zones = [
       { id: 'left', name: 'left', ranges: [{ start: 0, end: 1 }] },

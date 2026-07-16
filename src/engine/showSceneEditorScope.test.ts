@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { projectFlatShowComposition } from './showCompositionProjection'
 import { createDefaultShow, normalizeShowTransitionState } from './showModel'
-import { projectFlatShowToCompositionV1, splitShowMainPlacement } from './showCompositionModel'
+import { addShowOverlayLayer, addShowOverlayPlacement, projectFlatShowToCompositionV1, splitShowMainPlacement } from './showCompositionModel'
 import {
   projectShowSceneEditorScope,
   resolveShowSceneEditorScope,
@@ -102,5 +102,49 @@ describe('Show Scene editor scope (#487)', () => {
       expect.objectContaining({ id: firstPlacement.id, startMs: 0, endMs: 12_000 }),
       expect.objectContaining({ id: 'placement-right', startMs: 12_000, endMs: 30_000 }),
     ])
+  })
+
+  it('projects ordered overlay layers and their editable placement opacity (#489)', () => {
+    const show = normalizeShowTransitionState(createDefaultShow('show-overlay-projection', 'Overlay projection'))
+    const lookup = {
+      byCellId: Object.fromEntries(show.cells.map((cell) => [cell.id, source])),
+      stageDimension: 1 as const,
+    }
+    const initial = projectFlatShowToCompositionV1(show, lookup)
+    const instanceId = initial.scenes[0].zones[0].main[0].instanceId
+    const layered = addShowOverlayLayer(show, initial, {
+      sceneId: 'scene-1',
+      zoneId: 'zone-1',
+      layer: { id: 'overlay-1', name: 'Atmosphere', placements: [] },
+    })
+    show.composition = addShowOverlayPlacement(show, layered, {
+      sceneId: 'scene-1',
+      zoneId: 'zone-1',
+      layerId: 'overlay-1',
+      placement: {
+        id: 'overlay-placement',
+        instanceId,
+        startMs: 500,
+        durationMs: 1_500,
+        opacity: 0.4,
+        view: { mirror: false, phase: 0, brightness: 0.8 },
+      },
+    })
+
+    const projection = projectShowSceneEditorScope(
+      projectFlatShowComposition(show, lookup),
+      { sceneId: 'scene-1', zoneId: 'zone-1' },
+    )
+
+    expect(projection?.overlayLayers).toEqual([{
+      id: 'overlay-1',
+      name: 'Atmosphere',
+      placements: [expect.objectContaining({
+        id: 'overlay-placement',
+        startMs: 500,
+        endMs: 2_000,
+        opacity: 0.4,
+      })],
+    }])
   })
 })

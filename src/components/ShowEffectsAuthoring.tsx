@@ -202,21 +202,26 @@ export function ShowEffectStack({
 
   return (
     <section className="mt-2 overflow-hidden rounded border border-cyan-400/15 bg-cyan-400/[0.025]" aria-label="Clip Effects">
-      <header className="flex h-8 items-center gap-2 border-b border-zinc-800 px-2">
-        <Sparkles size={12} className="text-cyan-300" aria-hidden />
-        <div className="text-[10px] font-semibold text-zinc-200">Effects</div>
-        <span className="text-[8px] text-zinc-600">{effects.length} · one Pattern render</span>
-        <button type="button" onClick={onAdd} className="ml-auto flex h-6 items-center gap-1 rounded border border-zinc-700 px-2 text-[9px] text-zinc-300 hover:border-cyan-400/50 hover:text-cyan-200"><Plus size={11} /> Add</button>
+      <header className="flex h-6 items-center gap-1.5 border-b border-zinc-800 px-1.5">
+        <Sparkles size={10} className="text-cyan-300" aria-hidden />
+        <div className="text-[9px] font-semibold text-zinc-300">Effects</div>
+        <span
+          className="text-[8px] text-zinc-600"
+          title="The active Effect stack is compiled into one Pixelblaze Pattern render."
+        >
+          Cost: 1 Pattern render
+        </span>
+        <button type="button" onClick={onAdd} className="ml-auto flex h-5 items-center gap-1 rounded border border-zinc-700 px-1.5 text-[8px] text-zinc-400 hover:border-cyan-400/50 hover:text-cyan-200"><Plus size={9} /> Add</button>
       </header>
       {STAGES.map((stage) => {
         const stageEffects = effects.filter((effect) => showClipEffectStage(effect) === stage.id)
+        if (stageEffects.length === 0) return null
         return (
           <div key={stage.id} data-testid="show-effect-stage" className="border-b border-zinc-800/80 last:border-b-0">
             <div className="flex h-6 items-center gap-1.5 bg-zinc-950/55 px-2 text-[8px] uppercase tracking-[0.1em] text-zinc-600">
               <span className="size-1.5 rounded-full bg-cyan-400/50" />
               {stage.label}
               <span className="normal-case tracking-normal text-zinc-700">{stage.detail}</span>
-              <span className="ml-auto tabular-nums">{stageEffects.length}</span>
             </div>
             {stageEffects.map((effect, index) => {
               const item = byKey.get(showClipEffectPresentationKey(effect))
@@ -240,18 +245,19 @@ export function ShowEffectStack({
                     <div className="grid grid-cols-2 gap-1.5 border-t border-zinc-800/60 p-2 sm:grid-cols-3">
                       {showClipEffectParameters(effect).map((parameter) => (
                         <label key={parameter.id} className="text-[8px] uppercase tracking-wide text-zinc-600">
-                          {parameter.label}
-                          <input
-                            type="number"
-                            aria-label={parameter.label}
+                          <span className="flex items-center justify-between gap-2">
+                            <span>{parameter.label}</span>
+                            {parameter.min === 0 && parameter.max === 1 && <span className="font-mono tracking-normal text-zinc-700" title="Normalized value from zero to one">0–1</span>}
+                          </span>
+                          <EffectParameterField
+                            label={parameter.label}
+                            value={Number(showClipEffectParameterValue(effect, parameter.id))}
                             min={parameter.min}
                             max={parameter.max}
                             step={parameter.step}
-                            value={Number(showClipEffectParameterValue(effect, parameter.id))}
-                            onChange={(event) => onChange(effects.map((candidate) => candidate.id === effect.id
-                              ? updateShowClipEffectParameter(candidate, parameter.id, Number(event.target.value))
+                            onCommit={(value) => onChange(effects.map((candidate) => candidate.id === effect.id
+                              ? updateShowClipEffectParameter(candidate, parameter.id, value)
                               : candidate))}
-                            className="mt-1 h-7 w-full rounded border border-zinc-700 bg-zinc-950 px-2 text-right text-[10px] tabular-nums text-zinc-200 outline-none focus:border-cyan-400/60"
                           />
                         </label>
                       ))}
@@ -278,6 +284,53 @@ export function ShowEffectStack({
         </details>
       )}
     </section>
+  )
+}
+
+function EffectParameterField({ label, value, min, max, step, onCommit }: {
+  label: string
+  value: number
+  min?: number
+  max?: number
+  step?: number
+  onCommit: (value: number) => void
+}) {
+  const [draft, setDraft] = useState(String(value))
+  const focused = useRef(false)
+  useEffect(() => {
+    if (!focused.current) setDraft(String(value))
+  }, [value])
+
+  const commit = (raw: string) => {
+    focused.current = false
+    const parsed = Number(raw)
+    const lower = min ?? Number.NEGATIVE_INFINITY
+    const upper = max ?? Number.POSITIVE_INFINITY
+    const next = Number.isFinite(parsed) ? Math.max(lower, Math.min(upper, parsed)) : value
+    setDraft(String(next))
+    if (next !== value) onCommit(next)
+  }
+
+  return (
+    <input
+      type="number"
+      aria-label={label}
+      min={min}
+      max={max}
+      step={step}
+      value={draft}
+      onFocus={() => { focused.current = true }}
+      onChange={(event) => setDraft(event.target.value)}
+      onBlur={(event) => commit(event.currentTarget.value)}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter') event.currentTarget.blur()
+        if (event.key === 'Escape') {
+          setDraft(String(value))
+          event.currentTarget.blur()
+        }
+      }}
+      className="mt-1 h-7 w-full rounded border border-zinc-700 bg-zinc-950 px-2 text-right text-[10px] tabular-nums text-zinc-200 outline-none focus:border-cyan-400/60"
+    />
   )
 }
 

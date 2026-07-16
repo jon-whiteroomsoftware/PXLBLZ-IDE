@@ -112,10 +112,13 @@ describe('Show Effect authoring UI', () => {
     const onChange = vi.fn()
     render(<ShowEffectStack effects={effects} onChange={onChange} onAdd={vi.fn()} />)
 
-    expect(screen.getAllByTestId('show-effect-stage')).toHaveLength(4)
+    expect(screen.getByText('Cost: 1 Pattern render')).toBeInTheDocument()
+    expect(screen.getAllByTestId('show-effect-stage')).toHaveLength(2)
     await user.click(screen.getByRole('button', { name: 'Edit Translate Effect' }))
     const translate = screen.getByTestId('show-effect-move')
     fireEvent.change(within(translate).getByRole('spinbutton', { name: 'X' }), { target: { value: '0.35' } })
+    expect(onChange).not.toHaveBeenCalled()
+    fireEvent.blur(within(translate).getByRole('spinbutton', { name: 'X' }))
     expect(onChange).toHaveBeenLastCalledWith(expect.arrayContaining([
       expect.objectContaining({ id: 'move', x: 0.35 }),
     ]))

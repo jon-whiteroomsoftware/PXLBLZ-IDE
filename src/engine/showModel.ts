@@ -118,6 +118,8 @@ export interface ShowCompileRecipeSourceLookup {
   byPatternInstanceId?: Record<string, string>
   /** Transient lowering identity; never persisted on flat Show cells. */
   instanceIdByCellId?: Record<string, string>
+  /** Transient Scene-local stack metadata; never persisted on flat Show cells. */
+  compositionLayerByCellId?: Record<string, { stackOrder: number; opacity: number }>
   controllerZones?: ControllerZone[]
   stageDimension?: 1 | 2 | 3
 }
@@ -1857,6 +1859,9 @@ export function showRecordToCompileRecipe(
     const lowered = lowerShowCompositionForCompile(show, lookup)
     return showRecordToCompileRecipe(lowered.show, lowered.lookup)
   }
+  if (lookup.compositionLayerByCellId && Object.keys(lookup.compositionLayerByCellId).length > 0) {
+    return showRecordToRoutedSceneSequenceRecipe(show, lookup)
+  }
   if (
     show.outputContract?.kind === 'installation'
     && show.zones.length === 1
@@ -2397,22 +2402,23 @@ function showRecordToRoutedSceneSequenceRecipe(
   const clipIdByCellId = new Map<string, string>()
   for (const zone of normalized.zones) {
     normalized.scenes.forEach((scene, sceneIndex) => {
-      const cell = showCellAtSlot(normalized, zone.id, scene.id)
-      if (!cell || clipIdByCellId.has(cell.id)) return
-      const explicitInstanceId = lookup.instanceIdByCellId?.[cell.id]
-      if (explicitInstanceId) {
-        clipIdByCellId.set(cell.id, explicitInstanceId)
-        return
+      for (const cell of showCompileCellsAtSlot(normalized, zone.id, scene.id, lookup)) {
+        if (clipIdByCellId.has(cell.id)) continue
+        const explicitInstanceId = lookup.instanceIdByCellId?.[cell.id]
+        if (explicitInstanceId) {
+          clipIdByCellId.set(cell.id, explicitInstanceId)
+          continue
+        }
+        const previousScene = normalized.scenes[sceneIndex - 1]
+        const previous = previousScene ? showCellAtSlot(normalized, zone.id, previousScene.id) : undefined
+        const continuedClipId = previous
+          && !cell.restartOnEntry
+          && isSamePattern(previous, cell)
+          && hasSameDiscreteAdaptations(previous, cell)
+          ? clipIdByCellId.get(previous.id)
+          : undefined
+        clipIdByCellId.set(cell.id, continuedClipId ?? cell.id)
       }
-      const previousScene = normalized.scenes[sceneIndex - 1]
-      const previous = previousScene ? showCellAtSlot(normalized, zone.id, previousScene.id) : undefined
-      const continuedClipId = previous
-        && !cell.restartOnEntry
-        && isSamePattern(previous, cell)
-        && hasSameDiscreteAdaptations(previous, cell)
-        ? clipIdByCellId.get(previous.id)
-        : undefined
-      clipIdByCellId.set(cell.id, continuedClipId ?? cell.id)
     })
   }
 
@@ -2420,24 +2426,30 @@ function showRecordToRoutedSceneSequenceRecipe(
   const emptyClipId = `${EMPTY_SHOW_PATTERN_ID}-routed`
   for (const scene of normalized.scenes) {
     for (const zone of normalized.zones) {
-      const cell = showCellAtSlot(normalized, zone.id, scene.id)
-      if (!cell) {
+      const cells = showCompileCellsAtSlot(normalized, zone.id, scene.id, lookup)
+      if (cells.length === 0) {
         if (!clipById.has(emptyClipId)) {
           clipById.set(emptyClipId, { id: emptyClipId, source: EMPTY_SHOW_PATTERN_SOURCE })
         }
         continue
       }
-      const clipId = clipIdByCellId.get(cell.id) ?? cell.id
-      if (clipById.has(clipId)) continue
-      const source = lookup.byCellId[cell.id]
-      if (!source) throw new Error(`Show compile requires pattern source for clip "${cell.id}".`)
-      clipById.set(clipId, {
-        id: clipId,
-        source,
-        adaptation: compilerAdaptation(cell.adaptations),
-        effects: cell.effects,
-        controlTargets: cell.controlTargets,
-      })
+      for (const cell of cells) {
+        const clipId = clipIdByCellId.get(cell.id) ?? cell.id
+        const existing = clipById.get(clipId)
+        if (existing) {
+          existing.effects = mergeShowPlacementEffects(existing.effects, cell.effects)
+          continue
+        }
+        const source = lookup.byCellId[cell.id]
+        if (!source) throw new Error(`Show compile requires pattern source for clip "${cell.id}".`)
+        clipById.set(clipId, {
+          id: clipId,
+          source,
+          adaptation: compilerAdaptation(cell.adaptations),
+          effects: cell.effects,
+          controlTargets: cell.controlTargets,
+        })
+      }
     }
   }
   if (clipById.size === 0) throw new Error('Show compile requires at least one routed clip.')
@@ -2446,26 +2458,31 @@ function showRecordToRoutedSceneSequenceRecipe(
     const transitionRamps = routedScenePlacementRamps(normalized, sceneIndex, clipIdByCellId)
     return {
           holdMs: scene.durationMs,
-          placements: normalized.zones.map((zone) => {
-            const cell = showCellAtSlot(normalized, zone.id, scene.id)
-            const cellZoneIndex = cell ? normalized.zones.findIndex((candidate) => candidate.id === cell.zoneId) : -1
-            const domainZoneNames = cell && cellZoneIndex >= 0
-              ? normalized.zones.slice(cellZoneIndex, cellZoneIndex + Math.max(1, cell.zoneSpan ?? 1)).map((candidate) => candidate.name)
-              : []
-            return {
-              zoneName: zone.name,
-              clipId: cell ? clipIdByCellId.get(cell.id) ?? cell.id : emptyClipId,
-              ...(cell ? {
+          placements: normalized.zones.flatMap((zone) => {
+            const cells = showCompileCellsAtSlot(normalized, zone.id, scene.id, lookup)
+            if (cells.length === 0) return [{ zoneName: zone.name, clipId: emptyClipId }]
+            return cells.map((cell) => {
+              const cellZoneIndex = normalized.zones.findIndex((candidate) => candidate.id === cell.zoneId)
+              const domainZoneNames = cellZoneIndex >= 0
+                ? normalized.zones.slice(cellZoneIndex, cellZoneIndex + Math.max(1, cell.zoneSpan ?? 1)).map((candidate) => candidate.name)
+                : []
+              const layer = lookup.compositionLayerByCellId?.[cell.id]
+              return {
+                zoneName: zone.name,
+                clipId: clipIdByCellId.get(cell.id) ?? cell.id,
+                ...(layer ? { stackOrder: layer.stackOrder, opacity: layer.opacity } : {}),
                 ...(domainZoneNames.length > 1 ? {
                   domainZoneNames,
                   zoneMode: cell.zoneMode === 'repeat' ? 'repeat' as const : 'span' as const,
                 } : {}),
                 timeScale: cell.adaptations.timeScale,
                 brightness: cell.adaptations.brightness,
+                phase: cell.adaptations.phase,
+                mirror: cell.adaptations.mirror,
                 ...(cell.controlTargets ? { controlTargets: { ...cell.controlTargets } } : {}),
                 ...(cell.effects ? { effects: normalizeShowClipEffects(cell.effects) } : {}),
-              } : {}),
-            }
+              }
+            })
           }),
           ...(scene.transitionOut ? { transitionOut: compilerSequenceTransition(scene.transitionOut) } : {}),
           ...(transitionRamps.length > 0 ? { transitionRamps } : {}),
@@ -2478,7 +2495,7 @@ function showRecordToRoutedSceneSequenceRecipe(
       && scene.placements.every((placement, index) => (
         JSON.stringify(placement) === JSON.stringify(firstPlacements[index])
       )))
-  if (hasStaticPatternSchedule) return showRecordToStaticRoutedRecipe(normalized, lookup)
+  if (hasStaticPatternSchedule && !lookup.compositionLayerByCellId) return showRecordToStaticRoutedRecipe(normalized, lookup)
 
   return {
     clips: [...clipById.values()],
@@ -2493,6 +2510,37 @@ function showRecordToRoutedSceneSequenceRecipe(
     samplePropertyRamps: showSamplePropertyRamps(normalized, false),
     loopDurationMs: routingLayouts ? loopDurationMs : undefined,
   }
+}
+
+function mergeShowPlacementEffects(
+  existing: ShowCell['effects'],
+  incoming: ShowCell['effects'],
+): ShowCell['effects'] {
+  const result = normalizeShowClipEffects(existing)
+  for (const effect of normalizeShowClipEffects(incoming)) {
+    if (!result.some((candidate) => candidate.id === effect.id && candidate.kind === effect.kind)) {
+      result.push(effect)
+    }
+  }
+  return result.length > 0 ? result : undefined
+}
+
+function showCompileCellsAtSlot(
+  show: ShowRecord,
+  zoneId: string,
+  sceneId: string,
+  lookup: ShowCompileRecipeSourceLookup,
+): ShowCell[] {
+  if (!lookup.compositionLayerByCellId) {
+    const cell = showCellAtSlot(show, zoneId, sceneId)
+    return cell ? [cell] : []
+  }
+  return show.cells
+    .filter((cell) => cell.zoneId === zoneId && cell.sceneId === sceneId)
+    .sort((left, right) => (
+      (lookup.compositionLayerByCellId?.[left.id]?.stackOrder ?? 0)
+      - (lookup.compositionLayerByCellId?.[right.id]?.stackOrder ?? 0)
+    ))
 }
 
 function routedScenePlacementRamps(
