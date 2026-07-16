@@ -569,6 +569,7 @@ export function validateShowToolkitRegistry(
 
 export function buildShowCompiledCostMetadata(input: {
   transitionCost: 'none' | 'renderer-window' | 'bounded-renderer-window' | 'route' | 'parameter'
+  patternEvaluations?: ShowCompiledCostMetadata['cpu']['patternEvaluations']
   artifactBytes: number
   budgetBytes: number
   expectedActiveFraction: number | null
@@ -577,11 +578,11 @@ export function buildShowCompiledCostMetadata(input: {
   warnings?: string[]
   effects?: Partial<ShowCompiledCostMetadata['cpu']['effects']>
 }): ShowCompiledCostMetadata {
-  const patternEvaluations: ShowCompiledCostMetadata['cpu']['patternEvaluations'] = input.transitionCost === 'renderer-window'
+  const patternEvaluations: ShowCompiledCostMetadata['cpu']['patternEvaluations'] = input.patternEvaluations ?? (input.transitionCost === 'renderer-window'
     ? { formula: '2N', basePerPixel: 2 }
     : input.transitionCost === 'bounded-renderer-window'
       ? { formula: 'N + E', basePerPixel: 1, additionalPerEdgePixel: 1 }
-      : { formula: 'N', basePerPixel: 1 }
+      : { formula: 'N', basePerPixel: 1 })
   return {
     cpu: {
       patternEvaluations,

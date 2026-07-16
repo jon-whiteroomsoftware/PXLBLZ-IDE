@@ -983,7 +983,11 @@ virtual time base.
 `migrations/0016_show_composition.sql` adds one nullable `composition_json`
 column to the existing Show row. Save, load, undo, and redo serialize this
 versioned value without creating relational sub-entities. Returning to a flat
-Show writes SQL `NULL` rather than retaining stale authored state.
+Show writes SQL `NULL` rather than retaining stale authored state. D1 hydration
+normalizes and validates a version-1 sidecar before attaching it. A malformed
+version-1 sidecar, unknown future version, or invalid ownership graph is omitted
+without changing the flat Show. Create and update reject unsupported envelopes
+before issuing a D1 write.
 
 `showCompositionLowering.ts` validates the sidecar and unions every local Main
 and overlay boundary. Each derived interval becomes an ordered routed stack:
@@ -998,6 +1002,25 @@ including across gaps. Flat-cell property-transition starts remap to the first
 derived destination cell. Preview, fast replay, artifact generation, Controller
 output, and EPE export all consume this same lowering. Shows without authored
 composition bypass it.
+
+`showCompositionFreeze.ts` is the production-path release gate over that seam.
+Its Portable fixture measures 59,230 of 68,384 artifact bytes (86.6%). Its fixed
+two-Zone Installation fixture reaches four simultaneous Pattern renderers per
+pixel across stacked overlays and a Crossfade. Preview/artifact code, normalized
+JSON, deterministic replay, EPE stamping, and Controller preparation must agree
+for both fixtures. Physical FPS remains `null` until the dated Controller gate
+in `docs/plans/issue-492-scene-composition-freeze.md` is run.
+
+`showCompilePressure.ts` warns at 80% of the measured artifact budget and blocks
+at 100%. It warns at three or four simultaneous renderers per pixel and blocks
+at five. The five-renderer boundary is the unvalidated side of the four-renderer
+release fixture, not a claimed device maximum. Blocked output remains
+previewable and inspectable but cannot be exported, sent, saved, or reconciled
+to a Controller. The compiler derives steady and worst renderer depth from each
+Zone stack. Stacked output overrides the ordinary transition-only formula with
+`2N` or `S * N`, so a two-layer Scene crossfading to another two-layer Scene
+reports two renderers per pixel steady, four at the worst instant, and `4 * N`
+Pattern evaluations during that window.
 
 `showPropertyAnimation.ts` owns typed Scene-local Property animation. A track
 targets either Pattern-instance Animation speed/public slider state or one

@@ -39,41 +39,42 @@ export function ActivityStrip({
       {ACTIVITY_ENTRIES.map((entry) => {
         const active = mode === entry.kind
         return (
-          <button
-            key={entry.kind}
-            role="radio"
-            aria-checked={active}
-            aria-label={entry.label}
-            title={entry.label}
-            onClick={() => onModeChange(entry.kind)}
-            className={[
-              `mb-1 flex w-full flex-col items-center gap-0.5 px-1 py-1 font-semibold uppercase tracking-wide transition-colors ${IDE_MICROTYPE.required.sizeClassName}`,
-              active
-                ? 'text-live'
-                : 'text-zinc-500 hover:bg-zinc-900/55 hover:text-zinc-300',
-            ].join(' ')}
-          >
-            <span className={[
-              'grid size-7 place-items-center rounded border transition-colors',
-              active ? 'border-live/45 bg-live/10' : 'border-transparent',
-            ].join(' ')}>
-              {entry.icon}
-            </span>
-            <span>{entry.short}</span>
-          </button>
+          <div key={entry.kind} className="relative w-full">
+            <button
+              role="radio"
+              aria-checked={active}
+              aria-label={entry.label}
+              title={entry.label}
+              onClick={() => onModeChange(entry.kind)}
+              className={[
+                `mb-1 flex w-full flex-col items-center gap-0.5 px-1 py-1 font-semibold uppercase tracking-wide transition-colors ${IDE_MICROTYPE.required.sizeClassName}`,
+                active
+                  ? 'text-live'
+                  : 'text-zinc-500 hover:bg-zinc-900/55 hover:text-zinc-300',
+              ].join(' ')}
+            >
+              <span className={[
+                'grid size-7 place-items-center rounded border transition-colors',
+                active ? 'border-live/45 bg-live/10' : 'border-transparent',
+              ].join(' ')}>
+                {entry.icon}
+              </span>
+              <span>{entry.short}</span>
+            </button>
+            {collapsed && active && onToggleCollapsed && (
+              <button
+                type="button"
+                aria-label="Expand library"
+                title="Expand library"
+                onClick={onToggleCollapsed}
+                className={`absolute left-1/2 top-1 z-20 grid size-7 -translate-x-1/2 place-items-center rounded border border-zinc-700 bg-zinc-950 text-zinc-400 shadow-sm transition-colors hover:border-live/60 hover:bg-zinc-900 hover:text-live ${IDE_MICROTYPE.required.sizeClassName}`}
+              >
+                <PanelLeftOpen size={17} aria-hidden />
+              </button>
+            )}
+          </div>
         )
       })}
-      {collapsed && onToggleCollapsed && (
-        <button
-          type="button"
-          aria-label="Expand library"
-          title="Expand library"
-          onClick={onToggleCollapsed}
-          className={`absolute left-1/2 top-3 z-20 grid size-7 -translate-x-1/2 place-items-center rounded border border-zinc-700 bg-zinc-950 text-zinc-400 shadow-sm transition-colors hover:border-live/60 hover:bg-zinc-900 hover:text-live ${IDE_MICROTYPE.required.sizeClassName}`}
-        >
-          <PanelLeftOpen size={17} aria-hidden />
-        </button>
-      )}
     </div>
   )
 }

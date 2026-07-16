@@ -35,6 +35,7 @@ import { createInstallationShowOutputContract, createPortableShowOutputContract 
 import { showPreviewOverrideInitialState, useShowPreviewOverrideStore } from '@/store/showPreviewOverrideStore'
 import { showEditorSessionInitialState, useShowEditorSessionStore } from '@/store/showEditorSessionStore'
 import { STOCK_SHOWS } from '@/pixelblaze/stock/shows'
+import { buildShowCompositionFreezeCases } from '@/engine/showCompositionFreeze'
 
 function changeCommittedNumber(label: string, value: string): void {
   const input = screen.getByLabelText(label)
@@ -1680,6 +1681,24 @@ describe('ShowEditor (#318)', () => {
 
     expect(screen.getByText('clock: exact pause ramp')).toBeInTheDocument()
     expect(screen.getByText(/steady state/i)).toHaveTextContent('1 renderer/px')
+  })
+
+  it('discloses release-envelope warnings for dense composition output (#492)', () => {
+    const [portable, installation] = buildShowCompositionFreezeCases()
+    usePatternStore.setState({ userPatterns: portable.patterns })
+    useShowStore.setState({ shows: [portable.show], activeShowId: portable.show.id, showsLoaded: true })
+
+    const rendered = render(<ShowEditor showId={portable.show.id} />)
+
+    expect(screen.getByText('Generated artifact uses 80% or more of the measured activation budget.')).toBeInTheDocument()
+
+    rendered.unmount()
+    useShowStore.setState({ shows: [installation.show], activeShowId: installation.show.id, showsLoaded: true })
+    render(<ShowEditor showId={installation.show.id} />)
+
+    expect(screen.getByText('Worst instant evaluates 4 simultaneous Pattern sources per pixel.')).toBeInTheDocument()
+    expect(screen.getByText(/worst instant:/i)).toHaveTextContent('4 renderers/px')
+    expect(screen.getByText(/steady state/i)).toHaveTextContent('2 renderers/px')
   })
 
   it('edits and explains a masked-evaluation light shutter', async () => {

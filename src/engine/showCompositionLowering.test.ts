@@ -160,6 +160,24 @@ describe('Show composition compiler lowering (#488)', () => {
     expect(scenes[3].placements[0]).toMatchObject({ placementId: 'placement-a-2', clipId: 'instance-a' })
   })
 
+  it('emits a placement-owned track only while that placement is active (#492)', () => {
+    const show = fixture()
+    show.composition!.scenes[0].propertyTracks = [{
+      id: 'brightness-track',
+      target: { kind: 'placement-view', placementId: 'placement-a-1', property: 'brightness' },
+      keyframes: [
+        { id: 'brightness-a', timeMs: 0, value: 0.25, easing: { curve: 'linear' } },
+        { id: 'brightness-b', timeMs: 10_000, value: 1, easing: { curve: 'linear' } },
+      ],
+    }]
+
+    const recipe = showRecordToCompileRecipe(show, lookup(show))
+    const scenes = recipe.routedSceneSequence?.scenes ?? []
+
+    expect(scenes[0].propertyTracks?.map((track) => track.id)).toEqual(['brightness-track'])
+    expect(scenes.slice(1, 4).every((scene) => scene.propertyTracks === undefined)).toBe(true)
+  })
+
   it('lowers Main plus ordered overlays into one routed Zone stack (#489)', () => {
     const show = fixture()
     const firstZone = show.composition!.scenes[0].zones[0]

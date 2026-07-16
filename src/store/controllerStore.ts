@@ -71,6 +71,7 @@ import { useShowStore } from '@/store/showStore'
 import { compileShowForArtifact } from '@/engine/showPreviewArtifact'
 import { buildShowEpeExport } from '@/engine/showEpeExport'
 import { prepareShowControllerArtifact } from '@/engine/showControllerArtifact'
+import { assessShowCompilePressure } from '@/engine/showCompilePressure'
 
 function artifactTransformIds(passes: Array<Pick<PassSummary, 'id' | 'kind'>>): string[] {
   const ids = new Set<string>()
@@ -734,6 +735,12 @@ export const useControllerStore = create<ControllerConnectionState>()(
               { stageDimension: stageMap?.dim },
             )
             if (!compiled.artifact) return []
+            const pressure = assessShowCompilePressure({
+              artifactBytes: compiled.artifact.summary.artifactBytes,
+              budgetBytes: compiled.artifact.summary.measuredDeviceBudgetBytes,
+              worstInstantRenderersPerPixel: compiled.artifact.summary.worstInstantRenderersPerPixel,
+            })
+            if (pressure.status === 'blocked') return []
             try {
               const canonical = buildShowEpeExport(show, compiled.artifact.code, {
                 stampedAt: new Date(show.updatedAt),

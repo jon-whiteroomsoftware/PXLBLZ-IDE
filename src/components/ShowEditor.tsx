@@ -27,6 +27,7 @@ import { PatternPushChoices } from '@/components/SendToController'
 import { PushConfirmPopover } from '@/components/PushConfirmPopover'
 import { describeSendToController, isAlreadyPushed, type SendMode } from '@/engine/sendToController'
 import { prepareShowControllerArtifact } from '@/engine/showControllerArtifact'
+import { assessShowCompilePressure } from '@/engine/showCompilePressure'
 import type { ArtifactMapClass } from '@/engine/artifactStamp'
 import { trackEvent } from '@/analytics'
 import {
@@ -388,6 +389,13 @@ export function ShowEditor({
       : { artifact: null, error: null },
     [activeShow, stageDimension, userPatterns, targetProfile?.zones],
   )
+  const compilePressure = useMemo(() => compiled.artifact
+    ? assessShowCompilePressure({
+        artifactBytes: compiled.artifact.summary.artifactBytes,
+        budgetBytes: compiled.artifact.summary.measuredDeviceBudgetBytes,
+        worstInstantRenderersPerPixel: compiled.artifact.summary.worstInstantRenderersPerPixel,
+      })
+    : null, [compiled.artifact])
   const patternControlsByCellId = useMemo(() => Object.fromEntries((activeShow?.cells ?? []).map((cell) => {
     const saved = cell.pattern.kind === 'user'
       ? userPatterns.find((pattern) => pattern.id === cell.pattern.id)?.controls ?? {}
@@ -410,13 +418,13 @@ export function ShowEditor({
     }
   }, [activeShow, stageDimension, userPatterns])
   const showExport = useMemo(
-    () => activeShow && compiled.artifact
+    () => activeShow && compiled.artifact && compilePressure?.status !== 'blocked'
       ? buildShowEpeExport(activeShow, compiled.artifact.code, {
           stampedAt: new Date(activeShow.updatedAt),
           userMaps,
         })
       : null,
-    [activeShow, compiled.artifact, userMaps],
+    [activeShow, compilePressure?.status, compiled.artifact, userMaps],
   )
   const activeControllerMapDim = activeController?.mapDim ?? null
   const activeControllerFirmware = activeController?.firmwareVersion
@@ -451,6 +459,9 @@ export function ShowEditor({
     }
   }, [activeControllerProfile, userMaps])
   const preparedControllerArtifact = useMemo(() => {
+    if (compilePressure?.status === 'blocked') {
+      return { value: null, error: compilePressure.blocks.join(' ') }
+    }
     if (!showExport) return { value: null, error: null }
     try {
       return {
@@ -468,7 +479,7 @@ export function ShowEditor({
         error: error instanceof Error ? error.message : 'Could not prepare Show for Controller',
       }
     }
-  }, [activeControllerFirmware, activeControllerMapDim, controllerCompatibilityContext, showExport])
+  }, [activeControllerFirmware, activeControllerMapDim, compilePressure, controllerCompatibilityContext, showExport])
 
   useEffect(() => {
     if (!controllerPushResult) return
@@ -476,7 +487,7 @@ export function ShowEditor({
     return () => window.clearTimeout(timeout)
   }, [clearPushResult, controllerPushResult])
   const buildDownloadExport = async (): Promise<ShowEpeExport | null> => {
-    if (!activeShow || !compiled.artifact) return null
+    if (!activeShow || !compiled.artifact || compilePressure?.status === 'blocked') return null
     const preview = await buildPreviewJpeg(compiled.artifact)
     if (!preview) throw new Error('Could not render the EPE preview image')
     return buildShowEpeExport(activeShow, compiled.artifact.code, {
@@ -4601,6 +4612,11 @@ function CompileBar({
   }
   const summary = compiled.artifact?.summary
   const ratio = summary?.artifactBudgetRatio ?? 0
+  const pressure = summary ? assessShowCompilePressure({
+    artifactBytes: summary.artifactBytes,
+    budgetBytes: summary.measuredDeviceBudgetBytes,
+    worstInstantRenderersPerPixel: summary.worstInstantRenderersPerPixel,
+  }) : null
   const estimate = estimateFps(ratio, summary?.renderPolicy)
   const worstInstant = summary?.transitionCost === 'renderer-window'
     ? 'crossfade'
@@ -4652,15 +4668,20 @@ function CompileBar({
     <div className="flex min-h-10 shrink-0 items-center gap-2 overflow-x-auto whitespace-nowrap border-t border-seam bg-zinc-950 px-3 font-mono text-xs text-zinc-500">
       <span>compiled artifact</span>
       <span className="h-2 w-28 overflow-hidden rounded-sm bg-zinc-800">
-        <span className="block h-full bg-live" style={{ width: `${Math.min(100, ratio * 100)}%` }} />
+        <span
+          className={`block h-full ${pressure?.status === 'blocked' ? 'bg-red-500' : pressure?.status === 'warning' ? 'bg-amber-400' : 'bg-live'}`}
+          style={{ width: `${Math.min(100, ratio * 100)}%` }}
+        />
       </span>
       <b className="text-zinc-300">{summary ? formatBytes(summary.artifactBytes) : '-'} / ~{summary ? formatBytes(summary.measuredDeviceBudgetBytes) : '-'}</b>
+      {pressure?.blocks.map((block) => <span key={block} className="text-red-300">Output blocked: {block}</span>)}
+      {pressure?.warnings.map((warning) => <span key={warning} className="text-amber-300">{warning}</span>)}
       <span>-</span>
       <b className="text-zinc-300">est. {estimate} fps @ {targetPixels} px</b>
       <span>-</span>
-      <span>steady state <span className="text-emerald-300"><Check size={12} className="inline" aria-hidden /> 1 renderer/px</span></span>
+      <span>steady state <span className={summary && summary.steadyStateRenderersPerPixel > 2 ? 'text-amber-300' : 'text-emerald-300'}><Check size={12} className="inline" aria-hidden /> {summary?.steadyStateRenderersPerPixel ?? 1} renderer{summary?.steadyStateRenderersPerPixel === 1 ? '' : 's'}/px</span></span>
       <span className={summary?.transitionCost === 'renderer-window' || summary?.transitionCost === 'bounded-renderer-window' ? 'text-amber-300' : 'text-emerald-300'}>
-        worst instant: {worstInstant}
+        worst instant: {worstInstant}{summary && summary.worstInstantRenderersPerPixel > 1 ? ` · ${summary.worstInstantRenderersPerPixel} renderers/px` : ''}
       </span>
       {summary?.routingRepresentation !== 'none' && (
         <span className="text-sky-300">

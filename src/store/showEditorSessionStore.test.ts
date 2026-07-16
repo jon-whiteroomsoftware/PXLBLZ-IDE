@@ -10,6 +10,8 @@ describe('showEditorSessionStore (#470)', () => {
     const current = {
       ...showEditorSessionInitialState,
       setSnapEnabled: () => {},
+      setDiagnostic: () => {},
+      setDiagnosticFocus: () => {},
     }
     expect(mergePersistedShowEditorSession({ snapEnabled: false, histories: { stale: true } }, current)).toMatchObject({
       snapEnabled: false,

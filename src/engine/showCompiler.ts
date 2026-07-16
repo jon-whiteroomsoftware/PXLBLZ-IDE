@@ -374,6 +374,7 @@ export interface ShowCompileSummary {
   expectedActiveFraction: number | null
   temporalPolicy: 'continuous' | 'stepped-clock' | 'mixed'
   timeOffsetPolicy: 'none' | 'per-clip'
+  steadyStateRenderersPerPixel: number
   worstInstantRenderersPerPixel: number
   routingRepresentation: 'none' | 'range-branches' | 'packed-pixels' | 'generated-formula' | 'coordinate-predicates'
   routingEstimate: RoutingRepresentationEstimate | null
@@ -672,11 +673,16 @@ export function compileShow(
         : 'none'
   const evaluationSummary = describeEvaluationPolicy(members)
   const effectCost = describeEffectCost(members, expandedRecipe)
+  const rendererPressure = showRendererPressure(expandedRecipe, transitionCost)
+  const patternEvaluationOverride = showPatternEvaluationOverride(transitionCost, rendererPressure)
   const warnings = expandedRecipe.routedSceneSequence
     ? []
     : routingLayouts?.flatMap((layout) => layout.warnings) ?? route?.warnings ?? []
   const cost = buildShowCompiledCostMetadata({
     transitionCost,
+    ...(patternEvaluationOverride
+      ? { patternEvaluations: patternEvaluationOverride }
+      : {}),
     artifactBytes,
     budgetBytes: MEASURED_DEVICE_BUDGET_BYTES,
     expectedActiveFraction: evaluationSummary.expectedActiveFraction,
@@ -803,7 +809,8 @@ export function compileShow(
     expectedActiveFraction: evaluationSummary.expectedActiveFraction,
     temporalPolicy: describeTemporalPolicy(members),
     timeOffsetPolicy: members.some((member) => member.adaptation.timeOffsetMs !== 0) ? 'per-clip' : 'none',
-    worstInstantRenderersPerPixel: showWorstInstantRenderersPerPixel(expandedRecipe, transitionCost),
+    steadyStateRenderersPerPixel: rendererPressure.steady,
+    worstInstantRenderersPerPixel: rendererPressure.worst,
     routingRepresentation,
     routingEstimate: routingPlan,
     routingParameterEstimate,
@@ -4191,10 +4198,10 @@ function describeEffectCost(
   }
 }
 
-function showWorstInstantRenderersPerPixel(
+function showRendererPressure(
   recipe: ShowRecipe,
   transitionCost: ShowCompileSummary['transitionCost'],
-): number {
+): { steady: number; worst: number } {
   if (recipe.routedSceneSequence) {
     const sceneDepths = recipe.routedSceneSequence.scenes.map((scene) => {
       const depthByZone = new Map<string, number>()
@@ -4222,9 +4229,21 @@ function showWorstInstantRenderersPerPixel(
         ? sceneDepths[index] + sceneDepths[index + 1]
         : Math.max(sceneDepths[index], sceneDepths[index + 1]))
     }, 1)
-    return Math.max(holdDepth, transitionDepth)
+    return { steady: holdDepth, worst: Math.max(holdDepth, transitionDepth) }
   }
-  return transitionCost === 'renderer-window' || transitionCost === 'bounded-renderer-window' ? 2 : 1
+  const worst = transitionCost === 'renderer-window' || transitionCost === 'bounded-renderer-window' ? 2 : 1
+  return { steady: 1, worst }
+}
+
+function showPatternEvaluationOverride(
+  transitionCost: ShowCompileSummary['transitionCost'],
+  pressure: { steady: number; worst: number },
+): ShowCompiledCostMetadata['cpu']['patternEvaluations'] | undefined {
+  const defaultWorst = transitionCost === 'renderer-window' || transitionCost === 'bounded-renderer-window' ? 2 : 1
+  if (pressure.steady === 1 && pressure.worst <= defaultWorst) return undefined
+  return pressure.worst === 2
+    ? { formula: '2N', basePerPixel: 2 }
+    : { formula: 'S * N', samplesPerPixel: pressure.worst }
 }
 
 function countEffectRamps(ramps: ShowEffectPropertyRampsRecipe | undefined): number {

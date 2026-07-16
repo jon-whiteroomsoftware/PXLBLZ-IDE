@@ -263,7 +263,11 @@ describe('compileShow', () => {
     handle.beforeRender(1000)
     handle.render(0)
     expect(pixel()).toEqual([0.25, 0.5, 0.25])
-    expect(artifact.summary.worstInstantRenderersPerPixel).toBe(3)
+    expect(artifact.summary).toMatchObject({
+      steadyStateRenderersPerPixel: 2,
+      worstInstantRenderersPerPixel: 3,
+      cost: { cpu: { patternEvaluations: { formula: 'S * N', samplesPerPixel: 3 } } },
+    })
   })
 
   it('advances a semantic Pattern instance once when two layers reference it (#489)', () => {

@@ -960,6 +960,14 @@ enumerated sequence would require.
 Synchronized tiling reports its one scalar, coordinate-operation ceiling, and
 zero-renderer delta separately from routing cost.
 
+The compile bar also enforces the v2 output support envelope. It warns when
+generated code reaches 80% of the measured activation budget or a Show reaches
+three or four simultaneous Pattern renderers per pixel. It blocks export, Run,
+Save, and background Controller updates at the measured artifact budget or at
+five simultaneous renderers. A blocked Show remains editable and previewable,
+and **View code** remains available so the author can remove a layer, choose a
+cheaper Transition, or simplify the composition.
+
 Several Zone placements may share one Pattern instance, clock, and generated
 source body; that instance still advances only once per frame. Clips that need
 independent clocks or resumable private state compile as independent members.

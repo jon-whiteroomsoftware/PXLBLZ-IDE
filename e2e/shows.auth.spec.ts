@@ -26,7 +26,7 @@ test.describe('authenticated Show authoring', () => {
     await expect(page.getByRole('button', { name: 'Built-in Shows' })).toHaveAttribute('aria-expanded', 'true')
     await page.getByText('Installation Bands', { exact: true }).click()
     await expect(page).toHaveURL(/\/studio\/shows\/stock-show-installation-bands$/)
-    await expect(page.getByText('256 assigned · 0 missing · 0 overlapping · 0 out of range · 256 total')).toBeVisible()
+    await expect(page.getByText('256/256 assigned · complete coverage')).toBeVisible()
     expect(showWrites).toEqual([])
 
     await page.setViewportSize({ width: 600, height: 800 })

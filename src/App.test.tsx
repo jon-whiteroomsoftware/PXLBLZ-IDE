@@ -150,7 +150,7 @@ describe('App smoke test', () => {
     expect(screen.getByRole('button', { name: 'Expand library' })).toHaveClass(
       'absolute',
       'left-1/2',
-      'top-3',
+      'top-1',
       'size-7',
       '-translate-x-1/2',
     )
@@ -158,6 +158,10 @@ describe('App smoke test', () => {
 
     await userEvent.click(screen.getByRole('radio', { name: 'Shows' }))
     expect(screen.getByRole('button', { name: 'Expand library' })).toBeInTheDocument()
+    expect(pane).toHaveStyle({ width: '46px' })
+
+    await userEvent.click(screen.getByRole('radio', { name: 'Patterns' }))
+    expect(screen.getByRole('radio', { name: 'Patterns' })).toHaveAttribute('aria-checked', 'true')
     expect(pane).toHaveStyle({ width: '46px' })
 
     await userEvent.click(screen.getByRole('button', { name: 'Expand library' }))

@@ -1,7 +1,8 @@
 import type { ShowCompositionV1, ShowRecord } from '../engine/personalContentRecords'
 import { normalizeShowRoutingState, normalizeShowTransitionState } from '../engine/showModel'
 import { normalizeShowOutputContract } from '../engine/showOutputContract'
-import { normalizeShowComposition } from '../engine/showCompositionModel'
+import { normalizeShowComposition, validateShowComposition } from '../engine/showCompositionModel'
+import { PersonalStorageGuardError } from './resourceProtection'
 
 export interface D1ShowStatementLike {
   bind(...values: unknown[]): D1ShowStatementLike
@@ -48,11 +49,9 @@ export function showRecordFromRow(row: D1ShowRow): ShowRecord {
     updatedAt: row.updated_at,
   }))
   const composition = row.composition_json
-    ? parseJson<ShowCompositionV1 | null>(row.composition_json, null)
-    : null
-  return composition?.version === 1
-    ? { ...show, composition: normalizeShowComposition(show, composition) }
-    : show
+    ? normalizeStoredComposition(show, parseJson<unknown>(row.composition_json, null))
+    : undefined
+  return composition ? { ...show, composition } : show
 }
 
 export async function listD1Shows(db: D1DatabaseShowsLike, userId: string): Promise<ShowRecord[]> {
@@ -75,6 +74,9 @@ export async function createD1Show(
   record: ShowRecord,
   now = Math.floor(Date.now() / 1000),
 ): Promise<void> {
+  const composition = record.composition == null
+    ? null
+    : requireValidComposition(record, record.composition)
   await db
     .prepare(`
       INSERT INTO personal_shows (
@@ -93,7 +95,7 @@ export async function createD1Show(
       JSON.stringify(record.routingLayouts),
       JSON.stringify(record.routingSwitches),
       JSON.stringify(normalizeShowTransitionState(record).transitions),
-      record.composition ? JSON.stringify(normalizeShowComposition(record, record.composition)) : null,
+      composition ? JSON.stringify(composition) : null,
       record.targetControllerProfileId ?? null,
       record.stageMapId ?? null,
       record.outputContract ? JSON.stringify(record.outputContract) : null,
@@ -111,6 +113,7 @@ export async function updateD1Show(
 ): Promise<void> {
   const assignments: string[] = []
   const values: unknown[] = []
+  const composition = normalizeCompositionUpdate(changes)
   addAssignment(assignments, values, 'name', changes.name)
   addAssignment(assignments, values, 'scenes_json', changes.scenes, true)
   addAssignment(assignments, values, 'zones_json', changes.zones, true)
@@ -118,7 +121,7 @@ export async function updateD1Show(
   addAssignment(assignments, values, 'routing_layouts_json', changes.routingLayouts, true)
   addAssignment(assignments, values, 'routing_switches_json', changes.routingSwitches, true)
   addAssignment(assignments, values, 'transitions_json', changes.transitions, true)
-  addAssignment(assignments, values, 'composition_json', changes.composition, true)
+  addAssignment(assignments, values, 'composition_json', composition, true)
   addAssignment(assignments, values, 'target_controller_profile_id', changes.targetControllerProfileId)
   addAssignment(assignments, values, 'stage_map_id', changes.stageMapId)
   addAssignment(assignments, values, 'output_contract_json', changes.outputContract, true)
@@ -160,4 +163,63 @@ function parseJson<T>(value: string, fallback: T): T {
   } catch {
     return fallback
   }
+}
+
+function normalizeStoredComposition(
+  show: Pick<ShowRecord, 'scenes' | 'zones'>,
+  value: unknown,
+): ShowCompositionV1 | undefined {
+  try {
+    if (!isCompositionV1Envelope(value)) return undefined
+    const normalized = normalizeShowComposition(show, value)
+    return validateShowComposition(show, normalized).length === 0 ? normalized : undefined
+  } catch {
+    return undefined
+  }
+}
+
+function requireValidComposition(
+  show: Pick<ShowRecord, 'scenes' | 'zones'>,
+  value: unknown,
+): ShowCompositionV1 {
+  if (!isCompositionV1Envelope(value)) throw unsupportedCompositionError()
+  try {
+    const normalized = normalizeShowComposition(show, value)
+    if (validateShowComposition(show, normalized).length > 0) throw unsupportedCompositionError()
+    return normalized
+  } catch (error) {
+    if (error instanceof PersonalStorageGuardError) throw error
+    throw unsupportedCompositionError()
+  }
+}
+
+function normalizeCompositionUpdate(
+  changes: Partial<Omit<ShowRecord, 'id'>>,
+): ShowCompositionV1 | null | undefined {
+  if (changes.composition === undefined || changes.composition === null) return changes.composition
+  if (!isCompositionV1Envelope(changes.composition)) throw unsupportedCompositionError()
+  if (Array.isArray(changes.scenes) && Array.isArray(changes.zones)) {
+    return requireValidComposition({ scenes: changes.scenes, zones: changes.zones }, changes.composition)
+  }
+  try {
+    return normalizeShowComposition({ scenes: [], zones: [] }, changes.composition)
+  } catch {
+    throw unsupportedCompositionError()
+  }
+}
+
+function isCompositionV1Envelope(value: unknown): value is ShowCompositionV1 {
+  if (!value || typeof value !== 'object') return false
+  const candidate = value as Partial<ShowCompositionV1> & { version?: unknown }
+  return candidate.version === 1
+    && Array.isArray(candidate.patternInstances)
+    && Array.isArray(candidate.scenes)
+}
+
+function unsupportedCompositionError(): PersonalStorageGuardError {
+  return new PersonalStorageGuardError(
+    'unsupported_show_composition',
+    400,
+    'Show composition must be a valid version-1 payload',
+  )
 }

@@ -67,6 +67,15 @@ export function lowerShowCompositionForCompile(
     intervals.forEach((interval, intervalIndex) => {
       const isOnlyInterval = intervals.length === 1
       const isFinalInterval = intervalIndex === intervals.length - 1
+      const activePlacementIds = new Set((sceneComposition?.zones ?? []).flatMap((zone) => [
+        ...zone.main.filter((placement) => placementCovers(placement, interval.startMs)).map((placement) => placement.id),
+        ...zone.overlays.flatMap((layer) => layer.placements
+          .filter((placement) => placementCovers(placement, interval.startMs))
+          .map((placement) => placement.id)),
+      ]))
+      const activePropertyTracks = (sceneComposition?.propertyTracks ?? []).filter((track) => (
+        !('placementId' in track.target) || activePlacementIds.has(track.target.placementId)
+      ))
       const sceneId = isOnlyInterval
         ? scene.id
         : `${scene.id}--local-${interval.startMs}-${interval.endMs}`
@@ -79,10 +88,10 @@ export function lowerShowCompositionForCompile(
           ? { transitionOut: scene.transitionOut }
           : { transitionOut: { kind: 'cut', durationMs: 0 } }),
       })
-      if (sceneComposition?.propertyTracks?.length) {
+      if (activePropertyTracks.length) {
         compositionPropertyTracksBySceneId[sceneId] = {
           localTimeOffsetMs: interval.startMs,
-          tracks: structuredClone(sceneComposition.propertyTracks),
+          tracks: structuredClone(activePropertyTracks),
         }
       }
       if (isFinalInterval) lastDerivedSceneId.set(scene.id, sceneId)
