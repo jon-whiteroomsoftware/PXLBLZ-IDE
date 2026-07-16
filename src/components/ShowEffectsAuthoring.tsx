@@ -45,7 +45,7 @@ export function ShowEffectPalette({
   onApply,
   onClose,
 }: {
-  clip: ShowCell
+  clip: Pick<ShowCell, 'patternName' | 'effects'>
   stageDimensions: 1 | 2 | 3
   onApply: (effect: ShowClipEffect) => void
   onClose: () => void

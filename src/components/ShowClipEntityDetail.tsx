@@ -1,0 +1,356 @@
+import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { Grid2X2 } from 'lucide-react'
+import { PatternCombobox, type PatternComboboxOption } from './PatternCombobox'
+import { ShowEffectStack } from './ShowEffectsAuthoring'
+import { showClipInspectorCapabilities, type ShowClipInspectorPatch, type ShowClipInspectorValue } from '@/engine/showClipInspectorModel'
+import type { AutomatablePatternControl } from '@/engine/showPatternControls'
+import type { ShowCompiledCostMetadata } from '@/engine/showVisualToolkit'
+
+export interface ShowClipEntityDetailProps {
+  value: ShowClipInspectorValue
+  title: string
+  readOnly: boolean
+  patternOptions: PatternComboboxOption[]
+  patternControls: AutomatablePatternControl[]
+  compiledCost?: ShowCompiledCostMetadata
+  layerOptions?: Array<{ value: string; label: string }>
+  actions?: ReactNode
+  structuralControls?: ReactNode
+  embedded?: boolean
+  primaryOnly?: boolean
+  advancedDefaultOpen?: boolean
+  onPatch: (patch: ShowClipInspectorPatch) => void
+  onPatternCommit?: () => void
+  onOpenEffects: () => void
+  onMoveLayer?: (layerId: string) => void
+}
+
+export function ShowClipEntityDetail({
+  value,
+  title,
+  readOnly,
+  patternOptions,
+  patternControls,
+  compiledCost,
+  layerOptions,
+  actions,
+  structuralControls,
+  embedded = false,
+  primaryOnly = false,
+  advancedDefaultOpen = false,
+  onPatch,
+  onPatternCommit,
+  onOpenEffects,
+  onMoveLayer,
+}: ShowClipEntityDetailProps) {
+  const capabilities = showClipInspectorCapabilities(value.scope)
+  const controlTargets = value.simulation.controlTargets
+  const hasAuthoredPatternControls = Object.values(controlTargets ?? {}).some((target) => target !== undefined)
+  const [patternTrayOpen, setPatternTrayOpen] = useState(hasAuthoredPatternControls)
+  const [advancedTrayOpen, setAdvancedTrayOpen] = useState(
+    advancedDefaultOpen || value.view.mirror || value.view.phase !== 0,
+  )
+
+  return (
+    <section role="region" aria-label="Clip properties" data-entity-family="clip" className="overflow-hidden bg-transparent">
+      {!embedded && <header className="flex h-10 shrink-0 items-center gap-2 border-b border-zinc-800/90 bg-zinc-950/65 py-1 pl-2.5 pr-10">
+        <span className="grid size-6 shrink-0 place-items-center rounded border border-cyan-400/35 bg-cyan-400/10 text-cyan-300">
+          <Grid2X2 size={13} aria-hidden />
+        </span>
+        <div className="min-w-0">
+          <h3 className="text-[10px] font-semibold uppercase tracking-[0.12em] text-zinc-300">Clip properties</h3>
+          <p className="truncate text-[9px] text-zinc-600">{title}</p>
+        </div>
+        {actions && <div className="ml-auto flex items-center gap-1">{actions}</div>}
+      </header>}
+
+      <div className={embedded ? '' : 'p-2.5'}>
+        <div data-testid="clip-primary-fields" className="grid min-w-0 items-end gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,7rem)_minmax(0,7rem)]">
+          <label className="block text-[9px] uppercase tracking-[0.1em] text-zinc-600">
+            Source pattern
+            <PatternCombobox
+              key={`${value.owner.kind}:${value.pattern.kind}:${value.pattern.id}`}
+              ariaLabel="Source pattern"
+              value={`${value.pattern.kind}:${value.pattern.id}`}
+              options={patternOptions}
+              disabled={readOnly}
+              onCommit={onPatternCommit}
+              onChange={(nextValue) => {
+                const option = patternOptions.find((candidate) => candidate.value === nextValue)
+                const separator = nextValue.indexOf(':')
+                const kind = nextValue.slice(0, separator)
+                const id = nextValue.slice(separator + 1)
+                if (!option || separator < 1 || (kind !== 'stock' && kind !== 'user') || !id) return
+                onPatch({ pattern: { ref: { kind, id }, name: option.label } })
+              }}
+            />
+          </label>
+          <ShowInspectorNumberField
+            label="Animation speed"
+            value={value.simulation.timeScale}
+            min={0}
+            max={4}
+            step={0.1}
+            suffix="×"
+            disabled={readOnly}
+            help="How quickly Pattern animation advances. Does not change Clip duration or frame rate."
+            onChange={(timeScale) => onPatch({ simulation: { timeScale } })}
+          />
+          <ShowInspectorNumberField
+            label="Brightness"
+            value={value.view.brightness}
+            min={0}
+            max={1}
+            step={0.01}
+            disabled={readOnly}
+            onChange={(brightness) => onPatch({ view: { brightness } })}
+          />
+        </div>
+
+        {capabilities.localTiming && value.local && (
+          <div data-testid="clip-local-fields" className={`mt-2 grid items-end gap-2 ${capabilities.sourceOverOpacity ? 'sm:grid-cols-4' : 'sm:grid-cols-2'}`}>
+            <ShowInspectorNumberField
+              label="Start"
+              ariaLabel="Start seconds"
+              value={value.local.startMs / 1_000}
+              min={0}
+              max={Number.MAX_SAFE_INTEGER}
+              step={0.1}
+              suffix="s"
+              disabled={readOnly}
+              onChange={(seconds) => onPatch({ local: { startMs: Math.round(seconds * 1_000) } })}
+            />
+            <ShowInspectorNumberField
+              label="Duration"
+              ariaLabel="Duration seconds"
+              value={value.local.durationMs / 1_000}
+              min={0.1}
+              max={Number.MAX_SAFE_INTEGER}
+              step={0.1}
+              suffix="s"
+              disabled={readOnly}
+              onChange={(seconds) => onPatch({ local: { durationMs: Math.round(seconds * 1_000) } })}
+            />
+            {capabilities.sourceOverOpacity && (
+              <ShowInspectorNumberField
+                label="Opacity"
+                value={value.local.opacity ?? 1}
+                min={0}
+                max={1}
+                step={0.01}
+                disabled={readOnly}
+                onChange={(opacity) => onPatch({ local: { opacity } })}
+              />
+            )}
+            {capabilities.layerAssignment && layerOptions && (
+              <label className="min-w-0 text-[9px] uppercase tracking-[0.1em] text-zinc-600">
+                Layer
+                <select
+                  aria-label="Overlay target layer"
+                  value={value.layerId}
+                  disabled={readOnly}
+                  onChange={(event) => onMoveLayer?.(event.target.value)}
+                  className="mt-1 h-7 w-full rounded border border-zinc-700 bg-zinc-950 px-2 text-[10px] normal-case tracking-normal text-zinc-200 outline-none focus:border-cyan-400/60"
+                >
+                  {layerOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                </select>
+              </label>
+            )}
+          </div>
+        )}
+
+        <ShowEffectStack
+          effects={value.effects}
+          compiledCost={compiledCost}
+          onChange={(effects) => onPatch({ effects })}
+          onAdd={onOpenEffects}
+        />
+
+        {!primaryOnly && <div data-testid="clip-control-trays" className="mt-2 grid items-start gap-2 lg:grid-cols-2">
+          {patternControls.length > 0 && (
+            <details
+              className="min-w-0 rounded border border-cyan-400/15 bg-cyan-400/[0.035]"
+              aria-label="Pattern automation targets"
+              open={patternTrayOpen}
+              onToggle={(event) => setPatternTrayOpen(event.currentTarget.open)}
+            >
+              <summary className="cursor-pointer px-2 py-1.5 text-[9px] uppercase tracking-[0.12em] text-cyan-300/80">Add or edit pattern controls</summary>
+              <div className="grid gap-1.5 border-t border-cyan-400/10 p-2 sm:grid-cols-2">
+                {patternControls.map((control) => {
+                  const target = controlTargets?.[control.exportName]
+                  const enabled = target !== undefined
+                  return (
+                    <div key={control.exportName} className="min-w-0 rounded border border-zinc-800 bg-zinc-950/45 p-1.5">
+                      <div className="flex min-w-0 items-center justify-between gap-2">
+                        <label className="flex shrink-0 items-center gap-1.5 text-[10px] text-zinc-300">
+                          <input
+                            type="checkbox"
+                            aria-label={`Set ${control.label} target`}
+                            checked={enabled}
+                            disabled={readOnly}
+                            onChange={(event) => onPatch({
+                              simulation: {
+                                controlTargets: withControlTarget(
+                                  controlTargets,
+                                  control.exportName,
+                                  event.target.checked ? control.defaultValue : undefined,
+                                ),
+                              },
+                            })}
+                            className="h-3.5 w-3.5 accent-cyan-400"
+                          />
+                          {control.label}
+                        </label>
+                        <span className="truncate text-right text-[8px] text-zinc-600" title={`${control.exportName} · ${control.min}–${control.max} · Studio default ${control.defaultValue}`}>
+                          {control.exportName} · {control.min}–{control.max} · Studio default {control.defaultValue}
+                        </span>
+                      </div>
+                      {enabled && (
+                        <div className="mt-1.5">
+                          <ShowInspectorNumberField
+                            label={`${control.label} target`}
+                            hideLabel
+                            value={target}
+                            min={control.min}
+                            max={control.max}
+                            step={0.01}
+                            disabled={readOnly}
+                            onChange={(next) => onPatch({
+                              simulation: { controlTargets: withControlTarget(controlTargets, control.exportName, next) },
+                            })}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </details>
+          )}
+
+          <details
+            className={`min-w-0 rounded border border-zinc-800 bg-zinc-950/35 ${patternControls.length === 0 ? 'lg:col-span-2' : ''}`}
+            aria-label="Advanced Clip controls"
+            open={advancedTrayOpen}
+            onToggle={(event) => setAdvancedTrayOpen(event.currentTarget.open)}
+          >
+            <summary className="cursor-pointer px-2 py-1.5 text-[9px] uppercase tracking-[0.12em] text-zinc-500">Advanced clip controls</summary>
+            <div className="grid grid-cols-2 items-end gap-2 border-t border-zinc-800 p-2 text-[10px]">
+              <label className="flex h-7 items-center gap-2 text-zinc-300">
+                <input
+                  type="checkbox"
+                  aria-label="Mirror clip"
+                  checked={value.view.mirror}
+                  disabled={readOnly}
+                  onChange={(event) => onPatch({ view: { mirror: event.target.checked } })}
+                />
+                Mirror clip
+              </label>
+              <ShowInspectorNumberField
+                label="Phase"
+                value={value.view.phase}
+                min={0}
+                max={1}
+                step={0.01}
+                disabled={readOnly}
+                onChange={(phase) => onPatch({ view: { phase } })}
+              />
+              {structuralControls && <div className="col-span-2">{structuralControls}</div>}
+            </div>
+          </details>
+        </div>}
+      </div>
+    </section>
+  )
+}
+
+export function ShowInspectorNumberField({
+  label,
+  ariaLabel,
+  value,
+  min,
+  max,
+  step,
+  suffix,
+  help,
+  hideLabel = false,
+  disabled = false,
+  onChange,
+}: {
+  label: string
+  ariaLabel?: string
+  value: number
+  min: number
+  max: number
+  step: number
+  suffix?: string
+  help?: string
+  hideLabel?: boolean
+  disabled?: boolean
+  onChange: (value: number) => void
+}) {
+  const [draft, setDraft] = useState(String(value))
+  const focusedRef = useRef(false)
+  const normalized = min === 0 && max === 1
+
+  useEffect(() => {
+    if (!focusedRef.current) setDraft(String(value))
+  }, [value])
+
+  const commit = (raw = draft) => {
+    focusedRef.current = false
+    const parsed = Number(raw)
+    if (raw.trim() === '' || !Number.isFinite(parsed)) {
+      setDraft(String(value))
+      return
+    }
+    const bounded = Math.max(min, Math.min(max, parsed))
+    setDraft(String(bounded))
+    if (bounded !== value) onChange(bounded)
+  }
+
+  return (
+    <label className="min-w-0 text-[9px] uppercase tracking-[0.1em] text-zinc-600" title={help}>
+      <span className={hideLabel ? 'sr-only' : 'flex items-center justify-between gap-2'}>
+        <span>{label}</span>
+        {normalized && <span className="font-mono text-[8px] tracking-normal text-zinc-700" title="Normalized value from zero to one">0–1</span>}
+      </span>
+      <span className={`${hideLabel ? '' : 'mt-1'} flex min-w-0 items-center gap-1`}>
+        <input
+          aria-label={ariaLabel ?? label}
+          title={help}
+          type="number"
+          min={min}
+          max={max}
+          step={step}
+          value={draft}
+          disabled={disabled}
+          onFocus={() => { focusedRef.current = true }}
+          onChange={(event) => setDraft(event.target.value)}
+          onBlur={(event) => commit(event.currentTarget.value)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') event.currentTarget.blur()
+            if (event.key === 'Escape') {
+              event.currentTarget.value = String(value)
+              setDraft(String(value))
+              event.currentTarget.blur()
+            }
+          }}
+          className="h-7 min-w-0 w-full flex-1 appearance-none rounded border border-zinc-700 bg-zinc-950 px-2 text-right text-[10px] tabular-nums text-zinc-200 outline-none focus:border-cyan-400/60 disabled:cursor-default disabled:opacity-60 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+        />
+        {suffix && <span className="text-[10px] normal-case tracking-normal text-zinc-500">{suffix}</span>}
+      </span>
+    </label>
+  )
+}
+
+function withControlTarget(
+  current: Record<string, number> | undefined,
+  exportName: string,
+  value: number | undefined,
+): Record<string, number> | undefined {
+  const next = { ...(current ?? {}) }
+  if (value === undefined) delete next[exportName]
+  else next[exportName] = value
+  return Object.keys(next).length > 0 ? next : undefined
+}

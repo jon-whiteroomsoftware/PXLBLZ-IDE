@@ -45,12 +45,14 @@ function compositionFixture() {
 
 const editingProps = {
   patternOptions: [{ label: 'TestPattern1D', ref: { kind: 'stock' as const, id: 'TestPattern1D' } }],
+  patternControlsByInstanceId: {},
+  onUpdateClipInspector: vi.fn(),
+  onOpenClipEffects: vi.fn(),
   onEnableComposition: vi.fn(),
   onAddMain: vi.fn(),
   onUpdateMain: vi.fn(),
   onSplitMain: vi.fn(),
   onRestartMain: vi.fn(),
-  onReplaceMainPattern: vi.fn(),
   onDeleteMain: vi.fn(),
   onAddOverlayLayer: vi.fn(),
   onRenameOverlayLayer: vi.fn(),
@@ -235,7 +237,7 @@ describe('ShowSceneZoneEditor (#487)', () => {
 
   it('edits exact local bounds and exposes Continue/Restart and Pattern-instance actions', () => {
     const { show, projection, placement } = compositionFixture()
-    const onUpdateMain = vi.fn()
+    const onUpdateClipInspector = vi.fn()
     const onSplitMain = vi.fn()
     const onRestartMain = vi.fn()
     const onDeleteMain = vi.fn()
@@ -258,7 +260,7 @@ describe('ShowSceneZoneEditor (#487)', () => {
           { label: 'TestPattern1D', ref: { kind: 'stock', id: 'TestPattern1D' } },
           { label: 'CometLoom', ref: { kind: 'stock', id: 'CometLoom' } },
         ]}
-        onUpdateMain={onUpdateMain}
+        onUpdateClipInspector={onUpdateClipInspector}
         onSplitMain={onSplitMain}
         onRestartMain={onRestartMain}
         onDeleteMain={onDeleteMain}
@@ -269,7 +271,10 @@ describe('ShowSceneZoneEditor (#487)', () => {
     expect(screen.getByRole('spinbutton', { name: 'Duration seconds' })).toHaveValue(12)
     fireEvent.change(screen.getByRole('spinbutton', { name: 'Start seconds' }), { target: { value: '0.25' } })
     fireEvent.blur(screen.getByRole('spinbutton', { name: 'Start seconds' }))
-    expect(onUpdateMain).toHaveBeenCalledWith(placement.id, { startMs: 250, durationMs: 12_000 })
+    expect(onUpdateClipInspector).toHaveBeenCalledWith(
+      { kind: 'scene-main', sceneId: 'scene-1', zoneId: 'zone-1', placementId: placement.id },
+      { local: { startMs: 250 } },
+    )
 
     fireEvent.click(screen.getByRole('button', { name: 'Split Main clip at playhead' }))
     expect(onSplitMain).toHaveBeenCalledWith(placement.id, 6_000)
@@ -353,7 +358,7 @@ describe('ShowSceneZoneEditor (#487)', () => {
       stageDimension: 1,
     })
     const onRenameOverlayLayer = vi.fn()
-    const onUpdateOverlay = vi.fn()
+    const onUpdateClipInspector = vi.fn()
     const onDeleteOverlay = vi.fn()
 
     render(<ShowSceneZoneEditor
@@ -369,7 +374,7 @@ describe('ShowSceneZoneEditor (#487)', () => {
       onSeek={vi.fn()}
       {...editingProps}
       onRenameOverlayLayer={onRenameOverlayLayer}
-      onUpdateOverlay={onUpdateOverlay}
+      onUpdateClipInspector={onUpdateClipInspector}
       onDeleteOverlay={onDeleteOverlay}
     />)
 
@@ -382,9 +387,10 @@ describe('ShowSceneZoneEditor (#487)', () => {
     fireEvent.change(opacity, { target: { value: '9' } })
     fireEvent.blur(opacity)
     expect(opacity).toHaveValue(1)
-    expect(onUpdateOverlay).toHaveBeenCalledWith('overlay-front', 'overlay-placement', {
-      startMs: 1_000, durationMs: 5_000, opacity: 1,
-    })
+    expect(onUpdateClipInspector).toHaveBeenCalledWith(
+      { kind: 'scene-overlay', sceneId: 'scene-1', zoneId: 'zone-1', layerId: 'overlay-front', placementId: 'overlay-placement' },
+      { local: { opacity: 1 } },
+    )
 
     fireEvent.click(screen.getByRole('button', { name: 'Delete overlay clip' }))
     expect(onDeleteOverlay).toHaveBeenCalledWith('overlay-front', 'overlay-placement')
@@ -451,12 +457,12 @@ describe('ShowSceneZoneEditor (#487)', () => {
     fireEvent.pointerDown(clip, { pointerId: 1, button: 0, clientX: 4, clientY: 28 })
     expect(screen.getByTestId('scene-overlay-drag-ghost')).toHaveTextContent('CometLoom')
     expect(screen.getByTestId('scene-overlay-drag-ghost')).toHaveStyle({ top: '0px' })
-    expect(screen.queryByRole('spinbutton', { name: 'Overlay start seconds' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('spinbutton', { name: 'Start seconds' })).not.toBeInTheDocument()
     fireEvent.pointerMove(clip, { pointerId: 1, buttons: 1, clientX: 8, clientY: 20 })
     fireEvent.pointerUp(clip, { pointerId: 1, button: 0, clientX: 8, clientY: 20 })
     expect(screen.queryByTestId('scene-overlay-drag-ghost')).not.toBeInTheDocument()
-    expect(screen.getByRole('spinbutton', { name: 'Overlay start seconds' })).toHaveValue(1)
-    expect(screen.getByRole('spinbutton', { name: 'Overlay duration seconds' })).toHaveValue(5)
+    expect(screen.getByRole('spinbutton', { name: 'Start seconds' })).toHaveValue(1)
+    expect(screen.getByRole('spinbutton', { name: 'Duration seconds' })).toHaveValue(5)
     expect(onUpdateOverlay).toHaveBeenLastCalledWith('overlay-front', 'overlay-placement', expect.objectContaining({
       targetLayerId: 'overlay-front',
     }))
@@ -667,9 +673,10 @@ describe('ShowSceneZoneEditor (#487)', () => {
     })
   })
 
-  it('searches and replaces a Main clip Pattern through the shared grouped picker (#496)', () => {
+  it('opens one shared anchored Clip detail and routes Pattern and Effects edits by owner (#498)', () => {
     const { show, projection, placement } = compositionFixture()
-    const onReplaceMainPattern = vi.fn()
+    const onUpdateClipInspector = vi.fn()
+    const onOpenClipEffects = vi.fn()
     render(<ShowSceneZoneEditor
       show={show}
       compositionProjection={projection}
@@ -686,20 +693,29 @@ describe('ShowSceneZoneEditor (#487)', () => {
         { label: 'My Test Pattern', ref: { kind: 'user', id: 'personal-test' }, group: 'Personal' },
         { label: 'CometLoom', ref: { kind: 'stock', id: 'CometLoom' }, group: 'Built-in' },
       ]}
-      onReplaceMainPattern={onReplaceMainPattern}
+      onUpdateClipInspector={onUpdateClipInspector}
+      onOpenClipEffects={onOpenClipEffects}
     />)
 
     fireEvent.click(screen.getAllByRole('button', { name: 'Select TestPattern1D Main clip' })[0])
-    const chooser = screen.getByRole('combobox', { name: 'Main clip Pattern' })
+    expect(screen.getByRole('dialog', { name: 'Entity Detail Panel' })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Clip properties' })).toBeInTheDocument()
+    expect(screen.queryByRole('combobox', { name: 'Hold scenes' })).not.toBeInTheDocument()
+    const chooser = screen.getByRole('combobox', { name: 'Source pattern' })
     fireEvent.focus(chooser)
     fireEvent.change(chooser, { target: { value: 'comet' } })
-    expect(screen.getByRole('listbox', { name: 'Main clip Pattern matches' })).toBeInTheDocument()
+    expect(screen.getByRole('listbox', { name: 'Source pattern matches' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('option', { name: 'CometLoom' }))
 
-    expect(onReplaceMainPattern).toHaveBeenCalledWith(
-      placement.id,
-      { kind: 'stock', id: 'CometLoom' },
-      'CometLoom',
+    const owner = { kind: 'scene-main' as const, sceneId: 'scene-1', zoneId: 'zone-1', placementId: placement.id }
+    expect(onUpdateClipInspector).toHaveBeenCalledWith(
+      owner,
+      { pattern: { ref: { kind: 'stock', id: 'CometLoom' }, name: 'CometLoom' } },
     )
+    fireEvent.click(screen.getByRole('button', { name: 'Add' }))
+    expect(onOpenClipEffects).toHaveBeenCalledWith(owner)
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Select TestPattern1D Main clip' })[0])
+    expect(screen.queryByRole('dialog', { name: 'Entity Detail Panel' })).not.toBeInTheDocument()
   })
 })

@@ -2,6 +2,8 @@ import { Activity, ChevronLeft, ChevronRight, Clapperboard, GripVertical, Lock, 
 import { useEffect, useMemo, useRef, useState, type MouseEvent, type PointerEvent, type ReactNode } from 'react'
 import { ShowPropertySparkline } from '@/components/ShowPropertySparkline'
 import { PatternCombobox, type PatternComboboxOption } from '@/components/PatternCombobox'
+import { ShowClipEntityDetail } from '@/components/ShowClipEntityDetail'
+import { ShowEntityDetailPanel } from '@/components/ShowEntityDetailPanel'
 import type { FlatShowCompositionProjection } from '@/engine/showCompositionProjection'
 import {
   projectShowSceneEditorScope,
@@ -33,6 +35,8 @@ import { SHOW_EASING_OPTIONS, showEasingFromOptionId, showEasingOptionId } from 
 import { useShowTransportStore } from '@/store/showTransportStore'
 import { useShowEditorSessionStore } from '@/store/showEditorSessionStore'
 import { usePreviewStore } from '@/store/previewStore'
+import { projectShowClipInspector, type ShowClipInspectorOwner, type ShowClipInspectorPatch } from '@/engine/showClipInspectorModel'
+import type { AutomatablePatternControl } from '@/engine/showPatternControls'
 
 type OverlayClipDrag = {
   kind: 'overlay'
@@ -75,12 +79,14 @@ export function ShowSceneZoneEditor({
   onSelectClip,
   onSeek,
   patternOptions,
+  patternControlsByInstanceId,
+  onUpdateClipInspector,
+  onOpenClipEffects,
   onEnableComposition,
   onAddMain,
   onUpdateMain,
   onSplitMain,
   onRestartMain,
-  onReplaceMainPattern,
   onDeleteMain,
   onAddOverlayLayer,
   onRenameOverlayLayer,
@@ -107,12 +113,14 @@ export function ShowSceneZoneEditor({
   onSelectClip: (clipId: string, anchor: HTMLElement) => void
   onSeek: (globalTimeMs: number) => void
   patternOptions: Array<{ label: string; ref: ShowPatternRef; group?: PatternComboboxOption['group'] }>
+  patternControlsByInstanceId: Record<string, AutomatablePatternControl[]>
+  onUpdateClipInspector: (owner: ShowClipInspectorOwner, patch: ShowClipInspectorPatch) => void
+  onOpenClipEffects: (owner: ShowClipInspectorOwner) => void
   onEnableComposition: () => void
   onAddMain: (input: { pattern: ShowPatternRef; patternName: string; startMs: number; durationMs: number }) => void
   onUpdateMain: (placementId: string, changes: { startMs: number; durationMs: number }) => void
   onSplitMain: (placementId: string, atMs: number) => void
   onRestartMain: (placementId: string) => void
-  onReplaceMainPattern: (placementId: string, pattern: ShowPatternRef, patternName: string) => void
   onDeleteMain: (placementId: string) => void
   onAddOverlayLayer: () => void
   onRenameOverlayLayer: (layerId: string, name: string) => void
@@ -139,6 +147,7 @@ export function ShowSceneZoneEditor({
   const [layerDrag, setLayerDrag] = useState<SceneLayerDrag | null>(null)
   const [newTrackTargetKey, setNewTrackTargetKey] = useState('')
   const [selectedKeyframe, setSelectedKeyframe] = useState<{ trackId: string; keyframeId: string } | null>(null)
+  const [detailAnchor, setDetailAnchor] = useState<HTMLElement | null>(null)
   const pendingLocalSeekRef = useRef<number | null>(null)
   const resumeAfterLocalSeekRef = useRef(false)
   const scenePlayheadPointerRef = useRef<number | null>(null)
@@ -224,17 +233,9 @@ export function ShowSceneZoneEditor({
     previewLocalSeek(fraction * durationMs)
   }
   const compositionMode = Boolean(show.composition)
-  const selectedMain = compositionMode
-    ? detail.mainPlacements.find((placement) => placement.id === selectedMainId) ?? null
-    : null
-  const selectedInstance = selectedMain
-    ? show.composition?.patternInstances.find((instance) => instance.id === selectedMain.instanceId)
-    : null
   const selectedOverlayLayer = selectedOverlayId
     ? detail.overlayLayers.find((layer) => layer.placements.some((placement) => placement.id === selectedOverlayId)) ?? null
     : null
-  const selectedOverlayPlacement = selectedOverlayLayer
-    ?.placements.find((placement) => placement.id === selectedOverlayId) ?? null
   const sceneComposition = show.composition?.scenes.find((scene) => scene.sceneId === scope.sceneId)
   const zoneComposition = sceneComposition?.zones.find((zone) => zone.zoneId === scope.zoneId)
   const selectedAuthoredPlacement = selectedMainId
@@ -246,6 +247,14 @@ export function ShowSceneZoneEditor({
   const selectedAuthoredInstance = selectedAuthoredPlacement
     ? show.composition?.patternInstances.find((instance) => instance.id === selectedAuthoredPlacement.instanceId)
     : undefined
+  const selectedInspectorOwner: ShowClipInspectorOwner | null = selectedMainId
+    ? { kind: 'scene-main', sceneId: scope.sceneId, zoneId: scope.zoneId, placementId: selectedMainId }
+    : selectedOverlayId && selectedOverlayLayer
+      ? { kind: 'scene-overlay', sceneId: scope.sceneId, zoneId: scope.zoneId, layerId: selectedOverlayLayer.id, placementId: selectedOverlayId }
+      : null
+  const selectedInspectorValue = selectedInspectorOwner
+    ? projectShowClipInspector(show, selectedInspectorOwner)
+    : null
   const animationOptions = selectedAuthoredPlacement && selectedAuthoredInstance
     ? buildShowAutomationOptions(selectedAuthoredInstance, selectedAuthoredPlacement)
     : []
@@ -583,8 +592,13 @@ export function ShowSceneZoneEditor({
                       aria-pressed={selectedOverlayId === placement.id}
                       onClick={(event) => {
                         event.stopPropagation()
+                        if (selectedOverlayId === placement.id && detailAnchor) {
+                          setDetailAnchor(null)
+                          return
+                        }
                         setSelectedMainId(null)
                         setSelectedOverlayId(placement.id)
+                        setDetailAnchor(event.currentTarget)
                       }}
                       onPointerDown={(event) => {
                         if (readOnly || event.button !== 0) return
@@ -659,6 +673,7 @@ export function ShowSceneZoneEditor({
                         setDrag(null)
                         setSelectedMainId(null)
                         setSelectedOverlayId(placement.id)
+                        setDetailAnchor(event.currentTarget)
                         onUpdateOverlay(layer.id, placement.id, {
                           startMs: completedDrag.startMs,
                           durationMs: placementDurationMs,
@@ -690,27 +705,6 @@ export function ShowSceneZoneEditor({
                   <i aria-hidden className="pointer-events-none absolute inset-y-0 z-20 w-px bg-amber-300 shadow-[0_0_5px_rgba(252,211,77,.75)]" style={{ left: `${localTimeMs / durationMs * 100}%` }} />
                 </div>
               </div>
-              {selectedOverlayLayer?.id === layer.id && selectedOverlayPlacement && (
-                <div className="flex min-h-9 items-center gap-2 border-x border-b border-zinc-800 bg-[#0b0e12] px-2 text-[9px] text-zinc-400">
-                  <strong className="shrink-0 font-medium text-zinc-200">{selectedOverlayPlacement.patternName}</strong>
-                  <ExactTimeInput label="Overlay start" value={selectedOverlayPlacement.startMs} disabled={readOnly} onCommit={(startMs) => onUpdateOverlay(layer.id, selectedOverlayPlacement.id, { startMs, durationMs: selectedOverlayPlacement.endMs - selectedOverlayPlacement.startMs })} />
-                  <ExactTimeInput label="Overlay duration" value={selectedOverlayPlacement.endMs - selectedOverlayPlacement.startMs} disabled={readOnly} onCommit={(nextDurationMs) => onUpdateOverlay(layer.id, selectedOverlayPlacement.id, { startMs: selectedOverlayPlacement.startMs, durationMs: nextDurationMs })} />
-                  <ExactNumberInput label="Opacity" value={selectedOverlayPlacement.opacity} min={0} max={1} step={0.01} disabled={readOnly} onCommit={(opacity) => onUpdateOverlay(layer.id, selectedOverlayPlacement.id, { startMs: selectedOverlayPlacement.startMs, durationMs: selectedOverlayPlacement.endMs - selectedOverlayPlacement.startMs, opacity })} />
-                  <label className="flex min-w-0 items-center gap-1">Layer
-                    <select aria-label="Overlay target layer" value={layer.id} disabled={readOnly} onChange={(event) => onUpdateOverlay(layer.id, selectedOverlayPlacement.id, { startMs: selectedOverlayPlacement.startMs, durationMs: selectedOverlayPlacement.endMs - selectedOverlayPlacement.startMs, targetLayerId: event.target.value })} className="h-6 max-w-28 rounded border border-zinc-800 bg-zinc-950 px-1 text-[9px] text-zinc-200">
-                      {detail.overlayLayers.map((candidate) => <option key={candidate.id} value={candidate.id}>{candidate.name}</option>)}
-                    </select>
-                  </label>
-                  <button
-                    type="button"
-                    aria-label="Split overlay clip at playhead"
-                    disabled={readOnly || localTimeMs <= selectedOverlayPlacement.startMs || localTimeMs >= selectedOverlayPlacement.endMs}
-                    onClick={() => onSplitOverlay(layer.id, selectedOverlayPlacement.id, Math.round(localTimeMs))}
-                    className="ml-auto grid size-6 shrink-0 place-items-center rounded border border-zinc-800 text-zinc-400 hover:text-white disabled:opacity-30"
-                  ><Scissors size={11} aria-hidden /></button>
-                  <button type="button" aria-label="Delete overlay clip" disabled={readOnly} onClick={() => { onDeleteOverlay(layer.id, selectedOverlayPlacement.id); setSelectedOverlayId(null) }} className="grid size-6 shrink-0 place-items-center rounded border border-zinc-800 text-zinc-500 hover:text-red-300 disabled:opacity-30"><Trash2 size={11} /></button>
-                </div>
-              )}
             </div>
           )
         })}
@@ -739,8 +733,13 @@ export function ShowSceneZoneEditor({
                 onClick={(event) => {
                   event.stopPropagation()
                   if (compositionMode) {
+                    if (selectedMainId === placement.id && detailAnchor) {
+                      setDetailAnchor(null)
+                      return
+                    }
                     setSelectedOverlayId(null)
                     setSelectedMainId(placement.id)
+                    setDetailAnchor(event.currentTarget)
                   }
                   else onSelectClip(placement.sourceCellId, event.currentTarget)
                 }}
@@ -783,6 +782,7 @@ export function ShowSceneZoneEditor({
                   event.currentTarget.releasePointerCapture(event.pointerId)
                   onUpdateMain(placement.id, { startMs: drag.startMs, durationMs: placementDurationMs })
                   setDrag(null)
+                  setDetailAnchor(event.currentTarget)
                 }}
                 onPointerCancel={() => setDrag(null)}
                 className={`absolute inset-y-1 overflow-hidden rounded-[4px] border-l-[3px] px-2 text-left text-[10px] ${
@@ -818,67 +818,79 @@ export function ShowSceneZoneEditor({
           </div>
         </div>
 
-        {selectedMain && (
-          <div className="flex min-h-9 items-center gap-2 border-x border-b border-zinc-800 bg-[#0b0e12] px-2 text-[9px] text-zinc-400">
-            <strong className="shrink-0 font-medium text-zinc-200">{selectedMain.patternName}</strong>
-            <ExactTimeInput
-              label="Start"
-              value={selectedMain.startMs}
-              disabled={readOnly}
-              onCommit={(startMs) => onUpdateMain(selectedMain.id, {
-                startMs,
-                durationMs: selectedMain.endMs - selectedMain.startMs,
-              })}
+        {selectedInspectorOwner && selectedInspectorValue && detailAnchor && (
+          <ShowEntityDetailPanel
+            anchor={detailAnchor}
+            ownerKey={`${selectedInspectorOwner.kind}:${selectedInspectorValue.placementId}`}
+            onClose={() => setDetailAnchor(null)}
+          >
+            <ShowClipEntityDetail
+              value={selectedInspectorValue}
+              title={`${selectedInspectorValue.patternName} · ${detail.zone.name} · ${detail.scene.name}`}
+              readOnly={readOnly}
+              patternOptions={comboboxPatternOptions}
+              patternControls={selectedInspectorValue.instanceId
+                ? patternControlsByInstanceId[selectedInspectorValue.instanceId] ?? []
+                : []}
+              layerOptions={selectedInspectorOwner.kind === 'scene-overlay'
+                ? detail.overlayLayers.map((layer) => ({ value: layer.id, label: layer.name }))
+                : undefined}
+              actions={selectedInspectorValue.local && (
+                <>
+                  <button
+                    type="button"
+                    aria-label={`Split ${selectedInspectorOwner.kind === 'scene-main' ? 'Main' : 'overlay'} clip at playhead`}
+                    title="Split at playhead"
+                    disabled={readOnly || localTimeMs <= selectedInspectorValue.local.startMs || localTimeMs >= selectedInspectorValue.local.startMs + selectedInspectorValue.local.durationMs}
+                    onClick={() => selectedInspectorOwner.kind === 'scene-main'
+                      ? onSplitMain(selectedInspectorOwner.placementId, Math.round(localTimeMs))
+                      : onSplitOverlay(selectedInspectorOwner.layerId, selectedInspectorOwner.placementId, Math.round(localTimeMs))}
+                    className="grid size-6 place-items-center rounded text-zinc-500 hover:bg-zinc-800 hover:text-white disabled:opacity-30"
+                  ><Scissors size={11} aria-hidden /></button>
+                  {selectedInspectorOwner.kind === 'scene-main' && (
+                    <button
+                      type="button"
+                      aria-label="Restart Main clip instance"
+                      title="Restart Pattern instance"
+                      disabled={readOnly}
+                      onClick={() => onRestartMain(selectedInspectorOwner.placementId)}
+                      className="grid size-6 place-items-center rounded text-zinc-500 hover:bg-zinc-800 hover:text-white disabled:opacity-30"
+                    ><RotateCw size={11} aria-hidden /></button>
+                  )}
+                  <button
+                    type="button"
+                    aria-label={`Delete ${selectedInspectorOwner.kind === 'scene-main' ? 'Main' : 'overlay'} clip`}
+                    title="Delete clip"
+                    disabled={readOnly}
+                    onClick={() => {
+                      if (selectedInspectorOwner.kind === 'scene-main') {
+                        onDeleteMain(selectedInspectorOwner.placementId)
+                        setSelectedMainId(null)
+                      } else {
+                        onDeleteOverlay(selectedInspectorOwner.layerId, selectedInspectorOwner.placementId)
+                        setSelectedOverlayId(null)
+                      }
+                      setDetailAnchor(null)
+                    }}
+                    className="grid size-6 place-items-center rounded text-zinc-500 hover:bg-red-950/30 hover:text-red-300 disabled:opacity-30"
+                  ><Trash2 size={11} aria-hidden /></button>
+                </>
+              )}
+              onPatch={(patch) => onUpdateClipInspector(selectedInspectorOwner, patch)}
+              onOpenEffects={() => onOpenClipEffects(selectedInspectorOwner)}
+              onMoveLayer={selectedInspectorOwner.kind === 'scene-overlay' && selectedInspectorValue.local
+                ? (targetLayerId) => onUpdateOverlay(
+                    selectedInspectorOwner.layerId,
+                    selectedInspectorOwner.placementId,
+                    {
+                      startMs: selectedInspectorValue.local!.startMs,
+                      durationMs: selectedInspectorValue.local!.durationMs,
+                      targetLayerId,
+                    },
+                  )
+                : undefined}
             />
-            <ExactTimeInput
-              label="Duration"
-              value={selectedMain.endMs - selectedMain.startMs}
-              disabled={readOnly}
-              onCommit={(duration) => onUpdateMain(selectedMain.id, {
-                startMs: selectedMain.startMs,
-                durationMs: duration,
-              })}
-            />
-            <label className="flex min-w-0 items-center gap-1">
-              Pattern
-              <PatternCombobox
-                key={`${selectedMain.id}:${selectedInstance ? patternKey(selectedInstance.pattern) : 'missing'}`}
-                ariaLabel="Main clip Pattern"
-                value={selectedInstance ? patternKey(selectedInstance.pattern) : ''}
-                options={comboboxPatternOptions}
-                disabled={readOnly}
-                onChange={(value) => {
-                  const option = patternOptions.find((candidate) => patternKey(candidate.ref) === value)
-                  if (option) onReplaceMainPattern(selectedMain.id, option.ref, option.label)
-                }}
-                compact
-                className="!w-36"
-              />
-            </label>
-            <span className="ml-auto flex shrink-0 items-center gap-1">
-              <button
-                type="button"
-                aria-label="Split Main clip at playhead"
-                disabled={readOnly || localTimeMs <= selectedMain.startMs || localTimeMs >= selectedMain.endMs}
-                onClick={() => onSplitMain(selectedMain.id, Math.round(localTimeMs))}
-                className="grid size-6 place-items-center rounded border border-zinc-800 text-zinc-400 hover:text-white disabled:opacity-30"
-              ><Scissors size={11} aria-hidden /></button>
-              <button
-                type="button"
-                aria-label="Restart Main clip instance"
-                disabled={readOnly}
-                onClick={() => onRestartMain(selectedMain.id)}
-                className="grid size-6 place-items-center rounded border border-zinc-800 text-zinc-400 hover:text-white disabled:opacity-30"
-              ><RotateCw size={11} aria-hidden /></button>
-              <button
-                type="button"
-                aria-label="Delete Main clip"
-                disabled={readOnly}
-                onClick={() => { onDeleteMain(selectedMain.id); setSelectedMainId(null) }}
-                className="grid size-6 place-items-center rounded border border-zinc-800 text-zinc-500 hover:text-red-300 disabled:opacity-30"
-              ><Trash2 size={11} aria-hidden /></button>
-            </span>
-          </div>
+          </ShowEntityDetailPanel>
         )}
 
         {selectedAuthoredPlacement && selectedAuthoredInstance && (

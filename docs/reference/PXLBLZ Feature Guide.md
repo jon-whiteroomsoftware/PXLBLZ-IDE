@@ -700,8 +700,9 @@ Stage state, and the global Timeline's zoom/X-ray state are preserved. Escape
 closes Entity Details first and then returns to the Show.
 
 The **Main clips** lane supports several mutually exclusive clips and explicit
-empty gaps inside one Scene x Zone. Select a clip to edit exact Start and
-Duration milliseconds, replace its Pattern instance, split at the playhead,
+empty gaps inside one Scene x Zone. Select a clip to open the same anchored
+Clip Entity Detail used by the global Show timeline. Edit exact Start and
+Duration seconds, replace its Pattern instance, split at the playhead,
 Restart its private clock, or delete it. Drag the clip body horizontally;
 nearby clip edges and Scene bounds are magnetic, and an overlapping drop moves
 to the nearest legal edge. Add at playhead fills the available interval up to
@@ -714,7 +715,7 @@ permanent row width on ordering buttons.
 Each layer accepts several clips as long as they do not overlap inside that
 layer; clips on different layers may overlap. The row's plus command adds the
 toolbar's selected Pattern at the playhead and fills the open interval. Select
-an overlay clip to enter exact Start and Duration milliseconds, set normalized
+an overlay clip to enter exact Start and Duration seconds, set normalized
 Opacity, move it to another layer, or delete it. Dragging a clip primarily
 changes local time; ordinary vertical pointer drift stays lane-locked. After a
 deliberate vertical movement, the clip moves to the target layer and an
@@ -745,6 +746,16 @@ same panel; selecting its current owner again, clicking Timeline background, or
 pressing Escape closes it. Escape restores focus to the owner when it still
 exists. The panel flips above or below its owner and stays inside the viewport,
 including at narrow center-pane widths.
+
+Global clips, Scene-local Main clips, and Scene-local overlay clips share one
+capability-driven Clip Entity Detail. Pattern search, Animation speed,
+Brightness, Mirror, phase, public Pattern controls, normalized numeric rules,
+and the complete Effect stack use the same labels and field behavior in every
+scope. The global timeline additionally exposes Show structure such as Scene
+and Zone spans plus private-clock tools. Scene-local clips instead expose local
+Start and Duration; overlays also expose layer assignment and source-over
+Opacity. Selecting the same local clip again hides the panel without removing
+its authored Property-animation lanes.
 
 ### Scenes, clips, and private time
 
@@ -782,7 +793,8 @@ re-anchors the surviving footprint.
 
 ### Static Effects
 
-Select a clip and use **Effects > Add** to open the compact registry palette.
+Select a global, Scene-local Main, or Scene-local overlay clip and use
+**Effects > Add** to open the same compact registry palette.
 Search, family tabs, and the compatibility filter reduce the complete frozen
 Effect registry. Rows stay terse; hover or keyboard focus reveals the family
 description and factual cost policy without changing playback or rebuilding the

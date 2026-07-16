@@ -17,7 +17,8 @@ import { ShowEntityDetailPanel } from '@/components/ShowEntityDetailPanel'
 import { ShowPropertySparkline } from '@/components/ShowPropertySparkline'
 import { ShowSceneSuperDetail, ShowSceneXray } from '@/components/ShowSceneReadOnlyBridge'
 import { ShowSceneZoneEditor } from '@/components/ShowSceneZoneEditor'
-import { ShowEffectPalette, ShowEffectStack } from '@/components/ShowEffectsAuthoring'
+import { ShowEffectPalette } from '@/components/ShowEffectsAuthoring'
+import { ShowClipEntityDetail } from '@/components/ShowClipEntityDetail'
 import { ShowTransitionPalette, ShowTransitionParameters } from '@/components/ShowTransitionAuthoring'
 import { getControllerProvider } from '@/engine/controllerProviderRegistry'
 import { makeProgramId } from '@/engine/bytecodePush'
@@ -41,7 +42,7 @@ import {
   showCellAtSlot,
   transitionCost,
 } from '@/engine/showModel'
-import { compileShowForArtifact, sourceForShowCell, type CompiledShowState } from '@/engine/showPreviewArtifact'
+import { compileShowForArtifact, sourceForShowCell, sourceForShowPatternRef, type CompiledShowState } from '@/engine/showPreviewArtifact'
 import { projectFlatShowComposition, type FlatShowCompositionProjection } from '@/engine/showCompositionProjection'
 import {
   addShowMainClip,
@@ -54,7 +55,6 @@ import {
   projectFlatShowToCompositionV1,
   renameShowOverlayLayer,
   reorderShowOverlayLayer,
-  replaceShowPatternInstance,
   restartShowMainPlacement,
   splitShowMainPlacement,
   splitShowOverlayPlacement,
@@ -79,6 +79,12 @@ import { validateInstallationCoverage } from '@/engine/showInstallationCoverage'
 import { updateShowPhysicalZoneSelection } from '@/engine/showSpatialSelection'
 import { createPortableShowOutputContract } from '@/engine/showOutputContract'
 import { discoverAutomatablePatternControls, type AutomatablePatternControl } from '@/engine/showPatternControls'
+import {
+  projectShowClipInspector,
+  updateShowClipInspector,
+  type ShowClipInspectorOwner,
+  type ShowClipInspectorPatch,
+} from '@/engine/showClipInspectorModel'
 import {
   fitShowTimelineViewport,
   panShowTimelineViewport,
@@ -121,7 +127,6 @@ import type {
   MapRecord,
   ShowBoundaryTransition,
   ShowCell,
-  ShowClipEffect,
   ShowRecord,
   ShowPropertyAnimationTarget,
   ShowRoutingLayout,
@@ -200,8 +205,6 @@ export function ShowEditor({
   const removeClip = useShowStore((state) => state.removeClip)
   const placeClip = useShowStore((state) => state.placeClip)
   const updateCellAdaptations = useShowStore((state) => state.updateCellAdaptations)
-  const updateCellEffects = useShowStore((state) => state.updateCellEffects)
-  const updateCellPattern = useShowStore((state) => state.updateCellPattern)
   const updateCellControlTarget = useShowStore((state) => state.updateCellControlTarget)
   const updateCellRestartOnEntry = useShowStore((state) => state.updateCellRestartOnEntry)
   const extendCell = useShowStore((state) => state.extendCell)
@@ -234,7 +237,7 @@ export function ShowEditor({
   const [spatialZoneSelection, setSpatialZoneSelection] = useState<{ zoneId: string; layoutId: string } | null>(null)
   const [detailPanelOpen, setDetailPanelOpen] = useState(false)
   const [detailAnchor, setDetailAnchor] = useState<HTMLElement | null>(null)
-  const [effectPaletteClipId, setEffectPaletteClipId] = useState<string | null>(null)
+  const [effectPaletteOwner, setEffectPaletteOwner] = useState<ShowClipInspectorOwner | null>(null)
   const [transitionPaletteId, setTransitionPaletteId] = useState<string | null>(null)
   const [sceneEditorScope, setSceneEditorScope] = useState<ShowSceneEditorScope | null>(null)
   const detailShowIdRef = useRef(showId)
@@ -242,7 +245,7 @@ export function ShowEditor({
   const lastTimelineFocusRef = useRef<HTMLElement | null>(null)
   const closeDetailPanel = useCallback((restoreFocus = false) => {
     const previousAnchor = detailAnchor
-    setEffectPaletteClipId(null)
+    setEffectPaletteOwner(null)
     setTransitionPaletteId(null)
     setDetailPanelOpen(false)
     setDetailAnchor(null)
@@ -276,7 +279,7 @@ export function ShowEditor({
     setSelection({ kind: 'show' })
     setDetailPanelOpen(false)
     setDetailAnchor(null)
-    setEffectPaletteClipId(null)
+    setEffectPaletteOwner(null)
     setTransitionPaletteId(null)
     setSceneEditorScope(null)
   }, [showId])
@@ -306,6 +309,14 @@ export function ShowEditor({
   const selectedClip = selection.kind === 'clip'
     ? activeShow?.cells.find((clip) => clip.id === selection.clipId) ?? null
     : null
+  const effectPaletteValue = activeShow && effectPaletteOwner
+    ? projectShowClipInspector(activeShow, effectPaletteOwner)
+    : null
+  const commitClipInspectorPatch = (owner: ShowClipInspectorOwner, patch: ShowClipInspectorPatch) => {
+    if (!activeShow) return Promise.resolve()
+    const next = updateShowClipInspector(activeShow, owner, patch)
+    return next !== activeShow ? Promise.resolve(updateShow(activeShow.id, next)) : Promise.resolve()
+  }
   const targetProfile = activeShow?.outputContract?.kind === 'portable-2d'
     ? undefined
     : activeShow?.targetControllerProfileId
@@ -354,7 +365,7 @@ export function ShowEditor({
   }, [requestDeleteSelection, selection])
   useEffect(() => {
     const handleEscape = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape' || effectPaletteClipId !== null || transitionPaletteId !== null) return
+      if (event.key !== 'Escape' || effectPaletteOwner !== null || transitionPaletteId !== null) return
       if (!detailPanelOpen && !sceneEditorScope) return
       event.preventDefault()
       if (detailPanelOpen) {
@@ -366,7 +377,7 @@ export function ShowEditor({
     }
     document.addEventListener('keydown', handleEscape)
     return () => document.removeEventListener('keydown', handleEscape)
-  }, [closeDetailPanel, detailPanelOpen, effectPaletteClipId, sceneEditorScope, transitionPaletteId])
+  }, [closeDetailPanel, detailPanelOpen, effectPaletteOwner, sceneEditorScope, transitionPaletteId])
   const stageDimension = activeShow?.stageMapId
     ? [...STOCK_MAPS, ...userMaps].find((map) => map.id === activeShow.stageMapId)?.dim
     : undefined
@@ -411,6 +422,13 @@ export function ShowEditor({
       return [cell.id, discoverAutomatablePatternControls(sourceForShowCell(cell, userPatterns), saved)]
     } catch {
       return [cell.id, []]
+    }
+  })), [activeShow, userPatterns]) as Record<string, AutomatablePatternControl[]>
+  const patternControlsByInstanceId = useMemo(() => Object.fromEntries((activeShow?.composition?.patternInstances ?? []).map((instance) => {
+    try {
+      return [instance.id, discoverAutomatablePatternControls(sourceForShowPatternRef(instance.pattern, userPatterns), {})]
+    } catch {
+      return [instance.id, []]
     }
   })), [activeShow, userPatterns]) as Record<string, AutomatablePatternControl[]>
   const compositionProjection = useMemo<FlatShowCompositionProjection | null>(() => {
@@ -802,6 +820,7 @@ export function ShowEditor({
             </div>
             {resolvedSceneEditorScope && compositionProjection && (
               <ShowSceneZoneEditor
+                key={`${resolvedSceneEditorScope.sceneId}:${resolvedSceneEditorScope.zoneId}`}
                 show={activeShow}
                 compositionProjection={compositionProjection}
                 scope={resolvedSceneEditorScope}
@@ -822,6 +841,9 @@ export function ShowEditor({
                 onSelectClip={(clipId, anchor) => selectTimeline({ kind: 'clip', clipId }, anchor)}
                 onSeek={(globalTimeMs) => requestShowSeek(activeShow.id, globalTimeMs)}
                 patternOptions={patternOptions}
+                patternControlsByInstanceId={patternControlsByInstanceId}
+                onUpdateClipInspector={commitClipInspectorPatch}
+                onOpenClipEffects={(owner) => setEffectPaletteOwner(owner)}
                 onEnableComposition={() => {
                   const composition = projectFlatShowToCompositionV1(activeShow, {
                     byCellId: Object.fromEntries(activeShow.cells.map((cell) => [cell.id, sourceForShowCell(cell, userPatterns)])),
@@ -885,17 +907,6 @@ export function ShowEditor({
                     placementId,
                     newInstanceId: newPersonalContentId(),
                   })
-                  if (next === activeShow.composition) return
-                  void updateShow(activeShow.id, { ...activeShow, composition: next, updatedAt: Date.now() })
-                }}
-                onReplaceMainPattern={(placementId, pattern, patternName) => {
-                  if (!activeShow.composition) return
-                  const placement = activeShow.composition.scenes
-                    .find((scene) => scene.sceneId === resolvedSceneEditorScope.sceneId)?.zones
-                    .find((zone) => zone.zoneId === resolvedSceneEditorScope.zoneId)?.main
-                    .find((candidate) => candidate.id === placementId)
-                  if (!placement) return
-                  const next = replaceShowPatternInstance(activeShow.composition, placement.instanceId, { pattern, patternName })
                   if (next === activeShow.composition) return
                   void updateShow(activeShow.id, { ...activeShow, composition: next, updatedAt: Date.now() })
                 }}
@@ -1137,7 +1148,6 @@ export function ShowEditor({
                     outputContract: createPortableShowOutputContract({ referenceMapId, referencePixelCount }),
                     updatedAt: Date.now(),
                   })}
-                  onUpdatePattern={(cell, patch) => void updateCellPattern(activeShow.id, cell.id, patch)}
                   onPatternCommit={returnFocusToTimelineSelection}
                   onPlaceClip={(zoneId, sceneId, patch) => {
                     void placeClip(activeShow.id, zoneId, sceneId, patch).then((clip) => {
@@ -1152,8 +1162,8 @@ export function ShowEditor({
                   onDuplicateScene={(scene) => void duplicateScene(activeShow.id, scene.id)}
                   onRequestRemoveScene={setScenePendingDelete}
                   onUpdateAdaptations={(cell, changes) => void updateCellAdaptations(activeShow.id, cell.id, changes)}
-                  onUpdateEffects={(cell, effects) => void updateCellEffects(activeShow.id, cell.id, effects)}
-                  onOpenEffects={(cell) => setEffectPaletteClipId(cell.id)}
+                  onUpdateClipInspector={commitClipInspectorPatch}
+                  onOpenEffects={(cell) => setEffectPaletteOwner({ kind: 'global', cellId: cell.id })}
                   onUpdateControlTarget={(cell, exportName, value) => void updateCellControlTarget(activeShow.id, cell.id, exportName, value)}
                   onUpdateRestartOnEntry={(cell, restartOnEntry) => void updateCellRestartOnEntry(activeShow.id, cell.id, restartOnEntry)}
                   onExtend={(cell, sceneSpan) => void extendCell(activeShow.id, cell.id, sceneSpan)}
@@ -1183,18 +1193,16 @@ export function ShowEditor({
               </div>
             </ShowEntityDetailPanel>
           )}
-          {effectPaletteClipId && activeShow.cells.find((cell) => cell.id === effectPaletteClipId) && (
+          {effectPaletteOwner && effectPaletteValue && (
             <ShowEffectPalette
-              clip={activeShow.cells.find((cell) => cell.id === effectPaletteClipId)!}
+              clip={effectPaletteValue}
               stageDimensions={(stageDimension ?? 2) as 1 | 2 | 3}
               onApply={(effect) => {
-                const clip = activeShow.cells.find((cell) => cell.id === effectPaletteClipId)
-                if (!clip) return
-                void updateCellEffects(activeShow.id, clip.id, [...(clip.effects ?? []), effect]).then(() => {
+                void commitClipInspectorPatch(effectPaletteOwner, { effects: [...effectPaletteValue.effects, effect] }).then(() => {
                   window.setTimeout(() => document.querySelector<HTMLElement>(`[data-show-effect-id="${effect.id}"]`)?.focus(), 0)
                 })
               }}
-              onClose={() => setEffectPaletteClipId(null)}
+              onClose={() => setEffectPaletteOwner(null)}
             />
           )}
           {transitionPaletteId && activeShow.transitions?.some((transition) => transition.id === transitionPaletteId && transition.kind !== 'routing') && (
@@ -2914,7 +2922,6 @@ function ContextualInspector({
   onOpenSpatialSelection,
   onUpdateTargetProfile,
   onUpdatePortableReference,
-  onUpdatePattern,
   onPatternCommit,
   onPlaceClip,
   onRemoveClip,
@@ -2922,7 +2929,7 @@ function ContextualInspector({
   onDuplicateScene,
   onRequestRemoveScene,
   onUpdateAdaptations,
-  onUpdateEffects,
+  onUpdateClipInspector,
   onOpenEffects,
   onUpdateControlTarget,
   onUpdateRestartOnEntry,
@@ -2953,7 +2960,6 @@ function ContextualInspector({
   onOpenSpatialSelection: (zoneId: string) => void
   onUpdateTargetProfile: (targetControllerProfileId: string) => void
   onUpdatePortableReference: (referenceMapId: string | null, referencePixelCount: number) => void
-  onUpdatePattern: (cell: ShowCell, patch: Pick<ShowCell, 'pattern' | 'patternName'>) => void
   onPatternCommit: () => void
   onPlaceClip: (zoneId: string, sceneId: string, patch: Pick<ShowCell, 'pattern' | 'patternName'>) => void
   onRemoveClip: (clip: ShowCell) => void
@@ -2961,7 +2967,7 @@ function ContextualInspector({
   onDuplicateScene: (scene: ShowScene) => void
   onRequestRemoveScene: (scene: ShowScene) => void
   onUpdateAdaptations: (cell: ShowCell, changes: Partial<ShowCell['adaptations']>) => void
-  onUpdateEffects: (cell: ShowCell, effects: ShowClipEffect[]) => void
+  onUpdateClipInspector: (owner: ShowClipInspectorOwner, patch: ShowClipInspectorPatch) => void
   onOpenEffects: (cell: ShowCell) => void
   onUpdateControlTarget: (cell: ShowCell, exportName: string, value: number | undefined) => void
   onUpdateRestartOnEntry: (cell: ShowCell, restartOnEntry: boolean) => void
@@ -3022,13 +3028,11 @@ function ContextualInspector({
         patternOptions={patternOptions}
         patternControls={patternControlsByCellId[selectedClip.id] ?? []}
         compiledCost={compiledCost}
-        onUpdatePattern={(patch) => onUpdatePattern(selectedClip, patch)}
+        onUpdateClip={(patch) => onUpdateClipInspector({ kind: 'global', cellId: selectedClip.id }, patch)}
         onPatternCommit={onPatternCommit}
         onRemove={() => onRemoveClip(selectedClip)}
         onUpdateAdaptations={(changes) => onUpdateAdaptations(selectedClip, changes)}
-        onUpdateEffects={(effects) => onUpdateEffects(selectedClip, effects)}
         onOpenEffects={() => onOpenEffects(selectedClip)}
-        onUpdateControlTarget={(exportName, value) => onUpdateControlTarget(selectedClip, exportName, value)}
         onUpdateRestartOnEntry={(restartOnEntry) => onUpdateRestartOnEntry(selectedClip, restartOnEntry)}
         onExtend={(sceneSpan) => onExtend(selectedClip, sceneSpan)}
         onSpanZones={(zoneSpan) => onSpanZones(selectedClip, zoneSpan)}
@@ -3220,13 +3224,11 @@ function ClipInspector({
   patternOptions,
   patternControls,
   compiledCost,
-  onUpdatePattern,
+  onUpdateClip,
   onPatternCommit,
   onRemove,
   onUpdateAdaptations,
-  onUpdateEffects,
   onOpenEffects,
-  onUpdateControlTarget,
   onUpdateRestartOnEntry,
   onExtend,
   onSpanZones,
@@ -3237,13 +3239,11 @@ function ClipInspector({
   patternOptions: ShowPatternOption[]
   patternControls: AutomatablePatternControl[]
   compiledCost?: import('@/engine/showVisualToolkit').ShowCompiledCostMetadata
-  onUpdatePattern: (patch: Pick<ShowCell, 'pattern' | 'patternName'>) => void
+  onUpdateClip: (patch: ShowClipInspectorPatch) => void
   onPatternCommit: () => void
   onRemove: () => void
   onUpdateAdaptations: (changes: Partial<ShowCell['adaptations']>) => void
-  onUpdateEffects: (effects: ShowClipEffect[]) => void
   onOpenEffects: () => void
-  onUpdateControlTarget: (exportName: string, value: number | undefined) => void
   onUpdateRestartOnEntry: (restartOnEntry: boolean) => void
   onExtend: (sceneSpan: number) => void
   onSpanZones: (zoneSpan: number) => void
@@ -3257,7 +3257,6 @@ function ClipInspector({
   const zone = show.zones[zoneIndex]
   const scene = show.scenes[sceneIndex]
   const lightShutter = cell.adaptations.lightShutter
-  const hasAuthoredPatternControls = Object.values(cell.controlTargets ?? {}).some((value) => value !== undefined)
   const hasAdvancedOverrides = cell.adaptations.mirror
     || cell.sceneSpan > 1
     || (cell.zoneSpan ?? 1) > 1
@@ -3267,8 +3266,8 @@ function ClipInspector({
     || cell.adaptations.steppedClock !== undefined
     || (cell.adaptations.timeOffsetMs ?? 0) !== 0
     || lightShutter !== undefined
-  const [patternControlsOpen, setPatternControlsOpen] = useState(hasAuthoredPatternControls)
   const [advancedControlsOpen, setAdvancedControlsOpen] = useState(hasAdvancedOverrides)
+  const inspectorValue = projectShowClipInspector(show, { kind: 'global', cellId: cell.id })
   const updateLightShutter = (changes: Partial<NonNullable<ShowCell['adaptations']['lightShutter']>>) => {
     if (!lightShutter) return
     onUpdateAdaptations({ lightShutter: { ...lightShutter, ...changes } })
@@ -3284,104 +3283,35 @@ function ClipInspector({
         </Button>
       )}
     >
-      <div data-testid="clip-primary-fields" className="grid min-w-0 items-end gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,7rem)_minmax(0,7rem)]">
-        <label className="block text-[9px] uppercase tracking-[0.1em] text-zinc-600">
-          Source pattern
-          <PatternCombobox
-            key={`${cell.id}:${cell.pattern.kind}:${cell.pattern.id}`}
-            ariaLabel="Source pattern"
-            value={`${cell.pattern.kind}:${cell.pattern.id}`}
-            options={patternOptions.map((option) => ({
-              value: `${option.ref.kind}:${option.ref.id}`,
-              label: option.label,
-              group: option.group,
-            }))}
-            onChange={(value) => {
-              const option = patternOptions.find((item) => `${item.ref.kind}:${item.ref.id}` === value)
-              if (option) onUpdatePattern({ pattern: option.ref, patternName: option.label })
-            }}
-            onCommit={onPatternCommit}
-          />
-        </label>
-        <NumberField
-          label="Animation speed"
-          value={cell.adaptations.timeScale}
-          min={0}
-          max={4}
-          step={0.1}
-          suffix="×"
-          help="How quickly Pattern animation advances. Does not change Clip duration or frame rate."
-          onChange={(timeScale) => onUpdateAdaptations({ timeScale })}
+      {inspectorValue && (
+        <ShowClipEntityDetail
+          value={inspectorValue}
+          title={cell.patternName}
+          readOnly={false}
+          patternOptions={patternOptions.map((option) => ({
+            value: `${option.ref.kind}:${option.ref.id}`,
+            label: option.label,
+            group: option.group,
+          }))}
+          patternControls={patternControls}
+          compiledCost={compiledCost}
+          embedded
+          advancedDefaultOpen={hasAdvancedOverrides}
+          onPatch={onUpdateClip}
+          onPatternCommit={onPatternCommit}
+          onOpenEffects={onOpenEffects}
         />
-        <NumberField label="Brightness" value={cell.adaptations.brightness} min={0} max={1} step={0.01} onChange={(brightness) => onUpdateAdaptations({ brightness })} />
-      </div>
-      <ShowEffectStack effects={cell.effects ?? []} compiledCost={compiledCost} onChange={onUpdateEffects} onAdd={onOpenEffects} />
+      )}
       <div data-testid="clip-control-trays" className="mt-2 grid items-start gap-2 lg:grid-cols-2">
-        {patternControls.length > 0 && (
-          <details
-            className="min-w-0 rounded border border-cyan-400/15 bg-cyan-400/[0.035]"
-            aria-label="Pattern automation targets"
-            open={patternControlsOpen}
-            onToggle={(event) => setPatternControlsOpen(event.currentTarget.open)}
-          >
-            <summary className="cursor-pointer px-2 py-1.5 text-[9px] uppercase tracking-[0.12em] text-cyan-300/80">Add or edit pattern controls</summary>
-            <div className="grid gap-1.5 border-t border-cyan-400/10 p-2 sm:grid-cols-2">
-              {patternControls.map((control) => {
-                const target = cell.controlTargets?.[control.exportName]
-                const enabled = target !== undefined
-                return (
-                  <div key={control.exportName} className="min-w-0 rounded border border-zinc-800 bg-zinc-950/45 p-1.5">
-                    <div className="flex min-w-0 items-center justify-between gap-2">
-                      <label className="flex shrink-0 items-center gap-1.5 text-[10px] text-zinc-300">
-                        <input
-                          type="checkbox"
-                          aria-label={`Set ${control.label} target`}
-                          checked={enabled}
-                          onChange={(event) => onUpdateControlTarget(control.exportName, event.target.checked ? control.defaultValue : undefined)}
-                          className="h-3.5 w-3.5 accent-cyan-400"
-                        />
-                        {control.label}
-                      </label>
-                      <span className="truncate text-right text-[8px] text-zinc-600" title={`${control.exportName} · ${control.min}–${control.max} · Studio default ${control.defaultValue}`}>
-                        {control.exportName} · {control.min}–{control.max} · Studio default {control.defaultValue}
-                      </span>
-                    </div>
-                    {enabled && (
-                      <div className="mt-1.5">
-                        <NumberField
-                          label={`${control.label} target`}
-                          hideLabel
-                          value={target}
-                          min={control.min}
-                          max={control.max}
-                          step={0.01}
-                          onChange={(value) => onUpdateControlTarget(control.exportName, value)}
-                        />
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-          </details>
-        )}
         <details
-          className={`min-w-0 rounded border border-zinc-800 bg-zinc-950/35 ${patternControls.length === 0 ? 'lg:col-span-2' : ''}`}
-          aria-label="Advanced Clip controls"
+          className="min-w-0 rounded border border-zinc-800 bg-zinc-950/35 lg:col-span-2"
+          aria-label="Global placement and clock controls"
           open={advancedControlsOpen}
           onToggle={(event) => setAdvancedControlsOpen(event.currentTarget.open)}
         >
-          <summary className="cursor-pointer px-2 py-1.5 text-[9px] uppercase tracking-[0.12em] text-zinc-500">Advanced clip controls</summary>
+          <summary className="cursor-pointer px-2 py-1.5 text-[9px] uppercase tracking-[0.12em] text-zinc-500">Global placement and clock controls</summary>
           <div className="border-t border-zinc-800 p-2 text-[10px]">
             <div className="grid grid-cols-2 items-end gap-x-2 gap-y-1.5 xl:grid-cols-4">
-            <label className="flex h-7 items-center gap-2 text-zinc-300">
-              <input
-                type="checkbox"
-                checked={cell.adaptations.mirror}
-                onChange={(event) => onUpdateAdaptations({ mirror: event.target.checked })}
-              />
-              Mirror clip
-            </label>
             <label className="text-[10px] uppercase text-zinc-600">
               Hold scenes
               <select
@@ -3422,7 +3352,6 @@ function ClipInspector({
                 ))}
               </select>
             </label>
-            <NumberField label="Phase" value={cell.adaptations.phase} min={0} max={1} step={0.01} onChange={(phase) => onUpdateAdaptations({ phase })} />
             </div>
             {sceneIndex > 0 && (
               <section className="mt-2 flex min-w-0 items-center gap-3 rounded border border-sky-400/20 bg-sky-400/[0.04] px-2 py-1.5">

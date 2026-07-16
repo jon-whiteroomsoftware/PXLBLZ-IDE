@@ -1183,6 +1183,26 @@ then delegates placement and persistence through `showStore`. Other model
 mutations follow the same route; the React surface does not reproduce
 occupancy, split/transition/routing rules.
 
+`showClipInspectorModel.ts` is the framework-free owner boundary for Clip
+Entity Detail. A discriminated owner identifies a flat global cell, a
+Scene-local Main placement, or a Scene-local overlay placement. Projection
+normalizes all three into one value containing Pattern identity,
+Pattern-instance simulation state, placement view, Effects, and optional local
+timing/layer data. The capability matrix determines which structural or local
+sections are legal. Pure update adapters translate normalized patches back to
+`ShowCell`, `ShowPatternInstance`, `ShowMainPlacement`, or
+`ShowOverlayPlacement` edits and enforce shared numeric bounds before the
+React surface requests one Show update.
+
+`ShowClipEntityDetail` renders the common Pattern chooser, Animation speed,
+Brightness, Mirror, phase, public Pattern controls, Effect stack, and numeric
+field behavior. `ShowEditor` supplies global-only structure and clock controls;
+`ShowSceneZoneEditor` supplies local timing, overlay layer/Opacity, and local
+actions. Both Scene lanes use the same anchored `ShowEntityDetailPanel`; the
+sparkline/keyframe lanes remain in the Scene rail because they are temporal
+authoring surfaces rather than scalar Clip fields. Neither shared component
+imports a Show store or duplicates occupancy and ownership rules.
+
 The shipped property lanes are structural scene projections, not arbitrary
 keyframe tracks. A destination clip or scene owns its target; the incoming
 boundary owns an optional start, duration, and easing. Authoring a change inside
@@ -1204,9 +1224,10 @@ component-state loop exists. A reduced-motion media query disables every
 mnemonic keyframe while preserving the glyph. The palette never writes
 `showPreviewOverrideStore` or recompiles the Stage: rebuilding the compiled
 Pattern runtime for every hovered Effect reconstructs private Pattern state and
-produces repeated playback stutter. Apply alone sends the normalized Effect stack through
-`showStore.updateCellEffects()` and persistence; the existing Stage then renders
-the saved result. The applied stack groups records by the compiler's Transform,
+produces repeated playback stutter. Apply sends the normalized stack through
+the selected Clip owner adapter, so global cells and Scene-local placements use
+the same palette without conflating their storage shapes. The existing Stage
+then renders the saved result. The applied stack groups records by the compiler's Transform,
 Distort, Address, and Color/output stages; move commands swap only siblings in
 one stage. Its advanced disclosure reads aggregate cost evidence from
 `GeneratedShowArtifact.summary.cost`.
