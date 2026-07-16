@@ -1,9 +1,10 @@
 # Show Scene composition design
 
-Status: global and local interaction directions approved; the #487 production
-shell, #488 version-1 Main schedule, #489 ordered overlay compositor, #490 typed
-Property animation, and #491 Layer Rail interaction are implemented. Human
-review selected #458's explicit Layer Rail on 2026-07-15.
+Status: complete. The #487 production shell, #488 version-1 Main schedule, #489
+ordered overlay compositor, #490 typed Property animation, #491 Layer Rail
+interaction, and #492 migration/compiler/hardware freeze are implemented and
+reviewed. Human review selected #458's explicit Layer Rail on 2026-07-15, and
+the representative Controller gate passed on 2026-07-16.
 A semantic Scene still spans zones, but local authoring targets one Scene x Zone
 composition at a time. The former all-zones Scene-detail direction and its
 candidate persisted shape are superseded; do not implement them. Durable work
@@ -14,13 +15,14 @@ gaps. The #478 lowering closes the top-level routed-Scene gap. The version-1
 ownership and persistence boundary now includes Main and ordered overlay
 placements plus typed local Property animation.
 
-The implementation stack is tracked by epic #486. Slice #487 integrates the
-production Scene x Zone shell over the lossless version-0 projection and current
-flat authority. #488 adds persisted Main clips and intra-Scene Cuts while
-retaining the flat record as a non-destructively projected compatibility model.
-#489 adds ordered overlay layers and compositor
-lowering; #490 adds typed Property animation; #491 completes advanced Layer Rail
-interaction and density; #492 freezes migration, parity, and hardware budgets.
+Epic #486 delivered the implementation stack as six vertical slices. #487
+integrated the production Scene x Zone shell over the lossless version-0
+projection and current flat authority. #488 added persisted Main clips and
+intra-Scene Cuts while retaining the flat record as a non-destructively
+projected compatibility model. #489 added ordered overlay layers and compositor
+lowering; #490 added typed Property animation; #491 completed advanced Layer
+Rail interaction and density; and #492 froze migration, parity, and the measured
+hardware support envelope.
 
 ## Conclusion
 
@@ -739,9 +741,9 @@ disclose one fixed-height Scene X-ray and magnify it into one modeless Super
 Detail overlay. Both surfaces remain read-only and surface compiler diagnostics
 for genuinely unsupported facts. Super Detail now exposes `Open Scene`, which
 enters the production one-Scene x one-Zone editor. The version-1 sidecar now
-persists Main placements and ordered overlay layers. One lowering path drives
-preview, seek, export, and Controller code while the flat compatibility model
-remains accepted. Typed local Property animation is the remaining model slice.
+persists Main placements, ordered overlay layers, and typed local Property
+animation. One lowering path drives preview, deterministic seek, export, EPE,
+and Controller code while the flat compatibility model remains accepted.
 
 ### Dense fixture measurement
 

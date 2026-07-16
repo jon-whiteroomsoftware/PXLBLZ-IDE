@@ -120,8 +120,11 @@ boundary timing.
 The current editor exposes Animation speed, Brightness, active public Pattern
 controls, moving split position, sample repeat scale, and compatible Effect
 parameters. Several properties can change at one boundary without creating
-several independent clocks. Enter exact values in Entity Details. The compact
-timeline sparkline is for recognition, comparison, and alignment.
+several independent clocks. Enter exact values in Entity Details. A static
+override stays in the Clip summary and Entity Details; it does not create a
+flat, uninformative sparkline. The Timeline adds a compact sparkline only when
+the value actually changes over time, where the curve supports recognition,
+comparison, and alignment.
 
 ## Similar-looking operations
 

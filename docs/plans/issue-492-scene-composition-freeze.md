@@ -7,10 +7,10 @@ The gate does not replace the existing catalogue or branch tests. It joins the
 new version-1 composition model to the exact preview, artifact, deterministic
 replay, EPE, and Controller-preparation paths that ship.
 
-The remaining release decision is physical: run the two frozen compositions on
-a representative Pixelblaze and judge the four-renderer stress window. Until
-that evidence exists, output beyond the four-renderer matrix is outside the v2
-support envelope.
+The physical release decision is complete. Both frozen compositions ran on a
+representative firmware-3.67 Pixelblaze on 2026-07-16. The four-renderer
+Crossfade window remained smooth and usable, so three and four simultaneous
+renderers remain warnings while five remains outside the v2 support envelope.
 
 ## Frozen production fixtures
 
@@ -18,7 +18,7 @@ support envelope.
 
 | Fixture | Output contract | Composition facts | Stress fact |
 | --- | --- | --- | --- |
-| `portable-local-composition` | Portable 2D, 64 preview pixels | local Main cuts, one overlay, shared Continue instance, explicit Restart instance, placement Effect, Animation speed, brightness, Effect, and opacity keyframes, top-level Crossfade | 59,230 of 68,384 measured artifact bytes (86.6%) |
+| `portable-local-composition` | Portable 2D, 64 preview pixels | local Main cuts, one overlay, shared Continue instance, explicit Restart instance, placement Effect, Animation speed, brightness, Effect, and opacity keyframes, top-level Crossfade | 60,019 UTF-8 generated-source bytes; 87.8% source-size proxy against the separately measured 68,384-byte compiled-bytecode activation ceiling |
 | `installation-routed-composition` | fixed 64-pixel Installation with two physical Zones | two simultaneous Zone stacks, Main plus overlay in each Zone, top-level Crossfade | four simultaneous Pattern renderers per pixel at the worst instant |
 
 The Installation reports two renderers per pixel in steady state and `4 * N`
@@ -106,8 +106,10 @@ applies those branches after composition lowering where they are authored.
 
 ## Human Controller gate
 
-Run both frozen fixtures on a representative firmware-3.67 Pixelblaze using a
-64-point 2D map. For each fixture:
+The gate ran both frozen fixtures on a representative firmware-3.67 Pixelblaze.
+The final exact Installation run used the attached 256-pixel matrix so the
+long schedule and physical Zone behavior were visible at useful density. For
+each fixture the review:
 
 1. activate the exact EPE-stamped source produced by the gate;
 2. observe output at every `sampleTimesMs` boundary;
@@ -117,9 +119,18 @@ Run both frozen fixtures on a representative firmware-3.67 Pixelblaze using a
 6. judge whether the four-renderer window remains usable or whether the warning
    boundary must become a lower block.
 
-Do not populate `representativeHardwareFps` from local replay or an estimate.
-That field remains `null` until dated physical evidence is recorded here and in
-the technical reference.
+The Portable artifact compiled to 23,134 bytes of Controller bytecode and ran at
+about 14.27 mean FPS. The Installation artifact compiled to 12,778 bytes of
+Controller bytecode and ran at 21.99 mean FPS, with a 22.44 maximum and one
+transient 11.17 minimum sample. Human review described the motion as
+exceptionally smooth. The Installation stayed in Scene 1 through 30 seconds,
+crossfaded from 30 to 32 seconds, held the swapped Scene-2 Zone states through
+62 seconds, and then looped correctly. This run also exposed and verified the
+fix for using millisecond Show clocks beyond Pixelblaze's signed 16.16 range.
+
+`representativeHardwareFps` remains `null` in the deterministic fixture result:
+automated measurement never substitutes a local replay estimate for dated
+physical evidence. This section and the Technical Reference own the human gate.
 
 ## Automated verification
 

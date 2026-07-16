@@ -952,8 +952,11 @@ and extrema, and computes a separate display range that magnifies changes
 smaller than 12% of the property's legal span. Its global adapter projects
 Scene-owned Animation speed, Brightness, and public Pattern-control targets
 together with boundary-owned ramps. Its local adapter projects typed keyframe
-tracks. Default-only global targets return `disclosed: false`, so Zone row
-stride is derived from authored lanes instead of reserving empty rows.
+tracks. The global timeline renders only projections whose value actually
+varies; static overrides remain in Clip summaries and Entity Details rather
+than producing flat lanes. Default-only global targets also return
+`disclosed: false`, so Zone row stride is derived from meaningful animation
+instead of reserving empty rows.
 
 `ShowPropertySparkline` is the shared React renderer used by the global Show
 timeline, Scene X-ray, Super Detail, and the Scene-local editor. It draws into a
@@ -1032,12 +1035,22 @@ output, and EPE export all consume this same lowering. Shows without authored
 composition bypass it.
 
 `showCompositionFreeze.ts` is the production-path release gate over that seam.
-Its Portable fixture measures 59,230 of 68,384 artifact bytes (86.6%). Its fixed
-two-Zone Installation fixture reaches four simultaneous Pattern renderers per
-pixel across stacked overlays and a Crossfade. Preview/artifact code, normalized
-JSON, deterministic replay, EPE stamping, and Controller preparation must agree
-for both fixtures. Physical FPS remains `null` until the dated Controller gate
-in `docs/plans/issue-492-scene-composition-freeze.md` is run.
+Its Portable fixture measures 60,019 UTF-8 generated-source bytes. Comparing
+that number with the separately measured 68,384-byte compiled-bytecode
+activation ceiling yields an 87.8% source-size proxy, not a literal Controller
+capacity measurement. Its fixed two-Zone Installation fixture reaches four
+simultaneous Pattern renderers per pixel across stacked overlays and a
+Crossfade. Preview/artifact code, normalized JSON, deterministic replay, EPE
+stamping, and Controller preparation must agree for both fixtures.
+
+The dated firmware-3.67 Controller gate passed on 2026-07-16. The Portable
+artifact compiled to 23,134 bytes of Controller bytecode and ran at about 14.27
+mean FPS. The Installation artifact compiled to 12,778 bytes, ran at 21.99 mean
+FPS on the 256-pixel review matrix, and preserved the expected Scene-2 Zone swap
+through the 62-second loop. Its four-renderer Crossfade was exceptionally smooth
+in human review. The deterministic fixture's `representativeHardwareFps` field
+remains `null` because automated replay must not impersonate physical evidence;
+`docs/plans/issue-492-scene-composition-freeze.md` records the complete gate.
 
 `showCompilePressure.ts` warns at 80% of the measured artifact budget and blocks
 at 100%. It warns at three or four simultaneous renderers per pixel and blocks
