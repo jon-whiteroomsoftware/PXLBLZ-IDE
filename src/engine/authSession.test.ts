@@ -1,4 +1,9 @@
+import { afterEach, vi } from 'vitest'
 import { getAuthSession } from './authSession'
+
+afterEach(() => {
+  vi.useRealTimers()
+})
 
 describe('auth session probe', () => {
   it('returns authenticated false for an unsigned request', async () => {
@@ -59,5 +64,15 @@ describe('auth session probe', () => {
         ],
       },
     })
+  })
+
+  it('rejects a session request that never settles', async () => {
+    vi.useFakeTimers()
+    const request = getAuthSession(() => new Promise<Response>(() => {}), 1_000)
+    const rejection = expect(request).rejects.toThrow('Auth session request timed out')
+
+    await vi.advanceTimersByTimeAsync(1_000)
+
+    await rejection
   })
 })

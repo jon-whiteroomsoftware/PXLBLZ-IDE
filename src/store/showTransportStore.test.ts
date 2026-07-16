@@ -72,6 +72,6 @@ describe('showTransportStore (#414)', () => {
 
     expect(resolveShowPlaybackStep(19_900, 50, window)).toEqual({ kind: 'advance', targetMs: 19_950 })
     expect(resolveShowPlaybackStep(19_900, 100, window)).toEqual({ kind: 'rewind', targetMs: 10_000 })
-    expect(resolveShowPlaybackStep(19_900, 500, null)).toEqual({ kind: 'advance', targetMs: 20_400 })
+    expect(resolveShowPlaybackStep(19_900, 500, null, 20_000)).toEqual({ kind: 'loop', targetMs: 0 })
   })
 })

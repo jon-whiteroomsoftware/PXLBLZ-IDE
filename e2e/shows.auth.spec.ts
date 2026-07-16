@@ -65,6 +65,64 @@ test.describe('authenticated Show authoring', () => {
     expect(consoleErrors).toEqual([])
   })
 
+  test('projects one Scene-local animation into one read-only global sparkline (#363)', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('studio/shows/stock-show-202-layers-local-animation')
+
+    const localAnimation = page.getByRole('group', { name: 'SignalMandala opacity animation for Main' })
+    await expect(localAnimation).toBeVisible()
+    await expect(localAnimation.locator('polyline')).toHaveCount(1)
+    await expect(localAnimation.locator('[data-property-beat-dot]')).toHaveCount(4)
+    await expect(localAnimation.getByRole('button')).toHaveCount(0)
+    await expect(page.getByRole('group', { name: /animation for Main$/ })).toHaveCount(1)
+    await expect(page.getByRole('group', { name: 'Animation speed lane for Main' })).toHaveCount(0)
+
+    const clip = page.getByRole('button', { name: 'Select Caustics' })
+    await expect(clip.getByTitle('Animation speed 0.28× · Speed 0.24 · Sharpness 0.28')).toBeVisible()
+    await expect(clip.getByTitle('Scene composition: 2 clips · 2 layers · 2 effects · 1 animation')).toBeVisible()
+    await clip.hover()
+    await expect(page.getByRole('tooltip', { name: 'Caustics Clip overrides' })).toHaveCount(0)
+    await clip.click()
+    const summary = page.getByRole('region', { name: 'Clip summary' })
+    await expect(summary.getByRole('group', { name: 'Playback summary' })).toContainText('Animation speed0.28×')
+    await expect(summary.getByRole('group', { name: 'Pattern controls summary' })).toContainText('Speed0.24·Sharpness0.28')
+    const clipProperties = page.getByRole('region', { name: 'Clip properties' })
+    const clipHeader = clipProperties.locator('header')
+    await expect(clipHeader.getByRole('heading', { name: 'Caustics' })).toBeVisible()
+    await expect(clipHeader.getByText('Pattern', { exact: true })).toBeVisible()
+    await expect(clipHeader.getByText('Signal over water', { exact: true })).toBeVisible()
+    await expect(clipHeader.getByText('main', { exact: true })).toHaveCount(0)
+    await expect(clipHeader.getByRole('region', { name: 'Clip summary' })).toBeVisible()
+    await expect(clipProperties.getByRole('table', { name: 'Pattern controls' })).toContainText('sliderSpeed · 0–1')
+
+    await clip.evaluate((element) => {
+      element.style.width = '110px'
+      element.style.justifySelf = 'start'
+    })
+    await expect(clip.locator('.show-clip-summary-copy').first()).toBeHidden()
+    await expect(clip.locator('.show-clip-summary-section svg')).toHaveCount(3)
+
+    const inspect = page.getByRole('button', { name: /Signal over water in Super Detail/ })
+    const inspectBounds = await inspect.boundingBox()
+    await inspect.click()
+    const superDetail = page.getByRole('dialog', { name: 'Signal over water Super Detail' })
+    await expect(superDetail.getByRole('group', { name: 'Main layer for Main' })).toContainText('Caustics')
+    await expect(superDetail.getByRole('group', { name: 'Signal overlay layer for Main' })).toContainText('SignalMandala')
+    await expect(superDetail.getByRole('group', { name: 'SignalMandala opacity local animation', exact: true })).toBeVisible()
+    const detailBounds = await superDetail.boundingBox()
+    expect(Math.abs(
+      ((detailBounds?.x ?? 0) + (detailBounds?.width ?? 0))
+      - ((inspectBounds?.x ?? 0) + (inspectBounds?.width ?? 0)),
+    )).toBeLessThanOrEqual(12)
+    expect((detailBounds?.y ?? 0) + (detailBounds?.height ?? 0)).toBeLessThanOrEqual(inspectBounds?.y ?? 0)
+    await page.getByRole('button', { name: 'Hide Signal over water in Super Detail' }).click()
+    await expect(superDetail).toHaveCount(0)
+
+    await page.setViewportSize({ width: 720, height: 900 })
+    await expect(summary).toBeVisible()
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(8)
+  })
+
   test('ships the dense Timeline frame across desktop and narrow workspaces', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 })
     await page.goto('studio/shows')
@@ -168,18 +226,24 @@ test.describe('authenticated Show authoring', () => {
     await expect(firstDetail).toContainText('Global')
     await expect(firstDetail).toContainText('Local')
     await expect(firstDetail.locator('input, select, textarea, [contenteditable="true"]')).toHaveCount(0)
-    await expect(firstDetail.getByRole('button', { name: 'Open Scene' })).toHaveCount(0)
+    await expect(firstDetail.getByRole('button', { name: 'Open Scene 1 editor' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Edit Scene 1' })).toBeVisible()
     expect((await timeline.boundingBox())?.height).toBe(before?.height)
 
     await page.getByRole('slider', { name: 'Timeline zoom' }).fill('5.1')
     await expect(xray).toHaveCSS('height', '36px')
+    await expect(firstDetail).toHaveCount(0)
     await page.getByRole('button', { name: 'Show Scene 2 Scene X-ray' }).click()
-    await expect(page.getByRole('dialog')).toHaveCount(1)
+    await expect(page.getByRole('dialog')).toHaveCount(0)
+    await page.getByRole('button', { name: 'Inspect Scene 2 in Super Detail' }).click()
     await expect(page.getByRole('dialog', { name: 'Scene 2 Super Detail' })).toBeVisible()
 
     await page.setViewportSize({ width: 600, height: 720 })
+    await expect(page.getByRole('dialog', { name: 'Scene 2 Super Detail' })).toHaveCount(0)
+    await page.getByRole('button', { name: 'Inspect Scene 2 in Super Detail' }).click()
+    await expect(page.getByRole('dialog', { name: 'Scene 2 Super Detail' })).toBeVisible()
     const detailBounds = await page.getByRole('dialog', { name: 'Scene 2 Super Detail' }).boundingBox()
-    expect(detailBounds?.x).toBeGreaterThanOrEqual(0)
+    expect(detailBounds?.x ?? -1).toBeGreaterThanOrEqual(0)
     expect((detailBounds?.x ?? 0) + (detailBounds?.width ?? 0)).toBeLessThanOrEqual(600)
     expect((detailBounds?.y ?? 0) + (detailBounds?.height ?? 0)).toBeLessThanOrEqual(720)
     expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(8)

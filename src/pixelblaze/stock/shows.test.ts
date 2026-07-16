@@ -7,22 +7,98 @@ import { compileShowForArtifact, sourceForShowCell } from '@/engine/showPreviewA
 import { validatePortableShowCompatibility } from '@/engine/showPortableCompatibility'
 import { loadPattern } from '@/engine/loadPattern'
 import { createShim } from '@/engine/shim'
+import { validateShowComposition } from '@/engine/showCompositionModel'
+import { getUserDoc } from '@/docs/catalog'
 import { DEMOS } from './patterns'
 import { STOCK_SHOWS } from './shows'
 
 describe('stock Show curriculum (#363)', () => {
-  it('ships a balanced, stable Portable and Installation curriculum', () => {
-    expect(STOCK_SHOWS).toHaveLength(6)
+  it('ships the stable Learn 100, Learn 200, and showcase catalogue', () => {
+    expect(STOCK_SHOWS).toHaveLength(13)
     expect(new Set(STOCK_SHOWS.map((item) => item.id)).size).toBe(STOCK_SHOWS.length)
-    expect(STOCK_SHOWS.map((item) => item.track)).toEqual([
-      'portable', 'portable', 'portable',
-      'installation', 'installation', 'installation',
-    ])
-    expect(STOCK_SHOWS.map((item) => item.show.outputContract?.kind)).toEqual([
-      'portable-2d', 'portable-2d', 'portable-2d',
-      'installation', 'installation', 'installation',
+    expect(STOCK_SHOWS.map((item) => [item.name, item.collection, item.level, item.order])).toEqual([
+      ['101 Clips and Crossfade', 'learn', 100, 1],
+      ['102 Transitions and Values', 'learn', 100, 2],
+      ['103 Effects', 'learn', 100, 3],
+      ['104 Portable Zones', 'learn', 100, 4],
+      ['105 Built from Basics', 'learn', 100, 5],
+      ['201 Scene-local Cuts', 'learn', 200, 1],
+      ['202 Layers and Local Animation', 'learn', 200, 2],
+      ['203 Dynamic Zone Layouts', 'learn', 200, 3],
+      ['204 Installation Mapping', 'learn', 200, 4],
+      ['205 Installation Composition', 'learn', 200, 5],
+      ['Transform Effects', 'showcases', null, 1],
+      ['Distortion Effects', 'showcases', null, 2],
+      ['Color and Output Effects', 'showcases', null, 3],
     ])
     expect(STOCK_SHOWS.every((item) => item.show.id === item.id)).toBe(true)
+    expect(new Set(STOCK_SHOWS.map((item) => `${item.collection}:${item.level}:${item.order}`)).size)
+      .toBe(STOCK_SHOWS.length)
+  })
+
+  it('gives every Show a complete guide note outside the compiled record', () => {
+    for (const item of STOCK_SHOWS) {
+      expect(item.note.purpose, item.name).not.toBe('')
+      expect(item.note.notice, item.name).not.toBe('')
+      expect(item.note.prompts, item.name).toHaveLength(2)
+      expect(item.note.guide.documentId, item.name).toBe('show-visual-toolkit')
+      expect(item.note.guide.heading, item.name).toMatch(/^[a-z0-9-]+$/)
+      const guideHeadings = getUserDoc(item.note.guide.documentId)!.source
+        .split('\n')
+        .filter((line) => /^#{2,6} /.test(line))
+        .map((line) => line.replace(/^#{2,6} /, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''))
+      expect(guideHeadings, item.name).toContain(item.note.guide.heading)
+      expect('note' in item.show, item.name).toBe(false)
+    }
+  })
+
+  it('keeps the first lesson to two Clips and one boundary-owned Crossfade', () => {
+    const item = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-101-clips-crossfade')!
+    expect(item.show.scenes.map((scene) => [scene.name, scene.durationMs])).toEqual([
+      ['Water', 8_000], ['Mechanism', 8_000],
+    ])
+    expect(item.show.cells.map((cell) => cell.patternName)).toEqual(['Caustics', 'ClockworkIris'])
+    expect(item.show.transitions).toEqual([
+      expect.objectContaining({ afterSceneId: 'water', kind: 'crossfade', durationMs: 3_000 }),
+    ])
+    expect(item.show.composition).toBeUndefined()
+    expect(item.show.zones).toHaveLength(1)
+  })
+
+  it('ships valid local Main scheduling and typed overlay animation in Learn 200', () => {
+    for (const id of ['stock-show-201-scene-local-cuts', 'stock-show-202-layers-local-animation']) {
+      const item = STOCK_SHOWS.find((candidate) => candidate.id === id)!
+      expect(item.show.composition, item.name).toBeDefined()
+      expect(validateShowComposition(item.show, item.show.composition!), item.name).toEqual([])
+    }
+
+    const cuts = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-201-scene-local-cuts')!
+    expect(cuts.show.composition!.scenes[0].zones[0].main.map((placement) => [placement.startMs, placement.durationMs]))
+      .toEqual([[0, 6_000], [6_000, 6_000], [12_000, 6_000]])
+
+    const layered = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-202-layers-local-animation')!
+    expect(layered.show.composition!.scenes[0].propertyTracks?.[0]).toMatchObject({
+      target: { kind: 'placement-opacity', placementId: 'overlay-signal' },
+      keyframes: [
+        { timeMs: 3_000, value: 0 }, { timeMs: 5_000, value: 0.72 },
+        { timeMs: 11_000, value: 0.72 }, { timeMs: 13_000, value: 0 },
+      ],
+    })
+  })
+
+  it('covers every Effect kind in the three data-driven showcases', () => {
+    const kinds = STOCK_SHOWS
+      .filter((item) => item.collection === 'showcases')
+      .flatMap((item) => item.show.cells.flatMap((cell) => cell.effects?.map((effect) => effect.kind) ?? []))
+    const counts = Object.fromEntries([...new Set(kinds)].map((kind) => [kind, kinds.filter((candidate) => candidate === kind).length]))
+
+    expect(Object.keys(counts).sort()).toEqual([
+      'brightness', 'bulge', 'color-map', 'contrast', 'hue', 'invert', 'kaleidoscope', 'opacity',
+      'pixelate', 'posterize', 'ripple', 'rotate', 'saturation', 'scale', 'shear', 'swirl',
+      'threshold', 'translate', 'wrap',
+    ])
+    expect(counts).toMatchObject({ translate: 2, wrap: 1 })
+    expect(Object.entries(counts).filter(([kind]) => kind !== 'translate').every(([, count]) => count === 1)).toBe(true)
   })
 
   it('uses real stock Patterns and satisfies every output contract', () => {
@@ -60,7 +136,7 @@ describe('stock Show curriculum (#363)', () => {
   })
 
   it('uses representative high-density square Stages for the reviewed Portable compositions', () => {
-    for (const id of ['stock-show-portable-split', 'stock-show-portable-grid']) {
+    for (const id of ['stock-show-101-clips-crossfade', 'stock-show-105-built-from-basics']) {
       const item = STOCK_SHOWS.find((candidate) => candidate.id === id)!
       expect(item.show.outputContract).toMatchObject({
         kind: 'portable-2d',
@@ -81,7 +157,7 @@ describe('stock Show curriculum (#363)', () => {
   })
 
   it('plays distinct routed content after each top-level Scene boundary (#478)', () => {
-    const item = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-installation-bands')!
+    const item = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-205-installation-composition')!
     const compiled = compileShowForArtifact(item.show, [], undefined, {}, { stageDimension: 2 })
     const pixelCount = 256
     const mapPoints = Array.from({ length: pixelCount }, (_, index) => ({
@@ -104,11 +180,11 @@ describe('stock Show curriculum (#363)', () => {
 
     expect(develop).not.toEqual(establish)
     expect(resolve).not.toEqual(develop)
-    expect(compiled.artifact?.summary.clipCount).toBe(9)
+    expect(compiled.artifact?.summary.clipCount).toBeGreaterThanOrEqual(12)
   })
 
   it('keeps Portable logical Zones independent while advancing the Scene schedule (#478)', () => {
-    const item = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-portable-split')!
+    const item = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-104-portable-zones')!
     const compiled = compileShowForArtifact(item.show, [], undefined, {}, { stageDimension: 2 })
     const pixelCount = 1024
     const mapPoints = Array.from({ length: pixelCount }, (_, index) => ({
@@ -121,13 +197,17 @@ describe('stock Show curriculum (#363)', () => {
       handle.render2D(index, x, y)
       return shim.capturedPixel()
     }
+    const renderZone = (right: boolean) => [0.1, 0.25, 0.4].map((localX, sampleIndex) => {
+      const x = right ? 0.5 + localX * 0.5 : localX * 0.5
+      return renderAt(16 * 32 + Math.round(x * 31) + sampleIndex, x, 0.5)
+    })
 
     handle.beforeRender(1_000)
-    const firstLeft = renderAt(16 * 32 + 8, 0.25, 0.5)
-    const firstRight = renderAt(16 * 32 + 24, 0.75, 0.5)
-    handle.beforeRender(6_000)
-    const secondLeft = renderAt(16 * 32 + 8, 0.25, 0.5)
-    const secondRight = renderAt(16 * 32 + 24, 0.75, 0.5)
+    const firstLeft = renderZone(false)
+    const firstRight = renderZone(true)
+    handle.beforeRender(8_000)
+    const secondLeft = renderZone(false)
+    const secondRight = renderZone(true)
 
     expect(firstLeft).not.toEqual(firstRight)
     expect(secondLeft).not.toEqual(firstLeft)

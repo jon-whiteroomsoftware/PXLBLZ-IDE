@@ -354,9 +354,9 @@ describe('PatternList', () => {
     expect(screen.getByRole('region', { name: 'Portable built-in Shows' })).toBeInTheDocument()
     expect(screen.getByRole('region', { name: 'Installation built-in Shows' })).toBeInTheDocument()
 
-    await user.click(screen.getByText('Portable Split'))
+    await user.click(screen.getByText('101 Clips and Crossfade'))
 
-    expect(window.location.pathname).toBe('/studio/shows/stock-show-portable-split')
+    expect(window.location.pathname).toBe('/studio/shows/stock-show-101-clips-crossfade')
     expect(useShowStore.getState().shows).toEqual([])
     expect(requests.some(({ url, init }) => url === '/api/shows' && init?.method === 'POST')).toBe(false)
   })

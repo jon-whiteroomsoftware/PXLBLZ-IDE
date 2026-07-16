@@ -19,15 +19,20 @@ export interface ShowPlaybackWindow {
 export type ShowPlaybackStep =
   | { kind: 'advance'; targetMs: number }
   | { kind: 'rewind'; targetMs: number }
+  | { kind: 'loop'; targetMs: 0 }
 
 export function resolveShowPlaybackStep(
   elapsedMs: number,
   deltaMs: number,
   playbackWindow: ShowPlaybackWindow | null,
+  showDurationMs = 0,
 ): ShowPlaybackStep {
   const targetMs = elapsedMs + Math.max(0, deltaMs)
   if (playbackWindow && targetMs >= playbackWindow.endMs) {
     return { kind: 'rewind', targetMs: playbackWindow.startMs }
+  }
+  if (!playbackWindow && showDurationMs > 0 && targetMs >= showDurationMs) {
+    return { kind: 'loop', targetMs: 0 }
   }
   return { kind: 'advance', targetMs }
 }

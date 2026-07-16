@@ -52,7 +52,12 @@ export function ShowClipEntityDetail({
   )
 
   return (
-    <section role="region" aria-label="Clip properties" data-entity-family="clip" className="overflow-hidden bg-transparent">
+    <section
+      role={embedded ? undefined : 'region'}
+      aria-label={embedded ? undefined : 'Clip properties'}
+      data-entity-family="clip"
+      className="overflow-hidden bg-transparent"
+    >
       {!embedded && <header className="flex h-10 shrink-0 items-center gap-2 border-b border-zinc-800/90 bg-zinc-950/65 py-1 pl-2.5 pr-10">
         <span className="grid size-6 shrink-0 place-items-center rounded border border-cyan-400/35 bg-cyan-400/10 text-cyan-300">
           <Grid2X2 size={13} aria-hidden />
@@ -74,6 +79,8 @@ export function ShowClipEntityDetail({
               value={`${value.pattern.kind}:${value.pattern.id}`}
               options={patternOptions}
               disabled={readOnly}
+              compact
+              className="mt-1"
               onCommit={onPatternCommit}
               onChange={(nextValue) => {
                 const option = patternOptions.find((candidate) => candidate.value === nextValue)
@@ -166,23 +173,38 @@ export function ShowClipEntityDetail({
           onAdd={onOpenEffects}
         />
 
-        {!primaryOnly && <div data-testid="clip-control-trays" className="mt-2 grid items-start gap-2 lg:grid-cols-2">
+        {!primaryOnly && <div data-testid="clip-control-trays" className="mt-1.5">
           {patternControls.length > 0 && (
             <details
-              className="min-w-0 rounded border border-cyan-400/15 bg-cyan-400/[0.035]"
+              className="min-w-0 border-t border-zinc-800/80"
               aria-label="Pattern automation targets"
               open={patternTrayOpen}
               onToggle={(event) => setPatternTrayOpen(event.currentTarget.open)}
             >
-              <summary className="cursor-pointer px-2 py-1.5 text-[9px] uppercase tracking-[0.12em] text-cyan-300/80">Add or edit pattern controls</summary>
-              <div className="grid gap-1.5 border-t border-cyan-400/10 p-2 sm:grid-cols-2">
-                {patternControls.map((control) => {
-                  const target = controlTargets?.[control.exportName]
-                  const enabled = target !== undefined
-                  return (
-                    <div key={control.exportName} className="min-w-0 rounded border border-zinc-800 bg-zinc-950/45 p-1.5">
-                      <div className="flex min-w-0 items-center justify-between gap-2">
-                        <label className="flex shrink-0 items-center gap-1.5 text-[10px] text-zinc-300">
+              <summary className="cursor-pointer py-1 text-[9px] uppercase tracking-[0.12em] text-cyan-300/80">Add or edit pattern controls</summary>
+              <div className="overflow-x-auto border-t border-zinc-800/70">
+                <table aria-label="Pattern controls" className="w-full table-fixed border-collapse text-left text-[9px]">
+                  <colgroup>
+                    <col className="w-7" />
+                    <col className="w-[24%]" />
+                    <col />
+                    <col className="w-24" />
+                  </colgroup>
+                  <thead className="text-[8px] uppercase tracking-[0.1em] text-zinc-700">
+                    <tr>
+                      <th className="py-0.5 pr-2"><span className="sr-only">Use</span></th>
+                      <th className="py-0.5 pr-3 font-normal">Control</th>
+                      <th className="py-0.5 pr-3 font-normal">Export</th>
+                      <th className="py-0.5 font-normal">Value</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-zinc-900">
+                    {patternControls.map((control) => {
+                      const target = controlTargets?.[control.exportName]
+                      const enabled = target !== undefined
+                      return (
+                        <tr key={control.exportName} className="align-middle">
+                          <td className="py-0.5 pr-2">
                           <input
                             type="checkbox"
                             aria-label={`Set ${control.label} target`}
@@ -197,65 +219,94 @@ export function ShowClipEntityDetail({
                                 ),
                               },
                             })}
-                            className="h-3.5 w-3.5 accent-cyan-400"
+                            className="h-3 w-3 accent-cyan-400"
                           />
-                          {control.label}
-                        </label>
-                        <span className="truncate text-right text-[8px] text-zinc-600" title={`${control.exportName} · ${control.min}–${control.max} · Studio default ${control.defaultValue}`}>
-                          {control.exportName} · {control.min}–{control.max} · Studio default {control.defaultValue}
-                        </span>
-                      </div>
-                      {enabled && (
-                        <div className="mt-1.5">
-                          <ShowInspectorNumberField
-                            label={`${control.label} target`}
-                            hideLabel
-                            value={target}
-                            min={control.min}
-                            max={control.max}
-                            step={0.01}
-                            disabled={readOnly}
-                            onChange={(next) => onPatch({
-                              simulation: { controlTargets: withControlTarget(controlTargets, control.exportName, next) },
-                            })}
-                          />
-                        </div>
-                      )}
-                    </div>
-                  )
-                })}
+                          </td>
+                          <th scope="row" className="py-0.5 pr-3 text-[10px] font-medium text-zinc-300">{control.label}</th>
+                          <td
+                            className="break-all py-0.5 pr-3 font-mono text-[8px] text-zinc-600"
+                            title={`${control.exportName} · Studio default ${control.defaultValue}`}
+                          >
+                            {control.exportName} · {control.min}–{control.max}
+                          </td>
+                          <td className="py-0.5">
+                            {enabled ? (
+                              <ShowInspectorNumberField
+                                label={`${control.label} target`}
+                                hideLabel
+                                value={target}
+                                min={control.min}
+                                max={control.max}
+                                step={0.01}
+                                compact
+                                disabled={readOnly}
+                                onChange={(next) => onPatch({
+                                  simulation: { controlTargets: withControlTarget(controlTargets, control.exportName, next) },
+                                })}
+                              />
+                            ) : <span aria-hidden className="text-zinc-700">—</span>}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
               </div>
             </details>
           )}
 
           <details
-            className={`min-w-0 rounded border border-zinc-800 bg-zinc-950/35 ${patternControls.length === 0 ? 'lg:col-span-2' : ''}`}
+            className="min-w-0 border-t border-zinc-800/80"
             aria-label="Advanced Clip controls"
             open={advancedTrayOpen}
             onToggle={(event) => setAdvancedTrayOpen(event.currentTarget.open)}
           >
-            <summary className="cursor-pointer px-2 py-1.5 text-[9px] uppercase tracking-[0.12em] text-zinc-500">Advanced clip controls</summary>
-            <div className="grid grid-cols-2 items-end gap-2 border-t border-zinc-800 p-2 text-[10px]">
-              <label className="flex h-7 items-center gap-2 text-zinc-300">
-                <input
-                  type="checkbox"
-                  aria-label="Mirror clip"
-                  checked={value.view.mirror}
-                  disabled={readOnly}
-                  onChange={(event) => onPatch({ view: { mirror: event.target.checked } })}
-                />
-                Mirror clip
-              </label>
-              <ShowInspectorNumberField
-                label="Phase"
-                value={value.view.phase}
-                min={0}
-                max={1}
-                step={0.01}
-                disabled={readOnly}
-                onChange={(phase) => onPatch({ view: { phase } })}
-              />
-              {structuralControls && <div className="col-span-2">{structuralControls}</div>}
+            <summary className="cursor-pointer py-1 text-[9px] uppercase tracking-[0.12em] text-zinc-500">Advanced clip controls</summary>
+            <div className="border-t border-zinc-800/70">
+              <table aria-label="Advanced clip controls" className="w-full max-w-md table-fixed border-collapse text-left text-[10px]">
+                <colgroup>
+                  <col className="w-7" />
+                  <col className="w-[24%]" />
+                  <col className="w-28" />
+                  <col />
+                </colgroup>
+                <tbody className="divide-y divide-zinc-900">
+                  <tr>
+                    <td aria-hidden />
+                    <th scope="row" className="py-1 pr-3 font-normal text-zinc-300">Mirror clip</th>
+                    <td className="py-1">
+                      <input
+                        type="checkbox"
+                        aria-label="Mirror clip"
+                        checked={value.view.mirror}
+                        disabled={readOnly}
+                        onChange={(event) => onPatch({ view: { mirror: event.target.checked } })}
+                      />
+                    </td>
+                    <td aria-hidden />
+                  </tr>
+                  <tr>
+                    <td aria-hidden />
+                    <th scope="row" className="py-1 pr-3 font-normal text-zinc-300">Phase <span className="ml-1 text-[8px] text-zinc-700">0–1</span></th>
+                    <td className="py-1">
+                      <ShowInspectorNumberField
+                        label="Phase"
+                        hideLabel
+                        align="left"
+                        value={value.view.phase}
+                        min={0}
+                        max={1}
+                        step={0.01}
+                        compact
+                        disabled={readOnly}
+                        onChange={(phase) => onPatch({ view: { phase } })}
+                      />
+                    </td>
+                    <td aria-hidden />
+                  </tr>
+                </tbody>
+              </table>
+              {structuralControls && <div className="border-t border-zinc-800/65 py-1">{structuralControls}</div>}
             </div>
           </details>
         </div>}
@@ -274,6 +325,8 @@ export function ShowInspectorNumberField({
   suffix,
   help,
   hideLabel = false,
+  compact = false,
+  align = 'right',
   disabled = false,
   onChange,
 }: {
@@ -286,6 +339,8 @@ export function ShowInspectorNumberField({
   suffix?: string
   help?: string
   hideLabel?: boolean
+  compact?: boolean
+  align?: 'left' | 'right'
   disabled?: boolean
   onChange: (value: number) => void
 }) {
@@ -336,7 +391,9 @@ export function ShowInspectorNumberField({
               event.currentTarget.blur()
             }
           }}
-          className="h-7 min-w-0 w-full flex-1 appearance-none rounded border border-zinc-700 bg-zinc-950 px-2 text-right text-[10px] tabular-nums text-zinc-200 outline-none focus:border-cyan-400/60 disabled:cursor-default disabled:opacity-60 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+          className={`${compact
+            ? 'h-5 rounded-none border-0 border-b border-zinc-800 bg-transparent px-1 text-[9px] focus:border-cyan-400/60'
+            : 'h-6 rounded border border-zinc-700 bg-zinc-950 px-1.5 text-[9.5px] focus:border-cyan-400/60'} min-w-0 w-full flex-1 appearance-none ${align === 'left' ? 'text-left' : 'text-right'} tabular-nums text-zinc-200 outline-none disabled:cursor-default disabled:opacity-60 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none`}
         />
         {suffix && <span className="text-[10px] normal-case tracking-normal text-zinc-500">{suffix}</span>}
       </span>

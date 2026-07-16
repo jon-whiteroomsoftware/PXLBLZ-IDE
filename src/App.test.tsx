@@ -25,14 +25,20 @@ import { createDefaultShow } from '@/engine/showModel'
 import { createPortableShowOutputContract } from '@/engine/showOutputContract'
 import { previewInitialState, usePreviewStore } from '@/store/previewStore'
 
-// Hold the startup auth probe pending so the smoke tests exercise the studio
-// shell without the signed-out Gallery redirect kicking in mid-test; the
-// routing tests below seed workspace state explicitly instead.
+const authSessionMock = vi.hoisted(() => ({
+  getAuthSession: vi.fn(),
+}))
+
+// Hold the startup auth probe pending by default so the smoke tests exercise
+// the studio shell without the signed-out Gallery redirect kicking in
+// mid-test; focused auth tests replace this implementation.
 vi.mock('@/engine/authSession', () => ({
-  getAuthSession: () => new Promise(() => {}),
+  getAuthSession: authSessionMock.getAuthSession,
 }))
 
 beforeEach(() => {
+  authSessionMock.getAuthSession.mockReset()
+  authSessionMock.getAuthSession.mockImplementation(() => new Promise(() => {}))
   window.localStorage.clear()
   window.history.replaceState(null, '', '/')
   useRouterStore.setState(routerInitialState)
@@ -298,7 +304,7 @@ describe('routing (#308)', () => {
     expect(within(editorPane).queryByText('View generated pattern')).not.toBeInTheDocument()
 
     await user.click(within(editorPane).getAllByRole('button', { name: /Select TestPattern1D/i })[0])
-    expect(screen.getByRole('heading', { name: 'Clip properties' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'TestPattern1D' })).toBeInTheDocument()
     await user.click(within(editorPane).getByRole('button', { name: 'Show properties' }))
     expect(screen.getByRole('heading', { name: 'Show properties' })).toBeInTheDocument()
   })
@@ -350,6 +356,33 @@ describe('routing (#308)', () => {
     expect(window.location.pathname).toBe('/studio')
     expect(screen.getByTestId('route-message')).toHaveTextContent('Checking Studio access')
     expect(screen.queryByTestId('editor-pane')).not.toBeInTheDocument()
+  })
+
+  it('turns a failed Studio access probe into a recoverable retry state', async () => {
+    window.history.replaceState(null, '', '/studio')
+    authSessionMock.getAuthSession
+      .mockRejectedValueOnce(new Error('Auth session request timed out'))
+      .mockResolvedValueOnce({
+        authenticated: true,
+        user: {
+          id: 'user-1',
+          primaryProvider: 'github',
+          primaryHandle: 'voidstar',
+          displayName: 'Void Star',
+          avatarUrl: null,
+          identities: [],
+        },
+      })
+
+    render(<App />)
+
+    expect(await screen.findByRole('heading', { name: 'Studio access unavailable' })).toBeInTheDocument()
+    expect(screen.getByText(/local workspace service did not respond/i)).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Retry' }))
+
+    expect(await screen.findByTestId('editor-pane')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /account menu for voidstar/i })).toBeInTheDocument()
   })
 
   it('keeps signed-in visitors in the studio', () => {

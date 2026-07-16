@@ -1,7 +1,11 @@
 import { applyShowEasing } from './showEasing'
 import { projectShowTimeline, showCellAtSlot } from './showModel'
+import { showClipEffectParameterValue, showClipEffectParameters } from './showEffectAuthoring'
 import type {
   ShowCell,
+  ShowMainPlacement,
+  ShowOverlayPlacement,
+  ShowPropertyAnimationTarget,
   ShowPropertyAnimationTrack,
   ShowPropertyTransition,
   ShowPropertyTransitions,
@@ -53,6 +57,8 @@ export interface ShowPropertyLaneBeat extends ShowPropertyLaneBeatInput {
 export interface ShowPropertyLaneProjection {
   durationMs: number
   disclosed: boolean
+  /** True only when an authored segment changes value over time. */
+  timeVarying: boolean
   extrema: { min: number; max: number }
   displayRange: { min: number; max: number }
   samples: ShowPropertyLaneSample[]
@@ -63,6 +69,15 @@ export type ShowGlobalPropertyLaneTarget =
   | { kind: 'timeScale' }
   | { kind: 'brightness' }
   | { kind: 'control'; exportName: string; defaultValue?: number }
+
+export interface ShowScenePropertyLaneProjection {
+  id: string
+  sceneId: string
+  zoneId: string
+  label: string
+  valueKind: 'number' | 'percent' | 'multiplier'
+  projection: ShowPropertyLaneProjection
+}
 
 const MINIMUM_VISIBLE_CONSTRAINT_FRACTION = 0.12
 
@@ -137,10 +152,12 @@ export function projectShowPropertyLane(input: ShowPropertyLaneInput): ShowPrope
   const disclosed = Boolean(input.pinned)
     || beatInputs.length > 0
     || values.some((value) => Math.abs(value - input.defaultValue) > 0.000001)
+  const timeVarying = segments.some((segment) => Math.abs(segment.to - segment.from) > 0.000001)
 
   return {
     durationMs,
     disclosed,
+    timeVarying,
     extrema: { min: authoredMin, max: authoredMax },
     displayRange: { min: displayMin, max: displayMax },
     samples: rawSamples.map((sample) => ({
@@ -301,6 +318,142 @@ export function projectGlobalShowPropertyLane(
     segments,
     beats,
   })
+}
+
+/** Project authored Scene-local animation into parent Show-time coordinates. */
+export function projectGlobalShowScenePropertyLanes(show: ShowRecord): ShowScenePropertyLaneProjection[] {
+  if (!show.composition) return []
+  const timeline = projectShowTimeline(show)
+  const instances = new Map(show.composition.patternInstances.map((instance) => [instance.id, instance]))
+
+  return show.composition.scenes.flatMap((sceneComposition) => {
+    const scene = show.scenes.find((candidate) => candidate.id === sceneComposition.sceneId)
+    const sceneRange = timeline.scenes.find((candidate) => candidate.sceneId === sceneComposition.sceneId)
+    if (!scene || !sceneRange) return []
+
+    return (sceneComposition.propertyTracks ?? []).flatMap((track) => {
+      const descriptors = describeScenePropertyTrack(sceneComposition, track.target, instances)
+      return descriptors.flatMap((descriptor) => {
+        const local = projectShowPropertyTrackLane({
+          durationMs: scene.durationMs,
+          constraint: descriptor.constraint,
+          defaultValue: descriptor.defaultValue,
+          track,
+        })
+        if (!local.timeVarying) return []
+        const globalDurationMs = Math.max(1, timeline.durationMs)
+        const toGlobalTime = (localTimeMs: number) => sceneRange.startMs + localTimeMs
+        return [{
+          id: `${scene.id}:${descriptor.zoneId}:${track.id}`,
+          sceneId: scene.id,
+          zoneId: descriptor.zoneId,
+          label: descriptor.label,
+          valueKind: descriptor.valueKind,
+          projection: {
+            ...local,
+            durationMs: timeline.durationMs,
+            samples: local.samples.map((sample) => {
+              const timeMs = toGlobalTime(sample.timeMs)
+              return { ...sample, timeMs, displayX: timeMs / globalDurationMs }
+            }),
+            beats: local.beats.map((beat) => {
+              const timeMs = toGlobalTime(beat.timeMs)
+              return {
+                ...beat,
+                timeMs,
+                displayX: timeMs / globalDurationMs,
+                label: `${descriptor.label} keyframe at ${formatLaneSeconds(beat.timeMs)} in ${scene.name}`,
+              }
+            }),
+          },
+        }]
+      })
+    })
+  })
+}
+
+type SceneTrackDescriptor = {
+  zoneId: string
+  label: string
+  valueKind: ShowScenePropertyLaneProjection['valueKind']
+  defaultValue: number
+  constraint: { min: number; max: number }
+}
+
+function describeScenePropertyTrack(
+  scene: NonNullable<ShowRecord['composition']>['scenes'][number],
+  target: ShowPropertyAnimationTarget,
+  instances: Map<string, NonNullable<ShowRecord['composition']>['patternInstances'][number]>,
+): SceneTrackDescriptor[] {
+  if (target.kind === 'instance-time-scale' || target.kind === 'instance-control') {
+    const instance = instances.get(target.instanceId)
+    if (!instance) return []
+    const zoneIds = scene.zones
+      .filter((zone) => placementsInZone(zone).some((placement) => placement.instanceId === instance.id))
+      .map((zone) => zone.zoneId)
+    const controlLabel = target.kind === 'instance-control' ? humanizeControlName(target.exportName) : 'animation speed'
+    return zoneIds.map((zoneId) => ({
+      zoneId,
+      label: `${instance.patternName} ${controlLabel}`,
+      valueKind: target.kind === 'instance-time-scale' ? 'multiplier' : 'number',
+      defaultValue: target.kind === 'instance-time-scale'
+        ? instance.time.timeScale
+        : instance.controlTargets?.[target.exportName] ?? 0,
+      constraint: target.kind === 'instance-time-scale' ? { min: 0, max: 4 } : { min: 0, max: 1 },
+    }))
+  }
+
+  const owner = findPlacementOwner(scene, target.placementId)
+  if (!owner) return []
+  const instance = instances.get(owner.placement.instanceId)
+  const patternName = instance?.patternName ?? 'Clip'
+  if (target.kind === 'placement-opacity') {
+    if (!('opacity' in owner.placement)) return []
+    return [{ zoneId: owner.zoneId, label: `${patternName} opacity`, valueKind: 'percent', defaultValue: owner.placement.opacity, constraint: { min: 0, max: 1 } }]
+  }
+  if (target.kind === 'placement-view') {
+    return [{
+      zoneId: owner.zoneId,
+      label: `${patternName} ${target.property}`,
+      valueKind: target.property === 'brightness' ? 'percent' : 'number',
+      defaultValue: owner.placement.view[target.property],
+      constraint: { min: 0, max: 1 },
+    }]
+  }
+  const effect = owner.placement.effects?.find((candidate) => candidate.id === target.effectId && candidate.kind === target.effectKind)
+  const parameter = effect ? showClipEffectParameters(effect).find((candidate) => candidate.id === target.parameterId) : undefined
+  const value = effect ? showClipEffectParameterValue(effect, target.parameterId) : undefined
+  if (!effect || !parameter || typeof value !== 'number') return []
+  return [{
+    zoneId: owner.zoneId,
+    label: `${patternName} ${effect.kind} ${parameter.label}`,
+    valueKind: 'number',
+    defaultValue: value,
+    constraint: { min: parameter.min ?? value - 1, max: parameter.max ?? value + 1 },
+  }]
+}
+
+function placementsInZone(zone: NonNullable<ShowRecord['composition']>['scenes'][number]['zones'][number]): Array<ShowMainPlacement | ShowOverlayPlacement> {
+  return [...zone.main, ...zone.overlays.flatMap((layer) => layer.placements)]
+}
+
+function findPlacementOwner(
+  scene: NonNullable<ShowRecord['composition']>['scenes'][number],
+  placementId: string,
+): { zoneId: string; placement: ShowMainPlacement | ShowOverlayPlacement } | undefined {
+  for (const zone of scene.zones) {
+    const placement = placementsInZone(zone).find((candidate) => candidate.id === placementId)
+    if (placement) return { zoneId: zone.zoneId, placement }
+  }
+  return undefined
+}
+
+function humanizeControlName(exportName: string): string {
+  return exportName.replace(/^slider/, '').replace(/([A-Z])/g, ' $1').trim().toLowerCase()
+}
+
+function formatLaneSeconds(timeMs: number): string {
+  return `${Number((timeMs / 1_000).toFixed(1))} s`
 }
 
 function valueAt(

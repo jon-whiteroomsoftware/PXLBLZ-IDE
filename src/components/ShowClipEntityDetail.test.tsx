@@ -84,6 +84,25 @@ describe('shared Clip Entity Detail sections (#498)', () => {
     expect(onPatch).toHaveBeenCalledWith({ simulation: { controlTargets: undefined } })
   })
 
+  it('presents Pattern and advanced controls as flat readable tables', () => {
+    render(<ShowClipEntityDetail {...commonProps('global')} />)
+
+    const patternTable = screen.getByRole('table', { name: 'Pattern controls' })
+    expect(patternTable).toHaveTextContent('Speed')
+    expect(patternTable).toHaveTextContent('sliderSpeed')
+    expect(patternTable).toHaveTextContent('0–1')
+    expect(screen.getByRole('table', { name: 'Advanced clip controls' })).toBeInTheDocument()
+    const advancedRows = screen.getByRole('table', { name: 'Advanced clip controls' }).querySelectorAll('tbody tr')
+    expect(advancedRows[0].children[1]).toHaveTextContent('Mirror clip')
+    expect(advancedRows[0].children[2]).toContainElement(screen.getByRole('checkbox', { name: 'Mirror clip' }))
+    expect(advancedRows[1].children[1]).toHaveTextContent('Phase')
+    expect(advancedRows[1].children[2]).toContainElement(screen.getByRole('spinbutton', { name: 'Phase' }))
+    expect(screen.getByRole('combobox', { name: 'Source pattern' })).toHaveClass('h-6')
+    expect(screen.getByRole('spinbutton', { name: 'Animation speed' })).toHaveClass('h-6')
+    expect(screen.getByRole('spinbutton', { name: 'Speed target' })).toHaveClass('h-5', 'border-0', 'border-b')
+    expect(screen.getByRole('spinbutton', { name: 'Phase' })).toHaveClass('h-5', 'border-0', 'border-b', 'text-left')
+  })
+
   it.each(['global', 'scene-main', 'scene-overlay'] as const)(
     'commits the same shared view and Effect actions for %s',
     (scope) => {

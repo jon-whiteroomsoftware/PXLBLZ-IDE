@@ -13,6 +13,8 @@ export function AuthStatus() {
   const accountRef = useRef<HTMLDivElement>(null)
   const navigate = useRouterStore((s) => s.navigate)
   const setPersonalWorkspaceAuthenticated = useWorkspaceStore((s) => s.setPersonalWorkspaceAuthenticated)
+  const setPersonalWorkspaceUnavailable = useWorkspaceStore((s) => s.setPersonalWorkspaceUnavailable)
+  const personalWorkspaceProbeAttempt = useWorkspaceStore((s) => s.personalWorkspaceProbeAttempt)
 
   const refreshSession = () => {
     getAuthSession()
@@ -21,8 +23,8 @@ export function AuthStatus() {
         setPersonalWorkspaceAuthenticated(next.authenticated)
       })
       .catch(() => {
-        setSession({ authenticated: false })
-        setPersonalWorkspaceAuthenticated(false)
+        setSession(null)
+        setPersonalWorkspaceUnavailable()
       })
   }
 
@@ -37,14 +39,14 @@ export function AuthStatus() {
       })
       .catch(() => {
         if (!cancelled) {
-          setSession({ authenticated: false })
-          setPersonalWorkspaceAuthenticated(false)
+          setSession(null)
+          setPersonalWorkspaceUnavailable()
         }
       })
     return () => {
       cancelled = true
     }
-  }, [setPersonalWorkspaceAuthenticated])
+  }, [personalWorkspaceProbeAttempt, setPersonalWorkspaceAuthenticated, setPersonalWorkspaceUnavailable])
 
   const disconnectProvider = async (provider: AuthProvider) => {
     const response = await fetch(`/api/auth/disconnect?provider=${provider}`, { method: 'POST' })

@@ -571,7 +571,7 @@ disabled fields as high-contrast inspection values rather than editable-looking
 inputs. Expandable detail sections remain available; editing requires a personal
 Show.
 
-The dedicated [Show Visual Toolkit](../guides/Show visual toolkit.md) guide uses
+The dedicated [Visual Effects Guide](../guides/Visual effects guide.md) uses
 these examples to explain Property animation, one-source Effects, boundary
 Transitions, shared catalogue vocabulary, and renderer cost.
 

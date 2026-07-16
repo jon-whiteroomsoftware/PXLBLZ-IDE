@@ -2,7 +2,7 @@ import ecosystemPrimer from '../../docs/reference/Pixelblaze Ecosystem Primer.md
 import featureGuide from '../../docs/reference/PXLBLZ Feature Guide.md?raw'
 import understandingMaps from '../../docs/reference/Understanding Maps.md?raw'
 import optimizationGuide from '../../docs/guides/Optimizing Pixelblaze patterns.md?raw'
-import showVisualToolkitGuide from '../../docs/guides/Show visual toolkit.md?raw'
+import visualEffectsGuide from '../../docs/guides/Visual effects guide.md?raw'
 
 import builtinCostsUrl from '../../docs/images/builtin-costs.svg?url'
 import deviceBrowserBoundaryUrl from '../../docs/images/device-browser-boundary.svg?url'
@@ -58,12 +58,12 @@ export const USER_DOCS: UserDoc[] = [
   },
   {
     id: 'show-visual-toolkit',
-    path: 'docs/guides/Show visual toolkit.md',
-    title: 'Show Visual Toolkit',
-    menuLabel: 'Show Visual Toolkit',
+    path: 'docs/guides/Visual effects guide.md',
+    title: 'Visual Effects Guide',
+    menuLabel: 'Visual Effects Guide',
     menuKicker: 'Effects and transitions',
     summary: 'Property animation, Effects, Transitions, and the cost of combining Patterns.',
-    source: showVisualToolkitGuide,
+    source: visualEffectsGuide,
     assets: sharedAssets,
   },
   {

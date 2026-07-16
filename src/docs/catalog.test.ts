@@ -17,6 +17,11 @@ describe('docs catalog', () => {
     expect(isDocId('technical-reference')).toBe(false)
     expect(getUserDoc('feature-guide')?.menuLabel).toBe('Feature Guide')
     expect(getUserDoc('show-visual-toolkit')?.source).toContain('Property animation')
+    expect(getUserDoc('show-visual-toolkit')).toMatchObject({
+      title: 'Visual Effects Guide',
+      menuLabel: 'Visual Effects Guide',
+      path: 'docs/guides/Visual effects guide.md',
+    })
     expect(docHash('optimization-guide')).toBe('#/docs/optimization-guide')
     expect(docHash('understanding-maps')).toBe('#/docs/understanding-maps')
   })

@@ -397,6 +397,7 @@ export function updateShowScene(
   sceneId: string,
   changes: Partial<Omit<ShowScene, 'id'>>,
 ): ShowRecord {
+  const minimumDurationMs = minimumShowSceneDurationMs(show, sceneId)
   return {
     ...show,
     scenes: show.scenes.map((scene) => (
@@ -404,7 +405,7 @@ export function updateShowScene(
         ? {
             ...scene,
             ...changes,
-            durationMs: clampDuration(changes.durationMs ?? scene.durationMs),
+            durationMs: Math.max(minimumDurationMs, clampDuration(changes.durationMs ?? scene.durationMs)),
             ...(changes.routingTargets
               ? { routingTargets: { splitPosition: clamp01(changes.routingTargets.splitPosition ?? 0.5) } }
               : {}),
@@ -416,6 +417,27 @@ export function updateShowScene(
     )),
     updatedAt: Date.now(),
   }
+}
+
+/** Earliest legal Scene end without discarding local placements or keyframes. */
+export function minimumShowSceneDurationMs(show: ShowRecord, sceneId: string): number {
+  const composition = show.composition?.scenes.find((scene) => scene.sceneId === sceneId)
+  if (!composition) return 1_000
+
+  let minimumMs = 1_000
+  const include = (candidate: number) => {
+    if (Number.isFinite(candidate)) minimumMs = Math.max(minimumMs, Math.ceil(candidate))
+  }
+  for (const zone of composition.zones) {
+    for (const placement of zone.main) include(placement.startMs + placement.durationMs)
+    for (const layer of zone.overlays) {
+      for (const placement of layer.placements) include(placement.startMs + placement.durationMs)
+    }
+  }
+  for (const track of composition.propertyTracks ?? []) {
+    for (const keyframe of track.keyframes) include(keyframe.timeMs)
+  }
+  return minimumMs
 }
 
 export function addShowScene(show: ShowRecord): ShowRecord {

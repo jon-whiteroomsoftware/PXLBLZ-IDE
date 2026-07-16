@@ -6,7 +6,11 @@ import type {
 } from './showCompositionProjection'
 import type { ShowBoundaryTransition, ShowClipEffect, ShowTransitionEasing } from './personalContentRecords'
 import { showClipEffectParameterValue } from './showEffectAuthoring'
-import { projectShowPropertyLane, type ShowPropertyLaneProjection } from './showPropertyLaneProjection'
+import {
+  projectGlobalShowScenePropertyLanes,
+  projectShowPropertyLane,
+  type ShowPropertyLaneProjection,
+} from './showPropertyLaneProjection'
 
 export interface SceneXrayCutReference {
   localTimeMs: number
@@ -57,11 +61,27 @@ export interface SceneReadOnlyPlacement {
   diagnostics: string[]
 }
 
+export interface SceneReadOnlyLayer {
+  id: string
+  name: string
+  role: 'main' | 'overlay'
+  placements: SceneReadOnlyPlacement[]
+}
+
+export interface SceneCompositionSummary {
+  placementCount: number
+  layerCount: number
+  effectCount: number
+  animationCount: number
+  nontrivial: boolean
+}
+
 export interface SceneReadOnlyZone {
   zoneId: string
   zoneName: string
   nominalPixelCount: number
   placements: SceneReadOnlyPlacement[]
+  layers: SceneReadOnlyLayer[]
 }
 
 export interface SceneReadOnlyBridgeProjection {
@@ -77,6 +97,13 @@ export interface SceneReadOnlyBridgeProjection {
     effectActivity: SceneXrayEffectActivity[]
     propertyBeats: SceneXrayPropertyBeat[]
   }
+  summary: SceneCompositionSummary
+  localAnimations: Array<{
+    id: string
+    label: string
+    zoneId: string
+    projection: ShowPropertyLaneProjection
+  }>
   zones: SceneReadOnlyZone[]
   diagnostics: string[]
 }
@@ -106,6 +133,18 @@ export function projectSceneReadOnlyBridge(
     ? show.transitions?.find((transition) => transition.afterSceneId === previousScene.id && transition.kind !== 'routing') ?? null
     : null
   const outgoing = show.transitions?.find((transition) => transition.afterSceneId === scene.id && transition.kind !== 'routing') ?? null
+  if (show.composition) {
+    return projectAuthoredSceneReadOnlyBridge(
+      show,
+      scene.id,
+      timelineScene.startMs,
+      timelineScene.endMs,
+      incoming,
+      outgoing,
+      scene.placements,
+      new Map(projection.patternInstances.map((instance) => [instance.id, instance])),
+    )
+  }
   const instances = new Map(projection.patternInstances.map((instance) => [instance.id, instance]))
   const diagnosticsByCell = new Map<string, string[]>()
   for (const diagnostic of projection.diagnostics) {
@@ -122,11 +161,8 @@ export function projectSceneReadOnlyBridge(
     }
   }
 
-  const zones = show.zones.map((zone): SceneReadOnlyZone => ({
-    zoneId: zone.id,
-    zoneName: zone.name,
-    nominalPixelCount: zone.nominalPixelCount,
-    placements: (placementByZone.get(zone.id) ?? []).map((placement) => {
+  const zones = show.zones.map((zone): SceneReadOnlyZone => {
+    const placements = (placementByZone.get(zone.id) ?? []).map((placement) => {
       const instance = instances.get(placement.instanceId)
       const previous = previousScene?.placements.some((candidate) => (
         candidate.sourceCellId === placement.sourceCellId
@@ -151,8 +187,15 @@ export function projectSceneReadOnlyBridge(
         continuesToNext: next,
         diagnostics: diagnosticsByCell.get(placement.sourceCellId) ?? [],
       }
-    }),
-  })).filter((zone) => zone.placements.length > 0)
+    })
+    return {
+      zoneId: zone.id,
+      zoneName: zone.name,
+      nominalPixelCount: zone.nominalPixelCount,
+      placements,
+      layers: placements.length > 0 ? [{ id: 'main', name: 'Main', role: 'main', placements }] : [],
+    }
+  }).filter((zone) => zone.placements.length > 0)
 
   const labels = [...new Set(zones.flatMap((zone) => zone.placements.map((placement) => placement.patternName)))]
   const activeZoneIds = zones.map((zone) => zone.zoneId)
@@ -184,8 +227,193 @@ export function projectSceneReadOnlyBridge(
     incomingBoundary: boundarySummary(incoming),
     outgoingBoundary: boundarySummary(outgoing),
     xray: { cutReferences, effectActivity, propertyBeats },
+    summary: summarizeReadOnlyZones(zones, 0),
+    localAnimations: [],
     zones,
     diagnostics: [...new Set(zones.flatMap((zone) => zone.placements.flatMap((placement) => placement.diagnostics)))],
+  }
+}
+
+/** Summarize one authored Scene x Zone for the compact global Timeline cell. */
+export function projectSceneCompositionSummary(
+  show: Pick<import('./personalContentRecords').ShowRecord, 'composition'>,
+  sceneId: string,
+  zoneId: string,
+): SceneCompositionSummary | null {
+  const scene = show.composition?.scenes.find((candidate) => candidate.sceneId === sceneId)
+  const zone = scene?.zones.find((candidate) => candidate.zoneId === zoneId)
+  if (!scene || !zone) return null
+  const layers = [
+    ...(zone.main.length > 0 ? [zone.main] : []),
+    ...zone.overlays.filter((layer) => layer.placements.length > 0).map((layer) => layer.placements),
+  ]
+  const placements = layers.flat()
+  const placementIds = new Set(placements.map((placement) => placement.id))
+  const instanceIds = new Set(placements.map((placement) => placement.instanceId))
+  const animationCount = (scene.propertyTracks ?? []).filter((track) => (
+    'placementId' in track.target
+      ? placementIds.has(track.target.placementId)
+      : instanceIds.has(track.target.instanceId)
+  )).length
+  return summarizeCounts(
+    placements.length,
+    layers.length,
+    placements.reduce((count, placement) => count + (placement.effects?.length ?? 0), 0),
+    animationCount,
+  )
+}
+
+function projectAuthoredSceneReadOnlyBridge(
+  show: import('./personalContentRecords').ShowRecord,
+  sceneId: string,
+  globalStartMs: number,
+  globalEndMs: number,
+  incoming: ShowBoundaryTransition | null,
+  outgoing: ShowBoundaryTransition | null,
+  flatPlacements: ShowCompositionPlacementProjection[],
+  flatInstances: Map<string, ShowCompositionPatternInstanceProjection>,
+): SceneReadOnlyBridgeProjection {
+  const scene = show.scenes.find((candidate) => candidate.id === sceneId)!
+  const authored = show.composition!.scenes.find((candidate) => candidate.sceneId === sceneId)
+  const instances = new Map(show.composition!.patternInstances.map((instance) => [instance.id, instance]))
+  const missingInstances = new Set<string>()
+  const zones = show.zones.flatMap((zone): SceneReadOnlyZone[] => {
+    const zoneComposition = authored?.zones.find((candidate) => candidate.zoneId === zone.id)
+    if (!zoneComposition) return []
+    const toPlacements = (
+      placements: Array<import('./personalContentRecords').ShowMainPlacement | import('./personalContentRecords').ShowOverlayPlacement>,
+    ): SceneReadOnlyPlacement[] => placements.map((placement, index) => {
+      const instance = instances.get(placement.instanceId)
+      if (!instance) missingInstances.add(placement.instanceId)
+      const previous = placements[index - 1]
+      const next = placements[index + 1]
+      return {
+        id: placement.id,
+        sourceCellId: placement.id,
+        instanceId: placement.instanceId,
+        patternName: instance?.patternName ?? 'Missing Pattern',
+        compiled: Boolean(instance),
+        startMs: placement.startMs,
+        endMs: placement.startMs + placement.durationMs,
+        effectKinds: (placement.effects ?? []).map((effect) => effect.kind),
+        continuesFromPrevious: Boolean(previous
+          && previous.instanceId === placement.instanceId
+          && previous.startMs + previous.durationMs === placement.startMs),
+        continuesToNext: Boolean(next
+          && next.instanceId === placement.instanceId
+          && placement.startMs + placement.durationMs === next.startMs),
+        diagnostics: instance ? [] : [`Pattern instance ${placement.instanceId} is missing.`],
+      }
+    })
+    const layers: SceneReadOnlyLayer[] = [
+      ...zoneComposition.overlays
+        .filter((layer) => layer.placements.length > 0)
+        .map((layer) => ({
+          id: layer.id,
+          name: layer.name,
+          role: 'overlay' as const,
+          placements: toPlacements(layer.placements),
+        })),
+      ...(zoneComposition.main.length > 0
+        ? [{ id: 'main', name: 'Main', role: 'main' as const, placements: toPlacements(zoneComposition.main) }]
+        : []),
+    ]
+    return [{
+      zoneId: zone.id,
+      zoneName: zone.name,
+      nominalPixelCount: zone.nominalPixelCount,
+      layers,
+      placements: layers.flatMap((layer) => layer.placements),
+    }]
+  })
+  const animationCount = authored?.propertyTracks?.length ?? 0
+  const summary = summarizeReadOnlyZones(zones, animationCount)
+  const boundaries = [...new Set([
+    0,
+    scene.durationMs,
+    ...zones.flatMap((zone) => zone.placements.flatMap((placement) => [placement.startMs, placement.endMs])),
+  ])].sort((left, right) => left - right)
+  const labels = [...new Set(zones.flatMap((zone) => zone.placements.map((placement) => placement.patternName)))]
+  const activeZoneIds = zones.map((zone) => zone.zoneId)
+  const cutReferences: SceneXrayCutReference[] = boundaries.map((localTimeMs, index) => ({
+    localTimeMs,
+    kind: index === boundaries.length - 1 ? 'exit' : 'entry',
+    labels,
+    zoneIds: activeZoneIds,
+  }))
+  const effectActivity = zones.flatMap((zone) => zone.placements.flatMap((placement) => (
+    placement.effectKinds.map((effectKind, index) => ({
+      sourceCellId: placement.sourceCellId,
+      effectId: `${placement.id}-${effectKind}-${index}`,
+      effectKind,
+      startMs: placement.startMs,
+      endMs: placement.endMs,
+      zoneIds: [zone.zoneId],
+    }))
+  )))
+  const propertyBeats = [
+    ...projectBoundaryPropertyBeats(incoming, 'incoming', 0, flatPlacements, flatInstances),
+    ...projectBoundaryPropertyBeats(outgoing, 'outgoing', scene.durationMs, [], flatInstances),
+  ]
+  const localAnimations = projectGlobalShowScenePropertyLanes(show)
+    .filter((lane) => lane.sceneId === sceneId)
+    .map((lane) => ({
+      id: lane.id,
+      label: lane.label,
+      zoneId: lane.zoneId,
+      projection: {
+        ...lane.projection,
+        durationMs: scene.durationMs,
+        samples: lane.projection.samples.map((sample) => {
+          const timeMs = sample.timeMs - globalStartMs
+          return { ...sample, timeMs, displayX: timeMs / Math.max(1, scene.durationMs) }
+        }),
+        beats: lane.projection.beats.map((beat) => {
+          const timeMs = beat.timeMs - globalStartMs
+          return { ...beat, timeMs, displayX: timeMs / Math.max(1, scene.durationMs) }
+        }),
+      },
+    }))
+  return {
+    sceneId,
+    sceneName: scene.name,
+    durationMs: scene.durationMs,
+    globalStartMs,
+    globalEndMs,
+    incomingBoundary: boundarySummary(incoming),
+    outgoingBoundary: boundarySummary(outgoing),
+    xray: { cutReferences, effectActivity, propertyBeats },
+    summary,
+    localAnimations,
+    zones,
+    diagnostics: [...missingInstances].map((id) => `Pattern instance ${id} is missing.`),
+  }
+}
+
+function summarizeReadOnlyZones(zones: SceneReadOnlyZone[], animationCount: number): SceneCompositionSummary {
+  return summarizeCounts(
+    zones.reduce((count, zone) => count + zone.placements.length, 0),
+    zones.reduce((count, zone) => count + zone.layers.length, 0),
+    zones.reduce((count, zone) => count + zone.placements.reduce(
+      (placementCount, placement) => placementCount + placement.effectKinds.length,
+      0,
+    ), 0),
+    animationCount,
+  )
+}
+
+function summarizeCounts(
+  placementCount: number,
+  layerCount: number,
+  effectCount: number,
+  animationCount: number,
+): SceneCompositionSummary {
+  return {
+    placementCount,
+    layerCount,
+    effectCount,
+    animationCount,
+    nontrivial: placementCount !== 1 || layerCount > 1 || effectCount > 0 || animationCount > 0,
   }
 }
 

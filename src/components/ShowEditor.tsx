@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type PointerEvent as ReactPointerEvent, type SetStateAction } from 'react'
 import { createPortal } from 'react-dom'
-import { Check, ChevronDown, Clapperboard, Code2, Copy, Download, Grid2X2, Lock, Magnet, Map as MapIcon, Maximize2, Pause, Play, Plus, Redo2, RotateCw, Route, Scissors, Settings2, SkipBack, Trash2, Undo2, Zap, ZoomIn, ZoomOut } from 'lucide-react'
+import { Activity, BookOpen, Check, ChevronDown, ChevronRight, Clapperboard, Clock3, Code2, Copy, Download, Eye, Grid2X2, Info, Layers3, Lightbulb, ListChecks, Lock, Magnet, Map as MapIcon, Maximize2, Pause, Play, Plus, Redo2, RotateCw, Route, Scissors, Settings2, SkipBack, SlidersHorizontal, Trash2, Undo2, WandSparkles, X, Zap, ZoomIn, ZoomOut } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   AlertDialogAction,
@@ -36,6 +36,7 @@ import {
   projectShowStrip,
   showSplitCapability,
   formatShowRoutingRanges,
+  minimumShowSceneDurationMs,
   parseShowRoutingRanges,
   showLoopDurationMs,
   projectShowTimeline,
@@ -61,8 +62,11 @@ import {
   trimShowMainPlacement,
   trimShowOverlayPlacement,
 } from '@/engine/showCompositionModel'
-import { projectSceneReadOnlyBridge } from '@/engine/showSceneReadOnlyProjection'
-import { projectGlobalShowPropertyLane } from '@/engine/showPropertyLaneProjection'
+import { projectSceneCompositionSummary, projectSceneReadOnlyBridge, type SceneCompositionSummary } from '@/engine/showSceneReadOnlyProjection'
+import {
+  projectGlobalShowPropertyLane,
+  projectGlobalShowScenePropertyLanes,
+} from '@/engine/showPropertyLaneProjection'
 import {
   addShowPropertyKeyframe,
   addShowPropertyTrack,
@@ -79,6 +83,12 @@ import { validateInstallationCoverage } from '@/engine/showInstallationCoverage'
 import { updateShowPhysicalZoneSelection } from '@/engine/showSpatialSelection'
 import { createPortableShowOutputContract } from '@/engine/showOutputContract'
 import { discoverAutomatablePatternControls, type AutomatablePatternControl } from '@/engine/showPatternControls'
+import {
+  projectGlobalShowClipSummary,
+  showClipInlineSummary,
+  type ShowClipSummaryKind,
+  type ShowClipSummarySection,
+} from '@/engine/showClipSummary'
 import {
   projectShowClipInspector,
   updateShowClipInspector,
@@ -122,6 +132,8 @@ import { useShowTransportStore } from '@/store/showTransportStore'
 import { usePatternStore } from '@/store/patternStore'
 import { useShowStore } from '@/store/showStore'
 import { useShowEditorSessionStore } from '@/store/showEditorSessionStore'
+import { docExternalHref } from '@/docs/catalog'
+import type { StockShowNote } from '@/pixelblaze/stock/shows'
 import { newPersonalContentId } from '@/engine/personalContentMetadata'
 import type {
   MapRecord,
@@ -136,8 +148,10 @@ import type {
 
 const field =
   'h-7 rounded border border-zinc-700 bg-zinc-900 px-2 text-xs text-zinc-200 outline-none focus:border-live/70'
+const compactField =
+  'h-6 rounded border border-zinc-700 bg-zinc-950 px-1.5 text-[9.5px] text-zinc-200 outline-none focus:border-live/70'
 const clipBase =
-  'relative z-10 flex min-h-[44px] flex-col justify-center gap-0.5 overflow-hidden rounded-[5px] border-0 border-l-[3px] px-2 py-1 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-live'
+  'show-timeline-clip relative z-10 flex min-h-[44px] flex-col justify-center gap-0.5 overflow-hidden rounded-[5px] border-0 border-l-[3px] px-2 py-1 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-live'
 
 function ShowEasingOptions() {
   return SHOW_EASING_OPTIONS.map((option) => (
@@ -180,17 +194,103 @@ type ShowPatternOption = {
   group: PatternComboboxOption['group']
 }
 
+function ShowNoteTrigger({ note, open, onToggle }: {
+  note: StockShowNote
+  open: boolean
+  onToggle: () => void
+}) {
+  const numberLabel = note.number ? `${note.number} ` : ''
+  const actionLabel = open ? 'Collapse' : 'Open'
+  return (
+    <Button
+      size="icon-xs"
+      variant="ghost"
+      aria-label={`${actionLabel} ${numberLabel}${note.title} guide`}
+      aria-expanded={open}
+      title={`${actionLabel} ${numberLabel}${note.title} guide`}
+      className={`show-note-trigger ${open
+        ? 'aria-expanded:!bg-zinc-800/70 aria-expanded:!text-zinc-300 hover:!bg-zinc-700/70 hover:!text-zinc-100'
+        : 'aria-expanded:!bg-transparent aria-expanded:!text-zinc-500 hover:!bg-zinc-800 hover:!text-zinc-300'}`}
+      onClick={onToggle}
+    >
+      <BookOpen size={12} aria-hidden />
+    </Button>
+  )
+}
+
+function ShowNoteDisclosure({ note, onCollapse }: {
+  note: StockShowNote
+  onCollapse: () => void
+}) {
+  const title = note.number ? `${note.number} ${note.title}` : note.title
+  return (
+    <section
+      role="region"
+      aria-label={`${title} guide`}
+      className="shrink-0 select-none border-b border-cyan-200/20 bg-[#0d171b] text-[10px]"
+    >
+      <button
+        type="button"
+        aria-label={`Collapse ${note.number ? `${note.number} ` : ''}guide`}
+        className="flex h-8 w-full items-center gap-2 px-3 text-left hover:bg-white/[0.025] focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-cyan-200"
+        onClick={onCollapse}
+      >
+        <Info size={12} aria-hidden className="shrink-0 text-cyan-200/80" />
+        <span className="shrink-0 font-semibold uppercase tracking-[0.1em] text-cyan-200/85">{note.label}</span>
+        <strong className="truncate font-medium text-zinc-200">{note.number ? `${note.number} · ` : ''}{note.title}</strong>
+        <span className="ml-1 hidden items-center gap-1 text-[9px] text-zinc-600 sm:flex">
+          <Lock size={10} aria-hidden />
+          Built-in Show
+        </span>
+        <ChevronDown size={12} aria-hidden className="ml-auto shrink-0 rotate-180 text-zinc-500" />
+      </button>
+      <div className="grid grid-cols-[minmax(0,1.45fr)_minmax(220px,1fr)] gap-4 border-t border-zinc-800/80 px-3 py-2.5 max-[720px]:grid-cols-1 max-[720px]:gap-2">
+        <div>
+          <p className="max-w-[72ch] leading-4 text-zinc-300">{note.purpose}</p>
+          <p className="mt-1.5 flex items-start gap-1.5 leading-4 text-zinc-500">
+            <Lightbulb size={11} aria-hidden className="mt-0.5 shrink-0 text-violet-300/70" />
+            <span><b className="font-medium text-violet-200/75">Notice:</b> {note.notice}</span>
+          </p>
+        </div>
+        <div className="border-l border-zinc-800 pl-3 max-[720px]:border-l-0 max-[720px]:border-t max-[720px]:pl-0 max-[720px]:pt-2">
+          <span className="flex items-center gap-1 font-semibold uppercase tracking-[0.09em] text-zinc-400">
+            <ListChecks size={10} aria-hidden className="text-cyan-200/75" /> Try this
+          </span>
+          <ul className="mt-1.5 space-y-1 text-zinc-400">
+            {note.prompts.map((prompt) => (
+              <li key={prompt} className="flex gap-1.5">
+                <i aria-hidden className="mt-[5px] size-1 shrink-0 rounded-full bg-cyan-200/60" />
+                <span>{prompt}</span>
+              </li>
+            ))}
+          </ul>
+          <a
+            href={`${docExternalHref(note.guide.documentId)}#${note.guide.heading}`}
+            className="mt-2 inline-flex h-7 items-center gap-1.5 border border-zinc-700 bg-zinc-900/65 px-2 text-zinc-300 hover:border-zinc-500 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-cyan-200"
+          >
+            <BookOpen size={10} aria-hidden />
+            {note.guide.label}
+            <ChevronRight size={10} aria-hidden />
+          </a>
+        </div>
+      </div>
+    </section>
+  )
+}
+
 export function ShowEditor({
   showId,
   showOverride,
   readOnly = false,
   builtInContext,
+  headerGuideTarget = null,
   headerActionsTarget = null,
 }: {
   showId: string
   showOverride?: ShowRecord
   readOnly?: boolean
-  builtInContext?: { track: 'portable' | 'installation'; lesson: string; description: string }
+  builtInContext?: { track: 'portable' | 'installation'; lesson: string; description: string; note?: StockShowNote }
+  headerGuideTarget?: HTMLElement | null
   headerActionsTarget?: HTMLElement | null
 }) {
   const savedShow = useShowStore((state) => state.shows.find((item) => item.id === showId))
@@ -213,6 +313,10 @@ export function ShowEditor({
   const addZone = useShowStore((state) => state.addZone)
   const updateZone = useShowStore((state) => state.updateZone)
   const removeZone = useShowStore((state) => state.removeZone)
+  const showNoteOpen = useShowEditorSessionStore((state) => (
+    state.showNoteOpenById[showId] ?? builtInContext?.note?.defaultOpen ?? false
+  ))
+  const setShowNoteOpen = useShowEditorSessionStore((state) => state.setShowNoteOpen)
   const addRoutingLayout = useShowStore((state) => state.addRoutingLayout)
   const updateRoutingLayout = useShowStore((state) => state.updateRoutingLayout)
   const removeRoutingLayout = useShowStore((state) => state.removeRoutingLayout)
@@ -680,6 +784,14 @@ export function ShowEditor({
     }, 0)
   }
 
+  const showNoteTrigger = builtInContext?.note ? (
+    <ShowNoteTrigger
+      note={builtInContext.note}
+      open={showNoteOpen}
+      onToggle={() => setShowNoteOpen(showId, !showNoteOpen)}
+    />
+  ) : null
+
   const headerActions = (
     <>
       <Button
@@ -747,10 +859,19 @@ export function ShowEditor({
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-zinc-950/75 font-mono text-xs text-zinc-400">
+      {headerGuideTarget && showNoteTrigger
+        ? createPortal(showNoteTrigger, headerGuideTarget)
+        : null}
       {headerActionsTarget
         ? createPortal(headerActions, headerActionsTarget)
-        : <div className="mb-2 flex shrink-0 items-center justify-end gap-1.5 px-3 pt-3">{headerActions}</div>}
-      {readOnly && (
+        : <div className="mb-2 flex shrink-0 items-center justify-end gap-1.5 px-3 pt-3">{!headerGuideTarget && showNoteTrigger}{headerActions}</div>}
+      {builtInContext?.note && showNoteOpen && (
+        <ShowNoteDisclosure
+          note={builtInContext.note}
+          onCollapse={() => setShowNoteOpen(showId, false)}
+        />
+      )}
+      {readOnly && !builtInContext?.note && (
         <div className="flex shrink-0 items-start gap-2 border-b border-amber-300/15 bg-amber-300/[0.035] px-3 py-1.5 text-[10px] text-zinc-500">
           <Lock size={12} aria-hidden className="text-amber-300/70" />
           <span className="shrink-0 font-semibold uppercase tracking-[0.12em] text-amber-200/75">Built-in Show</span>
@@ -1311,6 +1432,7 @@ function ShowTransportControls({ show }: { show: ShowRecord }) {
         aria-label="Go to Show start"
         title="Go to Show start (Home)"
         className="bg-zinc-900/70 text-zinc-500 hover:bg-zinc-800 hover:text-zinc-100"
+        onPointerUp={(event) => event.currentTarget.blur()}
         onClick={() => requestShowSeek(show.id, 0)}
       >
         <SkipBack size={13} aria-hidden />
@@ -1407,6 +1529,7 @@ function ShowSceneTransportControls({
         aria-label="Go to Scene start"
         title="Go to Scene start (Home)"
         className="bg-zinc-900/70 text-zinc-500 hover:bg-zinc-800 hover:text-zinc-100"
+        onPointerUp={(event) => event.currentTarget.blur()}
         onClick={seekToStart}
       >
         <SkipBack size={13} aria-hidden />
@@ -1581,6 +1704,7 @@ function requestShowSeek(showId: string, targetMs: number): void {
 function showControlOwnsKeyboardEvent(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false
   if (target.closest('[data-show-timeline-focus]') && target.matches('[data-show-timeline-focus]')) return false
+  if (target.closest('[data-studio-space-preview="true"]')) return false
   return target.closest('input, select, textarea, button, a[href], summary, [contenteditable="true"], [role="textbox"], [role="slider"]') !== null
 }
 
@@ -1676,7 +1800,7 @@ function SceneStrip({
   const [draggingCellId, setDraggingCellId] = useState<string | null>(null)
   const [dropTargetKey, setDropTargetKey] = useState<string | null>(null)
   const [xraySceneId, setXraySceneId] = useState<string | null>(compositionProjection ? show.scenes[0]?.id ?? null : null)
-  const [superDetailSceneId, setSuperDetailSceneId] = useState<string | null>(null)
+  const [superDetailOwner, setSuperDetailOwner] = useState<{ sceneId: string; anchor: HTMLElement } | null>(null)
   let viewport = storedViewport
   if (viewport.totalMs !== fittedViewport.totalMs) {
     const zoom = viewport.totalMs / viewport.durationMs
@@ -1699,6 +1823,7 @@ function SceneStrip({
     ...timeline.rows.flatMap((row) => row.cells.flatMap((cell) => [cell.startMs, cell.endMs])),
   ])]
   const propertyLanesByZone = useMemo(() => {
+    const sceneAnimationLanes = projectGlobalShowScenePropertyLanes(show)
     const availableControls = Object.values(patternControlsByCellId).flat()
     const automatedControlNames = [...new Set([
       ...show.cells.flatMap((cell) => Object.keys(cell.controlTargets ?? {})),
@@ -1716,6 +1841,8 @@ function SceneStrip({
         {
           key: 'timeScale',
           label: 'animation speed',
+          ariaLabel: `Animation speed lane for ${zone.name}`,
+          selectsTransition: true,
           color: '#a78bfa',
           formatValue: formatTimeScale,
           projection: projectGlobalShowPropertyLane(show, zone.id, { kind: 'timeScale' }),
@@ -1723,6 +1850,8 @@ function SceneStrip({
         {
           key: 'brightness',
           label: 'brightness',
+          ariaLabel: `Brightness lane for ${zone.name}`,
+          selectsTransition: true,
           color: '#fbbf24',
           formatValue: formatBrightness,
           projection: projectGlobalShowPropertyLane(show, zone.id, { kind: 'brightness' }),
@@ -1730,6 +1859,8 @@ function SceneStrip({
         ...controlLanes.map((control) => ({
           key: `control:${control.exportName}`,
           label: control.label,
+          ariaLabel: `${control.label} control lane for ${zone.name}`,
+          selectsTransition: true,
           color: '#22d3ee',
           formatValue: formatControlValue,
           projection: projectGlobalShowPropertyLane(show, zone.id, {
@@ -1738,8 +1869,23 @@ function SceneStrip({
             defaultValue: control.defaultValue,
           }),
         })),
+        ...sceneAnimationLanes
+          .filter((lane) => lane.zoneId === zone.id)
+          .map((lane) => ({
+            key: `scene:${lane.id}`,
+            label: lane.label,
+            ariaLabel: `${lane.label} animation for ${zone.name}`,
+            selectsTransition: false,
+            color: '#a78bfa',
+            formatValue: lane.valueKind === 'percent'
+              ? formatBrightness
+              : lane.valueKind === 'multiplier'
+                ? formatTimeScale
+                : formatControlValue,
+            projection: lane.projection,
+          })),
       ]
-      return [zone.id, candidates.filter((candidate) => candidate.projection.disclosed)] as const
+      return [zone.id, candidates.filter((candidate) => candidate.projection.timeVarying)] as const
     }))
   }, [patternControlsByCellId, show])
   const movingSplitLayout = show.routingLayouts.find((layout) => layout.logical?.kind === 'split')
@@ -1765,13 +1911,13 @@ function SceneStrip({
     }
   }, [compositionProjection, xraySceneId])
   const superDetail = useMemo(() => {
-    if (!compositionProjection || !superDetailSceneId) return null
+    if (!compositionProjection || !superDetailOwner) return null
     try {
-      return projectSceneReadOnlyBridge(compositionProjection, superDetailSceneId)
+      return projectSceneReadOnlyBridge(compositionProjection, superDetailOwner.sceneId)
     } catch {
       return null
     }
-  }, [compositionProjection, superDetailSceneId])
+  }, [compositionProjection, superDetailOwner])
   const xrayOpen = xrayDetail !== null
   const rulerRow = xrayOpen ? 3 : 2
   const transitionRow = rulerRow + 1
@@ -1779,11 +1925,11 @@ function SceneStrip({
   const toggleXray = (sceneId: string) => {
     if (xraySceneId === sceneId) {
       setXraySceneId(null)
-      if (superDetailSceneId === sceneId) setSuperDetailSceneId(null)
+      if (superDetailOwner?.sceneId === sceneId) setSuperDetailOwner(null)
       return
     }
     setXraySceneId(sceneId)
-    if (superDetailSceneId !== null) setSuperDetailSceneId(sceneId)
+    setSuperDetailOwner(null)
   }
   const columns = [
     '148px',
@@ -1820,16 +1966,21 @@ function SceneStrip({
     const next = maxStart > 0 ? viewport.startMs / maxStart * maxScroll : 0
     if (Math.abs(element.scrollLeft - next) > 1) element.scrollLeft = next
   }, [timelineScale, viewport])
-  const zoomAroundPlayhead = useCallback((factor: number) => setViewport((current) => {
+  const updateViewport = useCallback((next: SetStateAction<ShowTimelineViewport>) => {
+    setSuperDetailOwner(null)
+    setViewport(next)
+  }, [setSuperDetailOwner, setViewport])
+  const closeSuperDetail = useCallback(() => setSuperDetailOwner(null), [setSuperDetailOwner])
+  const zoomAroundPlayhead = useCallback((factor: number) => updateViewport((current) => {
     const visibleEnd = current.startMs + current.durationMs
     const playheadMs = positionMsRef.current
     const anchor = playheadMs >= current.startMs && playheadMs <= visibleEnd
       ? playheadMs
       : current.startMs + current.durationMs / 2
     return zoomShowTimelineViewport(current, factor, anchor)
-  }), [setViewport])
+  }), [updateViewport])
   const zoomLevel = viewport.totalMs / viewport.durationMs
-  const setZoomLevel = (target: number) => setViewport((current) => {
+  const setZoomLevel = (target: number) => updateViewport((current) => {
     const currentZoom = current.totalMs / current.durationMs
     const visibleEnd = current.startMs + current.durationMs
     const anchor = positionMs >= current.startMs && positionMs <= visibleEnd
@@ -1879,6 +2030,7 @@ function SceneStrip({
     >
       <div
         data-testid="show-timeline-toolbar"
+        data-studio-space-preview="true"
         className="show-timeline-toolbar mb-2 grid min-w-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 border-b border-zinc-900 pb-2"
         role="toolbar"
         aria-label="Show timeline controls"
@@ -1930,7 +2082,7 @@ function SceneStrip({
             onSelect={onSelect}
             snapEnabled={snapEnabled}
             onToggleSnap={() => setSnapEnabled(!snapEnabled)}
-            onFit={() => setViewport(fitShowTimelineViewport(timeline.durationMs))}
+            onFit={() => updateViewport(fitShowTimelineViewport(timeline.durationMs))}
           />
         </div>
       </div>
@@ -1943,7 +2095,7 @@ function SceneStrip({
           const maxScroll = Math.max(0, element.scrollWidth - element.clientWidth)
           const maxStart = viewport.totalMs - viewport.durationMs
           if (maxScroll > 0 && maxStart > 0) {
-            setViewport((current) => panShowTimelineViewport(current, element.scrollLeft / maxScroll * maxStart))
+            updateViewport((current) => panShowTimelineViewport(current, element.scrollLeft / maxScroll * maxStart))
           }
         }}
       >
@@ -1964,12 +2116,14 @@ function SceneStrip({
           <SceneColumnHeader
             key={scene.id}
             scene={scene}
+            minimumDurationMs={minimumShowSceneDurationMs(show, scene.id)}
             selected={selection.kind === 'scene' && selection.sceneId === scene.id}
             canRemove={show.scenes.length > 1}
             readOnly={readOnly}
             selectionKey={`scene:${scene.id}`}
             xrayOpen={xraySceneId === scene.id}
             onToggleXray={() => toggleXray(scene.id)}
+            onOpenScene={() => onOpenScene(scene.id)}
             onSelect={(anchor) => onSelect({ kind: 'scene', sceneId: scene.id }, anchor)}
             onRemove={() => onRequestRemoveScene(scene)}
             onUpdate={(changes) => onUpdateScene(scene.id, changes)}
@@ -1987,7 +2141,13 @@ function SceneStrip({
             </div>
             <div className="border-b border-zinc-900 bg-[#090a0c]" style={{ gridColumn: `2 / ${columns.length}`, gridRow: 2 }} />
             <div className="relative z-10 min-w-0" style={{ gridColumn: 2 + show.scenes.findIndex((scene) => scene.id === xrayDetail.sceneId) * 2, gridRow: 2 }}>
-              <ShowSceneXray detail={xrayDetail} onInspect={() => setSuperDetailSceneId(xrayDetail.sceneId)} />
+              <ShowSceneXray
+                detail={xrayDetail}
+                open={superDetailOwner?.sceneId === xrayDetail.sceneId}
+                onInspect={(anchor) => setSuperDetailOwner((current) => (
+                  current?.sceneId === xrayDetail.sceneId ? null : { sceneId: xrayDetail.sceneId, anchor }
+                ))}
+              />
             </div>
           </>
         )}
@@ -2187,7 +2347,15 @@ function SceneStrip({
               <span className="ml-auto text-[10px] text-structural transition-colors group-hover:text-zinc-400">{row.nominalPixelCount}px</span>
               <Settings2 size={11} aria-hidden className="shrink-0 text-zinc-400 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100" />
             </button>
-            {row.cells.map((cell) => (
+            {row.cells.map((cell) => {
+              const patternControls = patternControlsByCellId[cell.id] ?? []
+              const summary = projectGlobalShowClipSummary(
+                show,
+                cell.id,
+                Object.fromEntries(patternControls.map((control) => [control.exportName, control.label])),
+              )
+              const sceneComposition = projectSceneCompositionSummary(show, cell.sceneId, cell.zoneId)
+              return (
               <button
                 key={cell.id}
                 type="button"
@@ -2236,12 +2404,14 @@ function SceneStrip({
                   <Grid2X2 size={11} aria-hidden className="shrink-0 text-zinc-500" />
                   <span className="truncate text-[13px] font-semibold text-zinc-100">{cell.patternName}</span>
                 </span>
-                <span className="block truncate text-[10px] text-zinc-500">
-                  {adaptationSummary(cell)}
-                  {(cell.zoneSpan ?? 1) > 1 ? cell.zoneMode === 'repeat' ? ' - repeat zones' : ' - span zones' : ''}
-                </span>
+                <ClipSummaryInline
+                  summary={summary}
+                  zoneMode={(cell.zoneSpan ?? 1) > 1 ? cell.zoneMode ?? 'span' : null}
+                  sceneComposition={sceneComposition?.nontrivial ? sceneComposition : null}
+                />
               </button>
-            ))}
+              )
+            })}
             {show.scenes.map((scene, sceneIndex) => (
               showCellAtSlot(show, row.zoneId, scene.id) ? null : (
                 <button
@@ -2310,15 +2480,17 @@ function SceneStrip({
                     style={{ gridColumn: `2 / ${columns.length}`, gridRow: laneRow }}
                   >
                     <ShowPropertySparkline
-                      ariaLabel={`${lane.label === 'animation speed' ? 'Animation speed' : lane.label === 'brightness' ? 'Brightness' : `${lane.label} control`} lane for ${row.zoneName}`}
+                      ariaLabel={lane.ariaLabel}
                       projection={lane.projection}
                       color={lane.color}
                       selectedBeatId={selectedBeat}
                       formatValue={lane.formatValue}
-                      onSelectBeat={(beat, anchor) => {
-                        if (!beat.ownerId) return
-                        onSelect({ kind: 'transition', transitionId: beat.ownerId }, anchor)
-                      }}
+                      onSelectBeat={lane.selectsTransition
+                        ? (beat, anchor) => {
+                            if (!beat.ownerId) return
+                            onSelect({ kind: 'transition', transitionId: beat.ownerId }, anchor)
+                          }
+                        : undefined}
                       className="size-full border-t border-zinc-900/80 bg-[#080a0d]"
                     />
                   </div>
@@ -2353,11 +2525,12 @@ function SceneStrip({
         </button>}
         </div>
       </div>
-      <TimelineNavigator viewport={viewport} onChange={setViewport} />
-      {superDetail && (
+      <TimelineNavigator viewport={viewport} onChange={updateViewport} />
+      {superDetail && superDetailOwner && (
         <ShowSceneSuperDetail
           detail={superDetail}
-          onClose={() => setSuperDetailSceneId(null)}
+          anchor={superDetailOwner.anchor}
+          onClose={closeSuperDetail}
           onOpenScene={onOpenScene}
         />
       )}
@@ -2713,23 +2886,27 @@ function formatRulerTime(timeMs: number): string {
 
 function SceneColumnHeader({
   scene,
+  minimumDurationMs,
   selected,
   canRemove,
   readOnly,
   selectionKey,
   xrayOpen,
   onToggleXray,
+  onOpenScene,
   onSelect,
   onRemove,
   onUpdate,
 }: {
   scene: ShowScene
+  minimumDurationMs: number
   selected: boolean
   canRemove: boolean
   readOnly: boolean
   selectionKey: string
   xrayOpen: boolean
   onToggleXray: () => void
+  onOpenScene: () => void
   onSelect: (anchor: HTMLElement) => void
   onRemove: () => void
   onUpdate: (changes: Partial<Omit<ShowScene, 'id'>>) => void
@@ -2759,32 +2936,12 @@ function SceneColumnHeader({
         onChange={(event) => onUpdate({ name: event.target.value })}
         className="min-w-0 flex-1 cursor-pointer truncate bg-transparent text-[12px] font-semibold text-zinc-100 outline-none group-hover:underline group-hover:decoration-dotted group-hover:underline-offset-4 focus:cursor-text focus:underline focus:decoration-live focus:underline-offset-4"
       />
-      <label className="flex shrink-0 items-baseline gap-0.5 text-[9.5px] text-structural" title={`${scene.name} duration`}>
-        <input
-          aria-label={`${scene.name} duration seconds`}
-          type="number"
-          min={0.1}
-          step={0.1}
-          value={Number((scene.durationMs / 1000).toFixed(1))}
-          readOnly={readOnly}
-          onChange={(event) => onUpdate({ durationMs: Number(event.target.value) * 1000 })}
-          className="h-5 w-10 rounded border border-transparent bg-transparent px-0.5 text-right text-[9.5px] text-structural outline-none hover:border-zinc-700 hover:bg-zinc-900 focus:border-live/70 focus:bg-zinc-900"
-        />
-        s
-      </label>
-      <button
-        type="button"
-        aria-label={`${xrayOpen ? 'Hide' : 'Show'} ${scene.name} Scene X-ray`}
-        aria-pressed={xrayOpen}
-        title={`${xrayOpen ? 'Hide' : 'Show'} ${scene.name} Scene X-ray`}
-        onClick={(event) => {
-          event.stopPropagation()
-          onToggleXray()
-        }}
-        className={`grid h-5 w-5 shrink-0 place-items-center rounded transition-colors focus-visible:outline focus-visible:outline-1 focus-visible:outline-amber-300 ${xrayOpen ? 'bg-amber-300/10 text-amber-200' : 'text-zinc-600 opacity-0 hover:bg-zinc-800 hover:text-zinc-200 group-hover:opacity-100 focus:opacity-100'}`}
-      >
-        <ChevronDown size={11} aria-hidden className={xrayOpen ? '' : '-rotate-90'} />
-      </button>
+      <SceneHeaderDurationField
+        scene={scene}
+        minimumDurationMs={minimumDurationMs}
+        readOnly={readOnly}
+        onUpdate={onUpdate}
+      />
       <button
         type="button"
         aria-label={`Open ${scene.name} properties`}
@@ -2812,7 +2969,85 @@ function SceneColumnHeader({
           <Trash2 size={11} aria-hidden />
         </button>
       )}
+      <button
+        type="button"
+        aria-label={`${xrayOpen ? 'Hide' : 'Show'} ${scene.name} Scene X-ray`}
+        aria-pressed={xrayOpen}
+        title={`${xrayOpen ? 'Hide' : 'Show'} ${scene.name} Scene X-ray`}
+        onClick={(event) => {
+          event.stopPropagation()
+          onToggleXray()
+        }}
+        className={`grid h-5 w-5 shrink-0 place-items-center rounded transition-colors focus-visible:outline focus-visible:outline-1 focus-visible:outline-amber-300 ${xrayOpen ? 'bg-amber-300/10 text-amber-200' : 'text-zinc-600 opacity-0 hover:bg-zinc-800 hover:text-zinc-200 group-hover:opacity-100 focus:opacity-100'}`}
+      >
+        <ChevronDown size={11} aria-hidden className={xrayOpen ? '' : '-rotate-90'} />
+      </button>
+      <button
+        type="button"
+        aria-label={`Edit ${scene.name}`}
+        title={`Edit ${scene.name}`}
+        onClick={(event) => {
+          event.stopPropagation()
+          onOpenScene()
+        }}
+        className="grid h-5 w-5 shrink-0 place-items-center rounded bg-cyan-300/10 text-cyan-200 transition-colors hover:bg-cyan-300/20 hover:text-cyan-100 focus-visible:outline focus-visible:outline-1 focus-visible:outline-amber-300"
+      >
+        <Maximize2 size={11} aria-hidden />
+      </button>
     </div>
+  )
+}
+
+function SceneHeaderDurationField({
+  scene,
+  minimumDurationMs,
+  readOnly,
+  onUpdate,
+}: {
+  scene: ShowScene
+  minimumDurationMs: number
+  readOnly: boolean
+  onUpdate: (changes: Partial<Omit<ShowScene, 'id'>>) => void
+}) {
+  const value = formatSceneDurationSeconds(scene.durationMs)
+  const commit = (input: HTMLInputElement) => {
+    const seconds = Number(input.value)
+    if (input.value.trim() === '' || !Number.isFinite(seconds)) {
+      input.value = value
+      return
+    }
+    const durationMs = Math.max(minimumDurationMs, Math.round(seconds * 1000))
+    input.value = formatSceneDurationSeconds(durationMs)
+    if (durationMs !== scene.durationMs) onUpdate({ durationMs })
+  }
+
+  return (
+    <label
+      className="flex shrink-0 items-baseline gap-0.5 text-[9.5px] text-structural"
+      title={`${scene.name} duration`}
+      onClick={(event) => event.stopPropagation()}
+    >
+      <input
+        key={scene.durationMs}
+        aria-label={`${scene.name} duration seconds`}
+        type="number"
+        inputMode="decimal"
+        min={minimumDurationMs / 1000}
+        step={0.1}
+        defaultValue={value}
+        readOnly={readOnly}
+        onBlur={(event) => commit(event.currentTarget)}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') event.currentTarget.blur()
+          if (event.key === 'Escape') {
+            event.currentTarget.value = value
+            event.currentTarget.blur()
+          }
+        }}
+        className="h-5 w-10 appearance-none rounded border border-transparent bg-transparent px-0.5 text-right text-[9.5px] text-structural outline-none hover:border-zinc-700 hover:bg-zinc-900 focus:border-live/70 focus:bg-zinc-900 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+      />
+      s
+    </label>
   )
 }
 
@@ -2875,12 +3110,18 @@ function BoundaryTransitionChip({
 function InspectorPanel({
   family,
   title,
+  heading,
+  headingMeta,
+  summary,
   icon,
   actions,
   children,
 }: {
   family: 'Scene' | 'Clip' | 'Transition' | 'Zone' | 'Show'
   title: string
+  heading?: string
+  headingMeta?: string
+  summary?: React.ReactNode
   icon: React.ReactNode
   actions?: React.ReactNode
   children: React.ReactNode
@@ -2895,13 +3136,24 @@ function InspectorPanel({
   }[family]
   return (
     <section role="region" aria-label={label} data-entity-family={family.toLowerCase()} className="overflow-hidden bg-transparent">
-      <header className="flex h-10 shrink-0 items-center gap-2 border-b border-zinc-800/90 bg-zinc-950/65 py-1 pl-2.5 pr-10">
+      <header className={`flex shrink-0 items-center gap-2 border-b border-zinc-800/90 bg-zinc-950/65 pl-2.5 pr-10 ${summary ? 'min-h-12 py-1.5' : 'h-10 py-1'}`}>
         <span className={`grid size-6 shrink-0 place-items-center rounded border ${accent}`}>{icon}</span>
-        <div className="min-w-0">
-          <h3 className="text-[10px] font-semibold uppercase tracking-[0.12em] text-zinc-300">{label}</h3>
-          <p className="truncate text-[9px] text-zinc-600">{title}</p>
+        <div className="min-w-0 flex-1">
+          {heading ? (
+            <div className="flex min-w-0 items-baseline gap-1.5">
+              <h3 className="shrink-0 text-[11px] font-semibold text-zinc-200">{heading}</h3>
+              {headingMeta && <span className="shrink-0 text-[8px] uppercase tracking-[0.1em] text-zinc-600">{headingMeta}</span>}
+              {title && <><span aria-hidden className="text-zinc-700">·</span><p className="truncate text-[9px] text-zinc-500">{title}</p></>}
+            </div>
+          ) : (
+            <>
+              <h3 className="text-[10px] font-semibold uppercase tracking-[0.12em] text-zinc-300">{label}</h3>
+              <p className="truncate text-[9px] text-zinc-600">{title}</p>
+            </>
+          )}
+          {summary}
         </div>
-        {actions && <div className="ml-auto flex items-center gap-1">{actions}</div>}
+        {actions && <div className="ml-auto flex shrink-0 items-center gap-1">{actions}</div>}
       </header>
       <div className="p-2.5">{children}</div>
     </section>
@@ -3009,6 +3261,7 @@ function ContextualInspector({
       return (
         <SceneInspector
           scene={scene}
+          minimumDurationMs={minimumShowSceneDurationMs(show, scene.id)}
           hasMovingSplit={show.routingLayouts.some((layout) => layout.logical?.kind === 'split')}
           canRemove={show.scenes.length > 1}
           onUpdate={(changes) => onUpdateScene(scene, changes)}
@@ -3139,6 +3392,7 @@ function EmptyClipInspector({
 
 function SceneInspector({
   scene,
+  minimumDurationMs,
   hasMovingSplit,
   canRemove,
   onUpdate,
@@ -3146,6 +3400,7 @@ function SceneInspector({
   onRemove,
 }: {
   scene: ShowScene
+  minimumDurationMs: number
   hasMovingSplit: boolean
   canRemove: boolean
   onUpdate: (changes: Partial<Omit<ShowScene, 'id'>>) => void
@@ -3180,21 +3435,11 @@ function SceneInspector({
             className={`${field} mt-1 w-full`}
           />
         </label>
-        <label className="text-[9px] uppercase tracking-[0.1em] text-zinc-600">
-          Duration
-          <span className="mt-1 flex items-center gap-1">
-            <input
-              aria-label="Scene duration seconds"
-              type="number"
-              min={0.1}
-              step={0.1}
-              value={Number((scene.durationMs / 1000).toFixed(1))}
-              onChange={(event) => onUpdate({ durationMs: Number(event.target.value) * 1000 })}
-              className={`${field} w-20 text-right tabular-nums`}
-            />
-            <span className="text-[10px] text-zinc-500">s</span>
-          </span>
-        </label>
+        <SceneDurationEditor
+          valueMs={scene.durationMs}
+          minimumMs={minimumDurationMs}
+          onApply={(durationMs) => onUpdate({ durationMs })}
+        />
         {hasMovingSplit && (
           <NumberField
             label="Split position"
@@ -3216,6 +3461,135 @@ function SceneInspector({
       </div>
     </InspectorPanel>
   )
+}
+
+function SceneDurationEditor({
+  valueMs,
+  minimumMs,
+  onApply,
+}: {
+  valueMs: number
+  minimumMs: number
+  onApply: (durationMs: number) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const [draft, setDraft] = useState(() => formatSceneDurationSeconds(valueMs))
+  const rootRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const parsedSeconds = draft.trim() === '' ? Number.NaN : Number(draft)
+  const parsedMs = Number.isFinite(parsedSeconds) ? Math.round(parsedSeconds * 1000) : null
+  const valid = parsedMs !== null && parsedMs >= minimumMs
+
+  const close = useCallback(() => {
+    setOpen(false)
+    setDraft(formatSceneDurationSeconds(valueMs))
+  }, [valueMs])
+
+  const apply = useCallback(() => {
+    if (!valid || parsedMs === null) return
+    onApply(parsedMs)
+    setOpen(false)
+  }, [onApply, parsedMs, valid])
+
+  useEffect(() => {
+    if (!open) return
+    const focusId = window.setTimeout(() => {
+      inputRef.current?.focus()
+      inputRef.current?.select()
+    }, 0)
+    const onPointerDown = (event: MouseEvent) => {
+      if (rootRef.current && !rootRef.current.contains(event.target as Node)) close()
+    }
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') close()
+    }
+    window.addEventListener('mousedown', onPointerDown)
+    window.addEventListener('keydown', onKeyDown)
+    return () => {
+      window.clearTimeout(focusId)
+      window.removeEventListener('mousedown', onPointerDown)
+      window.removeEventListener('keydown', onKeyDown)
+    }
+  }, [close, open])
+
+  return (
+    <div className="text-[9px] uppercase tracking-[0.1em] text-zinc-600">
+      <span>Duration</span>
+      <span ref={rootRef} className="relative mt-1 flex items-center gap-1">
+        <button
+          type="button"
+          aria-label="Edit scene duration"
+          aria-haspopup="dialog"
+          aria-expanded={open}
+          onClick={() => {
+            if (open) {
+              close()
+              return
+            }
+            setDraft(formatSceneDurationSeconds(valueMs))
+            setOpen(true)
+          }}
+          className={`${field} w-20 text-right tabular-nums hover:border-zinc-500 hover:text-zinc-100`}
+        >
+          {formatSceneDurationSeconds(valueMs)}
+        </button>
+        <span className="text-[10px] text-zinc-500">s</span>
+        {open && (
+          <span
+            role="dialog"
+            aria-label="Scene duration editor"
+            className="absolute right-0 top-8 z-50 w-48 rounded-lg border border-zinc-700 bg-zinc-900 p-2 font-mono normal-case tracking-normal text-zinc-300 shadow-2xl"
+          >
+            <span className="mb-1.5 flex items-center justify-between text-[9px] uppercase tracking-[0.1em] text-zinc-500">
+              Scene duration
+              <button
+                type="button"
+                aria-label="Cancel scene duration"
+                title="Cancel"
+                onClick={close}
+                className="grid size-5 place-items-center rounded text-zinc-600 hover:bg-zinc-800 hover:text-zinc-300"
+              >
+                <X size={11} aria-hidden />
+              </button>
+            </span>
+            <span className="flex items-center gap-1.5">
+              <input
+                ref={inputRef}
+                aria-label="Scene duration seconds"
+                aria-invalid={!valid}
+                type="text"
+                inputMode="decimal"
+                value={draft}
+                onChange={(event) => setDraft(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') apply()
+                }}
+                className={`h-7 min-w-0 flex-1 rounded border bg-zinc-950 px-2 text-xs tabular-nums text-zinc-100 outline-none ${valid ? 'border-zinc-600 focus:border-live' : 'border-amber-500/70 focus:border-amber-400'}`}
+              />
+              <span className="text-[10px] text-zinc-500">s</span>
+              <button
+                type="button"
+                aria-label="Apply scene duration"
+                title="Apply"
+                disabled={!valid}
+                onClick={apply}
+                className="grid size-7 shrink-0 place-items-center rounded border border-live bg-live/10 text-live hover:bg-live/20 disabled:border-zinc-700 disabled:bg-transparent disabled:text-zinc-600"
+              >
+                <Check size={13} aria-hidden />
+              </button>
+            </span>
+            <span className={`mt-1 block text-[8px] ${valid ? 'text-zinc-600' : 'text-amber-300/85'}`}>
+              Minimum {formatSceneDurationSeconds(minimumMs)} s for Scene content
+            </span>
+          </span>
+        )}
+      </span>
+    </div>
+  )
+}
+
+function formatSceneDurationSeconds(milliseconds: number): string {
+  return Number((milliseconds / 1000).toFixed(3)).toString()
 }
 
 function ClipInspector({
@@ -3254,8 +3628,7 @@ function ClipInspector({
   const maxSpan = Math.max(1, show.scenes.length - sceneIndex)
   const zoneIndex = show.zones.findIndex((zone) => zone.id === cell.zoneId)
   const maxZoneSpan = Math.max(1, show.zones.length - zoneIndex)
-  const zone = show.zones[zoneIndex]
-  const scene = show.scenes[sceneIndex]
+  const context = clipInspectorContext(show, cell, sceneIndex, zoneIndex)
   const lightShutter = cell.adaptations.lightShutter
   const hasAdvancedOverrides = cell.adaptations.mirror
     || cell.sceneSpan > 1
@@ -3268,6 +3641,11 @@ function ClipInspector({
     || lightShutter !== undefined
   const [advancedControlsOpen, setAdvancedControlsOpen] = useState(hasAdvancedOverrides)
   const inspectorValue = projectShowClipInspector(show, { kind: 'global', cellId: cell.id })
+  const summary = projectGlobalShowClipSummary(
+    show,
+    cell.id,
+    Object.fromEntries(patternControls.map((control) => [control.exportName, control.label])),
+  )
   const updateLightShutter = (changes: Partial<NonNullable<ShowCell['adaptations']['lightShutter']>>) => {
     if (!lightShutter) return
     onUpdateAdaptations({ lightShutter: { ...lightShutter, ...changes } })
@@ -3275,7 +3653,10 @@ function ClipInspector({
   return (
     <InspectorPanel
       family="Clip"
-      title={`${cell.patternName} · ${zone?.name ?? 'zone'} · ${scene?.name ?? 'scene'}`}
+      heading={cell.patternName}
+      headingMeta="Pattern"
+      title={context}
+      summary={<ClipConfigurationSummary summary={summary} />}
       icon={<Grid2X2 size={13} aria-hidden />}
       actions={(
         <Button size="icon-xs" variant="ghost" aria-label={`Delete clip ${cell.patternName}`} title={`Delete ${cell.patternName}`} className="text-zinc-500 hover:bg-red-950/30 hover:text-red-300" onClick={onRemove}>
@@ -3302,23 +3683,23 @@ function ClipInspector({
           onOpenEffects={onOpenEffects}
         />
       )}
-      <div data-testid="clip-control-trays" className="mt-2 grid items-start gap-2 lg:grid-cols-2">
+      <div data-testid="global-clip-control-tray" className="mt-2">
         <details
-          className="min-w-0 rounded border border-zinc-800 bg-zinc-950/35 lg:col-span-2"
+          className="min-w-0 border-t border-zinc-800/80"
           aria-label="Global placement and clock controls"
           open={advancedControlsOpen}
           onToggle={(event) => setAdvancedControlsOpen(event.currentTarget.open)}
         >
-          <summary className="cursor-pointer px-2 py-1.5 text-[9px] uppercase tracking-[0.12em] text-zinc-500">Global placement and clock controls</summary>
-          <div className="border-t border-zinc-800 p-2 text-[10px]">
-            <div className="grid grid-cols-2 items-end gap-x-2 gap-y-1.5 xl:grid-cols-4">
-            <label className="text-[10px] uppercase text-zinc-600">
+          <summary className="cursor-pointer py-1 text-[9px] uppercase tracking-[0.12em] text-zinc-500">Global placement and clock controls</summary>
+          <div className="border-t border-zinc-800/70 py-1 text-[9px]">
+            <div className="grid max-w-[30rem] grid-cols-2 items-end gap-1.5 sm:grid-cols-3">
+            <label className="text-[9px] uppercase tracking-[0.08em] text-zinc-600">
               Hold scenes
               <select
                 aria-label="Hold scenes"
                 value={cell.sceneSpan}
                 onChange={(event) => onExtend(Number(event.target.value))}
-                className={`${field} mt-1 w-full`}
+                className={`${compactField} mt-1 w-full`}
               >
                 {Array.from({ length: maxSpan }, (_, index) => index + 1).map((span) => (
                   <option key={span} value={span}>{span}</option>
@@ -3326,26 +3707,26 @@ function ClipInspector({
               </select>
             </label>
             {(cell.zoneSpan ?? 1) > 1 && (
-              <label className="text-[10px] uppercase text-zinc-600">
+              <label className="text-[9px] uppercase tracking-[0.08em] text-zinc-600">
                 Zone domain
                 <select
                   aria-label="Zone domain"
                   value={cell.zoneMode === 'repeat' ? 'repeat' : 'span'}
                   onChange={(event) => onUpdateZoneMode(event.target.value === 'repeat' ? 'repeat' : 'span')}
-                  className={`${field} mt-1 w-full`}
+                  className={`${compactField} mt-1 w-full`}
                 >
                   <option value="span">one canvas</option>
                   <option value="repeat">repeat per zone</option>
                 </select>
               </label>
             )}
-            <label className="text-[10px] uppercase text-zinc-600">
+            <label className="text-[9px] uppercase tracking-[0.08em] text-zinc-600">
               Span zones
               <select
                 aria-label="Span zones"
                 value={cell.zoneSpan ?? 1}
                 onChange={(event) => onSpanZones(Number(event.target.value))}
-                className={`${field} mt-1 w-full`}
+                className={`${compactField} mt-1 w-full`}
               >
                 {Array.from({ length: maxZoneSpan }, (_, index) => index + 1).map((span) => (
                   <option key={span} value={span}>{span}</option>
@@ -3354,7 +3735,7 @@ function ClipInspector({
             </label>
             </div>
             {sceneIndex > 0 && (
-              <section className="mt-2 flex min-w-0 items-center gap-3 rounded border border-sky-400/20 bg-sky-400/[0.04] px-2 py-1.5">
+              <section className="mt-1 flex max-w-2xl min-w-0 items-center gap-2 border-t border-zinc-800/65 py-1">
                 <label className="flex shrink-0 items-center gap-2 text-zinc-200">
                 <input
                   type="checkbox"
@@ -3381,7 +3762,7 @@ function ClipInspector({
               })}
               onOffsetChange={(timeOffsetMs) => onUpdateAdaptations({ timeOffsetMs })}
             />
-            <div className="mt-2 border-t border-zinc-800 pt-2">
+            <div className="mt-1 max-w-2xl border-t border-zinc-800/65 pt-1">
               <label className="flex items-center gap-2 text-zinc-300">
               <input
                 type="checkbox"
@@ -3396,17 +3777,17 @@ function ClipInspector({
               </label>
               {lightShutter && (
                 <>
-                  <div className="mt-2 grid grid-cols-2 gap-1.5">
-                  <NumberField label="Shutter rate (Hz)" value={lightShutter.rateHz} min={0.01} max={60} step={0.1} onChange={(rateHz) => updateLightShutter({ rateHz })} />
-                  <NumberField label="Light on fraction" value={lightShutter.duty} min={0} max={1} step={0.01} onChange={(duty) => updateLightShutter({ duty })} />
-                  <NumberField label="Shutter phase" value={lightShutter.phase} min={0} max={1} step={0.01} onChange={(phase) => updateLightShutter({ phase })} />
-                  <label className="text-[10px] uppercase text-zinc-600">
+                  <div className="mt-1.5 grid grid-cols-2 gap-1.5 sm:grid-cols-4">
+                  <NumberField compact label="Shutter rate (Hz)" value={lightShutter.rateHz} min={0.01} max={60} step={0.1} onChange={(rateHz) => updateLightShutter({ rateHz })} />
+                  <NumberField compact label="Light on fraction" value={lightShutter.duty} min={0} max={1} step={0.01} onChange={(duty) => updateLightShutter({ duty })} />
+                  <NumberField compact label="Shutter phase" value={lightShutter.phase} min={0} max={1} step={0.01} onChange={(phase) => updateLightShutter({ phase })} />
+                  <label className="text-[9px] uppercase tracking-[0.08em] text-zinc-600">
                     Clock while dark
                     <select
                       aria-label="Clock while dark"
                       value={lightShutter.clockBehavior}
                       onChange={(event) => updateLightShutter({ clockBehavior: event.target.value === 'freeze' ? 'freeze' : 'continue' })}
-                      className={`${field} mt-1 w-full`}
+                      className={`${compactField} mt-1 w-full`}
                     >
                       <option value="continue">continue</option>
                       <option value="freeze">freeze</option>
@@ -3426,6 +3807,24 @@ function ClipInspector({
   )
 }
 
+function clipInspectorContext(show: ShowRecord, cell: ShowCell, sceneIndex: number, zoneIndex: number): string {
+  const sceneNames = show.scenes
+    .slice(sceneIndex, sceneIndex + Math.max(1, cell.sceneSpan))
+    .map((scene) => scene.name)
+  const zoneNames = show.zones
+    .slice(zoneIndex, zoneIndex + Math.max(1, cell.zoneSpan ?? 1))
+    .map((zone) => zone.name)
+  return [
+    ...(show.zones.length > 1 ? [compactInspectorNames(zoneNames)] : []),
+    compactInspectorNames(sceneNames),
+  ].filter(Boolean).join(' · ')
+}
+
+function compactInspectorNames(names: string[]): string {
+  if (names.length <= 3) return names.join(', ')
+  return `${names.slice(0, 3).join(', ')}, …`
+}
+
 function MotionCadenceControl({
   stepMs,
   timeOffsetMs,
@@ -3441,21 +3840,31 @@ function MotionCadenceControl({
   const rateHz = steppedClockRateHz(stepMs ?? 125)
   const rateLabel = formatCadenceRate(rateHz)
   return (
-    <section className="mt-2 rounded border border-violet-400/25 bg-violet-400/[0.04] p-2">
-      <div className="grid items-end gap-2 sm:grid-cols-[minmax(0,1fr)_auto_8rem]">
-        <div className="min-w-0 self-center">
-          <div className="text-[10px] uppercase tracking-[0.12em] text-violet-300">Motion cadence</div>
-          <div className="truncate text-[9px] text-zinc-500" title="Shift this clip's private Pattern clock for rounds across zones.">
-            <span aria-hidden>Private Pattern clock</span>
-            <span className="sr-only">Shift this clip&apos;s private Pattern clock for rounds across zones.</span>
-          </div>
+    <section className="mt-1 max-w-2xl border-t border-zinc-800/65 pt-1">
+      <div
+        role="group"
+        aria-label="Motion cadence controls"
+        className="grid items-center gap-x-1.5 gap-y-0.5 sm:grid-cols-[minmax(8rem,10rem)_auto_7rem] sm:grid-rows-[auto_1.5rem]"
+      >
+        <div className="text-[9px] uppercase tracking-[0.12em] text-violet-300/85 sm:col-start-1 sm:row-start-1">
+          Motion cadence
         </div>
-        <div className="flex rounded border border-zinc-700 bg-zinc-950 p-0.5 text-[10px]">
+        <div className="text-[9px] uppercase tracking-[0.12em] text-zinc-600 sm:col-start-3 sm:row-start-1">
+          Start offset (ms)
+        </div>
+        <div
+          className="min-w-0 truncate text-[8px] text-zinc-600 sm:col-start-1 sm:row-start-2"
+          title="Shift this clip's private Pattern clock for rounds across zones."
+        >
+          <span aria-hidden>Private Pattern clock</span>
+          <span className="sr-only">Shift this clip&apos;s private Pattern clock for rounds across zones.</span>
+        </div>
+        <div className="flex h-6 rounded border border-zinc-700 bg-zinc-950 p-0.5 text-[9px] sm:col-start-2 sm:row-start-2">
           <button
             type="button"
             aria-label="Smooth motion"
             aria-pressed={!stepped}
-            className={stepped ? 'rounded px-2 py-1 text-zinc-500 hover:text-zinc-300' : 'rounded bg-zinc-700 px-2 py-1 text-zinc-100'}
+            className={stepped ? 'rounded px-1.5 text-zinc-500 hover:text-zinc-300' : 'rounded bg-zinc-700 px-1.5 text-zinc-100'}
             onClick={() => onChange(null)}
           >
             smooth
@@ -3464,29 +3873,33 @@ function MotionCadenceControl({
             type="button"
             aria-label="Stepped motion"
             aria-pressed={stepped}
-            className={stepped ? 'rounded bg-violet-400/20 px-2 py-1 text-violet-200' : 'rounded px-2 py-1 text-zinc-500 hover:text-zinc-300'}
+            className={stepped ? 'rounded bg-violet-400/20 px-1.5 text-violet-200' : 'rounded px-1.5 text-zinc-500 hover:text-zinc-300'}
             onClick={() => onChange(stepMs ?? 125)}
           >
             stepped
           </button>
         </div>
-        <NumberField
-          label="Start offset (ms)"
-          value={timeOffsetMs}
-          min={0}
-          max={60000}
-          step={50}
-          onChange={onOffsetChange}
-        />
+        <div className="sm:col-start-3 sm:row-start-2">
+          <NumberField
+            compact
+            hideLabel
+            label="Start offset (ms)"
+            value={timeOffsetMs}
+            min={0}
+            max={60000}
+            step={50}
+            onChange={onOffsetChange}
+          />
+        </div>
       </div>
       {stepped && (
         <>
-          <div className="mt-2 grid grid-cols-[minmax(0,1fr)_auto] items-end gap-2 border-t border-violet-400/10 pt-2">
-            <label className="text-[10px] uppercase text-zinc-600">
+          <div className="mt-1.5 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-t border-zinc-800/55 pt-1.5">
+            <label className="grid min-w-0 grid-cols-[auto_minmax(5rem,1fr)] items-center gap-3 text-[9px] uppercase text-zinc-600">
               Jumps per second
               <input
                 aria-label="Jumps per second"
-                className="mt-2 w-full accent-violet-400"
+                className="w-full accent-violet-400"
                 type="range"
                 min={0.25}
                 max={30}
@@ -3495,17 +3908,12 @@ function MotionCadenceControl({
                 onChange={(event) => onChange(steppedClockStepMs(Number(event.target.value)))}
               />
             </label>
-            <div className="rounded border border-zinc-700 bg-zinc-900 px-3 py-1.5 text-right">
-              <b className="block text-sm text-zinc-100">{rateLabel} / sec</b>
-              <span className="text-[9px] text-zinc-500">every {Math.round(stepMs)} ms</span>
+            <div className="text-right tabular-nums">
+              <b className="text-[10px] font-medium text-zinc-200">{rateLabel}/s</b>
+              <span className="ml-2 text-[8px] text-zinc-600">every {Math.round(stepMs)} ms</span>
             </div>
           </div>
-          <div className="mt-1.5 flex gap-1" aria-hidden>
-            {Array.from({ length: 12 }, (_, index) => (
-              <span key={index} className={index % 3 === 0 ? 'h-2 flex-1 bg-violet-300/70' : 'h-2 flex-1 bg-zinc-800'} />
-            ))}
-          </div>
-          <p className="mt-1.5 text-[9px] text-zinc-500">
+          <p className="mt-1 text-[8px] text-zinc-600">
             Motion freezes and jumps; unlike Light shutter, pixels do not blink off and the renderer keeps running.
           </p>
         </>
@@ -4732,6 +5140,7 @@ function NumberField({
   suffix,
   help,
   hideLabel = false,
+  compact = false,
   onChange,
 }: {
   label: string
@@ -4742,6 +5151,7 @@ function NumberField({
   suffix?: string
   help?: string
   hideLabel?: boolean
+  compact?: boolean
   onChange: (value: number) => void
 }) {
   const [draft, setDraft] = useState(() => String(value))
@@ -4765,7 +5175,7 @@ function NumberField({
   }
 
   return (
-    <label className="min-w-0 text-[10px] uppercase text-zinc-600" title={help}>
+    <label className={`min-w-0 uppercase text-zinc-600 ${compact ? 'text-[9px] tracking-[0.08em]' : 'text-[10px]'}`} title={help}>
       <span className={hideLabel ? 'sr-only' : 'flex items-center justify-between gap-2'}>
         <span>{label}</span>
         {normalized && <span className="font-mono text-[8px] tracking-normal text-zinc-700" title="Normalized value from zero to one">0–1</span>}
@@ -4793,7 +5203,7 @@ function NumberField({
               event.currentTarget.blur()
             }
           }}
-          className={`${field} min-w-0 w-full flex-1 appearance-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none`}
+          className={`${compact ? compactField : field} min-w-0 w-full flex-1 appearance-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none`}
         />
         {suffix && <span className="text-[10px] text-zinc-500">{suffix}</span>}
       </span>
@@ -4801,16 +5211,119 @@ function NumberField({
   )
 }
 
-function adaptationSummary(cell: ShowCell): string {
-  const parts = []
-  if (cell.adaptations.mirror) parts.push('mirror')
-  if (cell.adaptations.phase !== 0) parts.push(`phase ${cell.adaptations.phase.toFixed(2)}`)
-  if (cell.adaptations.brightness !== 1) parts.push(`dim ${cell.adaptations.brightness.toFixed(2)}`)
-  if (cell.adaptations.timeScale !== 1) parts.push(`animation speed ${cell.adaptations.timeScale.toFixed(1)}×`)
-  if (cell.adaptations.lightShutter) parts.push(`shutter ${Math.round(cell.adaptations.lightShutter.duty * 100)}%`)
-  if (cell.adaptations.steppedClock) parts.push(`step ${formatCadenceRate(steppedClockRateHz(cell.adaptations.steppedClock.stepMs))}/s`)
-  if ((cell.adaptations.timeOffsetMs ?? 0) > 0) parts.push(`offset ${Math.round(cell.adaptations.timeOffsetMs!)}ms`)
-  return parts.length ? parts.join(' - ') : 'no adaptations'
+function ClipSummaryInline({
+  summary,
+  zoneMode,
+  sceneComposition,
+}: {
+  summary: ShowClipSummarySection[]
+  zoneMode: 'span' | 'repeat' | null
+  sceneComposition: SceneCompositionSummary | null
+}) {
+  const zoneFact = zoneMode ? `${zoneMode} zones` : ''
+  const fullSummary = [showClipInlineSummary(summary), zoneFact].filter(Boolean).join(' · ')
+  return (
+    <span
+      aria-hidden
+      title={fullSummary}
+      className="show-clip-summary-inline flex min-w-0 items-center gap-2 overflow-hidden whitespace-nowrap text-[10px] text-zinc-500"
+    >
+      {summary.length === 0 && <span className="show-clip-summary-copy shrink-0">defaults</span>}
+      {summary.map((section) => (
+        <span key={section.kind} className="show-clip-summary-section inline-flex min-w-max items-center gap-1">
+          <ClipSummaryIcon kind={section.kind} size={10} />
+          <span className="show-clip-summary-copy">
+            {section.items.map((item, index) => (
+              <span key={item.id}>
+                {index > 0 && <span className="px-0.5 text-zinc-700">·</span>}
+                <span>{item.label}</span>
+                {item.value && <span className="ml-1 text-zinc-400">{item.value}</span>}
+              </span>
+            ))}
+          </span>
+        </span>
+      ))}
+      {zoneMode && (
+        <span className="show-clip-summary-section inline-flex min-w-max items-center gap-1">
+          <MapIcon size={10} aria-hidden className="text-zinc-600" />
+          <span className="show-clip-summary-copy">{zoneFact}</span>
+        </span>
+      )}
+      {sceneComposition && (
+        <span
+          title={`Scene composition: ${formatSceneCompositionSummary(sceneComposition)}`}
+          className="show-clip-summary-section inline-flex min-w-max items-center gap-1 text-violet-300/85"
+        >
+          <Layers3 size={10} aria-hidden />
+          <span className="show-clip-summary-copy">{formatSceneCompositionSummary(sceneComposition, true)}</span>
+        </span>
+      )}
+    </span>
+  )
+}
+
+function formatSceneCompositionSummary(summary: SceneCompositionSummary, terse = false): string {
+  const plural = (count: number, singular: string, short: string) => (
+    `${count} ${terse ? short : `${singular}${count === 1 ? '' : 's'}`}`
+  )
+  return [
+    plural(summary.placementCount, 'clip', 'clips'),
+    plural(summary.layerCount, 'layer', 'layers'),
+    ...(summary.effectCount > 0 ? [plural(summary.effectCount, 'effect', terse ? 'fx' : 'effects')] : []),
+    ...(summary.animationCount > 0 ? [plural(summary.animationCount, 'animation', terse ? 'anim' : 'animations')] : []),
+  ].join(' · ')
+}
+
+function ClipConfigurationSummary({ summary }: { summary: ShowClipSummarySection[] }) {
+  return (
+    <section
+      role="region"
+      aria-label="Clip summary"
+      title={showClipInlineSummary(summary)}
+      className="mt-0.5 flex max-h-7 min-h-3 flex-wrap items-center gap-x-3 gap-y-0.5 overflow-hidden font-mono text-[9px]"
+    >
+      {summary.length === 0 && <span className="text-zinc-600">Defaults</span>}
+      {summary.map((section) => (
+        <span
+          key={section.kind}
+          role="group"
+          aria-label={`${section.label} summary`}
+          className="inline-flex min-w-0 items-center gap-1.5"
+        >
+          <span
+            title={section.label}
+            aria-label={section.label}
+            className={clipSummaryTone(section.kind)}
+          >
+            <ClipSummaryIcon kind={section.kind} size={11} />
+          </span>
+          {section.items.map((item, index) => (
+            <span key={item.id} className="inline-flex items-baseline whitespace-nowrap">
+              {index > 0 && <span aria-hidden className="mr-1.5 text-zinc-700">·</span>}
+              <span className="text-zinc-400">{item.label}</span>
+              {item.value && <strong className="ml-1 font-medium text-zinc-100">{item.value}</strong>}
+            </span>
+          ))}
+        </span>
+      ))}
+    </section>
+  )
+}
+
+function ClipSummaryIcon({ kind, size }: { kind: ShowClipSummaryKind; size: number }) {
+  if (kind === 'playback') return <Clock3 size={size} aria-hidden />
+  if (kind === 'controls') return <SlidersHorizontal size={size} aria-hidden />
+  if (kind === 'view') return <Eye size={size} aria-hidden />
+  if (kind === 'effects') return <WandSparkles size={size} aria-hidden />
+  return <Activity size={size} aria-hidden />
+}
+
+function clipSummaryTone(kind: ShowClipSummaryKind): string {
+  if (kind === 'controls') return 'text-cyan-300/80'
+  if (kind === 'view') return 'text-amber-200/75'
+  if (kind === 'effects') return 'text-emerald-300/75'
+  if (kind === 'animation') return 'text-violet-300/85'
+  return 'text-zinc-400'
 }
 
 function formatCadenceRate(rateHz: number): string {

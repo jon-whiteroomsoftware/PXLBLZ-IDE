@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { Clapperboard, ScanSearch, X } from 'lucide-react'
 import { ShowPropertySparkline } from '@/components/ShowPropertySparkline'
@@ -13,12 +13,19 @@ const PROPERTY_COLOR = '#a78bfa'
 
 export function ShowSceneXray({
   detail,
+  open,
   onInspect,
 }: {
   detail: SceneReadOnlyBridgeProjection
-  onInspect: () => void
+  open: boolean
+  onInspect: (anchor: HTMLElement) => void
 }) {
   const duration = Math.max(1, detail.durationMs)
+  const placementTracks = detail.zones.flatMap((zone) => zone.layers.flatMap((layer, layerIndex) => (
+    layer.placements.map((placement) => ({ zone, layer, layerIndex, placement }))
+  )))
+  const layerCount = Math.max(1, ...detail.zones.map((zone) => zone.layers.length))
+  const trackHeight = Math.max(1, Math.min(3, 9 / layerCount))
   return (
     <div
       role="group"
@@ -26,6 +33,20 @@ export function ShowSceneXray({
       className="relative h-[36px] min-w-0 overflow-hidden border-x border-amber-300/25 bg-amber-300/[0.035] text-[8px] text-zinc-500"
     >
       <XrayStratum label="cuts">
+        {placementTracks.map(({ zone, layer, layerIndex, placement }) => (
+          <i
+            key={`${zone.zoneId}-${layer.id}-${placement.id}`}
+            data-scene-xray-placement={placement.id}
+            title={`${placement.patternName} · ${formatDuration(placement.startMs)}–${formatDuration(placement.endMs)}`}
+            className={`absolute min-w-px rounded-[1px] ${layer.role === 'main' ? 'bg-zinc-300/55' : 'bg-violet-300/65'}`}
+            style={{
+              top: 1 + layerIndex * trackHeight,
+              height: trackHeight,
+              left: `${placement.startMs / duration * 100}%`,
+              width: `${Math.max(1, (placement.endMs - placement.startMs) / duration * 100)}%`,
+            }}
+          />
+        ))}
         {detail.xray.cutReferences.map((reference) => (
           <i
             key={`${reference.kind}-${reference.localTimeMs}`}
@@ -53,13 +74,14 @@ export function ShowSceneXray({
       </XrayStratum>
       <button
         type="button"
-        aria-label={`Inspect ${detail.sceneName} in Super Detail`}
-        title={`Inspect ${detail.sceneName} in Super Detail`}
+        aria-label={`${open ? 'Hide' : 'Inspect'} ${detail.sceneName} in Super Detail`}
+        aria-pressed={open}
+        title={`${open ? 'Hide' : 'Inspect'} ${detail.sceneName} in Super Detail`}
         onClick={(event) => {
           event.stopPropagation()
-          onInspect()
+          onInspect(event.currentTarget)
         }}
-        className="absolute right-0.5 top-0.5 z-10 grid size-5 place-items-center rounded-sm bg-[#0b0d10]/90 text-zinc-400 shadow-[0_0_0_1px_rgba(82,82,91,.65)] transition-colors hover:text-amber-200 focus-visible:outline focus-visible:outline-1 focus-visible:outline-amber-300"
+        className={`absolute right-0.5 top-0.5 z-10 grid size-5 place-items-center rounded-sm bg-[#0b0d10]/90 shadow-[0_0_0_1px_rgba(82,82,91,.65)] transition-colors hover:text-amber-200 focus-visible:outline focus-visible:outline-1 focus-visible:outline-amber-300 ${open ? 'text-amber-200' : 'text-zinc-400'}`}
       >
         <ScanSearch size={11} aria-hidden />
       </button>
@@ -95,14 +117,40 @@ function PropertySparkline({ beats, durationMs }: { beats: SceneXrayPropertyBeat
 
 export function ShowSceneSuperDetail({
   detail,
+  anchor,
   onClose,
   onOpenScene,
 }: {
   detail: SceneReadOnlyBridgeProjection
+  anchor: HTMLElement
   onClose: () => void
   onOpenScene?: (sceneId: string) => void
 }) {
   const panelRef = useRef<HTMLElement>(null)
+  const [position, setPosition] = useState<{ left: number; top: number; maxHeight: number } | null>(null)
+  useLayoutEffect(() => {
+    const panel = panelRef.current
+    if (!panel || !anchor.isConnected) {
+      onClose()
+      return
+    }
+    const place = () => {
+      const anchorRect = anchor.getBoundingClientRect()
+      const panelRect = panel.getBoundingClientRect()
+      const gutter = 8
+      const gap = 6
+      const left = Math.max(gutter, Math.min(
+        window.innerWidth - panelRect.width - gutter,
+        anchorRect.right - panelRect.width,
+      ))
+      const maxHeight = Math.min(620, Math.max(120, anchorRect.top - gap - gutter))
+      const top = Math.max(gutter, anchorRect.top - Math.min(panelRect.height, maxHeight) - gap)
+      setPosition({ left, top, maxHeight })
+    }
+    place()
+    window.addEventListener('resize', place)
+    return () => window.removeEventListener('resize', place)
+  }, [anchor, detail.sceneId, onClose])
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return
@@ -127,29 +175,34 @@ export function ShowSceneSuperDetail({
       role="dialog"
       aria-modal="false"
       aria-label={`${detail.sceneName} Super Detail`}
-      className="fixed left-[clamp(8px,16vw,190px)] top-[clamp(56px,14vh,136px)] z-[90] flex max-h-[min(620px,calc(100vh-72px))] w-[min(720px,calc(100vw-clamp(16px,16vw,202px)))] flex-col overflow-hidden rounded-md border border-zinc-600 bg-[#090b0e]/[0.99] font-mono text-[10px] text-zinc-300 shadow-[0_24px_80px_-18px_rgba(0,0,0,.96),0_0_0_1px_rgba(230,184,92,.12)] backdrop-blur-sm"
+      className="fixed z-[90] flex max-h-[min(620px,calc(100vh-16px))] w-[min(720px,calc(100vw-16px))] flex-col overflow-hidden rounded-md border border-zinc-600 bg-[#090b0e]/[0.99] font-mono text-[10px] text-zinc-300 shadow-[0_24px_80px_-18px_rgba(0,0,0,.96),0_0_0_1px_rgba(230,184,92,.12)] backdrop-blur-sm"
+      style={{
+        left: position?.left ?? 8,
+        top: position?.top ?? 8,
+        maxHeight: position?.maxHeight,
+        visibility: position ? 'visible' : 'hidden',
+      }}
       onClick={(event) => event.stopPropagation()}
       onPointerDown={(event) => event.stopPropagation()}
     >
-      <header className="flex h-10 shrink-0 items-center gap-2 border-b border-zinc-700 bg-[#11151a] px-3">
-        <ScanSearch size={13} aria-hidden className="text-amber-200" />
-        <h2 className="min-w-0 truncate text-[12px] font-semibold text-zinc-100">{detail.sceneName} · Super Detail</h2>
-        <span className="rounded-sm border border-zinc-700 bg-zinc-900/70 px-1.5 py-0.5 text-[8px] font-medium uppercase tracking-[0.12em] text-zinc-500">Read only</span>
-        <span className="ml-auto whitespace-nowrap tabular-nums text-[9px] text-zinc-500">
+      <header className="flex h-8 shrink-0 items-center gap-1.5 border-b border-zinc-800 bg-[#0d1014] px-2">
+        <h2 className="min-w-0 truncate text-[11px] font-semibold text-zinc-200">{detail.sceneName} · Super Detail</h2>
+        <span className="text-[8px] font-medium uppercase tracking-[0.1em] text-zinc-600">Read only</span>
+        <span className="ml-auto whitespace-nowrap tabular-nums text-[8px] text-zinc-600">
           Global {formatTimelineTime(detail.globalStartMs)}–{formatTimelineTime(detail.globalEndMs)}
         </span>
         {onOpenScene && (
           <button
             type="button"
             aria-label={`Open ${detail.sceneName} editor`}
+            title={`Open ${detail.sceneName} editor`}
             onClick={() => {
               onOpenScene(detail.sceneId)
               onClose()
             }}
-            className="flex h-6 items-center gap-1 rounded border border-cyan-300/35 bg-cyan-300/10 px-2 text-[9px] font-semibold text-cyan-100 hover:border-cyan-200/60 hover:bg-cyan-300/15 focus-visible:outline focus-visible:outline-1 focus-visible:outline-amber-300"
+            className="grid size-5 place-items-center rounded bg-cyan-300/10 text-cyan-200 hover:bg-cyan-300/20 hover:text-cyan-100 focus-visible:outline focus-visible:outline-1 focus-visible:outline-amber-300"
           >
-            <Clapperboard size={11} aria-hidden />
-            Open Scene
+            <Clapperboard size={10} aria-hidden />
           </button>
         )}
         <button
@@ -157,7 +210,7 @@ export function ShowSceneSuperDetail({
           aria-label="Close Super Detail"
           title="Close Super Detail (Escape)"
           onClick={onClose}
-          className="grid size-6 place-items-center rounded text-zinc-500 hover:bg-zinc-800 hover:text-zinc-100 focus-visible:outline focus-visible:outline-1 focus-visible:outline-amber-300"
+          className="grid size-5 place-items-center rounded text-zinc-600 hover:bg-zinc-800 hover:text-zinc-100 focus-visible:outline focus-visible:outline-1 focus-visible:outline-amber-300"
         >
           <X size={13} aria-hidden />
         </button>
@@ -175,39 +228,67 @@ export function ShowSceneSuperDetail({
         <LocalRuler durationMs={detail.durationMs} />
         {detail.zones.map((zone) => (
           <div key={zone.zoneId} className="border-b border-zinc-800 last:border-b-0">
-            <DetailTrack label={`${zone.zoneName} · ${zone.nominalPixelCount}px`} accent="#c9d0d7">
-              {zone.placements.map((placement) => (
-                <span
-                  key={placement.id}
-                  className={`absolute inset-y-1 border px-1.5 leading-5 ${placement.compiled ? 'border-slate-500 bg-slate-700/35 text-zinc-100' : 'border-dashed border-red-400/60 bg-red-400/10 text-red-200'}`}
-                  style={{
-                    left: `${placement.startMs / Math.max(1, detail.durationMs) * 100}%`,
-                    width: `${Math.max(2, (placement.endMs - placement.startMs) / Math.max(1, detail.durationMs) * 100)}%`,
-                  }}
+            {zone.layers.map((layer) => (
+              <div key={layer.id}>
+                <DetailTrack
+                  ariaLabel={layer.role === 'main'
+                    ? `Main layer for ${zone.zoneName}`
+                    : `${layer.name} overlay layer for ${zone.zoneName}`}
+                  label={layer.role === 'main'
+                    ? `${zone.zoneName} · Main clips`
+                    : `↳ ${layer.name} · overlay`}
+                  accent={layer.role === 'main' ? '#c9d0d7' : '#b9a2ff'}
                 >
-                  <span className="font-semibold">{placement.patternName}</span>
-                  {placement.continuesFromPrevious && <span className="ml-2 text-cyan-300">continues in</span>}
-                  {placement.continuesToNext && <span className="ml-2 text-cyan-300">continues out</span>}
-                </span>
-              ))}
-            </DetailTrack>
-            {zone.placements.some((placement) => placement.effectKinds.length > 0) && (
-              <DetailTrack label="↳ effects" accent={EFFECT_COLOR} compact>
-                {zone.placements.flatMap((placement) => placement.effectKinds.map((kind, index) => (
-                  <span
-                    key={`${placement.id}-${kind}-${index}`}
-                    className="absolute inset-y-1 truncate border border-emerald-300/40 bg-emerald-300/10 px-1 text-emerald-200"
-                    style={{
-                      left: `${placement.startMs / Math.max(1, detail.durationMs) * 100}%`,
-                      width: `${Math.max(2, (placement.endMs - placement.startMs) / Math.max(1, detail.durationMs) * 100)}%`,
-                    }}
-                  >
-                    {kind}
-                  </span>
-                ))) }
-              </DetailTrack>
-            )}
+                  {layer.placements.map((placement) => (
+                    <span
+                      key={placement.id}
+                      className={`absolute inset-y-1 overflow-hidden border px-1.5 leading-5 ${placement.compiled ? 'border-slate-500 bg-slate-700/35 text-zinc-100' : 'border-dashed border-red-400/60 bg-red-400/10 text-red-200'}`}
+                      style={{
+                        left: `${placement.startMs / Math.max(1, detail.durationMs) * 100}%`,
+                        width: `${Math.max(2, (placement.endMs - placement.startMs) / Math.max(1, detail.durationMs) * 100)}%`,
+                      }}
+                    >
+                      <span className="font-semibold">{placement.patternName}</span>
+                      {placement.continuesFromPrevious && <span className="ml-2 text-cyan-300">continues in</span>}
+                      {placement.continuesToNext && <span className="ml-2 text-cyan-300">continues out</span>}
+                    </span>
+                  ))}
+                </DetailTrack>
+                {layer.placements.some((placement) => placement.effectKinds.length > 0) && (
+                  <DetailTrack label="↳ effects" accent={EFFECT_COLOR} compact>
+                    {layer.placements.filter((placement) => placement.effectKinds.length > 0).map((placement) => (
+                      <span
+                        key={placement.id}
+                        className="absolute inset-y-1 truncate border border-emerald-300/40 bg-emerald-300/10 px-1 text-emerald-200"
+                        style={{
+                          left: `${placement.startMs / Math.max(1, detail.durationMs) * 100}%`,
+                          width: `${Math.max(2, (placement.endMs - placement.startMs) / Math.max(1, detail.durationMs) * 100)}%`,
+                        }}
+                      >
+                        {placement.effectKinds.join(' · ')}
+                      </span>
+                    ))}
+                  </DetailTrack>
+                )}
+              </div>
+            ))}
           </div>
+        ))}
+        {detail.localAnimations.map((animation) => (
+          <DetailTrack
+            key={animation.id}
+            ariaLabel={`${animation.label} local animation lane`}
+            label={`↳ ${animation.label}`}
+            accent={PROPERTY_COLOR}
+            compact
+          >
+            <ShowPropertySparkline
+              ariaLabel={`${animation.label} local animation`}
+              projection={animation.projection}
+              color={PROPERTY_COLOR}
+              className="absolute inset-0 size-full bg-[#080a0d]"
+            />
+          </DetailTrack>
         ))}
         {detail.xray.propertyBeats.map((beat, index) => (
           <DetailTrack key={`${beat.direction}-${beat.property}-${index}`} label={`↳ ${beat.property}`} accent={PROPERTY_COLOR} compact>
@@ -250,14 +331,15 @@ function LocalRuler({ durationMs }: { durationMs: number }) {
   )
 }
 
-function DetailTrack({ label, accent, compact = false, children }: {
+function DetailTrack({ label, ariaLabel, accent, compact = false, children }: {
   label: string
+  ariaLabel?: string
   accent: string
   compact?: boolean
   children: ReactNode
 }) {
   return (
-    <div className={`grid grid-cols-[112px_minmax(0,1fr)] border-b border-zinc-800 last:border-b-0 ${compact ? 'h-6' : 'h-8'}`}>
+    <div role={ariaLabel ? 'group' : undefined} aria-label={ariaLabel} className={`grid grid-cols-[112px_minmax(0,1fr)] border-b border-zinc-800 last:border-b-0 ${compact ? 'h-6' : 'h-8'}`}>
       <span className="flex min-w-0 items-center truncate border-r border-zinc-800 px-2" style={{ color: accent }}>{label}</span>
       <span className="relative min-w-0 overflow-hidden">{children}</span>
     </div>

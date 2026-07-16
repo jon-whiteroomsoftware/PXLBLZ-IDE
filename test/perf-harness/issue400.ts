@@ -284,7 +284,13 @@ async function measureHardware(
   })
   connection.on('error', (error) => console.error('controller socket:', error))
   await connection.connect()
+  const originalConfig = await connection.getConfig()
+  if (!originalConfig.activeProgramId) {
+    connection.close()
+    throw new Error('controller did not report an active program; refusing a non-reversible hardware run')
+  }
   const results: HardwareMeasurement[] = []
+  let runError: unknown
   try {
     for (const candidate of candidates) {
       const fixture = makeRoutingFixture({
@@ -324,9 +330,28 @@ async function measureHardware(
     const visualCompiled = compile(bundle(visualProbe.source, {}).code)
     if (!visualCompiled.ok) throw new Error(`final visual probe failed: ${visualCompiled.error}`)
     await pushAndMeasure(connection, visualCompiled.bytecode, 500, 1000)
+  } catch (error) {
+    runError = error
   } finally {
-    connection.close()
+    try {
+      connection.setActiveProgram(originalConfig.activeProgramId)
+      await sleep(500)
+      const restored = await connection.getConfig()
+      if (restored.activeProgramId !== originalConfig.activeProgramId) {
+        const restoreError = new Error(
+          `original active program did not restore (active=${restored.activeProgramId ?? 'none'}, expected=${originalConfig.activeProgramId})`,
+        )
+        runError = runError == null
+          ? restoreError
+          : new AggregateError([runError, restoreError], 'hardware run and active-program restoration both failed')
+      } else {
+        console.log(`  restored original active program ${originalConfig.activeProgramId}`)
+      }
+    } finally {
+      connection.close()
+    }
   }
+  if (runError != null) throw runError
   return results
 }
 

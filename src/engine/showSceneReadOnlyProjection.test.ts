@@ -9,6 +9,7 @@ import {
 } from './showModel'
 import { projectFlatShowComposition } from './showCompositionProjection'
 import { projectSceneReadOnlyBridge } from './showSceneReadOnlyProjection'
+import { STOCK_SHOWS } from '../pixelblaze/stock/shows'
 
 const SOURCE = 'export function render(index) { hsv(index / 60, 1, 1) }'
 
@@ -84,5 +85,39 @@ describe('Scene read-only projection (#471)', () => {
 
     expect(comet).toMatchObject({ compiled: true, diagnostics: [] })
     expect(detail.diagnostics).toEqual([])
+  })
+
+  it('projects authored Scene-local Main and overlay layers instead of the flat compatibility Clip', () => {
+    const stock = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-202-layers-local-animation')!
+    const projection = projectFlatShowComposition(stock.show, {
+      byCellId: Object.fromEntries(stock.show.cells.map((cell) => [cell.id, SOURCE])),
+      stageDimension: 2,
+    })
+
+    const detail = projectSceneReadOnlyBridge(projection, 'signal-water')
+
+    expect(detail.summary).toEqual({
+      placementCount: 2,
+      layerCount: 2,
+      effectCount: 2,
+      animationCount: 1,
+      nontrivial: true,
+    })
+    expect(detail.zones[0].layers).toEqual([
+      expect.objectContaining({
+        id: 'layer-signal',
+        name: 'Signal',
+        role: 'overlay',
+        placements: [expect.objectContaining({ patternName: 'SignalMandala', startMs: 3_000, endMs: 13_000 })],
+      }),
+      expect.objectContaining({
+        id: 'main',
+        name: 'Main',
+        role: 'main',
+        placements: [expect.objectContaining({ patternName: 'Caustics', startMs: 0, endMs: 16_000 })],
+      }),
+    ])
+    expect(detail.xray.cutReferences.map((reference) => reference.localTimeMs)).toEqual([0, 3_000, 13_000, 16_000])
+    expect(detail.xray.effectActivity).toHaveLength(2)
   })
 })

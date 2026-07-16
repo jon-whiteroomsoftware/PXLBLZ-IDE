@@ -416,6 +416,26 @@
   container-type: inline-size;
 }
 
+/* Clips progressively shed copy before they shed meaning. At narrow scene
+   widths the second row becomes the same category glyphs used by Entity Detail. */
+.show-timeline-clip {
+  container-type: inline-size;
+}
+
+@container (max-width: 125px) {
+  .show-timeline-clip .show-clip-summary-copy {
+    display: none;
+  }
+
+  .show-timeline-clip .show-clip-summary-inline {
+    gap: 5px;
+  }
+
+  .show-timeline-clip .show-clip-summary-section {
+    min-width: 0;
+  }
+}
+
 @container (max-width: 640px) {
   .show-pane-header {
     display: grid;

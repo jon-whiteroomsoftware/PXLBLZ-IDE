@@ -32,7 +32,7 @@ function detailFixture() {
 describe('Show Scene read-only bridge (#471)', () => {
   it('renders the X-ray as one fixed 36px row with three non-editable strata', () => {
     const onInspect = vi.fn()
-    render(<ShowSceneXray detail={detailFixture()} onInspect={onInspect} />)
+    render(<ShowSceneXray detail={detailFixture()} open={false} onInspect={onInspect} />)
 
     const xray = screen.getByRole('group', { name: 'Scene 2 Scene X-ray, read only' })
     expect(xray).toHaveClass('h-[36px]')
@@ -44,14 +44,17 @@ describe('Show Scene read-only bridge (#471)', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Inspect Scene 2 in Super Detail' }))
     expect(onInspect).toHaveBeenCalledOnce()
+    expect(onInspect).toHaveBeenCalledWith(expect.any(HTMLButtonElement))
   })
 
   it('opens one modeless read-only Super Detail layer and dismisses it with Escape', () => {
     const onClose = vi.fn()
-    render(<ShowSceneSuperDetail detail={detailFixture()} onClose={onClose} />)
+    const anchor = document.body.appendChild(document.createElement('button'))
+    render(<ShowSceneSuperDetail detail={detailFixture()} anchor={anchor} onClose={onClose} />)
 
     const dialog = screen.getByRole('dialog', { name: 'Scene 2 Super Detail' })
     expect(dialog).toHaveAttribute('aria-modal', 'false')
+    expect(dialog.querySelector('header')).toHaveClass('h-8')
     expect(dialog).toHaveTextContent('Global 00:32.0–01:02.0')
     expect(dialog).toHaveTextContent('Local 00:00.0–00:30.0')
     expect(dialog).toHaveTextContent('TestPattern1D')
@@ -61,14 +64,17 @@ describe('Show Scene read-only bridge (#471)', () => {
 
     fireEvent.keyDown(document, { key: 'Escape' })
     expect(onClose).toHaveBeenCalledOnce()
+    anchor.remove()
   })
 
   it('offers the production Scene editor only when an open handler is available (#487)', () => {
     const onClose = vi.fn()
     const onOpenScene = vi.fn()
+    const anchor = document.body.appendChild(document.createElement('button'))
     render(
       <ShowSceneSuperDetail
         detail={detailFixture()}
+        anchor={anchor}
         onClose={onClose}
         onOpenScene={onOpenScene}
       />,
@@ -77,6 +83,7 @@ describe('Show Scene read-only bridge (#471)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Open Scene 2 editor' }))
     expect(onOpenScene).toHaveBeenCalledWith('scene-2')
     expect(onClose).toHaveBeenCalledOnce()
+    anchor.remove()
   })
 })
 

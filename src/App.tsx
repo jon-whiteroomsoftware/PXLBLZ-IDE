@@ -322,6 +322,8 @@ function StudioApp() {
   const confirmShowClassification = useShowStore((s) => s.confirmShowClassification)
   const cancelShowClassification = useShowStore((s) => s.cancelShowClassification)
   const personalWorkspaceResolved = useWorkspaceStore((s) => s.personalWorkspaceResolved)
+  const personalWorkspaceUnavailable = useWorkspaceStore((s) => s.personalWorkspaceUnavailable)
+  const retryPersonalWorkspaceAccess = useWorkspaceStore((s) => s.retryPersonalWorkspaceAccess)
   const routeSyncedRef = useRef(false)
   const lastTrackedPathRef = useRef<string | null>(null)
   const [studioWelcomeAcknowledged, setStudioWelcomeAcknowledged] = useState(() => {
@@ -332,6 +334,7 @@ function StudioApp() {
     }
   })
   const [showHeaderActionsTarget, setShowHeaderActionsTarget] = useState<HTMLSpanElement | null>(null)
+  const [showHeaderGuideTarget, setShowHeaderGuideTarget] = useState<HTMLSpanElement | null>(null)
   useEffect(() => {
     if (route.kind !== 'studio') return
     const togglePreviewWithSpace = (event: KeyboardEvent) => {
@@ -636,7 +639,8 @@ function StudioApp() {
   const invalidDocRoute = route.kind === 'docs' && !isDocId(route.docId)
   const browseRoute = route.kind === 'gallery' || route.kind === 'pattern-detail'
   const studioRoute = route.kind === 'studio'
-  const studioAccessPending = studioRoute && !personalWorkspaceResolved
+  const studioAccessUnavailable = studioRoute && personalWorkspaceUnavailable
+  const studioAccessPending = studioRoute && !personalWorkspaceResolved && !personalWorkspaceUnavailable
   const detailPattern = route.kind === 'pattern-detail' ? galleryPatternBySlug(route.slug) : undefined
 
   const openDetailPatternInStudio = useCallback((pattern: GalleryPattern) => {
@@ -758,6 +762,13 @@ function StudioApp() {
           actionLabel="Back to Studio"
           onAction={() => navigate({ kind: 'studio', entity: null }, { replace: true })}
         />
+      ) : studioAccessUnavailable ? (
+        <RouteMessage
+          title="Studio access unavailable"
+          detail="The local workspace service did not respond. Retry after it reconnects; Gallery remains available."
+          actionLabel="Retry"
+          onAction={retryPersonalWorkspaceAccess}
+        />
       ) : studioAccessPending ? (
         <RouteMessage
           title="Checking Studio access"
@@ -861,6 +872,9 @@ function StudioApp() {
                       onRename={activeShow && !routedStockShow ? (nextName) => renameShow(activeShow.id, nextName) : undefined}
                       takenNames={shows.filter((show) => show.id !== activeShow?.id).map((show) => show.name)}
                     />
+                    {routedStockShow?.note && (
+                      <span ref={setShowHeaderGuideTarget} className="show-header-guide flex shrink-0 items-center" />
+                    )}
                   </span>
                   {activeShow && (
                     <span
@@ -1008,7 +1022,9 @@ function StudioApp() {
                     track: routedStockShow.track,
                     lesson: routedStockShow.lesson,
                     description: routedStockShow.description,
+                    note: routedStockShow.note,
                   } : undefined}
+                  headerGuideTarget={showHeaderGuideTarget}
                   headerActionsTarget={showHeaderActionsTarget}
                 />
               ) : (

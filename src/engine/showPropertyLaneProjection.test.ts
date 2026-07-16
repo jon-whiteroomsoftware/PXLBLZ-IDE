@@ -2,10 +2,12 @@ import { describe, expect, it } from 'vitest'
 import { createDefaultShow, updateShowBoundaryTransition, updateShowCellAdaptations } from './showModel'
 import {
   projectGlobalShowPropertyLane,
+  projectGlobalShowScenePropertyLanes,
   projectShowPropertyLane,
   projectShowPropertyTrackLane,
   unprojectShowPropertyLaneValue,
 } from './showPropertyLaneProjection'
+import { STOCK_SHOWS } from '../pixelblaze/stock/shows'
 
 describe('Show property lane projection (#483)', () => {
   it('keeps flat normalized tracks at their truthful vertical level (#496)', () => {
@@ -75,11 +77,40 @@ describe('Show property lane projection (#483)', () => {
     expect(lane.samples.find((sample) => sample.timeMs === 1_000)?.value).toBeCloseTo(0.35)
   })
 
+  it('projects only genuine Scene-local change into parent Show-time coordinates', () => {
+    const stock = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-202-layers-local-animation')!
+    const lanes = projectGlobalShowScenePropertyLanes(stock.show)
+
+    expect(lanes).toHaveLength(1)
+    expect(lanes[0]).toMatchObject({
+      sceneId: 'signal-water',
+      zoneId: 'zone-1',
+      label: 'SignalMandala opacity',
+      valueKind: 'percent',
+    })
+    expect(lanes[0].projection.beats.map((beat) => ({ timeMs: beat.timeMs, value: beat.value }))).toEqual([
+      { timeMs: 3_000, value: 0 },
+      { timeMs: 5_000, value: 0.72 },
+      { timeMs: 11_000, value: 0.72 },
+      { timeMs: 13_000, value: 0 },
+    ])
+    expect(lanes[0].projection.beats.map((beat) => beat.displayX)).toEqual([
+      3 / 16,
+      5 / 16,
+      11 / 16,
+      13 / 16,
+    ])
+  })
+
   it('hides a global default lane and reveals a truthful boundary ramp once authored', () => {
     let show = createDefaultShow('show-global-lane', 'Global lane', 1_000)
     expect(projectGlobalShowPropertyLane(show, 'zone-1', { kind: 'timeScale' }).disclosed).toBe(false)
 
     show = updateShowCellAdaptations(show, 'cell-2', { timeScale: 0 })
+    const constantOverrides = projectGlobalShowPropertyLane(show, 'zone-1', { kind: 'timeScale' })
+    expect(constantOverrides.disclosed).toBe(true)
+    expect(constantOverrides.timeVarying).toBe(false)
+
     show = updateShowBoundaryTransition(show, 'transition-scene-1', {
       propertyTransitions: {
         timeScale: {
@@ -90,6 +121,7 @@ describe('Show property lane projection (#483)', () => {
       },
     })
     const lane = projectGlobalShowPropertyLane(show, 'zone-1', { kind: 'timeScale' })
+    expect(lane.timeVarying).toBe(true)
     const rampStart = lane.beats.find((beat) => beat.id.endsWith(':start'))!
     const rampEnd = lane.beats.find((beat) => beat.id.endsWith(':end'))!
 

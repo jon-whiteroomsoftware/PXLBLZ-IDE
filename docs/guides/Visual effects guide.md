@@ -1,10 +1,11 @@
-# Show visual toolkit
+# Visual effects guide
 
-The Show visual toolkit has three jobs: **Property animation** changes a saved
-number over time, an **Effect** changes one clip, and a **Transition** moves from
-one Scene to the next. They share parameters and timing controls, but they own
-different parts of the Show. Choosing the right class keeps the timeline
-readable and makes the compiled cost predictable.
+This guide explains how to animate and combine visual material in a Show.
+**Property animation** changes a saved number over time, an **Effect** changes
+one Clip, and a **Transition** moves from one Scene to the next. They share
+parameters and timing controls, but they own different parts of the Show.
+Choosing the right class keeps the timeline readable and makes the compiled
+cost predictable.
 
 The fastest way to learn the system is to open **Shows > Built-in Shows** in
 Studio. The Portable track teaches normalized logical layouts; the Installation
@@ -29,9 +30,10 @@ cloned. A Scene boundary carries its Transition. The destination clip or Scene
 carries a Property animation's target value, while the incoming boundary carries
 the optional start, duration, and easing used to reach it.
 
-If a change belongs inside an existing Scene, use **Split** first. Split creates
-a structural boundary where a new target can begin. The current editor does not
-hide arbitrary freeform keyframes inside a Scene.
+If a change belongs inside an existing Scene, open that Scene's local editor.
+Its Main lane carries mutually exclusive Clips, overlay lanes carry concurrent
+Clips, and typed property tracks carry local keyframes. Use a global **Split**
+when the change should remain visible and editable on the global timeline.
 
 ## Reading the timeline
 
@@ -158,6 +160,90 @@ that one Pattern evaluation. The advanced disclosure reports those operations,
 generated memory, artifact bytes, pixel-count math, and compatibility warnings.
 It is the place to compare two visually acceptable choices before sending a
 dense Show to a Controller.
+
+## Stock Show companion
+
+The stock catalogue uses small executable examples rather than an embedded
+tutorial system. Each Show note names the idea to notice and two safe changes to
+try; the sections below explain the corresponding mechanism.
+
+### Clips, Scenes, and boundaries
+
+A Clip chooses a Pattern and its values for a span of time. A Scene groups the
+Clips active during that span, while the boundary between Scenes owns the Cut,
+Crossfade, Wipe, or other Transition that exchanges them.
+
+### Transitions and Clip values
+
+Transition geometry and Clip values remain separate even when they change over
+the same interval. The destination Clip owns its saved brightness, speed, and
+Pattern-control targets; the incoming boundary supplies interpolation timing.
+
+### Clip Effects
+
+Effects run after one Clip's Pattern renders. Their order is meaningful within
+the compiler's Transform, Distort, Address, and Color & output stages, and the
+Effect stack moves with its Clip.
+
+### Portable Zones
+
+Portable Zones divide normalized space, not fixed LED indexes. The same Show can
+therefore adapt to another compatible 2D surface while each Zone retains an
+independent Pattern instance and clock.
+
+### Building a complete Show
+
+Build an arc from a few legible decisions: establish structure, introduce one
+dominant change at a time, then release it. More active Zones do not require
+every Clip to change Pattern, Effect, value, and Transition simultaneously.
+
+### Scene-local Main Clips
+
+The Main lane is a mutually exclusive schedule inside one Scene. Its placements
+may touch but not overlap, which makes local Cuts predictable and guarantees one
+Main source at any instant the lane covers.
+
+### Scene layers and local animation
+
+Overlay lanes add concurrent Clips above Main. A placement's opacity and typed
+property tracks control how it contributes during its own local interval; the
+track cannot extend beyond the owning Scene.
+
+### Dynamic Zone Layouts
+
+Zone names express ownership and Zone Layouts express geometry. A boundary can
+animate a parameter of the current layout or switch to another named layout
+without changing which Patterns the Zones own.
+
+### Installation output and physical ranges
+
+An Installation output contract fixes both the map and LED count. Every active
+routing layout must assign every output index exactly once, including when one
+named Zone owns several non-contiguous ranges.
+
+### Composing a fixed Installation
+
+Use physical groupings that match how people perceive the object: pucks, rows,
+arches, panels, or other units. Symmetry in Pattern choice and timing can make
+an irregular measured map read as one intentional composition.
+
+### Transform Effects
+
+Translate, Rotate, Scale, and Shear alter the coordinates used to sample a
+Pattern. Wrap applies after the complete transform when samples outside the
+source domain should re-enter from the opposite edge.
+
+### Distortion Effects
+
+Ripple, Swirl, Bulge, Pixelate, and Kaleidoscope remap sample positions through
+non-linear geometry. A diagnostic grid makes the center, radius, amount, and
+orientation of that remap visible.
+
+### Color and output Effects
+
+Opacity, Brightness, Hue, Saturation, Contrast, Invert, Threshold, Posterize,
+and Color map change rendered color without moving geometry. Use a known RGB
+source when comparing operations that can look similar on a black background.
 
 ## A practical authoring loop
 

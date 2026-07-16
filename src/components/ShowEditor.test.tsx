@@ -35,7 +35,9 @@ import { createInstallationShowOutputContract, createPortableShowOutputContract 
 import { showPreviewOverrideInitialState, useShowPreviewOverrideStore } from '@/store/showPreviewOverrideStore'
 import { showEditorSessionInitialState, useShowEditorSessionStore } from '@/store/showEditorSessionStore'
 import { STOCK_SHOWS } from '@/pixelblaze/stock/shows'
+import { DEMOS } from '@/pixelblaze/stock/patterns'
 import { buildShowCompositionFreezeCases } from '@/engine/showCompositionFreeze'
+import { projectFlatShowToCompositionV1 } from '@/engine/showCompositionModel'
 
 function changeCommittedNumber(label: string, value: string): void {
   const input = screen.getByLabelText(label)
@@ -122,6 +124,125 @@ describe('ShowEditor (#318)', () => {
     expect(useShowStore.getState().shows).toEqual([])
   })
 
+  it('opens a stock Show guide on first visit and fully collapses it per Show (#363)', async () => {
+    const user = userEvent.setup()
+    const stock = STOCK_SHOWS[0]
+    const builtInContext = {
+      track: stock.track,
+      lesson: stock.lesson,
+      description: stock.description,
+      note: {
+        label: 'Learn 100',
+        number: '101',
+        title: 'Clips and Crossfade',
+        purpose: 'Two Patterns become one timed composition. Each Clip owns what plays; the boundary between them owns how the picture changes.',
+        notice: 'The Crossfade is a separate timeline entity, not a property hidden inside either Clip.',
+        prompts: [
+          'Shorten the Crossfade from 2.0 s to 0.8 s.',
+          'Replace Clockwork Iris with a Pattern that moves differently.',
+        ] as [string, string],
+        guide: {
+          documentId: 'show-visual-toolkit' as const,
+          heading: 'clips-scenes-and-boundaries',
+          label: 'Read clips, scenes, and boundaries',
+        },
+        defaultOpen: true,
+      },
+    }
+
+    render(<ShowEditor showId={stock.id} showOverride={stock.show} readOnly builtInContext={builtInContext} />)
+
+    const guide = screen.getByRole('region', { name: '101 Clips and Crossfade guide' })
+    expect(guide).toHaveClass('select-none')
+    expect(within(guide).getByText(builtInContext.note.purpose)).toBeInTheDocument()
+    expect(within(guide).getByText(builtInContext.note.notice)).toBeInTheDocument()
+    expect(within(guide).getByRole('link', { name: builtInContext.note.guide.label })).toHaveAttribute(
+      'href',
+      expect.stringContaining('/docs/show-visual-toolkit#clips-scenes-and-boundaries'),
+    )
+
+    await user.click(within(guide).getByRole('button', { name: 'Collapse 101 guide' }))
+    expect(screen.queryByRole('region', { name: '101 Clips and Crossfade guide' })).not.toBeInTheDocument()
+    expect(useShowEditorSessionStore.getState().showNoteOpenById[stock.id]).toBe(false)
+
+    const trigger = screen.getByRole('button', { name: 'Open 101 Clips and Crossfade guide' })
+    expect(trigger).toHaveAttribute('data-size', 'icon-xs')
+    expect(within(trigger).queryByText('101 Guide')).not.toBeInTheDocument()
+    await user.click(trigger)
+    expect(screen.getByRole('region', { name: '101 Clips and Crossfade guide' })).toBeInTheDocument()
+  })
+
+  it('keeps every Clip fact inline and repeats a categorized summary inside Entity Detail', async () => {
+    const user = userEvent.setup()
+    let show = createDefaultShow('show-constant-overrides', 'Constant overrides', 1000)
+    show = updateShowCellPattern(show, show.cells[0].id, {
+      pattern: { kind: 'stock', id: 'RibbonLoom' },
+      patternName: 'Ribbon Loom',
+    })
+    show = updateShowCellAdaptations(show, show.cells[0].id, { timeScale: 0.35 })
+    show.cells[0] = {
+      ...show.cells[0],
+      controlTargets: { sliderSpeed: 0.28 },
+      effects: [{ id: 'clip-hue', kind: 'hue', turns: 0.1 }],
+    }
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+
+    expect(screen.queryByRole('group', { name: 'Animation speed lane for main' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('group', { name: 'Speed control lane for main' })).not.toBeInTheDocument()
+
+    const clip = screen.getByRole('button', { name: 'Select Ribbon Loom' })
+    expect(within(clip).getByTitle('Animation speed 0.35× · Speed 0.28 · Hue 0.1 turn')).toBeInTheDocument()
+    await user.hover(clip)
+    expect(screen.queryByRole('tooltip', { name: 'Ribbon Loom Clip overrides' })).not.toBeInTheDocument()
+    await user.click(clip)
+
+    const panel = screen.getByRole('dialog', { name: 'Entity Detail Panel' })
+    const summary = within(panel).getByRole('region', { name: 'Clip summary' })
+    expect(within(summary).getByRole('group', { name: 'Playback summary' })).toBeInTheDocument()
+    expect(within(summary).getByRole('group', { name: 'Pattern controls summary' })).toBeInTheDocument()
+    expect(within(summary).getByRole('group', { name: 'Effects summary' })).toBeInTheDocument()
+    expect(within(summary).getByText('Animation speed')).toBeInTheDocument()
+    expect(within(summary).getByText('0.35×')).toBeInTheDocument()
+    expect(within(summary).getByText('Speed')).toBeInTheDocument()
+    expect(within(summary).getByText('0.28')).toBeInTheDocument()
+    expect(within(summary).getByText('Hue')).toBeInTheDocument()
+  })
+
+  it('projects one Scene-local keyframe animation into one main-timeline sparkline', () => {
+    const stock = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-202-layers-local-animation')!
+
+    render(<ShowEditor showId={stock.id} showOverride={stock.show} readOnly />)
+
+    const localAnimation = screen.getByRole('group', { name: 'SignalMandala opacity animation for Main' })
+    expect(localAnimation.querySelector('polyline')).toBeInTheDocument()
+    expect(localAnimation.querySelectorAll('[data-property-beat-dot]')).toHaveLength(4)
+    expect(screen.getAllByRole('group', { name: /animation for Main$/ })).toHaveLength(1)
+    expect(screen.queryByRole('group', { name: 'Animation speed lane for Main' })).not.toBeInTheDocument()
+  })
+
+  it('signals nontrivial Scene-local composition on the global Clip and exposes every layer in Super Detail', async () => {
+    const user = userEvent.setup()
+    const stock = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-202-layers-local-animation')!
+
+    render(<ShowEditor showId={stock.id} showOverride={stock.show} readOnly />)
+
+    const clip = screen.getByRole('button', { name: 'Select Caustics' })
+    expect(within(clip).getByTitle('Scene composition: 2 clips · 2 layers · 2 effects · 1 animation')).toBeInTheDocument()
+
+    const inspect = screen.getByRole('button', { name: 'Inspect Signal over water in Super Detail' })
+    expect(screen.getByTitle('Caustics · 0s–16s')).toBeInTheDocument()
+    expect(screen.getByTitle('SignalMandala · 3s–13s')).toBeInTheDocument()
+    await user.click(inspect)
+    const detail = screen.getByRole('dialog', { name: 'Signal over water Super Detail' })
+    expect(within(detail).getByRole('group', { name: 'Main layer for Main' })).toHaveTextContent('Caustics')
+    expect(within(detail).getByRole('group', { name: 'Signal overlay layer for Main' })).toHaveTextContent('SignalMandala')
+    expect(within(detail).getByRole('group', { name: 'SignalMandala opacity local animation' })).toBeInTheDocument()
+    await user.click(inspect)
+    expect(screen.queryByRole('dialog', { name: 'Signal over water Super Detail' })).not.toBeInTheDocument()
+  })
+
   it('presents built-in Clip values as legible read-only inspection instead of failed editing (#482)', async () => {
     const user = userEvent.setup()
     const stock = STOCK_SHOWS[0]
@@ -140,7 +261,7 @@ describe('ShowEditor (#318)', () => {
 
     await user.click(within(panel).getByText('Advanced clip controls'))
     expect(within(panel).getByRole('combobox', { name: 'Hold scenes' })).toBeDisabled()
-    expect(panel.querySelector('details[aria-label="Advanced Clip controls"] > div')).toHaveClass('text-[10px]')
+    expect(within(panel).getByRole('table', { name: 'Advanced clip controls' })).toHaveClass('text-[10px]')
   })
 
   it('discloses one stable read-only Scene X-ray and transfers Super Detail between owners (#471)', async () => {
@@ -159,11 +280,12 @@ describe('ShowEditor (#318)', () => {
     expect(screen.queryByRole('group', { name: 'Scene 1 Scene X-ray, read only' })).not.toBeInTheDocument()
     expect(screen.getByRole('group', { name: 'Scene 2 Scene X-ray, read only' })).toHaveClass('h-[36px]')
     expect(screen.queryByRole('dialog', { name: 'Scene 1 Super Detail' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('dialog', { name: 'Scene 2 Super Detail' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Inspect Scene 2 in Super Detail' }))
     expect(screen.getByRole('dialog', { name: 'Scene 2 Super Detail' })).toBeInTheDocument()
 
     fireEvent.change(screen.getByRole('slider', { name: 'Timeline zoom' }), { target: { value: '5.1' } })
     expect(screen.getByRole('group', { name: 'Scene 2 Scene X-ray, read only' })).toHaveClass('h-[36px]')
-    await user.keyboard('{Escape}')
     expect(screen.queryByRole('dialog', { name: 'Scene 2 Super Detail' })).not.toBeInTheDocument()
   })
 
@@ -173,9 +295,10 @@ describe('ShowEditor (#318)', () => {
     useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
 
     render(<ShowEditor showId={show.id} />)
+    const sceneHeaderActions = within(screen.getByRole('group', { name: 'Scene Scene 1' })).getAllByRole('button')
+    expect(sceneHeaderActions[sceneHeaderActions.length - 1]).toHaveAccessibleName('Edit Scene 1')
     fireEvent.change(screen.getByRole('slider', { name: 'Timeline zoom' }), { target: { value: '5.1' } })
-    await user.click(screen.getByRole('button', { name: 'Inspect Scene 1 in Super Detail' }))
-    await user.click(screen.getByRole('button', { name: 'Open Scene 1 editor' }))
+    await user.click(screen.getByRole('button', { name: 'Edit Scene 1' }))
 
     expect(screen.getByRole('region', { name: 'Scene 1 main Scene editor' })).toBeInTheDocument()
     expect(screen.getByTestId('show-timeline-grid')).not.toBeVisible()
@@ -234,9 +357,10 @@ describe('ShowEditor (#318)', () => {
     expect(screen.getByTestId('show-editor-scroll')).toHaveClass('overflow-auto', 'scrollbar-hidden')
   })
 
-  it('leaves Space with toolbar controls that own activation', () => {
+  it('reserves Space for Show playback across Timeline toolbar controls', () => {
     const show = createDefaultShow('show-space', 'Keyboard Show', 1000)
     useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    usePreviewStore.setState({ isRunning: false })
 
     render(<ShowEditor showId={show.id} />)
 
@@ -348,6 +472,25 @@ describe('ShowEditor (#318)', () => {
     useShowTransportStore.getState().setPosition(show.id, 5_000)
     fireEvent.click(goToStart)
     expect(useShowTransportStore.getState().seekRequest).toMatchObject({ targetMs: 0 })
+    expect(usePreviewStore.getState().isRunning).toBe(true)
+  })
+
+  it('reserves Space for Show playback after a transport button retains focus', async () => {
+    const user = userEvent.setup()
+    const show = createDefaultShow('show-focused-transport', 'Focused transport', 1000)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    usePreviewStore.setState({ isRunning: false })
+    render(<ShowEditor showId={show.id} />)
+
+    const goToStart = screen.getByRole('button', { name: 'Go to Show start' })
+    await user.click(goToStart)
+    expect(document.activeElement).not.toBe(goToStart)
+    goToStart.focus()
+    expect(document.activeElement).toBe(goToStart)
+    expect(usePreviewStore.getState().isRunning).toBe(false)
+
+    await user.keyboard(' ')
+
     expect(usePreviewStore.getState().isRunning).toBe(true)
   })
 
@@ -598,7 +741,7 @@ describe('ShowEditor (#318)', () => {
     await user.click(clone)
 
     await waitFor(() => expect(useShowStore.getState().shows[0].scenes).toHaveLength(3))
-    expect(screen.getByRole('heading', { name: 'Clip properties' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Clone source' })).toBeInTheDocument()
   })
 
   it('explains unsupported Clone owners and previews a legal magnetic Clip destination before drop (#470)', async () => {
@@ -662,14 +805,71 @@ describe('ShowEditor (#318)', () => {
     expect(screen.getByRole('region', { name: 'Scene properties' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Scene properties' })).toBeInTheDocument()
     expect(screen.getByRole('textbox', { name: 'Scene name' })).toHaveValue('Scene 1')
-    expect(screen.getByRole('spinbutton', { name: 'Scene duration seconds' })).toHaveValue(30)
-    expect(screen.getByRole('spinbutton', { name: 'Scene duration seconds' })).toHaveAttribute('step', '0.1')
+    expect(screen.queryByRole('spinbutton', { name: 'Scene duration seconds' })).not.toBeInTheDocument()
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Edit scene duration' }))
+    expect(screen.getByRole('dialog', { name: 'Scene duration editor' })).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: 'Scene duration seconds' })).toHaveValue('30')
 
-    fireEvent.change(screen.getByRole('spinbutton', { name: 'Scene duration seconds' }), { target: { value: '12.5' } })
+    fireEvent.change(screen.getByRole('textbox', { name: 'Scene duration seconds' }), { target: { value: '12.5' } })
+    expect(useShowStore.getState().shows[0].scenes[0].durationMs).toBe(30_000)
+    fireEvent.click(screen.getByRole('button', { name: 'Apply scene duration' }))
     await waitFor(() => expect(useShowStore.getState().shows[0].scenes[0].durationMs).toBe(12_500))
 
     fireEvent.click(screen.getByRole('button', { name: 'Duplicate scene Scene 1' }))
     await waitFor(() => expect(useShowStore.getState().shows[0].scenes).toHaveLength(3))
+  })
+
+  it('edits Scene duration inline without falling through to Scene properties', async () => {
+    const user = userEvent.setup()
+    const show = createDefaultShow('show-inline-scene-duration', 'Inline Scene duration', 1000)
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+
+    const sceneHeader = screen.getByRole('group', { name: 'Scene Scene 1' })
+    const duration = within(sceneHeader).getByRole('spinbutton', { name: 'Scene 1 duration seconds' })
+    await user.click(duration)
+    expect(screen.queryByRole('region', { name: 'Scene properties' })).not.toBeInTheDocument()
+
+    await user.clear(duration)
+    await user.type(duration, '16')
+    expect(useShowStore.getState().shows[0].scenes[0].durationMs).toBe(30_000)
+    await user.tab()
+    await waitFor(() => expect(useShowStore.getState().shows[0].scenes[0].durationMs).toBe(16_000))
+
+    expect(within(sceneHeader).getAllByRole('button').map((button) => button.getAttribute('aria-label'))).toEqual([
+      'Open Scene 1 properties',
+      'Remove scene Scene 1',
+      'Hide Scene 1 Scene X-ray',
+      'Edit Scene 1',
+    ])
+  })
+
+  it('keeps invalid Scene-duration drafts out of local composition state', async () => {
+    const user = userEvent.setup()
+    const show = createDefaultShow('show-scene-duration-draft', 'Scene duration draft', 1000)
+    show.composition = projectFlatShowToCompositionV1(show, {
+      byCellId: Object.fromEntries(show.cells.map((cell) => [cell.id, DEMOS[cell.pattern.id]])),
+    })
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+
+    await user.click(screen.getByRole('button', { name: 'Open Scene 1 properties' }))
+    await user.click(screen.getByRole('button', { name: 'Edit scene duration' }))
+    const input = screen.getByRole('textbox', { name: 'Scene duration seconds' })
+    await user.clear(input)
+    await user.type(input, '1')
+
+    expect(screen.getByRole('button', { name: 'Apply scene duration' })).toBeDisabled()
+    expect(screen.getByText('Minimum 30 s for Scene content')).toBeInTheDocument()
+    expect(useShowStore.getState().shows[0].scenes[0].durationMs).toBe(30_000)
+    expect(screen.queryByText(/Main placement must stay inside positive Scene-local time/i)).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Cancel scene duration' }))
+    expect(screen.queryByRole('dialog', { name: 'Scene duration editor' })).not.toBeInTheDocument()
   })
 
   it('opens 2D Installation spatial zone selection from the center inspector only (#340)', async () => {
@@ -1177,7 +1377,10 @@ describe('ShowEditor (#318)', () => {
     render(<ShowEditor showId={show.id} />)
 
     await user.click(screen.getAllByRole('button', { name: 'Select Ribbon Loom' })[0])
-    expect(screen.getByText('sliderSpeed · 0–1 · Studio default 0.5')).toBeInTheDocument()
+    expect(screen.getByText('sliderSpeed · 0–1')).toHaveAttribute(
+      'title',
+      'sliderSpeed · Studio default 0.5',
+    )
     await user.click(screen.getByLabelText('Set Speed target'))
     const firstSpeedTarget = screen.getByLabelText('Speed target')
     expect(firstSpeedTarget.closest('label')?.querySelector('.sr-only')).toHaveTextContent('Speed target')
@@ -1232,7 +1435,7 @@ describe('ShowEditor (#318)', () => {
     expect(screen.getByRole('group', { name: 'Advanced Clip controls' })).toHaveAttribute('open')
   })
 
-  it('projects Time values across every row covered by a spanning cell (#417)', () => {
+  it('does not mistake a constant spanning Clip override for property animation (#417)', () => {
     let show = addShowZone(createDefaultShow('show-417-span', 'Spanning time', 1000), {
       name: 'edge',
       nominalPixelCount: 16,
@@ -1243,8 +1446,8 @@ describe('ShowEditor (#318)', () => {
 
     render(<ShowEditor showId={show.id} />)
 
-    expect(screen.getByRole('group', { name: 'Animation speed lane for main' }).querySelector('polyline')).toBeInTheDocument()
-    expect(screen.getByRole('group', { name: 'Animation speed lane for edge' }).querySelector('polyline')).toBeInTheDocument()
+    expect(screen.queryByRole('group', { name: 'Animation speed lane for main' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('group', { name: 'Animation speed lane for edge' })).not.toBeInTheDocument()
   })
 
   it('keeps zone selection in the clip row and hides default property lanes (#466, #483)', () => {
@@ -1284,8 +1487,13 @@ describe('ShowEditor (#318)', () => {
 
     await user.click(screen.getAllByRole('button', { name: /Select TestPattern1D/i })[0])
 
-    expect(screen.getByRole('heading', { name: 'Clip properties' })).toBeInTheDocument()
-    expect(screen.getByText(/TestPattern1D · main · Scene 1/i)).toBeInTheDocument()
+    const clipRegion = screen.getByRole('region', { name: 'Clip properties' })
+    const clipHeader = clipRegion.querySelector('header')!
+    expect(within(clipHeader).getByRole('heading', { name: 'TestPattern1D' })).toBeInTheDocument()
+    expect(within(clipHeader).getByText('Pattern')).toBeInTheDocument()
+    expect(within(clipHeader).getByText('Scene 1')).toBeInTheDocument()
+    expect(within(clipHeader).queryByText('main')).not.toBeInTheDocument()
+    expect(within(clipHeader).getByRole('region', { name: 'Clip summary' })).toBeInTheDocument()
     expect(screen.getByLabelText('Mirror clip')).toBeInTheDocument()
     expect(screen.getByLabelText('Animation speed')).toHaveAttribute('min', '0')
     expect(screen.getByLabelText('Animation speed')).toHaveAttribute(
@@ -1345,7 +1553,7 @@ describe('ShowEditor (#318)', () => {
     render(<ShowEditor showId={show.id} />)
 
     await user.click(screen.getAllByRole('button', { name: /Select TestPattern1D/i })[0])
-    expect(screen.getByRole('heading', { name: 'Clip properties' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'TestPattern1D' })).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Show properties' }))
     expect(screen.getByRole('heading', { name: 'Show properties' })).toBeInTheDocument()
@@ -1363,7 +1571,7 @@ describe('ShowEditor (#318)', () => {
     await user.click(clip)
     expect(screen.getByRole('dialog', { name: 'Entity Detail Panel' })).toHaveAttribute('data-owner-key', `clip:${show.cells[0].id}`)
     expect(screen.getByTestId('show-entity-detail-stem')).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Clip properties' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'TestPattern1D' })).toBeInTheDocument()
 
     const scene = screen.getByRole('group', { name: 'Scene Scene 1' })
     await user.click(scene)
@@ -1612,7 +1820,10 @@ describe('ShowEditor (#318)', () => {
       patternName: 'TestPattern2D',
     })))
     expect(screen.getByRole('button', { name: 'Select TestPattern2D' })).toBeInTheDocument()
-    expect(screen.getByText(/TestPattern2D · main · Scene 1/i)).toBeInTheDocument()
+    const clipHeader = screen.getByRole('region', { name: 'Clip properties' }).querySelector('header')!
+    expect(within(clipHeader).getByRole('heading', { name: 'TestPattern2D' })).toBeInTheDocument()
+    expect(within(clipHeader).getByText('Scene 1')).toBeInTheDocument()
+    expect(within(clipHeader).queryByText('main')).not.toBeInTheDocument()
   })
 
   it('filters Clip Patterns by typing and selects a matching Pattern', async () => {
@@ -1740,7 +1951,9 @@ describe('ShowEditor (#318)', () => {
         clockBehavior: 'freeze',
       })
     })
-    expect(screen.getAllByText(/shutter 35%/i).length).toBeGreaterThan(0)
+    expect(screen.getByRole('region', { name: 'Clip summary' })).toHaveTextContent(
+      'Light shutter8 Hz, 35% on, freeze clock',
+    )
   })
 
   it('edits stepped motion as cadence and keeps it distinct from rendering and light output', async () => {
@@ -1754,6 +1967,10 @@ describe('ShowEditor (#318)', () => {
 
     expect(screen.getByRole('button', { name: 'Smooth motion' })).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByRole('button', { name: 'Stepped motion' })).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.getByRole('group', { name: 'Motion cadence controls' })).toHaveClass('sm:grid-rows-[auto_1.5rem]')
+    expect(screen.getByLabelText('Hold scenes')).toHaveClass('h-6', 'text-[9.5px]')
+    expect(screen.getByLabelText('Start offset (ms)')).toHaveClass('h-6', 'text-[9.5px]')
+    expect(screen.getByLabelText('Start offset (ms)').closest('label')?.querySelector('.sr-only')).toHaveTextContent('Start offset (ms)')
     expect(screen.queryByLabelText('Jumps per second')).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Stepped motion' }))
@@ -1773,7 +1990,7 @@ describe('ShowEditor (#318)', () => {
     expect(screen.getByText('every 250 ms')).toBeInTheDocument()
     expect(screen.getByText(/Motion cadence:/i)).toHaveTextContent('4/s stepped clip')
     expect(screen.getByText(/Motion cadence:/i)).toHaveTextContent('renderer cost unchanged')
-    expect(screen.getAllByText(/step 4\/s/i).length).toBeGreaterThan(0)
+    expect(screen.getByRole('region', { name: 'Clip summary' })).toHaveTextContent('Motion cadence4/s')
 
     await user.click(screen.getByRole('button', { name: 'Smooth motion' }))
     await waitFor(() => {
@@ -1797,7 +2014,7 @@ describe('ShowEditor (#318)', () => {
       expect(useShowStore.getState().shows[0].cells[0].adaptations.timeOffsetMs).toBe(500)
     })
     expect(screen.getByText(/shift this clip's private Pattern clock/i)).toHaveTextContent('rounds across zones')
-    expect(screen.getAllByText(/offset 500ms/i).length).toBeGreaterThan(0)
+    expect(screen.getByRole('region', { name: 'Clip summary' })).toHaveTextContent('Start offset500 ms')
     expect(screen.getByText(/Clock offset:/i)).toHaveTextContent('500ms')
     expect(screen.getByText(/Clock offset:/i)).toHaveTextContent('renderer cost unchanged')
   })

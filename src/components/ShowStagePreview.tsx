@@ -352,9 +352,15 @@ export function ShowStagePreview({ showId, showOverride }: { showId: string; sho
       playbackLastRef.current = now
       try {
         const deltaMs = Math.max(0, now - last) * usePreviewStore.getState().speed
-        const step = resolveShowPlaybackStep(runtime.getElapsedMs(), deltaMs, transport.playbackWindow)
+        const step = resolveShowPlaybackStep(runtime.getElapsedMs(), deltaMs, transport.playbackWindow, durationMs)
         if (step.kind === 'rewind') {
           usePreviewStore.getState().setRunning(false)
+          transport.setPosition(showId, step.targetMs)
+          transport.requestSeek(showId, step.targetMs)
+          playbackRafRef.current = null
+          return
+        }
+        if (step.kind === 'loop') {
           transport.setPosition(showId, step.targetMs)
           transport.requestSeek(showId, step.targetMs)
           playbackRafRef.current = null

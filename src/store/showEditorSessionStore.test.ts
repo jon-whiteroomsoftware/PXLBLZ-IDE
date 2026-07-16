@@ -10,6 +10,7 @@ describe('showEditorSessionStore (#470)', () => {
     const current = {
       ...showEditorSessionInitialState,
       setSnapEnabled: () => {},
+      setShowNoteOpen: () => {},
       setDiagnostic: () => {},
       setDiagnosticFocus: () => {},
     }
@@ -17,6 +18,36 @@ describe('showEditorSessionStore (#470)', () => {
       snapEnabled: false,
     })
     expect(mergePersistedShowEditorSession({}, current)).toMatchObject({ snapEnabled: true })
+  })
+
+  it('persists Show-note visibility independently for each Show (#363)', () => {
+    useShowEditorSessionStore.setState(showEditorSessionInitialState)
+
+    useShowEditorSessionStore.getState().setShowNoteOpen('stock-show-learn-101', false)
+    useShowEditorSessionStore.getState().setShowNoteOpen('stock-show-learn-102', true)
+
+    expect(useShowEditorSessionStore.getState().showNoteOpenById).toEqual({
+      'stock-show-learn-101': false,
+      'stock-show-learn-102': true,
+    })
+
+    const merged = mergePersistedShowEditorSession({
+      snapEnabled: false,
+      showNoteOpenById: {
+        'stock-show-learn-101': false,
+        'stock-show-learn-102': true,
+      },
+      diagnostics: { zoneOutlines: true },
+    }, useShowEditorSessionStore.getState())
+
+    expect(merged).toMatchObject({
+      snapEnabled: false,
+      showNoteOpenById: {
+        'stock-show-learn-101': false,
+        'stock-show-learn-102': true,
+      },
+      diagnostics: { zoneOutlines: false, clipOutlines: false, otherZoneGuides: false },
+    })
   })
 
   it('keeps independent Stage diagnostics and editor focus session-only (#491)', () => {

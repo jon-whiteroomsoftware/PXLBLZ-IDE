@@ -13,6 +13,7 @@ import {
   parseShowRoutingRanges,
   placeShowClip,
   moveShowCellToSlot,
+  minimumShowSceneDurationMs,
   projectShowStrip,
   projectShowTimeline,
   removeShowClip,
@@ -919,6 +920,20 @@ describe('showModel (#318)', () => {
       brightness: 0.7,
       timeScale: 0.5,
     })
+  })
+
+  it('does not shorten a Scene past its authored local composition', () => {
+    const show = createDefaultShow('show-scene-duration', 'Scene duration')
+    show.composition = projectFlatShowToCompositionV1(show, {
+      byCellId: Object.fromEntries(show.cells.map((cell) => [cell.id, DEMOS[cell.pattern.id]])),
+    })
+
+    expect(minimumShowSceneDurationMs(show, show.scenes[0].id)).toBe(30_000)
+
+    const updated = updateShowScene(show, show.scenes[0].id, { durationMs: 1_000 })
+
+    expect(updated.scenes[0].durationMs).toBe(30_000)
+    expect(validateShowComposition(updated, updated.composition!)).toEqual([])
   })
 
   it('clamps a scene-owned moving-split target to its normalized domain (#405)', () => {
