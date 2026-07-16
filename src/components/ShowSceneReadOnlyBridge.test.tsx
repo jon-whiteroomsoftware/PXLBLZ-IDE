@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { vi } from 'vitest'
-import { createDefaultShow, extendShowCell, updateShowCellEffects } from '@/engine/showModel'
+import { createDefaultShow, extendShowCell, updateShowBoundaryTransition, updateShowCellEffects } from '@/engine/showModel'
 import { projectFlatShowComposition } from '@/engine/showCompositionProjection'
 import { projectSceneReadOnlyBridge } from '@/engine/showSceneReadOnlyProjection'
 import { ShowSceneSuperDetail, ShowSceneXray } from './ShowSceneReadOnlyBridge'
@@ -13,6 +13,15 @@ function detailFixture() {
   show = updateShowCellEffects(show, 'cell-1', [
     { id: 'fx-swirl', kind: 'swirl', amount: 0.7, radius: 0.5, centerX: 0.5, centerY: 0.5 },
   ])
+  show = updateShowBoundaryTransition(show, 'transition-scene-1', {
+    propertyTransitions: {
+      brightness: {
+        fromByCellId: { 'cell-1': 0.2 },
+        durationMs: 800,
+        easing: { curve: 'linear' },
+      },
+    },
+  })
   const projection = projectFlatShowComposition(show, {
     byCellId: Object.fromEntries(show.cells.map((cell) => [cell.id, SOURCE])),
     stageDimension: 2,
@@ -30,6 +39,7 @@ describe('Show Scene read-only bridge (#471)', () => {
     expect(xray).toHaveTextContent('cuts')
     expect(xray).toHaveTextContent('fx')
     expect(xray).toHaveTextContent('properties')
+    expect(screen.getByRole('group', { name: 'brightness 0.2 to 1' }).querySelector('polyline')).toBeInTheDocument()
     expect(withinInputs(xray)).toHaveLength(0)
 
     fireEvent.click(screen.getByRole('button', { name: 'Inspect Scene 2 in Super Detail' }))

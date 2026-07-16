@@ -14,6 +14,7 @@ import {
 import { PixelblazeCodeEditor } from '@/components/PixelblazeCodeEditor'
 import { ShowZoneSpatialSelector } from '@/components/ShowZoneSpatialSelector'
 import { ShowEntityDetailPanel } from '@/components/ShowEntityDetailPanel'
+import { ShowPropertySparkline } from '@/components/ShowPropertySparkline'
 import { ShowSceneSuperDetail, ShowSceneXray } from '@/components/ShowSceneReadOnlyBridge'
 import { ShowSceneZoneEditor } from '@/components/ShowSceneZoneEditor'
 import { ShowEffectPalette, ShowEffectStack } from '@/components/ShowEffectsAuthoring'
@@ -60,6 +61,7 @@ import {
   trimShowOverlayPlacement,
 } from '@/engine/showCompositionModel'
 import { projectSceneReadOnlyBridge } from '@/engine/showSceneReadOnlyProjection'
+import { projectGlobalShowPropertyLane } from '@/engine/showPropertyLaneProjection'
 import {
   addShowPropertyKeyframe,
   addShowPropertyTrack,
@@ -1570,20 +1572,64 @@ function SceneStrip({
     ...timeline.boundaryTransitions.flatMap((transition) => [transition.startMs, transition.endMs]),
     ...timeline.rows.flatMap((row) => row.cells.flatMap((cell) => [cell.startMs, cell.endMs])),
   ])]
-  const automatedControlNames = [...new Set([
-    ...show.cells.flatMap((cell) => Object.keys(cell.controlTargets ?? {})),
-    ...(show.transitions ?? []).flatMap((transition) => Object.keys(transition.propertyTransitions?.controls ?? {})),
-  ])]
-  const controlLanes = automatedControlNames.map((exportName) => ({
-    exportName,
-    label: Object.values(patternControlsByCellId).flat().find((control) => control.exportName === exportName)?.label
-      ?? exportName.replace(/^slider/, '').replace(/([A-Z])/g, ' $1').trim(),
-  }))
+  const propertyLanesByZone = useMemo(() => {
+    const availableControls = Object.values(patternControlsByCellId).flat()
+    const automatedControlNames = [...new Set([
+      ...show.cells.flatMap((cell) => Object.keys(cell.controlTargets ?? {})),
+      ...(show.transitions ?? []).flatMap((transition) => Object.keys(transition.propertyTransitions?.controls ?? {})),
+    ])]
+    const controlLanes = automatedControlNames.map((exportName) => ({
+      exportName,
+      label: availableControls.find((control) => control.exportName === exportName)?.label
+        ?? exportName.replace(/^slider/, '').replace(/([A-Z])/g, ' $1').trim(),
+      defaultValue: availableControls.find((control) => control.exportName === exportName)?.defaultValue
+        ?? 0.5,
+    }))
+    return new Map(show.zones.map((zone) => {
+      const candidates = [
+        {
+          key: 'timeScale',
+          label: 'animation speed',
+          color: '#a78bfa',
+          formatValue: formatTimeScale,
+          projection: projectGlobalShowPropertyLane(show, zone.id, { kind: 'timeScale' }),
+        },
+        {
+          key: 'brightness',
+          label: 'brightness',
+          color: '#fbbf24',
+          formatValue: formatBrightness,
+          projection: projectGlobalShowPropertyLane(show, zone.id, { kind: 'brightness' }),
+        },
+        ...controlLanes.map((control) => ({
+          key: `control:${control.exportName}`,
+          label: control.label,
+          color: '#22d3ee',
+          formatValue: formatControlValue,
+          projection: projectGlobalShowPropertyLane(show, zone.id, {
+            kind: 'control' as const,
+            exportName: control.exportName,
+            defaultValue: control.defaultValue,
+          }),
+        })),
+      ]
+      return [zone.id, candidates.filter((candidate) => candidate.projection.disclosed)] as const
+    }))
+  }, [patternControlsByCellId, show])
   const movingSplitLayout = show.routingLayouts.find((layout) => layout.logical?.kind === 'split')
   const hasSampleRemap = show.scenes.some((scene) => scene.sampleTargets?.repeatScale !== undefined)
     || Boolean(show.transitions?.some((transition) => transition.propertyTransitions?.sample?.repeatScale))
   const routingLaneRows = (movingSplitLayout ? 1 : 0) + (hasSampleRemap ? 1 : 0)
-  const rowStride = 3 + controlLanes.length
+  const rowStrides = strip.rows.map((row) => 1 + (propertyLanesByZone.get(row.zoneId)?.length ?? 0))
+  const rowOffsets = rowStrides.reduce<number[]>((offsets, stride) => (
+    [...offsets, offsets[offsets.length - 1] + stride]
+  ), [0])
+  const totalContentRows = rowOffsets[rowOffsets.length - 1] ?? 0
+  const rowStart = (rowIndex: number) => rowOffsets[rowIndex]
+  const clipRowSpan = (rowIndex: number, zoneSpan: number) => {
+    const finalRowIndex = Math.min(strip.rows.length - 1, rowIndex + Math.max(1, zoneSpan) - 1)
+    return rowStart(finalRowIndex) - rowStart(rowIndex) + 1
+  }
   const xrayDetail = useMemo(() => {
     if (!compositionProjection || !xraySceneId) return null
     try {
@@ -1632,7 +1678,10 @@ function SceneStrip({
     '34px',
     ...(movingSplitLayout ? ['26px'] : []),
     ...(hasSampleRemap ? ['26px'] : []),
-    ...strip.rows.flatMap(() => ['44px', '26px', '26px', ...controlLanes.map(() => '26px')]),
+    ...strip.rows.flatMap((row) => [
+      '44px',
+      ...(propertyLanesByZone.get(row.zoneId) ?? []).map(() => '18px'),
+    ]),
     '34px',
   ]
   const timelineScale = viewport.totalMs / viewport.durationMs
@@ -1834,7 +1883,7 @@ function SceneStrip({
         <TimelinePlayhead
           show={show}
           gridColumn={`2 / ${columns.length}`}
-          rowSpan={strip.rows.length * rowStride + routingLaneRows + (xrayOpen ? 4 : 3)}
+          rowSpan={totalContentRows + routingLaneRows + (xrayOpen ? 4 : 3)}
           viewport={viewport}
           snapEnabled={snapEnabled}
           structuralTimesMs={structuralTimesMs}
@@ -2000,7 +2049,7 @@ function SceneStrip({
                   ? 'border-live/25 bg-live/10 text-zinc-100'
                   : 'text-zinc-300 hover:border-zinc-800 hover:bg-zinc-900/65 hover:text-zinc-100',
               ].join(' ')}
-              style={{ gridColumn: 1, gridRow: rowIndex * rowStride + contentStartRow + routingLaneRows }}
+              style={{ gridColumn: 1, gridRow: rowStart(rowIndex) + contentStartRow + routingLaneRows }}
             >
               <span
                 aria-hidden
@@ -2045,7 +2094,7 @@ function SceneStrip({
                   borderLeftColor: row.color ?? '#38bdf8',
                   background: `linear-gradient(color-mix(in srgb, ${row.color ?? '#38bdf8'} 9%, #101013), color-mix(in srgb, ${row.color ?? '#38bdf8'} 6%, #0c0c0e))`,
                   gridColumn: `${cell.columnStart} / span ${cell.columnSpan}`,
-                  gridRow: `${rowIndex * rowStride + contentStartRow + routingLaneRows} / span ${Math.max(1, cell.rowSpan * rowStride - (rowStride - 1))}`,
+                  gridRow: `${rowStart(rowIndex) + contentStartRow + routingLaneRows} / span ${clipRowSpan(rowIndex, cell.rowSpan)}`,
                 } as CSSProperties}
                 onMouseEnter={(event) => {
                   event.currentTarget.style.background = `linear-gradient(color-mix(in srgb, ${row.color ?? '#38bdf8'} 14%, #131316), color-mix(in srgb, ${row.color ?? '#38bdf8'} 10%, #0e0e10))`
@@ -2108,7 +2157,7 @@ function SceneStrip({
                       ? 'border-live/70 bg-live/10 text-zinc-200'
                       : 'border-zinc-800 bg-zinc-950/20 text-zinc-600 hover:border-zinc-600 hover:text-zinc-300',
                   ].join(' ')}
-                  style={{ gridColumn: 2 + sceneIndex * 2, gridRow: rowIndex * rowStride + contentStartRow + routingLaneRows }}
+                  style={{ gridColumn: 2 + sceneIndex * 2, gridRow: rowStart(rowIndex) + contentStartRow + routingLaneRows }}
                 >
                   <span className="flex items-center gap-1">
                     <Plus size={11} aria-hidden />
@@ -2117,151 +2166,39 @@ function SceneStrip({
                 </button>
               )
             ))}
-            <div
-              role="group"
-              aria-label={`Animation speed lane for ${row.zoneName}`}
-              className="sticky left-0 z-30 flex items-center gap-1 border-t border-zinc-900/80 bg-[#060608] px-2 text-[9px] text-violet-300/80"
-              style={{ gridColumn: 1, gridRow: rowIndex * rowStride + contentStartRow + 1 + routingLaneRows }}
-            >
-              <span className="font-mono">↳ animation speed</span>
-            </div>
-            {show.scenes.map((scene, sceneIndex) => {
-              const cell = cellCoveringScene(show, row.zoneId, sceneIndex)
-              return cell ? (
-                <div
-                  key={`time-${row.zoneId}-${scene.id}`}
-                  className="flex items-center border-t border-zinc-900/80 px-2 font-mono text-[9px] text-zinc-500"
-                  style={{ gridColumn: 2 + sceneIndex * 2, gridRow: rowIndex * rowStride + contentStartRow + 1 + routingLaneRows }}
-                >
-                  {formatTimeScale(cell.adaptations.timeScale)}×
-                </div>
-              ) : null
-            })}
-            {show.scenes.slice(0, -1).map((scene, sceneIndex) => {
-              const transition = show.transitions?.find((candidate) => candidate.afterSceneId === scene.id && candidate.kind !== 'routing')
-              const destination = cellCoveringScene(show, row.zoneId, sceneIndex + 1)
-              const from = destination && transition?.propertyTransitions?.timeScale?.fromByCellId[destination.id]
-              return transition && destination ? (
-                <button
-                  key={`time-boundary-${row.zoneId}-${scene.id}`}
-                  type="button"
-                  aria-label={`Edit animation speed transition from ${scene.name} for ${row.zoneName}`}
-                  data-show-timeline-focus
-                  className={[
-                    'flex items-center justify-center border-t border-zinc-900/80 font-mono text-[9px] transition-colors',
-                    from === undefined ? 'text-zinc-700 hover:text-violet-300' : 'bg-violet-400/10 text-violet-200',
-                  ].join(' ')}
-                  style={{ gridColumn: 3 + sceneIndex * 2, gridRow: rowIndex * rowStride + contentStartRow + 1 + routingLaneRows }}
-                  onClick={(event) => {
-                    event.stopPropagation()
-                    onSelect({ kind: 'transition', transitionId: transition.id }, event.currentTarget)
-                  }}
-                >
-                  {from === undefined ? '—' : `${formatTimeScale(from)}→${formatTimeScale(destination.adaptations.timeScale)}`}
-                </button>
-              ) : null
-            })}
-            <div
-              role="group"
-              aria-label={`Brightness lane for ${row.zoneName}`}
-              className="sticky left-0 z-30 flex items-center gap-1 border-t border-zinc-900/80 bg-[#060608] px-2 text-[9px] text-amber-300/80"
-              style={{ gridColumn: 1, gridRow: rowIndex * rowStride + contentStartRow + 2 + routingLaneRows }}
-            >
-              <span className="font-mono">↳ bright</span>
-            </div>
-            {show.scenes.map((scene, sceneIndex) => {
-              const cell = cellCoveringScene(show, row.zoneId, sceneIndex)
-              return cell ? (
-                <div
-                  key={`brightness-${row.zoneId}-${scene.id}`}
-                  className="flex items-center border-t border-zinc-900/80 px-2 font-mono text-[9px] text-zinc-500"
-                  style={{ gridColumn: 2 + sceneIndex * 2, gridRow: rowIndex * rowStride + contentStartRow + 2 + routingLaneRows }}
-                >
-                  {formatBrightness(cell.adaptations.brightness)}
-                </div>
-              ) : null
-            })}
-            {show.scenes.slice(0, -1).map((scene, sceneIndex) => {
-              const transition = show.transitions?.find((candidate) => candidate.afterSceneId === scene.id && candidate.kind !== 'routing')
-              const destination = cellCoveringScene(show, row.zoneId, sceneIndex + 1)
-              const from = destination && transition?.propertyTransitions?.brightness?.fromByCellId[destination.id]
-              return transition && destination ? (
-                <button
-                  key={`brightness-boundary-${row.zoneId}-${scene.id}`}
-                  type="button"
-                  aria-label={`Edit brightness transition from ${scene.name} for ${row.zoneName}`}
-                  data-show-timeline-focus
-                  className={[
-                    'flex items-center justify-center border-t border-zinc-900/80 font-mono text-[9px] transition-colors',
-                    from === undefined ? 'text-zinc-700 hover:text-amber-300' : 'bg-amber-400/10 text-amber-200',
-                  ].join(' ')}
-                  style={{ gridColumn: 3 + sceneIndex * 2, gridRow: rowIndex * rowStride + contentStartRow + 2 + routingLaneRows }}
-                  onClick={(event) => {
-                    event.stopPropagation()
-                    onSelect({ kind: 'transition', transitionId: transition.id }, event.currentTarget)
-                  }}
-                >
-                  {from === undefined ? '—' : `${formatBrightness(from)}→${formatBrightness(destination.adaptations.brightness)}`}
-                </button>
-              ) : null
-            })}
-            {controlLanes.map((control, controlIndex) => (
-              <div key={`control-lane-${row.zoneId}-${control.exportName}`} className="contents">
-                <div
-                  role="group"
-                  aria-label={`${control.label} control lane for ${row.zoneName}`}
-                  className="sticky left-0 z-30 flex items-center gap-1 border-t border-zinc-900/80 bg-[#060608] px-2 text-[9px] text-cyan-300/80"
-                  style={{ gridColumn: 1, gridRow: rowIndex * rowStride + contentStartRow + 3 + controlIndex + routingLaneRows }}
-                >
-                  <span className="truncate font-mono">↳ {control.label}</span>
-                </div>
-                {show.scenes.map((scene, sceneIndex) => {
-                  const cell = cellCoveringScene(show, row.zoneId, sceneIndex)
-                  const target = cell?.controlTargets?.[control.exportName]
-                  return (
-                    <div
-                      key={`control-${row.zoneId}-${control.exportName}-${scene.id}`}
-                      className="flex min-w-0 items-center justify-center overflow-hidden border-t border-zinc-900/80 px-1 font-mono text-[9px] text-zinc-500"
-                      style={{ gridColumn: 2 + sceneIndex * 2, gridRow: rowIndex * rowStride + contentStartRow + 3 + controlIndex + routingLaneRows }}
-                    >
-                      {target === undefined
-                        ? (
-                            <span title={`${control.label} unset in ${scene.name}`}>
-                              <span aria-hidden>—</span>
-                              <span className="sr-only">unset</span>
-                            </span>
-                          )
-                        : formatControlValue(target)}
-                    </div>
-                  )
-                })}
-                {show.scenes.slice(0, -1).map((scene, sceneIndex) => {
-                  const transition = show.transitions?.find((candidate) => candidate.afterSceneId === scene.id && candidate.kind !== 'routing')
-                  const destination = cellCoveringScene(show, row.zoneId, sceneIndex + 1)
-                  const from = destination && transition?.propertyTransitions?.controls?.[control.exportName]?.fromByCellId[destination.id]
-                  const target = destination?.controlTargets?.[control.exportName]
-                  return transition && destination ? (
-                    <button
-                      key={`control-boundary-${row.zoneId}-${control.exportName}-${scene.id}`}
-                      type="button"
-                      aria-label={`Edit ${control.label} transition from ${scene.name} for ${row.zoneName}`}
-                      data-show-timeline-focus
-                      className={[
-                        'flex items-center justify-center border-t border-zinc-900/80 font-mono text-[9px] transition-colors',
-                        from === undefined ? 'text-zinc-700 hover:text-cyan-300' : 'bg-cyan-400/10 text-cyan-200',
-                      ].join(' ')}
-                      style={{ gridColumn: 3 + sceneIndex * 2, gridRow: rowIndex * rowStride + contentStartRow + 3 + controlIndex + routingLaneRows }}
-                      onClick={(event) => {
-                        event.stopPropagation()
-                        onSelect({ kind: 'transition', transitionId: transition.id }, event.currentTarget)
+            {(propertyLanesByZone.get(row.zoneId) ?? []).map((lane, laneIndex) => {
+              const laneRow = rowStart(rowIndex) + contentStartRow + routingLaneRows + laneIndex + 1
+              const selectedBeat = selection.kind === 'transition'
+                ? lane.projection.beats.find((beat) => beat.ownerId === selection.transitionId)?.id ?? null
+                : null
+              return (
+                <div key={`${row.zoneId}:${lane.key}`} className="contents">
+                  <div
+                    className="sticky left-0 z-30 flex min-w-0 items-center border-t border-zinc-900/80 bg-[#060608] px-2 font-mono text-[8.5px]"
+                    style={{ gridColumn: 1, gridRow: laneRow, color: lane.color }}
+                  >
+                    <span className="truncate">↳ {lane.label}</span>
+                  </div>
+                  <div
+                    className="min-w-0"
+                    style={{ gridColumn: `2 / ${columns.length}`, gridRow: laneRow }}
+                  >
+                    <ShowPropertySparkline
+                      ariaLabel={`${lane.label === 'animation speed' ? 'Animation speed' : lane.label === 'brightness' ? 'Brightness' : `${lane.label} control`} lane for ${row.zoneName}`}
+                      projection={lane.projection}
+                      color={lane.color}
+                      selectedBeatId={selectedBeat}
+                      formatValue={lane.formatValue}
+                      onSelectBeat={(beat, anchor) => {
+                        if (!beat.ownerId) return
+                        onSelect({ kind: 'transition', transitionId: beat.ownerId }, anchor)
                       }}
-                    >
-                      {from === undefined || target === undefined ? '—' : `${formatControlValue(from)}→${formatControlValue(target)}`}
-                    </button>
-                  ) : null
-                })}
-              </div>
-            ))}
+                      className="size-full border-t border-zinc-900/80 bg-[#080a0d]"
+                    />
+                  </div>
+                </div>
+              )
+            })}
           </div>
         ))}
         {!readOnly && <button
@@ -2272,7 +2209,7 @@ function SceneStrip({
             onAddZone()
           }}
           className="sticky left-0 z-30 flex items-center justify-center rounded-[5px] border border-dashed border-zinc-800 bg-[#060608] text-[10px] uppercase tracking-wider text-structural hover:border-zinc-600 hover:text-zinc-200"
-          style={{ gridColumn: 1, gridRow: strip.rows.length * rowStride + contentStartRow + routingLaneRows }}
+          style={{ gridColumn: 1, gridRow: totalContentRows + contentStartRow + routingLaneRows }}
         >
           + zone
         </button>}
@@ -2284,7 +2221,7 @@ function SceneStrip({
             onAddScene()
           }}
           className="sticky right-0 z-30 flex items-center justify-center rounded-[5px] border border-dashed border-zinc-800 bg-[#060608] text-[10px] uppercase tracking-wider text-structural [writing-mode:vertical-rl] hover:border-zinc-600 hover:text-zinc-200"
-          style={{ gridColumn: columns.length, gridRow: `${contentStartRow + routingLaneRows} / span ${strip.rows.length * rowStride}` }}
+          style={{ gridColumn: columns.length, gridRow: `${contentStartRow + routingLaneRows} / span ${totalContentRows}` }}
         >
           + scene
         </button>}

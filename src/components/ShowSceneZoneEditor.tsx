@@ -1,5 +1,6 @@
 import { Activity, ChevronLeft, ChevronRight, Clapperboard, GripVertical, Lock, Plus, RotateCw, Scissors, SkipBack, SkipForward, Trash2 } from 'lucide-react'
-import { useEffect, useState, type MouseEvent, type PointerEvent, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, type MouseEvent, type PointerEvent, type ReactNode } from 'react'
+import { ShowPropertySparkline } from '@/components/ShowPropertySparkline'
 import type { FlatShowCompositionProjection } from '@/engine/showCompositionProjection'
 import {
   projectShowSceneEditorScope,
@@ -22,6 +23,7 @@ import {
   propertyTargetKey,
   showPropertyTrackNeighbors,
 } from '@/engine/showPropertyAnimation'
+import { projectShowPropertyTrackLane } from '@/engine/showPropertyLaneProjection'
 import {
   showClipEffectParameterValue,
   showClipEffectParameters,
@@ -827,13 +829,14 @@ function PropertyAnimationPanel({
                   className="grid size-4 shrink-0 place-items-center text-zinc-700 hover:text-red-300 disabled:opacity-20"
                 ><Trash2 size={8} /></button>
               </span>
-              <PropertySparkline
+              <PropertyAnimationSparkline
                 track={track}
                 durationMs={durationMs}
                 min={option?.min ?? 0}
                 max={option?.max ?? 1}
-                selectedKeyframeId={selectedPoint?.id ?? null}
-                onSelect={(keyframeId) => onSelectKeyframe({ trackId: track.id, keyframeId })}
+                defaultValue={option?.value ?? 0}
+                selectedBeatId={selectedPoint?.id ?? null}
+                onSelectBeat={(keyframeId) => onSelectKeyframe({ trackId: track.id, keyframeId })}
               />
             </div>
             {selectedPoint && option && (
@@ -890,48 +893,37 @@ function PropertyAnimationPanel({
   )
 }
 
-function PropertySparkline({ track, durationMs, min, max, selectedKeyframeId, onSelect }: {
+function PropertyAnimationSparkline({
+  track,
+  durationMs,
+  min,
+  max,
+  defaultValue,
+  selectedBeatId,
+  onSelectBeat,
+}: {
   track: ShowPropertyAnimationTrack
   durationMs: number
   min: number
   max: number
-  selectedKeyframeId: string | null
-  onSelect: (keyframeId: string) => void
+  defaultValue: number
+  selectedBeatId: string | null
+  onSelectBeat: (keyframeId: string) => void
 }) {
-  const samples = Array.from({ length: 41 }, (_, index) => evaluateShowPropertyTrack(track, durationMs * index / 40))
-  const authoredMin = Math.min(...samples)
-  const authoredMax = Math.max(...samples)
-  const constraintSpan = Math.max(0.000001, max - min)
-  const minimumVisibleSpan = constraintSpan * 0.12
-  const center = (authoredMin + authoredMax) / 2
-  const visibleMin = authoredMax - authoredMin < minimumVisibleSpan ? center - minimumVisibleSpan / 2 : authoredMin
-  const visibleMax = authoredMax - authoredMin < minimumVisibleSpan ? center + minimumVisibleSpan / 2 : authoredMax
-  const y = (value: number) => 12 - clamp((value - visibleMin) / Math.max(0.000001, visibleMax - visibleMin), 0, 1) * 10
-  const points = samples.map((value, index) => `${index * 2.5},${y(value)}`).join(' ')
+  const projection = useMemo(() => projectShowPropertyTrackLane({
+    track,
+    durationMs,
+    constraint: { min, max },
+    defaultValue,
+  }), [defaultValue, durationMs, max, min, track])
   return (
-    <svg viewBox="0 0 100 14" preserveAspectRatio="none" className="h-full w-full overflow-visible bg-[#080a0d]" aria-label="Property sparkline">
-      <polyline points={points} fill="none" stroke="#c4b5fd" strokeWidth="0.7" vectorEffect="non-scaling-stroke" />
-      {track.keyframes.map((keyframe) => (
-        <circle
-          key={keyframe.id}
-          role="button"
-          aria-label={`Select keyframe at ${keyframe.timeMs} ms`}
-          tabIndex={0}
-          cx={clamp(keyframe.timeMs / durationMs, 0, 1) * 100}
-          cy={y(keyframe.value)}
-          r={selectedKeyframeId === keyframe.id ? 2.2 : 1.6}
-          fill={selectedKeyframeId === keyframe.id ? '#fde68a' : '#c4b5fd'}
-          vectorEffect="non-scaling-stroke"
-          onClick={() => onSelect(keyframe.id)}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter' || event.key === ' ') {
-              event.preventDefault()
-              onSelect(keyframe.id)
-            }
-          }}
-        />
-      ))}
-    </svg>
+    <ShowPropertySparkline
+      ariaLabel="Property sparkline"
+      projection={projection}
+      selectedBeatId={selectedBeatId}
+      onSelectBeat={(beat) => onSelectBeat(beat.id)}
+      className="h-full w-full bg-[#080a0d]"
+    />
   )
 }
 

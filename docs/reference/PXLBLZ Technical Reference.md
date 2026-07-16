@@ -945,6 +945,25 @@ on and `showEditorSessionStore` persists only that editor preference; Alt
 temporarily inverts it where supported. Zoom and Snap never change the saved
 Show.
 
+`showPropertyLaneProjection.ts` is the framework-free authority for compact
+Property animation geometry. It samples authored segments plus every segment
+boundary and interior points, applies the saved easing, retains truthful values
+and extrema, and computes a separate display range that magnifies changes
+smaller than 12% of the property's legal span. Its global adapter projects
+Scene-owned Animation speed, Brightness, and public Pattern-control targets
+together with boundary-owned ramps. Its local adapter projects typed keyframe
+tracks. Default-only global targets return `disclosed: false`, so Zone row
+stride is derived from authored lanes instead of reserving empty rows.
+
+`ShowPropertySparkline` is the shared React renderer used by the global Show
+timeline, Scene X-ray, Super Detail, and the Scene-local editor. It draws into a
+ten-unit SVG ordinate and separates four-pixel beat marks from twelve-pixel
+pointer/keyboard hit targets. A selected global beat routes back to its owning
+Transition; a selected local beat routes to exact keyframe fields. Read-only
+consumers omit interactive buttons while keeping the same factual curve. The
+component has no animation loop and disables its small UI transitions under
+reduced motion.
+
 `showCompositionProjection.ts` builds a lossless version-0 read sidecar from the
 normalized flat Show and its unchanged compile recipe. It separates runtime
 Pattern-instance summaries from Scene-owned full-duration base placements and
@@ -1040,14 +1059,15 @@ endpoint while a top-level Transition is running. Instance tracks apply once per
 advanced Pattern instance. Preview, deterministic Fast replay, artifact output,
 EPE export, and Controller output therefore consume the same emitted evaluator.
 
-`ShowSceneZoneEditor` reveals a compact lane only after its track is authored.
-The SVG sparkline preserves the curve's timing and shape while exaggerating very
-small value spans enough to remain legible. Its points are selection targets,
-not drag handles. Exact keyboard fields edit time, value, and easing; commands
-add at the playhead, move to the previous or next point, delete a point, or
-delete the track. Split and Restart clone affected placement- or instance-owned
-tracks under new stable targets, while deletion removes tracks whose owner no
-longer exists.
+`ShowSceneZoneEditor` reveals a shared compact sparkline only after its track is
+authored. Exact keyboard fields edit time, value, and easing; commands add at
+the playhead, move to the previous or next point, delete a point, or delete the
+track. Split and Restart clone affected placement- or instance-owned tracks
+under new stable targets, while deletion removes tracks whose owner no longer
+exists. `showSceneReadOnlyProjection.ts` resolves X-ray and Super Detail beats
+to the same real placement, Effect, public-control, Animation-speed, and
+Brightness targets; outgoing boundaries resolve their destination Scene rather
+than borrowing the current Scene's value.
 
 `showEditorSessionStore` retains three independent diagnostic flags outside the
 Show record: Zone outlines, selected-clip outline, and other-zone timing guides.

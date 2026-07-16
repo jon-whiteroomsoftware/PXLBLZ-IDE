@@ -52,7 +52,15 @@ describe('Scene read-only projection (#471)', () => {
       expect.objectContaining({ effectId: 'fx-swirl', effectKind: 'swirl', startMs: 0, endMs: 30_000 }),
     ])
     expect(detail.xray.propertyBeats).toEqual([
-      expect.objectContaining({ property: 'brightness', localTimeMs: 0, durationMs: 800 }),
+      expect.objectContaining({
+        property: 'brightness',
+        localTimeMs: 0,
+        durationMs: 800,
+        fromValue: 0.2,
+        toValue: 1,
+        easing: { curve: 'quadratic', direction: 'in-out' },
+        ownerId: 'transition-scene-1',
+      }),
     ])
     expect(detail.zones[0]).toMatchObject({
       zoneName: 'main',

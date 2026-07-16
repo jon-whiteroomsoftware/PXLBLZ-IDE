@@ -33,6 +33,38 @@ test.describe('authenticated Show authoring', () => {
     expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(8)
   })
 
+  test('renders compact truthful property sparklines at desktop and narrow widths (#483)', async ({ page }) => {
+    const consoleErrors: string[] = []
+    page.on('console', (message) => {
+      if (message.type() === 'error') consoleErrors.push(message.text())
+    })
+
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('studio/shows/stock-show-installation-finale')
+
+    const speedLane = page.getByRole('group', { name: 'Animation speed lane for Portal' })
+    const brightnessLane = page.getByRole('group', { name: 'Brightness lane for Portal' })
+    await expect(speedLane).toBeVisible()
+    await expect(brightnessLane).toBeVisible()
+    expect((await speedLane.boundingBox())?.height).toBe(18)
+    expect((await brightnessLane.boundingBox())?.height).toBe(18)
+    await expect(speedLane.locator('polyline')).toHaveCount(1)
+    await expect(brightnessLane.locator('polyline')).toHaveCount(1)
+
+    const exactBeat = speedLane.getByRole('button', { name: /Boundary starts at \d+ ms, value 0\.35/ }).first()
+    await expect(exactBeat).toBeVisible()
+    await exactBeat.focus()
+    await expect(exactBeat).toBeFocused()
+    await exactBeat.press('Enter')
+    await expect(page.getByRole('dialog', { name: 'Entity Detail Panel' })).toContainText('Transition')
+
+    await page.setViewportSize({ width: 720, height: 900 })
+    await expect(speedLane).toBeVisible()
+    await expect(brightnessLane).toBeVisible()
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(8)
+    expect(consoleErrors).toEqual([])
+  })
+
   test('ships the dense Timeline frame across desktop and narrow workspaces', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 })
     await page.goto('studio/shows')

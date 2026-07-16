@@ -845,6 +845,22 @@ numeric properties.
 Changing a Clip to a different Pattern clears the former Pattern's developer-
 slider targets so unavailable controls cannot remain attached to the Clip.
 
+The global Show timeline gives each authored Animation speed, Brightness, or
+public Pattern-control target one compact sparkline beneath its Zone. A property
+that remains at its default consumes no row. The line preserves saved values,
+timing, easing, direction, and extrema, but visually magnifies a very small
+range so a subtle change remains recognizable in roughly ten drawing pixels.
+Small dots mark saved boundary beats; select one with pointer or keyboard to
+open the owning Transition and see its exact value. The dots are selection
+targets rather than drag handles, and the global view does not imply arbitrary
+keyframes inside a Scene.
+
+Scene X-ray, Super Detail, and the Scene-local editor use the same sparkline
+language. Read-only views summarize the property values their represented
+placements and boundaries actually own; they do not draw decorative or
+estimated curves. The Scene-local editor adds exact keyframe authoring beneath
+the selected point.
+
 Open one Scene and Zone to author local Property animation without adding more
 global Scenes. Select a Main or overlay clip, then add an authored lane for
 Animation speed, one public Pattern slider, Brightness, phase, overlay opacity,

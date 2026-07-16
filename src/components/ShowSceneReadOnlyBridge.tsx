@@ -1,10 +1,12 @@
 import { useEffect, useRef, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { Clapperboard, ScanSearch, X } from 'lucide-react'
+import { ShowPropertySparkline } from '@/components/ShowPropertySparkline'
 import type {
   SceneReadOnlyBridgeProjection,
   SceneXrayPropertyBeat,
 } from '@/engine/showSceneReadOnlyProjection'
+import { projectSceneXrayPropertyLane } from '@/engine/showSceneReadOnlyProjection'
 
 const EFFECT_COLOR = '#4fc4b0'
 const PROPERTY_COLOR = '#a78bfa'
@@ -78,15 +80,13 @@ function PropertySparkline({ beats, durationMs }: { beats: SceneXrayPropertyBeat
   if (beats.length === 0) return null
   return (
     <>
-      <svg aria-hidden viewBox="0 0 100 10" preserveAspectRatio="none" className="absolute inset-0 size-full overflow-visible">
-        <path d="M0 8 C18 8 24 3 42 4 S72 7 100 2" fill="none" stroke={PROPERTY_COLOR} strokeWidth="0.8" vectorEffect="non-scaling-stroke" opacity="0.7" />
-      </svg>
       {beats.map((beat, index) => (
-        <i
+        <ShowPropertySparkline
           key={`${beat.direction}-${beat.property}-${index}`}
-          aria-hidden
-          className="absolute top-1/2 size-1 -translate-x-1/2 -translate-y-1/2 rounded-full bg-violet-300"
-          style={{ left: `${beat.localTimeMs / durationMs * 100}%` }}
+          ariaLabel={`${beat.property} ${formatPropertyValue(beat.fromValue)} to ${formatPropertyValue(beat.toValue)}`}
+          projection={projectSceneXrayPropertyLane(beat, durationMs)}
+          color={PROPERTY_COLOR}
+          className="absolute inset-0 size-full"
         />
       ))}
     </>
@@ -265,19 +265,18 @@ function DetailTrack({ label, accent, compact = false, children }: {
 }
 
 function PropertyBeatTrack({ beat, durationMs }: { beat: SceneXrayPropertyBeat; durationMs: number }) {
-  const start = beat.direction === 'incoming' ? 0 : Math.max(0, durationMs - beat.durationMs)
-  const end = Math.min(durationMs, start + beat.durationMs)
-  const left = start / Math.max(1, durationMs) * 100
-  const width = Math.max(1, (end - start) / Math.max(1, durationMs) * 100)
   return (
-    <span className="absolute inset-y-0" style={{ left: `${left}%`, width: `${width}%` }}>
-      <svg aria-hidden viewBox="0 0 100 20" preserveAspectRatio="none" className="absolute inset-0 size-full overflow-visible">
-        <path d={beat.direction === 'incoming' ? 'M0 17 C35 17 60 5 100 3' : 'M0 3 C40 5 65 17 100 17'} fill="none" stroke={PROPERTY_COLOR} strokeWidth="1" vectorEffect="non-scaling-stroke" />
-      </svg>
-      <i aria-hidden className="absolute left-0 top-[14px] size-1 rounded-full bg-violet-300" />
-      <i aria-hidden className="absolute right-0 top-[2px] size-1 rounded-full bg-violet-300" />
-    </span>
+    <ShowPropertySparkline
+      ariaLabel={`${beat.property} ${formatPropertyValue(beat.fromValue)} to ${formatPropertyValue(beat.toValue)}`}
+      projection={projectSceneXrayPropertyLane(beat, durationMs)}
+      color={PROPERTY_COLOR}
+      className="absolute inset-0 size-full bg-[#080a0d]"
+    />
   )
+}
+
+function formatPropertyValue(value: number): string {
+  return Number(value.toFixed(3)).toString()
 }
 
 function formatTimelineTime(timeMs: number): string {

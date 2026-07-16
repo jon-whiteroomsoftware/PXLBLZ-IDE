@@ -1,6 +1,12 @@
 import { projectShowTimeline } from './showModel'
-import type { FlatShowCompositionProjection, ShowCompositionPlacementProjection } from './showCompositionProjection'
-import type { ShowBoundaryTransition, ShowClipEffect } from './personalContentRecords'
+import type {
+  FlatShowCompositionProjection,
+  ShowCompositionPatternInstanceProjection,
+  ShowCompositionPlacementProjection,
+} from './showCompositionProjection'
+import type { ShowBoundaryTransition, ShowClipEffect, ShowTransitionEasing } from './personalContentRecords'
+import { showClipEffectParameterValue } from './showEffectAuthoring'
+import { projectShowPropertyLane, type ShowPropertyLaneProjection } from './showPropertyLaneProjection'
 
 export interface SceneXrayCutReference {
   localTimeMs: number
@@ -24,6 +30,10 @@ export interface SceneXrayPropertyBeat {
   durationMs: number
   direction: 'incoming' | 'outgoing'
   sourceCellIds: string[]
+  ownerId: string
+  fromValue: number
+  toValue: number
+  easing: ShowTransitionEasing
 }
 
 export interface SceneReadOnlyBoundary {
@@ -161,8 +171,8 @@ export function projectSceneReadOnlyBridge(
     }))
   ))
   const propertyBeats = [
-    ...projectBoundaryPropertyBeats(incoming, 'incoming', 0, scene.placements),
-    ...projectBoundaryPropertyBeats(outgoing, 'outgoing', scene.durationMs, scene.placements),
+    ...projectBoundaryPropertyBeats(incoming, 'incoming', 0, scene.placements, instances),
+    ...projectBoundaryPropertyBeats(outgoing, 'outgoing', scene.durationMs, nextScene?.placements ?? [], instances),
   ]
 
   return {
@@ -179,6 +189,55 @@ export function projectSceneReadOnlyBridge(
   }
 }
 
+export function projectSceneXrayPropertyLane(
+  beat: SceneXrayPropertyBeat,
+  sceneDurationMs: number,
+): ShowPropertyLaneProjection {
+  const startMs = beat.direction === 'incoming'
+    ? 0
+    : Math.max(0, sceneDurationMs - beat.durationMs)
+  const endMs = Math.min(sceneDurationMs, startMs + beat.durationMs)
+  const constraint = beat.property === 'timeScale'
+    ? { min: 0, max: 4 }
+    : { min: Math.min(0, beat.fromValue, beat.toValue), max: Math.max(1, beat.fromValue, beat.toValue) }
+  const baseId = `${beat.ownerId}:${beat.property}:${beat.sourceCellIds.join(',')}`
+  return projectShowPropertyLane({
+    durationMs: sceneDurationMs,
+    constraint,
+    defaultValue: beat.fromValue,
+    segments: [
+      {
+        id: `${baseId}:before`,
+        startMs: 0,
+        endMs: startMs,
+        from: beat.fromValue,
+        to: beat.fromValue,
+        easing: { curve: 'linear' },
+      },
+      {
+        id: `${baseId}:ramp`,
+        startMs,
+        endMs,
+        from: beat.fromValue,
+        to: beat.toValue,
+        easing: beat.easing,
+      },
+      {
+        id: `${baseId}:after`,
+        startMs: endMs,
+        endMs: sceneDurationMs,
+        from: beat.toValue,
+        to: beat.toValue,
+        easing: { curve: 'linear' },
+      },
+    ],
+    beats: [
+      { id: `${baseId}:start`, timeMs: startMs, value: beat.fromValue, kind: 'boundary', ownerId: beat.ownerId, label: `${beat.property} starts` },
+      { id: `${baseId}:end`, timeMs: endMs, value: beat.toValue, kind: 'boundary', ownerId: beat.ownerId, label: `${beat.property} reaches target` },
+    ],
+  })
+}
+
 function boundarySummary(boundary: ShowBoundaryTransition | null): SceneReadOnlyBoundary | null {
   return boundary ? {
     id: boundary.id,
@@ -193,22 +252,33 @@ function projectBoundaryPropertyBeats(
   direction: 'incoming' | 'outgoing',
   localTimeMs: number,
   placements: ShowCompositionPlacementProjection[],
+  instances: Map<string, ShowCompositionPatternInstanceProjection>,
 ): SceneXrayPropertyBeat[] {
   const properties = boundary?.propertyTransitions
   if (!boundary || !properties) return []
   const sourceIds = new Set(placements.map((placement) => placement.sourceCellId))
   const beats: SceneXrayPropertyBeat[] = []
-  const addCellProperty = (property: string, descriptor: { fromByCellId: Record<string, number>; durationMs?: number } | undefined) => {
+  const addCellProperty = (
+    property: string,
+    descriptor: { fromByCellId: Record<string, number>; durationMs?: number; easing?: ShowTransitionEasing } | undefined,
+  ) => {
     if (!descriptor) return
-    const relevant = Object.keys(descriptor.fromByCellId).filter((cellId) => sourceIds.has(cellId))
-    if (relevant.length === 0) return
-    beats.push({
-      property,
-      localTimeMs,
-      durationMs: descriptor.durationMs ?? boundary.durationMs,
-      direction,
-      sourceCellIds: relevant,
-    })
+    for (const cellId of Object.keys(descriptor.fromByCellId).filter((candidate) => sourceIds.has(candidate))) {
+      const placement = placements.find((candidate) => candidate.sourceCellId === cellId)
+      const toValue = placement ? placementPropertyValue(property, placement, instances.get(placement.instanceId)) : undefined
+      if (toValue === undefined) continue
+      beats.push({
+        property,
+        localTimeMs,
+        durationMs: descriptor.durationMs ?? boundary.durationMs,
+        direction,
+        sourceCellIds: [cellId],
+        ownerId: boundary.id,
+        fromValue: descriptor.fromByCellId[cellId],
+        toValue,
+        easing: descriptor.easing ?? boundary.easing,
+      })
+    }
   }
   addCellProperty('timeScale', properties.timeScale)
   addCellProperty('brightness', properties.brightness)
@@ -216,23 +286,19 @@ function projectBoundaryPropertyBeats(
   for (const [effectId, parameters] of Object.entries(properties.effects ?? {})) {
     for (const [parameter, descriptor] of Object.entries(parameters)) addCellProperty(`${effectId}.${parameter}`, descriptor)
   }
-  if (properties.routing?.splitPosition) {
-    beats.push({
-      property: 'routing.splitPosition',
-      localTimeMs,
-      durationMs: properties.routing.splitPosition.durationMs ?? boundary.durationMs,
-      direction,
-      sourceCellIds: [],
-    })
-  }
-  if (properties.sample?.repeatScale) {
-    beats.push({
-      property: 'sample.repeatScale',
-      localTimeMs,
-      durationMs: properties.sample.repeatScale.durationMs ?? boundary.durationMs,
-      direction,
-      sourceCellIds: [],
-    })
-  }
   return beats
+}
+
+function placementPropertyValue(
+  property: string,
+  placement: ShowCompositionPlacementProjection,
+  instance: ShowCompositionPatternInstanceProjection | undefined,
+): number | undefined {
+  if (property === 'timeScale') return instance?.simulation.timeScale
+  if (property === 'brightness') return placement.appearance.brightness
+  if (!property.includes('.')) return instance?.simulation.controlTargets?.[property]
+  const [effectId, parameterId] = property.split('.', 2)
+  const effect = placement.appearance.effects?.find((candidate) => candidate.id === effectId)
+  const value = effect ? showClipEffectParameterValue(effect, parameterId) : undefined
+  return typeof value === 'number' ? value : undefined
 }

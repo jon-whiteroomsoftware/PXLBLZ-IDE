@@ -1109,8 +1109,8 @@ describe('ShowEditor (#318)', () => {
 
     render(<ShowEditor showId={show.id} />)
 
-    expect(screen.getByRole('group', { name: 'Animation speed lane for main' })).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'Edit animation speed transition from Scene 1 for main' }))
+    expect(screen.queryByRole('group', { name: 'Animation speed lane for main' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Select Scene 1 to Scene 2 transition (crossfade)' }))
     await user.click(screen.getByLabelText('Animate speed for main'))
     changeCommittedNumber('Animation speed start main', '1.5')
     changeCommittedNumber('Animation speed target main', '0')
@@ -1122,7 +1122,11 @@ describe('ShowEditor (#318)', () => {
       })
       expect(saved.cells[1].adaptations.timeScale).toBe(0)
     })
-    expect(screen.getByText('1.5→0')).toBeInTheDocument()
+    expect(screen.getByRole('group', { name: 'Animation speed lane for main' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Boundary starts at 30000 ms, value 1\.5/i })).toBeInTheDocument()
+    await user.click(screen.getAllByRole('button', { name: 'Select TestPattern1D' })[0])
+    await user.click(screen.getByRole('button', { name: /Boundary starts at 30000 ms, value 1\.5/i }))
+    expect(screen.getByRole('heading', { name: 'Transition properties' })).toBeInTheDocument()
   })
 
   it('authors independent Time and Brightness curves through one property inspector (#418)', async () => {
@@ -1132,8 +1136,8 @@ describe('ShowEditor (#318)', () => {
     useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
     render(<ShowEditor showId={show.id} />)
 
-    expect(screen.getByRole('group', { name: 'Brightness lane for main' })).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'Edit brightness transition from Scene 1 for main' }))
+    expect(screen.queryByRole('group', { name: 'Brightness lane for main' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Select Scene 1 to Scene 2 transition (crossfade)' }))
     await user.click(screen.getByLabelText('Animate speed for main'))
     await user.click(screen.getByLabelText('Animate brightness for main'))
     changeCommittedNumber('Animation speed duration seconds', '1.5')
@@ -1150,7 +1154,8 @@ describe('ShowEditor (#318)', () => {
       })
       expect(saved.cells[1].adaptations.brightness).toBe(0.25)
     })
-    expect(screen.getByText('100%→25%')).toBeInTheDocument()
+    expect(screen.getByRole('group', { name: 'Brightness lane for main' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Boundary reaches 0\.25 at 30800 ms, value 25%/i })).toBeInTheDocument()
   })
 
   it('authors a public Pattern slider with the shared target, lane, and boundary vocabulary (#419)', async () => {
@@ -1178,7 +1183,7 @@ describe('ShowEditor (#318)', () => {
     await user.click(screen.getByLabelText('Set Speed target'))
     changeCommittedNumber('Speed target', '0.8')
 
-    await user.click(screen.getByRole('button', { name: 'Edit Speed transition from Scene 1 for main' }))
+    await user.click(screen.getByRole('button', { name: 'Select Scene 1 to Scene 2 transition (crossfade)' }))
     await user.click(screen.getByLabelText('Animate Speed for main'))
     await user.selectOptions(screen.getByLabelText('Speed easing'), 'ease-in-out')
 
@@ -1191,7 +1196,7 @@ describe('ShowEditor (#318)', () => {
       })
     })
     expect(screen.getByRole('group', { name: 'Speed control lane for main' })).toBeInTheDocument()
-    expect(screen.getByText('0.2→0.8')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Boundary reaches 0\.8 at 32000 ms, value 0\.8/i })).toBeInTheDocument()
   })
 
   it('opens Pattern controls by default when the selected Clip has an authored target', async () => {
@@ -1228,22 +1233,24 @@ describe('ShowEditor (#318)', () => {
       nominalPixelCount: 16,
     })
     show = spanShowCellZones(show, show.cells[0].id, 2)
+    show = updateShowCellAdaptations(show, show.cells[0].id, { timeScale: 0.75 })
     useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
 
     render(<ShowEditor showId={show.id} />)
 
-    expect(screen.getByRole('group', { name: 'Animation speed lane for main' }).parentElement).toHaveTextContent('1×')
-    expect(screen.getByRole('group', { name: 'Animation speed lane for edge' }).parentElement).toHaveTextContent('1×')
+    expect(screen.getByRole('group', { name: 'Animation speed lane for main' }).querySelector('polyline')).toBeInTheDocument()
+    expect(screen.getByRole('group', { name: 'Animation speed lane for edge' }).querySelector('polyline')).toBeInTheDocument()
   })
 
-  it('keeps zone selection in the clip row instead of covering automation lanes (#466)', () => {
+  it('keeps zone selection in the clip row and hides default property lanes (#466, #483)', () => {
     const show = createDefaultShow('show-466-zone-target', 'Zone target', 1000)
     useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
 
     render(<ShowEditor showId={show.id} />)
 
     expect(screen.getByRole('button', { name: 'Select zone main' })).toHaveStyle({ gridRow: '5' })
-    expect(screen.getByRole('group', { name: 'Animation speed lane for main' })).toHaveStyle({ gridRow: '6' })
+    expect(screen.queryByRole('group', { name: 'Animation speed lane for main' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Add zone' })).toHaveStyle({ gridRow: '6' })
   })
 
   it('renders a scene strip, selectable clip inspector, and compile bar', async () => {

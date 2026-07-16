@@ -496,7 +496,7 @@ describe('ShowSceneZoneEditor (#487)', () => {
     expect(screen.getByLabelText('Property animation')).toBeInTheDocument()
     expect(screen.getAllByLabelText('Property sparkline')).toHaveLength(1)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Select keyframe at 0 ms' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Keyframe at 0 ms, value 1' }))
     const value = screen.getByRole('spinbutton', { name: 'Keyframe value' })
     fireEvent.change(value, { target: { value: '0.25' } })
     fireEvent.blur(value)
