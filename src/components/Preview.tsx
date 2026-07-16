@@ -435,9 +435,9 @@ export function Preview({
   }, [])
 
   // Pole wrap density (#146): re-derive the 3D draw positions when the slider
-  // moves, WITHOUT rebuilding the loop or reloading the pattern. The pole's
-  // `sample` is empty (1D dispatch), so wrap density only changes where dots are
-  // drawn — a cheap `set3DPositions` + repaint, not a full effect re-run. Gated
+  // moves, WITHOUT rebuilding the loop or reloading the pattern. The Pole shape
+  // does not own `sample`, so wrap density only changes where dots are drawn — a
+  // cheap `set3DPositions` + repaint, not a full effect re-run. Gated
   // on the pole being the live layout (a 3D shape over the square 3D viewport).
   const poleCols = useCameraStore((s) => s.poleCols)
   useEffect(() => {

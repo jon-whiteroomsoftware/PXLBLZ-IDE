@@ -1,10 +1,10 @@
 // Viewport shape embeddings: pure pos-only generators for 1D layouts.
 //
-// A `render`-only (1D) pattern consumes the index alone — its `sample` is empty
-//, so where its dots are *drawn* is a pure display choice owned by the
-// viewport, not the map. Line, ring, polygon, helix are the same index sequence
-// over the same (empty) sample; they differ only in `pos`. So these embeddings
-// live here in the viewport, not under `maps/`.
+// A `render`-only (1D) pattern consumes `x` from the active 1D map or the
+// implicit normalized Index view. Where those samples are *drawn* remains an
+// independent display choice owned by the viewport. Line, Ring, and Pole keep
+// the same sample sequence and differ only in `pos`, so these embeddings live
+// here in the viewport rather than under `maps/`.
 //
 // Each generator returns `pos` only, in the same normalized [0,1]² display space
 // as a map's intrinsic `pos` (see maps/plane.ts). The locked-2D camera turns that
@@ -19,8 +19,8 @@ export interface Shape {
   name: string
   // DISPLAY dimensionality of the embedding (not the pattern's): a line reads as
   // 1D, a ring as 2D, a helix as 3D. Gates the viewport's camera control set
-  // (§5) — a 1D pattern on a ring still gets the 2D top-down camera,
-  // while its dispatch stays 1D (the `sample` is always empty).
+  // (§5) — a 1D pattern on a ring still gets the 2D top-down camera while its
+  // dispatch remains 1D and keeps the selected map's `[x]` sample.
   displayDim: 1 | 2 | 3
   // Solid-eligible iff the shape supplies a per-point outward normal:
   // the Pole has radial normals (its solidity fade can hide its far side); the

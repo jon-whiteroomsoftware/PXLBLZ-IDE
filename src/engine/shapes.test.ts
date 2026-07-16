@@ -197,14 +197,12 @@ describe('shapes (viewport 1D embeddings)', () => {
       ])
     })
 
-    it('produces pos only — a 1D pattern\'s empty sample is left untouched', () => {
-      // A 1D layout carries an empty `sample`; a shape supplies `pos` without
-      // ever reading or writing `sample`.
-      const points: MapPoint[] = [{ sample: [] }, { sample: [] }, { sample: [] }]
+    it('produces pos only and leaves a 1D map\'s samples untouched', () => {
+      const points: MapPoint[] = [{ sample: [0.1] }, { sample: [0.5] }, { sample: [0.9] }]
       const shape: Shape = RING
       const path = embedPositions(shape, points.length)
       expect(path).toHaveLength(points.length)
-      expect(points.every((p) => p.sample.length === 0)).toBe(true)
+      expect(points.map((p) => p.sample)).toEqual([[0.1], [0.5], [0.9]])
     })
   })
 })
