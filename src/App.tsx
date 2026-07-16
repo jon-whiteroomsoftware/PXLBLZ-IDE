@@ -974,7 +974,8 @@ function StudioApp() {
                   onCancel={cancelShowCreation}
                   onCreate={async (input) => {
                     const created = await createNewShow(input)
-                    openShow(created.id)
+                    void openShow(created.id)
+                    navigate({ kind: 'studio', entity: { kind: 'shows', id: created.id } })
                   }}
                 />
               ) : showClassification && showBeingClassified ? (

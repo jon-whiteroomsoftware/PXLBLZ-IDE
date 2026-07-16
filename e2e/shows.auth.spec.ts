@@ -429,6 +429,20 @@ test.describe('authenticated Show authoring', () => {
     expect(seriousConsoleErrors).toEqual([])
   })
 
+  test('creates a second Show without route and active-Show synchronization looping', async ({ page }) => {
+    await page.goto('studio/shows')
+    await createInstallationShow(page)
+    const firstShowId = new URL(page.url()).pathname.split('/').at(-1)
+    await expect(page.getByRole('region', { name: 'Show timeline' })).toBeVisible()
+
+    await createInstallationShow(page)
+    await expect.poll(() => new URL(page.url()).pathname.split('/').at(-1)).not.toBe(firstShowId)
+    const secondShowId = new URL(page.url()).pathname.split('/').at(-1)
+
+    expect(secondShowId).not.toBe(firstShowId)
+    await expect(page.getByRole('region', { name: 'Show timeline' })).toBeVisible()
+  })
+
   test('Cancel and workspace Escape leave no Show record', async ({ page }) => {
     await page.goto('studio/shows')
     await page.getByRole('button', { name: 'New show' }).click()
