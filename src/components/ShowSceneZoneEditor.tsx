@@ -1,5 +1,5 @@
-import { Activity, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clapperboard, Lock, Plus, RotateCw, Scissors, SkipBack, SkipForward, Trash2 } from 'lucide-react'
-import { useState, type MouseEvent, type PointerEvent, type ReactNode } from 'react'
+import { Activity, ChevronLeft, ChevronRight, Clapperboard, GripVertical, Lock, Plus, RotateCw, Scissors, SkipBack, SkipForward, Trash2 } from 'lucide-react'
+import { useEffect, useState, type MouseEvent, type PointerEvent, type ReactNode } from 'react'
 import type { FlatShowCompositionProjection } from '@/engine/showCompositionProjection'
 import {
   projectShowSceneEditorScope,
@@ -16,6 +16,7 @@ import type {
   ShowRecord,
 } from '@/engine/personalContentRecords'
 import { resolveShowMainPlacementStart } from '@/engine/showCompositionModel'
+import { resolveShowLayerDragTarget } from '@/engine/showLayerDrag'
 import {
   evaluateShowPropertyTrack,
   propertyTargetKey,
@@ -27,6 +28,7 @@ import {
 } from '@/engine/showEffectAuthoring'
 import { SHOW_EASING_OPTIONS, showEasingFromOptionId, showEasingOptionId } from '@/engine/showEasing'
 import { useShowTransportStore } from '@/store/showTransportStore'
+import { useShowEditorSessionStore } from '@/store/showEditorSessionStore'
 
 export function ShowSceneZoneEditor({
   show,
@@ -98,11 +100,36 @@ export function ShowSceneZoneEditor({
   const [selectedMainId, setSelectedMainId] = useState<string | null>(null)
   const [selectedOverlay, setSelectedOverlay] = useState<{ layerId: string; placementId: string } | null>(null)
   const [newPatternKey, setNewPatternKey] = useState('')
-  const [drag, setDrag] = useState<{ placementId: string; grabOffsetMs: number; startMs: number } | null>(null)
+  const [drag, setDrag] = useState<
+    | { kind: 'main'; placementId: string; grabOffsetMs: number; startMs: number }
+    | { kind: 'overlay'; placementId: string; sourceLayerId: string; targetLayerId: string; grabOffsetMs: number; startMs: number; originClientY: number }
+    | null
+  >(null)
+  const [layerDrag, setLayerDrag] = useState<{ layerId: string; targetLayerId: string; originClientY: number } | null>(null)
   const [newTrackTargetKey, setNewTrackTargetKey] = useState('')
   const [selectedKeyframe, setSelectedKeyframe] = useState<{ trackId: string; keyframeId: string } | null>(null)
   const detail = projectShowSceneEditorScope(compositionProjection, scope)
+  const hasDetail = Boolean(detail)
   const positionMs = useShowTransportStore((state) => state.showId === show.id ? state.positionMs : 0)
+  const diagnostics = useShowEditorSessionStore((state) => state.diagnostics)
+  const setDiagnostic = useShowEditorSessionStore((state) => state.setDiagnostic)
+  const setDiagnosticFocus = useShowEditorSessionStore((state) => state.setDiagnosticFocus)
+  const focusedPlacementId = selectedMainId ?? selectedOverlay?.placementId ?? null
+
+  useEffect(() => {
+    if (!hasDetail) return
+    setDiagnosticFocus({
+      showId: show.id,
+      sceneId: scope.sceneId,
+      zoneId: scope.zoneId,
+      placementId: focusedPlacementId,
+    })
+  }, [focusedPlacementId, hasDetail, scope.sceneId, scope.zoneId, setDiagnosticFocus, show.id])
+
+  useEffect(() => () => {
+    if (useShowEditorSessionStore.getState().diagnosticFocus?.showId === show.id) setDiagnosticFocus(null)
+  }, [setDiagnosticFocus, show.id])
+
   if (!detail) {
     return (
       <section role="status" className="border-b border-zinc-800 bg-[#080a0d] p-4 text-[10px] text-zinc-500">
@@ -145,6 +172,19 @@ export function ShowSceneZoneEditor({
     return track.target.placementId === selectedAuthoredPlacement.id
   })
   const authoredTargetKeys = new Set((sceneComposition?.propertyTracks ?? []).map((track) => propertyTargetKey(track.target)))
+  const otherZoneGuideTimes = diagnostics.otherZoneGuides
+    ? [...new Set((sceneComposition?.zones ?? [])
+      .filter((zone) => zone.zoneId !== scope.zoneId)
+      .flatMap((zone) => [
+        ...zone.main.flatMap((placement) => [placement.startMs, placement.startMs + placement.durationMs]),
+        ...zone.overlays.flatMap((layer) => layer.placements.flatMap((placement) => [
+          placement.startMs,
+          placement.startMs + placement.durationMs,
+        ])),
+      ])
+      .filter((timeMs) => timeMs > 0 && timeMs < durationMs))]
+      .sort((a, b) => a - b)
+    : []
   const addableAnimationOptions = animationOptions.filter((option) => !authoredTargetKeys.has(option.key))
   const resolvedNewTrackOption = addableAnimationOptions.find((option) => option.key === newTrackTargetKey)
     ?? addableAnimationOptions[0]
@@ -202,6 +242,24 @@ export function ShowSceneZoneEditor({
             ))}
           </select>
         </label>
+        <div className="ml-auto flex shrink-0 items-center gap-0.5" aria-label="Scene diagnostics">
+          <DiagnosticToggle
+            label="Zone outlines"
+            active={diagnostics.zoneOutlines}
+            onChange={(active) => setDiagnostic('zoneOutlines', active)}
+          />
+          <DiagnosticToggle
+            label="Clip outline"
+            active={diagnostics.clipOutlines}
+            onChange={(active) => setDiagnostic('clipOutlines', active)}
+          />
+          <DiagnosticToggle
+            label="other-Zone timing guides"
+            shortLabel="Guides"
+            active={diagnostics.otherZoneGuides}
+            onChange={(active) => setDiagnostic('otherZoneGuides', active)}
+          />
+        </div>
       </header>
 
       <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 border-b border-zinc-900 px-3 py-2">
@@ -295,7 +353,7 @@ export function ShowSceneZoneEditor({
           const addSpan = availableSpanAt(layer.placements, addStartMs, durationMs)
           return (
             <div key={layer.id}>
-              <div className="grid h-10 grid-cols-[136px_minmax(0,1fr)] border-x border-b border-zinc-800">
+              <div className="group grid h-10 grid-cols-[136px_minmax(0,1fr)] border-x border-b border-zinc-800">
                 <span className="flex min-w-0 items-center gap-0.5 border-r border-zinc-800 bg-[#0d1116] px-1 text-[9px] text-zinc-300">
                   <i aria-hidden className="ml-1 size-1.5 shrink-0 rounded-full bg-emerald-300/80" />
                   <input
@@ -317,8 +375,42 @@ export function ShowSceneZoneEditor({
                     }}
                     className="h-6 min-w-0 flex-1 bg-transparent px-1 text-[9px] text-zinc-200 outline-none focus:bg-zinc-950"
                   />
-                  <button type="button" aria-label={`Move ${layer.name} layer up`} disabled={readOnly || layerIndex === 0} onClick={() => onReorderOverlayLayer(layer.id, layerIndex - 1)} className="grid size-5 shrink-0 place-items-center text-zinc-600 hover:text-zinc-200 disabled:opacity-20"><ChevronUp size={10} /></button>
-                  <button type="button" aria-label={`Move ${layer.name} layer down`} disabled={readOnly || layerIndex === detail.overlayLayers.length - 1} onClick={() => onReorderOverlayLayer(layer.id, layerIndex + 1)} className="grid size-5 shrink-0 place-items-center text-zinc-600 hover:text-zinc-200 disabled:opacity-20"><ChevronDown size={10} /></button>
+                  <button
+                    type="button"
+                    aria-label={`Reorder ${layer.name} layer`}
+                    disabled={readOnly || detail.overlayLayers.length < 2}
+                    onKeyDown={(event) => {
+                      const delta = event.key === 'ArrowUp' ? -1 : event.key === 'ArrowDown' ? 1 : 0
+                      if (!delta) return
+                      event.preventDefault()
+                      const targetIndex = clamp(layerIndex + delta, 0, detail.overlayLayers.length - 1)
+                      if (targetIndex !== layerIndex) onReorderOverlayLayer(layer.id, targetIndex)
+                    }}
+                    onPointerDown={(event) => {
+                      if (readOnly || event.button !== 0) return
+                      event.currentTarget.setPointerCapture(event.pointerId)
+                      setLayerDrag({ layerId: layer.id, targetLayerId: layer.id, originClientY: event.clientY })
+                    }}
+                    onPointerMove={(event) => {
+                      if (!layerDrag || layerDrag.layerId !== layer.id || !event.currentTarget.hasPointerCapture(event.pointerId)) return
+                      setLayerDrag({
+                        ...layerDrag,
+                        targetLayerId: resolveShowLayerDragTarget(detail.overlayLayers, layer.id, event.clientY - layerDrag.originClientY, {
+                          laneHeightPx: 40,
+                          hysteresisPx: 8,
+                        }),
+                      })
+                    }}
+                    onPointerUp={(event) => {
+                      if (!layerDrag || layerDrag.layerId !== layer.id) return
+                      event.currentTarget.releasePointerCapture(event.pointerId)
+                      const targetIndex = detail.overlayLayers.findIndex((candidate) => candidate.id === layerDrag.targetLayerId)
+                      if (targetIndex >= 0 && targetIndex !== layerIndex) onReorderOverlayLayer(layer.id, targetIndex)
+                      setLayerDrag(null)
+                    }}
+                    onPointerCancel={() => setLayerDrag(null)}
+                    className="grid size-5 shrink-0 cursor-grab place-items-center text-zinc-700 opacity-0 transition-opacity hover:text-zinc-200 focus:opacity-100 group-hover:opacity-100 active:cursor-grabbing disabled:opacity-20"
+                  ><GripVertical size={11} aria-hidden /></button>
                   <button
                     type="button"
                     aria-label={`Add clip to ${layer.name} at playhead`}
@@ -334,7 +426,16 @@ export function ShowSceneZoneEditor({
                   <button type="button" aria-label={`Delete ${layer.name} layer`} disabled={readOnly} onClick={() => { onDeleteOverlayLayer(layer.id); setSelectedOverlay(null) }} className="grid size-5 shrink-0 place-items-center text-zinc-600 hover:text-red-300 disabled:opacity-20"><Trash2 size={10} /></button>
                 </span>
                 <div className="relative bg-[repeating-linear-gradient(90deg,transparent_0_calc(12.5%-1px),#181d23_calc(12.5%-1px)_12.5%)]" onClick={seekFromTrack}>
-                  {layer.placements.map((placement) => (
+                  <SceneTimingGuides timesMs={otherZoneGuideTimes} durationMs={durationMs} />
+                  {layer.placements.map((placement) => {
+                    const placementDurationMs = placement.endMs - placement.startMs
+                    const renderedStartMs = drag?.kind === 'overlay' && drag.placementId === placement.id
+                      ? drag.startMs
+                      : placement.startMs
+                    const targetLayerIndex = drag?.kind === 'overlay' && drag.placementId === placement.id
+                      ? detail.overlayLayers.findIndex((candidate) => candidate.id === drag.targetLayerId)
+                      : layerIndex
+                    return (
                     <button
                       key={placement.id}
                       type="button"
@@ -344,21 +445,76 @@ export function ShowSceneZoneEditor({
                         setSelectedMainId(null)
                         setSelectedOverlay({ layerId: layer.id, placementId: placement.id })
                       }}
+                      onPointerDown={(event) => {
+                        if (readOnly || event.button !== 0) return
+                        const track = event.currentTarget.parentElement?.getBoundingClientRect()
+                        if (!track) return
+                        const atMs = clamp((event.clientX - track.left) / Math.max(1, track.width), 0, 1) * durationMs
+                        event.currentTarget.setPointerCapture(event.pointerId)
+                        setDrag({
+                          kind: 'overlay',
+                          placementId: placement.id,
+                          sourceLayerId: layer.id,
+                          targetLayerId: layer.id,
+                          grabOffsetMs: atMs - placement.startMs,
+                          startMs: placement.startMs,
+                          originClientY: event.clientY,
+                        })
+                      }}
+                      onPointerMove={(event: PointerEvent<HTMLButtonElement>) => {
+                        if (drag?.kind !== 'overlay' || drag.placementId !== placement.id || !event.currentTarget.hasPointerCapture(event.pointerId)) return
+                        const track = event.currentTarget.parentElement?.getBoundingClientRect()
+                        if (!track) return
+                        const targetLayerId = resolveShowLayerDragTarget(
+                          detail.overlayLayers,
+                          drag.sourceLayerId,
+                          event.clientY - drag.originClientY,
+                          { laneHeightPx: 40 },
+                        )
+                        const targetLayer = detail.overlayLayers.find((candidate) => candidate.id === targetLayerId)
+                        const atMs = clamp((event.clientX - track.left) / Math.max(1, track.width), 0, 1) * durationMs
+                        const startMs = resolveShowMainPlacementStart(
+                          durationMs,
+                          { id: placement.id, durationMs: placementDurationMs },
+                          (targetLayer?.placements ?? []).map((candidate) => ({
+                            id: candidate.id,
+                            startMs: candidate.startMs,
+                            durationMs: candidate.endMs - candidate.startMs,
+                          })),
+                          atMs - drag.grabOffsetMs,
+                          durationMs * 8 / Math.max(1, track.width),
+                        )
+                        setDrag({ ...drag, targetLayerId, startMs })
+                      }}
+                      onPointerUp={(event) => {
+                        if (drag?.kind !== 'overlay' || drag.placementId !== placement.id) return
+                        event.currentTarget.releasePointerCapture(event.pointerId)
+                        onUpdateOverlay(layer.id, placement.id, {
+                          startMs: drag.startMs,
+                          durationMs: placementDurationMs,
+                          targetLayerId: drag.targetLayerId,
+                        })
+                        setDrag(null)
+                      }}
+                      onPointerCancel={() => setDrag(null)}
                       className={`absolute inset-y-1 overflow-hidden rounded-[4px] border-l-[3px] px-2 text-left text-[9px] ${
                         selectedOverlay?.layerId === layer.id && selectedOverlay.placementId === placement.id
                           ? 'border-emerald-200 bg-emerald-700/40 text-white outline outline-1 outline-emerald-300/60'
                           : 'border-emerald-400/70 bg-emerald-900/30 text-emerald-50 hover:bg-emerald-800/40'
                       }`}
                       style={{
-                        left: `${placement.startMs / durationMs * 100}%`,
+                        left: `${renderedStartMs / durationMs * 100}%`,
                         width: `${Math.max(2, (placement.endMs - placement.startMs) / durationMs * 100)}%`,
+                        transform: targetLayerIndex === layerIndex ? undefined : `translateY(${(targetLayerIndex - layerIndex) * 40}px)`,
+                        zIndex: targetLayerIndex === layerIndex ? undefined : 30,
                       }}
                     >
                       <strong className="font-medium">{placement.patternName}</strong>
                       {placement.opacity < 1 && <span className="ml-1.5 text-[8px] text-emerald-300">{Math.round(placement.opacity * 100)}%</span>}
                       {placement.effectKinds.length > 0 && <span className="ml-1.5 text-[8px] text-cyan-300">{placement.effectKinds.length} FX</span>}
                     </button>
-                  ))}
+                    )
+                  })}
                   {layer.placements.length === 0 && <span className="absolute inset-1 flex items-center justify-center border border-dashed border-zinc-800 text-[8px] text-zinc-700">Empty overlay</span>}
                   <i aria-hidden className="pointer-events-none absolute inset-y-0 z-20 w-px bg-amber-300 shadow-[0_0_5px_rgba(252,211,77,.75)]" style={{ left: `${localTimeMs / durationMs * 100}%` }} />
                 </div>
@@ -391,8 +547,9 @@ export function ShowSceneZoneEditor({
             className="relative bg-[repeating-linear-gradient(90deg,transparent_0_calc(12.5%-1px),#181d23_calc(12.5%-1px)_12.5%)]"
             onClick={seekFromTrack}
           >
+            <SceneTimingGuides timesMs={otherZoneGuideTimes} durationMs={durationMs} />
             {detail.mainPlacements.map((placement) => {
-              const renderedStartMs = drag?.placementId === placement.id ? drag.startMs : placement.startMs
+              const renderedStartMs = drag?.kind === 'main' && drag.placementId === placement.id ? drag.startMs : placement.startMs
               const placementDurationMs = placement.endMs - placement.startMs
               return (
                 <button
@@ -416,13 +573,14 @@ export function ShowSceneZoneEditor({
                   const atMs = clamp((event.clientX - track.left) / Math.max(1, track.width), 0, 1) * durationMs
                   event.currentTarget.setPointerCapture(event.pointerId)
                   setDrag({
+                    kind: 'main',
                     placementId: placement.id,
                     grabOffsetMs: atMs - placement.startMs,
                     startMs: placement.startMs,
                   })
                 }}
                 onPointerMove={(event: PointerEvent<HTMLButtonElement>) => {
-                  if (!drag || drag.placementId !== placement.id || !event.currentTarget.hasPointerCapture(event.pointerId)) return
+                  if (drag?.kind !== 'main' || drag.placementId !== placement.id || !event.currentTarget.hasPointerCapture(event.pointerId)) return
                   const track = event.currentTarget.parentElement?.getBoundingClientRect()
                   if (!track) return
                   const atMs = clamp((event.clientX - track.left) / Math.max(1, track.width), 0, 1) * durationMs
@@ -440,7 +598,7 @@ export function ShowSceneZoneEditor({
                   setDrag({ ...drag, startMs })
                 }}
                 onPointerUp={(event) => {
-                  if (!drag || drag.placementId !== placement.id) return
+                  if (drag?.kind !== 'main' || drag.placementId !== placement.id) return
                   event.currentTarget.releasePointerCapture(event.pointerId)
                   onUpdateMain(placement.id, { startMs: drag.startMs, durationMs: placementDurationMs })
                   setDrag(null)
@@ -945,6 +1103,45 @@ function availableSpanAt(
     .filter((placement) => placement.startMs >= atMs)
     .reduce((nearest, placement) => Math.min(nearest, placement.startMs), sceneDurationMs)
   return nextStartMs > atMs ? { startMs: atMs, durationMs: nextStartMs - atMs } : null
+}
+
+function DiagnosticToggle({ label, shortLabel = label, active, onChange }: {
+  label: string
+  shortLabel?: string
+  active: boolean
+  onChange: (active: boolean) => void
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={`${active ? 'Hide' : 'Show'} ${label}`}
+      aria-pressed={active}
+      title={`${active ? 'Hide' : 'Show'} ${label}`}
+      onClick={() => onChange(!active)}
+      className={`flex h-5 items-center gap-1 rounded px-1.5 text-[8px] transition-colors focus-visible:outline focus-visible:outline-1 focus-visible:outline-cyan-300 ${active
+        ? 'bg-cyan-300/12 text-cyan-200 ring-1 ring-inset ring-cyan-300/30'
+        : 'text-zinc-600 hover:bg-zinc-800 hover:text-zinc-300'}`}
+    >
+      <i aria-hidden className={`size-1 rounded-full ${active ? 'bg-cyan-300' : 'bg-zinc-700'}`} />
+      {shortLabel}
+    </button>
+  )
+}
+
+function SceneTimingGuides({ timesMs, durationMs }: { timesMs: number[]; durationMs: number }) {
+  if (timesMs.length === 0) return null
+  return (
+    <span data-testid="other-zone-timing-guides" aria-label="Other-Zone timing guides" className="pointer-events-none absolute inset-0 z-10">
+      {timesMs.map((timeMs) => (
+        <i
+          key={timeMs}
+          aria-hidden
+          className="absolute inset-y-0 w-px border-l border-dashed border-fuchsia-300/35"
+          style={{ left: `${timeMs / Math.max(1, durationMs) * 100}%` }}
+        />
+      ))}
+    </span>
+  )
 }
 
 function patternKey(pattern: ShowPatternRef | undefined): string {

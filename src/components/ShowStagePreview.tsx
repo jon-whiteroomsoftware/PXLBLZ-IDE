@@ -37,6 +37,8 @@ import {
 } from '@/engine/showInstallationCoverage'
 import type { ShowRecord } from '@/engine/personalContentRecords'
 import { PreviewViewportSection } from '@/components/PreviewDeck'
+import { useShowEditorSessionStore } from '@/store/showEditorSessionStore'
+import { buildShowStageDiagnosticRects } from '@/engine/showStageDiagnostics'
 
 interface StageMapOption {
   id: string
@@ -90,6 +92,10 @@ export function ShowStagePreview({ showId, showOverride }: { showId: string; sho
   const lightSize = usePreviewStore((state) => state.lightSize)
   const diffusion = usePreviewStore((state) => state.diffusion)
   const fidelity = usePreviewStore((state) => state.fidelity)
+  const diagnostics = useShowEditorSessionStore((state) => state.diagnostics)
+  const diagnosticFocus = useShowEditorSessionStore((state) => state.diagnosticFocus?.showId === showId
+    ? state.diagnosticFocus
+    : null)
   const seekRequest = useShowTransportStore((state) => state.showId === showId ? state.seekRequest : null)
   const seekStatus = useShowTransportStore((state) => state.showId === showId ? state.seekStatus : 'idle')
   const [viewportWidth, setViewportWidth] = useState(1)
@@ -225,6 +231,12 @@ export function ShowStagePreview({ showId, showOverride }: { showId: string; sho
   }, [danglingStageMap, savedPhysicalZones, selectedStageMap, show, targetProfile?.lastKnownPixelCount, targetProfile?.zones, userMaps])
   const effectiveSoloZoneId =
     layout?.projection.zones.some((zone) => zone.id === soloZoneId) ? soloZoneId : null
+  const diagnosticRects = useMemo(() => layout?.draw.kind === '2d'
+    ? buildShowStageDiagnosticRects(layout.draw.positions, layout.projection)
+    : [], [layout])
+  const focusedDiagnosticRect = diagnosticFocus
+    ? diagnosticRects.find((rect) => rect.zoneId === diagnosticFocus.zoneId)
+    : undefined
   const durationMs = show ? showLoopDurationMs(show) : 0
 
   useEffect(() => {
@@ -462,6 +474,52 @@ export function ShowStagePreview({ showId, showOverride }: { showId: string; sho
       <div ref={containerRef} className="relative shrink-0 bg-black/70">
         <div className="relative inline-block">
           <canvas ref={canvasRef} className="rounded-sm" />
+          {layout?.draw.kind === '2d' && diagnostics.zoneOutlines && diagnosticRects.length > 0 && (
+            <svg
+              data-testid="show-stage-zone-outlines"
+              aria-label="Zone outlines"
+              viewBox="0 0 1 1"
+              preserveAspectRatio="none"
+              className="pointer-events-none absolute inset-0 size-full overflow-visible"
+            >
+              {diagnosticRects.map((rect) => (
+                <rect
+                  key={rect.zoneId}
+                  x={rect.x}
+                  y={rect.y}
+                  width={rect.width}
+                  height={rect.height}
+                  fill="none"
+                  stroke={rect.color}
+                  strokeWidth="0.004"
+                  strokeDasharray="0.012 0.008"
+                  opacity="0.7"
+                  vectorEffect="non-scaling-stroke"
+                />
+              ))}
+            </svg>
+          )}
+          {layout?.draw.kind === '2d' && diagnostics.clipOutlines && diagnosticFocus?.placementId && focusedDiagnosticRect && (
+            <svg
+              data-testid="show-stage-clip-outline"
+              aria-label="Selected Clip outline"
+              viewBox="0 0 1 1"
+              preserveAspectRatio="none"
+              className="pointer-events-none absolute inset-0 size-full overflow-visible"
+            >
+              <rect
+                x={focusedDiagnosticRect.x}
+                y={focusedDiagnosticRect.y}
+                width={focusedDiagnosticRect.width}
+                height={focusedDiagnosticRect.height}
+                fill="rgba(103,232,249,0.025)"
+                stroke="#67e8f9"
+                strokeWidth="0.007"
+                opacity="0.9"
+                vectorEffect="non-scaling-stroke"
+              />
+            </svg>
+          )}
           {seekStatus === 'rebuilding' && seekRequest?.id === badgedSeekRequestId && (
             <div
               role="status"

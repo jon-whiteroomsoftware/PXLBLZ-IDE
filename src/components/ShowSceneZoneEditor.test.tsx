@@ -4,6 +4,7 @@ import { projectFlatShowComposition } from '@/engine/showCompositionProjection'
 import { createDefaultShow } from '@/engine/showModel'
 import { addShowOverlayClip, addShowOverlayLayer, projectFlatShowToCompositionV1, splitShowMainPlacement } from '@/engine/showCompositionModel'
 import { showTransportInitialState, useShowTransportStore } from '@/store/showTransportStore'
+import { showEditorSessionInitialState, useShowEditorSessionStore } from '@/store/showEditorSessionStore'
 import { ShowSceneZoneEditor } from './ShowSceneZoneEditor'
 
 const source = 'export function render(index) { rgb(index / pixelCount, 0, 0) }'
@@ -66,7 +67,10 @@ const editingProps = {
 }
 
 describe('ShowSceneZoneEditor (#487)', () => {
-  beforeEach(() => useShowTransportStore.setState(showTransportInitialState))
+  beforeEach(() => {
+    useShowTransportStore.setState(showTransportInitialState)
+    useShowEditorSessionStore.setState(showEditorSessionInitialState)
+  })
 
   it('renders the production Scene x Zone scope and selects the real Main clip', () => {
     const { show, projection } = fixture()
@@ -148,6 +152,35 @@ describe('ShowSceneZoneEditor (#487)', () => {
     fireEvent.click(screen.getByTestId('scene-local-time-track'), { clientX: 50 })
     expect(onSeek).toHaveBeenCalled()
     expect(onSeek.mock.calls[0][0]).toBeGreaterThanOrEqual(32_000)
+  })
+
+  it('owns independent session-only diagnostic switches and selected-clip focus (#491)', () => {
+    const { show, projection } = compositionFixture()
+    render(
+      <ShowSceneZoneEditor
+        show={show}
+        compositionProjection={projection}
+        scope={{ sceneId: 'scene-1', zoneId: 'zone-1' }}
+        readOnly={false}
+        selectedClipId={null}
+        transport={null}
+        onBack={vi.fn()}
+        onZoneChange={vi.fn()}
+        onSelectClip={vi.fn()}
+        onSeek={vi.fn()}
+        {...editingProps}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show Zone outlines' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Show Clip outline' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Show other-Zone timing guides' }))
+    fireEvent.click(screen.getAllByRole('button', { name: 'Select TestPattern1D Main clip' })[0])
+
+    expect(useShowEditorSessionStore.getState()).toMatchObject({
+      diagnostics: { zoneOutlines: true, clipOutlines: true, otherZoneGuides: true },
+      diagnosticFocus: { showId: show.id, sceneId: 'scene-1', zoneId: 'zone-1', placementId: expect.any(String) },
+    })
   })
 
   it('makes conversion to an editable local Main schedule explicit', () => {
@@ -325,6 +358,104 @@ describe('ShowSceneZoneEditor (#487)', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Delete overlay clip' }))
     expect(onDeleteOverlay).toHaveBeenCalledWith('overlay-front', 'overlay-placement')
+  })
+
+  it('keeps horizontal overlay drags stable and moves to another layer only after vertical hysteresis (#491)', () => {
+    const { show } = compositionFixture()
+    let composition = addShowOverlayLayer(show, show.composition!, {
+      sceneId: 'scene-1', zoneId: 'zone-1', layer: { id: 'overlay-front', name: 'Front texture', placements: [] },
+    })
+    composition = addShowOverlayLayer(show, composition, {
+      sceneId: 'scene-1', zoneId: 'zone-1', layer: { id: 'overlay-back', name: 'Back texture', placements: [] },
+    })
+    show.composition = addShowOverlayClip(show, composition, {
+      sceneId: 'scene-1', zoneId: 'zone-1', layerId: 'overlay-front',
+      instance: {
+        id: 'overlay-instance', pattern: { kind: 'stock', id: 'CometLoom' }, patternName: 'CometLoom',
+        time: { timeScale: 1, timeOffsetMs: 0 },
+      },
+      placement: {
+        id: 'overlay-placement', instanceId: 'overlay-instance', startMs: 1_000, durationMs: 5_000,
+        opacity: 0.6, view: { mirror: false, phase: 0, brightness: 1 },
+      },
+    })
+    const projection = projectFlatShowComposition(show, {
+      byCellId: Object.fromEntries(show.cells.map((cell) => [cell.id, source])),
+      stageDimension: 1,
+    })
+    const onUpdateOverlay = vi.fn()
+    render(<ShowSceneZoneEditor
+      show={show}
+      compositionProjection={projection}
+      scope={{ sceneId: 'scene-1', zoneId: 'zone-1' }}
+      readOnly={false}
+      selectedClipId={null}
+      transport={null}
+      onBack={vi.fn()}
+      onZoneChange={vi.fn()}
+      onSelectClip={vi.fn()}
+      onSeek={vi.fn()}
+      {...editingProps}
+      onUpdateOverlay={onUpdateOverlay}
+    />)
+
+    const clip = screen.getByRole('button', { name: 'Select CometLoom clip in Front texture' })
+    Object.defineProperties(clip, {
+      setPointerCapture: { value: vi.fn() },
+      hasPointerCapture: { value: () => true },
+      releasePointerCapture: { value: vi.fn() },
+    })
+    vi.spyOn(clip.parentElement!, 'getBoundingClientRect').mockReturnValue({
+      x: 0, y: 0, left: 0, top: 0, right: 100, bottom: 40, width: 100, height: 40, toJSON: () => ({}),
+    })
+
+    fireEvent.pointerDown(clip, { pointerId: 1, button: 0, clientX: 4, clientY: 10 })
+    fireEvent.pointerMove(clip, { pointerId: 1, buttons: 1, clientX: 8, clientY: 20 })
+    fireEvent.pointerUp(clip, { pointerId: 1, button: 0, clientX: 8, clientY: 20 })
+    expect(onUpdateOverlay).toHaveBeenLastCalledWith('overlay-front', 'overlay-placement', expect.objectContaining({
+      targetLayerId: 'overlay-front',
+    }))
+
+    fireEvent.pointerDown(clip, { pointerId: 2, button: 0, clientX: 4, clientY: 10 })
+    fireEvent.pointerMove(clip, { pointerId: 2, buttons: 1, clientX: 8, clientY: 30 })
+    fireEvent.pointerUp(clip, { pointerId: 2, button: 0, clientX: 8, clientY: 30 })
+    expect(onUpdateOverlay).toHaveBeenLastCalledWith('overlay-front', 'overlay-placement', expect.objectContaining({
+      targetLayerId: 'overlay-back',
+    }))
+  })
+
+  it('offers keyboard-equivalent layer reordering from one compact handle (#491)', () => {
+    const { show } = compositionFixture()
+    let composition = addShowOverlayLayer(show, show.composition!, {
+      sceneId: 'scene-1', zoneId: 'zone-1', layer: { id: 'overlay-front', name: 'Front texture', placements: [] },
+    })
+    composition = addShowOverlayLayer(show, composition, {
+      sceneId: 'scene-1', zoneId: 'zone-1', layer: { id: 'overlay-back', name: 'Back texture', placements: [] },
+    })
+    show.composition = composition
+    const projection = projectFlatShowComposition(show, {
+      byCellId: Object.fromEntries(show.cells.map((cell) => [cell.id, source])),
+      stageDimension: 1,
+    })
+    const onReorderOverlayLayer = vi.fn()
+    render(<ShowSceneZoneEditor
+      show={show}
+      compositionProjection={projection}
+      scope={{ sceneId: 'scene-1', zoneId: 'zone-1' }}
+      readOnly={false}
+      selectedClipId={null}
+      transport={null}
+      onBack={vi.fn()}
+      onZoneChange={vi.fn()}
+      onSelectClip={vi.fn()}
+      onSeek={vi.fn()}
+      {...editingProps}
+      onReorderOverlayLayer={onReorderOverlayLayer}
+    />)
+
+    const handle = screen.getByRole('button', { name: 'Reorder Front texture layer' })
+    fireEvent.keyDown(handle, { key: 'ArrowDown' })
+    expect(onReorderOverlayLayer).toHaveBeenCalledWith('overlay-front', 1)
   })
 
   it('reveals only authored property lanes and supports exact keyframe editing (#490)', () => {

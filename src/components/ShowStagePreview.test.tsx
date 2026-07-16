@@ -11,6 +11,7 @@ import { previewInitialState, usePreviewStore } from '@/store/previewStore'
 import { showInitialState, useShowStore } from '@/store/showStore'
 import { controllerProfileInitialState, useControllerProfileStore } from '@/store/controllerProfileStore'
 import { showTransportInitialState, useShowTransportStore } from '@/store/showTransportStore'
+import { showEditorSessionInitialState, useShowEditorSessionStore } from '@/store/showEditorSessionStore'
 
 function memoryProvider(seedShows: ShowRecord[] = []): PersonalContentProvider {
   const patterns = new Map<string, PatternRecord>()
@@ -65,6 +66,7 @@ beforeEach(() => {
   usePreviewStore.setState({ ...previewInitialState, isRunning: false })
   useControllerProfileStore.setState(controllerProfileInitialState)
   useShowTransportStore.setState(showTransportInitialState)
+  useShowEditorSessionStore.setState(showEditorSessionInitialState)
 })
 
 describe('ShowStagePreview (#339)', () => {
@@ -155,6 +157,24 @@ describe('ShowStagePreview (#339)', () => {
 
     expect(screen.getByLabelText('Show stage')).toHaveTextContent('North Arch map')
     expect(screen.queryByRole('combobox', { name: 'Show stage' })).not.toBeInTheDocument()
+  })
+
+  it('draws session-only Zone and selected-clip diagnostics above the Stage without changing playback (#491)', () => {
+    const show = createDefaultShow('show-diagnostics', 'Diagnostics', 1000)
+    show.stageMapId = 'map-1'
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    useMapStore.setState({ userMaps: [importedMap], mapsLoaded: true })
+    usePreviewStore.setState({ ...previewInitialState, isRunning: true })
+    useShowEditorSessionStore.setState({
+      diagnostics: { zoneOutlines: true, clipOutlines: true, otherZoneGuides: false },
+      diagnosticFocus: { showId: show.id, sceneId: 'scene-1', zoneId: 'zone-1', placementId: 'placement-1' },
+    })
+
+    render(<ShowStagePreview showId={show.id} />)
+
+    expect(screen.getByTestId('show-stage-zone-outlines')).toBeInTheDocument()
+    expect(screen.getByTestId('show-stage-clip-outline')).toBeInTheDocument()
+    expect(usePreviewStore.getState().isRunning).toBe(false)
   })
 
   it('names an Installation output map once without presenting a faux input (#484)', () => {
