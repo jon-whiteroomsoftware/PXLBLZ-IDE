@@ -698,20 +698,34 @@ to the nearest legal edge. Add at playhead fills the available interval up to
 the next clip or Scene end. Split defaults to Continue.
 
 Choose **Overlay layer** to add a compositing lane above Main. The first row is
-the visual front: rename rows in place, move them up or down, or delete them.
+the visual front: rename rows in place, reorder them from the handle, or delete
+them. The handle accepts pointer drag and Up/Down Arrow keys without spending
+permanent row width on ordering buttons.
 Each layer accepts several clips as long as they do not overlap inside that
 layer; clips on different layers may overlap. The row's plus command adds the
 toolbar's selected Pattern at the playhead and fills the open interval. Select
 an overlay clip to enter exact Start and Duration milliseconds, set normalized
-Opacity, move it to another layer, or delete it. Opacity and other normalized
+Opacity, move it to another layer, or delete it. Dragging a clip primarily
+changes local time; ordinary vertical pointer drift stays lane-locked. After a
+deliberate vertical movement, the clip moves to the target layer and an
+overlapping drop resolves to the nearest legal before/after position when one
+fits. One drop produces one undoable Show edit. Opacity and other normalized
 numeric fields carry a subtle `0–1` label and clamp on commit. Main and overlay
 Pattern instances retain independent clocks unless placements explicitly reuse
 one instance.
 
 The local compiler composites Main and active overlays from back to front, then
-passes the flattened Scene output to the ordinary top-level Transition. Local
-Property animation remains a later Scene-composition slice; no placeholder
-lanes appear before it is authored.
+passes the flattened Scene output to the ordinary top-level Transition. Select
+a Main or overlay clip to add typed local Property animation. Only authored
+properties gain compact sparkline lanes; exact keyframe time, value, and easing
+remain editable beneath the selected point.
+
+The Stage remains read-only and continues showing final all-zone output while
+the Scene editor is open. Its independent **Zones** and **Clip** switches add
+restrained diagnostic outlines above the canvas without changing rendered
+pixels or playback. The Scene breadcrumb's **Guides** switch reveals read-only
+timing boundaries authored in other zones. These inspection settings last only
+for the current application session.
 
 Selecting a Show, scene, transition, clip, empty slot, zone, or routing switch
 opens one **Entity Detail Panel** beside that entity. The panel is modeless and

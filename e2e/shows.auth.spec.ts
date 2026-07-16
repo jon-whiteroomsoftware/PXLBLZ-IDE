@@ -790,6 +790,50 @@ test.describe('authenticated Show authoring', () => {
     await expect(page.getByRole('combobox', { name: 'Keyframe easing' })).toHaveValue('steps-4-end')
   })
 
+  test('moves Scene-local overlays across layers and keeps diagnostics responsive (#491)', async ({ page }) => {
+    const consoleErrors: string[] = []
+    page.on('console', (message) => {
+      if (message.type() === 'error') consoleErrors.push(message.text())
+    })
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('studio/shows')
+    await createInstallationShow(page)
+    await page.getByRole('button', { name: 'Inspect Scene 1 in Super Detail' }).click()
+    await page.getByRole('button', { name: 'Open Scene 1 editor' }).click()
+    await page.getByRole('button', { name: 'Enable local cuts' }).click()
+    await page.getByRole('combobox', { name: 'New Main clip Pattern' }).selectOption({ label: 'TestPattern1D' })
+    await page.getByRole('button', { name: 'Overlay layer' }).click()
+    await page.getByRole('button', { name: 'Overlay layer' }).click()
+    await page.getByRole('button', { name: 'Add clip to Overlay 1 at playhead' }).click()
+
+    const clip = page.getByRole('button', { name: 'Select TestPattern1D clip in Overlay 1' })
+    const bounds = await clip.boundingBox()
+    expect(bounds).not.toBeNull()
+    await page.mouse.move(bounds!.x + Math.min(12, bounds!.width / 2), bounds!.y + bounds!.height / 2)
+    await page.mouse.down()
+    await page.mouse.move(bounds!.x + Math.min(18, bounds!.width / 2), bounds!.y + bounds!.height / 2 + 48, { steps: 4 })
+    await page.mouse.up()
+
+    await waitForCurrentShow(page, (show) => (
+      show.composition?.scenes[0]?.zones?.[0]?.overlays?.[0]?.placements.length === 0
+      && show.composition.scenes[0].zones[0].overlays[1]?.placements.length === 1
+    ))
+
+    await page.getByRole('button', { name: 'Reorder Overlay 2 layer' }).press('ArrowUp')
+    await waitForCurrentShow(page, (show) => show.composition?.scenes[0]?.zones?.[0]?.overlays?.[0]?.name === 'Overlay 2')
+
+    await page.getByRole('button', { name: 'Select TestPattern1D clip in Overlay 2' }).click()
+    await page.getByRole('button', { name: 'Show Zone outlines' }).click()
+    await page.getByRole('button', { name: 'Show Clip outline' }).click()
+    await expect(page.getByTestId('show-stage-zone-outlines')).toBeVisible()
+    await expect(page.getByTestId('show-stage-clip-outline')).toBeVisible()
+
+    await page.setViewportSize({ width: 720, height: 900 })
+    await expect(page.getByTestId('show-scene-zone-editor')).toBeVisible()
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(8)
+    expect(consoleErrors).toEqual([])
+  })
+
   test('authors shape-aware diamond and ring spatial transitions', async ({ page }) => {
     await page.goto('studio/shows')
     await createInstallationShow(page)
@@ -838,6 +882,14 @@ type PersistedShow = {
       propertyTracks?: Array<{
         target: { kind: string; property?: string }
         keyframes: Array<{ value: number; easing: string | { curve: string } }>
+      }>
+      zones?: Array<{
+        zoneId: string
+        overlays: Array<{
+          id: string
+          name: string
+          placements: Array<{ id: string; startMs: number; durationMs: number }>
+        }>
       }>
     }>
   } | null

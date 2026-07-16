@@ -93,6 +93,7 @@ export function ShowStagePreview({ showId, showOverride }: { showId: string; sho
   const diffusion = usePreviewStore((state) => state.diffusion)
   const fidelity = usePreviewStore((state) => state.fidelity)
   const diagnostics = useShowEditorSessionStore((state) => state.diagnostics)
+  const setDiagnostic = useShowEditorSessionStore((state) => state.setDiagnostic)
   const diagnosticFocus = useShowEditorSessionStore((state) => state.diagnosticFocus?.showId === showId
     ? state.diagnosticFocus
     : null)
@@ -552,7 +553,21 @@ export function ShowStagePreview({ showId, showOverride }: { showId: string; sho
           </span>
         </div>
         <div aria-label="Show stage" className="text-[10px] text-zinc-500">
-          <h3 className="font-semibold uppercase tracking-wider text-structural">Stage</h3>
+          <div className="flex h-5 items-center justify-between gap-2">
+            <h3 className="font-semibold uppercase tracking-wider text-structural">Stage</h3>
+            <div className="flex items-center gap-0.5" aria-label="Stage diagnostics">
+              <StageDiagnosticToggle
+                label="Zone outlines"
+                active={diagnostics.zoneOutlines}
+                onChange={(active) => setDiagnostic('zoneOutlines', active)}
+              />
+              <StageDiagnosticToggle
+                label="Clip outline"
+                active={diagnostics.clipOutlines}
+                onChange={(active) => setDiagnostic('clipOutlines', active)}
+              />
+            </div>
+          </div>
           <div className="mt-1.5 flex min-w-0 items-center gap-1.5 leading-5">
             <MapIcon size={12} aria-hidden className="shrink-0 text-zinc-600" />
             <span className="shrink-0 text-zinc-500">{stageIdentityRole}</span>
@@ -641,5 +656,26 @@ export function ShowStagePreview({ showId, showOverride }: { showId: string; sho
         </section>
       </div>
     </div>
+  )
+}
+
+function StageDiagnosticToggle({ label, active, onChange }: {
+  label: string
+  active: boolean
+  onChange: (active: boolean) => void
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={`${active ? 'Hide' : 'Show'} ${label}`}
+      aria-pressed={active}
+      onClick={() => onChange(!active)}
+      className={`flex h-5 items-center gap-1 rounded px-1.5 text-[8px] transition-colors focus-visible:outline focus-visible:outline-1 focus-visible:outline-cyan-300 ${active
+        ? 'bg-cyan-300/12 text-cyan-200 ring-1 ring-inset ring-cyan-300/30'
+        : 'text-zinc-600 hover:bg-zinc-800 hover:text-zinc-300'}`}
+    >
+      <i aria-hidden className={`size-1 rounded-full ${active ? 'bg-cyan-300' : 'bg-zinc-700'}`} />
+      {label === 'Zone outlines' ? 'Zones' : 'Clip'}
+    </button>
   )
 }

@@ -172,8 +172,8 @@ describe('ShowSceneZoneEditor (#487)', () => {
       />,
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'Show Zone outlines' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Show Clip outline' }))
+    useShowEditorSessionStore.getState().setDiagnostic('zoneOutlines', true)
+    useShowEditorSessionStore.getState().setDiagnostic('clipOutlines', true)
     fireEvent.click(screen.getByRole('button', { name: 'Show other-Zone timing guides' }))
     fireEvent.click(screen.getAllByRole('button', { name: 'Select TestPattern1D Main clip' })[0])
 

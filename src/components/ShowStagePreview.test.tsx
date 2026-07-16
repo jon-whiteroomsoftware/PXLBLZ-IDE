@@ -166,14 +166,16 @@ describe('ShowStagePreview (#339)', () => {
     useMapStore.setState({ userMaps: [importedMap], mapsLoaded: true })
     usePreviewStore.setState({ ...previewInitialState, isRunning: true })
     useShowEditorSessionStore.setState({
-      diagnostics: { zoneOutlines: true, clipOutlines: true, otherZoneGuides: false },
       diagnosticFocus: { showId: show.id, sceneId: 'scene-1', zoneId: 'zone-1', placementId: 'placement-1' },
     })
 
     render(<ShowStagePreview showId={show.id} />)
 
+    fireEvent.click(screen.getByRole('button', { name: 'Show Zone outlines' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Show Clip outline' }))
     expect(screen.getByTestId('show-stage-zone-outlines')).toBeInTheDocument()
     expect(screen.getByTestId('show-stage-clip-outline')).toBeInTheDocument()
+    expect(useShowEditorSessionStore.getState().diagnostics).toMatchObject({ zoneOutlines: true, clipOutlines: true })
     expect(usePreviewStore.getState().isRunning).toBe(false)
   })
 

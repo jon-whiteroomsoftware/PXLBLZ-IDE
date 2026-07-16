@@ -244,16 +244,6 @@ export function ShowSceneZoneEditor({
         </label>
         <div className="ml-auto flex shrink-0 items-center gap-0.5" aria-label="Scene diagnostics">
           <DiagnosticToggle
-            label="Zone outlines"
-            active={diagnostics.zoneOutlines}
-            onChange={(active) => setDiagnostic('zoneOutlines', active)}
-          />
-          <DiagnosticToggle
-            label="Clip outline"
-            active={diagnostics.clipOutlines}
-            onChange={(active) => setDiagnostic('clipOutlines', active)}
-          />
-          <DiagnosticToggle
             label="other-Zone timing guides"
             shortLabel="Guides"
             active={diagnostics.otherZoneGuides}

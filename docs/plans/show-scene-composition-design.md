@@ -1,8 +1,9 @@
 # Show Scene composition design
 
 Status: global and local interaction directions approved; the #487 production
-shell, #488 version-1 Main schedule, and #489 ordered overlay compositor are
-implemented. Human
+shell, #488 version-1 Main schedule, #489 ordered overlay compositor, and #490
+typed Property animation are implemented. #491's Layer Rail interaction is in
+final browser verification. Human
 review selected #458's explicit Layer Rail on 2026-07-15.
 A semantic Scene still spans zones, but local authoring targets one Scene x Zone
 composition at a time. The former all-zones Scene-detail direction and its
@@ -10,10 +11,9 @@ candidate persisted shape are superseded; do not implement them. Durable work
 now proceeds as end-to-end vertical slices through storage,
 editing, preview, compilation, and migration.
 The #462 proof established a safe projection seam and identified two compiler
-gaps. The #478 lowering closes the top-level routed-Scene gap; explicit durable
-instance automation for local composition remains. The version-1 ownership and
-persistence boundary now includes Main and ordered overlay placements; typed
-Property animation remains additive.
+gaps. The #478 lowering closes the top-level routed-Scene gap. The version-1
+ownership and persistence boundary now includes Main and ordered overlay
+placements plus typed local Property animation.
 
 The implementation stack is tracked by epic #486. Slice #487 integrates the
 production Scene x Zone shell over the lossless version-0 projection and current
