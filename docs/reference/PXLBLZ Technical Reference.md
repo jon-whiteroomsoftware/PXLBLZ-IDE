@@ -978,10 +978,19 @@ Zone and then the first Show Zone.
 `ShowSceneZoneEditor` is the production authoring consumer of that scope.
 Super Detail's Open Scene command swaps the center timeline surface while the
 global `SceneStrip` remains mounted, preserving viewport and X-ray state. Only
-one `ShowTransportControls` instance remains active, so document-level Space,
-arrow, and Home shortcuts cannot be handled twice. The local ruler translates
-between Scene-local time and the existing global Show transport. The right
-Stage remains mounted and continues to render final all-zone output.
+one transport control instance remains active, so document-level Space, arrow,
+and Home shortcuts cannot be handled twice. `ShowSceneTransportControls` sets
+an ephemeral playback window on `showTransportStore`, pauses on entry and exit,
+and maps its start command and keyboard seeks onto the selected Scene's global
+bounds. The local ruler previews playhead movement without rebuilding on every
+pointer pixel, then commits one deterministic seek when the drag ends.
+
+`ShowStagePreview` applies the same playback window to frame advancement. A
+frame that reaches the Scene end pauses preview, requests a deterministic seek
+to Scene start, and leaves playback stopped. Clearing the window on exit returns
+the store to ordinary whole-Show transport without allowing local playback to
+escape into the next Scene. The right Stage remains mounted throughout and
+continues to render final all-zone output.
 
 The first local edit explicitly projects the flat compatibility cells into
 `ShowRecord.composition` version 1. `showCompositionModel.ts` normalizes and

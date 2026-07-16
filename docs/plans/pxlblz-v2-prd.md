@@ -485,6 +485,10 @@ gesture, but that gesture is not persistent toolbar chrome and is not required
 for the first implementation slice. Any implementation must suppress playback
 when a pan begins and must never capture typing inside an input or code editor.
 
+The Scene-local editor replaces whole-Show transport with a bounded Scene
+audition. Entering and leaving pause. Playback cannot cross a Scene boundary;
+reaching the end pauses and rewinds to Scene start, ready for another Space.
+
 Scene-detail prototypes must preserve this frame while comparing genuinely
 different scope and Inspector arrangements. Prototype review rejects a design
 that wins only by moving or enlarging existing panes.

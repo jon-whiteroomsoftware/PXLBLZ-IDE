@@ -625,6 +625,9 @@ immutable or snapshot treatment cannot solve the need more safely.
   compositing order.
 - Zone, active-clip, and other-zone-guide diagnostics are independently
   switchable on the read-only all-zone Stage and local Timeline.
+- Scene-local transport is bounded to the selected Scene. Entry and exit pause;
+  reaching Scene end pauses and rewinds to Scene start rather than looping or
+  continuing into the next Scene.
 - Continue/Restart is editable Entry behavior in the selected clip's Entity
   Detail Panel; persisted Pattern-instance identity remains hidden.
 - Top-level Transitions consume flattened Scene outputs.

@@ -685,9 +685,19 @@ output. The local ruler maps directly onto the selected Scene's private time,
 the locked Transition row retains incoming/outgoing Show-boundary context, and
 the **Main clips** row initially shows the real full-Scene compatibility clip.
 Choose **Enable local cuts** to create the non-destructive version-1 local
-schedule. Changing the Zone changes only the authoring scope; playback,
-playhead position, Stage state, and the global Timeline's zoom/X-ray state are
-preserved. Escape closes Entity Details first and then returns to the Show.
+schedule.
+
+Scene editing has one bounded local transport. Entering pauses playback and
+makes the local ruler the only playhead surface: click or drag it to seek within
+the Scene, press Space to play or pause, use Left/Right Arrow for one-second
+steps, and press Home or the start button to rewind to Scene start. Playback
+cannot cross either Scene boundary. Reaching the end pauses and rewinds to the
+start; press Space again to replay. Leaving Scene editing also pauses before the
+global Timeline returns.
+
+Changing the Zone changes only the authoring scope; local playback position,
+Stage state, and the global Timeline's zoom/X-ray state are preserved. Escape
+closes Entity Details first and then returns to the Show.
 
 The **Main clips** lane supports several mutually exclusive clips and explicit
 empty gaps inside one Scene x Zone. Select a clip to edit exact Start and
