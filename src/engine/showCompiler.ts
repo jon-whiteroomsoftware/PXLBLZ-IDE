@@ -1113,7 +1113,7 @@ function emitSingleClipShowCode(member: CompiledMember, outputDimension: ShowOut
     emitRuntimePrelude([member]),
     member.code.trim(),
     `export function beforeRender(delta) {
-  __pxlblz_show_elapsed_ms = __pxlblz_show_elapsed_ms + delta
+  __pxlblz_show_elapsed_s = __pxlblz_show_elapsed_s + delta / 1000
   ${member.prefix}_advance(delta)
 }`,
     render,
@@ -1132,8 +1132,8 @@ function emitCutShowCode(
     from.code.trim(),
     to.code.trim(),
     `export function beforeRender(delta) {
-  __pxlblz_show_elapsed_ms = __pxlblz_show_elapsed_ms + delta
-  if (__pxlblz_show_elapsed_ms < ${cut.startMs}) {
+  __pxlblz_show_elapsed_s = __pxlblz_show_elapsed_s + delta / 1000
+  if (__pxlblz_show_elapsed_s < ${cut.startMs / 1000}) {
     __pxlblz_show_phase = 0
     ${from.prefix}_advance(delta)
   } else {
@@ -1160,18 +1160,19 @@ function emitAdaptationRampShowCode(
   const from = normalizeAdaptation(ramp.from)
   const to = normalizeAdaptation(ramp.to)
   const transitionEnd = ramp.startMs + ramp.durationMs
-  const propertyAssignments = emitPropertyRampAssignments(member, ramp.propertyRamps, `__pxlblz_show_elapsed_ms - ${ramp.startMs}`)
-  const controlAssignments = emitControlRampAssignments(member, ramp.controlRamps, `__pxlblz_show_elapsed_ms - ${ramp.startMs}`)
-  const effectAssignments = emitEffectRampAssignments(member, ramp.effectRamps, `__pxlblz_show_elapsed_ms - ${ramp.startMs}`)
+  const elapsedRampMs = `(__pxlblz_show_elapsed_s - ${ramp.startMs / 1000}) * 1000`
+  const propertyAssignments = emitPropertyRampAssignments(member, ramp.propertyRamps, elapsedRampMs)
+  const controlAssignments = emitControlRampAssignments(member, ramp.controlRamps, elapsedRampMs)
+  const effectAssignments = emitEffectRampAssignments(member, ramp.effectRamps, elapsedRampMs)
   return [
     emitRuntimePrelude([member]),
     member.code.trim(),
     `export function beforeRender(delta) {
-  __pxlblz_show_elapsed_ms = __pxlblz_show_elapsed_ms + delta
-  if (__pxlblz_show_elapsed_ms < ${ramp.startMs}) {
+  __pxlblz_show_elapsed_s = __pxlblz_show_elapsed_s + delta / 1000
+  if (__pxlblz_show_elapsed_s < ${ramp.startMs / 1000}) {
     __pxlblz_show_mix = 0
-  } else if (__pxlblz_show_elapsed_ms < ${transitionEnd}) {
-    __pxlblz_show_mix = ${emitShowEasingExpression(ramp.easing ?? 'linear', `(__pxlblz_show_elapsed_ms - ${ramp.startMs}) / ${ramp.durationMs}`)}
+  } else if (__pxlblz_show_elapsed_s < ${transitionEnd / 1000}) {
+    __pxlblz_show_mix = ${emitShowEasingExpression(ramp.easing ?? 'linear', `(__pxlblz_show_elapsed_s - ${ramp.startMs / 1000}) / ${ramp.durationMs / 1000}`)}
   } else {
     __pxlblz_show_mix = 1
   }
@@ -1464,7 +1465,7 @@ function emitSceneSequenceShowCode(
     }
   })
   const schedulerBranches = segments.map((segment, index) => {
-    const condition = `${index === 0 ? 'if' : 'else if'} (__pxlblz_show_elapsed_ms < ${segment.endMs})`
+    const condition = `${index === 0 ? 'if' : 'else if'} (__pxlblz_show_elapsed_s < ${segment.endMs / 1000})`
     if (segment.kind === 'hold') {
       return `${condition} {
     __pxlblz_show_scene = ${segment.sceneIndex}
@@ -1482,12 +1483,12 @@ function emitSceneSequenceShowCode(
     return `${condition} {
     __pxlblz_show_scene = ${segment.sceneIndex}
     __pxlblz_show_transition = ${segment.sceneIndex}
-    __pxlblz_show_mix = ${emitShowEasingExpression(segment.transition!.easing ?? 'linear', `(__pxlblz_show_elapsed_ms - ${segment.startMs}) / ${segment.transition!.durationMs}`)}${segment.transition!.propertyRamps
-      ? `\n${indentBlock(emitPropertyRampAssignments(segment.from, segment.transition!.propertyRamps, `__pxlblz_show_elapsed_ms - ${segment.startMs}`), 4)}`
+    __pxlblz_show_mix = ${emitShowEasingExpression(segment.transition!.easing ?? 'linear', `(__pxlblz_show_elapsed_s - ${segment.startMs / 1000}) / ${segment.transition!.durationMs / 1000}`)}${segment.transition!.propertyRamps
+      ? `\n${indentBlock(emitPropertyRampAssignments(segment.from, segment.transition!.propertyRamps, `(__pxlblz_show_elapsed_s - ${segment.startMs / 1000}) * 1000`), 4)}`
       : ''}${segment.transition!.controlRamps
-        ? `\n${indentBlock(emitControlRampAssignments(segment.from, segment.transition!.controlRamps, `__pxlblz_show_elapsed_ms - ${segment.startMs}`), 4)}`
+        ? `\n${indentBlock(emitControlRampAssignments(segment.from, segment.transition!.controlRamps, `(__pxlblz_show_elapsed_s - ${segment.startMs / 1000}) * 1000`), 4)}`
         : ''}${segment.transition!.effectRamps
-          ? `\n${indentBlock(emitEffectRampAssignments(segment.from, segment.transition!.effectRamps, `__pxlblz_show_elapsed_ms - ${segment.startMs}`), 4)}`
+          ? `\n${indentBlock(emitEffectRampAssignments(segment.from, segment.transition!.effectRamps, `(__pxlblz_show_elapsed_s - ${segment.startMs / 1000}) * 1000`), 4)}`
         : ''}
     ${segment.from.prefix}_advance(delta)${advanceTo}
   }`
@@ -1509,7 +1510,7 @@ ${indentBlock(emitSceneSequenceTransitionBlock(segment.from, segment.to!, segmen
     'var __pxlblz_show_scene = 0',
     'var __pxlblz_show_transition = -1',
     `export function beforeRender(delta) {
-  __pxlblz_show_elapsed_ms = (__pxlblz_show_elapsed_ms + delta) % ${cursor}
+  __pxlblz_show_elapsed_s = (__pxlblz_show_elapsed_s + delta / 1000) % ${cursor / 1000}
   ${schedulerBranches}
 }`,
     `export function ${outputDimension === 2 ? 'render2D(index, x, y)' : 'render(index)'} {
@@ -1571,7 +1572,7 @@ function emitRoutedSceneSequenceShowCode(
   const sceneLocalTimeExpression = (sceneIndex: number) => {
     const scene = scenes[sceneIndex]
     const offset = scene.localTimeOffsetMs ?? 0
-    return `(__pxlblz_show_elapsed_ms - ${sceneStartMs.get(sceneIndex) ?? 0} + ${offset})`
+    return `((__pxlblz_show_elapsed_s - ${(sceneStartMs.get(sceneIndex) ?? 0) / 1000}) * 1000 + ${offset})`
   }
 
   const setupForPlacements = (
@@ -1600,7 +1601,7 @@ function emitRoutedSceneSequenceShowCode(
         : `max(1, floor(pixelCount / ${logicalZoneCount}))`
       const rampAssignments = emitRoutedSceneRampAssignments(
         ramps?.filter((ramp) => ramp.member === member),
-        '__pxlblz_show_elapsed_ms - __pxlblz_show_transition_start_ms',
+        '(__pxlblz_show_elapsed_s - __pxlblz_show_transition_start_s) * 1000',
       )
       const propertyTrackAssignments = (propertyTrackContexts ?? []).map((context) => (
         emitRoutedInstancePropertyTrackAssignments(member, context.tracks, context.localTimeExpression)
@@ -1619,7 +1620,7 @@ function emitRoutedSceneSequenceShowCode(
   }
 
   const schedulerBranches = segments.map((segment, index) => {
-    const condition = `${index === 0 ? 'if' : 'else if'} (__pxlblz_show_elapsed_ms < ${segment.endMs})`
+    const condition = `${index === 0 ? 'if' : 'else if'} (__pxlblz_show_elapsed_s < ${segment.endMs / 1000})`
     if (segment.kind === 'hold') {
       return `${condition} {
     __pxlblz_show_scene = ${segment.sceneIndex}
@@ -1639,8 +1640,8 @@ function emitRoutedSceneSequenceShowCode(
     return `${condition} {
     __pxlblz_show_scene = ${segment.sceneIndex}
     __pxlblz_show_transition = ${segment.sceneIndex}
-    __pxlblz_show_transition_start_ms = ${segment.startMs}
-    __pxlblz_show_mix = ${emitShowEasingExpression(segment.transition!.easing ?? 'linear', `(__pxlblz_show_elapsed_ms - ${segment.startMs}) / ${segment.transition!.durationMs}`)}
+    __pxlblz_show_transition_start_s = ${segment.startMs / 1000}
+    __pxlblz_show_mix = ${emitShowEasingExpression(segment.transition!.easing ?? 'linear', `(__pxlblz_show_elapsed_s - ${segment.startMs / 1000}) / ${segment.transition!.durationMs / 1000}`)}
 ${setupForPlacements(
     [...from, ...to],
     scenes[segment.sceneIndex].transitionRamps,
@@ -1656,7 +1657,7 @@ ${setupForPlacements(
 
   const layoutSelectLines = [...switches]
     .sort((left, right) => left.atMs - right.atMs)
-    .map((routingSwitch) => `  if (__pxlblz_show_elapsed_ms >= ${routingSwitch.atMs}) __pxlblz_show_route_layout = ${layoutIndex.get(routingSwitch.layoutId) ?? 0}`)
+    .map((routingSwitch) => `  if (__pxlblz_show_elapsed_s >= ${routingSwitch.atMs / 1000}) __pxlblz_show_route_layout = ${layoutIndex.get(routingSwitch.layoutId) ?? 0}`)
     .join('\n')
 
   const sceneBranches = scenes.map((scene, index) => `${index === 0 ? 'if' : 'else if'} (__pxlblz_show_scene == ${index}) {
@@ -1701,11 +1702,11 @@ ${indentBlock(emitRoutedSceneTransition(
     ...stackWrappers,
     'var __pxlblz_show_scene = 0',
     'var __pxlblz_show_transition = -1',
-    'var __pxlblz_show_transition_start_ms = 0',
+    'var __pxlblz_show_transition_start_s = 0',
     'var __pxlblz_show_route_layout = 0',
     ...(propertyRamps ? [`var __pxlblz_show_route_split_position = ${clampNumber(propertyRamps.splitPosition.initial, 0, 1)}`] : []),
     `export function beforeRender(delta) {
-  __pxlblz_show_elapsed_ms = (__pxlblz_show_elapsed_ms + delta) % ${cursor}
+  __pxlblz_show_elapsed_s = (__pxlblz_show_elapsed_s + delta / 1000) % ${cursor / 1000}
   __pxlblz_show_route_layout = 0
 ${layoutSelectLines}${layoutSelectLines ? '\n' : ''}${propertyRamps ? `${emitRoutingPropertyAssignments(propertyRamps)}\n` : ''}  ${schedulerBranches}
 }`,
@@ -3051,15 +3052,15 @@ function emitRoutingLayoutShowCode(
     const sourceLayoutIndex = previousLayoutIndex
     previousLayoutIndex = destinationLayoutIndex
     if (durationMs === 0) {
-      return `  if (__pxlblz_show_elapsed_ms >= ${routingSwitch.atMs}) __pxlblz_show_route_layout = ${destinationLayoutIndex}`
+      return `  if (__pxlblz_show_elapsed_s >= ${routingSwitch.atMs / 1000}) __pxlblz_show_route_layout = ${destinationLayoutIndex}`
     }
     const progress = '__pxlblz_show_route_progress'
-    return `  if (__pxlblz_show_elapsed_ms >= ${routingSwitch.atMs}) {
+    return `  if (__pxlblz_show_elapsed_s >= ${routingSwitch.atMs / 1000}) {
     __pxlblz_show_route_layout = ${destinationLayoutIndex}
     __pxlblz_show_route_from_layout = ${sourceLayoutIndex}
     __pxlblz_show_route_progress = 1
-    if (__pxlblz_show_elapsed_ms < ${routingSwitch.atMs + durationMs}) {
-      __pxlblz_show_route_progress = clamp((__pxlblz_show_elapsed_ms - ${routingSwitch.atMs}) / ${durationMs}, 0, 1)
+    if (__pxlblz_show_elapsed_s < ${(routingSwitch.atMs + durationMs) / 1000}) {
+      __pxlblz_show_route_progress = clamp((__pxlblz_show_elapsed_s - ${routingSwitch.atMs / 1000}) / ${durationMs / 1000}, 0, 1)
       __pxlblz_show_route_progress = ${emitShowEasingExpression(routingSwitch.easing ?? 'linear', progress)}
       __pxlblz_show_route_reverse = ${routingSwitch.direction === 'reverse' ? 1 : 0}
     }
@@ -3133,7 +3134,7 @@ ${representation === 'coordinate-predicates'
     ...(propertyRamps ? [`var __pxlblz_show_route_split_position = ${clampNumber(propertyRamps.splitPosition.initial, 0, 1)}`] : []),
     ...progressiveGlobals,
     `export function beforeRender(delta) {
-  __pxlblz_show_elapsed_ms = (__pxlblz_show_elapsed_ms + delta) % ${loopDurationMs}
+  __pxlblz_show_elapsed_s = (__pxlblz_show_elapsed_s + delta / 1000) % ${loopDurationMs / 1000}
   __pxlblz_show_route_layout = 0${progressiveReset}
 ${selectLines.join('\n')}
 ${propertyAssignments ? `${propertyAssignments}\n` : ''}${countBlocks.join('\n')}
@@ -3155,11 +3156,13 @@ function emitRoutingPropertyAssignments(propertyRamps: ShowRoutingPropertyRampsR
     const from = clampNumber(ramp.from, 0, 1)
     const to = clampNumber(ramp.to, 0, 1)
     const durationMs = Math.max(0, ramp.durationMs)
-    const progress = `clamp((__pxlblz_show_elapsed_ms - ${ramp.atMs}) / ${Math.max(1, durationMs)}, 0, 1)`
+    const atS = ramp.atMs / 1000
+    const durationS = Math.max(1, durationMs) / 1000
+    const progress = `clamp((__pxlblz_show_elapsed_s - ${atS}) / ${durationS}, 0, 1)`
     const mix = emitShowEasingExpression(ramp.easing, progress)
-    lines.push(`  if (__pxlblz_show_elapsed_ms >= ${ramp.atMs}) {
+    lines.push(`  if (__pxlblz_show_elapsed_s >= ${atS}) {
     __pxlblz_show_route_split_position = ${to}
-    if (__pxlblz_show_elapsed_ms < ${ramp.atMs + durationMs}) __pxlblz_show_route_split_position = ${from} * (1 - ${mix}) + ${to} * ${mix}
+    if (__pxlblz_show_elapsed_s < ${(ramp.atMs + durationMs) / 1000}) __pxlblz_show_route_split_position = ${from} * (1 - ${mix}) + ${to} * ${mix}
   }`)
   }
   return lines.join('\n')
@@ -3355,11 +3358,13 @@ function emitSampleRemappingRuntime(propertyRamps: ShowSamplePropertyRampsRecipe
       const from = clampNumber(ramp.from, 1, 8)
       const to = clampNumber(ramp.to, 1, 8)
       const durationMs = Math.max(0, ramp.durationMs)
-      const progress = `clamp((__pxlblz_show_elapsed_ms - ${ramp.atMs}) / ${Math.max(1, durationMs)}, 0, 1)`
+      const atS = ramp.atMs / 1000
+      const durationS = Math.max(1, durationMs) / 1000
+      const progress = `clamp((__pxlblz_show_elapsed_s - ${atS}) / ${durationS}, 0, 1)`
       const mix = emitShowEasingExpression(ramp.easing, progress)
-      return `  if (__pxlblz_show_elapsed_ms >= ${ramp.atMs}) {
+      return `  if (__pxlblz_show_elapsed_s >= ${atS}) {
     __pxlblz_show_sample_repeat_scale = ${to}
-    if (__pxlblz_show_elapsed_ms < ${ramp.atMs + durationMs}) __pxlblz_show_sample_repeat_scale = ${from} * (1 - ${mix}) + ${to} * ${mix}
+    if (__pxlblz_show_elapsed_s < ${(ramp.atMs + durationMs) / 1000}) __pxlblz_show_sample_repeat_scale = ${from} * (1 - ${mix}) + ${to} * ${mix}
   }`
     }),
   ]
@@ -3371,7 +3376,10 @@ ${assignments.join('\n')}
 
 function injectSampleRemappingUpdate(code: string): string {
   const functionStart = code.indexOf('export function beforeRender(delta) {')
-  const assignmentStart = code.indexOf('__pxlblz_show_elapsed_ms =', functionStart)
+  const secondsAssignmentStart = code.indexOf('__pxlblz_show_elapsed_s =', functionStart)
+  const assignmentStart = secondsAssignmentStart >= 0
+    ? secondsAssignmentStart
+    : code.indexOf('__pxlblz_show_elapsed_ms =', functionStart)
   const lineEnd = code.indexOf('\n', assignmentStart)
   if (functionStart < 0 || assignmentStart < 0 || lineEnd < 0) {
     throw new Error('Show coordinate remapping requires an outer beforeRender scheduler.')
@@ -3712,7 +3720,7 @@ function emitRuntimePrelude(members: CompiledMember[]): string {
           `function ${member.prefix}_updateShutter() {
   if (${member.prefix}_shutter_duty <= 0) ${member.prefix}_shutter_open = 0
   else if (${member.prefix}_shutter_duty >= 1) ${member.prefix}_shutter_open = 1
-  else if (frac(__pxlblz_show_elapsed_ms * 0.001 * ${member.prefix}_shutter_rate_hz + ${member.prefix}_shutter_phase) < ${member.prefix}_shutter_duty) ${member.prefix}_shutter_open = 1
+  else if (frac(__pxlblz_show_elapsed_s * ${member.prefix}_shutter_rate_hz + ${member.prefix}_shutter_phase) < ${member.prefix}_shutter_duty) ${member.prefix}_shutter_open = 1
   else ${member.prefix}_shutter_open = 0
 }`,
           ...(lightShutter.clockBehavior === 'freeze'
@@ -3720,13 +3728,13 @@ function emitRuntimePrelude(members: CompiledMember[]): string {
                 `function ${member.prefix}_shutterActiveCycles(cycles) {
   return floor(cycles) * ${member.prefix}_shutter_duty + min(frac(cycles), ${member.prefix}_shutter_duty)
 }`,
-                `function ${member.prefix}_shutterActiveMs(startMs, endMs) {
+                `function ${member.prefix}_shutterActiveMs(startS, endS) {
   if (${member.prefix}_shutter_duty <= 0) return 0
-  if (${member.prefix}_shutter_duty >= 1) return endMs - startMs
-  var cyclesPerMs = ${member.prefix}_shutter_rate_hz * 0.001
-  var startCycles = startMs * cyclesPerMs + ${member.prefix}_shutter_phase
-  var endCycles = endMs * cyclesPerMs + ${member.prefix}_shutter_phase
-  return (${member.prefix}_shutterActiveCycles(endCycles) - ${member.prefix}_shutterActiveCycles(startCycles)) / cyclesPerMs
+  if (${member.prefix}_shutter_duty >= 1) return (endS - startS) * 1000
+  var cyclesPerS = ${member.prefix}_shutter_rate_hz
+  var startCycles = startS * cyclesPerS + ${member.prefix}_shutter_phase
+  var endCycles = endS * cyclesPerS + ${member.prefix}_shutter_phase
+  return (${member.prefix}_shutterActiveCycles(endCycles) - ${member.prefix}_shutterActiveCycles(startCycles)) / cyclesPerS * 1000
 }`,
               ]
             : []),
@@ -3742,7 +3750,7 @@ ${indent}${member.hasBeforeRender ? `${member.beforeRenderName}(scaledDelta)` : 
     const advance = lightShutter?.clockBehavior === 'freeze'
       ? `function ${member.prefix}_advance(delta) {${controlCalls ? `\n${controlCalls}` : ''}${effectUpdateCall}
   ${member.prefix}_updateShutter()
-  var activeDelta = ${member.prefix}_shutterActiveMs(__pxlblz_show_elapsed_ms - delta, __pxlblz_show_elapsed_ms)
+  var activeDelta = ${member.prefix}_shutterActiveMs(__pxlblz_show_elapsed_s - delta / 1000, __pxlblz_show_elapsed_s)
   if (activeDelta > 0) {
 ${advanceDelta('activeDelta', '    ')}
   }
@@ -3846,7 +3854,7 @@ ${effectRuntime?.hasCoordinates && !effectRuntime.wrap ? `  if (!effectInside) $
       )).join('\n  ')
 
   return [
-    'var __pxlblz_show_elapsed_ms = 0',
+    'var __pxlblz_show_elapsed_s = 0',
     'var __pxlblz_show_mix = 0',
     'var __pxlblz_show_phase = 0',
     ...(sampleRuntime ? [sampleRuntime] : []),
@@ -3883,14 +3891,14 @@ function emitScheduler(
   easing: ShowTransitionEasing = 'linear',
 ): string {
   return `export function beforeRender(delta) {
-  __pxlblz_show_elapsed_ms = __pxlblz_show_elapsed_ms + delta
-  if (__pxlblz_show_elapsed_ms < ${transitionStart}) {
+  __pxlblz_show_elapsed_s = __pxlblz_show_elapsed_s + delta / 1000
+  if (__pxlblz_show_elapsed_s < ${transitionStart / 1000}) {
     __pxlblz_show_phase = 0
     __pxlblz_show_mix = 0
     ${from.prefix}_advance(delta)
-  } else if (__pxlblz_show_elapsed_ms < ${transitionEnd}) {
+  } else if (__pxlblz_show_elapsed_s < ${transitionEnd / 1000}) {
     __pxlblz_show_phase = 1
-    __pxlblz_show_mix = ${emitShowEasingExpression(easing, `(__pxlblz_show_elapsed_ms - ${transitionStart}) / ${duration}`)}
+    __pxlblz_show_mix = ${emitShowEasingExpression(easing, `(__pxlblz_show_elapsed_s - ${transitionStart / 1000}) / ${duration / 1000}`)}
     ${from.prefix}_advance(delta)
     ${to.prefix}_advance(delta)
   } else {
@@ -3911,7 +3919,7 @@ function emitRouteScheduler(routes: ResolvedRoute[]): string {
     ]
   })
   return `export function beforeRender(delta) {
-  __pxlblz_show_elapsed_ms = __pxlblz_show_elapsed_ms + delta
+  __pxlblz_show_elapsed_s = __pxlblz_show_elapsed_s + delta / 1000
 ${lines.join('\n')}
 }`
 }
@@ -4007,7 +4015,7 @@ function emitZoneLocalAssignments(zone: ControllerZone, localName: string): stri
 
 function buildMetadata(members: CompiledMember[], outputDimension: 1 | 2): BundleMetadata {
   const showVars = [
-    '__pxlblz_show_elapsed_ms',
+    '__pxlblz_show_elapsed_s',
     '__pxlblz_show_mix',
     '__pxlblz_show_phase',
     ...members.flatMap(member => [

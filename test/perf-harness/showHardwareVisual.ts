@@ -7,6 +7,7 @@
 // active Pattern before releasing the socket.
 
 import vm from 'node:vm'
+import { readFileSync } from 'node:fs'
 import WebSocket from 'ws'
 import { bytecodeHeaderReconciles, makeProgramId } from '../../src/engine/bytecodePush'
 import {
@@ -20,12 +21,30 @@ import {
 } from '../../src/engine/PixelblazeConnection'
 import { compileShow, type ShowCompileRecipe } from '../../src/engine/showCompiler'
 
-type ProbeName = 'span' | 'progressive-routing' | 'moving-split' | 'tiling'
+type ProbeName =
+  | 'span'
+  | 'progressive-routing'
+  | 'moving-split'
+  | 'tiling'
+
+const PROBE_NAMES: ProbeName[] = [
+  'span',
+  'progressive-routing',
+  'moving-split',
+  'tiling',
+]
 
 interface Args {
   probe: ProbeName
+  artifactPath: string | null
   observeMs: number
   compileOnly: boolean
+}
+
+interface ExternalArtifact {
+  probe: string
+  code: string
+  summary: unknown
 }
 
 interface CompiledProgram {
@@ -37,15 +56,18 @@ const IP = process.env.PIXELBLAZE_IP ?? '192.168.8.224'
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 function parseArgs(argv: string[]): Args {
-  const args: Args = { probe: 'span', observeMs: 20_000, compileOnly: false }
+  const args: Args = { probe: 'span', artifactPath: null, observeMs: 20_000, compileOnly: false }
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index]
     if (arg === '--probe') {
       const probe = argv[++index] as ProbeName | undefined
-      if (!probe || !['span', 'progressive-routing', 'moving-split', 'tiling'].includes(probe)) {
-        throw new Error('--probe must be span, progressive-routing, moving-split, or tiling')
+      if (!probe || !PROBE_NAMES.includes(probe)) {
+        throw new Error(`--probe must be one of: ${PROBE_NAMES.join(', ')}`)
       }
       args.probe = probe
+    } else if (arg === '--artifact') {
+      args.artifactPath = argv[++index] ?? null
+      if (!args.artifactPath) throw new Error('--artifact needs a generated artifact JSON path')
     } else if (arg === '--observe') {
       const value = Number.parseInt(argv[++index] ?? '', 10)
       if (!Number.isFinite(value) || value < 1000) throw new Error('--observe needs milliseconds >= 1000')
@@ -254,8 +276,12 @@ async function observeFps(connection: PixelblazeConnection, observeMs: number): 
 
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2))
-  const artifact = compileShow(recipeFor(args.probe), {})
-  console.log(JSON.stringify({ probe: args.probe, summary: artifact.summary }, null, 2))
+  const external = args.artifactPath == null
+    ? null
+    : JSON.parse(readFileSync(args.artifactPath, 'utf8')) as ExternalArtifact
+  const artifact = external ?? compileShow(recipeFor(args.probe), {})
+  const probeLabel = external?.probe ?? args.probe
+  console.log(JSON.stringify({ probe: probeLabel, summary: artifact.summary }, null, 2))
   if (args.compileOnly) return
 
   const compile = await fetchDeviceCompiler()
@@ -281,11 +307,11 @@ async function main(): Promise<void> {
     await sleep(2000)
     const active = await connection.getConfig()
     if (active.activeProgramId !== programId) throw new Error(`probe did not activate (active=${active.activeProgramId})`)
-    console.log(`ACTIVE ${args.probe}; observe for ${(args.observeMs / 1000).toFixed(1)} seconds`)
+    console.log(`ACTIVE ${probeLabel}; observe for ${(args.observeMs / 1000).toFixed(1)} seconds`)
     const fps = await observeFps(connection, args.observeMs)
     if (fps.length === 0) throw new Error('controller did not report FPS')
     console.log(JSON.stringify({
-      probe: args.probe,
+      probe: probeLabel,
       bytecodeBytes: bytecode.length,
       fps: {
         mean: fps.reduce((sum, value) => sum + value, 0) / fps.length,

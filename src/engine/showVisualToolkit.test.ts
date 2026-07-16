@@ -414,7 +414,9 @@ describe('Show visual-toolkit contract', () => {
 
     const crossfade = captureShowToolkitFixture(fixtures.find((fixture) => fixture.id === 'blend-crossfade')!)
     expect(new Set(crossfade.frames.map((frame) => frame.checksum)).size).toBeGreaterThan(2)
-    expect(crossfade.frames[0].representativePixels[0]).toEqual([0, 0, 0])
+    crossfade.frames[0].representativePixels[0].forEach((channel) => {
+      expect(channel).toBeCloseTo(0, 12)
+    })
     expect(crossfade.frames[crossfade.frames.length - 1].representativePixels[0]).toEqual([1, 0, 1])
     expect(fixtures.find((fixture) => fixture.id === 'blend-crossfade')?.persistedRecord.transitions?.[0]).toMatchObject({
       kind: 'crossfade',

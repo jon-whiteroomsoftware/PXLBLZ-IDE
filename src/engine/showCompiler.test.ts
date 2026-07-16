@@ -1115,6 +1115,37 @@ export function render(index) { rgb(0, ticks, index) }
     })
   })
 
+  it('keeps long routing-layout schedules inside the Pixelblaze 16.16 range', () => {
+    const zones = [
+      { id: 'left', name: 'left', ranges: [{ start: 0, end: 1 }] },
+      { id: 'right', name: 'right', ranges: [{ start: 2, end: 3 }] },
+    ]
+    const artifact = compileShow({
+      clips: [
+        { id: 'red', zone: 'left', source: 'export function render(index) { rgb(1, 0, 0) }' },
+        { id: 'blue', zone: 'right', source: 'export function render(index) { rgb(0, 0, 1) }' },
+      ],
+      zones,
+      routingLayouts: [
+        { id: 'original', name: 'Original', zones },
+        {
+          id: 'swapped',
+          name: 'Swapped',
+          zones: [
+            { id: 'left-swapped', name: 'left', ranges: [{ start: 2, end: 3 }] },
+            { id: 'right-swapped', name: 'right', ranges: [{ start: 0, end: 1 }] },
+          ],
+        },
+      ],
+      routingSwitches: [{ atMs: 40_000, layoutId: 'swapped' }],
+      loopDurationMs: 60_000,
+    }, {})
+
+    expect(artifact.code).toContain('__pxlblz_show_elapsed_s = (__pxlblz_show_elapsed_s + delta / 1000) % 60')
+    expect(artifact.code).toContain('__pxlblz_show_elapsed_s >= 40')
+    expect(artifact.code).not.toContain('% 60000')
+  })
+
   it('routes native 2D members through normalized zone-local square coordinates (#401)', () => {
     const artifact = compileShow({
       clips: [{
@@ -1936,10 +1967,12 @@ export function render(index) { rgb(time(1), elapsed, index) }
     paused.handle.beforeRender(500)
     paused.handle.render(3)
 
-    expect(paused.pixel()).toEqual([100 / 65_536, 100, 3])
+    expect(paused.pixel()[0]).toBeCloseTo(100 / 65_536)
+    expect(paused.pixel()[1]).toBeCloseTo(100)
+    expect(paused.pixel()[2]).toBe(3)
+    expect(paused.handle.getExports().__pxlblz_show_c0_elapsed_ms).toBeCloseTo(100)
+    expect(paused.handle.getExports().__pxlblz_show_c0_elapsed).toBeCloseTo(100)
     expect(paused.handle.getExports()).toMatchObject({
-      __pxlblz_show_c0_elapsed_ms: 100,
-      __pxlblz_show_c0_elapsed: 100,
       __pxlblz_show_c0_frames: 4,
       __pxlblz_show_c0_adapt_timeScale: 0,
     })
@@ -2345,12 +2378,11 @@ export function render(index) { rgb(elapsed, index, 0) }
     runtime.handle.beforeRender(300)
     runtime.handle.beforeRender(400)
 
-    expect(runtime.handle.getExports()).toMatchObject({
-      __pxlblz_show_c0_elapsed_ms: 250,
-      __pxlblz_show_c0_step_pending_ms: 0,
-      __pxlblz_show_c0_step_pending_delta: 0,
-      __pxlblz_show_c0_elapsed: 250,
-    })
+    const exports = runtime.handle.getExports()
+    expect(exports.__pxlblz_show_c0_elapsed_ms).toBeCloseTo(250)
+    expect(exports.__pxlblz_show_c0_step_pending_ms).toBeCloseTo(0)
+    expect(exports.__pxlblz_show_c0_step_pending_delta).toBeCloseTo(0)
+    expect(exports.__pxlblz_show_c0_elapsed).toBeCloseTo(250)
     expect(artifact.summary).toMatchObject({
       clockPolicy: 'scaled',
       temporalPolicy: 'stepped-clock',
@@ -2832,7 +2864,7 @@ export function render(index) { calls = calls + 1; rgb(0, 1, 0) }
       transitionCost: 'bounded-renderer-window',
       worstInstantRenderersPerPixel: 2,
     })
-    expect(artifact.code).toContain('__pxlblz_show_elapsed_ms = (__pxlblz_show_elapsed_ms + delta) % 5000')
+    expect(artifact.code).toContain('__pxlblz_show_elapsed_s = (__pxlblz_show_elapsed_s + delta / 1000) % 5')
   })
 
   it('eases one private clock to exact pause and back across a scene sequence (#417)', () => {
@@ -2878,10 +2910,8 @@ export function render(index) { rgb(elapsed, time(1), index) }
 
     handle.beforeRender(50) // ease-out midpoint: scale .75
     handle.beforeRender(50) // resumed at scale 1
-    expect(handle.getExports()).toMatchObject({
-      __pxlblz_show_c0_elapsed: 225,
-      __pxlblz_show_c0_adapt_timeScale: 1,
-    })
+    expect(handle.getExports().__pxlblz_show_c0_elapsed).toBeCloseTo(225)
+    expect(handle.getExports().__pxlblz_show_c0_adapt_timeScale).toBe(1)
     expect(artifact.summary.clipCount).toBe(1)
   })
 

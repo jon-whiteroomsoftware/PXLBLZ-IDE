@@ -83,9 +83,9 @@ describe('Scene-composition release freeze (#492)', () => {
     expect(measurement.fixtureCount).toBe(2)
     expect(measurement.maxArtifact).toEqual({
       fixtureId: 'portable-local-composition',
-      artifactBytes: 59_230,
+      artifactBytes: 60_019,
       budgetBytes: 68_384,
-      budgetRatio: 59_230 / 68_384,
+      budgetRatio: 60_019 / 68_384,
     })
     expect(measurement.maxWorstInstantRenderersPerPixel).toEqual({
       fixtureId: 'installation-routed-composition',
@@ -96,5 +96,24 @@ describe('Scene-composition release freeze (#492)', () => {
     expect(measurement.maxWorstInstantRenderersPerPixel.value).toBeGreaterThanOrEqual(3)
     expect(measurement.overBudgetFixtureIds).toEqual([])
     expect(measurement.representativeHardwareFps).toBeNull()
+  })
+
+  it('keeps long Installation scene schedules inside the Pixelblaze 16.16 range', () => {
+    const fixture = buildShowCompositionFreezeCases().find((candidate) => (
+      candidate.id === 'installation-routed-composition'
+    ))!
+    const compiled = compileShowForArtifact(
+      fixture.show,
+      fixture.patterns,
+      undefined,
+      {},
+      { stageDimension: 2 },
+    ).artifact!
+    expect(compiled.code).toContain('var __pxlblz_show_elapsed_s = 0')
+    expect(compiled.code).toContain('__pxlblz_show_elapsed_s = (__pxlblz_show_elapsed_s + delta / 1000) % 62')
+    expect(compiled.code).toContain('__pxlblz_show_elapsed_s < 30')
+    expect(compiled.code).toContain('__pxlblz_show_elapsed_s < 32')
+    expect(compiled.code).toContain('__pxlblz_show_elapsed_s < 62')
+    expect(compiled.code).not.toContain('__pxlblz_show_elapsed_ms = (__pxlblz_show_elapsed_ms + delta) % 62000')
   })
 })
