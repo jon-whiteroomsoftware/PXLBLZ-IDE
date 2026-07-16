@@ -1,4 +1,9 @@
 import { projectFlatShowComposition } from './showCompositionProjection'
+import {
+  normalizeShowPropertyTracks,
+  validateShowPropertyTracks,
+  type ShowPropertyAnimationValidationCode,
+} from './showPropertyAnimation'
 import type { ShowCompileRecipeSourceLookup } from './showModel'
 import type {
   ShowCompositionV1,
@@ -20,6 +25,7 @@ export type ShowCompositionValidationCode =
   | 'not-integer'
   | 'out-of-bounds'
   | 'overlap'
+  | ShowPropertyAnimationValidationCode
 
 export interface ShowCompositionValidationIssue {
   path: string
@@ -112,9 +118,12 @@ export function normalizeShowComposition(
       .sort((a, b) => a.id.localeCompare(b.id)),
     scenes: cloneJson(composition.scenes)
       .sort((a, b) => ownerOrder(sceneOrder, a.sceneId) - ownerOrder(sceneOrder, b.sceneId) || a.sceneId.localeCompare(b.sceneId))
-      .map((scene) => ({
-        ...scene,
-        zones: scene.zones
+       .map((scene) => ({
+         ...scene,
+         ...(scene.propertyTracks
+           ? { propertyTracks: normalizeShowPropertyTracks(scene.propertyTracks) }
+           : {}),
+         zones: scene.zones
           .sort((a, b) => ownerOrder(zoneOrder, a.zoneId) - ownerOrder(zoneOrder, b.zoneId) || a.zoneId.localeCompare(b.zoneId))
           .map((zone) => ({
             ...zone,
@@ -204,6 +213,7 @@ export function validateShowComposition(
       })
     })
   })
+  issues.push(...validateShowPropertyTracks(show, composition))
   return issues
 }
 
@@ -267,8 +277,11 @@ export function deleteShowOverlayLayer(
 ): ShowCompositionV1 {
   const draft = cloneJson(composition)
   const zone = findZoneComposition(draft, input.sceneId, input.zoneId)
-  if (!zone?.overlays.some((layer) => layer.id === input.layerId)) return composition
+  const layer = zone?.overlays.find((candidate) => candidate.id === input.layerId)
+  if (!zone || !layer) return composition
+  const deletedPlacementIds = new Set(layer.placements.map((placement) => placement.id))
   zone.overlays = zone.overlays.filter((layer) => layer.id !== input.layerId)
+  removePlacementTracks(draft, input.sceneId, deletedPlacementIds)
   return draft
 }
 
@@ -342,6 +355,7 @@ export function deleteShowOverlayPlacement(
   const layer = findOverlayLayer(draft, input)
   if (!layer?.placements.some((placement) => placement.id === input.placementId)) return composition
   layer.placements = layer.placements.filter((placement) => placement.id !== input.placementId)
+  removePlacementTracks(draft, input.sceneId, new Set([input.placementId]))
   return draft
 }
 
@@ -405,6 +419,7 @@ export function splitShowMainPlacement(
     right.durationMs = endMs - input.atMs
     placement.durationMs = input.atMs - placement.startMs
     zone.main.push(right)
+    clonePlacementTracks(draft, input.sceneId, placement.id, input.newPlacementId)
     return true
   })
 }
@@ -420,6 +435,7 @@ export function restartShowMainPlacement(
   if (!instance) return composition
   draft.patternInstances.push({ ...cloneJson(instance), id: input.newInstanceId })
   placement.instanceId = input.newInstanceId
+  cloneInstanceTracks(draft, input.sceneId, instance.id, input.newInstanceId)
   return {
     ...draft,
     patternInstances: draft.patternInstances.sort((a, b) => a.id.localeCompare(b.id)),
@@ -448,6 +464,7 @@ export function deleteShowMainPlacement(
   const zone = findZoneComposition(draft, input.sceneId, input.zoneId)
   if (!zone || !zone.main.some((placement) => placement.id === input.placementId)) return composition
   zone.main = zone.main.filter((placement) => placement.id !== input.placementId)
+  removePlacementTracks(draft, input.sceneId, new Set([input.placementId]))
   return draft
 }
 
@@ -525,6 +542,86 @@ function findOverlayPlacement(
 ): ShowOverlayPlacement | undefined {
   return findOverlayLayer(composition, owner)
     ?.placements.find((placement) => placement.id === owner.placementId)
+}
+
+function clonePlacementTracks(
+  composition: ShowCompositionV1,
+  sceneId: string,
+  sourcePlacementId: string,
+  targetPlacementId: string,
+): void {
+  const scene = composition.scenes.find((candidate) => candidate.sceneId === sceneId)
+  if (!scene?.propertyTracks) return
+  const ids = allPropertyIds(composition)
+  const clones = scene.propertyTracks.flatMap((track) => {
+    if (!('placementId' in track.target) || track.target.placementId !== sourcePlacementId) return []
+    const target = track.target
+    const clone = cloneJson(track)
+    clone.id = uniqueDerivedId(ids, `${track.id}-${targetPlacementId}`)
+    clone.target = { ...target, placementId: targetPlacementId }
+    clone.keyframes = clone.keyframes.map((keyframe) => ({
+      ...keyframe,
+      id: uniqueDerivedId(ids, `${keyframe.id}-${targetPlacementId}`),
+    }))
+    return [clone]
+  })
+  scene.propertyTracks.push(...clones)
+}
+
+function cloneInstanceTracks(
+  composition: ShowCompositionV1,
+  sceneId: string,
+  sourceInstanceId: string,
+  targetInstanceId: string,
+): void {
+  const scene = composition.scenes.find((candidate) => candidate.sceneId === sceneId)
+  if (!scene?.propertyTracks) return
+  const ids = allPropertyIds(composition)
+  const clones = scene.propertyTracks.flatMap((track) => {
+    if (!('instanceId' in track.target) || track.target.instanceId !== sourceInstanceId) return []
+    const target = track.target
+    const clone = cloneJson(track)
+    clone.id = uniqueDerivedId(ids, `${track.id}-${targetInstanceId}`)
+    clone.target = { ...target, instanceId: targetInstanceId }
+    clone.keyframes = clone.keyframes.map((keyframe) => ({
+      ...keyframe,
+      id: uniqueDerivedId(ids, `${keyframe.id}-${targetInstanceId}`),
+    }))
+    return [clone]
+  })
+  scene.propertyTracks.push(...clones)
+}
+
+function removePlacementTracks(
+  composition: ShowCompositionV1,
+  sceneId: string,
+  placementIds: Set<string>,
+): void {
+  const scene = composition.scenes.find((candidate) => candidate.sceneId === sceneId)
+  if (!scene?.propertyTracks) return
+  scene.propertyTracks = scene.propertyTracks.filter((track) => (
+    !('placementId' in track.target) || !placementIds.has(track.target.placementId)
+  ))
+  if (scene.propertyTracks.length === 0) delete scene.propertyTracks
+}
+
+function allPropertyIds(composition: ShowCompositionV1): Set<string> {
+  return new Set(composition.scenes.flatMap((scene) => (scene.propertyTracks ?? []).flatMap((track) => [
+    track.id,
+    ...track.keyframes.map((keyframe) => keyframe.id),
+  ])))
+}
+
+function uniqueDerivedId(ids: Set<string>, base: string): string {
+  if (!ids.has(base)) {
+    ids.add(base)
+    return base
+  }
+  let suffix = 2
+  while (ids.has(`${base}-${suffix}`)) suffix += 1
+  const id = `${base}-${suffix}`
+  ids.add(id)
+  return id
 }
 
 function validateFiniteInteger(

@@ -36,6 +36,8 @@ export function lowerShowCompositionForCompile(
   const byCellId = { ...lookup.byCellId }
   const instanceIdByCellId = { ...(lookup.instanceIdByCellId ?? {}) }
   const compositionLayerByCellId = { ...(lookup.compositionLayerByCellId ?? {}) }
+  const compositionPlacementIdByCellId = { ...(lookup.compositionPlacementIdByCellId ?? {}) }
+  const compositionPropertyTracksBySceneId = { ...(lookup.compositionPropertyTracksBySceneId ?? {}) }
   const cells: ShowCell[] = []
   const scenes: ShowScene[] = []
   const lastDerivedSceneId = new Map<string, string>()
@@ -77,6 +79,12 @@ export function lowerShowCompositionForCompile(
           ? { transitionOut: scene.transitionOut }
           : { transitionOut: { kind: 'cut', durationMs: 0 } }),
       })
+      if (sceneComposition?.propertyTracks?.length) {
+        compositionPropertyTracksBySceneId[sceneId] = {
+          localTimeOffsetMs: interval.startMs,
+          tracks: structuredClone(sceneComposition.propertyTracks),
+        }
+      }
       if (isFinalInterval) lastDerivedSceneId.set(scene.id, sceneId)
 
       for (const zone of show.zones) {
@@ -124,6 +132,7 @@ export function lowerShowCompositionForCompile(
           byCellId[cellId] = source
           instanceIdByCellId[cellId] = instance.id
           compositionLayerByCellId[cellId] = { stackOrder, opacity }
+          compositionPlacementIdByCellId[cellId] = placement.id
           if (intervalIndex === 0 && stackOrder === 0) {
             const flatCell = flatCellAtSlot(show, zone.id, scene.id)
             if (flatCell) derivedCellIdByFlatCellId.set(flatCell.id, cellId)
@@ -155,6 +164,8 @@ export function lowerShowCompositionForCompile(
       byCellId,
       instanceIdByCellId,
       compositionLayerByCellId,
+      compositionPlacementIdByCellId,
+      compositionPropertyTracksBySceneId,
     },
   }
 }

@@ -59,6 +59,13 @@ import {
   trimShowOverlayPlacement,
 } from '@/engine/showCompositionModel'
 import { projectSceneReadOnlyBridge } from '@/engine/showSceneReadOnlyProjection'
+import {
+  addShowPropertyKeyframe,
+  addShowPropertyTrack,
+  deleteShowPropertyKeyframe,
+  deleteShowPropertyTrack,
+  updateShowPropertyKeyframe,
+} from '@/engine/showPropertyAnimation'
 import { resolveShowSceneEditorScope, type ShowSceneEditorScope } from '@/engine/showSceneEditorScope'
 import { validateInstallationCoverage } from '@/engine/showInstallationCoverage'
 import { updateShowPhysicalZoneSelection } from '@/engine/showSpatialSelection'
@@ -108,6 +115,7 @@ import type {
   ShowCell,
   ShowClipEffect,
   ShowRecord,
+  ShowPropertyAnimationTarget,
   ShowRoutingLayout,
   ShowScene,
   ShowAutomatableProperty,
@@ -980,6 +988,57 @@ export function ShowEditor({
                     layerId,
                     placementId,
                   })
+                  if (next === activeShow.composition) return
+                  void updateShow(activeShow.id, { ...activeShow, composition: next, updatedAt: Date.now() })
+                }}
+                onAddPropertyTrack={({ target, initialValue, atMs }: { target: ShowPropertyAnimationTarget; initialValue: number; atMs: number }) => {
+                  if (!activeShow.composition) return
+                  const scene = activeShow.scenes.find((candidate) => candidate.id === resolvedSceneEditorScope.sceneId)
+                  if (!scene) return
+                  const secondTimeMs = atMs > 0 ? Math.min(scene.durationMs, atMs) : scene.durationMs
+                  if (secondTimeMs <= 0) return
+                  const next = addShowPropertyTrack(activeShow, activeShow.composition, resolvedSceneEditorScope.sceneId, {
+                    id: newPersonalContentId(),
+                    target,
+                    keyframes: [
+                      { id: newPersonalContentId(), timeMs: 0, value: initialValue, easing: { curve: 'linear' } },
+                      { id: newPersonalContentId(), timeMs: secondTimeMs, value: initialValue, easing: { curve: 'linear' } },
+                    ],
+                  })
+                  if (next === activeShow.composition) return
+                  void updateShow(activeShow.id, { ...activeShow, composition: next, updatedAt: Date.now() })
+                }}
+                onDeletePropertyTrack={(trackId) => {
+                  if (!activeShow.composition) return
+                  const next = deleteShowPropertyTrack(activeShow.composition, resolvedSceneEditorScope.sceneId, trackId)
+                  if (next === activeShow.composition) return
+                  void updateShow(activeShow.id, { ...activeShow, composition: next, updatedAt: Date.now() })
+                }}
+                onAddPropertyKeyframe={(trackId, keyframe) => {
+                  if (!activeShow.composition) return
+                  const next = addShowPropertyKeyframe(activeShow, activeShow.composition, resolvedSceneEditorScope.sceneId, trackId, {
+                    ...keyframe,
+                    id: newPersonalContentId(),
+                  })
+                  if (next === activeShow.composition) return
+                  void updateShow(activeShow.id, { ...activeShow, composition: next, updatedAt: Date.now() })
+                }}
+                onUpdatePropertyKeyframe={(trackId, keyframeId, changes) => {
+                  if (!activeShow.composition) return
+                  const next = updateShowPropertyKeyframe(
+                    activeShow,
+                    activeShow.composition,
+                    resolvedSceneEditorScope.sceneId,
+                    trackId,
+                    keyframeId,
+                    changes,
+                  )
+                  if (next === activeShow.composition) return
+                  void updateShow(activeShow.id, { ...activeShow, composition: next, updatedAt: Date.now() })
+                }}
+                onDeletePropertyKeyframe={(trackId, keyframeId) => {
+                  if (!activeShow.composition) return
+                  const next = deleteShowPropertyKeyframe(activeShow.composition, resolvedSceneEditorScope.sceneId, trackId, keyframeId)
                   if (next === activeShow.composition) return
                   void updateShow(activeShow.id, { ...activeShow, composition: next, updatedAt: Date.now() })
                 }}

@@ -58,6 +58,11 @@ const editingProps = {
   onAddOverlay: vi.fn(),
   onUpdateOverlay: vi.fn(),
   onDeleteOverlay: vi.fn(),
+  onAddPropertyTrack: vi.fn(),
+  onDeletePropertyTrack: vi.fn(),
+  onAddPropertyKeyframe: vi.fn(),
+  onUpdatePropertyKeyframe: vi.fn(),
+  onDeletePropertyKeyframe: vi.fn(),
 }
 
 describe('ShowSceneZoneEditor (#487)', () => {
@@ -320,5 +325,60 @@ describe('ShowSceneZoneEditor (#487)', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Delete overlay clip' }))
     expect(onDeleteOverlay).toHaveBeenCalledWith('overlay-front', 'overlay-placement')
+  })
+
+  it('reveals only authored property lanes and supports exact keyframe editing (#490)', () => {
+    const { show, placement } = compositionFixture()
+    show.composition!.scenes[0].propertyTracks = [{
+      id: 'brightness-track',
+      target: { kind: 'placement-view', placementId: placement.id, property: 'brightness' },
+      keyframes: [
+        { id: 'brightness-a', timeMs: 0, value: 1, easing: { curve: 'linear' } },
+        { id: 'brightness-b', timeMs: 10_000, value: 0.4, easing: { curve: 'linear' } },
+      ],
+    }]
+    const authoredProjection = projectFlatShowComposition(show, {
+      byCellId: Object.fromEntries(show.cells.map((cell) => [cell.id, source])),
+      stageDimension: 1,
+    })
+    const onAddPropertyTrack = vi.fn()
+    const onUpdatePropertyKeyframe = vi.fn()
+
+    render(<ShowSceneZoneEditor
+      show={show}
+      compositionProjection={authoredProjection}
+      scope={{ sceneId: 'scene-1', zoneId: 'zone-1' }}
+      readOnly={false}
+      selectedClipId={null}
+      transport={null}
+      onBack={vi.fn()}
+      onZoneChange={vi.fn()}
+      onSelectClip={vi.fn()}
+      onSeek={vi.fn()}
+      {...editingProps}
+      onAddPropertyTrack={onAddPropertyTrack}
+      onUpdatePropertyKeyframe={onUpdatePropertyKeyframe}
+    />)
+
+    expect(screen.queryByLabelText('Property animation')).not.toBeInTheDocument()
+    fireEvent.click(screen.getAllByRole('button', { name: 'Select TestPattern1D Main clip' })[0])
+    expect(screen.getByLabelText('Property animation')).toBeInTheDocument()
+    expect(screen.getAllByLabelText('Property sparkline')).toHaveLength(1)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Select keyframe at 0 ms' }))
+    const value = screen.getByRole('spinbutton', { name: 'Keyframe value' })
+    fireEvent.change(value, { target: { value: '0.25' } })
+    fireEvent.blur(value)
+    expect(onUpdatePropertyKeyframe).toHaveBeenCalledWith('brightness-track', 'brightness-a', { value: 0.25 })
+
+    fireEvent.change(screen.getByRole('combobox', { name: 'Property to animate' }), {
+      target: { value: `placement-view:${placement.id}:phase` },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Animate selected property' }))
+    expect(onAddPropertyTrack).toHaveBeenCalledWith({
+      target: { kind: 'placement-view', placementId: placement.id, property: 'phase' },
+      initialValue: 0,
+      atMs: 0,
+    })
   })
 })

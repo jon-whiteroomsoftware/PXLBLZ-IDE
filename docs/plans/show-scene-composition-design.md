@@ -248,10 +248,9 @@ placement view values and Effects stay placement-owned.
 The state-model exercise validated this hybrid ownership against multi-zone
 placements, cross-Scene Continue, split, duplicate, extend, trim, and local
 keyframe rebasing. Issue #478 subsequently unified top-level multi-Zone Scene
-selection in production compilation. Scene-local Main Cuts now lower through
-the shared Show compiler. Overlay layers and local keyframes remain
-unimplemented and must extend this boundary without changing its existing
-ownership meanings.
+selection in production compilation. Issues #488-#490 now persist and lower
+Scene-local Main clips, overlay layers, and typed local keyframes through the
+shared Show compiler without changing those ownership meanings.
 
 `showCompositionLowering.ts` expands the union of local placement boundaries
 into transient flat Scenes. Internal boundaries are zero-duration Cuts; gaps

@@ -753,6 +753,43 @@ test.describe('authenticated Show authoring', () => {
     await expect(page.getByText('Generated pattern - Untitled Show')).toBeVisible()
   })
 
+  test('authors and reloads exact Scene-local Property animation (#490)', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('studio/shows')
+    await createInstallationShow(page)
+
+    await page.getByRole('button', { name: 'Inspect Scene 1 in Super Detail' }).click()
+    await page.getByRole('button', { name: 'Open Scene 1 editor' }).click()
+    await page.getByRole('button', { name: 'Enable local cuts' }).click()
+    await waitForCurrentShow(page, (show) => show.composition?.version === 1)
+
+    await page.getByRole('button', { name: 'Select TestPattern1D Main clip' }).click()
+    await page.getByRole('combobox', { name: 'Property to animate' }).selectOption({ label: 'Brightness' })
+    await page.getByRole('button', { name: 'Animate selected property' }).click()
+    await expect(page.getByLabel('Property sparkline')).toBeVisible()
+    await page.getByRole('button', { name: 'Select keyframe at 30000 ms' }).click()
+    await page.getByRole('spinbutton', { name: 'Keyframe value' }).fill('0.42')
+    await page.getByRole('spinbutton', { name: 'Keyframe value' }).blur()
+    await page.getByRole('combobox', { name: 'Keyframe easing' }).selectOption('steps-4-end')
+
+    await waitForCurrentShow(page, (show) => {
+      const track = show.composition?.scenes[0]?.propertyTracks?.[0]
+      return track?.target.kind === 'placement-view'
+        && track.target.property === 'brightness'
+        && track.keyframes[1]?.value === 0.42
+        && typeof track.keyframes[1]?.easing === 'object'
+        && track.keyframes[1].easing.curve === 'steps'
+    })
+
+    await page.reload()
+    await page.getByRole('button', { name: 'Inspect Scene 1 in Super Detail' }).click()
+    await page.getByRole('button', { name: 'Open Scene 1 editor' }).click()
+    await page.getByRole('button', { name: 'Select TestPattern1D Main clip' }).click()
+    await page.getByRole('button', { name: 'Select keyframe at 30000 ms' }).click()
+    await expect(page.getByRole('spinbutton', { name: 'Keyframe value' })).toHaveValue('0.42')
+    await expect(page.getByRole('combobox', { name: 'Keyframe easing' })).toHaveValue('steps-4-end')
+  })
+
   test('authors shape-aware diamond and ring spatial transitions', async ({ page }) => {
     await page.goto('studio/shows')
     await createInstallationShow(page)
@@ -795,6 +832,15 @@ test.describe('authenticated Show authoring', () => {
 
 type PersistedShow = {
   id: string
+  composition?: {
+    version: number
+    scenes: Array<{
+      propertyTracks?: Array<{
+        target: { kind: string; property?: string }
+        keyframes: Array<{ value: number; easing: string | { curve: string } }>
+      }>
+    }>
+  } | null
   outputContract?:
     | { kind: 'portable-2d'; referenceMapId: string | null; referencePixelCount: number }
     | { kind: 'installation'; outputMapId: string | null; pixelCount: number }

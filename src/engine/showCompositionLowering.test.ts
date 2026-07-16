@@ -138,6 +138,28 @@ describe('Show composition compiler lowering (#488)', () => {
     ])
   })
 
+  it('carries stable typed tracks and source-Scene offsets through derived local holds (#490)', () => {
+    const show = fixture()
+    show.composition!.scenes[0].propertyTracks = [{
+      id: 'speed-track',
+      target: { kind: 'instance-time-scale', instanceId: 'instance-a' },
+      keyframes: [
+        { id: 'speed-a', timeMs: 0, value: 0.5, easing: { curve: 'linear' } },
+        { id: 'speed-b', timeMs: 10_000, value: 2, easing: { curve: 'linear' } },
+      ],
+    }]
+
+    const recipe = showRecordToCompileRecipe(show, lookup(show))
+    const scenes = recipe.routedSceneSequence?.scenes ?? []
+
+    expect(scenes.slice(0, 4).map((scene) => scene.localTimeOffsetMs)).toEqual([0, 4_000, 5_000, 8_000])
+    expect(scenes.slice(0, 4).map((scene) => scene.propertyTracks?.[0].id)).toEqual([
+      'speed-track', 'speed-track', 'speed-track', 'speed-track',
+    ])
+    expect(scenes[0].placements[0]).toMatchObject({ placementId: 'placement-a-1', clipId: 'instance-a' })
+    expect(scenes[3].placements[0]).toMatchObject({ placementId: 'placement-a-2', clipId: 'instance-a' })
+  })
+
   it('lowers Main plus ordered overlays into one routed Zone stack (#489)', () => {
     const show = fixture()
     const firstZone = show.composition!.scenes[0].zones[0]

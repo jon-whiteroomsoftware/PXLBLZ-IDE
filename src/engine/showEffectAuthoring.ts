@@ -67,7 +67,7 @@ export function showClipEffectParameterValue(
   effect: ShowClipEffect,
   parameterId: string,
 ): ShowToolkitParameterValue {
-  const field = persistedField(effect.kind, parameterId)
+  const field = showClipEffectPersistedField(effect.kind, parameterId)
   const value = (effect as unknown as Record<string, ShowToolkitParameterValue>)[field]
   return value ?? 0
 }
@@ -77,7 +77,7 @@ export function updateShowClipEffectParameter(
   parameterId: string,
   value: ShowToolkitParameterValue,
 ): ShowClipEffect {
-  const field = persistedField(effect.kind, parameterId)
+  const field = showClipEffectPersistedField(effect.kind, parameterId)
   return normalizeShowClipEffects([{
     ...effect,
     [field]: value,
@@ -85,7 +85,7 @@ export function updateShowClipEffectParameter(
   } as ShowClipEffect])[0] ?? effect
 }
 
-function persistedField(kind: ShowClipEffect['kind'], parameterId: string): string {
+export function showClipEffectPersistedField(kind: ShowClipEffect['kind'], parameterId: string): string {
   if (kind === 'translate') {
     if (parameterId === 'translateX') return 'x'
     if (parameterId === 'translateY') return 'y'

@@ -7,13 +7,14 @@ import {
   type ControllerZone,
 } from './controllerProfile'
 import { emitFixedPoint } from './fxEmit'
-import { emitShowEasingExpression, showCubicBezierRuntimeSource } from './showEasing'
+import { emitShowEasingExpression, showCubicBezierRuntimeSource, validateShowEasing } from './showEasing'
 import type {
   ShowClipEffect,
   ShowDissolveVariant,
   ShowMotionAddressPolicy,
   ShowMotionSpinDirection,
   ShowMotionTransitionVariant,
+  ShowPropertyAnimationTrack,
   ShowRevealMode,
   ShowSpatialShape,
   ShowTransitionEasing,
@@ -23,6 +24,8 @@ import type {
   ShowWipeVariant,
 } from './personalContentRecords'
 import { normalizeShowTransitionColor, showTransitionColorToRgb } from './showFadeThroughColor'
+import { showClipEffectPersistedField } from './showEffectAuthoring'
+import { emitShowPropertyTrackExpression } from './showPropertyAnimation'
 import { normalizeShowTransitionEdgePolicy } from './showTransitionEdge'
 import { showWipeMaskPositionExpression } from './showWipe'
 import {
@@ -221,6 +224,8 @@ export interface ShowSceneSequenceRecipe {
 }
 
 export interface ShowRoutedScenePlacementRecipe {
+  /** Stable authored placement id used by placement-owned local tracks. */
+  placementId?: string
   zoneName: string
   clipId: string
   /** Back-to-front order inside one Zone. Omitted flat placements are order 0. */
@@ -247,6 +252,9 @@ export interface ShowRoutedScenePlacementRampRecipe {
 export interface ShowRoutedSceneSequenceSceneRecipe {
   placements: ShowRoutedScenePlacementRecipe[]
   holdMs: number
+  /** Offset into the source Scene when composition lowering creates derived holds. */
+  localTimeOffsetMs?: number
+  propertyTracks?: ShowPropertyAnimationTrack[]
   transitionOut?: ShowSceneSequenceTransitionRecipe
   transitionRamps?: ShowRoutedScenePlacementRampRecipe[]
 }
@@ -472,6 +480,12 @@ export function compileShow(
     }
     for (const ramp of scene.transitionRamps ?? []) {
       if (ramp.effectRamps) animatedEffectClipIds.add(ramp.clipId)
+    }
+    for (const track of scene.propertyTracks ?? []) {
+      if (track.target.kind !== 'placement-effect') continue
+      const placementId = track.target.placementId
+      const placement = scene.placements.find((candidate) => candidate.placementId === placementId)
+      if (placement) animatedEffectClipIds.add(placement.clipId)
     }
   }
   const members = expandedRecipe.clips.map((clip, index) => ({
@@ -907,6 +921,7 @@ function validateRecipe(recipe: ShowRecipe): void {
           throw new Error('compileShow routed Scene layer opacity must be between 0 and 1.')
         }
       }
+      validateRoutedScenePropertyTracks(recipe, scene)
       const isFinal = index === recipe.routedSceneSequence!.scenes.length - 1
       if (isFinal && scene.transitionOut) throw new Error('compileShow routed scene sequence final scene cannot transition.')
       if (scene.transitionOut && scene.transitionOut.kind !== 'cut' && scene.transitionOut.durationMs <= 0) {
@@ -935,6 +950,62 @@ function validateRecipe(recipe: ShowRecipe): void {
       if ((routingSwitch.durationMs ?? 0) < 0 || routingSwitch.atMs + (routingSwitch.durationMs ?? 0) > recipe.loopDurationMs) {
         throw new Error('compileShow routing transfer must fit inside the loop duration.')
       }
+    }
+  }
+}
+
+function validateRoutedScenePropertyTracks(
+  recipe: ShowRecipe,
+  scene: ShowRoutedSceneSequenceSceneRecipe,
+): void {
+  const trackIds = new Set<string>()
+  const keyframeIds = new Set<string>()
+  const targetKeys = new Set<string>()
+  for (const track of scene.propertyTracks ?? []) {
+    if (trackIds.has(track.id)) throw new Error(`compileShow property track id "${track.id}" is duplicated.`)
+    trackIds.add(track.id)
+    const targetKey = JSON.stringify(track.target)
+    if (targetKeys.has(targetKey)) throw new Error('compileShow property tracks repeat one typed target in a Scene.')
+    targetKeys.add(targetKey)
+    if (track.keyframes.length < 2) throw new Error(`compileShow property track "${track.id}" needs at least two keyframes.`)
+    track.keyframes.forEach((keyframe, index) => {
+      if (keyframeIds.has(keyframe.id)) throw new Error(`compileShow keyframe id "${keyframe.id}" is duplicated.`)
+      keyframeIds.add(keyframe.id)
+      if (!Number.isFinite(keyframe.timeMs) || !Number.isInteger(keyframe.timeMs) || keyframe.timeMs < 0) {
+        throw new Error(`compileShow property track "${track.id}" requires non-negative whole-millisecond keyframes.`)
+      }
+      if (!Number.isFinite(keyframe.value)) throw new Error(`compileShow property track "${track.id}" requires finite values.`)
+      if (!validateShowEasing(keyframe.easing).valid) throw new Error(`compileShow property track "${track.id}" has invalid easing.`)
+      if (index > 0 && keyframe.timeMs <= track.keyframes[index - 1].timeMs) {
+        throw new Error(`compileShow property track "${track.id}" keyframes must be strictly ordered.`)
+      }
+    })
+    const target = track.target
+    if (target.kind === 'instance-time-scale' || target.kind === 'instance-control') {
+      const instanceId = target.instanceId
+      const clip = recipe.clips.find((candidate) => candidate.id === instanceId)
+      if (!clip) throw new Error(`compileShow property track "${track.id}" references missing Pattern instance "${instanceId}".`)
+      if (target.kind === 'instance-control' && !(target.exportName in (clip.controlTargets ?? {}))) {
+        throw new Error(`compileShow property track "${track.id}" references missing control "${target.exportName}".`)
+      }
+      continue
+    }
+    const placementId = target.placementId
+    const placement = scene.placements.find((candidate) => candidate.placementId === placementId)
+    if (!placement) throw new Error(`compileShow property track "${track.id}" references missing placement "${placementId}".`)
+    if (target.kind === 'placement-opacity' && placement.opacity === undefined) {
+      throw new Error(`compileShow property track "${track.id}" targets opacity on a non-overlay placement.`)
+    }
+    if (target.kind !== 'placement-effect') continue
+    const effectId = target.effectId
+    const effect = placement.effects?.find((candidate) => candidate.id === effectId)
+    if (!effect) throw new Error(`compileShow property track "${track.id}" references missing Effect "${effectId}".`)
+    if (effect.kind !== target.effectKind) throw new Error(`compileShow property track "${track.id}" Effect identity changed from ${target.effectKind} to ${effect.kind}.`)
+    const field = showClipEffectPersistedField(effect.kind, target.parameterId)
+    try {
+      showEffectNumericValue(effect, field)
+    } catch {
+      throw new Error(`compileShow property track "${track.id}" references missing Effect parameter "${target.parameterId}".`)
     }
   }
 }
@@ -1471,9 +1542,11 @@ function emitRoutedSceneSequenceShowCode(
     sceneIndex: number
     transition?: ShowSceneSequenceTransitionRecipe
   }> = []
+  const sceneStartMs = new Map<number, number>()
   let cursor = 0
   scenes.forEach((scene, sceneIndex) => {
     const startMs = cursor
+    sceneStartMs.set(sceneIndex, startMs)
     cursor += scene.holdMs
     segments.push({ kind: 'hold', startMs, endMs: cursor, sceneIndex })
     if (scene.transitionOut && scene.transitionOut.kind !== 'cut') {
@@ -1488,10 +1561,16 @@ function emitRoutedSceneSequenceShowCode(
       })
     }
   })
+  const sceneLocalTimeExpression = (sceneIndex: number) => {
+    const scene = scenes[sceneIndex]
+    const offset = scene.localTimeOffsetMs ?? 0
+    return `(__pxlblz_show_elapsed_ms - ${sceneStartMs.get(sceneIndex) ?? 0} + ${offset})`
+  }
 
   const setupForPlacements = (
     placements: typeof scenes[number]['placements'],
     ramps?: ResolvedRoutedScenePlacementRamp[],
+    propertyTrackContexts?: Array<{ tracks: ShowPropertyAnimationTrack[]; localTimeExpression: string }>,
   ): string => {
     const byMember = new Map<CompiledMember, typeof placements>()
     for (const placement of placements) {
@@ -1516,13 +1595,18 @@ function emitRoutedSceneSequenceShowCode(
         ramps?.filter((ramp) => ramp.member === member),
         '__pxlblz_show_elapsed_ms - __pxlblz_show_transition_start_ms',
       )
+      const propertyTrackAssignments = (propertyTrackContexts ?? []).map((context) => (
+        emitRoutedInstancePropertyTrackAssignments(member, context.tracks, context.localTimeExpression)
+      )).filter(Boolean).join('\n')
       return `    ${member.pixelCountName} = ${pixelCount}${emitSceneControlTargets(member, placement.controlTargets)}${emitSceneEffectTargets(member, placement.effects)}${placement.brightness === undefined
         ? ''
         : `\n    ${member.prefix}_adapt_brightness = ${placement.brightness}`}${placement.timeScale === undefined
           ? ''
           : `\n    ${member.prefix}_adapt_timeScale = ${placement.timeScale}`}${rampAssignments
             ? `\n${indentBlock(rampAssignments, 4)}`
-            : ''}
+            : ''}${propertyTrackAssignments
+              ? `\n${indentBlock(propertyTrackAssignments, 4)}`
+              : ''}
     ${member.prefix}_advance(delta)`
     }).join('\n')
   }
@@ -1534,7 +1618,13 @@ function emitRoutedSceneSequenceShowCode(
     __pxlblz_show_scene = ${segment.sceneIndex}
     __pxlblz_show_transition = -1
     __pxlblz_show_mix = 0
-${setupForPlacements(scenes[segment.sceneIndex].placements)}
+ ${setupForPlacements(
+    scenes[segment.sceneIndex].placements,
+    undefined,
+    scenes[segment.sceneIndex].propertyTracks
+      ? [{ tracks: scenes[segment.sceneIndex].propertyTracks!, localTimeExpression: sceneLocalTimeExpression(segment.sceneIndex) }]
+      : undefined,
+  )}
   }`
     }
     const from = scenes[segment.sceneIndex].placements
@@ -1544,7 +1634,15 @@ ${setupForPlacements(scenes[segment.sceneIndex].placements)}
     __pxlblz_show_transition = ${segment.sceneIndex}
     __pxlblz_show_transition_start_ms = ${segment.startMs}
     __pxlblz_show_mix = ${emitShowEasingExpression(segment.transition!.easing ?? 'linear', `(__pxlblz_show_elapsed_ms - ${segment.startMs}) / ${segment.transition!.durationMs}`)}
-${setupForPlacements([...from, ...to], scenes[segment.sceneIndex].transitionRamps)}
+${setupForPlacements(
+    [...from, ...to],
+    scenes[segment.sceneIndex].transitionRamps,
+    [segment.sceneIndex, segment.sceneIndex + 1].flatMap((sceneIndex) => (
+      scenes[sceneIndex].propertyTracks
+        ? [{ tracks: scenes[sceneIndex].propertyTracks!, localTimeExpression: sceneLocalTimeExpression(sceneIndex) }]
+        : []
+    )),
+  )}
   }
 `
   }).join(' ')
@@ -1555,7 +1653,13 @@ ${setupForPlacements([...from, ...to], scenes[segment.sceneIndex].transitionRamp
     .join('\n')
 
   const sceneBranches = scenes.map((scene, index) => `${index === 0 ? 'if' : 'else if'} (__pxlblz_show_scene == ${index}) {
-${indentBlock(emitRoutedScenePlacements(layouts, scene.placements, outputDimension), 4)}
+${indentBlock(emitRoutedScenePlacements(
+    layouts,
+    scene.placements,
+    outputDimension,
+    scene.propertyTracks,
+    sceneLocalTimeExpression(index),
+  ), 4)}
   }`).join(' ')
   const transitionBranches = segments
     .filter((segment) => segment.kind === 'transition')
@@ -1573,8 +1677,13 @@ ${indentBlock(emitRoutedSceneTransition(
     .join(' ')
   const stackWrappers = scenes.flatMap((scene) => (
     [...groupRoutedPlacementsByZone(scene.placements).entries()].flatMap(([zoneName, stack]) => (
-      stack.length > 1
-        ? [emitRoutedSceneStackWrapper(stack, routedSceneStackPrefix(scene.sceneIndex, zoneName))]
+      routedSceneStackNeedsWrapper(stack)
+        ? [emitRoutedSceneStackWrapper(
+            stack,
+            routedSceneStackPrefix(scene.sceneIndex, zoneName),
+            scene.propertyTracks,
+            sceneLocalTimeExpression(scene.sceneIndex),
+          )]
         : []
     ))
   ))
@@ -1619,15 +1728,37 @@ function emitRoutedSceneRampAssignments(
   ]).filter(Boolean).join('\n')
 }
 
+function emitRoutedInstancePropertyTrackAssignments(
+  member: CompiledMember,
+  tracks: ShowPropertyAnimationTrack[],
+  localTimeExpression: string,
+): string {
+  return tracks.flatMap((track): string[] => {
+    const expression = emitShowPropertyTrackExpression(track, localTimeExpression)
+    if (track.target.kind === 'instance-time-scale' && track.target.instanceId === member.id) {
+      return [`${member.prefix}_adapt_timeScale = ${expression}`]
+    }
+    if (track.target.kind === 'instance-control' && track.target.instanceId === member.id) {
+      const exportName = track.target.exportName
+      const control = member.controls.find((candidate) => candidate.exportName === exportName)
+      if (!control) throw new Error(`Clip "${member.id}" cannot animate missing control "${track.target.exportName}".`)
+      return [`${control.valueName} = ${expression}`]
+    }
+    return []
+  }).join('\n')
+}
+
 function emitRoutedScenePlacements(
   layouts: ShowRoutingLayoutRecipe[],
   placements: ResolvedRoutedScenePlacement[],
   outputDimension: 1 | 2,
+  propertyTracks?: ShowPropertyAnimationTrack[],
+  localTimeExpression?: string,
 ): string {
   return layouts.map((layout, layoutIndex) => `${layoutIndex === 0 ? 'if' : 'else if'} (__pxlblz_show_route_layout == ${layoutIndex}) {
 ${indentBlock(layout.logical
-    ? emitLogicalScenePlacements(layout, placements)
-    : emitPhysicalScenePlacements(layout, placements, outputDimension), 2)}
+    ? emitLogicalScenePlacements(layout, placements, propertyTracks, localTimeExpression)
+    : emitPhysicalScenePlacements(layout, placements, outputDimension, propertyTracks, localTimeExpression), 2)}
 }`).join(' ')
 }
 
@@ -1650,6 +1781,8 @@ ${indentBlock(layout.logical
 function emitLogicalScenePlacements(
   layout: ShowRoutingLayoutRecipe,
   placements: ResolvedRoutedScenePlacement[],
+  propertyTracks?: ShowPropertyAnimationTrack[],
+  localTimeExpression?: string,
 ): string {
   const logical = layout.logical!
   const placementByZone = groupRoutedPlacementsByZone(placements)
@@ -1665,6 +1798,8 @@ function emitLogicalScenePlacements(
 ${placement.member.prefix}_renderCapture2D(__pxlblz_show_route_local_index, __pxlblz_show_scene_local_x, __pxlblz_show_scene_local_y)`
       },
       `__pxlblz_show_logical_stack_${zoneIndex}`,
+      propertyTracks,
+      localTimeExpression,
     )
     return [`${zoneIndex === 0 ? 'if' : 'else if'} (__pxlblz_show_route_id == ${zoneIndex}) {
   var __pxlblz_show_route_side = ceil(sqrt(${domain.pixelCount}))
@@ -1696,10 +1831,10 @@ function emitLogicalSceneTransition(
     if (!fromStack || !toStack) return []
     const fromPlacement = fromStack[0]
     const toPlacement = toStack[0]
-    const from = fromStack.length > 1
+    const from = routedSceneStackNeedsWrapper(fromStack)
       ? routedSceneCompositeMember(fromStack, routedSceneStackPrefix(fromSceneIndex, zoneName))
       : fromPlacement.member
-    const to = toStack.length > 1
+    const to = routedSceneStackNeedsWrapper(toStack)
       ? routedSceneCompositeMember(toStack, routedSceneStackPrefix(toSceneIndex, zoneName))
       : toPlacement.member
     const fromDomain = logicalScenePlacementDomain(logical, fromPlacement, zoneIndex)
@@ -1802,13 +1937,22 @@ function emitPhysicalScenePlacements(
   layout: ShowRoutingLayoutRecipe,
   placements: ResolvedRoutedScenePlacement[],
   outputDimension: 1 | 2,
+  propertyTracks?: ShowPropertyAnimationTrack[],
+  localTimeExpression?: string,
 ): string {
   const stacks = groupRoutedPlacementsByZone(placements)
   return [...stacks.values()].flatMap((stack, placementIndex) => {
     const placement = stack[0]
     const domain = physicalPlacementDomain(layout, placement)
     if (!domain) return []
-    return [emitPhysicalSceneZoneStack(domain, placementIndex, stack, outputDimension)]
+    return [emitPhysicalSceneZoneStack(
+      domain,
+      placementIndex,
+      stack,
+      outputDimension,
+      propertyTracks,
+      localTimeExpression,
+    )]
   }).join('\n')
 }
 
@@ -1862,6 +2006,10 @@ function groupRoutedPlacementsByZone(
   return result
 }
 
+function routedSceneStackNeedsWrapper(stack: ResolvedRoutedScenePlacement[]): boolean {
+  return stack.length > 1 || stack.some((placement) => Boolean(placement.placementId))
+}
+
 function routedSceneStackPrefix(sceneIndex: number, zoneName: string): string {
   return `__pxlblz_show_stack_s${sceneIndex}_${zoneName.replace(/[^a-zA-Z0-9_]/g, '_')}`
 }
@@ -1881,16 +2029,22 @@ function routedSceneCompositeMember(
 function emitRoutedSceneStackWrapper(
   stack: ResolvedRoutedScenePlacement[],
   prefix: string,
+  propertyTracks?: ShowPropertyAnimationTrack[],
+  localTimeExpression?: string,
 ): string {
   const capture1D = emitRoutedPlacementStackCapture(
     stack,
     (placement) => `${placement.member.prefix}_renderCapture(index)`,
     `${prefix}_capture`,
+    propertyTracks,
+    localTimeExpression,
   )
   const capture2D = emitRoutedPlacementStackCapture(
     stack,
     (placement) => `${placement.member.prefix}_renderCapture2D(index, x, y)`,
     `${prefix}_capture`,
+    propertyTracks,
+    localTimeExpression,
   )
   return `var ${prefix}_r = 0
 var ${prefix}_g = 0
@@ -1931,6 +2085,8 @@ function emitPhysicalSceneZoneStack(
   zoneIndex: number,
   placements: ResolvedRoutedScenePlacement[],
   outputDimension: 1 | 2,
+  propertyTracks?: ShowPropertyAnimationTrack[],
+  localTimeExpression?: string,
 ): string {
   const local = `__pxlblz_show_scene_zone_${zoneIndex}_index`
   const pixelCount = Math.max(1, controllerZonePixelCount(zone))
@@ -1938,6 +2094,8 @@ function emitPhysicalSceneZoneStack(
     placements,
     (placement) => routedSceneMemberCapture(placement.member, local, pixelCount, outputDimension, zoneIndex),
     `__pxlblz_show_stack_${zoneIndex}`,
+    propertyTracks,
+    localTimeExpression,
   )
   return [
     `var ${local} = -1`,
@@ -1955,23 +2113,41 @@ function emitRoutedPlacementStackCapture(
   placements: ResolvedRoutedScenePlacement[],
   capture: (placement: ResolvedRoutedScenePlacement) => string,
   target: string,
+  propertyTracks?: ShowPropertyAnimationTrack[],
+  localTimeExpression?: string,
 ): string {
   return [
     `var ${target}_r = 0`,
     `var ${target}_g = 0`,
     `var ${target}_b = 0`,
     ...placements.flatMap((placement) => {
-      const opacity = clampNumber(placement.opacity ?? 1, 0, 1)
+      const placementTracks = (propertyTracks ?? []).filter((track) => (
+        'placementId' in track.target && track.target.placementId === placement.placementId
+      ))
+      const opacityTrack = placementTracks.find((track) => track.target.kind === 'placement-opacity')
+      const opacity = opacityTrack && localTimeExpression
+        ? emitShowPropertyTrackExpression(opacityTrack, localTimeExpression)
+        : String(clampNumber(placement.opacity ?? 1, 0, 1))
+      const brightnessTrack = placementTracks.find((track) => (
+        track.target.kind === 'placement-view' && track.target.property === 'brightness'
+      ))
+      const phaseTrack = placementTracks.find((track) => (
+        track.target.kind === 'placement-view' && track.target.property === 'phase'
+      ))
       const member = placement.member
       return [
-        ...(placement.brightness === undefined ? [] : [`${member.prefix}_adapt_brightness = ${placement.brightness}`]),
-        ...(placement.phase === undefined ? [] : [`${member.prefix}_adapt_phase = ${placement.phase}`]),
+        ...(brightnessTrack && localTimeExpression
+          ? [`${member.prefix}_adapt_brightness = ${emitShowPropertyTrackExpression(brightnessTrack, localTimeExpression)}`]
+          : placement.brightness === undefined ? [] : [`${member.prefix}_adapt_brightness = ${placement.brightness}`]),
+        ...(phaseTrack && localTimeExpression
+          ? [`${member.prefix}_adapt_phase = ${emitShowPropertyTrackExpression(phaseTrack, localTimeExpression)}`]
+          : placement.phase === undefined ? [] : [`${member.prefix}_adapt_phase = ${placement.phase}`]),
         ...(placement.mirror === undefined ? [] : [`${member.prefix}_adapt_mirror = ${boolNumber(placement.mirror)}`]),
-        ...emitRoutedPlacementEffectTargets(member, placement.effects),
+        ...emitRoutedPlacementEffectTargets(member, placement.effects, placementTracks, localTimeExpression),
         capture(placement),
-        `${target}_r = ${member.prefix}_r * ${opacity} + ${target}_r * ${1 - opacity}`,
-        `${target}_g = ${member.prefix}_g * ${opacity} + ${target}_g * ${1 - opacity}`,
-        `${target}_b = ${member.prefix}_b * ${opacity} + ${target}_b * ${1 - opacity}`,
+        `${target}_r = ${member.prefix}_r * (${opacity}) + ${target}_r * (1 - (${opacity}))`,
+        `${target}_g = ${member.prefix}_g * (${opacity}) + ${target}_g * (1 - (${opacity}))`,
+        `${target}_b = ${member.prefix}_b * (${opacity}) + ${target}_b * (1 - (${opacity}))`,
       ]
     }),
   ].join('\n')
@@ -1980,6 +2156,8 @@ function emitRoutedPlacementStackCapture(
 function emitRoutedPlacementEffectTargets(
   member: CompiledMember,
   placementEffects: ShowClipEffect[] | undefined,
+  placementTracks: ShowPropertyAnimationTrack[] = [],
+  localTimeExpression?: string,
 ): string[] {
   if (!member.animatedEffects || member.effects.length === 0) return []
   const authored = normalizeShowClipEffects(placementEffects)
@@ -1989,8 +2167,16 @@ function emitRoutedPlacementEffectTargets(
   ))
   const assignments = emitSceneEffectTargets(member, resolved).trim()
   const hasAffine = member.effects.some((effect) => ['translate', 'rotate', 'scale', 'shear'].includes(effect.kind))
+  const animationAssignments = localTimeExpression
+    ? placementTracks.flatMap((track): string[] => {
+        if (track.target.kind !== 'placement-effect') return []
+        const parameter = showClipEffectPersistedField(track.target.effectKind, track.target.parameterId)
+        return [`${effectParameterVariable(member, track.target.effectId, parameter)} = ${emitShowPropertyTrackExpression(track, localTimeExpression)}`]
+      })
+    : []
   return [
     ...(assignments ? assignments.split('\n').map((line) => line.trim()) : []),
+    ...animationAssignments,
     ...(hasAffine ? [`${member.prefix}_fx_update()`] : []),
   ]
 }
@@ -2023,10 +2209,10 @@ function emitPhysicalSceneZoneStackTransition(
   fromSceneIndex: number,
   toSceneIndex: number,
 ): string {
-  const from = fromStack.length > 1
+  const from = routedSceneStackNeedsWrapper(fromStack)
     ? routedSceneCompositeMember(fromStack, routedSceneStackPrefix(fromSceneIndex, zoneName))
     : fromStack[0].member
-  const to = toStack.length > 1
+  const to = routedSceneStackNeedsWrapper(toStack)
     ? routedSceneCompositeMember(toStack, routedSceneStackPrefix(toSceneIndex, zoneName))
     : toStack[0].member
   return emitPhysicalSceneZoneTransition(

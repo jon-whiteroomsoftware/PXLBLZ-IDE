@@ -831,6 +831,24 @@ numeric properties.
 Changing a Clip to a different Pattern clears the former Pattern's developer-
 slider targets so unavailable controls cannot remain attached to the Clip.
 
+Open one Scene and Zone to author local Property animation without adding more
+global Scenes. Select a Main or overlay clip, then add an authored lane for
+Animation speed, one public Pattern slider, Brightness, phase, overlay opacity,
+or a numeric parameter on an applied Effect. Properties with static defaults do
+not occupy rows. Each authored lane uses a compact sparkline; its small points
+show exact saved keyframes and the line shows the interpolation between them.
+Small changes are visually expanded enough to reveal their shape, so the lane
+is a legibility summary rather than a calibrated vertical ruler.
+
+Select a point to enter its exact Scene-local time and value, choose the easing
+leaving that point, or move to the previous or next authored point. **Add at
+playhead** inserts a point without requiring a precise drag. The available
+easing includes Linear, Steps, Hold, cubic Bezier presets, and overshooting Back
+curves. These local keyframes are different from global boundary ramps: a global
+ramp connects values as a Show crosses a Scene boundary, while a local track can
+change repeatedly inside one Scene. The Stage, deterministic seek, generated
+Pattern, exported artifact, and Controller output all use the same curve.
+
 ### Zone Layouts and Stage
 
 A Show may own several named Zone Layouts. An Installation Zone Layout maps

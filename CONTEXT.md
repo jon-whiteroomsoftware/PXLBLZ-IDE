@@ -165,7 +165,7 @@ A named time interval spanning the complete Show rather than one zone row. A Sce
 _Avoid_: using scene for one zone's clip; treating each zone row as an independent Scene; nesting Scenes inside Scenes.
 
 **Zone composition** (Show detail):
-The optional local schedule for exactly one **Scene** x **Zone** cell. It owns a **Main clips** schedule and manually ordered **overlay layers**; typed local Property-animation keyframes are the next additive slice. Its timeline fixes Scene and Zone so it represents only time and layers; the Stage continues to show the final output of every zone. Other-zone events may appear as read-only alignment guides, but never as editable lanes. Compilation flattens each Zone composition before the Scene's top-level Transition.
+The optional local schedule for exactly one **Scene** x **Zone** cell. It owns a **Main clips** schedule and manually ordered **overlay layers**. Its owning Scene also carries typed local **Property animation** tracks for instance time, public Pattern controls, placement view/opacity, and stable-id Effect parameters. Its timeline fixes Scene and Zone so it represents only time and layers; the Stage continues to show the final output of every zone. Other-zone events may appear as read-only alignment guides, but never as editable lanes. Compilation flattens each Zone composition before the Scene's top-level Transition.
 _Avoid_: Scene composition when the scope is one zone; an all-zones local timeline; recursive timelines; cross-zone local overlays.
 
 **Main clips** (shipped in a Zone composition):
@@ -201,7 +201,7 @@ One temporary modeless read-only overlay opened from a **Scene X-ray**. It keeps
 _Avoid_: Zone-composition editor, modal dialog, or implying its rows write Show state.
 
 **Property animation** (in a Show):
-A saved change in one numeric clip, Effect, or Show-wide property. In the global Show timeline, the destination clip or Scene owns the target value while its incoming boundary owns an optional explicit start, duration, and easing. Several properties may inherit one boundary's timing and an individual property may override it. A global change inside a Scene first creates a boundary with Split; this view is not an arbitrary freeform keyframe track. The planned **Zone composition** editor adds local keyframes inside one Scene-zone cell without changing the global boundary model.
+A saved change in one numeric clip, Effect, or Show-wide property. In the global Show timeline, the destination clip or Scene owns the target value while its incoming boundary owns an optional explicit start, duration, and easing. Several properties may inherit one boundary's timing and an individual property may override it. A global change inside a Scene first creates a boundary with Split; this view is not an arbitrary freeform keyframe track. In the **Zone composition** editor, authored tracks instead carry stable typed targets and Scene-local keyframes. Instance time and public Pattern controls remain instance-owned; placement view, overlay opacity, and Effect parameters remain placement-owned. Unanimated values stay inline and create no empty lanes.
 _Avoid_: auto-keyframe or keyframe when the global UI is editing a Scene target and boundary ramp; implying arbitrary global timeline points own values without Split; representing local keyframes as new global Scenes.
 
 **Transition** (in a Show):

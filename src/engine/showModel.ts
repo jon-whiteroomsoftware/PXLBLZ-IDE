@@ -7,6 +7,7 @@ import type {
   ShowRecord,
   ShowOutputContract,
   ShowPortalSettings,
+  ShowPropertyAnimationTrack,
   ShowRoutingLayout,
   ShowRoutingLayoutZone,
   ShowScene,
@@ -120,6 +121,13 @@ export interface ShowCompileRecipeSourceLookup {
   instanceIdByCellId?: Record<string, string>
   /** Transient Scene-local stack metadata; never persisted on flat Show cells. */
   compositionLayerByCellId?: Record<string, { stackOrder: number; opacity: number }>
+  /** Transient authored placement identity for placement-owned local tracks. */
+  compositionPlacementIdByCellId?: Record<string, string>
+  /** Full source-Scene tracks plus the derived hold's offset into local time. */
+  compositionPropertyTracksBySceneId?: Record<string, {
+    localTimeOffsetMs: number
+    tracks: ShowPropertyAnimationTrack[]
+  }>
   controllerZones?: ControllerZone[]
   stageDimension?: 1 | 2 | 3
 }
@@ -2456,8 +2464,13 @@ function showRecordToRoutedSceneSequenceRecipe(
 
   const routedScenes = normalized.scenes.map((scene, sceneIndex) => {
     const transitionRamps = routedScenePlacementRamps(normalized, sceneIndex, clipIdByCellId)
+    const propertyAnimation = lookup.compositionPropertyTracksBySceneId?.[scene.id]
     return {
           holdMs: scene.durationMs,
+          ...(propertyAnimation ? {
+            localTimeOffsetMs: propertyAnimation.localTimeOffsetMs,
+            propertyTracks: structuredClone(propertyAnimation.tracks),
+          } : {}),
           placements: normalized.zones.flatMap((zone) => {
             const cells = showCompileCellsAtSlot(normalized, zone.id, scene.id, lookup)
             if (cells.length === 0) return [{ zoneName: zone.name, clipId: emptyClipId }]
@@ -2468,6 +2481,9 @@ function showRecordToRoutedSceneSequenceRecipe(
                 : []
               const layer = lookup.compositionLayerByCellId?.[cell.id]
               return {
+                ...(lookup.compositionPlacementIdByCellId?.[cell.id]
+                  ? { placementId: lookup.compositionPlacementIdByCellId[cell.id] }
+                  : {}),
                 zoneName: zone.name,
                 clipId: clipIdByCellId.get(cell.id) ?? cell.id,
                 ...(layer ? { stackOrder: layer.stackOrder, opacity: layer.opacity } : {}),

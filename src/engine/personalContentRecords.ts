@@ -168,6 +168,36 @@ export type ShowClipEffect =
   | { id: string; kind: 'kaleidoscope'; amount: number; segments: number; rotation: number; centerX: number; centerY: number }
   | { id: string; kind: 'wrap' }
 
+/** Structured identity for one numeric value authored inside a Scene. */
+export type ShowPropertyAnimationTarget =
+  | { kind: 'instance-time-scale'; instanceId: string }
+  | { kind: 'instance-control'; instanceId: string; exportName: string }
+  | { kind: 'placement-opacity'; placementId: string }
+  | { kind: 'placement-view'; placementId: string; property: 'brightness' | 'phase' }
+  | {
+      kind: 'placement-effect'
+      placementId: string
+      effectId: string
+      effectKind: ShowClipEffect['kind']
+      /** Visual-toolkit parameter id, such as translateX or amount. */
+      parameterId: string
+    }
+
+export interface ShowPropertyAnimationKeyframe {
+  id: string
+  /** Whole milliseconds relative to the owning Scene. */
+  timeMs: number
+  value: number
+  /** Interpolation used while leaving this keyframe. */
+  easing: ShowTransitionEasing
+}
+
+export interface ShowPropertyAnimationTrack {
+  id: string
+  target: ShowPropertyAnimationTarget
+  keyframes: ShowPropertyAnimationKeyframe[]
+}
+
 export interface ShowPortalSettings {
   centerX: number
   centerY: number
@@ -448,13 +478,15 @@ export interface ShowZoneComposition {
 
 export interface ShowSceneComposition {
   sceneId: string
+  /** Authored tracks only. Static values remain inline on their typed owners. */
+  propertyTracks?: ShowPropertyAnimationTrack[]
   zones: ShowZoneComposition[]
 }
 
 /**
  * Additive Scene-composition sidecar. Version 1 initially carries only mutually
- * exclusive Main schedules and manually ordered overlay layers. Property
- * animation extends this versioned boundary in a later slice.
+ * exclusive Main schedules, manually ordered overlay layers, and typed
+ * Scene-local property animation tracks.
  */
 export interface ShowCompositionV1 {
   version: 1

@@ -53,6 +53,145 @@ function loadShow(code: string, metadata: ReturnType<typeof compileShow>['metada
 }
 
 describe('compileShow', () => {
+  it('evaluates Scene-local instance and placement tracks with the generated easing runtime (#490)', () => {
+    const zones = [{ id: 'main', name: 'main', ranges: [{ start: 0, end: 0 }] }]
+    const artifact = compileShow({
+      clips: [{
+        id: 'instance-a',
+        source: 'export var amount = 0\nexport function sliderAmount(v) { amount = v }\nexport function render(index) { rgb(amount, 0, 0) }',
+        controlTargets: { sliderAmount: 0 },
+        effects: [{ id: 'gain', kind: 'brightness', brightness: 1 }],
+      }],
+      zones,
+      routingLayouts: [{ id: 'default', name: 'Default', zones }],
+      routedSceneSequence: {
+        scenes: [{
+          holdMs: 1000,
+          placements: [{
+            placementId: 'placement-a', zoneName: 'main', clipId: 'instance-a', stackOrder: 0, opacity: 1,
+            effects: [{ id: 'gain', kind: 'brightness', brightness: 1 }],
+          }],
+          propertyTracks: [
+            {
+              id: 'control',
+              target: { kind: 'instance-control', instanceId: 'instance-a', exportName: 'sliderAmount' },
+              keyframes: [
+                { id: 'control-a', timeMs: 0, value: 0, easing: { curve: 'linear' } },
+                { id: 'control-b', timeMs: 1000, value: 1, easing: { curve: 'linear' } },
+              ],
+            },
+            {
+              id: 'opacity',
+              target: { kind: 'placement-opacity', placementId: 'placement-a' },
+              keyframes: [
+                { id: 'opacity-a', timeMs: 0, value: 0, easing: { curve: 'cubic-bezier', x1: 0.42, y1: 0, x2: 0.58, y2: 1 } },
+                { id: 'opacity-b', timeMs: 1000, value: 1, easing: { curve: 'linear' } },
+              ],
+            },
+            {
+              id: 'effect',
+              target: { kind: 'placement-effect', placementId: 'placement-a', effectId: 'gain', effectKind: 'brightness', parameterId: 'brightness' },
+              keyframes: [
+                { id: 'effect-a', timeMs: 0, value: 1, easing: { curve: 'hold', at: 0.75 } },
+                { id: 'effect-b', timeMs: 1000, value: 2, easing: { curve: 'linear' } },
+              ],
+            },
+          ],
+          transitionOut: { kind: 'cut', durationMs: 0 },
+        }, {
+          holdMs: 1000,
+          placements: [{ placementId: 'placement-b', zoneName: 'main', clipId: 'instance-a' }],
+        }],
+      },
+      loopDurationMs: 2000,
+    }, {})
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 1)
+
+    handle.beforeRender(500)
+    handle.render(0)
+    expect(pixel()[0]).toBeCloseTo(0.25, 3)
+    expect(handle.getExports()).toMatchObject({ __pxlblz_show_c0_control_sliderAmount: 0.5 })
+  })
+
+  it('keeps full source-Scene curves truthful across a lowered hold offset (#490)', () => {
+    const zones = [{ id: 'main', name: 'main', ranges: [{ start: 0, end: 0 }] }]
+    const artifact = compileShow({
+      clips: [{ id: 'instance-a', source: 'export function render(index) { rgb(1, 0, 0) }' }],
+      zones,
+      routingLayouts: [{ id: 'default', name: 'Default', zones }],
+      routedSceneSequence: {
+        scenes: [{
+          holdMs: 1000,
+          localTimeOffsetMs: 1000,
+          placements: [{ placementId: 'placement-a', zoneName: 'main', clipId: 'instance-a', opacity: 1 }],
+          propertyTracks: [{
+            id: 'opacity',
+            target: { kind: 'placement-opacity', placementId: 'placement-a' },
+            keyframes: [
+              { id: 'a', timeMs: 0, value: 0, easing: { curve: 'linear' } },
+              { id: 'b', timeMs: 2000, value: 1, easing: { curve: 'linear' } },
+            ],
+          }],
+          transitionOut: { kind: 'cut', durationMs: 0 },
+        }, {
+          holdMs: 1000,
+          placements: [{ placementId: 'placement-b', zoneName: 'main', clipId: 'instance-a' }],
+        }],
+      },
+      loopDurationMs: 2000,
+    }, {})
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 1)
+
+    handle.beforeRender(500)
+    handle.render(0)
+    expect(pixel()[0]).toBeCloseTo(0.75)
+  })
+
+  it('holds authored placement endpoints through a parent Scene transition (#490)', () => {
+    const zones = [{ id: 'main', name: 'main', ranges: [{ start: 0, end: 0 }] }]
+    const artifact = compileShow({
+      clips: [
+        { id: 'red', source: 'export function render(index) { rgb(1, 0, 0) }' },
+        { id: 'green', source: 'export function render(index) { rgb(0, 1, 0) }' },
+      ],
+      zones,
+      routingLayouts: [{ id: 'default', name: 'Default', zones }],
+      routedSceneSequence: {
+        scenes: [{
+          holdMs: 1000,
+          placements: [{ placementId: 'red-placement', zoneName: 'main', clipId: 'red', opacity: 1 }],
+          propertyTracks: [{
+            id: 'red-opacity',
+            target: { kind: 'placement-opacity', placementId: 'red-placement' },
+            keyframes: [
+              { id: 'red-a', timeMs: 0, value: 1, easing: { curve: 'linear' } },
+              { id: 'red-b', timeMs: 1000, value: 0.4, easing: { curve: 'linear' } },
+            ],
+          }],
+          transitionOut: { kind: 'crossfade', durationMs: 1000 },
+        }, {
+          holdMs: 1000,
+          placements: [{ placementId: 'green-placement', zoneName: 'main', clipId: 'green', opacity: 0.2 }],
+          propertyTracks: [{
+            id: 'green-opacity',
+            target: { kind: 'placement-opacity', placementId: 'green-placement' },
+            keyframes: [
+              { id: 'green-a', timeMs: 0, value: 0.2, easing: { curve: 'linear' } },
+              { id: 'green-b', timeMs: 1000, value: 1, easing: { curve: 'linear' } },
+            ],
+          }],
+        }],
+      },
+      loopDurationMs: 3000,
+    }, {})
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 1)
+
+    handle.beforeRender(1500)
+    handle.render(0)
+    expect(pixel()[0]).toBeCloseTo(0.2)
+    expect(pixel()[1]).toBeCloseTo(0.1)
+  })
+
   it('honors zero, full, and intermediate overlay opacity deterministically (#489)', () => {
     const zones = [{ id: 'main', name: 'main', ranges: [{ start: 0, end: 0 }] }]
     const artifact = compileShow({

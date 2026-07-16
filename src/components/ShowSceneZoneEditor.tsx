@@ -1,13 +1,31 @@
-import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clapperboard, Lock, Plus, RotateCw, Scissors, Trash2 } from 'lucide-react'
+import { Activity, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Clapperboard, Lock, Plus, RotateCw, Scissors, SkipBack, SkipForward, Trash2 } from 'lucide-react'
 import { useState, type MouseEvent, type PointerEvent, type ReactNode } from 'react'
 import type { FlatShowCompositionProjection } from '@/engine/showCompositionProjection'
 import {
   projectShowSceneEditorScope,
   type ShowSceneEditorScope,
 } from '@/engine/showSceneEditorScope'
-import type { ShowRecord } from '@/engine/personalContentRecords'
-import type { ShowPatternRef } from '@/engine/personalContentRecords'
+import type {
+  ShowPatternRef,
+  ShowMainPlacement,
+  ShowOverlayPlacement,
+  ShowPatternInstance,
+  ShowPropertyAnimationKeyframe,
+  ShowPropertyAnimationTarget,
+  ShowPropertyAnimationTrack,
+  ShowRecord,
+} from '@/engine/personalContentRecords'
 import { resolveShowMainPlacementStart } from '@/engine/showCompositionModel'
+import {
+  evaluateShowPropertyTrack,
+  propertyTargetKey,
+  showPropertyTrackNeighbors,
+} from '@/engine/showPropertyAnimation'
+import {
+  showClipEffectParameterValue,
+  showClipEffectParameters,
+} from '@/engine/showEffectAuthoring'
+import { SHOW_EASING_OPTIONS, showEasingFromOptionId, showEasingOptionId } from '@/engine/showEasing'
 import { useShowTransportStore } from '@/store/showTransportStore'
 
 export function ShowSceneZoneEditor({
@@ -36,6 +54,11 @@ export function ShowSceneZoneEditor({
   onAddOverlay,
   onUpdateOverlay,
   onDeleteOverlay,
+  onAddPropertyTrack,
+  onDeletePropertyTrack,
+  onAddPropertyKeyframe,
+  onUpdatePropertyKeyframe,
+  onDeletePropertyKeyframe,
 }: {
   show: ShowRecord
   compositionProjection: FlatShowCompositionProjection
@@ -62,11 +85,22 @@ export function ShowSceneZoneEditor({
   onAddOverlay: (layerId: string, input: { pattern: ShowPatternRef; patternName: string; startMs: number; durationMs: number }) => void
   onUpdateOverlay: (layerId: string, placementId: string, changes: { startMs: number; durationMs: number; opacity?: number; targetLayerId?: string }) => void
   onDeleteOverlay: (layerId: string, placementId: string) => void
+  onAddPropertyTrack: (input: { target: ShowPropertyAnimationTarget; initialValue: number; atMs: number }) => void
+  onDeletePropertyTrack: (trackId: string) => void
+  onAddPropertyKeyframe: (trackId: string, keyframe: Omit<ShowPropertyAnimationKeyframe, 'id'>) => void
+  onUpdatePropertyKeyframe: (
+    trackId: string,
+    keyframeId: string,
+    changes: Partial<Pick<ShowPropertyAnimationKeyframe, 'timeMs' | 'value' | 'easing'>>,
+  ) => void
+  onDeletePropertyKeyframe: (trackId: string, keyframeId: string) => void
 }) {
   const [selectedMainId, setSelectedMainId] = useState<string | null>(null)
   const [selectedOverlay, setSelectedOverlay] = useState<{ layerId: string; placementId: string } | null>(null)
   const [newPatternKey, setNewPatternKey] = useState('')
   const [drag, setDrag] = useState<{ placementId: string; grabOffsetMs: number; startMs: number } | null>(null)
+  const [newTrackTargetKey, setNewTrackTargetKey] = useState('')
+  const [selectedKeyframe, setSelectedKeyframe] = useState<{ trackId: string; keyframeId: string } | null>(null)
   const detail = projectShowSceneEditorScope(compositionProjection, scope)
   const positionMs = useShowTransportStore((state) => state.showId === show.id ? state.positionMs : 0)
   if (!detail) {
@@ -91,6 +125,29 @@ export function ShowSceneZoneEditor({
     : null
   const selectedOverlayPlacement = selectedOverlayLayer
     ?.placements.find((placement) => placement.id === selectedOverlay?.placementId) ?? null
+  const sceneComposition = show.composition?.scenes.find((scene) => scene.sceneId === scope.sceneId)
+  const zoneComposition = sceneComposition?.zones.find((zone) => zone.zoneId === scope.zoneId)
+  const selectedAuthoredPlacement = selectedMainId
+    ? zoneComposition?.main.find((placement) => placement.id === selectedMainId)
+    : selectedOverlay
+      ? zoneComposition?.overlays.find((layer) => layer.id === selectedOverlay.layerId)
+        ?.placements.find((placement) => placement.id === selectedOverlay.placementId)
+      : undefined
+  const selectedAuthoredInstance = selectedAuthoredPlacement
+    ? show.composition?.patternInstances.find((instance) => instance.id === selectedAuthoredPlacement.instanceId)
+    : undefined
+  const animationOptions = selectedAuthoredPlacement && selectedAuthoredInstance
+    ? buildShowAutomationOptions(selectedAuthoredInstance, selectedAuthoredPlacement)
+    : []
+  const selectedTracks = (sceneComposition?.propertyTracks ?? []).filter((track) => {
+    if (!selectedAuthoredPlacement || !selectedAuthoredInstance) return false
+    if ('instanceId' in track.target) return track.target.instanceId === selectedAuthoredInstance.id
+    return track.target.placementId === selectedAuthoredPlacement.id
+  })
+  const authoredTargetKeys = new Set((sceneComposition?.propertyTracks ?? []).map((track) => propertyTargetKey(track.target)))
+  const addableAnimationOptions = animationOptions.filter((option) => !authoredTargetKeys.has(option.key))
+  const resolvedNewTrackOption = addableAnimationOptions.find((option) => option.key === newTrackTargetKey)
+    ?? addableAnimationOptions[0]
   const resolvedNewPattern = patternOptions.find((option) => (
     patternKey(option.ref) === (newPatternKey || patternKey(patternOptions[0]?.ref))
   )) ?? patternOptions[0]
@@ -484,6 +541,27 @@ export function ShowSceneZoneEditor({
           </div>
         )}
 
+        {selectedAuthoredPlacement && selectedAuthoredInstance && (
+          <PropertyAnimationPanel
+            durationMs={durationMs}
+            localTimeMs={Math.round(localTimeMs)}
+            readOnly={readOnly}
+            options={animationOptions}
+            addableOptions={addableAnimationOptions}
+            resolvedNewOption={resolvedNewTrackOption}
+            newTargetKey={newTrackTargetKey}
+            onNewTargetKey={setNewTrackTargetKey}
+            tracks={selectedTracks}
+            selectedKeyframe={selectedKeyframe}
+            onSelectKeyframe={setSelectedKeyframe}
+            onAddTrack={onAddPropertyTrack}
+            onDeleteTrack={onDeletePropertyTrack}
+            onAddKeyframe={onAddPropertyKeyframe}
+            onUpdateKeyframe={onUpdatePropertyKeyframe}
+            onDeleteKeyframe={onDeletePropertyKeyframe}
+          />
+        )}
+
         {detail.diagnostics.length > 0 && (
           <div role="status" className="border-x border-b border-red-400/25 bg-red-400/[0.05] px-2 py-1.5 text-[9px] text-red-200">
             {detail.diagnostics.join(' ')}
@@ -494,14 +572,294 @@ export function ShowSceneZoneEditor({
   )
 }
 
+interface ShowAutomationOption {
+  key: string
+  label: string
+  target: ShowPropertyAnimationTarget
+  value: number
+  min: number
+  max: number
+  step: number
+}
+
+function PropertyAnimationPanel({
+  durationMs,
+  localTimeMs,
+  readOnly,
+  options,
+  addableOptions,
+  resolvedNewOption,
+  newTargetKey,
+  onNewTargetKey,
+  tracks,
+  selectedKeyframe,
+  onSelectKeyframe,
+  onAddTrack,
+  onDeleteTrack,
+  onAddKeyframe,
+  onUpdateKeyframe,
+  onDeleteKeyframe,
+}: {
+  durationMs: number
+  localTimeMs: number
+  readOnly: boolean
+  options: ShowAutomationOption[]
+  addableOptions: ShowAutomationOption[]
+  resolvedNewOption?: ShowAutomationOption
+  newTargetKey: string
+  onNewTargetKey: (key: string) => void
+  tracks: ShowPropertyAnimationTrack[]
+  selectedKeyframe: { trackId: string; keyframeId: string } | null
+  onSelectKeyframe: (selection: { trackId: string; keyframeId: string } | null) => void
+  onAddTrack: (input: { target: ShowPropertyAnimationTarget; initialValue: number; atMs: number }) => void
+  onDeleteTrack: (trackId: string) => void
+  onAddKeyframe: (trackId: string, keyframe: Omit<ShowPropertyAnimationKeyframe, 'id'>) => void
+  onUpdateKeyframe: (
+    trackId: string,
+    keyframeId: string,
+    changes: Partial<Pick<ShowPropertyAnimationKeyframe, 'timeMs' | 'value' | 'easing'>>,
+  ) => void
+  onDeleteKeyframe: (trackId: string, keyframeId: string) => void
+}) {
+  return (
+    <div className="border-x border-b border-zinc-800 bg-[#090c10]" aria-label="Property animation">
+      <div className="flex h-7 items-center gap-1.5 border-b border-zinc-800 px-2 text-[9px]">
+        <Activity size={10} aria-hidden className="text-violet-300" />
+        <strong className="font-medium text-zinc-300">Animation</strong>
+        <select
+          aria-label="Property to animate"
+          value={resolvedNewOption?.key ?? newTargetKey}
+          disabled={readOnly || addableOptions.length === 0}
+          onChange={(event) => onNewTargetKey(event.target.value)}
+          className="ml-auto h-5 max-w-44 rounded border border-zinc-800 bg-zinc-950 px-1 text-[8px] text-zinc-300 disabled:opacity-35"
+        >
+          {addableOptions.map((option) => <option key={option.key} value={option.key}>{option.label}</option>)}
+          {addableOptions.length === 0 && <option value="">All available properties animated</option>}
+        </select>
+        <button
+          type="button"
+          aria-label="Animate selected property"
+          disabled={readOnly || !resolvedNewOption}
+          onClick={() => resolvedNewOption && onAddTrack({
+            target: resolvedNewOption.target,
+            initialValue: resolvedNewOption.value,
+            atMs: localTimeMs,
+          })}
+          className="flex h-5 items-center gap-1 rounded border border-violet-300/25 px-1.5 text-[8px] text-violet-200 hover:border-violet-200/60 disabled:opacity-30"
+        ><Plus size={9} aria-hidden /> Animate</button>
+      </div>
+      {tracks.map((track) => {
+        const option = options.find((candidate) => candidate.key === propertyTargetKey(track.target))
+        const selectedPoint = selectedKeyframe?.trackId === track.id
+          ? track.keyframes.find((keyframe) => keyframe.id === selectedKeyframe.keyframeId)
+          : undefined
+        const hasPointAtPlayhead = track.keyframes.some((keyframe) => keyframe.timeMs === localTimeMs)
+        return (
+          <div key={track.id}>
+            <div className="grid h-6 grid-cols-[136px_minmax(0,1fr)] border-b border-zinc-800/80">
+              <span className="flex min-w-0 items-center gap-1 border-r border-zinc-800 px-2 text-[8px] text-zinc-400">
+                <i aria-hidden className="size-1.5 shrink-0 rounded-full bg-violet-300" />
+                <span className="truncate">{option?.label ?? propertyTargetKey(track.target)}</span>
+                <button
+                  type="button"
+                  aria-label={`Add ${option?.label ?? 'property'} keyframe at playhead`}
+                  disabled={readOnly || hasPointAtPlayhead}
+                  onClick={() => onAddKeyframe(track.id, {
+                    timeMs: localTimeMs,
+                    value: evaluateShowPropertyTrack(track, localTimeMs),
+                    easing: { curve: 'linear' },
+                  })}
+                  className="ml-auto grid size-4 shrink-0 place-items-center text-violet-400 hover:text-violet-200 disabled:opacity-20"
+                ><Plus size={8} /></button>
+                <button
+                  type="button"
+                  aria-label={`Delete ${option?.label ?? 'property'} animation`}
+                  disabled={readOnly}
+                  onClick={() => { onDeleteTrack(track.id); onSelectKeyframe(null) }}
+                  className="grid size-4 shrink-0 place-items-center text-zinc-700 hover:text-red-300 disabled:opacity-20"
+                ><Trash2 size={8} /></button>
+              </span>
+              <PropertySparkline
+                track={track}
+                durationMs={durationMs}
+                min={option?.min ?? 0}
+                max={option?.max ?? 1}
+                selectedKeyframeId={selectedPoint?.id ?? null}
+                onSelect={(keyframeId) => onSelectKeyframe({ trackId: track.id, keyframeId })}
+              />
+            </div>
+            {selectedPoint && option && (
+              <div className="flex min-h-8 items-center gap-1.5 border-b border-zinc-800 bg-[#0b0e12] px-2 text-[8px] text-zinc-500">
+                <span className="font-medium text-violet-200">Point</span>
+                <ExactTimeInput
+                  label="Keyframe time ms"
+                  value={selectedPoint.timeMs}
+                  max={durationMs}
+                  disabled={readOnly}
+                  onCommit={(timeMs) => onUpdateKeyframe(track.id, selectedPoint.id, { timeMs })}
+                />
+                <ExactNumberInput
+                  label="Keyframe value"
+                  value={selectedPoint.value}
+                  min={option.min}
+                  max={option.max}
+                  step={option.step}
+                  disabled={readOnly}
+                  onCommit={(value) => onUpdateKeyframe(track.id, selectedPoint.id, { value })}
+                />
+                <label className="flex items-center gap-1">Ease
+                  <select
+                    aria-label="Keyframe easing"
+                    value={showEasingOptionId(selectedPoint.easing)}
+                    disabled={readOnly}
+                    onChange={(event) => onUpdateKeyframe(track.id, selectedPoint.id, { easing: showEasingFromOptionId(event.target.value) })}
+                    className="h-6 max-w-32 rounded border border-zinc-800 bg-zinc-950 px-1 text-[8px] text-zinc-200"
+                  >
+                    {SHOW_EASING_OPTIONS.map((easing) => <option key={easing.id} value={easing.id}>{easing.label}</option>)}
+                  </select>
+                </label>
+                <KeyframeNavigation
+                  track={track}
+                  keyframeId={selectedPoint.id}
+                  onSelect={(keyframeId) => onSelectKeyframe({ trackId: track.id, keyframeId })}
+                />
+                <button
+                  type="button"
+                  aria-label="Delete keyframe"
+                  disabled={readOnly || track.keyframes.length <= 2}
+                  onClick={() => { onDeleteKeyframe(track.id, selectedPoint.id); onSelectKeyframe(null) }}
+                  className="ml-auto grid size-6 place-items-center rounded border border-zinc-800 text-zinc-600 hover:text-red-300 disabled:opacity-25"
+                ><Trash2 size={9} /></button>
+              </div>
+            )}
+          </div>
+        )
+      })}
+      {tracks.length === 0 && (
+        <p className="px-2 py-1.5 text-[8px] text-zinc-700">Static values stay compact until you animate one.</p>
+      )}
+    </div>
+  )
+}
+
+function PropertySparkline({ track, durationMs, min, max, selectedKeyframeId, onSelect }: {
+  track: ShowPropertyAnimationTrack
+  durationMs: number
+  min: number
+  max: number
+  selectedKeyframeId: string | null
+  onSelect: (keyframeId: string) => void
+}) {
+  const samples = Array.from({ length: 41 }, (_, index) => evaluateShowPropertyTrack(track, durationMs * index / 40))
+  const authoredMin = Math.min(...samples)
+  const authoredMax = Math.max(...samples)
+  const constraintSpan = Math.max(0.000001, max - min)
+  const minimumVisibleSpan = constraintSpan * 0.12
+  const center = (authoredMin + authoredMax) / 2
+  const visibleMin = authoredMax - authoredMin < minimumVisibleSpan ? center - minimumVisibleSpan / 2 : authoredMin
+  const visibleMax = authoredMax - authoredMin < minimumVisibleSpan ? center + minimumVisibleSpan / 2 : authoredMax
+  const y = (value: number) => 12 - clamp((value - visibleMin) / Math.max(0.000001, visibleMax - visibleMin), 0, 1) * 10
+  const points = samples.map((value, index) => `${index * 2.5},${y(value)}`).join(' ')
+  return (
+    <svg viewBox="0 0 100 14" preserveAspectRatio="none" className="h-full w-full overflow-visible bg-[#080a0d]" aria-label="Property sparkline">
+      <polyline points={points} fill="none" stroke="#c4b5fd" strokeWidth="0.7" vectorEffect="non-scaling-stroke" />
+      {track.keyframes.map((keyframe) => (
+        <circle
+          key={keyframe.id}
+          role="button"
+          aria-label={`Select keyframe at ${keyframe.timeMs} ms`}
+          tabIndex={0}
+          cx={clamp(keyframe.timeMs / durationMs, 0, 1) * 100}
+          cy={y(keyframe.value)}
+          r={selectedKeyframeId === keyframe.id ? 2.2 : 1.6}
+          fill={selectedKeyframeId === keyframe.id ? '#fde68a' : '#c4b5fd'}
+          vectorEffect="non-scaling-stroke"
+          onClick={() => onSelect(keyframe.id)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault()
+              onSelect(keyframe.id)
+            }
+          }}
+        />
+      ))}
+    </svg>
+  )
+}
+
+function KeyframeNavigation({ track, keyframeId, onSelect }: {
+  track: ShowPropertyAnimationTrack
+  keyframeId: string
+  onSelect: (keyframeId: string) => void
+}) {
+  const neighbors = showPropertyTrackNeighbors(track, keyframeId)
+  return (
+    <span className="flex items-center gap-0.5">
+      <button type="button" aria-label="Previous keyframe" disabled={!neighbors.previousId} onClick={() => neighbors.previousId && onSelect(neighbors.previousId)} className="grid size-6 place-items-center rounded border border-zinc-800 text-zinc-500 hover:text-white disabled:opacity-20"><SkipBack size={9} /></button>
+      <button type="button" aria-label="Next keyframe" disabled={!neighbors.nextId} onClick={() => neighbors.nextId && onSelect(neighbors.nextId)} className="grid size-6 place-items-center rounded border border-zinc-800 text-zinc-500 hover:text-white disabled:opacity-20"><SkipForward size={9} /></button>
+    </span>
+  )
+}
+
+function buildShowAutomationOptions(
+  instance: ShowPatternInstance,
+  placement: ShowMainPlacement | ShowOverlayPlacement,
+): ShowAutomationOption[] {
+  const options: ShowAutomationOption[] = [
+    animationOption('Animation speed', { kind: 'instance-time-scale', instanceId: instance.id }, instance.time.timeScale, 0, 4, 0.01),
+    ...Object.entries(instance.controlTargets ?? {}).map(([exportName, value]) => (
+      animationOption(exportName, { kind: 'instance-control', instanceId: instance.id, exportName }, value, 0, 1, 0.01)
+    )),
+    animationOption('Brightness', { kind: 'placement-view', placementId: placement.id, property: 'brightness' }, placement.view.brightness, 0, 1, 0.01),
+    animationOption('Phase', { kind: 'placement-view', placementId: placement.id, property: 'phase' }, placement.view.phase, 0, 1, 0.01),
+    ...('opacity' in placement
+      ? [animationOption('Opacity', { kind: 'placement-opacity', placementId: placement.id }, placement.opacity, 0, 1, 0.01)]
+      : []),
+  ]
+  for (const effect of placement.effects ?? []) {
+    for (const parameter of showClipEffectParameters(effect)) {
+      const value = showClipEffectParameterValue(effect, parameter.id)
+      if (typeof value !== 'number') continue
+      options.push(animationOption(
+        `${effect.kind} · ${parameter.label}`,
+        {
+          kind: 'placement-effect',
+          placementId: placement.id,
+          effectId: effect.id,
+          effectKind: effect.kind,
+          parameterId: parameter.id,
+        },
+        value,
+        parameter.min ?? -1000,
+        parameter.max ?? 1000,
+        parameter.step ?? 0.01,
+      ))
+    }
+  }
+  return options
+}
+
+function animationOption(
+  label: string,
+  target: ShowPropertyAnimationTarget,
+  value: number,
+  min: number,
+  max: number,
+  step: number,
+): ShowAutomationOption {
+  return { key: propertyTargetKey(target), label, target, value, min, max, step }
+}
+
 function ExactTimeInput({
   label,
   value,
+  max,
   disabled,
   onCommit,
 }: {
   label: string
   value: number
+  max?: number
   disabled: boolean
   onCommit: (value: number) => void
 }) {
@@ -513,12 +871,15 @@ function ExactTimeInput({
         aria-label={label}
         type="number"
         min={0}
+        max={max}
         step={1}
         defaultValue={value}
         disabled={disabled}
         onBlur={(event) => {
           const next = Number(event.target.value)
-          if (Number.isFinite(next) && next !== value) onCommit(Math.round(next))
+          const committed = Number.isFinite(next) ? Math.round(clamp(next, 0, max ?? Number.MAX_SAFE_INTEGER)) : value
+          event.currentTarget.value = String(committed)
+          if (committed !== value) onCommit(committed)
         }}
         onKeyDown={(event) => {
           if (event.key === 'Enter') event.currentTarget.blur()

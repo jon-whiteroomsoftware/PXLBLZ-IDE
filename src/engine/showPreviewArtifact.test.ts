@@ -143,6 +143,59 @@ describe('compileShowForPreview temporal adaptations (#379)', () => {
     expect(createRuntime().advanceTo(1_500, { stepMs: 1000 / 60 }).pixels[0]).toEqual([0, 0, 0])
   })
 
+  it('seeks through Scene-local Property animation with the artifact evaluator (#490)', () => {
+    const show = createDefaultShow('show-property-seek', 'Property seek', 1)
+    const patterns = [{
+      id: 'solid-red', name: 'Solid red',
+      src: 'export function render(index) { rgb(1, 0, 0) }',
+      controls: {}, updatedAt: 1,
+    }]
+    show.composition = {
+      version: 1,
+      patternInstances: [{
+        id: 'red', pattern: { kind: 'user', id: 'solid-red' }, patternName: 'Solid red',
+        time: { timeScale: 1, timeOffsetMs: 0 },
+      }],
+      scenes: [{
+        sceneId: 'scene-1',
+        propertyTracks: [{
+          id: 'brightness',
+          target: { kind: 'placement-view', placementId: 'red-main', property: 'brightness' },
+          keyframes: [
+            { id: 'brightness-a', timeMs: 0, value: 0, easing: { curve: 'linear' } },
+            { id: 'brightness-b', timeMs: 1000, value: 1, easing: { curve: 'linear' } },
+          ],
+        }],
+        zones: [{
+          zoneId: 'zone-1',
+          main: [{
+            id: 'red-main', instanceId: 'red', startMs: 0, durationMs: 30_000,
+            view: { mirror: false, phase: 0, brightness: 1 },
+          }],
+          overlays: [],
+        }],
+      }, {
+        sceneId: 'scene-2',
+        zones: [{ zoneId: 'zone-1', main: [], overlays: [] }],
+      }],
+    }
+    const preview = compileShowForPreview(show, patterns, undefined, {})
+    const artifact = compileShowForArtifact(show, patterns, undefined, {})
+    const createRuntime = () => createFastReplayRuntime({
+      code: preview.artifact!.code,
+      metadata: preview.artifact!.metadata,
+      dimension: nativeDimension(preview.artifact!.metadata.renderFns),
+    }, { mapPoints: [{ sample: [0] }], randomSeed: 490 })
+
+    const firstSeek = createRuntime().advanceTo(500, { stepMs: 50 })
+    const repeatedSeek = createRuntime().advanceTo(500, { stepMs: 50 })
+    expect(preview.error).toBeNull()
+    expect(artifact.error).toBeNull()
+    expect(preview.artifact?.code).toBe(artifact.artifact?.code)
+    expect(firstSeek.pixels[0][0]).toBeCloseTo(0.5)
+    expect(repeatedSeek.checksum).toBe(firstSeek.checksum)
+  })
+
   it('renders an empty first scene black after its clip is deleted', () => {
     const initial = updateShowCellPattern(createDefaultShow('show-empty-first', 'Empty first scene', 1), 'cell-2', {
       pattern: { kind: 'stock', id: 'ShapeShifter' },

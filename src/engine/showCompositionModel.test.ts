@@ -223,6 +223,51 @@ describe('Show composition v1 Main schedule (#488)', () => {
       .toMatchObject({ patternName: 'TestPattern1D', time: { timeScale: 1, timeOffsetMs: 0 } })
   })
 
+  it('rebases placement and instance tracks across split, Restart, and delete edits (#490)', () => {
+    const { show, composition } = fixture()
+    composition.scenes[0].propertyTracks = [
+      {
+        id: 'brightness-track',
+        target: { kind: 'placement-view', placementId: 'placement-a', property: 'brightness' },
+        keyframes: [
+          { id: 'brightness-a', timeMs: 0, value: 1, easing: { curve: 'linear' } },
+          { id: 'brightness-b', timeMs: 2_000, value: 0.5, easing: { curve: 'linear' } },
+        ],
+      },
+      {
+        id: 'speed-track',
+        target: { kind: 'instance-time-scale', instanceId: 'instance-a' },
+        keyframes: [
+          { id: 'speed-a', timeMs: 0, value: 1, easing: { curve: 'linear' } },
+          { id: 'speed-b', timeMs: 2_000, value: 2, easing: { curve: 'linear' } },
+        ],
+      },
+    ]
+
+    const split = splitShowMainPlacement(show, composition, {
+      sceneId: 'scene-1', zoneId: 'zone-1', placementId: 'placement-a', atMs: 1_000, newPlacementId: 'placement-right',
+    })
+    expect(split.scenes[0].propertyTracks?.map((track) => track.target)).toEqual(expect.arrayContaining([
+      { kind: 'placement-view', placementId: 'placement-a', property: 'brightness' },
+      { kind: 'placement-view', placementId: 'placement-right', property: 'brightness' },
+      { kind: 'instance-time-scale', instanceId: 'instance-a' },
+    ]))
+
+    const restarted = restartShowMainPlacement(split, {
+      sceneId: 'scene-1', zoneId: 'zone-1', placementId: 'placement-right', newInstanceId: 'instance-right',
+    })
+    expect(restarted.scenes[0].propertyTracks?.map((track) => track.target)).toContainEqual({
+      kind: 'instance-time-scale', instanceId: 'instance-right',
+    })
+
+    const deleted = deleteShowMainPlacement(restarted, {
+      sceneId: 'scene-1', zoneId: 'zone-1', placementId: 'placement-right',
+    })
+    expect(deleted.scenes[0].propertyTracks?.some((track) => (
+      'placementId' in track.target && track.target.placementId === 'placement-right'
+    ))).toBe(false)
+  })
+
   it('adds, moves, trims, deletes, and replaces Main content without accepting collisions', () => {
     const { show, composition } = fixture()
     const added = addShowMainPlacement(show, composition, {

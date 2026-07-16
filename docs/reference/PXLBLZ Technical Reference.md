@@ -993,8 +993,32 @@ derived destination cell. Preview, fast replay, artifact generation, Controller
 output, and EPE export all consume this same lowering. Shows without authored
 composition bypass it.
 
-Compiler omissions and instance-ownership conflicts remain explicit projection
-diagnostics. Typed local Property animation is still absent.
+`showPropertyAnimation.ts` owns typed Scene-local Property animation. A track
+targets either Pattern-instance Animation speed/public slider state or one
+placement's brightness, phase, overlay opacity, or stable-id numeric Effect
+parameter. Static values remain inline; only authored tracks persist. Validation
+rejects missing or mismatched owners, duplicate targets and ids, non-finite or
+out-of-range values, unordered or out-of-Scene keyframes, invalid easing, and
+stale Effect id/kind/parameter combinations.
+
+Each track uses whole Scene-local milliseconds and stores the easing that leaves
+each keyframe. The pure evaluator and generated expression share the same
+linear, Steps, Hold, cubic Bezier, and Back semantics, including legal easing
+overshoot without clamping the interpolated value. Lowering carries the complete
+source-Scene curve plus a local-time offset into every derived hold. Generated
+stack wrappers apply placement tracks before compositing and hold the nearest
+endpoint while a top-level Transition is running. Instance tracks apply once per
+advanced Pattern instance. Preview, deterministic Fast replay, artifact output,
+EPE export, and Controller output therefore consume the same emitted evaluator.
+
+`ShowSceneZoneEditor` reveals a compact lane only after its track is authored.
+The SVG sparkline preserves the curve's timing and shape while exaggerating very
+small value spans enough to remain legible. Its points are selection targets,
+not drag handles. Exact keyboard fields edit time, value, and easing; commands
+add at the playhead, move to the previous or next point, delete a point, or
+delete the track. Split and Restart clone affected placement- or instance-owned
+tracks under new stable targets, while deletion removes tracks whose owner no
+longer exists.
 
 `showSceneReadOnlyProjection.ts` narrows that sidecar to one Scene's global and
 local bounds, boundary context, cut references, Effect activity, property beats,
