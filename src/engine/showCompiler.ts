@@ -342,6 +342,7 @@ export interface ShowCompileSummary {
   clipCount: number
   transitionCount: number
   sourceBytesBeforeMerge: number
+  expandedArtifactBytes: number
   artifactBytes: number
   measuredDeviceBudgetBytes: number
   artifactBudgetRatio: number
@@ -400,6 +401,7 @@ export interface ShowCompileSummary {
 
 export interface GeneratedShowArtifact {
   code: string
+  expandedCode: string
   fxCode: string
   metadata: BundleMetadata
   summary: ShowCompileSummary
@@ -437,6 +439,8 @@ interface CompiledMember {
   hasRender2D: boolean
   hasRender3D: boolean
   hasBeforeRender: boolean
+  usesHsv: boolean
+  usesTime: boolean
   elapsedName: string
   pixelCountName: string
   adaptation: ShowClipAdaptation
@@ -444,6 +448,7 @@ interface CompiledMember {
   controls: Array<{ exportName: string; functionName: string; valueName: string; initialValue: number }>
   effects: ShowClipEffect[]
   animatedEffects: boolean
+  staticPlanEffects: boolean
 }
 
 interface ResolvedRoute {
@@ -469,28 +474,66 @@ export function compileShow(
   const expandedRecipe = { ...recipe, clips: expandRouteClips(recipe.clips) }
   validateRecipe(expandedRecipe)
   const animatedEffectClipIds = new Set<string>()
+  const dynamicallyAnimatedEffectClipIds = new Set<string>()
   if (expandedRecipe.adaptationRamp?.effectRamps && expandedRecipe.clips[0]) {
     animatedEffectClipIds.add(expandedRecipe.clips[0].id)
+    dynamicallyAnimatedEffectClipIds.add(expandedRecipe.clips[0].id)
   }
   for (const scene of expandedRecipe.sceneSequence?.scenes ?? []) {
-    if (scene.transitionOut?.effectRamps) animatedEffectClipIds.add(scene.clipId)
+    if (scene.transitionOut?.effectRamps) {
+      animatedEffectClipIds.add(scene.clipId)
+      dynamicallyAnimatedEffectClipIds.add(scene.clipId)
+    }
   }
   for (const scene of expandedRecipe.routedSceneSequence?.scenes ?? []) {
     for (const placement of scene.placements) {
       if (placement.effects) animatedEffectClipIds.add(placement.clipId)
     }
     for (const ramp of scene.transitionRamps ?? []) {
-      if (ramp.effectRamps) animatedEffectClipIds.add(ramp.clipId)
+      if (ramp.effectRamps) {
+        animatedEffectClipIds.add(ramp.clipId)
+        dynamicallyAnimatedEffectClipIds.add(ramp.clipId)
+      }
     }
     for (const track of scene.propertyTracks ?? []) {
       if (track.target.kind !== 'placement-effect') continue
       const placementId = track.target.placementId
       const placement = scene.placements.find((candidate) => candidate.placementId === placementId)
-      if (placement) animatedEffectClipIds.add(placement.clipId)
+      if (placement) {
+        animatedEffectClipIds.add(placement.clipId)
+        dynamicallyAnimatedEffectClipIds.add(placement.clipId)
+      }
     }
   }
+  const canBakeStaticRoutedPlanEffects = expandedRecipe.routingLayouts?.length === 1
+    && !expandedRecipe.routingLayouts[0].logical
+    && Boolean(expandedRecipe.routedSceneSequence)
+    && expandedRecipe.routedSceneSequence!.scenes.every((scene) => {
+      const zoneNames = scene.placements.map((placement) => placement.zoneName)
+      return (!scene.transitionOut || scene.transitionOut.kind === 'cut')
+        && (scene.propertyTracks?.length ?? 0) === 0
+        && !(scene.transitionRamps ?? []).some((ramp) => ramp.effectRamps)
+        && new Set(zoneNames).size === zoneNames.length
+        && scene.placements.every((placement) => (
+          clampNumber(placement.opacity ?? 1, 0, 1) === 1
+          && (placement.zoneMode !== 'span'
+            || !placement.domainZoneNames?.length
+            || (placement.domainZoneNames.length === 1 && placement.domainZoneNames[0] === placement.zoneName))
+        ))
+    })
+  const staticPlanEffectClipIds = new Set(
+    canBakeStaticRoutedPlanEffects
+      ? [...animatedEffectClipIds].filter((clipId) => !dynamicallyAnimatedEffectClipIds.has(clipId))
+      : [],
+  )
   const members = expandedRecipe.clips.map((clip, index) => ({
-    ...compileMember(clip, index, libraries, animatedEffectClipIds.has(clip.id)),
+    ...compileMember(
+      clip,
+      index,
+      libraries,
+      animatedEffectClipIds.has(clip.id),
+      staticPlanEffectClipIds.has(clip.id),
+    ),
     samplePropertyRamps: expandedRecipe.samplePropertyRamps,
   }))
   const route = buildRoutePlan(members, expandedRecipe)
@@ -641,9 +684,11 @@ export function compileShow(
   const emittedWithEasingRuntime = emittedCode.includes('__pxlblz_show_cubicBezier(')
     ? `${showCubicBezierRuntimeSource()}\n${emittedCode}`
     : emittedCode
-  const code = expandedRecipe.samplePropertyRamps
+  const expandedCode = expandedRecipe.samplePropertyRamps
     ? injectSampleRemappingUpdate(emittedWithEasingRuntime)
     : emittedWithEasingRuntime
+  const compacted = compactGeneratedShowSymbols(expandedCode)
+  const code = compacted.code
   const metadata = buildMetadata(
     members,
     expandedRecipe.sceneSequence || expandedRecipe.routedSceneSequence
@@ -654,7 +699,13 @@ export function compileShow(
           ? routedOutputDimension
           : memberOutputDimension,
   )
+  const patternVarBindings = Object.fromEntries(metadata.patternVars.flatMap((name) => {
+    const runtimeName = compacted.names.get(name)
+    return runtimeName ? [[name, runtimeName]] : []
+  }))
+  if (Object.keys(patternVarBindings).length > 0) metadata.patternVarBindings = patternVarBindings
   const sourceBytesBeforeMerge = members.reduce((sum, member) => sum + member.sourceBytes, 0)
+  const expandedArtifactBytes = byteLength(expandedCode)
   const artifactBytes = byteLength(code)
   const transitionCost = expandedRecipe.sceneSequence || expandedRecipe.routedSceneSequence
     ? sequenceHasCrossfade || motionBlend
@@ -692,9 +743,16 @@ export function compileShow(
         if (showEffectsAreIdentity(member.effects) && !member.animatedEffects) return count
         const hasAffine = member.effects.some((effect) => ['translate', 'rotate', 'scale', 'shear'].includes(effect.kind))
         const parameters = member.animatedEffects
-          ? member.effects.reduce((total, effect) => total + showEffectParameterNames(effect).length, 0)
+          ? member.effects.reduce((total, effect) => (
+              total + (member.staticPlanEffects && ['translate', 'rotate', 'scale', 'shear'].includes(effect.kind)
+                ? 0
+                : showEffectParameterNames(effect).length)
+            ), 0)
           : 0
-        return count + parameters + (hasAffine ? member.animatedEffects ? 13 : 7 : 0)
+        const affineGlobals = hasAffine
+          ? 6 + (member.animatedEffects && !member.staticPlanEffects ? 6 : 0)
+          : 0
+        return count + parameters + affineGlobals
       }, 0),
     generatedArrayElements: routingParameterEstimate?.arrayElements ?? 0,
     warnings,
@@ -711,6 +769,7 @@ export function compileShow(
         )
       : expandedRecipe.crossfade || expandedRecipe.cut || expandedRecipe.adaptationRamp || expandedRecipe.routeTransition ? 1 : 0,
     sourceBytesBeforeMerge,
+    expandedArtifactBytes,
     artifactBytes,
     measuredDeviceBudgetBytes: MEASURED_DEVICE_BUDGET_BYTES,
     artifactBudgetRatio: artifactBytes / MEASURED_DEVICE_BUDGET_BYTES,
@@ -847,6 +906,7 @@ export function compileShow(
 
   return {
     code,
+    expandedCode,
     fxCode: emitFixedPoint(code),
     metadata,
     summary,
@@ -1041,6 +1101,7 @@ function compileMember(
   index: number,
   libraries: Record<string, string>,
   animatedEffects = false,
+  staticPlanEffects = false,
 ): CompiledMember {
   const bundled = bundle(clip.source, libraries)
   const prefix = `__pxlblz_show_c${index}`
@@ -1080,12 +1141,15 @@ function compileMember(
     hasRender2D: bindings.has('render2D'),
     hasRender3D: bindings.has('render3D'),
     hasBeforeRender: bindings.has('beforeRender'),
+    usesHsv: code.includes(`${prefix}_hsv`),
+    usesTime: code.includes(`${prefix}_time`),
     elapsedName: `${prefix}_elapsed_ms`,
     pixelCountName: `${prefix}_pixelCount`,
     adaptation: normalizeAdaptation(clip.adaptation),
     controls,
     effects: normalizeShowClipEffects(clip.effects),
     animatedEffects,
+    staticPlanEffects,
   }
 }
 
@@ -1098,7 +1162,7 @@ function emitShowCode(
   const transitionEnd = crossfade.startMs + crossfade.durationMs
   const members = [from, to]
   return [
-    emitRuntimePrelude(members),
+    emitRuntimePrelude(members, outputDimension),
     ...members.map(member => member.code.trim()),
     emitScheduler(from, to, crossfade.startMs, transitionEnd, crossfade.durationMs),
     emitRender(from, to, outputDimension),
@@ -1110,7 +1174,7 @@ function emitSingleClipShowCode(member: CompiledMember, outputDimension: ShowOut
   const render = emitOuterRenderer(outputDimension, `  ${emitMemberCaptureCall(member, outputDimension)}
   ${member.prefix}_emit()`)
   return [
-    emitRuntimePrelude([member]),
+    emitRuntimePrelude([member], outputDimension),
     member.code.trim(),
     `export function beforeRender(delta) {
   __pxlblz_show_elapsed_s = __pxlblz_show_elapsed_s + delta / 1000
@@ -1128,7 +1192,7 @@ function emitCutShowCode(
   outputDimension: ShowOutputDimension,
 ): string {
   return [
-    emitRuntimePrelude([from, to]),
+    emitRuntimePrelude([from, to], outputDimension),
     from.code.trim(),
     to.code.trim(),
     `export function beforeRender(delta) {
@@ -1165,7 +1229,7 @@ function emitAdaptationRampShowCode(
   const controlAssignments = emitControlRampAssignments(member, ramp.controlRamps, elapsedRampMs)
   const effectAssignments = emitEffectRampAssignments(member, ramp.effectRamps, elapsedRampMs)
   return [
-    emitRuntimePrelude([member]),
+    emitRuntimePrelude([member], outputDimension, { includeAdaptationMix: true }),
     member.code.trim(),
     `export function beforeRender(delta) {
   __pxlblz_show_elapsed_s = __pxlblz_show_elapsed_s + delta / 1000
@@ -1252,7 +1316,7 @@ function emitRouteTransitionShowCode(
   const transitionEnd = transition.startMs + transition.durationMs
   const pickTo = emitDissolvePickExpression(transition)
   return [
-    emitRuntimePrelude([from, to]),
+    emitRuntimePrelude([from, to], outputDimension),
     from.code.trim(),
     to.code.trim(),
     emitScheduler(from, to, transition.startMs, transitionEnd, transition.durationMs, transition.easing),
@@ -1280,7 +1344,7 @@ function emitWipeTransitionShowCode(
   outputDimension: ShowOutputDimension,
 ): string {
   return [
-    emitRuntimePrelude([from, to]),
+    emitRuntimePrelude([from, to], outputDimension),
     from.code.trim(),
     to.code.trim(),
     emitScheduler(
@@ -1310,7 +1374,7 @@ function emitMotionTransitionShowCode(
   transition: ShowRouteTransitionRecipe,
 ): string {
   return [
-    emitRuntimePrelude([from, to]),
+    emitRuntimePrelude([from, to], 2),
     from.code.trim(),
     to.code.trim(),
     emitScheduler(
@@ -1340,7 +1404,7 @@ function emitSpatialDissolveTransitionShowCode(
   transition: ShowRouteTransitionRecipe,
 ): string {
   return [
-    emitRuntimePrelude([from, to]),
+    emitRuntimePrelude([from, to], 2),
     from.code.trim(),
     to.code.trim(),
     emitScheduler(
@@ -1371,7 +1435,7 @@ function emitFadeThroughColorShowCode(
   outputDimension: ShowOutputDimension,
 ): string {
   return [
-    emitRuntimePrelude([from, to]),
+    emitRuntimePrelude([from, to], outputDimension),
     from.code.trim(),
     to.code.trim(),
     emitScheduler(
@@ -1403,7 +1467,7 @@ function emitPortalTransitionShowCode(
   const fromRender = `${from.prefix}_renderCapture2D(index, x, y)`
   const toRender = `${to.prefix}_renderCapture2D(index, x, y)`
   return [
-    emitRuntimePrelude([from, to]),
+    emitRuntimePrelude([from, to], 2),
     from.code.trim(),
     to.code.trim(),
     emitScheduler(
@@ -1505,7 +1569,9 @@ ${indentBlock(emitSceneSequenceTransitionBlock(segment.from, segment.to!, segmen
   }`).join(' ')
 
   return [
-    emitRuntimePrelude(members),
+    emitRuntimePrelude(members, outputDimension, {
+      includeHash: transitionBranches.includes('__pxlblz_show_hash01'),
+    }),
     ...members.map((member) => member.code.trim()),
     'var __pxlblz_show_scene = 0',
     'var __pxlblz_show_transition = -1',
@@ -1575,11 +1641,11 @@ function emitRoutedSceneSequenceShowCode(
     return `((__pxlblz_show_elapsed_s - ${(sceneStartMs.get(sceneIndex) ?? 0) / 1000}) * 1000 + ${offset})`
   }
 
-  const setupForPlacements = (
+  const setupEntriesForPlacements = (
     placements: typeof scenes[number]['placements'],
     ramps?: ResolvedRoutedScenePlacementRamp[],
     propertyTrackContexts?: Array<{ tracks: ShowPropertyAnimationTrack[]; localTimeExpression: string }>,
-  ): string => {
+  ): Array<{ member: CompiledMember; code: string }> => {
     const byMember = new Map<CompiledMember, typeof placements>()
     for (const placement of placements) {
       byMember.set(placement.member, [...(byMember.get(placement.member) ?? []), placement])
@@ -1606,20 +1672,111 @@ function emitRoutedSceneSequenceShowCode(
       const propertyTrackAssignments = (propertyTrackContexts ?? []).map((context) => (
         emitRoutedInstancePropertyTrackAssignments(member, context.tracks, context.localTimeExpression)
       )).filter(Boolean).join('\n')
-      return `    ${member.pixelCountName} = ${pixelCount}${emitSceneControlTargets(member, placement.controlTargets)}${emitSceneEffectTargets(member, placement.effects)}${placement.brightness === undefined
+      const code = `${member.pixelCountName} = ${pixelCount}${emitSceneControlTargets(member, placement.controlTargets)}${emitSceneEffectTargets(member, placement.effects)}${placement.brightness === undefined
         ? ''
-        : `\n    ${member.prefix}_adapt_brightness = ${placement.brightness}`}${placement.timeScale === undefined
+        : `\n${member.prefix}_adapt_brightness = ${placement.brightness}`}${placement.timeScale === undefined
           ? ''
-          : `\n    ${member.prefix}_adapt_timeScale = ${placement.timeScale}`}${rampAssignments
-            ? `\n${indentBlock(rampAssignments, 4)}`
+          : `\n${member.prefix}_adapt_timeScale = ${placement.timeScale}`}${rampAssignments
+            ? `\n${rampAssignments}`
             : ''}${propertyTrackAssignments
-              ? `\n${indentBlock(propertyTrackAssignments, 4)}`
+              ? `\n${propertyTrackAssignments}`
               : ''}
-    ${member.prefix}_advance(delta)`
-    }).join('\n')
+${member.prefix}_advance(delta)`
+      return {
+        member,
+        code: code.split('\n').map((line) => line.trim()).filter(Boolean).join('\n'),
+      }
+    })
   }
+  const setupForPlacements = (
+    placements: typeof scenes[number]['placements'],
+    ramps?: ResolvedRoutedScenePlacementRamp[],
+    propertyTrackContexts?: Array<{ tracks: ShowPropertyAnimationTrack[]; localTimeExpression: string }>,
+  ): string => setupEntriesForPlacements(placements, ramps, propertyTrackContexts)
+    .map(({ code }) => indentBlock(code, 4))
+    .join('\n')
 
-  const schedulerBranches = segments.map((segment, index) => {
+  const canSharePhysicalCutRouting = layouts.length === 1
+    && !layouts[0].logical
+    && segments.every((segment) => segment.kind === 'hold')
+    && scenes.every((scene) => scene.placements.every((placement) => (
+      placement.zoneMode !== 'span'
+      || !placement.domainZoneNames?.length
+      || (placement.domainZoneNames.length === 1 && placement.domainZoneNames[0] === placement.zoneName)
+    )))
+  const holdSetupEntriesForScene = (sceneIndex: number) => setupEntriesForPlacements(
+    scenes[sceneIndex].placements,
+    undefined,
+    scenes[sceneIndex].propertyTracks
+      ? [{ tracks: scenes[sceneIndex].propertyTracks!, localTimeExpression: sceneLocalTimeExpression(sceneIndex) }]
+      : undefined,
+  )
+  const canonicalCutScheduler = () => {
+    const setupByScene = new Map<number, Map<CompiledMember, string>>()
+    for (const segment of segments) {
+      setupByScene.set(segment.sceneIndex, new Map(
+        holdSetupEntriesForScene(segment.sceneIndex).map(({ member, code }) => [member, code]),
+      ))
+    }
+    const durationRuns: Array<typeof segments> = []
+    for (const segment of segments) {
+      const duration = segment.endMs - segment.startMs
+      const run = durationRuns[durationRuns.length - 1]
+      const previous = run?.[run.length - 1]
+      if (previous && previous.endMs - previous.startMs === duration && previous.sceneIndex + 1 === segment.sceneIndex) {
+        run.push(segment)
+      } else {
+        durationRuns.push([segment])
+      }
+    }
+    const sceneSelection = durationRuns.map((run, index) => {
+      const first = run[0]
+      const last = run[run.length - 1]
+      const durationS = (first.endMs - first.startMs) / 1000
+      const elapsed = first.startMs === 0
+        ? '__pxlblz_show_elapsed_s'
+        : `(__pxlblz_show_elapsed_s - ${first.startMs / 1000})`
+      const steppedScene = run.length === 1
+        ? `${first.sceneIndex}`
+        : `${first.sceneIndex === 0 ? '' : `${first.sceneIndex} + `}floor(${elapsed} / ${durationS})`
+      if (durationRuns.length === 1) return `__pxlblz_show_scene = ${steppedScene}`
+      return `${index === 0 ? 'if' : index === durationRuns.length - 1 ? 'else' : 'else if'}${index === durationRuns.length - 1
+        ? ''
+        : ` (__pxlblz_show_elapsed_s < ${last.endMs / 1000})`} __pxlblz_show_scene = ${steppedScene}`
+    }).join('\n')
+    const minimumScene = segments[0].sceneIndex
+    const maximumScene = segments[segments.length - 1].sceneIndex
+    const sceneSetCondition = (sceneIndices: number[]) => {
+      const runs: Array<{ start: number; end: number }> = []
+      for (const sceneIndex of sceneIndices) {
+        const run = runs[runs.length - 1]
+        if (run && run.end + 1 === sceneIndex) run.end = sceneIndex
+        else runs.push({ start: sceneIndex, end: sceneIndex })
+      }
+      return runs.map((run) => {
+        if (run.start === minimumScene) return `__pxlblz_show_scene <= ${run.end}`
+        if (run.end === maximumScene) return `__pxlblz_show_scene >= ${run.start}`
+        if (run.start === run.end) return `__pxlblz_show_scene == ${run.start}`
+        return `(__pxlblz_show_scene >= ${run.start} && __pxlblz_show_scene <= ${run.end})`
+      }).join(' || ')
+    }
+    const setupGroups = members.flatMap((member) => {
+      const scenesBySetup = new Map<string, number[]>()
+      for (const segment of segments) {
+        const setup = setupByScene.get(segment.sceneIndex)?.get(member) ?? ''
+        scenesBySetup.set(setup, [...(scenesBySetup.get(setup) ?? []), segment.sceneIndex])
+      }
+      return [...scenesBySetup.entries()].flatMap(([setup, sceneIndices]) => {
+        if (!setup) return []
+        if (sceneIndices.length === segments.length) return [setup]
+        const condition = sceneSetCondition(sceneIndices)
+        return [`if (${condition}) {\n${indentBlock(setup, 2)}\n}`]
+      })
+    }).join('\n')
+    return `${sceneSelection}
+${setupGroups}`
+  }
+  const schedulerBranches = canSharePhysicalCutRouting ? canonicalCutScheduler() : segments.map((segment, index) => {
     const condition = `${index === 0 ? 'if' : 'else if'} (__pxlblz_show_elapsed_s < ${segment.endMs / 1000})`
     if (segment.kind === 'hold') {
       return `${condition} {
@@ -1660,7 +1817,16 @@ ${setupForPlacements(
     .map((routingSwitch) => `  if (__pxlblz_show_elapsed_s >= ${routingSwitch.atMs / 1000}) __pxlblz_show_route_layout = ${layoutIndex.get(routingSwitch.layoutId) ?? 0}`)
     .join('\n')
 
-  const sceneBranches = scenes.map((scene, index) => `${index === 0 ? 'if' : 'else if'} (__pxlblz_show_scene == ${index}) {
+  const sharedPhysicalCut = canSharePhysicalCutRouting
+    ? emitSharedPhysicalCutSceneRender(
+        layouts[0],
+        scenes,
+        outputDimension,
+        sceneLocalTimeExpression,
+      )
+    : undefined
+  const sceneBranches = sharedPhysicalCut?.render
+    ?? scenes.map((scene, index) => `${index === 0 ? 'if' : 'else if'} (__pxlblz_show_scene == ${index}) {
 ${indentBlock(emitRoutedScenePlacements(
     layouts,
     scene.placements,
@@ -1683,39 +1849,54 @@ ${indentBlock(emitRoutedSceneTransition(
   ), 4)}
   }`)
     .join(' ')
-  const stackWrappers = scenes.flatMap((scene) => (
+  const transitionSceneIndices = new Set(segments.flatMap((segment) => (
+    segment.kind === 'transition' ? [segment.sceneIndex, segment.sceneIndex + 1] : []
+  )))
+  const stackWrappers = scenes.filter((scene) => transitionSceneIndices.has(scene.sceneIndex)).flatMap((scene) => (
     [...groupRoutedPlacementsByZone(scene.placements).entries()].flatMap(([zoneName, stack]) => (
       routedSceneStackNeedsWrapper(stack)
         ? [emitRoutedSceneStackWrapper(
             stack,
             routedSceneStackPrefix(scene.sceneIndex, zoneName),
+            outputDimension,
             scene.propertyTracks,
             sceneLocalTimeExpression(scene.sceneIndex),
           )]
         : []
     ))
   ))
-
-  return [
-    emitRuntimePrelude(members),
-    ...members.map((member) => member.code.trim()),
-    ...stackWrappers,
-    'var __pxlblz_show_scene = 0',
-    'var __pxlblz_show_transition = -1',
-    'var __pxlblz_show_transition_start_s = 0',
-    'var __pxlblz_show_route_layout = 0',
-    ...(propertyRamps ? [`var __pxlblz_show_route_split_position = ${clampNumber(propertyRamps.splitPosition.initial, 0, 1)}`] : []),
-    `export function beforeRender(delta) {
-  __pxlblz_show_elapsed_s = (__pxlblz_show_elapsed_s + delta / 1000) % ${cursor / 1000}
-  __pxlblz_show_route_layout = 0
-${layoutSelectLines}${layoutSelectLines ? '\n' : ''}${propertyRamps ? `${emitRoutingPropertyAssignments(propertyRamps)}\n` : ''}  ${schedulerBranches}
-}`,
-    `export function ${outputDimension === 2 ? 'render2D(index, x, y)' : 'render(index)'} {
-  if (__pxlblz_show_transition >= 0) {
+  const hasTransitions = transitionBranches.length > 0
+  const usesRouteLayout = !sharedPhysicalCut || layoutSelectLines.length > 0
+  const renderBody = hasTransitions
+    ? `if (__pxlblz_show_transition >= 0) {
     ${transitionBranches}
   } else {
     ${sceneBranches}
-  }
+  }`
+    : sceneBranches
+
+  return [
+    emitRuntimePrelude(members, outputDimension, {
+      includeHash: transitionBranches.includes('__pxlblz_show_hash01'),
+      includeMix: transitionBranches.length > 0,
+      includePhase: false,
+    }),
+    ...members.map((member) => member.code.trim()),
+    ...stackWrappers,
+    ...(sharedPhysicalCut?.prelude ? [sharedPhysicalCut.prelude] : []),
+    'var __pxlblz_show_scene = 0',
+    ...(hasTransitions
+      ? ['var __pxlblz_show_transition = -1', 'var __pxlblz_show_transition_start_s = 0']
+      : []),
+    ...(usesRouteLayout ? ['var __pxlblz_show_route_layout = 0'] : []),
+    ...(propertyRamps ? [`var __pxlblz_show_route_split_position = ${clampNumber(propertyRamps.splitPosition.initial, 0, 1)}`] : []),
+    `export function beforeRender(delta) {
+  __pxlblz_show_elapsed_s = (__pxlblz_show_elapsed_s + delta / 1000) % ${cursor / 1000}
+${usesRouteLayout ? '  __pxlblz_show_route_layout = 0\n' : ''}
+${layoutSelectLines}${layoutSelectLines ? '\n' : ''}${propertyRamps ? `${emitRoutingPropertyAssignments(propertyRamps)}\n` : ''}  ${schedulerBranches}
+}`,
+    `export function ${outputDimension === 2 ? 'render2D(index, x, y)' : 'render(index)'} {
+  ${renderBody}
   rgb(0, 0, 0)
 }`,
     '',
@@ -1724,6 +1905,196 @@ ${layoutSelectLines}${layoutSelectLines ? '\n' : ''}${propertyRamps ? `${emitRou
 
 type ResolvedRoutedScenePlacement = ShowRoutedScenePlacementRecipe & { member: CompiledMember }
 type ResolvedRoutedScenePlacementRamp = ShowRoutedScenePlacementRampRecipe & { member: CompiledMember }
+
+function emitSharedPhysicalCutSceneRender(
+  layout: ShowRoutingLayoutRecipe,
+  scenes: Array<{
+    sceneIndex: number
+    placements: ResolvedRoutedScenePlacement[]
+    propertyTracks?: ShowPropertyAnimationTrack[]
+  }>,
+  outputDimension: 1 | 2,
+  sceneLocalTimeExpression: (sceneIndex: number) => string,
+): { prelude: string; render: string } {
+  const routingSetup = [
+    'var __pxlblz_show_route_id = -1',
+    'var __pxlblz_show_route_local_index = -1',
+    'var __pxlblz_show_route_pixelCount = 1',
+    ...(outputDimension === 2
+      ? ['var __pxlblz_show_route_width = 1', 'var __pxlblz_show_route_height = 1']
+      : []),
+    ...layout.zones.flatMap((zone, zoneIndex) => {
+      const local = `__pxlblz_show_route_candidate_${zoneIndex}`
+      const pixelCount = Math.max(1, controllerZonePixelCount(zone))
+      const width = Math.max(1, Math.ceil(Math.sqrt(pixelCount)))
+      const height = Math.max(1, Math.ceil(pixelCount / width))
+      return [
+        `var ${local} = -1`,
+        ...emitZoneLocalAssignments(zone, local),
+        `if (${local} >= 0) {`,
+        `  __pxlblz_show_route_id = ${zoneIndex}`,
+        `  __pxlblz_show_route_local_index = ${local}`,
+        `  __pxlblz_show_route_pixelCount = ${pixelCount}`,
+        ...(outputDimension === 2
+          ? [`  __pxlblz_show_route_width = ${width}`, `  __pxlblz_show_route_height = ${height}`]
+          : []),
+        '}',
+      ]
+    }),
+    ...(outputDimension === 2
+      ? [
+          'var __pxlblz_show_route_local_x = __pxlblz_show_route_width == 1 ? 0.5 : (__pxlblz_show_route_local_index % __pxlblz_show_route_width) / (__pxlblz_show_route_width - 1)',
+          'var __pxlblz_show_route_local_y = __pxlblz_show_route_height == 1 ? 0.5 : floor(__pxlblz_show_route_local_index / __pxlblz_show_route_width) / (__pxlblz_show_route_height - 1)',
+        ]
+      : []),
+  ].join('\n')
+  const canInternPlans = scenes.every((scene) => {
+    if ((scene.propertyTracks?.length ?? 0) > 0) return false
+    return [...groupRoutedPlacementsByZone(scene.placements).values()].every((stack) => (
+      stack.length === 1 && routedPlacementIsOpaque(stack[0])
+    ))
+  })
+  if (canInternPlans) {
+    const planCode: Array<{ configuration: string; render: string }> = []
+    const planIndexByCode = new Map<string, number>()
+    const scenePlans = scenes.map((scene) => {
+      const stacks = groupRoutedPlacementsByZone(scene.placements)
+      return layout.zones.flatMap((zone, zoneIndex) => {
+        const stack = stacks.get(zone.name)
+        if (!stack) return []
+        const plan = emitInternedSharedPhysicalSceneZonePlan(stack[0], outputDimension)
+        const key = `${plan.configuration}\n--- render ---\n${plan.render}`
+        let planIndex = planIndexByCode.get(key)
+        if (planIndex === undefined) {
+          planIndex = planCode.length
+          planCode.push(plan)
+          planIndexByCode.set(key, planIndex)
+        }
+        return [{ planIndex, zoneIndex }]
+      })
+    })
+    const tableSize = scenes.length * layout.zones.length
+    const tableValues = Array.from({ length: tableSize }, () => 0)
+    scenePlans.forEach((plans, sceneArrayIndex) => {
+      plans.forEach(({ planIndex, zoneIndex }) => {
+        tableValues[sceneArrayIndex * layout.zones.length + zoneIndex] = planIndex + 1
+      })
+    })
+    const prelude = [
+      `var __pxlblz_show_plans = array(${tableSize})`,
+      ...tableValues.flatMap((planIndex, index) => (
+        planIndex === 0 ? [] : [`__pxlblz_show_plans[${index}] = ${planIndex}`]
+      )),
+      'var __pxlblz_show_plan_config = -1',
+    ].join('\n')
+    const renderPlan = planCode.map((plan, planIndex) => (
+      `${planIndex === 0 ? 'if' : 'else if'} (__pxlblz_show_plan == ${planIndex}) {
+  if (__pxlblz_show_plan_configure) {
+${indentBlock(plan.configuration, 4)}
+  }
+${indentBlock(plan.render, 2)}
+}`
+    )).join(' ')
+    return {
+      prelude,
+      render: `${routingSetup}
+var __pxlblz_show_plan = -1
+if (__pxlblz_show_route_id >= 0) __pxlblz_show_plan = __pxlblz_show_plans[__pxlblz_show_scene * ${layout.zones.length} + __pxlblz_show_route_id] - 1
+var __pxlblz_show_plan_config_key = __pxlblz_show_plan * ${layout.zones.length} + __pxlblz_show_route_id
+var __pxlblz_show_plan_configure = __pxlblz_show_plan >= 0 && __pxlblz_show_plan_config_key != __pxlblz_show_plan_config
+if (__pxlblz_show_plan_configure) __pxlblz_show_plan_config = __pxlblz_show_plan_config_key
+${renderPlan}`
+    }
+  }
+  const sceneBranches = scenes.map((scene, sceneIndex) => {
+    const stacks = groupRoutedPlacementsByZone(scene.placements)
+    const activeZones = layout.zones.flatMap((zone, zoneIndex) => {
+      const stack = stacks.get(zone.name)
+      if (!stack) return []
+      return [{ stack, zoneIndex }]
+    })
+    const zoneBranches = activeZones.map(({ stack, zoneIndex }, blockIndex) => (
+      `${blockIndex === 0 ? 'if' : 'else if'} (__pxlblz_show_route_id == ${zoneIndex}) {
+${indentBlock(emitSharedPhysicalSceneZoneStack(
+    stack,
+    zoneIndex,
+    outputDimension,
+    scene.propertyTracks,
+    sceneLocalTimeExpression(scene.sceneIndex),
+  ), 2)}
+}`
+    )).join(' ')
+    return `${sceneIndex === 0 ? 'if' : 'else if'} (__pxlblz_show_scene == ${scene.sceneIndex}) {
+${indentBlock(zoneBranches, 2)}
+}`
+  }).join(' ')
+  return { prelude: '', render: `${routingSetup}\n${sceneBranches}` }
+}
+
+function emitInternedSharedPhysicalSceneZonePlan(
+  placement: ResolvedRoutedScenePlacement,
+  outputDimension: 1 | 2,
+): { configuration: string; render: string } {
+  const member = placement.member
+  const captureCall = outputDimension === 2
+    ? `${member.prefix}_renderCapture2D(__pxlblz_show_route_local_index, __pxlblz_show_route_local_x, __pxlblz_show_route_local_y)`
+    : `${member.prefix}_renderCapture(__pxlblz_show_route_local_index)`
+  const capture = emitRoutedPlacementCapture(placement, captureCall)
+  return {
+    configuration: [
+      `${member.pixelCountName} = __pxlblz_show_route_pixelCount`,
+      ...capture.lines.slice(0, -1),
+    ].join('\n'),
+    render: [
+      capture.lines[capture.lines.length - 1],
+      `${member.prefix}_emit()`,
+      'return',
+    ].join('\n'),
+  }
+}
+
+function emitSharedPhysicalSceneZoneStack(
+  placements: ResolvedRoutedScenePlacement[],
+  zoneIndex: number,
+  outputDimension: 1 | 2,
+  propertyTracks?: ShowPropertyAnimationTrack[],
+  localTimeExpression?: string,
+): string {
+  const captureMember = (placement: ResolvedRoutedScenePlacement) => outputDimension === 2
+    ? `${placement.member.prefix}_renderCapture2D(__pxlblz_show_route_local_index, __pxlblz_show_route_local_x, __pxlblz_show_route_local_y)`
+    : `${placement.member.prefix}_renderCapture(__pxlblz_show_route_local_index)`
+  const directPlacement = placements.length === 1 && routedPlacementIsOpaque(placements[0], propertyTracks)
+    ? placements[0]
+    : undefined
+  if (directPlacement) {
+    const capture = emitRoutedPlacementCapture(
+      directPlacement,
+      captureMember(directPlacement),
+      propertyTracks,
+      localTimeExpression,
+    )
+    return [
+      `${directPlacement.member.pixelCountName} = __pxlblz_show_route_pixelCount`,
+      ...capture.lines,
+      `${directPlacement.member.prefix}_emit()`,
+      'return',
+    ].join('\n')
+  }
+  const target = `__pxlblz_show_stack_${zoneIndex}`
+  const capture = emitRoutedPlacementStackCapture(
+    placements,
+    captureMember,
+    target,
+    propertyTracks,
+    localTimeExpression,
+  )
+  return [
+    ...placements.map((placement) => `${placement.member.pixelCountName} = __pxlblz_show_route_pixelCount`),
+    capture,
+    `rgb(${target}_r, ${target}_g, ${target}_b)`,
+    'return',
+  ].join('\n')
+}
 
 function emitRoutedSceneRampAssignments(
   ramps: ResolvedRoutedScenePlacementRamp[] | undefined,
@@ -2037,39 +2408,37 @@ function routedSceneCompositeMember(
 function emitRoutedSceneStackWrapper(
   stack: ResolvedRoutedScenePlacement[],
   prefix: string,
+  outputDimension: 1 | 2,
   propertyTracks?: ShowPropertyAnimationTrack[],
   localTimeExpression?: string,
 ): string {
-  const capture1D = emitRoutedPlacementStackCapture(
+  const capture = emitRoutedPlacementStackCapture(
     stack,
-    (placement) => `${placement.member.prefix}_renderCapture(index)`,
+    (placement) => outputDimension === 2
+      ? `${placement.member.prefix}_renderCapture2D(index, x, y)`
+      : `${placement.member.prefix}_renderCapture(index)`,
     `${prefix}_capture`,
     propertyTracks,
     localTimeExpression,
   )
-  const capture2D = emitRoutedPlacementStackCapture(
-    stack,
-    (placement) => `${placement.member.prefix}_renderCapture2D(index, x, y)`,
-    `${prefix}_capture`,
-    propertyTracks,
-    localTimeExpression,
-  )
+  const captureFunction = outputDimension === 2
+    ? `function ${prefix}_renderCapture2D(index, x, y) {
+${indentBlock(capture, 2)}
+  ${prefix}_r = ${prefix}_capture_r
+  ${prefix}_g = ${prefix}_capture_g
+  ${prefix}_b = ${prefix}_capture_b
+}`
+    : `function ${prefix}_renderCapture(index) {
+${indentBlock(capture, 2)}
+  ${prefix}_r = ${prefix}_capture_r
+  ${prefix}_g = ${prefix}_capture_g
+  ${prefix}_b = ${prefix}_capture_b
+}`
   return `var ${prefix}_r = 0
 var ${prefix}_g = 0
 var ${prefix}_b = 0
 var ${prefix}_pixelCount = pixelCount
-function ${prefix}_renderCapture(index) {
-${indentBlock(capture1D, 2)}
-  ${prefix}_r = ${prefix}_capture_r
-  ${prefix}_g = ${prefix}_capture_g
-  ${prefix}_b = ${prefix}_capture_b
-}
-function ${prefix}_renderCapture2D(index, x, y) {
-${indentBlock(capture2D, 2)}
-  ${prefix}_r = ${prefix}_capture_r
-  ${prefix}_g = ${prefix}_capture_g
-  ${prefix}_b = ${prefix}_capture_b
-}
+${captureFunction}
 function ${prefix}_emit() { rgb(${prefix}_r, ${prefix}_g, ${prefix}_b) }`
 }
 
@@ -2098,6 +2467,27 @@ function emitPhysicalSceneZoneStack(
 ): string {
   const local = `__pxlblz_show_scene_zone_${zoneIndex}_index`
   const pixelCount = Math.max(1, controllerZonePixelCount(zone))
+  const directPlacement = placements.length === 1 && routedPlacementIsOpaque(placements[0], propertyTracks)
+    ? placements[0]
+    : undefined
+  if (directPlacement) {
+    const capture = emitRoutedPlacementCapture(
+      directPlacement,
+      routedSceneMemberCapture(directPlacement.member, local, pixelCount, outputDimension, zoneIndex),
+      propertyTracks,
+      localTimeExpression,
+    )
+    return [
+      `var ${local} = -1`,
+      ...emitZoneLocalAssignments(zone, local),
+      `if (${local} >= 0) {`,
+      `  ${directPlacement.member.pixelCountName} = ${pixelCount}`,
+      indentBlock(capture.lines.join('\n'), 2),
+      `  ${directPlacement.member.prefix}_emit()`,
+      `  return`,
+      `}`,
+    ].join('\n')
+  }
   const capture = emitRoutedPlacementStackCapture(
     placements,
     (placement) => routedSceneMemberCapture(placement.member, local, pixelCount, outputDimension, zoneIndex),
@@ -2129,36 +2519,68 @@ function emitRoutedPlacementStackCapture(
     `var ${target}_g = 0`,
     `var ${target}_b = 0`,
     ...placements.flatMap((placement) => {
-      const placementTracks = (propertyTracks ?? []).filter((track) => (
-        'placementId' in track.target && track.target.placementId === placement.placementId
-      ))
-      const opacityTrack = placementTracks.find((track) => track.target.kind === 'placement-opacity')
-      const opacity = opacityTrack && localTimeExpression
-        ? emitShowPropertyTrackExpression(opacityTrack, localTimeExpression)
-        : String(clampNumber(placement.opacity ?? 1, 0, 1))
-      const brightnessTrack = placementTracks.find((track) => (
-        track.target.kind === 'placement-view' && track.target.property === 'brightness'
-      ))
-      const phaseTrack = placementTracks.find((track) => (
-        track.target.kind === 'placement-view' && track.target.property === 'phase'
-      ))
+      const rendered = emitRoutedPlacementCapture(
+        placement,
+        capture(placement),
+        propertyTracks,
+        localTimeExpression,
+      )
       const member = placement.member
       return [
-        ...(brightnessTrack && localTimeExpression
-          ? [`${member.prefix}_adapt_brightness = ${emitShowPropertyTrackExpression(brightnessTrack, localTimeExpression)}`]
-          : placement.brightness === undefined ? [] : [`${member.prefix}_adapt_brightness = ${placement.brightness}`]),
-        ...(phaseTrack && localTimeExpression
-          ? [`${member.prefix}_adapt_phase = ${emitShowPropertyTrackExpression(phaseTrack, localTimeExpression)}`]
-          : placement.phase === undefined ? [] : [`${member.prefix}_adapt_phase = ${placement.phase}`]),
-        ...(placement.mirror === undefined ? [] : [`${member.prefix}_adapt_mirror = ${boolNumber(placement.mirror)}`]),
-        ...emitRoutedPlacementEffectTargets(member, placement.effects, placementTracks, localTimeExpression),
-        capture(placement),
-        `${target}_r = ${member.prefix}_r * (${opacity}) + ${target}_r * (1 - (${opacity}))`,
-        `${target}_g = ${member.prefix}_g * (${opacity}) + ${target}_g * (1 - (${opacity}))`,
-        `${target}_b = ${member.prefix}_b * (${opacity}) + ${target}_b * (1 - (${opacity}))`,
+        ...rendered.lines,
+        `${target}_r = ${member.prefix}_r * (${rendered.opacity}) + ${target}_r * (1 - (${rendered.opacity}))`,
+        `${target}_g = ${member.prefix}_g * (${rendered.opacity}) + ${target}_g * (1 - (${rendered.opacity}))`,
+        `${target}_b = ${member.prefix}_b * (${rendered.opacity}) + ${target}_b * (1 - (${rendered.opacity}))`,
       ]
     }),
   ].join('\n')
+}
+
+function routedPlacementIsOpaque(
+  placement: ResolvedRoutedScenePlacement,
+  propertyTracks?: ShowPropertyAnimationTrack[],
+): boolean {
+  const hasOpacityTrack = (propertyTracks ?? []).some((track) => (
+    track.target.kind === 'placement-opacity'
+    && track.target.placementId === placement.placementId
+  ))
+  return !hasOpacityTrack && clampNumber(placement.opacity ?? 1, 0, 1) === 1
+}
+
+function emitRoutedPlacementCapture(
+  placement: ResolvedRoutedScenePlacement,
+  capture: string,
+  propertyTracks?: ShowPropertyAnimationTrack[],
+  localTimeExpression?: string,
+): { lines: string[]; opacity: string } {
+  const placementTracks = (propertyTracks ?? []).filter((track) => (
+    'placementId' in track.target && track.target.placementId === placement.placementId
+  ))
+  const opacityTrack = placementTracks.find((track) => track.target.kind === 'placement-opacity')
+  const opacity = opacityTrack && localTimeExpression
+    ? emitShowPropertyTrackExpression(opacityTrack, localTimeExpression)
+    : String(clampNumber(placement.opacity ?? 1, 0, 1))
+  const brightnessTrack = placementTracks.find((track) => (
+    track.target.kind === 'placement-view' && track.target.property === 'brightness'
+  ))
+  const phaseTrack = placementTracks.find((track) => (
+    track.target.kind === 'placement-view' && track.target.property === 'phase'
+  ))
+  const member = placement.member
+  return {
+    lines: [
+      ...(brightnessTrack && localTimeExpression
+        ? [`${member.prefix}_adapt_brightness = ${emitShowPropertyTrackExpression(brightnessTrack, localTimeExpression)}`]
+        : placement.brightness === undefined ? [] : [`${member.prefix}_adapt_brightness = ${placement.brightness}`]),
+      ...(phaseTrack && localTimeExpression
+        ? [`${member.prefix}_adapt_phase = ${emitShowPropertyTrackExpression(phaseTrack, localTimeExpression)}`]
+        : placement.phase === undefined ? [] : [`${member.prefix}_adapt_phase = ${placement.phase}`]),
+      ...(placement.mirror === undefined ? [] : [`${member.prefix}_adapt_mirror = ${boolNumber(placement.mirror)}`]),
+      ...emitRoutedPlacementEffectTargets(member, placement.effects, placementTracks, localTimeExpression),
+      capture,
+    ],
+    opacity,
+  }
 }
 
 function emitRoutedPlacementEffectTargets(
@@ -2173,8 +2595,32 @@ function emitRoutedPlacementEffectTargets(
     authored.find((effect) => effect.id === template.id && effect.kind === template.kind)
     ?? identityShowEffect(template)
   ))
-  const assignments = emitSceneEffectTargets(member, resolved).trim()
   const hasAffine = member.effects.some((effect) => ['translate', 'rotate', 'scale', 'shear'].includes(effect.kind))
+  if (member.staticPlanEffects) {
+    const parameterAssignments = resolved.flatMap((effect) => (
+      ['translate', 'rotate', 'scale', 'shear'].includes(effect.kind)
+        ? []
+        : showEffectParameterNames(effect).map((parameter) => (
+            `${effectParameterVariable(member, effect.id, parameter)} = ${effectParameterValue(effect, parameter)}`
+          ))
+    ))
+    const matrixAssignments = hasAffine
+      ? (() => {
+          const matrix = buildShowEffectSampleMatrix(resolved)
+          const value = (candidate: number) => String(Object.is(candidate, -0) ? 0 : candidate)
+          return [
+            `${member.prefix}_fx_a = ${value(matrix.a)}`,
+            `${member.prefix}_fx_b = ${value(matrix.b)}`,
+            `${member.prefix}_fx_c = ${value(matrix.c)}`,
+            `${member.prefix}_fx_d = ${value(matrix.d)}`,
+            `${member.prefix}_fx_tx = ${value(matrix.tx)}`,
+            `${member.prefix}_fx_ty = ${value(matrix.ty)}`,
+          ]
+        })()
+      : []
+    return [...parameterAssignments, ...matrixAssignments]
+  }
+  const assignments = emitSceneEffectTargets(member, resolved).trim()
   const animationAssignments = localTimeExpression
     ? placementTracks.flatMap((track): string[] => {
         if (track.target.kind !== 'placement-effect') return []
@@ -2343,7 +2789,7 @@ function emitSceneControlTargets(member: CompiledMember, targets: Record<string,
 }
 
 function emitSceneEffectTargets(member: CompiledMember, effects: ShowClipEffect[] | undefined): string {
-  if (!effects || !member.animatedEffects) return ''
+  if (!effects || !member.animatedEffects || member.staticPlanEffects) return ''
   return normalizeShowClipEffects(effects).flatMap((effect) => (
     showEffectParameterNames(effect).map((parameter) => (
       `\n    ${effectParameterVariable(member, effect.id, parameter)} = ${effectParameterValue(effect, parameter)}`
@@ -3021,7 +3467,7 @@ function mergeRouteZones(id: string, zones: ControllerZone[]): ControllerZone {
 
 function emitRouteShowCode(members: CompiledMember[], routes: ResolvedRoute[], outputDimension: 1 | 2): string {
   return [
-    emitRuntimePrelude(members),
+    emitRuntimePrelude(members, outputDimension),
     ...members.map(member => member.code.trim()),
     emitRouteScheduler(routes),
     emitRouteRender(routes, outputDimension),
@@ -3127,7 +3573,7 @@ ${representation === 'coordinate-predicates'
 `
     : ''
   return [
-    emitRuntimePrelude(members),
+    emitRuntimePrelude(members, outputDimension),
     ...members.map((member) => member.code.trim()),
     packedPrelude,
     `var __pxlblz_show_route_layout = 0`,
@@ -3433,9 +3879,13 @@ function describeMemberEffectRuntime(member: CompiledMember): {
   const hasDistortion = member.effects.some((effect) => isShowDistortionEffect(effect) && effect.amount !== 0)
   const hasCoordinates = hasAffine || hasDistortion || (member.animatedEffects && member.effects.some(isShowDistortionEffect))
   const wrap = member.effects.some((effect) => effect.kind === 'wrap') && hasCoordinates
-  const parameterDeclarations = member.effects.flatMap((effect) => showEffectParameterNames(effect).map((parameter) => (
-    `var ${effectParameterVariable(member, effect.id, parameter)} = ${effectParameterValue(effect, parameter)}`
-  )))
+  const parameterDeclarations = member.effects.flatMap((effect) => (
+    member.staticPlanEffects && ['translate', 'rotate', 'scale', 'shear'].includes(effect.kind)
+      ? []
+      : showEffectParameterNames(effect).map((parameter) => (
+          `var ${effectParameterVariable(member, effect.id, parameter)} = ${effectParameterValue(effect, parameter)}`
+        ))
+  ))
   const operationAssignments = member.effects.flatMap((effect, index) => {
     if (!['translate', 'rotate', 'scale', 'shear'].includes(effect.kind)) return []
     const suffix = `${member.prefix}_fx_o${index}`
@@ -3508,7 +3958,7 @@ ${operationAssignments.join('\n')}
       ...(member.animatedEffects ? [
         ...parameterDeclarations,
       ] : []),
-      ...(member.animatedEffects && hasAffine ? [
+      ...(member.animatedEffects && hasAffine && !member.staticPlanEffects ? [
         `var ${member.prefix}_fx_ma = 1`,
         `var ${member.prefix}_fx_mb = 0`,
         `var ${member.prefix}_fx_mc = 0`,
@@ -3524,7 +3974,7 @@ ${operationAssignments.join('\n')}
         `var ${member.prefix}_fx_tx = ${matrix.tx}`,
         `var ${member.prefix}_fx_ty = ${matrix.ty}`,
       ] : []),
-      ...(member.animatedEffects && hasAffine ? [updateFunction] : []),
+      ...(member.animatedEffects && hasAffine && !member.staticPlanEffects ? [updateFunction] : []),
     ],
   }
 }
@@ -3596,7 +4046,7 @@ function effectParameterValue(effect: ShowClipEffect, parameter: string): number
   return showEffectNumericValue(effect, parameter)
 }
 
-function emitMemberOutputEffectFunction(member: CompiledMember): string {
+function emitMemberOutputEffectLines(member: CompiledMember): string {
   const r = `${member.prefix}_r`
   const g = `${member.prefix}_g`
   const b = `${member.prefix}_b`
@@ -3678,10 +4128,23 @@ function emitMemberOutputEffectFunction(member: CompiledMember): string {
       )
     }
   }
-  return `function ${member.prefix}_applyOutputEffects() {\n${lines.join('\n')}\n}`
+  return lines.join('\n')
 }
 
-function emitRuntimePrelude(members: CompiledMember[]): string {
+function emitRuntimePrelude(
+  members: CompiledMember[],
+  outputDimension: ShowOutputDimension,
+  options: {
+    includeAdaptationMix?: boolean
+    includeHash?: boolean
+    includeMix?: boolean
+    includePhase?: boolean
+  } = {},
+): string {
+  const includeAdaptationMix = options.includeAdaptationMix ?? false
+  const includeHash = options.includeHash ?? true
+  const includeMix = options.includeMix ?? true
+  const includePhase = options.includePhase ?? true
   const samplePropertyRamps = members[0]?.samplePropertyRamps
   const sampleRuntime = emitSampleRemappingRuntime(samplePropertyRamps)
   const memberVars = members.flatMap((member, index) => {
@@ -3746,7 +4209,9 @@ function emitRuntimePrelude(members: CompiledMember[]): string {
 ${indent}${member.elapsedName} = ${member.elapsedName} + scaledDelta
 ${indent}${member.hasBeforeRender ? `${member.beforeRenderName}(scaledDelta)` : ''}`
     const controlCalls = member.controls.map((control) => `  ${control.functionName}(${control.valueName})`).join('\n')
-    const effectUpdateCall = effectRuntime?.hasAffine && member.animatedEffects ? `\n  ${member.prefix}_fx_update()` : ''
+    const effectUpdateCall = effectRuntime?.hasAffine && member.animatedEffects && !member.staticPlanEffects
+      ? `\n  ${member.prefix}_fx_update()`
+      : ''
     const advance = lightShutter?.clockBehavior === 'freeze'
       ? `function ${member.prefix}_advance(delta) {${controlCalls ? `\n${controlCalls}` : ''}${effectUpdateCall}
   ${member.prefix}_updateShutter()
@@ -3779,10 +4244,13 @@ ${advanceDelta('delta', '  ')}
     ...shutterVars,
     `function ${member.prefix}_clear() { ${member.prefix}_r = 0; ${member.prefix}_g = 0; ${member.prefix}_b = 0 }`,
     `function ${member.prefix}_rgb(r, g, b) { ${member.prefix}_r = r; ${member.prefix}_g = g; ${member.prefix}_b = b }`,
-    `function ${member.prefix}_hsv(h, s, v) { __pxlblz_show_capture_hsv(${index}, h + ${member.prefix}_adapt_phase, s, v) }`,
-    emitMemberOutputEffectFunction(member),
-    `function ${member.prefix}_time(interval) { return (${member.elapsedName} / (interval * 65536)) % 1 }`,
-    `function ${member.prefix}_setAdaptation(brightness, phase, timeScale, mirror) {
+    ...(member.usesHsv
+      ? [`function ${member.prefix}_hsv(h, s, v) { __pxlblz_show_capture_hsv(${index}, h + ${member.prefix}_adapt_phase, s, v) }`]
+      : []),
+    ...(member.usesTime
+      ? [`function ${member.prefix}_time(interval) { return (${member.elapsedName} / (interval * 65536)) % 1 }`]
+      : []),
+    ...(includeAdaptationMix ? [`function ${member.prefix}_setAdaptation(brightness, phase, timeScale, mirror) {
   ${member.prefix}_adapt_brightness = brightness
   ${member.prefix}_adapt_phase = phase
   ${member.prefix}_adapt_timeScale = timeScale
@@ -3795,9 +4263,9 @@ ${advanceDelta('delta', '  ')}
     fromTimeScale + (toTimeScale - fromTimeScale) * mix,
     mix < 0.5 ? fromMirror : toMirror
   )
-}`,
+}`] : []),
     advance,
-    `function ${member.prefix}_renderCapture(index) {
+    ...(outputDimension === 1 ? [`function ${member.prefix}_renderCapture(index) {
   var mappedIndex = index
   if (${member.prefix}_adapt_mirror >= 0.5) mappedIndex = ${member.pixelCountName} - 1 - index
 ${samplePropertyRamps ? `  if (__pxlblz_show_sample_repeat_scale != 1) {
@@ -3813,10 +4281,10 @@ ${emitMemberDistortionSampling(member, 'effectX', 'effectY')}
   mappedIndex = min(${member.pixelCountName} - 1, floor(effectX * ${member.pixelCountName}))
 ` : ''}  ${member.prefix}_clear()
   ${member.hasRender ? emitSelectedMemberRendererCall(member, 1, { index: 'mappedIndex' }) : ''}
-  ${member.prefix}_applyOutputEffects()
+${emitMemberOutputEffectLines(member)}
 ${effectRuntime?.hasCoordinates && !effectRuntime.wrap ? `  if (!effectInside) ${member.prefix}_clear()
-` : ''}}`,
-    `function ${member.prefix}_renderCapture2D(index, x, y) {
+` : ''}}`] : []),
+    ...(outputDimension === 2 ? [`function ${member.prefix}_renderCapture2D(index, x, y) {
   var mappedIndex = index
   var mappedX = x
 ${samplePropertyRamps || effectRuntime?.hasCoordinates ? '  var mappedY = y\n' : ''}  if (${member.prefix}_adapt_mirror >= 0.5) {
@@ -3839,13 +4307,14 @@ ${emitMemberDistortionSampling(member, 'effectX', 'effectY')}
     x: 'mappedX',
     y: samplePropertyRamps || effectRuntime?.hasCoordinates ? 'mappedY' : 'y',
   })}
-  ${member.prefix}_applyOutputEffects()
+${emitMemberOutputEffectLines(member)}
 ${effectRuntime?.hasCoordinates && !effectRuntime.wrap ? `  if (!effectInside) ${member.prefix}_clear()
-` : ''}}`,
+` : ''}}`] : []),
     `function ${member.prefix}_emit() { rgb(${member.prefix}_r, ${member.prefix}_g, ${member.prefix}_b) }`,
     ]
   })
 
+  const usesHsv = members.some((member) => member.usesHsv)
   const captureBranches = members.length <= 2
     ? `if (slot == 0) { __pxlblz_show_c0_r = r; __pxlblz_show_c0_g = g; __pxlblz_show_c0_b = b }
   else { __pxlblz_show_c1_r = r; __pxlblz_show_c1_g = g; __pxlblz_show_c1_b = b }`
@@ -3855,11 +4324,11 @@ ${effectRuntime?.hasCoordinates && !effectRuntime.wrap ? `  if (!effectInside) $
 
   return [
     'var __pxlblz_show_elapsed_s = 0',
-    'var __pxlblz_show_mix = 0',
-    'var __pxlblz_show_phase = 0',
+    ...(includeMix ? ['var __pxlblz_show_mix = 0'] : []),
+    ...(includePhase ? ['var __pxlblz_show_phase = 0'] : []),
     ...(sampleRuntime ? [sampleRuntime] : []),
     ...memberVars,
-    `function __pxlblz_show_capture_rgb(slot, r, g, b) {
+    ...(usesHsv ? [`function __pxlblz_show_capture_rgb(slot, r, g, b) {
   ${captureBranches}
 }`,
     `function __pxlblz_show_capture_hsv(slot, h, s, v) {
@@ -3875,10 +4344,10 @@ ${effectRuntime?.hasCoordinates && !effectRuntime.wrap ? `  if (!effectInside) $
   else if (i == 3) __pxlblz_show_capture_rgb(slot, p, q, v)
   else if (i == 4) __pxlblz_show_capture_rgb(slot, t, p, v)
   else __pxlblz_show_capture_rgb(slot, v, p, q)
-}`,
-    `function __pxlblz_show_hash01(index) {
+}`] : []),
+    ...(includeHash ? [`function __pxlblz_show_hash01(index) {
   return frac((index + 1) * 0.61803398875)
-}`,
+}`] : []),
   ].join('\n')
 }
 
@@ -4122,7 +4591,7 @@ function describeEffectCost(
     effect.kind === 'translate' || effect.kind === 'rotate' || effect.kind === 'scale' || effect.kind === 'shear'
   )).length)
   const affineOperationsPerFrame = Math.max(0, ...members.map((member, index) => (
-    member.animatedEffects ? affineCounts[index] : 0
+    member.animatedEffects && !member.staticPlanEffects ? affineCounts[index] : 0
   )))
   const hasAffine = affineCounts.some((count) => count > 0)
   const memberDistortionCosts = members.map((member) => member.effects
@@ -4481,6 +4950,62 @@ function rewriteSource(src: string, rewrites: Rewrite[]): string {
 
 function parseModule(source: string): Node {
   return acorn.parse(source, { ecmaVersion: 2020, sourceType: 'module' }) as unknown as Node
+}
+
+function compactGeneratedShowSymbols(source: string): { code: string; names: Map<string, string> } {
+  const ast = parseModule(source)
+  const identifiers: Node[] = []
+  const existingNames = new Set<string>()
+  const visit = (value: unknown): void => {
+    if (!value || typeof value !== 'object') return
+    if (Array.isArray(value)) {
+      value.forEach(visit)
+      return
+    }
+    const node = value as Node
+    if (node.type === 'Identifier' && typeof node.name === 'string') {
+      identifiers.push(node)
+      existingNames.add(node.name)
+    }
+    for (const child of Object.values(node)) visit(child)
+  }
+  visit(ast)
+
+  const counts = new Map<string, number>()
+  for (const identifier of identifiers) {
+    const name = identifier.name as string
+    if (!name.startsWith('__pxlblz_show_')) continue
+    counts.set(name, (counts.get(name) ?? 0) + 1)
+  }
+  const orderedNames = [...counts].sort((left, right) => (
+    right[1] - left[1] || left[0].localeCompare(right[0])
+  )).map(([name]) => name)
+  const alphabet = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'
+  const suffix = (index: number) => {
+    let value = index
+    let result = ''
+    do {
+      result = alphabet[value % alphabet.length] + result
+      value = Math.floor(value / alphabet.length) - 1
+    } while (value >= 0)
+    return result
+  }
+  const names = new Map<string, string>()
+  let candidateIndex = 0
+  for (const name of orderedNames) {
+    let compact: string
+    do {
+      compact = `__pxlblz_${suffix(candidateIndex)}`
+      candidateIndex += 1
+    } while (existingNames.has(compact))
+    names.set(name, compact)
+    existingNames.add(compact)
+  }
+  const rewrites = identifiers.flatMap((identifier): Rewrite[] => {
+    const compact = names.get(identifier.name as string)
+    return compact ? [{ start: identifier.start, end: identifier.end, text: compact }] : []
+  })
+  return { code: rewriteSource(source, rewrites), names }
 }
 
 function byteLength(source: string): number {

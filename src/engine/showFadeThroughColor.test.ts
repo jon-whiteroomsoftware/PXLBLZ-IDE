@@ -84,7 +84,7 @@ describe('Fade through color Transition (#445)', () => {
     expect(artifact.summary.transitionCost).toBe('route')
     expect(artifact.summary.worstInstantRenderersPerPixel).toBe(1)
     expect(artifact.summary.cost.cpu.patternEvaluations).toEqual({ formula: 'N', basePerPixel: 1 })
-    expect(artifact.code).toContain('__pxlblz_show_mix < 0.5')
+    expect(artifact.expandedCode).toContain('__pxlblz_show_mix < 0.5')
     expect(artifact.code).toContain('0.00392156862745098')
   })
 

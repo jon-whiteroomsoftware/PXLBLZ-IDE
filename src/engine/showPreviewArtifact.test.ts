@@ -103,7 +103,7 @@ describe('compileShowForPreview temporal adaptations (#379)', () => {
 
     expect(compiled.error).toBeNull()
     expect(compiled.artifact?.summary.clips.filter((clip) => clip.id === 'instance-user')).toHaveLength(1)
-    expect(compiled.artifact?.code).toContain('__pxlblz_show_c0_rgb(0.25')
+    expect(compiled.artifact?.expandedCode).toContain('__pxlblz_show_c0_rgb(0.25')
   })
 
   it('seeks deterministically across local Cut boundaries and explicit empty gaps (#488)', () => {
@@ -304,7 +304,7 @@ describe('compileShowForPreview temporal adaptations (#379)', () => {
       renderPolicy: 'single-continuous-hold',
       clips: [expect.objectContaining({ stepMs: 125 })],
     })
-    expect(compiled.artifact?.code).toContain('var __pxlblz_show_c0_step_ms = 125')
+    expect(compiled.artifact?.expandedCode).toContain('var __pxlblz_show_c0_step_ms = 125')
   })
 
   it('loads routed multi-range offsets and the later Scene schedule into the exact Stage artifact', () => {
@@ -349,7 +349,7 @@ describe('compileShowForPreview temporal adaptations (#379)', () => {
         expect.objectContaining({ id: '__pxlblz_empty-routed', timeOffsetMs: 0 }),
       ],
     })
-    expect(artifact.code).toContain('var __pxlblz_show_c1_elapsed_ms = 500')
+    expect(artifact.expandedCode).toContain('var __pxlblz_show_c1_elapsed_ms = 500')
     expect(rightPixels.some((index) => firstScene.pixels[index].some((channel) => channel > 0))).toBe(true)
     expect(leftPixels.some((index) => secondScene.pixels[index].some((channel) => channel > 0))).toBe(true)
     expect(rightPixels.every((index) => secondScene.pixels[index].every((channel) => channel === 0))).toBe(true)
@@ -383,11 +383,11 @@ describe('compileShowForPreview temporal adaptations (#379)', () => {
 
     const continueArtifact = compileShowForPreview(continued, [], undefined, {}).artifact
     expect(continueArtifact?.summary.clipCount).toBe(2)
-    expect(continueArtifact?.code.match(/var __pxlblz_show_c0_elapsed_ms/g)).toHaveLength(1)
+    expect(continueArtifact?.expandedCode.match(/var __pxlblz_show_c0_elapsed_ms/g)).toHaveLength(1)
 
     const restarted = updateShowCellRestartOnEntry(continued, destination.id, true)
     const restartArtifact = compileShowForPreview(restarted, [], undefined, {}).artifact
     expect(restartArtifact?.summary.clipCount).toBe(3)
-    expect(restartArtifact?.code).toContain('var __pxlblz_show_c2_elapsed_ms = 0')
+    expect(restartArtifact?.expandedCode).toContain('var __pxlblz_show_c2_elapsed_ms = 0')
   })
 })
