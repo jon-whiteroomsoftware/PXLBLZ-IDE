@@ -74,6 +74,7 @@ export interface LibraryRecord {
 
 export type ShowTransitionKind = 'cut' | 'crossfade' | 'fade-color' | 'wipe' | 'dither' | 'portal' | 'motion'
 export type ShowTransitionCost = 'free' | 'cheap' | 'expensive'
+export type ShowCrossfadePolicy = 'snapshot-live' | 'live-live'
 export type ShowPortalFeatherPolicy = 'dither' | 'blend'
 export type ShowTransitionEdgePolicy = 'hard' | 'dither' | 'blend'
 export type ShowDissolveVariant = 'pixel' | 'block' | 'coherent-noise' | 'soft-threshold'
@@ -222,6 +223,8 @@ export interface ShowPortalSettings {
 export interface ShowTransition {
   kind: ShowTransitionKind
   durationMs: number
+  /** Missing on legacy crossfades, which retain live/live semantics. */
+  crossfadePolicy?: ShowCrossfadePolicy
   /** Editable sRGB color used by the two-phase Fade-through-color Transition. */
   color?: string
   /** Stage-space motion direction in turns. Absent preserves the legacy index-domain Wipe. */
@@ -316,6 +319,8 @@ export interface ShowBoundaryTransition {
   kind: ShowTransitionKind | 'routing'
   durationMs: number
   easing: ShowTransitionEasing
+  /** Authored only for crossfade; missing legacy values normalize to live/live. */
+  crossfadePolicy?: ShowCrossfadePolicy
   layoutId?: string
   /** Stable directional threshold used when a routing marker has nonzero duration. */
   routingDirection?: ShowRoutingDirection

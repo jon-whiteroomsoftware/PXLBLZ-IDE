@@ -1,4 +1,5 @@
 import { advanceFastReplayCooperatively, createFastReplayRuntime, prepareFastReplay } from './fastReplay'
+import { compileShow } from './showCompiler'
 
 const RANDOM_PATTERN = `
 var t = 0
@@ -133,6 +134,50 @@ describe('Fast replay reconstruction', () => {
     const segmentedRuntime = createFastReplayRuntime(prepared, options)
     segmentedRuntime.advanceTo(100, { stepMs: 10 })
     const segmented = segmentedRuntime.advanceTo(250, { stepMs: 10 })
+
+    expect(segmented.checksum).toBe(uninterrupted.checksum)
+    expect(segmented.exports).toEqual(uninterrupted.exports)
+  })
+
+  it('reconstructs snapshot/live cache state deterministically across segmented seeks (#516)', () => {
+    const artifact = compileShow({
+      clips: [
+        {
+          id: 'outgoing',
+          source: 'export var renders = 0\nexport function render(index) { renders = renders + 1; rgb(index / pixelCount, 0, 0) }',
+        },
+        {
+          id: 'incoming',
+          source: 'export var renders = 0\nexport function render(index) { renders = renders + 1; rgb(0, 0, index / pixelCount) }',
+        },
+      ],
+      sceneSequence: {
+        scenes: [
+          {
+            clipId: 'outgoing',
+            holdMs: 1000,
+            transitionOut: {
+              kind: 'crossfade',
+              durationMs: 1000,
+              crossfadePolicy: 'snapshot-live',
+            },
+          },
+          { clipId: 'incoming', holdMs: 1000 },
+        ],
+      },
+      masterPixelCount: 4,
+    }, {})
+    const prepared = {
+      code: artifact.code,
+      fxCode: artifact.fxCode,
+      metadata: artifact.metadata,
+      dimension: 1 as const,
+    }
+    const options = { mapPoints: lineMap(4), randomSeed: 516 }
+    const uninterrupted = createFastReplayRuntime(prepared, options).advanceTo(1700, { stepMs: 100 })
+    const segmentedRuntime = createFastReplayRuntime(prepared, options)
+    segmentedRuntime.advanceTo(1200, { stepMs: 100 })
+    const segmented = segmentedRuntime.advanceTo(1700, { stepMs: 100 })
 
     expect(segmented.checksum).toBe(uninterrupted.checksum)
     expect(segmented.exports).toEqual(uninterrupted.exports)

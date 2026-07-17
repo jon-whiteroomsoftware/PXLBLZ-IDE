@@ -44,6 +44,24 @@ describe('Show compiler resource ledger integration (#514)', () => {
     expect(artifact.summary.resources.renderTargetWords).toBe(6_012)
   })
 
+  it('reuses the three-plane arena for snapshot/live with one readiness scalar and no new array (#516)', () => {
+    const compile = (crossfadePolicy: 'live-live' | 'snapshot-live') => compileShow({
+      masterPixelCount: 2_000,
+      clips: [
+        { id: 'outgoing', source: 'export function render(index) { rgb(1, 0, 0) }' },
+        { id: 'incoming', source: 'export function render(index) { rgb(0, 0, 1) }' },
+      ],
+      crossfade: { startMs: 1000, durationMs: 1000, crossfadePolicy },
+    }, {})
+    const live = compile('live-live')
+    const snapshot = compile('snapshot-live')
+
+    expect(snapshot.summary.resources.renderTargetWords).toBe(live.summary.resources.renderTargetWords)
+    expect(snapshot.summary.resources.allocations).toEqual(live.summary.resources.allocations)
+    expect(snapshot.summary.resources.persistentGlobals).toBe(live.summary.resources.persistentGlobals + 1)
+    expect(snapshot.summary.renderTarget.activeRole).toBe('stage-rgb')
+  })
+
   it('publishes the mandatory arena and complete member allocation in the compile summary', () => {
     const artifact = compileShow({
       masterPixelCount: 2_000,

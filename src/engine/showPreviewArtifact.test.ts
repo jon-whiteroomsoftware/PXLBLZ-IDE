@@ -415,7 +415,7 @@ export function render(index) { rgb(field[index], 0, 0) }
     expect(artifact.summary).toMatchObject({
       clipCount: 4,
       transitionCount: 1,
-      renderPolicy: 'steady-active-transition-both',
+      renderPolicy: 'snapshot-outgoing-transition-live-incoming',
       timeOffsetPolicy: 'per-clip',
       clips: [
         expect.objectContaining({ timeOffsetMs: 0 }),

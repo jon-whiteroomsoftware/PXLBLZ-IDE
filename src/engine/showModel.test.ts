@@ -58,6 +58,42 @@ function expectHoleFreeStrip(show: ShowRecord): void {
 }
 
 describe('showModel (#318)', () => {
+  it('authors new crossfades with the recommended snapshot/live policy (#516)', () => {
+    const show = createDefaultShow('show-516-default', 'Snapshot crossfade', 1)
+    const recipe = showRecordToCompileRecipe(show, {
+      byCellId: Object.fromEntries(show.cells.map((cell) => [cell.id, DEMOS[cell.pattern.id]])),
+    })
+
+    expect(show.transitions?.[0]).toMatchObject({
+      kind: 'crossfade',
+      crossfadePolicy: 'snapshot-live',
+    })
+    expect(show.scenes[0].transitionOut).toMatchObject({
+      kind: 'crossfade',
+      crossfadePolicy: 'snapshot-live',
+    })
+    expect(recipe.crossfade).toMatchObject({
+      crossfadePolicy: 'snapshot-live',
+    })
+  })
+
+  it('authors crossfades selected through the legacy editor action as snapshot/live (#516)', () => {
+    const base = updateShowTransition(
+      createDefaultShow('show-516-editor-action', 'Snapshot crossfade', 1),
+      'scene-1',
+      'wipe',
+      1200,
+    )
+
+    const show = updateShowTransition(base, 'scene-1', 'crossfade', 1800)
+
+    expect(show.transitions?.[0]).toMatchObject({
+      kind: 'crossfade',
+      crossfadePolicy: 'snapshot-live',
+      durationMs: 1800,
+    })
+  })
+
   it('compiles an Installation against its exact output count and physical layout (#435)', () => {
     const show = createShowWithOutputContract(
       'show-installation',
@@ -184,6 +220,7 @@ describe('showModel (#318)', () => {
   it('losslessly migrates legacy scene transitions and routing markers into stable boundary entities (#416)', () => {
     const base = addShowRoutingLayout(createDefaultShow('show-1', 'Legacy boundaries', 1), 'Alternate')
     const legacy = updateShowRoutingSwitch(base, 'scene-1', base.routingLayouts[1].id)
+    delete legacy.scenes[0].transitionOut?.crossfadePolicy
     delete legacy.transitions
 
     const migrated = normalizeShowTransitionState(legacy)
@@ -193,6 +230,7 @@ describe('showModel (#318)', () => {
         id: 'transition-scene-1',
         afterSceneId: 'scene-1',
         kind: 'crossfade',
+        crossfadePolicy: 'live-live',
         durationMs: 2000,
         easing: { curve: 'linear' },
       },
@@ -822,7 +860,11 @@ describe('showModel (#318)', () => {
     const newDoor = next.cells.find((cell) => cell.zoneId === 'zone-2' && cell.sceneId === newScene.id)!
 
     expect(newScene).toMatchObject({ id: 'scene-3', name: 'Scene 3', durationMs: 30000 })
-    expect(next.scenes[1].transitionOut).toEqual({ kind: 'crossfade', durationMs: 2000 })
+    expect(next.scenes[1].transitionOut).toEqual({
+      kind: 'crossfade',
+      durationMs: 2000,
+      crossfadePolicy: 'snapshot-live',
+    })
     expect(next.transitions).toEqual([
       expect.objectContaining({ id: 'transition-scene-1', afterSceneId: 'scene-1', kind: 'crossfade' }),
       expect.objectContaining({ id: 'transition-scene-2', afterSceneId: 'scene-2', kind: 'crossfade' }),
@@ -1119,7 +1161,7 @@ describe('showModel (#318)', () => {
       clockBehavior: 'continue',
     })
     expect(recipe.clips).toHaveLength(2)
-    expect(recipe.crossfade).toEqual({ startMs: 30000, durationMs: 2000 })
+    expect(recipe.crossfade).toEqual({ startMs: 30000, durationMs: 2000, crossfadePolicy: 'snapshot-live' })
     expect(recipe.adaptationRamp).toBeUndefined()
   })
 
@@ -1141,7 +1183,7 @@ describe('showModel (#318)', () => {
 
     expect(recipe.clips[0].adaptation?.steppedClock).toEqual({ stepMs: 125 })
     expect(recipe.clips).toHaveLength(2)
-    expect(recipe.crossfade).toEqual({ startMs: 30000, durationMs: 2000 })
+    expect(recipe.crossfade).toEqual({ startMs: 30000, durationMs: 2000, crossfadePolicy: 'snapshot-live' })
     expect(recipe.adaptationRamp).toBeUndefined()
   })
 
@@ -1163,7 +1205,7 @@ describe('showModel (#318)', () => {
 
     expect(recipe.clips[0].adaptation?.timeOffsetMs).toBe(500)
     expect(recipe.clips).toHaveLength(2)
-    expect(recipe.crossfade).toEqual({ startMs: 30000, durationMs: 2000 })
+    expect(recipe.crossfade).toEqual({ startMs: 30000, durationMs: 2000, crossfadePolicy: 'snapshot-live' })
     expect(recipe.adaptationRamp).toBeUndefined()
   })
 

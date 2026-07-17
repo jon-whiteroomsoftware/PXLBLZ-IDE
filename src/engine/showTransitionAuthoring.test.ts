@@ -105,4 +105,26 @@ describe('Show Transition authoring adapter', () => {
     expect(cut.transitions).toContainEqual(expect.objectContaining({ id: 'routing-scene-1', kind: 'routing' }))
     expect(cut.transitions).toContainEqual(expect.objectContaining({ id: transitionId, kind: 'cut', durationMs: 0 }))
   })
+
+  it('authors a selected crossfade with the recommended snapshot/live policy (#516)', () => {
+    const catalogue = buildShowToolkitPresentationCatalogue({ stageDimensions: 2 })
+    const base = createDefaultShow('show-516-authoring', 'Snapshot crossfade', 1)
+    const transitionId = base.transitions![0].id
+    const wipe = replaceShowBoundaryTransition(
+      base,
+      transitionId,
+      catalogue.find((item) => item.key === 'transition:wipe:linear')!,
+    )
+
+    const crossfade = replaceShowBoundaryTransition(
+      wipe,
+      transitionId,
+      catalogue.find((item) => item.key === 'transition:blend:crossfade')!,
+    )
+
+    expect(crossfade.transitions![0]).toMatchObject({
+      kind: 'crossfade',
+      crossfadePolicy: 'snapshot-live',
+    })
+  })
 })

@@ -4351,6 +4351,34 @@ function TransitionInspector({
           }}
         />
       )}
+      {transition.kind === 'crossfade' && (
+        <div className="mt-2 rounded border border-zinc-800 bg-zinc-950/55 p-2">
+          <label className="text-[10px] uppercase text-zinc-600">
+            Crossfade source
+            <select
+              aria-label="Crossfade source"
+              value={transition.crossfadePolicy === 'snapshot-live' ? 'snapshot-live' : 'live-live'}
+              onChange={(event) => onUpdate(transition.id, {
+                crossfadePolicy: event.target.value === 'live-live' ? 'live-live' : 'snapshot-live',
+              })}
+              className={`${field} mt-1 w-full`}
+            >
+              <option value="snapshot-live">Snapshot outgoing (recommended)</option>
+              <option value="live-live">Keep both Patterns live</option>
+            </select>
+          </label>
+          <p className="mt-1.5 text-[9px] leading-4 text-zinc-500">
+            {transition.crossfadePolicy === 'snapshot-live'
+              ? 'Freezes the fully composited outgoing Stage at the boundary; incoming motion stays live.'
+              : 'Keeps outgoing and incoming visuals live for the whole blend.'}
+          </p>
+          <output aria-label="Crossfade evaluation cost" className="mt-1 block text-[9px] text-emerald-300/80">
+            {transition.crossfadePolicy === 'snapshot-live'
+              ? 'Capture frame: two Pattern render paths · then one live Pattern renderer per pixel after capture'
+              : 'Two live Pattern render paths per pixel throughout the transition'}
+          </output>
+        </div>
+      )}
       <details className="mt-2 rounded border border-zinc-800 bg-zinc-950/35">
         <summary className="cursor-pointer px-2 py-1.5 text-[9px] uppercase tracking-[0.12em] text-zinc-500">Advanced transition controls</summary>
         <div className="grid grid-cols-2 gap-2 border-t border-zinc-800 p-2">
@@ -5362,6 +5390,11 @@ function CompileBar({
           render target: {summary.renderTarget.planeCount} planes
           {' · '}{summary.renderTarget.activeRole ?? 'unassigned'}
           {' · '}{renderTargetBindings}
+        </span>
+      )}
+      {summary?.renderPolicy === 'snapshot-outgoing-transition-live-incoming' && (
+        <span className="text-emerald-300">
+          crossfade: snapshot outgoing · capture frame 2 render paths/px · then 1 live render path/px
         </span>
       )}
       {compiled.artifactBlocker && <span className="text-red-300">Output blocked: {compiled.artifactBlocker}</span>}

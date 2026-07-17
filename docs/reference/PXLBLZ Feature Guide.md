@@ -891,11 +891,15 @@ documented defaults; subsequent edits save through the ordinary Show record and
 survive reload. **Reset to cut** and choosing Cut both retain the boundary id,
 set duration to zero, and leave any separate routing marker intact.
 
-Transition cost is explicit:
+Transition cost is explicit. Crossfade also exposes a source policy in the
+boundary inspector: **Snapshot outgoing (recommended)** freezes the outgoing
+Stage image, while **Keep both Patterns live** preserves motion on both sides.
 
 - parameter ramps keep one renderer per pixel;
 - wipe and dither route each pixel to one member renderer;
-- crossfade runs both renderers during its window; and
+- snapshot/live Crossfade captures with two render paths per pixel on its first
+  transition frame, then uses one incoming live render path plus RGB replay;
+- live/live Crossfade runs both renderers throughout its window;
 - spatial Shape reveals can use a hard or stable-dither one-renderer edge, or a
   true blended feather that evaluates both Patterns only inside the band; and
 - Motion variants disclose their full-blend policy.
@@ -1090,11 +1094,12 @@ its table and four-word array header consume this same total. Persistent globals
 and artifact bytes remain independent limits.
 
 Generated Show code physically contains exactly those three arena arrays. The
-compile bar reports `3 planes`, the active role (`unassigned` until a buffering
-policy uses it), and the available channel bindings: RGB `0/1/2`, XY `0/1`,
-scalar `0`, and previous RGB `0/1/2`. These labels are alternate uses of one
-arena, not four allocations. Merely reserving the arena does not capture or
-replay a frame and adds no work to the render loop.
+compile bar reports `3 planes`, the active role (`stage-rgb` for snapshot/live
+Crossfade, otherwise `unassigned`), and the available channel bindings: RGB
+`0/1/2`, XY `0/1`, scalar `0`, and previous RGB `0/1/2`. These labels are
+alternate uses of one arena, not four allocations. A snapshot/live diagnostic
+also distinguishes its two-path capture frame from the later one-live-path
+frames. Merely reserving an unassigned arena adds no render-loop work.
 
 The same bar enforces the output support envelope. An Installation above 2,000
 pixels, a Portable Show targeting a Controller above 2,000 pixels, an array whose

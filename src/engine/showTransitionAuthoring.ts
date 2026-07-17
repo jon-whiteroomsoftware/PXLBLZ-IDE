@@ -9,7 +9,6 @@ import {
 } from './showVisualToolkit'
 import type { ShowToolkitPresentationItem } from './showVisualToolkitPresentation'
 
-type VisualTransition = Exclude<ShowBoundaryTransition['kind'], 'routing'>
 type TransitionChanges = Partial<Omit<ShowBoundaryTransition, 'id' | 'afterSceneId'>>
 
 export function showBoundaryTransitionPresentationKey(
@@ -100,7 +99,11 @@ export function showBoundaryTransitionParameterChanges(
 }
 
 function transitionIdentity(familyId: string, variantId: string): TransitionChanges {
-  if (familyId === 'blend') return { kind: variantId as Extract<VisualTransition, 'cut' | 'crossfade'> }
+  if (familyId === 'blend') {
+    return variantId === 'crossfade'
+      ? { kind: 'crossfade', crossfadePolicy: 'snapshot-live' }
+      : { kind: 'cut' }
+  }
   if (familyId === 'fade') return { kind: 'fade-color' }
   if (familyId === 'wipe') return { kind: 'wipe', wipeVariant: variantId as ShowBoundaryTransition['wipeVariant'] }
   if (familyId === 'dissolve') return { kind: 'dither', dissolveVariant: variantId as ShowBoundaryTransition['dissolveVariant'] }

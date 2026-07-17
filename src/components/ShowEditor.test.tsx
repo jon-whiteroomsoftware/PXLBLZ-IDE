@@ -1379,12 +1379,24 @@ describe('ShowEditor (#318)', () => {
     await user.click(screen.getByRole('button', { name: 'Select Scene 1 to Scene 2 transition (crossfade)' }))
     expect(screen.getByRole('heading', { name: 'Transition properties' })).toBeInTheDocument()
     expect(screen.getByText(/Scene 1 → Scene 2 · crossfade/i)).toBeInTheDocument()
+    expect(screen.getByTestId('show-compile-bar')).toHaveTextContent(
+      'crossfade: snapshot outgoing · capture frame 2 render paths/px · then 1 live render path/px',
+    )
+    expect(screen.getByLabelText('Crossfade source')).toHaveValue('snapshot-live')
+    expect(screen.getByLabelText('Crossfade evaluation cost')).toHaveTextContent(
+      'one live Pattern renderer per pixel after capture',
+    )
+    await user.selectOptions(screen.getByLabelText('Crossfade source'), 'live-live')
     await user.selectOptions(screen.getByLabelText('Easing'), 'ease-in-out')
     expect(screen.getByLabelText('Duration')).toHaveAttribute('step', '100')
     changeCommittedNumber('Duration', '1500')
     await waitFor(() => {
       expect(useShowStore.getState().shows[0].transitions?.find((transition) => transition.id === 'transition-scene-1'))
-        .toMatchObject({ durationMs: 1500, easing: { curve: 'quadratic', direction: 'in-out' } })
+        .toMatchObject({
+          durationMs: 1500,
+          easing: { curve: 'quadratic', direction: 'in-out' },
+          crossfadePolicy: 'live-live',
+        })
     })
 
     await user.click(screen.getByRole('button', { name: 'Select Scene 1 to Scene 2 transition (routing)' }))
@@ -1899,7 +1911,8 @@ describe('ShowEditor (#318)', () => {
     expect(screen.getByRole('button', { name: 'Export Show as .epe' })).toBeEnabled()
     const compileBar = screen.getByTestId('show-compile-bar')
     expect(compileBar).toHaveTextContent('arena 6,012')
-    expect(compileBar).toHaveTextContent('render target: 3 planes · unassigned · RGB 0/1/2 · XY 0/1 · scalar 0 · previous RGB 0/1/2')
+    expect(compileBar).toHaveTextContent('render target: 3 planes · stage-rgb · RGB 0/1/2 · XY 0/1 · scalar 0 · previous RGB 0/1/2')
+    expect(compileBar).toHaveTextContent('crossfade: snapshot outgoing · capture frame 2 render paths/px · then 1 live render path/px')
   })
 
   it('discloses exact routing and capture specialization for Redline (#512)', () => {

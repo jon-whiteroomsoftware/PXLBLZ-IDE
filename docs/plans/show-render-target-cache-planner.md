@@ -208,9 +208,9 @@ rebuilds it before presenting the target frame.
 
 ## Transition semantics
 
-Current crossfade evaluates outgoing and incoming Pattern renderers throughout
-the transition window and reports cost `2N`. The efficient default will be a
-snapshot/live crossfade:
+Legacy live/live Crossfade evaluates outgoing and incoming Pattern renderers
+throughout the transition window and reports cost `2N`. Newly authored
+Crossfades now default to snapshot/live:
 
 1. The final complete outgoing composite is captured into `stage-rgb`.
 2. The Transition freezes that visual snapshot.
@@ -234,8 +234,8 @@ The authored model must distinguish:
   `2N`.
 
 Existing persisted crossfades retain live/live semantics when the new policy is
-absent. Newly created crossfades default to snapshot/live after the UI and
-documentation make the frozen outgoing behavior explicit. Pattern-instance
+absent. Newly created crossfades default to snapshot/live, and the UI makes the
+frozen outgoing behavior explicit. Pattern-instance
 clock and lifecycle behavior remain separate from whether its pixels are
 rendered; the design must not claim exact state continuity for a Pattern whose
 `render` side effects are skipped under a snapshot policy.
@@ -542,9 +542,10 @@ the prior measured result without claiming a new hardware benchmark.
 03 #513 frame-invariant hoisting · paired 2,000 px mean 2.987 -> 3.037 FPS (3 runs) · incremental +1.7% · cumulative reference 2.358 -> 3.037 FPS, +28.8%
 04 #515 physical three-plane arena · 6,012 words allocated; paired 2,000 px median 3.127 -> 3.127 FPS · incremental 0.0% measured · cumulative reference 2.358 -> 3.037 FPS, +28.8% retained
 05 #525 shared Motion transition kernels · source 108,033 -> 67,552 B (-37.5%); bytecode 59,202 -> 37,722 B (-36.3%); paired 2,000 px median 0.665 -> 0.665 FPS · incremental 0.0% measured · cumulative Redline reference 2.358 -> 3.037 FPS, +28.8% retained
+06 #516 snapshot/live crossfade · paired Redline Machine 2,000 px median 1.810 -> 3.197 FPS · incremental +76.7% (mean +66.2%) · intentional frozen-outgoing visual policy; arena 6,012 words unchanged, +1 persistent global · cumulative exact Redline reference 2.358 -> 3.037 FPS, +28.8% retained
 ```
 
-Later slices append `06` through `10` here and repeat the new line in the #511
+Later slices append `07` through `10` here and repeat the new line in the #511
 coordination update. If a slice intentionally changes the visual contract, its
 line names that contract and does not compare it as an exact replacement.
 
@@ -638,12 +639,12 @@ confirmed before their implementation issues become AFK-ready:
 
 Implementation updates current truth only as slices ship:
 
-- `CONTEXT.md`: define the render target, snapshot crossfade, and supported Show
-  output ceiling after those concepts become product behavior.
-- `docs/reference/PXLBLZ Technical Reference.md`: document the resource ledger,
-  render-target arena, planner, emission, and transition semantics.
-- `docs/reference/PXLBLZ Feature Guide.md`: explain the output limit, transition
-  choices, compile-cost disclosure, and remedies for blocked artifacts.
+- `CONTEXT.md`: defines the shipped output ceiling, render target, and
+  snapshot/live Crossfade; add planner terms only when later slices ship.
+- `docs/reference/PXLBLZ Technical Reference.md`: documents the shipped resource
+  ledger, arena emission, and Crossfade policies; planner internals remain future.
+- `docs/reference/PXLBLZ Feature Guide.md`: explains the shipped output limit,
+  Crossfade choices, compile-cost disclosure, and blocked-artifact remedies.
 - archived hardware reports: retain raw Controller evidence and restoration
   details.
 

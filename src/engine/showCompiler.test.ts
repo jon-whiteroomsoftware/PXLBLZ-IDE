@@ -929,6 +929,62 @@ export function render2D(index, x, y) { rgb(${channel === 'r' ? 1 : 0}, ${channe
     expect(pixel()).toEqual([0.5, 0.5, 0])
   })
 
+  it('snapshots the fully composited outgoing routed Scene stack once (#516)', () => {
+    const zones = [{ id: 'stage', name: 'stage', ranges: [{ start: 0, end: 3 }] }]
+    const counted = (r: number, g: number, b: number) => `
+export var renders = 0
+export function render(index) { renders = renders + 1; rgb(${r}, ${g}, ${b}) }
+`
+    const artifact = compileShow({
+      clips: [
+        { id: 'red', source: counted(1, 0, 0) },
+        { id: 'green', source: counted(0, 1, 0) },
+        { id: 'blue', source: counted(0, 0, 1) },
+      ],
+      zones,
+      routingLayouts: [{ id: 'default', name: 'Default', zones }],
+      routedSceneSequence: {
+        scenes: [
+          {
+            holdMs: 1000,
+            placements: [
+              { placementId: 'red-base', zoneName: 'stage', clipId: 'red', stackOrder: 0 },
+              { placementId: 'green-half', zoneName: 'stage', clipId: 'green', stackOrder: 1, opacity: 0.5 },
+            ],
+            transitionOut: {
+              kind: 'crossfade',
+              durationMs: 1000,
+              crossfadePolicy: 'snapshot-live',
+            },
+          },
+          {
+            holdMs: 1000,
+            placements: [{ placementId: 'blue', zoneName: 'stage', clipId: 'blue' }],
+          },
+        ],
+      },
+      masterPixelCount: 4,
+      loopDurationMs: 3000,
+    }, {})
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 4)
+
+    handle.beforeRender(1250)
+    for (let index = 0; index < 4; index += 1) handle.render(index)
+    expect(pixel()).toEqual([0.375, 0.375, 0.25])
+
+    handle.beforeRender(250)
+    for (let index = 0; index < 4; index += 1) handle.render(index)
+
+    expect(pixel()).toEqual([0.25, 0.25, 0.5])
+    expect(handle.getExports()).toMatchObject({
+      __pxlblz_show_c0_renders: 4,
+      __pxlblz_show_c1_renders: 4,
+      __pxlblz_show_c2_renders: 8,
+    })
+    expect(artifact.summary.renderTarget.activeRole).toBe('stage-rgb')
+    expect(artifact.summary.renderPolicy).toBe('snapshot-outgoing-transition-live-incoming')
+  })
+
   it('routes Scene placements through a normalized logical split (#478)', () => {
     const artifact = compileShow({
       clips: [
@@ -1819,6 +1875,149 @@ export function render(index) { rgb(0, 0, 1) }
       __pxlblz_show_c0_ticks: 1,
       __pxlblz_show_c1_ticks: 1,
     })
+  })
+
+  it('captures snapshot/live outgoing RGB once and skips its renderer on later transition frames (#516)', () => {
+    const artifact = compileShow({
+      clips: [
+        {
+          id: 'outgoing',
+          source: `
+export var renders = 0
+export function render(index) {
+  renders = renders + 1
+  rgb(index / pixelCount, 0, 0)
+}
+`,
+        },
+        {
+          id: 'incoming',
+          source: `
+export var renders = 0
+export function render(index) {
+  renders = renders + 1
+  rgb(0, 0, index / pixelCount)
+}
+`,
+        },
+      ],
+      crossfade: { startMs: 1000, durationMs: 3000, crossfadePolicy: 'snapshot-live' },
+      masterPixelCount: 4,
+    }, {})
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 4)
+
+    handle.beforeRender(1500)
+    for (let index = 0; index < 4; index += 1) handle.render(index)
+    expect(handle.getExports()).toMatchObject({
+      __pxlblz_show_c0_renders: 4,
+      __pxlblz_show_c1_renders: 4,
+    })
+
+    handle.beforeRender(500)
+    for (let index = 0; index < 4; index += 1) handle.render(index)
+
+    expect(pixel()).toEqual([0.5, 0, 0.25])
+    expect(handle.getExports()).toMatchObject({
+      __pxlblz_show_c0_renders: 4,
+      __pxlblz_show_c1_renders: 8,
+    })
+    expect(artifact.summary.renderTarget.activeRole).toBe('stage-rgb')
+    expect(artifact.summary.renderPolicy).toBe('snapshot-outgoing-transition-live-incoming')
+  })
+
+  it('falls back explicitly to live/live when snapshot/live has no emitted arena (#516)', () => {
+    const artifact = compileShow({
+      clips: [
+        {
+          id: 'outgoing',
+          source: `
+export var renders = 0
+export function render(index) { renders = renders + 1; rgb(1, 0, 0) }
+`,
+        },
+        {
+          id: 'incoming',
+          source: `
+export var renders = 0
+export function render(index) { renders = renders + 1; rgb(0, 0, 1) }
+`,
+        },
+      ],
+      crossfade: { startMs: 1000, durationMs: 3000, crossfadePolicy: 'snapshot-live' },
+      masterPixelCount: 4,
+    }, {}, { renderTargetArenaEmission: false })
+    const { handle } = loadShow(artifact.code, artifact.metadata, 4)
+
+    handle.beforeRender(1500)
+    for (let index = 0; index < 4; index += 1) handle.render(index)
+    handle.beforeRender(500)
+    for (let index = 0; index < 4; index += 1) handle.render(index)
+
+    expect(handle.getExports()).toMatchObject({
+      __pxlblz_show_c0_renders: 8,
+      __pxlblz_show_c1_renders: 8,
+    })
+    expect(artifact.summary.renderTarget.activeRole).toBeNull()
+    expect(artifact.summary.warnings).toContain(
+      'Snapshot/live crossfade fell back to live/live because the Show render-target arena is unavailable.',
+    )
+  })
+
+  it('invalidates a Scene-sequence snapshot when its transition loops and re-enters (#516)', () => {
+    const artifact = compileShow({
+      clips: [
+        {
+          id: 'outgoing',
+          source: `
+export var renders = 0
+export function render(index) { renders = renders + 1; rgb(1, 0, 0) }
+`,
+        },
+        {
+          id: 'incoming',
+          source: `
+export var renders = 0
+export function render(index) { renders = renders + 1; rgb(0, 0, 1) }
+`,
+        },
+      ],
+      sceneSequence: {
+        scenes: [
+          {
+            clipId: 'outgoing',
+            holdMs: 1000,
+            transitionOut: {
+              kind: 'crossfade',
+              durationMs: 1000,
+              crossfadePolicy: 'snapshot-live',
+            },
+          },
+          { clipId: 'incoming', holdMs: 1000 },
+        ],
+      },
+      masterPixelCount: 4,
+    }, {})
+    const { handle } = loadShow(artifact.code, artifact.metadata, 4)
+
+    handle.beforeRender(1500)
+    for (let index = 0; index < 4; index += 1) handle.render(index)
+    handle.beforeRender(200)
+    for (let index = 0; index < 4; index += 1) handle.render(index)
+    expect(handle.getExports()).toMatchObject({
+      __pxlblz_show_c0_renders: 4,
+      __pxlblz_show_c1_renders: 8,
+    })
+
+    handle.beforeRender(1000)
+    handle.beforeRender(500)
+    handle.beforeRender(1000)
+    for (let index = 0; index < 4; index += 1) handle.render(index)
+
+    expect(handle.getExports()).toMatchObject({
+      __pxlblz_show_c0_renders: 8,
+      __pxlblz_show_c1_renders: 12,
+    })
+    expect(artifact.summary.renderTarget.activeRole).toBe('stage-rgb')
   })
 
   it('virtualizes time so inactive clips freeze outside transition windows', () => {

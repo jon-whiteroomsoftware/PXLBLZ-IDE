@@ -43,6 +43,7 @@ export interface ShowRenderTargetArenaSummary {
 export function describeShowRenderTargetArena(
   pixelCount: number,
   emitted = true,
+  activeRole: ShowRenderTargetRole | null = null,
 ): ShowRenderTargetArenaSummary {
   const elementCount = normalizeElementCount(pixelCount)
   return {
@@ -50,7 +51,7 @@ export function describeShowRenderTargetArena(
     planeCount: SHOW_RENDER_TARGET_PLANE_NAMES.length,
     words: SHOW_RENDER_TARGET_PLANE_NAMES.length * (elementCount + PIXELBLAZE_ARRAY_HEADER_WORDS),
     emitted,
-    activeRole: null,
+    activeRole,
     roleBindings: (Object.entries(SHOW_RENDER_TARGET_ROLE_CHANNELS) as Array<[
       ShowRenderTargetRole,
       Record<string, 0 | 1 | 2>,

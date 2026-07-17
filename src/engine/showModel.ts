@@ -151,7 +151,7 @@ export function createDefaultShow(id: string, name: string, updatedAt = Date.now
       id: 'scene-1',
       name: 'Scene 1',
       durationMs: 30000,
-      transitionOut: { kind: 'crossfade', durationMs: 2000 },
+      transitionOut: { kind: 'crossfade', durationMs: 2000, crossfadePolicy: 'snapshot-live' },
     },
     { id: 'scene-2', name: 'Scene 2', durationMs: 30000 },
   ]
@@ -180,6 +180,7 @@ export function createDefaultShow(id: string, name: string, updatedAt = Date.now
         kind: 'crossfade',
         durationMs: 2000,
         easing: 'linear',
+        crossfadePolicy: 'snapshot-live',
       },
     ],
     stageMapId: null,
@@ -459,6 +460,7 @@ export function addShowScene(show: ShowRecord): ShowRecord {
   const defaultTransition: NonNullable<ShowScene['transitionOut']> = {
     kind: 'crossfade',
     durationMs: 2000,
+    crossfadePolicy: 'snapshot-live',
   }
   const usedCellIds = new Set(show.cells.map((cell) => cell.id))
   const nextCells = show.zones.map((zone) => {
@@ -488,6 +490,7 @@ export function addShowScene(show: ShowRecord): ShowRecord {
             kind: 'crossfade' as const,
             durationMs: 2000,
             easing: 'linear' as const,
+            crossfadePolicy: 'snapshot-live' as const,
           }]
         : []),
     ],
@@ -1212,6 +1215,9 @@ export function normalizeShowTransitionState(show: ShowRecord): ShowRecord {
           kind: scene.transitionOut?.kind ?? 'cut',
           durationMs: scene.transitionOut?.durationMs ?? 0,
           easing: 'linear',
+          ...(scene.transitionOut?.kind === 'crossfade'
+            ? { crossfadePolicy: scene.transitionOut.crossfadePolicy }
+            : {}),
           ...(scene.transitionOut?.kind === 'wipe'
             ? {
                 feather: scene.transitionOut.feather,
@@ -1368,6 +1374,12 @@ function normalizeBoundaryTransition(transition: ShowBoundaryTransition): ShowBo
       ...(transition.routingDirection
         ? { routingDirection: transition.routingDirection === 'reverse' ? 'reverse' as const : 'forward' as const }
         : {}),
+    }
+  }
+  if (kind === 'crossfade') {
+    return {
+      ...base,
+      crossfadePolicy: transition.crossfadePolicy === 'snapshot-live' ? 'snapshot-live' : 'live-live',
     }
   }
   if (kind === 'wipe') {
@@ -1661,6 +1673,7 @@ function boundaryToLegacyTransition(
   return {
     kind,
     durationMs: transition.durationMs,
+    ...(kind === 'crossfade' ? { crossfadePolicy: transition.crossfadePolicy } : {}),
     ...(kind === 'fade-color' ? { color: normalizeShowTransitionColor(transition.color) } : {}),
     ...(kind === 'dither'
       ? {
@@ -1866,6 +1879,13 @@ export function updateShowTransition(
         kind,
         durationMs: kind === 'cut' ? 0 : clampDuration(durationMs),
         easing: current?.easing ?? 'linear',
+        ...(kind === 'crossfade'
+          ? {
+              crossfadePolicy: current?.kind === 'crossfade'
+                ? current.crossfadePolicy
+                : 'snapshot-live' as const,
+            }
+          : {}),
         ...(kind === 'wipe' ? { feather: clamp01(feather) } : {}),
       }
   return normalizeShowTransitionState({
@@ -2045,7 +2065,11 @@ export function showRecordToCompileRecipe(
   return {
     clips,
     crossfade: transition && transition.kind === 'crossfade'
-      ? { startMs: show.scenes[0].durationMs, durationMs: transition.durationMs }
+      ? {
+          startMs: show.scenes[0].durationMs,
+          durationMs: transition.durationMs,
+          crossfadePolicy: transition.crossfadePolicy,
+        }
       : undefined,
     cut: !transition || transition.kind === 'cut' ? { startMs: show.scenes[0].durationMs } : undefined,
     routeTransition: transition && (transition.kind === 'fade-color' || transition.kind === 'wipe' || transition.kind === 'dither' || transition.kind === 'portal' || transition.kind === 'motion')
@@ -2249,6 +2273,7 @@ function compilerSequenceTransition(
   return {
     kind: transition.kind,
     durationMs: transition.durationMs,
+    ...(transition.kind === 'crossfade' ? { crossfadePolicy: transition.crossfadePolicy } : {}),
     ...(transition.kind === 'fade-color' ? { color: normalizeShowTransitionColor(transition.color) } : {}),
     ...(transition.kind === 'dither'
       ? {

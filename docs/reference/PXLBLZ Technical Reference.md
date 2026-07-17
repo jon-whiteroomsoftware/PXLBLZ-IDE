@@ -1464,9 +1464,11 @@ emits machine-readable cost metadata on five independent axes: Pattern
 evaluations, generated scalar/array memory, artifact bytes against the measured
 budget, output coverage, and compatibility warnings. Pattern evaluations use
 literal formulas: ordinary selector and parameter work is `N`, bounded feather
-blending is `N + E`, and full crossfade is `2N`. Here `N` is the output pixel
-count and `E` is the measured feather-edge pixel count; the compiler does not
-invent an `E` estimate when one is unavailable. Renderer count and clock
+blending is `N + E`, and live/live Crossfade is `2N`. Snapshot/live Crossfade
+has one `2N` capture frame followed by `N + R`, where `R` is RGB arena replay
+and blending rather than a second Pattern evaluation. Here `N` is the output
+pixel count and `E` is the measured feather-edge pixel count; the compiler does
+not invent an `E` estimate when one is unavailable. Renderer count and clock
 behavior remain separate: exact pause is not described as a cached frame or
 renderer saving.
 
@@ -1599,11 +1601,13 @@ code typed role bindings over those same arrays:
 | `previous-rgb` | `r=0`, `g=1`, `b=2` | captured prior Stage color |
 
 One role assignment changes read/write meaning, not allocation. The compile
-summary exposes all bindings and reports the active role as unassigned until a
-later policy owns lifetime and invalidation. #515 deliberately performs no
-capture, replay, or per-pixel arena work, so existing Show output stays exact.
-The `renderTargetArenaEmission: false` compiler option exists only for paired
-benchmarks; eligibility still accounts for the mandatory reservation.
+summary exposes all bindings and reports `stage-rgb` when snapshot/live
+Crossfade owns the arena; otherwise the role is unassigned. #515's reservation
+alone performs no capture, replay, or per-pixel arena work. The
+`renderTargetArenaEmission: false` compiler option exists only for paired
+benchmarks; eligibility still accounts for the mandatory reservation. If that
+test-only option removes the physical arena from a snapshot/live compile, the
+compiler retains exact live/live behavior and emits a compatibility warning.
 
 The Acorn-backed member census counts array literals, `array(pixelCount)`,
 numeric expressions, supported `floor`/`ceil`/`round`/`min`/`max` expressions,
@@ -1630,6 +1634,30 @@ activates, and measures paired artifacts on a Controller while restoring its
 original program and pixel count. The exact-fit, bytecode, and hardware evidence
 is archived in `docs/plans/archive/issue-515-render-target-arena-results.md`.
 
+Snapshot/live Crossfade is the first policy that actively spends the arena. On
+the first rendered traversal of a boundary, generated code writes the complete
+outgoing Stage composite into all three planes and renders the incoming side.
+After the final output index marks that generation ready, later frames read the
+snapshot and call only the incoming render path. Boundary exit and Show-loop
+re-entry invalidate readiness, so a partially written or stale generation is
+never replayed. Direct, ordinary Scene-sequence, and routed composite lowering
+share this policy; routed capture initializes unassigned Stage pixels to black.
+
+Pattern scheduling remains independent of pixel evaluation. The outgoing
+member's `beforeRender` lifecycle may continue while its `render` calls are
+skipped, so snapshot/live is an authored frozen-image semantic rather than an
+exact optimization of live/live. Legacy Crossfades without a stored policy
+normalize to live/live. Newly selected Crossfades store snapshot/live by
+default, and deterministic replay reconstructs the same capture boundary from
+Show start.
+
+`npm run issue516` checks Fast and Precise deterministic replay and exact arena
+accounting for a paired 2,000-pixel Redline fixture. On a firmware-3.67 pb32,
+`npm run issue516:hardware` measured median Crossfade throughput rising from
+1.810 FPS live/live to 3.197 FPS snapshot/live, a 76.7% improvement. Both
+artifacts use the same 6,012 arena words; the snapshot form adds one persistent
+readiness scalar and deliberately freezes the outgoing image.
+
 ## 22. Transition and adaptation policies
 
 Current compiler policies:
@@ -1638,7 +1666,8 @@ Current compiler policies:
 |---|---|
 | Cut / Restart | One active member; optional fresh state |
 | Parameter ramp | One continued member, values updated once per frame |
-| Crossfade | Two member renderers during the transition window |
+| Snapshot/live Crossfade | One `2N` capture frame, then outgoing RGB replay plus one live member renderer |
+| Live/live Crossfade | Two member renderers during the transition window |
 | Fade through color | One outgoing renderer before the midpoint, one incoming renderer after it |
 | Hard or stable-dither Wipe | Both clocks may advance; one renderer selected per pixel |
 | True feather-blend Wipe | Two renderers only inside the projected edge band |

@@ -10,6 +10,7 @@ import { emitFixedPoint } from './fxEmit'
 import { emitShowEasingExpression, showCubicBezierRuntimeSource, validateShowEasing } from './showEasing'
 import type {
   ShowClipEffect,
+  ShowCrossfadePolicy,
   ShowDissolveVariant,
   ShowMotionAddressPolicy,
   ShowMotionSpinDirection,
@@ -74,7 +75,11 @@ import {
 import {
   describeShowRenderTargetArena,
   emitShowRenderTargetArenaSource,
+  emitShowRenderTargetRead,
+  emitShowRenderTargetWrite,
+  planShowRenderTargetArena,
   type ShowRenderTargetArenaSummary,
+  type ShowRenderTargetPlan,
 } from './showRenderTargetArena'
 import {
   planPhysicalRoutingShortCircuit,
@@ -103,6 +108,7 @@ export interface ShowClipRecipe {
 export interface ShowCrossfadeRecipe {
   startMs: number
   durationMs: number
+  crossfadePolicy?: ShowCrossfadePolicy
 }
 
 export interface ShowCutRecipe {
@@ -197,6 +203,7 @@ export interface ShowRouteTransitionRecipe {
 export interface ShowSceneSequenceTransitionRecipe {
   kind: 'cut' | 'crossfade' | 'fade-color' | 'wipe' | 'dither' | 'portal' | 'motion'
   durationMs: number
+  crossfadePolicy?: ShowCrossfadePolicy
   color?: string
   direction?: number
   wipeVariant?: ShowWipeVariant
@@ -379,6 +386,7 @@ export interface ShowCompileSummary {
   artifactBudgetRatio: number
   renderPolicy:
     | 'steady-active-transition-both'
+    | 'snapshot-outgoing-transition-live-incoming'
     | 'route-one-renderer-per-pixel'
     | 'single-continuous-hold'
     | 'cut-restart'
@@ -758,6 +766,20 @@ export function compileShow(
           : 0,
       }
     : null
+  const renderTargetPixelCount = expandedRecipe.masterPixelCount ?? SHOW_MAX_OUTPUT_PIXELS
+  const directSnapshotCrossfade = renderTargetArenaEmission
+    && expandedRecipe.crossfade?.crossfadePolicy === 'snapshot-live'
+  const sequenceSnapshotCrossfade = renderTargetArenaEmission
+    && Boolean(expandedRecipe.sceneSequence?.scenes.some((scene, sceneIndex, scenes) => (
+      scene.transitionOut?.kind === 'crossfade'
+      && scene.transitionOut.crossfadePolicy === 'snapshot-live'
+      && scene.clipId !== scenes[sceneIndex + 1]?.clipId
+    )))
+  const routedSnapshotCrossfade = renderTargetArenaEmission
+    && Boolean(expandedRecipe.routedSceneSequence?.scenes.some((scene) => (
+      scene.transitionOut?.kind === 'crossfade'
+      && scene.transitionOut.crossfadePolicy === 'snapshot-live'
+    )))
   const routedSceneEmission = expandedRecipe.routedSceneSequence
       ? emitRoutedSceneSequenceShowCode(
         members,
@@ -767,6 +789,8 @@ export function compileShow(
         expandedRecipe.routingSwitches ?? [],
         expandedRecipe.routingPropertyRamps,
         expandedRecipe.masterPixelCount,
+        renderTargetPixelCount,
+        renderTargetArenaEmission,
         renderKernelSpecialization,
         motionTransitionSharing,
       )
@@ -774,7 +798,13 @@ export function compileShow(
   const emittedCode = routedSceneEmission
     ? routedSceneEmission.code
     : expandedRecipe.sceneSequence
-    ? emitSceneSequenceShowCode(members, expandedRecipe.sceneSequence, sequenceOutputDimension)
+    ? emitSceneSequenceShowCode(
+        members,
+        expandedRecipe.sceneSequence,
+        sequenceOutputDimension,
+        renderTargetPixelCount,
+        renderTargetArenaEmission,
+      )
     : routingLayouts
     ? emitRoutingLayoutShowCode(
         members,
@@ -804,7 +834,14 @@ export function compileShow(
             ? emitPortalTransitionShowCode(members[0], members[1], portalTransition)
             : emitRouteTransitionShowCode(members[0], members[1], expandedRecipe.routeTransition, transitionOutputDimension)
         : expandedRecipe.crossfade
-          ? emitShowCode(members[0], members[1], expandedRecipe.crossfade, memberOutputDimension)
+          ? emitShowCode(
+              members[0],
+              members[1],
+              expandedRecipe.crossfade,
+              memberOutputDimension,
+              renderTargetPixelCount,
+              renderTargetArenaEmission,
+            )
           : emitSingleClipShowCode(members[0], memberOutputDimension)
   const emittedWithEasingRuntime = emittedCode.includes('__pxlblz_show_cubicBezier(')
     ? `${showCubicBezierRuntimeSource()}\n${emittedCode}`
@@ -812,7 +849,6 @@ export function compileShow(
   const emittedWithSampleRemapping = expandedRecipe.samplePropertyRamps
     ? injectSampleRemappingUpdate(emittedWithEasingRuntime)
     : emittedWithEasingRuntime
-  const renderTargetPixelCount = expandedRecipe.masterPixelCount ?? SHOW_MAX_OUTPUT_PIXELS
   const expandedCode = renderTargetArenaEmission
     ? `${emitShowRenderTargetArenaSource(renderTargetPixelCount)}\n${emittedWithSampleRemapping}`
     : emittedWithSampleRemapping
@@ -863,6 +899,11 @@ export function compileShow(
   const warnings = expandedRecipe.routedSceneSequence
     ? []
     : routingLayouts?.flatMap((layout) => layout.warnings) ?? route?.warnings ?? []
+  if (expandedRecipe.crossfade?.crossfadePolicy === 'snapshot-live' && !renderTargetArenaEmission) {
+    warnings.push(
+      'Snapshot/live crossfade fell back to live/live because the Show render-target arena is unavailable.',
+    )
+  }
   const cost = buildShowCompiledCostMetadata({
     transitionCost,
     ...(patternEvaluationOverride
@@ -921,7 +962,9 @@ export function compileShow(
     measuredDeviceBudgetBytes: MEASURED_DEVICE_BUDGET_BYTES,
     artifactBudgetRatio: artifactBytes / MEASURED_DEVICE_BUDGET_BYTES,
     renderPolicy: expandedRecipe.sceneSequence || expandedRecipe.routedSceneSequence
-      ? sequenceHasCrossfade || motionBlend
+      ? sequenceSnapshotCrossfade || routedSnapshotCrossfade
+        ? 'snapshot-outgoing-transition-live-incoming'
+        : sequenceHasCrossfade || motionBlend
         ? 'steady-active-transition-both'
         : boundedBlend
           ? 'spatial-route-bounded-feather'
@@ -933,7 +976,9 @@ export function compileShow(
       : routeMode
       ? 'route-one-renderer-per-pixel'
       : expandedRecipe.crossfade
-        ? 'steady-active-transition-both'
+        ? directSnapshotCrossfade
+          ? 'snapshot-outgoing-transition-live-incoming'
+          : 'steady-active-transition-both'
         : expandedRecipe.cut
           ? 'cut-restart'
         : expandedRecipe.adaptationRamp
@@ -1030,7 +1075,11 @@ export function compileShow(
           maxFracCallsPerPixel: 2,
         }
       : null,
-    renderTarget: describeShowRenderTargetArena(renderTargetPixelCount, renderTargetArenaEmission),
+    renderTarget: describeShowRenderTargetArena(
+      renderTargetPixelCount,
+      renderTargetArenaEmission,
+      directSnapshotCrossfade || sequenceSnapshotCrossfade || routedSnapshotCrossfade ? 'stage-rgb' : null,
+    ),
     specializations: {
       routing: routingSpecialization,
       capture: captureSpecializations,
@@ -1482,14 +1531,29 @@ function emitShowCode(
   to: CompiledMember,
   crossfade: ShowCrossfadeRecipe,
   outputDimension: ShowOutputDimension,
+  renderTargetPixelCount: number,
+  renderTargetArenaEmission: boolean,
 ): string {
   const transitionEnd = crossfade.startMs + crossfade.durationMs
   const members = [from, to]
+  const snapshotLive = crossfade.crossfadePolicy === 'snapshot-live' && renderTargetArenaEmission
+  const renderTarget = planShowRenderTargetArena(renderTargetPixelCount, 'stage-rgb')
   return [
     emitRuntimePrelude(members, outputDimension),
     ...members.map(member => member.code.trim()),
-    emitScheduler(from, to, crossfade.startMs, transitionEnd, crossfade.durationMs),
-    emitRender(from, to, outputDimension),
+    ...(snapshotLive ? ['var __pxlblz_show_snapshot_ready = 0'] : []),
+    emitScheduler(
+      from,
+      to,
+      crossfade.startMs,
+      transitionEnd,
+      crossfade.durationMs,
+      'linear',
+      snapshotLive,
+    ),
+    snapshotLive
+      ? emitSnapshotLiveRender(from, to, outputDimension, renderTarget)
+      : emitRender(from, to, outputDimension),
     '',
   ].join('\n\n')
 }
@@ -1821,6 +1885,8 @@ function emitSceneSequenceShowCode(
   members: CompiledMember[],
   sequence: ShowSceneSequenceRecipe,
   outputDimension: 1 | 2,
+  renderTargetPixelCount: number,
+  renderTargetArenaEmission: boolean,
 ): string {
   const memberById = new Map(members.map((member) => [member.id, member]))
   const scenes = sequence.scenes.map((scene) => ({ ...scene, member: memberById.get(scene.clipId)! }))
@@ -1852,13 +1918,22 @@ function emitSceneSequenceShowCode(
       })
     }
   })
+  const snapshotSegments = segments.filter((segment) => (
+    segment.kind === 'transition'
+    && segment.transition?.kind === 'crossfade'
+    && segment.transition.crossfadePolicy === 'snapshot-live'
+    && segment.from !== segment.to
+    && renderTargetArenaEmission
+  ))
+  const usesSnapshot = snapshotSegments.length > 0
+  const renderTarget = planShowRenderTargetArena(renderTargetPixelCount, 'stage-rgb')
   const schedulerBranches = segments.map((segment, index) => {
     const condition = `${index === 0 ? 'if' : 'else if'} (__pxlblz_show_elapsed_s < ${segment.endMs / 1000})`
     if (segment.kind === 'hold') {
       return `${condition} {
     __pxlblz_show_scene = ${segment.sceneIndex}
     __pxlblz_show_transition = -1
-    __pxlblz_show_mix = 0${emitSceneControlTargets(segment.from, scenes[segment.sceneIndex].controlTargets)}${emitSceneEffectTargets(segment.from, scenes[segment.sceneIndex].effects)}${scenes[segment.sceneIndex].brightness === undefined
+    __pxlblz_show_mix = 0${usesSnapshot ? '\n    __pxlblz_show_snapshot_transition = -1\n    __pxlblz_show_snapshot_ready = 0' : ''}${emitSceneControlTargets(segment.from, scenes[segment.sceneIndex].controlTargets)}${emitSceneEffectTargets(segment.from, scenes[segment.sceneIndex].effects)}${scenes[segment.sceneIndex].brightness === undefined
       ? ''
       : `\n    ${segment.from.prefix}_adapt_brightness = ${scenes[segment.sceneIndex].brightness}`}${scenes[segment.sceneIndex].timeScale === undefined
         ? ''
@@ -1868,10 +1943,20 @@ function emitSceneSequenceShowCode(
     }
     const to = segment.to!
     const advanceTo = to === segment.from ? '' : `\n    ${to.prefix}_advance(delta)`
+    const snapshotEntry = usesSnapshot
+      && segment.transition?.kind === 'crossfade'
+      && segment.transition.crossfadePolicy === 'snapshot-live'
+      && segment.from !== to
+      ? `
+    if (__pxlblz_show_snapshot_transition != ${segment.sceneIndex}) {
+      __pxlblz_show_snapshot_transition = ${segment.sceneIndex}
+      __pxlblz_show_snapshot_ready = 0
+    }`
+      : ''
     return `${condition} {
     __pxlblz_show_scene = ${segment.sceneIndex}
     __pxlblz_show_transition = ${segment.sceneIndex}
-    __pxlblz_show_mix = ${emitShowEasingExpression(segment.transition!.easing ?? 'linear', `(__pxlblz_show_elapsed_s - ${segment.startMs / 1000}) / ${segment.transition!.durationMs / 1000}`)}${segment.transition!.propertyRamps
+    __pxlblz_show_mix = ${emitShowEasingExpression(segment.transition!.easing ?? 'linear', `(__pxlblz_show_elapsed_s - ${segment.startMs / 1000}) / ${segment.transition!.durationMs / 1000}`)}${snapshotEntry}${segment.transition!.propertyRamps
       ? `\n${indentBlock(emitPropertyRampAssignments(segment.from, segment.transition!.propertyRamps, `(__pxlblz_show_elapsed_s - ${segment.startMs / 1000}) * 1000`), 4)}`
       : ''}${segment.transition!.controlRamps
         ? `\n${indentBlock(emitControlRampAssignments(segment.from, segment.transition!.controlRamps, `(__pxlblz_show_elapsed_s - ${segment.startMs / 1000}) * 1000`), 4)}`
@@ -1884,7 +1969,21 @@ function emitSceneSequenceShowCode(
   const transitionBranches = segments
     .filter((segment) => segment.kind === 'transition')
     .map((segment, index) => `${index === 0 ? 'if' : 'else if'} (__pxlblz_show_transition == ${segment.sceneIndex}) {
-${indentBlock(emitSceneSequenceTransitionBlock(segment.from, segment.to!, segment.transition!, outputDimension), 4)}
+${indentBlock(
+  segment.transition?.kind === 'crossfade'
+    && segment.transition.crossfadePolicy === 'snapshot-live'
+    && segment.from !== segment.to
+    && renderTargetArenaEmission
+    ? emitSnapshotLiveCrossfadeBlock(
+        segment.from,
+        segment.to!,
+        memberRenderCapture(segment.from, outputDimension),
+        memberRenderCapture(segment.to!, outputDimension),
+        renderTarget,
+      )
+    : emitSceneSequenceTransitionBlock(segment.from, segment.to!, segment.transition!, outputDimension),
+  4,
+)}
   }`)
     .join(' ')
   const sceneBranches = scenes.map((scene, index) => `${index === 0 ? 'if' : 'else if'} (__pxlblz_show_scene == ${index}) {
@@ -1899,6 +1998,9 @@ ${indentBlock(emitSceneSequenceTransitionBlock(segment.from, segment.to!, segmen
     ...members.map((member) => member.code.trim()),
     'var __pxlblz_show_scene = 0',
     'var __pxlblz_show_transition = -1',
+    ...(usesSnapshot
+      ? ['var __pxlblz_show_snapshot_transition = -1', 'var __pxlblz_show_snapshot_ready = 0']
+      : []),
     `export function beforeRender(delta) {
   __pxlblz_show_elapsed_s = (__pxlblz_show_elapsed_s + delta / 1000) % ${cursor / 1000}
   ${schedulerBranches}
@@ -1922,6 +2024,8 @@ function emitRoutedSceneSequenceShowCode(
   switches: ShowRoutingSwitchRecipe[],
   propertyRamps?: ShowRoutingPropertyRampsRecipe,
   outputPixelCount?: number,
+  renderTargetPixelCount = SHOW_MAX_OUTPUT_PIXELS,
+  renderTargetArenaEmission = true,
   renderKernelSpecialization = false,
   motionTransitionSharing: 'auto' | 'none' | 'structure' | 'exact' = 'auto',
 ): {
@@ -1966,6 +2070,14 @@ function emitRoutedSceneSequenceShowCode(
       })
     }
   })
+  const snapshotSegments = segments.filter((segment) => (
+    segment.kind === 'transition'
+    && segment.transition?.kind === 'crossfade'
+    && segment.transition.crossfadePolicy === 'snapshot-live'
+    && renderTargetArenaEmission
+  ))
+  const usesSnapshot = snapshotSegments.length > 0
+  const renderTarget = planShowRenderTargetArena(renderTargetPixelCount, 'stage-rgb')
   const motionSegments = segments.filter((segment): segment is typeof segment & {
     kind: 'transition'
     transition: ShowSceneSequenceTransitionRecipe & { kind: 'motion' }
@@ -2231,7 +2343,7 @@ ${setupGroups}`
       return `${condition} {
     __pxlblz_show_scene = ${segment.sceneIndex}
     __pxlblz_show_transition = -1
-    __pxlblz_show_mix = 0
+    __pxlblz_show_mix = 0${usesSnapshot ? '\n    __pxlblz_show_snapshot_transition = -1\n    __pxlblz_show_snapshot_ready = 0' : ''}
  ${setupForPlacements(
     scenes[segment.sceneIndex].placements,
     undefined,
@@ -2243,6 +2355,15 @@ ${setupGroups}`
     }
     const from = scenes[segment.sceneIndex].placements
     const to = scenes[segment.sceneIndex + 1].placements
+    const snapshotEntry = usesSnapshot
+      && segment.transition?.kind === 'crossfade'
+      && segment.transition.crossfadePolicy === 'snapshot-live'
+      ? `
+    if (__pxlblz_show_snapshot_transition != ${segment.sceneIndex}) {
+      __pxlblz_show_snapshot_transition = ${segment.sceneIndex}
+      __pxlblz_show_snapshot_ready = 0
+    }`
+      : ''
     const directionKernelIndex = familyKernelEnabled
       ? directionSharedMotionPlan?.groupIndexByScene.get(segment.sceneIndex)
       : undefined
@@ -2274,7 +2395,7 @@ ${setupGroups}`
     __pxlblz_show_scene = ${segment.sceneIndex}
     __pxlblz_show_transition = ${segment.sceneIndex}
     __pxlblz_show_transition_start_s = ${segment.startMs / 1000}
-    __pxlblz_show_mix = ${emitShowEasingExpression(segment.transition!.easing ?? 'linear', `(__pxlblz_show_elapsed_s - ${segment.startMs / 1000}) / ${segment.transition!.durationMs / 1000}`)}${motionKernelAssignments}
+    __pxlblz_show_mix = ${emitShowEasingExpression(segment.transition!.easing ?? 'linear', `(__pxlblz_show_elapsed_s - ${segment.startMs / 1000}) / ${segment.transition!.durationMs / 1000}`)}${snapshotEntry}${motionKernelAssignments}
 ${setupForPlacements(
     [...from, ...to],
     scenes[segment.sceneIndex].transitionRamps,
@@ -2324,6 +2445,11 @@ ${indentBlock(emitRoutedSceneTransition(
     outputDimension,
     segment.sceneIndex,
     segment.sceneIndex + 1,
+    segment.transition?.kind === 'crossfade'
+      && segment.transition.crossfadePolicy === 'snapshot-live'
+      && renderTargetArenaEmission
+      ? renderTarget
+      : undefined,
   ), 4)}
   }`)
     .join(' ')
@@ -2424,9 +2550,18 @@ ${indentBlock(branches, 2)}
     : unrolledStackWrappers
   const hasTransitions = unrolledTransitionBranches.length > 0
   const usesRouteLayout = !sharedPhysicalCut || layoutSelectLines.length > 0
+  const snapshotPixelPrelude = usesSnapshot
+    ? `var __pxlblz_show_snapshot_writing = __pxlblz_show_snapshot_transition == __pxlblz_show_transition && !__pxlblz_show_snapshot_ready
+    if (__pxlblz_show_snapshot_writing) {
+      ${emitShowRenderTargetWrite(renderTarget, 'r', 'index', '0')}
+      ${emitShowRenderTargetWrite(renderTarget, 'g', 'index', '0')}
+      ${emitShowRenderTargetWrite(renderTarget, 'b', 'index', '0')}
+    }
+    if (__pxlblz_show_snapshot_writing && index == pixelCount - 1) __pxlblz_show_snapshot_ready = 1`
+    : ''
   const renderBody = hasTransitions
     ? `if (__pxlblz_show_transition >= 0) {
-    ${transitionBranches}
+    ${snapshotPixelPrelude}${snapshotPixelPrelude ? '\n    ' : ''}${transitionBranches}
   } else {
     ${sceneBranches}
   }`
@@ -2446,6 +2581,9 @@ ${indentBlock(branches, 2)}
       ? [
           'var __pxlblz_show_transition = -1',
           'var __pxlblz_show_transition_start_s = 0',
+          ...(usesSnapshot
+            ? ['var __pxlblz_show_snapshot_transition = -1', 'var __pxlblz_show_snapshot_ready = 0']
+            : []),
           ...(familyKernelEnabled
             ? [
                 'var __pxlblz_show_motion_kernel = -1',
@@ -2854,11 +2992,29 @@ function emitRoutedSceneTransition(
   outputDimension: 1 | 2,
   fromSceneIndex: number,
   toSceneIndex: number,
+  snapshotRenderTarget?: ShowRenderTargetPlan<'stage-rgb'>,
 ): string {
   return layouts.map((layout, layoutIndex) => `${layoutIndex === 0 ? 'if' : 'else if'} (__pxlblz_show_route_layout == ${layoutIndex}) {
 ${indentBlock(layout.logical
-    ? emitLogicalSceneTransition(layout, fromPlacements, toPlacements, transition, fromSceneIndex, toSceneIndex)
-    : emitPhysicalSceneTransition(layout, fromPlacements, toPlacements, transition, outputDimension, fromSceneIndex, toSceneIndex), 2)}
+    ? emitLogicalSceneTransition(
+        layout,
+        fromPlacements,
+        toPlacements,
+        transition,
+        fromSceneIndex,
+        toSceneIndex,
+        snapshotRenderTarget,
+      )
+    : emitPhysicalSceneTransition(
+        layout,
+        fromPlacements,
+        toPlacements,
+        transition,
+        outputDimension,
+        fromSceneIndex,
+        toSceneIndex,
+        snapshotRenderTarget,
+      ), 2)}
 }`).join(' ')
 }
 
@@ -2905,6 +3061,7 @@ function emitLogicalSceneTransition(
   transition: ShowSceneSequenceTransitionRecipe,
   fromSceneIndex: number,
   toSceneIndex: number,
+  snapshotRenderTarget?: ShowRenderTargetPlan<'stage-rgb'>,
 ): string {
   const logical = layout.logical!
   const fromByZone = groupRoutedPlacementsByZone(fromPlacements)
@@ -2935,6 +3092,7 @@ function emitLogicalSceneTransition(
       fromCapture,
       toCapture,
       { index: localIndex, x: '__pxlblz_show_scene_local_x', y: '__pxlblz_show_scene_local_y' },
+      snapshotRenderTarget,
     )
     return [`${zoneIndex === 0 ? 'if' : 'else if'} (__pxlblz_show_route_id == ${zoneIndex}) {
 ${fromStack.map((placement) => `  ${placement.member.pixelCountName} = ${fromDomain.pixelCount}`).join('\n')}
@@ -3048,6 +3206,7 @@ function emitPhysicalSceneTransition(
   outputDimension: 1 | 2,
   fromSceneIndex: number,
   toSceneIndex: number,
+  snapshotRenderTarget?: ShowRenderTargetPlan<'stage-rgb'>,
 ): string {
   const fromPlacementByZone = groupRoutedPlacementsByZone(fromPlacements)
   const toPlacementByZone = groupRoutedPlacementsByZone(toPlacements)
@@ -3073,6 +3232,7 @@ function emitPhysicalSceneTransition(
       outputDimension,
       fromSceneIndex,
       toSceneIndex,
+      snapshotRenderTarget,
     )]
   }).join('\n')
 }
@@ -3373,6 +3533,7 @@ function emitPhysicalSceneZoneStackTransition(
   outputDimension: 1 | 2,
   fromSceneIndex: number,
   toSceneIndex: number,
+  snapshotRenderTarget?: ShowRenderTargetPlan<'stage-rgb'>,
 ): string {
   const from = routedSceneStackNeedsWrapper(fromStack)
     ? routedSceneCompositeMember(fromStack, routedSceneStackPrefix(fromSceneIndex, zoneName))
@@ -3390,6 +3551,7 @@ function emitPhysicalSceneZoneStackTransition(
     outputDimension,
     fromStack.map((placement) => placement.member),
     toStack.map((placement) => placement.member),
+    snapshotRenderTarget,
   )
 }
 
@@ -3403,6 +3565,7 @@ function emitPhysicalSceneZoneTransition(
   outputDimension: 1 | 2,
   fromMembers: CompiledMember[] = [from],
   toMembers: CompiledMember[] = [to],
+  snapshotRenderTarget?: ShowRenderTargetPlan<'stage-rgb'>,
 ): string {
   const fromLocal = `__pxlblz_show_scene_zone_${zoneIndex}_from_index`
   const toLocal = `__pxlblz_show_scene_zone_${zoneIndex}_to_index`
@@ -3438,6 +3601,7 @@ function emitPhysicalSceneZoneTransition(
     fromCapture,
     toCapture,
     { index: fromLocal, x: localX, y: localY },
+    snapshotRenderTarget,
   )
   return [
     `var ${fromLocal} = -1`,
@@ -3464,9 +3628,22 @@ function emitSceneTransitionWithCaptures(
   fromCapture: string,
   toCapture: string,
   localCoordinates: { index: string; x: string; y: string },
+  snapshotRenderTarget?: ShowRenderTargetPlan<'stage-rgb'>,
 ): string {
   if (transition.kind === 'motion') {
     return emitMotionTransitionRenderBlock(from, to, transition, localCoordinates)
+  }
+  if (transition.kind === 'crossfade' && snapshotRenderTarget) {
+    return emitSnapshotLiveCrossfadeBlock(
+      from,
+      to,
+      fromCapture,
+      toCapture,
+      snapshotRenderTarget,
+      'index',
+      '__pxlblz_show_snapshot_writing',
+      false,
+    )
   }
   return emitSceneSequenceTransitionBlock(from, to, transition, outputDimension)
     .split(memberRenderCapture(from, outputDimension)).join(fromCapture)
@@ -5110,12 +5287,14 @@ function emitScheduler(
   transitionEnd: number,
   duration: number,
   easing: ShowTransitionEasing = 'linear',
+  resetSnapshot = false,
 ): string {
   return `export function beforeRender(delta) {
   __pxlblz_show_elapsed_s = __pxlblz_show_elapsed_s + delta / 1000
   if (__pxlblz_show_elapsed_s < ${transitionStart / 1000}) {
     __pxlblz_show_phase = 0
     __pxlblz_show_mix = 0
+    ${resetSnapshot ? '__pxlblz_show_snapshot_ready = 0' : ''}
     ${from.prefix}_advance(delta)
   } else if (__pxlblz_show_elapsed_s < ${transitionEnd / 1000}) {
     __pxlblz_show_phase = 1
@@ -5128,6 +5307,58 @@ function emitScheduler(
     ${to.prefix}_advance(delta)
   }
 }`
+}
+
+function emitSnapshotLiveRender(
+  from: CompiledMember,
+  to: CompiledMember,
+  outputDimension: ShowOutputDimension,
+  renderTarget: ShowRenderTargetPlan<'stage-rgb'>,
+): string {
+  const transitionBlock = emitSnapshotLiveCrossfadeBlock(
+    from,
+    to,
+    emitMemberCaptureCall(from, outputDimension),
+    emitMemberCaptureCall(to, outputDimension),
+    renderTarget,
+  )
+  return emitOuterRenderer(outputDimension, `  if (__pxlblz_show_phase == 0) {
+    ${emitMemberCaptureCall(from, outputDimension)}
+    ${from.prefix}_emit()
+  } else if (__pxlblz_show_phase == 2) {
+    ${emitMemberCaptureCall(to, outputDimension)}
+    ${to.prefix}_emit()
+  } else {
+${indentBlock(transitionBlock, 4)}
+  }`)
+}
+
+function emitSnapshotLiveCrossfadeBlock(
+  from: CompiledMember,
+  to: CompiledMember,
+  fromCapture: string,
+  toCapture: string,
+  renderTarget: ShowRenderTargetPlan<'stage-rgb'>,
+  physicalIndex = 'index',
+  captureCondition = '!__pxlblz_show_snapshot_ready',
+  markReady = true,
+): string {
+  const readR = emitShowRenderTargetRead(renderTarget, 'r', physicalIndex)
+  const readG = emitShowRenderTargetRead(renderTarget, 'g', physicalIndex)
+  const readB = emitShowRenderTargetRead(renderTarget, 'b', physicalIndex)
+  return `if (${captureCondition}) {
+  ${fromCapture}
+  ${emitShowRenderTargetWrite(renderTarget, 'r', physicalIndex, `${from.prefix}_r`)}
+  ${emitShowRenderTargetWrite(renderTarget, 'g', physicalIndex, `${from.prefix}_g`)}
+  ${emitShowRenderTargetWrite(renderTarget, 'b', physicalIndex, `${from.prefix}_b`)}
+}
+${toCapture}
+rgb(
+  ${readR} * (1 - __pxlblz_show_mix) + ${to.prefix}_r * __pxlblz_show_mix,
+  ${readG} * (1 - __pxlblz_show_mix) + ${to.prefix}_g * __pxlblz_show_mix,
+  ${readB} * (1 - __pxlblz_show_mix) + ${to.prefix}_b * __pxlblz_show_mix
+)
+${markReady ? `if (${physicalIndex} == pixelCount - 1) __pxlblz_show_snapshot_ready = 1` : ''}`
 }
 
 function emitRouteScheduler(routes: ResolvedRoute[]): string {
