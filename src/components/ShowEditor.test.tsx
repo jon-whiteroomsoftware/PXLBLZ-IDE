@@ -303,7 +303,7 @@ describe('ShowEditor (#318)', () => {
     const clip = screen.getByRole('button', { name: 'Select Caustics' })
     expect(within(clip).getByTitle('Scene composition: 2 clips · 2 layers · 2 effects · 1 animation')).toBeInTheDocument()
 
-    const inspect = screen.getByRole('button', { name: 'Inspect Signal over water in Super Detail' })
+    const inspect = screen.getByRole('button', { name: 'Pin Signal over water Super Detail' })
     expect(screen.getByTitle('Caustics · 0s–16s')).toBeInTheDocument()
     expect(screen.getByTitle('SignalMandala · 3s–13s')).toBeInTheDocument()
     await user.click(inspect)
@@ -336,29 +336,57 @@ describe('ShowEditor (#318)', () => {
     expect(within(panel).getByRole('table', { name: 'Advanced clip controls' })).toHaveClass('text-[10px]')
   })
 
-  it('discloses one stable read-only Scene X-ray and transfers Super Detail between owners (#471)', async () => {
+  it('keeps every Scene X-ray visible and lets hover previews be pinned (#471)', async () => {
     const user = userEvent.setup()
     const show = createDefaultShow('show-scene-xray', 'Scene X-ray', 1000)
+    show.transitions![0].propertyTransitions = {
+      brightness: { fromByCellId: { 'cell-2': 0.25 }, durationMs: 2000, easing: 'linear' },
+    }
     useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
 
     render(<ShowEditor showId={show.id} />)
 
-    expect(screen.getByRole('group', { name: 'Scene 1 Scene X-ray, read only' })).toHaveClass('h-[36px]')
-    await user.click(screen.getByRole('button', { name: 'Inspect Scene 1 in Super Detail' }))
+    const firstXray = screen.getByRole('group', { name: 'Scene 1 Scene X-ray, read only' })
+    const secondXray = screen.getByRole('group', { name: 'Scene 2 Scene X-ray, read only' })
+    expect(firstXray).toHaveClass('h-[36px]')
+    expect(secondXray).toHaveClass('h-[36px]')
+    expect(screen.getByText('clips')).toBeInTheDocument()
+    const transitionXray = screen.getByRole('group', { name: 'Scene 1 to Scene 2 transition X-ray' })
+    expect(transitionXray).toHaveAttribute('data-transition-kind', 'crossfade')
+    expect(transitionXray).toHaveAttribute('data-property-transition', 'true')
+    expect(transitionXray).toHaveAttribute('title', 'crossfade · 2s · property transition')
+    expect(transitionXray.querySelector('[data-xray-transition-icon="crossfade"]')).toBeInTheDocument()
+    expect(transitionXray).not.toHaveTextContent('xf')
+
+    fireEvent.mouseEnter(firstXray)
     expect(screen.getByRole('dialog', { name: 'Scene 1 Super Detail' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Open Scene 1 editor' })).toBeInTheDocument()
-
-    await user.click(screen.getByRole('button', { name: 'Show Scene 2 Scene X-ray' }))
-    expect(screen.queryByRole('group', { name: 'Scene 1 Scene X-ray, read only' })).not.toBeInTheDocument()
-    expect(screen.getByRole('group', { name: 'Scene 2 Scene X-ray, read only' })).toHaveClass('h-[36px]')
+    fireEvent.mouseLeave(firstXray)
     expect(screen.queryByRole('dialog', { name: 'Scene 1 Super Detail' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('dialog', { name: 'Scene 2 Super Detail' })).not.toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'Inspect Scene 2 in Super Detail' }))
+
+    fireEvent.mouseEnter(secondXray)
+    expect(screen.getByRole('dialog', { name: 'Scene 2 Super Detail' })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Pin Scene 2 Super Detail' }))
+    fireEvent.mouseLeave(secondXray)
     expect(screen.getByRole('dialog', { name: 'Scene 2 Super Detail' })).toBeInTheDocument()
 
     fireEvent.change(screen.getByRole('slider', { name: 'Timeline zoom' }), { target: { value: '5.1' } })
+    expect(screen.getByRole('group', { name: 'Scene 1 Scene X-ray, read only' })).toHaveClass('h-[36px]')
     expect(screen.getByRole('group', { name: 'Scene 2 Scene X-ray, read only' })).toHaveClass('h-[36px]')
     expect(screen.queryByRole('dialog', { name: 'Scene 2 Super Detail' })).not.toBeInTheDocument()
+  })
+
+  it.each([
+    ['fade-color' as const, 'fc'],
+    ['motion' as const, 'mv'],
+  ])('does not mislabel a %s boundary as a cut', (kind, mnemonic) => {
+    const show = createDefaultShow(`show-${kind}-mnemonic`, `${kind} mnemonic`, 1000)
+    show.transitions![0] = { ...show.transitions![0], kind }
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+
+    expect(screen.getByRole('button', { name: `Select Scene 1 to Scene 2 transition (${kind})` })).toHaveTextContent(mnemonic)
   })
 
   it('enters the production Scene x Zone editor and returns without unmounting the global Timeline (#487)', async () => {
@@ -913,7 +941,6 @@ describe('ShowEditor (#318)', () => {
     expect(within(sceneHeader).getAllByRole('button').map((button) => button.getAttribute('aria-label'))).toEqual([
       'Open Scene 1 properties',
       'Remove scene Scene 1',
-      'Hide Scene 1 Scene X-ray',
       'Edit Scene 1',
     ])
   })

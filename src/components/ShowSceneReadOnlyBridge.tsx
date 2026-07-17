@@ -13,12 +13,18 @@ const PROPERTY_COLOR = '#a78bfa'
 
 export function ShowSceneXray({
   detail,
-  open,
-  onInspect,
+  active,
+  pinned,
+  onPreview,
+  onPreviewEnd,
+  onPin,
 }: {
   detail: SceneReadOnlyBridgeProjection
-  open: boolean
-  onInspect: (anchor: HTMLElement) => void
+  active: boolean
+  pinned: boolean
+  onPreview: (anchor: HTMLElement) => void
+  onPreviewEnd: () => void
+  onPin: (anchor: HTMLElement) => void
 }) {
   const duration = Math.max(1, detail.durationMs)
   const placementTracks = detail.zones.flatMap((zone) => zone.layers.flatMap((layer, layerIndex) => (
@@ -30,9 +36,20 @@ export function ShowSceneXray({
     <div
       role="group"
       aria-label={`${detail.sceneName} Scene X-ray, read only`}
-      className="relative h-[36px] min-w-0 overflow-hidden border-x border-amber-300/25 bg-amber-300/[0.035] text-[8px] text-zinc-500"
+      tabIndex={-1}
+      onMouseEnter={(event) => onPreview(event.currentTarget)}
+      onMouseLeave={onPreviewEnd}
+      onFocusCapture={(event) => onPreview(event.currentTarget)}
+      onBlurCapture={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) onPreviewEnd()
+      }}
+      className={`group relative h-[36px] min-w-0 overflow-hidden border-x text-[8px] text-zinc-500 transition-colors ${
+        active
+          ? 'border-amber-300/45 bg-amber-300/[0.065]'
+          : 'border-amber-300/20 bg-amber-300/[0.025] hover:border-amber-300/35 hover:bg-amber-300/[0.045]'
+      }`}
     >
-      <XrayStratum label="cuts">
+      <XrayStratum>
         {placementTracks.map(({ zone, layer, layerIndex, placement }) => (
           <i
             key={`${zone.zoneId}-${layer.id}-${placement.id}`}
@@ -56,7 +73,7 @@ export function ShowSceneXray({
           />
         ))}
       </XrayStratum>
-      <XrayStratum label="fx">
+      <XrayStratum>
         {detail.xray.effectActivity.map((activity) => (
           <i
             key={`${activity.sourceCellId}-${activity.effectId}`}
@@ -69,19 +86,19 @@ export function ShowSceneXray({
           />
         ))}
       </XrayStratum>
-      <XrayStratum label="properties">
+      <XrayStratum>
         <PropertySparkline beats={detail.xray.propertyBeats} durationMs={duration} />
       </XrayStratum>
       <button
         type="button"
-        aria-label={`${open ? 'Hide' : 'Inspect'} ${detail.sceneName} in Super Detail`}
-        aria-pressed={open}
-        title={`${open ? 'Hide' : 'Inspect'} ${detail.sceneName} in Super Detail`}
+        aria-label={`${pinned ? 'Close' : 'Pin'} ${detail.sceneName} Super Detail`}
+        aria-pressed={pinned}
+        title={`${pinned ? 'Close' : 'Pin'} ${detail.sceneName} Super Detail`}
         onClick={(event) => {
           event.stopPropagation()
-          onInspect(event.currentTarget)
+          onPin(event.currentTarget.parentElement ?? event.currentTarget)
         }}
-        className={`absolute right-0.5 top-0.5 z-10 grid size-5 place-items-center rounded-sm bg-[#0b0d10]/90 shadow-[0_0_0_1px_rgba(82,82,91,.65)] transition-colors hover:text-amber-200 focus-visible:outline focus-visible:outline-1 focus-visible:outline-amber-300 ${open ? 'text-amber-200' : 'text-zinc-400'}`}
+        className={`absolute right-0.5 top-0.5 z-10 grid size-5 place-items-center rounded-sm bg-[#0b0d10]/90 shadow-[0_0_0_1px_rgba(82,82,91,.65)] transition-all hover:text-amber-200 focus:opacity-100 focus-visible:outline focus-visible:outline-1 focus-visible:outline-amber-300 ${pinned ? 'text-amber-200 opacity-100' : 'text-zinc-400 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100'}`}
       >
         <ScanSearch size={11} aria-hidden />
       </button>
@@ -89,12 +106,9 @@ export function ShowSceneXray({
   )
 }
 
-function XrayStratum({ label, children }: { label: string; children: ReactNode }) {
+function XrayStratum({ children }: { children: ReactNode }) {
   return (
-    <div className="grid h-3 grid-cols-[42px_minmax(0,1fr)] border-b border-zinc-900/80 last:border-b-0">
-      <span className="truncate border-r border-zinc-900/80 px-1 font-mono uppercase tracking-[0.08em]">{label}</span>
-      <span className="relative min-w-0 overflow-hidden">{children}</span>
-    </div>
+    <div className="relative h-3 min-w-0 overflow-hidden border-b border-zinc-900/80 last:border-b-0">{children}</div>
   )
 }
 
@@ -127,7 +141,7 @@ export function ShowSceneSuperDetail({
   onOpenScene?: (sceneId: string) => void
 }) {
   const panelRef = useRef<HTMLElement>(null)
-  const [position, setPosition] = useState<{ left: number; top: number; maxHeight: number } | null>(null)
+  const [position, setPosition] = useState<{ left: number; top: number } | null>(null)
   useLayoutEffect(() => {
     const panel = panelRef.current
     if (!panel || !anchor.isConnected) {
@@ -143,9 +157,7 @@ export function ShowSceneSuperDetail({
         window.innerWidth - panelRect.width - gutter,
         anchorRect.right - panelRect.width,
       ))
-      const maxHeight = Math.min(620, Math.max(120, anchorRect.top - gap - gutter))
-      const top = Math.max(gutter, anchorRect.top - Math.min(panelRect.height, maxHeight) - gap)
-      setPosition({ left, top, maxHeight })
+      setPosition({ left, top: anchorRect.bottom + gap })
     }
     place()
     window.addEventListener('resize', place)
@@ -159,6 +171,7 @@ export function ShowSceneSuperDetail({
     }
     const onClickAway = (event: MouseEvent) => {
       if (panelRef.current?.contains(event.target as Node)) return
+      if (anchor.contains(event.target as Node)) return
       onClose()
     }
     document.addEventListener('keydown', onKeyDown)
@@ -167,7 +180,7 @@ export function ShowSceneSuperDetail({
       document.removeEventListener('keydown', onKeyDown)
       document.removeEventListener('click', onClickAway)
     }
-  }, [onClose])
+  }, [anchor, onClose])
 
   return createPortal(
     <section
@@ -175,11 +188,10 @@ export function ShowSceneSuperDetail({
       role="dialog"
       aria-modal="false"
       aria-label={`${detail.sceneName} Super Detail`}
-      className="fixed z-[90] flex max-h-[min(620px,calc(100vh-16px))] w-[min(720px,calc(100vw-16px))] flex-col overflow-hidden rounded-md border border-zinc-600 bg-[#090b0e]/[0.99] font-mono text-[10px] text-zinc-300 shadow-[0_24px_80px_-18px_rgba(0,0,0,.96),0_0_0_1px_rgba(230,184,92,.12)] backdrop-blur-sm"
+      className="fixed z-[90] flex w-[min(720px,calc(100vw-16px))] flex-col overflow-hidden rounded-md border border-zinc-600 bg-[#090b0e]/[0.99] font-mono text-[10px] text-zinc-300 shadow-[0_24px_80px_-18px_rgba(0,0,0,.96),0_0_0_1px_rgba(230,184,92,.12)] backdrop-blur-sm"
       style={{
         left: position?.left ?? 8,
         top: position?.top ?? 8,
-        maxHeight: position?.maxHeight,
         visibility: position ? 'visible' : 'hidden',
       }}
       onClick={(event) => event.stopPropagation()}
@@ -216,7 +228,7 @@ export function ShowSceneSuperDetail({
         </button>
       </header>
 
-      <div className="flex min-h-0 flex-1 flex-col overflow-auto">
+      <div className="flex flex-col">
         <div className="grid h-7 shrink-0 grid-cols-[112px_minmax(0,1fr)] border-b border-zinc-800">
           <span className="flex items-center border-r border-zinc-800 px-2 text-zinc-500">Boundary context</span>
           <span className="flex min-w-0 items-center gap-2 overflow-hidden px-2">

@@ -20,6 +20,7 @@ import { ShowSceneZoneEditor } from '@/components/ShowSceneZoneEditor'
 import { ShowEffectPalette } from '@/components/ShowEffectsAuthoring'
 import { ShowClipEntityDetail } from '@/components/ShowClipEntityDetail'
 import { ShowTransitionPalette, ShowTransitionParameters } from '@/components/ShowTransitionAuthoring'
+import { ShowTransitionXrayPictogram } from '@/components/ShowTransitionXrayPictogram'
 import { getControllerProvider } from '@/engine/controllerProviderRegistry'
 import { makeProgramId } from '@/engine/bytecodePush'
 import { PatternDeploymentActions } from '@/components/PatternDeploymentActions'
@@ -1955,8 +1956,7 @@ function SceneStrip({
   const setSnapEnabled = useShowEditorSessionStore((state) => state.setSnapEnabled)
   const [draggingCellId, setDraggingCellId] = useState<string | null>(null)
   const [dropTargetKey, setDropTargetKey] = useState<string | null>(null)
-  const [xraySceneId, setXraySceneId] = useState<string | null>(compositionProjection ? show.scenes[0]?.id ?? null : null)
-  const [superDetailOwner, setSuperDetailOwner] = useState<{ sceneId: string; anchor: HTMLElement } | null>(null)
+  const [superDetailOwner, setSuperDetailOwner] = useState<{ sceneId: string; anchor: HTMLElement; pinned: boolean } | null>(null)
   let viewport = storedViewport
   if (viewport.totalMs !== fittedViewport.totalMs) {
     const zoom = viewport.totalMs / viewport.durationMs
@@ -2061,14 +2061,16 @@ function SceneStrip({
     const finalRowIndex = Math.min(strip.rows.length - 1, rowIndex + Math.max(1, zoneSpan) - 1)
     return rowStart(finalRowIndex) - rowStart(rowIndex) + 1
   }
-  const xrayDetail = useMemo(() => {
-    if (!compositionProjection || !xraySceneId) return null
-    try {
-      return projectSceneReadOnlyBridge(compositionProjection, xraySceneId)
-    } catch {
-      return null
-    }
-  }, [compositionProjection, xraySceneId])
+  const xrayDetails = useMemo(() => {
+    if (!compositionProjection) return []
+    return show.scenes.flatMap((scene) => {
+      try {
+        return [projectSceneReadOnlyBridge(compositionProjection, scene.id)]
+      } catch {
+        return []
+      }
+    })
+  }, [compositionProjection, show.scenes])
   const superDetail = useMemo(() => {
     if (!compositionProjection || !superDetailOwner) return null
     try {
@@ -2077,19 +2079,10 @@ function SceneStrip({
       return null
     }
   }, [compositionProjection, superDetailOwner])
-  const xrayOpen = xrayDetail !== null
+  const xrayOpen = xrayDetails.length > 0
   const rulerRow = xrayOpen ? 3 : 2
   const transitionRow = rulerRow + 1
   const contentStartRow = transitionRow + 1
-  const toggleXray = (sceneId: string) => {
-    if (xraySceneId === sceneId) {
-      setXraySceneId(null)
-      if (superDetailOwner?.sceneId === sceneId) setSuperDetailOwner(null)
-      return
-    }
-    setXraySceneId(sceneId)
-    setSuperDetailOwner(null)
-  }
   const columns = [
     '148px',
     ...show.scenes.flatMap((scene, index) => (
@@ -2281,8 +2274,6 @@ function SceneStrip({
             canRemove={show.scenes.length > 1}
             readOnly={readOnly}
             selectionKey={`scene:${scene.id}`}
-            xrayOpen={xraySceneId === scene.id}
-            onToggleXray={() => toggleXray(scene.id)}
             onOpenScene={() => onOpenScene(scene.id)}
             onSelect={(anchor) => onSelect({ kind: 'scene', sceneId: scene.id }, anchor)}
             onRemove={() => onRequestRemoveScene(scene)}
@@ -2291,24 +2282,60 @@ function SceneStrip({
         )).flatMap((node, index) => index < show.scenes.length - 1
           ? [node, <div key={`boundary-header-${show.scenes[index].id}`} className="border-b border-zinc-900" />]
           : [node])}
-        {xrayDetail && (
+        {xrayOpen && (
           <>
             <div
-              className="sticky left-0 z-30 flex items-center border-b border-zinc-900 bg-[#060608] px-1 text-[8.5px] uppercase tracking-[0.1em] text-amber-200/70"
+              className="sticky left-0 z-30 grid h-[36px] grid-cols-[56px_minmax(0,1fr)] border-b border-zinc-900 bg-[#060608] text-[8px] uppercase tracking-[0.08em] text-zinc-600"
               style={{ gridColumn: 1, gridRow: 2 }}
             >
-              X-ray · read only
+              <span className="flex flex-col justify-center px-1 text-amber-200/75">
+                <strong className="font-medium">X-ray</strong>
+                <span className="text-[7px] text-zinc-700">read only</span>
+              </span>
+              <span className="grid grid-rows-3 border-l border-zinc-900/80 font-mono">
+                <span className="truncate border-b border-zinc-900/80 px-1 leading-3">clips</span>
+                <span className="truncate border-b border-zinc-900/80 px-1 leading-3">fx</span>
+                <span className="truncate px-1 leading-3">properties</span>
+              </span>
             </div>
             <div className="border-b border-zinc-900 bg-[#090a0c]" style={{ gridColumn: `2 / ${columns.length}`, gridRow: 2 }} />
-            <div className="relative z-10 min-w-0" style={{ gridColumn: 2 + show.scenes.findIndex((scene) => scene.id === xrayDetail.sceneId) * 2, gridRow: 2 }}>
-              <ShowSceneXray
-                detail={xrayDetail}
-                open={superDetailOwner?.sceneId === xrayDetail.sceneId}
-                onInspect={(anchor) => setSuperDetailOwner((current) => (
-                  current?.sceneId === xrayDetail.sceneId ? null : { sceneId: xrayDetail.sceneId, anchor }
-                ))}
-              />
-            </div>
+            {xrayDetails.map((detail) => (
+              <div
+                key={detail.sceneId}
+                className="relative z-10 min-w-0"
+                style={{ gridColumn: 2 + show.scenes.findIndex((scene) => scene.id === detail.sceneId) * 2, gridRow: 2 }}
+              >
+                <ShowSceneXray
+                  detail={detail}
+                  active={superDetailOwner?.sceneId === detail.sceneId}
+                  pinned={superDetailOwner?.sceneId === detail.sceneId && superDetailOwner.pinned}
+                  onPreview={(anchor) => setSuperDetailOwner((current) => (
+                    current?.pinned ? current : { sceneId: detail.sceneId, anchor, pinned: false }
+                  ))}
+                  onPreviewEnd={() => setSuperDetailOwner((current) => (
+                    current?.sceneId === detail.sceneId && !current.pinned ? null : current
+                  ))}
+                  onPin={(anchor) => setSuperDetailOwner((current) => (
+                    current?.sceneId === detail.sceneId && current.pinned
+                      ? null
+                      : { sceneId: detail.sceneId, anchor, pinned: true }
+                  ))}
+                />
+              </div>
+            ))}
+            {show.scenes.slice(0, -1).map((scene, index) => (
+              <div
+                key={`xray-boundary-${scene.id}`}
+                className="relative z-10 min-w-0"
+                style={{ gridColumn: 3 + index * 2, gridRow: 2 }}
+              >
+                <SceneXrayTransitionBridge
+                  fromScene={scene}
+                  toScene={show.scenes[index + 1]}
+                  transitions={strip.boundaryTransitions.filter((transition) => transition.afterSceneId === scene.id)}
+                />
+              </div>
+            ))}
           </>
         )}
         <div
@@ -3058,8 +3085,6 @@ function SceneColumnHeader({
   canRemove,
   readOnly,
   selectionKey,
-  xrayOpen,
-  onToggleXray,
   onOpenScene,
   onSelect,
   onRemove,
@@ -3071,8 +3096,6 @@ function SceneColumnHeader({
   canRemove: boolean
   readOnly: boolean
   selectionKey: string
-  xrayOpen: boolean
-  onToggleXray: () => void
   onOpenScene: () => void
   onSelect: (anchor: HTMLElement) => void
   onRemove: () => void
@@ -3136,19 +3159,6 @@ function SceneColumnHeader({
           <Trash2 size={11} aria-hidden />
         </button>
       )}
-      <button
-        type="button"
-        aria-label={`${xrayOpen ? 'Hide' : 'Show'} ${scene.name} Scene X-ray`}
-        aria-pressed={xrayOpen}
-        title={`${xrayOpen ? 'Hide' : 'Show'} ${scene.name} Scene X-ray`}
-        onClick={(event) => {
-          event.stopPropagation()
-          onToggleXray()
-        }}
-        className={`grid h-5 w-5 shrink-0 place-items-center rounded transition-colors focus-visible:outline focus-visible:outline-1 focus-visible:outline-amber-300 ${xrayOpen ? 'bg-amber-300/10 text-amber-200' : 'text-zinc-600 opacity-0 hover:bg-zinc-800 hover:text-zinc-200 group-hover:opacity-100 focus:opacity-100'}`}
-      >
-        <ChevronDown size={11} aria-hidden className={xrayOpen ? '' : '-rotate-90'} />
-      </button>
       <button
         type="button"
         aria-label={`Edit ${scene.name}`}
@@ -3244,6 +3254,10 @@ function BoundaryTransitionChip({
         ? 'dt'
         : transition.kind === 'portal'
           ? 'pt'
+          : transition.kind === 'fade-color'
+            ? 'fc'
+            : transition.kind === 'motion'
+              ? 'mv'
           : 'cut'
   const afterIndex = show.scenes.findIndex((scene) => scene.id === transition.afterSceneId)
   const from = show.scenes[afterIndex]?.name ?? 'Scene'
@@ -3279,6 +3293,63 @@ function BoundaryTransitionChip({
       {transition.kind === 'routing' ? <Route size={11} aria-hidden /> : glyph}
     </button>
   )
+}
+
+function SceneXrayTransitionBridge({
+  fromScene,
+  toScene,
+  transitions,
+}: {
+  fromScene: ShowScene
+  toScene: ShowScene
+  transitions: ReturnType<typeof projectShowStrip>['boundaryTransitions']
+}) {
+  const visualTransition = transitions.find((transition) => transition.kind !== 'routing')
+  const routingTransition = transitions.find((transition) => transition.kind === 'routing')
+  const kind = visualTransition?.kind ?? 'cut'
+  const durationMs = visualTransition?.durationMs ?? 0
+  const timed = durationMs > 0 && kind !== 'cut'
+  const hasPropertyTransition = transitions.some((transition) => hasXrayPropertyTransition(transition.propertyTransitions))
+  const title = [
+    timed ? `${kind} · ${formatTransitionXrayDuration(durationMs)}` : 'cut',
+    routingTransition ? `routing to ${routingTransition.layoutName ?? 'layout'}` : null,
+    hasPropertyTransition ? 'property transition' : null,
+  ].filter(Boolean).join(' · ')
+
+  return (
+    <div
+      role="group"
+      aria-label={`${fromScene.name} to ${toScene.name} transition X-ray`}
+      data-transition-kind={kind}
+      data-property-transition={hasPropertyTransition ? 'true' : 'false'}
+      title={title}
+      className="relative h-[36px] min-w-0 overflow-hidden border-x border-zinc-800/80 bg-[#080a0c] font-mono text-[7px] uppercase text-zinc-500"
+    >
+      {timed && visualTransition ? (
+        <ShowTransitionXrayPictogram transition={visualTransition} />
+      ) : (
+        <i aria-hidden className="absolute inset-y-0 left-1/2 w-px bg-zinc-300/70" />
+      )}
+    </div>
+  )
+}
+
+function hasXrayPropertyTransition(
+  transitions: ReturnType<typeof projectShowStrip>['boundaryTransitions'][number]['propertyTransitions'],
+): boolean {
+  if (!transitions) return false
+  return Boolean(
+    transitions.timeScale
+    || transitions.brightness
+    || Object.keys(transitions.controls ?? {}).length > 0
+    || transitions.routing?.splitPosition
+    || transitions.sample?.repeatScale
+    || Object.values(transitions.effects ?? {}).some((parameters) => Object.keys(parameters).length > 0),
+  )
+}
+
+function formatTransitionXrayDuration(durationMs: number): string {
+  return `${Number((durationMs / 1000).toFixed(2))}s`
 }
 
 function isEffectTweenBoundary(

@@ -31,29 +31,57 @@ function detailFixture() {
 
 describe('Show Scene read-only bridge (#471)', () => {
   it('renders the X-ray as one fixed 36px row with three non-editable strata', () => {
-    const onInspect = vi.fn()
-    render(<ShowSceneXray detail={detailFixture()} open={false} onInspect={onInspect} />)
+    const onPreview = vi.fn()
+    const onPreviewEnd = vi.fn()
+    const onPin = vi.fn()
+    render(
+      <ShowSceneXray
+        detail={detailFixture()}
+        active={false}
+        pinned={false}
+        onPreview={onPreview}
+        onPreviewEnd={onPreviewEnd}
+        onPin={onPin}
+      />,
+    )
 
     const xray = screen.getByRole('group', { name: 'Scene 2 Scene X-ray, read only' })
     expect(xray).toHaveClass('h-[36px]')
-    expect(xray).toHaveTextContent('cuts')
-    expect(xray).toHaveTextContent('fx')
-    expect(xray).toHaveTextContent('properties')
+    expect(xray).not.toHaveTextContent('cuts')
+    expect(xray).not.toHaveTextContent('properties')
     expect(screen.getByRole('group', { name: 'brightness 0.2 to 1' }).querySelector('polyline')).toBeInTheDocument()
     expect(withinInputs(xray)).toHaveLength(0)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Inspect Scene 2 in Super Detail' }))
-    expect(onInspect).toHaveBeenCalledOnce()
-    expect(onInspect).toHaveBeenCalledWith(expect.any(HTMLButtonElement))
+    fireEvent.mouseEnter(xray)
+    expect(onPreview).toHaveBeenCalledWith(xray)
+    fireEvent.mouseLeave(xray)
+    expect(onPreviewEnd).toHaveBeenCalledOnce()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Pin Scene 2 Super Detail' }))
+    expect(onPin).toHaveBeenCalledOnce()
+    expect(onPin).toHaveBeenCalledWith(xray)
   })
 
   it('opens one modeless read-only Super Detail layer and dismisses it with Escape', () => {
     const onClose = vi.fn()
     const anchor = document.body.appendChild(document.createElement('button'))
+    vi.spyOn(anchor, 'getBoundingClientRect').mockReturnValue({
+      x: 40,
+      y: 80,
+      top: 80,
+      right: 160,
+      bottom: 116,
+      left: 40,
+      width: 120,
+      height: 36,
+      toJSON: () => ({}),
+    })
     render(<ShowSceneSuperDetail detail={detailFixture()} anchor={anchor} onClose={onClose} />)
 
     const dialog = screen.getByRole('dialog', { name: 'Scene 2 Super Detail' })
     expect(dialog).toHaveAttribute('aria-modal', 'false')
+    expect(dialog).toHaveStyle({ top: '122px' })
+    expect(dialog.querySelector('.overflow-auto')).not.toBeInTheDocument()
     expect(dialog.querySelector('header')).toHaveClass('h-8')
     expect(dialog).toHaveTextContent('Global 00:32.0–01:02.0')
     expect(dialog).toHaveTextContent('Local 00:00.0–00:30.0')
