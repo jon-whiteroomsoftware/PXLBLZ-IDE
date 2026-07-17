@@ -1,10 +1,10 @@
 import { report } from './issue508'
 
 describe('Redline Show Stage performance harness (#508)', () => {
-  it('records a packed one-tick-per-frame Fast baseline for the real 4,000-pixel fixture', () => {
+  it('records a packed one-tick-per-frame Fast baseline for the real 2,000-pixel fixture', () => {
     expect(report).toMatchObject({
       fixture: 'stock-show-showcase-redline-installation',
-      pixelCount: 4_000,
+      pixelCount: 2_000,
       runtimeInitializations: 1,
       simulatedTicksPerPresentedFrame: 1,
       frameBufferStable: true,

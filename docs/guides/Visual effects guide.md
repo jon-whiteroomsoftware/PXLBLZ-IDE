@@ -233,7 +233,7 @@ an irregular measured map read as one intentional composition.
 ### Ruthlessly engineered spectacle
 
 **Redline Installation** treats a fixed Stage as five instruments: one
-1,600-pixel hero panel and four 600-pixel target arrays. Its 60-second score is
+800-pixel hero panel and four 300-pixel target arrays. Its 60-second score is
 32 bars at 128 BPM, divided into eight equal phrases that ignite, build, drop,
 leave a vacuum, rebuild, compress, peak, and release.
 
@@ -241,10 +241,11 @@ The Show gets scale from constraint. One shared Pattern instance advances one
 clock and evaluates once per output pixel; affine Effects make the four targets
 counter-rotate, shear, mirror, and answer one another. Cheap block fields,
 target rings, shutters, and glyph masks do the per-pixel work. Black provides
-negative space, red carries pressure, white marks impact, and cyan appears once
-as an intruder before red returns. The compiled artifact reports its real cost,
-but this stock Show is an aspirational visual reference rather than a promise
-that every Controller can drive its 4,000-pixel authoring resolution.
+negative space, red carries pressure, white marks impact, and sparse cyan
+ornaments surface between beats before cyan takes over during the breakdown.
+The compiled artifact reports its real cost, but this stock Show is an
+outer-limit production reference rather than a promise that every Controller
+and LED protocol can sustain the same frame rate at the 2,000-pixel ceiling.
 
 ### Transform Effects
 

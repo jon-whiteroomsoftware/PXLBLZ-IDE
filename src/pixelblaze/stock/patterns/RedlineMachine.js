@@ -1,17 +1,18 @@
 // Redline Machine - the complete 32-bar installation score in one renderer.
-// The shared instance receives 1,600 pixels on the hero panel and 600 on each
+// The shared instance receives 800 pixels on the hero panel and 300 on each
 // target, so it can select the correct cheap material without a Zone-specific
 // copy. Per-target affine Effects supply the four different performances.
 
 export var intensity = 1
 export var scoreSpeed = 1
-export var guest = 1
+export var cyanAmount = 1
 
 export function sliderIntensity(v) { intensity = 0.35 + v * 0.65 }
 export function sliderSpeed(v) { scoreSpeed = 0.5 + v }
-export function sliderGuest(v) { guest = v }
+export function sliderCyan(v) { cyanAmount = v }
 
 var score, beat, phraseTime, phrase, step, energy, mode, palette
+var accentPhase, accentLevel
 
 export function beforeRender(delta) {
   score = time(0.91552734 / scoreSpeed)       // 60 seconds at the default speed
@@ -30,6 +31,8 @@ export function beforeRender(delta) {
   else { energy = 1; mode = 3; palette = 1 }
 
   energy = min(1, energy * intensity)
+  accentPhase = frac(score * 11)
+  accentLevel = palette == 0.5 ? 0 : max(0, 1 - abs(accentPhase - 0.5) * 12)
 }
 
 function inside(v, lo, hi) {
@@ -95,8 +98,17 @@ function glyphField(x, y) {
   return glyph
 }
 
+function cyanOrnamentField(x, y) {
+  var fold = abs(x - 0.5) * 2
+  var curve = 1 - min(1, abs(y - (0.16 + fold * fold * 0.62)) * 22)
+  var shoot = 1 - min(1, abs(x - (0.18 + y * y * 0.64)) * 24)
+  var dash = frac(x * 9 + y * 7 + accentPhase * 2) < 0.38 ? 1 : 0
+  var shape = max(curve, shoot * 0.72) * dash
+  return shape > 0.32 ? shape : 0
+}
+
 export function render2D(index, x, y) {
-  var center = pixelCount > 1000
+  var center = pixelCount > 500
   var finalPunctuation = phrase == 7 && phraseTime > 0.72
   var value
 
@@ -111,7 +123,12 @@ export function render2D(index, x, y) {
 
   var surfaceGlow = 0.025 + energy * 0.035
   var hot = (surfaceGlow + value * (1 - surfaceGlow)) * (0.58 + energy * 0.42)
-  var cyan = palette == 0.5 ? hot * guest : 0
+  var cyan = palette == 0.5 ? hot * cyanAmount : 0
   var red = palette == 0.5 ? 0 : hot
+  if (accentLevel > 0 && cyanAmount > 0) {
+    var ornament = cyanOrnamentField(x, y) * accentLevel * cyanAmount * 0.95
+    red = red * (1 - ornament)
+    cyan = max(cyan, ornament)
+  }
   rgb(max(red, white), max(cyan, white), max(cyan, white))
 }

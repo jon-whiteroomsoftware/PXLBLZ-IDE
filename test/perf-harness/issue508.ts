@@ -1,7 +1,7 @@
 // Repeatable engine-side frame-budget harness for issue #508.
 // Run with: npm run issue508
 //
-// This measures the real compiled 4,000-pixel Redline Show and its Stage mask.
+// This measures the real compiled 2,000-pixel Redline Show and its Stage mask.
 // Browser presentation, WebGL upload, and React publication are measured by the
 // companion Chrome pass because Node timings cannot represent those phases.
 
@@ -46,7 +46,7 @@ if (!redline) throw new Error('Redline Installation fixture is missing.')
 const map = SOURCE_STOCK_MAPS.find((candidate) => candidate.id === 'redline-stage-2d')
 if (!map) throw new Error('Redline Stage map is missing.')
 
-const mapPoints = map.resolve(4_000)
+const mapPoints = map.resolve(2_000)
 const compileStarted = performance.now()
 const compiled = compileShowForPreview(redline.show, [], installationPhysicalZones(redline.show), {}, {
   stageDimension: 2,

@@ -1,5 +1,5 @@
 // Five-surface installation: one stretched hero panel followed by four
-// concentric-ring targets. At 4,000 pixels the index contract is 1,600 + 4x600.
+// concentric-ring targets. At 2,000 pixels the index contract is 800 + 4x300.
 function(pixelCount) {
   var count = Math.max(5, Math.floor(pixelCount) || 5)
   var centerCount = Math.round(count * 0.4)
@@ -9,8 +9,8 @@ function(pixelCount) {
   var coords = []
 
   // The compiler derives a square local grid from a physical Zone count. A
-  // 40x40 index grid stretched to 2.4:0.86 makes its local coordinates match
-  // the actual 1,600-pixel hero panel instead of scrambling a 64x25 winding.
+  // A near-square index grid stretched to 2.4:0.86 makes its local coordinates
+  // match the wide hero panel instead of scrambling a short, wide winding.
   var centerColumns = Math.max(1, Math.ceil(Math.sqrt(centerCount)))
   var centerRows = Math.max(1, Math.ceil(centerCount / centerColumns))
   for (var i = 0; i < centerCount; i++) {

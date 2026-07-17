@@ -592,11 +592,11 @@ inputs. Expandable detail sections remain available; editing requires a personal
 Show.
 
 The Showcases collection also includes larger finished scores. **Redline
-Installation** is a deliberately aspirational 4,000-pixel, five-surface Stage:
-one shared renderer drives a 1,600-pixel center panel and four transformed
-600-pixel targets through a 32-bar red, black, white, and cyan performance. Its
-authoring resolution demonstrates composition and graphics craft; it is not a
-minimum hardware promise.
+Installation** is a 2,000-pixel, five-surface Stage at the supported output
+ceiling: one shared renderer drives an 800-pixel center panel and four
+transformed 300-pixel targets through a 32-bar red, black, white, and cyan
+performance. Sparse cyan ornaments briefly decorate ordinary red phrases;
+Vacuum and Rebuild retain the full cyan takeover.
 
 Eight unnumbered reference Showcases catalogue Effects, Transitions, Property
 animation, and easing separately from the numbered curriculum. Their expanded

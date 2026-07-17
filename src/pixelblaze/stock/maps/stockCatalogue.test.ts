@@ -147,16 +147,16 @@ describe('stock catalogue', () => {
 })
 
 describe('source regeneration', () => {
-  it('builds the 4,000-pixel Redline installation as one panel and four targets', () => {
-    const points = mapById('redline-stage-2d').resolve(4_000)
-    const center = points.slice(0, 1_600)
+  it('builds the 2,000-pixel Redline installation as one panel and four targets', () => {
+    const points = mapById('redline-stage-2d').resolve(2_000)
+    const center = points.slice(0, 800)
     const targets = Array.from({ length: 4 }, (_, index) => (
-      points.slice(1_600 + index * 600, 2_200 + index * 600)
+      points.slice(800 + index * 300, 1_100 + index * 300)
     ))
 
-    expect(points).toHaveLength(4_000)
-    expect(center).toHaveLength(1_600)
-    expect(targets.every((target) => target.length === 600)).toBe(true)
+    expect(points).toHaveLength(2_000)
+    expect(center).toHaveLength(800)
+    expect(targets.every((target) => target.length === 300)).toBe(true)
     expect(points.every((point) => point.sample.length === 2 && point.pos?.length === 2)).toBe(true)
 
     const bounds = (group: typeof points) => ({

@@ -2064,7 +2064,7 @@ coverage over delegation and rendering. The repository also carries:
 - compiler and generated-artifact execution tests;
 - Show model/compiler/runtime equivalence tests;
 - performance harnesses for Pixelblaze built-in costs and generated strategies;
-- `npm run issue508`, which compiles and advances the real 4,000-pixel Redline
+- `npm run issue508`, which compiles and advances the real 2,000-pixel Redline
   Installation fixture and reports median/p95 engine phase time, simulated
   ticks per presented frame, runtime initialization count, and buffer identity;
 - Playwright public route smoke plus synthetic authenticated D1-backed Studio

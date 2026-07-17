@@ -379,13 +379,13 @@ function redlineInstallation(): StockShow {
   const id = 'stock-show-showcase-redline-installation'
   const zones = physicalZones(
     ['Hero panel', 'Left upper', 'Left lower', 'Right upper', 'Right lower'],
-    [1_600, 600, 600, 600, 600],
+    [800, 300, 300, 300, 300],
   )
   const patternInstances: ShowCompositionV1['patternInstances'] = [
     instance('redline-machine', 'RedlineMachine', 1, {
       sliderIntensity: 1,
       sliderSpeed: 0.5,
-      sliderGuest: 1,
+      sliderCyan: 1,
     }),
   ]
   const phrases = [
@@ -489,14 +489,14 @@ function redlineInstallation(): StockShow {
     level: null,
     order: 10,
     purpose: 'A sixty-second club-installation score turns one hero panel and four target arrays into a single rhythmic machine.',
-    notice: 'One renderer owns each pixel. Shared target instances and cheap transforms create difference; black space, red pressure, white impact, and one cyan interruption create the arc.',
+    notice: 'One renderer owns each pixel. Shared target instances and cheap transforms create difference; black space, red pressure, white impact, sparse cyan ornaments, and one cyan takeover create the arc.',
     prompts: ['Solo the four target Zones and compare their shared clock.', 'Jump between First drop, Vacuum, and Peak to compare one canvas with five instruments.'],
     guideHeading: 'ruthlessly-engineered-spectacle',
     defaultOpen: true,
-    output: { kind: 'installation', mapId: 'redline-stage-2d', pixelCount: 4_000 },
+    output: { kind: 'installation', mapId: 'redline-stage-2d', pixelCount: 2_000 },
     zones,
     layouts: [physicalLayout('layout-redline-stage', 'Redline stage', zones, [
-      [[0, 1_599]], [[1_600, 2_199]], [[2_200, 2_799]], [[2_800, 3_399]], [[3_400, 3_999]],
+      [[0, 799]], [[800, 1_099]], [[1_100, 1_399]], [[1_400, 1_699]], [[1_700, 1_999]],
     ])],
     scenes,
     transitions: cutBoundaries(scenes),

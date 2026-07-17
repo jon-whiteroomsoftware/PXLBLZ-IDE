@@ -5,7 +5,8 @@ import { parseEpe } from '@/engine/epeImport'
 import { createPortableShowOutputContract } from '@/engine/showOutputContract'
 import { compileShowForArtifact, sourceForShowCell } from '@/engine/showPreviewArtifact'
 import { validatePortableShowCompatibility } from '@/engine/showPortableCompatibility'
-import { loadPattern } from '@/engine/loadPattern'
+import { loadPattern, nativeDimension } from '@/engine/loadPattern'
+import { createFastReplayRuntime } from '@/engine/fastReplay'
 import { createShim } from '@/engine/shim'
 import { validateShowComposition } from '@/engine/showCompositionModel'
 import { projectShowTimeline } from '@/engine/showModel'
@@ -167,7 +168,7 @@ describe('stock Show curriculum (#363)', () => {
       version: 1,
       kind: 'installation',
       outputMapId: 'redline-stage-2d',
-      pixelCount: 4_000,
+      pixelCount: 2_000,
       resolution: 'fixed',
     })
     expect(item.show.zones.map((zone) => zone.name)).toEqual([
@@ -177,13 +178,13 @@ describe('stock Show curriculum (#363)', () => {
       'Right upper',
       'Right lower',
     ])
-    expect(item.show.zones.map((zone) => zone.nominalPixelCount)).toEqual([1_600, 600, 600, 600, 600])
+    expect(item.show.zones.map((zone) => zone.nominalPixelCount)).toEqual([800, 300, 300, 300, 300])
     expect(item.show.routingLayouts[0].zones.map((zone) => zone.ranges)).toEqual([
-      [{ start: 0, end: 1_599 }],
-      [{ start: 1_600, end: 2_199 }],
-      [{ start: 2_200, end: 2_799 }],
-      [{ start: 2_800, end: 3_399 }],
-      [{ start: 3_400, end: 3_999 }],
+      [{ start: 0, end: 799 }],
+      [{ start: 800, end: 1_099 }],
+      [{ start: 1_100, end: 1_399 }],
+      [{ start: 1_400, end: 1_699 }],
+      [{ start: 1_700, end: 1_999 }],
     ])
     expect(projectShowTimeline(item.show).durationMs).toBe(60_000)
     expect(item.show.scenes.map((scene) => [scene.name, scene.durationMs])).toEqual([
@@ -201,6 +202,8 @@ describe('stock Show curriculum (#363)', () => {
 
     const patternIds = new Set(item.show.composition!.patternInstances.map((instance) => instance.pattern.id))
     expect(patternIds).toEqual(new Set(['RedlineMachine']))
+    expect(item.show.composition!.patternInstances[0].controlTargets).toMatchObject({ sliderCyan: 1 })
+    expect(item.show.composition!.patternInstances[0].controlTargets).not.toHaveProperty('sliderGuest')
     for (const scene of item.show.composition!.scenes) {
       const targetZones = scene.zones.slice(1)
       expect(new Set(targetZones.map((zone) => zone.main[0]?.instanceId)).size, scene.sceneId).toBe(1)
@@ -214,10 +217,10 @@ describe('stock Show curriculum (#363)', () => {
     expect(compiled.artifact!.summary.artifactBytes).toBeGreaterThan(0)
     expect(compiled.artifact!.summary.measuredDeviceBudgetBytes).toBeGreaterThan(0)
 
-    const mapPoints = SOURCE_STOCK_MAPS.find((map) => map.id === 'redline-stage-2d')!.resolve(4_000)
+    const mapPoints = SOURCE_STOCK_MAPS.find((map) => map.id === 'redline-stage-2d')!.resolve(2_000)
     let virtualTime = 0
     const shim = createShim({
-      pixelCount: 4_000,
+      pixelCount: 2_000,
       dimensions: 2,
       mapPoints,
       getVirtualTime: () => virtualTime,
@@ -226,8 +229,8 @@ describe('stock Show curriculum (#363)', () => {
     const handle = loadPattern(compiled.artifact!.code, compiled.artifact!.metadata, shim.builtins)
     const sampleIndices = Array.from({ length: 160 }, (_, sampleIndex) => {
       const zoneIndex = sampleIndex % 5
-      const zoneStart = zoneIndex === 0 ? 0 : 1_600 + (zoneIndex - 1) * 600
-      const zoneCount = zoneIndex === 0 ? 1_600 : 600
+      const zoneStart = zoneIndex === 0 ? 0 : 800 + (zoneIndex - 1) * 300
+      const zoneCount = zoneIndex === 0 ? 800 : 300
       return zoneStart + Math.floor((sampleIndex / 5) * 73) % zoneCount
     })
     const frameAt = (deltaMs: number) => {
@@ -249,6 +252,72 @@ describe('stock Show curriculum (#363)', () => {
     expect(frames.slice(4, 6).some((frame) => frame.some(([r, g, b]) => g > r + 0.1 && b > r + 0.1))).toBe(true)
     expect([...frames.slice(0, 4), ...frames.slice(6)].some((frame) => frame.some(([r, g, b]) => r > g + 0.1 && r > b + 0.1))).toBe(true)
   })
+
+  it('animates Redline continuously in the Precise Show preview', () => {
+    const item = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-showcase-redline-installation')!
+    const compiled = compileShowForArtifact(item.show, [], undefined, {}, { stageDimension: 2 })
+    expect(compiled.error).toBeNull()
+
+    const artifact = compiled.artifact!
+    const mapPoints = SOURCE_STOCK_MAPS.find((map) => map.id === 'redline-stage-2d')!.resolve(2_000)
+    const runtime = createFastReplayRuntime({
+      code: artifact.code,
+      fxCode: artifact.fxCode,
+      metadata: artifact.metadata,
+      dimension: nativeDimension(artifact.metadata.renderFns),
+    }, {
+      mapPoints,
+      randomSeed: 503,
+      fidelity: 'fidelity',
+    })
+
+    const first = runtime.renderCurrentFrame()
+    const checksums = [first.checksum]
+    for (let frame = 0; frame < 6; frame += 1) {
+      const result = runtime.advanceLive(100)
+      checksums.push(result.checksum)
+    }
+
+    expect(new Set(checksums).size).toBeGreaterThanOrEqual(5)
+  })
+
+  it('weaves sparse cyan ornaments into Redline outside the cyan breakdown', () => {
+    const item = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-showcase-redline-installation')!
+    const compiled = compileShowForArtifact(item.show, [], undefined, {}, { stageDimension: 2 })
+    expect(compiled.error).toBeNull()
+
+    const artifact = compiled.artifact!
+    const mapPoints = SOURCE_STOCK_MAPS.find((map) => map.id === 'redline-stage-2d')!.resolve(2_000)
+    for (const fidelity of ['fast', 'fidelity'] as const) {
+      const runtime = createFastReplayRuntime({
+        code: artifact.code,
+        fxCode: artifact.fxCode,
+        metadata: artifact.metadata,
+        dimension: nativeDimension(artifact.metadata.renderFns),
+      }, {
+        mapPoints,
+        randomSeed: 503,
+        fidelity,
+      })
+
+      const frames = [2_727, 8_182, 19_091, 24_545, 46_364, 51_818, 57_273]
+        .map((timeMs) => runtime.advanceTo(timeMs, { stepMs: 50 }).pixels)
+      const cyanCounts = frames.map((pixels) => pixels.filter(([r, g, b]) => (
+        g > 0.12 && g > r + 0.08 && b > r + 0.08
+      )).length)
+      const brightCyanCounts = frames.map((pixels) => pixels.filter(([r, g, b]) => (
+        g > 0.45 && g > r + 0.16 && b > r + 0.16
+      )).length)
+      const redCounts = frames.map((pixels) => pixels.filter(([r, g, b]) => (
+        r > 0.12 && r > g + 0.08 && r > b + 0.08
+      )).length)
+
+      expect(cyanCounts.filter((count) => count > 15).length, fidelity).toBeGreaterThanOrEqual(5)
+      expect(brightCyanCounts.filter((count) => count > 5).length, fidelity).toBeGreaterThanOrEqual(5)
+      expect(cyanCounts.every((count) => count < mapPoints.length * 0.04), fidelity).toBe(true)
+      expect(redCounts.every((count, index) => count > cyanCounts[index] * 2), fidelity).toBe(true)
+    }
+  }, 15_000)
 
   it('ships valid local Main scheduling and typed overlay animation in Learn 200', () => {
     for (const id of ['stock-show-201-scene-local-cuts', 'stock-show-202-layers-local-animation']) {

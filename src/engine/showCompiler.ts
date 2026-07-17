@@ -442,6 +442,7 @@ interface CompiledMember {
   usesHsv: boolean
   usesTime: boolean
   elapsedName: string
+  elapsedSecondsName: string
   pixelCountName: string
   adaptation: ShowClipAdaptation
   samplePropertyRamps?: ShowSamplePropertyRampsRecipe
@@ -1149,6 +1150,7 @@ function compileMember(
     usesHsv: code.includes(`${prefix}_hsv`),
     usesTime: code.includes(`${prefix}_time`),
     elapsedName: `${prefix}_elapsed_ms`,
+    elapsedSecondsName: `${prefix}_elapsed_s`,
     pixelCountName: `${prefix}_pixelCount`,
     adaptation: normalizeAdaptation(clip.adaptation),
     controls,
@@ -4175,6 +4177,7 @@ function emitRuntimePrelude(
     ${member.prefix}_step_pending_ms = accumulatedMs - deliveredCadenceMs
     ${member.prefix}_step_pending_delta = ${member.prefix}_step_pending_ms * ${member.prefix}_adapt_timeScale
     ${member.elapsedName} = ${member.elapsedName} + deliveredDelta
+    ${member.usesTime ? `${member.elapsedSecondsName} = ${member.elapsedSecondsName} + deliveredDelta / 1000` : ''}
     ${member.hasBeforeRender ? `${member.beforeRenderName}(deliveredDelta)` : ''}
   } else {
     ${member.prefix}_step_pending_ms = accumulatedMs
@@ -4216,6 +4219,7 @@ function emitRuntimePrelude(
       ? `${indent}${member.prefix}_advanceStepped(${delta})`
       : `${indent}var scaledDelta = ${delta} * ${member.prefix}_adapt_timeScale
 ${indent}${member.elapsedName} = ${member.elapsedName} + scaledDelta
+${member.usesTime ? `${indent}${member.elapsedSecondsName} = ${member.elapsedSecondsName} + scaledDelta / 1000\n` : ''}
 ${indent}${member.hasBeforeRender ? `${member.beforeRenderName}(scaledDelta)` : ''}`
     const controlCalls = member.controls.map((control) => `  ${control.functionName}(${control.valueName})`).join('\n')
     const effectUpdateCall = effectRuntime?.hasAffine && member.animatedEffects && !member.staticPlanEffects
@@ -4239,6 +4243,7 @@ ${advanceDelta('delta', '  ')}
 }`
     return [
     `var ${member.elapsedName} = ${member.adaptation.timeOffsetMs}`,
+    ...(member.usesTime ? [`var ${member.elapsedSecondsName} = ${member.adaptation.timeOffsetMs / 1000}`] : []),
     `var ${member.pixelCountName} = pixelCount`,
     `var ${member.prefix}_adapt_brightness = ${member.adaptation.brightness}`,
     `var ${member.prefix}_adapt_phase = ${member.adaptation.phase}`,
@@ -4257,7 +4262,7 @@ ${advanceDelta('delta', '  ')}
       ? [`function ${member.prefix}_hsv(h, s, v) { __pxlblz_show_capture_hsv(${index}, h + ${member.prefix}_adapt_phase, s, v) }`]
       : []),
     ...(member.usesTime
-      ? [`function ${member.prefix}_time(interval) { return (${member.elapsedName} / (interval * 65536)) % 1 }`]
+      ? [`function ${member.prefix}_time(interval) { return (${member.elapsedSecondsName} / (interval * 65.536)) % 1 }`]
       : []),
     ...(includeAdaptationMix ? [`function ${member.prefix}_setAdaptation(brightness, phase, timeScale, mirror) {
   ${member.prefix}_adapt_brightness = brightness
@@ -4498,6 +4503,7 @@ function buildMetadata(members: CompiledMember[], outputDimension: 1 | 2): Bundl
     '__pxlblz_show_phase',
     ...members.flatMap(member => [
       member.elapsedName,
+      ...(member.usesTime ? [member.elapsedSecondsName] : []),
       member.pixelCountName,
       `${member.prefix}_adapt_brightness`,
       `${member.prefix}_adapt_phase`,
