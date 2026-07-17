@@ -513,14 +513,16 @@ The work should land as tracer-bullet slices rather than one compiler rewrite.
    behind measured bytecode tradeoffs.
 4. Allocate the three-plane arena, expose typed read/write roles and resource
    diagnostics, and preserve output without changing transition semantics.
-5. Add explicit snapshot/live crossfade end to end while preserving legacy
+5. Share exact routed Motion transition environments and family kernels so
+   large repeated-transition Shows fit before the buffered scheduler changes.
+6. Add explicit snapshot/live crossfade end to end while preserving legacy
    live/live behavior.
-6. Introduce render-target roles, lifetimes, invalidation, and plane assignment
+7. Introduce render-target roles, lifetimes, invalidation, and plane assignment
    as a pure cache planner.
-7. Reuse compatible Pattern output across multiple consumers and placements.
-8. Add Scene-lifetime coordinate and scalar-field caching with measured
+8. Reuse compatible Pattern output across multiple consumers and placements.
+9. Add Scene-lifetime coordinate and scalar-field caching with measured
    selection rules.
-9. Validate the five-Pattern acceptance Show, faster output profiles, rollout
+10. Validate the five-Pattern acceptance Show, faster output profiles, rollout
    defaults, and as-built documentation.
 
 Each slice must leave generated artifacts runnable and keep direct non-buffered
@@ -539,9 +541,10 @@ the prior measured result without claiming a new hardware benchmark.
 02 #512 routing and capture specialization · 2.358 -> 2.928 FPS · incremental +24.2% · cumulative +24.2%
 03 #513 frame-invariant hoisting · paired 2,000 px mean 2.987 -> 3.037 FPS (3 runs) · incremental +1.7% · cumulative reference 2.358 -> 3.037 FPS, +28.8%
 04 #515 physical three-plane arena · 6,012 words allocated; paired 2,000 px median 3.127 -> 3.127 FPS · incremental 0.0% measured · cumulative reference 2.358 -> 3.037 FPS, +28.8% retained
+05 #525 shared Motion transition kernels · source 108,033 -> 67,552 B (-37.5%); bytecode 59,202 -> 37,722 B (-36.3%); paired 2,000 px median 0.665 -> 0.665 FPS · incremental 0.0% measured · cumulative Redline reference 2.358 -> 3.037 FPS, +28.8% retained
 ```
 
-Later slices append `05` through `09` here and repeat the new line in the #511
+Later slices append `06` through `10` here and repeat the new line in the #511
 coordination update. If a slice intentionally changes the visual contract, its
 line names that contract and does not compare it as an exact replacement.
 
@@ -559,6 +562,8 @@ The approved delivery slices are filed under the coordination epic:
   removes repeated frame and property work.
 - [#515 - Reserve the three-plane Show render-target arena](https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/issues/515)
   provides bounded reusable storage after #514.
+- [#525 - Deduplicate routed Show transition code](https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/issues/525)
+  shares exact Motion environments and kernels before scheduler buffering.
 - [#516 - Ship snapshot/live crossfade](https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/issues/516)
   spends the arena on the first user-visible buffered policy.
 - [#517 - Select roles with a lifetime-aware cache planner](https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/issues/517)

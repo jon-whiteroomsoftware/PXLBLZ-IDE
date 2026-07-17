@@ -204,6 +204,10 @@ _Avoid_: implying each role owns separate arrays; treating an unassigned arena a
 One runtime copy of a Pattern's source, private state, clock, and exported controls. Continue preserves a matching instance across a boundary; Restart creates a new instance and time base. Several visual placements may use one instance, including placement into several zones, without duplicating its source body. Independent clocks or separately resumable state require independent instances and may therefore compile separate alpha-renamed source bodies. Zone Layout changes determine where output is routed, not how many Pattern instances exist.
 _Avoid_: equating instance with clip, placement, Scene, or zone; assuming repeated visual placement always duplicates source; sharing an instance whose clocks or private state must diverge.
 
+**Shared transition kernel** (compiler detail):
+One generated transition body reused by boundaries that have the same visual-stack structure and transition policy. The scheduler writes the few changing scalar parameters, while the kernel owns the invariant routing, sampling, and composition environment. Sharing generated code does not merge Pattern instances, clocks, or authored boundary entities. The compiler selects it only when the emitted representation is smaller and exact in both Fast and Precise execution; incompatible sequences retain unrolled boundary code.
+_Avoid_: Pattern-instance reuse; caching a rendered frame; assuming smaller source implies faster rendering.
+
 **Built-in Show**:
 A read-only Show example that ships with the IDE and opens through the same timeline, Stage, compiler, cost disclosure, generated-code view, EPE export, and Controller-send paths as a personal Show. Built-in Shows live in paired Portable and Installation learning tracks and never seed D1 or appear as undeletable personal records. Their catalogue metadata adds a lesson and description; their choreography remains an ordinary `ShowRecord` fixture.
 _Avoid_: stock Show in user-facing copy; implying a built-in example is a personal template record or a separate preview implementation.

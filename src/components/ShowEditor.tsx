@@ -5427,6 +5427,20 @@ function CompileBar({
           {!summary.specializations.renderKernels.selected && ' retained as baseline dispatch'}
         </span>
       )}
+      {summary?.specializations.motionTransitions && (
+        <span className={summary.specializations.motionTransitions.selected ? 'text-emerald-300' : 'text-zinc-500'}>
+          motion sharing: {summary.specializations.motionTransitions.representation === 'exact-family-kernels'
+            ? 'family kernels'
+            : summary.specializations.motionTransitions.representation === 'exact-shared-environment'
+              ? 'shared environment'
+              : `unrolled (${summary.specializations.motionTransitions.reason})`}
+          {' · '}{summary.specializations.motionTransitions.boundaryCount} boundaries / {summary.specializations.motionTransitions.kernelCount} kernels
+          {' · '}{summary.specializations.motionTransitions.stackPlanCount} stack plans
+          {' · '}{summary.specializations.motionTransitions.avoidedEmittedBytes.toLocaleString('en-US')} emitted B avoided
+          {' · '}{summary.specializations.motionTransitions.parameterScalarGlobals} scalars
+          {' · '}+{summary.specializations.motionTransitions.dynamicBranchesAddedPerPixel} branches/px
+        </span>
+      )}
       {summary?.routingParameterEstimate && (
         <span className="text-sky-200">
           moving split: 1 scalar · 1 route test/px · avoids {summary.routingParameterEstimate.equivalentEnumeratedArrayElements} table entries

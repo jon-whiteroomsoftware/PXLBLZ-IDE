@@ -1914,6 +1914,16 @@ describe('ShowEditor (#318)', () => {
     expect(compileBar).toHaveTextContent('kernel specialization: measured-neutral on pb32 · 18 plans / 2 kernels · up to 16 branches/px candidate · source dispatch -2,461 B retained as baseline dispatch')
   })
 
+  it('discloses shared Motion transition kernels and their resource tradeoff (#525)', () => {
+    const motion = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-reference-motion-transitions')!
+
+    render(<ShowEditor showId={motion.id} showOverride={motion.show} readOnly />)
+
+    expect(screen.getByTestId('show-compile-bar')).toHaveTextContent(
+      'motion sharing: family kernels · 20 boundaries / 11 kernels · 2 stack plans · 79,200 emitted B avoided · 7 scalars · +0 branches/px',
+    )
+  })
+
   it('replaces a deleted Clip through its empty timeline slot (#430)', async () => {
     const user = userEvent.setup()
     const show = createDefaultShow('show-430-place', 'Clip placement', 1000)

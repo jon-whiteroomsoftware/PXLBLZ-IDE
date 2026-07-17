@@ -1531,6 +1531,43 @@ runs the reversible 256/1,000/2,000 Controller matrix. The archived exactness,
 resource, and repeated FPS evidence is in
 `docs/plans/archive/issue-513-frame-invariant-kernel-results.md`.
 
+### Shared routed Motion transition kernels
+
+Routed single-zone 2D Scene sequences may share generated Motion transition
+code when every rendered boundary is Motion, one logical Zone owns the output,
+and no routing switch, routing-property ramp, placement property track, or
+transition ramp changes the environment. The compiler first interns equivalent
+Scene stacks by their generated composition structure. It then emits the
+logical routing and local-index environment once rather than repeating it at
+every boundary.
+
+The structural representation keeps one exact body per boundary. The selected
+family representation additionally groups Cover, Reveal, and Push bodies by
+stack pair, variant, address policy, and edge policy, with direction supplied by
+two scheduler-written scalars. Zoom In bodies with the same stack pair and
+policies share endpoint scale, anchor, and signed rotation through five more
+scalars. Other Motion variants retain exact specialized bodies. This adds seven
+persistent scalar globals, no array words, and no new per-pixel branch depth.
+The production planner selects sharing only when the candidate is compatible
+and smaller; benchmark options can retain unrolled or structural emission.
+
+The Motion Transitions reference has 21 Scenes, 20 Motion boundaries, and three
+Pattern instances. Its production representation interns two stack plans and
+emits 11 kernels. Generated source falls from 108,033 to 67,552 bytes and
+Controller bytecode from 59,202 to 37,722 bytes, while the three-plane arena
+remains 6,012 words. The resulting source fits the measured 68,384-byte
+activation budget with 832 bytes free. Sixty start/mid/end samples and the full
+Motion family policy sweep match the unrolled representation in Fast and
+Precise execution. On pb32 firmware 3.67, isolated 2,000-pixel runs had the same
+0.665 FPS median; the change is therefore a capacity win, not an FPS claim.
+
+`npm run issue525` pins source, expanded source, resource axes, selection, and
+exactness. `npm run issue525:hardware` runs reversible representation probes and
+polls both activation and restoration. Large sequential pushes can reset the
+Controller connection, so qualification isolates representations and does not
+compare rows after a failed activation. The complete evidence is archived in
+`docs/plans/archive/issue-525-shared-motion-transition-results.md`.
+
 ### Whole-Show VM resource ledger
 
 `showVmResourceLedger.ts` makes hardware eligibility one aggregate accounting
@@ -1582,7 +1619,7 @@ corpus fixture. At 2,000 pixels, 55 of 59 bundled Patterns fit the residual;
 Aurora Sphere, Firefly Choir, Pulse Loom, and Rivalry Ring are the four known
 full-pixel-plane exceptions. Seventeen representative saved Shows and the
 five-member Clockwork Iris composition produce no failure caused solely by the
-mandatory reservation. Five deliberately broad reference Shows still exceed
+mandatory reservation. Four deliberately broad reference Shows still exceed
 their pre-existing global or artifact-byte limits, and the report records those
 failures separately. The census therefore permits arena implementation without
 claiming that arbitrary Pattern math or arbitrary member count will fit.

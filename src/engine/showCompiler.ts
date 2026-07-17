@@ -451,6 +451,20 @@ export interface ShowCompileSummary {
       baselineDispatchBytes: number
       selectedDispatchBytes: number
     }) | null
+    motionTransitions: {
+      selected: boolean
+      representation: 'unrolled' | 'exact-shared-environment' | 'exact-family-kernels'
+      reason: 'selected' | 'disabled' | 'incompatible' | 'not-smaller'
+      boundaryCount: number
+      stackPlanCount: number
+      kernelCount: number
+      parameterWords: number
+      parameterScalarGlobals: number
+      dynamicBranchesAddedPerPixel: number
+      emittedBytes: number
+      baselineEmittedBytes: number
+      avoidedEmittedBytes: number
+    } | null
   }
   clips: ShowCompileClipSummary[]
   resources: ShowVmResourceLedger
@@ -532,6 +546,8 @@ export interface ShowCompileOptions {
   renderKernelSpecialization?: boolean
   /** Benchmark-only counterfactual; production always uses the default `true`. */
   renderTargetArenaEmission?: boolean
+  /** `none` preserves the unrolled #515 boundary; `exact` forces the #525 exact candidate. */
+  motionTransitionSharing?: 'auto' | 'none' | 'structure' | 'exact'
 }
 
 interface ResolvedRoute {
@@ -563,6 +579,7 @@ export function compileShow(
   // controller profile demonstrates a gain.
   const renderKernelSpecialization = options.renderKernelSpecialization ?? false
   const renderTargetArenaEmission = options.renderTargetArenaEmission ?? true
+  const motionTransitionSharing = options.motionTransitionSharing ?? 'auto'
   validateRecipe(expandedRecipe)
   const animatedEffectClipIds = new Set<string>()
   const dynamicallyAnimatedEffectClipIds = new Set<string>()
@@ -751,6 +768,7 @@ export function compileShow(
         expandedRecipe.routingPropertyRamps,
         expandedRecipe.masterPixelCount,
         renderKernelSpecialization,
+        motionTransitionSharing,
       )
       : null
   const emittedCode = routedSceneEmission
@@ -1021,6 +1039,7 @@ export function compileShow(
         ...member.frameInvariantSummary,
       })),
       renderKernels: routedSceneEmission?.renderKernels ?? null,
+      motionTransitions: routedSceneEmission?.motionTransitions ?? null,
     },
     clips: members.map((member) => {
       const lightShutter = member.adaptation.lightShutter
@@ -1904,7 +1923,12 @@ function emitRoutedSceneSequenceShowCode(
   propertyRamps?: ShowRoutingPropertyRampsRecipe,
   outputPixelCount?: number,
   renderKernelSpecialization = false,
-): { code: string; renderKernels: ShowCompileSummary['specializations']['renderKernels'] } {
+  motionTransitionSharing: 'auto' | 'none' | 'structure' | 'exact' = 'auto',
+): {
+  code: string
+  renderKernels: ShowCompileSummary['specializations']['renderKernels']
+  motionTransitions: ShowCompileSummary['specializations']['motionTransitions']
+} {
   if (layouts.length === 0) throw new Error('compileShow routed scene sequence requires a routing layout.')
   const layoutIndex = new Map(layouts.map((layout, index) => [layout.id, index]))
   const memberById = new Map(members.map((member) => [member.id, member]))
@@ -1942,6 +1966,124 @@ function emitRoutedSceneSequenceShowCode(
       })
     }
   })
+  const motionSegments = segments.filter((segment): segment is typeof segment & {
+    kind: 'transition'
+    transition: ShowSceneSequenceTransitionRecipe & { kind: 'motion' }
+  } => segment.kind === 'transition' && segment.transition?.kind === 'motion')
+  const motionStackNeedsClear = motionSegments.some((segment) => {
+    const settings = normalizeShowMotionTransition(segment.transition)
+    return settings.edgePolicy === 'blend' && settings.addressPolicy === 'clip'
+  })
+  const exactSharedMotionPlan = (() => {
+    if (motionSegments.length === 0 || motionSegments.length !== segments.filter((segment) => segment.kind === 'transition').length) return null
+    if (outputDimension !== 2 || layouts.length !== 1 || switches.length > 0 || propertyRamps) return null
+    const logical = layouts[0].logical
+    if (!logical || logical.kind !== 'single' || logical.zoneNames.length !== 1) return null
+    if (scenes.some((scene) => (scene.propertyTracks?.length ?? 0) > 0 || (scene.transitionRamps?.length ?? 0) > 0)) return null
+    const zoneName = logical.zoneNames[0]
+    const stackPlans: Array<{ prefix: string; wrapper: string; member: CompiledMember }> = []
+    const planIndexByKey = new Map<string, number>()
+    const planIndexByScene = new Map<number, number>()
+    for (const scene of scenes) {
+      const stacks = groupRoutedPlacementsByZone(scene.placements)
+      if (stacks.size !== 1) return null
+      const stack = stacks.get(zoneName)
+      if (!stack || stack.length === 0) return null
+      const canonicalPrefix = '__pxlblz_show_motion_stack_plan'
+      const key = emitRoutedSceneStackWrapper(stack, canonicalPrefix, 2, undefined, undefined, motionStackNeedsClear)
+      let planIndex = planIndexByKey.get(key)
+      if (planIndex === undefined) {
+        planIndex = stackPlans.length
+        const prefix = `__pxlblz_show_motion_stack_${planIndex}`
+        stackPlans.push({
+          prefix,
+          wrapper: emitRoutedSceneStackWrapper(stack, prefix, 2, undefined, undefined, motionStackNeedsClear),
+          member: routedSceneCompositeMember(stack, prefix),
+        })
+        planIndexByKey.set(key, planIndex)
+      }
+      planIndexByScene.set(scene.sceneIndex, planIndex)
+    }
+    return { logical, zoneName, stackPlans, planIndexByScene }
+  })()
+  const directionSharedMotionPlan = (() => {
+    if (!exactSharedMotionPlan) return null
+    const groups: Array<{
+      id: number
+      transition: ShowSceneSequenceTransitionRecipe & { kind: 'motion' }
+      fromPlanIndex: number
+      toPlanIndex: number
+      sceneIndices: number[]
+    }> = []
+    const groupIndexByKey = new Map<string, number>()
+    const groupIndexByScene = new Map<number, number>()
+    for (const segment of motionSegments) {
+      const settings = normalizeShowMotionTransition(segment.transition)
+      if (!['cover', 'reveal', 'push'].includes(settings.motionVariant)) continue
+      const fromPlanIndex = exactSharedMotionPlan.planIndexByScene.get(segment.sceneIndex)
+      const toPlanIndex = exactSharedMotionPlan.planIndexByScene.get(segment.sceneIndex + 1)
+      if (fromPlanIndex === undefined || toPlanIndex === undefined) return null
+      const key = [
+        fromPlanIndex,
+        toPlanIndex,
+        settings.motionVariant,
+        settings.addressPolicy,
+        settings.edgePolicy,
+      ].join(':')
+      let groupIndex = groupIndexByKey.get(key)
+      if (groupIndex === undefined) {
+        groupIndex = groups.length
+        groups.push({
+          id: groupIndex,
+          transition: segment.transition,
+          fromPlanIndex,
+          toPlanIndex,
+          sceneIndices: [],
+        })
+        groupIndexByKey.set(key, groupIndex)
+      }
+      groups[groupIndex].sceneIndices.push(segment.sceneIndex)
+      groupIndexByScene.set(segment.sceneIndex, groupIndex)
+    }
+    return { groups, groupIndexByScene }
+  })()
+  const zoomInSharedMotionPlan = (() => {
+    if (!exactSharedMotionPlan) return null
+    const groups: Array<{
+      id: number
+      transition: ShowSceneSequenceTransitionRecipe & { kind: 'motion' }
+      fromPlanIndex: number
+      toPlanIndex: number
+      sceneIndices: number[]
+    }> = []
+    const groupIndexByKey = new Map<string, number>()
+    const groupIndexByScene = new Map<number, number>()
+    for (const segment of motionSegments) {
+      const settings = normalizeShowMotionTransition(segment.transition)
+      if (settings.motionVariant !== 'zoom-in') continue
+      const fromPlanIndex = exactSharedMotionPlan.planIndexByScene.get(segment.sceneIndex)
+      const toPlanIndex = exactSharedMotionPlan.planIndexByScene.get(segment.sceneIndex + 1)
+      if (fromPlanIndex === undefined || toPlanIndex === undefined) return null
+      const key = [fromPlanIndex, toPlanIndex, settings.addressPolicy, settings.edgePolicy].join(':')
+      let groupIndex = groupIndexByKey.get(key)
+      if (groupIndex === undefined) {
+        groupIndex = groups.length
+        groups.push({
+          id: (directionSharedMotionPlan?.groups.length ?? 0) + groupIndex,
+          transition: segment.transition,
+          fromPlanIndex,
+          toPlanIndex,
+          sceneIndices: [],
+        })
+        groupIndexByKey.set(key, groupIndex)
+      }
+      groups[groupIndex].sceneIndices.push(segment.sceneIndex)
+      groupIndexByScene.set(segment.sceneIndex, groupIndex)
+    }
+    return { groups, groupIndexByScene }
+  })()
+  const exactCandidateEnabled = motionTransitionSharing !== 'none' && exactSharedMotionPlan !== null
+  const familyKernelEnabled = exactCandidateEnabled && motionTransitionSharing !== 'structure'
   const sceneLocalTimeExpression = (sceneIndex: number) => {
     const scene = scenes[sceneIndex]
     const offset = scene.localTimeOffsetMs ?? 0
@@ -2101,11 +2243,38 @@ ${setupGroups}`
     }
     const from = scenes[segment.sceneIndex].placements
     const to = scenes[segment.sceneIndex + 1].placements
+    const directionKernelIndex = familyKernelEnabled
+      ? directionSharedMotionPlan?.groupIndexByScene.get(segment.sceneIndex)
+      : undefined
+    const zoomInGroupIndex = familyKernelEnabled
+      ? zoomInSharedMotionPlan?.groupIndexByScene.get(segment.sceneIndex)
+      : undefined
+    const motionKernelAssignments = directionKernelIndex !== undefined
+      ? (() => {
+          const vector = showMotionTransitionVector(normalizeShowMotionTransition(segment.transition!).direction)
+          return `
+    __pxlblz_show_motion_kernel = ${directionKernelIndex}
+    __pxlblz_show_motion_direction_x = ${vector.x}
+    __pxlblz_show_motion_direction_y = ${vector.y}`
+        })()
+      : zoomInGroupIndex !== undefined
+        ? (() => {
+            const settings = normalizeShowMotionTransition(segment.transition!)
+            const rotation = (settings.spinDirection === 'counterclockwise' ? -1 : 1) * settings.rotation
+            const kernelId = zoomInSharedMotionPlan!.groups[zoomInGroupIndex].id
+            return `
+    __pxlblz_show_motion_kernel = ${kernelId}
+    __pxlblz_show_motion_content_scale = ${settings.contentScale}
+    __pxlblz_show_motion_anchor_x = ${settings.anchorX}
+    __pxlblz_show_motion_anchor_y = ${settings.anchorY}
+    __pxlblz_show_motion_rotation_value = ${rotation}`
+          })()
+        : familyKernelEnabled ? '\n    __pxlblz_show_motion_kernel = -1' : ''
     return `${condition} {
     __pxlblz_show_scene = ${segment.sceneIndex}
     __pxlblz_show_transition = ${segment.sceneIndex}
     __pxlblz_show_transition_start_s = ${segment.startMs / 1000}
-    __pxlblz_show_mix = ${emitShowEasingExpression(segment.transition!.easing ?? 'linear', `(__pxlblz_show_elapsed_s - ${segment.startMs / 1000}) / ${segment.transition!.durationMs / 1000}`)}
+    __pxlblz_show_mix = ${emitShowEasingExpression(segment.transition!.easing ?? 'linear', `(__pxlblz_show_elapsed_s - ${segment.startMs / 1000}) / ${segment.transition!.durationMs / 1000}`)}${motionKernelAssignments}
 ${setupForPlacements(
     [...from, ...to],
     scenes[segment.sceneIndex].transitionRamps,
@@ -2144,7 +2313,7 @@ ${indentBlock(emitRoutedScenePlacements(
     sceneLocalTimeExpression(index),
   ), 4)}
   }`).join(' ')
-  const transitionBranches = segments
+  const unrolledTransitionBranches = segments
     .filter((segment) => segment.kind === 'transition')
     .map((segment, index) => `${index === 0 ? 'if' : 'else if'} (__pxlblz_show_transition == ${segment.sceneIndex}) {
 ${indentBlock(emitRoutedSceneTransition(
@@ -2161,7 +2330,7 @@ ${indentBlock(emitRoutedSceneTransition(
   const transitionSceneIndices = new Set(segments.flatMap((segment) => (
     segment.kind === 'transition' ? [segment.sceneIndex, segment.sceneIndex + 1] : []
   )))
-  const stackWrappers = scenes.filter((scene) => transitionSceneIndices.has(scene.sceneIndex)).flatMap((scene) => (
+  const unrolledStackWrappers = scenes.filter((scene) => transitionSceneIndices.has(scene.sceneIndex)).flatMap((scene) => (
     [...groupRoutedPlacementsByZone(scene.placements).entries()].flatMap(([zoneName, stack]) => (
       routedSceneStackNeedsWrapper(stack)
         ? [emitRoutedSceneStackWrapper(
@@ -2170,11 +2339,90 @@ ${indentBlock(emitRoutedSceneTransition(
             outputDimension,
             scene.propertyTracks,
             sceneLocalTimeExpression(scene.sceneIndex),
+            motionStackNeedsClear,
           )]
         : []
     ))
   ))
-  const hasTransitions = transitionBranches.length > 0
+  const exactSharedMotionRender = exactSharedMotionPlan
+    ? (() => {
+        const membersInPlans = [...new Set(scenes.flatMap((scene) => scene.placements.map((placement) => placement.member)))]
+        const directionBranches = (familyKernelEnabled ? directionSharedMotionPlan?.groups ?? [] : []).map((group, index) => {
+          const from = exactSharedMotionPlan.stackPlans[group.fromPlanIndex].member
+          const to = exactSharedMotionPlan.stackPlans[group.toPlanIndex].member
+          return `${index === 0 ? 'if' : 'else if'} (__pxlblz_show_motion_kernel == ${group.id}) {
+${indentBlock(emitMotionTransitionRenderBlock(from, to, group.transition, {
+    index: '__pxlblz_show_motion_local_index',
+    x: '__pxlblz_show_motion_local_x',
+    y: '__pxlblz_show_motion_local_y',
+  }, {
+    x: '__pxlblz_show_motion_direction_x',
+    y: '__pxlblz_show_motion_direction_y',
+  }), 2)}
+  return
+}`
+        })
+        const zoomInBranches = (familyKernelEnabled ? zoomInSharedMotionPlan?.groups ?? [] : []).map((group) => {
+          const from = exactSharedMotionPlan.stackPlans[group.fromPlanIndex].member
+          const to = exactSharedMotionPlan.stackPlans[group.toPlanIndex].member
+          return `else if (__pxlblz_show_motion_kernel == ${group.id}) {
+${indentBlock(emitMotionTransitionRenderBlock(from, to, group.transition, {
+    index: '__pxlblz_show_motion_local_index',
+    x: '__pxlblz_show_motion_local_x',
+    y: '__pxlblz_show_motion_local_y',
+  }, undefined, {
+    contentScale: '__pxlblz_show_motion_content_scale',
+    anchorX: '__pxlblz_show_motion_anchor_x',
+    anchorY: '__pxlblz_show_motion_anchor_y',
+    signedRotation: '__pxlblz_show_motion_rotation_value',
+  }), 2)}
+  return
+}`
+        })
+        const specializedBranches = motionSegments.flatMap((segment) => {
+          if (familyKernelEnabled && directionSharedMotionPlan?.groupIndexByScene.has(segment.sceneIndex)) return []
+          if (familyKernelEnabled && zoomInSharedMotionPlan?.groupIndexByScene.has(segment.sceneIndex)) return []
+          const fromPlanIndex = exactSharedMotionPlan.planIndexByScene.get(segment.sceneIndex)
+          const toPlanIndex = exactSharedMotionPlan.planIndexByScene.get(segment.sceneIndex + 1)
+          if (fromPlanIndex === undefined || toPlanIndex === undefined) throw new Error('Shared motion plan lost a Scene stack binding.')
+          const from = exactSharedMotionPlan.stackPlans[fromPlanIndex].member
+          const to = exactSharedMotionPlan.stackPlans[toPlanIndex].member
+          return [`else if (__pxlblz_show_transition == ${segment.sceneIndex}) {
+${indentBlock(emitMotionTransitionRenderBlock(from, to, segment.transition, {
+    index: '__pxlblz_show_motion_local_index',
+    x: '__pxlblz_show_motion_local_x',
+    y: '__pxlblz_show_motion_local_y',
+  }), 2)}
+  return
+}`]
+        })
+        const branches = [...directionBranches, ...zoomInBranches, ...specializedBranches]
+          .map((branch, index) => index === 0 ? branch.replace(/^else if/, 'if') : branch)
+          .join(' ')
+        return `${emitLogicalRoutingSetup(exactSharedMotionPlan.logical)}
+if (__pxlblz_show_route_id == 0) {
+${membersInPlans.map((member) => `  ${member.pixelCountName} = pixelCount`).join('\n')}
+  var __pxlblz_show_motion_side = ceil(sqrt(pixelCount))
+  var __pxlblz_show_motion_local_x = __pxlblz_show_route_local_x
+  var __pxlblz_show_motion_local_y = __pxlblz_show_route_local_y
+  var __pxlblz_show_motion_local_index = min(pixelCount - 1, floor(__pxlblz_show_motion_local_y * __pxlblz_show_motion_side) * __pxlblz_show_motion_side + floor(__pxlblz_show_motion_local_x * __pxlblz_show_motion_side))
+${indentBlock(branches, 2)}
+}`
+      })()
+    : null
+  const baselineEmittedBytes = byteLength(`${unrolledStackWrappers.join('\n')}\n${unrolledTransitionBranches}`)
+  const exactEmittedBytes = exactSharedMotionPlan && exactSharedMotionRender
+    ? byteLength(`${exactSharedMotionPlan.stackPlans.map((plan) => plan.wrapper).join('\n')}\n${exactSharedMotionRender}`)
+    : baselineEmittedBytes
+  const useExactSharedMotion = motionTransitionSharing !== 'none'
+    && exactSharedMotionPlan !== null
+    && exactSharedMotionRender !== null
+    && (motionTransitionSharing === 'exact' || exactEmittedBytes < baselineEmittedBytes)
+  const transitionBranches = useExactSharedMotion ? exactSharedMotionRender! : unrolledTransitionBranches
+  const stackWrappers = useExactSharedMotion
+    ? exactSharedMotionPlan!.stackPlans.map((plan) => plan.wrapper)
+    : unrolledStackWrappers
+  const hasTransitions = unrolledTransitionBranches.length > 0
   const usesRouteLayout = !sharedPhysicalCut || layoutSelectLines.length > 0
   const renderBody = hasTransitions
     ? `if (__pxlblz_show_transition >= 0) {
@@ -2195,7 +2443,21 @@ ${indentBlock(emitRoutedSceneTransition(
     ...(sharedPhysicalCut?.prelude ? [sharedPhysicalCut.prelude] : []),
     'var __pxlblz_show_scene = 0',
     ...(hasTransitions
-      ? ['var __pxlblz_show_transition = -1', 'var __pxlblz_show_transition_start_s = 0']
+      ? [
+          'var __pxlblz_show_transition = -1',
+          'var __pxlblz_show_transition_start_s = 0',
+          ...(familyKernelEnabled
+            ? [
+                'var __pxlblz_show_motion_kernel = -1',
+                'var __pxlblz_show_motion_direction_x = 0',
+                'var __pxlblz_show_motion_direction_y = 0',
+                'var __pxlblz_show_motion_content_scale = 1',
+                'var __pxlblz_show_motion_anchor_x = 0.5',
+                'var __pxlblz_show_motion_anchor_y = 0.5',
+                'var __pxlblz_show_motion_rotation_value = 0',
+              ]
+            : []),
+        ]
       : []),
     ...(usesRouteLayout ? ['var __pxlblz_show_route_layout = 0'] : []),
     ...(propertyRamps ? [`var __pxlblz_show_route_split_position = ${clampNumber(propertyRamps.splitPosition.initial, 0, 1)}`] : []),
@@ -2210,7 +2472,42 @@ ${layoutSelectLines}${layoutSelectLines ? '\n' : ''}${propertyRamps ? `${emitRou
 }`,
     '',
   ].join('\n\n')
-  return { code, renderKernels: sharedPhysicalCut?.renderKernels ?? null }
+  return {
+    code,
+    renderKernels: sharedPhysicalCut?.renderKernels ?? null,
+    motionTransitions: motionSegments.length === 0
+      ? null
+      : {
+          selected: useExactSharedMotion,
+          representation: useExactSharedMotion
+            ? familyKernelEnabled ? 'exact-family-kernels' : 'exact-shared-environment'
+            : 'unrolled',
+          reason: motionTransitionSharing === 'none'
+            ? 'disabled'
+            : useExactSharedMotion
+              ? 'selected'
+              : exactSharedMotionPlan === null || exactSharedMotionRender === null
+                ? 'incompatible'
+                : 'not-smaller',
+          boundaryCount: motionSegments.length,
+          stackPlanCount: useExactSharedMotion ? exactSharedMotionPlan!.stackPlans.length : transitionSceneIndices.size,
+          kernelCount: useExactSharedMotion
+            ? (familyKernelEnabled ? directionSharedMotionPlan?.groups.length ?? 0 : 0)
+              + (familyKernelEnabled ? zoomInSharedMotionPlan?.groups.length ?? 0 : 0)
+              + motionSegments.filter((segment) => (
+                !familyKernelEnabled
+                || (!directionSharedMotionPlan?.groupIndexByScene.has(segment.sceneIndex)
+                  && !zoomInSharedMotionPlan?.groupIndexByScene.has(segment.sceneIndex))
+              )).length
+            : motionSegments.length,
+          parameterWords: 0,
+          parameterScalarGlobals: useExactSharedMotion && familyKernelEnabled ? 7 : 0,
+          dynamicBranchesAddedPerPixel: 0,
+          emittedBytes: useExactSharedMotion ? exactEmittedBytes : baselineEmittedBytes,
+          baselineEmittedBytes,
+          avoidedEmittedBytes: useExactSharedMotion ? baselineEmittedBytes - exactEmittedBytes : 0,
+        },
+  }
 }
 
 type ResolvedRoutedScenePlacement = ShowRoutedScenePlacementRecipe & { member: CompiledMember }
@@ -2819,6 +3116,7 @@ function emitRoutedSceneStackWrapper(
   outputDimension: 1 | 2,
   propertyTracks?: ShowPropertyAnimationTrack[],
   localTimeExpression?: string,
+  includeClear = false,
 ): string {
   const capture = emitRoutedPlacementStackCapture(
     stack,
@@ -2846,7 +3144,12 @@ ${indentBlock(capture, 2)}
 var ${prefix}_g = 0
 var ${prefix}_b = 0
 var ${prefix}_pixelCount = pixelCount
-${captureFunction}
+${captureFunction}${includeClear ? `
+function ${prefix}_clear() {
+  ${prefix}_r = 0
+  ${prefix}_g = 0
+  ${prefix}_b = 0
+}` : ''}
 function ${prefix}_emit() { rgb(${prefix}_r, ${prefix}_g, ${prefix}_b) }`
 }
 
@@ -3400,10 +3703,12 @@ function emitMotionTransitionRenderBlock(
   to: CompiledMember,
   transition: ShowRouteTransitionRecipe | ShowSceneSequenceTransitionRecipe,
   coordinates: { index: string; x: string; y: string } = { index: 'index', x: 'x', y: 'y' },
+  runtimeVector?: { x: string; y: string },
+  runtimeAffine?: { contentScale: string; anchorX: string; anchorY: string; signedRotation: string },
 ): string {
   const { index, x, y } = coordinates
   const settings = normalizeShowMotionTransition(transition)
-  const vector = showMotionTransitionVector(settings.direction)
+  const vector = runtimeVector ?? showMotionTransitionVector(settings.direction)
   const fromMoves = settings.motionVariant === 'reveal'
     || settings.motionVariant === 'push'
     || settings.motionVariant === 'content-shrink'
@@ -3415,16 +3720,20 @@ function emitMotionTransitionRenderBlock(
   const grows = settings.motionVariant === 'content-grow' || settings.motionVariant === 'zoom-in'
   const scales = grows || settings.motionVariant === 'content-shrink' || settings.motionVariant === 'zoom-out'
   const spins = settings.motionVariant === 'zoom-in' || settings.motionVariant === 'zoom-out'
+  const contentScale = runtimeAffine?.contentScale ?? String(settings.contentScale)
+  const anchorX = runtimeAffine?.anchorX ?? String(settings.anchorX)
+  const anchorY = runtimeAffine?.anchorY ?? String(settings.anchorY)
+  const signedRotation = runtimeAffine?.signedRotation
+    ?? String((settings.spinDirection === 'counterclockwise' ? -1 : 1) * settings.rotation)
   const scaleExpression = grows
-    ? `${settings.contentScale} * (1 - __pxlblz_show_mix) + __pxlblz_show_mix`
-    : `(1 - __pxlblz_show_mix) + ${settings.contentScale} * __pxlblz_show_mix`
-  const rotationSign = settings.spinDirection === 'counterclockwise' ? -1 : 1
+    ? `${contentScale} * (1 - __pxlblz_show_mix) + __pxlblz_show_mix`
+    : `(1 - __pxlblz_show_mix) + ${contentScale} * __pxlblz_show_mix`
   const rotationExpression = settings.motionVariant === 'zoom-in'
-    ? `${rotationSign * settings.rotation} * (1 - __pxlblz_show_mix)`
-    : `${rotationSign * settings.rotation} * __pxlblz_show_mix`
+    ? `${signedRotation} * (1 - __pxlblz_show_mix)`
+    : `${signedRotation} * __pxlblz_show_mix`
   const affineCoordinates = {
-    x: `${settings.anchorX} + (__pxlblz_show_motion_cos * (${x} - ${settings.anchorX}) + __pxlblz_show_motion_sin * (${y} - ${settings.anchorY})) / __pxlblz_show_motion_scale`,
-    y: `${settings.anchorY} + (-__pxlblz_show_motion_sin * (${x} - ${settings.anchorX}) + __pxlblz_show_motion_cos * (${y} - ${settings.anchorY})) / __pxlblz_show_motion_scale`,
+    x: `${anchorX} + (__pxlblz_show_motion_cos * (${x} - ${anchorX}) + __pxlblz_show_motion_sin * (${y} - ${anchorY})) / __pxlblz_show_motion_scale`,
+    y: `${anchorY} + (-__pxlblz_show_motion_sin * (${x} - ${anchorX}) + __pxlblz_show_motion_cos * (${y} - ${anchorY})) / __pxlblz_show_motion_scale`,
   }
   const fromCoordinates = settings.motionVariant === 'reveal' || settings.motionVariant === 'push'
     ? {
@@ -3433,8 +3742,8 @@ function emitMotionTransitionRenderBlock(
       }
     : settings.motionVariant === 'content-shrink' || settings.motionVariant === 'zoom-out'
       ? {
-          x: spins ? affineCoordinates.x : `${settings.anchorX} + (${x} - ${settings.anchorX}) / __pxlblz_show_motion_scale`,
-          y: spins ? affineCoordinates.y : `${settings.anchorY} + (${y} - ${settings.anchorY}) / __pxlblz_show_motion_scale`,
+          x: spins ? affineCoordinates.x : `${anchorX} + (${x} - ${anchorX}) / __pxlblz_show_motion_scale`,
+          y: spins ? affineCoordinates.y : `${anchorY} + (${y} - ${anchorY}) / __pxlblz_show_motion_scale`,
         }
       : { x, y }
   const toCoordinates = settings.motionVariant === 'cover' || settings.motionVariant === 'push'
@@ -3444,8 +3753,8 @@ function emitMotionTransitionRenderBlock(
       }
     : settings.motionVariant === 'content-grow' || settings.motionVariant === 'zoom-in'
       ? {
-          x: spins ? affineCoordinates.x : `${settings.anchorX} + (${x} - ${settings.anchorX}) / __pxlblz_show_motion_scale`,
-          y: spins ? affineCoordinates.y : `${settings.anchorY} + (${y} - ${settings.anchorY}) / __pxlblz_show_motion_scale`,
+          x: spins ? affineCoordinates.x : `${anchorX} + (${x} - ${anchorX}) / __pxlblz_show_motion_scale`,
+          y: spins ? affineCoordinates.y : `${anchorY} + (${y} - ${anchorY}) / __pxlblz_show_motion_scale`,
         }
       : { x, y }
   const address = (name: 'from' | 'to', moves: boolean) => !moves

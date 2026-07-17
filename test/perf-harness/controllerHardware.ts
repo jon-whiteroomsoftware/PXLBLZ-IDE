@@ -13,6 +13,24 @@ interface CompiledProgram {
 
 export const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
+export async function waitForControllerConfig(
+  readConfig: () => Promise<{ activeProgramId?: string; pixelCount?: number }>,
+  expected: { activeProgramId: string; pixelCount?: number },
+  timeoutMs = 10_000,
+) {
+  const deadline = Date.now() + timeoutMs
+  let config = await readConfig()
+  while (
+    Date.now() < deadline
+    && (config.activeProgramId !== expected.activeProgramId
+      || (expected.pixelCount != null && config.pixelCount !== expected.pixelCount))
+  ) {
+    await sleep(250)
+    config = await readConfig()
+  }
+  return config
+}
+
 export function nodeWebSocketFactory(url: string): WebSocketLike {
   return new WebSocket(url) as unknown as WebSocketLike
 }
@@ -66,9 +84,15 @@ export async function pushAndMeasureControllerArtifact(
   const bytecode = compile(artifact.code)
   const programId = makeProgramId()
   connection.pushByteCode(bytecode, { id: programId, name: '' })
-  await sleep(2_000)
-  const active = await connection.getConfig()
-  if (active.activeProgramId !== programId) throw new Error(`probe ${programId} did not activate`)
+  const activationDeadline = Date.now() + 10_000
+  let activeProgramId: string | undefined
+  while (Date.now() < activationDeadline) {
+    await sleep(500)
+    const active = await connection.getConfig()
+    activeProgramId = active.activeProgramId
+    if (activeProgramId === programId) break
+  }
+  if (activeProgramId !== programId) throw new Error(`probe ${programId} did not activate within 10 seconds`)
   const values: number[] = []
   const end = Date.now() + 6_000
   while (Date.now() < end) {

@@ -25,6 +25,8 @@ interface ShowCompilationOptions {
   renderKernelSpecialization?: boolean
   /** Test/benchmark physical-arena counterfactual for issue #515. */
   renderTargetArenaEmission?: boolean
+  /** Test/benchmark representation control for issue #525. */
+  motionTransitionSharing?: 'auto' | 'none' | 'structure' | 'exact'
 }
 
 export function compileShowForPreview(
@@ -56,6 +58,7 @@ export function compileShowForPreview(
         frameInvariantHoisting: options.frameInvariantHoisting,
         renderKernelSpecialization: options.renderKernelSpecialization,
         renderTargetArenaEmission: options.renderTargetArenaEmission,
+        motionTransitionSharing: options.motionTransitionSharing,
       }),
       error: null,
     }
