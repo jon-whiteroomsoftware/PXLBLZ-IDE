@@ -224,6 +224,11 @@ export const CONTROL_DESCRIPTIONS: Record<string, Record<string, string>> = {
     sliderCount: 'How many ribbon families are active.',
     sliderPalette: 'Base hue of the woven palette.',
   },
+  RedlineMachine: {
+    sliderIntensity: 'Overall pressure of the score, from restrained negative space to full-impact output.',
+    sliderSpeed: 'Pace of the complete 32-bar score, from half speed to one-and-a-half speed.',
+    sliderGuest: 'Strength of the cyan intruder palette during the Vacuum and Rebuild phrases.',
+  },
   Orrery3D: {
     sliderSpeed: 'How fast the clockwork turns — inner planets always orbit quickest.',
     sliderZoom: 'Scale of the whole system inside the volume.',

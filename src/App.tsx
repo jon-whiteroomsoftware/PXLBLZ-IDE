@@ -73,6 +73,8 @@ import { docExternalHref, getUserDoc, isDocId } from '@/docs/catalog'
 import type { AuthProvider } from '@/engine/authSession'
 import { DEMOS } from '@/pixelblaze/stock/patterns'
 import { stockShowById } from '@/pixelblaze/stock/shows'
+import { applyShowReferencePattern } from '@/engine/showReferenceShow'
+import { useShowEditorSessionStore } from '@/store/showEditorSessionStore'
 import { InlineEntityTitle } from '@/components/InlineEntityTitle'
 import { usePreviewStore } from '@/store/previewStore'
 import { studioControlOwnsKeyboardEvent } from '@/engine/keyboardShortcuts'
@@ -591,7 +593,23 @@ function StudioApp() {
   const routedStockShow = route.kind === 'studio' && route.entity?.kind === 'shows'
     ? stockShowById(route.entity.id)
     : undefined
-  const activeShow = routedStockShow?.show ?? (activeShowId ? shows.find((show) => show.id === activeShowId) : undefined)
+  const selectedReferencePattern = useShowEditorSessionStore((state) => (
+    routedStockShow ? state.referencePatternByShowId[routedStockShow.id] : undefined
+  ))
+  const routedStockShowOverride = useMemo(() => {
+    if (!routedStockShow?.reference?.patternSlots || !selectedReferencePattern) return routedStockShow?.show
+    const patternName = selectedReferencePattern.kind === 'stock'
+      ? selectedReferencePattern.id
+      : userPatterns.find((pattern) => pattern.id === selectedReferencePattern.id)?.name
+    if (!patternName) return routedStockShow.show
+    return applyShowReferencePattern(routedStockShow.show, {
+      pattern: selectedReferencePattern,
+      patternName,
+      cellIds: routedStockShow.reference.patternSlots.cellIds,
+      instanceIds: routedStockShow.reference.patternSlots.instanceIds,
+    })
+  }, [routedStockShow, selectedReferencePattern, userPatterns])
+  const activeShow = routedStockShowOverride ?? (activeShowId ? shows.find((show) => show.id === activeShowId) : undefined)
 
   const handleDeletePattern = useCallback(async () => {
     if (!activePatternId) return
@@ -1028,13 +1046,14 @@ function StudioApp() {
               ) : activeShow ? (
                 <ShowEditor
                   showId={activeShow.id}
-                  showOverride={routedStockShow?.show}
+                  showOverride={routedStockShowOverride}
                   readOnly={Boolean(routedStockShow)}
                   builtInContext={routedStockShow ? {
                     track: routedStockShow.track,
                     lesson: routedStockShow.lesson,
                     description: routedStockShow.description,
                     note: routedStockShow.note,
+                    reference: routedStockShow.reference,
                   } : undefined}
                   headerGuideTarget={showHeaderGuideTarget}
                   headerActionsTarget={showHeaderActionsTarget}
@@ -1092,7 +1111,7 @@ function StudioApp() {
               ? <EmptyContextPane label="Output contract setup" />
               : showClassification
                 ? <EmptyContextPane label="Legacy Show classification" />
-              : activeShow ? <ShowStagePreview showId={activeShow.id} showOverride={routedStockShow?.show} /> : <EmptyContextPane label="Shows" />
+              : activeShow ? <ShowStagePreview showId={activeShow.id} showOverride={routedStockShowOverride} /> : <EmptyContextPane label="Shows" />
           ) : (
             <Preview />
           )}

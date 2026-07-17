@@ -230,11 +230,31 @@ Use physical groupings that match how people perceive the object: pucks, rows,
 arches, panels, or other units. Symmetry in Pattern choice and timing can make
 an irregular measured map read as one intentional composition.
 
+### Ruthlessly engineered spectacle
+
+**Redline Installation** treats a fixed Stage as five instruments: one
+1,600-pixel hero panel and four 600-pixel target arrays. Its 60-second score is
+32 bars at 128 BPM, divided into eight equal phrases that ignite, build, drop,
+leave a vacuum, rebuild, compress, peak, and release.
+
+The Show gets scale from constraint. One shared Pattern instance advances one
+clock and evaluates once per output pixel; affine Effects make the four targets
+counter-rotate, shear, mirror, and answer one another. Cheap block fields,
+target rings, shutters, and glyph masks do the per-pixel work. Black provides
+negative space, red carries pressure, white marks impact, and cyan appears once
+as an intruder before red returns. The compiled artifact reports its real cost,
+but this stock Show is an aspirational visual reference rather than a promise
+that every Controller can drive its 4,000-pixel authoring resolution.
+
 ### Transform Effects
 
 Translate, Rotate, Scale, and Shear alter the coordinates used to sample a
-Pattern. Wrap applies after the complete transform when samples outside the
-source domain should re-enter from the opposite edge.
+Pattern. The reference Show keeps one affine Effect stack and eases its numeric
+values between examples, so pixels move continuously through Translate, Scale,
+Rotate, and Shear instead of switching or blending rendered frames. Wrap applies
+after the complete transform when samples outside the source domain should
+re-enter from the opposite edge; it remains a discrete example because address
+policy has no fractional state.
 
 ### Distortion Effects
 
@@ -247,6 +267,61 @@ orientation of that remap visible.
 Opacity, Brightness, Hue, Saturation, Contrast, Invert, Threshold, Posterize,
 and Color map change rendered color without moving geometry. Use a known RGB
 source when comparing operations that can look similar on a black background.
+
+### Wipe and mix Transition reference
+
+Blends, fades, Wipes, and Dissolves all exchange one Scene for another, but they
+answer different questions. Blends mix complete rendered images; fades pass
+through a color; Wipes move a geometric selector; Dissolves distribute that
+selector across pixels or regions. The reference Show holds the Pattern pair
+constant while it demonstrates every discrete mode and all eight Linear Wipe
+directions.
+
+### Shape reveal Transition reference
+
+Shape reveals move a signed-distance boundary across the Stage. The shape
+defines that boundary, while reveal mode decides whether the incoming image
+grows or the outgoing image shrinks. Circle demonstrates both modes; the other
+silhouettes alternate them so the catalogue covers the supported shapes without
+turning two independent choices into a combinatorial inventory.
+
+### Motion Transition reference
+
+Motion Transitions move rendered Scene content rather than a selector edge.
+Cover, Reveal, and Push establish the directional models; Content grow and
+Content shrink establish anchored scaling; Zoom adds optional rotation. Four
+cardinal examples make directional ownership explicit while the inspector
+retains continuous and diagonal values.
+
+### Property animation reference
+
+Property animation changes a value while preserving the Pattern and surrounding
+choreography. Scene-local tracks animate Pattern speed, a public Pattern control,
+placement brightness and phase, overlay opacity, and an Effect parameter.
+Boundary-owned tracks animate the Zone split and sample repeat scale. Their
+sparklines identify the owner of each value on the timeline. **Try with Pattern**
+replaces the constant comparison Pattern while leaving the animated subject and
+its authored tracks intact.
+
+### Easing reference
+
+Easing changes when progress happens, not what the Transition does. Every
+example uses the same eastward Linear Wipe, Pattern pair, endpoints, and
+duration. Only the curve changes, so acceleration, deceleration, steps, holds,
+and overshoot can be compared directly.
+
+Every reference Show above uses the expanded header as a live guide. It names
+the current example, explains what changes and what stays constant, and offers a
+session-only **Try with Pattern** selector plus **Reset**. The selected Pattern is
+projected through the same transient Show used by Stage preview, timeline,
+generated code, export, cost disclosure, and Controller actions; the stock Show
+and personal storage remain unchanged.
+
+The Transition and Easing references composite their changing subject at 82%
+opacity over one dim, slow Caustics backdrop. The backdrop gives black or sparse
+source regions enough texture to explain spatial movement without competing with
+the Transition. Fade through black and Fade through white still reach the named
+color because that field is authored by the Transition itself.
 
 ## A practical authoring loop
 

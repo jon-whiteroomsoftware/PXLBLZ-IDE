@@ -172,6 +172,64 @@ describe('ShowEditor (#318)', () => {
     expect(screen.getByRole('region', { name: '101 Clips and Crossfade guide' })).toBeInTheDocument()
   })
 
+  it('turns a reference Show guide into a live Pattern comparison instrument (#506)', async () => {
+    const user = userEvent.setup()
+    const stock = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-reference-wipe-mix-transitions')!
+
+    render(<ShowEditor
+      showId={stock.id}
+      showOverride={stock.show}
+      readOnly
+      builtInContext={{
+        track: stock.track,
+        lesson: stock.lesson,
+        description: stock.description,
+        note: stock.note,
+        reference: stock.reference,
+      }}
+    />)
+
+    const guide = screen.getByRole('region', { name: 'Wipe and Mix Transitions guide' })
+    expect(within(guide).getByText(stock.reference!.summary)).toBeInTheDocument()
+    expect(within(guide).getByText('Reference frame')).toBeInTheDocument()
+    expect(within(guide).getByRole('combobox', { name: 'Try with Pattern' })).toHaveValue('CompassRose')
+
+    act(() => useShowTransportStore.getState().setPosition(stock.id, 3_050))
+    expect(within(guide).getByText('Cut')).toBeInTheDocument()
+    expect(within(guide).getByText('Reference -> Selected')).toBeInTheDocument()
+
+    await user.click(within(guide).getByRole('combobox', { name: 'Try with Pattern' }))
+    expect(screen.queryByRole('option', { name: 'TestPattern3D' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('option', { name: 'Caustics' }))
+    expect(useShowEditorSessionStore.getState().referencePatternByShowId[stock.id]).toEqual({
+      kind: 'stock', id: 'Caustics',
+    })
+    expect(within(guide).getByRole('button', { name: 'Reset Pattern' })).toBeInTheDocument()
+
+    await user.click(within(guide).getByRole('button', { name: 'Reset Pattern' }))
+    expect(useShowEditorSessionStore.getState().referencePatternByShowId[stock.id]).toBeUndefined()
+  })
+
+  it('labels same-Pattern Effect ramps as tweens rather than Crossfades (#506)', () => {
+    const stock = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-showcase-transform-effects')!
+
+    render(<ShowEditor
+      showId={stock.id}
+      showOverride={stock.show}
+      readOnly
+      builtInContext={{
+        track: stock.track,
+        lesson: stock.lesson,
+        description: stock.description,
+        note: stock.note,
+        reference: stock.reference,
+      }}
+    />)
+
+    expect(screen.getByRole('button', { name: 'Select Reference to Translate Effect tween' })).toHaveTextContent('fx')
+    expect(screen.queryByRole('button', { name: /Reference to Translate transition \(crossfade\)/i })).not.toBeInTheDocument()
+  })
+
   it('keeps every Clip fact inline and repeats a categorized summary inside Entity Detail', async () => {
     const user = userEvent.setup()
     let show = createDefaultShow('show-constant-overrides', 'Constant overrides', 1000)

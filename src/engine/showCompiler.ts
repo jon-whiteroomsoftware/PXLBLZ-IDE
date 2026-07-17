@@ -556,7 +556,12 @@ export function compileShow(
     scene.transitionOut ? [scene.transitionOut] : []
   )) ?? []
   const renderedSequenceTransitions = sequenceTransitions.filter((transition) => transition.kind !== 'cut')
-  const sequenceHasCrossfade = renderedSequenceTransitions.some((transition) => transition.kind === 'crossfade')
+  const sequenceHasCrossfade = expandedRecipe.routedSceneSequence
+    ? renderedSequenceTransitions.some((transition) => transition.kind === 'crossfade')
+    : expandedRecipe.sceneSequence?.scenes.some((scene, index, scenes) => (
+        scene.transitionOut?.kind === 'crossfade'
+        && scene.clipId !== scenes[index + 1]?.clipId
+      )) ?? false
   const sequenceHasPortal = renderedSequenceTransitions.some((transition) => transition.kind === 'portal')
   const sequenceHasDirectionalWipe = renderedSequenceTransitions.some((transition) => (
     transition.kind === 'wipe' && (transition.direction !== undefined
@@ -2814,6 +2819,10 @@ function emitSceneSequenceTransitionBlock(
   const fromRender = memberRenderCapture(from, outputDimension)
   const toRender = memberRenderCapture(to, outputDimension)
   if (transition.kind === 'crossfade') {
+    if (from === to) {
+      return `${fromRender}
+${from.prefix}_emit()`
+    }
     return `${fromRender}
 var r0 = ${from.prefix}_r
 var g0 = ${from.prefix}_g

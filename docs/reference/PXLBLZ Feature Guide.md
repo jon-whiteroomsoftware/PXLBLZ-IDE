@@ -571,6 +571,33 @@ disabled fields as high-contrast inspection values rather than editable-looking
 inputs. Expandable detail sections remain available; editing requires a personal
 Show.
 
+The Showcases collection also includes larger finished scores. **Redline
+Installation** is a deliberately aspirational 4,000-pixel, five-surface Stage:
+one shared renderer drives a 1,600-pixel center panel and four transformed
+600-pixel targets through a 32-bar red, black, white, and cyan performance. Its
+authoring resolution demonstrates composition and graphics craft; it is not a
+minimum hardware promise.
+
+Eight unnumbered reference Showcases catalogue Effects, Transitions, Property
+animation, and easing separately from the numbered curriculum. Their expanded
+headers explain the current class and follow playback with a named live example.
+**Try with Pattern** temporarily replaces the comparison source for the complete
+reference artifact, so Stage, timeline labels, generated code, cost, export, and
+Controller actions all show the same choice. **Reset** restores the authored
+fixture; the selection is session-only and never creates or edits a personal
+Show. In Property Animation, the selector changes the constant comparison side
+while preserving the animated subject and its authored Property tracks.
+
+Transform Effects demonstrates numeric affine interpolation rather than image
+blending: one stable Effect stack moves continuously through Translate, Scale,
+Rotate, and Shear. Wrap remains a discrete address-policy example.
+
+Transition and Easing references place the changing subject over a quiet,
+fixed Caustics backdrop. Sparse or black source regions therefore retain visual
+context while the selected foreground Pattern remains the only header-controlled
+source. Authored Fade-through-color examples still reach their named black or
+white field.
+
 The dedicated [Visual Effects Guide](../guides/Visual effects guide.md) uses
 these examples to explain Property animation, one-source Effects, boundary
 Transitions, shared catalogue vocabulary, and renderer cost.

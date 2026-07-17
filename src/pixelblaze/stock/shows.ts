@@ -10,6 +10,12 @@ import type {
   ShowTransitionEasing,
   ShowZone,
 } from '@/engine/personalContentRecords'
+import { SHOW_EASING_OPTIONS } from '@/engine/showEasing'
+import { showEffectNumericValue, showEffectParameterNames } from '@/engine/showEffects'
+import type { ShowReferenceGuide } from '@/engine/showReferenceShow'
+import { replaceShowBoundaryTransition } from '@/engine/showTransitionAuthoring'
+import { updateShowBoundaryTransition } from '@/engine/showModel'
+import { buildShowToolkitPresentationCatalogue } from '@/engine/showVisualToolkitPresentation'
 import {
   createInstallationShowOutputContract,
   createPortableShowOutputContract,
@@ -43,6 +49,7 @@ export interface StockShow {
   lesson: string
   description: string
   note: StockShowNote
+  reference?: ShowReferenceGuide
   show: ShowRecord
 }
 
@@ -56,7 +63,7 @@ type ClipSpec = {
   restartOnEntry?: boolean
 }
 
-type SceneSpec = Pick<ShowScene, 'id' | 'name' | 'durationMs' | 'routingTargets'> & {
+type SceneSpec = Pick<ShowScene, 'id' | 'name' | 'durationMs' | 'routingTargets' | 'sampleTargets'> & {
   clips: ClipSpec[]
 }
 
@@ -79,6 +86,7 @@ type CatalogueInput = {
   scenes: SceneSpec[]
   transitions?: ShowBoundaryTransition[]
   composition?: ShowCompositionV1
+  reference?: ShowReferenceGuide
 }
 
 const UPDATED_AT = 363
@@ -86,11 +94,20 @@ const SINE_IN_OUT: ShowTransitionEasing = { curve: 'sine', direction: 'in-out' }
 const CUBIC_IN_OUT: ShowTransitionEasing = { curve: 'cubic', direction: 'in-out' }
 const LINEAR: ShowTransitionEasing = { curve: 'linear' }
 const COLORS = ['#38bdf8', '#f97316', '#a78bfa', '#22c55e']
+const CARDINAL_DIRECTIONS = [
+  { id: 'east', label: 'east', turns: 0 },
+  { id: 'south', label: 'south', turns: 0.25 },
+  { id: 'west', label: 'west', turns: 0.5 },
+  { id: 'north', label: 'north', turns: 0.75 },
+] as const
 
 export const STOCK_SHOWS: StockShow[] = [
   learn101(), learn102(), learn103(), learn104(), learn105(),
   learn201(), learn202(), learn203(), learn204(), learn205(),
   effectShowcase('transform'), effectShowcase('distortion'), effectShowcase('color-output'),
+  wipeAndMixTransitionReference(), shapeRevealTransitionReference(), motionTransitionReference(),
+  propertyAnimationReference(), easingReference(),
+  redlineInstallation(),
 ]
 
 export function stockShowById(id: string | null | undefined): StockShow | undefined {
@@ -358,20 +375,502 @@ function learn205(): StockShow {
   })
 }
 
+function redlineInstallation(): StockShow {
+  const id = 'stock-show-showcase-redline-installation'
+  const zones = physicalZones(
+    ['Hero panel', 'Target left upper', 'Target left lower', 'Target right upper', 'Target right lower'],
+    [1_600, 600, 600, 600, 600],
+  )
+  const patternInstances: ShowCompositionV1['patternInstances'] = [
+    instance('redline-machine', 'RedlineMachine', 1, {
+      sliderIntensity: 1,
+      sliderSpeed: 0.5,
+      sliderGuest: 1,
+    }),
+  ]
+  const phrases = [
+    { id: 'ignition', name: 'Ignition', center: 'redline-machine', targets: 'redline-machine' },
+    { id: 'first-lift', name: 'First lift', center: 'redline-machine', targets: 'redline-machine' },
+    { id: 'countermotion', name: 'Countermotion', center: 'redline-machine', targets: 'redline-machine' },
+    { id: 'first-drop', name: 'First drop', center: 'redline-machine', targets: 'redline-machine' },
+    { id: 'vacuum', name: 'Vacuum', center: 'redline-machine', targets: 'redline-machine' },
+    { id: 'rebuild', name: 'Rebuild', center: 'redline-machine', targets: 'redline-machine' },
+    { id: 'compression', name: 'Compression', center: 'redline-machine', targets: 'redline-machine' },
+    { id: 'peak-release', name: 'Peak and release', center: 'redline-machine', targets: 'redline-machine' },
+  ]
+  const instanceById = new Map(patternInstances.map((item) => [item.id, item]))
+  const material = (instanceId: string) => {
+    const value = instanceById.get(instanceId)!
+    return { pattern: value.pattern.id, controls: value.controlTargets }
+  }
+  const scenes: SceneSpec[] = phrases.map((phrase) => {
+    const center = material(phrase.center)
+    const targets = material(phrase.targets)
+    return scene(phrase.id, phrase.name, 7.5, [
+      clip('zone-1', center.pattern, 1, center.controls),
+      ...zones.slice(1).map((zone) => clip(zone.id, targets.pattern, 1, targets.controls)),
+    ])
+  })
+  const targetEffects = (phraseIndex: number, targetIndex: number): ShowClipEffect[] => {
+    const rotations = [0, 0.125, -0.125, 0.25]
+    const shearX = [-0.14, 0.10, -0.08, 0.16]
+    const shearY = [0.08, -0.12, 0.14, -0.06]
+    const scales = [0.92, 0.84, 0.88, 0.80]
+    return [
+      { id: 'target-rotate', kind: 'rotate', turns: rotations[targetIndex] + (phraseIndex % 2 ? 0.0625 : 0) },
+      { id: 'target-scale', kind: 'scale', x: scales[targetIndex], y: scales[(targetIndex + phraseIndex) % 4] },
+      { id: 'target-shear', kind: 'shear', x: shearX[targetIndex], y: shearY[(targetIndex + phraseIndex) % 4] },
+      { id: 'target-wrap', kind: 'wrap' },
+    ]
+  }
+  const scheduledPlacement = (
+    placementId: string,
+    instanceId: string,
+    startMs: number,
+    durationMs: number,
+    phraseIndex: number,
+    targetIndex?: number,
+  ): ShowCompositionV1['scenes'][number]['zones'][number]['main'][number] => ({
+    id: placementId,
+    instanceId,
+    startMs,
+    durationMs,
+    view: { mirror: targetIndex !== undefined && targetIndex % 2 === 1, phase: 0, brightness: 1 },
+    ...(targetIndex === undefined ? {} : { effects: targetEffects(phraseIndex, targetIndex) }),
+  })
+  const targetTiming = (phraseIndex: number, targetIndex: number) => {
+    if (phraseIndex === 0) return { startMs: targetIndex * 1_875, durationMs: 1_875 }
+    if (phraseIndex === 1) {
+      const startMs = targetIndex < 2 ? targetIndex * 1_875 : 3_750
+      return { startMs, durationMs: 7_500 - startMs }
+    }
+    if (phraseIndex === 5) {
+      const startMs = targetIndex * 750
+      return { startMs, durationMs: 7_500 - startMs }
+    }
+    return { startMs: 0, durationMs: 7_500 }
+  }
+  const composition: ShowCompositionV1 = {
+    version: 1,
+    patternInstances,
+    scenes: phrases.map((phrase, phraseIndex) => ({
+      sceneId: phrase.id,
+      zones: zones.map((zone, zoneIndex) => {
+        if (zoneIndex === 0) {
+          return {
+            zoneId: zone.id,
+            main: [scheduledPlacement(`${phrase.id}-center`, phrase.center, 0, 7_500, phraseIndex)],
+            overlays: [],
+          }
+        }
+        const targetIndex = zoneIndex - 1
+        const timing = targetTiming(phraseIndex, targetIndex)
+        return {
+          zoneId: zone.id,
+          main: [scheduledPlacement(
+            `${phrase.id}-target-${targetIndex + 1}`,
+            phrase.targets,
+            timing.startMs,
+            timing.durationMs,
+            phraseIndex,
+            targetIndex,
+          )],
+          overlays: [],
+        }
+      }),
+    })),
+  }
+
+  return catalogue({
+    id,
+    title: 'Redline Installation',
+    track: 'installation',
+    collection: 'showcases',
+    level: null,
+    order: 10,
+    purpose: 'A sixty-second club-installation score turns one hero panel and four target arrays into a single rhythmic machine.',
+    notice: 'One renderer owns each pixel. Shared target instances and cheap transforms create difference; black space, red pressure, white impact, and one cyan interruption create the arc.',
+    prompts: ['Solo the four target Zones and compare their shared clock.', 'Jump between First drop, Vacuum, and Peak to compare one canvas with five instruments.'],
+    guideHeading: 'ruthlessly-engineered-spectacle',
+    defaultOpen: true,
+    output: { kind: 'installation', mapId: 'redline-stage-2d', pixelCount: 4_000 },
+    zones,
+    layouts: [physicalLayout('layout-redline-stage', 'Redline stage', zones, [
+      [[0, 1_599]], [[1_600, 2_199]], [[2_200, 2_799]], [[2_800, 3_399]], [[3_400, 3_999]],
+    ])],
+    scenes,
+    transitions: cutBoundaries(scenes),
+    composition,
+  })
+}
+
+type TransitionReferenceSpec = {
+  id: string
+  label: string
+  familyId: 'blend' | 'fade' | 'wipe' | 'dissolve' | 'shape-reveal' | 'motion'
+  variantId: string
+  presetId?: string
+  changes?: Partial<Omit<ShowBoundaryTransition, 'id' | 'afterSceneId'>>
+}
+
+function wipeAndMixTransitionReference(): StockShow {
+  const linearDirections = [
+    ['east', 'East'], ['south-east', 'South-east'], ['south', 'South'], ['south-west', 'South-west'],
+    ['west', 'West'], ['north-west', 'North-west'], ['north', 'North'], ['north-east', 'North-east'],
+  ] as const
+  const specs: TransitionReferenceSpec[] = [
+    { id: 'cut', label: 'Cut', familyId: 'blend', variantId: 'cut', changes: { durationMs: 0 } },
+    { id: 'crossfade', label: 'Crossfade', familyId: 'blend', variantId: 'crossfade', presetId: 'smooth' },
+    { id: 'fade-black', label: 'Fade through black', familyId: 'fade', variantId: 'through-color', presetId: 'black' },
+    { id: 'fade-white', label: 'Fade through white', familyId: 'fade', variantId: 'through-color', presetId: 'white' },
+    ...linearDirections.map(([id, label]) => ({
+      id: `wipe-${id}`, label: `Linear wipe ${label.toLowerCase()}`, familyId: 'wipe' as const,
+      variantId: 'linear', presetId: id,
+    })),
+    { id: 'split-out', label: 'Split center out', familyId: 'wipe', variantId: 'split', changes: { wipeMode: 'center-out' } },
+    { id: 'split-in', label: 'Split center in', familyId: 'wipe', variantId: 'split', changes: { wipeMode: 'center-in' } },
+    { id: 'barn-out', label: 'Barn doors out', familyId: 'wipe', variantId: 'barn-doors', changes: { wipeMode: 'center-out' } },
+    { id: 'barn-in', label: 'Barn doors in', familyId: 'wipe', variantId: 'barn-doors', changes: { wipeMode: 'center-in' } },
+    { id: 'blinds-vertical', label: 'Vertical blinds', familyId: 'wipe', variantId: 'blinds', changes: { orientation: 'vertical' } },
+    { id: 'blinds-horizontal', label: 'Horizontal blinds', familyId: 'wipe', variantId: 'blinds', changes: { orientation: 'horizontal' } },
+    { id: 'clock-cw', label: 'Clock clockwise', familyId: 'wipe', variantId: 'clock', changes: { clockwise: true } },
+    { id: 'clock-ccw', label: 'Clock counterclockwise', familyId: 'wipe', variantId: 'clock', changes: { clockwise: false } },
+    { id: 'checker', label: 'Checker', familyId: 'wipe', variantId: 'checker' },
+    { id: 'grid', label: 'Grid', familyId: 'wipe', variantId: 'grid' },
+    { id: 'dissolve-pixel', label: 'Pixel dissolve', familyId: 'dissolve', variantId: 'pixel' },
+    { id: 'dissolve-block', label: 'Block dissolve', familyId: 'dissolve', variantId: 'block' },
+    { id: 'dissolve-noise', label: 'Coherent-noise dissolve', familyId: 'dissolve', variantId: 'coherent-noise' },
+    { id: 'dissolve-soft', label: 'Soft-threshold dissolve', familyId: 'dissolve', variantId: 'soft-threshold' },
+  ]
+  return transitionReferenceShow({
+    id: 'stock-show-reference-wipe-mix-transitions', title: 'Wipe and Mix Transitions', order: 4,
+    purpose: 'One pair of Patterns compares blends, fades, directional Wipes, patterned Wipes, and Dissolves without changing the subject.',
+    notice: 'Direction and discrete modes are shown semantically; continuous parameter permutations remain editable in the inspector.',
+    prompts: ['Try the same catalogue with a radial Pattern.', 'Compare hard, dithered, and blended edges on one Wipe.'],
+    guideHeading: 'wipe-and-mix-transition-reference', specs,
+  })
+}
+
+function shapeRevealTransitionReference(): StockShow {
+  const shapes = [
+    ['ellipse', 'Ellipse'], ['box', 'Box'], ['rounded-box', 'Rounded box'], ['diamond', 'Diamond'],
+    ['cross', 'Cross'], ['ring', 'Ring'], ['heart', 'Heart'], ['star', 'Star'], ['crescent', 'Crescent'],
+    ['polygon', 'Regular polygon'], ['cat-head', 'Cat head'], ['cat-side-profile', 'Side-profile cat'], ['bastet', 'Bastet'],
+  ] as const
+  const specs: TransitionReferenceSpec[] = [
+    { id: 'circle-grow', label: 'Circle: grow incoming', familyId: 'shape-reveal', variantId: 'circle', changes: { revealMode: 'grow-incoming' } },
+    { id: 'circle-shrink', label: 'Circle: shrink outgoing', familyId: 'shape-reveal', variantId: 'circle', changes: { revealMode: 'shrink-outgoing' } },
+    ...shapes.map(([id, label], index) => ({
+      id: `shape-${id}`,
+      label: `${label}: ${index % 2 === 0 ? 'grow incoming' : 'shrink outgoing'}`,
+      familyId: 'shape-reveal' as const,
+      variantId: id,
+      changes: { revealMode: index % 2 === 0 ? 'grow-incoming' as const : 'shrink-outgoing' as const },
+    })),
+  ]
+  return transitionReferenceShow({
+    id: 'stock-show-reference-shape-reveal-transitions', title: 'Shape Reveal Transitions', order: 5,
+    purpose: 'The shape-reveal family compares every supported silhouette while holding the Pattern pair, center, scale, edge, and timing steady.',
+    notice: 'Circle appears in both reveal modes; the remaining silhouettes alternate modes so shape and direction stay legible without a full cross-product.',
+    prompts: ['Change every shape to shrink outgoing.', 'Move the center away from 0.5, 0.5 and compare asymmetric shapes.'],
+    guideHeading: 'shape-reveal-transition-reference', specs,
+  })
+}
+
+function motionTransitionReference(): StockShow {
+  const specs: TransitionReferenceSpec[] = [
+    ...(['cover', 'reveal', 'push'] as const).flatMap((variantId) => CARDINAL_DIRECTIONS.map((direction) => ({
+      id: `${variantId}-${direction.id}`,
+      label: `${variantId[0].toUpperCase()}${variantId.slice(1)} ${direction.label}`,
+      familyId: 'motion' as const,
+      variantId,
+      changes: { direction: direction.turns },
+    }))),
+    { id: 'content-grow', label: 'Content grow', familyId: 'motion', variantId: 'content-grow' },
+    { id: 'content-shrink', label: 'Content shrink', familyId: 'motion', variantId: 'content-shrink' },
+    { id: 'zoom-in', label: 'Zoom in', familyId: 'motion', variantId: 'zoom-in', presetId: 'zoom' },
+    { id: 'spin-cw', label: 'Spin in clockwise', familyId: 'motion', variantId: 'zoom-in', presetId: 'spin-clockwise' },
+    { id: 'spin-ccw', label: 'Spin in counterclockwise', familyId: 'motion', variantId: 'zoom-in', presetId: 'spin-counterclockwise' },
+    { id: 'zoom-spin-cw', label: 'Zoom and spin clockwise', familyId: 'motion', variantId: 'zoom-in', presetId: 'zoom-spin-clockwise' },
+    { id: 'zoom-spin-ccw', label: 'Zoom and spin counterclockwise', familyId: 'motion', variantId: 'zoom-in', presetId: 'zoom-spin-counterclockwise' },
+    { id: 'zoom-out', label: 'Zoom out', familyId: 'motion', variantId: 'zoom-out', presetId: 'zoom' },
+  ]
+  return transitionReferenceShow({
+    id: 'stock-show-reference-motion-transitions', title: 'Motion Transitions', order: 6,
+    purpose: 'Cover, Reveal, Push, content scaling, and zoom/spin transitions share one fixed pair so motion semantics remain easy to compare.',
+    notice: 'Directional motion uses four cardinal examples; diagonal values remain available as continuous direction edits.',
+    prompts: ['Change cardinal motion to diagonal directions.', 'Switch Addressing from Clip to Wrap and compare moving edges.'],
+    guideHeading: 'motion-transition-reference', specs,
+  })
+}
+
+function propertyAnimationReference(): StockShow {
+  const id = 'stock-show-reference-property-animation'
+  const zones = logicalZones(['A', 'B'], 2_000)
+  const properties = [
+    ['animation-speed', 'Animation speed'],
+    ['pattern-control', 'Public Pattern control'],
+    ['brightness', 'Brightness'],
+    ['phase', 'Phase'],
+    ['overlay-opacity', 'Overlay opacity'],
+    ['effect-parameter', 'Effect parameter'],
+    ['split-position', 'Split position'],
+    ['repeat-scale', 'Repeat scale'],
+  ] as const
+  const scenes = properties.map(([sceneId, label]) => scene(
+    sceneId,
+    label,
+    5,
+    [clip('zone-1', 'CompassRose', 0.32), clip('zone-2', 'TestPattern2D', 0.32)],
+    { splitPosition: sceneId === 'effect-parameter' ? 0.25 : sceneId === 'split-position' ? 0.75 : 0.5 },
+    { repeatScale: sceneId === 'repeat-scale' ? 4 : 1 },
+  ))
+  const transitions = cutBoundaries(scenes).map((item) => {
+    if (item.afterSceneId === 'effect-parameter') {
+      return boundary('effect-parameter', 'crossfade', 1_800, SINE_IN_OUT, {
+        propertyTransitions: {
+          routing: { splitPosition: { from: 0.25, durationMs: 1_800, easing: SINE_IN_OUT } },
+        },
+      })
+    }
+    if (item.afterSceneId === 'split-position') {
+      return boundary('split-position', 'crossfade', 1_800, SINE_IN_OUT, {
+        propertyTransitions: {
+          sample: { repeatScale: { from: 1, durationMs: 1_800, easing: SINE_IN_OUT } },
+        },
+      })
+    }
+    return item
+  })
+  const track = (
+    trackId: string,
+    target: ShowPropertyAnimationTrack['target'],
+    values: readonly [number, number, number],
+  ): ShowPropertyAnimationTrack => ({
+    id: trackId,
+    target,
+    keyframes: [
+      keyframe(`${trackId}-start`, 0, values[0]),
+      keyframe(`${trackId}-middle`, 2.5, values[1]),
+      keyframe(`${trackId}-end`, 5, values[2]),
+    ],
+  })
+  const localTracks = (sceneId: string): ShowPropertyAnimationTrack[] => {
+    const instanceId = `instance-${sceneId}-a`
+    const placementId = `placement-${sceneId}-a`
+    if (sceneId === 'animation-speed') return [track('track-animation-speed', { kind: 'instance-time-scale', instanceId }, [0.12, 0.9, 0.12])]
+    if (sceneId === 'pattern-control') return [track('track-pattern-control', { kind: 'instance-control', instanceId, exportName: 'sliderSpeed' }, [0.08, 0.92, 0.08])]
+    if (sceneId === 'brightness') return [track('track-brightness', { kind: 'placement-view', placementId, property: 'brightness' }, [0.1, 1, 0.1])]
+    if (sceneId === 'phase') return [track('track-phase', { kind: 'placement-view', placementId, property: 'phase' }, [0, 1, 0])]
+    if (sceneId === 'overlay-opacity') return [track('track-overlay-opacity', { kind: 'placement-opacity', placementId: 'placement-overlay-opacity-overlay' }, [0, 0.85, 0])]
+    if (sceneId === 'effect-parameter') return [track('track-effect-parameter', {
+      kind: 'placement-effect', placementId, effectId: 'translate-demo', effectKind: 'translate', parameterId: 'translateX',
+    }, [-0.35, 0.35, -0.35])]
+    return []
+  }
+  const patternInstances: ShowCompositionV1['patternInstances'] = properties.flatMap(([sceneId]) => [
+    instance(`instance-${sceneId}-a`, 'CompassRose', 0.32, sceneId === 'pattern-control' ? { sliderSpeed: 0.08 } : undefined),
+    instance(`instance-${sceneId}-b`, 'TestPattern2D', 0.32),
+  ])
+  patternInstances.push(instance('instance-overlay-opacity-overlay', 'SignalMandala', 0.28))
+  const composition: ShowCompositionV1 = {
+    version: 1,
+    patternInstances,
+    scenes: properties.map(([sceneId]) => {
+      const mainA = {
+        ...placement(`placement-${sceneId}-a`, `instance-${sceneId}-a`, 0, 5),
+        ...(sceneId === 'effect-parameter'
+          ? { effects: [{ id: 'translate-demo', kind: 'translate' as const, x: -0.35, y: 0 }] }
+          : {}),
+      }
+      return {
+        sceneId,
+        ...(localTracks(sceneId).length ? { propertyTracks: localTracks(sceneId) } : {}),
+        zones: [
+          {
+            zoneId: 'zone-1',
+            main: [mainA],
+            overlays: sceneId === 'overlay-opacity' ? [{
+              id: 'layer-overlay-opacity',
+              name: 'Signal overlay',
+              placements: [{
+                ...placement('placement-overlay-opacity-overlay', 'instance-overlay-opacity-overlay', 0, 5),
+                opacity: 0,
+              }],
+            }] : [],
+          },
+          {
+            zoneId: 'zone-2',
+            main: [placement(`placement-${sceneId}-b`, `instance-${sceneId}-b`, 0, 5)],
+            overlays: [],
+          },
+        ],
+      }
+    }),
+  }
+  return catalogue({
+    id, title: 'Property Animation', track: 'portable', collection: 'showcases', level: null, order: 7,
+    purpose: 'Eight examples show where values can change over time: Pattern state, placement view, layering, Effect parameters, routing, and sample remapping.',
+    notice: 'The first six examples use Scene-local sparklines; Split position and Repeat scale use boundary-owned Property transitions.',
+    prompts: ['Open each Scene and compare the highlighted sparkline owner.', 'Change one midpoint value while leaving its endpoints fixed.'],
+    guideHeading: 'property-animation-reference', output: portableOutput(), zones,
+    defaultOpen: true,
+    layouts: [splitLayout('layout-property-split', 'Property split', zones, 'x')], scenes, transitions, composition,
+    reference: {
+      summary: 'The Stage and timeline highlight one animatable property at a time. Try with Pattern replaces the constant comparison Pattern while the animated subject and its Property track stay intact.',
+      patternSlots: {
+        cellIds: properties.map(([sceneId]) => cellId(sceneId, 'zone-2')),
+        instanceIds: properties.map(([sceneId]) => `instance-${sceneId}-b`),
+      },
+      examples: [
+        ...properties.slice(0, 6).map(([sceneId, label]) => ({
+          id: sceneId, label, detail: 'Scene-local Property sparkline.', anchor: { kind: 'scene' as const, sceneId },
+        })),
+        { id: 'split-position', label: 'Split position', detail: 'Boundary-owned routing Property transition.', anchor: { kind: 'boundary', transitionId: 'transition-effect-parameter' } },
+        { id: 'repeat-scale', label: 'Repeat scale', detail: 'Boundary-owned sample-remap Property transition.', anchor: { kind: 'boundary', transitionId: 'transition-split-position' } },
+      ],
+    },
+  })
+}
+
+function easingReference(): StockShow {
+  const specs: TransitionReferenceSpec[] = SHOW_EASING_OPTIONS.map((option) => ({
+    id: `easing-${option.id}`,
+    label: option.label,
+    familyId: 'wipe',
+    variantId: 'linear',
+    presetId: 'east',
+    changes: { easing: option.easing },
+  }))
+  return transitionReferenceShow({
+    id: 'stock-show-reference-easing', title: 'Easing', order: 8,
+    purpose: 'One eastward Linear Wipe holds its Patterns, endpoints, direction, and duration constant while every easing curve changes the timing.',
+    notice: 'This isolates easing from Transition geometry. The live header names the current curve and draws its progression.',
+    prompts: ['Compare quadratic in with quadratic out.', 'Watch where Steps and Hold curves spend their time.'],
+    guideHeading: 'easing-reference', specs,
+  })
+}
+
+function transitionReferenceShow(input: {
+  id: string
+  title: string
+  order: number
+  purpose: string
+  notice: string
+  prompts: readonly [string, string]
+  guideHeading: string
+  specs: TransitionReferenceSpec[]
+}): StockShow {
+  const zones = logicalZones(['Main'], 2_000)
+  const scenes = Array.from({ length: input.specs.length + 1 }, (_, index) => {
+    const selected = index % 2 === 1
+    const previousExample = index > 0 ? input.specs[index - 1] : null
+    const holdSeconds = previousExample?.variantId === 'cut' ? 5 : previousExample ? 3.2 : 3
+    return scene(
+      `reference-${index + 1}`,
+      index === 0 ? 'Reference' : input.specs[index - 1].label,
+      holdSeconds,
+      [clip('zone-1', selected ? 'CompassRose' : 'TestPattern2D', 0.32)],
+    )
+  })
+  const transitions = cutBoundaries(scenes)
+  const contentInstanceId = (index: number) => `instance-reference-content-${index + 1}`
+  const composition: ShowCompositionV1 = {
+    version: 1,
+    patternInstances: [
+      instance('instance-reference-backdrop', 'Caustics', 0.18),
+      ...scenes.map((item, index) => instance(
+        contentInstanceId(index),
+        item.clips[0].pattern,
+        item.clips[0].timeScale,
+      )),
+    ],
+    scenes: scenes.map((item, index) => ({
+      sceneId: item.id,
+      zones: [{
+        zoneId: 'zone-1',
+        main: [{
+          ...placement(`placement-reference-backdrop-${index + 1}`, 'instance-reference-backdrop', 0, item.durationMs / 1_000),
+          view: { mirror: false, phase: 0, brightness: 0.55 },
+        }],
+        overlays: [{
+          id: `layer-reference-content-${index + 1}`,
+          name: 'Transition subject',
+          placements: [{
+            ...placement(`placement-reference-content-${index + 1}`, contentInstanceId(index), 0, item.durationMs / 1_000),
+            opacity: 0.82,
+          }],
+        }],
+      }],
+    })),
+  }
+  const reference: ShowReferenceGuide = {
+    summary: 'Each boundary compares the fixed diagnostic reference with the selected Pattern over a quiet moving backdrop; the arrow names which side is incoming.',
+    patternSlots: {
+      cellIds: scenes.filter((_, index) => index % 2 === 1).map((item) => cellId(item.id, 'zone-1')),
+      instanceIds: scenes.flatMap((_, index) => index % 2 === 1 ? [contentInstanceId(index)] : []),
+    },
+    examples: input.specs.map((spec, index) => ({
+      id: spec.id,
+      label: spec.label,
+      detail: index % 2 === 0 ? 'Reference -> Selected' : 'Selected -> Reference',
+      anchor: { kind: 'boundary', transitionId: transitions[index].id },
+      ...(spec.changes?.easing ? { easing: spec.changes.easing } : {}),
+    })),
+  }
+  const stock = catalogue({
+    id: input.id, title: input.title, track: 'portable', collection: 'showcases', level: null, order: input.order,
+    purpose: input.purpose, notice: input.notice, prompts: input.prompts, guideHeading: input.guideHeading,
+    defaultOpen: true,
+    output: portableOutput(), zones, layouts: [singleLayout(zones)], scenes, transitions, composition, reference,
+  })
+  const presentation = buildShowToolkitPresentationCatalogue({ stageDimensions: 2 })
+  let show = stock.show
+  input.specs.forEach((spec, index) => {
+    const item = presentation.find((candidate) => (
+      candidate.kind === 'transition' && candidate.familyId === spec.familyId && candidate.variantId === spec.variantId
+    ))
+    if (!item) throw new Error(`Missing Transition reference item ${spec.familyId}:${spec.variantId}.`)
+    const transitionId = transitions[index].id
+    show = replaceShowBoundaryTransition(show, transitionId, item, spec.presetId)
+    show = updateShowBoundaryTransition(show, transitionId, {
+      durationMs: spec.variantId === 'cut' ? 0 : 1_800,
+      easing: SINE_IN_OUT,
+      ...spec.changes,
+    })
+  })
+  return { ...stock, show }
+}
+
 type ShowcaseKind = 'transform' | 'distortion' | 'color-output'
 
 function effectShowcase(kind: ShowcaseKind): StockShow {
+  const affineEffects = (
+    values: {
+      translate?: { x: number; y: number }
+      scale?: { x: number; y: number }
+      rotate?: number
+      shear?: { x: number; y: number }
+    } = {},
+  ): ShowClipEffect[] => [
+    { id: 'affine-translate', kind: 'translate', x: values.translate?.x ?? 0, y: values.translate?.y ?? 0 },
+    { id: 'affine-scale', kind: 'scale', x: values.scale?.x ?? 1, y: values.scale?.y ?? 1 },
+    { id: 'affine-rotate', kind: 'rotate', turns: values.rotate ?? 0 },
+    { id: 'affine-shear', kind: 'shear', x: values.shear?.x ?? 0, y: values.shear?.y ?? 0 },
+  ]
   const configs = {
     transform: {
       id: 'stock-show-showcase-transform-effects', title: 'Transform Effects', order: 1, duration: 5,
-      purpose: 'The same diagnostic Pattern passes through each affine Effect in isolation. Cuts make before-and-after comparison immediate.',
-      notice: 'Wrap becomes useful after a transform moves samples outside the source domain.',
+      purpose: 'The same diagnostic Pattern moves continuously between affine Effect states, making each coordinate transformation visible.',
+      notice: 'Translate, Scale, Rotate, and Shear interpolate as one stable Effect stack. Wrap is discrete because it changes address policy rather than a numeric coordinate.',
       prompts: ['Change Rotate from 0.125 to 0.25 turns.', 'Move Wrap before Translate and compare the result.'] as const,
       heading: 'transform-effects',
       rows: [
-        ['Reference', []], ['Translate', [{ id: 'translate', kind: 'translate', x: 0.18, y: -0.12 }]],
-        ['Rotate', [{ id: 'rotate', kind: 'rotate', turns: 0.125 }]], ['Scale', [{ id: 'scale', kind: 'scale', x: 0.68, y: 0.82 }]],
-        ['Shear', [{ id: 'shear', kind: 'shear', x: 0.28, y: 0 }]],
+        ['Reference', affineEffects()],
+        ['Translate', affineEffects({ translate: { x: 0.18, y: -0.12 } })],
+        ['Scale', affineEffects({ scale: { x: 0.68, y: 0.82 } })],
+        ['Rotate', affineEffects({ rotate: 0.125 })],
+        ['Shear', affineEffects({ shear: { x: 0.28, y: 0 } })],
         ['Wrap', [{ id: 'translate', kind: 'translate', x: 0.28, y: 0 }, { id: 'wrap', kind: 'wrap' }]],
       ] as Array<[string, ShowClipEffect[]]>,
     },
@@ -410,14 +909,34 @@ function effectShowcase(kind: ShowcaseKind): StockShow {
   }>
   const config = configs[kind]
   const zones = logicalZones(['Main'], 2_000)
-  const scenes = config.rows.map(([name, effects], index) => scene(`effect-${index + 1}`, name, config.duration, [
-    clip('zone-1', 'TestPattern2D', 0.35, undefined, 0.90, effects.length ? effects : undefined),
-  ]))
+  const scenes = config.rows.map(([name, effects], index) => scene(
+    `effect-${index + 1}`,
+    name,
+    kind === 'transform' && index < 4 ? config.duration - 1 : config.duration,
+    [clip('zone-1', 'TestPattern2D', 0.35, undefined, 0.90, effects.length ? effects : undefined)],
+  ))
+  const transitions = kind === 'transform'
+    ? scenes.slice(0, -1).map((item, index) => (
+        index < 4
+          ? effectTweenBoundary(item, scenes[index + 1], config.rows[index][1], config.rows[index + 1][1])
+          : boundary(item.id, 'cut', 0, LINEAR)
+      ))
+    : cutBoundaries(scenes)
   return catalogue({
     id: config.id, title: config.title, track: 'portable', collection: 'showcases', level: null, order: config.order,
     purpose: config.purpose, notice: config.notice, prompts: config.prompts, guideHeading: config.heading,
-    defaultOpen: kind === 'transform', output: portableOutput(), zones, layouts: [singleLayout(zones)], scenes,
-    transitions: cutBoundaries(scenes),
+    defaultOpen: true, output: portableOutput(), zones, layouts: [singleLayout(zones)], scenes,
+    transitions,
+    reference: {
+      summary: 'One Pattern stays constant while each Effect in this family changes the rendered result.',
+      patternSlots: { cellIds: scenes.map((item) => cellId(item.id, 'zone-1')), instanceIds: [] },
+      examples: scenes.map((item, index) => ({
+        id: `${kind}-${index + 1}`,
+        label: item.name,
+        detail: index === 0 ? 'Unmodified Pattern reference.' : `${item.name} applied in isolation.`,
+        anchor: { kind: 'scene', sceneId: item.id },
+      })),
+    },
   })
 }
 
@@ -427,6 +946,7 @@ function catalogue(input: CatalogueInput): StockShow {
   const scenes: ShowScene[] = input.scenes.map((item) => ({
     id: item.id, name: item.name, durationMs: item.durationMs,
     ...(item.routingTargets ? { routingTargets: item.routingTargets } : {}),
+    ...(item.sampleTargets ? { sampleTargets: item.sampleTargets } : {}),
     ...(transitionOut(item.id, transitions) ? { transitionOut: transitionOut(item.id, transitions) } : {}),
   }))
   const cells: ShowCell[] = input.scenes.flatMap((item) => item.clips.map((source) => ({
@@ -458,12 +978,23 @@ function catalogue(input: CatalogueInput): StockShow {
   }
   return {
     id: input.id, name, track: input.track, collection: input.collection, level: input.level, order: input.order,
-    lesson: input.title, description: input.purpose, note, show,
+    lesson: input.title, description: input.purpose, note, ...(input.reference ? { reference: input.reference } : {}), show,
   }
 }
 
-function scene(id: string, name: string, seconds: number, clips: ClipSpec[], routingTargets?: ShowScene['routingTargets']): SceneSpec {
-  return { id, name, durationMs: seconds * 1_000, clips, ...(routingTargets ? { routingTargets } : {}) }
+function scene(
+  id: string,
+  name: string,
+  seconds: number,
+  clips: ClipSpec[],
+  routingTargets?: ShowScene['routingTargets'],
+  sampleTargets?: ShowScene['sampleTargets'],
+): SceneSpec {
+  return {
+    id, name, durationMs: seconds * 1_000, clips,
+    ...(routingTargets ? { routingTargets } : {}),
+    ...(sampleTargets ? { sampleTargets } : {}),
+  }
 }
 
 function clip(zoneId: string, pattern: string, timeScale: number, controls?: Record<string, number>, brightness = 1, effects?: ShowClipEffect[]): ClipSpec {
@@ -472,6 +1003,32 @@ function clip(zoneId: string, pattern: string, timeScale: number, controls?: Rec
 
 function boundary(afterSceneId: string, kind: Exclude<ShowBoundaryTransition['kind'], 'routing'>, durationMs: number, easing: ShowTransitionEasing, extra: Partial<ShowBoundaryTransition> = {}): ShowBoundaryTransition {
   return { id: `transition-${afterSceneId}`, afterSceneId, kind, durationMs, easing, ...extra }
+}
+
+function effectTweenBoundary(
+  source: SceneSpec,
+  destination: SceneSpec,
+  fromEffects: ShowClipEffect[],
+  toEffects: ShowClipEffect[],
+): ShowBoundaryTransition {
+  const destinationCellId = cellId(destination.id, destination.clips[0].zoneId)
+  const effects = Object.fromEntries(toEffects.flatMap((toEffect, index) => {
+    const fromEffect = fromEffects[index]
+    if (!fromEffect || fromEffect.id !== toEffect.id || fromEffect.kind !== toEffect.kind) return []
+    const parameters = Object.fromEntries(showEffectParameterNames(toEffect).flatMap((parameter) => {
+      const from = showEffectNumericValue(fromEffect, parameter)
+      const to = showEffectNumericValue(toEffect, parameter)
+      return from === to ? [] : [[parameter, {
+        fromByCellId: { [destinationCellId]: from },
+        durationMs: 1_000,
+        easing: SINE_IN_OUT,
+      }]]
+    }))
+    return Object.keys(parameters).length > 0 ? [[toEffect.id, parameters]] : []
+  }))
+  return boundary(source.id, 'crossfade', 1_000, SINE_IN_OUT, {
+    propertyTransitions: { effects },
+  })
 }
 
 function brightnessBoundary(afterSceneId: string, kind: 'wipe' | 'crossfade', durationMs: number, easing: ShowTransitionEasing, destination: SceneSpec, from: number, extra: Partial<ShowBoundaryTransition> = {}): ShowBoundaryTransition {

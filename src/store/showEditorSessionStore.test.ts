@@ -11,6 +11,7 @@ describe('showEditorSessionStore (#470)', () => {
       ...showEditorSessionInitialState,
       setSnapEnabled: () => {},
       setShowNoteOpen: () => {},
+      setReferencePattern: () => {},
       setDiagnostic: () => {},
       setDiagnosticFocus: () => {},
     }
@@ -72,5 +73,27 @@ describe('showEditorSessionStore (#470)', () => {
       diagnostics: { zoneOutlines: false, clipOutlines: false, otherZoneGuides: false },
       diagnosticFocus: null,
     })
+  })
+
+  it('keeps reference-Show Pattern choices session-only and resets them independently (#506)', () => {
+    useShowEditorSessionStore.setState(showEditorSessionInitialState)
+
+    useShowEditorSessionStore.getState().setReferencePattern(
+      'stock-show-transition-wipes',
+      { kind: 'stock', id: 'CompassRose' },
+    )
+    expect(useShowEditorSessionStore.getState().referencePatternByShowId).toEqual({
+      'stock-show-transition-wipes': { kind: 'stock', id: 'CompassRose' },
+    })
+
+    useShowEditorSessionStore.getState().setReferencePattern('stock-show-transition-wipes', null)
+    expect(useShowEditorSessionStore.getState().referencePatternByShowId).toEqual({})
+
+    const merged = mergePersistedShowEditorSession({
+      referencePatternByShowId: {
+        stale: { kind: 'user', id: 'persisted-by-mistake' },
+      },
+    }, useShowEditorSessionStore.getState())
+    expect(merged.referencePatternByShowId).toEqual({})
   })
 })

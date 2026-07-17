@@ -24,6 +24,8 @@ import {
 import { createDefaultShow } from '@/engine/showModel'
 import { createPortableShowOutputContract } from '@/engine/showOutputContract'
 import { previewInitialState, usePreviewStore } from '@/store/previewStore'
+import { showEditorSessionInitialState, useShowEditorSessionStore } from '@/store/showEditorSessionStore'
+import { STOCK_SHOWS } from '@/pixelblaze/stock/shows'
 
 const authSessionMock = vi.hoisted(() => ({
   getAuthSession: vi.fn(),
@@ -53,6 +55,7 @@ beforeEach(() => {
   useControllerProfileStore.setState(controllerProfileInitialState)
   useShowStore.setState(showInitialState)
   usePreviewStore.setState(previewInitialState)
+  useShowEditorSessionStore.setState(showEditorSessionInitialState)
 })
 
 afterEach(() => {
@@ -307,6 +310,26 @@ describe('routing (#308)', () => {
     expect(screen.getByRole('heading', { name: 'TestPattern1D' })).toBeInTheDocument()
     await user.click(within(editorPane).getByRole('button', { name: 'Show properties' }))
     expect(screen.getByRole('heading', { name: 'Show properties' })).toBeInTheDocument()
+  })
+
+  it('projects a reference Pattern choice through the routed stock Show artifact (#506)', async () => {
+    const user = userEvent.setup()
+    const stock = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-reference-wipe-mix-transitions')!
+    window.history.replaceState(null, '', `/studio/shows/${stock.id}`)
+    seedSignedInWorkspace()
+    useShowStore.setState({ shows: [], showsLoaded: true, activeShowId: null })
+
+    render(<App />)
+
+    const editorPane = screen.getByTestId('editor-pane')
+    const selector = within(editorPane).getByRole('combobox', { name: 'Try with Pattern' })
+    await user.click(selector)
+    await user.click(screen.getByRole('option', { name: 'Caustics' }))
+
+    await waitFor(() => {
+      expect(within(editorPane).getAllByRole('button', { name: 'Select Caustics' }).length).toBeGreaterThan(0)
+    })
+    expect(within(editorPane).queryByRole('button', { name: 'Select CompassRose' })).not.toBeInTheDocument()
   })
 
   it('toggles the active Studio preview once with Space outside an editing control', () => {

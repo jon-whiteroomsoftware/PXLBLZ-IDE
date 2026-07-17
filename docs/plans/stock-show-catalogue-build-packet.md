@@ -69,7 +69,9 @@ in user libraries.
 - Main placements never overlap. Overlay placements may overlap Main and other
   overlay layers, but placements on the same overlay layer remain mutually
   exclusive.
-- Showcase Scene boundaries use Cuts. The effect, not a Transition, must be the
+- Showcase Scene boundaries use Cuts unless the subject is a numeric Effect
+  interpolation. Transform Effects uses a stable affine stack and one-source
+  parameter ramps; the Effect values, not a rendered-image blend, remain the
   visible change under study.
 
 ### Visual budget

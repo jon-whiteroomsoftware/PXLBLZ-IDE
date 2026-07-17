@@ -77,6 +77,7 @@ export const RECOMMENDED_SETTINGS: Record<string, Partial<Settings>> = {
   PhantomStar: { mapId: 'plane', surfaceId: 'flat', pixelCount: 1024, normalize: 'fill', brightness: 0.9, lightSize: 0.85, diffusion: 0.68 },
   PlasmaNebula: { mapId: 'panel-winding', surfaceId: 'flat', pixelCount: 1024, normalize: 'fill', brightness: 1, lightSize: 0.85, diffusion: 0.84 },
   RibbonLoom: { mapId: 'plane', surfaceId: 'flat', pixelCount: 1536, normalize: 'fill', brightness: 0.9, lightSize: 0.85, diffusion: 0.73 },
+  RedlineMachine: { mapId: 'redline-stage-2d', surfaceId: 'flat', pixelCount: 2000, normalize: 'contain', brightness: 1, lightSize: 0.74, diffusion: 0.30 },
   SceneSplice: { mapId: 'plane', surfaceId: 'flat', pixelCount: 1024, normalize: 'fill', brightness: 0.9, lightSize: 0.8, diffusion: 0.62 },
   ShaderShowcase: { mapId: 'plane', surfaceId: 'flat', pixelCount: 2048, normalize: 'fill', brightness: 1, lightSize: 0.70, diffusion: 0.96 },
   ShapeShifter: { mapId: 'plane', surfaceId: 'flat', pixelCount: 1024, normalize: 'fill', brightness: 1, lightSize: 0.82, diffusion: 0.68 },

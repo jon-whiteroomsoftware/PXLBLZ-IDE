@@ -860,6 +860,22 @@ buttons retain an explicit disabled treatment. The wrapper applies to every
 contextual entity inspector, while `details` summaries remain operable for
 inspection.
 
+Reference-show explanation and interaction live in catalogue-only
+`ShowReferenceGuide` metadata, outside `ShowRecord`. A session store owns the
+optional **Try with Pattern** selection. `applyShowReferencePattern()` immutably
+projects that Pattern into the guide's declared flat-cell and composition-instance
+slots, clears source-specific Control targets, and produces one transient Show
+override consumed by editor, Stage, compiler, generated-code view, EPE export,
+cost disclosure, and Controller actions. Navigation or reload discards the
+selection; no stock fixture, personal Pattern, Show row, or D1 record is mutated.
+
+The Transform Effects reference keeps stable Effect ids and ordering across its
+numeric affine states. Boundary-owned Effect descriptors lower those states as
+one-source parameter ramps. Scene-sequence compilation recognizes a Crossfade
+host whose adjacent scenes resolve to the same semantic Pattern member and emits
+one renderer evaluation rather than evaluating and blending that member twice.
+The final Wrap example stays discrete because address policy is not numeric.
+
 Legacy scene-owned transitions and routing switches normalize into the boundary
 model before compiler, editor, EPE, or persistence consumption. Every boundary
 retains one explicit visual transition, with zero-duration cut as the neutral

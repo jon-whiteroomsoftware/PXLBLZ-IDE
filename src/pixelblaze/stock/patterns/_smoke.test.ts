@@ -53,6 +53,16 @@ function runDemo(file: string, mode: 'fast' | 'fidelity' = 'fast') {
 }
 
 describe('demo smoke tests', () => {
+  it('RedlineMachine combines the three materials in one cheap scored renderer', () => {
+    const source = readFileSync(join(here, 'RedlineMachine.js'), 'utf8')
+    let result!: ReturnType<typeof runDemo>
+
+    expect(() => { result = runDemo('RedlineMachine.js') }).not.toThrow()
+    expect(result.anyLit).toBe(true)
+    expect(result.controlCount).toBeGreaterThanOrEqual(3)
+    expect(source).not.toMatch(/\b(?:atan2|hypot|sqrt|sin|cos)\s*\(/)
+  })
+
   for (const file of ['PlasmaNebula.js', 'Caustics.js', 'KaleidoBloom.js', 'Kishimisu.js', 'PhantomStar.js', 'ShapeShifter.js', 'GlyphRain.js', 'Murmuration.js', 'Harmonograph.js', 'EventHorizon.js', 'ClockworkIris.js', 'SceneSplice.js']) {
     it(`${file} bundles, runs, lights pixels, and exposes sliders`, () => {
       let result!: ReturnType<typeof runDemo>

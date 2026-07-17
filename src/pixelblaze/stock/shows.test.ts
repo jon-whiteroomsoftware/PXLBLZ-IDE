@@ -8,13 +8,18 @@ import { validatePortableShowCompatibility } from '@/engine/showPortableCompatib
 import { loadPattern } from '@/engine/loadPattern'
 import { createShim } from '@/engine/shim'
 import { validateShowComposition } from '@/engine/showCompositionModel'
+import { projectShowTimeline } from '@/engine/showModel'
+import { SHOW_EASING_OPTIONS, showEasingOptionId } from '@/engine/showEasing'
+import { SHOW_VISUAL_TOOLKIT_REGISTRY } from '@/engine/showVisualToolkit'
+import { sameShowEffectStructure } from '@/engine/showEffects'
 import { getUserDoc } from '@/docs/catalog'
 import { DEMOS } from './patterns'
+import { SOURCE_STOCK_MAPS } from './maps/stockCatalogue'
 import { STOCK_SHOWS } from './shows'
 
 describe('stock Show curriculum (#363)', () => {
   it('ships the stable Learn 100, Learn 200, and showcase catalogue', () => {
-    expect(STOCK_SHOWS).toHaveLength(13)
+    expect(STOCK_SHOWS).toHaveLength(19)
     expect(new Set(STOCK_SHOWS.map((item) => item.id)).size).toBe(STOCK_SHOWS.length)
     expect(STOCK_SHOWS.map((item) => [item.name, item.collection, item.level, item.order])).toEqual([
       ['101 Clips and Crossfade', 'learn', 100, 1],
@@ -30,10 +35,99 @@ describe('stock Show curriculum (#363)', () => {
       ['Transform Effects', 'showcases', null, 1],
       ['Distortion Effects', 'showcases', null, 2],
       ['Color and Output Effects', 'showcases', null, 3],
+      ['Wipe and Mix Transitions', 'showcases', null, 4],
+      ['Shape Reveal Transitions', 'showcases', null, 5],
+      ['Motion Transitions', 'showcases', null, 6],
+      ['Property Animation', 'showcases', null, 7],
+      ['Easing', 'showcases', null, 8],
+      ['Redline Installation', 'showcases', null, 10],
     ])
     expect(STOCK_SHOWS.every((item) => item.show.id === item.id)).toBe(true)
     expect(new Set(STOCK_SHOWS.map((item) => `${item.collection}:${item.level}:${item.order}`)).size)
       .toBe(STOCK_SHOWS.length)
+  })
+
+  it('ships five single-family reference Shows with semantic example metadata (#506)', () => {
+    const referenceShows = STOCK_SHOWS.filter((item) => item.id.startsWith('stock-show-reference-'))
+
+    expect(referenceShows.map((item) => item.id)).toEqual([
+      'stock-show-reference-wipe-mix-transitions',
+      'stock-show-reference-shape-reveal-transitions',
+      'stock-show-reference-motion-transitions',
+      'stock-show-reference-property-animation',
+      'stock-show-reference-easing',
+    ])
+    expect(referenceShows.every((item) => item.reference!.examples.length >= 8)).toBe(true)
+    expect(referenceShows.every((item) => (item.reference?.patternSlots?.cellIds.length ?? 0) > 0)).toBe(true)
+    expect(referenceShows.find((item) => item.id === 'stock-show-reference-property-animation')?.reference?.patternSlots)
+      .toMatchObject({
+        cellIds: expect.arrayContaining(['cell-animation-speed-zone-2', 'cell-repeat-scale-zone-2']),
+        instanceIds: expect.arrayContaining(['instance-animation-speed-b', 'instance-repeat-scale-b']),
+      })
+
+    const referenceSection = STOCK_SHOWS.filter((item) => (
+      item.id.startsWith('stock-show-showcase-') || item.id.startsWith('stock-show-reference-')
+    ) && !['stock-show-showcase-redline-installation'].includes(item.id))
+    expect(referenceSection.every((item) => item.reference && item.reference.patternSlots)).toBe(true)
+    expect(referenceSection.every((item) => item.note.defaultOpen)).toBe(true)
+  })
+
+  it('covers registry variants, eight Wipe directions, all easing curves, and eight Property targets (#506)', () => {
+    const item = (id: string) => STOCK_SHOWS.find((candidate) => candidate.id === id)!
+    const wipe = item('stock-show-reference-wipe-mix-transitions')
+    const shape = item('stock-show-reference-shape-reveal-transitions')
+    const motion = item('stock-show-reference-motion-transitions')
+    const easing = item('stock-show-reference-easing')
+    const property = item('stock-show-reference-property-animation')
+
+    const transitionVariants = (familyId: string) => SHOW_VISUAL_TOOLKIT_REGISTRY
+      .find((family) => family.kind === 'transition' && family.id === familyId)!.variants.map((variant) => variant.id)
+    expect(new Set(shape.show.transitions?.filter((transition) => transition.kind === 'portal').map((transition) => transition.shape)))
+      .toEqual(new Set(transitionVariants('shape-reveal')))
+    expect(new Set(motion.show.transitions?.filter((transition) => transition.kind === 'motion').map((transition) => transition.motionVariant)))
+      .toEqual(new Set(transitionVariants('motion')))
+    expect(wipe.show.transitions?.filter((transition) => transition.kind === 'wipe' && transition.wipeVariant === 'linear')
+      .map((transition) => transition.direction)).toEqual([0, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875])
+    expect(easing.show.transitions?.map((transition) => showEasingOptionId(transition.easing)))
+      .toEqual(SHOW_EASING_OPTIONS.map((option) => option.id))
+
+    for (const reference of [wipe, shape, motion, easing]) {
+      const starts = projectShowTimeline(reference.show).boundaryTransitions.map((transition) => transition.startMs)
+      expect(starts.slice(1).map((start, index) => start - starts[index]), reference.name)
+        .toEqual(Array.from({ length: starts.length - 1 }, () => 5_000))
+    }
+
+    const targets = property.show.composition!.scenes.flatMap((scene) => scene.propertyTracks?.map((track) => track.target) ?? [])
+    expect(targets.map((target) => target.kind)).toEqual([
+      'instance-time-scale', 'instance-control', 'placement-view', 'placement-view', 'placement-opacity', 'placement-effect',
+    ])
+    expect(property.show.transitions).toEqual(expect.arrayContaining([
+      expect.objectContaining({ propertyTransitions: { routing: { splitPosition: expect.anything() } } }),
+      expect.objectContaining({ propertyTransitions: { sample: { repeatScale: expect.anything() } } }),
+    ]))
+  })
+
+  it('places Transition references over one fixed diagnostic backdrop (#506)', () => {
+    const references = [
+      'stock-show-reference-wipe-mix-transitions',
+      'stock-show-reference-shape-reveal-transitions',
+      'stock-show-reference-motion-transitions',
+      'stock-show-reference-easing',
+    ].map((id) => STOCK_SHOWS.find((candidate) => candidate.id === id)!)
+
+    for (const item of references) {
+      expect(item.show.composition?.patternInstances).toContainEqual(expect.objectContaining({
+        id: 'instance-reference-backdrop',
+        patternName: 'Caustics',
+      }))
+      expect(item.show.composition?.scenes).toHaveLength(item.show.scenes.length)
+      expect(item.show.composition?.scenes.every((scene) => (
+        scene.zones[0].main.some((placement) => placement.instanceId === 'instance-reference-backdrop')
+        && scene.zones[0].overlays[0]?.placements[0]?.opacity === 0.82
+      ))).toBe(true)
+      expect(item.reference?.patternSlots?.instanceIds.length).toBeGreaterThan(0)
+      expect(item.reference?.patternSlots?.instanceIds).not.toContain('instance-reference-backdrop')
+    }
   })
 
   it('gives every Show a complete guide note outside the compiled record', () => {
@@ -65,6 +159,90 @@ describe('stock Show curriculum (#363)', () => {
     expect(item.show.zones).toHaveLength(1)
   })
 
+  it('scores Redline as a 60-second five-surface Installation showcase (#503)', () => {
+    const item = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-showcase-redline-installation')!
+
+    expect(item.track).toBe('installation')
+    expect(item.show.outputContract).toEqual({
+      version: 1,
+      kind: 'installation',
+      outputMapId: 'redline-stage-2d',
+      pixelCount: 4_000,
+      resolution: 'fixed',
+    })
+    expect(item.show.zones.map((zone) => zone.nominalPixelCount)).toEqual([1_600, 600, 600, 600, 600])
+    expect(item.show.routingLayouts[0].zones.map((zone) => zone.ranges)).toEqual([
+      [{ start: 0, end: 1_599 }],
+      [{ start: 1_600, end: 2_199 }],
+      [{ start: 2_200, end: 2_799 }],
+      [{ start: 2_800, end: 3_399 }],
+      [{ start: 3_400, end: 3_999 }],
+    ])
+    expect(projectShowTimeline(item.show).durationMs).toBe(60_000)
+    expect(item.show.scenes.map((scene) => [scene.name, scene.durationMs])).toEqual([
+      ['Ignition', 7_500],
+      ['First lift', 7_500],
+      ['Countermotion', 7_500],
+      ['First drop', 7_500],
+      ['Vacuum', 7_500],
+      ['Rebuild', 7_500],
+      ['Compression', 7_500],
+      ['Peak and release', 7_500],
+    ])
+    expect(validateInstallationCoverage(item.show)).toMatchObject({ valid: true })
+    expect(validateShowComposition(item.show, item.show.composition!)).toEqual([])
+
+    const patternIds = new Set(item.show.composition!.patternInstances.map((instance) => instance.pattern.id))
+    expect(patternIds).toEqual(new Set(['RedlineMachine']))
+    for (const scene of item.show.composition!.scenes) {
+      const targetZones = scene.zones.slice(1)
+      expect(new Set(targetZones.map((zone) => zone.main[0]?.instanceId)).size, scene.sceneId).toBe(1)
+      expect(new Set(targetZones.map((zone) => JSON.stringify(zone.main[0]?.effects))).size, scene.sceneId)
+        .toBeGreaterThanOrEqual(3)
+    }
+
+    const compiled = compileShowForArtifact(item.show, [], undefined, {}, { stageDimension: 2 })
+    expect(compiled.error).toBeNull()
+    expect(compiled.artifact!.summary.cost.cpu.patternEvaluations).toEqual({ formula: 'N', basePerPixel: 1 })
+    expect(compiled.artifact!.summary.artifactBytes).toBeGreaterThan(0)
+    expect(compiled.artifact!.summary.measuredDeviceBudgetBytes).toBeGreaterThan(0)
+
+    const mapPoints = SOURCE_STOCK_MAPS.find((map) => map.id === 'redline-stage-2d')!.resolve(4_000)
+    let virtualTime = 0
+    const shim = createShim({
+      pixelCount: 4_000,
+      dimensions: 2,
+      mapPoints,
+      getVirtualTime: () => virtualTime,
+      randomSeed: 503,
+    })
+    const handle = loadPattern(compiled.artifact!.code, compiled.artifact!.metadata, shim.builtins)
+    const sampleIndices = Array.from({ length: 160 }, (_, sampleIndex) => {
+      const zoneIndex = sampleIndex % 5
+      const zoneStart = zoneIndex === 0 ? 0 : 1_600 + (zoneIndex - 1) * 600
+      const zoneCount = zoneIndex === 0 ? 1_600 : 600
+      return zoneStart + Math.floor((sampleIndex / 5) * 73) % zoneCount
+    })
+    const frameAt = (deltaMs: number) => {
+      virtualTime += deltaMs
+      handle.beforeRender(deltaMs)
+      return sampleIndices.map((index) => {
+        const [x, y] = mapPoints[index].sample
+        handle.render2D(index, x, y)
+        return shim.capturedPixel()
+      })
+    }
+    const frames = Array.from({ length: 8 }, (_, phraseIndex) => frameAt(phraseIndex === 0 ? 500 : 7_500))
+    const signature = (frame: number[][]) => frame
+      .map((color) => color.map((channel) => Math.round(channel * 20)).join(','))
+      .join('|')
+
+    expect(new Set(frames.map(signature)).size).toBeGreaterThanOrEqual(6)
+    expect(frames.every((frame) => frame.some(([r, g, b]) => r + g + b > 0.05))).toBe(true)
+    expect(frames.slice(4, 6).some((frame) => frame.some(([r, g, b]) => g > r + 0.1 && b > r + 0.1))).toBe(true)
+    expect([...frames.slice(0, 4), ...frames.slice(6)].some((frame) => frame.some(([r, g, b]) => r > g + 0.1 && r > b + 0.1))).toBe(true)
+  })
+
   it('ships valid local Main scheduling and typed overlay animation in Learn 200', () => {
     for (const id of ['stock-show-201-scene-local-cuts', 'stock-show-202-layers-local-animation']) {
       const item = STOCK_SHOWS.find((candidate) => candidate.id === id)!
@@ -88,17 +266,41 @@ describe('stock Show curriculum (#363)', () => {
 
   it('covers every Effect kind in the three data-driven showcases', () => {
     const kinds = STOCK_SHOWS
-      .filter((item) => item.collection === 'showcases')
+      .filter((item) => item.id.startsWith('stock-show-showcase-'))
       .flatMap((item) => item.show.cells.flatMap((cell) => cell.effects?.map((effect) => effect.kind) ?? []))
-    const counts = Object.fromEntries([...new Set(kinds)].map((kind) => [kind, kinds.filter((candidate) => candidate === kind).length]))
 
-    expect(Object.keys(counts).sort()).toEqual([
+    expect([...new Set(kinds)].sort()).toEqual([
       'brightness', 'bulge', 'color-map', 'contrast', 'hue', 'invert', 'kaleidoscope', 'opacity',
       'pixelate', 'posterize', 'ripple', 'rotate', 'saturation', 'scale', 'shear', 'swirl',
       'threshold', 'translate', 'wrap',
     ])
-    expect(counts).toMatchObject({ translate: 2, wrap: 1 })
-    expect(Object.entries(counts).filter(([kind]) => kind !== 'translate').every(([, count]) => count === 1)).toBe(true)
+  })
+
+  it('moves one Pattern continuously between affine Effect states (#506)', () => {
+    const item = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-showcase-transform-effects')!
+    const affineCells = item.show.cells.slice(0, 5)
+    const affineTransitions = item.show.transitions!.slice(0, 4)
+
+    expect(affineCells.map((cell) => cell.sceneId)).toEqual([
+      'effect-1', 'effect-2', 'effect-3', 'effect-4', 'effect-5',
+    ])
+    expect(affineCells.slice(1).every((cell) => sameShowEffectStructure(affineCells[0].effects, cell.effects))).toBe(true)
+    expect(affineCells[0].effects?.map((effect) => [effect.id, effect.kind])).toEqual([
+      ['affine-translate', 'translate'],
+      ['affine-scale', 'scale'],
+      ['affine-rotate', 'rotate'],
+      ['affine-shear', 'shear'],
+    ])
+    expect(affineTransitions.every((transition) => (
+      transition.durationMs === 1_000
+      && showEasingOptionId(transition.easing) === 'sine-in-out'
+      && Object.keys(transition.propertyTransitions?.effects ?? {}).length > 0
+    ))).toBe(true)
+
+    const compiled = compileShowForArtifact(item.show, [], undefined, {}, { stageDimension: 2 })
+    expect(compiled.artifact?.summary.cost.cpu.patternEvaluations).toMatchObject({ formula: 'N', basePerPixel: 1 })
+    expect(compiled.artifact?.summary.cost.cpu.effects.animatedParametersPerFrame).toBeGreaterThan(0)
+    expect(compiled.artifact?.summary.worstInstantRenderersPerPixel).toBe(1)
   })
 
   it('uses real stock Patterns and satisfies every output contract', () => {
@@ -127,7 +329,7 @@ describe('stock Show curriculum (#363)', () => {
   })
 
   it('keeps curriculum Pattern clocks slow enough to reveal routing and Scene changes', () => {
-    for (const item of STOCK_SHOWS) {
+    for (const item of STOCK_SHOWS.filter((candidate) => candidate.collection === 'learn')) {
       for (const cell of item.show.cells) {
         expect(cell.adaptations.timeScale, `${item.name}: ${cell.patternName}`).toBeGreaterThan(0)
         expect(cell.adaptations.timeScale, `${item.name}: ${cell.patternName}`).toBeLessThanOrEqual(0.7)

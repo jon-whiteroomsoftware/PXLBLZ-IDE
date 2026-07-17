@@ -202,6 +202,7 @@ export const STOCK_MAP_SPECS: SourceMapSpec[] = [
   },
   { id: 'sunflower-pucks', name: 'Sunflower pucks', kind: 'custom', dim: 3, source: source('sunflower-pucks') },
   { id: 'sunflower-pucks-2d', name: 'Sunflower pucks 2D', kind: 'custom', dim: 2, source: source('sunflower-pucks-2d') },
+  { id: 'redline-stage-2d', name: 'Redline stage', kind: 'custom', dim: 2, source: source('redline-stage-2d') },
   { id: 'seed-ring-2d', name: 'Ring', kind: 'path', dim: 2, source: source('ring') },
 ]
 

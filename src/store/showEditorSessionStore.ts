@@ -1,11 +1,14 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import type { ShowPatternRef } from '../engine/personalContentRecords'
 
 export interface ShowEditorSessionState {
   snapEnabled: boolean
   setSnapEnabled: (enabled: boolean) => void
   showNoteOpenById: Record<string, boolean>
   setShowNoteOpen: (showId: string, open: boolean) => void
+  referencePatternByShowId: Record<string, ShowPatternRef>
+  setReferencePattern: (showId: string, pattern: ShowPatternRef | null) => void
   diagnostics: {
     zoneOutlines: boolean
     clipOutlines: boolean
@@ -24,6 +27,7 @@ export interface ShowEditorSessionState {
 export const showEditorSessionInitialState = {
   snapEnabled: true,
   showNoteOpenById: {} as Record<string, boolean>,
+  referencePatternByShowId: {} as Record<string, ShowPatternRef>,
   diagnostics: {
     zoneOutlines: false,
     clipOutlines: false,
@@ -58,6 +62,14 @@ export const useShowEditorSessionStore = create<ShowEditorSessionState>()(
       setShowNoteOpen: (showId, open) => set((state) => ({
         showNoteOpenById: { ...state.showNoteOpenById, [showId]: open },
       })),
+      setReferencePattern: (showId, pattern) => set((state) => {
+        if (pattern) {
+          return { referencePatternByShowId: { ...state.referencePatternByShowId, [showId]: pattern } }
+        }
+        const referencePatternByShowId = { ...state.referencePatternByShowId }
+        delete referencePatternByShowId[showId]
+        return { referencePatternByShowId }
+      }),
       setDiagnostic: (kind, enabled) => set((state) => ({
         diagnostics: { ...state.diagnostics, [kind]: enabled },
       })),

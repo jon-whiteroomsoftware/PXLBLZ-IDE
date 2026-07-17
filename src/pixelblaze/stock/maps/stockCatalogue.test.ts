@@ -39,6 +39,7 @@ describe('stock catalogue', () => {
       'tetra-volume',
       'sunflower-pucks',
       'sunflower-pucks-2d',
+      'redline-stage-2d',
       'seed-ring-2d',
     ])
     for (const s of STOCK_MAP_SPECS) {
@@ -146,6 +147,44 @@ describe('stock catalogue', () => {
 })
 
 describe('source regeneration', () => {
+  it('builds the 4,000-pixel Redline installation as one panel and four targets', () => {
+    const points = mapById('redline-stage-2d').resolve(4_000)
+    const center = points.slice(0, 1_600)
+    const targets = Array.from({ length: 4 }, (_, index) => (
+      points.slice(1_600 + index * 600, 2_200 + index * 600)
+    ))
+
+    expect(points).toHaveLength(4_000)
+    expect(center).toHaveLength(1_600)
+    expect(targets.every((target) => target.length === 600)).toBe(true)
+    expect(points.every((point) => point.sample.length === 2 && point.pos?.length === 2)).toBe(true)
+
+    const bounds = (group: typeof points) => ({
+      minX: Math.min(...group.map((point) => point.pos![0])),
+      maxX: Math.max(...group.map((point) => point.pos![0])),
+      minY: Math.min(...group.map((point) => point.pos![1])),
+      maxY: Math.max(...group.map((point) => point.pos![1])),
+    })
+    const panelBounds = bounds(center)
+    expect(panelBounds.maxX - panelBounds.minX).toBeGreaterThan(
+      2 * (panelBounds.maxY - panelBounds.minY),
+    )
+
+    const targetCenters = targets.map((target) => {
+      const targetBounds = bounds(target)
+      return [
+        (targetBounds.minX + targetBounds.maxX) / 2,
+        (targetBounds.minY + targetBounds.maxY) / 2,
+      ]
+    })
+    expect(targetCenters[0][0]).toBeLessThan(panelBounds.minX)
+    expect(targetCenters[1][0]).toBeLessThan(panelBounds.minX)
+    expect(targetCenters[2][0]).toBeGreaterThan(panelBounds.maxX)
+    expect(targetCenters[3][0]).toBeGreaterThan(panelBounds.maxX)
+    expect(targetCenters[0][1]).toBeLessThan(targetCenters[1][1])
+    expect(targetCenters[2][1]).toBeLessThan(targetCenters[3][1])
+  })
+
   it('regenerates exactly pixelCount points for any count (no baked replay)', () => {
     for (const m of SOURCE_STOCK_MAPS.filter((m) => !m.id.startsWith('sunflower-pucks'))) {
       expect(m.resolve(7)).toHaveLength(7)

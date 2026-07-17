@@ -111,6 +111,9 @@ import { bytesToBase64 } from '@/engine/RelayWebSocket'
 import { steppedClockRateHz, steppedClockStepMs } from '@/engine/steppedClock'
 import { showKeyboardSeekStepMs } from '@/engine/showKeyboardSeek'
 import { SHOW_EASING_OPTIONS, showEasingFromOptionId, showEasingOptionId } from '@/engine/showEasing'
+import { sameShowEffectStructure } from '@/engine/showEffects'
+import { currentShowReferenceExample, type ShowReferenceGuide } from '@/engine/showReferenceShow'
+import { exportedDims } from '@/engine/exportedDims'
 import {
   showBoundaryTransitionParameterChanges,
   showBoundaryTransitionPresentationKey,
@@ -218,8 +221,25 @@ function ShowNoteTrigger({ note, open, onToggle }: {
   )
 }
 
-function ShowNoteDisclosure({ note, onCollapse }: {
+function ShowNoteDisclosure({
+  note,
+  show,
+  reference,
+  positionMs,
+  patternOptions,
+  selectedPattern,
+  onSelectPattern,
+  onResetPattern,
+  onCollapse,
+}: {
   note: StockShowNote
+  show: ShowRecord
+  reference?: ShowReferenceGuide
+  positionMs: number
+  patternOptions: ShowPatternOption[]
+  selectedPattern?: ShowCell['pattern']
+  onSelectPattern: (pattern: ShowCell['pattern']) => void
+  onResetPattern: () => void
   onCollapse: () => void
 }) {
   const title = note.number ? `${note.number} ${note.title}` : note.title
@@ -244,6 +264,17 @@ function ShowNoteDisclosure({ note, onCollapse }: {
         </span>
         <ChevronDown size={12} aria-hidden className="ml-auto shrink-0 rotate-180 text-zinc-500" />
       </button>
+      {reference && (
+        <ShowReferenceInstrument
+          show={show}
+          reference={reference}
+          positionMs={positionMs}
+          patternOptions={patternOptions}
+          selectedPattern={selectedPattern}
+          onSelectPattern={onSelectPattern}
+          onResetPattern={onResetPattern}
+        />
+      )}
       <div className="grid grid-cols-[minmax(0,1.45fr)_minmax(220px,1fr)] gap-4 border-t border-zinc-800/80 px-3 py-2.5 max-[720px]:grid-cols-1 max-[720px]:gap-2">
         <div>
           <p className="max-w-[72ch] leading-4 text-zinc-300">{note.purpose}</p>
@@ -278,6 +309,114 @@ function ShowNoteDisclosure({ note, onCollapse }: {
   )
 }
 
+function ShowReferenceInstrument({
+  show,
+  reference,
+  positionMs,
+  patternOptions,
+  selectedPattern,
+  onSelectPattern,
+  onResetPattern,
+}: {
+  show: ShowRecord
+  reference: ShowReferenceGuide
+  positionMs: number
+  patternOptions: ShowPatternOption[]
+  selectedPattern?: ShowCell['pattern']
+  onSelectPattern: (pattern: ShowCell['pattern']) => void
+  onResetPattern: () => void
+}) {
+  const current = currentShowReferenceExample(show, reference, positionMs)
+  const currentIndex = current ? reference.examples.findIndex((example) => example.id === current.id) : -1
+  const durationMs = showLoopDurationMs(show)
+  const progress = durationMs > 0 ? Math.max(0, Math.min(1, positionMs / durationMs)) : 0
+  const authoredPattern = reference.patternSlots
+    ? show.cells.find((cell) => reference.patternSlots?.cellIds.includes(cell.id))?.pattern
+      ?? show.composition?.patternInstances.find((instance) => reference.patternSlots?.instanceIds.includes(instance.id))?.pattern
+    : undefined
+  const activePattern = selectedPattern ?? authoredPattern
+  const activeValue = activePattern ? `${activePattern.kind}:${activePattern.id}` : null
+  const easingOption = current?.easing
+    ? SHOW_EASING_OPTIONS.find((option) => option.id === showEasingOptionId(current.easing!))
+    : undefined
+
+  return (
+    <div
+      role="group"
+      aria-label={`${show.name} reference controls`}
+      className="border-t border-cyan-200/15 bg-cyan-200/[0.025] px-3 py-2"
+    >
+      <div className="grid grid-cols-[minmax(0,1fr)_minmax(220px,320px)] items-start gap-4 max-[720px]:grid-cols-1 max-[720px]:gap-2">
+        <div className="min-w-0">
+          <span className="font-semibold uppercase tracking-[0.11em] text-cyan-200/70">Reference mode</span>
+          <p className="mt-0.5 max-w-[80ch] leading-4 text-zinc-400">{reference.summary}</p>
+        </div>
+        {reference.patternSlots && (
+          <div className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-1.5">
+            <label className="min-w-0 font-semibold uppercase tracking-[0.09em] text-zinc-500">
+              Try with Pattern
+              <PatternCombobox
+                ariaLabel="Try with Pattern"
+                value={activeValue}
+                options={patternOptions.map((option) => ({
+                  value: `${option.ref.kind}:${option.ref.id}`,
+                  label: option.label,
+                  group: option.group,
+                }))}
+                compact
+                className="mt-1"
+                onChange={(value) => {
+                  const option = patternOptions.find((candidate) => `${candidate.ref.kind}:${candidate.ref.id}` === value)
+                  if (option) onSelectPattern(option.ref)
+                }}
+              />
+            </label>
+            <Button
+              size="xs"
+              variant="ghost"
+              aria-label="Reset Pattern"
+              title="Reset to the authored reference Pattern"
+              disabled={!selectedPattern}
+              className="mb-0 h-6 bg-zinc-900/70 text-[9px] text-zinc-500 hover:bg-zinc-800 hover:text-zinc-200"
+              onClick={onResetPattern}
+            >
+              <RotateCw size={10} aria-hidden /> Reset
+            </Button>
+          </div>
+        )}
+      </div>
+      <div className="mt-2 grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-2 gap-y-1 border-l-2 border-cyan-200/45 bg-zinc-950/45 px-2 py-1.5">
+        <span className="font-semibold uppercase tracking-[0.1em] text-cyan-200/65">Live example</span>
+        <span className="min-w-0 truncate">
+          <strong className="font-medium text-zinc-100">{current?.label ?? 'Reference frame'}</strong>
+          <span className="ml-2 text-zinc-500">{current?.detail ?? 'The fixed comparison source before the first example.'}</span>
+        </span>
+        <span className="tabular-nums text-zinc-600">
+          {currentIndex >= 0 ? `${currentIndex + 1}/${reference.examples.length}` : `0/${reference.examples.length}`}
+        </span>
+        <span aria-hidden className="col-span-2 col-start-1 h-px overflow-hidden bg-zinc-800">
+          <i className="block h-full bg-cyan-200/70" style={{ width: `${progress * 100}%` }} />
+        </span>
+        {easingOption && (
+          <svg
+            role="img"
+            aria-label={`${easingOption.label} easing curve`}
+            viewBox="0 0 48 20"
+            className="row-span-2 h-5 w-12 text-cyan-200/80"
+          >
+            <polyline
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              points={easingOption.samples.map((sample) => `${sample.progress * 48},${18 - sample.value * 16}`).join(' ')}
+            />
+          </svg>
+        )}
+      </div>
+    </div>
+  )
+}
+
 export function ShowEditor({
   showId,
   showOverride,
@@ -289,7 +428,13 @@ export function ShowEditor({
   showId: string
   showOverride?: ShowRecord
   readOnly?: boolean
-  builtInContext?: { track: 'portable' | 'installation'; lesson: string; description: string; note?: StockShowNote }
+  builtInContext?: {
+    track: 'portable' | 'installation'
+    lesson: string
+    description: string
+    note?: StockShowNote
+    reference?: ShowReferenceGuide
+  }
   headerGuideTarget?: HTMLElement | null
   headerActionsTarget?: HTMLElement | null
 }) {
@@ -317,6 +462,9 @@ export function ShowEditor({
     state.showNoteOpenById[showId] ?? builtInContext?.note?.defaultOpen ?? false
   ))
   const setShowNoteOpen = useShowEditorSessionStore((state) => state.setShowNoteOpen)
+  const selectedReferencePattern = useShowEditorSessionStore((state) => state.referencePatternByShowId[showId])
+  const setReferencePattern = useShowEditorSessionStore((state) => state.setReferencePattern)
+  const referencePositionMs = useShowTransportStore((state) => state.showId === showId ? state.positionMs : 0)
   const addRoutingLayout = useShowStore((state) => state.addRoutingLayout)
   const updateRoutingLayout = useShowStore((state) => state.updateRoutingLayout)
   const removeRoutingLayout = useShowStore((state) => state.removeRoutingLayout)
@@ -763,6 +911,12 @@ export function ShowEditor({
       group: 'Built-in' as const,
     })),
   ]
+  const referencePatternOptions = patternOptions.filter((option) => {
+    const source = option.ref.kind === 'user'
+      ? userPatterns.find((pattern) => pattern.id === option.ref.id)?.src
+      : GALLERY_PATTERNS.find((pattern) => pattern.name === option.ref.id)?.src
+    return source ? exportedDims(source).some((dimension) => dimension === 1 || dimension === 2) : false
+  })
 
   function rememberTimelineFocus(event: React.FocusEvent<HTMLElement>) {
     const target = event.target
@@ -868,6 +1022,13 @@ export function ShowEditor({
       {builtInContext?.note && showNoteOpen && (
         <ShowNoteDisclosure
           note={builtInContext.note}
+          show={activeShow}
+          reference={builtInContext.reference}
+          positionMs={referencePositionMs}
+          patternOptions={referencePatternOptions}
+          selectedPattern={selectedReferencePattern}
+          onSelectPattern={(pattern) => setReferencePattern(showId, pattern)}
+          onResetPattern={() => setReferencePattern(showId, null)}
           onCollapse={() => setShowNoteOpen(showId, false)}
         />
       )}
@@ -3067,7 +3228,10 @@ function BoundaryTransitionChip({
   selectionKey: string
   onSelect: (anchor: HTMLElement) => void
 }) {
-  const glyph = transition.kind === 'routing'
+  const effectTween = isEffectTweenBoundary(show, transition)
+  const glyph = effectTween
+    ? 'fx'
+    : transition.kind === 'routing'
     ? 'rt'
     : transition.kind === 'crossfade'
     ? 'xf'
@@ -3084,10 +3248,14 @@ function BoundaryTransitionChip({
   return (
     <button
       type="button"
-      aria-label={`Select ${from} to ${to} transition (${transition.kind})`}
+      aria-label={effectTween
+        ? `Select ${from} to ${to} Effect tween`
+        : `Select ${from} to ${to} transition (${transition.kind})`}
       data-show-timeline-focus
       data-show-selection-key={selectionKey}
-      title={transition.kind === 'routing'
+      title={effectTween
+        ? `Effect tween · ${transition.durationMs / 1000}s`
+        : transition.kind === 'routing'
         ? `Routing to ${transition.layoutName ?? 'layout'} · ${transition.durationMs === 0 ? 'cut' : `${transition.durationMs / 1000}s directional transfer`}`
         : `${transition.kind} · ${transition.durationMs === 0 ? 'marker' : `${transition.durationMs / 1000}s`}`}
       onClick={(event) => {
@@ -3108,6 +3276,25 @@ function BoundaryTransitionChip({
       {transition.kind === 'routing' ? <Route size={11} aria-hidden /> : glyph}
     </button>
   )
+}
+
+function isEffectTweenBoundary(
+  show: ShowRecord,
+  transition: ReturnType<typeof projectShowStrip>['boundaryTransitions'][number],
+): boolean {
+  if (transition.kind !== 'crossfade' || !transition.propertyTransitions?.effects) return false
+  const sceneIndex = show.scenes.findIndex((scene) => scene.id === transition.afterSceneId)
+  if (sceneIndex < 0) return false
+  const pairs = show.zones.flatMap((zone) => {
+    const outgoing = cellCoveringScene(show, zone.id, sceneIndex)
+    const incoming = cellCoveringScene(show, zone.id, sceneIndex + 1)
+    return outgoing && incoming ? [[outgoing, incoming] as const] : []
+  })
+  return pairs.length > 0 && pairs.every(([outgoing, incoming]) => (
+    outgoing.pattern.kind === incoming.pattern.kind
+    && outgoing.pattern.id === incoming.pattern.id
+    && sameShowEffectStructure(outgoing.effects, incoming.effects)
+  ))
 }
 
 function InspectorPanel({
