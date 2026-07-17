@@ -1050,7 +1050,7 @@ export function ShowEditor({
             aria-label="Show timeline"
             tabIndex={-1}
             data-show-timeline-focus
-            className="outline-none"
+            className="select-none outline-none [&_input]:select-text [&_textarea]:select-text"
             onFocusCapture={rememberTimelineFocus}
           >
             <div hidden={Boolean(resolvedSceneEditorScope)} aria-hidden={resolvedSceneEditorScope ? true : undefined}>
@@ -1579,7 +1579,7 @@ function ShowTransportControls({ show }: { show: ShowRecord }) {
         }`}
         onClick={toggle}
       >
-        {isRunning ? <Play size={13} aria-hidden /> : <Pause size={13} aria-hidden />}
+        {isRunning ? <Play size={20} aria-hidden className="size-[20px]" /> : <Pause size={20} aria-hidden className="size-[20px]" />}
       </Button>
       <Button
         size="icon-xs"
@@ -1590,10 +1590,10 @@ function ShowTransportControls({ show }: { show: ShowRecord }) {
         onPointerUp={(event) => event.currentTarget.blur()}
         onClick={() => requestShowSeek(show.id, 0)}
       >
-        <SkipBack size={13} aria-hidden />
+        <SkipBack size={18} aria-hidden className="size-[18px]" />
       </Button>
       <output
-        className="timeline-time-display flex min-w-[112px] items-baseline gap-1 whitespace-nowrap text-[10px] tabular-nums"
+        className="timeline-time-display flex min-w-[128px] items-baseline gap-1 whitespace-nowrap text-xs tabular-nums"
         aria-live="off"
         aria-label="Show time"
       >
@@ -2185,7 +2185,7 @@ function SceneStrip({
   }, [zoomAroundPlayhead])
   return (
     <div
-      className="border-b border-seam bg-[#060608] p-4 shadow-[inset_0_6px_14px_-8px_rgba(0,0,0,0.9),inset_0_-6px_14px_-10px_rgba(0,0,0,0.9)]"
+      className="select-none border-b border-seam bg-[#060608] px-2 py-2.5 shadow-[inset_0_6px_14px_-8px_rgba(0,0,0,0.9),inset_0_-6px_14px_-10px_rgba(0,0,0,0.9)] [&_input]:select-text [&_textarea]:select-text"
       onClick={onDismiss}
     >
       <div
@@ -2490,7 +2490,7 @@ function SceneStrip({
                 onSelect({ kind: 'zone', zoneId: row.zoneId }, event.currentTarget)
               }}
               className={[
-                'group sticky left-0 z-30 flex cursor-pointer items-center gap-2 rounded-[5px] border border-transparent bg-[#060608] pr-2 text-left font-mono transition-all focus-visible:border-live/60 focus-visible:outline-none',
+                'group sticky left-0 z-30 flex cursor-pointer items-stretch gap-2 rounded-[5px] border border-transparent bg-[#060608] pr-2 text-left font-mono transition-all focus-visible:border-live/60 focus-visible:outline-none',
                 selection.kind === 'zone' && selection.zoneId === row.zoneId
                   ? 'border-live/25 bg-live/10 text-zinc-100'
                   : 'text-zinc-300 hover:border-zinc-800 hover:bg-zinc-900/65 hover:text-zinc-100',
@@ -2502,10 +2502,16 @@ function SceneStrip({
                 className="w-1 self-stretch rounded-sm"
                 style={{ backgroundColor: row.color ?? '#38bdf8' }}
               />
-              <MapIcon size={11} aria-hidden className="shrink-0 text-zinc-600 transition-colors group-hover:text-zinc-300" />
-              <span className="truncate text-[12px] font-medium group-hover:underline group-hover:decoration-dotted group-hover:underline-offset-4">{row.zoneName}</span>
-              <span className="ml-auto text-[10px] text-structural transition-colors group-hover:text-zinc-400">{row.nominalPixelCount}px</span>
-              <Settings2 size={11} aria-hidden className="shrink-0 text-zinc-400 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100" />
+              <span className="flex min-w-0 flex-1 flex-col justify-center gap-0.5 py-1">
+                <span className="flex min-w-0 items-center gap-1.5">
+                  <MapIcon size={11} aria-hidden className="shrink-0 text-zinc-600 transition-colors group-hover:text-zinc-300" />
+                  <span className="truncate text-[12px] font-medium group-hover:underline group-hover:decoration-dotted group-hover:underline-offset-4">{row.zoneName}</span>
+                </span>
+                <span className="flex min-w-0 items-center pl-[17px] text-[10px] text-structural transition-colors group-hover:text-zinc-400">
+                  <span>{row.nominalPixelCount}px</span>
+                  <Settings2 size={11} aria-hidden className="ml-auto shrink-0 text-zinc-400 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100" />
+                </span>
+              </span>
             </button>
             {row.cells.map((cell) => {
               const patternControls = patternControlsByCellId[cell.id] ?? []

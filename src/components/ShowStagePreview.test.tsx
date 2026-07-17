@@ -123,6 +123,21 @@ describe('ShowStagePreview (#339)', () => {
     expect(usePreviewStore.getState().isRunning).toBe(false)
   })
 
+  it('puts the primary playback control at the right edge of the preview status row', () => {
+    const show = createDefaultShow('show-preview-transport', 'Preview transport', 1000)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowStagePreview showId={show.id} />)
+
+    const statusRow = screen.getByText(/show paused · Fast/i).parentElement!
+    const playback = within(statusRow).getByRole('button', { name: 'Play Show preview' })
+    expect(statusRow.lastElementChild).toBe(playback)
+
+    fireEvent.click(playback)
+    expect(usePreviewStore.getState().isRunning).toBe(true)
+    expect(within(statusRow).getByRole('button', { name: 'Pause Show preview' })).toBeInTheDocument()
+  })
+
   it('keeps Zone isolation independent from playback and reserves a stable reset control', () => {
     const show = createDefaultShow('show-zone-isolation', 'Zone isolation', 1000)
     show.zones.push({ ...show.zones[0], id: 'accent', name: 'accent', color: '#f97316' })

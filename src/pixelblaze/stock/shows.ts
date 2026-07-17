@@ -378,7 +378,7 @@ function learn205(): StockShow {
 function redlineInstallation(): StockShow {
   const id = 'stock-show-showcase-redline-installation'
   const zones = physicalZones(
-    ['Hero panel', 'Target left upper', 'Target left lower', 'Target right upper', 'Target right lower'],
+    ['Hero panel', 'Left upper', 'Left lower', 'Right upper', 'Right lower'],
     [1_600, 600, 600, 600, 600],
   )
   const patternInstances: ShowCompositionV1['patternInstances'] = [

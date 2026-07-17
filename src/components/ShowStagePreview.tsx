@@ -103,6 +103,7 @@ export function ShowStagePreview({ showId, showOverride }: { showId: string; sho
   const userMaps = useMapStore((state) => state.userMaps)
   const controllerProfiles = useControllerProfileStore((state) => state.profiles)
   const isRunning = usePreviewStore((state) => state.isRunning)
+  const togglePlayback = usePreviewStore((state) => state.toggle)
   const brightness = usePreviewStore((state) => state.brightness)
   const lightSize = usePreviewStore((state) => state.lightSize)
   const diffusion = usePreviewStore((state) => state.diffusion)
@@ -655,15 +656,25 @@ export function ShowStagePreview({ showId, showOverride }: { showId: string; sho
         </div>
       </div>
       <div className="min-h-0 flex-1 overflow-auto border-t border-zinc-900 px-3 py-3">
-        <div className="mb-3 flex items-center gap-2 text-zinc-500">
-          {isRunning
-            ? <Play size={13} aria-hidden className="text-green-400" />
-            : <Pause size={13} aria-hidden className="text-red-400" />}
-          <span>
+        <div className="mb-3 flex min-h-7 items-center gap-2 text-zinc-500">
+          <span className="min-w-0 flex-1">
             {seekStatus === 'rebuilding'
               ? `rebuilding accurate Show preview · ${rendererLabel}`
               : isRunning ? `previewing Show · ${rendererLabel}` : `show paused · ${rendererLabel}`}
           </span>
+          <button
+            type="button"
+            aria-label={isRunning ? 'Pause Show preview' : 'Play Show preview'}
+            title={isRunning ? 'Pause Show preview' : 'Play Show preview'}
+            onClick={togglePlayback}
+            className={`grid size-7 shrink-0 place-items-center rounded transition-colors hover:bg-zinc-800 ${
+              isRunning
+                ? 'text-green-400 hover:text-green-300'
+                : 'text-red-400 hover:text-red-300'
+            }`}
+          >
+            {isRunning ? <Play size={20} aria-hidden /> : <Pause size={20} aria-hidden />}
+          </button>
         </div>
         <div aria-label="Show stage" className="text-[10px] text-zinc-500">
           <div className="flex h-5 items-center justify-between gap-2">

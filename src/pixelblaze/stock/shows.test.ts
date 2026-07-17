@@ -170,6 +170,13 @@ describe('stock Show curriculum (#363)', () => {
       pixelCount: 4_000,
       resolution: 'fixed',
     })
+    expect(item.show.zones.map((zone) => zone.name)).toEqual([
+      'Hero panel',
+      'Left upper',
+      'Left lower',
+      'Right upper',
+      'Right lower',
+    ])
     expect(item.show.zones.map((zone) => zone.nominalPixelCount)).toEqual([1_600, 600, 600, 600, 600])
     expect(item.show.routingLayouts[0].zones.map((zone) => zone.ranges)).toEqual([
       [{ start: 0, end: 1_599 }],
