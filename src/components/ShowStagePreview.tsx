@@ -577,7 +577,7 @@ export function ShowStagePreview({ showId, showOverride }: { showId: string; sho
   const showZoneInventory = (layout?.projection.zones.length ?? 0) > 1 || installationCoverage?.valid === false
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-zinc-950 font-mono text-xs text-zinc-400">
+    <div className="flex h-full min-h-0 flex-col overflow-y-auto bg-zinc-950 font-mono text-xs text-zinc-400">
       {import.meta.env.DEV && (
         <output
           ref={performanceOutputRef}
@@ -655,7 +655,7 @@ export function ShowStagePreview({ showId, showOverride }: { showId: string; sho
           )}
         </div>
       </div>
-      <div className="min-h-0 flex-1 overflow-auto border-t border-zinc-900 px-3 py-3">
+      <div className="shrink-0 border-t border-zinc-900 px-3 py-3">
         <div className="mb-3 flex min-h-7 items-center gap-2 text-zinc-500">
           <span className="min-w-0 flex-1">
             {seekStatus === 'rebuilding'

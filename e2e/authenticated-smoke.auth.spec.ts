@@ -62,3 +62,29 @@ test('shared Studio chrome remains legible, dense, and reachable across routes (
   expect(await page.locator('[aria-label="Studio activity"]').evaluate((element) => element.getBoundingClientRect().width))
     .toBe(46)
 })
+
+test('resized Pattern and Show previews keep their controls reachable', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 720 })
+  await page.goto('studio/patterns/IridescentFibers')
+
+  const previewPane = page.getByTestId('preview-pane')
+  const initialBounds = await previewPane.boundingBox()
+  if (!initialBounds) throw new Error('Preview pane is not visible')
+
+  const splitterX = initialBounds.x - 2
+  const dragY = initialBounds.y + 180
+  await page.mouse.move(splitterX, dragY)
+  await page.mouse.down()
+  await page.mouse.move(splitterX - 240, dragY, { steps: 6 })
+  await page.mouse.up()
+
+  await expect.poll(async () => (await previewPane.boundingBox())?.width ?? 0).toBeGreaterThan(680)
+  await previewPane.hover()
+  await page.mouse.wheel(0, 1200)
+  await expect(page.getByRole('button', { name: 'Watch variables' })).toBeInViewport()
+
+  await page.goto('studio/shows/stock-show-showcase-redline-installation')
+  await previewPane.hover()
+  await page.mouse.wheel(0, 1200)
+  await expect(previewPane.getByRole('button', { name: 'Renderer' })).toBeInViewport()
+})

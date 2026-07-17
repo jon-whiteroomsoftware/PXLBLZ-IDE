@@ -539,7 +539,7 @@ export function Preview({
   }, [])
 
   return (
-    <div className="h-full bg-zinc-950 flex flex-col overflow-hidden">
+    <div className="h-full min-h-0 bg-zinc-950 flex flex-col overflow-y-auto">
       {/* Canvas flush at the top of the pane (#150): no header strip above it. The
           container drives the ResizeObserver fit; the deck stacks below. */}
       <div ref={containerRef} className="relative w-full shrink-0">
