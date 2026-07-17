@@ -58,6 +58,14 @@ import {
 } from './showRoutingRepresentation'
 import { selectRenderCompatibility } from './renderCompatibility'
 import {
+  analyzeShowRendererOutputGuaranteesAst,
+  type ShowRendererOutputGuarantees,
+} from './showCaptureSpecialization'
+import {
+  planPhysicalRoutingShortCircuit,
+  type PhysicalRoutingShortCircuitPlan,
+} from './showPhysicalRoutingSpecialization'
+import {
   buildShowVmResourceLedger,
   countShowPersistentGlobals,
   inspectGeneratedShowVmAllocations,
@@ -402,6 +410,16 @@ export interface ShowCompileSummary {
     maxMultiplicationsPerPixel: 2
     maxFracCallsPerPixel: 2
   } | null
+  specializations: {
+    routing: Omit<PhysicalRoutingShortCircuitPlan, 'ranges'> | null
+    capture: Array<{
+      clipId: string
+      samplePath: 'identity' | 'mapped'
+      outputPath: 'identity' | 'brightness' | 'effects'
+      clearPolicy: 'omitted-guaranteed-output' | 'retained'
+      operationsAvoidedPerEvaluatedPixel: number
+    }>
+  }
   clips: ShowCompileClipSummary[]
   resources: ShowVmResourceLedger
   warnings: string[]
@@ -460,6 +478,14 @@ interface CompiledMember {
   effects: ShowClipEffect[]
   animatedEffects: boolean
   staticPlanEffects: boolean
+  exactSpecializations: boolean
+  outputGuarantees: ShowRendererOutputGuarantees
+  needsMirrorMapping: boolean
+  needsBrightnessScale: boolean
+}
+
+export interface ShowCompileOptions {
+  exactSpecializations?: boolean
 }
 
 interface ResolvedRoute {
@@ -481,8 +507,10 @@ interface ResolvedRoutingLayout {
 export function compileShow(
   recipe: ShowRecipe,
   libraries: Record<string, string>,
+  options: ShowCompileOptions = {},
 ): GeneratedShowArtifact {
   const expandedRecipe = { ...recipe, clips: expandRouteClips(recipe.clips) }
+  const exactSpecializations = options.exactSpecializations ?? true
   validateRecipe(expandedRecipe)
   const animatedEffectClipIds = new Set<string>()
   const dynamicallyAnimatedEffectClipIds = new Set<string>()
@@ -544,6 +572,9 @@ export function compileShow(
       libraries,
       animatedEffectClipIds.has(clip.id),
       staticPlanEffectClipIds.has(clip.id),
+      exactSpecializations,
+      showMemberNeedsMirrorMapping(expandedRecipe, clip),
+      showMemberNeedsBrightnessScale(expandedRecipe, clip),
     ),
     samplePropertyRamps: expandedRecipe.samplePropertyRamps,
   }))
@@ -664,6 +695,7 @@ export function compileShow(
         routedOutputDimension,
         expandedRecipe.routingSwitches ?? [],
         expandedRecipe.routingPropertyRamps,
+        expandedRecipe.masterPixelCount,
       )
     : expandedRecipe.sceneSequence
     ? emitSceneSequenceShowCode(members, expandedRecipe.sceneSequence, sequenceOutputDimension)
@@ -683,9 +715,10 @@ export function compileShow(
             : 'range-branches',
         routingPlan?.formula,
         expandedRecipe.routingPropertyRamps,
+        expandedRecipe.masterPixelCount,
       )
     : routeMode
-      ? emitRouteShowCode(members, route.routes, routedOutputDimension)
+      ? emitRouteShowCode(members, route.routes, routedOutputDimension, expandedRecipe.masterPixelCount)
     : expandedRecipe.adaptationRamp
       ? emitAdaptationRampShowCode(members[0], expandedRecipe.adaptationRamp, memberOutputDimension)
       : expandedRecipe.cut
@@ -705,16 +738,14 @@ export function compileShow(
     : emittedWithEasingRuntime
   const compacted = compactGeneratedShowSymbols(expandedCode)
   const code = compacted.code
-  const metadata = buildMetadata(
-    members,
-    expandedRecipe.sceneSequence || expandedRecipe.routedSceneSequence
+  const compiledOutputDimension = expandedRecipe.sceneSequence || expandedRecipe.routedSceneSequence
       ? expandedRecipe.routedSceneSequence ? routedOutputDimension : sequenceOutputDimension
       : portalTransition || directionalWipeTransition || motionTransition || spatialDissolveTransition
         ? 2
         : routeMode || routingLayouts
           ? routedOutputDimension
-          : memberOutputDimension,
-  )
+          : memberOutputDimension
+  const metadata = buildMetadata(members, compiledOutputDimension)
   const patternVarBindings = Object.fromEntries(metadata.patternVars.flatMap((name) => {
     const runtimeName = compacted.names.get(name)
     return runtimeName ? [[name, runtimeName]] : []
@@ -783,6 +814,17 @@ export function compileShow(
     warnings,
     effects: effectCost,
   })
+  const routingSpecialization = exactSpecializations
+    ? describeSelectedRoutingSpecialization(
+        expandedRecipe,
+        route?.routes ?? null,
+        routingLayouts,
+        routingRepresentation,
+      )
+    : null
+  const captureSpecializations = exactSpecializations
+    ? members.map((member) => describeCaptureSpecialization(member, compiledOutputDimension))
+    : []
   const summary: ShowCompileSummary = {
     clipCount: members.length,
     transitionCount: expandedRecipe.sceneSequence || expandedRecipe.routedSceneSequence
@@ -908,6 +950,10 @@ export function compileShow(
           maxFracCallsPerPixel: 2,
         }
       : null,
+    specializations: {
+      routing: routingSpecialization,
+      capture: captureSpecializations,
+    },
     clips: members.map((member) => {
       const lightShutter = member.adaptation.lightShutter
       return {
@@ -936,6 +982,93 @@ export function compileShow(
     fxCode: emitFixedPoint(code),
     metadata,
     summary,
+  }
+}
+
+function describeSelectedRoutingSpecialization(
+  recipe: ShowRecipe,
+  directRoutes: ResolvedRoute[] | null,
+  layouts: ResolvedRoutingLayout[] | null,
+  representation: ShowCompileSummary['routingRepresentation'],
+): Omit<PhysicalRoutingShortCircuitPlan, 'ranges'> | null {
+  let plan: PhysicalRoutingShortCircuitPlan | null = null
+  if (layouts && representation === 'range-branches') {
+    if (recipe.routedSceneSequence) {
+      const sharedPhysicalCut = recipe.routingLayouts?.length === 1
+        && !recipe.routingLayouts[0].logical
+        && recipe.routedSceneSequence.scenes.every((scene) => (
+          (!scene.transitionOut || scene.transitionOut.kind === 'cut')
+          && scene.placements.every((placement) => (
+            placement.zoneMode !== 'span'
+            || !placement.domainZoneNames?.length
+            || (placement.domainZoneNames.length === 1 && placement.domainZoneNames[0] === placement.zoneName)
+          ))
+        ))
+      if (sharedPhysicalCut) {
+        plan = planPhysicalRoutingShortCircuit(
+          recipe.routingLayouts![0].zones.map((zone) => ({ ranges: zone.ranges })),
+          recipe.masterPixelCount,
+        )
+      }
+    } else {
+      const plans = layouts.map((layout) => planPhysicalRoutingShortCircuit(
+        layout.routes.map((route) => ({ ranges: route.zone.ranges })),
+        recipe.masterPixelCount,
+      ))
+      if (plans.every((candidate): candidate is PhysicalRoutingShortCircuitPlan => candidate !== null)) {
+        plan = plans.reduce((largest, candidate) => (
+          candidate.baselineMaxComparisonsPerPixel > largest.baselineMaxComparisonsPerPixel
+            ? candidate
+            : largest
+        ))
+      }
+    }
+  } else if (!layouts && directRoutes) {
+    plan = planPhysicalRoutingShortCircuit(
+      directRoutes.map((route) => ({ ranges: route.zone.ranges })),
+      recipe.masterPixelCount,
+    )
+  }
+  if (!plan) return null
+  const { ranges: _ranges, ...summary } = plan
+  return summary
+}
+
+function describeCaptureSpecialization(
+  member: CompiledMember,
+  outputDimension: ShowOutputDimension,
+): ShowCompileSummary['specializations']['capture'][number] {
+  const effectRuntime = describeMemberEffectRuntime(member)
+  const compatibility = selectRenderCompatibility(outputDimension, {
+    hasBeforeRender: member.hasBeforeRender,
+    hasRender: member.hasRender,
+    hasRender2D: member.hasRender2D,
+    hasRender3D: member.hasRender3D,
+  })
+  const rendererGuaranteesOutput = compatibility.renderer
+    ? member.outputGuarantees[compatibility.renderer]
+    : false
+  const samplePath = !member.needsMirrorMapping
+    && !member.samplePropertyRamps
+    && !effectRuntime?.hasCoordinates
+    ? 'identity' as const
+    : 'mapped' as const
+  const hasOutputEffects = member.effects.some((effect) => (
+    isShowColorEffect(effect) && (member.animatedEffects || !showEffectsAreIdentity([effect]))
+  ))
+  const outputPath = hasOutputEffects
+    ? 'effects' as const
+    : member.needsBrightnessScale ? 'brightness' as const : 'identity' as const
+  const omitClear = rendererGuaranteesOutput && !member.adaptation.lightShutter
+  return {
+    clipId: member.id,
+    samplePath,
+    outputPath,
+    clearPolicy: omitClear ? 'omitted-guaranteed-output' : 'retained',
+    operationsAvoidedPerEvaluatedPixel:
+      (samplePath === 'identity' ? 1 : 0)
+      + (member.needsBrightnessScale ? 0 : 3)
+      + (omitClear ? 3 : 0),
   }
 }
 
@@ -1122,18 +1255,54 @@ function routeTargets(clip: ShowClipRecipe): string[] {
   return clip.zone ? [clip.zone] : []
 }
 
+function showMemberNeedsMirrorMapping(recipe: ShowRecipe, clip: ShowClipRecipe): boolean {
+  if (clip.adaptation?.mirror) return true
+  if (recipe.adaptationRamp && recipe.clips[0]?.id === clip.id) {
+    if (recipe.adaptationRamp.from.mirror || recipe.adaptationRamp.to.mirror) return true
+  }
+  return recipe.routedSceneSequence?.scenes.some((scene) => scene.placements.some((placement) => (
+    placement.clipId === clip.id && placement.mirror === true
+  ))) ?? false
+}
+
+function showMemberNeedsBrightnessScale(recipe: ShowRecipe, clip: ShowClipRecipe): boolean {
+  if ((clip.adaptation?.brightness ?? 1) !== 1) return true
+  if (recipe.adaptationRamp && recipe.clips[0]?.id === clip.id) {
+    const ramp = recipe.adaptationRamp
+    if ((ramp.from.brightness ?? 1) !== 1 || (ramp.to.brightness ?? 1) !== 1 || ramp.propertyRamps?.brightness) return true
+  }
+  if (recipe.sceneSequence?.scenes.some((scene) => (
+    scene.clipId === clip.id
+    && ((scene.brightness ?? 1) !== 1 || Boolean(scene.transitionOut?.propertyRamps?.brightness))
+  ))) return true
+  return recipe.routedSceneSequence?.scenes.some((scene) => {
+    const placements = scene.placements.filter((placement) => placement.clipId === clip.id)
+    if (placements.some((placement) => (placement.brightness ?? 1) !== 1)) return true
+    if (scene.transitionRamps?.some((ramp) => ramp.clipId === clip.id && Boolean(ramp.propertyRamps?.brightness))) return true
+    return (scene.propertyTracks ?? []).some((track) => {
+      if (track.target.kind !== 'placement-view' || track.target.property !== 'brightness') return false
+      const placementId = track.target.placementId
+      return placements.some((placement) => placement.placementId === placementId)
+    })
+  }) ?? false
+}
+
 function compileMember(
   clip: ShowClipRecipe,
   index: number,
   libraries: Record<string, string>,
   animatedEffects = false,
   staticPlanEffects = false,
+  exactSpecializations = true,
+  needsMirrorMapping = Boolean(clip.adaptation?.mirror),
+  needsBrightnessScale = (clip.adaptation?.brightness ?? 1) !== 1,
 ): CompiledMember {
   const bundled = bundle(clip.source, libraries)
   const prefix = `__pxlblz_show_c${index}`
-  const bindings = collectTopLevelBindings(bundled.code)
+  const memberAst = parseModule(bundled.code)
+  const bindings = collectTopLevelBindings(memberAst)
   const mapping = new Map([...bindings].map(name => [name, `${prefix}_${name}`]))
-  const code = rewriteMemberSource(bundled.code, prefix, mapping).replace(/\bexport\s+/g, '')
+  const code = rewriteMemberSource(bundled.code, memberAst, prefix, mapping).replace(/\bexport\s+/g, '')
   const renamedPatternVars = bundled.metadata.patternVars
     .map(name => mapping.get(name))
     .filter((name): name is string => Boolean(name))
@@ -1178,6 +1347,12 @@ function compileMember(
     effects: normalizeShowClipEffects(clip.effects),
     animatedEffects,
     staticPlanEffects,
+    exactSpecializations,
+    outputGuarantees: exactSpecializations
+      ? analyzeShowRendererOutputGuaranteesAst(memberAst)
+      : { render: false, render2D: false, render3D: false },
+    needsMirrorMapping,
+    needsBrightnessScale,
   }
 }
 
@@ -1625,6 +1800,7 @@ function emitRoutedSceneSequenceShowCode(
   outputDimension: 1 | 2,
   switches: ShowRoutingSwitchRecipe[],
   propertyRamps?: ShowRoutingPropertyRampsRecipe,
+  outputPixelCount?: number,
 ): string {
   if (layouts.length === 0) throw new Error('compileShow routed scene sequence requires a routing layout.')
   const layoutIndex = new Map(layouts.map((layout, index) => [layout.id, index]))
@@ -1846,11 +2022,12 @@ ${setupForPlacements(
     .join('\n')
 
   const sharedPhysicalCut = canSharePhysicalCutRouting
-    ? emitSharedPhysicalCutSceneRender(
+      ? emitSharedPhysicalCutSceneRender(
         layouts[0],
         scenes,
         outputDimension,
         sceneLocalTimeExpression,
+        outputPixelCount,
       )
     : undefined
   const sceneBranches = sharedPhysicalCut?.render
@@ -1943,7 +2120,33 @@ function emitSharedPhysicalCutSceneRender(
   }>,
   outputDimension: 1 | 2,
   sceneLocalTimeExpression: (sceneIndex: number) => string,
+  outputPixelCount?: number,
 ): { prelude: string; render: string } {
+  const routingSpecialization = scenes.some((scene) => scene.placements.some((placement) => placement.member.exactSpecializations))
+    ? planPhysicalRoutingShortCircuit(layout.zones.map((zone) => ({ ranges: zone.ranges })), outputPixelCount)
+    : null
+  const specializedRoutingAssignments = routingSpecialization?.ranges.map((range, rangeIndex) => {
+    const zone = layout.zones[range.routeIndex]
+    const pixelCount = Math.max(1, controllerZonePixelCount(zone))
+    const width = Math.max(1, Math.ceil(Math.sqrt(pixelCount)))
+    const height = Math.max(1, Math.ceil(pixelCount / width))
+    const localIndex = range.localOffset === 0
+      ? `index - ${range.start}`
+      : `${range.localOffset} + index - ${range.start}`
+    const condition = rangeIndex === routingSpecialization.ranges.length - 1
+      ? 'else'
+      : `${rangeIndex === 0 ? 'if' : 'else if'} (index <= ${range.end})`
+    return [
+      `${condition} {`,
+      `  __pxlblz_show_route_id = ${range.routeIndex}`,
+      `  __pxlblz_show_route_local_index = ${localIndex}`,
+      `  __pxlblz_show_route_pixelCount = ${pixelCount}`,
+      ...(outputDimension === 2
+        ? [`  __pxlblz_show_route_width = ${width}`, `  __pxlblz_show_route_height = ${height}`]
+        : []),
+      '}',
+    ]
+  }).flat() ?? null
   const routingSetup = [
     'var __pxlblz_show_route_id = -1',
     'var __pxlblz_show_route_local_index = -1',
@@ -1951,7 +2154,7 @@ function emitSharedPhysicalCutSceneRender(
     ...(outputDimension === 2
       ? ['var __pxlblz_show_route_width = 1', 'var __pxlblz_show_route_height = 1']
       : []),
-    ...layout.zones.flatMap((zone, zoneIndex) => {
+    ...(specializedRoutingAssignments ?? layout.zones.flatMap((zone, zoneIndex) => {
       const local = `__pxlblz_show_route_candidate_${zoneIndex}`
       const pixelCount = Math.max(1, controllerZonePixelCount(zone))
       const width = Math.max(1, Math.ceil(Math.sqrt(pixelCount)))
@@ -1968,7 +2171,7 @@ function emitSharedPhysicalCutSceneRender(
           : []),
         '}',
       ]
-    }),
+    })),
     ...(outputDimension === 2
       ? [
           'var __pxlblz_show_route_local_x = __pxlblz_show_route_width == 1 ? 0.5 : (__pxlblz_show_route_local_index % __pxlblz_show_route_width) / (__pxlblz_show_route_width - 1)',
@@ -3497,12 +3700,17 @@ function mergeRouteZones(id: string, zones: ControllerZone[]): ControllerZone {
   }
 }
 
-function emitRouteShowCode(members: CompiledMember[], routes: ResolvedRoute[], outputDimension: 1 | 2): string {
+function emitRouteShowCode(
+  members: CompiledMember[],
+  routes: ResolvedRoute[],
+  outputDimension: 1 | 2,
+  outputPixelCount?: number,
+): string {
   return [
     emitRuntimePrelude(members, outputDimension),
     ...members.map(member => member.code.trim()),
     emitRouteScheduler(routes),
-    emitRouteRender(routes, outputDimension),
+    emitRouteRender(routes, outputDimension, outputPixelCount),
     '',
   ].join('\n\n')
 }
@@ -3516,6 +3724,7 @@ function emitRoutingLayoutShowCode(
   representation: 'range-branches' | 'packed-pixels' | 'generated-formula' | 'coordinate-predicates',
   formula?: GeneratedRoutingFormula,
   propertyRamps?: ShowRoutingPropertyRampsRecipe,
+  outputPixelCount?: number,
 ): string {
   const layoutIndex = new Map(layouts.map((layout, index) => [layout.id, index]))
   const orderedSwitches = [...switches].sort((a, b) => a.atMs - b.atMs)
@@ -3576,7 +3785,7 @@ ${counts.join('\n')}
       `${index === 0 ? '  if' : '  else if'} (${renderLayoutName} == ${index}) {
 ${representation === 'coordinate-predicates'
     ? emitLogicalRoutingRender(layout, '    ', outputDimension)
-    : emitRouteRenderBody(layout.routes, '    ', outputDimension)}
+    : emitRouteRenderBody(layout.routes, '    ', outputDimension, outputPixelCount)}
   }`
     )).join('\n')
   const packedPrelude = representation === 'packed-pixels'
@@ -4085,11 +4294,13 @@ function emitMemberOutputEffectLines(member: CompiledMember): string {
   const value = (effect: ShowClipEffect, parameter: string): string => member.animatedEffects
     ? effectParameterVariable(member, effect.id, parameter)
     : String(showEffectNumericValue(effect, parameter))
-  const lines = [
-    `  ${r} = ${r} * ${member.prefix}_adapt_brightness`,
-    `  ${g} = ${g} * ${member.prefix}_adapt_brightness`,
-    `  ${b} = ${b} * ${member.prefix}_adapt_brightness`,
-  ]
+  const lines = member.exactSpecializations && !member.needsBrightnessScale
+    ? []
+    : [
+        `  ${r} = ${r} * ${member.prefix}_adapt_brightness`,
+        `  ${g} = ${g} * ${member.prefix}_adapt_brightness`,
+        `  ${b} = ${b} * ${member.prefix}_adapt_brightness`,
+      ]
   for (const [index, effect] of normalizeShowClipEffects(member.effects).entries()) {
     if (!isShowColorEffect(effect) || (!member.animatedEffects && showEffectsAreIdentity([effect]))) continue
     const name = `${member.prefix}_fx_color_${index}`
@@ -4181,6 +4392,22 @@ function emitRuntimePrelude(
   const sampleRuntime = emitSampleRemappingRuntime(samplePropertyRamps)
   const memberVars = members.flatMap((member, index) => {
     const effectRuntime = describeMemberEffectRuntime(member)
+    const compatibility = selectRenderCompatibility(outputDimension, {
+      hasBeforeRender: member.hasBeforeRender,
+      hasRender: member.hasRender,
+      hasRender2D: member.hasRender2D,
+      hasRender3D: member.hasRender3D,
+    })
+    const rendererGuaranteesOutput = compatibility.renderer
+      ? member.outputGuarantees[compatibility.renderer]
+      : false
+    const identitySamplePath = member.exactSpecializations
+      && !member.needsMirrorMapping
+      && !samplePropertyRamps
+      && !effectRuntime?.hasCoordinates
+    const omitClear = member.exactSpecializations
+      && rendererGuaranteesOutput
+      && !member.adaptation.lightShutter
     const lightShutter = member.adaptation.lightShutter
     const steppedClock = member.adaptation.steppedClock
     const steppedClockVars = steppedClock
@@ -4301,9 +4528,9 @@ ${advanceDelta('delta', '  ')}
 }`] : []),
     advance,
     ...(outputDimension === 1 ? [`function ${member.prefix}_renderCapture(index) {
-  var mappedIndex = index
+${identitySamplePath ? '' : `  var mappedIndex = index
   if (${member.prefix}_adapt_mirror >= 0.5) mappedIndex = ${member.pixelCountName} - 1 - index
-${samplePropertyRamps ? `  if (__pxlblz_show_sample_repeat_scale != 1) {
+`}${samplePropertyRamps ? `  if (__pxlblz_show_sample_repeat_scale != 1) {
     var mappedPosition = mappedIndex / max(1, ${member.pixelCountName} - 1)
     mappedIndex = min(${member.pixelCountName} - 1, floor(frac(mappedPosition * __pxlblz_show_sample_repeat_scale) * ${member.pixelCountName}))
   }
@@ -4314,18 +4541,19 @@ ${emitMemberDistortionSampling(member, 'effectX', 'effectY')}
   var effectInside = effectX >= 0 && effectX <= 1 && effectY >= 0 && effectY <= 1
   ${effectRuntime.wrap ? 'effectX = effectX - floor(effectX)' : 'effectX = clamp(effectX, 0, 1)'}
   mappedIndex = min(${member.pixelCountName} - 1, floor(effectX * ${member.pixelCountName}))
-` : ''}  ${member.prefix}_clear()
-  ${member.hasRender ? emitSelectedMemberRendererCall(member, 1, { index: 'mappedIndex' }) : ''}
+` : ''}${omitClear ? '' : `  ${member.prefix}_clear()
+`}  ${member.hasRender ? emitSelectedMemberRendererCall(member, 1, { index: identitySamplePath ? 'index' : 'mappedIndex' }) : ''}
 ${emitMemberOutputEffectLines(member)}
 ${effectRuntime?.hasCoordinates && !effectRuntime.wrap ? `  if (!effectInside) ${member.prefix}_clear()
 ` : ''}}`] : []),
     ...(outputDimension === 2 ? [`function ${member.prefix}_renderCapture2D(index, x, y) {
-  var mappedIndex = index
+${identitySamplePath ? '' : `  var mappedIndex = index
   var mappedX = x
 ${samplePropertyRamps || effectRuntime?.hasCoordinates ? '  var mappedY = y\n' : ''}  if (${member.prefix}_adapt_mirror >= 0.5) {
     mappedIndex = ${member.pixelCountName} - 1 - index
     mappedX = 1 - x
   }
+`}
 ${samplePropertyRamps ? `  if (__pxlblz_show_sample_repeat_scale != 1) {
     mappedX = frac(clamp(mappedX, 0, 1) * __pxlblz_show_sample_repeat_scale)
     mappedY = frac(clamp(mappedY, 0, 1) * __pxlblz_show_sample_repeat_scale)${!member.hasRender2D && member.hasRender ? `
@@ -4336,11 +4564,12 @@ ${samplePropertyRamps ? `  if (__pxlblz_show_sample_repeat_scale != 1) {
 ${emitMemberDistortionSampling(member, 'effectX', 'effectY')}
   var effectInside = effectX >= 0 && effectX <= 1 && effectY >= 0 && effectY <= 1
   ${effectRuntime.wrap ? 'mappedX = effectX - floor(effectX)\n  mappedY = effectY - floor(effectY)' : 'mappedX = clamp(effectX, 0, 1)\n  mappedY = clamp(effectY, 0, 1)'}
-` : ''}  ${member.prefix}_clear()
+` : ''}${omitClear ? '' : `  ${member.prefix}_clear()
+`}
   ${emitSelectedMemberRendererCall(member, 2, {
-    index: 'mappedIndex',
-    x: 'mappedX',
-    y: samplePropertyRamps || effectRuntime?.hasCoordinates ? 'mappedY' : 'y',
+    index: identitySamplePath ? 'index' : 'mappedIndex',
+    x: identitySamplePath ? 'x' : 'mappedX',
+    y: identitySamplePath ? 'y' : samplePropertyRamps || effectRuntime?.hasCoordinates ? 'mappedY' : 'y',
   })}
 ${emitMemberOutputEffectLines(member)}
 ${effectRuntime?.hasCoordinates && !effectRuntime.wrap ? `  if (!effectInside) ${member.prefix}_clear()
@@ -4466,18 +4695,63 @@ function emitMemberCaptureCall(member: CompiledMember, outputDimension: ShowOutp
     : `${member.prefix}_renderCapture(index)`
 }
 
-function emitRouteRender(routes: ResolvedRoute[], outputDimension: 1 | 2): string {
-  const blocks = emitRouteRenderBody(routes, '', outputDimension)
+function emitRouteRender(
+  routes: ResolvedRoute[],
+  outputDimension: 1 | 2,
+  outputPixelCount?: number,
+): string {
+  const blocks = emitRouteRenderBody(routes, '', outputDimension, outputPixelCount)
   return `export function ${outputDimension === 2 ? 'render2D(index, x, y)' : 'render(index)'} {
 ${blocks}
   rgb(0, 0, 0)
 }`
 }
 
-function emitRouteRenderBody(routes: ResolvedRoute[], indent: string, outputDimension: 1 | 2): string {
+function emitRouteRenderBody(
+  routes: ResolvedRoute[],
+  indent: string,
+  outputDimension: 1 | 2,
+  outputPixelCount?: number,
+): string {
+  const specialization = routes[0]?.member.exactSpecializations
+    ? planPhysicalRoutingShortCircuit(routes.map((route) => ({ ranges: route.zone.ranges })), outputPixelCount)
+    : null
+  if (specialization) return emitShortCircuitRouteRenderBody(routes, specialization, indent, outputDimension)
   return routes
     .map((route) => emitRouteRenderBlock(route, outputDimension).split('\n').map((line) => `${indent}${line}`).join('\n'))
     .join('\n')
+}
+
+function emitShortCircuitRouteRenderBody(
+  routes: ResolvedRoute[],
+  plan: PhysicalRoutingShortCircuitPlan,
+  indent: string,
+  outputDimension: 1 | 2,
+): string {
+  return plan.ranges.map((range, rangeIndex) => {
+    const route = routes[range.routeIndex]
+    const localIndex = range.localOffset === 0
+      ? `index - ${range.start}`
+      : `${range.localOffset} + index - ${range.start}`
+    const width = Math.max(1, Math.ceil(Math.sqrt(route.pixelCount)))
+    const height = Math.max(1, Math.ceil(route.pixelCount / width))
+    const render = outputDimension === 2
+      ? [
+          `  var ${route.member.prefix}_zoneLocalX = ${width === 1 ? '0.5' : `(${localIndex} % ${width}) / ${width - 1}`}`,
+          `  var ${route.member.prefix}_zoneLocalY = ${height === 1 ? '0.5' : `floor((${localIndex}) / ${width}) / ${height - 1}`}`,
+          `  ${route.member.prefix}_renderCapture2D(${localIndex}, ${route.member.prefix}_zoneLocalX, ${route.member.prefix}_zoneLocalY)`,
+        ]
+      : [`  ${route.member.prefix}_renderCapture(${localIndex})`]
+    const condition = rangeIndex === plan.ranges.length - 1
+      ? 'else'
+      : `${rangeIndex === 0 ? 'if' : 'else if'} (index <= ${range.end})`
+    return `${condition} {
+  ${route.member.pixelCountName} = ${route.pixelCount}
+${render.join('\n')}
+  ${route.member.prefix}_emit()
+  return
+}`.split('\n').map((line) => `${indent}${line}`).join('\n')
+  }).join('\n')
 }
 
 function emitRouteRenderBlock(route: ResolvedRoute, outputDimension: 1 | 2): string {
@@ -4791,8 +5065,7 @@ function boolNumber(value: boolean): 0 | 1 {
   return value ? 1 : 0
 }
 
-function rewriteMemberSource(source: string, prefix: string, mapping: Map<string, string>): string {
-  const ast = parseModule(source)
+function rewriteMemberSource(source: string, ast: Node, prefix: string, mapping: Map<string, string>): string {
   const rewrites: Rewrite[] = []
   const emptyScope: Scope = { locals: new Set(), parent: null }
   walkForRewrites(ast, emptyScope, true, mapping, prefix, rewrites)
@@ -4959,9 +5232,8 @@ function isLocallyBound(scope: Scope, name: string): boolean {
   return false
 }
 
-function collectTopLevelBindings(source: string): Set<string> {
+function collectTopLevelBindings(ast: Node): Set<string> {
   const bindings = new Set<string>()
-  const ast = parseModule(source)
   for (const node of ast.body as Node[]) {
     const declaration = node.type === 'ExportNamedDeclaration' ? node.declaration : node
     if (declaration?.type === 'FunctionDeclaration' && declaration.id?.name) {

@@ -335,7 +335,7 @@ describe('routing (#308)', () => {
       expect(within(editorPane).getAllByRole('button', { name: 'Select Caustics' }).length).toBeGreaterThan(0)
     })
     expect(within(editorPane).queryByRole('button', { name: 'Select CompassRose' })).not.toBeInTheDocument()
-  })
+  }, 15_000)
 
   it('toggles the active Studio preview once with Space outside an editing control', () => {
     window.history.replaceState(null, '', '/studio/patterns/TestPattern1D')

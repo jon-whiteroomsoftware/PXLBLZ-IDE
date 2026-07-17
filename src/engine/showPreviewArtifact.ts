@@ -17,6 +17,8 @@ export interface CompiledShowState {
 interface ShowCompilationOptions {
   stageDimension?: 1 | 2 | 3
   targetPixelCount?: number
+  /** Test/benchmark counterfactual; production compilation leaves this enabled. */
+  exactSpecializations?: boolean
 }
 
 export function compileShowForPreview(
@@ -42,7 +44,12 @@ export function compileShowForPreview(
       controllerZones,
       stageDimension: options.stageDimension,
     })
-    return { artifact: compileShow(recipe, { ...LIBRARIES, ...libraries }), error: null }
+    return {
+      artifact: compileShow(recipe, { ...LIBRARIES, ...libraries }, {
+        exactSpecializations: options.exactSpecializations,
+      }),
+      error: null,
+    }
   } catch (error) {
     return { artifact: null, error: error instanceof Error ? error.message : 'Show compile failed' }
   }

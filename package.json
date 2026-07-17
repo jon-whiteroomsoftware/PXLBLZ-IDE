@@ -39,6 +39,8 @@
     "issue412": "tsx test/perf-harness/issue412.ts",
     "issue508": "vitest run test/perf-harness/issue508.test.ts --reporter=verbose",
     "issue514": "vitest run test/perf-harness/issue514.test.ts --reporter=verbose",
+    "issue512": "ISSUE512_REPORT=1 vitest run test/perf-harness/issue512.test.ts --reporter=verbose",
+    "issue512:hardware": "ISSUE512_HARDWARE=1 vitest run test/perf-harness/issue512.hardware.test.ts --reporter=verbose",
     "issue401:seed": "tsx scripts/seed-pattern-prism.ts",
     "issue402": "tsx test/perf-harness/issue316.ts",
     "issue402:seed": "tsx scripts/seed-scene-splice.ts",

@@ -5376,6 +5376,21 @@ function CompileBar({
           )}
         </span>
       )}
+      {summary?.specializations.routing && (
+        <span className="text-emerald-300">
+          routing specialization: complete disjoint short-circuit
+          {' · '}max {summary.specializations.routing.baselineMaxComparisonsPerPixel}
+          {' -> '}{summary.specializations.routing.selectedMaxComparisonsPerPixel} comparisons/px
+          {' · '}{summary.specializations.routing.maxComparisonsAvoidedPerPixel} avoided
+        </span>
+      )}
+      {summary && summary.specializations.capture.length > 0 && (
+        <span className="text-emerald-300">
+          capture specialization: {summary.specializations.capture.filter((item) => item.samplePath === 'identity').length} identity sample
+          {' · '}{summary.specializations.capture.filter((item) => item.clearPolicy === 'omitted-guaranteed-output').length} clear omitted
+          {' · '}up to {Math.max(...summary.specializations.capture.map((item) => item.operationsAvoidedPerEvaluatedPixel))} ops/evaluation avoided
+        </span>
+      )}
       {summary?.routingParameterEstimate && (
         <span className="text-sky-200">
           moving split: 1 scalar · 1 route test/px · avoids {summary.routingParameterEstimate.equivalentEnumeratedArrayElements} table entries

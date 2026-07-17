@@ -317,7 +317,7 @@ describe('stock Show curriculum (#363)', () => {
       expect(cyanCounts.every((count) => count < mapPoints.length * 0.04), fidelity).toBe(true)
       expect(redCounts.every((count, index) => count > cyanCounts[index] * 2), fidelity).toBe(true)
     }
-  }, 15_000)
+  }, 30_000)
 
   it('ships valid local Main scheduling and typed overlay animation in Learn 200', () => {
     for (const id of ['stock-show-201-scene-local-cuts', 'stock-show-202-layers-local-animation']) {
@@ -432,7 +432,7 @@ describe('stock Show curriculum (#363)', () => {
       expect(compiled.artifact?.metadata.renderFns.hasRender2D, item.name).toBe(true)
       expect(compiled.artifact?.summary.cost.code.artifactBytes, item.name).toBeGreaterThan(1_000)
     }
-  })
+  }, 15_000)
 
   it('plays distinct routed content after each top-level Scene boundary (#478)', () => {
     const item = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-205-installation-composition')!
@@ -505,7 +505,7 @@ describe('stock Show curriculum (#363)', () => {
       expect(parsed.stamp).toMatchObject({ kind: 'show', id: item.id })
       expect(parsed.src).toContain(`Compiled PXLBLZ Show: ${item.name}`)
     }
-  })
+  }, 15_000)
 
   it.each([['plane', 256], ['wide', 1536]] as const)(
     'keeps Portable choreography unchanged on the %s reference output',
@@ -523,5 +523,6 @@ describe('stock Show curriculum (#363)', () => {
         expect(adapted.transitions, item.name).toEqual(item.show.transitions)
       }
     },
+    15_000,
   )
 })

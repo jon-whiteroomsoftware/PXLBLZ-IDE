@@ -525,6 +525,23 @@ The work should land as tracer-bullet slices rather than one compiler rewrite.
 Each slice must leave generated artifacts runnable and keep direct non-buffered
 emission available until the new path clears its correctness and hardware gates.
 
+## Cumulative performance ledger
+
+Every completed slice appends one log line. Controller FPS is the authority;
+the ledger separates a slice's incremental change from the accumulated change
+since the first 2,000-pixel Redline measurement. A compile-time-only slice keeps
+the prior measured result without claiming a new hardware benchmark.
+
+```text
+00 start · Redline unspecialized counterfactual · 2.358 FPS · cumulative baseline
+01 #514 resource envelope and VM ledger · no render-loop change; 2.358 FPS reference retained · incremental 0% expected, not independently remeasured · cumulative 0%
+02 #512 routing and capture specialization · 2.358 -> 2.928 FPS · incremental +24.2% · cumulative +24.2%
+```
+
+Later slices append `03` through `09` here and repeat the new line in the #511
+coordination update. If a slice intentionally changes the visual contract, its
+line names that contract and does not compare it as an exact replacement.
+
 ## Issue map
 
 The approved delivery slices are filed under the coordination epic:
@@ -550,8 +567,9 @@ The approved delivery slices are filed under the coordination epic:
 - [#520 - Qualify the five-Pattern acceptance Show](https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/issues/520)
   is the human release gate for production defaults.
 
-Issues #512 through #519 are `ready-for-agent` but unclaimed. Issues #511 and
-#520 are `ready-for-human`. Filing this map does not begin implementation.
+Implementation progress and the current cumulative performance ledger are
+tracked on #511. Individual issue state remains authoritative for ownership and
+review readiness.
 
 ## Risks and boundaries
 

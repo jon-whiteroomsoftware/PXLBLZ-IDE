@@ -1470,6 +1470,36 @@ invent an `E` estimate when one is unavailable. Renderer count and clock
 behavior remain separate: exact pause is not described as a cached frame or
 renderer saving.
 
+### Exact routing and capture specialization
+
+The compiler proves complete, disjoint physical ownership before replacing
+general range tests with an ordered short-circuit. Authored ranges are sorted by
+physical start only after the proof succeeds; each range retains its original
+zone-local offset. Every branch except the last tests one upper bound, and the
+last branch is unconditional because the Installation contract proves the full
+output extent. A gap, overlap, unknown output extent, logical coordinate route,
+or unsupported routed Scene shape retains the general first-match path and its
+existing warning and black-output behavior.
+
+Member capture uses a separate conservative source analysis. A renderer loses
+its pre-render RGB clear only when Acorn control-flow analysis proves that every
+direct path calls `rgb()` or `hsv()` and no light shutter can skip that call.
+Default mirror mapping and three identity brightness multiplications disappear
+only when the full Show recipe proves those properties cannot vary. Static
+identity sample Effects already collapse before affine and inside-test emission;
+animated or non-identity Effects retain the mapped path. The compile summary
+names the selected sample, output, and clear policies and reports the maximum
+per-evaluation operation reduction.
+
+`compileShow(..., { exactSpecializations: false })` exists only as a test and
+benchmark counterfactual. Production compilation enables exact specialization.
+`npm run issue512` compares both artifacts at nine Redline score times in Fast
+and Precise modes. `npm run issue512:hardware` uses the Controller compiler,
+temporarily selects 2,000 pixels, records source, bytecode, ledger words, and
+mean/min/max FPS, then restores the original Pattern and pixel count in
+`finally`. The archived measurement is in
+`docs/plans/archive/issue-512-routing-capture-specialization-results.md`.
+
 ### Whole-Show VM resource ledger
 
 `showVmResourceLedger.ts` makes hardware eligibility one aggregate accounting
@@ -1957,6 +1987,13 @@ indexing before specializing a complete, non-overlapping physical layout.
 Contiguous blocks, repeated row bands, and interleaved pixels compile to formulas
 when every layout is a cyclic reassignment of the same topology. A gap, overlap,
 exception, reordered local index, or unrecognized shape rejects the formula.
+
+One-layout physical range routing has an additional exact lowering. When the
+ranges partition the complete fixed output, it emits an ordered upper-bound
+short-circuit while preserving authored zone-local offsets. This optimization
+does not change the selected `range-branches` representation; the compile
+summary reports it separately as a routing specialization with baseline and
+selected maximum comparisons per pixel.
 
 Arbitrary layouts retain generated range branches. High-run irregular layouts
 may use a packed per-pixel lookup only when the complete

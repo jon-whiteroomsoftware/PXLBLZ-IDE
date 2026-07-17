@@ -1900,6 +1900,16 @@ describe('ShowEditor (#318)', () => {
     expect(screen.getByTestId('show-compile-bar')).toHaveTextContent('arena 6,012')
   })
 
+  it('discloses exact routing and capture specialization for Redline (#512)', () => {
+    const redline = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-showcase-redline-installation')!
+
+    render(<ShowEditor showId={redline.id} showOverride={redline.show} readOnly />)
+
+    const compileBar = screen.getByTestId('show-compile-bar')
+    expect(compileBar).toHaveTextContent('routing specialization: complete disjoint short-circuit · max 10 -> 4 comparisons/px · 6 avoided')
+    expect(compileBar).toHaveTextContent('capture specialization: 1 identity sample · 2 clear omitted · up to 7 ops/evaluation avoided')
+  })
+
   it('replaces a deleted Clip through its empty timeline slot (#430)', async () => {
     const user = userEvent.setup()
     const show = createDefaultShow('show-430-place', 'Clip placement', 1000)

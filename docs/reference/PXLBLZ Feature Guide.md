@@ -1056,6 +1056,14 @@ enumerated sequence would require.
 Synchronized tiling reports its one scalar, coordinate-operation ceiling, and
 zero-renderer delta separately from routing cost.
 
+Exact compiler specializations appear beside those representation facts. A
+complete disjoint Installation layout reports the physical range short-circuit
+and its maximum comparison reduction. Capture diagnostics report how many member
+sample paths are identity, how many redundant clears were proved removable, and
+the largest operation reduction per evaluated Pattern. Gaps, overlaps, logical
+routes, conditional output, authored brightness, and mapped Effects keep their
+general paths instead of changing visual semantics.
+
 The compile bar also reports the whole-Show Pixelblaze memory ledger. Its VM
 total includes member Pattern arrays, generated routing and plan tables,
 auxiliary caches, and one reserved three-plane RGB arena. At the 2,000-pixel
