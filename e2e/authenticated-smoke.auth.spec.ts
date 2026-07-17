@@ -47,7 +47,7 @@ test('shared Studio chrome remains legible, dense, and reachable across routes (
       await expect(activity).toBeFocused()
 
       const heading = page.getByRole('heading', { name: route.heading, exact: true }).first()
-      await expect(heading).toHaveClass(/text-sm/)
+      await expect(heading).toHaveClass(/text-\[13px\]/)
       await expect(heading).toHaveClass(/text-zinc-200/)
       await expect.poll(
         () => page.evaluate(() => document.documentElement.scrollWidth),

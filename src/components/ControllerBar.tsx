@@ -95,7 +95,7 @@ function ControllerPillButton({
         data-testid="controller-pill"
         data-active={active}
         data-phase={phase}
-        className={`group inline-flex items-center gap-1.5 h-6 rounded border px-2 font-mono text-xs transition-colors select-none focus:outline-none ${
+        className={`group inline-flex items-center gap-1.5 h-6 rounded border px-2 font-mono text-[11px] transition-colors select-none focus:outline-none ${
           active
             ? 'border-zinc-400 bg-zinc-800 text-zinc-100'
             : 'border-zinc-700 bg-zinc-900 text-zinc-300 hover:border-zinc-500 hover:text-zinc-100'
@@ -461,7 +461,7 @@ export function ControllerBar({ reloadPage = () => window.location.reload() }: {
         aria-label={hasPills ? 'Add a Controller' : 'Connect a Controller'}
         aria-expanded={open}
         onClick={() => (open ? setOpen(false) : openDropdown())}
-        className={`inline-flex h-7 items-center justify-center rounded-[min(var(--radius-md),12px)] border border-zinc-700 bg-zinc-900 font-mono text-xs text-zinc-300 transition-colors hover:border-zinc-500 hover:text-zinc-100 focus:outline-none ${
+        className={`inline-flex h-7 items-center justify-center rounded-[min(var(--radius-md),12px)] border border-zinc-700 bg-zinc-900 font-mono text-[11px] text-zinc-300 transition-colors hover:border-zinc-500 hover:text-zinc-100 focus:outline-none ${
           hasPills ? 'w-7 text-base leading-none' : 'gap-1.5 px-2.5'
         }`}
       >

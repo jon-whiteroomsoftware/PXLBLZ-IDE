@@ -145,7 +145,7 @@ describe('App smoke test', () => {
     render(<App />)
 
     const pane = screen.getByTestId('left-pane')
-    expect(pane).toHaveStyle({ width: '224px' })
+    expect(pane).toHaveStyle({ width: '288px', maxWidth: '34vw' })
     expect(screen.queryByRole('button', { name: 'Catalog' })).not.toBeInTheDocument()
 
     await userEvent.click(screen.getByRole('button', { name: 'Collapse library' }))
@@ -171,7 +171,7 @@ describe('App smoke test', () => {
     expect(pane).toHaveStyle({ width: '46px' })
 
     await userEvent.click(screen.getByRole('button', { name: 'Expand library' }))
-    expect(pane).toHaveStyle({ width: '224px' })
+    expect(pane).toHaveStyle({ width: '288px', maxWidth: '34vw' })
     expect(screen.getByRole('button', { name: 'Collapse library' })).toBeInTheDocument()
   })
 
@@ -298,9 +298,9 @@ describe('routing (#308)', () => {
     const editorPane = screen.getByTestId('editor-pane')
     expect(within(editorPane).getAllByText('Simplest possible show').length).toBeGreaterThan(0)
     expect(within(editorPane).getByTitle('Show output summary')).toHaveTextContent('Portable 2D · 2 scenes')
-    expect(within(editorPane).getByRole('button', { name: 'Show properties' })).toBeInTheDocument()
-    expect(within(editorPane).getByRole('button', { name: 'View code' })).toBeInTheDocument()
-    expect(within(editorPane).getByRole('button', { name: 'Export Show as .epe' })).toHaveTextContent('.epe')
+    expect(within(editorPane).getByRole('button', { name: 'Show properties' }).querySelector('.show-header-action-label')).toHaveTextContent('Properties')
+    expect(within(editorPane).getByRole('button', { name: 'View code' }).querySelector('.show-header-action-label')).toHaveTextContent('View code')
+    expect(within(editorPane).getByRole('button', { name: 'Export Show as .epe' }).querySelector('.show-header-action-label')).toHaveTextContent('.epe')
     expect(within(editorPane).queryByText('View generated pattern')).not.toBeInTheDocument()
 
     await user.click(within(editorPane).getAllByRole('button', { name: /Select TestPattern1D/i })[0])

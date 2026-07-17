@@ -438,40 +438,36 @@
 
 @container (max-width: 640px) {
   .show-pane-header {
-    display: grid;
-    height: auto;
+    display: flex;
+    height: calc(1.75rem + 1px);
     min-height: calc(1.75rem + 1px);
-    grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-rows: auto auto;
-    align-items: start;
-    row-gap: 3px;
-    padding-block: 4px;
-  }
-
-  .show-header-identity {
-    display: contents;
+    align-items: center;
+    padding-block: 0;
   }
 
   .show-header-title {
-    grid-column: 1;
-    grid-row: 1;
-    width: 100%;
+    min-width: 0;
   }
 
-  .show-output-summary {
-    display: block;
-    grid-column: 1 / -1;
-    grid-row: 2;
-    max-width: 100%;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+  .show-header-action-label,
+  .show-deployment-identity-copy {
+    display: none;
   }
 
   .show-header-actions {
-    grid-column: 2;
-    grid-row: 1;
-    align-self: start;
+    gap: 4px;
+  }
+
+  .show-header-actions button,
+  .show-header-actions [data-testid='controller-deployment-identity'] {
+    padding-inline: 6px;
+  }
+}
+
+@container (max-width: 520px) {
+  .show-output-summary,
+  .show-deployment-action-label {
+    display: none;
   }
 }
 

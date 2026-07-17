@@ -86,7 +86,7 @@ export function AuthStatus() {
           aria-haspopup="menu"
           aria-expanded={accountOpen}
           onClick={() => setAccountOpen((open) => !open)}
-          className={`flex h-7 min-w-0 w-full cursor-pointer items-center gap-1.5 rounded-[min(var(--radius-md),12px)] border pl-1.5 pr-1.5 font-mono text-xs transition-colors select-none focus:outline-none focus-visible:ring-2 focus-visible:ring-zinc-500/40 ${
+          className={`flex h-7 min-w-0 w-full cursor-pointer items-center gap-1.5 rounded-[min(var(--radius-md),12px)] border pl-1.5 pr-1.5 font-mono text-[11px] transition-colors select-none focus:outline-none focus-visible:ring-2 focus-visible:ring-zinc-500/40 ${
             accountOpen
               ? 'border-zinc-500 bg-zinc-800 text-zinc-100'
               : 'border-zinc-700 bg-zinc-900 text-zinc-300 hover:border-zinc-500 hover:text-zinc-100'
@@ -185,7 +185,7 @@ export function AuthStatus() {
     <Button
       variant="outline"
       size="sm"
-      className="border-zinc-700 bg-zinc-900 font-mono text-xs text-zinc-300 hover:border-zinc-500 hover:bg-zinc-900 hover:text-zinc-100 focus-visible:border-zinc-500 focus-visible:ring-zinc-500/35"
+      className="border-zinc-700 bg-zinc-900 font-mono text-[11px] text-zinc-300 hover:border-zinc-500 hover:bg-zinc-900 hover:text-zinc-100 focus-visible:border-zinc-500 focus-visible:ring-zinc-500/35"
       onClick={handleSignIn}
     >
       <LogIn data-icon="inline-start" />

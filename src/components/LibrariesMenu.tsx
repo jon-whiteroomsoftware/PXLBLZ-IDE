@@ -112,7 +112,7 @@ export function LibrariesMenu() {
           setHoveredLib(null)
           hoveredLibRef.current = null
         }}
-        className={`inline-flex items-center gap-1.5 h-6 rounded border px-2 font-mono text-xs transition-colors select-none focus:outline-none ${
+        className={`inline-flex items-center gap-1.5 h-6 rounded border px-2 font-mono text-[11px] transition-colors select-none focus:outline-none ${
           open
             ? 'border-zinc-400 bg-zinc-800 text-zinc-100'
             : 'border-zinc-700 bg-zinc-900 text-zinc-300 hover:border-zinc-500 hover:text-zinc-100'

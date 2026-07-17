@@ -1151,15 +1151,21 @@ the store. Occupied slots and other zones never accept the drag.
 `PatternList` always retains `ActivityStrip`; the active entity header exposes
 **Collapse library**, which hides only the detail rail and fixes the left pane at
 46 pixels. The collapsed strip exposes **Expand library**. The prior resized
-width remains in memory and returns on explicit expansion. Entity-mode changes
-never alter the flag, so Shows can borrow horizontal space without creating
-Show-only navigation behavior. Gallery navigation remains in the top bar; the
-activity strip does not duplicate it.
+width remains in memory and returns on explicit expansion. The expanded pane
+starts at 288 pixels and cannot be dragged below 184 pixels. A 34% viewport-width
+cap yields space back to the other two panes in narrow workspaces. Together,
+those limits preserve useful names without turning the rail into an accidental
+icon strip or forcing document-level overflow.
+Entity-mode changes never alter the flag, so Shows can borrow horizontal space
+without creating Show-only navigation behavior. Gallery navigation remains in
+the top bar; the activity strip does not duplicate it.
 
 `ui/ideMicrotype.ts` records the application-wide dense-tool baseline against
 the near-black `#0b0c0f` panel. Entity-rail and pane headers are semantic
-headings at 14px zinc-200; selectable entity names and empty states are 12px
-zinc-400 in a 16px line box, with shared rail rows no shorter than 21px.
+headings at 13px zinc-200. Selectable entity names and empty states are 12px
+zinc-400 in a 15px line box. One-line rail rows have an explicit 20px minimum;
+long names may occupy two lines before truncating, while their dimension and
+count facts remain aligned to the first line.
 Required persistent microcopy is 10px zinc-400 (7.63:1 measured contrast);
 secondary labels may use 9px but retain zinc-400; 8px zinc-500 is reserved for
 nonessential ornament or transient annotations. Disabled controls may remain
@@ -1168,6 +1174,13 @@ catalogue group labels, rail empty states, entity facts, compact Controller
 badges, and inspection labels follow those roles. Stock catalogues do not apply
 parent opacity on top of these colors. Containers recover density through line
 height and padding rather than making required text smaller or darker.
+
+The Show pane header gives its editable title first claim on horizontal space.
+At narrower center-pane widths, action labels and Controller identity copy hide
+while the icon buttons retain their accessible names; the output summary and
+Run/Save labels disappear only at the tighter breakpoint. The header remains a
+single row rather than wrapping into the timeline. This boundary is based on
+the center pane through container queries, not on the outer browser width.
 
 The authenticated responsive smoke test traverses Pattern, Map, Library,
 Controller, and Show routes at desktop and narrow widths. It verifies the

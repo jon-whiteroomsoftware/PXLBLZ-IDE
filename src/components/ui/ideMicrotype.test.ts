@@ -3,10 +3,10 @@ import { IDE_MICROTYPE, contrastRatio } from './ideMicrotype'
 
 describe('IDE microtype roles (#465)', () => {
   it('defines one dense hierarchy from pane headings through entity rows', () => {
-    expect(IDE_MICROTYPE.header).toMatchObject({ fontSizePx: 14, colorHex: '#e4e4e7' })
+    expect(IDE_MICROTYPE.header).toMatchObject({ fontSizePx: 13, colorHex: '#e4e4e7' })
     expect(IDE_MICROTYPE.entity).toMatchObject({ fontSizePx: 12, colorHex: '#a1a1aa' })
-    expect(IDE_MICROTYPE.header.sizeClassName).toContain('text-sm')
-    expect(IDE_MICROTYPE.entity.sizeClassName).toContain('text-xs')
+    expect(IDE_MICROTYPE.header.sizeClassName).toContain('text-[13px]')
+    expect(IDE_MICROTYPE.entity.sizeClassName).toContain('text-[12px]')
     expect(contrastRatio(IDE_MICROTYPE.header.colorHex, IDE_MICROTYPE.panelHex)).toBeGreaterThan(12)
     expect(contrastRatio(IDE_MICROTYPE.entity.colorHex, IDE_MICROTYPE.panelHex)).toBeGreaterThan(7.5)
   })

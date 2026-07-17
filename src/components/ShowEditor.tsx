@@ -802,24 +802,24 @@ export function ShowEditor({
         aria-pressed={detailPanelOpen && selection.kind === 'show'}
         data-show-selection-key="show"
         className={detailPanelOpen && selection.kind === 'show'
-          ? 'bg-zinc-800/70 text-xs text-zinc-300 hover:bg-zinc-700/70 hover:text-zinc-200'
-          : 'bg-zinc-900/60 text-xs text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300'}
+          ? 'bg-zinc-800/70 text-[11px] text-zinc-300 hover:bg-zinc-700/70 hover:text-zinc-200'
+          : 'bg-zinc-900/60 text-[11px] text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300'}
         onClick={(event) => openShowProperties(event.currentTarget)}
       >
         <Settings2 size={13} aria-hidden />
-        Properties
+        <span className="show-header-action-label">Properties</span>
       </Button>
       <Button
         size="xs"
         variant="ghost"
         aria-label="View code"
         title="View final generated code"
-        className="bg-zinc-800/70 text-xs text-zinc-400 hover:bg-zinc-700/70 hover:text-zinc-300 disabled:opacity-40"
+        className="bg-zinc-800/70 text-[11px] text-zinc-400 hover:bg-zinc-700/70 hover:text-zinc-300 disabled:opacity-40"
         disabled={!compiled.artifact}
         onClick={() => setGeneratedOpen(true)}
       >
         <Code2 size={13} aria-hidden />
-        View code
+        <span className="show-header-action-label">View code</span>
       </Button>
       <ExportShowButton exported={showExport} buildExport={buildDownloadExport} />
       <PushConfirmPopover
@@ -1731,7 +1731,7 @@ function ExportShowButton({
       aria-label="Export Show as .epe"
       title={error ?? 'Export Show as .epe'}
       disabled={!exported || exporting}
-      className="bg-zinc-800/70 text-xs text-zinc-400 hover:bg-zinc-700/70 hover:text-zinc-300 disabled:opacity-40"
+      className="bg-zinc-800/70 text-[11px] text-zinc-400 hover:bg-zinc-700/70 hover:text-zinc-300 disabled:opacity-40"
       onClick={() => {
         setExporting(true)
         setError(null)
@@ -1754,7 +1754,9 @@ function ExportShowButton({
       }}
     >
       {exporting ? <RotateCw size={13} className="animate-spin" aria-hidden /> : <Download size={13} aria-hidden />}
-      {exporting ? 'Preparing' : error ? 'Export failed' : '.epe'}
+      <span className="show-header-action-label">
+        {exporting ? 'Preparing' : error ? 'Export failed' : '.epe'}
+      </span>
     </Button>
   )
 }

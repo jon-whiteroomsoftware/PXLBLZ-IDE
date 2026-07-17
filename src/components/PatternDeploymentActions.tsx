@@ -75,7 +75,7 @@ export function PatternDeploymentActions({
         <span className="shrink-0" aria-hidden>
           {connected ? <ChipGlyph /> : <ConnectGlyph />}
         </span>
-        <span className={`truncate ${connected ? 'text-zinc-300' : 'text-zinc-500'}`}>
+        <span className={`show-deployment-identity-copy truncate ${connected ? 'text-zinc-300' : 'text-zinc-500'}`}>
           {connected ? target : 'Not connected'}
         </span>
       </span>
@@ -92,7 +92,7 @@ export function PatternDeploymentActions({
             className={`inline-flex items-center justify-center gap-1.5 text-zinc-300 transition-colors hover:bg-zinc-800 hover:text-zinc-100 disabled:cursor-not-allowed disabled:opacity-35 ${actionPadding}`}
           >
             {actionIcon('run')}
-            {actionLabel('run')}
+            <span className="show-deployment-action-label">{actionLabel('run')}</span>
           </button>
           <button
             type="button"
@@ -104,7 +104,7 @@ export function PatternDeploymentActions({
             className={`inline-flex items-center justify-center gap-1.5 border-l border-zinc-800 text-zinc-400 transition-colors hover:bg-amber-500/10 hover:text-amber-300 disabled:cursor-not-allowed disabled:opacity-35 ${actionPadding}`}
           >
             {actionIcon('save')}
-            {actionLabel('save')}
+            <span className="show-deployment-action-label">{actionLabel('save')}</span>
           </button>
         </>
       ) : (

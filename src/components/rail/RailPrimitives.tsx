@@ -92,7 +92,7 @@ const ROW_PAD = '12px'
 
 const rowClass = (active: boolean) =>
   [
-    `group relative flex min-h-[21px] items-center gap-1.5 py-0.5 pr-3 cursor-pointer select-none outline-none focus-visible:ring-1 focus-visible:ring-live/70 focus-visible:ring-inset ${IDE_MICROTYPE.entity.sizeClassName}`,
+    `group relative flex min-h-[20px] items-start gap-1.5 py-px pr-3 cursor-pointer select-none outline-none focus-visible:ring-1 focus-visible:ring-live/70 focus-visible:ring-inset ${IDE_MICROTYPE.entity.sizeClassName}`,
     active ? 'text-live bg-live/5' : 'text-zinc-400 hover:text-zinc-300 hover:bg-zinc-800/60',
   ].join(' ')
 
@@ -104,7 +104,7 @@ function DimPill({ dim }: { dim: string }) {
   return (
     <span
       aria-hidden
-      className={`shrink-0 rounded border border-zinc-700 px-1 font-mono uppercase tracking-wide transition-opacity group-hover:opacity-0 ${IDE_MICROTYPE.secondary.className}`}
+      className={`mt-[2px] shrink-0 rounded border border-zinc-700 px-1 font-mono uppercase tracking-wide transition-opacity group-hover:opacity-0 ${IDE_MICROTYPE.secondary.className}`}
     >
       {dim}
     </span>
@@ -162,7 +162,7 @@ export function RailFilterBar({
       <div
         role="radiogroup"
         aria-label="Dimension filter"
-        className={`flex shrink-0 transition-all ${expanded ? 'gap-px' : 'gap-0.5'}`}
+        className="flex shrink-0 gap-px"
       >
         {DIM_LENS_OPTIONS.map((opt) => {
           if (hideOneDimensional && opt.value === 1) {
@@ -170,10 +170,7 @@ export function RailFilterBar({
               <span
                 key={String(opt.value)}
                 aria-hidden
-                className={[
-                  'invisible rounded py-0.5 text-[10px] font-mono uppercase tracking-wide',
-                  expanded ? 'px-1' : 'px-2.5',
-                ].join(' ')}
+                className="invisible rounded px-[5px] py-0.5 text-[10px] font-mono uppercase tracking-wide"
               >
                 {opt.label}
               </span>
@@ -187,8 +184,7 @@ export function RailFilterBar({
               aria-checked={active}
               onClick={() => onLensChange(opt.value)}
               className={[
-                'rounded py-0.5 text-[10px] font-mono uppercase tracking-wide transition-all',
-                expanded ? 'px-1' : 'px-2.5',
+                'rounded px-[5px] py-0.5 text-[10px] font-mono uppercase tracking-wide transition-all',
                 active
                   ? 'bg-live/15 text-live'
                   : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/60',
@@ -367,11 +363,11 @@ export function EditableListItem({
           />
         ) : (
           <>
-            <span className="flex-1 min-w-0 truncate">{name}</span>
+            <span className="line-clamp-2 min-w-0 flex-1 break-words" title={name}>{name}</span>
             {badge && (
               <span
                 title={badge}
-                className={`shrink-0 rounded border border-live/25 bg-live/10 px-1 font-mono uppercase text-live/90 transition-opacity group-hover:opacity-0 ${IDE_MICROTYPE.secondary.sizeClassName}`}
+                className={`mt-[2px] shrink-0 rounded border border-live/25 bg-live/10 px-1 font-mono uppercase text-live/90 transition-opacity group-hover:opacity-0 ${IDE_MICROTYPE.secondary.sizeClassName}`}
               >
                 {badge}
               </span>
@@ -442,7 +438,7 @@ export function StockListItem({
       className={rowClass(active)}
     >
       {active && <ActiveBar />}
-      <span className="flex-1 min-w-0 truncate">{name}</span>
+      <span className="line-clamp-2 min-w-0 flex-1 break-words" title={name}>{name}</span>
       {meta && <DimPill dim={meta} />}
     </li>
   )

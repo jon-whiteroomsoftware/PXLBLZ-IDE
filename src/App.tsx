@@ -77,6 +77,11 @@ import { InlineEntityTitle } from '@/components/InlineEntityTitle'
 import { usePreviewStore } from '@/store/previewStore'
 import { studioControlOwnsKeyboardEvent } from '@/engine/keyboardShortcuts'
 import { IDE_MICROTYPE } from '@/components/ui/ideMicrotype'
+import {
+  STUDIO_LIBRARY_DEFAULT_WIDTH,
+  STUDIO_LIBRARY_MAX_VIEWPORT_WIDTH,
+  resizeStudioLibraryWidth,
+} from '@/engine/studioChrome'
 
 function Splitter({ onDrag, className = '' }: { onDrag: (dx: number) => void; className?: string }) {
   const lastX = useRef(0)
@@ -570,7 +575,7 @@ function StudioApp() {
     downloadTextFile(patternDownloadName(name), stampedPatternArtifact(source, activePatternId, name, compileLibrarySet))
   }, [activePatternId, source, userPatterns, compileLibrarySet])
 
-  const [leftWidth, setLeftWidth] = useState(224)
+  const [leftWidth, setLeftWidth] = useState(STUDIO_LIBRARY_DEFAULT_WIDTH)
   const [libraryCollapsed, setLibraryCollapsed] = useState(false)
   const [rightWidth, setRightWidth] = useState(460)
   const MIN_PREVIEW_WIDTH = 300
@@ -599,7 +604,7 @@ function StudioApp() {
   }, [activePatternId, navigate, removePattern, route])
 
   const handleLeftDrag = useCallback((dx: number) => {
-    setLeftWidth((w) => Math.max(120, w + dx))
+    setLeftWidth((w) => resizeStudioLibraryWidth(w, dx))
   }, [])
 
   // Floor wide enough that the preview's primary nav row (layout map picker + play/pause,
@@ -714,7 +719,7 @@ function StudioApp() {
           {browseRoute && (
             <Button
               size="sm"
-              className="border border-live/50 bg-live/15 px-2 font-mono text-xs text-live hover:bg-live/25 hover:text-amber-100 sm:px-2.5"
+              className="border border-live/50 bg-live/15 px-2 font-mono text-[11px] text-live hover:bg-live/25 hover:text-amber-100 sm:px-2.5"
               onClick={openBrowseRouteStudio}
               title="Open Studio"
             >
@@ -726,7 +731,7 @@ function StudioApp() {
             <Button
               size="sm"
               variant="outline"
-              className="border-zinc-700 bg-zinc-900 px-2 font-mono text-xs text-zinc-300 hover:border-zinc-500 hover:bg-zinc-900 hover:text-zinc-100 sm:px-2.5"
+              className="border-zinc-700 bg-zinc-900 px-2 font-mono text-[11px] text-zinc-300 hover:border-zinc-500 hover:bg-zinc-900 hover:text-zinc-100 sm:px-2.5"
               onClick={() => navigate({ kind: 'gallery' })}
               title="Open Gallery"
             >
@@ -811,7 +816,14 @@ function StudioApp() {
         />
       ) : (
       <div className="flex flex-1 min-h-0">
-        <aside data-testid="left-pane" className="shrink-0 flex flex-col" style={{ width: libraryCollapsed ? 46 : leftWidth }}>
+        <aside
+          data-testid="left-pane"
+          className="shrink-0 flex flex-col"
+          style={{
+            width: libraryCollapsed ? 46 : leftWidth,
+            maxWidth: libraryCollapsed ? undefined : STUDIO_LIBRARY_MAX_VIEWPORT_WIDTH,
+          }}
+        >
           <div className="flex-1 min-h-0 overflow-hidden">
             <PatternList collapsed={libraryCollapsed} onCollapsedChange={setLibraryCollapsed} />
           </div>

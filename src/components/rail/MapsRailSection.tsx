@@ -144,7 +144,7 @@ export function MapsRailSection({
                         onSelect={() => onOpenStockMap(item.id)}
                       />
                     ) : (
-                      <li key={item.familyId} className="min-h-[21px] px-3 py-0.5 text-zinc-400">
+                      <li key={item.familyId} className="min-h-[20px] px-3 py-px text-zinc-400">
                         <details>
                           <summary
                             onClick={() => onOpenStockMap(item.id)}

@@ -161,6 +161,9 @@ test.describe('authenticated Show authoring', () => {
 
     await page.setViewportSize({ width: 600, height: 900 })
     await expect(toolbar.getByLabel('Show time')).toHaveCSS('display', 'grid')
+    const showPropertiesButton = page.getByRole('button', { name: 'Show properties' })
+    await expect(showPropertiesButton).toBeVisible()
+    await expect(showPropertiesButton.locator('.show-header-action-label')).toHaveCSS('display', 'none')
     const narrowTransport = await toolbar.getByRole('group', { name: 'Show transport controls' }).boundingBox()
     const narrowZoom = await toolbar.getByRole('group', { name: 'Timeline zoom controls' }).boundingBox()
     const narrowCommands = await toolbar.getByRole('group', { name: 'Timeline commands' }).boundingBox()
@@ -168,7 +171,7 @@ test.describe('authenticated Show authoring', () => {
     expect(rectanglesOverlap(narrowZoom, narrowCommands)).toBe(false)
     expect(rectanglesOverlap(narrowTransport, narrowCommands)).toBe(false)
     const outputSummary = await page.getByTitle('Show output summary').boundingBox()
-    const showProperties = await page.getByRole('button', { name: 'Show properties' }).boundingBox()
+    const showProperties = await showPropertiesButton.boundingBox()
     expect(
       rectanglesOverlap(outputSummary, showProperties),
       `Show output summary ${JSON.stringify(outputSummary)} overlaps Properties ${JSON.stringify(showProperties)}`,

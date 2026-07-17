@@ -1,16 +1,16 @@
 export const IDE_MICROTYPE = {
   panelHex: '#0b0c0f',
   header: {
-    fontSizePx: 14,
+    fontSizePx: 13,
     colorHex: '#e4e4e7',
-    sizeClassName: 'text-sm leading-5',
-    className: 'text-sm leading-5 text-zinc-200',
+    sizeClassName: 'text-[13px] leading-[18px]',
+    className: 'text-[13px] leading-[18px] text-zinc-200',
   },
   entity: {
     fontSizePx: 12,
     colorHex: '#a1a1aa',
-    sizeClassName: 'text-xs leading-4',
-    className: 'text-xs leading-4 text-zinc-400',
+    sizeClassName: 'text-[12px] leading-[15px]',
+    className: 'text-[12px] leading-[15px] text-zinc-400',
   },
   required: {
     fontSizePx: 10,
