@@ -56,6 +56,20 @@ Preserve these invariants:
 
 ## Development and verification
 
+### Concurrent work and landing
+
+- Keep the shared checkout on `main`; work there unless concurrent edits require
+  isolation.
+- Use a temporary local worktree branch for concurrent work. Do not push it or
+  ask the user to manage it unless a PR was explicitly requested.
+- The coordinating agent owns the whole lifecycle. A child agent hands back a
+  verified commit; the coordinator lands it on `main`.
+- Work is not done, and its issue must not close, until the commit is reachable
+  from `origin/main`. If landing must wait, report it as awaiting landing.
+- After landing and pushing, remove the worktree and delete its local and remote
+  branch. Finish by verifying a clean `main`, synchronized with `origin/main`,
+  with no abandoned worktrees or branches.
+
 Keep Vite on `5174` and Wrangler on `8788` running between tasks. If either is
 absent or unreachable, start it; never stop these servers when finishing a task.
 Run `npm run check:node` before starting them and activate a `package.json`
