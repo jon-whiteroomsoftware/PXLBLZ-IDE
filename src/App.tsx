@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useRef, useEffect, useLayoutEffect } from 'react'
-import { Braces, Code2, Cpu, ExternalLink, FileText, Images, Lock, LogIn, Map as MapIcon, PanelsTopLeft } from 'lucide-react'
+import { Braces, Code2, Cpu, Images, Lock, LogIn, Map as MapIcon, PanelsTopLeft } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   AlertDialogRoot,
@@ -18,9 +18,9 @@ import { Preview } from '@/components/Preview'
 import { PaneHeader } from '@/components/PaneHeader'
 import { ControllerBar } from '@/components/ControllerBar'
 import { AuthStatus } from '@/components/AuthStatus'
-import { LibrariesMenu } from '@/components/LibrariesMenu'
-import { DocsMenu } from '@/components/DocsMenu'
-import { DocsReader } from '@/components/DocsReader'
+import { ReferenceButtons } from '@/components/ReferenceButtons'
+import { DocsWorkspace } from '@/components/DocsWorkspace'
+import { ApiReferenceWorkspace } from '@/components/ApiReferenceWorkspace'
 import { SendToController } from '@/components/SendToController'
 import { PatternActionsMenu } from '@/components/PatternActionsMenu'
 import { GalleryPage } from '@/components/GalleryPage'
@@ -69,7 +69,9 @@ import { uniquePatternName } from '@/engine/patternName'
 import { newPersonalContentId } from '@/engine/personalContentMetadata'
 import { exportedDims } from '@/engine/exportedDims'
 import { galleryPatternBySlug, patternSlug, type GalleryPattern } from '@/engine/galleryCatalog'
-import { docExternalHref, getUserDoc, isDocId } from '@/docs/catalog'
+import { getUserDoc, isDocId } from '@/docs/catalog'
+import { buildApiReferenceCatalog } from '@/engine/apiReferenceCatalog'
+import { useReferenceNavigationStore } from '@/store/referenceNavigationStore'
 import type { AuthProvider } from '@/engine/authSession'
 import { DEMOS } from '@/pixelblaze/stock/patterns'
 import { stockShowById } from '@/pixelblaze/stock/shows'
@@ -205,6 +207,7 @@ function analyticsRouteTitle(route: Route): string {
   if (route.kind === 'studio') return `studio:${route.entity?.kind ?? 'home'}`
   if (route.kind === 'pattern-detail') return 'pattern-detail'
   if (route.kind === 'docs') return 'docs'
+  if (route.kind === 'api-reference') return 'api-reference'
   return route.kind
 }
 
@@ -304,6 +307,7 @@ function StudioApp() {
   const activeDocId = useDocsStore((s) => s.activeDocId)
   const syncDocsFromRoute = useDocsStore((s) => s.syncFromRoute)
   const activeDoc = getUserDoc(activeDocId)
+  const referenceStudioContext = useReferenceNavigationStore((s) => s.studioContext)
   const route = useRouterStore((s) => s.route)
   const navigate = useRouterStore((s) => s.navigate)
   const patternsLoaded = usePatternStore((s) => s.patternsLoaded)
@@ -312,6 +316,10 @@ function StudioApp() {
   const userMixins = useMixinStore((s) => s.userMixins)
   const mixinsLoaded = useMixinStore((s) => s.mixinsLoaded)
   const userLibraries = useLibraryStore((s) => s.userLibraries)
+  const apiReferenceDocuments = useMemo(
+    () => buildApiReferenceCatalog(userLibraries, referenceStudioContext),
+    [referenceStudioContext, userLibraries],
+  )
   const compileLibrarySet = useMemo(() => compileLibraries(LIBRARIES, userLibraries), [userLibraries])
   const librariesLoaded = useLibraryStore((s) => s.librariesLoaded)
   const editingLibrary = useLibraryStore((s) => s.editingLibrary)
@@ -400,7 +408,8 @@ function StudioApp() {
   // exists.
   useEffect(() => {
     if (route.kind === 'docs') {
-      if (isDocId(route.docId)) syncDocsFromRoute(route.docId)
+      if (route.docId === null) syncDocsFromRoute('ecosystem-primer')
+      else if (isDocId(route.docId)) syncDocsFromRoute(route.docId)
       return
     }
     syncDocsFromRoute(null)
@@ -659,7 +668,11 @@ function StudioApp() {
       : routeEntity.kind === 'shows'
         ? showsLoaded && !shows.some((show) => show.id === routeEntity.id) && !stockShowById(routeEntity.id)
         : true)
-  const invalidDocRoute = route.kind === 'docs' && !isDocId(route.docId)
+  const invalidDocRoute = route.kind === 'docs' && route.docId !== null && !isDocId(route.docId)
+  const activeApiReference = route.kind === 'api-reference'
+    ? apiReferenceDocuments.find((document) => document.id === (route.libraryId ?? 'PixelBlaze')) ?? null
+    : null
+  const invalidApiReferenceRoute = route.kind === 'api-reference' && activeApiReference === null
   const browseRoute = route.kind === 'gallery' || route.kind === 'pattern-detail'
   const studioRoute = route.kind === 'studio'
   const studioAccessUnavailable = studioRoute && personalWorkspaceUnavailable
@@ -722,15 +735,9 @@ function StudioApp() {
             ))}
           </span>
         </a>
-        {/* Left zone = identity + authoring reference (#254): Docs and Code sit beside
-            the wordmark, mirroring the Controller pill family on the right. */}
+        {/* Left zone = identity + authoring reference (#254, #296). */}
         <span className="ml-2 flex items-center sm:ml-5">
-          <DocsMenu />
-          {!browseRoute && (
-            <span className="ml-2">
-              <LibrariesMenu />
-            </span>
-          )}
+          <ReferenceButtons />
         </span>
         <span className="ml-auto flex items-center gap-1.5 sm:gap-2.5">
           <ControllerBar />
@@ -778,13 +785,17 @@ function StudioApp() {
             onAction={() => navigate({ kind: 'gallery' })}
           />
         )
-      ) : route.kind === 'not-found' || invalidDocRoute ? (
+      ) : route.kind === 'not-found' || invalidDocRoute || invalidApiReferenceRoute ? (
         <RouteMessage
           title="Nothing at this address"
-          detail={`There's no page at ${route.kind === 'docs' ? `/docs/${route.docId}` : route.path}.`}
+          detail={`There's no page at ${route.kind === 'docs' ? `/docs/${route.docId}` : route.kind === 'api-reference' ? `/reference/${route.libraryId}` : route.path}.`}
           actionLabel="Back to Studio"
           onAction={() => navigate({ kind: 'studio', entity: null }, { replace: true })}
         />
+      ) : route.kind === 'docs' && activeDoc ? (
+        <DocsWorkspace doc={activeDoc} />
+      ) : route.kind === 'api-reference' && activeApiReference ? (
+        <ApiReferenceWorkspace documents={apiReferenceDocuments} activeDocument={activeApiReference} />
       ) : studioAccessUnavailable ? (
         <RouteMessage
           title="Studio access unavailable"
@@ -852,27 +863,7 @@ function StudioApp() {
         <main data-testid="editor-pane" className="flex-1 min-w-0 flex flex-col overflow-hidden">
           <div className={studioEntityKind === 'shows' ? 'show-pane-header-container shrink-0' : 'shrink-0'}>
             <PaneHeader className={studioEntityKind === 'shows' ? 'show-pane-header' : ''}>
-            {activeDoc ? (
-              <>
-                <span className="flex-1 min-w-0 flex items-center gap-1.5">
-                  <FileText size={14} aria-hidden className="shrink-0 text-zinc-500" />
-                  <span className="truncate text-zinc-200">{activeDoc.title}</span>
-                  <span className="hidden rounded border border-zinc-700 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-structural sm:inline">
-                    Docs
-                  </span>
-                </span>
-                <a
-                  href={docExternalHref(activeDoc.id)}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex h-6 items-center gap-1 rounded px-2 font-mono text-xs text-zinc-400 bg-zinc-800/70 hover:bg-zinc-700/70 hover:text-zinc-300"
-                  title="Open document in a new tab"
-                >
-                  <ExternalLink size={13} aria-hidden />
-                  <span className="hidden sm:inline">Open in tab</span>
-                </a>
-              </>
-            ) : activeControllerProfileId !== null ? (
+            {activeControllerProfileId !== null ? (
               <span className="flex-1 min-w-0 flex items-center gap-1.5">
                 <Cpu size={14} aria-hidden className="shrink-0 text-zinc-500" />
                 <InlineEntityTitle
@@ -1005,9 +996,7 @@ function StudioApp() {
             </PaneHeader>
           </div>
           <div className="flex-1 overflow-hidden">
-            {activeDoc ? (
-              <DocsReader doc={activeDoc} />
-            ) : activeControllerProfileId !== null ? (
+            {activeControllerProfileId !== null ? (
               <ControllerProfilePage profileId={activeControllerProfileId} />
             ) : studioEntityKind === 'controllers' ? (
               <StudioPaneMessage

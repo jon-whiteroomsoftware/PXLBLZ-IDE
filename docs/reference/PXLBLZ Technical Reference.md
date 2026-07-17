@@ -84,13 +84,15 @@ after personal collections resolve.
 | `/studio` | Studio home/current entity |
 | `/studio/<kind>/<id>` | Patterns, maps, mixins, libraries, Controllers, or Shows |
 | `/studio-welcome` | Signed-out Studio gate |
-| `/docs/<id>` | In-app documentation |
+| `/docs`, `/docs/<id>` | Public documentation workspace |
+| `/reference`, `/reference/<library>` | Public API Reference workspace |
 
 Legacy `#/docs/<id>` links redirect into the path router. Unknown routes and
 missing entities render explicit not-found states after the relevant collection
 has loaded.
 
-The Gallery and global Controller chrome are public. Studio routes wait for
+The Gallery, Documentation workspace, API Reference, and global Controller
+chrome are public. Studio routes wait for
 `/api/me`; signed-out users see GitHub and Google sign-in choices rather than a
 brief flash of authenticated UI. GitHub and Google identities attach to one
 stable user row. Verified matching email may auto-link; an authenticated user
@@ -2001,11 +2003,23 @@ references leave the source banner intact and surface an import notice instead
 of guessing.
 
 User documentation is imported as raw Markdown in `src/docs/catalog.ts` and
-served at `/docs/<id>`. `docsMarkdown.ts` is a purpose-built safe parser for the
-Markdown subset used by the repository: headings, paragraphs, quotes, lists,
-fences, tables, images, rules, and basic inline spans. Unsupported syntax
-degrades to text; raw HTML is never injected. Relative documentation links route
-inside the app when catalogued and fall back to repository URLs otherwise.
+served by the public `DocsWorkspace` at `/docs/<id>`. Its left catalog selects a
+document; the remaining surface renders a width-constrained reading canvas.
+`docsMarkdown.ts` is a purpose-built safe parser for the Markdown subset used by
+the repository: headings, paragraphs, quotes, lists, fences, tables, images,
+rules, and basic inline spans. Unsupported syntax degrades to text; raw HTML is
+never injected. Relative documentation links route inside the app when
+catalogued and fall back to repository URLs otherwise.
+
+The public `ApiReferenceWorkspace` at `/reference/<library>` uses a pure catalog
+model built from the Pixelblaze built-in cheatsheet and parsed Library `//`
+comments. Its public catalog contains built-ins and stock Libraries. The
+reference-navigation store records a Gallery, Pattern, or Studio origin when a
+header button opens the surface; that context appends already-loaded cloud
+Libraries and returns to the origin through the explicit Back control or active
+Docs/API button. API entries use a two-column grid when space permits and never render
+Library source. Stock entries may link to repository source and cloud entries
+link back to `/studio/libraries/<id>` for editing.
 
 ## 27. Testing and evidence
 

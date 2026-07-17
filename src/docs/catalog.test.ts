@@ -1,20 +1,21 @@
 import { USER_DOCS, docHash, getUserDoc, isDocId, resolveDocAsset, resolveDocHref } from './catalog'
 
 describe('docs catalog', () => {
-  it('exposes only user-facing docs', () => {
+  it('exposes the public documentation set', () => {
     expect(USER_DOCS.map((doc) => doc.id)).toEqual([
       'ecosystem-primer',
       'feature-guide',
       'show-visual-toolkit',
       'understanding-maps',
       'optimization-guide',
+      'technical-reference',
+      'about',
     ])
-    expect(USER_DOCS.map((doc) => doc.title).join(' ')).not.toMatch(/Technical Reference/)
   })
 
   it('looks up doc ids and routes', () => {
     expect(isDocId('feature-guide')).toBe(true)
-    expect(isDocId('technical-reference')).toBe(false)
+    expect(isDocId('technical-reference')).toBe(true)
     expect(getUserDoc('feature-guide')?.menuLabel).toBe('Feature Guide')
     expect(getUserDoc('show-visual-toolkit')?.source).toContain('Property animation')
     expect(getUserDoc('show-visual-toolkit')).toMatchObject({

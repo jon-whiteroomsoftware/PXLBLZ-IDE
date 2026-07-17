@@ -22,7 +22,8 @@ export type Route =
   | { kind: 'studio-welcome' }
   | { kind: 'studio'; entity: StudioEntityRoute | null }
   | { kind: 'pattern-detail'; slug: string }
-  | { kind: 'docs'; docId: string }
+  | { kind: 'docs'; docId: string | null }
+  | { kind: 'api-reference'; libraryId: string | null }
   | { kind: 'not-found'; path: string }
 
 function isStudioEntityKind(value: string): value is StudioEntityKind {
@@ -66,7 +67,11 @@ export function parseRoute(pathname: string, base: string): Route {
     case 'p':
       return rest.length === 1 ? { kind: 'pattern-detail', slug: rest[0] } : notFound
     case 'docs':
+      if (rest.length === 0) return { kind: 'docs', docId: null }
       return rest.length === 1 ? { kind: 'docs', docId: rest[0] } : notFound
+    case 'reference':
+      if (rest.length === 0) return { kind: 'api-reference', libraryId: null }
+      return rest.length === 1 ? { kind: 'api-reference', libraryId: rest[0] } : notFound
     default:
       return notFound
   }
@@ -88,7 +93,9 @@ export function routePath(route: Route, base: string): string {
     case 'pattern-detail':
       return join('p', route.slug)
     case 'docs':
-      return join('docs', route.docId)
+      return route.docId === null ? join('docs') : join('docs', route.docId)
+    case 'api-reference':
+      return route.libraryId === null ? join('reference') : join('reference', route.libraryId)
     case 'not-found':
       return route.path
   }
@@ -110,6 +117,8 @@ export function routesEqual(a: Route, b: Route): boolean {
       return a.slug === (b as Extract<Route, { kind: 'pattern-detail' }>).slug
     case 'docs':
       return a.docId === (b as Extract<Route, { kind: 'docs' }>).docId
+    case 'api-reference':
+      return a.libraryId === (b as Extract<Route, { kind: 'api-reference' }>).libraryId
     case 'not-found':
       return a.path === (b as Extract<Route, { kind: 'not-found' }>).path
   }

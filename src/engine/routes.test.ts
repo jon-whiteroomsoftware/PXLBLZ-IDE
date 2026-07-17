@@ -62,9 +62,24 @@ describe('parseRoute', () => {
   })
 
   it('parses docs routes', () => {
+    expect(parseRoute('/docs', '/')).toEqual({
+      kind: 'docs',
+      docId: null,
+    })
     expect(parseRoute('/docs/feature-guide', '/')).toEqual({
       kind: 'docs',
       docId: 'feature-guide',
+    })
+  })
+
+  it('parses API reference routes', () => {
+    expect(parseRoute('/reference', '/')).toEqual({
+      kind: 'api-reference',
+      libraryId: null,
+    })
+    expect(parseRoute('/reference/Anim', '/')).toEqual({
+      kind: 'api-reference',
+      libraryId: 'Anim',
     })
   })
 
@@ -77,7 +92,6 @@ describe('parseRoute', () => {
 
   it('treats unknown paths as not-found', () => {
     expect(parseRoute('/bogus', '/')).toEqual({ kind: 'not-found', path: '/bogus' })
-    expect(parseRoute('/docs', '/')).toEqual({ kind: 'not-found', path: '/docs' })
   })
 
   it('strips a non-root base path', () => {
@@ -121,6 +135,7 @@ describe('routePath', () => {
     )
     expect(routePath({ kind: 'pattern-detail', slug: 's' }, '/')).toBe('/p/s')
     expect(routePath({ kind: 'docs', docId: 'feature-guide' }, '/')).toBe('/docs/feature-guide')
+    expect(routePath({ kind: 'api-reference', libraryId: 'Anim' }, '/')).toBe('/reference/Anim')
   })
 
   it('prefixes a non-root base', () => {
@@ -144,6 +159,7 @@ describe('routePath', () => {
       { kind: 'studio', entity: { kind: 'libraries', id: 'Shader' } },
       { kind: 'pattern-detail', slug: 'slug' },
       { kind: 'docs', docId: 'ecosystem-primer' },
+      { kind: 'api-reference', libraryId: 'PixelBlaze' },
     ]
     for (const base of ['/', '/PXLBLZ-IDE/']) {
       for (const route of routes) {

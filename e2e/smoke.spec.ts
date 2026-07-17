@@ -6,8 +6,8 @@ import { test, expect } from '@playwright/test'
  * Since #308 the app routes by path, and since #311 signed-out Studio access
  * lands on the Studio welcome/sign-in interstitial instead of silently bouncing
  * to Gallery. Until an authenticated e2e story exists, this smoke covers the
- * routing seam itself — public entry, Studio gate, docs deep links, legacy hash
- * links, and graceful dead ends.
+ * routing seam itself — public entry, Studio gate, reference workspaces, legacy
+ * hash links, and graceful dead ends.
  */
 
 test('signed-out visitors can load the public app shell at root', async ({ page }) => {
@@ -64,13 +64,16 @@ test('signed-out /studio shows the Studio welcome gate', async ({ page }) => {
 test('docs deep links render the docs reader without signing in', async ({ page }) => {
   await page.goto('docs/feature-guide')
   await expect(page).toHaveURL(/\/docs\/feature-guide$/)
-  await expect(page.getByTestId('editor-pane')).toContainText('PXLBLZ Feature Guide')
+  await expect(page.getByTestId('docs-workspace')).toBeVisible()
+  await expect(page.getByTestId('docs-reader')).toContainText('PXLBLZ — Feature Guide')
+  await expect(page.getByTestId('docs-catalog').getByRole('link', { name: /Feature Guide/ })).toHaveAttribute('aria-current', 'page')
+  await expect(page.getByTestId('editor-pane')).toHaveCount(0)
 })
 
 test('Show visual-toolkit guide renders its final-UI workflow and screenshots (#460)', async ({ page }) => {
   await page.goto('docs/show-visual-toolkit')
   await expect(page).toHaveURL(/\/docs\/show-visual-toolkit$/)
-  const reader = page.getByTestId('editor-pane')
+  const reader = page.getByTestId('docs-reader')
   await expect(reader).toContainText('The ownership rule')
   await expect(reader).toContainText(/cheap selector/i)
   await expect(reader.getByRole('img')).toHaveCount(2)
@@ -80,7 +83,69 @@ test('Show visual-toolkit guide renders its final-UI workflow and screenshots (#
 test('legacy #/docs/<id> hash links redirect to the path route', async ({ page }) => {
   await page.goto('/#/docs/optimization-guide')
   await expect(page).toHaveURL(/\/docs\/optimization-guide$/)
-  await expect(page.getByTestId('editor-pane')).toContainText('Optimizing Pixelblaze Patterns')
+  await expect(page.getByTestId('docs-reader')).toContainText('Optimizing Pixelblaze patterns')
+})
+
+test('About and API reference are public deep-linkable workspaces', async ({ page }) => {
+  const runtimeErrors: string[] = []
+  page.on('pageerror', (error) => runtimeErrors.push(error.message))
+  page.on('console', (message) => {
+    if (message.type() === 'error') runtimeErrors.push(message.text())
+  })
+
+  await page.goto('docs/about')
+  await expect(page.getByTestId('docs-reader')).toContainText('I built the Pixelblaze tool I wanted for myself.')
+  await expect(page.getByRole('button', { name: 'Connect a Controller' })).toBeVisible()
+
+  await page.goto('reference/Anim')
+  await expect(page.getByTestId('api-reference-reader')).toContainText('Anim.easeIn2(t)')
+  await expect(page.getByTestId('api-reference-catalog').getByRole('link', { name: /Anim/ })).toHaveAttribute('aria-current', 'page')
+  await expect(page.getByTestId('editor-pane')).toHaveCount(0)
+  expect(runtimeErrors).toEqual([])
+})
+
+test('API entries use two columns when the reference reader has room', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto('reference/Anim')
+
+  const first = await page.getByText('Anim.easeIn2(t)', { exact: true }).boundingBox()
+  const second = await page.getByText('Anim.easeOut2(t)', { exact: true }).boundingBox()
+
+  expect(first).not.toBeNull()
+  expect(second).not.toBeNull()
+  expect(Math.abs(first!.y - second!.y)).toBeLessThan(4)
+  expect(second!.x).toBeGreaterThan(first!.x + first!.width)
+})
+
+test('Docs and API header buttons preserve one public return origin', async ({ page }) => {
+  await page.goto('gallery')
+  await page.getByRole('button', { name: 'Docs' }).click()
+  await expect(page).toHaveURL(/\/docs$/)
+
+  const docsButton = page.getByRole('button', { name: 'Docs' })
+  await expect(docsButton).toHaveAttribute('aria-pressed', 'true')
+  const [docsColor, docsIconColor] = await Promise.all([
+    docsButton.evaluate((element) => getComputedStyle(element).color),
+    docsButton.locator('svg').evaluate((element) => getComputedStyle(element).color),
+  ])
+  expect(docsIconColor).toBe(docsColor)
+
+  await page.getByRole('button', { name: 'API' }).click()
+  await expect(page).toHaveURL(/\/reference$/)
+  await page.getByRole('button', { name: 'Back to Gallery' }).click()
+  await expect(page).toHaveURL(/\/gallery$/)
+})
+
+test('reference workspaces keep navigation and content reachable in a narrow window', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.goto('docs/about')
+  await expect(page.getByRole('button', { name: 'Docs' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'API' })).toBeVisible()
+  await expect(page.getByTestId('top-bar')).toBeInViewport()
+  await expect(page.getByTestId('docs-catalog')).toBeVisible()
+  await expect(page.getByTestId('docs-catalog').getByRole('link', { name: /About PXLBLZ/ })).toBeInViewport()
+  await expect(page.getByTestId('docs-reader')).toContainText('About PXLBLZ')
+  await expect(page.getByTestId('docs-reader').getByRole('heading', { name: 'About PXLBLZ', exact: true })).toBeInViewport()
 })
 
 test('unknown paths fail gracefully', async ({ page }) => {
