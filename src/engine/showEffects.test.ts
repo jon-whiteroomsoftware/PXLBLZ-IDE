@@ -425,8 +425,8 @@ describe('Show clip Effects (#444)', () => {
       code: legacy.code, metadata: legacy.metadata, dimension: nativeDimension(legacy.metadata.renderFns),
     }, { mapPoints: [{ sample: [0.5, 0.5] }], randomSeed: 454 })
     expect(runtime.renderCurrentFrame().pixels[0]).toEqual([0.2, 0.1, 0.05])
-    expect(legacy.code).not.toMatch(/function __pxlblz_show_c0_rgb\([^)]*\) \{[^}]*adapt_brightness/)
-    expect(legacy.code).not.toMatch(/function __pxlblz_show_c0_hsv\([^)]*\) \{[^}]*adapt_brightness/)
+    expect(legacy.expandedCode).not.toMatch(/function __pxlblz_show_c0_rgb\([^)]*\) \{[^}]*adapt_brightness/)
+    expect(legacy.expandedCode).not.toMatch(/function __pxlblz_show_c0_hsv\([^)]*\) \{[^}]*adapt_brightness/)
   })
 
   it('matches composed pure and generated color output and reports N plus color math (#454)', () => {

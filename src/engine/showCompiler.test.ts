@@ -53,6 +53,423 @@ function loadShow(code: string, metadata: ReturnType<typeof compileShow>['metada
 }
 
 describe('compileShow', () => {
+  it('compacts compiler-owned symbols under the PXLBLZ namespace (#499)', () => {
+    const artifact = compileShow({
+      clips: [{
+        id: 'shared',
+        source: `
+export var ticks = 0
+export function beforeRender(delta) { ticks = ticks + 1 }
+export function render(index) { rgb(ticks, 0, 0) }
+`,
+      }],
+    }, {})
+    const expandedCode = (artifact as typeof artifact & { expandedCode?: string }).expandedCode
+    const { handle } = loadShow(artifact.code, artifact.metadata)
+
+    handle.beforeRender(16)
+
+    expect(expandedCode).toContain('__pxlblz_show_c0_ticks')
+    expect(artifact.code).not.toContain('__pxlblz_show_')
+    expect(artifact.code).toContain('export function beforeRender(delta)')
+    expect(artifact.code).toContain('export function render(index)')
+    expect([...artifact.code.matchAll(/\b__pxlblz_[A-Za-z0-9_]+\b/g)].every((match) => (
+      /^__pxlblz_[A-Za-z]+$/.test(match[0])
+    ))).toBe(true)
+    expect(handle.getExports()).toMatchObject({ __pxlblz_show_c0_ticks: 1 })
+    expect(new TextEncoder().encode(artifact.code).length).toBeLessThan(new TextEncoder().encode(expandedCode!).length)
+  })
+
+  it('emits only the active output dimension for Pattern capture adapters (#499)', () => {
+    const oneDimensionalClip = {
+      id: 'shared',
+      source: 'export function render(index) { rgb(1, 0, 0) }',
+    }
+    const twoDimensionalClip = {
+      id: 'shared',
+      source: 'export function render2D(index, x, y) { rgb(0, 1, 0) }',
+    }
+    const oneDimensional = compileShow({ clips: [oneDimensionalClip] }, {})
+    const twoDimensional = compileShow({ clips: [twoDimensionalClip] }, {})
+
+    expect(oneDimensional.expandedCode).toContain('function __pxlblz_show_c0_renderCapture(index)')
+    expect(oneDimensional.expandedCode).not.toContain('function __pxlblz_show_c0_renderCapture2D(index, x, y)')
+    expect(oneDimensional.expandedCode).not.toContain('function __pxlblz_show_c0_applyOutputEffects')
+    expect(twoDimensional.expandedCode).toContain('function __pxlblz_show_c0_renderCapture2D(index, x, y)')
+    expect(twoDimensional.expandedCode).not.toContain('function __pxlblz_show_c0_renderCapture(index)')
+    expect(twoDimensional.expandedCode).not.toContain('function __pxlblz_show_c0_applyOutputEffects')
+  })
+
+  it('emits adaptation mixing helpers only for adaptation-ramp Shows (#499)', () => {
+    const clip = {
+      id: 'shared',
+      source: 'export function render(index) { rgb(1, 0, 0) }',
+    }
+    const direct = compileShow({ clips: [clip] }, {})
+    const ramped = compileShow({
+      clips: [clip],
+      adaptationRamp: {
+        startMs: 0,
+        durationMs: 1000,
+        from: { brightness: 1 },
+        to: { brightness: 0.5 },
+      },
+    }, {})
+
+    expect(direct.expandedCode).not.toContain('function __pxlblz_show_c0_setAdaptation')
+    expect(direct.expandedCode).not.toContain('function __pxlblz_show_c0_mixAdaptation')
+    expect(ramped.expandedCode).toContain('function __pxlblz_show_c0_setAdaptation')
+    expect(ramped.expandedCode).toContain('function __pxlblz_show_c0_mixAdaptation')
+  })
+
+  it('emits HSV and time shims only when a Pattern uses them (#499)', () => {
+    const rgbOnly = compileShow({
+      clips: [{ id: 'rgb', source: 'export function render(index) { rgb(1, 0, 0) }' }],
+    }, {})
+    const hsvAndTime = compileShow({
+      clips: [{ id: 'hsv', source: 'export function render(index) { hsv(time(1), 1, 1) }' }],
+    }, {})
+    const { handle, pixel } = loadShow(hsvAndTime.code, hsvAndTime.metadata)
+
+    handle.beforeRender(0)
+    handle.render(0)
+
+    expect(rgbOnly.expandedCode).not.toContain('function __pxlblz_show_c0_hsv')
+    expect(rgbOnly.expandedCode).not.toContain('function __pxlblz_show_c0_time')
+    expect(rgbOnly.expandedCode).not.toContain('function __pxlblz_show_capture_hsv')
+    expect(hsvAndTime.expandedCode).toContain('function __pxlblz_show_c0_hsv')
+    expect(hsvAndTime.expandedCode).toContain('function __pxlblz_show_c0_time')
+    expect(hsvAndTime.expandedCode).toContain('function __pxlblz_show_capture_hsv')
+    expect(pixel()).toEqual([1, 0, 0])
+  })
+
+  it('does not emit unused Scene stack wrappers for cut-only routed Shows (#499)', () => {
+    const zones = [
+      { id: 'left', name: 'left', ranges: [{ start: 0, end: 1 }] },
+      { id: 'right', name: 'right', ranges: [{ start: 2, end: 3 }] },
+    ]
+    const artifact = compileShow({
+      clips: [{
+        id: 'shared',
+        source: 'export function render2D(index, x, y) { rgb(1, 0.5, 0.25) }',
+      }],
+      zones,
+      routingLayouts: [{ id: 'default', name: 'Default', zones }],
+      routedSceneSequence: {
+        scenes: [
+          {
+            holdMs: 1000,
+            placements: [
+              {
+                placementId: 'left-a',
+                zoneName: 'left',
+                clipId: 'shared',
+                opacity: 0.5,
+              },
+              {
+                placementId: 'right-a',
+                zoneName: 'right',
+                clipId: 'shared',
+                opacity: 0.25,
+              },
+            ],
+            transitionOut: { kind: 'cut', durationMs: 0 },
+          },
+          {
+            holdMs: 1000,
+            placements: [
+              { placementId: 'left-b', zoneName: 'left', clipId: 'shared' },
+              { placementId: 'right-b', zoneName: 'right', clipId: 'shared' },
+            ],
+          },
+        ],
+      },
+      loopDurationMs: 2000,
+    }, {})
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 4)
+
+    handle.beforeRender(500)
+    handle.render2D(0, 0.25, 0.75)
+    expect(pixel()).toEqual([0.5, 0.25, 0.125])
+    handle.render2D(2, 0.25, 0.75)
+    expect(pixel()).toEqual([0.25, 0.125, 0.0625])
+    expect(artifact.expandedCode).not.toContain('__pxlblz_show_stack_s')
+    expect(artifact.expandedCode).not.toContain('function __pxlblz_show_hash01')
+    expect(artifact.expandedCode).not.toContain('__pxlblz_show_transition')
+    expect(artifact.expandedCode).not.toContain('__pxlblz_show_mix')
+    expect(artifact.expandedCode).not.toContain('__pxlblz_show_phase')
+    expect(artifact.expandedCode).not.toContain('__pxlblz_show_route_layout')
+    expect(artifact.expandedCode.match(/__pxlblz_show_c0_advance\(delta\)/g)).toHaveLength(2)
+    expect(artifact.expandedCode).toContain('__pxlblz_show_scene = floor(__pxlblz_show_elapsed_s / 1)')
+    expect(artifact.expandedCode.match(/if \(index >= 0 && index <= 1\)/g)).toHaveLength(1)
+    expect(artifact.expandedCode.match(/if \(index >= 2 && index <= 3\)/g)).toHaveLength(1)
+  })
+
+  it('emits only the active output dimension for routed Scene stack wrappers (#499)', () => {
+    const zones = [{ id: 'main', name: 'main', ranges: [{ start: 0, end: 3 }] }]
+    const artifact = compileShow({
+      clips: [
+        { id: 'red', source: 'export function render2D(index, x, y) { rgb(1, 0, 0) }' },
+        { id: 'blue', source: 'export function render2D(index, x, y) { rgb(0, 0, 1) }' },
+        { id: 'green', source: 'export function render2D(index, x, y) { rgb(0, 1, 0) }' },
+      ],
+      zones,
+      routingLayouts: [{ id: 'default', name: 'Default', zones }],
+      routedSceneSequence: {
+        scenes: [
+          {
+            holdMs: 1000,
+            placements: [
+              { zoneName: 'main', clipId: 'red', stackOrder: 0 },
+              { zoneName: 'main', clipId: 'blue', stackOrder: 1, opacity: 0.5 },
+            ],
+            transitionOut: { kind: 'crossfade', durationMs: 1000 },
+          },
+          {
+            holdMs: 1000,
+            placements: [{ zoneName: 'main', clipId: 'green' }],
+          },
+        ],
+      },
+      loopDurationMs: 3000,
+    }, {})
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 4)
+
+    handle.beforeRender(1500)
+    handle.render2D(0, 0.25, 0.75)
+    expect(pixel()).toEqual([0.25, 0.5, 0.25])
+    expect(artifact.expandedCode).toContain('function __pxlblz_show_stack_s0_main_renderCapture2D(index, x, y)')
+    expect(artifact.expandedCode).not.toContain('function __pxlblz_show_stack_s0_main_renderCapture(index)')
+  })
+
+  it('routes a single opaque placement without source-over stack machinery (#499)', () => {
+    const zones = [{ id: 'main', name: 'main', ranges: [{ start: 0, end: 3 }] }]
+    const artifact = compileShow({
+      clips: [{
+        id: 'shared',
+        source: 'export function render2D(index, x, y) { rgb(1, 0.5, 0.25) }',
+      }],
+      zones,
+      routingLayouts: [{ id: 'default', name: 'Default', zones }],
+      routedSceneSequence: {
+        scenes: [
+          {
+            holdMs: 1000,
+            placements: [{
+              placementId: 'main-a',
+              zoneName: 'main',
+              clipId: 'shared',
+              brightness: 0.5,
+            }],
+            transitionOut: { kind: 'cut', durationMs: 0 },
+          },
+          {
+            holdMs: 1000,
+            placements: [{ placementId: 'main-b', zoneName: 'main', clipId: 'shared' }],
+          },
+        ],
+      },
+      loopDurationMs: 2000,
+    }, {})
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 4)
+
+    handle.beforeRender(500)
+    handle.render2D(0, 0.25, 0.75)
+    expect(pixel()).toEqual([0.5, 0.25, 0.125])
+    expect(artifact.expandedCode).not.toContain('var __pxlblz_show_stack_0_r')
+    expect(artifact.expandedCode).not.toContain('__pxlblz_show_c0_r * (1)')
+  })
+
+  it('interns equivalent cut-only physical render plans across Scenes and Zones (#499)', () => {
+    const zones = [
+      { id: 'left', name: 'left', ranges: [{ start: 0, end: 1 }] },
+      { id: 'right', name: 'right', ranges: [{ start: 2, end: 3 }] },
+    ]
+    const placement = (placementId: string, zoneName: string, brightness: number) => ({
+      placementId,
+      zoneName,
+      clipId: 'shared',
+      brightness,
+    })
+    const artifact = compileShow({
+      clips: [{
+        id: 'shared',
+        source: 'export function render2D(index, x, y) { rgb(1, 0.5, 0.25) }',
+      }],
+      zones,
+      routingLayouts: [{ id: 'default', name: 'Default', zones }],
+      routedSceneSequence: {
+        scenes: [
+          {
+            holdMs: 1000,
+            placements: [placement('left-a', 'left', 0.5), placement('right-a', 'right', 0.5)],
+            transitionOut: { kind: 'cut', durationMs: 0 },
+          },
+          {
+            holdMs: 1000,
+            placements: [placement('left-b', 'left', 0.5), placement('right-b', 'right', 1)],
+          },
+        ],
+      },
+      loopDurationMs: 2000,
+    }, {})
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 4)
+
+    handle.beforeRender(500)
+    handle.render2D(0, 0.25, 0.75)
+    expect(pixel()).toEqual([0.5, 0.25, 0.125])
+    handle.beforeRender(1000)
+    handle.render2D(2, 0.25, 0.75)
+    expect(pixel()).toEqual([1, 0.5, 0.25])
+    expect(artifact.expandedCode).toContain('var __pxlblz_show_plan = -1')
+    expect(artifact.expandedCode).toContain('var __pxlblz_show_plans = array(4)')
+    expect(artifact.expandedCode.match(/_renderCapture2D\(__pxlblz_show_route_local_index/g)).toHaveLength(2)
+  })
+
+  it('bakes static affine placement Effects into interned render plans (#499)', () => {
+    const zones = [{ id: 'main', name: 'main', ranges: [{ start: 0, end: 3 }] }]
+    const artifact = compileShow({
+      clips: [{
+        id: 'shared',
+        source: 'export function render2D(index, x, y) { rgb(x, y, 0) }',
+        effects: [{ id: 'move', kind: 'translate', x: 0, y: 0 }],
+      }],
+      zones,
+      routingLayouts: [{ id: 'default', name: 'Default', zones }],
+      routedSceneSequence: {
+        scenes: [
+          {
+            holdMs: 1000,
+            placements: [{
+              placementId: 'main-a',
+              zoneName: 'main',
+              clipId: 'shared',
+              effects: [{ id: 'move', kind: 'translate', x: 0, y: 0 }],
+            }],
+            transitionOut: { kind: 'cut', durationMs: 0 },
+          },
+          {
+            holdMs: 1000,
+            placements: [{
+              placementId: 'main-b',
+              zoneName: 'main',
+              clipId: 'shared',
+              effects: [{ id: 'move', kind: 'translate', x: 0.25, y: 0.25 }],
+            }],
+          },
+        ],
+      },
+      loopDurationMs: 2000,
+    }, {})
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 4)
+
+    handle.beforeRender(500)
+    handle.render2D(3, 1, 1)
+    expect(pixel()).toEqual([1, 1, 0])
+    handle.beforeRender(1000)
+    handle.render2D(3, 1, 1)
+    expect(pixel()[0]).toBeCloseTo(0.75)
+    expect(pixel()[1]).toBeCloseTo(0.75)
+    expect(artifact.expandedCode).not.toContain('function __pxlblz_show_c0_fx_update')
+    expect(artifact.expandedCode).not.toContain('__pxlblz_show_c0_fx_p0_x')
+    expect(artifact.expandedCode).toContain('__pxlblz_show_c0_fx_a =')
+    expect(artifact.summary.cost.cpu.effects.affineOperationsPerFrame).toBe(0)
+    expect(artifact.summary.cost.memory.generatedScalarGlobals).toBe(6)
+  })
+
+  it('caches interned plan configuration by Plan and physical Zone (#499)', () => {
+    const zones = [
+      { id: 'short', name: 'short', ranges: [{ start: 0, end: 1 }] },
+      { id: 'long', name: 'long', ranges: [{ start: 2, end: 5 }] },
+    ]
+    const artifact = compileShow({
+      clips: [{
+        id: 'shared',
+        source: 'export function render(index) { rgb(index / max(1, pixelCount - 1), 0, 0) }',
+      }],
+      zones,
+      routingLayouts: [{ id: 'default', name: 'Default', zones }],
+      routedSceneSequence: {
+        scenes: [
+          {
+            holdMs: 500,
+            placements: [
+              { placementId: 'short-a', zoneName: 'short', clipId: 'shared' },
+              { placementId: 'long-a', zoneName: 'long', clipId: 'shared' },
+            ],
+            transitionOut: { kind: 'cut', durationMs: 0 },
+          },
+          {
+            holdMs: 500,
+            placements: [
+              { placementId: 'short-b', zoneName: 'short', clipId: 'shared' },
+              { placementId: 'long-b', zoneName: 'long', clipId: 'shared' },
+            ],
+          },
+        ],
+      },
+      loopDurationMs: 1000,
+    }, {})
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 6)
+
+    handle.beforeRender(100)
+    handle.render(1)
+    expect(pixel()[0]).toBeCloseTo(1)
+    handle.render(5)
+    expect(pixel()[0]).toBeCloseTo(1)
+    expect(artifact.expandedCode).toContain('__pxlblz_show_plan * 2 + __pxlblz_show_route_id')
+    expect(artifact.expandedCode).toContain('var __pxlblz_show_plan_configure =')
+  })
+
+  it('canonicalizes cut-only scheduler setup independently for each Pattern (#499)', () => {
+    const zones = [
+      { id: 'left', name: 'left', ranges: [{ start: 0, end: 1 }] },
+      { id: 'right', name: 'right', ranges: [{ start: 2, end: 3 }] },
+    ]
+    const tickingClip = (id: string, channel: string) => ({
+      id,
+      source: `
+export var ticks = 0
+export function beforeRender(delta) { ticks = ticks + 1 }
+export function render2D(index, x, y) { rgb(${channel === 'r' ? 1 : 0}, ${channel === 'g' ? 1 : 0}, 0) }
+`,
+    })
+    const artifact = compileShow({
+      clips: [tickingClip('always', 'r'), tickingClip('sometimes', 'g')],
+      zones,
+      routingLayouts: [{ id: 'default', name: 'Default', zones }],
+      routedSceneSequence: {
+        scenes: [
+          {
+            holdMs: 1000,
+            placements: [
+              { placementId: 'always-a', zoneName: 'left', clipId: 'always' },
+              { placementId: 'sometimes-a', zoneName: 'right', clipId: 'sometimes' },
+            ],
+            transitionOut: { kind: 'cut', durationMs: 0 },
+          },
+          {
+            holdMs: 1000,
+            placements: [{ placementId: 'always-b', zoneName: 'left', clipId: 'always' }],
+          },
+        ],
+      },
+      loopDurationMs: 2000,
+    }, {})
+    const { handle } = loadShow(artifact.code, artifact.metadata, 4)
+
+    handle.beforeRender(500)
+    handle.beforeRender(1000)
+
+    expect(handle.getExports()).toMatchObject({
+      __pxlblz_show_c0_ticks: 2,
+      __pxlblz_show_c1_ticks: 1,
+    })
+    expect(artifact.expandedCode.match(/__pxlblz_show_c0_advance\(delta\)/g)).toHaveLength(2)
+    expect(artifact.expandedCode.match(/__pxlblz_show_c1_advance\(delta\)/g)).toHaveLength(2)
+    expect(artifact.expandedCode).toContain('if (__pxlblz_show_scene <= 0)')
+  })
+
   it('evaluates Scene-local instance and placement tracks with the generated easing runtime (#490)', () => {
     const zones = [{ id: 'main', name: 'main', ranges: [{ start: 0, end: 0 }] }]
     const artifact = compileShow({
@@ -302,7 +719,7 @@ describe('compileShow', () => {
     handle.beforeRender(100)
 
     expect(handle.getExports()).toMatchObject({ __pxlblz_show_c0_elapsed: 100 })
-    expect(artifact.code.match(/function __pxlblz_show_c0_beforeRender/g)).toHaveLength(1)
+    expect(artifact.expandedCode.match(/function __pxlblz_show_c0_beforeRender/g)).toHaveLength(1)
   })
 
   it('applies placement-owned view and effects while reusing one Pattern instance (#489)', () => {
@@ -472,7 +889,7 @@ describe('compileShow', () => {
     handle.beforeRender(100)
 
     expect(handle.getExports()).toMatchObject({ __pxlblz_show_c0_elapsed: 100 })
-    expect(artifact.code.match(/function __pxlblz_show_c0_beforeRender/g)).toHaveLength(1)
+    expect(artifact.expandedCode.match(/function __pxlblz_show_c0_beforeRender/g)).toHaveLength(1)
   })
 
   it('crossfades every routed Zone at the same Scene boundary (#478)', () => {
@@ -1141,9 +1558,9 @@ export function render(index) { rgb(0, ticks, index) }
       loopDurationMs: 60_000,
     }, {})
 
-    expect(artifact.code).toContain('__pxlblz_show_elapsed_s = (__pxlblz_show_elapsed_s + delta / 1000) % 60')
-    expect(artifact.code).toContain('__pxlblz_show_elapsed_s >= 40')
-    expect(artifact.code).not.toContain('% 60000')
+    expect(artifact.expandedCode).toContain('__pxlblz_show_elapsed_s = (__pxlblz_show_elapsed_s + delta / 1000) % 60')
+    expect(artifact.expandedCode).toContain('__pxlblz_show_elapsed_s >= 40')
+    expect(artifact.expandedCode).not.toContain('% 60000')
   })
 
   it('routes native 2D members through normalized zone-local square coordinates (#401)', () => {
@@ -1217,8 +1634,8 @@ export function render2D(index, x, y) { rgb(x, y, ticks / 10) }
     }, {})
 
     expect(artifact.summary.routingRepresentation).toBe('coordinate-predicates')
-    expect(artifact.code).not.toContain('__pxlblz_show_route_pixels')
-    expect(artifact.code).not.toContain('if (index < 256)')
+    expect(artifact.expandedCode).not.toContain('__pxlblz_show_route_pixels')
+    expect(artifact.expandedCode).not.toContain('if (index < 256)')
 
     const { handle, pixel } = loadShow(artifact.code, artifact.metadata, size * size)
     handle.beforeRender(16)
@@ -2066,7 +2483,7 @@ export function render(index) { rgb(speed, 0, 0) }
     expect(handle.getExports().__pxlblz_show_c0_speed).toBeCloseTo(0.35)
     expect(handle.getExports().__pxlblz_show_c0_control_sliderSpeed).toBeCloseTo(0.35)
     expect(handle.getExports().__pxlblz_show_c0_sliderCalls).toBe(1)
-    expect(artifact.code).toContain('__pxlblz_show_c0_sliderSpeed(__pxlblz_show_c0_control_sliderSpeed)')
+    expect(artifact.expandedCode).toContain('__pxlblz_show_c0_sliderSpeed(__pxlblz_show_c0_control_sliderSpeed)')
     expect(artifact.summary).toMatchObject({ transitionCost: 'parameter', worstInstantRenderersPerPixel: 1 })
   })
 
@@ -2528,8 +2945,8 @@ export function render(index) { calls = calls + 1; rgb(0, 1, 0) }
       worstInstantRenderersPerPixel: 1,
       routePolicy: 'hard-wipe',
     })
-    expect(artifact.code).toContain('index / pixelCount < __pxlblz_show_mix')
-    expect(artifact.code).not.toContain('__pxlblz_show_feather_progress')
+    expect(artifact.expandedCode).toContain('index / pixelCount < __pxlblz_show_mix')
+    expect(artifact.expandedCode).not.toContain('__pxlblz_show_feather_progress')
   })
 
   it('keeps an explicit zero feather byte-identical to the original hard wipe', () => {
@@ -2864,7 +3281,7 @@ export function render(index) { calls = calls + 1; rgb(0, 1, 0) }
       transitionCost: 'bounded-renderer-window',
       worstInstantRenderersPerPixel: 2,
     })
-    expect(artifact.code).toContain('__pxlblz_show_elapsed_s = (__pxlblz_show_elapsed_s + delta / 1000) % 5')
+    expect(artifact.expandedCode).toContain('__pxlblz_show_elapsed_s = (__pxlblz_show_elapsed_s + delta / 1000) % 5')
   })
 
   it('eases one private clock to exact pause and back across a scene sequence (#417)', () => {
@@ -3073,7 +3490,7 @@ export function render(index) { rgb(elapsed, time(1), index) }
     expect(pixel()).toEqual([0, 0.5, 0.5])
     handle.render2D(1, 0, 0)
     expect(pixel()).toEqual([1, 0, 0])
-    expect(artifact.code).toContain('max(abs(__pxlblz_show_portal_rx)')
+    expect(artifact.expandedCode).toContain('max(abs(__pxlblz_show_portal_rx)')
     expect(artifact.summary).toMatchObject({
       transitionCost: 'route', routePolicy: 'portal-hard', worstInstantRenderersPerPixel: 1,
       cost: { cpu: { patternEvaluations: { formula: 'N', basePerPixel: 1 } } },
@@ -3409,7 +3826,7 @@ export function render(index) { calls = calls + 1; rgb(0, 1, 0) }
     expect(pixel()).toEqual(first)
     const exports = handle.getExports()
     expect(Number(exports.__pxlblz_show_c0_calls) + Number(exports.__pxlblz_show_c1_calls)).toBe(2)
-    expect(artifact.code).toContain('__pxlblz_show_hash01(floor(index / 8) + 2227)')
+    expect(artifact.expandedCode).toContain('__pxlblz_show_hash01(floor(index / 8) + 2227)')
     expect(artifact.summary).toMatchObject({
       transitionCost: 'route', worstInstantRenderersPerPixel: 1,
       cost: { cpu: { patternEvaluations: { formula: 'N', basePerPixel: 1 } } },

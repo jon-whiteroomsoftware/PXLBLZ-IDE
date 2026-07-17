@@ -112,15 +112,15 @@ describe('show easing', () => {
     }, { mapPoints: [{ sample: [0.5] }], randomSeed: 455 })
 
     expect(runtime.advanceTo(1500, { stepMs: 50 }).pixels[0][0]).toBeCloseTo(applyShowEasing(easing, 0.5), 3)
-    expect(artifact.code.match(/function __pxlblz_show_cubicBezier\(/g)).toHaveLength(1)
-    expect(artifact.code.indexOf('__pxlblz_show_cubicBezier(')).toBeLessThan(artifact.code.indexOf('export function beforeRender'))
+    expect(artifact.expandedCode.match(/function __pxlblz_show_cubicBezier\(/g)).toHaveLength(1)
+    expect(artifact.expandedCode.indexOf('__pxlblz_show_cubicBezier(')).toBeLessThan(artifact.expandedCode.indexOf('export function beforeRender'))
     expect(artifact.summary.cost.code.artifactBytes).toBe(artifact.summary.artifactBytes)
 
     const linear = compileShow({
       clips: [{ id: 'clip', source: 'export function render(index) { rgb(1, 0, 0) }' }],
       adaptationRamp: { startMs: 1000, durationMs: 1000, from: { brightness: 0 }, to: { brightness: 1 } },
     }, {})
-    expect(linear.code).not.toContain('function __pxlblz_show_cubicBezier(')
+    expect(linear.expandedCode).not.toContain('function __pxlblz_show_cubicBezier(')
     expect(artifact.summary.artifactBytes).toBeGreaterThan(linear.summary.artifactBytes)
   })
 

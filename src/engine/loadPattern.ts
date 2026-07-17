@@ -10,6 +10,9 @@ export interface RenderFns {
 export interface PatternMetadata {
   exportedVars: string[]
   patternVars: string[]  // all top-level var declarations, exported or not
+  // Optional runtime identifier for each stable watcher key. Generated Shows
+  // use this to compact delivered symbols without changing introspection names.
+  patternVarBindings?: Record<string, string>
   controls: {
     exportName: string
     kind: string
@@ -66,7 +69,10 @@ export function loadPattern(
 function buildEpilogue(metadata: PatternMetadata): string {
   // getExports reads all top-level vars so the watcher can inspect any of them
   const getExportsEntries = metadata.patternVars
-    .map(v => `${JSON.stringify(v)}:(typeof ${v}!=='undefined'?${v}:undefined)`)
+    .map((v) => {
+      const runtimeName = metadata.patternVarBindings?.[v] ?? v
+      return `${JSON.stringify(v)}:(typeof ${runtimeName}!=='undefined'?${runtimeName}:undefined)`
+    })
     .join(',')
 
   const controlsEntries = metadata.controls

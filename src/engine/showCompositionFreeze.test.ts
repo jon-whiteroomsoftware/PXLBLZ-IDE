@@ -83,9 +83,9 @@ describe('Scene-composition release freeze (#492)', () => {
     expect(measurement.fixtureCount).toBe(2)
     expect(measurement.maxArtifact).toEqual({
       fixtureId: 'portable-local-composition',
-      artifactBytes: 60_019,
+      artifactBytes: 20_546,
       budgetBytes: 68_384,
-      budgetRatio: 60_019 / 68_384,
+      budgetRatio: 20_546 / 68_384,
     })
     expect(measurement.maxWorstInstantRenderersPerPixel).toEqual({
       fixtureId: 'installation-routed-composition',
@@ -109,11 +109,11 @@ describe('Scene-composition release freeze (#492)', () => {
       {},
       { stageDimension: 2 },
     ).artifact!
-    expect(compiled.code).toContain('var __pxlblz_show_elapsed_s = 0')
-    expect(compiled.code).toContain('__pxlblz_show_elapsed_s = (__pxlblz_show_elapsed_s + delta / 1000) % 62')
-    expect(compiled.code).toContain('__pxlblz_show_elapsed_s < 30')
-    expect(compiled.code).toContain('__pxlblz_show_elapsed_s < 32')
-    expect(compiled.code).toContain('__pxlblz_show_elapsed_s < 62')
-    expect(compiled.code).not.toContain('__pxlblz_show_elapsed_ms = (__pxlblz_show_elapsed_ms + delta) % 62000')
+    expect(compiled.expandedCode).toContain('var __pxlblz_show_elapsed_s = 0')
+    expect(compiled.expandedCode).toContain('__pxlblz_show_elapsed_s = (__pxlblz_show_elapsed_s + delta / 1000) % 62')
+    expect(compiled.expandedCode).toContain('__pxlblz_show_elapsed_s < 30')
+    expect(compiled.expandedCode).toContain('__pxlblz_show_elapsed_s < 32')
+    expect(compiled.expandedCode).toContain('__pxlblz_show_elapsed_s < 62')
+    expect(compiled.expandedCode).not.toContain('__pxlblz_show_elapsed_ms = (__pxlblz_show_elapsed_ms + delta) % 62000')
   })
 })

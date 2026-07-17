@@ -65,7 +65,7 @@ describe('Pattern Prism catalog Show (#401)', () => {
     })
     expect(compiled.artifact?.code).toContain('Ribbon Loom')
     expect(compiled.artifact?.code).toContain('export function render2D(index, x, y)')
-    expect(compiled.artifact?.code).toContain('var __pxlblz_show_route_pixels = array(1024)')
+    expect(compiled.artifact?.expandedCode).toContain('var __pxlblz_show_route_pixels = array(1024)')
 
     const exported = buildShowEpeExport(show, compiled.artifact!.code, {
       id: 'pxb401PatternPrsm',
@@ -104,7 +104,7 @@ describe('Pattern Prism catalog Show (#401)', () => {
 
     expect(compiled.error).toBeNull()
     expect(compiled.artifact?.summary.routingRepresentation).toBe('coordinate-predicates')
-    expect(compiled.artifact?.code).not.toContain('__pxlblz_show_route_pixels')
+    expect(compiled.artifact?.expandedCode).not.toContain('__pxlblz_show_route_pixels')
     expect(compiled.artifact?.code).not.toContain('if (index < 256)')
   })
 

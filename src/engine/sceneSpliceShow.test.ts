@@ -53,8 +53,8 @@ describe('Scene Splice catalog Show (#402)', () => {
     })
     expect(compiled.artifact?.code.match(/Heat Shimmer Tiles/g)?.length).toBe(1)
     expect(compiled.artifact?.code.match(/Neon Circuit Board/g)?.length).toBe(1)
-    expect(compiled.artifact?.code).toContain('__pxlblz_show_transition == 0')
-    expect(compiled.artifact?.code).toContain('__pxlblz_show_transition == 1')
+    expect(compiled.artifact?.expandedCode).toContain('__pxlblz_show_transition == 0')
+    expect(compiled.artifact?.expandedCode).toContain('__pxlblz_show_transition == 1')
   })
 
   it('exports through the standard Show EPE path with spatial provenance', () => {

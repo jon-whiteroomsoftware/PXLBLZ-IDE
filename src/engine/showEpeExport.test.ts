@@ -38,7 +38,8 @@ describe('Show EPE export (#399)', () => {
     const source = parseEpe(exported.text).src
 
     expect(source).toContain('- Private member [user:private-member]')
-    expect(source).toContain('__pxlblz_show_c0_rgb(0.2, 0.4, 0.6)')
+    expect(source).toContain('0.2, 0.4, 0.6')
+    expect(source.endsWith(artifact.code)).toBe(true)
   })
 
   it('round-trips a stamped generated Show through the standard EPE importer', () => {

@@ -1906,14 +1906,14 @@ describe('ShowEditor (#318)', () => {
     expect(screen.getByText(/steady state/i)).toHaveTextContent('1 renderer/px')
   })
 
-  it('discloses release-envelope warnings for dense composition output (#492)', () => {
+  it('reflects compact artifact pressure and discloses dense renderer pressure (#492, #499)', () => {
     const [portable, installation] = buildShowCompositionFreezeCases()
     usePatternStore.setState({ userPatterns: portable.patterns })
     useShowStore.setState({ shows: [portable.show], activeShowId: portable.show.id, showsLoaded: true })
 
     const rendered = render(<ShowEditor showId={portable.show.id} />)
 
-    expect(screen.getByText('Generated artifact uses 80% or more of the measured activation budget.')).toBeInTheDocument()
+    expect(screen.queryByText('Generated artifact uses 80% or more of the measured activation budget.')).not.toBeInTheDocument()
 
     rendered.unmount()
     useShowStore.setState({ shows: [installation.show], activeShowId: installation.show.id, showsLoaded: true })
