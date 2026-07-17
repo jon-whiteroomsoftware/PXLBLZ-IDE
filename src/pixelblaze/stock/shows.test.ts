@@ -216,6 +216,18 @@ describe('stock Show curriculum (#363)', () => {
     expect(compiled.artifact!.summary.cost.cpu.patternEvaluations).toEqual({ formula: 'N', basePerPixel: 1 })
     expect(compiled.artifact!.summary.artifactBytes).toBeGreaterThan(0)
     expect(compiled.artifact!.summary.measuredDeviceBudgetBytes).toBeGreaterThan(0)
+    expect(compiled.artifact!.summary.specializations.frameInvariants[0]).toMatchObject({
+      clipId: 'redline-machine',
+      selectedCount: expect.any(Number),
+    })
+    expect(compiled.artifact!.summary.specializations.frameInvariants[0].selectedCount).toBeGreaterThan(0)
+    expect(compiled.artifact!.summary.specializations.renderKernels).toMatchObject({
+      selected: false,
+      reason: 'hardware-profile',
+      configurationPlanCount: 18,
+      kernelCount: 2,
+      avoidedBranchesPerPixel: 16,
+    })
 
     const mapPoints = SOURCE_STOCK_MAPS.find((map) => map.id === 'redline-stage-2d')!.resolve(2_000)
     let virtualTime = 0

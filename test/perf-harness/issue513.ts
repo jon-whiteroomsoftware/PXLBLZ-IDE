@@ -1,5 +1,5 @@
-// Exact Show compiler specialization regression for issue #512.
-// Run with: npm run issue512
+// Frame-invariant and render-kernel specialization regression for issue #513.
+// Run with: npm run issue513
 
 import { performance } from 'node:perf_hooks'
 import { createFastReplayRuntime } from '../../src/engine/fastReplay'
@@ -15,7 +15,7 @@ if (!fixture) throw new Error('Redline Installation fixture is missing.')
 const map = SOURCE_STOCK_MAPS.find((candidate) => candidate.id === 'redline-stage-2d')
 if (!map) throw new Error('Redline Stage map is missing.')
 
-const compile = (exactSpecializations: boolean) => {
+const compile = (frameInvariantHoisting: boolean, renderKernelSpecialization: boolean) => {
   const compiled = compileShowForPreview(
     fixture.show,
     [],
@@ -23,19 +23,19 @@ const compile = (exactSpecializations: boolean) => {
     {},
     {
       stageDimension: 2,
-      exactSpecializations,
-      frameInvariantHoisting: false,
-      renderKernelSpecialization: false,
+      exactSpecializations: true,
+      frameInvariantHoisting,
+      renderKernelSpecialization,
     },
   )
   if (!compiled.artifact) throw new Error(compiled.error ?? 'Redline Show did not compile.')
   return compiled.artifact
 }
 
-export const selectedArtifact = compile(true)
-export const counterfactualArtifact = compile(false)
-const selected = selectedArtifact
-const counterfactual = counterfactualArtifact
+export const selectedArtifact = compile(true, false)
+export const counterfactualArtifact = compile(false, false)
+export const combinedArtifact = compile(true, true)
+export const kernelOnlyArtifact = compile(false, true)
 const mapPoints = map.resolve(2_000)
 const scoreTimesMs = [0, 7_500, 15_000, 22_500, 30_000, 37_500, 45_000, 52_500, 59_500]
 
@@ -47,7 +47,7 @@ function runtime(artifact: GeneratedShowArtifact, fidelity: 'fast' | 'fidelity')
     dimension: nativeDimension(artifact.metadata.renderFns),
   }, {
     mapPoints,
-    randomSeed: 512,
+    randomSeed: 513,
     fidelity,
   })
 }
@@ -70,8 +70,8 @@ function meanFrameMs(artifact: GeneratedShowArtifact, fidelity: 'fast' | 'fideli
 }
 
 const equivalence = (['fast', 'fidelity'] as const).map((fidelity) => {
-  const selectedChecksums = scoreChecksums(selected, fidelity)
-  const counterfactualChecksums = scoreChecksums(counterfactual, fidelity)
+  const selectedChecksums = scoreChecksums(selectedArtifact, fidelity)
+  const counterfactualChecksums = scoreChecksums(counterfactualArtifact, fidelity)
   return {
     fidelity,
     selectedChecksums,
@@ -85,20 +85,21 @@ export const report = {
   pixelCount: mapPoints.length,
   scoreTimesMs,
   selected: {
-    sourceBytes: selected.summary.artifactBytes,
-    expandedSourceBytes: selected.summary.expandedArtifactBytes,
-    routing: selected.summary.specializations.routing,
-    capture: selected.summary.specializations.capture,
-    fastMeanFrameMs: meanFrameMs(selected, 'fast'),
-    preciseMeanFrameMs: meanFrameMs(selected, 'fidelity'),
+    sourceBytes: selectedArtifact.summary.artifactBytes,
+    expandedSourceBytes: selectedArtifact.summary.expandedArtifactBytes,
+    frameInvariants: selectedArtifact.summary.specializations.frameInvariants,
+    renderKernels: selectedArtifact.summary.specializations.renderKernels,
+    kernelCandidate: combinedArtifact.summary.specializations.renderKernels,
+    fastMeanFrameMs: meanFrameMs(selectedArtifact, 'fast'),
+    preciseMeanFrameMs: meanFrameMs(selectedArtifact, 'fidelity'),
   },
   counterfactual: {
-    sourceBytes: counterfactual.summary.artifactBytes,
-    expandedSourceBytes: counterfactual.summary.expandedArtifactBytes,
-    fastMeanFrameMs: meanFrameMs(counterfactual, 'fast'),
-    preciseMeanFrameMs: meanFrameMs(counterfactual, 'fidelity'),
+    sourceBytes: counterfactualArtifact.summary.artifactBytes,
+    expandedSourceBytes: counterfactualArtifact.summary.expandedArtifactBytes,
+    fastMeanFrameMs: meanFrameMs(counterfactualArtifact, 'fast'),
+    preciseMeanFrameMs: meanFrameMs(counterfactualArtifact, 'fidelity'),
   },
   equivalence,
 }
 
-if (process.env.ISSUE512_REPORT || !process.env.VITEST) console.log(JSON.stringify(report, null, 2))
+if (process.env.ISSUE513_REPORT || !process.env.VITEST) console.log(JSON.stringify(report, null, 2))

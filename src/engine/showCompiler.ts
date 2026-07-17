@@ -62,6 +62,16 @@ import {
   type ShowRendererOutputGuarantees,
 } from './showCaptureSpecialization'
 import {
+  analyzeShowFrameInvariantCandidates,
+  applyShowFrameInvariantHoists,
+  selectShowFrameInvariantHoists,
+  type ShowFrameDependency,
+} from './showFrameInvariantHoisting'
+import {
+  selectShowRenderKernelSpecialization,
+  type ShowRenderKernelSelection,
+} from './showRenderKernelSpecialization'
+import {
   planPhysicalRoutingShortCircuit,
   type PhysicalRoutingShortCircuitPlan,
 } from './showPhysicalRoutingSpecialization'
@@ -419,6 +429,22 @@ export interface ShowCompileSummary {
       clearPolicy: 'omitted-guaranteed-output' | 'retained'
       operationsAvoidedPerEvaluatedPixel: number
     }>
+    frameInvariants: Array<{
+      clipId: string
+      bindings: string[]
+      candidateCount: number
+      selectedCount: number
+      dependencies: ShowFrameDependency[]
+      operationsAvoidedPerEvaluatedPixel: number
+      estimatedOperationsAvoidedPerFrame: number
+      addedSourceBytes: number
+    }>
+    renderKernels: (ShowRenderKernelSelection & {
+      configurationPlanCount: number
+      kernelCount: number
+      baselineDispatchBytes: number
+      selectedDispatchBytes: number
+    }) | null
   }
   clips: ShowCompileClipSummary[]
   resources: ShowVmResourceLedger
@@ -482,10 +508,22 @@ interface CompiledMember {
   outputGuarantees: ShowRendererOutputGuarantees
   needsMirrorMapping: boolean
   needsBrightnessScale: boolean
+  frameInvariantUpdateName: string | null
+  frameInvariantSummary: {
+    bindings: string[]
+    candidateCount: number
+    selectedCount: number
+    dependencies: ShowFrameDependency[]
+    operationsAvoidedPerEvaluatedPixel: number
+    estimatedOperationsAvoidedPerFrame: number
+    addedSourceBytes: number
+  }
 }
 
 export interface ShowCompileOptions {
   exactSpecializations?: boolean
+  frameInvariantHoisting?: boolean
+  renderKernelSpecialization?: boolean
 }
 
 interface ResolvedRoute {
@@ -511,6 +549,11 @@ export function compileShow(
 ): GeneratedShowArtifact {
   const expandedRecipe = { ...recipe, clips: expandRouteClips(recipe.clips) }
   const exactSpecializations = options.exactSpecializations ?? true
+  const frameInvariantHoisting = options.frameInvariantHoisting ?? exactSpecializations
+  // The pb32/3.67 matrix for #513 found no repeatable runtime benefit from
+  // kernel dispatch despite its smaller artifact. Keep it opt-in until a
+  // controller profile demonstrates a gain.
+  const renderKernelSpecialization = options.renderKernelSpecialization ?? false
   validateRecipe(expandedRecipe)
   const animatedEffectClipIds = new Set<string>()
   const dynamicallyAnimatedEffectClipIds = new Set<string>()
@@ -573,6 +616,8 @@ export function compileShow(
       animatedEffectClipIds.has(clip.id),
       staticPlanEffectClipIds.has(clip.id),
       exactSpecializations,
+      frameInvariantHoisting,
+      expandedRecipe.masterPixelCount ?? 256,
       showMemberNeedsMirrorMapping(expandedRecipe, clip),
       showMemberNeedsBrightnessScale(expandedRecipe, clip),
     ),
@@ -687,7 +732,7 @@ export function compileShow(
           : 0,
       }
     : null
-  const emittedCode = expandedRecipe.routedSceneSequence
+  const routedSceneEmission = expandedRecipe.routedSceneSequence
       ? emitRoutedSceneSequenceShowCode(
         members,
         expandedRecipe.routingLayouts ?? [],
@@ -696,7 +741,11 @@ export function compileShow(
         expandedRecipe.routingSwitches ?? [],
         expandedRecipe.routingPropertyRamps,
         expandedRecipe.masterPixelCount,
+        renderKernelSpecialization,
       )
+      : null
+  const emittedCode = routedSceneEmission
+    ? routedSceneEmission.code
     : expandedRecipe.sceneSequence
     ? emitSceneSequenceShowCode(members, expandedRecipe.sceneSequence, sequenceOutputDimension)
     : routingLayouts
@@ -953,6 +1002,11 @@ export function compileShow(
     specializations: {
       routing: routingSpecialization,
       capture: captureSpecializations,
+      frameInvariants: members.map((member) => ({
+        clipId: member.id,
+        ...member.frameInvariantSummary,
+      })),
+      renderKernels: routedSceneEmission?.renderKernels ?? null,
     },
     clips: members.map((member) => {
       const lightShutter = member.adaptation.lightShutter
@@ -1294,15 +1348,35 @@ function compileMember(
   animatedEffects = false,
   staticPlanEffects = false,
   exactSpecializations = true,
+  frameInvariantHoisting = true,
+  outputPixelCount = 256,
   needsMirrorMapping = Boolean(clip.adaptation?.mirror),
   needsBrightnessScale = (clip.adaptation?.brightness ?? 1) !== 1,
 ): CompiledMember {
   const bundled = bundle(clip.source, libraries)
   const prefix = `__pxlblz_show_c${index}`
-  const memberAst = parseModule(bundled.code)
+  const frameCandidates = frameInvariantHoisting
+    ? analyzeShowFrameInvariantCandidates(bundled.code)
+    : []
+  const frameHoistSourceAllowance = 1_024
+  const framePlan = selectShowFrameInvariantHoists(frameCandidates, {
+    pixelCount: outputPixelCount,
+    currentArtifactBytes: byteLength(bundled.code),
+    artifactBudgetBytes: MEASURED_DEVICE_BUDGET_BYTES,
+    maxAddedBytes: frameHoistSourceAllowance,
+    minimumAvoidedOperationsPerFrame: 128,
+  })
+  let selectedFrameCandidates = framePlan.selected
+  let frameHoists = applyShowFrameInvariantHoists(bundled.code, selectedFrameCandidates)
+  while (frameHoists.addedSourceBytes > frameHoistSourceAllowance && selectedFrameCandidates.length > 0) {
+    selectedFrameCandidates = selectedFrameCandidates.slice(0, -1)
+    frameHoists = applyShowFrameInvariantHoists(bundled.code, selectedFrameCandidates)
+  }
+  const memberSource = frameHoists.source
+  const memberAst = parseModule(memberSource)
   const bindings = collectTopLevelBindings(memberAst)
   const mapping = new Map([...bindings].map(name => [name, `${prefix}_${name}`]))
-  const code = rewriteMemberSource(bundled.code, memberAst, prefix, mapping).replace(/\bexport\s+/g, '')
+  const code = rewriteMemberSource(memberSource, memberAst, prefix, mapping).replace(/\bexport\s+/g, '')
   const renamedPatternVars = bundled.metadata.patternVars
     .map(name => mapping.get(name))
     .filter((name): name is string => Boolean(name))
@@ -1325,8 +1399,8 @@ function compileMember(
     id: clip.id,
     prefix,
     code,
-    resourceSource: bundled.code,
-    sourceBytes: byteLength(bundled.code),
+    resourceSource: memberSource,
+    sourceBytes: byteLength(memberSource),
     renamedBindings: [...mapping.values()].sort(),
     renamedPatternVars,
     renderName: mapping.get('render') ?? `${prefix}_render`,
@@ -1353,6 +1427,20 @@ function compileMember(
       : { render: false, render2D: false, render3D: false },
     needsMirrorMapping,
     needsBrightnessScale,
+    frameInvariantUpdateName: frameHoists.updateFunctionName
+      ? mapping.get(frameHoists.updateFunctionName) ?? null
+      : null,
+    frameInvariantSummary: {
+      bindings: selectedFrameCandidates.map((candidate) => candidate.binding),
+      candidateCount: frameCandidates.length,
+      selectedCount: selectedFrameCandidates.length,
+      dependencies: [...new Set(selectedFrameCandidates.flatMap((candidate) => candidate.dependencies))],
+      operationsAvoidedPerEvaluatedPixel: frameHoists.avoidedOperationsPerPixel,
+      estimatedOperationsAvoidedPerFrame: selectedFrameCandidates.reduce((sum, candidate) => (
+        sum + candidate.operations * Math.max(0, outputPixelCount - 1)
+      ), 0),
+      addedSourceBytes: frameHoists.addedSourceBytes,
+    },
   }
 }
 
@@ -1801,7 +1889,8 @@ function emitRoutedSceneSequenceShowCode(
   switches: ShowRoutingSwitchRecipe[],
   propertyRamps?: ShowRoutingPropertyRampsRecipe,
   outputPixelCount?: number,
-): string {
+  renderKernelSpecialization = false,
+): { code: string; renderKernels: ShowCompileSummary['specializations']['renderKernels'] } {
   if (layouts.length === 0) throw new Error('compileShow routed scene sequence requires a routing layout.')
   const layoutIndex = new Map(layouts.map((layout, index) => [layout.id, index]))
   const memberById = new Map(members.map((member) => [member.id, member]))
@@ -2028,6 +2117,7 @@ ${setupForPlacements(
         outputDimension,
         sceneLocalTimeExpression,
         outputPixelCount,
+        renderKernelSpecialization,
       )
     : undefined
   const sceneBranches = sharedPhysicalCut?.render
@@ -2080,7 +2170,7 @@ ${indentBlock(emitRoutedSceneTransition(
   }`
     : sceneBranches
 
-  return [
+  const code = [
     emitRuntimePrelude(members, outputDimension, {
       includeHash: transitionBranches.includes('__pxlblz_show_hash01'),
       includeMix: transitionBranches.length > 0,
@@ -2106,6 +2196,7 @@ ${layoutSelectLines}${layoutSelectLines ? '\n' : ''}${propertyRamps ? `${emitRou
 }`,
     '',
   ].join('\n\n')
+  return { code, renderKernels: sharedPhysicalCut?.renderKernels ?? null }
 }
 
 type ResolvedRoutedScenePlacement = ShowRoutedScenePlacementRecipe & { member: CompiledMember }
@@ -2121,7 +2212,12 @@ function emitSharedPhysicalCutSceneRender(
   outputDimension: 1 | 2,
   sceneLocalTimeExpression: (sceneIndex: number) => string,
   outputPixelCount?: number,
-): { prelude: string; render: string } {
+  renderKernelSpecialization = false,
+): {
+  prelude: string
+  render: string
+  renderKernels: ShowCompileSummary['specializations']['renderKernels']
+} {
   const routingSpecialization = scenes.some((scene) => scene.placements.some((placement) => placement.member.exactSpecializations))
     ? planPhysicalRoutingShortCircuit(layout.zones.map((zone) => ({ ranges: zone.ranges })), outputPixelCount)
     : null
@@ -2211,14 +2307,14 @@ function emitSharedPhysicalCutSceneRender(
         tableValues[sceneArrayIndex * layout.zones.length + zoneIndex] = planIndex + 1
       })
     })
-    const prelude = [
+    const sharedPrelude = [
       `var __pxlblz_show_plans = array(${tableSize})`,
       ...tableValues.flatMap((planIndex, index) => (
         planIndex === 0 ? [] : [`__pxlblz_show_plans[${index}] = ${planIndex}`]
       )),
       'var __pxlblz_show_plan_config = -1',
     ].join('\n')
-    const renderPlan = planCode.map((plan, planIndex) => (
+    const baselineRenderPlan = planCode.map((plan, planIndex) => (
       `${planIndex === 0 ? 'if' : 'else if'} (__pxlblz_show_plan == ${planIndex}) {
   if (__pxlblz_show_plan_configure) {
 ${indentBlock(plan.configuration, 4)}
@@ -2226,15 +2322,82 @@ ${indentBlock(plan.configuration, 4)}
 ${indentBlock(plan.render, 2)}
 }`
     )).join(' ')
-    return {
-      prelude,
-      render: `${routingSetup}
+    const baselineRender = `${routingSetup}
 var __pxlblz_show_plan = -1
 if (__pxlblz_show_route_id >= 0) __pxlblz_show_plan = __pxlblz_show_plans[__pxlblz_show_scene * ${layout.zones.length} + __pxlblz_show_route_id] - 1
 var __pxlblz_show_plan_config_key = __pxlblz_show_plan * ${layout.zones.length} + __pxlblz_show_route_id
 var __pxlblz_show_plan_configure = __pxlblz_show_plan >= 0 && __pxlblz_show_plan_config_key != __pxlblz_show_plan_config
 if (__pxlblz_show_plan_configure) __pxlblz_show_plan_config = __pxlblz_show_plan_config_key
-${renderPlan}`
+${baselineRenderPlan}`
+
+    const kernels: string[] = []
+    const kernelIndexByRender = new Map<string, number>()
+    const configurationPlans = planCode.map((plan) => {
+      let kernelIndex = kernelIndexByRender.get(plan.render)
+      if (kernelIndex === undefined) {
+        kernelIndex = kernels.length
+        kernels.push(plan.render)
+        kernelIndexByRender.set(plan.render, kernelIndex)
+      }
+      return { configuration: plan.configuration, kernelIndex }
+    })
+    const candidatePrelude = [
+      sharedPrelude,
+      ...(kernels.length > 1 ? ['var __pxlblz_show_render_kernel = -1'] : []),
+    ].join('\n')
+    const configurationDispatch = configurationPlans.map((plan, planIndex) => (
+      `${planIndex === 0 ? 'if' : 'else if'} (__pxlblz_show_plan == ${planIndex}) {
+${indentBlock(plan.configuration, 2)}${kernels.length > 1 ? `\n  __pxlblz_show_render_kernel = ${plan.kernelIndex}` : ''}
+}`
+    )).join(' ')
+    const kernelDispatch = kernels.length === 1
+      ? kernels[0]
+      : kernels.map((render, kernelIndex) => (
+          `${kernelIndex === 0 ? 'if' : 'else if'} (__pxlblz_show_render_kernel == ${kernelIndex}) {\n${indentBlock(render, 2)}\n}`
+        )).join('\n')
+    const candidateRender = `${routingSetup}
+var __pxlblz_show_plan = -1
+if (__pxlblz_show_route_id >= 0) __pxlblz_show_plan = __pxlblz_show_plans[__pxlblz_show_scene * ${layout.zones.length} + __pxlblz_show_route_id] - 1
+var __pxlblz_show_plan_config_key = __pxlblz_show_plan * ${layout.zones.length} + __pxlblz_show_route_id
+var __pxlblz_show_plan_configure = __pxlblz_show_plan >= 0 && __pxlblz_show_plan_config_key != __pxlblz_show_plan_config
+if (__pxlblz_show_plan_configure) {
+  __pxlblz_show_plan_config = __pxlblz_show_plan_config_key
+${indentBlock(configurationDispatch, 2)}
+}
+if (__pxlblz_show_plan >= 0) {
+${indentBlock(kernelDispatch, 2)}
+}`
+    const baselineDispatchBytes = byteLength(`${sharedPrelude}\n${baselineRender}`)
+    const candidateDispatchBytes = byteLength(`${candidatePrelude}\n${candidateRender}`)
+    const selection = selectShowRenderKernelSpecialization({
+      planCount: planCode.length,
+      kernelCount: kernels.length,
+      baselineDispatchBytes,
+      candidateDispatchBytes,
+      baselineArtifactBytes: baselineDispatchBytes,
+      artifactBudgetBytes: MEASURED_DEVICE_BUDGET_BYTES,
+      minimumAvoidedBranchesPerPixel: 1,
+      maxAddedBytes: 0,
+    })
+    const renderKernels = {
+      ...selection,
+      ...(!renderKernelSpecialization && selection.selected
+        ? { selected: false, reason: 'hardware-profile' as const }
+        : {}),
+      configurationPlanCount: planCode.length,
+      kernelCount: kernels.length,
+      baselineDispatchBytes,
+      selectedDispatchBytes: renderKernelSpecialization && selection.selected
+        ? candidateDispatchBytes
+        : baselineDispatchBytes,
+    }
+    if (renderKernelSpecialization && selection.selected) {
+      return { prelude: candidatePrelude, render: candidateRender, renderKernels }
+    }
+    return {
+      prelude: sharedPrelude,
+      render: baselineRender,
+      renderKernels,
     }
   }
   const sceneBranches = scenes.map((scene, sceneIndex) => {
@@ -2259,7 +2422,7 @@ ${indentBlock(emitSharedPhysicalSceneZoneStack(
 ${indentBlock(zoneBranches, 2)}
 }`
   }).join(' ')
-  return { prelude: '', render: `${routingSetup}\n${sceneBranches}` }
+  return { prelude: '', render: `${routingSetup}\n${sceneBranches}`, renderKernels: null }
 }
 
 function emitInternedSharedPhysicalSceneZonePlan(
@@ -4427,6 +4590,7 @@ function emitRuntimePrelude(
     ${member.elapsedName} = ${member.elapsedName} + deliveredDelta
     ${member.usesTime ? `${member.elapsedSecondsName} = ${member.elapsedSecondsName} + deliveredDelta / 1000` : ''}
     ${member.hasBeforeRender ? `${member.beforeRenderName}(deliveredDelta)` : ''}
+    ${member.frameInvariantUpdateName ? `${member.frameInvariantUpdateName}()` : ''}
   } else {
     ${member.prefix}_step_pending_ms = accumulatedMs
     ${member.prefix}_step_pending_delta = ${member.prefix}_step_pending_delta + scaledDelta
@@ -4468,7 +4632,8 @@ function emitRuntimePrelude(
       : `${indent}var scaledDelta = ${delta} * ${member.prefix}_adapt_timeScale
 ${indent}${member.elapsedName} = ${member.elapsedName} + scaledDelta
 ${member.usesTime ? `${indent}${member.elapsedSecondsName} = ${member.elapsedSecondsName} + scaledDelta / 1000\n` : ''}
-${indent}${member.hasBeforeRender ? `${member.beforeRenderName}(scaledDelta)` : ''}`
+${indent}${member.hasBeforeRender ? `${member.beforeRenderName}(scaledDelta)` : ''}
+${indent}${member.frameInvariantUpdateName ? `${member.frameInvariantUpdateName}()` : ''}`
     const controlCalls = member.controls.map((control) => `  ${control.functionName}(${control.valueName})`).join('\n')
     const effectUpdateCall = effectRuntime?.hasAffine && member.animatedEffects && !member.staticPlanEffects
       ? `\n  ${member.prefix}_fx_update()`

@@ -19,6 +19,10 @@ interface ShowCompilationOptions {
   targetPixelCount?: number
   /** Test/benchmark counterfactual; production compilation leaves this enabled. */
   exactSpecializations?: boolean
+  /** Test/benchmark counterfactual for issue #513. */
+  frameInvariantHoisting?: boolean
+  /** Test/benchmark counterfactual for issue #513. */
+  renderKernelSpecialization?: boolean
 }
 
 export function compileShowForPreview(
@@ -47,6 +51,8 @@ export function compileShowForPreview(
     return {
       artifact: compileShow(recipe, { ...LIBRARIES, ...libraries }, {
         exactSpecializations: options.exactSpecializations,
+        frameInvariantHoisting: options.frameInvariantHoisting,
+        renderKernelSpecialization: options.renderKernelSpecialization,
       }),
       error: null,
     }

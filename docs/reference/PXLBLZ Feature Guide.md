@@ -1064,6 +1064,14 @@ the largest operation reduction per evaluated Pattern. Gaps, overlaps, logical
 routes, conditional output, authored brightness, and mapped Effects keep their
 general paths instead of changing visual semantics.
 
+Frame-invariant diagnostics name Pattern calculations that the compiler proved
+safe to perform once per frame instead of once per pixel. The compile bar reports
+the hoisted binding count, binding names, and operations avoided per Pattern
+evaluation. A routed Show may also disclose a render-kernel candidate. On the
+currently qualified pb32 profile that candidate remains baseline dispatch and is
+labeled measured-neutral; a smaller generated artifact alone does not count as
+a runtime win.
+
 The compile bar also reports the whole-Show Pixelblaze memory ledger. Its VM
 total includes member Pattern arrays, generated routing and plan tables,
 auxiliary caches, and one reserved three-plane RGB arena. At the 2,000-pixel

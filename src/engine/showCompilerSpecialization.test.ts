@@ -1,5 +1,6 @@
 import { compileShow, type ShowRecipe } from './showCompiler'
 import { loadPattern } from './loadPattern'
+import { DEMOS } from '@/pixelblaze/stock/patterns'
 
 function pixelRunner(artifact: ReturnType<typeof compileShow>, pixelCount: number) {
   let pixel: [number, number, number] = [0, 0, 0]
@@ -165,5 +166,113 @@ describe('Show exact routing and capture specialization (#512)', () => {
     expect(selected.expandedCode).not.toBe(counterfactual.expandedCode)
     expect(counterfactual.summary.specializations.routing).toBeNull()
     expect(counterfactual.summary.specializations.capture).toEqual([])
+  })
+
+  it('hoists proven frame-only Pattern arithmetic after the member beforeRender call', () => {
+    const recipe: ShowRecipe = {
+      masterPixelCount: 2_000,
+      clips: [{
+        id: 'frame-math',
+        source: `
+          var energy = 0
+          export function beforeRender(delta) { energy = delta / 1000 }
+          function field(x) {
+            var density = 4 + floor(energy * 10)
+            return x * density
+          }
+          export function render2D(index, x, y) {
+            var punctuation = energy > 0.5
+            rgb(field(x), y, punctuation)
+          }
+        `,
+      }],
+    }
+    const selected = compileShow(recipe, {})
+    const counterfactual = compileShow(recipe, {}, { frameInvariantHoisting: false })
+    const selectedRuntime = pixelRunner(selected, 8)
+    const counterfactualRuntime = pixelRunner(counterfactual, 8)
+
+    selectedRuntime.handle.beforeRender(750)
+    counterfactualRuntime.handle.beforeRender(750)
+    selectedRuntime.handle.render2D(3, 0.25, 0.6)
+    counterfactualRuntime.handle.render2D(3, 0.25, 0.6)
+
+    expect(selectedRuntime.pixel()).toEqual(counterfactualRuntime.pixel())
+    expect(selected.expandedCode).toContain('__pxlblz_show_c0___pxlblz_frame_update()')
+    expect(selected.expandedCode.indexOf('__pxlblz_show_c0_beforeRender(scaledDelta)'))
+      .toBeLessThan(selected.expandedCode.indexOf('__pxlblz_show_c0___pxlblz_frame_update()'))
+    expect(selected.summary.specializations.frameInvariants).toEqual([expect.objectContaining({
+      clipId: 'frame-math',
+      candidateCount: 2,
+      selectedCount: 2,
+      operationsAvoidedPerEvaluatedPixel: 4,
+    })])
+    expect(counterfactual.summary.specializations.frameInvariants[0].selectedCount).toBe(0)
+  })
+
+  it('does not hoist private state that a render path mutates', () => {
+    const artifact = compileShow({
+      masterPixelCount: 2_000,
+      clips: [{
+        id: 'stateful',
+        source: `
+          var accumulator = 0
+          function field() {
+            accumulator = accumulator + 1
+            var changing = accumulator * 2
+            return changing
+          }
+          export function render(index) { rgb(field(), 0, 0) }
+        `,
+      }],
+    }, {})
+
+    expect(artifact.summary.specializations.frameInvariants[0]).toMatchObject({
+      candidateCount: 0,
+      selectedCount: 0,
+      operationsAvoidedPerEvaluatedPixel: 0,
+    })
+    expect(artifact.expandedCode).not.toContain('__pxlblz_frame_update')
+  })
+
+  it.each(['AuroraSphere', 'PendulumWave'] as const)(
+    'selects frame invariants for the unrelated %s Pattern family',
+    (patternId) => {
+      const artifact = compileShow({
+        masterPixelCount: 1_000,
+        clips: [{ id: patternId, source: DEMOS[patternId] }],
+      }, {})
+
+      expect(artifact.summary.specializations.frameInvariants[0]).toMatchObject({
+        clipId: patternId,
+        selectedCount: expect.any(Number),
+      })
+      expect(artifact.summary.specializations.frameInvariants[0].selectedCount).toBeGreaterThan(0)
+    },
+  )
+
+  it('enforces the frame-hoist byte allowance against actual emitted source', () => {
+    const declarations = Array.from({ length: 12 }, (_, index) => (
+      `var invariant${index} = energy * 1 + energy * 2 + energy * 3 + energy * 4`
+    )).join('\n')
+    const artifact = compileShow({
+      masterPixelCount: 2_000,
+      clips: [{
+        id: 'byte-boundary',
+        source: `
+          var energy = 0
+          export function beforeRender(delta) { energy = delta / 1000 }
+          export function render(index) {
+            ${declarations}
+            rgb(invariant0, invariant5, invariant11)
+          }
+        `,
+      }],
+    }, {})
+
+    const summary = artifact.summary.specializations.frameInvariants[0]
+    expect(summary.selectedCount).toBeGreaterThan(0)
+    expect(summary.selectedCount).toBeLessThan(summary.candidateCount)
+    expect(summary.addedSourceBytes).toBeLessThanOrEqual(1_024)
   })
 })

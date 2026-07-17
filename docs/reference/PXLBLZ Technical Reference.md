@@ -1500,6 +1500,37 @@ mean/min/max FPS, then restores the original Pattern and pixel count in
 `finally`. The archived measurement is in
 `docs/plans/archive/issue-512-routing-capture-specialization-results.md`.
 
+### Exact frame-invariant specialization
+
+The compiler also analyzes local initializers reachable from a member renderer.
+An expression moves to a generated once-per-frame update only when Acorn analysis
+proves that it is pure and independent of pixel index, sample coordinates,
+`pixelCount`, renderer mutation, local evaluation order, and unknown calls. The
+update runs after the member's authored `beforeRender`, so frame state and
+Control changes are current before the first pixel evaluation. Cached values are
+compiler-owned scalars; Pattern instance identity, clock, controls, and private
+state remain unchanged.
+
+Selection requires a pixel-count benefit, artifact headroom, and a 1,024-byte
+source-growth allowance. The compile summary names every selected binding and
+reports candidates, selected count, dependency classes, operations avoided per
+evaluation, estimated operations avoided per frame, and added source bytes.
+`frameInvariantHoisting: false` retains the #512 boundary for exact benchmark
+comparison.
+
+Routed Scene emission can also separate configuration plans from shared inline
+render bodies. This kernel candidate remains opt-in: repeated pb32 firmware 3.67
+measurements did not show a stable runtime gain even when it reduced source and
+Controller bytecode. Production compilation reports `hardware-profile` and
+retains baseline dispatch. `renderKernelSpecialization: true` exists for
+hardware qualification rather than as the default path.
+
+`npm run issue513` compares the production artifact with the #512 boundary at
+nine Redline score times in Fast and Precise modes. `npm run issue513:hardware`
+runs the reversible 256/1,000/2,000 Controller matrix. The archived exactness,
+resource, and repeated FPS evidence is in
+`docs/plans/archive/issue-513-frame-invariant-kernel-results.md`.
+
 ### Whole-Show VM resource ledger
 
 `showVmResourceLedger.ts` makes hardware eligibility one aggregate accounting

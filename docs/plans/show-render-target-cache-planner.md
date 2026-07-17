@@ -339,9 +339,10 @@ Caching follows three exact passes that already produced larger Redline gains:
 1. Emit mutually exclusive physical ranges as short-circuit routing instead of
    testing every disjoint candidate.
 2. Remove unused capture work and specialize identity/sample/output wrappers.
-3. Hoist expressions whose dependencies are frame-constant into
-   `beforeRender`, and generate property-specialized internal render kernels
-   when bytecode duplication costs less than per-pixel branching.
+3. Hoist expressions whose dependencies are frame-constant into a generated
+   post-`beforeRender` update. Property-specialized render kernels remain a
+   measured candidate: smaller source and bytecode did not produce a stable
+   pb32 runtime gain, so production retains baseline dispatch.
 
 The final artifact may define any number of internal render functions. One
 exported `render`, `render2D`, or `render3D` remains the firmware entry point and
@@ -536,9 +537,10 @@ the prior measured result without claiming a new hardware benchmark.
 00 start · Redline unspecialized counterfactual · 2.358 FPS · cumulative baseline
 01 #514 resource envelope and VM ledger · no render-loop change; 2.358 FPS reference retained · incremental 0% expected, not independently remeasured · cumulative 0%
 02 #512 routing and capture specialization · 2.358 -> 2.928 FPS · incremental +24.2% · cumulative +24.2%
+03 #513 frame-invariant hoisting · paired 2,000 px mean 2.987 -> 3.037 FPS (3 runs) · incremental +1.7% · cumulative reference 2.358 -> 3.037 FPS, +28.8%
 ```
 
-Later slices append `03` through `09` here and repeat the new line in the #511
+Later slices append `04` through `09` here and repeat the new line in the #511
 coordination update. If a slice intentionally changes the visual contract, its
 line names that contract and does not compare it as an exact replacement.
 
@@ -602,9 +604,10 @@ configuration, and conservative otherwise.
 
 ### Code-size exchange
 
-Specialized render kernels trade bytecode for branch removal. The planner keeps
-VM words and artifact bytes independent and rejects a CPU win that crosses the
-Controller activation budget.
+Specialized render kernels trade dispatch shape and bytecode against branch
+removal. The planner keeps VM words and artifact bytes independent, and a
+hardware profile must demonstrate a repeatable CPU win before production emits
+the candidate. Smaller bytecode alone is insufficient.
 
 ### Support-envelope migration
 

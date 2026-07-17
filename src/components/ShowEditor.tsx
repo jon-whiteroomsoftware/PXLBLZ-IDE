@@ -5391,6 +5391,26 @@ function CompileBar({
           {' · '}up to {Math.max(...summary.specializations.capture.map((item) => item.operationsAvoidedPerEvaluatedPixel))} ops/evaluation avoided
         </span>
       )}
+      {summary && summary.specializations.frameInvariants.some((item) => item.selectedCount > 0) && (
+        <span className="text-emerald-300">
+          frame invariants: {summary.specializations.frameInvariants.reduce((sum, item) => sum + item.selectedCount, 0)} hoisted
+          {' · '}{summary.specializations.frameInvariants.reduce((sum, item) => sum + item.operationsAvoidedPerEvaluatedPixel, 0)} ops/evaluation avoided
+          {' · '}{summary.specializations.frameInvariants.flatMap((item) => item.bindings).join(', ')}
+        </span>
+      )}
+      {summary?.specializations.renderKernels && (
+        <span className={summary.specializations.renderKernels.selected ? 'text-emerald-300' : 'text-zinc-500'}>
+          kernel specialization: {summary.specializations.renderKernels.selected
+            ? 'selected'
+            : summary.specializations.renderKernels.reason === 'hardware-profile'
+              ? 'measured-neutral on pb32'
+              : `declined (${summary.specializations.renderKernels.reason})`}
+          {' · '}{summary.specializations.renderKernels.configurationPlanCount} plans / {summary.specializations.renderKernels.kernelCount} kernels
+          {' · '}up to {summary.specializations.renderKernels.avoidedBranchesPerPixel} branches/px candidate
+          {' · '}source dispatch {summary.specializations.renderKernels.sourceByteDelta > 0 ? '+' : ''}{summary.specializations.renderKernels.sourceByteDelta.toLocaleString('en-US')} B
+          {!summary.specializations.renderKernels.selected && ' retained as baseline dispatch'}
+        </span>
+      )}
       {summary?.routingParameterEstimate && (
         <span className="text-sky-200">
           moving split: 1 scalar · 1 route test/px · avoids {summary.routingParameterEstimate.equivalentEnumeratedArrayElements} table entries
