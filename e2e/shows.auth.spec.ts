@@ -212,6 +212,20 @@ test.describe('authenticated Show authoring', () => {
     await expect.poll(() => timeline.evaluate((element) => element.scrollLeft)).toBeGreaterThan(afterTrackpad)
   })
 
+  test('hides the playhead when Show time wraps outside the panned viewport', async ({ page }) => {
+    await page.setViewportSize({ width: 1200, height: 700 })
+    await page.goto('studio/shows/stock-show-showcase-redline-installation')
+
+    const playhead = page.getByTestId('show-timeline-playhead-hit-target')
+    await expect(playhead).toBeVisible()
+
+    await page.getByRole('slider', { name: 'Timeline zoom' }).fill('6')
+    await page.getByRole('slider', { name: 'Pan visible timeline range' }).press('ArrowRight')
+
+    await expect(page.getByRole('slider', { name: 'Show playhead' })).toHaveValue('0')
+    await expect(playhead).toBeHidden()
+  })
+
   test('bridges Global Show to one read-only Scene X-ray and Super Detail layer', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 })
     await page.goto('studio/shows')

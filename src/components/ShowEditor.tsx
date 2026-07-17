@@ -2804,6 +2804,7 @@ function TimelinePlayhead({
   const resumeAfterSeekRef = useRef(false)
   const activePointerRef = useRef<number | null>(null)
   const left = durationMs > 0 ? Math.min(100, Math.max(0, positionMs / durationMs * 100)) : 0
+  const visible = positionMs >= viewport.startMs && positionMs <= viewport.startMs + viewport.durationMs
   const thumbCenterOffsetPx = rangeThumbCenterOffsetPx(left, 16)
   const previewPointerPosition = (event: ReactPointerEvent<HTMLSpanElement>) => {
     const track = event.currentTarget.parentElement
@@ -2844,7 +2845,7 @@ function TimelinePlayhead({
   return (
     <div
       aria-hidden
-      className="pointer-events-none relative z-20"
+      className={`pointer-events-none relative z-20 ${visible ? '' : 'invisible'}`}
       style={{ gridColumn, gridRow: `2 / span ${rowSpan}` }}
     >
       <span
