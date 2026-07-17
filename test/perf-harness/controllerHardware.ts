@@ -1,0 +1,96 @@
+import vm from 'node:vm'
+import WebSocket from 'ws'
+import { bytecodeHeaderReconciles, makeProgramId } from '../../src/engine/bytecodePush'
+import { buildCompilerEnv, missingComponents, v3AdapterV3 } from '../../src/engine/compilerExtraction'
+import { PixelblazeConnection, type WebSocketLike } from '../../src/engine/PixelblazeConnection'
+import type { GeneratedShowArtifact } from '../../src/engine/showCompiler'
+
+interface CompiledProgram {
+  exports: { name: string; address: number }[]
+  compiled: number[]
+  status: string
+}
+
+export const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
+export function nodeWebSocketFactory(url: string): WebSocketLike {
+  return new WebSocket(url) as unknown as WebSocketLike
+}
+
+function buildBytecode(program: CompiledProgram): Uint8Array {
+  const exportBytes = program.exports.reduce((sum, item) => sum + 5 + item.name.length, 0)
+  const buffer = new ArrayBuffer(8 + program.compiled.length * 4 + exportBytes)
+  const view = new DataView(buffer)
+  let offset = 0
+  view.setUint32(offset, program.compiled.length * 4, true); offset += 4
+  view.setUint32(offset, exportBytes, true); offset += 4
+  for (const opcode of program.compiled) {
+    view.setInt32(offset, opcode, true)
+    offset += 4
+  }
+  for (const item of program.exports) {
+    view.setUint32(offset, item.address, true); offset += 4
+    for (let index = 0; index < item.name.length; index += 1) view.setUint8(offset++, item.name.charCodeAt(index))
+    view.setUint8(offset++, 0)
+  }
+  return new Uint8Array(buffer)
+}
+
+export async function fetchControllerCompiler(ip: string): Promise<(source: string) => Uint8Array> {
+  const response = await fetch(`http://${ip}/index.html.gz`)
+  if (!response.ok) throw new Error(`GET index.html.gz -> ${response.status}`)
+  const stream = new Response(await response.arrayBuffer()).body!.pipeThrough(new DecompressionStream('gzip'))
+  let webUi = await new Response(stream).text()
+  if (webUi.charCodeAt(0) === 0xfeff) webUi = webUi.slice(1)
+  const components = v3AdapterV3(webUi)
+  const missing = missingComponents(components)
+  if (missing.length > 0) throw new Error(`compiler extraction miss: ${missing.join(', ')}`)
+  const context = vm.createContext({ window: {} })
+  vm.runInContext(buildCompilerEnv(components), context, { filename: 'device-compiler.js' })
+  const compilePattern = (context as { compilePattern?: (source: string) => CompiledProgram }).compilePattern
+  if (!compilePattern) throw new Error('device compiler did not define compilePattern')
+  return (source: string) => {
+    const program = compilePattern(source)
+    if (program.status !== 'OK') throw new Error(`Controller compiler: ${program.status}`)
+    const bytecode = buildBytecode(program)
+    if (!bytecodeHeaderReconciles(bytecode)) throw new Error('Controller compiler returned an invalid bytecode header')
+    return bytecode
+  }
+}
+
+export async function pushAndMeasureControllerArtifact(
+  connection: PixelblazeConnection,
+  artifact: GeneratedShowArtifact,
+  compile: (source: string) => Uint8Array,
+) {
+  const bytecode = compile(artifact.code)
+  const programId = makeProgramId()
+  connection.pushByteCode(bytecode, { id: programId, name: '' })
+  await sleep(2_000)
+  const active = await connection.getConfig()
+  if (active.activeProgramId !== programId) throw new Error(`probe ${programId} did not activate`)
+  const values: number[] = []
+  const end = Date.now() + 6_000
+  while (Date.now() < end) {
+    if (connection.fps && connection.fps > 0) values.push(connection.fps)
+    await sleep(250)
+  }
+  if (values.length === 0) throw new Error('Controller did not report FPS')
+  const sorted = [...values].sort((left, right) => left - right)
+  const middle = Math.floor(sorted.length / 2)
+  const median = sorted.length % 2 === 0
+    ? (sorted[middle - 1] + sorted[middle]) / 2
+    : sorted[middle]
+  return {
+    sourceBytes: artifact.summary.artifactBytes,
+    bytecodeBytes: bytecode.length,
+    ledgerVmWords: artifact.summary.resources.totalWords,
+    fps: {
+      mean: values.reduce((sum, value) => sum + value, 0) / values.length,
+      median,
+      min: Math.min(...values),
+      max: Math.max(...values),
+      samples: values.length,
+    },
+  }
+}

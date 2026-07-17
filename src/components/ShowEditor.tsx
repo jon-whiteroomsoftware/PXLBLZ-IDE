@@ -5330,6 +5330,15 @@ function CompileBar({
   const timeOffsetLabel = summary?.timeOffsetPolicy === 'per-clip'
     ? [...new Set(timeOffsets)].join(', ')
     : null
+  const renderTargetRoleLabels = {
+    'stage-rgb': 'RGB',
+    'sample-xy': 'XY',
+    'scalar-field': 'scalar',
+    'previous-rgb': 'previous RGB',
+  } as const
+  const renderTargetBindings = summary?.renderTarget.roleBindings
+    .map((binding) => `${renderTargetRoleLabels[binding.role]} ${Object.values(binding.channels).join('/')}`)
+    .join(' · ')
   return (
     <div data-testid="show-compile-bar" className="min-h-8 shrink-0 overflow-x-auto border-t border-seam bg-zinc-950 px-3 font-mono text-[10px] text-zinc-500">
       <div className="flex min-h-8 min-w-max items-center gap-2 whitespace-nowrap">
@@ -5346,6 +5355,13 @@ function CompileBar({
           VM {summary.resources.totalWords.toLocaleString('en-US')}/{summary.resources.vmWordBudget.toLocaleString('en-US')} words
           {' · '}arena {summary.resources.renderTargetWords.toLocaleString('en-US')}
           {' · '}{summary.resources.remainingWords.toLocaleString('en-US')} free
+        </span>
+      )}
+      {summary?.renderTarget && (
+        <span className="text-cyan-200">
+          render target: {summary.renderTarget.planeCount} planes
+          {' · '}{summary.renderTarget.activeRole ?? 'unassigned'}
+          {' · '}{renderTargetBindings}
         </span>
       )}
       {compiled.artifactBlocker && <span className="text-red-300">Output blocked: {compiled.artifactBlocker}</span>}

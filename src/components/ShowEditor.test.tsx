@@ -1897,7 +1897,9 @@ describe('ShowEditor (#318)', () => {
     expect(screen.queryByText(/Unknown library namespace "SDF"/i)).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'View code' })).toBeEnabled()
     expect(screen.getByRole('button', { name: 'Export Show as .epe' })).toBeEnabled()
-    expect(screen.getByTestId('show-compile-bar')).toHaveTextContent('arena 6,012')
+    const compileBar = screen.getByTestId('show-compile-bar')
+    expect(compileBar).toHaveTextContent('arena 6,012')
+    expect(compileBar).toHaveTextContent('render target: 3 planes · unassigned · RGB 0/1/2 · XY 0/1 · scalar 0 · previous RGB 0/1/2')
   })
 
   it('discloses exact routing and capture specialization for Redline (#512)', () => {

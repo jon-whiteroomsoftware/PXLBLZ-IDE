@@ -2,6 +2,48 @@ import { compileShow } from './showCompiler'
 import { countShowPersistentGlobals } from './showVmResourceLedger'
 
 describe('Show compiler resource ledger integration (#514)', () => {
+  it('emits exactly three physical arena planes at the Show output extent (#515)', () => {
+    const artifact = compileShow({
+      masterPixelCount: 2_000,
+      clips: [{ id: 'solid', source: 'export function render(index) { rgb(1, 0, 0) }' }],
+    }, {})
+
+    expect(artifact.expandedCode.match(/var __pxlblz_show_rt_plane_[0-2] = array\(2000\)/g)).toHaveLength(3)
+    expect(artifact.expandedCode.match(/__pxlblz_show_rt_plane_/g)).toHaveLength(3)
+  })
+
+  it('publishes deterministic named role bindings without claiming an active cache', () => {
+    const artifact = compileShow({
+      masterPixelCount: 2_000,
+      clips: [{ id: 'solid', source: 'export function render(index) { rgb(1, 0, 0) }' }],
+    }, {})
+
+    expect(artifact.summary.renderTarget).toEqual({
+      elementCount: 2_000,
+      planeCount: 3,
+      words: 6_012,
+      emitted: true,
+      activeRole: null,
+      roleBindings: [
+        { role: 'stage-rgb', channels: { r: 0, g: 1, b: 2 } },
+        { role: 'sample-xy', channels: { x: 0, y: 1 } },
+        { role: 'scalar-field', channels: { value: 0 } },
+        { role: 'previous-rgb', channels: { r: 0, g: 1, b: 2 } },
+      ],
+    })
+  })
+
+  it('retains the logical reservation in the explicit no-emission benchmark counterfactual', () => {
+    const artifact = compileShow({
+      masterPixelCount: 2_000,
+      clips: [{ id: 'solid', source: 'export function render(index) { rgb(1, 0, 0) }' }],
+    }, {}, { renderTargetArenaEmission: false })
+
+    expect(artifact.expandedCode).not.toContain('__pxlblz_show_rt_plane_')
+    expect(artifact.summary.renderTarget.emitted).toBe(false)
+    expect(artifact.summary.resources.renderTargetWords).toBe(6_012)
+  })
+
   it('publishes the mandatory arena and complete member allocation in the compile summary', () => {
     const artifact = compileShow({
       masterPixelCount: 2_000,
@@ -27,6 +69,34 @@ export function render(index) { rgb(field[index], 0, 0) }
       blockers: [],
     })
     expect(artifact.summary.resources.persistentGlobals).toBe(countShowPersistentGlobals(artifact.code))
+  })
+
+  it('accepts the exact residual VM fit and rejects one additional member word', () => {
+    const compileWithMemberElements = (elementCount: number) => compileShow({
+      masterPixelCount: 2_000,
+      clips: [{
+        id: 'residual-field',
+        source: `var field = array(${elementCount}); export function render(index) { rgb(field[0], 0, 0) }`,
+      }],
+    }, {})
+    const exact = compileWithMemberElements(4_224)
+    const over = compileWithMemberElements(4_225)
+
+    expect(exact.summary.resources).toMatchObject({
+      renderTargetWords: 6_012,
+      memberPatternWords: 4_228,
+      totalWords: 10_240,
+      remainingWords: 0,
+      blockers: [],
+    })
+    expect(over.summary.resources).toMatchObject({
+      totalWords: 10_241,
+      remainingWords: -1,
+    })
+    expect(over.summary.resources.blockers).toContainEqual(expect.objectContaining({
+      kind: 'vm-word-budget',
+      owner: 'Whole Show',
+    }))
   })
 
   it('keeps an unbounded allocation previewable while reporting its artifact blocker', () => {

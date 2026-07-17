@@ -23,6 +23,8 @@ interface ShowCompilationOptions {
   frameInvariantHoisting?: boolean
   /** Test/benchmark counterfactual for issue #513. */
   renderKernelSpecialization?: boolean
+  /** Test/benchmark physical-arena counterfactual for issue #515. */
+  renderTargetArenaEmission?: boolean
 }
 
 export function compileShowForPreview(
@@ -53,6 +55,7 @@ export function compileShowForPreview(
         exactSpecializations: options.exactSpecializations,
         frameInvariantHoisting: options.frameInvariantHoisting,
         renderKernelSpecialization: options.renderKernelSpecialization,
+        renderTargetArenaEmission: options.renderTargetArenaEmission,
       }),
       error: null,
     }

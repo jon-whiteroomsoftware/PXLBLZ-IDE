@@ -72,6 +72,11 @@ import {
   type ShowRenderKernelSelection,
 } from './showRenderKernelSpecialization'
 import {
+  describeShowRenderTargetArena,
+  emitShowRenderTargetArenaSource,
+  type ShowRenderTargetArenaSummary,
+} from './showRenderTargetArena'
+import {
   planPhysicalRoutingShortCircuit,
   type PhysicalRoutingShortCircuitPlan,
 } from './showPhysicalRoutingSpecialization'
@@ -420,6 +425,7 @@ export interface ShowCompileSummary {
     maxMultiplicationsPerPixel: 2
     maxFracCallsPerPixel: 2
   } | null
+  renderTarget: ShowRenderTargetArenaSummary
   specializations: {
     routing: Omit<PhysicalRoutingShortCircuitPlan, 'ranges'> | null
     capture: Array<{
@@ -524,6 +530,8 @@ export interface ShowCompileOptions {
   exactSpecializations?: boolean
   frameInvariantHoisting?: boolean
   renderKernelSpecialization?: boolean
+  /** Benchmark-only counterfactual; production always uses the default `true`. */
+  renderTargetArenaEmission?: boolean
 }
 
 interface ResolvedRoute {
@@ -554,6 +562,7 @@ export function compileShow(
   // kernel dispatch despite its smaller artifact. Keep it opt-in until a
   // controller profile demonstrates a gain.
   const renderKernelSpecialization = options.renderKernelSpecialization ?? false
+  const renderTargetArenaEmission = options.renderTargetArenaEmission ?? true
   validateRecipe(expandedRecipe)
   const animatedEffectClipIds = new Set<string>()
   const dynamicallyAnimatedEffectClipIds = new Set<string>()
@@ -782,9 +791,13 @@ export function compileShow(
   const emittedWithEasingRuntime = emittedCode.includes('__pxlblz_show_cubicBezier(')
     ? `${showCubicBezierRuntimeSource()}\n${emittedCode}`
     : emittedCode
-  const expandedCode = expandedRecipe.samplePropertyRamps
+  const emittedWithSampleRemapping = expandedRecipe.samplePropertyRamps
     ? injectSampleRemappingUpdate(emittedWithEasingRuntime)
     : emittedWithEasingRuntime
+  const renderTargetPixelCount = expandedRecipe.masterPixelCount ?? SHOW_MAX_OUTPUT_PIXELS
+  const expandedCode = renderTargetArenaEmission
+    ? `${emitShowRenderTargetArenaSource(renderTargetPixelCount)}\n${emittedWithSampleRemapping}`
+    : emittedWithSampleRemapping
   const compacted = compactGeneratedShowSymbols(expandedCode)
   const code = compacted.code
   const compiledOutputDimension = expandedRecipe.sceneSequence || expandedRecipe.routedSceneSequence
@@ -999,6 +1012,7 @@ export function compileShow(
           maxFracCallsPerPixel: 2,
         }
       : null,
+    renderTarget: describeShowRenderTargetArena(renderTargetPixelCount, renderTargetArenaEmission),
     specializations: {
       routing: routingSpecialization,
       capture: captureSpecializations,

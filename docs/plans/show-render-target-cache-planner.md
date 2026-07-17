@@ -511,8 +511,8 @@ The work should land as tracer-bullet slices rather than one compiler rewrite.
    removal, and Redline regression benchmarks.
 3. Add frame-invariant analysis and property-specialized internal render kernels
    behind measured bytecode tradeoffs.
-4. Allocate the three-plane arena and expose exact capture/replay plus resource
-   diagnostics without changing transition semantics.
+4. Allocate the three-plane arena, expose typed read/write roles and resource
+   diagnostics, and preserve output without changing transition semantics.
 5. Add explicit snapshot/live crossfade end to end while preserving legacy
    live/live behavior.
 6. Introduce render-target roles, lifetimes, invalidation, and plane assignment
@@ -538,9 +538,10 @@ the prior measured result without claiming a new hardware benchmark.
 01 #514 resource envelope and VM ledger · no render-loop change; 2.358 FPS reference retained · incremental 0% expected, not independently remeasured · cumulative 0%
 02 #512 routing and capture specialization · 2.358 -> 2.928 FPS · incremental +24.2% · cumulative +24.2%
 03 #513 frame-invariant hoisting · paired 2,000 px mean 2.987 -> 3.037 FPS (3 runs) · incremental +1.7% · cumulative reference 2.358 -> 3.037 FPS, +28.8%
+04 #515 physical three-plane arena · 6,012 words allocated; paired 2,000 px median 3.127 -> 3.127 FPS · incremental 0.0% measured · cumulative reference 2.358 -> 3.037 FPS, +28.8% retained
 ```
 
-Later slices append `04` through `09` here and repeat the new line in the #511
+Later slices append `05` through `09` here and repeat the new line in the #511
 coordination update. If a slice intentionally changes the visual contract, its
 line names that contract and does not compare it as an exact replacement.
 

@@ -1080,6 +1080,13 @@ the rest of the Show. Packed routing no longer receives a separate allowance;
 its table and four-word array header consume this same total. Persistent globals
 and artifact bytes remain independent limits.
 
+Generated Show code physically contains exactly those three arena arrays. The
+compile bar reports `3 planes`, the active role (`unassigned` until a buffering
+policy uses it), and the available channel bindings: RGB `0/1/2`, XY `0/1`,
+scalar `0`, and previous RGB `0/1/2`. These labels are alternate uses of one
+arena, not four allocations. Merely reserving the arena does not capture or
+replay a frame and adds no work to the render loop.
+
 The same bar enforces the output support envelope. An Installation above 2,000
 pixels, a Portable Show targeting a Controller above 2,000 pixels, an array whose
 maximum size cannot be proven, or any exhausted resource axis blocks generated

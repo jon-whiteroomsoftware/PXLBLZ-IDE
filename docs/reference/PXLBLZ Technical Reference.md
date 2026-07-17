@@ -1548,6 +1548,26 @@ extent because its reference count is not a hardware requirement. At 2,000
 pixels the reservation is exactly 6,012 words, leaving 4,228 words for every
 member and compiler-owned allocation combined.
 
+The reservation is physical as well as logical. Every production Show artifact
+declares exactly three compiler-owned arrays before member code. The arrays use
+the Installation's fixed pixel count or the Portable ceiling of 2,000 elements;
+there is no fourth full-output plane. `showRenderTargetArena.ts` gives generated
+code typed role bindings over those same arrays:
+
+| Role | Plane channels | Intended use |
+| --- | --- | --- |
+| `stage-rgb` | `r=0`, `g=1`, `b=2` | complete Stage color |
+| `sample-xy` | `x=0`, `y=1` | reusable sample coordinates |
+| `scalar-field` | `value=0` | one reusable visual field |
+| `previous-rgb` | `r=0`, `g=1`, `b=2` | captured prior Stage color |
+
+One role assignment changes read/write meaning, not allocation. The compile
+summary exposes all bindings and reports the active role as unassigned until a
+later policy owns lifetime and invalidation. #515 deliberately performs no
+capture, replay, or per-pixel arena work, so existing Show output stays exact.
+The `renderTargetArenaEmission: false` compiler option exists only for paired
+benchmarks; eligibility still accounts for the mandatory reservation.
+
 The Acorn-backed member census counts array literals, `array(pixelCount)`,
 numeric expressions, supported `floor`/`ceil`/`round`/`min`/`max` expressions,
 and top-level scalar constants used by later allocations. A size that cannot be
@@ -1566,6 +1586,12 @@ mandatory reservation. Five deliberately broad reference Shows still exceed
 their pre-existing global or artifact-byte limits, and the report records those
 failures separately. The census therefore permits arena implementation without
 claiming that arbitrary Pattern math or arbitrary member count will fit.
+
+`npm run issue515` proves that physical arena emission preserves Fast and
+Precise Redline output at nine score times. `npm run issue515:hardware` compiles,
+activates, and measures paired artifacts on a Controller while restoring its
+original program and pixel count. The exact-fit, bytecode, and hardware evidence
+is archived in `docs/plans/archive/issue-515-render-target-arena-results.md`.
 
 ## 22. Transition and adaptation policies
 
