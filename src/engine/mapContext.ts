@@ -35,6 +35,11 @@ export interface WireLabel {
   y: number
 }
 
+export interface WireViewportPoint {
+  x: number
+  y: number
+}
+
 export interface MapFacts {
   pixels: number
   arity: '1D' | '2D' | '3D'
@@ -98,6 +103,34 @@ export function wireOrderColors(count: number): [number, number, number][] {
       (WIRE_START[1] + (WIRE_END[1] - WIRE_START[1]) * t) / 255,
       (WIRE_START[2] + (WIRE_END[2] - WIRE_START[2]) * t) / 255,
     ]
+  })
+}
+
+// Fit a physical 2D map into Map view's stable wide frame. The SVG surface is
+// always 2:1, but the map itself is never stretched: a square map receives
+// horizontal breathing room while a wide map fills the frame edge to edge.
+// Values are expressed as percentages so the same geometry scales smoothly as
+// the pane is resized, without depending on a one-time canvas measurement.
+export function wireViewportPoints2D(
+  positions: WirePoint2D[],
+  frameAspect = 2,
+): WireViewportPoint[] {
+  if (positions.length === 0) return []
+  const bounds = posBounds2D(positions)
+  const rangeX = bounds.maxX - bounds.minX
+  const rangeY = bounds.maxY - bounds.minY
+  const safeAspect = frameAspect > 0 ? frameAspect : 2
+  const mapAspect = rangeX > 0 && rangeY > 0 ? rangeX / rangeY : safeAspect
+  const widthScale = rangeX > 0 && rangeY > 0 ? Math.min(1, mapAspect / safeAspect) : 1
+  const heightScale = rangeX > 0 && rangeY > 0 ? Math.min(1, safeAspect / mapAspect) : 1
+
+  return positions.map(([x, y]) => {
+    const normalizedX = rangeX > 0 ? (x - bounds.minX) / rangeX : 0.5
+    const normalizedY = rangeY > 0 ? (y - bounds.minY) / rangeY : 0.5
+    return {
+      x: 50 + (normalizedX - 0.5) * 100 * widthScale,
+      y: 50 + (normalizedY - 0.5) * 100 * heightScale,
+    }
   })
 }
 

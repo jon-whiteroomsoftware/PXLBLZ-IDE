@@ -40,7 +40,11 @@ describe('MapContextPane', () => {
 
     render(<MapContextPane />)
 
-    expect(await screen.findByTestId('map-wiring-canvas')).toBeInTheDocument()
+    const geometry = await screen.findByTestId('map-wiring-geometry')
+    expect(screen.getByTestId('map-wiring-viewport')).toHaveClass('aspect-[2/1]')
+    expect(geometry).toHaveClass('size-full')
+    expect(geometry.querySelectorAll('circle')).toHaveLength(4)
+    expect(screen.getByLabelText('Physical map geometry: 4 LEDs')).toBeInTheDocument()
     expect(screen.getByText('gradient follows wire order')).toBeInTheDocument()
     expect(screen.getByText('pixels')).toBeInTheDocument()
     expect(screen.getAllByText('4').length).toBeGreaterThanOrEqual(1)
@@ -60,7 +64,7 @@ describe('MapContextPane', () => {
 
     render(<MapContextPane />)
 
-    expect(await screen.findByTestId('map-wiring-canvas')).toBeInTheDocument()
+    expect(await screen.findByTestId('map-wiring-geometry')).toBeInTheDocument()
     expect(screen.getByText(/Holding last good bake: boom/)).toBeInTheDocument()
   })
 
@@ -101,7 +105,7 @@ describe('MapContextPane', () => {
 
     render(<MapContextPane />)
 
-    expect(await screen.findByTestId('map-wiring-canvas')).toBeInTheDocument()
+    expect(await screen.findByTestId('map-wiring-geometry')).toBeInTheDocument()
     expect(screen.getByLabelText('Preview size: 1,024 pixels')).toHaveTextContent('Preview size · 1,024 px')
   })
 
@@ -109,6 +113,6 @@ describe('MapContextPane', () => {
     render(<MapContextPane />)
 
     expect(screen.getByText('No map selected')).toBeInTheDocument()
-    expect(screen.queryByTestId('map-wiring-canvas')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('map-wiring-geometry')).not.toBeInTheDocument()
   })
 })

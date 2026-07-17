@@ -7,6 +7,7 @@ import {
   wireLabels2D,
   wireLabels3D,
   wireOrderColors,
+  wireViewportPoints2D,
 } from './mapContext'
 import { DEFAULT_ORBIT } from './camera'
 import type { MapPoint } from './maps'
@@ -58,6 +59,19 @@ describe('map context wiring helpers', () => {
     expect(wireLabels3D(points3d, 100, DEFAULT_ORBIT, [0, 1])).toEqual([
       expect.objectContaining({ label: '1' }),
       expect.objectContaining({ label: '2' }),
+    ])
+  })
+
+  it('contains physical 2D geometry in the map view’s wide 2:1 frame', () => {
+    expect(wireViewportPoints2D([[0, 0], [1, 0.5]])).toEqual([
+      { x: 0, y: 0 },
+      { x: 100, y: 100 },
+    ])
+
+    // A square map stays square instead of being stretched to fill the wide frame.
+    expect(wireViewportPoints2D([[0, 0], [1, 1]])).toEqual([
+      { x: 25, y: 0 },
+      { x: 75, y: 100 },
     ])
   })
 

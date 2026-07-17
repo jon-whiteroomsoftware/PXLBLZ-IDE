@@ -7,9 +7,9 @@ import {
   mapFacts,
   wireGeometry,
   wireLabelIndices,
-  wireLabels2D,
   wireLabels3D,
   wireOrderColors,
+  wireViewportPoints2D,
   type WireLabel,
 } from '@/engine/mapContext'
 import type { GridDims, MapPoint } from '@/engine/maps'
@@ -25,7 +25,7 @@ import { usePatternStore } from '@/store/patternStore'
 import { useControllerProfileStore } from '@/store/controllerProfileStore'
 import { usePreviewStore } from '@/store/previewStore'
 import { OrbitControls } from '@/components/OrbitControls'
-import { advanceAutoOrbit, canvasSizeForBounds, posBounds2D } from '@/engine/camera'
+import { advanceAutoOrbit } from '@/engine/camera'
 
 interface OpenMapContext {
   id: string
@@ -41,6 +41,14 @@ interface OpenMapContext {
 
 function canvasSizeFor3D(width: number): number {
   return Math.max(200, Math.floor(width))
+}
+
+function svgColor([red, green, blue]: [number, number, number]): string {
+  return `rgb(${Math.round(red * 255)} ${Math.round(green * 255)} ${Math.round(blue * 255)})`
+}
+
+function wireMarkerRadius(count: number): number {
+  return Math.max(0.18, Math.min(0.5, 10 / Math.sqrt(Math.max(1, count))))
 }
 
 function resolveOpenMapContext(
@@ -219,16 +227,31 @@ export function MapContextPane() {
       const px = canvasSizeFor3D(containerWidth)
       return { width: px, height: px }
     }
-    return canvasSizeForBounds(containerWidth, posBounds2D(geometry.positions))
+    return { width: 1, height: 1 }
   }, [containerWidth, geometry])
+  const viewportPoints = useMemo(
+    () => (geometry?.kind === '2d' ? wireViewportPoints2D(geometry.positions) : []),
+    [geometry],
+  )
+  const wireColors = useMemo(
+    () => (geometry ? wireOrderColors(geometry.positions.length) : []),
+    [geometry],
+  )
   const labels = useMemo<WireLabel[]>(() => {
     if (!geometry) return []
-    const indices = wireLabelIndices(geometry.positions.length)
     if (geometry.kind === '3d') {
+      const indices = wireLabelIndices(geometry.positions.length)
       return wireLabels3D(geometry.positions, canvasSize.width, camera, indices)
     }
-    return wireLabels2D(geometry.positions, canvasSize.width, canvasSize.height, indices)
-  }, [camera, canvasSize.height, canvasSize.width, geometry])
+    // These are orientation marks, not the map itself. Keep them sparse enough
+    // that the LED point set remains the primary visual evidence.
+    const interval = Math.max(32, Math.ceil(geometry.positions.length / 256) * 32)
+    return wireLabelIndices(geometry.positions.length, interval).map((index) => ({
+      index,
+      label: String(index + 1),
+      ...viewportPoints[index],
+    }))
+  }, [camera, canvasSize.width, geometry, viewportPoints])
 
   useEffect(() => {
     const el = containerRef.current
@@ -246,30 +269,26 @@ export function MapContextPane() {
 
   useEffect(() => {
     const canvas = canvasRef.current
-    if (!canvas || !geometry || containerWidth <= 0) return
+    if (!canvas || !geometry || geometry.kind !== '3d' || containerWidth <= 0) return
     const renderer = createRenderer(canvas, { containerWidth, lightSize })
     renderer.setDiffusion(diffusion)
     rendererRef.current = renderer
 
-    if (geometry.kind === '3d') {
-      renderer.set3DPositions(geometry.positions, { canvasPx: canvasSize.width })
-      renderer.setCamera(useCameraStore.getState().camera)
-    } else {
-      renderer.set2DPositions(geometry.positions, { containerWidth, lightSize })
-    }
-    renderer.paint(wireOrderColors(geometry.positions.length), 1, context?.evalError !== null)
+    renderer.set3DPositions(geometry.positions, { canvasPx: canvasSize.width })
+    renderer.setCamera(useCameraStore.getState().camera)
+    renderer.paint(wireColors, 1, context?.evalError !== null)
     return () => {
       rendererRef.current = null
     }
-  }, [canvasSize.width, containerWidth, context?.evalError, diffusion, geometry, lightSize])
+  }, [canvasSize.width, containerWidth, context?.evalError, diffusion, geometry, lightSize, wireColors])
 
   useEffect(() => {
     const renderer = rendererRef.current
-    if (!renderer || !geometry) return
-    if (geometry.kind === '3d') renderer.setCamera(camera)
+    if (!renderer || !geometry || geometry.kind !== '3d') return
+    renderer.setCamera(camera)
     renderer.setDiffusion(diffusion)
-    renderer.paint(wireOrderColors(geometry.positions.length), 1, context?.evalError !== null)
-  }, [camera, context?.evalError, diffusion, geometry])
+    renderer.paint(wireColors, 1, context?.evalError !== null)
+  }, [camera, context?.evalError, diffusion, geometry, wireColors])
 
   useEffect(() => {
     if (!geometry || geometry.kind !== '3d') return
@@ -289,7 +308,8 @@ export function MapContextPane() {
   if (!context) return <EmptyMapPane />
 
   const hasGeometry = geometry !== null && geometry.positions.length > 0
-  const labelBox = canvasSize
+  const labelBox = geometry?.kind === '2d' ? { width: 100, height: 100 } : canvasSize
+  const markerRadius = wireMarkerRadius(context.points.length)
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-zinc-950 font-mono text-xs text-zinc-500">
@@ -299,25 +319,64 @@ export function MapContextPane() {
         </h2>
         <MapCountStatus context={context} />
       </div>
-      <div ref={containerRef} className="relative shrink-0 overflow-hidden border-b border-seam bg-black">
+      <div
+        ref={containerRef}
+        data-testid="map-wiring-viewport"
+        className={`relative shrink-0 overflow-hidden border-b border-seam bg-black ${geometry?.kind === '2d' ? 'aspect-[2/1] w-full' : ''}`}
+      >
         {hasGeometry ? (
-          <div className="relative inline-block max-w-full">
-            <canvas ref={canvasRef} data-testid="map-wiring-canvas" className="block max-w-full rounded-sm" />
-            {geometry?.kind === '3d' && <OrbitControls canvasRef={canvasRef} showPoleControls={false} />}
-            <div className="pointer-events-none absolute inset-0">
-              {labels.map((label) => (
-                <span
-                  key={label.index}
-                  style={labelStyle(label, labelBox.width, labelBox.height)}
-                  className="absolute -translate-x-1/2 -translate-y-1/2 rounded bg-black/70 px-1 py-0.5 text-[9px] font-semibold leading-none text-zinc-200 ring-1 ring-zinc-700/60"
-                >
-                  {label.label}
-                </span>
-              ))}
+          geometry?.kind === '2d' ? (
+            <>
+              <svg
+                data-testid="map-wiring-geometry"
+                aria-label={`Physical map geometry: ${context.points.length.toLocaleString()} LEDs`}
+                className="block size-full"
+                viewBox="0 0 100 50"
+                preserveAspectRatio="xMidYMid meet"
+              >
+                <title>{`Physical map geometry: ${context.points.length.toLocaleString()} LEDs`}</title>
+                {viewportPoints.map((point, index) => (
+                  <circle
+                    key={index}
+                    cx={point.x}
+                    cy={point.y / 2}
+                    r={markerRadius}
+                    fill={svgColor(wireColors[index])}
+                    opacity="0.95"
+                  />
+                ))}
+              </svg>
+              <div className="pointer-events-none absolute inset-0">
+                {labels.map((label) => (
+                  <span
+                    key={label.index}
+                    style={labelStyle(label, labelBox.width, labelBox.height)}
+                    className="absolute -translate-x-1/2 -translate-y-1/2 rounded bg-black/75 px-1 py-0.5 text-[9px] font-semibold leading-none text-zinc-200 ring-1 ring-zinc-700/60"
+                  >
+                    {label.label}
+                  </span>
+                ))}
+              </div>
+            </>
+          ) : (
+            <div className="relative inline-block max-w-full">
+              <canvas ref={canvasRef} data-testid="map-wiring-canvas" className="block max-w-full rounded-sm" />
+              <OrbitControls canvasRef={canvasRef} showPoleControls={false} />
+              <div className="pointer-events-none absolute inset-0">
+                {labels.map((label) => (
+                  <span
+                    key={label.index}
+                    style={labelStyle(label, labelBox.width, labelBox.height)}
+                    className="absolute -translate-x-1/2 -translate-y-1/2 rounded bg-black/70 px-1 py-0.5 text-[9px] font-semibold leading-none text-zinc-200 ring-1 ring-zinc-700/60"
+                  >
+                    {label.label}
+                  </span>
+                ))}
+              </div>
             </div>
-          </div>
+          )
         ) : (
-          <div className="flex aspect-square w-full items-center justify-center px-6 text-center text-[11px] leading-5 text-zinc-500">
+          <div className="flex aspect-[2/1] w-full items-center justify-center px-6 text-center text-[11px] leading-5 text-zinc-500">
             This map has no successful bake yet.
           </div>
         )}
