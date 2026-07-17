@@ -71,6 +71,50 @@ describe('Fast replay reconstruction', () => {
     expect(result.exports.renderCalls).toBe(20)
   })
 
+  it('evaluates one stateful frame per live presentation while deterministic seek remains fixed-step (#508)', () => {
+    const prepared = prepareFastReplay(RENDER_MUTATING_PATTERN, {})
+    const options = { mapPoints: lineMap(4), randomSeed: 412 }
+
+    const live = createFastReplayRuntime(prepared, options).advanceLive(250)
+    const seek = createFastReplayRuntime(prepared, options).advanceTo(250, { stepMs: 10 })
+
+    expect(live.elapsedMs).toBe(250)
+    expect(live.simulatedFrames).toBe(1)
+    expect(live.outerRendererCalls).toBe(4)
+    expect(live.exports.renderCalls).toBe(4)
+    expect(seek.simulatedFrames).toBe(25)
+    expect(seek.outerRendererCalls).toBe(100)
+  })
+
+  it('reuses one packed RGB frame buffer across ordinary live frames (#508)', () => {
+    const runtime = createFastReplayRuntime(prepareFastReplay(RENDER_MUTATING_PATTERN, {}), {
+      mapPoints: lineMap(4),
+      randomSeed: 412,
+    })
+
+    const first = runtime.advanceLive(16)
+    const second = runtime.advanceLive(16)
+
+    expect(first.frame).toBeInstanceOf(Float64Array)
+    expect(first.frame).toHaveLength(12)
+    expect(second.frame).toBe(first.frame)
+  })
+
+  it('keeps deterministic reconstruction results durable across later seeks (#508)', () => {
+    const prepared = prepareFastReplay(RENDER_MUTATING_PATTERN, {})
+    const runtime = createFastReplayRuntime(prepared, {
+      mapPoints: [{ sample: [0] }],
+      randomSeed: 508,
+    })
+
+    const first = runtime.advanceTo(10, { stepMs: 10 })
+    const firstPixels = first.pixels
+    const second = runtime.advanceTo(20, { stepMs: 10 })
+
+    expect(first.frame).not.toBe(second.frame)
+    expect(first.pixels).toEqual(firstPixels)
+  })
+
   it('does not add a near-zero frame when the target is an exact fixed-step boundary', () => {
     const prepared = prepareFastReplay(RENDER_MUTATING_PATTERN, {})
     const result = createFastReplayRuntime(prepared, {

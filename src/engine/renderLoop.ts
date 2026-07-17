@@ -2,7 +2,7 @@ import type { PatternHandle } from './loadPattern'
 import type { ShimContext } from './shim'
 import type { VirtualClock } from './virtualClock'
 import type { MapPoint } from './maps'
-import { adaptSampleForRenderer, type RenderCompatibility } from './renderCompatibility'
+import type { RenderCompatibility } from './renderCompatibility'
 
 export interface RenderLoopConfig {
   handle: PatternHandle
@@ -19,6 +19,7 @@ export interface RenderLoopConfig {
   getBrightness: () => number
   isDimmed: () => boolean
   paint: (pixels: [number, number, number][], brightness: number, dimmed: boolean) => void
+  paintPacked?: (frame: Float64Array, brightness: number, dimmed: boolean) => void
   onError?: (err: Error) => void
   onFrame?: (delta: number, builtins: Record<string, unknown>, elapsedMs: number) => void
   /**
@@ -60,6 +61,28 @@ export function createRenderLoop(config: RenderLoopConfig): RenderLoop {
   let lastTs: number | null = null
   let fpsWindowStart: number | null = null
   let fpsFrames = 0
+  const packedFrame = config.paintPacked ? new Float64Array(pixelCount * 3) : null
+  const encodedIndexes = new Float64Array(pixelCount)
+  for (let index = 0; index < pixelCount; index += 1) {
+    encodedIndexes[index] = shim.encodeScalar(index)
+  }
+  const transformed = new Float64Array(3)
+  const compatibleRenderer = renderCompatibility?.renderer ?? null
+  const compatibleDimension = renderCompatibility?.rendererDim ?? null
+  const sampleDimensions = new Uint8Array(pixelCount)
+  const sampleCoordinates = new Float64Array(pixelCount * 3)
+  for (let index = 0; index < pixelCount; index += 1) {
+    const sample = mapPoints[index]?.sample ?? []
+    const offset = index * 3
+    sampleDimensions[index] = sample.length
+    sampleCoordinates[offset] = sample[0] ?? (compatibleDimension ? 0.5 : 0)
+    sampleCoordinates[offset + 1] = compatibleDimension && compatibleDimension >= 2
+      ? sample[1] ?? 0.5
+      : sample[1] ?? 0
+    sampleCoordinates[offset + 2] = compatibleDimension && compatibleDimension >= 3
+      ? sample[2] ?? 0.5
+      : sample[2] ?? 0
+  }
 
   function doTick(realDelta: number, dimmed: boolean, shouldPaint = true): void {
     const scaledDelta = realDelta * getSpeed()
@@ -68,51 +91,54 @@ export function createRenderLoop(config: RenderLoopConfig): RenderLoop {
     // must be encoded to the active numeric domain (raw int32 in fidelity mode).
     handle.beforeRender(shim.encodeScalar(scaledDelta))
 
-    const pixels: [number, number, number][] | null = shouldPaint ? [] : null
+    const pixels: [number, number, number][] | null = shouldPaint && !packedFrame ? [] : null
 
     // Iterate the modeled pixel count, reading each pixel's `sample` from the
     // active map. Production callers supply one firmware-compatible renderer plan;
     // legacy/unit callers may still use direct sample-arity dispatch. A true 1D
     // map carries `[x]`; a legacy/mapless point may still carry no sample.
     for (let index = 0; index < pixelCount; index++) {
-      const sample = mapPoints[index]?.sample ?? []
+      const coordinateOffset = index * 3
+      const x = sampleCoordinates[coordinateOffset]
+      const y = sampleCoordinates[coordinateOffset + 1]
+      const z = sampleCoordinates[coordinateOffset + 2]
       // index crosses the engine->pattern boundary as a scalar, so it must be
       // encoded to the active numeric domain (raw int32 in fidelity mode).
-      const encIndex = shim.encodeScalar(index)
-      if (renderCompatibility) {
-        const { renderer, rendererDim } = renderCompatibility
-        if (renderer && rendererDim) {
-          const adapted = adaptSampleForRenderer(sample, rendererDim)
-          if (renderer === 'render3D') {
-            const [tx, ty, tz] = shim.transformPoint(adapted[0], adapted[1], adapted[2])
-            handle.render3D(encIndex, tx, ty, tz)
-          } else if (renderer === 'render2D') {
-            const [tx, ty] = shim.transformPoint(adapted[0], adapted[1], 0)
-            handle.render2D(encIndex, tx, ty)
-          } else {
-            const [tx] = shim.transformPoint(adapted[0], 0, 0)
-            handle.render(encIndex, tx)
-          }
+      const encIndex = encodedIndexes[index]
+      if (compatibleRenderer && compatibleDimension) {
+        shim.transformPointInto(transformed, 0, x, y, z)
+        if (compatibleRenderer === 'render3D') {
+          handle.render3D(encIndex, transformed[0], transformed[1], transformed[2])
+        } else if (compatibleRenderer === 'render2D') {
+          handle.render2D(encIndex, transformed[0], transformed[1])
+        } else {
+          handle.render(encIndex, transformed[0])
         }
-      } else if (sample.length >= 3) {
+      } else if (sampleDimensions[index] >= 3) {
         // Apply the pattern's coordinate transform stack before render, so
         // translate/rotate/scale behave as on hardware.
-        const [tx, ty, tz] = shim.transformPoint(sample[0], sample[1], sample[2])
-        handle.render3D(encIndex, tx, ty, tz)
-      } else if (sample.length === 2) {
-        const [tx, ty] = shim.transformPoint(sample[0], sample[1], 0)
-        handle.render2D(encIndex, tx, ty)
-      } else if (sample.length === 1) {
-        const [tx] = shim.transformPoint(sample[0], 0, 0)
-        handle.render(encIndex, tx)
+        shim.transformPointInto(transformed, 0, x, y, z)
+        handle.render3D(encIndex, transformed[0], transformed[1], transformed[2])
+      } else if (sampleDimensions[index] === 2) {
+        shim.transformPointInto(transformed, 0, x, y, 0)
+        handle.render2D(encIndex, transformed[0], transformed[1])
+      } else if (sampleDimensions[index] === 1) {
+        shim.transformPointInto(transformed, 0, x, 0, 0)
+        handle.render(encIndex, transformed[0])
       } else {
         handle.render(encIndex)
       }
-      const captured = shim.capturedPixel()
-      if (pixels) pixels.push(captured)
+      if (packedFrame) {
+        if (shouldPaint) shim.writeCapturedPixel(packedFrame, index * 3)
+        else shim.resetCapturedPixel()
+      } else {
+        const captured = shim.capturedPixel()
+        if (pixels) pixels.push(captured)
+      }
     }
 
     if (pixels) paint(pixels, getBrightness(), dimmed)
+    else if (shouldPaint && packedFrame) config.paintPacked?.(packedFrame, getBrightness(), dimmed)
     config.onFrame?.(scaledDelta, shim.builtins, clock.getTime())
   }
 

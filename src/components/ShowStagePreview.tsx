@@ -18,8 +18,9 @@ import { createRenderer } from '@/engine/renderer'
 import { applyNormalizeMode, type MapPoint, type PixelMap } from '@/engine/maps'
 import { advanceAutoOrbit } from '@/engine/camera'
 import {
-  applyShowStageMask,
+  applyShowStageMaskPacked,
   buildShowStageProjection,
+  createShowStageMaskPlan,
   buildShowLogicalStageProjection,
   showLogicalAspectAdvisory,
   buildShowStripsLayout,
@@ -39,6 +40,16 @@ import type { ShowRecord } from '@/engine/personalContentRecords'
 import { PreviewViewportSection } from '@/components/PreviewDeck'
 import { useShowEditorSessionStore } from '@/store/showEditorSessionStore'
 import { buildShowStageDiagnosticRects } from '@/engine/showStageDiagnostics'
+import {
+  createShowStagePerformanceProbe,
+  type ShowStagePerformanceProbe,
+} from '@/dev/showStagePerformance'
+
+declare global {
+  interface Window {
+    __pxlblzShowStagePerformance?: ShowStagePerformanceProbe
+  }
+}
 
 interface StageMapOption {
   id: string
@@ -81,6 +92,10 @@ export function ShowStagePreview({ showId, showOverride }: { showId: string; sho
   const fpsFramesRef = useRef(0)
   const runtimeGenerationRef = useRef(0)
   const rendererRef = useRef<ReturnType<typeof createRenderer> | null>(null)
+  const performanceProbeRef = useRef<ShowStagePerformanceProbe | null>(null)
+  const performanceOutputRef = useRef<HTMLOutputElement>(null)
+  const performancePublishFrameRef = useRef(0)
+  const liveSimulatedFramesRef = useRef(0)
   const savedShow = useShowStore((state) => state.shows.find((item) => item.id === showId))
   const previewShow = useShowPreviewOverrideStore((state) => state.show?.id === showId ? state.show : null)
   const show = previewShow ?? showOverride ?? savedShow
@@ -100,10 +115,19 @@ export function ShowStagePreview({ showId, showOverride }: { showId: string; sho
   const seekRequest = useShowTransportStore((state) => state.showId === showId ? state.seekRequest : null)
   const seekStatus = useShowTransportStore((state) => state.showId === showId ? state.seekStatus : 'idle')
   const [viewportWidth, setViewportWidth] = useState(1)
+  const viewportWidthRef = useRef(viewportWidth)
+  const lightSizeRef = useRef(lightSize)
+  const diffusionRef = useRef(diffusion)
   const [soloZoneId, setSoloZoneId] = useState<string | null>(null)
   const effectiveSoloZoneIdRef = useRef<string | null>(null)
   const [runtimeError, setRuntimeError] = useState<string | null>(null)
   const [badgedSeekRequestId, setBadgedSeekRequestId] = useState<number | null>(null)
+
+  useEffect(() => {
+    viewportWidthRef.current = viewportWidth
+    lightSizeRef.current = lightSize
+    diffusionRef.current = diffusion
+  }, [diffusion, lightSize, viewportWidth])
 
   useEffect(() => {
     const preview = usePreviewStore.getState()
@@ -239,6 +263,22 @@ export function ShowStagePreview({ showId, showOverride }: { showId: string; sho
     ? diagnosticRects.find((rect) => rect.zoneId === diagnosticFocus.zoneId)
     : undefined
   const durationMs = show ? showLoopDurationMs(show) : 0
+  const stageMaskPlan = useMemo(
+    () => layout ? createShowStageMaskPlan(layout.projection, layout.mapPoints.length) : null,
+    [layout],
+  )
+
+  useEffect(() => {
+    if (!import.meta.env.DEV || !layout) return
+    const probe = createShowStagePerformanceProbe(layout.mapPoints.length)
+    performanceProbeRef.current = probe
+    performancePublishFrameRef.current = 0
+    window.__pxlblzShowStagePerformance = probe
+    return () => {
+      if (window.__pxlblzShowStagePerformance === probe) delete window.__pxlblzShowStagePerformance
+      performanceProbeRef.current = null
+    }
+  }, [layout])
 
   useEffect(() => {
     if (seekStatus !== 'rebuilding' || !seekRequest) return
@@ -249,14 +289,22 @@ export function ShowStagePreview({ showId, showOverride }: { showId: string; sho
 
   const paintFastFrame = useCallback((result: FastReplayResult) => {
     const renderer = rendererRef.current
-    if (!renderer || !layout) return
+    if (!renderer || !layout || !stageMaskPlan) return
     if (layout.draw.kind === '3d') renderer.setCamera(useCameraStore.getState().camera)
+    const maskStarted = performance.now()
+    const maskedFrame = applyShowStageMaskPacked(result.frame, stageMaskPlan, effectiveSoloZoneIdRef.current)
+    const maskEnded = performance.now()
     renderer.paint(
-      applyShowStageMask(result.pixels, layout.projection, effectiveSoloZoneIdRef.current),
+      maskedFrame,
       usePreviewStore.getState().brightness,
       !usePreviewStore.getState().isRunning,
     )
-  }, [layout])
+    const paintEnded = performance.now()
+    return {
+      stageMaskMs: maskEnded - maskStarted,
+      webglPaintMs: paintEnded - maskEnded,
+    }
+  }, [layout, stageMaskPlan])
 
   useEffect(() => {
     effectiveSoloZoneIdRef.current = effectiveSoloZoneId
@@ -283,16 +331,23 @@ export function ShowStagePreview({ showId, showOverride }: { showId: string; sho
     playbackRafRef.current = null
     setRuntimeError(null)
 
-    const renderer = createRenderer(canvas, { containerWidth: viewportWidth, lightSize })
+    const currentViewportWidth = viewportWidthRef.current
+    const renderer = createRenderer(canvas, {
+      containerWidth: currentViewportWidth,
+      lightSize: lightSizeRef.current,
+    })
     rendererRef.current = renderer
     if (layout.draw.kind === '3d') {
-      const px = cube3DCanvasPx(viewportWidth)
+      const px = cube3DCanvasPx(currentViewportWidth)
       renderer.set3DPositions(layout.draw.positions, { canvasPx: px })
       renderer.setCamera(useCameraStore.getState().camera)
     } else {
-      renderer.set2DPositions(layout.draw.positions, { containerWidth: viewportWidth, lightSize })
+      renderer.set2DPositions(layout.draw.positions, {
+        containerWidth: currentViewportWidth,
+        lightSize: lightSizeRef.current,
+      })
     }
-    renderer.setDiffusion(diffusion)
+    renderer.setDiffusion(diffusionRef.current)
 
     try {
       const transport = useShowTransportStore.getState()
@@ -307,10 +362,12 @@ export function ShowStagePreview({ showId, showOverride }: { showId: string; sho
         randomSeed: stableShowSeed(showId),
         fidelity,
       })
+      performanceProbeRef.current?.recordRuntimeInitialization()
       let result = runtime.renderCurrentFrame()
       const positionMs = useShowTransportStore.getState().positionMs
       if (positionMs > 0) result = runtime.advanceTo(positionMs, { stepMs: 1000 / 60 })
       replayRef.current = runtime
+      liveSimulatedFramesRef.current = result.simulatedFrames
       paintFastFrame(result)
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Show preview failed'
@@ -323,7 +380,18 @@ export function ShowStagePreview({ showId, showOverride }: { showId: string; sho
       playbackRafRef.current = null
       replayRef.current = null
     }
-  }, [compiled.artifact, diffusion, durationMs, fidelity, layout, lightSize, paintFastFrame, showId, viewportWidth])
+  }, [compiled.artifact, durationMs, fidelity, layout, paintFastFrame, showId])
+
+  useEffect(() => {
+    const renderer = rendererRef.current
+    if (!renderer || !layout) return
+    if (layout.draw.kind === '3d') {
+      renderer.resize3D(cube3DCanvasPx(viewportWidth))
+    } else {
+      renderer.resize2D({ containerWidth: viewportWidth, lightSize })
+    }
+    performanceProbeRef.current?.recordResize()
+  }, [layout, lightSize, viewportWidth])
 
   useEffect(() => {
     const renderer = rendererRef.current
@@ -351,6 +419,8 @@ export function ShowStagePreview({ showId, showOverride }: { showId: string; sho
       const last = playbackLastRef.current ?? now
       playbackLastRef.current = now
       try {
+        const frameStarted = performance.now()
+        performanceProbeRef.current?.beginPresentedFrame(now)
         const deltaMs = Math.max(0, now - last) * usePreviewStore.getState().speed
         const step = resolveShowPlaybackStep(runtime.getElapsedMs(), deltaMs, transport.playbackWindow, durationMs)
         if (step.kind === 'rewind') {
@@ -366,8 +436,26 @@ export function ShowStagePreview({ showId, showOverride }: { showId: string; sho
           playbackRafRef.current = null
           return
         }
-        const result = runtime.advanceTo(step.targetMs, { stepMs: 1000 / 60 })
-        paintFastFrame(result)
+        const evaluationStarted = performance.now()
+        const result = runtime.advanceLive(step.targetMs - runtime.getElapsedMs())
+        const evaluationEnded = performance.now()
+        const paintTiming = paintFastFrame(result)
+        const frameEnded = performance.now()
+        const simulatedTicks = result.simulatedFrames - liveSimulatedFramesRef.current
+        liveSimulatedFramesRef.current = result.simulatedFrames
+        if (paintTiming) {
+          const probe = performanceProbeRef.current
+          probe?.recordFrameWork({
+            patternEvaluationMs: evaluationEnded - evaluationStarted,
+            ...paintTiming,
+            frameWorkMs: frameEnded - frameStarted,
+            simulatedTicks,
+          })
+          performancePublishFrameRef.current += 1
+          if (probe && performancePublishFrameRef.current % 30 === 0 && performanceOutputRef.current) {
+            performanceOutputRef.current.value = JSON.stringify(probe.snapshot())
+          }
+        }
         const positionMs = durationMs > 0 ? result.elapsedMs % durationMs : 0
         useShowTransportStore.getState().setPosition(showId, positionMs)
         if (fpsWindowStartRef.current === null) {
@@ -429,6 +517,8 @@ export function ShowStagePreview({ showId, showOverride }: { showId: string; sho
         }
         if (!result || !isCurrent()) return
         replayRef.current = runtime
+        performanceProbeRef.current?.recordRuntimeInitialization()
+        liveSimulatedFramesRef.current = result.simulatedFrames
         paintFastFrame(result)
         useShowTransportStore.getState().completeSeek(seekRequest.id, seekRequest.targetMs)
       } catch (error) {
@@ -487,6 +577,14 @@ export function ShowStagePreview({ showId, showOverride }: { showId: string; sho
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-zinc-950 font-mono text-xs text-zinc-400">
+      {import.meta.env.DEV && (
+        <output
+          ref={performanceOutputRef}
+          data-testid="show-stage-performance"
+          className="hidden"
+          aria-hidden="true"
+        />
+      )}
       <div ref={containerRef} className="relative shrink-0 bg-black/70">
         <div className="relative inline-block">
           <canvas ref={canvasRef} className="rounded-sm" />

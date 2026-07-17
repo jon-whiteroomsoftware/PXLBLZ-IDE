@@ -29,6 +29,7 @@ export interface FastReplayResult {
   elapsedMs: number
   simulatedFrames: number
   outerRendererCalls: number
+  frame: Float64Array
   pixels: [number, number, number][]
   exports: Record<string, unknown>
 }
@@ -36,6 +37,7 @@ export interface FastReplayResult {
 export interface FastReplayRuntime {
   getElapsedMs: () => number
   renderCurrentFrame: () => FastReplayResult
+  advanceLive: (deltaMs: number) => FastReplayResult
   advanceTo: (targetMs: number, advance: FastReplayAdvanceOptions) => FastReplayResult
 }
 
@@ -74,7 +76,7 @@ export function createFastReplayRuntime(
     shim.builtins,
   )
   const renderCompatibility = selectRenderCompatibility(prepared.dimension, prepared.metadata.renderFns)
-  let pixels: [number, number, number][] = []
+  let frame: Float64Array<ArrayBufferLike> = new Float64Array(pixelCount * 3)
   let simulatedFrames = 0
   const loop = createRenderLoop({
     handle,
@@ -86,24 +88,40 @@ export function createFastReplayRuntime(
     getSpeed: () => 1,
     getBrightness: () => 1,
     isDimmed: () => false,
-    paint: (frame) => { pixels = frame },
+    paint: () => undefined,
+    paintPacked: (nextFrame) => { frame = nextFrame },
   })
 
-  const currentResult = (): FastReplayResult => ({
-    checksum: checksumPixels(pixels),
-    elapsedMs: clock.getTime(),
-    simulatedFrames,
-    outerRendererCalls: simulatedFrames * pixelCount,
-    pixels,
-    exports: handle.getExports(),
-  })
+  const currentResult = (snapshotFrame: boolean): FastReplayResult => {
+    // Live presentation owns one mutable frame for the lifetime of the runtime.
+    // Deterministic reconstruction, by contrast, returns a durable result that
+    // callers may compare after advancing the same runtime again.
+    const resultFrame = snapshotFrame ? frame.slice() : frame
+    return {
+      get checksum() { return checksumFrame(resultFrame) },
+      elapsedMs: clock.getTime(),
+      simulatedFrames,
+      outerRendererCalls: simulatedFrames * pixelCount,
+      frame: resultFrame,
+      get pixels() { return unpackFrame(resultFrame) },
+      get exports() { return handle.getExports() },
+    }
+  }
 
   return {
     getElapsedMs: () => clock.getTime(),
     renderCurrentFrame(): FastReplayResult {
       loop.tick(0)
       simulatedFrames += 1
-      return currentResult()
+      return currentResult(true)
+    },
+    advanceLive(deltaMs: number): FastReplayResult {
+      if (!Number.isFinite(deltaMs) || deltaMs < 0) {
+        throw new Error('Fast replay live delta must be a non-negative finite duration.')
+      }
+      loop.tick(deltaMs)
+      simulatedFrames += 1
+      return currentResult(false)
     },
     advanceTo(targetMs: number, advance: FastReplayAdvanceOptions): FastReplayResult {
       if (!Number.isFinite(targetMs) || targetMs < clock.getTime()) {
@@ -120,7 +138,7 @@ export function createFastReplayRuntime(
         else loop.tickHeadless(advance.stepMs)
         simulatedFrames += 1
       }
-      return currentResult()
+      return currentResult(true)
     },
   }
 }
@@ -149,13 +167,19 @@ export async function advanceFastReplayCooperatively(
   return options.isCurrent() ? result : null
 }
 
-function checksumPixels(pixels: [number, number, number][]): string {
+function checksumFrame(frame: Float64Array): string {
   let hash = 0x811c9dc5
-  for (const pixel of pixels) {
-    for (const channel of pixel) {
-      const byte = Math.round(Math.min(1, Math.max(0, Number.isFinite(channel) ? channel : 0)) * 255)
-      hash = Math.imul((hash ^ byte) >>> 0, 0x01000193)
-    }
+  for (const channel of frame) {
+    const byte = Math.round(Math.min(1, Math.max(0, Number.isFinite(channel) ? channel : 0)) * 255)
+    hash = Math.imul((hash ^ byte) >>> 0, 0x01000193)
   }
   return (hash >>> 0).toString(16).padStart(8, '0')
+}
+
+function unpackFrame(frame: Float64Array): [number, number, number][] {
+  const pixels = new Array<[number, number, number]>(frame.length / 3)
+  for (let offset = 0; offset < frame.length; offset += 3) {
+    pixels[offset / 3] = [frame[offset], frame[offset + 1], frame[offset + 2]]
+  }
+  return pixels
 }

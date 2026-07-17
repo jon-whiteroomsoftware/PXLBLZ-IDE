@@ -28,13 +28,25 @@ function makeMockHandle(): PatternHandle {
 }
 
 function makeMockShim(): ShimContext {
+  const transformPoint = vi.fn((x: number, y: number, z: number) => [x, y, z] as [number, number, number])
   return {
     builtins: {},
     capturedPixel: vi.fn(() => [0, 0, 0] as [number, number, number]),
+    writeCapturedPixel: vi.fn((target: Float32Array | Float64Array, offset: number) => {
+      target[offset] = 0
+      target[offset + 1] = 0
+      target[offset + 2] = 0
+    }),
+    resetCapturedPixel: vi.fn(),
     getBuiltin: vi.fn(() => undefined),
     encodeScalar: (n: number) => n,
     decodeScalar: (n: number) => n,
-    transformPoint: vi.fn((x: number, y: number, z: number) => [x, y, z] as [number, number, number]),
+    transformPoint,
+    transformPointInto: vi.fn((target: Float64Array, offset: number, x: number, y: number, z: number) => {
+      target[offset] = x
+      target[offset + 1] = y
+      target[offset + 2] = z
+    }),
   }
 }
 
@@ -99,6 +111,25 @@ describe('tick sequencing', () => {
     expect(handle.render2D).toHaveBeenCalledTimes(12)
     expect(shim.capturedPixel).toHaveBeenCalledTimes(12)
     expect(paint).not.toHaveBeenCalled()
+  })
+
+  it('resets capture without retaining RGB output during packed headless replay (#508)', () => {
+    const shim = makeMockShim()
+    const paintPacked = vi.fn()
+    const loop = createRenderLoop({
+      handle: makeMockHandle(), shim, clock: makeMockClock(),
+      ...planeCfg(3, 4),
+      getSpeed: () => 1, getBrightness: () => 1, isDimmed: () => false,
+      paint: vi.fn(),
+      paintPacked,
+    })
+
+    loop.tickHeadless(16)
+
+    expect(shim.resetCapturedPixel).toHaveBeenCalledTimes(12)
+    expect(shim.writeCapturedPixel).not.toHaveBeenCalled()
+    expect(shim.capturedPixel).not.toHaveBeenCalled()
+    expect(paintPacked).not.toHaveBeenCalled()
   })
 })
 
@@ -172,6 +203,33 @@ describe('pixel coordinates', () => {
 // ── pixel array ───────────────────────────────────────────────────────────────
 
 describe('pixel array', () => {
+  it('reuses packed storage and scalar transform/capture seams across frames (#508)', () => {
+    const shim = makeMockShim()
+    const paintPacked = vi.fn()
+    const loop = createRenderLoop({
+      handle: makeMockHandle(), shim, clock: makeMockClock(),
+      ...planeCfg(2, 2),
+      renderCompatibility: selectRenderCompatibility(2, {
+        hasBeforeRender: true,
+        hasRender: false,
+        hasRender2D: true,
+        hasRender3D: false,
+      }),
+      getSpeed: () => 1, getBrightness: () => 1, isDimmed: () => false,
+      paint: vi.fn(),
+      paintPacked,
+    })
+
+    loop.tick(16)
+    loop.tick(16)
+
+    expect(paintPacked.mock.calls[1][0]).toBe(paintPacked.mock.calls[0][0])
+    expect(shim.transformPointInto).toHaveBeenCalledTimes(8)
+    expect(shim.transformPoint).not.toHaveBeenCalled()
+    expect(shim.writeCapturedPixel).toHaveBeenCalledTimes(8)
+    expect(shim.capturedPixel).not.toHaveBeenCalled()
+  })
+
   it('passes a pixel for every grid position to paint', () => {
     const paint = vi.fn()
     const loop = createRenderLoop({

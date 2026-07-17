@@ -12,6 +12,7 @@ import { showInitialState, useShowStore } from '@/store/showStore'
 import { controllerProfileInitialState, useControllerProfileStore } from '@/store/controllerProfileStore'
 import { showTransportInitialState, useShowTransportStore } from '@/store/showTransportStore'
 import { showEditorSessionInitialState, useShowEditorSessionStore } from '@/store/showEditorSessionStore'
+import * as fastReplay from '@/engine/fastReplay'
 
 function memoryProvider(seedShows: ShowRecord[] = []): PersonalContentProvider {
   const patterns = new Map<string, PatternRecord>()
@@ -70,6 +71,31 @@ beforeEach(() => {
 })
 
 describe('ShowStagePreview (#339)', () => {
+  it('resizes the Stage incrementally without rebuilding Pattern runtime state (#508)', async () => {
+    let resize: ResizeObserverCallback | null = null
+    vi.stubGlobal('ResizeObserver', class {
+      constructor(callback: ResizeObserverCallback) { resize = callback }
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    })
+    const createRuntime = vi.spyOn(fastReplay, 'createFastReplayRuntime')
+    try {
+      const show = createDefaultShow('show-incremental-resize', 'Incremental resize', 1000)
+      useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+      render(<ShowStagePreview showId={show.id} />)
+      expect(createRuntime).toHaveBeenCalledTimes(1)
+
+      act(() => resize?.([{ contentRect: { width: 800 } } as ResizeObserverEntry], {} as ResizeObserver))
+
+      await waitFor(() => expect(createRuntime).toHaveBeenCalledTimes(1))
+    } finally {
+      createRuntime.mockRestore()
+      vi.unstubAllGlobals()
+    }
+  })
+
   it('omits the redundant Zone solo inventory for a healthy single-zone Show', () => {
     const show = createDefaultShow('show-single-zone', 'Single zone', 1000)
     useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })

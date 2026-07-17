@@ -225,7 +225,6 @@ function ShowNoteDisclosure({
   note,
   show,
   reference,
-  positionMs,
   patternOptions,
   selectedPattern,
   onSelectPattern,
@@ -235,7 +234,6 @@ function ShowNoteDisclosure({
   note: StockShowNote
   show: ShowRecord
   reference?: ShowReferenceGuide
-  positionMs: number
   patternOptions: ShowPatternOption[]
   selectedPattern?: ShowCell['pattern']
   onSelectPattern: (pattern: ShowCell['pattern']) => void
@@ -268,7 +266,6 @@ function ShowNoteDisclosure({
         <ShowReferenceInstrument
           show={show}
           reference={reference}
-          positionMs={positionMs}
           patternOptions={patternOptions}
           selectedPattern={selectedPattern}
           onSelectPattern={onSelectPattern}
@@ -312,7 +309,6 @@ function ShowNoteDisclosure({
 function ShowReferenceInstrument({
   show,
   reference,
-  positionMs,
   patternOptions,
   selectedPattern,
   onSelectPattern,
@@ -320,12 +316,12 @@ function ShowReferenceInstrument({
 }: {
   show: ShowRecord
   reference: ShowReferenceGuide
-  positionMs: number
   patternOptions: ShowPatternOption[]
   selectedPattern?: ShowCell['pattern']
   onSelectPattern: (pattern: ShowCell['pattern']) => void
   onResetPattern: () => void
 }) {
+  const positionMs = useShowTransportStore((state) => state.showId === show.id ? state.positionMs : 0)
   const current = currentShowReferenceExample(show, reference, positionMs)
   const currentIndex = current ? reference.examples.findIndex((example) => example.id === current.id) : -1
   const durationMs = showLoopDurationMs(show)
@@ -464,7 +460,6 @@ export function ShowEditor({
   const setShowNoteOpen = useShowEditorSessionStore((state) => state.setShowNoteOpen)
   const selectedReferencePattern = useShowEditorSessionStore((state) => state.referencePatternByShowId[showId])
   const setReferencePattern = useShowEditorSessionStore((state) => state.setReferencePattern)
-  const referencePositionMs = useShowTransportStore((state) => state.showId === showId ? state.positionMs : 0)
   const addRoutingLayout = useShowStore((state) => state.addRoutingLayout)
   const updateRoutingLayout = useShowStore((state) => state.updateRoutingLayout)
   const removeRoutingLayout = useShowStore((state) => state.removeRoutingLayout)
@@ -1024,7 +1019,6 @@ export function ShowEditor({
           note={builtInContext.note}
           show={activeShow}
           reference={builtInContext.reference}
-          positionMs={referencePositionMs}
           patternOptions={referencePatternOptions}
           selectedPattern={selectedReferencePattern}
           onSelectPattern={(pattern) => setReferencePattern(showId, pattern)}
@@ -1955,7 +1949,6 @@ function SceneStrip({
 }) {
   const strip = projectShowStrip(show)
   const timeline = projectShowTimeline(show)
-  const positionMs = useShowTransportStore((state) => state.showId === show.id ? state.positionMs : 0)
   const fittedViewport = fitShowTimelineViewport(timeline.durationMs)
   const [storedViewport, setViewport] = useState<ShowTimelineViewport>(fittedViewport)
   const snapEnabled = useShowEditorSessionStore((state) => state.snapEnabled)
@@ -1973,10 +1966,13 @@ function SceneStrip({
     setViewport(viewport)
   }
   const scrollRef = useRef<HTMLDivElement>(null)
-  const positionMsRef = useRef(positionMs)
+  const initialTransport = useShowTransportStore.getState()
+  const positionMsRef = useRef(initialTransport.showId === show.id ? initialTransport.positionMs : 0)
   useEffect(() => {
-    positionMsRef.current = positionMs
-  }, [positionMs])
+    return useShowTransportStore.subscribe((state) => {
+      if (state.showId === show.id) positionMsRef.current = state.positionMs
+    })
+  }, [show.id])
   const structuralTimesMs = [...new Set([
     0,
     timeline.durationMs,
@@ -2146,6 +2142,7 @@ function SceneStrip({
   const setZoomLevel = (target: number) => updateViewport((current) => {
     const currentZoom = current.totalMs / current.durationMs
     const visibleEnd = current.startMs + current.durationMs
+    const positionMs = positionMsRef.current
     const anchor = positionMs >= current.startMs && positionMs <= visibleEnd
       ? positionMs
       : current.startMs + current.durationMs / 2

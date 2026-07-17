@@ -35,4 +35,15 @@ describe('renderer — no GL context', () => {
     expect(canvas.width).toBe(640)
     expect(canvas.height).toBe(320)
   })
+
+  it('resizes a 3D canvas without replacing its renderer context (#508)', () => {
+    const canvas = document.createElement('canvas')
+    const renderer = createRenderer(canvas, { containerWidth: 640 })
+
+    renderer.set3DPositions([[0, 0, 0], [1, 1, 1]], { canvasPx: 640 })
+    renderer.resize3D(320)
+
+    expect(canvas.width).toBe(320)
+    expect(canvas.height).toBe(320)
+  })
 })

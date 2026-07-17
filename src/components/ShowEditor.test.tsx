@@ -38,6 +38,7 @@ import { STOCK_SHOWS } from '@/pixelblaze/stock/shows'
 import { DEMOS } from '@/pixelblaze/stock/patterns'
 import { buildShowCompositionFreezeCases } from '@/engine/showCompositionFreeze'
 import { projectFlatShowToCompositionV1 } from '@/engine/showCompositionModel'
+import * as showModel from '@/engine/showModel'
 
 function changeCommittedNumber(label: string, value: string): void {
   const input = screen.getByLabelText(label)
@@ -111,6 +112,19 @@ beforeEach(() => {
 afterEach(() => resetControllerProvider())
 
 describe('ShowEditor (#318)', () => {
+  it('does not re-project the complete Scene strip for live position updates (#508)', () => {
+    const show = createDefaultShow('show-narrow-position-subscription', 'Narrow position subscription', 1000)
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    const projectStrip = vi.spyOn(showModel, 'projectShowStrip')
+
+    render(<ShowEditor showId={show.id} />)
+    const initialProjectionCount = projectStrip.mock.calls.length
+
+    act(() => useShowTransportStore.getState().setPosition(show.id, 250))
+
+    expect(projectStrip).toHaveBeenCalledTimes(initialProjectionCount)
+  })
+
   it('opens a stock Show in the real editor without creating a personal record (#363)', async () => {
     const stock = STOCK_SHOWS[0]
 

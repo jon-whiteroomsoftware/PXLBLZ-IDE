@@ -37,6 +37,7 @@
     "issue409": "tsx test/perf-harness/issue409.ts",
     "issue410": "tsx test/perf-harness/issue410.ts",
     "issue412": "tsx test/perf-harness/issue412.ts",
+    "issue508": "vitest run test/perf-harness/issue508.test.ts --reporter=verbose",
     "issue401:seed": "tsx scripts/seed-pattern-prism.ts",
     "issue402": "tsx test/perf-harness/issue316.ts",
     "issue402:seed": "tsx scripts/seed-scene-splice.ts",

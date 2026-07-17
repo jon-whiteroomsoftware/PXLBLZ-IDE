@@ -34,7 +34,7 @@ export interface Viewport2D {
 }
 
 export interface Renderer {
-  paint(pixels: [number, number, number][], brightness: number, dimmed: boolean): void
+  paint(pixels: Float32Array | Float64Array | [number, number, number][], brightness: number, dimmed: boolean): void
   // Set the 2D draw layout from normalized [0,1]² `pos` (stock plane, ring,
   // cloud, or a 1D shape embedding alike). The renderer measures the layout's
   // bounds and nearest-neighbour spacing, sizes the canvas to the bounds' aspect
@@ -55,6 +55,9 @@ export interface Renderer {
     positions: [number, number, number][] | null,
     opts?: { canvasPx?: number; normals?: [number, number, number][] | null },
   ): void
+  // Re-fit an existing 3D canvas without remeasuring positions or rebuilding
+  // static buffers. No-op unless the renderer is in 3D mode.
+  resize3D(canvasPx: number): void
   // Update the orbit camera (auto-orbit advance, drag, reset). No-op in 2D mode.
   setCamera(camera: OrbitCamera): void
   // Set the solidity (0–1): a back-face terminator fade folded into the
@@ -197,7 +200,18 @@ export function createRenderer(canvas: HTMLCanvasElement, initialViewport: Viewp
         lightSize = viewport.lightSize ?? lightSize
         applySize()
       },
-      set3DPositions: () => undefined,
+      set3DPositions(_positions, opts = {}) {
+        if (opts.canvasPx) {
+          const px = Math.max(1, Math.round(opts.canvasPx))
+          canvas.width = px
+          canvas.height = px
+        }
+      },
+      resize3D(canvasPx) {
+        const px = Math.max(1, Math.round(canvasPx))
+        canvas.width = px
+        canvas.height = px
+      },
       setCamera: () => undefined,
       setSolidity: () => undefined,
       setDiffusion: () => undefined,
@@ -342,9 +356,11 @@ export function createRenderer(canvas: HTMLCanvasElement, initialViewport: Viewp
     return bright
   }
 
-  function paint(pixels: [number, number, number][], brightness: number, dimmed: boolean): void {
+  function paint(pixels: Float32Array | Float64Array | [number, number, number][], brightness: number, dimmed: boolean): void {
     const bright3D = pos3D ? project3D() : null
-    const count = Math.min(drawCount, pixels.length, clampPixelCount(pixels.length))
+    const packed = pixels instanceof Float32Array || pixels instanceof Float64Array
+    const pixelCount = packed ? pixels.length / 3 : pixels.length
+    const count = Math.min(drawCount, pixelCount, clampPixelCount(pixelCount))
     if (colorData.length !== drawCount * 3) colorData = colors()
 
     const dimScale = dimmed ? DIM_FACTOR : 1
@@ -359,12 +375,15 @@ export function createRenderer(canvas: HTMLCanvasElement, initialViewport: Viewp
     // over brightness. Depth cueing still shades the cube per-vertex for legibility.
     const scale = brightness * dimScale
     for (let i = 0; i < count; i++) {
-      const [r, g, b] = pixels[i]
+      const offset = i * 3
+      const r = packed ? pixels[offset] : pixels[i][0]
+      const g = packed ? pixels[offset + 1] : pixels[i][1]
+      const b = packed ? pixels[offset + 2] : pixels[i][2]
       // Depth cueing multiplies brightness per-vertex in 3D mode (nearer = brighter).
       const ds = scale * (bright3D ? bright3D[i] : 1)
-      colorData[i * 3] = clamp01(r * ds)
-      colorData[i * 3 + 1] = clamp01(g * ds)
-      colorData[i * 3 + 2] = clamp01(b * ds)
+      colorData[offset] = clamp01(r * ds)
+      colorData[offset + 1] = clamp01(g * ds)
+      colorData[offset + 2] = clamp01(b * ds)
     }
 
     const ctx = gl as WebGLRenderingContext
@@ -477,6 +496,13 @@ export function createRenderer(canvas: HTMLCanvasElement, initialViewport: Viewp
     }
   }
 
+  function resize3D(canvasPx: number): void {
+    if (!pos3D) return
+    const px = Math.max(1, Math.round(canvasPx))
+    canvas.width = px
+    canvas.height = px
+  }
+
   function setCamera(c: OrbitCamera): void {
     camera = c
   }
@@ -493,7 +519,7 @@ export function createRenderer(canvas: HTMLCanvasElement, initialViewport: Viewp
     if (!pos3D) apply2DGlow()
   }
 
-  return { paint, set2DPositions, resize2D, set3DPositions, setCamera, setSolidity, setDiffusion }
+  return { paint, set2DPositions, resize2D, set3DPositions, resize3D, setCamera, setSolidity, setDiffusion }
 }
 
 function clamp01(v: number): number {

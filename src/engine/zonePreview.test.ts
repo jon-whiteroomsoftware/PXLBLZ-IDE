@@ -1,6 +1,8 @@
 import {
   applyShowStageMask,
+  applyShowStageMaskPacked,
   buildShowStageProjection,
+  createShowStageMaskPlan,
   buildShowLogicalStageProjection,
   showLogicalAspectAdvisory,
   buildShowStageStrips,
@@ -302,6 +304,30 @@ describe('show stage projection', () => {
       0.055,
       0.055,
       0.06,
+    ])
+  })
+
+  it('returns a fully covered packed Stage frame by identity and reuses fallback storage (#508)', () => {
+    const frame = new Float64Array([
+      1, 0, 0,
+      0, 1, 0,
+      0, 0, 1,
+      1, 1, 1,
+      0.5, 0.5, 0.5,
+    ])
+    const coveredPlan = createShowStageMaskPlan(buildShowStageProjection(showZones, 5), 5)
+
+    expect(applyShowStageMaskPacked(frame, coveredPlan, null)).toBe(frame)
+
+    const masked = applyShowStageMaskPacked(frame, coveredPlan, 'wash')
+    expect(masked).not.toBe(frame)
+    expect(applyShowStageMaskPacked(frame, coveredPlan, 'wash')).toBe(masked)
+    expect([...masked]).toEqual([
+      0, 0, 0,
+      0, 0, 0,
+      0, 0, 0,
+      1, 1, 1,
+      0.5, 0.5, 0.5,
     ])
   })
 

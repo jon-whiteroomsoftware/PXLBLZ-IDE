@@ -25,6 +25,8 @@ export interface ShimConfig {
 export interface ShimContext {
   builtins: Record<string, unknown>
   capturedPixel: () => [number, number, number]
+  writeCapturedPixel: (target: Float32Array | Float64Array, offset: number) => void
+  resetCapturedPixel: () => void
   getBuiltin: (name: string) => unknown
   // Encode/decode a scalar at the engine↔pattern boundary. The float64 shim is
   // the identity; the fixed-point shim converts float ↔ raw int32 so the render
@@ -35,6 +37,7 @@ export interface ShimContext {
   // calls this before render2D/render3D so transform()/translate()/etc. behave
   // as they do on hardware (the transformed coords are handed to the pattern).
   transformPoint: (x: number, y: number, z: number) => [number, number, number]
+  transformPointInto: (target: Float64Array, offset: number, x: number, y: number, z: number) => void
 }
 
 // Reveal-2D convenience: build the spatial section of a ShimConfig from a
@@ -83,9 +86,32 @@ export function createShim(config: ShimConfig): ShimContext {
     ]
   }
 
+  function transformPointInto(
+    target: Float64Array,
+    offset: number,
+    x: number,
+    y: number,
+    z: number,
+  ): void {
+    target[offset] = ctm[0] * x + ctm[1] * y + ctm[2] * z + ctm[3]
+    target[offset + 1] = ctm[4] * x + ctm[5] * y + ctm[6] * z + ctm[7]
+    target[offset + 2] = ctm[8] * x + ctm[9] * y + ctm[10] * z + ctm[11]
+  }
+
+  function resetCapturedPixel(): void {
+    captR = 0; captG = 0; captB = 0
+  }
+
+  function writeCapturedPixel(target: Float32Array | Float64Array, offset: number): void {
+    target[offset] = captR
+    target[offset + 1] = captG
+    target[offset + 2] = captB
+    resetCapturedPixel()
+  }
+
   function capturedPixel(): [number, number, number] {
     const out: [number, number, number] = [captR, captG, captB]
-    captR = 0; captG = 0; captB = 0
+    resetCapturedPixel()
     return out
   }
 
@@ -351,10 +377,13 @@ export function createShim(config: ShimConfig): ShimContext {
   return {
     builtins,
     capturedPixel,
+    writeCapturedPixel,
+    resetCapturedPixel,
     getBuiltin: (name: string) => builtins[name],
     encodeScalar: (n: number) => n,
     decodeScalar: (n: number) => n,
     transformPoint,
+    transformPointInto,
   }
 }
 
@@ -369,7 +398,14 @@ export function createShim(config: ShimConfig): ShimContext {
 
 export function createFxShim(config: ShimConfig): ShimContext {
   const floatShim = createShim(config)
-  const { builtins: floatBuiltins, capturedPixel, transformPoint: floatTP } = floatShim
+  const {
+    builtins: floatBuiltins,
+    capturedPixel,
+    writeCapturedPixel,
+    resetCapturedPixel,
+    transformPoint: floatTP,
+    transformPointInto: floatTPInto,
+  } = floatShim
 
   // Wrap one function: numeric args converted raw→float, numeric result converted float→raw.
   // Non-numeric args (callbacks, arrays) pass through so array/callback built-ins still work.
@@ -445,14 +481,29 @@ export function createFxShim(config: ShimConfig): ShimContext {
     const [tx, ty, tz] = floatTP(x, y, z)
     return [fx.fromFloat(tx), fx.fromFloat(ty), fx.fromFloat(tz)]
   }
+  function transformPointInto(
+    target: Float64Array,
+    offset: number,
+    x: number,
+    y: number,
+    z: number,
+  ): void {
+    floatTPInto(target, offset, x, y, z)
+    target[offset] = fx.fromFloat(target[offset])
+    target[offset + 1] = fx.fromFloat(target[offset + 1])
+    target[offset + 2] = fx.fromFloat(target[offset + 2])
+  }
 
   return {
     builtins: fxBuiltins,
     capturedPixel,
+    writeCapturedPixel,
+    resetCapturedPixel,
     getBuiltin: (name: string) => fxBuiltins[name],
     encodeScalar: fx.fromFloat,
     decodeScalar: fx.toFloat,
     transformPoint,
+    transformPointInto,
   }
 }
 

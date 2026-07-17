@@ -335,6 +335,68 @@ export function applyShowStageMask(
   })
 }
 
+export interface ShowStageMaskPlan {
+  pixelCount: number
+  completeCoverage: boolean
+  zoneOrdinals: Int32Array
+  zoneOrdinalById: ReadonlyMap<string, number>
+  output: Float64Array
+}
+
+export function createShowStageMaskPlan(
+  projection: ShowStageProjection,
+  pixelCount: number,
+): ShowStageMaskPlan {
+  const boundedPixelCount = Math.max(0, Math.floor(pixelCount))
+  const zoneOrdinalById = new Map(projection.zones.map((zone, index) => [zone.id, index]))
+  const zoneOrdinals = new Int32Array(boundedPixelCount)
+  zoneOrdinals.fill(-1)
+  let completeCoverage = true
+  for (let index = 0; index < boundedPixelCount; index += 1) {
+    const zoneId = projection.pixelZoneIds[index]
+    const ordinal = zoneId === null || zoneId === undefined ? undefined : zoneOrdinalById.get(zoneId)
+    if (ordinal === undefined) completeCoverage = false
+    else zoneOrdinals[index] = ordinal
+  }
+  return {
+    pixelCount: boundedPixelCount,
+    completeCoverage,
+    zoneOrdinals,
+    zoneOrdinalById,
+    output: new Float64Array(boundedPixelCount * 3),
+  }
+}
+
+export function applyShowStageMaskPacked(
+  frame: Float64Array,
+  plan: ShowStageMaskPlan,
+  soloZoneId: string | null,
+  unstagedColor: PixelColor = [0.055, 0.055, 0.06],
+): Float64Array {
+  if (!soloZoneId && plan.completeCoverage && frame.length === plan.pixelCount * 3) return frame
+
+  const soloOrdinal = soloZoneId ? plan.zoneOrdinalById.get(soloZoneId) : undefined
+  const output = plan.output
+  for (let index = 0; index < plan.pixelCount; index += 1) {
+    const ordinal = plan.zoneOrdinals[index]
+    const offset = index * 3
+    if (ordinal < 0) {
+      output[offset] = unstagedColor[0]
+      output[offset + 1] = unstagedColor[1]
+      output[offset + 2] = unstagedColor[2]
+    } else if (soloZoneId && ordinal !== soloOrdinal) {
+      output[offset] = 0
+      output[offset + 1] = 0
+      output[offset + 2] = 0
+    } else {
+      output[offset] = frame[offset] ?? 0
+      output[offset + 1] = frame[offset + 1] ?? 0
+      output[offset + 2] = frame[offset + 2] ?? 0
+    }
+  }
+  return output
+}
+
 export function filterPixelsForSolo(
   pixels: PixelColor[],
   zones: ControllerZone[],

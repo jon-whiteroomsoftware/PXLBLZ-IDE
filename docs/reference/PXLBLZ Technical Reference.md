@@ -399,18 +399,40 @@ Runtime exceptions stop the loop and surface an error. `tickHeadless` executes
 all stateful render work without retaining or painting an RGB frame; Show seek
 replay uses it because render functions may mutate Pattern state.
 
+The Show Stage has two deliberately different advancement contracts. Live
+playback calls `advanceLive(deltaMs)` once for each presented animation frame,
+so a delayed browser frame produces one larger Pattern delta rather than a burst
+of catch-up renders. Deterministic seek still advances at fixed 60 Hz through
+`advanceTo()`. Both paths run the same Pattern code, but only seek needs every
+intermediate state transition.
+
+Fast replay flattens map samples and selected render compatibility when the
+runtime is created. Its hot pixel loop uses scalar transform/capture seams and a
+stable packed `Float64Array`; tuple views, export snapshots, and checksums are
+materialized only when a diagnostic caller requests them. Headless steps reset
+captured color without allocating or retaining a frame.
+
 ## 10. WebGL, camera, and preview settings
 
 `renderer.ts` draws all pixels as WebGL points. 2D uses an additive pass. 3D
 uses an opaque depth-tested core pass plus an additive glow pass. Diffusion is a
 per-source point-spread kernel, not a post-process frame blur. The renderer
 degrades to a no-op when WebGL is unavailable, which keeps jsdom tests practical.
+The Show Stage passes its packed RGB frame directly to this renderer; the
+renderer reuses its upload storage instead of adapting every pixel into RGB
+tuples.
 
 `camera.ts` owns pure projection and fitting. 2D layout bounds determine canvas
 aspect. The 3D orbit camera uses orthographic projection, rotation-invariant
 fitting, depth cue, and optional normal-based solidity. Renderer caps protect
 against accidental pathological counts (`MAX_PIXEL_COUNT = 65,536`, grid axis
 256).
+
+Changing Stage pane width, light size, or the 3D canvas extent resizes the
+existing renderer in place. It does not construct a new Fast runtime, reset
+Pattern state, or seek through Show time. A Stage map, compiled artifact,
+fidelity mode, or Show identity change still creates a new runtime because it
+changes execution inputs.
 
 Effective preview settings resolve field-by-field:
 
@@ -1012,6 +1034,16 @@ to Scene start, and leaves playback stopped. Clearing the window on exit returns
 the store to ordinary whole-Show transport without allowing local playback to
 escape into the next Scene. The right Stage remains mounted throughout and
 continues to render final all-zone output.
+
+Ordinary Show playback advances the Fast runtime once per browser animation
+frame and paints the returned packed buffer immediately. Stage masking owns one
+precomputed pixel-to-zone plan. Complete coverage with no solo selection returns
+the source frame by identity; a solo or uncovered-pixel diagnostic reuses one
+fallback buffer. Pane resizing updates renderer geometry without reconstructing
+the replay runtime. Timeline position publication is consumed by narrow
+transport, ruler, playhead, and reference-instrument subscribers; `SceneStrip`
+reads the latest position through an imperative store subscription so the whole
+timeline projection does not rerender every frame.
 
 The first local edit explicitly projects the flat compatibility cells into
 `ShowRecord.composition` version 1. `showCompositionModel.ts` normalizes and
@@ -2032,6 +2064,9 @@ coverage over delegation and rendering. The repository also carries:
 - compiler and generated-artifact execution tests;
 - Show model/compiler/runtime equivalence tests;
 - performance harnesses for Pixelblaze built-in costs and generated strategies;
+- `npm run issue508`, which compiles and advances the real 4,000-pixel Redline
+  Installation fixture and reports median/p95 engine phase time, simulated
+  ticks per presented frame, runtime initialization count, and buffer identity;
 - Playwright public route smoke plus synthetic authenticated D1-backed Studio
   persistence and complex Show-authoring flows; and
 - explicit live-hardware probes and archived result reports.
@@ -2039,6 +2074,11 @@ coverage over delegation and rendering. The repository also carries:
 The pre-commit gate runs lint and the full Vitest suite. E2E, performance, and
 hardware tiers remain explicit because they have different reliability and
 environment requirements.
+
+Development builds additionally expose a hidden Show Stage telemetry output for
+browser acceptance work. It records browser frame cadence, Pattern evaluation,
+Stage masking, WebGL paint, runtime initialization, and resize counts without
+publishing React state per frame. Production builds omit this probe.
 
 ## 28. Known limits and accepted divergences
 
