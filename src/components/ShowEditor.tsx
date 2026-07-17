@@ -570,6 +570,11 @@ export function ShowEditor({
     : activeShow?.targetControllerProfileId
     ? controllerProfiles.find((profile) => profile.id === activeShow.targetControllerProfileId)
     : controllerProfiles[0]
+  const activeControllerProfile = controllerProfiles.find((profile) => (
+    activeController?.deviceId
+      ? profile.deviceId === activeController.deviceId
+      : Boolean(activeIp && profile.lastSeenIp === activeIp)
+  )) ?? targetProfile
 
   const requestDeleteSelection = useCallback((targetSelection: ShowSelection): boolean => {
     if (!activeShow || readOnly) return false
@@ -651,9 +656,14 @@ export function ShowEditor({
     : null
   const compiled = useMemo(
     () => activeShow
-      ? compileShowForArtifact(activeShow, userPatterns, targetProfile?.zones, {}, { stageDimension })
+      ? compileShowForArtifact(activeShow, userPatterns, targetProfile?.zones, {}, {
+          stageDimension,
+          targetPixelCount: activeShow.outputContract?.kind === 'portable-2d'
+            ? activeControllerProfile?.lastKnownPixelCount
+            : undefined,
+        })
       : { artifact: null, error: null },
-    [activeShow, stageDimension, userPatterns, targetProfile?.zones],
+    [activeControllerProfile?.lastKnownPixelCount, activeShow, stageDimension, userPatterns, targetProfile?.zones],
   )
   const compilePressure = useMemo(() => compiled.artifact
     ? assessShowCompilePressure({
@@ -694,21 +704,16 @@ export function ShowEditor({
     ? projectShowSceneEditorScope(compositionProjection, resolvedSceneEditorScope)
     : null
   const showExport = useMemo(
-    () => activeShow && compiled.artifact && compilePressure?.status !== 'blocked'
+    () => activeShow && compiled.artifact && !compiled.artifactBlocker && compilePressure?.status !== 'blocked'
       ? buildShowEpeExport(activeShow, compiled.artifact.code, {
           stampedAt: new Date(activeShow.updatedAt),
           userMaps,
         })
       : null,
-    [activeShow, compilePressure?.status, compiled.artifact, userMaps],
+    [activeShow, compilePressure?.status, compiled.artifact, compiled.artifactBlocker, userMaps],
   )
   const activeControllerMapDim = activeController?.mapDim ?? null
   const activeControllerFirmware = activeController?.firmwareVersion
-  const activeControllerProfile = controllerProfiles.find((profile) => (
-    activeController?.deviceId
-      ? profile.deviceId === activeController.deviceId
-      : Boolean(activeIp && profile.lastSeenIp === activeIp)
-  )) ?? targetProfile
   const controllerCompatibilityContext = useMemo(() => {
     const pixelCount = activeControllerProfile?.lastKnownPixelCount
     const fingerprint = activeControllerProfile?.mapFingerprints?.find((record) => (
@@ -735,6 +740,9 @@ export function ShowEditor({
     }
   }, [activeControllerProfile, userMaps])
   const preparedControllerArtifact = useMemo(() => {
+    if (compiled.artifactBlocker) {
+      return { value: null, error: compiled.artifactBlocker }
+    }
     if (compilePressure?.status === 'blocked') {
       return { value: null, error: compilePressure.blocks.join(' ') }
     }
@@ -755,7 +763,13 @@ export function ShowEditor({
         error: error instanceof Error ? error.message : 'Could not prepare Show for Controller',
       }
     }
-  }, [activeControllerFirmware, activeControllerMapDim, compilePressure, controllerCompatibilityContext, showExport])
+  }, [activeControllerFirmware, activeControllerMapDim, compilePressure, compiled.artifactBlocker, controllerCompatibilityContext, showExport])
+  const compileBarPushResult = preparedControllerArtifact.error
+    && preparedControllerArtifact.error !== compiled.artifactBlocker
+    ? preparedControllerArtifact.error
+    : controllerPushResult
+      ? controllerPushResult.ok ? 'Sent to Controller' : controllerPushResult.message
+      : null
 
   useEffect(() => {
     if (!controllerPushResult) return
@@ -763,7 +777,7 @@ export function ShowEditor({
     return () => window.clearTimeout(timeout)
   }, [clearPushResult, controllerPushResult])
   const buildDownloadExport = async (): Promise<ShowEpeExport | null> => {
-    if (!activeShow || !compiled.artifact || compilePressure?.status === 'blocked') return null
+    if (!activeShow || !compiled.artifact || compiled.artifactBlocker || compilePressure?.status === 'blocked') return null
     const preview = await buildPreviewJpeg(compiled.artifact)
     if (!preview) throw new Error('Could not render the EPE preview image')
     return buildShowEpeExport(activeShow, compiled.artifact.code, {
@@ -814,7 +828,7 @@ export function ShowEditor({
     }
   }
 
-  if (generatedOpen && compiled.artifact) {
+  if (generatedOpen && compiled.artifact && !compiled.artifactBlocker) {
     return (
       <div className="flex h-full min-h-0 flex-col bg-zinc-950">
         <div className="flex h-9 shrink-0 items-center gap-2 border-b border-seam px-3 font-mono text-xs text-zinc-400">
@@ -965,7 +979,7 @@ export function ShowEditor({
         aria-label="View code"
         title="View final generated code"
         className="bg-zinc-800/70 text-[11px] text-zinc-400 hover:bg-zinc-700/70 hover:text-zinc-300 disabled:opacity-40"
-        disabled={!compiled.artifact}
+        disabled={!compiled.artifact || Boolean(compiled.artifactBlocker)}
         onClick={() => setGeneratedOpen(true)}
       >
         <Code2 size={13} aria-hidden />
@@ -1525,11 +1539,7 @@ export function ShowEditor({
         targetPixels={activeShow.outputContract?.kind === 'portable-2d'
           ? activeShow.outputContract.referencePixelCount
           : targetProfile?.lastKnownPixelCount ?? zonePixelTotal(activeShow)}
-        pushResult={preparedControllerArtifact.error ?? (
-          controllerPushResult
-            ? controllerPushResult.ok ? 'Sent to Controller' : controllerPushResult.message
-            : null
-        )}
+        pushResult={compileBarPushResult}
       />
     </div>
   )
@@ -5331,6 +5341,14 @@ function CompileBar({
         />
       </span>
       <b className="text-zinc-300">{summary ? formatBytes(summary.artifactBytes) : '-'} / ~{summary ? formatBytes(summary.measuredDeviceBudgetBytes) : '-'}</b>
+      {summary?.resources && (
+        <span className={summary.resources.remainingWords < 0 ? 'text-red-300' : 'text-sky-200'}>
+          VM {summary.resources.totalWords.toLocaleString('en-US')}/{summary.resources.vmWordBudget.toLocaleString('en-US')} words
+          {' · '}arena {summary.resources.renderTargetWords.toLocaleString('en-US')}
+          {' · '}{summary.resources.remainingWords.toLocaleString('en-US')} free
+        </span>
+      )}
+      {compiled.artifactBlocker && <span className="text-red-300">Output blocked: {compiled.artifactBlocker}</span>}
       {pressure?.blocks.map((block) => <span key={block} className="text-red-300">Output blocked: {block}</span>)}
       {pressure?.warnings.map((warning) => <span key={warning} className="text-amber-300">{warning}</span>)}
       <span>-</span>

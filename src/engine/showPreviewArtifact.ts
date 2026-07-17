@@ -6,10 +6,17 @@ import { compileShow, type GeneratedShowArtifact } from './showCompiler'
 import { showRecordToCompileRecipe } from './showModel'
 import { DEMOS } from '@/pixelblaze/stock/patterns'
 import { LIBRARIES } from '@/pixelblaze/libs'
+import { SHOW_MAX_OUTPUT_PIXELS } from './showVmResourceLedger'
 
 export interface CompiledShowState {
   artifact: GeneratedShowArtifact | null
   error: string | null
+  artifactBlocker?: string
+}
+
+interface ShowCompilationOptions {
+  stageDimension?: 1 | 2 | 3
+  targetPixelCount?: number
 }
 
 export function compileShowForPreview(
@@ -17,7 +24,7 @@ export function compileShowForPreview(
   userPatterns: PatternRecord[],
   controllerZones: ControllerZone[] | undefined,
   libraries: Record<string, string>,
-  options: { stageDimension?: 1 | 2 | 3 } = {},
+  options: ShowCompilationOptions = {},
 ): CompiledShowState {
   try {
     const byCellId = Object.fromEntries(
@@ -46,7 +53,7 @@ export function compileShowForArtifact(
   userPatterns: PatternRecord[],
   controllerZones: ControllerZone[] | undefined,
   libraries: Record<string, string>,
-  options: { stageDimension?: 1 | 2 | 3 } = {},
+  options: ShowCompilationOptions = {},
 ): CompiledShowState {
   const coverageError = installationCoverageBlockingMessage(validateInstallationCoverage(show))
   if (coverageError) return { artifact: null, error: coverageError }
@@ -66,9 +73,19 @@ export function compileShowForArtifact(
     ],
     options.stageDimension,
   ))
-  return portableError
-    ? { artifact: null, error: portableError }
-    : compileShowForPreview(show, userPatterns, controllerZones, libraries, options)
+  if (portableError) return { artifact: null, error: portableError }
+  const compiled = compileShowForPreview(show, userPatterns, controllerZones, libraries, options)
+  if (show.outputContract?.kind === 'portable-2d' && (options.targetPixelCount ?? 0) > SHOW_MAX_OUTPUT_PIXELS) {
+    const targetPixelCount = Math.floor(options.targetPixelCount!)
+    return {
+      ...compiled,
+      artifactBlocker: `Target Controller reports ${targetPixelCount.toLocaleString('en-US')} pixels; compiled Shows support at most ${SHOW_MAX_OUTPUT_PIXELS.toLocaleString('en-US')}. Reduce the Controller pixel count before Run or Save.`,
+    }
+  }
+  const resourceBlocker = compiled.artifact?.summary.resources.blockers[0]
+  return resourceBlocker
+    ? { ...compiled, artifactBlocker: resourceBlocker.message }
+    : compiled
 }
 
 export function sourceForShowCell(cell: ShowCell, userPatterns: PatternRecord[]): string {

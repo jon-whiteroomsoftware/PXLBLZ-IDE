@@ -57,6 +57,14 @@ import {
   type RoutingRepresentationEstimate,
 } from './showRoutingRepresentation'
 import { selectRenderCompatibility } from './renderCompatibility'
+import {
+  buildShowVmResourceLedger,
+  countShowPersistentGlobals,
+  inspectGeneratedShowVmAllocations,
+  SHOW_ARTIFACT_BUDGET_BYTES,
+  SHOW_MAX_OUTPUT_PIXELS,
+  type ShowVmResourceLedger,
+} from './showVmResourceLedger'
 
 export interface ShowClipRecipe {
   id: string
@@ -395,6 +403,7 @@ export interface ShowCompileSummary {
     maxFracCallsPerPixel: 2
   } | null
   clips: ShowCompileClipSummary[]
+  resources: ShowVmResourceLedger
   warnings: string[]
   cost: ShowCompiledCostMetadata
 }
@@ -408,7 +417,7 @@ export interface GeneratedShowArtifact {
 }
 
 // Largest source/bytecode budget observed during the #314 hardware spike.
-const MEASURED_DEVICE_BUDGET_BYTES = 68384
+const MEASURED_DEVICE_BUDGET_BYTES = SHOW_ARTIFACT_BUDGET_BYTES
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Node = Record<string, any>
@@ -428,6 +437,7 @@ interface CompiledMember {
   id: string
   prefix: string
   code: string
+  resourceSource: string
   sourceBytes: number
   renamedBindings: string[]
   renamedPatternVars: string[]
@@ -713,6 +723,13 @@ export function compileShow(
   const sourceBytesBeforeMerge = members.reduce((sum, member) => sum + member.sourceBytes, 0)
   const expandedArtifactBytes = byteLength(expandedCode)
   const artifactBytes = byteLength(code)
+  const resources = buildShowVmResourceLedger({
+    pixelCount: expandedRecipe.masterPixelCount ?? SHOW_MAX_OUTPUT_PIXELS,
+    members: members.map((member) => ({ owner: member.id, source: member.resourceSource })),
+    generatedAllocations: inspectGeneratedShowVmAllocations(expandedCode),
+    persistentGlobals: countShowPersistentGlobals(code),
+    artifactBytes,
+  })
   const transitionCost = expandedRecipe.sceneSequence || expandedRecipe.routedSceneSequence
     ? sequenceHasCrossfade || motionBlend
       ? 'renderer-window'
@@ -760,7 +777,9 @@ export function compileShow(
           : 0
         return count + parameters + affineGlobals
       }, 0),
-    generatedArrayElements: routingParameterEstimate?.arrayElements ?? 0,
+    generatedArrayElements: resources.allocations
+      .filter((allocation) => ['routing', 'plan', 'auxiliary-cache'].includes(allocation.category))
+      .reduce((sum, allocation) => sum + allocation.elementCount, 0),
     warnings,
     effects: effectCost,
   })
@@ -906,6 +925,7 @@ export function compileShow(
         timeOffsetMs: member.adaptation.timeOffsetMs,
       }
     }),
+    resources,
     warnings,
     cost,
   }
@@ -1136,6 +1156,7 @@ function compileMember(
     id: clip.id,
     prefix,
     code,
+    resourceSource: bundled.code,
     sourceBytes: byteLength(bundled.code),
     renamedBindings: [...mapping.values()].sort(),
     renamedPatternVars,

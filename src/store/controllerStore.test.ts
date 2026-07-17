@@ -45,6 +45,9 @@ import {
 import { defaultControllerProfile, type ControllerProfile } from './controllerProfileStore'
 import type { FirmwareUpdateState } from '@/engine/firmwareUpdate'
 import { stampArtifact } from '@/engine/artifactStamp'
+import { showInitialState, useShowStore } from '@/store/showStore'
+import { createShowWithOutputContract } from '@/engine/showModel'
+import { createPortableShowOutputContract } from '@/engine/showOutputContract'
 
 // A fake per-Controller provider with a real (if minimal) status machine, so we
 // can assert the keyed store's orchestration end-to-end. detectHelper acks true
@@ -223,6 +226,7 @@ beforeEach(async () => {
   useLibraryStore.setState(libraryInitialState)
   useMapStore.setState(mapInitialState)
   useControllerPanelStore.setState(controllerPanelInitialState)
+  useShowStore.setState(showInitialState)
   await setControllerBindings({})
   created.clear()
   setControllerProviderFactory((ip) => {
@@ -295,6 +299,56 @@ describe('controllerStore (keyed)', () => {
       unmanagedCount: 1,
       completedCount: 1,
     })
+  })
+
+  it('excludes Portable Shows from reconciliation when the Controller exceeds 2,000 pixels (#514)', async () => {
+    const profile = {
+      ...defaultControllerProfile({
+        id: 'profile-1',
+        deviceId: 'pixelblaze_pb32_managed',
+        ip: '10.0.0.5',
+      }),
+      keepPatternsUpToDate: true,
+      lastKnownPixelCount: 2_001,
+    }
+    setControllerProfiles([profile])
+    const show = createShowWithOutputContract(
+      'show-portable',
+      'Portable arena',
+      createPortableShowOutputContract({ referenceMapId: 'plane', referencePixelCount: 1_024 }),
+      1,
+    )
+    show.cells = show.cells.map((cell) => ({
+      ...cell,
+      pattern: { kind: 'stock', id: 'ShapeShifter' },
+      patternName: 'ShapeShifter',
+    }))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    await setControllerBindings({ '10.0.0.5': { 'show:show-portable': 'SHOW0001' } })
+    await setPushRecords({
+      '10.0.0.5': {
+        'show:show-portable': {
+          transforms: [],
+          profileSignature: 'old-signature',
+          artifactHash: 'old-hash',
+          stampedAt: '2026-07-12T00:00:00.000Z',
+          name: 'Portable arena',
+        },
+      },
+    })
+
+    await store().addController({
+      id: 'pixelblaze_pb32_managed',
+      address: '10.0.0.5',
+      name: 'Managed Controller',
+    })
+    const provider = created.get('10.0.0.5')!
+    provider.programs = [{ id: 'SHOW0001', name: 'Portable arena' }]
+
+    await store().reconcileControllerProfile('profile-1')
+
+    expect(provider.saved).toEqual([])
+    expect(provider.compiledSources).toEqual([])
   })
 
   it('detectExtension records global extension presence', async () => {

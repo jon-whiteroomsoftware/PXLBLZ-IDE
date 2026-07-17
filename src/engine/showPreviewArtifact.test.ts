@@ -264,6 +264,26 @@ describe('compileShowForPreview temporal adaptations (#379)', () => {
     })
   })
 
+  it('keeps an over-limit Installation previewable but blocks every artifact action (#514)', () => {
+    const show = createShowWithOutputContract(
+      'show-installation-over-limit',
+      'Oversized Installation',
+      { version: 1, kind: 'installation', outputMapId: 'plane', pixelCount: 2_001, resolution: 'fixed' },
+    )
+    const preview = compileShowForPreview(show, [], undefined, {})
+    const artifact = compileShowForArtifact(show, [], undefined, {})
+
+    expect(preview.artifact).not.toBeNull()
+    expect(preview.artifact?.summary.resources.blockers).toContainEqual(expect.objectContaining({
+      kind: 'output-pixel-limit',
+    }))
+    expect(artifact.artifact).not.toBeNull()
+    expect(artifact.error).toBeNull()
+    expect(artifact.artifactBlocker).toBe(
+      'Show output contract requests 2,001 pixels; compiled Shows support at most 2,000. Reduce the Installation output or target Controller pixel count.',
+    )
+  })
+
   it('keeps incompatible Portable members previewable but blocks artifact output (#436)', () => {
     const show = createShowWithOutputContract(
       'show-portable',
@@ -288,6 +308,61 @@ describe('compileShowForPreview temporal adaptations (#379)', () => {
       artifact: null,
       error: 'Portable 2D compatibility failed: Volumetric only defines only render3D. Choose a Pattern with render2D or render, or author that renderer before export or send.',
     })
+  })
+
+  it('blocks a Portable artifact for a Controller above the runtime ceiling without changing its reference preview (#514)', () => {
+    const show = createShowWithOutputContract(
+      'show-portable-over-limit-target',
+      'Portable field',
+      createPortableShowOutputContract({ referenceMapId: 'plane', referencePixelCount: 1_024 }),
+    )
+    show.cells = show.cells.map((cell) => ({
+      ...cell,
+      pattern: { kind: 'stock' as const, id: 'ShapeShifter' },
+      patternName: 'ShapeShifter',
+    }))
+
+    const preview = compileShowForPreview(show, [], undefined, LIBRARIES, { stageDimension: 2 })
+    const artifact = compileShowForArtifact(show, [], undefined, LIBRARIES, {
+      stageDimension: 2,
+      targetPixelCount: 2_001,
+    })
+
+    expect(preview.artifact?.summary.resources.pixelCount).toBe(2_000)
+    expect(preview.artifact?.summary.resources.blockers).toEqual([])
+    expect(artifact.artifact).not.toBeNull()
+    expect(artifact.artifactBlocker).toBe(
+      'Target Controller reports 2,001 pixels; compiled Shows support at most 2,000. Reduce the Controller pixel count before Run or Save.',
+    )
+  })
+
+  it('keeps a dynamic member allocation previewable but blocks artifact output with a remedy (#514)', () => {
+    const show = createDefaultShow('show-dynamic-allocation', 'Dynamic allocation', 1)
+    const patterns = [{
+      id: 'dynamic-array',
+      name: 'Dynamic array',
+      src: `
+export var sliderSize = 0.5
+var field = array(sliderSize)
+export function render(index) { rgb(field[index], 0, 0) }
+`,
+      controls: {},
+      updatedAt: 1,
+    }]
+    show.cells = show.cells.map((cell) => ({
+      ...cell,
+      pattern: { kind: 'user' as const, id: 'dynamic-array' },
+      patternName: 'Dynamic array',
+    }))
+
+    const preview = compileShowForPreview(show, patterns, undefined, {})
+    const artifact = compileShowForArtifact(show, patterns, undefined, {})
+
+    expect(preview.artifact).not.toBeNull()
+    expect(artifact.artifact).not.toBeNull()
+    expect(artifact.artifactBlocker).toBe(
+      'cell-1: field uses array(sliderSize), whose maximum size cannot be proven. Replace it with a literal, constant expression, or array(pixelCount).',
+    )
   })
 
   it('loads the exact stepped-clock artifact used by generated Show output', () => {

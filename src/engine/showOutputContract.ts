@@ -4,6 +4,7 @@ import type {
   Portable2DShowOutputContract,
   ShowOutputContract,
 } from './personalContentRecords'
+import { SHOW_MAX_OUTPUT_PIXELS } from './showVmResourceLedger'
 
 const PORTABLE_COMPATIBILITY: Portable2DShowOutputContract['compatibility'] = {
   dimensions: [2],
@@ -11,7 +12,7 @@ const PORTABLE_COMPATIBILITY: Portable2DShowOutputContract['compatibility'] = {
   resolution: 'variable',
 }
 
-export const MAX_PORTABLE_PREVIEW_PIXELS = 2_000
+export const MAX_PORTABLE_PREVIEW_PIXELS = SHOW_MAX_OUTPUT_PIXELS
 
 export function createPortableShowOutputContract(input: {
   referenceMapId: string | null
@@ -37,7 +38,7 @@ export function createInstallationShowOutputContract(input: {
     version: 1,
     kind: 'installation',
     outputMapId: normalizeMapId(input.outputMapId),
-    pixelCount: clampPixelCount(input.pixelCount),
+    pixelCount: Math.min(SHOW_MAX_OUTPUT_PIXELS, clampPixelCount(input.pixelCount)),
     resolution: 'fixed',
   }
 }
@@ -53,10 +54,13 @@ export function normalizeShowOutputContract(value: unknown): ShowOutputContract 
     })
   }
   if (candidate.kind === 'installation') {
-    return createInstallationShowOutputContract({
-      outputMapId: typeof candidate.outputMapId === 'string' ? candidate.outputMapId : null,
-      pixelCount: numericPixelCount(candidate.pixelCount),
-    })
+    return {
+      version: 1,
+      kind: 'installation',
+      outputMapId: normalizeMapId(typeof candidate.outputMapId === 'string' ? candidate.outputMapId : null),
+      pixelCount: clampPixelCount(numericPixelCount(candidate.pixelCount)),
+      resolution: 'fixed',
+    }
   }
   return undefined
 }
@@ -70,7 +74,7 @@ export function resolveShowOutputMapSelection(
   const fixedPixelCount = selected?.fixedPixelCount
   return {
     mapId: normalizeMapId(mapId),
-    pixelCount: clampPixelCount(fixedPixelCount ?? requestedPixelCount),
+    pixelCount: Math.min(SHOW_MAX_OUTPUT_PIXELS, clampPixelCount(fixedPixelCount ?? requestedPixelCount)),
     pixelCountLocked: fixedPixelCount !== undefined,
   }
 }

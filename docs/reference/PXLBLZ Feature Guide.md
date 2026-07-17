@@ -550,6 +550,9 @@ authoring, not exact LED identity.
 **Installation** fixes one pixel count and output map for a known physical build.
 A measured custom map supplies and locks its point count, while a generated map
 accepts the entered count. Its initial physical zone covers that complete output.
+New Show setup supports counts through 2,000 pixels. PXLBLZ keeps an older
+oversized Installation readable, editable, and previewable at its saved count,
+but does not silently reduce it to fit the supported artifact envelope.
 
 Choosing a column opens setup for the Show name, count, and map. The record does
 not exist until **Create Show**. **Cancel** or workspace Escape returns to the
@@ -1053,13 +1056,28 @@ enumerated sequence would require.
 Synchronized tiling reports its one scalar, coordinate-operation ceiling, and
 zero-renderer delta separately from routing cost.
 
-The compile bar also enforces the v2 output support envelope. It warns when
-generated code reaches 80% of the measured activation budget or a Show reaches
-three or four simultaneous Pattern renderers per pixel. It blocks export, Run,
-Save, and background Controller updates at the measured artifact budget or at
-five simultaneous renderers. A blocked Show remains editable and previewable,
-and **View code** remains available so the author can remove a layer, choose a
-cheaper Transition, or simplify the composition.
+The compile bar also reports the whole-Show Pixelblaze memory ledger. Its VM
+total includes member Pattern arrays, generated routing and plan tables,
+auxiliary caches, and one reserved three-plane RGB arena. At the 2,000-pixel
+ceiling, the arena uses exactly 6,012 of 10,240 words and leaves 4,228 words for
+the rest of the Show. Packed routing no longer receives a separate allowance;
+its table and four-word array header consume this same total. Persistent globals
+and artifact bytes remain independent limits.
+
+The same bar enforces the output support envelope. An Installation above 2,000
+pixels, a Portable Show targeting a Controller above 2,000 pixels, an array whose
+maximum size cannot be proven, or any exhausted resource axis blocks generated
+inspection, export, Run, Save, and background Controller updates. The error
+names the owning Pattern or compiler structure and suggests reducing output,
+replacing an array-heavy Pattern, simplifying routing, or removing a cache.
+Editing and preview remain available.
+
+Renderer-pressure policy is separate. PXLBLZ warns when a Show reaches three or
+four simultaneous Pattern renderers per pixel and blocks outbound actions at
+five. **View code** remains available for that renderer-only failure so the
+author can inspect and simplify the generated source. Generated code size warns
+at 80% of the measured activation budget; exhaustion is an artifact-byte ledger
+failure and therefore blocks inspection with the other resource axes.
 
 Several Zone placements may share one Pattern instance, clock, and generated
 source body; that instance still advances only once per frame. Clips that need

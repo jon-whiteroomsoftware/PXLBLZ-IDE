@@ -1897,6 +1897,7 @@ describe('ShowEditor (#318)', () => {
     expect(screen.queryByText(/Unknown library namespace "SDF"/i)).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'View code' })).toBeEnabled()
     expect(screen.getByRole('button', { name: 'Export Show as .epe' })).toBeEnabled()
+    expect(screen.getByTestId('show-compile-bar')).toHaveTextContent('arena 6,012')
   })
 
   it('replaces a deleted Clip through its empty timeline slot (#430)', async () => {
@@ -2280,6 +2281,75 @@ describe('ShowEditor (#318)', () => {
       expect(screen.getByRole('button', { name: 'Export Show as .epe' })).toBeEnabled()
     })
     expect(screen.getByText(/Default assigns 8 of 8 pixels exactly once/i)).toBeInTheDocument()
+  })
+
+  it('keeps an over-limit legacy Installation editable while blocking generated artifacts (#514)', () => {
+    const show = createShowWithOutputContract(
+      'show-installation-over-limit',
+      'Legacy arena',
+      { version: 1, kind: 'installation', outputMapId: 'plane', pixelCount: 2_001, resolution: 'fixed' },
+      1000,
+    )
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+
+    expect(screen.getByRole('button', { name: 'Show properties' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'View code' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Export Show as .epe' })).toBeDisabled()
+    const compileBar = screen.getByTestId('show-compile-bar')
+    expect(compileBar).toHaveTextContent(
+      'Show output contract requests 2,001 pixels; compiled Shows support at most 2,000.',
+    )
+    expect(compileBar.textContent?.match(/Show output contract requests/g)).toHaveLength(1)
+  })
+
+  it('blocks Portable artifacts when the active Controller exceeds the supported output envelope (#514)', () => {
+    const show = createShowWithOutputContract(
+      'show-portable-over-limit-target',
+      'Portable arena',
+      createPortableShowOutputContract({ referenceMapId: 'plane', referencePixelCount: 1_024 }),
+      1000,
+    )
+    show.cells = show.cells.map((cell) => ({
+      ...cell,
+      pattern: { kind: 'stock', id: 'ShapeShifter' },
+      patternName: 'ShapeShifter',
+    }))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    useControllerProfileStore.setState({
+      profilesLoaded: true,
+      profiles: [{
+        id: 'profile-live',
+        name: 'Bench PB',
+        lastSeenIp: '10.0.0.5',
+        lastKnownPixelCount: 2_001,
+        board: { kind: 'pixelblaze-v3-standard' },
+        inputs: [],
+        globalTransforms: [],
+        patternBindings: [],
+        zones: [],
+        updatedAt: 1,
+      }],
+    })
+    useControllerStore.setState({
+      controllers: {
+        '10.0.0.5': {
+          ip: '10.0.0.5', nickname: 'Bench PB', phase: 'live', mapDim: 2, firmwareVersion: '3.67',
+        },
+      },
+      activeIp: '10.0.0.5',
+    })
+    setControllerProvider(new ConnectedControllerProvider())
+
+    render(<ShowEditor showId={show.id} />)
+
+    expect(screen.getByRole('button', { name: 'View code' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Export Show as .epe' })).toBeDisabled()
+    expect(screen.getByTestId('show-compile-bar')).toHaveTextContent(
+      'Target Controller reports 2,001 pixels; compiled Shows support at most 2,000.',
+    )
   })
 
   it('edits a newly empty freestyle Show Zone', async () => {

@@ -809,6 +809,13 @@ its variable-resolution 2D compatibility declaration. `showModel.ts` owns
 creation, normalization, projection, split, growth/removal, range parsing, and
 mutation. `showStore` persists normalized records through `/api/shows`.
 
+New contracts accept at most 2,000 pixels. Installation applies the ceiling to
+its fixed output; Portable applies it to the editable reference preview and
+checks the connected Controller count again before artifact actions. Record
+normalization deliberately preserves an older Installation count above the
+ceiling. The record remains readable and editable, while the artifact compiler
+reports the unsupported count instead of truncating output.
+
 ![Show model and runtime: scenes and zones meet in clips, boundary entities own cross-scene behavior, and the compiler flattens the saved model into one scheduled Pixelblaze Pattern](../images/show-model-runtime.svg)
 
 Core ownership rules:
@@ -1376,10 +1383,12 @@ elapsed time, user controls, and watch variables. Show transport is the canonica
 clock, and a compiled Show can contain many Pattern instances whose controls and
 variables do not form one coherent panel.
 
-Stage preview does not apply the artifact-action coverage gate: an invalid
-Installation stays visible and repairable. Generated inspection, export, Run, and Save use
-`compileShowForArtifact`, which rejects invalid physical coverage with the same
-actionable diagnostic shown in Show properties.
+Stage preview does not apply artifact-action coverage or resource gates: an
+invalid or resource-ineligible Installation stays visible and repairable.
+Generated inspection, export, Run, Save, and managed-artifact reconciliation use
+`compileShowForArtifact`, which rejects invalid physical coverage, output above
+2,000 pixels, an over-limit Portable Controller target, or a whole-Show resource
+failure with the same actionable diagnostic shown in the editor.
 Generic strips build synthetic sequential map points and diagnostic zone rows.
 A selected 2D/3D Stage resolves the real map. The identity row labels it once as
 a reference map, output map, or generic preview layout and shows its fixed pixel
@@ -1460,6 +1469,42 @@ count and `E` is the measured feather-edge pixel count; the compiler does not
 invent an `E` estimate when one is unavailable. Renderer count and clock
 behavior remain separate: exact pause is not described as a cached frame or
 renderer saving.
+
+### Whole-Show VM resource ledger
+
+`showVmResourceLedger.ts` makes hardware eligibility one aggregate accounting
+decision. The Pixelblaze array pool is modeled as 10,240 words, and every array
+consumes its elements plus a four-word header. The ledger groups those words by
+owner and purpose: reserved render target, member Pattern, routing, interned
+plan, and auxiliary cache. Persistent globals use their separate 256-global
+limit, while generated UTF-8 source uses the measured 68,384-byte activation
+budget.
+
+The compiler reserves three RGB planes at the Show's output extent. An
+Installation with `N` fixed pixels therefore reserves `3 * (N + 4)` words. A
+Portable artifact reserves against the maximum supported 2,000-pixel runtime
+extent because its reference count is not a hardware requirement. At 2,000
+pixels the reservation is exactly 6,012 words, leaving 4,228 words for every
+member and compiler-owned allocation combined.
+
+The Acorn-backed member census counts array literals, `array(pixelCount)`,
+numeric expressions, supported `floor`/`ceil`/`round`/`min`/`max` expressions,
+and top-level scalar constants used by later allocations. A size that cannot be
+proved is not guessed: the ledger names the Pattern and allocation expression,
+then blocks artifact actions with a constant-size or `array(pixelCount)` remedy.
+Compiler-owned packed routing and interned-plan arrays are parsed from generated
+source and enter the same ledger with their headers. They no longer rely on an
+independent routing allowance.
+
+`npm run issue514` pins the pre-arena headroom decision as a machine-readable
+corpus fixture. At 2,000 pixels, 55 of 59 bundled Patterns fit the residual;
+Aurora Sphere, Firefly Choir, Pulse Loom, and Rivalry Ring are the four known
+full-pixel-plane exceptions. Seventeen representative saved Shows and the
+five-member Clockwork Iris composition produce no failure caused solely by the
+mandatory reservation. Five deliberately broad reference Shows still exceed
+their pre-existing global or artifact-byte limits, and the report records those
+failures separately. The census therefore permits arena implementation without
+claiming that arbitrary Pattern math or arbitrary member count will fit.
 
 ## 22. Transition and adaptation policies
 

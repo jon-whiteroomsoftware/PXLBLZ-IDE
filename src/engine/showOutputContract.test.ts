@@ -6,7 +6,7 @@ import {
 } from './showOutputContract'
 
 describe('Show output contracts (#434)', () => {
-  it('caps Portable preview pixels without changing Installation output limits (#493)', () => {
+  it('caps every newly authored Show contract at the supported 2,000-pixel envelope (#493, #514)', () => {
     expect(createPortableShowOutputContract({
       referenceMapId: 'plane',
       referencePixelCount: 50_000,
@@ -15,7 +15,23 @@ describe('Show output contracts (#434)', () => {
     expect(createInstallationShowOutputContract({
       outputMapId: 'plane',
       pixelCount: 50_000,
-    }).pixelCount).toBe(50_000)
+    }).pixelCount).toBe(2_000)
+  })
+
+  it('preserves an over-limit legacy Installation contract for editing and repair (#514)', () => {
+    expect(normalizeShowOutputContract({
+      version: 1,
+      kind: 'installation',
+      outputMapId: 'legacy-map',
+      pixelCount: 4_000,
+      resolution: 'fixed',
+    })).toEqual({
+      version: 1,
+      kind: 'installation',
+      outputMapId: 'legacy-map',
+      pixelCount: 4_000,
+      resolution: 'fixed',
+    })
   })
 
   it('normalizes both versioned contract variants without depending on display copy', () => {

@@ -732,9 +732,12 @@ export const useControllerStore = create<ControllerConnectionState>()(
               patternState.userPatterns,
               profile.zones,
               Object.fromEntries(libraryState.userLibraries.map((library) => [library.name, library.src])),
-              { stageDimension: stageMap?.dim },
+              {
+                stageDimension: stageMap?.dim,
+                targetPixelCount: profile.lastKnownPixelCount,
+              },
             )
-            if (!compiled.artifact) return []
+            if (!compiled.artifact || compiled.artifactBlocker) return []
             const pressure = assessShowCompilePressure({
               artifactBytes: compiled.artifact.summary.artifactBytes,
               budgetBytes: compiled.artifact.summary.measuredDeviceBudgetBytes,
