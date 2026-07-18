@@ -134,7 +134,27 @@ export function decodeProgramList(payload: Uint8Array): ProgramListEntry[] {
  *  `(url) => new WebSocket(url)`; Node `(url) => new WebSocket(url)` from `ws`. */
 export type WebSocketFactory = (url: string) => WebSocketLike
 
-export type ConnectionEvent = 'open' | 'close' | 'error' | 'stale'
+export const PIXELBLAZE_VM_ERROR_MESSAGES: Readonly<Record<number, string>> = {
+  0: 'No Error',
+  1: 'Program Counter out of range',
+  2: 'Invalid opcode',
+  3: 'Stack overflow',
+  4: 'Invalid extended opcode',
+  5: 'Stack underflow',
+  6: 'Array index out of bounds',
+  7: 'Execution steps exhausted',
+  8: "Can't allocate more memory",
+  9: 'Invalid function call',
+  10: 'Globals memory exhausted',
+}
+
+export interface PixelblazeVmError {
+  code: number
+  message: string
+  programCounter?: number
+}
+
+export type ConnectionEvent = 'open' | 'close' | 'error' | 'stale' | 'vm-error'
 type EventListener = (detail?: unknown) => void
 
 export interface PixelblazeConnectionOptions {
@@ -624,6 +644,13 @@ export class PixelblazeConnection {
     }
     // Passively capture the reported frame rate from any status frame.
     if ('fps' in msg && typeof msg.fps === 'number') this._lastFps = msg.fps
+    if ('vmerr' in msg && typeof msg.vmerr === 'number' && msg.vmerr !== 0) {
+      this.emit('vm-error', {
+        code: msg.vmerr,
+        message: PIXELBLAZE_VM_ERROR_MESSAGES[msg.vmerr] ?? `Unknown VM error ${msg.vmerr}`,
+        ...(typeof msg.vmerrpc === 'number' ? { programCounter: msg.vmerrpc } : {}),
+      } satisfies PixelblazeVmError)
+    }
     // Passively capture the device name from the settings packet's top-level
     // `name` (distinct from the sequencer packet's nested activeProgram.name).
     if ('name' in msg && typeof msg.name === 'string') this._deviceName = msg.name

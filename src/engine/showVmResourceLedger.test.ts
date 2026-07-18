@@ -146,10 +146,14 @@ export function render(index) { var pixelLocal = helper(); rgb(one, two, three +
   it('classifies compiler-owned arrays without double-counting isolated member arrays', () => {
     expect(inspectGeneratedShowVmAllocations(`
 var __pxlblz_show_c0_pixels = array(10)
+var __pxlblz_show_c0_slot_initialized = array(3)
+var __pxlblz_show_c0_slot_bank_0 = array(3)
 var __pxlblz_show_route_pixels = array(12)
 var __pxlblz_show_plans = array(8)
 var __pxlblz_show_coordinate_cache = array(20)
 `)).toEqual([
+      { owner: 'Compiler Pattern state bank: __pxlblz_show_c0_slot_initialized', category: 'auxiliary-cache', elementCount: 3 },
+      { owner: 'Compiler Pattern state bank: __pxlblz_show_c0_slot_bank_0', category: 'auxiliary-cache', elementCount: 3 },
       { owner: 'Compiler physical routing: __pxlblz_show_route_pixels', category: 'routing', elementCount: 12 },
       { owner: 'Compiler scene plans: __pxlblz_show_plans', category: 'plan', elementCount: 8 },
       { owner: 'Compiler auxiliary cache: __pxlblz_show_coordinate_cache', category: 'auxiliary-cache', elementCount: 20 },

@@ -99,6 +99,20 @@ describe('PixelblazeConnection', () => {
     expect(getSocket().url).toBe('ws://192.168.1.50:8081')
   })
 
+  it('emits decoded Pixelblaze VM errors instead of discarding the diagnostic packet', async () => {
+    const { conn, socket } = await connected()
+    const errors: unknown[] = []
+    conn.on('vm-error', (detail) => errors.push(detail))
+
+    socket.simulateMessage({ vmerr: 8, vmerrpc: 321 })
+
+    expect(errors).toEqual([{
+      code: 8,
+      message: "Can't allocate more memory",
+      programCounter: 321,
+    }])
+  })
+
   it('connect() rejects on a pre-open error', async () => {
     const { conn, getSocket } = makeConnection()
     const promise = conn.connect()

@@ -5557,6 +5557,14 @@ function CompileBar({
           {' · '}runtime {summary.specializations.showScore.qualification.runtimeDisposition}
         </span>
       )}
+      {summary?.specializations.patternSlots?.selected && (
+        <span className="text-emerald-300">
+          pattern machines: {summary.specializations.patternSlots.logicalMemberCount} logical
+          {' -> '}{summary.specializations.patternSlots.physicalSlotCount} physical
+          {' · '}{summary.specializations.patternSlots.reclaimedMachineCount} reclaimed
+          {' · '}{summary.specializations.patternSlots.steadyStateRenderOperationsAdded} steady-state render ops added
+        </span>
+      )}
       {summary?.routingParameterEstimate && (
         <span className="text-sky-200">
           moving split: 1 scalar · 1 route test/px · avoids {summary.routingParameterEstimate.equivalentEnumeratedArrayElements} table entries

@@ -42,7 +42,10 @@ function legacyUnsharedCounterfactual(id: Issue542ReferenceId) {
 }
 
 function census(id: Issue542ReferenceId, show = issue542ReferenceShow(id)) {
-  const compiled = compileShowForArtifact(show, [], undefined, {}, { stageDimension: 2 })
+  const compiled = compileShowForArtifact(show, [], undefined, {}, {
+    stageDimension: 2,
+    patternSlotSharing: 'none',
+  })
   if (!compiled.artifact) throw new Error(compiled.error ?? `Issue #542 reference did not compile: ${id}`)
   const { summary } = compiled.artifact
   return {
@@ -69,6 +72,7 @@ export function issue542Artifact(
   const compiled = compileShowForArtifact(issue542ReferenceShow(id), [], undefined, {}, {
     stageDimension: 2,
     showScoreSharing,
+    patternSlotSharing: 'none',
   })
   if (!compiled.artifact) throw new Error(compiled.error ?? `Issue #542 reference did not compile: ${id}`)
   return compiled.artifact

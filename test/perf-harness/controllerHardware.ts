@@ -54,17 +54,32 @@ function buildBytecode(program: CompiledProgram): Uint8Array {
   return new Uint8Array(buffer)
 }
 
-export async function fetchControllerCompiler(ip: string): Promise<(source: string) => Uint8Array> {
-  const response = await fetch(`http://${ip}/index.html.gz`)
-  if (!response.ok) throw new Error(`GET index.html.gz -> ${response.status}`)
-  const stream = new Response(await response.arrayBuffer()).body!.pipeThrough(new DecompressionStream('gzip'))
-  let webUi = await new Response(stream).text()
+async function fetchControllerCompilerEnvironment(ip: string): Promise<string> {
+  let webUi = ''
+  let lastError: unknown
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    try {
+      const response = await fetch(`http://${ip}/index.html.gz`)
+      if (!response.ok) throw new Error(`GET index.html.gz -> ${response.status}`)
+      const stream = new Response(await response.arrayBuffer()).body!.pipeThrough(new DecompressionStream('gzip'))
+      webUi = await new Response(stream).text()
+      break
+    } catch (error) {
+      lastError = error
+      if (attempt < 3) await sleep(500)
+    }
+  }
+  if (!webUi) throw lastError instanceof Error ? lastError : new Error('Controller compiler download failed')
   if (webUi.charCodeAt(0) === 0xfeff) webUi = webUi.slice(1)
   const components = v3AdapterV3(webUi)
   const missing = missingComponents(components)
   if (missing.length > 0) throw new Error(`compiler extraction miss: ${missing.join(', ')}`)
+  return buildCompilerEnv(components)
+}
+
+export async function fetchControllerCompiler(ip: string): Promise<(source: string) => Uint8Array> {
   const context = vm.createContext({ window: {} })
-  vm.runInContext(buildCompilerEnv(components), context, { filename: 'device-compiler.js' })
+  vm.runInContext(await fetchControllerCompilerEnvironment(ip), context, { filename: 'device-compiler.js' })
   const compilePattern = (context as { compilePattern?: (source: string) => CompiledProgram }).compilePattern
   if (!compilePattern) throw new Error('device compiler did not define compilePattern')
   return (source: string) => {
@@ -74,6 +89,58 @@ export async function fetchControllerCompiler(ip: string): Promise<(source: stri
     if (!bytecodeHeaderReconciles(bytecode)) throw new Error('Controller compiler returned an invalid bytecode header')
     return bytecode
   }
+}
+
+export interface ControllerCompilerInspection {
+  programKeys: string[]
+  memSize: number | null
+  identifierCount: number
+  identifiers: Array<{
+    name: string
+    type: string | null
+    address: number | null
+  }>
+  exportCount: number
+  compiledWordCount: number
+}
+
+/** Read-only view of the device compiler's own symbol allocation. */
+export async function fetchControllerCompilerInspector(
+  ip: string,
+): Promise<(source: string) => ControllerCompilerInspection> {
+  const context = vm.createContext({ window: {} })
+  const inspectionSource = `
+    var inspectPattern = function (src) {
+      var compilerOptions = { predefinedGlobals: predefinedGlobals, extendedOperators: extendedOperators, constants: constants };
+      var program = window.compile(src, compilerOptions);
+      var identifiers = program.identifiers || {};
+      return JSON.stringify({
+        programKeys: Object.keys(program),
+        memSize: typeof program.memSize === "number" ? program.memSize : null,
+        identifierCount: Object.keys(identifiers).length,
+        identifiers: Object.keys(identifiers).map(function (name) {
+          var identifier = identifiers[name];
+          return {
+            name: name,
+            type: identifier && typeof identifier.type === "string" ? identifier.type : null,
+            address: identifier && typeof identifier.address === "number" ? identifier.address : null
+          };
+        }),
+        exportCount: Object.keys(program.exports || {}).reduce(function (sum, key) {
+          return sum + Object.keys(program.exports[key] || {}).length;
+        }, 0),
+        compiledWordCount: (program.compiled || []).length
+      });
+    };
+  `
+  vm.runInContext(
+    `${await fetchControllerCompilerEnvironment(ip)}\n${inspectionSource}`,
+    context,
+    { filename: 'device-compiler-inspector.js' },
+  )
+  const inspectPattern = (context as { inspectPattern?: (source: string) => string }).inspectPattern
+  if (!inspectPattern) throw new Error('device compiler did not define inspectPattern')
+  return (source: string) => JSON.parse(inspectPattern(source)) as ControllerCompilerInspection
 }
 
 export async function pushAndMeasureControllerArtifact(

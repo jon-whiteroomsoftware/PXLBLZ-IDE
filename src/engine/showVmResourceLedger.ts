@@ -179,10 +179,17 @@ export function inspectGeneratedShowVmAllocations(source: string): ShowVmGenerat
     if (declaration?.type !== 'VariableDeclaration') continue
     for (const item of declaration.declarations as Node[]) {
       const name = identifierName(item.id)
-      if (!name || /^__pxlblz_show_c\d+_/.test(name) || isReservedRenderTargetName(name)) continue
+      const patternStateBank = Boolean(name && /^__pxlblz_show_c\d+_slot_(?:initialized|bank_\d+)$/.test(name))
+      if (!name || (!patternStateBank && /^__pxlblz_show_c\d+_/.test(name)) || isReservedRenderTargetName(name)) continue
       const elementCount = declaredArraySize(item.init)
       if (elementCount === null) continue
-      if (name.includes('route_pixels')) {
+      if (patternStateBank) {
+        allocations.push({
+          owner: `Compiler Pattern state bank: ${name}`,
+          category: 'auxiliary-cache',
+          elementCount,
+        })
+      } else if (name.includes('route_pixels')) {
         allocations.push({
           owner: `Compiler physical routing: ${name}`,
           category: 'routing',

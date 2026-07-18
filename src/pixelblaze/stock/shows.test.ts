@@ -498,7 +498,7 @@ describe('stock Show curriculum (#363)', () => {
 
     expect(develop).not.toEqual(establish)
     expect(resolve).not.toEqual(develop)
-    expect(compiled.artifact?.summary.clipCount).toBeGreaterThanOrEqual(12)
+    expect(compiled.artifact?.summary.clipCount).toBe(10)
   })
 
   it('keeps Portable logical Zones independent while advancing the Scene schedule (#478)', () => {

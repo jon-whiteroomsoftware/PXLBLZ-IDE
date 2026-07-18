@@ -1949,6 +1949,16 @@ describe('ShowEditor (#318)', () => {
     )
   })
 
+  it('discloses selected Restart Pattern machine reuse and its steady-state cost (#546)', () => {
+    const property = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-reference-property-animation')!
+
+    render(<ShowEditor showId={property.id} showOverride={property.show} readOnly />)
+
+    expect(screen.getByTestId('show-compile-bar')).toHaveTextContent(
+      'pattern machines: 17 logical -> 8 physical · 9 reclaimed · 0 steady-state render ops added',
+    )
+  })
+
   it('replaces a deleted Clip through its empty timeline slot (#430)', async () => {
     const user = userEvent.setup()
     const show = createDefaultShow('show-430-place', 'Clip placement', 1000)

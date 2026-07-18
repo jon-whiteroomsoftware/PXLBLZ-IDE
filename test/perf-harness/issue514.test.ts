@@ -25,7 +25,7 @@ describe('Show render-target residual-headroom census (#514)', () => {
       && Array.isArray(entry.rejectionReasons)
     ))).toBe(true)
     expect(report.summary.savedShowCount).toBe(17)
-    expect(report.summary.savedShowRejections).toHaveLength(1)
+    expect(report.summary.savedShowRejections).toHaveLength(0)
     expect(report.summary.savedShowRejections.every((entry) => !entry.failsSolelyBecauseOfReservation)).toBe(true)
   })
 

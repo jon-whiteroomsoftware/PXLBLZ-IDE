@@ -118,6 +118,8 @@ import {
   coordinateFieldIdentityKey,
   type ShowCoordinateFieldDefinition,
 } from './showCoordinateFields'
+import { analyzeShowPatternMemberReset } from './showPatternMemberReset'
+import { deriveShowPatternLifetimes, planShowPatternSlots } from './showPatternSlotPlan'
 import {
   planPhysicalRoutingShortCircuit,
   type PhysicalRoutingShortCircuitPlan,
@@ -534,6 +536,17 @@ export interface ShowCompileSummary {
       perPixelSceneBranches: number
       qualification: typeof SHOW_SCORE_QUALIFICATION
     } | null
+    patternSlots: {
+      selected: boolean
+      representation: 'unrolled' | 'lifetime-colored-restart-slots'
+      reason: 'selected' | 'disabled' | 'incompatible' | 'not-smaller'
+      logicalMemberCount: number
+      physicalSlotCount: number
+      reclaimedMachineCount: number
+      resetOwnerCount: number
+      steadyStateRenderOperationsAdded: 0
+      exclusions: Array<{ memberId: string; reason: string }>
+    } | null
     generatedEffectKernels: {
       selected: boolean
       representation: 'unrolled' | 'shared-parameterized'
@@ -734,6 +747,22 @@ interface CompiledMember {
   freezeOwnerTokens: number[]
   freezeRenderTarget?: ShowRenderTargetPlan<'stage-rgb'>
   vignetteScalarField?: SelectedScalarField
+  resettable: boolean
+  resetAssignments: string[]
+  slotOwnerCount: number
+  slotOwnerAdaptations: ShowClipAdaptation[]
+}
+
+interface CompiledPatternSlotOwner {
+  token: number
+  logicalMemberId: string
+  physicalMemberId: string
+  adaptation: ShowClipAdaptation
+}
+
+interface CompiledPatternSlotRuntimePlan {
+  ownersByPlacement: Map<string, CompiledPatternSlotOwner>
+  summary: NonNullable<ShowCompileSummary['specializations']['patternSlots']>
 }
 
 interface CompiledFreezeAtEntry {
@@ -810,6 +839,8 @@ export interface ShowCompileOptions {
   motionTransitionSharing?: 'auto' | 'none' | 'structure' | 'exact'
   /** Benchmark counterfactual for compatible table-driven routed Show scores. */
   showScoreSharing?: 'auto' | 'none' | 'force'
+  /** Exact whole-machine reuse for non-overlapping Restart Pattern lifetimes. */
+  patternSlotSharing?: 'auto' | 'none' | 'force'
   /** Benchmark-only counterfactual; production uses exact profitable reuse when available. */
   patternOutputReuse?: boolean
   /** Benchmark-only counterfactual; production uses exact profitable scalar fields when available. */
@@ -1339,12 +1370,134 @@ interface ResolvedRoutingLayout {
   warnings: string[]
 }
 
+function patternSlotPlacementKey(sceneIndex: number, placementIndex: number): string {
+  return `${sceneIndex}:${placementIndex}`
+}
+
+function compiledPatternMachineKey(member: CompiledMember): string {
+  return JSON.stringify({
+    source: member.resourceSource,
+    evaluationPolicy: member.evaluationPolicy,
+    render: [member.hasRender, member.hasRender2D, member.hasRender3D, member.hasBeforeRender],
+    effects: member.effects,
+    animatedEffects: member.animatedEffects,
+    staticPlanEffects: member.staticPlanEffects,
+    exactSpecializations: member.exactSpecializations,
+    needsMirrorMapping: member.needsMirrorMapping,
+    needsBrightnessScale: member.needsBrightnessScale,
+    conditionalContentKeyEvaluation: member.conditionalContentKeyEvaluation,
+    coverageDirectedComposition: member.coverageDirectedComposition,
+    generatedEffectKernelSharing: member.generatedEffectKernelSharing,
+    animatedEffectParameterPaths: member.animatedEffectParameterPaths,
+    lightShutter: member.adaptation.lightShutter ?? null,
+    steppedClock: member.adaptation.steppedClock ?? null,
+  })
+}
+
+function remapPatternSlotPropertyTarget(
+  target: ShowPropertyAnimationTrack['target'],
+  physicalIdByLogicalId: ReadonlyMap<string, string>,
+): ShowPropertyAnimationTrack['target'] {
+  if (target.kind !== 'instance-time-scale' && target.kind !== 'instance-control') return target
+  return {
+    ...target,
+    instanceId: physicalIdByLogicalId.get(target.instanceId) ?? target.instanceId,
+  }
+}
+
+function emitPatternSlotOwnerEntry(
+  member: CompiledMember,
+  owner: CompiledPatternSlotOwner | undefined,
+): string {
+  if (!owner || member.slotOwnerCount <= 1) return ''
+  return `${member.prefix}_switchOwner(${owner.token})`
+}
+
+function patternSlotBankBindings(member: CompiledMember): string[] {
+  return [
+    ...member.resetAssignments.map((assignment) => assignment.slice(0, assignment.indexOf(' = '))),
+    member.elapsedName,
+    ...(member.usesTime ? [member.elapsedSecondsName] : []),
+    `${member.prefix}_adapt_brightness`,
+    `${member.prefix}_adapt_phase`,
+    `${member.prefix}_adapt_timeScale`,
+    `${member.prefix}_adapt_mirror`,
+  ]
+}
+
+function patternSlotOwnerAdaptationExpression(
+  member: CompiledMember,
+  key: 'timeOffsetMs' | 'brightness' | 'phase' | 'timeScale' | 'mirror',
+): string {
+  const values = member.slotOwnerAdaptations.map((adaptation) => (
+    key === 'mirror' ? boolNumber(adaptation.mirror) : adaptation[key]
+  ))
+  const [first] = values
+  if (values.every((value) => value === first)) return String(first)
+  return values.slice(0, -1).map((value, index) => `nextOwner == ${index} ? ${value} : `).join('')
+    + String(values[values.length - 1])
+}
+
+function emitPatternSlotBankRuntime(member: CompiledMember): string[] {
+  if (member.slotOwnerCount <= 1) return []
+  const bindings = patternSlotBankBindings(member)
+  const banks = bindings.map((_, index) => `${member.prefix}_slot_bank_${index}`)
+  const timeOffsetMs = patternSlotOwnerAdaptationExpression(member, 'timeOffsetMs')
+  const brightness = patternSlotOwnerAdaptationExpression(member, 'brightness')
+  const phase = patternSlotOwnerAdaptationExpression(member, 'phase')
+  const timeScale = patternSlotOwnerAdaptationExpression(member, 'timeScale')
+  const mirror = patternSlotOwnerAdaptationExpression(member, 'mirror')
+  return [
+    `var ${member.prefix}_slot_owner = -1`,
+    `var ${member.prefix}_slot_initialized = array(${member.slotOwnerCount})`,
+    ...banks.map((bank) => `var ${bank} = array(${member.slotOwnerCount})`),
+    `function ${member.prefix}_switchOwner(nextOwner) {
+  if (${member.prefix}_slot_owner == nextOwner) return
+  if (${member.prefix}_slot_owner >= 0) {
+${bindings.map((binding, index) => `    ${banks[index]}[${member.prefix}_slot_owner] = ${binding}`).join('\n')}
+  }
+  if (${member.prefix}_slot_initialized[nextOwner]) {
+${bindings.map((binding, index) => `    ${binding} = ${banks[index]}[nextOwner]`).join('\n')}
+  } else {
+    ${member.prefix}_resetPattern()
+    ${member.elapsedName} = ${timeOffsetMs}
+    ${member.usesTime ? `${member.elapsedSecondsName} = (${timeOffsetMs}) / 1000\n    ` : ''}${member.prefix}_adapt_brightness = ${brightness}
+    ${member.prefix}_adapt_phase = ${phase}
+    ${member.prefix}_adapt_timeScale = ${timeScale}
+    ${member.prefix}_adapt_mirror = ${mirror}
+    ${member.prefix}_slot_initialized[nextOwner] = 1
+  }
+  ${member.prefix}_slot_owner = nextOwner
+}`,
+  ]
+}
+
 export function compileShow(
   recipe: ShowRecipe,
   libraries: Record<string, string>,
   options: ShowCompileOptions = {},
 ): GeneratedShowArtifact {
-  const expandedRecipe = { ...recipe, clips: expandRouteClips(recipe.clips) }
+  const requestedPatternSlotSharing = options.patternSlotSharing ?? 'auto'
+  const potentialPatternSlotReuse = Boolean(recipe.routedSceneSequence)
+    && new Set(recipe.clips.map((clip) => clip.source)).size < recipe.clips.length
+  if (requestedPatternSlotSharing === 'auto' && potentialPatternSlotReuse) {
+    const candidate = compileShow(recipe, libraries, { ...options, patternSlotSharing: 'force' })
+    if (candidate.summary.specializations.patternSlots?.selected) {
+      const baseline = compileShow(recipe, libraries, { ...options, patternSlotSharing: 'none' })
+      if (candidate.summary.artifactBytes < baseline.summary.artifactBytes) return candidate
+      baseline.summary.specializations.patternSlots = {
+        ...candidate.summary.specializations.patternSlots,
+        selected: false,
+        representation: 'unrolled',
+        reason: 'not-smaller',
+        physicalSlotCount: baseline.summary.clipCount,
+        reclaimedMachineCount: 0,
+      }
+      return baseline
+    }
+    return candidate
+  }
+  let expandedRecipe = { ...recipe, clips: expandRouteClips(recipe.clips) }
   const exactSpecializations = options.exactSpecializations ?? true
   const frameInvariantHoisting = options.frameInvariantHoisting ?? exactSpecializations
   // The pb32/3.67 matrix for #513 found no repeatable runtime benefit from
@@ -1354,6 +1507,7 @@ export function compileShow(
   const renderTargetArenaEmission = options.renderTargetArenaEmission ?? true
   const motionTransitionSharing = options.motionTransitionSharing ?? 'auto'
   const showScoreSharing = options.showScoreSharing ?? 'auto'
+  const patternSlotSharing = requestedPatternSlotSharing === 'auto' ? 'none' : requestedPatternSlotSharing
   const patternOutputReuse = options.patternOutputReuse ?? true
   const scalarFieldCaching = options.scalarFieldCaching ?? true
   const contentKeyConditionalEvaluation = options.contentKeyConditionalEvaluation ?? true
@@ -1442,7 +1596,7 @@ export function compileShow(
       ? [...animatedEffectClipIds].filter((clipId) => !dynamicallyAnimatedEffectClipIds.has(clipId))
       : [],
   )
-  const members = expandedRecipe.clips.map((clip, index) => ({
+  let members: CompiledMember[] = expandedRecipe.clips.map((clip, index) => ({
     ...compileMember(
       clip,
       index,
@@ -1461,6 +1615,99 @@ export function compileShow(
     ),
     samplePropertyRamps: expandedRecipe.samplePropertyRamps,
   }))
+  let patternSlotRuntimePlan: CompiledPatternSlotRuntimePlan | null = null
+  if (patternSlotSharing === 'force' && expandedRecipe.routedSceneSequence) {
+    const logicalMembers = members
+    const logicalClips = expandedRecipe.clips
+    const lifetimeById = new Map(deriveShowPatternLifetimes(expandedRecipe).map((entry) => [entry.id, entry]))
+    const slotPlan = planShowPatternSlots(logicalMembers.map((member) => ({
+      ...lifetimeById.get(member.id)!,
+      machineKey: compiledPatternMachineKey(member),
+      resettable: member.resettable
+        && member.controls.length === 0
+        && !member.animatedEffects
+        && member.evaluationPolicy === 'live'
+        && !member.adaptation.lightShutter
+        && !member.adaptation.steppedClock,
+      hasLiveControls: member.controls.length > 0,
+    })))
+    if (slotPlan.machinesReclaimed > 0) {
+      const assignmentByMemberId = new Map(slotPlan.assignments.map((assignment) => [assignment.memberId, assignment]))
+      const representativeBySlotId = new Map<string, CompiledMember>()
+      const physicalIdByLogicalId = new Map<string, string>()
+      for (const member of logicalMembers) {
+        const assignment = assignmentByMemberId.get(member.id)!
+        const representative = representativeBySlotId.get(assignment.slotId) ?? member
+        representativeBySlotId.set(assignment.slotId, representative)
+        physicalIdByLogicalId.set(member.id, representative.id)
+      }
+      members = [...representativeBySlotId.values()]
+      const logicalMembersByPhysicalId = new Map<string, CompiledMember[]>()
+      for (const logicalMember of logicalMembers) {
+        const physicalId = physicalIdByLogicalId.get(logicalMember.id)!
+        logicalMembersByPhysicalId.set(physicalId, [
+          ...(logicalMembersByPhysicalId.get(physicalId) ?? []),
+          logicalMember,
+        ])
+      }
+      for (const member of members) {
+        const slotOwners = logicalMembersByPhysicalId.get(member.id) ?? [member]
+        const ownerCount = slotOwners.length
+        member.slotOwnerCount = ownerCount
+        member.slotOwnerAdaptations = slotOwners.map((owner) => owner.adaptation)
+        if (ownerCount > 1) {
+          member.code = `${member.code.trim()}\nfunction ${member.prefix}_resetPattern() {\n${member.resetAssignments.map((assignment) => `  ${assignment}`).join('\n')}\n}`
+        }
+      }
+      const logicalClipById = new Map(logicalClips.map((clip) => [clip.id, clip]))
+      const memberByLogicalId = new Map(logicalMembers.map((member) => [member.id, member]))
+      const ownersByPlacement = new Map<string, CompiledPatternSlotOwner>()
+      const scenes = expandedRecipe.routedSceneSequence.scenes.map((scene, sceneIndex) => ({
+        ...scene,
+        placements: scene.placements.map((placement, placementIndex) => {
+          const logicalMember = memberByLogicalId.get(placement.clipId)!
+          const physicalMemberId = physicalIdByLogicalId.get(placement.clipId)!
+          const physicalMember = members.find((member) => member.id === physicalMemberId)!
+          if (physicalMember.slotOwnerCount > 1) {
+            ownersByPlacement.set(patternSlotPlacementKey(sceneIndex, placementIndex), {
+              token: logicalMembersByPhysicalId.get(physicalMemberId)!.indexOf(logicalMember),
+              logicalMemberId: logicalMember.id,
+              physicalMemberId,
+              adaptation: logicalMember.adaptation,
+            })
+          }
+          return { ...placement, clipId: physicalMemberId }
+        }),
+        transitionRamps: scene.transitionRamps?.map((ramp) => ({
+          ...ramp,
+          clipId: physicalIdByLogicalId.get(ramp.clipId) ?? ramp.clipId,
+        })),
+        propertyTracks: scene.propertyTracks?.map((track) => ({
+          ...track,
+          target: remapPatternSlotPropertyTarget(track.target, physicalIdByLogicalId),
+        })),
+      }))
+      expandedRecipe = {
+        ...expandedRecipe,
+        clips: members.map((member) => logicalClipById.get(member.id)!),
+        routedSceneSequence: { ...expandedRecipe.routedSceneSequence, scenes },
+      }
+      patternSlotRuntimePlan = {
+        ownersByPlacement,
+        summary: {
+          selected: true,
+          representation: 'lifetime-colored-restart-slots',
+          reason: 'selected',
+          logicalMemberCount: logicalMembers.length,
+          physicalSlotCount: members.length,
+          reclaimedMachineCount: logicalMembers.length - members.length,
+          resetOwnerCount: ownersByPlacement.size,
+          steadyStateRenderOperationsAdded: 0,
+          exclusions: slotPlan.exclusions,
+        },
+      }
+    }
+  }
   const route = buildRoutePlan(members, expandedRecipe)
   const routingLayouts = buildRoutingLayoutPlans(members, expandedRecipe)
   const routeMode = route !== null
@@ -1689,6 +1936,7 @@ export function compileShow(
         selectedScalarFields,
         selectedCoordinateFields,
         selectedFreezeAtEntryCaptures,
+        patternSlotRuntimePlan,
       )
       : null
   const emittedCode = routedSceneEmission
@@ -2116,6 +2364,19 @@ export function compileShow(
       renderKernels: routedSceneEmission?.renderKernels ?? null,
       motionTransitions: routedSceneEmission?.motionTransitions ?? null,
       showScore: routedSceneEmission?.showScore ?? null,
+      patternSlots: patternSlotRuntimePlan?.summary ?? (patternSlotSharing === 'none'
+        ? {
+            selected: false,
+            representation: 'unrolled',
+            reason: 'disabled',
+            logicalMemberCount: members.length,
+            physicalSlotCount: members.length,
+            reclaimedMachineCount: 0,
+            resetOwnerCount: 0,
+            steadyStateRenderOperationsAdded: 0,
+            exclusions: [],
+          }
+        : null),
       generatedEffectKernels: {
         selected: generatedEffectKernelPlan.groups.length > 0,
         representation: generatedEffectKernelPlan.groups.length > 0 ? 'shared-parameterized' : 'unrolled',
@@ -2546,6 +2807,8 @@ function compileMember(
   const bindings = collectTopLevelBindings(memberAst)
   const mapping = new Map([...bindings].map(name => [name, `${prefix}_${name}`]))
   const code = rewriteMemberSource(memberSource, memberAst, prefix, mapping).replace(/\bexport\s+/g, '')
+  const reset = analyzeShowPatternMemberReset(code)
+  const adaptation = normalizeAdaptation(clip.adaptation)
   const renamedPatternVars = bundled.metadata.patternVars
     .map(name => mapping.get(name))
     .filter((name): name is string => Boolean(name))
@@ -2586,7 +2849,7 @@ function compileMember(
     elapsedName: `${prefix}_elapsed_ms`,
     elapsedSecondsName: `${prefix}_elapsed_s`,
     pixelCountName: `${prefix}_pixelCount`,
-    adaptation: normalizeAdaptation(clip.adaptation),
+    adaptation,
     controls,
     effects: normalizeShowClipEffects(clip.effects),
     animatedEffects,
@@ -2622,6 +2885,10 @@ function compileMember(
     generatedEffectKernelSharing,
     animatedEffectParameterPaths,
     freezeOwnerTokens: [],
+    resettable: reset.resettable,
+    resetAssignments: reset.assignments,
+    slotOwnerCount: 1,
+    slotOwnerAdaptations: [adaptation],
   }
 }
 
@@ -3147,6 +3414,7 @@ function emitRoutedSceneSequenceShowCode(
   scalarFields: SelectedScalarField[] = [],
   coordinateFields: SelectedCoordinateField[] = [],
   freezeAtEntryCaptures: SelectedFreezeAtEntry[] = [],
+  patternSlotRuntimePlan: CompiledPatternSlotRuntimePlan | null = null,
 ): {
   code: string
   renderKernels: ShowCompileSummary['specializations']['renderKernels']
@@ -3165,6 +3433,7 @@ function emitRoutedSceneSequenceShowCode(
       ...placement,
       member: memberById.get(placement.clipId)!,
       consumerId: patternOutputConsumerId(sceneIndex, placementIndex),
+      slotOwner: patternSlotRuntimePlan?.ownersByPlacement.get(patternSlotPlacementKey(sceneIndex, placementIndex)),
     })),
     transitionRamps: scene.transitionRamps?.map((ramp) => ({ ...ramp, member: memberById.get(ramp.clipId)! })),
   }))
@@ -3357,7 +3626,8 @@ function emitRoutedSceneSequenceShowCode(
       const propertyTrackAssignments = (propertyTrackContexts ?? []).map((context) => (
         emitRoutedInstancePropertyTrackAssignments(member, context.tracks, context.localTimeExpression)
       )).filter(Boolean).join('\n')
-      const code = `${member.pixelCountName} = ${pixelCount}${emitSceneControlTargets(member, placement.controlTargets)}${emitSceneEffectTargets(member, placement.effects)}${placement.brightness === undefined
+      const ownerEntry = emitPatternSlotOwnerEntry(member, placement.slotOwner)
+      const code = `${member.pixelCountName} = ${pixelCount}${ownerEntry ? `\n${ownerEntry}` : ''}${emitSceneControlTargets(member, placement.controlTargets)}${emitSceneEffectTargets(member, placement.effects)}${placement.brightness === undefined
         ? ''
         : `\n${member.prefix}_adapt_brightness = ${placement.brightness}`}${placement.timeScale === undefined
           ? ''
@@ -4207,6 +4477,7 @@ ${indentBlock(transitionRender, 4)}
 type ResolvedRoutedScenePlacement = ShowRoutedScenePlacementRecipe & {
   member: CompiledMember
   consumerId: string
+  slotOwner?: CompiledPatternSlotOwner
 }
 type ResolvedRoutedScenePlacementRamp = ShowRoutedScenePlacementRampRecipe & { member: CompiledMember }
 
@@ -7343,6 +7614,7 @@ ${advanceDelta('delta', '  ')}
     `var ${member.prefix}_adapt_timeScale = ${member.adaptation.timeScale}`,
     `var ${member.prefix}_adapt_mirror = ${boolNumber(member.adaptation.mirror)}`,
     ...member.controls.map((control) => `var ${control.valueName} = ${control.initialValue}`),
+    ...emitPatternSlotBankRuntime(member),
     `var ${member.prefix}_r = 0`,
     `var ${member.prefix}_g = 0`,
     `var ${member.prefix}_b = 0`,
@@ -7767,6 +8039,13 @@ function buildMetadata(members: CompiledMember[], outputDimension: 1 | 2): Bundl
       `${member.prefix}_adapt_timeScale`,
       `${member.prefix}_adapt_mirror`,
       ...member.controls.map((control) => control.valueName),
+      ...(member.slotOwnerCount > 1
+        ? [
+            `${member.prefix}_slot_owner`,
+            `${member.prefix}_slot_initialized`,
+            ...patternSlotBankBindings(member).map((_, index) => `${member.prefix}_slot_bank_${index}`),
+          ]
+        : []),
       ...(member.adaptation.lightShutter
         ? [
             `${member.prefix}_shutter_rate_hz`,
@@ -8233,7 +8512,7 @@ function parseModule(source: string): Node {
   return acorn.parse(source, { ecmaVersion: 2020, sourceType: 'module' }) as unknown as Node
 }
 
-function compactGeneratedShowSymbols(source: string): { code: string; names: Map<string, string> } {
+export function compactGeneratedShowSymbols(source: string): { code: string; names: Map<string, string> } {
   const ast = parseModule(source)
   const identifiers: Node[] = []
   const existingNames = new Set<string>()
