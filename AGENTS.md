@@ -64,11 +64,16 @@ Preserve these invariants:
   ask the user to manage it unless a PR was explicitly requested.
 - The coordinating agent owns the whole lifecycle. A child agent hands back a
   verified commit; the coordinator lands it on `main`.
-- Work is not done, and its issue must not close, until the commit is reachable
-  from `origin/main`. If landing must wait, report it as awaiting landing.
-- After landing and pushing, remove the worktree and delete its local and remote
-  branch. Finish by verifying a clean `main`, synchronized with `origin/main`,
-  with no abandoned worktrees or branches.
+- Work done in a worktree is not complete until its verified commit is reachable
+  from the shared local `main`. If local landing must wait, report it as awaiting
+  landing; do not leave finished work only on an isolated branch.
+- Pushing `main` is a separate publication step. Batch pushes a couple of times
+  per day, or push when the user asks, needs hosting, or requests a published
+  handoff. Do not push after every issue merely to mark the work complete.
+- After landing locally, remove the worktree and delete its local branch. Delete
+  a remote branch only if one was explicitly created. Finish by verifying that
+  shared local `main` contains the commit and that no abandoned worktrees or
+  branches remain.
 
 Keep Vite on `5174` and Wrangler on `8788` running between tasks. If either is
 absent or unreachable, start it; never stop these servers when finishing a task.
@@ -102,7 +107,7 @@ npm run db:migrate:remote
 The pre-commit hook runs lint, colocated tests for staged code, and conservative
 invariant suites for compiler, persistence, resource-ledger, artifact-contract,
 and test-infrastructure changes. The pre-push hook owns the one comprehensive
-landing gate: the full Vitest suite followed by the Playwright smoke suite. Do
+publication gate: the full Vitest suite followed by the Playwright smoke suite. Do
 not manually repeat the full suite immediately before a push unless diagnosing
 a failure. See `docs/agents/verification.md` for the gate model.
 
