@@ -202,6 +202,26 @@ unresolved Show-overhead bucket.
 
 ---
 
+## Restart-global liveness census (`npm run issue536`, #536)
+
+Runs a compile-only half-open lifetime census over all stock Shows, the
+five-Pattern acceptance Show, and disjoint/overlapping boundary fixtures. The
+census charges exact activation tracking and entry initialization while
+excluding Continue, Controls, public/watch state, scheduler-owned state,
+arrays, call initializers, and unproved lifetimes.
+
+The research gate stops before emission: the representative median reclaim is
+0%, no over-limit Show crosses below 256 globals, and the weighted 15.07%
+result is dominated by reference artifacts already blocked by byte size. The
+focused suite is the machine-readable report; no Controller run is required
+because no production code or active render loop changes.
+
+```bash
+npm run issue536
+```
+
+---
+
 ## Acceptance Show qualification (`npm run issue520`, #520)
 
 The acceptance harness compiles a 36-second, 2,000-pixel routed Show containing
