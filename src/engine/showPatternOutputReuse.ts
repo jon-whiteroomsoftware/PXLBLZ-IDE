@@ -29,6 +29,8 @@ export type ShowPatternOutputCompatibilityReason =
   | 'pre-cache-effects'
   | 'render-mutating-state'
   | 'render-state-unknown'
+  | 'output-dimension'
+  | 'non-cut-transition'
   | 'no-compatible-consumer'
 
 export interface ShowPatternOutputCompatibility {

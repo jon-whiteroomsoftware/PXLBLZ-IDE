@@ -80,11 +80,33 @@ export async function pushAndMeasureControllerArtifact(
   connection: PixelblazeConnection,
   artifact: GeneratedShowArtifact,
   compile: (source: string) => Uint8Array,
+  options: ControllerMeasurementOptions = {},
 ) {
-  const bytecode = compile(artifact.code)
+  const measured = await pushAndMeasureControllerSource(connection, artifact.code, compile, 0, options)
+  return {
+    ...measured,
+    sourceBytes: artifact.summary.artifactBytes,
+    ledgerVmWords: artifact.summary.resources.totalWords,
+  }
+}
+
+export interface ControllerMeasurementOptions {
+  activationTimeoutMs?: number
+  sampleMs?: number
+}
+
+export async function pushAndMeasureControllerSource(
+  connection: PixelblazeConnection,
+  source: string,
+  compile: (source: string) => Uint8Array,
+  ledgerVmWords = 0,
+  options: ControllerMeasurementOptions = {},
+) {
+  const bytecode = compile(source)
   const programId = makeProgramId()
   connection.pushByteCode(bytecode, { id: programId, name: '' })
-  const activationDeadline = Date.now() + 10_000
+  const activationTimeoutMs = options.activationTimeoutMs ?? 10_000
+  const activationDeadline = Date.now() + activationTimeoutMs
   let activeProgramId: string | undefined
   while (Date.now() < activationDeadline) {
     await sleep(500)
@@ -92,9 +114,9 @@ export async function pushAndMeasureControllerArtifact(
     activeProgramId = active.activeProgramId
     if (activeProgramId === programId) break
   }
-  if (activeProgramId !== programId) throw new Error(`probe ${programId} did not activate within 10 seconds`)
+  if (activeProgramId !== programId) throw new Error(`probe ${programId} did not activate within ${activationTimeoutMs}ms`)
   const values: number[] = []
-  const end = Date.now() + 6_000
+  const end = Date.now() + (options.sampleMs ?? 6_000)
   while (Date.now() < end) {
     if (connection.fps && connection.fps > 0) values.push(connection.fps)
     await sleep(250)
@@ -106,9 +128,9 @@ export async function pushAndMeasureControllerArtifact(
     ? (sorted[middle - 1] + sorted[middle]) / 2
     : sorted[middle]
   return {
-    sourceBytes: artifact.summary.artifactBytes,
+    sourceBytes: new TextEncoder().encode(source).length,
     bytecodeBytes: bytecode.length,
-    ledgerVmWords: artifact.summary.resources.totalWords,
+    ledgerVmWords,
     fps: {
       mean: values.reduce((sum, value) => sum + value, 0) / values.length,
       median,

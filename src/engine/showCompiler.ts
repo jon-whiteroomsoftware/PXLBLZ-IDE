@@ -794,16 +794,26 @@ function buildPatternOutputReuseAnalysis(
 ): CompiledPatternOutputReuseAnalysis {
   const sequence = recipe.routedSceneSequence
   const layout = recipe.routingLayouts?.length === 1 ? recipe.routingLayouts[0] : undefined
-  if (!sequence || !layout || layout.logical || outputDimension !== 1) return { groups: [], excluded: [] }
+  if (!sequence || !layout) return { groups: [], excluded: [] }
+  const eligibilityReasons: ShowPatternOutputCompatibilityReason[] = []
+  if (layout.logical || outputDimension !== 1) eligibilityReasons.push('output-dimension')
+  if (sequence.scenes.some((scene) => scene.transitionOut && scene.transitionOut.kind !== 'cut')) {
+    eligibilityReasons.push('non-cut-transition')
+  }
   if (sequence.scenes.some((scene) => (
-    (scene.transitionOut && scene.transitionOut.kind !== 'cut')
-    || (scene.propertyTracks?.length ?? 0) > 0
+    (scene.propertyTracks?.length ?? 0) > 0
     || (scene.transitionRamps?.length ?? 0) > 0
     || scene.placements.some((placement) => (
       placement.zoneMode === 'span'
       && (placement.domainZoneNames?.length ?? 0) > 1
     ))
-  ))) return { groups: [], excluded: [] }
+  ))) eligibilityReasons.push('no-compatible-consumer')
+  if (eligibilityReasons.length > 0) {
+    return {
+      groups: [],
+      excluded: [{ consumerId: 'routed-sequence', reasons: eligibilityReasons }],
+    }
+  }
 
   const memberById = new Map(members.map((member) => [member.id, member]))
   const renderStateByMember = new Map(members.map((member) => [
@@ -2937,24 +2947,39 @@ ${indentBlock(emitRoutedScenePlacements(
     sceneLocalTimeExpression(index),
   ), 4)}
   }`).join(' ')
-  const unrolledTransitionBranches = segments
-    .filter((segment) => segment.kind === 'transition')
+  const unrolledTransitionSegments = segments.filter((segment) => segment.kind === 'transition')
+  const transitionHelperParameters = outputDimension === 2
+    ? 'index, x, y, __pxlblz_show_snapshot_writing'
+    : 'index, __pxlblz_show_snapshot_writing'
+  const snapshotWritingArgument = usesSnapshot ? '__pxlblz_show_snapshot_writing' : '0'
+  const transitionHelperArguments = outputDimension === 2
+    ? `index, x, y, ${snapshotWritingArgument}`
+    : `index, ${snapshotWritingArgument}`
+  const unrolledTransitionHelpers = unrolledTransitionSegments.map((segment) => {
+    const helperName = `__pxlblz_show_routed_transition_${segment.sceneIndex}`
+    const body = emitRoutedSceneTransition(
+      layouts,
+      scenes[segment.sceneIndex].placements,
+      scenes[segment.sceneIndex + 1].placements,
+      segment.transition!,
+      outputDimension,
+      segment.sceneIndex,
+      segment.sceneIndex + 1,
+      segment.transition?.kind === 'crossfade'
+        && segment.transition.crossfadePolicy === 'snapshot-live'
+        && selectedRenderTargetCandidates.has(sequenceSnapshotCandidateId('routed', segment.sceneIndex))
+        ? renderTarget
+        : undefined,
+      scalarFields.find((field) => field.transitionKey === `transition:routed:${segment.sceneIndex}`),
+    )
+    return `function ${helperName}(${transitionHelperParameters}) {
+${indentBlock(body, 2)}
+}`
+  })
+  const unrolledTransitionBranches = unrolledTransitionSegments
     .map((segment, index) => `${index === 0 ? 'if' : 'else if'} (__pxlblz_show_transition == ${segment.sceneIndex}) {
-${indentBlock(emitRoutedSceneTransition(
-    layouts,
-    scenes[segment.sceneIndex].placements,
-    scenes[segment.sceneIndex + 1].placements,
-    segment.transition!,
-    outputDimension,
-    segment.sceneIndex,
-    segment.sceneIndex + 1,
-    segment.transition?.kind === 'crossfade'
-      && segment.transition.crossfadePolicy === 'snapshot-live'
-      && selectedRenderTargetCandidates.has(sequenceSnapshotCandidateId('routed', segment.sceneIndex))
-      ? renderTarget
-      : undefined,
-    scalarFields.find((field) => field.transitionKey === `transition:routed:${segment.sceneIndex}`),
-  ), 4)}
+    __pxlblz_show_routed_transition_${segment.sceneIndex}(${transitionHelperArguments})
+    return
   }`)
     .join(' ')
   const transitionSceneIndices = new Set(segments.flatMap((segment) => (
@@ -3040,7 +3065,7 @@ ${indentBlock(branches, 2)}
 }`
       })()
     : null
-  const baselineEmittedBytes = byteLength(`${unrolledStackWrappers.join('\n')}\n${unrolledTransitionBranches}`)
+  const baselineEmittedBytes = byteLength(`${unrolledStackWrappers.join('\n')}\n${unrolledTransitionHelpers.join('\n')}\n${unrolledTransitionBranches}`)
   const exactEmittedBytes = exactSharedMotionPlan && exactSharedMotionRender
     ? byteLength(`${exactSharedMotionPlan.stackPlans.map((plan) => plan.wrapper).join('\n')}\n${exactSharedMotionRender}`)
     : baselineEmittedBytes
@@ -3049,6 +3074,7 @@ ${indentBlock(branches, 2)}
     && exactSharedMotionRender !== null
     && (motionTransitionSharing === 'exact' || exactEmittedBytes < baselineEmittedBytes)
   const transitionBranches = useExactSharedMotion ? exactSharedMotionRender! : unrolledTransitionBranches
+  const transitionHelpers = useExactSharedMotion ? [] : unrolledTransitionHelpers
   const stackWrappers = useExactSharedMotion
     ? exactSharedMotionPlan!.stackPlans.map((plan) => plan.wrapper)
     : unrolledStackWrappers
@@ -3073,7 +3099,8 @@ ${indentBlock(branches, 2)}
 
   const code = [
     emitRuntimePrelude(members, outputDimension, {
-      includeHash: transitionBranches.includes('__pxlblz_show_hash01'),
+      includeHash: transitionBranches.includes('__pxlblz_show_hash01')
+        || transitionHelpers.some((helper) => helper.includes('__pxlblz_show_hash01')),
       includeMix: transitionBranches.length > 0,
       includePhase: false,
     }),
@@ -3081,6 +3108,7 @@ ${indentBlock(branches, 2)}
     ...stackWrappers,
     ...(sharedPhysicalCut?.prelude ? [sharedPhysicalCut.prelude] : []),
     ...(scalarFields.length > 0 ? [emitScalarFieldRuntimeDeclarations(scalarFields)] : []),
+    ...transitionHelpers,
     'var __pxlblz_show_scene = 0',
     ...(hasTransitions
       ? [

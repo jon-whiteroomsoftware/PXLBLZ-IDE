@@ -27,7 +27,7 @@ describe('shared routed motion-transition emission (#525)', () => {
     const production = compileShowForArtifact(motionReference(), [], undefined, {}, { stageDimension: 2 })
 
     expect(baseline.artifact?.summary.clipCount).toBe(3)
-    expect(baseline.artifact?.summary.artifactBytes).toBe(108_033)
+    expect(baseline.artifact?.summary.artifactBytes).toBe(108_385)
     expect(structural.error).toBeNull()
     expect(structural.artifact?.summary.artifactBytes).toBe(73_180)
     expect(structural.artifact?.summary.specializations.motionTransitions).toMatchObject({

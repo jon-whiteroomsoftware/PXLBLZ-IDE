@@ -547,9 +547,10 @@ the prior measured result without claiming a new hardware benchmark.
 07 #517 lifetime-aware cache planner · paired Redline source unchanged at live/live 15,421 B and snapshot/live 15,627 B; arena 6,012 words and generated render loops unchanged · incremental 0.0% expected, compile-time planner not hardware remeasured · cumulative exact Redline reference 2.358 -> 3.037 FPS, +28.8% retained; snapshot/live median 3.197 FPS retained
 08 #518 compatible Pattern-output reuse · paired five-surface 2,000 px median 4.554 -> 8.729 FPS · incremental +91.7% (mean +71.0%); exact 400-sample local output reused across 5 physical Zones, 1,600 Pattern evaluations/frame avoided, arena 6,012 words unchanged · cumulative exact Redline reference 2.358 -> 3.037 FPS, +28.8% retained; snapshot/live median 3.197 FPS retained
 09 #519 scalar visual-field caching · paired Redline-derived five-surface 2,000 px median 2.161 -> 3.115 FPS · incremental +44.1% (mean +34.2%); exact coherent-noise field removes 96,000 estimated operations/cached frame, source 23,284 -> 24,311 B, bytecode 12,922 -> 13,274 B, arena 6,012 words unchanged · cumulative exact Redline reference 2.358 -> 3.037 FPS, +28.8% retained; snapshot/live median 3.197 FPS retained
+10 #520 five-Pattern acceptance Show · paired 2,000 px median baseline 1.000 -> exact live/live 1.076 FPS (+7.6%) -> snapshot/live 1.702 FPS (+58.1% vs exact live, +70.2% vs baseline); source 50,535 -> 51,511 B, bytecode 28,626 -> 28,926 B, arena 6,012 words unchanged; planner reuses RGB planes at 1-7s then scalar plane 0 at 14-20s; routed transition-frame isolation fixes the hardware activation fault and removes 508 source bytes from the selected artifact · 2,000 px Redline recheck median 3.065 FPS; direct 4,000 px Redline median 1.864 FPS labeled unsupported stress-only
 ```
 
-Later slices append `10` here and repeat the new line in the #511
+Later slices append the next numbered line here and repeat it in the #511
 coordination update. If a slice intentionally changes the visual contract, its
 line names that contract and does not compare it as an exact replacement.
 
@@ -578,7 +579,8 @@ The approved delivery slices are filed under the coordination epic:
 - [#519 - Cache scalar visual fields](https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/issues/519)
   generalizes repeated geometry and Effect work. **Implemented locally; awaiting landing.**
 - [#520 - Qualify the five-Pattern acceptance Show](https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/issues/520)
-  is the human release gate for production defaults.
+  is implemented locally with Controller and visual evidence; production-default
+  recommendations await final human confirmation and landing.
 
 Implementation progress and the current cumulative performance ledger are
 tracked on #511. Individual issue state remains authoritative for ownership and

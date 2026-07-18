@@ -1935,7 +1935,7 @@ describe('ShowEditor (#318)', () => {
     render(<ShowEditor showId={motion.id} showOverride={motion.show} readOnly />)
 
     expect(screen.getByTestId('show-compile-bar')).toHaveTextContent(
-      'motion sharing: family kernels · 20 boundaries / 11 kernels · 2 stack plans · 79,200 emitted B avoided · 7 scalars · +0 branches/px',
+      'motion sharing: family kernels · 20 boundaries / 11 kernels · 2 stack plans · 80,812 emitted B avoided · 7 scalars · +0 branches/px',
     )
   })
 

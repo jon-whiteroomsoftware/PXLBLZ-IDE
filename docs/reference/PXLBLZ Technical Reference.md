@@ -1555,7 +1555,7 @@ and smaller; benchmark options can retain unrolled or structural emission.
 
 The Motion Transitions reference has 21 Scenes, 20 Motion boundaries, and three
 Pattern instances. Its production representation interns two stack plans and
-emits 11 kernels. Generated source falls from 108,033 to 67,552 bytes and
+emits 11 kernels. Generated source falls from 108,385 to 67,552 bytes and
 Controller bytecode from 59,202 to 37,722 bytes, while the three-plane arena
 remains 6,012 words. The resulting source fits the measured 68,384-byte
 activation budget with 832 bytes free. Sixty start/mid/end samples and the full
@@ -1668,6 +1668,14 @@ ranges affect routing after the cached RGB is produced. Different pixel counts,
 properties, clocks, controls, render functions, or pre-cache Effects form
 separate groups.
 
+When the routed sequence falls outside that envelope, the compile summary
+reports why instead of presenting an unexplained empty candidate list.
+`output-dimension` means the layout is not the supported 1D local-index form;
+`non-cut-transition` means at least one boundary requires live transition
+rendering. These are whole-sequence exclusions. Per-consumer compatibility and
+profitability exclusions remain available for sequences that enter the
+analysis.
+
 An Acorn analysis proves the selected renderer does not assign to persistent
 Pattern state. Direct calls on the known side-effect-free Pixelblaze/math surface
 are eligible. Persistent assignment, a missing renderer, parse failure, dynamic
@@ -1733,6 +1741,47 @@ On a firmware-3.67 pb32, `npm run issue519:hardware` raised median throughput
 from 2.161 to 3.115 FPS (+44.1%); mean throughput rose 34.2%. The selected path
 removes an estimated 96,000 operations per cached frame, retains the 6,012-word
 arena, and restores the Controller's original program and pixel count.
+
+### Five-Pattern acceptance qualification
+
+The #520 acceptance fixture is a 36-second, 2,000-pixel routed Show with five
+distinct stock Pattern instances, five 400-pixel physical Zones, four Scenes,
+continued instances, post-color Effects, one static spatial Effect, a
+snapshot/live Crossfade, and a one-renderer soft-threshold Dissolve. Its selected
+artifact uses 6,012 VM words, 170 of 256 persistent globals, and 51,511 of the
+measured 68,384 source bytes. The planner assigns all three planes to outgoing
+RGB from 1-7 seconds, then reuses plane 0 for the exact coherent-noise field from
+14-20 seconds. No additional array is emitted.
+
+Routed transition bodies execute in separate generated helper functions. This
+is a firmware-safety boundary, not only source organization: the first
+acceptance artifact inlined every Scene and transition into one `render2D` and
+reliably failed on hardware when snapshot capture began if the later scalar
+field was also present. Isolating each transition's execution frame made the
+same snapshot-plus-field score activate and run, reduced selected source by 508
+bytes, and preserved all Fast/Precise boundary captures. Future routed
+transition families must retain this separation unless hardware qualification
+proves an alternative safe.
+
+On the firmware-3.67 pb32, the exact live/live stack raised median throughput
+from 1.000 to 1.076 FPS (+7.6%). Selecting the explicitly authored
+snapshot/live boundary raised it to 1.702 FPS, +58.1% over exact live/live and
++70.2% over the unoptimized baseline. The snapshot comparison is an authored
+visual-policy comparison, not exact continuation. A current 2,000-pixel Redline
+Show recheck measured 3.065 median FPS. Direct Redline at 4,000 pixels measured
+1.864 median FPS and remains unsupported stress-only evidence; no 4,000-pixel
+Show or framebuffer support is implied.
+
+`npm run issue520` emits the compile, resource, rollback, deterministic capture,
+and cache-plan report. `npm run issue520:hardware` performs the reversible
+Controller matrix; `npm run issue520:visual` writes the scene/transition contact
+sheet used for human review. The production recommendations are: keep exact
+routing/capture and frame-invariant work enabled; keep the arena mandatory;
+keep shared Motion kernels on automatic selection; select Pattern-output and
+scalar caches only when their exact compatibility/profitability proofs pass;
+preserve live/live for existing authored Crossfades and snapshot/live for new or
+explicitly selected boundaries. Every optional specialization retains its
+compiler counterfactual for rollback and measurement.
 
 The Acorn-backed member census counts array literals, `array(pixelCount)`,
 numeric expressions, supported `floor`/`ceil`/`round`/`min`/`max` expressions,

@@ -172,6 +172,34 @@ sync.
 
 ---
 
+## Acceptance Show qualification (`npm run issue520`, #520)
+
+The acceptance harness compiles a 36-second, 2,000-pixel routed Show containing
+five stock Pattern instances, five physical Zones, continued instance clocks,
+Effects, snapshot/live Crossfade, and scalar-field Dissolve. It reports the
+resource envelope, cache plan, optimization counterfactuals, and deterministic
+Fast/Precise captures:
+
+```bash
+npm run issue520
+```
+
+Two opt-in companions complete qualification:
+
+```bash
+PIXELBLAZE_IP=192.168.8.224 PIXELBLAZE_FW=3.67 npm run issue520:hardware
+ISSUE520_VISUAL=1 npm run issue520:visual
+```
+
+The hardware runner pushes the baseline, each cumulative compiler layer, the
+selected snapshot/live artifact, current 2,000-pixel Redline, and a separately
+labeled unsupported 4,000-pixel Redline stress probe. It always restores the
+Controller's original program and pixel count in `finally`. The visual runner
+writes `/tmp/pxlblz-issue520-contact-sheet.png` with representative Scene and
+Transition boundaries for human review.
+
+---
+
 ## Hardware FPS bench (`npm run devbench`, #248)
 
 Closes the optimization loop on real hardware, fully automated — no hand-loading.
