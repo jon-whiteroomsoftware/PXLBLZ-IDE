@@ -87,6 +87,16 @@ Motion Transitions Show retained 21 Scenes and 20 boundaries while compiling
 three Pattern instances. Source fell 37.5% and Controller bytecode 36.3%; FPS
 was unchanged. This is a capacity win.
 
+### Shared generated Effect kernels
+
+Compatible repeated animated Scale Effects share one generated matrix-update
+body while retaining member-owned clocks, private state, Controls, parameters,
+and final matrices. The two-member boundary saves 624 Controller-bytecode bytes
+and six globals; the ten-member fixture saves 6,480 bytecode bytes and 54
+globals. Fast and Precise output are exact, VM words and per-pixel branches are
+unchanged, and measured FPS is neutral. Production selects the shared form for
+every compatible group of at least two members.
+
 ### Snapshot/live Crossfade
 
 New or explicitly selected snapshot/live boundaries capture the complete
@@ -192,6 +202,7 @@ an unsupported alternate product contract.
 | 10 | #520 acceptance Show | 1.000 -> 1.076 exact -> 1.702 snapshot/live FPS |
 | 11 | #527 content keys | 2.801 -> 4.480 FPS (+59.9%) |
 | 12 | #528 coordinate diagnostic | 3.008 -> 2.814 FPS (-6.43%); disabled |
+| 13 | #538 shared generated Effect kernels | 10 members: source -12,552 B, bytecode -6,480 B, globals -54; FPS neutral |
 
 The archived plan retains exact source, bytecode, VM, mean/median, parity, and
 restoration details for every line.

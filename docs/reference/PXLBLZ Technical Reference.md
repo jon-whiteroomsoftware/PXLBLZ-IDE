@@ -1575,6 +1575,37 @@ Controller connection, so qualification isolates representations and does not
 compare rows after a failed activation. The complete evidence is archived in
 `docs/plans/archive/issue-525-shared-motion-transition-results.md`.
 
+### Shared generated Effect kernels
+
+Repeated generated Effect structure may share code without sharing Pattern
+identity. The first production family covers one animated Scale Effect per
+member. A structural key includes ordered Effect kinds and parameters, the
+indexed property-track parameter shape, adaptation shape, output and composition
+environment, and static-plan context. A compatible group requires at least two
+members; unsupported or non-repeated structures remain unrolled with a reason.
+
+The compiler emits one parameterized matrix-update kernel for the group and one
+small member-owned wrapper per Pattern. Each wrapper copies six shared results
+into that member's final affine matrix. Pattern clocks, private state, Controls,
+Effect parameter globals, authored entities, and final matrices remain
+independent. The shared kernel runs during existing update entry points and adds
+no per-pixel branch or array allocation.
+
+Production selects the two-member boundary because Fast and Precise replay are
+exact and pb32 firmware 3.67 Controller bytecode falls from 4,586 to 3,962 bytes.
+Five- and ten-member fixtures save 2,820 and 6,480 bytecode bytes respectively,
+while avoiding 24 and 54 persistent globals. Median 2,000-pixel FPS changed by
+less than 0.6% in all three cases, so this is a capacity result rather than a
+runtime claim. `specializations.generatedEffectKernels` reports selection,
+fallback reasons, members, parameter and shared-result globals, globals avoided,
+kernel count, zero per-pixel branch growth, and the complete qualification
+matrix. `generatedEffectKernelSharing: false` retains the exact counterfactual.
+
+`npm run issue538` runs the 2/5/10 compile and replay matrix.
+`npm run issue538:hardware` performs reversible activation and FPS probes. The
+full evidence is archived in
+`docs/plans/archive/issue-538-shared-generated-effect-kernels.md`.
+
 ### Whole-Show VM resource ledger
 
 The closed cross-slice results, cumulative performance ledger, negative

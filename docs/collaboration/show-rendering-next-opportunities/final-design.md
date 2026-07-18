@@ -162,6 +162,11 @@ stack compositors using the same “parameterize structure, preserve instance
 state” principle that cut Motion source and bytecode. Select by emitted and
 measured bytecode; do not claim FPS without hardware evidence.
 
+Issue #538 shipped the first narrow family: repeated animated Scale Effect
+updates share one parameterized body while member state remains independent.
+The 2/5/10-member hardware matrix qualified it as a capacity win; broader
+Effect stacks, adaptation wrappers, and stack compositors remain future work.
+
 #### Deferred state-vector virtualization
 
 One Pattern body plus indexed instance state can greatly reduce source and

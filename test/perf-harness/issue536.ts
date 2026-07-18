@@ -76,7 +76,10 @@ function censusCase(
   recipe: ShowRecipe,
 ): RestartGlobalCensusCase {
   try {
-    const artifact = compileShow(recipe, LIBRARIES)
+    // Preserve the compile boundary that #536 measured. Later global-saving
+    // passes (including #538 shared Effect kernels) must not retroactively
+    // change the liveness census or its 15% decision denominator.
+    const artifact = compileShow(recipe, LIBRARIES, { generatedEffectKernelSharing: false })
     // The final artifact is alpha-mangled. The expanded artifact retains the
     // stable member prefixes while declaring the same persistent globals.
     const liveness = analyzeCompiledRestartGlobalLiveness(recipe, artifact.expandedCode, {

@@ -73,6 +73,12 @@ import {
   type ShowRenderKernelSelection,
 } from './showRenderKernelSpecialization'
 import {
+  planShowGeneratedEffectKernels,
+  SHOW_GENERATED_EFFECT_KERNEL_QUALIFICATION,
+  type ShowGeneratedEffectKernelGroup,
+  type ShowGeneratedEffectKernelPlan,
+} from './showGeneratedKernelSharing'
+import {
   describeShowRenderTargetArena,
   emitShowRenderTargetArenaSource,
   emitShowRenderTargetRead,
@@ -498,6 +504,24 @@ export interface ShowCompileSummary {
       baselineEmittedBytes: number
       avoidedEmittedBytes: number
     } | null
+    generatedEffectKernels: {
+      selected: boolean
+      representation: 'unrolled' | 'shared-parameterized'
+      reason: 'selected' | 'disabled' | 'no-repeat'
+      family: 'affine-scale' | null
+      kernelCount: number
+      memberCount: number
+      parameterScalarGlobals: number
+      sharedResultGlobals: number
+      persistentGlobalsAvoided: number
+      perPixelBranchesAdded: 0
+      qualification: typeof SHOW_GENERATED_EFFECT_KERNEL_QUALIFICATION
+      members: Array<{
+        id: string
+        status: 'selected' | 'unrolled'
+        reason: 'selected' | 'no-repeat' | 'unsupported-family'
+      }>
+    }
     contentKeys: {
       keyedClipCount: number
       selectedStackCount: number
@@ -642,6 +666,8 @@ interface CompiledMember {
   }
   conditionalContentKeyEvaluation: boolean
   coordinateFieldCapture: boolean
+  generatedEffectKernelSharing: boolean
+  animatedEffectParameterPaths: string[]
 }
 
 interface CompiledPatternOutputReuseGroup {
@@ -708,6 +734,8 @@ export interface ShowCompileOptions {
   contentKeyConditionalEvaluation?: boolean
   /** Hardware-gated exact scene-lifetime X/Y cache; production defaults off until qualification. */
   coordinateFieldCaching?: boolean
+  /** Benchmark counterfactual; production shares qualified repeated affine Effect updates. */
+  generatedEffectKernelSharing?: boolean
 }
 
 const DIRECT_SNAPSHOT_CANDIDATE_ID = 'transition:direct:snapshot-live'
@@ -1130,17 +1158,40 @@ export function compileShow(
   const scalarFieldCaching = options.scalarFieldCaching ?? true
   const contentKeyConditionalEvaluation = options.contentKeyConditionalEvaluation ?? true
   const coordinateFieldCaching = options.coordinateFieldCaching ?? false
+  // #538 qualified the two-member boundary on pb32/3.67: exact Fast/Precise
+  // output and 624 fewer Controller bytecode bytes. Larger 5/10-member cases
+  // saved 2,820/6,480 bytes, so every compatible repeated family is selected.
+  const generatedEffectKernelSharing = options.generatedEffectKernelSharing ?? true
   validateRecipe(expandedRecipe)
   const animatedEffectClipIds = new Set<string>()
   const dynamicallyAnimatedEffectClipIds = new Set<string>()
+  const animatedEffectParameterPathsByClipId = new Map<string, Set<string>>()
+  const addAnimatedEffectPath = (clipId: string, effectId: string, parameter: string) => {
+    const clip = expandedRecipe.clips.find((candidate) => candidate.id === clipId)
+    const effectIndex = clip?.effects?.findIndex((effect) => effect.id === effectId) ?? -1
+    const effect = effectIndex >= 0 ? clip?.effects?.[effectIndex] : undefined
+    const path = effect
+      ? `${effectIndex}:${effect.kind}.${parameter}`
+      : `${effectId}.${parameter}`
+    const paths = animatedEffectParameterPathsByClipId.get(clipId) ?? new Set<string>()
+    paths.add(path)
+    animatedEffectParameterPathsByClipId.set(clipId, paths)
+  }
+  const addAnimatedEffectRamps = (clipId: string, ramps?: ShowEffectPropertyRampsRecipe) => {
+    for (const [effectId, parameters] of Object.entries(ramps ?? {})) {
+      for (const parameter of Object.keys(parameters)) addAnimatedEffectPath(clipId, effectId, parameter)
+    }
+  }
   if (expandedRecipe.adaptationRamp?.effectRamps && expandedRecipe.clips[0]) {
     animatedEffectClipIds.add(expandedRecipe.clips[0].id)
     dynamicallyAnimatedEffectClipIds.add(expandedRecipe.clips[0].id)
+    addAnimatedEffectRamps(expandedRecipe.clips[0].id, expandedRecipe.adaptationRamp.effectRamps)
   }
   for (const scene of expandedRecipe.sceneSequence?.scenes ?? []) {
     if (scene.transitionOut?.effectRamps) {
       animatedEffectClipIds.add(scene.clipId)
       dynamicallyAnimatedEffectClipIds.add(scene.clipId)
+      addAnimatedEffectRamps(scene.clipId, scene.transitionOut.effectRamps)
     }
   }
   for (const scene of expandedRecipe.routedSceneSequence?.scenes ?? []) {
@@ -1151,6 +1202,7 @@ export function compileShow(
       if (ramp.effectRamps) {
         animatedEffectClipIds.add(ramp.clipId)
         dynamicallyAnimatedEffectClipIds.add(ramp.clipId)
+        addAnimatedEffectRamps(ramp.clipId, ramp.effectRamps)
       }
     }
     for (const track of scene.propertyTracks ?? []) {
@@ -1160,6 +1212,11 @@ export function compileShow(
       if (placement) {
         animatedEffectClipIds.add(placement.clipId)
         dynamicallyAnimatedEffectClipIds.add(placement.clipId)
+        addAnimatedEffectPath(
+          placement.clipId,
+          track.target.effectId,
+          showClipEffectPersistedField(track.target.effectKind, track.target.parameterId),
+        )
       }
     }
   }
@@ -1197,6 +1254,8 @@ export function compileShow(
       showMemberNeedsMirrorMapping(expandedRecipe, clip),
       showMemberNeedsBrightnessScale(expandedRecipe, clip),
       contentKeyConditionalEvaluation,
+      generatedEffectKernelSharing,
+      [...(animatedEffectParameterPathsByClipId.get(clip.id) ?? [])].sort(),
     ),
     samplePropertyRamps: expandedRecipe.samplePropertyRamps,
   }))
@@ -1472,6 +1531,13 @@ export function compileShow(
         : routeMode || routingLayouts
           ? routedOutputDimension
           : memberOutputDimension
+  const generatedEffectKernelPlan = buildGeneratedEffectKernelPlan(members, compiledOutputDimension)
+  const selectedGeneratedEffectKernelMemberCount = generatedEffectKernelPlan.groups.reduce((sum, group) => (
+    sum + group.memberIds.length
+  ), 0)
+  const generatedEffectKernelPersistentGlobalsAvoided = generatedEffectKernelPlan.groups.reduce((sum, group) => (
+    sum + (group.memberIds.length - 1) * 6
+  ), 0)
   const metadata = buildMetadata(members, compiledOutputDimension)
   const patternVarBindings = Object.fromEntries(metadata.patternVars.flatMap((name) => {
     const runtimeName = compacted.names.get(name)
@@ -1617,7 +1683,8 @@ export function compileShow(
           ? 6 + (member.animatedEffects && !member.staticPlanEffects ? 6 : 0)
           : 0
         return count + parameters + affineGlobals
-      }, 0),
+      }, 0)
+      - generatedEffectKernelPersistentGlobalsAvoided,
     generatedArrayElements: resources.allocations
       .filter((allocation) => ['routing', 'plan', 'auxiliary-cache'].includes(allocation.category))
       .reduce((sum, allocation) => sum + allocation.elementCount, 0),
@@ -1783,6 +1850,22 @@ export function compileShow(
       })),
       renderKernels: routedSceneEmission?.renderKernels ?? null,
       motionTransitions: routedSceneEmission?.motionTransitions ?? null,
+      generatedEffectKernels: {
+        selected: generatedEffectKernelPlan.groups.length > 0,
+        representation: generatedEffectKernelPlan.groups.length > 0 ? 'shared-parameterized' : 'unrolled',
+        reason: !generatedEffectKernelSharing
+          ? 'disabled'
+          : generatedEffectKernelPlan.groups.length > 0 ? 'selected' : 'no-repeat',
+        family: generatedEffectKernelPlan.groups.length > 0 ? 'affine-scale' : null,
+        kernelCount: generatedEffectKernelPlan.groups.length,
+        memberCount: selectedGeneratedEffectKernelMemberCount,
+        parameterScalarGlobals: selectedGeneratedEffectKernelMemberCount * 2,
+        sharedResultGlobals: generatedEffectKernelPlan.groups.length * 6,
+        persistentGlobalsAvoided: generatedEffectKernelPersistentGlobalsAvoided,
+        perPixelBranchesAdded: 0,
+        qualification: SHOW_GENERATED_EFFECT_KERNEL_QUALIFICATION,
+        members: generatedEffectKernelPlan.members,
+      },
       contentKeys: describeContentKeySpecialization(expandedRecipe, members),
       patternOutputReuse: {
         selectedGroupCount: patternOutputReuseGroupsSummary.filter((group) => group.status === 'selected').length,
@@ -2160,6 +2243,8 @@ function compileMember(
   needsMirrorMapping = Boolean(clip.adaptation?.mirror),
   needsBrightnessScale = (clip.adaptation?.brightness ?? 1) !== 1,
   conditionalContentKeyEvaluation = true,
+  generatedEffectKernelSharing = false,
+  animatedEffectParameterPaths: string[] = [],
 ): CompiledMember {
   const bundled = bundle(clip.source, libraries)
   const prefix = `__pxlblz_show_c${index}`
@@ -2251,6 +2336,8 @@ function compileMember(
     },
     conditionalContentKeyEvaluation,
     coordinateFieldCapture: false,
+    generatedEffectKernelSharing,
+    animatedEffectParameterPaths,
   }
 }
 
@@ -5773,7 +5860,12 @@ function emitSelectedMemberRendererCall(
     : call
 }
 
-function describeMemberEffectRuntime(member: CompiledMember): {
+interface SharedEffectKernelBinding {
+  functionName: string
+  outputPrefix: string
+}
+
+function describeMemberEffectRuntime(member: CompiledMember, sharedKernel?: SharedEffectKernelBinding): {
   declarations: string[]
   hasAffine: boolean
   hasCoordinates: boolean
@@ -5859,6 +5951,10 @@ ${operationAssignments.join('\n')}
   ${member.prefix}_fx_tx = (${member.prefix}_fx_mc * ${member.prefix}_fx_mty - ${member.prefix}_fx_md * ${member.prefix}_fx_mtx) / ${member.prefix}_fx_det
   ${member.prefix}_fx_ty = (${member.prefix}_fx_mb * ${member.prefix}_fx_mtx - ${member.prefix}_fx_ma * ${member.prefix}_fx_mty) / ${member.prefix}_fx_det
 }`
+  const sharedUpdateFunction = sharedKernel
+    ? `function ${member.prefix}_fx_update() {${emitSharedScaleMemberUpdate(member, sharedKernel)}
+}`
+    : ''
   return {
     hasAffine,
     hasCoordinates,
@@ -5868,7 +5964,7 @@ ${operationAssignments.join('\n')}
       ...(member.animatedEffects ? [
         ...parameterDeclarations,
       ] : []),
-      ...(member.animatedEffects && hasAffine && !member.staticPlanEffects ? [
+      ...(member.animatedEffects && hasAffine && !member.staticPlanEffects && !sharedKernel ? [
         `var ${member.prefix}_fx_ma = 1`,
         `var ${member.prefix}_fx_mb = 0`,
         `var ${member.prefix}_fx_mc = 0`,
@@ -5884,7 +5980,9 @@ ${operationAssignments.join('\n')}
         `var ${member.prefix}_fx_tx = ${matrix.tx}`,
         `var ${member.prefix}_fx_ty = ${matrix.ty}`,
       ] : []),
-      ...(member.animatedEffects && hasAffine && !member.staticPlanEffects ? [updateFunction] : []),
+      ...(member.animatedEffects && hasAffine && !member.staticPlanEffects
+        ? [sharedKernel ? sharedUpdateFunction : updateFunction]
+        : []),
     ],
   }
 }
@@ -6066,6 +6164,95 @@ function emitMemberOutputEffectLines(member: CompiledMember): string {
   return lines.join('\n')
 }
 
+function emitSharedScaleKernel(
+  group: ShowGeneratedEffectKernelGroup,
+  binding: SharedEffectKernelBinding,
+): string {
+  if (group.family !== 'affine-scale') throw new Error(`Unsupported generated Effect kernel family "${group.family}".`)
+  const name = binding.outputPrefix
+  return `var ${name}_a = 1
+var ${name}_b = 0
+var ${name}_c = 0
+var ${name}_d = 1
+var ${name}_tx = 0
+var ${name}_ty = 0
+function ${binding.functionName}(x, y) {
+  var ma = 1
+  var mb = 0
+  var mc = 0
+  var md = 1
+  var mtx = 0
+  var mty = 0
+  var oa = x
+  var ob = 0
+  var oc = 0
+  var od = y
+  var otx = 0.5 - oa * 0.5
+  var oty = 0.5 - od * 0.5
+  var next_a = oa * ma + oc * mb
+  var next_b = ob * ma + od * mb
+  var next_c = oa * mc + oc * md
+  var next_d = ob * mc + od * md
+  var next_tx = oa * mtx + oc * mty + otx
+  var next_ty = ob * mtx + od * mty + oty
+  ma = next_a
+  mb = next_b
+  mc = next_c
+  md = next_d
+  mtx = next_tx
+  mty = next_ty
+  var det = ma * md - mb * mc
+  if (abs(det) < 0.000001) det = det < 0 ? -0.000001 : 0.000001
+  ${name}_a = md / det
+  ${name}_b = -mb / det
+  ${name}_c = -mc / det
+  ${name}_d = ma / det
+  ${name}_tx = (mc * mty - md * mtx) / det
+  ${name}_ty = (mb * mtx - ma * mty) / det
+}`
+}
+
+function emitSharedScaleMemberUpdate(member: CompiledMember, binding: SharedEffectKernelBinding): string {
+  const scale = member.effects.find((effect) => effect.kind === 'scale')
+  if (!scale) throw new Error(`Shared scale kernel member "${member.id}" has no Scale Effect.`)
+  const x = effectParameterVariable(member, scale.id, 'x')
+  const y = effectParameterVariable(member, scale.id, 'y')
+  const output = binding.outputPrefix
+  return `
+  ${binding.functionName}(${x}, ${y})
+  ${member.prefix}_fx_a = ${output}_a
+  ${member.prefix}_fx_b = ${output}_b
+  ${member.prefix}_fx_c = ${output}_c
+  ${member.prefix}_fx_d = ${output}_d
+  ${member.prefix}_fx_tx = ${output}_tx
+  ${member.prefix}_fx_ty = ${output}_ty`
+}
+
+function buildGeneratedEffectKernelPlan(
+  members: CompiledMember[],
+  outputDimension: ShowOutputDimension,
+): ShowGeneratedEffectKernelPlan {
+  return planShowGeneratedEffectKernels(members
+    .filter((member) => member.generatedEffectKernelSharing)
+    .map((member) => ({
+      id: member.id,
+      effects: member.effects,
+      animatedParameterPaths: member.animatedEffectParameterPaths,
+      adaptationShape: {
+        mirror: member.needsMirrorMapping,
+        lightShutter: Boolean(member.adaptation.lightShutter),
+        steppedClock: Boolean(member.adaptation.steppedClock),
+        brightnessScale: member.needsBrightnessScale,
+      },
+      compositionEnvironment: {
+        outputDimension,
+        contentKey: memberHasContentKey(member),
+        coordinateField: member.coordinateFieldCapture,
+        staticPlanEffects: member.staticPlanEffects,
+      },
+    })))
+}
+
 function emitRuntimePrelude(
   members: CompiledMember[],
   outputDimension: ShowOutputDimension,
@@ -6082,8 +6269,20 @@ function emitRuntimePrelude(
   const includePhase = options.includePhase ?? true
   const samplePropertyRamps = members[0]?.samplePropertyRamps
   const sampleRuntime = emitSampleRemappingRuntime(samplePropertyRamps)
+  const sharedEffectKernelPlan = buildGeneratedEffectKernelPlan(members, outputDimension)
+  const sharedEffectKernels = sharedEffectKernelPlan.groups.map((group, index) => ({
+    group,
+    binding: {
+      functionName: `__pxlblz_show_fxk_scale_${index}`,
+      outputPrefix: `__pxlblz_show_fxk_scale_${index}`,
+    } satisfies SharedEffectKernelBinding,
+  }))
+  const sharedEffectKernelByMemberId = new Map(sharedEffectKernels.flatMap(({ group, binding }) => (
+    group.memberIds.map((memberId) => [memberId, binding] as const)
+  )))
   const memberVars = members.flatMap((member, index) => {
-    const effectRuntime = describeMemberEffectRuntime(member)
+    const sharedEffectKernel = sharedEffectKernelByMemberId.get(member.id)
+    const effectRuntime = describeMemberEffectRuntime(member, sharedEffectKernel)
     const compatibility = selectRenderCompatibility(outputDimension, {
       hasBeforeRender: member.hasBeforeRender,
       hasRender: member.hasRender,
@@ -6309,6 +6508,7 @@ ${effectRuntime?.hasCoordinates && !effectRuntime.wrap ? `  if (!effectInside) $
     ...(includeMix ? ['var __pxlblz_show_mix = 0'] : []),
     ...(includePhase ? ['var __pxlblz_show_phase = 0'] : []),
     ...(sampleRuntime ? [sampleRuntime] : []),
+    ...sharedEffectKernels.map(({ group, binding }) => emitSharedScaleKernel(group, binding)),
     ...memberVars,
     ...(usesHsv ? [`function __pxlblz_show_capture_rgb(slot, r, g, b) {
   ${captureBranches}
