@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "PXLBLZ-IDE Controller Helper",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "minimum_chrome_version": "127",
   "description": "Connects the PXLBLZ-IDE web app to Pixelblaze controllers on your local network. It relays the controller's WebSocket traffic.",
   "homepage_url": "https://jon-whiteroomsoftware.github.io/PXLBLZ-IDE/",
