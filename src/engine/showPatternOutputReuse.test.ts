@@ -1,0 +1,124 @@
+import {
+  analyzeShowPatternRenderState,
+  compareShowPatternOutputConsumers,
+  groupCompatibleShowPatternOutputs,
+  showPatternOutputCompatibilityKey,
+  type ShowPatternOutputConsumer,
+} from './showPatternOutputReuse'
+
+describe('compatible Pattern output reuse (#518)', () => {
+  const baseConsumer: ShowPatternOutputConsumer = {
+    consumerId: 'base',
+    patternIdentity: 'demo:TestPattern1D',
+    patternInstanceId: 'clip-instance-0',
+    clockDomainKey: 'member-clock-0',
+    inputValuesKey: 'controls:{}',
+    propertyValuesKey: 'brightness:1;phase:0;mirror:0',
+    coordinateSpaceKey: 'zone:main;local-index',
+    sampleDomainKey: 'pixelCount:2000;identity',
+    renderFunction: 'render',
+    preCacheEffectsKey: 'effects:identity',
+    renderState: 'pure',
+    postCacheConsumerKey: 'opacity:1',
+  }
+
+  it('shares an exact rendered value across consumers whose only difference is post-cache opacity', () => {
+    const overlay: ShowPatternOutputConsumer = {
+      ...baseConsumer,
+      consumerId: 'overlay',
+      postCacheConsumerKey: 'opacity:0.5',
+    }
+
+    expect(compareShowPatternOutputConsumers(baseConsumer, overlay)).toEqual({
+      compatible: true,
+      reasons: [],
+      key: showPatternOutputCompatibilityKey(baseConsumer),
+    })
+    expect(showPatternOutputCompatibilityKey(baseConsumer)).toBe(showPatternOutputCompatibilityKey(overlay))
+  })
+
+  it.each([
+    ['patternIdentity', 'user:other', 'pattern-identity'],
+    ['patternInstanceId', 'clip-instance-1', 'pattern-instance'],
+    ['clockDomainKey', 'member-clock-1', 'clock-domain'],
+    ['inputValuesKey', 'controls:{speed:0.5}', 'input-values'],
+    ['propertyValuesKey', 'brightness:0.5;phase:0;mirror:0', 'property-values'],
+    ['coordinateSpaceKey', 'zone:other;local-index', 'coordinate-space'],
+    ['sampleDomainKey', 'pixelCount:1000;identity', 'sample-domain'],
+    ['renderFunction', 'render2D', 'render-function'],
+    ['preCacheEffectsKey', 'effects:rotate-0.25', 'pre-cache-effects'],
+  ] as const)('excludes a consumer with different %s', (field, value, reason) => {
+    const other = { ...baseConsumer, consumerId: 'other', [field]: value }
+
+    expect(compareShowPatternOutputConsumers(baseConsumer, other)).toEqual({
+      compatible: false,
+      reasons: [reason],
+      key: null,
+    })
+  })
+
+  it.each([
+    ['render-mutating', 'render-mutating-state'],
+    ['unknown', 'render-state-unknown'],
+  ] as const)('excludes %s render state', (renderState, reason) => {
+    const other: ShowPatternOutputConsumer = { ...baseConsumer, renderState }
+
+    expect(showPatternOutputCompatibilityKey(other)).toBeNull()
+    expect(compareShowPatternOutputConsumers(baseConsumer, other)).toEqual({
+      compatible: false,
+      reasons: [reason],
+      key: null,
+    })
+  })
+
+  it('scopes render-state analysis to the selected render function', () => {
+    const source = `
+var calls = 0
+export function render(index) { rgb(index / pixelCount, 0, 0) }
+export function render2D(index, x, y) { calls = calls + 1; rgb(x, y, 0) }
+`
+
+    expect(analyzeShowPatternRenderState(source, 'render')).toEqual({
+      state: 'pure',
+      mutatedBindings: [],
+      unknownCalls: [],
+    })
+    expect(analyzeShowPatternRenderState(source, 'render2D')).toEqual({
+      state: 'render-mutating',
+      mutatedBindings: ['calls'],
+      unknownCalls: [],
+    })
+  })
+
+  it('conservatively excludes an unproved helper call', () => {
+    const source = `
+function color(index) { return index / pixelCount }
+export function render(index) { rgb(color(index), 0, 0) }
+`
+
+    expect(analyzeShowPatternRenderState(source, 'render')).toEqual({
+      state: 'unknown',
+      mutatedBindings: [],
+      unknownCalls: ['color'],
+    })
+  })
+
+  it('forms deterministic sharing groups and explains near-compatible exclusions', () => {
+    const overlay = { ...baseConsumer, consumerId: 'overlay', postCacheConsumerKey: 'opacity:0.5' }
+    const otherZone = { ...baseConsumer, consumerId: 'other-zone', coordinateSpaceKey: 'zone:other;local-index' }
+    const stateful = { ...baseConsumer, consumerId: 'stateful', renderState: 'render-mutating' as const }
+
+    const result = groupCompatibleShowPatternOutputs([otherZone, stateful, overlay, baseConsumer])
+
+    expect(result.groups).toEqual([{
+      key: showPatternOutputCompatibilityKey(baseConsumer),
+      producerId: 'base',
+      consumerIds: ['base', 'overlay'],
+      evaluationsAvoidedPerPixel: 1,
+    }])
+    expect(result.excluded).toEqual([
+      { consumerId: 'other-zone', reasons: ['coordinate-space'] },
+      { consumerId: 'stateful', reasons: ['render-mutating-state'] },
+    ])
+  })
+})
