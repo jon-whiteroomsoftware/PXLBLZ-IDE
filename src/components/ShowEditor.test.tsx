@@ -1939,6 +1939,16 @@ describe('ShowEditor (#318)', () => {
     )
   })
 
+  it('discloses the selected table-driven Show score and measured exchange (#542)', () => {
+    const easing = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-reference-easing')!
+
+    render(<ShowEditor showId={easing.id} showOverride={easing.show} readOnly />)
+
+    expect(screen.getByTestId('show-compile-bar')).toHaveTextContent(
+      'show score: table driven · 20 boundaries / 2 stacks / 1 kernel · 104 words · init 100 assignments + 0 ops · 146,105 emitted B avoided · regular cadence · pb32 bytecode -66.6% to -78.9% · runtime neutral',
+    )
+  })
+
   it('replaces a deleted Clip through its empty timeline slot (#430)', async () => {
     const user = userEvent.setup()
     const show = createDefaultShow('show-430-place', 'Clip placement', 1000)

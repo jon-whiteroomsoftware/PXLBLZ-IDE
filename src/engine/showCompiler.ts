@@ -79,6 +79,11 @@ import {
   type ShowGeneratedEffectKernelPlan,
 } from './showGeneratedKernelSharing'
 import {
+  buildShowScorePlan,
+  canonicalShowScoreIdentity,
+  type ShowScoreIncompatibilityReason,
+} from './showScorePlan'
+import {
   describeShowRenderTargetArena,
   emitShowRenderTargetArenaSource,
   emitShowRenderTargetRead,
@@ -508,6 +513,27 @@ export interface ShowCompileSummary {
       baselineEmittedBytes: number
       avoidedEmittedBytes: number
     } | null
+    showScore: {
+      selected: boolean
+      representation: 'unrolled' | 'table-driven'
+      reason: 'selected' | 'disabled' | 'incompatible' | 'not-smaller'
+      incompatibilityReason: ShowScoreIncompatibilityReason | 'transition-family' | null
+      boundaryCount: number
+      stackPlanCount: number
+      kernelCount: number
+      easingCount: number
+      scoreWords: number
+      generatedGlobals: number
+      initializationAssignments: number
+      initializationOperations: number
+      timing: 'regular-cadence' | 'explicit-boundaries' | 'unrolled'
+      loopBehavior: 'modulo-show-duration'
+      emittedBytes: number
+      baselineEmittedBytes: number
+      avoidedEmittedBytes: number
+      perPixelSceneBranches: number
+      qualification: typeof SHOW_SCORE_QUALIFICATION
+    } | null
     generatedEffectKernels: {
       selected: boolean
       representation: 'unrolled' | 'shared-parameterized'
@@ -624,6 +650,13 @@ export interface ShowCompileSummary {
   warnings: string[]
   cost: ShowCompiledCostMetadata
 }
+
+export const SHOW_SCORE_QUALIFICATION = Object.freeze({
+  boardType: 'pb32' as const,
+  firmwareVersion: '3.67',
+  controllerBytecodeDeltaPercent: { best: -78.9, worst: -66.6 },
+  runtimeDisposition: 'neutral' as const,
+})
 
 export interface GeneratedShowArtifact {
   code: string
@@ -775,6 +808,8 @@ export interface ShowCompileOptions {
   renderTargetArenaEmission?: boolean
   /** `none` preserves the unrolled #515 boundary; `exact` forces the #525 exact candidate. */
   motionTransitionSharing?: 'auto' | 'none' | 'structure' | 'exact'
+  /** Benchmark counterfactual for compatible table-driven routed Show scores. */
+  showScoreSharing?: 'auto' | 'none' | 'force'
   /** Benchmark-only counterfactual; production uses exact profitable reuse when available. */
   patternOutputReuse?: boolean
   /** Benchmark-only counterfactual; production uses exact profitable scalar fields when available. */
@@ -1318,6 +1353,7 @@ export function compileShow(
   const renderKernelSpecialization = options.renderKernelSpecialization ?? false
   const renderTargetArenaEmission = options.renderTargetArenaEmission ?? true
   const motionTransitionSharing = options.motionTransitionSharing ?? 'auto'
+  const showScoreSharing = options.showScoreSharing ?? 'auto'
   const patternOutputReuse = options.patternOutputReuse ?? true
   const scalarFieldCaching = options.scalarFieldCaching ?? true
   const contentKeyConditionalEvaluation = options.contentKeyConditionalEvaluation ?? true
@@ -1648,6 +1684,7 @@ export function compileShow(
         selectedRenderTargetCandidates,
         renderKernelSpecialization,
         motionTransitionSharing,
+        showScoreSharing,
         selectedPatternOutputReuseGroups,
         selectedScalarFields,
         selectedCoordinateFields,
@@ -2078,6 +2115,7 @@ export function compileShow(
       })),
       renderKernels: routedSceneEmission?.renderKernels ?? null,
       motionTransitions: routedSceneEmission?.motionTransitions ?? null,
+      showScore: routedSceneEmission?.showScore ?? null,
       generatedEffectKernels: {
         selected: generatedEffectKernelPlan.groups.length > 0,
         representation: generatedEffectKernelPlan.groups.length > 0 ? 'shared-parameterized' : 'unrolled',
@@ -3104,6 +3142,7 @@ function emitRoutedSceneSequenceShowCode(
   selectedRenderTargetCandidates: ReadonlySet<string> = new Set(),
   renderKernelSpecialization = false,
   motionTransitionSharing: 'auto' | 'none' | 'structure' | 'exact' = 'auto',
+  showScoreSharing: 'auto' | 'none' | 'force' = 'auto',
   patternOutputReuseGroups: SelectedPatternOutputReuseGroup[] = [],
   scalarFields: SelectedScalarField[] = [],
   coordinateFields: SelectedCoordinateField[] = [],
@@ -3112,6 +3151,7 @@ function emitRoutedSceneSequenceShowCode(
   code: string
   renderKernels: ShowCompileSummary['specializations']['renderKernels']
   motionTransitions: ShowCompileSummary['specializations']['motionTransitions']
+  showScore: ShowCompileSummary['specializations']['showScore']
 } {
   if (layouts.length === 0) throw new Error('compileShow routed scene sequence requires a routing layout.')
   const layoutIndex = new Map(layouts.map((layout, index) => [layout.id, index]))
@@ -3341,6 +3381,131 @@ ${member.prefix}_advance(delta)`
     .map(({ code }) => indentBlock(code, 4))
     .join('\n')
 
+  let scoreCursor = 0
+  const scoreTransitionSegments = scenes.slice(0, -1).map((scene) => {
+    scoreCursor += scene.holdMs
+    const transition = scene.transitionOut ?? {
+      kind: 'cut' as const,
+      durationMs: 0,
+      easing: 'linear' as const,
+    }
+    const segment = {
+      kind: 'transition' as const,
+      startMs: scoreCursor,
+      endMs: scoreCursor + transition.durationMs,
+      sceneIndex: scene.sceneIndex,
+      transition,
+    }
+    scoreCursor += transition.durationMs
+    return segment
+  })
+  const scoreProgramIdentity = (transition: ShowSceneSequenceTransitionRecipe) => {
+    const {
+      durationMs: _durationMs,
+      easing: _easing,
+      propertyRamps: _propertyRamps,
+      controlRamps: _controlRamps,
+      effectRamps: _effectRamps,
+      ...program
+    } = transition
+    return JSON.parse(JSON.stringify(program))
+  }
+  const scorePlan = buildShowScorePlan({
+    compatibility: {
+      outputDimension,
+      routingLayoutCount: layouts.length,
+      logicalZoneCount: layouts[0]?.logical?.zoneNames.length ?? 0,
+      routingSwitchCount: switches.length,
+      routingPropertyRampCount: propertyRamps?.splitPosition.ramps.length ?? 0,
+      placementPropertyTrackCount: scenes.reduce((sum, scene) => sum + (scene.propertyTracks?.length ?? 0), 0),
+      transitionRampCount: scenes.reduce((sum, scene) => sum + (scene.transitionRamps?.length ?? 0), 0),
+      freezeAtEntryCount: members.filter((member) => member.evaluationPolicy === 'freeze-at-entry').length,
+    },
+    scenes: scenes.map((scene) => ({
+      sceneIndex: scene.sceneIndex,
+      routingIdentity: JSON.parse(JSON.stringify(layouts[0]?.logical ?? null)),
+      placements: scene.placements.map((placement) => JSON.parse(JSON.stringify({
+        patternInstanceId: placement.member.id,
+        memberId: placement.member.id,
+        zoneName: placement.zoneName,
+        zoneMode: placement.zoneMode,
+        domainZoneNames: placement.domainZoneNames,
+        mirror: placement.mirror,
+        phase: placement.phase,
+        brightness: placement.brightness,
+        timeScale: placement.timeScale,
+        opacity: placement.opacity,
+        controlTargets: placement.controlTargets,
+        effects: placement.effects,
+        contentKey: memberHasContentKey(placement.member),
+      }))),
+    })),
+    boundaries: scoreTransitionSegments.map((segment, boundaryIndex) => ({
+      boundaryIndex,
+      startMs: segment.startMs,
+      durationMs: segment.transition.durationMs,
+      fromSceneIndex: segment.sceneIndex,
+      toSceneIndex: segment.sceneIndex + 1,
+      transition: {
+        family: segment.transition.kind,
+        programIdentity: scoreProgramIdentity(segment.transition),
+        easingIdentity: canonicalShowScoreIdentity(JSON.parse(JSON.stringify(segment.transition.easing ?? 'linear'))),
+        parameters: [],
+      },
+    })),
+    loopDurationMs: cursor,
+  })
+  const scoreSupportedTransitionKinds = new Set<ShowSceneSequenceTransitionRecipe['kind']>([
+    'cut', 'crossfade', 'fade-color', 'wipe', 'dither', 'portal',
+  ])
+  const scoreCandidateReason: ShowScoreIncompatibilityReason | 'transition-family' | null = scorePlan.status === 'incompatible'
+    ? scorePlan.reason
+    : scoreTransitionSegments.length !== scenes.length - 1
+      || scoreTransitionSegments.some((segment) => !scoreSupportedTransitionKinds.has(segment.transition.kind))
+      || scorePlan.cadence.kind !== 'regular'
+      || scorePlan.stackPlanCount !== 2
+      || layouts[0]?.logical?.kind !== 'single'
+      || patternOutputReuseGroups.length > 0
+      || coordinateFields.length > 0
+      || freezeAtEntryCaptures.length > 0
+      || scenes.some((scene) => (scene.localTimeOffsetMs ?? 0) !== 0)
+      ? 'transition-family'
+      : null
+
+  const motionEasingGroups = new Map<string, {
+    easing: ShowTransitionEasing
+    count: number
+  }>()
+  for (const segment of motionSegments) {
+    const easing = segment.transition.easing ?? 'linear'
+    const identity = canonicalShowScoreIdentity(JSON.parse(JSON.stringify(easing)))
+    const existing = motionEasingGroups.get(identity)
+    motionEasingGroups.set(identity, { easing, count: (existing?.count ?? 0) + 1 })
+  }
+  const sharedMotionEasings = [...motionEasingGroups.entries()]
+    .filter(([, group]) => group.count > 1)
+    .map(([identity, group], index) => ({
+      identity,
+      easing: group.easing,
+      functionName: `__pxlblz_show_motion_ease_${index}`,
+    }))
+  const sharedMotionEasingFunctionByIdentity = new Map(
+    sharedMotionEasings.map((entry) => [entry.identity, entry.functionName]),
+  )
+  const sharedMotionEasingSource = sharedMotionEasings.map((entry) => (
+    `function ${entry.functionName}(t) { return ${emitShowEasingExpression(entry.easing, 't')} }`
+  )).join('\n')
+  const emitRoutedTransitionEasing = (
+    transition: ShowSceneSequenceTransitionRecipe,
+    progress: string,
+  ) => {
+    const easing = transition.easing ?? 'linear'
+    if (transition.kind !== 'motion') return emitShowEasingExpression(easing, progress)
+    const identity = canonicalShowScoreIdentity(JSON.parse(JSON.stringify(easing)))
+    const functionName = sharedMotionEasingFunctionByIdentity.get(identity)
+    return functionName ? `${functionName}(${progress})` : emitShowEasingExpression(easing, progress)
+  }
+
   const canSharePhysicalCutRouting = layouts.length === 1
     && !layouts[0].logical
     && segments.every((segment) => segment.kind === 'hold')
@@ -3483,7 +3648,7 @@ ${setupGroups}`
     __pxlblz_show_scene = ${segment.sceneIndex}
     __pxlblz_show_transition = ${segment.sceneIndex}
     __pxlblz_show_transition_start_s = ${segment.startMs / 1000}
-    __pxlblz_show_mix = ${emitShowEasingExpression(segment.transition!.easing ?? 'linear', `(__pxlblz_show_elapsed_s - ${segment.startMs / 1000}) / ${segment.transition!.durationMs / 1000}`)}${snapshotEntry}${motionKernelAssignments}${scalarField ? `\n${indentBlock(emitScalarFieldLifecycle(scalarField), 4)}` : ''}
+    __pxlblz_show_mix = ${emitRoutedTransitionEasing(segment.transition!, `(__pxlblz_show_elapsed_s - ${segment.startMs / 1000}) / ${segment.transition!.durationMs / 1000}`)}${snapshotEntry}${motionKernelAssignments}${scalarField ? `\n${indentBlock(emitScalarFieldLifecycle(scalarField), 4)}` : ''}
 ${setupForPlacements(
     [...from, ...to],
     scenes[segment.sceneIndex].transitionRamps,
@@ -3695,7 +3860,7 @@ ${indentBlock(branches, 2)}
   }`
     : sceneBranches
 
-  const code = [
+  const baselineCode = [
     emitRuntimePrelude(members, outputDimension, {
       includeHash: transitionBranches.includes('__pxlblz_show_hash01')
         || transitionHelpers.some((helper) => helper.includes('__pxlblz_show_hash01')),
@@ -3703,6 +3868,7 @@ ${indentBlock(branches, 2)}
       includePhase: false,
     }),
     ...members.map((member) => member.code.trim()),
+    ...(sharedMotionEasingSource ? [sharedMotionEasingSource] : []),
     ...stackWrappers,
     ...(sharedPhysicalCut?.prelude ? [sharedPhysicalCut.prelude] : []),
     ...(scalarFields.length > 0 ? [emitScalarFieldRuntimeDeclarations(scalarFields)] : []),
@@ -3757,6 +3923,248 @@ ${layoutSelectLines}${layoutSelectLines ? '\n' : ''}${propertyRamps ? `${emitRou
 }`,
     '',
   ].join('\n\n')
+
+  const scoreCandidate = (() => {
+    if (scoreCandidateReason || scorePlan.status !== 'compatible') return null
+    const logical = layouts[0].logical!
+    const zoneName = logical.zoneNames[0]
+    const stackPlans = Array.from({ length: scorePlan.stackPlanCount }, (_, planIndex) => {
+      const scene = scenes.find((candidate) => scorePlan.stackPlanIndexByScene[candidate.sceneIndex] === planIndex)
+      const stack = scene ? groupRoutedPlacementsByZone(scene.placements).get(zoneName) : undefined
+      if (!scene || !stack?.length) return null
+      const prefix = `__pxlblz_show_score_stack_${planIndex}`
+      return {
+        scene,
+        stack,
+        prefix,
+        wrapper: emitRoutedSceneStackWrapper(stack, prefix, 2),
+        member: routedSceneCompositeMember(stack, prefix),
+      }
+    })
+    if (stackPlans.some((plan) => plan === null)) return null
+    const exactStackPlans = stackPlans as Array<Exclude<typeof stackPlans[number], null>>
+    const scoreValues = scorePlan.boundaries.flatMap((boundary) => [
+      boundary.fromStack,
+      boundary.toStack,
+      boundary.kernel,
+      boundary.easing,
+      boundary.durationMs / 1_000,
+    ])
+    const easingByIdentity = new Map<string, ShowTransitionEasing>()
+    for (const segment of scoreTransitionSegments) {
+      const easing = segment.transition.easing ?? 'linear'
+      easingByIdentity.set(canonicalShowScoreIdentity(JSON.parse(JSON.stringify(easing))), easing)
+    }
+    const easingFunction = `function __pxlblz_show_score_ease(id, t) {
+${scorePlan.easingIdentities.map((identity, index) => {
+    const easing = easingByIdentity.get(identity) ?? 'linear'
+    return `  ${index === 0 ? 'if' : 'else if'} (id == ${index}) return ${emitShowEasingExpression(easing, 't')}`
+  }).join('\n')}
+  return t
+}`
+    const holdSetup = `function __pxlblz_show_score_setup_hold(delta) {
+${exactStackPlans.map((plan, index) => `${index === 0 ? '  if' : '  else if'} (__pxlblz_show_score_stack == ${index}) {
+${setupForPlacements(plan.scene.placements)}
+  }`).join('\n')}
+}`
+    const transitionPairs = new Map<string, typeof scoreTransitionSegments[number]>()
+    for (const segment of scoreTransitionSegments) {
+      const boundary = scorePlan.boundaries.find((candidate) => candidate.boundaryIndex === scoreTransitionSegments.indexOf(segment))!
+      transitionPairs.set(`${boundary.fromStack}:${boundary.toStack}`, segment)
+    }
+    const transitionSetup = `function __pxlblz_show_score_setup_transition(delta) {
+${[...transitionPairs.entries()].map(([key, segment], index) => {
+    const [fromStack, toStack] = key.split(':').map(Number)
+    return `${index === 0 ? '  if' : '  else if'} (__pxlblz_show_score_from_stack == ${fromStack} && __pxlblz_show_score_to_stack == ${toStack}) {
+${setupForPlacements([
+      ...scenes[segment.sceneIndex].placements,
+      ...scenes[segment.sceneIndex + 1].placements,
+    ])}
+  }`
+  }).join('\n')}
+}`
+    const proxySource = (prefix: string, selector: string) => `var ${prefix}_r = 0
+var ${prefix}_g = 0
+var ${prefix}_b = 0
+function ${prefix}_renderCapture2D(index, x, y) {
+${exactStackPlans.map((plan, index) => `${index === 0 ? '  if' : '  else if'} (${selector} == ${index}) {
+    ${plan.prefix}_renderCapture2D(index, x, y)
+    ${prefix}_r = ${plan.prefix}_r
+    ${prefix}_g = ${plan.prefix}_g
+    ${prefix}_b = ${plan.prefix}_b
+  }`).join('\n')}
+}
+function ${prefix}_emit() { rgb(${prefix}_r, ${prefix}_g, ${prefix}_b) }`
+    const fromProxyPrefix = '__pxlblz_show_score_from'
+    const toProxyPrefix = '__pxlblz_show_score_to'
+    const proxyMember = (prefix: string): CompiledMember => ({
+      ...exactStackPlans[0].member,
+      id: prefix,
+      prefix,
+      pixelCountName: `${prefix}_pixelCount`,
+    })
+    const fromProxy = proxyMember(fromProxyPrefix)
+    const toProxy = proxyMember(toProxyPrefix)
+    const kernelSegments = new Map<number, typeof scoreTransitionSegments[number]>()
+    scorePlan.boundaries.forEach((boundary, index) => {
+      if (!kernelSegments.has(boundary.kernel)) kernelSegments.set(boundary.kernel, scoreTransitionSegments[index])
+    })
+    const scoreUsesSnapshot = [...kernelSegments.values()].some((segment) => (
+      segment.transition.kind === 'crossfade'
+      && segment.transition.crossfadePolicy === 'snapshot-live'
+      && selectedRenderTargetCandidates.has(sequenceSnapshotCandidateId('routed', segment.sceneIndex))
+    ))
+    const transitionRender = [...kernelSegments.entries()].flatMap(([kernel, segment]) => {
+      if (segment.transition.kind === 'cut') return []
+      const body = segment.transition.kind === 'crossfade'
+        && segment.transition.crossfadePolicy === 'snapshot-live'
+        && selectedRenderTargetCandidates.has(sequenceSnapshotCandidateId('routed', segment.sceneIndex))
+        ? emitSnapshotLiveCrossfadeBlock(
+            fromProxy,
+            toProxy,
+            `${fromProxyPrefix}_renderCapture2D(index, x, y)`,
+            `${toProxyPrefix}_renderCapture2D(index, x, y)`,
+            renderTarget,
+          )
+        : emitSceneSequenceTransitionBlock(fromProxy, toProxy, segment.transition, 2)
+      return [`if (__pxlblz_show_score_kernel == ${kernel}) {
+${indentBlock(body, 2)}
+  return
+}`]
+    }).join(' else ')
+    const sceneRender = exactStackPlans.map((plan, index) => (
+      `${index === 0 ? 'if' : 'else if'} (__pxlblz_show_score_stack == ${index}) {
+    ${plan.prefix}_renderCapture2D(index, x, y)
+    ${plan.prefix}_emit()
+    return
+  }`
+    )).join(' ')
+    const firstBoundarySeconds = scorePlan.cadence.kind === 'regular'
+      ? scorePlan.cadence.firstBoundaryMs / 1_000
+      : 0
+    const periodSeconds = scorePlan.cadence.kind === 'regular'
+      ? scorePlan.cadence.periodMs / 1_000
+      : 1
+    const lastStack = scorePlan.stackPlanIndexByScene[scorePlan.stackPlanIndexByScene.length - 1]
+    const candidateCode = [
+      emitRuntimePrelude(members, 2, {
+        includeHash: transitionRender.includes('__pxlblz_show_hash01'),
+        includeMix: true,
+        includePhase: false,
+      }),
+      ...members.map((member) => member.code.trim()),
+      ...exactStackPlans.map((plan) => plan.wrapper),
+      proxySource(fromProxyPrefix, '__pxlblz_show_score_from_stack'),
+      proxySource(toProxyPrefix, '__pxlblz_show_score_to_stack'),
+      `var __pxlblz_show_score_plans = [${scoreValues.join(', ')}]`,
+      easingFunction,
+      holdSetup,
+      transitionSetup,
+      'var __pxlblz_show_scene = 0',
+      'var __pxlblz_show_transition = -1',
+      'var __pxlblz_show_transition_start_s = 0',
+      'var __pxlblz_show_score_stack = 0',
+      'var __pxlblz_show_score_from_stack = 0',
+      'var __pxlblz_show_score_to_stack = 1',
+      'var __pxlblz_show_score_kernel = -1',
+      ...(scoreUsesSnapshot
+        ? ['var __pxlblz_show_score_snapshot_boundary = -1', 'var __pxlblz_show_snapshot_ready = 0']
+        : []),
+      `export function beforeRender(delta) {
+  __pxlblz_show_elapsed_s = (__pxlblz_show_elapsed_s + delta / 1000) % ${cursor / 1000}
+  var __pxlblz_show_score_position = __pxlblz_show_elapsed_s - ${firstBoundarySeconds}
+  if (__pxlblz_show_score_position < 0) {
+    __pxlblz_show_scene = 0
+    __pxlblz_show_transition = -1
+    __pxlblz_show_score_stack = ${scorePlan.stackPlanIndexByScene[0]}
+    __pxlblz_show_score_setup_hold(delta)
+    return
+  }
+  var __pxlblz_show_score_boundary = floor(__pxlblz_show_score_position / ${periodSeconds})
+  if (__pxlblz_show_score_boundary >= ${scorePlan.boundaries.length}) {
+    __pxlblz_show_scene = ${scenes.length - 1}
+    __pxlblz_show_transition = -1
+    __pxlblz_show_score_stack = ${lastStack}
+    __pxlblz_show_score_setup_hold(delta)
+    return
+  }
+  var __pxlblz_show_score_local = __pxlblz_show_score_position - __pxlblz_show_score_boundary * ${periodSeconds}
+  var __pxlblz_show_score_offset = __pxlblz_show_score_boundary * 5
+  __pxlblz_show_score_from_stack = __pxlblz_show_score_plans[__pxlblz_show_score_offset]
+  __pxlblz_show_score_to_stack = __pxlblz_show_score_plans[__pxlblz_show_score_offset + 1]
+  __pxlblz_show_score_kernel = __pxlblz_show_score_plans[__pxlblz_show_score_offset + 2]
+  var __pxlblz_show_score_transition_s = __pxlblz_show_score_plans[__pxlblz_show_score_offset + 4]
+  if (__pxlblz_show_score_local < __pxlblz_show_score_transition_s) {
+    __pxlblz_show_scene = __pxlblz_show_score_boundary
+    __pxlblz_show_transition = __pxlblz_show_score_boundary
+    __pxlblz_show_transition_start_s = __pxlblz_show_elapsed_s - __pxlblz_show_score_local
+    __pxlblz_show_mix = __pxlblz_show_score_ease(__pxlblz_show_score_plans[__pxlblz_show_score_offset + 3], __pxlblz_show_score_local / __pxlblz_show_score_transition_s)
+${scoreUsesSnapshot ? `    if (__pxlblz_show_score_snapshot_boundary != __pxlblz_show_score_boundary) {
+      __pxlblz_show_score_snapshot_boundary = __pxlblz_show_score_boundary
+      __pxlblz_show_snapshot_ready = 0
+    }
+` : ''}
+    __pxlblz_show_score_setup_transition(delta)
+  } else {
+    __pxlblz_show_scene = __pxlblz_show_score_boundary + 1
+    __pxlblz_show_transition = -1
+    __pxlblz_show_score_stack = __pxlblz_show_score_to_stack
+    __pxlblz_show_score_setup_hold(delta)
+  }
+}`,
+      `export function render2D(index, x, y) {
+  if (__pxlblz_show_transition >= 0) {
+${indentBlock(transitionRender, 4)}
+    return
+  }
+  ${sceneRender}
+  rgb(0, 0, 0)
+}`,
+      '',
+    ].join('\n\n')
+    return {
+      code: candidateCode,
+      plan: scorePlan,
+      scoreWords: scorePlan.initialization.arrayWords,
+      generatedGlobals: 5 + (scoreUsesSnapshot ? 2 : 0),
+      initializationAssignments: scoreValues.length,
+      initializationOperations: 0,
+    }
+  })()
+  const baselineScoreBytes = byteLength(baselineCode)
+  const candidateScoreBytes = scoreCandidate ? byteLength(scoreCandidate.code) : baselineScoreBytes
+  const useShowScore = showScoreSharing !== 'none'
+    && scoreCandidate !== null
+    && (showScoreSharing === 'force' || candidateScoreBytes < baselineScoreBytes)
+  const code = useShowScore ? scoreCandidate!.code : baselineCode
+  const fallbackPlan = scorePlan.status === 'compatible' ? scorePlan : null
+  const showScoreSummary: ShowCompileSummary['specializations']['showScore'] = {
+    selected: useShowScore,
+    representation: useShowScore ? 'table-driven' : 'unrolled',
+    reason: showScoreSharing === 'none'
+      ? 'disabled'
+      : scoreCandidate === null
+        ? 'incompatible'
+        : useShowScore ? 'selected' : 'not-smaller',
+    incompatibilityReason: scoreCandidate === null ? scoreCandidateReason : null,
+    boundaryCount: scoreTransitionSegments.length,
+    stackPlanCount: useShowScore
+      ? scoreCandidate!.plan.stackPlanCount
+      : fallbackPlan?.stackPlanCount ?? scenes.length,
+    kernelCount: useShowScore ? scoreCandidate!.plan.kernelCount : scoreTransitionSegments.length,
+    easingCount: useShowScore ? scoreCandidate!.plan.easingCount : 0,
+    scoreWords: useShowScore ? scoreCandidate!.scoreWords : 0,
+    generatedGlobals: useShowScore ? scoreCandidate!.generatedGlobals : 0,
+    initializationAssignments: useShowScore ? scoreCandidate!.initializationAssignments : 0,
+    initializationOperations: useShowScore ? scoreCandidate!.initializationOperations : 0,
+    timing: useShowScore ? scoreCandidate!.plan.initialization.timing : 'unrolled',
+    loopBehavior: 'modulo-show-duration',
+    emittedBytes: useShowScore ? candidateScoreBytes : baselineScoreBytes,
+    baselineEmittedBytes: baselineScoreBytes,
+    avoidedEmittedBytes: useShowScore ? baselineScoreBytes - candidateScoreBytes : 0,
+    perPixelSceneBranches: useShowScore ? scoreCandidate!.plan.stackPlanCount : scenes.length,
+    qualification: SHOW_SCORE_QUALIFICATION,
+  }
   return {
     code,
     renderKernels: sharedPhysicalCut?.renderKernels ?? null,
@@ -3792,6 +4200,7 @@ ${layoutSelectLines}${layoutSelectLines ? '\n' : ''}${propertyRamps ? `${emitRou
           baselineEmittedBytes,
           avoidedEmittedBytes: useExactSharedMotion ? baselineEmittedBytes - exactEmittedBytes : 0,
         },
+    showScore: showScoreSummary,
   }
 }
 

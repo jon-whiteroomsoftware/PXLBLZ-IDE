@@ -131,27 +131,32 @@ describe('stock Show curriculum (#363)', () => {
     }
   })
 
-  it('reuses one fixed Pattern pair across every Motion Transition example', () => {
-    const item = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-reference-motion-transitions')!
-    const composition = item.show.composition!
+  it('reuses one intentional Pattern pair across every Transition reference', () => {
+    const references = [
+      'stock-show-reference-wipe-mix-transitions',
+      'stock-show-reference-shape-reveal-transitions',
+      'stock-show-reference-motion-transitions',
+      'stock-show-reference-easing',
+    ].map((id) => STOCK_SHOWS.find((candidate) => candidate.id === id)!)
 
-    expect(item.show.scenes).toHaveLength(21)
-    expect(item.show.transitions).toHaveLength(20)
-    expect(composition.patternInstances.map((instance) => instance.patternName)).toEqual([
-      'Caustics',
-      'TestPattern2D',
-      'CompassRose',
-    ])
-    expect(new Set(composition.scenes.map((scene) => (
-      scene.zones[0].overlays[0].placements[0].instanceId
-    )))).toEqual(new Set([
-      'instance-reference-content-reference',
-      'instance-reference-content-selected',
-    ]))
+    for (const item of references) {
+      const composition = item.show.composition!
+      expect(composition.patternInstances.map((instance) => instance.patternName), item.name).toEqual([
+        'Caustics',
+        'TestPattern2D',
+        'CompassRose',
+      ])
+      expect(new Set(composition.scenes.map((scene) => (
+        scene.zones[0].overlays[0].placements[0].instanceId
+      ))), item.name).toEqual(new Set([
+        'instance-reference-content-reference',
+        'instance-reference-content-selected',
+      ]))
 
-    const compiled = compileShowForArtifact(item.show, [], undefined, {}, { stageDimension: 2 })
-    expect(compiled.error).toBeNull()
-    expect(compiled.artifact?.summary.clipCount).toBe(3)
+      const compiled = compileShowForArtifact(item.show, [], undefined, {}, { stageDimension: 2 })
+      expect(compiled.error, item.name).toBeNull()
+      expect(compiled.artifact?.summary.clipCount, item.name).toBe(3)
+    }
   })
 
   it('gives every Show a complete guide note outside the compiled record', () => {

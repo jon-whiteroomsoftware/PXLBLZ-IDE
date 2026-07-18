@@ -1560,13 +1560,18 @@ and smaller; benchmark options can retain unrolled or structural emission.
 
 The Motion Transitions reference has 21 Scenes, 20 Motion boundaries, and three
 Pattern instances. Its production representation interns two stack plans and
-emits 11 kernels. Generated source falls from 108,033 to 67,552 bytes and
-Controller bytecode from 59,202 to 37,722 bytes, while the three-plane arena
-remains 6,012 words. The resulting source fits the measured 68,384-byte
-activation budget with 832 bytes free. Sixty start/mid/end samples and the full
+emits 11 kernels. Repeated boundary easing also shares one frame-rate helper,
+so corrected easing semantics do not duplicate the same expression 20 times.
+Generated source falls from 108,773 to 67,934 bytes and Controller bytecode from
+60,398 to 37,958 bytes, while the three-plane arena remains 6,012 words. The
+resulting source fits the measured 68,384-byte activation budget with 450 bytes
+free. Sixty start/mid/end samples and the full
 Motion family policy sweep match the unrolled representation in Fast and
-Precise execution. On pb32 firmware 3.67, isolated 2,000-pixel runs had the same
-0.665 FPS median; the change is therefore a capacity win, not an FPS claim.
+Precise execution. On pb32 firmware 3.67, the corrected 2,000-pixel median
+changed from 0.669 to 0.668 FPS (-0.17%); the change is therefore a capacity win,
+not an FPS claim. Isolated probes activated the selected artifact at 256, 1,000,
+and 2,000 pixels. Large sequential pushes can still reset the connection and
+produce a false missed-activation row.
 
 `npm run issue525` pins source, expanded source, resource axes, selection, and
 exactness. `npm run issue525:hardware` runs reversible representation probes and
@@ -1574,6 +1579,42 @@ polls both activation and restoration. Large sequential pushes can reset the
 Controller connection, so qualification isolates representations and does not
 compare rows after a failed activation. The complete evidence is archived in
 `docs/plans/archive/issue-525-shared-motion-transition-results.md`.
+
+### Table-driven Show score
+
+Compatible repeated single-zone 2D choreography compiles as data selecting
+shared machinery. The compiler interns Pattern-instance-preserving Scene stacks
+and Transition kernels, then emits one five-word score row per boundary:
+outgoing stack, incoming stack, kernel, easing, and duration. Regular cadence
+uses a compact initialization loop. Score interpretation runs once per frame in
+`beforeRender`; the pixel renderer dispatches across unique stacks and kernels,
+never across the complete Scene list. The score uses interned-plan words rather
+than render-target planes.
+
+The first production envelope accepts static-placement sequences using cut,
+Crossfade, Fade through color, wipe, dither, or portal boundaries. It rejects
+routing switches, routing-property ramps, placement property tracks,
+Transition Effect ramps, Freeze at entry, and other structures without an exact
+frame-time configuration path. Rejected sequences retain the previous emitter
+byte-for-byte. Production also retains that emitter as the benchmark
+counterfactual and selects the score only when its generated source is smaller.
+
+Wipe and Mix, Shape Reveal, and Easing compile from 184,903, 118,696, and
+141,684 historical source bytes to 26,443, 29,299, and 18,929 bytes. Their
+Controller bytecode falls 78.9%, 66.6%, and 78.5% against equivalent current
+three-instance unrolled artifacts. The score costs 134, 79, and 104 VM words;
+all three artifacts remain within the 10,240-word pool and activate at 256,
+1,000, and 2,000 pixels. Fast and Precise start/mid/end boundary checks match.
+Paired pb32 firmware 3.67 throughput is runtime-neutral, so this is an
+activation, transport, and storage win rather than a general FPS claim.
+
+The compile summary reports compatibility, selection, stack and kernel counts,
+score words, initialization work, source avoided, regular cadence, and the
+qualified bytecode range. `npm run issue542` runs the permanent source and
+resource census. `npm run issue542:hardware` performs reversible Controller
+activation and FPS probes and restores both the original program and pixel
+count. Complete evidence is archived in
+`docs/plans/archive/issue-542-table-driven-show-score-results.md`.
 
 ### Shared generated Effect kernels
 

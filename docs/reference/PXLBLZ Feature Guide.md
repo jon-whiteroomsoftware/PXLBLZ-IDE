@@ -1141,6 +1141,16 @@ built-in Motion Transitions Show uses 2 stack plans and 11 kernels for its 20
 boundaries, avoids 80,812 emitted bytes with 7 scalar globals and no additional
 per-pixel branch depth, and fits the measured Controller activation budget.
 
+Compatible repeated Shows also disclose `show score: table driven`. The compile
+bar reports boundary, interned stack, and Transition-kernel counts; score words;
+initialization assignments and operations; emitted bytes avoided; cadence; and
+the qualified pb32 bytecode range. The score stores choreography as data and
+emits each unique renderer and kernel once. It does not merge Pattern instances
+or change clocks, Controls, easing, or authored boundary behavior. Unsupported
+structures remain on the exact unrolled representation. The first qualified
+Wipe, Shape, and Easing references reduce source by 75.3-86.6% and Controller
+bytecode by 66.6-78.9%; measured runtime is neutral.
+
 The compile bar also reports the whole-Show Pixelblaze memory ledger. Its VM
 total includes member Pattern arrays, generated routing and plan tables,
 auxiliary caches, and one reserved three-plane RGB arena. At the 2,000-pixel

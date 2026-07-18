@@ -2080,8 +2080,9 @@ export function showRecordToCompileRecipe(
           kind: transition.kind,
           startMs: show.scenes[0].durationMs,
           durationMs: transition.durationMs,
+          easing: boundary?.easing ?? 'linear',
           ...(transition.kind === 'fade-color'
-            ? { easing: boundary?.easing ?? 'linear', color: normalizeShowTransitionColor(transition.color) }
+            ? { color: normalizeShowTransitionColor(transition.color) }
             : {}),
           ...(transition.kind === 'dither'
             ? {
@@ -2254,8 +2255,7 @@ function showRecordToSceneSequenceRecipe(
           ...(transition
             ? {
                 transitionOut: {
-                  ...compilerSequenceTransition(transition),
-                  ...(transition.kind === 'fade-color' ? { easing: boundary?.easing ?? 'linear' } : {}),
+                  ...compilerSequenceTransition(transition, boundary?.easing),
                   ...(propertyRamps && Object.keys(propertyRamps).length > 0 ? { propertyRamps } : {}),
                   ...(controlRamps && Object.keys(controlRamps).length > 0 ? { controlRamps } : {}),
                   ...(effectRamps ? { effectRamps } : {}),
@@ -2272,10 +2272,12 @@ function showRecordToSceneSequenceRecipe(
 
 function compilerSequenceTransition(
   transition: NonNullable<ShowScene['transitionOut']>,
+  easing?: ShowBoundaryTransition['easing'],
 ): NonNullable<NonNullable<ShowRecipe['sceneSequence']>['scenes'][number]['transitionOut']> {
   return {
     kind: transition.kind,
     durationMs: transition.durationMs,
+    easing: easing ?? 'linear',
     ...(transition.kind === 'crossfade' ? { crossfadePolicy: transition.crossfadePolicy } : {}),
     ...(transition.kind === 'fade-color' ? { color: normalizeShowTransitionColor(transition.color) } : {}),
     ...(transition.kind === 'dither'
@@ -2584,7 +2586,14 @@ function showRecordToRoutedSceneSequenceRecipe(
               }
             })
           }),
-          ...(scene.transitionOut ? { transitionOut: compilerSequenceTransition(scene.transitionOut) } : {}),
+          ...(scene.transitionOut ? {
+            transitionOut: compilerSequenceTransition(
+              scene.transitionOut,
+              normalized.transitions?.find((transition) => (
+                transition.afterSceneId === scene.id && transition.kind !== 'routing'
+              ))?.easing,
+            ),
+          } : {}),
           ...(transitionRamps.length > 0 ? { transitionRamps } : {}),
         }
   })

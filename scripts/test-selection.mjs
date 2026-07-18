@@ -4,7 +4,11 @@ const COMPILER_INVARIANT_TESTS = [
   'src/engine/showCompiler.test.ts',
   'src/engine/showCompilerResources.test.ts',
   'src/engine/showControllerArtifact.test.ts',
+  'src/engine/showMotionTransitionSharing.test.ts',
   'src/engine/showVmResourceLedger.test.ts',
+  'test/perf-harness/issue514.test.ts',
+  'test/perf-harness/issue525.test.ts',
+  'test/perf-harness/issue536.test.ts',
 ]
 
 const PERSISTENCE_INVARIANT_TESTS = [

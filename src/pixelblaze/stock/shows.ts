@@ -600,7 +600,7 @@ function motionTransitionReference(): StockShow {
     purpose: 'Cover, Reveal, Push, content scaling, and zoom/spin transitions share one fixed pair so motion semantics remain easy to compare.',
     notice: 'Directional motion uses four cardinal examples; diagonal values remain available as continuous direction edits.',
     prompts: ['Change cardinal motion to diagonal directions.', 'Switch Addressing from Clip to Wrap and compare moving edges.'],
-    guideHeading: 'motion-transition-reference', specs, shareContentInstances: true,
+    guideHeading: 'motion-transition-reference', specs,
   })
 }
 
@@ -760,7 +760,6 @@ function transitionReferenceShow(input: {
   prompts: readonly [string, string]
   guideHeading: string
   specs: TransitionReferenceSpec[]
-  shareContentInstances?: boolean
 }): StockShow {
   const zones = logicalZones(['Main'], 2_000)
   const scenes = Array.from({ length: input.specs.length + 1 }, (_, index) => {
@@ -775,10 +774,10 @@ function transitionReferenceShow(input: {
     )
   })
   const transitions = cutBoundaries(scenes)
-  const contentInstanceId = (index: number) => input.shareContentInstances
-    ? `instance-reference-content-${index % 2 === 0 ? 'reference' : 'selected'}`
-    : `instance-reference-content-${index + 1}`
-  const contentInstanceScenes = input.shareContentInstances ? scenes.slice(0, 2) : scenes
+  const contentInstanceId = (index: number) => (
+    `instance-reference-content-${index % 2 === 0 ? 'reference' : 'selected'}`
+  )
+  const contentInstanceScenes = scenes.slice(0, 2)
   const composition: ShowCompositionV1 = {
     version: 1,
     patternInstances: [
@@ -812,9 +811,7 @@ function transitionReferenceShow(input: {
     summary: 'Each boundary compares the fixed diagnostic reference with the selected Pattern over a quiet moving backdrop; the arrow names which side is incoming.',
     patternSlots: {
       cellIds: scenes.filter((_, index) => index % 2 === 1).map((item) => cellId(item.id, 'zone-1')),
-      instanceIds: input.shareContentInstances
-        ? [contentInstanceId(1)]
-        : scenes.flatMap((_, index) => index % 2 === 1 ? [contentInstanceId(index)] : []),
+      instanceIds: [contentInstanceId(1)],
     },
     examples: input.specs.map((spec, index) => ({
       id: spec.id,

@@ -4,7 +4,7 @@
 import { installationPhysicalZones } from '../../src/engine/showInstallationCoverage'
 import { compileShow, type ShowRecipe } from '../../src/engine/showCompiler'
 import { showRecordToCompileRecipe } from '../../src/engine/showModel'
-import type { ShowPatternRef } from '../../src/engine/personalContentRecords'
+import type { ShowPatternRef, ShowRecord } from '../../src/engine/personalContentRecords'
 import { SHOW_ARTIFACT_BUDGET_BYTES } from '../../src/engine/showVmResourceLedger'
 import { LIBRARIES } from '../../src/pixelblaze/libs'
 import { SOURCE_STOCK_MAPS } from '../../src/pixelblaze/stock/maps/stockCatalogue'
@@ -55,9 +55,38 @@ function sourceForPattern(pattern: ShowPatternRef): string {
   return pattern.kind === 'stock' ? DEMOS[pattern.id] ?? DEMOS.TestPattern1D : DEMOS.TestPattern1D
 }
 
+const LEGACY_UNSHARED_REFERENCE_IDS = new Set([
+  'stock-show-reference-wipe-mix-transitions',
+  'stock-show-reference-shape-reveal-transitions',
+  'stock-show-reference-easing',
+])
+
+function legacyUnsharedReferenceShow(show: ShowRecord): ShowRecord {
+  const legacy = structuredClone(show)
+  if (!LEGACY_UNSHARED_REFERENCE_IDS.has(legacy.id)) return legacy
+  const composition = legacy.composition
+  if (!composition || composition.patternInstances.length !== 3) return legacy
+  const instanceById = new Map(composition.patternInstances.map((instance) => [instance.id, instance]))
+  const backdrop = instanceById.get('instance-reference-backdrop')
+  if (!backdrop) return legacy
+  const patternInstances = [backdrop]
+  composition.scenes.forEach((scene, index) => {
+    const placement = scene.zones[0]?.overlays[0]?.placements[0]
+    const shared = placement ? instanceById.get(placement.instanceId) : undefined
+    if (!placement || !shared) return
+    const instanceId = `instance-reference-content-${index + 1}`
+    patternInstances.push({ ...shared, id: instanceId })
+    placement.instanceId = instanceId
+  })
+  composition.patternInstances = patternInstances
+  return legacy
+}
+
 function stockRecipe(index: number): ShowRecipe {
   const stock = STOCK_SHOWS[index]
-  const show = stock.show
+  // #536 is a historical census. Preserve the Pattern-instance population it
+  // measured even after #542 made these three stock references share instances.
+  const show = legacyUnsharedReferenceShow(stock.show)
   const map = show.stageMapId
     ? SOURCE_STOCK_MAPS.find((candidate) => candidate.id === show.stageMapId)
     : undefined

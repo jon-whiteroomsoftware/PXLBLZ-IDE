@@ -7,18 +7,23 @@ import {
   sleep,
   waitForControllerConfig,
 } from './controllerHardware'
+import { issue542Artifact, type Issue542ReferenceId } from './issue542'
 
-const runHardware = process.env.ISSUE525_HARDWARE === '1'
+const runHardware = process.env.ISSUE542_HARDWARE === '1'
 const ip = process.env.PIXELBLAZE_IP ?? '192.168.8.224'
-const pixelCounts = (process.env.ISSUE525_PIXEL_COUNTS ?? '256,1000,2000')
-  .split(',')
-  .map((value) => Number(value.trim()))
-  .filter((value) => Number.isInteger(value) && value > 0 && value <= 2_000)
-const representationNames = new Set((process.env.ISSUE525_REPRESENTATIONS ?? 'baseline,structural,selected').split(','))
+const referenceIds: Issue542ReferenceId[] = [
+  'stock-show-reference-wipe-mix-transitions',
+  'stock-show-reference-shape-reveal-transitions',
+  'stock-show-reference-easing',
+]
 
-describe('Motion Transitions shared-kernel Controller matrix (#525)', () => {
-  it.skipIf(!runHardware)('benchmarks all representations and restores Controller state', async () => {
-    const { baselineArtifact, structuralArtifact, selectedArtifact } = await import('./issue525')
+describe('table-driven Show score Controller matrix (#542)', () => {
+  it.skipIf(!runHardware)('benchmarks paired artifacts at 256, 1,000, and 2,000 pixels and restores Controller state', async () => {
+    const artifactPairs = referenceIds.map((id) => ({
+      id,
+      baselineArtifact: issue542Artifact(id, 'none'),
+      selectedArtifact: issue542Artifact(id, 'force'),
+    }))
     const compile = await fetchControllerCompiler(ip)
     const connection = new PixelblazeConnection({
       host: ip,
@@ -50,14 +55,12 @@ describe('Motion Transitions shared-kernel Controller matrix (#525)', () => {
         try {
           await ensureConnected()
           bytecodeBytes = compile(artifact.code).length
-          return {
-            activated: true as const,
-            measurement: await pushAndMeasureControllerArtifact(connection, artifact, compile, {
-              settleMs: 750,
-              sampleMs: 3_000,
-              activationTimeoutMs: 15_000,
-            }),
-          }
+          const measurement = await pushAndMeasureControllerArtifact(connection, artifact, compile, {
+            settleMs: 750,
+            sampleMs: 3_000,
+            activationTimeoutMs: 15_000,
+          })
+          return { activated: true as const, measurement }
         } catch (error) {
           return {
             activated: false as const,
@@ -68,40 +71,34 @@ describe('Motion Transitions shared-kernel Controller matrix (#525)', () => {
         }
       }
       const measurements = []
-      for (const pixelCount of pixelCounts) {
-        await ensureConnected()
-        if (original.pixelCount !== pixelCount) {
+      for (const { id, baselineArtifact, selectedArtifact } of artifactPairs) {
+        for (const pixelCount of [256, 1_000, 2_000]) {
+          await ensureConnected()
           connection.setPixelCount(pixelCount, false)
           await sleep(1_000)
+          const baseline = await probe(baselineArtifact)
+          const selected = await probe(selectedArtifact)
+          const baselineFps = baseline.activated ? baseline.measurement.fps : null
+          const selectedFps = selected.activated ? selected.measurement.fps : null
+          const baselineBytecodeBytes = baseline.activated ? baseline.measurement.bytecodeBytes : baseline.bytecodeBytes
+          const selectedBytecodeBytes = selected.activated ? selected.measurement.bytecodeBytes : selected.bytecodeBytes
+          measurements.push({
+            id,
+            pixelCount,
+            baseline,
+            selected,
+            sourceChangePercent: (selectedArtifact.summary.artifactBytes / baselineArtifact.summary.artifactBytes - 1) * 100,
+            bytecodeChangePercent: baselineBytecodeBytes && selectedBytecodeBytes
+              ? (selectedBytecodeBytes / baselineBytecodeBytes - 1) * 100
+              : null,
+            meanFpsChangePercent: baselineFps && selectedFps
+              ? (selectedFps.mean / baselineFps.mean - 1) * 100
+              : null,
+            medianFpsChangePercent: baselineFps && selectedFps
+              ? (selectedFps.median / baselineFps.median - 1) * 100
+              : null,
+          })
         }
-        const skipped = { activated: false as const, skipped: true as const }
-        const baseline = representationNames.has('baseline') ? await probe(baselineArtifact) : skipped
-        const structural = representationNames.has('structural') ? await probe(structuralArtifact) : skipped
-        const selected = representationNames.has('selected') ? await probe(selectedArtifact) : skipped
-        const baselineFps = baseline.activated ? baseline.measurement.fps : null
-        const structuralFps = structural.activated ? structural.measurement.fps : null
-        const selectedFps = selected.activated ? selected.measurement.fps : null
-        measurements.push({
-          pixelCount,
-          baseline,
-          structural,
-          selected,
-          structuralMeanChangePercent: baselineFps && structuralFps
-            ? (structuralFps.mean / baselineFps.mean - 1) * 100
-            : null,
-          selectedMeanChangePercent: baselineFps && selectedFps
-            ? (selectedFps.mean / baselineFps.mean - 1) * 100
-            : null,
-          selectedMedianChangePercent: baselineFps && selectedFps
-            ? (selectedFps.median / baselineFps.median - 1) * 100
-            : null,
-          selectedVsStructuralMeanChangePercent: structuralFps && selectedFps
-            ? (selectedFps.mean / structuralFps.mean - 1) * 100
-            : null,
-          selectedVsStructuralMedianChangePercent: structuralFps && selectedFps
-            ? (selectedFps.median / structuralFps.median - 1) * 100
-            : null,
-        })
       }
       report = {
         controller: {
@@ -142,5 +139,5 @@ describe('Motion Transitions shared-kernel Controller matrix (#525)', () => {
     }
     if (runError != null) throw runError
     expect(report).toBeTruthy()
-  }, 180_000)
+  }, 240_000)
 })

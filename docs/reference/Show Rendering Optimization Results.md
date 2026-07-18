@@ -86,8 +86,25 @@ bytes can bind before local stack or array memory.
 Equivalent routed Motion environments and transition families share generated
 kernels without merging Pattern instances or authored boundary state. The
 Motion Transitions Show retained 21 Scenes and 20 boundaries while compiling
-three Pattern instances. Source fell 37.5% and Controller bytecode 36.3%; FPS
+three Pattern instances. Source fell 37.5% and Controller bytecode 37.2%; FPS
 was unchanged. This is a capacity win.
+
+### Table-driven Show score
+
+Compatible repeated single-zone 2D Shows now carry choreography as a compact
+five-word-per-boundary score and emit each unique Pattern instance, Scene stack,
+and Transition kernel once. Wipe and Mix, Shape Reveal, and Easing reduce
+historical source from 184,903, 118,696, and 141,684 bytes to 26,443, 29,299,
+and 18,929 bytes: 85.7%, 75.3%, and 86.6% total reductions. Against equivalent
+current three-instance unrolled artifacts, Controller bytecode falls 78.9%,
+66.6%, and 78.5%.
+
+The score adds 134, 79, and 104 VM words respectively and uses no render-target
+planes. All selected artifacts activated on pb32 firmware 3.67 at 256, 1,000,
+and 2,000 pixels; the unrolled Wipe artifact did not activate at 1,000 or 2,000
+within 15 seconds. Fast and Precise boundary output matches. Paired FPS results
+are runtime-neutral, so the production claim is a large execution,
+transport/storage, and activation-capacity win, not a throughput win.
 
 ### Shared generated Effect kernels
 
@@ -227,7 +244,7 @@ an unsupported alternate product contract.
 | 02 | #512 routing/capture specialization | 2.358 -> 2.928 FPS (+24.2%) |
 | 03 | #513 frame-invariant hoisting | exact reference to 3.037 FPS (+28.8% cumulative) |
 | 04 | #515 three-plane arena | 6,012 words; 0.0% FPS change |
-| 05 | #525 shared Motion kernels | source -37.5%, bytecode -36.3%, FPS unchanged |
+| 05 | #525 shared Motion kernels | source -37.5%, bytecode -37.2%, FPS unchanged |
 | 06 | #516 snapshot/live Crossfade | 1.810 -> 3.197 FPS (+76.7%), authored freeze |
 | 07 | #517 cache planner | compile-time structure; output unchanged |
 | 08 | #518 compatible output reuse | 4.554 -> 8.729 FPS (+91.7%) |
@@ -251,6 +268,7 @@ restoration details for every line.
 | 04 | #533 authored Freeze at entry | median FPS +45.55% / +46.02% / +46.07% at 256 / 1,000 / 2,000 pixels; zero additional VM words |
 | 05 | #534 three-layer coverage composition | 90% coverage median FPS +100.67% / +100.74% / +100.74% at 256 / 1,000 / 2,000 pixels; zero additional VM words |
 | 06 | #539 Vignette scalar field | median FPS +26.36% / +26.54% / +26.58% at 256 / 1,000 / 2,000 pixels; zero additional VM words |
+| 07 | #542 table-driven Show score | Wipe / Shape / Easing source -85.7% / -75.3% / -86.6%; Controller bytecode -78.9% / -66.6% / -78.5%; runtime neutral |
 
 The cumulative next-wave ledger, including exact fixture and restoration facts,
 lives in `docs/plans/show-rendering-next-wave-measurement-ledger.md`.
@@ -268,6 +286,8 @@ lives in `docs/plans/show-rendering-next-wave-measurement-ledger.md`.
 8. Preserve a direct counterfactual and require paired Controller evidence.
 9. Report negative results so a later agent needs a materially different
    premise before repeating them.
+10. Represent repeated choreography as data selecting interned machinery; do
+    not duplicate machinery to encode time.
 
 ## Further opportunity map
 

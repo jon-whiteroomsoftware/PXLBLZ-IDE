@@ -5540,6 +5540,23 @@ function CompileBar({
           {' · '}+{summary.specializations.motionTransitions.dynamicBranchesAddedPerPixel} branches/px
         </span>
       )}
+      {summary?.specializations.showScore?.selected && (
+        <span className="text-emerald-300">
+          show score: table driven
+          {' · '}{summary.specializations.showScore.boundaryCount} boundaries
+          {' / '}{summary.specializations.showScore.stackPlanCount} stacks
+          {' / '}{summary.specializations.showScore.kernelCount} {summary.specializations.showScore.kernelCount === 1 ? 'kernel' : 'kernels'}
+          {' · '}{summary.specializations.showScore.scoreWords.toLocaleString('en-US')} words
+          {' · '}init {summary.specializations.showScore.initializationAssignments.toLocaleString('en-US')} assignments
+          {' + '}{summary.specializations.showScore.initializationOperations.toLocaleString('en-US')} ops
+          {' · '}{summary.specializations.showScore.avoidedEmittedBytes.toLocaleString('en-US')} emitted B avoided
+          {' · '}{summary.specializations.showScore.timing === 'regular-cadence' ? 'regular cadence' : 'explicit boundaries'}
+          {' · '}{summary.specializations.showScore.qualification.boardType} bytecode
+          {' '}{summary.specializations.showScore.qualification.controllerBytecodeDeltaPercent.worst}%
+          {' to '}{summary.specializations.showScore.qualification.controllerBytecodeDeltaPercent.best}%
+          {' · '}runtime {summary.specializations.showScore.qualification.runtimeDisposition}
+        </span>
+      )}
       {summary?.routingParameterEstimate && (
         <span className="text-sky-200">
           moving split: 1 scalar · 1 route test/px · avoids {summary.routingParameterEstimate.equivalentEnumeratedArrayElements} table entries

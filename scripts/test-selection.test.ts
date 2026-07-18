@@ -30,7 +30,11 @@ describe('pre-commit test selection', () => {
         'src/engine/showCompiler.test.ts',
         'src/engine/showCompilerResources.test.ts',
         'src/engine/showControllerArtifact.test.ts',
+        'src/engine/showMotionTransitionSharing.test.ts',
         'src/engine/showVmResourceLedger.test.ts',
+        'test/perf-harness/issue514.test.ts',
+        'test/perf-harness/issue525.test.ts',
+        'test/perf-harness/issue536.test.ts',
       ],
     })
   })

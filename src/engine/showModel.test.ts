@@ -1582,6 +1582,7 @@ describe('showModel (#318)', () => {
       kind: 'wipe',
       startMs: 30000,
       durationMs: 1500,
+      easing: { curve: 'linear' },
       feather: 0.25,
     })
     expect(recipe.crossfade).toBeUndefined()
@@ -1642,6 +1643,7 @@ describe('showModel (#318)', () => {
       kind: 'portal',
       startMs: 30000,
       durationMs: 2400,
+      easing: { curve: 'linear' },
       feather: 0.18,
       centerX: 0.3,
       centerY: 0.7,
@@ -1701,6 +1703,7 @@ describe('showModel (#318)', () => {
           transitionOut: {
             kind: 'portal',
             durationMs: 2000,
+            easing: { curve: 'linear' },
             feather: 0.16,
             centerX: 0.5,
             centerY: 0.5,
@@ -1714,6 +1717,7 @@ describe('showModel (#318)', () => {
           transitionOut: {
             kind: 'portal',
             durationMs: 1800,
+            easing: { curve: 'linear' },
             feather: 0.08,
             centerX: 0.25,
             centerY: 0.7,
@@ -1762,6 +1766,7 @@ describe('showModel (#318)', () => {
     expect(recipe.sceneSequence?.scenes[1].transitionOut).toEqual({
       kind: 'wipe',
       durationMs: 3000,
+      easing: { curve: 'linear' },
       feather: 0.2,
     })
     expect(recipe.sceneSequence?.scenes[2].clipId).toBe(third.id)

@@ -106,6 +106,7 @@ export async function pushAndMeasureControllerSource(
 ) {
   const bytecode = compile(source)
   const programId = makeProgramId()
+  const activationStartedMs = Date.now()
   connection.pushByteCode(bytecode, { id: programId, name: '' })
   const activationTimeoutMs = options.activationTimeoutMs ?? 10_000
   const activationDeadline = Date.now() + activationTimeoutMs
@@ -117,6 +118,7 @@ export async function pushAndMeasureControllerSource(
     if (activeProgramId === programId) break
   }
   if (activeProgramId !== programId) throw new Error(`probe ${programId} did not activate within ${activationTimeoutMs}ms`)
+  const activationMs = Date.now() - activationStartedMs
   if ((options.settleMs ?? 0) > 0) await sleep(options.settleMs!)
   const values: number[] = []
   const end = Date.now() + (options.sampleMs ?? 6_000)
@@ -133,6 +135,7 @@ export async function pushAndMeasureControllerSource(
   return {
     sourceBytes: new TextEncoder().encode(source).length,
     bytecodeBytes: bytecode.length,
+    activationMs,
     ledgerVmWords,
     fps: {
       mean: values.reduce((sum, value) => sum + value, 0) / values.length,
