@@ -417,6 +417,30 @@ export interface ShowCompileClipSummary {
   timeOffsetMs: number
 }
 
+export type ShowSourceInventoryCategory =
+  | 'pattern'
+  | 'runtime-scheduler'
+  | 'routing-render-plans'
+  | 'effects-transitions'
+  | 'score-data'
+  | 'exports'
+  | 'remainder'
+
+export interface ShowSourceInventoryChunk {
+  id: string
+  category: ShowSourceInventoryCategory
+  label: string
+  bytes: number
+  startByte: number
+  endByte: number
+  ownerId?: string
+}
+
+export interface ShowSourceInventory {
+  totalBytes: number
+  chunks: ShowSourceInventoryChunk[]
+}
+
 export interface ShowCompileSummary {
   clipCount: number
   transitionCount: number
@@ -425,6 +449,7 @@ export interface ShowCompileSummary {
   artifactBytes: number
   measuredDeviceBudgetBytes: number
   artifactBudgetRatio: number
+  sourceInventory: ShowSourceInventory
   renderPolicy:
     | 'steady-active-transition-both'
     | 'snapshot-outgoing-transition-live-incoming'
@@ -2005,6 +2030,7 @@ export function compileShow(
     : emittedWithSampleRemapping
   const compacted = compactGeneratedShowSymbols(expandedCode)
   const code = compacted.code
+  const sourceInventory = buildShowSourceInventory(code, compacted.names, members)
   const compiledOutputDimension = expandedRecipe.sceneSequence || expandedRecipe.routedSceneSequence
       ? expandedRecipe.routedSceneSequence ? routedOutputDimension : sequenceOutputDimension
       : portalTransition || directionalWipeTransition || motionTransition || spatialDissolveTransition
@@ -2229,6 +2255,7 @@ export function compileShow(
     artifactBytes,
     measuredDeviceBudgetBytes: MEASURED_DEVICE_BUDGET_BYTES,
     artifactBudgetRatio: artifactBytes / MEASURED_DEVICE_BUDGET_BYTES,
+    sourceInventory,
     renderPolicy: expandedRecipe.sceneSequence || expandedRecipe.routedSceneSequence
       ? sequenceSnapshotCrossfade || routedSnapshotCrossfade
         ? 'snapshot-outgoing-transition-live-incoming'
@@ -8530,6 +8557,7 @@ export function compactGeneratedShowSymbols(source: string): { code: string; nam
     for (const child of Object.values(node)) visit(child)
   }
   visit(ast)
+  identifiers.sort((left, right) => left.start - right.start)
 
   const counts = new Map<string, number>()
   for (const identifier of identifiers) {
@@ -8566,6 +8594,132 @@ export function compactGeneratedShowSymbols(source: string): { code: string; nam
     return compact ? [{ start: identifier.start, end: identifier.end, text: compact }] : []
   })
   return { code: rewriteSource(source, rewrites), names }
+}
+
+interface ShowSourceAttribution {
+  category: ShowSourceInventoryCategory
+  ownerId?: string
+}
+
+const SHOW_SOURCE_CATEGORY_PRIORITY: Record<ShowSourceInventoryCategory, number> = {
+  remainder: 0,
+  exports: 1,
+  'runtime-scheduler': 2,
+  pattern: 3,
+  'routing-render-plans': 4,
+  'effects-transitions': 5,
+  'score-data': 6,
+}
+
+function showSourceAttributionForSymbol(
+  symbol: string,
+  members: readonly CompiledMember[],
+): ShowSourceAttribution {
+  if (symbol.includes('_score_')) return { category: 'score-data' }
+  const member = members.find((candidate) => symbol.startsWith(`${candidate.prefix}_`))
+  if (member) {
+    if (/(?:effect|vignette|colorKey|contentKey|applyColor|applyOutput)/i.test(symbol)) {
+      return { category: 'effects-transitions', ownerId: member.id }
+    }
+    return { category: 'pattern', ownerId: member.id }
+  }
+  if (/(?:transition|motion|portal|wipe|dissolve|crossfade|snapshot|fade|reveal|easing|mix)/i.test(symbol)) {
+    return { category: 'effects-transitions' }
+  }
+  if (/(?:route|layout|plan|stack|render_target|arena|cache|freeze|field|reuse|coverage)/i.test(symbol)) {
+    return { category: 'routing-render-plans' }
+  }
+  return { category: 'runtime-scheduler' }
+}
+
+function showSourceChunkLabel(attribution: ShowSourceAttribution): string {
+  if (attribution.category === 'pattern') return `Pattern ${attribution.ownerId ?? 'member'}`
+  if (attribution.category === 'runtime-scheduler') return 'Show runtime and scheduler'
+  if (attribution.category === 'routing-render-plans') return 'Routing and render plans'
+  if (attribution.category === 'effects-transitions') return 'Effects and Transitions'
+  if (attribution.category === 'score-data') return 'Show score data'
+  if (attribution.category === 'exports') return 'Pixelblaze exports'
+  return 'Unclassified generated source'
+}
+
+function buildShowSourceInventory(
+  source: string,
+  compactedNames: ReadonlyMap<string, string>,
+  members: readonly CompiledMember[],
+): ShowSourceInventory {
+  const attributionByCompactedName = new Map<string, ShowSourceAttribution>()
+  for (const [original, compacted] of compactedNames) {
+    attributionByCompactedName.set(compacted, showSourceAttributionForSymbol(original, members))
+  }
+
+  const ast = parseModule(source)
+  const identifiers: Node[] = []
+  const visit = (value: unknown): void => {
+    if (!value || typeof value !== 'object') return
+    if (Array.isArray(value)) {
+      value.forEach(visit)
+      return
+    }
+    const node = value as Node
+    if (node.type === 'Identifier' && typeof node.name === 'string') identifiers.push(node)
+    for (const [key, child] of Object.entries(node)) {
+      if (key === 'start' || key === 'end' || key === 'loc') continue
+      visit(child)
+    }
+  }
+  visit(ast)
+
+  const lines: Array<{ start: number; end: number; source: string }> = []
+  let lineStart = 0
+  for (let index = 0; index < source.length; index += 1) {
+    if (source[index] !== '\n') continue
+    lines.push({ start: lineStart, end: index + 1, source: source.slice(lineStart, index + 1) })
+    lineStart = index + 1
+  }
+  if (lineStart < source.length) lines.push({ start: lineStart, end: source.length, source: source.slice(lineStart) })
+
+  let previous: ShowSourceAttribution = { category: 'remainder' }
+  let byteCursor = 0
+  let identifierIndex = 0
+  const chunks: ShowSourceInventoryChunk[] = []
+  for (const line of lines) {
+    const candidates: ShowSourceAttribution[] = []
+    while (identifierIndex < identifiers.length && identifiers[identifierIndex].start < line.end) {
+      const identifier = identifiers[identifierIndex]
+      if (identifier.start >= line.start) {
+        const attribution = attributionByCompactedName.get(identifier.name as string)
+        if (attribution) candidates.push(attribution)
+      }
+      identifierIndex += 1
+    }
+    let attribution = candidates.sort((left, right) => (
+      SHOW_SOURCE_CATEGORY_PRIORITY[right.category] - SHOW_SOURCE_CATEGORY_PRIORITY[left.category]
+    ))[0]
+    if (/^\s*export\b/.test(line.source)) attribution = { category: 'exports' }
+    if (!attribution) attribution = /^\s*$/.test(line.source) || /^\s*[{}]+[;,]?\s*$/.test(line.source)
+      ? previous
+      : { category: 'remainder' }
+    previous = attribution
+
+    const bytes = byteLength(line.source)
+    const prior = chunks[chunks.length - 1]
+    if (prior && prior.category === attribution.category && prior.ownerId === attribution.ownerId) {
+      prior.bytes += bytes
+      prior.endByte += bytes
+    } else {
+      chunks.push({
+        id: `source-chunk-${chunks.length + 1}`,
+        category: attribution.category,
+        label: showSourceChunkLabel(attribution),
+        bytes,
+        startByte: byteCursor,
+        endByte: byteCursor + bytes,
+        ...(attribution.ownerId ? { ownerId: attribution.ownerId } : {}),
+      })
+    }
+    byteCursor += bytes
+  }
+  return { totalBytes: byteCursor, chunks }
 }
 
 function byteLength(source: string): number {

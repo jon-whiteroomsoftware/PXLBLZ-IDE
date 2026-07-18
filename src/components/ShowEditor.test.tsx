@@ -1587,7 +1587,7 @@ describe('ShowEditor (#318)', () => {
     expect(screen.getByRole('status', { name: 'Show time' })).toHaveTextContent('00:00.0/01:02.0')
     expect(screen.getByDisplayValue('Scene 1')).toBeInTheDocument()
     expect(screen.getAllByText('main').length).toBeGreaterThan(0)
-    expect(screen.getByText(/compiled artifact/i)).toBeInTheDocument()
+    expect(screen.getByText(/show source/i)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Export Show as .epe' })).toBeEnabled()
     expect(screen.getByText(/renderer\/px/i)).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Show properties' })).toBeInTheDocument()
@@ -1957,6 +1957,51 @@ describe('ShowEditor (#318)', () => {
     expect(screen.getByTestId('show-compile-bar')).toHaveTextContent(
       'pattern machines: 17 logical -> 8 physical · 9 reclaimed · 0 steady-state render ops added',
     )
+  })
+
+  it('opens an exact proportional Show source inventory from keyboard-equivalent focus (#545)', async () => {
+    const user = userEvent.setup()
+    const property = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-reference-property-animation')!
+
+    render(<ShowEditor showId={property.id} showOverride={property.show} readOnly />)
+
+    const trigger = screen.getByRole('button', { name: /show source inventory/i })
+    expect(screen.queryByRole('dialog', { name: 'Show source inventory' })).not.toBeInTheDocument()
+
+    fireEvent.focus(trigger)
+    const focusedInventory = screen.getByRole('dialog', { name: 'Show source inventory' })
+    expect(trigger).toHaveAttribute('aria-expanded', 'true')
+    fireEvent.keyDown(focusedInventory, { key: 'Escape' })
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Show source inventory' })).not.toBeInTheDocument())
+
+    fireEvent.pointerEnter(trigger)
+    expect(screen.getByRole('dialog', { name: 'Show source inventory' })).toBeInTheDocument()
+    fireEvent.pointerLeave(trigger)
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Show source inventory' })).not.toBeInTheDocument())
+
+    await user.click(trigger)
+
+    const inventory = screen.getByRole('dialog', { name: 'Show source inventory' })
+    expect(inventory).toHaveTextContent('Delivered source')
+    expect(inventory).toHaveTextContent('Generated program')
+    expect(inventory).toHaveTextContent('PXLBLZ Show infrastructure')
+    expect(inventory).toHaveTextContent('Effects and Transitions')
+    expect(inventory).toHaveTextContent('CompassRose')
+    expect(inventory).toHaveTextContent('Pattern machines: 17 logical · 8 physical')
+    expect(inventory).toHaveTextContent('Ways to slim this Show')
+    expect(inventory).toHaveTextContent('Source percentages do not describe Controller bytecode or runtime cost.')
+  })
+
+  it('connects table-driven score bytes to their reused stacks and kernels (#545)', async () => {
+    const user = userEvent.setup()
+    const easing = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-reference-easing')!
+
+    render(<ShowEditor showId={easing.id} showOverride={easing.show} readOnly />)
+    await user.click(screen.getByRole('button', { name: /show source inventory/i }))
+
+    const inventory = screen.getByRole('dialog', { name: 'Show source inventory' })
+    expect(inventory).toHaveTextContent('Show score data')
+    expect(inventory).toHaveTextContent('20 boundaries · 2 interned stacks · 1 kernel')
   })
 
   it('replaces a deleted Clip through its empty timeline slot (#430)', async () => {

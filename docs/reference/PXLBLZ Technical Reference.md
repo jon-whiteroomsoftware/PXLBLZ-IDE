@@ -1482,6 +1482,38 @@ not invent an `E` estimate when one is unavailable. Renderer count and clock
 behavior remain separate: exact pause is not described as a cached frame or
 renderer saving.
 
+### Exact Show source inventory
+
+The compiler attaches a contiguous UTF-8 source inventory to every generated
+Show. After symbol compaction, it maps compacted identifiers back to their
+compiler-owned semantic names, attributes source lines, and coalesces adjacent
+ranges with the same owner. Every range records start byte, end byte, category,
+and optional physical Pattern member. The ranges begin at byte zero, do not
+overlap, and reconcile exactly to `artifactBytes`; non-ASCII comments and source
+therefore cannot drift from JavaScript string-length accounting.
+
+The inventory distinguishes Pattern members, shared runtime and scheduling,
+routing and render plans, Effects and Transitions, table-driven score data,
+Pixelblaze exports, and an explicit remainder. `showSourceInventory.ts` prepends
+the exact stamped Show header as provenance when it builds the delivered-source
+view. Pattern rows then group physical member owners by the saved Pattern
+reference while retaining logical-instance and authored-reference counts. This
+presentation shows executable reuse without multiplying bytes for repeated
+references, interned stacks, or shared kernels.
+
+`ShowArtifactInventoryPopover` renders those exact bytes as one proportional
+strip and an accessible text list. It opens through hover, keyboard focus, or
+selection, reanchors when the viewport changes, and exposes the same content at
+narrow widths. Its ranked repair hints use the current attributed source cost
+and compiler structure. They do not claim a savings amount unless a compiler
+counterfactual exists.
+
+Delivered source, generated source, VM words, renderer depth, and Controller
+bytecode remain different measurement axes. The inventory never distributes
+Controller bytecode across semantic source categories. The compile bar's
+68,384-byte generated-source gauge remains the separately measured activation
+proxy used by the current pressure policy.
+
 ### Exact routing and capture specialization
 
 The compiler proves complete, disjoint physical ownership before replacing

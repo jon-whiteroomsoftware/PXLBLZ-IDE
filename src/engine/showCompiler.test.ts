@@ -53,6 +53,32 @@ function loadShow(code: string, metadata: ReturnType<typeof compileShow>['metada
 }
 
 describe('compileShow', () => {
+  it('reconciles exact named source chunks to the delivered generated source (#545)', () => {
+    const artifact = compileShow({
+      clips: [{
+        id: 'shared',
+        source: `
+// UTF-8 makes byte accounting stricter than string length: cyan ◆
+export var ticks = 0
+export function beforeRender(delta) { ticks = ticks + 1 }
+export function render(index) { rgb(ticks, 0, 0) }
+`,
+      }],
+    }, {})
+    const inventory = artifact.summary.sourceInventory
+
+    expect(inventory.totalBytes).toBe(artifact.summary.artifactBytes)
+    expect(inventory.chunks.reduce((sum, chunk) => sum + chunk.bytes, 0)).toBe(inventory.totalBytes)
+    expect(inventory.chunks[0]?.startByte).toBe(0)
+    expect(inventory.chunks[inventory.chunks.length - 1]?.endByte).toBe(inventory.totalBytes)
+    expect(inventory.chunks.every((chunk, index) => (
+      index === 0 || chunk.startByte === inventory.chunks[index - 1].endByte
+    ))).toBe(true)
+    expect(inventory.chunks.some((chunk) => chunk.category === 'pattern' && chunk.ownerId === 'shared')).toBe(true)
+    expect(inventory.chunks.some((chunk) => chunk.category === 'runtime-scheduler')).toBe(true)
+    expect(inventory.chunks.some((chunk) => chunk.category === 'exports')).toBe(true)
+  })
+
   it('compacts compiler-owned symbols under the PXLBLZ namespace (#499)', () => {
     const artifact = compileShow({
       clips: [{

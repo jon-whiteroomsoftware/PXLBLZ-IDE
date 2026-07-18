@@ -21,6 +21,7 @@ import { ShowEffectPalette } from '@/components/ShowEffectsAuthoring'
 import { ShowClipEntityDetail } from '@/components/ShowClipEntityDetail'
 import { ShowTransitionPalette, ShowTransitionParameters } from '@/components/ShowTransitionAuthoring'
 import { ShowTransitionXrayPictogram } from '@/components/ShowTransitionXrayPictogram'
+import { ShowArtifactInventoryPopover } from '@/components/ShowArtifactInventoryPopover'
 import { getControllerProvider } from '@/engine/controllerProviderRegistry'
 import { makeProgramId } from '@/engine/bytecodePush'
 import { PatternDeploymentActions } from '@/components/PatternDeploymentActions'
@@ -107,6 +108,13 @@ import {
   type ShowTimelineViewport,
 } from '@/engine/showTimelineViewport'
 import { buildShowEpeExport, type ShowEpeExport } from '@/engine/showEpeExport'
+import {
+  buildDeliveredShowSourceInventory,
+  buildShowArtifactInventoryModel,
+  describeShowArtifactPatterns,
+  type DeliveredShowSourceInventory,
+  type ShowArtifactInventoryModel,
+} from '@/engine/showSourceInventory'
 import { buildPreviewJpeg } from '@/engine/previewThumbnailJpeg'
 import { bytesToBase64 } from '@/engine/RelayWebSocket'
 import { steppedClockRateHz, steppedClockStepMs } from '@/engine/steppedClock'
@@ -703,15 +711,32 @@ export function ShowEditor({
   const sceneEditorDetail = resolvedSceneEditorScope && compositionProjection
     ? projectShowSceneEditorScope(compositionProjection, resolvedSceneEditorScope)
     : null
-  const showExport = useMemo(
-    () => activeShow && compiled.artifact && !compiled.artifactBlocker && compilePressure?.status !== 'blocked'
+  const inspectableShowExport = useMemo(
+    () => activeShow && compiled.artifact
       ? buildShowEpeExport(activeShow, compiled.artifact.code, {
           stampedAt: new Date(activeShow.updatedAt),
           userMaps,
         })
       : null,
-    [activeShow, compilePressure?.status, compiled.artifact, compiled.artifactBlocker, userMaps],
+    [activeShow, compiled.artifact, userMaps],
   )
+  const showExport = !compiled.artifactBlocker && compilePressure?.status !== 'blocked'
+    ? inspectableShowExport
+    : null
+  const artifactInventory = useMemo(() => {
+    if (!activeShow || !compiled.artifact || !inspectableShowExport) return null
+    const inventory = buildDeliveredShowSourceInventory(
+      compiled.artifact.summary.sourceInventory,
+      compiled.artifact.code,
+      inspectableShowExport.source,
+    )
+    return {
+      inventory,
+      model: buildShowArtifactInventoryModel(inventory, {
+        patterns: describeShowArtifactPatterns(activeShow, inventory),
+      }),
+    }
+  }, [activeShow, compiled.artifact, inspectableShowExport])
   const activeControllerMapDim = activeController?.mapDim ?? null
   const activeControllerFirmware = activeController?.firmwareVersion
   const controllerCompatibilityContext = useMemo(() => {
@@ -1536,6 +1561,7 @@ export function ShowEditor({
       </div>
       <CompileBar
         compiled={compiled}
+        artifactInventory={artifactInventory}
         targetPixels={activeShow.outputContract?.kind === 'portable-2d'
           ? activeShow.outputContract.referencePixelCount
           : targetProfile?.lastKnownPixelCount ?? zonePixelTotal(activeShow)}
@@ -5289,10 +5315,15 @@ function ZoneBindingStatus({
 
 function CompileBar({
   compiled,
+  artifactInventory,
   targetPixels,
   pushResult,
 }: {
   compiled: CompiledShowState
+  artifactInventory: {
+    inventory: DeliveredShowSourceInventory
+    model: ShowArtifactInventoryModel
+  } | null
   targetPixels: number
   pushResult: string | null
 }) {
@@ -5385,14 +5416,48 @@ function CompileBar({
   return (
     <div data-testid="show-compile-bar" className="min-h-8 shrink-0 overflow-x-auto border-t border-seam bg-zinc-950 px-3 font-mono text-[10px] text-zinc-500">
       <div className="flex min-h-8 min-w-max items-center gap-2 whitespace-nowrap">
-      <span>compiled artifact</span>
-      <span className="h-2 w-28 overflow-hidden rounded-sm bg-zinc-800">
+      <span>Show source</span>
+      <span
+        className="h-2 w-28 overflow-hidden rounded-sm bg-zinc-800"
+        title="Generated-source size compared with the measured Controller activation proxy. This is not Controller bytecode."
+      >
         <span
           className={`block h-full ${pressure?.status === 'blocked' ? 'bg-red-500' : pressure?.status === 'warning' ? 'bg-amber-400' : 'bg-live'}`}
           style={{ width: `${Math.min(100, ratio * 100)}%` }}
         />
       </span>
-      <b className="text-zinc-300">{summary ? formatBytes(summary.artifactBytes) : '-'} / ~{summary ? formatBytes(summary.measuredDeviceBudgetBytes) : '-'}</b>
+      {summary && artifactInventory ? (
+        <ShowArtifactInventoryPopover
+          inventory={artifactInventory.inventory}
+          model={artifactInventory.model}
+          vmWords={{
+            used: summary.resources.totalWords,
+            budget: summary.resources.vmWordBudget,
+            remaining: summary.resources.remainingWords,
+          }}
+          renderers={{
+            steady: summary.steadyStateRenderersPerPixel,
+            worst: summary.worstInstantRenderersPerPixel,
+          }}
+          structure={{
+            transitionCount: summary.transitionCount,
+            routing: summary.routingRepresentation,
+            score: summary.specializations.showScore?.selected
+              ? summary.specializations.showScore
+              : null,
+            motion: summary.specializations.motionTransitions?.selected
+              ? summary.specializations.motionTransitions
+              : null,
+            generatedEffectKernelCount: summary.specializations.generatedEffectKernels.kernelCount,
+          }}
+        />
+      ) : (
+        <b className="text-zinc-300">-</b>
+      )}
+      <span>
+        · generated {summary ? formatBytes(summary.artifactBytes) : '-'}
+        {' · '}proxy ceiling ~{summary ? formatBytes(summary.measuredDeviceBudgetBytes) : '-'}
+      </span>
       {summary?.resources && (
         <span className={summary.resources.remainingWords < 0 ? 'text-red-300' : 'text-sky-200'}>
           VM {summary.resources.totalWords.toLocaleString('en-US')}/{summary.resources.vmWordBudget.toLocaleString('en-US')} words

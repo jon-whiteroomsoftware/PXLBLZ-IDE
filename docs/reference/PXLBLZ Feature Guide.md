@@ -1116,6 +1116,33 @@ enumerated sequence would require.
 Synchronized tiling reports its one scalar, coordinate-operation ceiling, and
 zero-renderer delta separately from routing cost.
 
+The **Show source** number in that bar is also an artifact inventory control.
+Hover it, focus it from the keyboard, or select it to open an exact proportional
+view of the UTF-8 source PXLBLZ will deliver. The segmented strip and detailed
+rows reconcile to the complete delivered source, including the generated program
+and its provenance header.
+
+Pattern rows group executable source by authored Pattern family. Each row names
+authored references, logical Pattern instances, and physical compiled machines,
+so reuse appears as a smaller physical count instead of duplicated cost. Shared
+runtime, routing and render plans, Effects and Transitions, table-driven score
+data, Pixelblaze exports, provenance, and any uncategorized remainder stay
+separate. Relevant rows also report the structural counts behind their bytes,
+such as Transition boundaries, interned stacks, and shared kernels.
+
+**Ways to slim this Show** ranks the largest creator-editable contributors and
+names the matching lever: reduce simultaneous Pattern machines, consolidate
+compatible Effect or Transition variants, simplify unique Zone Layout structure,
+or shorten data-heavy choreography. It states current measured source cost, not
+an invented savings estimate. Fixed PXLBLZ Show infrastructure is marked as
+fixed rather than presented as something authoring can remove.
+
+The inventory keeps four quantities visibly independent: delivered source,
+generated program source, VM words, and steady/worst renderer depth. Source
+percentages are never Controller-bytecode percentages or runtime-cost shares.
+The existing generated-source activation gauge remains an empirical proxy; it
+does not become a semantic Controller-bytecode breakdown.
+
 Exact compiler specializations appear beside those representation facts. A
 complete disjoint Installation layout reports the physical range short-circuit
 and its maximum comparison reduction. Capture diagnostics report how many member
