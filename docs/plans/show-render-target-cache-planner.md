@@ -523,7 +523,9 @@ The work should land as tracer-bullet slices rather than one compiler rewrite.
 8. Reuse compatible Pattern output across multiple consumers and placements.
    **Shipped in #518.**
 9. Add Scene-lifetime coordinate and scalar-field caching with measured
-   selection rules.
+   selection rules. **Scalar fields shipped in #519; the exact coordinate
+   candidate is implemented but remains diagnostic-only after #528's hardware
+   gate showed a repeatable 2,000-pixel slowdown.**
 10. Validate the five-Pattern acceptance Show, faster output profiles, rollout
    defaults, and as-built documentation.
 
@@ -550,6 +552,7 @@ the prior measured result without claiming a new hardware benchmark.
 09 #519 scalar visual-field caching · paired Redline-derived five-surface 2,000 px median 2.161 -> 3.115 FPS · incremental +44.1% (mean +34.2%); exact coherent-noise field removes 96,000 estimated operations/cached frame, source 23,284 -> 24,311 B, bytecode 12,922 -> 13,274 B, arena 6,012 words unchanged · cumulative exact Redline reference 2.358 -> 3.037 FPS, +28.8% retained; snapshot/live median 3.197 FPS retained
 10 #520 five-Pattern acceptance Show · paired 2,000 px median baseline 1.000 -> exact live/live 1.076 FPS (+7.6%) -> snapshot/live 1.702 FPS (+58.1% vs exact live, +70.2% vs baseline); source 50,535 -> 51,511 B, bytecode 28,626 -> 28,926 B, arena 6,012 words unchanged; planner reuses RGB planes at 1-7s then scalar plane 0 at 14-20s; routed transition-frame isolation fixes the hardware activation fault and removes 508 source bytes from the selected artifact · 2,000 px Redline recheck median 3.065 FPS; direct 4,000 px Redline median 1.864 FPS labeled unsupported stress-only
 11 #527 content-aware luma/chroma key composition · paired 90%-opaque black-key overlay at 2,000 px median 2.801 -> 4.480 FPS · incremental +59.9% (mean +54.9%); exact N + U compositor skips the lower Pattern on opaque pixels and evaluates both sources only for holes/feather pixels; source 4,286 -> 4,132 B, bytecode 2,952 -> 2,744 B, arena 6,012 words unchanged; Fast and Precise checksums match at 7 score times; non-keyed Show artifacts remain byte-for-byte unchanged · cumulative exact Redline reference 2.358 -> 3.037 FPS, +28.8% retained; snapshot/live median 3.197 FPS retained
+12 #528 exact sample-coordinate field candidate · paired 2,000 px Redline median 3.008 -> 2.814 FPS in both passes · incremental -6.43% median (mean -5.94% / -4.75%); 256 and 1,000 px results mixed, so production remains disabled; exact X/Y replay avoids an estimated 16,600 coordinate operations/cached frame across 7 Scene rebuilds/loop but source 19,435 -> 29,360 B and bytecode 11,810 -> 16,938 B; arena unchanged at 6,012 words and total VM unchanged at 6,096 words, +4 persistent globals; Fast and Precise checksums match at 8 Redline and 6 generic score times · cumulative exact Redline reference 2.358 -> 3.037 FPS, +28.8% retained; snapshot/live median 3.197 FPS retained
 ```
 
 Later slices append the next numbered line here and repeat it in the #511
@@ -579,14 +582,15 @@ The approved delivery slices are filed under the coordination epic:
 - [#518 - Reuse compatible Pattern output](https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/issues/518)
   shares exact output across placements and consumers.
 - [#519 - Cache scalar visual fields](https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/issues/519)
-  generalizes repeated geometry and Effect work. **Implemented locally; awaiting landing.**
+  generalizes repeated geometry and Effect work.
 - [#520 - Qualify the five-Pattern acceptance Show](https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/issues/520)
   is implemented locally with Controller and visual evidence; production-default
   recommendations await final human confirmation and landing.
 - [#527 - Add content-aware luma and chroma key composition](https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/issues/527)
   adds authored mattes and conditional lower-source evaluation.
 - [#528 - Cache exact sample coordinates across compatible Show consumers](https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/issues/528)
-  is the remaining extra-credit cache slice.
+  implements an exact diagnostic candidate; firmware qualification keeps
+  production selection disabled because the measured profile did not win.
 
 Implementation progress and the current cumulative performance ledger are
 tracked on #511. Individual issue state remains authoritative for ownership and
@@ -662,10 +666,11 @@ confirmed before their implementation issues become AFK-ready:
 Implementation updates current truth only as slices ship:
 
 - `CONTEXT.md`: defines the shipped output ceiling, render target, render-target
-  plan, snapshot/live Crossfade, and shared Pattern output; add field terms as later slices ship.
+  plan, snapshot/live Crossfade, shared Pattern output, scalar fields, and the
+  measured diagnostic coordinate-field boundary.
 - `docs/reference/PXLBLZ Technical Reference.md`: documents the shipped resource
-  ledger, arena emission, planner, Crossfade policies, and exact 1D output reuse;
-  coordinate/field cache emitters remain future.
+  ledger, arena emission, planner, Crossfade policies, exact 1D output reuse,
+  scalar-field emission, and the hardware-disabled coordinate counterfactual.
 - `docs/reference/PXLBLZ Feature Guide.md`: explains the shipped output limit,
   Crossfade choices, output-reuse disclosure, compile-cost disclosure, and
   blocked-artifact remedies.

@@ -27,6 +27,8 @@ interface ShowCompilationOptions {
   renderTargetArenaEmission?: boolean
   /** Test/benchmark representation control for issue #525. */
   motionTransitionSharing?: 'auto' | 'none' | 'structure' | 'exact'
+  /** Test/benchmark hardware-gated coordinate-field candidate for issue #528. */
+  coordinateFieldCaching?: boolean
 }
 
 export function compileShowForPreview(
@@ -59,6 +61,7 @@ export function compileShowForPreview(
         renderKernelSpecialization: options.renderKernelSpecialization,
         renderTargetArenaEmission: options.renderTargetArenaEmission,
         motionTransitionSharing: options.motionTransitionSharing,
+        coordinateFieldCaching: options.coordinateFieldCaching,
       }),
       error: null,
     }

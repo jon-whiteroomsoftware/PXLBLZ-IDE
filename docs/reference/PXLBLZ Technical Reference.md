@@ -1747,6 +1747,44 @@ from 2.161 to 3.115 FPS (+44.1%); mean throughput rose 34.2%. The selected path
 removes an estimated 96,000 operations per cached frame, retains the 6,012-word
 arena, and restores the Controller's original program and pixel count.
 
+### Exact sample-coordinate field candidate
+
+`showCoordinateFields.ts` defines a two-plane exact field for transformed
+Pattern samples. The identity names the producer, map and sample domain,
+complete transform plan, controlling values, half-open lifetime, invalidators,
+exactness policy, and consumers. Compatibility rejects different sample
+domains, transforms, controls, lifetimes, or exactness policies explicitly.
+The cost model compares direct coordinate operations with two first-frame plane
+writes and two later reads per consumer; an optional candidate with no positive
+estimated saving remains direct.
+
+The implemented counterfactual is deliberately narrow: one physical routed
+layout, 2D renderers, cut-separated static Scenes, one opaque placement per
+Zone, no sample-remapping ramp, and no animated coordinate control. Each
+selected Scene receives a `sample-xy` lifetime on planner-assigned planes
+`0/1`. Its first complete frame evaluates the ordinary mirror, affine, and
+distortion path and stores the raw transformed pair by physical index. Later
+frames load that pair, then apply the same Wrap/Clip address policy, renderer,
+and output Effects. A frame-level target owner keeps Zone render plans
+internable; Scene exit, map change, transform change, control change, or plane
+reassignment invalidates ownership. No additional array is emitted.
+
+`coordinateFieldCaching: true` exists only for exact paired benchmarks;
+production compilation defaults it to false. `npm run issue528` proves Fast and
+Precise checksum parity for real 2,000-pixel Redline at eight score times and a
+generic five-surface fixture at six times. Redline planned seven profitable
+Scene fields, avoided an estimated 16,600 coordinate operations per cached
+frame, rebuilt seven times per loop, and retained the same 6,096 total VM words.
+The artifact exchange was 19,435 to 29,360 source bytes and 11,810 to 16,938
+Controller bytecode bytes.
+
+The reversible firmware-3.67 pb32 matrix ran two paired passes at 256, 1,000,
+and 2,000 pixels. The smaller counts were mixed rather than repeatable. At 2,000
+pixels both passes changed median FPS from 3.008 to 2.814 (-6.43%); mean changes
+were -5.94% and -4.75%. The harness restored the original Pattern and 256-pixel
+configuration. Because the hardware gate failed, the exact emitter remains a
+diagnostic profile rather than a production optimization.
+
 ### Five-Pattern acceptance qualification
 
 The #520 acceptance fixture is a 36-second, 2,000-pixel routed Show with five

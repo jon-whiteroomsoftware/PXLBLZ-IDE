@@ -101,6 +101,11 @@ import {
   type ShowScalarFieldDefinition,
 } from './showScalarField'
 import {
+  buildShowCoordinateFieldCandidate,
+  coordinateFieldIdentityKey,
+  type ShowCoordinateFieldDefinition,
+} from './showCoordinateFields'
+import {
   planPhysicalRoutingShortCircuit,
   type PhysicalRoutingShortCircuitPlan,
 } from './showPhysicalRoutingSpecialization'
@@ -543,6 +548,25 @@ export interface ShowCompileSummary {
         planes: Array<0 | 1 | 2>
       }>
     }
+    coordinateFields: {
+      selectedFieldCount: number
+      operationsAvoidedPerCachedFrame: number
+      cacheRebuildCountPerLoop: number
+      additionalArrayWords: 0
+      fields: Array<{
+        candidateId: string
+        producerId: string
+        sampleDomainKey: string
+        transformIdentity: string
+        lifetimeKey: string
+        invalidatedBy: string[]
+        exactness: 'exact'
+        consumerCount: number
+        status: 'selected' | 'rejected'
+        reason: ShowRenderTargetDecisionReason | 'disabled' | 'incompatible'
+        planes: Array<0 | 1 | 2>
+      }>
+    }
   }
   clips: ShowCompileClipSummary[]
   resources: ShowVmResourceLedger
@@ -617,6 +641,7 @@ interface CompiledMember {
     addedSourceBytes: number
   }
   conditionalContentKeyEvaluation: boolean
+  coordinateFieldCapture: boolean
 }
 
 interface CompiledPatternOutputReuseGroup {
@@ -655,6 +680,18 @@ interface SelectedScalarField extends CompiledScalarField {
   ownerToken: number
 }
 
+interface CompiledCoordinateField {
+  definition: ShowCoordinateFieldDefinition
+  candidate: ShowRenderTargetCandidate
+  sceneIndex: number
+  memberIds: string[]
+}
+
+interface SelectedCoordinateField extends CompiledCoordinateField {
+  renderTarget: ShowRenderTargetPlan<'sample-xy'>
+  ownerToken: number
+}
+
 export interface ShowCompileOptions {
   exactSpecializations?: boolean
   frameInvariantHoisting?: boolean
@@ -669,6 +706,8 @@ export interface ShowCompileOptions {
   scalarFieldCaching?: boolean
   /** Benchmark-only counterfactual; production conditionally skips covered lower keyed layers. */
   contentKeyConditionalEvaluation?: boolean
+  /** Hardware-gated exact scene-lifetime X/Y cache; production defaults off until qualification. */
+  coordinateFieldCaching?: boolean
 }
 
 const DIRECT_SNAPSHOT_CANDIDATE_ID = 'transition:direct:snapshot-live'
@@ -798,6 +837,121 @@ function buildShowScalarFields(recipe: ShowRecipe, pixelCount: number): Compiled
   }
   if (recipe.sceneSequence) addSequence('sequence', recipe.sceneSequence.scenes)
   if (recipe.routedSceneSequence) addSequence('routed', recipe.routedSceneSequence.scenes)
+  return fields
+}
+
+function buildShowCoordinateFields(
+  recipe: ShowRecipe,
+  members: CompiledMember[],
+  outputDimension: ShowOutputDimension,
+  pixelCount: number,
+): CompiledCoordinateField[] {
+  const sequence = recipe.routedSceneSequence
+  const layout = recipe.routingLayouts?.length === 1 ? recipe.routingLayouts[0] : undefined
+  if (!sequence || !layout || layout.logical || outputDimension !== 2) return []
+  const memberById = new Map(members.map((member) => [member.id, member]))
+  const sampleDomainKey = JSON.stringify({
+    layoutId: layout.id,
+    zones: layout.zones.map((zone) => ({ name: zone.name, ranges: zone.ranges })),
+  })
+  const fields: CompiledCoordinateField[] = []
+  let cursor = 0
+  for (const [sceneIndex, scene] of sequence.scenes.entries()) {
+    const start = cursor
+    const end = start + scene.holdMs
+    cursor = end
+    if (scene.transitionOut && scene.transitionOut.kind !== 'cut') cursor += scene.transitionOut.durationMs
+    const stacks = groupRoutedPlacementsByZone(scene.placements.map((placement, placementIndex) => ({
+      ...placement,
+      member: memberById.get(placement.clipId)!,
+      consumerId: patternOutputConsumerId(sceneIndex, placementIndex),
+    })))
+    if ((scene.propertyTracks?.length ?? 0) > 0 || (scene.transitionRamps?.length ?? 0) > 0) continue
+    if (stacks.size !== layout.zones.length || [...stacks.values()].some((stack) => stack.length !== 1)) continue
+    const placements = layout.zones.flatMap((zone) => stacks.get(zone.name) ?? [])
+    if (placements.some((placement) => {
+      const member = placement.member
+      return !member
+        || !member.hasRender2D
+        || member.hasRender3D
+        || Boolean(member.samplePropertyRamps)
+        || (member.animatedEffects && !member.staticPlanEffects)
+        || !routedPlacementIsOpaque(placement)
+        || (placement.zoneMode === 'span' && (placement.domainZoneNames?.length ?? 0) > 1)
+    })) continue
+    const transforms = placements.map((placement) => {
+      const member = placement.member
+      const authored = normalizeShowClipEffects(placement.effects)
+      const effects = member.effects.map((template) => (
+        authored.find((effect) => effect.id === template.id && effect.kind === template.kind)
+        ?? identityShowEffect(template)
+      ))
+      const coordinateEffects = effects.filter((effect) => (
+        ['translate', 'rotate', 'scale', 'shear', 'wrap', 'ripple', 'swirl', 'bulge', 'pixelate', 'kaleidoscope']
+          .includes(effect.kind)
+      ))
+      const affine = coordinateEffects.some((effect) => (
+        effect.kind === 'translate' || effect.kind === 'rotate' || effect.kind === 'scale' || effect.kind === 'shear'
+      ))
+      const distortionOperations = coordinateEffects.reduce((sum, effect) => {
+        const candidate = SHOW_DISTORTION_CANDIDATES.find((item) => item.id === effect.kind)
+        return sum + (candidate?.operations.scalar ?? 0)
+      }, 0)
+      const zone = layout.zones.find((candidate) => candidate.name === placement.zoneName)!
+      return {
+        consumerId: placement.consumerId,
+        memberId: member.id,
+        zoneName: placement.zoneName,
+        pixelCount: controllerZonePixelCount(zone),
+        mirror: placement.mirror ?? member.adaptation.mirror,
+        effects: coordinateEffects,
+        operationsPerPixel: (placement.mirror ?? member.adaptation.mirror ? 1 : 0)
+          + (affine ? 8 : 0)
+          + distortionOperations,
+      }
+    })
+    const transformIdentity = JSON.stringify(transforms.map(({ consumerId: _, pixelCount: __, operationsPerPixel: ___, ...identity }) => identity))
+    const controlIdentity = JSON.stringify(transforms.map((transform) => ({
+      consumerId: transform.consumerId,
+      effects: transform.effects,
+    })))
+    const directOperationsPerPixelPerFrame = transforms.reduce((sum, transform) => (
+      sum + transform.operationsPerPixel * transform.pixelCount
+    ), 0) / Math.max(1, pixelCount)
+    const lifetime = { kind: 'scene' as const, start, end, key: `scene-${sceneIndex}` }
+    const consumers = transforms.map((transform) => ({
+      id: transform.consumerId,
+      sampleDomainKey,
+      transformIdentity,
+      controlIdentity,
+      lifetimeKey: lifetime.key,
+      exactness: 'exact' as const,
+    }))
+    const definition: ShowCoordinateFieldDefinition = {
+      id: `coordinate:scene:${sceneIndex}:sample-xy`,
+      producer: {
+        id: 'routed-scene-sample-transform',
+        operationsPerPixel: directOperationsPerPixelPerFrame,
+      },
+      sampleDomain: { mapKey: layout.id, sampleKey: sampleDomainKey },
+      transformIdentity,
+      controlIdentity,
+      lifetime,
+      invalidatedBy: ['scene-exit', 'map-change', 'transform-change', 'control-change', 'plane-reassigned'],
+      exactness: 'exact',
+      pixelCount,
+      expectedFrameCount: Math.max(1, Math.ceil(scene.holdMs / (1_000 / 30))),
+      directOperationsPerPixelPerFrame,
+      readsPerPixelPerFrame: 1,
+      consumers,
+    }
+    fields.push({
+      definition,
+      candidate: buildShowCoordinateFieldCandidate(definition),
+      sceneIndex,
+      memberIds: [...new Set(transforms.map((transform) => transform.memberId))],
+    })
+  }
   return fields
 }
 
@@ -975,6 +1129,7 @@ export function compileShow(
   const patternOutputReuse = options.patternOutputReuse ?? true
   const scalarFieldCaching = options.scalarFieldCaching ?? true
   const contentKeyConditionalEvaluation = options.contentKeyConditionalEvaluation ?? true
+  const coordinateFieldCaching = options.coordinateFieldCaching ?? false
   validateRecipe(expandedRecipe)
   const animatedEffectClipIds = new Set<string>()
   const dynamicallyAnimatedEffectClipIds = new Set<string>()
@@ -1165,10 +1320,17 @@ export function compileShow(
     routedOutputDimension,
   )
   const scalarFields = buildShowScalarFields(expandedRecipe, renderTargetPixelCount)
+  const coordinateFields = buildShowCoordinateFields(
+    expandedRecipe,
+    members,
+    routedOutputDimension,
+    renderTargetPixelCount,
+  )
   const renderTargetCandidates = [
     ...buildShowRenderTargetCandidates(expandedRecipe, renderTargetPixelCount),
     ...(patternOutputReuse ? patternOutputReuseAnalysis.groups.map((group) => group.candidate) : []),
     ...(scalarFieldCaching ? scalarFields.map((field) => field.candidate) : []),
+    ...(coordinateFieldCaching ? coordinateFields.map((field) => field.candidate) : []),
   ]
   const preliminaryRenderTargetPlan = planShowRenderTargetCaches(renderTargetCandidates, {
     arena: renderTargetArena,
@@ -1206,6 +1368,19 @@ export function compileShow(
       ownerToken: index + 1,
     } satisfies SelectedScalarField]
   })
+  const coordinateFieldByCandidate = new Map(coordinateFields.map((field) => [field.candidate.id, field]))
+  const selectedCoordinateFields = preliminaryRenderTargetPlan.assignments.flatMap((assignment, index) => {
+    if (assignment.kind !== 'sample-xy') return []
+    const field = coordinateFieldByCandidate.get(assignment.candidateId)
+    if (!field) return []
+    return [{
+      ...field,
+      renderTarget: planShowRenderTargetArena(renderTargetPixelCount, 'sample-xy', assignment.planes),
+      ownerToken: index + 1,
+    } satisfies SelectedCoordinateField]
+  })
+  const coordinateFieldMemberIds = new Set(selectedCoordinateFields.flatMap((field) => field.memberIds))
+  for (const member of members) member.coordinateFieldCapture = coordinateFieldMemberIds.has(member.id)
   const routedSceneEmission = expandedRecipe.routedSceneSequence
       ? emitRoutedSceneSequenceShowCode(
         members,
@@ -1221,6 +1396,7 @@ export function compileShow(
         motionTransitionSharing,
         selectedPatternOutputReuseGroups,
         selectedScalarFields,
+        selectedCoordinateFields,
       )
       : null
   const emittedCode = routedSceneEmission
@@ -1354,6 +1530,30 @@ export function compileShow(
       compatibleConsumerIds: analysis.compatibleConsumerIds,
       status: decision?.status === 'selected' ? 'selected' as const : 'rejected' as const,
       reason: scalarFieldCaching ? decision?.reason ?? 'non-profitable' : 'disabled' as const,
+      planes: assignment?.planes ?? [],
+    }
+  })
+  const coordinateFieldSummary = coordinateFields.map((field) => {
+    const decision = coordinateFieldCaching
+      ? renderTargetDecisionByCandidate.get(field.candidate.id)
+      : undefined
+    const assignment = renderTargetPlan.assignments.find((candidate) => (
+      candidate.candidateId === field.candidate.id
+    ))
+    const reason: ShowRenderTargetDecisionReason | 'disabled' | 'incompatible' = coordinateFieldCaching
+      ? decision?.reason ?? 'incompatible'
+      : 'disabled'
+    return {
+      candidateId: field.candidate.id,
+      producerId: field.definition.producer.id,
+      sampleDomainKey: `${field.definition.sampleDomain.mapKey}:${field.definition.sampleDomain.sampleKey}`,
+      transformIdentity: coordinateFieldIdentityKey(field.definition),
+      lifetimeKey: field.definition.lifetime.key,
+      invalidatedBy: [...field.definition.invalidatedBy],
+      exactness: 'exact' as const,
+      consumerCount: field.definition.consumers.length,
+      status: decision?.status === 'selected' ? 'selected' as const : 'rejected' as const,
+      reason,
       planes: assignment?.planes ?? [],
     }
   })
@@ -1569,7 +1769,9 @@ export function compileShow(
       renderTargetArenaEmission,
       directSnapshotCrossfade || sequenceSnapshotCrossfade || routedSnapshotCrossfade || selectedPatternOutputReuseGroups.length > 0
         ? 'stage-rgb'
-        : selectedScalarFields.length > 0 ? 'scalar-field' : null,
+        : selectedScalarFields.length > 0
+          ? 'scalar-field'
+          : selectedCoordinateFields.length > 0 ? 'sample-xy' : null,
     ),
     renderTargetPlan,
     specializations: {
@@ -1600,6 +1802,17 @@ export function compileShow(
         ), 0),
         additionalArrayWords: 0,
         fields: scalarFieldSummary,
+      },
+      coordinateFields: {
+        selectedFieldCount: coordinateFieldSummary.filter((field) => field.status === 'selected').length,
+        operationsAvoidedPerCachedFrame: coordinateFields.reduce((peak, field) => (
+          renderTargetDecisionByCandidate.get(field.candidate.id)?.status === 'selected'
+            ? Math.max(peak, renderTargetPixelCount * field.definition.directOperationsPerPixelPerFrame)
+            : peak
+        ), 0),
+        cacheRebuildCountPerLoop: coordinateFieldSummary.filter((field) => field.status === 'selected').length,
+        additionalArrayWords: 0,
+        fields: coordinateFieldSummary,
       },
     },
     clips: members.map((member) => {
@@ -2037,6 +2250,7 @@ function compileMember(
       addedSourceBytes: frameHoists.addedSourceBytes,
     },
     conditionalContentKeyEvaluation,
+    coordinateFieldCapture: false,
   }
 }
 
@@ -2559,6 +2773,7 @@ function emitRoutedSceneSequenceShowCode(
   motionTransitionSharing: 'auto' | 'none' | 'structure' | 'exact' = 'auto',
   patternOutputReuseGroups: SelectedPatternOutputReuseGroup[] = [],
   scalarFields: SelectedScalarField[] = [],
+  coordinateFields: SelectedCoordinateField[] = [],
 ): {
   code: string
   renderKernels: ShowCompileSummary['specializations']['renderKernels']
@@ -2952,6 +3167,14 @@ ${setupForPlacements(
     .sort((left, right) => left.atMs - right.atMs)
     .map((routingSwitch) => `  if (__pxlblz_show_elapsed_s >= ${routingSwitch.atMs / 1000}) __pxlblz_show_route_layout = ${layoutIndex.get(routingSwitch.layoutId) ?? 0}`)
     .join('\n')
+  const coordinateTargetAssignments = coordinateFields.length > 0
+    ? [
+        '__pxlblz_show_coord_target = -1',
+        ...coordinateFields.map((field, index) => (
+          `${index === 0 ? 'if' : 'else if'} (__pxlblz_show_scene == ${field.sceneIndex}) __pxlblz_show_coord_target = ${field.ownerToken}`
+        )),
+      ].join('\n')
+    : ''
 
   const sharedPhysicalCut = canSharePhysicalCutRouting
       ? emitSharedPhysicalCutSceneRender(
@@ -2962,6 +3185,7 @@ ${setupForPlacements(
         outputPixelCount,
         renderKernelSpecialization,
         patternOutputReuseGroups,
+        coordinateFields,
       )
     : undefined
   const sceneBranches = sharedPhysicalCut?.render
@@ -3135,6 +3359,14 @@ ${indentBlock(branches, 2)}
     ...stackWrappers,
     ...(sharedPhysicalCut?.prelude ? [sharedPhysicalCut.prelude] : []),
     ...(scalarFields.length > 0 ? [emitScalarFieldRuntimeDeclarations(scalarFields)] : []),
+    ...(coordinateFields.length > 0
+      ? [
+          'var __pxlblz_show_coord_owner = -1',
+          'var __pxlblz_show_coord_target = -1',
+          'var __pxlblz_show_coord_x = 0',
+          'var __pxlblz_show_coord_y = 0',
+        ]
+      : []),
     ...transitionHelpers,
     'var __pxlblz_show_scene = 0',
     ...(hasTransitions
@@ -3162,7 +3394,7 @@ ${indentBlock(branches, 2)}
     `export function beforeRender(delta) {
   __pxlblz_show_elapsed_s = (__pxlblz_show_elapsed_s + delta / 1000) % ${cursor / 1000}
 ${usesRouteLayout ? '  __pxlblz_show_route_layout = 0\n' : ''}
-${layoutSelectLines}${layoutSelectLines ? '\n' : ''}${propertyRamps ? `${emitRoutingPropertyAssignments(propertyRamps)}\n` : ''}  ${schedulerBranches}${patternOutputReuseGroups.length > 0 ? `\n${indentBlock(emitPatternOutputReusePrepass(patternOutputReuseGroups), 2)}` : ''}
+${layoutSelectLines}${layoutSelectLines ? '\n' : ''}${propertyRamps ? `${emitRoutingPropertyAssignments(propertyRamps)}\n` : ''}  ${schedulerBranches}${coordinateTargetAssignments ? `\n${indentBlock(coordinateTargetAssignments, 2)}` : ''}${patternOutputReuseGroups.length > 0 ? `\n${indentBlock(emitPatternOutputReusePrepass(patternOutputReuseGroups), 2)}` : ''}
 }`,
     `export function ${outputDimension === 2 ? 'render2D(index, x, y)' : 'render(index)'} {
   ${renderBody}
@@ -3226,6 +3458,7 @@ function emitSharedPhysicalCutSceneRender(
   outputPixelCount?: number,
   renderKernelSpecialization = false,
   patternOutputReuseGroups: SelectedPatternOutputReuseGroup[] = [],
+  coordinateFields: SelectedCoordinateField[] = [],
 ): {
   prelude: string
   render: string
@@ -3234,6 +3467,7 @@ function emitSharedPhysicalCutSceneRender(
   const reuseByConsumerId = new Map(patternOutputReuseGroups.flatMap((group) => (
     group.consumerIds.map((consumerId) => [consumerId, group] as const)
   )))
+  const coordinateFieldByScene = new Map(coordinateFields.map((field) => [field.sceneIndex, field]))
   const routingSpecialization = scenes.some((scene) => scene.placements.some((placement) => placement.member.exactSpecializations))
     ? planPhysicalRoutingShortCircuit(layout.zones.map((zone) => ({ ranges: zone.ranges })), outputPixelCount)
     : null
@@ -3308,7 +3542,11 @@ function emitSharedPhysicalCutSceneRender(
       return layout.zones.flatMap((zone, zoneIndex) => {
         const stack = stacks.get(zone.name)
         if (!stack) return []
-        const plan = emitInternedSharedPhysicalSceneZonePlan(stack[0], outputDimension)
+        const plan = emitInternedSharedPhysicalSceneZonePlan(
+          stack[0],
+          outputDimension,
+          coordinateFieldByScene.get(scene.sceneIndex),
+        )
         const key = `${plan.configuration}\n--- render ---\n${plan.render}`
         let planIndex = planIndexByCode.get(key)
         if (planIndex === undefined) {
@@ -3448,10 +3686,20 @@ ${indentBlock(zoneBranches, 2)}
 function emitInternedSharedPhysicalSceneZonePlan(
   placement: ResolvedRoutedScenePlacement,
   outputDimension: 1 | 2,
+  coordinateField?: SelectedCoordinateField,
 ): { configuration: string; render: string } {
   const member = placement.member
-  const captureCall = outputDimension === 2
-    ? `${member.prefix}_renderCapture2D(__pxlblz_show_route_local_index, __pxlblz_show_route_local_x, __pxlblz_show_route_local_y)`
+  const captureCall = outputDimension === 2 && coordinateField
+    ? emitCoordinateFieldCapture(
+        member,
+        coordinateField,
+        '__pxlblz_show_route_local_index',
+        '__pxlblz_show_route_local_x',
+        '__pxlblz_show_route_local_y',
+        'index',
+      )
+    : outputDimension === 2
+      ? `${member.prefix}_renderCapture2D(__pxlblz_show_route_local_index, __pxlblz_show_route_local_x, __pxlblz_show_route_local_y)`
     : `${member.prefix}_renderCapture(__pxlblz_show_route_local_index)`
   const capture = emitRoutedPlacementCapture(placement, captureCall)
   return {
@@ -3465,6 +3713,28 @@ function emitInternedSharedPhysicalSceneZonePlan(
       'return',
     ].join('\n'),
   }
+}
+
+function emitCoordinateFieldCapture(
+  member: CompiledMember,
+  field: SelectedCoordinateField,
+  localIndex: string,
+  localX: string,
+  localY: string,
+  physicalIndex: string,
+): string {
+  const readX = emitShowRenderTargetRead(field.renderTarget, 'x', physicalIndex)
+  const readY = emitShowRenderTargetRead(field.renderTarget, 'y', physicalIndex)
+  return `if (__pxlblz_show_coord_owner != __pxlblz_show_coord_target) {
+  ${member.prefix}_mapCoordinates2D(${localIndex}, ${localX}, ${localY})
+  ${emitShowRenderTargetWrite(field.renderTarget, 'x', physicalIndex, '__pxlblz_show_coord_x')}
+  ${emitShowRenderTargetWrite(field.renderTarget, 'y', physicalIndex, '__pxlblz_show_coord_y')}
+} else {
+  __pxlblz_show_coord_x = ${readX}
+  __pxlblz_show_coord_y = ${readY}
+}
+${member.prefix}_renderMapped2D(${localIndex}, __pxlblz_show_coord_x, __pxlblz_show_coord_y)
+if (__pxlblz_show_coord_owner != __pxlblz_show_coord_target && ${physicalIndex} == pixelCount - 1) __pxlblz_show_coord_owner = __pxlblz_show_coord_target`
 }
 
 function emitSharedPhysicalSceneZoneStack(
@@ -5952,6 +6222,29 @@ ${advanceDelta('delta', '  ')}
   )
 }`] : []),
     advance,
+    ...(outputDimension === 2 && member.coordinateFieldCapture ? [
+      `function ${member.prefix}_mapCoordinates2D(index, x, y) {
+  var mappedX = x
+  var mappedY = y
+  if (${member.prefix}_adapt_mirror >= 0.5) mappedX = 1 - x
+  var effectX = ${effectRuntime?.hasCoordinates && effectRuntime.hasAffine ? `${member.prefix}_fx_a * mappedX + ${member.prefix}_fx_c * mappedY + ${member.prefix}_fx_tx` : 'mappedX'}
+  var effectY = ${effectRuntime?.hasCoordinates && effectRuntime.hasAffine ? `${member.prefix}_fx_b * mappedX + ${member.prefix}_fx_d * mappedY + ${member.prefix}_fx_ty` : 'mappedY'}
+${effectRuntime?.hasCoordinates ? emitMemberDistortionSampling(member, 'effectX', 'effectY') : ''}
+  __pxlblz_show_coord_x = effectX
+  __pxlblz_show_coord_y = effectY
+}`,
+      `function ${member.prefix}_renderMapped2D(index, effectX, effectY) {
+  var mappedIndex = index
+  if (${member.prefix}_adapt_mirror >= 0.5) mappedIndex = ${member.pixelCountName} - 1 - index
+  var effectInside = effectX >= 0 && effectX <= 1 && effectY >= 0 && effectY <= 1
+  var mappedX = ${effectRuntime?.wrap ? 'effectX - floor(effectX)' : 'clamp(effectX, 0, 1)'}
+  var mappedY = ${effectRuntime?.wrap ? 'effectY - floor(effectY)' : 'clamp(effectY, 0, 1)'}
+${omitClear ? '' : `  ${member.prefix}_clear()
+`}  ${emitSelectedMemberRendererCall(member, 2, { index: 'mappedIndex', x: 'mappedX', y: 'mappedY' })}
+${emitMemberOutputEffectLines(member)}
+${effectRuntime?.hasCoordinates && !effectRuntime.wrap ? `  if (!effectInside) ${member.prefix}_clear()
+` : ''}}`,
+    ] : []),
     ...(outputDimension === 1 ? [`function ${member.prefix}_renderCapture(index) {
 ${identitySamplePath ? '' : `  var mappedIndex = index
   if (${member.prefix}_adapt_mirror >= 0.5) mappedIndex = ${member.pixelCountName} - 1 - index

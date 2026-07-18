@@ -1150,6 +1150,18 @@ avoided, and any rejection reason. Direct, Scene-sequence, and routed Shows use
 the same contract; successive fields can reuse one plane, while a conflicting
 higher-priority arena role leaves the Dissolve on its original inline path.
 
+The advanced compile report can also describe **sample-coordinate fields**.
+These exact candidates bind transformed X/Y to arena planes `0/1` for a static
+physical routed Scene. Their identity includes the map/sample domain, complete
+per-Zone transform plan, controlling values, Scene lifetime, and invalidators.
+The first frame would fill the pair and later frames would read it; incompatible
+or changing transforms stay direct. This path is diagnostic-only: the paired
+firmware-3.67 pb32 matrix was mixed at 256 and 1,000 pixels and repeatably slowed
+2,000-pixel Redline from median 3.008 to 2.814 FPS (-6.43%). Production therefore
+keeps direct coordinate evaluation. The report preserves the rejected plan,
+operations estimate, rebuild count, source/bytecode exchange, exactness evidence,
+and zero additional array words for future Controller profiles.
+
 The five-Pattern acceptance profile exercises these mechanisms together at the
 2,000-pixel support ceiling: continued Pattern instances, physical routing,
 Effects, snapshot/live Crossfade, scalar-field Dissolve, and lifetime reuse of
