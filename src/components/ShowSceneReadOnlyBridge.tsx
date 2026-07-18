@@ -13,18 +13,12 @@ const PROPERTY_COLOR = '#a78bfa'
 
 export function ShowSceneXray({
   detail,
-  active,
-  pinned,
-  onPreview,
-  onPreviewEnd,
-  onPin,
+  open,
+  onToggle,
 }: {
   detail: SceneReadOnlyBridgeProjection
-  active: boolean
-  pinned: boolean
-  onPreview: (anchor: HTMLElement) => void
-  onPreviewEnd: () => void
-  onPin: (anchor: HTMLElement) => void
+  open: boolean
+  onToggle: (anchor: HTMLElement) => void
 }) {
   const duration = Math.max(1, detail.durationMs)
   const placementTracks = detail.zones.flatMap((zone) => zone.layers.flatMap((layer, layerIndex) => (
@@ -37,14 +31,8 @@ export function ShowSceneXray({
       role="group"
       aria-label={`${detail.sceneName} Scene X-ray, read only`}
       tabIndex={-1}
-      onMouseEnter={(event) => onPreview(event.currentTarget)}
-      onMouseLeave={onPreviewEnd}
-      onFocusCapture={(event) => onPreview(event.currentTarget)}
-      onBlurCapture={(event) => {
-        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) onPreviewEnd()
-      }}
       className={`group relative h-[36px] min-w-0 overflow-hidden border-x text-[8px] text-zinc-500 transition-colors ${
-        active
+        open
           ? 'border-amber-300/45 bg-amber-300/[0.065]'
           : 'border-amber-300/20 bg-amber-300/[0.025] hover:border-amber-300/35 hover:bg-amber-300/[0.045]'
       }`}
@@ -91,14 +79,14 @@ export function ShowSceneXray({
       </XrayStratum>
       <button
         type="button"
-        aria-label={`${pinned ? 'Close' : 'Pin'} ${detail.sceneName} Super Detail`}
-        aria-pressed={pinned}
-        title={`${pinned ? 'Close' : 'Pin'} ${detail.sceneName} Super Detail`}
+        aria-label={`${open ? 'Close' : 'Open'} ${detail.sceneName} Super Detail`}
+        aria-pressed={open}
+        title={`${open ? 'Close' : 'Open'} ${detail.sceneName} Super Detail`}
         onClick={(event) => {
           event.stopPropagation()
-          onPin(event.currentTarget.parentElement ?? event.currentTarget)
+          onToggle(event.currentTarget.parentElement ?? event.currentTarget)
         }}
-        className={`absolute right-0.5 top-0.5 z-10 grid size-5 place-items-center rounded-sm bg-[#0b0d10]/90 shadow-[0_0_0_1px_rgba(82,82,91,.65)] transition-all hover:text-amber-200 focus:opacity-100 focus-visible:outline focus-visible:outline-1 focus-visible:outline-amber-300 ${pinned ? 'text-amber-200 opacity-100' : 'text-zinc-400 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100'}`}
+        className={`absolute right-0.5 top-0.5 z-10 grid size-5 place-items-center rounded-sm bg-[#0b0d10]/90 shadow-[0_0_0_1px_rgba(82,82,91,.65)] transition-all hover:text-amber-200 focus:opacity-100 focus-visible:outline focus-visible:outline-1 focus-visible:outline-amber-300 ${open ? 'text-amber-200 opacity-100' : 'text-zinc-400 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100'}`}
       >
         <ScanSearch size={11} aria-hidden />
       </button>

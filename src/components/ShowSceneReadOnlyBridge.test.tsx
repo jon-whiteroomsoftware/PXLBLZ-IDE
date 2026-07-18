@@ -30,18 +30,13 @@ function detailFixture() {
 }
 
 describe('Show Scene read-only bridge (#471)', () => {
-  it('renders the X-ray as one fixed 36px row with three non-editable strata', () => {
-    const onPreview = vi.fn()
-    const onPreviewEnd = vi.fn()
-    const onPin = vi.fn()
+  it('renders one fixed read-only X-ray whose button is the only detail trigger (#548)', () => {
+    const onToggle = vi.fn()
     render(
       <ShowSceneXray
         detail={detailFixture()}
-        active={false}
-        pinned={false}
-        onPreview={onPreview}
-        onPreviewEnd={onPreviewEnd}
-        onPin={onPin}
+        open={false}
+        onToggle={onToggle}
       />,
     )
 
@@ -53,13 +48,12 @@ describe('Show Scene read-only bridge (#471)', () => {
     expect(withinInputs(xray)).toHaveLength(0)
 
     fireEvent.mouseEnter(xray)
-    expect(onPreview).toHaveBeenCalledWith(xray)
     fireEvent.mouseLeave(xray)
-    expect(onPreviewEnd).toHaveBeenCalledOnce()
+    expect(onToggle).not.toHaveBeenCalled()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Pin Scene 2 Super Detail' }))
-    expect(onPin).toHaveBeenCalledOnce()
-    expect(onPin).toHaveBeenCalledWith(xray)
+    fireEvent.click(screen.getByRole('button', { name: 'Open Scene 2 Super Detail' }))
+    expect(onToggle).toHaveBeenCalledOnce()
+    expect(onToggle).toHaveBeenCalledWith(xray)
   })
 
   it('opens one modeless read-only Super Detail layer and dismisses it with Escape', () => {

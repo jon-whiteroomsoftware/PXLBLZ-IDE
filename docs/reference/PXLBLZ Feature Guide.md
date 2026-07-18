@@ -714,8 +714,18 @@ and ends with the browser session; it is not another durable Show copy.
 Timeline rows use the production 44-pixel clip height. This is the ordinary
 editing density, not a compact preference or prototype-only view.
 
-One scene at a time can disclose a 36-pixel **Scene X-ray** beneath the scene
-headers. Its three compact strata summarize entry/exit references, active
+Clip cards keep the Pattern name primary at every scene width. The name uses the
+same type scale as its Zone, ellipsizes as room contracts, and receives the
+Pattern icon's space when a card becomes nearly square. The second line uses a
+compact continuity grammar: a category icon includes its value when that fact
+first appears or changes from the preceding Clip in the Zone, then stands alone
+while the same value continues. The complete labeled facts remain available in
+the card's accessible summary and Clip Entity Detail. Multi-parameter Effects
+use learned lowercase cues such as `amt`, `freq`, `rad`, `cx`, and `cy` only in
+this compact row.
+
+Each scene exposes a 36-pixel **Scene X-ray** beneath the scene headers. Its
+three compact strata summarize entry/exit references, active
 Effects, and boundary-authored property changes. The row is read-only: zoom
 spreads the same facts and snap references without changing its height or
 turning its small marks into drag handles.
@@ -724,9 +734,11 @@ Use the X-ray's magnify button to open **Super Detail**. This one modeless layer
 keeps global and local Scene bounds together, then expands incoming/outgoing
 boundary context, active zone placements, Effect spans, property shapes,
 Continue state, and any compiler limitation that makes a saved placement
-inactive. It contains no editable fields and does not move Timeline rows.
-Selecting another Scene's X-ray transfers the open layer; click elsewhere,
-press Escape, or use its close button to dismiss it.
+inactive. It contains no editable fields and does not move Timeline rows. Hover
+and focus only reveal the magnify affordance; they never open the layer. Select
+the magnify button again to close it, or select another Scene's button to
+transfer it. Click elsewhere, press Escape, or use its close button to dismiss
+it.
 
 Choose **Open Scene** to enter the production Scene x Zone editor. The header
 keeps **Show** as a separate Back command, then identifies the Scene, active Zone

@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { createDefaultShow, updateShowBoundaryTransition, updateShowCellAdaptations } from './showModel'
-import { projectGlobalShowClipSummary, showClipInlineSummary } from './showClipSummary'
+import {
+  projectGlobalShowClipSummary,
+  projectShowClipTimelineSummary,
+  showClipInlineSummary,
+} from './showClipSummary'
 
 describe('Show Clip summary', () => {
   it('separates static playback, Pattern controls, view, Effects, and animation facts', () => {
@@ -61,5 +65,52 @@ describe('Show Clip summary', () => {
 
     expect(summary).toEqual([])
     expect(showClipInlineSummary(summary)).toBe('defaults')
+  })
+
+  it('shows timeline values only when a fact is introduced or changes from the preceding Clip (#548)', () => {
+    let show = createDefaultShow('show-clip-summary-deltas', 'Clip summary deltas', 1_000)
+    show = updateShowCellAdaptations(show, show.cells[0].id, { timeScale: 0.35, brightness: 0.8 })
+    show = updateShowCellAdaptations(show, show.cells[1].id, { timeScale: 0.35, brightness: 0.8 })
+    const first = projectGlobalShowClipSummary(show, show.cells[0].id)
+    const unchanged = projectGlobalShowClipSummary(show, show.cells[1].id)
+
+    expect(projectShowClipTimelineSummary(first, null).flatMap((section) => section.items)).toEqual([
+      expect.objectContaining({ id: 'time-scale', value: '0.35×', showValue: true }),
+      expect.objectContaining({ id: 'brightness', value: '80%', showValue: true }),
+    ])
+    expect(projectShowClipTimelineSummary(unchanged, first).flatMap((section) => section.items)).toEqual([
+      expect.objectContaining({ id: 'time-scale', showValue: false }),
+      expect.objectContaining({ id: 'brightness', showValue: false }),
+    ])
+
+    show = updateShowCellAdaptations(show, show.cells[1].id, { timeScale: 0.5 })
+    const changed = projectGlobalShowClipSummary(show, show.cells[1].id)
+    expect(projectShowClipTimelineSummary(changed, first).flatMap((section) => section.items)).toEqual([
+      expect.objectContaining({ id: 'time-scale', value: '0.5×', showValue: true }),
+      expect.objectContaining({ id: 'brightness', value: '80%', showValue: false }),
+    ])
+  })
+
+  it('contracts multi-parameter Effect values without changing the complete summary (#548)', () => {
+    const show = createDefaultShow('show-clip-summary-effect-contract', 'Effect contractions', 1_000)
+    show.cells[0] = {
+      ...show.cells[0],
+      effects: [{
+        id: 'ripple',
+        kind: 'ripple',
+        amount: 0.32,
+        frequency: 4,
+        phase: 0,
+        centerX: 0.5,
+        centerY: 0.5,
+      }],
+    }
+    const summary = projectGlobalShowClipSummary(show, show.cells[0].id)
+    const effect = summary.find((section) => section.kind === 'effects')?.items[0]
+    const timelineEffect = projectShowClipTimelineSummary(summary, null)
+      .find((section) => section.kind === 'effects')?.items[0]
+
+    expect(effect?.value).toBe('Amount 0.32, Frequency 4, Phase 0 turn, Center X 0.5, Center Y 0.5')
+    expect(timelineEffect?.displayValue).toBe('amt 0.32, freq 4, phase 0 turn, cx 0.5, cy 0.5')
   })
 })

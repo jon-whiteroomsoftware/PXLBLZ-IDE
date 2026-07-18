@@ -8,12 +8,22 @@ export interface ShowClipSummaryItem {
   id: string
   label: string
   value?: string
+  timelineValue?: string
 }
 
 export interface ShowClipSummarySection {
   kind: ShowClipSummaryKind
   label: string
   items: ShowClipSummaryItem[]
+}
+
+export interface ShowClipTimelineSummaryItem extends ShowClipSummaryItem {
+  showValue: boolean
+  displayValue?: string
+}
+
+export interface ShowClipTimelineSummarySection extends Omit<ShowClipSummarySection, 'items'> {
+  items: ShowClipTimelineSummaryItem[]
 }
 
 const SECTION_LABELS: Record<ShowClipSummaryKind, string> = {
@@ -46,12 +56,18 @@ export function projectGlobalShowClipSummary(
         label: compactEffectParameterLabel(parameter.label, effect.kind),
         value: formatToolkitValue(showClipEffectParameterValue(effect, parameter.id), parameter.unit),
       }))
+      const value = parameters.length === 1
+        ? parameters[0].value
+        : parameters.map((parameter) => `${parameter.label} ${parameter.value}`).join(', ')
       return {
         id: `effect:${effect.id}`,
         label: humanizeIdentifier(effect.kind),
-        value: parameters.length === 1
-          ? parameters[0].value
-          : parameters.map((parameter) => `${parameter.label} ${parameter.value}`).join(', '),
+        value,
+        timelineValue: parameters.length === 1
+          ? value
+          : parameters.map((parameter) => (
+              `${contractTimelineParameterLabel(parameter.label)} ${parameter.value}`
+            )).join(', '),
       }
     }),
     animation: animationItems(show, cell, controlLabels),
@@ -70,6 +86,25 @@ export function showClipInlineSummary(summary: readonly ShowClipSummarySection[]
     item.value ? `${item.label} ${item.value}` : item.label
   )))
   return facts.length > 0 ? facts.join(' · ') : 'defaults'
+}
+
+/** Keep timeline copy terse: values appear only when introduced or changed. */
+export function projectShowClipTimelineSummary(
+  summary: readonly ShowClipSummarySection[],
+  previousSummary: readonly ShowClipSummarySection[] | null,
+): ShowClipTimelineSummarySection[] {
+  const previousValues = new Map((previousSummary ?? []).flatMap((section) => (
+    section.items.map((item) => [`${section.kind}:${item.id}`, item.value] as const)
+  )))
+  return summary.map((section) => ({
+    ...section,
+    items: section.items.map((item) => ({
+      ...item,
+      displayValue: item.timelineValue ?? item.value,
+      showValue: item.value !== undefined
+        && previousValues.get(`${section.kind}:${item.id}`) !== item.value,
+    })),
+  }))
 }
 
 function playbackItems(cell: ShowCell): ShowClipSummaryItem[] {
@@ -181,4 +216,35 @@ function compactEffectParameterLabel(label: string, effectKind: string): string 
     !effectWords.some((effectWord) => effectWord.toLowerCase() === word.toLowerCase())
   ))
   return kept.join(' ') || label
+}
+
+const TIMELINE_PARAMETER_CONTRACTIONS: Record<string, string> = {
+  amount: 'amt',
+  frequency: 'freq',
+  'center x': 'cx',
+  'center y': 'cy',
+  radius: 'rad',
+  threshold: 'thresh',
+  'target luminance': 'luma',
+  'target color': 'color',
+  tolerance: 'tol',
+  softness: 'soft',
+  'x scale': 'sx',
+  'y scale': 'sy',
+  'x shear': 'shx',
+  'y shear': 'shy',
+  columns: 'cols',
+  segments: 'segs',
+  rotation: 'rot',
+  'shadow red': 'sh r',
+  'shadow green': 'sh g',
+  'shadow blue': 'sh b',
+  'highlight red': 'hi r',
+  'highlight green': 'hi g',
+  'highlight blue': 'hi b',
+}
+
+function contractTimelineParameterLabel(label: string): string {
+  const lower = label.toLowerCase()
+  return TIMELINE_PARAMETER_CONTRACTIONS[lower] ?? lower
 }

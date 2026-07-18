@@ -87,6 +87,7 @@ import { createPortableShowOutputContract } from '@/engine/showOutputContract'
 import { discoverAutomatablePatternControls, type AutomatablePatternControl } from '@/engine/showPatternControls'
 import {
   projectGlobalShowClipSummary,
+  projectShowClipTimelineSummary,
   showClipInlineSummary,
   type ShowClipSummaryKind,
   type ShowClipSummarySection,
@@ -1992,7 +1993,7 @@ function SceneStrip({
   const setSnapEnabled = useShowEditorSessionStore((state) => state.setSnapEnabled)
   const [draggingCellId, setDraggingCellId] = useState<string | null>(null)
   const [dropTargetKey, setDropTargetKey] = useState<string | null>(null)
-  const [superDetailOwner, setSuperDetailOwner] = useState<{ sceneId: string; anchor: HTMLElement; pinned: boolean } | null>(null)
+  const [superDetailOwner, setSuperDetailOwner] = useState<{ sceneId: string; anchor: HTMLElement } | null>(null)
   let viewport = storedViewport
   if (viewport.totalMs !== fittedViewport.totalMs) {
     const zoom = viewport.totalMs / viewport.durationMs
@@ -2343,18 +2344,11 @@ function SceneStrip({
               >
                 <ShowSceneXray
                   detail={detail}
-                  active={superDetailOwner?.sceneId === detail.sceneId}
-                  pinned={superDetailOwner?.sceneId === detail.sceneId && superDetailOwner.pinned}
-                  onPreview={(anchor) => setSuperDetailOwner((current) => (
-                    current?.pinned ? current : { sceneId: detail.sceneId, anchor, pinned: false }
-                  ))}
-                  onPreviewEnd={() => setSuperDetailOwner((current) => (
-                    current?.sceneId === detail.sceneId && !current.pinned ? null : current
-                  ))}
-                  onPin={(anchor) => setSuperDetailOwner((current) => (
-                    current?.sceneId === detail.sceneId && current.pinned
+                  open={superDetailOwner?.sceneId === detail.sceneId}
+                  onToggle={(anchor) => setSuperDetailOwner((current) => (
+                    current?.sceneId === detail.sceneId
                       ? null
-                      : { sceneId: detail.sceneId, anchor, pinned: true }
+                      : { sceneId: detail.sceneId, anchor }
                   ))}
                 />
               </div>
@@ -2576,13 +2570,28 @@ function SceneStrip({
                 </span>
               </span>
             </button>
-            {row.cells.map((cell) => {
+            {row.cells.map((cell, cellIndex) => {
               const patternControls = patternControlsByCellId[cell.id] ?? []
               const summary = projectGlobalShowClipSummary(
                 show,
                 cell.id,
                 Object.fromEntries(patternControls.map((control) => [control.exportName, control.label])),
               )
+              const previousCandidate = row.cells[cellIndex - 1]
+              const previousCell = previousCandidate
+                && previousCandidate.sceneIndex + previousCandidate.sceneSpan === cell.sceneIndex
+                ? previousCandidate
+                : null
+              const previousPatternControls = previousCell
+                ? patternControlsByCellId[previousCell.id] ?? []
+                : []
+              const previousSummary = previousCell
+                ? projectGlobalShowClipSummary(
+                    show,
+                    previousCell.id,
+                    Object.fromEntries(previousPatternControls.map((control) => [control.exportName, control.label])),
+                  )
+                : null
               const sceneComposition = projectSceneCompositionSummary(show, cell.sceneId, cell.zoneId)
               return (
               <button
@@ -2630,11 +2639,12 @@ function SceneStrip({
                   <span className="absolute right-2 top-1.5 text-[9px] uppercase tracking-wider text-structural">hold</span>
                 )}
                 <span className="flex min-w-0 items-center gap-1.5">
-                  <Grid2X2 size={11} aria-hidden className="shrink-0 text-zinc-500" />
-                  <span className="truncate text-[13px] font-semibold text-zinc-100">{cell.patternName}</span>
+                  <Grid2X2 size={11} aria-hidden className="show-clip-pattern-icon shrink-0 text-zinc-500" />
+                  <span className="show-clip-pattern-name truncate text-[12px] font-medium text-zinc-100">{cell.patternName}</span>
                 </span>
                 <ClipSummaryInline
                   summary={summary}
+                  previousSummary={previousSummary}
                   zoneMode={(cell.zoneSpan ?? 1) > 1 ? cell.zoneMode ?? 'span' : null}
                   sceneComposition={sceneComposition?.nontrivial ? sceneComposition : null}
                 />
@@ -5749,36 +5759,47 @@ function NumberField({
 
 function ClipSummaryInline({
   summary,
+  previousSummary,
   zoneMode,
   sceneComposition,
 }: {
   summary: ShowClipSummarySection[]
+  previousSummary: ShowClipSummarySection[] | null
   zoneMode: 'span' | 'repeat' | null
   sceneComposition: SceneCompositionSummary | null
 }) {
   const zoneFact = zoneMode ? `${zoneMode} zones` : ''
   const fullSummary = [showClipInlineSummary(summary), zoneFact].filter(Boolean).join(' · ')
+  const timelineSummary = projectShowClipTimelineSummary(summary, previousSummary)
   return (
     <span
       aria-hidden
       title={fullSummary}
-      className="show-clip-summary-inline flex min-w-0 items-center gap-2 overflow-hidden whitespace-nowrap text-[10px] text-zinc-500"
+      className="show-clip-summary-inline flex min-w-0 items-center gap-0.5 overflow-hidden whitespace-nowrap text-[10px] text-zinc-500"
     >
       {summary.length === 0 && <span className="show-clip-summary-copy shrink-0">defaults</span>}
-      {summary.map((section) => (
-        <span key={section.kind} className="show-clip-summary-section inline-flex min-w-max items-center gap-1">
-          <ClipSummaryIcon kind={section.kind} size={10} />
-          <span className="show-clip-summary-copy">
-            {section.items.map((item, index) => (
-              <span key={item.id}>
-                {index > 0 && <span className="px-0.5 text-zinc-700">·</span>}
-                <span>{item.label}</span>
-                {item.value && <span className="ml-1 text-zinc-400">{item.value}</span>}
+      {timelineSummary.map((section) => {
+        const visibleItems = section.items.filter((item) => item.showValue)
+        return (
+          <span
+            key={section.kind}
+            data-show-clip-summary-has-value={visibleItems.length > 0 ? 'true' : 'false'}
+            className={`show-clip-summary-section inline-flex min-w-max items-center gap-1 ${visibleItems.length > 0 ? 'mr-1.5 last:mr-0' : ''}`}
+          >
+            <ClipSummaryIcon kind={section.kind} size={10} />
+            {visibleItems.length > 0 && (
+              <span className="show-clip-summary-values inline-flex items-center">
+                {visibleItems.map((item, index) => (
+                  <span key={item.id}>
+                    {index > 0 && <span className="px-0.5 text-zinc-700">·</span>}
+                    <span className="text-zinc-400">{item.displayValue}</span>
+                  </span>
+                ))}
               </span>
-            ))}
+            )}
           </span>
-        </span>
-      ))}
+        )
+      })}
       {zoneMode && (
         <span className="show-clip-summary-section inline-flex min-w-max items-center gap-1">
           <MapIcon size={10} aria-hidden className="text-zinc-600" />

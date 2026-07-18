@@ -1005,6 +1005,16 @@ than producing flat lanes. Default-only global targets also return
 `disclosed: false`, so Zone row stride is derived from meaningful animation
 instead of reserving empty rows.
 
+`showClipSummary.ts` keeps the complete authored Clip facts independent of
+timeline density. Its timeline projection compares each fact's stable category
+and item identity with the preceding Clip in the same Zone. A new or changed
+value remains beside the category glyph; an unchanged continuation retains only
+the glyph. A gap between Clips resets the comparison. Multi-parameter Effect
+values carry a separate contracted timeline spelling while their full summary
+remains unchanged. Container queries can therefore yield the Pattern icon near
+square widths without deciding semantic continuity or deleting the Pattern
+name.
+
 `ShowPropertySparkline` is the shared React renderer used by the global Show
 timeline, Scene X-ray, Super Detail, and the Scene-local editor. It draws into a
 ten-unit SVG ordinate and separates four-pixel beat marks from twelve-pixel
@@ -1024,6 +1034,11 @@ outgoing boundaries, available zones, Main placements, ordered overlay layers,
 and diagnostics. A
 missing Scene closes the scope; a stale Zone falls back to the first occupied
 Zone and then the first Show Zone.
+
+`ShowSceneXray` owns no transient preview state. Only its explicit button toggles
+the parent `SceneStrip`'s single Super Detail owner; hover and focus cannot mount
+the portal. Timeline viewport changes clear that owner, and the modeless layer's
+Escape, close, and click-away paths share the same close operation.
 
 `ShowSceneZoneEditor` is the production authoring consumer of that scope.
 Super Detail's Open Scene command swaps the center timeline surface while the

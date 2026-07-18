@@ -266,6 +266,10 @@ describe('ShowEditor (#318)', () => {
 
     const clip = screen.getByRole('button', { name: 'Select Ribbon Loom' })
     expect(within(clip).getByTitle('Animation speed 0.35× · Speed 0.28 · Hue 0.1 turn')).toBeInTheDocument()
+    expect(within(clip).getByText('0.35×')).toBeInTheDocument()
+    expect(within(clip).getByText('0.28')).toBeInTheDocument()
+    expect(within(clip).getByText('0.1 turn')).toBeInTheDocument()
+    expect(within(clip).queryByText('Animation speed')).not.toBeInTheDocument()
     await user.hover(clip)
     expect(screen.queryByRole('tooltip', { name: 'Ribbon Loom Clip overrides' })).not.toBeInTheDocument()
     await user.click(clip)
@@ -303,15 +307,14 @@ describe('ShowEditor (#318)', () => {
     const clip = screen.getByRole('button', { name: 'Select Caustics' })
     expect(within(clip).getByTitle('Scene composition: 2 clips · 2 layers · 2 effects · 1 animation')).toBeInTheDocument()
 
-    const inspect = screen.getByRole('button', { name: 'Pin Signal over water Super Detail' })
     expect(screen.getByTitle('Caustics · 0s–16s')).toBeInTheDocument()
     expect(screen.getByTitle('SignalMandala · 3s–13s')).toBeInTheDocument()
-    await user.click(inspect)
+    await user.click(screen.getByRole('button', { name: 'Open Signal over water Super Detail' }))
     const detail = screen.getByRole('dialog', { name: 'Signal over water Super Detail' })
     expect(within(detail).getByRole('group', { name: 'Main layer for Main' })).toHaveTextContent('Caustics')
     expect(within(detail).getByRole('group', { name: 'Signal overlay layer for Main' })).toHaveTextContent('SignalMandala')
     expect(within(detail).getByRole('group', { name: 'SignalMandala opacity local animation' })).toBeInTheDocument()
-    await user.click(inspect)
+    await user.click(screen.getByRole('button', { name: 'Close Signal over water Super Detail' }))
     expect(screen.queryByRole('dialog', { name: 'Signal over water Super Detail' })).not.toBeInTheDocument()
   })
 
@@ -336,7 +339,7 @@ describe('ShowEditor (#318)', () => {
     expect(within(panel).getByRole('table', { name: 'Advanced clip controls' })).toHaveClass('text-[10px]')
   })
 
-  it('keeps every Scene X-ray visible and lets hover previews be pinned (#471)', async () => {
+  it('keeps every Scene X-ray visible and toggles Super Detail only from its button (#548)', async () => {
     const user = userEvent.setup()
     const show = createDefaultShow('show-scene-xray', 'Scene X-ray', 1000)
     show.transitions![0].propertyTransitions = {
@@ -359,15 +362,21 @@ describe('ShowEditor (#318)', () => {
     expect(transitionXray).not.toHaveTextContent('xf')
 
     fireEvent.mouseEnter(firstXray)
+    expect(screen.queryByRole('dialog', { name: 'Scene 1 Super Detail' })).not.toBeInTheDocument()
+    fireEvent.focus(firstXray)
+    expect(screen.queryByRole('dialog', { name: 'Scene 1 Super Detail' })).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Open Scene 1 Super Detail' }))
     expect(screen.getByRole('dialog', { name: 'Scene 1 Super Detail' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Open Scene 1 editor' })).toBeInTheDocument()
     fireEvent.mouseLeave(firstXray)
+    expect(screen.getByRole('dialog', { name: 'Scene 1 Super Detail' })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Close Scene 1 Super Detail' }))
     expect(screen.queryByRole('dialog', { name: 'Scene 1 Super Detail' })).not.toBeInTheDocument()
 
     fireEvent.mouseEnter(secondXray)
-    expect(screen.getByRole('dialog', { name: 'Scene 2 Super Detail' })).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'Pin Scene 2 Super Detail' }))
-    fireEvent.mouseLeave(secondXray)
+    expect(screen.queryByRole('dialog', { name: 'Scene 2 Super Detail' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Open Scene 2 Super Detail' }))
     expect(screen.getByRole('dialog', { name: 'Scene 2 Super Detail' })).toBeInTheDocument()
 
     fireEvent.change(screen.getByRole('slider', { name: 'Timeline zoom' }), { target: { value: '5.1' } })

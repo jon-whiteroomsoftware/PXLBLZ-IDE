@@ -427,12 +427,14 @@
     display: none;
   }
 
-  .show-timeline-clip .show-clip-summary-inline {
-    gap: 5px;
-  }
-
   .show-timeline-clip .show-clip-summary-section {
     min-width: 0;
+  }
+}
+
+@container (max-width: 92px) {
+  .show-timeline-clip .show-clip-pattern-icon {
+    display: none;
   }
 }
 
