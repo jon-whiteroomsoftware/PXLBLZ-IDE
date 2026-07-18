@@ -1560,7 +1560,7 @@ and smaller; benchmark options can retain unrolled or structural emission.
 
 The Motion Transitions reference has 21 Scenes, 20 Motion boundaries, and three
 Pattern instances. Its production representation interns two stack plans and
-emits 11 kernels. Generated source falls from 108,385 to 67,552 bytes and
+emits 11 kernels. Generated source falls from 108,033 to 67,552 bytes and
 Controller bytecode from 59,202 to 37,722 bytes, while the three-plane arena
 remains 6,012 words. The resulting source fits the measured 68,384-byte
 activation budget with 832 bytes free. Sixty start/mid/end samples and the full
@@ -1576,6 +1576,12 @@ compare rows after a failed activation. The complete evidence is archived in
 `docs/plans/archive/issue-525-shared-motion-transition-results.md`.
 
 ### Whole-Show VM resource ledger
+
+The closed cross-slice results, cumulative performance ledger, negative
+findings, and resulting optimization rules are summarized in
+`docs/reference/Show Rendering Optimization Results.md`. The detailed completed
+design and raw ledger remain archived in
+`docs/plans/archive/show-render-target-cache-planner.md`.
 
 `showVmResourceLedger.ts` makes hardware eligibility one aggregate accounting
 decision. The Pixelblaze array pool is modeled as 10,240 words, and every array

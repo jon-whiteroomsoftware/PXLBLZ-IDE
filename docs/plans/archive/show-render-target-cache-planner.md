@@ -1,11 +1,11 @@
 # Show render target and cache planner
 
-Status: proposed technical design
+Status: implemented and qualified; archived after completion
 Date: 2026-07-17
 
-PXLBLZ-IDE will make 2,000 pixels the supported output ceiling for compiled
-Shows and reserve one full-resolution, three-plane render target inside every
-generated Show artifact. The Show compiler will use that fixed memory arena to
+PXLBLZ-IDE makes 2,000 pixels the supported output ceiling for compiled Shows
+and reserves one full-resolution, three-plane render target inside every
+generated Show artifact. The Show compiler uses that fixed memory arena to
 materialize RGB output, transformed coordinates, or scalar fields when reuse
 costs less than recomputation. Ordinary composition will continue to evaluate
 at most one live Pattern per output pixel; expensive live/live policies remain
@@ -507,17 +507,21 @@ and a cheap default path for common multi-Pattern choreography.
 The work should land as tracer-bullet slices rather than one compiler rewrite.
 
 1. Establish the 2,000-pixel support envelope and whole-Show VM ledger through
-   preview, compile summary, artifact gates, and documentation.
+   preview, compile summary, artifact gates, and documentation. **Shipped in
+   #514.**
 2. Land exact routing short-circuiting, capture specialization, dead-work
-   removal, and Redline regression benchmarks.
+   removal, and Redline regression benchmarks. **Shipped in #512.**
 3. Add frame-invariant analysis and property-specialized internal render kernels
-   behind measured bytecode tradeoffs.
+   behind measured bytecode tradeoffs. **Shipped in #513; property-kernel
+   runtime selection remains hardware-profile gated after a neutral result.**
 4. Allocate the three-plane arena, expose typed read/write roles and resource
    diagnostics, and preserve output without changing transition semantics.
+   **Shipped in #515.**
 5. Share exact routed Motion transition environments and family kernels so
    large repeated-transition Shows fit before the buffered scheduler changes.
+   **Shipped in #525.**
 6. Add explicit snapshot/live crossfade end to end while preserving legacy
-   live/live behavior.
+   live/live behavior. **Shipped in #516.**
 7. Introduce render-target roles, lifetimes, invalidation, and plane assignment
    as a pure cache planner. **Shipped in #517.**
 8. Reuse compatible Pattern output across multiple consumers and placements.
@@ -527,7 +531,8 @@ The work should land as tracer-bullet slices rather than one compiler rewrite.
    candidate is implemented but remains diagnostic-only after #528's hardware
    gate showed a repeatable 2,000-pixel slowdown.**
 10. Validate the five-Pattern acceptance Show, faster output profiles, rollout
-   defaults, and as-built documentation.
+    defaults, and as-built documentation. **Qualified in #520; current defaults
+    and the diagnostic coordinate boundary are recorded in reference docs.**
 
 Each slice must leave generated artifacts runnable and keep direct non-buffered
 emission available until the new path clears its correctness and hardware gates.
@@ -555,9 +560,10 @@ the prior measured result without claiming a new hardware benchmark.
 12 #528 exact sample-coordinate field candidate · paired 2,000 px Redline median 3.008 -> 2.814 FPS in both passes · incremental -6.43% median (mean -5.94% / -4.75%); 256 and 1,000 px results mixed, so production remains disabled; exact X/Y replay avoids an estimated 16,600 coordinate operations/cached frame across 7 Scene rebuilds/loop but source 19,435 -> 29,360 B and bytecode 11,810 -> 16,938 B; arena unchanged at 6,012 words and total VM unchanged at 6,096 words, +4 persistent globals; Fast and Precise checksums match at 8 Redline and 6 generic score times · cumulative exact Redline reference 2.358 -> 3.037 FPS, +28.8% retained; snapshot/live median 3.197 FPS retained
 ```
 
-Later slices append the next numbered line here and repeat it in the #511
-coordination update. If a slice intentionally changes the visual contract, its
-line names that contract and does not compare it as an exact replacement.
+This ledger closed with line 12. Future optimization research starts a separate
+ledger so the completed epic remains a stable evidence record. A slice that
+intentionally changed the visual contract names that contract and is not
+compared as an exact replacement.
 
 ## Issue map
 
@@ -584,17 +590,16 @@ The approved delivery slices are filed under the coordination epic:
 - [#519 - Cache scalar visual fields](https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/issues/519)
   generalizes repeated geometry and Effect work.
 - [#520 - Qualify the five-Pattern acceptance Show](https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/issues/520)
-  is implemented locally with Controller and visual evidence; production-default
-  recommendations await final human confirmation and landing.
+  qualifies the combined mechanisms, resource envelope, Controller behavior,
+  visual result, and production defaults.
 - [#527 - Add content-aware luma and chroma key composition](https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/issues/527)
   adds authored mattes and conditional lower-source evaluation.
 - [#528 - Cache exact sample coordinates across compatible Show consumers](https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/issues/528)
   implements an exact diagnostic candidate; firmware qualification keeps
   production selection disabled because the measured profile did not win.
 
-Implementation progress and the current cumulative performance ledger are
-tracked on #511. Individual issue state remains authoritative for ownership and
-review readiness.
+Implementation progress and the cumulative performance ledger were tracked on
+#511. Individual issue state remains authoritative for landing and closure.
 
 ## Risks and boundaries
 
@@ -649,15 +654,12 @@ Installation space. The product must explain that contract clearly and retain
 the earlier 4,000-pixel measurements as historical engineering evidence rather
 than presenting them as a supported production promise.
 
-## Decisions requiring review
+## Decisions confirmed by implementation
 
-The technical direction is coherent, but three product decisions should be
-confirmed before their implementation issues become AFK-ready:
-
-1. Existing crossfades without an explicit evaluation policy retain live/live
-   semantics; new crossfades default to snapshot/live.
-2. Existing Shows above 2,000 pixels remain editable but block artifact actions;
-   no unsupported best-effort push bypass is offered in the primary UI.
+1. Existing Crossfades without an explicit evaluation policy retain live/live
+   semantics; new Crossfades default to snapshot/live.
+2. Existing Shows above 2,000 pixels remain inspectable and editable but block
+   artifact actions; the primary UI offers no unsupported push bypass.
 3. The three-plane reservation is mandatory for every compiled Show, even when
    the current plan chooses direct rendering and never materializes RGB.
 
@@ -677,5 +679,7 @@ Implementation updates current truth only as slices ship:
 - archived hardware reports: retain raw Controller evidence and restoration
   details.
 
-This plan remains the durable forward-looking source until the corresponding
-reference sections ship.
+The corresponding reference sections have shipped. This archived plan remains
+the detailed implementation history, benchmark ledger, and rationale. Current
+truth belongs to the linked reference documents; future opportunities are
+tracked separately.
