@@ -21,6 +21,9 @@ export interface ShowCompiledCostMetadata {
       colorScalarOpsPerEvaluatedPixel: number
       colorFloorCallsPerEvaluatedPixel: number
       colorTrigCallsPerEvaluatedPixel: number
+      keyEffectsPerEvaluatedPixel: number
+      keyScalarOpsPerEvaluatedPixel: number
+      keySqrtCallsPerEvaluatedPixel: 0
       distortionEffectsPerEvaluatedPixel: number
       distortionScalarOpsPerEvaluatedPixel: number
       distortionFloorCallsPerEvaluatedPixel: number
@@ -144,6 +147,8 @@ export const SHOW_VISUAL_TOOLKIT_REGISTRY: ShowToolkitFamilyDescriptor[] = [
       { id: 'contrast', label: 'Contrast', costPolicies: ['single-source', 'parameter'], compatibility: { stageDimensions: [1, 2, 3] } },
       { id: 'invert', label: 'Invert', costPolicies: ['single-source', 'parameter'], compatibility: { stageDimensions: [1, 2, 3] }, presets: [{ id: 'full', label: 'Full', values: { amount: 1 } }] },
       { id: 'threshold', label: 'Threshold', costPolicies: ['single-source', 'parameter'], compatibility: { stageDimensions: [1, 2, 3] } },
+      { id: 'luma-key', label: 'Luma key', costPolicies: ['single-source', 'selector', 'bounded-blend'], compatibility: { stageDimensions: [1, 2, 3] }, presets: [{ id: 'black', label: 'Remove black', values: { target: 0 } }, { id: 'white', label: 'Remove white', values: { target: 1 } }] },
+      { id: 'chroma-key', label: 'Chroma key', costPolicies: ['single-source', 'selector', 'bounded-blend'], compatibility: { stageDimensions: [1, 2, 3] }, presets: [{ id: 'green', label: 'Green screen', values: { color: '#00ff00' } }, { id: 'blue', label: 'Blue screen', values: { color: '#0000ff' } }] },
       { id: 'posterize', label: 'Posterize', costPolicies: ['single-source', 'parameter'], compatibility: { stageDimensions: [1, 2, 3] } },
       { id: 'color-map', label: 'Color map', costPolicies: ['single-source', 'parameter'], compatibility: { stageDimensions: [1, 2, 3] } },
     ],
@@ -155,6 +160,10 @@ export const SHOW_VISUAL_TOOLKIT_REGISTRY: ShowToolkitFamilyDescriptor[] = [
       { id: 'contrast', label: 'Contrast', kind: 'number', defaultValue: 1, min: 0, max: 4, step: 0.01, variantIds: ['contrast'] },
       { id: 'amount', label: 'Amount', kind: 'number', defaultValue: 0, min: 0, max: 1, step: 0.01, variantIds: ['invert', 'threshold', 'posterize', 'color-map'] },
       { id: 'threshold', label: 'Threshold', kind: 'number', defaultValue: 0.5, min: 0, max: 1, step: 0.01, variantIds: ['threshold'] },
+      { id: 'target', label: 'Target luminance', kind: 'number', defaultValue: 0, min: 0, max: 1, step: 0.01, variantIds: ['luma-key'] },
+      { id: 'color', label: 'Target color', kind: 'color', defaultValue: '#00ff00', variantIds: ['chroma-key'] },
+      { id: 'tolerance', label: 'Tolerance', kind: 'number', defaultValue: 0.05, min: 0, max: 1, step: 0.01, variantIds: ['luma-key', 'chroma-key'] },
+      { id: 'softness', label: 'Softness', kind: 'number', defaultValue: 0.05, min: 0, max: 1, step: 0.01, variantIds: ['luma-key', 'chroma-key'] },
       { id: 'levels', label: 'Levels', kind: 'number', defaultValue: 8, min: 2, max: 32, step: 1, variantIds: ['posterize'] },
       { id: 'shadowR', label: 'Shadow red', kind: 'number', defaultValue: 0, min: 0, max: 1, step: 0.01, variantIds: ['color-map'] },
       { id: 'shadowG', label: 'Shadow green', kind: 'number', defaultValue: 0, min: 0, max: 1, step: 0.01, variantIds: ['color-map'] },
@@ -595,6 +604,9 @@ export function buildShowCompiledCostMetadata(input: {
         colorScalarOpsPerEvaluatedPixel: input.effects?.colorScalarOpsPerEvaluatedPixel ?? 0,
         colorFloorCallsPerEvaluatedPixel: input.effects?.colorFloorCallsPerEvaluatedPixel ?? 0,
         colorTrigCallsPerEvaluatedPixel: input.effects?.colorTrigCallsPerEvaluatedPixel ?? 0,
+        keyEffectsPerEvaluatedPixel: input.effects?.keyEffectsPerEvaluatedPixel ?? 0,
+        keyScalarOpsPerEvaluatedPixel: input.effects?.keyScalarOpsPerEvaluatedPixel ?? 0,
+        keySqrtCallsPerEvaluatedPixel: 0,
         distortionEffectsPerEvaluatedPixel: input.effects?.distortionEffectsPerEvaluatedPixel ?? 0,
         distortionScalarOpsPerEvaluatedPixel: input.effects?.distortionScalarOpsPerEvaluatedPixel ?? 0,
         distortionFloorCallsPerEvaluatedPixel: input.effects?.distortionFloorCallsPerEvaluatedPixel ?? 0,

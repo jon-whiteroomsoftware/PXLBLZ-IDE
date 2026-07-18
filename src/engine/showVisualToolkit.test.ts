@@ -162,7 +162,7 @@ describe('Show visual-toolkit contract', () => {
 
     const output = getShowToolkitFamily('effect', 'output')
     expect(output?.variants.map((variant) => variant.id)).toEqual([
-      'opacity', 'brightness', 'hue', 'saturation', 'contrast', 'invert', 'threshold', 'posterize', 'color-map',
+      'opacity', 'brightness', 'hue', 'saturation', 'contrast', 'invert', 'threshold', 'luma-key', 'chroma-key', 'posterize', 'color-map',
     ])
     expect(resolveShowToolkitParameters('effect', 'output', 'hue', {}).map((parameter) => parameter.id))
       .toEqual(['turns', 'easing'])
@@ -170,6 +170,13 @@ describe('Show visual-toolkit contract', () => {
       .toEqual(['amount', 'levels', 'easing'])
     expect(resolveShowToolkitParameters('effect', 'output', 'color-map', {}).map((parameter) => parameter.id))
       .toEqual(['amount', 'shadowR', 'shadowG', 'shadowB', 'highlightR', 'highlightG', 'highlightB', 'easing'])
+    expect(resolveShowToolkitParameters('effect', 'output', 'luma-key', {}).map((parameter) => parameter.id))
+      .toEqual(['target', 'tolerance', 'softness', 'easing'])
+    expect(resolveShowToolkitParameters('effect', 'output', 'chroma-key', {})).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: 'color', kind: 'color', defaultValue: '#00ff00' }),
+      expect.objectContaining({ id: 'tolerance', kind: 'number', defaultValue: 0.05 }),
+      expect.objectContaining({ id: 'softness', kind: 'number', defaultValue: 0.05 }),
+    ]))
 
     const distortion = getShowToolkitFamily('effect', 'distortion')
     expect(distortion?.variants.map((variant) => variant.id)).toEqual([

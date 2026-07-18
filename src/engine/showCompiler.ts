@@ -493,6 +493,21 @@ export interface ShowCompileSummary {
       baselineEmittedBytes: number
       avoidedEmittedBytes: number
     } | null
+    contentKeys: {
+      keyedClipCount: number
+      selectedStackCount: number
+      rejectedStackCount: number
+      evaluationFormula: 'N + U' | null
+      bestCaseRenderersPerPixel: 1 | null
+      worstCaseRenderersPerPixel: 2 | null
+      featheredPixelsEvaluateBoth: boolean
+      stacks: Array<{
+        sceneIndex: number
+        zoneName: string
+        status: 'selected' | 'rejected'
+        reason: 'selected' | 'disabled' | 'stack-depth' | 'keyed-layer-not-top' | 'top-opacity'
+      }>
+    }
     patternOutputReuse: {
       selectedGroupCount: number
       evaluationsAvoidedPerFrame: number
@@ -601,6 +616,7 @@ interface CompiledMember {
     estimatedOperationsAvoidedPerFrame: number
     addedSourceBytes: number
   }
+  conditionalContentKeyEvaluation: boolean
 }
 
 interface CompiledPatternOutputReuseGroup {
@@ -651,6 +667,8 @@ export interface ShowCompileOptions {
   patternOutputReuse?: boolean
   /** Benchmark-only counterfactual; production uses exact profitable scalar fields when available. */
   scalarFieldCaching?: boolean
+  /** Benchmark-only counterfactual; production conditionally skips covered lower keyed layers. */
+  contentKeyConditionalEvaluation?: boolean
 }
 
 const DIRECT_SNAPSHOT_CANDIDATE_ID = 'transition:direct:snapshot-live'
@@ -845,6 +863,10 @@ function buildPatternOutputReuseAnalysis(
         const resolvedEffects = member.effects.map((template) => (
           authoredEffects.find((effect) => effect.id === template.id && effect.kind === template.kind) ?? template
         ))
+        if (resolvedEffects.some((effect) => effect.kind === 'luma-key' || effect.kind === 'chroma-key')) {
+          excluded.push({ consumerId: placement.consumerId, reasons: ['output-alpha'] })
+          return []
+        }
         return [{
           consumerId: placement.consumerId,
           patternIdentity: member.resourceSource,
@@ -952,6 +974,7 @@ export function compileShow(
   const motionTransitionSharing = options.motionTransitionSharing ?? 'auto'
   const patternOutputReuse = options.patternOutputReuse ?? true
   const scalarFieldCaching = options.scalarFieldCaching ?? true
+  const contentKeyConditionalEvaluation = options.contentKeyConditionalEvaluation ?? true
   validateRecipe(expandedRecipe)
   const animatedEffectClipIds = new Set<string>()
   const dynamicallyAnimatedEffectClipIds = new Set<string>()
@@ -1018,6 +1041,7 @@ export function compileShow(
       expandedRecipe.masterPixelCount ?? 256,
       showMemberNeedsMirrorMapping(expandedRecipe, clip),
       showMemberNeedsBrightnessScale(expandedRecipe, clip),
+      contentKeyConditionalEvaluation,
     ),
     samplePropertyRamps: expandedRecipe.samplePropertyRamps,
   }))
@@ -1557,6 +1581,7 @@ export function compileShow(
       })),
       renderKernels: routedSceneEmission?.renderKernels ?? null,
       motionTransitions: routedSceneEmission?.motionTransitions ?? null,
+      contentKeys: describeContentKeySpecialization(expandedRecipe, members),
       patternOutputReuse: {
         selectedGroupCount: patternOutputReuseGroupsSummary.filter((group) => group.status === 'selected').length,
         evaluationsAvoidedPerFrame: patternOutputReuseGroupsSummary.reduce((peak, group) => (
@@ -1921,6 +1946,7 @@ function compileMember(
   outputPixelCount = 256,
   needsMirrorMapping = Boolean(clip.adaptation?.mirror),
   needsBrightnessScale = (clip.adaptation?.brightness ?? 1) !== 1,
+  conditionalContentKeyEvaluation = true,
 ): CompiledMember {
   const bundled = bundle(clip.source, libraries)
   const prefix = `__pxlblz_show_c${index}`
@@ -2010,6 +2036,7 @@ function compileMember(
       ), 0),
       addedSourceBytes: frameHoists.addedSourceBytes,
     },
+    conditionalContentKeyEvaluation,
   }
 }
 
@@ -3812,6 +3839,53 @@ function groupRoutedPlacementsByZone(
   return result
 }
 
+function describeContentKeySpecialization(
+  recipe: ShowRecipe,
+  members: CompiledMember[],
+): ShowCompileSummary['specializations']['contentKeys'] {
+  const keyedClipCount = members.filter((member) => (
+    member.effects.some((effect) => effect.kind === 'luma-key' || effect.kind === 'chroma-key')
+  )).length
+  const memberById = new Map(members.map((member) => [member.id, member]))
+  const stacks = recipe.routedSceneSequence?.scenes.flatMap((scene, sceneIndex) => {
+    const placements = scene.placements.map((placement, placementIndex) => ({
+      ...placement,
+      member: memberById.get(placement.clipId)!,
+      consumerId: patternOutputConsumerId(sceneIndex, placementIndex),
+    }))
+    return [...groupRoutedPlacementsByZone(placements)].flatMap(([zoneName, stack]) => {
+      if (stack.length < 2 || !stack.some(routedPlacementHasContentKey)) return []
+      const top = stack[stack.length - 1]
+      const reason = stack.length !== 2
+        ? 'stack-depth' as const
+        : !routedPlacementHasContentKey(top)
+          ? 'keyed-layer-not-top' as const
+          : !top.member.conditionalContentKeyEvaluation
+            ? 'disabled' as const
+          : !routedPlacementIsOpaque(top, scene.propertyTracks)
+            ? 'top-opacity' as const
+            : 'selected' as const
+      return [{
+        sceneIndex,
+        zoneName,
+        status: reason === 'selected' ? 'selected' as const : 'rejected' as const,
+        reason,
+      }]
+    })
+  }) ?? []
+  const selectedStackCount = stacks.filter((stack) => stack.status === 'selected').length
+  return {
+    keyedClipCount,
+    selectedStackCount,
+    rejectedStackCount: stacks.length - selectedStackCount,
+    evaluationFormula: selectedStackCount > 0 ? 'N + U' : null,
+    bestCaseRenderersPerPixel: selectedStackCount > 0 ? 1 : null,
+    worstCaseRenderersPerPixel: selectedStackCount > 0 ? 2 : null,
+    featheredPixelsEvaluateBoth: selectedStackCount > 0,
+    stacks,
+  }
+}
+
 function routedSceneStackNeedsWrapper(stack: ResolvedRoutedScenePlacement[]): boolean {
   return stack.length > 1 || stack.some((placement) => Boolean(placement.placementId))
 }
@@ -3966,6 +4040,46 @@ function emitRoutedPlacementStackCapture(
   propertyTracks?: ShowPropertyAnimationTrack[],
   localTimeExpression?: string,
 ): string {
+  const keyedTop = placements.length === 2
+    && routedPlacementIsOpaque(placements[1], propertyTracks)
+    && routedPlacementHasContentKey(placements[1])
+    && placements[1].member.conditionalContentKeyEvaluation
+      ? placements[1]
+      : undefined
+  if (keyedTop) {
+    const lower = placements[0]
+    const topRendered = emitRoutedPlacementCapture(
+      keyedTop,
+      capture(keyedTop),
+      propertyTracks,
+      localTimeExpression,
+    )
+    const lowerRendered = emitRoutedPlacementCapture(
+      lower,
+      capture(lower),
+      propertyTracks,
+      localTimeExpression,
+    )
+    const topAlpha = keyedTop.member.prefix + '_alpha'
+    const lowerAlpha = memberHasContentKey(lower.member)
+      ? `(${lowerRendered.opacity}) * ${lower.member.prefix}_alpha`
+      : lowerRendered.opacity
+    return [
+      `var ${target}_r = 0`,
+      `var ${target}_g = 0`,
+      `var ${target}_b = 0`,
+      ...topRendered.lines,
+      `${target}_r = ${keyedTop.member.prefix}_r * ${topAlpha}`,
+      `${target}_g = ${keyedTop.member.prefix}_g * ${topAlpha}`,
+      `${target}_b = ${keyedTop.member.prefix}_b * ${topAlpha}`,
+      `if (${topAlpha} < 1) {`,
+      ...lowerRendered.lines.map((line) => `  ${line}`),
+      `  ${target}_r = ${target}_r + ${lower.member.prefix}_r * ${lowerAlpha} * (1 - ${topAlpha})`,
+      `  ${target}_g = ${target}_g + ${lower.member.prefix}_g * ${lowerAlpha} * (1 - ${topAlpha})`,
+      `  ${target}_b = ${target}_b + ${lower.member.prefix}_b * ${lowerAlpha} * (1 - ${topAlpha})`,
+      '}',
+    ].join('\n')
+  }
   return [
     `var ${target}_r = 0`,
     `var ${target}_g = 0`,
@@ -3978,14 +4092,39 @@ function emitRoutedPlacementStackCapture(
         localTimeExpression,
       )
       const member = placement.member
+      if (!memberHasContentKey(member)) {
+        return [
+          ...rendered.lines,
+          `${target}_r = ${member.prefix}_r * (${rendered.opacity}) + ${target}_r * (1 - (${rendered.opacity}))`,
+          `${target}_g = ${member.prefix}_g * (${rendered.opacity}) + ${target}_g * (1 - (${rendered.opacity}))`,
+          `${target}_b = ${member.prefix}_b * (${rendered.opacity}) + ${target}_b * (1 - (${rendered.opacity}))`,
+        ]
+      }
+      const opacity = `(${rendered.opacity}) * ${member.prefix}_alpha`
       return [
         ...rendered.lines,
-        `${target}_r = ${member.prefix}_r * (${rendered.opacity}) + ${target}_r * (1 - (${rendered.opacity}))`,
-        `${target}_g = ${member.prefix}_g * (${rendered.opacity}) + ${target}_g * (1 - (${rendered.opacity}))`,
-        `${target}_b = ${member.prefix}_b * (${rendered.opacity}) + ${target}_b * (1 - (${rendered.opacity}))`,
+        `${target}_r = ${member.prefix}_r * ${opacity} + ${target}_r * (1 - ${opacity})`,
+        `${target}_g = ${member.prefix}_g * ${opacity} + ${target}_g * (1 - ${opacity})`,
+        `${target}_b = ${member.prefix}_b * ${opacity} + ${target}_b * (1 - ${opacity})`,
       ]
     }),
   ].join('\n')
+}
+
+function memberHasContentKey(member: CompiledMember): boolean {
+  return member.effects.some((effect) => effect.kind === 'luma-key' || effect.kind === 'chroma-key')
+}
+
+function routedPlacementHasContentKey(placement: ResolvedRoutedScenePlacement): boolean {
+  const member = placement.member
+  const effects = member.animatedEffects
+    ? member.effects.map((template) => (
+        normalizeShowClipEffects(placement.effects).find((effect) => (
+          effect.id === template.id && effect.kind === template.kind
+        )) ?? identityShowEffect(template)
+      ))
+    : member.effects
+  return effects.some((effect) => effect.kind === 'luma-key' || effect.kind === 'chroma-key')
 }
 
 function routedPlacementIsOpaque(
@@ -5609,6 +5748,29 @@ function emitMemberOutputEffectLines(member: CompiledMember): string {
         `  ${g} = ${g} * (1 - ${amount}) + ${name}_target * ${amount}`,
         `  ${b} = ${b} * (1 - ${amount}) + ${name}_target * ${amount}`,
       )
+    } else if (effect.kind === 'luma-key') {
+      const target = value(effect, 'target')
+      const tolerance = value(effect, 'tolerance')
+      const softness = value(effect, 'softness')
+      lines.push(
+        `  var ${name}_distance = abs(0.2126 * ${r} + 0.7152 * ${g} + 0.0722 * ${b} - ${target})`,
+        `  var ${name}_matte = ${softness} <= 0 ? (${name}_distance > ${tolerance}) : clamp((${name}_distance - ${tolerance}) / ${softness}, 0, 1)`,
+        `  ${member.prefix}_alpha = ${member.prefix}_alpha * ${name}_matte`,
+      )
+    } else if (effect.kind === 'chroma-key') {
+      const [targetR, targetG, targetB] = showTransitionColorToRgb(effect.color)
+      const tolerance = value(effect, 'tolerance')
+      const softness = value(effect, 'softness')
+      lines.push(
+        `  var ${name}_dr = ${r} - ${targetR}`,
+        `  var ${name}_dg = ${g} - ${targetG}`,
+        `  var ${name}_db = ${b} - ${targetB}`,
+        `  var ${name}_distance2 = (${name}_dr * ${name}_dr + ${name}_dg * ${name}_dg + ${name}_db * ${name}_db) / 3`,
+        `  var ${name}_inner2 = ${tolerance} * ${tolerance}`,
+        `  var ${name}_outer = min(1, ${tolerance} + ${softness})`,
+        `  var ${name}_matte = ${softness} <= 0 ? (${name}_distance2 > ${name}_inner2) : clamp((${name}_distance2 - ${name}_inner2) / max(0.000001, ${name}_outer * ${name}_outer - ${name}_inner2), 0, 1)`,
+        `  ${member.prefix}_alpha = ${member.prefix}_alpha * ${name}_matte`,
+      )
     } else if (effect.kind === 'posterize') {
       const levels = value(effect, 'levels')
       const amount = value(effect, 'amount')
@@ -5763,11 +5925,12 @@ ${advanceDelta('delta', '  ')}
     `var ${member.prefix}_r = 0`,
     `var ${member.prefix}_g = 0`,
     `var ${member.prefix}_b = 0`,
+    ...(memberHasContentKey(member) ? [`var ${member.prefix}_alpha = 1`] : []),
     ...(effectRuntime?.declarations ?? []),
     ...steppedClockVars,
     ...shutterVars,
-    `function ${member.prefix}_clear() { ${member.prefix}_r = 0; ${member.prefix}_g = 0; ${member.prefix}_b = 0 }`,
-    `function ${member.prefix}_rgb(r, g, b) { ${member.prefix}_r = r; ${member.prefix}_g = g; ${member.prefix}_b = b }`,
+    `function ${member.prefix}_clear() { ${member.prefix}_r = 0; ${member.prefix}_g = 0; ${member.prefix}_b = 0${memberHasContentKey(member) ? `; ${member.prefix}_alpha = 0` : ''} }`,
+    `function ${member.prefix}_rgb(r, g, b) { ${member.prefix}_r = r; ${member.prefix}_g = g; ${member.prefix}_b = b${memberHasContentKey(member) ? `; ${member.prefix}_alpha = 1` : ''} }`,
     ...(member.usesHsv
       ? [`function ${member.prefix}_hsv(h, s, v) { __pxlblz_show_capture_hsv(${index}, h + ${member.prefix}_adapt_phase, s, v) }`]
       : []),
@@ -5836,16 +5999,16 @@ ${emitMemberDistortionSampling(member, 'effectX', 'effectY')}
 ${emitMemberOutputEffectLines(member)}
 ${effectRuntime?.hasCoordinates && !effectRuntime.wrap ? `  if (!effectInside) ${member.prefix}_clear()
 ` : ''}}`] : []),
-    `function ${member.prefix}_emit() { rgb(${member.prefix}_r, ${member.prefix}_g, ${member.prefix}_b) }`,
+    `function ${member.prefix}_emit() { rgb(${member.prefix}_r${memberHasContentKey(member) ? ` * ${member.prefix}_alpha` : ''}, ${member.prefix}_g${memberHasContentKey(member) ? ` * ${member.prefix}_alpha` : ''}, ${member.prefix}_b${memberHasContentKey(member) ? ` * ${member.prefix}_alpha` : ''}) }`,
     ]
   })
 
   const usesHsv = members.some((member) => member.usesHsv)
   const captureBranches = members.length <= 2
-    ? `if (slot == 0) { __pxlblz_show_c0_r = r; __pxlblz_show_c0_g = g; __pxlblz_show_c0_b = b }
-  else { __pxlblz_show_c1_r = r; __pxlblz_show_c1_g = g; __pxlblz_show_c1_b = b }`
+    ? `if (slot == 0) { __pxlblz_show_c0_r = r; __pxlblz_show_c0_g = g; __pxlblz_show_c0_b = b${memberHasContentKey(members[0]) ? '; __pxlblz_show_c0_alpha = 1' : ''} }
+  else { __pxlblz_show_c1_r = r; __pxlblz_show_c1_g = g; __pxlblz_show_c1_b = b${members[1] && memberHasContentKey(members[1]) ? '; __pxlblz_show_c1_alpha = 1' : ''} }`
     : members.map((member, index) => (
-        `${index === 0 ? 'if' : 'else if'} (slot == ${index}) { ${member.prefix}_r = r; ${member.prefix}_g = g; ${member.prefix}_b = b }`
+        `${index === 0 ? 'if' : 'else if'} (slot == ${index}) { ${member.prefix}_r = r; ${member.prefix}_g = g; ${member.prefix}_b = b${memberHasContentKey(member) ? `; ${member.prefix}_alpha = 1` : ''} }`
       )).join('\n  ')
 
   return [
@@ -6301,19 +6464,24 @@ function describeEffectCost(
             : effect.kind === 'contrast' ? 9
               : effect.kind === 'invert' ? 12
                 : effect.kind === 'threshold' ? 16
+                  : effect.kind === 'luma-key' ? 13
+                    : effect.kind === 'chroma-key' ? 20
                   : effect.kind === 'posterize' ? 21
                     : 28
+      const keyScalar = effect.kind === 'luma-key' ? 13 : effect.kind === 'chroma-key' ? 20 : 0
       return {
         count: cost.count + 1,
         scalar: cost.scalar + scalar,
         floor: cost.floor + (effect.kind === 'posterize' ? 3 + (member.animatedEffects ? 1 : 0) : 0),
         trig: cost.trig + (effect.kind === 'hue' ? 2 : 0),
+        keyCount: cost.keyCount + (keyScalar > 0 ? 1 : 0),
+        keyScalar: cost.keyScalar + keyScalar,
       }
-    }, { count: legacyBrightness, scalar: legacyBrightness * 3, floor: 0, trig: 0 })
+    }, { count: legacyBrightness, scalar: legacyBrightness * 3, floor: 0, trig: 0, keyCount: 0, keyScalar: 0 })
   })
   const maxColor = memberColorCosts.reduce((worst, cost) => (
     cost.scalar > worst.scalar ? cost : worst
-  ), { count: 0, scalar: 0, floor: 0, trig: 0 })
+  ), { count: 0, scalar: 0, floor: 0, trig: 0, keyCount: 0, keyScalar: 0 })
   return {
     affineOperationsPerFrame,
     animatedParametersPerFrame: Math.max(adaptationAnimated, sequenceAnimated),
@@ -6323,6 +6491,9 @@ function describeEffectCost(
     colorScalarOpsPerEvaluatedPixel: maxColor.scalar,
     colorFloorCallsPerEvaluatedPixel: maxColor.floor,
     colorTrigCallsPerEvaluatedPixel: maxColor.trig,
+    keyEffectsPerEvaluatedPixel: maxColor.keyCount,
+    keyScalarOpsPerEvaluatedPixel: maxColor.keyScalar,
+    keySqrtCallsPerEvaluatedPixel: 0,
     distortionEffectsPerEvaluatedPixel: maxDistortion.count,
     distortionScalarOpsPerEvaluatedPixel: maxDistortion.scalar,
     distortionFloorCallsPerEvaluatedPixel: maxDistortion.floor,

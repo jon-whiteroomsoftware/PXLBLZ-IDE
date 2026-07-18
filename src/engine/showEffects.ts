@@ -1,4 +1,5 @@
 import type { ShowClipEffect } from './personalContentRecords'
+import { normalizeShowTransitionColor, showTransitionColorToRgb } from './showFadeThroughColor'
 
 export interface ShowAffineMatrix {
   a: number
@@ -39,6 +40,18 @@ export function normalizeShowClipEffects(effects: readonly ShowClipEffect[] | nu
     if (effect.kind === 'threshold') return [{
       id, kind: 'threshold' as const,
       threshold: clamp(effect.threshold, 0, 1, 0.5), amount: clamp(effect.amount, 0, 1, 0),
+    }]
+    if (effect.kind === 'luma-key') return [{
+      id, kind: 'luma-key' as const,
+      target: clamp(effect.target, 0, 1, 0),
+      tolerance: clamp(effect.tolerance, 0, 1, 0.05),
+      softness: clamp(effect.softness, 0, 1, 0.05),
+    }]
+    if (effect.kind === 'chroma-key') return [{
+      id, kind: 'chroma-key' as const,
+      color: typeof effect.color === 'string' ? normalizeShowTransitionColor(effect.color) : '#00ff00',
+      tolerance: clamp(effect.tolerance, 0, 1, 0.05),
+      softness: clamp(effect.softness, 0, 1, 0.05),
     }]
     if (effect.kind === 'posterize') return [{
       id, kind: 'posterize' as const,
@@ -99,6 +112,8 @@ export function showEffectParameterNames(effect: ShowClipEffect): string[] {
   if (effect.kind === 'contrast') return ['contrast']
   if (effect.kind === 'invert') return ['amount']
   if (effect.kind === 'threshold') return ['threshold', 'amount']
+  if (effect.kind === 'luma-key') return ['target', 'tolerance', 'softness']
+  if (effect.kind === 'chroma-key') return ['tolerance', 'softness']
   if (effect.kind === 'posterize') return ['levels', 'amount']
   if (effect.kind === 'color-map') return ['amount', 'shadowR', 'shadowG', 'shadowB', 'highlightR', 'highlightG', 'highlightB']
   if (effect.kind === 'ripple') return ['amount', 'frequency', 'phase', 'centerX', 'centerY']
@@ -134,6 +149,8 @@ export function showEffectsAreIdentity(effects: readonly ShowClipEffect[] | unde
     || (effect.kind === 'contrast' && effect.contrast !== 1)
     || (effect.kind === 'invert' && effect.amount !== 0)
     || (effect.kind === 'threshold' && effect.amount !== 0)
+    || effect.kind === 'luma-key'
+    || effect.kind === 'chroma-key'
     || (effect.kind === 'posterize' && effect.amount !== 0)
     || (effect.kind === 'color-map' && effect.amount !== 0)
   ))
@@ -141,7 +158,7 @@ export function showEffectsAreIdentity(effects: readonly ShowClipEffect[] | unde
 }
 
 export function isShowColorEffect(effect: ShowClipEffect): boolean {
-  return ['opacity', 'brightness', 'hue', 'saturation', 'contrast', 'invert', 'threshold', 'posterize', 'color-map'].includes(effect.kind)
+  return ['opacity', 'brightness', 'hue', 'saturation', 'contrast', 'invert', 'threshold', 'luma-key', 'chroma-key', 'posterize', 'color-map'].includes(effect.kind)
 }
 
 export function isShowDistortionEffect(effect: ShowClipEffect): effect is Extract<ShowClipEffect, { amount: number }> {
@@ -160,7 +177,21 @@ export function applyShowColorEffects(
   color: ShowRgb,
   legacyBrightness = 1,
 ): ShowRgb {
+  return applyShowOutputEffects(effects, color, legacyBrightness).color
+}
+
+export interface ShowOutputEffectResult {
+  color: ShowRgb
+  opacity: number
+}
+
+export function applyShowOutputEffects(
+  effects: readonly ShowClipEffect[] | undefined,
+  color: ShowRgb,
+  legacyBrightness = 1,
+): ShowOutputEffectResult {
   let current: ShowRgb = color.map((channel) => channel * legacyBrightness) as ShowRgb
+  let opacity = 1
   for (const effect of normalizeShowClipEffects(effects)) {
     if (effect.kind === 'opacity') {
       current = current.map((channel) => channel * effect.opacity) as ShowRgb
@@ -179,6 +210,16 @@ export function applyShowColorEffects(
     } else if (effect.kind === 'threshold') {
       const target = showColorLuma(current) >= effect.threshold ? 1 : 0
       current = current.map((channel) => channel * (1 - effect.amount) + target * effect.amount) as ShowRgb
+    } else if (effect.kind === 'luma-key') {
+      const distance = Math.abs(showColorLuma(current) - effect.target)
+      opacity *= featheredKeyOpacity(distance, effect.tolerance, effect.softness)
+    } else if (effect.kind === 'chroma-key') {
+      const target = showTransitionColorToRgb(effect.color)
+      const dr = current[0] - target[0]
+      const dg = current[1] - target[1]
+      const db = current[2] - target[2]
+      const meanSquaredDistance = (dr * dr + dg * dg + db * db) / 3
+      opacity *= featheredSquaredKeyOpacity(meanSquaredDistance, effect.tolerance, effect.softness)
     } else if (effect.kind === 'posterize') {
       const span = effect.levels - 1
       current = current.map((channel) => {
@@ -195,7 +236,20 @@ export function applyShowColorEffects(
       current = current.map((channel, index) => channel * (1 - effect.amount) + mapped[index] * effect.amount) as ShowRgb
     }
   }
-  return current
+  return { color: current, opacity }
+}
+
+function featheredKeyOpacity(distance: number, tolerance: number, softness: number): number {
+  if (softness <= 0) return distance <= tolerance ? 0 : 1
+  return clamp01((distance - tolerance) / softness)
+}
+
+function featheredSquaredKeyOpacity(distanceSquared: number, tolerance: number, softness: number): number {
+  const inner = tolerance * tolerance
+  if (softness <= 0) return distanceSquared <= inner ? 0 : 1
+  const outer = Math.min(1, tolerance + softness)
+  const outerSquared = outer * outer
+  return clamp01((distanceSquared - inner) / Math.max(0.000001, outerSquared - inner))
 }
 
 export function showColorLuma([r, g, b]: ShowRgb): number {

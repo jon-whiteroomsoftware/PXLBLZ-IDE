@@ -561,6 +561,8 @@ export function createShowEffectToolkitFixtureRecipes(): ShowToolkitFixtureRecip
     ['contrast', { id: 'contrast', kind: 'contrast', contrast: 1.8 }],
     ['invert', { id: 'invert', kind: 'invert', amount: 1 }],
     ['threshold', { id: 'threshold', kind: 'threshold', threshold: 0.45, amount: 1 }],
+    ['luma-key', { id: 'luma-key', kind: 'luma-key', target: 0, tolerance: 0.08, softness: 0.08 }],
+    ['chroma-key', { id: 'chroma-key', kind: 'chroma-key', color: '#00ff00', tolerance: 0.08, softness: 0.08 }],
     ['posterize', { id: 'posterize', kind: 'posterize', levels: 4, amount: 1 }],
     ['color-map', { id: 'color-map', kind: 'color-map', amount: 1, shadowR: 0.05, shadowG: 0, shadowB: 0.2, highlightR: 1, highlightG: 0.7, highlightB: 0.1 }],
   ]

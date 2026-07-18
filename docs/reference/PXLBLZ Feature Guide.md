@@ -864,6 +864,15 @@ save through the normal Show record and survive reload. **Advanced compiled
 cost** reports aggregate Pattern-evaluation, operation, allocation, and artifact
 facts from the compiler rather than UI estimates.
 
+Luma key and Chroma key are Color & output Effects. Luma key removes pixels near
+an authored target luminance; Chroma key removes pixels near an authored target
+color chosen with a color well. Tolerance controls the removed band and Softness
+controls its feather. On an opaque two-layer overlay, the compiler renders the
+keyed top layer first and skips the lower Pattern wherever the matte is fully
+opaque. Advanced compiled cost reports this as `N + U`, where `U` is the number
+of holes and feather pixels that require the lower renderer. Other stack shapes
+retain ordinary alpha compositing.
+
 Adding a Zone creates an empty timeline row. Place Clips in its slots or extend
 an existing Clip across it; the editor does not clone another Zone's Patterns.
 
@@ -1119,6 +1128,11 @@ be proven not to mutate Pattern state. Opacity may differ because compositing
 stays after the cache. Incompatible or unprofitable placements render normally;
 the optimization never changes authored output and uses the existing arena
 rather than allocating another framebuffer.
+
+Content keys produce RGB plus alpha and therefore do not enter the RGB-only
+output-reuse cache. The exclusion appears as `output-alpha`; the keyed stack
+still uses conditional lower-source evaluation and allocates no additional
+array.
 
 If the whole routed sequence cannot enter output-reuse analysis, the bar names
 the envelope rejection: `output-dimension` for a layout outside the supported

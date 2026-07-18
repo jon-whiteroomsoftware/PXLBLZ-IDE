@@ -1300,6 +1300,11 @@ stage-constrained reorder transformations. `ShowEffectsAuthoring` projects that
 logic into the clip Entity Detail Panel and compact palette; it does not encode
 family-specific compiler behavior in React.
 
+Luma key and Chroma key add a native color-well or numeric target plus Tolerance
+and Softness controls to that same authoring adapter. The React surface treats
+color as an authored value, while only numeric parameters enter Effect Property
+animation tracks.
+
 Effect-palette hover/focus changes only the palette's progressive description
 and cost disclosure. Each row owns a static SVG mnemonic whose child group runs
 one CSS keyframe vocabulary under row hover or focus; no animation frame or
@@ -2121,9 +2126,9 @@ a Clip's Pattern clears that Clip's prior control targets at the model boundary.
 
 ### Show Effects
 
-An Effect is a clip-owned single-source operation. The persisted stack contains
-stable Effect ids and preserves authored order. Opacity, brightness, hue,
-saturation, contrast, invert, threshold, posterize, color map, translate,
+An Effect is a clip-owned visual operation. The persisted stack contains stable
+Effect ids and preserves authored order. Opacity, brightness, hue, saturation,
+contrast, invert, threshold, luma key, chroma key, posterize, color map, translate,
 rotate, scale, and shear expose numeric targets through the same boundary-owned
 Property descriptor used by Animation speed. Wrap has no curve; it is an
 address policy applied after the complete affine transform. Add, update, move,
@@ -2155,6 +2160,10 @@ The common output catalogue uses these normalized parameters:
 - Invert blends toward `1 - channel`; Amount `0` is neutral.
 - Threshold blends toward a black/white Rec. 709 luma comparison; Amount `0`
   is neutral.
+- Luma key multiplies output alpha by the feathered absolute distance from an
+  authored Rec. 709 luminance target.
+- Chroma key multiplies output alpha by feathered mean squared RGB distance
+  from an authored color. Generated code deliberately uses no square root.
 - Posterize rounds each channel to `2..32` levels; Amount `0` is neutral.
 - Color map remaps Rec. 709 luma between authored shadow and highlight RGB
   endpoints; Amount `0` is neutral.
@@ -2162,6 +2171,16 @@ The common output catalogue uses these normalized parameters:
 Every neutral static output Effect is eliminated with no generated-code change.
 Non-neutral operations clamp only where their definition requires it, and
 preview uses the same formulas and authored order as generated Pixelblaze code.
+
+Generated capture state carries RGB and alpha. A direct keyed clip emits against
+black. For exactly two routed layers with an opaque keyed top placement, the
+compiler renders the top first. Alpha `1` returns it without invoking the lower
+renderer; alpha below `1` evaluates the lower source and composites the stored
+top color. This produces the data-dependent `N + U` cost reported by
+`specializations.contentKeys`, with `U` equal to holes and feather pixels. Other
+stack depths and animated top opacity retain the general bottom-to-top
+compositor. The RGB-only compatible-output cache rejects keyed consumers as
+`output-alpha` rather than replaying incomplete state.
 
 The approved distortion catalogue contains Ripple, Swirl, Bulge / Pinch,
 Pixelate, and Kaleidoscope. Each operation remaps the normalized source

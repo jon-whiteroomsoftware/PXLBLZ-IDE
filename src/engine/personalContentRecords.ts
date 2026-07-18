@@ -146,6 +146,8 @@ export type ShowClipEffect =
   | { id: string; kind: 'contrast'; contrast: number }
   | { id: string; kind: 'invert'; amount: number }
   | { id: string; kind: 'threshold'; threshold: number; amount: number }
+  | { id: string; kind: 'luma-key'; target: number; tolerance: number; softness: number }
+  | { id: string; kind: 'chroma-key'; color: string; tolerance: number; softness: number }
   | { id: string; kind: 'posterize'; levels: number; amount: number }
   | {
       id: string

@@ -249,16 +249,28 @@ export function ShowEffectStack({
                             <span>{parameter.label}</span>
                             {parameter.min === 0 && parameter.max === 1 && <span className="font-mono tracking-normal text-zinc-700" title="Normalized value from zero to one">0–1</span>}
                           </span>
-                          <EffectParameterField
-                            label={parameter.label}
-                            value={Number(showClipEffectParameterValue(effect, parameter.id))}
-                            min={parameter.min}
-                            max={parameter.max}
-                            step={parameter.step}
-                            onCommit={(value) => onChange(effects.map((candidate) => candidate.id === effect.id
-                              ? updateShowClipEffectParameter(candidate, parameter.id, value)
-                              : candidate))}
-                          />
+                          {parameter.kind === 'color' ? (
+                            <input
+                              type="color"
+                              aria-label={parameter.label}
+                              value={String(showClipEffectParameterValue(effect, parameter.id))}
+                              onChange={(event) => onChange(effects.map((candidate) => candidate.id === effect.id
+                                ? updateShowClipEffectParameter(candidate, parameter.id, event.target.value)
+                                : candidate))}
+                              className="mt-1 h-7 w-full cursor-pointer rounded border border-zinc-700 bg-zinc-950 p-0.5 outline-none focus:border-cyan-400/60"
+                            />
+                          ) : (
+                            <EffectParameterField
+                              label={parameter.label}
+                              value={Number(showClipEffectParameterValue(effect, parameter.id))}
+                              min={parameter.min}
+                              max={parameter.max}
+                              step={parameter.step}
+                              onCommit={(value) => onChange(effects.map((candidate) => candidate.id === effect.id
+                                ? updateShowClipEffectParameter(candidate, parameter.id, value)
+                                : candidate))}
+                            />
+                          )}
                         </label>
                       ))}
                       {showClipEffectParameters(effect).length === 0 && <p className="col-span-full text-[9px] text-zinc-600">No parameters. Wrap changes the address policy for transformed coordinates.</p>}
@@ -355,6 +367,8 @@ const EFFECT_MNEMONIC_MOTION: Record<string, string> = {
   contrast: 'contrast',
   invert: 'invert',
   threshold: 'threshold',
+  'luma-key': 'threshold',
+  'chroma-key': 'threshold',
   posterize: 'steps',
   'color-map': 'cycle',
   translate: 'translate',
@@ -409,6 +423,10 @@ function effectMnemonicShape(kind: string): React.ReactNode {
       return <><circle cx="13" cy="7" r="5" /><path d="M13 2 A5 5 0 0 0 13 12 Z" fill="currentColor" stroke="none" /><path d="M13 2 V12" /></>
     case 'threshold':
       return <path d="M2 11 H11 V3 H24" />
+    case 'luma-key':
+      return <><path d="M2 11 H9 V7 H16 V3 H24" /><circle cx="9" cy="7" r="1.5" fill="currentColor" stroke="none" /></>
+    case 'chroma-key':
+      return <><circle cx="6" cy="7" r="3" /><circle cx="13" cy="7" r="3" opacity=".55" /><circle cx="20" cy="7" r="3" opacity=".25" /><path d="M10 3 L16 11 M16 3 L10 11" /></>
     case 'posterize':
       return <path d="M2 11 H7 V8 H12 V6 H17 V3 H24" />
     case 'color-map':

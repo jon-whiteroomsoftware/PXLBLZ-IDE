@@ -18,13 +18,13 @@ describe('Show Effect authoring adapter', () => {
     const items = buildShowToolkitPresentationCatalogue({ stageDimensions: 2 })
       .filter((item) => item.kind === 'effect')
 
-    expect(items).toHaveLength(19)
+    expect(items).toHaveLength(21)
     for (const [index, item] of items.entries()) {
       const effect = createShowClipEffect(item, `effect-${index}`)
       expect(effect.id).toBe(`effect-${index}`)
       expect(showClipEffectPresentationKey(effect)).toBe(item.key)
       expect(showClipEffectStage(effect)).toBe(item.effectStage)
-      expect(showClipEffectParameters(effect).every((parameter) => parameter.kind === 'number')).toBe(true)
+      expect(showClipEffectParameters(effect).every((parameter) => parameter.kind === 'number' || parameter.kind === 'color')).toBe(true)
     }
   })
 
@@ -44,6 +44,30 @@ describe('Show Effect authoring adapter', () => {
       kind: 'bulge',
       amount: -0.65,
     })
+  })
+
+  it('authors luma and chroma keys with target, tolerance, and softness controls (#527)', () => {
+    const items = buildShowToolkitPresentationCatalogue({ stageDimensions: 2 })
+    const lumaItem = items.find((item) => item.key === 'effect:output:luma-key')!
+    const chromaItem = items.find((item) => item.key === 'effect:output:chroma-key')!
+
+    expect(createShowClipEffect(lumaItem, 'black-key')).toEqual({
+      id: 'black-key', kind: 'luma-key', target: 0, tolerance: 0.05, softness: 0.05,
+    })
+    expect(createShowClipEffect(chromaItem, 'green-key')).toEqual({
+      id: 'green-key', kind: 'chroma-key', color: '#00ff00', tolerance: 0.05, softness: 0.05,
+    })
+    const chroma = updateShowClipEffectParameter(
+      createShowClipEffect(chromaItem, 'green-key'),
+      'color',
+      '#ff00aa',
+    )
+    expect(chroma).toEqual({
+      id: 'green-key', kind: 'chroma-key', color: '#ff00aa', tolerance: 0.05, softness: 0.05,
+    })
+    expect(showClipEffectParameters(chroma).map((parameter) => [parameter.id, parameter.kind])).toEqual([
+      ['color', 'color'], ['tolerance', 'number'], ['softness', 'number'],
+    ])
   })
 
   it('duplicates next to its source with a stable unique id', () => {

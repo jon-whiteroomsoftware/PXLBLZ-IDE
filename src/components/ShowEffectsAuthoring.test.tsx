@@ -17,7 +17,7 @@ describe('Show Effect authoring UI', () => {
     const onClose = vi.fn()
     render(<ShowEffectPalette clip={clip} stageDimensions={2} onApply={onApply} onClose={onClose} />)
 
-    expect(screen.getAllByRole('button', { name: /Add .* Effect/ })).toHaveLength(19)
+    expect(screen.getAllByRole('button', { name: /Add .* Effect/ })).toHaveLength(21)
     await user.type(screen.getByRole('searchbox', { name: 'Search Effects' }), 'ripple')
     const ripple = screen.getByRole('button', { name: 'Add Ripple Effect' })
     expect(screen.getAllByRole('button', { name: /Add .* Effect/ })).toHaveLength(1)
@@ -42,6 +42,26 @@ describe('Show Effect authoring UI', () => {
     fireEvent.keyDown(document, { key: 'Escape' })
     expect(useShowPreviewOverrideStore.getState().show).toBeNull()
     expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('edits a chroma-key target as color alongside tolerance and softness (#527)', async () => {
+    const user = userEvent.setup()
+    const onChange = vi.fn()
+    const effects: ShowClipEffect[] = [{
+      id: 'green-key', kind: 'chroma-key', color: '#00ff00', tolerance: 0.05, softness: 0.05,
+    }]
+    render(<ShowEffectStack effects={effects} onChange={onChange} onAdd={vi.fn()} />)
+
+    await user.click(screen.getByRole('button', { name: 'Edit Chroma key Effect' }))
+    const color = screen.getByLabelText('Target color')
+    expect(color).toHaveAttribute('type', 'color')
+    expect(color).toHaveValue('#00ff00')
+    fireEvent.change(color, { target: { value: '#ff00aa' } })
+    expect(onChange).toHaveBeenLastCalledWith([
+      { id: 'green-key', kind: 'chroma-key', color: '#ff00aa', tolerance: 0.05, softness: 0.05 },
+    ])
+    expect(screen.getByLabelText('Tolerance')).toHaveValue(0.05)
+    expect(screen.getByLabelText('Softness')).toHaveValue(0.05)
   })
 
   it('never replaces the Stage preview while the pointer traverses Effects', async () => {
@@ -72,6 +92,8 @@ describe('Show Effect authoring UI', () => {
       contrast: 'contrast',
       invert: 'invert',
       threshold: 'threshold',
+      'luma-key': 'threshold',
+      'chroma-key': 'threshold',
       posterize: 'steps',
       'color-map': 'cycle',
       translate: 'translate',
@@ -94,8 +116,8 @@ describe('Show Effect authoring UI', () => {
       expect(glyph).toHaveClass('show-effect-mnemonic')
     }
 
-    expect(document.querySelectorAll('[data-effect-mnemonic]')).toHaveLength(19)
-    expect(document.querySelectorAll('.show-effect-choice')).toHaveLength(19)
+    expect(document.querySelectorAll('[data-effect-mnemonic]')).toHaveLength(21)
+    expect(document.querySelectorAll('.show-effect-choice')).toHaveLength(21)
 
     fireEvent.pointerEnter(screen.getByRole('button', { name: 'Add Translate Effect' }))
     fireEvent.focus(screen.getByRole('button', { name: 'Add Ripple Effect' }))

@@ -12,7 +12,7 @@ import type {
 } from './showVisualToolkitPresentation'
 
 const OUTPUT_EFFECTS = new Set<ShowClipEffect['kind']>([
-  'opacity', 'brightness', 'hue', 'saturation', 'contrast', 'invert', 'threshold', 'posterize', 'color-map',
+  'opacity', 'brightness', 'hue', 'saturation', 'contrast', 'invert', 'threshold', 'luma-key', 'chroma-key', 'posterize', 'color-map',
 ])
 const AFFINE_EFFECTS = new Set<ShowClipEffect['kind']>(['translate', 'rotate', 'scale', 'shear', 'wrap'])
 
@@ -60,7 +60,7 @@ export function showClipEffectParameters(effect: ShowClipEffect): ShowToolkitPar
       ?.parameters.map((parameter) => [parameter.id, showClipEffectParameterValue(effect, parameter.id)]) ?? [],
   ) as Record<string, ShowToolkitParameterValue>
   return resolveShowToolkitParameters('effect', familyId, effect.kind, values)
-    .filter((parameter) => parameter.kind === 'number' && parameter.id !== 'durationMs')
+    .filter((parameter) => (parameter.kind === 'number' || parameter.kind === 'color') && parameter.id !== 'durationMs')
 }
 
 export function showClipEffectParameterValue(

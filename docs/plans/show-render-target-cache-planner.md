@@ -257,6 +257,7 @@ depends on where Effects sit relative to that boundary.
 | Static mask, glyph, distance, region | scalar field | reuse until geometry or controlling property changes |
 | Blur, trails, feedback | previous RGB | enables a new Effect; does not inherently reduce evaluation cost |
 | Repeated placement | member RGB or scalar field | exact only when member, sample, clock, controls, and pre-cache Effects match |
+| Luma or chroma key | captured RGB plus derived alpha | render keyed top first; evaluate the lower source only for holes and feather pixels |
 
 Several placements of one Pattern instance already share source and state. The
 new planner may also share evaluation output, but only when their requested
@@ -548,6 +549,7 @@ the prior measured result without claiming a new hardware benchmark.
 08 #518 compatible Pattern-output reuse · paired five-surface 2,000 px median 4.554 -> 8.729 FPS · incremental +91.7% (mean +71.0%); exact 400-sample local output reused across 5 physical Zones, 1,600 Pattern evaluations/frame avoided, arena 6,012 words unchanged · cumulative exact Redline reference 2.358 -> 3.037 FPS, +28.8% retained; snapshot/live median 3.197 FPS retained
 09 #519 scalar visual-field caching · paired Redline-derived five-surface 2,000 px median 2.161 -> 3.115 FPS · incremental +44.1% (mean +34.2%); exact coherent-noise field removes 96,000 estimated operations/cached frame, source 23,284 -> 24,311 B, bytecode 12,922 -> 13,274 B, arena 6,012 words unchanged · cumulative exact Redline reference 2.358 -> 3.037 FPS, +28.8% retained; snapshot/live median 3.197 FPS retained
 10 #520 five-Pattern acceptance Show · paired 2,000 px median baseline 1.000 -> exact live/live 1.076 FPS (+7.6%) -> snapshot/live 1.702 FPS (+58.1% vs exact live, +70.2% vs baseline); source 50,535 -> 51,511 B, bytecode 28,626 -> 28,926 B, arena 6,012 words unchanged; planner reuses RGB planes at 1-7s then scalar plane 0 at 14-20s; routed transition-frame isolation fixes the hardware activation fault and removes 508 source bytes from the selected artifact · 2,000 px Redline recheck median 3.065 FPS; direct 4,000 px Redline median 1.864 FPS labeled unsupported stress-only
+11 #527 content-aware luma/chroma key composition · paired 90%-opaque black-key overlay at 2,000 px median 2.801 -> 4.480 FPS · incremental +59.9% (mean +54.9%); exact N + U compositor skips the lower Pattern on opaque pixels and evaluates both sources only for holes/feather pixels; source 4,286 -> 4,132 B, bytecode 2,952 -> 2,744 B, arena 6,012 words unchanged; Fast and Precise checksums match at 7 score times; non-keyed Show artifacts remain byte-for-byte unchanged · cumulative exact Redline reference 2.358 -> 3.037 FPS, +28.8% retained; snapshot/live median 3.197 FPS retained
 ```
 
 Later slices append the next numbered line here and repeat it in the #511
@@ -581,6 +583,10 @@ The approved delivery slices are filed under the coordination epic:
 - [#520 - Qualify the five-Pattern acceptance Show](https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/issues/520)
   is implemented locally with Controller and visual evidence; production-default
   recommendations await final human confirmation and landing.
+- [#527 - Add content-aware luma and chroma key composition](https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/issues/527)
+  adds authored mattes and conditional lower-source evaluation.
+- [#528 - Cache exact sample coordinates across compatible Show consumers](https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/issues/528)
+  is the remaining extra-credit cache slice.
 
 Implementation progress and the current cumulative performance ledger are
 tracked on #511. Individual issue state remains authoritative for ownership and
@@ -601,6 +607,16 @@ Pixelblaze invokes the exported renderer once per physical pixel. Current-frame
 materialization cannot assume a GPU-style arbitrary prepass. Plans must use
 prior-frame snapshots, ordered/lazy production with proven keys, or an explicit
 generated loop whose total work is included in the cost model.
+
+Content-aware composition supplies one ordered/lazy case without another
+buffer: an eligible two-layer stack renders its keyed top source first and
+evaluates the lower source only when the derived alpha is below one. Its exact
+cost is `N + U`, not `2N`; `U` is output-dependent and includes transparent and
+feathered pixels. Luma uses absolute Rec. 709 distance. Chroma uses mean squared
+RGB distance, so the matte adds no square root. The first implementation keeps
+keyed alpha out of the RGB-only compatible-output cache and reports that
+rejection explicitly; a future RGB-alpha cache candidate must budget and key
+the alpha plane rather than infer it from replayed RGB.
 
 ### Permanent arrays
 

@@ -27,6 +27,7 @@ export type ShowPatternOutputCompatibilityReason =
   | 'sample-domain'
   | 'render-function'
   | 'pre-cache-effects'
+  | 'output-alpha'
   | 'render-mutating-state'
   | 'render-state-unknown'
   | 'output-dimension'

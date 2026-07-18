@@ -1,6 +1,7 @@
 import {
   applyShowEffectsToSample,
   applyShowColorEffects,
+  applyShowOutputEffects,
   buildShowEffectSampleMatrix,
   normalizeShowClipEffects,
   sameShowEffectStructure,
@@ -326,6 +327,8 @@ describe('Show clip Effects (#444)', () => {
       'effect-color-contrast',
       'effect-color-invert',
       'effect-color-threshold',
+      'effect-color-luma-key',
+      'effect-color-chroma-key',
       'effect-color-posterize',
       'effect-color-color-map',
       'effect-affine-wrap',
@@ -361,6 +364,85 @@ describe('Show clip Effects (#444)', () => {
 
     expect(brightenThenThreshold).toEqual([1, 1, 1])
     expect(thresholdThenBrighten).toEqual([0, 0, 0])
+  })
+
+  it('turns luma and chroma distance into an authored feathered matte (#527)', () => {
+    const luma = { id: 'black-key', kind: 'luma-key' as const, target: 0, tolerance: 0.1, softness: 0.1 }
+    expect(applyShowOutputEffects([luma], [0, 0, 0]).opacity).toBe(0)
+    expect(applyShowOutputEffects([luma], [0.15, 0.15, 0.15]).opacity).toBeCloseTo(0.5, 12)
+    expect(applyShowOutputEffects([luma], [0.3, 0.3, 0.3]).opacity).toBe(1)
+
+    const chroma = {
+      id: 'green-key', kind: 'chroma-key' as const, color: '#00ff00', tolerance: 0.1, softness: 0.1,
+    }
+    expect(applyShowOutputEffects([chroma], [0, 1, 0]).opacity).toBe(0)
+    expect(applyShowOutputEffects([chroma], [1, 0, 1]).opacity).toBe(1)
+    expect(applyShowOutputEffects([
+      { id: 'light', kind: 'brightness', brightness: 2 },
+      chroma,
+    ], [0, 0.5, 0]).opacity).toBe(0)
+    expect(applyShowOutputEffects([
+      chroma,
+      { id: 'light', kind: 'brightness', brightness: 2 },
+    ], [0, 0.5, 0]).opacity).toBe(1)
+  })
+
+  it('matches feathered luma-key opacity in generated Show output (#527)', () => {
+    const effect = { id: 'black-key', kind: 'luma-key' as const, target: 0, tolerance: 0.1, softness: 0.1 }
+    const compiled = compileShow({
+      clips: [{
+        id: 'keyed',
+        source: 'export function render2D(index, x, y) { rgb(x, x, x) }',
+        effects: [effect],
+      }],
+    }, {})
+    const runtime = createFastReplayRuntime({
+      code: compiled.code,
+      metadata: compiled.metadata,
+      dimension: nativeDimension(compiled.metadata.renderFns),
+    }, {
+      mapPoints: [0, 0.15, 0.3].map((x) => ({ sample: [x, 0.5] })),
+      randomSeed: 527,
+    })
+
+    expect(runtime.renderCurrentFrame().pixels).toEqual([
+      [0, 0, 0],
+      [expect.closeTo(0.075, 12), expect.closeTo(0.075, 12), expect.closeTo(0.075, 12)],
+      [0.3, 0.3, 0.3],
+    ])
+    expect(compiled.summary.cost.cpu.effects).toMatchObject({
+      keyEffectsPerEvaluatedPixel: 1,
+      keyScalarOpsPerEvaluatedPixel: 13,
+      keySqrtCallsPerEvaluatedPixel: 0,
+    })
+  })
+
+  it('matches chroma-key target removal in generated Show output (#527)', () => {
+    const compiled = compileShow({
+      clips: [{
+        id: 'keyed',
+        source: 'export function render(index) { if (index == 0) rgb(0, 1, 0); else rgb(1, 0, 1) }',
+        effects: [{ id: 'green-key', kind: 'chroma-key', color: '#00ff00', tolerance: 0.05, softness: 0.05 }],
+      }],
+    }, {})
+    const runtime = createFastReplayRuntime({
+      code: compiled.code,
+      metadata: compiled.metadata,
+      dimension: nativeDimension(compiled.metadata.renderFns),
+    }, {
+      mapPoints: [{ sample: [0] }, { sample: [1] }],
+      randomSeed: 527,
+    })
+
+    expect(runtime.renderCurrentFrame().pixels).toEqual([
+      [0, 0, 0],
+      [1, 0, 1],
+    ])
+    expect(compiled.summary.cost.cpu.effects).toMatchObject({
+      keyEffectsPerEvaluatedPixel: 1,
+      keyScalarOpsPerEvaluatedPixel: 20,
+      keySqrtCallsPerEvaluatedPixel: 0,
+    })
   })
 
   it('evaluates hue, saturation, contrast, invert, posterize, and gradient color mapping (#454)', () => {

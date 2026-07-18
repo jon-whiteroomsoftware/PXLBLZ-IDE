@@ -153,6 +153,24 @@ describe('Show compatible Pattern output reuse (#518)', () => {
     expect(artifact.expandedCode).not.toContain('__pxlblz_show_reuse_index')
   })
 
+  it('keeps keyed alpha outputs out of the RGB-only reuse cache (#527)', () => {
+    const recipe = repeatedPlacementRecipe()
+    recipe.clips[0].effects = [{
+      id: 'black-key', kind: 'luma-key', target: 0, tolerance: 0.05, softness: 0.05,
+    }]
+
+    const artifact = compileShow(recipe, {})
+
+    expect(artifact.summary.specializations.patternOutputReuse).toMatchObject({
+      selectedGroupCount: 0,
+      groups: [],
+      excluded: expect.arrayContaining([
+        expect.objectContaining({ reasons: ['output-alpha'] }),
+      ]),
+    })
+    expect(artifact.expandedCode).not.toContain('__pxlblz_show_reuse_index')
+  })
+
   it('never shares a render function that mutates Pattern state', () => {
     const artifact = compileShow(repeatedPlacementRecipe(`
 export var renders = 0

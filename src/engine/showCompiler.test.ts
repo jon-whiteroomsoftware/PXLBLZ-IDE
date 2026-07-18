@@ -643,6 +643,91 @@ export function render2D(index, x, y) { rgb(${channel === 'r' ? 1 : 0}, ${channe
     expect(pixel()).toEqual([0.75, 0, 0.25])
   })
 
+  it('composites a keyed overlay through its generated matte (#527)', () => {
+    const zones = [{ id: 'main', name: 'main', ranges: [{ start: 0, end: 2 }] }]
+    const artifact = compileShow({
+      clips: [
+        { id: 'red', source: 'export function render(index) { rgb(1, 0, 0) }' },
+        {
+          id: 'keyed',
+          source: 'export function render(index) { if (index == 0) rgb(0, 0, 0); else if (index == 1) rgb(0.15, 0.15, 0.15); else rgb(0, 1, 0) }',
+          effects: [{ id: 'black-key', kind: 'luma-key', target: 0, tolerance: 0.1, softness: 0.1 }],
+        },
+      ],
+      zones,
+      routingLayouts: [{ id: 'default', name: 'Default', zones }],
+      routedSceneSequence: {
+        scenes: [0, 1].map((index) => ({
+          holdMs: 1000,
+          placements: [
+            { zoneName: 'main', clipId: 'red', stackOrder: 0 },
+            { zoneName: 'main', clipId: 'keyed', stackOrder: 1 },
+          ],
+          ...(index === 0 ? { transitionOut: { kind: 'cut' as const, durationMs: 0 } } : {}),
+        })),
+      },
+      loopDurationMs: 2000,
+    }, {})
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 3)
+
+    handle.beforeRender(0)
+    handle.render(0)
+    expect(pixel()).toEqual([1, 0, 0])
+    handle.render(1)
+    expect(pixel()).toEqual([expect.closeTo(0.575, 12), expect.closeTo(0.075, 12), expect.closeTo(0.075, 12)])
+    handle.render(2)
+    expect(pixel()).toEqual([0, 1, 0])
+  })
+
+  it('skips the covered lower renderer when a keyed overlay is fully opaque (#527)', () => {
+    const zones = [{ id: 'main', name: 'main', ranges: [{ start: 0, end: 1 }] }]
+    const artifact = compileShow({
+      clips: [
+        {
+          id: 'counted-red',
+          source: 'export var renders = 0; export function render(index) { renders = renders + 1; rgb(1, 0, 0) }',
+        },
+        {
+          id: 'keyed',
+          source: 'export function render(index) { if (index == 0) rgb(0, 0, 0); else rgb(0, 1, 0) }',
+          effects: [{ id: 'black-key', kind: 'luma-key', target: 0, tolerance: 0, softness: 0 }],
+        },
+      ],
+      zones,
+      routingLayouts: [{ id: 'default', name: 'Default', zones }],
+      routedSceneSequence: {
+        scenes: [0, 1].map((index) => ({
+          holdMs: 1000,
+          placements: [
+            { zoneName: 'main', clipId: 'counted-red', stackOrder: 0 },
+            { zoneName: 'main', clipId: 'keyed', stackOrder: 1 },
+          ],
+          ...(index === 0 ? { transitionOut: { kind: 'cut' as const, durationMs: 0 } } : {}),
+        })),
+      },
+      loopDurationMs: 2000,
+    }, {})
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 2)
+
+    expect(artifact.summary.specializations.contentKeys).toMatchObject({
+      keyedClipCount: 1,
+      selectedStackCount: 2,
+      evaluationFormula: 'N + U',
+      bestCaseRenderersPerPixel: 1,
+      worstCaseRenderersPerPixel: 2,
+      featheredPixelsEvaluateBoth: true,
+    })
+
+    handle.beforeRender(0)
+    handle.render(1)
+    expect(pixel()).toEqual([0, 1, 0])
+    expect(handle.getExports()).toMatchObject({ __pxlblz_show_c0_renders: 0 })
+
+    handle.render(0)
+    expect(pixel()).toEqual([1, 0, 0])
+    expect(handle.getExports()).toMatchObject({ __pxlblz_show_c0_renders: 1 })
+  })
+
   it('composites ordered routed Scene layers before applying the parent Scene transition (#489)', () => {
     const zones = [{ id: 'main', name: 'main', ranges: [{ start: 0, end: 3 }] }]
     const artifact = compileShow({

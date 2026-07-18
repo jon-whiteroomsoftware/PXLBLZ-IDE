@@ -5426,6 +5426,14 @@ function CompileBar({
           {' · '}{summary.specializations.patternOutputReuse.excluded.length} excluded consumer{summary.specializations.patternOutputReuse.excluded.length === 1 ? '' : 's'}
         </span>
       )}
+      {summary && summary.specializations.contentKeys.keyedClipCount > 0 && (
+        <span className={summary.specializations.contentKeys.selectedStackCount > 0 ? 'text-emerald-300' : 'text-amber-300'}>
+          content key: {summary.specializations.contentKeys.keyedClipCount} keyed Pattern{summary.specializations.contentKeys.keyedClipCount === 1 ? '' : 's'}
+          {' · '}{summary.specializations.contentKeys.selectedStackCount} conditional stack{summary.specializations.contentKeys.selectedStackCount === 1 ? '' : 's'}
+          {summary.specializations.contentKeys.evaluationFormula && ' · N + U render paths (U = holes and feather pixels)'}
+          {' · '}{summary.specializations.contentKeys.rejectedStackCount} fallback stack{summary.specializations.contentKeys.rejectedStackCount === 1 ? '' : 's'}
+        </span>
+      )}
       {summary?.renderPolicy === 'snapshot-outgoing-transition-live-incoming' && (
         <span className="text-emerald-300">
           crossfade: snapshot outgoing · capture frame 2 render paths/px · then 1 live render path/px
