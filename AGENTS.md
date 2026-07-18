@@ -89,7 +89,8 @@ than the sandboxed status result.
 ```bash
 npm run dev                 # only when the persistent server is absent
 npm run lint
-npm test
+npm run test:staged         # staged/colocated tests plus high-risk invariants
+npm test                    # full Vitest suite
 npm run build
 npm run test:e2e
 npm run check:playwright
@@ -98,9 +99,16 @@ npm run db:migrate:local
 npm run db:migrate:remote
 ```
 
-The pre-commit hook runs lint and the full Vitest suite. Use TDD for behavior
-changes: fail, implement, refactor. Concentrate coverage on pure engine logic;
-keep component tests light and add Playwright coverage for cross-layer flows.
+The pre-commit hook runs lint, colocated tests for staged code, and conservative
+invariant suites for compiler, persistence, resource-ledger, artifact-contract,
+and test-infrastructure changes. The pre-push hook owns the one comprehensive
+landing gate: the full Vitest suite followed by the Playwright smoke suite. Do
+not manually repeat the full suite immediately before a push unless diagnosing
+a failure. See `docs/agents/verification.md` for the gate model.
+
+Use TDD for behavior changes: fail, implement, refactor. Concentrate coverage
+on pure engine logic; keep component tests light and add Playwright coverage
+for cross-layer flows.
 
 When D1 migrations change, apply both local and remote migrations. If local
 Studio personal-content requests return misleading remote-provider 500 errors,

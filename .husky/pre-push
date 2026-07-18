@@ -1,9 +1,8 @@
 #!/bin/sh
-# Run the E2E smoke test before any push to origin.
+# Run the full Vitest suite and E2E smoke test before any push to origin.
 #
-# Why pre-push (not pre-commit): the smoke test drives a real browser and takes a
-# few seconds — too heavy per commit, but exactly right as the last gate before code
-# leaves the machine. If it fails here, the regression is in one of the commits you
-# haven't pushed yet, so you know where to look.
-echo "▶ Running E2E smoke test before push…"
-npm run test:e2e
+# Why pre-push (not pre-commit): these are the comprehensive landing gates. The
+# pre-commit hook already runs focused tests and high-risk invariants, so paying
+# for every Vitest file again on each local commit only duplicates work.
+echo "▶ Running full Vitest and E2E smoke tests before push…"
+npm run test:full && npm run test:e2e
