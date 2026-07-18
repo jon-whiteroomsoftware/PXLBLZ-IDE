@@ -867,11 +867,20 @@ facts from the compiler rather than UI estimates.
 Luma key and Chroma key are Color & output Effects. Luma key removes pixels near
 an authored target luminance; Chroma key removes pixels near an authored target
 color chosen with a color well. Tolerance controls the removed band and Softness
-controls its feather. On an opaque two-layer overlay, the compiler renders the
-keyed top layer first and skips the lower Pattern wherever the matte is fully
-opaque. Advanced compiled cost reports this as `N + U`, where `U` is the number
-of holes and feather pixels that require the lower renderer. Other stack shapes
-retain ordinary alpha compositing.
+controls its feather. On an eligible opaque two-layer overlay, the compiler
+renders the keyed top layer first and skips a render-pure lower Pattern wherever
+the matte is fully opaque. Advanced compiled cost reports this as `N + U`, where
+`U` is the number of holes and feather pixels that require the lower renderer.
+An eligible three-layer stack extends the same exact rule top-down and reports
+`N + U1 + U2`, best one and worst three renderers per pixel. Five-layer,
+stateful, unproved, repeated-instance, or otherwise incompatible stacks retain
+ordinary alpha compositing and report why they fell back.
+
+Exact opacity endpoints use the same conservative state rule. A unique
+render-pure layer at opacity `0` is not evaluated, while a stateful layer still
+runs without contributing color. Exact opacity `1` bypasses unnecessary blend
+arithmetic. The compile bar reports skipped evaluations, retained state calls,
+full-weight blend bypasses, and animated endpoint eligibility.
 
 Adding a Zone creates an empty timeline row. Place Clips in its slots or extend
 an existing Clip across it; the editor does not clone another Zone's Patterns.

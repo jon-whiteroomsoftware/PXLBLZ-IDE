@@ -2303,14 +2303,30 @@ Non-neutral operations clamp only where their definition requires it, and
 preview uses the same formulas and authored order as generated Pixelblaze code.
 
 Generated capture state carries RGB and alpha. A direct keyed clip emits against
-black. For exactly two routed layers with an opaque keyed top placement, the
-compiler renders the top first. Alpha `1` returns it without invoking the lower
-renderer; alpha below `1` evaluates the lower source and composites the stored
-top color. This produces the data-dependent `N + U` cost reported by
-`specializations.contentKeys`, with `U` equal to holes and feather pixels. Other
-stack depths and animated top opacity retain the general bottom-to-top
-compositor. The RGB-only compatible-output cache rejects keyed consumers as
-`output-alpha` rather than replaying incomplete state.
+black. For two routed layers with an opaque keyed top placement, the compiler
+renders the top first. Alpha `1` returns it without invoking a proven render-pure
+lower renderer; alpha below `1` evaluates the lower source and composites the
+stored top color. This produces the data-dependent `N + U` cost reported by
+`specializations.contentKeys`, with `U` equal to holes and feather pixels.
+
+An eligible three-layer stack uses the same exact contract top-down. It tracks
+remaining coverage, stops after accumulated alpha reaches `1`, and evaluates
+every source required by partial or feathered alpha. Its cost is `N + U1 + U2`:
+the top evaluates for all pixels, the middle for the first uncovered set, and
+the bottom for the still-uncovered set. The summary reports best- and worst-case
+renderer counts alongside this output-dependent formula. Render-mutating,
+unknown, repeated-instance, animated-top-opacity, incompatible, and other stack
+depths retain ordinary bottom-to-top composition with an explicit rejection
+reason.
+
+The ordinary compositor also specializes exact opacity endpoints. A unique
+render-pure layer at weight `0` skips evaluation; a stateful or unproved layer
+still runs but omits the invisible blend. Exact weight `1` bypasses blend
+arithmetic when the stack has an endpoint opportunity. Animated opacity uses
+the same exact `0` and `1` branches while retaining required stateful calls.
+These endpoint and three-layer paths allocate no additional arrays. The RGB-only
+compatible-output cache rejects keyed consumers as `output-alpha` rather than
+replaying incomplete state.
 
 The approved distortion catalogue contains Ripple, Swirl, Bulge / Pinch,
 Pixelate, and Kaleidoscope. Each operation remaps the normalized source

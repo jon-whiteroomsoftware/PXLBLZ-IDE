@@ -99,6 +99,8 @@ import {
   groupCompatibleShowPatternOutputs,
   type ShowPatternOutputCompatibilityReason,
   type ShowPatternOutputConsumer,
+  type ShowPatternOutputRenderFunction,
+  type ShowPatternOutputRenderState,
 } from './showPatternOutputReuse'
 import {
   analyzeShowScalarField,
@@ -528,15 +530,22 @@ export interface ShowCompileSummary {
       keyedClipCount: number
       selectedStackCount: number
       rejectedStackCount: number
-      evaluationFormula: 'N + U' | null
+      evaluationFormula: 'N + U' | 'N + U1 + U2' | null
       bestCaseRenderersPerPixel: 1 | null
-      worstCaseRenderersPerPixel: 2 | null
+      worstCaseRenderersPerPixel: 2 | 3 | null
       featheredPixelsEvaluateBoth: boolean
+      zeroWeightLayersSkipped: number
+      zeroWeightRequiredCallsRetained: number
+      fullWeightBlendBypasses: number
+      trackedEndpointLayersEligible: number
+      trackedEndpointRequiredCallsRetained: number
       stacks: Array<{
         sceneIndex: number
         zoneName: string
         status: 'selected' | 'rejected'
+        depth: number
         reason: 'selected' | 'disabled' | 'stack-depth' | 'keyed-layer-not-top' | 'top-opacity'
+          | 'render-mutating-lower-layer' | 'render-state-unknown-lower-layer' | 'repeated-instance'
       }>
     }
     patternOutputReuse: {
@@ -671,6 +680,7 @@ interface CompiledMember {
   staticPlanEffects: boolean
   exactSpecializations: boolean
   outputGuarantees: ShowRendererOutputGuarantees
+  renderState: Record<ShowPatternOutputRenderFunction, ShowPatternOutputRenderState>
   needsMirrorMapping: boolean
   needsBrightnessScale: boolean
   frameInvariantUpdateName: string | null
@@ -684,6 +694,7 @@ interface CompiledMember {
     addedSourceBytes: number
   }
   conditionalContentKeyEvaluation: boolean
+  coverageDirectedComposition: boolean
   coordinateFieldCapture: boolean
   generatedEffectKernelSharing: boolean
   animatedEffectParameterPaths: string[]
@@ -766,6 +777,8 @@ export interface ShowCompileOptions {
   scalarFieldCaching?: boolean
   /** Benchmark-only counterfactual; production conditionally skips covered lower keyed layers. */
   contentKeyConditionalEvaluation?: boolean
+  /** Benchmark-only counterfactual for exact multi-layer coverage and opacity endpoints. */
+  coverageDirectedComposition?: boolean
   /** Hardware-gated exact scene-lifetime X/Y cache; production defaults off until qualification. */
   coordinateFieldCaching?: boolean
   /** Benchmark counterfactual; production shares qualified repeated affine Effect updates. */
@@ -1248,6 +1261,7 @@ export function compileShow(
   const patternOutputReuse = options.patternOutputReuse ?? true
   const scalarFieldCaching = options.scalarFieldCaching ?? true
   const contentKeyConditionalEvaluation = options.contentKeyConditionalEvaluation ?? true
+  const coverageDirectedComposition = options.coverageDirectedComposition ?? true
   const coordinateFieldCaching = options.coordinateFieldCaching ?? false
   // #538 qualified the two-member boundary on pb32/3.67: exact Fast/Precise
   // output and 624 fewer Controller bytecode bytes. Larger 5/10-member cases
@@ -1345,6 +1359,7 @@ export function compileShow(
       showMemberNeedsMirrorMapping(expandedRecipe, clip),
       showMemberNeedsBrightnessScale(expandedRecipe, clip),
       contentKeyConditionalEvaluation,
+      coverageDirectedComposition,
       generatedEffectKernelSharing,
       [...(animatedEffectParameterPathsByClipId.get(clip.id) ?? [])].sort(),
     ),
@@ -2010,7 +2025,7 @@ export function compileShow(
         qualification: SHOW_GENERATED_EFFECT_KERNEL_QUALIFICATION,
         members: generatedEffectKernelPlan.members,
       },
-      contentKeys: describeContentKeySpecialization(expandedRecipe, members),
+      contentKeys: describeContentKeySpecialization(expandedRecipe, members, routedOutputDimension),
       patternOutputReuse: {
         selectedGroupCount: patternOutputReuseGroupsSummary.filter((group) => group.status === 'selected').length,
         evaluationsAvoidedPerFrame: patternOutputReuseGroupsSummary.reduce((peak, group) => (
@@ -2396,6 +2411,7 @@ function compileMember(
   needsMirrorMapping = Boolean(clip.adaptation?.mirror),
   needsBrightnessScale = (clip.adaptation?.brightness ?? 1) !== 1,
   conditionalContentKeyEvaluation = true,
+  coverageDirectedComposition = true,
   generatedEffectKernelSharing = false,
   animatedEffectParameterPaths: string[] = [],
 ): CompiledMember {
@@ -2472,6 +2488,11 @@ function compileMember(
     outputGuarantees: exactSpecializations
       ? analyzeShowRendererOutputGuaranteesAst(memberAst)
       : { render: false, render2D: false, render3D: false },
+    renderState: {
+      render: analyzeShowPatternRenderState(memberSource, 'render').state,
+      render2D: analyzeShowPatternRenderState(memberSource, 'render2D').state,
+      render3D: analyzeShowPatternRenderState(memberSource, 'render3D').state,
+    },
     needsMirrorMapping,
     needsBrightnessScale,
     frameInvariantUpdateName: frameHoists.updateFunctionName
@@ -2489,6 +2510,7 @@ function compileMember(
       addedSourceBytes: frameHoists.addedSourceBytes,
     },
     conditionalContentKeyEvaluation,
+    coverageDirectedComposition,
     coordinateFieldCapture: false,
     generatedEffectKernelSharing,
     animatedEffectParameterPaths,
@@ -4044,6 +4066,7 @@ function emitSharedPhysicalSceneZoneStack(
     placements,
     captureMember,
     target,
+    outputDimension,
     propertyTracks,
     localTimeExpression,
   )
@@ -4157,6 +4180,7 @@ function emitLogicalScenePlacements(
 ${placement.member.prefix}_renderCapture2D(__pxlblz_show_route_local_index, __pxlblz_show_scene_local_x, __pxlblz_show_scene_local_y)`
       },
       `__pxlblz_show_logical_stack_${zoneIndex}`,
+      2,
       propertyTracks,
       localTimeExpression,
     )
@@ -4376,6 +4400,7 @@ function groupRoutedPlacementsByZone(
 function describeContentKeySpecialization(
   recipe: ShowRecipe,
   members: CompiledMember[],
+  outputDimension: ShowOutputDimension,
 ): ShowCompileSummary['specializations']['contentKeys'] {
   const keyedClipCount = members.filter((member) => (
     member.effects.some((effect) => effect.kind === 'luma-key' || effect.kind === 'chroma-key')
@@ -4389,35 +4414,106 @@ function describeContentKeySpecialization(
     }))
     return [...groupRoutedPlacementsByZone(placements)].flatMap(([zoneName, stack]) => {
       if (stack.length < 2 || !stack.some(routedPlacementHasContentKey)) return []
-      const top = stack[stack.length - 1]
-      const reason = stack.length !== 2
-        ? 'stack-depth' as const
-        : !routedPlacementHasContentKey(top)
-          ? 'keyed-layer-not-top' as const
-          : !top.member.conditionalContentKeyEvaluation
-            ? 'disabled' as const
-          : !routedPlacementIsOpaque(top, scene.propertyTracks)
-            ? 'top-opacity' as const
-            : 'selected' as const
+      const reason = routedContentKeyStackReason(stack, outputDimension, scene.propertyTracks)
       return [{
         sceneIndex,
         zoneName,
+        depth: stack.length,
         status: reason === 'selected' ? 'selected' as const : 'rejected' as const,
         reason,
       }]
     })
   }) ?? []
   const selectedStackCount = stacks.filter((stack) => stack.status === 'selected').length
+  const selectedDepth = Math.max(0, ...stacks.filter((stack) => stack.status === 'selected').map((stack) => stack.depth))
+  const endpointPlacements = recipe.routedSceneSequence?.scenes.flatMap((scene) => (
+    [...groupRoutedPlacementsByZone(scene.placements.map((placement) => ({
+      ...placement,
+      member: memberById.get(placement.clipId)!,
+      consumerId: '',
+    })))].flatMap(([, stack]) => stack.length > 1
+      ? stack.map((placement) => ({
+          placement,
+          stack,
+          propertyTracks: scene.propertyTracks,
+          endpointActive: routedStackHasEndpointOptimization(stack, scene.propertyTracks),
+        }))
+      : [])
+  )) ?? []
+  const staticZero = endpointPlacements.filter(({ placement, propertyTracks }) => (
+    routedPlacementStaticOpacity(placement, propertyTracks) === 0
+  ))
+  const trackedOpacity = endpointPlacements.filter(({ placement, propertyTracks }) => (
+    routedPlacementHasOpacityTrack(placement, propertyTracks)
+  ))
   return {
     keyedClipCount,
     selectedStackCount,
     rejectedStackCount: stacks.length - selectedStackCount,
-    evaluationFormula: selectedStackCount > 0 ? 'N + U' : null,
+    evaluationFormula: selectedDepth === 3 ? 'N + U1 + U2' : selectedDepth === 2 ? 'N + U' : null,
     bestCaseRenderersPerPixel: selectedStackCount > 0 ? 1 : null,
-    worstCaseRenderersPerPixel: selectedStackCount > 0 ? 2 : null,
+    worstCaseRenderersPerPixel: selectedDepth === 3 ? 3 : selectedDepth === 2 ? 2 : null,
     featheredPixelsEvaluateBoth: selectedStackCount > 0,
+    zeroWeightLayersSkipped: staticZero.filter(({ placement, stack }) => (
+      routedPlacementCanSkipEvaluation(placement, stack, outputDimension)
+    )).length,
+    zeroWeightRequiredCallsRetained: staticZero.filter(({ placement, stack }) => (
+      !routedPlacementCanSkipEvaluation(placement, stack, outputDimension)
+    )).length,
+    fullWeightBlendBypasses: endpointPlacements.filter(({ placement, propertyTracks, endpointActive }) => (
+      endpointActive
+      && routedPlacementStaticOpacity(placement, propertyTracks) === 1
+      && !routedPlacementHasContentKey(placement)
+    )).length,
+    trackedEndpointLayersEligible: trackedOpacity.filter(({ placement, stack }) => (
+      routedPlacementCanSkipEvaluation(placement, stack, outputDimension)
+    )).length,
+    trackedEndpointRequiredCallsRetained: trackedOpacity.filter(({ placement, stack }) => (
+      !routedPlacementCanSkipEvaluation(placement, stack, outputDimension)
+    )).length,
     stacks,
   }
+}
+
+function routedPlacementRenderState(
+  placement: ResolvedRoutedScenePlacement,
+  outputDimension: ShowOutputDimension,
+): ShowPatternOutputRenderState {
+  const member = placement.member
+  const compatibility = selectRenderCompatibility(outputDimension, {
+    hasBeforeRender: member.hasBeforeRender,
+    hasRender: member.hasRender,
+    hasRender2D: member.hasRender2D,
+    hasRender3D: member.hasRender3D,
+  })
+  return compatibility.renderer ? member.renderState[compatibility.renderer] : 'unknown'
+}
+
+function routedContentKeyStackReason(
+  stack: ResolvedRoutedScenePlacement[],
+  outputDimension: ShowOutputDimension,
+  propertyTracks?: ShowPropertyAnimationTrack[],
+): ShowCompileSummary['specializations']['contentKeys']['stacks'][number]['reason'] {
+  if (stack.length !== 2 && stack.length !== 3) return 'stack-depth'
+  const top = stack[stack.length - 1]
+  if (!routedPlacementHasContentKey(top)) return 'keyed-layer-not-top'
+  if (!top.member.conditionalContentKeyEvaluation) return 'disabled'
+  if (stack.length === 3 && !top.member.coverageDirectedComposition) return 'disabled'
+  if (!routedPlacementIsOpaque(top, propertyTracks)) return 'top-opacity'
+  if (new Set(stack.map((placement) => placement.member.id)).size !== stack.length) return 'repeated-instance'
+  const lowerStates = stack.slice(0, -1).map((placement) => routedPlacementRenderState(placement, outputDimension))
+  if (lowerStates.includes('render-mutating')) return 'render-mutating-lower-layer'
+  if (lowerStates.includes('unknown')) return 'render-state-unknown-lower-layer'
+  return 'selected'
+}
+
+function routedPlacementCanSkipEvaluation(
+  placement: ResolvedRoutedScenePlacement,
+  stack: ResolvedRoutedScenePlacement[],
+  outputDimension: ShowOutputDimension,
+): boolean {
+  return routedPlacementRenderState(placement, outputDimension) === 'pure'
+    && stack.filter((candidate) => candidate.member.id === placement.member.id).length === 1
 }
 
 function routedSceneStackNeedsWrapper(stack: ResolvedRoutedScenePlacement[]): boolean {
@@ -4454,6 +4550,7 @@ function emitRoutedSceneStackWrapper(
       ? `${placement.member.prefix}_renderCapture2D(index, x, y)`
       : `${placement.member.prefix}_renderCapture(index)`,
     `${prefix}_capture`,
+    outputDimension,
     propertyTracks,
     localTimeExpression,
   )
@@ -4533,6 +4630,7 @@ function emitPhysicalSceneZoneStack(
     placements,
     (placement) => routedSceneMemberCapture(placement.member, local, pixelCount, outputDimension, zoneIndex),
     `__pxlblz_show_stack_${zoneIndex}`,
+    outputDimension,
     propertyTracks,
     localTimeExpression,
   )
@@ -4571,54 +4669,35 @@ function emitRoutedPlacementStackCapture(
   placements: ResolvedRoutedScenePlacement[],
   capture: (placement: ResolvedRoutedScenePlacement) => string,
   target: string,
+  outputDimension: ShowOutputDimension,
   propertyTracks?: ShowPropertyAnimationTrack[],
   localTimeExpression?: string,
 ): string {
-  const keyedTop = placements.length === 2
-    && routedPlacementIsOpaque(placements[1], propertyTracks)
-    && routedPlacementHasContentKey(placements[1])
-    && placements[1].member.conditionalContentKeyEvaluation
-      ? placements[1]
-      : undefined
-  if (keyedTop) {
-    const lower = placements[0]
-    const topRendered = emitRoutedPlacementCapture(
-      keyedTop,
-      capture(keyedTop),
+  const endpointOptimizationActive = routedStackHasEndpointOptimization(placements, propertyTracks)
+  const contentKeySelection = routedContentKeyStackReason(placements, outputDimension, propertyTracks)
+  if (contentKeySelection === 'selected' && placements.length === 2) {
+    return emitTwoLayerContentKeyStack(
+      placements,
+      capture,
+      target,
       propertyTracks,
       localTimeExpression,
     )
-    const lowerRendered = emitRoutedPlacementCapture(
-      lower,
-      capture(lower),
+  }
+  if (contentKeySelection === 'selected') {
+    return emitCoverageDirectedPlacementStack(
+      placements,
+      capture,
+      target,
       propertyTracks,
       localTimeExpression,
     )
-    const topAlpha = keyedTop.member.prefix + '_alpha'
-    const lowerAlpha = memberHasContentKey(lower.member)
-      ? `(${lowerRendered.opacity}) * ${lower.member.prefix}_alpha`
-      : lowerRendered.opacity
-    return [
-      `var ${target}_r = 0`,
-      `var ${target}_g = 0`,
-      `var ${target}_b = 0`,
-      ...topRendered.lines,
-      `${target}_r = ${keyedTop.member.prefix}_r * ${topAlpha}`,
-      `${target}_g = ${keyedTop.member.prefix}_g * ${topAlpha}`,
-      `${target}_b = ${keyedTop.member.prefix}_b * ${topAlpha}`,
-      `if (${topAlpha} < 1) {`,
-      ...lowerRendered.lines.map((line) => `  ${line}`),
-      `  ${target}_r = ${target}_r + ${lower.member.prefix}_r * ${lowerAlpha} * (1 - ${topAlpha})`,
-      `  ${target}_g = ${target}_g + ${lower.member.prefix}_g * ${lowerAlpha} * (1 - ${topAlpha})`,
-      `  ${target}_b = ${target}_b + ${lower.member.prefix}_b * ${lowerAlpha} * (1 - ${topAlpha})`,
-      '}',
-    ].join('\n')
   }
   return [
     `var ${target}_r = 0`,
     `var ${target}_g = 0`,
     `var ${target}_b = 0`,
-    ...placements.flatMap((placement) => {
+    ...placements.flatMap((placement, placementIndex) => {
       const rendered = emitRoutedPlacementCapture(
         placement,
         capture(placement),
@@ -4626,6 +4705,57 @@ function emitRoutedPlacementStackCapture(
         localTimeExpression,
       )
       const member = placement.member
+      const staticOpacity = routedPlacementStaticOpacity(placement, propertyTracks)
+      if (staticOpacity === 0) {
+        return routedPlacementCanSkipEvaluation(placement, placements, outputDimension)
+          ? []
+          : rendered.lines
+      }
+      if (endpointOptimizationActive && staticOpacity === 1 && !memberHasContentKey(member)) {
+        return [
+          ...rendered.lines,
+          `${target}_r = ${member.prefix}_r`,
+          `${target}_g = ${member.prefix}_g`,
+          `${target}_b = ${member.prefix}_b`,
+        ]
+      }
+      if (staticOpacity === null) {
+        const opacityName = `${target}_opacity_${placementIndex}`
+        const keyed = memberHasContentKey(member)
+        const opacity = keyed ? `${opacityName} * ${member.prefix}_alpha` : opacityName
+        const blend = keyed
+          ? [
+              `${target}_r = ${member.prefix}_r * ${opacity} + ${target}_r * (1 - ${opacity})`,
+              `${target}_g = ${member.prefix}_g * ${opacity} + ${target}_g * (1 - ${opacity})`,
+              `${target}_b = ${member.prefix}_b * ${opacity} + ${target}_b * (1 - ${opacity})`,
+            ]
+          : [
+              `if (${opacityName} == 1) {`,
+              `  ${target}_r = ${member.prefix}_r`,
+              `  ${target}_g = ${member.prefix}_g`,
+              `  ${target}_b = ${member.prefix}_b`,
+              '} else {',
+              `  ${target}_r = ${member.prefix}_r * ${opacityName} + ${target}_r * (1 - ${opacityName})`,
+              `  ${target}_g = ${member.prefix}_g * ${opacityName} + ${target}_g * (1 - ${opacityName})`,
+              `  ${target}_b = ${member.prefix}_b * ${opacityName} + ${target}_b * (1 - ${opacityName})`,
+              '}',
+            ]
+        const canSkip = routedPlacementCanSkipEvaluation(placement, placements, outputDimension)
+        return canSkip
+          ? [
+              `var ${opacityName} = ${rendered.opacity}`,
+              `if (${opacityName} > 0) {`,
+              ...[...rendered.lines, ...blend].map((line) => `  ${line}`),
+              '}',
+            ]
+          : [
+              `var ${opacityName} = ${rendered.opacity}`,
+              ...rendered.lines,
+              `if (${opacityName} > 0) {`,
+              ...blend.map((line) => `  ${line}`),
+              '}',
+            ]
+      }
       if (!memberHasContentKey(member)) {
         return [
           ...rendered.lines,
@@ -4642,6 +4772,77 @@ function emitRoutedPlacementStackCapture(
         `${target}_b = ${member.prefix}_b * ${opacity} + ${target}_b * (1 - ${opacity})`,
       ]
     }),
+  ].join('\n')
+}
+
+function emitTwoLayerContentKeyStack(
+  placements: ResolvedRoutedScenePlacement[],
+  capture: (placement: ResolvedRoutedScenePlacement) => string,
+  target: string,
+  propertyTracks?: ShowPropertyAnimationTrack[],
+  localTimeExpression?: string,
+): string {
+  const lower = placements[0]
+  const top = placements[1]
+  const topRendered = emitRoutedPlacementCapture(top, capture(top), propertyTracks, localTimeExpression)
+  const lowerRendered = emitRoutedPlacementCapture(lower, capture(lower), propertyTracks, localTimeExpression)
+  const topAlpha = top.member.prefix + '_alpha'
+  const lowerAlpha = memberHasContentKey(lower.member)
+    ? `(${lowerRendered.opacity}) * ${lower.member.prefix}_alpha`
+    : lowerRendered.opacity
+  return [
+    `var ${target}_r = 0`,
+    `var ${target}_g = 0`,
+    `var ${target}_b = 0`,
+    ...topRendered.lines,
+    `${target}_r = ${top.member.prefix}_r * ${topAlpha}`,
+    `${target}_g = ${top.member.prefix}_g * ${topAlpha}`,
+    `${target}_b = ${top.member.prefix}_b * ${topAlpha}`,
+    `if (${topAlpha} < 1) {`,
+    ...lowerRendered.lines.map((line) => `  ${line}`),
+    `  ${target}_r = ${target}_r + ${lower.member.prefix}_r * ${lowerAlpha} * (1 - ${topAlpha})`,
+    `  ${target}_g = ${target}_g + ${lower.member.prefix}_g * ${lowerAlpha} * (1 - ${topAlpha})`,
+    `  ${target}_b = ${target}_b + ${lower.member.prefix}_b * ${lowerAlpha} * (1 - ${topAlpha})`,
+    '}',
+  ].join('\n')
+}
+
+function emitCoverageDirectedPlacementStack(
+  placements: ResolvedRoutedScenePlacement[],
+  capture: (placement: ResolvedRoutedScenePlacement) => string,
+  target: string,
+  propertyTracks?: ShowPropertyAnimationTrack[],
+  localTimeExpression?: string,
+): string {
+  const remaining = `${target}_remaining`
+  const layers = [...placements].reverse().map((placement, index) => {
+    const rendered = emitRoutedPlacementCapture(
+      placement,
+      capture(placement),
+      propertyTracks,
+      localTimeExpression,
+    )
+    const member = placement.member
+    const alpha = memberHasContentKey(member)
+      ? `(${rendered.opacity}) * ${member.prefix}_alpha`
+      : rendered.opacity
+    const lines = [
+      ...rendered.lines,
+      `${target}_r = ${target}_r + ${member.prefix}_r * (${alpha}) * ${remaining}`,
+      `${target}_g = ${target}_g + ${member.prefix}_g * (${alpha}) * ${remaining}`,
+      `${target}_b = ${target}_b + ${member.prefix}_b * (${alpha}) * ${remaining}`,
+      `${remaining} = ${remaining} * (1 - (${alpha}))`,
+    ]
+    return index === 0
+      ? lines
+      : [`if (${remaining} > 0) {`, ...lines.map((line) => `  ${line}`), '}']
+  })
+  return [
+    `var ${target}_r = 0`,
+    `var ${target}_g = 0`,
+    `var ${target}_b = 0`,
+    `var ${remaining} = 1`,
+    ...layers.flat(),
   ].join('\n')
 }
 
@@ -4665,11 +4866,37 @@ function routedPlacementIsOpaque(
   placement: ResolvedRoutedScenePlacement,
   propertyTracks?: ShowPropertyAnimationTrack[],
 ): boolean {
-  const hasOpacityTrack = (propertyTracks ?? []).some((track) => (
+  return !routedPlacementHasOpacityTrack(placement, propertyTracks)
+    && clampNumber(placement.opacity ?? 1, 0, 1) === 1
+}
+
+function routedPlacementHasOpacityTrack(
+  placement: ResolvedRoutedScenePlacement,
+  propertyTracks?: ShowPropertyAnimationTrack[],
+): boolean {
+  return (propertyTracks ?? []).some((track) => (
     track.target.kind === 'placement-opacity'
     && track.target.placementId === placement.placementId
   ))
-  return !hasOpacityTrack && clampNumber(placement.opacity ?? 1, 0, 1) === 1
+}
+
+function routedPlacementStaticOpacity(
+  placement: ResolvedRoutedScenePlacement,
+  propertyTracks?: ShowPropertyAnimationTrack[],
+): number | null {
+  return routedPlacementHasOpacityTrack(placement, propertyTracks)
+    ? null
+    : clampNumber(placement.opacity ?? 1, 0, 1)
+}
+
+function routedStackHasEndpointOptimization(
+  stack: ResolvedRoutedScenePlacement[],
+  propertyTracks?: ShowPropertyAnimationTrack[],
+): boolean {
+  return Boolean(stack[0]?.member.coverageDirectedComposition) && stack.some((placement) => (
+    routedPlacementHasOpacityTrack(placement, propertyTracks)
+    || routedPlacementStaticOpacity(placement, propertyTracks) === 0
+  ))
 }
 
 function emitRoutedPlacementCapture(

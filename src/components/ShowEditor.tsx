@@ -5374,6 +5374,14 @@ function CompileBar({
     + ` · ${assignment.lifetime.kind}`
     + ` · invalidates ${assignment.invalidatedBy.join('/')}`
   )) ?? []
+  const coverage = summary?.specializations.contentKeys
+  const coverageEndpointCount = coverage
+    ? coverage.zeroWeightLayersSkipped
+      + coverage.zeroWeightRequiredCallsRetained
+      + coverage.fullWeightBlendBypasses
+      + coverage.trackedEndpointLayersEligible
+      + coverage.trackedEndpointRequiredCallsRetained
+    : 0
   return (
     <div data-testid="show-compile-bar" className="min-h-8 shrink-0 overflow-x-auto border-t border-seam bg-zinc-950 px-3 font-mono text-[10px] text-zinc-500">
       <div className="flex min-h-8 min-w-max items-center gap-2 whitespace-nowrap">
@@ -5435,12 +5443,19 @@ function CompileBar({
           {' · '}{summary.specializations.patternOutputReuse.excluded.length} excluded consumer{summary.specializations.patternOutputReuse.excluded.length === 1 ? '' : 's'}
         </span>
       )}
-      {summary && summary.specializations.contentKeys.keyedClipCount > 0 && (
-        <span className={summary.specializations.contentKeys.selectedStackCount > 0 ? 'text-emerald-300' : 'text-amber-300'}>
-          content key: {summary.specializations.contentKeys.keyedClipCount} keyed Pattern{summary.specializations.contentKeys.keyedClipCount === 1 ? '' : 's'}
-          {' · '}{summary.specializations.contentKeys.selectedStackCount} conditional stack{summary.specializations.contentKeys.selectedStackCount === 1 ? '' : 's'}
-          {summary.specializations.contentKeys.evaluationFormula && ' · N + U render paths (U = holes and feather pixels)'}
-          {' · '}{summary.specializations.contentKeys.rejectedStackCount} fallback stack{summary.specializations.contentKeys.rejectedStackCount === 1 ? '' : 's'}
+      {coverage && (coverage.keyedClipCount > 0 || coverageEndpointCount > 0) && (
+        <span className={coverage.selectedStackCount > 0 || coverage.zeroWeightLayersSkipped > 0 ? 'text-emerald-300' : 'text-amber-300'}>
+          coverage: {coverage.keyedClipCount} keyed Pattern{coverage.keyedClipCount === 1 ? '' : 's'}
+          {' · '}{coverage.selectedStackCount} conditional stack{coverage.selectedStackCount === 1 ? '' : 's'}
+          {coverage.evaluationFormula && (
+            <> · {coverage.evaluationFormula} render paths · best {coverage.bestCaseRenderersPerPixel}, worst {coverage.worstCaseRenderersPerPixel} renderers/px</>
+          )}
+          {coverage.zeroWeightLayersSkipped > 0 && ` · ${coverage.zeroWeightLayersSkipped} zero-weight evaluation${coverage.zeroWeightLayersSkipped === 1 ? '' : 's'} skipped`}
+          {coverage.zeroWeightRequiredCallsRetained > 0 && ` · ${coverage.zeroWeightRequiredCallsRetained} zero-weight state call${coverage.zeroWeightRequiredCallsRetained === 1 ? '' : 's'} retained`}
+          {coverage.fullWeightBlendBypasses > 0 && ` · ${coverage.fullWeightBlendBypasses} full-weight blend${coverage.fullWeightBlendBypasses === 1 ? '' : 's'} bypassed`}
+          {coverage.trackedEndpointLayersEligible > 0 && ` · ${coverage.trackedEndpointLayersEligible} animated endpoint${coverage.trackedEndpointLayersEligible === 1 ? '' : 's'} eligible`}
+          {coverage.trackedEndpointRequiredCallsRetained > 0 && ` · ${coverage.trackedEndpointRequiredCallsRetained} animated state call${coverage.trackedEndpointRequiredCallsRetained === 1 ? '' : 's'} retained`}
+          {' · '}{coverage.rejectedStackCount} fallback stack{coverage.rejectedStackCount === 1 ? '' : 's'}
         </span>
       )}
       {summary?.renderPolicy === 'snapshot-outgoing-transition-live-incoming' && (

@@ -147,6 +147,24 @@ output-dependent uncovered set. A 90%-opaque black-key overlay improved from
 2.801 to 4.480 FPS (+59.9%) while reducing source and bytecode and allocating no
 new arrays.
 
+### Three-layer coverage-directed composition
+
+An eligible three-layer keyed stack now evaluates from top to bottom and stops
+when accumulated alpha reaches one. Exact cost is `N + U1 + U2`; feather pixels
+continue through every layer required for the exact blend. Render-mutating,
+unknown, repeated-instance, and unsupported-depth stacks retain ordinary
+composition. Exact zero-weight render-pure layers are omitted, stateful calls
+are retained, and exact full weight bypasses unnecessary blend arithmetic.
+
+At 2,000 pixels on pb32 firmware 3.67, median throughput changed by -2.27%,
++16.71%, +41.38%, +100.74%, and +121.98% at 0%, 25%, 50%, 90%, and 100%
+coverage. The 90%-coverage result held at every target size: 14.423 -> 28.942
+FPS at 256 pixels, 3.704 -> 7.435 at 1,000, and 1.852 -> 3.717 at 2,000.
+The selected artifact adds 401 compact-source bytes and 48 Controller-bytecode
+bytes but no VM words. Five-layer artifacts remain byte-for-byte unchanged and
+measured neutral. Fast and Precise replay match across the complete coverage and
+depth matrix.
+
 ### Five-Pattern qualification
 
 The 36-second acceptance Show combines five stock Pattern instances, five
@@ -216,6 +234,7 @@ restoration details for every line.
 | 02 | #536 Restart liveness | 15.07% weighted globals reclaimable, but no over-limit reference crosses below 256; declined |
 | 03 | #538 shared generated Effect kernels | 10 members: source -12,552 B, bytecode -6,480 B, globals -54; FPS neutral |
 | 04 | #533 authored Freeze at entry | median FPS +45.55% / +46.02% / +46.07% at 256 / 1,000 / 2,000 pixels; zero additional VM words |
+| 05 | #534 three-layer coverage composition | 90% coverage median FPS +100.67% / +100.74% / +100.74% at 256 / 1,000 / 2,000 pixels; zero additional VM words |
 
 The cumulative next-wave ledger, including exact fixture and restoration facts,
 lives in `docs/plans/show-rendering-next-wave-measurement-ledger.md`.
