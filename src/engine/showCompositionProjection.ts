@@ -142,9 +142,7 @@ export function projectFlatShowComposition(
       sourceCellIds: cells.map((cell) => cell.id),
       pattern: { ...source.pattern },
       patternName: source.patternName,
-      evaluationPolicy: source.evaluationPolicy === 'freeze-at-entry'
-        ? 'freeze-at-entry' as const
-        : 'live' as const,
+      evaluationPolicy: source.evaluationPolicy ?? 'live',
       simulation: {
         timeScale: source.adaptations.timeScale,
         timeOffsetMs: source.adaptations.timeOffsetMs ?? 0,

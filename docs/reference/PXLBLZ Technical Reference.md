@@ -1821,35 +1821,42 @@ retain the exact inline emitter with a compile-summary reason. Map or Effect
 property changes rebuild the generated runtime, so a selected Show-lifetime
 field never survives a semantic invalidation.
 
-### Authored Freeze-at-entry evaluation
+### Authored Freeze-at-entry and Rolling Refresh evaluation
 
-`ShowCell` and `ShowPatternInstance` may persist `evaluationPolicy` as `live` or
-`freeze-at-entry`. The field is optional so legacy records and explicitly Live
-records lower to the same recipe shape and generated artifact. The shared Clip
-inspector projects a missing field as Live and writes the policy back through
-the flat-cell or Pattern-instance owner adapter. Entry policy remains separate:
-Continue and Restart choose Pattern identity, while evaluation policy chooses
-whether the current visual is recomputed or held.
+`ShowCell` and `ShowPatternInstance` may persist `evaluationPolicy` as `live`,
+`freeze-at-entry`, or `rolling-refresh`. The field is optional so legacy records
+and explicitly Live records lower to the same recipe shape and generated
+artifact. The shared Clip inspector projects a missing field as Live and writes
+the policy back through the flat-cell or Pattern-instance owner adapter. Saved
+Rolling Refresh always lowers to four slices; diagnostic whole-frame cadence and
+other slice counts are not part of the saved model. Entry policy remains
+separate: Continue and Restart choose Pattern identity, while evaluation policy
+chooses how often the current visual is recomputed.
 
 Composition lowering copies the instance policy onto transient cells, and
-recipe lowering copies only authored Freeze onto `ShowClipRecipe`. For each
-compatible routed Scene, the compiler submits an authored `rgb-snapshot`
-candidate with a half-open Scene lifetime. The candidate requires all three
-`stage-rgb` planes, names Scene/Clip exit, loop, seek, pre-capture input changes,
-and arena ownership as invalidators, and participates in the same deterministic
-planner ordering as Transition snapshots, shared Pattern output, coordinate
-fields, and scalar fields. A rejected required candidate retains Live rendering
-and produces a compile warning.
+recipe lowering copies authored Freeze or fixed-four-slice Rolling Refresh onto
+`ShowClipRecipe`. For each compatible routed Scene, the compiler submits an
+authored `rgb-snapshot` candidate with a half-open Scene lifetime. The candidate
+requires all three `stage-rgb` planes, names Scene/Clip exit, loop, seek,
+pre-capture input changes, and arena ownership as invalidators, and participates
+in the same deterministic planner ordering as Transition snapshots, shared
+Pattern output, coordinate fields, and scalar fields. A rejected required
+candidate retains Live rendering and produces a compile warning.
 
 The renderer captures in traversal order rather than running a synthetic
-before-render traversal. While the Scene owns the candidate and readiness is
-false, each ordinary render call evaluates the Pattern and writes RGB at its
-local index. The last index marks the frame complete. Later traversals read the
-three planes and skip the Pattern renderer. This preserves the Stage Map's real
-2D samples on the capture frame and prevents a partial buffer from becoming
+before-render traversal. Freeze replays only after one complete traversal.
+Rolling Refresh also fills its first traversal completely, then advances a
+deterministic modulo-index phase and evaluates one quarter of the pixels per
+presented frame; its maximum pixel age is three frames. While the Scene owns the
+candidate and readiness is false, each ordinary render call evaluates the
+Pattern and writes RGB at its local index. The last index marks the frame
+complete. Later Freeze traversals read all three planes and skip the Pattern
+renderer. Later Rolling Refresh traversals evaluate and write the active quarter
+and replay the remaining three quarters. This preserves the Stage Map's real 2D
+samples on every evaluated pixel and prevents a partial buffer from becoming
 visible. The scheduler keeps calling the member's advance function, so private
-time, Pattern state, Controls, and Effect update state continue even while RGB
-is held.
+time, Pattern state, Controls, and Effect update state continue while RGB is
+held or staggered.
 
 The first production compatibility envelope is intentionally narrow: one
 static, unkeyed placement on the sole Zone of one routed layout, with no local

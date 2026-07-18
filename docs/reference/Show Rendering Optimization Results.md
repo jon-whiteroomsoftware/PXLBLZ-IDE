@@ -269,6 +269,10 @@ restoration details for every line.
 | 05 | #534 three-layer coverage composition | 90% coverage median FPS +100.67% / +100.74% / +100.74% at 256 / 1,000 / 2,000 pixels; zero additional VM words |
 | 06 | #539 Vignette scalar field | median FPS +26.36% / +26.54% / +26.58% at 256 / 1,000 / 2,000 pixels; zero additional VM words |
 | 07 | #542 table-driven Show score | Wipe / Shape / Easing source -85.7% / -75.3% / -86.6%; Controller bytecode -78.9% / -66.6% / -78.5%; runtime neutral |
+| 08 | #546 Restart Pattern slots | Property Animation instances 17 -> 8; source -22.56%, bytecode -18.02%; runtime neutral |
+| 09 | #540 Pattern field/shading decomposition | five consumers: median FPS +110.19% / +110.67% / +109.87% at 256 / 1,000 / 2,000 pixels |
+| 10 | #535 whole-frame Refresh diagnostic | 1,000 ms median FPS +43.40% / +37.88% / +29.32%; periodic capture pacing remained visible |
+| 11 | #535 four-slice Rolling Refresh | median FPS +20.09% / +20.19% / +20.20%; maximum pixel age 3 frames; accepted for production |
 
 The cumulative next-wave ledger, including exact fixture and restoration facts,
 lives in `docs/plans/show-rendering-next-wave-measurement-ledger.md`.

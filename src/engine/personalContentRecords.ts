@@ -393,7 +393,7 @@ export type ShowPatternRef =
   | { kind: 'user'; id: string }
   | { kind: 'stock'; id: string }
 
-export type ShowClipEvaluationPolicy = 'live' | 'freeze-at-entry'
+export type ShowClipEvaluationPolicy = 'live' | 'freeze-at-entry' | 'rolling-refresh'
 
 export interface ShowCell {
   id: string
@@ -408,7 +408,7 @@ export interface ShowCell {
   adaptations: ShowCellAdaptations
   /** Start this destination with a fresh Pattern instance instead of continuing matching state. */
   restartOnEntry?: boolean
-  /** Evaluate continuously by default, or capture one complete RGB traversal on entry. */
+  /** Evaluate continuously, freeze one complete entry frame, or refresh one quarter of pixels per frame. */
   evaluationPolicy?: ShowClipEvaluationPolicy
   /** Scene-owned 0..1 targets for public slider control functions. */
   controlTargets?: Record<string, number>
@@ -445,7 +445,7 @@ export interface ShowPatternInstance {
   id: string
   pattern: ShowPatternRef
   patternName: string
-  /** Evaluate continuously by default, or capture one complete RGB traversal on entry. */
+  /** Evaluate continuously, freeze one complete entry frame, or refresh one quarter of pixels per frame. */
   evaluationPolicy?: ShowClipEvaluationPolicy
   time: {
     timeScale: number

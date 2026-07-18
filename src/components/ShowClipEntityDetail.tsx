@@ -2,7 +2,12 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Grid2X2 } from 'lucide-react'
 import { PatternCombobox, type PatternComboboxOption } from './PatternCombobox'
 import { ShowEffectStack } from './ShowEffectsAuthoring'
-import { showClipInspectorCapabilities, type ShowClipInspectorPatch, type ShowClipInspectorValue } from '@/engine/showClipInspectorModel'
+import {
+  normalizeShowClipEvaluationPolicy,
+  showClipInspectorCapabilities,
+  type ShowClipInspectorPatch,
+  type ShowClipInspectorValue,
+} from '@/engine/showClipInspectorModel'
 import type { AutomatablePatternControl } from '@/engine/showPatternControls'
 import type { ShowCompiledCostMetadata } from '@/engine/showVisualToolkit'
 
@@ -314,14 +319,19 @@ export function ShowClipEntityDetail({
                         disabled={readOnly}
                         title={value.evaluationPolicy === 'freeze-at-entry'
                           ? 'Capture one complete RGB traversal on entry, then replay it while the Pattern clock continues.'
-                          : 'Evaluate the Pattern for every presented frame.'}
+                          : value.evaluationPolicy === 'rolling-refresh'
+                            ? 'Update one quarter of pixels per frame and replay the rest. Maximum pixel age is three frames; the Pattern clock continues.'
+                            : 'Evaluate the Pattern for every presented frame.'}
                         onChange={(event) => onPatch({
-                          evaluationPolicy: event.target.value === 'freeze-at-entry' ? 'freeze-at-entry' : 'live',
+                          evaluationPolicy: normalizeShowClipEvaluationPolicy(
+                            event.target.value as ShowClipInspectorValue['evaluationPolicy'],
+                          ),
                         })}
                         className="h-5 w-full max-w-44 border-0 border-b border-zinc-800 bg-transparent px-1 text-[9px] text-zinc-200 outline-none focus:border-cyan-400/60 disabled:opacity-60"
                       >
                         <option value="live">Live</option>
                         <option value="freeze-at-entry">Freeze at entry</option>
+                        <option value="rolling-refresh">Refresh (4 slices)</option>
                       </select>
                     </td>
                   </tr>

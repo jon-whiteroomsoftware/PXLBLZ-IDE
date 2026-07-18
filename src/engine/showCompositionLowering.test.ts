@@ -138,6 +138,18 @@ describe('Show composition compiler lowering (#488)', () => {
     ])
   })
 
+  it('preserves the qualified Rolling Refresh policy on an explicit Pattern instance', () => {
+    const show = fixture()
+    show.composition!.patternInstances[0].evaluationPolicy = 'rolling-refresh'
+
+    const recipe = showRecordToCompileRecipe(show, lookup(show))
+
+    expect(recipe.clips.find((clip) => clip.id === 'instance-a')).toMatchObject({
+      evaluationPolicy: 'rolling-refresh',
+      rollingRefreshSlices: 4,
+    })
+  })
+
   it('carries stable typed tracks and source-Scene offsets through derived local holds (#490)', () => {
     const show = fixture()
     show.composition!.scenes[0].propertyTracks = [{

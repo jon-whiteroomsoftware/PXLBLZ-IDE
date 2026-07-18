@@ -67,6 +67,8 @@
     "issue533:hardware": "ISSUE533_HARDWARE=1 vitest run test/perf-harness/issue533.hardware.test.ts --reporter=verbose",
     "issue534": "ISSUE534_REPORT=1 vitest run test/perf-harness/issue534.test.ts --reporter=verbose",
     "issue534:hardware": "ISSUE534_HARDWARE=1 vitest run test/perf-harness/issue534.hardware.test.ts --reporter=verbose",
+    "issue535": "ISSUE535_REPORT=1 vitest run test/perf-harness/issue535.test.ts --reporter=verbose",
+    "issue535:hardware": "ISSUE535_HARDWARE=1 vitest run test/perf-harness/issue535.hardware.test.ts --reporter=verbose",
     "issue536": "vitest run test/perf-harness/showRestartGlobalLiveness.test.ts test/perf-harness/issue536.test.ts --reporter=verbose",
     "issue538": "ISSUE538_REPORT=1 vitest run test/perf-harness/issue538.test.ts --reporter=verbose",
     "issue538:hardware": "ISSUE538_HARDWARE=1 vitest run test/perf-harness/issue538.hardware.test.ts --reporter=verbose",

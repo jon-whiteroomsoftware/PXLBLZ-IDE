@@ -1944,7 +1944,7 @@ export function showRecordToCompileRecipe(
   if (lookup.compositionLayerByCellId && Object.keys(lookup.compositionLayerByCellId).length > 0) {
     return showRecordToRoutedSceneSequenceRecipe(show, lookup)
   }
-  if (show.cells.some((cell) => cell.evaluationPolicy === 'freeze-at-entry')) {
+  if (show.cells.some((cell) => cell.evaluationPolicy === 'freeze-at-entry' || cell.evaluationPolicy === 'rolling-refresh')) {
     return showRecordToRoutedSceneSequenceRecipe(show, lookup)
   }
   if (
@@ -2608,8 +2608,10 @@ function showRecordToRoutedSceneSequenceRecipe(
       && scene.placements.every((placement, index) => (
         JSON.stringify(placement) === JSON.stringify(firstPlacements[index])
       )))
-  const hasAuthoredFreezeAtEntry = [...clipById.values()].some((clip) => clip.evaluationPolicy === 'freeze-at-entry')
-  if (hasStaticPatternSchedule && !lookup.compositionLayerByCellId && !hasAuthoredFreezeAtEntry) {
+  const hasAuthoredCachedEvaluation = [...clipById.values()].some((clip) => (
+    clip.evaluationPolicy === 'freeze-at-entry' || clip.evaluationPolicy === 'rolling-refresh'
+  ))
+  if (hasStaticPatternSchedule && !lookup.compositionLayerByCellId && !hasAuthoredCachedEvaluation) {
     return showRecordToStaticRoutedRecipe(normalized, lookup)
   }
 
@@ -2641,10 +2643,14 @@ function mergeShowPlacementEffects(
   return result.length > 0 ? result : undefined
 }
 
-function compilerEvaluationPolicy(cell: Pick<ShowCell, 'evaluationPolicy'>): Pick<ShowRecipe['clips'][number], 'evaluationPolicy'> {
-  return cell.evaluationPolicy === 'freeze-at-entry'
-    ? { evaluationPolicy: 'freeze-at-entry' }
-    : {}
+function compilerEvaluationPolicy(
+  cell: Pick<ShowCell, 'evaluationPolicy'>,
+): Pick<ShowRecipe['clips'][number], 'evaluationPolicy' | 'rollingRefreshSlices'> {
+  if (cell.evaluationPolicy === 'freeze-at-entry') return { evaluationPolicy: 'freeze-at-entry' }
+  if (cell.evaluationPolicy === 'rolling-refresh') {
+    return { evaluationPolicy: 'rolling-refresh', rollingRefreshSlices: 4 }
+  }
+  return {}
 }
 
 function showCompileCellsAtSlot(

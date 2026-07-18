@@ -85,6 +85,10 @@ describe('shared Clip Entity Detail sections (#498)', () => {
       target: { value: 'freeze-at-entry' },
     })
     expect(onPatch).toHaveBeenCalledWith({ evaluationPolicy: 'freeze-at-entry' })
+    fireEvent.change(screen.getByRole('combobox', { name: 'Clip evaluation' }), {
+      target: { value: 'rolling-refresh' },
+    })
+    expect(onPatch).toHaveBeenCalledWith({ evaluationPolicy: 'rolling-refresh' })
 
     fireEvent.click(screen.getByRole('checkbox', { name: 'Set Speed target' }))
     expect(onPatch).toHaveBeenCalledWith({ simulation: { controlTargets: undefined } })

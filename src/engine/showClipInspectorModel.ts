@@ -366,7 +366,7 @@ function patternKey(pattern: ShowPatternRef): string {
 export function normalizeShowClipEvaluationPolicy(
   policy: ShowClipEvaluationPolicy | undefined,
 ): ShowClipEvaluationPolicy {
-  return policy === 'freeze-at-entry' ? 'freeze-at-entry' : 'live'
+  return policy === 'freeze-at-entry' || policy === 'rolling-refresh' ? policy : 'live'
 }
 
 const normalizeEvaluationPolicy = normalizeShowClipEvaluationPolicy

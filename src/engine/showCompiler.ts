@@ -136,7 +136,10 @@ import {
 export interface ShowClipRecipe {
   id: string
   source: string
-  evaluationPolicy?: 'live' | 'freeze-at-entry'
+  /** Whole-frame Refresh remains diagnostic; saved Rolling Refresh fixes slices at four. */
+  evaluationPolicy?: 'live' | 'freeze-at-entry' | 'refresh' | 'rolling-refresh'
+  refreshIntervalMs?: number
+  rollingRefreshSlices?: number
   zone?: string
   zones?: string[]
   zoneMode?: 'independent' | 'span' | 'repeat'
@@ -414,7 +417,7 @@ export interface ShowCompileClipSummary {
   renamedBindings: string[]
   renamedPatternVars: string[]
   evaluationPolicy: 'full' | 'masked-shutter-continue' | 'masked-shutter-freeze'
-  authoredEvaluationPolicy: 'live' | 'freeze-at-entry'
+  authoredEvaluationPolicy: 'live' | 'freeze-at-entry' | 'refresh' | 'rolling-refresh'
   expectedActiveFraction: number
   temporalPolicy: 'continuous' | 'stepped-clock'
   stepMs: number | null
@@ -687,6 +690,43 @@ export interface ShowCompileSummary {
         reason: ShowRenderTargetDecisionReason | 'incompatible'
       }>
     }
+    refresh: {
+      authoredClipCount: number
+      selectedSceneCount: number
+      cadenceMs: number[]
+      evaluationsAvoidedPerReplayFrame: number
+      captures: Array<{
+        candidateId: string
+        sceneIndex: number
+        clipId: string
+        cadenceMs: number
+        lifetime: 'scene'
+        planes: Array<0 | 1 | 2>
+        invalidatedBy: string[]
+        clockBehavior: 'periodic-capture-continue-private-clock'
+        status: 'selected' | 'rejected'
+        reason: ShowRenderTargetDecisionReason | 'incompatible'
+      }>
+    }
+    rollingRefresh: {
+      authoredClipCount: number
+      selectedSceneCount: number
+      slices: number[]
+      maxPixelAgeFrames: number
+      evaluationsAvoidedPerFrame: number
+      captures: Array<{
+        candidateId: string
+        sceneIndex: number
+        clipId: string
+        slices: number
+        lifetime: 'scene'
+        planes: Array<0 | 1 | 2>
+        invalidatedBy: string[]
+        clockBehavior: 'rolling-capture-continue-private-clock'
+        status: 'selected' | 'rejected'
+        reason: ShowRenderTargetDecisionReason | 'incompatible'
+      }>
+    }
   }
   clips: ShowCompileClipSummary[]
   resources: ShowVmResourceLedger
@@ -728,7 +768,9 @@ interface Scope {
 
 interface CompiledMember {
   id: string
-  evaluationPolicy: 'live' | 'freeze-at-entry'
+  evaluationPolicy: 'live' | 'freeze-at-entry' | 'refresh' | 'rolling-refresh'
+  refreshIntervalMs: number
+  rollingRefreshSlices: number
   prefix: string
   code: string
   resourceSource: string
@@ -776,6 +818,10 @@ interface CompiledMember {
   animatedEffectParameterPaths: string[]
   freezeOwnerTokens: number[]
   freezeRenderTarget?: ShowRenderTargetPlan<'stage-rgb'>
+  refreshOwnerTokens: number[]
+  refreshRenderTarget?: ShowRenderTargetPlan<'stage-rgb'>
+  rollingRefreshOwnerTokens: number[]
+  rollingRefreshRenderTarget?: ShowRenderTargetPlan<'stage-rgb'>
   vignetteScalarField?: SelectedScalarField
   resettable: boolean
   resetAssignments: string[]
@@ -804,6 +850,34 @@ interface CompiledFreezeAtEntry {
 }
 
 interface SelectedFreezeAtEntry extends CompiledFreezeAtEntry {
+  renderTarget: ShowRenderTargetPlan<'stage-rgb'>
+  ownerToken: number
+}
+
+interface CompiledRefresh {
+  candidate: ShowRenderTargetCandidate
+  sceneIndex: number
+  clipId: string
+  cadenceMs: number
+  member: CompiledMember
+  pixelCount: number
+}
+
+interface SelectedRefresh extends CompiledRefresh {
+  renderTarget: ShowRenderTargetPlan<'stage-rgb'>
+  ownerToken: number
+}
+
+interface CompiledRollingRefresh {
+  candidate: ShowRenderTargetCandidate
+  sceneIndex: number
+  clipId: string
+  slices: number
+  member: CompiledMember
+  pixelCount: number
+}
+
+interface SelectedRollingRefresh extends CompiledRollingRefresh {
   renderTarget: ShowRenderTargetPlan<'stage-rgb'>
   ownerToken: number
 }
@@ -1000,6 +1074,126 @@ function buildFreezeAtEntryCandidates(
         replayCost: pixelCount * 3,
       }
       result.push({ candidate, sceneIndex, clipId, member, pixelCount })
+    }
+  })
+  return result
+}
+
+function buildRefreshCandidates(
+  recipe: ShowRecipe,
+  members: CompiledMember[],
+  pixelCount: number,
+): CompiledRefresh[] {
+  const sequence = recipe.routedSceneSequence
+  const routeZoneName = recipe.routingLayouts?.length === 1 && recipe.routingLayouts[0].zones.length === 1
+    ? recipe.routingLayouts[0].zones[0].name
+    : !recipe.routingLayouts?.length && recipe.zones?.length === 1
+      ? recipe.zones[0].name
+      : undefined
+  if (!sequence || !routeZoneName) return []
+  const memberById = new Map(members.map((member) => [member.id, member]))
+  const result: CompiledRefresh[] = []
+  let cursor = 0
+  sequence.scenes.forEach((scene, sceneIndex) => {
+    const start = cursor
+    const end = start + scene.holdMs
+    cursor = end + (scene.transitionOut?.kind === 'cut' ? 0 : scene.transitionOut?.durationMs ?? 0)
+    if ((scene.propertyTracks?.length ?? 0) > 0) return
+    const clipIds = [...new Set(scene.placements.map((placement) => placement.clipId))]
+    for (const clipId of clipIds) {
+      const member = memberById.get(clipId)
+      if (!member || member.evaluationPolicy !== 'refresh' || memberHasContentKey(member)) continue
+      const placements = scene.placements.filter((placement) => placement.clipId === clipId)
+      if (placements.length !== 1 || placements[0].zoneName !== routeZoneName) continue
+      const cadenceMs = member.refreshIntervalMs
+      const renderOperationsPerPixel = Math.max(
+        estimateShowPatternRenderOperations(member.resourceSource, 'render') ?? 0,
+        estimateShowPatternRenderOperations(member.resourceSource, 'render2D') ?? 0,
+        1,
+      )
+      const expectedFrameCount = Math.max(1, Math.ceil(scene.holdMs / (1_000 / 30)))
+      const expectedCaptureCount = Math.max(1, Math.ceil(scene.holdMs / cadenceMs))
+      const candidate: ShowRenderTargetCandidate = {
+        id: `refresh:routed:${sceneIndex}:${clipId}`,
+        kind: 'rgb-snapshot',
+        lifetime: { kind: 'scene', start, end, key: `refresh-scene-${sceneIndex}` },
+        invalidatedBy: [
+          'refresh-cadence',
+          'scene-exit',
+          'clip-exit',
+          'show-loop',
+          'seek',
+          'pre-capture-control-or-effect-change',
+          'planner-ownership-change',
+        ],
+        exactness: 'authored-snapshot',
+        authorSelected: true,
+        required: true,
+        setupCost: pixelCount * expectedCaptureCount,
+        perFrameSavings: pixelCount * renderOperationsPerPixel,
+        expectedReuseCount: Math.max(1, expectedFrameCount - expectedCaptureCount),
+        replayCost: pixelCount * 3,
+      }
+      result.push({ candidate, sceneIndex, clipId, cadenceMs, member, pixelCount })
+    }
+  })
+  return result
+}
+
+function buildRollingRefreshCandidates(
+  recipe: ShowRecipe,
+  members: CompiledMember[],
+  pixelCount: number,
+): CompiledRollingRefresh[] {
+  const sequence = recipe.routedSceneSequence
+  const routeZoneName = recipe.routingLayouts?.length === 1 && recipe.routingLayouts[0].zones.length === 1
+    ? recipe.routingLayouts[0].zones[0].name
+    : !recipe.routingLayouts?.length && recipe.zones?.length === 1
+      ? recipe.zones[0].name
+      : undefined
+  if (!sequence || !routeZoneName) return []
+  const memberById = new Map(members.map((member) => [member.id, member]))
+  const result: CompiledRollingRefresh[] = []
+  let cursor = 0
+  sequence.scenes.forEach((scene, sceneIndex) => {
+    const start = cursor
+    const end = start + scene.holdMs
+    cursor = end + (scene.transitionOut?.kind === 'cut' ? 0 : scene.transitionOut?.durationMs ?? 0)
+    if ((scene.propertyTracks?.length ?? 0) > 0) return
+    const clipIds = [...new Set(scene.placements.map((placement) => placement.clipId))]
+    for (const clipId of clipIds) {
+      const member = memberById.get(clipId)
+      if (!member || member.evaluationPolicy !== 'rolling-refresh' || memberHasContentKey(member)) continue
+      const placements = scene.placements.filter((placement) => placement.clipId === clipId)
+      if (placements.length !== 1 || placements[0].zoneName !== routeZoneName) continue
+      const slices = member.rollingRefreshSlices
+      const updatedPixelsPerFrame = Math.ceil(pixelCount / slices)
+      const renderOperationsPerPixel = Math.max(
+        estimateShowPatternRenderOperations(member.resourceSource, 'render') ?? 0,
+        estimateShowPatternRenderOperations(member.resourceSource, 'render2D') ?? 0,
+        1,
+      )
+      const candidate: ShowRenderTargetCandidate = {
+        id: `rolling-refresh:routed:${sceneIndex}:${clipId}`,
+        kind: 'rgb-snapshot',
+        lifetime: { kind: 'scene', start, end, key: `rolling-refresh-scene-${sceneIndex}` },
+        invalidatedBy: [
+          'scene-exit',
+          'clip-exit',
+          'show-loop',
+          'seek',
+          'pre-capture-control-or-effect-change',
+          'planner-ownership-change',
+        ],
+        exactness: 'authored-snapshot',
+        authorSelected: true,
+        required: true,
+        setupCost: pixelCount,
+        perFrameSavings: Math.max(0, pixelCount - updatedPixelsPerFrame) * renderOperationsPerPixel,
+        expectedReuseCount: Math.max(1, Math.ceil(scene.holdMs / (1_000 / 30)) - 1),
+        replayCost: Math.max(0, pixelCount - updatedPixelsPerFrame) * 3,
+      }
+      result.push({ candidate, sceneIndex, clipId, slices, member, pixelCount })
     }
   })
   return result
@@ -1873,9 +2067,21 @@ export function compileShow(
     members,
     renderTargetPixelCount,
   )
+  const refreshCaptures = buildRefreshCandidates(
+    expandedRecipe,
+    members,
+    renderTargetPixelCount,
+  )
+  const rollingRefreshCaptures = buildRollingRefreshCandidates(
+    expandedRecipe,
+    members,
+    renderTargetPixelCount,
+  )
   const renderTargetCandidates = [
     ...buildShowRenderTargetCandidates(expandedRecipe, renderTargetPixelCount),
     ...freezeAtEntryCaptures.map((capture) => capture.candidate),
+    ...refreshCaptures.map((capture) => capture.candidate),
+    ...rollingRefreshCaptures.map((capture) => capture.candidate),
     ...(patternOutputReuse ? patternOutputReuseAnalysis.groups.map((group) => group.candidate) : []),
     ...(scalarFieldCaching
       ? scalarFields.filter((field) => !field.cacheEligibilityReason).map((field) => field.candidate)
@@ -1922,6 +2128,38 @@ export function compileShow(
   for (const capture of selectedFreezeAtEntryCaptures) {
     capture.member.freezeOwnerTokens.push(capture.ownerToken)
     capture.member.freezeRenderTarget = capture.renderTarget
+  }
+  const refreshByCandidate = new Map(
+    refreshCaptures.map((capture) => [capture.candidate.id, capture]),
+  )
+  const selectedRefreshCaptures = preliminaryRenderTargetPlan.assignments.flatMap((assignment, index) => {
+    const capture = refreshByCandidate.get(assignment.candidateId)
+    if (!capture) return []
+    return [{
+      ...capture,
+      renderTarget: planShowRenderTargetArena(renderTargetPixelCount, 'stage-rgb', assignment.planes),
+      ownerToken: index + 1,
+    } satisfies SelectedRefresh]
+  })
+  for (const capture of selectedRefreshCaptures) {
+    capture.member.refreshOwnerTokens.push(capture.ownerToken)
+    capture.member.refreshRenderTarget = capture.renderTarget
+  }
+  const rollingRefreshByCandidate = new Map(
+    rollingRefreshCaptures.map((capture) => [capture.candidate.id, capture]),
+  )
+  const selectedRollingRefreshCaptures = preliminaryRenderTargetPlan.assignments.flatMap((assignment, index) => {
+    const capture = rollingRefreshByCandidate.get(assignment.candidateId)
+    if (!capture) return []
+    return [{
+      ...capture,
+      renderTarget: planShowRenderTargetArena(renderTargetPixelCount, 'stage-rgb', assignment.planes),
+      ownerToken: index + 1,
+    } satisfies SelectedRollingRefresh]
+  })
+  for (const capture of selectedRollingRefreshCaptures) {
+    capture.member.rollingRefreshOwnerTokens.push(capture.ownerToken)
+    capture.member.rollingRefreshRenderTarget = capture.renderTarget
   }
   const scalarFieldByCandidate = new Map(scalarFields.map((field) => [field.candidate.id, field]))
   const selectedScalarFields = preliminaryRenderTargetPlan.assignments.flatMap((assignment, index) => {
@@ -1970,6 +2208,8 @@ export function compileShow(
         selectedScalarFields,
         selectedCoordinateFields,
         selectedFreezeAtEntryCaptures,
+        selectedRefreshCaptures,
+        selectedRollingRefreshCaptures,
         patternSlotRuntimePlan,
       )
       : null
@@ -2157,6 +2397,42 @@ export function compileShow(
       reason: decision?.reason ?? 'incompatible' as const,
     }
   })
+  const refreshSummary = refreshCaptures.map((capture) => {
+    const decision = renderTargetDecisionByCandidate.get(capture.candidate.id)
+    const assignment = renderTargetPlan.assignments.find((candidate) => (
+      candidate.candidateId === capture.candidate.id
+    ))
+    return {
+      candidateId: capture.candidate.id,
+      sceneIndex: capture.sceneIndex,
+      clipId: capture.clipId,
+      cadenceMs: capture.cadenceMs,
+      lifetime: 'scene' as const,
+      planes: assignment?.planes ?? [],
+      invalidatedBy: [...capture.candidate.invalidatedBy],
+      clockBehavior: 'periodic-capture-continue-private-clock' as const,
+      status: decision?.status === 'selected' ? 'selected' as const : 'rejected' as const,
+      reason: decision?.reason ?? 'incompatible' as const,
+    }
+  })
+  const rollingRefreshSummary = rollingRefreshCaptures.map((capture) => {
+    const decision = renderTargetDecisionByCandidate.get(capture.candidate.id)
+    const assignment = renderTargetPlan.assignments.find((candidate) => (
+      candidate.candidateId === capture.candidate.id
+    ))
+    return {
+      candidateId: capture.candidate.id,
+      sceneIndex: capture.sceneIndex,
+      clipId: capture.clipId,
+      slices: capture.slices,
+      lifetime: 'scene' as const,
+      planes: assignment?.planes ?? [],
+      invalidatedBy: [...capture.candidate.invalidatedBy],
+      clockBehavior: 'rolling-capture-continue-private-clock' as const,
+      status: decision?.status === 'selected' ? 'selected' as const : 'rejected' as const,
+      reason: decision?.reason ?? 'incompatible' as const,
+    }
+  })
   const transitionCost = expandedRecipe.sceneSequence || expandedRecipe.routedSceneSequence
     ? sequenceHasCrossfade || motionBlend
       ? 'renderer-window'
@@ -2191,6 +2467,14 @@ export function compileShow(
       warnings.push(
         `Freeze at entry ${decision.candidateId} fell back to Live (${decision.reason}): ${decision.detail}`,
       )
+    } else if (decision.candidateId.startsWith('refresh:')) {
+      warnings.push(
+        `Refresh ${decision.candidateId} fell back to Live (${decision.reason}): ${decision.detail}`,
+      )
+    } else if (decision.candidateId.startsWith('rolling-refresh:')) {
+      warnings.push(
+        `Rolling Refresh ${decision.candidateId} fell back to Live (${decision.reason}): ${decision.detail}`,
+      )
     } else {
       warnings.push(
         `Snapshot/live cache ${decision.candidateId} fell back to live/live (${decision.reason}): ${decision.detail}`,
@@ -2203,6 +2487,22 @@ export function compileShow(
     if (compatibleFreezeMemberIds.has(member.id)) continue
     warnings.push(
       `Freeze at entry for clip "${member.id}" fell back to Live because this first release requires one static, unkeyed placement on a single-zone routed Scene.`,
+    )
+  }
+  const authoredRefreshMembers = members.filter((member) => member.evaluationPolicy === 'refresh')
+  const compatibleRefreshMemberIds = new Set(refreshCaptures.map((capture) => capture.clipId))
+  for (const member of authoredRefreshMembers) {
+    if (compatibleRefreshMemberIds.has(member.id)) continue
+    warnings.push(
+      `Refresh for clip "${member.id}" fell back to Live because this diagnostic requires one static, unkeyed placement on a single-zone routed Scene.`,
+    )
+  }
+  const authoredRollingRefreshMembers = members.filter((member) => member.evaluationPolicy === 'rolling-refresh')
+  const compatibleRollingRefreshMemberIds = new Set(rollingRefreshCaptures.map((capture) => capture.clipId))
+  for (const member of authoredRollingRefreshMembers) {
+    if (compatibleRollingRefreshMemberIds.has(member.id)) continue
+    warnings.push(
+      `Rolling Refresh for clip "${member.id}" fell back to Live because this policy requires one static, unkeyed placement on a single-zone routed Scene.`,
     )
   }
   const cost = buildShowCompiledCostMetadata({
@@ -2385,7 +2685,8 @@ export function compileShow(
       renderTargetPixelCount,
       renderTargetArenaEmission,
       directSnapshotCrossfade || sequenceSnapshotCrossfade || routedSnapshotCrossfade || selectedPatternOutputReuseGroups.length > 0
-        || selectedFreezeAtEntryCaptures.length > 0
+        || selectedFreezeAtEntryCaptures.length > 0 || selectedRefreshCaptures.length > 0
+        || selectedRollingRefreshCaptures.length > 0
         ? 'stage-rgb'
         : selectedScalarFields.length > 0
           ? 'scalar-field'
@@ -2469,6 +2770,27 @@ export function compileShow(
           ? renderTargetPixelCount
           : 0,
         captures: freezeAtEntrySummary,
+      },
+      refresh: {
+        authoredClipCount: authoredRefreshMembers.length,
+        selectedSceneCount: refreshSummary.filter((capture) => capture.status === 'selected').length,
+        cadenceMs: refreshSummary.map((capture) => capture.cadenceMs),
+        evaluationsAvoidedPerReplayFrame: refreshSummary.some((capture) => capture.status === 'selected')
+          ? renderTargetPixelCount
+          : 0,
+        captures: refreshSummary,
+      },
+      rollingRefresh: {
+        authoredClipCount: authoredRollingRefreshMembers.length,
+        selectedSceneCount: rollingRefreshSummary.filter((capture) => capture.status === 'selected').length,
+        slices: rollingRefreshSummary.map((capture) => capture.slices),
+        maxPixelAgeFrames: Math.max(0, ...rollingRefreshSummary.map((capture) => capture.slices - 1)),
+        evaluationsAvoidedPerFrame: rollingRefreshSummary.some((capture) => capture.status === 'selected')
+          ? Math.max(0, ...rollingRefreshSummary.map((capture) => (
+              renderTargetPixelCount - Math.ceil(renderTargetPixelCount / capture.slices)
+            )))
+          : 0,
+        captures: rollingRefreshSummary,
       },
     },
     clips: members.map((member) => {
@@ -2921,7 +3243,17 @@ function compileMember(
 
   return {
     id: clip.id,
-    evaluationPolicy: clip.evaluationPolicy === 'freeze-at-entry' ? 'freeze-at-entry' : 'live',
+    evaluationPolicy: clip.evaluationPolicy === 'freeze-at-entry'
+      ? 'freeze-at-entry'
+      : clip.evaluationPolicy === 'refresh'
+        ? 'refresh'
+        : clip.evaluationPolicy === 'rolling-refresh' ? 'rolling-refresh' : 'live',
+    refreshIntervalMs: Number.isFinite(clip.refreshIntervalMs)
+      ? Math.max(1, Math.round(clip.refreshIntervalMs!))
+      : 1_000,
+    rollingRefreshSlices: Number.isFinite(clip.rollingRefreshSlices)
+      ? Math.max(1, Math.min(256, Math.round(clip.rollingRefreshSlices!)))
+      : 4,
     prefix,
     code,
     resourceSource: memberSource,
@@ -2977,6 +3309,8 @@ function compileMember(
     generatedEffectKernelSharing,
     animatedEffectParameterPaths,
     freezeOwnerTokens: [],
+    refreshOwnerTokens: [],
+    rollingRefreshOwnerTokens: [],
     resettable: reset.resettable,
     resetAssignments: reset.assignments,
     slotOwnerCount: 1,
@@ -3506,6 +3840,8 @@ function emitRoutedSceneSequenceShowCode(
   scalarFields: SelectedScalarField[] = [],
   coordinateFields: SelectedCoordinateField[] = [],
   freezeAtEntryCaptures: SelectedFreezeAtEntry[] = [],
+  refreshCaptures: SelectedRefresh[] = [],
+  rollingRefreshCaptures: SelectedRollingRefresh[] = [],
   patternSlotRuntimePlan: CompiledPatternSlotRuntimePlan | null = null,
 ): {
   code: string
@@ -3830,6 +4166,8 @@ ${member.prefix}_advance(delta)`
       || patternOutputReuseGroups.length > 0
       || coordinateFields.length > 0
       || freezeAtEntryCaptures.length > 0
+      || refreshCaptures.length > 0
+      || rollingRefreshCaptures.length > 0
       || scenes.some((scene) => (scene.localTimeOffsetMs ?? 0) !== 0)
       ? 'transition-family'
       : null
@@ -4215,6 +4553,39 @@ function __pxlblz_show_capture_transition_rgb(r, g, b) {
         '__pxlblz_show_freeze_previous_elapsed = __pxlblz_show_elapsed_s',
       ].join('\n')
     : ''
+  const refreshLifecycle = refreshCaptures.length > 0
+    ? [
+        '__pxlblz_show_refresh_target = -1',
+        '__pxlblz_show_refresh_cadence_s = 1',
+        ...refreshCaptures.map((capture, index) => (
+          `${index === 0 ? 'if' : 'else if'} (__pxlblz_show_scene == ${capture.sceneIndex}${hasTransitions ? ' && __pxlblz_show_transition < 0' : ''}) { __pxlblz_show_refresh_target = ${capture.ownerToken}; __pxlblz_show_refresh_cadence_s = ${capture.cadenceMs / 1_000} }`
+        )),
+        '__pxlblz_show_refresh_target_epoch = floor(__pxlblz_show_elapsed_s / __pxlblz_show_refresh_cadence_s)',
+        'if (__pxlblz_show_elapsed_s < __pxlblz_show_refresh_previous_elapsed || __pxlblz_show_refresh_target != __pxlblz_show_refresh_owner || (__pxlblz_show_refresh_target >= 0 && __pxlblz_show_refresh_target_epoch != __pxlblz_show_refresh_epoch)) {',
+        '  __pxlblz_show_refresh_owner = __pxlblz_show_refresh_target',
+        '  __pxlblz_show_refresh_epoch = __pxlblz_show_refresh_target_epoch',
+        '  __pxlblz_show_refresh_ready = 0',
+        '}',
+        '__pxlblz_show_refresh_previous_elapsed = __pxlblz_show_elapsed_s',
+      ].join('\n')
+    : ''
+  const rollingRefreshLifecycle = rollingRefreshCaptures.length > 0
+    ? [
+        '__pxlblz_show_rolling_target = -1',
+        '__pxlblz_show_rolling_slices = 1',
+        ...rollingRefreshCaptures.map((capture, index) => (
+          `${index === 0 ? 'if' : 'else if'} (__pxlblz_show_scene == ${capture.sceneIndex}${hasTransitions ? ' && __pxlblz_show_transition < 0' : ''}) { __pxlblz_show_rolling_target = ${capture.ownerToken}; __pxlblz_show_rolling_slices = ${capture.slices} }`
+        )),
+        'if (__pxlblz_show_elapsed_s < __pxlblz_show_rolling_previous_elapsed || __pxlblz_show_rolling_target != __pxlblz_show_rolling_owner) {',
+        '  __pxlblz_show_rolling_owner = __pxlblz_show_rolling_target',
+        '  __pxlblz_show_rolling_phase = 0',
+        '  __pxlblz_show_rolling_ready = 0',
+        '} else if (__pxlblz_show_rolling_target >= 0 && __pxlblz_show_rolling_ready) {',
+        '  __pxlblz_show_rolling_phase = (__pxlblz_show_rolling_phase + 1) % __pxlblz_show_rolling_slices',
+        '}',
+        '__pxlblz_show_rolling_previous_elapsed = __pxlblz_show_elapsed_s',
+      ].join('\n')
+    : ''
   const usesRouteLayout = !sharedPhysicalCut || layoutSelectLines.length > 0
   const snapshotPixelPrelude = usesSnapshot
     ? `var __pxlblz_show_snapshot_writing = __pxlblz_show_snapshot_transition == __pxlblz_show_transition && !__pxlblz_show_snapshot_ready
@@ -4264,6 +4635,27 @@ function __pxlblz_show_capture_transition_rgb(r, g, b) {
           'var __pxlblz_show_freeze_previous_elapsed = -1',
         ]
       : []),
+    ...(refreshCaptures.length > 0
+      ? [
+          'var __pxlblz_show_refresh_owner = -1',
+          'var __pxlblz_show_refresh_target = -1',
+          'var __pxlblz_show_refresh_ready = 0',
+          'var __pxlblz_show_refresh_epoch = -1',
+          'var __pxlblz_show_refresh_target_epoch = -1',
+          'var __pxlblz_show_refresh_cadence_s = 1',
+          'var __pxlblz_show_refresh_previous_elapsed = -1',
+        ]
+      : []),
+    ...(rollingRefreshCaptures.length > 0
+      ? [
+          'var __pxlblz_show_rolling_owner = -1',
+          'var __pxlblz_show_rolling_target = -1',
+          'var __pxlblz_show_rolling_ready = 0',
+          'var __pxlblz_show_rolling_phase = 0',
+          'var __pxlblz_show_rolling_slices = 1',
+          'var __pxlblz_show_rolling_previous_elapsed = -1',
+        ]
+      : []),
     ...(hasTransitions
       ? [
           'var __pxlblz_show_transition = -1',
@@ -4289,7 +4681,7 @@ function __pxlblz_show_capture_transition_rgb(r, g, b) {
     `export function beforeRender(delta) {
   __pxlblz_show_elapsed_s = (__pxlblz_show_elapsed_s + delta / 1000) % ${cursor / 1000}
 ${usesRouteLayout ? '  __pxlblz_show_route_layout = 0\n' : ''}
-${layoutSelectLines}${layoutSelectLines ? '\n' : ''}${propertyRamps ? `${emitRoutingPropertyAssignments(propertyRamps)}\n` : ''}  ${schedulerBranches}${coordinateTargetAssignments ? `\n${indentBlock(coordinateTargetAssignments, 2)}` : ''}${freezeLifecycle ? `\n${indentBlock(freezeLifecycle, 2)}` : ''}${patternOutputReuseGroups.length > 0 ? `\n${indentBlock(emitPatternOutputReusePrepass(patternOutputReuseGroups), 2)}` : ''}
+${layoutSelectLines}${layoutSelectLines ? '\n' : ''}${propertyRamps ? `${emitRoutingPropertyAssignments(propertyRamps)}\n` : ''}  ${schedulerBranches}${coordinateTargetAssignments ? `\n${indentBlock(coordinateTargetAssignments, 2)}` : ''}${freezeLifecycle ? `\n${indentBlock(freezeLifecycle, 2)}` : ''}${refreshLifecycle ? `\n${indentBlock(refreshLifecycle, 2)}` : ''}${rollingRefreshLifecycle ? `\n${indentBlock(rollingRefreshLifecycle, 2)}` : ''}${patternOutputReuseGroups.length > 0 ? `\n${indentBlock(emitPatternOutputReusePrepass(patternOutputReuseGroups), 2)}` : ''}
 }`,
     `export function ${outputDimension === 2 ? 'render2D(index, x, y)' : 'render(index)'} {
   ${renderBody}
@@ -6585,6 +6977,66 @@ function emitFreezeAtEntryCapture(member: CompiledMember, indexExpression: strin
 `
 }
 
+function emitRefreshReplay(member: CompiledMember, indexExpression: string): string {
+  const target = member.refreshRenderTarget
+  if (!target || member.refreshOwnerTokens.length === 0) return ''
+  const ownsCache = member.refreshOwnerTokens
+    .map((token) => `__pxlblz_show_refresh_owner == ${token}`)
+    .join(' || ')
+  return `  if (__pxlblz_show_refresh_ready && (${ownsCache})) {
+    ${member.prefix}_r = ${emitShowRenderTargetRead(target, 'r', indexExpression)}
+    ${member.prefix}_g = ${emitShowRenderTargetRead(target, 'g', indexExpression)}
+    ${member.prefix}_b = ${emitShowRenderTargetRead(target, 'b', indexExpression)}
+    return
+  }
+`
+}
+
+function emitRefreshCapture(member: CompiledMember, indexExpression: string): string {
+  const target = member.refreshRenderTarget
+  if (!target || member.refreshOwnerTokens.length === 0) return ''
+  const ownsCache = member.refreshOwnerTokens
+    .map((token) => `__pxlblz_show_refresh_owner == ${token}`)
+    .join(' || ')
+  return `  if (!__pxlblz_show_refresh_ready && (${ownsCache})) {
+    ${emitShowRenderTargetWrite(target, 'r', indexExpression, `${member.prefix}_r`)}
+    ${emitShowRenderTargetWrite(target, 'g', indexExpression, `${member.prefix}_g`)}
+    ${emitShowRenderTargetWrite(target, 'b', indexExpression, `${member.prefix}_b`)}
+    if (${indexExpression} == ${member.pixelCountName} - 1) __pxlblz_show_refresh_ready = 1
+  }
+`
+}
+
+function emitRollingRefreshReplay(member: CompiledMember, indexExpression: string): string {
+  const target = member.rollingRefreshRenderTarget
+  if (!target || member.rollingRefreshOwnerTokens.length === 0) return ''
+  const ownsCache = member.rollingRefreshOwnerTokens
+    .map((token) => `__pxlblz_show_rolling_owner == ${token}`)
+    .join(' || ')
+  return `  if (__pxlblz_show_rolling_ready && (${ownsCache}) && ${indexExpression} % __pxlblz_show_rolling_slices != __pxlblz_show_rolling_phase) {
+    ${member.prefix}_r = ${emitShowRenderTargetRead(target, 'r', indexExpression)}
+    ${member.prefix}_g = ${emitShowRenderTargetRead(target, 'g', indexExpression)}
+    ${member.prefix}_b = ${emitShowRenderTargetRead(target, 'b', indexExpression)}
+    return
+  }
+`
+}
+
+function emitRollingRefreshCapture(member: CompiledMember, indexExpression: string): string {
+  const target = member.rollingRefreshRenderTarget
+  if (!target || member.rollingRefreshOwnerTokens.length === 0) return ''
+  const ownsCache = member.rollingRefreshOwnerTokens
+    .map((token) => `__pxlblz_show_rolling_owner == ${token}`)
+    .join(' || ')
+  return `  if ((${ownsCache}) && (!__pxlblz_show_rolling_ready || ${indexExpression} % __pxlblz_show_rolling_slices == __pxlblz_show_rolling_phase)) {
+    ${emitShowRenderTargetWrite(target, 'r', indexExpression, `${member.prefix}_r`)}
+    ${emitShowRenderTargetWrite(target, 'g', indexExpression, `${member.prefix}_g`)}
+    ${emitShowRenderTargetWrite(target, 'b', indexExpression, `${member.prefix}_b`)}
+    if (!__pxlblz_show_rolling_ready && ${indexExpression} == ${member.pixelCountName} - 1) __pxlblz_show_rolling_ready = 1
+  }
+`
+}
+
 function emitPortalRenderBlock(
   from: CompiledMember,
   to: CompiledMember,
@@ -7889,6 +8341,10 @@ function emitRuntimePrelude(
     const lightShutter = member.adaptation.lightShutter
     const freezeReplay = emitFreezeAtEntryReplay(member, 'index')
     const freezeCapture = emitFreezeAtEntryCapture(member, 'index')
+    const refreshReplay = emitRefreshReplay(member, 'index')
+    const refreshCapture = emitRefreshCapture(member, 'index')
+    const rollingRefreshReplay = emitRollingRefreshReplay(member, 'index')
+    const rollingRefreshCapture = emitRollingRefreshCapture(member, 'index')
     const steppedClock = member.adaptation.steppedClock
     const steppedClockVars = steppedClock
       ? [
@@ -8031,12 +8487,12 @@ ${effectRuntime?.hasCoordinates ? emitMemberDistortionSampling(member, 'effectX'
 ${omitClear ? '' : `  ${member.prefix}_clear()
 `}  ${emitSelectedMemberRendererCall(member, 2, { index: 'mappedIndex', x: 'mappedX', y: 'mappedY' })}
 ${emitMemberOutputEffectLines(member, { index: 'index', x: 'effectX', y: 'effectY' })}
-${freezeCapture}
+${freezeCapture}${refreshCapture}${rollingRefreshCapture}
 ${effectRuntime?.hasCoordinates && !effectRuntime.wrap ? `  if (!effectInside) ${member.prefix}_clear()
 ` : ''}}`,
     ] : []),
     ...(outputDimension === 1 ? [`function ${member.prefix}_renderCapture(index) {
-${freezeReplay}${identitySamplePath ? '' : `  var mappedIndex = index
+${freezeReplay}${refreshReplay}${rollingRefreshReplay}${identitySamplePath ? '' : `  var mappedIndex = index
   if (${member.prefix}_adapt_mirror >= 0.5) mappedIndex = ${member.pixelCountName} - 1 - index
 `}${samplePropertyRamps ? `  if (__pxlblz_show_sample_repeat_scale != 1) {
     var mappedPosition = mappedIndex / max(1, ${member.pixelCountName} - 1)
@@ -8053,9 +8509,9 @@ ${emitMemberDistortionSampling(member, 'effectX', 'effectY')}
 `}  ${member.hasRender ? emitSelectedMemberRendererCall(member, 1, { index: identitySamplePath ? 'index' : 'mappedIndex' }) : ''}
 ${emitMemberOutputEffectLines(member, { index: 'index', x: `index / max(1, ${member.pixelCountName} - 1)`, y: '0.5' })}
 ${effectRuntime?.hasCoordinates && !effectRuntime.wrap ? `  if (!effectInside) ${member.prefix}_clear()
-` : ''}${freezeCapture}}`] : []),
+` : ''}${freezeCapture}${refreshCapture}${rollingRefreshCapture}}`] : []),
     ...(outputDimension === 2 ? [`function ${member.prefix}_renderCapture2D(index, x, y) {
-${freezeReplay}${identitySamplePath ? '' : `  var mappedIndex = index
+${freezeReplay}${refreshReplay}${rollingRefreshReplay}${identitySamplePath ? '' : `  var mappedIndex = index
   var mappedX = x
 ${samplePropertyRamps || effectRuntime?.hasCoordinates ? '  var mappedY = y\n' : ''}  if (${member.prefix}_adapt_mirror >= 0.5) {
     mappedIndex = ${member.pixelCountName} - 1 - index
@@ -8081,7 +8537,7 @@ ${emitMemberDistortionSampling(member, 'effectX', 'effectY')}
   })}
 ${emitMemberOutputEffectLines(member, { index: 'index', x: 'x', y: 'y' })}
 ${effectRuntime?.hasCoordinates && !effectRuntime.wrap ? `  if (!effectInside) ${member.prefix}_clear()
-` : ''}${freezeCapture}}`] : []),
+` : ''}${freezeCapture}${refreshCapture}${rollingRefreshCapture}}`] : []),
     `function ${member.prefix}_emit() { rgb(${member.prefix}_r${memberHasContentKey(member) ? ` * ${member.prefix}_alpha` : ''}, ${member.prefix}_g${memberHasContentKey(member) ? ` * ${member.prefix}_alpha` : ''}, ${member.prefix}_b${memberHasContentKey(member) ? ` * ${member.prefix}_alpha` : ''}) }`,
     ]
   })
