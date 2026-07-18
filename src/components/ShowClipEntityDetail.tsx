@@ -48,7 +48,7 @@ export function ShowClipEntityDetail({
   const hasAuthoredPatternControls = Object.values(controlTargets ?? {}).some((target) => target !== undefined)
   const [patternTrayOpen, setPatternTrayOpen] = useState(hasAuthoredPatternControls)
   const [advancedTrayOpen, setAdvancedTrayOpen] = useState(
-    advancedDefaultOpen || value.view.mirror || value.view.phase !== 0,
+    advancedDefaultOpen || value.view.mirror || value.view.phase !== 0 || value.evaluationPolicy !== 'live',
   )
 
   return (
@@ -303,6 +303,27 @@ export function ShowClipEntityDetail({
                       />
                     </td>
                     <td aria-hidden />
+                  </tr>
+                  <tr>
+                    <td aria-hidden />
+                    <th scope="row" className="py-1 pr-3 font-normal text-zinc-300">Evaluation</th>
+                    <td colSpan={2} className="py-1">
+                      <select
+                        aria-label="Clip evaluation"
+                        value={value.evaluationPolicy}
+                        disabled={readOnly}
+                        title={value.evaluationPolicy === 'freeze-at-entry'
+                          ? 'Capture one complete RGB traversal on entry, then replay it while the Pattern clock continues.'
+                          : 'Evaluate the Pattern for every presented frame.'}
+                        onChange={(event) => onPatch({
+                          evaluationPolicy: event.target.value === 'freeze-at-entry' ? 'freeze-at-entry' : 'live',
+                        })}
+                        className="h-5 w-full max-w-44 border-0 border-b border-zinc-800 bg-transparent px-1 text-[9px] text-zinc-200 outline-none focus:border-cyan-400/60 disabled:opacity-60"
+                      >
+                        <option value="live">Live</option>
+                        <option value="freeze-at-entry">Freeze at entry</option>
+                      </select>
+                    </td>
                   </tr>
                 </tbody>
               </table>

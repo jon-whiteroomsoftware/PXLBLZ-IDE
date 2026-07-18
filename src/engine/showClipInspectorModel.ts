@@ -11,6 +11,7 @@ import {
 import type {
   ShowCell,
   ShowClipEffect,
+  ShowClipEvaluationPolicy,
   ShowCompositionV1,
   ShowLightShutter,
   ShowMainPlacement,
@@ -56,6 +57,7 @@ export interface ShowClipInspectorValue {
   owner: ShowClipInspectorOwner
   pattern: ShowPatternRef
   patternName: string
+  evaluationPolicy: ShowClipEvaluationPolicy
   simulation: ShowClipInspectorSimulation
   view: ShowPlacementView
   effects: ShowClipEffect[]
@@ -71,6 +73,7 @@ export interface ShowClipInspectorValue {
 
 export interface ShowClipInspectorPatch {
   pattern?: { ref: ShowPatternRef; name: string }
+  evaluationPolicy?: ShowClipEvaluationPolicy
   simulation?: Partial<ShowClipInspectorSimulation>
   view?: Partial<ShowPlacementView>
   effects?: ShowClipEffect[]
@@ -124,6 +127,7 @@ export function projectShowClipInspector(
     owner,
     pattern: { ...instance.pattern },
     patternName: instance.patternName,
+    evaluationPolicy: normalizeEvaluationPolicy(instance.evaluationPolicy),
     simulation: {
       ...cloneSimulation(instance),
       ...(instance.controlTargets ? { controlTargets: { ...instance.controlTargets } } : {}),
@@ -151,11 +155,14 @@ export function updateShowClipInspector(
   if (!show.composition || !resolved) return show
   let composition = show.composition
   const originalPatternKey = patternKey(resolved.instance.pattern)
-  if (patch.pattern || patch.simulation) {
+  if (patch.pattern || patch.simulation || patch.evaluationPolicy) {
     composition = mapPatternInstance(composition, resolved.instance.id, (instance) => ({
       ...instance,
       ...(patch.pattern
         ? { pattern: { ...patch.pattern.ref }, patternName: patch.pattern.name }
+        : {}),
+      ...(patch.evaluationPolicy
+        ? { evaluationPolicy: normalizeEvaluationPolicy(patch.evaluationPolicy) }
         : {}),
       time: normalizeSimulationTime({ ...instance.time, ...patch.simulation }),
       ...resolveControlTargets(
@@ -201,6 +208,7 @@ function projectGlobalClip(cell: ShowCell, owner: Extract<ShowClipInspectorOwner
     owner,
     pattern: { ...cell.pattern },
     patternName: cell.patternName,
+    evaluationPolicy: normalizeEvaluationPolicy(cell.evaluationPolicy),
     simulation: {
       timeScale: cell.adaptations.timeScale,
       timeOffsetMs: cell.adaptations.timeOffsetMs ?? 0,
@@ -221,6 +229,15 @@ function updateGlobalClip(show: ShowRecord, cellId: string, patch: ShowClipInspe
   if (!show.cells.some((cell) => cell.id === cellId)) return show
   let next = show
   if (patch.pattern) next = updateShowCellPattern(next, cellId, { pattern: patch.pattern.ref, patternName: patch.pattern.name })
+  if (patch.evaluationPolicy) {
+    next = {
+      ...next,
+      cells: next.cells.map((cell) => cell.id === cellId
+        ? { ...cell, evaluationPolicy: normalizeEvaluationPolicy(patch.evaluationPolicy) }
+        : cell),
+      updatedAt: Math.max(Date.now(), next.updatedAt + 1),
+    }
+  }
   if (patch.simulation || patch.view) {
     const changes = {
       ...(patch.simulation?.timeScale !== undefined ? { timeScale: patch.simulation.timeScale } : {}),
@@ -345,6 +362,14 @@ function resolveControlTargets(
 function patternKey(pattern: ShowPatternRef): string {
   return `${pattern.kind}:${pattern.id}`
 }
+
+export function normalizeShowClipEvaluationPolicy(
+  policy: ShowClipEvaluationPolicy | undefined,
+): ShowClipEvaluationPolicy {
+  return policy === 'freeze-at-entry' ? 'freeze-at-entry' : 'live'
+}
+
+const normalizeEvaluationPolicy = normalizeShowClipEvaluationPolicy
 
 function clamp01(value: number): number {
   return clamp(value, 0, 1)

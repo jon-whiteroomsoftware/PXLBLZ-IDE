@@ -392,6 +392,8 @@ export type ShowPatternRef =
   | { kind: 'user'; id: string }
   | { kind: 'stock'; id: string }
 
+export type ShowClipEvaluationPolicy = 'live' | 'freeze-at-entry'
+
 export interface ShowCell {
   id: string
   zoneId: string
@@ -405,6 +407,8 @@ export interface ShowCell {
   adaptations: ShowCellAdaptations
   /** Start this destination with a fresh Pattern instance instead of continuing matching state. */
   restartOnEntry?: boolean
+  /** Evaluate continuously by default, or capture one complete RGB traversal on entry. */
+  evaluationPolicy?: ShowClipEvaluationPolicy
   /** Scene-owned 0..1 targets for public slider control functions. */
   controlTargets?: Record<string, number>
   /** Ordered single-source visual Effects. Affine operation order is significant. */
@@ -440,6 +444,8 @@ export interface ShowPatternInstance {
   id: string
   pattern: ShowPatternRef
   patternName: string
+  /** Evaluate continuously by default, or capture one complete RGB traversal on entry. */
+  evaluationPolicy?: ShowClipEvaluationPolicy
   time: {
     timeScale: number
     timeOffsetMs: number

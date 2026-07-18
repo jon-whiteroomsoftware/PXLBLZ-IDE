@@ -207,6 +207,19 @@ an unsupported alternate product contract.
 The archived plan retains exact source, bytecode, VM, mean/median, parity, and
 restoration details for every line.
 
+### Next-wave measured additions
+
+| Step | Slice | Primary measured result |
+| ---: | --- | --- |
+| 00 | #532 native operation costs | RGB replay threshold counted at 12.093 us/pixel for one reuse and 3.927 us/pixel long-lived |
+| 01 | #531 frame-time attribution | Redline 336.476 ms/frame = 60.353 output + 142.547 Show + 133.576 Pattern work |
+| 02 | #536 Restart liveness | 15.07% weighted globals reclaimable, but no over-limit reference crosses below 256; declined |
+| 03 | #538 shared generated Effect kernels | 10 members: source -12,552 B, bytecode -6,480 B, globals -54; FPS neutral |
+| 04 | #533 authored Freeze at entry | median FPS +45.55% / +46.02% / +46.07% at 256 / 1,000 / 2,000 pixels; zero additional VM words |
+
+The cumulative next-wave ledger, including exact fixture and restoration facts,
+lives in `docs/plans/show-rendering-next-wave-measurement-ledger.md`.
+
 ## General rules established by the evidence
 
 1. Remove dead work before caching it.

@@ -744,6 +744,30 @@ test.describe('authenticated Show authoring', () => {
     await expect(page.getByLabel('Restart Pattern on entry')).toBeChecked()
   })
 
+  test('persists Freeze at entry and reports the selected capture policy (#533)', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('studio/shows')
+    await createInstallationShow(page)
+
+    await page.getByRole('button', { name: 'Select TestPattern1D' }).first().click()
+    await page.getByText('Advanced clip controls').click()
+    await page.getByLabel('Clip evaluation').selectOption('freeze-at-entry')
+    await waitForCurrentShow(page, (show) => (
+      show.cells.some((clip) => clip.patternName === 'TestPattern1D' && clip.evaluationPolicy === 'freeze-at-entry')
+    ))
+    await expect(page.getByTestId('show-compile-bar')).toContainText('freeze at entry: 1 selected scene')
+    await expect(page.getByTestId('show-compile-bar')).toContainText('capture once, private clock continues')
+
+    await page.reload()
+    await page.getByRole('button', { name: 'Select TestPattern1D' }).first().click()
+    await page.getByText('Advanced clip controls').click()
+    await expect(page.getByLabel('Clip evaluation')).toHaveValue('freeze-at-entry')
+    await expect(page.getByTestId('show-compile-bar')).toContainText('freeze at entry: 1 selected scene')
+
+    await page.getByRole('button', { name: 'View code' }).first().click()
+    await expect(page.getByText('Generated pattern - Untitled Show')).toBeVisible()
+  })
+
   test('authors a routed wipe and time automation through the generated artifact', async ({ page }) => {
     await page.goto('studio/shows')
     await createInstallationShow(page)
@@ -1163,6 +1187,7 @@ type PersistedShow = {
     sceneId: string
     patternName: string
     restartOnEntry?: boolean
+    evaluationPolicy?: 'live' | 'freeze-at-entry'
     adaptations: { timeScale: number; brightness: number }
     effects?: Array<{ id: string; kind: string; amount?: number; frequency?: number }>
   }>

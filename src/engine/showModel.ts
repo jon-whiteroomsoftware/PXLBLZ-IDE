@@ -1944,6 +1944,9 @@ export function showRecordToCompileRecipe(
   if (lookup.compositionLayerByCellId && Object.keys(lookup.compositionLayerByCellId).length > 0) {
     return showRecordToRoutedSceneSequenceRecipe(show, lookup)
   }
+  if (show.cells.some((cell) => cell.evaluationPolicy === 'freeze-at-entry')) {
+    return showRecordToRoutedSceneSequenceRecipe(show, lookup)
+  }
   if (
     show.outputContract?.kind === 'installation'
     && show.zones.length === 1
@@ -1977,7 +1980,7 @@ export function showRecordToCompileRecipe(
 
   if (cells[0].sceneSpan > 1 || cells.length === 1) {
     return {
-      clips: [{ id: cells[0].id, source: source0, adaptation: compilerAdaptation(cells[0].adaptations), controlTargets: cells[0].controlTargets, effects: cells[0].effects }],
+      clips: [{ id: cells[0].id, source: source0, ...compilerEvaluationPolicy(cells[0]), adaptation: compilerAdaptation(cells[0].adaptations), controlTargets: cells[0].controlTargets, effects: cells[0].effects }],
       zones: lookup.controllerZones ?? nominalZones(show.zones),
       samplePropertyRamps,
     }
@@ -2039,7 +2042,7 @@ export function showRecordToCompileRecipe(
       : undefined
     const effectRamps = compileShowEffectRamps(cells[0], cells[1], boundary)
     return {
-      clips: [{ id: cells[0].id, source: source0, adaptation: compilerAdaptation(cells[0].adaptations), controlTargets: cells[0].controlTargets, effects: cells[1].effects }],
+      clips: [{ id: cells[0].id, source: source0, ...compilerEvaluationPolicy(cells[0]), adaptation: compilerAdaptation(cells[0].adaptations), controlTargets: cells[0].controlTargets, effects: cells[1].effects }],
       adaptationRamp: {
         startMs: show.scenes[0].durationMs,
         durationMs: transition.durationMs,
@@ -2059,8 +2062,8 @@ export function showRecordToCompileRecipe(
   }
 
   const clips = [
-    { id: cells[0].id, source: source0, adaptation: compilerAdaptation(cells[0].adaptations), controlTargets: cells[0].controlTargets, effects: cells[0].effects },
-    { id: cells[1].id, source: source1, adaptation: compilerAdaptation(cells[1].adaptations), controlTargets: cells[1].controlTargets, effects: cells[1].effects },
+    { id: cells[0].id, source: source0, ...compilerEvaluationPolicy(cells[0]), adaptation: compilerAdaptation(cells[0].adaptations), controlTargets: cells[0].controlTargets, effects: cells[0].effects },
+    { id: cells[1].id, source: source1, ...compilerEvaluationPolicy(cells[1]), adaptation: compilerAdaptation(cells[1].adaptations), controlTargets: cells[1].controlTargets, effects: cells[1].effects },
   ]
   return {
     clips,
@@ -2168,7 +2171,7 @@ function showRecordToSceneSequenceRecipe(
     if (!source) throw new Error(`Show compile requires pattern source for clip "${cell.id}".`)
     const adaptation = compilerAdaptation(cell.adaptations)
     const explicitInstanceId = lookup.instanceIdByCellId?.[cell.id]
-    const continuityKey = `${cell.pattern.kind}:${cell.pattern.id}:${JSON.stringify(adaptation)}:${JSON.stringify(cell.effects ?? [])}`
+    const continuityKey = `${cell.pattern.kind}:${cell.pattern.id}:${JSON.stringify(adaptation)}:${JSON.stringify(cell.effects ?? [])}:${cell.evaluationPolicy ?? 'live'}`
     const key = explicitInstanceId
       ? `composition-instance:${explicitInstanceId}`
       : cell.restartOnEntry ? `${continuityKey}:restart:${cell.id}` : continuityKey
@@ -2193,7 +2196,7 @@ function showRecordToSceneSequenceRecipe(
       if (showEffectsAreIdentity(existing.effects) && !showEffectsAreIdentity(cell.effects)) existing.effects = cell.effects
       clipIdByCellId.set(cell.id, existing.id)
     } else {
-      const clip = { id: explicitInstanceId ?? cell.id, source, adaptation, effects: cell.effects }
+      const clip = { id: explicitInstanceId ?? cell.id, source, ...compilerEvaluationPolicy(cell), adaptation, effects: cell.effects }
       Object.assign(clip, { controlTargets: cell.controlTargets })
       clipByKey.set(key, clip)
       clipIdByCellId.set(cell.id, clip.id)
@@ -2392,6 +2395,7 @@ function showRecordToStaticRoutedRecipe(
       return {
         id: cell.id,
         source,
+        ...compilerEvaluationPolicy(cell),
         ...(zoneSpan > 1
           ? {
               zones: spannedZones.map((spannedZone) => spannedZone.name),
@@ -2532,6 +2536,7 @@ function showRecordToRoutedSceneSequenceRecipe(
         clipById.set(clipId, {
           id: clipId,
           source,
+          ...compilerEvaluationPolicy(cell),
           adaptation: compilerAdaptation(cell.adaptations),
           effects: cell.effects,
           controlTargets: cell.controlTargets,
@@ -2590,7 +2595,10 @@ function showRecordToRoutedSceneSequenceRecipe(
       && scene.placements.every((placement, index) => (
         JSON.stringify(placement) === JSON.stringify(firstPlacements[index])
       )))
-  if (hasStaticPatternSchedule && !lookup.compositionLayerByCellId) return showRecordToStaticRoutedRecipe(normalized, lookup)
+  const hasAuthoredFreezeAtEntry = [...clipById.values()].some((clip) => clip.evaluationPolicy === 'freeze-at-entry')
+  if (hasStaticPatternSchedule && !lookup.compositionLayerByCellId && !hasAuthoredFreezeAtEntry) {
+    return showRecordToStaticRoutedRecipe(normalized, lookup)
+  }
 
   return {
     clips: [...clipById.values()],
@@ -2618,6 +2626,12 @@ function mergeShowPlacementEffects(
     }
   }
   return result.length > 0 ? result : undefined
+}
+
+function compilerEvaluationPolicy(cell: Pick<ShowCell, 'evaluationPolicy'>): Pick<ShowRecipe['clips'][number], 'evaluationPolicy'> {
+  return cell.evaluationPolicy === 'freeze-at-entry'
+    ? { evaluationPolicy: 'freeze-at-entry' }
+    : {}
 }
 
 function showCompileCellsAtSlot(

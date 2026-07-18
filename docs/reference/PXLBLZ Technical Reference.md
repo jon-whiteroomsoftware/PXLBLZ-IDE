@@ -1692,6 +1692,61 @@ bytes after planner integration, so #517 adds compile-time structure and
 diagnostics without changing the generated render loop or claiming a runtime
 gain.
 
+### Authored Freeze-at-entry evaluation
+
+`ShowCell` and `ShowPatternInstance` may persist `evaluationPolicy` as `live` or
+`freeze-at-entry`. The field is optional so legacy records and explicitly Live
+records lower to the same recipe shape and generated artifact. The shared Clip
+inspector projects a missing field as Live and writes the policy back through
+the flat-cell or Pattern-instance owner adapter. Entry policy remains separate:
+Continue and Restart choose Pattern identity, while evaluation policy chooses
+whether the current visual is recomputed or held.
+
+Composition lowering copies the instance policy onto transient cells, and
+recipe lowering copies only authored Freeze onto `ShowClipRecipe`. For each
+compatible routed Scene, the compiler submits an authored `rgb-snapshot`
+candidate with a half-open Scene lifetime. The candidate requires all three
+`stage-rgb` planes, names Scene/Clip exit, loop, seek, pre-capture input changes,
+and arena ownership as invalidators, and participates in the same deterministic
+planner ordering as Transition snapshots, shared Pattern output, coordinate
+fields, and scalar fields. A rejected required candidate retains Live rendering
+and produces a compile warning.
+
+The renderer captures in traversal order rather than running a synthetic
+before-render traversal. While the Scene owns the candidate and readiness is
+false, each ordinary render call evaluates the Pattern and writes RGB at its
+local index. The last index marks the frame complete. Later traversals read the
+three planes and skip the Pattern renderer. This preserves the Stage Map's real
+2D samples on the capture frame and prevents a partial buffer from becoming
+visible. The scheduler keeps calling the member's advance function, so private
+time, Pattern state, Controls, and Effect update state continue even while RGB
+is held.
+
+The first production compatibility envelope is intentionally narrow: one
+static, unkeyed placement on the sole Zone of one routed layout, with no local
+property tracks. Content keys need cached alpha as well as RGB; repeated
+placements can have different local uses; and multi-zone or animated placement
+domains need a more explicit capture identity. These cases do not submit a
+candidate and report a direct-Live fallback. Seek uses deterministic
+reconstruction from Show start, so a rebuilt runtime recaptures at the same
+Scene entry; loop wrap and Scene ownership changes reset readiness in generated
+code.
+
+`specializations.freezeAtEntry` publishes authored Clip count, selected Scene
+count, evaluations avoided per replay frame, candidate ids, lifetime, physical
+planes, invalidators, clock behavior, status, and fallback reason. The ordinary
+render-target plan remains the allocation authority, and `additionalArrayWords`
+stays zero. `npm run issue533` verifies saved-model lowering, byte-identical Live
+artifacts, capture readiness, Scene and loop invalidation, and Fast/Precise
+parity at 256, 1,000, and 2,000 pixels. `npm run issue533:hardware` reversibly
+measures both policies and restores the Controller program and pixel count.
+
+On Burner bag (`pb32`, firmware 3.67), the heavy-background acceptance fixture
+measured Live to Freeze median FPS of 28.798 to 41.916 at 256 pixels (+45.55%),
+7.407 to 10.816 at 1,000 (+46.02%), and 3.707 to 5.415 at 2,000 (+46.07%).
+Freeze added 718 compact-source bytes and 452 Controller-bytecode bytes, added
+zero VM words, and left 4,228 VM words free at 2,000 pixels.
+
 ### Compatible Pattern-output reuse
 
 `showPatternOutputReuse.ts` lets a routed Show materialize one exact RGB output

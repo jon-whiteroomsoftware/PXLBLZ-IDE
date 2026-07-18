@@ -18,6 +18,7 @@ function value(scope: ShowClipInspectorValue['scope']): ShowClipInspectorValue {
         : { kind: 'scene-main', sceneId: 'scene-1', zoneId: 'zone-1', placementId: 'placement-1' },
     pattern: { kind: 'stock', id: 'TestPattern1D' },
     patternName: 'TestPattern1D',
+    evaluationPolicy: 'live',
     simulation: { timeScale: 1, timeOffsetMs: 0, controlTargets: { sliderSpeed: 0.4 } },
     view: { mirror: false, phase: 0.25, brightness: 0.8 },
     effects: [],
@@ -79,6 +80,11 @@ describe('shared Clip Entity Detail sections (#498)', () => {
 
     fireEvent.click(screen.getByRole('checkbox', { name: 'Mirror clip' }))
     expect(onPatch).toHaveBeenCalledWith({ view: { mirror: true } })
+
+    fireEvent.change(screen.getByRole('combobox', { name: 'Clip evaluation' }), {
+      target: { value: 'freeze-at-entry' },
+    })
+    expect(onPatch).toHaveBeenCalledWith({ evaluationPolicy: 'freeze-at-entry' })
 
     fireEvent.click(screen.getByRole('checkbox', { name: 'Set Speed target' }))
     expect(onPatch).toHaveBeenCalledWith({ simulation: { controlTargets: undefined } })

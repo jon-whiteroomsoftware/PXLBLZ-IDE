@@ -1014,6 +1014,37 @@ shrinks, including a virtual pixel count that follows its current share; targets
 at 0% or 100% give the complete Stage to one zone. The effect
 keeps both Pattern clocks continuous and invokes one renderer per pixel.
 
+### Live and Freeze-at-entry Clips
+
+Every Clip evaluates **Live** unless its Advanced Clip controls explicitly select
+**Freeze at entry**. Live calls the Pattern renderer on every presented frame.
+Freeze captures the first complete eligible RGB traversal after Scene entry,
+then replays those pixels while the Clip remains in that Scene. The Pattern's
+private clock and state continue to advance; Freeze holds the picture, not time.
+Continue and Restart remain separate entry policies that decide whether the
+Pattern instance itself survives a boundary.
+
+Freeze is an authored approximation and is never inferred from still-looking
+output. Its first production envelope covers one static, unkeyed placement on a
+single-zone routed Scene. Animated property tracks, content keys, repeated
+placements of the same frozen Clip, and multi-zone layouts stay Live and produce
+a visible fallback explanation. The planner also resolves conflicts with
+Transition snapshots, shared Pattern output, and scalar fields against the same
+three-plane arena.
+
+The capture becomes replayable only after the traversal reaches its last pixel.
+Scene or Clip exit, Show loop re-entry, deterministic seek reconstruction,
+pre-capture Control or Effect changes, and a change in arena ownership discard
+the previous capture. The compile bar reports the selected Scene count, Pattern
+evaluations avoided per replay frame, RGB planes, Scene lifetime, invalidators,
+continuing clock behavior, and any direct-Live fallback.
+
+On the qualified pb32 firmware 3.67 fixture, a heavy full-stage background plus
+a cheap live overlay improved median FPS by 45.55% at 256 pixels, 46.02% at
+1,000, and 46.07% at 2,000. Freeze adds no VM words because it reuses the
+reserved RGB arena; at 2,000 pixels the complete fixture still leaves 4,228 VM
+words free.
+
 ### Coordinate remapping
 
 Synchronized tiling changes the local sample a Pattern reads without changing

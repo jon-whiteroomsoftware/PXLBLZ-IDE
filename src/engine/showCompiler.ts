@@ -127,6 +127,7 @@ import {
 export interface ShowClipRecipe {
   id: string
   source: string
+  evaluationPolicy?: 'live' | 'freeze-at-entry'
   zone?: string
   zones?: string[]
   zoneMode?: 'independent' | 'span' | 'repeat'
@@ -400,6 +401,7 @@ export interface ShowCompileClipSummary {
   renamedBindings: string[]
   renamedPatternVars: string[]
   evaluationPolicy: 'full' | 'masked-shutter-continue' | 'masked-shutter-freeze'
+  authoredEvaluationPolicy: 'live' | 'freeze-at-entry'
   expectedActiveFraction: number
   temporalPolicy: 'continuous' | 'stepped-clock'
   stepMs: number | null
@@ -591,6 +593,22 @@ export interface ShowCompileSummary {
         planes: Array<0 | 1 | 2>
       }>
     }
+    freezeAtEntry: {
+      authoredClipCount: number
+      selectedSceneCount: number
+      evaluationsAvoidedPerReplayFrame: number
+      captures: Array<{
+        candidateId: string
+        sceneIndex: number
+        clipId: string
+        lifetime: 'scene'
+        planes: Array<0 | 1 | 2>
+        invalidatedBy: string[]
+        clockBehavior: 'capture-then-continue-private-clock'
+        status: 'selected' | 'rejected'
+        reason: ShowRenderTargetDecisionReason | 'incompatible'
+      }>
+    }
   }
   clips: ShowCompileClipSummary[]
   resources: ShowVmResourceLedger
@@ -625,6 +643,7 @@ interface Scope {
 
 interface CompiledMember {
   id: string
+  evaluationPolicy: 'live' | 'freeze-at-entry'
   prefix: string
   code: string
   resourceSource: string
@@ -668,6 +687,21 @@ interface CompiledMember {
   coordinateFieldCapture: boolean
   generatedEffectKernelSharing: boolean
   animatedEffectParameterPaths: string[]
+  freezeOwnerTokens: number[]
+  freezeRenderTarget?: ShowRenderTargetPlan<'stage-rgb'>
+}
+
+interface CompiledFreezeAtEntry {
+  candidate: ShowRenderTargetCandidate
+  sceneIndex: number
+  clipId: string
+  member: CompiledMember
+  pixelCount: number
+}
+
+interface SelectedFreezeAtEntry extends CompiledFreezeAtEntry {
+  renderTarget: ShowRenderTargetPlan<'stage-rgb'>
+  ownerToken: number
 }
 
 interface CompiledPatternOutputReuseGroup {
@@ -799,6 +833,63 @@ function buildShowRenderTargetCandidates(
     addSequence('routed', recipe.routedSceneSequence.scenes, () => true)
   }
   return candidates
+}
+
+function buildFreezeAtEntryCandidates(
+  recipe: ShowRecipe,
+  members: CompiledMember[],
+  pixelCount: number,
+): CompiledFreezeAtEntry[] {
+  const sequence = recipe.routedSceneSequence
+  const routeZoneName = recipe.routingLayouts?.length === 1 && recipe.routingLayouts[0].zones.length === 1
+    ? recipe.routingLayouts[0].zones[0].name
+    : !recipe.routingLayouts?.length && recipe.zones?.length === 1
+      ? recipe.zones[0].name
+      : undefined
+  if (!sequence || !routeZoneName) return []
+  const memberById = new Map(members.map((member) => [member.id, member]))
+  const result: CompiledFreezeAtEntry[] = []
+  let cursor = 0
+  sequence.scenes.forEach((scene, sceneIndex) => {
+    const start = cursor
+    const end = start + scene.holdMs
+    cursor = end + (scene.transitionOut?.kind === 'cut' ? 0 : scene.transitionOut?.durationMs ?? 0)
+    if ((scene.propertyTracks?.length ?? 0) > 0) return
+    const clipIds = [...new Set(scene.placements.map((placement) => placement.clipId))]
+    for (const clipId of clipIds) {
+      const member = memberById.get(clipId)
+      if (!member || member.evaluationPolicy !== 'freeze-at-entry' || memberHasContentKey(member)) continue
+      const placements = scene.placements.filter((placement) => placement.clipId === clipId)
+      if (placements.length !== 1 || placements[0].zoneName !== routeZoneName) continue
+      const renderOperationsPerPixel = Math.max(
+        estimateShowPatternRenderOperations(member.resourceSource, 'render') ?? 0,
+        estimateShowPatternRenderOperations(member.resourceSource, 'render2D') ?? 0,
+        1,
+      )
+      const candidate: ShowRenderTargetCandidate = {
+        id: `freeze:routed:${sceneIndex}:${clipId}`,
+        kind: 'rgb-snapshot',
+        lifetime: { kind: 'scene', start, end, key: `freeze-scene-${sceneIndex}` },
+        invalidatedBy: [
+          'scene-exit',
+          'clip-exit',
+          'show-loop',
+          'seek',
+          'pre-capture-control-or-effect-change',
+          'planner-ownership-change',
+        ],
+        exactness: 'authored-snapshot',
+        authorSelected: true,
+        required: true,
+        setupCost: pixelCount,
+        perFrameSavings: pixelCount * renderOperationsPerPixel,
+        expectedReuseCount: Math.max(1, Math.ceil(scene.holdMs / (1_000 / 30)) - 1),
+        replayCost: pixelCount * 3,
+      }
+      result.push({ candidate, sceneIndex, clipId, member, pixelCount })
+    }
+  })
+  return result
 }
 
 function buildShowScalarFields(recipe: ShowRecipe, pixelCount: number): CompiledScalarField[] {
@@ -1385,8 +1476,14 @@ export function compileShow(
     routedOutputDimension,
     renderTargetPixelCount,
   )
+  const freezeAtEntryCaptures = buildFreezeAtEntryCandidates(
+    expandedRecipe,
+    members,
+    renderTargetPixelCount,
+  )
   const renderTargetCandidates = [
     ...buildShowRenderTargetCandidates(expandedRecipe, renderTargetPixelCount),
+    ...freezeAtEntryCaptures.map((capture) => capture.candidate),
     ...(patternOutputReuse ? patternOutputReuseAnalysis.groups.map((group) => group.candidate) : []),
     ...(scalarFieldCaching ? scalarFields.map((field) => field.candidate) : []),
     ...(coordinateFieldCaching ? coordinateFields.map((field) => field.candidate) : []),
@@ -1416,6 +1513,22 @@ export function compileShow(
       renderTarget: planShowRenderTargetArena(renderTargetPixelCount, 'stage-rgb', assignment.planes),
     } satisfies SelectedPatternOutputReuseGroup]
   })
+  const freezeAtEntryByCandidate = new Map(
+    freezeAtEntryCaptures.map((capture) => [capture.candidate.id, capture]),
+  )
+  const selectedFreezeAtEntryCaptures = preliminaryRenderTargetPlan.assignments.flatMap((assignment, index) => {
+    const capture = freezeAtEntryByCandidate.get(assignment.candidateId)
+    if (!capture) return []
+    return [{
+      ...capture,
+      renderTarget: planShowRenderTargetArena(renderTargetPixelCount, 'stage-rgb', assignment.planes),
+      ownerToken: index + 1,
+    } satisfies SelectedFreezeAtEntry]
+  })
+  for (const capture of selectedFreezeAtEntryCaptures) {
+    capture.member.freezeOwnerTokens.push(capture.ownerToken)
+    capture.member.freezeRenderTarget = capture.renderTarget
+  }
   const scalarFieldByCandidate = new Map(scalarFields.map((field) => [field.candidate.id, field]))
   const selectedScalarFields = preliminaryRenderTargetPlan.assignments.flatMap((assignment, index) => {
     if (assignment.kind !== 'scalar-field') return []
@@ -1456,6 +1569,7 @@ export function compileShow(
         selectedPatternOutputReuseGroups,
         selectedScalarFields,
         selectedCoordinateFields,
+        selectedFreezeAtEntryCaptures,
       )
       : null
   const emittedCode = routedSceneEmission
@@ -1623,6 +1737,23 @@ export function compileShow(
       planes: assignment?.planes ?? [],
     }
   })
+  const freezeAtEntrySummary = freezeAtEntryCaptures.map((capture) => {
+    const decision = renderTargetDecisionByCandidate.get(capture.candidate.id)
+    const assignment = renderTargetPlan.assignments.find((candidate) => (
+      candidate.candidateId === capture.candidate.id
+    ))
+    return {
+      candidateId: capture.candidate.id,
+      sceneIndex: capture.sceneIndex,
+      clipId: capture.clipId,
+      lifetime: 'scene' as const,
+      planes: assignment?.planes ?? [],
+      invalidatedBy: [...capture.candidate.invalidatedBy],
+      clockBehavior: 'capture-then-continue-private-clock' as const,
+      status: decision?.status === 'selected' ? 'selected' as const : 'rejected' as const,
+      reason: decision?.reason ?? 'incompatible' as const,
+    }
+  })
   const transitionCost = expandedRecipe.sceneSequence || expandedRecipe.routedSceneSequence
     ? sequenceHasCrossfade || motionBlend
       ? 'renderer-window'
@@ -1653,11 +1784,23 @@ export function compileShow(
       warnings.push(
         'Snapshot/live crossfade fell back to live/live because the Show render-target arena is unavailable.',
       )
+    } else if (decision.candidateId.startsWith('freeze:')) {
+      warnings.push(
+        `Freeze at entry ${decision.candidateId} fell back to Live (${decision.reason}): ${decision.detail}`,
+      )
     } else {
       warnings.push(
         `Snapshot/live cache ${decision.candidateId} fell back to live/live (${decision.reason}): ${decision.detail}`,
       )
     }
+  }
+  const authoredFreezeMembers = members.filter((member) => member.evaluationPolicy === 'freeze-at-entry')
+  const compatibleFreezeMemberIds = new Set(freezeAtEntryCaptures.map((capture) => capture.clipId))
+  for (const member of authoredFreezeMembers) {
+    if (compatibleFreezeMemberIds.has(member.id)) continue
+    warnings.push(
+      `Freeze at entry for clip "${member.id}" fell back to Live because this first release requires one static, unkeyed placement on a single-zone routed Scene.`,
+    )
   }
   const cost = buildShowCompiledCostMetadata({
     transitionCost,
@@ -1835,6 +1978,7 @@ export function compileShow(
       renderTargetPixelCount,
       renderTargetArenaEmission,
       directSnapshotCrossfade || sequenceSnapshotCrossfade || routedSnapshotCrossfade || selectedPatternOutputReuseGroups.length > 0
+        || selectedFreezeAtEntryCaptures.length > 0
         ? 'stage-rgb'
         : selectedScalarFields.length > 0
           ? 'scalar-field'
@@ -1897,6 +2041,14 @@ export function compileShow(
         additionalArrayWords: 0,
         fields: coordinateFieldSummary,
       },
+      freezeAtEntry: {
+        authoredClipCount: authoredFreezeMembers.length,
+        selectedSceneCount: freezeAtEntrySummary.filter((capture) => capture.status === 'selected').length,
+        evaluationsAvoidedPerReplayFrame: freezeAtEntrySummary.some((capture) => capture.status === 'selected')
+          ? renderTargetPixelCount
+          : 0,
+        captures: freezeAtEntrySummary,
+      },
     },
     clips: members.map((member) => {
       const lightShutter = member.adaptation.lightShutter
@@ -1909,6 +2061,7 @@ export function compileShow(
         evaluationPolicy: lightShutter
           ? `masked-shutter-${lightShutter.clockBehavior}` as const
           : 'full' as const,
+        authoredEvaluationPolicy: member.evaluationPolicy,
         expectedActiveFraction: lightShutter?.duty ?? 1,
         temporalPolicy: member.adaptation.steppedClock ? 'stepped-clock' as const : 'continuous' as const,
         stepMs: member.adaptation.steppedClock?.stepMs ?? null,
@@ -2290,6 +2443,7 @@ function compileMember(
 
   return {
     id: clip.id,
+    evaluationPolicy: clip.evaluationPolicy === 'freeze-at-entry' ? 'freeze-at-entry' : 'live',
     prefix,
     code,
     resourceSource: memberSource,
@@ -2338,6 +2492,7 @@ function compileMember(
     coordinateFieldCapture: false,
     generatedEffectKernelSharing,
     animatedEffectParameterPaths,
+    freezeOwnerTokens: [],
   }
 }
 
@@ -2861,6 +3016,7 @@ function emitRoutedSceneSequenceShowCode(
   patternOutputReuseGroups: SelectedPatternOutputReuseGroup[] = [],
   scalarFields: SelectedScalarField[] = [],
   coordinateFields: SelectedCoordinateField[] = [],
+  freezeAtEntryCaptures: SelectedFreezeAtEntry[] = [],
 ): {
   code: string
   renderKernels: ShowCompileSummary['specializations']['renderKernels']
@@ -3417,6 +3573,19 @@ ${indentBlock(branches, 2)}
     ? exactSharedMotionPlan!.stackPlans.map((plan) => plan.wrapper)
     : unrolledStackWrappers
   const hasTransitions = unrolledTransitionBranches.length > 0
+  const freezeLifecycle = freezeAtEntryCaptures.length > 0
+    ? [
+        '__pxlblz_show_freeze_target = -1',
+        ...freezeAtEntryCaptures.map((capture, index) => (
+          `${index === 0 ? 'if' : 'else if'} (__pxlblz_show_scene == ${capture.sceneIndex}${hasTransitions ? ' && __pxlblz_show_transition < 0' : ''}) __pxlblz_show_freeze_target = ${capture.ownerToken}`
+        )),
+        'if (__pxlblz_show_elapsed_s < __pxlblz_show_freeze_previous_elapsed || __pxlblz_show_freeze_target != __pxlblz_show_freeze_owner) {',
+        '  __pxlblz_show_freeze_owner = __pxlblz_show_freeze_target',
+        '  __pxlblz_show_freeze_ready = 0',
+        '}',
+        '__pxlblz_show_freeze_previous_elapsed = __pxlblz_show_elapsed_s',
+      ].join('\n')
+    : ''
   const usesRouteLayout = !sharedPhysicalCut || layoutSelectLines.length > 0
   const snapshotPixelPrelude = usesSnapshot
     ? `var __pxlblz_show_snapshot_writing = __pxlblz_show_snapshot_transition == __pxlblz_show_transition && !__pxlblz_show_snapshot_ready
@@ -3456,6 +3625,14 @@ ${indentBlock(branches, 2)}
       : []),
     ...transitionHelpers,
     'var __pxlblz_show_scene = 0',
+    ...(freezeAtEntryCaptures.length > 0
+      ? [
+          'var __pxlblz_show_freeze_owner = -1',
+          'var __pxlblz_show_freeze_target = -1',
+          'var __pxlblz_show_freeze_ready = 0',
+          'var __pxlblz_show_freeze_previous_elapsed = -1',
+        ]
+      : []),
     ...(hasTransitions
       ? [
           'var __pxlblz_show_transition = -1',
@@ -3481,7 +3658,7 @@ ${indentBlock(branches, 2)}
     `export function beforeRender(delta) {
   __pxlblz_show_elapsed_s = (__pxlblz_show_elapsed_s + delta / 1000) % ${cursor / 1000}
 ${usesRouteLayout ? '  __pxlblz_show_route_layout = 0\n' : ''}
-${layoutSelectLines}${layoutSelectLines ? '\n' : ''}${propertyRamps ? `${emitRoutingPropertyAssignments(propertyRamps)}\n` : ''}  ${schedulerBranches}${coordinateTargetAssignments ? `\n${indentBlock(coordinateTargetAssignments, 2)}` : ''}${patternOutputReuseGroups.length > 0 ? `\n${indentBlock(emitPatternOutputReusePrepass(patternOutputReuseGroups), 2)}` : ''}
+${layoutSelectLines}${layoutSelectLines ? '\n' : ''}${propertyRamps ? `${emitRoutingPropertyAssignments(propertyRamps)}\n` : ''}  ${schedulerBranches}${coordinateTargetAssignments ? `\n${indentBlock(coordinateTargetAssignments, 2)}` : ''}${freezeLifecycle ? `\n${indentBlock(freezeLifecycle, 2)}` : ''}${patternOutputReuseGroups.length > 0 ? `\n${indentBlock(emitPatternOutputReusePrepass(patternOutputReuseGroups), 2)}` : ''}
 }`,
     `export function ${outputDimension === 2 ? 'render2D(index, x, y)' : 'render(index)'} {
   ${renderBody}
@@ -5130,6 +5307,37 @@ function memberRenderCapture(member: CompiledMember, outputDimension: 1 | 2): st
     : `${member.prefix}_renderCapture(index)`
 }
 
+function emitFreezeAtEntryReplay(member: CompiledMember, indexExpression: string): string {
+  const target = member.freezeRenderTarget
+  if (!target || member.freezeOwnerTokens.length === 0) return ''
+  const ownsCache = member.freezeOwnerTokens
+    .map((token) => `__pxlblz_show_freeze_owner == ${token}`)
+    .join(' || ')
+  return `  if (__pxlblz_show_freeze_ready && (${ownsCache})) {
+    ${member.prefix}_r = ${emitShowRenderTargetRead(target, 'r', indexExpression)}
+    ${member.prefix}_g = ${emitShowRenderTargetRead(target, 'g', indexExpression)}
+    ${member.prefix}_b = ${emitShowRenderTargetRead(target, 'b', indexExpression)}${memberHasContentKey(member) ? `
+    ${member.prefix}_alpha = 1` : ''}
+    return
+  }
+`
+}
+
+function emitFreezeAtEntryCapture(member: CompiledMember, indexExpression: string): string {
+  const target = member.freezeRenderTarget
+  if (!target || member.freezeOwnerTokens.length === 0) return ''
+  const ownsCache = member.freezeOwnerTokens
+    .map((token) => `__pxlblz_show_freeze_owner == ${token}`)
+    .join(' || ')
+  return `  if (!__pxlblz_show_freeze_ready && (${ownsCache})) {
+    ${emitShowRenderTargetWrite(target, 'r', indexExpression, `${member.prefix}_r`)}
+    ${emitShowRenderTargetWrite(target, 'g', indexExpression, `${member.prefix}_g`)}
+    ${emitShowRenderTargetWrite(target, 'b', indexExpression, `${member.prefix}_b`)}
+    if (${indexExpression} == ${member.pixelCountName} - 1) __pxlblz_show_freeze_ready = 1
+  }
+`
+}
+
 function emitPortalRenderBlock(
   from: CompiledMember,
   to: CompiledMember,
@@ -6300,6 +6508,8 @@ function emitRuntimePrelude(
       && rendererGuaranteesOutput
       && !member.adaptation.lightShutter
     const lightShutter = member.adaptation.lightShutter
+    const freezeReplay = emitFreezeAtEntryReplay(member, 'index')
+    const freezeCapture = emitFreezeAtEntryCapture(member, 'index')
     const steppedClock = member.adaptation.steppedClock
     const steppedClockVars = steppedClock
       ? [
@@ -6441,11 +6651,12 @@ ${effectRuntime?.hasCoordinates ? emitMemberDistortionSampling(member, 'effectX'
 ${omitClear ? '' : `  ${member.prefix}_clear()
 `}  ${emitSelectedMemberRendererCall(member, 2, { index: 'mappedIndex', x: 'mappedX', y: 'mappedY' })}
 ${emitMemberOutputEffectLines(member)}
+${freezeCapture}
 ${effectRuntime?.hasCoordinates && !effectRuntime.wrap ? `  if (!effectInside) ${member.prefix}_clear()
 ` : ''}}`,
     ] : []),
     ...(outputDimension === 1 ? [`function ${member.prefix}_renderCapture(index) {
-${identitySamplePath ? '' : `  var mappedIndex = index
+${freezeReplay}${identitySamplePath ? '' : `  var mappedIndex = index
   if (${member.prefix}_adapt_mirror >= 0.5) mappedIndex = ${member.pixelCountName} - 1 - index
 `}${samplePropertyRamps ? `  if (__pxlblz_show_sample_repeat_scale != 1) {
     var mappedPosition = mappedIndex / max(1, ${member.pixelCountName} - 1)
@@ -6462,9 +6673,9 @@ ${emitMemberDistortionSampling(member, 'effectX', 'effectY')}
 `}  ${member.hasRender ? emitSelectedMemberRendererCall(member, 1, { index: identitySamplePath ? 'index' : 'mappedIndex' }) : ''}
 ${emitMemberOutputEffectLines(member)}
 ${effectRuntime?.hasCoordinates && !effectRuntime.wrap ? `  if (!effectInside) ${member.prefix}_clear()
-` : ''}}`] : []),
+` : ''}${freezeCapture}}`] : []),
     ...(outputDimension === 2 ? [`function ${member.prefix}_renderCapture2D(index, x, y) {
-${identitySamplePath ? '' : `  var mappedIndex = index
+${freezeReplay}${identitySamplePath ? '' : `  var mappedIndex = index
   var mappedX = x
 ${samplePropertyRamps || effectRuntime?.hasCoordinates ? '  var mappedY = y\n' : ''}  if (${member.prefix}_adapt_mirror >= 0.5) {
     mappedIndex = ${member.pixelCountName} - 1 - index
@@ -6490,7 +6701,7 @@ ${emitMemberDistortionSampling(member, 'effectX', 'effectY')}
   })}
 ${emitMemberOutputEffectLines(member)}
 ${effectRuntime?.hasCoordinates && !effectRuntime.wrap ? `  if (!effectInside) ${member.prefix}_clear()
-` : ''}}`] : []),
+` : ''}${freezeCapture}}`] : []),
     `function ${member.prefix}_emit() { rgb(${member.prefix}_r${memberHasContentKey(member) ? ` * ${member.prefix}_alpha` : ''}, ${member.prefix}_g${memberHasContentKey(member) ? ` * ${member.prefix}_alpha` : ''}, ${member.prefix}_b${memberHasContentKey(member) ? ` * ${member.prefix}_alpha` : ''}) }`,
     ]
   })

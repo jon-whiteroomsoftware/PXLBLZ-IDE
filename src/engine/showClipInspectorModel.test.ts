@@ -125,6 +125,21 @@ describe('shared Clip inspector owner model (#498)', () => {
     })
   })
 
+  it('defaults legacy Clips to Live and persists Freeze at entry for every owner', () => {
+    for (const ownerFor of [globalOwner, mainOwner, overlayOwner]) {
+      const show = fixture()
+      expect(projectShowClipInspector(show, ownerFor(show))).toMatchObject({
+        evaluationPolicy: 'live',
+      })
+      const updated = updateShowClipInspector(show, ownerFor(show), {
+        evaluationPolicy: 'freeze-at-entry',
+      })
+      expect(projectShowClipInspector(updated, ownerFor(updated))).toMatchObject({
+        evaluationPolicy: 'freeze-at-entry',
+      })
+    }
+  })
+
   it('commits the same normalized simulation and view patch to every owner', () => {
     for (const ownerFor of [globalOwner, mainOwner, overlayOwner]) {
       const show = fixture()

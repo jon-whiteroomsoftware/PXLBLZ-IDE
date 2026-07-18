@@ -125,6 +125,7 @@ export function lowerShowCompositionForCompile(
             zoneSpan: 1,
             pattern: { ...instance.pattern },
             patternName: instance.patternName,
+            evaluationPolicy: instance.evaluationPolicy,
             adaptations: {
               mirror: placement.view.mirror,
               phase: placement.view.phase,

@@ -5415,6 +5415,15 @@ function CompileBar({
           cache rejected: {decision.candidateId} · {decision.reason} · {decision.detail}
         </span>
       ))}
+      {summary && summary.specializations.freezeAtEntry.authoredClipCount > 0 && (
+        <span className={summary.specializations.freezeAtEntry.selectedSceneCount > 0 ? 'text-emerald-300' : 'text-amber-300'}>
+          freeze at entry: {summary.specializations.freezeAtEntry.selectedSceneCount} selected scene{summary.specializations.freezeAtEntry.selectedSceneCount === 1 ? '' : 's'}
+          {' · '}{summary.specializations.freezeAtEntry.evaluationsAvoidedPerReplayFrame.toLocaleString('en-US')} Pattern evaluations/replay frame avoided
+          {' · '}scene lifetime · RGB planes 0/1/2
+          {' · '}capture once, private clock continues
+          {' · '}invalidates on scene/clip exit, loop, seek, pre-capture changes, or arena ownership
+        </span>
+      )}
       {summary && (
         summary.specializations.patternOutputReuse.groups.length > 0
         || summary.specializations.patternOutputReuse.excluded.length > 0

@@ -28,6 +28,7 @@ export interface ShowCompositionPatternInstanceProjection {
   sourceCellIds: string[]
   pattern: ShowCell['pattern']
   patternName: string
+  evaluationPolicy: NonNullable<ShowCell['evaluationPolicy']>
   simulation: {
     timeScale: number
     timeOffsetMs: number
@@ -141,6 +142,9 @@ export function projectFlatShowComposition(
       sourceCellIds: cells.map((cell) => cell.id),
       pattern: { ...source.pattern },
       patternName: source.patternName,
+      evaluationPolicy: source.evaluationPolicy === 'freeze-at-entry'
+        ? 'freeze-at-entry' as const
+        : 'live' as const,
       simulation: {
         timeScale: source.adaptations.timeScale,
         timeOffsetMs: source.adaptations.timeOffsetMs ?? 0,
@@ -267,6 +271,7 @@ function mapCellsToCompiledInstances(
 function instanceOwnedSignature(cell: ShowCell): string {
   return JSON.stringify({
     pattern: cell.pattern,
+    evaluationPolicy: cell.evaluationPolicy ?? 'live',
     timeScale: cell.adaptations.timeScale,
     timeOffsetMs: cell.adaptations.timeOffsetMs ?? 0,
     lightShutter: cell.adaptations.lightShutter,

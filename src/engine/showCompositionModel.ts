@@ -63,6 +63,9 @@ export function projectFlatShowToCompositionV1(
     id: instance.id,
     pattern: { ...instance.pattern },
     patternName: instance.patternName,
+    ...(instance.evaluationPolicy === 'freeze-at-entry'
+      ? { evaluationPolicy: 'freeze-at-entry' as const }
+      : {}),
     time: {
       timeScale: instance.simulation.timeScale,
       timeOffsetMs: instance.simulation.timeOffsetMs,
