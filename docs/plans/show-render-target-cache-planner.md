@@ -546,9 +546,10 @@ the prior measured result without claiming a new hardware benchmark.
 06 #516 snapshot/live crossfade · paired Redline Machine 2,000 px median 1.810 -> 3.197 FPS · incremental +76.7% (mean +66.2%) · intentional frozen-outgoing visual policy; arena 6,012 words unchanged, +1 persistent global · cumulative exact Redline reference 2.358 -> 3.037 FPS, +28.8% retained
 07 #517 lifetime-aware cache planner · paired Redline source unchanged at live/live 15,421 B and snapshot/live 15,627 B; arena 6,012 words and generated render loops unchanged · incremental 0.0% expected, compile-time planner not hardware remeasured · cumulative exact Redline reference 2.358 -> 3.037 FPS, +28.8% retained; snapshot/live median 3.197 FPS retained
 08 #518 compatible Pattern-output reuse · paired five-surface 2,000 px median 4.554 -> 8.729 FPS · incremental +91.7% (mean +71.0%); exact 400-sample local output reused across 5 physical Zones, 1,600 Pattern evaluations/frame avoided, arena 6,012 words unchanged · cumulative exact Redline reference 2.358 -> 3.037 FPS, +28.8% retained; snapshot/live median 3.197 FPS retained
+09 #519 scalar visual-field caching · paired Redline-derived five-surface 2,000 px median 2.161 -> 3.115 FPS · incremental +44.1% (mean +34.2%); exact coherent-noise field removes 96,000 estimated operations/cached frame, source 23,284 -> 24,311 B, bytecode 12,922 -> 13,274 B, arena 6,012 words unchanged · cumulative exact Redline reference 2.358 -> 3.037 FPS, +28.8% retained; snapshot/live median 3.197 FPS retained
 ```
 
-Later slices append `08` through `10` here and repeat the new line in the #511
+Later slices append `10` here and repeat the new line in the #511
 coordination update. If a slice intentionally changes the visual contract, its
 line names that contract and does not compare it as an exact replacement.
 
@@ -575,7 +576,7 @@ The approved delivery slices are filed under the coordination epic:
 - [#518 - Reuse compatible Pattern output](https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/issues/518)
   shares exact output across placements and consumers.
 - [#519 - Cache scalar visual fields](https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/issues/519)
-  generalizes repeated geometry and Effect work.
+  generalizes repeated geometry and Effect work. **Implemented locally; awaiting landing.**
 - [#520 - Qualify the five-Pattern acceptance Show](https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/issues/520)
   is the human release gate for production defaults.
 

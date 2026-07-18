@@ -95,6 +95,12 @@ import {
   type ShowPatternOutputConsumer,
 } from './showPatternOutputReuse'
 import {
+  analyzeShowScalarField,
+  buildShowScalarFieldCandidate,
+  emitShowScalarFieldAccess,
+  type ShowScalarFieldDefinition,
+} from './showScalarField'
+import {
   planPhysicalRoutingShortCircuit,
   type PhysicalRoutingShortCircuitPlan,
 } from './showPhysicalRoutingSpecialization'
@@ -508,6 +514,20 @@ export interface ShowCompileSummary {
         reasons: ShowPatternOutputCompatibilityReason[]
       }>
     }
+    scalarFields: {
+      selectedFieldCount: number
+      operationsAvoidedPerCachedFrame: number
+      additionalArrayWords: 0
+      fields: Array<{
+        candidateId: string
+        producerKind: 'coherent-noise-2d'
+        coordinateDomain: 'stage-sample-2d'
+        compatibleConsumerIds: string[]
+        status: 'selected' | 'rejected'
+        reason: ShowRenderTargetDecisionReason | 'disabled'
+        planes: Array<0 | 1 | 2>
+      }>
+    }
   }
   clips: ShowCompileClipSummary[]
   resources: ShowVmResourceLedger
@@ -607,6 +627,18 @@ interface SelectedPatternOutputReuseGroup extends CompiledPatternOutputReuseGrou
   renderTarget: ShowRenderTargetPlan<'stage-rgb'>
 }
 
+interface CompiledScalarField {
+  definition: ShowScalarFieldDefinition
+  candidate: ShowRenderTargetCandidate
+  producerKind: 'coherent-noise-2d'
+  transitionKey: string
+}
+
+interface SelectedScalarField extends CompiledScalarField {
+  renderTarget: ShowRenderTargetPlan<'scalar-field'>
+  ownerToken: number
+}
+
 export interface ShowCompileOptions {
   exactSpecializations?: boolean
   frameInvariantHoisting?: boolean
@@ -617,6 +649,8 @@ export interface ShowCompileOptions {
   motionTransitionSharing?: 'auto' | 'none' | 'structure' | 'exact'
   /** Benchmark-only counterfactual; production uses exact profitable reuse when available. */
   patternOutputReuse?: boolean
+  /** Benchmark-only counterfactual; production uses exact profitable scalar fields when available. */
+  scalarFieldCaching?: boolean
 }
 
 const DIRECT_SNAPSHOT_CANDIDATE_ID = 'transition:direct:snapshot-live'
@@ -680,6 +714,73 @@ function buildShowRenderTargetCandidates(
     addSequence('routed', recipe.routedSceneSequence.scenes, () => true)
   }
   return candidates
+}
+
+function buildShowScalarFields(recipe: ShowRecipe, pixelCount: number): CompiledScalarField[] {
+  const fields: CompiledScalarField[] = []
+  const addField = (
+    transition: ShowRouteTransitionRecipe | ShowSceneSequenceTransitionRecipe,
+    transitionKey: string,
+    start: number,
+    consumerPrefix = '',
+  ) => {
+    if (transition.kind !== 'dither' || !isSpatialDissolve(transition)) return
+    const seed = normalizeShowDissolveSeed(transition.seed ?? 0)
+    const scale = normalizeShowDissolveScale(transition.scale ?? 6)
+    const definition: ShowScalarFieldDefinition = {
+      id: `${transitionKey}:coherent-noise`,
+      producer: {
+        id: 'coherent-noise-2d',
+        semanticKey: `coherent-noise-2d:seed=${seed}:scale=${scale}`,
+        operationsPerPixel: 48,
+      },
+      coordinateDomain: { kind: 'stage-sample-2d', key: 'stage-sample-2d' },
+      lifetime: {
+        kind: 'transition',
+        start,
+        end: start + transition.durationMs,
+        key: transitionKey,
+      },
+      invalidatedBy: ['field-plane-reassigned', 'map-change', 'transition-geometry-change'],
+      exactness: 'exact',
+      expectedFrameCount: Math.max(1, Math.ceil(transition.durationMs / (1_000 / 30))),
+      readsPerPixelPerFrame: 1,
+      consumers: [
+        { id: `${consumerPrefix}outgoing-mask`, coordinateDomainKey: 'stage-sample-2d', lifetimeKey: transitionKey },
+        { id: `${consumerPrefix}incoming-mask`, coordinateDomainKey: 'stage-sample-2d', lifetimeKey: transitionKey },
+      ],
+    }
+    fields.push({
+      definition,
+      candidate: buildShowScalarFieldCandidate(definition, pixelCount),
+      producerKind: 'coherent-noise-2d',
+      transitionKey,
+    })
+  }
+  if (recipe.routeTransition) {
+    addField(recipe.routeTransition, 'transition:direct', recipe.routeTransition.startMs)
+  }
+  const addSequence = (
+    kind: 'sequence' | 'routed',
+    scenes: Array<{ holdMs: number; transitionOut?: ShowSceneSequenceTransitionRecipe }>,
+  ) => {
+    let cursor = 0
+    scenes.forEach((scene, sceneIndex) => {
+      cursor += scene.holdMs
+      if (scene.transitionOut && scene.transitionOut.kind !== 'cut') {
+        addField(
+          scene.transitionOut,
+          `transition:${kind}:${sceneIndex}`,
+          cursor,
+          `${kind}:${sceneIndex}:`,
+        )
+        cursor += scene.transitionOut.durationMs
+      }
+    })
+  }
+  if (recipe.sceneSequence) addSequence('sequence', recipe.sceneSequence.scenes)
+  if (recipe.routedSceneSequence) addSequence('routed', recipe.routedSceneSequence.scenes)
+  return fields
 }
 
 function patternOutputConsumerId(sceneIndex: number, placementIndex: number): string {
@@ -840,6 +941,7 @@ export function compileShow(
   const renderTargetArenaEmission = options.renderTargetArenaEmission ?? true
   const motionTransitionSharing = options.motionTransitionSharing ?? 'auto'
   const patternOutputReuse = options.patternOutputReuse ?? true
+  const scalarFieldCaching = options.scalarFieldCaching ?? true
   validateRecipe(expandedRecipe)
   const animatedEffectClipIds = new Set<string>()
   const dynamicallyAnimatedEffectClipIds = new Set<string>()
@@ -1028,9 +1130,11 @@ export function compileShow(
     members,
     routedOutputDimension,
   )
+  const scalarFields = buildShowScalarFields(expandedRecipe, renderTargetPixelCount)
   const renderTargetCandidates = [
     ...buildShowRenderTargetCandidates(expandedRecipe, renderTargetPixelCount),
     ...(patternOutputReuse ? patternOutputReuseAnalysis.groups.map((group) => group.candidate) : []),
+    ...(scalarFieldCaching ? scalarFields.map((field) => field.candidate) : []),
   ]
   const preliminaryRenderTargetPlan = planShowRenderTargetCaches(renderTargetCandidates, {
     arena: renderTargetArena,
@@ -1057,6 +1161,17 @@ export function compileShow(
       renderTarget: planShowRenderTargetArena(renderTargetPixelCount, 'stage-rgb', assignment.planes),
     } satisfies SelectedPatternOutputReuseGroup]
   })
+  const scalarFieldByCandidate = new Map(scalarFields.map((field) => [field.candidate.id, field]))
+  const selectedScalarFields = preliminaryRenderTargetPlan.assignments.flatMap((assignment, index) => {
+    if (assignment.kind !== 'scalar-field') return []
+    const field = scalarFieldByCandidate.get(assignment.candidateId)
+    if (!field) return []
+    return [{
+      ...field,
+      renderTarget: planShowRenderTargetArena(renderTargetPixelCount, 'scalar-field', assignment.planes),
+      ownerToken: index + 1,
+    } satisfies SelectedScalarField]
+  })
   const routedSceneEmission = expandedRecipe.routedSceneSequence
       ? emitRoutedSceneSequenceShowCode(
         members,
@@ -1071,6 +1186,7 @@ export function compileShow(
         renderKernelSpecialization,
         motionTransitionSharing,
         selectedPatternOutputReuseGroups,
+        selectedScalarFields,
       )
       : null
   const emittedCode = routedSceneEmission
@@ -1082,6 +1198,7 @@ export function compileShow(
         sequenceOutputDimension,
         renderTargetPixelCount,
         selectedRenderTargetCandidates,
+        selectedScalarFields,
       )
     : routingLayouts
     ? emitRoutingLayoutShowCode(
@@ -1110,7 +1227,13 @@ export function compileShow(
         : expandedRecipe.routeTransition
           ? portalTransition
             ? emitPortalTransitionShowCode(members[0], members[1], portalTransition)
-            : emitRouteTransitionShowCode(members[0], members[1], expandedRecipe.routeTransition, transitionOutputDimension)
+            : emitRouteTransitionShowCode(
+                members[0],
+                members[1],
+                expandedRecipe.routeTransition,
+                transitionOutputDimension,
+                selectedScalarFields.find((field) => field.transitionKey === 'transition:direct'),
+              )
         : expandedRecipe.crossfade
           ? emitShowCode(
               members[0],
@@ -1180,6 +1303,24 @@ export function compileShow(
       evaluationsAvoidedPerFrame: selected
         ? group.pixelCount * (group.consumers.length - 1)
         : 0,
+    }
+  })
+  const scalarFieldSummary = scalarFields.map((field) => {
+    const decision = scalarFieldCaching
+      ? renderTargetDecisionByCandidate.get(field.candidate.id)
+      : undefined
+    const assignment = renderTargetPlan.assignments.find((candidate) => (
+      candidate.candidateId === field.candidate.id
+    ))
+    const analysis = analyzeShowScalarField(field.definition)
+    return {
+      candidateId: field.candidate.id,
+      producerKind: field.producerKind,
+      coordinateDomain: field.definition.coordinateDomain.kind as 'stage-sample-2d',
+      compatibleConsumerIds: analysis.compatibleConsumerIds,
+      status: decision?.status === 'selected' ? 'selected' as const : 'rejected' as const,
+      reason: scalarFieldCaching ? decision?.reason ?? 'non-profitable' : 'disabled' as const,
+      planes: assignment?.planes ?? [],
     }
   })
   const transitionCost = expandedRecipe.sceneSequence || expandedRecipe.routedSceneSequence
@@ -1394,7 +1535,7 @@ export function compileShow(
       renderTargetArenaEmission,
       directSnapshotCrossfade || sequenceSnapshotCrossfade || routedSnapshotCrossfade || selectedPatternOutputReuseGroups.length > 0
         ? 'stage-rgb'
-        : null,
+        : selectedScalarFields.length > 0 ? 'scalar-field' : null,
     ),
     renderTargetPlan,
     specializations: {
@@ -1414,6 +1555,16 @@ export function compileShow(
         additionalArrayWords: 0,
         groups: patternOutputReuseGroupsSummary,
         excluded: patternOutputReuseAnalysis.excluded,
+      },
+      scalarFields: {
+        selectedFieldCount: scalarFieldSummary.filter((field) => field.status === 'selected').length,
+        operationsAvoidedPerCachedFrame: scalarFields.reduce((total, field) => (
+          renderTargetDecisionByCandidate.get(field.candidate.id)?.status === 'selected'
+            ? total + renderTargetPixelCount * field.definition.producer.operationsPerPixel
+            : total
+        ), 0),
+        additionalArrayWords: 0,
+        fields: scalarFieldSummary,
       },
     },
     clips: members.map((member) => {
@@ -2013,6 +2164,7 @@ function emitRouteTransitionShowCode(
   to: CompiledMember,
   transition: ShowRouteTransitionRecipe,
   outputDimension: ShowOutputDimension,
+  scalarField?: SelectedScalarField,
 ): string {
   if (transition.kind === 'fade-color') {
     return emitFadeThroughColorShowCode(from, to, transition, outputDimension)
@@ -2024,7 +2176,7 @@ function emitRouteTransitionShowCode(
     return emitMotionTransitionShowCode(from, to, transition)
   }
   if (transition.kind === 'dither' && isSpatialDissolve(transition)) {
-    return emitSpatialDissolveTransitionShowCode(from, to, transition)
+    return emitSpatialDissolveTransitionShowCode(from, to, transition, scalarField)
   }
   const transitionEnd = transition.startMs + transition.durationMs
   const pickTo = emitDissolvePickExpression(transition)
@@ -2115,11 +2267,13 @@ function emitSpatialDissolveTransitionShowCode(
   from: CompiledMember,
   to: CompiledMember,
   transition: ShowRouteTransitionRecipe,
+  scalarField?: SelectedScalarField,
 ): string {
   return [
     emitRuntimePrelude([from, to], 2),
     from.code.trim(),
     to.code.trim(),
+    ...(scalarField ? [emitScalarFieldRuntimeDeclarations([scalarField])] : []),
     emitScheduler(
       from,
       to,
@@ -2127,6 +2281,8 @@ function emitSpatialDissolveTransitionShowCode(
       transition.startMs + transition.durationMs,
       transition.durationMs,
       transition.easing,
+      false,
+      scalarField,
     ),
     emitOuterRenderer(2, `  if (__pxlblz_show_phase == 0) {
     ${from.prefix}_renderCapture2D(index, x, y)
@@ -2135,7 +2291,7 @@ function emitSpatialDissolveTransitionShowCode(
     ${to.prefix}_renderCapture2D(index, x, y)
     ${to.prefix}_emit()
   } else {
-${indentBlock(emitSpatialDissolveRenderBlock(from, to, transition), 4)}
+${indentBlock(emitSpatialDissolveRenderBlock(from, to, transition, scalarField), 4)}
   }`),
     '',
   ].join('\n\n')
@@ -2212,6 +2368,7 @@ function emitSceneSequenceShowCode(
   outputDimension: 1 | 2,
   renderTargetPixelCount: number,
   selectedRenderTargetCandidates: ReadonlySet<string>,
+  scalarFields: SelectedScalarField[] = [],
 ): string {
   const memberById = new Map(members.map((member) => [member.id, member]))
   const scenes = sequence.scenes.map((scene) => ({ ...scene, member: memberById.get(scene.clipId)! }))
@@ -2267,6 +2424,9 @@ function emitSceneSequenceShowCode(
   }`
     }
     const to = segment.to!
+    const scalarField = scalarFields.find((field) => (
+      field.transitionKey === `transition:sequence:${segment.sceneIndex}`
+    ))
     const advanceTo = to === segment.from ? '' : `\n    ${to.prefix}_advance(delta)`
     const snapshotEntry = usesSnapshot
       && segment.transition?.kind === 'crossfade'
@@ -2288,13 +2448,17 @@ function emitSceneSequenceShowCode(
         ? `\n${indentBlock(emitControlRampAssignments(segment.from, segment.transition!.controlRamps, `(__pxlblz_show_elapsed_s - ${segment.startMs / 1000}) * 1000`), 4)}`
         : ''}${segment.transition!.effectRamps
           ? `\n${indentBlock(emitEffectRampAssignments(segment.from, segment.transition!.effectRamps, `(__pxlblz_show_elapsed_s - ${segment.startMs / 1000}) * 1000`), 4)}`
-        : ''}
+        : ''}${scalarField ? `\n${indentBlock(emitScalarFieldLifecycle(scalarField), 4)}` : ''}
     ${segment.from.prefix}_advance(delta)${advanceTo}
   }`
   }).join(' ')
   const transitionBranches = segments
     .filter((segment) => segment.kind === 'transition')
-    .map((segment, index) => `${index === 0 ? 'if' : 'else if'} (__pxlblz_show_transition == ${segment.sceneIndex}) {
+    .map((segment, index) => {
+      const scalarField = scalarFields.find((field) => (
+        field.transitionKey === `transition:sequence:${segment.sceneIndex}`
+      ))
+      return `${index === 0 ? 'if' : 'else if'} (__pxlblz_show_transition == ${segment.sceneIndex}) {
 ${indentBlock(
   segment.transition?.kind === 'crossfade'
     && segment.transition.crossfadePolicy === 'snapshot-live'
@@ -2307,10 +2471,11 @@ ${indentBlock(
         memberRenderCapture(segment.to!, outputDimension),
         renderTarget,
       )
-    : emitSceneSequenceTransitionBlock(segment.from, segment.to!, segment.transition!, outputDimension),
+    : emitSceneSequenceTransitionBlock(segment.from, segment.to!, segment.transition!, outputDimension, scalarField),
   4,
 )}
-  }`)
+  }`
+    })
     .join(' ')
   const sceneBranches = scenes.map((scene, index) => `${index === 0 ? 'if' : 'else if'} (__pxlblz_show_scene == ${index}) {
     ${memberRenderCapture(scene.member, outputDimension)}
@@ -2322,6 +2487,7 @@ ${indentBlock(
       includeHash: transitionBranches.includes('__pxlblz_show_hash01'),
     }),
     ...members.map((member) => member.code.trim()),
+    ...(scalarFields.length > 0 ? [emitScalarFieldRuntimeDeclarations(scalarFields)] : []),
     'var __pxlblz_show_scene = 0',
     'var __pxlblz_show_transition = -1',
     ...(usesSnapshot
@@ -2355,6 +2521,7 @@ function emitRoutedSceneSequenceShowCode(
   renderKernelSpecialization = false,
   motionTransitionSharing: 'auto' | 'none' | 'structure' | 'exact' = 'auto',
   patternOutputReuseGroups: SelectedPatternOutputReuseGroup[] = [],
+  scalarFields: SelectedScalarField[] = [],
 ): {
   code: string
   renderKernels: ShowCompileSummary['specializations']['renderKernels']
@@ -2686,6 +2853,9 @@ ${setupGroups}`
     }
     const from = scenes[segment.sceneIndex].placements
     const to = scenes[segment.sceneIndex + 1].placements
+    const scalarField = scalarFields.find((field) => (
+      field.transitionKey === `transition:routed:${segment.sceneIndex}`
+    ))
     const snapshotEntry = usesSnapshot
       && segment.transition?.kind === 'crossfade'
       && segment.transition.crossfadePolicy === 'snapshot-live'
@@ -2727,7 +2897,7 @@ ${setupGroups}`
     __pxlblz_show_scene = ${segment.sceneIndex}
     __pxlblz_show_transition = ${segment.sceneIndex}
     __pxlblz_show_transition_start_s = ${segment.startMs / 1000}
-    __pxlblz_show_mix = ${emitShowEasingExpression(segment.transition!.easing ?? 'linear', `(__pxlblz_show_elapsed_s - ${segment.startMs / 1000}) / ${segment.transition!.durationMs / 1000}`)}${snapshotEntry}${motionKernelAssignments}
+    __pxlblz_show_mix = ${emitShowEasingExpression(segment.transition!.easing ?? 'linear', `(__pxlblz_show_elapsed_s - ${segment.startMs / 1000}) / ${segment.transition!.durationMs / 1000}`)}${snapshotEntry}${motionKernelAssignments}${scalarField ? `\n${indentBlock(emitScalarFieldLifecycle(scalarField), 4)}` : ''}
 ${setupForPlacements(
     [...from, ...to],
     scenes[segment.sceneIndex].transitionRamps,
@@ -2783,6 +2953,7 @@ ${indentBlock(emitRoutedSceneTransition(
       && selectedRenderTargetCandidates.has(sequenceSnapshotCandidateId('routed', segment.sceneIndex))
       ? renderTarget
       : undefined,
+    scalarFields.find((field) => field.transitionKey === `transition:routed:${segment.sceneIndex}`),
   ), 4)}
   }`)
     .join(' ')
@@ -2909,6 +3080,7 @@ ${indentBlock(branches, 2)}
     ...members.map((member) => member.code.trim()),
     ...stackWrappers,
     ...(sharedPhysicalCut?.prelude ? [sharedPhysicalCut.prelude] : []),
+    ...(scalarFields.length > 0 ? [emitScalarFieldRuntimeDeclarations(scalarFields)] : []),
     'var __pxlblz_show_scene = 0',
     ...(hasTransitions
       ? [
@@ -3348,6 +3520,7 @@ function emitRoutedSceneTransition(
   fromSceneIndex: number,
   toSceneIndex: number,
   snapshotRenderTarget?: ShowRenderTargetPlan<'stage-rgb'>,
+  scalarField?: SelectedScalarField,
 ): string {
   return layouts.map((layout, layoutIndex) => `${layoutIndex === 0 ? 'if' : 'else if'} (__pxlblz_show_route_layout == ${layoutIndex}) {
 ${indentBlock(layout.logical
@@ -3359,6 +3532,7 @@ ${indentBlock(layout.logical
         fromSceneIndex,
         toSceneIndex,
         snapshotRenderTarget,
+        scalarField,
       )
     : emitPhysicalSceneTransition(
         layout,
@@ -3369,6 +3543,7 @@ ${indentBlock(layout.logical
         fromSceneIndex,
         toSceneIndex,
         snapshotRenderTarget,
+        scalarField,
       ), 2)}
 }`).join(' ')
 }
@@ -3417,6 +3592,7 @@ function emitLogicalSceneTransition(
   fromSceneIndex: number,
   toSceneIndex: number,
   snapshotRenderTarget?: ShowRenderTargetPlan<'stage-rgb'>,
+  scalarField?: SelectedScalarField,
 ): string {
   const logical = layout.logical!
   const fromByZone = groupRoutedPlacementsByZone(fromPlacements)
@@ -3448,6 +3624,7 @@ function emitLogicalSceneTransition(
       toCapture,
       { index: localIndex, x: '__pxlblz_show_scene_local_x', y: '__pxlblz_show_scene_local_y' },
       snapshotRenderTarget,
+      scalarField,
     )
     return [`${zoneIndex === 0 ? 'if' : 'else if'} (__pxlblz_show_route_id == ${zoneIndex}) {
 ${fromStack.map((placement) => `  ${placement.member.pixelCountName} = ${fromDomain.pixelCount}`).join('\n')}
@@ -3562,6 +3739,7 @@ function emitPhysicalSceneTransition(
   fromSceneIndex: number,
   toSceneIndex: number,
   snapshotRenderTarget?: ShowRenderTargetPlan<'stage-rgb'>,
+  scalarField?: SelectedScalarField,
 ): string {
   const fromPlacementByZone = groupRoutedPlacementsByZone(fromPlacements)
   const toPlacementByZone = groupRoutedPlacementsByZone(toPlacements)
@@ -3588,6 +3766,7 @@ function emitPhysicalSceneTransition(
       fromSceneIndex,
       toSceneIndex,
       snapshotRenderTarget,
+      scalarField,
     )]
   }).join('\n')
 }
@@ -3908,6 +4087,7 @@ function emitPhysicalSceneZoneStackTransition(
   fromSceneIndex: number,
   toSceneIndex: number,
   snapshotRenderTarget?: ShowRenderTargetPlan<'stage-rgb'>,
+  scalarField?: SelectedScalarField,
 ): string {
   const from = routedSceneStackNeedsWrapper(fromStack)
     ? routedSceneCompositeMember(fromStack, routedSceneStackPrefix(fromSceneIndex, zoneName))
@@ -3926,6 +4106,7 @@ function emitPhysicalSceneZoneStackTransition(
     fromStack.map((placement) => placement.member),
     toStack.map((placement) => placement.member),
     snapshotRenderTarget,
+    scalarField,
   )
 }
 
@@ -3940,6 +4121,7 @@ function emitPhysicalSceneZoneTransition(
   fromMembers: CompiledMember[] = [from],
   toMembers: CompiledMember[] = [to],
   snapshotRenderTarget?: ShowRenderTargetPlan<'stage-rgb'>,
+  scalarField?: SelectedScalarField,
 ): string {
   const fromLocal = `__pxlblz_show_scene_zone_${zoneIndex}_from_index`
   const toLocal = `__pxlblz_show_scene_zone_${zoneIndex}_to_index`
@@ -3976,6 +4158,7 @@ function emitPhysicalSceneZoneTransition(
     toCapture,
     { index: fromLocal, x: localX, y: localY },
     snapshotRenderTarget,
+    scalarField,
   )
   return [
     `var ${fromLocal} = -1`,
@@ -4003,6 +4186,7 @@ function emitSceneTransitionWithCaptures(
   toCapture: string,
   localCoordinates: { index: string; x: string; y: string },
   snapshotRenderTarget?: ShowRenderTargetPlan<'stage-rgb'>,
+  scalarField?: SelectedScalarField,
 ): string {
   if (transition.kind === 'motion') {
     return emitMotionTransitionRenderBlock(from, to, transition, localCoordinates)
@@ -4019,7 +4203,7 @@ function emitSceneTransitionWithCaptures(
       false,
     )
   }
-  return emitSceneSequenceTransitionBlock(from, to, transition, outputDimension)
+  return emitSceneSequenceTransitionBlock(from, to, transition, outputDimension, scalarField)
     .split(memberRenderCapture(from, outputDimension)).join(fromCapture)
     .split(memberRenderCapture(to, outputDimension)).join(toCapture)
 }
@@ -4064,13 +4248,14 @@ function emitSceneSequenceTransitionBlock(
   to: CompiledMember,
   transition: ShowSceneSequenceTransitionRecipe,
   outputDimension: 1 | 2,
+  scalarField?: SelectedScalarField,
 ): string {
   if (transition.kind === 'portal') return emitPortalRenderBlock(from, to, transition)
   if (transition.kind === 'fade-color') return emitFadeThroughColorRenderBlock(from, to, transition, outputDimension)
   if (transition.kind === 'wipe') return emitWipeTransitionRenderBlock(from, to, transition, outputDimension)
   if (transition.kind === 'motion') return emitMotionTransitionRenderBlock(from, to, transition)
   if (transition.kind === 'dither' && isSpatialDissolve(transition)) {
-    return emitSpatialDissolveRenderBlock(from, to, transition)
+    return emitSpatialDissolveRenderBlock(from, to, transition, scalarField)
   }
 
   const fromRender = memberRenderCapture(from, outputDimension)
@@ -4123,6 +4308,7 @@ function emitSpatialDissolveRenderBlock(
   from: CompiledMember,
   to: CompiledMember,
   transition: Pick<ShowRouteTransitionRecipe, 'dissolveVariant' | 'seed' | 'scale' | 'softness' | 'edgePolicy'>,
+  scalarField?: SelectedScalarField,
 ): string {
   const seedOffset = normalizeShowDissolveSeed(transition.seed ?? 0) * 131
   const scale = normalizeShowDissolveScale(transition.scale ?? 6)
@@ -4135,7 +4321,7 @@ function emitSpatialDissolveRenderBlock(
       : 'dither'
     : 'hard'
   const seedTerm = seedOffset === 0 ? '' : ` + ${seedOffset}`
-  const prelude = `var __pxlblz_show_dissolve_x = x * ${scale}
+  const producerPrelude = `var __pxlblz_show_dissolve_x = x * ${scale}
 var __pxlblz_show_dissolve_y = y * ${scale}
 var __pxlblz_show_dissolve_ix = floor(__pxlblz_show_dissolve_x)
 var __pxlblz_show_dissolve_iy = floor(__pxlblz_show_dissolve_y)
@@ -4150,6 +4336,15 @@ var __pxlblz_show_dissolve_h11 = __pxlblz_show_hash01(__pxlblz_show_dissolve_ix 
 var __pxlblz_show_dissolve_top = __pxlblz_show_dissolve_h00 + (__pxlblz_show_dissolve_h10 - __pxlblz_show_dissolve_h00) * __pxlblz_show_dissolve_sx
 var __pxlblz_show_dissolve_bottom = __pxlblz_show_dissolve_h01 + (__pxlblz_show_dissolve_h11 - __pxlblz_show_dissolve_h01) * __pxlblz_show_dissolve_sx
 var __pxlblz_show_dissolve_field = __pxlblz_show_dissolve_top + (__pxlblz_show_dissolve_bottom - __pxlblz_show_dissolve_top) * __pxlblz_show_dissolve_sy`
+  const prelude = scalarField
+    ? emitShowScalarFieldAccess({
+        target: scalarField.renderTarget,
+        indexExpression: 'index',
+        readyExpression: scalarFieldReadyName(scalarField),
+        valueName: '__pxlblz_show_dissolve_field',
+        producerLines: producerPrelude.split('\n'),
+      })
+    : producerPrelude
   const fromRender = `${from.prefix}_renderCapture2D(index, x, y)`
   const toRender = `${to.prefix}_renderCapture2D(index, x, y)`
   if (policy === 'hard' || softness === 0) {
@@ -5662,6 +5857,7 @@ function emitScheduler(
   duration: number,
   easing: ShowTransitionEasing = 'linear',
   resetSnapshot = false,
+  scalarField?: SelectedScalarField,
 ): string {
   return `export function beforeRender(delta) {
   __pxlblz_show_elapsed_s = __pxlblz_show_elapsed_s + delta / 1000
@@ -5673,6 +5869,7 @@ function emitScheduler(
   } else if (__pxlblz_show_elapsed_s < ${transitionEnd / 1000}) {
     __pxlblz_show_phase = 1
     __pxlblz_show_mix = ${emitShowEasingExpression(easing, `(__pxlblz_show_elapsed_s - ${transitionStart / 1000}) / ${duration / 1000}`)}
+    ${scalarField ? emitScalarFieldLifecycle(scalarField) : ''}
     ${from.prefix}_advance(delta)
     ${to.prefix}_advance(delta)
   } else {
@@ -5681,6 +5878,37 @@ function emitScheduler(
     ${to.prefix}_advance(delta)
   }
 }`
+}
+
+function scalarFieldPlane(field: SelectedScalarField): 0 | 1 | 2 {
+  return field.renderTarget.binding.channels.value
+}
+
+function scalarFieldOwnerName(field: SelectedScalarField): string {
+  return `__pxlblz_show_scalar_owner_${scalarFieldPlane(field)}`
+}
+
+function scalarFieldReadyName(field: SelectedScalarField): string {
+  return `__pxlblz_show_scalar_ready_${scalarFieldPlane(field)}`
+}
+
+function emitScalarFieldRuntimeDeclarations(fields: SelectedScalarField[]): string {
+  const planes = [...new Set(fields.map(scalarFieldPlane))].sort()
+  return planes.flatMap((plane) => [
+    `var __pxlblz_show_scalar_owner_${plane} = -1`,
+    `var __pxlblz_show_scalar_ready_${plane} = 0`,
+  ]).join('\n')
+}
+
+function emitScalarFieldLifecycle(field: SelectedScalarField): string {
+  const owner = scalarFieldOwnerName(field)
+  const ready = scalarFieldReadyName(field)
+  return `if (${owner} != ${field.ownerToken}) {
+      ${owner} = ${field.ownerToken}
+      ${ready} = 0
+    } else if (!${ready}) {
+      ${ready} = 1
+    }`
 }
 
 function emitSnapshotLiveRender(

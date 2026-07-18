@@ -1095,7 +1095,8 @@ and artifact bytes remain independent limits.
 
 Generated Show code physically contains exactly those three arena arrays. The
 compile bar reports `3 planes`, the active role (`stage-rgb` for snapshot/live
-Crossfade, otherwise `unassigned`), and the available channel bindings: RGB
+Crossfade or compatible Pattern output, `scalar-field` for a cached visual
+field, otherwise `unassigned`), and the available channel bindings: RGB
 `0/1/2`, XY `0/1`, scalar `0`, and previous RGB `0/1/2`. These labels are
 alternate uses of one arena, not four allocations. A snapshot/live diagnostic
 also distinguishes its two-path capture frame from the later one-live-path
@@ -1118,6 +1119,15 @@ be proven not to mutate Pattern state. Opacity may differ because compositing
 stays after the cache. Incompatible or unprofitable placements render normally;
 the optimization never changes authored output and uses the existing arena
 rather than allocating another framebuffer.
+
+Spatial Dissolve Transitions may also report **scalar fields**. The compiler
+caches their exact frame-stable coherent-noise geometry after the first active
+frame and reuses one scalar per physical pixel while Transition progress and
+edge policy continue live. The diagnostic names the producer, Stage-sample
+domain, compatible mask consumers, selected plane, estimated operations
+avoided, and any rejection reason. Direct, Scene-sequence, and routed Shows use
+the same contract; successive fields can reuse one plane, while a conflicting
+higher-priority arena role leaves the Dissolve on its original inline path.
 
 The same bar enforces the output support envelope. An Installation above 2,000
 pixels, a Portable Show targeting a Controller above 2,000 pixels, an array whose

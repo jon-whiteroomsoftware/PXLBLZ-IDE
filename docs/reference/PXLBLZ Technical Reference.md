@@ -1602,7 +1602,8 @@ code typed role bindings over those same arrays:
 
 One role assignment changes read/write meaning, not allocation. The compile
 summary exposes all bindings and reports `stage-rgb` when snapshot/live
-Crossfade owns the arena; otherwise the role is unassigned. #515's reservation
+Crossfade or shared Pattern output owns the arena and `scalar-field` when a
+planned visual field owns a plane; otherwise the role is unassigned. #515's reservation
 alone performs no capture, replay, or per-pixel arena work. The
 `renderTargetArenaEmission: false` compiler option exists only for paired
 benchmarks; eligibility still accounts for the mandatory reservation. If that
@@ -1694,6 +1695,44 @@ firmware-3.67 pb32, `npm run issue518:hardware` raised median throughput from
 avoids 1,600 of 2,000 Pattern evaluations per frame while retaining the same
 6,012 arena words and restoring the Controller's original program and pixel
 count after the probe.
+
+### Scalar visual-field caching
+
+`showScalarField.ts` defines the reusable one-plane contract for geometry,
+masks, distance fields, waves, and other one-value-per-pixel computations. A
+field explicitly names its producer semantics and operation estimate,
+coordinate-domain kind and identity, half-open lifetime, invalidators,
+exactness, expected frame count, replay reads, and consumers. Consumer domains
+and lifetime keys must match the producer. A semantic match is never inferred
+from similar-looking generated expressions.
+
+The first production producer is the frame-stable coherent-noise geometry used
+by spatial Dissolve Transitions. Direct, ordinary Scene-sequence, and routed
+Shows submit exact Transition-lifetime candidates. The producer identity
+includes normalized seed and scale; the coordinate domain is the Stage's 2D
+sample domain. Softness, edge policy, and Transition progress remain consumers
+of the field and therefore do not force the expensive noise geometry to be
+recomputed.
+
+The first active Transition frame computes the ordinary field from live `x/y`
+samples and writes it by physical pixel index. The next `beforeRender` marks the
+plane ready, after which rendering reads one scalar per pixel. This lazy fill
+keeps the first frame exact on arbitrary 2D maps without inventing a coordinate
+prepass. Every assigned plane has a generated owner token and readiness flag;
+when a later field takes that plane, its first frame refills it. Two
+non-overlapping Transitions can therefore reuse plane 0, while overlapping
+required RGB snapshots or more profitable candidates retain planner priority.
+Rejected and arena-disabled fields keep the original inline computation.
+
+The specialized summary reports producer kind, coordinate domain, compatible
+consumers, planner decision, physical plane, operations avoided per cached
+frame, and zero additional array words. `scalarFieldCaching: false` exists only
+for paired benchmarks. `npm run issue519` verifies exact Fast and Precise
+checksums at seven score times on a routed, five-surface, 2,000-pixel fixture.
+On a firmware-3.67 pb32, `npm run issue519:hardware` raised median throughput
+from 2.161 to 3.115 FPS (+44.1%); mean throughput rose 34.2%. The selected path
+removes an estimated 96,000 operations per cached frame, retains the 6,012-word
+arena, and restores the Controller's original program and pixel count.
 
 The Acorn-backed member census counts array literals, `array(pixelCount)`,
 numeric expressions, supported `floor`/`ceil`/`round`/`min`/`max` expressions,
