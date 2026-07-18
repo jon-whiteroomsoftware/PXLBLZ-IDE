@@ -2345,7 +2345,9 @@ function showRecordToStaticRoutedRecipe(
       direction: transition?.routingDirection ?? 'forward',
     }]
   })
-  const splitLayout = normalized.routingLayouts.find((layout) => layout.logical?.kind === 'split')
+  const splitLayout = normalized.routingLayouts.find((layout) => (
+    layout.logical?.kind === 'split' || layout.logical?.kind === 'soft-split'
+  ))
   const installationContract = normalized.outputContract?.kind === 'installation'
     ? normalized.outputContract
     : null
@@ -2445,7 +2447,9 @@ function showRecordToRoutedSceneSequenceRecipe(
       direction: transition?.routingDirection ?? 'forward',
     }]
   })
-  const splitLayout = normalized.routingLayouts.find((layout) => layout.logical?.kind === 'split')
+  const splitLayout = normalized.routingLayouts.find((layout) => (
+    layout.logical?.kind === 'split' || layout.logical?.kind === 'soft-split'
+  ))
   const installationContract = normalized.outputContract?.kind === 'installation'
     ? normalized.outputContract
     : null
@@ -2980,8 +2984,37 @@ function logicalRoutingRecipe(
     return { kind: logical.kind, zoneNames, columns: logical.columns, rows: logical.rows }
   }
   if (logical.kind === 'stripes') return { kind: logical.kind, zoneNames, axis: logical.axis }
+  if (logical.kind === 'checker') {
+    return { kind: logical.kind, zoneNames: [zoneNames[0], zoneNames[1]], columns: logical.columns, rows: logical.rows }
+  }
+  if (logical.kind === 'rings') return { kind: logical.kind, zoneNames, rings: logical.rings }
+  if (logical.kind === 'wave') {
+    return {
+      kind: logical.kind,
+      zoneNames,
+      axis: logical.axis,
+      bands: logical.bands,
+      amplitude: logical.amplitude,
+      frequency: logical.frequency,
+      phase: logical.phase,
+    }
+  }
+  if (logical.kind === 'soft-split') {
+    return {
+      kind: logical.kind,
+      zoneNames: [zoneNames[0], zoneNames[1]],
+      axis: logical.axis,
+      feather: logical.feather,
+    }
+  }
   if (logical.kind === 'split') return { kind: logical.kind, zoneNames: [zoneNames[0], zoneNames[1]], axis: logical.axis }
-  return { kind: logical.kind, zoneNames, twist: logical.twist }
+  return {
+    kind: logical.kind,
+    zoneNames,
+    arms: logical.arms ?? zoneNames.length,
+    twist: logical.twist,
+    rotation: logical.rotation ?? 0,
+  }
 }
 
 function createCellsForZones(scenes: ShowScene[], zones: ShowZone[]): ShowCell[] {

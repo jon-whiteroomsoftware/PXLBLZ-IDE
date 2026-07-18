@@ -10,6 +10,7 @@ import {
   extendShowCell,
   formatShowRoutingRanges,
   normalizeShowTransitionState,
+  normalizeShowRoutingState,
   parseShowRoutingRanges,
   placeShowClip,
   moveShowCellToSlot,
@@ -741,6 +742,186 @@ describe('showModel (#318)', () => {
     })
 
     expect(removeShowZone(logical, show.zones[1].id).routingLayouts[0].logical).toBeUndefined()
+  })
+
+  it('round-trips and clones every adaptive routing operator without sharing mutable Zone ids (#507)', () => {
+    const base = addShowZone(createShowWithOutputContract(
+      'show-507-persistence',
+      'Adaptive persistence',
+      createPortableShowOutputContract({ referenceMapId: 'plane', referencePixelCount: 1024 }),
+      1000,
+    ), { name: 'alternate', nominalPixelCount: 60 })
+    const zoneIds: [string, string] = [base.zones[0].id, base.zones[1].id]
+    const operators: NonNullable<ShowRecord['routingLayouts'][number]['logical']>[] = [
+      { kind: 'checker', zoneIds, columns: 4, rows: 3 },
+      { kind: 'rings', zoneIds, rings: 5 },
+      { kind: 'pinwheel', zoneIds, arms: 7, twist: 2.5, rotation: 0.25 },
+      { kind: 'wave', zoneIds, axis: 'y', bands: 6, amplitude: 0.3, frequency: 2, phase: 0.1 },
+      { kind: 'soft-split', zoneIds, axis: 'x', feather: 0.2 },
+    ]
+
+    for (const logical of operators) {
+      const authored = updateShowRoutingLayout(base, base.routingLayouts[0].id, { logical })
+      const persisted = normalizeShowRoutingState(JSON.parse(JSON.stringify(authored)) as ShowRecord)
+      const cloned = addShowRoutingLayout(persisted, `${logical.kind} copy`, persisted.routingLayouts[0].id)
+
+      expect(persisted.routingLayouts[0].logical).toEqual(logical)
+      expect(cloned.routingLayouts[1].logical).toEqual(logical)
+      expect(cloned.routingLayouts[1].logical?.zoneIds).not.toBe(persisted.routingLayouts[0].logical?.zoneIds)
+    }
+  })
+
+  it('preserves authored Checker parameters when lowering a Portable Show (#507)', () => {
+    let show = addShowZone(createShowWithOutputContract(
+      'show-507-checker',
+      'Checker Show',
+      createPortableShowOutputContract({ referenceMapId: 'plane', referencePixelCount: 1024 }),
+      1000,
+    ), {
+      name: 'alternate',
+      nominalPixelCount: 60,
+    })
+    show = updateShowRoutingLayout(show, show.routingLayouts[0].id, {
+      logical: {
+        kind: 'checker',
+        zoneIds: [show.zones[0].id, show.zones[1].id],
+        columns: 6,
+        rows: 4,
+      },
+    })
+
+    const recipe = showRecordToCompileRecipe(show, {
+      byCellId: Object.fromEntries(show.cells.map((cell) => [cell.id, DEMOS.TestPattern2D])),
+      stageDimension: 2,
+    })
+
+    expect(recipe.routingLayouts?.[0].logical).toEqual({
+      kind: 'checker',
+      zoneNames: ['main', 'alternate'],
+      columns: 6,
+      rows: 4,
+    })
+  })
+
+  it('preserves authored Rings parameters when lowering a Portable Show (#507)', () => {
+    let show = addShowZone(createShowWithOutputContract(
+      'show-507-rings',
+      'Rings Show',
+      createPortableShowOutputContract({ referenceMapId: 'plane', referencePixelCount: 1024 }),
+      1000,
+    ), { name: 'alternate', nominalPixelCount: 60 })
+    show = updateShowRoutingLayout(show, show.routingLayouts[0].id, {
+      logical: { kind: 'rings', zoneIds: show.zones.map((zone) => zone.id), rings: 5 },
+    })
+
+    const recipe = showRecordToCompileRecipe(show, {
+      byCellId: Object.fromEntries(show.cells.map((cell) => [cell.id, DEMOS.TestPattern2D])),
+      stageDimension: 2,
+    })
+
+    expect(recipe.routingLayouts?.[0].logical).toEqual({
+      kind: 'rings',
+      zoneNames: ['main', 'alternate'],
+      rings: 5,
+    })
+  })
+
+  it('preserves authored Pinwheel arms, twist, and rotation when lowering a Portable Show (#507)', () => {
+    let show = addShowZone(createShowWithOutputContract(
+      'show-507-pinwheel',
+      'Pinwheel Show',
+      createPortableShowOutputContract({ referenceMapId: 'plane', referencePixelCount: 1024 }),
+      1000,
+    ), { name: 'alternate', nominalPixelCount: 60 })
+    show = updateShowRoutingLayout(show, show.routingLayouts[0].id, {
+      logical: {
+        kind: 'pinwheel',
+        zoneIds: show.zones.map((zone) => zone.id),
+        arms: 6,
+        twist: Math.PI,
+        rotation: Math.PI / 4,
+      },
+    })
+
+    const recipe = showRecordToCompileRecipe(show, {
+      byCellId: Object.fromEntries(show.cells.map((cell) => [cell.id, DEMOS.TestPattern2D])),
+      stageDimension: 2,
+    })
+
+    expect(recipe.routingLayouts?.[0].logical).toEqual({
+      kind: 'pinwheel',
+      zoneNames: ['main', 'alternate'],
+      arms: 6,
+      twist: Math.PI,
+      rotation: Math.PI / 4,
+    })
+  })
+
+  it('preserves authored Wave parameters when lowering a Portable Show (#507)', () => {
+    let show = addShowZone(createShowWithOutputContract(
+      'show-507-wave',
+      'Wave Show',
+      createPortableShowOutputContract({ referenceMapId: 'plane', referencePixelCount: 1024 }),
+      1000,
+    ), { name: 'alternate', nominalPixelCount: 60 })
+    show = updateShowRoutingLayout(show, show.routingLayouts[0].id, {
+      logical: {
+        kind: 'wave',
+        zoneIds: show.zones.map((zone) => zone.id),
+        axis: 'y',
+        bands: 5,
+        amplitude: 0.3,
+        frequency: 2.5,
+        phase: 0.1,
+      },
+    })
+
+    const recipe = showRecordToCompileRecipe(show, {
+      byCellId: Object.fromEntries(show.cells.map((cell) => [cell.id, DEMOS.TestPattern2D])),
+      stageDimension: 2,
+    })
+
+    expect(recipe.routingLayouts?.[0].logical).toEqual({
+      kind: 'wave',
+      zoneNames: ['main', 'alternate'],
+      axis: 'y',
+      bands: 5,
+      amplitude: 0.3,
+      frequency: 2.5,
+      phase: 0.1,
+    })
+  })
+
+  it('lowers Soft Split feather with the existing animated split-position property (#507)', () => {
+    let show = addShowZone(createShowWithOutputContract(
+      'show-507-soft-split',
+      'Soft Split Show',
+      createPortableShowOutputContract({ referenceMapId: 'plane', referencePixelCount: 1024 }),
+      1000,
+    ), { name: 'alternate', nominalPixelCount: 60 })
+    show = updateShowRoutingLayout(show, show.routingLayouts[0].id, {
+      logical: {
+        kind: 'soft-split',
+        zoneIds: [show.zones[0].id, show.zones[1].id],
+        axis: 'x',
+        feather: 0.2,
+      },
+    })
+    show = updateShowScene(show, show.scenes[0].id, { routingTargets: { splitPosition: 0.25 } })
+    show = updateShowScene(show, show.scenes[1].id, { routingTargets: { splitPosition: 0.75 } })
+
+    const recipe = showRecordToCompileRecipe(show, {
+      byCellId: Object.fromEntries(show.cells.map((cell) => [cell.id, DEMOS.TestPattern2D])),
+      stageDimension: 2,
+    })
+
+    expect(recipe.routingLayouts?.[0].logical).toEqual({
+      kind: 'soft-split',
+      zoneNames: ['main', 'alternate'],
+      axis: 'x',
+      feather: 0.2,
+    })
+    expect(recipe.routingPropertyRamps?.splitPosition).toMatchObject({ initial: 0.25 })
   })
 
   it('creates a two-scene scene-strip show with one zone and editable cells', () => {

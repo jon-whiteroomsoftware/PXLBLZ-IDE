@@ -1277,6 +1277,173 @@ describe('ShowEditor (#318)', () => {
     expect(screen.getByText(/scene targets move the split continuously/i)).toBeInTheDocument()
   })
 
+  it('authors Checker dimensions from the existing routing inspector (#507)', async () => {
+    const user = userEvent.setup()
+    let show = createShowWithOutputContract(
+      'show-507-checker-editor',
+      'Checker setup',
+      createPortableShowOutputContract({ referenceMapId: 'plane', referencePixelCount: 1024 }),
+      1000,
+    )
+    show = addShowZone(show, { name: 'alternate', nominalPixelCount: 4 })
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+    await user.click(screen.getByRole('button', { name: 'Show properties' }))
+    await user.selectOptions(screen.getByLabelText('Default routing mode'), 'checker')
+
+    expect(screen.getByLabelText('Checker columns')).toHaveValue(4)
+    expect(screen.getByLabelText('Checker rows')).toHaveValue(4)
+    changeCommittedNumber('Checker columns', '6')
+    changeCommittedNumber('Checker rows', '3')
+
+    await waitFor(() => {
+      expect(useShowStore.getState().shows[0].routingLayouts[0].logical).toEqual({
+        kind: 'checker',
+        zoneIds: ['zone-1', 'zone-2'],
+        columns: 6,
+        rows: 3,
+      })
+    })
+    expect(screen.getByText(/alternate across a 6 x 3 checker/i)).toBeInTheDocument()
+  })
+
+  it('authors Rings count from the existing routing inspector (#507)', async () => {
+    const user = userEvent.setup()
+    let show = createShowWithOutputContract(
+      'show-507-rings-editor',
+      'Rings setup',
+      createPortableShowOutputContract({ referenceMapId: 'plane', referencePixelCount: 1024 }),
+      1000,
+    )
+    show = addShowZone(show, { name: 'alternate', nominalPixelCount: 4 })
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+    await user.click(screen.getByRole('button', { name: 'Show properties' }))
+    await user.selectOptions(screen.getByLabelText('Default routing mode'), 'rings')
+
+    expect(screen.getByLabelText('Ring count')).toHaveValue(5)
+    changeCommittedNumber('Ring count', '7')
+    await waitFor(() => {
+      expect(useShowStore.getState().shows[0].routingLayouts[0].logical).toEqual({
+        kind: 'rings',
+        zoneIds: ['zone-1', 'zone-2'],
+        rings: 7,
+      })
+    })
+    expect(screen.getByText(/cycle through 7 concentric rings/i)).toBeInTheDocument()
+  })
+
+  it('authors Pinwheel arms, twist, and rotation from the existing routing inspector (#507)', async () => {
+    const user = userEvent.setup()
+    let show = createShowWithOutputContract(
+      'show-507-pinwheel-editor',
+      'Pinwheel setup',
+      createPortableShowOutputContract({ referenceMapId: 'plane', referencePixelCount: 1024 }),
+      1000,
+    )
+    show = addShowZone(show, { name: 'alternate', nominalPixelCount: 4 })
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+    await user.click(screen.getByRole('button', { name: 'Show properties' }))
+    await user.selectOptions(screen.getByLabelText('Default routing mode'), 'pinwheel')
+
+    expect(screen.getByLabelText('Pinwheel arms')).toHaveValue(6)
+    expect(screen.getByLabelText('Pinwheel twist turns')).toHaveValue(1.35)
+    expect(screen.getByLabelText('Pinwheel rotation degrees')).toHaveValue(0)
+    changeCommittedNumber('Pinwheel arms', '8')
+    changeCommittedNumber('Pinwheel twist turns', '0.75')
+    changeCommittedNumber('Pinwheel rotation degrees', '30')
+
+    await waitFor(() => {
+      expect(useShowStore.getState().shows[0].routingLayouts[0].logical).toEqual({
+        kind: 'pinwheel',
+        zoneIds: ['zone-1', 'zone-2'],
+        arms: 8,
+        twist: Math.PI * 1.5,
+        rotation: Math.PI / 6,
+      })
+    })
+  })
+
+  it('authors Wave axis and band parameters from the existing routing inspector (#507)', async () => {
+    const user = userEvent.setup()
+    let show = createShowWithOutputContract(
+      'show-507-wave-editor',
+      'Wave setup',
+      createPortableShowOutputContract({ referenceMapId: 'plane', referencePixelCount: 1024 }),
+      1000,
+    )
+    show = addShowZone(show, { name: 'alternate', nominalPixelCount: 4 })
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+    await user.click(screen.getByRole('button', { name: 'Show properties' }))
+    await user.selectOptions(screen.getByLabelText('Default routing mode'), 'wave')
+
+    expect(screen.getByLabelText('Wave axis')).toHaveValue('x')
+    expect(screen.getByLabelText('Wave band count')).toHaveValue(4)
+    expect(screen.getByLabelText('Wave amplitude')).toHaveValue(0.3)
+    expect(screen.getByLabelText('Wave frequency')).toHaveValue(2.5)
+    expect(screen.getByLabelText('Wave phase')).toHaveValue(0)
+    await user.selectOptions(screen.getByLabelText('Wave axis'), 'y')
+    changeCommittedNumber('Wave band count', '6')
+    changeCommittedNumber('Wave amplitude', '0.4')
+    changeCommittedNumber('Wave frequency', '3')
+    changeCommittedNumber('Wave phase', '0.2')
+
+    await waitFor(() => {
+      expect(useShowStore.getState().shows[0].routingLayouts[0].logical).toEqual({
+        kind: 'wave',
+        zoneIds: ['zone-1', 'zone-2'],
+        axis: 'y',
+        bands: 6,
+        amplitude: 0.4,
+        frequency: 3,
+        phase: 0.2,
+      })
+    })
+  })
+
+  it('authors Soft Split feather and discloses its bounded two-renderer cost (#507)', async () => {
+    const user = userEvent.setup()
+    let show = createShowWithOutputContract(
+      'show-507-soft-split-editor',
+      'Soft Split setup',
+      createPortableShowOutputContract({ referenceMapId: 'plane', referencePixelCount: 1024 }),
+      1000,
+    )
+    show = addShowZone(show, { name: 'alternate', nominalPixelCount: 4 })
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+    await user.click(screen.getByRole('button', { name: 'Show properties' }))
+    await user.selectOptions(screen.getByLabelText('Default routing mode'), 'soft-split')
+
+    expect(screen.getByLabelText('Soft Split axis')).toHaveValue('x')
+    expect(screen.getByLabelText('Soft Split feather')).toHaveValue(0.2)
+    expect(screen.getByText(/inside the feather, both patterns render/i)).toBeInTheDocument()
+    expect(screen.getByRole('group', { name: 'Split position lane' })).toBeInTheDocument()
+    await user.selectOptions(screen.getByLabelText('Soft Split axis'), 'y')
+    changeCommittedNumber('Soft Split feather', '0.3')
+
+    await waitFor(() => {
+      expect(useShowStore.getState().shows[0].routingLayouts[0].logical).toEqual({
+        kind: 'soft-split',
+        zoneIds: ['zone-1', 'zone-2'],
+        axis: 'y',
+        feather: 0.3,
+      })
+    })
+  })
+
   it('authors scene-owned moving-split targets from the shared property lane (#405)', async () => {
     const user = userEvent.setup()
     let show = addShowZone(createDefaultShow('show-405-editor', 'Moving split', 1000), {

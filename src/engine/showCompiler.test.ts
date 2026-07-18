@@ -8,6 +8,7 @@ import { showWipeMaskPosition, type ShowWipeSettings } from './showWipe'
 import { showCoherentDissolveField } from './showDissolve'
 import { showShapeRevealSignedDistance } from './showShapeReveal'
 import { sampleShowMotionTransition } from './showMotionTransition'
+import { routeShowLogicalPoint, type ShowLogicalRouting } from './showLogicalRouting'
 
 interface LoadedShow {
   handle: PatternHandle
@@ -1807,6 +1808,396 @@ export function render2D(index, x, y) { rgb(x, y, ticks / 10) }
     handle.beforeRender(16)
     handle.render2D(index, 1, 1)
     expect(pixel()).toEqual([3, 1, 1])
+  })
+
+  it('compiles Checker as one direct coordinate predicate with normalized cell-local coordinates (#507)', () => {
+    const zones = ['red', 'black']
+    const artifact = compileShow({
+      clips: zones.map((zone, zoneIndex) => ({
+        id: zone,
+        zone,
+        source: `export function render2D(index, x, y) { rgb(x, y, ${zoneIndex}) }`,
+      })),
+      zones: zones.map((name, index) => ({ id: name, name, ranges: [{ start: index, end: index }] })),
+      routingLayouts: [{
+        id: 'checker',
+        name: 'Checker',
+        zones: zones.map((name, index) => ({ id: name, name, ranges: [{ start: index, end: index }] })),
+        logical: { kind: 'checker', zoneNames: ['red', 'black'], columns: 4, rows: 2 },
+      }],
+      routingSwitches: [],
+      loopDurationMs: 1000,
+    }, {})
+
+    expect(artifact.summary.routingRepresentation).toBe('coordinate-predicates')
+    expect(artifact.summary.worstInstantRenderersPerPixel).toBe(1)
+    expect(artifact.expandedCode).not.toContain('__pxlblz_show_route_pixels')
+
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 64)
+    handle.beforeRender(16)
+    handle.render2D(0, 0.125, 0.25)
+    expect(pixel()).toEqual([0.5, 0.5, 0])
+    handle.render2D(1, 0.375, 0.25)
+    expect(pixel()).toEqual([0.5, 0.5, 1])
+    handle.render2D(2, 0.125, 0.75)
+    expect(pixel()).toEqual([0.5, 0.5, 1])
+  })
+
+  it('compiles Rings as one direct radial predicate with normalized ring-local coordinates (#507)', () => {
+    const zones = ['red', 'cyan']
+    const artifact = compileShow({
+      clips: zones.map((zone, zoneIndex) => ({
+        id: zone,
+        zone,
+        source: `export function render2D(index, x, y) { rgb(x, y, ${zoneIndex}) }`,
+      })),
+      zones: zones.map((name, index) => ({ id: name, name, ranges: [{ start: index, end: index }] })),
+      routingLayouts: [{
+        id: 'rings',
+        name: 'Rings',
+        zones: zones.map((name, index) => ({ id: name, name, ranges: [{ start: index, end: index }] })),
+        logical: { kind: 'rings', zoneNames: zones, rings: 4 },
+      }],
+      routingSwitches: [],
+      loopDurationMs: 1000,
+    }, {})
+
+    expect(artifact.summary.routingRepresentation).toBe('coordinate-predicates')
+    expect(artifact.summary.worstInstantRenderersPerPixel).toBe(1)
+    expect(artifact.expandedCode).not.toContain('__pxlblz_show_route_pixels')
+
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 64)
+    const ringCenterX = (ring: number) => 0.5 + Math.SQRT1_2 * (ring + 0.5) / 4
+    handle.beforeRender(16)
+    handle.render2D(0, ringCenterX(1), 0.5)
+    expect(pixel()).toEqual([0, 0.5, 1])
+    handle.render2D(1, ringCenterX(2), 0.5)
+    expect(pixel()).toEqual([0, 0.5, 0])
+  })
+
+  it('compiles Pinwheel arms independently from ordered zones with rotation (#507)', () => {
+    const zones = ['red', 'cyan']
+    const artifact = compileShow({
+      clips: zones.map((zone, zoneIndex) => ({
+        id: zone,
+        zone,
+        source: `export function render2D(index, x, y) { rgb(x, y, ${zoneIndex}) }`,
+      })),
+      zones: zones.map((name, index) => ({ id: name, name, ranges: [{ start: index, end: index }] })),
+      routingLayouts: [{
+        id: 'pinwheel',
+        name: 'Pinwheel',
+        zones: zones.map((name, index) => ({ id: name, name, ranges: [{ start: index, end: index }] })),
+        logical: {
+          kind: 'pinwheel',
+          zoneNames: zones,
+          arms: 4,
+          twist: 0,
+          rotation: Math.PI / 2,
+        },
+      }],
+      routingSwitches: [],
+      loopDurationMs: 1000,
+    }, {})
+
+    expect(artifact.summary.worstInstantRenderersPerPixel).toBe(1)
+    expect(artifact.expandedCode).not.toContain('__pxlblz_show_route_pixels')
+
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 64)
+    handle.beforeRender(16)
+    handle.render2D(0, 0.75, 0.5)
+    expect(pixel()[0]).toBe(0)
+    expect(pixel()[1]).toBeCloseTo(Math.SQRT1_2 / 2)
+    expect(pixel()[2]).toBe(1)
+    handle.render2D(1, 0.5, 0.75)
+    expect(pixel()[0]).toBe(0)
+    expect(pixel()[1]).toBeCloseTo(Math.SQRT1_2 / 2)
+    expect(pixel()[2]).toBe(0)
+  })
+
+  it('compiles Wave as one direct displaced-band predicate with local coordinates (#507)', () => {
+    const zones = ['red', 'cyan']
+    const artifact = compileShow({
+      clips: zones.map((zone, zoneIndex) => ({
+        id: zone,
+        zone,
+        source: `export function render2D(index, x, y) { rgb(x, y, ${zoneIndex}) }`,
+      })),
+      zones: zones.map((name, index) => ({ id: name, name, ranges: [{ start: index, end: index }] })),
+      routingLayouts: [{
+        id: 'wave',
+        name: 'Wave',
+        zones: zones.map((name, index) => ({ id: name, name, ranges: [{ start: index, end: index }] })),
+        logical: {
+          kind: 'wave',
+          zoneNames: zones,
+          axis: 'y',
+          bands: 4,
+          amplitude: 0.5,
+          frequency: 1,
+          phase: 0,
+        },
+      }],
+      routingSwitches: [],
+      loopDurationMs: 1000,
+    }, {})
+
+    expect(artifact.summary.worstInstantRenderersPerPixel).toBe(1)
+    expect(artifact.expandedCode).not.toContain('__pxlblz_show_route_pixels')
+
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 64)
+    handle.beforeRender(16)
+    handle.render2D(0, 0, 0.375)
+    expect(pixel()).toEqual([0, 0.5, 0])
+    handle.render2D(1, 0.5, 0.125)
+    expect(pixel()).toEqual([0.5, 0.5, 1])
+  })
+
+  it('compiles Soft Split with one renderer outside its feather and two inside (#507)', () => {
+    const zones = ['red', 'cyan']
+    const artifact = compileShow({
+      clips: zones.map((zone, zoneIndex) => ({
+        id: zone,
+        zone,
+        source: `export function render2D(index, x, y) { rgb(x, y, ${zoneIndex}) }`,
+      })),
+      zones: zones.map((name, index) => ({ id: name, name, ranges: [{ start: index, end: index }] })),
+      routingLayouts: [{
+        id: 'soft-split',
+        name: 'Soft Split',
+        zones: zones.map((name, index) => ({ id: name, name, ranges: [{ start: index, end: index }] })),
+        logical: { kind: 'soft-split', zoneNames: [zones[0], zones[1]], axis: 'x', feather: 0.2 },
+      }],
+      routingSwitches: [],
+      routingPropertyRamps: { splitPosition: { initial: 0.5, ramps: [] } },
+      loopDurationMs: 1000,
+    }, {})
+
+    expect(artifact.summary.renderPolicy).toBe('spatial-route-bounded-feather')
+    expect(artifact.summary.steadyStateRenderersPerPixel).toBe(1)
+    expect(artifact.summary.worstInstantRenderersPerPixel).toBe(2)
+    expect(artifact.expandedCode).not.toContain('__pxlblz_show_route_pixels')
+
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 64)
+    handle.beforeRender(16)
+    handle.render2D(0, 0.2, 0.4)
+    expect(pixel()).toEqual([0.2, 0.4, 0])
+    handle.render2D(1, 0.5, 0.4)
+    expect(pixel()).toEqual([0.5, 0.4, 0.5])
+    handle.render2D(2, 0.8, 0.4)
+    expect(pixel()).toEqual([0.8, 0.4, 1])
+  })
+
+  it('lowers zero-feather Soft Split to a one-renderer hard boundary (#507)', () => {
+    const zones = ['red', 'cyan']
+    const artifact = compileShow({
+      clips: zones.map((zone, zoneIndex) => ({
+        id: zone,
+        zone,
+        source: `export function render2D(index, x, y) { rgb(${zoneIndex}, x, y) }`,
+      })),
+      zones: zones.map((name, index) => ({ id: name, name, ranges: [{ start: index, end: index }] })),
+      routingLayouts: [{
+        id: 'soft-split',
+        name: 'Soft Split',
+        zones: zones.map((name, index) => ({ id: name, name, ranges: [{ start: index, end: index }] })),
+        logical: { kind: 'soft-split', zoneNames: [zones[0], zones[1]], axis: 'x', feather: 0 },
+      }],
+      routingSwitches: [],
+      routingPropertyRamps: { splitPosition: { initial: 0.5, ramps: [] } },
+      loopDurationMs: 1000,
+    }, {})
+
+    expect(artifact.summary.renderPolicy).toBe('route-one-renderer-per-pixel')
+    expect(artifact.summary.steadyStateRenderersPerPixel).toBe(1)
+    expect(artifact.summary.worstInstantRenderersPerPixel).toBe(1)
+  })
+
+  it('rejects invalid adaptive routing parameters before generating source (#507)', () => {
+    const zones = ['red', 'cyan']
+    expect(() => compileShow({
+      clips: zones.map((zone) => ({
+        id: zone,
+        zone,
+        source: 'export function render2D(index, x, y) { rgb(x, y, 1) }',
+      })),
+      zones: zones.map((name, index) => ({ id: name, name, ranges: [{ start: index, end: index }] })),
+      routingLayouts: [{
+        id: 'soft-split',
+        name: 'Soft Split',
+        zones: zones.map((name, index) => ({ id: name, name, ranges: [{ start: index, end: index }] })),
+        logical: { kind: 'soft-split', zoneNames: [zones[0], zones[1]], axis: 'x', feather: 1.2 },
+      }],
+      routingSwitches: [],
+      loopDurationMs: 1000,
+    }, {})).toThrow('Soft Split feather between 0 and 1')
+  })
+
+  it('blends Soft Split ownership in the production routed Scene path (#507)', () => {
+    const firstPlacements = [
+      { zoneName: 'red', clipId: 'red', stackOrder: 0 },
+      { zoneName: 'cyan', clipId: 'cyan', stackOrder: 0 },
+    ]
+    const secondPlacements = [
+      { zoneName: 'red', clipId: 'green', stackOrder: 0 },
+      { zoneName: 'cyan', clipId: 'blue', stackOrder: 0 },
+    ]
+    const artifact = compileShow({
+      clips: [
+        { id: 'red', source: 'export function render2D(index, x, y) { rgb(1, 0, 0) }' },
+        { id: 'cyan', source: 'export function render2D(index, x, y) { rgb(0, 1, 1) }' },
+        { id: 'green', source: 'export function render2D(index, x, y) { rgb(0, 1, 0) }' },
+        { id: 'blue', source: 'export function render2D(index, x, y) { rgb(0, 0, 1) }' },
+      ],
+      routingLayouts: [{
+        id: 'soft-split',
+        name: 'Soft Split',
+        zones: [],
+        logical: { kind: 'soft-split', zoneNames: ['red', 'cyan'], axis: 'x', feather: 0.2 },
+      }],
+      routedSceneSequence: {
+        scenes: [
+          { holdMs: 1000, placements: firstPlacements, transitionOut: { kind: 'crossfade', durationMs: 1000 } },
+          { holdMs: 1000, placements: secondPlacements },
+        ],
+      },
+      routingPropertyRamps: { splitPosition: { initial: 0.5, ramps: [] } },
+      loopDurationMs: 3000,
+    }, {})
+
+    expect(artifact.summary.steadyStateRenderersPerPixel).toBe(1)
+    expect(artifact.summary.worstInstantRenderersPerPixel).toBe(4)
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 64)
+    handle.beforeRender(500)
+    handle.render2D(0, 0.5, 0.4)
+    expect(pixel()).toEqual([0.5, 0.5, 0.5])
+    handle.beforeRender(1000)
+    handle.render2D(0, 0.5, 0.4)
+    expect(pixel()).toEqual([0.25, 0.5, 0.5])
+  })
+
+  it('preserves Soft Split ownership across selector Scene transitions (#507)', () => {
+    const firstPlacements = [
+      { zoneName: 'red', clipId: 'red', stackOrder: 0 },
+      { zoneName: 'cyan', clipId: 'cyan', stackOrder: 0 },
+    ]
+    const secondPlacements = [
+      { zoneName: 'red', clipId: 'green', stackOrder: 0 },
+      { zoneName: 'cyan', clipId: 'blue', stackOrder: 0 },
+    ]
+    const artifact = compileShow({
+      clips: [
+        { id: 'red', source: 'export function render2D(index, x, y) { rgb(1, 0, 0) }' },
+        { id: 'cyan', source: 'export function render2D(index, x, y) { rgb(0, 1, 1) }' },
+        { id: 'green', source: 'export function render2D(index, x, y) { rgb(0, 1, 0) }' },
+        { id: 'blue', source: 'export function render2D(index, x, y) { rgb(0, 0, 1) }' },
+      ],
+      routingLayouts: [{
+        id: 'soft-split',
+        name: 'Soft Split',
+        zones: [],
+        logical: { kind: 'soft-split', zoneNames: ['red', 'cyan'], axis: 'x', feather: 0.2 },
+      }],
+      routedSceneSequence: {
+        scenes: [
+          { holdMs: 1000, placements: firstPlacements, transitionOut: { kind: 'wipe', durationMs: 1000 } },
+          { holdMs: 1000, placements: secondPlacements },
+        ],
+      },
+      routingPropertyRamps: { splitPosition: { initial: 0.5, ramps: [] } },
+      loopDurationMs: 3000,
+    }, {})
+
+    expect(artifact.summary.worstInstantRenderersPerPixel).toBe(2)
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 64)
+    handle.beforeRender(1500)
+    handle.render2D(0, 0.5, 0.4)
+    expect(pixel()).toEqual([0, 0.5, 0.5])
+  })
+
+  it('matches adaptive preview routing at 16x16, 32x32, and 32x64 independent of wiring order (#507)', () => {
+    const zoneIds: [string, string] = ['a', 'b']
+    const cases: Array<{
+      name: string
+      preview: ShowLogicalRouting
+      compiled: NonNullable<NonNullable<Parameters<typeof compileShow>[0]['routingLayouts']>[number]['logical']>
+    }> = [
+      {
+        name: 'checker',
+        preview: { kind: 'checker', zoneIds, columns: 5, rows: 3 },
+        compiled: { kind: 'checker', zoneNames: zoneIds, columns: 5, rows: 3 },
+      },
+      {
+        name: 'rings',
+        preview: { kind: 'rings', zoneIds, rings: 6 },
+        compiled: { kind: 'rings', zoneNames: zoneIds, rings: 6 },
+      },
+      {
+        name: 'pinwheel',
+        preview: { kind: 'pinwheel', zoneIds, arms: 7, twist: 2.1, rotation: 0.3 },
+        compiled: { kind: 'pinwheel', zoneNames: zoneIds, arms: 7, twist: 2.1, rotation: 0.3 },
+      },
+      {
+        name: 'wave',
+        preview: { kind: 'wave', zoneIds, axis: 'y', bands: 5, amplitude: 0.35, frequency: 2.25, phase: 0.1 },
+        compiled: { kind: 'wave', zoneNames: zoneIds, axis: 'y', bands: 5, amplitude: 0.35, frequency: 2.25, phase: 0.1 },
+      },
+      {
+        name: 'soft-split',
+        preview: { kind: 'soft-split', zoneIds, axis: 'x', feather: 0.2 },
+        compiled: { kind: 'soft-split', zoneNames: zoneIds, axis: 'x', feather: 0.2 },
+      },
+    ]
+
+    for (const routing of cases) {
+      for (const [width, height] of [[16, 16], [32, 32], [32, 64]] as const) {
+        const pixelCount = width * height
+        const artifact = compileShow({
+          clips: zoneIds.map((zone, index) => ({
+            id: zone,
+            zone,
+            source: `export function render2D(index, x, y) { rgb(${index}, x, y) }`,
+          })),
+          zones: zoneIds.map((name, index) => ({ id: name, name, ranges: [{ start: index, end: index }] })),
+          routingLayouts: [{
+            id: routing.name,
+            name: routing.name,
+            zones: zoneIds.map((name, index) => ({ id: name, name, ranges: [{ start: index, end: index }] })),
+            logical: routing.compiled,
+          }],
+          routingSwitches: [],
+          routingPropertyRamps: routing.preview.kind === 'soft-split'
+            ? { splitPosition: { initial: 0.5, ramps: [] } }
+            : undefined,
+          loopDurationMs: 1000,
+        }, {})
+        const { handle, pixel } = loadShow(artifact.code, artifact.metadata, pixelCount)
+        handle.beforeRender(16)
+
+        for (let row = 0; row < height; row += 1) {
+          for (let column = 0; column < width; column += 1) {
+            const x = column / (width - 1)
+            const y = row / (height - 1)
+            const point = routeShowLogicalPoint(routing.preview, x, y, { splitPosition: 0.5 })
+            const zone = zoneIds.indexOf(point.zoneId)
+            const expected: [number, number, number] = routing.preview.kind === 'soft-split'
+              ? [point.mix!, point.localX, point.localY]
+              : [zone, point.localX, point.localY]
+            const index = row * width + column
+            handle.render2D(index, x, y)
+            const actual = pixel()
+            for (let channel = 0; channel < 3; channel += 1) {
+              if (Math.abs(actual[channel] - expected[channel]) > 1e-9) {
+                expect(actual, `${routing.name} ${width}x${height} @ ${column},${row}`).toEqual(expected)
+              }
+            }
+
+            handle.render2D(pixelCount - 1 - index, x, y)
+            expect(pixel(), `${routing.name} must ignore physical wiring index`).toEqual(actual)
+          }
+        }
+      }
+    }
   })
 
   it('mirrors routed 2D member coordinates with the existing mirror adaptation (#401)', () => {

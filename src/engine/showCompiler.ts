@@ -352,8 +352,12 @@ export type ShowLogicalRoutingRecipe =
   | { kind: 'single'; zoneNames: [string] }
   | { kind: 'grid'; zoneNames: string[]; columns: number; rows: number }
   | { kind: 'stripes'; zoneNames: string[]; axis: 'x' | 'y' }
+  | { kind: 'checker'; zoneNames: [string, string]; columns: number; rows: number }
+  | { kind: 'rings'; zoneNames: string[]; rings: number }
+  | { kind: 'wave'; zoneNames: string[]; axis: 'x' | 'y'; bands: number; amplitude: number; frequency: number; phase: number }
   | { kind: 'split'; zoneNames: [string, string]; axis: 'x' | 'y' }
-  | { kind: 'pinwheel'; zoneNames: string[]; twist: number }
+  | { kind: 'soft-split'; zoneNames: [string, string]; axis: 'x' | 'y'; feather: number }
+  | { kind: 'pinwheel'; zoneNames: string[]; arms: number; twist: number; rotation: number }
 
 export interface ShowRoutingPropertyRampRecipe {
   atMs: number
@@ -475,6 +479,7 @@ export interface ShowCompileSummary {
     | 'portal-blended-feather'
     | 'motion-selector'
     | 'motion-full-blend'
+    | 'soft-split'
   clockPolicy: 'real-time' | 'scaled' | 'scaled-ramp' | 'exact-pause' | 'exact-pause-ramp'
   evaluationPolicy: 'full' | 'masked-shutter' | 'mixed'
   expectedActiveFraction: number | null
@@ -1816,6 +1821,10 @@ export function compileShow(
       ? memberOutputDimension
       : 1
   const hasLogicalRouting = routingLayouts?.some((layout) => layout.logical) ?? false
+  const hasSoftSplit = routingLayouts?.some((layout) => layout.logical?.kind === 'soft-split') ?? false
+  const hasBlendedSoftSplit = routingLayouts?.some((layout) => (
+    layout.logical?.kind === 'soft-split' && layout.logical.feather > 0
+  )) ?? false
   const routingPlan = routingLayouts && !hasLogicalRouting
     ? planPhysicalRoutingRepresentation(
         routingLayouts.map((layout) => ({
@@ -2151,11 +2160,11 @@ export function compileShow(
   const transitionCost = expandedRecipe.sceneSequence || expandedRecipe.routedSceneSequence
     ? sequenceHasCrossfade || motionBlend
       ? 'renderer-window'
-      : boundedBlend
+      : boundedBlend || hasBlendedSoftSplit
         ? 'bounded-renderer-window'
         : renderedSequenceTransitions.length > 0 ? 'route' : 'none'
     : routeMode
-    ? 'route'
+    ? hasBlendedSoftSplit ? 'bounded-renderer-window' : 'route'
     : expandedRecipe.crossfade
       ? 'renderer-window'
       : expandedRecipe.adaptationRamp
@@ -2261,7 +2270,7 @@ export function compileShow(
         ? 'snapshot-outgoing-transition-live-incoming'
         : sequenceHasCrossfade || motionBlend
         ? 'steady-active-transition-both'
-        : boundedBlend
+        : boundedBlend || hasBlendedSoftSplit
           ? 'spatial-route-bounded-feather'
           : sequenceHasPortal || sequenceHasDirectionalWipe || sequenceHasMotion || sequenceHasSpatialDissolve
             ? 'spatial-route-one-renderer-per-pixel'
@@ -2269,7 +2278,7 @@ export function compileShow(
               ? 'route-transition-one-renderer-per-pixel'
               : 'cut-restart'
       : routeMode
-      ? 'route-one-renderer-per-pixel'
+      ? hasBlendedSoftSplit ? 'spatial-route-bounded-feather' : 'route-one-renderer-per-pixel'
       : expandedRecipe.crossfade
         ? directSnapshotCrossfade
           ? 'snapshot-outgoing-transition-live-incoming'
@@ -2288,7 +2297,9 @@ export function compileShow(
               : 'route-transition-one-renderer-per-pixel'
             : 'single-continuous-hold',
     transitionCost,
-    routePolicy: expandedRecipe.sceneSequence || expandedRecipe.routedSceneSequence
+    routePolicy: hasSoftSplit
+      ? 'soft-split'
+      : expandedRecipe.sceneSequence || expandedRecipe.routedSceneSequence
       ? sequenceHasMotion
         ? motionBlend ? 'motion-full-blend' : 'motion-selector'
         : sequenceHasSpatialDissolve
@@ -2673,6 +2684,9 @@ function validateRecipe(recipe: ShowRecipe): void {
     }
     const layoutIds = new Set(recipe.routingLayouts.map((layout) => layout.id))
     if (layoutIds.size !== recipe.routingLayouts.length) throw new Error('compileShow routing layout ids must be unique.')
+    for (const layout of recipe.routingLayouts) {
+      if (layout.logical) validateLogicalRoutingRecipe(layout.name, layout.logical)
+    }
     for (const routingSwitch of recipe.routingSwitches ?? []) {
       if (!layoutIds.has(routingSwitch.layoutId)) {
         throw new Error(`compileShow routing switch references missing layout "${routingSwitch.layoutId}".`)
@@ -2683,6 +2697,57 @@ function validateRecipe(recipe: ShowRecipe): void {
       if ((routingSwitch.durationMs ?? 0) < 0 || routingSwitch.atMs + (routingSwitch.durationMs ?? 0) > recipe.loopDurationMs) {
         throw new Error('compileShow routing transfer must fit inside the loop duration.')
       }
+    }
+  }
+}
+
+function validateLogicalRoutingRecipe(name: string, logical: ShowLogicalRoutingRecipe): void {
+  const prefix = `compileShow routing layout "${name}"`
+  const positiveInteger = (value: number) => Number.isInteger(value) && value >= 1
+  const finite = (value: number) => Number.isFinite(value)
+  if (logical.zoneNames.length === 0) throw new Error(`${prefix} requires at least one Zone.`)
+  if (logical.kind === 'single' && logical.zoneNames.length !== 1) {
+    throw new Error(`${prefix} Full Surface requires exactly one Zone.`)
+  }
+  if (logical.kind === 'grid') {
+    if (!positiveInteger(logical.columns) || !positiveInteger(logical.rows)) {
+      throw new Error(`${prefix} Grid requires positive whole-number columns and rows.`)
+    }
+    if (logical.zoneNames.length !== logical.columns * logical.rows) {
+      throw new Error(`${prefix} Grid requires one Zone per cell.`)
+    }
+  }
+  if (logical.kind === 'checker') {
+    if (logical.zoneNames.length !== 2) throw new Error(`${prefix} Checker requires exactly two Zones.`)
+    if (!positiveInteger(logical.columns) || !positiveInteger(logical.rows)) {
+      throw new Error(`${prefix} Checker requires positive whole-number columns and rows.`)
+    }
+  }
+  if (logical.kind === 'rings' && !positiveInteger(logical.rings)) {
+    throw new Error(`${prefix} Rings requires a positive whole-number ring count.`)
+  }
+  if (logical.kind === 'wave') {
+    if (!positiveInteger(logical.bands)) throw new Error(`${prefix} Wave requires a positive whole-number band count.`)
+    if (!finite(logical.amplitude) || logical.amplitude < 0 || logical.amplitude > 1) {
+      throw new Error(`${prefix} Wave requires amplitude between 0 and 1.`)
+    }
+    if (!finite(logical.frequency) || logical.frequency < 0 || !finite(logical.phase)) {
+      throw new Error(`${prefix} Wave requires finite non-negative frequency and finite phase.`)
+    }
+  }
+  if (logical.kind === 'split' && logical.zoneNames.length !== 2) {
+    throw new Error(`${prefix} Moving Split requires exactly two Zones.`)
+  }
+  if (logical.kind === 'soft-split') {
+    if (logical.zoneNames.length !== 2) throw new Error(`${prefix} Soft Split requires exactly two Zones.`)
+    if (!finite(logical.feather) || logical.feather < 0 || logical.feather > 1) {
+      throw new Error(`${prefix} requires Soft Split feather between 0 and 1.`)
+    }
+  }
+  if (logical.kind === 'pinwheel') {
+    if (!positiveInteger(logical.arms)) throw new Error(`${prefix} Pinwheel requires a positive whole-number arm count.`)
+    if (!finite(logical.twist) || !finite(logical.rotation)) {
+      throw new Error(`${prefix} Pinwheel requires finite twist and rotation.`)
     }
   }
 }
@@ -4126,6 +4191,17 @@ ${indentBlock(branches, 2)}
     ? exactSharedMotionPlan!.stackPlans.map((plan) => plan.wrapper)
     : unrolledStackWrappers
   const hasTransitions = unrolledTransitionBranches.length > 0
+  const softSplitTransitionCaptureRuntime = hasTransitions
+    && layouts.some((layout) => layout.logical?.kind === 'soft-split')
+    ? `var __pxlblz_show_transition_capture_r = 0
+var __pxlblz_show_transition_capture_g = 0
+var __pxlblz_show_transition_capture_b = 0
+function __pxlblz_show_capture_transition_rgb(r, g, b) {
+  __pxlblz_show_transition_capture_r = r
+  __pxlblz_show_transition_capture_g = g
+  __pxlblz_show_transition_capture_b = b
+}`
+    : ''
   const freezeLifecycle = freezeAtEntryCaptures.length > 0
     ? [
         '__pxlblz_show_freeze_target = -1',
@@ -4177,6 +4253,7 @@ ${indentBlock(branches, 2)}
           'var __pxlblz_show_coord_y = 0',
         ]
       : []),
+    ...(softSplitTransitionCaptureRuntime ? [softSplitTransitionCaptureRuntime] : []),
     ...transitionHelpers,
     'var __pxlblz_show_scene = 0',
     ...(freezeAtEntryCaptures.length > 0
@@ -4943,6 +5020,9 @@ function emitLogicalScenePlacements(
   localTimeExpression?: string,
 ): string {
   const logical = layout.logical!
+  if (logical.kind === 'soft-split') {
+    return emitLogicalSoftSplitScenePlacements(layout, placements, propertyTracks, localTimeExpression)
+  }
   const placementByZone = groupRoutedPlacementsByZone(placements)
   const blocks = logical.zoneNames.flatMap((zoneName, zoneIndex) => {
     const stack = placementByZone.get(zoneName)
@@ -4973,6 +5053,57 @@ ${indentBlock(capture, 2)}
   return `${emitLogicalRoutingSetup(logical)}\n${blocks.join('\n')}`
 }
 
+function emitLogicalSoftSplitScenePlacements(
+  layout: ShowRoutingLayoutRecipe,
+  placements: ResolvedRoutedScenePlacement[],
+  propertyTracks?: ShowPropertyAnimationTrack[],
+  localTimeExpression?: string,
+): string {
+  const logical = layout.logical
+  if (!logical || logical.kind !== 'soft-split') return ''
+  const placementByZone = groupRoutedPlacementsByZone(placements)
+  const fromStack = placementByZone.get(logical.zoneNames[0])
+  const toStack = placementByZone.get(logical.zoneNames[1])
+  if (!fromStack || !toStack) return emitLogicalRoutingSetup(logical)
+  const localIndex = '__pxlblz_show_route_local_index'
+  const captureStack = (stack: ResolvedRoutedScenePlacement[], target: string) => (
+    emitRoutedPlacementStackCapture(
+      stack,
+      (placement) => `${placement.member.pixelCountName} = pixelCount
+${placement.member.prefix}_renderCapture2D(${localIndex}, __pxlblz_show_route_local_x, __pxlblz_show_route_local_y)`,
+      target,
+      2,
+      propertyTracks,
+      localTimeExpression,
+    )
+  )
+  const fromTarget = '__pxlblz_show_soft_scene_0'
+  const toTarget = '__pxlblz_show_soft_scene_1'
+  const fromCapture = captureStack(fromStack, fromTarget)
+  const toCapture = captureStack(toStack, toTarget)
+  return `${emitLogicalRoutingSetup(logical)}
+var __pxlblz_show_route_side = ceil(sqrt(pixelCount))
+var ${localIndex} = min(pixelCount - 1, floor(__pxlblz_show_route_local_y * __pxlblz_show_route_side) * __pxlblz_show_route_side + floor(__pxlblz_show_route_local_x * __pxlblz_show_route_side))
+if (__pxlblz_show_route_mix <= 0) {
+${indentBlock(fromCapture, 2)}
+  rgb(${fromTarget}_r, ${fromTarget}_g, ${fromTarget}_b)
+  return
+}
+if (__pxlblz_show_route_mix >= 1) {
+${indentBlock(toCapture, 2)}
+  rgb(${toTarget}_r, ${toTarget}_g, ${toTarget}_b)
+  return
+}
+${fromCapture}
+${toCapture}
+rgb(
+  ${fromTarget}_r * (1 - __pxlblz_show_route_mix) + ${toTarget}_r * __pxlblz_show_route_mix,
+  ${fromTarget}_g * (1 - __pxlblz_show_route_mix) + ${toTarget}_g * __pxlblz_show_route_mix,
+  ${fromTarget}_b * (1 - __pxlblz_show_route_mix) + ${toTarget}_b * __pxlblz_show_route_mix
+)
+return`
+}
+
 function emitLogicalSceneTransition(
   layout: ShowRoutingLayoutRecipe,
   fromPlacements: ResolvedRoutedScenePlacement[],
@@ -4984,6 +5115,18 @@ function emitLogicalSceneTransition(
   scalarField?: SelectedScalarField,
 ): string {
   const logical = layout.logical!
+  if (logical.kind === 'soft-split') {
+    return emitLogicalSoftSplitSceneTransition(
+      layout,
+      fromPlacements,
+      toPlacements,
+      transition,
+      fromSceneIndex,
+      toSceneIndex,
+      snapshotRenderTarget,
+      scalarField,
+    )
+  }
   const fromByZone = groupRoutedPlacementsByZone(fromPlacements)
   const toByZone = groupRoutedPlacementsByZone(toPlacements)
   const blocks = logical.zoneNames.flatMap((zoneName, zoneIndex) => {
@@ -5035,6 +5178,100 @@ ${indentBlock(transitionBlock, 2)}
   return `${emitLogicalRoutingSetup(logical)}\n${blocks.join('\n')}`
 }
 
+function emitLogicalSoftSplitSceneTransition(
+  layout: ShowRoutingLayoutRecipe,
+  fromPlacements: ResolvedRoutedScenePlacement[],
+  toPlacements: ResolvedRoutedScenePlacement[],
+  transition: ShowSceneSequenceTransitionRecipe,
+  fromSceneIndex: number,
+  toSceneIndex: number,
+  snapshotRenderTarget?: ShowRenderTargetPlan<'stage-rgb'>,
+  scalarField?: SelectedScalarField,
+): string {
+  const logical = layout.logical
+  if (!logical || logical.kind !== 'soft-split') return ''
+  const fromByZone = groupRoutedPlacementsByZone(fromPlacements)
+  const toByZone = groupRoutedPlacementsByZone(toPlacements)
+  const targets = logical.zoneNames.map((zoneName, zoneIndex) => {
+    const fromStack = fromByZone.get(zoneName)
+    const toStack = toByZone.get(zoneName)
+    if (!fromStack || !toStack) return null
+    const from = routedSceneStackNeedsWrapper(fromStack)
+      ? routedSceneCompositeMember(fromStack, routedSceneStackPrefix(fromSceneIndex, zoneName))
+      : fromStack[0].member
+    const to = routedSceneStackNeedsWrapper(toStack)
+      ? routedSceneCompositeMember(toStack, routedSceneStackPrefix(toSceneIndex, zoneName))
+      : toStack[0].member
+    const target = `__pxlblz_show_soft_transition_${zoneIndex}`
+    const countLines = [
+      ...fromStack.map((placement) => `${placement.member.pixelCountName} = pixelCount`),
+      ...toStack.map((placement) => `${placement.member.pixelCountName} = pixelCount`),
+      `${from.pixelCountName} = pixelCount`,
+      `${to.pixelCountName} = pixelCount`,
+    ]
+    const fromCapture = `${from.prefix}_renderCapture2D(__pxlblz_show_route_local_index, __pxlblz_show_route_local_x, __pxlblz_show_route_local_y)`
+    const toCapture = `${to.prefix}_renderCapture2D(__pxlblz_show_route_local_index, __pxlblz_show_route_local_x, __pxlblz_show_route_local_y)`
+    const transitionBlock = emitSceneTransitionWithCaptures(
+      from,
+      to,
+      transition,
+      2,
+      fromCapture,
+      toCapture,
+      {
+        index: '__pxlblz_show_route_local_index',
+        x: '__pxlblz_show_route_local_x',
+        y: '__pxlblz_show_route_local_y',
+      },
+      snapshotRenderTarget,
+      scalarField,
+    )
+    const capture = `${countLines.join('\n')}
+${redirectTransitionOutputToCapture(transitionBlock, from, to)}
+var ${target}_r = __pxlblz_show_transition_capture_r
+var ${target}_g = __pxlblz_show_transition_capture_g
+var ${target}_b = __pxlblz_show_transition_capture_b`
+    return { target, capture }
+  })
+  const fromTarget = targets[0]
+  const toTarget = targets[1]
+  if (!fromTarget || !toTarget) return emitLogicalRoutingSetup(logical)
+  return `${emitLogicalRoutingSetup(logical)}
+var __pxlblz_show_route_side = ceil(sqrt(pixelCount))
+var __pxlblz_show_route_local_index = min(pixelCount - 1, floor(__pxlblz_show_route_local_y * __pxlblz_show_route_side) * __pxlblz_show_route_side + floor(__pxlblz_show_route_local_x * __pxlblz_show_route_side))
+if (__pxlblz_show_route_mix <= 0) {
+${indentBlock(fromTarget.capture, 2)}
+  rgb(${fromTarget.target}_r, ${fromTarget.target}_g, ${fromTarget.target}_b)
+  return
+}
+if (__pxlblz_show_route_mix >= 1) {
+${indentBlock(toTarget.capture, 2)}
+  rgb(${toTarget.target}_r, ${toTarget.target}_g, ${toTarget.target}_b)
+  return
+}
+${fromTarget.capture}
+${toTarget.capture}
+rgb(
+  ${fromTarget.target}_r * (1 - __pxlblz_show_route_mix) + ${toTarget.target}_r * __pxlblz_show_route_mix,
+  ${fromTarget.target}_g * (1 - __pxlblz_show_route_mix) + ${toTarget.target}_g * __pxlblz_show_route_mix,
+  ${fromTarget.target}_b * (1 - __pxlblz_show_route_mix) + ${toTarget.target}_b * __pxlblz_show_route_mix
+)
+return`
+}
+
+function redirectTransitionOutputToCapture(
+  block: string,
+  from: CompiledMember,
+  to: CompiledMember,
+): string {
+  const capture = '__pxlblz_show_capture_transition_rgb'
+  const memberCaptureCall = (member: CompiledMember) => `${capture}(${member.prefix}_r${memberHasContentKey(member) ? ` * ${member.prefix}_alpha` : ''}, ${member.prefix}_g${memberHasContentKey(member) ? ` * ${member.prefix}_alpha` : ''}, ${member.prefix}_b${memberHasContentKey(member) ? ` * ${member.prefix}_alpha` : ''})`
+  return block
+    .split('rgb(').join(`${capture}(`)
+    .split(`${from.prefix}_emit()`).join(memberCaptureCall(from))
+    .split(`${to.prefix}_emit()`).join(memberCaptureCall(to))
+}
+
 function logicalScenePlacementDomain(
   logical: ShowLogicalRoutingRecipe,
   placement: ResolvedRoutedScenePlacement,
@@ -5080,6 +5317,13 @@ function logicalScenePlacementDomain(
     }
   }
   if (logical.kind === 'single') return { x: '__pxlblz_show_route_local_x', y: '__pxlblz_show_route_local_y', pixelCount: 'pixelCount' }
+  if (logical.kind === 'soft-split') {
+    return {
+      x: '__pxlblz_show_route_local_x',
+      y: '__pxlblz_show_route_local_y',
+      pixelCount: 'pixelCount',
+    }
+  }
   if (logical.kind === 'split') {
     return {
       x: '__pxlblz_show_route_local_x',
@@ -6696,6 +6940,9 @@ function emitRoutingLayoutShowCode(
   const layoutIndex = new Map(layouts.map((layout, index) => [layout.id, index]))
   const orderedSwitches = [...switches].sort((a, b) => a.atMs - b.atMs)
   const hasProgressiveTransfer = orderedSwitches.some((routingSwitch) => (routingSwitch.durationMs ?? 0) > 0)
+  const usesSplitPosition = layouts.some((layout) => (
+    layout.logical?.kind === 'split' || layout.logical?.kind === 'soft-split'
+  ))
   const renderLayoutName = hasProgressiveTransfer
     ? '__pxlblz_show_route_render_layout'
     : '__pxlblz_show_route_layout'
@@ -6729,10 +6976,12 @@ function emitRoutingLayoutShowCode(
       ))
       const count = layout.logical
         ? participates
-          ? layout.logical.kind === 'split'
-            ? layout.logical.zoneNames.indexOf(route?.zone.name ?? '') === 0
-              ? 'max(1, floor(pixelCount * __pxlblz_show_route_split_position))'
-              : 'max(1, pixelCount - floor(pixelCount * __pxlblz_show_route_split_position))'
+          ? layout.logical.kind === 'soft-split'
+            ? 'pixelCount'
+            : layout.logical.kind === 'split'
+              ? layout.logical.zoneNames.indexOf(route?.zone.name ?? '') === 0
+                ? 'max(1, floor(pixelCount * __pxlblz_show_route_split_position))'
+                : 'max(1, pixelCount - floor(pixelCount * __pxlblz_show_route_split_position))'
             : logicalZoneCount === 1 ? 'pixelCount' : `max(1, floor(pixelCount / ${logicalZoneCount}))`
           : '0'
         : `${route?.pixelCount ?? 0}`
@@ -6785,7 +7034,9 @@ ${representation === 'coordinate-predicates'
     ...members.map((member) => member.code.trim()),
     packedPrelude,
     `var __pxlblz_show_route_layout = 0`,
-    ...(propertyRamps ? [`var __pxlblz_show_route_split_position = ${clampNumber(propertyRamps.splitPosition.initial, 0, 1)}`] : []),
+    ...(usesSplitPosition
+      ? [`var __pxlblz_show_route_split_position = ${clampNumber(propertyRamps?.splitPosition.initial ?? 0.5, 0, 1)}`]
+      : []),
     ...progressiveGlobals,
     `export function beforeRender(delta) {
   __pxlblz_show_elapsed_s = (__pxlblz_show_elapsed_s + delta / 1000) % ${loopDurationMs / 1000}
@@ -6829,6 +7080,7 @@ function emitLogicalRoutingRender(
 ): string {
   const logical = layout.logical
   if (!logical) return emitRouteRenderBody(layout.routes, indent, outputDimension)
+  if (logical.kind === 'soft-split') return emitSoftSplitRoutingRender(layout, indent)
   const setup = emitLogicalRoutingSetup(logical)
   const routeBlocks = logical.zoneNames.map((zoneName, zoneIndex) => {
     const route = layout.routes.find((candidate) => candidate.zone.name === zoneName)
@@ -6845,6 +7097,48 @@ function emitLogicalRoutingRender(
 }`
   }).filter(Boolean).join('\n')
   return `${setup}\n${routeBlocks}`.split('\n').map((line) => `${indent}${line}`).join('\n')
+}
+
+function emitSoftSplitRoutingRender(
+  layout: ResolvedRoutingLayout,
+  indent: string,
+): string {
+  const logical = layout.logical
+  if (!logical || logical.kind !== 'soft-split') return ''
+  const from = layout.routes.find((route) => route.zone.name === logical.zoneNames[0])?.member
+  const to = layout.routes.find((route) => route.zone.name === logical.zoneNames[1])?.member
+  if (!from || !to) return ''
+  const fromColor = (channel: 'r' | 'g' | 'b') => (
+    `${from.prefix}_${channel}${memberHasContentKey(from) ? ` * ${from.prefix}_alpha` : ''}`
+  )
+  const toColor = (channel: 'r' | 'g' | 'b') => (
+    `${to.prefix}_${channel}${memberHasContentKey(to) ? ` * ${to.prefix}_alpha` : ''}`
+  )
+  const body = `${emitLogicalRoutingSetup(logical)}
+var __pxlblz_show_route_side = ceil(sqrt(pixelCount))
+var __pxlblz_show_route_local_index = min(pixelCount - 1, floor(__pxlblz_show_route_local_y * __pxlblz_show_route_side) * __pxlblz_show_route_side + floor(__pxlblz_show_route_local_x * __pxlblz_show_route_side))
+if (__pxlblz_show_route_mix <= 0) {
+  ${from.prefix}_renderCapture2D(__pxlblz_show_route_local_index, __pxlblz_show_route_local_x, __pxlblz_show_route_local_y)
+  ${from.prefix}_emit()
+  return
+}
+if (__pxlblz_show_route_mix >= 1) {
+  ${to.prefix}_renderCapture2D(__pxlblz_show_route_local_index, __pxlblz_show_route_local_x, __pxlblz_show_route_local_y)
+  ${to.prefix}_emit()
+  return
+}
+${from.prefix}_renderCapture2D(__pxlblz_show_route_local_index, __pxlblz_show_route_local_x, __pxlblz_show_route_local_y)
+var __pxlblz_show_soft_r = ${fromColor('r')}
+var __pxlblz_show_soft_g = ${fromColor('g')}
+var __pxlblz_show_soft_b = ${fromColor('b')}
+${to.prefix}_renderCapture2D(__pxlblz_show_route_local_index, __pxlblz_show_route_local_x, __pxlblz_show_route_local_y)
+rgb(
+  __pxlblz_show_soft_r * (1 - __pxlblz_show_route_mix) + ${toColor('r')} * __pxlblz_show_route_mix,
+  __pxlblz_show_soft_g * (1 - __pxlblz_show_route_mix) + ${toColor('g')} * __pxlblz_show_route_mix,
+  __pxlblz_show_soft_b * (1 - __pxlblz_show_route_mix) + ${toColor('b')} * __pxlblz_show_route_mix
+)
+return`
+  return body.split('\n').map((line) => `${indent}${line}`).join('\n')
 }
 
 function emitLogicalRoutingSetup(logical: ShowLogicalRoutingRecipe): string {
@@ -6868,6 +7162,49 @@ var __pxlblz_show_route_stripe_local = clamp(${coordinate} * ${count} - __pxlblz
 var __pxlblz_show_route_local_x = ${logical.axis === 'x' ? '__pxlblz_show_route_stripe_local' : 'clamp(x, 0, 1)'}
 var __pxlblz_show_route_local_y = ${logical.axis === 'y' ? '__pxlblz_show_route_stripe_local' : 'clamp(y, 0, 1)'}`
   }
+  if (logical.kind === 'checker') {
+    return `var __pxlblz_show_route_column = min(${logical.columns - 1}, floor(clamp(x, 0, 1) * ${logical.columns}))
+var __pxlblz_show_route_row = min(${logical.rows - 1}, floor(clamp(y, 0, 1) * ${logical.rows}))
+var __pxlblz_show_route_id = (__pxlblz_show_route_row + __pxlblz_show_route_column) % 2
+var __pxlblz_show_route_local_x = clamp(x * ${logical.columns} - __pxlblz_show_route_column, 0, 1)
+var __pxlblz_show_route_local_y = clamp(y * ${logical.rows} - __pxlblz_show_route_row, 0, 1)`
+  }
+  if (logical.kind === 'rings') {
+    const count = logical.zoneNames.length
+    return `var __pxlblz_show_route_dx = clamp(x, 0, 1) - 0.5
+var __pxlblz_show_route_dy = clamp(y, 0, 1) - 0.5
+var __pxlblz_show_route_radius = clamp(hypot(__pxlblz_show_route_dx, __pxlblz_show_route_dy) / 0.7071067811865476, 0, 1)
+var __pxlblz_show_route_ring = min(${logical.rings - 1}, floor(__pxlblz_show_route_radius * ${logical.rings}))
+var __pxlblz_show_route_id = __pxlblz_show_route_ring % ${count}
+var __pxlblz_show_route_angle = atan2(__pxlblz_show_route_dy, __pxlblz_show_route_dx) / 6.283185307179586
+var __pxlblz_show_route_local_x = __pxlblz_show_route_angle - floor(__pxlblz_show_route_angle)
+var __pxlblz_show_route_local_y = clamp(__pxlblz_show_route_radius * ${logical.rings} - __pxlblz_show_route_ring, 0, 1)`
+  }
+  if (logical.kind === 'wave') {
+    const count = logical.zoneNames.length
+    const along = logical.axis === 'x' ? 'clamp(x, 0, 1)' : 'clamp(y, 0, 1)'
+    const across = logical.axis === 'x' ? 'clamp(y, 0, 1)' : 'clamp(x, 0, 1)'
+    return `var __pxlblz_show_route_wave_raw = ${along} + (triangle(${across} * ${logical.frequency} + ${logical.phase}) - 0.5) * ${logical.amplitude}
+var __pxlblz_show_route_wave = __pxlblz_show_route_wave_raw - floor(__pxlblz_show_route_wave_raw)
+var __pxlblz_show_route_band = min(${logical.bands - 1}, floor(__pxlblz_show_route_wave * ${logical.bands}))
+var __pxlblz_show_route_id = __pxlblz_show_route_band % ${count}
+var __pxlblz_show_route_band_local = clamp(__pxlblz_show_route_wave * ${logical.bands} - __pxlblz_show_route_band, 0, 1)
+var __pxlblz_show_route_local_x = ${logical.axis === 'x' ? '__pxlblz_show_route_band_local' : 'clamp(x, 0, 1)'}
+var __pxlblz_show_route_local_y = ${logical.axis === 'y' ? '__pxlblz_show_route_band_local' : 'clamp(y, 0, 1)'}`
+  }
+  if (logical.kind === 'soft-split') {
+    const coordinate = logical.axis === 'x' ? 'clamp(x, 0, 1)' : 'clamp(y, 0, 1)'
+    const mix = logical.feather > 0
+      ? `clamp(0.5 + (__pxlblz_show_route_split_coordinate - __pxlblz_show_route_split_position) / ${logical.feather}, 0, 1)`
+      : '0'
+    return `var __pxlblz_show_route_split_coordinate = ${coordinate}
+var __pxlblz_show_route_mix = ${mix}
+${logical.feather > 0 ? '' : `if (__pxlblz_show_route_split_coordinate >= __pxlblz_show_route_split_position) __pxlblz_show_route_mix = 1
+`}var __pxlblz_show_route_id = 1
+if (__pxlblz_show_route_mix < 0.5) __pxlblz_show_route_id = 0
+var __pxlblz_show_route_local_x = clamp(x, 0, 1)
+var __pxlblz_show_route_local_y = clamp(y, 0, 1)`
+  }
   if (logical.kind === 'split') {
     const coordinate = logical.axis === 'x' ? 'clamp(x, 0, 1)' : 'clamp(y, 0, 1)'
     return `var __pxlblz_show_route_split_coordinate = ${coordinate}
@@ -6884,9 +7221,11 @@ var __pxlblz_show_route_local_y = ${logical.axis === 'y' ? 'clamp(__pxlblz_show_
   return `var __pxlblz_show_route_dx = clamp(x, 0, 1) - 0.5
 var __pxlblz_show_route_dy = clamp(y, 0, 1) - 0.5
 var __pxlblz_show_route_radius = hypot(__pxlblz_show_route_dx, __pxlblz_show_route_dy)
-var __pxlblz_show_route_turn = frac((atan2(__pxlblz_show_route_dy, __pxlblz_show_route_dx) + __pxlblz_show_route_radius * ${logical.twist}) / 6.283185307179586 + 1)
-var __pxlblz_show_route_id = min(${count - 1}, floor(__pxlblz_show_route_turn * ${count}))
-var __pxlblz_show_route_local_x = clamp(__pxlblz_show_route_turn * ${count} - __pxlblz_show_route_id, 0, 1)
+var __pxlblz_show_route_turn_raw = (atan2(__pxlblz_show_route_dy, __pxlblz_show_route_dx) + __pxlblz_show_route_radius * ${logical.twist} + ${logical.rotation}) / 6.283185307179586
+var __pxlblz_show_route_turn = __pxlblz_show_route_turn_raw - floor(__pxlblz_show_route_turn_raw)
+var __pxlblz_show_route_arm = min(${logical.arms - 1}, floor(__pxlblz_show_route_turn * ${logical.arms}))
+var __pxlblz_show_route_id = __pxlblz_show_route_arm % ${count}
+var __pxlblz_show_route_local_x = clamp(__pxlblz_show_route_turn * ${logical.arms} - __pxlblz_show_route_arm, 0, 1)
 var __pxlblz_show_route_local_y = clamp(__pxlblz_show_route_radius / 0.7071067811865476, 0, 1)`
 }
 
@@ -8268,6 +8607,9 @@ function showRendererPressure(
   recipe: ShowRecipe,
   transitionCost: ShowCompileSummary['transitionCost'],
 ): { steady: number; worst: number } {
+  const softSplitFactor = recipe.routingLayouts?.some((layout) => (
+    layout.logical?.kind === 'soft-split' && layout.logical.feather > 0
+  )) ? 2 : 1
   if (recipe.routedSceneSequence) {
     const sceneDepths = recipe.routedSceneSequence.scenes.map((scene) => {
       const depthByZone = new Map<string, number>()
@@ -8295,7 +8637,7 @@ function showRendererPressure(
         ? sceneDepths[index] + sceneDepths[index + 1]
         : Math.max(sceneDepths[index], sceneDepths[index + 1]))
     }, 1)
-    return { steady: holdDepth, worst: Math.max(holdDepth, transitionDepth) }
+    return { steady: holdDepth, worst: Math.max(holdDepth, transitionDepth) * softSplitFactor }
   }
   const worst = transitionCost === 'renderer-window' || transitionCost === 'bounded-renderer-window' ? 2 : 1
   return { steady: 1, worst }

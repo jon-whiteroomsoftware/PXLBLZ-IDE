@@ -21,6 +21,29 @@ describe('Portable 2D compatibility (#436)', () => {
     }], 2)).toMatchObject({ compatible: true, issues: [] })
   })
 
+  it('rejects persisted Checker routing without exactly two zones (#507)', () => {
+    const show = createShowWithOutputContract(
+      'checker-invalid',
+      'Checker invalid',
+      createPortableShowOutputContract({ referenceMapId: 'plane', referencePixelCount: 1024 }),
+    )
+    show.routingLayouts[0].logical = {
+      kind: 'checker',
+      columns: 0,
+      rows: 4,
+      zoneIds: [show.zones[0].id],
+    } as unknown as typeof show.routingLayouts[0]['logical']
+
+    const result = validatePortableShowCompatibility(show, [{
+      cellId: show.cells[0].id,
+      patternName: 'Surface',
+      source: 'export function render2D(index, x, y) { rgb(x, y, 1) }',
+    }], 2)
+
+    expect(result?.issues).toContain('Routing layout "Default": Checker needs exactly two Zones.')
+    expect(result?.issues).toContain('Routing layout "Default": Checker columns and rows must be positive whole numbers.')
+  })
+
   it('rejects physical layouts, 3D references, and 3D-only members', () => {
     const show = createShowWithOutputContract(
       'portable',

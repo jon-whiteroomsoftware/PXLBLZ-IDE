@@ -1024,15 +1024,36 @@ does not match the Installation output explain that spatial selection is
 unavailable; PXLBLZ does not pretend a screen-space projection proves physical
 ownership.
 
-Portable Zone Layouts instead map logical zones with normalized coordinate
-predicates.
-Full surface, equal left/right or top/bottom stripes, 2x2 grids, and moving X/Y
-splits derive membership and zone-local X/Y from every runtime map point. The
-generated Pattern uses runtime `pixelCount`, X, and Y; it never embeds the
-reference count as physical ownership. A 32x32 square and 128x12 wide surface
-therefore keep the same authored coordinate boundary. Because maps preserve
-physical aspect, a compressed coordinate axis may make some grid zones narrow or
-empty; the Stage reports that consequence rather than stretching or hiding it.
+Portable Zone Layouts instead pair their ordered logical zones with a normalized
+Stage-space routing mode. Open **Show properties > Routing layouts**, then choose
+the mode from the existing **Routing mode** menu. The compact fields beneath it
+show only that mode's parameters:
+
+- **Full surface**, equal X/Y **Stripes**, and **2 x 2 Grid** provide the basic
+  partitions;
+- **Checker** alternates exactly two zones across authored columns and rows;
+- **Rings** cycles the zone order across an authored ring count;
+- **Pinwheel** cycles the order across authored arms, twist, and rotation;
+- **Wave** displaces authored bands along X or Y using amplitude, frequency, and
+  phase; and
+- **Moving Split** and **Soft Split** place an X/Y boundary between exactly two
+  zones.
+
+These shape parameters are static Zone Layout configuration. Split position is
+the exception: Moving Split and Soft Split use the existing Scene-owned split
+lane and boundary easing, so the same property can travel without inventing a
+second animation system. Invalid zone counts or values appear directly beneath
+the mode and block artifact output.
+
+Every hard mode derives one owner and zone-local X/Y from each runtime map point,
+then invokes exactly one Pattern renderer. The generated Pattern uses runtime
+`pixelCount`, X, and Y; it never embeds the reference count, a wiring index, or a
+pixel-sized routing table as ownership. A 32x32 square and 128x12 wide surface
+therefore keep the same authored coordinate rule. Because maps preserve physical
+aspect, a compressed axis can make cells narrow or empty. Rings and Pinwheel use
+normalized radial geometry, so a strongly rectangular Stage can stretch circles
+and angles; the Stage surfaces that compatibility advisory rather than silently
+claiming invariant geometry.
 
 A Zone Layout with two zones may instead use a moving X or Y split. Each scene
 owns a normalized Split target, displayed as a colored Show-wide property lane. The
@@ -1041,6 +1062,14 @@ easing. Each side is renormalized to its own local Pattern domain as it grows or
 shrinks, including a virtual pixel count that follows its current share; targets
 at 0% or 100% give the complete Stage to one zone. The effect
 keeps both Pattern clocks continuous and invokes one renderer per pixel.
+
+Soft Split uses the same animated position but keeps full-Stage local coordinates
+on both sides. Outside the feather it invokes only the owning Pattern. Inside the
+feather it renders both Patterns and blends their captured output, including when
+a Scene Transition is also active. The compile bar reports one renderer per pixel
+in steady regions and two in the feather; a live/live Crossfade can overlap that
+cost and reach four inside the feather. Setting feather to zero recovers a hard
+boundary.
 
 ### Live and Freeze-at-entry Clips
 

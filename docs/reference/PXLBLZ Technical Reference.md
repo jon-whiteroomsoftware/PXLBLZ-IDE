@@ -2113,6 +2113,8 @@ Current compiler policies:
 | 2D circle/box/diamond/ring true blend | Two renderers only inside the feather band |
 | Routing-layout cut | Immediate destination layout selection |
 | Routing-layout directional transfer | Both clocks advance; one adjacent layout and renderer selected per pixel |
+| Portable hard routing operator | One zone and one member renderer selected per Stage point |
+| Soft Split | One renderer outside the feather, two inside; an overlapping live/live Crossfade reaches two/four respectively |
 
 Easing is deterministic arithmetic shared by preview helpers and generated
 code. The standard set is Linear; Quadratic, Cubic, and Sine in/out/in-out;
@@ -2569,6 +2571,44 @@ route wins; uncovered pixels render black and produce a compile warning. Loop
 wrap returns layout selection to the first layout without resetting member
 state.
 
+Portable routing uses the canonical `ShowLogicalRouting` union in
+`showLogicalRouting.ts`. Each layout stores ordered zone ids plus one operator:
+Full Stage, Grid, Stripes, Checker, Rings, Pinwheel, Wave, Moving Split, or Soft
+Split. The pure router and generated source return the same normalized region-local
+coordinates. Hard operators return one zone. Soft Split additionally returns the
+second zone's blend weight while keeping both Patterns in the full Stage domain.
+`showSpatialOperators.ts` remains only a historical adapter over this canonical
+model, so research and production no longer own competing vocabularies.
+
+The compiler emits direct scalar coordinate predicates. Checker uses bounded cell
+parity; Rings uses normalized radius and angle; Pinwheel combines angle, radius,
+twist, and rotation; Wave applies a triangle displacement before band selection.
+Positive fractions use `v - floor(v)` rather than `frac(v + 1)` so browser and
+Pixelblaze arithmetic agree at exact cell boundaries. These operators allocate no
+routing arrays and ignore physical index and wiring order. Preview/compiler
+equivalence covers 16x16, 32x32, and 32x64 maps.
+
+Operator shape parameters are static layout configuration. Moving Split and Soft
+Split position alone bind the existing Scene-owned `splitPosition` property and
+its incoming boundary ramp. The renderer stores one scalar position. Moving Split
+selects one side, renormalizes that region to `0..1`, updates the member's virtual
+`pixelCount`, and invokes one Pattern renderer. Endpoints give the complete Stage
+to one zone without dividing by zero.
+
+Soft Split requires two zones. Outside its feather, lazy branches invoke one zone
+stack; inside, both stacks render and their captured RGB is blended. Scene
+Transitions are captured independently for each side before the spatial blend, so
+Cut, Crossfade, Wipe, Motion, Shape reveal, Fade-through-color, and Dissolve retain
+Soft Split ownership. Cost metadata reports one renderer outside and two inside;
+an overlapping live/live Crossfade multiplies those depths to two and four. The
+split position and blend weight use scalar globals, not a frame or routing table.
+
+Rings and Pinwheel intentionally use normalized radial coordinates. On a Stage
+whose X and Y spans differ materially, circles can become ellipses and angular
+regions can stretch. `showLogicalAspectAdvisory()` treats both as two-axis modes
+and surfaces the compressed-axis warning; the compiler does not claim or inject
+physical-aspect correction.
+
 A nonzero routing transition progressively reassigns ownership between its
 source and destination layouts. `beforeRender` computes one eased progress
 threshold. The outer renderer compares that threshold with stable normalized
@@ -2609,16 +2649,6 @@ Production replay advances 250 ms of simulated Show time per cooperative chunk,
 yields, and checks the current seek id. Newer seeks supersede old work. The
 rebuilt runtime becomes the live runtime so playback continues from the sought
 state.
-
-A named logical moving-split layout owns an X or Y axis and an ordered two-zone
-pair. Scene targets place the split; the incoming visual boundary supplies its
-explicit start, duration, and easing. `beforeRender` updates one scalar split
-position. The outer renderer selects one side, renormalizes that side to a local
-`0..1` domain, updates each member's virtual `pixelCount` from its current share,
-and invokes one Pattern renderer. Endpoint positions give the
-complete Stage to one zone without dividing by zero. The routing state uses one
-scalar and no arrays; the compile summary compares that constant storage with a
-keyframe-equivalent enumerated table.
 
 The current path always uses the selected Stage's full pixel count and has no
 checkpoint cache, frame history, downsampling, representative pixels, alternate

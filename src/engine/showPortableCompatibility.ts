@@ -1,5 +1,6 @@
 import { inspectPatternMetadata } from './bundle'
 import type { ShowRecord } from './personalContentRecords'
+import { validateShowLogicalRouting } from './showLogicalRouting'
 
 export interface PortablePatternSource {
   cellId: string
@@ -38,15 +39,7 @@ export function validatePortableShowCompatibility(
     if (logical.zoneIds.some((zoneId) => !zoneIds.has(zoneId))) {
       issues.push(`Routing layout "${layout.name}" references a missing logical zone.`)
     }
-    if (logical.kind === 'grid' && logical.zoneIds.length !== logical.columns * logical.rows) {
-      issues.push(`Routing layout "${layout.name}" needs one logical zone per grid cell.`)
-    }
-    if (logical.kind === 'split' && logical.zoneIds.length !== 2) {
-      issues.push(`Routing layout "${layout.name}" needs exactly two logical zones for its moving split.`)
-    }
-    if (logical.zoneIds.length === 0) {
-      issues.push(`Routing layout "${layout.name}" needs at least one logical zone.`)
-    }
+    issues.push(...validateShowLogicalRouting(logical).map((issue) => `Routing layout "${layout.name}": ${issue}`))
   }
 
   const seenSources = new Set<string>()

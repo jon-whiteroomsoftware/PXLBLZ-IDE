@@ -260,8 +260,8 @@ export function showLogicalAspectAdvisory(
   const ys = samples.map((sample) => sample[1] ?? 0.5)
   const spanX = Math.max(...xs) - Math.min(...xs)
   const spanY = Math.max(...ys) - Math.min(...ys)
-  const usesX = logical.kind === 'grid' || logical.kind === 'pinwheel' || logical.axis === 'x'
-  const usesY = logical.kind === 'grid' || logical.kind === 'pinwheel' || logical.axis === 'y'
+  const usesX = logical.kind === 'grid' || logical.kind === 'checker' || logical.kind === 'rings' || logical.kind === 'pinwheel' || logical.axis === 'x'
+  const usesY = logical.kind === 'grid' || logical.kind === 'checker' || logical.kind === 'rings' || logical.kind === 'pinwheel' || logical.axis === 'y'
   const narrowAxis = usesY && spanY < spanX * 0.75
     ? { name: 'Y', min: Math.min(...ys), max: Math.max(...ys), ratio: spanX / Math.max(spanY, Number.EPSILON) }
     : usesX && spanX < spanY * 0.75

@@ -1,6 +1,6 @@
 import { parseEpe } from './epeImport'
 import { parsePxlblzBanner } from './artifactStamp'
-import { addShowRoutingLayout, createDefaultShow, createShowWithOutputContract, updateShowBoundaryTransition, updateShowRoutingSwitch, updateShowTransition } from './showModel'
+import { addShowRoutingLayout, addShowZone, createDefaultShow, createShowWithOutputContract, updateShowBoundaryTransition, updateShowRoutingLayout, updateShowRoutingSwitch, updateShowTransition } from './showModel'
 import { buildShowEpeExport } from './showEpeExport'
 import { createAdaptivePatternPrismShow } from './patternPrismShow'
 import { createInstallationShowOutputContract, createPortableShowOutputContract } from './showOutputContract'
@@ -138,6 +138,47 @@ describe('Show EPE export (#399)', () => {
     })
     expect(exported.source).toContain('Preferred map: Square [stock:plane].')
     expect(exported.source).toContain('Compatibility: adaptive 2D surface maps at adaptive resolution; other compatible maps may change the composition.')
+  })
+
+  it('retains adaptive artifact compatibility for a production spatial operator (#507)', () => {
+    let show = addShowZone(createShowWithOutputContract(
+      'show-507-epe',
+      'Adaptive Wave',
+      createPortableShowOutputContract({ referenceMapId: 'wide', referencePixelCount: 1536 }),
+      1000,
+    ), { name: 'alternate', nominalPixelCount: 60 })
+    show = updateShowRoutingLayout(show, show.routingLayouts[0].id, {
+      logical: {
+        kind: 'wave',
+        zoneIds: show.zones.map((zone) => zone.id),
+        axis: 'x',
+        bands: 6,
+        amplitude: 0.25,
+        frequency: 2,
+        phase: 0.1,
+      },
+    })
+
+    const exported = buildShowEpeExport(show, 'export function render2D(index, x, y) {}', {
+      stampedAt: '2026-07-18T00:00:00.000Z',
+    })
+    const parsed = parseEpe(exported.text)
+
+    expect(parsed.stamp?.compatibility).toEqual({
+      portability: 'adaptive',
+      dimensions: [2],
+      mapClasses: ['surface'],
+      resolution: 'adaptive',
+      exactMap: false,
+    })
+    expect(parsed.stamp?.showOutputContract).toEqual({
+      version: 1,
+      kind: 'portable-2d',
+      dimensions: [2],
+      mapClasses: ['surface'],
+      resolution: 'variable',
+    })
+    expect(parsed.src).toContain('Compiled PXLBLZ Show: Adaptive Wave')
   })
 
   it('exports a custom-map name without leaking its local database id (#411)', () => {

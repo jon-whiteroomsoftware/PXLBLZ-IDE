@@ -12,7 +12,7 @@ describe('adaptive Show spatial operators (#410)', () => {
     for (let row = 0; row < size; row += 1) {
       for (let column = 0; column < size; column += 1) {
         const sample = sampleShowSpatialOperator(
-          { kind: 'grid', columns: 2, rows: 2 },
+          { kind: 'grid', columns: 2, rows: 2, zoneIds: ['nw', 'ne', 'sw', 'se'] },
           column / (size - 1),
           row / (size - 1),
           0,
@@ -30,12 +30,12 @@ describe('adaptive Show spatial operators (#410)', () => {
   })
 
   it.each([
-    { kind: 'stripes' as const, axis: 'x' as const, count: 5, phase: 0.1 },
-    { kind: 'checker' as const, columns: 6, rows: 4 },
-    { kind: 'rings' as const, count: 5 },
-    { kind: 'pinwheel' as const, arms: 6, twist: 1.35, rotation: 0.1 },
-    { kind: 'wave' as const, axis: 'y' as const, count: 4, amplitude: 0.3, frequency: 2.5 },
-    { kind: 'soft-split' as const, axis: 'x' as const, position: 0.5, feather: 0.2 },
+    { kind: 'stripes' as const, axis: 'x' as const, zoneIds: ['a', 'b', 'c', 'd', 'e'] },
+    { kind: 'checker' as const, columns: 6, rows: 4, zoneIds: ['a', 'b'] as [string, string] },
+    { kind: 'rings' as const, rings: 5, zoneIds: ['a', 'b'] },
+    { kind: 'pinwheel' as const, arms: 6, twist: Math.PI * 2 * 1.35, rotation: Math.PI * 2 * 0.1, zoneIds: ['a', 'b'] },
+    { kind: 'wave' as const, axis: 'y' as const, bands: 4, amplitude: 0.3, frequency: 2.5, phase: 0, zoneIds: ['a', 'b'] },
+    { kind: 'soft-split' as const, axis: 'x' as const, feather: 0.2, zoneIds: ['a', 'b'] as [string, string] },
   ])('returns finite bounded samples for $kind across 2048 points', (operator) => {
     for (let index = 0; index < 2048; index += 1) {
       const x = (index % 64) / 63
@@ -52,7 +52,7 @@ describe('adaptive Show spatial operators (#410)', () => {
   })
 
   it('exposes a continuous mix only inside a soft boundary', () => {
-    const operator = { kind: 'soft-split' as const, axis: 'x' as const, position: 0.5, feather: 0.2 }
+    const operator = { kind: 'soft-split' as const, axis: 'x' as const, feather: 0.2, zoneIds: ['a', 'b'] as [string, string] }
 
     expect(sampleShowSpatialOperator(operator, 0.2, 0.5, 0).mix).toBe(0)
     expect(sampleShowSpatialOperator(operator, 0.5, 0.5, 0).mix).toBe(0.5)

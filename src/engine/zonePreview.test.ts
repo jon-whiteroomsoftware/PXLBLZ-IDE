@@ -239,6 +239,37 @@ describe('show stage projection', () => {
     )
   })
 
+  it('applies the two-axis aspect advisory to Checker routing (#507)', () => {
+    const mapPoints = [
+      { sample: [0, 0] },
+      { sample: [1, 0] },
+      { sample: [0, 0.5] },
+      { sample: [1, 0.5] },
+    ]
+
+    expect(showLogicalAspectAdvisory(mapPoints, {
+      kind: 'checker',
+      columns: 4,
+      rows: 2,
+      zoneIds: ['red', 'black'],
+    })).toContain('Y boundaries use its 0.00-0.50 normalized coordinate range')
+  })
+
+  it('discloses radial distortion for Rings routing (#507)', () => {
+    const mapPoints = [
+      { sample: [0, 0] },
+      { sample: [1, 0] },
+      { sample: [0, 0.5] },
+      { sample: [1, 0.5] },
+    ]
+
+    expect(showLogicalAspectAdvisory(mapPoints, {
+      kind: 'rings',
+      rings: 5,
+      zoneIds: ['red', 'cyan'],
+    })).toContain('Y boundaries use its 0.00-0.50 normalized coordinate range')
+  })
+
   const showZones: ShowZone[] = [
     { id: 'arch', name: 'arch-left', nominalPixelCount: 3, color: '#38bdf8' },
     { id: 'wash', name: 'rock-wash', nominalPixelCount: 2, color: '#f97316' },

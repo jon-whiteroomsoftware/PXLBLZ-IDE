@@ -158,6 +158,7 @@ import type {
   ShowScene,
   ShowAutomatableProperty,
 } from '@/engine/personalContentRecords'
+import { validateShowLogicalRouting, type ShowLogicalRouting } from '@/engine/showLogicalRouting'
 
 const field =
   'h-7 rounded border border-zinc-700 bg-zinc-900 px-2 text-xs text-zinc-200 outline-none focus:border-live/70'
@@ -2084,7 +2085,9 @@ function SceneStrip({
       return [zone.id, candidates.filter((candidate) => candidate.projection.timeVarying)] as const
     }))
   }, [patternControlsByCellId, show])
-  const movingSplitLayout = show.routingLayouts.find((layout) => layout.logical?.kind === 'split')
+  const movingSplitLayout = show.routingLayouts.find((layout) => (
+    layout.logical?.kind === 'split' || layout.logical?.kind === 'soft-split'
+  ))
   const hasSampleRemap = show.scenes.some((scene) => scene.sampleTargets?.repeatScale !== undefined)
     || Boolean(show.transitions?.some((transition) => transition.propertyTransitions?.sample?.repeatScale))
   const routingLaneRows = (movingSplitLayout ? 1 : 0) + (hasSampleRemap ? 1 : 0)
@@ -2439,8 +2442,10 @@ function SceneStrip({
             )
           })}
         </div>
-        {movingSplitLayout?.logical?.kind === 'split' && (() => {
-          const [firstZoneId, secondZoneId] = movingSplitLayout.logical.zoneIds
+        {movingSplitLayout?.logical && (() => {
+          const logical = movingSplitLayout.logical
+          if (logical.kind !== 'split' && logical.kind !== 'soft-split') return null
+          const [firstZoneId, secondZoneId] = logical.zoneIds
           const firstColor = show.zones.find((zone) => zone.id === firstZoneId)?.color ?? '#38bdf8'
           const secondColor = show.zones.find((zone) => zone.id === secondZoneId)?.color ?? '#f97316'
           return (
@@ -2449,7 +2454,7 @@ function SceneStrip({
                 className="sticky left-0 z-30 flex items-center gap-1 border-t border-zinc-900/80 bg-[#060608] px-2 font-mono text-[9px] text-sky-300/80"
                 style={{ gridColumn: 1, gridRow: contentStartRow }}
               >
-                ↳ split {movingSplitLayout.logical.axis.toUpperCase()}
+                ↳ split {logical.axis.toUpperCase()}
               </div>
               {show.scenes.map((scene, sceneIndex) => {
                 const position = scene.routingTargets?.splitPosition ?? 0.5
@@ -3572,7 +3577,9 @@ function ContextualInspector({
         <SceneInspector
           scene={scene}
           minimumDurationMs={minimumShowSceneDurationMs(show, scene.id)}
-          hasMovingSplit={show.routingLayouts.some((layout) => layout.logical?.kind === 'split')}
+          hasMovingSplit={show.routingLayouts.some((layout) => (
+            layout.logical?.kind === 'split' || layout.logical?.kind === 'soft-split'
+          ))}
           canRemove={show.scenes.length > 1}
           onUpdate={(changes) => onUpdateScene(scene, changes)}
           onDuplicate={() => onDuplicateScene(scene)}
@@ -4430,7 +4437,9 @@ function TransitionInspector({
               onUpdateCellAdaptations={onUpdateCellAdaptations}
             />
           ))}
-          {show.routingLayouts.some((layout) => layout.logical?.kind === 'split') && nextScene && (
+          {show.routingLayouts.some((layout) => (
+            layout.logical?.kind === 'split' || layout.logical?.kind === 'soft-split'
+          )) && nextScene && (
             <RoutingSplitTransitionEditor
               transition={transition}
               fromTarget={scene?.routingTargets?.splitPosition ?? 0.5}
@@ -4936,8 +4945,22 @@ function routingModeValue(layout: ShowRoutingLayout): string {
   if (logical.kind === 'single') return 'single'
   if (logical.kind === 'grid' && logical.columns === 2 && logical.rows === 2) return 'grid-2x2'
   if (logical.kind === 'stripes') return `stripes-${logical.axis}`
+  if (logical.kind === 'checker') return 'checker'
+  if (logical.kind === 'rings') return 'rings'
+  if (logical.kind === 'pinwheel') return 'pinwheel'
+  if (logical.kind === 'wave') return 'wave'
+  if (logical.kind === 'soft-split') return 'soft-split'
   if (logical.kind === 'split') return `split-${logical.axis}`
   return 'physical'
+}
+
+function patchLogicalRouting<K extends ShowLogicalRouting['kind']>(
+  logical: ShowLogicalRouting,
+  kind: K,
+  changes: Partial<Omit<Extract<ShowLogicalRouting, { kind: K }>, 'kind' | 'zoneIds'>>,
+): ShowLogicalRouting {
+  if (logical.kind !== kind) return logical
+  return { ...logical, ...changes } as ShowLogicalRouting
 }
 
 function logicalRoutingForMode(
@@ -4949,6 +4972,19 @@ function logicalRoutingForMode(
   if (mode === 'stripes-x' || mode === 'stripes-y') {
     return { kind: 'stripes', zoneIds: [...zoneIds], axis: mode === 'stripes-y' ? 'y' : 'x' }
   }
+  if (mode === 'checker') {
+    return { kind: 'checker', zoneIds: [zoneIds[0], zoneIds[1]], columns: 4, rows: 4 }
+  }
+  if (mode === 'rings') return { kind: 'rings', zoneIds: [...zoneIds], rings: 5 }
+  if (mode === 'pinwheel') {
+    return { kind: 'pinwheel', zoneIds: [...zoneIds], arms: 6, twist: Math.PI * 2 * 1.35, rotation: 0 }
+  }
+  if (mode === 'wave') {
+    return { kind: 'wave', zoneIds: [...zoneIds], axis: 'x', bands: 4, amplitude: 0.3, frequency: 2.5, phase: 0 }
+  }
+  if (mode === 'soft-split') {
+    return { kind: 'soft-split', zoneIds: [zoneIds[0], zoneIds[1]], axis: 'x', feather: 0.2 }
+  }
   if (mode === 'split-x' || mode === 'split-y') {
     return { kind: 'split', zoneIds: [zoneIds[0], zoneIds[1]], axis: mode === 'split-y' ? 'y' : 'x' }
   }
@@ -4958,10 +4994,21 @@ function logicalRoutingForMode(
 function logicalRoutingDescription(layout: ShowRoutingLayout, show: ShowRecord): string {
   const logical = layout.logical
   if (!logical) return ''
+  const issue = validateShowLogicalRouting(logical)[0]
+  if (issue) return `Cannot compile this routing layout: ${issue}`
   const names = logical.zoneIds.map((zoneId) => show.zones.find((zone) => zone.id === zoneId)?.name ?? zoneId)
   if (logical.kind === 'single') return `${names[0]} receives the complete normalized Stage.`
   if (logical.kind === 'grid') return `${names.join(', ')} fill a ${logical.columns} x ${logical.rows} normalized grid.`
   if (logical.kind === 'stripes') return `${names.join(', ')} divide the normalized ${logical.axis.toUpperCase()} axis into equal position-based stripes.`
+  if (logical.kind === 'checker') return `${names[0]} and ${names[1]} alternate across a ${logical.columns} x ${logical.rows} checker.`
+  if (logical.kind === 'rings') return `${names.join(', ')} cycle through ${logical.rings} concentric rings.`
+  if (logical.kind === 'pinwheel') {
+    const twistTurns = Number((logical.twist / (Math.PI * 2)).toFixed(2))
+    const rotationDegrees = Number((((logical.rotation ?? 0) * 180) / Math.PI).toFixed(1))
+    return `${names.join(', ')} cycle through ${logical.arms ?? names.length} arms with ${twistTurns} turns of twist and ${rotationDegrees}° rotation.`
+  }
+  if (logical.kind === 'wave') return `${names.join(', ')} cycle through ${logical.bands} displaced bands along the normalized ${logical.axis.toUpperCase()} axis.`
+  if (logical.kind === 'soft-split') return `${names[0]} and ${names[1]} blend across a movable ${logical.axis.toUpperCase()} boundary. Inside the feather, both Patterns render; outside it, only one renders.`
   if (logical.kind === 'split') return `${names[0]} and ${names[1]} share a normalized Stage axis. Scene targets move the split continuously.`
   return `${names.join(', ')} route by normalized Stage position.`
 }
@@ -5184,10 +5231,239 @@ function ShowSetupInspector({
                   <option value="stripes-x">left / right stripes</option>
                   <option value="stripes-y">top / bottom stripes</option>
                   <option value="grid-2x2" disabled={show.zones.length < 4}>2 x 2 grid</option>
+                  <option value="checker" disabled={show.zones.length < 2}>checker</option>
+                  <option value="rings">rings</option>
+                  <option value="pinwheel">pinwheel</option>
+                  <option value="wave">wave</option>
+                  <option value="soft-split" disabled={show.zones.length < 2}>soft split</option>
                   <option value="split-x">moving split X</option>
                   <option value="split-y">moving split Y</option>
                 </select>
               </label>
+              {layout.logical?.kind === 'checker' && (
+                <div className="mt-2 grid max-w-xs grid-cols-2 gap-2">
+                  <label className="text-[9.5px] uppercase text-zinc-600">
+                    Columns
+                    <input
+                      key={layout.logical.columns}
+                      aria-label="Checker columns"
+                      type="number"
+                      min={1}
+                      step={1}
+                      defaultValue={layout.logical.columns}
+                      onBlur={(event) => onUpdateRoutingLayout(layout.id, {
+                        logical: patchLogicalRouting(layout.logical!, 'checker', {
+                          columns: Math.max(1, Math.round(Number(event.currentTarget.value) || 1)),
+                        }),
+                      })}
+                      className={`${field} mt-1 w-full`}
+                    />
+                  </label>
+                  <label className="text-[9.5px] uppercase text-zinc-600">
+                    Rows
+                    <input
+                      key={layout.logical.rows}
+                      aria-label="Checker rows"
+                      type="number"
+                      min={1}
+                      step={1}
+                      defaultValue={layout.logical.rows}
+                      onBlur={(event) => onUpdateRoutingLayout(layout.id, {
+                        logical: patchLogicalRouting(layout.logical!, 'checker', {
+                          rows: Math.max(1, Math.round(Number(event.currentTarget.value) || 1)),
+                        }),
+                      })}
+                      className={`${field} mt-1 w-full`}
+                    />
+                  </label>
+                </div>
+              )}
+              {layout.logical?.kind === 'rings' && (
+                <div className="mt-2 max-w-[9.5rem]">
+                  <label className="text-[9.5px] uppercase text-zinc-600">
+                    Ring count
+                    <input
+                      key={layout.logical.rings}
+                      aria-label="Ring count"
+                      type="number"
+                      min={1}
+                      step={1}
+                      defaultValue={layout.logical.rings}
+                      onBlur={(event) => onUpdateRoutingLayout(layout.id, {
+                        logical: patchLogicalRouting(layout.logical!, 'rings', {
+                          rings: Math.max(1, Math.round(Number(event.currentTarget.value) || 1)),
+                        }),
+                      })}
+                      className={`${field} mt-1 w-full`}
+                    />
+                  </label>
+                </div>
+              )}
+              {layout.logical?.kind === 'pinwheel' && (
+                <div className="mt-2 grid max-w-xl grid-cols-3 gap-2">
+                  <label className="text-[9.5px] uppercase text-zinc-600">
+                    Arms
+                    <input
+                      key={layout.logical.arms ?? layout.logical.zoneIds.length}
+                      aria-label="Pinwheel arms"
+                      type="number"
+                      min={1}
+                      step={1}
+                      defaultValue={layout.logical.arms ?? layout.logical.zoneIds.length}
+                      onBlur={(event) => onUpdateRoutingLayout(layout.id, {
+                        logical: patchLogicalRouting(layout.logical!, 'pinwheel', {
+                          arms: Math.max(1, Math.round(Number(event.currentTarget.value) || 1)),
+                        }),
+                      })}
+                      className={`${field} mt-1 w-full`}
+                    />
+                  </label>
+                  <label className="text-[9.5px] uppercase text-zinc-600">
+                    Twist turns
+                    <input
+                      key={layout.logical.twist}
+                      aria-label="Pinwheel twist turns"
+                      type="number"
+                      step={0.05}
+                      defaultValue={Number((layout.logical.twist / (Math.PI * 2)).toFixed(3))}
+                      onBlur={(event) => onUpdateRoutingLayout(layout.id, {
+                        logical: patchLogicalRouting(layout.logical!, 'pinwheel', {
+                          twist: (Number(event.currentTarget.value) || 0) * Math.PI * 2,
+                        }),
+                      })}
+                      className={`${field} mt-1 w-full`}
+                    />
+                  </label>
+                  <label className="text-[9.5px] uppercase text-zinc-600">
+                    Rotation °
+                    <input
+                      key={layout.logical.rotation ?? 0}
+                      aria-label="Pinwheel rotation degrees"
+                      type="number"
+                      step={1}
+                      defaultValue={Number((((layout.logical.rotation ?? 0) * 180) / Math.PI).toFixed(2))}
+                      onBlur={(event) => onUpdateRoutingLayout(layout.id, {
+                        logical: patchLogicalRouting(layout.logical!, 'pinwheel', {
+                          rotation: (Number(event.currentTarget.value) || 0) * Math.PI / 180,
+                        }),
+                      })}
+                      className={`${field} mt-1 w-full`}
+                    />
+                  </label>
+                </div>
+              )}
+              {layout.logical?.kind === 'wave' && (
+                <div className="mt-2 grid max-w-2xl grid-cols-2 gap-2 sm:grid-cols-5">
+                  <label className="text-[9.5px] uppercase text-zinc-600">
+                    Axis
+                    <select
+                      aria-label="Wave axis"
+                      value={layout.logical.axis}
+                      onChange={(event) => onUpdateRoutingLayout(layout.id, {
+                        logical: patchLogicalRouting(layout.logical!, 'wave', { axis: event.target.value === 'y' ? 'y' : 'x' }),
+                      })}
+                      className={`${field} mt-1 w-full`}
+                    >
+                      <option value="x">X</option>
+                      <option value="y">Y</option>
+                    </select>
+                  </label>
+                  <label className="text-[9.5px] uppercase text-zinc-600">
+                    Bands
+                    <input
+                      key={layout.logical.bands}
+                      aria-label="Wave band count"
+                      type="number"
+                      min={1}
+                      step={1}
+                      defaultValue={layout.logical.bands}
+                      onBlur={(event) => onUpdateRoutingLayout(layout.id, {
+                        logical: patchLogicalRouting(layout.logical!, 'wave', { bands: Math.max(1, Math.round(Number(event.currentTarget.value) || 1)) }),
+                      })}
+                      className={`${field} mt-1 w-full`}
+                    />
+                  </label>
+                  <label className="text-[9.5px] uppercase text-zinc-600">
+                    Amplitude
+                    <input
+                      key={layout.logical.amplitude}
+                      aria-label="Wave amplitude"
+                      type="number"
+                      min={0}
+                      max={1}
+                      step={0.05}
+                      defaultValue={layout.logical.amplitude}
+                      onBlur={(event) => onUpdateRoutingLayout(layout.id, {
+                        logical: patchLogicalRouting(layout.logical!, 'wave', { amplitude: Math.max(0, Math.min(1, Number(event.currentTarget.value) || 0)) }),
+                      })}
+                      className={`${field} mt-1 w-full`}
+                    />
+                  </label>
+                  <label className="text-[9.5px] uppercase text-zinc-600">
+                    Frequency
+                    <input
+                      key={layout.logical.frequency}
+                      aria-label="Wave frequency"
+                      type="number"
+                      min={0}
+                      step={0.1}
+                      defaultValue={layout.logical.frequency}
+                      onBlur={(event) => onUpdateRoutingLayout(layout.id, {
+                        logical: patchLogicalRouting(layout.logical!, 'wave', { frequency: Math.max(0, Number(event.currentTarget.value) || 0) }),
+                      })}
+                      className={`${field} mt-1 w-full`}
+                    />
+                  </label>
+                  <label className="text-[9.5px] uppercase text-zinc-600">
+                    Phase
+                    <input
+                      key={layout.logical.phase}
+                      aria-label="Wave phase"
+                      type="number"
+                      step={0.05}
+                      defaultValue={layout.logical.phase}
+                      onBlur={(event) => onUpdateRoutingLayout(layout.id, {
+                        logical: patchLogicalRouting(layout.logical!, 'wave', { phase: Number(event.currentTarget.value) || 0 }),
+                      })}
+                      className={`${field} mt-1 w-full`}
+                    />
+                  </label>
+                </div>
+              )}
+              {layout.logical?.kind === 'soft-split' && (
+                <div className="mt-2 grid max-w-xs grid-cols-2 gap-2">
+                  <label className="text-[9.5px] uppercase text-zinc-600">
+                    Axis
+                    <select
+                      aria-label="Soft Split axis"
+                      value={layout.logical.axis}
+                      onChange={(event) => onUpdateRoutingLayout(layout.id, {
+                        logical: patchLogicalRouting(layout.logical!, 'soft-split', { axis: event.target.value === 'y' ? 'y' : 'x' }),
+                      })}
+                      className={`${field} mt-1 w-full`}
+                    >
+                      <option value="x">X</option>
+                      <option value="y">Y</option>
+                    </select>
+                  </label>
+                  <label className="text-[9.5px] uppercase text-zinc-600">
+                    Feather
+                    <input
+                      key={layout.logical.feather}
+                      aria-label="Soft Split feather"
+                      type="number"
+                      min={0}
+                      max={1}
+                      step={0.05}
+                      defaultValue={layout.logical.feather}
+                      onBlur={(event) => onUpdateRoutingLayout(layout.id, {
+                        logical: patchLogicalRouting(layout.logical!, 'soft-split', { feather: Math.max(0, Math.min(1, Number(event.currentTarget.value) || 0)) }),
+                      })}
+                      className={`${field} mt-1 w-full`}
+                    />
+                  </label>
+                </div>
+              )}
               {layout.logical ? (
                 <p className="mt-2 rounded border border-sky-900/40 bg-sky-950/10 px-2 py-1.5 text-[10px] leading-4 text-zinc-500">
                   {logicalRoutingDescription(layout, show)}
