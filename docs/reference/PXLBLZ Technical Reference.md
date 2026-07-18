@@ -1450,9 +1450,14 @@ the reference preview count is absent from routing ownership.
 Each member has private elapsed time and adaptation state. A semantic Pattern
 instance emits one alpha-renamed member even when several Zone placements use
 it. The scheduler advances that member once per frame. Separate clocks or
-resumable private state remain separate members and may carry separate source
-bodies; the compiler does not attempt speculative lifetime-slot reuse or
-source-body deduplication.
+resumable private state remain separate logical members. For compatible Restart
+members whose active lifetimes never overlap, the compiler may assign several
+logical members to one physical Pattern machine. The shared machine keeps one
+alpha-renamed source body plus compiler-owned state banks; Scene entry restores
+the selected logical member before its initializer and clock begin. Overlapping
+or incompatible lifetimes remain separate machines. Production selects this
+representation only when the complete generated source is smaller, and it does
+not merge authored identity, clocks, Controls, or resumable state.
 
 The outer scheduler selects every Zone placement for the active top-level Scene,
 applies boundary-owned property, control, and Effect ramps, advances the unique
@@ -1615,6 +1620,32 @@ resource census. `npm run issue542:hardware` performs reversible Controller
 activation and FPS probes and restores both the original program and pixel
 count. Complete evidence is archived in
 `docs/plans/archive/issue-542-table-driven-show-score-results.md`.
+
+### Lifetime-colored Restart Pattern machines
+
+The compiler builds an exact lifetime-interference graph for Restart Pattern
+members in compatible routed Scene sequences. Graph coloring assigns
+non-overlapping logical members to reusable physical machines. Each machine
+emits one Pattern body and owns state-bank slots for the private values that must
+be restored when its logical owner changes. The owner switch runs once at Scene
+entry, before the incoming initializer and `beforeRender`; it adds no
+steady-state per-pixel or per-frame rendering work.
+
+Continue relationships, simultaneously active members, unsupported initialization
+shapes, and any lifetime overlap create interference and therefore retain
+separate machines. The compiler's automatic policy compares the complete
+selected and baseline artifacts and keeps sharing only when it reduces delivered
+source. The compile summary reports logical members, physical machines,
+reclaimed machines, state-bank words, and zero added steady-state render
+operations as independent quantities.
+
+The Property Animation reference colors 17 logical Restart members into 8
+physical machines. Generated source falls from 86,257 to 66,800 bytes (-22.56%)
+and Controller bytecode from 49,426 to 40,518 bytes (-18.02%) at a cost of 228
+state-bank words. Median pb32 firmware 3.67 throughput is unchanged at 1,000 and
+2,000 pixels, and Fast/Precise replay remains exact. The 205 Installation
+reference colors 12 members into 10 machines, reducing source by 8.77% and
+Controller bytecode by 8.27% with 216 state-bank words.
 
 ### Shared generated Effect kernels
 
@@ -2599,6 +2630,15 @@ starts a throwaway id without touching saved bindings. Save writes a PBP preview
 starts the same stable id, records the per-Controller binding, and overwrites it
 on later saves. Both modes update the Controller panel's local program label;
 Save also refreshes its saved-program inventory.
+
+Large generated Shows expose a predecessor-dependent Controller replacement
+limit that ordinary small Patterns rarely reach. On the qualified pb32 firmware
+3.67 device, either large artifact boots and runs correctly from a small
+predecessor, while a direct large-to-large replacement may reset or wedge the
+WebSocket before activation. A tiny intermediary Pattern makes the same pair
+reliable, supporting a transient replacement-memory peak rather than a runtime
+failure. The current production send path does not yet insert that intermediary;
+issue #547 owns the guarded drain-before-replacement policy.
 
 `showControllerArtifact.ts` is the only device-derivation seam. It compares the
 Show's generated renderer capabilities with the connected Controller's installed

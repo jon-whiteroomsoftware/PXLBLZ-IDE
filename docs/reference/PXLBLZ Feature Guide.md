@@ -1151,6 +1151,15 @@ structures remain on the exact unrolled representation. The first qualified
 Wipe, Shape, and Easing references reduce source by 75.3-86.6% and Controller
 bytecode by 66.6-78.9%; measured runtime is neutral.
 
+Compatible Restart-heavy Shows may also disclose **Pattern machines**. The bar
+distinguishes authored logical Pattern members from the physical machines emitted
+into the artifact, for example `17 logical -> 8 physical`. Several Restart
+members may reuse one machine only when their active lifetimes cannot overlap;
+compiler-owned state banks restore the selected member at Scene entry. The
+readout reports reclaimed machines and bank words separately. This reduces source
+and Controller bytecode without merging clocks or Controls and without adding
+steady-state rendering work.
+
 The compile bar also reports the whole-Show Pixelblaze memory ledger. Its VM
 total includes member Pattern arrays, generated routing and plan tables,
 auxiliary caches, and one reserved three-plane RGB arena. At the 2,000-pixel
@@ -1263,6 +1272,13 @@ Controller-bound program on later saves of the Show. Neither action creates a
 personal Pattern or requires an EPE round trip. If the installed Controller map
 requires an exact-arity renderer adapter, PXLBLZ explains and confirms that
 device derivative before sending it.
+
+Very large generated Shows can encounter a Controller hot-replacement limit that
+small hand-written Patterns do not: replacing one large resident program directly
+with another may disconnect before activation even though either program runs
+correctly by itself. Rebooting or first running a small Pattern clears the
+condition. This is a delivery limitation, not evidence that the destination Show
+cannot execute once loaded.
 
 The generated header names the Show output contract. Installation records its
 fixed count and map identity plus a fingerprint when PXLBLZ can bake or recognize
