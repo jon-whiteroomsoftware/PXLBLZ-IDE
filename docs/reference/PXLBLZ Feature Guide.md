@@ -1101,6 +1101,13 @@ alternate uses of one arena, not four allocations. A snapshot/live diagnostic
 also distinguishes its two-path capture frame from the later one-live-path
 frames. Merely reserving an unassigned arena adds no render-loop work.
 
+When a buffering policy is present, the compile bar also reports the cache
+plan: selected and rejected candidate counts, peak plane use, estimated work
+avoided, each selected role's physical planes and lifetime, and its invalidation
+boundary. A rejected candidate names its reason and retains the corresponding
+uncached behavior. These work estimates compare compiler structures; Controller
+FPS measurements remain the performance authority.
+
 The same bar enforces the output support envelope. An Installation above 2,000
 pixels, a Portable Show targeting a Controller above 2,000 pixels, an array whose
 maximum size cannot be proven, or any exhausted resource axis blocks generated

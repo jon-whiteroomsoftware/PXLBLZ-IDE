@@ -82,6 +82,11 @@ import {
   type ShowRenderTargetPlan,
 } from './showRenderTargetArena'
 import {
+  planShowRenderTargetCaches,
+  type ShowRenderTargetCachePlan,
+  type ShowRenderTargetCandidate,
+} from './showRenderTargetPlanner'
+import {
   planPhysicalRoutingShortCircuit,
   type PhysicalRoutingShortCircuitPlan,
 } from './showPhysicalRoutingSpecialization'
@@ -434,6 +439,7 @@ export interface ShowCompileSummary {
     maxFracCallsPerPixel: 2
   } | null
   renderTarget: ShowRenderTargetArenaSummary
+  renderTargetPlan: ShowRenderTargetCachePlan
   specializations: {
     routing: Omit<PhysicalRoutingShortCircuitPlan, 'ranges'> | null
     capture: Array<{
@@ -556,6 +562,69 @@ export interface ShowCompileOptions {
   renderTargetArenaEmission?: boolean
   /** `none` preserves the unrolled #515 boundary; `exact` forces the #525 exact candidate. */
   motionTransitionSharing?: 'auto' | 'none' | 'structure' | 'exact'
+}
+
+const DIRECT_SNAPSHOT_CANDIDATE_ID = 'transition:direct:snapshot-live'
+
+function sequenceSnapshotCandidateId(kind: 'sequence' | 'routed', sceneIndex: number): string {
+  return `transition:${kind}:${sceneIndex}:snapshot-live`
+}
+
+function buildShowRenderTargetCandidates(
+  recipe: ShowRecipe,
+  pixelCount: number,
+): ShowRenderTargetCandidate[] {
+  const candidates: ShowRenderTargetCandidate[] = []
+  const addSnapshot = (id: string, start: number, duration: number, key: string) => {
+    candidates.push({
+      id,
+      kind: 'rgb-snapshot',
+      lifetime: { kind: 'transition', start, end: start + duration, key },
+      invalidatedBy: ['transition-exit', 'show-loop'],
+      exactness: 'authored-snapshot',
+      authorSelected: true,
+      required: true,
+      setupCost: pixelCount,
+      perFrameSavings: pixelCount,
+      expectedReuseCount: Math.max(1, Math.ceil(duration / (1_000 / 30)) - 1),
+    })
+  }
+  if (recipe.crossfade?.crossfadePolicy === 'snapshot-live') {
+    addSnapshot(DIRECT_SNAPSHOT_CANDIDATE_ID, recipe.crossfade.startMs, recipe.crossfade.durationMs, 'direct')
+  }
+  const addSequence = (
+    kind: 'sequence' | 'routed',
+    scenes: Array<{
+      holdMs: number
+      transitionOut?: ShowSceneSequenceTransitionRecipe
+    }>,
+    eligible: (sceneIndex: number) => boolean,
+  ) => {
+    let cursor = 0
+    scenes.forEach((scene, sceneIndex) => {
+      cursor += scene.holdMs
+      const transition = scene.transitionOut
+      if (transition?.kind === 'crossfade' && transition.crossfadePolicy === 'snapshot-live' && eligible(sceneIndex)) {
+        addSnapshot(
+          sequenceSnapshotCandidateId(kind, sceneIndex),
+          cursor,
+          transition.durationMs,
+          `${kind}-${sceneIndex}`,
+        )
+      }
+      if (transition && transition.kind !== 'cut') cursor += transition.durationMs
+    })
+  }
+  if (recipe.sceneSequence) {
+    addSequence('sequence', recipe.sceneSequence.scenes, (sceneIndex) => (
+      recipe.sceneSequence!.scenes[sceneIndex].clipId
+      !== recipe.sceneSequence!.scenes[sceneIndex + 1]?.clipId
+    ))
+  }
+  if (recipe.routedSceneSequence) {
+    addSequence('routed', recipe.routedSceneSequence.scenes, () => true)
+  }
+  return candidates
 }
 
 interface ResolvedRoute {
@@ -767,19 +836,24 @@ export function compileShow(
       }
     : null
   const renderTargetPixelCount = expandedRecipe.masterPixelCount ?? SHOW_MAX_OUTPUT_PIXELS
-  const directSnapshotCrossfade = renderTargetArenaEmission
-    && expandedRecipe.crossfade?.crossfadePolicy === 'snapshot-live'
-  const sequenceSnapshotCrossfade = renderTargetArenaEmission
-    && Boolean(expandedRecipe.sceneSequence?.scenes.some((scene, sceneIndex, scenes) => (
-      scene.transitionOut?.kind === 'crossfade'
-      && scene.transitionOut.crossfadePolicy === 'snapshot-live'
-      && scene.clipId !== scenes[sceneIndex + 1]?.clipId
-    )))
-  const routedSnapshotCrossfade = renderTargetArenaEmission
-    && Boolean(expandedRecipe.routedSceneSequence?.scenes.some((scene) => (
-      scene.transitionOut?.kind === 'crossfade'
-      && scene.transitionOut.crossfadePolicy === 'snapshot-live'
-    )))
+  const renderTargetArena = describeShowRenderTargetArena(
+    renderTargetPixelCount,
+    renderTargetArenaEmission,
+  )
+  const renderTargetCandidates = buildShowRenderTargetCandidates(expandedRecipe, renderTargetPixelCount)
+  const preliminaryRenderTargetPlan = planShowRenderTargetCaches(renderTargetCandidates, {
+    arena: renderTargetArena,
+  })
+  const selectedRenderTargetCandidates = new Set(
+    preliminaryRenderTargetPlan.assignments.map((assignment) => assignment.candidateId),
+  )
+  const directSnapshotCrossfade = selectedRenderTargetCandidates.has(DIRECT_SNAPSHOT_CANDIDATE_ID)
+  const sequenceSnapshotCrossfade = preliminaryRenderTargetPlan.assignments.some((assignment) => (
+    assignment.candidateId.startsWith('transition:sequence:')
+  ))
+  const routedSnapshotCrossfade = preliminaryRenderTargetPlan.assignments.some((assignment) => (
+    assignment.candidateId.startsWith('transition:routed:')
+  ))
   const routedSceneEmission = expandedRecipe.routedSceneSequence
       ? emitRoutedSceneSequenceShowCode(
         members,
@@ -790,7 +864,7 @@ export function compileShow(
         expandedRecipe.routingPropertyRamps,
         expandedRecipe.masterPixelCount,
         renderTargetPixelCount,
-        renderTargetArenaEmission,
+        selectedRenderTargetCandidates,
         renderKernelSpecialization,
         motionTransitionSharing,
       )
@@ -803,7 +877,7 @@ export function compileShow(
         expandedRecipe.sceneSequence,
         sequenceOutputDimension,
         renderTargetPixelCount,
-        renderTargetArenaEmission,
+        selectedRenderTargetCandidates,
       )
     : routingLayouts
     ? emitRoutingLayoutShowCode(
@@ -840,7 +914,7 @@ export function compileShow(
               expandedRecipe.crossfade,
               memberOutputDimension,
               renderTargetPixelCount,
-              renderTargetArenaEmission,
+              directSnapshotCrossfade,
             )
           : emitSingleClipShowCode(members[0], memberOutputDimension)
   const emittedWithEasingRuntime = emittedCode.includes('__pxlblz_show_cubicBezier(')
@@ -877,6 +951,10 @@ export function compileShow(
     persistentGlobals: countShowPersistentGlobals(code),
     artifactBytes,
   })
+  const renderTargetPlan = planShowRenderTargetCaches(renderTargetCandidates, {
+    arena: renderTargetArena,
+    resources,
+  })
   const transitionCost = expandedRecipe.sceneSequence || expandedRecipe.routedSceneSequence
     ? sequenceHasCrossfade || motionBlend
       ? 'renderer-window'
@@ -899,10 +977,19 @@ export function compileShow(
   const warnings = expandedRecipe.routedSceneSequence
     ? []
     : routingLayouts?.flatMap((layout) => layout.warnings) ?? route?.warnings ?? []
-  if (expandedRecipe.crossfade?.crossfadePolicy === 'snapshot-live' && !renderTargetArenaEmission) {
-    warnings.push(
-      'Snapshot/live crossfade fell back to live/live because the Show render-target arena is unavailable.',
-    )
+  const renderTargetCandidateById = new Map(renderTargetCandidates.map((candidate) => [candidate.id, candidate]))
+  for (const decision of renderTargetPlan.decisions) {
+    const candidate = renderTargetCandidateById.get(decision.candidateId)
+    if (decision.status !== 'rejected' || !candidate?.required) continue
+    if (decision.candidateId === DIRECT_SNAPSHOT_CANDIDATE_ID && decision.reason === 'arena-unavailable') {
+      warnings.push(
+        'Snapshot/live crossfade fell back to live/live because the Show render-target arena is unavailable.',
+      )
+    } else {
+      warnings.push(
+        `Snapshot/live cache ${decision.candidateId} fell back to live/live (${decision.reason}): ${decision.detail}`,
+      )
+    }
   }
   const cost = buildShowCompiledCostMetadata({
     transitionCost,
@@ -1080,6 +1167,7 @@ export function compileShow(
       renderTargetArenaEmission,
       directSnapshotCrossfade || sequenceSnapshotCrossfade || routedSnapshotCrossfade ? 'stage-rgb' : null,
     ),
+    renderTargetPlan,
     specializations: {
       routing: routingSpecialization,
       capture: captureSpecializations,
@@ -1532,11 +1620,10 @@ function emitShowCode(
   crossfade: ShowCrossfadeRecipe,
   outputDimension: ShowOutputDimension,
   renderTargetPixelCount: number,
-  renderTargetArenaEmission: boolean,
+  snapshotLive: boolean,
 ): string {
   const transitionEnd = crossfade.startMs + crossfade.durationMs
   const members = [from, to]
-  const snapshotLive = crossfade.crossfadePolicy === 'snapshot-live' && renderTargetArenaEmission
   const renderTarget = planShowRenderTargetArena(renderTargetPixelCount, 'stage-rgb')
   return [
     emitRuntimePrelude(members, outputDimension),
@@ -1886,7 +1973,7 @@ function emitSceneSequenceShowCode(
   sequence: ShowSceneSequenceRecipe,
   outputDimension: 1 | 2,
   renderTargetPixelCount: number,
-  renderTargetArenaEmission: boolean,
+  selectedRenderTargetCandidates: ReadonlySet<string>,
 ): string {
   const memberById = new Map(members.map((member) => [member.id, member]))
   const scenes = sequence.scenes.map((scene) => ({ ...scene, member: memberById.get(scene.clipId)! }))
@@ -1923,7 +2010,7 @@ function emitSceneSequenceShowCode(
     && segment.transition?.kind === 'crossfade'
     && segment.transition.crossfadePolicy === 'snapshot-live'
     && segment.from !== segment.to
-    && renderTargetArenaEmission
+    && selectedRenderTargetCandidates.has(sequenceSnapshotCandidateId('sequence', segment.sceneIndex))
   ))
   const usesSnapshot = snapshotSegments.length > 0
   const renderTarget = planShowRenderTargetArena(renderTargetPixelCount, 'stage-rgb')
@@ -1947,6 +2034,7 @@ function emitSceneSequenceShowCode(
       && segment.transition?.kind === 'crossfade'
       && segment.transition.crossfadePolicy === 'snapshot-live'
       && segment.from !== to
+      && selectedRenderTargetCandidates.has(sequenceSnapshotCandidateId('sequence', segment.sceneIndex))
       ? `
     if (__pxlblz_show_snapshot_transition != ${segment.sceneIndex}) {
       __pxlblz_show_snapshot_transition = ${segment.sceneIndex}
@@ -1973,7 +2061,7 @@ ${indentBlock(
   segment.transition?.kind === 'crossfade'
     && segment.transition.crossfadePolicy === 'snapshot-live'
     && segment.from !== segment.to
-    && renderTargetArenaEmission
+    && selectedRenderTargetCandidates.has(sequenceSnapshotCandidateId('sequence', segment.sceneIndex))
     ? emitSnapshotLiveCrossfadeBlock(
         segment.from,
         segment.to!,
@@ -2025,7 +2113,7 @@ function emitRoutedSceneSequenceShowCode(
   propertyRamps?: ShowRoutingPropertyRampsRecipe,
   outputPixelCount?: number,
   renderTargetPixelCount = SHOW_MAX_OUTPUT_PIXELS,
-  renderTargetArenaEmission = true,
+  selectedRenderTargetCandidates: ReadonlySet<string> = new Set(),
   renderKernelSpecialization = false,
   motionTransitionSharing: 'auto' | 'none' | 'structure' | 'exact' = 'auto',
 ): {
@@ -2074,7 +2162,7 @@ function emitRoutedSceneSequenceShowCode(
     segment.kind === 'transition'
     && segment.transition?.kind === 'crossfade'
     && segment.transition.crossfadePolicy === 'snapshot-live'
-    && renderTargetArenaEmission
+    && selectedRenderTargetCandidates.has(sequenceSnapshotCandidateId('routed', segment.sceneIndex))
   ))
   const usesSnapshot = snapshotSegments.length > 0
   const renderTarget = planShowRenderTargetArena(renderTargetPixelCount, 'stage-rgb')
@@ -2358,6 +2446,7 @@ ${setupGroups}`
     const snapshotEntry = usesSnapshot
       && segment.transition?.kind === 'crossfade'
       && segment.transition.crossfadePolicy === 'snapshot-live'
+      && selectedRenderTargetCandidates.has(sequenceSnapshotCandidateId('routed', segment.sceneIndex))
       ? `
     if (__pxlblz_show_snapshot_transition != ${segment.sceneIndex}) {
       __pxlblz_show_snapshot_transition = ${segment.sceneIndex}
@@ -2447,7 +2536,7 @@ ${indentBlock(emitRoutedSceneTransition(
     segment.sceneIndex + 1,
     segment.transition?.kind === 'crossfade'
       && segment.transition.crossfadePolicy === 'snapshot-live'
-      && renderTargetArenaEmission
+      && selectedRenderTargetCandidates.has(sequenceSnapshotCandidateId('routed', segment.sceneIndex))
       ? renderTarget
       : undefined,
   ), 4)}

@@ -62,6 +62,82 @@ describe('Show compiler resource ledger integration (#514)', () => {
     expect(snapshot.summary.renderTarget.activeRole).toBe('stage-rgb')
   })
 
+  it('publishes the selected cache lifetime, invalidation, savings, and fixed-arena accounting (#517)', () => {
+    const artifact = compileShow({
+      masterPixelCount: 2_000,
+      clips: [
+        { id: 'outgoing', source: 'export function render(index) { rgb(1, 0, 0) }' },
+        { id: 'incoming', source: 'export function render(index) { rgb(0, 0, 1) }' },
+      ],
+      crossfade: { startMs: 1_000, durationMs: 1_000, crossfadePolicy: 'snapshot-live' },
+    }, {})
+
+    expect(artifact.summary.renderTargetPlan.assignments).toEqual([
+      expect.objectContaining({
+        candidateId: 'transition:direct:snapshot-live',
+        role: 'stage-rgb',
+        planes: [0, 1, 2],
+        lifetime: { kind: 'transition', start: 1_000, end: 2_000, key: 'direct' },
+        invalidatedBy: ['transition-exit', 'show-loop'],
+        exactness: 'authored-snapshot',
+      }),
+    ])
+    expect(artifact.summary.renderTargetPlan.decisions).toContainEqual(expect.objectContaining({
+      candidateId: 'transition:direct:snapshot-live',
+      status: 'selected',
+      reason: 'selected',
+    }))
+    expect(artifact.summary.renderTargetPlan.resources).toEqual(expect.objectContaining({
+      arenaWords: 6_012,
+      additionalArrayWords: 0,
+      totalVmWords: artifact.summary.resources.totalWords,
+    }))
+  })
+
+  it('plans temporal plane reuse across non-overlapping Scene transitions (#517)', () => {
+    const artifact = compileShow({
+      masterPixelCount: 2_000,
+      clips: [
+        { id: 'a', source: 'export function render(index) { rgb(1, 0, 0) }' },
+        { id: 'b', source: 'export function render(index) { rgb(0, 1, 0) }' },
+        { id: 'c', source: 'export function render(index) { rgb(0, 0, 1) }' },
+      ],
+      sceneSequence: {
+        scenes: [
+          {
+            clipId: 'a',
+            holdMs: 100,
+            transitionOut: { kind: 'crossfade', durationMs: 500, crossfadePolicy: 'snapshot-live' },
+          },
+          {
+            clipId: 'b',
+            holdMs: 100,
+            transitionOut: { kind: 'crossfade', durationMs: 500, crossfadePolicy: 'snapshot-live' },
+          },
+          { clipId: 'c', holdMs: 100 },
+        ],
+      },
+    }, {})
+
+    expect(artifact.summary.renderTargetPlan.assignments.map((assignment) => ({
+      candidateId: assignment.candidateId,
+      planes: assignment.planes,
+      lifetime: assignment.lifetime,
+    }))).toEqual([
+      {
+        candidateId: 'transition:sequence:0:snapshot-live',
+        planes: [0, 1, 2],
+        lifetime: { kind: 'transition', start: 100, end: 600, key: 'sequence-0' },
+      },
+      {
+        candidateId: 'transition:sequence:1:snapshot-live',
+        planes: [0, 1, 2],
+        lifetime: { kind: 'transition', start: 700, end: 1_200, key: 'sequence-1' },
+      },
+    ])
+    expect(artifact.summary.renderTargetPlan.peakPlaneCount).toBe(3)
+  })
+
   it('publishes the mandatory arena and complete member allocation in the compile summary', () => {
     const artifact = compileShow({
       masterPixelCount: 2_000,

@@ -1958,6 +1958,11 @@ export function render(index) { renders = renders + 1; rgb(0, 0, 1) }
       __pxlblz_show_c1_renders: 8,
     })
     expect(artifact.summary.renderTarget.activeRole).toBeNull()
+    expect(artifact.summary.renderTargetPlan.decisions).toContainEqual(expect.objectContaining({
+      candidateId: 'transition:direct:snapshot-live',
+      status: 'rejected',
+      reason: 'arena-unavailable',
+    }))
     expect(artifact.summary.warnings).toContain(
       'Snapshot/live crossfade fell back to live/live because the Show render-target arena is unavailable.',
     )

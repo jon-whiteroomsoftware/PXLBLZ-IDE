@@ -518,7 +518,7 @@ The work should land as tracer-bullet slices rather than one compiler rewrite.
 6. Add explicit snapshot/live crossfade end to end while preserving legacy
    live/live behavior.
 7. Introduce render-target roles, lifetimes, invalidation, and plane assignment
-   as a pure cache planner.
+   as a pure cache planner. **Shipped in #517.**
 8. Reuse compatible Pattern output across multiple consumers and placements.
 9. Add Scene-lifetime coordinate and scalar-field caching with measured
    selection rules.
@@ -543,9 +543,10 @@ the prior measured result without claiming a new hardware benchmark.
 04 #515 physical three-plane arena · 6,012 words allocated; paired 2,000 px median 3.127 -> 3.127 FPS · incremental 0.0% measured · cumulative reference 2.358 -> 3.037 FPS, +28.8% retained
 05 #525 shared Motion transition kernels · source 108,033 -> 67,552 B (-37.5%); bytecode 59,202 -> 37,722 B (-36.3%); paired 2,000 px median 0.665 -> 0.665 FPS · incremental 0.0% measured · cumulative Redline reference 2.358 -> 3.037 FPS, +28.8% retained
 06 #516 snapshot/live crossfade · paired Redline Machine 2,000 px median 1.810 -> 3.197 FPS · incremental +76.7% (mean +66.2%) · intentional frozen-outgoing visual policy; arena 6,012 words unchanged, +1 persistent global · cumulative exact Redline reference 2.358 -> 3.037 FPS, +28.8% retained
+07 #517 lifetime-aware cache planner · paired Redline source unchanged at live/live 15,421 B and snapshot/live 15,627 B; arena 6,012 words and generated render loops unchanged · incremental 0.0% expected, compile-time planner not hardware remeasured · cumulative exact Redline reference 2.358 -> 3.037 FPS, +28.8% retained; snapshot/live median 3.197 FPS retained
 ```
 
-Later slices append `07` through `10` here and repeat the new line in the #511
+Later slices append `08` through `10` here and repeat the new line in the #511
 coordination update. If a slice intentionally changes the visual contract, its
 line names that contract and does not compare it as an exact replacement.
 
@@ -639,10 +640,10 @@ confirmed before their implementation issues become AFK-ready:
 
 Implementation updates current truth only as slices ship:
 
-- `CONTEXT.md`: defines the shipped output ceiling, render target, and
-  snapshot/live Crossfade; add planner terms only when later slices ship.
+- `CONTEXT.md`: defines the shipped output ceiling, render target, render-target
+  plan, and snapshot/live Crossfade; add reuse and field terms as later slices ship.
 - `docs/reference/PXLBLZ Technical Reference.md`: documents the shipped resource
-  ledger, arena emission, and Crossfade policies; planner internals remain future.
+  ledger, arena emission, planner, and Crossfade policies; reuse emitters remain future.
 - `docs/reference/PXLBLZ Feature Guide.md`: explains the shipped output limit,
   Crossfade choices, compile-cost disclosure, and blocked-artifact remedies.
 - archived hardware reports: retain raw Controller evidence and restoration

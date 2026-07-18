@@ -1609,6 +1609,46 @@ benchmarks; eligibility still accounts for the mandatory reservation. If that
 test-only option removes the physical arena from a snapshot/live compile, the
 compiler retains exact live/live behavior and emits a compatibility warning.
 
+### Lifetime-aware render-target planning
+
+`showRenderTargetPlanner.ts` separates cache selection from source emission.
+Producers submit candidates for RGB snapshots, sample XY, scalar fields, or
+shared Pattern RGB. Each candidate carries a half-open timeline lifetime, one
+of Show, Scene, Transition, frame, placement epoch, or property epoch; the event
+that invalidates it; exact or explicitly authored approximate semantics; setup,
+replay, invalidation, and expected-reuse work; and any semantic conflicts.
+
+The current policy is deterministic and deliberately conservative. Required
+authored semantics are scheduled first. Exact optional candidates precede
+approximate optional candidates, estimated saved work orders candidates within
+those classes, smaller plane requirements break equal-benefit ties, and stable
+candidate ids are the final tie-breaker. Optional candidates with no positive
+estimated saving are declined. Approximate candidates are ineligible until the
+author selects their policy.
+
+For every accepted candidate, the planner chooses the lowest available physical
+plane numbers. Overlapping lifetimes may partition the arena—for example,
+sample XY on planes `0/1` and a scalar field on plane `2`. Non-overlapping
+lifetimes reuse the same numbers, including two successive three-plane
+Transition snapshots. Explicit semantic conflicts or insufficient overlapping
+capacity reject the lower-ranked candidate with the winning candidate ids in
+the explanation.
+
+The compile summary publishes assignments, rejected decisions, estimated work,
+peak plane use, invalidation boundaries, and a projection of the complete VM
+ledger. `additionalArrayWords` is always zero: role plans bind channels to the
+three arrays reserved by the arena, and emitters receive selected candidate ids
+instead of independently choosing to materialize. A required snapshot candidate
+that cannot use the physical arena falls back to live/live with a warning.
+
+Snapshot/live Crossfade supplies the first production candidates. Direct,
+ordinary Scene-sequence, and routed boundaries all submit Transition lifetimes;
+the planner's selected ids control snapshot setup and replay emission. The #516
+Redline harness retains exactly 15,421 live/live and 15,627 snapshot/live source
+bytes after planner integration, so #517 adds compile-time structure and
+diagnostics without changing the generated render loop or claiming a runtime
+gain.
+
 The Acorn-backed member census counts array literals, `array(pixelCount)`,
 numeric expressions, supported `floor`/`ceil`/`round`/`min`/`max` expressions,
 and top-level scalar constants used by later allocations. A size that cannot be

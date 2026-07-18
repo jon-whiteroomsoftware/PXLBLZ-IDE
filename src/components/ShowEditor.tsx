@@ -5367,6 +5367,13 @@ function CompileBar({
   const renderTargetBindings = summary?.renderTarget.roleBindings
     .map((binding) => `${renderTargetRoleLabels[binding.role]} ${Object.values(binding.channels).join('/')}`)
     .join(' · ')
+  const rejectedRenderTargetCandidates = summary?.renderTargetPlan.decisions
+    .filter((decision) => decision.status === 'rejected') ?? []
+  const renderTargetAssignmentLabels = summary?.renderTargetPlan.assignments.map((assignment) => (
+    `${assignment.role} planes ${assignment.planes.join('/')}`
+    + ` · ${assignment.lifetime.kind}`
+    + ` · invalidates ${assignment.invalidatedBy.join('/')}`
+  )) ?? []
   return (
     <div data-testid="show-compile-bar" className="min-h-8 shrink-0 overflow-x-auto border-t border-seam bg-zinc-950 px-3 font-mono text-[10px] text-zinc-500">
       <div className="flex min-h-8 min-w-max items-center gap-2 whitespace-nowrap">
@@ -5392,6 +5399,22 @@ function CompileBar({
           {' · '}{renderTargetBindings}
         </span>
       )}
+      {summary?.renderTargetPlan && summary.renderTargetPlan.decisions.length > 0 && (
+        <span className="text-violet-200">
+          cache plan: {summary.renderTargetPlan.assignments.length} selected
+          {' · '}{rejectedRenderTargetCandidates.length} rejected
+          {' · '}peak {summary.renderTargetPlan.peakPlaneCount}/{summary.renderTargetPlan.planeCount} planes
+          {' · '}est. {summary.renderTargetPlan.totalEstimatedSavedWork.toLocaleString('en-US')} work avoided
+        </span>
+      )}
+      {renderTargetAssignmentLabels.map((label) => (
+        <span key={label} className="text-violet-200">{label}</span>
+      ))}
+      {rejectedRenderTargetCandidates.map((decision) => (
+        <span key={decision.candidateId} className="text-amber-300">
+          cache rejected: {decision.candidateId} · {decision.reason} · {decision.detail}
+        </span>
+      ))}
       {summary?.renderPolicy === 'snapshot-outgoing-transition-live-incoming' && (
         <span className="text-emerald-300">
           crossfade: snapshot outgoing · capture frame 2 render paths/px · then 1 live render path/px

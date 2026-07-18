@@ -24,7 +24,7 @@ export interface ShowRenderTargetPlan<R extends ShowRenderTargetRole = ShowRende
   planes: typeof SHOW_RENDER_TARGET_PLANE_NAMES
   binding: {
     role: R
-    channels: (typeof SHOW_RENDER_TARGET_ROLE_CHANNELS)[R]
+    channels: Record<ShowRenderTargetChannel<R>, 0 | 1 | 2>
   }
 }
 
@@ -62,8 +62,19 @@ export function describeShowRenderTargetArena(
 export function planShowRenderTargetArena<R extends ShowRenderTargetRole>(
   pixelCount: number,
   activeRole: R,
+  selectedPlanes?: readonly (0 | 1 | 2)[],
 ): ShowRenderTargetPlan<R> {
   const elementCount = normalizeElementCount(pixelCount)
+  const defaultChannels = SHOW_RENDER_TARGET_ROLE_CHANNELS[activeRole] as Record<string, 0 | 1 | 2>
+  const channelNames = Object.keys(defaultChannels)
+  const planes = selectedPlanes ?? Object.values(defaultChannels)
+  if (planes.length !== channelNames.length || new Set(planes).size !== planes.length) {
+    throw new Error(`Render-target role ${activeRole} requires ${channelNames.length} distinct planes.`)
+  }
+  const channels = Object.fromEntries(channelNames.map((channel, index) => [channel, planes[index]])) as Record<
+    ShowRenderTargetChannel<R>,
+    0 | 1 | 2
+  >
   return {
     elementCount,
     planeCount: SHOW_RENDER_TARGET_PLANE_NAMES.length,
@@ -72,7 +83,7 @@ export function planShowRenderTargetArena<R extends ShowRenderTargetRole>(
     planes: SHOW_RENDER_TARGET_PLANE_NAMES,
     binding: {
       role: activeRole,
-      channels: SHOW_RENDER_TARGET_ROLE_CHANNELS[activeRole],
+      channels,
     },
   }
 }

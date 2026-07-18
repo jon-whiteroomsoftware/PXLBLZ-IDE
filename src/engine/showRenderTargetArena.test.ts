@@ -47,6 +47,14 @@ describe('Show render-target arena (#515)', () => {
     expect(emitShowRenderTargetRead(previous, 'g', 'index')).toBe('__pxlblz_show_rt_plane_1[index]')
   })
 
+  it('binds a role to the physical planes selected by the lifetime planner (#517)', () => {
+    const scalar = planShowRenderTargetArena(64, 'scalar-field', [2])
+
+    expect(emitShowRenderTargetWrite(scalar, 'value', 'index', 'mask')).toBe(
+      '__pxlblz_show_rt_plane_2[index] = mask',
+    )
+  })
+
   it('executes generated role operations in the Pattern runtime', () => {
     const plan = planShowRenderTargetArena(2, 'stage-rgb')
     const source = `
