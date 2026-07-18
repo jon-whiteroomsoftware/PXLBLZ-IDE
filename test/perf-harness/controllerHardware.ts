@@ -92,6 +92,8 @@ export async function pushAndMeasureControllerArtifact(
 
 export interface ControllerMeasurementOptions {
   activationTimeoutMs?: number
+  /** Optional delay after activation so an earlier Pattern's last FPS packet cannot enter the sample window. */
+  settleMs?: number
   sampleMs?: number
 }
 
@@ -115,6 +117,7 @@ export async function pushAndMeasureControllerSource(
     if (activeProgramId === programId) break
   }
   if (activeProgramId !== programId) throw new Error(`probe ${programId} did not activate within ${activationTimeoutMs}ms`)
+  if ((options.settleMs ?? 0) > 0) await sleep(options.settleMs!)
   const values: number[] = []
   const end = Date.now() + (options.sampleMs ?? 6_000)
   while (Date.now() < end) {

@@ -68,7 +68,7 @@ function repeatedPlacements(clipId: string): ShowRoutedScenePlacementRecipe[] {
   }))
 }
 
-function acceptanceRecipe(
+export function acceptanceRecipe(
   crossfadePolicy: 'live-live' | 'snapshot-live',
   firstHoldMs = 1_000,
 ): ShowRecipe {

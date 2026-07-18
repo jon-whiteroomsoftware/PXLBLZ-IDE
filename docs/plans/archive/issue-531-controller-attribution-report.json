@@ -1,0 +1,660 @@
+{
+  "generatedAt": "2026-07-18T04:51:33.080Z",
+  "controller": {
+    "ip": "192.168.8.224",
+    "name": "Burner bag",
+    "boardType": "pb32",
+    "firmwareVersion": "3.67",
+    "originalPixelCount": 256,
+    "measuredPixelCount": 2000,
+    "originalActiveProgramId": "pxbg3carHT6eYhdRh",
+    "outputProfile": "Controller-native output; expander/parallel topology is not exposed by getConfig",
+    "sampleMs": 4000,
+    "settleMs": 2000
+  },
+  "fixtures": [
+    {
+      "id": "redline-production",
+      "pixelCount": 2000,
+      "captureElisionReason": "Redline uses capture-dependent Effects, transitions, and multi-member composition.",
+      "artifacts": {
+        "trivialOutput": {
+          "id": "redline-production:trivial-output",
+          "sourceBytes": 55,
+          "expandedSourceBytes": 55,
+          "bytecodeBytes": 63,
+          "vmWords": 0,
+          "persistentGlobals": 0,
+          "fps": {
+            "mean": 16.5692,
+            "median": 16.5692,
+            "min": 16.5692,
+            "max": 16.5692,
+            "samples": 16
+          },
+          "frameMs": {
+            "mean": 60.352944016609136,
+            "median": 60.352944016609136,
+            "min": 60.352944016609136,
+            "max": 60.352944016609136
+          }
+        },
+        "constantMembers": {
+          "id": "redline-production:constant-members",
+          "sourceBytes": 13150,
+          "expandedSourceBytes": 21336,
+          "bytecodeBytes": 7474,
+          "vmWords": 6096,
+          "persistentGlobals": 34,
+          "fps": {
+            "mean": 4.928884874999999,
+            "median": 4.928537,
+            "min": 4.911592,
+            "max": 4.975124,
+            "samples": 16
+          },
+          "frameMs": {
+            "mean": 202.88564763850368,
+            "median": 202.899968083835,
+            "min": 201.00001527600116,
+            "max": 203.59997328768353
+          }
+        },
+        "captureElided": null,
+        "full": {
+          "id": "redline-production:full",
+          "sourceBytes": 19435,
+          "expandedSourceBytes": 30344,
+          "bytecodeBytes": 11810,
+          "vmWords": 6096,
+          "persistentGlobals": 55,
+          "fps": {
+            "mean": 2.97598125,
+            "median": 2.9719815,
+            "min": 2.811621,
+            "max": 3.147128,
+            "samples": 16
+          },
+          "frameMs": {
+            "mean": 336.023622460659,
+            "median": 336.47584953001893,
+            "min": 317.75002478450193,
+            "max": 355.6667132590061
+          }
+        }
+      },
+      "attribution": {
+        "mean": {
+          "outputFloorMs": 60.352944,
+          "routingCompositionMs": null,
+          "captureReplayMs": null,
+          "unresolvedShowOverheadMs": 142.532704,
+          "patternEvaluationMs": 133.137974,
+          "fullFrameMs": 336.023622
+        },
+        "median": {
+          "outputFloorMs": 60.352944,
+          "routingCompositionMs": null,
+          "captureReplayMs": null,
+          "unresolvedShowOverheadMs": 142.547024,
+          "patternEvaluationMs": 133.575882,
+          "fullFrameMs": 336.47585
+        },
+        "pairwiseMedianMs": [
+          {
+            "from": "trivial-output",
+            "to": "constant-members",
+            "deltaMs": 142.547024
+          },
+          {
+            "from": "constant-members",
+            "to": "full",
+            "deltaMs": 133.575882
+          }
+        ]
+      },
+      "optimization": {
+        "issue": 528,
+        "component": "coordinate-capture-replay",
+        "selected": {
+          "id": "redline-production:selected-issue-528",
+          "sourceBytes": 29360,
+          "expandedSourceBytes": 47312,
+          "bytecodeBytes": 16938,
+          "vmWords": 6096,
+          "persistentGlobals": 59,
+          "fps": {
+            "mean": 3.0373205625000006,
+            "median": 2.964427,
+            "min": 2.955665,
+            "max": 3.134796,
+            "samples": 16
+          },
+          "frameMs": {
+            "mean": 329.2375563996794,
+            "median": 337.33331939022275,
+            "min": 319.00002424400185,
+            "max": 338.3333361527778
+          }
+        },
+        "counterfactualArtifact": "full",
+        "meanFrameDeltaMs": -6.786066060979579,
+        "medianFrameDeltaMs": 0.8574698602038211
+      }
+    },
+    {
+      "id": "five-pattern-acceptance",
+      "pixelCount": 2000,
+      "captureElisionReason": "The acceptance Show uses capture-dependent Effects, scalar fields, and authored snapshot/live transitions.",
+      "artifacts": {
+        "trivialOutput": {
+          "id": "redline-production:trivial-output",
+          "sourceBytes": 55,
+          "expandedSourceBytes": 55,
+          "bytecodeBytes": 63,
+          "vmWords": 0,
+          "persistentGlobals": 0,
+          "fps": {
+            "mean": 16.5692,
+            "median": 16.5692,
+            "min": 16.5692,
+            "max": 16.5692,
+            "samples": 16
+          },
+          "frameMs": {
+            "mean": 60.352944016609136,
+            "median": 60.352944016609136,
+            "min": 60.352944016609136,
+            "max": 60.352944016609136
+          }
+        },
+        "constantMembers": {
+          "id": "five-pattern-acceptance:constant-members",
+          "sourceBytes": 43696,
+          "expandedSourceBytes": 80757,
+          "bytecodeBytes": 24498,
+          "vmWords": 6012,
+          "persistentGlobals": 136,
+          "fps": {
+            "mean": 2.462854374999999,
+            "median": 2.442997,
+            "min": 2.441009,
+            "max": 2.772643,
+            "samples": 16
+          },
+          "frameMs": {
+            "mean": 406.0329389146284,
+            "median": 409.33329021689343,
+            "min": 360.66669960755854,
+            "max": 409.6666583367779
+          }
+        },
+        "captureElided": null,
+        "full": {
+          "id": "five-pattern-acceptance:full",
+          "sourceBytes": 51511,
+          "expandedSourceBytes": 90494,
+          "bytecodeBytes": 28926,
+          "vmWords": 6012,
+          "persistentGlobals": 170,
+          "fps": {
+            "mean": 1.6982436250000004,
+            "median": 1.697793,
+            "min": 1.697793,
+            "max": 1.699235,
+            "samples": 16
+          },
+          "frameMs": {
+            "mean": 588.8436648775877,
+            "median": 588.9999546470035,
+            "min": 588.5001191712742,
+            "max": 588.9999546470035
+          }
+        }
+      },
+      "attribution": {
+        "mean": {
+          "outputFloorMs": 60.352944,
+          "routingCompositionMs": null,
+          "captureReplayMs": null,
+          "unresolvedShowOverheadMs": 345.679995,
+          "patternEvaluationMs": 182.810726,
+          "fullFrameMs": 588.843665
+        },
+        "median": {
+          "outputFloorMs": 60.352944,
+          "routingCompositionMs": null,
+          "captureReplayMs": null,
+          "unresolvedShowOverheadMs": 348.980346,
+          "patternEvaluationMs": 179.666665,
+          "fullFrameMs": 588.999955
+        },
+        "pairwiseMedianMs": [
+          {
+            "from": "trivial-output",
+            "to": "constant-members",
+            "deltaMs": 348.980346
+          },
+          {
+            "from": "constant-members",
+            "to": "full",
+            "deltaMs": 179.666665
+          }
+        ]
+      },
+      "optimization": null
+    },
+    {
+      "id": "pattern-output-reuse",
+      "pixelCount": 2000,
+      "captureElisionReason": "Each routed pixel has one render-pure member with no output Effects; only capture and emit wrappers are exchanged.",
+      "artifacts": {
+        "trivialOutput": {
+          "id": "redline-production:trivial-output",
+          "sourceBytes": 55,
+          "expandedSourceBytes": 55,
+          "bytecodeBytes": 63,
+          "vmWords": 0,
+          "persistentGlobals": 0,
+          "fps": {
+            "mean": 16.5692,
+            "median": 16.5692,
+            "min": 16.5692,
+            "max": 16.5692,
+            "samples": 16
+          },
+          "frameMs": {
+            "mean": 60.352944016609136,
+            "median": 60.352944016609136,
+            "min": 60.352944016609136,
+            "max": 60.352944016609136
+          }
+        },
+        "constantMembers": {
+          "id": "pattern-output-reuse:constant-members",
+          "sourceBytes": 2057,
+          "expandedSourceBytes": 3327,
+          "bytecodeBytes": 1432,
+          "vmWords": 6026,
+          "persistentGlobals": 16,
+          "fps": {
+            "mean": 8.496078374999998,
+            "median": 8.498584,
+            "min": 8.490566,
+            "max": 8.498584,
+            "samples": 16
+          },
+          "frameMs": {
+            "mean": 117.70136242416669,
+            "median": 117.6666607048892,
+            "min": 117.6666607048892,
+            "max": 117.77777830123458
+          }
+        },
+        "captureElided": {
+          "id": "pattern-output-reuse:capture-elided",
+          "sourceBytes": 3205,
+          "expandedSourceBytes": 3205,
+          "bytecodeBytes": 1396,
+          "vmWords": 6026,
+          "persistentGlobals": 16,
+          "fps": {
+            "mean": 9.193293,
+            "median": 9.191176,
+            "min": 9.182736,
+            "max": 9.199632,
+            "samples": 16
+          },
+          "frameMs": {
+            "mean": 108.77495147821351,
+            "median": 108.80000557056027,
+            "min": 108.70000017392,
+            "max": 108.90000540144027
+          }
+        },
+        "full": {
+          "id": "pattern-output-reuse:full",
+          "sourceBytes": 2481,
+          "expandedSourceBytes": 3854,
+          "bytecodeBytes": 1848,
+          "vmWords": 6026,
+          "persistentGlobals": 17,
+          "fps": {
+            "mean": 4.626970374999999,
+            "median": 4.541326,
+            "min": 4.541326,
+            "max": 5.226481,
+            "samples": 16
+          },
+          "frameMs": {
+            "mean": 216.1241414907482,
+            "median": 220.20000325896007,
+            "min": 191.33332733822243,
+            "max": 220.20000325896007
+          }
+        }
+      },
+      "attribution": {
+        "mean": {
+          "outputFloorMs": 60.352944,
+          "routingCompositionMs": 48.422007,
+          "captureReplayMs": 8.926411,
+          "unresolvedShowOverheadMs": 0,
+          "patternEvaluationMs": 98.422779,
+          "fullFrameMs": 216.124141
+        },
+        "median": {
+          "outputFloorMs": 60.352944,
+          "routingCompositionMs": 48.447062,
+          "captureReplayMs": 8.866655,
+          "unresolvedShowOverheadMs": 0,
+          "patternEvaluationMs": 102.533342,
+          "fullFrameMs": 220.200003
+        },
+        "pairwiseMedianMs": [
+          {
+            "from": "trivial-output",
+            "to": "capture-elided",
+            "deltaMs": 48.447062
+          },
+          {
+            "from": "capture-elided",
+            "to": "constant-members",
+            "deltaMs": 8.866655
+          },
+          {
+            "from": "constant-members",
+            "to": "full",
+            "deltaMs": 102.533342
+          }
+        ]
+      },
+      "optimization": {
+        "issue": 518,
+        "component": "pattern-evaluation",
+        "selected": {
+          "id": "pattern-output-reuse:selected-issue-518",
+          "sourceBytes": 4594,
+          "expandedSourceBytes": 7901,
+          "bytecodeBytes": 2772,
+          "vmWords": 6012,
+          "persistentGlobals": 15,
+          "fps": {
+            "mean": 8.705641875,
+            "median": 8.704062,
+            "min": 8.704062,
+            "max": 8.712488,
+            "samples": 16
+          },
+          "frameMs": {
+            "mean": 114.86803780335842,
+            "median": 114.88888751022223,
+            "min": 114.7777764514568,
+            "max": 114.88888751022223
+          }
+        },
+        "counterfactualArtifact": "full",
+        "meanFrameDeltaMs": -101.25610368738978,
+        "medianFrameDeltaMs": -105.31111574873783
+      }
+    },
+    {
+      "id": "scalar-field-cache",
+      "pixelCount": 2000,
+      "captureElisionReason": "The dissolve compositor consumes captured members and a scalar field; direct emission is not equivalent.",
+      "artifacts": {
+        "trivialOutput": {
+          "id": "redline-production:trivial-output",
+          "sourceBytes": 55,
+          "expandedSourceBytes": 55,
+          "bytecodeBytes": 63,
+          "vmWords": 0,
+          "persistentGlobals": 0,
+          "fps": {
+            "mean": 16.5692,
+            "median": 16.5692,
+            "min": 16.5692,
+            "max": 16.5692,
+            "samples": 16
+          },
+          "frameMs": {
+            "mean": 60.352944016609136,
+            "median": 60.352944016609136,
+            "min": 60.352944016609136,
+            "max": 60.352944016609136
+          }
+        },
+        "constantMembers": {
+          "id": "scalar-field-cache:constant-members",
+          "sourceBytes": 22459,
+          "expandedSourceBytes": 43518,
+          "bytecodeBytes": 12674,
+          "vmWords": 6012,
+          "persistentGlobals": 67,
+          "fps": {
+            "mean": 2.2309212499999997,
+            "median": 2.232143,
+            "min": 2.222222,
+            "max": 2.238806,
+            "samples": 16
+          },
+          "frameMs": {
+            "mean": 448.24531569637435,
+            "median": 447.9999713280018,
+            "min": 446.6666607111112,
+            "max": 450.0000450000045
+          }
+        },
+        "captureElided": null,
+        "full": {
+          "id": "scalar-field-cache:full",
+          "sourceBytes": 22885,
+          "expandedSourceBytes": 44104,
+          "bytecodeBytes": 12970,
+          "vmWords": 6012,
+          "persistentGlobals": 69,
+          "fps": {
+            "mean": 2.099498437499999,
+            "median": 2.10084,
+            "min": 2.087683,
+            "max": 2.109704,
+            "samples": 16
+          },
+          "frameMs": {
+            "mean": 476.30423635406993,
+            "median": 476.0000761600122,
+            "min": 474.00014409604387,
+            "max": 478.9999247970118
+          }
+        }
+      },
+      "attribution": {
+        "mean": {
+          "outputFloorMs": 60.352944,
+          "routingCompositionMs": null,
+          "captureReplayMs": null,
+          "unresolvedShowOverheadMs": 387.892372,
+          "patternEvaluationMs": 28.05892,
+          "fullFrameMs": 476.304236
+        },
+        "median": {
+          "outputFloorMs": 60.352944,
+          "routingCompositionMs": null,
+          "captureReplayMs": null,
+          "unresolvedShowOverheadMs": 387.647027,
+          "patternEvaluationMs": 28.000105,
+          "fullFrameMs": 476.000076
+        },
+        "pairwiseMedianMs": [
+          {
+            "from": "trivial-output",
+            "to": "constant-members",
+            "deltaMs": 387.647027
+          },
+          {
+            "from": "constant-members",
+            "to": "full",
+            "deltaMs": 28.000105
+          }
+        ]
+      },
+      "optimization": {
+        "issue": 519,
+        "component": "scalar-field-production",
+        "selected": {
+          "id": "scalar-field-cache:selected-issue-519",
+          "sourceBytes": 23862,
+          "expandedSourceBytes": 45601,
+          "bytecodeBytes": 13322,
+          "vmWords": 6012,
+          "persistentGlobals": 71,
+          "fps": {
+            "mean": 3.0077320624999997,
+            "median": 3.009782,
+            "min": 2.95858,
+            "max": 3.062787,
+            "samples": 16
+          },
+          "frameMs": {
+            "mean": 332.47642383703857,
+            "median": 332.2499769086266,
+            "min": 326.5000145292506,
+            "max": 337.99998648000053
+          }
+        },
+        "counterfactualArtifact": "full",
+        "meanFrameDeltaMs": -143.82781251703136,
+        "medianFrameDeltaMs": -143.75009925138562
+      }
+    },
+    {
+      "id": "content-key-composition",
+      "pixelCount": 2000,
+      "captureElisionReason": "The luma-key compositor must inspect captured RGB and alpha before deciding whether to evaluate the lower member.",
+      "artifacts": {
+        "trivialOutput": {
+          "id": "redline-production:trivial-output",
+          "sourceBytes": 55,
+          "expandedSourceBytes": 55,
+          "bytecodeBytes": 63,
+          "vmWords": 0,
+          "persistentGlobals": 0,
+          "fps": {
+            "mean": 16.5692,
+            "median": 16.5692,
+            "min": 16.5692,
+            "max": 16.5692,
+            "samples": 16
+          },
+          "frameMs": {
+            "mean": 60.352944016609136,
+            "median": 60.352944016609136,
+            "min": 60.352944016609136,
+            "max": 60.352944016609136
+          }
+        },
+        "constantMembers": {
+          "id": "content-key-composition:constant-members",
+          "sourceBytes": 3533,
+          "expandedSourceBytes": 5861,
+          "bytecodeBytes": 2284,
+          "vmWords": 6012,
+          "persistentGlobals": 24,
+          "fps": {
+            "mean": 4.667989625,
+            "median": 4.668534,
+            "min": 4.664179,
+            "max": 4.668534,
+            "samples": 16
+          },
+          "frameMs": {
+            "mean": 214.22498341563903,
+            "median": 214.20000368424004,
+            "min": 214.20000368424004,
+            "max": 214.40000480256012
+          }
+        },
+        "captureElided": null,
+        "full": {
+          "id": "content-key-composition:full",
+          "sourceBytes": 4286,
+          "expandedSourceBytes": 6830,
+          "bytecodeBytes": 2952,
+          "vmWords": 6012,
+          "persistentGlobals": 26,
+          "fps": {
+            "mean": 2.791996999999999,
+            "median": 2.791997,
+            "min": 2.790698,
+            "max": 2.793296,
+            "samples": 16
+          },
+          "frameMs": {
+            "mean": 358.16657396121855,
+            "median": 358.16657396121843,
+            "min": 358.0000114560004,
+            "max": 358.33329152778265
+          }
+        }
+      },
+      "attribution": {
+        "mean": {
+          "outputFloorMs": 60.352944,
+          "routingCompositionMs": null,
+          "captureReplayMs": null,
+          "unresolvedShowOverheadMs": 153.872039,
+          "patternEvaluationMs": 143.941591,
+          "fullFrameMs": 358.166574
+        },
+        "median": {
+          "outputFloorMs": 60.352944,
+          "routingCompositionMs": null,
+          "captureReplayMs": null,
+          "unresolvedShowOverheadMs": 153.84706,
+          "patternEvaluationMs": 143.96657,
+          "fullFrameMs": 358.166574
+        },
+        "pairwiseMedianMs": [
+          {
+            "from": "trivial-output",
+            "to": "constant-members",
+            "deltaMs": 153.84706
+          },
+          {
+            "from": "constant-members",
+            "to": "full",
+            "deltaMs": 143.96657
+          }
+        ]
+      },
+      "optimization": {
+        "issue": 527,
+        "component": "coverage-directed-composition",
+        "selected": {
+          "id": "content-key-composition:selected-issue-527",
+          "sourceBytes": 4132,
+          "expandedSourceBytes": 6622,
+          "bytecodeBytes": 2744,
+          "vmWords": 6012,
+          "persistentGlobals": 26,
+          "fps": {
+            "mean": 4.467278500000001,
+            "median": 4.468276,
+            "min": 4.464286,
+            "max": 4.468276,
+            "samples": 16
+          },
+          "frameMs": {
+            "mean": 223.84993458545281,
+            "median": 223.79996222256636,
+            "min": 223.79996222256636,
+            "max": 223.9999856640009
+          }
+        },
+        "counterfactualArtifact": "full",
+        "meanFrameDeltaMs": -134.31663937576573,
+        "medianFrameDeltaMs": -134.36661173865207
+      }
+    }
+  ]
+}

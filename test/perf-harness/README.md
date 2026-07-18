@@ -1,6 +1,6 @@
 # Perf harness
 
-Five complementary tools live here. Keep their questions apart:
+Six complementary tools live here. Keep their questions apart:
 
 | tool | question | source of truth |
 |---|---|---|
@@ -8,6 +8,7 @@ Five complementary tools live here. Keep their questions apart:
 | **visual drift** (`drift.ts`) | "how much did the image change?" | the in-repo emulator — no hardware |
 | **hardware profiler** (`profiler.ts`, #245) | "what does each op cost on the device?" | a physical Pixelblaze on your LAN |
 | **hardware FPS bench** (`devbench.ts`, #248) | "did my pattern get faster on the device?" | a physical Pixelblaze on your LAN |
+| **Show attribution** (`issue531.hardware.test.ts`, #531) | "which frame-time component dominates this Show?" | controlled artifacts on a physical Pixelblaze |
 | **routing representation spike** (`issue400.ts`) | "how should dynamic layouts be encoded?" | both emulators + device compiler + optional hardware |
 
 The emulator bench proves an edit was *output-preserving* (checksum) and counts
@@ -177,6 +178,27 @@ each iteration to stay in `[0,1)` (bounded — no 16.16 overflow shifting costs)
 
 The `fn` codes in `profiler.js` and `PROFILE_OPS` in `profilerModel.ts` must stay
 in sync; the focused test enforces that contract.
+
+---
+
+## Show frame-time attribution (`npm run issue531`, #531)
+
+Builds diagnostic-only artifact ladders for Redline, the five-Pattern acceptance
+Show, output reuse, scalar fields, and content-key composition. Ordinary Show
+compilation remains byte-for-byte unchanged. The reversible hardware run
+records source, expanded source, bytecode, VM words, persistent globals, FPS,
+frame-time distributions, and pairwise millisecond deltas:
+
+```bash
+npm run issue531
+PIXELBLAZE_IP=192.168.8.224 npm run issue531:hardware
+```
+
+The hardware runner waits after each activation so the preceding Pattern's last
+FPS packet cannot enter the sample window, restores active Pattern and pixel
+count in `finally`, and leaves the pixel map untouched. Capture elision is emitted
+only for a one-member render-pure boundary; other fixtures retain an explicitly
+unresolved Show-overhead bucket.
 
 ---
 
