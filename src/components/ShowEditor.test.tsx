@@ -39,6 +39,7 @@ import { DEMOS } from '@/pixelblaze/stock/patterns'
 import { buildShowCompositionFreezeCases } from '@/engine/showCompositionFreeze'
 import { projectFlatShowToCompositionV1 } from '@/engine/showCompositionModel'
 import * as showModel from '@/engine/showModel'
+import { DEFAULT_SHOW_TRAILS_RETENTION } from '@/engine/showPreviousRgbFeedback'
 
 function changeCommittedNumber(label: string, value: string): void {
   const input = screen.getByLabelText(label)
@@ -112,6 +113,32 @@ beforeEach(() => {
 afterEach(() => resetControllerProvider())
 
 describe('ShowEditor (#318)', () => {
+  it('authors Show-level Trails with a retention control and scrub disclosure (#537)', async () => {
+    const user = userEvent.setup()
+    const show = createDefaultShow('show-537-trails-ui', 'Trails UI', 1000)
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} />)
+    await user.click(screen.getByRole('button', { name: 'Show properties' }))
+
+    const enabled = screen.getByRole('checkbox', { name: 'Enable Trails' })
+    expect(enabled).not.toBeChecked()
+    expect(screen.getByText(/scrubbing clears trail history/i)).toBeInTheDocument()
+
+    await user.click(enabled)
+    await waitFor(() => expect(useShowStore.getState().shows[0].outputEffects).toEqual([
+      { id: 'trails', kind: 'trails', retention: DEFAULT_SHOW_TRAILS_RETENTION },
+    ]))
+
+    const retention = screen.getByRole('slider', { name: 'Trails retention' })
+    expect(retention).toHaveValue(String(DEFAULT_SHOW_TRAILS_RETENTION))
+    fireEvent.change(retention, { target: { value: '0.75' } })
+    await waitFor(() => expect(useShowStore.getState().shows[0].outputEffects).toEqual([
+      { id: 'trails', kind: 'trails', retention: 0.75 },
+    ]))
+  })
+
   it('does not re-project the complete Scene strip for live position updates (#508)', () => {
     const show = createDefaultShow('show-narrow-position-subscription', 'Narrow position subscription', 1000)
     useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })

@@ -43,6 +43,7 @@ import {
   showEffectParameterNames,
   showEffectsAreIdentity,
 } from './showEffects'
+import { normalizeShowOutputEffects } from './showPreviousRgbFeedback'
 import {
   controllerZonePixelCount,
   controllerProfileDisplayName,
@@ -1937,15 +1938,16 @@ export function showRecordToCompileRecipe(
   lookup: ShowCompileRecipeSourceLookup,
 ): ShowRecipe {
   show = normalizeShowTransitionState(show)
+  const outputEffects = normalizeShowOutputEffects(show.outputEffects)
   if (show.composition) {
     const lowered = lowerShowCompositionForCompile(show, lookup)
-    return showRecordToCompileRecipe(lowered.show, lowered.lookup)
+    return { ...showRecordToCompileRecipe(lowered.show, lowered.lookup), outputEffects }
   }
   if (lookup.compositionLayerByCellId && Object.keys(lookup.compositionLayerByCellId).length > 0) {
-    return showRecordToRoutedSceneSequenceRecipe(show, lookup)
+    return { ...showRecordToRoutedSceneSequenceRecipe(show, lookup), outputEffects }
   }
   if (show.cells.some((cell) => cell.evaluationPolicy === 'freeze-at-entry' || cell.evaluationPolicy === 'rolling-refresh')) {
-    return showRecordToRoutedSceneSequenceRecipe(show, lookup)
+    return { ...showRecordToRoutedSceneSequenceRecipe(show, lookup), outputEffects }
   }
   if (
     show.outputContract?.kind === 'installation'
@@ -1962,13 +1964,13 @@ export function showRecordToCompileRecipe(
     }
   }
   if (show.outputContract?.kind === 'installation' || show.zones.length > 1 || show.routingSwitches.length > 0) {
-    return showRecordToRoutedSceneSequenceRecipe(show, lookup)
+    return { ...showRecordToRoutedSceneSequenceRecipe(show, lookup), outputEffects }
   }
 
   const firstZone = show.zones[0]
   if (!firstZone) throw new Error('Show compile requires at least one zone.')
   const sceneSequence = showRecordToSceneSequenceRecipe(show, firstZone, lookup)
-  if (sceneSequence) return sceneSequence
+  if (sceneSequence) return { ...sceneSequence, outputEffects }
   const samplePropertyRamps = showSamplePropertyRamps(show, true)
   const cells = show.cells
     .filter((cell) => cell.zoneId === firstZone.id)
@@ -1983,6 +1985,7 @@ export function showRecordToCompileRecipe(
       clips: [{ id: cells[0].id, source: source0, ...compilerEvaluationPolicy(cells[0]), adaptation: compilerAdaptation(cells[0].adaptations), controlTargets: cells[0].controlTargets, effects: cells[0].effects }],
       zones: lookup.controllerZones ?? nominalZones(show.zones),
       samplePropertyRamps,
+      outputEffects,
     }
   }
 
@@ -2058,6 +2061,7 @@ export function showRecordToCompileRecipe(
       },
       zones: lookup.controllerZones ?? nominalZones(show.zones),
       samplePropertyRamps,
+      outputEffects,
     }
   }
 
@@ -2119,6 +2123,7 @@ export function showRecordToCompileRecipe(
       : undefined,
     zones: lookup.controllerZones ?? nominalZones(show.zones),
     samplePropertyRamps,
+    outputEffects,
   }
 }
 

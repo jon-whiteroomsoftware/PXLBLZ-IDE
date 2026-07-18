@@ -15,6 +15,7 @@ import type {
   ShowMotionAddressPolicy,
   ShowMotionSpinDirection,
   ShowMotionTransitionVariant,
+  ShowOutputEffect,
   ShowPropertyAnimationTrack,
   ShowRevealMode,
   ShowSpatialShape,
@@ -24,6 +25,7 @@ import type {
   ShowWipeOrientation,
   ShowWipeVariant,
 } from './personalContentRecords'
+import { normalizeShowOutputEffects } from './showPreviousRgbFeedback'
 import { normalizeShowTransitionColor, showTransitionColorToRgb } from './showFadeThroughColor'
 import { showClipEffectPersistedField } from './showEffectAuthoring'
 import { emitShowPropertyTrackExpression } from './showPropertyAnimation'
@@ -97,6 +99,7 @@ import {
   type ShowRenderTargetCachePlan,
   type ShowRenderTargetCandidate,
   type ShowRenderTargetDecisionReason,
+  type ShowRenderTargetLifetime,
 } from './showRenderTargetPlanner'
 import {
   analyzeShowPatternRenderState,
@@ -408,6 +411,8 @@ export interface ShowRecipe {
   routingPropertyRamps?: ShowRoutingPropertyRampsRecipe
   samplePropertyRamps?: ShowSamplePropertyRampsRecipe
   loopDurationMs?: number
+  /** Ordered full-Show Effects applied after composition and Transitions. */
+  outputEffects?: ShowOutputEffect[]
 }
 
 export interface ShowCompileClipSummary {
@@ -457,6 +462,16 @@ export interface ShowCompileSummary {
   measuredDeviceBudgetBytes: number
   artifactBudgetRatio: number
   sourceInventory: ShowSourceInventory
+  outputEffects: Array<{
+    id: string
+    kind: 'trails'
+    status: 'selected' | 'rejected'
+    reason: ShowRenderTargetDecisionReason | 'selected'
+    retention: number
+    seekPolicy: 'clear-at-target'
+    transitionSnapshotPolicy: 'suspend-clear'
+    additionalArrayWords: 0
+  }>
   renderPolicy:
     | 'steady-active-transition-both'
     | 'snapshot-outgoing-transition-live-incoming'
@@ -960,6 +975,8 @@ export interface ShowCompileOptions {
 }
 
 const DIRECT_SNAPSHOT_CANDIDATE_ID = 'transition:direct:snapshot-live'
+const TRAILS_CANDIDATE_ID = 'output-effect:trails'
+const TRAILS_PREVIEW_SEEK_VAR = '__pxlblz_show_trails_preview_seek'
 
 function sequenceSnapshotCandidateId(kind: 'sequence' | 'routed', sceneIndex: number): string {
   return `transition:${kind}:${sceneIndex}:snapshot-live`
@@ -1020,6 +1037,39 @@ function buildShowRenderTargetCandidates(
     addSequence('routed', recipe.routedSceneSequence.scenes, () => true)
   }
   return candidates
+}
+
+function buildTrailsRenderTargetCandidate(
+  recipe: ShowRecipe,
+): ShowRenderTargetCandidate | null {
+  if (!normalizeShowOutputEffects(recipe.outputEffects).some((effect) => effect.kind === 'trails')) return null
+  return {
+    id: TRAILS_CANDIDATE_ID,
+    kind: 'previous-rgb',
+    lifetime: { kind: 'show', start: 0, end: showRecipeTimelineEndMs(recipe), key: 'show-output' },
+    invalidatedBy: ['show-loop', 'seek', 'transition-snapshot', 'semantic-change'],
+    exactness: 'authored-approximate',
+    authorSelected: true,
+    required: true,
+    setupCost: 0,
+    perFrameSavings: 0,
+    expectedReuseCount: 1,
+  }
+}
+
+function showRecipeTimelineEndMs(recipe: ShowRecipe): number {
+  if (recipe.loopDurationMs && recipe.loopDurationMs > 0) return recipe.loopDurationMs
+  const scenes = recipe.sceneSequence?.scenes ?? recipe.routedSceneSequence?.scenes
+  if (scenes) {
+    return scenes.reduce((total, scene) => (
+      total + scene.holdMs + (scene.transitionOut?.kind === 'cut' ? 0 : scene.transitionOut?.durationMs ?? 0)
+    ), 0)
+  }
+  if (recipe.crossfade) return recipe.crossfade.startMs + recipe.crossfade.durationMs
+  if (recipe.cut) return recipe.cut.startMs + 1
+  if (recipe.adaptationRamp) return recipe.adaptationRamp.startMs + recipe.adaptationRamp.durationMs
+  if (recipe.routeTransition) return recipe.routeTransition.startMs + recipe.routeTransition.durationMs
+  return Number.MAX_SAFE_INTEGER
 }
 
 function buildFreezeAtEntryCandidates(
@@ -1721,7 +1771,11 @@ export function compileShow(
     }
     return candidate
   }
-  let expandedRecipe = { ...recipe, clips: expandRouteClips(recipe.clips) }
+  let expandedRecipe = {
+    ...recipe,
+    clips: expandRouteClips(recipe.clips),
+    outputEffects: normalizeShowOutputEffects(recipe.outputEffects),
+  }
   const exactSpecializations = options.exactSpecializations ?? true
   const frameInvariantHoisting = options.frameInvariantHoisting ?? exactSpecializations
   // The pb32/3.67 matrix for #513 found no repeatable runtime benefit from
@@ -2079,6 +2133,7 @@ export function compileShow(
   )
   const renderTargetCandidates = [
     ...buildShowRenderTargetCandidates(expandedRecipe, renderTargetPixelCount),
+    ...[buildTrailsRenderTargetCandidate(expandedRecipe)].filter((candidate): candidate is ShowRenderTargetCandidate => Boolean(candidate)),
     ...freezeAtEntryCaptures.map((capture) => capture.candidate),
     ...refreshCaptures.map((capture) => capture.candidate),
     ...rollingRefreshCaptures.map((capture) => capture.candidate),
@@ -2094,6 +2149,12 @@ export function compileShow(
   const selectedRenderTargetCandidates = new Set(
     preliminaryRenderTargetPlan.assignments.map((assignment) => assignment.candidateId),
   )
+  const trailsEffect = normalizeShowOutputEffects(expandedRecipe.outputEffects)
+    .find((effect): effect is Extract<ShowOutputEffect, { kind: 'trails' }> => effect.kind === 'trails')
+  const trailsSelected = Boolean(trailsEffect && selectedRenderTargetCandidates.has(TRAILS_CANDIDATE_ID))
+  const trailsSuspensionLifetimes = preliminaryRenderTargetPlan.assignments
+    .filter((assignment) => assignment.kind === 'rgb-snapshot' && assignment.lifetime.kind === 'transition')
+    .map((assignment) => assignment.lifetime)
   const directSnapshotCrossfade = selectedRenderTargetCandidates.has(DIRECT_SNAPSHOT_CANDIDATE_ID)
   const sequenceSnapshotCrossfade = preliminaryRenderTargetPlan.assignments.some((assignment) => (
     assignment.candidateId.startsWith('transition:sequence:')
@@ -2268,9 +2329,17 @@ export function compileShow(
               directSnapshotCrossfade,
             )
           : emitSingleClipShowCode(members[0], memberOutputDimension)
-  const emittedWithEasingRuntime = emittedCode.includes('__pxlblz_show_cubicBezier(')
-    ? `${showCubicBezierRuntimeSource()}\n${emittedCode}`
+  const emittedWithOutputEffects = trailsSelected && trailsEffect
+    ? emitTrailsOutputEffectSource(
+        emittedCode,
+        trailsEffect.retention,
+        renderTargetPixelCount,
+        trailsSuspensionLifetimes,
+      )
     : emittedCode
+  const emittedWithEasingRuntime = emittedWithOutputEffects.includes('__pxlblz_show_cubicBezier(')
+    ? `${showCubicBezierRuntimeSource()}\n${emittedWithOutputEffects}`
+    : emittedWithOutputEffects
   const emittedWithSampleRemapping = expandedRecipe.samplePropertyRamps
     ? injectSampleRemappingUpdate(emittedWithEasingRuntime)
     : emittedWithEasingRuntime
@@ -2294,7 +2363,7 @@ export function compileShow(
   const generatedEffectKernelPersistentGlobalsAvoided = generatedEffectKernelPlan.groups.reduce((sum, group) => (
     sum + (group.memberIds.length - 1) * 6
   ), 0)
-  const metadata = buildMetadata(members, compiledOutputDimension)
+  const metadata = buildMetadata(members, compiledOutputDimension, trailsSelected)
   const patternVarBindings = Object.fromEntries(metadata.patternVars.flatMap((name) => {
     const runtimeName = compacted.names.get(name)
     return runtimeName ? [[name, runtimeName]] : []
@@ -2317,6 +2386,19 @@ export function compileShow(
   const renderTargetDecisionByCandidate = new Map(
     renderTargetPlan.decisions.map((decision) => [decision.candidateId, decision]),
   )
+  const trailsDecision = renderTargetDecisionByCandidate.get(TRAILS_CANDIDATE_ID)
+  const outputEffectSummary: ShowCompileSummary['outputEffects'] = trailsEffect
+    ? [{
+        id: trailsEffect.id,
+        kind: 'trails',
+        status: trailsDecision?.status === 'selected' ? 'selected' : 'rejected',
+        reason: trailsDecision?.reason ?? 'arena-unavailable',
+        retention: trailsEffect.retention,
+        seekPolicy: 'clear-at-target',
+        transitionSnapshotPolicy: 'suspend-clear',
+        additionalArrayWords: 0,
+      }]
+    : []
   const patternOutputReuseGroupsSummary = patternOutputReuseAnalysis.groups.map((group) => {
     const decision = patternOutputReuse
       ? renderTargetDecisionByCandidate.get(group.candidate.id)
@@ -2459,7 +2541,11 @@ export function compileShow(
   for (const decision of renderTargetPlan.decisions) {
     const candidate = renderTargetCandidateById.get(decision.candidateId)
     if (decision.status !== 'rejected' || !candidate?.required) continue
-    if (decision.candidateId === DIRECT_SNAPSHOT_CANDIDATE_ID && decision.reason === 'arena-unavailable') {
+    if (decision.candidateId === TRAILS_CANDIDATE_ID) {
+      warnings.push(
+        `Trails output Effect was disabled (${decision.reason}): ${decision.detail}`,
+      )
+    } else if (decision.candidateId === DIRECT_SNAPSHOT_CANDIDATE_ID && decision.reason === 'arena-unavailable') {
       warnings.push(
         'Snapshot/live crossfade fell back to live/live because the Show render-target arena is unavailable.',
       )
@@ -2565,6 +2651,7 @@ export function compileShow(
     measuredDeviceBudgetBytes: MEASURED_DEVICE_BUDGET_BYTES,
     artifactBudgetRatio: artifactBytes / MEASURED_DEVICE_BUDGET_BYTES,
     sourceInventory,
+    outputEffects: outputEffectSummary,
     renderPolicy: expandedRecipe.sceneSequence || expandedRecipe.routedSceneSequence
       ? sequenceSnapshotCrossfade || routedSnapshotCrossfade
         ? 'snapshot-outgoing-transition-live-incoming'
@@ -2684,7 +2771,9 @@ export function compileShow(
     renderTarget: describeShowRenderTargetArena(
       renderTargetPixelCount,
       renderTargetArenaEmission,
-      directSnapshotCrossfade || sequenceSnapshotCrossfade || routedSnapshotCrossfade || selectedPatternOutputReuseGroups.length > 0
+      trailsSelected
+        ? 'previous-rgb'
+        : directSnapshotCrossfade || sequenceSnapshotCrossfade || routedSnapshotCrossfade || selectedPatternOutputReuseGroups.length > 0
         || selectedFreezeAtEntryCaptures.length > 0 || selectedRefreshCaptures.length > 0
         || selectedRollingRefreshCaptures.length > 0
         ? 'stage-rgb'
@@ -3347,6 +3436,58 @@ function emitShowCode(
       : emitRender(from, to, outputDimension),
     '',
   ].join('\n\n')
+}
+
+function emitTrailsOutputEffectSource(
+  source: string,
+  retention: number,
+  pixelCount: number,
+  suspensionLifetimes: readonly ShowRenderTargetLifetime[],
+): string {
+  const target = planShowRenderTargetArena(pixelCount, 'previous-rgb')
+  const suspendExpression = suspensionLifetimes.length === 0
+    ? '0'
+    : suspensionLifetimes.map((lifetime) => (
+        `(__pxlblz_show_elapsed_s >= ${lifetime.start / 1000} && __pxlblz_show_elapsed_s < ${lifetime.end / 1000})`
+      )).join(' || ')
+  const wrappedOutputs = source
+    .replace(/\brgb\s*\(/g, '__pxlblz_show_trails_rgb(')
+    .replace(
+      /export function (render(?:2D)?)\(index([^)]*)\) \{/g,
+      'export function $1(index$2) {\n  __pxlblz_show_trails_index = index',
+    )
+    .replace(
+      /^( {2}__pxlblz_show_elapsed_s =[^\n]+)$/gm,
+      '$1\n  __pxlblz_show_trails_beforeRender()',
+    )
+  const runtime = `var __pxlblz_show_trails_index = 0
+var __pxlblz_show_trails_ready = 0
+var __pxlblz_show_trails_suspended = 0
+var __pxlblz_show_trails_previous_elapsed_s = -1
+var ${TRAILS_PREVIEW_SEEK_VAR} = 0
+function __pxlblz_show_trails_beforeRender() {
+  __pxlblz_show_trails_suspended = ${suspendExpression}
+  if (__pxlblz_show_trails_suspended || ${TRAILS_PREVIEW_SEEK_VAR} || __pxlblz_show_elapsed_s < __pxlblz_show_trails_previous_elapsed_s) __pxlblz_show_trails_ready = 0
+  __pxlblz_show_trails_previous_elapsed_s = __pxlblz_show_elapsed_s
+}
+function __pxlblz_show_trails_rgb(r, g, b) {
+  r = clamp(r, 0, 1)
+  g = clamp(g, 0, 1)
+  b = clamp(b, 0, 1)
+  if (!__pxlblz_show_trails_suspended && !${TRAILS_PREVIEW_SEEK_VAR}) {
+    if (__pxlblz_show_trails_ready) {
+      r = max(r, ${emitShowRenderTargetRead(target, 'r', '__pxlblz_show_trails_index')} * ${retention})
+      g = max(g, ${emitShowRenderTargetRead(target, 'g', '__pxlblz_show_trails_index')} * ${retention})
+      b = max(b, ${emitShowRenderTargetRead(target, 'b', '__pxlblz_show_trails_index')} * ${retention})
+    }
+    ${emitShowRenderTargetWrite(target, 'r', '__pxlblz_show_trails_index', 'r')}
+    ${emitShowRenderTargetWrite(target, 'g', '__pxlblz_show_trails_index', 'g')}
+    ${emitShowRenderTargetWrite(target, 'b', '__pxlblz_show_trails_index', 'b')}
+    if (__pxlblz_show_trails_index == pixelCount - 1) __pxlblz_show_trails_ready = 1
+  }
+  rgb(r, g, b)
+}`
+  return `${runtime}\n${wrappedOutputs}`
 }
 
 function emitSingleClipShowCode(member: CompiledMember, outputDimension: ShowOutputDimension): string {
@@ -8847,11 +8988,24 @@ function emitZoneLocalAssignments(zone: ControllerZone, localName: string): stri
   return lines
 }
 
-function buildMetadata(members: CompiledMember[], outputDimension: 1 | 2): BundleMetadata {
+function buildMetadata(
+  members: CompiledMember[],
+  outputDimension: 1 | 2,
+  trailsSelected = false,
+): BundleMetadata {
   const showVars = [
     '__pxlblz_show_elapsed_s',
     '__pxlblz_show_mix',
     '__pxlblz_show_phase',
+    ...(trailsSelected
+      ? [
+          '__pxlblz_show_trails_index',
+          '__pxlblz_show_trails_ready',
+          '__pxlblz_show_trails_suspended',
+          '__pxlblz_show_trails_previous_elapsed_s',
+          TRAILS_PREVIEW_SEEK_VAR,
+        ]
+      : []),
     ...members.flatMap(member => [
       member.elapsedName,
       ...(member.usesTime ? [member.elapsedSecondsName] : []),
@@ -8894,6 +9048,9 @@ function buildMetadata(members: CompiledMember[], outputDimension: 1 | 2): Bundl
     exportedVars: [],
     patternVars: showVars,
     controls: [],
+    ...(trailsSelected
+      ? { temporalFeedback: { previewSeekModeVar: TRAILS_PREVIEW_SEEK_VAR } }
+      : {}),
     renderFns: {
       hasBeforeRender: true,
       hasRender: outputDimension === 1,
@@ -9421,7 +9578,7 @@ function showSourceAttributionForSymbol(
     }
     return { category: 'pattern', ownerId: member.id }
   }
-  if (/(?:transition|motion|portal|wipe|dissolve|crossfade|snapshot|fade|reveal|easing|mix)/i.test(symbol)) {
+  if (/(?:effect|trails|transition|motion|portal|wipe|dissolve|crossfade|snapshot|fade|reveal|easing|mix)/i.test(symbol)) {
     return { category: 'effects-transitions' }
   }
   if (/(?:route|layout|plan|stack|render_target|arena|cache|freeze|field|reuse|coverage)/i.test(symbol)) {

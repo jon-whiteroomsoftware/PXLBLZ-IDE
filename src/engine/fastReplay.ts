@@ -22,6 +22,9 @@ export interface FastReplayRuntimeOptions {
 
 export interface FastReplayAdvanceOptions {
   stepMs: number
+  temporalFeedbackSeek?: 'exact' | 'clear-at-target'
+  /** Cooperative replay keeps intermediate chunk boundaries headless. */
+  presentTargetFrame?: boolean
 }
 
 export interface FastReplayResult {
@@ -130,14 +133,25 @@ export function createFastReplayRuntime(
       if (!Number.isFinite(advance.stepMs) || advance.stepMs <= 0) {
         throw new Error('Fast replay step must be a positive finite duration.')
       }
+      const previewSeekModeVar = prepared.metadata.temporalFeedback?.previewSeekModeVar
+      const clearsTemporalFeedback = advance.temporalFeedbackSeek === 'clear-at-target' && Boolean(previewSeekModeVar)
+      const presentsTargetFrame = advance.presentTargetFrame !== false
+      if (clearsTemporalFeedback && !handle.setPatternVar(previewSeekModeVar!, 1)) {
+        throw new Error(`Fast replay temporal seek variable "${previewSeekModeVar}" is unavailable.`)
+      }
       const epsilonMs = Math.max(1e-9, advance.stepMs * 1e-9)
       while (targetMs - clock.getTime() > epsilonMs) {
         const remainingMs = targetMs - clock.getTime()
         const finalStep = remainingMs <= advance.stepMs + epsilonMs
-        if (finalStep) loop.tick(remainingMs)
-        else loop.tickHeadless(advance.stepMs)
+        if (finalStep && presentsTargetFrame) {
+          if (clearsTemporalFeedback) handle.setPatternVar(previewSeekModeVar!, 0)
+          loop.tick(remainingMs)
+        } else {
+          loop.tickHeadless(Math.min(remainingMs, advance.stepMs))
+        }
         simulatedFrames += 1
       }
+      if (clearsTemporalFeedback && presentsTargetFrame) handle.setPatternVar(previewSeekModeVar!, 0)
       return currentResult(true)
     },
   }
@@ -157,7 +171,11 @@ export async function advanceFastReplayCooperatively(
   while (runtime.getElapsedMs() < targetMs) {
     if (!options.isCurrent()) return null
     const chunkTargetMs = Math.min(targetMs, runtime.getElapsedMs() + options.chunkMs)
-    result = runtime.advanceTo(chunkTargetMs, { stepMs: options.stepMs })
+    result = runtime.advanceTo(chunkTargetMs, {
+      stepMs: options.stepMs,
+      temporalFeedbackSeek: options.temporalFeedbackSeek,
+      presentTargetFrame: chunkTargetMs >= targetMs,
+    })
     if (runtime.getElapsedMs() < targetMs) {
       await yieldControl()
       if (!options.isCurrent()) return null

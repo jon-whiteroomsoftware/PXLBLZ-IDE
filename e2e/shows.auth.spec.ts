@@ -185,6 +185,30 @@ test.describe('authenticated Show authoring', () => {
     expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(8)
   })
 
+  test('authors Show-level Trails and persists its clear-at-target contract (#537)', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('studio/shows')
+    await createInstallationShow(page)
+
+    await page.getByRole('button', { name: 'Show properties' }).click()
+    const enabled = page.getByRole('checkbox', { name: 'Enable Trails' })
+    await expect(enabled).not.toBeChecked()
+    await expect(page.getByText(/scrubbing clears trail history at the destination/i)).toBeVisible()
+
+    await enabled.check()
+    const retention = page.getByRole('slider', { name: 'Trails retention' })
+    await expect(retention).toHaveValue('0.9375')
+    await retention.fill('0.75')
+    await expect(page.getByText('75.0%', { exact: true })).toBeVisible()
+    await waitForCurrentShow(page, (show) => show.outputEffects?.[0]?.kind === 'trails'
+      && show.outputEffects[0].retention === 0.75)
+    await expect(page.getByTestId('show-compile-bar')).toContainText('3 planes · previous-rgb')
+
+    await page.setViewportSize({ width: 600, height: 800 })
+    await expect(retention).toBeVisible()
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(8)
+  })
+
   test('keeps vertical scroll, horizontal trackpad pan, and Shift-wheel pan distinct (#476)', async ({ page }) => {
     await page.setViewportSize({ width: 1200, height: 500 })
     await page.goto('studio/shows/stock-show-installation-finale')
@@ -1231,6 +1255,7 @@ type PersistedShow = {
     logical?: { kind: string }
   }>
   routingSwitches: Array<{ afterSceneId: string; layoutId: string }>
+  outputEffects?: Array<{ id: string; kind: 'trails'; retention: number }>
 }
 
 async function createInstallationShow(page: Page): Promise<void> {

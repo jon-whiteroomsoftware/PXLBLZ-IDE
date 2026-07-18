@@ -130,12 +130,13 @@ The next frame blends live RGB with the prior presented frame under an authored
 decay rule, then writes the new composite back. This is a new visual, not a
 speed claim.
 
-The serial-output profile suggests the read/write/blend cost may stay under the
-wire floor. Qualification still needs a faster output profile, deterministic
-seek measurement, and an explicit plane-conflict policy. The recommended
-default is to let a required Transition snapshot win and suspend/clear Trails
-with a visible compile disclosure; forcing live/live remains an explicit
-alternative if product review prefers trail continuity.
+Issue #537 shipped the recommended policy. A required Transition snapshot wins
+and suspends/clears Trails with compile disclosure. Browser seeking advances
+exact Pattern state but clears feedback until the destination frame. On the
+qualified pb32/3.67 native serial profile, Trails costs 35-37% median FPS versus
+an arena-matched Live artifact while adding zero VM words. The protocol cannot
+identify or switch expander/parallel topology, so no faster-profile result is
+claimed.
 
 Cheapest falsifier: one hand-written three-plane feedback Pattern on the
 current Controller plus the fastest available output profile. Measure both
@@ -252,18 +253,17 @@ Failed candidates remain in the measurement ledger with their hardware profile
 and emitter shape so they are not retried without a materially different
 premise.
 
-## Decisions reserved for human review
+## Decisions resolved after this design
 
-1. When a required Transition snapshot conflicts with Trails or a frozen clip,
-   should the Effect suspend, should the boundary force live/live, or should
-   the author choose explicitly?
-2. Does rolling Refresh's staggered pixel age look intentional enough to become
-   a named policy, or should Refresh remain whole-frame despite bursty pacing?
-3. Is a Pattern field/shading contract common and comprehensible enough to ask
-   Pattern authors to declare it, based on the library census?
-4. What is the minimum capacity reclaim that justifies global liveness reuse?
-   This design proposes 15% as a falsifiable threshold, not a settled product
-   promise.
+1. Trails suspends and clears for a required Transition snapshot; preview seeks
+   clear feedback only at the destination while preserving exact Pattern state.
+2. Rolling Refresh ships only as the reviewed four-slice policy. Whole-frame
+   cadence and other slice counts remain diagnostics.
+3. The Pattern field/shading census found 7 of 62 credible exact producers; the
+   qualified diagnostic and its explicit contract remain the implementation
+   basis rather than compiler-inferred slicing.
+4. Restart global liveness failed the proposed 15%/eligibility gate and did not
+   change the production emitter.
 
 ## Explicit non-decisions
 

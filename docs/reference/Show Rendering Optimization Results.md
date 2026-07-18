@@ -52,7 +52,7 @@ lifetime plan:
 | `stage-rgb` | 0/1/2 | snapshot/live Crossfade and compatible Pattern-output reuse |
 | `sample-xy` | 0/1 | measured diagnostic only; production disabled |
 | `scalar-field` | 0 | exact reusable Dissolve geometry and static full-Stage Vignette |
-| `previous-rgb` | 0/1/2 | reserved contract; no production producer yet |
+| `previous-rgb` | 0/1/2 | Show output Trails, suspended while a required Transition snapshot owns the planes |
 
 One role assignment does not allocate another buffer. There is no fourth
 compiler-owned full-output plane, and two full RGB buffers do not fit the
@@ -171,6 +171,29 @@ and 6.494 to 8.219 at 2,000 (+26.58%). The selected artifact adds 219 compact
 source bytes and 112 Controller-bytecode bytes but no VM words. Fast and Precise
 fill/replay output match.
 
+### Show output Trails
+
+Trails applies after the complete Show composite. Each linear-RGB channel emits
+
+```text
+max(live, previous * retention)
+```
+
+and writes that result into the existing three-plane arena for the next frame.
+The first complete traversal seeds history. Required Transition snapshots
+temporarily own the same planes, so Trails suspends and clears across those
+boundaries, then reseeds. Browser seeking advances exact Pattern state while
+bypassing feedback reads and writes, then seeds only the destination frame;
+ordinary preview and Controller playback remain continuous.
+
+On pb32 firmware 3.67 native serial output, Live-to-Trails median throughput
+changed from 124.502 to 80.437 FPS at 256 pixels (-35.39%), 32.951 to 20.833 at
+1,000 (-36.77%), and 16.569 to 10.436 at 2,000 (-37.01%). Trails adds 405
+compact-source bytes and 236 Controller-bytecode bytes but no VM words. This is
+the measured cost of an authored visual affordance, not an optimization claim.
+The protocol cannot identify or switch an expander/parallel profile, so the
+native serial result is the only qualified output profile.
+
 ### Content-aware luma and chroma keys
 
 A keyed upper layer renders first, derives alpha, and evaluates the lower source
@@ -273,6 +296,7 @@ restoration details for every line.
 | 09 | #540 Pattern field/shading decomposition | five consumers: median FPS +110.19% / +110.67% / +109.87% at 256 / 1,000 / 2,000 pixels |
 | 10 | #535 whole-frame Refresh diagnostic | 1,000 ms median FPS +43.40% / +37.88% / +29.32%; periodic capture pacing remained visible |
 | 11 | #535 four-slice Rolling Refresh | median FPS +20.09% / +20.19% / +20.20%; maximum pixel age 3 frames; accepted for production |
+| 12 | #537 Show output Trails | median FPS cost -35.39% / -36.77% / -37.01%; zero additional VM words; authored visual affordance |
 
 The cumulative next-wave ledger, including exact fixture and restoration facts,
 lives in `docs/plans/show-rendering-next-wave-measurement-ledger.md`.
@@ -305,7 +329,7 @@ The recommended order is:
 2. authored Freeze and Refresh clip policies;
 3. exact coverage-directed layer composition;
 4. additional scalar-field Effects and a census for Pattern field/coverage/shading roles; Vignette is now the qualified first producer;
-5. `previous-rgb` Trails and Decay as a cheap visual affordance;
+5. further `previous-rgb` output Effects only after measuring Trails' qualified 35-37% native-serial FPS cost;
 6. Restart-instance global liveness and shared generated-kernel capacity work;
 7. direct emission, state vectors, packed routing/RGB, or spatial hold only
    after their inexpensive falsifiers identify a real target.

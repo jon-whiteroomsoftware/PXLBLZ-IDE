@@ -172,6 +172,10 @@ export type ShowClipEffect =
   | { id: string; kind: 'kaleidoscope'; amount: number; segments: number; rotation: number; centerX: number; centerY: number }
   | { id: string; kind: 'wrap' }
 
+/** Ordered Effects applied once to the fully composed physical Show output. */
+export type ShowOutputEffect =
+  | { id: string; kind: 'trails'; retention: number }
+
 /** Structured identity for one numeric value authored inside a Scene. */
 export type ShowPropertyAnimationTarget =
   | { kind: 'instance-time-scale'; instanceId: string }
@@ -524,5 +528,7 @@ export interface ShowRecord {
   outputContract?: ShowOutputContract
   /** Optional additive local composition; flat fields remain the legacy compatibility authority. */
   composition?: ShowCompositionV1 | null
+  /** Ordered full-Show output Effects, after clip composition and Transitions. */
+  outputEffects?: ShowOutputEffect[]
   updatedAt: number
 }

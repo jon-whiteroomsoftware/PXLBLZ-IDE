@@ -23,6 +23,7 @@ function makeMockHandle(): PatternHandle {
     render2D: vi.fn(),
     render3D: vi.fn(),
     getExports: vi.fn(() => ({})),
+    setPatternVar: vi.fn(() => false),
     controls: {},
   }
 }

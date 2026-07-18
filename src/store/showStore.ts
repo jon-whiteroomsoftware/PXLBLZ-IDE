@@ -578,6 +578,7 @@ function showPersistenceChanges(next: ShowRecord): Partial<Omit<ShowRecord, 'id'
     routingSwitches: next.routingSwitches,
     transitions: next.transitions,
     composition: next.composition ?? null,
+    outputEffects: next.outputEffects,
     targetControllerProfileId: next.targetControllerProfileId,
     stageMapId: next.stageMapId ?? null,
     outputContract: next.outputContract,

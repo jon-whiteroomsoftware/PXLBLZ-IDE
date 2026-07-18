@@ -366,7 +366,12 @@ export function ShowStagePreview({ showId, showOverride }: { showId: string; sho
       performanceProbeRef.current?.recordRuntimeInitialization()
       let result = runtime.renderCurrentFrame()
       const positionMs = useShowTransportStore.getState().positionMs
-      if (positionMs > 0) result = runtime.advanceTo(positionMs, { stepMs: 1000 / 60 })
+      if (positionMs > 0) {
+        result = runtime.advanceTo(positionMs, {
+          stepMs: 1000 / 60,
+          temporalFeedbackSeek: 'clear-at-target',
+        })
+      }
       replayRef.current = runtime
       liveSimulatedFramesRef.current = result.simulatedFrames
       paintFastFrame(result)
@@ -513,6 +518,7 @@ export function ShowStagePreview({ showId, showOverride }: { showId: string; sho
           result = await advanceFastReplayCooperatively(runtime, seekRequest.targetMs, {
             stepMs: 1000 / 60,
             chunkMs: 250,
+            temporalFeedbackSeek: 'clear-at-target',
             isCurrent,
           })
         }

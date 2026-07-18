@@ -154,10 +154,12 @@ import type {
   ShowCell,
   ShowRecord,
   ShowPropertyAnimationTarget,
+  ShowOutputEffect,
   ShowRoutingLayout,
   ShowScene,
   ShowAutomatableProperty,
 } from '@/engine/personalContentRecords'
+import { DEFAULT_SHOW_TRAILS_RETENTION, normalizeShowOutputEffects } from '@/engine/showPreviousRgbFeedback'
 import { validateShowLogicalRouting, type ShowLogicalRouting } from '@/engine/showLogicalRouting'
 
 const field =
@@ -1446,6 +1448,7 @@ export function ShowEditor({
                   patternOptions={patternOptions}
                   patternControlsByCellId={patternControlsByCellId}
                   compiledCost={compiled.artifact?.summary.cost}
+                  compiledOutputEffects={compiled.artifact?.summary.outputEffects}
                   controllerProfiles={controllerProfiles}
                   targetProfile={targetProfile}
                   userMaps={userMaps}
@@ -1464,6 +1467,11 @@ export function ShowEditor({
                     ...activeShow,
                     stageMapId: referenceMapId,
                     outputContract: createPortableShowOutputContract({ referenceMapId, referencePixelCount }),
+                    updatedAt: Date.now(),
+                  })}
+                  onUpdateOutputEffects={(outputEffects) => void updateShow(activeShow.id, {
+                    ...activeShow,
+                    outputEffects: normalizeShowOutputEffects(outputEffects),
                     updatedAt: Date.now(),
                   })}
                   onPatternCommit={returnFocusToTimelineSelection}
@@ -3482,6 +3490,7 @@ function ContextualInspector({
   patternOptions,
   patternControlsByCellId,
   compiledCost,
+  compiledOutputEffects,
   controllerProfiles,
   targetProfile,
   userMaps,
@@ -3489,6 +3498,7 @@ function ContextualInspector({
   onOpenSpatialSelection,
   onUpdateTargetProfile,
   onUpdatePortableReference,
+  onUpdateOutputEffects,
   onPatternCommit,
   onPlaceClip,
   onRemoveClip,
@@ -3520,6 +3530,7 @@ function ContextualInspector({
   patternOptions: ShowPatternOption[]
   patternControlsByCellId: Record<string, AutomatablePatternControl[]>
   compiledCost?: import('@/engine/showVisualToolkit').ShowCompiledCostMetadata
+  compiledOutputEffects?: import('@/engine/showCompiler').ShowCompileSummary['outputEffects']
   controllerProfiles: ControllerProfile[]
   targetProfile?: ControllerProfile
   userMaps: MapRecord[]
@@ -3527,6 +3538,7 @@ function ContextualInspector({
   onOpenSpatialSelection: (zoneId: string) => void
   onUpdateTargetProfile: (targetControllerProfileId: string) => void
   onUpdatePortableReference: (referenceMapId: string | null, referencePixelCount: number) => void
+  onUpdateOutputEffects: (outputEffects: ShowOutputEffect[]) => void
   onPatternCommit: () => void
   onPlaceClip: (zoneId: string, sceneId: string, patch: Pick<ShowCell, 'pattern' | 'patternName'>) => void
   onRemoveClip: (clip: ShowCell) => void
@@ -3662,6 +3674,8 @@ function ContextualInspector({
       userMaps={userMaps}
       onUpdateTargetProfile={onUpdateTargetProfile}
       onUpdatePortableReference={onUpdatePortableReference}
+      onUpdateOutputEffects={onUpdateOutputEffects}
+      compiledOutputEffects={compiledOutputEffects}
       onAddZone={onAddZone}
       onAddRoutingLayout={onAddRoutingLayout}
       onUpdateRoutingLayout={onUpdateRoutingLayout}
@@ -5020,6 +5034,8 @@ function ShowSetupInspector({
   userMaps,
   onUpdateTargetProfile,
   onUpdatePortableReference,
+  onUpdateOutputEffects,
+  compiledOutputEffects,
   onAddZone,
   onAddRoutingLayout,
   onUpdateRoutingLayout,
@@ -5031,6 +5047,8 @@ function ShowSetupInspector({
   userMaps: MapRecord[]
   onUpdateTargetProfile: (targetControllerProfileId: string) => void
   onUpdatePortableReference: (referenceMapId: string | null, referencePixelCount: number) => void
+  onUpdateOutputEffects: (outputEffects: ShowOutputEffect[]) => void
+  compiledOutputEffects?: import('@/engine/showCompiler').ShowCompileSummary['outputEffects']
   onAddZone: () => void
   onAddRoutingLayout: (sourceLayoutId?: string) => void
   onUpdateRoutingLayout: (layoutId: string, changes: Partial<Omit<ShowRoutingLayout, 'id'>>) => void
@@ -5048,6 +5066,8 @@ function ShowSetupInspector({
   const coverageLayout = installationCoverage?.layouts[0]
   const portable = contract?.kind === 'portable-2d' ? contract : null
   const portableMaps = [...STOCK_MAPS, ...userMaps].filter((map) => map.dim === 2)
+  const trails = normalizeShowOutputEffects(show.outputEffects).find((effect) => effect.kind === 'trails')
+  const compiledTrails = compiledOutputEffects?.find((effect) => effect.kind === 'trails')
   return (
     <InspectorPanel family="Show" title={show.name} icon={<Settings2 size={13} aria-hidden />}>
       <div className="grid gap-3 md:grid-cols-2">
@@ -5167,6 +5187,57 @@ function ShowSetupInspector({
         >
           Add zone
         </button>
+      </div>
+      <div className="mt-4 border-t border-zinc-800 pt-3">
+        <div className="mb-2 flex items-center gap-2">
+          <WandSparkles size={13} aria-hidden className="text-cyan-400/75" />
+          <h4 className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Show output</h4>
+        </div>
+        <div className="rounded border border-zinc-800 bg-zinc-950/55 p-2.5">
+          <div className="flex items-center gap-3">
+            <label className="flex items-center gap-2 text-[10px] font-medium text-zinc-300">
+              <input
+                aria-label="Enable Trails"
+                type="checkbox"
+                checked={Boolean(trails)}
+                onChange={(event) => onUpdateOutputEffects(event.target.checked
+                  ? [{ id: 'trails', kind: 'trails', retention: DEFAULT_SHOW_TRAILS_RETENTION }]
+                  : [])}
+                className="accent-cyan-400"
+              />
+              Trails
+            </label>
+            {trails && (
+              <label className="flex min-w-0 flex-1 items-center gap-2 text-[9px] uppercase tracking-[0.08em] text-zinc-600">
+                Retention
+                <input
+                  aria-label="Trails retention"
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.015625}
+                  value={trails.retention}
+                  onChange={(event) => onUpdateOutputEffects([{
+                    ...trails,
+                    retention: Number(event.currentTarget.value),
+                  }])}
+                  className="min-w-20 flex-1 accent-cyan-400"
+                />
+                <span className="w-10 text-right font-mono text-[10px] tabular-nums text-cyan-300">
+                  {(trails.retention * 100).toFixed(1)}%
+                </span>
+              </label>
+            )}
+          </div>
+          <p className="mt-1.5 text-[9px] leading-4 text-zinc-500">
+            Retains brighter linear-RGB pixels from the previous frame. Scrubbing clears trail history at the destination; normal playback and Controller output remain continuous.
+          </p>
+          {compiledTrails?.status === 'rejected' && (
+            <p role="status" className="mt-1 text-[9px] leading-4 text-amber-300/85">
+              Trails are unavailable for this Show because another required cache owns the frame arena ({compiledTrails.reason}).
+            </p>
+          )}
+        </div>
       </div>
       <div className="mt-4 border-t border-zinc-800 pt-3">
         <div className="mb-2 flex items-center gap-2">

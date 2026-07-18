@@ -680,8 +680,11 @@ Click or drag the ruler to seek. The visible playhead remains one pixel wide,
 but a narrow invisible target around it also supports direct dragging through
 the timeline body. Both paths honor Snap and its Alt inversion. PXLBLZ rebuilds deterministic Pattern state by
 replaying from Show start in Fast mode at full Stage resolution. Replay yields
-and a newer seek supersedes older work. There is no approximate seek renderer,
-frame cache, downsampling, or checkpoint system in the current implementation.
+and a newer seek supersedes older work. There is no approximate Pattern-state
+renderer, downsampling, or checkpoint system. Trails is one deliberate
+output-history exception: its prior-frame RGB is cleared while replay advances,
+then the destination frame seeds fresh history. This keeps scrubbing responsive
+without changing Pattern clocks, controls, or deterministic state.
 
 **Split** creates one shared boundary across every zone row when the playhead is
 safely inside a scene hold. Clips on the right default to **Continue**. Turn on
@@ -893,6 +896,23 @@ render-pure layer at opacity `0` is not evaluated, while a stateful layer still
 runs without contributing color. Exact opacity `1` bypasses unnecessary blend
 arithmetic. The compile bar reports skipped evaluations, retained state calls,
 full-weight blend bypasses, and animated endpoint eligibility.
+
+### Show output Effects
+
+Show output Effects run after the complete Stage composite, so they affect the
+whole Show rather than one clip. Open **Show Properties > Show output** to turn
+on **Trails** and set its retention. Higher retention leaves a longer bright
+afterimage; lower retention decays toward the live frame sooner. The calculation
+uses linear RGB and keeps the brighter of the live channel and the decayed
+previous channel.
+
+Live preview and Controller playback carry Trails continuously from frame to
+frame. Scrubbing deliberately clears only the prior-frame Trails history at the
+destination; Pattern state still replays exactly from Show start. A required
+Transition snapshot temporarily reuses the same three render-target planes, so
+Trails clears across that boundary and seeds again from the first complete frame
+after it. The Show Properties panel explains this behavior and reports when an
+incompatible required cache prevents the compiler from including Trails.
 
 Vignette is a Color & output Effect. It darkens the captured Clip toward the
 Stage edges using Center X/Y, Aspect, Radius, Softness, and Amount. Static
@@ -1247,7 +1267,7 @@ and artifact bytes remain independent limits.
 Generated Show code physically contains exactly those three arena arrays. The
 compile bar reports `3 planes`, the active role (`stage-rgb` for snapshot/live
 Crossfade or compatible Pattern output, `scalar-field` for a cached visual
-field, otherwise `unassigned`), and the available channel bindings: RGB
+field, `previous-rgb` for Trails, otherwise `unassigned`), and the available channel bindings: RGB
 `0/1/2`, XY `0/1`, scalar `0`, and previous RGB `0/1/2`. These labels are
 alternate uses of one arena, not four allocations. A snapshot/live diagnostic
 also distinguishes its two-path capture frame from the later one-live-path
@@ -1429,9 +1449,10 @@ or promises deferred to a later screen.
   but audio, accelerometer, and light data do not animate in browser preview.
 - Fast mode uses float64. Precise mode emulates fixed-point arithmetic but does
   not reproduce every firmware algorithm bit-for-bit.
-- Accurate Show seeking reconstructs deterministic Pattern state. Unrecorded
-  wall-clock, network, and live sensor history cannot be recreated from Show
-  time alone.
+- Accurate Show seeking reconstructs deterministic Pattern state. Trails is an
+  explicit output-history exception: scrubbing clears its previous RGB at the
+  target instead of reconstructing every feedback frame. Unrecorded wall-clock,
+  network, and live sensor history cannot be recreated from Show time alone.
 
 For map theory and hardware rules, read **Understanding Maps**. For performance
 work, use **Optimizing Pixelblaze Patterns**. For implementation details and

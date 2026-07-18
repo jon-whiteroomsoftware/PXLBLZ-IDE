@@ -1,6 +1,7 @@
 import type { ShowCompositionV1, ShowRecord } from '../engine/personalContentRecords'
 import { normalizeShowRoutingState, normalizeShowTransitionState } from '../engine/showModel'
 import { normalizeShowOutputContract } from '../engine/showOutputContract'
+import { normalizeShowOutputEffects } from '../engine/showPreviousRgbFeedback'
 import { normalizeShowComposition, validateShowComposition } from '../engine/showCompositionModel'
 import { PersonalStorageGuardError } from './resourceProtection'
 
@@ -24,6 +25,7 @@ export interface D1ShowRow {
   routing_switches_json?: string | null
   transitions_json?: string | null
   composition_json?: string | null
+  output_effects_json?: string | null
   output_contract_json?: string | null
   target_controller_profile_id: string | null
   stage_map_id: string | null
@@ -34,6 +36,9 @@ export function showRecordFromRow(row: D1ShowRow): ShowRecord {
   const outputContract = row.output_contract_json
     ? normalizeShowOutputContract(parseJson(row.output_contract_json, null))
     : undefined
+  const outputEffects = row.output_effects_json
+    ? normalizeShowOutputEffects(parseJson(row.output_effects_json, []))
+    : []
   const show = normalizeShowTransitionState(normalizeShowRoutingState({
     id: row.id,
     name: row.name,
@@ -46,6 +51,7 @@ export function showRecordFromRow(row: D1ShowRow): ShowRecord {
     ...(row.target_controller_profile_id ? { targetControllerProfileId: row.target_controller_profile_id } : {}),
     stageMapId: row.stage_map_id ?? null,
     ...(outputContract ? { outputContract } : {}),
+    ...(outputEffects.length > 0 ? { outputEffects } : {}),
     updatedAt: row.updated_at,
   }))
   const composition = row.composition_json
@@ -58,7 +64,7 @@ export async function listD1Shows(db: D1DatabaseShowsLike, userId: string): Prom
   const { results } = await db
     .prepare(`
       SELECT id, name, scenes_json, zones_json, cells_json, routing_layouts_json, routing_switches_json, transitions_json,
-             composition_json, target_controller_profile_id, stage_map_id, output_contract_json, updated_at
+             composition_json, output_effects_json, target_controller_profile_id, stage_map_id, output_contract_json, updated_at
       FROM personal_shows
       WHERE user_id = ?
       ORDER BY updated_at DESC
@@ -81,9 +87,9 @@ export async function createD1Show(
     .prepare(`
       INSERT INTO personal_shows (
         user_id, id, name, scenes_json, zones_json, cells_json, routing_layouts_json, routing_switches_json, transitions_json,
-        composition_json, target_controller_profile_id, stage_map_id, output_contract_json, created_at, updated_at
+        composition_json, output_effects_json, target_controller_profile_id, stage_map_id, output_contract_json, created_at, updated_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
     .bind(
       userId,
@@ -96,6 +102,7 @@ export async function createD1Show(
       JSON.stringify(record.routingSwitches),
       JSON.stringify(normalizeShowTransitionState(record).transitions),
       composition ? JSON.stringify(composition) : null,
+      record.outputEffects?.length ? JSON.stringify(normalizeShowOutputEffects(record.outputEffects)) : null,
       record.targetControllerProfileId ?? null,
       record.stageMapId ?? null,
       record.outputContract ? JSON.stringify(record.outputContract) : null,
@@ -122,6 +129,7 @@ export async function updateD1Show(
   addAssignment(assignments, values, 'routing_switches_json', changes.routingSwitches, true)
   addAssignment(assignments, values, 'transitions_json', changes.transitions, true)
   addAssignment(assignments, values, 'composition_json', composition, true)
+  addAssignment(assignments, values, 'output_effects_json', changes.outputEffects, true)
   addAssignment(assignments, values, 'target_controller_profile_id', changes.targetControllerProfileId)
   addAssignment(assignments, values, 'stage_map_id', changes.stageMapId)
   addAssignment(assignments, values, 'output_contract_json', changes.outputContract, true)

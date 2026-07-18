@@ -176,6 +176,30 @@ describe('getExports', () => {
     expect(exports.exported).toBe(1)
     expect('hidden' in exports).toBe(false)
   })
+
+  it('mutates only metadata-listed runtime vars through the preview handle', () => {
+    const code = `
+      var feedbackSeek = 0;
+      var hidden = 7;
+    `
+    const handle = loadPattern(code, meta(['feedbackSeek']), minimalBuiltins)
+
+    expect(handle.setPatternVar('feedbackSeek', 1)).toBe(true)
+    expect(handle.getExports().feedbackSeek).toBe(1)
+    expect(handle.setPatternVar('hidden', 9)).toBe(false)
+    expect('hidden' in handle.getExports()).toBe(false)
+  })
+
+  it('resolves compacted runtime bindings when mutating a preview var', () => {
+    const handle = loadPattern(
+      'var a = 0;',
+      { ...meta(['feedbackSeek']), patternVarBindings: { feedbackSeek: 'a' } },
+      minimalBuiltins,
+    )
+
+    expect(handle.setPatternVar('feedbackSeek', 1)).toBe(true)
+    expect(handle.getExports().feedbackSeek).toBe(1)
+  })
 })
 
 // ── controls ──────────────────────────────────────────────────────────────────

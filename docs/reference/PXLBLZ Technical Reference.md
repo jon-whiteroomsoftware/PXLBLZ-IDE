@@ -412,6 +412,16 @@ stable packed `Float64Array`; tuple views, export snapshots, and checksums are
 materialized only when a diagnostic caller requests them. Headless steps reset
 captured color without allocating or retaining a frame.
 
+Generated Show metadata may name one compiler-owned temporal-feedback seek
+variable. The browser runtime exposes a narrowly scoped `setPatternVar()` seam
+for that listed binding, including compacted names; the setter is part of the
+preview epilogue and is never emitted into Controller source. Clear-at-target
+replay enables the binding for every headless intermediate step, bypassing
+Trails reads and writes while exact Pattern state still advances. Cooperative
+chunks keep it enabled across yield boundaries. Only the final presented target
+tick disables it and seeds fresh previous-RGB history, after which live playback
+continues normally.
+
 ## 10. WebGL, camera, and preview settings
 
 `renderer.ts` draws all pixels as WebGL points. 2D uses an additive pass. 3D
@@ -1763,8 +1773,9 @@ code typed role bindings over those same arrays:
 
 One role assignment changes read/write meaning, not allocation. The compile
 summary exposes all bindings and reports `stage-rgb` when snapshot/live
-Crossfade or shared Pattern output owns the arena and `scalar-field` when a
-planned visual field owns a plane; otherwise the role is unassigned. #515's reservation
+Crossfade or shared Pattern output owns the arena, `scalar-field` when a planned
+visual field owns a plane, and `previous-rgb` when Trails owns the arena;
+otherwise the role is unassigned. #515's reservation
 alone performs no capture, replay, or per-pixel arena work. The
 `renderTargetArenaEmission: false` compiler option exists only for paired
 benchmarks; eligibility still accounts for the mandatory reservation. If that
@@ -1774,8 +1785,8 @@ compiler retains exact live/live behavior and emits a compatibility warning.
 ### Lifetime-aware render-target planning
 
 `showRenderTargetPlanner.ts` separates cache selection from source emission.
-Producers submit candidates for RGB snapshots, sample XY, scalar fields, or
-shared Pattern RGB. Each candidate carries a half-open timeline lifetime, one
+Producers submit candidates for RGB snapshots, sample XY, scalar fields, shared
+Pattern RGB, or previous RGB. Each candidate carries a half-open timeline lifetime, one
 of Show, Scene, Transition, frame, placement epoch, or property epoch; the event
 that invalidates it; exact or explicitly authored approximate semantics; setup,
 replay, invalidation, and expected-reuse work; and any semantic conflicts.
@@ -1792,9 +1803,12 @@ For every accepted candidate, the planner chooses the lowest available physical
 plane numbers. Overlapping lifetimes may partition the arena—for example,
 sample XY on planes `0/1` and a scalar field on plane `2`. Non-overlapping
 lifetimes reuse the same numbers, including two successive three-plane
-Transition snapshots. Explicit semantic conflicts or insufficient overlapping
-capacity reject the lower-ranked candidate with the winning candidate ids in
-the explanation.
+Transition snapshots. One authored ownership exception allows Show-lifetime
+`previous-rgb` Trails and a required Transition `rgb-snapshot` to bind the same
+three planes: generated code suspends and clears Trails for the complete
+Transition lifetime, then seeds it again after the boundary. Explicit semantic
+conflicts and every other insufficient overlapping-capacity case reject the
+lower-ranked candidate with the winning candidate ids in the explanation.
 
 The compile summary publishes assignments, rejected decisions, estimated work,
 peak plane use, invalidation boundaries, and a projection of the complete VM
@@ -1810,6 +1824,28 @@ Redline harness retains exactly 15,421 live/live and 15,627 snapshot/live source
 bytes after planner integration, so #517 adds compile-time structure and
 diagnostics without changing the generated render loop or claiming a runtime
 gain.
+
+Trails supplies the first production `previous-rgb` candidate. It is an
+authored, required Show-lifetime policy over all three planes and adds no array
+words. The generated outer renderer applies it only to the final physical
+`rgb()` output: each clamped linear-RGB channel becomes
+`max(live, previous * retention)`. The first complete traversal seeds the
+planes, later traversals read and replace them, and loop rewind clears readiness.
+Required Transition snapshots use the suspension policy above. Preview seek
+sets the browser-only metadata binding so intermediate replay bypasses feedback;
+Controller and ordinary live preview never set it and remain continuous. If a
+different required three-plane cache has no authored sharing policy, the
+compiler rejects Trails with a warning instead of allocating a fourth plane.
+
+On Burner bag (`pb32`, firmware 3.67) native serial output, an arena-matched
+Live-to-Trails comparison measured median FPS of 124.502 to 80.437 at 256
+pixels (-35.39%), 32.951 to 20.833 at 1,000 (-36.77%), and 16.569 to 10.436 at
+2,000 (-37.01%). Trails adds 405 compact-source bytes and 236 Controller-bytecode
+bytes, zero VM words, and at most 0.091 ms frame-time spread in the measured
+matrix. This is the qualified cost of the visual affordance, not an optimization
+claim. The Controller protocol cannot identify or switch expander/parallel
+topology, so no fastest-output-profile result is inferred from the native serial
+fixture.
 
 Static full-Stage Vignette is also a production scalar-field candidate. Its
 identity includes the complete radial geometry and properties, Stage-sample

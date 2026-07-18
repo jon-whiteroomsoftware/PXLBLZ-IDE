@@ -59,6 +59,25 @@ function expectHoleFreeStrip(show: ShowRecord): void {
 }
 
 describe('showModel (#318)', () => {
+  it('threads normalized Show output Effects into every compile recipe (#537)', () => {
+    const base = createDefaultShow('show-537-trails', 'Trails', 1)
+    const show: ShowRecord = {
+      ...base,
+      outputEffects: [
+        { id: 'trails', kind: 'trails', retention: 2 },
+        { id: 'ignored-duplicate', kind: 'trails', retention: 0.25 },
+      ],
+    }
+
+    const recipe = showRecordToCompileRecipe(show, {
+      byCellId: Object.fromEntries(show.cells.map((cell) => [cell.id, DEMOS[cell.pattern.id]])),
+    })
+
+    expect(recipe.outputEffects).toEqual([
+      { id: 'trails', kind: 'trails', retention: 1 },
+    ])
+  })
+
   it('authors new crossfades with the recommended snapshot/live policy (#516)', () => {
     const show = createDefaultShow('show-516-default', 'Snapshot crossfade', 1)
     const recipe = showRecordToCompileRecipe(show, {

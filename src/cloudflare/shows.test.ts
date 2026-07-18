@@ -70,6 +70,7 @@ describe('D1 show persistence (#318)', () => {
   it('maps D1 rows to ShowRecord values', () => {
     const show = createDefaultShow('show-1', 'Tazii nights', 123)
     const outputContract = createInstallationShowOutputContract({ outputMapId: 'map-1', pixelCount: 240 })
+    const outputEffects = [{ id: 'trails', kind: 'trails' as const, retention: 0.75 }]
 
     expect(showRecordFromRow({
       id: show.id,
@@ -81,6 +82,7 @@ describe('D1 show persistence (#318)', () => {
       routing_switches_json: JSON.stringify(show.routingSwitches),
       transitions_json: null,
       composition_json: JSON.stringify(composition()),
+      output_effects_json: JSON.stringify(outputEffects),
       target_controller_profile_id: 'ctrl-1',
       stage_map_id: 'map-1',
       output_contract_json: JSON.stringify(outputContract),
@@ -91,6 +93,7 @@ describe('D1 show persistence (#318)', () => {
       targetControllerProfileId: 'ctrl-1',
       stageMapId: 'map-1',
       outputContract,
+      outputEffects,
       composition: composition(),
     }))
   })
@@ -115,6 +118,7 @@ describe('D1 show persistence (#318)', () => {
       ...createDefaultShow('show-1', 'Tazii nights', 123),
       outputContract: createInstallationShowOutputContract({ outputMapId: 'map-1', pixelCount: 240 }),
       composition: composition(),
+      outputEffects: [{ id: 'trails', kind: 'trails' as const, retention: 0.75 }],
     }
 
     await createD1Show(db, 'github:123', show, 100)
@@ -127,6 +131,7 @@ describe('D1 show persistence (#318)', () => {
     expect(calls[0].values).toContain(JSON.stringify(normalizeShowTransitionState(show).transitions))
     expect(calls[0].values).toContain(JSON.stringify(show.outputContract))
     expect(calls[0].values).toContain(JSON.stringify(show.composition))
+    expect(calls[0].values).toContain(JSON.stringify(show.outputEffects))
     expect(calls[0].values).toContain(null)
   })
 
@@ -149,10 +154,11 @@ describe('D1 show persistence (#318)', () => {
       routing_switches_json: String(values[7]),
       transitions_json: String(values[8]),
       composition_json: String(values[9]),
-      target_controller_profile_id: values[10] as string | null,
-      stage_map_id: values[11] as string | null,
-      output_contract_json: values[12] as string | null,
-      updated_at: Number(values[14]),
+      output_effects_json: values[10] as string | null,
+      target_controller_profile_id: values[11] as string | null,
+      stage_map_id: values[12] as string | null,
+      output_contract_json: values[13] as string | null,
+      updated_at: Number(values[15]),
     })
 
     expect(reloaded.composition).toEqual(normalizeShowComposition(show, show.composition))
@@ -250,6 +256,16 @@ describe('D1 show persistence (#318)', () => {
 
     expect(calls[0].sql).toContain('composition_json = ?')
     expect(calls[0].values).toContain(JSON.stringify(composition()))
+  })
+
+  it('updates Show output Effects as one serialized sidecar (#537)', async () => {
+    const { db, calls } = fakeDb()
+    const outputEffects = [{ id: 'trails', kind: 'trails' as const, retention: 0.75 }]
+
+    await updateD1Show(db, 'github:123', 'show-1', { outputEffects, updatedAt: 456 })
+
+    expect(calls[0].sql).toContain('output_effects_json = ?')
+    expect(calls[0].values).toContain(JSON.stringify(outputEffects))
   })
 
   it('clears authored composition with SQL NULL when undo returns to a flat Show', async () => {

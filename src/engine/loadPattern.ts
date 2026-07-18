@@ -28,6 +28,10 @@ export interface PatternMetadata {
   }[]
   // Present when produced by bundle(); absent in hand-built test metadata.
   renderFns?: RenderFns
+  /** Compiler-owned temporal state that preview seeking may deliberately clear. */
+  temporalFeedback?: {
+    previewSeekModeVar: string
+  }
 }
 
 export interface PatternHandle {
@@ -38,6 +42,8 @@ export interface PatternHandle {
   render2D: (index: number, x: number, y: number) => void
   render3D: (index: number, x: number, y: number, z: number) => void
   getExports: () => Record<string, unknown>
+  /** Browser-runtime seam for metadata-owned state; never emitted to Pixelblaze. */
+  setPatternVar: (name: string, value: unknown) => boolean
   controls: Record<string, (...args: number[]) => void>
 }
 
@@ -79,6 +85,13 @@ function buildEpilogue(metadata: PatternMetadata): string {
     .map(c => `${JSON.stringify(c.exportName)}:(typeof ${c.exportName}==='function'?${c.exportName}:function(){})`)
     .join(',')
 
+  const setPatternVarCases = metadata.patternVars
+    .map((name) => {
+      const runtimeName = metadata.patternVarBindings?.[name] ?? name
+      return `case ${JSON.stringify(name)}:if(typeof ${runtimeName}!=='undefined'){${runtimeName}=value;return true;}return false;`
+    })
+    .join('')
+
   return [
     'return {',
     '  beforeRender:typeof beforeRender==="function"?beforeRender:function(delta){},',
@@ -87,6 +100,7 @@ function buildEpilogue(metadata: PatternMetadata): string {
     '  render2D:typeof render2D==="function"?render2D:function(index,x,y){},',
     '  render3D:typeof render3D==="function"?render3D:function(index,x,y,z){},',
     `  getExports:function(){return{${getExportsEntries}};},`,
+    `  setPatternVar:function(name,value){switch(name){${setPatternVarCases}default:return false;}},`,
     `  controls:{${controlsEntries}},`,
     '};',
   ].join('\n')

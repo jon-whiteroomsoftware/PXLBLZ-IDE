@@ -21,6 +21,23 @@ export function render(index) {
 }
 `
 
+const TEMPORAL_FEEDBACK_PATTERN = `
+var __feedback_seek = 0
+var live = 0
+var ready = 0
+var previous = array(pixelCount)
+export function beforeRender(delta) {
+  live = live ? 0 : 1
+  if (__feedback_seek) ready = 0
+}
+export function render(index) {
+  var output = __feedback_seek || !ready ? live : max(live, previous[index] * 0.5)
+  if (!__feedback_seek) previous[index] = output
+  if (index == pixelCount - 1 && !__feedback_seek) ready = 1
+  rgb(output, 0, 0)
+}
+`
+
 function lineMap(pixelCount: number) {
   return Array.from({ length: pixelCount }, () => ({ sample: [] as number[] }))
 }
@@ -70,6 +87,30 @@ describe('Fast replay reconstruction', () => {
     expect(result.simulatedFrames).toBe(5)
     expect(result.outerRendererCalls).toBe(20)
     expect(result.exports.renderCalls).toBe(20)
+  })
+
+  it('clears temporal feedback at a seek target, then resumes continuous live history (#537)', () => {
+    const bundled = prepareFastReplay(TEMPORAL_FEEDBACK_PATTERN, {})
+    const prepared = {
+      ...bundled,
+      metadata: {
+        ...bundled.metadata,
+        temporalFeedback: { previewSeekModeVar: '__feedback_seek' },
+      },
+    }
+    const options = { mapPoints: lineMap(1), randomSeed: 537 }
+
+    const exact = createFastReplayRuntime(prepared, options).advanceTo(20, { stepMs: 10 })
+    const clearedRuntime = createFastReplayRuntime(prepared, options)
+    const cleared = clearedRuntime.advanceTo(20, {
+      stepMs: 10,
+      temporalFeedbackSeek: 'clear-at-target',
+    })
+
+    expect(exact.pixels[0][0]).toBe(0.5)
+    expect(cleared.pixels[0][0]).toBe(0)
+    expect(clearedRuntime.advanceLive(10).pixels[0][0]).toBe(1)
+    expect(clearedRuntime.advanceLive(10).pixels[0][0]).toBe(0.5)
   })
 
   it('evaluates one stateful frame per live presentation while deterministic seek remains fixed-step (#508)', () => {
@@ -205,5 +246,30 @@ describe('Fast replay reconstruction', () => {
     expect(result).toBeNull()
     expect(yields).toBe(1)
     expect(runtime.getElapsedMs()).toBe(30)
+  })
+
+  it('keeps temporal feedback suppressed across cooperative chunk boundaries (#537)', async () => {
+    const bundled = prepareFastReplay(TEMPORAL_FEEDBACK_PATTERN, {})
+    const runtime = createFastReplayRuntime({
+      ...bundled,
+      metadata: {
+        ...bundled.metadata,
+        temporalFeedback: { previewSeekModeVar: '__feedback_seek' },
+      },
+    }, {
+      mapPoints: lineMap(1),
+      randomSeed: 537,
+    })
+
+    const result = await advanceFastReplayCooperatively(runtime, 20, {
+      stepMs: 10,
+      chunkMs: 10,
+      temporalFeedbackSeek: 'clear-at-target',
+      isCurrent: () => true,
+      yieldControl: async () => undefined,
+    })
+
+    expect(result?.pixels[0][0]).toBe(0)
+    expect(runtime.advanceLive(10).pixels[0][0]).toBe(1)
   })
 })

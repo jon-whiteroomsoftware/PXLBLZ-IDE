@@ -310,4 +310,100 @@ describe('Show render-target cache planner (#517)', () => {
       blockerCount: 0,
     })
   })
+
+  it('lets a required Transition snapshot suspend an overlapping previous-RGB Effect', () => {
+    const plan = planShowRenderTargetCaches([
+      {
+        id: 'effect:trails',
+        kind: 'previous-rgb',
+        lifetime: { kind: 'show', start: 0, end: 10_000, key: 'show-feedback' },
+        invalidatedBy: ['scene-entry', 'show-loop', 'semantic-change'],
+        exactness: 'authored-approximate',
+        authorSelected: true,
+        required: true,
+        setupCost: 0,
+        perFrameSavings: 0,
+        expectedReuseCount: 1,
+      },
+      {
+        id: 'transition:0:snapshot-live',
+        kind: 'rgb-snapshot',
+        lifetime: { kind: 'transition', start: 4_000, end: 5_000, key: 'boundary-0' },
+        invalidatedBy: ['transition-exit', 'show-loop'],
+        exactness: 'authored-snapshot',
+        authorSelected: true,
+        required: true,
+        setupCost: 100,
+        perFrameSavings: 100,
+        expectedReuseCount: 10,
+      },
+    ], {
+      arena: describeShowRenderTargetArena(2_000),
+      resources: buildShowVmResourceLedger({ pixelCount: 2_000, members: [] }),
+    })
+
+    expect(plan.assignments).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        candidateId: 'effect:trails',
+        role: 'previous-rgb',
+        planes: [0, 1, 2],
+      }),
+      expect.objectContaining({
+        candidateId: 'transition:0:snapshot-live',
+        role: 'stage-rgb',
+        planes: [0, 1, 2],
+      }),
+    ]))
+    expect(plan.decisions).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        candidateId: 'effect:trails',
+        status: 'selected',
+        reason: 'selected',
+      }),
+    ]))
+    expect(plan.resources?.additionalArrayWords).toBe(0)
+  })
+
+  it.each([
+    ['Freeze', 'rgb-snapshot', 'freeze:scene-0'],
+    ['Refresh', 'rgb-snapshot', 'rolling-refresh:scene-0'],
+    ['shared Pattern output', 'shared-pattern-output', 'pattern-output:scene-0'],
+    ['scalar field', 'scalar-field', 'scalar-field:scene-0'],
+  ] as const)('discloses an overlapping %s conflict with previous-RGB', (_label, kind, candidateId) => {
+    const plan = planShowRenderTargetCaches([
+      {
+        id: 'effect:trails',
+        kind: 'previous-rgb',
+        lifetime: { kind: 'scene', start: 0, end: 5_000, key: 'scene-0' },
+        invalidatedBy: ['scene-exit'],
+        exactness: 'authored-approximate',
+        authorSelected: true,
+        required: true,
+        setupCost: 0,
+        perFrameSavings: 0,
+        expectedReuseCount: 1,
+      },
+      {
+        id: candidateId,
+        kind,
+        lifetime: { kind: 'scene', start: 0, end: 5_000, key: 'scene-0' },
+        invalidatedBy: ['scene-exit'],
+        exactness: kind === 'rgb-snapshot' ? 'authored-snapshot' : 'exact',
+        authorSelected: kind === 'rgb-snapshot' ? true : undefined,
+        required: true,
+        setupCost: 0,
+        perFrameSavings: 100,
+        expectedReuseCount: 10,
+      },
+    ])
+
+    expect(plan.decisions).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        candidateId: 'effect:trails',
+        status: 'rejected',
+        reason: 'insufficient-overlap-capacity',
+        conflictsWith: [candidateId],
+      }),
+    ]))
+  })
 })

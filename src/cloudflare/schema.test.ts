@@ -21,6 +21,7 @@ const personalLibrariesMigrationPath = path.resolve('migrations/0011_personal_li
 const showRoutingLayoutsMigrationPath = path.resolve('migrations/0012_show_routing_layouts.sql')
 const showTransitionBoundariesMigrationPath = path.resolve('migrations/0013_show_transition_boundaries.sql')
 const showCompositionMigrationPath = path.resolve('migrations/0016_show_composition.sql')
+const showOutputEffectsMigrationPath = path.resolve('migrations/0017_show_output_effects.sql')
 
 describe('D1 personal storage migration', () => {
   it('creates the storage buckets needed for the Cloudflare personal-storage foundation', () => {
@@ -157,6 +158,14 @@ describe('D1 personal storage migration', () => {
 
     expect(sql).toContain('ALTER TABLE personal_shows ADD COLUMN composition_json TEXT')
     expect(sql).toContain("VALUES ('schema_version', '16', unixepoch())")
+    expect(sql).not.toContain('CREATE TABLE')
+  })
+
+  it('adds ordered Show output Effects as one serialized sidecar (#537)', () => {
+    const sql = fs.readFileSync(showOutputEffectsMigrationPath, 'utf8')
+
+    expect(sql).toContain('ALTER TABLE personal_shows ADD COLUMN output_effects_json TEXT')
+    expect(sql).toContain("VALUES ('schema_version', '17', unixepoch())")
     expect(sql).not.toContain('CREATE TABLE')
   })
 })

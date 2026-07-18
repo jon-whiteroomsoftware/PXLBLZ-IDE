@@ -6,6 +6,7 @@ export type ShowRenderTargetCandidateKind =
   | 'sample-xy'
   | 'scalar-field'
   | 'shared-pattern-output'
+  | 'previous-rgb'
 
 export type ShowRenderTargetLifetimeKind =
   | 'show'
@@ -97,6 +98,7 @@ const KIND_CONTRACT: Record<ShowRenderTargetCandidateKind, {
   'sample-xy': { role: 'sample-xy', planeCount: 2 },
   'scalar-field': { role: 'scalar-field', planeCount: 1 },
   'shared-pattern-output': { role: 'stage-rgb', planeCount: 3 },
+  'previous-rgb': { role: 'previous-rgb', planeCount: 3 },
 }
 
 export function planShowRenderTargetCaches(
@@ -162,9 +164,9 @@ export function planShowRenderTargetCaches(
       })
       continue
     }
-    const conflicts = selected.filter((assignment) => lifetimesOverlap(
-      item.candidate.lifetime,
-      assignment.lifetime,
+    const conflicts = selected.filter((assignment) => (
+      lifetimesOverlap(item.candidate.lifetime, assignment.lifetime)
+      && !sharesArenaBySuspendingPreviousRgb(item.candidate, assignment)
     ))
     const explicitConflicts = conflicts
       .filter((assignment) => (
@@ -260,6 +262,19 @@ function exactnessRank(exactness: ShowRenderTargetExactness): number {
 
 function lifetimesOverlap(left: ShowRenderTargetLifetime, right: ShowRenderTargetLifetime): boolean {
   return left.start < right.end && right.start < left.end
+}
+
+function sharesArenaBySuspendingPreviousRgb(
+  candidate: ShowRenderTargetCandidate,
+  assignment: ShowRenderTargetAssignment,
+): boolean {
+  const previousRgb = candidate.kind === 'previous-rgb' || assignment.kind === 'previous-rgb'
+  const transitionSnapshot = (
+    candidate.kind === 'rgb-snapshot' && candidate.lifetime.kind === 'transition'
+  ) || (
+    assignment.kind === 'rgb-snapshot' && assignment.lifetime.kind === 'transition'
+  )
+  return previousRgb && transitionSnapshot
 }
 
 function findAvailablePlanes(
