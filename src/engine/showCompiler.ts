@@ -575,11 +575,11 @@ export interface ShowCompileSummary {
       additionalArrayWords: 0
       fields: Array<{
         candidateId: string
-        producerKind: 'coherent-noise-2d'
+        producerKind: 'coherent-noise-2d' | 'vignette'
         coordinateDomain: 'stage-sample-2d'
         compatibleConsumerIds: string[]
         status: 'selected' | 'rejected'
-        reason: ShowRenderTargetDecisionReason | 'disabled'
+        reason: ShowRenderTargetDecisionReason | 'disabled' | 'animated-parameter' | 'unsupported-show-shape' | 'multiple-vignettes'
         planes: Array<0 | 1 | 2>
       }>
     }
@@ -700,6 +700,7 @@ interface CompiledMember {
   animatedEffectParameterPaths: string[]
   freezeOwnerTokens: number[]
   freezeRenderTarget?: ShowRenderTargetPlan<'stage-rgb'>
+  vignetteScalarField?: SelectedScalarField
 }
 
 interface CompiledFreezeAtEntry {
@@ -742,8 +743,11 @@ interface SelectedPatternOutputReuseGroup extends CompiledPatternOutputReuseGrou
 interface CompiledScalarField {
   definition: ShowScalarFieldDefinition
   candidate: ShowRenderTargetCandidate
-  producerKind: 'coherent-noise-2d'
-  transitionKey: string
+  producerKind: 'coherent-noise-2d' | 'vignette'
+  transitionKey?: string
+  memberId?: string
+  effectId?: string
+  cacheEligibilityReason?: 'animated-parameter' | 'unsupported-show-shape' | 'multiple-vignettes'
 }
 
 interface SelectedScalarField extends CompiledScalarField {
@@ -905,7 +909,11 @@ function buildFreezeAtEntryCandidates(
   return result
 }
 
-function buildShowScalarFields(recipe: ShowRecipe, pixelCount: number): CompiledScalarField[] {
+function buildShowScalarFields(
+  recipe: ShowRecipe,
+  members: CompiledMember[],
+  pixelCount: number,
+): CompiledScalarField[] {
   const fields: CompiledScalarField[] = []
   const addField = (
     transition: ShowRouteTransitionRecipe | ShowSceneSequenceTransitionRecipe,
@@ -969,6 +977,58 @@ function buildShowScalarFields(recipe: ShowRecipe, pixelCount: number): Compiled
   }
   if (recipe.sceneSequence) addSequence('sequence', recipe.sceneSequence.scenes)
   if (recipe.routedSceneSequence) addSequence('routed', recipe.routedSceneSequence.scenes)
+
+  const fullStageMemberRendering = !recipe.zones
+    && !recipe.routingLayouts
+    && !recipe.sceneSequence
+    && !recipe.routedSceneSequence
+    && !recipe.routeTransition
+  for (const member of members) {
+    const vignettes = member.effects.filter((effect): effect is Extract<ShowClipEffect, { kind: 'vignette' }> => (
+      effect.kind === 'vignette' && effect.amount !== 0
+    ))
+    for (const effect of vignettes) {
+      const cacheEligibilityReason = member.animatedEffects
+        ? 'animated-parameter' as const
+        : !fullStageMemberRendering
+          ? 'unsupported-show-shape' as const
+          : vignettes.length !== 1
+            ? 'multiple-vignettes' as const
+            : undefined
+      const semanticKey = [
+        'vignette',
+        `amount=${effect.amount}`,
+        `radius=${effect.radius}`,
+        `softness=${effect.softness}`,
+        `centerX=${effect.centerX}`,
+        `centerY=${effect.centerY}`,
+        `aspect=${effect.aspect}`,
+      ].join(':')
+      const definition: ShowScalarFieldDefinition = {
+        id: `vignette:${member.id}:${effect.id}`,
+        producer: { id: 'vignette', semanticKey, operationsPerPixel: 16 },
+        coordinateDomain: { kind: 'stage-sample-2d', key: 'stage-sample-2d' },
+        lifetime: { kind: 'show', start: 0, end: Number.MAX_SAFE_INTEGER, key: 'show' },
+        invalidatedBy: ['map-change', 'effect-property-change', 'planner-ownership-change'],
+        exactness: 'exact',
+        expectedFrameCount: 120,
+        readsPerPixelPerFrame: 1,
+        consumers: [{
+          id: `clip:${member.id}:effect:${effect.id}`,
+          coordinateDomainKey: 'stage-sample-2d',
+          lifetimeKey: 'show',
+        }],
+      }
+      fields.push({
+        definition,
+        candidate: buildShowScalarFieldCandidate(definition, pixelCount),
+        producerKind: 'vignette',
+        memberId: member.id,
+        effectId: effect.id,
+        cacheEligibilityReason,
+      })
+    }
+  }
   return fields
 }
 
@@ -1484,7 +1544,7 @@ export function compileShow(
     members,
     routedOutputDimension,
   )
-  const scalarFields = buildShowScalarFields(expandedRecipe, renderTargetPixelCount)
+  const scalarFields = buildShowScalarFields(expandedRecipe, members, renderTargetPixelCount)
   const coordinateFields = buildShowCoordinateFields(
     expandedRecipe,
     members,
@@ -1500,7 +1560,9 @@ export function compileShow(
     ...buildShowRenderTargetCandidates(expandedRecipe, renderTargetPixelCount),
     ...freezeAtEntryCaptures.map((capture) => capture.candidate),
     ...(patternOutputReuse ? patternOutputReuseAnalysis.groups.map((group) => group.candidate) : []),
-    ...(scalarFieldCaching ? scalarFields.map((field) => field.candidate) : []),
+    ...(scalarFieldCaching
+      ? scalarFields.filter((field) => !field.cacheEligibilityReason).map((field) => field.candidate)
+      : []),
     ...(coordinateFieldCaching ? coordinateFields.map((field) => field.candidate) : []),
   ]
   const preliminaryRenderTargetPlan = planShowRenderTargetCaches(renderTargetCandidates, {
@@ -1555,6 +1617,11 @@ export function compileShow(
       ownerToken: index + 1,
     } satisfies SelectedScalarField]
   })
+  for (const field of selectedScalarFields) {
+    if (field.producerKind !== 'vignette' || !field.memberId) continue
+    const member = members.find((candidate) => candidate.id === field.memberId)
+    if (member) member.vignetteScalarField = field
+  }
   const coordinateFieldByCandidate = new Map(coordinateFields.map((field) => [field.candidate.id, field]))
   const selectedCoordinateFields = preliminaryRenderTargetPlan.assignments.flatMap((assignment, index) => {
     if (assignment.kind !== 'sample-xy') return []
@@ -1724,7 +1791,8 @@ export function compileShow(
       coordinateDomain: field.definition.coordinateDomain.kind as 'stage-sample-2d',
       compatibleConsumerIds: analysis.compatibleConsumerIds,
       status: decision?.status === 'selected' ? 'selected' as const : 'rejected' as const,
-      reason: scalarFieldCaching ? decision?.reason ?? 'non-profitable' : 'disabled' as const,
+      reason: field.cacheEligibilityReason
+        ?? (scalarFieldCaching ? decision?.reason ?? 'non-profitable' : 'disabled' as const),
       planes: assignment?.planes ?? [],
     }
   })
@@ -1827,6 +1895,7 @@ export function compileShow(
     expectedActiveFraction: evaluationSummary.expectedActiveFraction,
     generatedScalarGlobals: (routingParameterEstimate?.scalarGlobals ?? 0)
       + (expandedRecipe.samplePropertyRamps ? 1 : 0)
+      + new Set(selectedScalarFields.map(scalarFieldPlane)).size * 2
       + members.reduce((count, member) => {
         if (showEffectsAreIdentity(member.effects) && !member.animatedEffects) return count
         const hasAffine = member.effects.some((effect) => ['translate', 'rotate', 'scale', 'shear'].includes(effect.kind))
@@ -4994,7 +5063,7 @@ function identityShowEffect(effect: ShowClipEffect): ShowClipEffect {
   if (effect.kind === 'saturation') return { ...effect, saturation: 1 }
   if (effect.kind === 'contrast') return { ...effect, contrast: 1 }
   if (effect.kind === 'invert') return { ...effect, amount: 0 }
-  if (effect.kind === 'threshold' || effect.kind === 'posterize' || effect.kind === 'color-map') return { ...effect, amount: 0 }
+  if (effect.kind === 'threshold' || effect.kind === 'posterize' || effect.kind === 'vignette' || effect.kind === 'color-map') return { ...effect, amount: 0 }
   if (effect.kind === 'translate' || effect.kind === 'shear') return { ...effect, x: 0, y: 0 }
   if (effect.kind === 'scale') return { ...effect, x: 1, y: 1 }
   if (effect.kind === 'ripple' || effect.kind === 'swirl' || effect.kind === 'bulge' || effect.kind === 'pixelate' || effect.kind === 'kaleidoscope') {
@@ -6489,7 +6558,10 @@ function effectParameterValue(effect: ShowClipEffect, parameter: string): number
   return showEffectNumericValue(effect, parameter)
 }
 
-function emitMemberOutputEffectLines(member: CompiledMember): string {
+function emitMemberOutputEffectLines(
+  member: CompiledMember,
+  coordinate: { index: string; x: string; y: string },
+): string {
   const r = `${member.prefix}_r`
   const g = `${member.prefix}_g`
   const b = `${member.prefix}_b`
@@ -6582,6 +6654,40 @@ function emitMemberOutputEffectLines(member: CompiledMember): string {
         `  ${r} = ${r} * (1 - ${amount}) + floor(${r} * ${name}_span + 0.5) / ${name}_span * ${amount}`,
         `  ${g} = ${g} * (1 - ${amount}) + floor(${g} * ${name}_span + 0.5) / ${name}_span * ${amount}`,
         `  ${b} = ${b} * (1 - ${amount}) + floor(${b} * ${name}_span + 0.5) / ${name}_span * ${amount}`,
+      )
+    } else if (effect.kind === 'vignette') {
+      const amount = value(effect, 'amount')
+      const radius = value(effect, 'radius')
+      const softness = value(effect, 'softness')
+      const producerLines = [
+        `  var ${name}_dx = (${coordinate.x} - ${value(effect, 'centerX')}) * ${value(effect, 'aspect')}`,
+        `  var ${name}_dy = ${coordinate.y} - ${value(effect, 'centerY')}`,
+        `  var ${name}_distance = hypot(${name}_dx, ${name}_dy)`,
+        `  var ${name}_matte = ${softness} <= 0 ? (${name}_distance <= ${radius}) : clamp((${radius} + ${softness} - ${name}_distance) / ${softness}, 0, 1)`,
+        `  var ${name}_factor = 1 - ${amount} * (1 - ${name}_matte)`,
+      ]
+      const scalarField = member.vignetteScalarField?.effectId === effect.id
+        ? member.vignetteScalarField
+        : undefined
+      if (scalarField) {
+        const ready = scalarFieldReadyName(scalarField)
+        lines.push(
+          `  var ${name}_factor`,
+          `  if (${ready}) {`,
+          `    ${name}_factor = ${emitShowRenderTargetRead(scalarField.renderTarget, 'value', coordinate.index)}`,
+          '  } else {',
+          ...producerLines.map((line) => `  ${line}`),
+          `    ${emitShowRenderTargetWrite(scalarField.renderTarget, 'value', coordinate.index, `${name}_factor`)}`,
+          `    if (${coordinate.index} == pixelCount - 1) ${ready} = 1`,
+          '  }',
+        )
+      } else {
+        lines.push(...producerLines)
+      }
+      lines.push(
+        `  ${r} = ${r} * ${name}_factor`,
+        `  ${g} = ${g} * ${name}_factor`,
+        `  ${b} = ${b} * ${name}_factor`,
       )
     } else if (effect.kind === 'color-map') {
       const amount = value(effect, 'amount')
@@ -6877,7 +6983,7 @@ ${effectRuntime?.hasCoordinates ? emitMemberDistortionSampling(member, 'effectX'
   var mappedY = ${effectRuntime?.wrap ? 'effectY - floor(effectY)' : 'clamp(effectY, 0, 1)'}
 ${omitClear ? '' : `  ${member.prefix}_clear()
 `}  ${emitSelectedMemberRendererCall(member, 2, { index: 'mappedIndex', x: 'mappedX', y: 'mappedY' })}
-${emitMemberOutputEffectLines(member)}
+${emitMemberOutputEffectLines(member, { index: 'index', x: 'effectX', y: 'effectY' })}
 ${freezeCapture}
 ${effectRuntime?.hasCoordinates && !effectRuntime.wrap ? `  if (!effectInside) ${member.prefix}_clear()
 ` : ''}}`,
@@ -6898,7 +7004,7 @@ ${emitMemberDistortionSampling(member, 'effectX', 'effectY')}
   mappedIndex = min(${member.pixelCountName} - 1, floor(effectX * ${member.pixelCountName}))
 ` : ''}${omitClear ? '' : `  ${member.prefix}_clear()
 `}  ${member.hasRender ? emitSelectedMemberRendererCall(member, 1, { index: identitySamplePath ? 'index' : 'mappedIndex' }) : ''}
-${emitMemberOutputEffectLines(member)}
+${emitMemberOutputEffectLines(member, { index: 'index', x: `index / max(1, ${member.pixelCountName} - 1)`, y: '0.5' })}
 ${effectRuntime?.hasCoordinates && !effectRuntime.wrap ? `  if (!effectInside) ${member.prefix}_clear()
 ` : ''}${freezeCapture}}`] : []),
     ...(outputDimension === 2 ? [`function ${member.prefix}_renderCapture2D(index, x, y) {
@@ -6926,7 +7032,7 @@ ${emitMemberDistortionSampling(member, 'effectX', 'effectY')}
     x: identitySamplePath ? 'x' : 'mappedX',
     y: identitySamplePath ? 'y' : samplePropertyRamps || effectRuntime?.hasCoordinates ? 'mappedY' : 'y',
   })}
-${emitMemberOutputEffectLines(member)}
+${emitMemberOutputEffectLines(member, { index: 'index', x: 'x', y: 'y' })}
 ${effectRuntime?.hasCoordinates && !effectRuntime.wrap ? `  if (!effectInside) ${member.prefix}_clear()
 ` : ''}${freezeCapture}}`] : []),
     `function ${member.prefix}_emit() { rgb(${member.prefix}_r${memberHasContentKey(member) ? ` * ${member.prefix}_alpha` : ''}, ${member.prefix}_g${memberHasContentKey(member) ? ` * ${member.prefix}_alpha` : ''}, ${member.prefix}_b${memberHasContentKey(member) ? ` * ${member.prefix}_alpha` : ''}) }`,
@@ -6934,6 +7040,9 @@ ${effectRuntime?.hasCoordinates && !effectRuntime.wrap ? `  if (!effectInside) $
   })
 
   const usesHsv = members.some((member) => member.usesHsv)
+  const vignetteScalarFields = members.flatMap((member) => (
+    member.vignetteScalarField ? [member.vignetteScalarField] : []
+  ))
   const captureBranches = members.length <= 2
     ? `if (slot == 0) { __pxlblz_show_c0_r = r; __pxlblz_show_c0_g = g; __pxlblz_show_c0_b = b${memberHasContentKey(members[0]) ? '; __pxlblz_show_c0_alpha = 1' : ''} }
   else { __pxlblz_show_c1_r = r; __pxlblz_show_c1_g = g; __pxlblz_show_c1_b = b${members[1] && memberHasContentKey(members[1]) ? '; __pxlblz_show_c1_alpha = 1' : ''} }`
@@ -6946,6 +7055,7 @@ ${effectRuntime?.hasCoordinates && !effectRuntime.wrap ? `  if (!effectInside) $
     ...(includeMix ? ['var __pxlblz_show_mix = 0'] : []),
     ...(includePhase ? ['var __pxlblz_show_phase = 0'] : []),
     ...(sampleRuntime ? [sampleRuntime] : []),
+    ...(vignetteScalarFields.length > 0 ? [emitScalarFieldRuntimeDeclarations(vignetteScalarFields)] : []),
     ...sharedEffectKernels.map(({ group, binding }) => emitSharedScaleKernel(group, binding)),
     ...memberVars,
     ...(usesHsv ? [`function __pxlblz_show_capture_rgb(slot, r, g, b) {
@@ -7398,6 +7508,7 @@ function describeEffectCost(
                   : effect.kind === 'luma-key' ? 13
                     : effect.kind === 'chroma-key' ? 20
                   : effect.kind === 'posterize' ? 21
+                    : effect.kind === 'vignette' ? 16
                     : 28
       const keyScalar = effect.kind === 'luma-key' ? 13 : effect.kind === 'chroma-key' ? 20 : 0
       return {
@@ -7405,14 +7516,15 @@ function describeEffectCost(
         scalar: cost.scalar + scalar,
         floor: cost.floor + (effect.kind === 'posterize' ? 3 + (member.animatedEffects ? 1 : 0) : 0),
         trig: cost.trig + (effect.kind === 'hue' ? 2 : 0),
+        sqrt: cost.sqrt + (effect.kind === 'vignette' ? 1 : 0),
         keyCount: cost.keyCount + (keyScalar > 0 ? 1 : 0),
         keyScalar: cost.keyScalar + keyScalar,
       }
-    }, { count: legacyBrightness, scalar: legacyBrightness * 3, floor: 0, trig: 0, keyCount: 0, keyScalar: 0 })
+    }, { count: legacyBrightness, scalar: legacyBrightness * 3, floor: 0, trig: 0, sqrt: 0, keyCount: 0, keyScalar: 0 })
   })
   const maxColor = memberColorCosts.reduce((worst, cost) => (
     cost.scalar > worst.scalar ? cost : worst
-  ), { count: 0, scalar: 0, floor: 0, trig: 0, keyCount: 0, keyScalar: 0 })
+  ), { count: 0, scalar: 0, floor: 0, trig: 0, sqrt: 0, keyCount: 0, keyScalar: 0 })
   return {
     affineOperationsPerFrame,
     animatedParametersPerFrame: Math.max(adaptationAnimated, sequenceAnimated),
@@ -7422,6 +7534,7 @@ function describeEffectCost(
     colorScalarOpsPerEvaluatedPixel: maxColor.scalar,
     colorFloorCallsPerEvaluatedPixel: maxColor.floor,
     colorTrigCallsPerEvaluatedPixel: maxColor.trig,
+    colorSqrtCallsPerEvaluatedPixel: maxColor.sqrt,
     keyEffectsPerEvaluatedPixel: maxColor.keyCount,
     keyScalarOpsPerEvaluatedPixel: maxColor.keyScalar,
     keySqrtCallsPerEvaluatedPixel: 0,

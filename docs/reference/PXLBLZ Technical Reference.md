@@ -1692,6 +1692,16 @@ bytes after planner integration, so #517 adds compile-time structure and
 diagnostics without changing the generated render loop or claiming a runtime
 gain.
 
+Static full-Stage Vignette is also a production scalar-field candidate. Its
+identity includes the complete radial geometry and properties, Stage-sample
+domain, Show lifetime, exactness, invalidators, and consumers. The first
+rendered frame computes the same inline value while filling one selected plane;
+later frames read that value. Animated properties, routed or partial evaluation,
+multiple Vignettes on one member, arena conflicts, and unprofitable candidates
+retain the exact inline emitter with a compile-summary reason. Map or Effect
+property changes rebuild the generated runtime, so a selected Show-lifetime
+field never survives a semantic invalidation.
+
 ### Authored Freeze-at-entry evaluation
 
 `ShowCell` and `ShowPatternInstance` may persist `evaluationPolicy` as `live` or
@@ -2258,7 +2268,7 @@ a Clip's Pattern clears that Clip's prior control targets at the model boundary.
 
 An Effect is a clip-owned visual operation. The persisted stack contains stable
 Effect ids and preserves authored order. Opacity, brightness, hue, saturation,
-contrast, invert, threshold, luma key, chroma key, posterize, color map, translate,
+contrast, invert, threshold, luma key, chroma key, posterize, Vignette, color map, translate,
 rotate, scale, and shear expose numeric targets through the same boundary-owned
 Property descriptor used by Animation speed. Wrap has no curve; it is an
 address policy applied after the complete affine transform. Add, update, move,
@@ -2295,6 +2305,9 @@ The common output catalogue uses these normalized parameters:
 - Chroma key multiplies output alpha by feathered mean squared RGB distance
   from an authored color. Generated code deliberately uses no square root.
 - Posterize rounds each channel to `2..32` levels; Amount `0` is neutral.
+- Vignette multiplies RGB by a radial Stage-coordinate matte. Center X/Y place
+  its center, Aspect scales the X distance, Radius preserves the inner region,
+  Softness feathers the edge, and Amount `0` is neutral.
 - Color map remaps Rec. 709 luma between authored shadow and highlight RGB
   endpoints; Amount `0` is neutral.
 

@@ -564,6 +564,7 @@ export function createShowEffectToolkitFixtureRecipes(): ShowToolkitFixtureRecip
     ['luma-key', { id: 'luma-key', kind: 'luma-key', target: 0, tolerance: 0.08, softness: 0.08 }],
     ['chroma-key', { id: 'chroma-key', kind: 'chroma-key', color: '#00ff00', tolerance: 0.08, softness: 0.08 }],
     ['posterize', { id: 'posterize', kind: 'posterize', levels: 4, amount: 1 }],
+    ['vignette', { id: 'vignette', kind: 'vignette', amount: 1, radius: 0.35, softness: 0.28, centerX: 0.5, centerY: 0.5, aspect: 1.15 }],
     ['color-map', { id: 'color-map', kind: 'color-map', amount: 1, shadowR: 0.05, shadowG: 0, shadowB: 0.2, highlightR: 1, highlightG: 0.7, highlightB: 0.1 }],
   ]
   const affineWrap: ShowClipEffect[] = [

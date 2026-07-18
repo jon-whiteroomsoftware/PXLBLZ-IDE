@@ -41,6 +41,9 @@ describe('Show scalar fields (#519)', () => {
     expect(showScalarFieldIdentity(field({
       invalidatedBy: ['field-plane-reassigned', 'property-change'],
     }))).not.toBe(showScalarFieldIdentity(left))
+    expect(showScalarFieldIdentity(field({
+      consumers: [{ id: 'third-mask', coordinateDomainKey: 'stage-map', lifetimeKey: 'boundary-0' }],
+    }))).not.toBe(showScalarFieldIdentity(left))
   })
 
   it('accepts multiple compatible consumers and reports mismatched domains and epochs', () => {

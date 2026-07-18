@@ -54,7 +54,7 @@ export interface ShowScalarFieldAnalysis {
   }>
 }
 
-/** Identity deliberately excludes the cache id, consumers, and cost estimates. */
+/** Identity excludes only the cache id and cost estimates. */
 export function showScalarFieldIdentity(field: ShowScalarFieldDefinition): string {
   return JSON.stringify({
     producer: field.producer.semanticKey,
@@ -65,6 +65,13 @@ export function showScalarFieldIdentity(field: ShowScalarFieldDefinition): strin
     },
     invalidatedBy: [...field.invalidatedBy].sort(),
     exactness: field.exactness,
+    consumers: [...field.consumers]
+      .sort((left, right) => left.id.localeCompare(right.id))
+      .map((consumer) => ({
+        id: consumer.id,
+        coordinateDomainKey: consumer.coordinateDomainKey,
+        lifetimeKey: consumer.lifetimeKey,
+      })),
   })
 }
 

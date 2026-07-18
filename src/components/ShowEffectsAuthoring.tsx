@@ -370,6 +370,7 @@ const EFFECT_MNEMONIC_MOTION: Record<string, string> = {
   'luma-key': 'threshold',
   'chroma-key': 'threshold',
   posterize: 'steps',
+  vignette: 'scale',
   'color-map': 'cycle',
   translate: 'translate',
   rotate: 'rotate',
@@ -429,6 +430,8 @@ function effectMnemonicShape(kind: string): React.ReactNode {
       return <><circle cx="6" cy="7" r="3" /><circle cx="13" cy="7" r="3" opacity=".55" /><circle cx="20" cy="7" r="3" opacity=".25" /><path d="M10 3 L16 11 M16 3 L10 11" /></>
     case 'posterize':
       return <path d="M2 11 H7 V8 H12 V6 H17 V3 H24" />
+    case 'vignette':
+      return <><ellipse cx="13" cy="7" rx="10" ry="5" opacity=".25" /><ellipse cx="13" cy="7" rx="6" ry="3" opacity=".6" /><circle cx="13" cy="7" r="1.2" fill="currentColor" stroke="none" /></>
     case 'color-map':
       return <><path d="M2 10 C6 2 9 2 13 7 S20 12 24 4" /><path d="M2 12 H8 M10 12 H16 M18 12 H24" opacity=".45" /></>
     case 'translate':

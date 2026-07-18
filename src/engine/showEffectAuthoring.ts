@@ -12,7 +12,7 @@ import type {
 } from './showVisualToolkitPresentation'
 
 const OUTPUT_EFFECTS = new Set<ShowClipEffect['kind']>([
-  'opacity', 'brightness', 'hue', 'saturation', 'contrast', 'invert', 'threshold', 'luma-key', 'chroma-key', 'posterize', 'color-map',
+  'opacity', 'brightness', 'hue', 'saturation', 'contrast', 'invert', 'threshold', 'luma-key', 'chroma-key', 'posterize', 'vignette', 'color-map',
 ])
 const AFFINE_EFFECTS = new Set<ShowClipEffect['kind']>(['translate', 'rotate', 'scale', 'shear', 'wrap'])
 

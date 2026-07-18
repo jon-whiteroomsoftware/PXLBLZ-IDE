@@ -13,6 +13,8 @@ specific gains came from avoiding whole Pattern evaluations: compatible output
 reuse improved 91.7%, content-aware key composition improved 59.9%, and scalar-
 field reuse improved 44.1%. Snapshot/live Crossfade intentionally changes the
 visual contract and improved Redline's transition median by 76.7%.
+The first scalar-field Effect, Vignette, improved 26.6% at the 2,000-pixel
+ceiling while adding no VM words.
 
 The program also established a negative boundary. Exact transformed-coordinate
 caching looked profitable in an abstract operation model but slowed 2,000-pixel
@@ -49,7 +51,7 @@ lifetime plan:
 | --- | ---: | --- |
 | `stage-rgb` | 0/1/2 | snapshot/live Crossfade and compatible Pattern-output reuse |
 | `sample-xy` | 0/1 | measured diagnostic only; production disabled |
-| `scalar-field` | 0 | exact reusable Dissolve geometry |
+| `scalar-field` | 0 | exact reusable Dissolve geometry and static full-Stage Vignette |
 | `previous-rgb` | 0/1/2 | reserved contract; no production producer yet |
 
 One role assignment does not allocate another buffer. There is no fourth
@@ -138,6 +140,19 @@ progress and edge policy remain live consumers.
 The five-surface fixture removed an estimated 96,000 operations per cached
 frame and improved from 2.161 to 3.115 FPS (+44.1%). The first active frame
 remains exact and later frames replay the ready field.
+
+Vignette is the first authorable scalar-field Effect. It evaluates a radial
+Stage-coordinate matte from center, aspect, radius, softness, and amount. A
+static full-Stage member computes the exact inline result while filling plane 0
+on its first frame and reads the field on later frames. Animated properties,
+routed or partial evaluation, multiple Vignettes on one member, unavailable
+arena, and overlapping higher-priority ownership remain exact inline fallbacks.
+
+On pb32 firmware 3.67, inline-to-replay median throughput improved from 50.271
+to 63.524 FPS at 256 pixels (+26.36%), 12.968 to 16.409 at 1,000 (+26.54%),
+and 6.494 to 8.219 at 2,000 (+26.58%). The selected artifact adds 219 compact
+source bytes and 112 Controller-bytecode bytes but no VM words. Fast and Precise
+fill/replay output match.
 
 ### Content-aware luma and chroma keys
 
@@ -235,6 +250,7 @@ restoration details for every line.
 | 03 | #538 shared generated Effect kernels | 10 members: source -12,552 B, bytecode -6,480 B, globals -54; FPS neutral |
 | 04 | #533 authored Freeze at entry | median FPS +45.55% / +46.02% / +46.07% at 256 / 1,000 / 2,000 pixels; zero additional VM words |
 | 05 | #534 three-layer coverage composition | 90% coverage median FPS +100.67% / +100.74% / +100.74% at 256 / 1,000 / 2,000 pixels; zero additional VM words |
+| 06 | #539 Vignette scalar field | median FPS +26.36% / +26.54% / +26.58% at 256 / 1,000 / 2,000 pixels; zero additional VM words |
 
 The cumulative next-wave ledger, including exact fixture and restoration facts,
 lives in `docs/plans/show-rendering-next-wave-measurement-ledger.md`.
@@ -264,7 +280,7 @@ The recommended order is:
 1. native operation-cost profiling and fixture-level hardware ablation;
 2. authored Freeze and Refresh clip policies;
 3. exact coverage-directed layer composition;
-4. scalar-field Effects and a census for Pattern field/coverage/shading roles;
+4. additional scalar-field Effects and a census for Pattern field/coverage/shading roles; Vignette is now the qualified first producer;
 5. `previous-rgb` Trails and Decay as a cheap visual affordance;
 6. Restart-instance global liveness and shared generated-kernel capacity work;
 7. direct emission, state vectors, packed routing/RGB, or spatial hold only

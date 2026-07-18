@@ -68,6 +68,36 @@ describe('Show clip Effects (#444)', () => {
     ])
   })
 
+  it('normalizes and evaluates Vignette as an exact coordinate-aware output Effect (#539)', () => {
+    const vignette = normalizeShowClipEffects([{
+      id: 'edge',
+      kind: 'vignette',
+      amount: 2,
+      radius: Number.NaN,
+      softness: -1,
+      centerX: 3,
+      centerY: -2,
+      aspect: 0,
+    }])[0]
+
+    expect(vignette).toEqual({
+      id: 'edge', kind: 'vignette', amount: 1, radius: 0.35, softness: 0,
+      centerX: 1, centerY: 0, aspect: 0.1,
+    })
+    const authored = {
+      id: 'edge', kind: 'vignette' as const, amount: 1, radius: 0.25,
+      softness: 0.25, centerX: 0.5, centerY: 0.5, aspect: 1,
+    }
+    expect(applyShowOutputEffects([authored], [1, 0.5, 0.25], 1, { x: 0.5, y: 0.5 }).color)
+      .toEqual([1, 0.5, 0.25])
+    expect(applyShowOutputEffects([authored], [1, 0.5, 0.25], 1, { x: 1, y: 1 }).color)
+      .toEqual([0, 0, 0])
+    expect(showEffectsAreIdentity([{ ...authored, amount: 0 }])).toBe(true)
+    expect(showEffectParameterNames(authored)).toEqual([
+      'amount', 'radius', 'softness', 'centerX', 'centerY', 'aspect',
+    ])
+  })
+
   it('recognizes identity stacks and stable animation-compatible structure', () => {
     const identity = [
       { id: 'move', kind: 'translate' as const, x: 0, y: 0 },
@@ -330,6 +360,7 @@ describe('Show clip Effects (#444)', () => {
       'effect-color-luma-key',
       'effect-color-chroma-key',
       'effect-color-posterize',
+      'effect-color-vignette',
       'effect-color-color-map',
       'effect-affine-wrap',
       'effect-distortion-ripple',

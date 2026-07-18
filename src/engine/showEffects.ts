@@ -57,6 +57,12 @@ export function normalizeShowClipEffects(effects: readonly ShowClipEffect[] | nu
       id, kind: 'posterize' as const,
       levels: Math.round(clamp(effect.levels, 2, 32, 8)), amount: clamp(effect.amount, 0, 1, 0),
     }]
+    if (effect.kind === 'vignette') return [{
+      id, kind: 'vignette' as const,
+      amount: clamp(effect.amount, 0, 1, 1), radius: clamp(effect.radius, 0, 2, 0.35),
+      softness: clamp(effect.softness, 0, 1, 0.35), centerX: clamp(effect.centerX, 0, 1, 0.5),
+      centerY: clamp(effect.centerY, 0, 1, 0.5), aspect: clamp(effect.aspect, 0.1, 10, 1),
+    }]
     if (effect.kind === 'color-map') return [{
       id, kind: 'color-map' as const, amount: clamp(effect.amount, 0, 1, 0),
       shadowR: clamp(effect.shadowR, 0, 1, 0), shadowG: clamp(effect.shadowG, 0, 1, 0), shadowB: clamp(effect.shadowB, 0, 1, 0),
@@ -115,6 +121,7 @@ export function showEffectParameterNames(effect: ShowClipEffect): string[] {
   if (effect.kind === 'luma-key') return ['target', 'tolerance', 'softness']
   if (effect.kind === 'chroma-key') return ['tolerance', 'softness']
   if (effect.kind === 'posterize') return ['levels', 'amount']
+  if (effect.kind === 'vignette') return ['amount', 'radius', 'softness', 'centerX', 'centerY', 'aspect']
   if (effect.kind === 'color-map') return ['amount', 'shadowR', 'shadowG', 'shadowB', 'highlightR', 'highlightG', 'highlightB']
   if (effect.kind === 'ripple') return ['amount', 'frequency', 'phase', 'centerX', 'centerY']
   if (effect.kind === 'swirl' || effect.kind === 'bulge') return ['amount', 'radius', 'centerX', 'centerY']
@@ -152,13 +159,14 @@ export function showEffectsAreIdentity(effects: readonly ShowClipEffect[] | unde
     || effect.kind === 'luma-key'
     || effect.kind === 'chroma-key'
     || (effect.kind === 'posterize' && effect.amount !== 0)
+    || (effect.kind === 'vignette' && effect.amount !== 0)
     || (effect.kind === 'color-map' && effect.amount !== 0)
   ))
   return !hasAffine && !hasDistortion && !hasOpacity && !hasColor
 }
 
 export function isShowColorEffect(effect: ShowClipEffect): boolean {
-  return ['opacity', 'brightness', 'hue', 'saturation', 'contrast', 'invert', 'threshold', 'luma-key', 'chroma-key', 'posterize', 'color-map'].includes(effect.kind)
+  return ['opacity', 'brightness', 'hue', 'saturation', 'contrast', 'invert', 'threshold', 'luma-key', 'chroma-key', 'posterize', 'vignette', 'color-map'].includes(effect.kind)
 }
 
 export function isShowDistortionEffect(effect: ShowClipEffect): effect is Extract<ShowClipEffect, { amount: number }> {
@@ -189,6 +197,7 @@ export function applyShowOutputEffects(
   effects: readonly ShowClipEffect[] | undefined,
   color: ShowRgb,
   legacyBrightness = 1,
+  sample: { x: number; y: number } = { x: 0.5, y: 0.5 },
 ): ShowOutputEffectResult {
   let current: ShowRgb = color.map((channel) => channel * legacyBrightness) as ShowRgb
   let opacity = 1
@@ -226,6 +235,13 @@ export function applyShowOutputEffects(
         const target = Math.floor(channel * span + 0.5) / span
         return channel * (1 - effect.amount) + target * effect.amount
       }) as ShowRgb
+    } else if (effect.kind === 'vignette') {
+      const distance = Math.hypot((sample.x - effect.centerX) * effect.aspect, sample.y - effect.centerY)
+      const matte = effect.softness <= 0
+        ? Number(distance <= effect.radius)
+        : clamp01((effect.radius + effect.softness - distance) / effect.softness)
+      const factor = 1 - effect.amount * (1 - matte)
+      current = current.map((channel) => channel * factor) as ShowRgb
     } else if (effect.kind === 'color-map') {
       const luma = clamp01(showColorLuma(current))
       const mapped: ShowRgb = [

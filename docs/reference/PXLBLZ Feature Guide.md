@@ -882,6 +882,13 @@ runs without contributing color. Exact opacity `1` bypasses unnecessary blend
 arithmetic. The compile bar reports skipped evaluations, retained state calls,
 full-weight blend bypasses, and animated endpoint eligibility.
 
+Vignette is a Color & output Effect. It darkens the captured Clip toward the
+Stage edges using Center X/Y, Aspect, Radius, Softness, and Amount. Static
+full-Stage uses can reuse one exact scalar-field plane after their first frame;
+the first frame still renders the authored result. Animated, routed, conflicting,
+or otherwise ineligible uses keep the same inline result. Advanced compiled
+cost reports the selected plane, avoided scalar work, or the fallback reason.
+
 Adding a Zone creates an empty timeline row. Place Clips in its slots or extend
 an existing Clip across it; the editor does not clone another Zone's Patterns.
 
@@ -1189,6 +1196,12 @@ domain, compatible mask consumers, selected plane, estimated operations
 avoided, and any rejection reason. Direct, Scene-sequence, and routed Shows use
 the same contract; successive fields can reuse one plane, while a conflicting
 higher-priority arena role leaves the Dissolve on its original inline path.
+
+Static full-Stage Vignette Effects use the same scalar-field planner. Their
+field identity includes every radial property and their Stage-coordinate
+domain. Exact first-frame fill and later replay require no additional arrays;
+snapshot/live Crossfade or another overlapping arena owner can reject the
+candidate, in which case Vignette remains inline.
 
 The advanced compile report can also describe **sample-coordinate fields**.
 These exact candidates bind transformed X/Y to arena planes `0/1` for a static

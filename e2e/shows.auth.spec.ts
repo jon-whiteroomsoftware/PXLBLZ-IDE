@@ -376,7 +376,7 @@ test.describe('authenticated Show authoring', () => {
     const stack = panel.getByRole('region', { name: 'Clip Effects' })
     await stack.getByRole('button', { name: 'Add' }).click()
     const palette = page.getByRole('dialog', { name: 'Add Effect' })
-    await expect(palette.getByRole('button', { name: /Add .* Effect/ })).toHaveCount(19)
+    await expect(palette.getByRole('button', { name: /Add .* Effect/ })).toHaveCount(22)
 
     await palette.getByRole('button', { name: 'Add Ripple Effect' }).hover()
     await expect.poll(async () => (await persistedShow(page, new URL(page.url()).pathname.split('/').at(-1)!))?.cells[0].effects?.length ?? 0).toBe(0)
@@ -393,6 +393,7 @@ test.describe('authenticated Show authoring', () => {
     await stack.getByRole('button', { name: 'Edit Ripple Effect' }).click()
     await stack.getByRole('spinbutton', { name: 'Amount' }).fill('0.2')
     await stack.getByRole('spinbutton', { name: 'Frequency' }).fill('6')
+    await stack.getByRole('spinbutton', { name: 'Frequency' }).blur()
     await waitForCurrentShow(page, (show) => (
       show.cells[0].effects?.[0]?.kind === 'ripple'
       && show.cells[0].effects[0].amount === 0.2
@@ -418,6 +419,21 @@ test.describe('authenticated Show authoring', () => {
     await reloadedStack.getByRole('button', { name: 'Add' }).click()
     await expect(page.getByRole('dialog', { name: 'Add Effect' })).toBeVisible()
     expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(8)
+    await page.getByRole('searchbox', { name: 'Search Effects' }).fill('vignette')
+    await page.getByRole('button', { name: 'Add Vignette Effect' }).click()
+    await waitForCurrentShow(page, (show) => show.cells[0].effects?.some((effect) => effect.kind === 'vignette') === true)
+    await reloadedStack.getByRole('button', { name: 'Edit Vignette Effect' }).click()
+    await reloadedStack.getByRole('spinbutton', { name: 'Radius' }).fill('0.48')
+    await reloadedStack.getByRole('spinbutton', { name: 'Radius' }).blur()
+    await waitForCurrentShow(page, (show) => show.cells[0].effects?.some((effect) => (
+      effect.kind === 'vignette' && effect.radius === 0.48
+    )) === true)
+
+    await page.reload()
+    await page.getByRole('button', { name: 'Select TestPattern1D', exact: true }).click()
+    const vignetteStack = page.getByRole('dialog', { name: 'Entity Detail Panel' }).getByRole('region', { name: 'Clip Effects' })
+    await vignetteStack.getByRole('button', { name: 'Edit Vignette Effect' }).click()
+    await expect(vignetteStack.getByRole('spinbutton', { name: 'Radius' })).toHaveValue('0.48')
   })
 
   test('previews, authors, configures, reloads, and resets registry Transitions', async ({ page }) => {

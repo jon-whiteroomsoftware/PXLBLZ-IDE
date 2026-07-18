@@ -18,7 +18,7 @@ describe('Show Effect authoring adapter', () => {
     const items = buildShowToolkitPresentationCatalogue({ stageDimensions: 2 })
       .filter((item) => item.kind === 'effect')
 
-    expect(items).toHaveLength(21)
+    expect(items).toHaveLength(22)
     for (const [index, item] of items.entries()) {
       const effect = createShowClipEffect(item, `effect-${index}`)
       expect(effect.id).toBe(`effect-${index}`)
@@ -68,6 +68,21 @@ describe('Show Effect authoring adapter', () => {
     expect(showClipEffectParameters(chroma).map((parameter) => [parameter.id, parameter.kind])).toEqual([
       ['color', 'color'], ['tolerance', 'number'], ['softness', 'number'],
     ])
+  })
+
+  it('authors a coordinate-aware Vignette with complete controls (#539)', () => {
+    const item = buildShowToolkitPresentationCatalogue({ stageDimensions: 2 })
+      .find((candidate) => candidate.key === 'effect:output:vignette')!
+    const effect = createShowClipEffect(item, 'edge')
+
+    expect(effect).toEqual({
+      id: 'edge', kind: 'vignette', amount: 1, radius: 0.35, softness: 0.35,
+      centerX: 0.5, centerY: 0.5, aspect: 1,
+    })
+    expect(showClipEffectParameters(effect).map((parameter) => parameter.id)).toEqual([
+      'amount', 'softness', 'radius', 'centerX', 'centerY', 'aspect',
+    ])
+    expect(showClipEffectStage(effect)).toBe('color-output')
   })
 
   it('duplicates next to its source with a stable unique id', () => {

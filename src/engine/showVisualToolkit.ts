@@ -21,6 +21,7 @@ export interface ShowCompiledCostMetadata {
       colorScalarOpsPerEvaluatedPixel: number
       colorFloorCallsPerEvaluatedPixel: number
       colorTrigCallsPerEvaluatedPixel: number
+      colorSqrtCallsPerEvaluatedPixel: number
       keyEffectsPerEvaluatedPixel: number
       keyScalarOpsPerEvaluatedPixel: number
       keySqrtCallsPerEvaluatedPixel: 0
@@ -150,6 +151,7 @@ export const SHOW_VISUAL_TOOLKIT_REGISTRY: ShowToolkitFamilyDescriptor[] = [
       { id: 'luma-key', label: 'Luma key', costPolicies: ['single-source', 'selector', 'bounded-blend'], compatibility: { stageDimensions: [1, 2, 3] }, presets: [{ id: 'black', label: 'Remove black', values: { target: 0 } }, { id: 'white', label: 'Remove white', values: { target: 1 } }] },
       { id: 'chroma-key', label: 'Chroma key', costPolicies: ['single-source', 'selector', 'bounded-blend'], compatibility: { stageDimensions: [1, 2, 3] }, presets: [{ id: 'green', label: 'Green screen', values: { color: '#00ff00' } }, { id: 'blue', label: 'Blue screen', values: { color: '#0000ff' } }] },
       { id: 'posterize', label: 'Posterize', costPolicies: ['single-source', 'parameter'], compatibility: { stageDimensions: [1, 2, 3] } },
+      { id: 'vignette', label: 'Vignette', costPolicies: ['single-source', 'parameter'], compatibility: { stageDimensions: [1, 2] } },
       { id: 'color-map', label: 'Color map', costPolicies: ['single-source', 'parameter'], compatibility: { stageDimensions: [1, 2, 3] } },
     ],
     parameters: [
@@ -158,13 +160,25 @@ export const SHOW_VISUAL_TOOLKIT_REGISTRY: ShowToolkitFamilyDescriptor[] = [
       { id: 'turns', label: 'Hue shift', kind: 'number', defaultValue: 0, min: -8, max: 8, step: 0.01, unit: 'turn', variantIds: ['hue'] },
       { id: 'saturation', label: 'Saturation', kind: 'number', defaultValue: 1, min: 0, max: 2, step: 0.01, variantIds: ['saturation'] },
       { id: 'contrast', label: 'Contrast', kind: 'number', defaultValue: 1, min: 0, max: 4, step: 0.01, variantIds: ['contrast'] },
-      { id: 'amount', label: 'Amount', kind: 'number', defaultValue: 0, min: 0, max: 1, step: 0.01, variantIds: ['invert', 'threshold', 'posterize', 'color-map'] },
+      {
+        id: 'amount', label: 'Amount', kind: 'number', defaultValue: 0, min: 0, max: 1, step: 0.01,
+        variantIds: ['invert', 'threshold', 'posterize', 'vignette', 'color-map'],
+        constraintsByVariant: { vignette: { defaultValue: 1 } },
+      },
       { id: 'threshold', label: 'Threshold', kind: 'number', defaultValue: 0.5, min: 0, max: 1, step: 0.01, variantIds: ['threshold'] },
       { id: 'target', label: 'Target luminance', kind: 'number', defaultValue: 0, min: 0, max: 1, step: 0.01, variantIds: ['luma-key'] },
       { id: 'color', label: 'Target color', kind: 'color', defaultValue: '#00ff00', variantIds: ['chroma-key'] },
       { id: 'tolerance', label: 'Tolerance', kind: 'number', defaultValue: 0.05, min: 0, max: 1, step: 0.01, variantIds: ['luma-key', 'chroma-key'] },
-      { id: 'softness', label: 'Softness', kind: 'number', defaultValue: 0.05, min: 0, max: 1, step: 0.01, variantIds: ['luma-key', 'chroma-key'] },
+      {
+        id: 'softness', label: 'Softness', kind: 'number', defaultValue: 0.05, min: 0, max: 1, step: 0.01,
+        variantIds: ['luma-key', 'chroma-key', 'vignette'],
+        constraintsByVariant: { vignette: { defaultValue: 0.35 } },
+      },
       { id: 'levels', label: 'Levels', kind: 'number', defaultValue: 8, min: 2, max: 32, step: 1, variantIds: ['posterize'] },
+      { id: 'radius', label: 'Radius', kind: 'number', defaultValue: 0.35, min: 0, max: 2, step: 0.01, variantIds: ['vignette'] },
+      { ...CENTER_X, variantIds: ['vignette'] },
+      { ...CENTER_Y, variantIds: ['vignette'] },
+      { id: 'aspect', label: 'Aspect', kind: 'number', defaultValue: 1, min: 0.1, max: 10, step: 0.01, variantIds: ['vignette'] },
       { id: 'shadowR', label: 'Shadow red', kind: 'number', defaultValue: 0, min: 0, max: 1, step: 0.01, variantIds: ['color-map'] },
       { id: 'shadowG', label: 'Shadow green', kind: 'number', defaultValue: 0, min: 0, max: 1, step: 0.01, variantIds: ['color-map'] },
       { id: 'shadowB', label: 'Shadow blue', kind: 'number', defaultValue: 0, min: 0, max: 1, step: 0.01, variantIds: ['color-map'] },
@@ -604,6 +618,7 @@ export function buildShowCompiledCostMetadata(input: {
         colorScalarOpsPerEvaluatedPixel: input.effects?.colorScalarOpsPerEvaluatedPixel ?? 0,
         colorFloorCallsPerEvaluatedPixel: input.effects?.colorFloorCallsPerEvaluatedPixel ?? 0,
         colorTrigCallsPerEvaluatedPixel: input.effects?.colorTrigCallsPerEvaluatedPixel ?? 0,
+        colorSqrtCallsPerEvaluatedPixel: input.effects?.colorSqrtCallsPerEvaluatedPixel ?? 0,
         keyEffectsPerEvaluatedPixel: input.effects?.keyEffectsPerEvaluatedPixel ?? 0,
         keyScalarOpsPerEvaluatedPixel: input.effects?.keyScalarOpsPerEvaluatedPixel ?? 0,
         keySqrtCallsPerEvaluatedPixel: 0,

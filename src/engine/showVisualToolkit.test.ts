@@ -162,7 +162,7 @@ describe('Show visual-toolkit contract', () => {
 
     const output = getShowToolkitFamily('effect', 'output')
     expect(output?.variants.map((variant) => variant.id)).toEqual([
-      'opacity', 'brightness', 'hue', 'saturation', 'contrast', 'invert', 'threshold', 'luma-key', 'chroma-key', 'posterize', 'color-map',
+      'opacity', 'brightness', 'hue', 'saturation', 'contrast', 'invert', 'threshold', 'luma-key', 'chroma-key', 'posterize', 'vignette', 'color-map',
     ])
     expect(resolveShowToolkitParameters('effect', 'output', 'hue', {}).map((parameter) => parameter.id))
       .toEqual(['turns', 'easing'])

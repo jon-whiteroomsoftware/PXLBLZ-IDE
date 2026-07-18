@@ -17,7 +17,7 @@ describe('Show Effect authoring UI', () => {
     const onClose = vi.fn()
     render(<ShowEffectPalette clip={clip} stageDimensions={2} onApply={onApply} onClose={onClose} />)
 
-    expect(screen.getAllByRole('button', { name: /Add .* Effect/ })).toHaveLength(21)
+    expect(screen.getAllByRole('button', { name: /Add .* Effect/ })).toHaveLength(22)
     await user.type(screen.getByRole('searchbox', { name: 'Search Effects' }), 'ripple')
     const ripple = screen.getByRole('button', { name: 'Add Ripple Effect' })
     expect(screen.getAllByRole('button', { name: /Add .* Effect/ })).toHaveLength(1)
@@ -64,6 +64,26 @@ describe('Show Effect authoring UI', () => {
     expect(screen.getByLabelText('Softness')).toHaveValue(0.05)
   })
 
+  it('edits every Vignette geometry control (#539)', async () => {
+    const user = userEvent.setup()
+    const onChange = vi.fn()
+    const effects: ShowClipEffect[] = [{
+      id: 'edge', kind: 'vignette', amount: 1, radius: 0.35, softness: 0.35,
+      centerX: 0.5, centerY: 0.5, aspect: 1,
+    }]
+    render(<ShowEffectStack effects={effects} onChange={onChange} onAdd={vi.fn()} />)
+
+    await user.click(screen.getByRole('button', { name: 'Edit Vignette Effect' }))
+    for (const label of ['Amount', 'Softness', 'Radius', 'Center X', 'Center Y', 'Aspect']) {
+      expect(screen.getByRole('spinbutton', { name: label })).toBeVisible()
+    }
+    fireEvent.change(screen.getByRole('spinbutton', { name: 'Radius' }), { target: { value: '0.48' } })
+    fireEvent.blur(screen.getByRole('spinbutton', { name: 'Radius' }))
+    expect(onChange).toHaveBeenLastCalledWith([
+      expect.objectContaining({ id: 'edge', kind: 'vignette', radius: 0.48 }),
+    ])
+  })
+
   it('never replaces the Stage preview while the pointer traverses Effects', async () => {
     const show = createDefaultShow('show-effects-hover', 'Effects hover', 1)
     render(<ShowEffectPalette clip={show.cells[0]} stageDimensions={2} onApply={vi.fn()} onClose={vi.fn()} />)
@@ -95,6 +115,7 @@ describe('Show Effect authoring UI', () => {
       'luma-key': 'threshold',
       'chroma-key': 'threshold',
       posterize: 'steps',
+      vignette: 'scale',
       'color-map': 'cycle',
       translate: 'translate',
       rotate: 'rotate',
@@ -116,8 +137,8 @@ describe('Show Effect authoring UI', () => {
       expect(glyph).toHaveClass('show-effect-mnemonic')
     }
 
-    expect(document.querySelectorAll('[data-effect-mnemonic]')).toHaveLength(21)
-    expect(document.querySelectorAll('.show-effect-choice')).toHaveLength(21)
+    expect(document.querySelectorAll('[data-effect-mnemonic]')).toHaveLength(22)
+    expect(document.querySelectorAll('.show-effect-choice')).toHaveLength(22)
 
     fireEvent.pointerEnter(screen.getByRole('button', { name: 'Add Translate Effect' }))
     fireEvent.focus(screen.getByRole('button', { name: 'Add Ripple Effect' }))
