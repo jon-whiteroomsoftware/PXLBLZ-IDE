@@ -114,7 +114,6 @@ export function groupCompatibleShowPatternOutputs(
     }))
     .sort((left, right) => left.producerId.localeCompare(right.producerId))
   const groupedIds = new Set(groups.flatMap((group) => group.consumerIds))
-  const groupedConsumers = sorted.filter((consumer) => groupedIds.has(consumer.consumerId))
   const excluded = sorted.flatMap((consumer) => {
     if (groupedIds.has(consumer.consumerId)) return []
     if (consumer.renderState === 'render-mutating') {
@@ -123,7 +122,8 @@ export function groupCompatibleShowPatternOutputs(
     if (consumer.renderState === 'unknown') {
       return [{ consumerId: consumer.consumerId, reasons: ['render-state-unknown'] as ShowPatternOutputCompatibilityReason[] }]
     }
-    const comparisons = groupedConsumers
+    const comparisons = sorted
+      .filter((other) => other.consumerId !== consumer.consumerId)
       .map((other) => compareShowPatternOutputConsumers(consumer, other).reasons)
       .filter((reasons) => reasons.length > 0)
       .sort((left, right) => left.length - right.length || left.join(',').localeCompare(right.join(',')))
@@ -133,6 +133,67 @@ export function groupCompatibleShowPatternOutputs(
     }]
   })
   return { groups, excluded }
+}
+
+const RUNTIME_CALL_COST: Record<string, number> = {
+  abs: 1,
+  acos: 8,
+  asin: 8,
+  atan: 8,
+  atan2: 10,
+  ceil: 1,
+  clamp: 2,
+  cos: 8,
+  exp: 8,
+  floor: 1,
+  frac: 2,
+  hsv: 8,
+  hypot: 6,
+  log: 8,
+  max: 1,
+  min: 1,
+  mod: 2,
+  pow: 8,
+  rgb: 1,
+  round: 1,
+  sin: 8,
+  sqrt: 6,
+  square: 1,
+  tan: 8,
+  time: 3,
+  triangle: 4,
+  wave: 6,
+}
+
+/** Conservative relative operation score used only to reject caches that cost more than recomputation. */
+export function estimateShowPatternRenderOperations(
+  source: string,
+  renderFunction: ShowPatternOutputRenderFunction,
+): number | null {
+  let ast: AstNode
+  try {
+    ast = acorn.parse(source, { ecmaVersion: 2020, sourceType: 'module' }) as unknown as AstNode
+  } catch {
+    return null
+  }
+  const statements = (ast.body as AstNode[]).map((statement) => (
+    statement.type === 'ExportNamedDeclaration' ? statement.declaration : statement
+  )).filter(Boolean)
+  const selected = statements.find((statement) => (
+    statement.type === 'FunctionDeclaration' && statement.id?.name === renderFunction
+  ))
+  if (!selected) return null
+  let operations = 0
+  walkAst(selected.body, (node) => {
+    if (['BinaryExpression', 'LogicalExpression', 'UnaryExpression', 'UpdateExpression', 'AssignmentExpression', 'ConditionalExpression'].includes(node.type)) {
+      operations += 1
+    } else if (node.type === 'CallExpression') {
+      operations += node.callee?.type === 'Identifier'
+        ? RUNTIME_CALL_COST[node.callee.name] ?? 1
+        : 1
+    }
+  })
+  return Math.max(1, operations)
 }
 
 // Calls outside this side-effect-free Pixelblaze/math surface remain unknown

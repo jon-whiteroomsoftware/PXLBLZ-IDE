@@ -1108,6 +1108,17 @@ boundary. A rejected candidate names its reason and retains the corresponding
 uncached behavior. These work estimates compare compiler structures; Controller
 FPS measurements remain the performance authority.
 
+For repeated compatible 1D Pattern placements, the bar also reports **output
+reuse**: selected groups, Pattern evaluations avoided per active frame, added
+array words, and excluded consumers. The compiler may render one local output
+once and replay it across equal-size physical Zones even though those Zones own
+different output ranges. The Pattern instance, clock, controls, properties,
+pixel count, renderer, and pre-cache Effects must match, and the renderer must
+be proven not to mutate Pattern state. Opacity may differ because compositing
+stays after the cache. Incompatible or unprofitable placements render normally;
+the optimization never changes authored output and uses the existing arena
+rather than allocating another framebuffer.
+
 The same bar enforces the output support envelope. An Installation above 2,000
 pixels, a Portable Show targeting a Controller above 2,000 pixels, an array whose
 maximum size cannot be proven, or any exhausted resource axis blocks generated

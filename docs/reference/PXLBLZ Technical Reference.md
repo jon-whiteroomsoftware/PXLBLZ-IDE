@@ -1649,6 +1649,52 @@ bytes after planner integration, so #517 adds compile-time structure and
 diagnostics without changing the generated render loop or claiming a runtime
 gain.
 
+### Compatible Pattern-output reuse
+
+`showPatternOutputReuse.ts` lets a routed Show materialize one exact RGB output
+per unique local sample and replay it for several compatible placements. The
+compatibility key includes Pattern source identity, Pattern instance, clock
+domain, control inputs, placement properties, local coordinate space, sample
+domain and pixel count, selected render function, and every Effect applied
+before the cache boundary. Opacity and other consumer-only composition remain
+after the boundary and therefore may differ without invalidating reuse.
+
+The first production emitter is intentionally narrow: one physical Zone Layout,
+1D local-index rendering, cut-separated routed Scenes, and no animated property
+or Transition ramps. Equal-size physical Zones are compatible because their
+Patterns receive the same local indexes and `pixelCount`; their distinct Stage
+ranges affect routing after the cached RGB is produced. Different pixel counts,
+properties, clocks, controls, render functions, or pre-cache Effects form
+separate groups.
+
+An Acorn analysis proves the selected renderer does not assign to persistent
+Pattern state. Direct calls on the known side-effect-free Pixelblaze/math surface
+are eligible. Persistent assignment, a missing renderer, parse failure, dynamic
+call, or an unproved user helper excludes the consumer rather than guessing.
+This proof concerns mutation during pixel rendering: `beforeRender` may still
+advance the shared Pattern instance before the frame cache is filled.
+
+Each compatible group submits an exact `shared-pattern-output` Scene-lifetime
+candidate. Its relative cost compares one unique-domain render plus three RGB
+writes and three reads per consumer against independent Pattern evaluations.
+Non-profitable groups stay direct. A selected group runs a generated prepass in
+`beforeRender`, writes its unique local samples through the planner's assigned
+`stage-rgb` planes, and replaces each consumer render call with three arena
+reads. Scene exit, Show loop, and every frame invalidate the values. No hidden
+array is emitted: `additionalArrayWords` remains zero, and arena-disabled
+counterfactuals fall back to independent rendering.
+
+The compile summary reports group membership, producer and consumer ids,
+compatibility exclusions, planner decision, estimated render operations,
+physical planes, and the peak Pattern evaluations avoided per active frame.
+`npm run issue518` proves exact Fast and Precise parity for a 2,000-pixel fixture
+that repeats one 400-sample Pattern instance across five physical Zones. On a
+firmware-3.67 pb32, `npm run issue518:hardware` raised median throughput from
+4.554 to 8.729 FPS (+91.7%); mean throughput rose 71.0%. The selected artifact
+avoids 1,600 of 2,000 Pattern evaluations per frame while retaining the same
+6,012 arena words and restoring the Controller's original program and pixel
+count after the probe.
+
 The Acorn-backed member census counts array literals, `array(pixelCount)`,
 numeric expressions, supported `floor`/`ceil`/`round`/`min`/`max` expressions,
 and top-level scalar constants used by later allocations. A size that cannot be

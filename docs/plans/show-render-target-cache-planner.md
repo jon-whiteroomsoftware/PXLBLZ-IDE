@@ -520,6 +520,7 @@ The work should land as tracer-bullet slices rather than one compiler rewrite.
 7. Introduce render-target roles, lifetimes, invalidation, and plane assignment
    as a pure cache planner. **Shipped in #517.**
 8. Reuse compatible Pattern output across multiple consumers and placements.
+   **Shipped in #518.**
 9. Add Scene-lifetime coordinate and scalar-field caching with measured
    selection rules.
 10. Validate the five-Pattern acceptance Show, faster output profiles, rollout
@@ -544,6 +545,7 @@ the prior measured result without claiming a new hardware benchmark.
 05 #525 shared Motion transition kernels · source 108,033 -> 67,552 B (-37.5%); bytecode 59,202 -> 37,722 B (-36.3%); paired 2,000 px median 0.665 -> 0.665 FPS · incremental 0.0% measured · cumulative Redline reference 2.358 -> 3.037 FPS, +28.8% retained
 06 #516 snapshot/live crossfade · paired Redline Machine 2,000 px median 1.810 -> 3.197 FPS · incremental +76.7% (mean +66.2%) · intentional frozen-outgoing visual policy; arena 6,012 words unchanged, +1 persistent global · cumulative exact Redline reference 2.358 -> 3.037 FPS, +28.8% retained
 07 #517 lifetime-aware cache planner · paired Redline source unchanged at live/live 15,421 B and snapshot/live 15,627 B; arena 6,012 words and generated render loops unchanged · incremental 0.0% expected, compile-time planner not hardware remeasured · cumulative exact Redline reference 2.358 -> 3.037 FPS, +28.8% retained; snapshot/live median 3.197 FPS retained
+08 #518 compatible Pattern-output reuse · paired five-surface 2,000 px median 4.554 -> 8.729 FPS · incremental +91.7% (mean +71.0%); exact 400-sample local output reused across 5 physical Zones, 1,600 Pattern evaluations/frame avoided, arena 6,012 words unchanged · cumulative exact Redline reference 2.358 -> 3.037 FPS, +28.8% retained; snapshot/live median 3.197 FPS retained
 ```
 
 Later slices append `08` through `10` here and repeat the new line in the #511
@@ -641,11 +643,13 @@ confirmed before their implementation issues become AFK-ready:
 Implementation updates current truth only as slices ship:
 
 - `CONTEXT.md`: defines the shipped output ceiling, render target, render-target
-  plan, and snapshot/live Crossfade; add reuse and field terms as later slices ship.
+  plan, snapshot/live Crossfade, and shared Pattern output; add field terms as later slices ship.
 - `docs/reference/PXLBLZ Technical Reference.md`: documents the shipped resource
-  ledger, arena emission, planner, and Crossfade policies; reuse emitters remain future.
+  ledger, arena emission, planner, Crossfade policies, and exact 1D output reuse;
+  coordinate/field cache emitters remain future.
 - `docs/reference/PXLBLZ Feature Guide.md`: explains the shipped output limit,
-  Crossfade choices, compile-cost disclosure, and blocked-artifact remedies.
+  Crossfade choices, output-reuse disclosure, compile-cost disclosure, and
+  blocked-artifact remedies.
 - archived hardware reports: retain raw Controller evidence and restoration
   details.
 

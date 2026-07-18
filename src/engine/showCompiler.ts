@@ -85,7 +85,15 @@ import {
   planShowRenderTargetCaches,
   type ShowRenderTargetCachePlan,
   type ShowRenderTargetCandidate,
+  type ShowRenderTargetDecisionReason,
 } from './showRenderTargetPlanner'
+import {
+  analyzeShowPatternRenderState,
+  estimateShowPatternRenderOperations,
+  groupCompatibleShowPatternOutputs,
+  type ShowPatternOutputCompatibilityReason,
+  type ShowPatternOutputConsumer,
+} from './showPatternOutputReuse'
 import {
   planPhysicalRoutingShortCircuit,
   type PhysicalRoutingShortCircuitPlan,
@@ -479,6 +487,27 @@ export interface ShowCompileSummary {
       baselineEmittedBytes: number
       avoidedEmittedBytes: number
     } | null
+    patternOutputReuse: {
+      selectedGroupCount: number
+      evaluationsAvoidedPerFrame: number
+      additionalArrayWords: 0
+      groups: Array<{
+        candidateId: string
+        sceneIndex: number
+        zoneName: string
+        producerId: string
+        consumerIds: string[]
+        status: 'selected' | 'rejected'
+        reason: ShowRenderTargetDecisionReason | 'disabled'
+        renderOperationsPerEvaluation: number
+        evaluationsAvoidedPerPixel: number
+        evaluationsAvoidedPerFrame: number
+      }>
+      excluded: Array<{
+        consumerId: string
+        reasons: ShowPatternOutputCompatibilityReason[]
+      }>
+    }
   }
   clips: ShowCompileClipSummary[]
   resources: ShowVmResourceLedger
@@ -554,6 +583,30 @@ interface CompiledMember {
   }
 }
 
+interface CompiledPatternOutputReuseGroup {
+  candidate: ShowRenderTargetCandidate
+  sceneIndex: number
+  zoneName: string
+  pixelCount: number
+  producer: ResolvedRoutedScenePlacement
+  consumers: ResolvedRoutedScenePlacement[]
+  producerId: string
+  consumerIds: string[]
+  renderOperationsPerEvaluation: number
+}
+
+interface CompiledPatternOutputReuseAnalysis {
+  groups: CompiledPatternOutputReuseGroup[]
+  excluded: Array<{
+    consumerId: string
+    reasons: ShowPatternOutputCompatibilityReason[]
+  }>
+}
+
+interface SelectedPatternOutputReuseGroup extends CompiledPatternOutputReuseGroup {
+  renderTarget: ShowRenderTargetPlan<'stage-rgb'>
+}
+
 export interface ShowCompileOptions {
   exactSpecializations?: boolean
   frameInvariantHoisting?: boolean
@@ -562,6 +615,8 @@ export interface ShowCompileOptions {
   renderTargetArenaEmission?: boolean
   /** `none` preserves the unrolled #515 boundary; `exact` forces the #525 exact candidate. */
   motionTransitionSharing?: 'auto' | 'none' | 'structure' | 'exact'
+  /** Benchmark-only counterfactual; production uses exact profitable reuse when available. */
+  patternOutputReuse?: boolean
 }
 
 const DIRECT_SNAPSHOT_CANDIDATE_ID = 'transition:direct:snapshot-live'
@@ -627,6 +682,133 @@ function buildShowRenderTargetCandidates(
   return candidates
 }
 
+function patternOutputConsumerId(sceneIndex: number, placementIndex: number): string {
+  return `scene:${sceneIndex}:placement:${placementIndex}`
+}
+
+function buildPatternOutputReuseAnalysis(
+  recipe: ShowRecipe,
+  members: CompiledMember[],
+  outputDimension: ShowOutputDimension,
+): CompiledPatternOutputReuseAnalysis {
+  const sequence = recipe.routedSceneSequence
+  const layout = recipe.routingLayouts?.length === 1 ? recipe.routingLayouts[0] : undefined
+  if (!sequence || !layout || layout.logical || outputDimension !== 1) return { groups: [], excluded: [] }
+  if (sequence.scenes.some((scene) => (
+    (scene.transitionOut && scene.transitionOut.kind !== 'cut')
+    || (scene.propertyTracks?.length ?? 0) > 0
+    || (scene.transitionRamps?.length ?? 0) > 0
+    || scene.placements.some((placement) => (
+      placement.zoneMode === 'span'
+      && (placement.domainZoneNames?.length ?? 0) > 1
+    ))
+  ))) return { groups: [], excluded: [] }
+
+  const memberById = new Map(members.map((member) => [member.id, member]))
+  const renderStateByMember = new Map(members.map((member) => [
+    member,
+    analyzeShowPatternRenderState(member.resourceSource, 'render'),
+  ]))
+  const renderOperationsByMember = new Map(members.map((member) => [
+    member,
+    estimateShowPatternRenderOperations(member.resourceSource, 'render') ?? 1,
+  ]))
+  const groups: CompiledPatternOutputReuseGroup[] = []
+  const excluded: CompiledPatternOutputReuseAnalysis['excluded'] = []
+  let cursor = 0
+  sequence.scenes.forEach((scene, sceneIndex) => {
+    const holdStart = cursor
+    const holdEnd = holdStart + scene.holdMs
+    const placements = scene.placements.map((placement, placementIndex) => ({
+      ...placement,
+      member: memberById.get(placement.clipId)!,
+      consumerId: patternOutputConsumerId(sceneIndex, placementIndex),
+    }))
+    if (placements.length > 1) {
+      const consumers: ShowPatternOutputConsumer[] = placements.flatMap((placement) => {
+        const zone = physicalPlacementDomain(layout, placement)
+        if (!zone) return []
+        const pixelCount = Math.max(1, controllerZonePixelCount(zone))
+        const member = placement.member
+        const authoredEffects = normalizeShowClipEffects(placement.effects)
+        const resolvedEffects = member.effects.map((template) => (
+          authoredEffects.find((effect) => effect.id === template.id && effect.kind === template.kind) ?? template
+        ))
+        return [{
+          consumerId: placement.consumerId,
+          patternIdentity: member.resourceSource,
+          patternInstanceId: member.id,
+          clockDomainKey: JSON.stringify({
+            timeScale: placement.timeScale ?? member.adaptation.timeScale,
+            timeOffsetMs: member.adaptation.timeOffsetMs,
+            steppedClock: member.adaptation.steppedClock ?? null,
+            lightShutter: member.adaptation.lightShutter ?? null,
+          }),
+          inputValuesKey: JSON.stringify({
+            controls: member.controls.map((control) => [control.exportName, control.initialValue]),
+            placementControls: placement.controlTargets ?? null,
+          }),
+          propertyValuesKey: JSON.stringify({
+            brightness: placement.brightness ?? member.adaptation.brightness,
+            phase: placement.phase ?? member.adaptation.phase,
+            mirror: placement.mirror ?? member.adaptation.mirror,
+          }),
+          coordinateSpaceKey: 'physical-local-index',
+          sampleDomainKey: JSON.stringify({
+            pixelCount,
+            samplePropertyRamps: member.samplePropertyRamps ?? null,
+          }),
+          renderFunction: 'render',
+          preCacheEffectsKey: JSON.stringify(resolvedEffects),
+          renderState: renderStateByMember.get(member)!.state,
+          postCacheConsumerKey: JSON.stringify({
+            opacity: clampNumber(placement.opacity ?? 1, 0, 1),
+            stackOrder: placement.stackOrder ?? 0,
+          }),
+        }]
+      })
+      const reuse = groupCompatibleShowPatternOutputs(consumers)
+      excluded.push(...reuse.excluded)
+      for (const [groupIndex, group] of reuse.groups.entries()) {
+        const groupPlacements = group.consumerIds.map((consumerId) => (
+          placements.find((placement) => placement.consumerId === consumerId)!
+        ))
+        const producer = groupPlacements[0]
+        const producerZone = physicalPlacementDomain(layout, producer)
+        if (!producerZone) continue
+        const pixelCount = Math.max(1, controllerZonePixelCount(producerZone))
+        const zoneName = [...new Set(groupPlacements.map((placement) => placement.zoneName))].join('+')
+        const renderOperations = renderOperationsByMember.get(producer.member) ?? 1
+        const candidateId = `reuse:scene:${sceneIndex}:group:${groupIndex}`
+        groups.push({
+          candidate: {
+            id: candidateId,
+            kind: 'shared-pattern-output',
+            lifetime: { kind: 'scene', start: holdStart, end: holdEnd, key: `scene-${sceneIndex}` },
+            invalidatedBy: ['frame-end', 'scene-exit', 'show-loop'],
+            exactness: 'exact',
+            setupCost: pixelCount * (renderOperations + 3),
+            perFrameSavings: pixelCount * renderOperations * groupPlacements.length,
+            replayCost: pixelCount * 3 * groupPlacements.length,
+            expectedReuseCount: 1,
+          },
+          sceneIndex,
+          zoneName,
+          pixelCount,
+          producer,
+          consumers: groupPlacements,
+          producerId: group.producerId,
+          consumerIds: group.consumerIds,
+          renderOperationsPerEvaluation: renderOperations,
+        })
+      }
+    }
+    cursor = holdEnd
+    if (scene.transitionOut && scene.transitionOut.kind !== 'cut') cursor += scene.transitionOut.durationMs
+  })
+  return { groups, excluded }
+}
+
 interface ResolvedRoute {
   member: CompiledMember
   zone: ControllerZone
@@ -657,6 +839,7 @@ export function compileShow(
   const renderKernelSpecialization = options.renderKernelSpecialization ?? false
   const renderTargetArenaEmission = options.renderTargetArenaEmission ?? true
   const motionTransitionSharing = options.motionTransitionSharing ?? 'auto'
+  const patternOutputReuse = options.patternOutputReuse ?? true
   validateRecipe(expandedRecipe)
   const animatedEffectClipIds = new Set<string>()
   const dynamicallyAnimatedEffectClipIds = new Set<string>()
@@ -840,7 +1023,15 @@ export function compileShow(
     renderTargetPixelCount,
     renderTargetArenaEmission,
   )
-  const renderTargetCandidates = buildShowRenderTargetCandidates(expandedRecipe, renderTargetPixelCount)
+  const patternOutputReuseAnalysis = buildPatternOutputReuseAnalysis(
+    expandedRecipe,
+    members,
+    routedOutputDimension,
+  )
+  const renderTargetCandidates = [
+    ...buildShowRenderTargetCandidates(expandedRecipe, renderTargetPixelCount),
+    ...(patternOutputReuse ? patternOutputReuseAnalysis.groups.map((group) => group.candidate) : []),
+  ]
   const preliminaryRenderTargetPlan = planShowRenderTargetCaches(renderTargetCandidates, {
     arena: renderTargetArena,
   })
@@ -854,6 +1045,18 @@ export function compileShow(
   const routedSnapshotCrossfade = preliminaryRenderTargetPlan.assignments.some((assignment) => (
     assignment.candidateId.startsWith('transition:routed:')
   ))
+  const patternOutputReuseGroupByCandidate = new Map(
+    patternOutputReuseAnalysis.groups.map((group) => [group.candidate.id, group]),
+  )
+  const selectedPatternOutputReuseGroups = preliminaryRenderTargetPlan.assignments.flatMap((assignment) => {
+    if (assignment.kind !== 'shared-pattern-output') return []
+    const group = patternOutputReuseGroupByCandidate.get(assignment.candidateId)
+    if (!group) return []
+    return [{
+      ...group,
+      renderTarget: planShowRenderTargetArena(renderTargetPixelCount, 'stage-rgb', assignment.planes),
+    } satisfies SelectedPatternOutputReuseGroup]
+  })
   const routedSceneEmission = expandedRecipe.routedSceneSequence
       ? emitRoutedSceneSequenceShowCode(
         members,
@@ -867,6 +1070,7 @@ export function compileShow(
         selectedRenderTargetCandidates,
         renderKernelSpecialization,
         motionTransitionSharing,
+        selectedPatternOutputReuseGroups,
       )
       : null
   const emittedCode = routedSceneEmission
@@ -954,6 +1158,29 @@ export function compileShow(
   const renderTargetPlan = planShowRenderTargetCaches(renderTargetCandidates, {
     arena: renderTargetArena,
     resources,
+  })
+  const renderTargetDecisionByCandidate = new Map(
+    renderTargetPlan.decisions.map((decision) => [decision.candidateId, decision]),
+  )
+  const patternOutputReuseGroupsSummary = patternOutputReuseAnalysis.groups.map((group) => {
+    const decision = patternOutputReuse
+      ? renderTargetDecisionByCandidate.get(group.candidate.id)
+      : undefined
+    const selected = decision?.status === 'selected'
+    return {
+      candidateId: group.candidate.id,
+      sceneIndex: group.sceneIndex,
+      zoneName: group.zoneName,
+      producerId: group.producerId,
+      consumerIds: group.consumerIds,
+      status: selected ? 'selected' as const : 'rejected' as const,
+      reason: patternOutputReuse ? decision?.reason ?? 'non-profitable' : 'disabled' as const,
+      renderOperationsPerEvaluation: group.renderOperationsPerEvaluation,
+      evaluationsAvoidedPerPixel: group.consumers.length - 1,
+      evaluationsAvoidedPerFrame: selected
+        ? group.pixelCount * (group.consumers.length - 1)
+        : 0,
+    }
   })
   const transitionCost = expandedRecipe.sceneSequence || expandedRecipe.routedSceneSequence
     ? sequenceHasCrossfade || motionBlend
@@ -1165,7 +1392,9 @@ export function compileShow(
     renderTarget: describeShowRenderTargetArena(
       renderTargetPixelCount,
       renderTargetArenaEmission,
-      directSnapshotCrossfade || sequenceSnapshotCrossfade || routedSnapshotCrossfade ? 'stage-rgb' : null,
+      directSnapshotCrossfade || sequenceSnapshotCrossfade || routedSnapshotCrossfade || selectedPatternOutputReuseGroups.length > 0
+        ? 'stage-rgb'
+        : null,
     ),
     renderTargetPlan,
     specializations: {
@@ -1177,6 +1406,15 @@ export function compileShow(
       })),
       renderKernels: routedSceneEmission?.renderKernels ?? null,
       motionTransitions: routedSceneEmission?.motionTransitions ?? null,
+      patternOutputReuse: {
+        selectedGroupCount: patternOutputReuseGroupsSummary.filter((group) => group.status === 'selected').length,
+        evaluationsAvoidedPerFrame: patternOutputReuseGroupsSummary.reduce((peak, group) => (
+          Math.max(peak, group.evaluationsAvoidedPerFrame)
+        ), 0),
+        additionalArrayWords: 0,
+        groups: patternOutputReuseGroupsSummary,
+        excluded: patternOutputReuseAnalysis.excluded,
+      },
     },
     clips: members.map((member) => {
       const lightShutter = member.adaptation.lightShutter
@@ -2116,6 +2354,7 @@ function emitRoutedSceneSequenceShowCode(
   selectedRenderTargetCandidates: ReadonlySet<string> = new Set(),
   renderKernelSpecialization = false,
   motionTransitionSharing: 'auto' | 'none' | 'structure' | 'exact' = 'auto',
+  patternOutputReuseGroups: SelectedPatternOutputReuseGroup[] = [],
 ): {
   code: string
   renderKernels: ShowCompileSummary['specializations']['renderKernels']
@@ -2129,7 +2368,11 @@ function emitRoutedSceneSequenceShowCode(
   const scenes = sequence.scenes.map((scene, sceneIndex) => ({
     ...scene,
     sceneIndex,
-    placements: scene.placements.map((placement) => ({ ...placement, member: memberById.get(placement.clipId)! })),
+    placements: scene.placements.map((placement, placementIndex) => ({
+      ...placement,
+      member: memberById.get(placement.clipId)!,
+      consumerId: patternOutputConsumerId(sceneIndex, placementIndex),
+    })),
     transitionRamps: scene.transitionRamps?.map((ramp) => ({ ...ramp, member: memberById.get(ramp.clipId)! })),
   }))
   const segments: Array<{
@@ -2511,6 +2754,7 @@ ${setupForPlacements(
         sceneLocalTimeExpression,
         outputPixelCount,
         renderKernelSpecialization,
+        patternOutputReuseGroups,
       )
     : undefined
   const sceneBranches = sharedPhysicalCut?.render
@@ -2691,7 +2935,7 @@ ${indentBlock(branches, 2)}
     `export function beforeRender(delta) {
   __pxlblz_show_elapsed_s = (__pxlblz_show_elapsed_s + delta / 1000) % ${cursor / 1000}
 ${usesRouteLayout ? '  __pxlblz_show_route_layout = 0\n' : ''}
-${layoutSelectLines}${layoutSelectLines ? '\n' : ''}${propertyRamps ? `${emitRoutingPropertyAssignments(propertyRamps)}\n` : ''}  ${schedulerBranches}
+${layoutSelectLines}${layoutSelectLines ? '\n' : ''}${propertyRamps ? `${emitRoutingPropertyAssignments(propertyRamps)}\n` : ''}  ${schedulerBranches}${patternOutputReuseGroups.length > 0 ? `\n${indentBlock(emitPatternOutputReusePrepass(patternOutputReuseGroups), 2)}` : ''}
 }`,
     `export function ${outputDimension === 2 ? 'render2D(index, x, y)' : 'render(index)'} {
   ${renderBody}
@@ -2737,7 +2981,10 @@ ${layoutSelectLines}${layoutSelectLines ? '\n' : ''}${propertyRamps ? `${emitRou
   }
 }
 
-type ResolvedRoutedScenePlacement = ShowRoutedScenePlacementRecipe & { member: CompiledMember }
+type ResolvedRoutedScenePlacement = ShowRoutedScenePlacementRecipe & {
+  member: CompiledMember
+  consumerId: string
+}
 type ResolvedRoutedScenePlacementRamp = ShowRoutedScenePlacementRampRecipe & { member: CompiledMember }
 
 function emitSharedPhysicalCutSceneRender(
@@ -2751,11 +2998,15 @@ function emitSharedPhysicalCutSceneRender(
   sceneLocalTimeExpression: (sceneIndex: number) => string,
   outputPixelCount?: number,
   renderKernelSpecialization = false,
+  patternOutputReuseGroups: SelectedPatternOutputReuseGroup[] = [],
 ): {
   prelude: string
   render: string
   renderKernels: ShowCompileSummary['specializations']['renderKernels']
 } {
+  const reuseByConsumerId = new Map(patternOutputReuseGroups.flatMap((group) => (
+    group.consumerIds.map((consumerId) => [consumerId, group] as const)
+  )))
   const routingSpecialization = scenes.some((scene) => scene.placements.some((placement) => placement.member.exactSpecializations))
     ? planPhysicalRoutingShortCircuit(layout.zones.map((zone) => ({ ranges: zone.ranges })), outputPixelCount)
     : null
@@ -2767,9 +3018,11 @@ function emitSharedPhysicalCutSceneRender(
     const localIndex = range.localOffset === 0
       ? `index - ${range.start}`
       : `${range.localOffset} + index - ${range.start}`
-    const condition = rangeIndex === routingSpecialization.ranges.length - 1
-      ? 'else'
-      : `${rangeIndex === 0 ? 'if' : 'else if'} (index <= ${range.end})`
+    const condition = rangeIndex === 0
+      ? `if (index <= ${range.end})`
+      : rangeIndex === routingSpecialization.ranges.length - 1
+        ? 'else'
+        : `else if (index <= ${range.end})`
     return [
       `${condition} {`,
       `  __pxlblz_show_route_id = ${range.routeIndex}`,
@@ -2814,6 +3067,7 @@ function emitSharedPhysicalCutSceneRender(
       : []),
   ].join('\n')
   const canInternPlans = scenes.every((scene) => {
+    if (scene.placements.some((placement) => reuseByConsumerId.has(placement.consumerId))) return false
     if ((scene.propertyTracks?.length ?? 0) > 0) return false
     return [...groupRoutedPlacementsByZone(scene.placements).values()].every((stack) => (
       stack.length === 1 && routedPlacementIsOpaque(stack[0])
@@ -2953,6 +3207,7 @@ ${indentBlock(emitSharedPhysicalSceneZoneStack(
     outputDimension,
     scene.propertyTracks,
     sceneLocalTimeExpression(scene.sceneIndex),
+    reuseByConsumerId,
   ), 2)}
 }`
     )).join(' ')
@@ -2991,10 +3246,21 @@ function emitSharedPhysicalSceneZoneStack(
   outputDimension: 1 | 2,
   propertyTracks?: ShowPropertyAnimationTrack[],
   localTimeExpression?: string,
+  reuseByConsumerId: ReadonlyMap<string, SelectedPatternOutputReuseGroup> = new Map(),
 ): string {
-  const captureMember = (placement: ResolvedRoutedScenePlacement) => outputDimension === 2
-    ? `${placement.member.prefix}_renderCapture2D(__pxlblz_show_route_local_index, __pxlblz_show_route_local_x, __pxlblz_show_route_local_y)`
-    : `${placement.member.prefix}_renderCapture(__pxlblz_show_route_local_index)`
+  const captureMember = (placement: ResolvedRoutedScenePlacement) => {
+    const reuse = reuseByConsumerId.get(placement.consumerId)
+    if (reuse) {
+      return [
+        `${placement.member.prefix}_r = ${emitShowRenderTargetRead(reuse.renderTarget, 'r', '__pxlblz_show_route_local_index')}`,
+        `${placement.member.prefix}_g = ${emitShowRenderTargetRead(reuse.renderTarget, 'g', '__pxlblz_show_route_local_index')}`,
+        `${placement.member.prefix}_b = ${emitShowRenderTargetRead(reuse.renderTarget, 'b', '__pxlblz_show_route_local_index')}`,
+      ].join('\n')
+    }
+    return outputDimension === 2
+      ? `${placement.member.prefix}_renderCapture2D(__pxlblz_show_route_local_index, __pxlblz_show_route_local_x, __pxlblz_show_route_local_y)`
+      : `${placement.member.prefix}_renderCapture(__pxlblz_show_route_local_index)`
+  }
   const directPlacement = placements.length === 1 && routedPlacementIsOpaque(placements[0], propertyTracks)
     ? placements[0]
     : undefined
@@ -3465,6 +3731,25 @@ function emitPhysicalSceneZoneStack(
     `  return`,
     `}`,
   ].join('\n')
+}
+
+function emitPatternOutputReusePrepass(groups: SelectedPatternOutputReuseGroup[]): string {
+  return groups.map((group) => {
+    const member = group.producer.member
+    const capture = emitRoutedPlacementCapture(
+      group.producer,
+      `${member.prefix}_renderCapture(__pxlblz_show_reuse_index)`,
+    )
+    return `if (__pxlblz_show_scene == ${group.sceneIndex}) {
+  ${member.pixelCountName} = ${group.pixelCount}
+${indentBlock(capture.lines.slice(0, -1).join('\n'), 2)}${capture.lines.length > 1 ? '\n' : ''}  for (var __pxlblz_show_reuse_index = 0; __pxlblz_show_reuse_index < ${group.pixelCount}; __pxlblz_show_reuse_index = __pxlblz_show_reuse_index + 1) {
+    ${capture.lines[capture.lines.length - 1]}
+    ${emitShowRenderTargetWrite(group.renderTarget, 'r', '__pxlblz_show_reuse_index', `${member.prefix}_r`)}
+    ${emitShowRenderTargetWrite(group.renderTarget, 'g', '__pxlblz_show_reuse_index', `${member.prefix}_g`)}
+    ${emitShowRenderTargetWrite(group.renderTarget, 'b', '__pxlblz_show_reuse_index', `${member.prefix}_b`)}
+  }
+}`
+  }).join('\n')
 }
 
 function emitRoutedPlacementStackCapture(
