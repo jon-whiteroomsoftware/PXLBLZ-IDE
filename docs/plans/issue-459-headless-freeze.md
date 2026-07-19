@@ -1,7 +1,7 @@
 # Show visual-toolkit headless freeze
 
-The UI-neutral Show visual-toolkit contract is frozen at version 1 with
-fingerprint `f81bca37`. The fingerprint covers the complete registry, its
+The UI-neutral Show visual-toolkit contract is frozen at version 5 with
+fingerprint `cdf804ed`. The fingerprint covers the complete registry, its
 variant-to-fixture mapping, and every fixture's compile recipe, persisted
 record behavior (excluding the volatile `updatedAt` storage timestamp),
 progress samples, capture geometry, stage dimension, and start time.
@@ -13,12 +13,12 @@ stable engine contract that #457 can render without family-specific rules.
 
 ## Catalogue coverage
 
-The registry contains 59 variants with 104 deterministic fixtures:
+The registry contains 62 variants with 107 deterministic fixtures:
 
 | Kind | Registered variants |
 | --- | ---: |
 | Property animation | 5 |
-| Effect | 19 |
+| Effect | 22 |
 | Transition | 35 |
 
 Every variant resolves to at least one fixture. The Property matrix now covers
@@ -41,14 +41,14 @@ matrix:
 
 | Pattern-evaluation formula | Fixtures |
 | --- | ---: |
-| `N` | 100 |
+| `N` | 103 |
 | `N + E` | 2 |
 | `2N` | 2 |
 | `S * N` | 0 |
 
 No fixture exceeds the measured 68,384-byte generated-source budget. The
-largest artifact is `effect-animated` at 10,004 bytes, or 14.63% of that
-budget. The same fixture has the largest generated scalar allocation at 16.
+largest artifact is `effect-animated` at 5,354 bytes, or 7.83% of that
+budget. The same fixture has the largest generated scalar allocation at 15.
 No fixture allocates generated array elements, and no fixture emits a
 compatibility warning under its declared stage dimension.
 
