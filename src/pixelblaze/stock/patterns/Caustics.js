@@ -1,11 +1,19 @@
-// Caustics — shimmering light on a pool floor.
+// Pattern: Caustics
+// Built with PXLBLZ-IDE https://pxlblz-ide.whiteroomsoftware.com/
 //
+// Wandering light pools and organic interference form the bright filaments of sunlit water.
+// Runs on: 2D maps; designed for panels and mapped surfaces.
+// Controls: Speed — How fast the water moves;
+//           Density — Size of the light pools — higher packs in more, smaller cells;
+//           Sharpness — Focus of the light: soft glowing pools at low, crisp bright veins at high;
+//           Tint — Base water colour, swept around the colour wheel.
+//
+// Notes:
 // A cheap animated Voronoi layer is crossed with an organic noise layer; the
 // interference of their light pools produces wandering filaments like focused
 // light on the bottom of a swimming pool. A slow depth-shimmer crossing the
 // whole pool adds the feeling of sun filtering through moving water.
 
-// ── Adjustable controls ────────────────────────────────────────────────────
 export var speed = 0.5      // how fast the water moves
 export var density = 0.4    // caustic cell density (zoom)
 export var sharpness = 0.33 // focus — soft pools vs. crisp veins

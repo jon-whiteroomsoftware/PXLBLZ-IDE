@@ -1,5 +1,14 @@
-// Kinetic Sculpture (3D) - implicit forms passing through one another.
+// Pattern: Kinetic Sculpture
+// Built with PXLBLZ-IDE https://pxlblz-ide.whiteroomsoftware.com/
 //
+// Three orbiting implicit solids melt together into a changing luminous sculpture.
+// Runs on: 3D maps; designed for volumes and shells.
+// Controls: Speed — How fast the forms travel their orbits;
+//           Blend — How much the forms melt together as they pass — crisp clockwork to liquid mercury;
+//           Color — Re-tints the whole sculpture;
+//           Shell — Thickness and glow of the lit surface shell.
+//
+// Notes:
 // Three glowing solids - a sphere, a spinning bar, and a floating torus -
 // orbit the volume on independent paths. A smooth union melts them together
 // wherever they meet, and the LEDs light the resulting shell with a faint

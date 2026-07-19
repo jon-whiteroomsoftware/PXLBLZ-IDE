@@ -1,5 +1,14 @@
-// Lattice Warp 3D — a cubic grid bent by slow phase waves.
+// Pattern: Lattice Warp 3D
+// Built with PXLBLZ-IDE https://pxlblz-ide.whiteroomsoftware.com/
 //
+// Slow phase waves bend a bright repeating cubic lattice.
+// Runs on: 3D maps; designed for volumes and shells.
+// Controls: Speed — How fast the cubic lattice warps;
+//           Spacing — Density of lattice cells;
+//           Warp — Strength of the phase-wave bend;
+//           Color — Base colour of the lattice.
+//
+// Notes:
 // A repeated max-axis distance field gives bright rods along cell boundaries;
 // low-frequency triangle offsets make the lattice breathe without expensive
 // deformation.

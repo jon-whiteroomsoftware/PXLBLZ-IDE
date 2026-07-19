@@ -1,5 +1,14 @@
-// Clockwork Iris (2D) - counter-rotating dashed rings behind a bladed shutter.
+// Pattern: Clockwork Iris
+// Built with PXLBLZ-IDE https://pxlblz-ide.whiteroomsoftware.com/
 //
+// Counter-rotating dashed rings advance behind a many-bladed mechanical shutter.
+// Runs on: 2D maps; designed for panels and mapped surfaces.
+// Controls: Speed — How fast the escapement beats;
+//           Aperture — Opens and closes the bladed shutter across the ring stack;
+//           Teeth — Gearing density — more blades, finer dashes, busier works;
+//           Color — Sweeps the brass-and-steel palette around the colour wheel.
+//
+// Notes:
 // A mechanical eye. Concentric dashed rings advance on an escapement - dwell,
 // then snap to the next tooth - with alternating direction and gearing per
 // ring. A many-bladed iris opens and closes over the stack, its scalloped

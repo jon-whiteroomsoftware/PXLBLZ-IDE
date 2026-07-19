@@ -1,5 +1,14 @@
-// Standing Wave Organ (1D) - interference voices ringing on one string.
+// Pattern: Standing Wave Organ
+// Built with PXLBLZ-IDE https://pxlblz-ide.whiteroomsoftware.com/
 //
+// Musically related standing waves interfere along a strip like voices on one string.
+// Runs on: 1D strips and rings.
+// Controls: Speed — How fast the voices ring;
+//           Chord — Retunes the voices from unison through fifths to a full harmonic stack;
+//           Voices — How many voices sound — pull out the stops one by one;
+//           Color — Sweeps the whole register around the colour wheel.
+//
+// Notes:
 // Four organ voices ring the strip as standing waves: fixed nodes at both
 // ends, each voice a spatial harmonic oscillating at a musically related
 // rate. Detuning the chord slides the voices from unison breathing through

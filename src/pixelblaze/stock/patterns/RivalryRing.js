@@ -1,5 +1,14 @@
-// Rivalry Ring (1D) - a rock-paper-scissors ecosystem that never settles.
+// Pattern: Rivalry Ring
+// Built with PXLBLZ-IDE https://pxlblz-ide.whiteroomsoftware.com/
 //
+// A cyclic cellular ecosystem sends glowing territorial battles around a ring.
+// Runs on: 1D strips and rings.
+// Controls: Speed — How fast the battlefronts advance;
+//           Species — Number of rival factions — three up to five;
+//           Aggression — From calm shifting borders up to constant upheaval;
+//           Color — Rotates the whole faction palette around the colour wheel.
+//
+// Notes:
 // Every LED is a cell holding one of K species, and each species is beaten by
 // the next one around the cycle. On a fixed tick each cell checks its four
 // nearest neighbours: enough predators and it converts. That single local rule

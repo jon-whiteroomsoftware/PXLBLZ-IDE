@@ -1,5 +1,14 @@
-// Voxel Fireflies 3D — glowing insects in repeated volume cells.
+// Pattern: Voxel Fireflies 3D
+// Built with PXLBLZ-IDE https://pxlblz-ide.whiteroomsoftware.com/
 //
+// Deterministic cell hashes place animated fireflies throughout a repeated volume.
+// Runs on: 3D maps; designed for volumes and shells.
+// Controls: Speed — How fast fireflies drift within their volume cells;
+//           Density — Density of repeated firefly cells;
+//           Glow — Size of each firefly glow;
+//           Color — Base colour of the fireflies.
+//
+// Notes:
 // A deterministic cell hash places one animated light in each occupied cell.
 // No arrays or particle state, just repeated coordinates and distance falloff.
 

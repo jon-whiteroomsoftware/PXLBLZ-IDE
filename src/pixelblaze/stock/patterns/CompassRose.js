@@ -1,5 +1,14 @@
-// Compass Rose — rotating angular bands and cardinal glints.
+// Pattern: Compass Rose
+// Built with PXLBLZ-IDE https://pxlblz-ide.whiteroomsoftware.com/
 //
+// Rotating angular bands and cardinal glints form a crisp illuminated instrument.
+// Runs on: 2D maps; designed for panels and mapped surfaces.
+// Controls: Speed — How fast the rose rotates;
+//           Points — Number of angular points in the rose;
+//           Sweep — Strength of the scanning beam;
+//           Hue — Base colour of the instrument glow.
+//
+// Notes:
 // Polar quantization gives a crisp instrument-panel look with no loops and only
 // one atan2/hypot pair per pixel.
 

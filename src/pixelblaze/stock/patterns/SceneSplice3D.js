@@ -1,5 +1,14 @@
-// Scene Splice 3D - volumetric SDF transitions.
+// Pattern: Scene Splice 3D
+// Built with PXLBLZ-IDE https://pxlblz-ide.whiteroomsoftware.com/
 //
+// Two volumetric scenes trade places through a sweeping plane and a growing gyroid cut.
+// Runs on: 3D maps; designed for volumes and shells.
+// Controls: Speed — How quickly the volume cycles between its two cuts;
+//           Scrub — Drags the slicing plane and gyroid growth back and forth by hand;
+//           Color — Re-tints both scenes and the cutting-edge glow together;
+//           Feather — Thickness of the glowing frontier where the scenes blend.
+//
+// Notes:
 // Two volumetric scenes trade places through two different 3D cuts: a
 // slicing plane sweeps the volume one way, then the return trip grows back
 // through a gyroid lattice. Each cut is a cheap signed field evaluated before

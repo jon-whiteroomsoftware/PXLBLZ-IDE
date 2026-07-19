@@ -1,5 +1,14 @@
-// Mandelbulb Heartbeat - a fractal organism sampled directly in LED space.
+// Pattern: Mandelbulb Heartbeat
+// Built with PXLBLZ-IDE https://pxlblz-ide.whiteroomsoftware.com/
 //
+// A short Mandelbulb orbit turns mapped LED coordinates into a pulsing fractal organism.
+// Runs on: 3D maps; designed for volumes and shells.
+// Controls: Speed — How fast the fractal rotates and its heartbeat pulses;
+//           Power — Fractal power — continuously reshapes the lobes into spikes and petals;
+//           Color — Base colour of the fractal palette;
+//           Detail — Extra fractal iterations — finer branching at the cost of frame rate.
+//
+// Notes:
 // A screen shader would raymarch toward this field. Pixelblaze already gives us
 // each LED's physical (x,y,z), so every LED evaluates one short Mandelbulb orbit
 // instead. The conservative default keeps the expensive pow/trig loop to four

@@ -1,5 +1,14 @@
-// Shoal Scatter 3D - a school of fish and the thing that hunts it.
+// Pattern: Shoal Scatter 3D
+// Built with PXLBLZ-IDE https://pxlblz-ide.whiteroomsoftware.com/
 //
+// A schooling shoal shatters around a patrolling hunter and slowly gathers again.
+// Runs on: 3D maps; designed for volumes and shells.
+// Controls: Speed — How fast the shoal cruises and the hunter patrols;
+//           Fear — How far panic spreads and how hard the shoal shatters;
+//           Schooling — How strongly the fish hold together between scares;
+//           Color — Water and fish colour; the hunter glows in a contrasting tone.
+//
+// Notes:
 // Ten fish school through the volume with weak cohesion and alignment while a
 // hunter cruises a slow patrol loop, periodically surging. Any fish inside the
 // flee radius panics: it flashes toward silver-white, gets a burst of speed,

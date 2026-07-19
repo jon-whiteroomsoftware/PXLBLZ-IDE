@@ -1,5 +1,14 @@
-// Crystal Rain 3D — falling rods and droplets through a cubic volume.
+// Pattern: Crystal Rain 3D
+// Built with PXLBLZ-IDE https://pxlblz-ide.whiteroomsoftware.com/
 //
+// Falling rods and droplets create a faceted rainstorm inside a volume.
+// Runs on: 3D maps; designed for volumes and shells.
+// Controls: Speed — How fast crystal droplets fall through the volume;
+//           Density — Density of repeated rain columns;
+//           Length — Length of each falling crystal streak;
+//           Hue — Base colour of the crystal rain.
+//
+// Notes:
 // Repeated X/Z columns and vertical triangle phases create a rain field with no
 // arrays. It reads well in 3D previews and still produces useful FPS on hardware.
 

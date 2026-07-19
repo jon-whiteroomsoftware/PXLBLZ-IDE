@@ -1,5 +1,14 @@
-// Moire Cathedral — stained-glass arches from cheap crossing stripe fields.
+// Pattern: Moire Cathedral
+// Built with PXLBLZ-IDE https://pxlblz-ide.whiteroomsoftware.com/
 //
+// Crossing stripe fields and arched masks form a glowing stained-glass cathedral.
+// Runs on: 2D maps; designed for panels and mapped surfaces.
+// Controls: Speed — How fast the stained-glass stripe fields rotate;
+//           Density — Density of the crossing moire stripes;
+//           Bloom — Brightness of the glowing glass;
+//           Arch — Strength and softness of the arched window frame.
+//
+// Notes:
 // This leans on triangle waves, symmetry, and a few SDF masks instead of noise
 // or raymarching. It should scale well because every layer is simple periodic
 // math with frame-constant angles.

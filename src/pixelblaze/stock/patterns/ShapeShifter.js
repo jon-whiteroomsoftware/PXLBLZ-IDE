@@ -1,5 +1,15 @@
-// Shape Shifter - an SDF silhouette theatre.
+// Pattern: Shape Shifter
+// Built with PXLBLZ-IDE https://pxlblz-ide.whiteroomsoftware.com/
 //
+// Five analytic silhouettes continuously melt into one another and emit contour bands.
+// Runs on: 2D maps; designed for panels and mapped surfaces.
+// Controls: Speed — How quickly one form melts into the next;
+//           Shape — Scrubs through the sequence of forms and every in-between state;
+//           Color — Base colour of the contour palette;
+//           Feather — Softness of each silhouette edge;
+//           Contours — Strength and spacing of the distance bands ringing each form.
+//
+// Notes:
 // Five analytic forms continuously become one another. Only the current and
 // next distance fields run for each pixel, while rotation, sequencing, and
 // feather widths are prepared once per frame.

@@ -1,5 +1,14 @@
-// Lava Lamp 3D - a thermal loop of molten metaballs.
+// Pattern: Lava Lamp 3D
+// Built with PXLBLZ-IDE https://pxlblz-ide.whiteroomsoftware.com/
 //
+// Heated metaballs rise, merge, cool, and sink in a continuous thermal loop.
+// Runs on: 3D maps; designed for volumes and shells.
+// Controls: Speed — Pace of the thermal loop — how quickly blobs heat, rise, cool, and sink;
+//           Goo — Blob size and stickiness — high melts everything into one slumping mass;
+//           Color — Wax colour, swept around the colour wheel;
+//           Glow — Strength of the lamp light at the base and the rim light on the goo.
+//
+// Notes:
 // Six blobs carry persistent heat and vertical velocity: they warm over the
 // lamp base, gain buoyancy and rise, cool near the top, and sink back down.
 // Each LED sums six inverse-square contributions, so the goo merges and

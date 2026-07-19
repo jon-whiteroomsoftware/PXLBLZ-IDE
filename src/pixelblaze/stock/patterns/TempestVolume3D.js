@@ -1,5 +1,15 @@
-// Tempest Volume 3D — a storm-tossed water volume.
+// Pattern: Tempest Volume 3D
+// Built with PXLBLZ-IDE https://pxlblz-ide.whiteroomsoftware.com/
 //
+// A moving waterline, crossing currents, and suspended flecks fill a storm-tossed volume.
+// Runs on: 3D maps; designed for volumes and shells.
+// Controls: Water Level — How full the virtual volume is — low drains it, high nearly floods it;
+//           Agitation — Storm strength: calmer swells at low, torn crests and spray at high;
+//           Current Scale — Size of the submerged current cells moving through the water;
+//           Foam — Brightness and thickness of surface foam and spray;
+//           Tint — Base water colour.
+//
+// Notes:
 // A cheap animated height field defines the waterline while crossing current
 // bands and suspended flecks move through the filled volume. The goal is a
 // boiling ocean in 3D, not a flat surface: waves slap at the top, but the body of

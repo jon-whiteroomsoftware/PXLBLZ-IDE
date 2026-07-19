@@ -1,6 +1,9 @@
-// Test Pattern (3D): verifies the third axis. Each coordinate drives one color
-// channel — red = x, green = y, blue = z — so orientation reads directly off
-// the RGB color cube. A bright plane sweeps along z to confirm depth ordering.
+// Pattern: Test Pattern 3D
+// Built with PXLBLZ-IDE https://pxlblz-ide.whiteroomsoftware.com/
+//
+// RGB coordinate channels and a sweeping plane reveal three-dimensional axis orientation.
+// Runs on: 3D maps; designed for volumes and shells.
+// Controls: None.
 
 export var t
 

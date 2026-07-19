@@ -1,6 +1,15 @@
-// Ribbon Loom — luminous SDF ribbons weaving over and under each other.
+// Pattern: Ribbon Loom
+// Built with PXLBLZ-IDE https://pxlblz-ide.whiteroomsoftware.com/
 // License: ISC
 //
+// Luminous ribbons cross over and under one another like a woven fabric.
+// Runs on: 2D maps; designed for panels and mapped surfaces.
+// Controls: Speed — How fast the ribbons weave;
+//           Width — Width of each glowing ribbon;
+//           Count — How many ribbon families are active;
+//           Palette — Base hue of the woven palette.
+//
+// Notes:
 // A small fixed set of triangle-wave paths is enough to suggest fabric. The
 // first draft used per-pixel sine paths; triangle paths keep the weave language
 // while being much friendlier on Pixelblaze hardware.

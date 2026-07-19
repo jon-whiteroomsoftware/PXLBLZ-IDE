@@ -1,5 +1,14 @@
-// Gyroid Glow 3D — a cheap triply-periodic surface field.
+// Pattern: Gyroid Glow 3D
+// Built with PXLBLZ-IDE https://pxlblz-ide.whiteroomsoftware.com/
 //
+// A triply periodic field lights a drifting gyroid surface through the volume.
+// Runs on: 3D maps; designed for volumes and shells.
+// Controls: Speed — How fast the gyroid field drifts through the volume;
+//           Scale — Density of the repeating gyroid cells;
+//           Thickness — Thickness of the glowing gyroid surface;
+//           Color — Base colour of the gyroid.
+//
+// Notes:
 // Gyroids look volumetric and complex, but the field is only a few sin/cos
 // terms. No raymarch, no noise, no fBm: just a glowing isosurface through space.
 

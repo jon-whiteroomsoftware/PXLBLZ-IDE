@@ -1,5 +1,14 @@
-// Pendulum Wave (1D) - the classic physics-demo row of graduated pendulums.
+// Pattern: Pendulum Wave
+// Built with PXLBLZ-IDE https://pxlblz-ide.whiteroomsoftware.com/
 //
+// Graduated virtual pendulums shear from unison into waves and return to perfect alignment.
+// Runs on: 1D strips and rings.
+// Controls: Speed — Length of the grand cycle from unison to chaos and back;
+//           Spread — How many extra swings the far end makes — the shear rate of the wave;
+//           Glint — Strength of the white flare when the pendulums snap back into sync;
+//           Color — Base colour; swing direction tints slightly around it.
+//
+// Notes:
 // The strip is divided into 40 virtual bobs whose swing frequencies step up in
 // exact integer counts per grand cycle, so the row shears from unison into
 // travelling waves, dissolves into apparent chaos, and snaps back into perfect

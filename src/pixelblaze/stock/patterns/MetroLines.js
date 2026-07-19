@@ -1,5 +1,14 @@
-// Metro Lines (1D) — coloured routes crossing a strip or ring.
+// Pattern: Metro Lines
+// Built with PXLBLZ-IDE https://pxlblz-ide.whiteroomsoftware.com/
 //
+// Colored virtual routes cross a strip or ring with pulses and station flashes.
+// Runs on: 1D strips and rings.
+// Controls: Speed — How fast route pulses move around the line;
+//           Routes — Number of active virtual routes;
+//           Station Glow — Brightness of station markers;
+//           Palette — Base colour of the metro routes.
+//
+// Notes:
 // Several virtual lines run at different speeds, with station flashes where
 // their pulses pass fixed stops.
 

@@ -166,6 +166,13 @@ A new personal Pattern starts from runnable source. Built-in Patterns open
 read-only; **Clone** creates an editable personal copy and snapshots the current
 effective preview settings. There is no live link back to the built-in.
 
+Every built-in Pattern starts with the same compact source manifest: its name,
+the PXLBLZ-IDE link, any upstream credits, a visual description, where it runs,
+and what each exported control changes. Detailed implementation and performance
+notes follow when they are useful. The header travels with a clone, so a Pattern
+opened later in the Pixelblaze editor still explains itself and preserves its
+provenance.
+
 Patterns may call stock or personal libraries with namespace syntax such as
 `SDF.circle(...)` or `MyLib.paint(...)`. Compilation follows transitive library
 references, flattens only the functions that are actually used, and produces one

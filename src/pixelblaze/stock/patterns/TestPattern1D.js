@@ -1,7 +1,9 @@
-// Test Pattern (1D): verifies strip order, direction, and index range.
-// A hue ramp paints index 0 -> last across the spectrum so pixel order reads at
-// a glance, while a bright white comet sweeps from the first pixel toward the
-// last to confirm the direction of travel.
+// Pattern: Test Pattern 1D
+// Built with PXLBLZ-IDE https://pxlblz-ide.whiteroomsoftware.com/
+//
+// A hue ramp and moving white marker reveal strip order, direction, and index range.
+// Runs on: 1D strips and rings.
+// Controls: None.
 
 export var t
 

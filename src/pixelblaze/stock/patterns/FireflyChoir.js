@@ -1,5 +1,16 @@
-// Firefly Choir (1D) — emergent synchronization, not a programmed blink.
+// Pattern: Firefly Choir
+// Built with PXLBLZ-IDE https://pxlblz-ide.whiteroomsoftware.com/
 //
+// Independent firefly oscillators gradually synchronize into collective waves of light.
+// Runs on: 1D strips and rings.
+// Controls: Coupling — How strongly the fireflies pull each other into sync — low stays in chaos, high snaps to
+//           a unified pulse;
+//           Tempo — Base flashing rate of the fireflies;
+//           Spread — Variety in each firefly's natural rhythm — keeps the sync alive instead of freezing;
+//           Color — Base colour of the fireflies;
+//           Variance — Per-firefly colour jitter — low makes them identical, high scatters their tints.
+//
+// Notes:
 // Every LED is a firefly: a phase oscillator with its own slightly-different
 // natural rhythm that flashes when its phase comes round. Each frame, each one
 // nudges its phase toward its two neighbours' (local Kuramoto coupling) — exactly

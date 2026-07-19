@@ -1,5 +1,14 @@
-// Impact Engine (1D) - two bodies collide, flash, and throw aftershocks.
+// Pattern: Impact Engine
+// Built with PXLBLZ-IDE https://pxlblz-ide.whiteroomsoftware.com/
 //
+// Two bodies collide on a strip, producing a flash, debris, and chasing aftershocks.
+// Runs on: 1D strips and rings.
+// Controls: Speed — How quickly each collision cycle plays out;
+//           Energy — Force of the impact — widens the trails, the flash, and how far debris flies;
+//           Color — Colour of one body; the other always approaches in its complement;
+//           Echoes — Strength of the aftershock rings that chase the main shockwave.
+//
+// Notes:
 // This is a timed scene for a strip rather than a chase. All choreography is
 // solved once per frame; each LED only measures distance to a few moving events.
 

@@ -1,5 +1,15 @@
-// Pulse Loom (1D) — a polyrhythm engine, not a chase.
+// Pattern: Pulse Loom
+// Built with PXLBLZ-IDE https://pxlblz-ide.whiteroomsoftware.com/
 //
+// Four coprime percussion voices interlock across a strip and reunite on each downbeat.
+// Runs on: 1D strips and rings.
+// Controls: Tempo — Speed of the groove, in bars per second;
+//           Swing — Swing feel — straight at low, a heavy lilt at high;
+//           Width — Width of each drum strike's glow;
+//           Palette — Spins the four-colour complementary palette around the wheel;
+//           Accent — Flash the whole strip on the downbeat when every voice lands together.
+//
+// Notes:
 // Four percussion "voices" sit at fixed homes along the strip. Each strikes a
 // sharp attack/soft-decay bloom on its own tempo, and the tempos are small whole
 // multiples of one bar (2, 3, 4, 5 hits per bar). Because the counts are coprime

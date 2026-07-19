@@ -1,8 +1,15 @@
-// Iridescent Fibers — ShaderToy port.
+// Pattern: Iridescent Fibers
+// Built with PXLBLZ-IDE https://pxlblz-ide.whiteroomsoftware.com/
+// Credit: "iridescent fibers" by evesira — https://www.shadertoy.com/view/tffSDr
 //
-// Original ShaderToy: "iridescent fibers" by evesira
-// Source: https://www.shadertoy.com/view/tffSDr
+// Additive sine-wave layers form a drifting field of luminous iridescent fibers.
+// Runs on: 2D maps; designed for panels and mapped surfaces.
+// Controls: Speed — How fast the layered fibers drift;
+//           Zoom — Framing of the fiber field, remapped to the useful ShaderToy-like range;
+//           Thickness — Thickness and softness of each luminous fiber;
+//           Brightness — Overall output brightness.
 //
+// Notes:
 // The GLSL source draws ten additive sine-wave layers with an IQ-style cosine
 // palette. The zoom slider is deliberately remapped to the useful source-like
 // range; the raw ShaderToy coordinate framing lives below the normal midpoint.

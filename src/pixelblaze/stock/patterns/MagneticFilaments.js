@@ -1,5 +1,14 @@
-// Magnetic Filaments — soft field lines bending around moving attractors.
+// Pattern: Magnetic Filaments
+// Built with PXLBLZ-IDE https://pxlblz-ide.whiteroomsoftware.com/
 //
+// Moving attractors bend sparse glowing contours into soft magnetic field lines.
+// Runs on: 2D maps; designed for panels and mapped surfaces.
+// Controls: Speed — How quickly the invisible magnets drift;
+//           Spacing — Density of the magnetic field-line contours;
+//           Glow — Brightness of the glowing filaments;
+//           Contrast — Sharpness of the field lines.
+//
+// Notes:
 // Designed for Pixelblaze rather than ported from ShaderToy: a tiny fixed set
 // of moving "magnets" contributes inverse-distance fields, and the colour comes
 // from the signed balance between them. Rich motion, few expensive calls.

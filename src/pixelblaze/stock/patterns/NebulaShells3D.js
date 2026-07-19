@@ -1,5 +1,14 @@
-// Nebula Shells 3D — slow spherical auroras inside a volume.
+// Pattern: Nebula Shells 3D
+// Built with PXLBLZ-IDE https://pxlblz-ide.whiteroomsoftware.com/
 //
+// Nested, phase-warped shells create slow spherical auroras inside a volume.
+// Runs on: 3D maps; designed for volumes and shells.
+// Controls: Speed — How quickly the spherical shells drift;
+//           Shell Count — Number of nested aurora shells;
+//           Thickness — Thickness of each glowing shell;
+//           Color — Base colour of the nebula.
+//
+// Notes:
 // Instead of volumetric noise, this uses nested shell distances with a little
 // phase wobble, which stays tractable on large 3D previews and hardware.
 

@@ -1,5 +1,14 @@
-// Metaball Garden — soft luminous cells blooming into one another.
+// Pattern: Metaball Garden
+// Built with PXLBLZ-IDE https://pxlblz-ide.whiteroomsoftware.com/
 //
+// Soft luminous cells drift, bloom, and merge into one another.
+// Runs on: 2D maps; designed for panels and mapped surfaces.
+// Controls: Speed — How quickly the soft cells drift;
+//           Blob Count — How many cells are active in the garden;
+//           Softness — How smoothly neighbouring cells merge together;
+//           Palette — Base colour of the luminous cells.
+//
+// Notes:
 // Cheap inverse-square blobs give the impression of fluid merging without
 // raymarching or noise. The only moving parts are five orbiting centres.
 

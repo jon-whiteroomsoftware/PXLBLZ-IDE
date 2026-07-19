@@ -1,7 +1,12 @@
-// IQ Palettes — port of Inigo Quilez's "Palettes" reference card (ShaderToy,
-// MIT). Original GLSL: the famous a + b*cos(2π(c·t + d)) cosine-palette trick.
-//   Article: https://iquilezles.org/articles/palettes
+// Pattern: IQ Palettes
+// Built with PXLBLZ-IDE https://pxlblz-ide.whiteroomsoftware.com/
+// Credit: "Palettes" reference by Inigo Quilez — https://iquilezles.org/articles/palettes/
 //
+// Seven bands demonstrate the cosine-palette families popularized by Inigo Quilez.
+// Runs on: 2D maps; designed for panels and mapped surfaces.
+// Controls: Speed — How fast the palette parameter scrolls across the bands.
+//
+// Notes:
 // Seven horizontal bands, each a different (a,b,c,d) coefficient set, with the
 // palette parameter scrolling left→right over time. A textbook-clean port: the
 // shader is already exactly what Shader.iqPalette implements, so the only manual
@@ -18,10 +23,11 @@
 //     smoothstep doesn't take — rewritten as 1 - smoothstep(0.47, 0.49, …).
 //   • The IQ palette is pal(t,a,b,c,d) → Shader.iqPalette verbatim; no Gotcha A
 //     magic-constant hash and no overflow-prone constants anywhere.
-
+//
 // Per-band IQ coefficients, flattened to band*3 + channel. a and b are the same
 // 0.5/0.5 for bands 0–5; only band 6 differs. Pre-allocated at module scope (no
 // per-pixel allocation — see the guide's perf budget).
+
 var aTbl = [
   0.5, 0.5, 0.5,   // 0
   0.5, 0.5, 0.5,   // 1

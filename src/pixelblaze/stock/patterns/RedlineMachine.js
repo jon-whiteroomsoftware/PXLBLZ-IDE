@@ -1,7 +1,11 @@
-// Redline Machine - the complete 32-bar installation score in one renderer.
-// The shared instance receives 800 pixels on the hero panel and 300 on each
-// target, so it can select the correct cheap material without a Zone-specific
-// copy. Per-target affine Effects supply the four different performances.
+// Pattern: Redline Machine
+// Built with PXLBLZ-IDE https://pxlblz-ide.whiteroomsoftware.com/
+//
+// A complete 32-bar installation score drives the hero panel and three target materials.
+// Runs on: 2D maps; designed for the 2,000-pixel Redline Stage map.
+// Controls: Intensity — Overall pressure of the score, from restrained negative space to full-impact output;
+//           Speed — Pace of the complete 32-bar score, from half speed to one-and-a-half speed;
+//           Cyan — Strength of the sparse cyan ornaments and the full cyan takeover during Vacuum and Rebuild.
 
 export var intensity = 1
 export var scoreSpeed = 1

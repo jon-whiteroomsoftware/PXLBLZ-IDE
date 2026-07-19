@@ -1,6 +1,15 @@
-// Phantom Star — port of the volumetric raymarched IFS fractal popularised by
-// aiekick's "Phantom Mode" (ShaderToy MtScWW) and its many "octagrams" remixes.
+// Pattern: Phantom Star
+// Built with PXLBLZ-IDE https://pxlblz-ide.whiteroomsoftware.com/
+// Credit: "Phantom Mode" by aiekick — https://www.shadertoy.com/view/MtScWW
 //
+// A raymarched folded-space fractal accumulates a deep, pulsing phantom glow.
+// Runs on: 2D maps; designed for panels and mapped surfaces.
+// Controls: Speed — Animation rate of the fractal;
+//           Quality — Detail of the raymarch — higher looks sharper but costs more;
+//           Depth — How many times the fractal folds in on itself;
+//           Gain — Overall glow brightness.
+//
+// Notes:
 // A ray is marched through a kaleidoscopically-folded space (polar mod ×5) whose
 // per-cell object is a 5-iteration IFS box. Instead of a hard surface hit, each
 // step accumulates an exponential glow (the "phantom" volumetric look), with a
@@ -20,7 +29,6 @@
 //     rather than per-step per-pixel. Sliders trade steps/depth for speed; use
 //     the Fast renderer to iterate and drop the grid size for the Precise check.
 
-// ── Controls ──────────────────────────────────────────────────────────────────
 export var speed   = 0.3  // animation rate
 export var quality = 0.5  // march steps (detail vs. main-thread cost)
 export var depth   = 0.6  // IFS fold iterations

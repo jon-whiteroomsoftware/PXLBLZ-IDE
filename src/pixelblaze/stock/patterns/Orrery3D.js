@@ -1,5 +1,14 @@
-// Orrery 3D - a clockwork solar system in brass and light.
+// Pattern: Orrery 3D
+// Built with PXLBLZ-IDE https://pxlblz-ide.whiteroomsoftware.com/
 //
+// Planets, moons, and faint orbit rings turn around a pulsing clockwork sun.
+// Runs on: 3D maps; designed for volumes and shells.
+// Controls: Speed — How fast the clockwork turns — inner planets always orbit quickest;
+//           Zoom — Scale of the whole system inside the volume;
+//           Rings — Brightness of the brass orbit rings;
+//           Color — Re-tints the sun, planets, and rings together.
+//
+// Notes:
 // A pulsing sun sits at the centre; four planets ride tilted circular orbits
 // at Kepler-ish speeds (inner fast, outer slow), two of them carrying moons.
 // Each orbit is also drawn as a faint ring - the distance from a point to a

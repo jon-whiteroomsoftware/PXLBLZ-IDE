@@ -1,11 +1,13 @@
-// Star Nest Reimagined (3D) - Kali's folded space sampled at the LEDs.
+// Pattern: Star Nest Reimagined
+// Built with PXLBLZ-IDE https://pxlblz-ide.whiteroomsoftware.com/
+// Credit: "Star Nest" by Pablo Roman Andrioli (Kali) — https://www.shadertoy.com/view/XlfGRj
 //
-// Reimagined from "Star Nest" by Pablo Roman Andrioli (Kali), ShaderToy
-// XlfGRj, published under the MIT license. The original raymarches this fold
-// through screen space; here every LED evaluates the fold's density once at
-// its own mapped coordinate, so the sculpture drifts through the nest instead
-// of a camera. The conservative default keeps the fold to five passes; Detail
-// trades frame rate for finer filaments on smaller pieces.
+// Kali-folded space is sampled directly at each mapped LED to form drifting stellar filaments.
+// Runs on: 3D maps; designed for volumes and shells.
+// Controls: Speed — Drift rate through the folded nest;
+//           Fold — The fold constant — reshapes the nest from open wisps to dense filament webs;
+//           Color — Base nebula hue;
+//           Detail — Extra fold passes — finer filaments at the cost of frame rate.
 
 export var speed = 0.35
 export var fold = 0.45 // Recommended pot: the fold constant - reshapes the nest from open wisps to dense filament webs.

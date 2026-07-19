@@ -16,6 +16,7 @@ export interface ShowArtifactAttribution {
 export const PXLBLZ_AUTHOR = 'PXLBLZ <pxlblz@whiteroomsoftware.com>'
 
 const AUTHOR_LINE_RE = /^\s*(?:(?:\/\/+|\/\*+|\*+)\s*)?(?:@?authors?|by|created by|written by)\s*:?\s*(.+?)\s*(?:\*\/)?\s*$/i
+const CREDIT_LINE_RE = /^\s*(?:(?:\/\/+|\/\*+|\*+)\s*)?credit\s*:\s*.+\s+by\s+(.+?)(?:\s+[—-]\s+https?:\/\/\S+)?\s*(?:\*\/)?\s*$/i
 const COMMENT_LINE_RE = /^\s*(?:\/\/+|\/\*+|\*+)\s*/
 const MAX_HEADER_SCAN_BYTES = 4096
 const MAX_AUTHORS = 8
@@ -27,6 +28,11 @@ export function extractPatternAuthors(source: string): string[] {
   const candidates: string[] = []
   for (const line of beforeCode.split(/\r?\n/)) {
     if (!COMMENT_LINE_RE.test(line)) continue
+    const creditMatch = line.match(CREDIT_LINE_RE)
+    if (creditMatch) {
+      candidates.push(...splitAuthorList(creditMatch[1]))
+      continue
+    }
     const match = line.match(AUTHOR_LINE_RE)
     if (!match) continue
     candidates.push(...splitAuthorList(match[1]))

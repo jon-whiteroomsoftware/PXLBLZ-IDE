@@ -1,7 +1,19 @@
-// Kishimisu — port of "An introduction to Shader Art Coding" by kishimisu.
-//   Original GLSL (kishimisu, ShaderToy): https://www.shadertoy.com/view/mtyGWy
-//   Companion tutorial video:             https://youtu.be/f4s1h2YETNY
+// Pattern: Kishimisu
+// Built with PXLBLZ-IDE https://pxlblz-ide.whiteroomsoftware.com/
+// Credit: "An introduction to Shader Art Coding" by kishimisu — https://www.shadertoy.com/view/mtyGWy
 //
+// Folded kaleidoscopic space stacks bright sine-ring veins over deep colored voids.
+// Runs on: 2D maps; designed for panels and mapped surfaces.
+// Controls: Palette A — Palette base colour — the midpoint the gradient cycles around;
+//           Palette B — Palette contrast — how far the colours swing from the base;
+//           Palette D — Palette phase — shifts where each colour lands in the cycle;
+//           Zoom — Scale of the folded kaleidoscope pattern;
+//           Ring Density — How many sine rings pack into each fold;
+//           Glow — Brightness and bloom of the bright veins;
+//           Sharpness — How tight and crisp the rings are;
+//           Octaves — How many layers of folded detail are stacked.
+//
+// Notes:
 // Inigo Quilez palette function `a + b*cos(2π·(c·t + d))` paints a 3-octave
 // kaleidoscope of folded space. Each octave folds uv into `fract(uv*zoom)-0.5`,
 // then a sharpened sine ring is multiplied in. Bright veins where multiple
@@ -32,7 +44,6 @@
 // Precise checksum shifts (Fast holds); accepted, since hardware ships the same
 // reciprocal and the delta is sub-perceptual.
 
-// ── Palette pickers (IQ a, b, d; c is hard-coded to (1,1,1)) ──────────────
 var paletteAr = 0.5,   paletteAg = 0.5,   paletteAb = 0.5
 var paletteBr = 0.5,   paletteBg = 0.5,   paletteBb = 0.5
 var paletteDr = 0.263, paletteDg = 0.416, paletteDb = 0.557

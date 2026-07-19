@@ -1,6 +1,12 @@
-// Zippy Zaps — port of "Zippy Zaps" by SnoopethDuckDuck (ShaderToy, 394 chars).
-//   Original GLSL: https://www.shadertoy.com/view/XXyGzh
+// Pattern: Zippy Zaps
+// Built with PXLBLZ-IDE https://pxlblz-ide.whiteroomsoftware.com/
+// Credit: "Zippy Zaps" by SnoopethDuckDuck — https://www.shadertoy.com/view/XXyGzh
 //
+// A compact folded electric field twists into bright, color-mapped arcs.
+// Runs on: 2D maps; designed for panels and mapped surfaces.
+// Controls: Iterations — How many fold passes build the arcs — more adds detail but costs more.
+//
+// Notes:
 // A code-golfed electric-arc field: 18 iterations fold a centred uv through a
 // per-iteration cos-matrix twist, accumulate a vec4 colour from the reciprocal
 // length of a sin field, then tone-map. Decoding the golf was the bulk of the
@@ -21,9 +27,10 @@
 //
 // z is the constant vec4(1,2,3,0); its .wxzw swizzle ×11 is (0,11,33,0), the
 // three phase offsets fed into the per-pass cos-matrix.
-
+//
 // Iteration count (perf/detail). Raw 0..1 → floor(3 + v*12) → 3..15. The
 // hardware default intentionally runs a tiny version of the original loop.
+
 export var iterations = 0.13
 export function sliderIterations(v) { iterations = v }
 

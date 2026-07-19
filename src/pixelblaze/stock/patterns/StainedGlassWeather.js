@@ -1,5 +1,14 @@
-// Stained Glass Weather — leaded panes with rain and lightning pulses.
+// Pattern: Stained Glass Weather
+// Built with PXLBLZ-IDE https://pxlblz-ide.whiteroomsoftware.com/
 //
+// Leaded panes fill with rain streaks and intermittent lightning.
+// Runs on: 2D maps; designed for panels and mapped surfaces.
+// Controls: Speed — How fast the rain and lightning move;
+//           Pane Size — Density of stained-glass panes;
+//           Storm — Strength of rain and lightning flashes;
+//           Tint — Base colour of the glass.
+//
+// Notes:
 // Repeated cells and cheap borders do most of the work. The "weather" is a few
 // triangle-wave streaks and a global flash, not noise or particle state.
 

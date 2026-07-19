@@ -1,5 +1,14 @@
-// Core Pulse 3D — concentric energy shells expanding through a volume.
+// Pattern: Core Pulse 3D
+// Built with PXLBLZ-IDE https://pxlblz-ide.whiteroomsoftware.com/
 //
+// Concentric energy shells expand through a glowing volumetric core.
+// Runs on: 3D maps; designed for volumes and shells.
+// Controls: Speed — How fast the energy shells expand from the core;
+//           Shell Count — How many concentric pulse shells fill the volume;
+//           Core Size — Size of the central glowing core;
+//           Hue — Base colour of the pulse.
+//
+// Notes:
 // The whole effect is distance-from-centre plus a few dot-product waves, so it
 // is intentionally tractable on Pixelblaze while still reading as volumetric.
 

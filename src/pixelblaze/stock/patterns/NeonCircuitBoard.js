@@ -1,6 +1,15 @@
-// Neon Circuit Board — pulsing traces, vias, and packet glints.
+// Pattern: Neon Circuit Board
+// Built with PXLBLZ-IDE https://pxlblz-ide.whiteroomsoftware.com/
 // License: ISC
 //
+// Repeated traces, vias, and packet glints form a pulsing neon circuit.
+// Runs on: 2D maps; designed for panels and mapped surfaces.
+// Controls: Speed — How fast packets move along the traces;
+//           Density — Density of the repeated circuit cells;
+//           Pulse — Brightness of packet glints travelling through the board;
+//           Hue — Base colour of the neon traces.
+//
+// Notes:
 // Built from repeated coordinates plus cheap axis/diagonal distances. The first
 // draft used true SDF capsules/circles; these approximations keep the circuit
 // look and avoid several hypot calls per pixel.

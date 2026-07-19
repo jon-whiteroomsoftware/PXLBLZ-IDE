@@ -1,8 +1,11 @@
 import { nativeDim } from '@/engine/dimLens'
+import { bundle } from '@/engine/bundle'
+import { parsePatternManifest } from '@/engine/patternManifest'
 import { SHAPES } from '@/engine/shapes'
 import { SURFACES } from '@/engine/surfaces'
+import { LIBRARIES } from '@/pixelblaze/libs'
 import { STOCK_MAPS, isMapWrappable } from '@/store/mapStore'
-import { DEMOS, RECOMMENDED_SETTINGS } from './patterns'
+import { DEMO_AUTHORS, DEMOS, RECOMMENDED_SETTINGS } from './patterns'
 
 const INTENTIONAL_LOW_DENSITY = new Set([
   'EasedSweep',
@@ -11,6 +14,17 @@ const INTENTIONAL_LOW_DENSITY = new Set([
   'TestPattern2D',
   'TestPattern3D',
 ])
+
+const EXPECTED_UPSTREAM_AUTHORS: Record<string, string[]> = {
+  IQPalettes: ['Inigo Quilez'],
+  IridescentFibers: ['evesira'],
+  Kishimisu: ['kishimisu'],
+  NeonSquircles: ['kishimisu'],
+  PhantomStar: ['aiekick'],
+  ShaderShowcase: ['Inigo Quilez'],
+  StarNestReimagined: ['Pablo Roman Andrioli (Kali)'],
+  ZippyZaps: ['SnoopethDuckDuck'],
+}
 
 describe('stock Pattern recommendations', () => {
   it('references only current maps, shapes, and surfaces', () => {
@@ -41,3 +55,44 @@ describe('stock Pattern recommendations', () => {
     }
   })
 })
+
+describe('stock Pattern source manifests', () => {
+  it('names, locates, and documents every curated Pattern and control', () => {
+    for (const [name, source] of Object.entries(DEMOS)) {
+      const manifest = parsePatternManifest(source)
+      expect(manifest, name).not.toBeNull()
+      if (!manifest) continue
+
+      expect(identifierWords(manifest.name), `${name}: manifest name`).toBe(identifierWords(name))
+      expect(manifest.runsOn, `${name}: native dimension`).toContain(`${nativeDim(source)}D`)
+
+      const controls = bundle(source, LIBRARIES).metadata.controls
+      if (controls.length === 0) {
+        expect(manifest.controls, `${name}: no controls`).toBe('None.')
+      } else {
+        for (const control of controls) {
+          expect(manifest.controls, `${name}: ${control.label}`).toContain(`${control.label} —`)
+        }
+      }
+    }
+  })
+
+  it('retains structured upstream authors and a URL for every credit', () => {
+    const attributed = Object.fromEntries(
+      Object.entries(DEMO_AUTHORS).filter(([, authors]) => authors.length > 0),
+    )
+    expect(attributed).toEqual(EXPECTED_UPSTREAM_AUTHORS)
+
+    for (const name of Object.keys(EXPECTED_UPSTREAM_AUTHORS)) {
+      const manifest = parsePatternManifest(DEMOS[name])
+      expect(manifest?.credits.length, name).toBeGreaterThan(0)
+      for (const credit of manifest?.credits ?? []) {
+        expect(credit, name).toMatch(/https:\/\//)
+      }
+    }
+  })
+})
+
+function identifierWords(value: string): string {
+  return value.replace(/[^A-Za-z0-9]/g, '').toLowerCase()
+}

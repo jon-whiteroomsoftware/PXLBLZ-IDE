@@ -1,5 +1,14 @@
-// Ember Spire (1D) - a real fire simulation, not a fire-colored gradient.
+// Pattern: Ember Spire
+// Built with PXLBLZ-IDE https://pxlblz-ide.whiteroomsoftware.com/
 //
+// A persistent heat simulation grows sparks into a breathing column of fire.
+// Runs on: 1D strips and rings.
+// Controls: Intensity — How much fuel feeds the base — from a bed of embers to a roaring column;
+//           Cooling — How quickly rising heat dies out — higher makes shorter, sharper flames;
+//           Surge — Depth of the slow bellows that swells and starves the fire;
+//           Color — Fire chemistry — shifts the flames from classic orange through emerald and ghost-blue.
+//
+// Notes:
 // A per-pixel heat field evolves on a fixed 16ms tick: sparks inject at the
 // base, heat advects upward and diffuses, and every cell cools faster the
 // higher it sits. A slow bellows swells and starves the spark rate so the

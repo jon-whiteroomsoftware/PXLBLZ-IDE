@@ -1,4 +1,9 @@
-// A color sweep that glides back and forth with eased motion using Anim.easeInOut2
+// Pattern: Eased Sweep
+// Built with PXLBLZ-IDE https://pxlblz-ide.whiteroomsoftware.com/
+//
+// A color sweep glides back and forth with softly eased motion.
+// Runs on: 2D maps; designed for panels and mapped surfaces.
+// Controls: None.
 
 export var t
 // Sweep position and its hue are frame-constant (depend only on t) — compute

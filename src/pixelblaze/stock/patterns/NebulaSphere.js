@@ -1,11 +1,14 @@
-// Nebula Sphere — a volumetric 3D port of PlasmaNebula. Where the 2D version
-// spent the third Perlin axis on time, this one feeds each point's real
-// (x,y,z) straight into 3D fBm, so the model carves a coherent slice out of a
-// true 3D gas volume. No longitude seam, no pole pinch, and no geometry
-// self-calibration: it's purely coordinate-driven, so it looks right on the
-// Sphere, the Cube, and the Star maps alike — flip the map and watch the same
-// volume re-slice.
+// Pattern: Nebula Sphere
+// Built with PXLBLZ-IDE https://pxlblz-ide.whiteroomsoftware.com/
 //
+// Domain-warped three-dimensional noise carves a coherent drifting gas volume.
+// Runs on: 3D maps; designed for volumes and shells.
+// Controls: Speed — How fast the gas drifts through the volume;
+//           Zoom — Detail scale — higher is finer and busier;
+//           Warp — How violently the gas folds in on itself;
+//           Twinkle — Density of stars in the dark voids.
+//
+// Notes:
 // The "warp the warp" technique (Inigo Quilez), now in 3D: sample fBm, use it
 // to displace the sample coords, sample again, displace again. The hardware
 // retune derives some displacement components from neighbouring samples, uses a
@@ -19,7 +22,6 @@
 // Note: perlin is algorithmically divergent in Precise mode (REFERENCE 8.4) —
 // a "what the preview can render" showcase, consistent with PlasmaNebula.
 
-// ── Adjustable controls ────────────────────────────────────────────────────
 export var speed = 0.52   // drift speed of the gas through the volume
 export var zoom = 0.72     // detail scale (higher = finer, busier)
 export var warp = 0.16    // how violently the field folds

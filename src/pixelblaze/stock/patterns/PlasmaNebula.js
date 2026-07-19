@@ -1,11 +1,19 @@
-// Plasma Nebula — iterative domain-warped Perlin flow painted through a
-// deep-space palette, with star twinkle in the voids.
+// Pattern: Plasma Nebula
+// Built with PXLBLZ-IDE https://pxlblz-ide.whiteroomsoftware.com/
 //
+// Iterative domain-warped noise paints bright interstellar filaments around dark voids.
+// Runs on: 2D maps; designed for panels and mapped surfaces.
+// Controls: Speed — How fast the gas drifts;
+//           Zoom — Detail scale — higher is finer and busier;
+//           Warp — How violently the gas folds in on itself;
+//           Twinkle — Density of stars in the dark voids;
+//           Hue — Shifts the nebula palette around the colour wheel.
+//
+// Notes:
 // The "warp the warp" technique (Inigo Quilez): sample fBm noise, use it to
 // displace the coordinates, sample again, displace again. Each pass folds the
 // field into the filaments and voids that read as interstellar gas.
 
-// ── Adjustable controls ────────────────────────────────────────────────────
 export var speed = 0.35   // drift speed of the gas
 export var zoom = 0.37    // detail scale (higher = finer, busier)
 export var warp = 0.5     // how violently the field folds

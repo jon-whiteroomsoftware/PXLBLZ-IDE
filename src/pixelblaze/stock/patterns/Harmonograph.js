@@ -1,5 +1,14 @@
-// Harmonograph - a pendulum-driven pen forever starting a new drawing.
+// Pattern: Harmonograph
+// Built with PXLBLZ-IDE https://pxlblz-ide.whiteroomsoftware.com/
 //
+// Damped virtual pendulums trace a rotating ink drawing that continually renews itself.
+// Runs on: 2D maps; designed for panels and mapped surfaces.
+// Controls: Speed — How fast the pen travels along its curve;
+//           Complexity — Richness of the frequency ratios picked for each new figure;
+//           Ink — Length and weight of the ink trail behind the pen;
+//           Color — Base ink colour; the trail shades slightly from fresh to settled.
+//
+// Notes:
 // Two damped sinusoids per axis (integer frequencies plus a quieter partner)
 // trace a Lissajous weave. The visible ink is a short snake of samples along
 // the curve, prepared once per frame; each LED measures distance to those

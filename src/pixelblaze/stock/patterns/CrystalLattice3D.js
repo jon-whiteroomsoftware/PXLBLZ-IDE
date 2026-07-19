@@ -1,5 +1,14 @@
-// Crystal Lattice 3D — pulsing nodes connected by glowing lattice rods.
+// Pattern: Crystal Lattice 3D
+// Built with PXLBLZ-IDE https://pxlblz-ide.whiteroomsoftware.com/
 //
+// Pulsing nodes and rods form a repeating crystalline volume.
+// Runs on: 3D maps; designed for volumes and shells.
+// Controls: Speed — How quickly the crystal nodes pulse;
+//           Spacing — Density of the repeated lattice cells;
+//           Node Size — Size of the glowing lattice nodes and rods;
+//           Hue — Base colour of the crystal.
+//
+// Notes:
 // Repeated coordinates and SDF-ish distances create a molecular/crystal volume
 // without Perlin or raymarching. Good for cubes, spheres, and sparse 3D clouds.
 

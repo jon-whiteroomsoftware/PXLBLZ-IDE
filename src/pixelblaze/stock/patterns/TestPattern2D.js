@@ -1,8 +1,9 @@
-// Test Pattern (2D): verifies grid orientation and the X / Y coordinate axes.
-// Red rises with x (left -> right) and green rises with y (bottom -> top), so
-// each corner is a known color: (0,0) black, (1,0) red, (0,1) green, (1,1)
-// yellow. The gradient "breathes" — dimming and brightening with an eased
-// rhythm — and a large white dot orbits the centre to confirm animation.
+// Pattern: Test Pattern 2D
+// Built with PXLBLZ-IDE https://pxlblz-ide.whiteroomsoftware.com/
+//
+// Axis colors, known corner values, and an orbiting marker reveal two-dimensional orientation.
+// Runs on: 2D maps; designed for panels and mapped surfaces.
+// Controls: None.
 
 export var t, breath
 // Brightness level and the orbiting dot's centre are frame-constant — compute

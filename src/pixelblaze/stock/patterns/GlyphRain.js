@@ -1,5 +1,14 @@
-// Glyph Rain - columns of falling code with quantized, flickering cells.
+// Pattern: Glyph Rain
+// Built with PXLBLZ-IDE https://pxlblz-ide.whiteroomsoftware.com/
 //
+// Quantized, flickering cells fall in columns like streams of luminous code.
+// Runs on: 2D maps; designed for panels and mapped surfaces.
+// Controls: Speed — How fast the code streams fall;
+//           Density — Number of rain columns — a few fat streams up to a fine drizzle;
+//           Tail — Length of the fading glyph trail behind each falling head;
+//           Color — Phosphor colour — classic green through amber and violet.
+//
+// Notes:
 // Each column is a tiny simulation: a bright head falls at its own speed,
 // dragging a fading trail, and respawns above the frame with fresh state.
 // The trail is quantized into glyph cells whose brightness reshuffles on a

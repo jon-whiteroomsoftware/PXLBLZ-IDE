@@ -1,5 +1,14 @@
-// Signal Mandala — radial spokes, rings, and scanning pulses.
+// Pattern: Signal Mandala
+// Built with PXLBLZ-IDE https://pxlblz-ide.whiteroomsoftware.com/
 //
+// Radial spokes, rings, and scanning pulses build a bright geometric mandala.
+// Runs on: 2D maps; designed for panels and mapped surfaces.
+// Controls: Speed — How fast the scan pulses move through the mandala;
+//           Spokes — Number of radial spokes;
+//           Rings — Density of circular signal rings;
+//           Color — Base colour of the mandala.
+//
+// Notes:
 // This uses polar symmetry and triangle bands: lots of ornament from a handful
 // of cheap waveform operations.
 

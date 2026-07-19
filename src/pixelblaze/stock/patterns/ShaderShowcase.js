@@ -1,5 +1,13 @@
-// Shader Showcase — a guided tour of the Shader porting library.
+// Pattern: Shader Showcase
+// Built with PXLBLZ-IDE https://pxlblz-ide.whiteroomsoftware.com/
+// Credit: Cosine palette method by Inigo Quilez — https://iquilezles.org/articles/palettes/
 //
+// A breathing vortex demonstrates centered coordinates, folding, rotation, and cosine color.
+// Runs on: 2D maps; designed for panels and mapped surfaces.
+// Controls: Speed — Animation rate;
+//           Zoom — Density of the kaleidoscope.
+//
+// Notes:
 // One frame, most of the toolkit:
 //   Shader.toUV     — centred, aspect-correct coordinates (short axis = unit)
 //   Shader.rot2     — swirl space into a vortex (the mat2(rot) idiom)
@@ -13,7 +21,6 @@
 // The out-var helpers write shared module-level globals (ux/uy, rx/ry,
 // cr/cg/cb); read them immediately, before the next Shader call overwrites them.
 
-// ── Adjustable controls ────────────────────────────────────────────────────
 export var speed = 0    // animation rate
 export var zoom  = 0    // kaleidoscope density
 

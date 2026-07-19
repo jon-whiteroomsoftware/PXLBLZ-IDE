@@ -1,5 +1,14 @@
-// Scene Splice - an SDF transition showreel.
+// Pattern: Scene Splice
+// Built with PXLBLZ-IDE https://pxlblz-ide.whiteroomsoftware.com/
 //
+// Five miniature scenes trade places through five distinct signed-distance transitions.
+// Runs on: 2D maps; designed for panels and mapped surfaces.
+// Controls: Speed — How quickly the showreel advances from cut to cut;
+//           Scrub — Drags the whole reel by hand through every scene and transition;
+//           Color — Re-tints all five scenes and their transition accents together;
+//           Feather — Width of the soft band where one scene blends into the next.
+//
+// Notes:
 // Five mini-scenes are cut together by five different transition masks:
 // expanding portal, rotating star iris, comet slash, cellular
 // crystallization, and a concentric shockwave. Each cut is a cheap signed

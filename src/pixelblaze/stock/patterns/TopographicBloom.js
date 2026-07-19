@@ -1,5 +1,14 @@
-// Topographic Bloom — contour bands wrapped around breathing flower shapes.
+// Pattern: Topographic Bloom
+// Built with PXLBLZ-IDE https://pxlblz-ide.whiteroomsoftware.com/
 //
+// Contour bands wrap around breathing flower-shaped distance fields.
+// Runs on: 2D maps; designed for panels and mapped surfaces.
+// Controls: Speed — How quickly the flower shape breathes;
+//           Layers — Strength and density of the contour bands;
+//           Spacing — Distance between topographic contour lines;
+//           Color — Base colour of the bloom.
+//
+// Notes:
 // SDF bands are an efficient way to get lots of apparent detail from one moving
 // signed-distance field.
 

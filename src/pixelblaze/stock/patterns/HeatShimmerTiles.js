@@ -1,6 +1,15 @@
-// Heat Shimmer Tiles — repeated colour panes bending under a slow heat haze.
+// Pattern: Heat Shimmer Tiles
+// Built with PXLBLZ-IDE https://pxlblz-ide.whiteroomsoftware.com/
 // License: ISC
 //
+// Repeated color panes bend and ripple under a slow heat haze.
+// Runs on: 2D maps; designed for panels and mapped surfaces.
+// Controls: Speed — How fast the heat shimmer moves;
+//           Tile Size — Density of the repeated heat tiles;
+//           Shimmer — How strongly the tile coordinates bend;
+//           Palette — Base heat colour.
+//
+// Notes:
 // The shimmer is just coordinate offsets from triangle waves. No perlin needed.
 
 export var speed = 0.57       // shimmer speed

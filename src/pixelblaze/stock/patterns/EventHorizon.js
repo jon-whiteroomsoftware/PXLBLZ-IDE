@@ -1,5 +1,14 @@
-// Event Horizon (2D) - an accretion disk seen face-on, no raymarch.
+// Pattern: Event Horizon
+// Built with PXLBLZ-IDE https://pxlblz-ide.whiteroomsoftware.com/
 //
+// Orbiting accretion arcs, a photon ring, and polar jets surround a dark central hole.
+// Runs on: 2D maps; designed for panels and mapped surfaces.
+// Controls: Speed — Orbital rate of the accretion disk;
+//           Feed — How hard the hole is feeding — arc density, turbulence, and jet response;
+//           Jets — Strength of the twin polar jets;
+//           Color — Re-temperatures the disk from ember-orange through x-ray blue.
+//
+// Notes:
 // A dark hole rimmed by a razor-thin photon ring, fed by orbiting accretion
 // arcs. Differential rotation smears hot spots into trailing arcs,
 // relativistic beaming brightens the approaching side, and twin jets vent

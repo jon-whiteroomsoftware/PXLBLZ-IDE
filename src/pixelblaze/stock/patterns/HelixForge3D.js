@@ -1,5 +1,14 @@
-// Helix Forge 3D — braided coils winding through the volume.
+// Pattern: Helix Forge 3D
+// Built with PXLBLZ-IDE https://pxlblz-ide.whiteroomsoftware.com/
 //
+// Braided analytic coils wind and rotate through a luminous volume.
+// Runs on: 3D maps; designed for volumes and shells.
+// Controls: Speed — How fast the braided coils rotate;
+//           Twist — How many turns the coils make through the volume;
+//           Radius — Radius and thickness of the braid;
+//           Hue — Base colour of the forged glow.
+//
+// Notes:
 // The coils are analytic distances to moving helix centre-lines. It reads like
 // 3D sculpture without raymarching.
 

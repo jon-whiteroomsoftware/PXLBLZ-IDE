@@ -341,6 +341,25 @@ The interception boundary is intentionally honest. Arbitrary aliases, object
 methods, dynamically selected sinks, shadowed built-ins, and palette-resolved
 behavior hidden behind unsupported abstractions are not guessed.
 
+### Built-in Pattern source manifests
+
+Every stock Pattern begins with a compact human-readable manifest. The first two
+lines name the Pattern and link PXLBLZ-IDE. Optional `Credit:` lines identify one
+upstream work and author per line. A short description, `Runs on:` guidance, and
+`Controls:` summary then make the source usable when it is opened outside the
+Studio. Existing licenses and implementation notes remain below that reader
+layer.
+
+`parsePatternManifest` owns the format. Catalogue tests require every manifest
+to match its Pattern identity and native dimension and to document every
+exported control. `extractPatternAuthors` also reads standardized `Credit:`
+lines, so upstream authors become structured Show attribution before comments
+can be stripped or transformed.
+
+The source manifest and outbound artifact banner are separate. The manifest
+describes the authored Pattern to a person; the artifact banner records the
+exact generated product sent or saved by PXLBLZ.
+
 ### Artifact identity
 
 Outbound source is stamped after all passes. The comment-only banner carries

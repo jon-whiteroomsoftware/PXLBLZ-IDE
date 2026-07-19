@@ -1,10 +1,13 @@
-// Aurora Sphere — a geometry-aware sphere showcase. It reads the *surface
-// equation* of whatever 3D map it's drawn on, not the map's placement
-// algorithm: from the bare render3D(x,y,z) it recovers latitude and longitude
-// about the cloud's own center, then paints latitude rings that ratchet up a
-// level once per tick — blooming wide as they move — and a spinning great-ring,
-// both through an aurora palette.
+// Pattern: Aurora Sphere
+// Built with PXLBLZ-IDE https://pxlblz-ide.whiteroomsoftware.com/
 //
+// Self-calibrating latitude rings and a spinning great circle wash spherical maps in an aurora palette.
+// Runs on: 3D maps; designed for volumes and shells.
+// Controls: Ring Count — Number of glowing latitude rings wrapped around the sphere;
+//           Spin — How fast the bright great-ring orbits — centred is still, higher spins faster;
+//           Speed — How often the rings ratchet up a level — the tick rate of the bloom.
+//
+// Notes:
 // Pole axis = y. Self-calibrating: it scans the pixel map ONCE on the first
 // beforeRender to learn the center and radius, so it adapts to any roughly
 // spherical map (the stock Sphere lattice, a custom cloud). A preview rebuild
@@ -14,11 +17,6 @@
 // mode (REFERENCE 8.4). This is a "what the preview can render" showcase, not a
 // hardware-bit-faithful pattern — consistent with PlasmaNebula.
 
-// ── Adjustable controls ────────────────────────────────────────────────────
-// Each control var holds the raw 0..1 SLIDER POSITION; the pattern derives the
-// physical quantity from it (bands, spin rate, tick rate). This is what lets the
-// UI seed the slider straight from the var's initial value — so these defaults
-// ARE the opening slider positions.
 export var ringCount = 0.5    // 0.5 -> 6 latitude bands (see nBands below)
 export var spin = 0.81        // 0.5 = still; higher spins faster
 export var speed = 0.4        // ring-tick rate; 0.5 -> once/sec (see beforeRender)

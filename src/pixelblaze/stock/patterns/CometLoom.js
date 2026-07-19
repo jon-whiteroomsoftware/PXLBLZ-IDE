@@ -1,5 +1,14 @@
-// Comet Loom (1D) — long-tailed comets weaving through a slow base rhythm.
+// Pattern: Comet Loom
+// Built with PXLBLZ-IDE https://pxlblz-ide.whiteroomsoftware.com/
 //
+// Long-tailed comets weave through a strip over a slow underlying rhythm.
+// Runs on: 1D strips and rings.
+// Controls: Speed — How fast comet heads move around the strip;
+//           Comets — Number of active comet trails;
+//           Tail — Length of each comet tail;
+//           Palette — Base colour of the comet palette.
+//
+// Notes:
 // The comet heads are precomputed once per frame; each LED only compares a small
 // fixed set of distances, keeping the strip version controller-friendly.
 

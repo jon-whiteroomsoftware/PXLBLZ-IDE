@@ -1,6 +1,12 @@
-// Neon Squircles — port of "Neon Squircles" by @kishimisu (2022)
-//   Original GLSL (kishimisu, ShaderToy): https://www.shadertoy.com/view/mdjXRd
+// Pattern: Neon Squircles
+// Built with PXLBLZ-IDE https://pxlblz-ide.whiteroomsoftware.com/
+// Credit: "Neon Squircles" by kishimisu — https://www.shadertoy.com/view/mdjXRd
 //
+// Nested squircle contours spin, pulse, and carry a bright wave through their rings.
+// Runs on: 2D maps; designed for panels and mapped surfaces.
+// Controls: Speed — How fast the nested squircles spin and pulse.
+//
+// Notes:
 // The GLSL for-loop structure is: for(init; cond; post) body
 //   body: u *= mat2(rot(i++))  — rotates with pre-increment i (0..19), then i becomes 1..20
 //   post: O.rgb += glow*color*anim — samples squircle rings with the now-incremented i (1..20)
@@ -9,7 +15,6 @@
 // Per-ring glow:  .004 / (abs(L4 - i*.04) + .005) — bright ring at each L4 iso-contour.
 // Per-ring anim:  smoothstep stagger via i*.1 creates a wave sweeping across rings.
 
-// ── Adjustable controls ────────────────────────────────────────────────────
 export var speed = 0.69  // squircle spin and pulse rate
 
 export function sliderSpeed(v) { speed = v }

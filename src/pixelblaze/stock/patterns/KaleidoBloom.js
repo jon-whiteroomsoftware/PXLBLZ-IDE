@@ -1,13 +1,20 @@
-// Kaleido Bloom — a static SDF lattice set in motion entirely by the
-// coordinate transform stack.
+// Pattern: Kaleido Bloom
+// Built with PXLBLZ-IDE https://pxlblz-ide.whiteroomsoftware.com/
 //
+// A fixed lattice of dots and rings spins, breathes, and radiates shifting color.
+// Runs on: 2D maps; designed for panels and mapped surfaces.
+// Controls: Speed — How fast the lattice spins and breathes;
+//           Zoom — Size of the lattice cells;
+//           Breathe — How much the zoom pulses in and out;
+//           Color Spread — Width of the radial rainbow spreading from the centre.
+//
+// Notes:
 // The render function draws a fixed field of dots and rings on a repeating
 // grid. All of the motion — the spin and the breathing zoom — comes from
 // rotate()/scale()/translate() composed in beforeRender. The colour is a
 // rotating rainbow that radiates from the centre, so the bloom shifts hue as
 // it turns rather than sitting on one tone.
 
-// ── Adjustable controls ────────────────────────────────────────────────────
 export var speed = 1         // spin + breathe rate
 export var zoom = 0.85       // lattice cell size
 export var breatheAmt = 0.5  // how much the zoom pulses

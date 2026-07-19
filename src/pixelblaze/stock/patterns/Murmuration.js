@@ -1,5 +1,14 @@
-// Murmuration - a small flock deciding where to go, together.
+// Pattern: Murmuration
+// Built with PXLBLZ-IDE https://pxlblz-ide.whiteroomsoftware.com/
 //
+// A small boid flock gathers, scatters, and changes direction as one living cloud.
+// Runs on: 2D maps; designed for panels and mapped surfaces.
+// Controls: Speed — How fast the flock moves through the frame;
+//           Tightness — Flocking strength — a loose drifting haze up to one tight nervous knot;
+//           Birds — Number of birds in the flock;
+//           Color — Base colour of the birds and their wakes.
+//
+// Notes:
 // Up to sixteen boids obey three local urges - pull toward the flock, match
 // your neighbours' heading, keep your distance - plus a slowly wandering point
 // of interest that leads them around the frame. Nobody is in charge; the
