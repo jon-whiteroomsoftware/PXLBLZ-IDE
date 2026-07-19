@@ -17,6 +17,7 @@ import { DEMOS } from '@/pixelblaze/stock/patterns'
 import { getAuthSession } from '@/engine/authSession'
 import { useRouterStore, routerInitialState } from '@/store/routerStore'
 import { showInitialState, useShowStore } from '@/store/showStore'
+import { entityOrganizationInitialState, useEntityOrganizationStore } from '@/store/entityOrganizationStore'
 import { stampArtifact } from '@/engine/artifactStamp'
 
 vi.mock('@/engine/authSession', () => ({
@@ -108,6 +109,7 @@ beforeEach(() => {
   useLibraryStore.setState(libraryInitialState)
   useControllerProfileStore.setState(controllerProfileInitialState)
   useShowStore.setState(showInitialState)
+  useEntityOrganizationStore.setState(entityOrganizationInitialState)
   useWorkspaceStore.setState(workspaceInitialState)
   useRouterStore.setState(routerInitialState)
   window.history.replaceState(null, '', '/studio')
@@ -351,8 +353,10 @@ describe('PatternList', () => {
 
     await user.click(screen.getByRole('radio', { name: 'Shows' }))
     expect(await screen.findByRole('button', { name: 'Built-in Shows' })).toHaveAttribute('aria-expanded', 'true')
-    expect(screen.getByRole('region', { name: 'Portable built-in Shows' })).toBeInTheDocument()
-    expect(screen.getByRole('region', { name: 'Installation built-in Shows' })).toBeInTheDocument()
+    const builtInTree = screen.getByRole('tree', { name: 'Built-in shows' })
+    expect(within(builtInTree).getByRole('treeitem', { name: /Learn/ })).toBeInTheDocument()
+    expect(within(builtInTree).getByRole('treeitem', { name: /Showcases/ })).toBeInTheDocument()
+    expect(within(builtInTree).getByRole('treeitem', { name: /Installations/ })).toBeInTheDocument()
 
     await user.click(screen.getByText('101 Clips and Crossfade'))
 
@@ -696,13 +700,13 @@ describe('PatternList', () => {
     expect(screen.queryByRole('button', { name: 'Catalog' })).not.toBeInTheDocument()
   })
 
-  it('uses the shared legible hierarchy for Show subgroup and empty-state labels (#479)', async () => {
+  it('uses the shared legible hierarchy for Show organization and empty-state labels (#426, #479)', async () => {
     const user = userEvent.setup()
     render(<PatternList />)
     await user.click(screen.getByRole('radio', { name: 'Shows' }))
 
     expect(await screen.findByText('No shows yet')).toHaveClass('text-[12px]', 'leading-[15px]', 'text-zinc-400')
-    expect(screen.getByText('Portable')).toHaveClass('text-[10px]', 'text-zinc-400')
-    expect(screen.getByText('Installation')).toHaveClass('text-[10px]', 'text-zinc-400')
+    expect(screen.getByRole('treeitem', { name: /Learn/ })).toHaveClass('text-[12px]')
+    expect(screen.getByRole('treeitem', { name: /Showcases/ })).toHaveClass('text-[12px]')
   })
 })

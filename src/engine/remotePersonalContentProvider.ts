@@ -1,5 +1,6 @@
 import {
   DEMO_OVERRIDES_KEY,
+  ENTITY_ORGANIZATION_KEYS,
   LAST_ACTIVE_KEY,
   type LastActive,
   type PersonalContentProvider,
@@ -7,6 +8,7 @@ import {
 import type { Settings } from './settings'
 import type { LibraryRecord, MapRecord, MixinRecord, PatternRecord, ShowRecord } from './personalContentRecords'
 import type { ControllerProfile } from './controllerProfile'
+import type { EntityOrganizationV1 } from './entityOrganization'
 
 export interface RemotePersonalContentProviderOptions {
   fetcher?: typeof fetch
@@ -162,6 +164,8 @@ export function createRemotePersonalContentProvider(
     setLastActive: (lastActive) => setSetting(fetcher, LAST_ACTIVE_KEY, lastActive),
     getDemoOverrides: () => getSetting<Record<string, Partial<Settings>>>(fetcher, DEMO_OVERRIDES_KEY),
     setDemoOverrides: (overrides) => setSetting(fetcher, DEMO_OVERRIDES_KEY, overrides),
+    getEntityOrganization: (kind) => getSetting<EntityOrganizationV1>(fetcher, ENTITY_ORGANIZATION_KEYS[kind]),
+    setEntityOrganization: (kind, organization) => setSetting(fetcher, ENTITY_ORGANIZATION_KEYS[kind], organization),
   }
 }
 

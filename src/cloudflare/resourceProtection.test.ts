@@ -94,6 +94,8 @@ describe('personal-storage resource protection (#407)', () => {
   it('allows only application-owned settings keys', () => {
     expect(() => assertAllowedPersonalStorageKey('settings', 'lastActive')).not.toThrow()
     expect(() => assertAllowedPersonalStorageKey('settings', 'demoOverrides')).not.toThrow()
+    expect(() => assertAllowedPersonalStorageKey('settings', 'patternOrganization')).not.toThrow()
+    expect(() => assertAllowedPersonalStorageKey('settings', 'showOrganization')).not.toThrow()
     expect(() => assertAllowedPersonalStorageKey('settings', 'attacker-row')).toThrowError(
       expect.objectContaining({ code: 'unknown_storage_key', status: 404 }),
     )

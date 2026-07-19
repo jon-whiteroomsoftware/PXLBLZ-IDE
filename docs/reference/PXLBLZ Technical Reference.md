@@ -162,6 +162,15 @@ alternate personal-content path. Local development uses Wrangler's D1 database
 behind the Vite `/api` proxy, so migrations must be applied locally as well as
 remotely.
 
+Pattern and Show organization uses two allowlisted Settings documents,
+`patternOrganization` and `showOrganization`. Each versioned sidecar stores a
+recursive manual order, Trash recovery metadata, and collapsed folder IDs while
+entity nodes contain only stable record IDs. Normalization migrates flat lists,
+removes stale or duplicate references, and appends newly created records at the
+root. `entityOrganizationStore` applies changes optimistically, serializes writes
+per entity type, and rolls back a failed latest write. Pattern and Show records,
+routes, references, and D1 entity tables remain unchanged.
+
 ## 4. Application state and editor modes
 
 Major Zustand stores:
@@ -175,6 +184,7 @@ Major Zustand stores:
 | `mixinStore` | Personal and stock mixin editing state |
 | `libraryStore` | Personal and stock library editing state |
 | `showStore` | Personal Shows and persisted model mutations |
+| `entityOrganizationStore` | Durable Pattern/Show folder order, disclosure, and Trash |
 | `showTransportStore` | Ephemeral playhead, loop duration, seek request identity/status |
 | `editorStore` | Source, last clean preview source, validation, metadata, editor flavor |
 | `previewStore` | Playback, visual settings, telemetry, watched vars, zone solo |
@@ -1242,12 +1252,22 @@ Entity-mode changes never alter the flag, so Shows can borrow horizontal space
 without creating Show-only navigation behavior. Gallery navigation remains in
 the top bar; the activity strip does not duplicate it.
 
+Patterns and Shows render the pure recursive organization model through one
+continuous ARIA tree. Personal trees expose whole-row drag and drop plus menu
+commands; Built-in trees reuse disclosure and selection without mutation
+capabilities. Rows indent 14 pixels per level and preserve one leading symbol:
+a disclosure chevron for folders or the entity icon for leaves. Drop edges mean
+before/after and a folder center means inside. Drag cues clear when the drag
+ends or leaves the tree. Search traverses collapsed branches and returns flat
+name-plus-path results without changing disclosure state.
+
 `ui/ideMicrotype.ts` records the application-wide dense-tool baseline against
 the near-black `#0b0c0f` panel. Entity-rail and pane headers are semantic
 headings at 13px zinc-200. Selectable entity names and empty states are 12px
 zinc-400 in a 15px line box. One-line rail rows have an explicit 20px minimum;
 long names may occupy two lines before truncating, while their dimension and
-count facts remain aligned to the first line.
+count facts remain aligned to the first line. Pattern and Show tree names use a
+single truncated line so nested rows preserve vertical scan rhythm.
 Required persistent microcopy is 10px zinc-400 (7.63:1 measured contrast);
 secondary labels may use 9px but retain zinc-400; 8px zinc-500 is reserved for
 nonessential ornament or transient annotations. Disabled controls may remain

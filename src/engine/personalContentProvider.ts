@@ -1,10 +1,15 @@
 import type { Settings } from './settings'
 import type { LibraryRecord, MapRecord, MixinRecord, PatternRecord, ShowRecord } from './personalContentRecords'
 import type { ControllerProfile } from './controllerProfile'
+import type { EntityOrganizationKind, EntityOrganizationV1 } from './entityOrganization'
 import { createRemotePersonalContentProvider } from './remotePersonalContentProvider'
 
 export const LAST_ACTIVE_KEY = 'lastActive'
 export const DEMO_OVERRIDES_KEY = 'demoOverrides'
+export const ENTITY_ORGANIZATION_KEYS: Record<EntityOrganizationKind, string> = {
+  patterns: 'patternOrganization',
+  shows: 'showOrganization',
+}
 
 export type LastActive =
   | { type: 'pattern'; id: string }
@@ -46,6 +51,8 @@ export interface PersonalContentProvider {
   setLastActive(lastActive: LastActive): Promise<void>
   getDemoOverrides(): Promise<Record<string, Partial<Settings>> | undefined>
   setDemoOverrides(overrides: Record<string, Partial<Settings>>): Promise<void>
+  getEntityOrganization?(kind: EntityOrganizationKind): Promise<EntityOrganizationV1 | undefined>
+  setEntityOrganization?(kind: EntityOrganizationKind, organization: EntityOrganizationV1): Promise<void>
 }
 
 export function storageModeForPersonalContentProvider(
@@ -100,6 +107,8 @@ export const demoPersonalContentProvider: PersonalContentProvider = {
   setLastActive: async () => {},
   getDemoOverrides: async () => undefined,
   setDemoOverrides: async () => {},
+  getEntityOrganization: async () => undefined,
+  setEntityOrganization: async () => {},
 }
 
 let activeProvider: PersonalContentProvider = demoPersonalContentProvider

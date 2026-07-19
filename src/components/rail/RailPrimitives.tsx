@@ -125,8 +125,8 @@ export function RailFilterBar({
   onQueryChange,
   hideOneDimensional,
 }: {
-  lens: DimLens
-  onLensChange: (lens: DimLens) => void
+  lens?: DimLens
+  onLensChange?: (lens: DimLens) => void
   query: string
   onQueryChange: (query: string) => void
   hideOneDimensional?: boolean
@@ -159,12 +159,13 @@ export function RailFilterBar({
 
   return (
     <div className="flex items-center gap-1 pt-1.5">
-      <div
-        role="radiogroup"
-        aria-label="Dimension filter"
-        className="flex shrink-0 gap-px"
-      >
-        {DIM_LENS_OPTIONS.map((opt) => {
+      {lens !== undefined && onLensChange && (
+        <div
+          role="radiogroup"
+          aria-label="Dimension filter"
+          className="flex shrink-0 gap-px"
+        >
+          {DIM_LENS_OPTIONS.map((opt) => {
           if (hideOneDimensional && opt.value === 1) {
             return (
               <span
@@ -193,8 +194,9 @@ export function RailFilterBar({
               {opt.label}
             </button>
           )
-        })}
-      </div>
+          })}
+        </div>
+      )}
 
       <div
         className="flex flex-1 items-center justify-end gap-1"

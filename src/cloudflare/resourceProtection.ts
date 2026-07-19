@@ -77,7 +77,12 @@ const personalStorageUsageSql = `
   FROM patterns, maps, mixins, libraries, shows, controllers, settings, controller_metadata_rows
 `
 
-const allowedSettingsKeys = new Set(['lastActive', 'demoOverrides'])
+const allowedSettingsKeys = new Set([
+  'lastActive',
+  'demoOverrides',
+  'patternOrganization',
+  'showOrganization',
+])
 const allowedControllerMetadataKeys = new Set([
   'controller-bindings',
   'controller-program-labels',

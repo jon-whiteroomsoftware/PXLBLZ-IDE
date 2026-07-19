@@ -34,6 +34,7 @@ import {
   useControllerProfileStore,
 } from '@/store/controllerProfileStore'
 import { useShowStore, type ShowRecord } from '@/store/showStore'
+import { useEntityOrganizationStore } from '@/store/entityOrganizationStore'
 import { useDocsStore } from '@/store/docsStore'
 import { useRouterStore } from '@/store/routerStore'
 import { openDemoPattern } from '@/store/openPattern'
@@ -71,7 +72,6 @@ export function PatternList({
   const setActivePattern = usePatternStore((s) => s.setActivePattern)
   const loadPatterns = usePatternStore((s) => s.loadPatterns)
   const renamePattern = usePatternStore((s) => s.renamePattern)
-  const removePattern = usePatternStore((s) => s.removePattern)
   const addPattern = usePatternStore((s) => s.addPattern)
 
   const userMaps = useMapStore((s) => s.userMaps)
@@ -109,7 +109,12 @@ export function PatternList({
   const beginShowCreation = useShowStore((s) => s.beginShowCreation)
   const openShow = useShowStore((s) => s.openShow)
   const renameShow = useShowStore((s) => s.renameShow)
-  const removeShow = useShowStore((s) => s.removeShow)
+  const patternOrganization = useEntityOrganizationStore((s) => s.organizations.patterns)
+  const showOrganization = useEntityOrganizationStore((s) => s.organizations.shows)
+  const patternOrganizationLoaded = useEntityOrganizationStore((s) => s.loaded.patterns)
+  const showOrganizationLoaded = useEntityOrganizationStore((s) => s.loaded.shows)
+  const loadOrganization = useEntityOrganizationStore((s) => s.loadOrganization)
+  const mutateOrganization = useEntityOrganizationStore((s) => s.mutateOrganization)
   const liveControllers = useControllerStore((s) => s.controllers)
   const navigate = useRouterStore((s) => s.navigate)
   const route = useRouterStore((s) => s.route)
@@ -135,6 +140,19 @@ export function PatternList({
     if (importErrorTimerRef.current) clearTimeout(importErrorTimerRef.current)
     if (importNoticeTimerRef.current) clearTimeout(importNoticeTimerRef.current)
   }, [])
+
+  const patternIdsKey = userPatterns.map((pattern) => pattern.id).join('\0')
+  const showIdsKey = userShows.map((show) => show.id).join('\0')
+
+  useEffect(() => {
+    if (!patternOrganizationLoaded) return
+    void mutateOrganization('patterns', userPatterns.map((pattern) => pattern.id), (organization) => organization)
+  }, [mutateOrganization, patternIdsKey, patternOrganizationLoaded, userPatterns])
+
+  useEffect(() => {
+    if (!showOrganizationLoaded) return
+    void mutateOrganization('shows', userShows.map((show) => show.id), (organization) => organization)
+  }, [mutateOrganization, showIdsKey, showOrganizationLoaded, userShows])
 
   function showImportError(msg: string) {
     setImportError(msg)
@@ -239,7 +257,6 @@ export function PatternList({
     }
   })
   const scrollRef = useRef<HTMLDivElement>(null)
-  const patternRowRefs = useRef(new Map<string, HTMLLIElement>())
   const lastEntityByModeRef = useRef<Record<RailMode, string | null>>({
     patterns: null,
     maps: null,
@@ -400,6 +417,10 @@ export function PatternList({
       if (cancelled) return
       await loadPatterns()
       if (cancelled) return
+      await loadOrganization('patterns', usePatternStore.getState().userPatterns.map((pattern) => pattern.id))
+      if (cancelled) return
+      await loadOrganization('shows', useShowStore.getState().shows.map((show) => show.id))
+      if (cancelled) return
       // A deep link to a concrete studio entity outranks the last-active restore
       // (#308): App's route effect opens the addressed pattern once loadPatterns
       // lands. Kind-only shell routes (/studio/maps, /studio/mixins, ...) still
@@ -456,7 +477,7 @@ export function PatternList({
     return () => {
       cancelled = true
     }
-  }, [loadControllerProfiles, loadLibraries, loadPatterns, loadShows, setGlobalWorkspaceAuthenticated])
+  }, [loadControllerProfiles, loadLibraries, loadOrganization, loadPatterns, loadShows, setGlobalWorkspaceAuthenticated])
 
   function openUserPattern(pattern: PatternRecord) {
     closeMapEditor()
@@ -622,20 +643,6 @@ export function PatternList({
     }
   }
 
-  async function handleRemoveShow(showId: string) {
-    await removeShow(showId)
-    if (route.kind === 'studio' && route.entity?.kind === 'shows' && route.entity.id === showId) {
-      navigate({ kind: 'studio', entity: { kind: 'shows', id: null } })
-    }
-  }
-
-  async function handleRemovePattern(patternId: string) {
-    await removePattern(patternId)
-    if (route.kind === 'studio' && route.entity?.kind === 'patterns' && route.entity.id === patternId) {
-      navigate({ kind: 'studio', entity: { kind: 'patterns', id: null } })
-    }
-  }
-
   async function handleRemoveMap(mapId: string) {
     await removeMap(mapId)
     if (route.kind === 'studio' && route.entity?.kind === 'maps' && route.entity.id === mapId) {
@@ -658,45 +665,11 @@ export function PatternList({
   }
 
   const visibleUserPatterns = userPatterns.filter(
-    (pattern) =>
-      matchesLens(nativeDim(pattern.src), dimLens) && matchesQuery(pattern.name, query),
+    (pattern) => matchesLens(nativeDim(pattern.src), dimLens),
   )
   const visibleStockPatterns = GALLERY_PATTERNS.filter(
-    (pattern) => matchesLens(pattern.dim, dimLens) && matchesQuery(pattern.name, query),
+    (pattern) => matchesLens(pattern.dim, dimLens),
   )
-
-  const patternNavItems = visibleUserPatterns.map((pattern) => ({
-    key: `pattern:${pattern.id}`,
-    activate: () => openUserPattern(pattern),
-  }))
-
-  function handlePatternRowRef(key: string, el: HTMLLIElement | null) {
-    if (el) patternRowRefs.current.set(key, el)
-    else patternRowRefs.current.delete(key)
-  }
-
-  function focusPatternRow(key: string) {
-    window.setTimeout(() => {
-      const row = patternRowRefs.current.get(key)
-      row?.focus()
-      if (typeof row?.scrollIntoView === 'function') row.scrollIntoView({ block: 'nearest' })
-    }, 0)
-  }
-
-  function handlePatternRowKeyDown(e: React.KeyboardEvent<HTMLLIElement>, key: string) {
-    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return
-    const index = patternNavItems.findIndex((item) => item.key === key)
-    if (index === -1) return
-    const nextIndex = e.key === 'ArrowDown'
-      ? Math.min(patternNavItems.length - 1, index + 1)
-      : Math.max(0, index - 1)
-    if (nextIndex === index) return
-    e.preventDefault()
-    const next = patternNavItems[nextIndex]
-    if (!next) return
-    next.activate()
-    focusPatternRow(next.key)
-  }
 
   const visibleMaps = userMaps.filter(
     (map) => matchesLens(map.dim, dimLens) && matchesQuery(map.name, query),
@@ -736,7 +709,6 @@ export function PatternList({
             query={query}
             activePatternId={activePatternId}
             activeDemoName={activeDemoName}
-            userPatterns={userPatterns}
             visibleUserPatterns={visibleUserPatterns}
             visibleStockPatterns={visibleStockPatterns}
             showStockPatterns={showStockPatterns}
@@ -750,9 +722,12 @@ export function PatternList({
             onOpenUserPattern={openUserPattern}
             onOpenStockPattern={openStockPatternRoute}
             onRenamePattern={renamePattern}
-            onDeletePattern={(patternId) => void handleRemovePattern(patternId)}
-            onRowRef={handlePatternRowRef}
-            onRowKeyDown={handlePatternRowKeyDown}
+            personalOrganization={patternOrganization}
+            onPersonalOrganizationChange={(organization) => void mutateOrganization(
+              'patterns',
+              userPatterns.map((pattern) => pattern.id),
+              () => organization,
+            )}
           />
         )}
         {railMode === 'maps' && (
@@ -842,6 +817,7 @@ export function PatternList({
             activeStockShowId={activeStockShowId}
             showStockShows={showStockShows}
             showSeedProfileName={showSeedProfile ? controllerProfileDisplayName(showSeedProfile) : null}
+            query={query}
             scrollRef={scrollRef}
             scrollMetrics={scrollMetrics}
             onScroll={updateScrollMetrics}
@@ -851,7 +827,13 @@ export function PatternList({
             onOpenStockShow={openStockShowRoute}
             onToggleStockShows={() => setShowStockShows((visible) => !visible)}
             onRenameShow={renameShow}
-            onDeleteShow={(showId) => void handleRemoveShow(showId)}
+            onQueryChange={setQuery}
+            personalOrganization={showOrganization}
+            onPersonalOrganizationChange={(organization) => void mutateOrganization(
+              'shows',
+              userShows.map((show) => show.id),
+              () => organization,
+            )}
           />
         )}
       </div>

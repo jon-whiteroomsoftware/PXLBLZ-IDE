@@ -1,19 +1,20 @@
 import { FolderOpen, Plus } from 'lucide-react'
-import type { RefObject } from 'react'
-import { nativeDim, type DimLens } from '@/engine/dimLens'
+import { useState, type RefObject } from 'react'
+import type { DimLens } from '@/engine/dimLens'
 import type { GalleryPattern } from '@/engine/galleryCatalog'
+import { stockPatternOrganization } from '@/engine/stockEntityOrganization'
+import type { EntityOrganizationV1 } from '@/engine/entityOrganization'
 import type { PatternRecord } from '@/store/patternStore'
 import {
-  EditableListItem,
   HeaderAction,
   RailEmptyState,
   RailEntityHeader,
   RailFilterBar,
   RailSectionScroller,
-  StockListItem,
   StockSectionHeader,
   type ScrollMetrics,
 } from '@/components/rail/RailPrimitives'
+import { EntityOrganizationTree } from '@/components/rail/EntityOrganizationTree'
 
 export function PatternsRailSection({
   fileInputRef,
@@ -24,7 +25,6 @@ export function PatternsRailSection({
   query,
   activePatternId,
   activeDemoName,
-  userPatterns,
   visibleUserPatterns,
   visibleStockPatterns,
   showStockPatterns,
@@ -38,9 +38,8 @@ export function PatternsRailSection({
   onOpenUserPattern,
   onOpenStockPattern,
   onRenamePattern,
-  onDeletePattern,
-  onRowRef,
-  onRowKeyDown,
+  personalOrganization,
+  onPersonalOrganizationChange,
   onCollapse,
 }: {
   fileInputRef: RefObject<HTMLInputElement | null>
@@ -51,7 +50,6 @@ export function PatternsRailSection({
   query: string
   activePatternId: string | null
   activeDemoName: string | null
-  userPatterns: PatternRecord[]
   visibleUserPatterns: PatternRecord[]
   visibleStockPatterns: GalleryPattern[]
   showStockPatterns: boolean
@@ -65,11 +63,11 @@ export function PatternsRailSection({
   onOpenUserPattern: (pattern: PatternRecord) => void
   onOpenStockPattern: (name: string) => void
   onRenamePattern: (id: string, name: string) => void
-  onDeletePattern: (id: string) => void
-  onRowRef: (key: string, el: HTMLLIElement | null) => void
-  onRowKeyDown: (e: React.KeyboardEvent<HTMLLIElement>, key: string) => void
+  personalOrganization: EntityOrganizationV1
+  onPersonalOrganizationChange: (organization: EntityOrganizationV1) => void
   onCollapse?: () => void
 }) {
+  const [builtInOrganization, setBuiltInOrganization] = useState(() => stockPatternOrganization(visibleStockPatterns))
   return (
     <>
       <RailEntityHeader
@@ -108,28 +106,20 @@ export function PatternsRailSection({
           </p>
         )}
         {personalWorkspaceAuthenticated ? (
-          visibleUserPatterns.length === 0 ? (
-            <RailEmptyState>No patterns yet</RailEmptyState>
-          ) : (
-            <ul className="pt-2">
-              {visibleUserPatterns.map((pattern) => (
-                <EditableListItem
-                  key={pattern.id}
-                  name={pattern.name}
-                  noun="pattern"
-                  active={activePatternId === pattern.id}
-                  dim={dimLens === 'all' ? `${nativeDim(pattern.src)}D` : undefined}
-                  takenNames={userPatterns.filter((p) => p.id !== pattern.id).map((p) => p.name)}
-                  navKey={`pattern:${pattern.id}`}
-                  onSelect={() => onOpenUserPattern(pattern)}
-                  onRename={(name) => onRenamePattern(pattern.id, name)}
-                  onDelete={() => onDeletePattern(pattern.id)}
-                  onRowRef={onRowRef}
-                  onRowKeyDown={onRowKeyDown}
-                />
-              ))}
-            </ul>
-          )
+          <EntityOrganizationTree
+              organization={personalOrganization}
+              items={visibleUserPatterns.map((pattern) => ({ id: pattern.id, name: pattern.name }))}
+              activeEntityId={activePatternId}
+              query={query}
+              noun="pattern"
+              emptyMessage="No patterns yet"
+              onSelect={(id) => {
+                const pattern = visibleUserPatterns.find((candidate) => candidate.id === id)
+                if (pattern) onOpenUserPattern(pattern)
+              }}
+              onRenameEntity={onRenamePattern}
+              onOrganizationChange={onPersonalOrganizationChange}
+          />
         ) : (
           <RailEmptyState roomy>
             <a href="/api/auth/login" className="text-live hover:underline">Sign in</a>
@@ -145,17 +135,18 @@ export function PatternsRailSection({
           visibleStockPatterns.length === 0 ? (
             <RailEmptyState>No built-in patterns match</RailEmptyState>
           ) : (
-            <ul className="pt-2">
-              {visibleStockPatterns.map((pattern) => (
-                <StockListItem
-                  key={pattern.name}
-                  name={pattern.name}
-                  active={activeDemoName === pattern.name}
-                  meta={dimLens === 'all' ? `${pattern.dim}D` : undefined}
-                  onSelect={() => onOpenStockPattern(pattern.name)}
-                />
-              ))}
-            </ul>
+            <EntityOrganizationTree
+              organization={builtInOrganization}
+              items={visibleStockPatterns.map((pattern) => ({ id: pattern.name, name: pattern.name }))}
+              activeEntityId={activeDemoName}
+              query={query}
+              noun="pattern"
+              editable={false}
+              showSectionHeader={false}
+              onSelect={onOpenStockPattern}
+              onRenameEntity={() => undefined}
+              onOrganizationChange={setBuiltInOrganization}
+            />
           )
         )}
       </RailSectionScroller>

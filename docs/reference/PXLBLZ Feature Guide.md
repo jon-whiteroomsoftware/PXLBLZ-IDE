@@ -81,11 +81,18 @@ library** in the active entity header reduces the complete detail rail to the
 collapsed strip exposes **Expand library**. This state is shared across Studio
 modes; switching from Shows to Patterns does not reopen it.
 
-Patterns and Maps have a dimension lens and name search. Personal content is
-listed first; stock or built-in content lives in a collapsible group beneath it.
-Mixins and Libraries use the same personal-first, stock-second pattern without
-dimension filtering. Controller profiles come only from observed hardware, so
-there is no blank **New Controller** button.
+Patterns and Maps have a dimension lens; Patterns, Maps, and Shows have name
+search. Pattern and Show rails keep Personal content above a collapsible
+Built-in group, but their rows form compact trees instead of flat lists. Create
+folders from Personal, drag whole rows to reorder or nest them, or use the row
+menu for rename, Move up/down, **Move to...**, and **Move to Trash**. Trash is
+recoverable: restore returns a node or complete folder subtree to its prior
+location. Built-in folders are curated and read-only. Search includes collapsed
+branches and folder names, then shows each matching entity with its path.
+
+Mixins and Libraries retain the personal-first, stock-second flat-list pattern
+without dimension filtering. Controller profiles come only from observed
+hardware, so there is no blank **New Controller** button.
 
 The Studio is a three-pane environment:
 
@@ -580,10 +587,12 @@ editing, and Controller-zone binding.
 ### Learning from built-in Shows
 
 The Shows rail includes a collapsible **Built-in Shows** curriculum beneath
-personal Shows. Its Portable and Installation tracks each begin with a simple
-composition and add one routing, Effect, Property animation, Transition, or
-cost idea at a time. The compact banner above the timeline states the example's
-lesson and keeps the output-contract kind visible.
+personal Shows. **Learn** contains the numbered 100 and 200 levels;
+**Showcases** separates Effects, Transitions and animation, and Installations.
+The lessons begin with a simple composition and add one routing, Effect,
+Property animation, Transition, or cost idea at a time. The compact banner above
+the timeline states the example's lesson and keeps the output-contract kind
+visible.
 
 Built-in Shows open in the production timeline and Stage. Transport, zoom,
 Scene X-ray, Super Detail, Entity Details, generated code, `.epe` export, cost

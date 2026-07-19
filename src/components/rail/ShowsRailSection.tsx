@@ -1,18 +1,19 @@
 import { Cpu, Plus } from 'lucide-react'
-import type { RefObject } from 'react'
+import { useState, type RefObject } from 'react'
 import type { ShowRecord } from '@/store/showStore'
 import type { StockShow } from '@/pixelblaze/stock/shows'
+import type { EntityOrganizationV1 } from '@/engine/entityOrganization'
+import { stockShowOrganization } from '@/engine/stockEntityOrganization'
 import {
-  EditableListItem,
   HeaderAction,
   RailEmptyState,
   RailEntityHeader,
+  RailFilterBar,
   RailSectionScroller,
-  RailSubsectionLabel,
-  StockListItem,
   StockSectionHeader,
   type ScrollMetrics,
 } from '@/components/rail/RailPrimitives'
+import { EntityOrganizationTree } from '@/components/rail/EntityOrganizationTree'
 
 export function ShowsRailSection({
   personalWorkspaceAuthenticated,
@@ -22,6 +23,7 @@ export function ShowsRailSection({
   activeStockShowId,
   showStockShows,
   showSeedProfileName,
+  query,
   scrollRef,
   scrollMetrics,
   onScroll,
@@ -31,7 +33,9 @@ export function ShowsRailSection({
   onOpenStockShow,
   onToggleStockShows,
   onRenameShow,
-  onDeleteShow,
+  onQueryChange,
+  personalOrganization,
+  onPersonalOrganizationChange,
   onCollapse,
 }: {
   personalWorkspaceAuthenticated: boolean
@@ -41,6 +45,7 @@ export function ShowsRailSection({
   activeStockShowId: string | null
   showStockShows: boolean
   showSeedProfileName: string | null
+  query: string
   scrollRef: RefObject<HTMLDivElement | null>
   scrollMetrics: ScrollMetrics
   onScroll: () => void
@@ -50,9 +55,12 @@ export function ShowsRailSection({
   onOpenStockShow: (show: StockShow) => void
   onToggleStockShows: () => void
   onRenameShow: (id: string, name: string) => void
-  onDeleteShow: (id: string) => void
+  onQueryChange: (query: string) => void
+  personalOrganization: EntityOrganizationV1
+  onPersonalOrganizationChange: (organization: EntityOrganizationV1) => void
   onCollapse?: () => void
 }) {
+  const [builtInOrganization, setBuiltInOrganization] = useState(() => stockShowOrganization(stockShows))
   return (
     <>
       <RailEntityHeader
@@ -72,7 +80,9 @@ export function ShowsRailSection({
               </>
             )
           : null}
-      />
+      >
+        <RailFilterBar query={query} onQueryChange={onQueryChange} />
+      </RailEntityHeader>
       <RailSectionScroller
         testId="show-list-scroll"
         scrollRef={scrollRef}
@@ -84,50 +94,44 @@ export function ShowsRailSection({
             <a href="/api/auth/login" className="text-live hover:underline">Sign in</a>
             {' '}to save shows
           </RailEmptyState>
-        ) : userShows.length === 0 ? (
-          <RailEmptyState>
-            No shows yet
-          </RailEmptyState>
         ) : (
-          <ul className="pt-2">
-            {userShows.map((show) => (
-              <EditableListItem
-                key={show.id}
-                name={show.name}
-                noun="show"
-                active={activeShowId === show.id}
-                dim={`${show.scenes.length} SC`}
-                takenNames={userShows.filter((item) => item.id !== show.id).map((item) => item.name)}
-                onSelect={() => onOpenShow(show)}
-                onRename={(name) => onRenameShow(show.id, name)}
-                onDelete={() => onDeleteShow(show.id)}
-              />
-            ))}
-          </ul>
+          <EntityOrganizationTree
+              organization={personalOrganization}
+              items={userShows.map((show) => ({ id: show.id, name: show.name }))}
+              activeEntityId={activeShowId}
+              query={query}
+              noun="show"
+              emptyMessage="No shows yet"
+              onSelect={(id) => {
+                const show = userShows.find((candidate) => candidate.id === id)
+                if (show) onOpenShow(show)
+              }}
+              onRenameEntity={onRenameShow}
+              onOrganizationChange={onPersonalOrganizationChange}
+          />
         )}
         <StockSectionHeader
           label="Built-in Shows"
           open={showStockShows}
           onToggle={onToggleStockShows}
         />
-        {showStockShows && (['portable', 'installation'] as const).map((track) => (
-          <section key={track} aria-label={`${track === 'portable' ? 'Portable' : 'Installation'} built-in Shows`}>
-            <RailSubsectionLabel>
-              {track === 'portable' ? 'Portable' : 'Installation'}
-            </RailSubsectionLabel>
-            <ul>
-              {stockShows.filter((item) => item.track === track).map((item) => (
-                <StockListItem
-                  key={item.id}
-                  name={item.name}
-                  active={activeStockShowId === item.id}
-                  meta={`${item.show.scenes.length} SC`}
-                  onSelect={() => onOpenStockShow(item)}
-                />
-              ))}
-            </ul>
-          </section>
-        ))}
+        {showStockShows && (
+          <EntityOrganizationTree
+            organization={builtInOrganization}
+            items={stockShows.map((show) => ({ id: show.id, name: show.name }))}
+            activeEntityId={activeStockShowId}
+            query={query}
+            noun="show"
+            editable={false}
+            showSectionHeader={false}
+            onSelect={(id) => {
+              const show = stockShows.find((candidate) => candidate.id === id)
+              if (show) onOpenStockShow(show)
+            }}
+            onRenameEntity={() => undefined}
+            onOrganizationChange={setBuiltInOrganization}
+          />
+        )}
       </RailSectionScroller>
     </>
   )

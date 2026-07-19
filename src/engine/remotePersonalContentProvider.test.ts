@@ -3,6 +3,7 @@ import {
 } from './remotePersonalContentProvider'
 import type { ControllerProfile } from './controllerProfile'
 import type { LibraryRecord, PatternRecord, ShowRecord } from './personalContentRecords'
+import type { EntityOrganizationV1 } from './entityOrganization'
 
 describe('remote personal content provider', () => {
   it('performs pattern CRUD through the authenticated API', async () => {
@@ -73,6 +74,31 @@ describe('remote personal content provider', () => {
       ['/api/settings/demoOverrides', 'PUT'],
     ])
     expect(requests[2].init?.body).toBe(JSON.stringify({ name: 'Renamed', gridDims: null, updatedAt: 2 }))
+  })
+
+  it('persists Pattern and Show organization as protected user settings', async () => {
+    const requests: Array<{ url: string; init?: RequestInit }> = []
+    const organization: EntityOrganizationV1 = {
+      version: 1,
+      nodes: [{ kind: 'entity', entityId: 'pattern-a' }],
+      trash: [],
+      collapsedFolderIds: [],
+    }
+    const fetcher: typeof fetch = async (url, init) => {
+      requests.push({ url: String(url), init })
+      if (init?.method === undefined) return Response.json({ value: organization })
+      return Response.json({ ok: true })
+    }
+    const provider = createRemotePersonalContentProvider({ fetcher })
+
+    await expect(provider.getEntityOrganization!('patterns')).resolves.toEqual(organization)
+    await provider.setEntityOrganization!('shows', organization)
+
+    expect(requests.map((request) => [request.url, request.init?.method ?? 'GET'])).toEqual([
+      ['/api/settings/patternOrganization', 'GET'],
+      ['/api/settings/showOrganization', 'PUT'],
+    ])
+    expect(requests[1].init?.body).toBe(JSON.stringify({ value: organization }))
   })
 
   it('performs controller profile CRUD through the authenticated API', async () => {
