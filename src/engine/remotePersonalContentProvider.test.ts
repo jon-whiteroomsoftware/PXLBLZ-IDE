@@ -64,6 +64,8 @@ describe('remote personal content provider', () => {
     await provider.deleteMap('m1')
     await expect(provider.getLastActive()).resolves.toEqual({ type: 'demo', name: 'IridescentFibers' })
     await provider.setDemoOverrides({ AuroraSphere: { brightness: 0.5 } })
+    await provider.getWorkspaceStarterState!()
+    await provider.setWorkspaceStarterState!({ version: 1, initialized: ['patterns'] })
 
     expect(requests.map((r) => [r.url, r.init?.method ?? 'GET'])).toEqual([
       ['/api/maps', 'GET'],
@@ -72,6 +74,8 @@ describe('remote personal content provider', () => {
       ['/api/maps/m1', 'DELETE'],
       ['/api/settings/lastActive', 'GET'],
       ['/api/settings/demoOverrides', 'PUT'],
+      ['/api/settings/workspaceStarterState', 'GET'],
+      ['/api/settings/workspaceStarterState', 'PUT'],
     ])
     expect(requests[2].init?.body).toBe(JSON.stringify({ name: 'Renamed', gridDims: null, updatedAt: 2 }))
   })

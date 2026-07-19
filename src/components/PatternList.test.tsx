@@ -305,7 +305,7 @@ describe('PatternList', () => {
     await user.click(screen.getByRole('radio', { name: 'Libraries' }))
 
     expect(await screen.findByRole('button', { name: 'Built-in Libraries' })).toHaveAttribute('aria-expanded', 'true')
-    expect(screen.getByLabelText('No libraries yet')).toHaveTextContent('—')
+    expect(screen.getByText('StartHere')).toBeInTheDocument()
 
     await user.click(screen.getByText('Shader'))
 

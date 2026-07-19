@@ -19,6 +19,7 @@ import {
 } from '@/engine/controllerMetadataStorage'
 import { getAuthSession } from '@/engine/authSession'
 import { newPersonalContentId } from '@/engine/personalContentMetadata'
+import { ensureWorkspaceStarters } from '@/engine/workspaceStarters'
 import { emptyEntityOrganizationTrash } from '@/engine/entityOrganization'
 import { useEditorStore } from '@/store/editorStore'
 import { usePatternStore, type PatternRecord } from '@/store/patternStore'
@@ -453,6 +454,30 @@ export function PatternList({
       if (cancelled) return
       await loadPatterns()
       if (cancelled) return
+      if (session.authenticated) {
+        const startersChanged = await ensureWorkspaceStarters(getPersonalContentProvider(), {
+          patternIds: usePatternStore.getState().userPatterns.map((pattern) => pattern.id),
+          mapIds: useMapStore.getState().userMaps.map((map) => map.id),
+          mixinIds: useMixinStore.getState().userMixins.map((mixin) => mixin.id),
+          libraryIds: useLibraryStore.getState().userLibraries.map((library) => library.id),
+          showIds: useShowStore.getState().shows.map((show) => show.id),
+          controllerIds: useControllerProfileStore.getState().profiles.map((profile) => profile.id),
+        }).catch((error) => {
+          console.warn('Could not finish new-workspace starter creation', error)
+          return false
+        })
+        if (cancelled) return
+        if (startersChanged) {
+          await useMapStore.getState().loadMaps()
+          if (cancelled) return
+          await useMixinStore.getState().loadMixins()
+          if (cancelled) return
+          await useLibraryStore.getState().loadLibraries()
+          if (cancelled) return
+          await loadPatterns()
+          if (cancelled) return
+        }
+      }
       await loadOrganization('patterns', usePatternStore.getState().userPatterns.map((pattern) => pattern.id))
       if (cancelled) return
       await loadOrganization('shows', useShowStore.getState().shows.map((show) => show.id))

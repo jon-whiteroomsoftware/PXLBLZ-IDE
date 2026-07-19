@@ -6,6 +6,7 @@ import { createRemotePersonalContentProvider } from './remotePersonalContentProv
 
 export const LAST_ACTIVE_KEY = 'lastActive'
 export const DEMO_OVERRIDES_KEY = 'demoOverrides'
+export const WORKSPACE_STARTER_STATE_KEY = 'workspaceStarterState'
 export const ENTITY_ORGANIZATION_KEYS: Record<EntityOrganizationKind, string> = {
   patterns: 'patternOrganization',
   shows: 'showOrganization',
@@ -24,6 +25,11 @@ export type LastActive =
 export type PersonalContentStorageMode = 'demo' | 'api'
 export type PersonalContentCollection = 'patterns' | 'maps' | 'mixins' | 'libraries' | 'controllers' | 'shows'
 export type PersonalContentProviderMode = 'remote-api'
+export type WorkspaceStarterKind = 'patterns' | 'maps' | 'mixins' | 'libraries'
+export interface WorkspaceStarterState {
+  version: 1
+  initialized: WorkspaceStarterKind[]
+}
 
 export interface PersonalContentProvider {
   readonly id: string
@@ -55,6 +61,8 @@ export interface PersonalContentProvider {
   setLastActive(lastActive: LastActive): Promise<void>
   getDemoOverrides(): Promise<Record<string, Partial<Settings>> | undefined>
   setDemoOverrides(overrides: Record<string, Partial<Settings>>): Promise<void>
+  getWorkspaceStarterState?(): Promise<WorkspaceStarterState | undefined>
+  setWorkspaceStarterState?(state: WorkspaceStarterState): Promise<void>
   getEntityOrganization?(kind: EntityOrganizationKind): Promise<EntityOrganizationV1 | undefined>
   setEntityOrganization?(kind: EntityOrganizationKind, organization: EntityOrganizationV1): Promise<void>
 }
@@ -111,6 +119,11 @@ export const demoPersonalContentProvider: PersonalContentProvider = {
   setLastActive: async () => {},
   getDemoOverrides: async () => undefined,
   setDemoOverrides: async () => {},
+  getWorkspaceStarterState: async () => ({
+    version: 1,
+    initialized: ['patterns', 'maps', 'mixins', 'libraries'],
+  }),
+  setWorkspaceStarterState: async () => {},
   getEntityOrganization: async () => undefined,
   setEntityOrganization: async () => {},
 }

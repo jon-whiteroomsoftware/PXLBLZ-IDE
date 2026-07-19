@@ -100,6 +100,7 @@ describe('personal-storage resource protection (#407)', () => {
     expect(() => assertAllowedPersonalStorageKey('settings', 'controllerOrganization')).not.toThrow()
     expect(() => assertAllowedPersonalStorageKey('settings', 'mixinOrganization')).not.toThrow()
     expect(() => assertAllowedPersonalStorageKey('settings', 'libraryOrganization')).not.toThrow()
+    expect(() => assertAllowedPersonalStorageKey('settings', 'workspaceStarterState')).not.toThrow()
     expect(() => assertAllowedPersonalStorageKey('settings', 'attacker-row')).toThrowError(
       expect.objectContaining({ code: 'unknown_storage_key', status: 404 }),
     )

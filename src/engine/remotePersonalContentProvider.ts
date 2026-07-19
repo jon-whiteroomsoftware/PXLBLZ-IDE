@@ -2,6 +2,8 @@ import {
   DEMO_OVERRIDES_KEY,
   ENTITY_ORGANIZATION_KEYS,
   LAST_ACTIVE_KEY,
+  WORKSPACE_STARTER_STATE_KEY,
+  type WorkspaceStarterState,
   type LastActive,
   type PersonalContentProvider,
 } from './personalContentProvider'
@@ -164,6 +166,8 @@ export function createRemotePersonalContentProvider(
     setLastActive: (lastActive) => setSetting(fetcher, LAST_ACTIVE_KEY, lastActive),
     getDemoOverrides: () => getSetting<Record<string, Partial<Settings>>>(fetcher, DEMO_OVERRIDES_KEY),
     setDemoOverrides: (overrides) => setSetting(fetcher, DEMO_OVERRIDES_KEY, overrides),
+    getWorkspaceStarterState: () => getSetting<WorkspaceStarterState>(fetcher, WORKSPACE_STARTER_STATE_KEY),
+    setWorkspaceStarterState: (state) => setSetting(fetcher, WORKSPACE_STARTER_STATE_KEY, state),
     getEntityOrganization: (kind) => getSetting<EntityOrganizationV1>(fetcher, ENTITY_ORGANIZATION_KEYS[kind]),
     setEntityOrganization: (kind, organization) => setSetting(fetcher, ENTITY_ORGANIZATION_KEYS[kind], organization),
   }

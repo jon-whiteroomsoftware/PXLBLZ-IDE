@@ -86,6 +86,7 @@ const allowedSettingsKeys = new Set([
   'controllerOrganization',
   'mixinOrganization',
   'libraryOrganization',
+  'workspaceStarterState',
 ])
 const allowedControllerMetadataKeys = new Set([
   'controller-bindings',
