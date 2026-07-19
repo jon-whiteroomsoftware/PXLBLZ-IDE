@@ -53,12 +53,12 @@ export function render2D(index, x, y) {
   // Lattice A — solid dots
   var gx = mod(x, CELL) - cellHalf
   var gy = mod(y, CELL) - cellHalf
-  var dot = SDF.circle(gx, gy, 0, 0, dotR)
+  var dot = SDF.inline.circle(gx, gy, 0, 0, dotR)
 
   // Lattice B — half-offset rings, interleaved with the dots
   var hx = mod(x + cellHalf, CELL) - cellHalf
   var hy = mod(y + cellHalf, CELL) - cellHalf
-  var rng = SDF.ring(hx, hy, 0, 0, dotR, ringW)
+  var rng = SDF.inline.ring(hx, hy, 0, 0, dotR, ringW)
 
   var field = SDF.smoothUnion(dot, rng, 0.05)
   var lit = SDF.fillGlow(field, 0.045)

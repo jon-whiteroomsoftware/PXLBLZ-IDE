@@ -19,6 +19,7 @@ describe('libraryDocs (#350)', () => {
       name: 'paint',
       params: ['index', 'amount'],
       doc: 'Paints the current pixel. Uses a stock color helper.',
+      inlineEligible: false,
     }])
     expect(reference.outVars).toEqual(['outH', 'outS'])
     expect(reference.referencedStockLibraries).toEqual(['Color'])
@@ -27,8 +28,23 @@ describe('libraryDocs (#350)', () => {
   it('keeps undocumented functions visible for signatures and empty-state counts', () => {
     const reference = parseLibraryApiReference('MyLib', 'function helper(v) { return v }')
 
-    expect(reference.functions).toEqual([{ name: 'helper', params: ['v'], doc: '' }])
+    expect(reference.functions).toEqual([{ name: 'helper', params: ['v'], doc: '', inlineEligible: false }])
     expect(libraryDocsByFunction(reference).helper.doc).toBe('')
+  })
+
+  it('exposes inline eligibility without leaking the compiler annotation into prose', () => {
+    const reference = parseLibraryApiReference('MathLib', [
+      '// Squares a value.',
+      '// @inline',
+      'function square(v) { return v * v }',
+    ].join('\n'))
+
+    expect(reference.functions).toEqual([{
+      name: 'square',
+      params: ['v'],
+      doc: 'Squares a value.',
+      inlineEligible: true,
+    }])
   })
 
   it('builds a case-sensitive doc index for stock and cloud namespaces', () => {

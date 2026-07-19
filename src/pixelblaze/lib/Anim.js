@@ -6,24 +6,31 @@
 // ─── Easing ──────────────────────────────────────────────────────────────────
 
 // Quadratic ease-in: slow start, fast end
+// @inline
 function easeIn2(t)    { return t * t; }
 // Quadratic ease-out: fast start, slow end
+// @inline
 function easeOut2(t)   { return t * (2 - t); }
 // Quadratic ease-in-out: slow at both ends
+// @inline
 function easeInOut2(t) { return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t; }
 
 // Cubic ease-in
+// @inline
 function easeIn3(t)    { return t * t * t; }
 // Cubic ease-out
 function easeOut3(t)   { var u = 1 - t; return 1 - u * u * u; }
 // Cubic ease-in-out
+// @inline
 function easeInOut3(t) { return t < 0.5 ? 4 * t * t * t : 1 - pow(-2 * t + 2, 3) / 2; }
 
 // Quartic ease-in
+// @inline
 function easeIn4(t)    { return t * t * t * t; }
 // Quartic ease-out
 function easeOut4(t)   { var u = 1 - t; return 1 - u * u * u * u; }
 // Quartic ease-in-out
+// @inline
 function easeInOut4(t) { return t < 0.5 ? 8 * t * t * t * t : 1 - pow(-2 * t + 2, 4) / 2; }
 
 // Elastic: overshoots and oscillates at the end
@@ -58,6 +65,7 @@ function easeOutBack(t) {
 // ─── Interpolation ───────────────────────────────────────────────────────────
 
 // Linear interpolation from a to b
+// @inline
 function lerp(a, b, t) { return a + (b - a) * t; }
 
 // Smooth Hermite interpolation; output 0..1
@@ -73,6 +81,7 @@ function smootherstep(lo, hi, t) {
 }
 
 // Remap v from [inLo, inHi] to [outLo, outHi]
+// @inline
 function mapRange(v, inLo, inHi, outLo, outHi) {
   return outLo + (v - inLo) / (inHi - inLo) * (outHi - outLo);
 }
@@ -80,6 +89,7 @@ function mapRange(v, inLo, inHi, outLo, outHi) {
 // ─── Oscillators ─────────────────────────────────────────────────────────────
 
 // Sawtooth: ramps 0→1 at freq cycles per time unit
+// @inline
 function saw(t, freq) { return (t * freq) % 1; }
 
 // Square wave: 1 for first duty fraction of cycle, 0 otherwise (duty defaults to 0.5)
@@ -95,27 +105,33 @@ function pingPong(t, freq) {
 }
 
 // Smooth sine pulse — wave() with explicit freq
+// @inline
 function sinPulse(t, freq) { return wave(t * freq); }
 
 // Stagger phase by index: offset t by i/n (use for ripples across LEDs)
+// @inline
 function stagger(t, i, n) { return (t + i / n) % 1; }
 
 // ─── Timing helpers ──────────────────────────────────────────────────────────
 
 // Quantise t into n discrete steps
+// @inline
 function steps(t, n) { return floor(t * n) / n; }
 
 // One-shot ramp from 1 at start to 0 at end
+// @inline
 function ramp(t, start, end) {
   return clamp((t - start) / (end - start), 0, 1);
 }
 
 // Pulse window: 1 between start and end, 0 outside
+// @inline
 function window01(t, start, end) {
   return (t >= start && t < end) ? 1 : 0;
 }
 
 // Crossfade a→b over [lo,hi] range of t
+// @inline
 function crossfade(a, b, t, lo, hi) {
   return lerp(a, b, smoothstep(lo, hi, t));
 }
@@ -132,7 +148,9 @@ function follow(current, target, delta, speed) {
 // ─── Sequencing ──────────────────────────────────────────────────────────────
 
 // Current step index (0..n-1) for time t
+// @inline
 function sequenceStep(t, n) { return floor((t % 1) * n); }
 
 // Phase within the current step (0..1)
+// @inline
 function sequencePhase(t, n) { return (t * n) % 1; }

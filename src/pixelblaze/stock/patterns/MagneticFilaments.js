@@ -49,9 +49,9 @@ export function render2D(index, x, y) {
   line = line * line
 
   // Magnet cores give the eye something to orbit around.
-  var c0 = SDF.fillGlow(SDF.circle(x, y, ax0, ay0, 0.035), 0.08)
-  var c1 = SDF.fillGlow(SDF.circle(x, y, ax1, ay1, 0.030), 0.07)
-  var c2 = SDF.fillGlow(SDF.circle(x, y, ax2, ay2, 0.025), 0.06)
+  var c0 = SDF.fillGlow(SDF.inline.circle(x, y, ax0, ay0, 0.035), 0.08)
+  var c1 = SDF.fillGlow(SDF.inline.circle(x, y, ax1, ay1, 0.030), 0.07)
+  var c2 = SDF.fillGlow(SDF.inline.circle(x, y, ax2, ay2, 0.025), 0.06)
   var core = max(c0, max(c1, c2)) * 0.55
 
   var hue = frac(0.58 + f * 0.018 + t * 0.025)

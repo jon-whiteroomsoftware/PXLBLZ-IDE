@@ -49,9 +49,18 @@ function resolveOpenLibrary(
 
 function ApiEntry({ namespace, fn }: { namespace: string; fn: LibraryApiReference['functions'][number] }) {
   const signature = `${namespace}.${fn.name}(${fn.params.join(', ')})`
+  const inlineSignature = `${namespace}.inline.${fn.name}(${fn.params.join(', ')})`
   return (
     <div className="border-b border-zinc-900/80 py-2 last:border-b-0">
       <div className="font-mono text-xs leading-tight text-zinc-200">{signature}</div>
+      {fn.inlineEligible && (
+        <div className="mt-1 flex min-w-0 items-baseline gap-1.5 font-mono text-[10px] leading-tight">
+          <span className="shrink-0 rounded-sm border border-cyan-900/80 bg-cyan-950/30 px-1 py-px uppercase tracking-wide text-cyan-600">
+            inline
+          </span>
+          <span className="min-w-0 truncate text-cyan-300/75">{inlineSignature}</span>
+        </div>
+      )}
       <div className="mt-1 font-mono text-[11px] leading-relaxed text-zinc-500">
         {fn.doc || 'No doc comment.'}
       </div>

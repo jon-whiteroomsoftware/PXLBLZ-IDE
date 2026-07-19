@@ -24,15 +24,19 @@
 // GLSL fract: x - floor(x), always in [0, 1). Distinct from the built-in frac(),
 // which is truncate-based and returns negatives for negative inputs — that
 // breaks symmetric folds like fract(uv) - 0.5. Use Shader.fract for ports.
+// @inline
 function fract(x) { return x - floor(x); }
 
 // GLSL step: 0 below the edge, 1 at or above it
+// @inline
 function step(edge, x) { return x < edge ? 0 : 1; }
 
 // GLSL sign: -1 / 0 / 1
+// @inline
 function sign(x) { return x < 0 ? -1 : (x > 0 ? 1 : 0); }
 
 // GLSL saturate / HLSL clamp-to-unit: clamp(x, 0, 1)
+// @inline
 function saturate(x) { return clamp(x, 0, 1); }
 
 // GLSL tanh — not a Pixelblaze built-in. The textbook form (e^2x-1)/(e^2x+1)
@@ -46,12 +50,15 @@ function tanh(x) {
 }
 
 // 2D dot product
+// @inline
 function dot2(ax, ay, bx, by) { return ax * bx + ay * by; }
 
 // 3D dot product
+// @inline
 function dot3(ax, ay, az, bx, by, bz) { return ax * bx + ay * by + az * bz; }
 
 // Euclidean distance between two 2D points (built-in hypot does length())
+// @inline
 function distance2(ax, ay, bx, by) { return hypot(ax - bx, ay - by); }
 
 // ─── Out-var helpers ───────────────────────────────────────────────────────────
@@ -121,7 +128,9 @@ function iqPalette(t, ar, ag, ab, br, bg, bb, cr_, cg_, cb_, dr, dg, db) {
 
 // ─── Integer hashes ────────────────────────────────────────────────────────────
 //
-// Hardware-safe pseudo-random in [0, 1) from integer cell coords. Pure
+// Compatibility copies of Noise.hash21/hash11. New Patterns should use Noise;
+// these remain byte-for-byte equivalent so existing Shader Patterns do not pay
+// a wrapper-call penalty. Hardware-safe pseudo-random in [0, 1) from integer cell coords. Pure
 // multiply/add only — NO sin/perlin/prng (those are algorithmically divergent
 // between preview and hardware). Built to the same 16.16-fidelity
 // recipe as Noise.js's _hash2/_hash1 (#92):

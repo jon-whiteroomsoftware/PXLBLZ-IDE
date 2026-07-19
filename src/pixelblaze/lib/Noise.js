@@ -29,7 +29,8 @@
 // No `sin`/`perlin` — those are algorithmically divergent and unfit
 // for fidelity-critical hashing.
 
-function _hash2(ix, iy) {
+// Public canonical 2D integer hash. Shader.hash21 remains a compatibility form.
+function hash21(ix, iy) {
   var h = ix * 1619 + iy * 31337 + 1013;
   h = h * (h + 197);
   h = h * 769;
@@ -37,13 +38,17 @@ function _hash2(ix, iy) {
   return f - floor(f);
 }
 
-function _hash1(n) {
+// Public canonical 1D integer hash. Shader.hash11 remains a compatibility form.
+function hash11(n) {
   var h = n * 1619 + 1013;
   h = h * (h + 197);
   h = h * 769;
   var f = h / 256 / 256; // demote wrapped low bits — power-of-two divide is bit-exact (#113)
   return f - floor(f);
 }
+
+function _hash2(ix, iy) { return hash21(ix, iy); }
+function _hash1(n) { return hash11(n); }
 
 // ─── Value noise ─────────────────────────────────────────────────────────────
 
@@ -52,7 +57,7 @@ function noise1D(x) {
   var ix = floor(x);
   var tx = x - ix;
   var ux = tx * tx * (3 - 2 * tx);
-  return _hash1(ix) + (_hash1(ix + 1) - _hash1(ix)) * ux;
+  return hash11(ix) + (hash11(ix + 1) - hash11(ix)) * ux;
 }
 
 // Smooth 2D value noise, range [0, 1]
@@ -61,17 +66,17 @@ function noise2D(x, y) {
   var tx = x - ix,   ty = y - iy;
   var ux = tx * tx * (3 - 2 * tx);
   var uy = ty * ty * (3 - 2 * ty);
-  var a = _hash2(ix,     iy);
-  var b = _hash2(ix + 1, iy);
-  var c = _hash2(ix,     iy + 1);
-  var d = _hash2(ix + 1, iy + 1);
+  var a = hash21(ix,     iy);
+  var b = hash21(ix + 1, iy);
+  var c = hash21(ix,     iy + 1);
+  var d = hash21(ix + 1, iy + 1);
   return a + (b - a) * ux + (c - a) * uy + (a - b - c + d) * ux * uy;
 }
 
 // ─── Gradient noise ──────────────────────────────────────────────────────────
 
 function _grad(ix, iy, tx, ty) {
-  var h  = floor(_hash2(ix, iy) * 8);
+  var h  = floor(hash21(ix, iy) * 8);
   var gx = (h < 4) ? 1 : -1;
   var gy = (h < 2 || h >= 6) ? 1 : -1;
   return gx * tx + gy * ty;
@@ -95,12 +100,14 @@ function gradNoise2D(x, y) {
 // Layered octaves for organic, cloud-like detail. 2–4 octaves is practical.
 
 // 2-octave fBm; practical balance of detail vs. speed
+// @inline
 function fbm2D_2(x, y) {
   return noise2D(x, y) * 0.5333
        + noise2D(x * 2.01, y * 2.01) * 0.2666;
 }
 
 // 3-octave fBm; more detail
+// @inline
 function fbm2D_3(x, y) {
   return noise2D(x, y) * 0.4444
        + noise2D(x * 2.01, y * 2.01) * 0.2222
@@ -108,6 +115,7 @@ function fbm2D_3(x, y) {
 }
 
 // 4-octave fBm; maximum detail
+// @inline
 function fbm2D_4(x, y) {
   return noise2D(x, y) * 0.3810
        + noise2D(x * 2.01, y * 2.01) * 0.1905
@@ -120,10 +128,12 @@ function fbm2D_4(x, y) {
 // strength: displacement amount (try 0.2–0.5)
 
 // Displace x with noise; try strength 0.2–0.5
+// @inline
 function warpX(x, y, t, strength) {
   return x + noise2D(x + t * 0.3, y + 0.5) * strength - strength * 0.5;
 }
 // Displace y with noise; try strength 0.2–0.5
+// @inline
 function warpY(x, y, t, strength) {
   return y + noise2D(x + 0.5, y + t * 0.3) * strength - strength * 0.5;
 }
@@ -137,8 +147,8 @@ function voronoiDist(x, y) {
   for (var dy = -1; dy <= 1; dy++) {
     for (var dx = -1; dx <= 1; dx++) {
       var cx = ix + dx, cy = iy + dy;
-      var px = cx + _hash2(cx, cy);
-      var py = cy + _hash2(cx + 1237, cy + 4567);
+      var px = cx + hash21(cx, cy);
+      var py = cy + hash21(cx + 1237, cy + 4567);
       var ex = x - px, ey = y - py;
       var d  = ex * ex + ey * ey;
       if (d < md) md = d;
@@ -153,35 +163,35 @@ function voronoiDist(x, y) {
 function voronoiDist5(x, y) {
   var ix = floor(x), iy = floor(y);
   var cx = ix, cy = iy;
-  var px = cx + _hash2(cx, cy);
-  var py = cy + _hash2(cx + 1237, cy + 4567);
+  var px = cx + hash21(cx, cy);
+  var py = cy + hash21(cx + 1237, cy + 4567);
   var ex = x - px, ey = y - py;
   var md = ex * ex + ey * ey;
 
   cx = ix - 1; cy = iy;
-  px = cx + _hash2(cx, cy);
-  py = cy + _hash2(cx + 1237, cy + 4567);
+  px = cx + hash21(cx, cy);
+  py = cy + hash21(cx + 1237, cy + 4567);
   ex = x - px; ey = y - py;
   var d = ex * ex + ey * ey;
   if (d < md) md = d;
 
   cx = ix + 1; cy = iy;
-  px = cx + _hash2(cx, cy);
-  py = cy + _hash2(cx + 1237, cy + 4567);
+  px = cx + hash21(cx, cy);
+  py = cy + hash21(cx + 1237, cy + 4567);
   ex = x - px; ey = y - py;
   d = ex * ex + ey * ey;
   if (d < md) md = d;
 
   cx = ix; cy = iy - 1;
-  px = cx + _hash2(cx, cy);
-  py = cy + _hash2(cx + 1237, cy + 4567);
+  px = cx + hash21(cx, cy);
+  py = cy + hash21(cx + 1237, cy + 4567);
   ex = x - px; ey = y - py;
   d = ex * ex + ey * ey;
   if (d < md) md = d;
 
   cx = ix; cy = iy + 1;
-  px = cx + _hash2(cx, cy);
-  py = cy + _hash2(cx + 1237, cy + 4567);
+  px = cx + hash21(cx, cy);
+  py = cy + hash21(cx + 1237, cy + 4567);
   ex = x - px; ey = y - py;
   d = ex * ex + ey * ey;
   if (d < md) md = d;
@@ -197,28 +207,28 @@ function voronoiDist4(x, y) {
   var sx = (x - ix < 0.5) ? -1 : 1;
   var sy = (y - iy < 0.5) ? -1 : 1;
   var cx = ix, cy = iy;
-  var px = cx + _hash2(cx, cy);
-  var py = cy + _hash2(cx + 1237, cy + 4567);
+  var px = cx + hash21(cx, cy);
+  var py = cy + hash21(cx + 1237, cy + 4567);
   var ex = x - px, ey = y - py;
   var md = ex * ex + ey * ey;
 
   cx = ix + sx; cy = iy;
-  px = cx + _hash2(cx, cy);
-  py = cy + _hash2(cx + 1237, cy + 4567);
+  px = cx + hash21(cx, cy);
+  py = cy + hash21(cx + 1237, cy + 4567);
   ex = x - px; ey = y - py;
   var d = ex * ex + ey * ey;
   if (d < md) md = d;
 
   cx = ix; cy = iy + sy;
-  px = cx + _hash2(cx, cy);
-  py = cy + _hash2(cx + 1237, cy + 4567);
+  px = cx + hash21(cx, cy);
+  py = cy + hash21(cx + 1237, cy + 4567);
   ex = x - px; ey = y - py;
   d = ex * ex + ey * ey;
   if (d < md) md = d;
 
   cx = ix + sx; cy = iy + sy;
-  px = cx + _hash2(cx, cy);
-  py = cy + _hash2(cx + 1237, cy + 4567);
+  px = cx + hash21(cx, cy);
+  py = cy + hash21(cx + 1237, cy + 4567);
   ex = x - px; ey = y - py;
   d = ex * ex + ey * ey;
   if (d < md) md = d;
@@ -234,11 +244,11 @@ function voronoiID(x, y) {
   for (var dy = -1; dy <= 1; dy++) {
     for (var dx = -1; dx <= 1; dx++) {
       var cx = ix + dx, cy = iy + dy;
-      var px = cx + _hash2(cx, cy);
-      var py = cy + _hash2(cx + 1237, cy + 4567);
+      var px = cx + hash21(cx, cy);
+      var py = cy + hash21(cx + 1237, cy + 4567);
       var ex = x - px, ey = y - py;
       var d  = ex * ex + ey * ey;
-      if (d < md) { md = d; id = _hash2(cx * 3, cy * 7); }
+      if (d < md) { md = d; id = hash21(cx * 3, cy * 7); }
     }
   }
   return id;

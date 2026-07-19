@@ -28,15 +28,15 @@ export function render2D(index, x, y) {
   var cx1 = 0.5 + 0.15 * cos(a + 2.09), cy1 = 0.5 + 0.15 * sin(a + 2.09)
   var cx2 = 0.5 + 0.15 * cos(a + 4.18), cy2 = 0.5 + 0.15 * sin(a + 4.18)
 
-  var d = SDF.smoothUnion(SDF.circle(x, y, cx0, cy0, petalR),
-                          SDF.circle(x, y, cx1, cy1, petalR), 0.12)
-  d = SDF.smoothUnion(d, SDF.circle(x, y, cx2, cy2, petalR), 0.12)
-  d = SDF.smoothUnion(d, SDF.circle(x, y, 0.5, 0.5, petalR * 0.82), 0.10)
+  var d = SDF.smoothUnion(SDF.inline.circle(x, y, cx0, cy0, petalR),
+                          SDF.inline.circle(x, y, cx1, cy1, petalR), 0.12)
+  d = SDF.smoothUnion(d, SDF.inline.circle(x, y, cx2, cy2, petalR), 0.12)
+  d = SDF.smoothUnion(d, SDF.inline.circle(x, y, 0.5, 0.5, petalR * 0.82), 0.10)
 
-  var fill = SDF.softFill(d, 0.08)
-  var contour = SDF.bands(d + t * 0.012, bandSpacing)
+  var fill = SDF.inline.softFill(d, 0.08)
+  var contour = SDF.inline.bands(d + t * 0.012, bandSpacing)
   contour = contour * contour * (0.35 + layers * 0.65)
-  var edge = SDF.glow(d, 0.018) * 0.8
+  var edge = SDF.inline.glow(d, 0.018) * 0.8
   var val = clamp(fill * contour + edge, 0, 1)
 
   hsv(frac(color + d * 1.7 + contour * 0.06), 0.86, val)

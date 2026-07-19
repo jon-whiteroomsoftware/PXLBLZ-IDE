@@ -2,6 +2,7 @@ export interface LibraryFunctionDoc {
   name: string
   params: string[]
   doc: string
+  inlineEligible: boolean
 }
 
 export interface LibraryApiReference {
@@ -28,7 +29,7 @@ function docsAbove(lines: string[], functionLineIndex: number): string {
     const previous = lines[index].trim()
     if (!previous.startsWith('//')) break
     const text = previous.replace(/^\/\/\s*/, '')
-    if (!/^[─—-]+/.test(text)) commentLines.unshift(text)
+    if (text !== '@inline' && !/^[─—-]+/.test(text)) commentLines.unshift(text)
     index--
   }
   return commentLines.join(' ').trim()
@@ -71,6 +72,7 @@ export function parseLibraryApiReference(
       name: fnMatch[1],
       params: splitParams(fnMatch[2]),
       doc: docsAbove(lines, index),
+      inlineEligible: lines[index - 1]?.trim() === '// @inline',
     })
   }
 

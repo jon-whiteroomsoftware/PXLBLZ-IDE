@@ -168,8 +168,14 @@ effective preview settings. There is no live link back to the built-in.
 
 Patterns may call stock or personal libraries with namespace syntax such as
 `SDF.circle(...)` or `MyLib.paint(...)`. Compilation follows transitive library
-references, inlines only the functions that are actually used, and produces one
+references, flattens only the functions that are actually used, and produces one
 flat Pixelblaze artifact.
+
+Eligible single-expression helpers also show an **inline** signature such as
+`SDF.inline.circle(...)`. Choosing that form expands the expression into the
+Pattern and removes its runtime function call. Ordinary calls remain available;
+the call site chooses. Inline calls may nest, but their arguments must be free of
+side effects so expansion cannot change evaluation behavior.
 
 ### Controls and watched variables
 
@@ -340,7 +346,9 @@ artifact inspection.
 
 Library API documentation comes from `//` comments directly above function
 declarations. Those comments drive editor help, the live API reference in the
-right pane, and the separate read-only API Reference workspace. Rename and delete are confirmation-guarded because references
+right pane, and the separate read-only API Reference workspace. A `// @inline`
+line immediately above a single-return helper adds its alternate inline signature
+without appearing as documentation text. Rename and delete are confirmation-guarded because references
 are intentionally soft: a dependent Pattern fails compilation until its
 namespace call is updated.
 

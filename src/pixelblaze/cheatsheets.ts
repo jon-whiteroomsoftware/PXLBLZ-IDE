@@ -262,6 +262,13 @@ export const CHEATSHEETS: Record<string, Cheatsheet> = {
   Noise: {
     sections: [
       {
+        header: 'Hardware-safe Hashes',
+        entries: [
+          { sig: 'hash21(ix, iy)', desc: 'canonical pseudo-random 0..1 from integer cell coordinates' },
+          { sig: 'hash11(n)', desc: 'canonical pseudo-random 0..1 from one integer' },
+        ],
+      },
+      {
         header: 'Value Noise',
         entries: [
           { sig: 'noise1D(x)', desc: 'smooth 1D value noise; range 0..1' },
@@ -373,11 +380,11 @@ export const CHEATSHEETS: Record<string, Cheatsheet> = {
         ],
       },
       {
-        header: 'Palette & Hash',
+        header: 'Palette & Compatibility Hashes',
         entries: [
           { sig: 'iqPalette(t, ar,ag,ab, br,bg,bb, cr,cg,cb, dr,dg,db)', desc: 'IQ cosine palette a+b·cos(2π(c·t+d)) → cr, cg, cb' },
-          { sig: 'hash21(ix, iy)', desc: 'hardware-safe pseudo-random 0..1 from integer cell coords' },
-          { sig: 'hash11(n)', desc: 'hardware-safe pseudo-random 0..1 from one integer' },
+          { sig: 'hash21(ix, iy)', desc: 'compatibility form; prefer Noise.hash21 for new Patterns' },
+          { sig: 'hash11(n)', desc: 'compatibility form; prefer Noise.hash11 for new Patterns' },
         ],
       },
     ],

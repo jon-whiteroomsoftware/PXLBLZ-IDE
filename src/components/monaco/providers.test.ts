@@ -20,4 +20,15 @@ describe('monaco providers (#350)', () => {
     expect(hover?.signature).toBe('hsv(h, s, v)')
     expect(hover?.doc).toContain('Set')
   })
+
+  it('resolves the inline call-site form for eligible library functions', () => {
+    const docs = buildLibraryDocIndex({
+      MathLib: '// Squares a value\n// @inline\nfunction square(v) { return v * v }',
+    })
+
+    expect(resolvePixelblazeHover('MathLib.inline.square(index)', 16, 'square', docs)).toEqual({
+      signature: 'MathLib.inline.square(v)',
+      doc: 'Squares a value',
+    })
+  })
 })

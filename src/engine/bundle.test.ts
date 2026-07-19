@@ -179,7 +179,7 @@ describe('bundle — library inlining', () => {
     expect(inlinedIdx).toBeLessThan(patternIdx)
   })
 
-  it('emits referenced library top-level vars unmangled before inlined functions', () => {
+  it('emits only reachable library top-level vars before bundled functions', () => {
     const lib = [
       `var ux = 0, uy = 0;`,
       `function toUV(x, y) { ux = x * 2 - 1; uy = y * 2 - 1 }`,
@@ -190,10 +190,27 @@ describe('bundle — library inlining', () => {
     const { code } = bundle(src, { shader: lib })
 
     expect(code).toContain('var ux = 0, uy = 0;')
-    expect(code).toContain('var nx = 0, ny = 0;')
+    expect(code).not.toContain('var nx = 0, ny = 0;')
+    expect(code).not.toContain('nx = 0')
     expect(code).not.toContain('var _shader_ux')
     expect(code.indexOf('var ux = 0, uy = 0;')).toBeLessThan(code.indexOf('function _shader_toUV('))
-    expect(code.indexOf('var nx = 0, ny = 0;')).toBeLessThan(code.indexOf('function _shader_toUV('))
+  })
+
+  it('prunes unused declarators from a shared library var statement', () => {
+    const lib = [
+      `var nx = 0, ny = 0, nz = 0, len = 0;`,
+      `var rx = 0, ry = 0;`,
+      `function normalize2(x, y) { len = hypot(x, y); nx = x / len; ny = y / len }`,
+      `function rotate2(x, y) { rx = x; ry = y }`,
+    ].join('\n')
+    const src = `export function render2D(i, x, y) { Shader.normalize2(x, y); hsv(nx, ny, len) }`
+
+    const { code } = bundle(src, { Shader: lib })
+
+    expect(code).toContain('var nx = 0, ny = 0, len = 0;')
+    expect(code).not.toContain('nz = 0')
+    expect(code).not.toContain('rx = 0')
+    expect(code).not.toContain('ry = 0')
   })
 
   it('does not emit extra preamble for a referenced library with no top-level vars', () => {
@@ -278,6 +295,130 @@ describe('bundle — library inlining', () => {
     ].join('\n')
 
     expect(() => bundle(src, {})).not.toThrow()
+  })
+})
+
+describe('bundle — call-site library inlining (#549)', () => {
+  it('expands an eligible single-return helper selected at the call site', () => {
+    const lib = [
+      `// @inline`,
+      `function glow(d, falloff) { return falloff / (abs(d) + falloff) }`,
+    ].join('\n')
+    const src = [
+      `export function render2D(index, x, y) {`,
+      `  var d = x - 0.5`,
+      `  hsv(0, 0, SDF.inline.glow(d, 0.1))`,
+      `}`,
+    ].join('\n')
+
+    const { code } = bundle(src, { SDF: lib })
+
+    expect(code).toContain('(0.1) / (abs((d)) + (0.1))')
+    expect(code).not.toContain('SDF.inline.glow')
+    expect(code).not.toContain('_SDF_glow')
+  })
+
+  it('retains and rewrites only reachable helpers beneath an inline root', () => {
+    const lib = [
+      `function _sq(v) { return v * v }`,
+      `function unused(v) { return v + 1 }`,
+      `// @inline`,
+      `function circle(x, y, r) { return sqrt(_sq(x) + _sq(y)) - r }`,
+    ].join('\n')
+    const src = `export function render2D(i, x, y) { hsv(0, 0, SDF.inline.circle(x, y, 0.3)) }`
+
+    const { code } = bundle(src, { SDF: lib })
+
+    expect(code).toContain('function _SDF__sq(')
+    expect(code).toContain('_SDF__sq((x)) + _SDF__sq((y))')
+    expect(code).not.toContain('_SDF_circle')
+    expect(code).not.toContain('_SDF_unused')
+  })
+
+  it('retains transitive helpers across library namespaces', () => {
+    const shape = [
+      `// @inline`,
+      `function shade(d) { return Color.ramp(d) }`,
+    ].join('\n')
+    const color = [
+      `function ramp(d) { return 1 - abs(d) }`,
+      `function unused(d) { return d }`,
+    ].join('\n')
+    const src = `export function render(index) { hsv(0, 0, Shape.inline.shade(index)) }`
+
+    const { code } = bundle(src, { Shape: shape, Color: color })
+
+    expect(code).toContain('function _Color_ramp(')
+    expect(code).toContain('_Color_ramp((index))')
+    expect(code).not.toContain('_Shape_shade')
+    expect(code).not.toContain('_Color_unused')
+  })
+
+  it('keeps a helper callable when it is also inlined at another call site', () => {
+    const lib = [
+      `// @inline`,
+      `function inner(v) { return v * v }`,
+      `// @inline`,
+      `function outer(v) { return inner(v) + 1 }`,
+    ].join('\n')
+    const src = [
+      `export function render(index) {`,
+      `  var a = MathLib.inline.outer(index)`,
+      `  var b = MathLib.inline.inner(index)`,
+      `  hsv(0, 0, a + b)`,
+      `}`,
+    ].join('\n')
+
+    const { code } = bundle(src, { MathLib: lib })
+
+    expect(code).toContain('function _MathLib_inner(')
+    expect(code).toContain('_MathLib_inner((index)) + 1')
+    expect(code).not.toContain('_MathLib_outer')
+  })
+
+  it('composes nested inline calls without overlapping source rewrites', () => {
+    const lib = [
+      `// @inline`,
+      `function square(v) { return v * v }`,
+      `// @inline`,
+      `function add(a, b) { return a + b }`,
+    ].join('\n')
+    const src = `export function render(index) { hsv(0, 0, MathLib.inline.add(MathLib.inline.square(index), 0.1)) }`
+
+    const { code } = bundle(src, { MathLib: lib })
+
+    expect(code).toContain('((index) * (index))')
+    expect(code).toContain('+ (0.1)')
+    expect(code).not.toContain('MathLib.inline')
+    expect(code).not.toContain('_MathLib_')
+  })
+
+  it('rejects call-site inlining unless the library declares the function eligible', () => {
+    const lib = `function glow(d) { return 1 - abs(d) }`
+    const src = `export function render(index) { SDF.inline.glow(index) }`
+
+    expect(() => bundle(src, { SDF: lib })).toThrow(
+      'Library function "SDF.glow" is not eligible for call-site inlining',
+    )
+  })
+
+  it('rejects inline arguments whose evaluation cannot be safely duplicated or reordered', () => {
+    const lib = `// @inline\nfunction twice(v) { return v + v }`
+    const src = `export function render(index) { hsv(0, 0, MathLib.inline.twice(time(0.1))) }`
+
+    expect(() => bundle(src, { MathLib: lib })).toThrow(
+      'Inline call "MathLib.twice" requires side-effect-free arguments',
+    )
+  })
+
+  it('substitutes parameter references without rewriting member property names', () => {
+    const lib = `// @inline\nfunction addField(object, value) { return object.value + value }`
+    const src = `export function render(index) { hsv(0, 0, MathLib.inline.addField(point, index)) }`
+
+    const { code } = bundle(src, { MathLib: lib })
+
+    expect(code).toContain('(point).value + (index)')
+    expect(code).not.toContain('.(index)')
   })
 })
 

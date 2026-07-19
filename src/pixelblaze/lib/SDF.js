@@ -8,9 +8,9 @@
 // ─── Primitive shapes ────────────────────────────────────────────────────────
 
 // Circle at (cx, cy) with radius r
+// @inline
 function circle(px, py, cx, cy, r) {
-  var dx = px - cx, dy = py - cy;
-  return hypot(dx, dy) - r;
+  return hypot(px - cx, py - cy) - r;
 }
 
 // Axis-aligned rectangle (hw = half-width, hh = half-height)
@@ -22,6 +22,7 @@ function rect(px, py, cx, cy, hw, hh) {
 }
 
 // Square; half is half-side length
+// @inline
 function square(px, py, cx, cy, half) {
   return rect(px, py, cx, cy, half, half);
 }
@@ -37,6 +38,7 @@ function polygon(px, py, cx, cy, r, n) {
 }
 
 // Equilateral triangle; r is circumradius
+// @inline
 function triangle(px, py, cx, cy, r) {
   return polygon(px, py, cx, cy, r, 3);
 }
@@ -50,14 +52,15 @@ function segment(px, py, ax, ay, bx, by) {
 }
 
 // Capsule / thick line segment with radius r
+// @inline
 function capsule(px, py, ax, ay, bx, by, r) {
   return segment(px, py, ax, ay, bx, by) - r;
 }
 
 // Approximate ellipse SDF; rx/ry are radii
+// @inline
 function ellipse(px, py, cx, cy, rx, ry) {
-  var dx = (px - cx) / rx, dy = (py - cy) / ry;
-  return (hypot(dx, dy) - 1) * min(rx, ry);
+  return (hypot((px - cx) / rx, (py - cy) / ry) - 1) * min(rx, ry);
 }
 
 // Signed distance to infinite line through (ax,ay)→(bx,by); left side is negative
@@ -68,9 +71,9 @@ function line(px, py, ax, ay, bx, by) {
 }
 
 // Hollow circle with given thickness
+// @inline
 function ring(px, py, cx, cy, r, thickness) {
-  var dx = px - cx, dy = py - cy;
-  return abs(hypot(dx, dy) - r) - thickness * 0.5;
+  return abs(hypot(px - cx, py - cy) - r) - thickness * 0.5;
 }
 
 // n-pointed star; ratio = inner/outer radius (try 0.4)
@@ -123,10 +126,13 @@ function cross(px, py, cx, cy, size, thickness) {
 // ─── Boolean operations ──────────────────────────────────────────────────────
 
 // Minimum of two SDFs (OR)
+// @inline
 function union(a, b)    { return min(a, b); }
 // Maximum of two SDFs (AND)
+// @inline
 function intersect(a, b) { return max(a, b); }
 // Cut shape b from shape a
+// @inline
 function subtract(a, b) { return max(a, -b); }
 
 // Smooth union: blends boundary between shapes (k = blend radius)
@@ -142,22 +148,27 @@ function smoothSubtract(a, b, k) {
 }
 
 // Expand (+) or contract (-) a shape
+// @inline
 function offset(d, amount) { return d - amount; }
 
 // Turn a solid SDF into a shell
+// @inline
 function annular(d, thickness) { return abs(d) - thickness; }
 
 // ─── SDF → brightness mappings ───────────────────────────────────────────────
 
 // Hard fill: 1 inside, 0 outside
+// @inline
 function fill(d) { return d < 0 ? 1 : 0; }
 
 // Antialiased fill (softness in coordinate units, try 0.02)
+// @inline
 function softFill(d, softness) {
   return clamp(0.5 - d / softness, 0, 1);
 }
 
 // Glow centred on the edge; falls off over falloff units
+// @inline
 function glow(d, falloff) {
   return clamp(1 - abs(d) / falloff, 0, 1);
 }
@@ -169,11 +180,13 @@ function fillGlow(d, falloff) {
 }
 
 // Sharp border ring (width in coordinate units)
+// @inline
 function border(d, width) {
   return abs(d) < width * 0.5 ? 1 : 0;
 }
 
 // Stepped bands radiating from SDF boundary (topographic map effect)
+// @inline
 function bands(d, spacing) {
   return wave(d / spacing);
 }

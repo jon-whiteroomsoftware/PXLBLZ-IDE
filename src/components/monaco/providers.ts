@@ -118,6 +118,16 @@ export function resolvePixelblazeHover(
 
   if (charBefore === '.') {
     const beforeDot = lineContent.slice(0, wordStartColumn - 2)
+    const inlineMatch = beforeDot.match(/(\w+)\.inline$/)
+    if (inlineMatch) {
+      const namespace = inlineMatch[1]
+      const fnDoc = libraryDocs[namespace]?.[word]
+      if (!fnDoc?.inlineEligible) return null
+      return {
+        signature: `${namespace}.inline.${word}(${fnDoc.params.join(', ')})`,
+        doc: fnDoc.doc,
+      }
+    }
     const nsMatch = beforeDot.match(/(\w+)$/)
     if (!nsMatch) return null
     const namespace = nsMatch[1]

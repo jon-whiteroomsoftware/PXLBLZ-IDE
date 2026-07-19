@@ -26,8 +26,9 @@ describe('LibraryContextPane (#350)', () => {
       source: [
         'var outH = 0, outS = 0',
         '// Paints the indexed pixel.',
+        '// @inline',
         'function paint(index, amount) {',
-        '  Color.lerpHSV(index, 1, amount, 0.7, 1, 1, 0.5)',
+        '  return Color.blendMix(index, amount, 0.5)',
         '}',
       ].join('\n'),
     })
@@ -35,6 +36,7 @@ describe('LibraryContextPane (#350)', () => {
     render(<LibraryContextPane />)
 
     expect(screen.getByText('MyLib.paint(index, amount)')).toBeInTheDocument()
+    expect(screen.getByText('MyLib.inline.paint(index, amount)')).toBeInTheDocument()
     expect(screen.getByText('Paints the indexed pixel.')).toBeInTheDocument()
     expect(screen.getByText('functions')).toBeInTheDocument()
     expect(screen.getByText('1')).toBeInTheDocument()

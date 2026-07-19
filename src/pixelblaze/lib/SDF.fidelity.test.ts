@@ -42,6 +42,16 @@ function expectFidelityMatchesFast(expr: string, tol = 0.02) {
   }
 }
 
+function expectExpressionsEquivalent(leftExpr: string, rightExpr: string, mode: 'fast' | 'fidelity') {
+  const left = probe(leftExpr, mode)
+  const right = probe(rightExpr, mode)
+  for (const x of SAMPLES) {
+    for (const y of SAMPLES) {
+      expect(right(x, y)).toBe(left(x, y))
+    }
+  }
+}
+
 describe('SDF.js fidelity sweep (#93)', () => {
   it.each([
     ['circle(x, y, 0.5, 0.5, 0.3)'],
@@ -80,5 +90,12 @@ describe('SDF.js fidelity sweep (#93)', () => {
     ['bands(SDF.circle(x,y,0.5,0.5,0.3), 0.1)'],
   ])('brightness mapping %s matches fast under fidelity', (expr) => {
     expectFidelityMatchesFast(`SDF.${expr}`)
+  })
+
+  it.each(['fast', 'fidelity'] as const)('call-site inline composition matches ordinary calls in %s mode', (mode) => {
+    const ordinary = 'SDF.glow(SDF.circle(x, y, 0.5, 0.5, 0.3), 0.1)'
+    const inlined = 'SDF.inline.glow(SDF.inline.circle(x, y, 0.5, 0.5, 0.3), 0.1)'
+
+    expectExpressionsEquivalent(ordinary, inlined, mode)
   })
 })

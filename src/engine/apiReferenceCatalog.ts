@@ -5,6 +5,7 @@ import { LIBRARIES } from '@/pixelblaze/libs'
 
 export interface ApiReferenceEntry {
   signature: string
+  inlineSignature?: string
   description?: string
 }
 
@@ -64,6 +65,9 @@ function sourceReference(
         title: 'Functions',
         entries: documented.map((fn) => ({
           signature: `${name}.${fn.name}(${fn.params.join(', ')})`,
+          ...(fn.inlineEligible
+            ? { inlineSignature: `${name}.inline.${fn.name}(${fn.params.join(', ')})` }
+            : {}),
           description: fn.doc,
         })),
       }]

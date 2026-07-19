@@ -6,7 +6,7 @@ describe('API reference catalog', () => {
     {
       id: 'lib-1',
       name: 'MyLib',
-      src: '// Paint one pixel.\nfunction paint(index) {}\nfunction internal() {}',
+      src: '// Paint one pixel.\n// @inline\nfunction paint(index) { return index }\nfunction internal() {}',
       updatedAt: 1,
     },
     {
@@ -38,7 +38,11 @@ describe('API reference catalog', () => {
 
     expect(personal.map((entry) => entry.name)).toEqual(['MyLib', 'Undocumented'])
     expect(personal[0].sections[0].entries).toEqual([
-      { signature: 'MyLib.paint(index)', description: 'Paint one pixel.' },
+      {
+        signature: 'MyLib.paint(index)',
+        inlineSignature: 'MyLib.inline.paint(index)',
+        description: 'Paint one pixel.',
+      },
     ])
     expect(personal[1].sections).toEqual([])
     expect(personal[1].emptyReason).toBe('undocumented')

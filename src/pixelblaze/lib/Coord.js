@@ -6,11 +6,13 @@
 // ─── Polar ───────────────────────────────────────────────────────────────────
 
 // Angle from grid centre (0.5, 0.5), returned as 0..1
+// @inline
 function polarAngle(x, y) {
   return (atan2(y - 0.5, x - 0.5) / (PI * 2) + 1) % 1;
 }
 
 // Angle from arbitrary centre, returned as 0..1
+// @inline
 function angleFrom(x, y, cx, cy) {
   return (atan2(y - cy, x - cx) / (PI * 2) + 1) % 1;
 }
@@ -44,25 +46,32 @@ function rotateY(x, y, cx, cy, a) {
 // ─── Scale ───────────────────────────────────────────────────────────────────
 
 // Scale x around centre cx by factor s
+// @inline
 function scaleX(x, cx, s) { return cx + (x - cx) * s; }
 // Scale y around centre cy by factor s
+// @inline
 function scaleY(y, cy, s) { return cy + (y - cy) * s; }
 
 // ─── Mirror / fold ───────────────────────────────────────────────────────────
 
 // Fold x at 0.5; left half mirrors right
+// @inline
 function mirrorX(x) { return x < 0.5 ? x : 1 - x; }
 // Fold y at 0.5; top half mirrors bottom
+// @inline
 function mirrorY(y) { return y < 0.5 ? y : 1 - y; }
 // Fold v at an arbitrary axis point
+// @inline
 function mirrorAround(v, axis) { return v < axis ? v : 2 * axis - v; }
 
 // ─── Tiling ──────────────────────────────────────────────────────────────────
 
 // Position within one cell of n equal tiles
+// @inline
 function tile(v, n) { return (v * n) % 1; }
 
 // Which tile cell (0-indexed)
+// @inline
 function tileCell(v, n) { return floor(v * n); }
 
 // Tile with every other cell mirrored for seamless tiling
@@ -75,8 +84,10 @@ function tileMirror(v, n) {
 // ─── Domain repetition ───────────────────────────────────────────────────────
 
 // Repeat space every size units; returns position within [-size/2, size/2]
+// @inline
 function repeatX(x, size) { return x - size * floor(x / size + 0.5); }
 // Same as repeatX for the y axis
+// @inline
 function repeatY(y, size) { return y - size * floor(y / size + 0.5); }
 
 // ─── Rotational symmetry ─────────────────────────────────────────────────────
@@ -97,6 +108,7 @@ function foldAngle(angle, n) {
 // ─── Coordinate remapping ─────────────────────────────────────────────────────
 
 // Map v from one range to another
+// @inline
 function remap(v, inLo, inHi, outLo, outHi) {
   return outLo + (v - inLo) / (inHi - inLo) * (outHi - outLo);
 }
@@ -104,6 +116,8 @@ function remap(v, inLo, inHi, outLo, outHi) {
 // ─── Skew ────────────────────────────────────────────────────────────────────
 
 // Shear x by y×amount
+// @inline
 function skewX(x, y, amount) { return x + y * amount; }
 // Shear y by x×amount
+// @inline
 function skewY(x, y, amount) { return y + x * amount; }

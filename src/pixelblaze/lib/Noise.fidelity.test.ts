@@ -3,7 +3,7 @@ import { loadPattern } from '../../engine/loadPattern'
 import { createFxShim, createShim, planeShimConfig, type ShimContext } from '../../engine/shim'
 import { LIBRARIES } from '../libs'
 
-// Exercises the 16.16-fidelity hash rewrite (#92): _hash2/_hash1 and their
+// Exercises the 16.16-fidelity hash rewrite (#92): hash21/hash11 and their
 // dependents must stay in [0,1), be stable per cell, and run bit-faithfully
 // under the fixed-point engine (no >±32768 constants, no shift-count scaling).
 
@@ -87,7 +87,7 @@ const ULP = 1 / 65536
 // the byte-identical `hash11`/`hash21` recipe on a real Pixelblaze (fw 3.67) and
 // recorded these device readings in test/divergence-harness/report.md. Pinning
 // the fidelity engine to those device values guards the bit-identity claim in
-// the fidelity bit-identity guarantee: if a future edit to the `_hash1`/`_hash2` fold (e.g. reverting the
+// the fidelity bit-identity guarantee: if a future edit to the `hash11`/`hash21` fold (e.g. reverting the
 // #113 `/256/256` demotion back to a `× 1/65536` literal, which flushes to 0 on
 // hardware — #111) regresses preview↔hardware fidelity, these assertions fail.
 describe('Noise hash bit-identity vs hardware (#100)', () => {
@@ -100,17 +100,23 @@ describe('Noise hash bit-identity vs hardware (#100)', () => {
     [0, 27, 0.435181], [0, 36, 0.703339], [0, 45, 0.154144],
   ]
 
-  it('_hash1 matches the device readings to within 1 ULP', () => {
-    const probe = makeProbe('Noise._hash1(x)', 'fidelity')
+  it('hash11 matches the device readings to within 1 ULP', () => {
+    const probe = makeProbe('Noise.hash11(x)', 'fidelity')
     for (const [n, device] of HASH1_DEVICE) {
       expect(Math.abs(probe(n, 0) - device)).toBeLessThan(ULP)
     }
   })
 
-  it('_hash2 matches the device readings to within 1 ULP', () => {
-    const probe = makeProbe('Noise._hash2(x, y)', 'fidelity')
+  it('hash21 matches the device readings to within 1 ULP', () => {
+    const probe = makeProbe('Noise.hash21(x, y)', 'fidelity')
     for (const [ix, iy, device] of HASH2_DEVICE) {
       expect(Math.abs(probe(ix, iy) - device)).toBeLessThan(ULP)
     }
+  })
+
+  it('keeps the underscored hash names as exact compatibility aliases', () => {
+    const publicHash = makeProbe('Noise.hash21(x, y)', 'fidelity')
+    const legacyHash = makeProbe('Noise._hash2(x, y)', 'fidelity')
+    for (const [ix, iy] of HASH2_DEVICE) expect(legacyHash(ix, iy)).toBe(publicHash(ix, iy))
   })
 })

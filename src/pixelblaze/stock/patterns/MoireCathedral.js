@@ -45,10 +45,10 @@ export function render2D(index, x, y) {
 
   // Tall arched-window mask: rectangle body plus circular crown.
   var body = SDF.rect(x, y, 0.5, 0.58, 0.38, 0.38)
-  var crown = SDF.circle(x, y, 0.5, 0.32, 0.38)
+  var crown = SDF.inline.circle(x, y, 0.5, 0.32, 0.38)
   var window = SDF.smoothUnion(body, crown, 0.08)
-  var frame = SDF.glow(window, 0.035 + archMix * 0.035)
-  var inside = SDF.softFill(window, 0.08)
+  var frame = SDF.inline.glow(window, 0.035 + archMix * 0.035)
+  var inside = SDF.inline.softFill(window, 0.08)
 
   var glass = (a * b + b * c + c * a) * 0.45
   var lead = max(a, max(b, c)) * 0.22

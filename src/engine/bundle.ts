@@ -21,6 +21,45 @@ function walkAst(node: unknown, visitor: (n: unknown) => void): void {
   }
 }
 
+function walkAstWithParent(
+  node: unknown,
+  parent: Record<string, unknown> | undefined,
+  visitor: (n: Record<string, unknown>, parent: Record<string, unknown> | undefined) => void,
+): void {
+  if (!node || typeof node !== 'object') return
+  const record = node as Record<string, unknown>
+  visitor(record, parent)
+  for (const val of Object.values(record)) {
+    if (Array.isArray(val)) {
+      for (const item of val) walkAstWithParent(item, record, visitor)
+    } else {
+      walkAstWithParent(val, record, visitor)
+    }
+  }
+}
+
+function collectIdentifierReferences(ast: unknown): Set<string> {
+  const references = new Set<string>()
+  walkAstWithParent(ast, undefined, (node, parent) => {
+    if (node['type'] !== 'Identifier') return
+    if (parent?.['type'] === 'VariableDeclarator' && parent['id'] === node) return
+    if (
+      (parent?.['type'] === 'FunctionDeclaration' ||
+        parent?.['type'] === 'FunctionExpression' ||
+        parent?.['type'] === 'ArrowFunctionExpression') &&
+      (parent['id'] === node || ((parent['params'] as unknown[]) ?? []).includes(node))
+    ) return
+    if (parent?.['type'] === 'MemberExpression' && !parent['computed'] && parent['property'] === node) return
+    if (parent?.['type'] === 'Property' && !parent['computed'] && parent['key'] === node) return
+    if (
+      (parent?.['type'] === 'LabeledStatement' || parent?.['type'] === 'BreakStatement' ||
+        parent?.['type'] === 'ContinueStatement') && parent['label'] === node
+    ) return
+    references.add(node['name'] as string)
+  })
+  return references
+}
+
 function parseScript(src: string): unknown {
   return acorn.parse(src, { ecmaVersion: 2020, sourceType: 'script', locations: true })
 }
@@ -186,15 +225,38 @@ function markRenderFn(name: string, fns: RenderFns): void {
 
 interface LibFnEntry {
   src: string // full function declaration text
+  inlineEligible: boolean
 }
 type LibFnMap = Map<string, LibFnEntry>
 
-function parseLibraryVarDeclarations(libSrc: string): string[] {
+interface LibVarEntry {
+  name: string
+  src: string
+  initializerRefs: Set<string>
+}
+
+interface LibVarDeclaration {
+  entries: LibVarEntry[]
+}
+
+function parseLibraryVarDeclarations(libSrc: string): LibVarDeclaration[] {
   const ast = parseScript(libSrc) as { body: Record<string, unknown>[] }
-  const declarations: string[] = []
+  const declarations: LibVarDeclaration[] = []
   for (const node of ast.body) {
     if (node['type'] === 'VariableDeclaration') {
-      declarations.push(libSrc.slice(node['start'] as number, node['end'] as number))
+      const entries = ((node['declarations'] as Record<string, unknown>[]) ?? [])
+        .filter((declaration) => (declaration['id'] as Record<string, unknown>)?.['type'] === 'Identifier')
+        .map((declaration) => {
+          const id = declaration['id'] as Record<string, unknown>
+          return {
+            name: id['name'] as string,
+            src: libSrc.slice(declaration['start'] as number, declaration['end'] as number),
+            initializerRefs: declaration['init']
+              ? collectIdentifierReferences(declaration['init'])
+              : new Set<string>(),
+          }
+        })
+      if (entries.length > 0) declarations.push({ entries })
     }
   }
   return declarations
@@ -203,14 +265,19 @@ function parseLibraryVarDeclarations(libSrc: string): string[] {
 function parseLibraryFns(libSrc: string): LibFnMap {
   const ast = parseScript(libSrc) as { body: Record<string, unknown>[] }
   const fns: LibFnMap = new Map()
+  let previousEnd = 0
   for (const node of ast.body) {
     if (node['type'] === 'FunctionDeclaration' && node['id']) {
       const id = node['id'] as Record<string, unknown>
       const name = id['name'] as string
+      const leadingLines = libSrc.slice(previousEnd, node['start'] as number).trimEnd().split('\n')
+      const nearestLeadingLine = leadingLines[leadingLines.length - 1]
       fns.set(name, {
         src: libSrc.slice(node['start'] as number, node['end'] as number),
+        inlineEligible: nearestLeadingLine?.trim() === '// @inline',
       })
     }
+    previousEnd = node['end'] as number
   }
   return fns
 }
@@ -222,6 +289,12 @@ interface LibRef {
   fnName: string
   start: number // character offset of `lib.fn` in the source being analysed
   end: number
+}
+
+interface InlineLibRef extends LibRef {
+  callStart: number
+  callEnd: number
+  args: Array<{ start: number; end: number; sideEffectFree: boolean }>
 }
 
 const SAFE_MEMBER_CALL_GLOBALS = new Set(['Array', 'JSON', 'Math', 'Number', 'Object', 'String'])
@@ -276,6 +349,88 @@ function collectMemberCallRefs(ast: unknown): LibRef[] {
 
 function collectLibraryRefs(ast: unknown, knownLibs: Set<string>): LibRef[] {
   return collectMemberCallRefs(ast).filter((ref) => knownLibs.has(ref.namespace))
+}
+
+function isSideEffectFreeInlineArgument(node: Record<string, unknown>): boolean {
+  switch (node['type']) {
+    case 'Identifier':
+    case 'Literal':
+      return true
+    case 'UnaryExpression':
+      return isSideEffectFreeInlineArgument(node['argument'] as Record<string, unknown>)
+    case 'BinaryExpression':
+    case 'LogicalExpression':
+      return (
+        isSideEffectFreeInlineArgument(node['left'] as Record<string, unknown>) &&
+        isSideEffectFreeInlineArgument(node['right'] as Record<string, unknown>)
+      )
+    case 'ConditionalExpression':
+      return (
+        isSideEffectFreeInlineArgument(node['test'] as Record<string, unknown>) &&
+        isSideEffectFreeInlineArgument(node['consequent'] as Record<string, unknown>) &&
+        isSideEffectFreeInlineArgument(node['alternate'] as Record<string, unknown>)
+      )
+    case 'MemberExpression':
+      return (
+        isSideEffectFreeInlineArgument(node['object'] as Record<string, unknown>) &&
+        (!node['computed'] || isSideEffectFreeInlineArgument(node['property'] as Record<string, unknown>))
+      )
+    case 'ArrayExpression':
+      return ((node['elements'] as Array<Record<string, unknown> | null>) ?? [])
+        .every((element) => element === null || isSideEffectFreeInlineArgument(element))
+    case 'CallExpression': { // Nested Namespace.inline.fn(...) calls are compile-time expressions.
+      const callee = node['callee'] as Record<string, unknown>
+      const qualifier = callee?.['type'] === 'MemberExpression'
+        ? callee['object'] as Record<string, unknown>
+        : undefined
+      const inline = qualifier?.['type'] === 'MemberExpression'
+        ? qualifier['property'] as Record<string, unknown>
+        : undefined
+      if (
+        callee?.['type'] !== 'MemberExpression' || callee['computed'] ||
+        qualifier?.['type'] !== 'MemberExpression' || qualifier['computed'] ||
+        inline?.['type'] !== 'Identifier' || inline['name'] !== 'inline'
+      ) return false
+      return ((node['arguments'] as Record<string, unknown>[]) ?? [])
+        .every((argument) => isSideEffectFreeInlineArgument(argument))
+    }
+    default:
+      return false
+  }
+}
+
+function collectInlineLibraryRefs(ast: unknown): InlineLibRef[] {
+  const refs: InlineLibRef[] = []
+  walkAst(ast, (node) => {
+    const call = node as Record<string, unknown>
+    if (call['type'] !== 'CallExpression') return
+    const callee = call['callee'] as Record<string, unknown>
+    if (callee?.['type'] !== 'MemberExpression' || callee['computed']) return
+    const qualifier = callee['object'] as Record<string, unknown>
+    const fn = callee['property'] as Record<string, unknown>
+    if (qualifier?.['type'] !== 'MemberExpression' || qualifier['computed']) return
+    const namespace = qualifier['object'] as Record<string, unknown>
+    const inline = qualifier['property'] as Record<string, unknown>
+    if (
+      namespace?.['type'] !== 'Identifier' ||
+      inline?.['type'] !== 'Identifier' || inline['name'] !== 'inline' ||
+      fn?.['type'] !== 'Identifier'
+    ) return
+    refs.push({
+      namespace: namespace['name'] as string,
+      fnName: fn['name'] as string,
+      start: callee['start'] as number,
+      end: callee['end'] as number,
+      callStart: call['start'] as number,
+      callEnd: call['end'] as number,
+      args: ((call['arguments'] as Record<string, unknown>[]) ?? []).map((arg) => ({
+        start: arg['start'] as number,
+        end: arg['end'] as number,
+        sideEffectFree: isSideEffectFreeInlineArgument(arg),
+      })),
+    })
+  })
+  return refs
 }
 
 function collectUnknownLibraryRefs(ast: unknown, knownLibs: Set<string>): LibRef[] {
@@ -419,6 +574,87 @@ function inlineFn(
   return rewriteSource(entry.src, rewrites)
 }
 
+function expandInlineCall(
+  ref: InlineLibRef,
+  entry: LibFnEntry,
+  libFns: LibFnMap,
+  allNamespaces: Set<string>,
+  argumentSources: string[],
+): string {
+  if (!entry.inlineEligible) {
+    throw new Error(`Library function "${ref.namespace}.${ref.fnName}" is not eligible for call-site inlining`)
+  }
+
+  const ast = parseScript(entry.src) as { body: Record<string, unknown>[] }
+  const declaration = ast.body[0]
+  const params = (declaration?.['params'] as Record<string, unknown>[]) ?? []
+  const statements = ((declaration?.['body'] as Record<string, unknown>)?.['body'] as Record<string, unknown>[]) ?? []
+  const returned = statements.length === 1 && statements[0]?.['type'] === 'ReturnStatement'
+    ? statements[0]['argument'] as Record<string, unknown>
+    : undefined
+  if (!returned || params.some((param) => param['type'] !== 'Identifier')) {
+    throw new Error(`Library function "${ref.namespace}.${ref.fnName}" is not a single-return inline expression`)
+  }
+  if (params.length !== ref.args.length) {
+    throw new Error(
+      `Inline call "${ref.namespace}.${ref.fnName}" expects ${params.length} arguments, received ${ref.args.length}`,
+    )
+  }
+  if (ref.args.some((arg) => !arg.sideEffectFree)) {
+    throw new Error(`Inline call "${ref.namespace}.${ref.fnName}" requires side-effect-free arguments`)
+  }
+
+  const expressionStart = returned['start'] as number
+  const expressionEnd = returned['end'] as number
+  const expression = entry.src.slice(expressionStart, expressionEnd)
+  const argsByParam = new Map(params.map((param, index) => [
+    param['name'] as string,
+    argumentSources[index],
+  ]))
+  const rewrites: Rewrite[] = []
+  const libFnNames = new Set(libFns.keys())
+  walkAstWithParent(returned, undefined, (n, parent) => {
+    if (n['type'] === 'Identifier') {
+      const argument = argsByParam.get(n['name'] as string)
+      const isMemberProperty = parent?.['type'] === 'MemberExpression' && !parent['computed'] && parent['property'] === n
+      const isObjectKey = parent?.['type'] === 'Property' && !parent['computed'] && parent['key'] === n
+      if (argument !== undefined && !isMemberProperty && !isObjectKey) {
+        rewrites.push({
+          start: (n['start'] as number) - expressionStart,
+          end: (n['end'] as number) - expressionStart,
+          text: `(${argument})`,
+        })
+      }
+    }
+
+    if (n['type'] !== 'CallExpression') return
+    const callee = n['callee'] as Record<string, unknown>
+    if (callee?.['type'] === 'Identifier' && libFnNames.has(callee['name'] as string)) {
+      rewrites.push({
+        start: (callee['start'] as number) - expressionStart,
+        end: (callee['end'] as number) - expressionStart,
+        text: mangle(ref.namespace, callee['name'] as string),
+      })
+    }
+    if (callee?.['type'] === 'MemberExpression' && !callee['computed']) {
+      const obj = callee['object'] as Record<string, unknown>
+      const prop = callee['property'] as Record<string, unknown>
+      if (
+        obj?.['type'] === 'Identifier' && allNamespaces.has(obj['name'] as string) &&
+        prop?.['type'] === 'Identifier'
+      ) {
+        rewrites.push({
+          start: (callee['start'] as number) - expressionStart,
+          end: (callee['end'] as number) - expressionStart,
+          text: mangle(obj['name'] as string, prop['name'] as string),
+        })
+      }
+    }
+  })
+
+  return `(${rewriteSource(expression, rewrites)})`
+}
+
 // ── public API ────────────────────────────────────────────────────────────────
 
 export function bundle(
@@ -429,24 +665,29 @@ export function bundle(
   const metadata = extractMetadata(patternAst)
 
   const knownLibs = new Set(Object.keys(libraries))
+  const inlineRefs = collectInlineLibraryRefs(patternAst)
+  const unknownInlineRef = inlineRefs.find((ref) => !knownLibs.has(ref.namespace))
+  if (unknownInlineRef) {
+    throw new Error(`Unknown library namespace "${unknownInlineRef.namespace}"`)
+  }
   const unknownRefs = collectUnknownLibraryRefs(patternAst, knownLibs)
   if (unknownRefs.length > 0) {
     throw new Error(`Unknown library namespace "${unknownRefs[0].namespace}"`)
   }
   const refs = collectLibraryRefs(patternAst, knownLibs)
 
-  if (refs.length === 0) {
+  if (refs.length === 0 && inlineRefs.length === 0) {
     return { code: patternSrc, fxCode: emitFixedPoint(patternSrc), metadata }
   }
 
   const libFnMaps: Record<string, LibFnMap> = {}
-  const libVarDeclarations: Record<string, string[]> = {}
+  const libVarDeclarations: Record<string, LibVarDeclaration[]> = {}
   for (const [ns, src] of Object.entries(libraries)) {
     libFnMaps[ns] = parseLibraryFns(src)
     libVarDeclarations[ns] = parseLibraryVarDeclarations(src)
   }
 
-  const resolved = resolveAllDeps(refs, libFnMaps, knownLibs)
+  const resolved = resolveAllDeps([...refs, ...inlineRefs], libFnMaps, knownLibs)
   for (const { namespace, fnName } of resolved) {
     const entry = libFnMaps[namespace]?.get(fnName)
     if (!entry) throw new Error(`Unknown library function "${namespace}.${fnName}"`)
@@ -457,10 +698,64 @@ export function bundle(
   }
 
   const referencedNamespaces = [...new Set(resolved.map(({ namespace }) => namespace))]
+  const availableGlobalNames = new Set(
+    referencedNamespaces.flatMap((namespace) => (
+      (libVarDeclarations[namespace] ?? []).flatMap((declaration) => (
+        declaration.entries.map((entry) => entry.name)
+      ))
+    )),
+  )
+  const requiredGlobalNames = new Set<string>()
+  function requireReferencedGlobals(ast: unknown): void {
+    for (const name of collectIdentifierReferences(ast)) {
+      if (availableGlobalNames.has(name)) requiredGlobalNames.add(name)
+    }
+  }
+  requireReferencedGlobals(patternAst)
+  for (const { namespace, fnName } of resolved) {
+    const entry = libFnMaps[namespace]?.get(fnName)
+    if (entry) requireReferencedGlobals(parseScript(entry.src))
+  }
+  let addedInitializerDependency = true
+  while (addedInitializerDependency) {
+    addedInitializerDependency = false
+    for (const namespace of referencedNamespaces) {
+      for (const declaration of libVarDeclarations[namespace] ?? []) {
+        for (const entry of declaration.entries) {
+          if (!requiredGlobalNames.has(entry.name)) continue
+          for (const dependency of entry.initializerRefs) {
+            if (availableGlobalNames.has(dependency) && !requiredGlobalNames.has(dependency)) {
+              requiredGlobalNames.add(dependency)
+              addedInitializerDependency = true
+            }
+          }
+        }
+      }
+    }
+  }
   const varPreamble = referencedNamespaces
-    .flatMap((namespace) => libVarDeclarations[namespace] ?? [])
+    .flatMap((namespace) => (libVarDeclarations[namespace] ?? []).map((declaration) => {
+      const entries = declaration.entries.filter((entry) => requiredGlobalNames.has(entry.name))
+      return entries.length > 0 ? `var ${entries.map((entry) => entry.src).join(', ')};` : ''
+    }))
+    .filter(Boolean)
     .join('\n')
-  const fnPreamble = resolved
+  const runtimeFunctions: ResolvedFn[] = []
+  const runtimeFunctionKeys = new Set<string>()
+  function addRuntimeFunctions(items: ResolvedFn[]): void {
+    for (const item of items) {
+      const key = `${item.namespace}.${item.fnName}`
+      if (runtimeFunctionKeys.has(key)) continue
+      runtimeFunctionKeys.add(key)
+      runtimeFunctions.push(item)
+    }
+  }
+  addRuntimeFunctions(resolveAllDeps(refs, libFnMaps, knownLibs))
+  for (const inlineRef of inlineRefs) {
+    addRuntimeFunctions(resolveAllDeps([inlineRef], libFnMaps, knownLibs).slice(1))
+  }
+
+  const fnPreamble = runtimeFunctions
     .map(({ namespace, fnName }) => {
       const entry = libFnMaps[namespace]?.get(fnName)
       if (!entry) return ''
@@ -468,13 +763,59 @@ export function bundle(
     })
     .filter(Boolean)
     .join('\n')
-  const preamble = [varPreamble, fnPreamble].filter(Boolean).join('\n') + '\n'
+  const preambleBody = [varPreamble, fnPreamble].filter(Boolean).join('\n')
+  const preamble = preambleBody ? `${preambleBody}\n` : ''
 
   const patternRewrites: Rewrite[] = refs.map((ref) => ({
     start: ref.start,
     end: ref.end,
     text: mangle(ref.namespace, ref.fnName),
   }))
+  function expandInlineRange(start: number, end: number): string {
+    const contained = inlineRefs.filter((candidate) => (
+      candidate.callStart >= start && candidate.callEnd <= end
+    ))
+    const roots = contained.filter((candidate) => !contained.some((parent) => (
+      parent !== candidate &&
+      parent.callStart <= candidate.callStart && parent.callEnd >= candidate.callEnd
+    )))
+    const rewrites: Rewrite[] = roots.map((ref) => {
+      const entry = libFnMaps[ref.namespace]?.get(ref.fnName)
+      if (!entry) throw new Error(`Unknown library function "${ref.namespace}.${ref.fnName}"`)
+      return {
+        start: ref.callStart - start,
+        end: ref.callEnd - start,
+        text: expandInlineCall(
+          ref,
+          entry,
+          libFnMaps[ref.namespace],
+          knownLibs,
+          ref.args.map((arg) => expandInlineRange(arg.start, arg.end)),
+        ),
+      }
+    })
+    return rewriteSource(patternSrc.slice(start, end), rewrites)
+  }
+
+  const rootInlineRefs = inlineRefs.filter((candidate) => !inlineRefs.some((parent) => (
+    parent !== candidate &&
+    parent.callStart <= candidate.callStart && parent.callEnd >= candidate.callEnd
+  )))
+  for (const ref of rootInlineRefs) {
+    const entry = libFnMaps[ref.namespace]?.get(ref.fnName)
+    if (!entry) throw new Error(`Unknown library function "${ref.namespace}.${ref.fnName}"`)
+    patternRewrites.push({
+      start: ref.callStart,
+      end: ref.callEnd,
+      text: expandInlineCall(
+        ref,
+        entry,
+        libFnMaps[ref.namespace],
+        knownLibs,
+        ref.args.map((arg) => expandInlineRange(arg.start, arg.end)),
+      ),
+    })
+  }
 
   const code = preamble + rewriteSource(patternSrc, patternRewrites)
   return {

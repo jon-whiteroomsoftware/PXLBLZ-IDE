@@ -67,6 +67,14 @@ export function ApiReferenceReader({ document }: { document: ApiReferenceDocumen
                   {section.entries.map((entry, index) => (
                     <div key={`${entry.signature}-${index}`} className="border-b border-zinc-900/90 py-2.5">
                       <code className="font-mono text-xs leading-5 text-[#9CDCFE]">{entry.signature}</code>
+                      {entry.inlineSignature && (
+                        <div className="flex min-w-0 items-baseline gap-1.5 font-mono text-[10px] leading-4">
+                          <span className="shrink-0 rounded-sm border border-cyan-900/80 bg-cyan-950/30 px-1 py-px uppercase tracking-wide text-cyan-600">
+                            inline
+                          </span>
+                          <code className="min-w-0 truncate text-cyan-300/75">{entry.inlineSignature}</code>
+                        </div>
+                      )}
                       {entry.description && (
                         <p className="mt-0.5 text-xs leading-5 text-zinc-500">{entry.description}</p>
                       )}

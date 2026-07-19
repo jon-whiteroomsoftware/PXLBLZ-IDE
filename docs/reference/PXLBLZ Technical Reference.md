@@ -248,16 +248,29 @@ turning browser-only state into hardware code.
 ```
 
 Patterns parse as Acorn modules because top-level `export` is legal. Libraries
-parse as scripts. The bundler finds `Namespace.fn()` calls, resolves transitive
-same-library and cross-library references, alpha-renames functions, rewrites call
-sites, and emits only reachable functions.
+parse as scripts. For ordinary `Namespace.fn()` calls, the bundler resolves
+transitive same-library and cross-library references, alpha-renames functions,
+rewrites call sites, and emits only the reachable function graph.
 
-If any function from a library is used, that library's top-level `var`
-declarations are emitted once, unmangled, before its functions. This supports
-the intentional out-var contract: a helper may write globals such as `ux`/`uy`
-for immediate caller use. `validateLibraryContent` restricts top level to
-functions, `var` declarations, and comments, so prepending those declarations
-does not introduce hidden executable initialization.
+A Library may place `// @inline` immediately above a function whose body is one
+return expression. That declares eligibility; it does not change ordinary calls.
+The Pattern selects expansion with `Namespace.inline.fn()`. The bundler safely
+substitutes parameters, supports nested inline calls, retains any ordinary helper
+dependencies beneath the removed root, and rejects non-expression definitions,
+wrong arity, unknown functions, and arguments whose evaluation could be reordered
+or duplicated unsafely. Both `code` and the Precise `fxCode` contain the expanded
+expression. This removes the Pixelblaze runtime function call while keeping the
+ordinary, readable API available at the same time.
+
+Top-level Library `var` declarations are liveness-filtered by declarator rather
+than emitted wholesale. A declarator remains when the reachable function graph,
+an inline root expression, another retained initializer, or a Pattern out-var read
+references it. Retained globals are emitted once and unmangled before functions.
+This supports helpers that write `ux`/`uy` for immediate caller use without making
+an unrelated Shader helper carry every Shader scratch register.
+`validateLibraryContent` still restricts top level to functions, `var`
+declarations, and comments, so prepending retained declarations does not introduce
+hidden executable initialization.
 
 Metadata records:
 
@@ -278,7 +291,9 @@ built-ins.
 Library references are soft. Renaming or deleting a library is legal; dependent
 Patterns then fail bundling with an unknown namespace/function error. API docs
 are parsed from `//` comments directly above function declarations and feed both
-Monaco hover and the library context pane.
+Monaco hover and the library context pane. Inline-eligible entries display the
+ordinary and `Namespace.inline.fn()` signatures; the compiler annotation itself
+does not leak into prose documentation.
 
 ### Shader porting contract
 
@@ -288,7 +303,9 @@ and `clamp`; the library does not shadow them. `Shader.fract` remains distinct
 from Pixelblaze `frac` because GLSL floors negative values while Pixelblaze
 truncates them.
 
-Hash helpers use integer arithmetic rather than the familiar
+`Noise.hash11` and `Noise.hash21` are the canonical hardware-safe hash helpers.
+The underscored Noise names and the Shader copies remain compatibility forms for
+existing Patterns. Hash helpers use integer arithmetic rather than the familiar
 `fract(sin(...) * largeConstant)` idiom, which overflows 16.16. Power-of-two
 demotion preserves preview/hardware agreement. Textures, multipass feedback,
 derivatives, discard, multiple render targets, and automated GLSL rewriting are

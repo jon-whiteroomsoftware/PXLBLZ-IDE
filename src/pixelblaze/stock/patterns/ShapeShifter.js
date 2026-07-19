@@ -39,19 +39,19 @@ export function beforeRender(delta) {
 }
 
 function flowerDistance(x, y) {
-  var d = SDF.circle(x, y, 0.5, 0.31, 0.19)
-  d = SDF.smoothUnion(d, SDF.circle(x, y, 0.69, 0.5, 0.19), 0.09)
-  d = SDF.smoothUnion(d, SDF.circle(x, y, 0.5, 0.69, 0.19), 0.09)
-  d = SDF.smoothUnion(d, SDF.circle(x, y, 0.31, 0.5, 0.19), 0.09)
-  return SDF.smoothUnion(d, SDF.circle(x, y, 0.5, 0.5, 0.13), 0.07)
+  var d = SDF.inline.circle(x, y, 0.5, 0.31, 0.19)
+  d = SDF.smoothUnion(d, SDF.inline.circle(x, y, 0.69, 0.5, 0.19), 0.09)
+  d = SDF.smoothUnion(d, SDF.inline.circle(x, y, 0.5, 0.69, 0.19), 0.09)
+  d = SDF.smoothUnion(d, SDF.inline.circle(x, y, 0.31, 0.5, 0.19), 0.09)
+  return SDF.smoothUnion(d, SDF.inline.circle(x, y, 0.5, 0.5, 0.13), 0.07)
 }
 
 function shapeDistance(kind, x, y) {
-  if (kind == 0) return SDF.ellipse(x, y, 0.5, 0.5, 0.34, 0.21)
+  if (kind == 0) return SDF.inline.ellipse(x, y, 0.5, 0.5, 0.34, 0.21)
   if (kind == 1) return SDF.star(x, y, 0.5, 0.5, 0.37, 5, 0.43)
   if (kind == 2) return flowerDistance(x, y)
   if (kind == 3) return SDF.cross(x, y, 0.5, 0.5, 0.31, 0.105)
-  return SDF.ring(x, y, 0.5, 0.5, 0.28, 0.105)
+  return SDF.inline.ring(x, y, 0.5, 0.5, 0.28, 0.105)
 }
 
 export function render2D(index, x, y) {
@@ -64,9 +64,9 @@ export function render2D(index, x, y) {
   var toDistance = shapeDistance(nextForm, qx, qy)
   var d = mix(fromDistance, toDistance, formMix)
 
-  var fill = SDF.softFill(d, edgeWidth * 1.6)
-  var edge = SDF.glow(d, edgeWidth)
-  var bands = SDF.bands(d + t * 0.018, bandSpacing)
+  var fill = SDF.inline.softFill(d, edgeWidth * 1.6)
+  var edge = SDF.inline.glow(d, edgeWidth)
+  var bands = SDF.inline.bands(d + t * 0.018, bandSpacing)
   bands = bands * bands * fill
   var value = clamp(fill * 0.18 + bands * (0.22 + contours * 0.40) + edge * 0.92, 0, 1)
 

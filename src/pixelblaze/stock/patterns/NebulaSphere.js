@@ -86,10 +86,10 @@ export function render3D(index, x, y, z) {
   density = density * (0.7 + 0.3 * density)
 
   // Star twinkle: stable per-cell hash, only in the dark voids. Uses
-  // Shader.hash21 (pure integer arithmetic) rather than the classic GLSL
+  // Noise.hash21 (pure integer arithmetic) rather than the classic GLSL
   // frac(sin(dot(..))*43758.5453) trick — those huge constants overflow 16.16
   // and the sin diverges, so that idiom looks fine here but breaks on hardware.
-  var hsh = Shader.hash21(floor(x * 80) + floor(z * 53), floor(y * 80))
+  var hsh = Noise.hash21(floor(x * 80) + floor(z * 53), floor(y * 80))
   if (hsh > thresh && density < 0.35) {
     var tw = wave(dx * 5 + hsh * 9)
     paint(0.94, max(density, tw * tw))
