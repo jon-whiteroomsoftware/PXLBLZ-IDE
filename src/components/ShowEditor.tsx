@@ -720,6 +720,7 @@ export function ShowEditor({
       ? buildShowEpeExport(activeShow, compiled.artifact.code, {
           stampedAt: new Date(activeShow.updatedAt),
           userMaps,
+          attribution: compiled.artifact.attribution,
         })
       : null,
     [activeShow, compiled.artifact, userMaps],
@@ -814,6 +815,7 @@ export function ShowEditor({
       preview: bytesToBase64(preview),
       stampedAt: new Date(activeShow.updatedAt),
       userMaps,
+      attribution: compiled.artifact.attribution,
     })
   }
 

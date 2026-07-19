@@ -1,4 +1,4 @@
-import { DEMOS } from '@/pixelblaze/stock/patterns'
+import { DEMO_AUTHORS, DEMOS } from '@/pixelblaze/stock/patterns'
 import { matchesLens, matchesQuery, nativeDim, type DimLens } from './dimLens'
 
 export interface GalleryPattern {
@@ -6,6 +6,7 @@ export interface GalleryPattern {
   slug: string
   src: string
   dim: 1 | 2 | 3
+  authors?: string[]
   sections: string[]
 }
 
@@ -100,6 +101,7 @@ export const GALLERY_PATTERNS: GalleryPattern[] = DEMO_NAMES.map((name) => {
     slug: patternSlug(name),
     src: DEMOS[name],
     dim: nativeDim(DEMOS[name]),
+    ...(DEMO_AUTHORS[name]?.length ? { authors: DEMO_AUTHORS[name] } : {}),
     sections,
   }
 })

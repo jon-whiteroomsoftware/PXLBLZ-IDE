@@ -4,9 +4,10 @@ import { portableCompatibilityBlockingMessage, validatePortableShowCompatibility
 import type { PatternRecord, ShowCell, ShowPatternRef, ShowRecord } from './personalContentRecords'
 import { compileShow, type GeneratedShowArtifact } from './showCompiler'
 import { showRecordToCompileRecipe } from './showModel'
-import { DEMOS } from '@/pixelblaze/stock/patterns'
+import { DEMO_AUTHORS, DEMOS } from '@/pixelblaze/stock/patterns'
 import { LIBRARIES } from '@/pixelblaze/libs'
 import { SHOW_MAX_OUTPUT_PIXELS } from './showVmResourceLedger'
+import { extractPatternAuthors, normalizePatternAuthors, PXLBLZ_AUTHOR, type ShowArtifactAttribution, type ShowPatternAttribution } from './patternAttribution'
 
 export interface CompiledShowState {
   artifact: GeneratedShowArtifact | null
@@ -56,8 +57,7 @@ export function compileShowForPreview(
       controllerZones,
       stageDimension: options.stageDimension,
     })
-    return {
-      artifact: compileShow(recipe, { ...LIBRARIES, ...libraries }, {
+    const artifact = compileShow(recipe, { ...LIBRARIES, ...libraries }, {
         exactSpecializations: options.exactSpecializations,
         frameInvariantHoisting: options.frameInvariantHoisting,
         renderKernelSpecialization: options.renderKernelSpecialization,
@@ -66,7 +66,12 @@ export function compileShowForPreview(
         showScoreSharing: options.showScoreSharing,
         patternSlotSharing: options.patternSlotSharing,
         coordinateFieldCaching: options.coordinateFieldCaching,
-      }),
+      })
+    return {
+      artifact: {
+        ...artifact,
+        attribution: buildShowArtifactAttribution(show, userPatterns),
+      },
       error: null,
     }
   } catch (error) {
@@ -121,4 +126,36 @@ export function sourceForShowCell(cell: ShowCell, userPatterns: PatternRecord[])
 export function sourceForShowPatternRef(pattern: ShowPatternRef, userPatterns: PatternRecord[]): string {
   if (pattern.kind === 'stock') return DEMOS[pattern.id] ?? DEMOS.TestPattern1D
   return userPatterns.find((candidate) => candidate.id === pattern.id)?.src ?? DEMOS.TestPattern1D
+}
+
+export function buildShowArtifactAttribution(
+  show: ShowRecord,
+  userPatterns: readonly PatternRecord[],
+): ShowArtifactAttribution {
+  const patterns = new Map<string, ShowPatternAttribution>()
+  const add = (ref: ShowPatternRef, name: string) => {
+    const key = `${ref.kind}:${ref.id}`
+    if (patterns.has(key)) return
+    const authors = authorsForShowPatternRef(ref, userPatterns)
+    patterns.set(key, { kind: ref.kind, id: ref.id, name, authors })
+  }
+  for (const cell of show.cells) add(cell.pattern, cell.patternName)
+  for (const instance of show.composition?.patternInstances ?? []) add(instance.pattern, instance.patternName)
+  return {
+    by: [PXLBLZ_AUTHOR],
+    patterns: [...patterns.values()],
+  }
+}
+
+function authorsForShowPatternRef(
+  pattern: ShowPatternRef,
+  userPatterns: readonly PatternRecord[],
+): string[] {
+  if (pattern.kind === 'stock') {
+    return normalizePatternAuthors(DEMO_AUTHORS[pattern.id] ?? extractPatternAuthors(DEMOS[pattern.id] ?? ''))
+  }
+  const record = userPatterns.find((candidate) => candidate.id === pattern.id)
+  if (!record) return []
+  const structured = normalizePatternAuthors(record.authors)
+  return structured.length > 0 ? structured : extractPatternAuthors(record.src)
 }

@@ -10,6 +10,7 @@ import { STOCK_MAP_SPECS } from './maps'
 import type { MapRecord, ShowRecord } from './personalContentRecords'
 import { normalizeShowTransitionState } from './showModel'
 import { buildStudioMapFingerprintCandidates } from './mapFingerprint'
+import { buildShowPatternCreditLines, PXLBLZ_AUTHOR, type ShowArtifactAttribution, type ShowPatternAttribution } from './patternAttribution'
 
 export interface ShowEpeExport {
   filename: string
@@ -22,6 +23,7 @@ export interface ShowEpeExportOptions {
   preview?: string
   stampedAt?: Date | string
   userMaps?: readonly MapRecord[]
+  attribution?: ShowArtifactAttribution
 }
 
 export function buildShowEpeExport(
@@ -33,7 +35,7 @@ export function buildShowEpeExport(
   const name = show.name.trim() || 'Untitled Show'
   const hasSpatialTransitions = show.scenes.some((scene) => scene.transitionOut?.kind === 'portal')
   const mapMetadata = deriveShowArtifactMapMetadata(show, options.userMaps ?? [])
-  const documentedSource = `${showArtifactHeader(show, mapMetadata)}\n${generatedCode}`
+  const documentedSource = `${showArtifactHeader(show, mapMetadata, options.attribution)}\n${generatedCode}`
   const source = stampArtifact(documentedSource, {
     kind: 'show',
     id: show.id,
@@ -63,6 +65,7 @@ export function buildShowEpeExport(
 function showArtifactHeader(
   show: ShowRecord,
   mapMetadata: ReturnType<typeof deriveShowArtifactMapMetadata>,
+  attribution?: ShowArtifactAttribution,
 ): string {
   const uniquePatterns = new Map<string, { kind: string; id: string; name: string }>()
   for (const cell of show.cells) {
@@ -85,6 +88,16 @@ function showArtifactHeader(
       })
     }
   }
+  const attributionByKey = new Map((attribution?.patterns ?? []).map((pattern) => [
+    `${pattern.kind}:${pattern.id}`,
+    pattern,
+  ]))
+  const creditedPatterns: ShowPatternAttribution[] = [...uniquePatterns.values()].map((pattern) => ({
+    kind: pattern.kind === 'user' ? 'user' : 'stock',
+    id: pattern.id,
+    name: pattern.name,
+    authors: attributionByKey.get(`${pattern.kind}:${pattern.id}`)?.authors ?? [],
+  }))
   const switchByScene = new Map(show.routingSwitches.map((routingSwitch) => [routingSwitch.afterSceneId, routingSwitch.layoutId]))
   const routingTransitionByScene = new Map((show.transitions ?? []).flatMap((transition) => (
     transition.kind === 'routing' ? [[transition.afterSceneId, transition] as const] : []
@@ -93,12 +106,20 @@ function showArtifactHeader(
   const lines = [
     '/*',
     ` * Compiled PXLBLZ Show: ${commentText(show.name.trim() || 'Untitled Show')}`,
+    ` * By: ${(attribution?.by?.length ? attribution.by : [PXLBLZ_AUTHOR]).map(commentText).join('; ')}`,
     ' *',
     ' * Source Patterns:',
-    ...[...uniquePatterns.values()].map((pattern) => (
-      ` * - ${commentText(pattern.name)} [${pattern.kind}:${commentText(pattern.id)}]`
-    )),
-    ' *   Detailed provenance and license comments remain embedded in each isolated member source.',
+    ...creditedPatterns.map((pattern) => {
+      const line = buildShowPatternCreditLines([pattern])[0] ?? `- ${commentText(pattern.name)}`
+      return ` * ${line} [${pattern.kind}:${commentText(pattern.id)}]`
+    }),
+    ...(creditedPatterns.some((pattern) => pattern.authors.length > 0)
+      ? [' *   Pattern authors are carried as structured IDE metadata so comments may be stripped safely.']
+      : [
+          ' *   Pattern author metadata was not recorded for these sources.',
+          ' *   If original comments are stripped later, this exported Show cannot recover missing author names.',
+        ]
+    ),
     ' *',
     ` * Routing Layouts: ${show.routingLayouts.map((layout) => commentText(layout.name)).join(' -> ') || 'Default'}`,
     ...(mapMetadata.preferredMap

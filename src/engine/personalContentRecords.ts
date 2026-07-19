@@ -6,6 +6,7 @@ export interface PatternRecord {
   name: string
   src: string
   controls: Record<string, number | number[]>
+  authors?: string[]
   updatedAt: number
   // The active map's generator params. Not a cascaded setting (it rides with the
   // map, not the four-layer settings cascade), so it stays a flat field.

@@ -748,6 +748,7 @@ export const useControllerStore = create<ControllerConnectionState>()(
               const canonical = buildShowEpeExport(show, compiled.artifact.code, {
                 stampedAt: new Date(show.updatedAt),
                 userMaps: mapState.userMaps,
+                attribution: compiled.artifact.attribution,
               })
               const prepared = prepareShowControllerArtifact(
                 canonical.source,

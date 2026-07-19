@@ -1,4 +1,5 @@
 import type { PatternRecord } from '../engine/personalContentRecords'
+import { normalizePatternAuthors } from '../engine/patternAttribution'
 
 export interface D1PatternStatementLike {
   bind(...values: unknown[]): D1PatternStatementLike
@@ -15,6 +16,7 @@ export interface D1PatternRow {
   name: string
   src: string
   controls_json: string
+  authors_json?: string | null
   params_json: string | null
   settings_json: string | null
   updated_at: number
@@ -26,6 +28,7 @@ export function patternRecordFromRow(row: D1PatternRow): PatternRecord {
     name: row.name,
     src: row.src,
     controls: parseJsonRecord(row.controls_json, {}),
+    ...(row.authors_json ? { authors: normalizePatternAuthors(parseJson(row.authors_json, [])) } : {}),
     updatedAt: row.updated_at,
     ...(row.params_json ? { params: parseJsonRecord(row.params_json, {}) } : {}),
     ...(row.settings_json ? { settings: parseJsonRecord(row.settings_json, {}) } : {}),
@@ -38,7 +41,7 @@ export async function listD1Patterns(
 ): Promise<PatternRecord[]> {
   const { results } = await db
     .prepare(`
-      SELECT id, name, src, controls_json, params_json, settings_json, updated_at
+      SELECT id, name, src, controls_json, authors_json, params_json, settings_json, updated_at
       FROM personal_patterns
       WHERE user_id = ?
       ORDER BY updated_at DESC
@@ -62,12 +65,13 @@ export async function createD1Pattern(
         name,
         src,
         controls_json,
+        authors_json,
         params_json,
         settings_json,
         created_at,
         updated_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
     .bind(
       userId,
@@ -75,6 +79,7 @@ export async function createD1Pattern(
       record.name,
       record.src,
       JSON.stringify(record.controls ?? {}),
+      optionalAuthorsJson(record.authors),
       optionalJson(record.params),
       optionalJson(record.settings),
       now,
@@ -94,6 +99,7 @@ export async function updateD1Pattern(
   addAssignment(assignments, values, 'name', changes.name)
   addAssignment(assignments, values, 'src', changes.src)
   addAssignment(assignments, values, 'controls_json', changes.controls, true)
+  addAssignment(assignments, values, 'authors_json', changes.authors === undefined ? undefined : normalizePatternAuthors(changes.authors), true)
   addAssignment(assignments, values, 'params_json', changes.params, true)
   addAssignment(assignments, values, 'settings_json', changes.settings, true)
   addAssignment(assignments, values, 'updated_at', changes.updatedAt)
@@ -136,7 +142,16 @@ function optionalJson(value: unknown): string | null {
   return value === undefined ? null : JSON.stringify(value)
 }
 
+function optionalAuthorsJson(value: unknown): string | null {
+  const authors = normalizePatternAuthors(value)
+  return authors.length > 0 ? JSON.stringify(authors) : null
+}
+
 function parseJsonRecord<T extends Record<string, unknown>>(value: string, fallback: T): T {
+  return parseJson(value, fallback)
+}
+
+function parseJson<T>(value: string, fallback: T): T {
   try {
     return JSON.parse(value) as T
   } catch {

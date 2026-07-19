@@ -1,4 +1,5 @@
 import type { Settings } from '@/engine/settings'
+import { extractPatternAuthors } from '@/engine/patternAttribution'
 
 const rawDemos = import.meta.glob('./patterns/*.js', {
   query: '?raw',
@@ -11,6 +12,10 @@ export const DEMOS: Record<string, string> = Object.fromEntries(
     const name = path.replace('./patterns/', '').replace('.js', '')
     return [name, src as string]
   }),
+)
+
+export const DEMO_AUTHORS: Record<string, string[]> = Object.fromEntries(
+  Object.entries(DEMOS).map(([name, src]) => [name, extractPatternAuthors(src)]),
 )
 
 // Recommended settings (IDE-side, preview-only) — cascade layer 2. One

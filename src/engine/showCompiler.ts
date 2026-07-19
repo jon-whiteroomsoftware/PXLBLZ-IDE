@@ -135,6 +135,7 @@ import {
   SHOW_MAX_OUTPUT_PIXELS,
   type ShowVmResourceLedger,
 } from './showVmResourceLedger'
+import type { ShowArtifactAttribution } from './patternAttribution'
 
 export interface ShowClipRecipe {
   id: string
@@ -762,6 +763,7 @@ export interface GeneratedShowArtifact {
   fxCode: string
   metadata: BundleMetadata
   summary: ShowCompileSummary
+  attribution?: ShowArtifactAttribution
 }
 
 // Largest source/bytecode budget observed during the #314 hardware spike.

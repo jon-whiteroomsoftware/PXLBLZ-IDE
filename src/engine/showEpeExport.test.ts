@@ -34,12 +34,35 @@ describe('Show EPE export (#399)', () => {
     }
     const artifact = compileShowForArtifact(show, patterns, undefined, {}).artifact!
 
-    const exported = buildShowEpeExport(show, artifact.code)
+    const exported = buildShowEpeExport(show, artifact.code, { attribution: artifact.attribution })
     const source = parseEpe(exported.text).src
 
     expect(source).toContain('- Private member [user:private-member]')
     expect(source).toContain('0.2, 0.4, 0.6')
     expect(source.endsWith(artifact.code)).toBe(true)
+  })
+
+  it('credits Pattern authors from structured metadata in exported Show source', () => {
+    const show = createDefaultShow('show-credits', 'Credit Roll', 1000)
+    show.cells[0] = {
+      ...show.cells[0],
+      pattern: { kind: 'user', id: 'community-pattern' },
+      patternName: 'Community Sparkles',
+    }
+    const patterns = [{
+      id: 'community-pattern',
+      name: 'Community Sparkles',
+      src: '// Author: Jane Pixels <jane@example.test>\nexport function render(index) { rgb(1, 0, 0) }',
+      controls: {},
+      updatedAt: 1,
+    }]
+
+    const artifact = compileShowForArtifact(show, patterns, undefined, {}).artifact!
+    const exported = buildShowEpeExport(show, artifact.code, { attribution: artifact.attribution })
+    const source = parseEpe(exported.text).src
+
+    expect(source).toContain(' * By: PXLBLZ <pxlblz@whiteroomsoftware.com>')
+    expect(source).toContain(' * - Community Sparkles by Jane Pixels <jane@example.test> [user:community-pattern]')
   })
 
   it('round-trips a stamped generated Show through the standard EPE importer', () => {

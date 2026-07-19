@@ -4,6 +4,7 @@ import { DEMOS } from '@/pixelblaze/stock/patterns'
 import { uniquePatternName } from '@/engine/patternName'
 import { NEW_PATTERN_SRC } from '@/pixelblaze/newPattern'
 import { parseEpe } from '@/engine/epeImport'
+import { extractPatternAuthors } from '@/engine/patternAttribution'
 import { resolveArtifactPreferredMap } from '@/engine/artifactMapCompatibility'
 import { nativeDim, matchesLens, matchesQuery, type DimLens } from '@/engine/dimLens'
 import { GALLERY_PATTERNS } from '@/engine/galleryCatalog'
@@ -166,11 +167,13 @@ export function PatternList({
       const id = newPersonalContentId()
       const name = uniquePatternName(parsed.name, userPatterns.map((p) => p.name))
       const mapResolution = resolveArtifactPreferredMap(parsed.stamp, userMaps)
+      const authors = extractPatternAuthors(parsed.src)
       const record: PatternRecord = {
         id,
         name,
         src: parsed.src,
         controls: {},
+        ...(authors.length ? { authors } : {}),
         ...(mapResolution.status === 'resolved' ? { settings: { mapId: mapResolution.mapId } } : {}),
         updatedAt: Date.now(),
       }

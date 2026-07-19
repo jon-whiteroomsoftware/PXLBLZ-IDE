@@ -44,6 +44,7 @@ describe('D1 pattern persistence', () => {
       name: 'Cloud Pattern',
       src: 'export function render() {}',
       controls_json: '{"speed":0.5}',
+      authors_json: '["Jane Pixels <jane@example.test>"]',
       params_json: '{"phase":0.25}',
       settings_json: '{"brightness":0.8}',
       updated_at: 123,
@@ -52,6 +53,7 @@ describe('D1 pattern persistence', () => {
       name: 'Cloud Pattern',
       src: 'export function render() {}',
       controls: { speed: 0.5 },
+      authors: ['Jane Pixels <jane@example.test>'],
       params: { phase: 0.25 },
       settings: { brightness: 0.8 },
       updatedAt: 123,
@@ -74,14 +76,17 @@ describe('D1 pattern persistence', () => {
       name: 'Cloud Pattern',
       src: 'export function render() {}',
       controls: {},
+      authors: ['Jane Pixels <jane@example.test>'],
       updatedAt: 123,
       settings: { brightness: 0.8 },
     }
 
     await createD1Pattern(db, 'github:123', pattern, 100)
-    await updateD1Pattern(db, 'github:123', 'p1', { name: 'Renamed', updatedAt: 200 })
+    await updateD1Pattern(db, 'github:123', 'p1', { name: 'Renamed', authors: ['Pixel Cat'], updatedAt: 200 })
 
     expect(calls[0].values.slice(0, 2)).toEqual(['github:123', 'p1'])
+    expect(calls[0].values).toContain(JSON.stringify(['Jane Pixels <jane@example.test>']))
+    expect(calls[1].values).toContain(JSON.stringify(['Pixel Cat']))
     expect(calls[1].sql).toContain('WHERE user_id = ? AND id = ?')
     expect(calls[1].values.slice(-2)).toEqual(['github:123', 'p1'])
   })

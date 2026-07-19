@@ -1,6 +1,7 @@
 import type { PatternRecord } from './personalContentRecords'
 import type { RecoveredSavedProgram } from './controllerSavedProgramRead'
 import { uniquePatternName } from './patternName'
+import { extractPatternAuthors } from './patternAttribution'
 
 export interface SavedProgramStudioPattern {
   id: string
@@ -99,11 +100,13 @@ export function createSavedProgramPatternRecord(
   newId: string,
   now: number,
 ): PatternRecord {
+  const authors = extractPatternAuthors(decision.sourceCode)
   return {
     id: decision.patternId ?? newId,
     name: decision.name,
     src: decision.sourceCode,
     controls: {},
+    ...(authors.length ? { authors } : {}),
     updatedAt: now,
   }
 }

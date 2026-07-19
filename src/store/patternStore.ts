@@ -8,6 +8,7 @@ import {
 } from '@/engine/personalContentProvider'
 import type { PatternRecord } from '@/engine/personalContentRecords'
 import type { Settings } from '@/engine/settings'
+import { extractPatternAuthors, normalizePatternAuthors } from '@/engine/patternAttribution'
 
 export type { LastActive, PatternRecord }
 export { DEMO_OVERRIDES_KEY, LAST_ACTIVE_KEY }
@@ -102,10 +103,11 @@ export const usePatternStore = create<PatternState>()((set, get) => ({
   },
 
   addPattern: async (record) => {
-    await getPersonalContentProvider().createPattern(record)
+    const persisted = patternRecordWithAttribution(record)
+    await getPersonalContentProvider().createPattern(persisted)
     trackEntityCreated('pattern')
     set((s) => ({
-      userPatterns: [record, ...s.userPatterns],
+      userPatterns: [persisted, ...s.userPatterns],
     }))
   },
 
@@ -133,10 +135,12 @@ export const usePatternStore = create<PatternState>()((set, get) => ({
     const existing = get().userPatterns.find((p) => p.id === id)
     if (existing?.src === src) return
     const updatedAt = Date.now()
-    await getPersonalContentProvider().updatePattern(id, { src, updatedAt })
+    const extractedAuthors = extractPatternAuthors(src)
+    const authorPatch = extractedAuthors.length > 0 ? { authors: extractedAuthors } : {}
+    await getPersonalContentProvider().updatePattern(id, { src, ...authorPatch, updatedAt })
     set((s) => ({
       userPatterns: s.userPatterns.map((p) =>
-        p.id === id ? { ...p, src, updatedAt } : p,
+        p.id === id ? { ...p, src, ...authorPatch, updatedAt } : p,
       ),
     }))
   },
@@ -184,3 +188,10 @@ export const usePatternStore = create<PatternState>()((set, get) => ({
     if (next) await getPersonalContentProvider().setDemoOverrides(next).catch(() => {})
   },
 }))
+
+function patternRecordWithAttribution(record: PatternRecord): PatternRecord {
+  const structured = normalizePatternAuthors(record.authors)
+  if (structured.length > 0) return { ...record, authors: structured }
+  const extracted = extractPatternAuthors(record.src)
+  return extracted.length > 0 ? { ...record, authors: extracted } : record
+}
