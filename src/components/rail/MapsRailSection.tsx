@@ -73,17 +73,18 @@ export function MapsRailSection({
       <RailEntityHeader
         title="Maps"
         onCollapse={onCollapse}
-        action={personalWorkspaceAuthenticated
-          ? <HeaderAction icon={<Plus size={14} />} title="New map" onClick={onCreateMap} />
-          : null}
-      >
-        <RailFilterBar
-          lens={dimLens}
-          onLensChange={onLensChange}
-          query={query}
-          onQueryChange={onQueryChange}
-        />
-      </RailEntityHeader>
+        action={(
+          <>
+            <RailFilterBar
+              lens={dimLens}
+              onLensChange={onLensChange}
+              query={query}
+              onQueryChange={onQueryChange}
+            />
+            {personalWorkspaceAuthenticated && <HeaderAction icon={<Plus size={14} />} title="New map" onClick={onCreateMap} />}
+          </>
+        )}
+      />
       <RailSectionScroller
         testId="pattern-list-scroll"
         scrollRef={scrollRef}
@@ -122,7 +123,7 @@ export function MapsRailSection({
           </ul>
         )}
         <StockSectionHeader
-          label="Stock Maps"
+          label="Built-in Maps"
           open={showStockMaps}
           onToggle={onToggleStockMaps}
         />

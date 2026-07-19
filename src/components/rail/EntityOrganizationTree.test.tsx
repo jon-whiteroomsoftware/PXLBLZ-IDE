@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
-import { fireEvent, render, screen } from '@testing-library/react'
+import { createRef } from 'react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import type { EntityOrganizationV1 } from '@/engine/entityOrganization'
-import { EntityOrganizationTree } from './EntityOrganizationTree'
+import { EntityOrganizationTree, type EntityOrganizationTreeHandle } from './EntityOrganizationTree'
 
 describe('EntityOrganizationTree', () => {
   it('discloses a recursive folder and persists its collapsed state', () => {
@@ -80,8 +81,10 @@ describe('EntityOrganizationTree', () => {
       collapsedFolderIds: [],
     }
     const onOrganizationChange = vi.fn()
+    const treeRef = createRef<EntityOrganizationTreeHandle>()
     const view = render(
       <EntityOrganizationTree
+        ref={treeRef}
         organization={organization}
         items={[{ id: 'pattern-redline', name: 'Redline Machine' }]}
         activeEntityId={null}
@@ -93,7 +96,8 @@ describe('EntityOrganizationTree', () => {
       />,
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'New pattern folder' }))
+    expect(screen.queryByText('Personal')).not.toBeInTheDocument()
+    act(() => treeRef.current?.createFolder())
 
     const next = onOrganizationChange.mock.calls[0][0] as EntityOrganizationV1
     expect(next).toEqual(expect.objectContaining({
@@ -101,6 +105,7 @@ describe('EntityOrganizationTree', () => {
     }))
     view.rerender(
       <EntityOrganizationTree
+        ref={treeRef}
         organization={next}
         items={[{ id: 'pattern-redline', name: 'Redline Machine' }]}
         activeEntityId={null}
@@ -171,7 +176,7 @@ describe('EntityOrganizationTree', () => {
     fireEvent.dragOver(screen.getByRole('treeitem', { name: /B/ }), { clientY: 1 })
     expect(container.querySelector('[data-drop-cue]')).not.toBeNull()
 
-    fireEvent.dragLeave(screen.getByRole('tree', { name: 'Personal patterns' }), { relatedTarget: document.body })
+    fireEvent.dragLeave(screen.getByRole('tree', { name: 'Patterns' }), { relatedTarget: document.body })
     expect(container.querySelector('[data-drop-cue]')).toBeNull()
   })
 

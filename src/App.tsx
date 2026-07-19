@@ -1070,7 +1070,7 @@ function StudioApp() {
               <StudioPaneMessage
                 icon={<Code2 size={18} aria-hidden />}
                 title="No library selected"
-                detail="Select a stock library from the rail."
+                detail="Select a built-in library from the rail."
               />
             ) : (
               <Editor />

@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { studioControlOwnsKeyboardEvent } from './keyboardShortcuts'
 
 describe('studioControlOwnsKeyboardEvent', () => {
-  it.each(['input', 'select', 'textarea', 'button', 'a', '[role="textbox"]', '[role="slider"]'])(
-    'keeps Space with %s controls',
+  it.each(['input', 'textarea', '[role="textbox"]'])(
+    'keeps Space with %s text-entry controls',
     (selector) => {
       const target = selector.startsWith('[') ? document.createElement('div') : document.createElement(selector)
       if (selector === '[role="textbox"]') target.setAttribute('role', 'textbox')
@@ -12,6 +12,19 @@ describe('studioControlOwnsKeyboardEvent', () => {
       document.body.append(target)
 
       expect(studioControlOwnsKeyboardEvent(target)).toBe(true)
+      target.remove()
+    },
+  )
+
+  it.each(['select', 'button', 'a', '[role="slider"]'])(
+    'lets Preview own Space from non-editing %s controls',
+    (selector) => {
+      const target = selector.startsWith('[') ? document.createElement('div') : document.createElement(selector)
+      if (selector === '[role="slider"]') target.setAttribute('role', 'slider')
+      if (target instanceof HTMLAnchorElement) target.href = '/test'
+      document.body.append(target)
+
+      expect(studioControlOwnsKeyboardEvent(target)).toBe(false)
       target.remove()
     },
   )
@@ -28,5 +41,25 @@ describe('studioControlOwnsKeyboardEvent', () => {
 
     expect(studioControlOwnsKeyboardEvent(target)).toBe(false)
     target.remove()
+  })
+
+  it('lets Preview own Space from a non-text input', () => {
+    const target = document.createElement('input')
+    target.type = 'range'
+    document.body.append(target)
+
+    expect(studioControlOwnsKeyboardEvent(target)).toBe(false)
+    target.remove()
+  })
+
+  it('keeps Space inside a nested contenteditable editor surface', () => {
+    const editor = document.createElement('div')
+    editor.setAttribute('contenteditable', 'true')
+    const target = document.createElement('span')
+    editor.append(target)
+    document.body.append(editor)
+
+    expect(studioControlOwnsKeyboardEvent(target)).toBe(true)
+    editor.remove()
   })
 })

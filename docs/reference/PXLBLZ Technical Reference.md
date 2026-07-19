@@ -1259,7 +1259,10 @@ capabilities. Rows indent 14 pixels per level and preserve one leading symbol:
 a disclosure chevron for folders or the entity icon for leaves. Drop edges mean
 before/after and a folder center means inside. Drag cues clear when the drag
 ends or leaves the tree. Search traverses collapsed branches and returns flat
-name-plus-path results without changing disclosure state.
+name-plus-path results without changing disclosure state. The mutable tree begins
+directly under the single entity header; the header action menu reaches folder
+creation through the tree's narrow imperative UI handle. Built-in content keeps
+its explicit provenance boundary.
 
 `ui/ideMicrotype.ts` records the application-wide dense-tool baseline against
 the near-black `#0b0c0f` panel. Entity-rail and pane headers are semantic
@@ -1404,12 +1407,14 @@ checkboxes, text-like editors, ranges, buttons, and navigator handles retain
 their native keyboard ownership.
 
 `StudioApp` owns the shared Space preview shortcut. Its document handler uses
-`studioControlOwnsKeyboardEvent()` to leave text entry, Monaco, buttons, links,
-menus, sliders, and contenteditable surfaces untouched. The Show handler keeps
-the same guarded Space behavior as a local fallback and additionally accepts
-Left/Right and Home when the Show workspace or a marked timeline entity owns
-focus. Both handlers ignore an already prevented event, so one Space keydown can
-toggle only once regardless of listener order. Relative and zero
+`studioControlOwnsKeyboardEvent()` to leave only text inputs, textboxes, Monaco,
+and contenteditable surfaces untouched. Buttons, links, selectors, sliders,
+menus, and entity-tree rows delegate Space to Preview transport. Tree rows use
+Enter for open/disclose so they cannot preempt the shared shortcut. The Show
+handler keeps the same guarded Space behavior as a local fallback and
+additionally accepts Left/Right and Home when the Show workspace or a marked
+timeline entity owns focus. Both handlers ignore an already prevented event, so
+one Space keydown can toggle only once regardless of listener order. Relative and zero
 commands clamp through `showTransportStore`, create ordinary deterministic seek
 requests, and pause/resume around reconstruction so the previous playback state
 is preserved. Unmount removes the handler, preventing shortcuts from leaking

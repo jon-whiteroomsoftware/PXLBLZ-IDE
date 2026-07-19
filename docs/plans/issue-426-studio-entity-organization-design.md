@@ -10,9 +10,9 @@ This is visual organization only. Pattern and Show records keep their existing I
 
 ## User model
 
-Patterns and Shows each have two visibly separate regions:
+Patterns and Shows each have two structurally separate regions:
 
-- **Personal** is mutable. Users create folders, rename them, reorder siblings, nest content, move nodes between folders, and move nodes to Trash.
+- **Personal** is mutable and starts directly beneath the main rail header without another labeled bar. Users create folders from the header action menu, rename them, reorder siblings, nest content, move nodes between folders, and move nodes to Trash.
 - **Built-in** is immutable. The IDE supplies useful folders, while selection and disclosure behave like the Personal tree.
 
 Patterns and Shows own independent organization documents. A folder contains one entity type; it cannot mix Patterns and Shows.
@@ -34,7 +34,7 @@ The tree supports conventional keyboard movement:
 - Up and Down move focus through visible rows.
 - Right opens a collapsed folder.
 - Left closes an open folder.
-- Enter or Space opens an entity or toggles a folder.
+- Enter opens an entity or toggles a folder. Space always controls Preview playback unless focus is in a text-entry surface.
 - The overflow menu exposes rename, relative reorder, destination move, and Trash.
 
 Search replaces each tree with flat matching entities and their folder paths. It searches through collapsed folders and matches across both the entity name and path terms. For example, `friendly clockwork` finds `ClockworkIris` under `FPS Friendly`. Search never mutates disclosure state.

@@ -1,10 +1,11 @@
-import { useRef, useState, type RefObject } from 'react'
+import { useEffect, useRef, useState, type RefObject } from 'react'
 import type React from 'react'
-import { ChevronDown, PanelLeftClose, Pencil, Search, Trash2, X } from 'lucide-react'
+import { ChevronDown, Menu, PanelLeftClose, Pencil, Search, Trash2, X } from 'lucide-react'
 import { nameConflicts } from '@/engine/patternName'
 import { sanitizeLibraryNameInput } from '@/engine/libraries'
 import type { DimLens } from '@/engine/dimLens'
 import { IDE_MICROTYPE } from '@/components/ui/ideMicrotype'
+import { DeckSelect } from '@/components/DeckSelect'
 import {
   AlertDialogRoot,
   AlertDialogTrigger,
@@ -51,6 +52,69 @@ export function HeaderAction({
   )
 }
 
+export interface HeaderMenuItem {
+  label: string
+  onSelect: () => void
+  disabled?: boolean
+}
+
+export function HeaderMenu({ title, items }: { title: string; items: readonly HeaderMenuItem[] }) {
+  const [open, setOpen] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const closeOutside = (event: PointerEvent) => {
+      if (!menuRef.current?.contains(event.target as Node)) setOpen(false)
+    }
+    window.addEventListener('pointerdown', closeOutside)
+    return () => window.removeEventListener('pointerdown', closeOutside)
+  }, [open])
+
+  return (
+    <div
+      ref={menuRef}
+      className="relative shrink-0"
+      onKeyDown={(event) => {
+        if (event.key === 'Escape') setOpen(false)
+      }}
+    >
+      <button
+        type="button"
+        aria-label={title}
+        title={title}
+        aria-expanded={open}
+        onClick={(event) => {
+          event.stopPropagation()
+          setOpen((value) => !value)
+        }}
+        className={`grid size-5 place-items-center transition-colors ${open ? 'text-live' : 'text-zinc-400 hover:text-live'}`}
+      >
+        <Menu size={14} aria-hidden />
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full z-40 mt-1 min-w-36 border border-zinc-700 bg-zinc-950 py-1 shadow-xl shadow-black/70">
+          {items.map((item) => (
+            <button
+              key={item.label}
+              type="button"
+              disabled={item.disabled}
+              onClick={(event) => {
+                event.stopPropagation()
+                item.onSelect()
+                setOpen(false)
+              }}
+              className="block h-6 w-full whitespace-nowrap px-2 text-left text-[10px] text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100 disabled:text-zinc-600 disabled:hover:bg-transparent"
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function RailEntityHeader({
   title,
   action,
@@ -71,7 +135,7 @@ export function RailEntityHeader({
       <div className="flex min-h-5 w-full items-center gap-2">
         <h2 className={`flex-1 truncate font-normal ${IDE_MICROTYPE.header.className}`}>{title}</h2>
         {(action || onCollapse) && (
-          <div className="flex items-center gap-1.5">
+          <div className="flex min-w-0 items-center gap-1.5">
             {action}
             {onCollapse && (
               <HeaderAction
@@ -158,55 +222,16 @@ export function RailFilterBar({
   }
 
   return (
-    <div className="flex items-center gap-1 pt-1.5">
-      {lens !== undefined && onLensChange && (
-        <div
-          role="radiogroup"
-          aria-label="Dimension filter"
-          className="flex shrink-0 gap-px"
-        >
-          {DIM_LENS_OPTIONS.map((opt) => {
-          if (hideOneDimensional && opt.value === 1) {
-            return (
-              <span
-                key={String(opt.value)}
-                aria-hidden
-                className="invisible rounded px-[5px] py-0.5 text-[10px] font-mono uppercase tracking-wide"
-              >
-                {opt.label}
-              </span>
-            )
-          }
-          const active = lens === opt.value
-          return (
-            <button
-              key={String(opt.value)}
-              role="radio"
-              aria-checked={active}
-              onClick={() => onLensChange(opt.value)}
-              className={[
-                'rounded px-[5px] py-0.5 text-[10px] font-mono uppercase tracking-wide transition-all',
-                active
-                  ? 'bg-live/15 text-live'
-                  : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/60',
-              ].join(' ')}
-            >
-              {opt.label}
-            </button>
-          )
-          })}
-        </div>
-      )}
-
+    <div className="flex min-w-0 items-center gap-1">
       <div
-        className="flex flex-1 items-center justify-end gap-1"
+        className="relative flex shrink-0 items-center"
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => { setHovered(false); setHoverSuppressed(false) }}
       >
         <div
           className={[
-            'flex-1 overflow-hidden transition-all duration-200',
-            expanded ? 'max-w-full opacity-100' : 'max-w-0 opacity-0',
+            'absolute right-full z-30 mr-1 w-28 transition-opacity duration-150',
+            expanded ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0',
           ].join(' ')}
         >
           <input
@@ -219,7 +244,7 @@ export function RailFilterBar({
             placeholder="Search by name"
             aria-label="Search by name"
             tabIndex={expanded ? 0 : -1}
-            className="w-full rounded bg-zinc-800/60 py-0.5 px-2 text-[11px] text-zinc-200 placeholder:text-zinc-500 outline-none focus:bg-zinc-800 focus:ring-1 focus:ring-zinc-600"
+            className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-0.5 text-[11px] text-zinc-200 shadow-md shadow-black/50 outline-none placeholder:text-zinc-500 focus:border-zinc-600 focus:ring-1 focus:ring-zinc-600"
           />
         </div>
         <button
@@ -235,6 +260,17 @@ export function RailFilterBar({
           {committedOpen ? <X size={13} /> : <Search size={13} />}
         </button>
       </div>
+
+      {lens !== undefined && onLensChange && (
+        <DeckSelect
+          ariaLabel="Dimension filter"
+          value={lens}
+          options={DIM_LENS_OPTIONS.filter((option) => !(hideOneDimensional && option.value === 1))}
+          onChange={onLensChange}
+          menuWidthClass="w-16"
+          menuAlign="right"
+        />
+      )}
     </div>
   )
 }
@@ -461,7 +497,7 @@ export function StockSectionHeader({
       aria-expanded={open}
       onClick={onToggle}
       style={{ letterSpacing: '0.04em' }}
-      className="mt-2 flex w-full items-center gap-1 border-y border-zinc-700/70 px-3 pb-1 pt-2.5 text-left font-mono text-[11px] font-semibold uppercase text-structural transition-colors hover:bg-zinc-900/45 hover:text-zinc-300"
+      className="mt-2 flex w-full items-center gap-1 border-y border-zinc-700/70 px-3 pb-1 pt-2.5 text-left font-mono text-[11px] font-semibold uppercase text-zinc-400 transition-colors hover:bg-zinc-900/45 hover:text-zinc-200"
     >
       <ChevronDown
         size={12}

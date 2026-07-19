@@ -81,16 +81,18 @@ library** in the active entity header reduces the complete detail rail to the
 collapsed strip exposes **Expand library**. This state is shared across Studio
 modes; switching from Shows to Patterns does not reopen it.
 
-Patterns and Maps have a dimension lens; Patterns, Maps, and Shows have name
-search. Pattern and Show rails keep Personal content above a collapsible
-Built-in group, but their rows form compact trees instead of flat lists. Create
-folders from Personal, drag whole rows to reorder or nest them, or use the row
-menu for rename, Move up/down, **Move to...**, and **Move to Trash**. Trash is
-recoverable: restore returns a node or complete folder subtree to its prior
-location. Built-in folders are curated and read-only. Search includes collapsed
-branches and folder names, then shows each matching entity with its path.
+Patterns and Maps have a compact dimension selector; Patterns, Maps, and Shows
+have name search. Every rail uses one primary title row. Pattern and Show
+creation, folder creation, and Pattern import live in that row's action menu;
+owned content begins directly beneath it without a second Personal header.
+Pattern and Show rows form compact trees above a collapsible Built-in group.
+Drag whole rows to reorder or nest them, or use the row menu for rename, Move
+up/down, **Move to...**, and **Move to Trash**. Trash is recoverable: restore
+returns a node or complete folder subtree to its prior location. Built-in
+folders are curated and read-only. Search includes collapsed branches and
+folder names, then shows each matching entity with its path.
 
-Mixins and Libraries retain the personal-first, stock-second flat-list pattern
+Mixins and Libraries retain the owned-first, Built-in-second flat-list pattern
 without dimension filtering. Controller profiles come only from observed
 hardware, so there is no blank **New Controller** button.
 
@@ -668,8 +670,9 @@ preference; hold Alt to temporarily reverse the current Snap setting.
 
 Every Studio authoring view supports the same first keyboard step: **Space**
 toggles its active preview as soon as the document owns the key, including the
-first keypress after a page load. Text fields, code editors, buttons, links,
-sliders, menus, and other interactive controls keep their native Space behavior.
+first keypress after a page load. This remains true when a rail row, button,
+link, selector, slider, or menu has focus. Text fields, code editors, and other
+contenteditable surfaces retain Space for text entry.
 
 The Show workspace extends that shared preview loop. After a native
 inspector menu commits a discrete choice, focus returns to the selected timeline
@@ -679,11 +682,11 @@ and **Home** returns to Show start. Keyboard seeks clamp at the Show boundaries,
 use the same deterministic replay as the playhead, and preserve whether playback
 was running. The visible start button also advertises **Home** in its tooltip.
 
-Text, number, range, and menu controls retain ordinary Space and Arrow behavior
-while focused. Timeline navigator handles retain their pan/resize keys, and
-ordinary buttons retain Space activation. Delete and Backspace likewise remain
-local to editors; elsewhere they apply only to the selected scene, transition,
-clip, or zone under the existing confirmation rules.
+Text-entry controls retain ordinary Space and Arrow behavior while focused.
+Timeline navigator handles retain their pan/resize Arrow keys, while Space uses
+Preview transport. Delete and Backspace likewise remain local to editors;
+elsewhere they apply only to the selected scene, transition, clip, or zone under
+the existing confirmation rules.
 
 Click or drag the ruler to seek. The visible playhead remains one pixel wide,
 but a narrow invisible target around it also supports direct dragging through

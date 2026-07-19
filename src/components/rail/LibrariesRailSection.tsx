@@ -71,12 +71,10 @@ export function LibrariesRailSection({
           </RailEmptyState>
         ) : userLibraries.length === 0 ? (
           <RailEmptyState>
-            No cloud libraries yet
+            No libraries yet
           </RailEmptyState>
         ) : (
-          <>
-            <StockSectionHeader label="Cloud Libraries" open onToggle={() => {}} />
-            <ul className="pt-2">
+          <ul className="pt-2">
               {userLibraries.map((library) => (
                 <EditableListItem
                   key={library.id}
@@ -92,11 +90,10 @@ export function LibrariesRailSection({
                   deleteDescription={`"${library.name}" will be permanently deleted. Patterns that reference this namespace will fail compile with an unknown-namespace error until you update them.`}
                 />
               ))}
-            </ul>
-          </>
+          </ul>
         )}
         <StockSectionHeader
-          label="Stock Libraries"
+          label="Built-in Libraries"
           open={showStockLibraries}
           onToggle={onToggleStockLibraries}
         />

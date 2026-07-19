@@ -1,11 +1,10 @@
-import { Cpu, Plus } from 'lucide-react'
-import { useState, type RefObject } from 'react'
+import { useRef, useState, type RefObject } from 'react'
 import type { ShowRecord } from '@/store/showStore'
 import type { StockShow } from '@/pixelblaze/stock/shows'
 import type { EntityOrganizationV1 } from '@/engine/entityOrganization'
 import { stockShowOrganization } from '@/engine/stockEntityOrganization'
 import {
-  HeaderAction,
+  HeaderMenu,
   RailEmptyState,
   RailEntityHeader,
   RailFilterBar,
@@ -13,7 +12,7 @@ import {
   StockSectionHeader,
   type ScrollMetrics,
 } from '@/components/rail/RailPrimitives'
-import { EntityOrganizationTree } from '@/components/rail/EntityOrganizationTree'
+import { EntityOrganizationTree, type EntityOrganizationTreeHandle } from '@/components/rail/EntityOrganizationTree'
 
 export function ShowsRailSection({
   personalWorkspaceAuthenticated,
@@ -61,28 +60,30 @@ export function ShowsRailSection({
   onCollapse?: () => void
 }) {
   const [builtInOrganization, setBuiltInOrganization] = useState(() => stockShowOrganization(stockShows))
+  const personalTreeRef = useRef<EntityOrganizationTreeHandle>(null)
   return (
     <>
       <RailEntityHeader
         title="Shows"
         onCollapse={onCollapse}
-        action={personalWorkspaceAuthenticated
-          ? (
-              <>
-                {showSeedProfileName && (
-                  <HeaderAction
-                    icon={<Cpu size={14} />}
-                    title={`New show from ${showSeedProfileName}`}
-                    onClick={onCreateShowFromController}
-                  />
-                )}
-                <HeaderAction icon={<Plus size={14} />} title="New show" onClick={onCreateShow} />
-              </>
-            )
-          : null}
-      >
-        <RailFilterBar query={query} onQueryChange={onQueryChange} />
-      </RailEntityHeader>
+        action={(
+          <>
+            <RailFilterBar query={query} onQueryChange={onQueryChange} />
+            {personalWorkspaceAuthenticated && (
+              <HeaderMenu
+                title="Show actions"
+                items={[
+                  { label: 'New show', onSelect: onCreateShow },
+                  { label: 'New folder', onSelect: () => personalTreeRef.current?.createFolder() },
+                  ...(showSeedProfileName
+                    ? [{ label: `New show from ${showSeedProfileName}`, onSelect: onCreateShowFromController }]
+                    : []),
+                ]}
+              />
+            )}
+          </>
+        )}
+      />
       <RailSectionScroller
         testId="show-list-scroll"
         scrollRef={scrollRef}
@@ -96,11 +97,13 @@ export function ShowsRailSection({
           </RailEmptyState>
         ) : (
           <EntityOrganizationTree
+              ref={personalTreeRef}
               organization={personalOrganization}
               items={userShows.map((show) => ({ id: show.id, name: show.name }))}
               activeEntityId={activeShowId}
               query={query}
               noun="show"
+              sectionLabel="Shows"
               emptyMessage="No shows yet"
               onSelect={(id) => {
                 const show = userShows.find((candidate) => candidate.id === id)
@@ -123,7 +126,7 @@ export function ShowsRailSection({
             query={query}
             noun="show"
             editable={false}
-            showSectionHeader={false}
+            sectionLabel="Built-in Shows"
             onSelect={(id) => {
               const show = stockShows.find((candidate) => candidate.id === id)
               if (show) onOpenStockShow(show)

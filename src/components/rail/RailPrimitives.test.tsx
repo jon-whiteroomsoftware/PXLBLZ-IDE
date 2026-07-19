@@ -1,7 +1,7 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { vi } from 'vitest'
-import { EditableListItem, RailFilterBar, StockListItem } from './RailPrimitives'
+import { EditableListItem, HeaderMenu, RailFilterBar, StockListItem } from './RailPrimitives'
 
 function renderEditableListItem({
   name = 'Lib1',
@@ -96,7 +96,7 @@ describe('StockListItem', () => {
 })
 
 describe('RailFilterBar', () => {
-  it('keeps the dimension lens compact enough to leave room for Search', () => {
+  it('uses a compact dimension selector that leaves room for Search', () => {
     render(
       <RailFilterBar
         lens="all"
@@ -106,10 +106,48 @@ describe('RailFilterBar', () => {
       />,
     )
 
-    expect(screen.getByRole('radiogroup', { name: 'Dimension filter' })).toHaveClass('gap-px')
-    for (const option of ['All', '1D', '2D', '3D']) {
-      expect(screen.getByRole('radio', { name: option })).toHaveClass('px-[5px]')
-    }
-    expect(screen.getByRole('button', { name: 'Search by name' })).toBeVisible()
+    const search = screen.getByRole('button', { name: 'Search by name' })
+    const selector = screen.getByRole('button', { name: 'Dimension filter' })
+    expect(selector).toHaveTextContent('All')
+    expect(search.compareDocumentPosition(selector) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0)
+    const searchInput = screen.getByRole('textbox', { name: 'Search by name' })
+    expect(searchInput.parentElement).toHaveClass('absolute', 'right-full')
+    expect(searchInput).toHaveClass('bg-zinc-900', 'border-zinc-700')
+  })
+
+  it('opens a dark listbox and changes the active dimension', async () => {
+    const user = userEvent.setup()
+    const onLensChange = vi.fn()
+    render(
+      <RailFilterBar
+        lens="all"
+        onLensChange={onLensChange}
+        query=""
+        onQueryChange={vi.fn()}
+      />,
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Dimension filter' }))
+    const listbox = screen.getByRole('listbox', { name: 'Dimension filter' })
+    expect(listbox).toHaveClass('bg-zinc-900', 'border-zinc-800')
+    expect(within(listbox).getAllByRole('option').map((option) => option.textContent)).toEqual(['All', '1D', '2D', '3D'])
+    await user.click(within(listbox).getByRole('option', { name: '2D' }))
+
+    expect(onLensChange).toHaveBeenCalledWith(2)
+  })
+})
+
+describe('HeaderMenu', () => {
+  it('keeps secondary header actions behind one named menu button', async () => {
+    const user = userEvent.setup()
+    const create = vi.fn()
+    render(<HeaderMenu title="Pattern actions" items={[{ label: 'New pattern', onSelect: create }]} />)
+
+    expect(screen.queryByRole('button', { name: 'New pattern' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Pattern actions' }))
+    await user.click(screen.getByRole('button', { name: 'New pattern' }))
+
+    expect(create).toHaveBeenCalledOnce()
+    expect(screen.queryByRole('button', { name: 'New pattern' })).not.toBeInTheDocument()
   })
 })

@@ -158,23 +158,45 @@ async function switchToMixins(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getByRole('radio', { name: 'Mixins' }))
 }
 
+async function selectDimension(
+  user: ReturnType<typeof userEvent.setup>,
+  dimension: 'All' | '1D' | '2D' | '3D',
+) {
+  await user.click(screen.getByRole('button', { name: 'Dimension filter' }))
+  await user.click(screen.getByRole('option', { name: dimension }))
+}
+
 describe('PatternList', () => {
   it('renders Patterns with one list header carrying create actions', async () => {
+    const user = userEvent.setup()
     render(<PatternList />)
 
     expect(await screen.findAllByText('Patterns')).toHaveLength(1)
+    await user.click(screen.getByRole('button', { name: 'Pattern actions' }))
     expect(await screen.findByRole('button', { name: 'Open pattern from .epe file' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'New pattern' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'New folder' })).toBeInTheDocument()
   })
 
   it('creates a new pattern from the Patterns title row', async () => {
     const user = userEvent.setup()
     render(<PatternList />)
 
+    await user.click(await screen.findByRole('button', { name: 'Pattern actions' }))
     await user.click(await screen.findByRole('button', { name: 'New pattern' }))
 
     expect(await screen.findByText('Untitled Pattern')).toBeInTheDocument()
     expect(usePatternStore.getState().activePatternId).not.toBeNull()
+  })
+
+  it('creates a Pattern folder from the header menu and starts inline naming', async () => {
+    const user = userEvent.setup()
+    render(<PatternList />)
+
+    await user.click(await screen.findByRole('button', { name: 'Pattern actions' }))
+    await user.click(screen.getByRole('button', { name: 'New folder' }))
+
+    expect(await screen.findByRole('textbox', { name: 'Rename item' })).toHaveValue('New Folder')
   })
 
   it('restores an imported artifact preferred stock map for preview (#411)', async () => {
@@ -282,8 +304,8 @@ describe('PatternList', () => {
 
     await user.click(screen.getByRole('radio', { name: 'Libraries' }))
 
-    expect(await screen.findByRole('button', { name: 'Stock Libraries' })).toHaveAttribute('aria-expanded', 'true')
-    expect(screen.getByText('No cloud libraries yet')).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Built-in Libraries' })).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByText('No libraries yet')).toBeInTheDocument()
 
     await user.click(screen.getByText('Shader'))
 
@@ -339,6 +361,7 @@ describe('PatternList', () => {
     render(<PatternList />)
 
     await user.click(screen.getByRole('radio', { name: 'Shows' }))
+    await user.click(await screen.findByRole('button', { name: 'Show actions' }))
     await user.click(await screen.findByRole('button', { name: 'New show' }))
 
     expect(useShowStore.getState().showCreation).toEqual({ previousShowId: null })
@@ -353,7 +376,7 @@ describe('PatternList', () => {
 
     await user.click(screen.getByRole('radio', { name: 'Shows' }))
     expect(await screen.findByRole('button', { name: 'Built-in Shows' })).toHaveAttribute('aria-expanded', 'true')
-    const builtInTree = screen.getByRole('tree', { name: 'Built-in shows' })
+    const builtInTree = screen.getByRole('tree', { name: 'Built-in Shows' })
     expect(within(builtInTree).getByRole('treeitem', { name: /Learn/ })).toBeInTheDocument()
     expect(within(builtInTree).getByRole('treeitem', { name: /Showcases/ })).toBeInTheDocument()
     expect(within(builtInTree).getByRole('treeitem', { name: /Installations/ })).toBeInTheDocument()
@@ -423,13 +446,13 @@ describe('PatternList', () => {
     render(<PatternList />)
     await switchToMixins(user)
 
-    expect(screen.getByRole('button', { name: 'Stock Mixins' })).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByRole('button', { name: 'Built-in Mixins' })).toHaveAttribute('aria-expanded', 'true')
     expect(screen.getByText('pot-binding')).toBeInTheDocument()
     expect(screen.getByText('hw-brightness')).toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: 'Stock Mixins' }))
+    await user.click(screen.getByRole('button', { name: 'Built-in Mixins' }))
 
-    expect(screen.getByRole('button', { name: 'Stock Mixins' })).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.getByRole('button', { name: 'Built-in Mixins' })).toHaveAttribute('aria-expanded', 'false')
     expect(screen.queryByText('pot-binding')).not.toBeInTheDocument()
   })
 
@@ -451,12 +474,12 @@ describe('PatternList', () => {
     render(<PatternList />)
     await switchToMaps(user)
 
-    expect(screen.getByRole('button', { name: 'Stock Maps' })).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByRole('button', { name: 'Built-in Maps' })).toHaveAttribute('aria-expanded', 'true')
     expect(screen.getByText('Cube shell')).toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: 'Stock Maps' }))
+    await user.click(screen.getByRole('button', { name: 'Built-in Maps' }))
 
-    expect(screen.getByRole('button', { name: 'Stock Maps' })).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.getByRole('button', { name: 'Built-in Maps' })).toHaveAttribute('aria-expanded', 'false')
     expect(screen.queryByText('Cube shell')).not.toBeInTheDocument()
   })
 
@@ -511,7 +534,7 @@ describe('PatternList', () => {
     const user = userEvent.setup()
     render(<PatternList />)
     await switchToMaps(user)
-    await user.click(screen.getByRole('radio', { name: '1D' }))
+    await selectDimension(user, '1D')
 
     expect(screen.getByText('Cylinder')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Cylinder Surface 2D' })).not.toBeInTheDocument()
@@ -526,9 +549,10 @@ describe('PatternList', () => {
     await switchToMaps(user)
     expect(await screen.findByText('My Tree')).toBeInTheDocument()
 
-    expect(screen.getByRole('radio', { name: '1D' })).toBeInTheDocument()
-    expect(screen.getByRole('radio', { name: '2D' })).toBeInTheDocument()
-    expect(screen.getByRole('radio', { name: '3D' })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Dimension filter' }))
+    expect(screen.getByRole('option', { name: '1D' })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: '2D' })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: '3D' })).toBeInTheDocument()
   })
 
   it('preserves the 1D dimension lens when entering Maps mode', async () => {
@@ -536,12 +560,12 @@ describe('PatternList', () => {
     const user = userEvent.setup()
     render(<PatternList />)
 
-    await user.click(screen.getByRole('radio', { name: '1D' }))
-    expect(screen.getByRole('radio', { name: '1D' })).toHaveAttribute('aria-checked', 'true')
+    await selectDimension(user, '1D')
+    expect(screen.getByRole('button', { name: 'Dimension filter' })).toHaveTextContent('1D')
 
     await switchToMaps(user)
 
-    expect(screen.getByRole('radio', { name: '1D' })).toHaveAttribute('aria-checked', 'true')
+    expect(screen.getByRole('button', { name: 'Dimension filter' })).toHaveTextContent('1D')
   })
 
   it('filters the Maps rail to true 1D maps', async () => {
@@ -559,7 +583,7 @@ describe('PatternList', () => {
     const user = userEvent.setup()
     render(<PatternList />)
 
-    await user.click(screen.getByRole('radio', { name: '1D' }))
+    await selectDimension(user, '1D')
     await switchToMaps(user)
 
     expect(await screen.findByText('Reverse strand')).toBeInTheDocument()
@@ -605,11 +629,11 @@ describe('PatternList', () => {
 
     // Query matches but lens (2D) does not -> hidden.
     await user.type(screen.getByRole('textbox', { name: /search by name/i }), 'tree')
-    await user.click(screen.getByRole('radio', { name: '2D' }))
+    await selectDimension(user, '2D')
     expect(screen.queryByText('My Tree')).not.toBeInTheDocument()
 
     // Both match -> visible.
-    await user.click(screen.getByRole('radio', { name: '3D' }))
+    await selectDimension(user, '3D')
     expect(screen.getByText('My Tree')).toBeInTheDocument()
   })
 
@@ -686,10 +710,10 @@ describe('PatternList', () => {
     await switchToMaps(user)
     expect(await screen.findByText('My Tree')).toBeInTheDocument()
 
-    await user.click(screen.getByRole('radio', { name: '2D' }))
+    await selectDimension(user, '2D')
     expect(screen.queryByText('My Tree')).not.toBeInTheDocument()
 
-    await user.click(screen.getByRole('radio', { name: '3D' }))
+    await selectDimension(user, '3D')
     expect(screen.getByText('My Tree')).toBeInTheDocument()
   })
 

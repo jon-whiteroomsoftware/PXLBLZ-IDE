@@ -65,7 +65,7 @@ export function MixinsRailSection({
           </RailEmptyState>
         ) : userMixins.length === 0 ? (
           <RailEmptyState>
-            No cloud mixins yet
+            No mixins yet
           </RailEmptyState>
         ) : (
           <ul className="pt-2">
@@ -85,7 +85,7 @@ export function MixinsRailSection({
           </ul>
         )}
         <StockSectionHeader
-          label="Stock Mixins"
+          label="Built-in Mixins"
           open={showStockMixins}
           onToggle={onToggleStockMixins}
         />

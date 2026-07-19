@@ -353,6 +353,11 @@ describe('routing (#308)', () => {
     fireEvent.keyDown(input, { code: 'Space', key: ' ' })
     expect(usePreviewStore.getState().isRunning).toBe(false)
     input.remove()
+
+    const treeItem = screen.getAllByRole('treeitem').find((item) => item.textContent?.includes('TestPattern1D'))
+    expect(treeItem).toBeDefined()
+    fireEvent.keyDown(treeItem!, { code: 'Space', key: ' ' })
+    expect(usePreviewStore.getState().isRunning).toBe(true)
   })
 
   it('toggles a Show preview only once when shared and Show shortcuts are mounted', () => {

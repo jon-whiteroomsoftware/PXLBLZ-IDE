@@ -1,10 +1,9 @@
-import { useEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEvent } from 'react'
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState, type DragEvent, type KeyboardEvent } from 'react'
 import {
   ChevronDown,
   ChevronRight,
   FileCode2,
   Folder,
-  FolderPlus,
   MoreHorizontal,
   RotateCcw,
   Trash2,
@@ -40,20 +39,11 @@ interface DropTarget {
   placement: EntityOrganizationDropPlacement
 }
 
-export function EntityOrganizationTree({
-  organization,
-  items,
-  activeEntityId,
-  query,
-  noun,
-  editable = true,
-  sectionLabel = editable ? 'Personal' : 'Built-in',
-  showSectionHeader = true,
-  emptyMessage,
-  onSelect,
-  onRenameEntity,
-  onOrganizationChange,
-}: {
+export interface EntityOrganizationTreeHandle {
+  createFolder: () => void
+}
+
+interface EntityOrganizationTreeProps {
   organization: EntityOrganizationV1
   items: readonly EntityOrganizationTreeItem[]
   activeEntityId: string | null
@@ -61,12 +51,25 @@ export function EntityOrganizationTree({
   noun: 'pattern' | 'show'
   editable?: boolean
   sectionLabel?: string
-  showSectionHeader?: boolean
   emptyMessage?: string
   onSelect: (entityId: string) => void
   onRenameEntity: (entityId: string, name: string) => void
   onOrganizationChange: (organization: EntityOrganizationV1) => void
-}) {
+}
+
+export const EntityOrganizationTree = forwardRef<EntityOrganizationTreeHandle, EntityOrganizationTreeProps>(function EntityOrganizationTree({
+  organization,
+  items,
+  activeEntityId,
+  query,
+  noun,
+  editable = true,
+  sectionLabel,
+  emptyMessage,
+  onSelect,
+  onRenameEntity,
+  onOrganizationChange,
+}, ref) {
   const [editingKey, setEditingKey] = useState<EntityOrganizationNodeKey | null>(null)
   const [menuKey, setMenuKey] = useState<EntityOrganizationNodeKey | null>(null)
   const [draggedKey, setDraggedKey] = useState<EntityOrganizationNodeKey | null>(null)
@@ -76,6 +79,7 @@ export function EntityOrganizationTree({
   const treeRef = useRef<HTMLUListElement>(null)
   const itemsById = useMemo(() => new Map(items.map((item) => [item.id, item])), [items])
   const trimmedQuery = query.trim()
+  const treeLabel = sectionLabel ?? `${editable ? '' : 'Built-in '}${noun[0].toUpperCase()}${noun.slice(1)}s`
 
   useEffect(() => {
     if (!menuKey) return
@@ -99,6 +103,8 @@ export function EntityOrganizationTree({
     setEditingKey(`folder:${id}`)
   }
 
+  useImperativeHandle(ref, () => ({ createFolder }))
+
   function rename(key: EntityOrganizationNodeKey, name: string) {
     if (key.startsWith('folder:')) change(renameEntityOrganizationFolder(organization, key.slice(7), name))
     else onRenameEntity(key.slice(7), name)
@@ -120,32 +126,12 @@ export function EntityOrganizationTree({
     clearDrag()
   }
 
-  const sectionHeader = (
-    <div className="mt-1.5 flex min-h-[24px] items-center gap-1 border-y border-zinc-700/80 bg-zinc-900/35 px-2 pb-1 pt-1.5 text-[11px] font-bold uppercase tracking-[0.08em] text-zinc-300">
-      <ChevronDown size={12} aria-hidden />
-      <span className="min-w-0 flex-1 truncate">{sectionLabel}</span>
-      <span className="text-[9px] font-normal text-zinc-600">{countEntities(organization.nodes)}</span>
-      {editable && (
-        <button
-          type="button"
-          onClick={createFolder}
-          className="grid size-5 place-items-center text-zinc-500 hover:text-live focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-live"
-          aria-label={`New ${noun} folder`}
-          title="New folder"
-        >
-          <FolderPlus size={12} />
-        </button>
-      )}
-    </div>
-  )
-
   if (trimmedQuery) {
     const namesByEntityId = Object.fromEntries(items.map((item) => [item.id, item.name]))
     const results = searchEntityOrganization(organization, namesByEntityId, trimmedQuery)
     return (
       <>
-        {showSectionHeader && sectionHeader}
-        <ul role="tree" aria-label={`${sectionLabel} ${noun}s`} className="py-1">
+        <ul role="tree" aria-label={treeLabel} className="py-1">
           {results.map((result) => (
             <SearchResultRow
               key={result.entityId}
@@ -163,10 +149,9 @@ export function EntityOrganizationTree({
   if (trashOpen) {
     return (
       <>
-        {showSectionHeader && sectionHeader}
         <div className="border-b border-zinc-800 px-2 py-1.5">
           <button type="button" onClick={() => setTrashOpen(false)} className="flex items-center gap-1 text-[10px] text-zinc-500 hover:text-zinc-200">
-            <ChevronRight size={11} className="rotate-180" /> Back to {sectionLabel}
+            <ChevronRight size={11} className="rotate-180" /> Back to {treeLabel}
           </button>
         </div>
         <div className="py-1">
@@ -197,14 +182,13 @@ export function EntityOrganizationTree({
 
   return (
     <>
-      {showSectionHeader && sectionHeader}
       {organization.nodes.length === 0 && emptyMessage && (
         <p className={`px-3 py-2 italic text-zinc-400 ${IDE_MICROTYPE.entity.sizeClassName}`}>{emptyMessage}</p>
       )}
       <ul
         ref={treeRef}
         role="tree"
-        aria-label={`${sectionLabel} ${noun}s`}
+        aria-label={treeLabel}
         className="py-1"
         onDragLeave={(event) => {
           const related = event.relatedTarget
@@ -255,6 +239,7 @@ export function EntityOrganizationTree({
           organization={organization}
           nodeKey={moveKey}
           nodeName={nodeNameByKey(organization.nodes, moveKey, itemsById)}
+          rootLabel={treeLabel}
           onClose={() => setMoveKey(null)}
           onMove={(folderId) => {
             change(moveEntityOrganizationNodeToContainer(organization, moveKey, folderId))
@@ -264,7 +249,7 @@ export function EntityOrganizationTree({
       )}
     </>
   )
-}
+})
 
 function OrganizationTreeNode(props: {
   node: EntityOrganizationNode
@@ -322,7 +307,7 @@ function OrganizationTreeNode(props: {
     } else if (folder && event.key === 'ArrowLeft' && !collapsed) {
       event.preventDefault()
       toggleFolder(true)
-    } else if (event.key === 'Enter' || event.key === ' ') {
+    } else if (event.key === 'Enter') {
       event.preventDefault()
       if (folder) toggleFolder()
       else props.onSelect(item!.id)
@@ -336,6 +321,7 @@ function OrganizationTreeNode(props: {
         aria-expanded={folder ? !collapsed : undefined}
         aria-selected={item ? active : undefined}
         data-node-key={key}
+        data-studio-space-preview="true"
         tabIndex={0}
         draggable={props.editable}
         onKeyDown={handleKeyDown}
@@ -465,7 +451,7 @@ function RowActionMenu(props: { onRename: () => void; onMoveUp: () => void; onMo
   )
 }
 
-function MoveDialog({ organization, nodeKey, nodeName: name, onClose, onMove }: { organization: EntityOrganizationV1; nodeKey: EntityOrganizationNodeKey; nodeName: string; onClose: () => void; onMove: (folderId: string | null) => void }) {
+function MoveDialog({ organization, nodeKey, nodeName: name, rootLabel, onClose, onMove }: { organization: EntityOrganizationV1; nodeKey: EntityOrganizationNodeKey; nodeName: string; rootLabel: string; onClose: () => void; onMove: (folderId: string | null) => void }) {
   const folders = collectFolderOptions(organization.nodes, nodeKey)
   const [folderId, setFolderId] = useState<string | null>(null)
   return (
@@ -477,7 +463,7 @@ function MoveDialog({ organization, nodeKey, nodeName: name, onClose, onMove }: 
           <button type="button" onClick={onClose} className="grid size-6 place-items-center text-zinc-500 hover:text-zinc-200" aria-label="Close"><X size={13} /></button>
         </header>
         <div className="max-h-72 overflow-auto p-2">
-          <MoveDestination label="Personal" depth={0} selected={folderId === null} onSelect={() => setFolderId(null)} />
+          <MoveDestination label={rootLabel} depth={0} selected={folderId === null} onSelect={() => setFolderId(null)} />
           {folders.map((folder) => <MoveDestination key={folder.id} label={folder.name} depth={folder.depth + 1} selected={folderId === folder.id} onSelect={() => setFolderId(folder.id)} />)}
         </div>
         <footer className="flex justify-end gap-2 border-t border-zinc-800 px-3 py-2">
