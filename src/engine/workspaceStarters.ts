@@ -65,9 +65,10 @@ export const STARTER_MIXIN: Omit<MixinRecord, 'updatedAt'> = {
   src: `// Mixin: Start Here
 // Built with PXLBLZ-IDE ${PXLBLZ_URL}
 //
-// Mixins are PXLBLZ compile-time transforms, not objects in Pixelblaze itself. Apply one
-// to a Pattern to add behavior without copying code. This bind example sends a configured
-// VALUE to a configured CONTROL once per frame.
+// Mixins are small reusable code files you can include with a Pattern to add behavior
+// without changing the Pattern itself. A common use is binding an analog hardware input
+// to a Pattern control; Mixins can also add new functionality such as power management.
+// This example sends a configured VALUE to a configured CONTROL once per frame.
 // @param VALUE binding-supplied value
 // @target CONTROL
 // @wraps beforeRender
