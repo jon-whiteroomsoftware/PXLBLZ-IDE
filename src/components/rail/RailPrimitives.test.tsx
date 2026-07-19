@@ -1,7 +1,15 @@
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { vi } from 'vitest'
-import { EditableListItem, HeaderMenu, RailFilterBar, StockListItem } from './RailPrimitives'
+import {
+  EditableListItem,
+  HeaderMenu,
+  RailEmptyRow,
+  RailEntityHeader,
+  RailFilterBar,
+  StockListItem,
+  StockSectionHeader,
+} from './RailPrimitives'
 
 function renderEditableListItem({
   name = 'Lib1',
@@ -12,7 +20,7 @@ function renderEditableListItem({
   noun?: Parameters<typeof EditableListItem>[0]['noun']
   onRename?: (name: string) => void
 } = {}) {
-  render(
+  const rendered = render(
     <ul>
       <EditableListItem
         name={name}
@@ -25,7 +33,7 @@ function renderEditableListItem({
       />
     </ul>,
   )
-  return { onRename }
+  return { onRename, ...rendered }
 }
 
 describe('EditableListItem', () => {
@@ -55,25 +63,38 @@ describe('EditableListItem', () => {
 
     expect(input).toHaveValue('Bad Name-1')
   })
+
+  it.each([
+    ['pattern', 'lucide-file-code-corner'],
+    ['show', 'lucide-panels-top-left'],
+    ['map', 'lucide-map'],
+    ['controller', 'lucide-cpu'],
+    ['mixin', 'lucide-braces'],
+    ['library', 'lucide-book-open'],
+  ] as const)('gives %s rows their entity icon', (noun, iconClass) => {
+    const { container } = renderEditableListItem({ noun })
+    expect(container.querySelector(`.${iconClass}`)).toBeInTheDocument()
+  })
 })
 
 describe('StockListItem', () => {
   it('opens from the keyboard', async () => {
     const user = userEvent.setup()
     const onSelect = vi.fn()
-    render(<ul><StockListItem name="Square" active={false} onSelect={onSelect} /></ul>)
+    render(<ul><StockListItem name="Square" noun="map" active={false} onSelect={onSelect} /></ul>)
     screen.getByRole('button', { name: 'Square' }).focus()
     await user.keyboard('{Enter}')
     expect(onSelect).toHaveBeenCalledOnce()
   })
 
   it('uses the shared legible entity and fact hierarchy', () => {
-    render(<ul><StockListItem name="Square" active={false} meta="2D" onSelect={vi.fn()} /></ul>)
+    const { container } = render(<ul><StockListItem name="Square" noun="map" active={false} meta="2D" onSelect={vi.fn()} /></ul>)
     const row = screen.getByRole('button', { name: 'Square' })
     expect(row).toHaveClass('min-h-[20px]', 'text-[12px]', 'leading-[15px]', 'text-zinc-400')
     expect(screen.getByText('Square')).toHaveClass('line-clamp-2')
     expect(screen.getByText('Square')).toHaveAttribute('title', 'Square')
     expect(screen.getByText('2D')).toHaveClass('text-[9px]', 'text-zinc-400')
+    expect(container.querySelector('.lucide-map')).toBeInTheDocument()
   })
 
   it('caps long entity names at two readable lines', () => {
@@ -81,6 +102,7 @@ describe('StockListItem', () => {
       <ul>
         <StockListItem
           name="A deliberately long Pattern name that needs another line"
+          noun="pattern"
           active={false}
           meta="2D"
           onSelect={vi.fn()}
@@ -92,6 +114,39 @@ describe('StockListItem', () => {
       'line-clamp-2',
       'break-words',
     )
+  })
+})
+
+describe('rail header alignment', () => {
+  it('keeps Collapse leading and the action menu trailing', () => {
+    render(
+      <RailEntityHeader
+        title="Shows"
+        onCollapse={vi.fn()}
+        action={<button type="button">Actions</button>}
+      />,
+    )
+
+    const collapse = screen.getByRole('button', { name: 'Collapse rail' })
+    const heading = screen.getByRole('heading', { name: 'Shows' })
+    const actions = screen.getByRole('button', { name: 'Actions' })
+    expect(collapse.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0)
+    expect(heading.compareDocumentPosition(actions) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0)
+  })
+
+  it('aligns built-in disclosure labels with entity-tree rows', () => {
+    render(<StockSectionHeader label="Built-in Shows" open onToggle={vi.fn()} />)
+    expect(screen.getByRole('button', { name: 'Built-in Shows' })).toHaveClass('px-[6px]', 'text-[12px]')
+  })
+})
+
+describe('RailEmptyRow', () => {
+  it('uses normal row rhythm and aligns its null mark with entity titles', () => {
+    const { container } = render(<RailEmptyRow label="No mixins yet" noun="mixin" />)
+    const empty = screen.getByLabelText('No mixins yet')
+    expect(empty).toHaveClass('min-h-[20px]', 'px-[6px]', 'text-[12px]', 'leading-[15px]')
+    expect(empty).toHaveTextContent('—')
+    expect(container.querySelector('.lucide-braces')).toHaveAttribute('stroke-dasharray', '2 2')
   })
 })
 
@@ -111,8 +166,9 @@ describe('RailFilterBar', () => {
     expect(selector).toHaveTextContent('All')
     expect(search.compareDocumentPosition(selector) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0)
     const searchInput = screen.getByRole('textbox', { name: 'Search by name' })
-    expect(searchInput.parentElement).toHaveClass('absolute', 'right-full')
-    expect(searchInput).toHaveClass('bg-zinc-900', 'border-zinc-700')
+    expect(searchInput.parentElement).toHaveClass('absolute', 'right-0', 'w-28')
+    expect(searchInput).toHaveClass('bg-zinc-900', 'border-zinc-700', 'pr-5')
+    expect(search).toHaveClass('relative', 'z-40')
   })
 
   it('opens a dark listbox and changes the active dimension', async () => {

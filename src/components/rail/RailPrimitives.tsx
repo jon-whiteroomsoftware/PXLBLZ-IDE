@@ -1,6 +1,20 @@
 import { useEffect, useRef, useState, type RefObject } from 'react'
 import type React from 'react'
-import { ChevronDown, Menu, PanelLeftClose, Pencil, Search, Trash2, X } from 'lucide-react'
+import {
+  BookOpen,
+  Braces,
+  ChevronDown,
+  Cpu,
+  FileCode2,
+  Map as MapIcon,
+  Menu,
+  PanelLeftClose,
+  PanelsTopLeft,
+  Pencil,
+  Search,
+  Trash2,
+  X,
+} from 'lucide-react'
 import { nameConflicts } from '@/engine/patternName'
 import { sanitizeLibraryNameInput } from '@/engine/libraries'
 import type { DimLens } from '@/engine/dimLens'
@@ -129,21 +143,21 @@ export function RailEntityHeader({
   const compact = children === undefined || children === null
   return (
     <div className={compact
-      ? 'flex h-[calc(1.75rem+1px)] shrink-0 items-center border-b border-seam px-3'
-      : 'border-b border-seam px-3 py-2'}
+      ? 'flex h-[calc(1.75rem+1px)] shrink-0 items-center border-b border-seam px-[6px]'
+      : 'border-b border-seam px-[6px] py-2'}
     >
-      <div className="flex min-h-5 w-full items-center gap-2">
+      <div className="flex min-h-5 w-full items-center gap-1">
+        {onCollapse && (
+          <HeaderAction
+            icon={<PanelLeftClose size={14} />}
+            title="Collapse rail"
+            onClick={onCollapse}
+          />
+        )}
         <h2 className={`flex-1 truncate font-normal ${IDE_MICROTYPE.header.className}`}>{title}</h2>
-        {(action || onCollapse) && (
+        {action && (
           <div className="flex min-w-0 items-center gap-1.5">
             {action}
-            {onCollapse && (
-              <HeaderAction
-                icon={<PanelLeftClose size={14} />}
-                title="Collapse library"
-                onClick={onCollapse}
-              />
-            )}
           </div>
         )}
       </div>
@@ -152,11 +166,26 @@ export function RailEntityHeader({
   )
 }
 
-const ROW_PAD = '12px'
+const ROW_PAD = '6px'
+
+export type EntityNoun = 'pattern' | 'show' | 'map' | 'controller' | 'mixin' | 'library'
+
+export function EntityIcon({ noun, ghost = false }: { noun: EntityNoun; ghost?: boolean }) {
+  const className = `mt-[1px] shrink-0 ${ghost ? 'text-zinc-700' : 'text-zinc-600'}`
+  const props = { size: 12, 'aria-hidden': true as const, className, ...(ghost ? { strokeDasharray: '2 2' } : {}) }
+  switch (noun) {
+    case 'pattern': return <FileCode2 {...props} />
+    case 'show': return <PanelsTopLeft {...props} />
+    case 'map': return <MapIcon {...props} />
+    case 'controller': return <Cpu {...props} />
+    case 'mixin': return <Braces {...props} />
+    case 'library': return <BookOpen {...props} />
+  }
+}
 
 const rowClass = (active: boolean) =>
   [
-    `group relative flex min-h-[20px] items-start gap-1.5 py-px pr-3 cursor-pointer select-none outline-none focus-visible:ring-1 focus-visible:ring-live/70 focus-visible:ring-inset ${IDE_MICROTYPE.entity.sizeClassName}`,
+    `group relative flex min-h-[20px] items-start gap-1 py-px pr-3 cursor-pointer select-none outline-none focus-visible:ring-1 focus-visible:ring-live/70 focus-visible:ring-inset ${IDE_MICROTYPE.entity.sizeClassName}`,
     active ? 'text-live bg-live/5' : 'text-zinc-400 hover:text-zinc-300 hover:bg-zinc-800/60',
   ].join(' ')
 
@@ -230,7 +259,7 @@ export function RailFilterBar({
       >
         <div
           className={[
-            'absolute right-full z-30 mr-1 w-28 transition-opacity duration-150',
+            'absolute right-0 z-30 w-28 transition-opacity duration-150',
             expanded ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0',
           ].join(' ')}
         >
@@ -244,7 +273,7 @@ export function RailFilterBar({
             placeholder="Search by name"
             aria-label="Search by name"
             tabIndex={expanded ? 0 : -1}
-            className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-0.5 text-[11px] text-zinc-200 shadow-md shadow-black/50 outline-none placeholder:text-zinc-500 focus:border-zinc-600 focus:ring-1 focus:ring-zinc-600"
+            className="w-full rounded border border-zinc-700 bg-zinc-900 py-0.5 pl-2 pr-5 text-[11px] text-zinc-200 shadow-md shadow-black/50 outline-none placeholder:text-zinc-500 focus:border-zinc-600 focus:ring-1 focus:ring-zinc-600"
           />
         </div>
         <button
@@ -253,7 +282,7 @@ export function RailFilterBar({
           title={committedOpen ? 'Close search' : 'Search by name'}
           aria-label={committedOpen ? 'Close search' : 'Search by name'}
           className={[
-            'shrink-0 transition-colors',
+            'relative z-40 shrink-0 transition-colors',
             expanded ? 'text-zinc-300 hover:text-live' : 'text-zinc-500 hover:text-zinc-300',
           ].join(' ')}
         >
@@ -293,7 +322,7 @@ export function EditableListItem({
   onRowKeyDown,
 }: {
   name: string
-  noun: 'pattern' | 'map' | 'mixin' | 'controller' | 'show' | 'library'
+  noun: EntityNoun
   active: boolean
   dim?: string
   badge?: string
@@ -379,6 +408,7 @@ export function EditableListItem({
         className={rowClass(active)}
       >
         {active && <ActiveBar />}
+        <EntityIcon noun={noun} />
         {editing ? (
           <input
             ref={inputRef}
@@ -452,11 +482,13 @@ export function EditableListItem({
 
 export function StockListItem({
   name,
+  noun,
   active,
   meta,
   onSelect,
 }: {
   name: string
+  noun: EntityNoun
   active: boolean
   meta?: string
   onSelect: () => void
@@ -476,6 +508,7 @@ export function StockListItem({
       className={rowClass(active)}
     >
       {active && <ActiveBar />}
+      <EntityIcon noun={noun} />
       <span className="line-clamp-2 min-w-0 flex-1 break-words" title={name}>{name}</span>
       {meta && <DimPill dim={meta} />}
     </li>
@@ -496,8 +529,7 @@ export function StockSectionHeader({
       type="button"
       aria-expanded={open}
       onClick={onToggle}
-      style={{ letterSpacing: '0.04em' }}
-      className="mt-2 flex w-full items-center gap-1 border-y border-zinc-700/70 px-3 pb-1 pt-2.5 text-left font-mono text-[11px] font-semibold uppercase text-zinc-400 transition-colors hover:bg-zinc-900/45 hover:text-zinc-200"
+      className={`mt-2 flex min-h-6 w-full items-center gap-1 border-y border-zinc-700/70 px-[6px] py-1 text-left transition-colors hover:bg-zinc-900/45 hover:text-zinc-200 ${IDE_MICROTYPE.entity.className}`}
     >
       <ChevronDown
         size={12}
@@ -516,6 +548,19 @@ export function RailEmptyState({ children, roomy = false }: {
   return (
     <p className={`select-none px-3 italic ${roomy ? 'py-2' : 'py-1'} ${IDE_MICROTYPE.entity.className}`}>
       {children}
+    </p>
+  )
+}
+
+export function RailEmptyRow({ label, noun }: { label: string; noun: EntityNoun }) {
+  return (
+    <p
+      aria-label={label}
+      title={label}
+      className={`my-1 flex min-h-[20px] select-none items-center gap-1 px-[6px] py-px text-zinc-600 ${IDE_MICROTYPE.entity.sizeClassName}`}
+    >
+      <EntityIcon noun={noun} ghost />
+      <span aria-hidden>&mdash;</span>
     </p>
   )
 }

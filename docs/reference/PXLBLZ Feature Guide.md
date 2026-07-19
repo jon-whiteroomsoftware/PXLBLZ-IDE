@@ -68,11 +68,11 @@ kinds:
 | Rail mode | What opens |
 |---|---|
 | Patterns | Editable personal Patterns and read-only built-ins |
+| Shows | Timeline-based multi-Pattern choreography |
 | Maps | Editable custom maps, frozen imports, and read-only stock maps |
+| Controllers | Durable profiles for physical Controllers |
 | Mixins | Reusable pass-engine transformation source |
 | Libraries | Reusable Pattern functions and shared state |
-| Controllers | Durable profiles for physical Controllers |
-| Shows | Timeline-based multi-Pattern choreography |
 
 The top-bar **Gallery** link returns to the Gallery. Switching rail modes
 remembers the last open item for each mode during the session. **Collapse
@@ -82,19 +82,21 @@ collapsed strip exposes **Expand library**. This state is shared across Studio
 modes; switching from Shows to Patterns does not reopen it.
 
 Patterns and Maps have a compact dimension selector; Patterns, Maps, and Shows
-have name search. Every rail uses one primary title row. Pattern and Show
-creation, folder creation, and Pattern import live in that row's action menu;
-owned content begins directly beneath it without a second Personal header.
-Pattern and Show rows form compact trees above a collapsible Built-in group.
-Drag whole rows to reorder or nest them, or use the row menu for rename, Move
-up/down, **Move to...**, and **Move to Trash**. Trash is recoverable: restore
-returns a node or complete folder subtree to its prior location. Built-in
-folders are curated and read-only. Search includes collapsed branches and
-folder names, then shows each matching entity with its path.
+have name search. Every rail uses one primary title row. Creation, import, and
+folder commands appropriate to that entity kind live in the title row's action
+menu, and owned content begins directly beneath it without a second Personal
+header.
 
-Mixins and Libraries retain the owned-first, Built-in-second flat-list pattern
-without dimension filtering. Controller profiles come only from observed
-hardware, so there is no blank **New Controller** button.
+All six personal entity kinds use compact recursive trees with exact manual
+order. Drag whole rows to reorder or nest them, or use the row menu for rename,
+Move up/down, **Move to...**, and **Move to Trash**. Search traverses collapsed
+branches and, where tree search is exposed, shows each matching entity with its
+folder path. A Trash row appears only after something is moved there, reports
+its item count, and supports restoring a node or complete folder subtree.
+**Empty Trash** permanently deletes those resources and hides Trash again.
+Built-in folders use the same compact disclosure grammar but remain curated and
+read-only. Controller profiles come only from observed hardware, so there is no
+blank **New Controller** button.
 
 The Studio is a three-pane environment:
 
@@ -106,10 +108,12 @@ The Studio is a three-pane environment:
 The center-pane title is also the rename control for personal Patterns, maps,
 mixins, libraries, and Shows. Click the title, edit the name, and confirm with
 Return or the check button; Escape or the cancel button leaves the name
-unchanged. Library names remain Pixelblaze identifiers because the name is also
-the namespace. Built-in and stock content is read-only, and Controller profile
-names continue to mirror the physical Controller instead of being renamed in
-Studio.
+unchanged. Space controls Preview playback throughout Studio except while focus
+is in a text-entry surface such as this rename input or the code editor. Library
+entity names remain Pixelblaze identifiers because the name is also the
+namespace; folders in the Libraries tree may contain spaces like every other
+folder. Built-in and stock content is read-only, and Controller profile names
+continue to mirror the physical Controller instead of being renamed in Studio.
 
 PXLBLZ remains a single-document editor. Opening a map or library changes the
 editor context; it does not create a tab or silently apply that object to the

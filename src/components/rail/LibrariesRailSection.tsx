@@ -1,9 +1,8 @@
-import { Plus } from 'lucide-react'
-import type { RefObject } from 'react'
+import { useRef, type RefObject } from 'react'
+import type { EntityOrganizationV1 } from '@/engine/entityOrganization'
 import type { EditingLibrary, LibraryRecord } from '@/store/libraryStore'
 import {
-  EditableListItem,
-  HeaderAction,
+  HeaderMenu,
   RailEmptyState,
   RailEntityHeader,
   RailSectionScroller,
@@ -11,6 +10,7 @@ import {
   StockSectionHeader,
   type ScrollMetrics,
 } from '@/components/rail/RailPrimitives'
+import { EntityOrganizationTree, type EntityOrganizationTreeHandle } from '@/components/rail/EntityOrganizationTree'
 
 export function LibrariesRailSection({
   personalWorkspaceAuthenticated,
@@ -27,7 +27,9 @@ export function LibrariesRailSection({
   onOpenUserLibrary,
   onOpenStockLibrary,
   onRenameLibrary,
-  onDeleteLibrary,
+  personalOrganization,
+  onPersonalOrganizationChange,
+  onEmptyTrash,
   validateLibraryName,
   onCollapse,
 }: {
@@ -45,18 +47,27 @@ export function LibrariesRailSection({
   onOpenUserLibrary: (library: LibraryRecord) => void
   onOpenStockLibrary: (name: string) => void
   onRenameLibrary: (id: string, name: string) => void
-  onDeleteLibrary: (id: string) => void
+  personalOrganization: EntityOrganizationV1
+  onPersonalOrganizationChange: (organization: EntityOrganizationV1) => void
+  onEmptyTrash: (entityIds: string[]) => void | Promise<void>
   validateLibraryName: (name: string, currentId?: string) => string | null
   onCollapse?: () => void
 }) {
+  const personalTreeRef = useRef<EntityOrganizationTreeHandle>(null)
   return (
     <>
       <RailEntityHeader
         title="Libraries"
         onCollapse={onCollapse}
-        action={personalWorkspaceAuthenticated
-          ? <HeaderAction icon={<Plus size={14} />} title="New library" onClick={onCreateLibrary} />
-          : null}
+        action={personalWorkspaceAuthenticated ? (
+          <HeaderMenu
+            title="Library actions"
+            items={[
+              { label: 'New library', onSelect: onCreateLibrary },
+              { label: 'New folder', onSelect: () => personalTreeRef.current?.createFolder() },
+            ]}
+          />
+        ) : null}
       />
       <RailSectionScroller
         testId="library-list-scroll"
@@ -69,28 +80,26 @@ export function LibrariesRailSection({
             <a href="/api/auth/login" className="text-live hover:underline">Sign in</a>
             {' '}to save libraries
           </RailEmptyState>
-        ) : userLibraries.length === 0 ? (
-          <RailEmptyState>
-            No libraries yet
-          </RailEmptyState>
         ) : (
-          <ul className="pt-2">
-              {userLibraries.map((library) => (
-                <EditableListItem
-                  key={library.id}
-                  name={library.name}
-                  noun="library"
-                  active={editingLibrary?.kind === 'existing' && editingLibrary.id === library.id}
-                  takenNames={[]}
-                  validateName={(name) => validateLibraryName(name, library.id)}
-                  onSelect={() => onOpenUserLibrary(library)}
-                  onRename={(name) => onRenameLibrary(library.id, name)}
-                  onDelete={() => onDeleteLibrary(library.id)}
-                  deleteTitle="Delete library namespace?"
-                  deleteDescription={`"${library.name}" will be permanently deleted. Patterns that reference this namespace will fail compile with an unknown-namespace error until you update them.`}
-                />
-              ))}
-          </ul>
+          <EntityOrganizationTree
+            ref={personalTreeRef}
+            organization={personalOrganization}
+            items={userLibraries.map((library) => ({ id: library.id, name: library.name }))}
+            activeEntityId={editingLibrary?.kind === 'existing' ? editingLibrary.id : null}
+            query=""
+            noun="library"
+            sectionLabel="Libraries"
+            emptyMessage="No libraries yet"
+            onSelect={(id) => {
+              const library = userLibraries.find((candidate) => candidate.id === id)
+              if (library) onOpenUserLibrary(library)
+            }}
+            onRenameEntity={(id, name) => {
+              if (!validateLibraryName(name, id)) onRenameLibrary(id, name)
+            }}
+            onEmptyTrash={onEmptyTrash}
+            onOrganizationChange={onPersonalOrganizationChange}
+          />
         )}
         <StockSectionHeader
           label="Built-in Libraries"
@@ -103,6 +112,7 @@ export function LibrariesRailSection({
               <StockListItem
                 key={name}
                 name={name}
+                noun="library"
                 active={activeLibraryName === name}
                 onSelect={() => onOpenStockLibrary(name)}
               />

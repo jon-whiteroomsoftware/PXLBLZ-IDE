@@ -9,8 +9,8 @@ describe('ActivityStrip', () => {
 
     expect(screen.getAllByRole('radio').map((item) => item.getAttribute('aria-label'))).toEqual([
       'Patterns',
-      'Maps',
       'Shows',
+      'Maps',
       'Controllers',
       'Mixins',
       'Libraries',

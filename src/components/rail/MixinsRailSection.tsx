@@ -1,9 +1,8 @@
-import { Plus } from 'lucide-react'
-import type { RefObject } from 'react'
+import { useRef, type RefObject } from 'react'
+import type { EntityOrganizationV1 } from '@/engine/entityOrganization'
 import { STOCK_MIXIN_ITEMS, type EditingMixin, type MixinRecord } from '@/store/mixinStore'
 import {
-  EditableListItem,
-  HeaderAction,
+  HeaderMenu,
   RailEmptyState,
   RailEntityHeader,
   RailSectionScroller,
@@ -11,6 +10,7 @@ import {
   StockSectionHeader,
   type ScrollMetrics,
 } from '@/components/rail/RailPrimitives'
+import { EntityOrganizationTree, type EntityOrganizationTreeHandle } from '@/components/rail/EntityOrganizationTree'
 
 export function MixinsRailSection({
   personalWorkspaceAuthenticated,
@@ -25,7 +25,9 @@ export function MixinsRailSection({
   onOpenUserMixin,
   onOpenStockMixin,
   onRenameMixin,
-  onDeleteMixin,
+  personalOrganization,
+  onPersonalOrganizationChange,
+  onEmptyTrash,
   onCollapse,
 }: {
   personalWorkspaceAuthenticated: boolean
@@ -40,17 +42,26 @@ export function MixinsRailSection({
   onOpenUserMixin: (mixin: MixinRecord) => void
   onOpenStockMixin: (id: string) => void
   onRenameMixin: (id: string, name: string) => void
-  onDeleteMixin: (id: string) => void
+  personalOrganization: EntityOrganizationV1
+  onPersonalOrganizationChange: (organization: EntityOrganizationV1) => void
+  onEmptyTrash: (entityIds: string[]) => void | Promise<void>
   onCollapse?: () => void
 }) {
+  const personalTreeRef = useRef<EntityOrganizationTreeHandle>(null)
   return (
     <>
       <RailEntityHeader
         title="Mixins"
         onCollapse={onCollapse}
-        action={personalWorkspaceAuthenticated
-          ? <HeaderAction icon={<Plus size={14} />} title="New mixin" onClick={onCreateMixin} />
-          : null}
+        action={personalWorkspaceAuthenticated ? (
+          <HeaderMenu
+            title="Mixin actions"
+            items={[
+              { label: 'New mixin', onSelect: onCreateMixin },
+              { label: 'New folder', onSelect: () => personalTreeRef.current?.createFolder() },
+            ]}
+          />
+        ) : null}
       />
       <RailSectionScroller
         testId="mixin-list-scroll"
@@ -63,26 +74,24 @@ export function MixinsRailSection({
             <a href="/api/auth/login" className="text-live hover:underline">Sign in</a>
             {' '}to save mixins
           </RailEmptyState>
-        ) : userMixins.length === 0 ? (
-          <RailEmptyState>
-            No mixins yet
-          </RailEmptyState>
         ) : (
-          <ul className="pt-2">
-            {userMixins.map((mixin) => (
-              <EditableListItem
-                key={mixin.id}
-                name={mixin.name}
-                noun="mixin"
-                active={editingMixin?.kind === 'existing' && editingMixin.id === mixin.id}
-                dim={mixin.kind}
-                takenNames={userMixins.filter((m) => m.id !== mixin.id).map((m) => m.name)}
-                onSelect={() => onOpenUserMixin(mixin)}
-                onRename={(name) => onRenameMixin(mixin.id, name)}
-                onDelete={() => onDeleteMixin(mixin.id)}
-              />
-            ))}
-          </ul>
+          <EntityOrganizationTree
+            ref={personalTreeRef}
+            organization={personalOrganization}
+            items={userMixins.map((mixin) => ({ id: mixin.id, name: mixin.name, meta: mixin.kind }))}
+            activeEntityId={editingMixin?.kind === 'existing' ? editingMixin.id : null}
+            query=""
+            noun="mixin"
+            sectionLabel="Mixins"
+            emptyMessage="No mixins yet"
+            onSelect={(id) => {
+              const mixin = userMixins.find((candidate) => candidate.id === id)
+              if (mixin) onOpenUserMixin(mixin)
+            }}
+            onRenameEntity={onRenameMixin}
+            onEmptyTrash={onEmptyTrash}
+            onOrganizationChange={onPersonalOrganizationChange}
+          />
         )}
         <StockSectionHeader
           label="Built-in Mixins"
@@ -95,6 +104,7 @@ export function MixinsRailSection({
               <StockListItem
                 key={mixin.id}
                 name={mixin.name}
+                noun="mixin"
                 active={editingMixin?.kind === 'stock' && editingMixin.id === mixin.id}
                 meta={mixin.kind}
                 onSelect={() => onOpenStockMixin(mixin.id)}

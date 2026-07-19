@@ -82,6 +82,10 @@ const allowedSettingsKeys = new Set([
   'demoOverrides',
   'patternOrganization',
   'showOrganization',
+  'mapOrganization',
+  'controllerOrganization',
+  'mixinOrganization',
+  'libraryOrganization',
 ])
 const allowedControllerMetadataKeys = new Set([
   'controller-bindings',

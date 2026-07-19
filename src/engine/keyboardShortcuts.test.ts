@@ -43,6 +43,18 @@ describe('studioControlOwnsKeyboardEvent', () => {
     target.remove()
   })
 
+  it('keeps Space in a text input nested inside a preview-enabled entity row', () => {
+    const row = document.createElement('li')
+    row.setAttribute('data-studio-space-preview', 'true')
+    const input = document.createElement('input')
+    input.type = 'text'
+    row.append(input)
+    document.body.append(row)
+
+    expect(studioControlOwnsKeyboardEvent(input)).toBe(true)
+    row.remove()
+  })
+
   it('lets Preview own Space from a non-text input', () => {
     const target = document.createElement('input')
     target.type = 'range'

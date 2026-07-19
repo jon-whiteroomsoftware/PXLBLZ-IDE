@@ -2,20 +2,20 @@
 
 ## Decision
 
-Pattern and Show rails use compact recursive trees. Personal content supports folders, exact manual order, whole-row drag and drop, keyboard navigation, overflow actions, and recoverable Trash. Built-in content uses the same row grammar with a curated immutable hierarchy.
+All six Studio entity rails use compact recursive trees for personal content: Patterns, Shows, Maps, Controllers, Mixins, and Libraries. Personal content supports folders, exact manual order, whole-row drag and drop, keyboard navigation, overflow actions, and Trash. Built-in content, where present, uses the same row grammar with a curated immutable hierarchy.
 
 The tree stays continuous at every depth. It does not open a focus aperture, switch to a separate gallery, or apply automatic sorting. Names retain the central horizontal lane; each nested level costs 14 pixels and rows use one leading symbol: a disclosure chevron for folders or the existing entity icon for leaves.
 
-This is visual organization only. Pattern and Show records keep their existing IDs, URLs, names, source, references, compilation behavior, and Controller bindings.
+Organization is a sidecar over existing resource records. Resources keep their IDs, URLs, names, source, references, compilation behavior, and Controller bindings; permanent deletion remains an explicit Empty Trash operation against the underlying resource provider.
 
 ## User model
 
-Patterns and Shows each have two structurally separate regions:
+Each entity rail has a mutable Personal region and, where stock content exists, a structurally separate Built-in region:
 
 - **Personal** is mutable and starts directly beneath the main rail header without another labeled bar. Users create folders from the header action menu, rename them, reorder siblings, nest content, move nodes between folders, and move nodes to Trash.
-- **Built-in** is immutable. The IDE supplies useful folders, while selection and disclosure behave like the Personal tree.
+- **Built-in** is immutable. The IDE supplies useful folders, while selection and disclosure behave like the Personal tree. Controllers have no Built-in region.
 
-Patterns and Shows own independent organization documents. A folder contains one entity type; it cannot mix Patterns and Shows.
+Each entity kind owns an independent organization document. A folder contains one entity type; it cannot mix resources from different rails.
 
 Manual order is authoritative. Drag and drop changes that order directly. The overflow menu provides **Move up**, **Move down**, and **Move to...** for precision and non-drag access. Sorted views are deferred until there is evidence that they add more value than the simple model.
 
@@ -43,7 +43,7 @@ Search replaces each tree with flat matching entities and their folder paths. It
 
 Trash is an inert recovery area at the bottom of Personal content. Moving a folder moves its full subtree and preserves its original parent, position, and collapsed state. Restore returns the subtree to that exact location when the parent still exists.
 
-Trash changes organization only. It does not delete Pattern or Show records, which keeps the first slice fully recoverable. Permanent deletion can be designed separately if it becomes necessary.
+Moving to Trash changes organization only, so accidental removal remains recoverable. The Trash row stays hidden while empty, shows a count when populated, and restores complete subtrees. Empty Trash is the single permanent-deletion boundary: it deletes the referenced resources, then clears their Trash entries.
 
 ## Persistence
 
@@ -51,6 +51,10 @@ Organization is a versioned sidecar in the existing user-scoped settings store:
 
 - `patternOrganization`
 - `showOrganization`
+- `mapOrganization`
+- `controllerOrganization`
+- `mixinOrganization`
+- `libraryOrganization`
 
 Each document stores recursive nodes, Trash entries, and collapsed folder IDs. Entity nodes contain stable record IDs. Paths are derived from folder placement and never become identity.
 
@@ -74,12 +78,10 @@ Showcases
   Installations
 ```
 
-## Boundaries and follow-ups
+## Boundaries
 
-The tree accepts up to eight folder levels. The current implementation intentionally omits arbitrary-depth virtualization, undo, permanent deletion, automatic sort views, and cross-type folders. Those features require evidence from real catalogues rather than expanding the first slice speculatively.
-
-Maps, Mixins, and Libraries can adopt the same pure organization model later. Issue #426 ships the shared mechanism through Patterns and Shows, where catalogue size and user value are already clear.
+The tree accepts up to eight folder levels. The implementation intentionally omits arbitrary-depth virtualization, undo, automatic sort views, and cross-type folders. Those features require evidence from real catalogues rather than expanding this deliberately compact model speculatively.
 
 ## Verification
 
-The production slice is covered by pure model, store, provider, resource-protection, component, and PatternList integration tests. Browser verification covers the signed-in Personal catalogue, curated Built-in trees, folder-path search, ordinary desktop layout, a 760-pixel narrow viewport, and console errors. The drag regression has a focused test proving that leaving the tree clears every stale drop cue.
+The production slice is covered by pure model, store, provider, resource-protection, component, keyboard-shortcut, and PatternList integration tests. Browser verification covers the signed-in Personal catalogues, curated Built-in trees, folder-path search, creation and first-attempt rename with spaces, Trash restoration and permanent emptying, ordinary desktop layout, a 760-pixel narrow viewport, and console errors. Drag regressions prove that leaving the tree clears every stale drop cue and that the source row becomes a muted placeholder while moving.

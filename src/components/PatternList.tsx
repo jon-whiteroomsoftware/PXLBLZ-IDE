@@ -19,6 +19,7 @@ import {
 } from '@/engine/controllerMetadataStorage'
 import { getAuthSession } from '@/engine/authSession'
 import { newPersonalContentId } from '@/engine/personalContentMetadata'
+import { emptyEntityOrganizationTrash } from '@/engine/entityOrganization'
 import { useEditorStore } from '@/store/editorStore'
 import { usePatternStore, type PatternRecord } from '@/store/patternStore'
 import { useMapStore, STOCK_MAP_ITEMS, type MapRecord } from '@/store/mapStore'
@@ -72,6 +73,7 @@ export function PatternList({
   const setActivePattern = usePatternStore((s) => s.setActivePattern)
   const loadPatterns = usePatternStore((s) => s.loadPatterns)
   const renamePattern = usePatternStore((s) => s.renamePattern)
+  const removePattern = usePatternStore((s) => s.removePattern)
   const addPattern = usePatternStore((s) => s.addPattern)
 
   const userMaps = useMapStore((s) => s.userMaps)
@@ -103,16 +105,26 @@ export function PatternList({
   const controllerProfiles = useControllerProfileStore((s) => s.profiles)
   const loadControllerProfiles = useControllerProfileStore((s) => s.loadProfiles)
   const removeControllerProfile = useControllerProfileStore((s) => s.removeProfile)
+  const updateControllerProfile = useControllerProfileStore((s) => s.updateProfile)
   const userShows = useShowStore((s) => s.shows)
   const activeShowId = useShowStore((s) => s.activeShowId)
   const loadShows = useShowStore((s) => s.loadShows)
   const beginShowCreation = useShowStore((s) => s.beginShowCreation)
   const openShow = useShowStore((s) => s.openShow)
   const renameShow = useShowStore((s) => s.renameShow)
+  const removeShow = useShowStore((s) => s.removeShow)
   const patternOrganization = useEntityOrganizationStore((s) => s.organizations.patterns)
   const showOrganization = useEntityOrganizationStore((s) => s.organizations.shows)
+  const mapOrganization = useEntityOrganizationStore((s) => s.organizations.maps)
+  const controllerOrganization = useEntityOrganizationStore((s) => s.organizations.controllers)
+  const mixinOrganization = useEntityOrganizationStore((s) => s.organizations.mixins)
+  const libraryOrganization = useEntityOrganizationStore((s) => s.organizations.libraries)
   const patternOrganizationLoaded = useEntityOrganizationStore((s) => s.loaded.patterns)
   const showOrganizationLoaded = useEntityOrganizationStore((s) => s.loaded.shows)
+  const mapOrganizationLoaded = useEntityOrganizationStore((s) => s.loaded.maps)
+  const controllerOrganizationLoaded = useEntityOrganizationStore((s) => s.loaded.controllers)
+  const mixinOrganizationLoaded = useEntityOrganizationStore((s) => s.loaded.mixins)
+  const libraryOrganizationLoaded = useEntityOrganizationStore((s) => s.loaded.libraries)
   const loadOrganization = useEntityOrganizationStore((s) => s.loadOrganization)
   const mutateOrganization = useEntityOrganizationStore((s) => s.mutateOrganization)
   const liveControllers = useControllerStore((s) => s.controllers)
@@ -143,6 +155,10 @@ export function PatternList({
 
   const patternIdsKey = userPatterns.map((pattern) => pattern.id).join('\0')
   const showIdsKey = userShows.map((show) => show.id).join('\0')
+  const mapIdsKey = userMaps.map((map) => map.id).join('\0')
+  const controllerIdsKey = controllerProfiles.map((profile) => profile.id).join('\0')
+  const mixinIdsKey = userMixins.map((mixin) => mixin.id).join('\0')
+  const libraryIdsKey = userLibraries.map((library) => library.id).join('\0')
 
   useEffect(() => {
     if (!patternOrganizationLoaded) return
@@ -153,6 +169,26 @@ export function PatternList({
     if (!showOrganizationLoaded) return
     void mutateOrganization('shows', userShows.map((show) => show.id), (organization) => organization)
   }, [mutateOrganization, showIdsKey, showOrganizationLoaded, userShows])
+
+  useEffect(() => {
+    if (!mapOrganizationLoaded) return
+    void mutateOrganization('maps', userMaps.map((map) => map.id), (organization) => organization)
+  }, [mapIdsKey, mapOrganizationLoaded, mutateOrganization, userMaps])
+
+  useEffect(() => {
+    if (!controllerOrganizationLoaded) return
+    void mutateOrganization('controllers', controllerProfiles.map((profile) => profile.id), (organization) => organization)
+  }, [controllerIdsKey, controllerOrganizationLoaded, controllerProfiles, mutateOrganization])
+
+  useEffect(() => {
+    if (!mixinOrganizationLoaded) return
+    void mutateOrganization('mixins', userMixins.map((mixin) => mixin.id), (organization) => organization)
+  }, [mixinIdsKey, mixinOrganizationLoaded, mutateOrganization, userMixins])
+
+  useEffect(() => {
+    if (!libraryOrganizationLoaded) return
+    void mutateOrganization('libraries', userLibraries.map((library) => library.id), (organization) => organization)
+  }, [libraryIdsKey, libraryOrganizationLoaded, mutateOrganization, userLibraries])
 
   function showImportError(msg: string) {
     setImportError(msg)
@@ -421,6 +457,14 @@ export function PatternList({
       if (cancelled) return
       await loadOrganization('shows', useShowStore.getState().shows.map((show) => show.id))
       if (cancelled) return
+      await loadOrganization('maps', useMapStore.getState().userMaps.map((map) => map.id))
+      if (cancelled) return
+      await loadOrganization('controllers', useControllerProfileStore.getState().profiles.map((profile) => profile.id))
+      if (cancelled) return
+      await loadOrganization('mixins', useMixinStore.getState().userMixins.map((mixin) => mixin.id))
+      if (cancelled) return
+      await loadOrganization('libraries', useLibraryStore.getState().userLibraries.map((library) => library.id))
+      if (cancelled) return
       // A deep link to a concrete studio entity outranks the last-active restore
       // (#308): App's route effect opens the addressed pattern once loadPatterns
       // lands. Kind-only shell routes (/studio/maps, /studio/mixins, ...) still
@@ -643,6 +687,63 @@ export function PatternList({
     }
   }
 
+  async function handleRemovePatterns(patternIds: string[]) {
+    for (const patternId of patternIds) await removePattern(patternId)
+    await mutateOrganization(
+      'patterns',
+      usePatternStore.getState().userPatterns.map((pattern) => pattern.id),
+      emptyEntityOrganizationTrash,
+    )
+  }
+
+  async function handleRemoveShows(showIds: string[]) {
+    for (const showId of showIds) await removeShow(showId)
+    await mutateOrganization(
+      'shows',
+      useShowStore.getState().shows.map((show) => show.id),
+      emptyEntityOrganizationTrash,
+    )
+    if (route.kind === 'studio' && route.entity?.kind === 'shows' && showIds.includes(route.entity.id ?? '')) {
+      navigate({ kind: 'studio', entity: { kind: 'shows', id: null } })
+    }
+  }
+
+  async function handleRemoveControllerProfiles(profileIds: string[]) {
+    for (const profileId of profileIds) await handleRemoveControllerProfile(profileId)
+    await mutateOrganization(
+      'controllers',
+      useControllerProfileStore.getState().profiles.map((profile) => profile.id),
+      emptyEntityOrganizationTrash,
+    )
+  }
+
+  async function handleRemoveMaps(mapIds: string[]) {
+    for (const mapId of mapIds) await handleRemoveMap(mapId)
+    await mutateOrganization(
+      'maps',
+      useMapStore.getState().userMaps.map((map) => map.id),
+      emptyEntityOrganizationTrash,
+    )
+  }
+
+  async function handleRemoveMixins(mixinIds: string[]) {
+    for (const mixinId of mixinIds) await handleRemoveMixin(mixinId)
+    await mutateOrganization(
+      'mixins',
+      useMixinStore.getState().userMixins.map((mixin) => mixin.id),
+      emptyEntityOrganizationTrash,
+    )
+  }
+
+  async function handleRemoveLibraries(libraryIds: string[]) {
+    for (const libraryId of libraryIds) await handleRemoveLibrary(libraryId)
+    await mutateOrganization(
+      'libraries',
+      useLibraryStore.getState().userLibraries.map((library) => library.id),
+      emptyEntityOrganizationTrash,
+    )
+  }
+
   async function handleRemoveMap(mapId: string) {
     await removeMap(mapId)
     if (route.kind === 'studio' && route.entity?.kind === 'maps' && route.entity.id === mapId) {
@@ -722,6 +823,7 @@ export function PatternList({
             onOpenUserPattern={openUserPattern}
             onOpenStockPattern={openStockPatternRoute}
             onRenamePattern={renamePattern}
+            onEmptyTrash={handleRemovePatterns}
             personalOrganization={patternOrganization}
             onPersonalOrganizationChange={(organization) => void mutateOrganization(
               'patterns',
@@ -736,7 +838,6 @@ export function PatternList({
             personalWorkspaceAuthenticated={personalWorkspaceAuthenticated}
             dimLens={dimLens}
             query={query}
-            userMaps={userMaps}
             visibleMaps={visibleMaps}
             visibleStockMaps={visibleStockMaps}
             editingMap={editingMap}
@@ -751,7 +852,13 @@ export function PatternList({
             onOpenUserMap={openUserMap}
             onOpenStockMap={openStockMapRoute}
             onRenameMap={renameMap}
-            onDeleteMap={(mapId) => void handleRemoveMap(mapId)}
+            personalOrganization={mapOrganization}
+            onPersonalOrganizationChange={(organization) => void mutateOrganization(
+              'maps',
+              userMaps.map((map) => map.id),
+              () => organization,
+            )}
+            onEmptyTrash={handleRemoveMaps}
           />
         )}
         {railMode === 'libraries' && (
@@ -771,7 +878,13 @@ export function PatternList({
             onOpenUserLibrary={openUserLibrary}
             onOpenStockLibrary={openStockLibraryRoute}
             onRenameLibrary={(libraryId, name) => void handleRenameLibrary(libraryId, name)}
-            onDeleteLibrary={(libraryId) => void handleRemoveLibrary(libraryId)}
+            personalOrganization={libraryOrganization}
+            onPersonalOrganizationChange={(organization) => void mutateOrganization(
+              'libraries',
+              userLibraries.map((library) => library.id),
+              () => organization,
+            )}
+            onEmptyTrash={handleRemoveLibraries}
             validateLibraryName={validateLibraryNamespace}
           />
         )}
@@ -786,7 +899,14 @@ export function PatternList({
             onScroll={updateScrollMetrics}
             profileIsLive={(profile) => profileMatchesLive(profile, liveControllers)}
             onOpenControllerProfile={openControllerProfile}
-            onDeleteControllerProfile={(profileId) => void handleRemoveControllerProfile(profileId)}
+            onRenameControllerProfile={(profileId, name) => void updateControllerProfile(profileId, { name })}
+            personalOrganization={controllerOrganization}
+            onPersonalOrganizationChange={(organization) => void mutateOrganization(
+              'controllers',
+              controllerProfiles.map((profile) => profile.id),
+              () => organization,
+            )}
+            onEmptyTrash={handleRemoveControllerProfiles}
           />
         )}
         {railMode === 'mixins' && (
@@ -804,7 +924,13 @@ export function PatternList({
             onOpenUserMixin={openUserMixin}
             onOpenStockMixin={openStockMixinRoute}
             onRenameMixin={renameMixin}
-            onDeleteMixin={(mixinId) => void handleRemoveMixin(mixinId)}
+            personalOrganization={mixinOrganization}
+            onPersonalOrganizationChange={(organization) => void mutateOrganization(
+              'mixins',
+              userMixins.map((mixin) => mixin.id),
+              () => organization,
+            )}
+            onEmptyTrash={handleRemoveMixins}
           />
         )}
         {railMode === 'shows' && (
@@ -827,6 +953,7 @@ export function PatternList({
             onOpenStockShow={openStockShowRoute}
             onToggleStockShows={() => setShowStockShows((visible) => !visible)}
             onRenameShow={renameShow}
+            onEmptyTrash={handleRemoveShows}
             onQueryChange={setQuery}
             personalOrganization={showOrganization}
             onPersonalOrganizationChange={(organization) => void mutateOrganization(

@@ -162,14 +162,18 @@ alternate personal-content path. Local development uses Wrangler's D1 database
 behind the Vite `/api` proxy, so migrations must be applied locally as well as
 remotely.
 
-Pattern and Show organization uses two allowlisted Settings documents,
-`patternOrganization` and `showOrganization`. Each versioned sidecar stores a
-recursive manual order, Trash recovery metadata, and collapsed folder IDs while
-entity nodes contain only stable record IDs. Normalization migrates flat lists,
-removes stale or duplicate references, and appends newly created records at the
-root. `entityOrganizationStore` applies changes optimistically, serializes writes
-per entity type, and rolls back a failed latest write. Pattern and Show records,
-routes, references, and D1 entity tables remain unchanged.
+Personal entity organization uses six allowlisted Settings documents:
+`patternOrganization`, `showOrganization`, `mapOrganization`,
+`controllerOrganization`, `mixinOrganization`, and `libraryOrganization`. Each
+versioned sidecar stores a recursive manual order, Trash recovery metadata, and
+collapsed folder IDs while entity nodes contain only stable record IDs.
+Normalization migrates flat lists, removes stale or duplicate references, and
+appends newly created records at the root. `entityOrganizationStore` applies
+changes optimistically, serializes writes per entity type, and rolls back a
+failed latest write. Entity records, routes, references, and D1 entity tables
+remain unchanged. Moving a node to Trash changes only its organization sidecar;
+Empty Trash deletes the referenced resource records before atomically clearing
+their Trash entries.
 
 ## 4. Application state and editor modes
 
@@ -184,7 +188,7 @@ Major Zustand stores:
 | `mixinStore` | Personal and stock mixin editing state |
 | `libraryStore` | Personal and stock library editing state |
 | `showStore` | Personal Shows and persisted model mutations |
-| `entityOrganizationStore` | Durable Pattern/Show folder order, disclosure, and Trash |
+| `entityOrganizationStore` | Durable folder order, disclosure, and Trash for all six personal entity kinds |
 | `showTransportStore` | Ephemeral playhead, loop duration, seek request identity/status |
 | `editorStore` | Source, last clean preview source, validation, metadata, editor flavor |
 | `previewStore` | Playback, visual settings, telemetry, watched vars, zone solo |
@@ -1252,16 +1256,19 @@ Entity-mode changes never alter the flag, so Shows can borrow horizontal space
 without creating Show-only navigation behavior. Gallery navigation remains in
 the top bar; the activity strip does not duplicate it.
 
-Patterns and Shows render the pure recursive organization model through one
-continuous ARIA tree. Personal trees expose whole-row drag and drop plus menu
-commands; Built-in trees reuse disclosure and selection without mutation
-capabilities. Rows indent 14 pixels per level and preserve one leading symbol:
-a disclosure chevron for folders or the entity icon for leaves. Drop edges mean
-before/after and a folder center means inside. Drag cues clear when the drag
-ends or leaves the tree. Search traverses collapsed branches and returns flat
-name-plus-path results without changing disclosure state. The mutable tree begins
-directly under the single entity header; the header action menu reaches folder
-creation through the tree's narrow imperative UI handle. Built-in content keeps
+All six personal entity rails render the pure recursive organization model
+through one continuous ARIA tree. Personal trees expose whole-row drag and drop
+plus menu commands; Built-in trees, where present, reuse disclosure and
+selection without mutation capabilities. Rows indent 14 pixels per level and
+preserve one leading symbol: a disclosure chevron for folders or the entity
+icon for leaves. Drop edges mean before/after and a folder center means inside.
+The dragged source becomes a muted placeholder, and all drop cues clear when
+the drag ends or leaves the tree. Search traverses collapsed branches and
+returns flat name-plus-path results without changing disclosure state. The
+mutable tree begins directly under the single entity header; the header action
+menu reaches folder creation through the tree's narrow imperative UI handle.
+Trash stays absent while empty, restores complete subtrees, and exposes
+permanent deletion only through its Empty Trash action. Built-in content keeps
 its explicit provenance boundary.
 
 `ui/ideMicrotype.ts` records the application-wide dense-tool baseline against

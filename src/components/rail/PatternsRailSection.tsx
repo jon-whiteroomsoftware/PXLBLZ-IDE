@@ -37,6 +37,7 @@ export function PatternsRailSection({
   onOpenUserPattern,
   onOpenStockPattern,
   onRenamePattern,
+  onEmptyTrash,
   personalOrganization,
   onPersonalOrganizationChange,
   onCollapse,
@@ -62,6 +63,7 @@ export function PatternsRailSection({
   onOpenUserPattern: (pattern: PatternRecord) => void
   onOpenStockPattern: (name: string) => void
   onRenamePattern: (id: string, name: string) => void
+  onEmptyTrash: (entityIds: string[]) => void | Promise<void>
   personalOrganization: EntityOrganizationV1
   onPersonalOrganizationChange: (organization: EntityOrganizationV1) => void
   onCollapse?: () => void
@@ -123,6 +125,7 @@ export function PatternsRailSection({
                 if (pattern) onOpenUserPattern(pattern)
               }}
               onRenameEntity={onRenamePattern}
+              onEmptyTrash={onEmptyTrash}
               onOrganizationChange={onPersonalOrganizationChange}
           />
         ) : (

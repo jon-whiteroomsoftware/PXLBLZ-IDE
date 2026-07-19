@@ -305,7 +305,7 @@ describe('PatternList', () => {
     await user.click(screen.getByRole('radio', { name: 'Libraries' }))
 
     expect(await screen.findByRole('button', { name: 'Built-in Libraries' })).toHaveAttribute('aria-expanded', 'true')
-    expect(screen.getByText('No libraries yet')).toBeInTheDocument()
+    expect(screen.getByLabelText('No libraries yet')).toHaveTextContent('—')
 
     await user.click(screen.getByText('Shader'))
 
@@ -332,6 +332,7 @@ describe('PatternList', () => {
     render(<PatternList />)
 
     await user.click(await screen.findByRole('radio', { name: 'Libraries' }))
+    await user.click(await screen.findByRole('button', { name: 'Library actions' }))
     await user.click(await screen.findByRole('button', { name: 'New library' }))
 
     expect(await screen.findByText('Lib2')).toBeInTheDocument()
@@ -392,7 +393,7 @@ describe('PatternList', () => {
     const user = userEvent.setup()
     render(<PatternList />)
     await switchToMaps(user)
-    expect(await screen.findByText(/No custom maps yet/i)).toBeInTheDocument()
+    expect(await screen.findByLabelText(/No custom maps yet/i)).toHaveTextContent('—')
   })
 
   it('lists user-authored custom maps under Maps', async () => {
@@ -402,6 +403,7 @@ describe('PatternList', () => {
     await switchToMaps(user)
     expect(await screen.findByText('My Tree')).toBeInTheDocument()
     expect(screen.getAllByText('Maps')).toHaveLength(1)
+    await user.click(screen.getByRole('button', { name: 'Map actions' }))
     expect(screen.getByRole('button', { name: 'New map' })).toBeInTheDocument()
   })
 
@@ -410,6 +412,7 @@ describe('PatternList', () => {
     render(<PatternList />)
     await switchToMaps(user)
 
+    await user.click(await screen.findByRole('button', { name: 'Map actions' }))
     await user.click(await screen.findByRole('button', { name: 'New map' }))
 
     expect(await screen.findByText('Untitled Map')).toBeInTheDocument()
@@ -426,8 +429,9 @@ describe('PatternList', () => {
     expect(await screen.findByText('Burner bag')).toBeInTheDocument()
     expect(screen.queryByText('Old alias')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'New controller profile' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'More actions for Burner bag' }))
     expect(screen.queryByRole('button', { name: 'Rename' })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Delete' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Move to Trash' })).toBeInTheDocument()
     expect(screen.queryByRole('textbox', { name: /search by name/i })).not.toBeInTheDocument()
   })
 
@@ -438,6 +442,7 @@ describe('PatternList', () => {
     await switchToMixins(user)
     const mixinRow = (await screen.findByText('tazii-crown-mask')).closest('li')
     expect(mixinRow).not.toBeNull()
+    await user.click(within(mixinRow!).getByText('tazii-crown-mask'))
     expect(within(mixinRow!).getByText('intercept')).toBeInTheDocument()
   })
 
@@ -617,7 +622,7 @@ describe('PatternList', () => {
     expect(screen.queryByText('My Tree')).not.toBeInTheDocument()
     // Header stays, but the genuine-empty message must not appear.
     expect(screen.getAllByText('Maps')).toHaveLength(1)
-    expect(screen.queryByText('No custom maps yet')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('No custom maps yet')).not.toBeInTheDocument()
   })
 
   it('AND-combines the search query with the dimension lens', async () => {
@@ -729,7 +734,7 @@ describe('PatternList', () => {
     render(<PatternList />)
     await user.click(screen.getByRole('radio', { name: 'Shows' }))
 
-    expect(await screen.findByText('No shows yet')).toHaveClass('text-[12px]', 'leading-[15px]', 'text-zinc-400')
+    expect(await screen.findByLabelText('No shows yet')).toHaveTextContent('—')
     expect(screen.getByRole('treeitem', { name: /Learn/ })).toHaveClass('text-[12px]')
     expect(screen.getByRole('treeitem', { name: /Showcases/ })).toHaveClass('text-[12px]')
   })

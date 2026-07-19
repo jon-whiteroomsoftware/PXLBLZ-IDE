@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
+  collectTrashedEntityOrganizationIds,
   createEntityOrganizationFolder,
+  emptyEntityOrganizationTrash,
   moveEntityOrganizationNode,
   moveEntityOrganizationNodeToContainer,
   normalizeEntityOrganization,
@@ -172,6 +174,47 @@ describe('entity organization', () => {
     }])
     expect(trashed.collapsedFolderIds).toEqual([])
     expect(restoreEntityOrganizationNode(trashed, 'folder:folder-live')).toEqual(organization)
+  })
+
+  it('collects every entity in trashed branches and empties only the Trash', () => {
+    const organization: EntityOrganizationV1 = {
+      version: 1,
+      nodes: [{ kind: 'entity', entityId: 'still-live' }],
+      trash: [
+        {
+          node: { kind: 'entity', entityId: 'loose' },
+          parentFolderId: null,
+          index: 0,
+          collapsedFolderIds: [],
+        },
+        {
+          node: {
+            kind: 'folder',
+            id: 'folder-trashed',
+            name: 'Trashed folder',
+            children: [
+              { kind: 'entity', entityId: 'nested-a' },
+              {
+                kind: 'folder',
+                id: 'folder-nested',
+                name: 'Nested',
+                children: [{ kind: 'entity', entityId: 'nested-b' }],
+              },
+            ],
+          },
+          parentFolderId: null,
+          index: 1,
+          collapsedFolderIds: ['folder-trashed'],
+        },
+      ],
+      collapsedFolderIds: [],
+    }
+
+    expect(collectTrashedEntityOrganizationIds(organization)).toEqual(['loose', 'nested-a', 'nested-b'])
+    expect(emptyEntityOrganizationTrash(organization)).toEqual({
+      ...organization,
+      trash: [],
+    })
   })
 
   it('searches through collapsed branches and returns folder path context', () => {

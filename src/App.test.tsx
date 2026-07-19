@@ -156,7 +156,7 @@ describe('App smoke test', () => {
     expect(pane).toHaveStyle({ width: '288px', maxWidth: '34vw' })
     expect(screen.queryByRole('button', { name: 'Catalog' })).not.toBeInTheDocument()
 
-    await userEvent.click(screen.getByRole('button', { name: 'Collapse library' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Collapse rail' }))
     expect(pane).toHaveStyle({ width: '46px' })
     expect(screen.getByRole('radiogroup', { name: 'Studio activity' })).toBeInTheDocument()
     expect(screen.getByRole('radio', { name: 'Patterns' })).toHaveClass('text-[10px]')
@@ -180,7 +180,7 @@ describe('App smoke test', () => {
 
     await userEvent.click(screen.getByRole('button', { name: 'Expand library' }))
     expect(pane).toHaveStyle({ width: '288px', maxWidth: '34vw' })
-    expect(screen.getByRole('button', { name: 'Collapse library' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Collapse rail' })).toBeInTheDocument()
   })
 
   it('has an editor pane', () => {

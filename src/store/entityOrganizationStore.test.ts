@@ -83,8 +83,19 @@ describe('entity organization store', () => {
       organizations: {
         patterns: normalizeEntityOrganization(undefined, ['a']),
         shows: normalizeEntityOrganization(undefined, []),
+        maps: normalizeEntityOrganization(undefined, []),
+        controllers: normalizeEntityOrganization(undefined, []),
+        mixins: normalizeEntityOrganization(undefined, []),
+        libraries: normalizeEntityOrganization(undefined, []),
       },
-      loaded: { patterns: true, shows: false },
+      loaded: {
+        patterns: true,
+        shows: false,
+        maps: false,
+        controllers: false,
+        mixins: false,
+        libraries: false,
+      },
     })
 
     await useEntityOrganizationStore.getState().mutateOrganization(

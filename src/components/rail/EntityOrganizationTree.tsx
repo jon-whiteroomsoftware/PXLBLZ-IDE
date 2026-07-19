@@ -2,7 +2,6 @@ import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState, 
 import {
   ChevronDown,
   ChevronRight,
-  FileCode2,
   Folder,
   MoreHorizontal,
   RotateCcw,
@@ -10,7 +9,9 @@ import {
   X,
 } from 'lucide-react'
 import {
+  collectTrashedEntityOrganizationIds,
   createEntityOrganizationFolder,
+  emptyEntityOrganizationTrash,
   entityOrganizationNodeKey,
   moveEntityOrganizationNode,
   moveEntityOrganizationNodeToContainer,
@@ -26,7 +27,9 @@ import {
   type EntityOrganizationV1,
 } from '@/engine/entityOrganization'
 import { newPersonalContentId } from '@/engine/personalContentMetadata'
+import { sanitizeLibraryNameInput } from '@/engine/libraries'
 import { IDE_MICROTYPE } from '@/components/ui/ideMicrotype'
+import { EntityIcon, RailEmptyRow, type EntityNoun } from '@/components/rail/RailPrimitives'
 
 export interface EntityOrganizationTreeItem {
   id: string
@@ -48,12 +51,14 @@ interface EntityOrganizationTreeProps {
   items: readonly EntityOrganizationTreeItem[]
   activeEntityId: string | null
   query: string
-  noun: 'pattern' | 'show'
+  noun: EntityNoun
   editable?: boolean
+  canRenameEntity?: boolean
   sectionLabel?: string
   emptyMessage?: string
   onSelect: (entityId: string) => void
   onRenameEntity: (entityId: string, name: string) => void
+  onEmptyTrash?: (entityIds: string[]) => void | Promise<void>
   onOrganizationChange: (organization: EntityOrganizationV1) => void
 }
 
@@ -64,10 +69,12 @@ export const EntityOrganizationTree = forwardRef<EntityOrganizationTreeHandle, E
   query,
   noun,
   editable = true,
+  canRenameEntity = true,
   sectionLabel,
   emptyMessage,
   onSelect,
   onRenameEntity,
+  onEmptyTrash,
   onOrganizationChange,
 }, ref) {
   const [editingKey, setEditingKey] = useState<EntityOrganizationNodeKey | null>(null)
@@ -75,6 +82,7 @@ export const EntityOrganizationTree = forwardRef<EntityOrganizationTreeHandle, E
   const [draggedKey, setDraggedKey] = useState<EntityOrganizationNodeKey | null>(null)
   const [dropTarget, setDropTarget] = useState<DropTarget | null>(null)
   const [trashOpen, setTrashOpen] = useState(false)
+  const [emptyingTrash, setEmptyingTrash] = useState(false)
   const [moveKey, setMoveKey] = useState<EntityOrganizationNodeKey | null>(null)
   const treeRef = useRef<HTMLUListElement>(null)
   const itemsById = useMemo(() => new Map(items.map((item) => [item.id, item])), [items])
@@ -126,6 +134,18 @@ export const EntityOrganizationTree = forwardRef<EntityOrganizationTreeHandle, E
     clearDrag()
   }
 
+  async function handleEmptyTrash() {
+    if (emptyingTrash) return
+    setEmptyingTrash(true)
+    try {
+      if (onEmptyTrash) await onEmptyTrash(collectTrashedEntityOrganizationIds(organization))
+      else change(emptyEntityOrganizationTrash(organization))
+      setTrashOpen(false)
+    } finally {
+      setEmptyingTrash(false)
+    }
+  }
+
   if (trimmedQuery) {
     const namesByEntityId = Object.fromEntries(items.map((item) => [item.id, item.name]))
     const results = searchEntityOrganization(organization, namesByEntityId, trimmedQuery)
@@ -138,6 +158,7 @@ export const EntityOrganizationTree = forwardRef<EntityOrganizationTreeHandle, E
               name={result.name}
               path={result.path}
               active={activeEntityId === result.entityId}
+              noun={noun}
               onSelect={() => onSelect(result.entityId)}
             />
           ))}
@@ -183,7 +204,7 @@ export const EntityOrganizationTree = forwardRef<EntityOrganizationTreeHandle, E
   return (
     <>
       {organization.nodes.length === 0 && emptyMessage && (
-        <p className={`px-3 py-2 italic text-zinc-400 ${IDE_MICROTYPE.entity.sizeClassName}`}>{emptyMessage}</p>
+        <RailEmptyRow label={emptyMessage} noun={noun} />
       )}
       <ul
         ref={treeRef}
@@ -204,6 +225,9 @@ export const EntityOrganizationTree = forwardRef<EntityOrganizationTreeHandle, E
             itemsById={itemsById}
             activeEntityId={activeEntityId}
             editable={editable}
+            canRenameEntity={canRenameEntity}
+            noun={noun}
+            draggedKey={draggedKey}
             editingKey={editingKey}
             menuKey={menuKey}
             dropTarget={dropTarget}
@@ -223,16 +247,32 @@ export const EntityOrganizationTree = forwardRef<EntityOrganizationTreeHandle, E
           />
         ))}
       </ul>
-      {editable && (
-        <button
-          type="button"
-          onClick={() => setTrashOpen(true)}
-          className="mb-1 mt-1 flex min-h-[22px] w-full items-center gap-1.5 px-3 text-left text-[11px] text-zinc-500 hover:bg-zinc-900/60 hover:text-zinc-300"
-        >
-          <Trash2 size={12} />
-          <span className="min-w-0 flex-1 truncate">Trash</span>
-          <span className="text-[9px] text-zinc-600">{organization.trash.length}</span>
-        </button>
+      {editable && organization.trash.length > 0 && (
+        <div className="group relative my-1 flex min-h-[20px] items-center">
+          <button
+            type="button"
+            onClick={() => setTrashOpen(true)}
+            aria-label={`Open Trash (${organization.trash.length} ${organization.trash.length === 1 ? 'item' : 'items'})`}
+            className={`flex min-h-[20px] w-full items-center gap-1 px-[6px] py-px text-left text-zinc-500 hover:bg-zinc-900/60 hover:text-zinc-300 ${IDE_MICROTYPE.entity.sizeClassName}`}
+          >
+            <Trash2 size={12} className="shrink-0" />
+            <span className="min-w-0 flex-1 truncate">Trash</span>
+            <span className="pr-0.5 text-[9px] text-zinc-600 group-hover:opacity-0 group-focus-within:opacity-0">{organization.trash.length}</span>
+          </button>
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation()
+              void handleEmptyTrash()
+            }}
+            disabled={emptyingTrash}
+            aria-label="Empty Trash"
+            title="Empty Trash"
+            className="absolute right-1 grid size-5 place-items-center text-zinc-600 opacity-0 transition-opacity hover:text-red-300 group-hover:opacity-100 group-focus-within:opacity-100 disabled:opacity-30"
+          >
+            <Trash2 size={11} />
+          </button>
+        </div>
       )}
       {moveKey && (
         <MoveDialog
@@ -258,6 +298,9 @@ function OrganizationTreeNode(props: {
   itemsById: ReadonlyMap<string, EntityOrganizationTreeItem>
   activeEntityId: string | null
   editable: boolean
+  canRenameEntity: boolean
+  noun: EntityNoun
+  draggedKey: EntityOrganizationNodeKey | null
   editingKey: EntityOrganizationNodeKey | null
   menuKey: EntityOrganizationNodeKey | null
   dropTarget: DropTarget | null
@@ -282,6 +325,7 @@ function OrganizationTreeNode(props: {
   if (folder && !props.editable && visibleEntityCount(folder.children, props.itemsById) === 0) return null
   const name = folder?.name ?? item!.name
   const active = Boolean(item && props.activeEntityId === item.id)
+  const dragging = props.draggedKey === key
   const collapsed = Boolean(folder && props.organization.collapsedFolderIds.includes(folder.id))
   const activeDrop = props.dropTarget?.key === key ? props.dropTarget.placement : null
 
@@ -321,6 +365,7 @@ function OrganizationTreeNode(props: {
         aria-expanded={folder ? !collapsed : undefined}
         aria-selected={item ? active : undefined}
         data-node-key={key}
+        data-drag-origin={dragging ? 'true' : undefined}
         data-studio-space-preview="true"
         tabIndex={0}
         draggable={props.editable}
@@ -345,23 +390,30 @@ function OrganizationTreeNode(props: {
           props.onDrop({ key, placement: placement(event) })
         }}
         style={{ paddingLeft: 6 + props.depth * 14 }}
-        className={`group relative flex min-h-[20px] cursor-pointer items-center gap-1 py-px pr-1.5 outline-none focus-visible:ring-1 focus-visible:ring-live/70 focus-visible:ring-inset ${IDE_MICROTYPE.entity.sizeClassName} ${active ? 'bg-live/5 text-live' : 'text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-300'}`}
+        className={`group relative flex min-h-[20px] cursor-pointer items-center gap-1 py-px pr-1.5 outline-none transition-opacity focus-visible:ring-1 focus-visible:ring-live/70 focus-visible:ring-inset ${IDE_MICROTYPE.entity.sizeClassName} ${dragging ? 'bg-zinc-900/40 text-zinc-600 opacity-40' : active ? 'bg-live/5 text-live' : 'text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-300'}`}
       >
-        {active && <span aria-hidden className="absolute inset-y-0 left-0 w-0.5 bg-live" />}
+        {active && !dragging && <span aria-hidden className="absolute inset-y-0 left-0 w-0.5 bg-live" />}
         {activeDrop === 'before' && <span data-drop-cue="before" className="absolute inset-x-1 -top-px h-0.5 bg-live" />}
         {activeDrop === 'inside' && <span data-drop-cue="inside" className="absolute inset-0 border border-live/60 bg-live/10" />}
         {activeDrop === 'after' && <span data-drop-cue="after" className="absolute inset-x-1 -bottom-px h-0.5 bg-live" />}
-        <span className={`shrink-0 ${folder ? 'text-zinc-500' : 'text-zinc-600'}`}>
-          {folder ? (collapsed ? <ChevronRight size={12} /> : <ChevronDown size={12} />) : <FileCode2 size={12} />}
-        </span>
+        {folder ? (
+          <span className="shrink-0 text-zinc-500">{collapsed ? <ChevronRight size={12} /> : <ChevronDown size={12} />}</span>
+        ) : (
+          <EntityIcon noun={props.noun} />
+        )}
         {props.editingKey === key ? (
-          <InlineName name={name} onCommit={(next) => props.onRename(key, next)} onCancel={() => props.onEdit(null)} />
+          <InlineName
+            name={name}
+            sanitizeAsIdentifier={Boolean(item && props.noun === 'library')}
+            onCommit={(next) => props.onRename(key, next)}
+            onCancel={() => props.onEdit(null)}
+          />
         ) : (
           <span className="min-w-0 flex-1 truncate" title={name}>{name}</span>
         )}
         {folder && <span className="shrink-0 text-[9px] text-zinc-600 group-hover:opacity-0">{props.editable ? countEntities(folder.children) : visibleEntityCount(folder.children, props.itemsById)}</span>}
         {item?.meta && active && <span className="shrink-0 text-[8px] uppercase text-zinc-500 group-hover:opacity-0">{item.meta}</span>}
-        {props.editable && (
+        {props.editable && !dragging && (
           <button
             type="button"
             onClick={(event) => {
@@ -376,7 +428,10 @@ function OrganizationTreeNode(props: {
         )}
         {props.menuKey === key && (
           <RowActionMenu
-            onRename={() => props.onEdit(key)}
+            onRename={folder || props.canRenameEntity ? () => {
+              props.onMenu(null)
+              props.onEdit(key)
+            } : undefined}
             onMoveUp={() => props.onReorder(key, -1)}
             onMoveDown={() => props.onReorder(key, 1)}
             onMoveTo={() => props.onMove(key)}
@@ -391,12 +446,12 @@ function OrganizationTreeNode(props: {
   )
 }
 
-function SearchResultRow({ name, path, active, onSelect }: { name: string; path: string[]; active: boolean; onSelect: () => void }) {
+function SearchResultRow({ name, path, active, noun, onSelect }: { name: string; path: string[]; active: boolean; noun: EntityNoun; onSelect: () => void }) {
   return (
     <li role="treeitem" tabIndex={0} aria-selected={active} onClick={onSelect} className={`relative min-h-[30px] cursor-pointer py-1 pl-2 pr-2 outline-none focus-visible:ring-1 focus-visible:ring-live/70 ${active ? 'bg-live/5 text-live' : 'text-zinc-400 hover:bg-zinc-800/60'}`}>
       {active && <span aria-hidden className="absolute inset-y-0 left-0 w-0.5 bg-live" />}
       <span className={`flex items-center gap-1 ${IDE_MICROTYPE.entity.sizeClassName}`}>
-        <FileCode2 size={12} aria-hidden className="shrink-0 text-zinc-600" />
+        <EntityIcon noun={noun} />
         <span className="min-w-0 flex-1 truncate">{name}</span>
       </span>
       {path.length > 0 && <span className="block truncate pl-4 text-[9px] leading-3 text-zinc-600">{path.join(' / ')}</span>}
@@ -404,7 +459,7 @@ function SearchResultRow({ name, path, active, onSelect }: { name: string; path:
   )
 }
 
-function InlineName({ name, onCommit, onCancel }: { name: string; onCommit: (name: string) => void; onCancel: () => void }) {
+function InlineName({ name, sanitizeAsIdentifier, onCommit, onCancel }: { name: string; sanitizeAsIdentifier: boolean; onCommit: (name: string) => void; onCancel: () => void }) {
   const [draft, setDraft] = useState(name)
   const settled = useRef(false)
   function commit() {
@@ -416,10 +471,11 @@ function InlineName({ name, onCommit, onCancel }: { name: string; onCommit: (nam
     <input
       autoFocus
       value={draft}
-      onChange={(event) => setDraft(event.target.value)}
+      onChange={(event) => setDraft(sanitizeAsIdentifier ? sanitizeLibraryNameInput(event.target.value) : event.target.value)}
       onClick={(event) => event.stopPropagation()}
       onBlur={commit}
       onKeyDown={(event) => {
+        event.stopPropagation()
         if (event.key === 'Enter') event.currentTarget.blur()
         if (event.key === 'Escape') {
           settled.current = true
@@ -432,9 +488,9 @@ function InlineName({ name, onCommit, onCancel }: { name: string; onCommit: (nam
   )
 }
 
-function RowActionMenu(props: { onRename: () => void; onMoveUp: () => void; onMoveDown: () => void; onMoveTo: () => void; onTrash: () => void }) {
+function RowActionMenu(props: { onRename?: () => void; onMoveUp: () => void; onMoveDown: () => void; onMoveTo: () => void; onTrash: () => void }) {
   const actions = [
-    ['Rename', props.onRename],
+    ...(props.onRename ? [['Rename', props.onRename] as const] : []),
     ['Move up', props.onMoveUp],
     ['Move down', props.onMoveDown],
     ['Move to...', props.onMoveTo],
@@ -443,7 +499,7 @@ function RowActionMenu(props: { onRename: () => void; onMoveUp: () => void; onMo
   return (
     <div className="absolute right-1 top-full z-30 min-w-28 border border-zinc-700 bg-zinc-950 py-1 shadow-xl shadow-black/70" onClick={(event) => event.stopPropagation()}>
       {actions.map(([label, action]) => (
-        <button key={label} type="button" onClick={action} className={`block h-6 w-full px-2 text-left text-[10px] hover:bg-zinc-800 ${label === 'Move to Trash' ? 'text-red-300' : 'text-zinc-300'}`}>
+        <button key={label} type="button" onClick={action} className="block h-6 w-full px-2 text-left text-[10px] text-zinc-300 hover:bg-zinc-800">
           {label}
         </button>
       ))}

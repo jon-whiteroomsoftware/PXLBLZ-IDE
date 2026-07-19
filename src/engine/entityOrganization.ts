@@ -1,7 +1,13 @@
 export const ENTITY_ORGANIZATION_VERSION = 1 as const
 export const MAX_ENTITY_ORGANIZATION_DEPTH = 8
 
-export type EntityOrganizationKind = 'patterns' | 'shows'
+export type EntityOrganizationKind =
+  | 'patterns'
+  | 'shows'
+  | 'maps'
+  | 'controllers'
+  | 'mixins'
+  | 'libraries'
 
 export interface EntityOrganizationEntry {
   kind: 'entity'
@@ -204,6 +210,18 @@ export function restoreEntityOrganizationNode(
     trash: [...organization.trash.slice(0, trashIndex), ...organization.trash.slice(trashIndex + 1)],
     collapsedFolderIds: [...new Set([...organization.collapsedFolderIds, ...entry.collapsedFolderIds])],
   }
+}
+
+export function collectTrashedEntityOrganizationIds(
+  organization: EntityOrganizationV1,
+): string[] {
+  return organization.trash.flatMap((entry) => collectOrganizationEntityIds(entry.node))
+}
+
+export function emptyEntityOrganizationTrash(
+  organization: EntityOrganizationV1,
+): EntityOrganizationV1 {
+  return organization.trash.length === 0 ? organization : { ...organization, trash: [] }
 }
 
 export function searchEntityOrganization(
@@ -462,6 +480,12 @@ function insertAt(
 function collectOrganizationFolderIds(node: EntityOrganizationNode): Set<string> {
   if (node.kind === 'entity') return new Set()
   return new Set([node.id, ...node.children.flatMap((child) => [...collectOrganizationFolderIds(child)])])
+}
+
+function collectOrganizationEntityIds(node: EntityOrganizationNode): string[] {
+  return node.kind === 'entity'
+    ? [node.entityId]
+    : node.children.flatMap(collectOrganizationEntityIds)
 }
 
 function walkOrganizationEntries(

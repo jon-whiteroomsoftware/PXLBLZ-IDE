@@ -1,12 +1,12 @@
-import { Plus } from 'lucide-react'
-import type { RefObject } from 'react'
+import { Map as MapIcon } from 'lucide-react'
+import { useRef, type RefObject } from 'react'
 import type { DimLens } from '@/engine/dimLens'
+import type { EntityOrganizationV1 } from '@/engine/entityOrganization'
 import { STOCK_MAP_ITEMS, type EditingMap, type MapRecord } from '@/store/mapStore'
 import { groupMapCatalogue } from '@/engine/mapCatalogue'
 import { IDE_MICROTYPE } from '@/components/ui/ideMicrotype'
 import {
-  EditableListItem,
-  HeaderAction,
+  HeaderMenu,
   RailEmptyState,
   RailEntityHeader,
   RailFilterBar,
@@ -16,12 +16,12 @@ import {
   StockSectionHeader,
   type ScrollMetrics,
 } from '@/components/rail/RailPrimitives'
+import { EntityOrganizationTree, type EntityOrganizationTreeHandle } from '@/components/rail/EntityOrganizationTree'
 
 export function MapsRailSection({
   personalWorkspaceAuthenticated,
   dimLens,
   query,
-  userMaps,
   visibleMaps,
   visibleStockMaps,
   editingMap,
@@ -36,13 +36,14 @@ export function MapsRailSection({
   onOpenUserMap,
   onOpenStockMap,
   onRenameMap,
-  onDeleteMap,
+  personalOrganization,
+  onPersonalOrganizationChange,
+  onEmptyTrash,
   onCollapse,
 }: {
   personalWorkspaceAuthenticated: boolean
   dimLens: DimLens
   query: string
-  userMaps: MapRecord[]
   visibleMaps: MapRecord[]
   visibleStockMaps: typeof STOCK_MAP_ITEMS
   editingMap: EditingMap
@@ -57,9 +58,12 @@ export function MapsRailSection({
   onOpenUserMap: (map: MapRecord) => void
   onOpenStockMap: (id: string) => void
   onRenameMap: (id: string, name: string) => void
-  onDeleteMap: (id: string) => void
+  personalOrganization: EntityOrganizationV1
+  onPersonalOrganizationChange: (organization: EntityOrganizationV1) => void
+  onEmptyTrash: (entityIds: string[]) => void | Promise<void>
   onCollapse?: () => void
 }) {
+  const personalTreeRef = useRef<EntityOrganizationTreeHandle>(null)
   const stockGroups = groupMapCatalogue(visibleStockMaps.map((map) => ({
     ...map,
     provenance: 'stock' as const,
@@ -81,7 +85,15 @@ export function MapsRailSection({
               query={query}
               onQueryChange={onQueryChange}
             />
-            {personalWorkspaceAuthenticated && <HeaderAction icon={<Plus size={14} />} title="New map" onClick={onCreateMap} />}
+            {personalWorkspaceAuthenticated && (
+              <HeaderMenu
+                title="Map actions"
+                items={[
+                  { label: 'New map', onSelect: onCreateMap },
+                  { label: 'New folder', onSelect: () => personalTreeRef.current?.createFolder() },
+                ]}
+              />
+            )}
           </>
         )}
       />
@@ -96,31 +108,28 @@ export function MapsRailSection({
             <a href="/api/auth/login" className="text-live hover:underline">Sign in</a>
             {' '}to save maps
           </RailEmptyState>
-        ) : visibleMaps.length === 0 ? (
-          userMaps.length === 0 ? (
-            <RailEmptyState>
-              No custom maps yet
-            </RailEmptyState>
-          ) : (
-            null
-          )
         ) : (
-          <ul className="pt-2">
-            {visibleMaps.map((map) => (
-              <EditableListItem
-                key={map.id}
-                name={map.name}
-                noun="map"
-                active={editingMap?.kind === 'existing' && editingMap.id === map.id}
-                dim={dimLens === 'all' ? `${map.dim}D` : undefined}
-                badge={map.importMetadata ? 'import' : undefined}
-                takenNames={userMaps.filter((m) => m.id !== map.id).map((m) => m.name)}
-                onSelect={() => onOpenUserMap(map)}
-                onRename={(name) => onRenameMap(map.id, name)}
-                onDelete={() => onDeleteMap(map.id)}
-              />
-            ))}
-          </ul>
+          <EntityOrganizationTree
+            ref={personalTreeRef}
+            organization={personalOrganization}
+            items={visibleMaps.map((map) => ({
+              id: map.id,
+              name: map.name,
+              meta: dimLens === 'all' ? `${map.dim}D` : undefined,
+            }))}
+            activeEntityId={editingMap?.kind === 'existing' ? editingMap.id : null}
+            query=""
+            noun="map"
+            sectionLabel="Maps"
+            emptyMessage="No custom maps yet"
+            onSelect={(id) => {
+              const map = visibleMaps.find((candidate) => candidate.id === id)
+              if (map) onOpenUserMap(map)
+            }}
+            onRenameEntity={onRenameMap}
+            onEmptyTrash={onEmptyTrash}
+            onOrganizationChange={onPersonalOrganizationChange}
+          />
         )}
         <StockSectionHeader
           label="Built-in Maps"
@@ -140,18 +149,20 @@ export function MapsRailSection({
                       <StockListItem
                         key={item.id}
                         name={item.name}
+                        noun="map"
                         active={editingMap?.kind === 'stock' && editingMap.id === item.id}
                         meta={dimLens === 'all' ? `${item.views[0].dim}D` : undefined}
                         onSelect={() => onOpenStockMap(item.id)}
                       />
                     ) : (
-                      <li key={item.familyId} className="min-h-[20px] px-3 py-px text-zinc-400">
+                      <li key={item.familyId} className="min-h-[20px] px-[6px] py-px text-zinc-400">
                         <details>
                           <summary
                             onClick={() => onOpenStockMap(item.id)}
-                            className={`flex cursor-pointer list-none items-center justify-between hover:text-zinc-200 [&::-webkit-details-marker]:hidden ${IDE_MICROTYPE.entity.className}`}
+                            className={`flex cursor-pointer list-none items-center gap-1 hover:text-zinc-200 [&::-webkit-details-marker]:hidden ${IDE_MICROTYPE.entity.className}`}
                           >
-                            <span>{item.name}</span>
+                            <MapIcon size={12} aria-hidden className="shrink-0 text-zinc-600" />
+                            <span className="min-w-0 flex-1 truncate">{item.name}</span>
                             <span className={IDE_MICROTYPE.secondary.className}>{item.views.length} views</span>
                           </summary>
                           <div className="mt-1 flex flex-wrap gap-1" aria-label={`${item.name} coordinate views`}>

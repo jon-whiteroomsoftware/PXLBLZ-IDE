@@ -149,6 +149,131 @@ describe('EntityOrganizationTree', () => {
     }))
   })
 
+  it('closes the row menu and commits a spaced folder name on the first rename', () => {
+    const organization: EntityOrganizationV1 = {
+      version: 1,
+      nodes: [{ kind: 'folder', id: 'folder-new', name: 'New Folder', children: [] }],
+      trash: [],
+      collapsedFolderIds: [],
+    }
+    const onOrganizationChange = vi.fn()
+    render(
+      <EntityOrganizationTree
+        organization={organization}
+        items={[]}
+        activeEntityId={null}
+        query=""
+        noun="library"
+        onSelect={vi.fn()}
+        onRenameEntity={vi.fn()}
+        onOrganizationChange={onOrganizationChange}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'More actions for New Folder' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Rename' }))
+
+    expect(screen.queryByRole('button', { name: 'Move to Trash' })).not.toBeInTheDocument()
+    const input = screen.getByRole('textbox', { name: 'Rename item' })
+    fireEvent.change(input, { target: { value: 'Pixelblaze Test Folder' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+
+    expect(onOrganizationChange).toHaveBeenCalledTimes(1)
+    expect(onOrganizationChange).toHaveBeenCalledWith(expect.objectContaining({
+      nodes: [expect.objectContaining({ kind: 'folder', name: 'Pixelblaze Test Folder' })],
+    }))
+  })
+
+  it('sanitizes Library entity identifiers without applying that rule to folders', () => {
+    const organization: EntityOrganizationV1 = {
+      version: 1,
+      nodes: [{ kind: 'entity', entityId: 'library-a' }],
+      trash: [],
+      collapsedFolderIds: [],
+    }
+    const onRenameEntity = vi.fn()
+    render(
+      <EntityOrganizationTree
+        organization={organization}
+        items={[{ id: 'library-a', name: 'LibraryA' }]}
+        activeEntityId={null}
+        query=""
+        noun="library"
+        onSelect={vi.fn()}
+        onRenameEntity={onRenameEntity}
+        onOrganizationChange={vi.fn()}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'More actions for LibraryA' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Rename' }))
+    const input = screen.getByRole('textbox', { name: 'Rename item' })
+    fireEvent.change(input, { target: { value: 'Library Name-1' } })
+    expect(input).toHaveValue('LibraryName1')
+    fireEvent.blur(input)
+    expect(onRenameEntity).toHaveBeenCalledWith('library-a', 'LibraryName1')
+  })
+
+  it('hides empty Trash, then permanently empties populated Trash through its hover action', async () => {
+    const empty: EntityOrganizationV1 = {
+      version: 1,
+      nodes: [{ kind: 'entity', entityId: 'live' }],
+      trash: [],
+      collapsedFolderIds: [],
+    }
+    const onEmptyTrash = vi.fn(async () => {})
+    const onOrganizationChange = vi.fn()
+    const view = render(
+      <EntityOrganizationTree
+        organization={empty}
+        items={[{ id: 'live', name: 'Live' }, { id: 'gone', name: 'Gone' }]}
+        activeEntityId={null}
+        query=""
+        noun="map"
+        onSelect={vi.fn()}
+        onRenameEntity={vi.fn()}
+        onEmptyTrash={onEmptyTrash}
+        onOrganizationChange={onOrganizationChange}
+      />,
+    )
+
+    expect(screen.queryByRole('button', { name: /Open Trash/ })).not.toBeInTheDocument()
+
+    const populated: EntityOrganizationV1 = {
+      ...empty,
+      trash: [{
+        node: {
+          kind: 'folder',
+          id: 'old-folder',
+          name: 'Old folder',
+          children: [{ kind: 'entity', entityId: 'gone' }],
+        },
+        parentFolderId: null,
+        index: 0,
+        collapsedFolderIds: [],
+      }],
+    }
+    view.rerender(
+      <EntityOrganizationTree
+        organization={populated}
+        items={[{ id: 'live', name: 'Live' }, { id: 'gone', name: 'Gone' }]}
+        activeEntityId={null}
+        query=""
+        noun="map"
+        onSelect={vi.fn()}
+        onRenameEntity={vi.fn()}
+        onEmptyTrash={onEmptyTrash}
+        onOrganizationChange={onOrganizationChange}
+      />,
+    )
+
+    expect(screen.getByRole('button', { name: 'Open Trash (1 item)' })).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: 'Empty Trash' }))
+
+    await vi.waitFor(() => expect(onEmptyTrash).toHaveBeenCalledWith(['gone']))
+    expect(onOrganizationChange).not.toHaveBeenCalled()
+  })
+
   it('clears a drag cue when the pointer leaves the tree', () => {
     const organization: EntityOrganizationV1 = {
       version: 1,
@@ -178,6 +303,41 @@ describe('EntityOrganizationTree', () => {
 
     fireEvent.dragLeave(screen.getByRole('tree', { name: 'Patterns' }), { relatedTarget: document.body })
     expect(container.querySelector('[data-drop-cue]')).toBeNull()
+  })
+
+  it('leaves a muted placeholder at the drag origin until the drag ends', () => {
+    const organization: EntityOrganizationV1 = {
+      version: 1,
+      nodes: [
+        { kind: 'entity', entityId: 'a' },
+        { kind: 'entity', entityId: 'b' },
+      ],
+      trash: [],
+      collapsedFolderIds: [],
+    }
+    render(
+      <EntityOrganizationTree
+        organization={organization}
+        items={[{ id: 'a', name: 'A' }, { id: 'b', name: 'B' }]}
+        activeEntityId="a"
+        query=""
+        noun="pattern"
+        onSelect={vi.fn()}
+        onRenameEntity={vi.fn()}
+        onOrganizationChange={vi.fn()}
+      />,
+    )
+    const origin = screen.getByRole('treeitem', { name: /A/ })
+    const transfer = { effectAllowed: '', setData: vi.fn() }
+
+    fireEvent.dragStart(origin, { dataTransfer: transfer })
+
+    expect(origin).toHaveAttribute('data-drag-origin', 'true')
+    expect(origin).toHaveClass('bg-zinc-900/40', 'text-zinc-600', 'opacity-40')
+    expect(origin).not.toHaveClass('bg-live/5', 'text-live')
+
+    fireEvent.dragEnd(origin)
+    expect(origin).not.toHaveAttribute('data-drag-origin')
   })
 
   it('hides empty immutable branches after the dimension lens filters their entities', () => {

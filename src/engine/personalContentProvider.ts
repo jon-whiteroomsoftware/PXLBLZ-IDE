@@ -9,6 +9,10 @@ export const DEMO_OVERRIDES_KEY = 'demoOverrides'
 export const ENTITY_ORGANIZATION_KEYS: Record<EntityOrganizationKind, string> = {
   patterns: 'patternOrganization',
   shows: 'showOrganization',
+  maps: 'mapOrganization',
+  controllers: 'controllerOrganization',
+  mixins: 'mixinOrganization',
+  libraries: 'libraryOrganization',
 }
 
 export type LastActive =

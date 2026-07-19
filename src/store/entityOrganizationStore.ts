@@ -27,10 +27,18 @@ export const entityOrganizationInitialState = {
   organizations: {
     patterns: emptyOrganization(),
     shows: emptyOrganization(),
+    maps: emptyOrganization(),
+    controllers: emptyOrganization(),
+    mixins: emptyOrganization(),
+    libraries: emptyOrganization(),
   },
   loaded: {
     patterns: false,
     shows: false,
+    maps: false,
+    controllers: false,
+    mixins: false,
+    libraries: false,
   },
 }
 
