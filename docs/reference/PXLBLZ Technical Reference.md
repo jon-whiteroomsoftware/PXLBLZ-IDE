@@ -1604,8 +1604,9 @@ counterfactual exists.
 Delivered source, generated source, VM words, renderer depth, and Controller
 bytecode remain different measurement axes. The inventory never distributes
 Controller bytecode across semantic source categories. The compile bar's
-68,384-byte generated-source gauge remains the separately measured activation
-proxy used by the current pressure policy.
+generated-source gauge is a conservative source-size proxy against the
+separately observed 68,384-byte compiled-bytecode activation ceiling. It is not
+a bytecode percentage or a measurement of remaining Controller capacity.
 
 ### Exact routing and capture specialization
 
@@ -1694,8 +1695,10 @@ emits 11 kernels. Repeated boundary easing also shares one frame-rate helper,
 so corrected easing semantics do not duplicate the same expression 20 times.
 Generated source falls from 108,773 to 67,934 bytes and Controller bytecode from
 60,398 to 37,958 bytes, while the three-plane arena remains 6,012 words. The
-resulting source fits the measured 68,384-byte activation budget with 450 bytes
-free. Sixty start/mid/end samples and the full
+resulting source is 450 bytes below the conservative source-size proxy derived
+from the separately observed 68,384-byte compiled-bytecode activation ceiling;
+that difference is not remaining Controller capacity. Sixty start/mid/end
+samples and the full
 Motion family policy sweep match the unrolled representation in Fast and
 Precise execution. On pb32 firmware 3.67, the corrected 2,000-pixel median
 changed from 0.669 to 0.668 FPS (-0.17%); the change is therefore a capacity win,
@@ -1816,8 +1819,9 @@ decision. The Pixelblaze array pool is modeled as 10,240 words, and every array
 consumes its elements plus a four-word header. The ledger groups those words by
 owner and purpose: reserved render target, member Pattern, routing, interned
 plan, and auxiliary cache. Persistent globals use their separate 256-global
-limit, while generated UTF-8 source uses the measured 68,384-byte activation
-budget.
+limit. Generated UTF-8 source uses a conservative source-size proxy derived
+from the separately observed 68,384-byte compiled-bytecode activation ceiling;
+the proxy is not a Controller-capacity measurement.
 
 The compiler reserves three RGB planes at the Show's output extent. An
 Installation with `N` fixed pixels therefore reserves `3 * (N + 4)` words. A
@@ -2279,7 +2283,8 @@ The volatile Show `updatedAt` storage timestamp is intentionally excluded.
 
 The frozen matrix uses 256-point 2D captures. One hundred fixtures compile to
 `N`, two to `N + E`, and two to `2N`; none use `S * N`. The largest generated
-artifact is 10,004 of the measured 68,384-byte budget, the largest generated
+UTF-8 source is 10,004 bytes, or a 14.6% source-size proxy against the observed
+68,384-byte compiled-bytecode activation ceiling; the largest generated
 scalar allocation is 16, and the matrix uses no generated array elements. The
 automated matrix emits no compatibility warnings under each fixture's declared
 dimension. A 2026-07-14 external run on a firmware-3.67 `pb32` with a 256-point
@@ -2743,11 +2748,12 @@ selected maximum comparisons per pixel.
 Arbitrary layouts retain generated range branches. High-run irregular layouts
 may use a packed per-pixel lookup only when the complete
 `pixelCount * layoutCount` table fits the 2,048-element policy and its bytecode
-estimate remains below the measured 68,384-byte activation budget. The compile
-summary and compile bar name the selected representation and report separate
-estimated bytecode and permanent-array costs. These estimates are conservative
-selection diagnostics derived from the routing spike, not Controller compiler
-measurements. RLE remains excluded because the hardware spike measured it worse.
+estimate remains below the observed 68,384-byte compiled-bytecode activation
+ceiling. The compile summary and compile bar name the selected representation
+and report separate estimated bytecode and permanent-array costs. These
+estimates are conservative selection diagnostics derived from the routing spike,
+not Controller compiler measurements. RLE remains excluded because the hardware
+spike measured it worse.
 
 ## 24. Deterministic seek replay
 

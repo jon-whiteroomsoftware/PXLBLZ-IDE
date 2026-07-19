@@ -5778,7 +5778,12 @@ function CompileBar({
       <span>Show source</span>
       <span
         className="h-2 w-28 overflow-hidden rounded-sm bg-zinc-800"
-        title="Generated-source size compared with the measured Controller activation proxy. This is not Controller bytecode."
+        aria-label={summary
+          ? `Generated UTF-8 source size compared with a source-size proxy derived from the observed ${summary.measuredDeviceBudgetBytes.toLocaleString('en-US')}-byte compiled-bytecode activation ceiling. This is not remaining Controller capacity.`
+          : undefined}
+        title={summary
+          ? `Generated UTF-8 source size compared with a source-size proxy derived from the observed ${summary.measuredDeviceBudgetBytes.toLocaleString('en-US')}-byte compiled-bytecode activation ceiling. This is not remaining Controller capacity.`
+          : undefined}
       >
         <span
           className={`block h-full ${pressure?.status === 'blocked' ? 'bg-red-500' : pressure?.status === 'warning' ? 'bg-amber-400' : 'bg-live'}`}
@@ -5814,8 +5819,8 @@ function CompileBar({
         <b className="text-zinc-300">-</b>
       )}
       <span>
-        · generated {summary ? formatBytes(summary.artifactBytes) : '-'}
-        {' · '}proxy ceiling ~{summary ? formatBytes(summary.measuredDeviceBudgetBytes) : '-'}
+        · generated UTF-8 source {summary ? formatBytes(summary.artifactBytes) : '-'}
+        {' · '}source-size proxy against observed compiled-bytecode activation ceiling {summary ? `${summary.measuredDeviceBudgetBytes.toLocaleString('en-US')} B` : '-'}
       </span>
       {summary?.resources && (
         <span className={summary.resources.remainingWords < 0 ? 'text-red-300' : 'text-sky-200'}>

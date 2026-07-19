@@ -131,10 +131,11 @@ export function buildShowVmResourceLedger(input: ShowVmResourceLedgerInput): Sho
     })
   }
   if (remainingArtifactBytes < 0) {
+    const overage = -remainingArtifactBytes
     blockers.push({
       kind: 'artifact-byte-budget',
       owner: 'Whole Show',
-      message: `Whole Show code uses ${artifactBytes.toLocaleString('en-US')} bytes, ${(-remainingArtifactBytes).toLocaleString('en-US')} over the measured ${SHOW_ARTIFACT_BUDGET_BYTES.toLocaleString('en-US')}-byte activation budget. Reduce Pattern instances, Effects, routing, or generated specialization.`,
+      message: `Generated UTF-8 source is ${overage.toLocaleString('en-US')} ${overage === 1 ? 'byte' : 'bytes'} over the source-size proxy derived from the observed ${SHOW_ARTIFACT_BUDGET_BYTES.toLocaleString('en-US')}-byte compiled-bytecode activation ceiling. Reduce Pattern instances, Effects, routing, or generated specialization.`,
     })
   }
 

@@ -15,19 +15,22 @@ export interface ShowCompilePressureAssessment {
 }
 
 /**
- * Classify compiled output against the v2 release support envelope. Artifact
- * blocking follows the measured activation ceiling. Renderer blocking is the
- * unvalidated side of the four-renderer #492 fixture, not a device-limit claim.
+ * Classify compiled output against the v2 release support envelope. Generated
+ * source uses a conservative proxy derived from the observed bytecode activation
+ * ceiling; it is not a measurement of remaining Controller capacity. Renderer
+ * blocking is the unvalidated side of the four-renderer #492 fixture, not a
+ * device-limit claim.
  */
 export function assessShowCompilePressure(input: ShowCompilePressureInput): ShowCompilePressureAssessment {
   const warnings: string[] = []
   const blocks: string[] = []
   const budgetRatio = input.budgetBytes > 0 ? input.artifactBytes / input.budgetBytes : 0
+  const observedCeiling = `${input.budgetBytes.toLocaleString('en-US')}-byte compiled-bytecode activation ceiling`
 
   if (input.artifactBytes >= input.budgetBytes && input.budgetBytes > 0) {
-    blocks.push('Generated artifact meets or exceeds the measured activation budget.')
+    blocks.push(`Generated UTF-8 source meets or exceeds the source-size proxy derived from the observed ${observedCeiling}.`)
   } else if (budgetRatio >= SHOW_ARTIFACT_WARNING_RATIO) {
-    warnings.push('Generated artifact uses 80% or more of the measured activation budget.')
+    warnings.push(`Generated UTF-8 source is 80% or more of the source-size proxy derived from the observed ${observedCeiling}.`)
   }
 
   if (input.worstInstantRenderersPerPixel >= SHOW_RENDERER_BLOCK_COUNT) {

@@ -141,6 +141,9 @@ export function render(index) { var pixelLocal = helper(); rgb(one, two, three +
       'persistent-global-limit',
       'artifact-byte-budget',
     ])
+    expect(ledger.blockers[2].message).toContain(
+      'Generated UTF-8 source is 1 byte over the source-size proxy derived from the observed 68,384-byte compiled-bytecode activation ceiling.',
+    )
   })
 
   it('classifies compiler-owned arrays without double-counting isolated member arrays', () => {

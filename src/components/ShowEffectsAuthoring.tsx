@@ -291,7 +291,13 @@ export function ShowEffectStack({
             <span>Distort ops/px <b className="text-zinc-300">{compiledCost.cpu.effects.distortionScalarOpsPerEvaluatedPixel}</b></span>
             <span>Color ops/px <b className="text-zinc-300">{compiledCost.cpu.effects.colorScalarOpsPerEvaluatedPixel}</b></span>
             <span>Generated scalars <b className="text-zinc-300">{compiledCost.memory.generatedScalarGlobals}</b></span>
-            <span>Artifact <b className="text-zinc-300">{compiledCost.code.artifactBytes} B · {Math.round(compiledCost.code.budgetRatio * 100)}%</b></span>
+            <span
+              aria-label={`Generated UTF-8 source, ${compiledCost.code.artifactBytes} bytes, ${Math.round(compiledCost.code.budgetRatio * 100)}% source-size proxy against the observed ${compiledCost.code.budgetBytes.toLocaleString('en-US')}-byte compiled-bytecode activation ceiling. This is not remaining Controller capacity.`}
+              title={`Source-size proxy against the observed ${compiledCost.code.budgetBytes.toLocaleString('en-US')}-byte compiled-bytecode activation ceiling; not remaining Controller capacity.`}
+            >
+              <span>Generated UTF-8 source</span>{' '}
+              <b className="text-zinc-300">{compiledCost.code.artifactBytes} B · {Math.round(compiledCost.code.budgetRatio * 100)}% source-size proxy</b>
+            </span>
           </div>
         </details>
       )}

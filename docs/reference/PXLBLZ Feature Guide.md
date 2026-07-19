@@ -1266,7 +1266,8 @@ branches. Sharing changes generated structure only: it does not merge Pattern
 instances or boundary controls. Incompatible sequences stay unrolled. The
 built-in Motion Transitions Show uses 2 stack plans and 11 kernels for its 20
 boundaries, avoids 80,812 emitted bytes with 7 scalar globals and no additional
-per-pixel branch depth, and fits the measured Controller activation budget.
+per-pixel branch depth. Its generated source remains below the conservative
+source-size proxy derived from the observed compiled-bytecode activation ceiling.
 
 Compatible repeated Shows also disclose `show score: table driven`. The compile
 bar reports boundary, interned stack, and Transition-kernel counts; score words;
@@ -1380,9 +1381,11 @@ Editing and preview remain available.
 Renderer-pressure policy is separate. PXLBLZ warns when a Show reaches three or
 four simultaneous Pattern renderers per pixel and blocks outbound actions at
 five. **View code** remains available for that renderer-only failure so the
-author can inspect and simplify the generated source. Generated code size warns
-at 80% of the measured activation budget; exhaustion is an artifact-byte ledger
-failure and therefore blocks inspection with the other resource axes.
+author can inspect and simplify the generated source. Generated UTF-8 source
+warns when it reaches 80% of the source-size proxy derived from the observed
+68,384-byte compiled-bytecode activation ceiling. Meeting that proxy threshold
+is a conservative release-policy block, not a measurement of remaining
+Controller capacity; it blocks inspection with the other resource axes.
 
 Several Zone placements may share one Pattern instance, clock, and generated
 source body; that instance still advances only once per frame. Clips that need

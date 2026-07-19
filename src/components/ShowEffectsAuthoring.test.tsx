@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createDefaultShow } from '@/engine/showModel'
+import { compileShow } from '@/engine/showCompiler'
 import type { ShowClipEffect } from '@/engine/personalContentRecords'
 import { showPreviewOverrideInitialState, useShowPreviewOverrideStore } from '@/store/showPreviewOverrideStore'
 import { ShowEffectPalette, ShowEffectStack } from './ShowEffectsAuthoring'
@@ -177,5 +178,16 @@ describe('Show Effect authoring UI', () => {
     expect(onChange.mock.calls[onChange.mock.calls.length - 1]?.[0]).toContainEqual(expect.objectContaining({ id: 'move-2' }))
     await user.click(screen.getByRole('button', { name: 'Remove Translate Effect' }))
     expect(onChange.mock.calls[onChange.mock.calls.length - 1]?.[0].map((effect: ShowClipEffect) => effect.id)).not.toContain('move')
+  })
+
+  it('labels advanced generated-source pressure as a source-size proxy (#502)', () => {
+    const compiledCost = compileShow({
+      clips: [{ id: 'only', source: 'export function render(index) { rgb(1, 0, 0) }' }],
+    }, {}).summary.cost
+
+    render(<ShowEffectStack effects={[]} compiledCost={compiledCost} onChange={vi.fn()} onAdd={vi.fn()} />)
+
+    expect(screen.getByText('Generated UTF-8 source')).toBeInTheDocument()
+    expect(screen.getByText(/source-size proxy/i)).toHaveTextContent('% source-size proxy')
   })
 })

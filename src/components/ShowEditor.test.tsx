@@ -2168,6 +2168,13 @@ describe('ShowEditor (#318)', () => {
 
     render(<ShowEditor showId={property.id} showOverride={property.show} readOnly />)
 
+    const compileBar = screen.getByTestId('show-compile-bar')
+    expect(compileBar).toHaveTextContent('generated UTF-8 source')
+    expect(compileBar).toHaveTextContent('observed compiled-bytecode activation ceiling 68,384 B')
+    expect(screen.getByLabelText(/source-size proxy derived from the observed 68,384-byte compiled-bytecode activation ceiling/i)).toHaveAccessibleName(
+      /not remaining Controller capacity/i,
+    )
+
     const trigger = screen.getByRole('button', { name: /show source inventory/i })
     expect(screen.queryByRole('dialog', { name: 'Show source inventory' })).not.toBeInTheDocument()
 
@@ -2320,7 +2327,7 @@ describe('ShowEditor (#318)', () => {
 
     const rendered = render(<ShowEditor showId={portable.show.id} />)
 
-    expect(screen.queryByText('Generated artifact uses 80% or more of the measured activation budget.')).not.toBeInTheDocument()
+    expect(screen.queryByText(/Generated UTF-8 source is 80% or more of the source-size proxy/)).not.toBeInTheDocument()
 
     rendered.unmount()
     useShowStore.setState({ shows: [installation.show], activeShowId: installation.show.id, showsLoaded: true })

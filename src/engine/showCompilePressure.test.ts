@@ -12,7 +12,7 @@ describe('Show compiled pressure release envelope (#492)', () => {
   it.each([
     {
       input: { artifactBytes: 55_000, budgetBytes: 68_384, worstInstantRenderersPerPixel: 2 },
-      warning: 'Generated artifact uses 80% or more of the measured activation budget.',
+      warning: 'Generated UTF-8 source is 80% or more of the source-size proxy derived from the observed 68,384-byte compiled-bytecode activation ceiling.',
     },
     {
       input: { artifactBytes: 20_000, budgetBytes: 68_384, worstInstantRenderersPerPixel: 3 },
@@ -29,7 +29,7 @@ describe('Show compiled pressure release envelope (#492)', () => {
   it.each([
     {
       input: { artifactBytes: 68_384, budgetBytes: 68_384, worstInstantRenderersPerPixel: 1 },
-      block: 'Generated artifact meets or exceeds the measured activation budget.',
+      block: 'Generated UTF-8 source meets or exceeds the source-size proxy derived from the observed 68,384-byte compiled-bytecode activation ceiling.',
     },
     {
       input: { artifactBytes: 20_000, budgetBytes: 68_384, worstInstantRenderersPerPixel: 5 },
