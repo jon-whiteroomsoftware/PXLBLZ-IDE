@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { ShowClipEffect } from './personalContentRecords'
 import {
   createShowClipEffect,
+  createShowEffectApplication,
   duplicateShowClipEffect,
   moveShowClipEffectWithinStage,
   nextShowEffectId,
@@ -14,14 +15,21 @@ import {
 import { buildShowToolkitPresentationCatalogue } from './showVisualToolkitPresentation'
 
 describe('Show Effect authoring adapter', () => {
-  it('constructs a normalized persisted Effect for every registry variant', () => {
+  it('constructs the correct persisted authoring action for every registry Effect', () => {
     const items = buildShowToolkitPresentationCatalogue({ stageDimensions: 2 })
       .filter((item) => item.kind === 'effect')
 
-    expect(items).toHaveLength(22)
-    for (const [index, item] of items.entries()) {
-      const effect = createShowClipEffect(item, `effect-${index}`)
-      expect(effect.id).toBe(`effect-${index}`)
+    expect(items).toHaveLength(23)
+    for (const item of items) {
+      const application = createShowEffectApplication(item, [], undefined)
+      if (item.key === 'effect:affine:mirror') {
+        expect(application).toEqual({ target: 'placement-mirror', mirror: true })
+        continue
+      }
+      expect(application.target).toBe('effect-stack')
+      if (application.target !== 'effect-stack') continue
+      const effect = application.effect
+      expect(effect.id).toBe(item.variantId)
       expect(showClipEffectPresentationKey(effect)).toBe(item.key)
       expect(showClipEffectStage(effect)).toBe(item.effectStage)
       expect(showClipEffectParameters(effect).every((parameter) => parameter.kind === 'number' || parameter.kind === 'color')).toBe(true)

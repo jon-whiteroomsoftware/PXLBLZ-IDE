@@ -605,6 +605,21 @@ export function createShowEffectToolkitFixtureRecipes(): ShowToolkitFixtureRecip
     })),
     {
       ...shared,
+      id: 'effect-affine-mirror',
+      familyId: 'affine',
+      variantId: 'mirror',
+      recipe: { clips: [{ id: 'outgoing', source: OUTGOING_SOURCE, adaptation: { mirror: true } }] },
+      persistedRecord: {
+        ...normalizeShowTransitionState(updateShowCellAdaptations(
+          createDefaultShow('fixture-effect-affine-mirror', 'effect-affine-mirror', 444),
+          'cell-1',
+          { mirror: true },
+        )),
+        updatedAt: 444,
+      },
+    },
+    {
+      ...shared,
       id: 'effect-affine-wrap',
       familyId: 'affine',
       variantId: 'wrap',

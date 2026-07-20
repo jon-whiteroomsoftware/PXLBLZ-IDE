@@ -18,7 +18,7 @@ describe('Show Effect authoring UI', () => {
     const onClose = vi.fn()
     render(<ShowEffectPalette clip={clip} stageDimensions={2} onApply={onApply} onClose={onClose} />)
 
-    expect(screen.getAllByRole('button', { name: /Add .* Effect/ })).toHaveLength(22)
+    expect(screen.getAllByRole('button', { name: /Add .* Effect/ })).toHaveLength(23)
     await user.type(screen.getByRole('searchbox', { name: 'Search Effects' }), 'ripple')
     const ripple = screen.getByRole('button', { name: 'Add Ripple Effect' })
     expect(screen.getAllByRole('button', { name: /Add .* Effect/ })).toHaveLength(1)
@@ -30,7 +30,10 @@ describe('Show Effect authoring UI', () => {
     fireEvent.pointerLeave(ripple)
 
     await user.click(ripple)
-    expect(onApply).toHaveBeenCalledWith(expect.objectContaining({ kind: 'ripple' }))
+    expect(onApply).toHaveBeenCalledWith({
+      target: 'effect-stack',
+      effect: expect.objectContaining({ kind: 'ripple' }),
+    })
     expect(onClose).toHaveBeenCalledTimes(1)
     expect(useShowPreviewOverrideStore.getState().show).toBeNull()
   })
@@ -43,6 +46,19 @@ describe('Show Effect authoring UI', () => {
     fireEvent.keyDown(document, { key: 'Escape' })
     expect(useShowPreviewOverrideStore.getState().show).toBeNull()
     expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('offers horizontal Mirror through the Effect palette without creating a stack Effect (#543)', async () => {
+    const user = userEvent.setup()
+    const show = createDefaultShow('show-mirror-effect', 'Mirror Effect', 1)
+    const onApply = vi.fn()
+    const onClose = vi.fn()
+    render(<ShowEffectPalette clip={show.cells[0]} stageDimensions={2} onApply={onApply} onClose={onClose} />)
+
+    await user.click(screen.getByRole('button', { name: 'Add Mirror Effect' }))
+
+    expect(onApply).toHaveBeenCalledWith({ target: 'placement-mirror', mirror: true })
+    expect(onClose).toHaveBeenCalledOnce()
   })
 
   it('edits a chroma-key target as color alongside tolerance and softness (#527)', async () => {
@@ -118,6 +134,7 @@ describe('Show Effect authoring UI', () => {
       posterize: 'steps',
       vignette: 'scale',
       'color-map': 'cycle',
+      mirror: 'mirror',
       translate: 'translate',
       rotate: 'rotate',
       scale: 'scale',
@@ -138,8 +155,8 @@ describe('Show Effect authoring UI', () => {
       expect(glyph).toHaveClass('show-effect-mnemonic')
     }
 
-    expect(document.querySelectorAll('[data-effect-mnemonic]')).toHaveLength(22)
-    expect(document.querySelectorAll('.show-effect-choice')).toHaveLength(22)
+    expect(document.querySelectorAll('[data-effect-mnemonic]')).toHaveLength(23)
+    expect(document.querySelectorAll('.show-effect-choice')).toHaveLength(23)
 
     fireEvent.pointerEnter(screen.getByRole('button', { name: 'Add Translate Effect' }))
     fireEvent.focus(screen.getByRole('button', { name: 'Add Ripple Effect' }))

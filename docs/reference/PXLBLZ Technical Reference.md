@@ -1408,7 +1408,9 @@ and kinds.
 
 Static version-1 Effects are production-authorable. `showEffectAuthoring.ts`
 adapts the shared registry's family, variant, preset, and parameter vocabulary
-to the normalized `ShowClipEffect` union. It also owns stable duplicate ids and
+to a typed authoring action. Ordinary variants create a normalized
+`ShowClipEffect`; Mirror patches the existing placement `view.mirror` flag. The
+adapter also owns stable duplicate ids and
 stage-constrained reorder transformations. `ShowEffectsAuthoring` projects that
 logic into the clip Entity Detail Panel and compact palette; it does not encode
 family-specific compiler behavior in React.
@@ -2532,6 +2534,14 @@ rotate, scale, and shear expose numeric targets through the same boundary-owned
 Property descriptor used by Animation speed. Wrap has no curve; it is an
 address policy applied after the complete affine transform. Add, update, move,
 remove, JSON reload, and normalization remain pure `showModel.ts` operations.
+
+Horizontal Mirror is exposed through the same Effect catalogue and active
+Transform stage, but remains the placement-owned `view.mirror` boolean rather
+than an ordered `ShowClipEffect`. This preserves existing flat-cell and
+composition records without migration. It reverses local index order in 1D and
+maps local X to `1 - x` in 2D before the inverse affine matrix. Mirror is
+discrete: it can be added or removed, but not duplicated, reordered, or used as
+a Property-animation target.
 
 The stack has two explicit evaluation stages because coordinate operations must
 run before the Pattern renderer and output operations must run after it.

@@ -248,6 +248,10 @@
   animation: effect-mnemonic-translate 650ms ease-in-out infinite alternate;
 }
 
+.show-effect-choice:is(:hover, :focus-visible) .show-effect-mnemonic[data-effect-motion='mirror'] [data-effect-motion-part] {
+  animation: effect-mnemonic-mirror 700ms ease-in-out infinite alternate;
+}
+
 .show-effect-choice:is(:hover, :focus-visible) .show-effect-mnemonic[data-effect-motion='rotate'] [data-effect-motion-part] {
   animation: effect-mnemonic-rotate 900ms linear infinite;
 }
@@ -267,6 +271,7 @@
 @keyframes effect-mnemonic-invert { 50% { transform: rotate(180deg); } }
 @keyframes effect-mnemonic-steps { to { transform: translateY(-1.5px); opacity: .55; } }
 @keyframes effect-mnemonic-translate { to { transform: translateX(4px); } }
+@keyframes effect-mnemonic-mirror { to { transform: scaleX(-1); } }
 @keyframes effect-mnemonic-rotate { to { transform: rotate(360deg); } }
 @keyframes effect-mnemonic-scale { to { transform: scale(.72); } }
 @keyframes effect-mnemonic-shear { to { transform: skewX(14deg); } }

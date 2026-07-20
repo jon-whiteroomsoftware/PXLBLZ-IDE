@@ -899,8 +899,10 @@ The same five values are stable Property-animation targets. A destination Clip
 may ramp them across its incoming boundary, and a Scene-local placement may
 author keyframes for them without depending on an Effect id. The compiler uses
 one fixed order: canonical scale, rotation, and position; authored Transform
-Effects; Distort; Address; Pattern render; then Color and output. Advanced
-Translate, Rotate, Scale, and Shear Effects remain available when a second
+Effects; Distort; Address; Pattern render; then Color and output. Mirror is
+available in the Transform Effect family as a discrete horizontal flip. It
+reverses local order in 1D and maps local X to `1 - x` in 2D before the affine
+transform. Advanced Translate, Rotate, Scale, and Shear Effects remain available when a second
 ordered transform is useful, and existing Effect stacks are not promoted into
 the canonical fields.
 
@@ -917,6 +919,11 @@ reshape; output Effects pulse or step. Reduced-motion users retain the same
 static mnemonic. Clicking a row applies its default values; named preset buttons
 apply a documented starting preset. The existing Stage then shows the applied
 Effect, and Entity Details exposes its exact parameters.
+
+Mirror uses the same palette and active Transform-stage presentation, but it
+reuses the Clip placement's existing boolean view flag instead of adding a
+synthetic ordered Effect record. Remove turns that flag off. Mirror is discrete,
+so it cannot be duplicated, reordered, or Property-animated.
 
 The clip's Entity Detail Panel groups applied Effects by the compiler's fixed
 Transform, Distort, Address, and Color & output stages. Expand an Effect for

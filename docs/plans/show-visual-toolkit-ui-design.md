@@ -43,7 +43,7 @@ not add general Property-animation controls or Effect-parameter animation.
 In development, `?prototype=visual-toolkit` opens the review candidate without
 requiring a saved Show. It demonstrates:
 
-- a searchable catalogue containing all 59 shipped variants and presets;
+- a searchable catalogue containing all 63 shipped variants and presets;
 - compatibility filtering against a 1D or 2D Stage;
 - progressive Effect description, locally animated motion mnemonics, and explicit apply language;
 - scene-versus-boundary inspector ownership;
@@ -73,7 +73,7 @@ boundary-only contract.
 
 The UI inherits these completed constraints rather than reopening them:
 
-- The registry contains 59 variants: five Property animation targets, nineteen
+- The registry contains 63 variants: five Property animation targets, twenty-three
   Effects, and thirty-five Transitions.
 - Families, variants, ordinary editable presets, parameter constraints,
   conditional applicability, dimensional compatibility, easing, and cost policy
@@ -128,7 +128,7 @@ restores the saved preview.
 The selected clip's inspector contains its applied Effects in visible compiler
 stages:
 
-1. **Transform** - Translate, Rotate, Scale, and Shear;
+1. **Transform** - Mirror, Translate, Rotate, Scale, and Shear;
 2. **Distort** - Ripple, Swirl, Bulge / Pinch, Pixelate, and Kaleidoscope;
 3. **Address** - Clip or Wrap policy; and
 4. **Color & output** - Opacity, Brightness, Hue, Saturation, Contrast, Invert,

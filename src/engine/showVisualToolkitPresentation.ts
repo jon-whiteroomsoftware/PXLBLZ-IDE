@@ -1,6 +1,7 @@
 import {
   SHOW_VISUAL_TOOLKIT_REGISTRY,
   type ShowToolkitCostPolicy,
+  type ShowEffectAuthoringTarget,
   type ShowToolkitKind,
   type ShowToolkitVariantDescriptor,
 } from './showVisualToolkit'
@@ -21,6 +22,7 @@ export interface ShowToolkitPresentationItem {
   costPolicies: ShowToolkitCostPolicy[]
   effectStage: ShowEffectPipelineStage | null
   presetLabels: string[]
+  authoringTarget: ShowEffectAuthoringTarget
 }
 
 const FAMILY_SUMMARIES: Record<string, string> = {
@@ -93,6 +95,7 @@ export function buildShowToolkitPresentationCatalogue(input: {
       costPolicies: [...variant.costPolicies],
       effectStage: family.kind === 'effect' ? effectStage(family.id, variant.id) : null,
       presetLabels,
+      authoringTarget: variant.authoringTarget ?? 'effect-stack',
     }
   }))
 }

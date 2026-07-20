@@ -16,6 +16,10 @@ const OUTPUT_EFFECTS = new Set<ShowClipEffect['kind']>([
 ])
 const AFFINE_EFFECTS = new Set<ShowClipEffect['kind']>(['translate', 'rotate', 'scale', 'shear', 'wrap'])
 
+export type ShowEffectApplication =
+  | { target: 'effect-stack'; effect: ShowClipEffect }
+  | { target: 'placement-mirror'; mirror: true }
+
 function familyIdForKind(kind: ShowClipEffect['kind']): 'output' | 'affine' | 'distortion' {
   if (OUTPUT_EFFECTS.has(kind)) return 'output'
   if (AFFINE_EFFECTS.has(kind)) return 'affine'
@@ -39,6 +43,7 @@ export function createShowClipEffect(
   presetId?: string,
 ): ShowClipEffect {
   if (item.kind !== 'effect') throw new Error(`${item.key} is not a static Effect.`)
+  if (item.authoringTarget !== 'effect-stack') throw new Error(`${item.key} is not an ordered stack Effect.`)
   const initial = normalizeShowClipEffects([{ id, kind: item.variantId } as ShowClipEffect])[0]
   if (!initial) throw new Error(`Unsupported Show Effect ${item.variantId}.`)
   const family = SHOW_VISUAL_TOOLKIT_REGISTRY.find((candidate) => (
@@ -50,6 +55,19 @@ export function createShowClipEffect(
     (effect, [parameterId, value]) => updateShowClipEffectParameter(effect, parameterId, value),
     initial,
   )
+}
+
+export function createShowEffectApplication(
+  item: ShowToolkitPresentationItem,
+  effects: readonly ShowClipEffect[],
+  presetId?: string,
+): ShowEffectApplication {
+  if (item.kind !== 'effect') throw new Error(`${item.key} is not a static Effect.`)
+  if (item.authoringTarget === 'placement-mirror') {
+    return { target: 'placement-mirror', mirror: true }
+  }
+  const id = nextShowEffectId(effects, item.variantId)
+  return { target: 'effect-stack', effect: createShowClipEffect(item, id, presetId) }
 }
 
 export function showClipEffectParameters(effect: ShowClipEffect): ShowToolkitParameterDescriptor[] {

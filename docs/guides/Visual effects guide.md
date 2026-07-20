@@ -81,7 +81,9 @@ suggests that an output color operation can run before the Pattern renderer or
 that Wrap can run before the complete coordinate transform.
 
 Expand an Effect for exact values. Duplicate makes an independent copy; Remove
-deletes only that Effect. Neutral values compile away where the operation allows
+deletes only that Effect. **Mirror** is a discrete horizontal flip: it appears in
+the Transform stage and can be added or removed there, but has no numeric curve
+or duplicate command. Neutral values compile away where the operation allows
 it. Animated Effect parameters use the same boundary-owned Property animation
 mechanism as clip brightness or animation speed, provided adjacent clips retain
 the same stable Effect identity and kind.
@@ -249,8 +251,10 @@ and LED protocol can sustain the same frame rate at the 2,000-pixel ceiling.
 
 ### Transform Effects
 
-Translate, Rotate, Scale, and Shear alter the coordinates used to sample a
-Pattern. The reference Show keeps one affine Effect stack and eases its numeric
+Mirror flips the source horizontally before the other transforms. In 1D it
+reverses the clip's local pixel order; in 2D it maps the local X coordinate to
+`1 - x`. Translate, Rotate, Scale, and Shear then alter the coordinates used to
+sample a Pattern. The reference Show keeps one affine Effect stack and eases its numeric
 values between examples, so pixels move continuously through Translate, Scale,
 Rotate, and Shear instead of switching or blending rendered frames. Wrap applies
 after the complete transform when samples outside the source domain should

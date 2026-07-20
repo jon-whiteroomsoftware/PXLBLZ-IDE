@@ -4,6 +4,7 @@ export type ShowToolkitKind = 'property-animation' | 'effect' | 'transition'
 export type ShowToolkitCostPolicy = 'none' | 'parameter' | 'single-source' | 'selector' | 'bounded-blend' | 'full-blend'
 export type ShowToolkitParameterValue = number | boolean | string
 export type ShowPatternEvaluationFormula = 'N' | 'N + E' | '2N' | 'S * N'
+export type ShowEffectAuthoringTarget = 'effect-stack' | 'placement-mirror'
 
 export interface ShowCompiledCostMetadata {
   cpu: {
@@ -92,6 +93,8 @@ export interface ShowToolkitVariantDescriptor {
   id: string
   label: string
   costPolicies: ShowToolkitCostPolicy[]
+  /** Most Effects persist in the ordered stack; placement Mirror reuses its existing view flag. */
+  authoringTarget?: ShowEffectAuthoringTarget
   compatibility?: { stageDimensions: Array<1 | 2 | 3> }
   qualityPolicy?: 'cheap' | 'smooth'
   presets?: ShowToolkitPresetDescriptor[]
@@ -193,6 +196,7 @@ export const SHOW_VISUAL_TOOLKIT_REGISTRY: ShowToolkitFamilyDescriptor[] = [
     id: 'affine',
     label: 'Transform',
     variants: [
+      { id: 'mirror', label: 'Mirror', costPolicies: ['single-source'], authoringTarget: 'placement-mirror', compatibility: { stageDimensions: [1, 2] } },
       { id: 'translate', label: 'Translate', costPolicies: ['single-source', 'parameter'], compatibility: { stageDimensions: [2] } },
       { id: 'rotate', label: 'Rotate', costPolicies: ['single-source', 'parameter'], compatibility: { stageDimensions: [2] } },
       { id: 'scale', label: 'Scale', costPolicies: ['single-source', 'parameter'], compatibility: { stageDimensions: [2] } },

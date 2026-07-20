@@ -14,16 +14,16 @@ import {
 } from 'lucide-react'
 import type { ShowCell, ShowClipEffect } from '@/engine/personalContentRecords'
 import {
-  createShowClipEffect,
+  createShowEffectApplication,
   duplicateShowClipEffect,
   moveShowClipEffectWithinStage,
-  nextShowEffectId,
   showClipEffectParameterValue,
   showClipEffectParameters,
   showClipEffectPresentationKey,
   showClipEffectStage,
   updateShowClipEffectParameter,
 } from '@/engine/showEffectAuthoring'
+import type { ShowEffectApplication } from '@/engine/showEffectAuthoring'
 import { SHOW_VISUAL_TOOLKIT_REGISTRY, type ShowCompiledCostMetadata } from '@/engine/showVisualToolkit'
 import {
   buildShowToolkitPresentationCatalogue,
@@ -47,7 +47,7 @@ export function ShowEffectPalette({
 }: {
   clip: Pick<ShowCell, 'patternName' | 'effects'>
   stageDimensions: 1 | 2 | 3
-  onApply: (effect: ShowClipEffect) => void
+  onApply: (application: ShowEffectApplication) => void
   onClose: () => void
 }) {
   const searchRef = useRef<HTMLInputElement>(null)
@@ -73,8 +73,7 @@ export function ShowEffectPalette({
   }
   const applyItem = (item: ShowToolkitPresentationItem, presetId?: string) => {
     if (!item.compatible) return
-    const id = nextShowEffectId(clip.effects ?? [], item.variantId)
-    onApply(createShowClipEffect(item, id, presetId))
+    onApply(createShowEffectApplication(item, clip.effects ?? [], presetId))
     close()
   }
 
@@ -187,13 +186,17 @@ export function ShowEffectPalette({
 
 export function ShowEffectStack({
   effects,
+  mirror = false,
   compiledCost,
   onChange,
+  onMirrorChange,
   onAdd,
 }: {
   effects: readonly ShowClipEffect[]
+  mirror?: boolean
   compiledCost?: ShowCompiledCostMetadata
   onChange: (effects: ShowClipEffect[]) => void
+  onMirrorChange?: (mirror: boolean) => void
   onAdd: () => void
 }) {
   const [expandedId, setExpandedId] = useState<string | null>(null)
@@ -215,7 +218,8 @@ export function ShowEffectStack({
       </header>
       {STAGES.map((stage) => {
         const stageEffects = effects.filter((effect) => showClipEffectStage(effect) === stage.id)
-        if (stageEffects.length === 0) return null
+        const hasMirror = mirror && stage.id === 'transform'
+        if (stageEffects.length === 0 && !hasMirror) return null
         return (
           <div key={stage.id} data-testid="show-effect-stage" className="border-b border-zinc-800/80 last:border-b-0">
             <div className="flex h-6 items-center gap-1.5 bg-zinc-950/55 px-2 text-[8px] uppercase tracking-[0.1em] text-zinc-600">
@@ -223,6 +227,16 @@ export function ShowEffectStack({
               {stage.label}
               <span className="normal-case tracking-normal text-zinc-700">{stage.detail}</span>
             </div>
+            {hasMirror && (
+              <div data-testid="show-effect-mirror" className="border-t border-zinc-800/60 bg-[#101115]">
+                <div className="flex h-8 items-center gap-1 px-1.5">
+                  <span className="grid size-6 shrink-0 place-items-center text-cyan-400/70"><EffectMnemonic kind="mirror" /></span>
+                  <span className="min-w-0 flex-1 truncate text-[10px] text-zinc-200">Mirror</span>
+                  <span className="hidden text-[8px] text-zinc-700 sm:inline">single-source</span>
+                  <IconButton label="Remove Mirror Effect" onClick={() => onMirrorChange?.(false)}><Trash2 size={11} /></IconButton>
+                </div>
+              </div>
+            )}
             {stageEffects.map((effect, index) => {
               const item = byKey.get(showClipEffectPresentationKey(effect))
               const expanded = expandedId === effect.id
@@ -378,6 +392,7 @@ const EFFECT_MNEMONIC_MOTION: Record<string, string> = {
   posterize: 'steps',
   vignette: 'scale',
   'color-map': 'cycle',
+  mirror: 'mirror',
   translate: 'translate',
   rotate: 'rotate',
   scale: 'scale',
@@ -440,6 +455,8 @@ function effectMnemonicShape(kind: string): React.ReactNode {
       return <><ellipse cx="13" cy="7" rx="10" ry="5" opacity=".25" /><ellipse cx="13" cy="7" rx="6" ry="3" opacity=".6" /><circle cx="13" cy="7" r="1.2" fill="currentColor" stroke="none" /></>
     case 'color-map':
       return <><path d="M2 10 C6 2 9 2 13 7 S20 12 24 4" /><path d="M2 12 H8 M10 12 H16 M18 12 H24" opacity=".45" /></>
+    case 'mirror':
+      return <><path d="M13 1 V13" opacity=".45" /><path d="M3 7 H10 M7 3 L3 7 L7 11 M23 7 H16 M19 3 L23 7 L19 11" /></>
     case 'translate':
       return <path d="M2 7 H23 M18 3 L23 7 L18 11" />
     case 'rotate':

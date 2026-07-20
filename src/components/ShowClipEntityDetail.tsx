@@ -230,8 +230,10 @@ export function ShowClipEntityDetail({
 
         <ShowEffectStack
           effects={value.effects}
+          mirror={value.view.mirror}
           compiledCost={compiledCost}
           onChange={(effects) => onPatch({ effects })}
+          onMirrorChange={(mirror) => onPatch({ view: { mirror } })}
           onAdd={onOpenEffects}
         />
 

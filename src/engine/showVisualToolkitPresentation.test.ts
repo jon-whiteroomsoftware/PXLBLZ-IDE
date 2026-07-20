@@ -8,7 +8,7 @@ describe('Show visual-toolkit presentation catalogue', () => {
   it('presents every frozen runtime variant through stable catalogue keys', () => {
     const catalogue = buildShowToolkitPresentationCatalogue({ stageDimensions: 2 })
 
-    expect(catalogue).toHaveLength(62)
+    expect(catalogue).toHaveLength(63)
     expect(new Set(catalogue.map((item) => item.key)).size).toBe(catalogue.length)
     expect(catalogue.every((item) => item.summary.length > 0)).toBe(true)
   })
@@ -30,6 +30,11 @@ describe('Show visual-toolkit presentation catalogue', () => {
     expect(byKey.get('effect:affine:translate')).toMatchObject({
       compatible: false,
       effectStage: 'transform',
+    })
+    expect(byKey.get('effect:affine:mirror')).toMatchObject({
+      compatible: true,
+      effectStage: 'transform',
+      authoringTarget: 'placement-mirror',
     })
     expect(byKey.get('effect:affine:wrap')).toMatchObject({
       compatible: false,

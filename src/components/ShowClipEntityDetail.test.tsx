@@ -117,6 +117,16 @@ describe('shared Clip Entity Detail sections (#498)', () => {
     expect(screen.queryByRole('group', { name: 'Clip Transform' })).not.toBeInTheDocument()
   })
 
+  it('shows an authored Mirror in the active Effect stack and removes it through the Effect UI (#543)', () => {
+    const onPatch = vi.fn()
+    const props = commonProps('scene-main', onPatch)
+    render(<ShowClipEntityDetail {...props} value={{ ...props.value, view: { ...props.value.view, mirror: true } }} />)
+
+    expect(screen.getByText('Mirror')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Remove Mirror Effect' }))
+    expect(onPatch).toHaveBeenCalledWith({ view: { mirror: false } })
+  })
+
   it('presents Pattern and advanced controls as flat readable tables', () => {
     render(<ShowClipEntityDetail {...commonProps('global')} />)
 

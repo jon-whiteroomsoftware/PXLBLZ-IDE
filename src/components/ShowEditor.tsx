@@ -1529,7 +1529,12 @@ export function ShowEditor({
             <ShowEffectPalette
               clip={effectPaletteValue}
               stageDimensions={(stageDimension ?? 2) as 1 | 2 | 3}
-              onApply={(effect) => {
+              onApply={(application) => {
+                if (application.target === 'placement-mirror') {
+                  void commitClipInspectorPatch(effectPaletteOwner, { view: { mirror: application.mirror } })
+                  return
+                }
+                const effect = application.effect
                 void commitClipInspectorPatch(effectPaletteOwner, { effects: [...effectPaletteValue.effects, effect] }).then(() => {
                   window.setTimeout(() => document.querySelector<HTMLElement>(`[data-show-effect-id="${effect.id}"]`)?.focus(), 0)
                 })

@@ -18,14 +18,15 @@ The registry contains 62 variants with 107 deterministic fixtures:
 | Kind | Registered variants |
 | --- | ---: |
 | Property animation | 5 |
-| Effect | 22 |
+| Effect | 23 |
 | Transition | 35 |
 
 Every variant resolves to at least one fixture. The Property matrix now covers
 Animation speed, Brightness, Pattern control, Split position, and Repeat scale
 through the same fixture, persistence, seek, compiler, and cost path used by
-Effects and Transitions. The combined affine fixture covers Translate, Rotate,
-Scale, Shear, and Wrap while retaining their shared implementation.
+Effects and Transitions. A dedicated fixture covers placement Mirror. The
+combined affine fixture covers Translate, Rotate, Scale, Shear, and Wrap while
+retaining their shared implementation.
 
 Each fixture compiles twice to identical generated source, seeks to progress
 `0`, `0.25`, `0.5`, `0.75`, and `1`, produces identical frame checksums on a
