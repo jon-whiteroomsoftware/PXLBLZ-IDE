@@ -66,6 +66,7 @@ import { SHOW_DISTORTION_CANDIDATES } from './showDistortionBenchmark'
 import {
   emitFormulaRoutingRenderDecode,
   emitLogicalRoutingSetup,
+  zoneLocal2DCoordinateExpressions,
   emitPackedRoutingRenderDecode,
   emitPackedRoutingTable as emitPackedRoutingTableFromShapes,
   emitZoneLocalAssignments,
@@ -8367,12 +8368,11 @@ function emitFormulaRoutingRender(
   )
 }
 function emitPackedRouteBlock(route: ResolvedRoute, routeIndex: number, outputDimension: 1 | 2): string {
-  const width = Math.max(1, Math.ceil(Math.sqrt(route.pixelCount)))
-  const height = Math.max(1, Math.ceil(route.pixelCount / width))
+  const coordinates = zoneLocal2DCoordinateExpressions(route.pixelCount, '__pxlblz_show_route_local')
   const render = outputDimension === 2
     ? [
-        `        var ${route.member.prefix}_zoneLocalX = ${width === 1 ? '0.5' : `(__pxlblz_show_route_local % ${width}) / ${width - 1}`}`,
-        `        var ${route.member.prefix}_zoneLocalY = ${height === 1 ? '0.5' : `floor(__pxlblz_show_route_local / ${width}) / ${height - 1}`}`,
+        `        var ${route.member.prefix}_zoneLocalX = ${coordinates.x}`,
+        `        var ${route.member.prefix}_zoneLocalY = ${coordinates.y}`,
         `        ${route.member.prefix}_renderCapture2D(__pxlblz_show_route_local, ${route.member.prefix}_zoneLocalX, ${route.member.prefix}_zoneLocalY)`,
       ]
     : [`        ${route.member.prefix}_renderCapture(__pxlblz_show_route_local)`]
@@ -9616,12 +9616,11 @@ function emitShortCircuitRouteRenderBody(
     const localIndex = range.localOffset === 0
       ? `index - ${range.start}`
       : `${range.localOffset} + index - ${range.start}`
-    const width = Math.max(1, Math.ceil(Math.sqrt(route.pixelCount)))
-    const height = Math.max(1, Math.ceil(route.pixelCount / width))
+    const coordinates = zoneLocal2DCoordinateExpressions(route.pixelCount, localIndex)
     const render = outputDimension === 2
       ? [
-          `  var ${route.member.prefix}_zoneLocalX = ${width === 1 ? '0.5' : `(${localIndex} % ${width}) / ${width - 1}`}`,
-          `  var ${route.member.prefix}_zoneLocalY = ${height === 1 ? '0.5' : `floor((${localIndex}) / ${width}) / ${height - 1}`}`,
+          `  var ${route.member.prefix}_zoneLocalX = ${coordinates.x}`,
+          `  var ${route.member.prefix}_zoneLocalY = ${coordinates.y}`,
           `  ${route.member.prefix}_renderCapture2D(${localIndex}, ${route.member.prefix}_zoneLocalX, ${route.member.prefix}_zoneLocalY)`,
         ]
       : [`  ${route.member.prefix}_renderCapture(${localIndex})`]
@@ -9638,12 +9637,11 @@ ${route.member.uniformPixelCountBinding ? '' : `  ${route.member.pixelCountName}
 
 function emitRouteRenderBlock(route: ResolvedRoute, outputDimension: 1 | 2): string {
   const localName = `${route.member.prefix}_zoneLocalIndex`
-  const width = Math.max(1, Math.ceil(Math.sqrt(route.pixelCount)))
-  const height = Math.max(1, Math.ceil(route.pixelCount / width))
+  const coordinates = zoneLocal2DCoordinateExpressions(route.pixelCount, localName)
   const render = outputDimension === 2
     ? [
-        `    var ${route.member.prefix}_zoneLocalX = ${width === 1 ? '0.5' : `(${localName} % ${width}) / ${width - 1}`}`,
-        `    var ${route.member.prefix}_zoneLocalY = ${height === 1 ? '0.5' : `floor(${localName} / ${width}) / ${height - 1}`}`,
+        `    var ${route.member.prefix}_zoneLocalX = ${coordinates.x}`,
+        `    var ${route.member.prefix}_zoneLocalY = ${coordinates.y}`,
         `    ${route.member.prefix}_renderCapture2D(${localName}, ${route.member.prefix}_zoneLocalX, ${route.member.prefix}_zoneLocalY)`,
       ]
     : [`    ${route.member.prefix}_renderCapture(${localName})`]

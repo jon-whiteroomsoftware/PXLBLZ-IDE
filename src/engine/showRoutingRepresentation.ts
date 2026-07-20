@@ -86,6 +86,29 @@ export function emitZoneLocalAssignments(
   return lines
 }
 
+/**
+ * Zone-local 2D sample coordinates from a zone-local index under the
+ * square-fill convention: width = ceil(sqrt(n)), height = ceil(n / width),
+ * degenerate axes centered at 0.5. One rule shared by the packed,
+ * short-circuit, and range-branch dispatch blocks.
+ */
+export function zoneLocal2DCoordinateExpressions(
+  pixelCount: number,
+  localIndexExpression: string,
+): { x: string; y: string } {
+  const width = Math.max(1, Math.ceil(Math.sqrt(pixelCount)))
+  const height = Math.max(1, Math.ceil(pixelCount / width))
+  const bareIdentifier = /^[A-Za-z_$][\w$]*$/.test(localIndexExpression)
+  const wrapped = bareIdentifier ? localIndexExpression : `(${localIndexExpression})`
+  // Both axes wrap compound expressions: the pre-#570 short-circuit block
+  // interpolated the x index unparenthesized, so `(index - 64 % 8)` parsed
+  // as `index - 0` and every multi-row zone received a garbage local X.
+  return {
+    x: width === 1 ? '0.5' : `(${wrapped} % ${width}) / ${width - 1}`,
+    y: height === 1 ? '0.5' : `floor(${wrapped} / ${width}) / ${height - 1}`,
+  }
+}
+
 /** Physical coverage diagnostics: gaps render black and stay warned. */
 export function routingLayoutGapWarnings(
   name: string,

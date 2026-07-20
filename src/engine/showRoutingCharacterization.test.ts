@@ -183,3 +183,23 @@ describe('routing representation characterization (#570)', () => {
     expect(result.warnings.some((warning) => warning.includes('first route wins'))).toBe(true)
   })
 })
+
+describe('short-circuit 2D zone-local coordinates (#570 fix)', () => {
+  it('parenthesizes the offset local index in zoneLocalX', () => {
+    // Pre-#570, `(index - 64 % 8)` parsed as `index - 0`: every multi-row
+    // zone in the short-circuit 2D dispatch received a garbage local X.
+    const artifact = compileShow({
+      masterPixelCount: 128,
+      clips: [
+        { id: 'left', zone: 'left', source: 'export function render2D(index, x, y) { rgb(x, y, 0.2) }' },
+        { id: 'right', zone: 'right', source: 'export function render2D(index, x, y) { rgb(x, y, 0.2) }' },
+      ],
+      zones: [
+        { id: 'z-left', name: 'left', ranges: [{ start: 0, end: 63 }] },
+        { id: 'z-right', name: 'right', ranges: [{ start: 64, end: 127 }] },
+      ],
+    }, {})
+    expect(artifact.expandedCode).toContain('__pxlblz_show_c1_zoneLocalX = ((index - 64) % 8) / 7')
+    expect(artifact.expandedCode).not.toMatch(/zoneLocalX = \(index - \d+ %/)
+  })
+})
