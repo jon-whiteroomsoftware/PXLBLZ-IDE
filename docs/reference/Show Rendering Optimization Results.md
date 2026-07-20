@@ -335,7 +335,8 @@ lives in `docs/plans/archive/show-rendering-next-wave-measurement-ledger.md`.
 | 07 | #566 inline pure call-subtree hoisting | exact extension of #513 to inline time()/wave() subtrees; fixture-set result neutral (audience under-represented); 7 stock Shows gain hoists |
 | 08 | #564 fixed-point peepholes | **recorded negative**: floor/frac price below a same-shape multiply (#556), and fw 3.67 bitwise ops integer-coerce operands so the raw-bits identities are invalid |
 | 09 | #559 per-member HSV capture chain | conversion 39.6 -> 22.9 us/call (probe); effect-tax +10.7-11.2%, acceptance +6.2-6.6%, mirror +3.2% median FPS; bit-exact |
-| 10 | #563 zone-coordinate strength reduction | **recorded negative**: modulo is free vs a multiply, floor-feeding reciprocals step whole rows, outer reciprocals err ~WIDTH/2 LSBs (exact only for power-of-two divisors) |
+| 10 | #560 Mirror within-frame reuse | **recorded negative**: render-order kill-test PASSED (ascending, total coverage), but a mirror reversal is a permutation with no within-frame redundancy for single placements; twin stacks are the only paying shape (owner-declined) |
+| 11 | #563 zone-coordinate strength reduction | **recorded negative**: modulo is free vs a multiply, floor-feeding reciprocals step whole rows, outer reciprocals err ~WIDTH/2 LSBs (exact only for power-of-two divisors) |
 
 Wave-2 slice ledgers with full axes live as comments on #554.
 
