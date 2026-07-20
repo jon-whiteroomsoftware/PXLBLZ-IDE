@@ -115,8 +115,9 @@ The Studio is a three-pane environment:
 The center-pane title is also the rename control for personal Patterns, maps,
 mixins, libraries, and Shows. Click the title, edit the name, and confirm with
 Return or the check button; Escape or the cancel button leaves the name
-unchanged. Space controls Preview playback throughout Studio except while focus
-is in a text-entry surface such as this rename input or the code editor. Library
+unchanged. Space controls Preview playback throughout Studio and on the Gallery
+pattern detail page, except while focus is in a text-entry surface such as this
+rename input or the code editor. Library
 entity names remain Pixelblaze identifiers because the name is also the
 namespace; folders in the Libraries tree may contain spaces like every other
 folder. Built-in and stock content is read-only, and Controller profile names
@@ -697,9 +698,10 @@ Zoom is editor state only and never changes Show time.
 zoom-aware time-grid boundaries. It is on by default and remembered as an editor
 preference; hold Alt to temporarily reverse the current Snap setting.
 
-Every Studio authoring view supports the same first keyboard step: **Space**
-toggles its active preview as soon as the document owns the key, including the
-first keypress after a page load. This remains true when a rail row, button,
+Every Studio authoring view, plus the Gallery pattern detail page, supports the
+same first keyboard step: **Space** toggles its active preview as soon as the
+document owns the key, including the first keypress after a page load. The
+Gallery grid is excluded because no single preview has focus there. This remains true when a rail row, button,
 link, selector, slider, or menu has focus. Text fields, code editors, and other
 contenteditable surfaces retain Space for text entry.
 
