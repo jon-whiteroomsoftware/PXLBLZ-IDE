@@ -203,3 +203,50 @@ describe('short-circuit 2D zone-local coordinates (#570 fix)', () => {
     expect(artifact.expandedCode).not.toMatch(/zoneLocalX = \(index - \d+ %/)
   })
 })
+
+// Every transition kind must expose retargetable captures for the routed
+// zone-local rewrite; a formatting drift in any emitter now fails the
+// compile loudly instead of silently keeping the full-stage capture.
+describe('routed transition capture retargeting guard (#570 hardening)', () => {
+  const transitions: Array<Record<string, unknown>> = [
+    { kind: 'crossfade', durationMs: 1_000 },
+    { kind: 'dither', durationMs: 1_000 },
+    { kind: 'dither', durationMs: 1_000, dissolveVariant: 'block', blockSize: 8 },
+    { kind: 'dither', durationMs: 1_000, dissolveVariant: 'coherent-noise' },
+    { kind: 'dither', durationMs: 1_000, dissolveVariant: 'soft-threshold', softness: 0.2 },
+    { kind: 'wipe', durationMs: 1_000, direction: 'left-to-right' },
+    { kind: 'wipe', durationMs: 1_000, direction: 'left-to-right', feather: 0.2, edgePolicy: 'blend' },
+    { kind: 'fade-color', durationMs: 1_000, color: '#000000' },
+    { kind: 'portal', durationMs: 1_000, shape: 'circle' },
+    { kind: 'motion', durationMs: 1_000, direction: 'left' },
+  ]
+
+  it.each(transitions.map((transition) => [String(transition.kind) + (transition.dissolveVariant ? `:${transition.dissolveVariant}` : '') + (transition.feather ? ':feathered' : ''), transition] as const))(
+    'compiles a routed %s transition with zone-local captures',
+    (_label, transition) => {
+      const artifact = compileShow({
+        masterPixelCount: 128,
+        clips: [
+          { id: 'a', source: 'export function render(index) { rgb(index / pixelCount, 0.4, 0.1) }' },
+          { id: 'b', source: 'export function render(index) { rgb(0.1, 0.4, index / pixelCount) }' },
+        ],
+        zones: [zone('t-red', 'red', [{ start: 0, end: 63 }])],
+        routingLayouts: [{ id: 'stage', name: 'stage', zones: [zone('t-red', 'red', [{ start: 0, end: 63 }])] }],
+        routedSceneSequence: {
+          scenes: [
+            {
+              holdMs: 4_000,
+              placements: [{ placementId: 'p0', zoneName: 'red', clipId: 'a' }],
+              transitionOut: transition as never,
+            },
+            { holdMs: 4_000, placements: [{ placementId: 'p1', zoneName: 'red', clipId: 'b' }] },
+          ],
+        },
+        loopDurationMs: 10_000,
+      }, {})
+      // The transition body must reference the zone-local index, never the
+      // full-stage default capture arguments.
+      expect(artifact.expandedCode).not.toMatch(/routed_transition[\s\S]{0,3000}?renderCapture2?D?\(index[,)]/)
+    },
+  )
+})

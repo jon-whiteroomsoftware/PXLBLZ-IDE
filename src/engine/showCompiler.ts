@@ -71,6 +71,7 @@ import {
   emitPackedRoutingTable as emitPackedRoutingTableFromShapes,
   emitZoneLocalAssignments,
   planPhysicalRoutingRepresentation,
+  wrapCompoundExpression,
   routingLayoutGapWarnings,
   routingLayoutOverlapWarnings,
   validateLogicalRoutingRecipe,
@@ -7295,9 +7296,24 @@ function emitSceneTransitionWithCaptures(
       false,
     )
   }
-  return emitSceneSequenceTransitionBlock(from, to, transition, outputDimension, scalarField)
-    .split(memberRenderCapture(from, outputDimension)).join(fromCapture)
-    .split(memberRenderCapture(to, outputDimension)).join(toCapture)
+  // The zone-local retargeting is textual: every transition emitter must
+  // expose both members' captures exactly as memberRenderCapture renders
+  // them. Three invariants keep that true today (per-scene stack wrappers
+  // are never identical, portal/spatial-dissolve force outputDimension 2,
+  // the other emitters call memberRenderCapture themselves) - and a drift
+  // in any of them would silently keep the full-stage capture, so fail the
+  // compile loudly instead.
+  const block = emitSceneSequenceTransitionBlock(from, to, transition, outputDimension, scalarField)
+  const fromCall = memberRenderCapture(from, outputDimension)
+  const toCall = memberRenderCapture(to, outputDimension)
+  if (!block.includes(fromCall) || !block.includes(toCall)) {
+    throw new Error(
+      `compileShow "${transition.kind}" transition did not expose retargetable captures for zone-local rewriting.`,
+    )
+  }
+  return block
+    .split(fromCall).join(fromCapture)
+    .split(toCall).join(toCapture)
 }
 
 function routedSceneMemberCapture(
@@ -7772,7 +7788,9 @@ function emitRollingRefreshReplay(member: CompiledMember, indexExpression: strin
   const ownsCache = member.rollingRefreshOwnerTokens
     .map((token) => `__pxlblz_show_rolling_owner == ${token}`)
     .join(' || ')
-  return `  if (__pxlblz_show_rolling_ready && (${ownsCache}) && ${indexExpression} % __pxlblz_show_rolling_slices != __pxlblz_show_rolling_phase) {
+  // Parenthesized so a compound index expression cannot re-associate with
+  // the modulo (the zoneLocalX precedence-bug family).
+  return `  if (__pxlblz_show_rolling_ready && (${ownsCache}) && ${wrapCompoundExpression(indexExpression)} % __pxlblz_show_rolling_slices != __pxlblz_show_rolling_phase) {
     ${member.prefix}_r = ${emitShowRenderTargetRead(target, 'r', indexExpression)}
     ${member.prefix}_g = ${emitShowRenderTargetRead(target, 'g', indexExpression)}
     ${member.prefix}_b = ${emitShowRenderTargetRead(target, 'b', indexExpression)}
@@ -7787,7 +7805,7 @@ function emitRollingRefreshCapture(member: CompiledMember, indexExpression: stri
   const ownsCache = member.rollingRefreshOwnerTokens
     .map((token) => `__pxlblz_show_rolling_owner == ${token}`)
     .join(' || ')
-  return `  if ((${ownsCache}) && (!__pxlblz_show_rolling_ready || ${indexExpression} % __pxlblz_show_rolling_slices == __pxlblz_show_rolling_phase)) {
+  return `  if ((${ownsCache}) && (!__pxlblz_show_rolling_ready || ${wrapCompoundExpression(indexExpression)} % __pxlblz_show_rolling_slices == __pxlblz_show_rolling_phase)) {
     ${emitShowRenderTargetWrite(target, 'r', indexExpression, `${member.prefix}_r`)}
     ${emitShowRenderTargetWrite(target, 'g', indexExpression, `${member.prefix}_g`)}
     ${emitShowRenderTargetWrite(target, 'b', indexExpression, `${member.prefix}_b`)}

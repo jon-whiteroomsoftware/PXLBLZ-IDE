@@ -87,6 +87,15 @@ export function emitZoneLocalAssignments(
 }
 
 /**
+ * Wrap a generated expression in parentheses unless it is a bare
+ * identifier, so interpolation into higher-precedence contexts (%, /, *)
+ * cannot re-associate it - the zoneLocalX precedence-bug family.
+ */
+export function wrapCompoundExpression(expression: string): string {
+  return /^[A-Za-z_$][\w$]*$/.test(expression) ? expression : `(${expression})`
+}
+
+/**
  * Zone-local 2D sample coordinates from a zone-local index under the
  * square-fill convention: width = ceil(sqrt(n)), height = ceil(n / width),
  * degenerate axes centered at 0.5. One rule shared by the packed,
@@ -98,8 +107,7 @@ export function zoneLocal2DCoordinateExpressions(
 ): { x: string; y: string } {
   const width = Math.max(1, Math.ceil(Math.sqrt(pixelCount)))
   const height = Math.max(1, Math.ceil(pixelCount / width))
-  const bareIdentifier = /^[A-Za-z_$][\w$]*$/.test(localIndexExpression)
-  const wrapped = bareIdentifier ? localIndexExpression : `(${localIndexExpression})`
+  const wrapped = wrapCompoundExpression(localIndexExpression)
   // Both axes wrap compound expressions: the pre-#570 short-circuit block
   // interpolated the x index unparenthesized, so `(index - 64 % 8)` parsed
   // as `index - 0` and every multi-row zone received a garbage local X.
