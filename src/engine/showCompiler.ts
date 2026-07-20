@@ -61,10 +61,15 @@ import {
 } from './showVisualToolkit'
 import { SHOW_DISTORTION_CANDIDATES } from './showDistortionBenchmark'
 import {
+  buildPackedRoutingValues,
+  computeLinearRuns,
+  PACKED_ROUTING_LOOP_MIN_RUN,
   planPhysicalRoutingRepresentation,
   type GeneratedRoutingFormula,
   type RoutingRepresentationEstimate,
 } from './showRoutingRepresentation'
+// Re-exported for the #569 test suite and external consumers.
+export { computeLinearRuns, type PackedRoutingRun } from './showRoutingRepresentation'
 import { selectRenderCompatibility } from './renderCompatibility'
 import {
   analyzeShowRendererOutputGuaranteesAst,
@@ -1054,6 +1059,9 @@ export interface ShowCompileOptions {
    * FPS on the hsv-steady envelope at all sizes). `true` reproduces the
    * measured build. */
   functionValuedSinkRebinding?: boolean
+  /** Benchmark counterfactual for #573 run-length packed-routing pricing;
+   * production always uses the default `true`. */
+  packedRoutingRepricing?: boolean
 }
 
 /** #532/#556 price of one persistent scalar write on the measured VM. */
@@ -2223,6 +2231,7 @@ export function compileShow(
           routes: layout.routes.map((route) => ({ ranges: route.zone.ranges })),
         })),
         MEASURED_DEVICE_BUDGET_BYTES,
+        { repricedPackedTables: options.packedRoutingRepricing ?? true },
       )
     : null
   const routingRepresentation: ShowCompileSummary['routingRepresentation'] = routingLayouts
@@ -8452,43 +8461,6 @@ function routingPixelCount(layouts: PackedRoutingLayoutShape[]): number {
   ), largest), 0)
 }
 
-export interface PackedRoutingRun {
-  start: number
-  end: number
-  /** values[i] = base + i for every i in [start, end]. */
-  base: number
-}
-
-/**
- * Extracts maximal slope-one runs of nonzero values: each run covers indices
- * whose value increments by exactly one per index. Zero entries (unrouted
- * pixels) are skipped entirely because `array(n)` zero-initializes. Overlap
- * semantics are already resolved in the value array (first writer wins), so
- * the runs are disjoint by construction and need no runtime guard.
- */
-export function computeLinearRuns(values: readonly number[]): PackedRoutingRun[] {
-  const runs: PackedRoutingRun[] = []
-  let active: PackedRoutingRun | null = null
-  for (let index = 0; index < values.length; index += 1) {
-    const value = values[index]
-    if (value === 0) {
-      active = null
-      continue
-    }
-    const base = value - index
-    if (active && active.base === base) {
-      active.end = index
-      continue
-    }
-    active = { start: index, end: index, base }
-    runs.push(active)
-  }
-  return runs
-}
-
-// Loops only pay off once they replace a few per-pixel lines.
-const PACKED_ROUTING_LOOP_MIN_RUN = 4
-
 /** The subset of ResolvedRoutingLayout the packed-table emitter reads; exported for #569 tests. */
 export interface PackedRoutingLayoutShape {
   routes: Array<{ zone: { ranges: Array<{ start: number; end: number }> } }>
@@ -8496,25 +8468,14 @@ export interface PackedRoutingLayoutShape {
 
 export function emitPackedRoutingTable(layouts: PackedRoutingLayoutShape[]): string {
   const pixelCount = routingPixelCount(layouts)
-  const stride = pixelCount + 1
   // First compute the final per-pixel value array exactly as the per-pixel
   // emission did (first writer wins across overlapping ranges), then emit the
   // disjoint run list (#569): identical contents, O(ranges) source lines.
-  const values = layouts.flatMap((layout) => {
-    const layoutValues = Array.from({ length: pixelCount }, () => 0)
-    layout.routes.forEach((route, routeIndex) => {
-      let localOffset = 0
-      for (const range of route.zone.ranges) {
-        for (let index = range.start; index <= range.end; index += 1) {
-          if (layoutValues[index] === 0) {
-            layoutValues[index] = routeIndex * stride + localOffset + index - range.start + 1
-          }
-        }
-        localOffset += range.end - range.start + 1
-      }
-    })
-    return layoutValues
-  })
+  // The value/run model is shared with the #573 planner pricing.
+  const values = buildPackedRoutingValues(
+    layouts.map((layout) => ({ routes: layout.routes.map((route) => ({ ranges: route.zone.ranges })) })),
+    pixelCount,
+  )
   const runs = computeLinearRuns(values)
   const needsLoopIndex = runs.some((run) => run.end - run.start + 1 >= PACKED_ROUTING_LOOP_MIN_RUN)
   const lines = runs.flatMap((run) => {

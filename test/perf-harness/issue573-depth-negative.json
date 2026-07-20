@@ -1,0 +1,38 @@
+{
+  "generatedAt": "2026-07-20T16:35:17.699Z",
+  "device": {
+    "name": "Burner bag",
+    "firmwareVersion": "3.67"
+  },
+  "fixture": "2,000 px, two layouts, contiguous halves + 64-singleton tail (4,000 table words)",
+  "rows": [
+    {
+      "label": "range-branches",
+      "representation": "range-branches",
+      "sourceBytes": 10449,
+      "bytecodeBytes": 6016,
+      "activationMs": 618,
+      "fps": {
+        "mean": 15.063262499999997,
+        "median": 15.058825,
+        "min": 15.05174,
+        "max": 15.08011,
+        "samples": 16
+      }
+    },
+    {
+      "label": "packed-pixels",
+      "representation": "packed-pixels",
+      "sourceBytes": 4643,
+      "bytecodeBytes": 3148,
+      "activationMs": 560,
+      "fps": {
+        "mean": 9.957443875,
+        "median": 9.891284,
+        "min": 9.784737,
+        "max": 10.16636,
+        "samples": 16
+      }
+    }
+  ]
+}

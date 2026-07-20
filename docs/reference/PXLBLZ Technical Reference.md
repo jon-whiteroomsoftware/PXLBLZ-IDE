@@ -2886,15 +2886,32 @@ does not change the selected `range-branches` representation; the compile
 summary reports it separately as a routing specialization with baseline and
 selected maximum comparisons per pixel.
 
-Arbitrary layouts retain generated range branches. High-run irregular layouts
-may use a packed per-pixel lookup only when the complete
-`pixelCount * layoutCount` table fits the 2,048-element policy and its bytecode
-estimate remains below the observed 68,384-byte compiled-bytecode activation
-ceiling. The compile summary and compile bar name the selected representation
-and report separate estimated bytecode and permanent-array costs. These
-estimates are conservative selection diagnostics derived from the routing spike,
-not Controller compiler measurements. RLE remains excluded because the hardware
-spike measured it worse.
+Arbitrary layouts retain generated range branches. Deep irregular layouts may
+use a packed per-pixel lookup under three #573 gates, each priced from the
+#569 run-length emission with device-compiler measurements (pb32, fw 3.67):
+
+- **RAM**: the complete `pixelCount * layoutCount` table is permanent VM
+  words. The cap is 4,096 words: the worst-case three-plane stage-rgb arena
+  at 2,000 px reserves 6,012 of the 10,240-word budget, leaving a 4,228-word
+  residual, so the cap admits the flagship 2,000 px x 2 layout shape while
+  keeping a 132-word member floor. The resource ledger stays the final
+  arbiter against member arrays.
+- **Bytecode**: 128 fixed + 80 bytes per loop run + 20 bytes per short-run
+  element (short runs below four pixels emit per-element assignments, the
+  pre-#569 pricing) must stay below the 68,384-byte activation ceiling. The
+  planner computes the actual run list, so the estimate is the emission model.
+- **FPS**: the pixel-weighted expected branch-chain depth of the ordered
+  short-circuit must reach 13 comparisons. Measured both ways on a 2,000 px
+  two-layout fixture: a shallow contiguous split (~1.5 comparisons) ran
+  15.059 FPS as branches versus 9.891 packed (-34%), while a 16-pixel strip
+  interleave (~63 comparisons) ran 10.0 packed versus 3.361 as branches
+  (+197%) with activation 916 -> 545 ms. Reports:
+  `test/perf-harness/issue573-depth-negative.json` and
+  `issue573-repricing-report.json`; `packedRoutingRepricing: false` restores
+  the pre-#573 planner (2,048-element cap, 20 bytes/element, runCount >= 64).
+
+The compile summary and compile bar name the selected representation and
+report separate estimated bytecode and permanent-array costs.
 
 ## 24. Deterministic seek replay
 

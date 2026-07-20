@@ -31,22 +31,116 @@ export type PhysicalRoutingRepresentationPlan = RoutingRepresentationEstimate & 
   | { representation: 'packed-pixels' | 'range-branches'; formula?: undefined }
 )
 
-const MAX_PACKED_ARRAY_ELEMENTS = 2048
-const PACKED_FIXED_BYTECODE_ESTIMATE = 344
-const PACKED_BYTECODE_BYTES_PER_ELEMENT = 20
+// #573 packed-table word cap. The table is RAM, not code: pixelCount x
+// layoutCount VM words competing with the 10,240-word budget. The worst-case
+// three-plane stage-rgb arena at 2,000 px reserves 6,012 words (#514),
+// leaving a 4,228-word residual; capping the table at 4,096 words admits the
+// flagship 2,000 px x 2 layout shape while keeping a 132-word member floor
+// under a full arena. The resource ledger remains the final arbiter against
+// member arrays. (Pre-#573 the cap was 2,048 elements, doubling as a
+// bytecode proxy for the per-pixel initialization #569 removed.)
+const MAX_PACKED_ARRAY_WORDS = 4_096
+const LEGACY_MAX_PACKED_ARRAY_ELEMENTS = 2_048
+const LEGACY_PACKED_FIXED_BYTECODE_ESTIMATE = 344
+const LEGACY_PACKED_BYTECODE_BYTES_PER_ELEMENT = 20
+// #573 device-compiler measurements of the #569 run-length emission (pb32,
+// fw 3.67): a loop line compiles to 80 bytes and a short-run element
+// assignment to 20 bytes over a 128-byte fixed header; loop source lines run
+// ~223 bytes. Short runs (< PACKED_ROUTING_LOOP_MIN_RUN) emit per-element
+// assignments, which is exactly the legacy per-element pricing.
+const PACKED_FIXED_BYTECODE_ESTIMATE = 128
+const PACKED_BYTECODE_BYTES_PER_LOOP_RUN = 80
+const PACKED_BYTECODE_BYTES_PER_SHORT_ELEMENT = 20
+const PACKED_SOURCE_BYTES_PER_LOOP_RUN = 224
+const PACKED_SOURCE_BYTES_PER_SHORT_ELEMENT = 48
+// #573 FPS gate. The packed render pays table-read plus route-decode
+// arithmetic on every pixel; the range-branch chain pays ~1.5 us per tested
+// branch (#532) but most pixels of shallow layouts match early. Measured on
+// the pb32 (issue573-depth-negative.json): a contiguous-halves 2,000 px
+// fixture with ~1.5 expected comparisons ran 15.059 FPS as branches versus
+// 9.891 packed (-34%, ~17.3 us/pixel packed overhead), putting break-even
+// near 13 expected comparisons. Deep interleaves (strips, pinwheels,
+// alternating tails) sit far above it; contiguous zone splits far below.
+const PACKED_MIN_EXPECTED_COMPARISONS = 13
+
+/** Loops only pay off once they replace a few per-pixel lines; shared with
+ * the #569 emitter so the plan prices exactly what will be emitted. */
+export const PACKED_ROUTING_LOOP_MIN_RUN = 4
+
+export interface PackedRoutingRun {
+  start: number
+  end: number
+  /** values[i] = base + i for every i in [start, end]. */
+  base: number
+}
+
+/**
+ * Extracts maximal slope-one runs of nonzero values: each run covers indices
+ * whose value increments by exactly one per index. Zero entries (unrouted
+ * pixels) are skipped entirely because `array(n)` zero-initializes. Overlap
+ * semantics are already resolved in the value array (first writer wins), so
+ * the runs are disjoint by construction and need no runtime guard.
+ */
+export function computeLinearRuns(values: readonly number[]): PackedRoutingRun[] {
+  const runs: PackedRoutingRun[] = []
+  let active: PackedRoutingRun | null = null
+  for (let index = 0; index < values.length; index += 1) {
+    const value = values[index]
+    if (value === 0) {
+      active = null
+      continue
+    }
+    const base = value - index
+    if (active && active.base === base) {
+      active.end = index
+      continue
+    }
+    active = { start: index, end: index, base }
+    runs.push(active)
+  }
+  return runs
+}
+
+/**
+ * The exact per-pixel value array the packed emitter initializes: first
+ * writer wins across overlapping ranges, value = routeIndex * stride +
+ * local + 1, flattened across layouts. Shared by the #569 emitter and the
+ * #573 pricing so the estimate is the emission model.
+ */
+export function buildPackedRoutingValues(
+  layouts: RoutingLayoutShape[],
+  pixelCount: number,
+): number[] {
+  const stride = pixelCount + 1
+  return layouts.flatMap((layout) => {
+    const layoutValues = Array.from({ length: pixelCount }, () => 0)
+    layout.routes.forEach((route, routeIndex) => {
+      let localOffset = 0
+      for (const range of route.ranges) {
+        for (let index = range.start; index <= range.end; index += 1) {
+          if (layoutValues[index] === 0) {
+            layoutValues[index] = routeIndex * stride + localOffset + index - range.start + 1
+          }
+        }
+        localOffset += range.end - range.start + 1
+      }
+    })
+    return layoutValues
+  })
+}
 
 export function planPhysicalRoutingRepresentation(
   layouts: RoutingLayoutShape[],
   measuredDeviceBudgetBytes: number,
+  options: { repricedPackedTables?: boolean } = {},
 ): PhysicalRoutingRepresentationPlan {
+  const repriced = options.repricedPackedTables ?? true
   const pixelCount = routingPixelCount(layouts)
   const layoutCount = layouts.length
   const runCount = layouts.reduce((sum, layout) => (
     sum + layout.routes.reduce((routeSum, route) => routeSum + route.ranges.length, 0)
   ), 0)
   const packedArrayElements = pixelCount * layoutCount
-  const packedEstimatedBytecodeBytes = PACKED_FIXED_BYTECODE_ESTIMATE
-    + packedArrayElements * PACKED_BYTECODE_BYTES_PER_ELEMENT
   const shape = {
     pixelCount,
     layoutCount,
@@ -64,18 +158,50 @@ export function planPhysicalRoutingRepresentation(
       estimatedBytecodeBytes: 512 + layoutCount * 32,
     }
   }
+  const packed = repriced
+    ? (() => {
+        const runs = pixelCount > 0 ? computeLinearRuns(buildPackedRoutingValues(layouts, pixelCount)) : []
+        let loopRuns = 0
+        let shortElements = 0
+        for (const run of runs) {
+          const length = run.end - run.start + 1
+          if (length >= PACKED_ROUTING_LOOP_MIN_RUN) loopRuns += 1
+          else shortElements += length
+        }
+        return {
+          maxElements: MAX_PACKED_ARRAY_WORDS,
+          estimatedBytecodeBytes: PACKED_FIXED_BYTECODE_ESTIMATE
+            + loopRuns * PACKED_BYTECODE_BYTES_PER_LOOP_RUN
+            + shortElements * PACKED_BYTECODE_BYTES_PER_SHORT_ELEMENT,
+          estimatedSourceBytes: 96
+            + loopRuns * PACKED_SOURCE_BYTES_PER_LOOP_RUN
+            + shortElements * PACKED_SOURCE_BYTES_PER_SHORT_ELEMENT,
+        }
+      })()
+    : {
+        maxElements: LEGACY_MAX_PACKED_ARRAY_ELEMENTS,
+        estimatedBytecodeBytes: LEGACY_PACKED_FIXED_BYTECODE_ESTIMATE
+          + packedArrayElements * LEGACY_PACKED_BYTECODE_BYTES_PER_ELEMENT,
+        estimatedSourceBytes: 96 + packedArrayElements * 48,
+      }
+  // Pre-#573 the FPS gate was `runCount >= 64`, blind to where pixels fall
+  // in the branch chain; the repriced gate uses the pixel-weighted expected
+  // chain depth of the ordered short-circuit instead.
+  const rendersFasterPacked = repriced
+    ? expectedComparisonsPerPixel(layouts) >= PACKED_MIN_EXPECTED_COMPARISONS
+    : runCount >= 64
   const packedFits = pixelCount > 0
-    && packedArrayElements <= MAX_PACKED_ARRAY_ELEMENTS
-    && packedEstimatedBytecodeBytes <= measuredDeviceBudgetBytes
-    && runCount >= 64
+    && packedArrayElements <= packed.maxElements
+    && packed.estimatedBytecodeBytes <= measuredDeviceBudgetBytes
+    && rendersFasterPacked
   if (packedFits) {
     return {
       ...shape,
       representation: 'packed-pixels',
       arrayElements: packedArrayElements,
       estimatedArrayBytes: packedArrayElements * 4,
-      estimatedSourceBytes: 96 + packedArrayElements * 48,
-      estimatedBytecodeBytes: packedEstimatedBytecodeBytes,
+      estimatedSourceBytes: packed.estimatedSourceBytes,
+      estimatedBytecodeBytes: packed.estimatedBytecodeBytes,
     }
   }
   return {
@@ -86,6 +212,30 @@ export function planPhysicalRoutingRepresentation(
     estimatedSourceBytes: 96 + runCount * 112,
     estimatedBytecodeBytes: 256 + runCount * 80,
   }
+}
+
+/**
+ * Pixel-weighted average branch-chain position under the ordered
+ * short-circuit (#512): ranges sorted by physical start, one upper-bound
+ * test each, so a pixel in the k-th sorted range costs k comparisons.
+ * Layouts weigh equally; overlapped pixels count once per covering range
+ * (a small conservative overcount for first-writer overlaps).
+ */
+function expectedComparisonsPerPixel(layouts: RoutingLayoutShape[]): number {
+  let weighted = 0
+  let pixels = 0
+  for (const layout of layouts) {
+    const ranges = layout.routes
+      .flatMap((route) => route.ranges)
+      .slice()
+      .sort((left, right) => left.start - right.start)
+    ranges.forEach((range, index) => {
+      const covered = Math.max(0, range.end - range.start + 1)
+      weighted += covered * (index + 1)
+      pixels += covered
+    })
+  }
+  return pixels > 0 ? weighted / pixels : 0
 }
 
 function recognizeGeneratedRoutingFormula(

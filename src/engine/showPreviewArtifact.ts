@@ -41,6 +41,7 @@ interface ShowCompilationOptions {
   inlineCallHoisting?: boolean
   placementPrologueHoisting?: boolean
   functionValuedSinkRebinding?: boolean
+  packedRoutingRepricing?: boolean
 }
 
 export function compileShowForPreview(
@@ -83,6 +84,7 @@ export function compileShowForPreview(
         inlineCallHoisting: options.inlineCallHoisting,
         placementPrologueHoisting: options.placementPrologueHoisting,
         functionValuedSinkRebinding: options.functionValuedSinkRebinding,
+        packedRoutingRepricing: options.packedRoutingRepricing,
       })
     return {
       artifact: {

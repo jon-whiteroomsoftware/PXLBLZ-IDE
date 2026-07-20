@@ -103,42 +103,38 @@ describe('packed routing run-length initialization (#569)', () => {
   })
 })
 
-// Two layouts over `pixelCount` pixels: long contiguous halves plus an
-// alternating singleton tail so the routing plan crosses the >=64-run packed
-// threshold while keeping long loop-friendly runs.
+// Two layouts of 16-pixel blocks alternating between the routes (a strip
+// interleave, the shape the packed table serves): loop-friendly runs, and a
+// branch chain deep enough for the #573 expected-comparisons gate. A shifted
+// first boundary defeats the generated-formula recognizer.
 function packedRecipe(pixelCount: number): ShowRecipe {
-  const tailStart = pixelCount - 64
-  const evenTail = Array.from({ length: 32 }, (_, index) => ({
-    start: tailStart + index * 2,
-    end: tailStart + index * 2,
-  }))
-  const oddTail = Array.from({ length: 32 }, (_, index) => ({
-    start: tailStart + index * 2 + 1,
-    end: tailStart + index * 2 + 1,
-  }))
-  const mostly = {
-    id: 'mostly',
-    name: 'mostly',
-    zones: [
-      { id: 'mostly-red', name: 'red', ranges: [{ start: 0, end: tailStart - 1 }, ...evenTail] },
-      { id: 'mostly-blue', name: 'blue', ranges: oddTail },
-    ],
+  const blockSize = 16
+  const blockRanges = (parity: 0 | 1) => {
+    const ranges: Array<{ start: number; end: number }> = []
+    for (let start = 0; start < pixelCount; start += blockSize) {
+      const block = start / blockSize
+      const begin = block === 0 ? 0 : block === 1 ? start - 4 : start
+      const end = block === 0 ? start + blockSize - 5 : Math.min(pixelCount, start + blockSize) - 1
+      if (block % 2 === parity) ranges.push({ start: begin, end })
+    }
+    return ranges
   }
-  const swapped = {
-    id: 'swapped',
-    name: 'swapped',
+  const layout = (id: string, redParity: 0 | 1) => ({
+    id,
+    name: id,
     zones: [
-      { id: 'swapped-red', name: 'red', ranges: [{ start: tailStart, end: pixelCount - 1 }] },
-      { id: 'swapped-blue', name: 'blue', ranges: [{ start: 0, end: tailStart - 1 }] },
+      { id: `${id}-red`, name: 'red', ranges: blockRanges(redParity) },
+      { id: `${id}-blue`, name: 'blue', ranges: blockRanges(redParity === 0 ? 1 : 0) },
     ],
-  }
+  })
+  const striped = layout('striped', 0)
   return {
     clips: [
       { id: 'red', zone: 'red', source: 'export function render(index) { rgb(1, 0, 0) }' },
       { id: 'blue', zone: 'blue', source: 'export function render(index) { rgb(0, 0, 1) }' },
     ],
-    zones: mostly.zones,
-    routingLayouts: [mostly, swapped],
+    zones: striped.zones,
+    routingLayouts: [striped, layout('swapped', 1)],
     routingSwitches: [{ atMs: 1_000, layoutId: 'swapped' }],
     loopDurationMs: 2_000,
   }
@@ -167,12 +163,18 @@ function overlappingPackedRecipe(): ShowRecipe {
       { id: 'overlap-blue', name: 'blue', ranges: [{ start: 24, end: 63 }, ...oddTail] },
     ],
   }
+  // Keep the second layout interleaved too so the pixel-weighted branch
+  // depth stays above the #573 packed gate.
+  const swappedBlocks = (parity: 0 | 1) => Array.from({ length: pixelCount / 4 }, (_, block) => ({
+    start: block * 4,
+    end: block * 4 + 3,
+  })).filter((_, block) => block % 2 === parity)
   const swapped = {
     id: 'swapped',
     name: 'swapped',
     zones: [
-      { id: 'swapped-red', name: 'red', ranges: [{ start: 64, end: pixelCount - 1 }] },
-      { id: 'swapped-blue', name: 'blue', ranges: [{ start: 0, end: 63 }] },
+      { id: 'swapped-red', name: 'red', ranges: swappedBlocks(1) },
+      { id: 'swapped-blue', name: 'blue', ranges: swappedBlocks(0) },
     ],
   }
   return {

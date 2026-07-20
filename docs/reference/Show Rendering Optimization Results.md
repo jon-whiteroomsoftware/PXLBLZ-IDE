@@ -340,6 +340,7 @@ lives in `docs/plans/archive/show-rendering-next-wave-measurement-ledger.md`.
 | 12 | #563 zone-coordinate strength reduction | **recorded negative**: modulo is free vs a multiply, floor-feeding reciprocals step whole rows, outer reciprocals err ~WIDTH/2 LSBs (exact only for power-of-two divisors) |
 | 13 | #571 placement-prologue rebinding elimination | effect-tax +14.27/+14.29/+14.91% median FPS at 256/1,000/2,000 px, bytecode -800 B; prologue-free fixtures byte-identical; fixes the #562 transition-pair mirror divergence; exact |
 | 14 | #572 function-valued sink rebinding | **recorded negative**: the extra user-call hop (~1.9-3.4 us) exceeds the ~1.5 us flag branch it removes; hsv-steady -3.82/-3.92/-3.91% median FPS, +116 B; flag build stays default, `functionValuedSinkRebinding: true` reproduces the measurement |
+| 15 | #573 packed-routing re-pricing | run-length pricing (128 + 80 B/loop-run + 20 B/short element, measured) with a 4,096-word RAM cap and a 13-comparison depth gate; deep 2,000 px interleave newly qualifies at +197% FPS (3.361 -> 10.0) and -371 ms activation; shallow contiguous splits stay branches (measured -34% packed); stock catalogue byte-identical |
 
 Wave-2 slice ledgers with full axes live as comments on #554.
 
