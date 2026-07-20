@@ -52,6 +52,11 @@ const PURE_CALLS = new Set([
   'tan', 'triangle', 'wave',
 ])
 
+// #566: time() reads only frame-scoped clock state, so a time(k) call with
+// pure arguments is frame-invariant (dependency 'frame'). random() is
+// deliberately absent - evaluation count is observable.
+const FRAME_SOURCE_CALLS = new Set(['time'])
+
 const DEPENDENCY_ORDER: ShowFrameDependency[] = [
   'control',
   'frame',
@@ -119,7 +124,81 @@ export function analyzeShowFrameInvariantCandidates(source: string): ShowFrameIn
       })
     })
   }
+  // #566: maximal pure call subtrees anywhere in render-reachable expressions.
+  // A subtree qualifies only when it contains at least one call - plain
+  // global-read arithmetic is free to recompute and a hoist would only add
+  // the 1.47 us write. Declarator initializers already claimed above stay
+  // with the classic #513 path.
+  const claimedRanges = candidates.map((candidate) => (
+    [candidate.initializerStart, candidate.initializerEnd] as const
+  ))
+  let inlineIndex = 0
+  for (const functionName of reachable) {
+    const fn = functions.get(functionName)
+    if (!fn) continue
+    const params = new Set<string>((fn.params as Node[] ?? [])
+      .filter((param) => param.type === 'Identifier')
+      .map((param) => param.name as string))
+    const locals = collectFunctionLocals(fn)
+    const context = {
+      globals,
+      frameMutated,
+      controls,
+      renderMutated,
+      locals,
+      params,
+      functions: new Set(functions.keys()),
+    }
+    const attempt = (node: Node): boolean => {
+      if (!node || typeof node !== 'object' || typeof node.start !== 'number') return false
+      if (node.type === 'Literal' || node.type === 'Identifier') return false
+      if (claimedRanges.some(([start, end]) => node.start >= start && node.end <= end)) return false
+      const classification = classifyExpression(node, context)
+      if (classification.dependencies.has('sample')
+        || classification.dependencies.has('index')
+        || classification.dependencies.has('render-mutation')
+        || classification.dependencies.has('unknown')
+        || classification.calls === 0) return false
+      const initializerSource = source.slice(node.start, node.end)
+      candidates.push({
+        binding: `inline#${inlineIndex++}`,
+        functionName,
+        dependencies: orderedDependencies(classification.dependencies),
+        operations: classification.operations,
+        initializerStart: node.start,
+        initializerEnd: node.end,
+        initializerSource,
+        estimatedAddedBytes: initializerSource.length + 72,
+      })
+      return true
+    }
+    const walk = (node: Node): void => {
+      if (!node || typeof node !== 'object') return
+      if (node.type === 'FunctionDeclaration' || node.type === 'FunctionExpression' || node.type === 'ArrowFunctionExpression') return
+      if (node.type === 'AssignmentExpression') {
+        // Never rewrite an assignment target.
+        walk(node.right as Node)
+        if (node.left?.type === 'MemberExpression' && node.left.computed) walk(node.left.property as Node)
+        return
+      }
+      if (isExpressionNode(node) && attempt(node)) return
+      for (const [key, child] of Object.entries(node)) {
+        if (key === 'start' || key === 'end' || key === 'loc') continue
+        if (Array.isArray(child)) child.forEach((item) => walk(item as Node))
+        else if (child && typeof child === 'object') walk(child as Node)
+      }
+    }
+    walk(fn.body)
+  }
   return candidates.sort((left, right) => left.initializerStart - right.initializerStart)
+}
+
+function isExpressionNode(node: Node): boolean {
+  return node.type === 'CallExpression'
+    || node.type === 'BinaryExpression'
+    || node.type === 'LogicalExpression'
+    || node.type === 'UnaryExpression'
+    || node.type === 'ConditionalExpression'
 }
 
 export function selectShowFrameInvariantHoists(
@@ -171,20 +250,31 @@ export function applyShowFrameInvariantHoists(
     }
   }
   const updateFunctionName = uniqueSyntheticName(source, '__pxlblz_frame_update')
-  const valueNames = selected.map((_, index) => uniqueSyntheticName(source, `__pxlblz_frame_value_${index}`))
+  // #566: structurally identical subtrees share one frame value.
+  const groupBySource = new Map<string, number>()
+  const groups: ShowFrameInvariantCandidate[] = []
+  const groupIndexByCandidate = selected.map((candidate) => {
+    const existing = groupBySource.get(candidate.initializerSource)
+    if (existing !== undefined) return existing
+    const index = groups.length
+    groups.push(candidate)
+    groupBySource.set(candidate.initializerSource, index)
+    return index
+  })
+  const valueNames = groups.map((_, index) => uniqueSyntheticName(source, `__pxlblz_frame_value_${index}`))
   let transformed = source
   const replacements = selected.map((candidate, index) => ({
     start: candidate.initializerStart,
     end: candidate.initializerEnd,
-    text: valueNames[index],
+    text: valueNames[groupIndexByCandidate[index]],
   })).sort((left, right) => right.start - left.start)
   for (const replacement of replacements) {
     transformed = transformed.slice(0, replacement.start) + replacement.text + transformed.slice(replacement.end)
   }
   const runtime = [
-    ...valueNames.map((name, index) => `var ${name} = ${selected[index].initializerSource}`),
+    ...valueNames.map((name, index) => `var ${name} = ${groups[index].initializerSource}`),
     `function ${updateFunctionName}() {`,
-    ...selected.map((candidate, index) => `  ${valueNames[index]} = ${candidate.initializerSource}`),
+    ...groups.map((candidate, index) => `  ${valueNames[index]} = ${candidate.initializerSource}`),
     '}',
   ].join('\n')
   transformed = `${transformed.trimEnd()}\n${runtime}\n`
@@ -305,7 +395,7 @@ function classifyExpression(node: Node, context: {
   locals: Set<string>
   params: Set<string>
   functions: Set<string>
-}): { dependencies: Set<ShowFrameDependency>; operations: number } {
+}): { dependencies: Set<ShowFrameDependency>; operations: number; calls: number } {
   if (!node) return classified(['unknown'], 0)
   if (node.type === 'Literal') return classified([], 0)
   if (node.type === 'Identifier') {
@@ -320,13 +410,18 @@ function classifyExpression(node: Node, context: {
     return classified(['unknown'], 0)
   }
   if (node.type === 'CallExpression') {
-    if (node.callee?.type !== 'Identifier'
-      || !PURE_CALLS.has(node.callee.name as string)
-      || context.functions.has(node.callee.name as string)
-      || context.globals.has(node.callee.name as string)) {
+    const callee = node.callee?.type === 'Identifier' ? node.callee.name as string : null
+    const shadowed = callee !== null
+      && (context.functions.has(callee) || context.globals.has(callee))
+    if (callee !== null && !shadowed && FRAME_SOURCE_CALLS.has(callee)) {
+      const parts = (node.arguments as Node[] ?? []).map((argument) => classifyExpression(argument, context))
+      const result = combine([...parts, classified(['frame'], 0, 0)], 1, 1)
+      return result
+    }
+    if (callee === null || !PURE_CALLS.has(callee) || shadowed) {
       return classified(['unknown'], 1)
     }
-    return combine((node.arguments as Node[] ?? []).map((argument) => classifyExpression(argument, context)), 1)
+    return combine((node.arguments as Node[] ?? []).map((argument) => classifyExpression(argument, context)), 1, 1)
   }
   if (node.type === 'BinaryExpression' || node.type === 'LogicalExpression') {
     return combine([classifyExpression(node.left, context), classifyExpression(node.right, context)], 1)
@@ -345,21 +440,24 @@ function classifyExpression(node: Node, context: {
   return classified(['unknown'], 0)
 }
 
-function classified(dependencies: ShowFrameDependency[], operations: number) {
-  return { dependencies: new Set(dependencies), operations }
+function classified(dependencies: ShowFrameDependency[], operations: number, calls = 0) {
+  return { dependencies: new Set(dependencies), operations, calls }
 }
 
 function combine(
-  parts: Array<{ dependencies: Set<ShowFrameDependency>; operations: number }>,
+  parts: Array<{ dependencies: Set<ShowFrameDependency>; operations: number; calls?: number }>,
   ownOperations: number,
+  ownCalls = 0,
 ) {
   const dependencies = new Set<ShowFrameDependency>()
   let operations = ownOperations
+  let calls = ownCalls
   for (const part of parts) {
     part.dependencies.forEach((dependency) => dependencies.add(dependency))
     operations += part.operations
+    calls += part.calls ?? 0
   }
-  return { dependencies, operations }
+  return { dependencies, operations, calls }
 }
 
 function orderedDependencies(dependencies: Set<ShowFrameDependency>): ShowFrameDependency[] {

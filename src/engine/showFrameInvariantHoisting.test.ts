@@ -84,3 +84,75 @@ describe('Show frame-invariant hoisting', () => {
     expect(transformed.avoidedOperationsPerPixel).toBeGreaterThanOrEqual(6)
   })
 })
+
+const INLINE_SOURCE = `
+export var t = 0
+export function beforeRender(delta) { t = time(0.1) }
+export function render(index) {
+  hsv(t + wave(time(0.05)), 1, 0.5 + 0.5 * wave(time(0.05)))
+  var plain = t * 2 + 1
+  rgb(plain, time(index / pixelCount), random(1))
+}
+`
+
+describe('inline call-subtree hoisting (#566)', () => {
+  it('hoists maximal pure call subtrees and deduplicates identical ones', () => {
+    const candidates = analyzeShowFrameInvariantCandidates(INLINE_SOURCE)
+    const inline = candidates.filter((candidate) => candidate.binding.startsWith('inline'))
+    // Two occurrences of wave(time(0.05)) plus the enclosing maximal
+    // subtrees: `t + wave(time(0.05))` is maximal for the first argument;
+    // `0.5 + 0.5 * wave(time(0.05))` for the third.
+    expect(inline.length).toBe(2)
+    expect(inline[0].initializerSource).toBe('t + wave(time(0.05))')
+    expect(inline[1].initializerSource).toBe('0.5 + 0.5 * wave(time(0.05))')
+    const applied = applyShowFrameInvariantHoists(INLINE_SOURCE, inline)
+    expect(applied.updateFunctionName).toBeTruthy()
+    expect(applied.source).toContain(`hsv(${applied.valueNames[0]}, 1, ${applied.valueNames[1]})`)
+    // Update function recomputes both once per frame.
+    expect(applied.source).toContain(`${applied.valueNames[0]} = t + wave(time(0.05))`)
+  })
+
+  it('refuses pixel-dependent, impure, and call-free subtrees', () => {
+    const candidates = analyzeShowFrameInvariantCandidates(INLINE_SOURCE)
+    const sources = candidates.map((candidate) => candidate.initializerSource)
+    // time(index / pixelCount) is pixel-dependent; random(1) is impure;
+    // `t * 2 + 1` has no call, so the INLINE path refuses it (reads are free,
+    // hoisting would add a write). The classic #513 declarator path still owns
+    // initializer decisions and is unchanged.
+    const inline = candidates.filter((candidate) => candidate.binding.startsWith('inline'))
+    expect(sources.some((source) => source.includes('index'))).toBe(false)
+    expect(sources.some((source) => source.includes('random'))).toBe(false)
+    expect(inline.some((candidate) => candidate.initializerSource.includes('t * 2'))).toBe(false)
+  })
+
+  it('deduplicates structurally identical subtrees into one global', () => {
+    const source = `
+export function render(index) {
+  rgb(wave(time(0.05)), wave(time(0.05)), 0)
+}
+`
+    const candidates = analyzeShowFrameInvariantCandidates(source)
+    const inline = candidates.filter((candidate) => candidate.binding.startsWith('inline'))
+    expect(inline.length).toBe(2)
+    const applied = applyShowFrameInvariantHoists(source, inline)
+    // One shared global, two replacement sites.
+    expect(applied.valueNames.length).toBe(1)
+    expect(applied.source.match(new RegExp(applied.valueNames[0], 'g'))!.length).toBeGreaterThanOrEqual(3)
+  })
+
+  it('refuses subtrees that read render-mutated state while inner pure calls still hoist', () => {
+    const source = `
+var offset = 0
+export function render(index) {
+  offset = offset + 1
+  rgb(wave(time(0.05) + offset), 0, 0)
+}
+`
+    const candidates = analyzeShowFrameInvariantCandidates(source)
+    const inline = candidates.filter((candidate) => candidate.binding.startsWith('inline'))
+    // The maximal walk refuses every subtree containing the mutated read...
+    expect(inline.some((candidate) => candidate.initializerSource.includes('offset'))).toBe(false)
+    // ...but the inner time(0.05) is still exact to hoist.
+    expect(inline.map((candidate) => candidate.initializerSource)).toEqual(['time(0.05)'])
+  })
+})

@@ -1713,6 +1713,16 @@ restores the capture build for counterfactual measurement.
 
 ### Exact frame-invariant specialization
 
+Since #566 the pass also hoists maximal pure call subtrees appearing inline
+anywhere in render-reachable expressions - the `hsv(t + wave(time(.05)), 1,
+1)` shape endemic in community Patterns - not only declarator initializers.
+A subtree qualifies under the same proof only when it contains at least one
+call: plain global-read arithmetic is free to recompute on the measured VM,
+so hoisting it would only add the scalar write. `time(k)` with pure
+arguments classifies as frame-invariant (it reads only frame-scoped clock
+state); `random()` never qualifies because evaluation count is observable.
+Structurally identical subtrees within a member share one frame value.
+
 The compiler also analyzes local initializers reachable from a member renderer.
 An expression moves to a generated once-per-frame update only when Acorn analysis
 proves that it is pure and independent of pixel index, sample coordinates,
