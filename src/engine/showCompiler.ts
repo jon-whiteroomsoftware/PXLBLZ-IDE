@@ -7896,15 +7896,60 @@ var __pxlblz_show_route_local_x = clamp(__pxlblz_show_route_turn * ${logical.arm
 var __pxlblz_show_route_local_y = clamp(__pxlblz_show_route_radius / 0.7071067811865476, 0, 1)`
 }
 
-function routingPixelCount(layouts: ResolvedRoutingLayout[]): number {
+function routingPixelCount(layouts: PackedRoutingLayoutShape[]): number {
   return layouts.reduce((largest, layout) => layout.routes.reduce((layoutLargest, route) => (
     Math.max(layoutLargest, ...route.zone.ranges.map((range) => range.end + 1))
   ), largest), 0)
 }
 
-function emitPackedRoutingTable(layouts: ResolvedRoutingLayout[]): string {
+export interface PackedRoutingRun {
+  start: number
+  end: number
+  /** values[i] = base + i for every i in [start, end]. */
+  base: number
+}
+
+/**
+ * Extracts maximal slope-one runs of nonzero values: each run covers indices
+ * whose value increments by exactly one per index. Zero entries (unrouted
+ * pixels) are skipped entirely because `array(n)` zero-initializes. Overlap
+ * semantics are already resolved in the value array (first writer wins), so
+ * the runs are disjoint by construction and need no runtime guard.
+ */
+export function computeLinearRuns(values: readonly number[]): PackedRoutingRun[] {
+  const runs: PackedRoutingRun[] = []
+  let active: PackedRoutingRun | null = null
+  for (let index = 0; index < values.length; index += 1) {
+    const value = values[index]
+    if (value === 0) {
+      active = null
+      continue
+    }
+    const base = value - index
+    if (active && active.base === base) {
+      active.end = index
+      continue
+    }
+    active = { start: index, end: index, base }
+    runs.push(active)
+  }
+  return runs
+}
+
+// Loops only pay off once they replace a few per-pixel lines.
+const PACKED_ROUTING_LOOP_MIN_RUN = 4
+
+/** The subset of ResolvedRoutingLayout the packed-table emitter reads; exported for #569 tests. */
+export interface PackedRoutingLayoutShape {
+  routes: Array<{ zone: { ranges: Array<{ start: number; end: number }> } }>
+}
+
+export function emitPackedRoutingTable(layouts: PackedRoutingLayoutShape[]): string {
   const pixelCount = routingPixelCount(layouts)
   const stride = pixelCount + 1
+  // First compute the final per-pixel value array exactly as the per-pixel
+  // emission did (first writer wins across overlapping ranges), then emit the
+  // disjoint run list (#569): identical contents, O(ranges) source lines.
   const values = layouts.flatMap((layout) => {
     const layoutValues = Array.from({ length: pixelCount }, () => 0)
     layout.routes.forEach((route, routeIndex) => {
@@ -7920,9 +7965,23 @@ function emitPackedRoutingTable(layouts: ResolvedRoutingLayout[]): string {
     })
     return layoutValues
   })
+  const runs = computeLinearRuns(values)
+  const needsLoopIndex = runs.some((run) => run.end - run.start + 1 >= PACKED_ROUTING_LOOP_MIN_RUN)
+  const lines = runs.flatMap((run) => {
+    if (run.end - run.start + 1 >= PACKED_ROUTING_LOOP_MIN_RUN) {
+      const offset = run.base === 0 ? '' : run.base > 0 ? ` + ${run.base}` : ` - ${-run.base}`
+      return [
+        `for (__pxlblz_show_route_run_i = ${run.start}; __pxlblz_show_route_run_i <= ${run.end}; __pxlblz_show_route_run_i = __pxlblz_show_route_run_i + 1) __pxlblz_show_route_pixels[__pxlblz_show_route_run_i] = __pxlblz_show_route_run_i${offset}`,
+      ]
+    }
+    return Array.from({ length: run.end - run.start + 1 }, (_, offset) => (
+      `__pxlblz_show_route_pixels[${run.start + offset}] = ${run.base + run.start + offset}`
+    ))
+  })
   return [
     `var __pxlblz_show_route_pixels = array(${values.length})`,
-    ...values.map((value, index) => `__pxlblz_show_route_pixels[${index}] = ${value}`),
+    ...(needsLoopIndex ? ['var __pxlblz_show_route_run_i = 0'] : []),
+    ...lines,
   ].join('\n')
 }
 
