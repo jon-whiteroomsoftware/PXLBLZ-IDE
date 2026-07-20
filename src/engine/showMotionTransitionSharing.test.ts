@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { compilerVintageOptions } from './showCompilerVintages'
 import { STOCK_SHOWS } from '../pixelblaze/stock/shows'
 import { createFastReplayRuntime } from './fastReplay'
 import { nativeDimension } from './loadPattern'
@@ -16,22 +17,19 @@ describe('shared routed motion-transition emission (#525)', () => {
     const baseline = compileShowForArtifact(motionReference(), [], undefined, {}, {
       stageDimension: 2,
       motionTransitionSharing: 'none',
-      inlineCallHoisting: false,
-      hsvCaptureChainSpecialization: false,
+      ...compilerVintageOptions('motion-transition-sharing'),
     })
     const selected = compileShowForArtifact(motionReference(), [], undefined, {}, {
       stageDimension: 2,
       motionTransitionSharing: 'exact',
-      inlineCallHoisting: false,
-      hsvCaptureChainSpecialization: false,
+      ...compilerVintageOptions('motion-transition-sharing'),
     })
     const structural = compileShowForArtifact(motionReference(), [], undefined, {}, {
       stageDimension: 2,
       motionTransitionSharing: 'structure',
-      inlineCallHoisting: false,
-      hsvCaptureChainSpecialization: false,
+      ...compilerVintageOptions('motion-transition-sharing'),
     })
-    const production = compileShowForArtifact(motionReference(), [], undefined, {}, { stageDimension: 2, inlineCallHoisting: false, hsvCaptureChainSpecialization: false })
+    const production = compileShowForArtifact(motionReference(), [], undefined, {}, { stageDimension: 2, ...compilerVintageOptions('motion-transition-sharing') })
 
     expect(baseline.artifact?.summary.clipCount).toBe(3)
     expect(baseline.artifact?.summary.artifactBytes).toBe(108_533)

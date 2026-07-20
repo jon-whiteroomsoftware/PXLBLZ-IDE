@@ -2,6 +2,7 @@
 // Run with: node --import tsx test/perf-harness/issue536.ts
 
 import { installationPhysicalZones } from '../../src/engine/showInstallationCoverage'
+import { compilerVintageOptions } from '../../src/engine/showCompilerVintages'
 import { compileShow, type ShowRecipe } from '../../src/engine/showCompiler'
 import { showRecordToCompileRecipe } from '../../src/engine/showModel'
 import type { ShowPatternRef, ShowRecord } from '../../src/engine/personalContentRecords'
@@ -111,13 +112,7 @@ function censusCase(
     const artifact = compileShow(recipe, LIBRARIES, {
       generatedEffectKernelSharing: false,
       patternSlotSharing: 'none',
-      // #558 hoisting, #562 prologue simplification, and #561 pixel-count
-      // write hoisting postdate the census; preserve its boundary.
-      colorCoefficientHoisting: false,
-      capturePrologueSimplification: false,
-      pixelCountWriteHoisting: false,
-      hsvCaptureChainSpecialization: false,
-      inlineCallHoisting: false,
+      ...compilerVintageOptions('issue-536-score-census'),
     })
     // The final artifact is alpha-mangled. The expanded artifact retains the
     // stable member prefixes while declaring the same persistent globals.

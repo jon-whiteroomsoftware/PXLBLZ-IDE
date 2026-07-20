@@ -2,6 +2,7 @@
 // Run with: npm run issue525
 
 import { performance } from 'node:perf_hooks'
+import { compilerVintageOptions } from '../../src/engine/showCompilerVintages'
 import { createFastReplayRuntime } from '../../src/engine/fastReplay'
 import { nativeDimension } from '../../src/engine/loadPattern'
 import { compileShowForPreview } from '../../src/engine/showPreviewArtifact'
@@ -15,9 +16,7 @@ const compile = (motionTransitionSharing: 'none' | 'structure' | 'exact') => {
   const compiled = compileShowForPreview(fixture.show, [], undefined, {}, {
     stageDimension: 2,
     motionTransitionSharing,
-    // #525 is a historical harness; #559 and #566 postdate it.
-    hsvCaptureChainSpecialization: false,
-    inlineCallHoisting: false,
+    ...compilerVintageOptions('issue-525-motion-census'),
   })
   if (!compiled.artifact) throw new Error(compiled.error ?? 'Motion Transitions did not compile.')
   return compiled.artifact
