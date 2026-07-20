@@ -334,6 +334,7 @@ lives in `docs/plans/archive/show-rendering-next-wave-measurement-ledger.md`.
 | 06 | #561 pixelCount constant-write hoisting | hsv-steady +2.1%, acceptance +1.4-1.6% with bytecode -432 B; exact |
 | 07 | #566 inline pure call-subtree hoisting | exact extension of #513 to inline time()/wave() subtrees; fixture-set result neutral (audience under-represented); 7 stock Shows gain hoists |
 | 08 | #564 fixed-point peepholes | **recorded negative**: floor/frac price below a same-shape multiply (#556), and fw 3.67 bitwise ops integer-coerce operands so the raw-bits identities are invalid |
+| 09 | #563 zone-coordinate strength reduction | **recorded negative**: modulo is free vs a multiply, floor-feeding reciprocals step whole rows, outer reciprocals err ~WIDTH/2 LSBs (exact only for power-of-two divisors) |
 
 Wave-2 slice ledgers with full axes live as comments on #554.
 
