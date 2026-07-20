@@ -116,6 +116,8 @@ function censusCase(
       colorCoefficientHoisting: false,
       capturePrologueSimplification: false,
       pixelCountWriteHoisting: false,
+      hsvCaptureChainSpecialization: false,
+      inlineCallHoisting: false,
     })
     // The final artifact is alpha-mangled. The expanded artifact retains the
     // stable member prefixes while declaring the same persistent globals.

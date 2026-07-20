@@ -15,6 +15,9 @@ const compile = (motionTransitionSharing: 'none' | 'structure' | 'exact') => {
   const compiled = compileShowForPreview(fixture.show, [], undefined, {}, {
     stageDimension: 2,
     motionTransitionSharing,
+    // #525 is a historical harness; #559 and #566 postdate it.
+    hsvCaptureChainSpecialization: false,
+    inlineCallHoisting: false,
   })
   if (!compiled.artifact) throw new Error(compiled.error ?? 'Motion Transitions did not compile.')
   return compiled.artifact

@@ -67,7 +67,16 @@ const DEPENDENCY_ORDER: ShowFrameDependency[] = [
   'unknown',
 ]
 
-export function analyzeShowFrameInvariantCandidates(source: string): ShowFrameInvariantCandidate[] {
+export interface ShowFrameInvariantAnalysisOptions {
+  /** #566 inline call-subtree extension; false preserves the #513-era
+   * declarator-only analysis for historical censuses. */
+  inlineCallSubtrees?: boolean
+}
+
+export function analyzeShowFrameInvariantCandidates(
+  source: string,
+  analysisOptions: ShowFrameInvariantAnalysisOptions = {},
+): ShowFrameInvariantCandidate[] {
   const ast = acorn.parse(source, { ecmaVersion: 2020, sourceType: 'module' }) as unknown as Node
   const globals = collectTopLevelGlobals(ast)
   const functions = collectTopLevelFunctions(ast)
@@ -123,6 +132,9 @@ export function analyzeShowFrameInvariantCandidates(source: string): ShowFrameIn
         estimatedAddedBytes: initializerSource.length + 72,
       })
     })
+  }
+  if (analysisOptions.inlineCallSubtrees === false) {
+    return candidates.sort((left, right) => left.initializerStart - right.initializerStart)
   }
   // #566: maximal pure call subtrees anywhere in render-reachable expressions.
   // A subtree qualifies only when it contains at least one call - plain

@@ -32,6 +32,13 @@ interface ShowCompilationOptions {
   patternSlotSharing?: 'auto' | 'none' | 'force'
   /** Test/benchmark hardware-gated coordinate-field candidate for issue #528. */
   coordinateFieldCaching?: boolean
+  /** Wave-2 (#554) benchmark counterfactuals; production leaves them enabled. */
+  directColorSinks?: boolean
+  colorCoefficientHoisting?: boolean
+  capturePrologueSimplification?: boolean
+  pixelCountWriteHoisting?: boolean
+  hsvCaptureChainSpecialization?: boolean
+  inlineCallHoisting?: boolean
 }
 
 export function compileShowForPreview(
@@ -66,6 +73,12 @@ export function compileShowForPreview(
         showScoreSharing: options.showScoreSharing,
         patternSlotSharing: options.patternSlotSharing,
         coordinateFieldCaching: options.coordinateFieldCaching,
+        directColorSinks: options.directColorSinks,
+        colorCoefficientHoisting: options.colorCoefficientHoisting,
+        capturePrologueSimplification: options.capturePrologueSimplification,
+        pixelCountWriteHoisting: options.pixelCountWriteHoisting,
+        hsvCaptureChainSpecialization: options.hsvCaptureChainSpecialization,
+        inlineCallHoisting: options.inlineCallHoisting,
       })
     return {
       artifact: {

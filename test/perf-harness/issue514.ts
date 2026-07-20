@@ -107,7 +107,8 @@ function savedShowCases(): ShowVmHeadroomCase[] {
       [],
       installationPhysicalZones(show),
       {},
-      { stageDimension: map?.dim ?? 2 },
+      // #514 is a historical census; #559 and #566 postdate it.
+      { stageDimension: map?.dim ?? 2, hsvCaptureChainSpecialization: false, inlineCallHoisting: false },
     )
     if (!compiled.artifact) {
       return {
@@ -177,7 +178,8 @@ function fivePatternAcceptanceCase(): ShowVmHeadroomCase {
       })),
     },
     loopDurationMs: 30_000,
-  }, LIBRARIES)
+    // #514 is a historical census; #559 postdates it.
+  }, LIBRARIES, { hsvCaptureChainSpecialization: false, inlineCallHoisting: false })
   return censusCase({
     id: 'acceptance:five-clockwork-members',
     name: 'Five Clockwork Iris members over 30 seconds',

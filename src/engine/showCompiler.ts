@@ -541,6 +541,12 @@ export interface ShowCompileSummary {
       enabled: boolean
       members: Array<{ id: string; sinks: Array<'hsv' | 'rgb'>; scenes: number[] }>
     } | null
+    /** #559: per-member HSV conversion policy and its byte trade. */
+    hsvCaptureChain: {
+      policy: 'per-member' | 'shared'
+      memberCount: number
+      estimatedAddedBytes: number
+    } | null
     capture: Array<{
       clipId: string
       samplePath: 'identity' | 'mapped'
@@ -855,6 +861,11 @@ interface CompiledMember {
   /** #561: true when the member's virtual pixel count is one value across
    * every arm that can invoke it; per-pixel writes are then redundant. */
   uniformPixelCountBinding?: boolean
+  /** #559: option carrier for per-member HSV conversion specialization. */
+  hsvCaptureSpecialization?: boolean
+  /** #559: true when the whole recipe proves phase adaptation is identically
+   * zero for this member, so the per-pixel `+ adapt_phase` add is stripped. */
+  phaseAdaptationIdentity?: boolean
   generatedEffectKernelSharing: boolean
   animatedEffectParameterPaths: string[]
   freezeOwnerTokens: number[]
@@ -1010,6 +1021,12 @@ export interface ShowCompileOptions {
   /** Benchmark counterfactual for #561 per-pixel pixelCount constant-write
    * hoisting; production always uses the default `true`. */
   pixelCountWriteHoisting?: boolean
+  /** Benchmark counterfactual for #559 per-member HSV capture-chain
+   * specialization; production always uses the default `true`. */
+  hsvCaptureChainSpecialization?: boolean
+  /** Benchmark counterfactual for the #566 inline call-subtree extension of
+   * frame-invariant hoisting; production always uses the default `true`. */
+  inlineCallHoisting?: boolean
 }
 
 /** #532/#556 price of one persistent scalar write on the measured VM. */
@@ -1982,6 +1999,7 @@ export function compileShow(
       staticPlanEffectClipIds.has(clip.id),
       exactSpecializations,
       frameInvariantHoisting,
+      options.inlineCallHoisting ?? true,
       expandedRecipe.masterPixelCount ?? 256,
       showMemberNeedsMirrorMapping(expandedRecipe, clip),
       showMemberNeedsBrightnessScale(expandedRecipe, clip),
@@ -2427,6 +2445,36 @@ export function compileShow(
           && !poisoned.has(member.id)
           && counts !== undefined
           && counts.size === 1
+      }
+    }
+    // #559: option carrier plus the phase-adaptation identity proof (the
+    // brightness identity's twin). Adaptation mixes are excluded at emission
+    // via includeAdaptationMix.
+    {
+      const phaseBlocked = new Set<string>()
+      for (const scene of expandedRecipe.routedSceneSequence?.scenes ?? []) {
+        const clipByPlacement = new Map(scene.placements.map((placement) => (
+          [placement.placementId, placement.clipId] as const
+        )))
+        for (const placement of scene.placements) {
+          if (placement.phase !== undefined) phaseBlocked.add(placement.clipId)
+        }
+        for (const track of scene.propertyTracks ?? []) {
+          if (track.target.kind === 'placement-view' && track.target.property === 'phase') {
+            const clipId = clipByPlacement.get(track.target.placementId)
+            if (clipId) phaseBlocked.add(clipId)
+          }
+        }
+      }
+      const rampMovesPhase = expandedRecipe.adaptationRamp !== undefined
+        && ((expandedRecipe.adaptationRamp.from.phase ?? 0) !== 0
+          || (expandedRecipe.adaptationRamp.to.phase ?? 0) !== 0)
+      for (const member of members) {
+        member.hsvCaptureSpecialization = options.hsvCaptureChainSpecialization ?? true
+        member.phaseAdaptationIdentity = member.adaptation.phase === 0
+          && !phaseBlocked.has(member.id)
+          && !rampMovesPhase
+          && member.slotOwnerAdaptations.every((adaptation) => adaptation.phase === 0)
       }
     }
   }
@@ -2965,6 +3013,16 @@ export function compileShow(
     specializations: {
       routing: routingSpecialization,
       directColorSinks: routedSceneEmission?.directColorSinks ?? null,
+      hsvCaptureChain: (() => {
+        const hsvMembers = members.filter((member) => member.usesHsv)
+        if (hsvMembers.length === 0) return null
+        const policy = selectHsvCaptureChainPolicy(members)
+        return {
+          policy,
+          memberCount: hsvMembers.length,
+          estimatedAddedBytes: policy === 'per-member' ? hsvMembers.length * 230 : 0,
+        }
+      })(),
       capture: captureSpecializations,
       frameInvariants: members.map((member) => ({
         clipId: member.id,
@@ -3459,6 +3517,7 @@ function compileMember(
   staticPlanEffects = false,
   exactSpecializations = true,
   frameInvariantHoisting = true,
+  inlineCallHoisting = true,
   outputPixelCount = 256,
   needsMirrorMapping = Boolean(clip.adaptation?.mirror),
   needsBrightnessScale = (clip.adaptation?.brightness ?? 1) !== 1,
@@ -3471,7 +3530,7 @@ function compileMember(
   const memberCode = stripPatternManifest(bundled.code)
   const prefix = `__pxlblz_show_c${index}`
   const frameCandidates = frameInvariantHoisting
-    ? analyzeShowFrameInvariantCandidates(memberCode)
+    ? analyzeShowFrameInvariantCandidates(memberCode, { inlineCallSubtrees: inlineCallHoisting })
     : []
   const frameHoistSourceAllowance = 1_024
   const framePlan = selectShowFrameInvariantHoists(frameCandidates, {
@@ -8684,6 +8743,64 @@ function memberHoistsColorCoefficients(member: CompiledMember): boolean {
   return colorCoefficientDefs(member).length > 0
 }
 
+/** #559: the member's HSV sink. Per-member policy inlines the sextant
+ * conversion writing the member's own capture globals (no slot argument, no
+ * second call, no dispatch chain); each arm computes only the q/t value it
+ * uses, preserving the shared chain's exact expressions and operand order. */
+function emitMemberHsvSink(
+  member: CompiledMember,
+  slotIndex: number,
+  directSink: boolean,
+  policy: 'per-member' | 'shared',
+  includeAdaptationMix: boolean,
+): string {
+  const phaseIdentity = (member.phaseAdaptationIdentity ?? false)
+    && !includeAdaptationMix
+    && (member.hsvCaptureSpecialization ?? true)
+    && policy === 'per-member'
+  const phaseExpression = phaseIdentity ? 'h' : `h + ${member.prefix}_adapt_phase`
+  if (policy === 'shared') {
+    return directSink
+      ? `function ${member.prefix}_hsv(h, s, v) { if (__pxlblz_show_direct) { hsv(${phaseExpression}, s, v) } else { __pxlblz_show_capture_hsv(${slotIndex}, ${phaseExpression}, s, v) } }`
+      : `function ${member.prefix}_hsv(h, s, v) { __pxlblz_show_capture_hsv(${slotIndex}, ${phaseExpression}, s, v) }`
+  }
+  const alpha = memberHasContentKey(member) ? `; ${member.prefix}_alpha = 1` : ''
+  const arm = (r: string, g: string, b: string) => (
+    `{ ${member.prefix}_r = ${r}; ${member.prefix}_g = ${g}; ${member.prefix}_b = ${b}${alpha} }`
+  )
+  const q = 'v * (1 - f * s)'
+  const t = 'v * (1 - (1 - f) * s)'
+  const body = `${phaseIdentity ? '' : `h = h + ${member.prefix}_adapt_phase
+  `}h = h - floor(h)
+  var i = floor(h * 6)
+  var f = h * 6 - i
+  var p = v * (1 - s)
+  if (i == 0) ${arm('v', t, 'p')}
+  else if (i == 1) ${arm(q, 'v', 'p')}
+  else if (i == 2) ${arm('p', 'v', t)}
+  else if (i == 3) ${arm('p', q, 'v')}
+  else if (i == 4) ${arm(t, 'p', 'v')}
+  else ${arm('v', 'p', q)}`
+  return directSink
+    ? `function ${member.prefix}_hsv(h, s, v) {
+  if (__pxlblz_show_direct) { hsv(${phaseExpression}, s, v); return }
+  ${body}
+}`
+    : `function ${member.prefix}_hsv(h, s, v) {
+  ${body}
+}`
+}
+
+/** #559: per-member HSV conversions duplicate ~230 compact bytes each, so
+ * the specialization caps at eight HSV members before falling back to the
+ * shared two-call chain; deterministic and reported in the compile summary. */
+function selectHsvCaptureChainPolicy(members: CompiledMember[]): 'per-member' | 'shared' {
+  const hsvMembers = members.filter((member) => member.usesHsv)
+  if (hsvMembers.length === 0) return 'shared'
+  if (hsvMembers.some((member) => !(member.hsvCaptureSpecialization ?? true))) return 'shared'
+  return hsvMembers.length <= 8 ? 'per-member' : 'shared'
+}
+
 function emitMemberOutputEffectLines(
   member: CompiledMember,
   coordinate: { index: string; x: string; y: string },
@@ -8951,6 +9068,7 @@ function emitRuntimePrelude(
   const includeMix = options.includeMix ?? true
   const includePhase = options.includePhase ?? true
   const directSinkMemberIds = options.directSinkMemberIds ?? new Set<string>()
+  const hsvCapturePolicy = selectHsvCaptureChainPolicy(members)
   const samplePropertyRamps = members[0]?.samplePropertyRamps
   const sampleRuntime = emitSampleRemappingRuntime(samplePropertyRamps)
   const sharedEffectKernelPlan = buildGeneratedEffectKernelPlan(members, outputDimension)
@@ -9101,9 +9219,7 @@ ${advanceDelta('delta', '  ')}
       ? `function ${member.prefix}_rgb(r, g, b) { if (__pxlblz_show_direct) { rgb(r, g, b) } else { ${member.prefix}_r = r; ${member.prefix}_g = g; ${member.prefix}_b = b } }`
       : `function ${member.prefix}_rgb(r, g, b) { ${member.prefix}_r = r; ${member.prefix}_g = g; ${member.prefix}_b = b${memberHasContentKey(member) ? `; ${member.prefix}_alpha = 1` : ''} }`,
     ...(member.usesHsv
-      ? [directSinkMemberIds.has(member.id)
-          ? `function ${member.prefix}_hsv(h, s, v) { if (__pxlblz_show_direct) { hsv(h + ${member.prefix}_adapt_phase, s, v) } else { __pxlblz_show_capture_hsv(${index}, h + ${member.prefix}_adapt_phase, s, v) } }`
-          : `function ${member.prefix}_hsv(h, s, v) { __pxlblz_show_capture_hsv(${index}, h + ${member.prefix}_adapt_phase, s, v) }`]
+      ? [emitMemberHsvSink(member, index, directSinkMemberIds.has(member.id), hsvCapturePolicy, includeAdaptationMix)]
       : []),
     ...(member.usesTime
       ? [`function ${member.prefix}_time(interval) { return (${member.elapsedSecondsName} / (interval * 65.536)) % 1 }`]
@@ -9245,6 +9361,7 @@ ${effectRuntime?.hasCoordinates && !effectRuntime.wrap ? `  if (!effectInside) $
   })
 
   const usesHsv = members.some((member) => member.usesHsv)
+    && selectHsvCaptureChainPolicy(members) === 'shared'
   const vignetteScalarFields = members.flatMap((member) => (
     member.vignetteScalarField ? [member.vignetteScalarField] : []
   ))

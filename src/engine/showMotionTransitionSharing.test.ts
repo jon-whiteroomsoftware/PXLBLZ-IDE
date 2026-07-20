@@ -12,19 +12,26 @@ const motionReference = () => {
 
 describe('shared routed motion-transition emission (#525)', () => {
   it('fits the corrected three-instance reference Show under the activation budget', () => {
+    // Historical #525 boundary: pin passes that postdate its pinned bytes.
     const baseline = compileShowForArtifact(motionReference(), [], undefined, {}, {
       stageDimension: 2,
       motionTransitionSharing: 'none',
+      inlineCallHoisting: false,
+      hsvCaptureChainSpecialization: false,
     })
     const selected = compileShowForArtifact(motionReference(), [], undefined, {}, {
       stageDimension: 2,
       motionTransitionSharing: 'exact',
+      inlineCallHoisting: false,
+      hsvCaptureChainSpecialization: false,
     })
     const structural = compileShowForArtifact(motionReference(), [], undefined, {}, {
       stageDimension: 2,
       motionTransitionSharing: 'structure',
+      inlineCallHoisting: false,
+      hsvCaptureChainSpecialization: false,
     })
-    const production = compileShowForArtifact(motionReference(), [], undefined, {}, { stageDimension: 2 })
+    const production = compileShowForArtifact(motionReference(), [], undefined, {}, { stageDimension: 2, inlineCallHoisting: false, hsvCaptureChainSpecialization: false })
 
     expect(baseline.artifact?.summary.clipCount).toBe(3)
     expect(baseline.artifact?.summary.artifactBytes).toBe(108_533)

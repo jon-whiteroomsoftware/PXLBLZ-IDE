@@ -189,7 +189,9 @@ export function render(index) { rgb(ticks, 0, 0) }
     expect(rgbOnly.expandedCode).not.toContain('function __pxlblz_show_capture_hsv')
     expect(hsvAndTime.expandedCode).toContain('function __pxlblz_show_c0_hsv')
     expect(hsvAndTime.expandedCode).toContain('function __pxlblz_show_c0_time')
-    expect(hsvAndTime.expandedCode).toContain('function __pxlblz_show_capture_hsv')
+    // #559: the single HSV member gets a per-member conversion; the shared
+    // dispatch chain exists only past the specialization threshold.
+    expect(hsvAndTime.expandedCode).not.toContain('function __pxlblz_show_capture_hsv')
     expect(pixel()).toEqual([1, 0, 0])
   })
 
