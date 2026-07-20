@@ -59,6 +59,21 @@ function expectHoleFreeStrip(show: ShowRecord): void {
 }
 
 describe('showModel (#318)', () => {
+  it('preserves the canonical Clip Transform as first-class compiler input (#529)', () => {
+    const base = createDefaultShow('show-529-transform', 'Transform', 1)
+    const show: ShowRecord = {
+      ...base,
+      cells: base.cells.map((cell) => ({
+        ...cell,
+        transform: { positionX: 0.2, positionY: -0.1, rotation: 0.25, scaleX: 1.5, scaleY: 0.75 },
+      })),
+    }
+    const recipe = showRecordToCompileRecipe(show, {
+      byCellId: Object.fromEntries(show.cells.map((cell) => [cell.id, DEMOS[cell.pattern.id]])),
+    })
+    expect(recipe.clips[0].transform).toEqual(show.cells[0].transform)
+  })
+
   it('threads normalized Show output Effects into every compile recipe (#537)', () => {
     const base = createDefaultShow('show-537-trails', 'Trails', 1)
     const show: ShowRecord = {
@@ -449,6 +464,7 @@ describe('showModel (#318)', () => {
     withHole.cells[0] = {
       ...withHole.cells[0],
       controlTargets: { sliderSpeed: 0.4 },
+      transform: { positionX: 0.25, positionY: -0.5, rotation: -0.125, scaleX: 1.5, scaleY: 0.75 },
       effects: [{ id: 'effect-1', kind: 'opacity', opacity: 0.6 }],
     }
 
@@ -462,6 +478,8 @@ describe('showModel (#318)', () => {
     expect(copy.pattern).not.toBe(withHole.cells[0].pattern)
     expect(copy.adaptations).not.toBe(withHole.cells[0].adaptations)
     expect(copy.controlTargets).not.toBe(withHole.cells[0].controlTargets)
+    expect(copy.transform).toEqual(withHole.cells[0].transform)
+    expect(copy.transform).not.toBe(withHole.cells[0].transform)
     expect(copy.effects).not.toBe(withHole.cells[0].effects)
   })
 
@@ -1464,6 +1482,42 @@ describe('showModel (#318)', () => {
       from: { timeScale: 1.5 },
       to: { timeScale: 0 },
       easing: { curve: 'quadratic', direction: 'in-out' },
+    })
+  })
+
+  it('compiles a boundary-owned canonical Transform ramp through reserved affine parameters (#529)', () => {
+    let show = createDefaultShow('show-529-boundary', 'Transform transition')
+    show = updateShowCellPattern(show, show.cells[1].id, {
+      pattern: show.cells[0].pattern,
+      patternName: show.cells[0].patternName,
+    })
+    show = {
+      ...show,
+      cells: show.cells.map((cell, index) => index === 1
+        ? { ...cell, transform: { positionX: 0.5, positionY: 0, rotation: 0, scaleX: 1, scaleY: 1 } }
+        : cell),
+    }
+    show = updateShowBoundaryTransition(show, 'transition-scene-1', {
+      propertyTransitions: {
+        transform: {
+          positionX: { fromByCellId: { [show.cells[1].id]: 0.1 } },
+        },
+      },
+    })
+
+    const normalized = normalizeShowTransitionState(JSON.parse(JSON.stringify(show)) as ShowRecord)
+    const recipe = showRecordToCompileRecipe(normalized, {
+      byCellId: Object.fromEntries(show.cells.map((cell) => [cell.id, DEMOS.TestPattern1D])),
+    })
+
+    expect(normalized.transitions?.[0].propertyTransitions?.transform?.positionX).toMatchObject({
+      fromByCellId: { [show.cells[1].id]: 0.1 },
+      durationMs: 2_000,
+    })
+    expect(recipe.adaptationRamp?.effectRamps?.['pxlblz-clip-transform-position']?.x).toMatchObject({
+      from: 0.1,
+      to: 0.5,
+      durationMs: 2_000,
     })
   })
 

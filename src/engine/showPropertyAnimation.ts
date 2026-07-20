@@ -236,6 +236,7 @@ export function propertyTargetKey(target: ShowPropertyAnimationTarget): string {
   if (target.kind === 'instance-control') return `${target.kind}:${target.instanceId}:${target.exportName}`
   if (target.kind === 'placement-opacity') return `${target.kind}:${target.placementId}`
   if (target.kind === 'placement-view') return `${target.kind}:${target.placementId}:${target.property}`
+  if (target.kind === 'placement-transform') return `${target.kind}:${target.placementId}:${target.property}`
   return `${target.kind}:${target.placementId}:${target.effectId}:${target.effectKind}:${target.parameterId}`
 }
 
@@ -280,6 +281,11 @@ function validateTarget(
     return { min: 0, max: 1 }
   }
   if (target.kind === 'placement-view') return { min: 0, max: 1 }
+  if (target.kind === 'placement-transform') {
+    if (target.property === 'scaleX' || target.property === 'scaleY') return { min: 0.01, max: 8 }
+    if (target.property === 'rotation') return { min: -8, max: 8 }
+    return { min: -4, max: 4 }
+  }
   const effect = placement.effects?.find((candidate) => candidate.id === target.effectId)
   if (!effect) {
     addIssue(issues, `${path}.effectId`, 'missing-effect', `Effect "${target.effectId}" does not exist on placement "${target.placementId}".`)

@@ -137,6 +137,7 @@ export function lowerShowCompositionForCompile(
             },
             restartOnEntry: false,
             ...(instance.controlTargets ? { controlTargets: { ...instance.controlTargets } } : {}),
+            ...(placement.transform ? { transform: structuredClone(placement.transform) } : {}),
             ...(placement.effects ? { effects: structuredClone(placement.effects) } : {}),
           })
           byCellId[cellId] = source
@@ -207,6 +208,13 @@ function remapTransition(
               ? {
                   controls: Object.fromEntries(Object.entries(propertyTransitions.controls).map(([name, descriptor]) => (
                     [name, remapPropertyStart(descriptor, derivedCellIdByFlatCellId)]
+                  ))),
+                }
+              : {}),
+            ...(propertyTransitions.transform
+              ? {
+                  transform: Object.fromEntries(Object.entries(propertyTransitions.transform).map(([property, descriptor]) => (
+                    [property, remapPropertyStart(descriptor, derivedCellIdByFlatCellId)]
                   ))),
                 }
               : {}),

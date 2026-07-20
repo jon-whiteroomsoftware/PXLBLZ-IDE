@@ -27,9 +27,9 @@ describe('shared routed motion-transition emission (#525)', () => {
     const production = compileShowForArtifact(motionReference(), [], undefined, {}, { stageDimension: 2 })
 
     expect(baseline.artifact?.summary.clipCount).toBe(3)
-    expect(baseline.artifact?.summary.artifactBytes).toBe(108_773)
+    expect(baseline.artifact?.summary.artifactBytes).toBe(108_533)
     expect(structural.error).toBeNull()
-    expect(structural.artifact?.summary.artifactBytes).toBe(73_564)
+    expect(structural.artifact?.summary.artifactBytes).toBe(73_324)
     expect(structural.artifact?.summary.specializations.motionTransitions).toMatchObject({
       selected: true,
       representation: 'exact-shared-environment',
@@ -37,7 +37,7 @@ describe('shared routed motion-transition emission (#525)', () => {
       parameterScalarGlobals: 0,
     })
     expect(selected.error).toBeNull()
-    expect(selected.artifact?.summary.artifactBytes).toBe(67_934)
+    expect(selected.artifact?.summary.artifactBytes).toBe(67_694)
     expect(selected.artifact?.summary.specializations.motionTransitions).toMatchObject({
       selected: true,
       representation: 'exact-family-kernels',

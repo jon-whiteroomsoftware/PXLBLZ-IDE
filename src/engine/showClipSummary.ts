@@ -1,5 +1,6 @@
 import { steppedClockRateHz } from './steppedClock'
 import { showClipEffectParameterValue, showClipEffectParameters } from './showEffectAuthoring'
+import { normalizeShowClipTransform } from './showClipTransform'
 import type { ShowCell, ShowPropertyTransitions, ShowRecord } from './personalContentRecords'
 
 export type ShowClipSummaryKind = 'playback' | 'controls' | 'view' | 'effects' | 'animation'
@@ -148,6 +149,12 @@ function viewItems(cell: ShowCell): ShowClipSummaryItem[] {
   if (cell.adaptations.phase !== 0) {
     items.push({ id: 'phase', label: 'Phase', value: formatNumber(cell.adaptations.phase) })
   }
+  const transform = normalizeShowClipTransform(cell.transform)
+  if (transform.positionX !== 0) items.push({ id: 'transform-position-x', label: 'Position X', value: formatNumber(transform.positionX), timelineValue: `x ${formatNumber(transform.positionX)}` })
+  if (transform.positionY !== 0) items.push({ id: 'transform-position-y', label: 'Position Y', value: formatNumber(transform.positionY), timelineValue: `y ${formatNumber(transform.positionY)}` })
+  if (transform.rotation !== 0) items.push({ id: 'transform-rotation', label: 'Rotation', value: `${formatNumber(transform.rotation * 360)} deg`, timelineValue: `rot ${formatNumber(transform.rotation * 360)} deg` })
+  if (transform.scaleX !== 1) items.push({ id: 'transform-scale-x', label: 'Scale X', value: `${formatNumber(transform.scaleX)}x`, timelineValue: `sx ${formatNumber(transform.scaleX)}` })
+  if (transform.scaleY !== 1) items.push({ id: 'transform-scale-y', label: 'Scale Y', value: `${formatNumber(transform.scaleY)}x`, timelineValue: `sy ${formatNumber(transform.scaleY)}` })
   return items
 }
 
@@ -179,6 +186,10 @@ function collectAnimatedProperty(
       `animation:control:${exportName}`,
       controlLabels[exportName] ?? humanizeIdentifier(exportName.replace(/^slider/, '')),
     )
+  }
+  for (const [property, transition] of Object.entries(properties.transform ?? {})) {
+    if (transition?.fromByCellId[cell.id] === undefined) continue
+    labels.set(`animation:transform:${property}`, humanizeIdentifier(property))
   }
   for (const [effectId, parameters] of Object.entries(properties.effects ?? {})) {
     const effect = cell.effects?.find((candidate) => candidate.id === effectId)

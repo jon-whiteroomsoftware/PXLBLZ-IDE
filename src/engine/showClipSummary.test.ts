@@ -67,6 +67,30 @@ describe('Show Clip summary', () => {
     expect(showClipInlineSummary(summary)).toBe('defaults')
   })
 
+  it('summarizes canonical Transform placement and animation separately from Effects (#529)', () => {
+    let show = createDefaultShow('show-transform-summary', 'Transform summary', 1_000)
+    const cellId = show.cells[1].id
+    show.cells[1] = {
+      ...show.cells[1],
+      transform: { positionX: 0.25, positionY: 0, rotation: 0.25, scaleX: 1.5, scaleY: 1 },
+    }
+    show = updateShowBoundaryTransition(show, 'transition-scene-1', {
+      propertyTransitions: {
+        transform: { positionX: { fromByCellId: { [cellId]: 0 } } },
+      },
+    })
+
+    const summary = projectGlobalShowClipSummary(show, cellId)
+    expect(summary.find((section) => section.kind === 'view')?.items).toEqual(expect.arrayContaining([
+      expect.objectContaining({ label: 'Position X', value: '0.25' }),
+      expect.objectContaining({ label: 'Rotation', value: '90 deg' }),
+      expect.objectContaining({ label: 'Scale X', value: '1.5x' }),
+    ]))
+    expect(summary.find((section) => section.kind === 'animation')?.items).toContainEqual(
+      expect.objectContaining({ label: 'Position X', value: 'animated' }),
+    )
+  })
+
   it('shows timeline values only when a fact is introduced or changes from the preceding Clip (#548)', () => {
     let show = createDefaultShow('show-clip-summary-deltas', 'Clip summary deltas', 1_000)
     show = updateShowCellAdaptations(show, show.cells[0].id, { timeScale: 0.35, brightness: 0.8 })

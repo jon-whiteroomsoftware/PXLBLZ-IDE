@@ -129,6 +129,8 @@ export interface ShowPropertyTransitions {
   brightness?: ShowPropertyTransition
   /** Public Pixelblaze slider export name -> the same shared transition descriptor. */
   controls?: Record<string, ShowPropertyTransition>
+  /** Stable canonical placement Transform property -> shared clip-property descriptor. */
+  transform?: Partial<Record<keyof ShowClipTransform, ShowPropertyTransition>>
   routing?: {
     splitPosition?: ShowScalarPropertyTransition
   }
@@ -183,6 +185,11 @@ export type ShowPropertyAnimationTarget =
   | { kind: 'instance-control'; instanceId: string; exportName: string }
   | { kind: 'placement-opacity'; placementId: string }
   | { kind: 'placement-view'; placementId: string; property: 'brightness' | 'phase' }
+  | {
+      kind: 'placement-transform'
+      placementId: string
+      property: keyof ShowClipTransform
+    }
   | {
       kind: 'placement-effect'
       placementId: string
@@ -417,6 +424,8 @@ export interface ShowCell {
   evaluationPolicy?: ShowClipEvaluationPolicy
   /** Scene-owned 0..1 targets for public slider control functions. */
   controlTargets?: Record<string, number>
+  /** Canonical placement transform, applied before optional ordered Effects. Missing is neutral. */
+  transform?: ShowClipTransform
   /** Ordered single-source visual Effects. Affine operation order is significant. */
   effects?: ShowClipEffect[]
 }
@@ -468,12 +477,23 @@ export interface ShowPlacementView {
   brightness: number
 }
 
+/** Stable placement-owned affine pose. Rotation is persisted in signed turns around (0.5, 0.5). */
+export interface ShowClipTransform {
+  positionX: number
+  positionY: number
+  rotation: number
+  scaleX: number
+  scaleY: number
+}
+
 export interface ShowMainPlacement {
   id: string
   instanceId: string
   startMs: number
   durationMs: number
   view: ShowPlacementView
+  /** Canonical placement transform, applied before optional ordered Effects. Missing is neutral. */
+  transform?: ShowClipTransform
   effects?: ShowClipEffect[]
 }
 

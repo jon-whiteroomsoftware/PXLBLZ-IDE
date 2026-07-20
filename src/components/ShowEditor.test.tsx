@@ -1648,6 +1648,38 @@ describe('ShowEditor (#318)', () => {
     expect(screen.getByRole('heading', { name: 'Transition properties' })).toBeInTheDocument()
   })
 
+  it('authors a stable canonical Transform boundary ramp and reveals its lane (#529)', async () => {
+    const user = userEvent.setup()
+    const base = createDefaultShow('show-529-transform-ramp', 'Transform ramp', 1_000)
+    const show = {
+      ...base,
+      cells: base.cells.map((cell, index) => ({
+        ...cell,
+        ...(index === 1 ? { pattern: base.cells[0].pattern, patternName: base.cells[0].patternName } : {}),
+        transform: {
+          positionX: index === 0 ? 0.1 : 0.5,
+          positionY: 0,
+          rotation: 0,
+          scaleX: 1,
+          scaleY: 1,
+        },
+      })),
+    }
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+    render(<ShowEditor showId={show.id} />)
+
+    expect(screen.queryByRole('group', { name: 'position x lane for main' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Select Scene 1 to Scene 2 transition (crossfade)' }))
+    await user.click(screen.getByLabelText('Animate Position X transform'))
+
+    await waitFor(() => {
+      expect(useShowStore.getState().shows[0].transitions?.[0].propertyTransitions?.transform?.positionX)
+        .toMatchObject({ fromByCellId: { 'cell-2': 0.1 }, durationMs: 2_000 })
+    })
+    expect(screen.getByRole('group', { name: 'position x lane for main' })).toBeInTheDocument()
+  })
+
   it('authors independent Time and Brightness curves through one property inspector (#418)', async () => {
     const user = userEvent.setup()
     const show = createDefaultShow('show-418', 'Two properties', 1000)

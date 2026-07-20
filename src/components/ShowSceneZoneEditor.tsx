@@ -37,6 +37,7 @@ import { useShowEditorSessionStore } from '@/store/showEditorSessionStore'
 import { usePreviewStore } from '@/store/previewStore'
 import { projectShowClipInspector, type ShowClipInspectorOwner, type ShowClipInspectorPatch } from '@/engine/showClipInspectorModel'
 import type { AutomatablePatternControl } from '@/engine/showPatternControls'
+import { normalizeShowClipTransform } from '@/engine/showClipTransform'
 
 type OverlayClipDrag = {
   kind: 'overlay'
@@ -72,6 +73,7 @@ export function ShowSceneZoneEditor({
   compositionProjection,
   scope,
   readOnly,
+  transformEnabled = true,
   selectedClipId,
   transport,
   onBack,
@@ -106,6 +108,7 @@ export function ShowSceneZoneEditor({
   compositionProjection: FlatShowCompositionProjection
   scope: ShowSceneEditorScope
   readOnly: boolean
+  transformEnabled?: boolean
   selectedClipId: string | null
   transport: ReactNode
   onBack: () => void
@@ -256,7 +259,7 @@ export function ShowSceneZoneEditor({
     ? projectShowClipInspector(show, selectedInspectorOwner)
     : null
   const animationOptions = selectedAuthoredPlacement && selectedAuthoredInstance
-    ? buildShowAutomationOptions(selectedAuthoredInstance, selectedAuthoredPlacement)
+    ? buildShowAutomationOptions(selectedAuthoredInstance, selectedAuthoredPlacement, transformEnabled)
     : []
   const selectedTracks = (sceneComposition?.propertyTracks ?? []).filter((track) => {
     if (!selectedAuthoredPlacement || !selectedAuthoredInstance) return false
@@ -828,6 +831,7 @@ export function ShowSceneZoneEditor({
               value={selectedInspectorValue}
               title={`${selectedInspectorValue.patternName} · ${detail.zone.name} · ${detail.scene.name}`}
               readOnly={readOnly}
+              transformEnabled={transformEnabled}
               patternOptions={comboboxPatternOptions}
               patternControls={selectedInspectorValue.instanceId
                 ? patternControlsByInstanceId[selectedInspectorValue.instanceId] ?? []
@@ -1003,6 +1007,14 @@ interface ShowAutomationOption {
   min: number
   max: number
   step: number
+  presentation?: {
+    fromStored: (value: number) => number
+    toStored: (value: number) => number
+    min: number
+    max: number
+    step: number
+    unit: string
+  }
 }
 
 function PropertyAnimationPanel({
@@ -1139,13 +1151,16 @@ function PropertyAnimationPanel({
                   onCommit={(timeMs) => onUpdateKeyframe(track.id, selectedPoint.id, { timeMs })}
                 />
                 <ExactNumberInput
-                  label="Keyframe value"
-                  value={selectedPoint.value}
-                  min={option.min}
-                  max={option.max}
-                  step={option.step}
+                  label={option.presentation ? `Keyframe value ${option.presentation.unit}` : 'Keyframe value'}
+                  value={option.presentation?.fromStored(selectedPoint.value) ?? selectedPoint.value}
+                  min={option.presentation?.min ?? option.min}
+                  max={option.presentation?.max ?? option.max}
+                  step={option.presentation?.step ?? option.step}
+                  suffix={option.presentation?.unit === 'degrees' ? 'deg' : undefined}
                   disabled={readOnly}
-                  onCommit={(value) => onUpdateKeyframe(track.id, selectedPoint.id, { value })}
+                  onCommit={(value) => onUpdateKeyframe(track.id, selectedPoint.id, {
+                    value: option.presentation?.toStored(value) ?? value,
+                  })}
                 />
                 <label className="flex items-center gap-1">Ease
                   <select
@@ -1237,7 +1252,9 @@ function KeyframeNavigation({ track, keyframeId, onSelect }: {
 function buildShowAutomationOptions(
   instance: ShowPatternInstance,
   placement: ShowMainPlacement | ShowOverlayPlacement,
+  transformEnabled = true,
 ): ShowAutomationOption[] {
+  const transform = normalizeShowClipTransform(placement.transform)
   const options: ShowAutomationOption[] = [
     animationOption('Animation speed', { kind: 'instance-time-scale', instanceId: instance.id }, instance.time.timeScale, 0, 4, 0.01),
     ...Object.entries(instance.controlTargets ?? {}).map(([exportName, value]) => (
@@ -1245,6 +1262,28 @@ function buildShowAutomationOptions(
     )),
     animationOption('Brightness', { kind: 'placement-view', placementId: placement.id, property: 'brightness' }, placement.view.brightness, 0, 1, 0.01),
     animationOption('Phase', { kind: 'placement-view', placementId: placement.id, property: 'phase' }, placement.view.phase, 0, 1, 0.01),
+    ...(transformEnabled ? [
+      animationOption('Position X', { kind: 'placement-transform', placementId: placement.id, property: 'positionX' }, transform.positionX, -4, 4, 0.01),
+      animationOption('Position Y', { kind: 'placement-transform', placementId: placement.id, property: 'positionY' }, transform.positionY, -4, 4, 0.01),
+      animationOption(
+      'Rotation (degrees)',
+      { kind: 'placement-transform', placementId: placement.id, property: 'rotation' },
+      transform.rotation,
+      -8,
+      8,
+      0.01,
+      {
+        fromStored: (turns) => turns * 360,
+        toStored: (degrees) => degrees / 360,
+        min: -2_880,
+        max: 2_880,
+        step: 1,
+        unit: 'degrees',
+      },
+      ),
+      animationOption('Scale X', { kind: 'placement-transform', placementId: placement.id, property: 'scaleX' }, transform.scaleX, 0.01, 8, 0.01),
+      animationOption('Scale Y', { kind: 'placement-transform', placementId: placement.id, property: 'scaleY' }, transform.scaleY, 0.01, 8, 0.01),
+    ] : []),
     ...('opacity' in placement
       ? [animationOption('Opacity', { kind: 'placement-opacity', placementId: placement.id }, placement.opacity, 0, 1, 0.01)]
       : []),
@@ -1279,8 +1318,9 @@ function animationOption(
   min: number,
   max: number,
   step: number,
+  presentation?: ShowAutomationOption['presentation'],
 ): ShowAutomationOption {
-  return { key: propertyTargetKey(target), label, target, value, min, max, step }
+  return { key: propertyTargetKey(target), label, target, value, min, max, step, presentation }
 }
 
 function ExactTimeInput({
@@ -1332,12 +1372,13 @@ function ExactTimeInput({
   )
 }
 
-function ExactNumberInput({ label, value, min, max, step, disabled, onCommit }: {
+function ExactNumberInput({ label, value, min, max, step, suffix, disabled, onCommit }: {
   label: string
   value: number
   min: number
   max: number
   step: number
+  suffix?: string
   disabled: boolean
   onCommit: (value: number) => void
 }) {
@@ -1369,6 +1410,7 @@ function ExactNumberInput({ label, value, min, max, step, disabled, onCommit }: 
         }}
         className="h-6 w-16 appearance-none rounded border border-zinc-800 bg-zinc-950 px-1.5 text-right text-[9px] tabular-nums text-zinc-200 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
       />
+      {suffix && <span aria-hidden className="text-zinc-600">{suffix}</span>}
     </label>
   )
 }

@@ -21,6 +21,7 @@ function value(scope: ShowClipInspectorValue['scope']): ShowClipInspectorValue {
     evaluationPolicy: 'live',
     simulation: { timeScale: 1, timeOffsetMs: 0, controlTargets: { sliderSpeed: 0.4 } },
     view: { mirror: false, phase: 0.25, brightness: 0.8 },
+    transform: { positionX: 0, positionY: 0, rotation: 0, scaleX: 1, scaleY: 1 },
     effects: [],
     ...(scene ? {
       placementId: 'placement-1',
@@ -92,6 +93,28 @@ describe('shared Clip Entity Detail sections (#498)', () => {
 
     fireEvent.click(screen.getByRole('checkbox', { name: 'Set Speed target' }))
     expect(onPatch).toHaveBeenCalledWith({ simulation: { controlTargets: undefined } })
+  })
+
+  it('authors the first-class Transform in placement units while displaying rotation in degrees (#529)', () => {
+    const onPatch = vi.fn()
+    render(<ShowClipEntityDetail {...commonProps('scene-main', onPatch)} />)
+
+    expect(screen.getByRole('group', { name: 'Clip Transform' })).toBeInTheDocument()
+    const positionX = screen.getByRole('spinbutton', { name: 'Position X' })
+    fireEvent.change(positionX, { target: { value: '0.25' } })
+    fireEvent.blur(positionX)
+    expect(onPatch).toHaveBeenCalledWith({ transform: { positionX: 0.25 } })
+
+    const rotation = screen.getByRole('spinbutton', { name: 'Rotation degrees' })
+    fireEvent.change(rotation, { target: { value: '90' } })
+    fireEvent.blur(rotation)
+    expect(onPatch).toHaveBeenCalledWith({ transform: { rotation: 0.25 } })
+  })
+
+  it('does not offer the 2D Transform group for an incompatible Stage (#529)', () => {
+    render(<ShowClipEntityDetail {...commonProps('scene-main')} transformEnabled={false} />)
+
+    expect(screen.queryByRole('group', { name: 'Clip Transform' })).not.toBeInTheDocument()
   })
 
   it('presents Pattern and advanced controls as flat readable tables', () => {

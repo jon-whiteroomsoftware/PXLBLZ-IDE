@@ -15,6 +15,7 @@ import type {
   ShowSceneComposition,
   ShowZoneComposition,
 } from './personalContentRecords'
+import { compactShowClipTransform } from './showClipTransform'
 
 export type ShowCompositionValidationCode =
   | 'duplicate-id'
@@ -97,6 +98,9 @@ export function projectFlatShowToCompositionV1(
             phase: placement.appearance.phase,
             brightness: placement.appearance.brightness,
           },
+          ...(placement.appearance.transform
+            ? { transform: cloneJson(placement.appearance.transform) }
+            : {}),
           ...(placement.appearance.effects
             ? { effects: cloneJson(placement.appearance.effects) }
           : {}),
@@ -130,14 +134,27 @@ export function normalizeShowComposition(
           .sort((a, b) => ownerOrder(zoneOrder, a.zoneId) - ownerOrder(zoneOrder, b.zoneId) || a.zoneId.localeCompare(b.zoneId))
           .map((zone) => ({
             ...zone,
-            main: zone.main.sort((a, b) => a.startMs - b.startMs || a.id.localeCompare(b.id)),
+            main: zone.main
+              .map(normalizePlacementTransform)
+              .sort((a, b) => a.startMs - b.startMs || a.id.localeCompare(b.id)),
             overlays: (zone.overlays ?? []).map((layer) => ({
               ...layer,
-              placements: layer.placements.sort((a, b) => a.startMs - b.startMs || a.id.localeCompare(b.id)),
+              placements: layer.placements
+                .map(normalizePlacementTransform)
+                .sort((a, b) => a.startMs - b.startMs || a.id.localeCompare(b.id)),
             })),
           })),
       })),
   }
+}
+
+function normalizePlacementTransform<T extends ShowMainPlacement | ShowOverlayPlacement>(placement: T): T {
+  const { transform: authoredTransform, ...rest } = placement
+  const transform = compactShowClipTransform(authoredTransform)
+  return {
+    ...rest,
+    ...(transform ? { transform } : {}),
+  } as T
 }
 
 export function validateShowComposition(

@@ -16,6 +16,35 @@ const LICENSE_PREFIX = '// License: '
 const RUNS_ON_PREFIX = '// Runs on: '
 const CONTROLS_PREFIX = '// Controls: '
 
+/**
+ * Removes the canonical, human-facing PXLBLZ manifest before Pattern source is
+ * embedded in a generated Show artifact. Structured attribution is collected
+ * separately, while implementation notes and arbitrary comments remain code.
+ */
+export function stripPatternManifest(source: string): string {
+  if (!parsePatternManifest(source)) return source
+
+  let offset = 0
+  let sawControls = false
+  while (offset < source.length) {
+    let lineEnd = offset
+    while (lineEnd < source.length && source[lineEnd] !== '\r' && source[lineEnd] !== '\n') lineEnd += 1
+
+    const line = source.slice(offset, lineEnd)
+    let nextLine = lineEnd
+    if (source[nextLine] === '\r') nextLine += 1
+    if (source[nextLine] === '\n') nextLine += 1
+
+    if (sawControls && line === '') return source.slice(nextLine)
+    if (line.startsWith(CONTROLS_PREFIX)) sawControls = true
+
+    if (nextLine === offset) break
+    offset = nextLine
+  }
+
+  return sawControls ? '' : source
+}
+
 export function parsePatternManifest(source: string): PatternManifest | null {
   const lines = source.replace(/\r\n?/g, '\n').split('\n')
   if (!lines[0]?.startsWith(PATTERN_PREFIX) || lines[1] !== BUILT_WITH_LINE) return null

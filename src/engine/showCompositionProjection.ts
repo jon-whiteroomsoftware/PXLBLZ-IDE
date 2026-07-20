@@ -52,6 +52,7 @@ export interface ShowCompositionPlacementProjection {
     brightness: number
     phase: number
     mirror: boolean
+    transform?: ShowCell['transform']
     effects?: ShowClipEffect[]
   }
 }
@@ -177,6 +178,7 @@ export function projectFlatShowComposition(
           brightness: cell.adaptations.brightness,
           phase: cell.adaptations.phase,
           mirror: cell.adaptations.mirror,
+          ...(cell.transform ? { transform: cloneJson(cell.transform) } : {}),
           ...(cell.effects ? { effects: cloneJson(cell.effects) } : {}),
         },
       }

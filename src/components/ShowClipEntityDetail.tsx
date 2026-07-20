@@ -24,6 +24,7 @@ export interface ShowClipEntityDetailProps {
   embedded?: boolean
   primaryOnly?: boolean
   advancedDefaultOpen?: boolean
+  transformEnabled?: boolean
   onPatch: (patch: ShowClipInspectorPatch) => void
   onPatternCommit?: () => void
   onOpenEffects: () => void
@@ -43,6 +44,7 @@ export function ShowClipEntityDetail({
   embedded = false,
   primaryOnly = false,
   advancedDefaultOpen = false,
+  transformEnabled = true,
   onPatch,
   onPatternCommit,
   onOpenEffects,
@@ -170,6 +172,61 @@ export function ShowClipEntityDetail({
             )}
           </div>
         )}
+
+        {transformEnabled && <fieldset aria-label="Clip Transform" className="mt-2 min-w-0 border-t border-zinc-800/80 pt-1.5">
+          <legend className="pr-2 text-[9px] font-medium uppercase tracking-[0.12em] text-cyan-300/80">Transform</legend>
+          <div className="grid min-w-0 grid-cols-2 items-end gap-x-2 gap-y-1.5 sm:grid-cols-5">
+            <ShowInspectorNumberField
+              label="Position X"
+              value={value.transform.positionX}
+              min={-4}
+              max={4}
+              step={0.01}
+              disabled={readOnly}
+              onChange={(positionX) => onPatch({ transform: { positionX } })}
+            />
+            <ShowInspectorNumberField
+              label="Position Y"
+              value={value.transform.positionY}
+              min={-4}
+              max={4}
+              step={0.01}
+              disabled={readOnly}
+              onChange={(positionY) => onPatch({ transform: { positionY } })}
+            />
+            <ShowInspectorNumberField
+              label="Rotation"
+              ariaLabel="Rotation degrees"
+              value={value.transform.rotation * 360}
+              min={-2880}
+              max={2880}
+              step={1}
+              suffix="deg"
+              disabled={readOnly}
+              onChange={(degrees) => onPatch({ transform: { rotation: degrees / 360 } })}
+            />
+            <ShowInspectorNumberField
+              label="Scale X"
+              value={value.transform.scaleX}
+              min={0.01}
+              max={8}
+              step={0.01}
+              suffix="x"
+              disabled={readOnly}
+              onChange={(scaleX) => onPatch({ transform: { scaleX } })}
+            />
+            <ShowInspectorNumberField
+              label="Scale Y"
+              value={value.transform.scaleY}
+              min={0.01}
+              max={8}
+              step={0.01}
+              suffix="x"
+              disabled={readOnly}
+              onChange={(scaleY) => onPatch({ transform: { scaleY } })}
+            />
+          </div>
+        </fieldset>}
 
         <ShowEffectStack
           effects={value.effects}

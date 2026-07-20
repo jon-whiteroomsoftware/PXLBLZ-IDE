@@ -160,6 +160,36 @@ describe('shared Clip inspector owner model (#498)', () => {
     }
   })
 
+  it('projects a neutral canonical Transform and persists one through every Clip owner', () => {
+    for (const ownerFor of [globalOwner, mainOwner, overlayOwner]) {
+      const show = fixture()
+      expect(projectShowClipInspector(show, ownerFor(show))?.transform).toEqual({
+        positionX: 0,
+        positionY: 0,
+        rotation: 0,
+        scaleX: 1,
+        scaleY: 1,
+      })
+
+      const updated = updateShowClipInspector(show, ownerFor(show), {
+        transform: {
+          positionX: 0.25,
+          positionY: -0.4,
+          rotation: 0.125,
+          scaleX: 1.5,
+          scaleY: 0.75,
+        },
+      })
+      expect(projectShowClipInspector(updated, ownerFor(updated))?.transform).toEqual({
+        positionX: 0.25,
+        positionY: -0.4,
+        rotation: 0.125,
+        scaleX: 1.5,
+        scaleY: 0.75,
+      })
+    }
+  })
+
   it('commits Pattern, controls, Effects, and local overlay fields through its owner adapter', () => {
     const show = fixture()
     const item = buildShowToolkitPresentationCatalogue({ stageDimensions: 2 })

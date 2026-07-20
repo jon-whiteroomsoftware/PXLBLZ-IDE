@@ -4,12 +4,17 @@ import {
 } from './showCompositionModel'
 import { normalizeShowClipEffects } from './showEffects'
 import {
+  compactShowClipTransform,
+  normalizeShowClipTransform,
+} from './showClipTransform'
+import {
   updateShowCellAdaptations,
   updateShowCellEffects,
   updateShowCellPattern,
 } from './showModel'
 import type {
   ShowCell,
+  ShowClipTransform,
   ShowClipEffect,
   ShowClipEvaluationPolicy,
   ShowCompositionV1,
@@ -60,6 +65,7 @@ export interface ShowClipInspectorValue {
   evaluationPolicy: ShowClipEvaluationPolicy
   simulation: ShowClipInspectorSimulation
   view: ShowPlacementView
+  transform: ShowClipTransform
   effects: ShowClipEffect[]
   placementId?: string
   instanceId?: string
@@ -76,6 +82,7 @@ export interface ShowClipInspectorPatch {
   evaluationPolicy?: ShowClipEvaluationPolicy
   simulation?: Partial<ShowClipInspectorSimulation>
   view?: Partial<ShowPlacementView>
+  transform?: Partial<ShowClipTransform>
   effects?: ShowClipEffect[]
   local?: Partial<NonNullable<ShowClipInspectorValue['local']>>
 }
@@ -133,6 +140,7 @@ export function projectShowClipInspector(
       ...(instance.controlTargets ? { controlTargets: { ...instance.controlTargets } } : {}),
     },
     view: { ...placement.view },
+    transform: normalizeShowClipTransform(placement.transform),
     effects: normalizeShowClipEffects(placement.effects),
     placementId: placement.id,
     instanceId: instance.id,
@@ -173,10 +181,11 @@ export function updateShowClipInspector(
       ),
     }))
   }
-  if (patch.view || patch.effects) {
+  if (patch.view || patch.transform || patch.effects) {
     composition = mapPlacement(composition, owner, (placement) => ({
       ...placement,
       ...(patch.view ? { view: normalizeView({ ...placement.view, ...patch.view }) } : {}),
+      ...(patch.transform ? { transform: compactShowClipTransform({ ...placement.transform, ...patch.transform }) } : {}),
       ...(patch.effects ? { effects: normalizeShowClipEffects(patch.effects) } : {}),
     }))
   }
@@ -221,6 +230,7 @@ function projectGlobalClip(cell: ShowCell, owner: Extract<ShowClipInspectorOwner
       phase: cell.adaptations.phase,
       brightness: cell.adaptations.brightness,
     },
+    transform: normalizeShowClipTransform(cell.transform),
     effects: normalizeShowClipEffects(cell.effects),
   }
 }
@@ -259,6 +269,15 @@ function updateGlobalClip(show: ShowRecord, cellId: string, patch: ShowClipInspe
     }
   }
   if (patch.effects) next = updateShowCellEffects(next, cellId, patch.effects)
+  if (patch.transform) {
+    next = {
+      ...next,
+      cells: next.cells.map((cell) => cell.id === cellId
+        ? { ...cell, transform: compactShowClipTransform({ ...cell.transform, ...patch.transform }) }
+        : cell),
+      updatedAt: Math.max(Date.now(), next.updatedAt + 1),
+    }
+  }
   return next
 }
 

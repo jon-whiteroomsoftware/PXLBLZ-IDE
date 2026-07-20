@@ -199,6 +199,13 @@ describe('Show composition v1 Main schedule (#488)', () => {
 
   it('splits with Continue identity and can explicitly Restart with a fresh instance', () => {
     const { show, composition } = fixture()
+    composition.scenes[0].zones[0].main[0].transform = {
+      positionX: 0.25,
+      positionY: -0.5,
+      rotation: -0.125,
+      scaleX: 1.5,
+      scaleY: 0.75,
+    }
     const split = splitShowMainPlacement(show, composition, {
       sceneId: 'scene-1',
       zoneId: 'zone-1',
@@ -208,9 +215,16 @@ describe('Show composition v1 Main schedule (#488)', () => {
     })
     const main = split.scenes[0].zones[0].main
     expect(main.slice(0, 2)).toMatchObject([
-      { id: 'placement-a', instanceId: 'instance-a', startMs: 0, durationMs: 1_500 },
-      { id: 'placement-a-right', instanceId: 'instance-a', startMs: 1_500, durationMs: 2_500 },
+      {
+        id: 'placement-a', instanceId: 'instance-a', startMs: 0, durationMs: 1_500,
+        transform: { positionX: 0.25, positionY: -0.5, rotation: -0.125, scaleX: 1.5, scaleY: 0.75 },
+      },
+      {
+        id: 'placement-a-right', instanceId: 'instance-a', startMs: 1_500, durationMs: 2_500,
+        transform: { positionX: 0.25, positionY: -0.5, rotation: -0.125, scaleX: 1.5, scaleY: 0.75 },
+      },
     ])
+    expect(main[1].transform).not.toBe(main[0].transform)
 
     const restarted = restartShowMainPlacement(split, {
       sceneId: 'scene-1',
@@ -243,6 +257,14 @@ describe('Show composition v1 Main schedule (#488)', () => {
           { id: 'speed-b', timeMs: 2_000, value: 2, easing: { curve: 'linear' } },
         ],
       },
+      {
+        id: 'position-track',
+        target: { kind: 'placement-transform', placementId: 'placement-a', property: 'positionX' },
+        keyframes: [
+          { id: 'position-a', timeMs: 0, value: 0, easing: { curve: 'linear' } },
+          { id: 'position-b', timeMs: 2_000, value: 0.5, easing: { curve: 'linear' } },
+        ],
+      },
     ]
 
     const split = splitShowMainPlacement(show, composition, {
@@ -251,6 +273,8 @@ describe('Show composition v1 Main schedule (#488)', () => {
     expect(split.scenes[0].propertyTracks?.map((track) => track.target)).toEqual(expect.arrayContaining([
       { kind: 'placement-view', placementId: 'placement-a', property: 'brightness' },
       { kind: 'placement-view', placementId: 'placement-right', property: 'brightness' },
+      { kind: 'placement-transform', placementId: 'placement-a', property: 'positionX' },
+      { kind: 'placement-transform', placementId: 'placement-right', property: 'positionX' },
       { kind: 'instance-time-scale', instanceId: 'instance-a' },
     ]))
 

@@ -630,6 +630,7 @@ describe('ShowSceneZoneEditor (#487)', () => {
     fireEvent.click(screen.getAllByRole('button', { name: 'Select TestPattern1D Main clip' })[0])
     expect(screen.getByLabelText('Property animation')).toBeInTheDocument()
     expect(screen.getAllByLabelText('Property sparkline')).toHaveLength(1)
+    expect(screen.getByRole('option', { name: 'Position X' })).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Keyframe at 0 ms, value 1' }))
     expect(screen.getByRole('button', { name: 'Previous keyframe' })).toHaveAttribute('title', 'Previous keyframe')
@@ -671,6 +672,57 @@ describe('ShowSceneZoneEditor (#487)', () => {
       initialValue: 0,
       atMs: 0,
     })
+
+    fireEvent.change(screen.getByRole('combobox', { name: 'Property to animate' }), {
+      target: { value: `placement-transform:${placement.id}:positionX` },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Animate selected property' }))
+    expect(onAddPropertyTrack).toHaveBeenCalledWith({
+      target: { kind: 'placement-transform', placementId: placement.id, property: 'positionX' },
+      initialValue: 0,
+      atMs: 0,
+    })
+  })
+
+  it('displays Scene-local Rotation keyframes in degrees while persisting turns (#529)', () => {
+    const { show, placement } = compositionFixture()
+    show.composition!.scenes[0].propertyTracks = [{
+      id: 'rotation-track',
+      target: { kind: 'placement-transform', placementId: placement.id, property: 'rotation' },
+      keyframes: [
+        { id: 'rotation-a', timeMs: 0, value: 0.25, easing: { curve: 'linear' } },
+        { id: 'rotation-b', timeMs: 10_000, value: 0.5, easing: { curve: 'linear' } },
+      ],
+    }]
+    const projection = projectFlatShowComposition(show, {
+      byCellId: Object.fromEntries(show.cells.map((cell) => [cell.id, source])),
+      stageDimension: 1,
+    })
+    const onUpdatePropertyKeyframe = vi.fn()
+
+    render(<ShowSceneZoneEditor
+      show={show}
+      compositionProjection={projection}
+      scope={{ sceneId: 'scene-1', zoneId: 'zone-1' }}
+      readOnly={false}
+      selectedClipId={null}
+      transport={null}
+      onBack={vi.fn()}
+      onZoneChange={vi.fn()}
+      onSelectClip={vi.fn()}
+      onSeek={vi.fn()}
+      {...editingProps}
+      onUpdatePropertyKeyframe={onUpdatePropertyKeyframe}
+    />)
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Select TestPattern1D Main clip' })[0])
+    expect(screen.getByText('Rotation (degrees)')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Keyframe at 0 ms, value 0.25' }))
+    const value = screen.getByRole('spinbutton', { name: 'Keyframe value degrees' })
+    expect(value).toHaveValue(90)
+    fireEvent.change(value, { target: { value: '180' } })
+    fireEvent.blur(value)
+    expect(onUpdatePropertyKeyframe).toHaveBeenCalledWith('rotation-track', 'rotation-a', { value: 0.5 })
   })
 
   it('opens one shared anchored Clip detail and routes Pattern and Effects edits by owner (#498)', () => {

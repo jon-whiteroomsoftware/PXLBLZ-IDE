@@ -54,6 +54,29 @@ function loadShow(code: string, metadata: ReturnType<typeof compileShow>['metada
 }
 
 describe('compileShow', () => {
+  it('lowers the canonical Clip Transform through the affine kernel and compiles neutral state away (#529)', () => {
+    const clip = {
+      id: 'placed',
+      source: 'export function render2D(index, x, y) { rgb(x, y, 0) }',
+    }
+    const baseline = compileShow({ clips: [clip] }, {})
+    const neutral = compileShow({
+      clips: [{ ...clip, transform: { positionX: 0, positionY: 0, rotation: 0, scaleX: 1, scaleY: 1 } }],
+    }, {})
+    const moved = compileShow({
+      clips: [{ ...clip, transform: { positionX: 0.25, positionY: 0.25, rotation: 0, scaleX: 1, scaleY: 1 } }],
+    }, {})
+    const { handle, pixel } = loadShow(moved.code, moved.metadata, 4)
+
+    handle.beforeRender(16)
+    handle.render2D(3, 1, 1)
+
+    expect(pixel()[0]).toBeCloseTo(0.75)
+    expect(pixel()[1]).toBeCloseTo(0.75)
+    expect(neutral.code).toBe(baseline.code)
+    expect(moved.expandedCode).toContain('__pxlblz_show_c0_fx_a =')
+  })
+
   it('reconciles exact named source chunks to the delivered generated source (#545)', () => {
     const artifact = compileShow({
       clips: [{
@@ -213,7 +236,7 @@ export function render(index) { rgb(ticks, 0, 0) }
       },
       loopDurationMs: 2000,
     }, {})
-    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 4)
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 1)
 
     handle.beforeRender(500)
     handle.render2D(0, 0.25, 0.75)
@@ -498,7 +521,7 @@ export function render2D(index, x, y) { rgb(${channel === 'r' ? 1 : 0}, ${channe
   })
 
   it('evaluates Scene-local instance and placement tracks with the generated easing runtime (#490)', () => {
-    const zones = [{ id: 'main', name: 'main', ranges: [{ start: 0, end: 0 }] }]
+    const zones = [{ id: 'main', name: 'main', ranges: [{ start: 0, end: 3 }] }]
     const artifact = compileShow({
       clips: [{
         id: 'instance-a',
@@ -549,12 +572,51 @@ export function render2D(index, x, y) { rgb(${channel === 'r' ? 1 : 0}, ${channe
       },
       loopDurationMs: 2000,
     }, {})
-    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 1)
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 4)
 
     handle.beforeRender(500)
     handle.render(0)
     expect(pixel()[0]).toBeCloseTo(0.25, 3)
     expect(handle.getExports()).toMatchObject({ __pxlblz_show_c0_control_sliderAmount: 0.5 })
+  })
+
+  it('animates a stable placement Transform target through the generated affine kernel (#529)', () => {
+    const zones = [{ id: 'main', name: 'main', ranges: [{ start: 0, end: 3 }] }]
+    const artifact = compileShow({
+      clips: [{
+        id: 'instance-a',
+        source: 'export function render2D(index, x, y) { rgb(x, y, 0) }',
+      }],
+      zones,
+      routingLayouts: [{ id: 'default', name: 'Default', zones }],
+      routedSceneSequence: {
+        scenes: [{
+          holdMs: 1_000,
+          placements: [{ placementId: 'placement-a', zoneName: 'main', clipId: 'instance-a' }],
+          propertyTracks: [{
+            id: 'move-x',
+            target: { kind: 'placement-transform', placementId: 'placement-a', property: 'positionX' },
+            keyframes: [
+              { id: 'move-a', timeMs: 0, value: 0, easing: { curve: 'linear' } },
+              { id: 'move-b', timeMs: 1_000, value: 0.5, easing: { curve: 'linear' } },
+            ],
+          }],
+          transitionOut: { kind: 'cut', durationMs: 0 },
+        }, {
+          holdMs: 1_000,
+          placements: [{ placementId: 'placement-b', zoneName: 'main', clipId: 'instance-a' }],
+        }],
+      },
+      loopDurationMs: 2_000,
+    }, {})
+    const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 4)
+
+    handle.beforeRender(500)
+    handle.render2D(3, 1, 0.5)
+
+    expect(pixel()[0]).toBeCloseTo(0.75)
+    expect(pixel()[1]).toBeCloseTo(1)
+    expect(artifact.expandedCode).toContain('_fx_update()')
   })
 
   it('keeps full source-Scene curves truthful across a lowered hold offset (#490)', () => {

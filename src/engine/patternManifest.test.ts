@@ -1,4 +1,4 @@
-import { parsePatternManifest, PXLBLZ_PATTERN_URL } from './patternManifest'
+import { parsePatternManifest, PXLBLZ_PATTERN_URL, stripPatternManifest } from './patternManifest'
 
 describe('Pattern source manifests', () => {
   it('parses the approved compact banner and reader guidance', () => {
@@ -41,5 +41,38 @@ export function render2D(index, x, y) { rgb(x, y, 0) }
     expect(manifest?.license).toBe('ISC')
     expect(manifest?.description).toBe('Repeated color panes bend under a slow heat haze.')
     expect(manifest?.controls).toBe('Speed — motion rate.')
+  })
+
+  it('strips only the canonical manifest while preserving implementation notes', () => {
+    const source = `// Pattern: Heat Shimmer Tiles
+// Built with PXLBLZ-IDE ${PXLBLZ_PATTERN_URL}
+// License: ISC
+//
+// Repeated color panes bend under a slow heat haze.
+// Runs on: 2D maps; designed for panels and mapped surfaces.
+// Controls: Speed — motion rate;
+//           Zoom — framing.
+
+// Notes:
+// Triangle waves provide the coordinate offsets without Perlin noise.
+
+export function render2D(index, x, y) { rgb(x, y, 0) }
+`
+
+    expect(stripPatternManifest(source)).toBe(`// Notes:
+// Triangle waves provide the coordinate offsets without Perlin noise.
+
+export function render2D(index, x, y) { rgb(x, y, 0) }
+`)
+  })
+
+  it('leaves arbitrary leading comments and malformed manifests untouched', () => {
+    const source = `// Pattern: Personal Pattern
+// This is not the canonical PXLBLZ manifest.
+
+export function render(index) { rgb(1, 0, 0) }
+`
+
+    expect(stripPatternManifest(source)).toBe(source)
   })
 })

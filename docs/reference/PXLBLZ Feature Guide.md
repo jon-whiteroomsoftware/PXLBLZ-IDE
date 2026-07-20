@@ -845,10 +845,10 @@ including at narrow center-pane widths.
 
 Global clips, Scene-local Main clips, and Scene-local overlay clips share one
 capability-driven Clip Entity Detail. Pattern search, Animation speed,
-Brightness, Mirror, phase, public Pattern controls, normalized numeric rules,
-and the complete Effect stack use the same labels and field behavior in every
-scope. The global timeline additionally exposes Show structure such as Scene
-and Zone spans plus private-clock tools. Scene-local clips instead expose local
+Brightness, canonical Clip Transform, Mirror, phase, public Pattern controls,
+normalized numeric rules, and the complete Effect stack use the same labels and
+field behavior in every scope. The global timeline additionally exposes Show
+structure such as Scene and Zone spans plus private-clock tools. Scene-local clips instead expose local
 Start and Duration; overlays also expose layer assignment and source-over
 Opacity. Selecting the same local clip again hides the panel without removing
 its authored Property-animation lanes.
@@ -886,6 +886,23 @@ may be freestyle nominal rows or bind by name to the real multi-range zones on a
 Controller profile. Hold and zone spans form one rectangular footprint. Growing
 either span removes clips it covers; removing a covered scene or zone shrinks or
 re-anchors the surviving footprint.
+
+### Clip Transform
+
+Compatible 2D clips expose one first-class **Transform** group before the
+Effect stack. Position X and Y use normalized Stage coordinates. Rotation is
+shown in degrees and rotates around the normalized center; the saved Show and
+generated Pattern store turns. Scale X and Y default to `1x`. Neutral Position,
+Rotation, and Scale values add no generated transform code.
+
+The same five values are stable Property-animation targets. A destination Clip
+may ramp them across its incoming boundary, and a Scene-local placement may
+author keyframes for them without depending on an Effect id. The compiler uses
+one fixed order: canonical scale, rotation, and position; authored Transform
+Effects; Distort; Address; Pattern render; then Color and output. Advanced
+Translate, Rotate, Scale, and Shear Effects remain available when a second
+ordered transform is useful, and existing Effect stacks are not promoted into
+the canonical fields.
 
 ### Static Effects
 
@@ -1000,8 +1017,9 @@ variant.
 
 Property automation uses one shared CSS-like model: destination clips own
 clip-level targets, destination scenes own Show-wide targets, and the incoming
-boundary owns the explicit start, duration, and easing. Animation speed, Brightness,
-exported `sliderName(v)` controls, and moving Split position use the same system.
+boundary owns the explicit start, duration, and easing. Animation speed,
+Brightness, Clip Transform, exported `sliderName(v)` controls, and moving Split
+position use the same system.
 Synchronized Sample repeat uses it as well.
 Each property may have its own duration and easing on one continued Pattern
 instance. Private locals, toggles, and pickers are not exposed as automatable
@@ -1028,9 +1046,10 @@ the selected point.
 
 Open one Scene and Zone to author local Property animation without adding more
 global Scenes. Select a Main or overlay clip, then add an authored lane for
-Animation speed, one public Pattern slider, Brightness, phase, overlay opacity,
-or a numeric parameter on an applied Effect. Properties with static defaults do
-not occupy rows. Each authored lane uses a compact sparkline; its small points
+Animation speed, one public Pattern slider, Brightness, phase, Position X/Y,
+Rotation, Scale X/Y, overlay opacity, or a numeric parameter on an applied
+Effect. Properties with static defaults do not occupy rows. Each authored lane
+uses a compact sparkline; its small points
 show exact saved keyframes and the line shows the interpolation between them.
 Small changes are visually expanded enough to reveal their shape, so the lane
 is a legibility summary rather than a calibrated vertical ruler.

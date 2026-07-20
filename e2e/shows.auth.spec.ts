@@ -642,7 +642,8 @@ test.describe('authenticated Show authoring', () => {
     await createInstallationShow(page)
 
     await page.getByRole('button', { name: 'Select TestPattern1D' }).first().click()
-    await page.getByLabel('Source pattern').selectOption('stock:TestPattern2D')
+    await page.getByLabel('Source pattern').fill('TestPattern2D')
+    await page.getByRole('option', { name: 'TestPattern2D' }).click()
     const editedClip = page.getByRole('button', { name: 'Select TestPattern2D' }).first()
     await expect(editedClip).toBeFocused()
 
@@ -664,6 +665,60 @@ test.describe('authenticated Show authoring', () => {
     await expect.poll(async () => Number(await page.getByRole('slider', { name: 'Show playhead' }).inputValue())).toBeLessThan(1000)
     await expect(page.getByRole('button', { name: 'Pause Show preview' })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Go to Show start' })).toHaveAttribute('title', 'Go to Show start (Home)')
+  })
+
+  test('authors, reloads, and lays out the canonical Clip Transform at narrow width (#529)', async ({ page }) => {
+    await page.goto('studio/shows')
+    await createPortableShow(page)
+
+    await page.getByRole('button', { name: 'Select TestPattern1D' }).first().click()
+    await page.getByLabel('Source pattern').fill('TestPattern2D')
+    await page.getByRole('option', { name: 'TestPattern2D' }).click()
+
+    const transform = page.getByRole('group', { name: 'Clip Transform' })
+    await expect(transform).toBeVisible()
+    expect(await transform.evaluate((element) => {
+      const effects = document.querySelector('[aria-label="Clip Effects"]')
+      return Boolean(effects && (element.compareDocumentPosition(effects) & Node.DOCUMENT_POSITION_FOLLOWING))
+    })).toBe(true)
+    await transform.getByRole('spinbutton', { name: 'Position X' }).fill('0.25')
+    await transform.getByRole('spinbutton', { name: 'Position X' }).blur()
+    await transform.getByRole('spinbutton', { name: 'Rotation degrees' }).fill('-90')
+    await transform.getByRole('spinbutton', { name: 'Rotation degrees' }).blur()
+    await transform.getByRole('spinbutton', { name: 'Scale X' }).fill('1.4')
+    await transform.getByRole('spinbutton', { name: 'Scale X' }).blur()
+    await transform.getByRole('spinbutton', { name: 'Scale Y' }).fill('0.8')
+    await transform.getByRole('spinbutton', { name: 'Scale Y' }).blur()
+
+    await waitForCurrentShow(page, (show) => show.cells.some((clip) => (
+      clip.patternName === 'TestPattern2D'
+      && clip.transform?.positionX === 0.25
+      && clip.transform?.rotation === -0.25
+      && clip.transform?.scaleX === 1.4
+      && clip.transform?.scaleY === 0.8
+    )))
+
+    await page.reload()
+    await page.getByRole('button', { name: 'Select TestPattern2D' }).first().click()
+    await expect(transform.getByRole('spinbutton', { name: 'Position X' })).toHaveValue('0.25')
+    await expect(transform.getByRole('spinbutton', { name: 'Rotation degrees' })).toHaveValue('-90')
+    await expect(transform.getByRole('spinbutton', { name: 'Scale X' })).toHaveValue('1.4')
+    await expect(transform.getByRole('spinbutton', { name: 'Scale Y' })).toHaveValue('0.8')
+
+    await page.setViewportSize({ width: 560, height: 900 })
+    await expect(transform).toBeVisible()
+    const panelBounds = await page.getByRole('dialog', { name: 'Entity Detail Panel' }).boundingBox()
+    const fieldBounds = await transform.getByRole('spinbutton').evaluateAll((fields) => fields.map((field) => {
+      const bounds = field.getBoundingClientRect()
+      return { left: bounds.left, right: bounds.right }
+    }))
+    expect(panelBounds).not.toBeNull()
+    expect(panelBounds!.x).toBeGreaterThanOrEqual(0)
+    expect(panelBounds!.x + panelBounds!.width).toBeLessThanOrEqual(560)
+    expect(fieldBounds.every((bounds) => (
+      bounds.left >= panelBounds!.x
+      && bounds.right <= panelBounds!.x + panelBounds!.width
+    ))).toBe(true)
   })
 
   test('selects discontinuous Installation LED ranges on the saved 2D map at desktop and narrow widths', async ({ page }) => {
@@ -1226,6 +1281,7 @@ type PersistedShow = {
     id: string
     sceneId: string
     patternName: string
+    transform?: { positionX: number; positionY: number; rotation: number; scaleX: number; scaleY: number }
     restartOnEntry?: boolean
     evaluationPolicy?: 'live' | 'freeze-at-entry'
     adaptations: { timeScale: number; brightness: number }
@@ -1259,8 +1315,17 @@ type PersistedShow = {
 }
 
 async function createInstallationShow(page: Page): Promise<void> {
+  await page.getByRole('button', { name: 'Show actions' }).click()
   await page.getByRole('button', { name: 'New show' }).click()
   await page.getByRole('button', { name: 'Create Installation Show' }).click()
+  await page.getByRole('button', { name: 'Create Show' }).click()
+  await expect(page).toHaveURL(/\/studio\/shows\/[a-z0-9-]+$/)
+}
+
+async function createPortableShow(page: Page): Promise<void> {
+  await page.getByRole('button', { name: 'Show actions' }).click()
+  await page.getByRole('button', { name: 'New show' }).click()
+  await page.getByRole('button', { name: 'Create Portable Show' }).click()
   await page.getByRole('button', { name: 'Create Show' }).click()
   await expect(page).toHaveURL(/\/studio\/shows\/[a-z0-9-]+$/)
 }

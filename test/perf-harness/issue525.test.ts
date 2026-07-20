@@ -7,9 +7,9 @@ describe('issue #525 shared motion-transition harness', () => {
       sceneCount: 21,
       boundaryCount: 20,
       representations: {
-        baseline: { sourceBytes: 108_773 },
+        baseline: { sourceBytes: 108_533 },
         structural: {
-          sourceBytes: 73_564,
+          sourceBytes: 73_324,
           motionTransitions: {
             representation: 'exact-shared-environment',
             stackPlanCount: 2,
@@ -18,7 +18,7 @@ describe('issue #525 shared motion-transition harness', () => {
           },
         },
         selected: {
-          sourceBytes: 67_934,
+          sourceBytes: 67_694,
           motionTransitions: {
             representation: 'exact-family-kernels',
             stackPlanCount: 2,

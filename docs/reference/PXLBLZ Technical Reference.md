@@ -354,7 +354,9 @@ layer.
 to match its Pattern identity and native dimension and to document every
 exported control. `extractPatternAuthors` also reads standardized `Credit:`
 lines, so upstream authors become structured Show attribution before comments
-can be stripped or transformed.
+can be stripped or transformed. Show compilation removes only this canonical
+reader layer after bundling; implementation notes and arbitrary source comments
+remain intact and the structured attribution is carried by the generated Show.
 
 The source manifest and outbound artifact banner are separate. The manifest
 describes the authored Pattern to a person; the artifact banner records the
@@ -1197,9 +1199,11 @@ Pattern evaluations during that window.
 
 `showPropertyAnimation.ts` owns typed Scene-local Property animation. A track
 targets either Pattern-instance Animation speed/public slider state or one
-placement's brightness, phase, overlay opacity, or stable-id numeric Effect
-parameter. Static values remain inline; only authored tracks persist. Validation
-rejects missing or mismatched owners, duplicate targets and ids, non-finite or
+placement's brightness, phase, canonical Clip Transform, overlay opacity, or
+stable-id numeric Effect parameter. Placement-transform targets use the stable
+placement id rather than an Effect id, so they remain valid while the Effect
+stack changes. Static values remain inline; only authored tracks persist.
+Validation rejects missing or mismatched owners, duplicate targets and ids, non-finite or
 out-of-range values, unordered or out-of-Scene keyframes, invalid easing, and
 stale Effect id/kind/parameter combinations.
 
@@ -1361,21 +1365,39 @@ occupancy, split/transition/routing rules.
 Entity Detail. A discriminated owner identifies a flat global cell, a
 Scene-local Main placement, or a Scene-local overlay placement. Projection
 normalizes all three into one value containing Pattern identity,
-Pattern-instance simulation state, placement view, Effects, and optional local
-timing/layer data. The capability matrix determines which structural or local
+Pattern-instance simulation state, placement view, canonical Clip Transform,
+Effects, and optional local timing/layer data. The capability matrix determines
+which structural or local
 sections are legal. Pure update adapters translate normalized patches back to
 `ShowCell`, `ShowPatternInstance`, `ShowMainPlacement`, or
 `ShowOverlayPlacement` edits and enforce shared numeric bounds before the
 React surface requests one Show update.
 
 `ShowClipEntityDetail` renders the common Pattern chooser, Animation speed,
-Brightness, Mirror, phase, public Pattern controls, Effect stack, and numeric
-field behavior. `ShowEditor` supplies global-only structure and clock controls;
-`ShowSceneZoneEditor` supplies local timing, overlay layer/Opacity, and local
+Brightness, Clip Transform, Mirror, phase, public Pattern controls, Effect stack,
+and numeric field behavior. `ShowEditor` supplies global-only structure and
+clock controls; `ShowSceneZoneEditor` supplies local timing, overlay
+layer/Opacity, and local
 actions. Both Scene lanes use the same anchored `ShowEntityDetailPanel`; the
 sparkline/keyframe lanes remain in the Scene rail because they are temporal
 authoring surfaces rather than scalar Clip fields. Neither shared component
 imports a Show store or duplicates occupancy and ownership rules.
+
+`showClipTransform.ts` owns Clip Transform normalization, neutral-value
+compaction, and compiler lowering. The persisted record uses normalized
+Position X/Y, Rotation in turns around `(0.5, 0.5)`, and Scale X/Y. Inspector and
+exact-keyframe fields present Rotation in degrees and convert only at the UI
+boundary. Non-finite input falls back to the neutral member value before bounds
+are applied.
+
+Lowering emits the canonical affine operations in fixed scale, rotation, then
+position order before authored Transform Effects. The generated parameters use
+reserved ids so local and global Property animation can address the same stable
+placement values without claiming an Effect. An entirely neutral Transform is
+removed during normalization and compiles byte-identically to an absent one.
+Flat cells, composition placements, projection/lowering, split, trim, clone,
+undo/redo, persistence, and deletion all retain or remove the Transform with
+its placement; placement-owned animation tracks follow the same lifecycle.
 
 The shipped property lanes are structural scene projections, not arbitrary
 keyframe tracks. A destination clip or scene owns its target; the incoming
@@ -1693,9 +1715,9 @@ The Motion Transitions reference has 21 Scenes, 20 Motion boundaries, and three
 Pattern instances. Its production representation interns two stack plans and
 emits 11 kernels. Repeated boundary easing also shares one frame-rate helper,
 so corrected easing semantics do not duplicate the same expression 20 times.
-Generated source falls from 108,773 to 67,934 bytes and Controller bytecode from
+Generated source falls from 108,533 to 67,694 bytes and Controller bytecode from
 60,398 to 37,958 bytes, while the three-plane arena remains 6,012 words. The
-resulting source is 450 bytes below the conservative source-size proxy derived
+resulting source is 690 bytes below the conservative source-size proxy derived
 from the separately observed 68,384-byte compiled-bytecode activation ceiling;
 that difference is not remaining Controller capacity. Sixty start/mid/end
 samples and the full

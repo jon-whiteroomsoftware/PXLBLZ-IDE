@@ -1,6 +1,7 @@
 import { applyShowEasing } from './showEasing'
 import { projectShowTimeline, showCellAtSlot } from './showModel'
 import { showClipEffectParameterValue, showClipEffectParameters } from './showEffectAuthoring'
+import { normalizeShowClipTransform } from './showClipTransform'
 import type {
   ShowCell,
   ShowMainPlacement,
@@ -68,6 +69,7 @@ export interface ShowPropertyLaneProjection {
 export type ShowGlobalPropertyLaneTarget =
   | { kind: 'timeScale' }
   | { kind: 'brightness' }
+  | { kind: 'transform'; property: keyof import('./personalContentRecords').ShowClipTransform }
   | { kind: 'control'; exportName: string; defaultValue?: number }
 
 export interface ShowScenePropertyLaneProjection {
@@ -229,8 +231,18 @@ export function projectGlobalShowPropertyLane(
   target: ShowGlobalPropertyLaneTarget,
 ): ShowPropertyLaneProjection {
   const timeline = projectShowTimeline(show)
-  const defaultValue = target.kind === 'control' ? target.defaultValue ?? 0 : 1
-  const constraint = target.kind === 'timeScale' ? { min: 0, max: 4 } : { min: 0, max: 1 }
+  const defaultValue = target.kind === 'control'
+    ? target.defaultValue ?? 0
+    : target.kind === 'transform'
+      ? target.property === 'scaleX' || target.property === 'scaleY' ? 1 : 0
+      : 1
+  const constraint = target.kind === 'timeScale'
+    ? { min: 0, max: 4 }
+    : target.kind === 'transform'
+      ? target.property === 'positionX' || target.property === 'positionY'
+        ? { min: -4, max: 4 }
+        : target.property === 'rotation' ? { min: -8, max: 8 } : { min: 0.01, max: 8 }
+      : { min: 0, max: 1 }
   const segments: ShowPropertyLaneSegment[] = []
   const beats: ShowPropertyLaneBeatInput[] = []
 
@@ -420,6 +432,19 @@ function describeScenePropertyTrack(
       constraint: { min: 0, max: 1 },
     }]
   }
+  if (target.kind === 'placement-transform') {
+    const value = normalizeShowClipTransform(owner.placement.transform)[target.property]
+    const constraint = target.property === 'positionX' || target.property === 'positionY'
+      ? { min: -4, max: 4 }
+      : target.property === 'rotation' ? { min: -8, max: 8 } : { min: 0.01, max: 8 }
+    return [{
+      zoneId: owner.zoneId,
+      label: `${patternName} ${target.property}`,
+      valueKind: 'number',
+      defaultValue: value,
+      constraint,
+    }]
+  }
   const effect = owner.placement.effects?.find((candidate) => candidate.id === target.effectId && candidate.kind === target.effectKind)
   const parameter = effect ? showClipEffectParameters(effect).find((candidate) => candidate.id === target.parameterId) : undefined
   const value = effect ? showClipEffectParameterValue(effect, target.parameterId) : undefined
@@ -485,6 +510,11 @@ function globalCellValue(
   if (!cell) return fallback
   if (target.kind === 'timeScale') return cell.adaptations.timeScale
   if (target.kind === 'brightness') return cell.adaptations.brightness
+  if (target.kind === 'transform') {
+    const transform = cell.transform
+    if (!transform) return target.property === 'scaleX' || target.property === 'scaleY' ? 1 : 0
+    return transform[target.property]
+  }
   return cell.controlTargets?.[target.exportName] ?? fallback
 }
 
@@ -494,6 +524,7 @@ function globalTransitionDescriptor(
 ): ShowPropertyTransition | undefined {
   if (target.kind === 'timeScale') return properties?.timeScale
   if (target.kind === 'brightness') return properties?.brightness
+  if (target.kind === 'transform') return properties?.transform?.[target.property]
   return properties?.controls?.[target.exportName]
 }
 

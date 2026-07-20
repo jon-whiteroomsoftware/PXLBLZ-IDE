@@ -8,6 +8,7 @@ import {
   evaluateShowPropertyTrack,
   moveShowPropertyKeyframe,
   normalizeShowPropertyTracks,
+  propertyTargetKey,
   showPropertyTrackNeighbors,
   updateShowPropertyKeyframe,
   validateShowPropertyTracks,
@@ -174,6 +175,22 @@ describe('Scene-local property animation (#490)', () => {
       expect.objectContaining({ code: 'effect-identity-mismatch' }),
       expect.objectContaining({ code: 'missing-control' }),
     ]))
+  })
+
+  it('validates stable placement Transform targets without requiring an Effect instance', () => {
+    const { show, composition } = fixture()
+    const transformTrack = track({
+      target: { kind: 'placement-transform', placementId: 'placement-a', property: 'positionX' },
+      keyframes: [
+        { id: 'move-a', timeMs: 0, value: -1, easing: { curve: 'linear' } },
+        { id: 'move-b', timeMs: 1_000, value: 1, easing: { curve: 'linear' } },
+      ],
+    })
+    expect(validateShowPropertyTracks(show, {
+      ...composition,
+      scenes: [{ ...composition.scenes[0], propertyTracks: [transformTrack] }],
+    })).toEqual([])
+    expect(propertyTargetKey(transformTrack.target)).toBe('placement-transform:placement-a:positionX')
   })
 
   it('supports add-at-playhead, exact edit, move/delete, and previous/next navigation immutably', () => {

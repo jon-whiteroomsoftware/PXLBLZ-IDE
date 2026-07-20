@@ -10,6 +10,7 @@ import { emitFixedPoint } from './fxEmit'
 import { emitShowEasingExpression, showCubicBezierRuntimeSource, validateShowEasing } from './showEasing'
 import type {
   ShowClipEffect,
+  ShowClipTransform,
   ShowCrossfadePolicy,
   ShowDissolveVariant,
   ShowMotionAddressPolicy,
@@ -26,6 +27,11 @@ import type {
   ShowWipeVariant,
 } from './personalContentRecords'
 import { normalizeShowOutputEffects } from './showPreviousRgbFeedback'
+import {
+  SHOW_CLIP_TRANSFORM_EFFECT_IDS,
+  showClipTransformEffects,
+  showClipTransformEffectTarget,
+} from './showClipTransform'
 import { normalizeShowTransitionColor, showTransitionColorToRgb } from './showFadeThroughColor'
 import { showClipEffectPersistedField } from './showEffectAuthoring'
 import { emitShowPropertyTrackExpression } from './showPropertyAnimation'
@@ -136,6 +142,7 @@ import {
   type ShowVmResourceLedger,
 } from './showVmResourceLedger'
 import type { ShowArtifactAttribution } from './patternAttribution'
+import { stripPatternManifest } from './patternManifest'
 
 export interface ShowClipRecipe {
   id: string
@@ -149,6 +156,7 @@ export interface ShowClipRecipe {
   zoneMode?: 'independent' | 'span' | 'repeat'
   adaptation?: Partial<ShowClipAdaptation>
   controlTargets?: Record<string, number>
+  transform?: ShowClipTransform
   effects?: ShowClipEffect[]
 }
 
@@ -300,6 +308,7 @@ export interface ShowSceneSequenceSceneRecipe {
   timeScale?: number
   brightness?: number
   controlTargets?: Record<string, number>
+  transform?: ShowClipTransform
   effects?: ShowClipEffect[]
   transitionOut?: ShowSceneSequenceTransitionRecipe
 }
@@ -324,6 +333,7 @@ export interface ShowRoutedScenePlacementRecipe {
   timeScale?: number
   brightness?: number
   controlTargets?: Record<string, number>
+  transform?: ShowClipTransform
   effects?: ShowClipEffect[]
 }
 
@@ -1415,7 +1425,7 @@ function buildShowCoordinateFields(
     })) continue
     const transforms = placements.map((placement) => {
       const member = placement.member
-      const authored = normalizeShowClipEffects(placement.effects)
+      const authored = normalizeShowClipEffects(showClipTransformEffects(placement.transform, placement.effects, true))
       const effects = member.effects.map((template) => (
         authored.find((effect) => effect.id === template.id && effect.kind === template.kind)
         ?? identityShowEffect(template)
@@ -1547,7 +1557,7 @@ function buildPatternOutputReuseAnalysis(
         if (!zone) return []
         const pixelCount = Math.max(1, controllerZonePixelCount(zone))
         const member = placement.member
-        const authoredEffects = normalizeShowClipEffects(placement.effects)
+        const authoredEffects = normalizeShowClipEffects(showClipTransformEffects(placement.transform, placement.effects, true))
         const resolvedEffects = member.effects.map((template) => (
           authoredEffects.find((effect) => effect.id === template.id && effect.kind === template.kind) ?? template
         ))
@@ -1778,6 +1788,47 @@ export function compileShow(
     clips: expandRouteClips(recipe.clips),
     outputEffects: normalizeShowOutputEffects(recipe.outputEffects),
   }
+  const routedTransformClipIds = new Set<string>()
+  const sequenceTransformClipIds = new Set<string>()
+  const hasTransformRamp = (ramps: ShowEffectPropertyRampsRecipe | undefined) => Object.keys(ramps ?? {}).some((effectId) => (
+    effectId === SHOW_CLIP_TRANSFORM_EFFECT_IDS.scale
+      || effectId === SHOW_CLIP_TRANSFORM_EFFECT_IDS.rotation
+      || effectId === SHOW_CLIP_TRANSFORM_EFFECT_IDS.position
+  ))
+  if (hasTransformRamp(expandedRecipe.adaptationRamp?.effectRamps) && expandedRecipe.clips[0]) {
+    sequenceTransformClipIds.add(expandedRecipe.clips[0].id)
+  }
+  for (const scene of expandedRecipe.sceneSequence?.scenes ?? []) {
+    if (scene.transform || hasTransformRamp(scene.transitionOut?.effectRamps)) sequenceTransformClipIds.add(scene.clipId)
+  }
+  for (const scene of expandedRecipe.routedSceneSequence?.scenes ?? []) {
+    for (const placement of scene.placements) {
+      if (placement.transform) routedTransformClipIds.add(placement.clipId)
+    }
+    for (const track of scene.propertyTracks ?? []) {
+      if (track.target.kind !== 'placement-transform') continue
+      const target = track.target
+      const placement = scene.placements.find((candidate) => candidate.placementId === target.placementId)
+      if (placement) routedTransformClipIds.add(placement.clipId)
+    }
+    for (const ramp of scene.transitionRamps ?? []) {
+      if (hasTransformRamp(ramp.effectRamps)) routedTransformClipIds.add(ramp.clipId)
+    }
+  }
+  if (routedTransformClipIds.size > 0 || sequenceTransformClipIds.size > 0) {
+    expandedRecipe = {
+      ...expandedRecipe,
+      clips: expandedRecipe.clips.map((clip) => (
+        routedTransformClipIds.has(clip.id) || sequenceTransformClipIds.has(clip.id)
+          ? {
+              ...clip,
+              transform: undefined,
+              effects: showClipTransformEffects(clip.transform, clip.effects, true),
+            }
+          : clip
+      )),
+    }
+  }
   const exactSpecializations = options.exactSpecializations ?? true
   const frameInvariantHoisting = options.frameInvariantHoisting ?? exactSpecializations
   // The pb32/3.67 matrix for #513 found no repeatable runtime benefit from
@@ -1831,7 +1882,7 @@ export function compileShow(
   }
   for (const scene of expandedRecipe.routedSceneSequence?.scenes ?? []) {
     for (const placement of scene.placements) {
-      if (placement.effects) animatedEffectClipIds.add(placement.clipId)
+      if (placement.transform || placement.effects) animatedEffectClipIds.add(placement.clipId)
     }
     for (const ramp of scene.transitionRamps ?? []) {
       if (ramp.effectRamps) {
@@ -1841,17 +1892,22 @@ export function compileShow(
       }
     }
     for (const track of scene.propertyTracks ?? []) {
-      if (track.target.kind !== 'placement-effect') continue
+      if (track.target.kind !== 'placement-effect' && track.target.kind !== 'placement-transform') continue
       const placementId = track.target.placementId
       const placement = scene.placements.find((candidate) => candidate.placementId === placementId)
       if (placement) {
         animatedEffectClipIds.add(placement.clipId)
         dynamicallyAnimatedEffectClipIds.add(placement.clipId)
-        addAnimatedEffectPath(
-          placement.clipId,
-          track.target.effectId,
-          showClipEffectPersistedField(track.target.effectKind, track.target.parameterId),
-        )
+        if (track.target.kind === 'placement-transform') {
+          const target = showClipTransformEffectTarget(track.target.property)
+          addAnimatedEffectPath(placement.clipId, target.effectId, target.parameter)
+        } else {
+          addAnimatedEffectPath(
+            placement.clipId,
+            track.target.effectId,
+            showClipEffectPersistedField(track.target.effectKind, track.target.parameterId),
+          )
+        }
       }
     }
   }
@@ -3289,23 +3345,24 @@ function compileMember(
   animatedEffectParameterPaths: string[] = [],
 ): CompiledMember {
   const bundled = bundle(clip.source, libraries)
+  const memberCode = stripPatternManifest(bundled.code)
   const prefix = `__pxlblz_show_c${index}`
   const frameCandidates = frameInvariantHoisting
-    ? analyzeShowFrameInvariantCandidates(bundled.code)
+    ? analyzeShowFrameInvariantCandidates(memberCode)
     : []
   const frameHoistSourceAllowance = 1_024
   const framePlan = selectShowFrameInvariantHoists(frameCandidates, {
     pixelCount: outputPixelCount,
-    currentArtifactBytes: byteLength(bundled.code),
+    currentArtifactBytes: byteLength(memberCode),
     artifactBudgetBytes: MEASURED_DEVICE_BUDGET_BYTES,
     maxAddedBytes: frameHoistSourceAllowance,
     minimumAvoidedOperationsPerFrame: 128,
   })
   let selectedFrameCandidates = framePlan.selected
-  let frameHoists = applyShowFrameInvariantHoists(bundled.code, selectedFrameCandidates)
+  let frameHoists = applyShowFrameInvariantHoists(memberCode, selectedFrameCandidates)
   while (frameHoists.addedSourceBytes > frameHoistSourceAllowance && selectedFrameCandidates.length > 0) {
     selectedFrameCandidates = selectedFrameCandidates.slice(0, -1)
-    frameHoists = applyShowFrameInvariantHoists(bundled.code, selectedFrameCandidates)
+    frameHoists = applyShowFrameInvariantHoists(memberCode, selectedFrameCandidates)
   }
   const memberSource = frameHoists.source
   const memberAst = parseModule(memberSource)
@@ -3366,7 +3423,7 @@ function compileMember(
     pixelCountName: `${prefix}_pixelCount`,
     adaptation,
     controls,
-    effects: normalizeShowClipEffects(clip.effects),
+    effects: normalizeShowClipEffects(showClipTransformEffects(clip.transform, clip.effects)),
     animatedEffects,
     staticPlanEffects,
     exactSpecializations,
@@ -3873,7 +3930,7 @@ function emitSceneSequenceShowCode(
       return `${condition} {
     __pxlblz_show_scene = ${segment.sceneIndex}
     __pxlblz_show_transition = -1
-    __pxlblz_show_mix = 0${usesSnapshot ? '\n    __pxlblz_show_snapshot_transition = -1\n    __pxlblz_show_snapshot_ready = 0' : ''}${emitSceneControlTargets(segment.from, scenes[segment.sceneIndex].controlTargets)}${emitSceneEffectTargets(segment.from, scenes[segment.sceneIndex].effects)}${scenes[segment.sceneIndex].brightness === undefined
+    __pxlblz_show_mix = 0${usesSnapshot ? '\n    __pxlblz_show_snapshot_transition = -1\n    __pxlblz_show_snapshot_ready = 0' : ''}${emitSceneControlTargets(segment.from, scenes[segment.sceneIndex].controlTargets)}${emitSceneEffectTargets(segment.from, showClipTransformEffects(scenes[segment.sceneIndex].transform, scenes[segment.sceneIndex].effects, true))}${scenes[segment.sceneIndex].brightness === undefined
       ? ''
       : `\n    ${segment.from.prefix}_adapt_brightness = ${scenes[segment.sceneIndex].brightness}`}${scenes[segment.sceneIndex].timeScale === undefined
         ? ''
@@ -4198,7 +4255,7 @@ function emitRoutedSceneSequenceShowCode(
         emitRoutedInstancePropertyTrackAssignments(member, context.tracks, context.localTimeExpression)
       )).filter(Boolean).join('\n')
       const ownerEntry = emitPatternSlotOwnerEntry(member, placement.slotOwner)
-      const code = `${member.pixelCountName} = ${pixelCount}${ownerEntry ? `\n${ownerEntry}` : ''}${emitSceneControlTargets(member, placement.controlTargets)}${emitSceneEffectTargets(member, placement.effects)}${placement.brightness === undefined
+      const code = `${member.pixelCountName} = ${pixelCount}${ownerEntry ? `\n${ownerEntry}` : ''}${emitSceneControlTargets(member, placement.controlTargets)}${emitSceneEffectTargets(member, showClipTransformEffects(placement.transform, placement.effects, true))}${placement.brightness === undefined
         ? ''
         : `\n${member.prefix}_adapt_brightness = ${placement.brightness}`}${placement.timeScale === undefined
           ? ''
@@ -4277,6 +4334,7 @@ ${member.prefix}_advance(delta)`
         timeScale: placement.timeScale,
         opacity: placement.opacity,
         controlTargets: placement.controlTargets,
+        transform: placement.transform,
         effects: placement.effects,
         contentKey: memberHasContentKey(placement.member),
       }))),
@@ -6409,7 +6467,7 @@ function routedPlacementHasContentKey(placement: ResolvedRoutedScenePlacement): 
   const member = placement.member
   const effects = member.animatedEffects
     ? member.effects.map((template) => (
-        normalizeShowClipEffects(placement.effects).find((effect) => (
+        normalizeShowClipEffects(showClipTransformEffects(placement.transform, placement.effects, true)).find((effect) => (
           effect.id === template.id && effect.kind === template.kind
         )) ?? identityShowEffect(template)
       ))
@@ -6483,7 +6541,12 @@ function emitRoutedPlacementCapture(
         ? [`${member.prefix}_adapt_phase = ${emitShowPropertyTrackExpression(phaseTrack, localTimeExpression)}`]
         : placement.phase === undefined ? [] : [`${member.prefix}_adapt_phase = ${placement.phase}`]),
       ...(placement.mirror === undefined ? [] : [`${member.prefix}_adapt_mirror = ${boolNumber(placement.mirror)}`]),
-      ...emitRoutedPlacementEffectTargets(member, placement.effects, placementTracks, localTimeExpression),
+      ...emitRoutedPlacementEffectTargets(
+        member,
+        showClipTransformEffects(placement.transform, placement.effects, true),
+        placementTracks,
+        localTimeExpression,
+      ),
       capture,
     ],
     opacity,
@@ -6530,6 +6593,10 @@ function emitRoutedPlacementEffectTargets(
   const assignments = emitSceneEffectTargets(member, resolved).trim()
   const animationAssignments = localTimeExpression
     ? placementTracks.flatMap((track): string[] => {
+        if (track.target.kind === 'placement-transform') {
+          const target = showClipTransformEffectTarget(track.target.property)
+          return [`${effectParameterVariable(member, target.effectId, target.parameter)} = ${emitShowPropertyTrackExpression(track, localTimeExpression)}`]
+        }
         if (track.target.kind !== 'placement-effect') return []
         const parameter = showClipEffectPersistedField(track.target.effectKind, track.target.parameterId)
         return [`${effectParameterVariable(member, track.target.effectId, parameter)} = ${emitShowPropertyTrackExpression(track, localTimeExpression)}`]
@@ -6719,7 +6786,14 @@ function emitSceneControlTargets(member: CompiledMember, targets: Record<string,
 
 function emitSceneEffectTargets(member: CompiledMember, effects: ShowClipEffect[] | undefined): string {
   if (!effects || !member.animatedEffects || member.staticPlanEffects) return ''
-  return normalizeShowClipEffects(effects).flatMap((effect) => (
+  const authored = normalizeShowClipEffects(effects)
+  const canonicalTransformIds = new Set<string>(Object.values(SHOW_CLIP_TRANSFORM_EFFECT_IDS))
+  const resolved = member.effects.flatMap((template) => {
+    const match = authored.find((effect) => effect.id === template.id && effect.kind === template.kind)
+    if (match) return [match]
+    return canonicalTransformIds.has(template.id) ? [identityShowEffect(template)] : []
+  })
+  return resolved.flatMap((effect) => (
     showEffectParameterNames(effect).map((parameter) => (
       `\n    ${effectParameterVariable(member, effect.id, parameter)} = ${effectParameterValue(effect, parameter)}`
     ))
@@ -8044,8 +8118,8 @@ function describeMemberEffectRuntime(member: CompiledMember, sharedKernel?: Shar
   var ${suffix}_tx = ${effectParameterVariable(member, effect.id, 'x')}
   var ${suffix}_ty = ${effectParameterVariable(member, effect.id, 'y')}`
       : effect.kind === 'rotate'
-        ? `  var ${suffix}_cos = cos(${effectParameterVariable(member, effect.id, 'turns')} * PI * 2)
-  var ${suffix}_sin = sin(${effectParameterVariable(member, effect.id, 'turns')} * PI * 2)
+        ? `  var ${suffix}_cos = cos(${effectParameterVariable(member, effect.id, 'turns')} * PI2)
+  var ${suffix}_sin = sin(${effectParameterVariable(member, effect.id, 'turns')} * PI2)
   var ${suffix}_a = ${suffix}_cos
   var ${suffix}_b = ${suffix}_sin
   var ${suffix}_c = -${suffix}_sin

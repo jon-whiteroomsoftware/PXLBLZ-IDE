@@ -45,6 +45,12 @@ import {
 } from './showEffects'
 import { normalizeShowOutputEffects } from './showPreviousRgbFeedback'
 import {
+  normalizeShowClipTransform,
+  compactShowClipTransform,
+  showClipTransformEffectTarget,
+  type ShowClipTransformProperty,
+} from './showClipTransform'
+import {
   controllerZonePixelCount,
   controllerProfileDisplayName,
   normalizeControllerZones,
@@ -786,6 +792,13 @@ export function removeShowClip(show: ShowRecord, clipId: string): ShowRecord {
                 ))),
               }
             : {}),
+          ...(propertyTransitions.transform
+            ? {
+                transform: Object.fromEntries(Object.entries(propertyTransitions.transform).map(([property, descriptor]) => (
+                  [property, omitClipStart(descriptor)]
+                ))),
+              }
+            : {}),
         },
       }
     }),
@@ -891,6 +904,7 @@ function cloneShowCellIntoScene(show: ShowRecord, source: ShowCell, sceneId: str
     pattern: { ...source.pattern },
     adaptations: cloneShowCellAdaptations(source.adaptations),
     ...(source.controlTargets ? { controlTargets: { ...source.controlTargets } } : {}),
+    ...(source.transform ? { transform: { ...source.transform } } : {}),
     ...(effects ? { effects } : {}),
   }
   return copy
@@ -1323,10 +1337,15 @@ export function normalizeShowTransitionState(show: ShowRecord): ShowRecord {
   return {
     ...show,
     transitions: normalized,
-    cells: show.cells.map((cell) => ({
-      ...cell,
-      ...(cell.effects ? { effects: normalizeShowClipEffects(cell.effects) } : {}),
-    })),
+    cells: show.cells.map((cell) => {
+      const { transform: authoredTransform, ...rest } = cell
+      const transform = compactShowClipTransform(authoredTransform)
+      return {
+        ...rest,
+        ...(transform ? { transform } : {}),
+        ...(cell.effects ? { effects: normalizeShowClipEffects(cell.effects) } : {}),
+      }
+    }),
     scenes: show.scenes.map((scene, index) => {
       const normalizedScene = {
         ...scene,
@@ -1481,6 +1500,22 @@ function normalizePropertyTransitions(transition: ShowBoundaryTransition): Pick<
     }
     return [exportName, normalized]
   }))
+  const transform = Object.fromEntries(([
+    'positionX', 'positionY', 'rotation', 'scaleX', 'scaleY',
+  ] as const).flatMap((property) => {
+    const source = transition.propertyTransitions?.transform?.[property]
+    if (!source) return []
+    const [min, max] = property === 'positionX' || property === 'positionY'
+      ? [-4, 4]
+      : property === 'rotation' ? [-8, 8] : [0.01, 8]
+    return [[property, {
+      fromByCellId: Object.fromEntries(Object.entries(source.fromByCellId ?? {}).map(([cellId, value]) => (
+        [cellId, clampRange(value, min, max)]
+      ))),
+      durationMs: Math.min(clampPropertyDuration(source.durationMs ?? transition.durationMs), clampDuration(transition.durationMs)),
+      easing: normalizeEasing(source.easing ?? transition.easing),
+    }]]
+  }))
   const splitPositionSource = transition.propertyTransitions?.routing?.splitPosition
   const splitPosition = splitPositionSource
     ? {
@@ -1519,12 +1554,13 @@ function normalizePropertyTransitions(transition: ShowBoundaryTransition): Pick<
     }))
     return Object.keys(normalizedParameters).length > 0 ? [[effectId, normalizedParameters]] : []
   }))
-  return timeScale || brightness || Object.keys(controls).length > 0 || splitPosition || repeatScale || Object.keys(effects).length > 0
+  return timeScale || brightness || Object.keys(controls).length > 0 || Object.keys(transform).length > 0 || splitPosition || repeatScale || Object.keys(effects).length > 0
     ? {
         propertyTransitions: {
           ...(timeScale ? { timeScale } : {}),
           ...(brightness ? { brightness } : {}),
           ...(Object.keys(controls).length > 0 ? { controls } : {}),
+          ...(Object.keys(transform).length > 0 ? { transform } : {}),
           ...(splitPosition ? { routing: { splitPosition } } : {}),
           ...(repeatScale ? { sample: { repeatScale } } : {}),
           ...(Object.keys(effects).length > 0 ? { effects } : {}),
@@ -1982,7 +2018,7 @@ export function showRecordToCompileRecipe(
 
   if (cells[0].sceneSpan > 1 || cells.length === 1) {
     return {
-      clips: [{ id: cells[0].id, source: source0, ...compilerEvaluationPolicy(cells[0]), adaptation: compilerAdaptation(cells[0].adaptations), controlTargets: cells[0].controlTargets, effects: cells[0].effects }],
+      clips: [{ id: cells[0].id, source: source0, ...compilerEvaluationPolicy(cells[0]), adaptation: compilerAdaptation(cells[0].adaptations), controlTargets: cells[0].controlTargets, transform: cells[0].transform, effects: cells[0].effects }],
       zones: lookup.controllerZones ?? nominalZones(show.zones),
       samplePropertyRamps,
       outputEffects,
@@ -2045,7 +2081,7 @@ export function showRecordToCompileRecipe(
       : undefined
     const effectRamps = compileShowEffectRamps(cells[0], cells[1], boundary)
     return {
-      clips: [{ id: cells[0].id, source: source0, ...compilerEvaluationPolicy(cells[0]), adaptation: compilerAdaptation(cells[0].adaptations), controlTargets: cells[0].controlTargets, effects: cells[1].effects }],
+      clips: [{ id: cells[0].id, source: source0, ...compilerEvaluationPolicy(cells[0]), adaptation: compilerAdaptation(cells[0].adaptations), controlTargets: cells[0].controlTargets, transform: cells[1].transform, effects: cells[1].effects }],
       adaptationRamp: {
         startMs: show.scenes[0].durationMs,
         durationMs: transition.durationMs,
@@ -2066,8 +2102,8 @@ export function showRecordToCompileRecipe(
   }
 
   const clips = [
-    { id: cells[0].id, source: source0, ...compilerEvaluationPolicy(cells[0]), adaptation: compilerAdaptation(cells[0].adaptations), controlTargets: cells[0].controlTargets, effects: cells[0].effects },
-    { id: cells[1].id, source: source1, ...compilerEvaluationPolicy(cells[1]), adaptation: compilerAdaptation(cells[1].adaptations), controlTargets: cells[1].controlTargets, effects: cells[1].effects },
+    { id: cells[0].id, source: source0, ...compilerEvaluationPolicy(cells[0]), adaptation: compilerAdaptation(cells[0].adaptations), controlTargets: cells[0].controlTargets, transform: cells[0].transform, effects: cells[0].effects },
+    { id: cells[1].id, source: source1, ...compilerEvaluationPolicy(cells[1]), adaptation: compilerAdaptation(cells[1].adaptations), controlTargets: cells[1].controlTargets, transform: cells[1].transform, effects: cells[1].effects },
   ]
   return {
     clips,
@@ -2177,7 +2213,7 @@ function showRecordToSceneSequenceRecipe(
     if (!source) throw new Error(`Show compile requires pattern source for clip "${cell.id}".`)
     const adaptation = compilerAdaptation(cell.adaptations)
     const explicitInstanceId = lookup.instanceIdByCellId?.[cell.id]
-    const continuityKey = `${cell.pattern.kind}:${cell.pattern.id}:${JSON.stringify(adaptation)}:${JSON.stringify(cell.effects ?? [])}:${cell.evaluationPolicy ?? 'live'}`
+    const continuityKey = `${cell.pattern.kind}:${cell.pattern.id}:${JSON.stringify(adaptation)}:${JSON.stringify(cell.transform ?? null)}:${JSON.stringify(cell.effects ?? [])}:${cell.evaluationPolicy ?? 'live'}`
     const key = explicitInstanceId
       ? `composition-instance:${explicitInstanceId}`
       : cell.restartOnEntry ? `${continuityKey}:restart:${cell.id}` : continuityKey
@@ -2202,7 +2238,7 @@ function showRecordToSceneSequenceRecipe(
       if (showEffectsAreIdentity(existing.effects) && !showEffectsAreIdentity(cell.effects)) existing.effects = cell.effects
       clipIdByCellId.set(cell.id, existing.id)
     } else {
-      const clip = { id: explicitInstanceId ?? cell.id, source, ...compilerEvaluationPolicy(cell), adaptation, effects: cell.effects }
+      const clip = { id: explicitInstanceId ?? cell.id, source, ...compilerEvaluationPolicy(cell), adaptation, transform: cell.transform, effects: cell.effects }
       Object.assign(clip, { controlTargets: cell.controlTargets })
       clipByKey.set(key, clip)
       clipIdByCellId.set(cell.id, clip.id)
@@ -2246,7 +2282,7 @@ function showRecordToSceneSequenceRecipe(
               }]
             }))
           : undefined
-        const effectRamps = nextCell && boundary?.propertyTransitions?.effects
+        const effectRamps = nextCell && (boundary?.propertyTransitions?.effects || boundary?.propertyTransitions?.transform)
           ? compileShowEffectRamps(cell, nextCell, boundary)
           : undefined
         return {
@@ -2256,6 +2292,7 @@ function showRecordToSceneSequenceRecipe(
             ? { timeScale: cell.adaptations.timeScale, brightness: cell.adaptations.brightness }
             : {}),
           ...(cell.controlTargets ? { controlTargets: { ...cell.controlTargets } } : {}),
+          ...(cell.transform ? { transform: structuredClone(cell.transform) } : {}),
           ...(cell.effects ? { effects: normalizeShowClipEffects(cell.effects) } : {}),
           ...(transition
             ? {
@@ -2412,6 +2449,7 @@ function showRecordToStaticRoutedRecipe(
             }
           : { zone: zone.name }),
         adaptation: compilerAdaptation(cell.adaptations),
+        transform: cell.transform,
         effects: cell.effects,
         controlTargets: cell.controlTargets,
       }
@@ -2549,6 +2587,7 @@ function showRecordToRoutedSceneSequenceRecipe(
           source,
           ...compilerEvaluationPolicy(cell),
           adaptation: compilerAdaptation(cell.adaptations),
+          transform: cell.transform,
           effects: cell.effects,
           controlTargets: cell.controlTargets,
         })
@@ -2591,6 +2630,7 @@ function showRecordToRoutedSceneSequenceRecipe(
                 phase: cell.adaptations.phase,
                 mirror: cell.adaptations.mirror,
                 ...(cell.controlTargets ? { controlTargets: { ...cell.controlTargets } } : {}),
+                ...(cell.transform ? { transform: structuredClone(cell.transform) } : {}),
                 ...(cell.effects ? { effects: normalizeShowClipEffects(cell.effects) } : {}),
               }
             })
@@ -2719,7 +2759,7 @@ function routedScenePlacementRamps(
           }]
         }))
       : undefined
-    const effectRamps = propertyTransitions.effects
+    const effectRamps = propertyTransitions.effects || propertyTransitions.transform
       ? compileShowEffectRamps(current, next, boundary)
       : undefined
     if (Object.keys(propertyRamps).length === 0 && !controlRamps && !effectRamps) return []
@@ -2834,26 +2874,41 @@ function compileShowEffectRamps(
   toCell: ShowCell,
   boundary: ShowBoundaryTransition | undefined,
 ): ShowEffectPropertyRampsRecipe | undefined {
-  if (!sameShowEffectStructure(fromCell.effects, toCell.effects)) return undefined
-  const fromEffects = normalizeShowClipEffects(fromCell.effects)
-  const toEffects = normalizeShowClipEffects(toCell.effects)
   const ramps: ShowEffectPropertyRampsRecipe = {}
-  for (const toEffect of toEffects) {
-    const fromEffect = fromEffects.find((effect) => effect.id === toEffect.id && effect.kind === toEffect.kind)
-    if (!fromEffect) continue
-    for (const parameter of showEffectParameterNames(toEffect)) {
-      const descriptor = boundary?.propertyTransitions?.effects?.[toEffect.id]?.[parameter]
-      const naturalFrom = showEffectNumericValue(fromEffect, parameter)
-      const to = showEffectNumericValue(toEffect, parameter)
-      const from = descriptor?.fromByCellId[toCell.id] ?? naturalFrom
-      if (!descriptor && from === to) continue
-      ramps[toEffect.id] ??= {}
-      ramps[toEffect.id][parameter] = {
-        from,
-        to,
-        durationMs: descriptor?.durationMs ?? boundary?.durationMs ?? 2000,
-        easing: descriptor?.easing ?? boundary?.easing ?? 'linear',
+  if (sameShowEffectStructure(fromCell.effects, toCell.effects)) {
+    const fromEffects = normalizeShowClipEffects(fromCell.effects)
+    const toEffects = normalizeShowClipEffects(toCell.effects)
+    for (const toEffect of toEffects) {
+      const fromEffect = fromEffects.find((effect) => effect.id === toEffect.id && effect.kind === toEffect.kind)
+      if (!fromEffect) continue
+      for (const parameter of showEffectParameterNames(toEffect)) {
+        const descriptor = boundary?.propertyTransitions?.effects?.[toEffect.id]?.[parameter]
+        const naturalFrom = showEffectNumericValue(fromEffect, parameter)
+        const to = showEffectNumericValue(toEffect, parameter)
+        const from = descriptor?.fromByCellId[toCell.id] ?? naturalFrom
+        if (!descriptor && from === to) continue
+        ramps[toEffect.id] ??= {}
+        ramps[toEffect.id][parameter] = {
+          from,
+          to,
+          durationMs: descriptor?.durationMs ?? boundary?.durationMs ?? 2000,
+          easing: descriptor?.easing ?? boundary?.easing ?? 'linear',
+        }
       }
+    }
+  }
+  const fromTransform = normalizeShowClipTransform(fromCell.transform)
+  const toTransform = normalizeShowClipTransform(toCell.transform)
+  for (const property of Object.keys(boundary?.propertyTransitions?.transform ?? {}) as ShowClipTransformProperty[]) {
+    const descriptor = boundary?.propertyTransitions?.transform?.[property]
+    if (!descriptor) continue
+    const target = showClipTransformEffectTarget(property)
+    ramps[target.effectId] ??= {}
+    ramps[target.effectId][target.parameter] = {
+      from: descriptor.fromByCellId[toCell.id] ?? fromTransform[property],
+      to: toTransform[property],
+      durationMs: descriptor.durationMs ?? boundary?.durationMs ?? 2_000,
+      easing: descriptor.easing ?? boundary?.easing ?? 'linear',
     }
   }
   return Object.keys(ramps).length > 0 ? ramps : undefined

@@ -152,6 +152,7 @@ import type {
   MapRecord,
   ShowBoundaryTransition,
   ShowCell,
+  ShowClipTransform,
   ShowRecord,
   ShowPropertyAnimationTarget,
   ShowOutputEffect,
@@ -160,6 +161,7 @@ import type {
   ShowAutomatableProperty,
 } from '@/engine/personalContentRecords'
 import { DEFAULT_SHOW_TRAILS_RETENTION, normalizeShowOutputEffects } from '@/engine/showPreviousRgbFeedback'
+import { normalizeShowClipTransform } from '@/engine/showClipTransform'
 import { validateShowLogicalRouting, type ShowLogicalRouting } from '@/engine/showLogicalRouting'
 
 const field =
@@ -1147,6 +1149,7 @@ export function ShowEditor({
                 compositionProjection={compositionProjection}
                 scope={resolvedSceneEditorScope}
                 readOnly={readOnly}
+                transformEnabled={stageDimension === 2}
                 selectedClipId={selection.kind === 'clip' ? selection.clipId : null}
                 transport={sceneEditorDetail ? (
                   <ShowSceneTransportControls
@@ -1447,6 +1450,7 @@ export function ShowEditor({
               show={activeShow}
                   selection={selection}
                   selectedClip={selectedClip}
+                  transformEnabled={stageDimension === 2}
                   patternOptions={patternOptions}
                   patternControlsByCellId={patternControlsByCellId}
                   compiledCost={compiled.artifact?.summary.cost}
@@ -2063,6 +2067,25 @@ function SceneStrip({
           formatValue: formatBrightness,
           projection: projectGlobalShowPropertyLane(show, zone.id, { kind: 'brightness' }),
         },
+        ...([
+          ['positionX', 'position x', '#67e8f9'],
+          ['positionY', 'position y', '#67e8f9'],
+          ['rotation', 'rotation', '#5eead4'],
+          ['scaleX', 'scale x', '#2dd4bf'],
+          ['scaleY', 'scale y', '#2dd4bf'],
+        ] as const).map(([property, label, color]) => ({
+          key: `transform:${property}`,
+          label,
+          ariaLabel: `${label} lane for ${zone.name}`,
+          selectsTransition: true,
+          color,
+          formatValue: property === 'rotation'
+            ? (value: number) => `${Number((value * 360).toFixed(1))} deg`
+            : property === 'scaleX' || property === 'scaleY'
+              ? (value: number) => `${Number(value.toFixed(2))}x`
+              : (value: number) => Number(value.toFixed(2)).toString(),
+          projection: projectGlobalShowPropertyLane(show, zone.id, { kind: 'transform', property }),
+        })),
         ...controlLanes.map((control) => ({
           key: `control:${control.exportName}`,
           label: control.label,
@@ -3489,6 +3512,7 @@ function ContextualInspector({
   show,
   selection,
   selectedClip,
+  transformEnabled,
   patternOptions,
   patternControlsByCellId,
   compiledCost,
@@ -3529,6 +3553,7 @@ function ContextualInspector({
   show: ShowRecord
   selection: ShowSelection
   selectedClip: ShowCell | null
+  transformEnabled: boolean
   patternOptions: ShowPatternOption[]
   patternControlsByCellId: Record<string, AutomatablePatternControl[]>
   compiledCost?: import('@/engine/showVisualToolkit').ShowCompiledCostMetadata
@@ -3611,6 +3636,7 @@ function ContextualInspector({
         clip={selectedClip}
         patternOptions={patternOptions}
         patternControls={patternControlsByCellId[selectedClip.id] ?? []}
+        transformEnabled={transformEnabled}
         compiledCost={compiledCost}
         onUpdateClip={(patch) => onUpdateClipInspector({ kind: 'global', cellId: selectedClip.id }, patch)}
         onPatternCommit={onPatternCommit}
@@ -3930,6 +3956,7 @@ function ClipInspector({
   clip,
   patternOptions,
   patternControls,
+  transformEnabled,
   compiledCost,
   onUpdateClip,
   onPatternCommit,
@@ -3945,6 +3972,7 @@ function ClipInspector({
   clip: ShowCell
   patternOptions: ShowPatternOption[]
   patternControls: AutomatablePatternControl[]
+  transformEnabled: boolean
   compiledCost?: import('@/engine/showVisualToolkit').ShowCompiledCostMetadata
   onUpdateClip: (patch: ShowClipInspectorPatch) => void
   onPatternCommit: () => void
@@ -4008,6 +4036,7 @@ function ClipInspector({
             group: option.group,
           }))}
           patternControls={patternControls}
+          transformEnabled={transformEnabled}
           compiledCost={compiledCost}
           embedded
           advancedDefaultOpen={hasAdvancedOverrides}
@@ -4453,6 +4482,13 @@ function TransitionInspector({
               onUpdateCellAdaptations={onUpdateCellAdaptations}
             />
           ))}
+          <TransformTransitionEditor
+            transition={transition}
+            sceneIndex={sceneIndex}
+            destinationCells={destinationCells}
+            show={show}
+            onUpdate={onUpdate}
+          />
           {show.routingLayouts.some((layout) => (
             layout.logical?.kind === 'split' || layout.logical?.kind === 'soft-split'
           )) && nextScene && (
@@ -4576,6 +4612,120 @@ function SampleRepeatTransitionEditor({
           </label>
         </div>
       )}
+    </section>
+  )
+}
+
+const SHOW_TRANSFORM_PROPERTY_PRESENTATION: Array<{
+  property: keyof ShowClipTransform
+  label: string
+  format: (value: number) => string
+}> = [
+  { property: 'positionX', label: 'Position X', format: (value) => Number(value.toFixed(2)).toString() },
+  { property: 'positionY', label: 'Position Y', format: (value) => Number(value.toFixed(2)).toString() },
+  { property: 'rotation', label: 'Rotation', format: (value) => `${Number((value * 360).toFixed(1))} deg` },
+  { property: 'scaleX', label: 'Scale X', format: (value) => `${Number(value.toFixed(2))}x` },
+  { property: 'scaleY', label: 'Scale Y', format: (value) => `${Number(value.toFixed(2))}x` },
+]
+
+function TransformTransitionEditor({
+  transition,
+  sceneIndex,
+  destinationCells,
+  show,
+  onUpdate,
+}: {
+  transition: ShowBoundaryTransition
+  sceneIndex: number
+  destinationCells: Array<{ zone: ShowRecord['zones'][number]; cell: ShowCell }>
+  show: ShowRecord
+  onUpdate: (transitionId: string, changes: Partial<Omit<ShowBoundaryTransition, 'id' | 'afterSceneId'>>) => void
+}) {
+  const compatible = destinationCells.flatMap(({ zone, cell }) => {
+    const outgoing = cellCoveringScene(show, zone.id, sceneIndex)
+    return outgoing && outgoing.pattern.kind === cell.pattern.kind && outgoing.pattern.id === cell.pattern.id
+      ? [{ zone, cell, outgoing }]
+      : []
+  })
+  if (compatible.length === 0) return null
+
+  const updateProperty = (
+    property: keyof ShowClipTransform,
+    enabled: boolean,
+    changes: { durationMs?: number; easing?: ShowBoundaryTransition['easing'] } = {},
+  ) => {
+    const propertyTransitions = { ...(transition.propertyTransitions ?? {}) }
+    const transform = { ...(propertyTransitions.transform ?? {}) }
+    const current = transform[property]
+    if (!enabled) {
+      delete transform[property]
+    } else {
+      transform[property] = {
+        fromByCellId: current?.fromByCellId ?? Object.fromEntries(compatible.map(({ cell, outgoing }) => (
+          [cell.id, normalizeShowClipTransform(outgoing.transform)[property]]
+        ))),
+        durationMs: changes.durationMs ?? current?.durationMs ?? transition.durationMs,
+        easing: changes.easing ?? current?.easing ?? transition.easing,
+      }
+    }
+    if (Object.keys(transform).length > 0) propertyTransitions.transform = transform
+    else delete propertyTransitions.transform
+    onUpdate(transition.id, {
+      propertyTransitions: Object.keys(propertyTransitions).length > 0 ? propertyTransitions : undefined,
+    })
+  }
+
+  return (
+    <section aria-label="Transform transition" className="col-span-2 rounded border border-cyan-400/15 bg-cyan-400/[0.035] p-2">
+      <div className="mb-1 text-[10px] uppercase tracking-[0.12em] text-cyan-300/80">Transform</div>
+      <p className="mb-2 text-[9px] text-zinc-600">Canonical placement pose. Additional Transform Effects still run afterward.</p>
+      <div className="divide-y divide-zinc-900">
+        {SHOW_TRANSFORM_PROPERTY_PRESENTATION.map(({ property, label, format }) => {
+          const descriptor = transition.propertyTransitions?.transform?.[property]
+          const first = compatible[0]
+          const from = descriptor?.fromByCellId[first.cell.id]
+            ?? normalizeShowClipTransform(first.outgoing.transform)[property]
+          const to = normalizeShowClipTransform(first.cell.transform)[property]
+          return (
+            <div key={property} className="py-1.5">
+              <label className="flex items-center gap-2 text-[9px] text-zinc-400">
+                <input
+                  type="checkbox"
+                  aria-label={`Animate ${label} transform`}
+                  checked={Boolean(descriptor)}
+                  onChange={(event) => updateProperty(property, event.target.checked)}
+                  className="size-3.5 accent-cyan-400"
+                />
+                <span>{label}</span>
+                <span className="ml-auto font-mono text-zinc-600">{format(from)} to {format(to)}</span>
+              </label>
+              {descriptor && (
+                <div className="mt-1.5 grid grid-cols-2 gap-2 pl-5">
+                  <NumberField
+                    label={`${label} transform duration seconds`}
+                    value={(descriptor.durationMs ?? transition.durationMs) / 1_000}
+                    min={0}
+                    max={Math.max(0, transition.durationMs / 1_000)}
+                    step={0.1}
+                    onChange={(seconds) => updateProperty(property, true, { durationMs: seconds * 1_000 })}
+                  />
+                  <label className="text-[9px] uppercase text-zinc-600">
+                    {label} transform easing
+                    <select
+                      aria-label={`${label} transform easing`}
+                      value={showEasingOptionId(descriptor.easing ?? transition.easing)}
+                      onChange={(event) => updateProperty(property, true, { easing: showEasingFromOptionId(event.target.value) })}
+                      className={`${field} mt-1 w-full`}
+                    >
+                      <ShowEasingOptions />
+                    </select>
+                  </label>
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
     </section>
   )
 }
