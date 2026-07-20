@@ -267,7 +267,18 @@ function collectInlinableCallSites(
       })
     })
   }
-  return sites.sort((left, right) => left.start - right.start)
+  sites.sort((left, right) => left.start - right.start)
+  // Caller-side nesting (double(inc(index))) qualifies both spans, but the
+  // splice offsets are original-source positions: only the outermost site of
+  // an overlapping group may be replaced in this pass. The inner call rides
+  // along verbatim inside the replacement and the next pass inlines it.
+  const outermost: InlinableCallSite[] = []
+  for (const site of sites) {
+    const containing = outermost[outermost.length - 1]
+    if (containing && site.start < containing.end) continue
+    outermost.push(site)
+  }
+  return outermost
 }
 
 /** Pure means: literals, reads (including array reads), arithmetic, and

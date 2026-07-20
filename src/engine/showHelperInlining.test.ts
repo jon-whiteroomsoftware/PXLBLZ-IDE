@@ -100,6 +100,30 @@ export function render(index) {
     expect(result.inlinedCallCount).toBe(1)
   })
 
+  it('inlines caller-side nested helper calls without overlapping splices', () => {
+    // Both the outer and inner spans qualify; only the outermost may be
+    // replaced in a pass (the inner call rides along verbatim and the next
+    // pass inlines it), otherwise the splice offsets go stale and corrupt
+    // the source.
+    const source = `function double(x) {
+  return x * 2
+}
+function inc(x) {
+  return x + 1
+}
+export function render(index) {
+  rgb(double(inc(index)), 0, 0)
+}
+`
+    const result = inlineShowMemberHelpers(source)
+    expect(result.source).toContain('rgb((((index + 1)) * 2), 0, 0)')
+    expect(result.source).not.toContain('function double')
+    expect(result.source).not.toContain('function inc')
+    expect(result.inlinedCallCount).toBe(2)
+    // The result must stay parseable - a stale-offset splice would not be.
+    expect(() => inlineShowMemberHelpers(result.source)).not.toThrow()
+  })
+
   it('inlines helper-calling-helper chains within the depth bound', () => {
     const source = `function half(x) {
   return x * 0.5
