@@ -2,10 +2,10 @@
 // Built with PXLBLZ-IDE https://pxlblz-ide.whiteroomsoftware.com/
 //
 // The complete Redline installation score scaled onto one surface: a wide hero
-// band across the middle third drives the block-and-glyph score while four
-// polar target dials fill the corners, each a circle sized to its cell's
-// corners so the dial occupies its whole viewport. Everything derives from
-// coordinates, so the same score is honest at 256 pixels or 2,000.
+// band across the middle (5/12 of the height) drives the block-and-glyph score
+// while four polar target dials fill the corners, each a circle sized to its
+// cell's corners so the dial occupies its whole viewport. Everything derives
+// from coordinates, so the same score is honest at 256 pixels or 2,000.
 // Runs on: 2D maps; happiest on square-ish surfaces at any resolution.
 // Controls: Intensity — Overall pressure of the score, from restrained negative space to full-impact output;
 //           Speed — Pace of the complete 32-bar score, from half speed to one-and-a-half speed;
@@ -115,29 +115,30 @@ function cyanOrnamentField(x, y) {
   return shape > 0.32 ? shape : 0
 }
 
-// Projection: middle third is the hero band; top and bottom thirds split at
-// x = 0.5 into four target cells. Each cell renders the target material in
-// polar coordinates around its own center, with radius normalized to the
-// cell's corner distance so the dial reaches 1.0 exactly at the corners and
-// fills the whole cell. Cell shape does not matter to a circle.
+// Projection: the hero band spans the middle 5/12 of the height (a third,
+// grown 25%); the 7/24-tall top and bottom rows split at x = 0.5 into four
+// target cells. Each cell renders the target material in polar coordinates
+// around its own center, with radius normalized to the cell's corner distance
+// so the dial reaches 1.0 exactly at the corners and fills the whole cell.
+// Cell shape does not matter to a circle.
 export function render2D(index, x, y) {
-  var hero = y >= 0.33333333 && y < 0.66666667
+  var hero = y >= 0.29166667 && y < 0.70833333
   var finalPunctuation = phrase == 7 && phraseTime > 0.72
   var lx, ly, value
 
   if (hero) {
     lx = x
-    ly = (y - 0.33333333) * 3
+    ly = (y - 0.29166667) * 2.4
     value = (phrase == 4 || finalPunctuation) ? glyphField(lx, ly) : blockField(lx, ly)
   } else {
     var dx = x - (x < 0.5 ? 0.25 : 0.75)
-    var dy = y - (y < 0.33333333 ? 0.16666667 : 0.83333333)
+    var dy = y - (y < 0.29166667 ? 0.14583333 : 0.85416667)
     lx = (dx + 0.25) * 2
-    ly = (dy + 0.16666667) * 3
+    ly = (dy + 0.14583333) * 3.42857143
     if (phrase == 3 || (phrase == 7 && !finalPunctuation)) {
       value = blockField(lx, ly)
     } else {
-      var r = sqrt(dx * dx + dy * dy) * 3.3282   // 1 / hypot(1/4, 1/6): 1.0 at the cell corners
+      var r = sqrt(dx * dx + dy * dy) * 3.4551   // 1 / hypot(1/4, 7/48): 1.0 at the cell corners
       var theta = atan2(dy, dx) / PI2 + 0.5
       value = targetField(theta, r)
     }
