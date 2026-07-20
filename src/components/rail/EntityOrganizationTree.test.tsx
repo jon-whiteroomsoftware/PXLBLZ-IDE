@@ -73,6 +73,36 @@ describe('EntityOrganizationTree', () => {
     expect(screen.getByText('Installations / Large stages')).toBeVisible()
   })
 
+  it('selects a search result on pointerdown, before the search input blur can unmount it', () => {
+    const organization: EntityOrganizationV1 = {
+      version: 1,
+      nodes: [{ kind: 'entity', entityId: 'pattern-redline' }],
+      trash: [],
+      collapsedFolderIds: [],
+    }
+    const onSelect = vi.fn()
+    render(
+      <EntityOrganizationTree
+        organization={organization}
+        items={[{ id: 'pattern-redline', name: 'Redline Machine' }]}
+        activeEntityId={null}
+        query="redline"
+        noun="pattern"
+        onSelect={onSelect}
+        onRenameEntity={vi.fn()}
+        onOrganizationChange={vi.fn()}
+      />,
+    )
+
+    const result = screen.getByRole('treeitem', { name: /Redline Machine/ })
+    fireEvent.pointerDown(result, { button: 0 })
+    expect(onSelect).toHaveBeenCalledWith('pattern-redline')
+
+    onSelect.mockClear()
+    fireEvent.keyDown(result, { key: 'Enter' })
+    expect(onSelect).toHaveBeenCalledWith('pattern-redline')
+  })
+
   it('creates an inline-renamable folder without changing the entity list', () => {
     const organization: EntityOrganizationV1 = {
       version: 1,

@@ -448,7 +448,24 @@ function OrganizationTreeNode(props: {
 
 function SearchResultRow({ name, path, active, noun, onSelect }: { name: string; path: string[]; active: boolean; noun: EntityNoun; onSelect: () => void }) {
   return (
-    <li role="treeitem" tabIndex={0} aria-selected={active} onClick={onSelect} className={`relative min-h-[30px] cursor-pointer py-1 pl-2 pr-2 outline-none focus-visible:ring-1 focus-visible:ring-live/70 ${active ? 'bg-live/5 text-live' : 'text-zinc-400 hover:bg-zinc-800/60'}`}>
+    <li
+      role="treeitem"
+      tabIndex={0}
+      aria-selected={active}
+      // Select on pointerdown, not click: pressing a result blurs the rail
+      // search input, whose blur clears the query and unmounts this row
+      // before mouseup, so a click handler would never fire.
+      onPointerDown={(event) => {
+        if (event.button !== 0) return
+        onSelect()
+      }}
+      onKeyDown={(event) => {
+        if (event.key !== 'Enter' && event.key !== ' ') return
+        event.preventDefault()
+        onSelect()
+      }}
+      className={`relative min-h-[30px] cursor-pointer py-1 pl-2 pr-2 outline-none focus-visible:ring-1 focus-visible:ring-live/70 ${active ? 'bg-live/5 text-live' : 'text-zinc-400 hover:bg-zinc-800/60'}`}
+    >
       {active && <span aria-hidden className="absolute inset-y-0 left-0 w-0.5 bg-live" />}
       <span className={`flex items-center gap-1 ${IDE_MICROTYPE.entity.sizeClassName}`}>
         <EntityIcon noun={noun} />
