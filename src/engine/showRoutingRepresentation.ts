@@ -256,6 +256,103 @@ export function buildPackedRoutingValues(
   })
 }
 
+/**
+ * Packed-table initialization: `array(n)` plus the #569 run-length loop
+ * list. Identical table contents to the historical per-pixel emission -
+ * first writer wins across overlaps, O(ranges) source lines.
+ */
+export function emitPackedRoutingTable(layouts: RoutingLayoutShape[]): string {
+  const pixelCount = routingPixelCount(layouts)
+  const values = buildPackedRoutingValues(layouts, pixelCount)
+  const runs = computeLinearRuns(values)
+  const needsLoopIndex = runs.some((run) => run.end - run.start + 1 >= PACKED_ROUTING_LOOP_MIN_RUN)
+  const lines = runs.flatMap((run) => {
+    if (run.end - run.start + 1 >= PACKED_ROUTING_LOOP_MIN_RUN) {
+      const offset = run.base === 0 ? '' : run.base > 0 ? ` + ${run.base}` : ` - ${-run.base}`
+      return [
+        `for (__pxlblz_show_route_run_i = ${run.start}; __pxlblz_show_route_run_i <= ${run.end}; __pxlblz_show_route_run_i = __pxlblz_show_route_run_i + 1) __pxlblz_show_route_pixels[__pxlblz_show_route_run_i] = __pxlblz_show_route_run_i${offset}`,
+      ]
+    }
+    return Array.from({ length: run.end - run.start + 1 }, (_, offset) => (
+      `__pxlblz_show_route_pixels[${run.start + offset}] = ${run.base + run.start + offset}`
+    ))
+  })
+  return [
+    `var __pxlblz_show_route_pixels = array(${values.length})`,
+    ...(needsLoopIndex ? ['var __pxlblz_show_route_run_i = 0'] : []),
+    ...lines,
+  ].join('\n')
+}
+
+/**
+ * Packed-table per-pixel decode: table read, route id and zone-local index
+ * recovery, and per-layout dispatch. The caller supplies each route's render
+ * body - member invocation never crosses into this module.
+ */
+export function emitPackedRoutingRenderDecode(
+  layouts: RoutingLayoutShape[],
+  renderLayoutName: string,
+  emitRouteBody: (layoutIndex: number, routeIndex: number) => string,
+): string {
+  const pixelCount = routingPixelCount(layouts)
+  const stride = pixelCount + 1
+  const layoutsBody = layouts.map((layout, layoutIndex) => {
+    const routeBody = layout.routes.map((_route, routeIndex) => (
+      emitRouteBody(layoutIndex, routeIndex)
+    )).join('\n')
+    return `${layoutIndex === 0 ? '    if' : '    else if'} (${renderLayoutName} == ${layoutIndex}) {
+${routeBody}
+    }`
+  }).join('\n')
+  return `  if (index < ${pixelCount}) {
+    var __pxlblz_show_route_packed = __pxlblz_show_route_pixels[${renderLayoutName} * ${pixelCount} + index]
+    if (__pxlblz_show_route_packed > 0) {
+      __pxlblz_show_route_packed = __pxlblz_show_route_packed - 1
+      var __pxlblz_show_route_id = floor(__pxlblz_show_route_packed / ${stride})
+      var __pxlblz_show_route_local = __pxlblz_show_route_packed - __pxlblz_show_route_id * ${stride}
+${layoutsBody}
+    }
+  }`
+}
+
+/**
+ * Generated-formula per-pixel decode: closed-form route id and zone-local
+ * index for the recognized contiguous, row-band, and interleaved families,
+ * with per-layout shifts. The caller supplies the shared route body.
+ */
+export function emitFormulaRoutingRenderDecode(
+  formula: GeneratedRoutingFormula,
+  renderLayoutName: string,
+  routeBody: string,
+): string {
+  const shiftLines = formula.layoutShifts.slice(1).map((shift, layoutIndex) => (
+    `    if (${renderLayoutName} == ${layoutIndex + 1}) __pxlblz_show_route_shift = ${shift}`
+  ))
+  const formulaLines = formula.kind === 'contiguous'
+    ? [
+        `    var __pxlblz_show_route_id = (floor(index / ${formula.blockSize}) + __pxlblz_show_route_shift) % ${formula.routeCount}`,
+        `    var __pxlblz_show_route_local = index % ${formula.blockSize}`,
+      ]
+    : formula.kind === 'row-bands'
+      ? [
+          `    var __pxlblz_show_route_row = floor(index / ${formula.rowWidth})`,
+          `    var __pxlblz_show_route_id = (__pxlblz_show_route_row + __pxlblz_show_route_shift) % ${formula.routeCount}`,
+          `    var __pxlblz_show_route_local = floor(__pxlblz_show_route_row / ${formula.routeCount}) * ${formula.rowWidth} + index % ${formula.rowWidth}`,
+        ]
+      : [
+          `    var __pxlblz_show_route_id = (index + __pxlblz_show_route_shift) % ${formula.routeCount}`,
+          `    var __pxlblz_show_route_local = floor(index / ${formula.routeCount})`,
+        ]
+  return [
+    `  if (index < ${formula.pixelCount}) {`,
+    `    var __pxlblz_show_route_shift = ${formula.layoutShifts[0] ?? 0}`,
+    ...shiftLines,
+    ...formulaLines,
+    routeBody,
+    `  }`,
+  ].join('\n')
+}
+
 export function planPhysicalRoutingRepresentation(
   layouts: RoutingLayoutShape[],
   measuredDeviceBudgetBytes: number,

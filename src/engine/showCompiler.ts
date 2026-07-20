@@ -64,10 +64,10 @@ import {
 } from './showVisualToolkit'
 import { SHOW_DISTORTION_CANDIDATES } from './showDistortionBenchmark'
 import {
-  buildPackedRoutingValues,
-  computeLinearRuns,
+  emitFormulaRoutingRenderDecode,
+  emitPackedRoutingRenderDecode,
+  emitPackedRoutingTable as emitPackedRoutingTableFromShapes,
   emitZoneLocalAssignments,
-  PACKED_ROUTING_LOOP_MIN_RUN,
   planPhysicalRoutingRepresentation,
   routingLayoutGapWarnings,
   routingLayoutOverlapWarnings,
@@ -8422,98 +8422,37 @@ export interface PackedRoutingLayoutShape {
 }
 
 export function emitPackedRoutingTable(layouts: PackedRoutingLayoutShape[]): string {
-  const pixelCount = routingPixelCount(layouts)
-  // First compute the final per-pixel value array exactly as the per-pixel
-  // emission did (first writer wins across overlapping ranges), then emit the
-  // disjoint run list (#569): identical contents, O(ranges) source lines.
-  // The value/run model is shared with the #573 planner pricing.
-  const values = buildPackedRoutingValues(
+  return emitPackedRoutingTableFromShapes(
     layouts.map((layout) => ({ routes: layout.routes.map((route) => ({ ranges: route.zone.ranges })) })),
-    pixelCount,
   )
-  const runs = computeLinearRuns(values)
-  const needsLoopIndex = runs.some((run) => run.end - run.start + 1 >= PACKED_ROUTING_LOOP_MIN_RUN)
-  const lines = runs.flatMap((run) => {
-    if (run.end - run.start + 1 >= PACKED_ROUTING_LOOP_MIN_RUN) {
-      const offset = run.base === 0 ? '' : run.base > 0 ? ` + ${run.base}` : ` - ${-run.base}`
-      return [
-        `for (__pxlblz_show_route_run_i = ${run.start}; __pxlblz_show_route_run_i <= ${run.end}; __pxlblz_show_route_run_i = __pxlblz_show_route_run_i + 1) __pxlblz_show_route_pixels[__pxlblz_show_route_run_i] = __pxlblz_show_route_run_i${offset}`,
-      ]
-    }
-    return Array.from({ length: run.end - run.start + 1 }, (_, offset) => (
-      `__pxlblz_show_route_pixels[${run.start + offset}] = ${run.base + run.start + offset}`
-    ))
-  })
-  return [
-    `var __pxlblz_show_route_pixels = array(${values.length})`,
-    ...(needsLoopIndex ? ['var __pxlblz_show_route_run_i = 0'] : []),
-    ...lines,
-  ].join('\n')
 }
-
 function emitPackedRoutingRender(
   layouts: ResolvedRoutingLayout[],
   outputDimension: 1 | 2,
   renderLayoutName: string,
 ): string {
-  const pixelCount = routingPixelCount(layouts)
-  const stride = pixelCount + 1
-  const layoutsBody = layouts.map((layout, layoutIndex) => {
-    const routeBody = layout.routes.map((route, routeIndex) => (
-      emitPackedRouteBlock(route, routeIndex, outputDimension)
-    )).join('\n')
-    return `${layoutIndex === 0 ? '    if' : '    else if'} (${renderLayoutName} == ${layoutIndex}) {
-${routeBody}
-    }`
-  }).join('\n')
-  return `  if (index < ${pixelCount}) {
-    var __pxlblz_show_route_packed = __pxlblz_show_route_pixels[${renderLayoutName} * ${pixelCount} + index]
-    if (__pxlblz_show_route_packed > 0) {
-      __pxlblz_show_route_packed = __pxlblz_show_route_packed - 1
-      var __pxlblz_show_route_id = floor(__pxlblz_show_route_packed / ${stride})
-      var __pxlblz_show_route_local = __pxlblz_show_route_packed - __pxlblz_show_route_id * ${stride}
-${layoutsBody}
-    }
-  }`
+  return emitPackedRoutingRenderDecode(
+    layouts.map((layout) => ({ routes: layout.routes.map((route) => ({ ranges: route.zone.ranges })) })),
+    renderLayoutName,
+    (layoutIndex, routeIndex) => (
+      emitPackedRouteBlock(layouts[layoutIndex].routes[routeIndex], routeIndex, outputDimension)
+    ),
+  )
 }
-
 function emitFormulaRoutingRender(
   layouts: ResolvedRoutingLayout[],
   formula: GeneratedRoutingFormula,
   outputDimension: 1 | 2,
   renderLayoutName: string,
 ): string {
-  const shiftLines = formula.layoutShifts.slice(1).map((shift, layoutIndex) => (
-    `    if (${renderLayoutName} == ${layoutIndex + 1}) __pxlblz_show_route_shift = ${shift}`
-  ))
-  const formulaLines = formula.kind === 'contiguous'
-    ? [
-        `    var __pxlblz_show_route_id = (floor(index / ${formula.blockSize}) + __pxlblz_show_route_shift) % ${formula.routeCount}`,
-        `    var __pxlblz_show_route_local = index % ${formula.blockSize}`,
-      ]
-    : formula.kind === 'row-bands'
-      ? [
-          `    var __pxlblz_show_route_row = floor(index / ${formula.rowWidth})`,
-          `    var __pxlblz_show_route_id = (__pxlblz_show_route_row + __pxlblz_show_route_shift) % ${formula.routeCount}`,
-          `    var __pxlblz_show_route_local = floor(__pxlblz_show_route_row / ${formula.routeCount}) * ${formula.rowWidth} + index % ${formula.rowWidth}`,
-        ]
-      : [
-          `    var __pxlblz_show_route_id = (index + __pxlblz_show_route_shift) % ${formula.routeCount}`,
-          `    var __pxlblz_show_route_local = floor(index / ${formula.routeCount})`,
-        ]
-  const routeBody = layouts[0].routes.map((route, routeIndex) => (
-    emitPackedRouteBlock(route, routeIndex, outputDimension)
-  )).join('\n')
-  return [
-    `  if (index < ${formula.pixelCount}) {`,
-    `    var __pxlblz_show_route_shift = ${formula.layoutShifts[0] ?? 0}`,
-    ...shiftLines,
-    ...formulaLines,
-    routeBody,
-    `  }`,
-  ].join('\n')
+  return emitFormulaRoutingRenderDecode(
+    formula,
+    renderLayoutName,
+    layouts[0].routes.map((route, routeIndex) => (
+      emitPackedRouteBlock(route, routeIndex, outputDimension)
+    )).join('\n'),
+  )
 }
-
 function emitPackedRouteBlock(route: ResolvedRoute, routeIndex: number, outputDimension: 1 | 2): string {
   const width = Math.max(1, Math.ceil(Math.sqrt(route.pixelCount)))
   const height = Math.max(1, Math.ceil(route.pixelCount / width))
