@@ -3,14 +3,23 @@ import featureGuide from '../../docs/reference/PXLBLZ Feature Guide.md?raw'
 import understandingMaps from '../../docs/reference/Understanding Maps.md?raw'
 import optimizationGuide from '../../docs/guides/Optimizing Pixelblaze patterns.md?raw'
 import visualEffectsGuide from '../../docs/guides/Visual effects guide.md?raw'
+import showCompilerGuide from '../../docs/guides/Inside the Show compiler.md?raw'
 import technicalReference from '../../docs/reference/PXLBLZ Technical Reference.md?raw'
 import aboutPxlblz from '../../docs/reference/About PXLBLZ.md?raw'
 import privacy from '../../docs/reference/PXLBLZ Privacy.md?raw'
 
+import artifactPipelineUrl from '../../docs/images/artifact-pipeline.svg?url'
 import builtinCostsUrl from '../../docs/images/builtin-costs.svg?url'
 import deviceBrowserBoundaryUrl from '../../docs/images/device-browser-boundary.svg?url'
 import fillVsContainUrl from '../../docs/images/fill-vs-contain.svg?url'
+import frameTimeBudgetUrl from '../../docs/images/frame-time-budget.svg?url'
+import layoutPipelineUrl from '../../docs/images/layout-pipeline.svg?url'
 import mapPipelineUrl from '../../docs/images/map-pipeline.svg?url'
+import renderTargetRolesUrl from '../../docs/images/render-target-roles.svg?url'
+import showModelRuntimeUrl from '../../docs/images/show-model-runtime.svg?url'
+import showPipelineUrl from '../../docs/images/show-pipeline.svg?url'
+import systemMapUrl from '../../docs/images/system-map.svg?url'
+import transitionCostClassesUrl from '../../docs/images/transition-cost-classes.svg?url'
 import wholeFrameModelUrl from '../../docs/images/whole-frame-model.svg?url'
 import showVisualToolkitOverviewUrl from '../../docs/screenshots/show-visual-toolkit-overview.png?url'
 import showVisualToolkitEntityDetailUrl from '../../docs/screenshots/show-visual-toolkit-entity-detail.png?url'
@@ -21,6 +30,7 @@ export type DocId =
   | 'show-visual-toolkit'
   | 'optimization-guide'
   | 'understanding-maps'
+  | 'show-compiler'
   | 'technical-reference'
   | 'about'
   | 'privacy'
@@ -37,10 +47,18 @@ export type UserDoc = {
 }
 
 const sharedAssets = {
+  '../images/artifact-pipeline.svg': artifactPipelineUrl,
   '../images/builtin-costs.svg': builtinCostsUrl,
   '../images/device-browser-boundary.svg': deviceBrowserBoundaryUrl,
   '../images/fill-vs-contain.svg': fillVsContainUrl,
+  '../images/frame-time-budget.svg': frameTimeBudgetUrl,
+  '../images/layout-pipeline.svg': layoutPipelineUrl,
   '../images/map-pipeline.svg': mapPipelineUrl,
+  '../images/render-target-roles.svg': renderTargetRolesUrl,
+  '../images/show-model-runtime.svg': showModelRuntimeUrl,
+  '../images/show-pipeline.svg': showPipelineUrl,
+  '../images/system-map.svg': systemMapUrl,
+  '../images/transition-cost-classes.svg': transitionCostClassesUrl,
   '../images/whole-frame-model.svg': wholeFrameModelUrl,
   '../screenshots/show-visual-toolkit-overview.png': showVisualToolkitOverviewUrl,
   '../screenshots/show-visual-toolkit-entity-detail.png': showVisualToolkitEntityDetailUrl,
@@ -95,6 +113,16 @@ export const USER_DOCS: UserDoc[] = [
     menuKicker: 'Writing faster patterns',
     summary: 'Frame costs, profiling tools, measured wins, and porting tactics.',
     source: optimizationGuide,
+    assets: sharedAssets,
+  },
+  {
+    id: 'show-compiler',
+    path: 'docs/guides/Inside the Show compiler.md',
+    title: 'Inside the Show Compiler',
+    menuLabel: 'Show Compiler',
+    menuKicker: 'Under the hood',
+    summary: 'How a timeline becomes one Pattern: the pipeline, the render target, and the optimizations that survived hardware.',
+    source: showCompilerGuide,
     assets: sharedAssets,
   },
   {

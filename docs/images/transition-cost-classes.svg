@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 280" font-family="'IBM Plex Mono','SF Mono',ui-monospace,Menlo,monospace">
+  <rect width="720" height="280" fill="#14171c"/>
+
+  <text x="40" y="34" font-size="13" fill="#dde3ea">what a Transition costs: Pattern evaluations per output pixel</text>
+
+  <!-- legend -->
+  <rect x="40" y="52" width="14" height="11" fill="#454e59"/>
+  <text x="60" y="62" font-size="10" fill="#97a1ac">outgoing Pattern</text>
+  <rect x="210" y="52" width="14" height="11" fill="#5c92c7"/>
+  <text x="230" y="62" font-size="10" fill="#97a1ac">incoming Pattern</text>
+  <rect x="380" y="52" width="14" height="11" fill="#9dbede"/>
+  <text x="400" y="62" font-size="10" fill="#97a1ac">both evaluated</text>
+
+  <!-- hard wipe: N -->
+  <rect x="40" y="90" width="180" height="110" fill="none" stroke="#97a1ac" stroke-width="1"/>
+  <rect x="41" y="91" width="98" height="108" fill="#454e59"/>
+  <rect x="139" y="91" width="80" height="108" fill="#5c92c7"/>
+  <text x="130" y="222" text-anchor="middle" font-size="11" font-weight="bold" fill="#dde3ea">N</text>
+  <text x="130" y="238" text-anchor="middle" font-size="9" fill="#97a1ac">hard wipe / dither:</text>
+  <text x="130" y="250" text-anchor="middle" font-size="9" fill="#97a1ac">each pixel asks one Pattern</text>
+
+  <!-- feathered wipe: N + E -->
+  <rect x="270" y="90" width="180" height="110" fill="none" stroke="#97a1ac" stroke-width="1"/>
+  <rect x="271" y="91" width="86" height="108" fill="#454e59"/>
+  <rect x="357" y="91" width="26" height="108" fill="#9dbede"/>
+  <rect x="383" y="91" width="66" height="108" fill="#5c92c7"/>
+  <text x="360" y="222" text-anchor="middle" font-size="11" font-weight="bold" fill="#dde3ea">N + E</text>
+  <text x="360" y="238" text-anchor="middle" font-size="9" fill="#97a1ac">feathered edge: both run</text>
+  <text x="360" y="250" text-anchor="middle" font-size="9" fill="#97a1ac">only inside the band</text>
+
+  <!-- crossfade: 2N -->
+  <rect x="500" y="90" width="180" height="110" fill="none" stroke="#97a1ac" stroke-width="1"/>
+  <rect x="501" y="91" width="178" height="108" fill="#9dbede"/>
+  <text x="590" y="222" text-anchor="middle" font-size="11" font-weight="bold" fill="#dde3ea">2N</text>
+  <text x="590" y="238" text-anchor="middle" font-size="9" fill="#97a1ac">live/live Crossfade:</text>
+  <text x="590" y="250" text-anchor="middle" font-size="9" fill="#97a1ac">both run everywhere</text>
+
+  <text x="40" y="274" font-size="10" fill="#97a1ac">snapshot/live Crossfade pays 2N once to capture, then N plus a cheap replay for the rest of the boundary</text>
+</svg>

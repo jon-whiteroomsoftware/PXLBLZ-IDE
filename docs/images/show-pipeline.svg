@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 300" font-family="'IBM Plex Mono','SF Mono',ui-monospace,Menlo,monospace">
+  <rect width="720" height="300" fill="#14171c"/>
+
+  <text x="40" y="34" font-size="13" fill="#dde3ea">from saved choreography to one Pixelblaze Pattern</text>
+
+  <!-- input -->
+  <rect x="40" y="60" width="150" height="52" fill="none" stroke="#97a1ac" stroke-width="1.2"/>
+  <text x="115" y="82" text-anchor="middle" font-size="11" font-weight="bold" fill="#dde3ea">Show record</text>
+  <text x="115" y="98" text-anchor="middle" font-size="9" fill="#97a1ac">Scenes, Zones, clips,</text>
+  <text x="115" y="108" text-anchor="middle" font-size="9" fill="#97a1ac">boundaries, curves</text>
+
+  <!-- arrow -->
+  <line x1="190" y1="86" x2="228" y2="86" stroke="#97a1ac" stroke-width="1.2"/>
+  <path d="M228 86 l-7 -4 v8 z" fill="#97a1ac"/>
+
+  <!-- compiler box -->
+  <rect x="236" y="52" width="316" height="196" fill="none" stroke="#5c92c7" stroke-width="1.5"/>
+  <text x="394" y="44" text-anchor="middle" font-size="10" fill="#5c92c7">the Show compiler (runs in the browser)</text>
+
+  <rect x="252" y="66" width="284" height="28" fill="#232a33"/>
+  <text x="394" y="84" text-anchor="middle" font-size="10" fill="#dde3ea">lowering &#8594; compile recipe</text>
+
+  <rect x="252" y="100" width="284" height="28" fill="#232a33"/>
+  <text x="394" y="118" text-anchor="middle" font-size="10" fill="#dde3ea">member isolation (alpha-rename each Pattern)</text>
+
+  <rect x="252" y="134" width="284" height="28" fill="#232a33"/>
+  <text x="394" y="152" text-anchor="middle" font-size="10" fill="#dde3ea">routing (index ranges / Stage-space operators)</text>
+
+  <rect x="252" y="168" width="284" height="28" fill="#232a33"/>
+  <text x="394" y="186" text-anchor="middle" font-size="10" fill="#dde3ea">scheduling (one beforeRender owns the clock)</text>
+
+  <rect x="252" y="202" width="284" height="28" fill="#2b3a4d"/>
+  <text x="394" y="220" text-anchor="middle" font-size="10" fill="#dde3ea">specialization (remove provably dead work)</text>
+
+  <!-- arrow out -->
+  <line x1="552" y1="150" x2="590" y2="150" stroke="#97a1ac" stroke-width="1.2"/>
+  <path d="M590 150 l-7 -4 v8 z" fill="#97a1ac"/>
+
+  <!-- output -->
+  <rect x="598" y="124" width="92" height="52" fill="none" stroke="#97a1ac" stroke-width="1.2"/>
+  <text x="644" y="146" text-anchor="middle" font-size="11" font-weight="bold" fill="#dde3ea">one</text>
+  <text x="644" y="160" text-anchor="middle" font-size="11" font-weight="bold" fill="#dde3ea">Pattern</text>
+
+  <text x="40" y="276" font-size="11" fill="#dde3ea">the artifact is plain Pixelblaze code: inspect it, export it, send it,</text>
+  <text x="40" y="292" font-size="11" fill="#dde3ea">or paste it into the stock editor &#8212; it runs without PXLBLZ</text>
+</svg>

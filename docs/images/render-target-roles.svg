@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 300" font-family="'IBM Plex Mono','SF Mono',ui-monospace,Menlo,monospace">
+  <rect width="720" height="300" fill="#14171c"/>
+
+  <text x="40" y="34" font-size="13" fill="#dde3ea">three planes, many roles: 3 &#215; (pixelCount + 4) words, reserved once</text>
+
+  <!-- time axis -->
+  <line x1="110" y1="220" x2="680" y2="220" stroke="#97a1ac" stroke-width="1"/>
+  <path d="M680 220 l-7 -4 v8 z" fill="#97a1ac"/>
+  <text x="395" y="238" text-anchor="middle" font-size="10" fill="#97a1ac">Show time</text>
+
+  <!-- plane labels -->
+  <text x="100" y="88" text-anchor="end" font-size="10" fill="#97a1ac">plane 0</text>
+  <text x="100" y="130" text-anchor="end" font-size="10" fill="#97a1ac">plane 1</text>
+  <text x="100" y="172" text-anchor="end" font-size="10" fill="#97a1ac">plane 2</text>
+
+  <!-- segment 1: Trails owns all three (previous-rgb) -->
+  <rect x="110" y="72" width="150" height="24" fill="#454e59"/>
+  <rect x="110" y="114" width="150" height="24" fill="#454e59"/>
+  <rect x="110" y="156" width="150" height="24" fill="#454e59"/>
+  <text x="185" y="206" text-anchor="middle" font-size="9" fill="#97a1ac">Scene 1 steady</text>
+  <text x="185" y="60" text-anchor="middle" font-size="9" fill="#97a1ac">previous-rgb (Trails)</text>
+
+  <!-- segment 2: snapshot Crossfade owns all three (stage-rgb) -->
+  <rect x="268" y="72" width="130" height="24" fill="#5c92c7"/>
+  <rect x="268" y="114" width="130" height="24" fill="#5c92c7"/>
+  <rect x="268" y="156" width="130" height="24" fill="#5c92c7"/>
+  <text x="333" y="206" text-anchor="middle" font-size="9" fill="#97a1ac">Crossfade</text>
+  <text x="333" y="60" text-anchor="middle" font-size="9" fill="#5c92c7">stage-rgb (snapshot)</text>
+
+  <!-- segment 3: scalar field on plane 0 only -->
+  <rect x="406" y="72" width="130" height="24" fill="#9dbede"/>
+  <text x="471" y="206" text-anchor="middle" font-size="9" fill="#97a1ac">Dissolve</text>
+  <text x="471" y="60" text-anchor="middle" font-size="9" fill="#97a1ac">scalar-field (plane 0)</text>
+
+  <!-- segment 4: Trails reseeds -->
+  <rect x="544" y="72" width="136" height="24" fill="#454e59"/>
+  <rect x="544" y="114" width="136" height="24" fill="#454e59"/>
+  <rect x="544" y="156" width="136" height="24" fill="#454e59"/>
+  <text x="612" y="206" text-anchor="middle" font-size="9" fill="#97a1ac">Scene 2 steady</text>
+  <text x="612" y="60" text-anchor="middle" font-size="9" fill="#97a1ac">previous-rgb again</text>
+
+  <text x="40" y="266" font-size="11" fill="#dde3ea">a role changes what generated code reads and writes &#8212; never how much memory</text>
+  <text x="40" y="282" font-size="11" fill="#dde3ea">exists; non-overlapping lifetimes reuse the same planes</text>
+</svg>

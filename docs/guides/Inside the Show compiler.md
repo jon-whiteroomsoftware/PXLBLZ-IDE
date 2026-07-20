@@ -1,0 +1,321 @@
+# Inside the Show compiler
+
+A Show looks like a video editing project: a timeline, scenes, clips, zones,
+transitions, effects. But nothing like a video player exists on the other end.
+A Pixelblaze is one microcontroller core doing fixed-point math, and the only
+thing it knows how to run is a single ordinary Pattern. So the Show compiler's
+job is a small magic trick: flatten an entire choreographed timeline — every
+Pattern, every Transition, every Effect, every zone — into one self-contained
+Pixelblaze Pattern that performs the whole Show by itself.
+
+This guide is a tour of how that works and what it costs, written for people
+who want to know what's happening under the hood without reading compiler
+source. It also covers the optimization program: what we tried, what the
+hardware said, and which clever ideas turned out to be slower. If you want to
+make **your own Pattern** faster, that's the
+[Optimization Guide](Optimizing Pixelblaze patterns.md); this document is about
+what the compiler does to a **Show** on your behalf. Every percentage here is a
+real measurement on a Pixelblaze 32 running firmware 3.67, not an estimate.
+
+---
+
+## The machine we're compiling for
+
+Everything the compiler does follows from the budgets it has to live inside.
+A generated Show has to fit five independent limits at once, and running out
+of any one of them is fatal on its own:
+
+| Budget | Limit | What consumes it |
+|---|---|---|
+| Array memory | 10,240 words | every array, plus a 4-word header each |
+| Persistent globals | 256 | member Pattern state, compiler scalars |
+| Program size | ~68 KB observed activation ceiling | generated source and its bytecode |
+| Renderer depth | warn at 3–4, block at 5 | simultaneous Pattern evaluations per pixel |
+| Frame time | whatever's left | everything above, per pixel, per frame |
+
+These budgets don't trade against each other. A Show can have plenty of free
+memory and still fail to activate because its source is too large; a tiny
+artifact can still crawl because it evaluates three Patterns per pixel. The
+compile bar in the Show editor reports each axis separately for exactly this
+reason.
+
+There's also a limit no compiler pass can touch: the wire. WS281x-family LEDs
+receive data at a fixed 800 kHz, which works out to roughly 30 microseconds
+per pixel. At 2,000 pixels on a single native serial output, just **shipping**
+a finished frame takes 60.4 ms — a hard ceiling of about 16.6 FPS if the
+Controller computed everything else instantly. Output Expanders and clocked
+LED families move that floor, which is why Controller profiles carry a
+declared output profile and why every FPS number in our evidence names one.
+
+Compiled Shows support at most 2,000 output pixels. We measured 4,000 directly
+— 1.86 FPS on the reference Show — and decided that shipping a number is not
+the same as supporting an experience.
+
+![Where a heavy 2,000-pixel frame actually goes: output transmission, Show machinery, and Pattern work](../images/frame-time-budget.svg)
+
+That chart is the frame-time attribution for Redline, our heaviest reference
+Show, before the optimization program: 336 ms per frame, of which 60 ms is the
+wire, 143 ms is Show machinery (routing, transitions, composition), and 134 ms
+is the member Patterns doing their own rendering. It's the map the whole
+optimization program worked from — you can't decide what to attack until you
+know where the time goes.
+
+## From timeline to one Pattern
+
+The pipeline runs in the browser every time you edit a Show:
+
+![The Show pipeline: saved choreography lowers through routing, scheduling, and specialization into one Pixelblaze Pattern](../images/show-pipeline.svg)
+
+1. **Lowering.** The saved Show — Scenes, Zone Layouts, clips, boundaries,
+   property curves — becomes a compile recipe: which Pattern instances exist,
+   which Scenes activate them, and what every boundary does.
+2. **Member isolation.** Each Pattern instance is renamed so its variables and
+   functions can't collide with any other member or with the Show's own
+   machinery. Your Patterns are combined verbatim, not rewritten — a member
+   still reads like the Pattern you authored.
+3. **Routing.** Every output pixel gets an owner. Installation Shows route by
+   physical index ranges; Portable Shows route by normalized Stage position,
+   so the same Show adapts to any compatible 2D surface. The compiler picks
+   the cheapest faithful representation: a direct formula for regular
+   layouts, ordered comparisons for irregular ones, and a packed lookup table
+   only when the branch chain would be genuinely deeper than the table is
+   expensive.
+4. **Scheduling.** A generated `beforeRender` advances the Show clock, works
+   out the active Scene and boundary, updates property ramps and Effect
+   parameters once per frame, and advances each active Pattern instance
+   exactly once — even when several placements show the same instance.
+5. **Specialization.** The compiler then removes every piece of work it can
+   **prove** unnecessary. This is where most of this document lives.
+
+The output is ordinary Pixelblaze code. You can read it (**View code**),
+export it as an `.epe`, send it to a Controller, or paste it into the stock
+editor. Nothing about it requires PXLBLZ to exist afterward.
+
+## The three-plane render target
+
+One early decision shapes everything else. Every generated Show reserves
+exactly three full-output arrays — think of them as three grayscale
+photographic plates the size of your installation. Together they can hold one
+complete RGB frame, or two coordinates per pixel, or one scalar value per
+pixel with room to spare. At 2,000 pixels that reservation is 6,012 of the
+10,240 available words, leaving 4,228 words for **everything else in the Show
+combined**.
+
+![The three-plane render target: one arena whose planes take different typed roles over the life of a Show](../images/render-target-roles.svg)
+
+Why three and not more? Because two complete RGB frames would need six planes,
+and six planes don't fit alongside real Patterns. So the compiler never keeps
+two full frames. Instead, the same three planes change **roles** over the life
+of the Show:
+
+- **`stage-rgb`** — a captured composite frame, used by snapshot Crossfades
+  and Pattern-output reuse;
+- **`scalar-field`** — one reusable value per pixel, used by Dissolve
+  geometry and static Vignette mattes;
+- **`sample-xy`** — two coordinates per pixel (a diagnostic role; production
+  never uses it — see the failures section);
+- **`previous-rgb`** — last frame's output, used by Trails.
+
+A planner assigns those roles deterministic lifetimes: candidates declare what
+they store, when it becomes invalid, and what it saves; required authored
+policies win first, exact caches beat approximations, and losers keep their
+ordinary uncached behavior plus a note in the compile report explaining why.
+Two things that never overlap in time can share the same planes. Two things
+that do overlap fight, and one of them loses politely.
+
+## The free wins: exact specialization
+
+The first family of optimizations changes nothing you can see — output is
+bit-identical in both preview modes, verified frame by frame. These are on
+for every Show, always.
+
+The core moves will be familiar if you've read the Optimization Guide,
+because they're the same moves a careful Pattern author makes by hand — the
+compiler just applies them with proofs instead of intuition:
+
+- **Prove it, then hoist it.** Any expression the compiler can prove is
+  pure and identical for every pixel moves out of the per-pixel path and
+  runs once per frame. That includes subtrees like `wave(time(.05))` buried
+  inside an `hsv()` call — a shape that's everywhere in community Patterns.
+- **Stop testing what can't happen.** When physical zone ranges provably
+  cover the output exactly once, routing becomes an ordered short-circuit
+  where the last branch doesn't even need a test.
+- **Delete dead machinery.** Pre-render clears vanish when every code path
+  provably writes a color. Identity mirrors, identity brightness multiplies,
+  and neutral Effects vanish when the Show proves they can't vary.
+- **Inline tiny helpers.** A one-line pure helper function gets substituted
+  into its call sites — a function call costs 2–3 microseconds on this VM,
+  which is real money when it happens per pixel.
+
+Together, the first wave of these took the Redline reference from 2.36 to
+3.04 FPS (+28.8%) without changing a single output pixel.
+
+The second wave got more surgical, guided by microbenchmarks of what the VM
+actually charges for things. The star finding: the generated HSV→RGB
+conversion used for captured output costs about 35 µs per pixel — around
+44 multiplies' worth. So when a steady Scene's captured output has no
+consumer, the compiler now lets the member paint the LED directly through
+native `hsv()` and skips the whole capture round trip: **+69% FPS** on
+HSV-heavy Shows. When capture **is** needed, each member gets its own
+specialized conversion instead of a shared dispatch chain: 39.6 µs down to
+22.9 µs per call. Neither change is visible; both were qualified on hardware.
+
+## The big wins: skip whole renders
+
+Exact expression tricks buy percentages. The large multipliers all come from
+one observation: **the most expensive thing in a Show is asking a Pattern for
+a pixel, so the best optimization is not asking.**
+
+- **Pattern-output reuse (+91.7%).** Five equal-size zones all showing the
+  same Pattern instance don't need five renders. The compiler proves the
+  placements are genuinely identical — same instance, same clock, same
+  controls, same local coordinates, a renderer that provably doesn't mutate
+  state — renders one zone's worth of pixels into the arena, and replays the
+  RGB for the other four. 400 evaluations instead of 2,000.
+- **Scalar fields (+44.1%).** A Dissolve's coherent-noise geometry doesn't
+  change during the transition — only the threshold sweeping through it does.
+  So the noise field is computed once into one plane, and every later frame
+  reads one value per pixel while progress and edge policy stay live. The
+  static Vignette matte works the same way (+26.6%), and it costs zero
+  additional memory because the plane was already reserved.
+- **Content-aware keys (+59.9%).** When a keyed overlay is mostly opaque, the
+  Pattern underneath it is mostly invisible. The compiler renders the top
+  layer first, derives its alpha, and evaluates the layer below only where
+  holes and feather actually expose it. Cost becomes `N + U` where `U` is the
+  uncovered set — and with three layers it stops as soon as accumulated
+  coverage reaches one, which measured **+122%** on a fully-covered stack.
+
+Each of these is exact: the compiler proves compatibility rather than
+guessing, and anything it can't prove — a stateful renderer, mismatched
+clocks, an animated parameter — quietly keeps independent rendering and says
+why in the compile report.
+
+## The honest approximations
+
+A third family deliberately changes the visual contract, so these are
+authored policies you choose, never silent substitutions.
+
+- **Snapshot/live Crossfade (+76.7%).** A true crossfade evaluates both
+  Scenes for its whole duration — the only place a Show pays `2N` per pixel.
+  The snapshot policy captures the outgoing composite on the boundary's
+  first frame, then blends that frozen image against the live incoming
+  Scene. The outgoing Pattern visibly stops moving during the fade; that's
+  the trade, stated plainly. It's the default for new boundaries, and
+  existing Shows keep live/live until you opt in.
+- **Freeze at entry (+46%).** A static backdrop doesn't need re-rendering
+  every frame. Freeze captures one complete traversal at Scene entry and
+  replays it for the Scene's lifetime while the Pattern's private clock
+  keeps advancing underneath.
+- **Rolling Refresh (+20%).** The gentler sibling: after one complete frame,
+  re-evaluate a quarter of the pixels per frame in an interleaved sweep. No
+  pixel is ever more than three frames stale, which reads as live for most
+  material at a fraction of the cost.
+
+**Trails** belongs in this section with the sign flipped: it's a visual
+affordance that **costs** a measured 35–37% FPS on native serial output,
+because feedback means reading and writing the previous frame per pixel. It
+adds zero memory — it borrows the same three planes — and we disclose the
+cost rather than pretending an effect that touches every pixel twice is free.
+
+## Capacity wins: smaller, not faster
+
+Some optimizations never show up in an FPS counter but decide whether a Show
+fits on the Controller at all. Long choreography used to emit code per
+boundary — twenty transitions meant twenty copies of nearly identical
+machinery, and our three long reference Shows were 110–180 KB of source that
+wouldn't reliably activate at high pixel counts.
+
+The fix is the oldest idea in computing: separate data from machinery. The
+**table-driven Show score** stores choreography as five words per boundary —
+outgoing stack, incoming stack, transition kernel, easing, duration — and
+emits each unique Pattern instance, Scene stack, and kernel exactly once. The
+scheduler reads the score; the pixel renderer dispatches over a handful of
+interned kernels regardless of how many Scenes the timeline holds. Source
+fell 75–86% on the qualified references, Controller bytecode fell 67–79%,
+and one artifact that previously failed to activate at 1,000+ pixels now
+loads in a fraction of the time. Measured frame rate: unchanged. That's the
+point — it's the same machinery, selected by data instead of duplicated by
+time.
+
+The same shape repeats at smaller scales: compatible Motion transitions share
+generated kernels (source −37.5%), repeated animated Effects share one
+parameterized update body, and Restart-only Pattern members whose lifetimes
+can't overlap share one physical "machine" with compiler-owned state banks —
+17 logical members packed into 8, a fifth of the artifact gone, with every
+member's identity, clock, and controls kept strictly separate.
+
+## What didn't work
+
+We keep the negatives on the record deliberately — they're load-bearing.
+Every one of these looked plausible, most looked **obviously good** in an
+operation-count model, and the hardware disagreed.
+
+- **Caching transformed coordinates (−6.4%).** The poster child. Static
+  routed Scenes recompute the same transformed X/Y every frame — so cache
+  the pair in two planes and replay it, saving an estimated 16,600
+  operations per frame. Exact, provable, measurable... and slower. Array
+  reads aren't free, the extra code grew the artifact by half, and cheap
+  coordinate arithmetic was never the expensive part. The emitter survives
+  as a diagnostic, disabled in production.
+- **Function-valued dispatch (−3.9%).** Swapping a per-call flag branch for
+  rebinding the output function pointer removes a ~1.5 µs branch and adds a
+  ~2–3 µs user-call hop. On this VM the branch is the cheap one.
+- **Fixed-point bit tricks (invalid).** The classic `floor`/`frac`-as-mask
+  identities assume bitwise ops see raw 16.16 bits. On firmware 3.67 the
+  bitwise operators integer-coerce their operands first, so the identities
+  are simply wrong — and `floor` already prices below a multiply anyway.
+- **Strength-reducing zone math (wrong and pointless).** Modulo turned out
+  to be as cheap as a multiply, and replacing division by reciprocal
+  multiplication in coordinate decode accumulates row-scale error that's
+  exact only for power-of-two sizes.
+- **Property-specialized render kernels (neutral).** Removing dispatch
+  branches shrank the artifact but never produced a stable runtime gain.
+  A smaller artifact is not a faster artifact, so it's not reported as one.
+
+One near-miss earned a permanent rule: an early acceptance artifact inlined
+all its transition bodies into one giant `render2D`, and it **failed on
+hardware** — reliably — whenever a snapshot capture and a scalar field
+coexisted. Isolating each transition into its own generated helper function
+fixed activation completely. That structure is now a firmware-safety
+boundary, not a style preference.
+
+## What the evidence taught us
+
+The program's working rules, in the order they earn their keep:
+
+1. Remove dead work before you cache anything.
+2. Count renderer evaluations before counting arithmetic — one skipped
+   `render2D` call outweighs a hundred saved multiplies.
+3. Cache expensive stable **producers** (noise fields, rendered output), not
+   cheap coordinate math.
+4. Array traffic and generated code size are real costs, not bookkeeping.
+5. Keep exact sharing and authored approximation strictly separate, and
+   label which one the user is getting.
+6. Memory, globals, bytecode, stack, and FPS are five budgets, not one.
+7. Represent repeated choreography as data selecting shared machinery;
+   never duplicate machinery to encode time.
+8. Keep a direct counterfactual for every optimization, and require paired
+   hardware evidence before believing anything.
+9. Write the failures down so the next attempt needs a genuinely new
+   premise, not just fresh optimism.
+
+## Seeing it yourself
+
+All of this is inspectable in the app, per Show. The compile bar under the
+timeline reports the memory ledger, renderer depth, and support envelope.
+Hovering the **Show source** figure opens an exact byte-level inventory of
+the generated artifact — which Patterns, plans, and score tables own which
+bytes — with **Ways to slim this Show** ranking the levers you actually
+control. **Advanced compiled cost** names every selected specialization,
+every cache the planner chose, and every candidate it rejected, with the
+reason. And **View code** shows you the whole generated Pattern, because the
+best answer to "what did the compiler do?" is the code it wrote.
+
+For the measured evidence behind every number here, see
+[Show Rendering Optimization Results](../reference/Show%20Rendering%20Optimization%20Results.md).
+For the engineering contracts — planner semantics, compatibility proofs,
+representation rules — the
+[Technical Reference](../reference/PXLBLZ%20Technical%20Reference.md) is the
+authority. And for making your own Patterns fast before the Show compiler
+ever sees them, start with
+[Optimizing Pixelblaze Patterns](Optimizing Pixelblaze patterns.md).

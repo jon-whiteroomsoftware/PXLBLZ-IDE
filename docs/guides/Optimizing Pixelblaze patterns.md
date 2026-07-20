@@ -517,6 +517,9 @@ the whole story.
 
 ## See also
 
+- [Inside the Show Compiler](Inside the Show compiler.md) — the same cost
+  model applied automatically: what the Show compiler hoists, caches, and
+  refuses to cache on your behalf.
 - [`test/perf-harness/costs.md`](../../test/perf-harness/costs.md) — the measured
   cost table (source of record); regenerate with `npm run profile`.
 - `docs/reference/PXLBLZ Technical Reference.md` §5/§8 (the shader-porting

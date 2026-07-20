@@ -8,6 +8,7 @@ describe('docs catalog', () => {
       'show-visual-toolkit',
       'understanding-maps',
       'optimization-guide',
+      'show-compiler',
       'technical-reference',
       'about',
       'privacy',

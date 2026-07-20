@@ -319,6 +319,7 @@ for revision-specific hardware questions and unusual installations.
 | Understand PXLBLZ-IDE as a user | **PXLBLZ Feature Guide** |
 | Understand how PXLBLZ-IDE is built | **PXLBLZ Technical Reference** |
 | Make a Pattern faster on hardware | **Optimizing Pixelblaze patterns** |
+| See how a Show becomes one Pattern | **Inside the Show Compiler** |
 
 Pixelblaze rewards experimentation: change one thing, watch the result, and keep
 the parts that make the installation more expressive. The point of the platform

@@ -151,6 +151,8 @@ The compact cost label and **Advanced compiled cost** describe the generated
 artifact, not a generic warning attached to a menu item. Let `N` be the number
 of output pixels and `E` the pixels inside a blended spatial edge.
 
+![Transition cost classes: one renderer per pixel, both renderers inside a feather band, or both renderers everywhere](../images/transition-cost-classes.svg)
+
 - **One-source / parameter** work keeps one Pattern evaluation per pixel. Static
   Effects, Property animation, and Fade through color normally remain `N`.
 - A **cheap selector** chooses outgoing or incoming for each pixel, so Wipes,
@@ -340,6 +342,8 @@ color because that field is authored by the Transition itself.
 
 For the complete Show workflow, output-contract rules, routing, Stage preview,
 keyboard controls, export, and Controller compatibility, continue with the
-[PXLBLZ Feature Guide](../reference/PXLBLZ Feature Guide.md). The Technical
+[PXLBLZ Feature Guide](../reference/PXLBLZ Feature Guide.md). For what the
+compiler does with these choices — and why some of them are nearly free —
+read [Inside the Show Compiler](Inside the Show compiler.md). The Technical
 Reference owns compiler formulas and persisted schemas; this guide owns the
 authoring model.
