@@ -26,6 +26,9 @@ import type {
   ShowWipeOrientation,
   ShowWipeVariant,
 } from './personalContentRecords'
+// Re-exported: test suites and downstream consumers reference the effect
+// shape through the compiler's public surface.
+export type { ShowClipEffect } from './personalContentRecords'
 import { normalizeShowOutputEffects } from './showPreviousRgbFeedback'
 import {
   SHOW_CLIP_TRANSFORM_EFFECT_IDS,
@@ -63,13 +66,19 @@ import { SHOW_DISTORTION_CANDIDATES } from './showDistortionBenchmark'
 import {
   buildPackedRoutingValues,
   computeLinearRuns,
+  emitZoneLocalAssignments,
   PACKED_ROUTING_LOOP_MIN_RUN,
   planPhysicalRoutingRepresentation,
+  routingLayoutGapWarnings,
+  routingLayoutOverlapWarnings,
+  validateLogicalRoutingRecipe,
   type GeneratedRoutingFormula,
   type RoutingRepresentationEstimate,
+  type ShowLogicalRoutingRecipe,
 } from './showRoutingRepresentation'
 // Re-exported for the #569 test suite and external consumers.
 export { computeLinearRuns, type PackedRoutingRun } from './showRoutingRepresentation'
+export type { ShowLogicalRoutingRecipe } from './showRoutingRepresentation'
 import { inlineShowMemberHelpers } from './showHelperInlining'
 import { selectRenderCompatibility } from './renderCompatibility'
 import {
@@ -368,17 +377,6 @@ export interface ShowRoutingLayoutRecipe {
   zones: ControllerZone[]
   logical?: ShowLogicalRoutingRecipe
 }
-
-export type ShowLogicalRoutingRecipe =
-  | { kind: 'single'; zoneNames: [string] }
-  | { kind: 'grid'; zoneNames: string[]; columns: number; rows: number }
-  | { kind: 'stripes'; zoneNames: string[]; axis: 'x' | 'y' }
-  | { kind: 'checker'; zoneNames: [string, string]; columns: number; rows: number }
-  | { kind: 'rings'; zoneNames: string[]; rings: number }
-  | { kind: 'wave'; zoneNames: string[]; axis: 'x' | 'y'; bands: number; amplitude: number; frequency: number; phase: number }
-  | { kind: 'split'; zoneNames: [string, string]; axis: 'x' | 'y' }
-  | { kind: 'soft-split'; zoneNames: [string, string]; axis: 'x' | 'y'; feather: number }
-  | { kind: 'pinwheel'; zoneNames: string[]; arms: number; twist: number; rotation: number }
 
 export interface ShowRoutingPropertyRampRecipe {
   atMs: number
@@ -3493,57 +3491,6 @@ function validateRecipe(recipe: ShowRecipe): void {
       if ((routingSwitch.durationMs ?? 0) < 0 || routingSwitch.atMs + (routingSwitch.durationMs ?? 0) > recipe.loopDurationMs) {
         throw new Error('compileShow routing transfer must fit inside the loop duration.')
       }
-    }
-  }
-}
-
-function validateLogicalRoutingRecipe(name: string, logical: ShowLogicalRoutingRecipe): void {
-  const prefix = `compileShow routing layout "${name}"`
-  const positiveInteger = (value: number) => Number.isInteger(value) && value >= 1
-  const finite = (value: number) => Number.isFinite(value)
-  if (logical.zoneNames.length === 0) throw new Error(`${prefix} requires at least one Zone.`)
-  if (logical.kind === 'single' && logical.zoneNames.length !== 1) {
-    throw new Error(`${prefix} Full Surface requires exactly one Zone.`)
-  }
-  if (logical.kind === 'grid') {
-    if (!positiveInteger(logical.columns) || !positiveInteger(logical.rows)) {
-      throw new Error(`${prefix} Grid requires positive whole-number columns and rows.`)
-    }
-    if (logical.zoneNames.length !== logical.columns * logical.rows) {
-      throw new Error(`${prefix} Grid requires one Zone per cell.`)
-    }
-  }
-  if (logical.kind === 'checker') {
-    if (logical.zoneNames.length !== 2) throw new Error(`${prefix} Checker requires exactly two Zones.`)
-    if (!positiveInteger(logical.columns) || !positiveInteger(logical.rows)) {
-      throw new Error(`${prefix} Checker requires positive whole-number columns and rows.`)
-    }
-  }
-  if (logical.kind === 'rings' && !positiveInteger(logical.rings)) {
-    throw new Error(`${prefix} Rings requires a positive whole-number ring count.`)
-  }
-  if (logical.kind === 'wave') {
-    if (!positiveInteger(logical.bands)) throw new Error(`${prefix} Wave requires a positive whole-number band count.`)
-    if (!finite(logical.amplitude) || logical.amplitude < 0 || logical.amplitude > 1) {
-      throw new Error(`${prefix} Wave requires amplitude between 0 and 1.`)
-    }
-    if (!finite(logical.frequency) || logical.frequency < 0 || !finite(logical.phase)) {
-      throw new Error(`${prefix} Wave requires finite non-negative frequency and finite phase.`)
-    }
-  }
-  if (logical.kind === 'split' && logical.zoneNames.length !== 2) {
-    throw new Error(`${prefix} Moving Split requires exactly two Zones.`)
-  }
-  if (logical.kind === 'soft-split') {
-    if (logical.zoneNames.length !== 2) throw new Error(`${prefix} Soft Split requires exactly two Zones.`)
-    if (!finite(logical.feather) || logical.feather < 0 || logical.feather > 1) {
-      throw new Error(`${prefix} requires Soft Split feather between 0 and 1.`)
-    }
-  }
-  if (logical.kind === 'pinwheel') {
-    if (!positiveInteger(logical.arms)) throw new Error(`${prefix} Pinwheel requires a positive whole-number arm count.`)
-    if (!finite(logical.twist) || !finite(logical.rotation)) {
-      throw new Error(`${prefix} Pinwheel requires finite twist and rotation.`)
     }
   }
 }
@@ -8123,46 +8070,18 @@ function buildRoutingLayoutPlans(
       logical: layout.logical,
       warnings: [
         ...(plan?.warnings ?? []),
-        ...routingLayoutOverlapWarnings(layout.name, routes),
-        ...routingLayoutGapWarnings(layout.name, routes, layout.logical ? 0 : physicalPixelCount),
+        ...routingLayoutOverlapWarnings(layout.name, routes.map((route) => ({
+          ownerId: route.member.id,
+          ranges: route.zone.ranges,
+        }))),
+        ...routingLayoutGapWarnings(
+          layout.name,
+          routes.map((route) => ({ ranges: route.zone.ranges })),
+          layout.logical ? 0 : physicalPixelCount,
+        ),
       ],
     }
   })
-}
-
-function routingLayoutGapWarnings(name: string, routes: ResolvedRoute[], physicalPixelCount: number): string[] {
-  if (physicalPixelCount <= 0) return []
-  const assigned = new Set<number>()
-  for (const route of routes) {
-    for (const range of route.zone.ranges) {
-      for (let index = Math.max(0, range.start); index <= Math.min(physicalPixelCount - 1, range.end); index += 1) {
-        assigned.add(index)
-      }
-    }
-  }
-  const missing = physicalPixelCount - assigned.size
-  return missing > 0
-    ? [`Routing layout "${name}" leaves ${missing} of ${physicalPixelCount} physical pixels unassigned; those pixels render black.`]
-    : []
-}
-
-function routingLayoutOverlapWarnings(name: string, routes: ResolvedRoute[]): string[] {
-  const warnings: string[] = []
-  for (let leftIndex = 0; leftIndex < routes.length; leftIndex += 1) {
-    for (let rightIndex = leftIndex + 1; rightIndex < routes.length; rightIndex += 1) {
-      const left = routes[leftIndex]
-      const right = routes[rightIndex]
-      const overlaps = left.zone.ranges.some((leftRange) => right.zone.ranges.some((rightRange) => (
-        leftRange.start <= rightRange.end && rightRange.start <= leftRange.end
-      )))
-      if (overlaps) {
-        warnings.push(
-          `Routing layout "${name}" assigns overlapping pixels to clips "${left.member.id}" and "${right.member.id}"; the first route wins.`,
-        )
-      }
-    }
-  }
-  return warnings
 }
 
 function mergeRouteZones(id: string, zones: ControllerZone[]): ControllerZone {
@@ -8691,6 +8610,7 @@ interface SharedEffectKernelBinding {
 function describeMemberEffectRuntime(member: CompiledMember, sharedKernel?: SharedEffectKernelBinding): {
   declarations: string[]
   hasAffine: boolean
+  hasColorCoefficients: boolean
   hasCoordinates: boolean
   wrap: boolean
   opacity: number
@@ -9885,20 +9805,6 @@ function emitRouteRenderBlock(route: ResolvedRoute, outputDimension: 1 | 2): str
     `    return`,
     `  }`,
   ].filter(Boolean).join('\n')
-}
-
-function emitZoneLocalAssignments(zone: ControllerZone, localName: string): string[] {
-  const lines: string[] = []
-  let offset = 0
-  for (const range of zone.ranges) {
-    const length = range.end - range.start + 1
-    const assignment = offset === 0
-      ? `index - ${range.start}`
-      : `${offset} + index - ${range.start}`
-    lines.push(`  if (index >= ${range.start} && index <= ${range.end}) ${localName} = ${assignment}`)
-    offset += length
-  }
-  return lines
 }
 
 function buildMetadata(

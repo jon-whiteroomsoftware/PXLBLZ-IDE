@@ -3,6 +3,133 @@ export interface RoutingRangeShape {
   end: number
 }
 
+/** Logical (portable Stage-space) Zone Layout shapes. Owned here with their
+ * validation; physical Controller Zone ranges are a separate concern. */
+export type ShowLogicalRoutingRecipe =
+  | { kind: 'single'; zoneNames: [string] }
+  | { kind: 'grid'; zoneNames: string[]; columns: number; rows: number }
+  | { kind: 'stripes'; zoneNames: string[]; axis: 'x' | 'y' }
+  | { kind: 'checker'; zoneNames: [string, string]; columns: number; rows: number }
+  | { kind: 'rings'; zoneNames: string[]; rings: number }
+  | { kind: 'wave'; zoneNames: string[]; axis: 'x' | 'y'; bands: number; amplitude: number; frequency: number; phase: number }
+  | { kind: 'split'; zoneNames: [string, string]; axis: 'x' | 'y' }
+  | { kind: 'soft-split'; zoneNames: [string, string]; axis: 'x' | 'y'; feather: number }
+  | { kind: 'pinwheel'; zoneNames: string[]; arms: number; twist: number; rotation: number }
+
+export function validateLogicalRoutingRecipe(name: string, logical: ShowLogicalRoutingRecipe): void {
+  const prefix = `compileShow routing layout "${name}"`
+  const positiveInteger = (value: number) => Number.isInteger(value) && value >= 1
+  const finite = (value: number) => Number.isFinite(value)
+  if (logical.zoneNames.length === 0) throw new Error(`${prefix} requires at least one Zone.`)
+  if (logical.kind === 'single' && logical.zoneNames.length !== 1) {
+    throw new Error(`${prefix} Full Surface requires exactly one Zone.`)
+  }
+  if (logical.kind === 'grid') {
+    if (!positiveInteger(logical.columns) || !positiveInteger(logical.rows)) {
+      throw new Error(`${prefix} Grid requires positive whole-number columns and rows.`)
+    }
+    if (logical.zoneNames.length !== logical.columns * logical.rows) {
+      throw new Error(`${prefix} Grid requires one Zone per cell.`)
+    }
+  }
+  if (logical.kind === 'checker') {
+    if (logical.zoneNames.length !== 2) throw new Error(`${prefix} Checker requires exactly two Zones.`)
+    if (!positiveInteger(logical.columns) || !positiveInteger(logical.rows)) {
+      throw new Error(`${prefix} Checker requires positive whole-number columns and rows.`)
+    }
+  }
+  if (logical.kind === 'rings' && !positiveInteger(logical.rings)) {
+    throw new Error(`${prefix} Rings requires a positive whole-number ring count.`)
+  }
+  if (logical.kind === 'wave') {
+    if (!positiveInteger(logical.bands)) throw new Error(`${prefix} Wave requires a positive whole-number band count.`)
+    if (!finite(logical.amplitude) || logical.amplitude < 0 || logical.amplitude > 1) {
+      throw new Error(`${prefix} Wave requires amplitude between 0 and 1.`)
+    }
+    if (!finite(logical.frequency) || logical.frequency < 0 || !finite(logical.phase)) {
+      throw new Error(`${prefix} Wave requires finite non-negative frequency and finite phase.`)
+    }
+  }
+  if (logical.kind === 'split' && logical.zoneNames.length !== 2) {
+    throw new Error(`${prefix} Moving Split requires exactly two Zones.`)
+  }
+  if (logical.kind === 'soft-split') {
+    if (logical.zoneNames.length !== 2) throw new Error(`${prefix} Soft Split requires exactly two Zones.`)
+    if (!finite(logical.feather) || logical.feather < 0 || logical.feather > 1) {
+      throw new Error(`${prefix} requires Soft Split feather between 0 and 1.`)
+    }
+  }
+  if (logical.kind === 'pinwheel') {
+    if (!positiveInteger(logical.arms)) throw new Error(`${prefix} Pinwheel requires a positive whole-number arm count.`)
+    if (!finite(logical.twist) || !finite(logical.rotation)) {
+      throw new Error(`${prefix} Pinwheel requires finite twist and rotation.`)
+    }
+  }
+}
+
+/** Zone-local index assignment lines: the physical decode from output index
+ * to a zone-local coordinate, preserving authored range order and offsets. */
+export function emitZoneLocalAssignments(
+  zone: { ranges: RoutingRangeShape[] },
+  localName: string,
+): string[] {
+  const lines: string[] = []
+  let offset = 0
+  for (const range of zone.ranges) {
+    const length = range.end - range.start + 1
+    const assignment = offset === 0
+      ? `index - ${range.start}`
+      : `${offset} + index - ${range.start}`
+    lines.push(`  if (index >= ${range.start} && index <= ${range.end}) ${localName} = ${assignment}`)
+    offset += length
+  }
+  return lines
+}
+
+/** Physical coverage diagnostics: gaps render black and stay warned. */
+export function routingLayoutGapWarnings(
+  name: string,
+  routes: Array<{ ranges: RoutingRangeShape[] }>,
+  physicalPixelCount: number,
+): string[] {
+  if (physicalPixelCount <= 0) return []
+  const assigned = new Set<number>()
+  for (const route of routes) {
+    for (const range of route.ranges) {
+      for (let index = Math.max(0, range.start); index <= Math.min(physicalPixelCount - 1, range.end); index += 1) {
+        assigned.add(index)
+      }
+    }
+  }
+  const missing = physicalPixelCount - assigned.size
+  return missing > 0
+    ? [`Routing layout "${name}" leaves ${missing} of ${physicalPixelCount} physical pixels unassigned; those pixels render black.`]
+    : []
+}
+
+/** Overlap diagnostics: ordered first-match, the first route wins. */
+export function routingLayoutOverlapWarnings(
+  name: string,
+  routes: Array<{ ownerId: string; ranges: RoutingRangeShape[] }>,
+): string[] {
+  const warnings: string[] = []
+  for (let leftIndex = 0; leftIndex < routes.length; leftIndex += 1) {
+    for (let rightIndex = leftIndex + 1; rightIndex < routes.length; rightIndex += 1) {
+      const left = routes[leftIndex]
+      const right = routes[rightIndex]
+      const overlaps = left.ranges.some((leftRange) => right.ranges.some((rightRange) => (
+        leftRange.start <= rightRange.end && rightRange.start <= leftRange.end
+      )))
+      if (overlaps) {
+        warnings.push(
+          `Routing layout "${name}" assigns overlapping pixels to clips "${left.ownerId}" and "${right.ownerId}"; the first route wins.`,
+        )
+      }
+    }
+  }
+  return warnings
+}
+
 export interface RoutingRouteShape {
   ranges: RoutingRangeShape[]
 }
