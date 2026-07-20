@@ -2,7 +2,7 @@ import type { ControllerZone } from './controllerProfile'
 import { installationCoverageBlockingMessage, validateInstallationCoverage } from './showInstallationCoverage'
 import { portableCompatibilityBlockingMessage, validatePortableShowCompatibility } from './showPortableCompatibility'
 import type { PatternRecord, ShowCell, ShowPatternRef, ShowRecord } from './personalContentRecords'
-import { compileShow, type GeneratedShowArtifact } from './showCompiler'
+import { compileShow, type GeneratedShowArtifact, type ShowCompileOptions } from './showCompiler'
 import { showRecordToCompileRecipe } from './showModel'
 import { DEMO_AUTHORS, DEMOS } from '@/pixelblaze/stock/patterns'
 import { LIBRARIES } from '@/pixelblaze/libs'
@@ -15,34 +15,13 @@ export interface CompiledShowState {
   artifactBlocker?: string
 }
 
-interface ShowCompilationOptions {
+/** The preview surface owns only Stage/target context; every Transpiler
+ * option flows through unlisted, so a new compile option never needs a
+ * forwarding edit here (a hand-maintained whitelist once silently dropped a
+ * wave-2 counterfactual). */
+interface ShowCompilationOptions extends ShowCompileOptions {
   stageDimension?: 1 | 2 | 3
   targetPixelCount?: number
-  /** Test/benchmark counterfactual; production compilation leaves this enabled. */
-  exactSpecializations?: boolean
-  /** Test/benchmark counterfactual for issue #513. */
-  frameInvariantHoisting?: boolean
-  /** Test/benchmark counterfactual for issue #513. */
-  renderKernelSpecialization?: boolean
-  /** Test/benchmark physical-arena counterfactual for issue #515. */
-  renderTargetArenaEmission?: boolean
-  /** Test/benchmark representation control for issue #525. */
-  motionTransitionSharing?: 'auto' | 'none' | 'structure' | 'exact'
-  showScoreSharing?: 'auto' | 'none' | 'force'
-  patternSlotSharing?: 'auto' | 'none' | 'force'
-  /** Test/benchmark hardware-gated coordinate-field candidate for issue #528. */
-  coordinateFieldCaching?: boolean
-  /** Wave-2 (#554) benchmark counterfactuals; production leaves them enabled. */
-  directColorSinks?: boolean
-  colorCoefficientHoisting?: boolean
-  capturePrologueSimplification?: boolean
-  pixelCountWriteHoisting?: boolean
-  hsvCaptureChainSpecialization?: boolean
-  inlineCallHoisting?: boolean
-  placementPrologueHoisting?: boolean
-  functionValuedSinkRebinding?: boolean
-  packedRoutingRepricing?: boolean
-  helperCallInlining?: boolean
 }
 
 export function compileShowForPreview(
@@ -68,26 +47,8 @@ export function compileShowForPreview(
       controllerZones,
       stageDimension: options.stageDimension,
     })
-    const artifact = compileShow(recipe, { ...LIBRARIES, ...libraries }, {
-        exactSpecializations: options.exactSpecializations,
-        frameInvariantHoisting: options.frameInvariantHoisting,
-        renderKernelSpecialization: options.renderKernelSpecialization,
-        renderTargetArenaEmission: options.renderTargetArenaEmission,
-        motionTransitionSharing: options.motionTransitionSharing,
-        showScoreSharing: options.showScoreSharing,
-        patternSlotSharing: options.patternSlotSharing,
-        coordinateFieldCaching: options.coordinateFieldCaching,
-        directColorSinks: options.directColorSinks,
-        colorCoefficientHoisting: options.colorCoefficientHoisting,
-        capturePrologueSimplification: options.capturePrologueSimplification,
-        pixelCountWriteHoisting: options.pixelCountWriteHoisting,
-        hsvCaptureChainSpecialization: options.hsvCaptureChainSpecialization,
-        inlineCallHoisting: options.inlineCallHoisting,
-        placementPrologueHoisting: options.placementPrologueHoisting,
-        functionValuedSinkRebinding: options.functionValuedSinkRebinding,
-        packedRoutingRepricing: options.packedRoutingRepricing,
-        helperCallInlining: options.helperCallInlining,
-      })
+    const { stageDimension: _stageDimension, targetPixelCount: _targetPixelCount, ...compileOptions } = options
+    const artifact = compileShow(recipe, { ...LIBRARIES, ...libraries }, compileOptions)
     return {
       artifact: {
         ...artifact,
