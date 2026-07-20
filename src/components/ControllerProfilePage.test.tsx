@@ -275,6 +275,21 @@ describe('ControllerProfilePage', () => {
     expect(screen.getByText(/paint\(\) output is not covered/i)).toBeInTheDocument()
   })
 
+  it('declares the output profile as an unverifiable user statement (#567)', async () => {
+    seedProfile()
+
+    render(<ControllerProfilePage profileId="ctrl-1" />)
+
+    const select = screen.getByRole('combobox', { name: 'Declared output profile' })
+    expect(select).toHaveValue('native-serial')
+    expect(screen.getByText(/the device cannot report or verify output wiring/i)).toBeInTheDocument()
+
+    fireEvent.change(select, { target: { value: 'pro-expander' } })
+    await waitFor(() => {
+      expect(useControllerProfileStore.getState().profiles[0].outputProfile).toBe('pro-expander')
+    })
+  })
+
   it('uses the shared controller traffic-light vocabulary for profile status', () => {
     seedProfile()
 

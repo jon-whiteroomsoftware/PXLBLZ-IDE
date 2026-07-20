@@ -2,8 +2,29 @@ import vm from 'node:vm'
 import WebSocket from 'ws'
 import { bytecodeHeaderReconciles, makeProgramId } from '../../src/engine/bytecodePush'
 import { buildCompilerEnv, missingComponents, v3AdapterV3 } from '../../src/engine/compilerExtraction'
+import {
+  CONTROLLER_OUTPUT_PROFILES,
+  controllerOutputProfileStamp,
+} from '../../src/engine/controllerProfile'
 import { PixelblazeConnection, type WebSocketLike } from '../../src/engine/PixelblazeConnection'
 import type { GeneratedShowArtifact } from '../../src/engine/showCompiler'
+
+/**
+ * The output profile stamped into every measurement header (#567). Runners
+ * read the user's declaration from PIXELBLAZE_OUTPUT_PROFILE; an absent
+ * declaration is stamped as an explicit assumption, never a silent default.
+ * Measurements on differently-declared profiles are different qualification
+ * envelopes and must never be averaged together.
+ */
+export function declaredOutputProfileStamp(
+  declared = process.env.PIXELBLAZE_OUTPUT_PROFILE,
+): string {
+  if (!declared) return controllerOutputProfileStamp()
+  if ((CONTROLLER_OUTPUT_PROFILES as readonly string[]).includes(declared)) return declared
+  throw new Error(
+    `PIXELBLAZE_OUTPUT_PROFILE must be one of ${CONTROLLER_OUTPUT_PROFILES.join(', ')}; got "${declared}".`,
+  )
+}
 
 interface CompiledProgram {
   exports: { name: string; address: number }[]

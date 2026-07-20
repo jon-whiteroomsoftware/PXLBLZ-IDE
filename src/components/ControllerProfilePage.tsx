@@ -20,6 +20,8 @@ import {
 } from '@/components/ui/alert-dialog'
 import {
   analogPinsForBoard,
+  CONTROLLER_OUTPUT_PROFILE_LABELS,
+  CONTROLLER_OUTPUT_PROFILES,
   controllerZonePixelCount,
   formatControllerZoneRanges,
   parseControllerZoneRanges,
@@ -29,6 +31,7 @@ import {
   type ControllerInput,
   type ControllerInputRole,
   type ControllerInputSignal,
+  type ControllerOutputProfile,
   type ControllerProfile,
   type PowerCapTransform,
   type ControllerZone,
@@ -274,12 +277,14 @@ function ProfileStatus({
   onRefresh,
   onImportMap,
   importingMap,
+  onDeclareOutputProfile,
 }: {
   profile: ControllerProfile
   controller: ControllerEntry | null
   onRefresh: () => void
   onImportMap: () => void
   importingMap: boolean
+  onDeclareOutputProfile: (outputProfile: ControllerOutputProfile) => void
 }) {
   const status = controller ? describeControllerPill(controller) : null
   const statusTone = status?.tone ? PROFILE_STATUS_TONE[status.tone] : 'absent'
@@ -335,6 +340,23 @@ function ProfileStatus({
           <Download size={13} aria-hidden />
           {importingMap ? 'Reading' : 'Import map'}
         </Button>
+      </div>
+      <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+        <label className="flex items-center gap-2">
+          <FieldLabel>Output</FieldLabel>
+          <SelectField
+            ariaLabel="Declared output profile"
+            value={profile.outputProfile ?? 'native-serial'}
+            options={CONTROLLER_OUTPUT_PROFILES.map((value) => ({
+              value,
+              label: CONTROLLER_OUTPUT_PROFILE_LABELS[value],
+            }))}
+            onChange={(value) => onDeclareOutputProfile(value)}
+          />
+        </label>
+        <span className="text-[11px] text-zinc-500">
+          Your declaration - the device cannot report or verify output wiring.
+        </span>
       </div>
       <p className="mt-2 text-[11px] text-zinc-500">
         Live controller controls stay in the top bar dropdown.
@@ -1344,6 +1366,7 @@ export function ControllerProfilePage({ profileId }: { profileId: string }) {
         onRefresh={() => void refreshLiveMetadata(profile.id)}
         onImportMap={() => void beginMapImport()}
         importingMap={importingMap}
+        onDeclareOutputProfile={(outputProfile) => void updateProfile(profile.id, { outputProfile })}
       />
       {importError && (
         <div className="border-b border-red-500/30 bg-red-950/20 px-4 py-2 text-xs text-red-200">

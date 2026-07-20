@@ -30,6 +30,17 @@ caching looked profitable in an abstract operation model but slowed 2,000-pixel
 Redline by 6.43% while increasing source and bytecode. It remains available as
 a diagnostic counterfactual and is disabled in production.
 
+Every FPS number in this document is bounded by the physical output floor of
+its declared output profile (#567). On native serial output the measured
+trivial-output floor is 60.353 ms/frame at 2,000 pixels - a ~16.6 FPS ceiling
+no compiler pass can move. Output Expander / Pro Output Expander parallel
+lanes and clocked LED families change that floor; the device protocol cannot
+report which is wired, so Controller profiles carry a user declaration and
+every harness report stamps it (absent declarations stamp `native-serial
+(assumed)`). Qualified numbers name their profile - the Trails 35-37% cost is
+native-serial-only by explicit disclosure - and measurements under different
+declared profiles are separate qualification envelopes, never averaged.
+
 The completed design and full evidence ledger are archived in
 `docs/plans/archive/show-render-target-cache-planner.md`. Current compiler and
 product behavior remains authoritative in `CONTEXT.md`,

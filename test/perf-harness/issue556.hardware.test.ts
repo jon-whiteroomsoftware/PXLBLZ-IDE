@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { makeProgramId } from '../../src/engine/bytecodePush'
 import { PixelblazeConnection } from '../../src/engine/PixelblazeConnection'
 import {
+  declaredOutputProfileStamp,
   fetchControllerCompiler,
   nodeWebSocketFactory,
   sleep,
@@ -194,7 +195,7 @@ describe('op-cost profiler round two on hardware (#556)', () => {
         device: original.name ?? ip,
         boardType: original.boardType,
         firmwareVersion: original.firmwareVersion ?? 'unknown',
-        outputProfile: 'native-serial (assumed); getConfig does not expose output topology',
+        outputProfile: declaredOutputProfileStamp(),
         pixelCount,
         iterations,
         repetitions,

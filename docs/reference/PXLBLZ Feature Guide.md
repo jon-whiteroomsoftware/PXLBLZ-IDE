@@ -440,8 +440,11 @@ Profiles hold:
 - hardware inputs such as potentiometers and buttons;
 - global transforms such as hardware brightness and power cap;
 - per-Pattern input bindings;
-- named multi-range zones used by Shows; and
-- map fingerprints and saved-push metadata.
+- named multi-range zones used by Shows;
+- map fingerprints and saved-push metadata; and
+- a declared output profile (native serial, Output Expander, Pro Output
+  Expander, or clocked LEDs) - your statement of what is wired, since the
+  device cannot report or verify output hardware.
 
 Profiles do not duplicate live brightness or Pattern controls; those stay in
 the Controller panel.

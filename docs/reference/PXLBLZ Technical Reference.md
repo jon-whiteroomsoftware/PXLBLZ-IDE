@@ -691,8 +691,22 @@ A profile contains:
 - the opt-in managed-artifact reconciliation preference;
 - per-Pattern bindings;
 - named, possibly multi-range zones;
-- map fingerprint records; and
+- map fingerprint records;
+- a user-declared output profile (`native-serial` when absent, or
+  `output-expander`, `pro-expander`, `clocked`) with an optional note; and
 - metadata used to join saved Controller programs to Studio source.
+
+The output profile is a declaration, not an observation: the device protocol
+does not expose output topology (`getConfig` is silent on it), so the IDE
+cannot detect or verify what is wired. The declaration changes no compiled
+artifact. Its consumers are the perf harness and performance guidance: on
+native serial output, WS281x physics (~30 us/pixel at the 800 kHz data rate)
+puts the measured trivial-output floor at 60.353 ms/frame at 2,000 pixels,
+capping any 2,000-pixel native-serial Show near 16.6 FPS regardless of
+compiler work. Output Expander / Pro Output Expander parallel lanes and
+clocked LED families change that floor, so measurements taken under different
+declared profiles are different qualification envelopes and are never averaged
+together.
 
 Profile edits update Zustand optimistically, serialize durable writes per
 profile, roll back the latest failed write, and expose a drain barrier. Pattern

@@ -1,4 +1,4 @@
-import { waitForControllerConfig } from './controllerHardware'
+import { declaredOutputProfileStamp, waitForControllerConfig } from './controllerHardware'
 
 describe('waitForControllerConfig', () => {
   it('polls through stale configuration replies until the expected state arrives', async () => {
@@ -17,5 +17,16 @@ describe('waitForControllerConfig', () => {
 
     expect(restored).toEqual({ activeProgramId: 'original', pixelCount: 256 })
     expect(reads).toBe(3)
+  })
+})
+
+describe('declaredOutputProfileStamp (#567)', () => {
+  it('stamps an absent declaration as an explicit assumption', () => {
+    expect(declaredOutputProfileStamp(undefined)).toBe('native-serial (assumed)')
+  })
+
+  it('passes declared profiles through and rejects unknown values', () => {
+    expect(declaredOutputProfileStamp('pro-expander')).toBe('pro-expander')
+    expect(() => declaredOutputProfileStamp('warp-drive')).toThrow(/PIXELBLAZE_OUTPUT_PROFILE must be one of/)
   })
 })

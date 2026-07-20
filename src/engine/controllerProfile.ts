@@ -8,6 +8,32 @@ export interface ControllerBoardProfile {
   firmwareVersion?: string
 }
 
+/** User-declared LED output topology. The device protocol cannot report or
+ * verify this (getConfig is silent on output hardware), so it is an honest
+ * declaration only: it changes the physical output floor the perf harness and
+ * performance guidance reason about, never compiled artifacts. */
+export type ControllerOutputProfile = 'native-serial' | 'output-expander' | 'pro-expander' | 'clocked'
+
+export const CONTROLLER_OUTPUT_PROFILES: readonly ControllerOutputProfile[] = [
+  'native-serial',
+  'output-expander',
+  'pro-expander',
+  'clocked',
+]
+
+export const CONTROLLER_OUTPUT_PROFILE_LABELS: Record<ControllerOutputProfile, string> = {
+  'native-serial': 'Native serial (WS281x)',
+  'output-expander': 'Output Expander',
+  'pro-expander': 'Pro Output Expander',
+  clocked: 'Clocked LEDs (APA102/SK9822)',
+}
+
+/** Harness/report stamp for a declared profile; absent declarations are
+ * explicitly assumptions, never silent defaults. */
+export function controllerOutputProfileStamp(profile?: ControllerOutputProfile | null): string {
+  return profile ?? 'native-serial (assumed)'
+}
+
 export type ControllerInputSignal = 'analog' | 'digital'
 export type ControllerInputRole = 'brightness' | 'assignable' | 'next-pattern'
 
@@ -125,6 +151,10 @@ export interface ControllerProfile {
   /** Opt-in non-destructive reconciliation of PXLBLZ-managed saved artifacts.
    * Missing on legacy records and therefore treated as false. */
   keepPatternsUpToDate?: boolean
+  /** User-declared output topology; absent means native-serial is assumed. */
+  outputProfile?: ControllerOutputProfile
+  /** Free-text note beside the declaration ("8-way expander, 250 px/lane"). */
+  outputProfileNote?: string
   patternBindings: PatternBinding[]
   zones: ControllerZone[]
   updatedAt: number
@@ -334,6 +364,22 @@ export function validateControllerProfile(
         })
       }
     }
+  }
+
+  if (
+    profile.outputProfile !== undefined
+    && !CONTROLLER_OUTPUT_PROFILES.includes(profile.outputProfile)
+  ) {
+    errors.push({
+      path: 'outputProfile',
+      message: `Output profile "${profile.outputProfile}" must be one of ${CONTROLLER_OUTPUT_PROFILES.join(', ')}.`,
+    })
+  }
+  if (profile.outputProfileNote !== undefined && profile.outputProfileNote.length > 500) {
+    errors.push({
+      path: 'outputProfileNote',
+      message: 'Output profile note must be 500 characters or fewer.',
+    })
   }
 
   collectDuplicateZoneNames(zones, errors)

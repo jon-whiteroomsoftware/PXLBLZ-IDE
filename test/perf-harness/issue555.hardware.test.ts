@@ -2,6 +2,7 @@ import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { PixelblazeConnection } from '../../src/engine/PixelblazeConnection'
 import {
+  declaredOutputProfileStamp,
   fetchControllerCompiler,
   nodeWebSocketFactory,
   pushAndMeasureControllerSource,
@@ -84,7 +85,7 @@ describe('wave-2 Controller baseline measurements (#555)', () => {
           firmwareVersion: original.firmwareVersion,
           originalPixelCount: original.pixelCount,
           originalActiveProgramId: original.activeProgramId,
-          outputProfile: 'native-serial (assumed); getConfig does not expose output topology',
+          outputProfile: declaredOutputProfileStamp(),
           settleMs: measurementOptions.settleMs,
           sampleMs: measurementOptions.sampleMs,
         },

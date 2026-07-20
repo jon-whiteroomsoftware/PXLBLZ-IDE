@@ -119,10 +119,16 @@ describe('D1 controller profile persistence', () => {
       inputs_json: JSON.stringify(profile.inputs),
       global_transforms_json: JSON.stringify(profile.globalTransforms),
       keep_patterns_up_to_date: 1,
+      output_profile: 'pro-expander',
+      output_profile_note: '8-way, 250 px per lane',
       pattern_bindings_json: JSON.stringify(profile.patternBindings),
       zones_json: JSON.stringify(profile.zones),
       updated_at: 100,
-    })).toEqual(profile)
+    })).toEqual({
+      ...profile,
+      outputProfile: 'pro-expander',
+      outputProfileNote: '8-way, 250 px per lane',
+    })
   })
 
   it('normalizes legacy single-range zones when reading D1 rows', () => {
@@ -139,6 +145,8 @@ describe('D1 controller profile persistence', () => {
       inputs_json: JSON.stringify([]),
       global_transforms_json: JSON.stringify([]),
       keep_patterns_up_to_date: 0,
+      output_profile: null,
+      output_profile_note: null,
       pattern_bindings_json: JSON.stringify([]),
       zones_json: JSON.stringify([{ id: 'legacy', name: 'Legacy', start: 2, end: 5 }]),
       updated_at: 100,
@@ -170,12 +178,14 @@ describe('D1 controller profile persistence', () => {
       mapFingerprints: [],
       globalTransforms: profile.globalTransforms,
       keepPatternsUpToDate: false,
+      outputProfile: 'output-expander',
+      outputProfileNote: 'bench rig',
       updatedAt: 200,
     })
     await deleteD1ControllerProfile(db, 'github:123', 'ctrl-1')
 
     expect(calls[0].values.slice(0, 2)).toEqual(['github:123', 'ctrl-1'])
-    expect(calls[0].values).toHaveLength(17)
+    expect(calls[0].values).toHaveLength(19)
     expect(calls[0].values).toContain('Pixelblaze shelf')
     expect(calls[0].values).toContain('192.168.8.224')
     expect(calls[0].values).toContain(256)
@@ -188,6 +198,10 @@ describe('D1 controller profile persistence', () => {
     expect(calls[1].sql).toContain('map_fingerprints_json = ?')
     expect(calls[1].sql).toContain('global_transforms_json = ?')
     expect(calls[1].sql).toContain('keep_patterns_up_to_date = ?')
+    expect(calls[1].sql).toContain('output_profile = ?')
+    expect(calls[1].sql).toContain('output_profile_note = ?')
+    expect(calls[1].values).toContain('output-expander')
+    expect(calls[1].values).toContain('bench rig')
     expect(calls[1].values).toContain('Renamed on device')
     expect(calls[1].values).toContain('192.168.8.99')
     expect(calls[1].values).toContain(512)
