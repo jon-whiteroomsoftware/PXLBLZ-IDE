@@ -329,6 +329,11 @@ lives in `docs/plans/archive/show-rendering-next-wave-measurement-ledger.md`.
 | 01 | #556 op-cost round two | native hsv() only 0.374 us/call over native rgb(); function-value rebinding free; ternary beats arithmetic select by ~3.5 us |
 | 02 | #569 run-length packed routing | Pattern Prism source -34.3%, Controller bytecode -43.1%; identical table contents; capacity axis |
 | 03 | #557 steady-state direct color sinks | median FPS +68.83% / +69.61% / +68.60% at 256/1,000/2,000 px on the HSV steady-state fixture; ineligible fixtures byte-identical; named ~0.1x16.16-LSB Precise/hardware conversion divergence on steady HSV frames |
+| 04 | #558 color-effect coefficient hoisting | effect-tax fixture +13.62/+12.87/+13.48% median FPS; exact; 13/19 stock Shows byte-identical |
+| 05 | #562 capture-prologue assignment reduction | mirror fixture +1.0-1.1% at all sizes; exact branch-free mirror coefficients; shouldMaterialize cost rule |
+| 06 | #561 pixelCount constant-write hoisting | hsv-steady +2.1%, acceptance +1.4-1.6% with bytecode -432 B; exact |
+| 07 | #566 inline pure call-subtree hoisting | exact extension of #513 to inline time()/wave() subtrees; fixture-set result neutral (audience under-represented); 7 stock Shows gain hoists |
+| 08 | #564 fixed-point peepholes | **recorded negative**: floor/frac price below a same-shape multiply (#556), and fw 3.67 bitwise ops integer-coerce operands so the raw-bits identities are invalid |
 
 Wave-2 slice ledgers with full axes live as comments on #554.
 
