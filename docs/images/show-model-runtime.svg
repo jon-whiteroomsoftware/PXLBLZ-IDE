@@ -1,64 +1,64 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 570" font-family="'IBM Plex Mono','SF Mono',ui-monospace,Menlo,monospace">
-  <defs><marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#4a7aa8"/></marker></defs>
-  <rect width="900" height="570" fill="#ffffff"/>
-  <text x="36" y="30" font-size="12" font-weight="bold" fill="#2b3036">saved choreography on the left; one generated Pattern on the right</text>
+  <defs><marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#5c92c7"/></marker></defs>
+  <rect width="900" height="570" fill="#14171c"/>
+  <text x="36" y="30" font-size="12" font-weight="bold" fill="#dde3ea">saved choreography on the left; one generated Pattern on the right</text>
 
-  <rect x="28" y="48" width="422" height="452" rx="9" fill="#fbfcfd" stroke="#aab3bd"/>
-  <text x="46" y="74" font-size="11" font-weight="bold" fill="#6b7480" letter-spacing="2">SHOW MODEL</text>
+  <rect x="28" y="48" width="422" height="452" rx="9" fill="#191e24" stroke="#59626d"/>
+  <text x="46" y="74" font-size="11" font-weight="bold" fill="#97a1ac" letter-spacing="2">SHOW MODEL</text>
 
-  <rect x="52" y="94" width="160" height="58" rx="6" fill="#f5f7f9" stroke="#2b3036"/>
-  <text x="68" y="119" font-size="12" font-weight="bold" fill="#2b3036">Scene</text>
-  <text x="68" y="138" font-size="10.5" fill="#6b7480">name · hold duration</text>
+  <rect x="52" y="94" width="160" height="58" rx="6" fill="#1d232b" stroke="#dde3ea"/>
+  <text x="68" y="119" font-size="12" font-weight="bold" fill="#dde3ea">Scene</text>
+  <text x="68" y="138" font-size="10.5" fill="#97a1ac">name · hold duration</text>
 
-  <rect x="264" y="94" width="160" height="58" rx="6" fill="#f5f7f9" stroke="#2b3036"/>
-  <text x="280" y="119" font-size="12" font-weight="bold" fill="#2b3036">Zone</text>
-  <text x="280" y="138" font-size="10.5" fill="#6b7480">identity · nominal count</text>
+  <rect x="264" y="94" width="160" height="58" rx="6" fill="#1d232b" stroke="#dde3ea"/>
+  <text x="280" y="119" font-size="12" font-weight="bold" fill="#dde3ea">Zone</text>
+  <text x="280" y="138" font-size="10.5" fill="#97a1ac">identity · nominal count</text>
 
-  <line x1="132" y1="152" x2="198" y2="194" stroke="#4a7aa8" stroke-width="1.5" marker-end="url(#arr)"/>
-  <line x1="344" y1="152" x2="278" y2="194" stroke="#4a7aa8" stroke-width="1.5" marker-end="url(#arr)"/>
+  <line x1="132" y1="152" x2="198" y2="194" stroke="#5c92c7" stroke-width="1.5" marker-end="url(#arr)"/>
+  <line x1="344" y1="152" x2="278" y2="194" stroke="#5c92c7" stroke-width="1.5" marker-end="url(#arr)"/>
 
-  <rect x="128" y="198" width="220" height="84" rx="6" fill="#eef2f6" stroke="#2b3036"/>
-  <text x="144" y="223" font-size="12" font-weight="bold" fill="#2b3036">Clip</text>
-  <text x="144" y="243" font-size="10.5" fill="#6b7480">Pattern · scene/zone span</text>
-  <text x="144" y="260" font-size="10.5" fill="#6b7480">adaptations · Continue/Restart</text>
-  <text x="144" y="277" font-size="10.5" fill="#4a7aa8">owns property targets</text>
+  <rect x="128" y="198" width="220" height="84" rx="6" fill="#232a33" stroke="#dde3ea"/>
+  <text x="144" y="223" font-size="12" font-weight="bold" fill="#dde3ea">Clip</text>
+  <text x="144" y="243" font-size="10.5" fill="#97a1ac">Pattern · scene/zone span</text>
+  <text x="144" y="260" font-size="10.5" fill="#97a1ac">adaptations · Continue/Restart</text>
+  <text x="144" y="277" font-size="10.5" fill="#5c92c7">owns property targets</text>
 
-  <rect x="52" y="326" width="372" height="108" rx="6" fill="#f5f7f9" stroke="#2b3036"/>
-  <text x="68" y="351" font-size="12" font-weight="bold" fill="#2b3036">Boundary — stable entity between scenes</text>
-  <text x="68" y="374" font-size="10.5" fill="#2b3036">visual transition</text>
-  <text x="228" y="374" font-size="10.5" fill="#2b3036">routing marker</text>
-  <text x="68" y="394" font-size="10.5" fill="#2b3036">property starts</text>
-  <text x="228" y="394" font-size="10.5" fill="#2b3036">duration + easing</text>
-  <text x="68" y="417" font-size="10" fill="#4a7aa8">interpolates toward the destination clip's targets</text>
+  <rect x="52" y="326" width="372" height="108" rx="6" fill="#1d232b" stroke="#dde3ea"/>
+  <text x="68" y="351" font-size="12" font-weight="bold" fill="#dde3ea">Boundary — stable entity between scenes</text>
+  <text x="68" y="374" font-size="10.5" fill="#dde3ea">visual transition</text>
+  <text x="228" y="374" font-size="10.5" fill="#dde3ea">routing marker</text>
+  <text x="68" y="394" font-size="10.5" fill="#dde3ea">property starts</text>
+  <text x="228" y="394" font-size="10.5" fill="#dde3ea">duration + easing</text>
+  <text x="68" y="417" font-size="10" fill="#5c92c7">interpolates toward the destination clip's targets</text>
 
-  <line x1="238" y1="282" x2="238" y2="322" stroke="#4a7aa8" stroke-width="1.5" marker-start="url(#arr)" marker-end="url(#arr)"/>
+  <line x1="238" y1="282" x2="238" y2="322" stroke="#5c92c7" stroke-width="1.5" marker-start="url(#arr)" marker-end="url(#arr)"/>
 
-  <line x1="450" y1="274" x2="504" y2="274" stroke="#4a7aa8" stroke-width="1.8" marker-end="url(#arr)"/>
-  <text x="477" y="260" text-anchor="middle" font-size="10" fill="#4a7aa8">compile</text>
+  <line x1="450" y1="274" x2="504" y2="274" stroke="#5c92c7" stroke-width="1.8" marker-end="url(#arr)"/>
+  <text x="477" y="260" text-anchor="middle" font-size="10" fill="#5c92c7">compile</text>
 
-  <rect x="508" y="48" width="364" height="452" rx="9" fill="#fbfcfd" stroke="#aab3bd"/>
-  <text x="526" y="74" font-size="11" font-weight="bold" fill="#6b7480" letter-spacing="2">GENERATED PIXELBLAZE PATTERN</text>
+  <rect x="508" y="48" width="364" height="452" rx="9" fill="#191e24" stroke="#59626d"/>
+  <text x="526" y="74" font-size="11" font-weight="bold" fill="#97a1ac" letter-spacing="2">GENERATED PIXELBLAZE PATTERN</text>
 
-  <rect x="532" y="94" width="316" height="70" rx="6" fill="#eef2f6" stroke="#2b3036"/>
-  <text x="548" y="119" font-size="12" font-weight="bold" fill="#2b3036">Outer scheduler</text>
-  <text x="548" y="139" font-size="10.5" fill="#6b7480">scene time · boundaries · routing</text>
-  <text x="548" y="155" font-size="10.5" fill="#6b7480">property interpolation · active domains</text>
+  <rect x="532" y="94" width="316" height="70" rx="6" fill="#232a33" stroke="#dde3ea"/>
+  <text x="548" y="119" font-size="12" font-weight="bold" fill="#dde3ea">Outer scheduler</text>
+  <text x="548" y="139" font-size="10.5" fill="#97a1ac">scene time · boundaries · routing</text>
+  <text x="548" y="155" font-size="10.5" fill="#97a1ac">property interpolation · active domains</text>
 
-  <line x1="690" y1="164" x2="690" y2="202" stroke="#4a7aa8" stroke-width="1.5" marker-end="url(#arr)"/>
+  <line x1="690" y1="164" x2="690" y2="202" stroke="#5c92c7" stroke-width="1.5" marker-end="url(#arr)"/>
 
-  <rect x="532" y="206" width="316" height="92" rx="6" fill="#f5f7f9" stroke="#2b3036"/>
-  <text x="548" y="231" font-size="12" font-weight="bold" fill="#2b3036">Isolated Pattern members</text>
-  <text x="548" y="251" font-size="10.5" fill="#6b7480">alpha-renamed source · private time</text>
-  <text x="548" y="268" font-size="10.5" fill="#6b7480">compatible Continue clips reuse state</text>
-  <text x="548" y="285" font-size="10.5" fill="#6b7480">Restart creates a fresh member identity</text>
+  <rect x="532" y="206" width="316" height="92" rx="6" fill="#1d232b" stroke="#dde3ea"/>
+  <text x="548" y="231" font-size="12" font-weight="bold" fill="#dde3ea">Isolated Pattern members</text>
+  <text x="548" y="251" font-size="10.5" fill="#97a1ac">alpha-renamed source · private time</text>
+  <text x="548" y="268" font-size="10.5" fill="#97a1ac">compatible Continue clips reuse state</text>
+  <text x="548" y="285" font-size="10.5" fill="#97a1ac">Restart creates a fresh member identity</text>
 
-  <line x1="690" y1="298" x2="690" y2="336" stroke="#4a7aa8" stroke-width="1.5" marker-end="url(#arr)"/>
+  <line x1="690" y1="298" x2="690" y2="336" stroke="#5c92c7" stroke-width="1.5" marker-end="url(#arr)"/>
 
-  <rect x="532" y="340" width="316" height="92" rx="6" fill="#f5f7f9" stroke="#2b3036"/>
-  <text x="548" y="365" font-size="12" font-weight="bold" fill="#2b3036">Per-pixel routing</text>
-  <text x="548" y="385" font-size="10.5" fill="#6b7480">physical index → zone-local domain</text>
-  <text x="548" y="402" font-size="10.5" fill="#6b7480">choose one member or blend two</text>
-  <text x="548" y="419" font-size="10.5" fill="#6b7480">uncovered pixels → black</text>
+  <rect x="532" y="340" width="316" height="92" rx="6" fill="#1d232b" stroke="#dde3ea"/>
+  <text x="548" y="365" font-size="12" font-weight="bold" fill="#dde3ea">Per-pixel routing</text>
+  <text x="548" y="385" font-size="10.5" fill="#97a1ac">physical index → zone-local domain</text>
+  <text x="548" y="402" font-size="10.5" fill="#97a1ac">choose one member or blend two</text>
+  <text x="548" y="419" font-size="10.5" fill="#97a1ac">uncovered pixels → black</text>
 
-  <text x="450" y="540" text-anchor="middle" font-size="10.5" fill="#6b7480">the editor saves intent; the compiler flattens it into a portable, inspectable hardware artifact</text>
+  <text x="450" y="540" text-anchor="middle" font-size="10.5" fill="#97a1ac">the editor saves intent; the compiler flattens it into a portable, inspectable hardware artifact</text>
 </svg>

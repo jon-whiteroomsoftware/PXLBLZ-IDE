@@ -1,60 +1,60 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 500" font-family="'IBM Plex Mono','SF Mono',ui-monospace,Menlo,monospace">
   <defs>
     <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-      <path d="M0,0 L10,5 L0,10 z" fill="#4a7aa8"/>
+      <path d="M0,0 L10,5 L0,10 z" fill="#5c92c7"/>
     </marker>
   </defs>
-  <rect width="900" height="500" fill="#ffffff"/>
-  <text x="36" y="30" font-size="12" font-weight="bold" fill="#2b3036">the browser helps you build; the Controller keeps performing</text>
+  <rect width="900" height="500" fill="#14171c"/>
+  <text x="36" y="30" font-size="12" font-weight="bold" fill="#dde3ea">the browser helps you build; the Controller keeps performing</text>
 
-  <rect x="36" y="52" width="340" height="330" rx="9" fill="#fbfcfd" stroke="#aab3bd" stroke-width="1.5"/>
-  <text x="56" y="80" font-size="12" font-weight="bold" fill="#2b3036">BROWSER WORKBENCH</text>
-  <text x="56" y="100" font-size="10.5" fill="#6b7480">present while authoring or controlling</text>
+  <rect x="36" y="52" width="340" height="330" rx="9" fill="#191e24" stroke="#59626d" stroke-width="1.5"/>
+  <text x="56" y="80" font-size="12" font-weight="bold" fill="#dde3ea">BROWSER WORKBENCH</text>
+  <text x="56" y="100" font-size="10.5" fill="#97a1ac">present while authoring or controlling</text>
 
-  <rect x="58" y="126" width="296" height="60" rx="6" fill="#f5f7f9" stroke="#2b3036"/>
-  <text x="74" y="151" font-size="11.5" font-weight="bold" fill="#2b3036">Edit and inspect the Pattern</text>
-  <text x="74" y="171" font-size="10.5" fill="#6b7480">source · errors · live variables</text>
+  <rect x="58" y="126" width="296" height="60" rx="6" fill="#1d232b" stroke="#dde3ea"/>
+  <text x="74" y="151" font-size="11.5" font-weight="bold" fill="#dde3ea">Edit and inspect the Pattern</text>
+  <text x="74" y="171" font-size="10.5" fill="#97a1ac">source · errors · live variables</text>
 
-  <rect x="58" y="208" width="296" height="60" rx="6" fill="#f5f7f9" stroke="#2b3036"/>
-  <text x="74" y="233" font-size="11.5" font-weight="bold" fill="#2b3036">Build the map's coordinate list</text>
-  <text x="74" y="253" font-size="10.5" fill="#6b7480">the generator itself stays here</text>
+  <rect x="58" y="208" width="296" height="60" rx="6" fill="#1d232b" stroke="#dde3ea"/>
+  <text x="74" y="233" font-size="11.5" font-weight="bold" fill="#dde3ea">Build the map's coordinate list</text>
+  <text x="74" y="253" font-size="10.5" fill="#97a1ac">the generator itself stays here</text>
 
-  <rect x="58" y="290" width="296" height="60" rx="6" fill="#f5f7f9" stroke="#2b3036"/>
-  <text x="74" y="315" font-size="11.5" font-weight="bold" fill="#2b3036">Move controls and choose Patterns</text>
-  <text x="74" y="335" font-size="10.5" fill="#6b7480">live commands and observations</text>
+  <rect x="58" y="290" width="296" height="60" rx="6" fill="#1d232b" stroke="#dde3ea"/>
+  <text x="74" y="315" font-size="11.5" font-weight="bold" fill="#dde3ea">Move controls and choose Patterns</text>
+  <text x="74" y="335" font-size="10.5" fill="#97a1ac">live commands and observations</text>
 
-  <rect x="524" y="52" width="340" height="330" rx="9" fill="#fbfcfd" stroke="#aab3bd" stroke-width="1.5"/>
-  <text x="544" y="80" font-size="12" font-weight="bold" fill="#2b3036">PIXELBLAZE CONTROLLER</text>
-  <text x="544" y="100" font-size="10.5" fill="#6b7480">continues after the browser disconnects</text>
+  <rect x="524" y="52" width="340" height="330" rx="9" fill="#191e24" stroke="#59626d" stroke-width="1.5"/>
+  <text x="544" y="80" font-size="12" font-weight="bold" fill="#dde3ea">PIXELBLAZE CONTROLLER</text>
+  <text x="544" y="100" font-size="10.5" fill="#97a1ac">continues after the browser disconnects</text>
 
-  <rect x="546" y="126" width="296" height="60" rx="6" fill="#f5f7f9" stroke="#2b3036"/>
-  <text x="562" y="151" font-size="11.5" font-weight="bold" fill="#2b3036">Store the installed Pattern</text>
-  <text x="562" y="171" font-size="10.5" fill="#6b7480">plus one baked map coordinate list</text>
+  <rect x="546" y="126" width="296" height="60" rx="6" fill="#1d232b" stroke="#dde3ea"/>
+  <text x="562" y="151" font-size="11.5" font-weight="bold" fill="#dde3ea">Store the installed Pattern</text>
+  <text x="562" y="171" font-size="10.5" fill="#97a1ac">plus one baked map coordinate list</text>
 
-  <rect x="546" y="208" width="296" height="60" rx="6" fill="#f5f7f9" stroke="#2b3036"/>
-  <text x="562" y="233" font-size="11.5" font-weight="bold" fill="#2b3036">Run the frame loop</text>
-  <text x="562" y="253" font-size="10.5" fill="#6b7480">prepare once · calculate every LED</text>
+  <rect x="546" y="208" width="296" height="60" rx="6" fill="#1d232b" stroke="#dde3ea"/>
+  <text x="562" y="233" font-size="11.5" font-weight="bold" fill="#dde3ea">Run the frame loop</text>
+  <text x="562" y="253" font-size="10.5" fill="#97a1ac">prepare once · calculate every LED</text>
 
-  <rect x="546" y="290" width="296" height="60" rx="6" fill="#f5f7f9" stroke="#2b3036"/>
-  <text x="562" y="315" font-size="11.5" font-weight="bold" fill="#2b3036">Send pixel data to the LEDs</text>
-  <text x="562" y="335" font-size="10.5" fill="#6b7480">repeat as quickly as the work allows</text>
+  <rect x="546" y="290" width="296" height="60" rx="6" fill="#1d232b" stroke="#dde3ea"/>
+  <text x="562" y="315" font-size="11.5" font-weight="bold" fill="#dde3ea">Send pixel data to the LEDs</text>
+  <text x="562" y="335" font-size="10.5" fill="#97a1ac">repeat as quickly as the work allows</text>
 
-  <line x1="376" y1="156" x2="520" y2="156" stroke="#4a7aa8" stroke-width="1.6" marker-end="url(#arr)"/>
-  <text x="448" y="145" text-anchor="middle" font-size="10" fill="#4a7aa8">install Pattern</text>
+  <line x1="376" y1="156" x2="520" y2="156" stroke="#5c92c7" stroke-width="1.6" marker-end="url(#arr)"/>
+  <text x="448" y="145" text-anchor="middle" font-size="10" fill="#5c92c7">install Pattern</text>
 
-  <line x1="376" y1="238" x2="520" y2="238" stroke="#4a7aa8" stroke-width="1.6" marker-end="url(#arr)"/>
-  <text x="448" y="227" text-anchor="middle" font-size="10" fill="#4a7aa8">send coordinates</text>
+  <line x1="376" y1="238" x2="520" y2="238" stroke="#5c92c7" stroke-width="1.6" marker-end="url(#arr)"/>
+  <text x="448" y="227" text-anchor="middle" font-size="10" fill="#5c92c7">send coordinates</text>
 
-  <line x1="376" y1="320" x2="520" y2="320" stroke="#4a7aa8" stroke-width="1.6" marker-start="url(#arr)" marker-end="url(#arr)"/>
-  <text x="448" y="309" text-anchor="middle" font-size="10" fill="#4a7aa8">live control</text>
+  <line x1="376" y1="320" x2="520" y2="320" stroke="#5c92c7" stroke-width="1.6" marker-start="url(#arr)" marker-end="url(#arr)"/>
+  <text x="448" y="309" text-anchor="middle" font-size="10" fill="#5c92c7">live control</text>
 
-  <line x1="694" y1="382" x2="694" y2="425" stroke="#4a7aa8" stroke-width="1.6" marker-end="url(#arr)"/>
-  <g fill="#4a7aa8" stroke="#2b3036" stroke-width="1">
+  <line x1="694" y1="382" x2="694" y2="425" stroke="#5c92c7" stroke-width="1.6" marker-end="url(#arr)"/>
+  <g fill="#5c92c7" stroke="#dde3ea" stroke-width="1">
     <circle cx="558" cy="456" r="10"/><circle cx="603" cy="456" r="10"/>
     <circle cx="648" cy="456" r="10"/><circle cx="693" cy="456" r="10"/>
     <circle cx="738" cy="456" r="10"/><circle cx="783" cy="456" r="10"/>
     <circle cx="828" cy="456" r="10"/>
   </g>
-  <text x="524" y="460" text-anchor="end" font-size="11" font-weight="bold" fill="#2b3036">LED DATA</text>
-  <text x="206" y="449" text-anchor="middle" font-size="10.5" fill="#6b7480">WiFi is the workbench connection, not the finished installation's render engine</text>
+  <text x="524" y="460" text-anchor="end" font-size="11" font-weight="bold" fill="#dde3ea">LED DATA</text>
+  <text x="206" y="449" text-anchor="middle" font-size="10.5" fill="#97a1ac">WiFi is the workbench connection, not the finished installation's render engine</text>
 </svg>

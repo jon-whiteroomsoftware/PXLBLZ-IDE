@@ -1,57 +1,57 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 500" font-family="'IBM Plex Mono','SF Mono',ui-monospace,Menlo,monospace">
   <defs>
-    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#4a7aa8"/></marker>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#5c92c7"/></marker>
   </defs>
-  <rect width="900" height="500" fill="#ffffff"/>
-  <text x="36" y="31" font-size="12" font-weight="bold" fill="#2b3036">one authored source, separate preview and hardware products</text>
+  <rect width="900" height="500" fill="#14171c"/>
+  <text x="36" y="31" font-size="12" font-weight="bold" fill="#dde3ea">one authored source, separate preview and hardware products</text>
 
-  <rect x="36" y="58" width="190" height="64" rx="6" fill="#f5f7f9" stroke="#2b3036"/>
-  <text x="52" y="84" font-size="12" font-weight="bold" fill="#2b3036">Pattern source</text>
-  <text x="52" y="104" font-size="10.5" fill="#6b7480">+ reachable libraries</text>
+  <rect x="36" y="58" width="190" height="64" rx="6" fill="#1d232b" stroke="#dde3ea"/>
+  <text x="52" y="84" font-size="12" font-weight="bold" fill="#dde3ea">Pattern source</text>
+  <text x="52" y="104" font-size="10.5" fill="#97a1ac">+ reachable libraries</text>
 
-  <line x1="226" y1="90" x2="282" y2="90" stroke="#4a7aa8" stroke-width="1.5" marker-end="url(#arr)"/>
-  <rect x="286" y="58" width="190" height="64" rx="6" fill="#eef2f6" stroke="#2b3036"/>
-  <text x="302" y="84" font-size="12" font-weight="bold" fill="#2b3036">bundle()</text>
-  <text x="302" y="104" font-size="10.5" fill="#6b7480">inline · rename · inspect</text>
+  <line x1="226" y1="90" x2="282" y2="90" stroke="#5c92c7" stroke-width="1.5" marker-end="url(#arr)"/>
+  <rect x="286" y="58" width="190" height="64" rx="6" fill="#232a33" stroke="#dde3ea"/>
+  <text x="302" y="84" font-size="12" font-weight="bold" fill="#dde3ea">bundle()</text>
+  <text x="302" y="104" font-size="10.5" fill="#97a1ac">inline · rename · inspect</text>
 
-  <line x1="476" y1="90" x2="532" y2="90" stroke="#4a7aa8" stroke-width="1.5" marker-end="url(#arr)"/>
-  <rect x="536" y="48" width="328" height="100" rx="6" fill="#f5f7f9" stroke="#2b3036"/>
-  <text x="552" y="72" font-size="11" font-weight="bold" fill="#2b3036">bundle result</text>
-  <text x="552" y="94" font-size="10.5" fill="#4a7aa8">code</text><text x="640" y="94" font-size="10.5" fill="#6b7480">flat Pixelblaze artifact</text>
-  <text x="552" y="112" font-size="10.5" fill="#4a7aa8">fxCode</text><text x="640" y="112" font-size="10.5" fill="#6b7480">16.16 preview re-emit</text>
-  <text x="552" y="130" font-size="10.5" fill="#4a7aa8">metadata</text><text x="640" y="130" font-size="10.5" fill="#6b7480">controls · vars · render capability</text>
+  <line x1="476" y1="90" x2="532" y2="90" stroke="#5c92c7" stroke-width="1.5" marker-end="url(#arr)"/>
+  <rect x="536" y="48" width="328" height="100" rx="6" fill="#1d232b" stroke="#dde3ea"/>
+  <text x="552" y="72" font-size="11" font-weight="bold" fill="#dde3ea">bundle result</text>
+  <text x="552" y="94" font-size="10.5" fill="#5c92c7">code</text><text x="640" y="94" font-size="10.5" fill="#97a1ac">flat Pixelblaze artifact</text>
+  <text x="552" y="112" font-size="10.5" fill="#5c92c7">fxCode</text><text x="640" y="112" font-size="10.5" fill="#97a1ac">16.16 preview re-emit</text>
+  <text x="552" y="130" font-size="10.5" fill="#5c92c7">metadata</text><text x="640" y="130" font-size="10.5" fill="#97a1ac">controls · vars · render capability</text>
 
-  <line x1="620" y1="148" x2="620" y2="186" stroke="#4a7aa8" stroke-width="1.5" marker-end="url(#arr)"/>
-  <line x1="802" y1="148" x2="802" y2="186" stroke="#4a7aa8" stroke-width="1.5" marker-end="url(#arr)"/>
+  <line x1="620" y1="148" x2="620" y2="186" stroke="#5c92c7" stroke-width="1.5" marker-end="url(#arr)"/>
+  <line x1="802" y1="148" x2="802" y2="186" stroke="#5c92c7" stroke-width="1.5" marker-end="url(#arr)"/>
 
-  <rect x="518" y="190" width="204" height="70" rx="6" fill="#f5f7f9" stroke="#2b3036"/>
-  <text x="534" y="215" font-size="12" font-weight="bold" fill="#2b3036">Fast preview</text>
-  <text x="534" y="235" font-size="10.5" fill="#6b7480">code + float shim</text>
-  <text x="534" y="251" font-size="10.5" fill="#6b7480">metadata drives controls</text>
+  <rect x="518" y="190" width="204" height="70" rx="6" fill="#1d232b" stroke="#dde3ea"/>
+  <text x="534" y="215" font-size="12" font-weight="bold" fill="#dde3ea">Fast preview</text>
+  <text x="534" y="235" font-size="10.5" fill="#97a1ac">code + float shim</text>
+  <text x="534" y="251" font-size="10.5" fill="#97a1ac">metadata drives controls</text>
 
-  <rect x="740" y="190" width="124" height="70" rx="6" fill="#f5f7f9" stroke="#2b3036"/>
-  <text x="756" y="215" font-size="12" font-weight="bold" fill="#2b3036">Precise</text>
-  <text x="756" y="235" font-size="10.5" fill="#6b7480">fxCode</text>
-  <text x="756" y="251" font-size="10.5" fill="#6b7480">+ fixed shim</text>
+  <rect x="740" y="190" width="124" height="70" rx="6" fill="#1d232b" stroke="#dde3ea"/>
+  <text x="756" y="215" font-size="12" font-weight="bold" fill="#dde3ea">Precise</text>
+  <text x="756" y="235" font-size="10.5" fill="#97a1ac">fxCode</text>
+  <text x="756" y="251" font-size="10.5" fill="#97a1ac">+ fixed shim</text>
 
-  <path d="M552 148 L552 250 L381 250 L381 274" fill="none" stroke="#4a7aa8" stroke-width="1.5" marker-end="url(#arr)"/>
-  <rect x="286" y="278" width="190" height="72" rx="6" fill="#eef2f6" stroke="#2b3036"/>
-  <text x="302" y="303" font-size="12" font-weight="bold" fill="#2b3036">ordered pass recipe</text>
-  <text x="302" y="323" font-size="10.5" fill="#6b7480">mixins · profile bindings</text>
-  <text x="302" y="339" font-size="10.5" fill="#6b7480">output transforms · adapter</text>
+  <path d="M552 148 L552 250 L381 250 L381 274" fill="none" stroke="#5c92c7" stroke-width="1.5" marker-end="url(#arr)"/>
+  <rect x="286" y="278" width="190" height="72" rx="6" fill="#232a33" stroke="#dde3ea"/>
+  <text x="302" y="303" font-size="12" font-weight="bold" fill="#dde3ea">ordered pass recipe</text>
+  <text x="302" y="323" font-size="10.5" fill="#97a1ac">mixins · profile bindings</text>
+  <text x="302" y="339" font-size="10.5" fill="#97a1ac">output transforms · adapter</text>
 
-  <line x1="476" y1="314" x2="532" y2="314" stroke="#4a7aa8" stroke-width="1.5" marker-end="url(#arr)"/>
-  <rect x="536" y="278" width="328" height="72" rx="6" fill="#f5f7f9" stroke="#2b3036"/>
-  <text x="552" y="303" font-size="12" font-weight="bold" fill="#2b3036">generated artifact</text>
-  <text x="552" y="323" font-size="10.5" fill="#6b7480">still Pixelblaze source · summary + warnings</text>
-  <text x="552" y="340" font-size="10.5" fill="#6b7480">all authored transforms are now explicit</text>
+  <line x1="476" y1="314" x2="532" y2="314" stroke="#5c92c7" stroke-width="1.5" marker-end="url(#arr)"/>
+  <rect x="536" y="278" width="328" height="72" rx="6" fill="#1d232b" stroke="#dde3ea"/>
+  <text x="552" y="303" font-size="12" font-weight="bold" fill="#dde3ea">generated artifact</text>
+  <text x="552" y="323" font-size="10.5" fill="#97a1ac">still Pixelblaze source · summary + warnings</text>
+  <text x="552" y="340" font-size="10.5" fill="#97a1ac">all authored transforms are now explicit</text>
 
-  <line x1="700" y1="350" x2="700" y2="388" stroke="#4a7aa8" stroke-width="1.5" marker-end="url(#arr)"/>
-  <rect x="286" y="392" width="578" height="84" rx="6" fill="#eef2f6" stroke="#2b3036"/>
-  <text x="302" y="417" font-size="12" font-weight="bold" fill="#2b3036">explicit outbound products</text>
-  <text x="302" y="440" font-size="10.5" fill="#2b3036">Run</text>
-  <text x="350" y="440" font-size="10.5" fill="#6b7480">compile → transient bytecode; no source section</text>
-  <text x="302" y="459" font-size="10.5" fill="#2b3036">Save / Copy</text>
-  <text x="402" y="459" font-size="10.5" fill="#6b7480">stamp identity + hash after passes → PBP source / download</text>
-  <text x="450" y="494" text-anchor="middle" font-size="10" fill="#6b7480">metadata, fxCode, viewport state, and preview settings never cross the hardware boundary</text>
+  <line x1="700" y1="350" x2="700" y2="388" stroke="#5c92c7" stroke-width="1.5" marker-end="url(#arr)"/>
+  <rect x="286" y="392" width="578" height="84" rx="6" fill="#232a33" stroke="#dde3ea"/>
+  <text x="302" y="417" font-size="12" font-weight="bold" fill="#dde3ea">explicit outbound products</text>
+  <text x="302" y="440" font-size="10.5" fill="#dde3ea">Run</text>
+  <text x="350" y="440" font-size="10.5" fill="#97a1ac">compile → transient bytecode; no source section</text>
+  <text x="302" y="459" font-size="10.5" fill="#dde3ea">Save / Copy</text>
+  <text x="402" y="459" font-size="10.5" fill="#97a1ac">stamp identity + hash after passes → PBP source / download</text>
+  <text x="450" y="494" text-anchor="middle" font-size="10" fill="#97a1ac">metadata, fxCode, viewport state, and preview settings never cross the hardware boundary</text>
 </svg>
