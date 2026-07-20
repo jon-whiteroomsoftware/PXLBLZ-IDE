@@ -55,7 +55,7 @@ export function MixinsRailSection({
         onCollapse={onCollapse}
         action={personalWorkspaceAuthenticated ? (
           <HeaderMenu
-            title="Mixin actions"
+            title="Add mixin"
             items={[
               { label: 'New mixin', onSelect: onCreateMixin },
               { label: 'New folder', onSelect: () => personalTreeRef.current?.createFolder() },

@@ -172,17 +172,18 @@ describe('PatternList', () => {
     render(<PatternList />)
 
     expect(await screen.findAllByText('Patterns')).toHaveLength(1)
-    await user.click(screen.getByRole('button', { name: 'Pattern actions' }))
-    expect(await screen.findByRole('button', { name: 'Open pattern from .epe file' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Open pattern from .epe file' })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Add pattern' }))
     expect(screen.getByRole('button', { name: 'New pattern' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'New folder' })).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: 'Open pattern from .epe file' })).toHaveLength(1)
   })
 
   it('creates a new pattern from the Patterns title row', async () => {
     const user = userEvent.setup()
     render(<PatternList />)
 
-    await user.click(await screen.findByRole('button', { name: 'Pattern actions' }))
+    await user.click(await screen.findByRole('button', { name: 'Add pattern' }))
     await user.click(await screen.findByRole('button', { name: 'New pattern' }))
 
     expect(await screen.findByText('Untitled Pattern')).toBeInTheDocument()
@@ -193,7 +194,7 @@ describe('PatternList', () => {
     const user = userEvent.setup()
     render(<PatternList />)
 
-    await user.click(await screen.findByRole('button', { name: 'Pattern actions' }))
+    await user.click(await screen.findByRole('button', { name: 'Add pattern' }))
     await user.click(screen.getByRole('button', { name: 'New folder' }))
 
     expect(await screen.findByRole('textbox', { name: 'Rename item' })).toHaveValue('New Folder')
@@ -332,7 +333,7 @@ describe('PatternList', () => {
     render(<PatternList />)
 
     await user.click(await screen.findByRole('radio', { name: 'Libraries' }))
-    await user.click(await screen.findByRole('button', { name: 'Library actions' }))
+    await user.click(await screen.findByRole('button', { name: 'Add library' }))
     await user.click(await screen.findByRole('button', { name: 'New library' }))
 
     expect(await screen.findByText('Lib2')).toBeInTheDocument()
@@ -362,7 +363,7 @@ describe('PatternList', () => {
     render(<PatternList />)
 
     await user.click(screen.getByRole('radio', { name: 'Shows' }))
-    await user.click(await screen.findByRole('button', { name: 'Show actions' }))
+    await user.click(await screen.findByRole('button', { name: 'Add show' }))
     await user.click(await screen.findByRole('button', { name: 'New show' }))
 
     expect(useShowStore.getState().showCreation).toEqual({ previousShowId: null })
@@ -403,7 +404,7 @@ describe('PatternList', () => {
     await switchToMaps(user)
     expect(await screen.findByText('My Tree')).toBeInTheDocument()
     expect(screen.getAllByText('Maps')).toHaveLength(1)
-    await user.click(screen.getByRole('button', { name: 'Map actions' }))
+    await user.click(screen.getByRole('button', { name: 'Add map' }))
     expect(screen.getByRole('button', { name: 'New map' })).toBeInTheDocument()
   })
 
@@ -412,7 +413,7 @@ describe('PatternList', () => {
     render(<PatternList />)
     await switchToMaps(user)
 
-    await user.click(await screen.findByRole('button', { name: 'Map actions' }))
+    await user.click(await screen.findByRole('button', { name: 'Add map' }))
     await user.click(await screen.findByRole('button', { name: 'New map' }))
 
     expect(await screen.findByText('Untitled Map')).toBeInTheDocument()

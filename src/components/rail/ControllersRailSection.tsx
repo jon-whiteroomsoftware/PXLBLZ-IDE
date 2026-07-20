@@ -48,7 +48,7 @@ export function ControllersRailSection({
         onCollapse={onCollapse}
         action={personalWorkspaceAuthenticated ? (
           <HeaderMenu
-            title="Controller actions"
+            title="Add folder"
             items={[{ label: 'New folder', onSelect: () => personalTreeRef.current?.createFolder() }]}
           />
         ) : null}

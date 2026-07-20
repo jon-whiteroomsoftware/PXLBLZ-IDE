@@ -73,7 +73,7 @@ export function ShowsRailSection({
             <RailFilterBar query={query} onQueryChange={onQueryChange} />
             {personalWorkspaceAuthenticated && (
               <HeaderMenu
-                title="Show actions"
+                title="Add show"
                 items={[
                   { label: 'New show', onSelect: onCreateShow },
                   { label: 'New folder', onSelect: () => personalTreeRef.current?.createFolder() },

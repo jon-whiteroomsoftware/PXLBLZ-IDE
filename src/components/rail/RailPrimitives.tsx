@@ -7,10 +7,10 @@ import {
   Cpu,
   FileCode2,
   Map as MapIcon,
-  Menu,
   PanelLeftClose,
   PanelsTopLeft,
   Pencil,
+  Plus,
   Search,
   Trash2,
   X,
@@ -104,7 +104,7 @@ export function HeaderMenu({ title, items }: { title: string; items: readonly He
         }}
         className={`grid size-5 place-items-center transition-colors ${open ? 'text-live' : 'text-zinc-400 hover:text-live'}`}
       >
-        <Menu size={14} aria-hidden />
+        <Plus size={14} aria-hidden />
       </button>
       {open && (
         <div className="absolute right-0 top-full z-40 mt-1 min-w-36 border border-zinc-700 bg-zinc-950 py-1 shadow-xl shadow-black/70">

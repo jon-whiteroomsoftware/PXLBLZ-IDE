@@ -1315,7 +1315,7 @@ type PersistedShow = {
 }
 
 async function createInstallationShow(page: Page): Promise<void> {
-  await page.getByRole('button', { name: 'Show actions' }).click()
+  await page.getByRole('button', { name: 'Add show' }).click()
   await page.getByRole('button', { name: 'New show' }).click()
   await page.getByRole('button', { name: 'Create Installation Show' }).click()
   await page.getByRole('button', { name: 'Create Show' }).click()
@@ -1323,7 +1323,7 @@ async function createInstallationShow(page: Page): Promise<void> {
 }
 
 async function createPortableShow(page: Page): Promise<void> {
-  await page.getByRole('button', { name: 'Show actions' }).click()
+  await page.getByRole('button', { name: 'Add show' }).click()
   await page.getByRole('button', { name: 'New show' }).click()
   await page.getByRole('button', { name: 'Create Portable Show' }).click()
   await page.getByRole('button', { name: 'Create Show' }).click()

@@ -61,7 +61,7 @@ export function LibrariesRailSection({
         onCollapse={onCollapse}
         action={personalWorkspaceAuthenticated ? (
           <HeaderMenu
-            title="Library actions"
+            title="Add library"
             items={[
               { label: 'New library', onSelect: onCreateLibrary },
               { label: 'New folder', onSelect: () => personalTreeRef.current?.createFolder() },

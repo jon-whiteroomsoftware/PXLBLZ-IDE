@@ -22,7 +22,7 @@ function EmptyLibraryPane() {
           <Code2 size={18} aria-hidden />
         </div>
         <h2 className="text-sm font-semibold text-zinc-300">No library selected</h2>
-        <p className="mt-2 text-xs leading-5 text-zinc-500">Select one of your libraries or a built-in library from the rail.</p>
+        <p className="mt-2 text-xs leading-5 text-zinc-500">Select a library from the rail.</p>
       </div>
     </div>
   )

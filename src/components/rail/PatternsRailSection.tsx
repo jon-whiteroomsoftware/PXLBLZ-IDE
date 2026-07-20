@@ -4,7 +4,9 @@ import type { GalleryPattern } from '@/engine/galleryCatalog'
 import { stockPatternOrganization } from '@/engine/stockEntityOrganization'
 import type { EntityOrganizationV1 } from '@/engine/entityOrganization'
 import type { PatternRecord } from '@/store/patternStore'
+import { FolderOpen } from 'lucide-react'
 import {
+  HeaderAction,
   HeaderMenu,
   RailEmptyState,
   RailEntityHeader,
@@ -84,14 +86,20 @@ export function PatternsRailSection({
               onQueryChange={onQueryChange}
             />
             {personalWorkspaceAuthenticated && (
-              <HeaderMenu
-                title="Pattern actions"
-                items={[
-                  { label: 'New pattern', onSelect: onCreatePattern },
-                  { label: 'New folder', onSelect: () => personalTreeRef.current?.createFolder() },
-                  { label: 'Open pattern from .epe file', onSelect: () => fileInputRef.current?.click() },
-                ]}
-              />
+              <>
+                <HeaderAction
+                  icon={<FolderOpen size={14} aria-hidden />}
+                  title="Open pattern from .epe file"
+                  onClick={() => fileInputRef.current?.click()}
+                />
+                <HeaderMenu
+                  title="Add pattern"
+                  items={[
+                    { label: 'New pattern', onSelect: onCreatePattern },
+                    { label: 'New folder', onSelect: () => personalTreeRef.current?.createFolder() },
+                  ]}
+                />
+              </>
             )}
           </>
         )}

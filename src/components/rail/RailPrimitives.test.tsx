@@ -194,13 +194,15 @@ describe('RailFilterBar', () => {
 })
 
 describe('HeaderMenu', () => {
-  it('keeps secondary header actions behind one named menu button', async () => {
+  it('presents create actions behind one named plus-icon menu button', async () => {
     const user = userEvent.setup()
     const create = vi.fn()
-    render(<HeaderMenu title="Pattern actions" items={[{ label: 'New pattern', onSelect: create }]} />)
+    const { container } = render(<HeaderMenu title="Add pattern" items={[{ label: 'New pattern', onSelect: create }]} />)
 
+    expect(container.querySelector('.lucide-plus')).toBeInTheDocument()
+    expect(container.querySelector('.lucide-menu')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'New pattern' })).not.toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'Pattern actions' }))
+    await user.click(screen.getByRole('button', { name: 'Add pattern' }))
     await user.click(screen.getByRole('button', { name: 'New pattern' }))
 
     expect(create).toHaveBeenCalledOnce()

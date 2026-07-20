@@ -185,7 +185,7 @@ function EmptyMapPane() {
           <MapIcon size={18} aria-hidden />
         </div>
         <h2 className="text-sm font-semibold text-zinc-300">No map selected</h2>
-        <p className="mt-2 text-xs leading-5 text-zinc-500">Create or select a map from the rail.</p>
+        <p className="mt-2 text-xs leading-5 text-zinc-500">Select a map from the rail.</p>
       </div>
     </div>
   )

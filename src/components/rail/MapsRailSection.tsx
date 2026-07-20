@@ -87,7 +87,7 @@ export function MapsRailSection({
             />
             {personalWorkspaceAuthenticated && (
               <HeaderMenu
-                title="Map actions"
+                title="Add map"
                 items={[
                   { label: 'New map', onSelect: onCreateMap },
                   { label: 'New folder', onSelect: () => personalTreeRef.current?.createFolder() },

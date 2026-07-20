@@ -998,7 +998,7 @@ function StudioApp() {
               <StudioPaneMessage
                 icon={<Cpu size={18} aria-hidden />}
                 title="No controller selected"
-                detail="Create or select a controller profile from the rail."
+                detail="Select a controller from the rail."
               />
             ) : studioEntityKind === 'shows' ? (
               showCreation ? (
@@ -1030,26 +1030,26 @@ function StudioApp() {
                 <StudioPaneMessage
                   icon={<PanelsTopLeft size={18} aria-hidden />}
                   title="No show selected"
-                  detail="Create or select a show from the rail."
+                  detail="Select a show from the rail."
                 />
               )
             ) : studioEntityKind === 'maps' && editorFlavor !== 'map' ? (
               <StudioPaneMessage
                 icon={<MapIcon size={18} aria-hidden />}
                 title="No map selected"
-                detail="Create or select a map from the rail."
+                detail="Select a map from the rail."
               />
             ) : studioEntityKind === 'mixins' && editorFlavor !== 'mixin' ? (
               <StudioPaneMessage
                 icon={<Braces size={18} aria-hidden />}
                 title="No mixin selected"
-                detail="Create or select a mixin from the rail."
+                detail="Select a mixin from the rail."
               />
             ) : studioEntityKind === 'libraries' && editorFlavor !== 'library' ? (
               <StudioPaneMessage
                 icon={<Code2 size={18} aria-hidden />}
                 title="No library selected"
-                detail="Select a built-in library from the rail."
+                detail="Select a library from the rail."
               />
             ) : (
               <Editor />
