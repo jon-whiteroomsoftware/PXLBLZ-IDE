@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Download, RefreshCw } from 'lucide-react'
+import { Download, PanelsTopLeft, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { IDE_MICROTYPE } from '@/components/ui/ideMicrotype'
 import {
@@ -400,7 +400,7 @@ function SavedProgramsInventory({
             </colgroup>
             <thead>
               <tr>
-                <th className={tableHeadClass}>Pattern</th>
+                <th className={tableHeadClass}>Program</th>
                 <th className={tableHeadClass}>Program id</th>
                 <th className={tableHeadClass}>Transforms</th>
                 <th className={tableHeadClass}>Output</th>
@@ -411,21 +411,35 @@ function SavedProgramsInventory({
               {presentedPrograms.owned.map((program) => (
                 <tr key={program.programId} className="bg-zinc-900/20">
                   <td className={`${tableCellClass} overflow-hidden`}>
-                    {program.routeId ? (
-                      <button
-                        type="button"
-                        title={program.name}
-                        className="block max-w-full truncate text-left font-medium text-live transition-colors hover:text-amber-300"
-                        onClick={() => onOpen(program.routeId!)}
-                      >
-                        {program.name}
-                      </button>
-                    ) : (
-                      <div>
-                        <div className="text-zinc-300">{program.name}</div>
-                        <div className="text-[10px] text-amber-400/65">Studio pattern missing</div>
-                      </div>
-                    )}
+                    <span className="flex max-w-full items-center gap-1.5">
+                      {program.sourceKind === 'show' && (
+                        <span
+                          role="img"
+                          aria-label="Saved from a Show"
+                          title="Saved from a Show"
+                          className="shrink-0 text-zinc-500"
+                        >
+                          <PanelsTopLeft size={12} aria-hidden />
+                        </span>
+                      )}
+                      {program.routeId ? (
+                        <button
+                          type="button"
+                          title={program.name}
+                          className="block max-w-full truncate text-left font-medium text-live transition-colors hover:text-amber-300"
+                          onClick={() => onOpen(program.routeId!)}
+                        >
+                          {program.name}
+                        </button>
+                      ) : (
+                        <span className="min-w-0">
+                          <span className="block truncate text-zinc-300">{program.name}</span>
+                          <span className="block text-[10px] text-amber-400/65">
+                            {program.sourceKind === 'show' ? 'Studio Show missing' : 'Studio pattern missing'}
+                          </span>
+                        </span>
+                      )}
+                    </span>
                   </td>
                   <td title={program.programId} className={`${tableCellClass} truncate font-mono text-zinc-400`}>{program.programId}</td>
                   <td className={tableCellClass}>

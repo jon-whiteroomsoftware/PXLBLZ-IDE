@@ -38,6 +38,8 @@ export interface ControllerSavedProgramRow {
   deviceName: string
   routeId: string | null
   studioPatternMissing: boolean
+  /** Which Studio entity produced this program; foreign rows default to pattern. */
+  sourceKind: 'pattern' | 'show'
   freshness: TransformFreshness
   showOutputContract?: ArtifactShowOutputContract
 }
@@ -113,6 +115,7 @@ export function describeControllerSavedPrograms(input: {
         deviceName,
         routeId: null,
         studioPatternMissing: false,
+        sourceKind: 'pattern',
         freshness: 'unmanaged',
       })
       continue
@@ -127,6 +130,7 @@ export function describeControllerSavedPrograms(input: {
       deviceName,
       routeId: studioPattern?.routeId ?? null,
       studioPatternMissing: !studioPattern,
+      sourceKind: bindingKey.startsWith('show:') ? 'show' : 'pattern',
       freshness: describeTransformFreshness(
         pushRecord,
         input.enabledTransforms,

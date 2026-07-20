@@ -88,6 +88,7 @@ describe('describeControllerSavedPrograms', () => {
         deviceName: 'Aurora on device',
         routeId: 'AuroraSphere',
         studioPatternMissing: false,
+        sourceKind: 'pattern',
         freshness: 'stale',
       },
       {
@@ -97,6 +98,7 @@ describe('describeControllerSavedPrograms', () => {
         deviceName: 'Deleted Studio pattern',
         routeId: null,
         studioPatternMissing: true,
+        sourceKind: 'pattern',
         freshness: 'unmanaged',
       },
       {
@@ -106,6 +108,7 @@ describe('describeControllerSavedPrograms', () => {
         deviceName: 'Device copy of Twinkle',
         routeId: 'pat-1',
         studioPatternMissing: false,
+        sourceKind: 'pattern',
         freshness: 'current',
       },
     ])
@@ -117,6 +120,7 @@ describe('describeControllerSavedPrograms', () => {
         deviceName: 'sound bar kit',
         routeId: null,
         studioPatternMissing: false,
+        sourceKind: 'pattern',
         freshness: 'unmanaged',
       },
     ])
@@ -193,6 +197,33 @@ describe('describeControllerSavedPrograms', () => {
       pixelCount: 256,
       outputMap: { name: 'Square', fingerprint: '11111111' },
     })
+    expect(view.owned[0].sourceKind).toBe('show')
+  })
+
+  it('marks show-bound rows as Show sources and everything else as pattern sources', () => {
+    const view = describeControllerSavedPrograms({
+      controllerId: 'ctrl-A',
+      programs: [
+        { id: 'P1', name: 'Twinkle' },
+        { id: 'D1', name: 'AuroraSphere' },
+        { id: 'S1', name: 'Wall Show' },
+        { id: 'F1', name: 'sound bar kit' },
+      ],
+      bindings: { 'ctrl-A': { 'pat-1': 'P1', 'demo:AuroraSphere': 'D1', 'show:show-1': 'S1' } },
+      studioPatterns: [
+        { bindingKey: 'pat-1', routeId: 'pat-1', name: 'Twinkle' },
+        { bindingKey: 'demo:AuroraSphere', routeId: 'AuroraSphere', name: 'AuroraSphere' },
+      ],
+      pushRecords: {},
+      enabledTransforms: [],
+    })
+
+    expect(view.owned.map((row) => [row.name, row.sourceKind])).toEqual([
+      ['Twinkle', 'pattern'],
+      ['AuroraSphere', 'pattern'],
+      ['Wall Show', 'show'],
+    ])
+    expect(view.foreign[0].sourceKind).toBe('pattern')
   })
 })
 
@@ -208,6 +239,7 @@ function savedProgramRow(
     deviceName: name,
     routeId: null,
     studioPatternMissing: false,
+    sourceKind: 'pattern' as const,
     freshness: kind === 'owned' ? 'current' as const : 'unmanaged' as const,
   }
 }
