@@ -84,16 +84,16 @@ invariants.
 
 Repository evidence:
 
-- [`src/components/ShowEditor.tsx`](../../src/components/ShowEditor.tsx) owns
+- [`src/components/ShowEditor.tsx`](../../../src/components/ShowEditor.tsx) owns
   selection, timeline gestures, transport, and contextual inspectors.
-- [`src/engine/showModel.ts`](../../src/engine/showModel.ts) owns occupancy,
+- [`src/engine/showModel.ts`](../../../src/engine/showModel.ts) owns occupancy,
   scene duplication, split, spanning, and structural normalization.
-- [`src/engine/showTimelineViewport.ts`](../../src/engine/showTimelineViewport.ts)
+- [`src/engine/showTimelineViewport.ts`](../../../src/engine/showTimelineViewport.ts)
   owns Fit, zoom, pan, navigator geometry, and snapping.
-- [`docs/reference/PXLBLZ Feature Guide.md`](../reference/PXLBLZ%20Feature%20Guide.md)
+- [`docs/reference/PXLBLZ Feature Guide.md`](../../reference/PXLBLZ%20Feature%20Guide.md)
   currently documents delete-and-place as clip relocation and explicitly says
   the grid does not use freeform drag ordering.
-- [`docs/plans/archive/issue-430-show-timeline-lifecycle.md`](archive/issue-430-show-timeline-lifecycle.md)
+- [`docs/plans/archive/issue-430-show-timeline-lifecycle.md`](issue-430-show-timeline-lifecycle.md)
   records that boundary as an intentional completion decision for the current
   lifecycle, not proof that richer structural movement is undesirable.
 

@@ -237,7 +237,7 @@ issue #363 after both contracts became authorable and inspectable end to end.
 ## Design evidence
 
 The approved interactive design artifact is
-[show-output-contracts-mockup.html](../show-output-contracts-mockup.html). It keeps
+[show-output-contracts-mockup.html](show-output-contracts-mockup.html). It keeps
 the normal three-pane Studio shell, reserves the right pane for output, and uses
 one compact two-column comparison rather than separate cards or a wizard. Each
 column leads with the user-visible promise, gives terse examples for unfamiliar

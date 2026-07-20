@@ -4,7 +4,7 @@ Status: approved production direction, 2026-07-14. The headless visual-toolkit
 contract is complete and frozen at version 1. This document defines the
 authoring model that projects that contract into the Show editor. The final
 Timeline, palette, and Entity Detail Panel behavior is recorded in the
-[production design](../collaboration/show-timeline-production-density-2026-07-14/final-production-design.md).
+[production design](../../collaboration/show-timeline-production-density-2026-07-14/final-production-design.md).
 Expanded Property animation authoring remains deferred by product decision.
 
 ## Conclusion
@@ -372,13 +372,13 @@ review.
 
 - [`show-editor-interaction-research-draft.md`](show-editor-interaction-research-draft.md)
   contains the comparative editor research and rejected alternatives.
-- [`pxlblz-v2-prd.md`](pxlblz-v2-prd.md) owns the wider product contract and
+- [`pxlblz-v2-prd.md`](../pxlblz-v2-prd.md) owns the wider product contract and
   delivery order.
 - [`show-scene-composition-design.md`](show-scene-composition-design.md) owns the
   exploratory one-level Scene detail destination and its unresolved evidence.
 - [`issue-459-headless-freeze.md`](issue-459-headless-freeze.md) owns the frozen
   runtime evidence.
-- [`../reference/PXLBLZ Technical Reference.md`](../reference/PXLBLZ%20Technical%20Reference.md)
+- [`../../reference/PXLBLZ Technical Reference.md`](../../reference/PXLBLZ%20Technical%20Reference.md)
   owns as-built engine behavior.
 - GitHub #457 owns the parent executable UI state; its thin child issues own
   implementation after the 2026-07-14 human approval.

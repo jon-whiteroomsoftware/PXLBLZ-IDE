@@ -488,7 +488,7 @@ read-only Scene X-ray preserves internal beats and snap references; its explicit
 magnify action opens a read-only Super Detail inspector, whose `Open Scene`
 command enters the local editor. The governing dimensions, responsive behavior,
 stress route, and rejected alternatives live in
-[`final-production-design.md`](../collaboration/show-timeline-production-density-2026-07-14/final-production-design.md).
+[`final-production-design.md`](../../collaboration/show-timeline-production-density-2026-07-14/final-production-design.md).
 
 The same review separated three Timeline drags that must never be ambiguous:
 playhead scrubbing changes preview time, entity dragging changes authored
@@ -783,7 +783,7 @@ parity and hardware budgets for the production lowering.
 - [`show-editor-interaction-research-draft.md`](show-editor-interaction-research-draft.md)
   provides selection, magnetic movement, compound-clip, Effect, and overlay
   research evidence.
-- [`pxlblz-v2-prd.md`](pxlblz-v2-prd.md) owns release sequencing and the broader
+- [`pxlblz-v2-prd.md`](../pxlblz-v2-prd.md) owns release sequencing and the broader
   Show product contract.
 - GitHub #458 records the approved zone-focused Layer Rail interaction. Its first
   all-zones prototype and compact B/C variants remain evidence, not production

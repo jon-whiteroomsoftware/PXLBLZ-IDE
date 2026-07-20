@@ -1,16 +1,20 @@
 # Stock Show catalogue build packet
 
-Status: implementation-ready. The Show-note disclosure was approved on
-2026-07-16.
+Status: revision required before publication. The production catalogue plumbing,
+Show-note disclosure, and initial fixtures are implemented, but the current
+Pattern choices and several showcase Shows did not pass human visual review.
+This packet preserves the intended teaching sequence and acceptance rules; its
+individual Show recipes are candidates, not an approved launch catalogue.
 
 Issue: #363
 
 ## Outcome
 
-The first stock Show catalogue teaches the smallest useful Show vocabulary,
-then demonstrates richer composition without turning the catalogue into an
-embedded tutorial system. Ten curriculum Shows and three effect showcases give
-people enough examples to learn from, copy, and modify.
+The launch catalogue should teach the smallest useful Show vocabulary, then
+demonstrate richer composition without turning the catalogue into an embedded
+tutorial system. The proposed ten curriculum Shows and three Effect showcases
+remain a useful coverage target, but each survives only if its rebuilt visual
+result earns a place in the catalogue.
 
 The catalogue has three jobs:
 

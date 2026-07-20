@@ -92,7 +92,7 @@ The design must make the following operations legible and efficient:
   Timeline, transport, selection, inspectors, and Stage integration.
 - `src/engine/showTimelineViewport.ts` contains current Timeline viewport and
   drag-thumb geometry.
-- `docs/plans/show-editor-interaction-research-draft.md` contains comparative
+- `docs/plans/archive/show-editor-interaction-research-draft.md` contains comparative
   interaction research.
 
 ## Deliverable

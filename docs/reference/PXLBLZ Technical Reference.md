@@ -148,6 +148,14 @@ There is no browser-local durable workspace and no implied migration between
 local storage and D1. Local storage is used only for small device/session
 preferences and the Studio-welcome acknowledgement.
 
+`workspaceStarters.ts` runs once after every personal collection has loaded. A
+completely empty account receives one deterministic starter Pattern, map, Mixin,
+and Library, then opens the Pattern. A per-kind versioned Settings record marks
+the onboarding decision even when a collection already contains content, so a
+later deletion or empty collection cannot resurrect a starter. Shows require an
+output-contract choice and Controller profiles require observed hardware, so
+neither is synthesized.
+
 The API treats authenticated storage limits as coarse anti-griefing tripwires,
 not ordinary product quotas. Every durable create or update rejects JSON bodies
 above 1,900,000 bytes and accounts above 100,000,000 stored content bytes;
@@ -955,10 +963,11 @@ host whose adjacent scenes resolve to the same semantic Pattern member and emits
 one renderer evaluation rather than evaluating and blending that member twice.
 The final Wrap example stays discrete because address policy is not numeric.
 
-Legacy scene-owned transitions and routing switches normalize into the boundary
-model before compiler, editor, EPE, or persistence consumption. Every boundary
-retains one explicit visual transition, with zero-duration cut as the neutral
-form. Visual and routing entities may coexist.
+`ShowRecord.transitions` is the only persisted owner of visual and routing
+boundary events. Every Scene boundary retains one explicit visual transition,
+with zero-duration Cut as the neutral form; a routing transition may coexist at
+the same boundary. Scene records and routing layouts contain no second boundary
+event representation.
 
 Easing also normalizes at this boundary. Persisted transitions and property
 descriptors use one structured curve representation shared by visual
@@ -1146,8 +1155,9 @@ Main is the back source, overlay array order determines front-to-back layering,
 and every placement contributes opacity, render-view adaptations, and its
 stable-id Effect stack. The compiler alpha-composites the active stack, advances
 each unique Pattern instance once per frame even when several placements
-reference it, and flattens the Scene before applying its top-level Transition or
-routing switch. Uncovered intervals use the existing Empty Pattern. A transient
+reference it, and flattens the Scene before applying its top-level visual or
+routing boundary Transition. Uncovered intervals use the existing Empty Pattern.
+A transient
 cell-to-instance identity table preserves Continue and Restart literally,
 including across gaps. Flat-cell property-transition starts remap to the first
 derived destination cell. Preview, fast replay, artifact generation, Controller
@@ -1170,7 +1180,7 @@ FPS on the 256-pixel review matrix, and preserved the expected Scene-2 Zone swap
 through the 62-second loop. Its four-renderer Crossfade was exceptionally smooth
 in human review. The deterministic fixture's `representativeHardwareFps` field
 remains `null` because automated replay must not impersonate physical evidence;
-`docs/plans/issue-492-scene-composition-freeze.md` records the complete gate.
+`docs/plans/archive/issue-492-scene-composition-freeze.md` records the complete gate.
 
 `showCompilePressure.ts` warns at 80% of the measured artifact budget and blocks
 at 100%. It warns at three or four simultaneous renderers per pixel and blocks
@@ -2285,7 +2295,7 @@ imports. Contract version 1 has fingerprint `f81bca37`, 59 registered variants,
 and 104 fixtures. The freeze test rejects an uncovered or unknown variant,
 duplicate fixture, registry validation error, or unacknowledged descriptor
 change. An intentional catalogue change increments the version and refreshes
-the fingerprint plus `docs/plans/issue-459-headless-freeze.md`. The fingerprint
+the fingerprint plus `docs/plans/archive/issue-459-headless-freeze.md`. The fingerprint
 seals the registry, variant-to-fixture mapping, compile recipes, persisted
 record behavior, progress samples, capture geometry, stage dimensions, and
 capture start times; changing any of those inputs changes the fingerprint.
@@ -2610,7 +2620,7 @@ Kaleidoscope are **Smooth** because they use radial or polar math. Stretch does
 not enter the production registry because Scale and Shear already cover it.
 Glitch remains outside the persisted schema and registry pending a stronger,
 animation-stable visual policy. The candidate, compiler, and hardware
-measurements live in `docs/plans/issue-456-distortion-review.md`; human review
+measurements live in `docs/plans/archive/issue-456-distortion-review.md`; human review
 approved the selected set on 2026-07-14. The representative 256-point 2D
 Controller measured 35.03-42.05 FPS for the individual selected distortions and
 31.37 FPS for the animated Ripple plus Pixelate composition.

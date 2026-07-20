@@ -62,4 +62,5 @@ fun, and a generous way into making electronics feel approachable.
 ## Feedback and bugs
 
 Use [GitHub Issues](https://github.com/jon-whiteroomsoftware/PXLBLZ-IDE/issues)
-to report a bug or suggest an improvement.
+to report a bug or suggest an improvement. General project mail can be sent to
+[pxlblz@whiteroomsoftware.com](mailto:pxlblz@whiteroomsoftware.com).

@@ -98,6 +98,13 @@ Built-in folders use the same compact disclosure grammar but remain curated and
 read-only. Controller profiles come only from observed hardware, so there is no
 blank **New Controller** button.
 
+A completely new workspace receives one editable **Start Here** Pattern, map,
+Mixin, and Library. Each is runnable source with a short explanation in its
+header, so the first visit opens something concrete instead of four empty
+collections. Existing workspaces are never padded with starter records, and a
+deleted starter stays deleted. Shows begin through their output-contract flow;
+Controller profiles still appear only after real hardware is observed.
+
 The Studio is a three-pane environment:
 
 - the left rail opens and creates things;

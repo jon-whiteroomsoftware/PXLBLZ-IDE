@@ -14,12 +14,12 @@ and representative complexity.
 
 ## Source task
 
-- Primary task: `docs/plans/show-timeline-dual-model-task.md`
+- Primary task: `docs/plans/archive/show-timeline-dual-model-task.md`
 - Domain language: `CONTEXT.md`
 - Current user-visible behavior: `docs/reference/PXLBLZ Feature Guide.md`
 - Current technical behavior: `docs/reference/PXLBLZ Technical Reference.md`
 - Comparative interaction evidence:
-  `docs/plans/show-editor-interaction-research-draft.md`
+  `docs/plans/archive/show-editor-interaction-research-draft.md`
 - Related implementation issues: #457, #458, #462, #463, and #464
 
 ## Existing constraints

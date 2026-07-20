@@ -1,13 +1,13 @@
 # Claude proposal: Show Timeline production-density design
 
 Author: Claude (independent proposal, 2026-07-14).
-Sources: `docs/plans/show-timeline-dual-model-task.md`, the shared brief,
+Sources: `docs/plans/archive/show-timeline-dual-model-task.md`, the shared brief,
 `CONTEXT.md`, `docs/reference/PXLBLZ Feature Guide.md` §9,
 `docs/reference/PXLBLZ Technical Reference.md` Part 5,
 `src/components/ShowEditor.tsx`, `src/engine/showTimelineViewport.ts`,
 `src/engine/showModel.ts`, `src/components/ShowStagePreview.tsx`,
 `src/store/showTransportStore.ts`, and
-`docs/plans/show-editor-interaction-research-draft.md`. No other proposal or
+`docs/plans/archive/show-editor-interaction-research-draft.md`. No other proposal or
 comparison document was read.
 
 ## Recommendation

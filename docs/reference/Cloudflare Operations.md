@@ -2,7 +2,7 @@
 
 PXLBLZ-IDE's Cloudflare Pages deployment is the production cloud workspace. It
 uses GitHub or Google OAuth for identity and Cloudflare D1 for personal
-patterns, custom maps, cloud mixins, cloud libraries, Shows, durable Controller profiles,
+Patterns, custom maps, personal Mixins, personal Libraries, Shows, durable Controller profiles,
 last-active state, demo overrides, controller push metadata, and controller map
 fingerprints. No browser-local-to-D1 migration is performed; the cloud
 workspace starts clean for each signed-in user.
@@ -126,8 +126,9 @@ credentials are not required.
 
 After deploy, open the Pages URL and smoke-test:
 
-1. Visit `/api/d1/health`; expect `{"ok":true,"schemaVersion":"14"}` or the
-   latest migration number in `migrations/`.
+1. Visit `/api/d1/health`; expect `{"ok":true,"schemaVersion":"17"}` for the
+   current migration set. This is the latest value written to `schema_meta`, not
+   a count of migration files.
 2. Visit `/api/me`; signed out should report `{ "authenticated": false }`.
 3. Click **Sign in**, complete GitHub OAuth, and confirm `/api/me` reports the
    GitHub user and one connected identity.
@@ -139,8 +140,8 @@ After deploy, open the Pages URL and smoke-test:
 6. Disconnect one login and confirm the final remaining login cannot be removed.
 7. Create, edit, reload, and delete a personal pattern.
 8. Create, edit, reload, and delete a custom map.
-9. Create, edit, reload, and delete a cloud mixin.
-10. Create, edit, reload, rename, and delete a cloud library.
+9. Create, edit, reload, and delete a personal Mixin.
+10. Create, edit, reload, rename, and delete a personal Library.
 11. Create, edit, reload, and delete one Installation Show and one Portable
     Show; confirm each retains its output contract after reload.
 12. Connect a Controller when hardware is available and confirm a stable-id
