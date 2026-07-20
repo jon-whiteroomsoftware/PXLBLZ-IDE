@@ -83,6 +83,7 @@ import {
 export { computeLinearRuns, type PackedRoutingRun } from './showRoutingRepresentation'
 export type { ShowLogicalRoutingRecipe } from './showRoutingRepresentation'
 import { inlineShowMemberHelpers } from './showHelperInlining'
+import { planMemberBindingPolicies, type MemberBindingPolicy } from './showMemberBindingPolicy'
 import { selectRenderCompatibility } from './renderCompatibility'
 import {
   analyzeShowRendererOutputGuaranteesAst,
@@ -884,26 +885,9 @@ interface CompiledMember {
   conditionalContentKeyEvaluation: boolean
   coverageDirectedComposition: boolean
   coordinateFieldCapture: boolean
-  /** #558: false when a scene places this member more than once, because
-   * per-frame coefficients cannot serve placements with differing params. */
-  colorCoefficientHoisting?: boolean
-  /** #562: true when the member's mirror/pixel-count binding is provably
-   * uniform per frame (single placement, single zone, no span/repeat, no
-   * logical layouts), enabling the branch-free mirror coefficient form. */
-  uniformMirrorBinding?: boolean
-  /** #561: true when the member's virtual pixel count is one value across
-   * every arm that can invoke it; per-pixel writes are then redundant. */
-  uniformPixelCountBinding?: boolean
-  /** #571: true when the scheduler's per-frame setup entry is the proven
-   * single writer of this member's placement bindings (single placement,
-   * physical layouts, no divergence across any transition pair), so the
-   * per-pixel prologue rebinding is dropped. */
-  uniformPrologueBinding?: boolean
-  /** #559: option carrier for per-member HSV conversion specialization. */
-  hsvCaptureSpecialization?: boolean
-  /** #559: true when the whole recipe proves phase adaptation is identically
-   * zero for this member, so the per-pixel `+ adapt_phase` add is stripped. */
-  phaseAdaptationIdentity?: boolean
+  /** #570: the placement binding policy - planned once per compile by
+   * showMemberBindingPolicy after Pattern-slot sharing, then read-only. */
+  binding?: MemberBindingPolicy
   generatedEffectKernelSharing: boolean
   animatedEffectParameterPaths: string[]
   freezeOwnerTokens: number[]
@@ -1861,7 +1845,7 @@ ${bindings.map((binding, index) => `    ${binding} = ${banks[index]}[nextOwner]`
     ${member.prefix}_adapt_timeScale = ${timeScale}
     ${member.prefix}_adapt_mirror = ${mirror}
     ${member.prefix}_slot_initialized[nextOwner] = 1
-  }${member.needsMirrorMapping && member.uniformMirrorBinding ? `
+  }${member.needsMirrorMapping && member.binding?.uniformMirrorBinding ? `
   ${member.prefix}_mir_sign = 1 - 2 * ${member.prefix}_adapt_mirror
   ${member.prefix}_mir_base_i = ${member.prefix}_adapt_mirror * (${member.pixelCountName} - 1)` : ''}
   ${member.prefix}_slot_owner = nextOwner
@@ -2424,176 +2408,41 @@ export function compileShow(
   })
   const coordinateFieldMemberIds = new Set(selectedCoordinateFields.flatMap((field) => field.memberIds))
   for (const member of members) member.coordinateFieldCapture = coordinateFieldMemberIds.has(member.id)
-  // #558: members placed more than once in a scene keep per-pixel coefficient
-  // computation - a single per-frame refresh cannot serve divergent params.
-  // The compile option is a benchmark counterfactual only.
-  {
-    const multiPlacementClipIds = new Set<string>()
-    for (const scene of expandedRecipe.routedSceneSequence?.scenes ?? []) {
-      const counts = new Map<string, number>()
-      for (const placement of scene.placements) {
-        counts.set(placement.clipId, (counts.get(placement.clipId) ?? 0) + 1)
-      }
-      for (const [clipId, count] of counts) {
-        if (count > 1) multiPlacementClipIds.add(clipId)
-      }
-    }
-    for (const member of members) {
-      member.colorCoefficientHoisting = (options.colorCoefficientHoisting ?? true)
-        && !multiPlacementClipIds.has(member.id)
-    }
-    // #562: branch-free mirror coefficients need a per-frame-uniform binding.
-    // Route-mode recipes rebind per-route pixel counts and logical layouts
-    // rebind at runtime, so both keep the branch form conservatively.
-    const hasLogicalLayouts = (expandedRecipe.routingLayouts ?? []).some((layout) => layout.logical)
-    const nonUniformClipIds = new Set<string>(multiPlacementClipIds)
-    for (const scene of expandedRecipe.routedSceneSequence?.scenes ?? []) {
-      for (const placement of scene.placements) {
-        if (placement.zoneMode || placement.domainZoneNames?.length) nonUniformClipIds.add(placement.clipId)
-      }
-    }
-    // #571 (and the #562 transition fix): a non-cut transition's combined
-    // [from, to] setup entry writes one value per member per frame, so a clip
-    // whose placement bindings differ across the pair - or whose placements
-    // carry placement-scoped tracks on either side - must keep its per-pixel
-    // (or branch-form) binding for the divergent values.
-    const mirrorDivergentClipIds = new Set<string>()
-    const prologueDivergentClipIds = new Set<string>()
+  // #570: the placement binding policy is planned once, after Pattern-slot
+  // sharing settles the member list, and attached as one frozen object; the
+  // divergence and uniformity rules live in showMemberBindingPolicy.
+  const bindingPolicies = planMemberBindingPolicies(
+    members.map((member) => ({
+      id: member.id,
+      adaptationPhase: member.adaptation.phase,
+      slotOwnerPhases: member.slotOwnerAdaptations.map((adaptation) => adaptation.phase),
+    })),
     {
-      const sequenceScenes = expandedRecipe.routedSceneSequence?.scenes ?? []
-      type SequenceScene = typeof sequenceScenes[number]
-      const placementTrackedClipIds = (scene: SequenceScene): Set<string> => {
-        const clipByPlacementId = new Map(scene.placements.map((placement) => (
-          [placement.placementId, placement.clipId] as const
-        )))
-        return new Set((scene.propertyTracks ?? []).flatMap((track) => {
-          if (!('placementId' in track.target)) return []
-          const clipId = clipByPlacementId.get(track.target.placementId)
-          return clipId === undefined ? [] : [clipId]
-        }))
-      }
-      for (let sceneIndex = 0; sceneIndex < sequenceScenes.length - 1; sceneIndex += 1) {
-        const scene = sequenceScenes[sceneIndex]
-        if (!scene.transitionOut || scene.transitionOut.kind === 'cut') continue
-        const next = sequenceScenes[sceneIndex + 1]
-        const fromByClipId = new Map(scene.placements.map((placement) => [placement.clipId, placement]))
-        const fromTracked = placementTrackedClipIds(scene)
-        const toTracked = placementTrackedClipIds(next)
-        for (const toPlacement of next.placements) {
-          const fromPlacement = fromByClipId.get(toPlacement.clipId)
-          if (!fromPlacement) continue
-          const strip = ({ placementId: _placementId, ...rest }: typeof toPlacement) => rest
-          if (JSON.stringify(strip(fromPlacement)) !== JSON.stringify(strip(toPlacement))
-            || fromTracked.has(toPlacement.clipId)
-            || toTracked.has(toPlacement.clipId)) {
-            prologueDivergentClipIds.add(toPlacement.clipId)
+      scenes: expandedRecipe.routedSceneSequence?.scenes ?? [],
+      routingLayouts: expandedRecipe.routingLayouts ?? [],
+      adaptationRampPhases: expandedRecipe.adaptationRamp
+        ? {
+            from: expandedRecipe.adaptationRamp.from.phase ?? 0,
+            to: expandedRecipe.adaptationRamp.to.phase ?? 0,
           }
-          // The mirror coefficients also depend on the placement's zone
-          // geometry (base_i is pixel-count derived), not just the flag.
-          if (Boolean(fromPlacement.mirror) !== Boolean(toPlacement.mirror)
-            || fromPlacement.zoneName !== toPlacement.zoneName
-            || fromPlacement.zoneMode !== toPlacement.zoneMode
-            || JSON.stringify(fromPlacement.domainZoneNames ?? null) !== JSON.stringify(toPlacement.domainZoneNames ?? null)) {
-            mirrorDivergentClipIds.add(toPlacement.clipId)
-          }
-        }
-      }
-    }
-    for (const member of members) {
-      member.uniformMirrorBinding = (options.capturePrologueSimplification ?? true)
-        && !hasLogicalLayouts
-        && !routeMode
-        && !nonUniformClipIds.has(member.id)
-        && !mirrorDivergentClipIds.has(member.id)
-    }
-    // #571: the scheduler setup entry becomes the single per-frame writer of
-    // adaptation values, effect parameters, and placement track values; the
-    // per-pixel prologue rebinding drops. Requires #558's per-frame track
-    // assignment (colorCoefficientHoisting) for track-bearing members.
-    for (const member of members) {
-      member.uniformPrologueBinding = (options.placementPrologueHoisting ?? true)
-        && !hasLogicalLayouts
-        && !routeMode
-        && !nonUniformClipIds.has(member.id)
-        && !prologueDivergentClipIds.has(member.id)
-        && member.colorCoefficientHoisting === true
-    }
-    // #561: a member's per-pixel pixelCount write is redundant when its
-    // virtual pixel count is one value across every arm that can invoke it;
-    // the schedulers' per-frame writes already cover those members.
+        : null,
+      routeMode,
+      resolvedRouteCounts: [
+        ...(route?.routes ?? []).map((resolved) => ({ memberId: resolved.member.id, pixelCount: resolved.pixelCount })),
+        ...(routingLayouts ?? []).flatMap((layout) => layout.routes.map((resolved) => (
+          { memberId: resolved.member.id, pixelCount: resolved.pixelCount }
+        ))),
+      ],
+    },
     {
-      const enabled = options.pixelCountWriteHoisting ?? true
-      const countsByMember = new Map<string, Set<number>>()
-      const poisoned = new Set<string>(nonUniformClipIds)
-      const addCount = (memberId: string, count: number) => {
-        const set = countsByMember.get(memberId) ?? new Set<number>()
-        set.add(count)
-        countsByMember.set(memberId, set)
-      }
-      if (hasLogicalLayouts) for (const member of members) poisoned.add(member.id)
-      const sequenceScenes = expandedRecipe.routedSceneSequence?.scenes ?? []
-      const physicalZones = new Map(
-        (expandedRecipe.routingLayouts ?? []).flatMap((layout) => layout.zones).map((zone) => [zone.name, zone]),
-      )
-      // The all-cut shared-physical scheduler owns its own arm emission; keep
-      // those recipes on the per-pixel write conservatively.
-      const sharedCutShape = sequenceScenes.length > 0
-        && (expandedRecipe.routingLayouts ?? []).length === 1
-        && sequenceScenes.every((scene) => !scene.transitionOut || scene.transitionOut.kind === 'cut')
-      if (sharedCutShape) for (const member of members) poisoned.add(member.id)
-      for (const scene of sequenceScenes) {
-        for (const placement of scene.placements) {
-          const zone = physicalZones.get(placement.zoneName)
-          if (!zone) {
-            poisoned.add(placement.clipId)
-            continue
-          }
-          addCount(placement.clipId, Math.max(1, controllerZonePixelCount(zone)))
-        }
-      }
-      for (const resolved of route?.routes ?? []) addCount(resolved.member.id, resolved.pixelCount)
-      for (const layout of routingLayouts ?? []) {
-        for (const resolved of layout.routes) addCount(resolved.member.id, resolved.pixelCount)
-      }
-      for (const member of members) {
-        const counts = countsByMember.get(member.id)
-        member.uniformPixelCountBinding = enabled
-          && !poisoned.has(member.id)
-          && counts !== undefined
-          && counts.size === 1
-      }
-    }
-    // #559: option carrier plus the phase-adaptation identity proof (the
-    // brightness identity's twin). Adaptation mixes are excluded at emission
-    // via includeAdaptationMix.
-    {
-      const phaseBlocked = new Set<string>()
-      for (const scene of expandedRecipe.routedSceneSequence?.scenes ?? []) {
-        const clipByPlacement = new Map(scene.placements.map((placement) => (
-          [placement.placementId, placement.clipId] as const
-        )))
-        for (const placement of scene.placements) {
-          if (placement.phase !== undefined) phaseBlocked.add(placement.clipId)
-        }
-        for (const track of scene.propertyTracks ?? []) {
-          if (track.target.kind === 'placement-view' && track.target.property === 'phase') {
-            const clipId = clipByPlacement.get(track.target.placementId)
-            if (clipId) phaseBlocked.add(clipId)
-          }
-        }
-      }
-      const rampMovesPhase = expandedRecipe.adaptationRamp !== undefined
-        && ((expandedRecipe.adaptationRamp.from.phase ?? 0) !== 0
-          || (expandedRecipe.adaptationRamp.to.phase ?? 0) !== 0)
-      for (const member of members) {
-        member.hsvCaptureSpecialization = options.hsvCaptureChainSpecialization ?? true
-        member.phaseAdaptationIdentity = member.adaptation.phase === 0
-          && !phaseBlocked.has(member.id)
-          && !rampMovesPhase
-          && member.slotOwnerAdaptations.every((adaptation) => adaptation.phase === 0)
-      }
-    }
-  }
+      colorCoefficientHoisting: options.colorCoefficientHoisting,
+      capturePrologueSimplification: options.capturePrologueSimplification,
+      placementPrologueHoisting: options.placementPrologueHoisting,
+      pixelCountWriteHoisting: options.pixelCountWriteHoisting,
+      hsvCaptureChainSpecialization: options.hsvCaptureChainSpecialization,
+    },
+  )
+  for (const member of members) member.binding = bindingPolicies.get(member.id)
   const routedSceneEmission = expandedRecipe.routedSceneSequence
       ? emitRoutedSceneSequenceShowCode(
         members,
@@ -3144,7 +2993,7 @@ export function compileShow(
         ? {
             enabled: options.placementPrologueHoisting ?? true,
             memberIds: members
-              .filter((member) => member.uniformPrologueBinding === true)
+              .filter((member) => member.binding?.uniformPrologueBinding === true)
               .map((member) => member.id),
           }
         : null,
@@ -4582,7 +4431,7 @@ function emitRoutedSceneSequenceShowCode(
       const ownerEntry = emitPatternSlotOwnerEntry(member, placement.slotOwner)
       // #562: the scheduler owns the frame's mirror state and coefficients for
       // uniform-binding members; per-pixel arms stop rebinding them.
-      const mirrorEntry = member.needsMirrorMapping && member.uniformMirrorBinding
+      const mirrorEntry = member.needsMirrorMapping && member.binding?.uniformMirrorBinding
         ? placement.mirror !== undefined && physicalPixelCount > 0
           ? `\n${member.prefix}_adapt_mirror = ${boolNumber(placement.mirror)}
 ${member.prefix}_mir_sign = ${placement.mirror ? -1 : 1}
@@ -4592,13 +4441,13 @@ ${member.prefix}_mir_base_i = ${member.prefix}_adapt_mirror * (${member.pixelCou
         : ''
       // #571: uniform-binding members read static-plan effect parameters and
       // the static phase from here instead of rebinding them per pixel.
-      const staticPlanEntry = member.uniformPrologueBinding
+      const staticPlanEntry = member.binding?.uniformPrologueBinding
         && member.animatedEffects && member.staticPlanEffects && member.effects.length > 0
         ? staticPlanEffectAssignments(member, showClipTransformEffects(placement.transform, placement.effects, true))
             .map((line) => `\n${line}`)
             .join('')
         : ''
-      const phaseEntry = member.uniformPrologueBinding && placement.phase !== undefined
+      const phaseEntry = member.binding?.uniformPrologueBinding && placement.phase !== undefined
         ? `\n${member.prefix}_adapt_phase = ${placement.phase}`
         : ''
       // The brightness and timeScale setup writes below predate #571 and stay
@@ -5963,7 +5812,7 @@ function emitPlacementViewTrackAssignments(
   tracks: ShowPropertyAnimationTrack[],
   localTimeExpression: string,
 ): string {
-  if (member.uniformPrologueBinding !== true) return ''
+  if (member.binding?.uniformPrologueBinding !== true) return ''
   const placementIds = new Set(placements.map((placement) => placement.placementId))
   return tracks.flatMap((track): string[] => {
     if (track.target.kind !== 'placement-view' || !placementIds.has(track.target.placementId)) return []
@@ -5989,7 +5838,7 @@ function emitPlacementEffectTrackAssignments(
 ): string {
   // Multi-placement members keep per-pixel parameter binding (their params
   // diverge per placement); a frame-level assignment would be dead weight.
-  if (member.colorCoefficientHoisting === false) return ''
+  if (member.binding?.colorCoefficientHoisting === false) return ''
   const placementIds = new Set(placements.map((placement) => placement.placementId))
   return tracks.flatMap((track): string[] => {
     if (!('placementId' in track.target) || !placementIds.has(track.target.placementId)) return []
@@ -6727,7 +6576,7 @@ function emitPhysicalSceneZoneStack(
       `var ${local} = -1`,
       ...emitZoneLocalAssignments(zone, local),
       `if (${local} >= 0) {`,
-      ...(directPlacement.member.uniformPixelCountBinding ? [] : [`  ${directPlacement.member.pixelCountName} = ${pixelCount}`]),
+      ...(directPlacement.member.binding?.uniformPixelCountBinding ? [] : [`  ${directPlacement.member.pixelCountName} = ${pixelCount}`]),
       ...directEntry,
       indentBlock(capture.lines.join('\n'), 2),
       ...directExit,
@@ -6747,7 +6596,7 @@ function emitPhysicalSceneZoneStack(
     `var ${local} = -1`,
     ...emitZoneLocalAssignments(zone, local),
     `if (${local} >= 0) {`,
-    ...placements.flatMap((placement) => (placement.member.uniformPixelCountBinding ? [] : [`  ${placement.member.pixelCountName} = ${pixelCount}`])),
+    ...placements.flatMap((placement) => (placement.member.binding?.uniformPixelCountBinding ? [] : [`  ${placement.member.pixelCountName} = ${pixelCount}`])),
     indentBlock(capture, 2),
     `  rgb(__pxlblz_show_stack_${zoneIndex}_r, __pxlblz_show_stack_${zoneIndex}_g, __pxlblz_show_stack_${zoneIndex}_b)`,
     `  return`,
@@ -7077,7 +6926,7 @@ function emitRoutedPlacementCapture(
   // and track values once per frame in the scheduler setup entry; the arm
   // keeps only the capture call (and the mirror line when #562's coefficient
   // form is separately disabled).
-  const uniform = member.uniformPrologueBinding === true
+  const uniform = member.binding?.uniformPrologueBinding === true
   return {
     lines: [
       ...(uniform ? [] : [
@@ -7090,7 +6939,7 @@ function emitRoutedPlacementCapture(
       ]),
       // #562: uniform-binding members get mirror state from the scheduler's
       // per-frame setup; only divergent-binding members rebind per pixel.
-      ...(placement.mirror === undefined || member.uniformMirrorBinding
+      ...(placement.mirror === undefined || member.binding?.uniformMirrorBinding
         ? []
         : [`${member.prefix}_adapt_mirror = ${boolNumber(placement.mirror)}`]),
       ...(uniform ? [] : emitRoutedPlacementEffectTargets(
@@ -7289,8 +7138,8 @@ function emitPhysicalSceneZoneTransition(
     `var ${toLocal} = -1`,
     ...emitZoneLocalAssignments(toZone, toLocal),
     `if (${fromLocal} >= 0 && ${toLocal} >= 0) {`,
-    ...[...new Set([...fromMembers, from])].flatMap((member) => (member.uniformPixelCountBinding ? [] : [`  ${member.pixelCountName} = ${fromPixelCount}`])),
-    ...[...new Set([...toMembers, to])].flatMap((member) => (member.uniformPixelCountBinding ? [] : [`  ${member.pixelCountName} = ${toPixelCount}`])),
+    ...[...new Set([...fromMembers, from])].flatMap((member) => (member.binding?.uniformPixelCountBinding ? [] : [`  ${member.pixelCountName} = ${fromPixelCount}`])),
+    ...[...new Set([...toMembers, to])].flatMap((member) => (member.binding?.uniformPixelCountBinding ? [] : [`  ${member.pixelCountName} = ${toPixelCount}`])),
     ...coordinatePrelude,
     indentBlock(transitionBlock, 2),
     `  return`,
@@ -8765,7 +8614,7 @@ function colorCoefficientDefs(member: CompiledMember): ColorCoefficientDef[] {
  * params diverge per placement); those keep the per-pixel computation. */
 function memberHoistsColorCoefficients(member: CompiledMember): boolean {
   if (member.animatedEffects && member.staticPlanEffects) return false
-  if (member.colorCoefficientHoisting === false) return false
+  if (member.binding?.colorCoefficientHoisting === false) return false
   return colorCoefficientDefs(member).length > 0
 }
 
@@ -8781,9 +8630,9 @@ function emitMemberHsvSink(
   includeAdaptationMix: boolean,
   functionValuedSinks = false,
 ): string {
-  const phaseIdentity = (member.phaseAdaptationIdentity ?? false)
+  const phaseIdentity = (member.binding?.phaseAdaptationIdentity ?? false)
     && !includeAdaptationMix
-    && (member.hsvCaptureSpecialization ?? true)
+    && (member.binding?.hsvCaptureSpecialization ?? true)
     && policy === 'per-member'
   const phaseExpression = phaseIdentity ? 'h' : `h + ${member.prefix}_adapt_phase`
   // #572: direct-sink members split into capture/direct functions behind a
@@ -8840,7 +8689,7 @@ function emitMemberHsvSink(
 function selectHsvCaptureChainPolicy(members: CompiledMember[]): 'per-member' | 'shared' {
   const hsvMembers = members.filter((member) => member.usesHsv)
   if (hsvMembers.length === 0) return 'shared'
-  if (hsvMembers.some((member) => !(member.hsvCaptureSpecialization ?? true))) return 'shared'
+  if (hsvMembers.some((member) => !(member.binding?.hsvCaptureSpecialization ?? true))) return 'shared'
   return hsvMembers.length <= 8 ? 'per-member' : 'shared'
 }
 
@@ -9248,7 +9097,7 @@ ${advanceDelta('delta', '  ')}
     // #562: branch-free mirror coefficients. adapt_mirror is discrete 0/1, so
     // base_i = m * (N - 1) and sign = 1 - 2m are exact; every adapt_mirror or
     // member pixel-count write site refreshes them.
-    ...(member.needsMirrorMapping && member.uniformMirrorBinding ? [
+    ...(member.needsMirrorMapping && member.binding?.uniformMirrorBinding ? [
       `var ${member.prefix}_mir_sign = 1 - 2 * ${member.prefix}_adapt_mirror`,
       `var ${member.prefix}_mir_base_i = ${member.prefix}_adapt_mirror * (${member.pixelCountName} - 1)`,
     ] : []),
@@ -9281,7 +9130,7 @@ ${advanceDelta('delta', '  ')}
   ${member.prefix}_adapt_brightness = brightness
   ${member.prefix}_adapt_phase = phase
   ${member.prefix}_adapt_timeScale = timeScale
-  ${member.prefix}_adapt_mirror = mirror${member.needsMirrorMapping && member.uniformMirrorBinding ? `
+  ${member.prefix}_adapt_mirror = mirror${member.needsMirrorMapping && member.binding?.uniformMirrorBinding ? `
   ${member.prefix}_mir_sign = 1 - 2 * mirror
   ${member.prefix}_mir_base_i = mirror * (${member.pixelCountName} - 1)` : ''}
 }`,
@@ -9296,7 +9145,7 @@ ${advanceDelta('delta', '  ')}
     advance,
     ...(outputDimension === 2 && member.coordinateFieldCapture ? [
       `function ${member.prefix}_mapCoordinates2D(index, x, y) {
-${member.uniformMirrorBinding && member.needsMirrorMapping ? `  var mappedX = ${member.prefix}_adapt_mirror + ${member.prefix}_mir_sign * x
+${member.binding?.uniformMirrorBinding && member.needsMirrorMapping ? `  var mappedX = ${member.prefix}_adapt_mirror + ${member.prefix}_mir_sign * x
   var mappedY = y` : `  var mappedX = x
   var mappedY = y
   if (${member.prefix}_adapt_mirror >= 0.5) mappedX = 1 - x`}
@@ -9323,7 +9172,7 @@ ${effectRuntime?.hasCoordinates && !effectRuntime.wrap ? `  if (!effectInside) $
       // #562: uniform-binding members drop the per-pixel mirror branch and
       // single-use temps; coefficients refresh at every frame-level write
       // site. Non-uniform members keep the branch form verbatim.
-      const uniformMirror = !identitySamplePath && member.uniformMirrorBinding === true
+      const uniformMirror = !identitySamplePath && member.binding?.uniformMirrorBinding === true
       // Members mapped only for ramps/coords have a statically-zero mirror:
       // their source index is plain `index` with no coefficients at all.
       const mirrorInline = member.needsMirrorMapping
@@ -9372,7 +9221,7 @@ ${emitMemberOutputEffectLines(member, { index: 'index', x: `index / max(1, ${mem
 ${effectRuntime?.hasCoordinates && !effectRuntime.wrap ? `  if (!effectInside) ${member.prefix}_clear()
 ` : ''}${freezeCapture}${refreshCapture}${rollingRefreshCapture}}`] : []),
     ...(outputDimension === 2 ? [`function ${member.prefix}_renderCapture2D(index, x, y) {
-${freezeReplay}${refreshReplay}${rollingRefreshReplay}${identitySamplePath ? '' : member.uniformMirrorBinding && !(samplePropertyRamps || effectRuntime?.hasCoordinates) ? '' : member.uniformMirrorBinding ? `  var mappedIndex = ${member.needsMirrorMapping ? `${member.prefix}_mir_base_i + ${member.prefix}_mir_sign * index` : 'index'}
+${freezeReplay}${refreshReplay}${rollingRefreshReplay}${identitySamplePath ? '' : member.binding?.uniformMirrorBinding && !(samplePropertyRamps || effectRuntime?.hasCoordinates) ? '' : member.binding?.uniformMirrorBinding ? `  var mappedIndex = ${member.needsMirrorMapping ? `${member.prefix}_mir_base_i + ${member.prefix}_mir_sign * index` : 'index'}
   var mappedX = ${member.needsMirrorMapping ? `${member.prefix}_adapt_mirror + ${member.prefix}_mir_sign * x` : 'x'}
 ${samplePropertyRamps || effectRuntime?.hasCoordinates ? '  var mappedY = y\n' : ''}` : `  var mappedIndex = index
   var mappedX = x
@@ -9396,12 +9245,12 @@ ${emitMemberDistortionSampling(member, 'effectX', 'effectY')}
   ${emitSelectedMemberRendererCall(member, 2, {
     index: identitySamplePath
       ? 'index'
-      : member.uniformMirrorBinding && !(samplePropertyRamps || effectRuntime?.hasCoordinates)
+      : member.binding?.uniformMirrorBinding && !(samplePropertyRamps || effectRuntime?.hasCoordinates)
         ? member.needsMirrorMapping ? `(${member.prefix}_mir_base_i + ${member.prefix}_mir_sign * index)` : 'index'
         : 'mappedIndex',
     x: identitySamplePath
       ? 'x'
-      : member.uniformMirrorBinding && !(samplePropertyRamps || effectRuntime?.hasCoordinates)
+      : member.binding?.uniformMirrorBinding && !(samplePropertyRamps || effectRuntime?.hasCoordinates)
         ? member.needsMirrorMapping ? `(${member.prefix}_adapt_mirror + ${member.prefix}_mir_sign * x)` : 'x'
         : 'mappedX',
     y: identitySamplePath ? 'y' : samplePropertyRamps || effectRuntime?.hasCoordinates ? 'mappedY' : 'y',
@@ -9674,7 +9523,7 @@ function emitShortCircuitRouteRenderBody(
       ? 'else'
       : `${rangeIndex === 0 ? 'if' : 'else if'} (index <= ${range.end})`
     return `${condition} {
-${route.member.uniformPixelCountBinding ? '' : `  ${route.member.pixelCountName} = ${route.pixelCount}\n`}${render.join('\n')}
+${route.member.binding?.uniformPixelCountBinding ? '' : `  ${route.member.pixelCountName} = ${route.pixelCount}\n`}${render.join('\n')}
   ${route.member.prefix}_emit()
   return
 }`.split('\n').map((line) => `${indent}${line}`).join('\n')
@@ -9695,7 +9544,7 @@ function emitRouteRenderBlock(route: ResolvedRoute, outputDimension: 1 | 2): str
     `  var ${localName} = -1`,
     ...emitZoneLocalAssignments(route.zone, localName),
     `  if (${localName} >= 0) {`,
-    ...(route.member.uniformPixelCountBinding ? [] : [`    ${route.member.pixelCountName} = ${route.pixelCount}`]),
+    ...(route.member.binding?.uniformPixelCountBinding ? [] : [`    ${route.member.pixelCountName} = ${route.pixelCount}`]),
     ...render,
     `    ${route.member.prefix}_emit()`,
     `    return`,
