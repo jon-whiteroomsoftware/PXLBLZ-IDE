@@ -229,6 +229,11 @@ export const CONTROL_DESCRIPTIONS: Record<string, Record<string, string>> = {
     sliderSpeed: 'Pace of the complete 32-bar score, from half speed to one-and-a-half speed.',
     sliderCyan: 'Strength of the sparse cyan ornaments and the full cyan takeover during Vacuum and Rebuild.',
   },
+  RedlineMachinePortable: {
+    sliderIntensity: 'Overall pressure of the score, from restrained negative space to full-impact output.',
+    sliderSpeed: 'Pace of the complete 32-bar score, from half speed to one-and-a-half speed.',
+    sliderCyan: 'Strength of the sparse cyan ornaments and the full cyan takeover during Vacuum and Rebuild.',
+  },
   Orrery3D: {
     sliderSpeed: 'How fast the clockwork turns — inner planets always orbit quickest.',
     sliderZoom: 'Scale of the whole system inside the volume.',

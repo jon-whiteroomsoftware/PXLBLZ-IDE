@@ -19,7 +19,7 @@ export interface GalleryFilter {
 export const GALLERY_ALL_CATEGORY = 'Everything'
 
 export const OPENGL_DEMOS = ['Kishimisu', 'NeonSquircles', 'ZippyZaps', 'IQPalettes', 'PhantomStar', 'IridescentFibers']
-export const BRAND_NEW_DEMOS = ['PlasmaNebula', 'Caustics', 'ShaderShowcase']
+export const BRAND_NEW_DEMOS = ['PlasmaNebula', 'Caustics', 'ShaderShowcase', 'RedlineMachinePortable']
 
 // Everything whose native renderer is render3D, regardless of cost class.
 // TestPattern3D stays with the other diagnostic patterns.
