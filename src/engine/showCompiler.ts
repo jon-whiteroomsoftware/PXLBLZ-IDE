@@ -70,6 +70,7 @@ import {
 } from './showRoutingRepresentation'
 // Re-exported for the #569 test suite and external consumers.
 export { computeLinearRuns, type PackedRoutingRun } from './showRoutingRepresentation'
+import { inlineShowMemberHelpers } from './showHelperInlining'
 import { selectRenderCompatibility } from './renderCompatibility'
 import {
   analyzeShowRendererOutputGuaranteesAst,
@@ -582,6 +583,13 @@ export interface ShowCompileSummary {
       estimatedOperationsAvoidedPerFrame: number
       addedSourceBytes: number
     }>
+    /** #565: tiny pure helper call sites inlined per member. */
+    helperInlining: Array<{
+      clipId: string
+      inlinedCallCount: number
+      removedHelperCount: number
+      addedSourceBytes: number
+    }>
     renderKernels: (ShowRenderKernelSelection & {
       configurationPlanCount: number
       kernelCount: number
@@ -866,6 +874,12 @@ interface CompiledMember {
     estimatedOperationsAvoidedPerFrame: number
     addedSourceBytes: number
   }
+  /** #565: tiny pure helper call sites inlined in this member's source. */
+  helperInliningSummary: {
+    inlinedCallCount: number
+    removedHelperCount: number
+    addedSourceBytes: number
+  }
   conditionalContentKeyEvaluation: boolean
   coverageDirectedComposition: boolean
   coordinateFieldCapture: boolean
@@ -1062,6 +1076,9 @@ export interface ShowCompileOptions {
   /** Benchmark counterfactual for #573 run-length packed-routing pricing;
    * production always uses the default `true`. */
   packedRoutingRepricing?: boolean
+  /** Benchmark counterfactual for #565 tiny pure helper call-site inlining;
+   * production always uses the default `true`. */
+  helperCallInlining?: boolean
 }
 
 /** #532/#556 price of one persistent scalar write on the measured VM. */
@@ -2042,6 +2059,7 @@ export function compileShow(
       coverageDirectedComposition,
       generatedEffectKernelSharing,
       [...(animatedEffectParameterPathsByClipId.get(clip.id) ?? [])].sort(),
+      options.helperCallInlining ?? true,
     ),
     samplePropertyRamps: expandedRecipe.samplePropertyRamps,
   }))
@@ -3133,6 +3151,10 @@ export function compileShow(
         clipId: member.id,
         ...member.frameInvariantSummary,
       })),
+      helperInlining: members.map((member) => ({
+        clipId: member.id,
+        ...member.helperInliningSummary,
+      })),
       renderKernels: routedSceneEmission?.renderKernels ?? null,
       motionTransitions: routedSceneEmission?.motionTransitions ?? null,
       showScore: routedSceneEmission?.showScore ?? null,
@@ -3649,9 +3671,18 @@ function compileMember(
   coverageDirectedComposition = true,
   generatedEffectKernelSharing = false,
   animatedEffectParameterPaths: string[] = [],
+  helperCallInlining = true,
 ): CompiledMember {
   const bundled = bundle(clip.source, libraries)
-  const memberCode = stripPatternManifest(bundled.code)
+  const strippedCode = stripPatternManifest(bundled.code)
+  // #565: inline tiny pure helper call sites before frame-invariant analysis
+  // so newly exposed subexpressions become hoisting candidates in the same
+  // compile. Runs on authored member source only - never on generated
+  // transition or scheduler functions (#520 hardware boundary).
+  const helperInlining = helperCallInlining
+    ? inlineShowMemberHelpers(strippedCode)
+    : { source: strippedCode, inlinedCallCount: 0, removedHelperCount: 0, addedSourceBytes: 0 }
+  const memberCode = helperInlining.source
   const prefix = `__pxlblz_show_c${index}`
   const frameCandidates = frameInvariantHoisting
     ? analyzeShowFrameInvariantCandidates(memberCode, { inlineCallSubtrees: inlineCallHoisting })
@@ -3756,6 +3787,11 @@ function compileMember(
         sum + candidate.operations * Math.max(0, outputPixelCount - 1)
       ), 0),
       addedSourceBytes: frameHoists.addedSourceBytes,
+    },
+    helperInliningSummary: {
+      inlinedCallCount: helperInlining.inlinedCallCount,
+      removedHelperCount: helperInlining.removedHelperCount,
+      addedSourceBytes: helperInlining.addedSourceBytes,
     },
     conditionalContentKeyEvaluation,
     coverageDirectedComposition,

@@ -182,6 +182,7 @@ export function mirrorRecipe(): ShowRecipe {
 // qualified #557 matrix; WAVE2_DIRECT_SINKS=0 rebuilds the pre-#557 shape.
 // WAVE2_PROLOGUE=0 rebuilds the pre-#571 per-pixel prologue rebinding.
 // WAVE2_FN_SINKS=1 reproduces the #572 measured-negative rebound build.
+// WAVE2_HELPER_INLINE=0 rebuilds the pre-#565 helper-call emission.
 const WAVE2_COMPILE_OPTIONS: ShowCompileOptions = {
   ...(process.env.WAVE2_DIRECT_SINKS === '0'
     ? { directColorSinks: false }
@@ -190,6 +191,7 @@ const WAVE2_COMPILE_OPTIONS: ShowCompileOptions = {
       : {}),
   ...(process.env.WAVE2_PROLOGUE === '0' ? { placementPrologueHoisting: false } : {}),
   ...(process.env.WAVE2_FN_SINKS === '1' ? { functionValuedSinkRebinding: true } : {}),
+  ...(process.env.WAVE2_HELPER_INLINE === '0' ? { helperCallInlining: false } : {}),
 }
 
 function fixture(id: Wave2FixtureId, recipe: ShowRecipe, notes: string): Wave2Fixture {

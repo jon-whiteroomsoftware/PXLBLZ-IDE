@@ -341,6 +341,7 @@ lives in `docs/plans/archive/show-rendering-next-wave-measurement-ledger.md`.
 | 13 | #571 placement-prologue rebinding elimination | effect-tax +14.27/+14.29/+14.91% median FPS at 256/1,000/2,000 px, bytecode -800 B; prologue-free fixtures byte-identical; fixes the #562 transition-pair mirror divergence; exact |
 | 14 | #572 function-valued sink rebinding | **recorded negative**: the extra user-call hop (~1.9-3.4 us) exceeds the ~1.5 us flag branch it removes; hsv-steady -3.82/-3.92/-3.91% median FPS, +116 B; flag build stays default, `functionValuedSinkRebinding: true` reproduces the measurement |
 | 15 | #573 packed-routing re-pricing | run-length pricing (128 + 80 B/loop-run + 20 B/short element, measured) with a 4,096-word RAM cap and a 13-comparison depth gate; deep 2,000 px interleave newly qualifies at +197% FPS (3.361 -> 10.0) and -371 ms activation; shallow contiguous splits stay branches (measured -34% packed); stock catalogue byte-identical |
+| 16 | #565 tiny pure helper inlining | 10/13 Redline inside() sites inlined (call boundary 1.9-3.4 us each, #532); redline @2,000 px 3.030 -> 3.162 FPS (+4.4%, within the fixture's phrase-cycling noise envelope; direction consistent); other fixtures byte-identical; exact by construction |
 
 Wave-2 slice ledgers with full axes live as comments on #554.
 

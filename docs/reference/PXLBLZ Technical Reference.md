@@ -1756,6 +1756,23 @@ shared slot-dispatched chain costs 39.6 us/call and the specialized form
 
 ### Exact frame-invariant specialization
 
+Before frame-invariant analysis, tiny pure member helpers inline at their
+call sites (#565): a non-exported, non-renderer top-level function whose body
+is a single `return` of a provably pure expression, never referenced as a
+value, substitutes its argument expressions into a parenthesized copy of the
+body - arithmetic unchanged, so Fast/Precise checksums equal the call build
+exactly. A parameter used more than once only accepts literal or identifier
+arguments (never duplicate a costed expression), impure arguments refuse the
+site, and net growth caps at 1,024 bytes per member in source order. Fully
+inlined helpers are removed. The pass runs on authored member source only -
+never on generated transition or scheduler functions, the #520 hardware
+boundary. On `RedlineMachine.js` it inlines 10 of 13 `inside()` sites
+(user-call boundary priced at 1.899-3.449 us each, #532); redline-reference
+at 2,000 px measured 3.030 -> 3.162 median FPS (+4.4%), directionally
+consistent though within that fixture's phrase-cycling noise envelope.
+`helperCallInlining: false` restores the call build; the compile summary
+reports per-member inlined counts.
+
 Since #566 the pass also hoists maximal pure call subtrees appearing inline
 anywhere in render-reachable expressions - the `hsv(t + wave(time(.05)), 1,
 1)` shape endemic in community Patterns - not only declarator initializers.

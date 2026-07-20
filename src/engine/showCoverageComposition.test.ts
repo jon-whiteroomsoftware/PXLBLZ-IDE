@@ -169,8 +169,10 @@ describe('multi-layer coverage-directed composition (#534)', () => {
     }
     const unknown = layeredRecipe([
       {
+        // A multi-statement helper: #565 inlines single-return helpers, so
+        // this body must stay a call for the render state to remain unknown.
         id: 'bottom',
-        source: 'function color(index) { return index / pixelCount } export function render(index) { rgb(color(index), 0, 0) }',
+        source: 'function color(index) { var v = index / pixelCount; return v } export function render(index) { rgb(color(index), 0, 0) }',
       },
       { id: 'middle', source: 'export function render(index) { rgb(0, 0, 1) }' },
       { id: 'top', source: 'export function render(index) { rgb(0, 1, 0) }', effects: [keyed] },
