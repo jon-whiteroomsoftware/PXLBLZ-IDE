@@ -111,10 +111,11 @@ function censusCase(
     const artifact = compileShow(recipe, LIBRARIES, {
       generatedEffectKernelSharing: false,
       patternSlotSharing: 'none',
-      // #558 hoisting and #562 prologue simplification postdate the census;
-      // preserve its boundary.
+      // #558 hoisting, #562 prologue simplification, and #561 pixel-count
+      // write hoisting postdate the census; preserve its boundary.
       colorCoefficientHoisting: false,
       capturePrologueSimplification: false,
+      pixelCountWriteHoisting: false,
     })
     // The final artifact is alpha-mangled. The expanded artifact retains the
     // stable member prefixes while declaring the same persistent globals.

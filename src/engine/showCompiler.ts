@@ -852,6 +852,9 @@ interface CompiledMember {
    * uniform per frame (single placement, single zone, no span/repeat, no
    * logical layouts), enabling the branch-free mirror coefficient form. */
   uniformMirrorBinding?: boolean
+  /** #561: true when the member's virtual pixel count is one value across
+   * every arm that can invoke it; per-pixel writes are then redundant. */
+  uniformPixelCountBinding?: boolean
   generatedEffectKernelSharing: boolean
   animatedEffectParameterPaths: string[]
   freezeOwnerTokens: number[]
@@ -1004,6 +1007,9 @@ export interface ShowCompileOptions {
   /** Benchmark counterfactual for #562 capture-prologue assignment
    * reduction; production always uses the default `true`. */
   capturePrologueSimplification?: boolean
+  /** Benchmark counterfactual for #561 per-pixel pixelCount constant-write
+   * hoisting; production always uses the default `true`. */
+  pixelCountWriteHoisting?: boolean
 }
 
 /** #532/#556 price of one persistent scalar write on the measured VM. */
@@ -2377,6 +2383,51 @@ export function compileShow(
         && !hasLogicalLayouts
         && !routeMode
         && !nonUniformClipIds.has(member.id)
+    }
+    // #561: a member's per-pixel pixelCount write is redundant when its
+    // virtual pixel count is one value across every arm that can invoke it;
+    // the schedulers' per-frame writes already cover those members.
+    {
+      const enabled = options.pixelCountWriteHoisting ?? true
+      const countsByMember = new Map<string, Set<number>>()
+      const poisoned = new Set<string>(nonUniformClipIds)
+      const addCount = (memberId: string, count: number) => {
+        const set = countsByMember.get(memberId) ?? new Set<number>()
+        set.add(count)
+        countsByMember.set(memberId, set)
+      }
+      if (hasLogicalLayouts) for (const member of members) poisoned.add(member.id)
+      const sequenceScenes = expandedRecipe.routedSceneSequence?.scenes ?? []
+      const physicalZones = new Map(
+        (expandedRecipe.routingLayouts ?? []).flatMap((layout) => layout.zones).map((zone) => [zone.name, zone]),
+      )
+      // The all-cut shared-physical scheduler owns its own arm emission; keep
+      // those recipes on the per-pixel write conservatively.
+      const sharedCutShape = sequenceScenes.length > 0
+        && (expandedRecipe.routingLayouts ?? []).length === 1
+        && sequenceScenes.every((scene) => !scene.transitionOut || scene.transitionOut.kind === 'cut')
+      if (sharedCutShape) for (const member of members) poisoned.add(member.id)
+      for (const scene of sequenceScenes) {
+        for (const placement of scene.placements) {
+          const zone = physicalZones.get(placement.zoneName)
+          if (!zone) {
+            poisoned.add(placement.clipId)
+            continue
+          }
+          addCount(placement.clipId, Math.max(1, controllerZonePixelCount(zone)))
+        }
+      }
+      for (const resolved of route?.routes ?? []) addCount(resolved.member.id, resolved.pixelCount)
+      for (const layout of routingLayouts ?? []) {
+        for (const resolved of layout.routes) addCount(resolved.member.id, resolved.pixelCount)
+      }
+      for (const member of members) {
+        const counts = countsByMember.get(member.id)
+        member.uniformPixelCountBinding = enabled
+          && !poisoned.has(member.id)
+          && counts !== undefined
+          && counts.size === 1
+      }
     }
   }
   const routedSceneEmission = expandedRecipe.routedSceneSequence
@@ -6413,7 +6464,7 @@ function emitPhysicalSceneZoneStack(
       `var ${local} = -1`,
       ...emitZoneLocalAssignments(zone, local),
       `if (${local} >= 0) {`,
-      `  ${directPlacement.member.pixelCountName} = ${pixelCount}`,
+      ...(directPlacement.member.uniformPixelCountBinding ? [] : [`  ${directPlacement.member.pixelCountName} = ${pixelCount}`]),
       ...(direct ? ['  __pxlblz_show_direct = 1'] : []),
       indentBlock(capture.lines.join('\n'), 2),
       direct ? '  __pxlblz_show_direct = 0' : `  ${directPlacement.member.prefix}_emit()`,
@@ -6433,7 +6484,7 @@ function emitPhysicalSceneZoneStack(
     `var ${local} = -1`,
     ...emitZoneLocalAssignments(zone, local),
     `if (${local} >= 0) {`,
-    ...placements.map((placement) => `  ${placement.member.pixelCountName} = ${pixelCount}`),
+    ...placements.flatMap((placement) => (placement.member.uniformPixelCountBinding ? [] : [`  ${placement.member.pixelCountName} = ${pixelCount}`])),
     indentBlock(capture, 2),
     `  rgb(__pxlblz_show_stack_${zoneIndex}_r, __pxlblz_show_stack_${zoneIndex}_g, __pxlblz_show_stack_${zoneIndex}_b)`,
     `  return`,
@@ -6945,10 +6996,8 @@ function emitPhysicalSceneZoneTransition(
     `var ${toLocal} = -1`,
     ...emitZoneLocalAssignments(toZone, toLocal),
     `if (${fromLocal} >= 0 && ${toLocal} >= 0) {`,
-    ...fromMembers.map((member) => `  ${member.pixelCountName} = ${fromPixelCount}`),
-    ...toMembers.map((member) => `  ${member.pixelCountName} = ${toPixelCount}`),
-    `  ${from.pixelCountName} = ${fromPixelCount}`,
-    `  ${to.pixelCountName} = ${toPixelCount}`,
+    ...[...new Set([...fromMembers, from])].flatMap((member) => (member.uniformPixelCountBinding ? [] : [`  ${member.pixelCountName} = ${fromPixelCount}`])),
+    ...[...new Set([...toMembers, to])].flatMap((member) => (member.uniformPixelCountBinding ? [] : [`  ${member.pixelCountName} = ${toPixelCount}`])),
     ...coordinatePrelude,
     indentBlock(transitionBlock, 2),
     `  return`,
@@ -9456,8 +9505,7 @@ function emitShortCircuitRouteRenderBody(
       ? 'else'
       : `${rangeIndex === 0 ? 'if' : 'else if'} (index <= ${range.end})`
     return `${condition} {
-  ${route.member.pixelCountName} = ${route.pixelCount}
-${render.join('\n')}
+${route.member.uniformPixelCountBinding ? '' : `  ${route.member.pixelCountName} = ${route.pixelCount}\n`}${render.join('\n')}
   ${route.member.prefix}_emit()
   return
 }`.split('\n').map((line) => `${indent}${line}`).join('\n')
@@ -9479,7 +9527,7 @@ function emitRouteRenderBlock(route: ResolvedRoute, outputDimension: 1 | 2): str
     `  var ${localName} = -1`,
     ...emitZoneLocalAssignments(route.zone, localName),
     `  if (${localName} >= 0) {`,
-    `    ${route.member.pixelCountName} = ${route.pixelCount}`,
+    ...(route.member.uniformPixelCountBinding ? [] : [`    ${route.member.pixelCountName} = ${route.pixelCount}`]),
     ...render,
     `    ${route.member.prefix}_emit()`,
     `    return`,
