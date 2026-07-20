@@ -11,6 +11,7 @@ import { installationPhysicalZones } from '../../src/engine/showInstallationCove
 import {
   compileShow,
   type GeneratedShowArtifact,
+  type ShowCompileOptions,
   type ShowRecipe,
 } from '../../src/engine/showCompiler'
 import { showRecordToCompileRecipe } from '../../src/engine/showModel'
@@ -176,8 +177,14 @@ export function mirrorRecipe(): ShowRecipe {
   }
 }
 
+// Paired "after" passes flip wave-2 compile options via env (the runner's
+// WAVE2_LABEL names the report); the default build stays the baseline.
+const WAVE2_COMPILE_OPTIONS: ShowCompileOptions = process.env.WAVE2_DIRECT_SINKS === '1'
+  ? { directColorSinks: true }
+  : {}
+
 function fixture(id: Wave2FixtureId, recipe: ShowRecipe, notes: string): Wave2Fixture {
-  return { id, artifact: compileShow(recipe, LIBRARIES), notes }
+  return { id, artifact: compileShow(recipe, LIBRARIES, WAVE2_COMPILE_OPTIONS), notes }
 }
 
 export const wave2Fixtures: Wave2Fixture[] = [

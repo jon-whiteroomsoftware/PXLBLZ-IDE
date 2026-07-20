@@ -535,6 +535,12 @@ export interface ShowCompileSummary {
   renderTargetPlan: ShowRenderTargetCachePlan
   specializations: {
     routing: Omit<PhysicalRoutingShortCircuitPlan, 'ranges'> | null
+    /** Steady-state direct color sinks (#557): flag-branch native hsv()/rgb()
+     * for (member, scene) pairs whose captured output has no consumer. */
+    directColorSinks: {
+      enabled: boolean
+      members: Array<{ id: string; sinks: Array<'hsv' | 'rgb'>; scenes: number[] }>
+    } | null
     capture: Array<{
       clipId: string
       samplePath: 'identity' | 'mapped'
@@ -982,6 +988,8 @@ export interface ShowCompileOptions {
   coordinateFieldCaching?: boolean
   /** Benchmark counterfactual; production shares qualified repeated affine Effect updates. */
   generatedEffectKernelSharing?: boolean
+  /** Steady-state direct color sinks (#557); defaults off until the Controller matrix qualifies the win. */
+  directColorSinks?: boolean
 }
 
 const DIRECT_SNAPSHOT_CANDIDATE_ID = 'transition:direct:snapshot-live'
@@ -2328,6 +2336,7 @@ export function compileShow(
         selectedRefreshCaptures,
         selectedRollingRefreshCaptures,
         patternSlotRuntimePlan,
+        (options?.directColorSinks ?? false) && !trailsSelected,
       )
       : null
   const emittedCode = routedSceneEmission
@@ -2840,6 +2849,7 @@ export function compileShow(
     renderTargetPlan,
     specializations: {
       routing: routingSpecialization,
+      directColorSinks: routedSceneEmission?.directColorSinks ?? null,
       capture: captureSpecializations,
       frameInvariants: members.map((member) => ({
         clipId: member.id,
@@ -4041,11 +4051,13 @@ function emitRoutedSceneSequenceShowCode(
   refreshCaptures: SelectedRefresh[] = [],
   rollingRefreshCaptures: SelectedRollingRefresh[] = [],
   patternSlotRuntimePlan: CompiledPatternSlotRuntimePlan | null = null,
+  directColorSinksEnabled = false,
 ): {
   code: string
   renderKernels: ShowCompileSummary['specializations']['renderKernels']
   motionTransitions: ShowCompileSummary['specializations']['motionTransitions']
   showScore: ShowCompileSummary['specializations']['showScore']
+  directColorSinks: NonNullable<ShowCompileSummary['specializations']['directColorSinks']>
 } {
   if (layouts.length === 0) throw new Error('compileShow routed scene sequence requires a routing layout.')
   const layoutIndex = new Map(layouts.map((layout, index) => [layout.id, index]))
@@ -4586,6 +4598,62 @@ ${setupForPlacements(
         coordinateFields,
       )
     : undefined
+  // #557 steady-state direct-sink eligibility. Recipe-level consumers of
+  // captured member output disqualify everything; member-level facts and
+  // per-scene structure select the activation sites. Members without at least
+  // one activation site are dropped so ineligible Shows stay byte-identical.
+  const snapshotAdjacentScenes = new Set(snapshotSegments.flatMap((segment) => (
+    [segment.sceneIndex, segment.sceneIndex + 1]
+  )))
+  const directSinkMemberIds = new Set<string>()
+  const directSinkMembers: Array<{ id: string; sinks: Array<'hsv' | 'rgb'>; scenes: number[] }> = []
+  if (
+    directColorSinksEnabled
+    && !canSharePhysicalCutRouting
+    && patternOutputReuseGroups.length === 0
+    && scalarFields.length === 0
+    && coordinateFields.length === 0
+    && freezeAtEntryCaptures.length === 0
+    && refreshCaptures.length === 0
+    && rollingRefreshCaptures.length === 0
+    && !patternSlotRuntimePlan
+  ) {
+    const memberQualifies = new Map(members.map((member) => (
+      [member.id, memberQualifiesForDirectSink(member, outputDimension)]
+    )))
+    const activationScenes = new Map<string, Set<number>>()
+    for (const scene of scenes) {
+      if (snapshotAdjacentScenes.has(scene.sceneIndex)) continue
+      for (const layout of layouts) {
+        if (layout.logical) continue
+        for (const stack of groupRoutedPlacementsByZone(scene.placements).values()) {
+          if (stack.length !== 1) continue
+          const placement = stack[0]
+          if (!routedPlacementIsOpaque(placement, scene.propertyTracks)) continue
+          if (!physicalPlacementDomain(layout, placement)) continue
+          if (!placementQualifiesForDirectSink(placement, scene.propertyTracks)) continue
+          if (!memberQualifies.get(placement.member.id)) continue
+          const sceneSet = activationScenes.get(placement.member.id) ?? new Set<number>()
+          sceneSet.add(scene.sceneIndex)
+          activationScenes.set(placement.member.id, sceneSet)
+        }
+      }
+    }
+    for (const [memberId, sceneSet] of activationScenes) {
+      directSinkMemberIds.add(memberId)
+      const member = memberById.get(memberId)!
+      directSinkMembers.push({
+        id: memberId,
+        sinks: ['rgb', ...(member.usesHsv ? ['hsv' as const] : [])],
+        scenes: [...sceneSet].sort((left, right) => left - right),
+      })
+    }
+  }
+  const directSinkContextForScene = (sceneIndex: number): RoutedDirectSinkContext | undefined => (
+    directSinkMemberIds.size > 0
+      ? { memberIds: directSinkMemberIds, sceneEligible: !snapshotAdjacentScenes.has(sceneIndex) }
+      : undefined
+  )
   const sceneBranches = sharedPhysicalCut?.render
     ?? scenes.map((scene, index) => `${index === 0 ? 'if' : 'else if'} (__pxlblz_show_scene == ${index}) {
 ${indentBlock(emitRoutedScenePlacements(
@@ -4594,6 +4662,7 @@ ${indentBlock(emitRoutedScenePlacements(
     outputDimension,
     scene.propertyTracks,
     sceneLocalTimeExpression(index),
+    directSinkContextForScene(index),
   ), 4)}
   }`).join(' ')
   const unrolledTransitionSegments = segments.filter((segment) => segment.kind === 'transition')
@@ -4809,6 +4878,7 @@ function __pxlblz_show_capture_transition_rgb(r, g, b) {
         || transitionHelpers.some((helper) => helper.includes('__pxlblz_show_hash01')),
       includeMix: transitionBranches.length > 0,
       includePhase: false,
+      directSinkMemberIds,
     }),
     ...members.map((member) => member.code.trim()),
     ...(sharedMotionEasingSource ? [sharedMotionEasingSource] : []),
@@ -5133,6 +5203,7 @@ ${indentBlock(transitionRender, 4)}
   return {
     code,
     renderKernels: sharedPhysicalCut?.renderKernels ?? null,
+    directColorSinks: { enabled: directColorSinksEnabled, members: directSinkMembers },
     motionTransitions: motionSegments.length === 0
       ? null
       : {
@@ -5559,11 +5630,12 @@ function emitRoutedScenePlacements(
   outputDimension: 1 | 2,
   propertyTracks?: ShowPropertyAnimationTrack[],
   localTimeExpression?: string,
+  directSinks?: RoutedDirectSinkContext,
 ): string {
   return layouts.map((layout, layoutIndex) => `${layoutIndex === 0 ? 'if' : 'else if'} (__pxlblz_show_route_layout == ${layoutIndex}) {
 ${indentBlock(layout.logical
     ? emitLogicalScenePlacements(layout, placements, propertyTracks, localTimeExpression)
-    : emitPhysicalScenePlacements(layout, placements, outputDimension, propertyTracks, localTimeExpression), 2)}
+    : emitPhysicalScenePlacements(layout, placements, outputDimension, propertyTracks, localTimeExpression, directSinks), 2)}
 }`).join(' ')
 }
 
@@ -5937,6 +6009,7 @@ function emitPhysicalScenePlacements(
   outputDimension: 1 | 2,
   propertyTracks?: ShowPropertyAnimationTrack[],
   localTimeExpression?: string,
+  directSinks?: RoutedDirectSinkContext,
 ): string {
   const stacks = groupRoutedPlacementsByZone(placements)
   return [...stacks.values()].flatMap((stack, placementIndex) => {
@@ -5950,6 +6023,7 @@ function emitPhysicalScenePlacements(
       outputDimension,
       propertyTracks,
       localTimeExpression,
+      directSinks,
     )]
   }).join('\n')
 }
@@ -6213,6 +6287,7 @@ function emitPhysicalSceneZoneStack(
   outputDimension: 1 | 2,
   propertyTracks?: ShowPropertyAnimationTrack[],
   localTimeExpression?: string,
+  directSinks?: RoutedDirectSinkContext,
 ): string {
   const local = `__pxlblz_show_scene_zone_${zoneIndex}_index`
   const pixelCount = Math.max(1, controllerZonePixelCount(zone))
@@ -6226,13 +6301,21 @@ function emitPhysicalSceneZoneStack(
       propertyTracks,
       localTimeExpression,
     )
+    // #557 steady-state direct sink: the member paints the LED through its
+    // flag-branch wrappers, so the captured globals are never written and the
+    // emit re-read is skipped. The flag is cleared before returning so
+    // transition helpers and ineligible arms always see the capture path.
+    const direct = directSinks?.sceneEligible
+      && directSinks.memberIds.has(directPlacement.member.id)
+      && placementQualifiesForDirectSink(directPlacement, propertyTracks)
     return [
       `var ${local} = -1`,
       ...emitZoneLocalAssignments(zone, local),
       `if (${local} >= 0) {`,
       `  ${directPlacement.member.pixelCountName} = ${pixelCount}`,
+      ...(direct ? ['  __pxlblz_show_direct = 1'] : []),
       indentBlock(capture.lines.join('\n'), 2),
-      `  ${directPlacement.member.prefix}_emit()`,
+      direct ? '  __pxlblz_show_direct = 0' : `  ${directPlacement.member.prefix}_emit()`,
       `  return`,
       `}`,
     ].join('\n')
@@ -6479,6 +6562,49 @@ function routedPlacementIsOpaque(
 ): boolean {
   return !routedPlacementHasOpacityTrack(placement, propertyTracks)
     && clampNumber(placement.opacity ?? 1, 0, 1) === 1
+}
+
+/** #557: per-scene activation context for steady-state direct color sinks. */
+interface RoutedDirectSinkContext {
+  memberIds: ReadonlySet<string>
+  sceneEligible: boolean
+}
+
+/** A placement may activate the direct sink only when nothing placement-local
+ * consumes or transforms the member's captured color. */
+function placementQualifiesForDirectSink(
+  placement: ResolvedRoutedScenePlacement,
+  propertyTracks?: ShowPropertyAnimationTrack[],
+): boolean {
+  return (placement.effects ?? []).length === 0
+    && !placement.transform
+    && (placement.brightness ?? 1) === 1
+    && (propertyTracks ?? []).every((track) => !(
+      (track.target.kind === 'placement-view'
+        || track.target.kind === 'placement-effect'
+        || track.target.kind === 'placement-transform')
+      && track.target.placementId === placement.placementId
+    ))
+}
+
+/** A member may carry the direct-branch wrappers only when its capture path is
+ * a pure pass-through: guaranteed output (clear elided), identity output path
+ * (no color Effects, no brightness scale), no content key, live evaluation,
+ * and no capture-consuming render-target roles. */
+function memberQualifiesForDirectSink(
+  member: CompiledMember,
+  outputDimension: ShowOutputDimension,
+): boolean {
+  const capture = describeCaptureSpecialization(member, outputDimension)
+  return capture.clearPolicy === 'omitted-guaranteed-output'
+    && capture.outputPath === 'identity'
+    && !memberHasContentKey(member)
+    && member.evaluationPolicy === 'live'
+    && member.adaptation.brightness === 1
+    && !member.adaptation.lightShutter
+    && !member.adaptation.steppedClock
+    && !member.vignetteScalarField
+    && !member.coordinateFieldCapture
 }
 
 function routedPlacementHasOpacityTrack(
@@ -8574,12 +8700,15 @@ function emitRuntimePrelude(
     includeHash?: boolean
     includeMix?: boolean
     includePhase?: boolean
+    /** Members whose color wrappers gain the #557 steady-state direct branch. */
+    directSinkMemberIds?: ReadonlySet<string>
   } = {},
 ): string {
   const includeAdaptationMix = options.includeAdaptationMix ?? false
   const includeHash = options.includeHash ?? true
   const includeMix = options.includeMix ?? true
   const includePhase = options.includePhase ?? true
+  const directSinkMemberIds = options.directSinkMemberIds ?? new Set<string>()
   const samplePropertyRamps = members[0]?.samplePropertyRamps
   const sampleRuntime = emitSampleRemappingRuntime(samplePropertyRamps)
   const sharedEffectKernelPlan = buildGeneratedEffectKernelPlan(members, outputDimension)
@@ -8719,9 +8848,13 @@ ${advanceDelta('delta', '  ')}
     ...steppedClockVars,
     ...shutterVars,
     `function ${member.prefix}_clear() { ${member.prefix}_r = 0; ${member.prefix}_g = 0; ${member.prefix}_b = 0${memberHasContentKey(member) ? `; ${member.prefix}_alpha = 0` : ''} }`,
-    `function ${member.prefix}_rgb(r, g, b) { ${member.prefix}_r = r; ${member.prefix}_g = g; ${member.prefix}_b = b${memberHasContentKey(member) ? `; ${member.prefix}_alpha = 1` : ''} }`,
+    directSinkMemberIds.has(member.id)
+      ? `function ${member.prefix}_rgb(r, g, b) { if (__pxlblz_show_direct) { rgb(r, g, b) } else { ${member.prefix}_r = r; ${member.prefix}_g = g; ${member.prefix}_b = b } }`
+      : `function ${member.prefix}_rgb(r, g, b) { ${member.prefix}_r = r; ${member.prefix}_g = g; ${member.prefix}_b = b${memberHasContentKey(member) ? `; ${member.prefix}_alpha = 1` : ''} }`,
     ...(member.usesHsv
-      ? [`function ${member.prefix}_hsv(h, s, v) { __pxlblz_show_capture_hsv(${index}, h + ${member.prefix}_adapt_phase, s, v) }`]
+      ? [directSinkMemberIds.has(member.id)
+          ? `function ${member.prefix}_hsv(h, s, v) { if (__pxlblz_show_direct) { hsv(h + ${member.prefix}_adapt_phase, s, v) } else { __pxlblz_show_capture_hsv(${index}, h + ${member.prefix}_adapt_phase, s, v) } }`
+          : `function ${member.prefix}_hsv(h, s, v) { __pxlblz_show_capture_hsv(${index}, h + ${member.prefix}_adapt_phase, s, v) }`]
       : []),
     ...(member.usesTime
       ? [`function ${member.prefix}_time(interval) { return (${member.elapsedSecondsName} / (interval * 65.536)) % 1 }`]
@@ -8829,6 +8962,7 @@ ${effectRuntime?.hasCoordinates && !effectRuntime.wrap ? `  if (!effectInside) $
 
   return [
     'var __pxlblz_show_elapsed_s = 0',
+    ...(directSinkMemberIds.size > 0 ? ['var __pxlblz_show_direct = 0'] : []),
     ...(includeMix ? ['var __pxlblz_show_mix = 0'] : []),
     ...(includePhase ? ['var __pxlblz_show_phase = 0'] : []),
     ...(sampleRuntime ? [sampleRuntime] : []),
