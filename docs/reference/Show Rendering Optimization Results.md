@@ -336,7 +336,8 @@ lives in `docs/plans/archive/show-rendering-next-wave-measurement-ledger.md`.
 | 08 | #564 fixed-point peepholes | **recorded negative**: floor/frac price below a same-shape multiply (#556), and fw 3.67 bitwise ops integer-coerce operands so the raw-bits identities are invalid |
 | 09 | #559 per-member HSV capture chain | conversion 39.6 -> 22.9 us/call (probe); effect-tax +10.7-11.2%, acceptance +6.2-6.6%, mirror +3.2% median FPS; bit-exact |
 | 10 | #560 Mirror within-frame reuse | **recorded negative**: render-order kill-test PASSED (ascending, total coverage), but a mirror reversal is a permutation with no within-frame redundancy for single placements; twin stacks are the only paying shape (owner-declined) |
-| 11 | #563 zone-coordinate strength reduction | **recorded negative**: modulo is free vs a multiply, floor-feeding reciprocals step whole rows, outer reciprocals err ~WIDTH/2 LSBs (exact only for power-of-two divisors) |
+| 11 | #568 trig-layout packed routing (diagnostic) | **priced verdict, no build**: chain arithmetic favors a table (~14 us/pixel) but fw 3.67 integer-coercing bit ops cap single-plane packing at 6-bit coordinates; profile-dependent, quantization-limited |
+| 12 | #563 zone-coordinate strength reduction | **recorded negative**: modulo is free vs a multiply, floor-feeding reciprocals step whole rows, outer reciprocals err ~WIDTH/2 LSBs (exact only for power-of-two divisors) |
 
 Wave-2 slice ledgers with full axes live as comments on #554.
 
