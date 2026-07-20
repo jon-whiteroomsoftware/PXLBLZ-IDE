@@ -5,6 +5,7 @@ import optimizationGuide from '../../docs/guides/Optimizing Pixelblaze patterns.
 import visualEffectsGuide from '../../docs/guides/Visual effects guide.md?raw'
 import technicalReference from '../../docs/reference/PXLBLZ Technical Reference.md?raw'
 import aboutPxlblz from '../../docs/reference/About PXLBLZ.md?raw'
+import privacy from '../../docs/reference/PXLBLZ Privacy.md?raw'
 
 import builtinCostsUrl from '../../docs/images/builtin-costs.svg?url'
 import deviceBrowserBoundaryUrl from '../../docs/images/device-browser-boundary.svg?url'
@@ -22,6 +23,7 @@ export type DocId =
   | 'understanding-maps'
   | 'technical-reference'
   | 'about'
+  | 'privacy'
 
 export type UserDoc = {
   id: DocId
@@ -113,6 +115,16 @@ export const USER_DOCS: UserDoc[] = [
     menuKicker: 'Project',
     summary: 'Why PXLBLZ exists, who built it, and how the project operates.',
     source: aboutPxlblz,
+    assets: sharedAssets,
+  },
+  {
+    id: 'privacy',
+    path: 'docs/reference/PXLBLZ Privacy.md',
+    title: 'PXLBLZ Privacy',
+    menuLabel: 'Privacy',
+    menuKicker: 'Project',
+    summary: 'How PXLBLZ handles account data, personal content, analytics, exports, and deletion requests.',
+    source: privacy,
     assets: sharedAssets,
   },
 ]

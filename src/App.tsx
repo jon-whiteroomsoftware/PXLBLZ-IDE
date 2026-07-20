@@ -69,7 +69,7 @@ import { uniquePatternName } from '@/engine/patternName'
 import { newPersonalContentId } from '@/engine/personalContentMetadata'
 import { exportedDims } from '@/engine/exportedDims'
 import { galleryPatternBySlug, patternSlug, type GalleryPattern } from '@/engine/galleryCatalog'
-import { getUserDoc, isDocId } from '@/docs/catalog'
+import { docExternalHref, getUserDoc, isDocId } from '@/docs/catalog'
 import { buildApiReferenceCatalog } from '@/engine/apiReferenceCatalog'
 import { useReferenceNavigationStore } from '@/store/referenceNavigationStore'
 import type { AuthProvider } from '@/engine/authSession'
@@ -258,6 +258,13 @@ function StudioWelcomePage({
                 Back to Gallery
               </Button>
             </div>
+            <p className="mt-4 text-xs leading-5 text-zinc-500">
+              See how PXLBLZ uses account data in the{' '}
+              <a className="text-zinc-300 underline decoration-zinc-600 underline-offset-2 hover:text-zinc-100" href={docExternalHref('privacy')}>
+                Privacy Policy
+              </a>
+              .
+            </p>
           </div>
         </div>
       </section>

@@ -381,6 +381,7 @@ describe('routing (#308)', () => {
     render(<App />)
     expect(window.location.pathname).toBe('/studio-welcome')
     expect(screen.getByTestId('studio-welcome-page')).toHaveTextContent('Sign in to Studio')
+    expect(screen.getByRole('link', { name: /privacy policy/i })).toHaveAttribute('href', '/docs/privacy')
   })
 
   it('does not redirect before the auth probe settles', () => {

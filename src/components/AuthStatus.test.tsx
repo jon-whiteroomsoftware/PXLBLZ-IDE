@@ -46,6 +46,10 @@ describe('AuthStatus', () => {
       '/api/auth/login?provider=google&mode=link',
     )
     expect(screen.getByRole('menuitem', { name: /disconnect github/i })).toBeDisabled()
+    expect(screen.getByRole('menuitem', { name: /privacy & account data/i })).toHaveAttribute(
+      'href',
+      '/docs/privacy',
+    )
     const logout = screen.getByRole('menuitem', { name: /log out/i })
     expect(logout).toHaveAttribute('href', '/api/auth/logout')
 

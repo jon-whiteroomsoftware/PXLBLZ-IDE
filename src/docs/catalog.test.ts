@@ -10,13 +10,16 @@ describe('docs catalog', () => {
       'optimization-guide',
       'technical-reference',
       'about',
+      'privacy',
     ])
   })
 
   it('looks up doc ids and routes', () => {
     expect(isDocId('feature-guide')).toBe(true)
     expect(isDocId('technical-reference')).toBe(true)
+    expect(isDocId('privacy')).toBe(true)
     expect(getUserDoc('feature-guide')?.menuLabel).toBe('Feature Guide')
+    expect(getUserDoc('privacy')?.source).toContain('privacy@whiteroomsoftware.com')
     expect(getUserDoc('show-visual-toolkit')?.source).toContain('Property animation')
     expect(getUserDoc('show-visual-toolkit')).toMatchObject({
       title: 'Visual Effects Guide',

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
-import { ChevronDown, CircleUser, Link2, LogIn, LogOut, Unlink } from 'lucide-react'
+import { ChevronDown, CircleUser, Link2, LogIn, LogOut, ShieldCheck, Unlink } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { docExternalHref } from '@/docs/catalog'
 import { getAuthSession, type AuthProvider, type AuthSession } from '@/engine/authSession'
 import { studioWelcomeAcknowledgedKey } from '@/engine/studioAccess'
 import { useRouterStore } from '@/store/routerStore'
@@ -151,9 +152,17 @@ export function AuthStatus() {
               </button>
             ))}
             <a
-              href="/api/auth/logout"
+              href={docExternalHref('privacy')}
               role="menuitem"
               className="mt-1 flex w-full items-center gap-2 border-t border-zinc-800 px-3 py-1.5 text-left font-mono text-xs text-zinc-300 transition-colors hover:bg-zinc-800/70 hover:text-zinc-100 focus:bg-zinc-800/70 focus:text-zinc-100 focus:outline-none"
+            >
+              <ShieldCheck size={13} strokeWidth={2.4} className="shrink-0 text-zinc-500" aria-hidden />
+              Privacy &amp; account data
+            </a>
+            <a
+              href="/api/auth/logout"
+              role="menuitem"
+              className="flex w-full items-center gap-2 px-3 py-1.5 text-left font-mono text-xs text-zinc-300 transition-colors hover:bg-zinc-800/70 hover:text-zinc-100 focus:bg-zinc-800/70 focus:text-zinc-100 focus:outline-none"
             >
               <LogOut size={13} strokeWidth={2.4} className="shrink-0 text-zinc-500" aria-hidden />
               Log out
