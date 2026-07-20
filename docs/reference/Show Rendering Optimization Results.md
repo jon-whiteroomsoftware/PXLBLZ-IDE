@@ -1,7 +1,11 @@
 # Show Rendering Optimization Results
 
 Status: as-built reference
-Date: 2026-07-19
+Date: 2026-07-20
+
+This is the evidence ledger: exact numbers, fixtures, and qualification
+envelopes. For the narrative version — what these optimizations are and why
+the winners won — see `docs/guides/Inside the Show compiler.md`.
 
 ## Result
 
@@ -321,7 +325,7 @@ restoration details for every line.
 The closed next-wave ledger, including exact fixture and restoration facts,
 lives in `docs/plans/archive/show-rendering-next-wave-measurement-ledger.md`.
 
-### Wave-2 measured additions (#554, in progress)
+### Wave-2 measured additions (#554, measurement complete 2026-07-20)
 
 | Step | Slice | Primary measured result |
 | ---: | --- | --- |

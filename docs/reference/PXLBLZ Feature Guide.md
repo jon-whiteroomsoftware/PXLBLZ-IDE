@@ -1240,89 +1240,31 @@ compiled Show may contain many independent Pattern instances.
 
 ### Compile, push, and export
 
-The compiler alpha-renames member Patterns, gives each required member isolated
-state, selects every Zone's Pattern for every top-level Scene, routes pixels
-through zone-local domains, and emits one ordinary
-Pixelblaze Pattern. The compile bar reports code size, renderer policy,
-transition cost, clock policy, evaluation masks, routing representation, and
-warnings. Routed Shows also report separate estimated bytecode and permanent
-array costs for the selected routing representation. Moving splits additionally
-report one scalar, one route test per pixel, and the table entries an equivalent
-enumerated sequence would require.
-Synchronized tiling reports its one scalar, coordinate-operation ceiling, and
-zero-renderer delta separately from routing cost.
+The compiler flattens the whole arrangement — member Patterns with isolated
+state, Scene scheduling, zone routing, Transitions, Effects, and automation —
+into one ordinary Pixelblaze Pattern. How it does that, and which optimizations
+it applies along the way, has its own guide:
+[Inside the Show Compiler](../guides/Inside the Show compiler.md). This section
+covers what you see and do in the editor.
 
-The **Show source** number in that bar is also an artifact inventory control.
-Hover it, focus it from the keyboard, or select it to open an exact proportional
-view of the UTF-8 source PXLBLZ will deliver. The segmented strip and detailed
-rows reconcile to the complete delivered source, including the generated program
-and its provenance header.
+The compile bar under the timeline is the honest gauge cluster. It reports
+generated code size, renderer policy, transition cost, clock and evaluation
+policy, routing representation, the whole-Show memory ledger, and warnings —
+all measured from the artifact it just built, never estimated from menu labels.
 
-Pattern rows group executable source by authored Pattern family. Each row names
-authored references, logical Pattern instances, and physical compiled machines,
-so reuse appears as a smaller physical count instead of duplicated cost. Shared
-runtime, routing and render plans, Effects and Transitions, table-driven score
-data, Pixelblaze exports, provenance, and any uncategorized remainder stay
-separate. Relevant rows also report the structural counts behind their bytes,
-such as Transition boundaries, interned stacks, and shared kernels.
+The **Show source** number doubles as an artifact inventory. Hover, focus, or
+select it for an exact byte-level view of the source PXLBLZ will deliver:
+which Pattern families, shared runtime, routing plans, Effects, and score data
+own which bytes, with reuse shown as a smaller physical count rather than
+duplicated cost. **Ways to slim this Show** ranks the largest contributors you
+can actually change — fewer simultaneous Pattern machines, consolidated Effect
+or Transition variants, simpler Zone Layout structure, shorter data-heavy
+choreography — and marks fixed Show infrastructure as fixed. Delivered source,
+VM words, and renderer depth stay visibly independent because no one axis
+predicts another.
 
-**Ways to slim this Show** ranks the largest creator-editable contributors and
-names the matching lever: reduce simultaneous Pattern machines, consolidate
-compatible Effect or Transition variants, simplify unique Zone Layout structure,
-or shorten data-heavy choreography. It states current measured source cost, not
-an invented savings estimate. Fixed PXLBLZ Show infrastructure is marked as
-fixed rather than presented as something authoring can remove.
-
-The inventory keeps four quantities visibly independent: delivered source,
-generated program source, VM words, and steady/worst renderer depth. Source
-percentages are never Controller-bytecode percentages or runtime-cost shares.
-The existing generated-source activation gauge remains an empirical proxy; it
-does not become a semantic Controller-bytecode breakdown.
-
-Exact compiler specializations appear beside those representation facts. A
-complete disjoint Installation layout reports the physical range short-circuit
-and its maximum comparison reduction. Capture diagnostics report how many member
-sample paths are identity, how many redundant clears were proved removable, and
-the largest operation reduction per evaluated Pattern. Gaps, overlaps, logical
-routes, conditional output, authored brightness, and mapped Effects keep their
-general paths instead of changing visual semantics.
-
-Frame-invariant diagnostics name Pattern calculations that the compiler proved
-safe to perform once per frame instead of once per pixel. The compile bar reports
-the hoisted binding count, binding names, and operations avoided per Pattern
-evaluation. A routed Show may also disclose a render-kernel candidate. On the
-currently qualified pb32 profile that candidate remains baseline dispatch and is
-labeled measured-neutral; a smaller generated artifact alone does not count as
-a runtime win.
-
-Compatible routed Motion sequences also disclose `motion sharing`. The compile
-bar names the selected representation, boundary and kernel counts, interned
-stack plans, generated bytes avoided, scalar parameters, and added per-pixel
-branches. Sharing changes generated structure only: it does not merge Pattern
-instances or boundary controls. Incompatible sequences stay unrolled. The
-built-in Motion Transitions Show uses 2 stack plans and 11 kernels for its 20
-boundaries, avoids 80,812 emitted bytes with 7 scalar globals and no additional
-per-pixel branch depth. Its generated source remains below the conservative
-source-size proxy derived from the observed compiled-bytecode activation ceiling.
-
-Compatible repeated Shows also disclose `show score: table driven`. The compile
-bar reports boundary, interned stack, and Transition-kernel counts; score words;
-initialization assignments and operations; emitted bytes avoided; cadence; and
-the qualified pb32 bytecode range. The score stores choreography as data and
-emits each unique renderer and kernel once. It does not merge Pattern instances
-or change clocks, Controls, easing, or authored boundary behavior. Unsupported
-structures remain on the exact unrolled representation. The first qualified
-Wipe, Shape, and Easing references reduce source by 75.3-86.6% and Controller
-bytecode by 66.6-78.9%; measured runtime is neutral.
-
-Compatible Restart-heavy Shows may also disclose **Pattern machines**. The bar
-distinguishes authored logical Pattern members from the physical machines emitted
-into the artifact, for example `17 logical -> 8 physical`. Several Restart
-members may reuse one machine only when their active lifetimes cannot overlap;
-compiler-owned state banks restore the selected member at Scene entry. The
-readout reports reclaimed machines and bank words separately. This reduces source
-and Controller bytecode without merging clocks or Controls and without adding
-steady-state rendering work.
+**Advanced compiled cost** names every specialization and cache the compiler
+selected for this Show, and every candidate it rejected with the reason.
 
 The compile bar also reports the whole-Show Pixelblaze memory ledger. Its VM
 total includes member Pattern arrays, generated routing and plan tables,
@@ -1332,79 +1274,19 @@ the rest of the Show. Packed routing no longer receives a separate allowance;
 its table and four-word array header consume this same total. Persistent globals
 and artifact bytes remain independent limits.
 
-Generated Show code physically contains exactly those three arena arrays. The
-compile bar reports `3 planes`, the active role (`stage-rgb` for snapshot/live
-Crossfade or compatible Pattern output, `scalar-field` for a cached visual
-field, `previous-rgb` for Trails, otherwise `unassigned`), and the available channel bindings: RGB
-`0/1/2`, XY `0/1`, scalar `0`, and previous RGB `0/1/2`. These labels are
-alternate uses of one arena, not four allocations. A snapshot/live diagnostic
-also distinguishes its two-path capture frame from the later one-live-path
-frames. Merely reserving an unassigned arena adds no render-loop work.
-
 When a buffering policy is present, the compile bar also reports the cache
-plan: selected and rejected candidate counts, peak plane use, estimated work
-avoided, each selected role's physical planes and lifetime, and its invalidation
-boundary. A rejected candidate names its reason and retains the corresponding
-uncached behavior. These work estimates compare compiler structures; Controller
-FPS measurements remain the performance authority.
+plan: which candidates the planner selected or rejected, their physical planes
+and lifetimes, estimated work avoided, and each rejection's reason. These work
+estimates compare compiler structures; Controller FPS measurements remain the
+performance authority.
 
-For repeated compatible 1D Pattern placements, the bar also reports **output
-reuse**: selected groups, Pattern evaluations avoided per active frame, added
-array words, and excluded consumers. The compiler may render one local output
-once and replay it across equal-size physical Zones even though those Zones own
-different output ranges. The Pattern instance, clock, controls, properties,
-pixel count, renderer, and pre-cache Effects must match, and the renderer must
-be proven not to mutate Pattern state. Opacity may differ because compositing
-stays after the cache. Incompatible or unprofitable placements render normally;
-the optimization never changes authored output and uses the existing arena
-rather than allocating another framebuffer.
-
-Content keys produce RGB plus alpha and therefore do not enter the RGB-only
-output-reuse cache. The exclusion appears as `output-alpha`; the keyed stack
-still uses conditional lower-source evaluation and allocates no additional
-array.
-
-If the whole routed sequence cannot enter output-reuse analysis, the bar names
-the envelope rejection: `output-dimension` for a layout outside the supported
-1D local-index form, or `non-cut-transition` when a boundary needs live
-transition rendering. This distinguishes an unsupported sequence from a
-supported sequence whose individual placements are incompatible or
-unprofitable.
-
-Spatial Dissolve Transitions may also report **scalar fields**. The compiler
-caches their exact frame-stable coherent-noise geometry after the first active
-frame and reuses one scalar per physical pixel while Transition progress and
-edge policy continue live. The diagnostic names the producer, Stage-sample
-domain, compatible mask consumers, selected plane, estimated operations
-avoided, and any rejection reason. Direct, Scene-sequence, and routed Shows use
-the same contract; successive fields can reuse one plane, while a conflicting
-higher-priority arena role leaves the Dissolve on its original inline path.
-
-Static full-Stage Vignette Effects use the same scalar-field planner. Their
-field identity includes every radial property and their Stage-coordinate
-domain. Exact first-frame fill and later replay require no additional arrays;
-snapshot/live Crossfade or another overlapping arena owner can reject the
-candidate, in which case Vignette remains inline.
-
-The advanced compile report can also describe **sample-coordinate fields**.
-These exact candidates bind transformed X/Y to arena planes `0/1` for a static
-physical routed Scene. Their identity includes the map/sample domain, complete
-per-Zone transform plan, controlling values, Scene lifetime, and invalidators.
-The first frame would fill the pair and later frames would read it; incompatible
-or changing transforms stay direct. This path is diagnostic-only: the paired
-firmware-3.67 pb32 matrix was mixed at 256 and 1,000 pixels and repeatably slowed
-2,000-pixel Redline from median 3.008 to 2.814 FPS (-6.43%). Production therefore
-keeps direct coordinate evaluation. The report preserves the rejected plan,
-operations estimate, rebuild count, source/bytecode exchange, exactness evidence,
-and zero additional array words for future Controller profiles.
-
-The five-Pattern acceptance profile exercises these mechanisms together at the
-2,000-pixel support ceiling: continued Pattern instances, physical routing,
-Effects, snapshot/live Crossfade, scalar-field Dissolve, and lifetime reuse of
-the same three-plane arena. Generated routed transitions execute in separate
-helper frames. This isolation is required for Controller reliability when later
-transition families add their own locals and cache state; it does not change
-the authored visuals or Pattern-instance clock model.
+The advanced disclosures — routing short-circuits, frame-invariant hoisting,
+`motion sharing`, `show score: table driven`, **Pattern machines**, **output
+reuse**, **scalar fields**, and the diagnostic-only sample-coordinate fields —
+each report one compiler specialization: what was selected for this exact
+Show, or why it was rejected. The mechanisms behind those labels, their
+measured hardware results, and the candidates that failed qualification are
+explained in [Inside the Show Compiler](../guides/Inside the Show compiler.md).
 
 The same bar enforces the output support envelope. An Installation above 2,000
 pixels, a Portable Show targeting a Controller above 2,000 pixels, an array whose
@@ -1525,5 +1407,6 @@ or promises deferred to a later screen.
   network, and live sensor history cannot be recreated from Show time alone.
 
 For map theory and hardware rules, read **Understanding Maps**. For performance
-work, use **Optimizing Pixelblaze Patterns**. For implementation details and
-decision rationale, continue with the **PXLBLZ Technical Reference**.
+work, use **Optimizing Pixelblaze Patterns**. For what the Show compiler does
+under the hood, read **Inside the Show Compiler**. For implementation details
+and decision rationale, continue with the **PXLBLZ Technical Reference**.

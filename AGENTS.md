@@ -35,10 +35,14 @@ and reference docs for current product and architecture detail.
   The MV3 extension lives in `extension/`.
 - `src/engine/showModel.ts`, `showCompiler.ts`, `fastReplay.ts`, and
   `showTimelineViewport.ts`: Show domain rules, compilation, deterministic seek,
-  and timeline geometry.
+  and timeline geometry. `showRoutingRepresentation.ts` owns routing
+  representation and decode emission; `showMemberLowering.ts` owns
+  Pattern-member lowering; `showMemberBindingPolicy.ts` owns the per-member
+  placement binding policy.
 - `src/cloudflare/`, `functions/api/`, and `migrations/`: authentication,
   user-scoped Pages Functions, D1 persistence, and schema history.
 - `src/docs/catalog.ts`: repository Markdown exposed by the in-app docs route.
+  Diagram SVGs in `docs/images/` follow `docs/agents/diagram-style.md`.
 
 Preserve these invariants:
 

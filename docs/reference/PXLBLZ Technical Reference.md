@@ -1543,7 +1543,10 @@ coordinates compress an axis used by stripes, grids, splits, or pinwheel routing
 Pattern. Member sources are alpha-renamed and isolated. Compatible continued
 clips reuse a member; Restart adds clip identity and a fresh time base. Repeated
 appearances later in a sequence reuse compatible state rather than compiling a
-new member per visual block.
+new member per visual block. An approachable narrative of this section's
+specializations, with the measured results and rejected candidates, is
+`docs/guides/Inside the Show compiler.md`; this reference owns the exact
+contracts.
 
 An Installation recipe carries the contract pixel count as `masterPixelCount`.
 Routing, coordinate normalization, transitions, deterministic seek, preview, and
@@ -1656,6 +1659,18 @@ and route resolution (which binds compiled members) stays in the compiler by
 design. The ordered short-circuit plan lives in
 `showPhysicalRoutingSpecialization.ts` alongside.
 
+Two hardening rules protect the generated-string seams (#570). The routed
+transition capture rewrite asserts that both members' capture calls are
+present in the emitted transition block before retargeting them to zone-local
+captures; a drift in any transition emitter now fails the compile loudly
+instead of silently keeping the full-Stage capture, and a transition-kind
+matrix test pins zone-local retargeting for every kind. Separately,
+`wrapCompoundExpression` is the one shared parenthesization rule for
+generated index expressions: any non-identifier expression interpolated into
+a higher-precedence context (`%`, `/`, `*`) is wrapped, closing the
+`zoneLocalX` precedence-bug family across the short-circuit, packed, and
+rolling-refresh emitters.
+
 The compiler proves complete, disjoint physical ownership before replacing
 general range tests with an ordered short-circuit. Authored ranges are sorted by
 physical start only after the proof succeeds; each range retains its original
@@ -1689,6 +1704,28 @@ effect-tax fixture at +14.3/+14.3/+14.9% median FPS at 256/1,000/2,000 px
 with 800 fewer bytecode bytes; fixtures without effect or adaptation
 prologues are byte-for-byte unchanged. `placementPrologueHoisting: false` is
 the benchmark counterfactual.
+
+`src/engine/showMemberLowering.ts` owns Pattern-member lowering (#570): the
+pipeline that turns one clip's Pattern source into a compiled member —
+bundle, manifest strip, tiny-helper inlining (#565), frame-invariant
+hoisting (#513/#566), alpha-renaming into the member prefix namespace,
+renderer/output-guarantee analysis, reset analysis, and Control validation —
+plus the shared source utilities those passes use. The lowering never sees
+scheduler or routing state; recipe-derived facts arrive through its options
+object.
+
+`src/engine/showMemberBindingPolicy.ts` concentrates these binding decisions
+(#570). It answers one question — who writes this Pattern instance's
+per-frame values, the Scene scheduler's setup entry or the per-pixel arm? —
+planned once per compile after Pattern-slot sharing settles the final member
+list and attached to each member as one frozen policy object: coefficient
+hoisting (#558), the branch-free mirror form (#562), prologue binding
+(#571), pixelCount-write hoisting (#561), and the per-member HSV conversion
+plus phase-adaptation identity (#559). Emission sites read the policy;
+nothing else writes it. Both shipped wave-3 defects (the #562
+transition-pair mirror divergence and the #558 stale-coefficient ordering
+near-miss) lived in the previous arrangement of scattered member-flag
+mutations honored at five emission sites, which this module retires.
 
 Per-member HSV conversion specialization (#559) additionally carries a
 byte-budget fallback: when the per-member conversions alone push the artifact
@@ -3119,6 +3156,8 @@ publishing React state per frame. Production builds omit this probe.
 - Pixelblaze Ecosystem Primer — `docs/reference/Pixelblaze Ecosystem Primer.md`
 - Understanding Maps — `docs/reference/Understanding Maps.md`
 - Optimization Guide — `docs/guides/Optimizing Pixelblaze patterns.md`
+- Show compiler overview — `docs/guides/Inside the Show compiler.md`
+- Show optimization evidence — `docs/reference/Show Rendering Optimization Results.md`
 - Domain glossary — `CONTEXT.md`
 - Show routing representation —
   `docs/plans/archive/issue-400-routing-representation-results.md`
