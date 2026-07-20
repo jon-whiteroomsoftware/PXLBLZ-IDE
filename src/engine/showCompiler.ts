@@ -2044,24 +2044,25 @@ export function compileShow(
       : [],
   )
   let members: CompiledMember[] = expandedRecipe.clips.map((clip, index) => ({
-    ...compileMember(
-      clip,
-      index,
-      libraries,
-      animatedEffectClipIds.has(clip.id),
-      staticPlanEffectClipIds.has(clip.id),
-      exactSpecializations,
-      frameInvariantHoisting,
-      options.inlineCallHoisting ?? true,
-      expandedRecipe.masterPixelCount ?? 256,
-      showMemberNeedsMirrorMapping(expandedRecipe, clip),
-      showMemberNeedsBrightnessScale(expandedRecipe, clip),
-      contentKeyConditionalEvaluation,
-      coverageDirectedComposition,
-      generatedEffectKernelSharing,
-      [...(animatedEffectParameterPathsByClipId.get(clip.id) ?? [])].sort(),
-      options.helperCallInlining ?? true,
-    ),
+    ...compileMember(clip, index, libraries, {
+      passes: {
+        exactSpecializations,
+        frameInvariantHoisting,
+        inlineCallHoisting: options.inlineCallHoisting ?? true,
+        helperCallInlining: options.helperCallInlining ?? true,
+        generatedEffectKernelSharing,
+        conditionalContentKeyEvaluation: contentKeyConditionalEvaluation,
+        coverageDirectedComposition,
+      },
+      analysis: {
+        animatedEffects: animatedEffectClipIds.has(clip.id),
+        staticPlanEffects: staticPlanEffectClipIds.has(clip.id),
+        outputPixelCount: expandedRecipe.masterPixelCount ?? 256,
+        needsMirrorMapping: showMemberNeedsMirrorMapping(expandedRecipe, clip),
+        needsBrightnessScale: showMemberNeedsBrightnessScale(expandedRecipe, clip),
+        animatedEffectParameterPaths: [...(animatedEffectParameterPathsByClipId.get(clip.id) ?? [])].sort(),
+      },
+    }),
     samplePropertyRamps: expandedRecipe.samplePropertyRamps,
   }))
   let patternSlotRuntimePlan: CompiledPatternSlotRuntimePlan | null = null
@@ -3605,24 +3606,51 @@ function showMemberNeedsBrightnessScale(recipe: ShowRecipe, clip: ShowClipRecipe
   }) ?? false
 }
 
+/** The Pattern-member lowering interface: everything beyond the clip and
+ * its libraries arrives as one options object. `passes` carries the
+ * benchmark counterfactual toggles; `analysis` carries recipe-derived facts
+ * the lowering cannot compute from the clip alone. */
+interface MemberLoweringOptions {
+  passes?: {
+    exactSpecializations?: boolean
+    frameInvariantHoisting?: boolean
+    inlineCallHoisting?: boolean
+    helperCallInlining?: boolean
+    generatedEffectKernelSharing?: boolean
+    conditionalContentKeyEvaluation?: boolean
+    coverageDirectedComposition?: boolean
+  }
+  analysis?: {
+    animatedEffects?: boolean
+    staticPlanEffects?: boolean
+    outputPixelCount?: number
+    needsMirrorMapping?: boolean
+    needsBrightnessScale?: boolean
+    animatedEffectParameterPaths?: string[]
+  }
+}
+
 function compileMember(
   clip: ShowClipRecipe,
   index: number,
   libraries: Record<string, string>,
-  animatedEffects = false,
-  staticPlanEffects = false,
-  exactSpecializations = true,
-  frameInvariantHoisting = true,
-  inlineCallHoisting = true,
-  outputPixelCount = 256,
-  needsMirrorMapping = Boolean(clip.adaptation?.mirror),
-  needsBrightnessScale = (clip.adaptation?.brightness ?? 1) !== 1,
-  conditionalContentKeyEvaluation = true,
-  coverageDirectedComposition = true,
-  generatedEffectKernelSharing = false,
-  animatedEffectParameterPaths: string[] = [],
-  helperCallInlining = true,
+  options: MemberLoweringOptions = {},
 ): CompiledMember {
+  const passes = options.passes ?? {}
+  const analysis = options.analysis ?? {}
+  const animatedEffects = analysis.animatedEffects ?? false
+  const staticPlanEffects = analysis.staticPlanEffects ?? false
+  const exactSpecializations = passes.exactSpecializations ?? true
+  const frameInvariantHoisting = passes.frameInvariantHoisting ?? true
+  const inlineCallHoisting = passes.inlineCallHoisting ?? true
+  const outputPixelCount = analysis.outputPixelCount ?? 256
+  const needsMirrorMapping = analysis.needsMirrorMapping ?? Boolean(clip.adaptation?.mirror)
+  const needsBrightnessScale = analysis.needsBrightnessScale ?? (clip.adaptation?.brightness ?? 1) !== 1
+  const conditionalContentKeyEvaluation = passes.conditionalContentKeyEvaluation ?? true
+  const coverageDirectedComposition = passes.coverageDirectedComposition ?? true
+  const generatedEffectKernelSharing = passes.generatedEffectKernelSharing ?? false
+  const animatedEffectParameterPaths = analysis.animatedEffectParameterPaths ?? []
+  const helperCallInlining = passes.helperCallInlining ?? true
   const bundled = bundle(clip.source, libraries)
   const strippedCode = stripPatternManifest(bundled.code)
   // #565: inline tiny pure helper call sites before frame-invariant analysis
