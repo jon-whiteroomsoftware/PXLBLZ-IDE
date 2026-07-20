@@ -1653,6 +1653,15 @@ output extent. A gap, overlap, unknown output extent, logical coordinate route,
 or unsupported routed Scene shape retains the general first-match path and its
 existing warning and black-output behavior.
 
+Generated prologues follow a measured materialization rule (#562): scalar
+reads are free on the measured VM and every scalar write costs ~1.47 us, so a
+temp is materialized only when recomputing its value across its extra uses
+costs more than the one write it replaces (`shouldMaterialize`). Dynamic
+mirror uses a branch-free coefficient form for uniform-binding members -
+`base_i = mirror * (pixelCount - 1)` and `sign = 1 - 2 * mirror`, exact
+because mirror is discrete 0/1 - refreshed at every mirror or pixel-count
+write site; members with divergent per-placement binding keep the branch.
+
 Member capture uses a separate conservative source analysis. A renderer loses
 its pre-render RGB clear only when Acorn control-flow analysis proves that every
 direct path calls `rgb()` or `hsv()` and no light shutter can skip that call.
