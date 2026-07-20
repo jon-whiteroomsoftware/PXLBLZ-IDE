@@ -321,7 +321,7 @@ export function PatternList({
     }
     if (next === 'shows') {
       const last = lastEntityByModeRef.current.shows
-      const id = userShows.some((show) => show.id === last)
+      const id = userShows.some((show) => show.id === last) || STOCK_SHOWS.some((show) => show.id === last)
         ? last
         : (userShows[0]?.id ?? null)
       navigate({ kind: 'studio', entity: { kind: next, id } })

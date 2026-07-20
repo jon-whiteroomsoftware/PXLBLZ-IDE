@@ -585,13 +585,18 @@ function StudioApp() {
 
   const [leftWidth, setLeftWidth] = useState(STUDIO_LIBRARY_DEFAULT_WIDTH)
   const [libraryCollapsed, setLibraryCollapsed] = useState(false)
-  const [rightWidth, setRightWidth] = useState(460)
+  // Right-pane width is remembered per Studio mode: a Stage widened to watch a
+  // Show should not carry that width into the Patterns preview or back.
+  const [rightWidths, setRightWidths] = useState<Partial<Record<string, number>>>({})
   const MIN_PREVIEW_WIDTH = 300
+  const DEFAULT_PREVIEW_WIDTH = 460
 
   const activeFileName =
     activeLibraryName ?? activeDemoName ?? userPatterns.find((p) => p.id === activePatternId)?.name ?? '—'
   const activePattern = activePatternId ? userPatterns.find((p) => p.id === activePatternId) : undefined
   const studioEntityKind = route.kind === 'studio' ? (route.entity?.kind ?? null) : null
+  const rightPaneKind = studioEntityKind ?? 'patterns'
+  const rightWidth = rightWidths[rightPaneKind] ?? DEFAULT_PREVIEW_WIDTH
   const activeControllerProfileId =
     route.kind === 'studio' && route.entity?.kind === 'controllers' ? route.entity.id : null
   const activeControllerProfile =
@@ -634,8 +639,11 @@ function StudioApp() {
   // Floor wide enough that the preview's primary nav row (layout map picker + play/pause,
   // both non-truncating) stays comfortable; only the pattern name gives up space (#63).
   const handleRightDrag = useCallback((dx: number) => {
-    setRightWidth((w) => Math.max(MIN_PREVIEW_WIDTH, w - dx))
-  }, [])
+    setRightWidths((widths) => ({
+      ...widths,
+      [rightPaneKind]: Math.max(MIN_PREVIEW_WIDTH, (widths[rightPaneKind] ?? DEFAULT_PREVIEW_WIDTH) - dx),
+    }))
+  }, [rightPaneKind])
 
   // A deep link to a studio entity that can't resolve (#308): unknown entity id
   // once that personal collection has loaded.

@@ -372,6 +372,19 @@ describe('PatternList', () => {
     expect(window.location.pathname).toBe('/studio/shows')
   })
 
+  it('returns to an open built-in Show when flicking rail modes away and back (#63)', async () => {
+    const user = userEvent.setup()
+    window.history.replaceState(null, '', '/studio/shows/stock-show-showcase-redline-installation')
+    useRouterStore.getState().syncFromLocation()
+    render(<PatternList />)
+
+    await user.click(screen.getByRole('radio', { name: 'Patterns' }))
+    expect(window.location.pathname).toBe('/studio/patterns')
+    await user.click(screen.getByRole('radio', { name: 'Shows' }))
+
+    expect(window.location.pathname).toBe('/studio/shows/stock-show-showcase-redline-installation')
+  })
+
   it('opens the paired built-in Show curriculum without creating personal records (#363)', async () => {
     const user = userEvent.setup()
     render(<PatternList />)

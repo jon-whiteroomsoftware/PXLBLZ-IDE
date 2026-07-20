@@ -203,6 +203,25 @@ describe('App smoke test', () => {
     render(<App />)
     expect(screen.getByTestId('preview-pane')).toHaveStyle({ width: '460px' })
   })
+
+  it('remembers right-pane width per Studio mode instead of leaking it across modes (#63)', async () => {
+    window.history.replaceState(null, '', '/studio')
+    seedSignedInWorkspace()
+    const { container } = render(<App />)
+
+    const splitters = container.querySelectorAll('.cursor-col-resize')
+    const rightSplitter = splitters[splitters.length - 1]
+    fireEvent.mouseDown(rightSplitter, { clientX: 800 })
+    fireEvent(window, new MouseEvent('mousemove', { clientX: 600 }))
+    fireEvent(window, new MouseEvent('mouseup'))
+    expect(screen.getByTestId('preview-pane')).toHaveStyle({ width: '660px' })
+
+    await userEvent.click(screen.getByRole('radio', { name: 'Shows' }))
+    expect(screen.getByTestId('preview-pane')).toHaveStyle({ width: '460px' })
+
+    await userEvent.click(screen.getByRole('radio', { name: 'Patterns' }))
+    expect(screen.getByTestId('preview-pane')).toHaveStyle({ width: '660px' })
+  })
 })
 
 describe('routing (#308)', () => {
