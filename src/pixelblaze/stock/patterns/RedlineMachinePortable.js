@@ -145,9 +145,11 @@ export function render2D(index, x, y) {
   }
 
   if (finalPunctuation && beat < 0.22) value = 1 - value
+  // Beat hits are deliberately softer than the installation score: the pop
+  // stays on every beat, but peaks warm-white instead of full white.
   var hitWidth = 0.06 + energy * 0.08
-  var white = beat < hitWidth && value > 0.5 ? 1 : 0
-  if (phrase == 3 || phrase == 7) white = max(white, beat < hitWidth * 0.55 ? value : 0)
+  var white = beat < hitWidth && value > 0.5 ? 0.62 : 0
+  if (phrase == 3 || phrase == 7) white = max(white, beat < hitWidth * 0.55 ? value * 0.62 : 0)
 
   var surfaceGlow = 0.025 + energy * 0.035
   var hot = (surfaceGlow + value * (1 - surfaceGlow)) * (0.58 + energy * 0.42)
