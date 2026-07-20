@@ -76,7 +76,9 @@ test('Show visual-toolkit guide renders its final-UI workflow and screenshots (#
   const reader = page.getByTestId('docs-reader')
   await expect(reader).toContainText('The ownership rule')
   await expect(reader).toContainText(/cheap selector/i)
-  await expect(reader.getByRole('img')).toHaveCount(2)
+  // Two workflow screenshots plus the transition-cost-classes diagram the
+  // dark diagram house style added (#357).
+  await expect(reader.getByRole('img')).toHaveCount(3)
   await expect(reader.getByRole('img').first()).toBeVisible()
 })
 
