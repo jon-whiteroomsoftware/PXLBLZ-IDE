@@ -22,7 +22,6 @@ const EXPECTED_UPSTREAM_AUTHORS: Record<string, string[]> = {
   NeonSquircles: ['kishimisu'],
   PhantomStar: ['aiekick'],
   ShaderShowcase: ['Inigo Quilez'],
-  StarNestReimagined: ['Pablo Roman Andrioli (Kali)'],
   ZippyZaps: ['SnoopethDuckDuck'],
 }
 

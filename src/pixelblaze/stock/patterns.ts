@@ -48,7 +48,6 @@ export const RECOMMENDED_SETTINGS: Record<string, Partial<Settings>> = {
   Orrery3D: { mapId: 'sphere-volume', pixelCount: 1728, normalize: 'contain', brightness: 0.9, lightSize: 0.68, diffusion: 0.6, solidity: 0.45 },
   SceneSplice3D: { mapId: 'cube', pixelCount: 1728, normalize: 'fill', brightness: 0.9, lightSize: 0.7, diffusion: 0.6, solidity: 0.55 },
   ShoalScatter3D: { mapId: 'sphere-volume', pixelCount: 1728, normalize: 'fill', brightness: 0.9, lightSize: 0.7, diffusion: 0.68, solidity: 0.5 },
-  StarNestReimagined: { mapId: 'sphere-volume', pixelCount: 1024, normalize: 'fill', brightness: 1, lightSize: 0.6, diffusion: 0.4, solidity: 1 },
   VoxelFireflies3D: { mapId: 'sphere-volume', pixelCount: 1728, normalize: 'fill', brightness: 1, lightSize: 0.70, diffusion: 0.66, solidity: 1 },
 
   CometLoom: { shapeId: 'pole', pixelCount: 384, brightness: 0.9, lightSize: 0.68, diffusion: 0.42, solidity: 0.72 },

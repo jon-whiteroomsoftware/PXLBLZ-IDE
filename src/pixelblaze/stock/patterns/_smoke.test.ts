@@ -253,7 +253,7 @@ describe('demo smoke tests', () => {
 
   // Stateful 3D volume demos: body positions / heat / panic persist across
   // frames, so run several beforeRender ticks over a cubic volume in both modes.
-  for (const file of ['LavaLamp3D.js', 'ShoalScatter3D.js', 'Orrery3D.js', 'StarNestReimagined.js', 'KineticSculpture.js', 'SceneSplice3D.js']) {
+  for (const file of ['LavaLamp3D.js', 'ShoalScatter3D.js', 'Orrery3D.js', 'KineticSculpture.js', 'SceneSplice3D.js']) {
     it(`${file} bundles, simulates, runs render3D, lights pixels, and exposes sliders`, () => {
       const src = readFileSync(join(here, file), 'utf8')
       const bundled = bundle(src, LIBRARIES)

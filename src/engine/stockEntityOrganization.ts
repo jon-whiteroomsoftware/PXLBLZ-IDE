@@ -1,9 +1,11 @@
 import { normalizeEntityOrganization, type EntityOrganizationNode, type EntityOrganizationV1 } from './entityOrganization'
-import type { GalleryPattern } from './galleryCatalog'
+import { DEMO_SECTIONS, type GalleryPattern } from './galleryCatalog'
 import type { StockShow } from '@/pixelblaze/stock/shows'
 
 export function stockPatternOrganization(patterns: readonly GalleryPattern[]): EntityOrganizationV1 {
+  const declaredOrder = new Map(DEMO_SECTIONS.map((section, index) => [section.label, index]))
   const labels = [...new Set(patterns.flatMap((pattern) => pattern.sections))]
+    .sort((a, b) => (declaredOrder.get(a) ?? Number.MAX_SAFE_INTEGER) - (declaredOrder.get(b) ?? Number.MAX_SAFE_INTEGER))
   const nodes: EntityOrganizationNode[] = labels.map((label) => ({
     kind: 'folder',
     id: `stock-pattern-${slug(label)}`,

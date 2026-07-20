@@ -302,12 +302,6 @@ export const CONTROL_DESCRIPTIONS: Record<string, Record<string, string>> = {
     sliderVoices: 'How many voices sound — pull out the stops one by one.',
     sliderColor: 'Sweeps the whole register around the colour wheel.',
   },
-  StarNestReimagined: {
-    sliderSpeed: 'Drift rate through the folded nest.',
-    sliderFold: 'The fold constant — reshapes the nest from open wisps to dense filament webs.',
-    sliderColor: 'Base nebula hue.',
-    sliderDetail: 'Extra fold passes — finer filaments at the cost of frame rate.',
-  },
   SignalMandala: {
     sliderSpeed: 'How fast the scan pulses move through the mandala.',
     sliderSpokes: 'Number of radial spokes.',

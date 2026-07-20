@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { GALLERY_PATTERNS } from './galleryCatalog'
+import { DEMO_SECTIONS, GALLERY_PATTERNS } from './galleryCatalog'
 import { STOCK_SHOWS } from '@/pixelblaze/stock/shows'
 import { stockPatternOrganization, stockShowOrganization } from './stockEntityOrganization'
 
@@ -11,6 +11,13 @@ describe('built-in entity organization', () => {
     expect(ids).toHaveLength(GALLERY_PATTERNS.length)
     expect(new Set(ids).size).toBe(GALLERY_PATTERNS.length)
     expect(organization.nodes.map((node) => node.kind === 'folder' ? node.name : '')).toContain('FPS Friendly')
+  })
+
+  it('orders built-in Pattern folders by the declared section order, not first encounter', () => {
+    const organization = stockPatternOrganization(GALLERY_PATTERNS)
+    const folderNames = organization.nodes.flatMap((node) => node.kind === 'folder' ? [node.name] : [])
+
+    expect(folderNames).toEqual(DEMO_SECTIONS.map((section) => section.label).filter((label) => folderNames.includes(label)))
   })
 
   it('organizes built-in Shows into Learn and Showcases subtrees', () => {

@@ -31,14 +31,14 @@ describe('galleryCatalog (#309)', () => {
   })
 
   it('classifies launch showcase patterns by their real cost and dimensional role', () => {
-    expect(GALLERY_PATTERNS.find((pattern) => pattern.name === 'MandelbulbHeartbeat')?.sections).toContain('FPS Heavyweights')
+    expect(GALLERY_PATTERNS.find((pattern) => pattern.name === 'MandelbulbHeartbeat')?.sections).toContain('3D')
     expect(GALLERY_PATTERNS.find((pattern) => pattern.name === 'ImpactEngine')?.sections).toContain('Living 1D')
     expect(GALLERY_PATTERNS.find((pattern) => pattern.name === 'ShapeShifter')?.sections).toContain('FPS Friendly')
-    expect(GALLERY_PATTERNS.find((pattern) => pattern.name === 'StarNestReimagined')?.sections).toContain('FPS Heavyweights')
+    expect(GALLERY_PATTERNS.find((pattern) => pattern.name === 'AuroraSphere')?.sections).toContain('3D')
     expect(GALLERY_PATTERNS.find((pattern) => pattern.name === 'StandingWaveOrgan')?.sections).toContain('Living 1D')
     expect(GALLERY_PATTERNS.find((pattern) => pattern.name === 'ClockworkIris')?.sections).toContain('FPS Friendly')
     expect(GALLERY_PATTERNS.find((pattern) => pattern.name === 'SceneSplice')?.sections).toContain('FPS Friendly')
-    expect(GALLERY_PATTERNS.find((pattern) => pattern.name === 'SceneSplice3D')?.sections).toContain('FPS Friendly')
+    expect(GALLERY_PATTERNS.find((pattern) => pattern.name === 'SceneSplice3D')?.sections).toContain('3D')
   })
 
   it('treats Everything and an empty query as no-ops', () => {
