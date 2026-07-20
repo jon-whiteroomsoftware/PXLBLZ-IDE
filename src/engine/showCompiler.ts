@@ -535,10 +535,14 @@ export interface ShowCompileSummary {
   renderTargetPlan: ShowRenderTargetCachePlan
   specializations: {
     routing: Omit<PhysicalRoutingShortCircuitPlan, 'ranges'> | null
-    /** Steady-state direct color sinks (#557): flag-branch native hsv()/rgb()
-     * for (member, scene) pairs whose captured output has no consumer. */
+    /** Steady-state direct color sinks (#557): native hsv()/rgb() for
+     * (member, scene) pairs whose captured output has no consumer. The
+     * per-pixel flag branch is the production representation; #572
+     * function-valued rebinding is a measured-negative counterfactual
+     * (the extra call hop costs more than the branch it removes). */
     directColorSinks: {
       enabled: boolean
+      representation?: 'function-valued' | 'flag-branch'
       members: Array<{ id: string; sinks: Array<'hsv' | 'rgb'>; scenes: number[] }>
     } | null
     /** #559: per-member HSV conversion policy and its byte trade. */
@@ -1044,6 +1048,12 @@ export interface ShowCompileOptions {
   /** Benchmark counterfactual for #571 per-pixel placement-prologue
    * rebinding elimination; production always uses the default `true`. */
   placementPrologueHoisting?: boolean
+  /** #572 recorded negative, default `false`: rebinding sinks through
+   * function-valued scalars adds one user-call hop (~1.9-3.4 us) per sink
+   * call, exceeding the ~1.5 us flag branch it removes (-3.8 to -3.9% median
+   * FPS on the hsv-steady envelope at all sizes). `true` reproduces the
+   * measured build. */
+  functionValuedSinkRebinding?: boolean
 }
 
 /** #532/#556 price of one persistent scalar write on the measured VM. */
@@ -2577,6 +2587,7 @@ export function compileShow(
         selectedRollingRefreshCaptures,
         patternSlotRuntimePlan,
         (options?.directColorSinks ?? true) && !trailsSelected,
+        options?.functionValuedSinkRebinding ?? false,
       )
       : null
   const emittedCode = routedSceneEmission
@@ -4330,6 +4341,7 @@ function emitRoutedSceneSequenceShowCode(
   rollingRefreshCaptures: SelectedRollingRefresh[] = [],
   patternSlotRuntimePlan: CompiledPatternSlotRuntimePlan | null = null,
   directColorSinksEnabled = false,
+  functionValuedSinkRebinding = false,
 ): {
   code: string
   renderKernels: ShowCompileSummary['specializations']['renderKernels']
@@ -4958,7 +4970,11 @@ ${setupForPlacements(
   }
   const directSinkContextForScene = (sceneIndex: number): RoutedDirectSinkContext | undefined => (
     directSinkMemberIds.size > 0
-      ? { memberIds: directSinkMemberIds, sceneEligible: !snapshotAdjacentScenes.has(sceneIndex) }
+      ? {
+          memberIds: directSinkMemberIds,
+          sceneEligible: !snapshotAdjacentScenes.has(sceneIndex),
+          functionValued: functionValuedSinkRebinding,
+        }
       : undefined
   )
   const sceneBranches = sharedPhysicalCut?.render
@@ -5186,6 +5202,7 @@ function __pxlblz_show_capture_transition_rgb(r, g, b) {
       includeMix: transitionBranches.length > 0,
       includePhase: false,
       directSinkMemberIds,
+      functionValuedSinks: functionValuedSinkRebinding,
     }),
     ...members.map((member) => member.code.trim()),
     ...(sharedMotionEasingSource ? [sharedMotionEasingSource] : []),
@@ -5510,7 +5527,11 @@ ${indentBlock(transitionRender, 4)}
   return {
     code,
     renderKernels: sharedPhysicalCut?.renderKernels ?? null,
-    directColorSinks: { enabled: directColorSinksEnabled, members: directSinkMembers },
+    directColorSinks: {
+      enabled: directColorSinksEnabled,
+      representation: functionValuedSinkRebinding ? 'function-valued' : 'flag-branch',
+      members: directSinkMembers,
+    },
     motionTransitions: motionSegments.length === 0
       ? null
       : {
@@ -6657,20 +6678,36 @@ function emitPhysicalSceneZoneStack(
       localTimeExpression,
     )
     // #557 steady-state direct sink: the member paints the LED through its
-    // flag-branch wrappers, so the captured globals are never written and the
-    // emit re-read is skipped. The flag is cleared before returning so
-    // transition helpers and ineligible arms always see the capture path.
+    // direct wrappers, so the captured globals are never written and the
+    // emit re-read is skipped. #572 rebinds the function-valued sinks around
+    // the capture call (writes are free, the flag branch cost ~1.5 us/call);
+    // the counterfactual keeps the flag form. Either way the arm restores the
+    // capture path before returning so transition helpers and ineligible
+    // arms always see it.
     const direct = directSinks?.sceneEligible
       && directSinks.memberIds.has(directPlacement.member.id)
       && placementQualifiesForDirectSink(directPlacement, propertyTracks)
+    const sinkNames = direct
+      ? ['rgb', ...(directPlacement.member.usesHsv ? ['hsv'] : [])]
+      : []
+    const directEntry = direct
+      ? directSinks!.functionValued
+        ? sinkNames.map((sink) => `  ${directPlacement.member.prefix}_${sink} = ${directPlacement.member.prefix}_${sink}_direct`)
+        : ['  __pxlblz_show_direct = 1']
+      : []
+    const directExit = direct
+      ? directSinks!.functionValued
+        ? sinkNames.map((sink) => `  ${directPlacement.member.prefix}_${sink} = ${directPlacement.member.prefix}_${sink}_capture`)
+        : ['  __pxlblz_show_direct = 0']
+      : [`  ${directPlacement.member.prefix}_emit()`]
     return [
       `var ${local} = -1`,
       ...emitZoneLocalAssignments(zone, local),
       `if (${local} >= 0) {`,
       ...(directPlacement.member.uniformPixelCountBinding ? [] : [`  ${directPlacement.member.pixelCountName} = ${pixelCount}`]),
-      ...(direct ? ['  __pxlblz_show_direct = 1'] : []),
+      ...directEntry,
       indentBlock(capture.lines.join('\n'), 2),
-      direct ? '  __pxlblz_show_direct = 0' : `  ${directPlacement.member.prefix}_emit()`,
+      ...directExit,
       `  return`,
       `}`,
     ].join('\n')
@@ -6923,6 +6960,8 @@ function routedPlacementIsOpaque(
 interface RoutedDirectSinkContext {
   memberIds: ReadonlySet<string>
   sceneEligible: boolean
+  /** #572: rebind function-valued sinks instead of writing the #557 flag. */
+  functionValued: boolean
 }
 
 /** A placement may activate the direct sink only when nothing placement-local
@@ -8925,13 +8964,25 @@ function emitMemberHsvSink(
   directSink: boolean,
   policy: 'per-member' | 'shared',
   includeAdaptationMix: boolean,
+  functionValuedSinks = false,
 ): string {
   const phaseIdentity = (member.phaseAdaptationIdentity ?? false)
     && !includeAdaptationMix
     && (member.hsvCaptureSpecialization ?? true)
     && policy === 'per-member'
   const phaseExpression = phaseIdentity ? 'h' : `h + ${member.prefix}_adapt_phase`
+  // #572: direct-sink members split into capture/direct functions behind a
+  // function-valued binding the steady arms rebind (calls through
+  // function-valued scalars are free; the flag branch cost ~1.5 us/call).
+  const functionValuedPair = (captureBody: string) => [
+    `function ${member.prefix}_hsv_capture(h, s, v) ${captureBody}`,
+    `function ${member.prefix}_hsv_direct(h, s, v) { hsv(${phaseExpression}, s, v) }`,
+    `var ${member.prefix}_hsv = ${member.prefix}_hsv_capture`,
+  ].join('\n')
   if (policy === 'shared') {
+    if (directSink && functionValuedSinks) {
+      return functionValuedPair(`{ __pxlblz_show_capture_hsv(${slotIndex}, ${phaseExpression}, s, v) }`)
+    }
     return directSink
       ? `function ${member.prefix}_hsv(h, s, v) { if (__pxlblz_show_direct) { hsv(${phaseExpression}, s, v) } else { __pxlblz_show_capture_hsv(${slotIndex}, ${phaseExpression}, s, v) } }`
       : `function ${member.prefix}_hsv(h, s, v) { __pxlblz_show_capture_hsv(${slotIndex}, ${phaseExpression}, s, v) }`
@@ -8953,6 +9004,11 @@ function emitMemberHsvSink(
   else if (i == 3) ${arm('p', q, 'v')}
   else if (i == 4) ${arm(t, 'p', 'v')}
   else ${arm('v', 'p', q)}`
+  if (directSink && functionValuedSinks) {
+    return functionValuedPair(`{
+  ${body}
+}`)
+  }
   return directSink
     ? `function ${member.prefix}_hsv(h, s, v) {
   if (__pxlblz_show_direct) { hsv(${phaseExpression}, s, v); return }
@@ -9231,8 +9287,11 @@ function emitRuntimePrelude(
     includeHash?: boolean
     includeMix?: boolean
     includePhase?: boolean
-    /** Members whose color wrappers gain the #557 steady-state direct branch. */
+    /** Members whose color wrappers gain the #557 steady-state direct path. */
     directSinkMemberIds?: ReadonlySet<string>
+    /** #572: emit capture/direct pairs with a function-valued binding
+     * instead of the #557 per-pixel flag branch. */
+    functionValuedSinks?: boolean
   } = {},
 ): string {
   const includeAdaptationMix = options.includeAdaptationMix ?? false
@@ -9240,6 +9299,7 @@ function emitRuntimePrelude(
   const includeMix = options.includeMix ?? true
   const includePhase = options.includePhase ?? true
   const directSinkMemberIds = options.directSinkMemberIds ?? new Set<string>()
+  const functionValuedSinks = options.functionValuedSinks ?? false
   const hsvCapturePolicy = selectHsvCaptureChainPolicy(members)
   const samplePropertyRamps = members[0]?.samplePropertyRamps
   const sampleRuntime = emitSampleRemappingRuntime(samplePropertyRamps)
@@ -9388,10 +9448,16 @@ ${advanceDelta('delta', '  ')}
     ...shutterVars,
     `function ${member.prefix}_clear() { ${member.prefix}_r = 0; ${member.prefix}_g = 0; ${member.prefix}_b = 0${memberHasContentKey(member) ? `; ${member.prefix}_alpha = 0` : ''} }`,
     directSinkMemberIds.has(member.id)
-      ? `function ${member.prefix}_rgb(r, g, b) { if (__pxlblz_show_direct) { rgb(r, g, b) } else { ${member.prefix}_r = r; ${member.prefix}_g = g; ${member.prefix}_b = b } }`
+      ? functionValuedSinks
+        ? [
+            `function ${member.prefix}_rgb_capture(r, g, b) { ${member.prefix}_r = r; ${member.prefix}_g = g; ${member.prefix}_b = b }`,
+            `function ${member.prefix}_rgb_direct(r, g, b) { rgb(r, g, b) }`,
+            `var ${member.prefix}_rgb = ${member.prefix}_rgb_capture`,
+          ].join('\n')
+        : `function ${member.prefix}_rgb(r, g, b) { if (__pxlblz_show_direct) { rgb(r, g, b) } else { ${member.prefix}_r = r; ${member.prefix}_g = g; ${member.prefix}_b = b } }`
       : `function ${member.prefix}_rgb(r, g, b) { ${member.prefix}_r = r; ${member.prefix}_g = g; ${member.prefix}_b = b${memberHasContentKey(member) ? `; ${member.prefix}_alpha = 1` : ''} }`,
     ...(member.usesHsv
-      ? [emitMemberHsvSink(member, index, directSinkMemberIds.has(member.id), hsvCapturePolicy, includeAdaptationMix)]
+      ? [emitMemberHsvSink(member, index, directSinkMemberIds.has(member.id), hsvCapturePolicy, includeAdaptationMix, functionValuedSinks)]
       : []),
     ...(member.usesTime
       ? [`function ${member.prefix}_time(interval) { return (${member.elapsedSecondsName} / (interval * 65.536)) % 1 }`]
@@ -9546,7 +9612,7 @@ ${effectRuntime?.hasCoordinates && !effectRuntime.wrap ? `  if (!effectInside) $
 
   return [
     'var __pxlblz_show_elapsed_s = 0',
-    ...(directSinkMemberIds.size > 0 ? ['var __pxlblz_show_direct = 0'] : []),
+    ...(directSinkMemberIds.size > 0 && !functionValuedSinks ? ['var __pxlblz_show_direct = 0'] : []),
     ...(includeMix ? ['var __pxlblz_show_mix = 0'] : []),
     ...(includePhase ? ['var __pxlblz_show_phase = 0'] : []),
     ...(sampleRuntime ? [sampleRuntime] : []),

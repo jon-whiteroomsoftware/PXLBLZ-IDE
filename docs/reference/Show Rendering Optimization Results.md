@@ -339,6 +339,7 @@ lives in `docs/plans/archive/show-rendering-next-wave-measurement-ledger.md`.
 | 11 | #568 trig-layout packed routing (diagnostic) | **priced verdict, no build**: chain arithmetic favors a table (~14 us/pixel) but fw 3.67 integer-coercing bit ops cap single-plane packing at 6-bit coordinates; profile-dependent, quantization-limited |
 | 12 | #563 zone-coordinate strength reduction | **recorded negative**: modulo is free vs a multiply, floor-feeding reciprocals step whole rows, outer reciprocals err ~WIDTH/2 LSBs (exact only for power-of-two divisors) |
 | 13 | #571 placement-prologue rebinding elimination | effect-tax +14.27/+14.29/+14.91% median FPS at 256/1,000/2,000 px, bytecode -800 B; prologue-free fixtures byte-identical; fixes the #562 transition-pair mirror divergence; exact |
+| 14 | #572 function-valued sink rebinding | **recorded negative**: the extra user-call hop (~1.9-3.4 us) exceeds the ~1.5 us flag branch it removes; hsv-steady -3.82/-3.92/-3.91% median FPS, +116 B; flag build stays default, `functionValuedSinkRebinding: true` reproduces the measurement |
 
 Wave-2 slice ledgers with full axes live as comments on #554.
 

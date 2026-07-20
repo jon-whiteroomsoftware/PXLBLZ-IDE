@@ -40,6 +40,7 @@ interface ShowCompilationOptions {
   hsvCaptureChainSpecialization?: boolean
   inlineCallHoisting?: boolean
   placementPrologueHoisting?: boolean
+  functionValuedSinkRebinding?: boolean
 }
 
 export function compileShowForPreview(
@@ -81,6 +82,7 @@ export function compileShowForPreview(
         hsvCaptureChainSpecialization: options.hsvCaptureChainSpecialization,
         inlineCallHoisting: options.inlineCallHoisting,
         placementPrologueHoisting: options.placementPrologueHoisting,
+        functionValuedSinkRebinding: options.functionValuedSinkRebinding,
       })
     return {
       artifact: {

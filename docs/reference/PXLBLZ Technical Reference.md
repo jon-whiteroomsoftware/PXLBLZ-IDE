@@ -1733,6 +1733,15 @@ Qualified on the Controller at +68.6% to +69.6% median FPS on the HSV
 steady-state fixture at 256/1,000/2,000 pixels; `directColorSinks: false`
 restores the capture build for counterfactual measurement.
 
+The flag branch is the measured optimum for this machinery (#572 recorded
+negative): rebinding the sinks through function-valued scalars
+(`P_hsv = P_hsv_direct` around the steady capture call) removes the ~1.5 us
+branch but adds one user-call hop (~1.9-3.4 us) to every sink call on both
+the direct and capture paths, measuring -3.82/-3.92/-3.91% median FPS on the
+HSV steady-state fixture at 256/1,000/2,000 pixels with 116 extra bytecode
+bytes. `functionValuedSinkRebinding: true` reproduces that build; the compile
+summary names the active representation.
+
 Capture frames pay a per-member specialized conversion (#559): the slot
 argument is a compile-time constant at every renamed `hsv()` call site, so
 each HSV member's sink inlines the sextant conversion writing its own capture

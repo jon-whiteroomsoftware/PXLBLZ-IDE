@@ -181,6 +181,7 @@ export function mirrorRecipe(): ShowRecipe {
 // runner's WAVE2_LABEL names the report). Direct sinks default on since the
 // qualified #557 matrix; WAVE2_DIRECT_SINKS=0 rebuilds the pre-#557 shape.
 // WAVE2_PROLOGUE=0 rebuilds the pre-#571 per-pixel prologue rebinding.
+// WAVE2_FN_SINKS=1 reproduces the #572 measured-negative rebound build.
 const WAVE2_COMPILE_OPTIONS: ShowCompileOptions = {
   ...(process.env.WAVE2_DIRECT_SINKS === '0'
     ? { directColorSinks: false }
@@ -188,6 +189,7 @@ const WAVE2_COMPILE_OPTIONS: ShowCompileOptions = {
       ? { directColorSinks: true }
       : {}),
   ...(process.env.WAVE2_PROLOGUE === '0' ? { placementPrologueHoisting: false } : {}),
+  ...(process.env.WAVE2_FN_SINKS === '1' ? { functionValuedSinkRebinding: true } : {}),
 }
 
 function fixture(id: Wave2FixtureId, recipe: ShowRecipe, notes: string): Wave2Fixture {
