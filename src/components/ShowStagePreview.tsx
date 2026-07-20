@@ -141,7 +141,10 @@ export function ShowStagePreview({ showId, showOverride }: { showId: string; sho
     ? controllerProfiles.find((profile) => profile.id === show.targetControllerProfileId)
     : controllerProfiles[0]
   const installationCoverage = show ? validateInstallationCoverage(show) : null
-  const savedPhysicalZones = show ? installationPhysicalZones(show) : undefined
+  const savedPhysicalZones = useMemo(
+    () => show ? installationPhysicalZones(show) : undefined,
+    [show],
+  )
 
   const stageMaps = useMemo((): StageMapOption[] => [
     ...STOCK_MAPS

@@ -4,10 +4,9 @@ const TAU = Math.PI * 2
 
 export function normalizeShowRevealMode(
   revealMode: ShowRevealMode | undefined,
-  legacyInvert: boolean | undefined,
 ): ShowRevealMode {
   if (revealMode === 'grow-incoming' || revealMode === 'shrink-outgoing') return revealMode
-  return legacyInvert ? 'shrink-outgoing' : 'grow-incoming'
+  return 'grow-incoming'
 }
 
 export function showShapeRevealDistance(input: {

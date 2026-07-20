@@ -31,15 +31,21 @@ describe('Pixel and Block Dissolve (#447)', () => {
     expect(normalizeShowDissolveSeed(65_537)).toBe(1)
   })
 
-  it('migrates legacy Dither records as field-absent Pixel Dissolve', () => {
-    const show = createDefaultShow('legacy-dither', 'Legacy dither', 447)
-    show.transitions![0] = { ...show.transitions![0], kind: 'dither', durationMs: 1000 }
+  it('keeps an explicitly authored Pixel Dissolve canonical', () => {
+    const show = createDefaultShow('pixel-dissolve', 'Pixel dissolve', 447)
+    show.transitions[0] = {
+      ...show.transitions[0],
+      kind: 'dither',
+      durationMs: 1000,
+      dissolveVariant: 'pixel',
+    }
 
     const normalized = normalizeShowTransitionState(show)
-    expect(normalized.transitions![0]).toMatchObject({ kind: 'dither', durationMs: 1000 })
-    expect(normalized.transitions![0]).not.toHaveProperty('dissolveVariant')
-    expect(normalized.transitions![0]).not.toHaveProperty('seed')
-    expect(normalized.scenes[0].transitionOut).not.toHaveProperty('blockSize')
+    expect(normalized.transitions[0]).toMatchObject({
+      kind: 'dither',
+      durationMs: 1000,
+      dissolveVariant: 'pixel',
+    })
   })
 
   it('normalizes and lowers Block parameters through two-scene recipes', () => {

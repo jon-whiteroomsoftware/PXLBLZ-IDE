@@ -48,22 +48,23 @@ describe('arbitrary-direction Wipe (#446)', () => {
       .toEqual({ mode: 'blend', mix: expect.closeTo(0.25, 12) })
   })
 
-  it('migrates legacy Wipes without adding a direction or changing their dither policy', () => {
-    const show = createDefaultShow('legacy-wipe', 'Legacy wipe', 446)
+  it('keeps an explicitly authored linear Wipe independent of Stage coordinates', () => {
+    const show = createDefaultShow('linear-wipe', 'Linear wipe', 446)
     show.transitions![0] = {
       ...show.transitions![0],
       kind: 'wipe',
       durationMs: 1000,
       feather: 0.2,
+      wipeVariant: 'linear',
     }
 
     const normalized = normalizeShowTransitionState(show)
-    expect(normalized.transitions![0]).toMatchObject({ kind: 'wipe', feather: 0.2 })
+    expect(normalized.transitions![0]).toMatchObject({ kind: 'wipe', feather: 0.2, wipeVariant: 'linear' })
     expect(normalized.transitions![0]).not.toHaveProperty('direction')
     expect(normalized.transitions![0]).not.toHaveProperty('edgePolicy')
     expect(showRecordToCompileRecipe(normalized, {
       byCellId: Object.fromEntries(normalized.cells.map((cell) => [cell.id, 'export function render(index) { rgb(1, 0, 0) }'])),
-    }).routeTransition).toMatchObject({ kind: 'wipe', feather: 0.2 })
+    }).routeTransition).toMatchObject({ kind: 'wipe', feather: 0.2, wipeVariant: 'linear' })
   })
 
   it('persists a direction and shared edge policy, and gives non-2D Shows an actionable error', () => {

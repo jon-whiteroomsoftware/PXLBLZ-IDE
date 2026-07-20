@@ -1,6 +1,6 @@
 import type { ShowCompositionV1, ShowRecord } from '../engine/personalContentRecords'
 import { normalizeShowRoutingState, normalizeShowTransitionState } from '../engine/showModel'
-import { normalizeShowOutputContract } from '../engine/showOutputContract'
+import { requireShowOutputContract } from '../engine/showOutputContract'
 import { normalizeShowOutputEffects } from '../engine/showPreviousRgbFeedback'
 import { normalizeShowComposition, validateShowComposition } from '../engine/showCompositionModel'
 import { PersonalStorageGuardError } from './resourceProtection'
@@ -22,7 +22,6 @@ export interface D1ShowRow {
   zones_json: string
   cells_json: string
   routing_layouts_json?: string | null
-  routing_switches_json?: string | null
   transitions_json?: string | null
   composition_json?: string | null
   output_effects_json?: string | null
@@ -33,9 +32,10 @@ export interface D1ShowRow {
 }
 
 export function showRecordFromRow(row: D1ShowRow): ShowRecord {
-  const outputContract = row.output_contract_json
-    ? normalizeShowOutputContract(parseJson(row.output_contract_json, null))
-    : undefined
+  const outputContract = requireShowOutputContract(
+    row.output_contract_json ? parseJson(row.output_contract_json, null) : null,
+    row.id,
+  )
   const outputEffects = row.output_effects_json
     ? normalizeShowOutputEffects(parseJson(row.output_effects_json, []))
     : []
@@ -46,11 +46,10 @@ export function showRecordFromRow(row: D1ShowRow): ShowRecord {
     zones: parseJson(row.zones_json, []),
     cells: parseJson(row.cells_json, []),
     routingLayouts: parseJson(row.routing_layouts_json ?? '[]', []),
-    routingSwitches: parseJson(row.routing_switches_json ?? '[]', []),
-    ...(row.transitions_json ? { transitions: parseJson(row.transitions_json, []) } : {}),
+    transitions: parseJson(row.transitions_json ?? '[]', []),
     ...(row.target_controller_profile_id ? { targetControllerProfileId: row.target_controller_profile_id } : {}),
     stageMapId: row.stage_map_id ?? null,
-    ...(outputContract ? { outputContract } : {}),
+    outputContract,
     ...(outputEffects.length > 0 ? { outputEffects } : {}),
     updatedAt: row.updated_at,
   }))
@@ -63,7 +62,7 @@ export function showRecordFromRow(row: D1ShowRow): ShowRecord {
 export async function listD1Shows(db: D1DatabaseShowsLike, userId: string): Promise<ShowRecord[]> {
   const { results } = await db
     .prepare(`
-      SELECT id, name, scenes_json, zones_json, cells_json, routing_layouts_json, routing_switches_json, transitions_json,
+      SELECT id, name, scenes_json, zones_json, cells_json, routing_layouts_json, transitions_json,
              composition_json, output_effects_json, target_controller_profile_id, stage_map_id, output_contract_json, updated_at
       FROM personal_shows
       WHERE user_id = ?
@@ -86,10 +85,10 @@ export async function createD1Show(
   await db
     .prepare(`
       INSERT INTO personal_shows (
-        user_id, id, name, scenes_json, zones_json, cells_json, routing_layouts_json, routing_switches_json, transitions_json,
+        user_id, id, name, scenes_json, zones_json, cells_json, routing_layouts_json, transitions_json,
         composition_json, output_effects_json, target_controller_profile_id, stage_map_id, output_contract_json, created_at, updated_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
     .bind(
       userId,
@@ -99,7 +98,6 @@ export async function createD1Show(
       JSON.stringify(record.zones),
       JSON.stringify(record.cells),
       JSON.stringify(record.routingLayouts),
-      JSON.stringify(record.routingSwitches),
       JSON.stringify(normalizeShowTransitionState(record).transitions),
       composition ? JSON.stringify(composition) : null,
       record.outputEffects?.length ? JSON.stringify(normalizeShowOutputEffects(record.outputEffects)) : null,
@@ -126,7 +124,6 @@ export async function updateD1Show(
   addAssignment(assignments, values, 'zones_json', changes.zones, true)
   addAssignment(assignments, values, 'cells_json', changes.cells, true)
   addAssignment(assignments, values, 'routing_layouts_json', changes.routingLayouts, true)
-  addAssignment(assignments, values, 'routing_switches_json', changes.routingSwitches, true)
   addAssignment(assignments, values, 'transitions_json', changes.transitions, true)
   addAssignment(assignments, values, 'composition_json', composition, true)
   addAssignment(assignments, values, 'output_effects_json', changes.outputEffects, true)

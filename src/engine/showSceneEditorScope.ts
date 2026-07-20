@@ -1,5 +1,5 @@
 import type { FlatShowCompositionProjection } from './showCompositionProjection'
-import { projectShowTimeline, showCellAtSlot } from './showModel'
+import { projectShowTimeline, showCellAtSlot, showRoutingTransitionAfter } from './showModel'
 import { validateShowComposition } from './showCompositionModel'
 import { projectSceneReadOnlyBridge, type SceneReadOnlyPlacement } from './showSceneReadOnlyProjection'
 import type {
@@ -65,9 +65,9 @@ export function showRoutingLayoutForScene(
   let layout = show.routingLayouts[0] ?? null
   for (let index = 0; index < targetIndex; index += 1) {
     const afterSceneId = show.scenes[index]?.id
-    const routingSwitch = show.routingSwitches.find((candidate) => candidate.afterSceneId === afterSceneId)
-    const next = routingSwitch
-      ? show.routingLayouts.find((candidate) => candidate.id === routingSwitch.layoutId)
+    const routingTransition = showRoutingTransitionAfter(show, afterSceneId)
+    const next = routingTransition?.layoutId
+      ? show.routingLayouts.find((candidate) => candidate.id === routingTransition.layoutId)
       : undefined
     if (next) layout = next
   }

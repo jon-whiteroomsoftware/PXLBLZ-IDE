@@ -1,11 +1,11 @@
 import type {
-  LegacyShowTransitionEasing,
+  ShowEasingPreset,
   ShowEasingDirection,
   ShowStructuredEasing,
   ShowTransitionEasing,
 } from './personalContentRecords'
 
-const LEGACY_EASING: Record<LegacyShowTransitionEasing, ShowStructuredEasing> = {
+const EASING_PRESETS: Record<ShowEasingPreset, ShowStructuredEasing> = {
   linear: { curve: 'linear' },
   'ease-in': { curve: 'quadratic', direction: 'in' },
   'ease-out': { curve: 'quadratic', direction: 'out' },
@@ -90,8 +90,8 @@ export const SHOW_EASING_OPTIONS: ShowEasingOption[] = BASE_EASING_OPTIONS.map((
 export function validateShowEasing(easing: unknown): ShowEasingValidationResult {
   const issues: ShowEasingValidationIssue[] = []
   if (typeof easing === 'string') {
-    if (!(easing in LEGACY_EASING)) issue(issues, 'curve', 'invalid-curve', `Unknown easing "${easing}".`)
-    return { valid: issues.length === 0, issues }
+    issue(issues, 'curve', 'invalid-curve', 'Persisted easing must be a structured curve object.')
+    return { valid: false, issues }
   }
   if (!easing || typeof easing !== 'object') {
     issue(issues, 'curve', 'invalid-curve', 'Easing must be a structured curve object.')
@@ -122,8 +122,8 @@ export function validateShowEasing(easing: unknown): ShowEasingValidationResult 
 }
 
 export function normalizeShowEasing(easing: ShowTransitionEasing | null | undefined): ShowStructuredEasing {
-  if (typeof easing === 'string') return LEGACY_EASING[easing] ?? LEGACY_EASING.linear
-  if (!validateShowEasing(easing).valid || !easing || typeof easing !== 'object') return LEGACY_EASING.linear
+  if (typeof easing === 'string') return EASING_PRESETS[easing] ?? EASING_PRESETS.linear
+  if (!validateShowEasing(easing).valid || !easing || typeof easing !== 'object') return EASING_PRESETS.linear
   if (easing.curve === 'linear') return { curve: 'linear' }
   if (easing.curve === 'quadratic' || easing.curve === 'cubic' || easing.curve === 'sine') {
     return { curve: easing.curve, direction: easing.direction }
@@ -133,6 +133,12 @@ export function normalizeShowEasing(easing: ShowTransitionEasing | null | undefi
   if (easing.curve === 'hold') return { curve: easing.curve, at: easing.at }
   if (easing.curve === 'back') return { curve: 'back', direction: easing.direction, overshoot: easing.overshoot }
   return { curve: 'linear' }
+}
+
+/** Normalizes only the current persisted representation; compiler preset strings are rejected. */
+export function normalizePersistedShowEasing(easing: ShowStructuredEasing | null | undefined): ShowStructuredEasing {
+  if (!validateShowEasing(easing).valid || !easing || typeof easing !== 'object') return { curve: 'linear' }
+  return normalizeShowEasing(easing)
 }
 
 export function showEasingOptionId(easing: ShowTransitionEasing): string {

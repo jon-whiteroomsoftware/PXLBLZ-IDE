@@ -1,4 +1,5 @@
 import type { ShowCell, ShowRecord, ShowScene } from './personalContentRecords'
+import { createInstallationShowOutputContract } from './showOutputContract'
 
 const DEFAULT_ADAPTATIONS = {
   mirror: false,
@@ -14,29 +15,11 @@ export function createSceneSpliceShow(): ShowRecord {
       id: 'scene-1',
       name: 'Heat shimmer',
       durationMs: 3500,
-      transitionOut: {
-        kind: 'portal',
-        durationMs: 3000,
-        centerX: 0.5,
-        centerY: 0.5,
-        feather: 0.14,
-        invert: false,
-        featherPolicy: 'blend',
-      },
     },
     {
       id: 'scene-2',
       name: 'Neon circuitry',
       durationMs: 3500,
-      transitionOut: {
-        kind: 'portal',
-        durationMs: 2600,
-        centerX: 0.28,
-        centerY: 0.68,
-        feather: 0.08,
-        invert: true,
-        featherPolicy: 'dither',
-      },
     },
     { id: 'scene-3', name: 'Heat shimmer return', durationMs: 3500 },
   ]
@@ -52,8 +35,34 @@ export function createSceneSpliceShow(): ShowRecord {
       patternCell('cell-heat-b', scenes[2], 'HeatShimmerTiles', 'Heat Shimmer Tiles'),
     ],
     routingLayouts: [],
-    routingSwitches: [],
+    transitions: [
+      {
+        id: 'transition-scene-1',
+        afterSceneId: 'scene-1',
+        kind: 'portal',
+        durationMs: 3000,
+        easing: { curve: 'linear' },
+        centerX: 0.5,
+        centerY: 0.5,
+        feather: 0.14,
+        revealMode: 'grow-incoming',
+        featherPolicy: 'blend',
+      },
+      {
+        id: 'transition-scene-2',
+        afterSceneId: 'scene-2',
+        kind: 'portal',
+        durationMs: 2600,
+        easing: { curve: 'linear' },
+        centerX: 0.28,
+        centerY: 0.68,
+        feather: 0.08,
+        revealMode: 'shrink-outgoing',
+        featherPolicy: 'dither',
+      },
+    ],
     stageMapId: 'plane',
+    outputContract: createInstallationShowOutputContract({ outputMapId: 'plane', pixelCount: 256 }),
     updatedAt: Date.UTC(2026, 6, 10, 22, 0, 0),
   }
 }

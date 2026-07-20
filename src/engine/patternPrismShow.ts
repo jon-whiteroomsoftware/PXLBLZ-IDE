@@ -6,6 +6,7 @@ import type {
   ShowScene,
   ShowZone,
 } from './personalContentRecords'
+import { createInstallationShowOutputContract, createPortableShowOutputContract } from './showOutputContract'
 
 const MATRIX_SIZE = 16
 const PIXEL_COUNT = MATRIX_SIZE * MATRIX_SIZE
@@ -41,13 +42,18 @@ export function createPatternPrismShow(): ShowRecord {
       predicateLayout('layout-strips', 'Alternating vertical strips', zones, (x) => x % 4),
       predicateLayout('layout-pinwheel', 'Pinwheel interleave', zones, pinwheelArm),
     ],
-    routingSwitches: [
-      { afterSceneId: 'scene-1', layoutId: 'layout-quadrants' },
-      { afterSceneId: 'scene-2', layoutId: 'layout-strips' },
-      { afterSceneId: 'scene-3', layoutId: 'layout-pinwheel' },
-      { afterSceneId: 'scene-4', layoutId: 'layout-full' },
+    transitions: [
+      { id: 'transition-scene-1', afterSceneId: 'scene-1', kind: 'cut', durationMs: 0, easing: { curve: 'linear' } },
+      { id: 'routing-scene-1', afterSceneId: 'scene-1', kind: 'routing', durationMs: 0, easing: { curve: 'linear' }, layoutId: 'layout-quadrants' },
+      { id: 'transition-scene-2', afterSceneId: 'scene-2', kind: 'cut', durationMs: 0, easing: { curve: 'linear' } },
+      { id: 'routing-scene-2', afterSceneId: 'scene-2', kind: 'routing', durationMs: 0, easing: { curve: 'linear' }, layoutId: 'layout-strips' },
+      { id: 'transition-scene-3', afterSceneId: 'scene-3', kind: 'cut', durationMs: 0, easing: { curve: 'linear' } },
+      { id: 'routing-scene-3', afterSceneId: 'scene-3', kind: 'routing', durationMs: 0, easing: { curve: 'linear' }, layoutId: 'layout-pinwheel' },
+      { id: 'transition-scene-4', afterSceneId: 'scene-4', kind: 'cut', durationMs: 0, easing: { curve: 'linear' } },
+      { id: 'routing-scene-4', afterSceneId: 'scene-4', kind: 'routing', durationMs: 0, easing: { curve: 'linear' }, layoutId: 'layout-full' },
     ],
     stageMapId: 'plane',
+    outputContract: createInstallationShowOutputContract({ outputMapId: 'plane', pixelCount: PIXEL_COUNT }),
     updatedAt: Date.UTC(2026, 6, 10, 21, 0, 0),
   }
 }
@@ -59,6 +65,7 @@ export function createAdaptivePatternPrismShow(): ShowRecord {
     ...show,
     id: 'catalog-pattern-prism-adaptive',
     name: 'Pattern Prism: Adaptive Layouts',
+    outputContract: createPortableShowOutputContract({ referenceMapId: 'plane', referencePixelCount: PIXEL_COUNT }),
     routingLayouts: show.routingLayouts.map((layout) => ({
       ...layout,
       logical: layout.id === 'layout-full'

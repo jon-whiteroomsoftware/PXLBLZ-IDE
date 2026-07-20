@@ -13,6 +13,7 @@ import type {
   ShowScene,
   ShowSpatialShape,
   ShowTransitionCost,
+  ShowTransitionKind,
   ShowZone,
 } from './personalContentRecords'
 import type {
@@ -23,7 +24,7 @@ import type {
   ShowRoutingLayoutRecipe,
 } from './showCompiler'
 import { clampShowRepeatScale } from './showCoordinateRemap'
-import { normalizeShowEasing } from './showEasing'
+import { normalizePersistedShowEasing } from './showEasing'
 import { normalizeShowTransitionColor } from './showFadeThroughColor'
 import { normalizeShowWipeDirection, normalizeShowWipeSettings } from './showWipe'
 import {
@@ -32,7 +33,6 @@ import {
   normalizeShowDissolveSeed,
   normalizeShowDissolveSoftness,
 } from './showDissolve'
-import { normalizeShowRevealMode } from './showShapeReveal'
 import { normalizeShowMotionTransition } from './showMotionTransition'
 import { lowerShowCompositionForCompile } from './showCompositionLowering'
 import { splitShowCompositionScene } from './showCompositionSplit'
@@ -44,6 +44,7 @@ import {
   showEffectsAreIdentity,
 } from './showEffects'
 import { normalizeShowOutputEffects } from './showPreviousRgbFeedback'
+import { createInstallationShowOutputContract } from './showOutputContract'
 import {
   normalizeShowClipTransform,
   compactShowClipTransform,
@@ -60,7 +61,7 @@ import {
 
 export interface ShowStripTransitionProjection {
   afterSceneId: string
-  kind: NonNullable<ShowScene['transitionOut']>['kind']
+  kind: ShowTransitionKind
   durationMs: number
   cost: ShowTransitionCost
 }
@@ -158,7 +159,6 @@ export function createDefaultShow(id: string, name: string, updatedAt = Date.now
       id: 'scene-1',
       name: 'Scene 1',
       durationMs: 30000,
-      transitionOut: { kind: 'crossfade', durationMs: 2000, crossfadePolicy: 'snapshot-live' },
     },
     { id: 'scene-2', name: 'Scene 2', durationMs: 30000 },
   ]
@@ -179,18 +179,21 @@ export function createDefaultShow(id: string, name: string, updatedAt = Date.now
       restartOnEntry: false,
     })),
     routingLayouts: [routingLayoutFromZones('layout-1', 'Default', zones)],
-    routingSwitches: [],
     transitions: [
       {
         id: 'transition-scene-1',
         afterSceneId: 'scene-1',
         kind: 'crossfade',
         durationMs: 2000,
-        easing: 'linear',
+        easing: { curve: 'linear' },
         crossfadePolicy: 'snapshot-live',
       },
     ],
     stageMapId: null,
+    outputContract: createInstallationShowOutputContract({
+      outputMapId: null,
+      pixelCount: zones[0].nominalPixelCount,
+    }),
     updatedAt,
   }
 }
@@ -251,7 +254,6 @@ export function createDefaultShowFromController(
     zones,
     cells: createCellsForZones(base.scenes, zones),
     routingLayouts: [routingLayoutFromControllerZones('layout-1', 'Default', zones, controllerZones)],
-    routingSwitches: [],
     targetControllerProfileId: controller.id,
     stageMapId,
     updatedAt,
@@ -278,11 +280,11 @@ export function importedStageMapIdForController(
   return candidates[0]?.id ?? null
 }
 
-export function showLoopDurationMs(show: Pick<ShowRecord, 'scenes'>): number {
+export function showLoopDurationMs(show: Pick<ShowRecord, 'scenes' | 'transitions'>): number {
   return show.scenes.reduce((sum, scene) => (
     sum
     + Math.max(0, scene.durationMs)
-    + Math.max(0, scene.transitionOut?.durationMs ?? 0)
+    + Math.max(0, showVisualTransitionAfter(show, scene.id)?.durationMs ?? 0)
   ), 0)
 }
 
@@ -305,13 +307,14 @@ export function projectShowTimeline(show: ShowRecord): ShowTimelineProjection {
     boundaryTimes.set(scene.id, endMs)
     cursorMs = endMs
 
-    const transitionDurationMs = Math.max(0, scene.transitionOut?.durationMs ?? 0)
-    if (scene.transitionOut && transitionDurationMs > 0) {
+    const transition = showVisualTransitionAfter(show, scene.id)
+    const transitionDurationMs = Math.max(0, transition?.durationMs ?? 0)
+    if (transition && transitionDurationMs > 0) {
       transitions.push({
         afterSceneId: scene.id,
-        kind: scene.transitionOut.kind,
+        kind: transition.kind,
         durationMs: transitionDurationMs,
-        cost: transitionCost(scene.transitionOut.kind),
+        cost: transitionCost(transition.kind),
         startMs: cursorMs,
         endMs: cursorMs + transitionDurationMs,
       })
@@ -357,12 +360,16 @@ export function projectShowStrip(show: ShowRecord): ShowStripProjection {
     sceneColumns: show.scenes,
     transitions: show.scenes
       .slice(0, -1)
-      .map((scene) => ({
-        afterSceneId: scene.id,
-        kind: scene.transitionOut?.kind ?? 'cut',
-        durationMs: scene.transitionOut?.durationMs ?? 0,
-        cost: transitionCost(scene.transitionOut?.kind ?? 'cut'),
-      })),
+      .map((scene) => {
+        const transition = showVisualTransitionAfter(show, scene.id)
+        const kind = transition?.kind ?? 'cut'
+        return {
+          afterSceneId: scene.id,
+          kind,
+          durationMs: transition?.durationMs ?? 0,
+          cost: transitionCost(kind),
+        }
+      }),
     boundaryTransitions: (show.transitions ?? []).map((transition) => ({
       ...transition,
       cost: transition.kind === 'routing'
@@ -372,10 +379,11 @@ export function projectShowStrip(show: ShowRecord): ShowStripProjection {
         ? { layoutName: layoutById.get(transition.layoutId)?.name }
         : {}),
     })),
-    routingSwitches: show.routingSwitches.flatMap((routingSwitch) => {
-      const layout = show.routingLayouts.find((candidate) => candidate.id === routingSwitch.layoutId)
+    routingSwitches: show.transitions.flatMap((transition) => {
+      if (transition.kind !== 'routing' || !transition.layoutId) return []
+      const layout = show.routingLayouts.find((candidate) => candidate.id === transition.layoutId)
       return layout
-        ? [{ ...routingSwitch, layoutName: layout.name }]
+        ? [{ afterSceneId: transition.afterSceneId, layoutId: transition.layoutId, layoutName: layout.name }]
         : []
     }),
     rows: show.zones.map((zone) => ({
@@ -464,11 +472,6 @@ export function addShowScene(show: ShowRecord): ShowRecord {
       : {}),
   }
   const lastSceneIndex = show.scenes.length - 1
-  const defaultTransition: NonNullable<ShowScene['transitionOut']> = {
-    kind: 'crossfade',
-    durationMs: 2000,
-    crossfadePolicy: 'snapshot-live',
-  }
   const usedCellIds = new Set(show.cells.map((cell) => cell.id))
   const nextCells = show.zones.map((zone) => {
     const source = cellCoveringScene(show, zone.id, lastSceneIndex)
@@ -479,14 +482,7 @@ export function addShowScene(show: ShowRecord): ShowRecord {
 
   return normalizeShowTransitionState({
     ...show,
-    scenes: [
-      ...show.scenes.map((existing, index) => (
-        index === lastSceneIndex && existing.transitionOut == null
-          ? { ...existing, transitionOut: defaultTransition }
-          : existing
-      )),
-      scene,
-    ],
+    scenes: [...show.scenes, scene],
     cells: [...show.cells, ...nextCells],
     transitions: [
       ...(show.transitions ?? []),
@@ -496,7 +492,7 @@ export function addShowScene(show: ShowRecord): ShowRecord {
             afterSceneId: show.scenes[lastSceneIndex].id,
             kind: 'crossfade' as const,
             durationMs: 2000,
-            easing: 'linear' as const,
+            easing: { curve: 'linear' as const },
             crossfadePolicy: 'snapshot-live' as const,
           }]
         : []),
@@ -519,7 +515,7 @@ export function duplicateShowScene(show: ShowRecord, sceneId: string): ShowRecor
   }
   const scenes = [
     ...show.scenes.slice(0, sceneIndex),
-    { ...sourceScene, transitionOut: undefined },
+    sourceScene,
     duplicate,
     ...show.scenes.slice(sceneIndex + 1),
   ]
@@ -554,7 +550,7 @@ export function duplicateShowScene(show: ShowRecord, sceneId: string): ShowRecor
       afterSceneId: sceneId,
       kind: 'cut',
       durationMs: 0,
-      easing: 'linear',
+      easing: { curve: 'linear' },
     },
   ]
 
@@ -589,7 +585,7 @@ export function splitShowAtTime(show: ShowRecord, atMs: number): ShowRecord {
   }
   const scenes = [
     ...show.scenes.slice(0, sceneIndex),
-    { ...sourceScene, durationMs: leftDurationMs, transitionOut: undefined },
+    { ...sourceScene, durationMs: leftDurationMs },
     destinationScene,
     ...show.scenes.slice(sceneIndex + 1),
   ]
@@ -628,7 +624,7 @@ export function splitShowAtTime(show: ShowRecord, atMs: number): ShowRecord {
       afterSceneId: sourceScene.id,
       kind: 'cut',
       durationMs: 0,
-      easing: 'linear',
+      easing: { curve: 'linear' },
     },
   ]
   const composition = show.composition
@@ -645,11 +641,6 @@ export function splitShowAtTime(show: ShowRecord, atMs: number): ShowRecord {
     cells,
     transitions,
     ...(composition ? { composition } : {}),
-    routingSwitches: show.routingSwitches.map((routingSwitch) => (
-      routingSwitch.afterSceneId === sourceScene.id
-        ? { ...routingSwitch, afterSceneId: newSceneId }
-        : routingSwitch
-    )),
     updatedAt: Math.max(Date.now(), show.updatedAt + 1),
   })
 }
@@ -689,7 +680,7 @@ export function showSplitCapability(show: ShowRecord, atMs: number): ShowSplitCa
       }
       return { enabled: true, code: 'ready', reason: 'Split this Scene at the playhead.' }
     }
-    cursorMs = holdEndMs + Math.max(0, scene.transitionOut?.durationMs ?? 0)
+    cursorMs = holdEndMs + Math.max(0, showVisualTransitionAfter(show, scene.id)?.durationMs ?? 0)
   }
 
   return { enabled: false, code: 'no-scene', reason: 'Move the playhead inside a Scene.' }
@@ -703,7 +694,7 @@ function nonlinearPropertySegmentCrosses(show: ShowRecord, sceneId: string, loca
       const right = keyframes[index + 1]
       if (left.timeMs >= localTimeMs || right.timeMs <= localTimeMs) return false
       if (Math.abs(right.value - left.value) <= 0.000001) return false
-      return normalizeShowEasing(left.easing).curve !== 'linear'
+      return normalizePersistedShowEasing(left.easing).curve !== 'linear'
     })
   })
 }
@@ -723,7 +714,7 @@ function showSplitTarget(
         ? { sceneIndex, leftDurationMs }
         : null
     }
-    cursorMs = holdEndMs + Math.max(0, scene.transitionOut?.durationMs ?? 0)
+    cursorMs = holdEndMs + Math.max(0, showVisualTransitionAfter(show, scene.id)?.durationMs ?? 0)
   }
   return null
 }
@@ -755,12 +746,11 @@ export function removeShowScene(show: ShowRecord, sceneId: string): ShowRecord {
 
   return normalizeShowTransitionState({
     ...show,
-    scenes: remainingScenes.map((scene) => (
-      scene.id === finalSceneId ? { ...scene, transitionOut: undefined } : scene
-    )),
+    scenes: remainingScenes,
     cells,
-    routingSwitches: show.routingSwitches.filter((routingSwitch) => routingSwitch.afterSceneId !== sceneId),
-    transitions: show.transitions?.filter((transition) => transition.afterSceneId !== sceneId),
+    transitions: show.transitions.filter((transition) => (
+      transition.afterSceneId !== sceneId && transition.afterSceneId !== finalSceneId
+    )),
     updatedAt: Date.now(),
   })
 }
@@ -1208,107 +1198,20 @@ export function normalizeShowRoutingState(show: ShowRecord): ShowRecord {
   const layouts = Array.isArray(show.routingLayouts) && show.routingLayouts.length > 0
     ? show.routingLayouts.map(normalizeRoutingLayout)
     : [routingLayoutFromZones('layout-1', 'Default', show.zones)]
-  const sceneIds = new Set(show.scenes.slice(0, -1).map((scene) => scene.id))
   const layoutIds = new Set(layouts.map((layout) => layout.id))
-  const switches = Array.isArray(show.routingSwitches)
-    ? show.routingSwitches.filter((routingSwitch) => (
-        sceneIds.has(routingSwitch.afterSceneId) && layoutIds.has(routingSwitch.layoutId)
-      ))
-    : []
-  return { ...show, routingLayouts: layouts, routingSwitches: switches }
+  return {
+    ...show,
+    routingLayouts: layouts,
+    transitions: show.transitions.filter((transition) => (
+      transition.kind !== 'routing' || Boolean(transition.layoutId && layoutIds.has(transition.layoutId))
+    )),
+  }
 }
 
 export function normalizeShowTransitionState(show: ShowRecord): ShowRecord {
   const boundarySceneIds = show.scenes.slice(0, -1).map((scene) => scene.id)
   const boundarySceneIdSet = new Set(boundarySceneIds)
-  const source = Array.isArray(show.transitions)
-    ? show.transitions
-    : [
-        ...show.scenes.slice(0, -1).map((scene): ShowBoundaryTransition => ({
-          id: `transition-${scene.id}`,
-          afterSceneId: scene.id,
-          kind: scene.transitionOut?.kind ?? 'cut',
-          durationMs: scene.transitionOut?.durationMs ?? 0,
-          easing: 'linear',
-          ...(scene.transitionOut?.kind === 'crossfade'
-            ? { crossfadePolicy: scene.transitionOut.crossfadePolicy }
-            : {}),
-          ...(scene.transitionOut?.kind === 'wipe'
-            ? {
-                feather: scene.transitionOut.feather,
-                direction: scene.transitionOut.direction,
-                wipeVariant: scene.transitionOut.wipeVariant,
-                wipeMode: scene.transitionOut.wipeMode,
-                orientation: scene.transitionOut.orientation,
-                count: scene.transitionOut.count,
-                centerX: scene.transitionOut.centerX,
-                centerY: scene.transitionOut.centerY,
-                phase: scene.transitionOut.phase,
-                clockwise: scene.transitionOut.clockwise,
-                edgePolicy: scene.transitionOut.edgePolicy,
-              }
-            : {}),
-          ...(scene.transitionOut?.kind === 'fade-color'
-            ? { color: scene.transitionOut.color }
-            : {}),
-          ...(scene.transitionOut?.kind === 'dither'
-            ? {
-                dissolveVariant: scene.transitionOut.dissolveVariant,
-                seed: scene.transitionOut.seed,
-                blockSize: scene.transitionOut.blockSize,
-                scale: scene.transitionOut.scale,
-                softness: scene.transitionOut.softness,
-                edgePolicy: scene.transitionOut.edgePolicy,
-              }
-            : {}),
-          ...(scene.transitionOut?.kind === 'portal'
-            ? {
-                feather: scene.transitionOut.feather,
-                centerX: scene.transitionOut.centerX,
-                centerY: scene.transitionOut.centerY,
-                invert: scene.transitionOut.invert,
-                featherPolicy: scene.transitionOut.featherPolicy,
-                shape: scene.transitionOut.shape,
-                scale: scene.transitionOut.scale,
-                rotation: scene.transitionOut.rotation,
-                spin: scene.transitionOut.spin,
-                ringWidth: scene.transitionOut.ringWidth,
-                revealMode: scene.transitionOut.revealMode,
-                aspect: scene.transitionOut.aspect,
-                cornerRadius: scene.transitionOut.cornerRadius,
-                crossWidth: scene.transitionOut.crossWidth,
-                starPoints: scene.transitionOut.starPoints,
-                starInner: scene.transitionOut.starInner,
-                crescentOffset: scene.transitionOut.crescentOffset,
-                polygonSides: scene.transitionOut.polygonSides,
-                edgePolicy: scene.transitionOut.edgePolicy,
-              }
-            : {}),
-          ...(scene.transitionOut?.kind === 'motion'
-            ? {
-                motionVariant: scene.transitionOut.motionVariant,
-                direction: scene.transitionOut.direction,
-                anchorX: scene.transitionOut.anchorX,
-                anchorY: scene.transitionOut.anchorY,
-                contentScale: scene.transitionOut.contentScale,
-                rotation: scene.transitionOut.rotation,
-                spinDirection: scene.transitionOut.spinDirection,
-                addressPolicy: scene.transitionOut.addressPolicy,
-                edgePolicy: scene.transitionOut.edgePolicy,
-              }
-            : {}),
-        })),
-        ...show.routingSwitches.map((routingSwitch): ShowBoundaryTransition => ({
-          id: `routing-${routingSwitch.afterSceneId}`,
-          afterSceneId: routingSwitch.afterSceneId,
-          kind: 'routing',
-          durationMs: 0,
-          easing: 'linear',
-          layoutId: routingSwitch.layoutId,
-        })),
-      ]
-
-  const normalized = source
+  const normalized = show.transitions
     .filter((transition) => boundarySceneIdSet.has(transition.afterSceneId))
     .map(normalizeBoundaryTransition)
   const visualByScene = new Map(
@@ -1321,7 +1224,7 @@ export function normalizeShowTransitionState(show: ShowRecord): ShowRecord {
         afterSceneId,
         kind: 'cut',
         durationMs: 0,
-        easing: 'linear',
+        easing: { curve: 'linear' },
       }
       normalized.push(cut)
       visualByScene.set(afterSceneId, cut)
@@ -1346,9 +1249,11 @@ export function normalizeShowTransitionState(show: ShowRecord): ShowRecord {
         ...(cell.effects ? { effects: normalizeShowClipEffects(cell.effects) } : {}),
       }
     }),
-    scenes: show.scenes.map((scene, index) => {
-      const normalizedScene = {
-        ...scene,
+    scenes: show.scenes.map((scene) => (
+      {
+        id: scene.id,
+        name: scene.name,
+        durationMs: scene.durationMs,
         ...(scene.routingTargets
           ? { routingTargets: { splitPosition: clamp01(scene.routingTargets.splitPosition ?? 0.5) } }
           : {}),
@@ -1356,21 +1261,26 @@ export function normalizeShowTransitionState(show: ShowRecord): ShowRecord {
           ? { sampleTargets: { repeatScale: clampShowRepeatScale(scene.sampleTargets.repeatScale ?? 1) } }
           : {}),
       }
-      if (index === show.scenes.length - 1) return { ...normalizedScene, transitionOut: undefined }
-      const transition = visualByScene.get(scene.id)
-      return {
-        ...normalizedScene,
-        transitionOut: transition && transition.kind !== 'cut' && transition.kind !== 'routing'
-          ? boundaryToLegacyTransition(transition)
-          : undefined,
-      }
-    }),
-    routingSwitches: normalized.flatMap((transition) => (
-      transition.kind === 'routing' && transition.layoutId
-        ? [{ afterSceneId: transition.afterSceneId, layoutId: transition.layoutId }]
-        : []
     )),
   }
+}
+
+export function showVisualTransitionAfter(
+  show: Pick<ShowRecord, 'transitions'>,
+  sceneId: string,
+): (ShowBoundaryTransition & { kind: ShowTransitionKind }) | undefined {
+  return show.transitions.find((transition) => (
+    transition.afterSceneId === sceneId && transition.kind !== 'routing'
+  )) as (ShowBoundaryTransition & { kind: ShowTransitionKind }) | undefined
+}
+
+export function showRoutingTransitionAfter(
+  show: Pick<ShowRecord, 'transitions'>,
+  sceneId: string,
+): ShowBoundaryTransition | undefined {
+  return show.transitions.find((transition) => (
+    transition.afterSceneId === sceneId && transition.kind === 'routing'
+  ))
 }
 
 function normalizeBoundaryTransition(transition: ShowBoundaryTransition): ShowBoundaryTransition {
@@ -1384,7 +1294,7 @@ function normalizeBoundaryTransition(transition: ShowBoundaryTransition): ShowBo
       : kind === 'routing' && transition.durationMs <= 0
         ? 0
         : clampDuration(transition.durationMs),
-    easing: normalizeShowEasing(transition.easing),
+    easing: normalizePersistedShowEasing(transition.easing),
     ...(kind === 'cut' || kind === 'routing' ? {} : normalizePropertyTransitions(transition)),
   }
   if (kind === 'routing') {
@@ -1403,14 +1313,15 @@ function normalizeBoundaryTransition(transition: ShowBoundaryTransition): ShowBo
     }
   }
   if (kind === 'wipe') {
-    const explicitVariant = transition.wipeVariant
     const settings = normalizeShowWipeSettings(transition)
+    const variantSettings = normalizeWipeVariantSettings(settings)
+    const canonicalSettings = settings.wipeVariant === 'linear' && transition.direction === undefined
+      ? { wipeVariant: 'linear' as const }
+      : variantSettings
     return {
       ...base,
       feather: clamp01(transition.feather ?? 0),
-      ...(explicitVariant === undefined
-        ? transition.direction === undefined ? {} : { direction: normalizeShowWipeDirection(transition.direction) }
-        : normalizeWipeVariantSettings(settings)),
+      ...canonicalSettings,
       ...(transition.edgePolicy === 'hard' || transition.edgePolicy === 'dither' || transition.edgePolicy === 'blend'
         ? { edgePolicy: transition.edgePolicy }
         : {}),
@@ -1426,10 +1337,10 @@ function normalizeBoundaryTransition(transition: ShowBoundaryTransition): ShowBo
           ? 'coherent-noise' as const
           : transition.dissolveVariant === 'soft-threshold'
             ? 'soft-threshold' as const
-        : undefined
+        : 'pixel' as const
     return {
       ...base,
-      ...(variant ? { dissolveVariant: variant } : {}),
+      dissolveVariant: variant,
       ...(transition.seed === undefined ? {} : { seed: normalizeShowDissolveSeed(transition.seed) }),
       ...(variant === 'block'
         ? { blockSize: normalizeShowDissolveBlockSize(transition.blockSize ?? 8) }
@@ -1450,9 +1361,9 @@ function normalizeBoundaryTransition(transition: ShowBoundaryTransition): ShowBo
     }
   }
   if (kind === 'portal') {
-    const explicitRevealMode = transition.revealMode === 'grow-incoming' || transition.revealMode === 'shrink-outgoing'
+    const revealMode = transition.revealMode === 'grow-incoming' || transition.revealMode === 'shrink-outgoing'
       ? transition.revealMode
-      : undefined
+      : 'grow-incoming' as const
     const explicitEdgePolicy = transition.edgePolicy === 'hard' || transition.edgePolicy === 'dither' || transition.edgePolicy === 'blend'
       ? transition.edgePolicy
       : undefined
@@ -1461,11 +1372,8 @@ function normalizeBoundaryTransition(transition: ShowBoundaryTransition): ShowBo
       feather: clamp01(transition.feather ?? 0.12),
       centerX: clamp01(transition.centerX ?? 0.5),
       centerY: clamp01(transition.centerY ?? 0.5),
-      invert: explicitRevealMode
-        ? normalizeShowRevealMode(explicitRevealMode, transition.invert) === 'shrink-outgoing'
-        : Boolean(transition.invert),
       featherPolicy: transition.featherPolicy === 'blend' ? 'blend' : 'dither',
-      ...(explicitRevealMode ? { revealMode: explicitRevealMode } : {}),
+      revealMode,
       ...(explicitEdgePolicy ? { edgePolicy: explicitEdgePolicy } : {}),
       ...normalizeSpatialShapeSettings(transition),
     }
@@ -1696,77 +1604,11 @@ function normalizeSpatialShapeSettings(transition: {
 }
 
 function normalizeEasing(easing: ShowBoundaryTransition['easing'] | undefined): ShowBoundaryTransition['easing'] {
-  return normalizeShowEasing(easing)
+  return normalizePersistedShowEasing(easing)
 }
 
 function clampTimeScale(value: number): number {
   return Math.max(0, Math.min(4, Number.isFinite(value) ? value : 1))
-}
-
-function boundaryToLegacyTransition(
-  transition: ShowBoundaryTransition,
-): NonNullable<ShowScene['transitionOut']> {
-  const kind = transition.kind === 'routing' ? 'cut' : transition.kind
-  return {
-    kind,
-    durationMs: transition.durationMs,
-    ...(kind === 'crossfade' ? { crossfadePolicy: transition.crossfadePolicy } : {}),
-    ...(kind === 'fade-color' ? { color: normalizeShowTransitionColor(transition.color) } : {}),
-    ...(kind === 'dither'
-      ? {
-          ...(transition.dissolveVariant === undefined ? {} : { dissolveVariant: transition.dissolveVariant }),
-          ...(transition.seed === undefined ? {} : { seed: transition.seed }),
-          ...(transition.blockSize === undefined ? {} : { blockSize: transition.blockSize }),
-          ...(transition.scale === undefined ? {} : { scale: transition.scale }),
-          ...(transition.softness === undefined ? {} : { softness: transition.softness }),
-          ...(transition.edgePolicy === undefined ? {} : { edgePolicy: transition.edgePolicy }),
-        }
-      : {}),
-    ...(kind === 'wipe'
-      ? {
-          feather: transition.feather,
-          ...(transition.direction === undefined ? {} : { direction: transition.direction }),
-          ...(transition.wipeVariant === undefined ? {} : normalizeWipeVariantSettings(normalizeShowWipeSettings(transition))),
-          ...(transition.edgePolicy === undefined ? {} : { edgePolicy: transition.edgePolicy }),
-        }
-      : {}),
-    ...(kind === 'portal'
-      ? {
-          feather: transition.feather,
-          centerX: transition.centerX,
-          centerY: transition.centerY,
-          invert: transition.invert,
-          featherPolicy: transition.featherPolicy,
-          shape: transition.shape,
-          scale: transition.scale,
-          rotation: transition.rotation,
-          spin: transition.spin,
-          ringWidth: transition.ringWidth,
-          cornerRadius: transition.cornerRadius,
-          crossWidth: transition.crossWidth,
-          starPoints: transition.starPoints,
-          starInner: transition.starInner,
-          crescentOffset: transition.crescentOffset,
-          polygonSides: transition.polygonSides,
-          revealMode: transition.revealMode,
-          aspect: transition.aspect,
-          edgePolicy: transition.edgePolicy,
-        }
-      : {}),
-    ...(kind === 'motion'
-      ? {
-          motionVariant: transition.motionVariant,
-          direction: transition.direction,
-          anchorX: transition.anchorX,
-          anchorY: transition.anchorY,
-          contentScale: transition.contentScale,
-          rotation: transition.rotation,
-          spinDirection: transition.spinDirection,
-          addressPolicy: transition.addressPolicy,
-          edgePolicy: transition.edgePolicy,
-        }
-      : {}),
-  }
 }
 
 export function normalizeShowEntryState(show: ShowRecord): ShowRecord {
@@ -1843,8 +1685,7 @@ export function removeShowRoutingLayout(show: ShowRecord, layoutId: string): Sho
   return {
     ...normalized,
     routingLayouts,
-    routingSwitches: normalized.routingSwitches.filter((routingSwitch) => routingSwitch.layoutId !== layoutId),
-    transitions: normalized.transitions?.filter((transition) => transition.kind !== 'routing' || transition.layoutId !== layoutId),
+    transitions: normalized.transitions.filter((transition) => transition.kind !== 'routing' || transition.layoutId !== layoutId),
     updatedAt: Date.now(),
   }
 }
@@ -1862,7 +1703,7 @@ export function updateShowRoutingSwitch(show: ShowRecord, afterSceneId: string, 
       afterSceneId,
       kind: 'routing',
       durationMs: 0,
-      easing: 'linear',
+      easing: { curve: 'linear' },
       layoutId,
     })
   }
@@ -1872,7 +1713,7 @@ export function updateShowRoutingSwitch(show: ShowRecord, afterSceneId: string, 
 export function updateShowTransition(
   show: ShowRecord,
   sceneId: string,
-  kind: NonNullable<ShowScene['transitionOut']>['kind'],
+  kind: ShowTransitionKind,
   durationMs: number,
   feather = 0,
   portal: Partial<ShowPortalSettings> = {},
@@ -1889,11 +1730,10 @@ export function updateShowTransition(
         afterSceneId: sceneId,
         kind,
         durationMs: clampDuration(durationMs),
-        easing: current?.easing ?? 'linear',
+        easing: current?.easing ?? { curve: 'linear' },
         feather: clamp01(feather),
         centerX: clamp01(portal.centerX ?? currentPortal?.centerX ?? 0.5),
         centerY: clamp01(portal.centerY ?? currentPortal?.centerY ?? 0.5),
-        invert: portal.invert ?? currentPortal?.invert ?? false,
         featherPolicy: (portal.featherPolicy ?? currentPortal?.featherPolicy) === 'blend' ? 'blend' : 'dither',
         shape: portal.shape ?? currentPortal?.shape,
         scale: portal.scale ?? currentPortal?.scale,
@@ -1906,7 +1746,7 @@ export function updateShowTransition(
         starInner: portal.starInner ?? currentPortal?.starInner,
         crescentOffset: portal.crescentOffset ?? currentPortal?.crescentOffset,
         polygonSides: portal.polygonSides ?? currentPortal?.polygonSides,
-        revealMode: portal.revealMode ?? currentPortal?.revealMode,
+        revealMode: portal.revealMode ?? currentPortal?.revealMode ?? 'grow-incoming',
         aspect: portal.aspect ?? currentPortal?.aspect,
         edgePolicy: portal.edgePolicy ?? currentPortal?.edgePolicy,
       }
@@ -1915,7 +1755,7 @@ export function updateShowTransition(
         afterSceneId: sceneId,
         kind,
         durationMs: kind === 'cut' ? 0 : clampDuration(durationMs),
-        easing: current?.easing ?? 'linear',
+        easing: current?.easing ?? { curve: 'linear' },
         ...(kind === 'crossfade'
           ? {
               crossfadePolicy: current?.kind === 'crossfade'
@@ -1972,6 +1812,7 @@ export function removeShowBoundaryTransition(show: ShowRecord, transitionId: str
 export function showRecordToCompileRecipe(
   show: ShowRecord,
   lookup: ShowCompileRecipeSourceLookup,
+  useRoutedInstallationRecipe = true,
 ): ShowRecipe {
   show = normalizeShowTransitionState(show)
   const outputEffects = normalizeShowOutputEffects(show.outputEffects)
@@ -1986,20 +1827,25 @@ export function showRecordToCompileRecipe(
     return { ...showRecordToRoutedSceneSequenceRecipe(show, lookup), outputEffects }
   }
   if (
-    show.outputContract?.kind === 'installation'
+    useRoutedInstallationRecipe
+    && show.outputContract.kind === 'installation'
     && show.zones.length === 1
-    && show.routingSwitches.length === 0
+    && !show.transitions.some((transition) => transition.kind === 'routing')
   ) {
-    const legacyRecipe = showRecordToCompileRecipe({ ...show, outputContract: undefined }, lookup)
+    const singleZoneRecipe = showRecordToCompileRecipe(show, lookup, false)
     return {
-      ...legacyRecipe,
+      ...singleZoneRecipe,
       zones: show.routingLayouts[0]
         ? routingLayoutControllerZones(show.zones, show.routingLayouts[0])
         : nominalZones(show.zones),
       masterPixelCount: show.outputContract.pixelCount,
     }
   }
-  if (show.outputContract?.kind === 'installation' || show.zones.length > 1 || show.routingSwitches.length > 0) {
+  if (
+    (useRoutedInstallationRecipe && show.outputContract.kind === 'installation')
+    || show.zones.length > 1
+    || show.transitions.some((transition) => transition.kind === 'routing')
+  ) {
     return { ...showRecordToRoutedSceneSequenceRecipe(show, lookup), outputEffects }
   }
 
@@ -2029,12 +1875,8 @@ export function showRecordToCompileRecipe(
   if (!source1) throw new Error('Show compile requires pattern source for both clips.')
 
   const transitionScene = show.scenes[sceneIndex(show, cells[0].sceneId)]
-  const transition = transitionScene?.transitionOut
-  const boundary = transitionScene
-    ? show.transitions?.find((candidate) => (
-        candidate.afterSceneId === transitionScene.id && candidate.kind !== 'routing'
-      ))
-    : undefined
+  const transition = transitionScene ? showVisualTransitionAfter(show, transitionScene.id) : undefined
+  const boundary = transition
   const samePattern = isSamePattern(cells[0], cells[1])
   if (transition?.kind === 'portal' && (!show.stageMapId || lookup.stageDimension !== 2)) {
     throw new Error('Portal transition requires a 2D Stage Map.')
@@ -2060,7 +1902,7 @@ export function showRecordToCompileRecipe(
             from: descriptor.fromByCellId[cells[1].id] ?? cells[0].adaptations[property],
             to: cells[1].adaptations[property],
             durationMs: descriptor.durationMs ?? boundary.durationMs,
-            easing: descriptor.easing ?? 'linear',
+            easing: descriptor.easing ?? { curve: 'linear' },
           }]]
         }))
       : undefined
@@ -2075,7 +1917,7 @@ export function showRecordToCompileRecipe(
             from: descriptor.fromByCellId[cells[1].id] ?? from,
             to,
             durationMs: descriptor.durationMs ?? boundary.durationMs,
-            easing: descriptor.easing ?? 'linear',
+            easing: descriptor.easing ?? { curve: 'linear' },
           }]
         }))
       : undefined
@@ -2090,7 +1932,7 @@ export function showRecordToCompileRecipe(
           ...(explicitFrom === undefined ? {} : { timeScale: explicitFrom }),
         },
         to: compilerAdaptation(cells[1].adaptations),
-        easing: boundary?.easing ?? 'linear',
+        easing: boundary?.easing ?? { curve: 'linear' },
         ...(propertyRamps && Object.keys(propertyRamps).length > 0 ? { propertyRamps } : {}),
         ...(controlRamps && Object.keys(controlRamps).length > 0 ? { controlRamps } : {}),
         ...(effectRamps ? { effectRamps } : {}),
@@ -2120,7 +1962,7 @@ export function showRecordToCompileRecipe(
           kind: transition.kind,
           startMs: show.scenes[0].durationMs,
           durationMs: transition.durationMs,
-          easing: boundary?.easing ?? 'linear',
+          easing: boundary?.easing ?? { curve: 'linear' },
           ...(transition.kind === 'fade-color'
             ? { color: normalizeShowTransitionColor(transition.color) }
             : {}),
@@ -2138,7 +1980,11 @@ export function showRecordToCompileRecipe(
             ? {
                 feather: clamp01(transition.feather ?? 0),
                 ...(transition.direction === undefined ? {} : { direction: normalizeShowWipeDirection(transition.direction) }),
-                ...(transition.wipeVariant === undefined ? {} : normalizeWipeVariantSettings(normalizeShowWipeSettings(transition))),
+                ...(transition.wipeVariant === undefined
+                  ? {}
+                  : transition.wipeVariant === 'linear' && transition.direction === undefined
+                    ? { wipeVariant: 'linear' as const }
+                    : normalizeWipeVariantSettings(normalizeShowWipeSettings(transition))),
                 ...(transition.edgePolicy === undefined ? {} : { edgePolicy: transition.edgePolicy }),
               }
             : {}),
@@ -2147,9 +1993,8 @@ export function showRecordToCompileRecipe(
                 feather: clamp01(transition.feather ?? 0.12),
                 centerX: clamp01(transition.centerX ?? 0.5),
                 centerY: clamp01(transition.centerY ?? 0.5),
-                invert: Boolean(transition.invert),
                 featherPolicy: transition.featherPolicy === 'blend' ? 'blend' as const : 'dither' as const,
-                ...(transition.revealMode ? { revealMode: transition.revealMode } : {}),
+                revealMode: transition.revealMode ?? 'grow-incoming',
                 ...(transition.edgePolicy ? { edgePolicy: transition.edgePolicy } : {}),
                 ...normalizeSpatialShapeSettings(transition),
               }
@@ -2184,7 +2029,7 @@ function showRecordToSceneSequenceRecipe(
     adaptations: { ...DEFAULT_ADAPTATIONS },
     restartOnEntry: false,
   }))
-  const transitions = show.scenes.slice(0, -1).map((scene) => scene.transitionOut)
+  const transitions = show.scenes.slice(0, -1).map((scene) => showVisualTransitionAfter(show, scene.id))
   const hasPropertyTransitions = show.transitions?.some((transition) => (
     transition.kind !== 'routing' && Boolean(transition.propertyTransitions && Object.keys(transition.propertyTransitions).length > 0)
   )) ?? false
@@ -2250,7 +2095,7 @@ function showRecordToSceneSequenceRecipe(
     sceneSequence: {
       scenes: show.scenes.map((scene, index) => {
         const cell = resolvedCells[index]
-        const transition = scene.transitionOut
+        const transition = showVisualTransitionAfter(show, scene.id)
         const nextCell = resolvedCells[index + 1]
         const boundary = show.transitions?.find((candidate) => (
           candidate.afterSceneId === scene.id && candidate.kind !== 'routing'
@@ -2263,7 +2108,7 @@ function showRecordToSceneSequenceRecipe(
                 from: descriptor.fromByCellId[nextCell.id] ?? cell.adaptations[property],
                 to: nextCell.adaptations[property],
                 durationMs: descriptor.durationMs ?? boundary.durationMs,
-                easing: descriptor.easing ?? 'linear',
+                easing: descriptor.easing ?? { curve: 'linear' },
               }]]
             }))
           : undefined
@@ -2278,7 +2123,7 @@ function showRecordToSceneSequenceRecipe(
                 from: descriptor.fromByCellId[nextCell.id] ?? from,
                 to,
                 durationMs: descriptor.durationMs ?? boundary.durationMs,
-                easing: descriptor.easing ?? 'linear',
+                easing: descriptor.easing ?? { curve: 'linear' },
               }]
             }))
           : undefined
@@ -2313,13 +2158,13 @@ function showRecordToSceneSequenceRecipe(
 }
 
 function compilerSequenceTransition(
-  transition: NonNullable<ShowScene['transitionOut']>,
+  transition: ShowBoundaryTransition & { kind: ShowTransitionKind },
   easing?: ShowBoundaryTransition['easing'],
 ): NonNullable<NonNullable<ShowRecipe['sceneSequence']>['scenes'][number]['transitionOut']> {
   return {
     kind: transition.kind,
     durationMs: transition.durationMs,
-    easing: easing ?? 'linear',
+    easing: easing ?? { curve: 'linear' },
     ...(transition.kind === 'crossfade' ? { crossfadePolicy: transition.crossfadePolicy } : {}),
     ...(transition.kind === 'fade-color' ? { color: normalizeShowTransitionColor(transition.color) } : {}),
     ...(transition.kind === 'dither'
@@ -2336,7 +2181,11 @@ function compilerSequenceTransition(
       ? {
           feather: clamp01(transition.feather ?? 0),
           ...(transition.direction === undefined ? {} : { direction: normalizeShowWipeDirection(transition.direction) }),
-          ...(transition.wipeVariant === undefined ? {} : normalizeWipeVariantSettings(normalizeShowWipeSettings(transition))),
+          ...(transition.wipeVariant === undefined
+            ? {}
+            : transition.wipeVariant === 'linear' && transition.direction === undefined
+              ? { wipeVariant: 'linear' as const }
+              : normalizeWipeVariantSettings(normalizeShowWipeSettings(transition))),
           ...(transition.edgePolicy === undefined ? {} : { edgePolicy: transition.edgePolicy }),
         }
       : {}),
@@ -2345,9 +2194,8 @@ function compilerSequenceTransition(
           feather: clamp01(transition.feather ?? 0.12),
           centerX: clamp01(transition.centerX ?? 0.5),
           centerY: clamp01(transition.centerY ?? 0.5),
-          invert: Boolean(transition.invert),
           featherPolicy: transition.featherPolicy === 'blend' ? 'blend' as const : 'dither' as const,
-          ...(transition.revealMode ? { revealMode: transition.revealMode } : {}),
+          revealMode: transition.revealMode ?? 'grow-incoming',
           ...(transition.edgePolicy ? { edgePolicy: transition.edgePolicy } : {}),
           ...normalizeSpatialShapeSettings(transition),
         }
@@ -2370,21 +2218,19 @@ function showRecordToStaticRoutedRecipe(
 
   const normalized = normalizeShowRoutingState(show)
   const loopDurationMs = showSceneHoldDurationMs(normalized)
-  const activeSwitches = normalized.routingSwitches.flatMap((routingSwitch) => {
-    const sceneIndex = normalized.scenes.findIndex((scene) => scene.id === routingSwitch.afterSceneId)
+  const activeSwitches = normalized.transitions.flatMap((transition) => {
+    if (transition.kind !== 'routing' || !transition.layoutId) return []
+    const sceneIndex = normalized.scenes.findIndex((scene) => scene.id === transition.afterSceneId)
     if (sceneIndex < 0 || sceneIndex >= normalized.scenes.length - 1) return []
     const atMs = normalized.scenes
       .slice(0, sceneIndex + 1)
       .reduce((sum, scene) => sum + Math.max(0, scene.durationMs), 0)
-    const transition = normalized.transitions?.find((candidate) => (
-      candidate.kind === 'routing' && candidate.afterSceneId === routingSwitch.afterSceneId
-    ))
     return [{
       atMs,
-      layoutId: routingSwitch.layoutId,
-      durationMs: Math.min(transition?.durationMs ?? 0, Math.max(0, loopDurationMs - atMs)),
-      easing: transition?.easing ?? 'linear',
-      direction: transition?.routingDirection ?? 'forward',
+      layoutId: transition.layoutId,
+      durationMs: Math.min(transition.durationMs, Math.max(0, loopDurationMs - atMs)),
+      easing: transition.easing,
+      direction: transition.routingDirection ?? 'forward',
     }]
   })
   const splitLayout = normalized.routingLayouts.find((layout) => (
@@ -2420,7 +2266,7 @@ function showRecordToStaticRoutedRecipe(
             from: clamp01(descriptor?.from ?? scene.routingTargets?.splitPosition ?? 0.5),
             to: target,
             durationMs: descriptor?.durationMs ?? 0,
-            easing: descriptor?.easing ?? 'linear',
+            easing: descriptor?.easing ?? { curve: 'linear' },
           }
         }),
       }
@@ -2473,21 +2319,19 @@ function showRecordToRoutedSceneSequenceRecipe(
 
   const normalized = normalizeShowRoutingState(show)
   const loopDurationMs = showLoopDurationMs(normalized)
-  const activeSwitches = normalized.routingSwitches.flatMap((routingSwitch) => {
-    const sceneIndex = normalized.scenes.findIndex((scene) => scene.id === routingSwitch.afterSceneId)
+  const activeSwitches = normalized.transitions.flatMap((transition) => {
+    if (transition.kind !== 'routing' || !transition.layoutId) return []
+    const sceneIndex = normalized.scenes.findIndex((scene) => scene.id === transition.afterSceneId)
     if (sceneIndex < 0 || sceneIndex >= normalized.scenes.length - 1) return []
     const atMs = normalized.scenes.slice(0, sceneIndex).reduce((sum, scene) => (
-      sum + Math.max(0, scene.durationMs) + Math.max(0, scene.transitionOut?.durationMs ?? 0)
+      sum + Math.max(0, scene.durationMs) + Math.max(0, showVisualTransitionAfter(normalized, scene.id)?.durationMs ?? 0)
     ), 0) + Math.max(0, normalized.scenes[sceneIndex].durationMs)
-    const transition = normalized.transitions?.find((candidate) => (
-      candidate.kind === 'routing' && candidate.afterSceneId === routingSwitch.afterSceneId
-    ))
     return [{
       atMs,
-      layoutId: routingSwitch.layoutId,
-      durationMs: Math.min(transition?.durationMs ?? 0, Math.max(0, loopDurationMs - atMs)),
-      easing: transition?.easing ?? 'linear',
-      direction: transition?.routingDirection ?? 'forward',
+      layoutId: transition.layoutId,
+      durationMs: Math.min(transition.durationMs, Math.max(0, loopDurationMs - atMs)),
+      easing: transition.easing,
+      direction: transition.routingDirection ?? 'forward',
     }]
   })
   const splitLayout = normalized.routingLayouts.find((layout) => (
@@ -2530,7 +2374,7 @@ function showRecordToRoutedSceneSequenceRecipe(
             from: clamp01(descriptor?.from ?? scene.routingTargets?.splitPosition ?? 0.5),
             to: target,
             durationMs: descriptor?.durationMs ?? 0,
-            easing: descriptor?.easing ?? 'linear',
+            easing: descriptor?.easing ?? { curve: 'linear' },
           }
         }),
       }
@@ -2635,12 +2479,10 @@ function showRecordToRoutedSceneSequenceRecipe(
               }
             })
           }),
-          ...(scene.transitionOut ? {
+          ...(showVisualTransitionAfter(normalized, scene.id) ? {
             transitionOut: compilerSequenceTransition(
-              scene.transitionOut,
-              normalized.transitions?.find((transition) => (
-                transition.afterSceneId === scene.id && transition.kind !== 'routing'
-              ))?.easing,
+              showVisualTransitionAfter(normalized, scene.id)!,
+              showVisualTransitionAfter(normalized, scene.id)?.easing,
             ),
           } : {}),
           ...(transitionRamps.length > 0 ? { transitionRamps } : {}),
@@ -2741,7 +2583,7 @@ function routedScenePlacementRamps(
         from: descriptor.fromByCellId[next.id] ?? current.adaptations[property],
         to: next.adaptations[property],
         durationMs: descriptor.durationMs ?? boundary.durationMs,
-        easing: descriptor.easing ?? 'linear',
+        easing: descriptor.easing ?? { curve: 'linear' },
       }]]
     }))
     const controlRamps = propertyTransitions.controls
@@ -2755,7 +2597,7 @@ function routedScenePlacementRamps(
             from: descriptor.fromByCellId[next.id] ?? from,
             to,
             durationMs: descriptor.durationMs ?? boundary.durationMs,
-            easing: descriptor.easing ?? 'linear',
+            easing: descriptor.easing ?? { curve: 'linear' },
           }]
         }))
       : undefined
@@ -2792,9 +2634,11 @@ function showSamplePropertyRamps(
       from: clampShowRepeatScale(descriptor?.from ?? scene.sampleTargets?.repeatScale ?? 1),
       to: clampShowRepeatScale(show.scenes[sceneIndex + 1]?.sampleTargets?.repeatScale ?? 1),
       durationMs: descriptor?.durationMs ?? 0,
-      easing: descriptor?.easing ?? 'linear' as const,
+      easing: descriptor?.easing ?? { curve: 'linear' as const },
     }
-    if (includeTransitionDurations) cursorMs += Math.max(0, scene.transitionOut?.durationMs ?? 0)
+    if (includeTransitionDurations) {
+      cursorMs += Math.max(0, showVisualTransitionAfter(show, scene.id)?.durationMs ?? 0)
+    }
     return ramp
   })
   return {
@@ -2805,7 +2649,7 @@ function showSamplePropertyRamps(
   }
 }
 
-export function transitionCost(kind: NonNullable<ShowScene['transitionOut']>['kind']): ShowTransitionCost {
+export function transitionCost(kind: ShowTransitionKind): ShowTransitionCost {
   if (kind === 'crossfade') return 'expensive'
   if (kind === 'portal') return 'expensive'
   if (kind === 'motion') return 'expensive'
@@ -2892,7 +2736,7 @@ function compileShowEffectRamps(
           from,
           to,
           durationMs: descriptor?.durationMs ?? boundary?.durationMs ?? 2000,
-          easing: descriptor?.easing ?? boundary?.easing ?? 'linear',
+          easing: descriptor?.easing ?? boundary?.easing ?? { curve: 'linear' },
         }
       }
     }
@@ -2908,7 +2752,7 @@ function compileShowEffectRamps(
       from: descriptor.fromByCellId[toCell.id] ?? fromTransform[property],
       to: toTransform[property],
       durationMs: descriptor.durationMs ?? boundary?.durationMs ?? 2_000,
-      easing: descriptor.easing ?? boundary?.easing ?? 'linear',
+      easing: descriptor.easing ?? boundary?.easing ?? { curve: 'linear' },
     }
   }
   return Object.keys(ramps).length > 0 ? ramps : undefined

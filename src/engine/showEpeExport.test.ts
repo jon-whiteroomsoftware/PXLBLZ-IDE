@@ -32,7 +32,9 @@ describe('Show EPE export (#399)', () => {
         { sceneId: 'scene-2', zones: [{ zoneId: 'zone-1', main: [], overlays: [] }] },
       ],
     }
-    const artifact = compileShowForArtifact(show, patterns, undefined, {}).artifact!
+    const compiled = compileShowForArtifact(show, patterns, undefined, {})
+    expect(compiled.error).toBeNull()
+    const artifact = compiled.artifact!
 
     const exported = buildShowEpeExport(show, artifact.code, { attribution: artifact.attribution })
     const source = parseEpe(exported.text).src
@@ -57,7 +59,9 @@ describe('Show EPE export (#399)', () => {
       updatedAt: 1,
     }]
 
-    const artifact = compileShowForArtifact(show, patterns, undefined, {}).artifact!
+    const compiled = compileShowForArtifact(show, patterns, undefined, {})
+    expect(compiled.error).toBeNull()
+    const artifact = compiled.artifact!
     const exported = buildShowEpeExport(show, artifact.code, { attribution: artifact.attribution })
     const source = parseEpe(exported.text).src
 
@@ -115,7 +119,7 @@ describe('Show EPE export (#399)', () => {
     const transition = routed.transitions?.find((candidate) => candidate.kind === 'routing')
     const show = updateShowBoundaryTransition(routed, transition!.id, {
       durationMs: 2000,
-      easing: 'ease-in-out',
+      easing: { curve: 'quadratic', direction: 'in-out' },
       routingDirection: 'reverse',
     })
 
@@ -133,7 +137,7 @@ describe('Show EPE export (#399)', () => {
       'portal',
       2000,
       0.1,
-      { centerX: 0.4, centerY: 0.6, invert: false, featherPolicy: 'dither', shape: 'ring', scale: 1.2, ringWidth: 0.2 },
+      { centerX: 0.4, centerY: 0.6, revealMode: 'grow-incoming', featherPolicy: 'dither', shape: 'ring', scale: 1.2, ringWidth: 0.2 },
     )
 
     const exported = buildShowEpeExport(show, 'export function render2D() {}')
@@ -205,7 +209,11 @@ describe('Show EPE export (#399)', () => {
   })
 
   it('exports a custom-map name without leaking its local database id (#411)', () => {
-    const show = { ...createDefaultShow('show-custom', 'Measured installation'), stageMapId: 'local-map-42' }
+    const show = createShowWithOutputContract(
+      'show-custom',
+      'Measured installation',
+      createInstallationShowOutputContract({ outputMapId: 'local-map-42', pixelCount: 1 }),
+    )
     const exported = buildShowEpeExport(show, 'export function render2D(index, x, y) {}', {
       userMaps: [{
         id: 'local-map-42',

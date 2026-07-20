@@ -105,9 +105,9 @@ describe('Show composition compiler lowering (#488)', () => {
     expect(lowered.show.scenes.map((scene) => scene.durationMs)).toEqual([
       4_000, 1_000, 3_000, 2_000, 20_000, 30_000,
     ])
-    expect(lowered.show.scenes.map((scene) => scene.transitionOut?.kind ?? null)).toEqual([
-      'cut', 'cut', 'cut', 'cut', 'crossfade', null,
-    ])
+    expect(lowered.show.scenes.map((scene) => (
+      lowered.show.transitions.find((transition) => transition.afterSceneId === scene.id)?.kind ?? null
+    ))).toEqual(['cut', 'cut', 'cut', 'cut', 'crossfade', null])
     expect(lowered.show.cells.map((cell) => cell.patternName)).toEqual([
       'TestPattern1D', 'CometLoom', 'TestPattern1D', 'CometLoom',
     ])
@@ -241,7 +241,7 @@ describe('Show composition compiler lowering (#488)', () => {
             brightness: {
               fromByCellId: { 'cell-2': 0.25 },
               durationMs: 500,
-              easing: 'linear',
+              easing: { curve: 'linear' },
             },
           },
         }

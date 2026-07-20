@@ -301,7 +301,7 @@ export function createShowToolkitFixtureRecipes(): ShowToolkitFixtureRecipe[] {
         persistedRecord: persistedRecord(`shape-reveal-${shape}-${revealMode}`, {
           kind: 'portal', durationMs: 1000,
           centerX: 0.5, centerY: 0.5, feather: 0.08,
-          revealMode, invert: revealMode === 'shrink-outgoing',
+          revealMode,
           edgePolicy: 'dither', featherPolicy: 'dither',
           shape, scale: 1,
           ...(shape === 'box' ? { aspect: 1.6, rotation: 0.125 } : {}),
@@ -311,7 +311,7 @@ export function createShowToolkitFixtureRecipes(): ShowToolkitFixtureRecipe[] {
           routeTransition: {
             kind: 'portal', startMs: 1000, durationMs: 1000,
             centerX: 0.5, centerY: 0.5, feather: 0.08,
-            revealMode, invert: revealMode === 'shrink-outgoing',
+            revealMode,
             edgePolicy: 'dither', featherPolicy: 'dither',
             shape, scale: 1,
             ...(shape === 'box' ? { aspect: 1.6, rotation: 0.125 } : {}),
@@ -331,7 +331,7 @@ export function createShowToolkitFixtureRecipes(): ShowToolkitFixtureRecipe[] {
             persistedRecord: persistedRecord(`shape-reveal-${shape}-${revealMode}`, {
               kind: 'portal', durationMs: 1000,
               centerX: 0.5, centerY: 0.5, feather: 0.05,
-              revealMode, invert: revealMode === 'shrink-outgoing',
+              revealMode,
               edgePolicy: 'dither', featherPolicy: 'dither',
               shape, scale: 0.9, ...shapeSettings,
             }),
@@ -340,7 +340,7 @@ export function createShowToolkitFixtureRecipes(): ShowToolkitFixtureRecipe[] {
               routeTransition: {
                 kind: 'portal', startMs: 1000, durationMs: 1000,
                 centerX: 0.5, centerY: 0.5, feather: 0.05,
-                revealMode, invert: revealMode === 'shrink-outgoing',
+                revealMode,
                 edgePolicy: 'dither', featherPolicy: 'dither',
                 shape, scale: 0.9, ...shapeSettings,
               },
@@ -357,7 +357,7 @@ export function createShowToolkitFixtureRecipes(): ShowToolkitFixtureRecipe[] {
         persistedRecord: persistedRecord(`shape-reveal-polygon-${polygonSides}-${revealMode}`, {
           kind: 'portal', durationMs: 1000,
           centerX: 0.5, centerY: 0.5, feather: 0.05,
-          revealMode, invert: revealMode === 'shrink-outgoing',
+          revealMode,
           edgePolicy: 'dither', featherPolicy: 'dither',
           shape: 'polygon', scale: 0.9, polygonSides, rotation: 0.05, aspect: 1,
         }),
@@ -366,7 +366,7 @@ export function createShowToolkitFixtureRecipes(): ShowToolkitFixtureRecipe[] {
           routeTransition: {
             kind: 'portal', startMs: 1000, durationMs: 1000,
             centerX: 0.5, centerY: 0.5, feather: 0.05,
-            revealMode, invert: revealMode === 'shrink-outgoing',
+            revealMode,
             edgePolicy: 'dither', featherPolicy: 'dither',
             shape: 'polygon', scale: 0.9, polygonSides, rotation: 0.05, aspect: 1,
           },

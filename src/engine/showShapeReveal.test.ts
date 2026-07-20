@@ -7,10 +7,10 @@ import { createDefaultShow, normalizeShowTransitionState, showRecordToCompileRec
 import { compileShow } from './showCompiler'
 
 describe('Grow Incoming and Shrink Outgoing shape reveals (#448)', () => {
-  it('maps legacy invert to reveal language without changing the persisted compatibility field', () => {
-    expect(normalizeShowRevealMode(undefined, false)).toBe('grow-incoming')
-    expect(normalizeShowRevealMode(undefined, true)).toBe('shrink-outgoing')
-    expect(normalizeShowRevealMode('grow-incoming', true)).toBe('grow-incoming')
+  it('uses explicit reveal language and a safe authoring default', () => {
+    expect(normalizeShowRevealMode(undefined)).toBe('grow-incoming')
+    expect(normalizeShowRevealMode('shrink-outgoing')).toBe('shrink-outgoing')
+    expect(normalizeShowRevealMode('grow-incoming')).toBe('grow-incoming')
   })
 
   it('grows incoming Circle coverage and shrinks outgoing Circle coverage', () => {
@@ -37,24 +37,16 @@ describe('Grow Incoming and Shrink Outgoing shape reveals (#448)', () => {
     })).toBeCloseTo(tall, 12)
   })
 
-  it('preserves field-absent legacy Portal records and normalizes explicit modes and Box parameters', () => {
-    const legacy = { ...createDefaultShow('legacy-shape', 'Legacy shape', 448), stageMapId: 'plane' }
-    legacy.transitions![0] = {
-      ...legacy.transitions![0], kind: 'portal', durationMs: 1000,
-      invert: true, shape: 'circle', feather: 0.1, featherPolicy: 'dither',
-    }
-    const legacyNormalized = normalizeShowTransitionState(legacy)
-    expect(legacyNormalized.transitions![0]).not.toHaveProperty('revealMode')
-    expect(legacyNormalized.transitions![0]).toMatchObject({ invert: true, shape: 'circle' })
-
-    legacy.transitions![0] = {
-      ...legacy.transitions![0],
+  it('normalizes explicit reveal modes and Box parameters', () => {
+    const show = { ...createDefaultShow('shape', 'Shape', 448), stageMapId: 'plane' }
+    show.transitions[0] = {
+      ...show.transitions[0], kind: 'portal', durationMs: 1000,
       revealMode: 'grow-incoming', shape: 'box', aspect: 9, rotation: 1.25,
       edgePolicy: 'blend',
     }
-    const normalized = normalizeShowTransitionState(legacy)
+    const normalized = normalizeShowTransitionState(show)
     expect(normalized.transitions![0]).toMatchObject({
-      revealMode: 'grow-incoming', invert: false, shape: 'box', aspect: 4, rotation: 1,
+      revealMode: 'grow-incoming', shape: 'box', aspect: 4, rotation: 1,
       edgePolicy: 'blend',
     })
     const recipe = showRecordToCompileRecipe(normalized, {

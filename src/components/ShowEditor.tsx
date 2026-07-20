@@ -43,6 +43,8 @@ import {
   showLoopDurationMs,
   projectShowTimeline,
   showCellAtSlot,
+  showRoutingTransitionAfter,
+  showVisualTransitionAfter,
   transitionCost,
 } from '@/engine/showModel'
 import { compileShowForArtifact, sourceForShowCell, sourceForShowPatternRef, type CompiledShowState } from '@/engine/showPreviewArtifact'
@@ -2167,7 +2169,7 @@ function SceneStrip({
       index < show.scenes.length - 1
         ? [
             `minmax(0, ${Math.max(1, scene.durationMs)}fr)`,
-            `minmax(0, ${Math.max(0.001, scene.transitionOut?.durationMs ?? 0)}fr)`,
+            `minmax(0, ${Math.max(0.001, showVisualTransitionAfter(show, scene.id)?.durationMs ?? 0)}fr)`,
           ]
         : [`minmax(0, ${Math.max(1, scene.durationMs)}fr)`]
     )),
@@ -5084,7 +5086,7 @@ function RoutingSwitchInspector({
   const sceneIndex = show.scenes.findIndex((scene) => scene.id === afterSceneId)
   const from = show.scenes[sceneIndex]?.name ?? 'Scene'
   const to = show.scenes[sceneIndex + 1]?.name ?? 'next scene'
-  const routingSwitch = show.routingSwitches.find((candidate) => candidate.afterSceneId === afterSceneId)
+  const routingSwitch = showRoutingTransitionAfter(show, afterSceneId)
   return (
     <InspectorPanel family="Transition" title={`${from} → ${to} · routing layout`} icon={<Route size={13} aria-hidden />}>
       <div className="grid max-w-xl gap-2">

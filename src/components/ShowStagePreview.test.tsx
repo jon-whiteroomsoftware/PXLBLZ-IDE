@@ -379,7 +379,7 @@ describe('ShowStagePreview (#339)', () => {
     vi.stubGlobal('cancelAnimationFrame', (id: number) => { callbacks.delete(id) })
     try {
       const show = createDefaultShow('show-global-loop', 'Global loop', 1000)
-      show.scenes = show.scenes.map((scene) => ({ ...scene, durationMs: 50, transitionOut: undefined }))
+      show.scenes = show.scenes.map((scene) => ({ ...scene, durationMs: 50 }))
       show.transitions = []
       useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
       const transport = useShowTransportStore.getState()

@@ -7,7 +7,7 @@ import type {
   ShowRecord,
   ShowRoutingLayout,
   ShowScene,
-  ShowTransitionEasing,
+  ShowStructuredEasing,
   ShowZone,
 } from '@/engine/personalContentRecords'
 import { SHOW_EASING_OPTIONS } from '@/engine/showEasing'
@@ -90,9 +90,9 @@ type CatalogueInput = {
 }
 
 const UPDATED_AT = 363
-const SINE_IN_OUT: ShowTransitionEasing = { curve: 'sine', direction: 'in-out' }
-const CUBIC_IN_OUT: ShowTransitionEasing = { curve: 'cubic', direction: 'in-out' }
-const LINEAR: ShowTransitionEasing = { curve: 'linear' }
+const SINE_IN_OUT: ShowStructuredEasing = { curve: 'sine', direction: 'in-out' }
+const CUBIC_IN_OUT: ShowStructuredEasing = { curve: 'cubic', direction: 'in-out' }
+const LINEAR: ShowStructuredEasing = { curve: 'linear' }
 const COLORS = ['#38bdf8', '#f97316', '#a78bfa', '#22c55e']
 const CARDINAL_DIRECTIONS = [
   { id: 'east', label: 'east', turns: 0 },
@@ -950,7 +950,6 @@ function catalogue(input: CatalogueInput): StockShow {
     id: item.id, name: item.name, durationMs: item.durationMs,
     ...(item.routingTargets ? { routingTargets: item.routingTargets } : {}),
     ...(item.sampleTargets ? { sampleTargets: item.sampleTargets } : {}),
-    ...(transitionOut(item.id, transitions) ? { transitionOut: transitionOut(item.id, transitions) } : {}),
   }))
   const cells: ShowCell[] = input.scenes.flatMap((item) => item.clips.map((source) => ({
     id: cellId(item.id, source.zoneId), zoneId: source.zoneId, sceneId: item.id, sceneSpan: 1,
@@ -965,9 +964,6 @@ function catalogue(input: CatalogueInput): StockShow {
     : createInstallationShowOutputContract({ outputMapId: input.output.mapId, pixelCount: input.output.pixelCount })
   const show: ShowRecord = {
     id: input.id, name, scenes, zones: input.zones, cells, routingLayouts: input.layouts,
-    routingSwitches: transitions.flatMap((item) => item.kind === 'routing' && item.layoutId
-      ? [{ afterSceneId: item.afterSceneId, layoutId: item.layoutId }]
-      : []),
     transitions, stageMapId: input.output.mapId, outputContract,
     ...(input.composition ? { composition: input.composition } : {}), updatedAt: UPDATED_AT,
   }
@@ -1004,7 +1000,7 @@ function clip(zoneId: string, pattern: string, timeScale: number, controls?: Rec
   return { zoneId, pattern, timeScale, brightness, ...(controls ? { controls } : {}), ...(effects ? { effects } : {}) }
 }
 
-function boundary(afterSceneId: string, kind: Exclude<ShowBoundaryTransition['kind'], 'routing'>, durationMs: number, easing: ShowTransitionEasing, extra: Partial<ShowBoundaryTransition> = {}): ShowBoundaryTransition {
+function boundary(afterSceneId: string, kind: Exclude<ShowBoundaryTransition['kind'], 'routing'>, durationMs: number, easing: ShowStructuredEasing, extra: Partial<ShowBoundaryTransition> = {}): ShowBoundaryTransition {
   return { id: `transition-${afterSceneId}`, afterSceneId, kind, durationMs, easing, ...extra }
 }
 
@@ -1034,7 +1030,7 @@ function effectTweenBoundary(
   })
 }
 
-function brightnessBoundary(afterSceneId: string, kind: 'wipe' | 'crossfade', durationMs: number, easing: ShowTransitionEasing, destination: SceneSpec, from: number, extra: Partial<ShowBoundaryTransition> = {}): ShowBoundaryTransition {
+function brightnessBoundary(afterSceneId: string, kind: 'wipe' | 'crossfade', durationMs: number, easing: ShowStructuredEasing, destination: SceneSpec, from: number, extra: Partial<ShowBoundaryTransition> = {}): ShowBoundaryTransition {
   return boundary(afterSceneId, kind, durationMs, easing, {
     ...extra,
     propertyTransitions: {
@@ -1049,16 +1045,6 @@ function brightnessBoundary(afterSceneId: string, kind: 'wipe' | 'crossfade', du
 
 function cutBoundaries(scenes: SceneSpec[]): ShowBoundaryTransition[] {
   return scenes.slice(0, -1).map((item) => boundary(item.id, 'cut', 0, LINEAR))
-}
-
-function transitionOut(sceneId: string, transitions: ShowBoundaryTransition[]): ShowScene['transitionOut'] | undefined {
-  const item = transitions.find((candidate) => candidate.afterSceneId === sceneId && candidate.kind !== 'routing')
-  if (!item || item.kind === 'routing') return undefined
-  return {
-    kind: item.kind, durationMs: item.durationMs, color: item.color, direction: item.direction,
-    feather: item.feather, edgePolicy: item.edgePolicy, shape: item.shape, centerX: item.centerX, centerY: item.centerY,
-    scale: item.scale, featherPolicy: item.featherPolicy,
-  }
 }
 
 function logicalZones(names: string[], pixelCount: number): ShowZone[] {

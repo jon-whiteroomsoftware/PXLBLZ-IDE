@@ -9,7 +9,7 @@ function transition(overrides: Partial<ShowBoundaryTransition>): ShowBoundaryTra
     afterSceneId: 'scene-1',
     kind: 'crossfade',
     durationMs: 2000,
-    easing: 'linear',
+    easing: { curve: 'linear' },
     ...overrides,
   }
 }

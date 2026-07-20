@@ -154,7 +154,14 @@ describe('personal content provider seam', () => {
       zones: [],
       cells: [],
       routingLayouts: [],
-      routingSwitches: [],
+      transitions: [],
+      outputContract: {
+        version: 1,
+        kind: 'portable-2d',
+        referenceMapId: null,
+        referencePixelCount: 60,
+        compatibility: { dimensions: [2], mapClass: 'continuous-surface', resolution: 'variable' },
+      },
       updatedAt: 1,
     }
     const library: LibraryRecord = {

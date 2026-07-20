@@ -5,7 +5,6 @@ import {
   addShowScene,
   addShowZone,
   createDefaultShowFromController,
-  createDefaultShow,
   createShowWithOutputContract,
   cloneShowCellAfter,
   duplicateShowScene,
@@ -47,6 +46,7 @@ import type {
   ShowPortalSettings,
   ShowRoutingLayout,
   ShowScene,
+  ShowTransitionKind,
   ShowZone,
 } from '@/engine/personalContentRecords'
 import { controllerZonePixelCount, type ControllerProfile } from '@/engine/controllerProfile'
@@ -54,36 +54,22 @@ import { newPersonalContentId } from '@/engine/personalContentMetadata'
 import { uniquePatternName } from '@/engine/patternName'
 import { useMapStore } from '@/store/mapStore'
 import { createInstallationShowOutputContract } from '@/engine/showOutputContract'
-import {
-  classifyShowOutputContract,
-  legacyShowModeledPixelCount,
-} from '@/engine/showLegacyClassification'
 import { normalizeShowComposition } from '@/engine/showCompositionModel'
 
 const showPersistenceQueues = new Map<string, Promise<void>>()
-
-export interface ShowClassificationState {
-  showId: string
-  previousShowId: string | null
-  modeledPixelCount: number
-  reasons: string[]
-}
 
 interface ShowState {
   shows: ShowRecord[]
   showsLoaded: boolean
   activeShowId: string | null
   showCreation: { previousShowId: string | null } | null
-  showClassification: ShowClassificationState | null
   showHistories: Record<string, ShowHistory>
   loadShows: () => Promise<void>
-  createNewShow: (input?: { name?: string; outputContract?: ShowOutputContract }) => Promise<ShowRecord>
+  createNewShow: (input: { name?: string; outputContract: ShowOutputContract }) => Promise<ShowRecord>
   createShowFromController: (profile: ControllerProfile) => Promise<ShowRecord>
   beginShowCreation: () => void
   cancelShowCreation: () => void
   openShow: (id: string | null) => Promise<void>
-  confirmShowClassification: (outputContract: ShowOutputContract) => Promise<void>
-  cancelShowClassification: () => void
   addShow: (record: ShowRecord) => Promise<void>
   renameShow: (id: string, name: string) => Promise<void>
   removeShow: (id: string) => Promise<void>
@@ -98,7 +84,7 @@ interface ShowState {
   updateTransition: (
     showId: string,
     sceneId: string,
-    kind: NonNullable<ShowScene['transitionOut']>['kind'],
+    kind: ShowTransitionKind,
     durationMs: number,
     feather?: number,
     portal?: Partial<ShowPortalSettings>,
@@ -156,7 +142,6 @@ export const showInitialState = {
   showsLoaded: false,
   activeShowId: null as string | null,
   showCreation: null as { previousShowId: string | null } | null,
-  showClassification: null as ShowClassificationState | null,
   showHistories: {} as Record<string, ShowHistory>,
 }
 
@@ -172,9 +157,7 @@ export const useShowStore = create<ShowState>()((set, get) => ({
   createNewShow: async (input) => {
     const id = newPersonalContentId()
     const name = uniquePatternName(input?.name?.trim() || 'Untitled Show', get().shows.map((show) => show.name))
-    const show = input?.outputContract
-      ? createShowWithOutputContract(id, name, input.outputContract)
-      : createDefaultShow(id, name)
+    const show = createShowWithOutputContract(id, name, input.outputContract)
     await get().addShow(show)
     return show
   },
@@ -195,7 +178,7 @@ export const useShowStore = create<ShowState>()((set, get) => ({
 
   beginShowCreation: () => {
     if (get().showCreation) return
-    set({ showCreation: { previousShowId: get().activeShowId }, showClassification: null })
+    set({ showCreation: { previousShowId: get().activeShowId } })
   },
 
   cancelShowCreation: () => {
@@ -206,61 +189,14 @@ export const useShowStore = create<ShowState>()((set, get) => ({
 
   openShow: async (id) => {
     if (id === null) {
-      set({ activeShowId: null, showCreation: null, showClassification: null })
+      set({ activeShowId: null, showCreation: null })
       return
     }
-    if (get().activeShowId === id || get().showClassification?.showId === id) return
+    if (get().activeShowId === id) return
     const show = get().shows.find((candidate) => candidate.id === id)
     if (!show) return
-    const classification = classifyShowOutputContract(show)
-    if (classification.outcome === 'ambiguous') {
-      set({
-        activeShowId: null,
-        showCreation: null,
-        showClassification: {
-          showId: id,
-          previousShowId: get().activeShowId,
-          modeledPixelCount: legacyShowModeledPixelCount(show),
-          reasons: classification.reasons,
-        },
-      })
-      return
-    }
-    if (classification.source === 'legacy-evidence') {
-      const next = showWithOutputContract(show, classification.contract)
-      set((state) => ({
-        shows: replaceShowRecord(state.shows, next),
-        activeShowId: id,
-        showCreation: null,
-        showClassification: null,
-      }))
-      await persistShowOutputContract(next)
-    } else {
-      set({ activeShowId: id, showCreation: null, showClassification: null })
-    }
+    set({ activeShowId: id, showCreation: null })
     getPersonalContentProvider().setLastActive({ type: 'show', id }).catch(() => {})
-  },
-
-  confirmShowClassification: async (outputContract) => {
-    const pending = get().showClassification
-    if (!pending) return
-    const show = get().shows.find((candidate) => candidate.id === pending.showId)
-    if (!show || show.outputContract) return
-    const next = showWithOutputContract(show, outputContract)
-    set((state) => ({
-      shows: replaceShowRecord(state.shows, next),
-      activeShowId: show.id,
-      showClassification: null,
-      showCreation: null,
-    }))
-    await persistShowOutputContract(next)
-    getPersonalContentProvider().setLastActive({ type: 'show', id: show.id }).catch(() => {})
-  },
-
-  cancelShowClassification: () => {
-    const pending = get().showClassification
-    if (!pending) return
-    set({ activeShowId: pending.previousShowId, showClassification: null })
   },
 
   addShow: async (record) => {
@@ -548,13 +484,6 @@ export const useShowStore = create<ShowState>()((set, get) => ({
   },
 }))
 
-function showWithOutputContract(show: ShowRecord, outputContract: ShowOutputContract): ShowRecord {
-  const stageMapId = outputContract.kind === 'installation'
-    ? outputContract.outputMapId
-    : outputContract.referenceMapId
-  return { ...show, outputContract, stageMapId }
-}
-
 function replaceShowRecord(shows: ShowRecord[], next: ShowRecord): ShowRecord[] {
   return shows
     .map((show) => show.id === next.id ? next : show)
@@ -575,7 +504,6 @@ function showPersistenceChanges(next: ShowRecord): Partial<Omit<ShowRecord, 'id'
     zones: next.zones,
     cells: next.cells,
     routingLayouts: next.routingLayouts,
-    routingSwitches: next.routingSwitches,
     transitions: next.transitions,
     composition: next.composition ?? null,
     outputEffects: next.outputEffects,
@@ -602,12 +530,4 @@ async function persistShowRecord(next: ShowRecord): Promise<void> {
   } finally {
     if (showPersistenceQueues.get(next.id) === persistence) showPersistenceQueues.delete(next.id)
   }
-}
-
-async function persistShowOutputContract(show: ShowRecord): Promise<void> {
-  await getPersonalContentProvider().updateShow(show.id, {
-    outputContract: show.outputContract,
-    stageMapId: show.stageMapId ?? null,
-    updatedAt: show.updatedAt,
-  })
 }

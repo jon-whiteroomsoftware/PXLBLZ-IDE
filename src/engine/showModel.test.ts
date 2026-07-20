@@ -41,7 +41,7 @@ import {
   updateShowZone,
 } from './showModel'
 import { DEMOS } from '@/pixelblaze/stock/patterns'
-import type { ShowRecord, ShowTransition } from './personalContentRecords'
+import type { ShowRecord } from './personalContentRecords'
 import { createInstallationShowOutputContract, createPortableShowOutputContract } from './showOutputContract'
 import { projectFlatShowToCompositionV1, validateShowComposition } from './showCompositionModel'
 
@@ -100,10 +100,6 @@ describe('showModel (#318)', () => {
     })
 
     expect(show.transitions?.[0]).toMatchObject({
-      kind: 'crossfade',
-      crossfadePolicy: 'snapshot-live',
-    })
-    expect(show.scenes[0].transitionOut).toMatchObject({
       kind: 'crossfade',
       crossfadePolicy: 'snapshot-live',
     })
@@ -252,53 +248,13 @@ describe('showModel (#318)', () => {
     })
   })
 
-  it('losslessly migrates legacy scene transitions and routing markers into stable boundary entities (#416)', () => {
-    const base = addShowRoutingLayout(createDefaultShow('show-1', 'Legacy boundaries', 1), 'Alternate')
-    const legacy = updateShowRoutingSwitch(base, 'scene-1', base.routingLayouts[1].id)
-    delete legacy.scenes[0].transitionOut?.crossfadePolicy
-    delete legacy.transitions
-
-    const migrated = normalizeShowTransitionState(legacy)
-
-    expect(migrated.transitions).toEqual([
-      {
-        id: 'transition-scene-1',
-        afterSceneId: 'scene-1',
-        kind: 'crossfade',
-        crossfadePolicy: 'live-live',
-        durationMs: 2000,
-        easing: { curve: 'linear' },
-      },
-      {
-        id: 'routing-scene-1',
-        afterSceneId: 'scene-1',
-        kind: 'routing',
-        durationMs: 0,
-        easing: { curve: 'linear' },
-        layoutId: base.routingLayouts[1].id,
-      },
-    ])
-    expect(normalizeShowTransitionState(migrated)).toEqual(migrated)
-    expect(showLoopDurationMs(migrated)).toBe(showLoopDurationMs(legacy))
-    expect(projectShowStrip(migrated).transitions).toEqual(projectShowStrip(legacy).transitions)
-    expect(projectShowStrip(migrated).routingSwitches).toEqual(projectShowStrip(legacy).routingSwitches)
-    expect(projectShowStrip(migrated).boundaryTransitions).toEqual([
-      expect.objectContaining({ id: 'transition-scene-1', kind: 'crossfade', durationMs: 2000 }),
-      expect.objectContaining({ id: 'routing-scene-1', kind: 'routing', durationMs: 0, layoutName: 'Alternate' }),
-    ])
-    expect(projectShowTimeline(migrated).boundaryTransitions).toEqual([
-      expect.objectContaining({ id: 'transition-scene-1', startMs: 30_000, endMs: 32_000 }),
-      expect.objectContaining({ id: 'routing-scene-1', startMs: 30_000, endMs: 30_000 }),
-    ])
-  })
-
   it('persists a progressive routing transfer on the shared boundary entity (#403)', () => {
     const base = addShowRoutingLayout(createDefaultShow('show-403', 'Progressive routing'), 'Alternate')
     const routed = updateShowRoutingSwitch(base, 'scene-1', base.routingLayouts[1].id)
     const transition = routed.transitions?.find((candidate) => candidate.kind === 'routing')
     const updated = updateShowBoundaryTransition(routed, transition!.id, {
       durationMs: 2000,
-      easing: 'ease-in-out',
+      easing: { curve: 'quadratic', direction: 'in-out' },
       routingDirection: 'reverse',
     })
 
@@ -348,9 +304,6 @@ describe('showModel (#318)', () => {
       expect.objectContaining({ id: 'transition-scene-3', afterSceneId: 'scene-3', kind: 'wipe' }),
       expect.objectContaining({ id: 'routing-scene-3', afterSceneId: 'scene-3', kind: 'routing' }),
     ])
-    expect(split.scenes[0].transitionOut).toBeUndefined()
-    expect(split.scenes[1].transitionOut).toMatchObject({ kind: 'wipe', durationMs: 1500, feather: 0.2 })
-    expect(split.routingSwitches).toEqual([{ afterSceneId: 'scene-3', layoutId: withLayout.routingLayouts[1].id }])
   })
 
   it('updates and removes a selected boundary by stable id without touching its neighbor (#416)', () => {
@@ -358,7 +311,7 @@ describe('showModel (#318)', () => {
     const updated = updateShowBoundaryTransition(show, 'transition-scene-2', {
       kind: 'dither',
       durationMs: 2500,
-      easing: 'ease-in-out',
+      easing: { curve: 'quadratic', direction: 'in-out' },
     })
 
     expect(updated.transitions?.find((transition) => transition.id === 'transition-scene-1')).toMatchObject({
@@ -379,50 +332,14 @@ describe('showModel (#318)', () => {
     })
   })
 
-  it.each([
-    { kind: 'cut', durationMs: 0 },
-    { kind: 'crossfade', durationMs: 2000 },
-    { kind: 'wipe', durationMs: 1800, feather: 0.2 },
-    { kind: 'dither', durationMs: 1700 },
-    {
-      kind: 'portal',
-      durationMs: 1600,
-      feather: 0.12,
-      centerX: 0.4,
-      centerY: 0.6,
-      invert: true,
-      featherPolicy: 'blend',
-    },
-  ] satisfies ShowTransition[])('preserves $kind compiler and duration behavior through boundary migration (#416)', (legacyTransition) => {
-    const legacy = { ...createDefaultShow('show-1', `${legacyTransition.kind} legacy`, 1), stageMapId: 'plane' }
-    delete legacy.transitions
-    legacy.scenes = legacy.scenes.map((scene, index) => index === 0
-      ? { ...scene, transitionOut: legacyTransition.kind === 'cut' ? undefined : legacyTransition }
-      : scene)
-    const migrated = normalizeShowTransitionState(legacy)
-    const lookup = {
-      byCellId: { 'cell-1': DEMOS.TestPattern1D, 'cell-2': DEMOS.CometLoom },
-      stageDimension: 2 as const,
-    }
-
-    expect(migrated.transitions?.[0]).toMatchObject({
-      id: 'transition-scene-1',
-      kind: legacyTransition.kind,
-      durationMs: legacyTransition.durationMs,
-      easing: { curve: 'linear' },
-    })
-    expect(showLoopDurationMs(migrated)).toBe(showLoopDurationMs(legacy))
-    expect(showRecordToCompileRecipe(migrated, lookup)).toEqual(showRecordToCompileRecipe(legacy, lookup))
-  })
-
   it('splits a scene and every covering cell without changing playback state (#415)', () => {
     const base = extendShowCell(createDefaultShow('show-1', 'Split Show', 1), 'cell-1', 2)
     const split = splitShowAtTime(base, 10_000)
 
     expect(split).not.toBe(base)
     expect(split.scenes).toEqual([
-      expect.objectContaining({ id: 'scene-1', durationMs: 10_000, transitionOut: undefined }),
-      expect.objectContaining({ id: 'scene-3', durationMs: 20_000, transitionOut: base.scenes[0].transitionOut }),
+      expect.objectContaining({ id: 'scene-1', durationMs: 10_000 }),
+      expect.objectContaining({ id: 'scene-3', durationMs: 20_000 }),
       base.scenes[1],
     ])
     expect(split.cells).toEqual([
@@ -754,7 +671,7 @@ describe('showModel (#318)', () => {
 
     const removed = removeShowRoutingLayout(switched, split.id)
     expect(removed.routingLayouts).toHaveLength(1)
-    expect(removed.routingSwitches).toEqual([])
+    expect(removed.transitions.some((transition) => transition.kind === 'routing')).toBe(false)
     expect(removeShowRoutingLayout(removed, removed.routingLayouts[0].id)).toBe(removed)
   })
 
@@ -1078,11 +995,6 @@ describe('showModel (#318)', () => {
     const newDoor = next.cells.find((cell) => cell.zoneId === 'zone-2' && cell.sceneId === newScene.id)!
 
     expect(newScene).toMatchObject({ id: 'scene-3', name: 'Scene 3', durationMs: 30000 })
-    expect(next.scenes[1].transitionOut).toEqual({
-      kind: 'crossfade',
-      durationMs: 2000,
-      crossfadePolicy: 'snapshot-live',
-    })
     expect(next.transitions).toEqual([
       expect.objectContaining({ id: 'transition-scene-1', afterSceneId: 'scene-1', kind: 'crossfade' }),
       expect.objectContaining({ id: 'transition-scene-2', afterSceneId: 'scene-2', kind: 'crossfade' }),
@@ -1127,7 +1039,6 @@ describe('showModel (#318)', () => {
     expect(removed.scenes.map((scene) => scene.id)).toEqual(['scene-1', 'scene-3'])
     expect(removed.cells.some((cell) => cell.sceneId === 'scene-2')).toBe(false)
     expect(removed.cells.find((cell) => cell.id === 'cell-1')).toMatchObject({ sceneSpan: 2 })
-    expect(removed.scenes[1].transitionOut).toBeUndefined()
     expect(removed.transitions).toEqual([
       expect.objectContaining({ afterSceneId: 'scene-1', kind: 'crossfade' }),
     ])
@@ -1156,7 +1067,6 @@ describe('showModel (#318)', () => {
     const noOp = removeShowScene(oneScene, 'scene-1')
 
     expect(twoScene.scenes.map((scene) => scene.id)).toEqual(['scene-1', 'scene-2'])
-    expect(twoScene.scenes[1].transitionOut).toBeUndefined()
     expect(oneScene.scenes.map((scene) => scene.id)).toEqual(['scene-1'])
     expect(noOp).toBe(oneScene)
     expectHoleFreeStrip(twoScene)
@@ -1464,7 +1374,7 @@ describe('showModel (#318)', () => {
     })
     show = updateShowCellAdaptations(show, show.cells[1].id, { timeScale: 0 })
     show = updateShowBoundaryTransition(show, 'transition-scene-1', {
-      easing: 'ease-in-out',
+      easing: { curve: 'quadratic', direction: 'in-out' },
       propertyTransitions: { timeScale: { fromByCellId: { [show.cells[1].id]: 1.5 } } },
     })
 
@@ -1526,7 +1436,7 @@ describe('showModel (#318)', () => {
     show = updateShowBoundaryTransition(show, 'transition-scene-1', {
       propertyTransitions: {
         routing: {
-          splitPosition: { from: 1.4, durationMs: 1200, easing: 'ease-out' },
+          splitPosition: { from: 1.4, durationMs: 1200, easing: { curve: 'quadratic', direction: 'out' } },
         },
       },
     })
@@ -1556,7 +1466,7 @@ describe('showModel (#318)', () => {
     show = updateShowBoundaryTransition(show, 'transition-scene-1', {
       propertyTransitions: {
         routing: {
-          splitPosition: { from: 0.2, durationMs: 1200, easing: 'ease-in-out' },
+          splitPosition: { from: 0.2, durationMs: 1200, easing: { curve: 'quadratic', direction: 'in-out' } },
         },
       },
     })
@@ -1590,7 +1500,7 @@ describe('showModel (#318)', () => {
     show = updateShowBoundaryTransition(show, 'transition-scene-1', {
       propertyTransitions: {
         sample: {
-          repeatScale: { from: 1.25, durationMs: 1200, easing: 'ease-in-out' },
+          repeatScale: { from: 1.25, durationMs: 1200, easing: { curve: 'quadratic', direction: 'in-out' } },
         },
       },
     })
@@ -1629,11 +1539,11 @@ describe('showModel (#318)', () => {
     show = updateShowCellAdaptations(show, show.cells[1].id, { timeScale: 0 })
     show = updateShowCellAdaptations(show, show.cells[2].id, { timeScale: 1 })
     show = updateShowBoundaryTransition(show, 'transition-scene-1', {
-      easing: 'ease-out',
+      easing: { curve: 'quadratic', direction: 'out' },
       propertyTransitions: { timeScale: { fromByCellId: { [show.cells[1].id]: 1 } } },
     })
     show = updateShowBoundaryTransition(show, 'transition-scene-2', {
-      easing: 'ease-in',
+      easing: { curve: 'quadratic', direction: 'in' },
       propertyTransitions: { timeScale: { fromByCellId: { [show.cells[2].id]: 0 } } },
     })
 
@@ -1680,8 +1590,8 @@ describe('showModel (#318)', () => {
     show = updateShowCellAdaptations(show, show.cells[1].id, { timeScale: 0, brightness: 0.2 })
     show = updateShowBoundaryTransition(show, 'transition-scene-1', {
       propertyTransitions: {
-        timeScale: { fromByCellId: { [show.cells[1].id]: 1 }, durationMs: 2000, easing: 'ease-out' },
-        brightness: { fromByCellId: { [show.cells[1].id]: 1 }, durationMs: 1000, easing: 'ease-in' },
+        timeScale: { fromByCellId: { [show.cells[1].id]: 1 }, durationMs: 2000, easing: { curve: 'quadratic', direction: 'out' } },
+        brightness: { fromByCellId: { [show.cells[1].id]: 1 }, durationMs: 1000, easing: { curve: 'quadratic', direction: 'in' } },
       },
     })
 
@@ -1708,8 +1618,8 @@ describe('showModel (#318)', () => {
   it('keeps every property descriptor synchronized when Split moves its boundary (#418)', () => {
     const base = updateShowBoundaryTransition(createDefaultShow('show-418-split', 'Split properties'), 'transition-scene-1', {
       propertyTransitions: {
-        timeScale: { fromByCellId: { 'cell-2': 1 }, durationMs: 1500, easing: 'ease-in' },
-        brightness: { fromByCellId: { 'cell-2': 1 }, durationMs: 700, easing: 'ease-out' },
+        timeScale: { fromByCellId: { 'cell-2': 1 }, durationMs: 1500, easing: { curve: 'quadratic', direction: 'in' } },
+        brightness: { fromByCellId: { 'cell-2': 1 }, durationMs: 700, easing: { curve: 'quadratic', direction: 'out' } },
       },
     })
     const split = splitShowAtTime(base, 10_000)
@@ -1747,7 +1657,7 @@ describe('showModel (#318)', () => {
           sliderSpeed: {
             fromByCellId: { [show.cells[1].id]: 0.25 },
             durationMs: 1200,
-            easing: 'ease-in-out',
+            easing: { curve: 'quadratic', direction: 'in-out' },
           },
         },
       },
@@ -1838,6 +1748,7 @@ describe('showModel (#318)', () => {
       durationMs: 1500,
       easing: { curve: 'linear' },
       feather: 0.25,
+      wipeVariant: 'linear',
     })
     expect(recipe.crossfade).toBeUndefined()
     expect(recipe.cut).toBeUndefined()
@@ -1845,9 +1756,9 @@ describe('showModel (#318)', () => {
 
   it('clamps wipe feather to a normalized route width', () => {
     const show = createDefaultShow('show-1', 'Untitled Show')
-    expect(updateShowTransition(show, 'scene-1', 'wipe', 1000, -1).scenes[0].transitionOut)
+    expect(updateShowTransition(show, 'scene-1', 'wipe', 1000, -1).transitions[0])
       .toMatchObject({ feather: 0 })
-    expect(updateShowTransition(show, 'scene-1', 'wipe', 1000, 2).scenes[0].transitionOut)
+    expect(updateShowTransition(show, 'scene-1', 'wipe', 1000, 2).transitions[0])
       .toMatchObject({ feather: 1 })
   })
 
@@ -1861,7 +1772,7 @@ describe('showModel (#318)', () => {
       {
         centerX: 0.3,
         centerY: 0.7,
-        invert: true,
+        revealMode: 'shrink-outgoing',
         featherPolicy: 'blend',
         shape: 'diamond',
         scale: 1.2,
@@ -1870,13 +1781,13 @@ describe('showModel (#318)', () => {
       },
     )
 
-    expect(show.scenes[0].transitionOut).toEqual({
+    expect(show.transitions[0]).toMatchObject({
       kind: 'portal',
       durationMs: 2400,
       feather: 0.18,
       centerX: 0.3,
       centerY: 0.7,
-      invert: true,
+      revealMode: 'shrink-outgoing',
       featherPolicy: 'blend',
       shape: 'diamond',
       scale: 1.2,
@@ -1901,7 +1812,7 @@ describe('showModel (#318)', () => {
       feather: 0.18,
       centerX: 0.3,
       centerY: 0.7,
-      invert: true,
+      revealMode: 'shrink-outgoing',
       featherPolicy: 'blend',
       shape: 'diamond',
       scale: 1.2,
@@ -1928,13 +1839,13 @@ describe('showModel (#318)', () => {
     show = updateShowTransition(show, show.scenes[0].id, 'portal', 2000, 0.16, {
       centerX: 0.5,
       centerY: 0.5,
-      invert: false,
+      revealMode: 'grow-incoming',
       featherPolicy: 'blend',
     })
     show = updateShowTransition(show, show.scenes[1].id, 'portal', 1800, 0.08, {
       centerX: 0.25,
       centerY: 0.7,
-      invert: true,
+      revealMode: 'shrink-outgoing',
       featherPolicy: 'dither',
     })
 
@@ -1961,7 +1872,7 @@ describe('showModel (#318)', () => {
             feather: 0.16,
             centerX: 0.5,
             centerY: 0.5,
-            invert: false,
+            revealMode: 'grow-incoming',
             featherPolicy: 'blend',
           },
         },
@@ -1975,7 +1886,7 @@ describe('showModel (#318)', () => {
             feather: 0.08,
             centerX: 0.25,
             centerY: 0.7,
-            invert: true,
+            revealMode: 'shrink-outgoing',
             featherPolicy: 'dither',
           },
         },
@@ -2022,6 +1933,7 @@ describe('showModel (#318)', () => {
       durationMs: 3000,
       easing: { curve: 'linear' },
       feather: 0.2,
+      wipeVariant: 'linear',
     })
     expect(recipe.sceneSequence?.scenes[2].clipId).toBe(third.id)
   })
@@ -2059,8 +1971,8 @@ describe('showModel (#318)', () => {
       }),
     ])
     expect(recipe.zones).toEqual([
-      { id: 'zone-1', name: 'main', ranges: [{ start: 0, end: 59 }] },
-      { id: 'zone-2', name: 'doorframe', ranges: [{ start: 60, end: 71 }] },
+      { id: 'layout-1:zone-1', name: 'main', ranges: [{ start: 0, end: 59 }] },
+      { id: 'layout-1:zone-2', name: 'doorframe', ranges: [{ start: 60, end: 71 }] },
     ])
   })
 
@@ -2096,7 +2008,7 @@ describe('showModel (#318)', () => {
     expect(restartedIds).toEqual(['cell-1', 'cell-2'])
   })
 
-  it('binds show-local zone names to controller zones when a target is available', () => {
+  it('keeps authored Installation routing when unrelated controller zones are available', () => {
     const withZone = addShowZone(createDefaultShow('show-1', 'Untitled Show'), {
       name: 'doorframe',
       nominalPixelCount: 12,
@@ -2126,8 +2038,18 @@ describe('showModel (#318)', () => {
       controllerZones,
     })
 
-    expect(recipe.zones).toEqual(controllerZones)
-    expect(recipe.routingLayouts?.[0].zones).toEqual(controllerZones)
+    expect(recipe.zones).toEqual([
+      { id: 'layout-1:zone-1', name: 'main', ranges: [{ start: 0, end: 59 }] },
+      { id: 'layout-1:zone-2', name: 'doorframe', ranges: [{ start: 60, end: 71 }] },
+    ])
+    expect(recipe.routingLayouts?.[0].zones).toEqual([
+      { zoneId: 'zone-1', ranges: [{ start: 0, end: 59 }] },
+      { zoneId: 'zone-2', ranges: [{ start: 60, end: 71 }] },
+    ].map((zone) => ({
+      id: `layout-1:${zone.zoneId}`,
+      name: zone.zoneId === 'zone-1' ? 'main' : 'doorframe',
+      ranges: zone.ranges,
+    })))
   })
 
   it('edits show-local zone rows and seeds a show from controller zones', () => {

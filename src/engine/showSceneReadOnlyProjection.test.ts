@@ -25,7 +25,7 @@ describe('Scene read-only projection (#471)', () => {
         brightness: {
           fromByCellId: { 'cell-1': 0.2 },
           durationMs: 800,
-          easing: 'ease-in-out',
+          easing: { curve: 'quadratic', direction: 'in-out' },
         },
       },
     })

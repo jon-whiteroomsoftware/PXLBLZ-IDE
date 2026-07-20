@@ -12,6 +12,7 @@ import {
   removeShowClip,
   placeShowClip,
   updateShowCellPattern,
+  updateShowRoutingLayout,
 } from './showModel'
 import { createInstallationShowOutputContract, createPortableShowOutputContract } from './showOutputContract'
 import { createFastReplayRuntime } from './fastReplay'
@@ -392,11 +393,14 @@ export function render(index) { rgb(field[index], 0, 0) }
       patternName: 'TestPattern1D',
     })
     const rightCell = base.cells.find((cell) => cell.zoneId === 'zone-2' && cell.sceneId === 'scene-1')!
-    const show = updateShowCellAdaptations(base, rightCell.id, { timeOffsetMs: 500 })
-    const compiled = compileShowForPreview(show, [], [
-      { id: 'left', name: 'main', ranges: [{ start: 0, end: 1 }, { start: 4, end: 5 }] },
-      { id: 'right', name: 'right', ranges: [{ start: 2, end: 3 }, { start: 6, end: 7 }] },
-    ], {})
+    const adapted = updateShowCellAdaptations(base, rightCell.id, { timeOffsetMs: 500 })
+    const show = updateShowRoutingLayout(adapted, adapted.routingLayouts[0].id, {
+      zones: [
+        { zoneId: 'zone-1', ranges: [{ start: 0, end: 1 }, { start: 4, end: 5 }] },
+        { zoneId: 'zone-2', ranges: [{ start: 2, end: 3 }, { start: 6, end: 7 }] },
+      ],
+    })
+    const compiled = compileShowForPreview(show, [], undefined, {})
     const artifact = compiled.artifact!
     const runtime = createFastReplayRuntime({
       code: artifact.code,
@@ -435,7 +439,7 @@ export function render(index) { rgb(field[index], 0, 0) }
     const show = updateShowTransition(base, 'scene-1', 'portal', 2000, 0.1, {
       centerX: 0.5,
       centerY: 0.5,
-      invert: false,
+      revealMode: 'grow-incoming',
       featherPolicy: 'dither',
     })
 

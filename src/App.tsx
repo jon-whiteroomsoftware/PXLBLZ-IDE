@@ -36,7 +36,6 @@ import { ShowSemanticZoomPrototype } from '@/components/ShowSemanticZoomPrototyp
 import { ShowOverlayPlacementPrototype } from '@/components/ShowOverlayPlacementPrototype'
 import { ShowStagePreview } from '@/components/ShowStagePreview'
 import { ShowCreationFlow, type ShowCreationMapOption } from '@/components/ShowCreationFlow'
-import { ShowClassificationFlow } from '@/components/ShowClassificationFlow'
 import { useControllerStore } from '@/store/controllerStore'
 import { MapModeHeader } from '@/components/MapModeHeader'
 import { LibraryModeHeader } from '@/components/LibraryModeHeader'
@@ -338,11 +337,8 @@ function StudioApp() {
   const openShow = useShowStore((s) => s.openShow)
   const renameShow = useShowStore((s) => s.renameShow)
   const showCreation = useShowStore((s) => s.showCreation)
-  const showClassification = useShowStore((s) => s.showClassification)
   const createNewShow = useShowStore((s) => s.createNewShow)
   const cancelShowCreation = useShowStore((s) => s.cancelShowCreation)
-  const confirmShowClassification = useShowStore((s) => s.confirmShowClassification)
-  const cancelShowClassification = useShowStore((s) => s.cancelShowClassification)
   const personalWorkspaceResolved = useWorkspaceStore((s) => s.personalWorkspaceResolved)
   const personalWorkspaceUnavailable = useWorkspaceStore((s) => s.personalWorkspaceUnavailable)
   const retryPersonalWorkspaceAccess = useWorkspaceStore((s) => s.retryPersonalWorkspaceAccess)
@@ -388,13 +384,6 @@ function StudioApp() {
           : {}),
       })),
   ], [userMaps])
-  const showBeingClassified = showClassification
-    ? shows.find((show) => show.id === showClassification.showId) ?? null
-    : null
-  const classificationTargetControllerName = showBeingClassified?.targetControllerProfileId
-    ? controllerProfiles.find((profile) => profile.id === showBeingClassified.targetControllerProfileId)?.name ?? null
-    : null
-
   // History wiring (#308): parse the URL on mount and on back/forward. The
   // hashchange listener keeps legacy #/docs/<id> links (still emitted for
   // in-doc cross-links) redirecting onto the path route.
@@ -1022,23 +1011,6 @@ function StudioApp() {
                     navigate({ kind: 'studio', entity: { kind: 'shows', id: created.id } })
                   }}
                 />
-              ) : showClassification && showBeingClassified ? (
-                <ShowClassificationFlow
-                  show={showBeingClassified}
-                  maps={showCreationMaps}
-                  modeledPixelCount={showClassification.modeledPixelCount}
-                  targetControllerName={classificationTargetControllerName}
-                  reasons={showClassification.reasons}
-                  onCancel={() => {
-                    const previousShowId = showClassification.previousShowId
-                    cancelShowClassification()
-                    navigate({ kind: 'studio', entity: { kind: 'shows', id: previousShowId } })
-                  }}
-                  onConfirm={async (outputContract) => {
-                    await confirmShowClassification(outputContract)
-                    navigate({ kind: 'studio', entity: { kind: 'shows', id: showBeingClassified.id } }, { replace: true })
-                  }}
-                />
               ) : activeShow ? (
                 <ShowEditor
                   showId={activeShow.id}
@@ -1105,8 +1077,6 @@ function StudioApp() {
           ) : studioEntityKind === 'shows' ? (
             showCreation
               ? <EmptyContextPane label="Output contract setup" />
-              : showClassification
-                ? <EmptyContextPane label="Legacy Show classification" />
               : activeShow ? <ShowStagePreview showId={activeShow.id} showOverride={routedStockShowOverride} /> : <EmptyContextPane label="Shows" />
           ) : (
             <Preview />

@@ -65,6 +65,12 @@ export function normalizeShowOutputContract(value: unknown): ShowOutputContract 
   return undefined
 }
 
+export function requireShowOutputContract(value: unknown, showId: string): ShowOutputContract {
+  const outputContract = normalizeShowOutputContract(value)
+  if (!outputContract) throw new Error(`Show ${showId} is missing a valid output contract`)
+  return outputContract
+}
+
 export function resolveShowOutputMapSelection(
   mapId: string | null,
   requestedPixelCount: number,

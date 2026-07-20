@@ -3873,7 +3873,7 @@ export function render(index) { calls = calls + 1; rgb(0, 1, 0) }
         centerX: 0.5,
         centerY: 0.5,
         feather: 0.2,
-        invert: false,
+        revealMode: 'grow-incoming',
         featherPolicy: 'dither',
       },
     }, {})
@@ -3922,7 +3922,7 @@ export function render(index) { calls = calls + 1; rgb(0, 1, 0) }
         centerX: 0.5,
         centerY: 0.5,
         feather: 0,
-        invert: false,
+        revealMode: 'grow-incoming',
         featherPolicy: 'dither',
         scale: 1,
         ...transition,
@@ -3951,7 +3951,7 @@ export function render(index) { calls = calls + 1; rgb(0, 1, 0) }
         centerX: 0.5,
         centerY: 0.5,
         feather: 0.2,
-        invert: false,
+        revealMode: 'grow-incoming',
         featherPolicy: 'blend',
       },
     }, {})
@@ -3999,7 +3999,7 @@ export function render(index) { calls = calls + 1; rgb(0, 1, 0) }
               centerX: 0.5,
               centerY: 0.5,
               feather: 0.2,
-              invert: false,
+              revealMode: 'grow-incoming',
               featherPolicy: 'blend',
             },
           },
@@ -4012,7 +4012,7 @@ export function render(index) { calls = calls + 1; rgb(0, 1, 0) }
               centerX: 0.25,
               centerY: 0.75,
               feather: 0.08,
-              invert: true,
+              revealMode: 'shrink-outgoing',
               featherPolicy: 'dither',
             },
           },
@@ -4203,7 +4203,7 @@ export function render(index) { rgb(elapsed, time(1), index) }
       ],
       routeTransition: {
         kind: 'portal', startMs: 1000, durationMs: 1000,
-        centerX: 0.5, centerY: 0.5, feather: 0, invert: false, featherPolicy: 'dither',
+        centerX: 0.5, centerY: 0.5, feather: 0, revealMode: 'grow-incoming', featherPolicy: 'dither',
       },
     }, {})
     const { handle, pixel } = loadShow(artifact.code, artifact.metadata, 16)
@@ -4211,31 +4211,6 @@ export function render(index) { rgb(elapsed, time(1), index) }
     handle.beforeRender(1500)
     handle.render2D(0, 0.5, 0.5)
     expect(pixel()).toEqual([0, 0.5, 0.5])
-  })
-
-  it('keeps legacy invert byte-identical to the equivalent explicit reveal mode (#448)', () => {
-    const clips = [
-      { id: 'from', source: 'export function render2D(index, x, y) { rgb(1, 0, 0) }' },
-      { id: 'to', source: 'export function render2D(index, x, y) { rgb(0, 1, 0) }' },
-    ]
-    const legacy = compileShow({
-      clips,
-      routeTransition: {
-        kind: 'portal', startMs: 1000, durationMs: 1000,
-        centerX: 0.5, centerY: 0.5, shape: 'circle', invert: true, feather: 0.1, featherPolicy: 'dither',
-      },
-    }, {})
-    const explicit = compileShow({
-      clips,
-      routeTransition: {
-        kind: 'portal', startMs: 1000, durationMs: 1000,
-        centerX: 0.5, centerY: 0.5, shape: 'circle', invert: true,
-        revealMode: 'shrink-outgoing', feather: 0.1, featherPolicy: 'dither',
-      },
-    }, {})
-
-    expect(explicit.code).toBe(legacy.code)
-    expect(explicit.fxCode).toBe(legacy.fxCode)
   })
 
   it('routes a rotated Box SDF without moving member coordinates (#448)', () => {
@@ -4550,27 +4525,6 @@ export function render(index) { calls = calls + 1; rgb(0, 1, 0) }
       routePolicy: 'dissolve-blended-edge', worstInstantRenderersPerPixel: 2,
       cost: { cpu: { patternEvaluations: { formula: 'N + E', basePerPixel: 1, additionalPerEdgePixel: 1 } } },
     })
-  })
-
-  it('keeps legacy Dither byte-identical to explicit zero-seed Pixel Dissolve (#447)', () => {
-    const clips = [
-      { id: 'from', source: 'export function render(index) { rgb(1, 0, 0) }' },
-      { id: 'to', source: 'export function render(index) { rgb(0, 1, 0) }' },
-    ]
-    const legacy = compileShow({
-      clips, routeTransition: { kind: 'dither', startMs: 1000, durationMs: 1000 },
-    }, {})
-    const pixel = compileShow({
-      clips,
-      routeTransition: {
-        kind: 'dither', startMs: 1000, durationMs: 1000,
-        dissolveVariant: 'pixel', seed: 0, edgePolicy: 'dither',
-      },
-    }, {})
-
-    expect(pixel.code).toBe(legacy.code)
-    expect(pixel.fxCode).toBe(legacy.fxCode)
-    expect(pixel.summary.cost.cpu.patternEvaluations).toEqual({ formula: 'N', basePerPixel: 1 })
   })
 
   it('hashes every member of a Block Dissolve cell to one stable source renderer (#447)', () => {

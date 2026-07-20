@@ -17,7 +17,7 @@ import {
   updateShowCellRestartOnEntry,
 } from './showModel'
 import { compileShow } from './showCompiler'
-import { createInstallationShowOutputContract } from './showOutputContract'
+import { createInstallationShowOutputContract, createPortableShowOutputContract } from './showOutputContract'
 import {
   projectFlatShowComposition,
   restoreFlatShowFromCompositionProjection,
@@ -51,12 +51,17 @@ function fixtures(): Array<{ name: string; show: ShowRecord }> {
     createInstallationShowOutputContract({ outputMapId: 'map-stage', pixelCount: 120 }),
     1,
   )
-  let ramp = createDefaultShow('projection-ramp', 'Property ramp', 1)
+  let ramp = createShowWithOutputContract(
+    'projection-ramp',
+    'Property ramp',
+    createPortableShowOutputContract({ referenceMapId: 'plane', referencePixelCount: 60 }),
+    1,
+  )
   ramp = updateShowCellPattern(ramp, 'cell-2', { pattern: { ...ramp.cells[0].pattern }, patternName: ramp.cells[0].patternName })
   ramp = updateShowCellAdaptations(ramp, 'cell-2', { timeScale: 1.5 })
   ramp = updateShowBoundaryTransition(ramp, 'transition-scene-1', {
     propertyTransitions: {
-      timeScale: { fromByCellId: { 'cell-2': 0.75 }, durationMs: 900, easing: 'ease-in-out' },
+      timeScale: { fromByCellId: { 'cell-2': 0.75 }, durationMs: 900, easing: { curve: 'quadratic', direction: 'in-out' } },
     },
   })
   return [

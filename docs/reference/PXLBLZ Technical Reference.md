@@ -921,23 +921,9 @@ Escape so an edit or open control closes before the enclosing flow.
 
 The D1 record stores the contract as `output_contract_json`. Row loading accepts
 only the known version and discriminants, then reconstructs canonical
-compatibility literals rather than trusting display copy.
-
-`showLegacyClassification.ts` is the pure compatibility boundary for rows
-without a contract. A known version returns its stored discriminant directly.
-For a legacy row, an explicit target Controller or at least one non-empty
-physical index range proves Installation; the classifier derives its fixed count
-from the saved zone model and retains the saved Stage map. Stage dimension,
-logical routing, and the absence of ranges are deliberately non-evidence, so no
-legacy combination silently becomes Portable.
-
-`showStore.openShow()` persists a proven contract as a narrow contract/Stage
-patch. An ambiguous row instead creates provisional classification state with
-the previous Show id, modeled count, and inspectable reasons. Confirmation
-persists exactly one contract while retaining scenes, clips, transitions,
-routing, and Pattern state. Cancel clears the provisional state without a write
-and restores the previous Shows context. A successful write makes every later
-open follow the ordinary versioned path.
+compatibility literals rather than trusting display copy. A missing or invalid
+contract rejects the row; the Studio does not infer a Show's output promise from
+its Stage, Controller target, zones, or other saved fields.
 
 `src/pixelblaze/stock/shows.ts` owns the immutable built-in Show curriculum as
 ordinary `ShowRecord` fixtures plus catalogue-only track, lesson, and description
@@ -2373,11 +2359,9 @@ still selects one Pattern outside the projected feather band, evaluates both
 inside it, and reports `N + E`. Deterministic fixtures cover all eight named
 directions plus an arbitrary angle under dither and true blend.
 
-Dissolve remains the persisted `dither` Transition kind for compatibility. A
-record with no new Dissolve fields is the Pixel variant and emits the exact
-legacy expression `hash(index) < progress`; existing Shows and generated
-artifacts therefore retain their appearance. New Pixel records may add a
-16-bit integer seed while keeping one hash cell per output index.
+Dissolve uses the persisted `dither` Transition kind and always carries an
+explicit variant. Pixel Dissolve keeps one hash cell per output index and may
+add a 16-bit integer seed.
 
 Block Dissolve groups adjacent output indices with
 `floor(index / blockSize)`, where Block size is an integer count of output
@@ -2388,10 +2372,9 @@ deterministic seeks. Pixel and Block share duration, easing, seed, and the
 Stable dither edge-policy descriptor; Block alone exposes Block size. Both
 variants select exactly one Pattern per output pixel and report `N`.
 
-Headless fixtures preserve the field-absent legacy Pixel form and add seeded
-Pixel plus 8- and 32-pixel Block captures. The fixture harness recompiles and
-replays them at fixed progress points to verify stable output and JSON
-round-trip behavior.
+Headless fixtures cover explicit Pixel, seeded Pixel, and 8- and 32-pixel Block
+captures. The fixture harness recompiles and replays them at fixed progress
+points to verify stable output and JSON round-trip behavior.
 
 Coherent Noise Dissolve evaluates a stable 2D value-noise field. Stage
 coordinates are multiplied by Spatial scale (`1..32`), four surrounding lattice
@@ -2411,12 +2394,9 @@ Block to Stable dither, Coherent Noise to Hard, and Soft Threshold to
 Hard/Stable dither/Blend. Deterministic fixtures cover two spatial scales and
 both dithered and blended soft edges.
 
-Shape reveal stores explicit `grow-incoming` and `shrink-outgoing` reveal modes
-for new records. Grow Incoming expands the incoming side from the selected
-center. Shrink Outgoing keeps the incoming Pattern behind a contracting
-outgoing mask. Legacy Portal records retain field-absent mode and continue to
-derive the exact same behavior from `invert=false` and `invert=true`,
-respectively; equivalent explicit modes generate byte-identical artifacts.
+Shape reveal stores explicit `grow-incoming` and `shrink-outgoing` reveal modes.
+Grow Incoming expands the incoming side from the selected center. Shrink
+Outgoing keeps the incoming Pattern behind a contracting outgoing mask.
 
 Circle uses Euclidean distance. Diamond uses rotated Manhattan distance. Box
 uses a rotated rectangular distance
@@ -2427,12 +2407,10 @@ coordinates. **Shape Shrink** therefore reveals the incoming Pattern through a
 contracting mask, while **Content Shrink** is a coordinate Effect that resizes
 the rendered Pattern itself.
 
-New shape records use the shared Hard, Stable dither, or Blend edge policy.
-Field-absent records continue to read the legacy Portal feather policy. Hard
-and dither report `N`; Blend evaluates both Patterns only inside the SDF edge
-band and reports `N + E`. Deterministic fixtures cover both reveal modes for
-Circle and rotated/aspect-scaled Box while retaining the legacy Circle,
-Diamond, and Ring fixtures.
+Shape records use the shared Hard, Stable dither, or Blend edge policy. Hard and
+dither report `N`; Blend evaluates both Patterns only inside the SDF edge band
+and reports `N + E`. Deterministic fixtures cover both reveal modes for Circle,
+rotated/aspect-scaled Box, Diamond, and Ring.
 
 The expanded catalogue adds Ellipse, Rounded box, Cross, Heart, Star,
 Crescent, Regular polygon, Cat head, Side-profile cat, and Bastet. Regular

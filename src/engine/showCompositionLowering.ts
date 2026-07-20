@@ -40,6 +40,7 @@ export function lowerShowCompositionForCompile(
   const compositionPropertyTracksBySceneId = { ...(lookup.compositionPropertyTracksBySceneId ?? {}) }
   const cells: ShowCell[] = []
   const scenes: ShowScene[] = []
+  const localTransitions: ShowBoundaryTransition[] = []
   const lastDerivedSceneId = new Map<string, string>()
   const derivedCellIdByFlatCellId = new Map<string, string>()
 
@@ -84,10 +85,16 @@ export function lowerShowCompositionForCompile(
         id: sceneId,
         name: isOnlyInterval ? scene.name : `${scene.name} ${interval.startMs}-${interval.endMs}ms`,
         durationMs: interval.endMs - interval.startMs,
-        ...(isFinalInterval
-          ? { transitionOut: scene.transitionOut }
-          : { transitionOut: { kind: 'cut', durationMs: 0 } }),
       })
+      if (!isFinalInterval) {
+        localTransitions.push({
+          id: `transition-${sceneId}`,
+          afterSceneId: sceneId,
+          kind: 'cut',
+          durationMs: 0,
+          easing: { curve: 'linear' },
+        })
+      }
       if (activePropertyTracks.length) {
         compositionPropertyTracksBySceneId[sceneId] = {
           localTimeOffsetMs: interval.startMs,
@@ -153,21 +160,20 @@ export function lowerShowCompositionForCompile(
     })
   }
 
-  const transitions = show.transitions?.map((transition) => remapTransition(
-    transition,
-    lastDerivedSceneId,
-    derivedCellIdByFlatCellId,
-  ))
+  const transitions = [
+    ...localTransitions,
+    ...show.transitions.map((transition) => remapTransition(
+      transition,
+      lastDerivedSceneId,
+      derivedCellIdByFlatCellId,
+    )),
+  ]
   return {
     show: {
       ...show,
       scenes,
       cells,
       transitions,
-      routingSwitches: show.routingSwitches.map((routingSwitch) => ({
-        ...routingSwitch,
-        afterSceneId: lastDerivedSceneId.get(routingSwitch.afterSceneId) ?? routingSwitch.afterSceneId,
-      })),
       composition: undefined,
     },
     lookup: {

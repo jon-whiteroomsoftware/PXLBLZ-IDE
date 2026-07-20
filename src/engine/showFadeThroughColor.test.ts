@@ -43,7 +43,6 @@ describe('Fade through color Transition (#445)', () => {
       easing: { curve: 'sine', direction: 'in-out' },
       color: '#f0a020',
     })
-    expect(normalized.scenes[0].transitionOut).toMatchObject({ kind: 'fade-color', color: '#f0a020' })
     expect(projectShowTimeline(normalized)).toMatchObject({
       durationMs: 61_600,
       transitions: [expect.objectContaining({ startMs: 30_000, endMs: 31_600 })],

@@ -45,7 +45,17 @@ describe('Show Scene editor scope (#487)', () => {
         base.routingLayouts[0],
         { ...base.routingLayouts[0], id: 'layout-2', name: 'Dramatic zones' },
       ],
-      routingSwitches: [{ afterSceneId: 'scene-1', layoutId: 'layout-2' }],
+      transitions: [
+        ...base.transitions,
+        {
+          id: 'routing-scene-1',
+          afterSceneId: 'scene-1',
+          kind: 'routing' as const,
+          durationMs: 0,
+          easing: { curve: 'linear' as const },
+          layoutId: 'layout-2',
+        },
+      ],
     }
 
     expect(showRoutingLayoutForScene(show, 'scene-1')?.name).toBe('Default')

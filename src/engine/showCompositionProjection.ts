@@ -214,10 +214,11 @@ export function serializedShowCompositionBytes(projection: FlatShowCompositionPr
 }
 
 function classifyCompilerPath(show: ShowRecord, recipe: ShowRecipe): ShowCompositionCompilerPath {
-  if (show.outputContract?.kind === 'installation' && show.zones.length === 1 && show.routingSwitches.length === 0) {
+  const hasRoutingTransitions = show.transitions.some((transition) => transition.kind === 'routing')
+  if (show.outputContract.kind === 'installation' && show.zones.length === 1 && !hasRoutingTransitions) {
     return 'installation-single-zone'
   }
-  if (show.outputContract?.kind === 'installation' || show.zones.length > 1 || show.routingSwitches.length > 0) {
+  if (show.outputContract.kind === 'installation' || show.zones.length > 1 || hasRoutingTransitions) {
     return 'routed-scene-sequence'
   }
   if (recipe.sceneSequence) return 'scene-sequence'

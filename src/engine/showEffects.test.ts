@@ -266,8 +266,8 @@ describe('Show clip Effects (#444)', () => {
     show = updateShowBoundaryTransition(show, 'transition-scene-1', {
       propertyTransitions: {
         effects: {
-          move: { x: { fromByCellId: { 'cell-2': 0 }, durationMs: 2000, easing: 'linear' } },
-          fade: { opacity: { fromByCellId: { 'cell-2': 1 }, durationMs: 2000, easing: 'linear' } },
+          move: { x: { fromByCellId: { 'cell-2': 0 }, durationMs: 2000, easing: { curve: 'linear' } } },
+          fade: { opacity: { fromByCellId: { 'cell-2': 1 }, durationMs: 2000, easing: { curve: 'linear' } } },
         },
       },
     })
@@ -362,6 +362,7 @@ describe('Show clip Effects (#444)', () => {
       'effect-color-posterize',
       'effect-color-vignette',
       'effect-color-color-map',
+      'effect-affine-mirror',
       'effect-affine-wrap',
       'effect-distortion-ripple',
       'effect-distortion-swirl',

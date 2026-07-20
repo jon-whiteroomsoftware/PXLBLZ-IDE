@@ -7,8 +7,8 @@ import {
 import { makeProgramId } from './bytecodePush'
 import { showEasingOptionId } from './showEasing'
 import { STOCK_MAP_SPECS } from './maps'
-import type { MapRecord, ShowRecord } from './personalContentRecords'
-import { normalizeShowTransitionState } from './showModel'
+import type { MapRecord, ShowBoundaryTransition, ShowRecord } from './personalContentRecords'
+import { normalizeShowTransitionState, showVisualTransitionAfter } from './showModel'
 import { buildStudioMapFingerprintCandidates } from './mapFingerprint'
 import { buildShowPatternCreditLines, PXLBLZ_AUTHOR, type ShowArtifactAttribution, type ShowPatternAttribution } from './patternAttribution'
 
@@ -33,7 +33,7 @@ export function buildShowEpeExport(
 ): ShowEpeExport {
   show = normalizeShowTransitionState(show)
   const name = show.name.trim() || 'Untitled Show'
-  const hasSpatialTransitions = show.scenes.some((scene) => scene.transitionOut?.kind === 'portal')
+  const hasSpatialTransitions = show.transitions.some((transition) => transition.kind === 'portal')
   const mapMetadata = deriveShowArtifactMapMetadata(show, options.userMaps ?? [])
   const documentedSource = `${showArtifactHeader(show, mapMetadata, options.attribution)}\n${generatedCode}`
   const source = stampArtifact(documentedSource, {
@@ -98,8 +98,7 @@ function showArtifactHeader(
     name: pattern.name,
     authors: attributionByKey.get(`${pattern.kind}:${pattern.id}`)?.authors ?? [],
   }))
-  const switchByScene = new Map(show.routingSwitches.map((routingSwitch) => [routingSwitch.afterSceneId, routingSwitch.layoutId]))
-  const routingTransitionByScene = new Map((show.transitions ?? []).flatMap((transition) => (
+  const routingTransitionByScene = new Map(show.transitions.flatMap((transition) => (
     transition.kind === 'routing' ? [[transition.afterSceneId, transition] as const] : []
   )))
   const layoutName = new Map(show.routingLayouts.map((layout) => [layout.id, layout.name]))
@@ -131,14 +130,15 @@ function showArtifactHeader(
       : []),
     ' * Scenes:',
     ...show.scenes.map((scene) => {
-      const destinationId = switchByScene.get(scene.id)
       const routingTransition = routingTransitionByScene.get(scene.id)
+      const destinationId = routingTransition?.layoutId
       const routingNote = destinationId
         ? routingTransition && routingTransition.durationMs > 0
           ? `: transfer ${routingTransition.routingDirection ?? 'forward'} to ${commentText(layoutName.get(destinationId) ?? destinationId)} over ${formatSeconds(routingTransition.durationMs)} (${showEasingOptionId(routingTransition.easing)}) after scene`
           : `: switch to ${commentText(layoutName.get(destinationId) ?? destinationId)} after scene`
         : ''
-      const transitionNote = scene.transitionOut ? `: ${describeTransition(scene.transitionOut)}` : ''
+      const transition = showVisualTransitionAfter(show, scene.id)
+      const transitionNote = transition && transition.kind !== 'cut' ? `: ${describeTransition(transition)}` : ''
       return ` * - ${commentText(scene.name)} (${formatSeconds(scene.durationMs)})${transitionNote}${routingNote}`
     }),
     ' *',
@@ -236,14 +236,14 @@ function describeShowOutputContract(contract: ArtifactShowOutputContract): strin
   return `Portable 2D · variable resolution · compatible ${classes} maps${aspect}`
 }
 
-function describeTransition(transition: NonNullable<ShowRecord['scenes'][number]['transitionOut']>): string {
+function describeTransition(transition: ShowBoundaryTransition): string {
   if (transition.kind !== 'portal') {
     return `${transition.kind} ${formatSeconds(transition.durationMs)}`
   }
   const centerX = formatNormalized(transition.centerX ?? 0.5)
   const centerY = formatNormalized(transition.centerY ?? 0.5)
   const feather = formatNormalized(transition.feather ?? 0.12)
-  const direction = transition.invert ? 'inward' : 'outward'
+  const direction = transition.revealMode === 'shrink-outgoing' ? 'inward' : 'outward'
   const policy = transition.featherPolicy === 'blend' ? 'blend' : 'dither'
   if (!transition.shape) {
     return `portal ${formatSeconds(transition.durationMs)}, center ${centerX}/${centerY}, ${direction}, ${policy} feather ${feather}`

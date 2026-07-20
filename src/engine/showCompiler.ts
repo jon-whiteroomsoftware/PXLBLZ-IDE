@@ -234,7 +234,6 @@ export interface ShowRouteTransitionRecipe {
   feather?: number
   centerX?: number
   centerY?: number
-  invert?: boolean
   featherPolicy?: 'dither' | 'blend'
   shape?: ShowSpatialShape
   scale?: number
@@ -277,7 +276,6 @@ export interface ShowSceneSequenceTransitionRecipe {
   feather?: number
   centerX?: number
   centerY?: number
-  invert?: boolean
   featherPolicy?: 'dither' | 'blend'
   shape?: ShowSpatialShape
   scale?: number
@@ -7280,7 +7278,7 @@ function emitPortalRenderBlock(
   const starInner = clampNumber(transition.starInner ?? 0.45, 0.2, 0.8)
   const crescentOffset = clampNumber(transition.crescentOffset ?? 0.45, 0.15, 0.8)
   const polygonSides = Math.round(clampNumber(transition.polygonSides ?? 6, 3, 8))
-  const revealMode = normalizeShowRevealMode(transition.revealMode, transition.invert)
+  const revealMode = normalizeShowRevealMode(transition.revealMode)
   const edgePolicy = resolvePortalEdgePolicy(transition)
   const maxRadius = Math.max(
     Math.hypot(centerX, centerY),

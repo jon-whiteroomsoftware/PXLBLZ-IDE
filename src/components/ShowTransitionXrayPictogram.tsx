@@ -14,7 +14,7 @@ export function ShowTransitionXrayPictogram({ transition }: { transition: ShowBo
   const wipe = transition.kind === 'wipe' ? normalizeShowWipeSettings(transition) : null
   const motion = transition.kind === 'motion' ? normalizeShowMotionTransition(transition) : null
   const shape = transition.shape ?? 'circle'
-  const revealMode = transition.revealMode ?? (transition.invert ? 'shrink-outgoing' : 'grow-incoming')
+  const revealMode = transition.revealMode ?? 'grow-incoming'
   return (
     <svg
       aria-hidden

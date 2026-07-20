@@ -92,7 +92,8 @@ export type ShowMotionTransitionVariant =
   | 'zoom-in' | 'zoom-out'
 export type ShowMotionAddressPolicy = 'clip' | 'wrap'
 export type ShowMotionSpinDirection = 'clockwise' | 'counterclockwise'
-export type LegacyShowTransitionEasing = 'linear' | 'ease-in' | 'ease-out' | 'ease-in-out'
+/** Compact compiler-recipe shorthands; persisted Show records use structured easing. */
+export type ShowEasingPreset = 'linear' | 'ease-in' | 'ease-out' | 'ease-in-out'
 export type ShowEasingDirection = 'in' | 'out' | 'in-out'
 export type ShowStructuredEasing =
   | { curve: 'linear' }
@@ -102,26 +103,20 @@ export type ShowStructuredEasing =
   | { curve: 'hold'; at: number }
   | { curve: 'back'; direction: ShowEasingDirection; overshoot: number }
 
-/**
- * Persisted records normalize to the structured form. Legacy names remain an
- * accepted input so existing Shows and direct compiler recipes retain their
- * exact timing while they cross the normalization boundary.
- */
-export type ShowTransitionEasing = LegacyShowTransitionEasing | ShowStructuredEasing
+export type ShowTransitionEasing = ShowEasingPreset | ShowStructuredEasing
 export type ShowRoutingDirection = 'forward' | 'reverse'
 export type ShowAutomatableProperty = 'timeScale' | 'brightness'
 
 export interface ShowPropertyTransition {
   fromByCellId: Record<string, number>
-  /** Missing only on #417 records; normalization fills from the containing boundary. */
   durationMs?: number
-  easing?: ShowTransitionEasing
+  easing?: ShowStructuredEasing
 }
 
 export interface ShowScalarPropertyTransition {
   from: number
   durationMs?: number
-  easing?: ShowTransitionEasing
+  easing?: ShowStructuredEasing
 }
 
 export interface ShowPropertyTransitions {
@@ -205,7 +200,7 @@ export interface ShowPropertyAnimationKeyframe {
   timeMs: number
   value: number
   /** Interpolation used while leaving this keyframe. */
-  easing: ShowTransitionEasing
+  easing: ShowStructuredEasing
 }
 
 export interface ShowPropertyAnimationTrack {
@@ -217,7 +212,6 @@ export interface ShowPropertyAnimationTrack {
 export interface ShowPortalSettings {
   centerX: number
   centerY: number
-  invert: boolean
   featherPolicy: ShowPortalFeatherPolicy
   shape?: ShowSpatialShape
   scale?: number
@@ -235,61 +229,10 @@ export interface ShowPortalSettings {
   polygonSides?: number
 }
 
-export interface ShowTransition {
-  kind: ShowTransitionKind
-  durationMs: number
-  /** Missing on legacy crossfades, which retain live/live semantics. */
-  crossfadePolicy?: ShowCrossfadePolicy
-  /** Editable sRGB color used by the two-phase Fade-through-color Transition. */
-  color?: string
-  /** Stage-space motion direction in turns. Absent preserves the legacy index-domain Wipe. */
-  direction?: number
-  wipeVariant?: ShowWipeVariant
-  wipeMode?: ShowWipeMode
-  orientation?: ShowWipeOrientation
-  count?: number
-  phase?: number
-  clockwise?: boolean
-  edgePolicy?: ShowTransitionEdgePolicy
-  dissolveVariant?: ShowDissolveVariant
-  seed?: number
-  blockSize?: number
-  softness?: number
-  /** Normalized fraction of the 1D route used as a stable wipe feather band. */
-  feather?: number
-  /** Normalized Stage coordinates used by the 2D portal transition. */
-  centerX?: number
-  centerY?: number
-  /** Grows the incoming scene from the outside toward the center. */
-  invert?: boolean
-  /** Stable one-renderer threshold or true bounded-band color blend. */
-  featherPolicy?: ShowPortalFeatherPolicy
-  shape?: ShowSpatialShape
-  scale?: number
-  rotation?: number
-  spin?: number
-  ringWidth?: number
-  revealMode?: ShowRevealMode
-  aspect?: number
-  cornerRadius?: number
-  crossWidth?: number
-  starPoints?: number
-  starInner?: number
-  crescentOffset?: number
-  polygonSides?: number
-  motionVariant?: ShowMotionTransitionVariant
-  anchorX?: number
-  anchorY?: number
-  contentScale?: number
-  spinDirection?: ShowMotionSpinDirection
-  addressPolicy?: ShowMotionAddressPolicy
-}
-
 export interface ShowScene {
   id: string
   name: string
   durationMs: number
-  transitionOut?: ShowTransition
   /** Show-wide property targets that take effect during this scene. */
   routingTargets?: ShowRoutingTargets
   sampleTargets?: ShowSampleTargets
@@ -322,19 +265,14 @@ export interface ShowRoutingLayout {
   logical?: ShowLogicalRouting
 }
 
-export interface ShowRoutingSwitch {
-  afterSceneId: string
-  layoutId: string
-}
-
-/** A selectable event on the shared boundary lane. Legacy scene/routing fields are derived compatibility views. */
+/** A selectable event on the shared boundary lane. */
 export interface ShowBoundaryTransition {
   id: string
   afterSceneId: string
   kind: ShowTransitionKind | 'routing'
   durationMs: number
-  easing: ShowTransitionEasing
-  /** Authored only for crossfade; missing legacy values normalize to live/live. */
+  easing: ShowStructuredEasing
+  /** Authored only for crossfade. */
   crossfadePolicy?: ShowCrossfadePolicy
   layoutId?: string
   /** Stable directional threshold used when a routing marker has nonzero duration. */
@@ -355,7 +293,6 @@ export interface ShowBoundaryTransition {
   feather?: number
   centerX?: number
   centerY?: number
-  invert?: boolean
   featherPolicy?: ShowPortalFeatherPolicy
   shape?: ShowSpatialShape
   scale?: number
@@ -540,14 +477,13 @@ export interface ShowRecord {
   zones: ShowZone[]
   cells: ShowCell[]
   routingLayouts: ShowRoutingLayout[]
-  routingSwitches: ShowRoutingSwitch[]
-  /** Canonical transition-lane entities. Missing only on legacy records awaiting normalization. */
-  transitions?: ShowBoundaryTransition[]
+  /** Canonical visual and routing events on Scene boundaries. */
+  transitions: ShowBoundaryTransition[]
   targetControllerProfileId?: string
   stageMapId?: string | null
-  /** Immutable authored promise for new Shows. Absent on legacy records awaiting classification. */
-  outputContract?: ShowOutputContract
-  /** Optional additive local composition; flat fields remain the legacy compatibility authority. */
+  /** Immutable authored promise for the Show's output. */
+  outputContract: ShowOutputContract
+  /** Optional additive local composition alongside the global timeline. */
   composition?: ShowCompositionV1 | null
   /** Ordered full-Show output Effects, after clip composition and Transitions. */
   outputEffects?: ShowOutputEffect[]

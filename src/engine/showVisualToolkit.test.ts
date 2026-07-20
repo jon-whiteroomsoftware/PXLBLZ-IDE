@@ -23,7 +23,7 @@ import {
 } from './showVisualToolkitFixtures'
 
 describe('Show visual-toolkit contract', () => {
-  it('normalizes legacy easing names into the shared structured representation (#443)', () => {
+  it('expands compiler easing presets into the shared structured representation (#443)', () => {
     const easing = normalizeShowEasing('ease-in-out')
 
     expect(easing).toEqual({ curve: 'quadratic', direction: 'in-out' })
@@ -59,12 +59,12 @@ describe('Show visual-toolkit contract', () => {
     const show = createDefaultShow('structured-easing', 'Structured easing', 1)
     show.transitions![0] = {
       ...show.transitions![0],
-      easing: 'ease-out',
+      easing: { curve: 'quadratic', direction: 'out' },
       propertyTransitions: {
         brightness: {
           fromByCellId: { 'cell-2': 1 },
           durationMs: 800,
-          easing: 'ease-in',
+          easing: { curve: 'quadratic', direction: 'in' },
         },
       },
     }

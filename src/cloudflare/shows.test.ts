@@ -79,8 +79,7 @@ describe('D1 show persistence (#318)', () => {
       zones_json: JSON.stringify(show.zones),
       cells_json: JSON.stringify(show.cells),
       routing_layouts_json: JSON.stringify(show.routingLayouts),
-      routing_switches_json: JSON.stringify(show.routingSwitches),
-      transitions_json: null,
+      transitions_json: JSON.stringify(show.transitions),
       composition_json: JSON.stringify(composition()),
       output_effects_json: JSON.stringify(outputEffects),
       target_controller_profile_id: 'ctrl-1',
@@ -127,7 +126,6 @@ describe('D1 show persistence (#318)', () => {
     expect(calls[0].values).toContain(JSON.stringify(show.scenes))
     expect(calls[0].values).toContain(JSON.stringify(show.cells))
     expect(calls[0].values).toContain(JSON.stringify(show.routingLayouts))
-    expect(calls[0].values).toContain(JSON.stringify(show.routingSwitches))
     expect(calls[0].values).toContain(JSON.stringify(normalizeShowTransitionState(show).transitions))
     expect(calls[0].values).toContain(JSON.stringify(show.outputContract))
     expect(calls[0].values).toContain(JSON.stringify(show.composition))
@@ -151,14 +149,13 @@ describe('D1 show persistence (#318)', () => {
       zones_json: String(values[4]),
       cells_json: String(values[5]),
       routing_layouts_json: String(values[6]),
-      routing_switches_json: String(values[7]),
-      transitions_json: String(values[8]),
-      composition_json: String(values[9]),
-      output_effects_json: values[10] as string | null,
-      target_controller_profile_id: values[11] as string | null,
-      stage_map_id: values[12] as string | null,
-      output_contract_json: values[13] as string | null,
-      updated_at: Number(values[15]),
+      transitions_json: String(values[7]),
+      composition_json: String(values[8]),
+      output_effects_json: values[9] as string | null,
+      target_controller_profile_id: values[10] as string | null,
+      stage_map_id: values[11] as string | null,
+      output_contract_json: values[12] as string | null,
+      updated_at: Number(values[14]),
     })
 
     expect(reloaded.composition).toEqual(normalizeShowComposition(show, show.composition))
@@ -171,27 +168,22 @@ describe('D1 show persistence (#318)', () => {
     }))
   })
 
-  it('leaves legacy rows unclassified when no output contract was stored', () => {
+  it('rejects rows without the required output contract', () => {
     const show = createDefaultShow('legacy-show', 'Legacy', 123)
-    const record = showRecordFromRow({
+    expect(() => showRecordFromRow({
       id: show.id,
       name: show.name,
       scenes_json: JSON.stringify(show.scenes),
       zones_json: JSON.stringify(show.zones),
       cells_json: JSON.stringify(show.cells),
       routing_layouts_json: JSON.stringify(show.routingLayouts),
-      routing_switches_json: JSON.stringify(show.routingSwitches),
       transitions_json: JSON.stringify(show.transitions),
       composition_json: null,
       target_controller_profile_id: null,
       stage_map_id: 'plane',
       output_contract_json: null,
       updated_at: 123,
-    })
-
-    expect(record.outputContract).toBeUndefined()
-    expect(record.stageMapId).toBe('plane')
-    expect(record.composition).toBeUndefined()
+    })).toThrow('Show legacy-show is missing a valid output contract')
   })
 
   it.each([
@@ -210,12 +202,11 @@ describe('D1 show persistence (#318)', () => {
       zones_json: JSON.stringify(show.zones),
       cells_json: JSON.stringify(show.cells),
       routing_layouts_json: JSON.stringify(show.routingLayouts),
-      routing_switches_json: JSON.stringify(show.routingSwitches),
       transitions_json: JSON.stringify(show.transitions),
       composition_json: JSON.stringify(invalidComposition),
       target_controller_profile_id: null,
       stage_map_id: null,
-      output_contract_json: null,
+      output_contract_json: JSON.stringify(show.outputContract),
       updated_at: 123,
     })
 

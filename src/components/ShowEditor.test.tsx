@@ -370,7 +370,7 @@ describe('ShowEditor (#318)', () => {
     const user = userEvent.setup()
     const show = createDefaultShow('show-scene-xray', 'Scene X-ray', 1000)
     show.transitions![0].propertyTransitions = {
-      brightness: { fromByCellId: { 'cell-2': 0.25 }, durationMs: 2000, easing: 'linear' },
+      brightness: { fromByCellId: { 'cell-2': 0.25 }, durationMs: 2000, easing: { curve: 'linear' } },
     }
     useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
 
@@ -1276,9 +1276,13 @@ describe('ShowEditor (#318)', () => {
 
     await user.click(screen.getByRole('button', { name: 'Set routing layout after Scene 1' }))
     await user.selectOptions(screen.getByLabelText('Destination routing layout'), added.id)
-    await waitFor(() => expect(useShowStore.getState().shows[0].routingSwitches).toEqual([
-      { afterSceneId: 'scene-1', layoutId: added.id },
-    ]))
+    await waitFor(() => expect(useShowStore.getState().shows[0].transitions).toContainEqual(
+      expect.objectContaining({
+        afterSceneId: 'scene-1',
+        kind: 'routing',
+        layoutId: added.id,
+      }),
+    ))
   })
 
   it('turns a named routing layout into a two-zone moving split (#405)', async () => {
@@ -2145,7 +2149,7 @@ describe('ShowEditor (#318)', () => {
     expect(screen.getByRole('button', { name: 'View code' })).toBeEnabled()
     expect(screen.getByRole('button', { name: 'Export Show as .epe' })).toBeEnabled()
     const compileBar = screen.getByTestId('show-compile-bar')
-    expect(compileBar).toHaveTextContent('arena 6,012')
+    expect(compileBar).toHaveTextContent('arena 192')
     expect(compileBar).toHaveTextContent('render target: 3 planes · stage-rgb · RGB 0/1/2 · XY 0/1 · scalar 0 · previous RGB 0/1/2')
     expect(compileBar).toHaveTextContent('cache plan: 1 selected · 0 rejected · peak 3/3 planes')
     expect(compileBar).toHaveTextContent('stage-rgb planes 0/1/2 · transition · invalidates transition-exit/show-loop')
@@ -2489,7 +2493,7 @@ describe('ShowEditor (#318)', () => {
       {
         centerX: 0.5,
         centerY: 0.5,
-        invert: false,
+        revealMode: 'grow-incoming',
         featherPolicy: 'dither',
         shape: 'diamond',
         scale: 1,
@@ -2522,11 +2526,12 @@ describe('ShowEditor (#318)', () => {
     expect(screen.queryByLabelText('Spin')).not.toBeInTheDocument()
 
     await waitFor(() => {
-      expect(useShowStore.getState().shows[0].scenes[0].transitionOut).toMatchObject({
+      expect(useShowStore.getState().shows[0].transitions.find((transition) => transition.kind === 'portal'))
+        .toMatchObject({
         kind: 'portal',
         centerX: 0.35,
         centerY: 0.5,
-        invert: true,
+        revealMode: 'shrink-outgoing',
         edgePolicy: 'blend',
         shape: 'ring',
         scale: 1,
@@ -2769,8 +2774,12 @@ describe('ShowEditor (#318)', () => {
 
     await waitFor(() => {
       const updated = useShowStore.getState().shows[0]
-      expect(updated.scenes[0].transitionOut?.kind).toBe('crossfade')
-      expect(updated.scenes[1].transitionOut?.kind).toBe('dither')
+      expect(updated.transitions.find((transition) => (
+        transition.afterSceneId === 'scene-1' && transition.kind !== 'routing'
+      ))?.kind).toBe('crossfade')
+      expect(updated.transitions.find((transition) => (
+        transition.afterSceneId === 'scene-2' && transition.kind !== 'routing'
+      ))?.kind).toBe('dither')
     })
   })
 
