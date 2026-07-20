@@ -714,7 +714,10 @@ function StudioApp() {
           title="Go to home"
           className="flex items-center gap-2 rounded-sm select-none transition-[filter] hover:brightness-125 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-live/70"
         >
-          <svg width="26" height="20" viewBox="0 0 26 20" aria-hidden className="shrink-0">
+          {/* viewBox pads past the ink: the left round cap reaches x=-0.2 and
+              the end dot (cx 25 + r 2.6) reaches x=27.6, which a 0..26 box
+              visibly clips when the logo is scaled up. */}
+          <svg width="30" height="20" viewBox="-1 0 30 20" aria-hidden className="shrink-0">
             <path d="M1 10 Q5 1 9 10 T17 10 T25 10" fill="none" stroke="#fbbf24" strokeWidth="2.4" strokeLinecap="round" />
             <circle cx="25" cy="10" r="2.6" fill="#fbbf24" />
           </svg>
