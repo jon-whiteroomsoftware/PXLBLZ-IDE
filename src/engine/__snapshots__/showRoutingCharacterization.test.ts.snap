@@ -1,0 +1,13 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`routing representation characterization (#570) > coordinate-predicates output is byte-stable 1`] = `"d8c3f9a4935b2ba1"`;
+
+exports[`routing representation characterization (#570) > gaps-and-overlaps output is byte-stable 1`] = `"d50ede751b9b9892"`;
+
+exports[`routing representation characterization (#570) > generated-formula output is byte-stable 1`] = `"0b1271697bf36d75"`;
+
+exports[`routing representation characterization (#570) > packed-pixels output is byte-stable 1`] = `"6655ed9b3fa0eabd"`;
+
+exports[`routing representation characterization (#570) > range-branches output is byte-stable 1`] = `"f4382a660cc3f7e7"`;
+
+exports[`routing representation characterization (#570) > route-mode output is byte-stable 1`] = `"5dd415a37bda21eb"`;
