@@ -1644,6 +1644,18 @@ a bytecode percentage or a measurement of remaining Controller capacity.
 
 ### Exact routing and capture specialization
 
+`src/engine/showRoutingRepresentation.ts` owns the routing-representation
+rules (#570): the logical Zone Layout shapes and their validation, physical
+gap/overlap coverage diagnostics, representation pricing and selection
+(#573), packed-table initialization (#569) and per-pixel decode, the
+generated-formula decode families, the Stage-space logical routing operators
+for all nine logical kinds, and the zone-local index and square-fill 2D
+sample-coordinate rules. Member invocation never crosses that seam: decode
+emitters take route-body callbacks, diagnostics take `{ ownerId, ranges }`,
+and route resolution (which binds compiled members) stays in the compiler by
+design. The ordered short-circuit plan lives in
+`showPhysicalRoutingSpecialization.ts` alongside.
+
 The compiler proves complete, disjoint physical ownership before replacing
 general range tests with an ordered short-circuit. Authored ranges are sorted by
 physical start only after the proof succeeds; each range retains its original
