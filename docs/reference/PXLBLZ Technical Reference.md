@@ -1662,6 +1662,28 @@ mirror uses a branch-free coefficient form for uniform-binding members -
 because mirror is discrete 0/1 - refreshed at every mirror or pixel-count
 write site; members with divergent per-placement binding keep the branch.
 
+Per-pixel placement-prologue rebinding is eliminated for uniform-binding
+members (#571): the scheduler's per-frame setup entry is the proven single
+writer of adaptation brightness/phase, effect parameters, static-plan
+matrices, and placement track values, all assigned before the member's
+advance call, so routed capture arms carry only the capture call. Uniformity
+requires a single placement per scene, physical layouts, per-frame coefficient
+hoisting (#558), and no binding divergence across any non-cut transition pair
+- the transition scheduler writes one value per member per frame for the
+combined from/to placements, so a clip whose placement bindings or
+placement-scoped tracks differ across the pair keeps its per-pixel (and, for
+mirror or zone-geometry changes, branch-form #562) binding. Measured on the
+effect-tax fixture at +14.3/+14.3/+14.9% median FPS at 256/1,000/2,000 px
+with 800 fewer bytecode bytes; fixtures without effect or adaptation
+prologues are byte-for-byte unchanged. `placementPrologueHoisting: false` is
+the benchmark counterfactual.
+
+Per-member HSV conversion specialization (#559) additionally carries a
+byte-budget fallback: when the per-member conversions alone push the artifact
+past the activation ceiling, the compiler retries once with the shared
+conversion chain and reports `fallbackReason: 'artifact-byte-budget'` in the
+compile summary.
+
 Member capture uses a separate conservative source analysis. A renderer loses
 its pre-render RGB clear only when Acorn control-flow analysis proves that every
 direct path calls `rgb()` or `hsv()` and no light shutter can skip that call.

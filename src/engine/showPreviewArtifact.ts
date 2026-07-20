@@ -39,6 +39,7 @@ interface ShowCompilationOptions {
   pixelCountWriteHoisting?: boolean
   hsvCaptureChainSpecialization?: boolean
   inlineCallHoisting?: boolean
+  placementPrologueHoisting?: boolean
 }
 
 export function compileShowForPreview(
@@ -79,6 +80,7 @@ export function compileShowForPreview(
         pixelCountWriteHoisting: options.pixelCountWriteHoisting,
         hsvCaptureChainSpecialization: options.hsvCaptureChainSpecialization,
         inlineCallHoisting: options.inlineCallHoisting,
+        placementPrologueHoisting: options.placementPrologueHoisting,
       })
     return {
       artifact: {

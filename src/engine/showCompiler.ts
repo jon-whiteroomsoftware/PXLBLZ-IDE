@@ -550,6 +550,12 @@ export interface ShowCompileSummary {
        * bytes alone pushed the artifact past the activation ceiling. */
       fallbackReason?: 'artifact-byte-budget'
     } | null
+    /** #571: members whose placement prologue binds once per frame in the
+     * scheduler setup entry instead of per pixel. */
+    placementPrologue: {
+      enabled: boolean
+      memberIds: string[]
+    } | null
     capture: Array<{
       clipId: string
       samplePath: 'identity' | 'mapped'
@@ -864,6 +870,11 @@ interface CompiledMember {
   /** #561: true when the member's virtual pixel count is one value across
    * every arm that can invoke it; per-pixel writes are then redundant. */
   uniformPixelCountBinding?: boolean
+  /** #571: true when the scheduler's per-frame setup entry is the proven
+   * single writer of this member's placement bindings (single placement,
+   * physical layouts, no divergence across any transition pair), so the
+   * per-pixel prologue rebinding is dropped. */
+  uniformPrologueBinding?: boolean
   /** #559: option carrier for per-member HSV conversion specialization. */
   hsvCaptureSpecialization?: boolean
   /** #559: true when the whole recipe proves phase adaptation is identically
@@ -1030,6 +1041,9 @@ export interface ShowCompileOptions {
   /** Benchmark counterfactual for the #566 inline call-subtree extension of
    * frame-invariant hoisting; production always uses the default `true`. */
   inlineCallHoisting?: boolean
+  /** Benchmark counterfactual for #571 per-pixel placement-prologue
+   * rebinding elimination; production always uses the default `true`. */
+  placementPrologueHoisting?: boolean
 }
 
 /** #532/#556 price of one persistent scalar write on the measured VM. */
@@ -2399,11 +2413,71 @@ export function compileShow(
         if (placement.zoneMode || placement.domainZoneNames?.length) nonUniformClipIds.add(placement.clipId)
       }
     }
+    // #571 (and the #562 transition fix): a non-cut transition's combined
+    // [from, to] setup entry writes one value per member per frame, so a clip
+    // whose placement bindings differ across the pair - or whose placements
+    // carry placement-scoped tracks on either side - must keep its per-pixel
+    // (or branch-form) binding for the divergent values.
+    const mirrorDivergentClipIds = new Set<string>()
+    const prologueDivergentClipIds = new Set<string>()
+    {
+      const sequenceScenes = expandedRecipe.routedSceneSequence?.scenes ?? []
+      type SequenceScene = typeof sequenceScenes[number]
+      const placementTrackedClipIds = (scene: SequenceScene): Set<string> => {
+        const clipByPlacementId = new Map(scene.placements.map((placement) => (
+          [placement.placementId, placement.clipId] as const
+        )))
+        return new Set((scene.propertyTracks ?? []).flatMap((track) => {
+          if (!('placementId' in track.target)) return []
+          const clipId = clipByPlacementId.get(track.target.placementId)
+          return clipId === undefined ? [] : [clipId]
+        }))
+      }
+      for (let sceneIndex = 0; sceneIndex < sequenceScenes.length - 1; sceneIndex += 1) {
+        const scene = sequenceScenes[sceneIndex]
+        if (!scene.transitionOut || scene.transitionOut.kind === 'cut') continue
+        const next = sequenceScenes[sceneIndex + 1]
+        const fromByClipId = new Map(scene.placements.map((placement) => [placement.clipId, placement]))
+        const fromTracked = placementTrackedClipIds(scene)
+        const toTracked = placementTrackedClipIds(next)
+        for (const toPlacement of next.placements) {
+          const fromPlacement = fromByClipId.get(toPlacement.clipId)
+          if (!fromPlacement) continue
+          const strip = ({ placementId: _placementId, ...rest }: typeof toPlacement) => rest
+          if (JSON.stringify(strip(fromPlacement)) !== JSON.stringify(strip(toPlacement))
+            || fromTracked.has(toPlacement.clipId)
+            || toTracked.has(toPlacement.clipId)) {
+            prologueDivergentClipIds.add(toPlacement.clipId)
+          }
+          // The mirror coefficients also depend on the placement's zone
+          // geometry (base_i is pixel-count derived), not just the flag.
+          if (Boolean(fromPlacement.mirror) !== Boolean(toPlacement.mirror)
+            || fromPlacement.zoneName !== toPlacement.zoneName
+            || fromPlacement.zoneMode !== toPlacement.zoneMode
+            || JSON.stringify(fromPlacement.domainZoneNames ?? null) !== JSON.stringify(toPlacement.domainZoneNames ?? null)) {
+            mirrorDivergentClipIds.add(toPlacement.clipId)
+          }
+        }
+      }
+    }
     for (const member of members) {
       member.uniformMirrorBinding = (options.capturePrologueSimplification ?? true)
         && !hasLogicalLayouts
         && !routeMode
         && !nonUniformClipIds.has(member.id)
+        && !mirrorDivergentClipIds.has(member.id)
+    }
+    // #571: the scheduler setup entry becomes the single per-frame writer of
+    // adaptation values, effect parameters, and placement track values; the
+    // per-pixel prologue rebinding drops. Requires #558's per-frame track
+    // assignment (colorCoefficientHoisting) for track-bearing members.
+    for (const member of members) {
+      member.uniformPrologueBinding = (options.placementPrologueHoisting ?? true)
+        && !hasLogicalLayouts
+        && !routeMode
+        && !nonUniformClipIds.has(member.id)
+        && !prologueDivergentClipIds.has(member.id)
+        && member.colorCoefficientHoisting === true
     }
     // #561: a member's per-pixel pixelCount write is redundant when its
     // virtual pixel count is one value across every arm that can invoke it;
@@ -3026,6 +3100,14 @@ export function compileShow(
           estimatedAddedBytes: policy === 'per-member' ? hsvMembers.length * 230 : 0,
         }
       })(),
+      placementPrologue: expandedRecipe.routedSceneSequence
+        ? {
+            enabled: options.placementPrologueHoisting ?? true,
+            memberIds: members
+              .filter((member) => member.uniformPrologueBinding === true)
+              .map((member) => member.id),
+          }
+        : null,
       capture: captureSpecializations,
       frameInvariants: members.map((member) => ({
         clipId: member.id,
@@ -4460,6 +4542,7 @@ function emitRoutedSceneSequenceShowCode(
       const propertyTrackAssignments = (propertyTrackContexts ?? []).flatMap((context) => ([
         emitRoutedInstancePropertyTrackAssignments(member, context.tracks, context.localTimeExpression),
         emitPlacementEffectTrackAssignments(member, memberPlacements, context.tracks, context.localTimeExpression),
+        emitPlacementViewTrackAssignments(member, memberPlacements, context.tracks, context.localTimeExpression),
       ])).filter(Boolean).join('\n')
       const ownerEntry = emitPatternSlotOwnerEntry(member, placement.slotOwner)
       // #562: the scheduler owns the frame's mirror state and coefficients for
@@ -4472,9 +4555,26 @@ ${member.prefix}_mir_base_i = ${placement.mirror ? physicalPixelCount - 1 : 0}`
           : `\n${placement.mirror === undefined ? '' : `${member.prefix}_adapt_mirror = ${boolNumber(placement.mirror)}\n`}${member.prefix}_mir_sign = 1 - 2 * ${member.prefix}_adapt_mirror
 ${member.prefix}_mir_base_i = ${member.prefix}_adapt_mirror * (${member.pixelCountName} - 1)`
         : ''
-      const code = `${member.pixelCountName} = ${pixelCount}${ownerEntry ? `\n${ownerEntry}` : ''}${mirrorEntry}${emitSceneControlTargets(member, placement.controlTargets)}${emitSceneEffectTargets(member, showClipTransformEffects(placement.transform, placement.effects, true))}${placement.brightness === undefined
+      // #571: uniform-binding members read static-plan effect parameters and
+      // the static phase from here instead of rebinding them per pixel.
+      const staticPlanEntry = member.uniformPrologueBinding
+        && member.animatedEffects && member.staticPlanEffects && member.effects.length > 0
+        ? staticPlanEffectAssignments(member, showClipTransformEffects(placement.transform, placement.effects, true))
+            .map((line) => `\n${line}`)
+            .join('')
+        : ''
+      const phaseEntry = member.uniformPrologueBinding && placement.phase !== undefined
+        ? `\n${member.prefix}_adapt_phase = ${placement.phase}`
+        : ''
+      // The brightness and timeScale setup writes below predate #571 and stay
+      // unconditional: non-uniform members' per-pixel arms rebind brightness
+      // after this entry (the per-arm value wins by ordering), and gating them
+      // on uniformPrologueBinding would break byte-for-byte neutrality for
+      // divergent members. Only phase and static-plan parameters are new here,
+      // so only they carry the uniform gate.
+      const code = `${member.pixelCountName} = ${pixelCount}${ownerEntry ? `\n${ownerEntry}` : ''}${mirrorEntry}${emitSceneControlTargets(member, placement.controlTargets)}${emitSceneEffectTargets(member, showClipTransformEffects(placement.transform, placement.effects, true))}${staticPlanEntry}${placement.brightness === undefined
         ? ''
-        : `\n${member.prefix}_adapt_brightness = ${placement.brightness}`}${placement.timeScale === undefined
+        : `\n${member.prefix}_adapt_brightness = ${placement.brightness}`}${phaseEntry}${placement.timeScale === undefined
           ? ''
           : `\n${member.prefix}_adapt_timeScale = ${placement.timeScale}`}${rampAssignments
             ? `\n${rampAssignments}`
@@ -5811,10 +5911,32 @@ function emitRoutedSceneRampAssignments(
   ]).filter(Boolean).join('\n')
 }
 
+/** #571: placement-view brightness/phase track values move to the scheduler
+ * for uniform-binding members whose per-pixel prologue no longer rebinds. */
+function emitPlacementViewTrackAssignments(
+  member: CompiledMember,
+  placements: ResolvedRoutedScenePlacement[],
+  tracks: ShowPropertyAnimationTrack[],
+  localTimeExpression: string,
+): string {
+  if (member.uniformPrologueBinding !== true) return ''
+  const placementIds = new Set(placements.map((placement) => placement.placementId))
+  return tracks.flatMap((track): string[] => {
+    if (track.target.kind !== 'placement-view' || !placementIds.has(track.target.placementId)) return []
+    if (track.target.property === 'brightness') {
+      return [`${member.prefix}_adapt_brightness = ${emitShowPropertyTrackExpression(track, localTimeExpression)}`]
+    }
+    if (track.target.property === 'phase') {
+      return [`${member.prefix}_adapt_phase = ${emitShowPropertyTrackExpression(track, localTimeExpression)}`]
+    }
+    return []
+  }).join('\n')
+}
+
 /** #558: placement-effect and placement-transform track values are frame
  * invariant, so the scheduler assigns them once per frame before the member's
  * advance call — the per-frame coefficient refresh depends on this ordering.
- * The per-pixel prologue still re-assigns them (removal is #562's slice). */
+ * #571 removes the per-pixel re-assignment for uniform-binding members. */
 function emitPlacementEffectTrackAssignments(
   member: CompiledMember,
   placements: ResolvedRoutedScenePlacement[],
@@ -6889,25 +7011,32 @@ function emitRoutedPlacementCapture(
     track.target.kind === 'placement-view' && track.target.property === 'phase'
   ))
   const member = placement.member
+  // #571: uniform-binding members bind adaptation values, effect parameters,
+  // and track values once per frame in the scheduler setup entry; the arm
+  // keeps only the capture call (and the mirror line when #562's coefficient
+  // form is separately disabled).
+  const uniform = member.uniformPrologueBinding === true
   return {
     lines: [
-      ...(brightnessTrack && localTimeExpression
-        ? [`${member.prefix}_adapt_brightness = ${emitShowPropertyTrackExpression(brightnessTrack, localTimeExpression)}`]
-        : placement.brightness === undefined ? [] : [`${member.prefix}_adapt_brightness = ${placement.brightness}`]),
-      ...(phaseTrack && localTimeExpression
-        ? [`${member.prefix}_adapt_phase = ${emitShowPropertyTrackExpression(phaseTrack, localTimeExpression)}`]
-        : placement.phase === undefined ? [] : [`${member.prefix}_adapt_phase = ${placement.phase}`]),
+      ...(uniform ? [] : [
+        ...(brightnessTrack && localTimeExpression
+          ? [`${member.prefix}_adapt_brightness = ${emitShowPropertyTrackExpression(brightnessTrack, localTimeExpression)}`]
+          : placement.brightness === undefined ? [] : [`${member.prefix}_adapt_brightness = ${placement.brightness}`]),
+        ...(phaseTrack && localTimeExpression
+          ? [`${member.prefix}_adapt_phase = ${emitShowPropertyTrackExpression(phaseTrack, localTimeExpression)}`]
+          : placement.phase === undefined ? [] : [`${member.prefix}_adapt_phase = ${placement.phase}`]),
+      ]),
       // #562: uniform-binding members get mirror state from the scheduler's
       // per-frame setup; only divergent-binding members rebind per pixel.
       ...(placement.mirror === undefined || member.uniformMirrorBinding
         ? []
         : [`${member.prefix}_adapt_mirror = ${boolNumber(placement.mirror)}`]),
-      ...emitRoutedPlacementEffectTargets(
+      ...(uniform ? [] : emitRoutedPlacementEffectTargets(
         member,
         showClipTransformEffects(placement.transform, placement.effects, true),
         placementTracks,
         localTimeExpression,
-      ),
+      )),
       capture,
     ],
     opacity,
@@ -6927,30 +7056,7 @@ function emitRoutedPlacementEffectTargets(
     ?? identityShowEffect(template)
   ))
   const hasAffine = member.effects.some((effect) => ['translate', 'rotate', 'scale', 'shear'].includes(effect.kind))
-  if (member.staticPlanEffects) {
-    const parameterAssignments = resolved.flatMap((effect) => (
-      ['translate', 'rotate', 'scale', 'shear'].includes(effect.kind)
-        ? []
-        : showEffectParameterNames(effect).map((parameter) => (
-            `${effectParameterVariable(member, effect.id, parameter)} = ${effectParameterValue(effect, parameter)}`
-          ))
-    ))
-    const matrixAssignments = hasAffine
-      ? (() => {
-          const matrix = buildShowEffectSampleMatrix(resolved)
-          const value = (candidate: number) => String(Object.is(candidate, -0) ? 0 : candidate)
-          return [
-            `${member.prefix}_fx_a = ${value(matrix.a)}`,
-            `${member.prefix}_fx_b = ${value(matrix.b)}`,
-            `${member.prefix}_fx_c = ${value(matrix.c)}`,
-            `${member.prefix}_fx_d = ${value(matrix.d)}`,
-            `${member.prefix}_fx_tx = ${value(matrix.tx)}`,
-            `${member.prefix}_fx_ty = ${value(matrix.ty)}`,
-          ]
-        })()
-      : []
-    return [...parameterAssignments, ...matrixAssignments]
-  }
+  if (member.staticPlanEffects) return staticPlanEffectAssignmentsFromResolved(member, resolved, hasAffine)
   const assignments = emitSceneEffectTargets(member, resolved).trim()
   const animationAssignments = localTimeExpression
     ? placementTracks.flatMap((track): string[] => {
@@ -6968,6 +7074,50 @@ function emitRoutedPlacementEffectTargets(
     ...animationAssignments,
     ...(hasAffine ? [`${member.prefix}_fx_update()`] : []),
   ]
+}
+
+/** Constant parameter and baked-matrix writes for a static-plan member,
+ * shared by the per-pixel arm (non-uniform) and the scheduler setup (#571). */
+function staticPlanEffectAssignments(
+  member: CompiledMember,
+  placementEffects: ShowClipEffect[] | undefined,
+): string[] {
+  const authored = normalizeShowClipEffects(placementEffects)
+  const resolved = member.effects.map((template) => (
+    authored.find((effect) => effect.id === template.id && effect.kind === template.kind)
+    ?? identityShowEffect(template)
+  ))
+  const hasAffine = member.effects.some((effect) => ['translate', 'rotate', 'scale', 'shear'].includes(effect.kind))
+  return staticPlanEffectAssignmentsFromResolved(member, resolved, hasAffine)
+}
+
+function staticPlanEffectAssignmentsFromResolved(
+  member: CompiledMember,
+  resolved: ShowClipEffect[],
+  hasAffine: boolean,
+): string[] {
+  const parameterAssignments = resolved.flatMap((effect) => (
+    ['translate', 'rotate', 'scale', 'shear'].includes(effect.kind)
+      ? []
+      : showEffectParameterNames(effect).map((parameter) => (
+          `${effectParameterVariable(member, effect.id, parameter)} = ${effectParameterValue(effect, parameter)}`
+        ))
+  ))
+  const matrixAssignments = hasAffine
+    ? (() => {
+        const matrix = buildShowEffectSampleMatrix(resolved)
+        const value = (candidate: number) => String(Object.is(candidate, -0) ? 0 : candidate)
+        return [
+          `${member.prefix}_fx_a = ${value(matrix.a)}`,
+          `${member.prefix}_fx_b = ${value(matrix.b)}`,
+          `${member.prefix}_fx_c = ${value(matrix.c)}`,
+          `${member.prefix}_fx_d = ${value(matrix.d)}`,
+          `${member.prefix}_fx_tx = ${value(matrix.tx)}`,
+          `${member.prefix}_fx_ty = ${value(matrix.ty)}`,
+        ]
+      })()
+    : []
+  return [...parameterAssignments, ...matrixAssignments]
 }
 
 function identityShowEffect(effect: ShowClipEffect): ShowClipEffect {

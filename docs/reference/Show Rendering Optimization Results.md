@@ -338,6 +338,7 @@ lives in `docs/plans/archive/show-rendering-next-wave-measurement-ledger.md`.
 | 10 | #560 Mirror within-frame reuse | **recorded negative**: render-order kill-test PASSED (ascending, total coverage), but a mirror reversal is a permutation with no within-frame redundancy for single placements; twin stacks are the only paying shape (owner-declined) |
 | 11 | #568 trig-layout packed routing (diagnostic) | **priced verdict, no build**: chain arithmetic favors a table (~14 us/pixel) but fw 3.67 integer-coercing bit ops cap single-plane packing at 6-bit coordinates; profile-dependent, quantization-limited |
 | 12 | #563 zone-coordinate strength reduction | **recorded negative**: modulo is free vs a multiply, floor-feeding reciprocals step whole rows, outer reciprocals err ~WIDTH/2 LSBs (exact only for power-of-two divisors) |
+| 13 | #571 placement-prologue rebinding elimination | effect-tax +14.27/+14.29/+14.91% median FPS at 256/1,000/2,000 px, bytecode -800 B; prologue-free fixtures byte-identical; fixes the #562 transition-pair mirror divergence; exact |
 
 Wave-2 slice ledgers with full axes live as comments on #554.
 
