@@ -1711,6 +1711,18 @@ Qualified on the Controller at +68.6% to +69.6% median FPS on the HSV
 steady-state fixture at 256/1,000/2,000 pixels; `directColorSinks: false`
 restores the capture build for counterfactual measurement.
 
+Capture frames pay a per-member specialized conversion (#559): the slot
+argument is a compile-time constant at every renamed `hsv()` call site, so
+each HSV member's sink inlines the sextant conversion writing its own capture
+globals - no slot argument, no second call, no dispatch chain - and each
+sextant arm computes only the values it uses. The formula and operand order
+are unchanged (bit-exact against the shared chain in Fast and Precise); the
+phase-adaptation add strips under a whole-recipe identity proof. Shows with
+more than eight HSV members keep the shared chain (a deterministic ~230-byte
+per-member trade named in the compile summary). Measured on the pb32: the
+shared slot-dispatched chain costs 39.6 us/call and the specialized form
+22.9 us/call - 16.7 us returned per captured HSV pixel.
+
 ### Exact frame-invariant specialization
 
 Since #566 the pass also hoists maximal pure call subtrees appearing inline

@@ -1,0 +1,294 @@
+{
+  "generatedAt": "2026-07-20T14:26:01.702Z",
+  "label": "hsvchain",
+  "controller": {
+    "ip": "192.168.8.224",
+    "name": "Burner bag",
+    "boardType": "pb32",
+    "firmwareVersion": "3.67",
+    "originalPixelCount": 256,
+    "originalActiveProgramId": "pxbg3carHT6eYhdRh",
+    "outputProfile": "native-serial (assumed)",
+    "settleMs": 2000,
+    "sampleMs": 4000
+  },
+  "fixtures": [
+    {
+      "id": "redline-reference",
+      "notes": "Stock Redline Installation, unchanged; continuity with the #531 ledger."
+    },
+    {
+      "id": "hsv-steady-state",
+      "notes": "One zone, two >=20 s holds, one 2 s Crossfade; EasedSweep (cheap) and Caustics (heavy) both emit through hsv()."
+    },
+    {
+      "id": "effect-tax",
+      "notes": "HSV steady-state Show plus an animated hue-rotate and a posterize Effect on each scene member."
+    },
+    {
+      "id": "mirror",
+      "notes": "Single zone; heavy HSV member with the horizontal Mirror Effect (#543)."
+    },
+    {
+      "id": "five-pattern-acceptance",
+      "notes": "Unchanged five-Pattern acceptance Show for whole-Show regression coverage."
+    }
+  ],
+  "rows": [
+    {
+      "fixture": "redline-reference",
+      "pixelCount": 256,
+      "sourceBytes": 19198,
+      "expandedSourceBytes": 30204,
+      "vmWords": 6096,
+      "persistentGlobals": 56,
+      "bytecodeBytes": 11854,
+      "activationMs": 563,
+      "fps": {
+        "mean": 17.1451975,
+        "median": 17.830615,
+        "min": 15.08011,
+        "max": 17.83945,
+        "samples": 16
+      }
+    },
+    {
+      "fixture": "hsv-steady-state",
+      "pixelCount": 256,
+      "sourceBytes": 12702,
+      "expandedSourceBytes": 18143,
+      "vmWords": 6012,
+      "persistentGlobals": 52,
+      "bytecodeBytes": 7526,
+      "activationMs": 535,
+      "fps": {
+        "mean": 70.80531625,
+        "median": 70.78764,
+        "min": 70.71713,
+        "max": 70.85828,
+        "samples": 16
+      }
+    },
+    {
+      "fixture": "effect-tax",
+      "pixelCount": 256,
+      "sourceBytes": 17407,
+      "expandedSourceBytes": 26956,
+      "vmWords": 6012,
+      "persistentGlobals": 71,
+      "bytecodeBytes": 10690,
+      "activationMs": 568,
+      "fps": {
+        "mean": 24.428124999999994,
+        "median": 24.51018,
+        "min": 24.0616,
+        "max": 24.63054,
+        "samples": 16
+      }
+    },
+    {
+      "fixture": "mirror",
+      "pixelCount": 256,
+      "sourceBytes": 7948,
+      "expandedSourceBytes": 10594,
+      "vmWords": 6018,
+      "persistentGlobals": 30,
+      "bytecodeBytes": 4718,
+      "activationMs": 576,
+      "fps": {
+        "mean": 6.785001937499999,
+        "median": 6.782946,
+        "min": 6.782946,
+        "max": 6.789525,
+        "samples": 16
+      }
+    },
+    {
+      "fixture": "five-pattern-acceptance",
+      "pixelCount": 256,
+      "sourceBytes": 51106,
+      "expandedSourceBytes": 89777,
+      "vmWords": 6012,
+      "persistentGlobals": 175,
+      "bytecodeBytes": 30118,
+      "activationMs": 752,
+      "fps": {
+        "mean": 21.236892499999996,
+        "median": 21.76063,
+        "min": 19.66568,
+        "max": 21.76063,
+        "samples": 16
+      }
+    },
+    {
+      "fixture": "redline-reference",
+      "pixelCount": 1000,
+      "sourceBytes": 19198,
+      "expandedSourceBytes": 30204,
+      "vmWords": 6096,
+      "persistentGlobals": 56,
+      "bytecodeBytes": 11854,
+      "activationMs": 737,
+      "fps": {
+        "mean": 4.9067030625,
+        "median": 4.840271,
+        "min": 4.621072,
+        "max": 5.235602,
+        "samples": 16
+      }
+    },
+    {
+      "fixture": "hsv-steady-state",
+      "pixelCount": 1000,
+      "sourceBytes": 12702,
+      "expandedSourceBytes": 18143,
+      "vmWords": 6012,
+      "persistentGlobals": 52,
+      "bytecodeBytes": 7526,
+      "activationMs": 552,
+      "fps": {
+        "mean": 18.335347499999994,
+        "median": 18.33977,
+        "min": 18.32208,
+        "max": 18.33977,
+        "samples": 16
+      }
+    },
+    {
+      "fixture": "effect-tax",
+      "pixelCount": 1000,
+      "sourceBytes": 17407,
+      "expandedSourceBytes": 26956,
+      "vmWords": 6012,
+      "persistentGlobals": 71,
+      "bytecodeBytes": 10690,
+      "activationMs": 566,
+      "fps": {
+        "mean": 6.276542500000001,
+        "median": 6.300631,
+        "min": 6.183746,
+        "max": 6.34058,
+        "samples": 16
+      }
+    },
+    {
+      "fixture": "mirror",
+      "pixelCount": 1000,
+      "sourceBytes": 7948,
+      "expandedSourceBytes": 10594,
+      "vmWords": 6018,
+      "persistentGlobals": 30,
+      "bytecodeBytes": 4718,
+      "activationMs": 1297,
+      "fps": {
+        "mean": 1.7392258125000002,
+        "median": 1.739131,
+        "min": 1.737619,
+        "max": 1.740644,
+        "samples": 16
+      }
+    },
+    {
+      "fixture": "five-pattern-acceptance",
+      "pixelCount": 1000,
+      "sourceBytes": 51106,
+      "expandedSourceBytes": 89777,
+      "vmWords": 6012,
+      "persistentGlobals": 175,
+      "bytecodeBytes": 30118,
+      "activationMs": 1088,
+      "fps": {
+        "mean": 4.534170624999999,
+        "median": 4.625347,
+        "min": 4.139073,
+        "max": 4.625347,
+        "samples": 16
+      }
+    },
+    {
+      "fixture": "redline-reference",
+      "pixelCount": 2000,
+      "sourceBytes": 19198,
+      "expandedSourceBytes": 30204,
+      "vmWords": 6096,
+      "persistentGlobals": 56,
+      "bytecodeBytes": 11854,
+      "activationMs": 985,
+      "fps": {
+        "mean": 3.0615318125000006,
+        "median": 3.162055,
+        "min": 2.832861,
+        "max": 3.172086,
+        "samples": 16
+      }
+    },
+    {
+      "fixture": "hsv-steady-state",
+      "pixelCount": 2000,
+      "sourceBytes": 12702,
+      "expandedSourceBytes": 18143,
+      "vmWords": 6012,
+      "persistentGlobals": 52,
+      "bytecodeBytes": 7526,
+      "activationMs": 533,
+      "fps": {
+        "mean": 9.184846,
+        "median": 9.182736,
+        "min": 9.182736,
+        "max": 9.191176,
+        "samples": 16
+      }
+    },
+    {
+      "fixture": "effect-tax",
+      "pixelCount": 2000,
+      "sourceBytes": 17407,
+      "expandedSourceBytes": 26956,
+      "vmWords": 6012,
+      "persistentGlobals": 71,
+      "bytecodeBytes": 10690,
+      "activationMs": 867,
+      "fps": {
+        "mean": 3.1424686875,
+        "median": 3.147128,
+        "min": 3.095975,
+        "max": 3.172086,
+        "samples": 16
+      }
+    },
+    {
+      "fixture": "mirror",
+      "pixelCount": 2000,
+      "sourceBytes": 7948,
+      "expandedSourceBytes": 10594,
+      "vmWords": 6018,
+      "persistentGlobals": 30,
+      "bytecodeBytes": 4718,
+      "activationMs": 2736,
+      "fps": {
+        "mean": 0.8700381249999999,
+        "median": 0.870322,
+        "min": 0.869565,
+        "max": 0.870322,
+        "samples": 16
+      }
+    },
+    {
+      "fixture": "five-pattern-acceptance",
+      "pixelCount": 2000,
+      "sourceBytes": 51106,
+      "expandedSourceBytes": 89777,
+      "vmWords": 6012,
+      "persistentGlobals": 175,
+      "bytecodeBytes": 30118,
+      "activationMs": 1995,
+      "fps": {
+        "mean": 1.8288352500000007,
+        "median": 1.862197,
+        "min": 1.596169,
+        "max": 1.862197,
+        "samples": 16
+      }
+    }
+  ]
+}

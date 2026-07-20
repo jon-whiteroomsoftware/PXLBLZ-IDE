@@ -81,6 +81,22 @@ Same paired-baseline method as round one. Built-in baselines replace the call wi
 - Function values can be stored in scalars and array elements and called; rebinding is available (costs in the call rows above).
 
 
+### Round three - 2026-07-20 (#559)
+
+Same method (2,593 iterations, 5 samples, paired baselines, reversible probe
+load). The production shared HSV capture chain (slot through two 4-arg calls
+plus dispatch) versus the #559 per-member specialized conversion, both over
+the same direct-write RGB baseline:
+
+| operation | mean net us | median net | vs mul |
+|---|---:|---:|---:|
+| `shared HSV capture chain (slot-dispatched)` | 39.641 | 39.606 | 49.1x |
+| `#559 specialized per-member conversion` | 22.925 | 22.908 | 28.4x |
+| `delta (specialization win per call)` | 16.716 | 16.737 | 20.7x |
+
+Raw samples: `issue559-probe.json`. The round-one 35.308 us row measured the
+conversion without slot dispatch; the production chain's 39.6 us includes it.
+
 ### Round-two caveats
 
 - `floor`, `frac`, `abs`, `min`, and `max` measure at or below their
