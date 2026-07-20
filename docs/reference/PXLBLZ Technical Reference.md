@@ -2578,6 +2578,18 @@ maps local X to `1 - x` in 2D before the inverse affine matrix. Mirror is
 discrete: it can be added or removed, but not duplicated, reordered, or used as
 a Property-animation target.
 
+Generated color-effect lines obey a coefficient-hoisting contract (#558):
+frame-invariant subexpressions of effect parameters - the hue-rotate rotation
+matrix terms, chroma-key tolerance products and matte denominator, posterize
+span, and every `1 - amount` keep factor - are never computed per pixel.
+Animated members recompute them once per frame in the same update hook as the
+affine sample matrix (parameters are always written before the member's
+advance call); members without animated parameters initialize them once at
+pattern load with device arithmetic, so the values are exact by construction.
+Members placed more than once in a Scene keep per-pixel computation because a
+single per-frame value cannot serve placements with divergent parameters. The
+transformation is exact: identical arithmetic, moved in time.
+
 The stack has two explicit evaluation stages because coordinate operations must
 run before the Pattern renderer and output operations must run after it.
 Translate, rotate, scale, and shear compose in their relative authored order;

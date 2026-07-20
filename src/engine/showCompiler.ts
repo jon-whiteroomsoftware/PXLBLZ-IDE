@@ -845,6 +845,9 @@ interface CompiledMember {
   conditionalContentKeyEvaluation: boolean
   coverageDirectedComposition: boolean
   coordinateFieldCapture: boolean
+  /** #558: false when a scene places this member more than once, because
+   * per-frame coefficients cannot serve placements with differing params. */
+  colorCoefficientHoisting?: boolean
   generatedEffectKernelSharing: boolean
   animatedEffectParameterPaths: string[]
   freezeOwnerTokens: number[]
@@ -991,6 +994,9 @@ export interface ShowCompileOptions {
   /** Steady-state direct color sinks (#557). Default on: qualified at
    * +68.6-69.6% median FPS on the HSV steady-state fixture (2026-07-19). */
   directColorSinks?: boolean
+  /** Benchmark counterfactual for #558 frame-invariant color-effect
+   * coefficient hoisting; production always uses the default `true`. */
+  colorCoefficientHoisting?: boolean
 }
 
 const DIRECT_SNAPSHOT_CANDIDATE_ID = 'transition:direct:snapshot-live'
@@ -2316,6 +2322,25 @@ export function compileShow(
   })
   const coordinateFieldMemberIds = new Set(selectedCoordinateFields.flatMap((field) => field.memberIds))
   for (const member of members) member.coordinateFieldCapture = coordinateFieldMemberIds.has(member.id)
+  // #558: members placed more than once in a scene keep per-pixel coefficient
+  // computation - a single per-frame refresh cannot serve divergent params.
+  // The compile option is a benchmark counterfactual only.
+  {
+    const multiPlacementClipIds = new Set<string>()
+    for (const scene of expandedRecipe.routedSceneSequence?.scenes ?? []) {
+      const counts = new Map<string, number>()
+      for (const placement of scene.placements) {
+        counts.set(placement.clipId, (counts.get(placement.clipId) ?? 0) + 1)
+      }
+      for (const [clipId, count] of counts) {
+        if (count > 1) multiPlacementClipIds.add(clipId)
+      }
+    }
+    for (const member of members) {
+      member.colorCoefficientHoisting = (options.colorCoefficientHoisting ?? true)
+        && !multiPlacementClipIds.has(member.id)
+    }
+  }
   const routedSceneEmission = expandedRecipe.routedSceneSequence
       ? emitRoutedSceneSequenceShowCode(
         members,
@@ -4262,9 +4287,10 @@ function emitRoutedSceneSequenceShowCode(
         ramps?.filter((ramp) => ramp.member === member),
         '(__pxlblz_show_elapsed_s - __pxlblz_show_transition_start_s) * 1000',
       )
-      const propertyTrackAssignments = (propertyTrackContexts ?? []).map((context) => (
-        emitRoutedInstancePropertyTrackAssignments(member, context.tracks, context.localTimeExpression)
-      )).filter(Boolean).join('\n')
+      const propertyTrackAssignments = (propertyTrackContexts ?? []).flatMap((context) => ([
+        emitRoutedInstancePropertyTrackAssignments(member, context.tracks, context.localTimeExpression),
+        emitPlacementEffectTrackAssignments(member, memberPlacements, context.tracks, context.localTimeExpression),
+      ])).filter(Boolean).join('\n')
       const ownerEntry = emitPatternSlotOwnerEntry(member, placement.slotOwner)
       const code = `${member.pixelCountName} = ${pixelCount}${ownerEntry ? `\n${ownerEntry}` : ''}${emitSceneControlTargets(member, placement.controlTargets)}${emitSceneEffectTargets(member, showClipTransformEffects(placement.transform, placement.effects, true))}${placement.brightness === undefined
         ? ''
@@ -5603,6 +5629,32 @@ function emitRoutedSceneRampAssignments(
     emitControlRampAssignments(ramp.member, ramp.controlRamps, elapsedExpression),
     emitEffectRampAssignments(ramp.member, ramp.effectRamps, elapsedExpression),
   ]).filter(Boolean).join('\n')
+}
+
+/** #558: placement-effect and placement-transform track values are frame
+ * invariant, so the scheduler assigns them once per frame before the member's
+ * advance call — the per-frame coefficient refresh depends on this ordering.
+ * The per-pixel prologue still re-assigns them (removal is #562's slice). */
+function emitPlacementEffectTrackAssignments(
+  member: CompiledMember,
+  placements: ResolvedRoutedScenePlacement[],
+  tracks: ShowPropertyAnimationTrack[],
+  localTimeExpression: string,
+): string {
+  // Multi-placement members keep per-pixel parameter binding (their params
+  // diverge per placement); a frame-level assignment would be dead weight.
+  if (member.colorCoefficientHoisting === false) return ''
+  const placementIds = new Set(placements.map((placement) => placement.placementId))
+  return tracks.flatMap((track): string[] => {
+    if (!('placementId' in track.target) || !placementIds.has(track.target.placementId)) return []
+    if (track.target.kind === 'placement-transform') {
+      const target = showClipTransformEffectTarget(track.target.property)
+      return [`${effectParameterVariable(member, target.effectId, target.parameter)} = ${emitShowPropertyTrackExpression(track, localTimeExpression)}`]
+    }
+    if (track.target.kind !== 'placement-effect') return []
+    const parameter = showClipEffectPersistedField(track.target.effectKind, track.target.parameterId)
+    return [`${effectParameterVariable(member, track.target.effectId, parameter)} = ${emitShowPropertyTrackExpression(track, localTimeExpression)}`]
+  }).join('\n')
 }
 
 function emitRoutedInstancePropertyTrackAssignments(
@@ -8337,7 +8389,14 @@ function describeMemberEffectRuntime(member: CompiledMember, sharedKernel?: Shar
   ${member.prefix}_fx_mtx = ${suffix}_next_tx
   ${member.prefix}_fx_mty = ${suffix}_next_ty`]
   })
-  const updateFunction = `function ${member.prefix}_fx_update() {
+  // #558: animated frame-invariant color-effect coefficients refresh in the
+  // same per-frame hook as the affine matrix (parameters are always written
+  // before the advance/update call).
+  const colorDefs = memberHoistsColorCoefficients(member) ? colorCoefficientDefs(member) : []
+  const colorUpdateLines = member.animatedEffects
+    ? colorDefs.map((def) => `  ${def.name} = ${def.expression}`)
+    : []
+  const updateFunction = `function ${member.prefix}_fx_update() {${hasAffine ? `
   ${member.prefix}_fx_ma = 1
   ${member.prefix}_fx_mb = 0
   ${member.prefix}_fx_mc = 0
@@ -8352,21 +8411,26 @@ ${operationAssignments.join('\n')}
   ${member.prefix}_fx_c = -${member.prefix}_fx_mc / ${member.prefix}_fx_det
   ${member.prefix}_fx_d = ${member.prefix}_fx_ma / ${member.prefix}_fx_det
   ${member.prefix}_fx_tx = (${member.prefix}_fx_mc * ${member.prefix}_fx_mty - ${member.prefix}_fx_md * ${member.prefix}_fx_mtx) / ${member.prefix}_fx_det
-  ${member.prefix}_fx_ty = (${member.prefix}_fx_mb * ${member.prefix}_fx_mtx - ${member.prefix}_fx_ma * ${member.prefix}_fx_mty) / ${member.prefix}_fx_det
+  ${member.prefix}_fx_ty = (${member.prefix}_fx_mb * ${member.prefix}_fx_mtx - ${member.prefix}_fx_ma * ${member.prefix}_fx_mty) / ${member.prefix}_fx_det` : ''}${colorUpdateLines.length > 0 ? `\n${colorUpdateLines.join('\n')}` : ''}
 }`
   const sharedUpdateFunction = sharedKernel
-    ? `function ${member.prefix}_fx_update() {${emitSharedScaleMemberUpdate(member, sharedKernel)}
+    ? `function ${member.prefix}_fx_update() {${emitSharedScaleMemberUpdate(member, sharedKernel)}${colorUpdateLines.length > 0 ? `\n${colorUpdateLines.join('\n')}` : ''}
 }`
     : ''
   return {
     hasAffine,
     hasCoordinates,
+    hasColorCoefficients: colorDefs.length > 0,
     wrap,
     opacity,
     declarations: [
       ...(member.animatedEffects ? [
         ...parameterDeclarations,
       ] : []),
+      // #558 coefficient globals: parameter declarations precede them, so
+      // animated initializers see the initial parameter values; static
+      // initializers are literal expressions the device evaluates at load.
+      ...colorDefs.map((def) => `var ${def.name} = ${def.expression}`),
       ...(member.animatedEffects && hasAffine && !member.staticPlanEffects && !sharedKernel ? [
         `var ${member.prefix}_fx_ma = 1`,
         `var ${member.prefix}_fx_mb = 0`,
@@ -8383,7 +8447,7 @@ ${operationAssignments.join('\n')}
         `var ${member.prefix}_fx_tx = ${matrix.tx}`,
         `var ${member.prefix}_fx_ty = ${matrix.ty}`,
       ] : []),
-      ...(member.animatedEffects && hasAffine && !member.staticPlanEffects
+      ...(member.animatedEffects && (hasAffine || colorDefs.length > 0) && !member.staticPlanEffects
         ? [sharedKernel ? sharedUpdateFunction : updateFunction]
         : []),
     ],
@@ -8457,6 +8521,68 @@ function effectParameterValue(effect: ShowClipEffect, parameter: string): number
   return showEffectNumericValue(effect, parameter)
 }
 
+interface ColorCoefficientDef {
+  name: string
+  expression: string
+}
+
+/**
+ * #558: frame-invariant coefficients of generated color-effect lines. The
+ * guard mirrors emitMemberOutputEffectLines' per-effect skip exactly. Animated
+ * members recompute these once per frame in the fx_update hook (parameter
+ * globals are written before every advance call); static members initialize
+ * them once at pattern load with device arithmetic, which is exact by
+ * construction. Reads of persistent globals are free on this VM (#532).
+ */
+function colorCoefficientDefs(member: CompiledMember): ColorCoefficientDef[] {
+  const value = (effect: ShowClipEffect, parameter: string): string => member.animatedEffects
+    ? effectParameterVariable(member, effect.id, parameter)
+    : String(showEffectNumericValue(effect, parameter))
+  const defs: ColorCoefficientDef[] = []
+  for (const [index, effect] of normalizeShowClipEffects(member.effects).entries()) {
+    if (!isShowColorEffect(effect) || (!member.animatedEffects && showEffectsAreIdentity([effect]))) continue
+    const name = `${member.prefix}_fx_color_${index}`
+    if (effect.kind === 'hue') {
+      const turns = value(effect, 'turns')
+      defs.push(
+        { name: `${name}_cos`, expression: `cos(${turns} * 6.283185307179586)` },
+        { name: `${name}_sin`, expression: `sin(${turns} * 6.283185307179586)` },
+        { name: `${name}_third`, expression: `(1 - ${name}_cos) / 3` },
+        { name: `${name}_cross`, expression: `${name}_sin / 1.7320508075688772` },
+        { name: `${name}_diagonal`, expression: `${name}_cos + ${name}_third` },
+      )
+    } else if (effect.kind === 'invert' || effect.kind === 'threshold' || effect.kind === 'color-map') {
+      defs.push({ name: `${name}_keep`, expression: `1 - ${value(effect, 'amount')}` })
+    } else if (effect.kind === 'posterize') {
+      defs.push(
+        {
+          name: `${name}_span`,
+          expression: member.animatedEffects ? `max(1, floor(${value(effect, 'levels')}) - 1)` : String(Number(effect.levels - 1)),
+        },
+        { name: `${name}_keep`, expression: `1 - ${value(effect, 'amount')}` },
+      )
+    } else if (effect.kind === 'chroma-key') {
+      const tolerance = value(effect, 'tolerance')
+      const softness = value(effect, 'softness')
+      defs.push(
+        { name: `${name}_inner2`, expression: `${tolerance} * ${tolerance}` },
+        { name: `${name}_outer`, expression: `min(1, ${tolerance} + ${softness})` },
+        { name: `${name}_denominator`, expression: `max(0.000001, ${name}_outer * ${name}_outer - ${name}_inner2)` },
+      )
+    }
+  }
+  return defs
+}
+
+/** Hoisting applies except on the animated static-plan path (whose update
+ * hook never runs) and for members placed multiple times per scene (whose
+ * params diverge per placement); those keep the per-pixel computation. */
+function memberHoistsColorCoefficients(member: CompiledMember): boolean {
+  if (member.animatedEffects && member.staticPlanEffects) return false
+  if (member.colorCoefficientHoisting === false) return false
+  return colorCoefficientDefs(member).length > 0
+}
+
 function emitMemberOutputEffectLines(
   member: CompiledMember,
   coordinate: { index: string; x: string; y: string },
@@ -8467,6 +8593,10 @@ function emitMemberOutputEffectLines(
   const value = (effect: ShowClipEffect, parameter: string): string => member.animatedEffects
     ? effectParameterVariable(member, effect.id, parameter)
     : String(showEffectNumericValue(effect, parameter))
+  // #558: hoisted members reference the frame-invariant coefficient globals
+  // by name (declared and refreshed by colorCoefficientDefs) instead of
+  // recomputing them per pixel.
+  const hoisted = memberHoistsColorCoefficients(member)
   const lines = member.exactSpecializations && !member.needsBrightnessScale
     ? []
     : [
@@ -8489,11 +8619,13 @@ function emitMemberOutputEffectLines(
         `  var ${name}_r = ${r}`,
         `  var ${name}_g = ${g}`,
         `  var ${name}_b = ${b}`,
-        `  var ${name}_cos = cos(${turns} * 6.283185307179586)`,
-        `  var ${name}_sin = sin(${turns} * 6.283185307179586)`,
-        `  var ${name}_third = (1 - ${name}_cos) / 3`,
-        `  var ${name}_cross = ${name}_sin / 1.7320508075688772`,
-        `  var ${name}_diagonal = ${name}_cos + ${name}_third`,
+        ...(hoisted ? [] : [
+          `  var ${name}_cos = cos(${turns} * 6.283185307179586)`,
+          `  var ${name}_sin = sin(${turns} * 6.283185307179586)`,
+          `  var ${name}_third = (1 - ${name}_cos) / 3`,
+          `  var ${name}_cross = ${name}_sin / 1.7320508075688772`,
+          `  var ${name}_diagonal = ${name}_cos + ${name}_third`,
+        ]),
         `  ${r} = clamp(${name}_diagonal * ${name}_r + (${name}_third - ${name}_cross) * ${name}_g + (${name}_third + ${name}_cross) * ${name}_b, 0, 1)`,
         `  ${g} = clamp((${name}_third + ${name}_cross) * ${name}_r + ${name}_diagonal * ${name}_g + (${name}_third - ${name}_cross) * ${name}_b, 0, 1)`,
         `  ${b} = clamp((${name}_third - ${name}_cross) * ${name}_r + (${name}_third + ${name}_cross) * ${name}_g + ${name}_diagonal * ${name}_b, 0, 1)`,
@@ -8511,16 +8643,18 @@ function emitMemberOutputEffectLines(
       lines.push(`  ${r} = clamp((${r} - 0.5) * ${amount} + 0.5, 0, 1)`, `  ${g} = clamp((${g} - 0.5) * ${amount} + 0.5, 0, 1)`, `  ${b} = clamp((${b} - 0.5) * ${amount} + 0.5, 0, 1)`)
     } else if (effect.kind === 'invert') {
       const amount = value(effect, 'amount')
-      lines.push(`  ${r} = ${r} * (1 - ${amount}) + (1 - ${r}) * ${amount}`, `  ${g} = ${g} * (1 - ${amount}) + (1 - ${g}) * ${amount}`, `  ${b} = ${b} * (1 - ${amount}) + (1 - ${b}) * ${amount}`)
+      const keep = hoisted ? `${name}_keep` : `(1 - ${amount})`
+      lines.push(`  ${r} = ${r} * ${keep} + (1 - ${r}) * ${amount}`, `  ${g} = ${g} * ${keep} + (1 - ${g}) * ${amount}`, `  ${b} = ${b} * ${keep} + (1 - ${b}) * ${amount}`)
     } else if (effect.kind === 'threshold') {
       const threshold = value(effect, 'threshold')
       const amount = value(effect, 'amount')
+      const keep = hoisted ? `${name}_keep` : `(1 - ${amount})`
       lines.push(
         `  var ${name}_luma = 0.2126 * ${r} + 0.7152 * ${g} + 0.0722 * ${b}`,
         `  var ${name}_target = ${name}_luma >= ${threshold}`,
-        `  ${r} = ${r} * (1 - ${amount}) + ${name}_target * ${amount}`,
-        `  ${g} = ${g} * (1 - ${amount}) + ${name}_target * ${amount}`,
-        `  ${b} = ${b} * (1 - ${amount}) + ${name}_target * ${amount}`,
+        `  ${r} = ${r} * ${keep} + ${name}_target * ${amount}`,
+        `  ${g} = ${g} * ${keep} + ${name}_target * ${amount}`,
+        `  ${b} = ${b} * ${keep} + ${name}_target * ${amount}`,
       )
     } else if (effect.kind === 'luma-key') {
       const target = value(effect, 'target')
@@ -8540,19 +8674,24 @@ function emitMemberOutputEffectLines(
         `  var ${name}_dg = ${g} - ${targetG}`,
         `  var ${name}_db = ${b} - ${targetB}`,
         `  var ${name}_distance2 = (${name}_dr * ${name}_dr + ${name}_dg * ${name}_dg + ${name}_db * ${name}_db) / 3`,
-        `  var ${name}_inner2 = ${tolerance} * ${tolerance}`,
-        `  var ${name}_outer = min(1, ${tolerance} + ${softness})`,
-        `  var ${name}_matte = ${softness} <= 0 ? (${name}_distance2 > ${name}_inner2) : clamp((${name}_distance2 - ${name}_inner2) / max(0.000001, ${name}_outer * ${name}_outer - ${name}_inner2), 0, 1)`,
+        ...(hoisted ? [] : [
+          `  var ${name}_inner2 = ${tolerance} * ${tolerance}`,
+          `  var ${name}_outer = min(1, ${tolerance} + ${softness})`,
+        ]),
+        `  var ${name}_matte = ${softness} <= 0 ? (${name}_distance2 > ${name}_inner2) : clamp((${name}_distance2 - ${name}_inner2) / ${hoisted ? `${name}_denominator` : `max(0.000001, ${name}_outer * ${name}_outer - ${name}_inner2)`}, 0, 1)`,
         `  ${member.prefix}_alpha = ${member.prefix}_alpha * ${name}_matte`,
       )
     } else if (effect.kind === 'posterize') {
       const levels = value(effect, 'levels')
       const amount = value(effect, 'amount')
+      const keep = hoisted ? `${name}_keep` : `(1 - ${amount})`
       lines.push(
-        `  var ${name}_span = ${member.animatedEffects ? `max(1, floor(${levels}) - 1)` : Number(effect.levels - 1)}`,
-        `  ${r} = ${r} * (1 - ${amount}) + floor(${r} * ${name}_span + 0.5) / ${name}_span * ${amount}`,
-        `  ${g} = ${g} * (1 - ${amount}) + floor(${g} * ${name}_span + 0.5) / ${name}_span * ${amount}`,
-        `  ${b} = ${b} * (1 - ${amount}) + floor(${b} * ${name}_span + 0.5) / ${name}_span * ${amount}`,
+        ...(hoisted ? [] : [
+          `  var ${name}_span = ${member.animatedEffects ? `max(1, floor(${levels}) - 1)` : Number(effect.levels - 1)}`,
+        ]),
+        `  ${r} = ${r} * ${keep} + floor(${r} * ${name}_span + 0.5) / ${name}_span * ${amount}`,
+        `  ${g} = ${g} * ${keep} + floor(${g} * ${name}_span + 0.5) / ${name}_span * ${amount}`,
+        `  ${b} = ${b} * ${keep} + floor(${b} * ${name}_span + 0.5) / ${name}_span * ${amount}`,
       )
     } else if (effect.kind === 'vignette') {
       const amount = value(effect, 'amount')
@@ -8590,14 +8729,15 @@ function emitMemberOutputEffectLines(
       )
     } else if (effect.kind === 'color-map') {
       const amount = value(effect, 'amount')
+      const keep = hoisted ? `${name}_keep` : `(1 - ${amount})`
       lines.push(
         `  var ${name}_luma = clamp(0.2126 * ${r} + 0.7152 * ${g} + 0.0722 * ${b}, 0, 1)`,
         `  var ${name}_r = ${value(effect, 'shadowR')} + (${value(effect, 'highlightR')} - ${value(effect, 'shadowR')}) * ${name}_luma`,
         `  var ${name}_g = ${value(effect, 'shadowG')} + (${value(effect, 'highlightG')} - ${value(effect, 'shadowG')}) * ${name}_luma`,
         `  var ${name}_b = ${value(effect, 'shadowB')} + (${value(effect, 'highlightB')} - ${value(effect, 'shadowB')}) * ${name}_luma`,
-        `  ${r} = ${r} * (1 - ${amount}) + ${name}_r * ${amount}`,
-        `  ${g} = ${g} * (1 - ${amount}) + ${name}_g * ${amount}`,
-        `  ${b} = ${b} * (1 - ${amount}) + ${name}_b * ${amount}`,
+        `  ${r} = ${r} * ${keep} + ${name}_r * ${amount}`,
+        `  ${g} = ${g} * ${keep} + ${name}_g * ${amount}`,
+        `  ${b} = ${b} * ${keep} + ${name}_b * ${amount}`,
       )
     }
   }
@@ -8812,7 +8952,7 @@ ${member.usesTime ? `${indent}${member.elapsedSecondsName} = ${member.elapsedSec
 ${indent}${member.hasBeforeRender ? `${member.beforeRenderName}(scaledDelta)` : ''}
 ${indent}${member.frameInvariantUpdateName ? `${member.frameInvariantUpdateName}()` : ''}`
     const controlCalls = member.controls.map((control) => `  ${control.functionName}(${control.valueName})`).join('\n')
-    const effectUpdateCall = effectRuntime?.hasAffine && member.animatedEffects && !member.staticPlanEffects
+    const effectUpdateCall = (effectRuntime?.hasAffine || effectRuntime?.hasColorCoefficients) && member.animatedEffects && !member.staticPlanEffects
       ? `\n  ${member.prefix}_fx_update()`
       : ''
     const advance = lightShutter?.clockBehavior === 'freeze'
