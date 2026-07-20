@@ -82,6 +82,7 @@ import {
 export { computeLinearRuns, type PackedRoutingRun } from './showRoutingRepresentation'
 export type { ShowLogicalRoutingRecipe } from './showRoutingRepresentation'
 import { planMemberBindingPolicies, type MemberBindingPolicy } from './showMemberBindingPolicy'
+import { planRoutedSceneSequence } from './showRoutedScenePlan'
 import {
   byteLength,
   clampNumber,
@@ -2431,29 +2432,35 @@ export function compileShow(
   )
   for (const member of members) member.binding = bindingPolicies.get(member.id)
   const routedSceneEmission = expandedRecipe.routedSceneSequence
-      ? emitRoutedSceneSequenceShowCode(
-        members,
-        expandedRecipe.routingLayouts ?? [],
-        expandedRecipe.routedSceneSequence,
-        routedOutputDimension,
-        expandedRecipe.routingSwitches ?? [],
-        expandedRecipe.routingPropertyRamps,
-        expandedRecipe.masterPixelCount,
-        renderTargetPixelCount,
-        selectedRenderTargetCandidates,
-        renderKernelSpecialization,
-        motionTransitionSharing,
-        showScoreSharing,
-        selectedPatternOutputReuseGroups,
-        selectedScalarFields,
-        selectedCoordinateFields,
-        selectedFreezeAtEntryCaptures,
-        selectedRefreshCaptures,
-        selectedRollingRefreshCaptures,
-        patternSlotRuntimePlan,
-        (options?.directColorSinks ?? true) && !trailsSelected,
-        options?.functionValuedSinkRebinding ?? false,
-      )
+      ? emitRoutedSceneSequenceShowCode(members, expandedRecipe.routedSceneSequence, {
+        routing: {
+          layouts: expandedRecipe.routingLayouts ?? [],
+          switches: expandedRecipe.routingSwitches ?? [],
+          propertyRamps: expandedRecipe.routingPropertyRamps,
+        },
+        output: {
+          dimension: routedOutputDimension,
+          pixelCount: expandedRecipe.masterPixelCount,
+          renderTargetPixelCount,
+        },
+        selections: {
+          renderTargetCandidates: selectedRenderTargetCandidates,
+          patternOutputReuseGroups: selectedPatternOutputReuseGroups,
+          scalarFields: selectedScalarFields,
+          coordinateFields: selectedCoordinateFields,
+          freezeAtEntryCaptures: selectedFreezeAtEntryCaptures,
+          refreshCaptures: selectedRefreshCaptures,
+          rollingRefreshCaptures: selectedRollingRefreshCaptures,
+          patternSlotRuntimePlan,
+        },
+        toggles: {
+          renderKernelSpecialization,
+          motionTransitionSharing,
+          showScoreSharing,
+          directColorSinksEnabled: (options?.directColorSinks ?? true) && !trailsSelected,
+          functionValuedSinkRebinding: options?.functionValuedSinkRebinding ?? false,
+        },
+      })
       : null
   const emittedCode = routedSceneEmission
     ? routedSceneEmission.code
@@ -4000,28 +4007,44 @@ ${indentBlock(
   ].join('\n\n')
 }
 
+/** The routed Scene sequence emission interface: the Show's routing shape,
+ * the render-target and reuse selections made upstream, and the benchmark
+ * toggles - grouped so a new selection or toggle never widens a positional
+ * list (the pre-#570 form had 22 positional parameters). */
+interface RoutedSceneSequenceEmissionOptions {
+  routing: {
+    layouts: ShowRoutingLayoutRecipe[]
+    switches: ShowRoutingSwitchRecipe[]
+    propertyRamps?: ShowRoutingPropertyRampsRecipe
+  }
+  output: {
+    dimension: 1 | 2
+    pixelCount?: number
+    renderTargetPixelCount?: number
+  }
+  selections?: {
+    renderTargetCandidates?: ReadonlySet<string>
+    patternOutputReuseGroups?: SelectedPatternOutputReuseGroup[]
+    scalarFields?: SelectedScalarField[]
+    coordinateFields?: SelectedCoordinateField[]
+    freezeAtEntryCaptures?: SelectedFreezeAtEntry[]
+    refreshCaptures?: SelectedRefresh[]
+    rollingRefreshCaptures?: SelectedRollingRefresh[]
+    patternSlotRuntimePlan?: CompiledPatternSlotRuntimePlan | null
+  }
+  toggles?: {
+    renderKernelSpecialization?: boolean
+    motionTransitionSharing?: 'auto' | 'none' | 'structure' | 'exact'
+    showScoreSharing?: 'auto' | 'none' | 'force'
+    directColorSinksEnabled?: boolean
+    functionValuedSinkRebinding?: boolean
+  }
+}
+
 function emitRoutedSceneSequenceShowCode(
   members: CompiledMember[],
-  layouts: ShowRoutingLayoutRecipe[],
   sequence: ShowRoutedSceneSequenceRecipe,
-  outputDimension: 1 | 2,
-  switches: ShowRoutingSwitchRecipe[],
-  propertyRamps?: ShowRoutingPropertyRampsRecipe,
-  outputPixelCount?: number,
-  renderTargetPixelCount = SHOW_MAX_OUTPUT_PIXELS,
-  selectedRenderTargetCandidates: ReadonlySet<string> = new Set(),
-  renderKernelSpecialization = false,
-  motionTransitionSharing: 'auto' | 'none' | 'structure' | 'exact' = 'auto',
-  showScoreSharing: 'auto' | 'none' | 'force' = 'auto',
-  patternOutputReuseGroups: SelectedPatternOutputReuseGroup[] = [],
-  scalarFields: SelectedScalarField[] = [],
-  coordinateFields: SelectedCoordinateField[] = [],
-  freezeAtEntryCaptures: SelectedFreezeAtEntry[] = [],
-  refreshCaptures: SelectedRefresh[] = [],
-  rollingRefreshCaptures: SelectedRollingRefresh[] = [],
-  patternSlotRuntimePlan: CompiledPatternSlotRuntimePlan | null = null,
-  directColorSinksEnabled = false,
-  functionValuedSinkRebinding = false,
+  emissionOptions: RoutedSceneSequenceEmissionOptions,
 ): {
   code: string
   renderKernels: ShowCompileSummary['specializations']['renderKernels']
@@ -4029,48 +4052,51 @@ function emitRoutedSceneSequenceShowCode(
   showScore: ShowCompileSummary['specializations']['showScore']
   directColorSinks: NonNullable<ShowCompileSummary['specializations']['directColorSinks']>
 } {
+  const { layouts, switches, propertyRamps } = {
+    layouts: emissionOptions.routing.layouts,
+    switches: emissionOptions.routing.switches,
+    propertyRamps: emissionOptions.routing.propertyRamps,
+  }
+  const outputDimension = emissionOptions.output.dimension
+  const outputPixelCount = emissionOptions.output.pixelCount
+  const renderTargetPixelCount = emissionOptions.output.renderTargetPixelCount ?? SHOW_MAX_OUTPUT_PIXELS
+  const selections = emissionOptions.selections ?? {}
+  const selectedRenderTargetCandidates = selections.renderTargetCandidates ?? new Set<string>()
+  const patternOutputReuseGroups = selections.patternOutputReuseGroups ?? []
+  const scalarFields = selections.scalarFields ?? []
+  const coordinateFields = selections.coordinateFields ?? []
+  const freezeAtEntryCaptures = selections.freezeAtEntryCaptures ?? []
+  const refreshCaptures = selections.refreshCaptures ?? []
+  const rollingRefreshCaptures = selections.rollingRefreshCaptures ?? []
+  const patternSlotRuntimePlan = selections.patternSlotRuntimePlan ?? null
+  const toggles = emissionOptions.toggles ?? {}
+  const renderKernelSpecialization = toggles.renderKernelSpecialization ?? false
+  const motionTransitionSharing = toggles.motionTransitionSharing ?? 'auto'
+  const showScoreSharing = toggles.showScoreSharing ?? 'auto'
+  const directColorSinksEnabled = toggles.directColorSinksEnabled ?? false
+  const functionValuedSinkRebinding = toggles.functionValuedSinkRebinding ?? false
   if (layouts.length === 0) throw new Error('compileShow routed scene sequence requires a routing layout.')
   const layoutIndex = new Map(layouts.map((layout, index) => [layout.id, index]))
   const memberById = new Map(members.map((member) => [member.id, member]))
   const physicalZonesByName = new Map(layouts.flatMap((layout) => layout.zones).map((zone) => [zone.name, zone]))
   const logicalZoneCount = Math.max(1, ...layouts.map((layout) => layout.logical?.zoneNames.length ?? 0))
-  const scenes = sequence.scenes.map((scene, sceneIndex) => ({
-    ...scene,
-    sceneIndex,
-    placements: scene.placements.map((placement, placementIndex) => ({
-      ...placement,
-      member: memberById.get(placement.clipId)!,
-      consumerId: patternOutputConsumerId(sceneIndex, placementIndex),
-      slotOwner: patternSlotRuntimePlan?.ownersByPlacement.get(patternSlotPlacementKey(sceneIndex, placementIndex)),
-    })),
-    transitionRamps: scene.transitionRamps?.map((ramp) => ({ ...ramp, member: memberById.get(ramp.clipId)! })),
-  }))
-  const segments: Array<{
-    kind: 'hold' | 'transition'
-    startMs: number
-    endMs: number
-    sceneIndex: number
-    transition?: ShowSceneSequenceTransitionRecipe
-  }> = []
-  const sceneStartMs = new Map<number, number>()
-  let cursor = 0
-  scenes.forEach((scene, sceneIndex) => {
-    const startMs = cursor
-    sceneStartMs.set(sceneIndex, startMs)
-    cursor += scene.holdMs
-    segments.push({ kind: 'hold', startMs, endMs: cursor, sceneIndex })
-    if (scene.transitionOut && scene.transitionOut.kind !== 'cut') {
-      const transitionStart = cursor
-      cursor += scene.transitionOut.durationMs
-      segments.push({
-        kind: 'transition',
-        startMs: transitionStart,
-        endMs: cursor,
-        sceneIndex,
-        transition: scene.transitionOut,
-      })
-    }
-  })
+  // #570: scene resolution and the hold/transition timeline come from the
+  // routed Scene plan module; placement enrichment stays here because
+  // consumer ids and Pattern-slot owners are emission concerns.
+  const { scenes, segments, sceneStartMs, totalMs } = planRoutedSceneSequence(
+    sequence.scenes,
+    (scene, sceneIndex) => ({
+      ...scene,
+      sceneIndex,
+      placements: scene.placements.map((placement, placementIndex) => ({
+        ...placement,
+        member: memberById.get(placement.clipId)!,
+        consumerId: patternOutputConsumerId(sceneIndex, placementIndex),
+        slotOwner: patternSlotRuntimePlan?.ownersByPlacement.get(patternSlotPlacementKey(sceneIndex, placementIndex)),
+      })),
+      transitionRamps: scene.transitionRamps?.map((ramp) => ({ ...ramp, member: memberById.get(ramp.clipId)! })),
+    }),
+  )
   const snapshotSegments = segments.filter((segment) => (
     segment.kind === 'transition'
     && segment.transition?.kind === 'crossfade'
@@ -4361,7 +4387,7 @@ ${member.prefix}_advance(delta)`
         parameters: [],
       },
     })),
-    loopDurationMs: cursor,
+    loopDurationMs: totalMs,
   })
   const scoreSupportedTransitionKinds = new Set<ShowSceneSequenceTransitionRecipe['kind']>([
     'cut', 'crossfade', 'fade-color', 'wipe', 'dither', 'portal',
@@ -4952,7 +4978,7 @@ function __pxlblz_show_capture_transition_rgb(r, g, b) {
     ...(usesRouteLayout ? ['var __pxlblz_show_route_layout = 0'] : []),
     ...(propertyRamps ? [`var __pxlblz_show_route_split_position = ${clampNumber(propertyRamps.splitPosition.initial, 0, 1)}`] : []),
     `export function beforeRender(delta) {
-  __pxlblz_show_elapsed_s = (__pxlblz_show_elapsed_s + delta / 1000) % ${cursor / 1000}
+  __pxlblz_show_elapsed_s = (__pxlblz_show_elapsed_s + delta / 1000) % ${totalMs / 1000}
 ${usesRouteLayout ? '  __pxlblz_show_route_layout = 0\n' : ''}
 ${layoutSelectLines}${layoutSelectLines ? '\n' : ''}${propertyRamps ? `${emitRoutingPropertyAssignments(propertyRamps)}\n` : ''}  ${schedulerBranches}${coordinateTargetAssignments ? `\n${indentBlock(coordinateTargetAssignments, 2)}` : ''}${freezeLifecycle ? `\n${indentBlock(freezeLifecycle, 2)}` : ''}${refreshLifecycle ? `\n${indentBlock(refreshLifecycle, 2)}` : ''}${rollingRefreshLifecycle ? `\n${indentBlock(rollingRefreshLifecycle, 2)}` : ''}${patternOutputReuseGroups.length > 0 ? `\n${indentBlock(emitPatternOutputReusePrepass(patternOutputReuseGroups), 2)}` : ''}
 }`,
@@ -5110,7 +5136,7 @@ ${indentBlock(body, 2)}
         ? ['var __pxlblz_show_score_snapshot_boundary = -1', 'var __pxlblz_show_snapshot_ready = 0']
         : []),
       `export function beforeRender(delta) {
-  __pxlblz_show_elapsed_s = (__pxlblz_show_elapsed_s + delta / 1000) % ${cursor / 1000}
+  __pxlblz_show_elapsed_s = (__pxlblz_show_elapsed_s + delta / 1000) % ${totalMs / 1000}
   var __pxlblz_show_score_position = __pxlblz_show_elapsed_s - ${firstBoundarySeconds}
   if (__pxlblz_show_score_position < 0) {
     __pxlblz_show_scene = 0
