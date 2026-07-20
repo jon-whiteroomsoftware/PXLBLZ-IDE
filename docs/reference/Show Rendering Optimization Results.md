@@ -103,7 +103,7 @@ was unchanged. This is a capacity win.
 Compatible repeated single-zone 2D Shows now carry choreography as a compact
 five-word-per-boundary score and emit each unique Pattern instance, Scene stack,
 and Transition kernel once. Wipe and Mix, Shape Reveal, and Easing reduce
-historical source from 177,411, 114,452, and 135,908 bytes to 26,203, 29,059,
+historical source from 177,411, 114,452, and 135,908 bytes to 26,174, 29,059,
 and 18,689 bytes: 85.2%, 74.6%, and 86.2% total reductions. Against equivalent
 current three-instance unrolled artifacts, Controller bytecode falls 78.9%,
 66.6%, and 78.5%.

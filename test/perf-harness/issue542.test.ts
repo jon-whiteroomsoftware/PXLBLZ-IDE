@@ -5,25 +5,25 @@ describe('issue #542 baseline census', () => {
   it('pins the three target references and the Motion control before score compaction', () => {
     expect(issue542Census.map((entry) => entry.baseline)).toMatchObject([
       {
-        authoredJsonBytes: 36_235,
+        authoredJsonBytes: 33_023,
         generatedSourceBytes: 177_411,
         patternInstanceCount: 28,
         persistentGlobals: 543,
       },
       {
-        authoredJsonBytes: 25_275,
+        authoredJsonBytes: 21_407,
         generatedSourceBytes: 114_452,
         patternInstanceCount: 17,
         persistentGlobals: 334,
       },
       {
-        authoredJsonBytes: 28_057,
+        authoredJsonBytes: 25_656,
         generatedSourceBytes: 135_908,
         patternInstanceCount: 22,
         persistentGlobals: 429,
       },
       {
-        authoredJsonBytes: 29_440,
+        authoredJsonBytes: 24_906,
         generatedSourceBytes: 67_694,
         patternInstanceCount: 3,
         persistentGlobals: 75,
@@ -39,7 +39,7 @@ describe('issue #542 baseline census', () => {
       generatedSourceBytes: entry.production.generatedSourceBytes,
       persistentGlobals: entry.production.persistentGlobals,
     }))).toEqual([
-      { patternInstanceCount: 3, generatedSourceBytes: 26_203, persistentGlobals: 80 },
+      { patternInstanceCount: 3, generatedSourceBytes: 26_174, persistentGlobals: 80 },
       { patternInstanceCount: 3, generatedSourceBytes: 29_059, persistentGlobals: 78 },
       { patternInstanceCount: 3, generatedSourceBytes: 18_689, persistentGlobals: 78 },
       { patternInstanceCount: 3, generatedSourceBytes: 67_694, persistentGlobals: 75 },

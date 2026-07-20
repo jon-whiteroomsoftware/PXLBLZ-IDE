@@ -102,8 +102,8 @@ export function render2D(index, x, y) { hsv(phase + x, 1, initialPixels / pixelC
     expect(selected.code).toMatch(/function \w+\(nextOwner\) \{/)
     expect(selected.code).not.toContain('(nextOwner, timeOffsetMs, brightness, phase, timeScale, mirror)')
     expect(selected.summary.artifactBytes).toBeLessThan(baseline.summary.artifactBytes)
-    expect(baseline.summary.artifactBytes).toBe(86_257)
-    expect(selected.summary.artifactBytes).toBe(66_800)
+    expect(baseline.summary.artifactBytes).toBe(81_499)
+    expect(selected.summary.artifactBytes).toBe(64_922)
     expect(selected.summary.resources).toMatchObject({
       auxiliaryCacheWords: 228,
       totalWords: 6_240,
@@ -135,15 +135,15 @@ export function render2D(index, x, y) { hsv(phase + x, 1, initialPixels / pixelC
       reclaimedMachineCount: 2,
     })
     expect(selected.summary.artifactBytes).toBeLessThan(baseline.summary.artifactBytes)
-    expect(baseline.summary.artifactBytes).toBe(75_761)
-    expect(selected.summary.artifactBytes).toBe(69_118)
+    expect(baseline.summary.artifactBytes).toBe(76_383)
+    expect(selected.summary.artifactBytes).toBe(69_076)
     expect(selected.summary.resources).toMatchObject({
       auxiliaryCacheWords: 216,
       totalWords: 708,
       remainingWords: 9_532,
       persistentGlobals: 239,
       remainingGlobals: 17,
-      remainingArtifactBytes: -734,
+      remainingArtifactBytes: -692,
     })
     expect(checksums(selected, installationShow, 'fast')).toEqual(checksums(baseline, installationShow, 'fast'))
     expect(checksums(selected, installationShow, 'fidelity')).toEqual(checksums(baseline, installationShow, 'fidelity'))

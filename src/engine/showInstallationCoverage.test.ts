@@ -1,6 +1,6 @@
 import { validateInstallationCoverage } from './showInstallationCoverage'
 import { createDefaultShow } from './showModel'
-import { createInstallationShowOutputContract } from './showOutputContract'
+import { createInstallationShowOutputContract, createPortableShowOutputContract } from './showOutputContract'
 
 function installationShow(pixelCount = 8) {
   return {
@@ -59,6 +59,11 @@ describe('Installation physical-zone coverage (#435)', () => {
       valid: true,
       layouts: [{ kind: 'logical', assignedPixelCount: 8, missingPixelCount: 0 }],
     })
-    expect(validateInstallationCoverage(createDefaultShow('legacy', 'Legacy', 1))).toBeNull()
+    const portable = createDefaultShow('portable', 'Portable', 1)
+    portable.outputContract = createPortableShowOutputContract({
+      referenceMapId: 'plane',
+      referencePixelCount: 60,
+    })
+    expect(validateInstallationCoverage(portable)).toBeNull()
   })
 })

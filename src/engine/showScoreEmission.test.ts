@@ -56,7 +56,7 @@ describe('table-driven routed Show score emission (#542)', () => {
     })
 
     expect(baseline.error).toBeNull()
-    expect(baseline.artifact?.summary.artifactBytes).toBe(98_581)
+    expect(baseline.artifact?.summary.artifactBytes).toBe(98_341)
     expect(candidate.error).toBeNull()
     expect(candidate.artifact?.summary.specializations.showScore).toMatchObject({
       selected: true,

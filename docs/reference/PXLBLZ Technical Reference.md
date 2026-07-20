@@ -1788,12 +1788,15 @@ reclaimed machines, state-bank words, and zero added steady-state render
 operations as independent quantities.
 
 The Property Animation reference colors 17 logical Restart members into 8
-physical machines. Generated source falls from 86,257 to 66,800 bytes (-22.56%)
-and Controller bytecode from 49,426 to 40,518 bytes (-18.02%) at a cost of 228
-state-bank words. Median pb32 firmware 3.67 throughput is unchanged at 1,000 and
-2,000 pixels, and Fast/Precise replay remains exact. The 205 Installation
-reference colors 12 members into 10 machines, reducing source by 8.77% and
-Controller bytecode by 8.27% with 216 state-bank words.
+physical machines. Current generated source falls from 81,499 to 64,922 bytes
+(-20.34%) at a cost of 228 state-bank words. The qualification run measured
+Controller bytecode falling from 49,426 to 40,518 bytes (-18.02%); subsequent
+record-schema cleanup changed source accounting without repeating that hardware
+claim. Median pb32 firmware 3.67 throughput was unchanged at 1,000 and 2,000
+pixels, and Fast/Precise replay remains exact. The current 205 Installation
+reference colors 12 members into 10 machines and reduces source from 76,383 to
+69,076 bytes (-9.57%) with 216 state-bank words. Its qualification run measured
+an 8.27% Controller-bytecode reduction.
 
 ### Shared generated Effect kernels
 
