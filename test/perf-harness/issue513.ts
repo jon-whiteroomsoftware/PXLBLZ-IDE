@@ -6,6 +6,7 @@ import { createFastReplayRuntime } from '../../src/engine/fastReplay'
 import { nativeDimension } from '../../src/engine/loadPattern'
 import { installationPhysicalZones } from '../../src/engine/showInstallationCoverage'
 import { compileShowForPreview } from '../../src/engine/showPreviewArtifact'
+import { compilerVintageOptions } from '../../src/engine/showCompilerVintages'
 import type { GeneratedShowArtifact } from '../../src/engine/showCompiler'
 import { SOURCE_STOCK_MAPS } from '../../src/pixelblaze/stock/maps/stockCatalogue'
 import { STOCK_SHOWS } from '../../src/pixelblaze/stock/shows'
@@ -26,6 +27,7 @@ const compile = (frameInvariantHoisting: boolean, renderKernelSpecialization: bo
       exactSpecializations: true,
       frameInvariantHoisting,
       renderKernelSpecialization,
+      ...compilerVintageOptions('issue-513-frame-invariant-plan'),
     },
   )
   if (!compiled.artifact) throw new Error(compiled.error ?? 'Redline Show did not compile.')

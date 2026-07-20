@@ -5,30 +5,35 @@ import { issue546Artifacts, issue546Report, stripPatternSlotRuntimeForDiagnostic
 
 describe('Restart Pattern machine-slot qualification (#546)', () => {
   it('pins the exact source and VM exchange for the two compatible Shows', () => {
+    // Refreshed 2026-07-20 after the wave-2/3 emission changes; the slot
+    // exchange itself (17 -> 8 and 12 -> 10 machines) is unchanged. The
+    // Property Animation fixture reflects the #559 byte-budget fallback
+    // (shared HSV chain, 2,146 B headroom); the 205 fixture moved from 692 B
+    // over the activation ceiling to 300 B under it.
     expect(issue546Report.fixtures).toMatchObject([
       {
         id: 'stock-show-reference-property-animation',
-        baseline: { sourceBytes: 81_499, physicalMachines: 17 },
+        baseline: { sourceBytes: 82_815, physicalMachines: 17 },
         selected: {
-          sourceBytes: 64_922,
+          sourceBytes: 66_238,
           physicalMachines: 8,
           auxiliaryCacheWords: 228,
           persistentGlobals: 197,
-          remainingArtifactBytes: 3_462,
+          remainingArtifactBytes: 2_146,
         },
-        sourceChangePercent: expect.closeTo(-20.34, 1),
+        sourceChangePercent: expect.closeTo(-20.02, 1),
       },
       {
         id: 'stock-show-205-installation-composition',
-        baseline: { sourceBytes: 76_383, physicalMachines: 12 },
+        baseline: { sourceBytes: 75_386, physicalMachines: 12 },
         selected: {
-          sourceBytes: 69_076,
+          sourceBytes: 68_084,
           physicalMachines: 10,
           auxiliaryCacheWords: 216,
-          persistentGlobals: 239,
-          remainingArtifactBytes: -692,
+          persistentGlobals: 251,
+          remainingArtifactBytes: 300,
         },
-        sourceChangePercent: expect.closeTo(-9.57, 1),
+        sourceChangePercent: expect.closeTo(-9.69, 1),
       },
     ])
   })

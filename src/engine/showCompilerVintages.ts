@@ -30,6 +30,19 @@ export const COMPILER_VINTAGES = {
     hsvCaptureChainSpecialization: false,
     inlineCallHoisting: false,
   },
+  /** #513 Redline frame-invariant plan census (pre-#565/#566: helper
+   * inlining and inline call-subtree hoisting both change the candidate
+   * set the census pinned). */
+  'issue-513-frame-invariant-plan': {
+    helperCallInlining: false,
+    inlineCallHoisting: false,
+  },
+  /** #542 score baseline census (pre-wave-2 emission diet). */
+  'issue-542-score-census': {
+    hsvCaptureChainSpecialization: false,
+    inlineCallHoisting: false,
+    helperCallInlining: false,
+  },
   /** Motion-transition sharing goldens (pre-#559/#566). */
   'motion-transition-sharing': {
     hsvCaptureChainSpecialization: false,

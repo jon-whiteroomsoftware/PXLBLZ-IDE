@@ -2,6 +2,7 @@
 // Run with: npm run issue542
 
 import { compileShowForArtifact } from '../../src/engine/showPreviewArtifact'
+import { compilerVintageOptions } from '../../src/engine/showCompilerVintages'
 import type { GeneratedShowArtifact } from '../../src/engine/showCompiler'
 import { STOCK_SHOWS } from '../../src/pixelblaze/stock/shows'
 
@@ -45,6 +46,7 @@ function census(id: Issue542ReferenceId, show = issue542ReferenceShow(id)) {
   const compiled = compileShowForArtifact(show, [], undefined, {}, {
     stageDimension: 2,
     patternSlotSharing: 'none',
+    ...compilerVintageOptions('issue-542-score-census'),
   })
   if (!compiled.artifact) throw new Error(compiled.error ?? `Issue #542 reference did not compile: ${id}`)
   const { summary } = compiled.artifact
@@ -73,6 +75,7 @@ export function issue542Artifact(
     stageDimension: 2,
     showScoreSharing,
     patternSlotSharing: 'none',
+    ...compilerVintageOptions('issue-542-score-census'),
   })
   if (!compiled.artifact) throw new Error(compiled.error ?? `Issue #542 reference did not compile: ${id}`)
   return compiled.artifact

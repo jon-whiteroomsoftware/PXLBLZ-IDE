@@ -2164,7 +2164,9 @@ describe('ShowEditor (#318)', () => {
     const compileBar = screen.getByTestId('show-compile-bar')
     expect(compileBar).toHaveTextContent('routing specialization: complete disjoint short-circuit · max 10 -> 4 comparisons/px · 6 avoided')
     expect(compileBar).toHaveTextContent('capture specialization: 1 identity sample · 2 clear omitted · up to 7 ops/evaluation avoided')
-    expect(compileBar).toHaveTextContent('frame invariants: 7 hoisted · 18 ops/evaluation avoided')
+    // #565 helper inlining exposes one more Redline frame-invariant
+    // candidate (inline#0): 7 -> 8 hoisted, 18 -> 21 ops avoided.
+    expect(compileBar).toHaveTextContent('frame invariants: 8 hoisted · 21 ops/evaluation avoided')
     expect(compileBar).toHaveTextContent('kernel specialization: measured-neutral on pb32 · 18 plans / 2 kernels · up to 16 branches/px candidate · source dispatch -2,461 B retained as baseline dispatch')
   })
 
