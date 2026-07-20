@@ -546,6 +546,9 @@ export interface ShowCompileSummary {
       policy: 'per-member' | 'shared'
       memberCount: number
       estimatedAddedBytes: number
+      /** Set when the per-member policy was abandoned because its added
+       * bytes alone pushed the artifact past the activation ceiling. */
+      fallbackReason?: 'artifact-byte-budget'
     } | null
     capture: Array<{
       clipId: string
@@ -3142,6 +3145,25 @@ export function compileShow(
     resources,
     warnings,
     cost,
+  }
+
+  // #559 byte-budget fallback: per-member HSV conversions trade ~230 bytes
+  // per member for per-pixel time. When that trade alone pushes the artifact
+  // past the activation ceiling, retry once with the shared conversion chain
+  // and keep the smaller build if it clears the blocker.
+  const overByteBudget = (candidate: ShowVmResourceLedger) => (
+    candidate.blockers.some((blocker) => blocker.kind === 'artifact-byte-budget')
+  )
+  if ((options.hsvCaptureChainSpecialization ?? true)
+    && summary.specializations.hsvCaptureChain?.policy === 'per-member'
+    && overByteBudget(resources)) {
+    const shared = compileShow(recipe, libraries, { ...options, hsvCaptureChainSpecialization: false })
+    if (!overByteBudget(shared.summary.resources)) {
+      if (shared.summary.specializations.hsvCaptureChain) {
+        shared.summary.specializations.hsvCaptureChain.fallbackReason = 'artifact-byte-budget'
+      }
+      return shared
+    }
   }
 
   return {

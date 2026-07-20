@@ -90,7 +90,9 @@ describe('steady-state direct color sinks (#557)', () => {
   it('emits flag-branch direct sinks and skips emit for eligible members', () => {
     const { on, off } = compilePair(steadyRecipe())
     expect(on.expandedCode).toContain('var __pxlblz_show_direct = 0')
-    expect(on.expandedCode).toMatch(/function __pxlblz_show_c0_hsv\(h, s, v\) \{ if \(__pxlblz_show_direct\) \{ hsv\(/)
+    // #559 reshaped the wrapper into the per-member conversion; the direct
+    // branch now leads the multi-line body.
+    expect(on.expandedCode).toMatch(/function __pxlblz_show_c0_hsv\(h, s, v\) \{\n {2}if \(__pxlblz_show_direct\) \{ hsv\(/)
     expect(on.expandedCode).toMatch(/function __pxlblz_show_c1_rgb\(r, g, b\) \{ if \(__pxlblz_show_direct\) \{ rgb\(/)
     expect(on.expandedCode).toContain('__pxlblz_show_direct = 1')
     expect(off.expandedCode).not.toContain('__pxlblz_show_direct')
@@ -125,8 +127,13 @@ describe('steady-state direct color sinks (#557)', () => {
       clipExtras: { effects: [{ id: 'poster', kind: 'posterize', levels: 6, amount: 1 }] },
     }))
     expect(on.summary.specializations.directColorSinks?.members.map((member) => member.id)).toEqual(['second'])
-    // The effect-bearing first member keeps its unbranched capture wrapper.
-    expect(on.expandedCode).toMatch(/function __pxlblz_show_c0_hsv\(h, s, v\) \{ __pxlblz_show_capture_hsv\(/)
+    // The effect-bearing first member keeps its unbranched capture conversion
+    // (#559 per-member shape): no direct flag anywhere in the body.
+    const start = on.expandedCode.indexOf('function __pxlblz_show_c0_hsv(')
+    expect(start).toBeGreaterThanOrEqual(0)
+    const body = on.expandedCode.slice(start, on.expandedCode.indexOf('\n}', start))
+    expect(body).not.toContain('__pxlblz_show_direct')
+    expect(body).toContain('__pxlblz_show_c0_r = v')
   })
 
   it('keeps content-keyed members on the capture path, member by member', () => {

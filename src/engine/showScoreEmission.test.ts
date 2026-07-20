@@ -56,7 +56,8 @@ describe('table-driven routed Show score emission (#542)', () => {
     })
 
     expect(baseline.error).toBeNull()
-    expect(baseline.artifact?.summary.artifactBytes).toBe(98_341)
+    // Refreshed 2026-07-20 after the wave-2 emission changes (#557-#566).
+    expect(baseline.artifact?.summary.artifactBytes).toBe(98_792)
     expect(candidate.error).toBeNull()
     expect(candidate.artifact?.summary.specializations.showScore).toMatchObject({
       selected: true,

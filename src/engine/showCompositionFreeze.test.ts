@@ -83,9 +83,10 @@ describe('Scene-composition release freeze (#492)', () => {
     expect(measurement.fixtureCount).toBe(2)
     expect(measurement.maxArtifact).toEqual({
       fixtureId: 'portable-local-composition',
-      artifactBytes: 19_270,
+      // Refreshed 2026-07-20 after the wave-2 emission changes (#557-#566).
+      artifactBytes: 19_615,
       budgetBytes: 68_384,
-      budgetRatio: 19_270 / 68_384,
+      budgetRatio: 19_615 / 68_384,
     })
     expect(measurement.maxWorstInstantRenderersPerPixel).toEqual({
       fixtureId: 'installation-routed-composition',

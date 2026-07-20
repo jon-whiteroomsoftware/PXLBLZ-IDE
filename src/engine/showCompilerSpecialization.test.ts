@@ -147,7 +147,9 @@ describe('Show exact routing and capture specialization (#512)', () => {
 
     expect(conditional.expandedCode).toContain('__pxlblz_show_c0_clear()')
     expect(conditional.summary.specializations.capture[0].clearPolicy).toBe('retained')
-    expect(dimmed.expandedCode).toContain('__pxlblz_show_c0_adapt_mirror >= 0.5')
+    // #562 replaced the per-pixel mirror branch with the branch-free
+    // per-frame coefficient form; the authored mirror still applies.
+    expect(dimmed.expandedCode).toContain('__pxlblz_show_c0_mir_base_i + __pxlblz_show_c0_mir_sign * index')
     expect(dimmed.expandedCode).toContain('__pxlblz_show_c0_r = __pxlblz_show_c0_r * __pxlblz_show_c0_adapt_brightness')
     expect(dimmed.summary.specializations.capture[0]).toMatchObject({
       samplePath: 'mapped',

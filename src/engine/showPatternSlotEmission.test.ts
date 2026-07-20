@@ -102,8 +102,15 @@ export function render2D(index, x, y) { hsv(phase + x, 1, initialPixels / pixelC
     expect(selected.code).toMatch(/function \w+\(nextOwner\) \{/)
     expect(selected.code).not.toContain('(nextOwner, timeOffsetMs, brightness, phase, timeScale, mirror)')
     expect(selected.summary.artifactBytes).toBeLessThan(baseline.summary.artifactBytes)
-    expect(baseline.summary.artifactBytes).toBe(81_499)
-    expect(selected.summary.artifactBytes).toBe(64_922)
+    // Refreshed 2026-07-20 after the wave-2 emission changes (#557-#566).
+    // The per-member HSV conversions alone would cross the activation
+    // ceiling here, so the #559 byte-budget fallback keeps the shared chain.
+    expect(baseline.summary.artifactBytes).toBe(82_815)
+    expect(selected.summary.artifactBytes).toBe(66_238)
+    expect(selected.summary.specializations.hsvCaptureChain).toMatchObject({
+      policy: 'shared',
+      fallbackReason: 'artifact-byte-budget',
+    })
     expect(selected.summary.resources).toMatchObject({
       auxiliaryCacheWords: 228,
       totalWords: 6_240,
@@ -135,15 +142,18 @@ export function render2D(index, x, y) { hsv(phase + x, 1, initialPixels / pixelC
       reclaimedMachineCount: 2,
     })
     expect(selected.summary.artifactBytes).toBeLessThan(baseline.summary.artifactBytes)
-    expect(baseline.summary.artifactBytes).toBe(76_383)
-    expect(selected.summary.artifactBytes).toBe(69_076)
+    // Refreshed 2026-07-20 after the wave-2 emission changes (#557-#566).
+    expect(baseline.summary.artifactBytes).toBe(75_627)
+    expect(selected.summary.artifactBytes).toBe(68_324)
     expect(selected.summary.resources).toMatchObject({
       auxiliaryCacheWords: 216,
       totalWords: 708,
       remainingWords: 9_532,
-      persistentGlobals: 239,
-      remainingGlobals: 17,
-      remainingArtifactBytes: -692,
+      persistentGlobals: 251,
+      remainingGlobals: 5,
+      // Was -692 before wave-2: the emission diet brought this fixture back
+      // under the activation ceiling.
+      remainingArtifactBytes: 60,
     })
     expect(checksums(selected, installationShow, 'fast')).toEqual(checksums(baseline, installationShow, 'fast'))
     expect(checksums(selected, installationShow, 'fidelity')).toEqual(checksums(baseline, installationShow, 'fidelity'))
