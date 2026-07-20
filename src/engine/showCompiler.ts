@@ -848,6 +848,10 @@ interface CompiledMember {
   /** #558: false when a scene places this member more than once, because
    * per-frame coefficients cannot serve placements with differing params. */
   colorCoefficientHoisting?: boolean
+  /** #562: true when the member's mirror/pixel-count binding is provably
+   * uniform per frame (single placement, single zone, no span/repeat, no
+   * logical layouts), enabling the branch-free mirror coefficient form. */
+  uniformMirrorBinding?: boolean
   generatedEffectKernelSharing: boolean
   animatedEffectParameterPaths: string[]
   freezeOwnerTokens: number[]
@@ -997,6 +1001,22 @@ export interface ShowCompileOptions {
   /** Benchmark counterfactual for #558 frame-invariant color-effect
    * coefficient hoisting; production always uses the default `true`. */
   colorCoefficientHoisting?: boolean
+  /** Benchmark counterfactual for #562 capture-prologue assignment
+   * reduction; production always uses the default `true`. */
+  capturePrologueSimplification?: boolean
+}
+
+/** #532/#556 price of one persistent scalar write on the measured VM. */
+export const SHOW_SCALAR_WRITE_US = 1.47
+
+/**
+ * #562 materialization rule: scalar reads are free and every write costs
+ * ~1.47 us, so a temp pays only when recomputing the value across its extra
+ * uses costs more than the single write it replaces.
+ */
+export function shouldMaterialize(uses: number, recomputeCostUs: number): boolean {
+  if (uses <= 1) return false
+  return (uses - 1) * recomputeCostUs > SHOW_SCALAR_WRITE_US
 }
 
 const DIRECT_SNAPSHOT_CANDIDATE_ID = 'transition:direct:snapshot-live'
@@ -1765,7 +1785,9 @@ ${bindings.map((binding, index) => `    ${binding} = ${banks[index]}[nextOwner]`
     ${member.prefix}_adapt_timeScale = ${timeScale}
     ${member.prefix}_adapt_mirror = ${mirror}
     ${member.prefix}_slot_initialized[nextOwner] = 1
-  }
+  }${member.needsMirrorMapping && member.uniformMirrorBinding ? `
+  ${member.prefix}_mir_sign = 1 - 2 * ${member.prefix}_adapt_mirror
+  ${member.prefix}_mir_base_i = ${member.prefix}_adapt_mirror * (${member.pixelCountName} - 1)` : ''}
   ${member.prefix}_slot_owner = nextOwner
 }`,
   ]
@@ -2339,6 +2361,22 @@ export function compileShow(
     for (const member of members) {
       member.colorCoefficientHoisting = (options.colorCoefficientHoisting ?? true)
         && !multiPlacementClipIds.has(member.id)
+    }
+    // #562: branch-free mirror coefficients need a per-frame-uniform binding.
+    // Route-mode recipes rebind per-route pixel counts and logical layouts
+    // rebind at runtime, so both keep the branch form conservatively.
+    const hasLogicalLayouts = (expandedRecipe.routingLayouts ?? []).some((layout) => layout.logical)
+    const nonUniformClipIds = new Set<string>(multiPlacementClipIds)
+    for (const scene of expandedRecipe.routedSceneSequence?.scenes ?? []) {
+      for (const placement of scene.placements) {
+        if (placement.zoneMode || placement.domainZoneNames?.length) nonUniformClipIds.add(placement.clipId)
+      }
+    }
+    for (const member of members) {
+      member.uniformMirrorBinding = (options.capturePrologueSimplification ?? true)
+        && !hasLogicalLayouts
+        && !routeMode
+        && !nonUniformClipIds.has(member.id)
     }
   }
   const routedSceneEmission = expandedRecipe.routedSceneSequence
@@ -4292,7 +4330,17 @@ function emitRoutedSceneSequenceShowCode(
         emitPlacementEffectTrackAssignments(member, memberPlacements, context.tracks, context.localTimeExpression),
       ])).filter(Boolean).join('\n')
       const ownerEntry = emitPatternSlotOwnerEntry(member, placement.slotOwner)
-      const code = `${member.pixelCountName} = ${pixelCount}${ownerEntry ? `\n${ownerEntry}` : ''}${emitSceneControlTargets(member, placement.controlTargets)}${emitSceneEffectTargets(member, showClipTransformEffects(placement.transform, placement.effects, true))}${placement.brightness === undefined
+      // #562: the scheduler owns the frame's mirror state and coefficients for
+      // uniform-binding members; per-pixel arms stop rebinding them.
+      const mirrorEntry = member.needsMirrorMapping && member.uniformMirrorBinding
+        ? placement.mirror !== undefined && physicalPixelCount > 0
+          ? `\n${member.prefix}_adapt_mirror = ${boolNumber(placement.mirror)}
+${member.prefix}_mir_sign = ${placement.mirror ? -1 : 1}
+${member.prefix}_mir_base_i = ${placement.mirror ? physicalPixelCount - 1 : 0}`
+          : `\n${placement.mirror === undefined ? '' : `${member.prefix}_adapt_mirror = ${boolNumber(placement.mirror)}\n`}${member.prefix}_mir_sign = 1 - 2 * ${member.prefix}_adapt_mirror
+${member.prefix}_mir_base_i = ${member.prefix}_adapt_mirror * (${member.pixelCountName} - 1)`
+        : ''
+      const code = `${member.pixelCountName} = ${pixelCount}${ownerEntry ? `\n${ownerEntry}` : ''}${mirrorEntry}${emitSceneControlTargets(member, placement.controlTargets)}${emitSceneEffectTargets(member, showClipTransformEffects(placement.transform, placement.effects, true))}${placement.brightness === undefined
         ? ''
         : `\n${member.prefix}_adapt_brightness = ${placement.brightness}`}${placement.timeScale === undefined
           ? ''
@@ -6717,7 +6765,11 @@ function emitRoutedPlacementCapture(
       ...(phaseTrack && localTimeExpression
         ? [`${member.prefix}_adapt_phase = ${emitShowPropertyTrackExpression(phaseTrack, localTimeExpression)}`]
         : placement.phase === undefined ? [] : [`${member.prefix}_adapt_phase = ${placement.phase}`]),
-      ...(placement.mirror === undefined ? [] : [`${member.prefix}_adapt_mirror = ${boolNumber(placement.mirror)}`]),
+      // #562: uniform-binding members get mirror state from the scheduler's
+      // per-frame setup; only divergent-binding members rebind per pixel.
+      ...(placement.mirror === undefined || member.uniformMirrorBinding
+        ? []
+        : [`${member.prefix}_adapt_mirror = ${boolNumber(placement.mirror)}`]),
       ...emitRoutedPlacementEffectTargets(
         member,
         showClipTransformEffects(placement.transform, placement.effects, true),
@@ -8979,6 +9031,13 @@ ${advanceDelta('delta', '  ')}
     `var ${member.prefix}_adapt_phase = ${member.adaptation.phase}`,
     `var ${member.prefix}_adapt_timeScale = ${member.adaptation.timeScale}`,
     `var ${member.prefix}_adapt_mirror = ${boolNumber(member.adaptation.mirror)}`,
+    // #562: branch-free mirror coefficients. adapt_mirror is discrete 0/1, so
+    // base_i = m * (N - 1) and sign = 1 - 2m are exact; every adapt_mirror or
+    // member pixel-count write site refreshes them.
+    ...(member.needsMirrorMapping && member.uniformMirrorBinding ? [
+      `var ${member.prefix}_mir_sign = 1 - 2 * ${member.prefix}_adapt_mirror`,
+      `var ${member.prefix}_mir_base_i = ${member.prefix}_adapt_mirror * (${member.pixelCountName} - 1)`,
+    ] : []),
     ...member.controls.map((control) => `var ${control.valueName} = ${control.initialValue}`),
     ...emitPatternSlotBankRuntime(member),
     `var ${member.prefix}_r = 0`,
@@ -9004,7 +9063,9 @@ ${advanceDelta('delta', '  ')}
   ${member.prefix}_adapt_brightness = brightness
   ${member.prefix}_adapt_phase = phase
   ${member.prefix}_adapt_timeScale = timeScale
-  ${member.prefix}_adapt_mirror = mirror
+  ${member.prefix}_adapt_mirror = mirror${member.needsMirrorMapping && member.uniformMirrorBinding ? `
+  ${member.prefix}_mir_sign = 1 - 2 * mirror
+  ${member.prefix}_mir_base_i = mirror * (${member.pixelCountName} - 1)` : ''}
 }`,
     `function ${member.prefix}_mixAdaptation(fromBrightness, fromPhase, fromTimeScale, fromMirror, toBrightness, toPhase, toTimeScale, toMirror, mix) {
   ${member.prefix}_setAdaptation(
@@ -9017,9 +9078,10 @@ ${advanceDelta('delta', '  ')}
     advance,
     ...(outputDimension === 2 && member.coordinateFieldCapture ? [
       `function ${member.prefix}_mapCoordinates2D(index, x, y) {
-  var mappedX = x
+${member.uniformMirrorBinding && member.needsMirrorMapping ? `  var mappedX = ${member.prefix}_adapt_mirror + ${member.prefix}_mir_sign * x
+  var mappedY = y` : `  var mappedX = x
   var mappedY = y
-  if (${member.prefix}_adapt_mirror >= 0.5) mappedX = 1 - x
+  if (${member.prefix}_adapt_mirror >= 0.5) mappedX = 1 - x`}
   var effectX = ${effectRuntime?.hasCoordinates && effectRuntime.hasAffine ? `${member.prefix}_fx_a * mappedX + ${member.prefix}_fx_c * mappedY + ${member.prefix}_fx_tx` : 'mappedX'}
   var effectY = ${effectRuntime?.hasCoordinates && effectRuntime.hasAffine ? `${member.prefix}_fx_b * mappedX + ${member.prefix}_fx_d * mappedY + ${member.prefix}_fx_ty` : 'mappedY'}
 ${effectRuntime?.hasCoordinates ? emitMemberDistortionSampling(member, 'effectX', 'effectY') : ''}
@@ -9039,27 +9101,62 @@ ${freezeCapture}${refreshCapture}${rollingRefreshCapture}
 ${effectRuntime?.hasCoordinates && !effectRuntime.wrap ? `  if (!effectInside) ${member.prefix}_clear()
 ` : ''}}`,
     ] : []),
-    ...(outputDimension === 1 ? [`function ${member.prefix}_renderCapture(index) {
-${freezeReplay}${refreshReplay}${rollingRefreshReplay}${identitySamplePath ? '' : `  var mappedIndex = index
+    ...(outputDimension === 1 ? [(() => {
+      // #562: uniform-binding members drop the per-pixel mirror branch and
+      // single-use temps; coefficients refresh at every frame-level write
+      // site. Non-uniform members keep the branch form verbatim.
+      const uniformMirror = !identitySamplePath && member.uniformMirrorBinding === true
+      // Members mapped only for ramps/coords have a statically-zero mirror:
+      // their source index is plain `index` with no coefficients at all.
+      const mirrorInline = member.needsMirrorMapping
+        ? `${member.prefix}_mir_base_i + ${member.prefix}_mir_sign * index`
+        : 'index'
+      const needsMappedVar = !identitySamplePath && (!uniformMirror || Boolean(samplePropertyRamps))
+      const sourceIndex = identitySamplePath ? 'index'
+        : needsMappedVar ? 'mappedIndex'
+        : member.needsMirrorMapping ? `(${mirrorInline})` : 'index'
+      const prologue = identitySamplePath ? '' : uniformMirror
+        ? (samplePropertyRamps ? `  var mappedIndex = ${mirrorInline}\n` : '')
+        : `  var mappedIndex = index
   if (${member.prefix}_adapt_mirror >= 0.5) mappedIndex = ${member.pixelCountName} - 1 - index
-`}${samplePropertyRamps ? `  if (__pxlblz_show_sample_repeat_scale != 1) {
+`
+      const ramps = samplePropertyRamps ? uniformMirror ? `  if (__pxlblz_show_sample_repeat_scale != 1) {
+    mappedIndex = min(${member.pixelCountName} - 1, floor(frac(mappedIndex / max(1, ${member.pixelCountName} - 1) * __pxlblz_show_sample_repeat_scale) * ${member.pixelCountName}))
+  }
+` : `  if (__pxlblz_show_sample_repeat_scale != 1) {
     var mappedPosition = mappedIndex / max(1, ${member.pixelCountName} - 1)
     mappedIndex = min(${member.pixelCountName} - 1, floor(frac(mappedPosition * __pxlblz_show_sample_repeat_scale) * ${member.pixelCountName}))
   }
-` : ''}${effectRuntime?.hasCoordinates ? `  var effectPosition = mappedIndex / max(1, ${member.pixelCountName} - 1)
+` : ''
+      const coords = effectRuntime?.hasCoordinates ? uniformMirror ? `${effectRuntime.hasAffine ? `  var effectPosition = ${sourceIndex} / max(1, ${member.pixelCountName} - 1)
+  var effectX = ${member.prefix}_fx_a * effectPosition + ${member.prefix}_fx_c * 0.5 + ${member.prefix}_fx_tx
+  var effectY = ${member.prefix}_fx_b * effectPosition + ${member.prefix}_fx_d * 0.5 + ${member.prefix}_fx_ty` : `  var effectX = ${sourceIndex} / max(1, ${member.pixelCountName} - 1)
+  var effectY = 0.5`}
+${emitMemberDistortionSampling(member, 'effectX', 'effectY')}
+  var effectInside = effectX >= 0 && effectX <= 1 && effectY >= 0 && effectY <= 1
+  ${effectRuntime.wrap ? 'effectX = effectX - floor(effectX)' : 'effectX = clamp(effectX, 0, 1)'}
+` : `  var effectPosition = mappedIndex / max(1, ${member.pixelCountName} - 1)
   var effectX = ${effectRuntime.hasAffine ? `${member.prefix}_fx_a * effectPosition + ${member.prefix}_fx_c * 0.5 + ${member.prefix}_fx_tx` : 'effectPosition'}
   var effectY = ${effectRuntime.hasAffine ? `${member.prefix}_fx_b * effectPosition + ${member.prefix}_fx_d * 0.5 + ${member.prefix}_fx_ty` : '0.5'}
 ${emitMemberDistortionSampling(member, 'effectX', 'effectY')}
   var effectInside = effectX >= 0 && effectX <= 1 && effectY >= 0 && effectY <= 1
   ${effectRuntime.wrap ? 'effectX = effectX - floor(effectX)' : 'effectX = clamp(effectX, 0, 1)'}
   mappedIndex = min(${member.pixelCountName} - 1, floor(effectX * ${member.pixelCountName}))
-` : ''}${omitClear ? '' : `  ${member.prefix}_clear()
-`}  ${member.hasRender ? emitSelectedMemberRendererCall(member, 1, { index: identitySamplePath ? 'index' : 'mappedIndex' }) : ''}
+` : ''
+      const rendererIndex = effectRuntime?.hasCoordinates
+        ? uniformMirror ? `min(${member.pixelCountName} - 1, floor(effectX * ${member.pixelCountName}))` : 'mappedIndex'
+        : sourceIndex
+      return `function ${member.prefix}_renderCapture(index) {
+${freezeReplay}${refreshReplay}${rollingRefreshReplay}${prologue}${ramps}${coords}${omitClear ? '' : `  ${member.prefix}_clear()
+`}  ${member.hasRender ? emitSelectedMemberRendererCall(member, 1, { index: rendererIndex }) : ''}`
+    })() + `
 ${emitMemberOutputEffectLines(member, { index: 'index', x: `index / max(1, ${member.pixelCountName} - 1)`, y: '0.5' })}
 ${effectRuntime?.hasCoordinates && !effectRuntime.wrap ? `  if (!effectInside) ${member.prefix}_clear()
 ` : ''}${freezeCapture}${refreshCapture}${rollingRefreshCapture}}`] : []),
     ...(outputDimension === 2 ? [`function ${member.prefix}_renderCapture2D(index, x, y) {
-${freezeReplay}${refreshReplay}${rollingRefreshReplay}${identitySamplePath ? '' : `  var mappedIndex = index
+${freezeReplay}${refreshReplay}${rollingRefreshReplay}${identitySamplePath ? '' : member.uniformMirrorBinding && !(samplePropertyRamps || effectRuntime?.hasCoordinates) ? '' : member.uniformMirrorBinding ? `  var mappedIndex = ${member.needsMirrorMapping ? `${member.prefix}_mir_base_i + ${member.prefix}_mir_sign * index` : 'index'}
+  var mappedX = ${member.needsMirrorMapping ? `${member.prefix}_adapt_mirror + ${member.prefix}_mir_sign * x` : 'x'}
+${samplePropertyRamps || effectRuntime?.hasCoordinates ? '  var mappedY = y\n' : ''}` : `  var mappedIndex = index
   var mappedX = x
 ${samplePropertyRamps || effectRuntime?.hasCoordinates ? '  var mappedY = y\n' : ''}  if (${member.prefix}_adapt_mirror >= 0.5) {
     mappedIndex = ${member.pixelCountName} - 1 - index
@@ -9079,8 +9176,16 @@ ${emitMemberDistortionSampling(member, 'effectX', 'effectY')}
 ` : ''}${omitClear ? '' : `  ${member.prefix}_clear()
 `}
   ${emitSelectedMemberRendererCall(member, 2, {
-    index: identitySamplePath ? 'index' : 'mappedIndex',
-    x: identitySamplePath ? 'x' : 'mappedX',
+    index: identitySamplePath
+      ? 'index'
+      : member.uniformMirrorBinding && !(samplePropertyRamps || effectRuntime?.hasCoordinates)
+        ? member.needsMirrorMapping ? `(${member.prefix}_mir_base_i + ${member.prefix}_mir_sign * index)` : 'index'
+        : 'mappedIndex',
+    x: identitySamplePath
+      ? 'x'
+      : member.uniformMirrorBinding && !(samplePropertyRamps || effectRuntime?.hasCoordinates)
+        ? member.needsMirrorMapping ? `(${member.prefix}_adapt_mirror + ${member.prefix}_mir_sign * x)` : 'x'
+        : 'mappedX',
     y: identitySamplePath ? 'y' : samplePropertyRamps || effectRuntime?.hasCoordinates ? 'mappedY' : 'y',
   })}
 ${emitMemberOutputEffectLines(member, { index: 'index', x: 'x', y: 'y' })}
