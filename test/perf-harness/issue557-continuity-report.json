@@ -1,0 +1,129 @@
+{
+  "generatedAt": "2026-07-20T05:27:48.771Z",
+  "device": {
+    "ip": "192.168.8.224",
+    "name": "Burner bag",
+    "firmwareVersion": "3.67",
+    "pixelCount": 256
+  },
+  "grid": {
+    "hueOffsets": 8,
+    "values": 6,
+    "saturations": 4,
+    "comparedPixels": 48960,
+    "comparedChannelSamples": 146880
+  },
+  "stabilityFailures": 0,
+  "maxChannelDelta8bit": 1,
+  "mismatchedChannelSamples": 56,
+  "worst": [
+    {
+      "pixel": 78,
+      "channel": 2,
+      "native": 103,
+      "generated": 102,
+      "hueBase": 0,
+      "satVal": 0.7,
+      "valVal": 1
+    },
+    {
+      "pixel": 176,
+      "channel": 2,
+      "native": 103,
+      "generated": 102,
+      "hueBase": 0,
+      "satVal": 0.7,
+      "valVal": 1
+    },
+    {
+      "pixel": 52,
+      "channel": 2,
+      "native": 179,
+      "generated": 180,
+      "hueBase": 0,
+      "satVal": 0.7,
+      "valVal": 0.85
+    },
+    {
+      "pixel": 202,
+      "channel": 2,
+      "native": 179,
+      "generated": 180,
+      "hueBase": 0,
+      "satVal": 0.7,
+      "valVal": 0.85
+    },
+    {
+      "pixel": 4,
+      "channel": 0,
+      "native": 147,
+      "generated": 148,
+      "hueBase": 0,
+      "satVal": 0.35,
+      "valVal": 0.85
+    },
+    {
+      "pixel": 13,
+      "channel": 0,
+      "native": 163,
+      "generated": 164,
+      "hueBase": 0,
+      "satVal": 0.35,
+      "valVal": 0.85
+    },
+    {
+      "pixel": 22,
+      "channel": 0,
+      "native": 179,
+      "generated": 180,
+      "hueBase": 0,
+      "satVal": 0.35,
+      "valVal": 0.85
+    },
+    {
+      "pixel": 31,
+      "channel": 0,
+      "native": 195,
+      "generated": 196,
+      "hueBase": 0,
+      "satVal": 0.35,
+      "valVal": 0.85
+    },
+    {
+      "pixel": 225,
+      "channel": 1,
+      "native": 195,
+      "generated": 196,
+      "hueBase": 0,
+      "satVal": 0.35,
+      "valVal": 0.85
+    },
+    {
+      "pixel": 234,
+      "channel": 1,
+      "native": 179,
+      "generated": 180,
+      "hueBase": 0,
+      "satVal": 0.35,
+      "valVal": 0.85
+    },
+    {
+      "pixel": 243,
+      "channel": 1,
+      "native": 163,
+      "generated": 164,
+      "hueBase": 0,
+      "satVal": 0.35,
+      "valVal": 0.85
+    },
+    {
+      "pixel": 252,
+      "channel": 1,
+      "native": 147,
+      "generated": 148,
+      "hueBase": 0,
+      "satVal": 0.35,
+      "valVal": 0.85
+    }
+  ]
+}
