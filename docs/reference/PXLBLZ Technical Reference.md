@@ -1714,6 +1714,14 @@ plus the shared source utilities those passes use. The lowering never sees
 scheduler or routing state; recipe-derived facts arrive through its options
 object.
 
+`src/engine/showRoutedScenePlan.ts` owns routed Scene sequence planning
+(#570): Scene resolution against the compiled member list and the
+hold/transition timeline — segments, per-Scene start times, and the Show
+clock's loop length. Planning is data only; placement enrichment (consumer
+ids, Pattern-slot owners) stays with the emitter, and the module documents
+why the table-driven Show score's segment walk is deliberately separate (it
+materializes default cut transitions this timeline omits).
+
 `src/engine/showMemberBindingPolicy.ts` concentrates these binding decisions
 (#570). It answers one question — who writes this Pattern instance's
 per-frame values, the Scene scheduler's setup entry or the per-pixel arm? —

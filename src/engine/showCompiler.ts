@@ -7007,24 +7007,14 @@ function emitSceneTransitionWithCaptures(
       false,
     )
   }
-  // The zone-local retargeting is textual: every transition emitter must
-  // expose both members' captures exactly as memberRenderCapture renders
-  // them. Three invariants keep that true today (per-scene stack wrappers
-  // are never identical, portal/spatial-dissolve force outputDimension 2,
-  // the other emitters call memberRenderCapture themselves) - and a drift
-  // in any of them would silently keep the full-stage capture, so fail the
-  // compile loudly instead.
-  const block = emitSceneSequenceTransitionBlock(from, to, transition, outputDimension, scalarField)
-  const fromCall = memberRenderCapture(from, outputDimension)
-  const toCall = memberRenderCapture(to, outputDimension)
-  if (!block.includes(fromCall) || !block.includes(toCall)) {
-    throw new Error(
-      `compileShow "${transition.kind}" transition did not expose retargetable captures for zone-local rewriting.`,
-    )
-  }
-  return block
-    .split(fromCall).join(fromCapture)
-    .split(toCall).join(toCapture)
+  // #570: the zone-local capture calls are parameters, not a post-hoc
+  // rewrite - each transition emitter invokes exactly what it is handed, so
+  // the silent-miss class the former string surgery guarded against cannot
+  // exist.
+  return emitSceneSequenceTransitionBlock(from, to, transition, outputDimension, scalarField, {
+    from: fromCapture,
+    to: toCapture,
+  })
 }
 
 function routedSceneMemberCapture(
@@ -7069,23 +7059,36 @@ function emitSceneEffectTargets(member: CompiledMember, effects: ShowClipEffect[
   )).join('')
 }
 
+/** The capture calls a transition body invokes for each side. Routed
+ * zone-stack callers pass zone-local calls; direct callers rely on the
+ * full-stage defaults. Threading these as parameters is what lets one
+ * transition body serve both - there is no post-hoc rewriting. */
+interface TransitionCaptureCalls {
+  from: string
+  to: string
+}
+
 function emitSceneSequenceTransitionBlock(
   from: CompiledMember,
   to: CompiledMember,
   transition: ShowSceneSequenceTransitionRecipe,
   outputDimension: 1 | 2,
   scalarField?: SelectedScalarField,
+  captures: TransitionCaptureCalls = {
+    from: memberRenderCapture(from, outputDimension),
+    to: memberRenderCapture(to, outputDimension),
+  },
 ): string {
-  if (transition.kind === 'portal') return emitPortalRenderBlock(from, to, transition)
-  if (transition.kind === 'fade-color') return emitFadeThroughColorRenderBlock(from, to, transition, outputDimension)
-  if (transition.kind === 'wipe') return emitWipeTransitionRenderBlock(from, to, transition, outputDimension)
+  if (transition.kind === 'portal') return emitPortalRenderBlock(from, to, transition, captures)
+  if (transition.kind === 'fade-color') return emitFadeThroughColorRenderBlock(from, to, transition, outputDimension, captures)
+  if (transition.kind === 'wipe') return emitWipeTransitionRenderBlock(from, to, transition, outputDimension, captures)
   if (transition.kind === 'motion') return emitMotionTransitionRenderBlock(from, to, transition)
   if (transition.kind === 'dither' && isSpatialDissolve(transition)) {
-    return emitSpatialDissolveRenderBlock(from, to, transition, scalarField)
+    return emitSpatialDissolveRenderBlock(from, to, transition, scalarField, captures)
   }
 
-  const fromRender = memberRenderCapture(from, outputDimension)
-  const toRender = memberRenderCapture(to, outputDimension)
+  const fromRender = captures.from
+  const toRender = captures.to
   if (transition.kind === 'crossfade') {
     if (from === to) {
       return `${fromRender}
@@ -7135,6 +7138,10 @@ function emitSpatialDissolveRenderBlock(
   to: CompiledMember,
   transition: Pick<ShowRouteTransitionRecipe, 'dissolveVariant' | 'seed' | 'scale' | 'softness' | 'edgePolicy'>,
   scalarField?: SelectedScalarField,
+  captures: TransitionCaptureCalls = {
+    from: `${from.prefix}_renderCapture2D(index, x, y)`,
+    to: `${to.prefix}_renderCapture2D(index, x, y)`,
+  },
 ): string {
   const seedOffset = normalizeShowDissolveSeed(transition.seed ?? 0) * 131
   const scale = normalizeShowDissolveScale(transition.scale ?? 6)
@@ -7171,8 +7178,8 @@ var __pxlblz_show_dissolve_field = __pxlblz_show_dissolve_top + (__pxlblz_show_d
         producerLines: producerPrelude.split('\n'),
       })
     : producerPrelude
-  const fromRender = `${from.prefix}_renderCapture2D(index, x, y)`
-  const toRender = `${to.prefix}_renderCapture2D(index, x, y)`
+  const fromRender = captures.from
+  const toRender = captures.to
   if (policy === 'hard' || softness === 0) {
     return `${prelude}
 if (__pxlblz_show_dissolve_field < __pxlblz_show_mix) {
@@ -7221,12 +7228,16 @@ function emitWipeTransitionRenderBlock(
   to: CompiledMember,
   transition: Pick<ShowRouteTransitionRecipe, 'direction' | 'wipeVariant' | 'wipeMode' | 'orientation' | 'count' | 'centerX' | 'centerY' | 'phase' | 'clockwise' | 'edgePolicy' | 'feather'>,
   outputDimension: ShowOutputDimension,
+  captures: TransitionCaptureCalls = {
+    from: memberRenderCapture(from, outputDimension),
+    to: memberRenderCapture(to, outputDimension),
+  },
 ): string {
   const feather = clampNumber(transition.feather ?? 0, 0, 1)
   const edgePolicy = normalizeShowTransitionEdgePolicy(transition.edgePolicy, feather)
   const position = showWipePositionExpression(transition, outputDimension)
-  const fromRender = memberRenderCapture(from, outputDimension)
-  const toRender = memberRenderCapture(to, outputDimension)
+  const fromRender = captures.from
+  const toRender = captures.to
   if (edgePolicy === 'hard' || feather === 0) {
     return `if (${position} < __pxlblz_show_mix) {
   ${toRender}
@@ -7403,10 +7414,14 @@ function emitFadeThroughColorRenderBlock(
   to: CompiledMember,
   transition: Pick<ShowRouteTransitionRecipe, 'color'>,
   outputDimension: ShowOutputDimension,
+  captures: TransitionCaptureCalls = {
+    from: memberRenderCapture(from, outputDimension),
+    to: memberRenderCapture(to, outputDimension),
+  },
 ): string {
   const [red, green, blue] = showTransitionColorToRgb(normalizeShowTransitionColor(transition.color))
-  const fromRender = memberRenderCapture(from, outputDimension)
-  const toRender = memberRenderCapture(to, outputDimension)
+  const fromRender = captures.from
+  const toRender = captures.to
   return `if (__pxlblz_show_mix < 0.5) {
   ${fromRender}
   var __pxlblz_show_color_mix = __pxlblz_show_mix * 2
@@ -7529,6 +7544,10 @@ function emitPortalRenderBlock(
   from: CompiledMember,
   to: CompiledMember,
   transition: ShowSceneSequenceTransitionRecipe,
+  captures: TransitionCaptureCalls = {
+    from: `${from.prefix}_renderCapture2D(index, x, y)`,
+    to: `${to.prefix}_renderCapture2D(index, x, y)`,
+  },
 ): string {
   const centerX = clampNumber(transition.centerX ?? 0.5, 0, 1)
   const centerY = clampNumber(transition.centerY ?? 0.5, 0, 1)
@@ -7613,8 +7632,8 @@ ${catalogueMetric.prelude ? `${catalogueMetric.prelude}\n` : ''}var __pxlblz_sho
     : revealMode === 'shrink-outgoing'
       ? '__pxlblz_show_portal_radius - __pxlblz_show_portal_distance'
       : '__pxlblz_show_portal_distance - __pxlblz_show_portal_radius'
-  const fromRender = `${from.prefix}_renderCapture2D(index, x, y)`
-  const toRender = `${to.prefix}_renderCapture2D(index, x, y)`
+  const fromRender = captures.from
+  const toRender = captures.to
   let transitionBody: string
 
   if (feather <= 0 || edgePolicy === 'hard') {
