@@ -106,9 +106,13 @@ describe('steady-state direct color sinks (#557)', () => {
     expect(summary?.members.map((member) => member.id).sort()).toEqual(['first', 'second'])
   })
 
-  it('defaults off until the hardware matrix qualifies the win', () => {
+  it('defaults on after the qualified Controller matrix; option false restores the capture build', () => {
+    // Qualified 2026-07-19: +68.6% to +69.6% median FPS on the #555 HSV
+    // steady-state fixture at 256/1,000/2,000 px (wave2-baselines ledger).
     const artifact = compileShow(steadyRecipe(), {})
-    expect(artifact.expandedCode).not.toContain('__pxlblz_show_direct')
+    expect(artifact.expandedCode).toContain('var __pxlblz_show_direct = 0')
+    const disabled = compileShow(steadyRecipe(), {}, { directColorSinks: false })
+    expect(disabled.expandedCode).not.toContain('__pxlblz_show_direct')
   })
 
   it('keeps members without the clear-elision proof on the capture path', () => {

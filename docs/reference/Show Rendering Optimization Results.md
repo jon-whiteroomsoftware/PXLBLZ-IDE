@@ -321,6 +321,17 @@ restoration details for every line.
 The closed next-wave ledger, including exact fixture and restoration facts,
 lives in `docs/plans/archive/show-rendering-next-wave-measurement-ledger.md`.
 
+### Wave-2 measured additions (#554, in progress)
+
+| Step | Slice | Primary measured result |
+| ---: | --- | --- |
+| 00 | #555 wave-2 baselines | five fixtures at 256/1,000/2,000 px; HSV steady state 191.833 ms/frame at 2,000 px |
+| 01 | #556 op-cost round two | native hsv() only 0.374 us/call over native rgb(); function-value rebinding free; ternary beats arithmetic select by ~3.5 us |
+| 02 | #569 run-length packed routing | Pattern Prism source -34.3%, Controller bytecode -43.1%; identical table contents; capacity axis |
+| 03 | #557 steady-state direct color sinks | median FPS +68.83% / +69.61% / +68.60% at 256/1,000/2,000 px on the HSV steady-state fixture; ineligible fixtures byte-identical; named ~0.1x16.16-LSB Precise/hardware conversion divergence on steady HSV frames |
+
+Wave-2 slice ledgers with full axes live as comments on #554.
+
 ## General rules established by the evidence
 
 1. Remove dead work before caching it.

@@ -177,11 +177,14 @@ export function mirrorRecipe(): ShowRecipe {
   }
 }
 
-// Paired "after" passes flip wave-2 compile options via env (the runner's
-// WAVE2_LABEL names the report); the default build stays the baseline.
-const WAVE2_COMPILE_OPTIONS: ShowCompileOptions = process.env.WAVE2_DIRECT_SINKS === '1'
-  ? { directColorSinks: true }
-  : {}
+// Paired counterfactual passes flip wave-2 compile options via env (the
+// runner's WAVE2_LABEL names the report). Direct sinks default on since the
+// qualified #557 matrix; WAVE2_DIRECT_SINKS=0 rebuilds the pre-#557 shape.
+const WAVE2_COMPILE_OPTIONS: ShowCompileOptions = process.env.WAVE2_DIRECT_SINKS === '0'
+  ? { directColorSinks: false }
+  : process.env.WAVE2_DIRECT_SINKS === '1'
+    ? { directColorSinks: true }
+    : {}
 
 function fixture(id: Wave2FixtureId, recipe: ShowRecipe, notes: string): Wave2Fixture {
   return { id, artifact: compileShow(recipe, LIBRARIES, WAVE2_COMPILE_OPTIONS), notes }

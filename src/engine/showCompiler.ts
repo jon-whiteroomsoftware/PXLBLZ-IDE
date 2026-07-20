@@ -988,7 +988,8 @@ export interface ShowCompileOptions {
   coordinateFieldCaching?: boolean
   /** Benchmark counterfactual; production shares qualified repeated affine Effect updates. */
   generatedEffectKernelSharing?: boolean
-  /** Steady-state direct color sinks (#557); defaults off until the Controller matrix qualifies the win. */
+  /** Steady-state direct color sinks (#557). Default on: qualified at
+   * +68.6-69.6% median FPS on the HSV steady-state fixture (2026-07-19). */
   directColorSinks?: boolean
 }
 
@@ -2336,7 +2337,7 @@ export function compileShow(
         selectedRefreshCaptures,
         selectedRollingRefreshCaptures,
         patternSlotRuntimePlan,
-        (options?.directColorSinks ?? false) && !trailsSelected,
+        (options?.directColorSinks ?? true) && !trailsSelected,
       )
       : null
   const emittedCode = routedSceneEmission

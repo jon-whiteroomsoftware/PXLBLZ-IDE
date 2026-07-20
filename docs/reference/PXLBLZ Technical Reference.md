@@ -1672,6 +1672,36 @@ mean/min/max FPS, then restores the original Pattern and pixel count in
 `finally`. The archived measurement is in
 `docs/plans/archive/issue-512-routing-capture-specialization-results.md`.
 
+### Steady-state direct color sinks
+
+During routed steady scenes whose captured member output has no consumer, the
+member's renamed color wrappers branch on a per-frame `__pxlblz_show_direct`
+flag and paint the LED through native `hsv()`/`rgb()` directly, skipping the
+generated sextant conversion (measured at 35.308 us/pixel, 43.7x a multiply)
+and the capture/emit round trip. The steady arm sets the flag, renders, clears
+it, and skips `P_emit()`; transition helpers and ineligible arms never touch
+the flag, so they always see the capture path.
+
+Eligibility is a conservative compile-time proof: the member needs the
+guaranteed-output clear elision, an identity output path (no color Effects, no
+brightness scale), no content key, live evaluation, and no light shutter or
+stepped clock; the recipe may not select Trails, Pattern-output reuse, scalar
+or coordinate fields, Freeze/Refresh captures, or Pattern-slot sharing; the
+activation site must be a single opaque placement of a physical-layout zone in
+a scene not adjacent to a snapshot-live Crossfade. Members without at least
+one activation site keep byte-identical wrappers, so ineligible Shows compile
+byte-for-byte unchanged (the stock catalogue is pinned neutral by test).
+
+Fast preview is exact: the shim's float `hsv()` and the generated conversion
+are the same formula. Precise mode and hardware carry a named approximation on
+steady HSV frames only: the firmware's native conversion diverges from the
+generated conversion by about 0.1 of a 16.16 LSB at rounding boundaries
+(measured over 146,880 output samples: 0.038% differ, never by more than one
+8-bit output step), which is below any visible phase-boundary color step.
+Qualified on the Controller at +68.6% to +69.6% median FPS on the HSV
+steady-state fixture at 256/1,000/2,000 pixels; `directColorSinks: false`
+restores the capture build for counterfactual measurement.
+
 ### Exact frame-invariant specialization
 
 The compiler also analyzes local initializers reachable from a member renderer.
