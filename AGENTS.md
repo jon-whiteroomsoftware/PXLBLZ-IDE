@@ -121,11 +121,18 @@ check the local D1 schema first.
 
 ## Browser and visual checks
 
-- Use the Codex in-app browser first for UI work, then repo Playwright. If the
-  dedicated in-app-browser skill is absent, bootstrap `scripts/browser-client.mjs`
-  from an installed browser plugin, list browsers, and select the entry whose
-  type is `iab`; absence from the skill catalogue is not proof the browser is
-  unavailable.
+- Use the Codex in-app browser first for UI work, then repo Playwright. A missing
+  in-app-browser skill entry is never sufficient reason to switch tools. Before
+  any fallback, bootstrap `scripts/browser-client.mjs` from an installed Browser
+  or Chrome plugin through the Node REPL, list browser backends, and probe the
+  entry whose type is `iab`. If the Browser plugin itself is missing, inspect
+  `codex plugin list --available --json` and restore `browser@openai-bundled`.
+  Fall back only after two or three focused bootstrap probes fail. Before using
+  Chrome, standalone Playwright, Computer Use, or another browser mechanism,
+  tell the user that the in-app browser failed, the concrete failure observed,
+  which fallback will be used, and its speed or fidelity tradeoff. Successful
+  `agent.browsers.get("iab")` discovery means the in-app browser is available
+  even if the skill catalogue omitted it.
 - Run `npm run check:playwright` before claiming Chromium is missing. Use the
   repo package through `npx playwright`, `npm run test:e2e`, or CommonJS
   resolution from the workspace; Codex.app's bundled package may expect a

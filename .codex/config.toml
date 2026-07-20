@@ -1,2 +1,5 @@
 [plugins."frontend-design@claude-plugins-official"]
 enabled = true
+
+[plugins."browser@openai-bundled"]
+enabled = true
