@@ -65,6 +65,7 @@ import {
 import { SHOW_DISTORTION_CANDIDATES } from './showDistortionBenchmark'
 import {
   emitFormulaRoutingRenderDecode,
+  emitLogicalRoutingSetup,
   emitPackedRoutingRenderDecode,
   emitPackedRoutingTable as emitPackedRoutingTableFromShapes,
   emitZoneLocalAssignments,
@@ -8320,94 +8321,6 @@ rgb(
 )
 return`
   return body.split('\n').map((line) => `${indent}${line}`).join('\n')
-}
-
-function emitLogicalRoutingSetup(logical: ShowLogicalRoutingRecipe): string {
-  if (logical.kind === 'single') {
-    return `var __pxlblz_show_route_id = 0
-var __pxlblz_show_route_local_x = clamp(x, 0, 1)
-var __pxlblz_show_route_local_y = clamp(y, 0, 1)`
-  }
-  if (logical.kind === 'grid') {
-    return `var __pxlblz_show_route_column = min(${logical.columns - 1}, floor(clamp(x, 0, 1) * ${logical.columns}))
-var __pxlblz_show_route_row = min(${logical.rows - 1}, floor(clamp(y, 0, 1) * ${logical.rows}))
-var __pxlblz_show_route_id = __pxlblz_show_route_row * ${logical.columns} + __pxlblz_show_route_column
-var __pxlblz_show_route_local_x = clamp(x * ${logical.columns} - __pxlblz_show_route_column, 0, 1)
-var __pxlblz_show_route_local_y = clamp(y * ${logical.rows} - __pxlblz_show_route_row, 0, 1)`
-  }
-  if (logical.kind === 'stripes') {
-    const coordinate = logical.axis === 'x' ? 'x' : 'y'
-    const count = logical.zoneNames.length
-    return `var __pxlblz_show_route_id = min(${count - 1}, floor(clamp(${coordinate}, 0, 1) * ${count}))
-var __pxlblz_show_route_stripe_local = clamp(${coordinate} * ${count} - __pxlblz_show_route_id, 0, 1)
-var __pxlblz_show_route_local_x = ${logical.axis === 'x' ? '__pxlblz_show_route_stripe_local' : 'clamp(x, 0, 1)'}
-var __pxlblz_show_route_local_y = ${logical.axis === 'y' ? '__pxlblz_show_route_stripe_local' : 'clamp(y, 0, 1)'}`
-  }
-  if (logical.kind === 'checker') {
-    return `var __pxlblz_show_route_column = min(${logical.columns - 1}, floor(clamp(x, 0, 1) * ${logical.columns}))
-var __pxlblz_show_route_row = min(${logical.rows - 1}, floor(clamp(y, 0, 1) * ${logical.rows}))
-var __pxlblz_show_route_id = (__pxlblz_show_route_row + __pxlblz_show_route_column) % 2
-var __pxlblz_show_route_local_x = clamp(x * ${logical.columns} - __pxlblz_show_route_column, 0, 1)
-var __pxlblz_show_route_local_y = clamp(y * ${logical.rows} - __pxlblz_show_route_row, 0, 1)`
-  }
-  if (logical.kind === 'rings') {
-    const count = logical.zoneNames.length
-    return `var __pxlblz_show_route_dx = clamp(x, 0, 1) - 0.5
-var __pxlblz_show_route_dy = clamp(y, 0, 1) - 0.5
-var __pxlblz_show_route_radius = clamp(hypot(__pxlblz_show_route_dx, __pxlblz_show_route_dy) / 0.7071067811865476, 0, 1)
-var __pxlblz_show_route_ring = min(${logical.rings - 1}, floor(__pxlblz_show_route_radius * ${logical.rings}))
-var __pxlblz_show_route_id = __pxlblz_show_route_ring % ${count}
-var __pxlblz_show_route_angle = atan2(__pxlblz_show_route_dy, __pxlblz_show_route_dx) / 6.283185307179586
-var __pxlblz_show_route_local_x = __pxlblz_show_route_angle - floor(__pxlblz_show_route_angle)
-var __pxlblz_show_route_local_y = clamp(__pxlblz_show_route_radius * ${logical.rings} - __pxlblz_show_route_ring, 0, 1)`
-  }
-  if (logical.kind === 'wave') {
-    const count = logical.zoneNames.length
-    const along = logical.axis === 'x' ? 'clamp(x, 0, 1)' : 'clamp(y, 0, 1)'
-    const across = logical.axis === 'x' ? 'clamp(y, 0, 1)' : 'clamp(x, 0, 1)'
-    return `var __pxlblz_show_route_wave_raw = ${along} + (triangle(${across} * ${logical.frequency} + ${logical.phase}) - 0.5) * ${logical.amplitude}
-var __pxlblz_show_route_wave = __pxlblz_show_route_wave_raw - floor(__pxlblz_show_route_wave_raw)
-var __pxlblz_show_route_band = min(${logical.bands - 1}, floor(__pxlblz_show_route_wave * ${logical.bands}))
-var __pxlblz_show_route_id = __pxlblz_show_route_band % ${count}
-var __pxlblz_show_route_band_local = clamp(__pxlblz_show_route_wave * ${logical.bands} - __pxlblz_show_route_band, 0, 1)
-var __pxlblz_show_route_local_x = ${logical.axis === 'x' ? '__pxlblz_show_route_band_local' : 'clamp(x, 0, 1)'}
-var __pxlblz_show_route_local_y = ${logical.axis === 'y' ? '__pxlblz_show_route_band_local' : 'clamp(y, 0, 1)'}`
-  }
-  if (logical.kind === 'soft-split') {
-    const coordinate = logical.axis === 'x' ? 'clamp(x, 0, 1)' : 'clamp(y, 0, 1)'
-    const mix = logical.feather > 0
-      ? `clamp(0.5 + (__pxlblz_show_route_split_coordinate - __pxlblz_show_route_split_position) / ${logical.feather}, 0, 1)`
-      : '0'
-    return `var __pxlblz_show_route_split_coordinate = ${coordinate}
-var __pxlblz_show_route_mix = ${mix}
-${logical.feather > 0 ? '' : `if (__pxlblz_show_route_split_coordinate >= __pxlblz_show_route_split_position) __pxlblz_show_route_mix = 1
-`}var __pxlblz_show_route_id = 1
-if (__pxlblz_show_route_mix < 0.5) __pxlblz_show_route_id = 0
-var __pxlblz_show_route_local_x = clamp(x, 0, 1)
-var __pxlblz_show_route_local_y = clamp(y, 0, 1)`
-  }
-  if (logical.kind === 'split') {
-    const coordinate = logical.axis === 'x' ? 'clamp(x, 0, 1)' : 'clamp(y, 0, 1)'
-    return `var __pxlblz_show_route_split_coordinate = ${coordinate}
-var __pxlblz_show_route_id = 1
-var __pxlblz_show_route_split_local = (__pxlblz_show_route_split_coordinate - __pxlblz_show_route_split_position) / max(0.000001, 1 - __pxlblz_show_route_split_position)
-if (__pxlblz_show_route_split_position >= 1 || (__pxlblz_show_route_split_position > 0 && __pxlblz_show_route_split_coordinate < __pxlblz_show_route_split_position)) {
-  __pxlblz_show_route_id = 0
-  __pxlblz_show_route_split_local = __pxlblz_show_route_split_coordinate / max(0.000001, __pxlblz_show_route_split_position)
-}
-var __pxlblz_show_route_local_x = ${logical.axis === 'x' ? 'clamp(__pxlblz_show_route_split_local, 0, 1)' : 'clamp(x, 0, 1)'}
-var __pxlblz_show_route_local_y = ${logical.axis === 'y' ? 'clamp(__pxlblz_show_route_split_local, 0, 1)' : 'clamp(y, 0, 1)'}`
-  }
-  const count = logical.zoneNames.length
-  return `var __pxlblz_show_route_dx = clamp(x, 0, 1) - 0.5
-var __pxlblz_show_route_dy = clamp(y, 0, 1) - 0.5
-var __pxlblz_show_route_radius = hypot(__pxlblz_show_route_dx, __pxlblz_show_route_dy)
-var __pxlblz_show_route_turn_raw = (atan2(__pxlblz_show_route_dy, __pxlblz_show_route_dx) + __pxlblz_show_route_radius * ${logical.twist} + ${logical.rotation}) / 6.283185307179586
-var __pxlblz_show_route_turn = __pxlblz_show_route_turn_raw - floor(__pxlblz_show_route_turn_raw)
-var __pxlblz_show_route_arm = min(${logical.arms - 1}, floor(__pxlblz_show_route_turn * ${logical.arms}))
-var __pxlblz_show_route_id = __pxlblz_show_route_arm % ${count}
-var __pxlblz_show_route_local_x = clamp(__pxlblz_show_route_turn * ${logical.arms} - __pxlblz_show_route_arm, 0, 1)
-var __pxlblz_show_route_local_y = clamp(__pxlblz_show_route_radius / 0.7071067811865476, 0, 1)`
 }
 
 function routingPixelCount(layouts: PackedRoutingLayoutShape[]): number {
