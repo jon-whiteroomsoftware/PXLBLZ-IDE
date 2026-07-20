@@ -1,7 +1,7 @@
 # Final design: Show rendering optimization runway
 
-Status: recommended research direction
-Date: 2026-07-17
+Status: completed design record; conditional follow-ups are not active scope
+Date: 2026-07-19
 
 ## Governing conclusion
 
@@ -20,8 +20,9 @@ Memory wins when it removes an expensive renderer or producer. It loses when
 array access, indexing, invalidation, and generated code replace work that the
 Pixelblaze VM already performs cheaply.
 
-This design orders future research by evidence and kill cost. It does not
-authorize implementation or create a new epic.
+This design ordered the completed research program by evidence and kill cost.
+Its conditional follow-ups remain evidence, not authorized implementation or a
+new epic.
 
 ## Recommended sequence
 

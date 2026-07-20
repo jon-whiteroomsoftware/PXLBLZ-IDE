@@ -1,7 +1,7 @@
 # Show Rendering Optimization Results
 
 Status: as-built reference
-Date: 2026-07-17
+Date: 2026-07-19
 
 ## Result
 
@@ -15,6 +15,15 @@ field reuse improved 44.1%. Snapshot/live Crossfade intentionally changes the
 visual contract and improved Redline's transition median by 76.7%.
 The first scalar-field Effect, Vignette, improved 26.6% at the 2,000-pixel
 ceiling while adding no VM words.
+
+The evidence-led next wave is also complete. Authored Freeze improved its heavy
+backdrop fixture by about 46%; exact three-layer coverage composition reached a
+121.98% gain at full coverage; field/shading decomposition reached about 110%
+with five consumers; and four-slice Refresh gained about 20% while preserving a
+bounded three-frame pixel age. Table-driven Show scores reduced three long
+reference artifacts by 74.6-86.2%, and Restart lifetime coloring reduced the
+Property Animation artifact by 22.56%. Trails shipped as a zero-additional-word
+visual affordance with its measured 35-37% native-serial FPS cost disclosed.
 
 The program also established a negative boundary. Exact transformed-coordinate
 caching looked profitable in an abstract operation model but slowed 2,000-pixel
@@ -94,8 +103,8 @@ was unchanged. This is a capacity win.
 Compatible repeated single-zone 2D Shows now carry choreography as a compact
 five-word-per-boundary score and emit each unique Pattern instance, Scene stack,
 and Transition kernel once. Wipe and Mix, Shape Reveal, and Easing reduce
-historical source from 184,903, 118,696, and 141,684 bytes to 26,443, 29,299,
-and 18,929 bytes: 85.7%, 75.3%, and 86.6% total reductions. Against equivalent
+historical source from 177,411, 114,452, and 135,908 bytes to 26,203, 29,059,
+and 18,689 bytes: 85.2%, 74.6%, and 86.2% total reductions. Against equivalent
 current three-instance unrolled artifacts, Controller bytecode falls 78.9%,
 66.6%, and 78.5%.
 
@@ -291,15 +300,15 @@ restoration details for every line.
 | 04 | #533 authored Freeze at entry | median FPS +45.55% / +46.02% / +46.07% at 256 / 1,000 / 2,000 pixels; zero additional VM words |
 | 05 | #534 three-layer coverage composition | 90% coverage median FPS +100.67% / +100.74% / +100.74% at 256 / 1,000 / 2,000 pixels; zero additional VM words |
 | 06 | #539 Vignette scalar field | median FPS +26.36% / +26.54% / +26.58% at 256 / 1,000 / 2,000 pixels; zero additional VM words |
-| 07 | #542 table-driven Show score | Wipe / Shape / Easing source -85.7% / -75.3% / -86.6%; Controller bytecode -78.9% / -66.6% / -78.5%; runtime neutral |
+| 07 | #542 table-driven Show score | Wipe / Shape / Easing source -85.2% / -74.6% / -86.2%; Controller bytecode -78.9% / -66.6% / -78.5%; runtime neutral |
 | 08 | #546 Restart Pattern slots | Property Animation instances 17 -> 8; source -22.56%, bytecode -18.02%; runtime neutral |
 | 09 | #540 Pattern field/shading decomposition | five consumers: median FPS +110.19% / +110.67% / +109.87% at 256 / 1,000 / 2,000 pixels |
 | 10 | #535 whole-frame Refresh diagnostic | 1,000 ms median FPS +43.40% / +37.88% / +29.32%; periodic capture pacing remained visible |
 | 11 | #535 four-slice Rolling Refresh | median FPS +20.09% / +20.19% / +20.20%; maximum pixel age 3 frames; accepted for production |
 | 12 | #537 Show output Trails | median FPS cost -35.39% / -36.77% / -37.01%; zero additional VM words; authored visual affordance |
 
-The cumulative next-wave ledger, including exact fixture and restoration facts,
-lives in `docs/plans/show-rendering-next-wave-measurement-ledger.md`.
+The closed next-wave ledger, including exact fixture and restoration facts,
+lives in `docs/plans/archive/show-rendering-next-wave-measurement-ledger.md`.
 
 ## General rules established by the evidence
 
@@ -317,23 +326,22 @@ lives in `docs/plans/show-rendering-next-wave-measurement-ledger.md`.
 10. Represent repeated choreography as data selecting interned machinery; do
     not duplicate machinery to encode time.
 
-## Further opportunity map
+## Closed next-wave opportunity map
 
 An independent Fable xhigh and Codex design round evaluated the next runway.
 The shared brief, independent proposals, comparison, and final recommendation
 live in `docs/collaboration/show-rendering-next-opportunities/`.
 
-The recommended order is:
+The round resolved the recommended sequence as follows:
 
-1. native operation-cost profiling and fixture-level hardware ablation;
-2. authored Freeze and Refresh clip policies;
-3. exact coverage-directed layer composition;
-4. additional scalar-field Effects and a census for Pattern field/coverage/shading roles; Vignette is now the qualified first producer;
-5. further `previous-rgb` output Effects only after measuring Trails' qualified 35-37% native-serial FPS cost;
-6. Restart-instance global liveness and shared generated-kernel capacity work;
-7. direct emission, state vectors, packed routing/RGB, or spatial hold only
-   after their inexpensive falsifiers identify a real target.
+1. native operation-cost profiling and fixture-level hardware ablation are complete;
+2. Freeze and four-slice Refresh are shipped authored policies;
+3. exact three-layer coverage-directed composition is shipped, while unsupported depths retain ordinary composition;
+4. Vignette is the first qualified scalar-field Effect and the Pattern field/shading contract has a measured diagnostic;
+5. Trails is shipped with its qualified 35-37% native-serial FPS cost;
+6. Restart global liveness was rejected by its gate, while shared generated kernels and exact Restart lifetime slots shipped as capacity work;
+7. direct emission, generalized state vectors, packed routing/RGB, and spatial hold remain unapproved ideas that require a materially new falsifier.
 
-This list is research direction, not approved implementation scope. The final
-design records the visual contracts, kill-tests, benchmark gates, deferred
-ideas, and decisions that require human review.
+The program has no remaining implementation slice. The final design preserves
+visual contracts, kill-tests, benchmark gates, and deferred ideas as evidence;
+none is active scope for this closed program.

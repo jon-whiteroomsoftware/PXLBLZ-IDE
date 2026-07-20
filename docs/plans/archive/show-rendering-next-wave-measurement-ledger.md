@@ -1,5 +1,8 @@
 # Show rendering next-wave measurement ledger
 
+Status: closed evidence ledger
+Date: 2026-07-19
+
 This ledger begins after the closed #511 render-target epic. Each line records
 whether its result is measured, counted, estimated, or authored; Controller FPS
 remains authoritative for production performance decisions.

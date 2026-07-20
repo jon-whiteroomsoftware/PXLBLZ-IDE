@@ -2,7 +2,7 @@
 
 Status: independent research proposal
 Date: 2026-07-17
-Task: `docs/plans/show-rendering-next-opportunities-task.md`
+Task: `docs/plans/archive/show-rendering-next-opportunities-task.md`
 
 ## Recommendation
 

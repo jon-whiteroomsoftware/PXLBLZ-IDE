@@ -10,7 +10,7 @@ design artifacts only, not implementation.
 
 ## Source task
 
-- Primary task: `docs/plans/show-rendering-next-opportunities-task.md`
+- Primary task: `docs/plans/archive/show-rendering-next-opportunities-task.md`
 - Completed epic: GitHub #511 and its delivery issues #512-#520, #525, #527,
   and #528
 - Completed design and full numbered ledger:
@@ -39,7 +39,7 @@ design artifacts only, not implementation.
 
 ## Relevant repository context
 
-- `docs/plans/show-rendering-next-opportunities-task.md` contains the factual
+- `docs/plans/archive/show-rendering-next-opportunities-task.md` contains the factual
   completed results, constraints, questions, and expected opportunity format.
 - `docs/plans/archive/show-render-target-cache-planner.md` contains the complete
   benchmark ledger, known boundaries, hardware matrix, and implemented design.
