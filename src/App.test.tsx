@@ -1050,6 +1050,25 @@ describe('routing (#308)', () => {
     expect(screen.getByRole('button', { name: 'Open in Studio' })).toBeInTheDocument()
   })
 
+  it('toggles the preview with Space on the pattern detail page but not in the Gallery grid', async () => {
+    window.history.replaceState(null, '', '/p/iridescent-fibers')
+    render(<App />)
+    expect(await screen.findByTestId('pattern-detail-page')).toBeInTheDocument()
+
+    const wasRunning = usePreviewStore.getState().isRunning
+    fireEvent.keyDown(document.body, { code: 'Space', key: ' ' })
+    expect(usePreviewStore.getState().isRunning).toBe(!wasRunning)
+    fireEvent.keyDown(document.body, { code: 'Space', key: ' ' })
+    expect(usePreviewStore.getState().isRunning).toBe(wasRunning)
+
+    act(() => {
+      useRouterStore.getState().navigate({ kind: 'gallery' })
+    })
+    const galleryRunning = usePreviewStore.getState().isRunning
+    fireEvent.keyDown(document.body, { code: 'Space', key: ' ' })
+    expect(usePreviewStore.getState().isRunning).toBe(galleryRunning)
+  })
+
   it('shows the display selector in the detail header for 2D patterns only', () => {
     window.history.replaceState(null, '', '/p/iridescent-fibers')
     const { rerender } = render(<App />)

@@ -354,7 +354,8 @@ function StudioApp() {
   const [showHeaderActionsTarget, setShowHeaderActionsTarget] = useState<HTMLSpanElement | null>(null)
   const [showHeaderGuideTarget, setShowHeaderGuideTarget] = useState<HTMLSpanElement | null>(null)
   useEffect(() => {
-    if (route.kind !== 'studio') return
+    // Not in the Gallery grid, where no single preview has focus.
+    if (route.kind !== 'studio' && route.kind !== 'pattern-detail') return
     const togglePreviewWithSpace = (event: KeyboardEvent) => {
       if (event.defaultPrevented || event.code !== 'Space') return
       if (studioControlOwnsKeyboardEvent(event.target)) return
