@@ -82,6 +82,11 @@ async function renderFrames(config: RenderConfig): Promise<number> {
     // tsx (esbuild keepNames) injects __name(...) helper calls into functions
     // serialized by page.evaluate; supply the helper in the page.
     await page.addInitScript('globalThis.__name = (target) => target;')
+    // Vite full-reloads the page when any watched source file changes, and
+    // this checkout is often edited (other agents) while a long render runs —
+    // a reload mid-capture destroys the evaluate context. Leave the HMR
+    // websocket unconnected so the page never hears about file changes.
+    await page.routeWebSocket(/./, () => undefined)
     await page.goto(url, { waitUntil: 'domcontentloaded' })
 
     // Strip the IDE chrome so the preview pane (and its canvas, whose width
