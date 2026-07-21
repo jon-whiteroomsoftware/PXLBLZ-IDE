@@ -33,6 +33,7 @@ import { useLibraryStore } from '@/store/libraryStore'
 import { withControlDescriptions } from '@/pixelblaze/controlDescriptions'
 import { snapshotWatchValue } from '@/engine/watchValue'
 import { captureEnabled, createPreviewCapture } from '@/dev/previewCapture'
+import { runCaptureSequence, type CaptureSequenceOptions } from '@/dev/captureSequence'
 import { useControllerStore } from '@/store/controllerStore'
 import { useControllerProfileStore } from '@/store/controllerProfileStore'
 import {
@@ -531,6 +532,28 @@ export function Preview({
         // a capture with no preceding change.
         setTimeout(() => loopRef.current?.renderPreviewFrame(), 0)
         return done
+      },
+      // Swap the previewed source without touching pattern records — lets the
+      // render driver present an arbitrary pattern file, and (via a '' toggle
+      // while paused) rebuild the loop on a fresh virtual clock so captures
+      // start from pattern t=0 (#576).
+      loadSource: (code: string) => useEditorStore.getState().setPreviewSource(code),
+      getPreviewSource: () => useEditorStore.getState().previewSource ?? '',
+      // Deterministic frame-sequence capture (#576): halt the rAF advance and
+      // step the loop one fixed timestep per saved frame, so frame K sits at
+      // exactly K * (1000/fps) virtual ms no matter how slowly frames save.
+      captureSequence: async (opts: CaptureSequenceOptions) => {
+        const loop = loopRef.current
+        if (!loop) throw new Error('No preview render loop is active.')
+        loop.stop()
+        try {
+          return await runCaptureSequence({
+            requestCapture: (name) => cap.request(name),
+            tickFrame: (delta) => loop.tickFrame(delta),
+          }, opts)
+        } finally {
+          if (usePreviewStore.getState().isRunning) loop.start()
+        }
       },
     }
     return () => {

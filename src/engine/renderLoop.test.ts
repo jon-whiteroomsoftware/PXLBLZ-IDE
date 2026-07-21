@@ -321,6 +321,34 @@ describe('renderPreviewFrame', () => {
   })
 })
 
+// ── tickFrame ─────────────────────────────────────────────────────────────────
+
+describe('tickFrame', () => {
+  it('paints with dimmed=false even when isDimmed returns true', () => {
+    const paint = vi.fn()
+    const loop = createRenderLoop({
+      handle: makeMockHandle(), shim: makeMockShim(), clock: makeMockClock(),
+      ...planeCfg(1, 1),
+      getSpeed: () => 1, getBrightness: () => 0.8, isDimmed: () => true,
+      paint,
+    })
+    loop.tickFrame(16)
+    expect(paint).toHaveBeenCalledWith(expect.anything(), 0.8, false)
+  })
+
+  it('advances the clock by the speed-scaled delta', () => {
+    const clock = makeMockClock()
+    const loop = createRenderLoop({
+      handle: makeMockHandle(), shim: makeMockShim(), clock,
+      ...planeCfg(1, 1),
+      getSpeed: () => 2, getBrightness: () => 1, isDimmed: () => true,
+      paint: vi.fn(),
+    })
+    loop.tickFrame(1000 / 60)
+    expect(clock.advance).toHaveBeenCalledWith((1000 / 60) * 2)
+  })
+})
+
 // ── error handling ────────────────────────────────────────────────────────────
 
 describe('error handling', () => {

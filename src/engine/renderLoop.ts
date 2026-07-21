@@ -41,6 +41,9 @@ export interface RenderLoop {
   /** Advance all Pattern state and per-pixel render effects without allocating
    * or painting an RGB frame. Used by deterministic replay before its target. */
   tickHeadless(realDelta: number): void
+  /** Advance by realDelta and paint undimmed regardless of the dim policy.
+   * Used by deterministic frame-sequence capture, which steps a stopped loop. */
+  tickFrame(realDelta: number): void
   renderPreviewFrame(): void
 }
 
@@ -196,6 +199,9 @@ export function createRenderLoop(config: RenderLoopConfig): RenderLoop {
     tick,
     tickHeadless(realDelta: number) {
       doTick(realDelta, false, false)
+    },
+    tickFrame(realDelta: number) {
+      doTick(realDelta, false)
     },
     renderPreviewFrame() {
       try {
