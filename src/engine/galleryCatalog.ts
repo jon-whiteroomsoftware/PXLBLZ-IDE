@@ -92,9 +92,10 @@ const demoSectionNames = (names: string[]) =>
 
 export const DEMO_SECTIONS: { label: string; names: string[] }[] = [
   { label: 'ShaderToy Ports', names: demoSectionNames(OPENGL_DEMOS) },
-  { label: 'Old Favorites', names: DEMO_NAMES.filter((n) => !GROUPED_DEMOS.has(n)) },
   { label: 'FPS Heavyweights', names: demoSectionNames(BRAND_NEW_DEMOS) },
-  { label: 'FPS Friendly', names: demoSectionNames(FPS_FRIENDLY_DEMOS) },
+  // FPS Friendly doubles as the catch-all: any pattern not claimed by another
+  // group lands here rather than disappearing from the gallery and rail.
+  { label: 'FPS Friendly', names: demoSectionNames([...FPS_FRIENDLY_DEMOS, ...DEMO_NAMES.filter((n) => !GROUPED_DEMOS.has(n))]) },
   { label: 'Radial', names: demoSectionNames(RADIAL_DEMOS) },
   { label: '3D', names: demoSectionNames(THREE_D_DEMOS) },
   { label: 'Living 1D', names: demoSectionNames(LIVING_1D_DEMOS) },
