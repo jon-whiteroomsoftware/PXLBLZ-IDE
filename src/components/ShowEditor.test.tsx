@@ -1595,8 +1595,8 @@ describe('ShowEditor (#318)', () => {
     )
     await user.selectOptions(screen.getByLabelText('Crossfade source'), 'live-live')
     await user.selectOptions(screen.getByLabelText('Easing'), 'ease-in-out')
-    expect(screen.getByLabelText('Duration (ms)')).toHaveAttribute('step', '100')
-    changeCommittedNumber('Duration (ms)', '1500')
+    expect(screen.getByLabelText('Duration (s)')).toHaveAttribute('step', '0.1')
+    changeCommittedNumber('Duration (s)', '1.5')
     await waitFor(() => {
       expect(useShowStore.getState().shows[0].transitions?.find((transition) => transition.id === 'transition-scene-1'))
         .toMatchObject({
@@ -2421,8 +2421,8 @@ describe('ShowEditor (#318)', () => {
     expect(screen.getByRole('button', { name: 'Stepped motion' })).toHaveAttribute('aria-pressed', 'false')
     expect(screen.getByRole('group', { name: 'Motion cadence controls' })).toHaveClass('sm:grid-rows-[auto_1.5rem]')
     expect(screen.getByLabelText('Hold scenes')).toHaveClass('h-6', 'text-[9.5px]')
-    expect(screen.getByLabelText('Start offset (ms)')).toHaveClass('h-6', 'text-[9.5px]')
-    expect(screen.getByLabelText('Start offset (ms)').closest('label')?.querySelector('.sr-only')).toHaveTextContent('Start offset (ms)')
+    expect(screen.getByLabelText('Start offset (s)')).toHaveClass('h-6', 'text-[9.5px]')
+    expect(screen.getByLabelText('Start offset (s)').closest('label')?.querySelector('.sr-only')).toHaveTextContent('Start offset (s)')
     expect(screen.queryByLabelText('Jumps per second')).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Stepped motion' }))
@@ -2459,8 +2459,8 @@ describe('ShowEditor (#318)', () => {
     render(<ShowEditor showId={show.id} />)
     await user.click(screen.getAllByRole('button', { name: /Select TestPattern1D/i })[0])
 
-    expect(screen.getByLabelText('Start offset (ms)')).toHaveValue(0)
-    changeCommittedNumber('Start offset (ms)', '500')
+    expect(screen.getByLabelText('Start offset (s)')).toHaveValue(0)
+    changeCommittedNumber('Start offset (s)', '0.5')
 
     await waitFor(() => {
       expect(useShowStore.getState().shows[0].cells[0].adaptations.timeOffsetMs).toBe(500)

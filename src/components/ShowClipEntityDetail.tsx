@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
+import { NumberField } from './ui/number-field'
 import { Grid2X2 } from 'lucide-react'
 import { PatternCombobox, type PatternComboboxOption } from './PatternCombobox'
 import { ShowEffectStack } from './ShowEffectsAuthoring'
@@ -405,91 +406,9 @@ export function ShowClipEntityDetail({
   )
 }
 
-export function ShowInspectorNumberField({
-  label,
-  ariaLabel,
-  value,
-  min,
-  max,
-  step,
-  suffix,
-  help,
-  hideLabel = false,
-  compact = false,
-  align = 'right',
-  disabled = false,
-  onChange,
-}: {
-  label: string
-  ariaLabel?: string
-  value: number
-  min?: number
-  max?: number
-  step?: number
-  suffix?: string
-  help?: string
-  hideLabel?: boolean
-  compact?: boolean
-  align?: 'left' | 'right'
-  disabled?: boolean
-  onChange: (value: number) => void
-}) {
-  const [draft, setDraft] = useState(String(value))
-  const focusedRef = useRef(false)
-  const normalized = min === 0 && max === 1
-
-  useEffect(() => {
-    if (!focusedRef.current) setDraft(String(value))
-  }, [value])
-
-  const commit = (raw = draft) => {
-    focusedRef.current = false
-    const parsed = Number(raw)
-    if (raw.trim() === '' || !Number.isFinite(parsed)) {
-      setDraft(String(value))
-      return
-    }
-    const bounded = Math.max(min ?? Number.NEGATIVE_INFINITY, Math.min(max ?? Number.POSITIVE_INFINITY, parsed))
-    setDraft(String(bounded))
-    if (bounded !== value) onChange(bounded)
-  }
-
-  return (
-    <label className="min-w-0 text-[9px] uppercase tracking-[0.1em] text-zinc-600" title={help}>
-      <span className={hideLabel ? 'sr-only' : 'flex items-center justify-between gap-2'}>
-        <span>{label}</span>
-        {normalized && <span className="font-mono text-[8px] tracking-normal text-zinc-700" title="Normalized value from zero to one">0–1</span>}
-      </span>
-      <span className={`${hideLabel ? '' : 'mt-1'} flex min-w-0 items-center gap-1`}>
-        <input
-          aria-label={ariaLabel ?? label}
-          title={help}
-          type="number"
-          min={min}
-          max={max}
-          step={step}
-          value={draft}
-          disabled={disabled}
-          onFocus={() => { focusedRef.current = true }}
-          onChange={(event) => setDraft(event.target.value)}
-          onBlur={(event) => commit(event.currentTarget.value)}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter') event.currentTarget.blur()
-            if (event.key === 'Escape') {
-              event.currentTarget.value = String(value)
-              setDraft(String(value))
-              event.currentTarget.blur()
-            }
-          }}
-          className={`${compact
-            ? 'h-5 rounded-none border-0 border-b border-zinc-800 bg-transparent px-1 text-[9px] focus:border-cyan-400/60'
-            : 'h-6 rounded border border-zinc-700 bg-zinc-950 px-1.5 text-[9.5px] focus:border-cyan-400/60'} min-w-0 w-full flex-1 appearance-none ${align === 'left' ? 'text-left' : 'text-right'} tabular-nums text-zinc-200 outline-none disabled:cursor-default disabled:opacity-60 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none`}
-        />
-        {suffix && <span className="text-[10px] normal-case tracking-normal text-zinc-500">{suffix}</span>}
-      </span>
-    </label>
-  )
-}
+// The shared draft-buffered numeric field (#577). Re-exported under the
+// historical inspector name for existing call sites.
+export const ShowInspectorNumberField = NumberField
 
 function withControlTarget(
   current: Record<string, number> | undefined,

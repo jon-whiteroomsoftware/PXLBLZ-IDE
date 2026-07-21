@@ -35,4 +35,19 @@ export default tseslint.config(
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
     },
   },
+  {
+    // Raw controlled numeric inputs commit per keystroke and snap back on
+    // deletion (#577). Numeric entry goes through NumberField or
+    // useNumberFieldDraft from src/components/ui/number-field.tsx, which own
+    // the draft/commit contract; that module and hook-driven spreads are the
+    // only legitimate `value=` on a type="number" input.
+    files: ['src/components/**'],
+    ignores: ['src/components/ui/number-field.tsx'],
+    rules: {
+      'no-restricted-syntax': ['error', {
+        selector: 'JSXOpeningElement[name.name="input"]:has(JSXAttribute[name.name="type"] > Literal[value="number"]):has(JSXAttribute[name.name="value"])',
+        message: 'Raw controlled <input type="number"> breaks editing; use NumberField or useNumberFieldDraft from components/ui/number-field.',
+      }],
+    },
+  },
 )

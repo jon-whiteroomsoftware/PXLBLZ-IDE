@@ -1,5 +1,6 @@
-import { Fragment, useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import type React from 'react'
+import { useNumberFieldDraft } from '@/components/ui/number-field'
 import {
   Download,
   Map as MapIcon,
@@ -186,48 +187,21 @@ function NumberField({
   max?: number
   step?: number
 }) {
-  // Draft-buffered: keystrokes edit a local string (so deletion and partial
-  // numbers survive re-renders) and the parsed value commits once on blur or
-  // Enter. Escape reverts the draft.
-  const [draft, setDraft] = useState(String(value))
-  const focusedRef = useRef(false)
-
-  useEffect(() => {
-    if (!focusedRef.current) setDraft(String(value))
-  }, [value])
-
-  const commit = (raw: string) => {
-    focusedRef.current = false
-    const parsed = Number(raw)
-    if (raw.trim() === '' || !Number.isFinite(parsed)) {
-      setDraft(String(value))
-      return
-    }
-    const bounded = Math.max(min ?? Number.NEGATIVE_INFINITY, Math.min(max ?? Number.POSITIVE_INFINITY, parsed))
-    setDraft(String(bounded))
-    if (bounded !== value) onChange(bounded)
-  }
+  const { inputProps } = useNumberFieldDraft({ value, min, max, onChange })
 
   return (
     <input
       aria-label={ariaLabel}
       type="number"
-      value={draft}
       min={min}
       max={max}
       step={step}
       onClick={stopFieldPropagation}
       onPointerDown={stopFieldPropagation}
-      onFocus={() => { focusedRef.current = true }}
-      onChange={(event) => setDraft(event.target.value)}
-      onBlur={(event) => commit(event.currentTarget.value)}
+      {...inputProps}
       onKeyDown={(event) => {
         stopFieldPropagation(event)
-        if (event.key === 'Enter') event.currentTarget.blur()
-        if (event.key === 'Escape') {
-          setDraft(String(value))
-          event.currentTarget.blur()
-        }
+        inputProps.onKeyDown(event)
       }}
       className={`${fieldClass} tabular-nums`}
     />

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { useNumberFieldDraft } from '@/components/ui/number-field'
 import {
   ArrowDown,
   ArrowUp,
@@ -327,22 +328,7 @@ function EffectParameterField({ label, value, min, max, step, onCommit }: {
   step?: number
   onCommit: (value: number) => void
 }) {
-  const [draft, setDraft] = useState(String(value))
-  const focused = useRef(false)
-  useEffect(() => {
-    if (!focused.current) setDraft(String(value))
-  }, [value])
-
-  const commit = (raw: string) => {
-    focused.current = false
-    const parsed = Number(raw)
-    const lower = min ?? Number.NEGATIVE_INFINITY
-    const upper = max ?? Number.POSITIVE_INFINITY
-    const next = Number.isFinite(parsed) ? Math.max(lower, Math.min(upper, parsed)) : value
-    setDraft(String(next))
-    if (next !== value) onCommit(next)
-  }
-
+  const { inputProps } = useNumberFieldDraft({ value, min, max, onChange: onCommit })
   return (
     <input
       type="number"
@@ -350,17 +336,7 @@ function EffectParameterField({ label, value, min, max, step, onCommit }: {
       min={min}
       max={max}
       step={step}
-      value={draft}
-      onFocus={() => { focused.current = true }}
-      onChange={(event) => setDraft(event.target.value)}
-      onBlur={(event) => commit(event.currentTarget.value)}
-      onKeyDown={(event) => {
-        if (event.key === 'Enter') event.currentTarget.blur()
-        if (event.key === 'Escape') {
-          setDraft(String(value))
-          event.currentTarget.blur()
-        }
-      }}
+      {...inputProps}
       className="mt-1 h-7 w-full rounded border border-zinc-700 bg-zinc-950 px-2 text-right text-[10px] tabular-nums text-zinc-200 outline-none focus:border-cyan-400/60"
     />
   )

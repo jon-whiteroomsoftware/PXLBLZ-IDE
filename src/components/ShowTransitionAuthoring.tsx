@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Search, X, Zap } from 'lucide-react'
 import type { ShowBoundaryTransition, ShowRecord } from '@/engine/personalContentRecords'
-import { ShowInspectorNumberField } from './ShowClipEntityDetail'
+import { NumberField } from '@/components/ui/number-field'
 import { projectShowTimeline } from '@/engine/showModel'
 import {
   replaceShowBoundaryTransition,
@@ -235,16 +235,19 @@ export function ShowTransitionParameters({
             </label>
           )
         }
+        // Millisecond model values present as seconds (#577): the model and
+        // presets stay in ms while entry uses the app-wide seconds convention.
+        const msUnit = parameter.unit === 'ms'
         return (
-          <ShowInspectorNumberField
+          <NumberField
             key={parameter.id}
-            label={`${parameter.label}${parameter.unit ? ` (${parameter.unit})` : ''}`}
-            value={Number(value)}
-            min={parameter.min}
-            max={parameter.max}
-            step={parameter.step}
+            label={msUnit ? `${parameter.label} (s)` : `${parameter.label}${parameter.unit ? ` (${parameter.unit})` : ''}`}
+            value={msUnit ? Number(value) / 1_000 : Number(value)}
+            min={msUnit && parameter.min !== undefined ? parameter.min / 1_000 : parameter.min}
+            max={msUnit && parameter.max !== undefined ? parameter.max / 1_000 : parameter.max}
+            step={msUnit ? 0.1 : parameter.step}
             disabled={transition.kind === 'cut' && parameter.id !== 'durationMs'}
-            onChange={(next) => onChange(parameter.id, next)}
+            onChange={(next) => onChange(parameter.id, msUnit ? Math.round(next * 1_000) : next)}
           />
         )
       })}

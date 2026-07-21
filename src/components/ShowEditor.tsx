@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import { createPortal } from 'react-dom'
 import { Activity, BookOpen, Check, ChevronDown, ChevronRight, Clapperboard, Clock3, Code2, Copy, Download, Eye, Grid2X2, Info, Layers3, Lightbulb, ListChecks, Lock, Magnet, Map as MapIcon, Maximize2, Pause, Play, Plus, Redo2, RotateCcw, RotateCw, Route, Scissors, Settings2, SkipBack, SlidersHorizontal, Trash2, Undo2, WandSparkles, X, Zap, ZoomIn, ZoomOut } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { NumberField as UiNumberField, type NumberFieldProps as UiNumberFieldProps } from '@/components/ui/number-field'
 import {
   AlertDialogAction,
   AlertDialogCancel,
@@ -4238,7 +4239,7 @@ function MotionCadenceControl({
           Motion cadence
         </div>
         <div className="text-[9px] uppercase tracking-[0.12em] text-zinc-600 sm:col-start-3 sm:row-start-1">
-          Start offset (ms)
+          Start offset (s)
         </div>
         <div
           className="min-w-0 truncate text-[8px] text-zinc-600 sm:col-start-1 sm:row-start-2"
@@ -4271,12 +4272,12 @@ function MotionCadenceControl({
           <NumberField
             compact
             hideLabel
-            label="Start offset (ms)"
-            value={timeOffsetMs}
+            label="Start offset (s)"
+            value={timeOffsetMs / 1_000}
             min={0}
-            max={60000}
-            step={50}
-            onChange={onOffsetChange}
+            max={60}
+            step={0.1}
+            onChange={(seconds) => onOffsetChange(Math.round(seconds * 1_000))}
           />
         </div>
       </div>
@@ -6207,84 +6208,9 @@ function CompileBar({
   )
 }
 
-function NumberField({
-  label,
-  value,
-  min,
-  max,
-  step,
-  suffix,
-  help,
-  hideLabel = false,
-  compact = false,
-  onChange,
-}: {
-  label: string
-  value: number
-  min: number
-  max: number
-  step: number
-  suffix?: string
-  help?: string
-  hideLabel?: boolean
-  compact?: boolean
-  onChange: (value: number) => void
-}) {
-  const [draft, setDraft] = useState(() => String(value))
-  const focusedRef = useRef(false)
-  const normalized = min === 0 && max === 1
-
-  useEffect(() => {
-    if (!focusedRef.current) setDraft(String(value))
-  }, [value])
-
-  const commit = (raw = draft) => {
-    focusedRef.current = false
-    const parsed = Number(raw)
-    if (raw.trim() === '' || !Number.isFinite(parsed)) {
-      setDraft(String(value))
-      return
-    }
-    const bounded = Math.max(min, Math.min(max, parsed))
-    setDraft(String(bounded))
-    if (bounded !== value) onChange(bounded)
-  }
-
-  return (
-    <label className={`min-w-0 uppercase text-zinc-600 ${compact ? 'text-[9px] tracking-[0.08em]' : 'text-[10px]'}`} title={help}>
-      <span className={hideLabel ? 'sr-only' : 'flex items-center justify-between gap-2'}>
-        <span>{label}</span>
-        {normalized && <span className="font-mono text-[8px] tracking-normal text-zinc-700" title="Normalized value from zero to one">0–1</span>}
-      </span>
-      <span className={`${hideLabel ? '' : 'mt-1'} flex min-w-0 items-center gap-1`}>
-        <input
-          aria-label={label}
-          title={help}
-          type="number"
-          min={min}
-          max={max}
-          step={step}
-          value={draft}
-          onFocus={() => { focusedRef.current = true }}
-          onChange={(event) => {
-            const nextDraft = event.target.value
-            setDraft(nextDraft)
-          }}
-          onBlur={(event) => commit(event.currentTarget.value)}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter') event.currentTarget.blur()
-            if (event.key === 'Escape') {
-              event.currentTarget.value = String(value)
-              setDraft(String(value))
-              event.currentTarget.blur()
-            }
-          }}
-          className={`${compact ? compactField : field} min-w-0 w-full flex-1 appearance-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none`}
-        />
-        {suffix && <span className="text-[10px] text-zinc-500">{suffix}</span>}
-      </span>
-    </label>
-  )
+// Shared draft-buffered numeric field (#577) in the editor-panel style.
+function NumberField(props: Omit<UiNumberFieldProps, 'variant' | 'align' | 'ariaLabel' | 'disabled'>) {
+  return <UiNumberField variant="editor" {...props} />
 }
 
 function ClipSummaryInline({

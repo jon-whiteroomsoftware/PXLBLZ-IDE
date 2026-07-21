@@ -97,17 +97,36 @@ describe('Show Transition authoring UI', () => {
     const onChange = vi.fn()
     render(<ShowTransitionParameters transition={transition} item={crossfade} onChange={onChange} />)
 
-    const duration = screen.getByRole('spinbutton', { name: 'Duration (ms)' })
+    const duration = screen.getByRole('spinbutton', { name: 'Duration (s)' })
     await user.click(duration)
     await user.clear(duration)
     expect(duration).toHaveValue(null)
     expect(onChange).not.toHaveBeenCalled()
 
-    await user.type(duration, '2500')
+    await user.type(duration, '2.5')
     expect(onChange).not.toHaveBeenCalled()
 
     await user.tab()
     expect(onChange).toHaveBeenCalledTimes(1)
     expect(onChange).toHaveBeenCalledWith('durationMs', 2500)
+  })
+
+  it('reverts the draft on Escape without committing the abandoned edit', async () => {
+    const user = userEvent.setup()
+    const catalogue = buildShowToolkitPresentationCatalogue({ stageDimensions: 2 })
+    const crossfade = catalogue.find((item) => item.key === 'transition:blend:crossfade')!
+    const base = createDefaultShow('show-transitions', 'Transitions', 1)
+    const show = replaceShowBoundaryTransition(base, base.transitions![0].id, crossfade)
+    const onChange = vi.fn()
+    render(<ShowTransitionParameters transition={show.transitions![0]} item={crossfade} onChange={onChange} />)
+
+    const duration = screen.getByRole('spinbutton', { name: 'Duration (s)' })
+    await user.click(duration)
+    await user.clear(duration)
+    await user.type(duration, '9.9')
+    await user.keyboard('{Escape}')
+
+    expect(onChange).not.toHaveBeenCalled()
+    expect(duration).toHaveValue(2)
   })
 })
