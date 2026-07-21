@@ -71,9 +71,14 @@ Preserve these invariants:
 - Work done in a worktree is not complete until its verified commit is reachable
   from the shared local `main`. If local landing must wait, report it as awaiting
   landing; do not leave finished work only on an isolated branch.
-- Pushing `main` is a separate publication step. Batch pushes a couple of times
-  per day, or push when the user asks, needs hosting, or requests a published
-  handoff. Do not push after every issue merely to mark the work complete.
+- Pushing `main` is a separate publication step, and it is a production deploy:
+  the Cloudflare Pages project (`pxlblz-ide`, the v2 site) is git-integrated and
+  auto-builds every push to `main`. Pages env vars and secrets also take effect
+  on that next auto-deploy. Only the legacy v1 GitHub Pages site is exempt (its
+  workflow is manual and pinned to `v1-maintenance`). Batch pushes a couple of
+  times per day, or push when the user asks, needs hosting, or requests a
+  published handoff. Do not push after every issue merely to mark the work
+  complete.
 - After landing locally, remove the worktree and delete its local branch. Delete
   a remote branch only if one was explicitly created. Finish by verifying that
   shared local `main` contains the commit and that no abandoned worktrees or
