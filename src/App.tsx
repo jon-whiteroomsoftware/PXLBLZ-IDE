@@ -80,6 +80,8 @@ import { InlineEntityTitle } from '@/components/InlineEntityTitle'
 import { usePreviewStore } from '@/store/previewStore'
 import { studioControlOwnsKeyboardEvent } from '@/engine/keyboardShortcuts'
 import { buildPatternEpeExport } from '@/engine/patternEpeExport'
+import { buildPreviewJpeg } from '@/engine/previewThumbnailJpeg'
+import { bytesToBase64 } from '@/engine/RelayWebSocket'
 import { IDE_MICROTYPE } from '@/components/ui/ideMicrotype'
 import {
   STUDIO_LIBRARY_DEFAULT_WIDTH,
@@ -572,11 +574,16 @@ function StudioApp() {
     copyTimeoutRef.current = setTimeout(() => setCopied(false), 1500)
   }, [activePatternId, source, userPatterns, compileLibrarySet])
 
-  const handleDownload = useCallback(() => {
+  const handleDownload = useCallback(async () => {
     if (!activePatternId) return
     const pattern = userPatterns.find((p) => p.id === activePatternId)
     const name = pattern?.name ?? 'Pattern'
-    const epe = buildPatternEpeExport(name, stampedPatternArtifact(source, activePatternId, name, compileLibrarySet))
+    const bundled = bundle(source, compileLibrarySet)
+    const stamped = stampArtifact(bundled.code, { kind: 'pattern', id: activePatternId, name })
+    // Same 100x150 waterfall strip the device embeds; a failed render falls
+    // back to an empty preview section rather than blocking the download.
+    const preview = await buildPreviewJpeg(bundled)
+    const epe = buildPatternEpeExport(name, stamped, preview ? { preview: bytesToBase64(preview) } : {})
     downloadTextFile(epe.filename, epe.text)
   }, [activePatternId, source, userPatterns, compileLibrarySet])
 
