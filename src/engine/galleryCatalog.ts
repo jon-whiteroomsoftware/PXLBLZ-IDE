@@ -47,20 +47,25 @@ export const THREE_D_DEMOS = [
 // should scale better than direct shader ports.
 export const FPS_FRIENDLY_DEMOS = [
   'KaleidoBloom',
-  'CompassRose',
   'HeatShimmerTiles',
   'MagneticFilaments',
   'MetaballGarden',
   'MoireCathedral',
   'NeonCircuitBoard',
   'RibbonLoom',
-  'SignalMandala',
   'StainedGlassWeather',
-  'TopographicBloom',
-  'ShapeShifter',
-  'EventHorizon',
-  'ClockworkIris',
   'SceneSplice',
+]
+
+// Patterns organized around a center point and a circular focus: dials, rings,
+// mandalas, and orbital fields.
+export const RADIAL_DEMOS = [
+  'ClockworkIris',
+  'CompassRose',
+  'EventHorizon',
+  'ShapeShifter',
+  'SignalMandala',
+  'TopographicBloom',
 ]
 
 // 1D effects that lean on rhythm and emergence rather than the usual chases and
@@ -77,6 +82,7 @@ const GROUPED_DEMOS = new Set([
   ...BRAND_NEW_DEMOS,
   ...THREE_D_DEMOS,
   ...FPS_FRIENDLY_DEMOS,
+  ...RADIAL_DEMOS,
   ...LIVING_1D_DEMOS,
   ...TEST_PATTERNS,
 ])
@@ -89,6 +95,7 @@ export const DEMO_SECTIONS: { label: string; names: string[] }[] = [
   { label: 'Old Favorites', names: DEMO_NAMES.filter((n) => !GROUPED_DEMOS.has(n)) },
   { label: 'FPS Heavyweights', names: demoSectionNames(BRAND_NEW_DEMOS) },
   { label: 'FPS Friendly', names: demoSectionNames(FPS_FRIENDLY_DEMOS) },
+  { label: 'Radial', names: demoSectionNames(RADIAL_DEMOS) },
   { label: '3D', names: demoSectionNames(THREE_D_DEMOS) },
   { label: 'Living 1D', names: demoSectionNames(LIVING_1D_DEMOS) },
   { label: 'Test Patterns', names: demoSectionNames(TEST_PATTERNS) },
