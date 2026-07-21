@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import type React from 'react'
 import {
   Download,
@@ -186,20 +186,48 @@ function NumberField({
   max?: number
   step?: number
 }) {
+  // Draft-buffered: keystrokes edit a local string (so deletion and partial
+  // numbers survive re-renders) and the parsed value commits once on blur or
+  // Enter. Escape reverts the draft.
+  const [draft, setDraft] = useState(String(value))
+  const focusedRef = useRef(false)
+
+  useEffect(() => {
+    if (!focusedRef.current) setDraft(String(value))
+  }, [value])
+
+  const commit = (raw: string) => {
+    focusedRef.current = false
+    const parsed = Number(raw)
+    if (raw.trim() === '' || !Number.isFinite(parsed)) {
+      setDraft(String(value))
+      return
+    }
+    const bounded = Math.max(min ?? Number.NEGATIVE_INFINITY, Math.min(max ?? Number.POSITIVE_INFINITY, parsed))
+    setDraft(String(bounded))
+    if (bounded !== value) onChange(bounded)
+  }
+
   return (
     <input
       aria-label={ariaLabel}
       type="number"
-      value={value}
+      value={draft}
       min={min}
       max={max}
       step={step}
       onClick={stopFieldPropagation}
       onPointerDown={stopFieldPropagation}
-      onKeyDown={stopFieldPropagation}
-      onChange={(event) => {
-        const next = Number(event.target.value)
-        if (Number.isFinite(next)) onChange(next)
+      onFocus={() => { focusedRef.current = true }}
+      onChange={(event) => setDraft(event.target.value)}
+      onBlur={(event) => commit(event.currentTarget.value)}
+      onKeyDown={(event) => {
+        stopFieldPropagation(event)
+        if (event.key === 'Enter') event.currentTarget.blur()
+        if (event.key === 'Escape') {
+          setDraft(String(value))
+          event.currentTarget.blur()
+        }
       }}
       className={`${fieldClass} tabular-nums`}
     />

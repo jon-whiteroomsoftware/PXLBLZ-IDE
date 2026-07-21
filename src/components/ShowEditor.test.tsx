@@ -1595,8 +1595,8 @@ describe('ShowEditor (#318)', () => {
     )
     await user.selectOptions(screen.getByLabelText('Crossfade source'), 'live-live')
     await user.selectOptions(screen.getByLabelText('Easing'), 'ease-in-out')
-    expect(screen.getByLabelText('Duration')).toHaveAttribute('step', '100')
-    changeCommittedNumber('Duration', '1500')
+    expect(screen.getByLabelText('Duration (ms)')).toHaveAttribute('step', '100')
+    changeCommittedNumber('Duration (ms)', '1500')
     await waitFor(() => {
       expect(useShowStore.getState().shows[0].transitions?.find((transition) => transition.id === 'transition-scene-1'))
         .toMatchObject({
@@ -2519,10 +2519,10 @@ describe('ShowEditor (#318)', () => {
     expect(screen.getByText('worst instant: portal dither')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: /Diamond · Change/i }))
     await user.click(screen.getByRole('button', { name: 'Use Ring Transition' }))
-    fireEvent.change(screen.getByLabelText('Center X'), { target: { value: '0.35' } })
+    changeCommittedNumber('Center X', '0.35')
     await user.selectOptions(screen.getByLabelText('Edge'), 'blend')
     await user.selectOptions(screen.getByLabelText('Reveal mode'), 'shrink-outgoing')
-    fireEvent.change(screen.getByLabelText('Ring width'), { target: { value: '0.2' } })
+    changeCommittedNumber('Ring width', '0.2')
 
     expect(screen.queryByLabelText('Rotation')).not.toBeInTheDocument()
     expect(screen.queryByLabelText('Spin')).not.toBeInTheDocument()

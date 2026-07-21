@@ -81,7 +81,33 @@ describe('Show Transition authoring UI', () => {
     const controls = screen.getByRole('group', { name: 'Star Transition parameters' })
     expect(within(controls).getByRole('spinbutton', { name: 'Points' })).toHaveValue(5)
     expect(within(controls).getByRole('combobox', { name: 'Reveal mode' })).toHaveValue('grow-incoming')
-    fireEvent.change(within(controls).getByRole('spinbutton', { name: 'Points' }), { target: { value: '7' } })
+    const points = within(controls).getByRole('spinbutton', { name: 'Points' })
+    fireEvent.change(points, { target: { value: '7' } })
+    fireEvent.blur(points)
     expect(onChange).toHaveBeenCalledWith('starPoints', 7)
+  })
+
+  it('buffers numeric edits so deletion works and commit happens once on blur', async () => {
+    const user = userEvent.setup()
+    const catalogue = buildShowToolkitPresentationCatalogue({ stageDimensions: 2 })
+    const crossfade = catalogue.find((item) => item.key === 'transition:blend:crossfade')!
+    const base = createDefaultShow('show-transitions', 'Transitions', 1)
+    const show = replaceShowBoundaryTransition(base, base.transitions![0].id, crossfade)
+    const transition = show.transitions![0]
+    const onChange = vi.fn()
+    render(<ShowTransitionParameters transition={transition} item={crossfade} onChange={onChange} />)
+
+    const duration = screen.getByRole('spinbutton', { name: 'Duration (ms)' })
+    await user.click(duration)
+    await user.clear(duration)
+    expect(duration).toHaveValue(null)
+    expect(onChange).not.toHaveBeenCalled()
+
+    await user.type(duration, '2500')
+    expect(onChange).not.toHaveBeenCalled()
+
+    await user.tab()
+    expect(onChange).toHaveBeenCalledTimes(1)
+    expect(onChange).toHaveBeenCalledWith('durationMs', 2500)
   })
 })

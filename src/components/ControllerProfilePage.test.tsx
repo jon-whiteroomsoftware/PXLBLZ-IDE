@@ -687,6 +687,7 @@ describe('ControllerProfilePage', () => {
     const milliampsInput = screen.getByRole('spinbutton', { name: 'LED full-white current' })
     expect(milliampsInput).toHaveValue(60)
     fireEvent.change(milliampsInput, { target: { value: '45' } })
+    fireEvent.blur(milliampsInput)
 
     await waitFor(() => {
       const profile = useControllerProfileStore.getState().profiles[0]
@@ -705,6 +706,7 @@ describe('ControllerProfilePage', () => {
     expect(onAncestorKeyDown).not.toHaveBeenCalled()
 
     fireEvent.change(input, { target: { value: '35' } })
+    fireEvent.blur(input)
 
     await waitFor(() => {
       const profile = useControllerProfileStore.getState().profiles[0]
@@ -737,6 +739,7 @@ describe('ControllerProfilePage', () => {
     fireEvent.change(screen.getByRole('spinbutton', { name: 'Controller brightness percent' }), {
       target: { value: '50' },
     })
+    fireEvent.blur(screen.getByRole('spinbutton', { name: 'Controller brightness percent' }))
 
     await waitFor(() => {
       const transform = useControllerProfileStore.getState().profiles[0].globalTransforms

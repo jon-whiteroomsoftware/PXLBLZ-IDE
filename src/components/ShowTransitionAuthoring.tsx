@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Search, X, Zap } from 'lucide-react'
 import type { ShowBoundaryTransition, ShowRecord } from '@/engine/personalContentRecords'
+import { ShowInspectorNumberField } from './ShowClipEntityDetail'
 import { projectShowTimeline } from '@/engine/showModel'
 import {
   replaceShowBoundaryTransition,
@@ -235,22 +236,16 @@ export function ShowTransitionParameters({
           )
         }
         return (
-          <label key={parameter.id} className="text-[8px] uppercase tracking-wide text-zinc-600">
-            {parameter.label}{parameter.unit ? ` (${parameter.unit})` : ''}
-            <input
-              aria-label={parameter.label}
-              type="number"
-              value={Number(value)}
-              min={parameter.min}
-              max={parameter.max}
-              step={parameter.step}
-              disabled={transition.kind === 'cut' && parameter.id !== 'durationMs'}
-              onChange={(event) => {
-                if (event.target.value !== '') onChange(parameter.id, Number(event.target.value))
-              }}
-              className="mt-0.5 h-7 w-full rounded border border-zinc-700 bg-zinc-900 px-1.5 text-[10px] normal-case tracking-normal text-zinc-200 outline-none focus:border-amber-400/60 disabled:opacity-40"
-            />
-          </label>
+          <ShowInspectorNumberField
+            key={parameter.id}
+            label={`${parameter.label}${parameter.unit ? ` (${parameter.unit})` : ''}`}
+            value={Number(value)}
+            min={parameter.min}
+            max={parameter.max}
+            step={parameter.step}
+            disabled={transition.kind === 'cut' && parameter.id !== 'durationMs'}
+            onChange={(next) => onChange(parameter.id, next)}
+          />
         )
       })}
     </div>

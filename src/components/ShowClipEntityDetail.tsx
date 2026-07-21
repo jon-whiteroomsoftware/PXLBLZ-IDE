@@ -423,9 +423,9 @@ export function ShowInspectorNumberField({
   label: string
   ariaLabel?: string
   value: number
-  min: number
-  max: number
-  step: number
+  min?: number
+  max?: number
+  step?: number
   suffix?: string
   help?: string
   hideLabel?: boolean
@@ -449,7 +449,7 @@ export function ShowInspectorNumberField({
       setDraft(String(value))
       return
     }
-    const bounded = Math.max(min, Math.min(max, parsed))
+    const bounded = Math.max(min ?? Number.NEGATIVE_INFINITY, Math.min(max ?? Number.POSITIVE_INFINITY, parsed))
     setDraft(String(bounded))
     if (bounded !== value) onChange(bounded)
   }
