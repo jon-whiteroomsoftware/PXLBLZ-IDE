@@ -583,7 +583,10 @@ function StudioApp() {
     // Same 100x150 waterfall strip the device embeds; a failed render falls
     // back to an empty preview section rather than blocking the download.
     const preview = await buildPreviewJpeg(bundled)
-    const epe = buildPatternEpeExport(name, stamped, preview ? { preview: bytesToBase64(preview) } : {})
+    const epe = buildPatternEpeExport(name, stamped, {
+      idSeed: activePatternId,
+      ...(preview ? { preview: bytesToBase64(preview) } : {}),
+    })
     downloadTextFile(epe.filename, epe.text)
   }, [activePatternId, source, userPatterns, compileLibrarySet])
 
