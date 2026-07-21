@@ -5789,13 +5789,13 @@ function ZoneInspector({
           />
         </label>
         {show.outputContract?.kind !== 'portable-2d' && (
-          <input
-            aria-label={`Nominal pixels ${zone.name}`}
-            type="number"
-            min={1}
+          <NumberField
+            hideLabel
+            label={`Nominal pixels ${zone.name}`}
             value={zone.nominalPixelCount}
-            onChange={(event) => onUpdateZone({ nominalPixelCount: Number(event.target.value) })}
-            className={field}
+            min={1}
+            step={1}
+            onChange={(nominalPixelCount) => onUpdateZone({ nominalPixelCount })}
           />
         )}
         <button

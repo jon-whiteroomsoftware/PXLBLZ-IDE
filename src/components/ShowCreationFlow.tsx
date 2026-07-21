@@ -122,6 +122,9 @@ export function ShowCreationFlow({
             </label>
             <label className="text-[10px] uppercase tracking-[0.12em] text-zinc-500">
               {portable ? 'Preview pixels' : 'Pixels'}
+              {/* Safe controlled input: value is the raw pixelCountText string
+                  state, so keystrokes and deletion round-trip losslessly. */}
+              {/* eslint-disable-next-line no-restricted-syntax */}
               <input
                 aria-label={portable ? 'Preview pixels' : 'Pixels'}
                 type="number"

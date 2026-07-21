@@ -2752,7 +2752,7 @@ describe('ShowEditor (#318)', () => {
     const nameInput = screen.getByLabelText('Zone name doorframe')
     await user.clear(nameInput)
     await user.type(nameInput, 'entry')
-    fireEvent.change(screen.getByLabelText('Nominal pixels entry'), { target: { value: '24' } })
+    changeCommittedNumber('Nominal pixels entry', '24')
 
     await waitFor(() => {
       expect(useShowStore.getState().shows[0].zones[1]).toMatchObject({
