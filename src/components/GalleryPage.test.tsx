@@ -9,6 +9,14 @@ beforeEach(() => {
   vi.restoreAllMocks()
 })
 
+describe('Studio coming-soon notice', () => {
+  it('shows the Studio coming-soon banner to every visitor', () => {
+    render(<GalleryPage />)
+
+    expect(screen.getByTestId('studio-coming-soon-banner')).toHaveTextContent(/Studio opens soon/i)
+  })
+})
+
 describe('Gallery return anchors', () => {
   it('bookmarks the selected Pattern before opening its detail page', async () => {
     render(<GalleryPage />)

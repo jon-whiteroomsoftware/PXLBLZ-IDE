@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ArrowRight, ChevronDown, Images, Search, X } from 'lucide-react'
+import { ArrowRight, ChevronDown, Hourglass, Images, Search, X } from 'lucide-react'
 import {
   GALLERY_ALL_CATEGORY,
   GALLERY_CATEGORIES,
@@ -122,6 +122,18 @@ export function GalleryPage() {
 
   return (
     <main className="flex-1 overflow-auto bg-zinc-950" data-testid="gallery-page">
+      <div className="mx-auto max-w-[1180px] px-[22px] pt-[14px]">
+        <div
+          data-testid="studio-coming-soon-banner"
+          className="flex items-start gap-2.5 rounded-lg border border-live/25 bg-live/[0.06] px-3.5 py-2.5"
+        >
+          <Hourglass size={14} aria-hidden className="mt-[3px] shrink-0 text-live" />
+          <p className="font-mono text-[11.5px] leading-5 text-zinc-300">
+            <span className="text-live">Studio opens soon.</span> Everything in the Gallery works
+            without an account; Studio sign-in is invite-only while we finish the last pieces.
+          </p>
+        </div>
+      </div>
       <div className="mx-auto flex max-w-[1180px] flex-wrap items-center gap-x-5 gap-y-2 px-[22px] pb-2 pt-[18px]">
         <div className="mr-auto">
           <h1 className="flex items-center gap-2 font-mono text-[19px] font-semibold tracking-normal text-zinc-100">
