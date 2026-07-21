@@ -14,6 +14,8 @@ export interface RenderConfig {
   baseUrl: string
   /** Slug naming the frame prefix and default output file. */
   name: string
+  /** Preview diffusion override (0..1); null keeps the pattern's own setting. */
+  diffusion: number | null
 }
 
 const DEFAULTS = {
@@ -48,6 +50,7 @@ export function parseRenderArgs(argv: string[]): RenderConfig {
   let keepFrames = false
   let baseUrl = DEFAULTS.baseUrl
   let name: string | null = null
+  let diffusion: number | null = null
 
   for (let i = 0; i < argv.length; i += 1) {
     const flag = argv[i]
@@ -66,6 +69,14 @@ export function parseRenderArgs(argv: string[]): RenderConfig {
       case '--out': out = value(); break
       case '--name': name = value(); break
       case '--base-url': baseUrl = value(); break
+      case '--diffusion': {
+        const v = Number(value())
+        if (!Number.isFinite(v) || v < 0 || v > 1) {
+          throw new Error(`--diffusion requires a number in 0..1, got "${argv[i]}".`)
+        }
+        diffusion = v
+        break
+      }
       case '--keep-frames': keepFrames = true; break
       default: throw new Error(`Unknown flag ${flag}.`)
     }
@@ -77,7 +88,7 @@ export function parseRenderArgs(argv: string[]): RenderConfig {
   const baseName = name ?? (demo ?? fileBasename(file!))
   const slug = renderSlug(baseName)
   if (!slug) throw new Error(`Cannot derive a usable name from "${baseName}"; pass --name.`)
-  return { demo, file, seconds, fps, width, out, keepFrames, baseUrl, name: slug }
+  return { demo, file, seconds, fps, width, out, keepFrames, baseUrl, name: slug, diffusion }
 }
 
 function fileBasename(path: string): string {

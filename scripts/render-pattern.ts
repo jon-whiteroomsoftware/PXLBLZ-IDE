@@ -111,9 +111,12 @@ async function renderFrames(config: RenderConfig): Promise<number> {
       ? fs.readFileSync(config.file, 'utf8')
       : await page.evaluate(() =>
         (window as unknown as { __pxlblz: PxlblzCaptureApi }).__pxlblz.getPreviewSource())
-    await page.evaluate((code) => {
+    await page.evaluate(({ code, diffusion }) => {
       const api = (window as unknown as { __pxlblz: PxlblzCaptureApi }).__pxlblz
       api.setPreview({ isRunning: false })
+      // Store overrides land before the rebuild below, which reads them when
+      // wiring the fresh renderer.
+      if (diffusion !== null) api.setPreview({ diffusion })
       api.loadSource('')
       // Defer the reload a macrotask so React commits the teardown first.
       return new Promise<void>((resolve) => {
@@ -122,7 +125,7 @@ async function renderFrames(config: RenderConfig): Promise<number> {
           resolve()
         }, 50)
       })
-    }, source)
+    }, { code: source, diffusion: config.diffusion })
     // The preview loop rebuilds in a React effect; give it a beat, then make
     // sure no compile/runtime error is covering the canvas.
     await page.waitForTimeout(750)
@@ -132,6 +135,20 @@ async function renderFrames(config: RenderConfig): Promise<number> {
       .textContent()
       .catch(() => null)
     if (overlayError) fail(`pattern failed to load: ${overlayError.trim()}`)
+
+    // The chrome-stripping CSS reaches the canvas via a ResizeObserver → React
+    // state → loop-rebuild chain that can lag under load; gate on the canvas
+    // actually reaching the requested width so no frame captures small.
+    await page.waitForFunction(
+      (expected) => {
+        const canvas = document.querySelector('[data-testid="preview-pane"] canvas') as HTMLCanvasElement | null
+        return Boolean(canvas && canvas.width >= expected - 4)
+      },
+      config.width,
+      { timeout: 15_000 },
+    ).catch(() => fail(
+      `canvas never reached the requested ${config.width}px width — the IDE-chrome override did not apply.`,
+    ))
 
     let lastLogged = 0
     await page.exposeFunction('__pxlblzRenderProgress', (saved: number, total: number) => {
@@ -204,7 +221,7 @@ async function main(): Promise<void> {
   } catch (error) {
     fail(String(error instanceof Error ? error.message : error) +
       '\nUsage: npm run render -- (--demo <DemoName> | --file <pattern.js>) ' +
-      '[--seconds N] [--fps N] [--width PX] [--out FILE.mp4] [--name SLUG] [--base-url URL] [--keep-frames]')
+      '[--seconds N] [--fps N] [--width PX] [--diffusion 0..1] [--out FILE.mp4] [--name SLUG] [--base-url URL] [--keep-frames]')
   }
   if (config.file && !fs.existsSync(config.file)) fail(`no such file: ${config.file}`)
   await assertServerReachable(config.baseUrl)

@@ -14,6 +14,7 @@ describe('parseRenderArgs', () => {
       keepFrames: false,
       baseUrl: 'http://localhost:5174/PXLBLZ-IDE/',
       name: 'plasmanebula',
+      diffusion: null,
     })
   })
 
@@ -36,6 +37,14 @@ describe('parseRenderArgs', () => {
     expect(config.name).toBe('teaser')
     expect(config.baseUrl).toBe('http://localhost:9999/app/')
     expect(config.keepFrames).toBe(true)
+  })
+
+  it('defaults diffusion to null (keep the pattern\'s own setting) and accepts 0..1 overrides', () => {
+    expect(parseRenderArgs(['--demo', 'A']).diffusion).toBeNull()
+    expect(parseRenderArgs(['--demo', 'A', '--diffusion', '0.44']).diffusion).toBe(0.44)
+    expect(parseRenderArgs(['--demo', 'A', '--diffusion', '0']).diffusion).toBe(0)
+    expect(() => parseRenderArgs(['--demo', 'A', '--diffusion', '1.5'])).toThrow()
+    expect(() => parseRenderArgs(['--demo', 'A', '--diffusion', 'soft'])).toThrow()
   })
 
   it('requires exactly one of --demo and --file', () => {
