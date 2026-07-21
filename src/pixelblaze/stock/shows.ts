@@ -118,17 +118,17 @@ function learn101(): StockShow {
   const id = 'stock-show-101-clips-crossfade'
   const zones = logicalZones(['Main'], 2_000)
   const scenes: SceneSpec[] = [
-    scene('water', 'Water', 8, [clip('zone-1', 'Caustics', 0.35, { sliderSpeed: 0.30, sliderDensity: 0.36, sliderSharpness: 0.30, sliderTint: 0.52 })]),
-    scene('mechanism', 'Mechanism', 8, [clip('zone-1', 'ClockworkIris', 0.35, { sliderSpeed: 0.28, sliderAperture: 0.58, sliderTeeth: 0.45, sliderColor: 0.10 })]),
+    scene('mandala', 'Mandala', 8, [clip('zone-1', 'SignalMandala', 0.35, { sliderSpeed: 0.45, sliderSpokes: 0.48, sliderRings: 0.36, sliderColor: 0.64 })]),
+    scene('compass', 'Compass', 8, [clip('zone-1', 'CompassRose', 0.35, { sliderSpeed: 0.30, sliderPoints: 0.42, sliderSweep: 0.62, sliderHue: 0.10 })]),
   ]
   return catalogue({
     id, title: 'Clips and Crossfade', track: 'portable', collection: 'learn', level: 100, order: 1,
     purpose: 'Two Patterns become one timed composition. Each Clip owns what plays; the boundary between them owns how the picture changes.',
     notice: 'The Crossfade is a separate timeline entity, not a property hidden inside either Clip.',
-    prompts: ['Shorten the Crossfade from 3.0 s to 1.0 s.', 'Replace Clockwork Iris with a Pattern that moves differently.'],
+    prompts: ['Shorten the Crossfade from 3.0 s to 1.0 s.', 'Replace Compass Rose with a Pattern that moves differently.'],
     guideHeading: 'clips-scenes-and-boundaries',
     output: portableOutput(), zones, layouts: [singleLayout(zones)], scenes,
-    transitions: [boundary('water', 'crossfade', 3_000, SINE_IN_OUT)],
+    transitions: [boundary('mandala', 'crossfade', 3_000, SINE_IN_OUT)],
   })
 }
 

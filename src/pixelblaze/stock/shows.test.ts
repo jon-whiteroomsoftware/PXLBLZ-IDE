@@ -178,11 +178,11 @@ describe('stock Show curriculum (#363)', () => {
   it('keeps the first lesson to two Clips and one boundary-owned Crossfade', () => {
     const item = STOCK_SHOWS.find((candidate) => candidate.id === 'stock-show-101-clips-crossfade')!
     expect(item.show.scenes.map((scene) => [scene.name, scene.durationMs])).toEqual([
-      ['Water', 8_000], ['Mechanism', 8_000],
+      ['Mandala', 8_000], ['Compass', 8_000],
     ])
-    expect(item.show.cells.map((cell) => cell.patternName)).toEqual(['Caustics', 'ClockworkIris'])
+    expect(item.show.cells.map((cell) => cell.patternName)).toEqual(['SignalMandala', 'CompassRose'])
     expect(item.show.transitions).toEqual([
-      expect.objectContaining({ afterSceneId: 'water', kind: 'crossfade', durationMs: 3_000 }),
+      expect.objectContaining({ afterSceneId: 'mandala', kind: 'crossfade', durationMs: 3_000 }),
     ])
     expect(item.show.composition).toBeUndefined()
     expect(item.show.zones).toHaveLength(1)
