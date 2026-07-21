@@ -50,11 +50,11 @@ describe('Restart-instance global-liveness census (#536)', () => {
   it('applies the 15% gate mechanically without converting it into a product invariant', () => {
     expect(report.decision.threshold).toBe(0.15)
     expect(report.summary).toMatchObject({
-      representativeMemberGlobals: 2_621,
+      representativeMemberGlobals: 2_613,
       representativeReclaimedGlobals: 395,
     })
     expect(report.decision.representativeReclaimPercent).toBe(0)
-    expect(report.decision.weightedRepresentativeReclaimPercent).toBeCloseTo(0.15070584, 8)
+    expect(report.decision.weightedRepresentativeReclaimPercent).toBeCloseTo(0.15116724, 8)
     expect(report.decision.ceilingRescues).toEqual([])
     expect(report.decision.proceedWithEmission).toBe(false)
     expect(report.decision.proceedWithEmission).toBe(

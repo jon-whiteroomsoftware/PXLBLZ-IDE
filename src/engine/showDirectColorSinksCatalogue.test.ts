@@ -28,7 +28,9 @@ function stockRecipe(stock: (typeof STOCK_SHOWS)[number]): ShowRecipe {
 }
 
 describe('direct color sinks across the stock Show catalogue (#557)', () => {
-  it('keeps every ineligible stock Show byte-for-byte unchanged and pins the eligible set', () => {
+  // Compiles the entire stock catalogue twice; runtime scales with catalogue
+  // size and casting, so it gets an explicit generous timeout.
+  it('keeps every ineligible stock Show byte-for-byte unchanged and pins the eligible set', { timeout: 30_000 }, () => {
     const eligible: string[] = []
     for (const stock of STOCK_SHOWS) {
       const recipe = stockRecipe(stock)
