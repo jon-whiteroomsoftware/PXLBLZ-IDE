@@ -261,7 +261,7 @@ function formatNormalized(value: number): string {
   return String(Number(Math.max(0, Math.min(1, value)).toFixed(3)))
 }
 
-function epeFilenameStem(name: string): string {
+export function epeFilenameStem(name: string, fallback = 'show'): string {
   return name
     .normalize('NFKD')
     .split('')
@@ -269,7 +269,7 @@ function epeFilenameStem(name: string): string {
     .join('')
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '') || 'show'
+    .replace(/^-+|-+$/g, '') || fallback
 }
 
 function commentText(value: string): string {

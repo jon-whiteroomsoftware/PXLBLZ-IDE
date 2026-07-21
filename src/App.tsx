@@ -79,6 +79,7 @@ import { useShowEditorSessionStore } from '@/store/showEditorSessionStore'
 import { InlineEntityTitle } from '@/components/InlineEntityTitle'
 import { usePreviewStore } from '@/store/previewStore'
 import { studioControlOwnsKeyboardEvent } from '@/engine/keyboardShortcuts'
+import { buildPatternEpeExport } from '@/engine/patternEpeExport'
 import { IDE_MICROTYPE } from '@/components/ui/ideMicrotype'
 import {
   STUDIO_LIBRARY_DEFAULT_WIDTH,
@@ -118,11 +119,6 @@ function Splitter({ onDrag, className = '' }: { onDrag: (dx: number) => void; cl
 function stampedPatternArtifact(source: string, id: string, name: string, libraries: Record<string, string>): string {
   const { code } = bundle(source, libraries)
   return stampArtifact(code, { kind: 'pattern', id, name })
-}
-
-function patternDownloadName(name: string): string {
-  const safe = name.trim().replace(/[^A-Za-z0-9._-]+/g, '-').replace(/^-+|-+$/g, '')
-  return `${safe || 'pattern'}.js`
 }
 
 function downloadTextFile(filename: string, text: string): void {
@@ -580,7 +576,8 @@ function StudioApp() {
     if (!activePatternId) return
     const pattern = userPatterns.find((p) => p.id === activePatternId)
     const name = pattern?.name ?? 'Pattern'
-    downloadTextFile(patternDownloadName(name), stampedPatternArtifact(source, activePatternId, name, compileLibrarySet))
+    const epe = buildPatternEpeExport(name, stampedPatternArtifact(source, activePatternId, name, compileLibrarySet))
+    downloadTextFile(epe.filename, epe.text)
   }, [activePatternId, source, userPatterns, compileLibrarySet])
 
   const [leftWidth, setLeftWidth] = useState(STUDIO_LIBRARY_DEFAULT_WIDTH)
