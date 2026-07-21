@@ -614,19 +614,23 @@ function StudioApp() {
   const selectedReferencePattern = useShowEditorSessionStore((state) => (
     routedStockShow ? state.referencePatternByShowId[routedStockShow.id] : undefined
   ))
+  const routedStockShowDraft = useShowStore((state) => (
+    routedStockShow ? state.stockShowDrafts[routedStockShow.id] : undefined
+  ))
   const routedStockShowOverride = useMemo(() => {
-    if (!routedStockShow?.reference?.patternSlots || !selectedReferencePattern) return routedStockShow?.show
+    const base = routedStockShowDraft ?? routedStockShow?.show
+    if (!base || !routedStockShow?.reference?.patternSlots || !selectedReferencePattern) return base
     const patternName = selectedReferencePattern.kind === 'stock'
       ? selectedReferencePattern.id
       : userPatterns.find((pattern) => pattern.id === selectedReferencePattern.id)?.name
-    if (!patternName) return routedStockShow.show
-    return applyShowReferencePattern(routedStockShow.show, {
+    if (!patternName) return base
+    return applyShowReferencePattern(base, {
       pattern: selectedReferencePattern,
       patternName,
       cellIds: routedStockShow.reference.patternSlots.cellIds,
       instanceIds: routedStockShow.reference.patternSlots.instanceIds,
     })
-  }, [routedStockShow, selectedReferencePattern, userPatterns])
+  }, [routedStockShow, routedStockShowDraft, selectedReferencePattern, userPatterns])
   const activeShow = routedStockShowOverride ?? (activeShowId ? shows.find((show) => show.id === activeShowId) : undefined)
 
   const handleDeletePattern = useCallback(async () => {
@@ -1034,7 +1038,6 @@ function StudioApp() {
                 <ShowEditor
                   showId={activeShow.id}
                   showOverride={routedStockShowOverride}
-                  readOnly={Boolean(routedStockShow)}
                   builtInContext={routedStockShow ? {
                     track: routedStockShow.track,
                     lesson: routedStockShow.lesson,

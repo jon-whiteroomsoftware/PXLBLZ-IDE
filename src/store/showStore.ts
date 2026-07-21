@@ -55,6 +55,7 @@ import { uniquePatternName } from '@/engine/patternName'
 import { useMapStore } from '@/store/mapStore'
 import { createInstallationShowOutputContract } from '@/engine/showOutputContract'
 import { normalizeShowComposition } from '@/engine/showCompositionModel'
+import { stockShowById } from '@/pixelblaze/stock/shows'
 
 const showPersistenceQueues = new Map<string, Promise<void>>()
 
@@ -64,6 +65,7 @@ interface ShowState {
   activeShowId: string | null
   showCreation: { previousShowId: string | null } | null
   showHistories: Record<string, ShowHistory>
+  stockShowDrafts: Record<string, ShowRecord>
   loadShows: () => Promise<void>
   createNewShow: (input: { name?: string; outputContract: ShowOutputContract }) => Promise<ShowRecord>
   createShowFromController: (profile: ControllerProfile) => Promise<ShowRecord>
@@ -74,6 +76,10 @@ interface ShowState {
   renameShow: (id: string, name: string) => Promise<void>
   removeShow: (id: string) => Promise<void>
   updateShow: (id: string, next: ShowRecord) => Promise<void>
+  // Resolves the record an edit operation should start from: a personal
+  // record, an in-memory built-in draft, or the pristine built-in fixture.
+  resolveEditableShow: (id: string) => ShowRecord | undefined
+  resetStockShowDraft: (id: string) => void
   updateStageMap: (showId: string, stageMapId: string | null) => Promise<void>
   addScene: (showId: string) => Promise<void>
   duplicateScene: (showId: string, sceneId: string) => Promise<void>
@@ -143,6 +149,9 @@ export const showInitialState = {
   activeShowId: null as string | null,
   showCreation: null as { previousShowId: string | null } | null,
   showHistories: {} as Record<string, ShowHistory>,
+  // Session-only working copies of built-in Shows. Never persisted: a reload
+  // resets every built-in to its pristine catalogue definition.
+  stockShowDrafts: {} as Record<string, ShowRecord>,
 }
 
 export const useShowStore = create<ShowState>()((set, get) => ({
@@ -206,7 +215,7 @@ export const useShowStore = create<ShowState>()((set, get) => ({
   },
 
   renameShow: async (id, name) => {
-    const existing = get().shows.find((show) => show.id === id)
+    const existing = get().resolveEditableShow(id)
     if (!existing || existing.name === name) return
     const next = { ...existing, name, updatedAt: Date.now() }
     await get().updateShow(id, next)
@@ -222,7 +231,37 @@ export const useShowStore = create<ShowState>()((set, get) => ({
     })
   },
 
+  resolveEditableShow: (id) => {
+    const state = get()
+    return state.shows.find((show) => show.id === id)
+      ?? state.stockShowDrafts[id]
+      ?? stockShowById(id)?.show
+  },
+
+  resetStockShowDraft: (id) => set((state) => {
+    if (!(id in state.stockShowDrafts)) return state
+    const stockShowDrafts = { ...state.stockShowDrafts }
+    delete stockShowDrafts[id]
+    const showHistories = { ...state.showHistories }
+    delete showHistories[id]
+    return { stockShowDrafts, showHistories }
+  }),
+
   updateShow: async (id, next) => {
+    if (stockShowById(id)) {
+      const previousRecord = get().resolveEditableShow(id)
+      if (!previousRecord || next === previousRecord) return
+      const previous = normalizeShowRecord(previousRecord)
+      const previousHistory = get().showHistories[id] ?? { past: [], future: [] }
+      set((state) => ({
+        stockShowDrafts: { ...state.stockShowDrafts, [id]: normalizeShowRecord(next) },
+        showHistories: {
+          ...state.showHistories,
+          [id]: { past: [...previousHistory.past, previous], future: [] },
+        },
+      }))
+      return
+    }
     const previousRecord = get().shows.find((show) => show.id === id)
     if (!previousRecord || next === previousRecord) return
     const previous = normalizeShowRecord(previousRecord)
@@ -253,25 +292,25 @@ export const useShowStore = create<ShowState>()((set, get) => ({
   },
 
   updateStageMap: async (showId, stageMapId) => {
-    const show = get().shows.find((item) => item.id === showId)
+    const show = get().resolveEditableShow(showId)
     if (!show) return
     await get().updateShow(showId, { ...show, stageMapId, updatedAt: Date.now() })
   },
 
   addScene: async (showId) => {
-    const show = get().shows.find((item) => item.id === showId)
+    const show = get().resolveEditableShow(showId)
     if (!show) return
     await get().updateShow(showId, addShowScene(show))
   },
 
   duplicateScene: async (showId, sceneId) => {
-    const show = get().shows.find((item) => item.id === showId)
+    const show = get().resolveEditableShow(showId)
     if (!show) return
     await get().updateShow(showId, duplicateShowScene(show, sceneId))
   },
 
   cloneClip: async (showId, cellId) => {
-    const show = get().shows.find((item) => item.id === showId)
+    const show = get().resolveEditableShow(showId)
     if (!show) return null
     const next = cloneShowCellAfter(show, cellId)
     if (next === show) return null
@@ -280,7 +319,7 @@ export const useShowStore = create<ShowState>()((set, get) => ({
   },
 
   moveClip: async (showId, cellId, zoneId, sceneId) => {
-    const show = get().shows.find((item) => item.id === showId)
+    const show = get().resolveEditableShow(showId)
     if (!show) return false
     const next = moveShowCellToSlot(show, cellId, zoneId, sceneId)
     if (next === show) return false
@@ -289,31 +328,31 @@ export const useShowStore = create<ShowState>()((set, get) => ({
   },
 
   removeScene: async (showId, sceneId) => {
-    const show = get().shows.find((item) => item.id === showId)
+    const show = get().resolveEditableShow(showId)
     if (!show) return
     await get().updateShow(showId, removeShowScene(show, sceneId))
   },
 
   updateScene: async (showId, sceneId, changes) => {
-    const show = get().shows.find((item) => item.id === showId)
+    const show = get().resolveEditableShow(showId)
     if (!show) return
     await get().updateShow(showId, updateShowScene(show, sceneId, changes))
   },
 
   updateTransition: async (showId, sceneId, kind, durationMs, feather, portal) => {
-    const show = get().shows.find((item) => item.id === showId)
+    const show = get().resolveEditableShow(showId)
     if (!show) return
     await get().updateShow(showId, updateShowTransition(show, sceneId, kind, durationMs, feather, portal))
   },
 
   removeClip: async (showId, clipId) => {
-    const show = get().shows.find((item) => item.id === showId)
+    const show = get().resolveEditableShow(showId)
     if (!show) return
     await get().updateShow(showId, removeShowClip(show, clipId))
   },
 
   placeClip: async (showId, zoneId, sceneId, patch) => {
-    const show = get().shows.find((item) => item.id === showId)
+    const show = get().resolveEditableShow(showId)
     if (!show) return null
     const next = placeShowClip(show, zoneId, sceneId, patch)
     if (next === show) return null
@@ -322,49 +361,49 @@ export const useShowStore = create<ShowState>()((set, get) => ({
   },
 
   updateCellAdaptations: async (showId, cellId, changes) => {
-    const show = get().shows.find((item) => item.id === showId)
+    const show = get().resolveEditableShow(showId)
     if (!show) return
     await get().updateShow(showId, updateShowCellAdaptations(show, cellId, changes))
   },
 
   updateCellEffects: async (showId, cellId, effects) => {
-    const show = get().shows.find((item) => item.id === showId)
+    const show = get().resolveEditableShow(showId)
     if (!show) return
     await get().updateShow(showId, updateShowCellEffects(show, cellId, effects))
   },
 
   updateCellControlTarget: async (showId, cellId, exportName, value) => {
-    const show = get().shows.find((item) => item.id === showId)
+    const show = get().resolveEditableShow(showId)
     if (!show) return
     await get().updateShow(showId, updateShowCellControlTarget(show, cellId, exportName, value))
   },
 
   updateCellPattern: async (showId, cellId, patch) => {
-    const show = get().shows.find((item) => item.id === showId)
+    const show = get().resolveEditableShow(showId)
     if (!show) return
     await get().updateShow(showId, updateShowCellPattern(show, cellId, patch))
   },
 
   updateCellRestartOnEntry: async (showId, cellId, restartOnEntry) => {
-    const show = get().shows.find((item) => item.id === showId)
+    const show = get().resolveEditableShow(showId)
     if (!show) return
     await get().updateShow(showId, updateShowCellRestartOnEntry(show, cellId, restartOnEntry))
   },
 
   updateBoundaryTransition: async (showId, transitionId, changes) => {
-    const show = get().shows.find((item) => item.id === showId)
+    const show = get().resolveEditableShow(showId)
     if (!show) return
     await get().updateShow(showId, updateShowBoundaryTransition(show, transitionId, changes))
   },
 
   removeBoundaryTransition: async (showId, transitionId) => {
-    const show = get().shows.find((item) => item.id === showId)
+    const show = get().resolveEditableShow(showId)
     if (!show) return
     await get().updateShow(showId, removeShowBoundaryTransition(show, transitionId))
   },
 
   splitAtTime: async (showId, atMs) => {
-    const show = get().shows.find((item) => item.id === showId)
+    const show = get().resolveEditableShow(showId)
     if (!show) return
     const next = splitShowAtTime(show, atMs)
     if (next === show) return
@@ -372,67 +411,67 @@ export const useShowStore = create<ShowState>()((set, get) => ({
   },
 
   extendCell: async (showId, cellId, sceneSpan) => {
-    const show = get().shows.find((item) => item.id === showId)
+    const show = get().resolveEditableShow(showId)
     if (!show) return
     await get().updateShow(showId, extendShowCell(show, cellId, sceneSpan))
   },
 
   spanCellZones: async (showId, cellId, zoneSpan) => {
-    const show = get().shows.find((item) => item.id === showId)
+    const show = get().resolveEditableShow(showId)
     if (!show) return
     await get().updateShow(showId, spanShowCellZones(show, cellId, zoneSpan))
   },
 
   updateCellZoneMode: async (showId, cellId, zoneMode) => {
-    const show = get().shows.find((item) => item.id === showId)
+    const show = get().resolveEditableShow(showId)
     if (!show) return
     await get().updateShow(showId, updateShowCellZoneMode(show, cellId, zoneMode))
   },
 
   addZone: async (showId) => {
-    const show = get().shows.find((item) => item.id === showId)
+    const show = get().resolveEditableShow(showId)
     if (!show) return
     await get().updateShow(showId, addShowZone(show))
   },
 
   updateZone: async (showId, zoneId, changes) => {
-    const show = get().shows.find((item) => item.id === showId)
+    const show = get().resolveEditableShow(showId)
     if (!show) return
     await get().updateShow(showId, updateShowZone(show, zoneId, changes))
   },
 
   removeZone: async (showId, zoneId) => {
-    const show = get().shows.find((item) => item.id === showId)
+    const show = get().resolveEditableShow(showId)
     if (!show) return
     await get().updateShow(showId, removeShowZone(show, zoneId))
   },
 
   addRoutingLayout: async (showId, sourceLayoutId) => {
-    const show = get().shows.find((item) => item.id === showId)
+    const show = get().resolveEditableShow(showId)
     if (!show) return
     await get().updateShow(showId, addShowRoutingLayout(show, 'New layout', sourceLayoutId))
   },
 
   updateRoutingLayout: async (showId, layoutId, changes) => {
-    const show = get().shows.find((item) => item.id === showId)
+    const show = get().resolveEditableShow(showId)
     if (!show) return
     await get().updateShow(showId, updateShowRoutingLayout(show, layoutId, changes))
   },
 
   removeRoutingLayout: async (showId, layoutId) => {
-    const show = get().shows.find((item) => item.id === showId)
+    const show = get().resolveEditableShow(showId)
     if (!show) return
     await get().updateShow(showId, removeShowRoutingLayout(show, layoutId))
   },
 
   updateRoutingSwitch: async (showId, afterSceneId, layoutId) => {
-    const show = get().shows.find((item) => item.id === showId)
+    const show = get().resolveEditableShow(showId)
     if (!show) return
     await get().updateShow(showId, updateShowRoutingSwitch(show, afterSceneId, layoutId))
   },
 
   undoShow: async (showId) => {
-    const show = get().shows.find((item) => item.id === showId)
+    const show = get().resolveEditableShow(showId)
     const history = get().showHistories[showId]
     const snapshot = history?.past[history.past.length - 1]
     if (!show || !history || !snapshot) return false
@@ -440,6 +479,13 @@ export const useShowStore = create<ShowState>()((set, get) => ({
     const nextHistory = {
       past: history.past.slice(0, -1),
       future: [normalizeShowRecord(show), ...history.future],
+    }
+    if (stockShowById(showId)) {
+      set((state) => ({
+        stockShowDrafts: { ...state.stockShowDrafts, [showId]: next },
+        showHistories: { ...state.showHistories, [showId]: nextHistory },
+      }))
+      return true
     }
     set((state) => ({
       shows: replaceShowRecord(state.shows, next),
@@ -458,7 +504,7 @@ export const useShowStore = create<ShowState>()((set, get) => ({
   },
 
   redoShow: async (showId) => {
-    const show = get().shows.find((item) => item.id === showId)
+    const show = get().resolveEditableShow(showId)
     const history = get().showHistories[showId]
     const snapshot = history?.future[0]
     if (!show || !history || !snapshot) return false
@@ -466,6 +512,13 @@ export const useShowStore = create<ShowState>()((set, get) => ({
     const nextHistory = {
       past: [...history.past, normalizeShowRecord(show)],
       future: history.future.slice(1),
+    }
+    if (stockShowById(showId)) {
+      set((state) => ({
+        stockShowDrafts: { ...state.stockShowDrafts, [showId]: next },
+        showHistories: { ...state.showHistories, [showId]: nextHistory },
+      }))
+      return true
     }
     set((state) => ({
       shows: replaceShowRecord(state.shows, next),

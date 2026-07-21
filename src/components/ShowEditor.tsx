@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type PointerEvent as ReactPointerEvent, type SetStateAction } from 'react'
 import { createPortal } from 'react-dom'
-import { Activity, BookOpen, Check, ChevronDown, ChevronRight, Clapperboard, Clock3, Code2, Copy, Download, Eye, Grid2X2, Info, Layers3, Lightbulb, ListChecks, Lock, Magnet, Map as MapIcon, Maximize2, Pause, Play, Plus, Redo2, RotateCw, Route, Scissors, Settings2, SkipBack, SlidersHorizontal, Trash2, Undo2, WandSparkles, X, Zap, ZoomIn, ZoomOut } from 'lucide-react'
+import { Activity, BookOpen, Check, ChevronDown, ChevronRight, Clapperboard, Clock3, Code2, Copy, Download, Eye, Grid2X2, Info, Layers3, Lightbulb, ListChecks, Lock, Magnet, Map as MapIcon, Maximize2, Pause, Play, Plus, Redo2, RotateCcw, RotateCw, Route, Scissors, Settings2, SkipBack, SlidersHorizontal, Trash2, Undo2, WandSparkles, X, Zap, ZoomIn, ZoomOut } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   AlertDialogAction,
@@ -274,8 +274,8 @@ function ShowNoteDisclosure({
         <span className="shrink-0 font-semibold uppercase tracking-[0.1em] text-cyan-200/85">{note.label}</span>
         <strong className="truncate font-medium text-zinc-200">{note.number ? `${note.number} · ` : ''}{note.title}</strong>
         <span className="ml-1 hidden items-center gap-1 text-[9px] text-zinc-600 sm:flex">
-          <Lock size={10} aria-hidden />
-          Built-in Show
+          <RotateCcw size={10} aria-hidden />
+          Built-in Show · edits last until reload
         </span>
         <ChevronDown size={12} aria-hidden className="ml-auto shrink-0 rotate-180 text-zinc-500" />
       </button>
@@ -452,6 +452,8 @@ export function ShowEditor({
   headerActionsTarget?: HTMLElement | null
 }) {
   const savedShow = useShowStore((state) => state.shows.find((item) => item.id === showId))
+  const hasStockDraft = useShowStore((state) => Boolean(state.stockShowDrafts[showId]))
+  const resetStockShowDraft = useShowStore((state) => state.resetStockShowDraft)
   const updateShow = useShowStore((state) => state.updateShow)
   const addScene = useShowStore((state) => state.addScene)
   const duplicateScene = useShowStore((state) => state.duplicateScene)
@@ -993,6 +995,23 @@ export function ShowEditor({
 
   const headerActions = (
     <>
+      {builtInContext && (
+        <Button
+          size="xs"
+          variant="ghost"
+          aria-label="Reset built-in Show"
+          title="Discard session edits and restore the built-in definition"
+          className="bg-zinc-900/60 text-[11px] text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300 disabled:opacity-40"
+          disabled={!hasStockDraft && !selectedReferencePattern}
+          onClick={() => {
+            resetStockShowDraft(showId)
+            setReferencePattern(showId, null)
+          }}
+        >
+          <RotateCcw size={13} aria-hidden />
+          <span className="show-header-action-label">Reset</span>
+        </Button>
+      )}
       <Button
         size="xs"
         variant="ghost"

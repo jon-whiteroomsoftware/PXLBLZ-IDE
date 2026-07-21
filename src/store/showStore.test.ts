@@ -1,5 +1,6 @@
 import { showInitialState, useShowStore } from './showStore'
 import { mapInitialState, useMapStore } from './mapStore'
+import { stockShowById } from '@/pixelblaze/stock/shows'
 import { createDefaultShow } from '@/engine/showModel'
 import {
   createInstallationShowOutputContract,
@@ -792,5 +793,52 @@ describe('showStore (#318)', () => {
 
     await useShowStore.getState().updateStageMap(seeded.id, null)
     expect(useShowStore.getState().shows[0].stageMapId).toBeNull()
+  })
+})
+
+describe('built-in Show session drafts (#363)', () => {
+  const STOCK_ID = 'stock-show-101-clips-crossfade'
+
+  it('edits a built-in Show into an in-memory draft without any provider write', async () => {
+    const provider = memoryProvider()
+    const updateSpy = vi.spyOn(provider, 'updateShow')
+    const createSpy = vi.spyOn(provider, 'createShow')
+    setPersonalContentProvider(provider)
+
+    const base = useShowStore.getState().resolveEditableShow(STOCK_ID)!
+    expect(base.name).toBe('101 Clips and Crossfade')
+
+    await useShowStore.getState().addScene(STOCK_ID)
+
+    const draft = useShowStore.getState().stockShowDrafts[STOCK_ID]
+    expect(draft.scenes).toHaveLength(base.scenes.length + 1)
+    expect(useShowStore.getState().resolveEditableShow(STOCK_ID)).toBe(draft)
+    expect(updateSpy).not.toHaveBeenCalled()
+    expect(createSpy).not.toHaveBeenCalled()
+    expect(stockShowById(STOCK_ID)!.show.scenes).toHaveLength(base.scenes.length)
+  })
+
+  it('undoes and redoes draft edits entirely in memory', async () => {
+    setPersonalContentProvider(memoryProvider())
+
+    await useShowStore.getState().addScene(STOCK_ID)
+    const edited = useShowStore.getState().stockShowDrafts[STOCK_ID]
+
+    expect(await useShowStore.getState().undoShow(STOCK_ID)).toBe(true)
+    expect(useShowStore.getState().stockShowDrafts[STOCK_ID].scenes).toHaveLength(edited.scenes.length - 1)
+    expect(await useShowStore.getState().redoShow(STOCK_ID)).toBe(true)
+    expect(useShowStore.getState().stockShowDrafts[STOCK_ID].scenes).toHaveLength(edited.scenes.length)
+  })
+
+  it('resetStockShowDraft discards the draft and its history', async () => {
+    setPersonalContentProvider(memoryProvider())
+
+    await useShowStore.getState().addScene(STOCK_ID)
+    expect(useShowStore.getState().stockShowDrafts[STOCK_ID]).toBeDefined()
+
+    useShowStore.getState().resetStockShowDraft(STOCK_ID)
+    expect(useShowStore.getState().stockShowDrafts[STOCK_ID]).toBeUndefined()
+    expect(useShowStore.getState().showHistories[STOCK_ID]).toBeUndefined()
+    expect(await useShowStore.getState().undoShow(STOCK_ID)).toBe(false)
   })
 })

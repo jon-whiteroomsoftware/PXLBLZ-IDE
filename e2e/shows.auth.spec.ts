@@ -2,31 +2,33 @@ import { expect, test } from './fixtures/authenticated'
 import type { Page } from '@playwright/test'
 
 test.describe('authenticated Show authoring', () => {
-  test('opens built-in Show lessons read-only through the production editor (#363)', async ({ page }) => {
+  test('lets built-in Show lessons be edited session-only with an explicit Reset (#363)', async ({ page }) => {
     const showWrites: string[] = []
     page.on('request', (request) => {
       if (request.url().includes('/api/shows') && request.method() !== 'GET') showWrites.push(request.method())
     })
 
     await page.setViewportSize({ width: 1440, height: 900 })
-    await page.goto('studio/shows/stock-show-portable-split')
+    await page.goto('studio/shows/stock-show-101-clips-crossfade')
 
-    await expect(page.getByText('Built-in Show', { exact: true })).toBeVisible()
-    await expect(page.getByText('One composition, two normalized halves', { exact: true })).toBeVisible()
+    await expect(page.getByText('Built-in Show · edits last until reload')).toBeVisible()
+    await expect(page.getByRole('region', { name: '101 Clips and Crossfade guide' })).toBeVisible()
     await expect(page.getByRole('region', { name: 'Show timeline' })).toBeVisible()
-    await expect(page.getByLabel('Show stage')).toContainText('Square')
-    await expect(page.getByRole('button', { name: 'Split at playhead' })).toBeDisabled()
-    await expect(page.getByRole('button', { name: 'Clone selection' })).toBeDisabled()
-    await expect(page.getByRole('button', { name: 'Remove scene Establish' })).toHaveCount(0)
-    await page.getByRole('button', { name: 'Select KaleidoBloom', exact: true }).first().click()
-    await expect(page.getByRole('dialog', { name: 'Entity Detail Panel' }).locator('fieldset')).toHaveAttribute('disabled', '')
-    expect(showWrites).toEqual([])
 
-    await page.getByRole('radio', { name: 'Shows' }).click()
-    await expect(page.getByRole('button', { name: 'Built-in Shows' })).toHaveAttribute('aria-expanded', 'true')
-    await page.getByText('Installation Bands', { exact: true }).click()
-    await expect(page).toHaveURL(/\/studio\/shows\/stock-show-installation-bands$/)
-    await expect(page.getByText('256/256 assigned · complete coverage')).toBeVisible()
+    // Editable: lesson content accepts real edits without any persistence.
+    const resetButton = page.getByRole('button', { name: 'Reset built-in Show' })
+    await expect(resetButton).toBeDisabled()
+    const sceneName = page.locator('[data-show-scene-name]').first()
+    await expect(sceneName).toHaveValue('Mandala')
+    await expect(sceneName).toBeEnabled()
+    await sceneName.fill('Playground')
+    await sceneName.press('Enter')
+    await expect(sceneName).toHaveValue('Playground')
+
+    // Reset restores the pristine catalogue definition.
+    await expect(resetButton).toBeEnabled()
+    await resetButton.click()
+    await expect(page.locator('[data-show-scene-name]').first()).toHaveValue('Mandala')
     expect(showWrites).toEqual([])
 
     await page.setViewportSize({ width: 600, height: 800 })
