@@ -368,6 +368,30 @@ The working grammar is compact:
   lane. **Zones** reveals the Zone Map only when routing structure is needed;
   a one-Zone Show otherwise spends the full width on its Clips.
 
+### Groups and linked choreography
+
+Drag a marquee across Clips to prepare a structural selection. If the marquee
+touches part of a non-Cut Transition chain, the selection expands to include
+both endpoints and the complete chain; Shift-click can then refine it. A valid
+selection stays within one Zone and one Zone Layout interval, may span several
+Layers, and enables **Group**. Groups cannot nest.
+
+The resulting Group is one selectable occurrence across its occupied Layers.
+Its Entity Detail Panel sets exact Start, base Layer, and normalized X/Y
+offsets. **Duplicate** creates another occurrence linked to the same reusable
+choreography, so definition edits appear in every linked occurrence. Each
+occurrence still receives fresh Pattern runtime instances, preserving the
+Group's internal sharing without sharing private Pattern state between uses.
+
+Double-click a Group Clip to edit the Group in place. Content outside the Group
+dims and cannot be edited; the Group's Clips retain their ordinary inspectors,
+Effects, controls, and Transition editing. Escape exits this modeless isolation,
+and Undo/Redo reverses edits normally. **Make Unique** keeps the Group container
+but gives one occurrence its own copied definition. **Ungroup** removes that
+occurrence's container and leaves its Clips, Transitions, Effects, and animation
+as ordinary timeline entities. Deleting a Group removes only the selected
+occurrence.
+
 ## 14. Clips: time, adaptation, and Effects
 
 A clip references a personal or built-in Pattern and adapts it

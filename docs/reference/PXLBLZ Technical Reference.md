@@ -1181,6 +1181,46 @@ Shared Pattern accepts only another instance of the same Pattern, repoints the
 placement, and removes the former instance plus its tracks when that placement
 was its final user.
 
+`ShowCompositionV1.groupDefinitions` and `groupOccurrences` persist linked
+structural reuse without adding a second timeline model. A Group definition owns
+definition-local Pattern instances, relative-time placements, relative Layer
+offsets, complete non-Cut Layer Transitions, and definition-local Property
+animation tracks. An occurrence refers to one definition and owns its internal
+Scene interval, Zone, start time, base Layer, and normalized X/Y translation.
+Definitions are Zone-agnostic; occurrences cannot cross a Scene interval or
+Zone, and Groups cannot nest.
+
+`showGroupModel.ts` is the framework-free authority for Group selection,
+validation, authoring, and materialization. Selection completion follows the
+transitive closure of every touched non-Cut Layer Transition. Explicit
+subtractive refinement may leave an invalid partial chain, in which case the
+Group command remains focusable and explains the missing endpoint instead of
+silently restoring it. Group validation checks definition and occurrence
+identity, internal instance and placement ownership, complete Transition
+endpoints, Property targets, Scene/Zone ownership, interval bounds, and the
+materialized occupancy graph. Ordinary composition validation also runs over
+the materialized result, so Group internals obey the same placement, duration,
+and animation rules as ungrouped Clips.
+
+Duplicate reuses the definition id. Make Unique copies the definition and
+repoints only one occurrence. Ungroup materializes one occurrence into ordinary
+composition entities and leaves other occurrences linked. At compile and
+preview boundaries, `materializeShowGroupOccurrences()` assigns every child an
+occurrence-prefixed placement, Transition, Property-track, and Pattern-instance
+id before passing the result through the existing composition lowering. This
+preserves each definition's internal instance-sharing graph while preventing
+private Pattern state from leaking between linked occurrences. Occurrence X/Y
+translation is added to static Transform position and enabled Viewport origin,
+and to keyframes targeting those same four coordinates.
+
+The unified timeline projects the materialized child Clips but retains their
+occurrence identity for Group selection and connectors. Double-click enters
+modeless isolation: outside content becomes inert and dim, internal Clips use
+the ordinary compact inspectors and Effect palette, and Escape returns to the
+Group occurrence. If Undo, deletion, or another mutation removes the isolated
+occurrence or definition, `ShowEditor` closes the stale inspector and isolation
+automatically rather than leaving the timeline locked.
+
 `ShowCompositionV1.transitions` persists only positive-duration, endpoint-owned
 Layer Transitions. Each record connects two consecutive placements on one Layer
 and its duration must equal their exact gap. A Cut is not stored:
@@ -1194,8 +1234,8 @@ Transition-connected successor without changing any Clip duration; moving any
 connected Clip moves the complete rigid sequence. Reset removes the persisted
 record and closes the gap back to a derived Cut. Clip deletion removes directly
 connected Transitions, and split retargets an outgoing Transition to the new
-right half. Its transitive closure helper is the authority for future marquee
-and Group selection refinement, so a grouping selection cannot retain only one
+right half. Its transitive closure helper is the authority for marquee and
+Group selection refinement, so a grouping selection cannot retain only one
 Transition endpoint.
 
 `ShowCompositionV1.durationMs` persists the explicit Show End, while
