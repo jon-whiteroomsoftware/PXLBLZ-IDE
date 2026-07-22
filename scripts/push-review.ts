@@ -3,7 +3,8 @@ import { readFileSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
 
 const ZERO_SHA = /^0+$/
-const REVIEW_TIMEOUT_MS = 10 * 60 * 1_000
+export const FABLE_REVIEW_EFFORT = 'medium' as const
+export const REVIEW_TIMEOUT_MS = 10 * 60 * 1_000
 
 export interface PrePushUpdate {
   localRef: string
@@ -169,7 +170,7 @@ function runFableReview(ranges: PushReviewRange[]): PushReviewResult {
     '-p',
     '--safe-mode',
     '--model', 'fable',
-    '--effort', 'high',
+    '--effort', FABLE_REVIEW_EFFORT,
     '--permission-mode', 'dontAsk',
     '--no-session-persistence',
     '--tools', 'Read,Grep,Glob',

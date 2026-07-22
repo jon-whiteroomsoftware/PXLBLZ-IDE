@@ -11,12 +11,12 @@ machine without both forms of evidence.
 | --- | --- | --- |
 | During development | `npx vitest run path/to/test.ts` | Keep the red-green-refactor loop focused. |
 | Before each commit | `npm run lint` and `npm run test:staged` | Run colocated tests for staged code plus explicitly mapped high-risk invariants. |
-| Before each push | `npm run review:push`, `npm run test:full`, and `npm run test:e2e` | Review the exact outgoing Git range with Fable High, run every Vitest file once, then exercise the browser smoke flow. |
+| Before each push | `npm run review:push`, `npm run test:full`, and `npm run test:e2e` | Review the exact outgoing Git range with Fable Medium, run every Vitest file once, then exercise the browser smoke flow. |
 
 The Husky `pre-push` hook owns all three steps. Because this is a Git hook rather
 than a Claude or Codex lifecycle hook, it runs for pushes initiated by either
 agent or from a terminal. `scripts/push-review.ts` reads Git's exact ref-update
-packet, sends the outgoing commit list and patch to Fable High through the
+packet, sends the outgoing commit list and patch to Fable Medium through the
 installed Claude CLI, and requires structured pass/fail output. It fails closed
 on findings, malformed output, reviewer failure, or the ten-minute timeout. A
 blocked review is terminal: fix the finding or reviewer, then make a new push;

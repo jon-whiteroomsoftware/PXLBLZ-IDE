@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
+  FABLE_REVIEW_EFFORT,
+  REVIEW_TIMEOUT_MS,
   buildReviewPrompt,
   parseClaudeReviewOutput,
   parsePrePushInput,
@@ -7,6 +9,11 @@ import {
 } from './push-review'
 
 describe('cross-agent push review gate (#63)', () => {
+  it('uses Fable Medium with the ten-minute hard cap', () => {
+    expect(FABLE_REVIEW_EFFORT).toBe('medium')
+    expect(REVIEW_TIMEOUT_MS).toBe(10 * 60 * 1_000)
+  })
+
   it('parses the exact ref updates supplied by Git pre-push', () => {
     expect(parsePrePushInput([
       'refs/heads/main aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa refs/heads/main bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
