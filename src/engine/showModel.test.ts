@@ -181,6 +181,47 @@ describe('showModel (#318)', () => {
     expect(showCellAtSlot(changed, addedZone.id, changed.scenes[0].id)).toBeUndefined()
   })
 
+  it('adds and removes one-Zone composition owners atomically with topology (#581)', () => {
+    const base = createDefaultShow('show-581-zone-composition', 'Zone composition', 1)
+    base.composition = {
+      version: 1,
+      patternInstances: [],
+      scenes: base.scenes.map((scene) => ({
+        sceneId: scene.id,
+        zones: base.zones.map((zone) => ({ zoneId: zone.id, main: [], overlays: [] })),
+      })),
+    }
+
+    const added = addShowZone(base, { name: 'accent', icon: 'bolt' })
+    expect(added.zones[1]).toMatchObject({ name: 'accent', icon: 'bolt' })
+    expect(added.composition?.scenes.map((scene) => scene.zones.map((zone) => zone.zoneId))).toEqual([
+      ['zone-1', 'zone-2'],
+      ['zone-1', 'zone-2'],
+    ])
+
+    const removed = removeShowZone(added, 'zone-2')
+    expect(removed.composition?.scenes.map((scene) => scene.zones.map((zone) => zone.zoneId))).toEqual([
+      ['zone-1'],
+      ['zone-1'],
+    ])
+  })
+
+  it('gives a newly subdivided Portable Zone a valid default routing operator (#581)', () => {
+    const base = createShowWithOutputContract(
+      'show-581-portable-zone',
+      'Portable Zone',
+      createPortableShowOutputContract({ referenceMapId: 'plane', referencePixelCount: 1024 }),
+    )
+
+    const added = addShowZone(base, { name: 'accent' })
+
+    expect(added.routingLayouts[0].logical).toEqual({
+      kind: 'stripes',
+      axis: 'x',
+      zoneIds: ['zone-1', 'zone-2'],
+    })
+  })
+
   it('clears developer-slider targets when a clip changes Pattern (#63)', () => {
     const base = createDefaultShow('show-63-controls', 'Pattern controls', 1)
     const withTarget = updateShowCellControlTarget(base, 'cell-1', 'sliderTwist', 0.75)

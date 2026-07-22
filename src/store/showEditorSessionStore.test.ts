@@ -11,6 +11,9 @@ describe('showEditorSessionStore (#470)', () => {
       ...showEditorSessionInitialState,
       setSnapEnabled: () => {},
       setShowNoteOpen: () => {},
+      setZoneWorkspaceOpen: () => {},
+      setZoneCollapsed: () => {},
+      setFocusedZone: () => {},
       setReferencePattern: () => {},
       setDiagnostic: () => {},
       setDiagnosticFocus: () => {},
@@ -19,6 +22,39 @@ describe('showEditorSessionStore (#470)', () => {
       snapEnabled: false,
     })
     expect(mergePersistedShowEditorSession({}, current)).toMatchObject({ snapEnabled: true })
+  })
+
+  it('persists progressive Zone disclosure independently for each Show (#581)', () => {
+    useShowEditorSessionStore.setState(showEditorSessionInitialState)
+    const session = useShowEditorSessionStore.getState()
+
+    session.setZoneWorkspaceOpen('show-a', true)
+    session.setZoneCollapsed('show-a', 'zone-left', true)
+    session.setZoneCollapsed('show-a', 'zone-right', true)
+    session.setZoneCollapsed('show-a', 'zone-left', false)
+    session.setFocusedZone('show-a', 'zone-right')
+    session.setZoneWorkspaceOpen('show-b', false)
+
+    expect(useShowEditorSessionStore.getState()).toMatchObject({
+      zoneWorkspaceOpenByShowId: { 'show-a': true, 'show-b': false },
+      collapsedZoneIdsByShowId: { 'show-a': ['zone-right'] },
+      focusedZoneIdByShowId: { 'show-a': 'zone-right' },
+    })
+
+    const merged = mergePersistedShowEditorSession({
+      zoneWorkspaceOpenByShowId: { 'show-a': true, invalid: 'yes' },
+      collapsedZoneIdsByShowId: {
+        'show-a': ['zone-right', 'zone-right', 42],
+        invalid: 'zone-left',
+      },
+      focusedZoneIdByShowId: { 'show-a': 'zone-right', invalid: 42 },
+    }, useShowEditorSessionStore.getState())
+
+    expect(merged).toMatchObject({
+      zoneWorkspaceOpenByShowId: { 'show-a': true },
+      collapsedZoneIdsByShowId: { 'show-a': ['zone-right'] },
+      focusedZoneIdByShowId: { 'show-a': 'zone-right' },
+    })
   })
 
   it('persists Show-note visibility independently for each Show (#363)', () => {

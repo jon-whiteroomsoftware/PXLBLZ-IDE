@@ -131,6 +131,66 @@ describe('ShowEditor (#318)', () => {
     expect(within(timeline).queryByRole('button', { name: /Select zone/i })).not.toBeInTheDocument()
   })
 
+  it('progressively reveals the existing Zone workspace without burdening a one-Zone Show (#581)', async () => {
+    const user = userEvent.setup()
+    const show = createDefaultShow('show-zone-disclosure', 'Zone disclosure', 1000)
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} unifiedTimeline />)
+
+    const timeline = screen.getByRole('region', { name: 'Show timeline' })
+    expect(within(timeline).queryByRole('button', { name: /Select zone/i })).not.toBeInTheDocument()
+    expect(within(timeline).queryByRole('dialog', { name: 'Zone Map' })).not.toBeInTheDocument()
+
+    await user.click(within(timeline).getByRole('button', { name: 'Open Zones' }))
+
+    const zoneMap = within(timeline).getByRole('dialog', { name: 'Zone Map' })
+    expect(within(zoneMap).getByText('main')).toBeInTheDocument()
+    expect(within(zoneMap).getByRole('button', { name: 'Add Zone' })).toBeInTheDocument()
+    expect(within(screen.getByTestId('show-timeline-grid')).getByRole('button', { name: 'Select zone main' })).toBeInTheDocument()
+    expect(within(zoneMap).queryByRole('button', { name: 'Collapse zone main' })).not.toBeInTheDocument()
+
+    await user.selectOptions(within(zoneMap).getByRole('combobox', { name: 'Zone icon main' }), 'bolt')
+    await waitFor(() => expect(useShowStore.getState().shows[0].zones[0].icon).toBe('bolt'))
+    await user.click(within(zoneMap).getByRole('button', { name: 'Add Zone' }))
+    await waitFor(() => expect(useShowStore.getState().shows[0].zones).toHaveLength(2))
+    expect(within(timeline).getAllByRole('button', { name: /^Focus zone / })).toHaveLength(2)
+  })
+
+  it('collapses Zones independently and retains a micro Zone picker when the map closes (#581)', async () => {
+    const user = userEvent.setup()
+    const show = addShowZone(createDefaultShow('show-zone-collapse', 'Zone collapse', 1000), {
+      name: 'accent',
+      nominalPixelCount: 24,
+    })
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    const { unmount } = render(<ShowEditor showId={show.id} unifiedTimeline />)
+    const timeline = screen.getByRole('region', { name: 'Show timeline' })
+
+    expect(within(timeline).getAllByRole('button', { name: /^Focus zone / })).toHaveLength(2)
+    await user.click(within(timeline).getByRole('button', { name: 'Open Zones' }))
+    const zoneMap = within(timeline).getByRole('dialog', { name: 'Zone Map' })
+    await user.click(within(zoneMap).getByRole('button', { name: 'Collapse zone main' }))
+
+    expect(within(screen.getByTestId('show-timeline-grid')).getByRole('button', { name: 'Expand zone main' })).toBeInTheDocument()
+    expect(useShowEditorSessionStore.getState().collapsedZoneIdsByShowId[show.id]).toEqual(['zone-1'])
+
+    await user.click(within(timeline).getByRole('button', { name: 'Close Zones' }))
+    expect(within(timeline).queryByRole('dialog', { name: 'Zone Map' })).not.toBeInTheDocument()
+    expect(within(timeline).getAllByRole('button', { name: /^Focus zone / })).toHaveLength(2)
+    await user.click(within(timeline).getByRole('button', { name: 'Focus zone accent' }))
+    expect(useShowEditorSessionStore.getState()).toMatchObject({
+      collapsedZoneIdsByShowId: { [show.id]: ['zone-1'] },
+      focusedZoneIdByShowId: { [show.id]: 'zone-2' },
+    })
+
+    unmount()
+    render(<ShowEditor showId={show.id} unifiedTimeline />)
+    expect(screen.getByRole('img', { name: 'Collapsed zone main timeline' })).toBeInTheDocument()
+  })
+
   it('renders durable composition Clips on the unified global timeline (#580)', () => {
     const show = createDefaultShow('show-composition-workspace', 'Composition workspace', 1000)
     const zoneId = show.zones[0].id
@@ -270,6 +330,67 @@ describe('ShowEditor (#318)', () => {
       expect(saved?.composition?.scenes[0].zones[0].main[0].startMs).not.toBe(2_000)
     })
     expect(screen.getByRole('dialog', { name: 'Entity Detail Panel' })).toBeInTheDocument()
+  })
+
+  it('moves a composition Clip between Zone Layers without duplicating it (#581)', async () => {
+    const show = addShowZone(createDefaultShow('show-drag-zone', 'Drag Zone', 1000), { name: 'accent' })
+    show.composition = {
+      version: 1,
+      patternInstances: [{
+        id: 'instance-drag-zone',
+        pattern: { ...show.cells[0].pattern },
+        patternName: 'Zone Traveler',
+        time: { timeScale: 1, timeOffsetMs: 0 },
+      }],
+      scenes: show.scenes.map((scene, index) => ({
+        sceneId: scene.id,
+        zones: show.zones.map((zone, zoneIndex) => ({
+          zoneId: zone.id,
+          main: index === 0 && zoneIndex === 0 ? [{
+            id: 'placement-drag-zone',
+            instanceId: 'instance-drag-zone',
+            startMs: 2_000,
+            durationMs: 4_000,
+            view: { mirror: false, phase: 0, brightness: 1 },
+          }] : [],
+          overlays: [],
+        })),
+      })),
+    }
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} unifiedTimeline />)
+    const clip = screen.getByRole('button', { name: 'Select Zone Traveler' })
+    const layers = document.querySelectorAll<HTMLElement>('[data-show-layer-kind="main"]')
+    const targetLayer = layers[1]
+    Object.defineProperty(clip, 'getBoundingClientRect', {
+      value: () => ({ left: 20, right: 60, top: 0, bottom: 40, width: 40, height: 40, x: 20, y: 0, toJSON: () => ({}) }),
+    })
+    Object.defineProperty(targetLayer, 'getBoundingClientRect', {
+      value: () => ({ left: 0, right: 620, top: 40, bottom: 80, width: 620, height: 40, x: 0, y: 40, toJSON: () => ({}) }),
+    })
+    const dataTransfer = { setData: () => {}, effectAllowed: 'none', dropEffect: 'none' }
+    const dragEvent = (type: string, clientX: number) => {
+      const event = new Event(type, { bubbles: true, cancelable: true })
+      Object.defineProperties(event, {
+        clientX: { value: clientX },
+        dataTransfer: { value: dataTransfer },
+      })
+      return event
+    }
+
+    fireEvent(clip, dragEvent('dragstart', 20))
+    fireEvent(targetLayer, dragEvent('dragover', 100))
+    fireEvent(targetLayer, dragEvent('drop', 100))
+    fireEvent(clip, dragEvent('dragend', 100))
+
+    await waitFor(() => {
+      const saved = useShowStore.getState().shows.find((candidate) => candidate.id === show.id)!
+      expect(saved.composition?.scenes[0].zones[0].main).toEqual([])
+      expect(saved.composition?.scenes[0].zones[1].main).toHaveLength(1)
+      expect(saved.composition?.patternInstances).toHaveLength(1)
+    })
   })
 
   it('resizes a composition Clip edge and restores its attached Detail (#580)', async () => {

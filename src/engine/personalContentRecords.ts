@@ -251,6 +251,8 @@ export interface ShowZone {
   name: string
   nominalPixelCount: number
   color?: string
+  /** Optional stable visual identifier used when timeline headers become narrow. */
+  icon?: string
 }
 
 export interface ShowRoutingLayoutZone {

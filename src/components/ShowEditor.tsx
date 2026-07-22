@@ -187,6 +187,7 @@ const field =
   'h-7 rounded border border-zinc-700 bg-zinc-900 px-2 text-xs text-zinc-200 outline-none focus:border-live/70'
 const compactField =
   'h-6 rounded border border-zinc-700 bg-zinc-950 px-1.5 text-[9.5px] text-zinc-200 outline-none focus:border-live/70'
+const EMPTY_ZONE_IDS: string[] = []
 const clipBase =
   'show-timeline-clip relative z-10 flex min-h-[44px] flex-col justify-center gap-0.5 overflow-hidden rounded-[5px] border-0 border-l-[3px] px-2 py-1 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-live'
 
@@ -1363,6 +1364,7 @@ export function ShowEditor({
                   timelineWorkspaceRef.current?.focus()
                   void addZone(activeShow.id)
                 }}
+                onUpdateZone={(zoneId, changes) => void updateZone(activeShow.id, zoneId, changes)}
                 onRequestRemoveScene={setScenePendingDelete}
                 onUpdateScene={(sceneId, changes) => void updateScene(activeShow.id, sceneId, changes)}
                 onMoveClip={(cellId, zoneId, sceneId) => {
@@ -2292,6 +2294,7 @@ function SceneStrip({
   onOpenScene,
   onAddScene,
   onAddZone,
+  onUpdateZone,
   onRequestRemoveScene,
   onUpdateScene,
   onMoveClip,
@@ -2328,6 +2331,7 @@ function SceneStrip({
   onOpenScene: (sceneId: string) => void
   onAddScene: () => void
   onAddZone: () => void
+  onUpdateZone: (zoneId: string, changes: Partial<ShowRecord['zones'][number]>) => void
   onRequestRemoveScene: (scene: ShowScene) => void
   onUpdateScene: (sceneId: string, changes: Partial<Omit<ShowScene, 'id'>>) => void
   onMoveClip: (cellId: string, zoneId: string, sceneId: string) => void
@@ -2346,6 +2350,12 @@ function SceneStrip({
   const [storedViewport, setViewport] = useState<ShowTimelineViewport>(fittedViewport)
   const snapEnabled = useShowEditorSessionStore((state) => state.snapEnabled)
   const setSnapEnabled = useShowEditorSessionStore((state) => state.setSnapEnabled)
+  const zonesOpen = useShowEditorSessionStore((state) => state.zoneWorkspaceOpenByShowId[show.id] ?? false)
+  const collapsedZoneIds = useShowEditorSessionStore((state) => state.collapsedZoneIdsByShowId[show.id]) ?? EMPTY_ZONE_IDS
+  const focusedZoneId = useShowEditorSessionStore((state) => state.focusedZoneIdByShowId[show.id] ?? null)
+  const setZoneWorkspaceOpen = useShowEditorSessionStore((state) => state.setZoneWorkspaceOpen)
+  const setZoneCollapsed = useShowEditorSessionStore((state) => state.setZoneCollapsed)
+  const setFocusedZone = useShowEditorSessionStore((state) => state.setFocusedZone)
   const [draggingCellId, setDraggingCellId] = useState<string | null>(null)
   const onSelectRef = useRef(onSelect)
   useEffect(() => {
@@ -2380,6 +2390,14 @@ function SceneStrip({
       : null
   const layerTargetZoneId = selectedCompositionZoneId ?? show.zones[0]?.id ?? null
   const layerTargetZoneName = show.zones.find((zone) => zone.id === layerTargetZoneId)?.name ?? 'Zone'
+  const hasMultipleZones = show.zones.length > 1
+  const showFullZoneHeaders = !unifiedTimelineWorkspace || zonesOpen
+  const showMicroZonePicker = unifiedTimelineWorkspace && hasMultipleZones && !zonesOpen
+  const collapsedZoneIdSet = new Set(hasMultipleZones ? collapsedZoneIds : [])
+  const focusZone = (zoneId: string) => {
+    show.zones.forEach((zone) => setZoneCollapsed(show.id, zone.id, zone.id !== zoneId))
+    setFocusedZone(show.id, zoneId)
+  }
   const addClipPlan = timelineComposition && addClipZoneId
     ? planShowMainClipAtGlobalTime(show, timelineComposition, {
         zoneId: addClipZoneId,
@@ -2508,6 +2526,7 @@ function SceneStrip({
     || Boolean(show.transitions?.some((transition) => transition.propertyTransitions?.sample?.repeatScale))
   const routingLaneRows = (movingSplitLayout ? 1 : 0) + (hasSampleRemap ? 1 : 0)
   const rowStrides = strip.rows.map((row) => {
+    if (unifiedTimelineWorkspace && collapsedZoneIdSet.has(row.zoneId)) return 1
     const clipLayerCount = unifiedCompositionTimeline
       ? unifiedCompositionTimeline.zones.find((zone) => zone.id === row.zoneId)?.layers.length ?? 1
       : 1
@@ -2545,7 +2564,9 @@ function SceneStrip({
   const transitionRow = rulerRow + 1
   const contentStartRow = transitionRow + 1
   const columns = [
-    unifiedTimelineWorkspace && show.zones.length === 1 ? '0px' : '148px',
+    unifiedTimelineWorkspace
+      ? zonesOpen ? '148px' : hasMultipleZones ? '32px' : '0px'
+      : '148px',
     ...show.scenes.flatMap((scene, index) => (
       index < show.scenes.length - 1
         ? [
@@ -2562,7 +2583,7 @@ function SceneStrip({
     '34px',
     ...(movingSplitLayout ? ['26px'] : []),
     ...(hasSampleRemap ? ['26px'] : []),
-    ...strip.rows.flatMap((row) => [
+    ...strip.rows.flatMap((row) => collapsedZoneIdSet.has(row.zoneId) ? ['28px'] : [
       ...Array.from({
         length: unifiedCompositionTimeline
           ? unifiedCompositionTimeline.zones.find((zone) => zone.id === row.zoneId)?.layers.length ?? 1
@@ -2748,6 +2769,20 @@ function SceneStrip({
               <Button
                 size="xs"
                 variant="ghost"
+                aria-label={zonesOpen ? 'Close Zones' : 'Open Zones'}
+                aria-expanded={zonesOpen}
+                title={zonesOpen ? 'Close Zone Map' : 'Open Zone Map'}
+                className={zonesOpen
+                  ? 'bg-live/10 px-1.5 text-[11px] text-live hover:bg-live/15'
+                  : 'bg-transparent px-1.5 text-[11px] text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-100'}
+                onClick={() => setZoneWorkspaceOpen(show.id, !zonesOpen)}
+              >
+                <MapIcon size={12} aria-hidden />
+                Zones
+              </Button>
+              <Button
+                size="xs"
+                variant="ghost"
                 aria-label="Add Layer"
                 title={`Add a Layer to ${layerTargetZoneName}`}
                 disabled={!layerTargetZoneId}
@@ -2826,6 +2861,19 @@ function SceneStrip({
                   </div>
                 </div>
               )}
+              {zonesOpen && (
+                <ZoneMapPopover
+                  show={show}
+                  collapsedZoneIds={collapsedZoneIdSet}
+                  focusedZoneId={focusedZoneId}
+                  readOnly={readOnly}
+                  onAddZone={onAddZone}
+                  onSelectZone={(zoneId, anchor) => onSelect({ kind: 'zone', zoneId }, anchor)}
+                  onToggleZone={(zoneId) => setZoneCollapsed(show.id, zoneId, !collapsedZoneIdSet.has(zoneId))}
+                  onFocusZone={focusZone}
+                  onUpdateZone={onUpdateZone}
+                />
+              )}
             </>
           )}
           <ShowTimelineCommands
@@ -2865,8 +2913,8 @@ function SceneStrip({
             gridTemplateRows: rows.join(' '),
           }}
         >
-        {(!unifiedTimelineWorkspace || show.zones.length > 1) && <div className="sticky left-0 z-30 self-end border-b border-zinc-800 bg-[#060608] px-1 pb-2 text-[9.5px] uppercase tracking-[0.12em] text-structural">
-          {unifiedTimelineWorkspace ? 'Zones' : 'zones ↓'}
+        {(showFullZoneHeaders || showMicroZonePicker) && <div className="sticky left-0 z-30 self-end border-b border-zinc-800 bg-[#060608] px-1 pb-2 text-[9.5px] uppercase tracking-[0.12em] text-structural">
+          {showMicroZonePicker ? <MapIcon size={12} aria-label="Zone picker" /> : unifiedTimelineWorkspace ? 'Zones' : 'zones ↓'}
         </div>}
         {!unifiedTimelineWorkspace && show.scenes.map((scene) => (
           <SceneColumnHeader
@@ -3104,19 +3152,12 @@ function SceneStrip({
         )}
         {strip.rows.map((row, rowIndex) => {
           const unifiedZone = unifiedCompositionTimeline?.zones.find((zone) => zone.id === row.zoneId)
-          const clipLayerCount = unifiedZone?.layers.length ?? 1
+          const zone = show.zones.find((candidate) => candidate.id === row.zoneId)
+          const collapsed = unifiedTimelineWorkspace && collapsedZoneIdSet.has(row.zoneId)
+          const clipLayerCount = collapsed ? 1 : unifiedZone?.layers.length ?? 1
           return (
           <div key={row.zoneId} className="contents">
-            {(!unifiedTimelineWorkspace || show.zones.length > 1) && <button
-              type="button"
-              aria-label={`Select zone ${row.zoneName}`}
-              title={`Open ${row.zoneName} properties`}
-              data-show-timeline-focus
-              data-show-selection-key={`zone:${row.zoneId}`}
-              onClick={(event) => {
-                event.stopPropagation()
-                onSelect({ kind: 'zone', zoneId: row.zoneId }, event.currentTarget)
-              }}
+            {showFullZoneHeaders && <div
               className={[
                 'group sticky left-0 z-30 flex cursor-pointer items-stretch gap-2 rounded-[5px] border border-transparent bg-[#060608] pr-2 text-left font-mono transition-all focus-visible:border-live/60 focus-visible:outline-none',
                 selection.kind === 'zone' && selection.zoneId === row.zoneId
@@ -3135,18 +3176,134 @@ function SceneStrip({
                 className="w-1 self-stretch rounded-sm"
                 style={{ backgroundColor: row.color ?? '#38bdf8' }}
               />
-              <span className="flex min-w-0 flex-1 flex-col justify-center gap-0.5 py-1">
+              <button
+                type="button"
+                aria-label={`Select zone ${row.zoneName}`}
+                title={`Open ${row.zoneName} properties`}
+                data-show-timeline-focus
+                data-show-selection-key={`zone:${row.zoneId}`}
+                className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
+                style={!unifiedTimelineWorkspace ? {
+                  gridColumn: 1,
+                  gridRow: rowStart(rowIndex) + contentStartRow + routingLaneRows,
+                } : undefined}
+                onClick={(event) => {
+                  event.stopPropagation()
+                  onSelect({ kind: 'zone', zoneId: row.zoneId }, event.currentTarget)
+                }}
+              >
+                <span className="grid size-5 shrink-0 place-items-center rounded border border-current/20 text-zinc-500">
+                  <ZoneGlyph icon={zone?.icon} size={11} />
+                </span>
+                <span className="flex min-w-0 flex-1 flex-col justify-center gap-0.5 py-1">
                 <span className="flex min-w-0 items-center gap-1.5">
-                  <MapIcon size={11} aria-hidden className="shrink-0 text-zinc-600 transition-colors group-hover:text-zinc-300" />
                   <span className="truncate text-[12px] font-medium group-hover:underline group-hover:decoration-dotted group-hover:underline-offset-4">{row.zoneName}</span>
                 </span>
-                <span className="flex min-w-0 items-center pl-[17px] text-[10px] text-structural transition-colors group-hover:text-zinc-400">
+                <span className="flex min-w-0 items-center text-[10px] text-structural transition-colors group-hover:text-zinc-400">
                   <span>{row.nominalPixelCount}px</span>
                   <Settings2 size={11} aria-hidden className="ml-auto shrink-0 text-zinc-400 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100" />
                 </span>
               </span>
+              </button>
+              {unifiedTimelineWorkspace && hasMultipleZones && <button
+                type="button"
+                aria-label={`${collapsed ? 'Expand' : 'Collapse'} zone ${row.zoneName}`}
+                title={`${collapsed ? 'Expand' : 'Collapse'} ${row.zoneName}`}
+                className="grid size-7 shrink-0 place-items-center self-center rounded text-zinc-500 hover:bg-zinc-800 hover:text-zinc-100"
+                onClick={(event) => {
+                  event.stopPropagation()
+                  setZoneCollapsed(show.id, row.zoneId, !collapsed)
+                }}
+              >
+                {collapsed ? <ChevronRight size={13} /> : <ChevronDown size={13} />}
+              </button>}
+            </div>}
+            {showMicroZonePicker && <button
+              type="button"
+              aria-label={`Focus zone ${row.zoneName}`}
+              aria-pressed={focusedZoneId === row.zoneId}
+              title={row.zoneName}
+              className={focusedZoneId === row.zoneId
+                ? 'sticky left-0 z-30 grid place-items-center border-l-2 bg-live/10 text-live'
+                : 'sticky left-0 z-30 grid place-items-center border-l-2 bg-[#060608] text-zinc-500 hover:bg-zinc-900 hover:text-zinc-100'}
+              style={{
+                borderLeftColor: row.color ?? '#38bdf8',
+                gridColumn: 1,
+                gridRow: rowStart(rowIndex) + contentStartRow + routingLaneRows,
+              }}
+              onClick={(event) => {
+                event.stopPropagation()
+                focusZone(row.zoneId)
+              }}
+            >
+              <ZoneGlyph icon={zone?.icon} size={12} />
             </button>}
-            {unifiedZone ? unifiedZone.layers.map((layer, layerIndex) => (
+            {unifiedZone && collapsed ? (
+              <div
+                role="img"
+                aria-label={`Collapsed zone ${row.zoneName} timeline`}
+                data-collapsed-zone={row.zoneId}
+                className={[
+                  'relative min-w-0 overflow-hidden border-y border-zinc-900 bg-[#08080a]',
+                  dropTargetKey === `composition-zone:${row.zoneId}` ? 'ring-1 ring-inset ring-live/50' : '',
+                ].join(' ')}
+                style={{
+                  gridColumn: `2 / ${columns.length + 1}`,
+                  gridRow: rowStart(rowIndex) + contentStartRow + routingLaneRows,
+                }}
+                onDragOver={(event) => {
+                  if (!draggingCompositionClipRef.current || readOnly) return
+                  event.preventDefault()
+                  event.dataTransfer.dropEffect = 'move'
+                  setDropTargetKey(`composition-zone:${row.zoneId}`)
+                }}
+                onDragLeave={() => setDropTargetKey((current) => current === `composition-zone:${row.zoneId}` ? null : current)}
+                onDrop={(event) => {
+                  const draggedClip = draggingCompositionClipRef.current
+                  const compositionTimeline = unifiedCompositionTimeline
+                  if (!draggedClip || !compositionTimeline || readOnly) return
+                  event.preventDefault()
+                  const rect = event.currentTarget.getBoundingClientRect()
+                  const totalMs = Math.max(1, compositionTimeline.durationMs)
+                  const clip = compositionTimeline.zones
+                    .flatMap((candidate) => candidate.layers.flatMap((layer) => layer.clips))
+                    .find((candidate) => candidate.id === draggedClip.clipId)
+                  const candidateMs = Math.min(1, Math.max(0, (event.clientX - rect.left) / Math.max(1, rect.width))) * totalMs - draggedClip.grabOffsetMs
+                  const maxTimeMs = Math.max(0, totalMs - (clip?.durationMs ?? 0))
+                  const globalStartMs = snapEnabled !== event.altKey
+                    ? snapShowTimelineTime(candidateMs, {
+                        visibleDurationMs: viewport.durationMs,
+                        visibleWidthPx: Math.max(1, scrollRef.current?.clientWidth ?? rect.width),
+                        structuralTimesMs,
+                        maxTimeMs,
+                      }).timeMs
+                    : Math.max(0, Math.min(maxTimeMs, candidateMs))
+                  void onMoveCompositionClip({ owner: draggedClip.owner, target: { kind: 'main', zoneId: row.zoneId, globalStartMs } })
+                  setDropTargetKey(null)
+                }}
+              >
+                <div className="absolute inset-0 grid gap-px py-1" style={{ gridTemplateRows: `repeat(${unifiedZone.layers.length}, minmax(0, 1fr))` }}>
+                  {unifiedZone.layers.map((layer) => <div key={layer.id} className="relative min-h-0 bg-white/[0.025]">
+                    {layer.clips.map((clip) => <i
+                      key={clip.id}
+                      className="absolute inset-y-px min-w-px bg-current/70"
+                      style={{
+                        color: row.color ?? '#38bdf8',
+                        left: `${clip.startMs / Math.max(1, timeline.durationMs) * 100}%`,
+                        width: `${clip.durationMs / Math.max(1, timeline.durationMs) * 100}%`,
+                      }}
+                      title={`${clip.patternName}, ${formatShowTime(clip.startMs)} to ${formatShowTime(clip.endMs)}`}
+                    />)}
+                  </div>)}
+                </div>
+                {(propertyLanesByZone.get(row.zoneId) ?? []).flatMap((lane) => lane.projection.beats).map((beat) => <i
+                  key={beat.id}
+                  aria-hidden
+                  className="absolute inset-y-0 w-px bg-violet-300/70"
+                  style={{ left: `${beat.displayX * 100}%` }}
+                />)}
+              </div>
+            ) : unifiedZone ? unifiedZone.layers.map((layer, layerIndex) => (
               <div
                 key={layer.id}
                 className={[
@@ -3445,7 +3602,7 @@ function SceneStrip({
                 </button>
               )
             ))}
-            {(propertyLanesByZone.get(row.zoneId) ?? []).map((lane, laneIndex) => {
+            {!collapsed && (propertyLanesByZone.get(row.zoneId) ?? []).map((lane, laneIndex) => {
               const laneRow = rowStart(rowIndex) + contentStartRow + routingLaneRows + laneIndex + clipLayerCount
               const selectedBeat = selection.kind === 'transition'
                 ? lane.projection.beats.find((beat) => beat.ownerId === selection.transitionId)?.id ?? null
@@ -3483,7 +3640,7 @@ function SceneStrip({
           </div>
           )
         })}
-        {!readOnly && (!unifiedTimelineWorkspace || show.zones.length > 1) && <button
+        {!readOnly && !unifiedTimelineWorkspace && <button
           type="button"
           aria-label="Add zone"
           onClick={(event) => {
@@ -3519,6 +3676,138 @@ function SceneStrip({
         />
       )}
     </div>
+  )
+}
+
+const ZONE_ICON_OPTIONS = [
+  { id: 'grid', label: 'Grid' },
+  { id: 'map', label: 'Map' },
+  { id: 'layers', label: 'Layers' },
+  { id: 'route', label: 'Route' },
+  { id: 'pulse', label: 'Pulse' },
+  { id: 'bolt', label: 'Bolt' },
+] as const
+
+function ZoneGlyph({ icon, size = 12 }: { icon?: string; size?: number }) {
+  if (icon === 'map') return <MapIcon size={size} aria-hidden />
+  if (icon === 'layers') return <Layers3 size={size} aria-hidden />
+  if (icon === 'route') return <Route size={size} aria-hidden />
+  if (icon === 'pulse') return <Activity size={size} aria-hidden />
+  if (icon === 'bolt') return <Zap size={size} aria-hidden />
+  return <Grid2X2 size={size} aria-hidden />
+}
+
+function ZoneMapPopover({
+  show,
+  collapsedZoneIds,
+  focusedZoneId,
+  readOnly,
+  onAddZone,
+  onSelectZone,
+  onToggleZone,
+  onFocusZone,
+  onUpdateZone,
+}: {
+  show: ShowRecord
+  collapsedZoneIds: Set<string>
+  focusedZoneId: string | null
+  readOnly: boolean
+  onAddZone: () => void
+  onSelectZone: (zoneId: string, anchor: HTMLElement) => void
+  onToggleZone: (zoneId: string) => void
+  onFocusZone: (zoneId: string) => void
+  onUpdateZone: (zoneId: string, changes: Partial<ShowRecord['zones'][number]>) => void
+}) {
+  return (
+    <aside
+      role="dialog"
+      aria-label="Zone Map"
+      className="absolute right-0 top-full z-50 mt-1 w-[min(310px,calc(100vw-24px))] rounded border border-zinc-700 bg-[#0a0a0d]/[0.985] p-1.5 shadow-2xl backdrop-blur"
+      onClick={(event) => event.stopPropagation()}
+    >
+      <header className="flex h-8 items-center gap-2 border-b border-zinc-800 px-1.5">
+        <MapIcon size={13} aria-hidden className="text-live" />
+        <strong className="text-[13px] font-medium text-zinc-100">Zone Map</strong>
+        <span className="ml-auto text-[10px] tabular-nums text-zinc-500">{show.zones.length} Zone{show.zones.length === 1 ? '' : 's'}</span>
+      </header>
+      <div className="py-1">
+        {show.zones.map((zone) => {
+          const collapsed = collapsedZoneIds.has(zone.id)
+          return (
+            <div
+              key={zone.id}
+              className="grid min-h-10 grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-1 border-b border-zinc-900/80 px-1 py-1 last:border-b-0"
+            >
+              <button
+                type="button"
+                aria-label={`Select zone ${zone.name}`}
+                title={`Open ${zone.name} properties`}
+                className="flex min-w-0 items-center gap-2 rounded px-1.5 py-1 text-left text-zinc-300 hover:bg-zinc-800/70 hover:text-zinc-100"
+                onClick={(event) => onSelectZone(zone.id, event.currentTarget)}
+              >
+                <span
+                  className="grid size-6 shrink-0 place-items-center rounded border border-current/25 bg-black/30"
+                  style={{ color: zone.color ?? '#38bdf8' }}
+                >
+                  <ZoneGlyph icon={zone.icon} />
+                </span>
+                <span className="min-w-0">
+                  <strong className="block truncate text-[12px] font-medium">{zone.name}</strong>
+                  <span className="block truncate text-[10px] text-zinc-500">{zone.nominalPixelCount} px</span>
+                </span>
+              </button>
+              {!readOnly && (
+                <select
+                  aria-label={`Zone icon ${zone.name}`}
+                  title={`Icon for ${zone.name}`}
+                  value={zone.icon ?? 'grid'}
+                  className="h-7 w-16 rounded border border-zinc-800 bg-zinc-950 px-1 text-[10px] text-zinc-400 outline-none focus:border-live/60"
+                  onChange={(event) => onUpdateZone(zone.id, { icon: event.currentTarget.value })}
+                >
+                  {ZONE_ICON_OPTIONS.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
+                </select>
+              )}
+              {show.zones.length > 1 && (
+                <div className="flex items-center gap-0.5">
+                  <button
+                    type="button"
+                    aria-label={`${collapsed ? 'Expand' : 'Collapse'} zone ${zone.name}`}
+                    title={`${collapsed ? 'Expand' : 'Collapse'} ${zone.name}`}
+                    className="grid size-7 place-items-center rounded text-zinc-500 hover:bg-zinc-800 hover:text-zinc-100"
+                    onClick={() => onToggleZone(zone.id)}
+                  >
+                    {collapsed ? <ChevronRight size={13} /> : <ChevronDown size={13} />}
+                  </button>
+                  <button
+                    type="button"
+                    aria-label={`Focus zone ${zone.name}`}
+                    aria-pressed={focusedZoneId === zone.id}
+                    title={`Focus ${zone.name}`}
+                    className={focusedZoneId === zone.id
+                      ? 'grid size-7 place-items-center rounded bg-live/10 text-live'
+                      : 'grid size-7 place-items-center rounded text-zinc-500 hover:bg-zinc-800 hover:text-zinc-100'}
+                    onClick={() => onFocusZone(zone.id)}
+                  >
+                    <Eye size={13} />
+                  </button>
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+      {!readOnly && (
+        <button
+          type="button"
+          aria-label="Add Zone"
+          className="flex h-8 w-full items-center justify-center gap-1 rounded border border-dashed border-zinc-800 text-[11px] text-zinc-400 hover:border-zinc-600 hover:text-zinc-100"
+          onClick={onAddZone}
+        >
+          <Plus size={12} aria-hidden />
+          Add Zone
+        </button>
+      )}
+    </aside>
   )
 }
 

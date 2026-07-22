@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createDefaultShow } from './showModel'
+import { addShowZone, createDefaultShow } from './showModel'
 import {
   addShowOverlayLayerAcrossTimeline,
   addShowMainClipAtGlobalTime,
@@ -313,6 +313,47 @@ describe('global timeline Clip authoring (#580)', () => {
       startMs: 7_000,
       durationMs: 2_000,
     })
+  })
+
+  it('moves a Clip to exactly one other Zone without changing its Pattern instance (#581)', () => {
+    const show = addShowZone(createDefaultShow('show-move-zone', 'Move zone', 1000), {
+      name: 'accent',
+    })
+    const composition = emptyComposition(show)
+    composition.patternInstances.push(instance)
+    composition.scenes[0].zones[0].main.push({
+      id: 'placement-move',
+      instanceId: instance.id,
+      startMs: 1_000,
+      durationMs: 2_000,
+      view: { mirror: false, phase: 0.25, brightness: 0.8 },
+    })
+
+    const next = moveShowClipAtGlobalTime(show, composition, {
+      owner: {
+        kind: 'main',
+        sceneId: show.scenes[0].id,
+        zoneId: show.zones[0].id,
+        placementId: 'placement-move',
+      },
+      target: {
+        kind: 'main',
+        zoneId: show.zones[1].id,
+        globalStartMs: 4_000,
+      },
+    })
+
+    expect(next).not.toBe(composition)
+    expect(next.patternInstances).toEqual([instance])
+    expect(next.scenes[0].zones[0].main).toEqual([])
+    expect(next.scenes[0].zones[1].main).toEqual([
+      expect.objectContaining({
+        id: 'placement-move',
+        instanceId: instance.id,
+        startMs: 4_000,
+        durationMs: 2_000,
+      }),
+    ])
   })
 
   it('keeps placement animation aligned when a Clip changes time and owner', () => {

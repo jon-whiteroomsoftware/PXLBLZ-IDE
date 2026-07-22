@@ -336,11 +336,13 @@ pixels.
 
 ## 13. The timeline
 
-The canonical editor is a proportional, zoomable timeline: scene headers
-sized by duration, zones as explicit rows, clips placing Patterns across
-scenes and zones, one transition lane of selectable boundary objects, nested
-lanes for animated properties, and a shared ruler, playhead, transport, and
-navigator.
+The canonical editor is one proportional, zoomable timeline of Pattern Clips.
+Clips occupy exact Show time on explicit Layers; they may move horizontally,
+between existing Layers, or between Zones without exposing the internal Scene
+owners used by the saved composition and compiler. A shared ruler, playhead,
+transport, and Navigator stay visible above the editable Layer stacks. The
+transition lane and disclosed Property animation lanes remain aligned to that
+same time axis.
 
 The working grammar is compact:
 
@@ -352,18 +354,19 @@ The working grammar is compact:
   viewport without changing Show time. Snap magnetically aligns scrubbing and
   edits to scene, clip, transition, and grid boundaries; Alt temporarily
   reverses it.
-- **Structure edits.** **Split** creates a shared boundary across all zones at
-  the playhead; **Clone** duplicates a scene or simple clip after itself.
-  Unavailable commands stay focusable and explain why. Every structural or
-  property commit is one session-scoped undo step (Cmd/Ctrl+Z).
+- **Direct Clip edits.** **Add Clip** places a Pattern at the playhead when the
+  target Layer has room. Dragging moves a Clip without overwriting another;
+  selected Clip edges resize it. **Split** divides the selected Clip at the
+  playhead and **Clone** duplicates it immediately after itself. Exact Start
+  and Duration remain editable in decimal seconds. Unavailable commands stay
+  focusable and explain why. Every commit is one session-scoped undo step
+  (Cmd/Ctrl+Z).
 - **Selection and detail.** Selecting any entity — scene, clip, transition,
   zone, routing switch — opens one floating **Entity Detail Panel** beside it
   with that entity's exact editable fields.
-- **Inspection layers.** Each scene's compact **X-ray** strip summarizes
-  references, Effects, and boundary changes; its magnifier opens **Super
-  Detail** for the full read-only story. **Open Scene** enters a per-scene
-  editor with local time, multiple clips per zone, overlay compositing
-  layers, and exact keyframe authoring.
+- **Progressive structure.** **Layer** deliberately adds another compositing
+  lane. **Zones** reveals the Zone Map only when routing structure is needed;
+  a one-Zone Show otherwise spends the full width on its Clips.
 
 ## 14. Clips: time, adaptation, and Effects
 
@@ -415,8 +418,19 @@ inside a scene rather than across boundaries.
 
 ## 16. Zones and routing
 
-Show zones are rows of the timeline that map onto the output in one of two
-ways, matching the output contract:
+Zones progressively disclose routing structure. A new Show starts with one
+full-output Zone and no persistent Zone chrome. **Zones** opens a compact Zone
+Map containing that existing Zone, Add Zone, a stable optional icon, and links
+to exact Zone properties. With several Zones, closing the map leaves only a
+thin icon picker.
+
+Expanded Zones share the ruler and may collapse independently. A collapsed
+Zone remains a time-accurate miniature: one thin band per Layer retains Clip
+spans and property-event positions, and it remains a snapping and drag target.
+Focusing a Zone expands it and collapses its siblings. Collapse, focus, and
+Zone-workspace disclosure persist independently per Show.
+
+The output contract determines what those Zones mean:
 
 - An **Installation** Zone Layout assigns semantic zones to physical pixel
   ranges. With a saved 2D output map, **Select LEDs on map** edits a zone

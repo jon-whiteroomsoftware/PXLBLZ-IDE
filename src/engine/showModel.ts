@@ -45,6 +45,7 @@ import {
 } from './showEffects'
 import { normalizeShowOutputEffects } from './showPreviousRgbFeedback'
 import { createInstallationShowOutputContract } from './showOutputContract'
+import type { ShowLogicalRouting } from './showLogicalRouting'
 import {
   normalizeShowClipTransform,
   compactShowClipTransform,
@@ -1110,7 +1111,7 @@ export function updateShowCellPattern(
 
 export function addShowZone(
   show: ShowRecord,
-  seed: Partial<Pick<ShowZone, 'name' | 'nominalPixelCount' | 'color'>> = {},
+  seed: Partial<Pick<ShowZone, 'name' | 'nominalPixelCount' | 'color' | 'icon'>> = {},
 ): ShowRecord {
   const id = nextEntityId('zone-', show.zones)
   const zone: ShowZone = {
@@ -1118,11 +1119,21 @@ export function addShowZone(
     name: uniqueZoneName(seed.name ?? `zone-${show.zones.length + 1}`, show.zones),
     nominalPixelCount: clampPixelCount(seed.nominalPixelCount ?? 60),
     color: seed.color ?? ZONE_COLORS[show.zones.length % ZONE_COLORS.length],
+    ...(seed.icon ? { icon: seed.icon } : {}),
   }
   const next = {
     ...show,
     zones: [...show.zones, zone],
     cells: show.cells,
+    ...(show.composition ? {
+      composition: {
+        ...show.composition,
+        scenes: show.composition.scenes.map((scene) => ({
+          ...scene,
+          zones: [...scene.zones, { zoneId: zone.id, main: [], overlays: [] }],
+        })),
+      },
+    } : {}),
     updatedAt: Date.now(),
   }
   return {
@@ -1181,6 +1192,12 @@ export function removeShowZone(show: ShowRecord, zoneId: string): ShowRecord {
     }
     return [cell]
   })
+  const removedPlacementIds = new Set(show.composition?.scenes.flatMap((scene) => {
+    const zone = scene.zones.find((candidate) => candidate.zoneId === zoneId)
+    return zone
+      ? [...zone.main.map((placement) => placement.id), ...zone.overlays.flatMap((layer) => layer.placements.map((placement) => placement.id))]
+      : []
+  }) ?? [])
   return {
     ...show,
     zones: show.zones.filter((zone) => zone.id !== zoneId),
@@ -1190,6 +1207,21 @@ export function removeShowZone(show: ShowRecord, zoneId: string): ShowRecord {
       zones: layout.zones.filter((zone) => zone.zoneId !== zoneId),
       logical: layout.logical?.zoneIds.includes(zoneId) ? undefined : layout.logical,
     })),
+    ...(show.composition ? {
+      composition: {
+        ...show.composition,
+        scenes: show.composition.scenes.map((scene) => {
+          const propertyTracks = (scene.propertyTracks ?? []).filter((track) => (
+            !('placementId' in track.target) || !removedPlacementIds.has(track.target.placementId)
+          ))
+          return {
+            ...scene,
+            zones: scene.zones.filter((zone) => zone.zoneId !== zoneId),
+            ...(propertyTracks.length > 0 ? { propertyTracks } : { propertyTracks: undefined }),
+          }
+        }),
+      },
+    } : {}),
     updatedAt: Date.now(),
   }
 }
@@ -2851,11 +2883,24 @@ function appendZoneToLayout(layout: ShowRoutingLayout, zone: ShowZone): ShowRout
   const start = end + 1
   return {
     ...layout,
+    ...(layout.logical ? { logical: appendZoneToLogicalRouting(layout.logical, zone.id) } : {}),
     zones: [
       ...layout.zones.map(cloneRoutingLayoutZone),
       { zoneId: zone.id, ranges: [{ start, end: start + clampPixelCount(zone.nominalPixelCount) - 1 }] },
     ],
   }
+}
+
+function appendZoneToLogicalRouting(logical: ShowLogicalRouting, zoneId: string): ShowLogicalRouting {
+  const zoneIds = [...logical.zoneIds, zoneId]
+  if (logical.kind === 'stripes') return { ...logical, zoneIds }
+  if (logical.kind === 'rings') return { ...logical, zoneIds }
+  if (logical.kind === 'pinwheel') return { ...logical, zoneIds }
+  if (logical.kind === 'wave') return { ...logical, zoneIds }
+  // Operators such as Single, Split, Soft Split, Checker, and Grid have fixed
+  // arity. A horizontal stripe subdivision is the least surprising valid
+  // default until the author chooses a more specific Portable topology.
+  return { kind: 'stripes', axis: 'x', zoneIds }
 }
 
 function normalizeRoutingLayout(layout: ShowRoutingLayout): ShowRoutingLayout {

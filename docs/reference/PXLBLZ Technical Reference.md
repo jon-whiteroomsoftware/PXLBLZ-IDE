@@ -1052,16 +1052,40 @@ and coverage before an explicit Save; Escape cancels without persistence.
 
 ## 20. Timeline editor and Stage preview
 
-`ShowEditor` renders one proportional grid for scene headers, ruler, transition
-lane, zone rows, clips, property lanes, and playhead. A moving-split layout adds
-one Show-wide Split lane whose colored cells depict the authored ownership
-boundary. `showTimelineViewport.ts`
-owns Fit-to-16x zoom, playhead-anchored zoom, pan, navigator thumb geometry, and
+`ShowEditor` renders one proportional grid for the ruler, transition lane,
+Zone/Layer stacks, direct composition Clips, disclosed property lanes, and
+playhead. Internal Scene columns still partition saved composition ownership
+and compiler input, but the unified workspace does not expose Scene headers or
+Scene-local navigation. A moving-split layout adds one Show-wide Split lane
+whose colored cells depict the authored ownership boundary.
+`showTimelineViewport.ts` owns Fit-to-16x zoom, playhead-anchored zoom, pan,
+Navigator thumb geometry, and
 range resizing. It also owns magnetic playhead snapping: structural Show
 boundaries take priority over a zoom-aware nice-number time grid. Snap defaults
-on and `showEditorSessionStore` persists only that editor preference; Alt
-temporarily inverts it where supported. Zoom and Snap never change the saved
-Show.
+on and Alt temporarily inverts it where supported. The
+`showEditorSessionStore` persists Snap plus per-Show Zone-workspace disclosure,
+collapsed Zone ids, and focused Zone id. These presentation facts never change
+the saved Show.
+
+`showTimelineClipAuthoring.ts` is the framework-free write boundary for the
+unified workspace. It resolves global time to the internal Scene owner, plans
+collision-free insertion, moves a placement across time, Layers, Scenes, or
+Zones, creates one logical overlay Layer across every internal Scene, and
+splits, duplicates, or resizes a Clip while preserving Pattern-instance and
+placement-animation ownership. A rejected edit returns the original
+composition. `showModel.ts` adds or removes each Zone's empty composition owner
+atomically with the routing topology; adding a second Zone to a Portable
+single-Zone operator seeds a valid horizontal Stripes subdivision until the
+author chooses another routing operator.
+
+The Zones control progressively discloses the Zone Map. One-Zone Shows retain a
+zero-width header column until it opens. Multi-Zone Shows use either full
+148-pixel Zone headers or a 32-pixel icon picker. Each independently persisted
+collapse replaces its Layer and property rows with one 28-pixel miniature that
+retains proportional Clip spans, property-event marks, structural snap times,
+and a Main-layer drop target. Zone names remain 12-pixel primary text in the
+full header; a curated icon and full accessible label preserve identity when
+the header narrows.
 
 `showPropertyLaneProjection.ts` is the framework-free authority for compact
 Property animation geometry. It samples authored segments plus every segment
@@ -1268,14 +1292,14 @@ production local scope rather than inline authoring controls. Switching the
 disclosed Scene transfers an open overlay without changing Timeline height;
 ordinary zoom changes horizontal geometry only.
 
-The production timeline frame uses 44-pixel clip rows and one three-region
-toolbar grid. `ShowTransportControls` owns Play/Pause, Start, and the
+The production timeline frame uses 40-pixel unified Clip rows and one compact
+toolbar. `ShowTransportControls` owns Play/Pause, Start, and the
 tenth-second current/total readout. The center group writes through
 `zoomShowTimelineViewport()` and anchors zoom to the playhead when visible or to
 the viewport center otherwise. `ShowTimelineCommands` owns Snap, Fit, Split,
-Clone, and compact session Undo/Redo. Clone enablement is derived from the one
-selected owner: simple Clips can ripple an occupied or missing destination;
-held, multi-zone, and unsupported owners provide a disabled reason. CSS container queries
+Clone, and compact session Undo/Redo. The adjacent direct-authoring cluster owns
+Zones, Layer, and Clip. Clone enablement is derived from the one selected
+owner. CSS container queries
 remove command labels before they stack the time readout, so the toolbar adapts
 to the center-pane width rather than the outer browser alone.
 
