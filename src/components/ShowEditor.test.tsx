@@ -131,6 +131,82 @@ describe('ShowEditor (#318)', () => {
     expect(within(timeline).queryByRole('button', { name: /Select zone/i })).not.toBeInTheDocument()
   })
 
+  it('renders durable composition Clips on the unified global timeline (#580)', () => {
+    const show = createDefaultShow('show-composition-workspace', 'Composition workspace', 1000)
+    const zoneId = show.zones[0].id
+    show.composition = {
+      version: 1,
+      patternInstances: [{
+        id: 'instance-composed',
+        pattern: { ...show.cells[0].pattern },
+        patternName: 'Composition-only Rings',
+        time: { timeScale: 1, timeOffsetMs: 0 },
+      }],
+      scenes: show.scenes.map((scene, index) => ({
+        sceneId: scene.id,
+        zones: [{
+          zoneId,
+          main: index === 0 ? [{
+            id: 'placement-composed',
+            instanceId: 'instance-composed',
+            startMs: 2_000,
+            durationMs: 4_000,
+            view: { mirror: false, phase: 0, brightness: 1 },
+          }] : [],
+          overlays: [],
+        }],
+      })),
+    }
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} unifiedTimeline />)
+
+    const timeline = screen.getByRole('region', { name: 'Show timeline' })
+    expect(within(timeline).getByRole('button', { name: 'Select Composition-only Rings' })).toBeInTheDocument()
+  })
+
+  it('adds a Pattern Clip at the playhead and selects it (#580)', async () => {
+    const user = userEvent.setup()
+    const show = createDefaultShow('show-add-at-playhead', 'Add at playhead', 1000)
+    show.composition = {
+      version: 1,
+      patternInstances: [],
+      scenes: show.scenes.map((scene) => ({
+        sceneId: scene.id,
+        zones: show.zones.map((zone) => ({ zoneId: zone.id, main: [], overlays: [] })),
+      })),
+    }
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} unifiedTimeline />)
+    await user.click(screen.getByRole('button', { name: 'Add Clip at playhead' }))
+
+    const addDialog = screen.getByRole('dialog', { name: 'Add Clip at playhead' })
+    expect(within(addDialog).getByRole('combobox', { name: 'Pattern for new Clip' })).toBeInTheDocument()
+    await user.click(within(addDialog).getByRole('button', { name: 'Add Clip' }))
+
+    await waitFor(() => {
+      const saved = useShowStore.getState().shows.find((candidate) => candidate.id === show.id)
+      expect(saved?.composition?.patternInstances).toHaveLength(1)
+      expect(saved?.composition?.scenes[0].zones[0].main).toHaveLength(1)
+    })
+    const saved = useShowStore.getState().shows.find((candidate) => candidate.id === show.id)!
+    const patternName = saved.composition!.patternInstances[0].patternName
+    const clip = screen.getByRole('button', { name: `Select ${patternName}` })
+    expect(clip).toHaveAttribute('data-show-composition-clip', 'true')
+    await waitFor(() => expect(screen.getByRole('dialog', { name: 'Entity Detail Panel' })).toBeInTheDocument())
+    expect(screen.getByRole('spinbutton', { name: 'Start seconds' })).toHaveValue(0)
+    expect(screen.getByRole('spinbutton', { name: 'Duration seconds' })).toHaveValue(5)
+
+    await user.click(clip)
+    expect(screen.queryByRole('dialog', { name: 'Entity Detail Panel' })).not.toBeInTheDocument()
+    await user.click(clip)
+    expect(screen.getByRole('dialog', { name: 'Entity Detail Panel' })).toBeInTheDocument()
+    fireEvent.pointerDown(screen.getByRole('region', { name: 'Show timeline' }))
+    expect(screen.queryByRole('dialog', { name: 'Entity Detail Panel' })).not.toBeInTheDocument()
+  })
+
   it('authors Show-level Trails with a retention control and scrub disclosure (#537)', async () => {
     const user = userEvent.setup()
     const show = createDefaultShow('show-537-trails-ui', 'Trails UI', 1000)

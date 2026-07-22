@@ -111,6 +111,11 @@ import {
   zoomShowTimelineViewport,
   type ShowTimelineViewport,
 } from '@/engine/showTimelineViewport'
+import { projectShowUnifiedTimeline } from '@/engine/showUnifiedTimelineProjection'
+import {
+  addShowMainClipAtGlobalTime,
+  planShowMainClipAtGlobalTime,
+} from '@/engine/showTimelineClipAuthoring'
 import { buildShowEpeExport, type ShowEpeExport } from '@/engine/showEpeExport'
 import {
   buildDeliveredShowSourceInventory,
@@ -156,6 +161,7 @@ import type {
   ShowBoundaryTransition,
   ShowCell,
   ShowClipTransform,
+  ShowCompositionV1,
   ShowRecord,
   ShowPropertyAnimationTarget,
   ShowOutputEffect,
@@ -207,6 +213,32 @@ function findShowSelectionAnchor(selection: ShowSelection): HTMLElement | null {
   const key = showSelectionKey(selection)
   return [...document.querySelectorAll<HTMLElement>('[data-show-selection-key]')]
     .find((element) => element.dataset.showSelectionKey === key) ?? null
+}
+
+function findCompositionClipOwner(
+  composition: ShowCompositionV1 | null | undefined,
+  placementId: string,
+): ShowClipInspectorOwner | null {
+  if (!composition) return null
+  for (const scene of composition.scenes) {
+    for (const zone of scene.zones) {
+      if (zone.main.some((placement) => placement.id === placementId)) {
+        return { kind: 'scene-main', sceneId: scene.sceneId, zoneId: zone.zoneId, placementId }
+      }
+      for (const layer of zone.overlays) {
+        if (layer.placements.some((placement) => placement.id === placementId)) {
+          return {
+            kind: 'scene-overlay',
+            sceneId: scene.sceneId,
+            zoneId: zone.zoneId,
+            layerId: layer.id,
+            placementId,
+          }
+        }
+      }
+    }
+  }
+  return null
 }
 
 type ShowPatternOption = {
@@ -579,14 +611,6 @@ export function ShowEditor({
   const selectedClip = selection.kind === 'clip'
     ? activeShow?.cells.find((clip) => clip.id === selection.clipId) ?? null
     : null
-  const effectPaletteValue = activeShow && effectPaletteOwner
-    ? projectShowClipInspector(activeShow, effectPaletteOwner)
-    : null
-  const commitClipInspectorPatch = (owner: ShowClipInspectorOwner, patch: ShowClipInspectorPatch) => {
-    if (!activeShow) return Promise.resolve()
-    const next = updateShowClipInspector(activeShow, owner, patch)
-    return next !== activeShow ? Promise.resolve(updateShow(activeShow.id, next)) : Promise.resolve()
-  }
   const targetProfile = activeShow?.outputContract?.kind === 'portable-2d'
     ? undefined
     : activeShow?.targetControllerProfileId
@@ -653,6 +677,18 @@ export function ShowEditor({
     document.addEventListener('keydown', handleEscape)
     return () => document.removeEventListener('keydown', handleEscape)
   }, [closeDetailPanel, detailPanelOpen, effectPaletteOwner, sceneEditorScope, transitionPaletteId])
+  useEffect(() => {
+    if (!detailPanelOpen) return
+    const handleOutsidePointerDown = (event: PointerEvent) => {
+      const target = event.target
+      if (!(target instanceof Element)) return
+      if (target.closest('[role="dialog"]')) return
+      if (target.closest(`[data-show-selection-key="${showSelectionKey(selection)}"]`)) return
+      closeDetailPanel()
+    }
+    document.addEventListener('pointerdown', handleOutsidePointerDown, true)
+    return () => document.removeEventListener('pointerdown', handleOutsidePointerDown, true)
+  }, [closeDetailPanel, detailPanelOpen, selection])
   const stageDimension = activeShow?.stageMapId
     ? [...STOCK_MAPS, ...userMaps].find((map) => map.id === activeShow.stageMapId)?.dim
     : undefined
@@ -722,6 +758,32 @@ export function ShowEditor({
       return null
     }
   }, [activeShow, stageDimension, userPatterns])
+  const timelineComposition = useMemo<ShowCompositionV1 | null>(() => {
+    if (!activeShow) return null
+    if (activeShow.composition) return activeShow.composition
+    try {
+      return projectFlatShowToCompositionV1(activeShow, {
+        byCellId: Object.fromEntries(activeShow.cells.map((cell) => [cell.id, sourceForShowCell(cell, userPatterns)])),
+        stageDimension,
+      })
+    } catch {
+      return null
+    }
+  }, [activeShow, stageDimension, userPatterns])
+  const selectedCompositionClipOwner = selection.kind === 'clip' && !selectedClip
+    ? findCompositionClipOwner(timelineComposition, selection.clipId)
+    : null
+  const inspectorShow = activeShow && timelineComposition && !activeShow.composition
+    ? { ...activeShow, composition: timelineComposition }
+    : activeShow
+  const effectPaletteValue = inspectorShow && effectPaletteOwner
+    ? projectShowClipInspector(inspectorShow, effectPaletteOwner)
+    : null
+  const commitClipInspectorPatch = (owner: ShowClipInspectorOwner, patch: ShowClipInspectorPatch) => {
+    if (!activeShow || !inspectorShow) return Promise.resolve()
+    const next = updateShowClipInspector(inspectorShow, owner, patch)
+    return next !== inspectorShow ? Promise.resolve(updateShow(activeShow.id, next)) : Promise.resolve()
+  }
   const sceneEditorDetail = resolvedSceneEditorScope && compositionProjection
     ? projectShowSceneEditorScope(compositionProjection, resolvedSceneEditorScope)
     : null
@@ -1131,6 +1193,7 @@ export function ShowEditor({
                 key={activeShow.id}
                 show={activeShow}
                 unifiedTimeline={unifiedTimeline}
+                timelineComposition={timelineComposition}
                 readOnly={readOnly}
                 transportActive={!resolvedSceneEditorScope}
                 compositionProjection={compositionProjection}
@@ -1138,6 +1201,30 @@ export function ShowEditor({
                 selection={selection}
                 onSelect={selectTimeline}
                 onDismiss={closeDetailPanel}
+                patternOptions={patternOptions}
+                onAddClipAtPlayhead={async ({ zoneId, globalTimeMs, pattern, patternName }) => {
+                  if (!timelineComposition) return null
+                  const instanceId = newPersonalContentId()
+                  const placementId = newPersonalContentId()
+                  const nextComposition = addShowMainClipAtGlobalTime(activeShow, timelineComposition, {
+                    zoneId,
+                    globalTimeMs,
+                    instance: {
+                      id: instanceId,
+                      pattern,
+                      patternName,
+                      time: { timeScale: 1, timeOffsetMs: 0 },
+                    },
+                    placementId,
+                  })
+                  if (nextComposition === timelineComposition) return null
+                  await updateShow(activeShow.id, {
+                    ...activeShow,
+                    composition: nextComposition,
+                    updatedAt: Date.now(),
+                  })
+                  return placementId
+                }}
                 onOpenScene={(sceneId) => {
                   const scope = resolveShowSceneEditorScope(activeShow, {
                     sceneId,
@@ -1474,11 +1561,14 @@ export function ShowEditor({
                 >
                   <ContextualInspector
               show={activeShow}
+                  compositionShow={inspectorShow ?? activeShow}
                   selection={selection}
                   selectedClip={selectedClip}
+                  selectedCompositionClipOwner={selectedCompositionClipOwner}
                   transformEnabled={stageDimension === 2}
                   patternOptions={patternOptions}
                   patternControlsByCellId={patternControlsByCellId}
+                  patternControlsByInstanceId={patternControlsByInstanceId}
                   compiledCost={compiled.artifact?.summary.cost}
                   compiledOutputEffects={compiled.artifact?.summary.outputEffects}
                   controllerProfiles={controllerProfiles}
@@ -1522,6 +1612,18 @@ export function ShowEditor({
                   onUpdateAdaptations={(cell, changes) => void updateCellAdaptations(activeShow.id, cell.id, changes)}
                   onUpdateClipInspector={commitClipInspectorPatch}
                   onOpenEffects={(cell) => setEffectPaletteOwner({ kind: 'global', cellId: cell.id })}
+                  onOpenCompositionEffects={setEffectPaletteOwner}
+                  onRemoveCompositionClip={(owner) => {
+                    if (!timelineComposition) return
+                    const composition = owner.kind === 'scene-main'
+                      ? deleteShowMainPlacement(timelineComposition, owner)
+                      : owner.kind === 'scene-overlay'
+                        ? deleteShowOverlayPlacement(timelineComposition, owner)
+                        : timelineComposition
+                    if (composition === timelineComposition) return
+                    closeDetailPanel()
+                    void updateShow(activeShow.id, { ...activeShow, composition, updatedAt: Date.now() })
+                  }}
                   onUpdateControlTarget={(cell, exportName, value) => void updateCellControlTarget(activeShow.id, cell.id, exportName, value)}
                   onUpdateRestartOnEntry={(cell, restartOnEntry) => void updateCellRestartOnEntry(activeShow.id, cell.id, restartOnEntry)}
                   onExtend={(cell, sceneSpan) => void extendCell(activeShow.id, cell.id, sceneSpan)}
@@ -2003,6 +2105,7 @@ function ExportShowButton({
 function SceneStrip({
   show,
   unifiedTimeline,
+  timelineComposition,
   readOnly,
   transportActive,
   compositionProjection,
@@ -2010,6 +2113,8 @@ function SceneStrip({
   selection,
   onSelect,
   onDismiss,
+  patternOptions,
+  onAddClipAtPlayhead,
   onOpenScene,
   onAddScene,
   onAddZone,
@@ -2019,6 +2124,7 @@ function SceneStrip({
 }: {
   show: ShowRecord
   unifiedTimeline: boolean
+  timelineComposition: ShowCompositionV1 | null
   readOnly: boolean
   transportActive: boolean
   compositionProjection: FlatShowCompositionProjection | null
@@ -2026,6 +2132,13 @@ function SceneStrip({
   selection: ShowSelection
   onSelect: (selection: ShowSelection, anchor?: HTMLElement | null) => void
   onDismiss: () => void
+  patternOptions: ShowPatternOption[]
+  onAddClipAtPlayhead: (input: {
+    zoneId: string
+    globalTimeMs: number
+    pattern: ShowCell['pattern']
+    patternName: string
+  }) => Promise<string | null>
   onOpenScene: (sceneId: string) => void
   onAddScene: () => void
   onAddZone: () => void
@@ -2038,6 +2151,11 @@ function SceneStrip({
   const unifiedTimelineWorkspace = unifiedTimeline
   const strip = projectShowStrip(show)
   const timeline = projectShowTimeline(show)
+  const unifiedCompositionTimeline = useMemo(() => (
+    unifiedTimelineWorkspace && timelineComposition
+      ? projectShowUnifiedTimeline(show, timelineComposition)
+      : null
+  ), [show, timelineComposition, unifiedTimelineWorkspace])
   const fittedViewport = fitShowTimelineViewport(timeline.durationMs)
   const [storedViewport, setViewport] = useState<ShowTimelineViewport>(fittedViewport)
   const snapEnabled = useShowEditorSessionStore((state) => state.snapEnabled)
@@ -2045,6 +2163,22 @@ function SceneStrip({
   const [draggingCellId, setDraggingCellId] = useState<string | null>(null)
   const [dropTargetKey, setDropTargetKey] = useState<string | null>(null)
   const [superDetailOwner, setSuperDetailOwner] = useState<{ sceneId: string; anchor: HTMLElement } | null>(null)
+  const [addClipOpen, setAddClipOpen] = useState(false)
+  const [addClipTimeMs, setAddClipTimeMs] = useState(0)
+  const [addClipPatternKey, setAddClipPatternKey] = useState<string | null>(() => {
+    const first = patternOptions[0]
+    return first ? `${first.ref.kind}:${first.ref.id}` : null
+  })
+  const addClipZoneId = show.zones[0]?.id ?? null
+  const addClipPlan = timelineComposition && addClipZoneId
+    ? planShowMainClipAtGlobalTime(show, timelineComposition, {
+        zoneId: addClipZoneId,
+        globalTimeMs: addClipTimeMs,
+      })
+    : null
+  const addClipPattern = patternOptions.find((option) => (
+    `${option.ref.kind}:${option.ref.id}` === addClipPatternKey
+  )) ?? patternOptions[0]
   let viewport = storedViewport
   if (viewport.totalMs !== fittedViewport.totalMs) {
     const zoom = viewport.totalMs / viewport.durationMs
@@ -2068,6 +2202,9 @@ function SceneStrip({
     ...timeline.transitions.flatMap((transition) => [transition.startMs, transition.endMs]),
     ...timeline.boundaryTransitions.flatMap((transition) => [transition.startMs, transition.endMs]),
     ...timeline.rows.flatMap((row) => row.cells.flatMap((cell) => [cell.startMs, cell.endMs])),
+    ...(unifiedCompositionTimeline?.zones.flatMap((zone) => (
+      zone.layers.flatMap((layer) => layer.clips.flatMap((clip) => [clip.startMs, clip.endMs]))
+    )) ?? []),
   ])]
   const propertyLanesByZone = useMemo(() => {
     const sceneAnimationLanes = projectGlobalShowScenePropertyLanes(show)
@@ -2160,7 +2297,12 @@ function SceneStrip({
   const hasSampleRemap = show.scenes.some((scene) => scene.sampleTargets?.repeatScale !== undefined)
     || Boolean(show.transitions?.some((transition) => transition.propertyTransitions?.sample?.repeatScale))
   const routingLaneRows = (movingSplitLayout ? 1 : 0) + (hasSampleRemap ? 1 : 0)
-  const rowStrides = strip.rows.map((row) => 1 + (propertyLanesByZone.get(row.zoneId)?.length ?? 0))
+  const rowStrides = strip.rows.map((row) => {
+    const clipLayerCount = unifiedCompositionTimeline
+      ? unifiedCompositionTimeline.zones.find((zone) => zone.id === row.zoneId)?.layers.length ?? 1
+      : 1
+    return clipLayerCount + (propertyLanesByZone.get(row.zoneId)?.length ?? 0)
+  })
   const rowOffsets = rowStrides.reduce<number[]>((offsets, stride) => (
     [...offsets, offsets[offsets.length - 1] + stride]
   ), [0])
@@ -2211,7 +2353,11 @@ function SceneStrip({
     ...(movingSplitLayout ? ['26px'] : []),
     ...(hasSampleRemap ? ['26px'] : []),
     ...strip.rows.flatMap((row) => [
-      '44px',
+      ...Array.from({
+        length: unifiedCompositionTimeline
+          ? unifiedCompositionTimeline.zones.find((zone) => zone.id === row.zoneId)?.layers.length ?? 1
+          : 1,
+      }, () => unifiedCompositionTimeline ? '40px' : '44px'),
       ...(propertyLanesByZone.get(row.zoneId) ?? []).map(() => '18px'),
     ]),
     '34px',
@@ -2292,12 +2438,12 @@ function SceneStrip({
       <div
         data-testid="show-timeline-toolbar"
         data-studio-space-preview="true"
-        className="show-timeline-toolbar mb-2 grid min-w-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 border-b border-zinc-900 pb-2"
+        className="show-timeline-toolbar mb-2 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 border-b border-zinc-900 pb-2"
         role="toolbar"
         aria-label="Show timeline controls"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="timeline-transport-cluster min-w-0 justify-self-start">
+        <div className="timeline-transport-cluster min-w-0 shrink-0">
           {transportActive && <ShowTransportControls show={show} />}
         </div>
         {unifiedTimelineWorkspace ? (
@@ -2314,7 +2460,77 @@ function SceneStrip({
             <output className="w-9 text-right text-[10px] tabular-nums text-zinc-400" aria-live="off" aria-label="Timeline zoom level">{zoomLevel.toFixed(1)}x</output>
           </div>
         )}
-        <div className="timeline-command-cluster min-w-0 justify-self-end">
+        <div className="timeline-command-cluster relative ml-auto flex min-w-0 shrink-0 items-center gap-1">
+          {unifiedTimelineWorkspace && !readOnly && (
+            <>
+              <Button
+                size="xs"
+                variant="ghost"
+                aria-label="Add Clip at playhead"
+                title="Add a Pattern Clip at the playhead"
+                aria-expanded={addClipOpen}
+                className="bg-zinc-800/70 text-[10px] text-zinc-300 hover:bg-amber-400/15 hover:text-amber-200"
+                onClick={() => {
+                  const transport = useShowTransportStore.getState()
+                  setAddClipTimeMs(transport.showId === show.id ? transport.positionMs : 0)
+                  setAddClipOpen((open) => !open)
+                }}
+              >
+                <Plus size={12} aria-hidden />
+                Clip
+              </Button>
+              {addClipOpen && (
+                <div
+                  role="dialog"
+                  aria-label="Add Clip at playhead"
+                  className="absolute right-0 top-full z-50 mt-1 w-56 rounded border border-zinc-700 bg-zinc-950 p-2 shadow-2xl"
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  <div className="mb-1.5 flex items-center justify-between text-[9px] uppercase tracking-[0.1em] text-zinc-500">
+                    <span>New Clip</span>
+                    <span className="normal-case tabular-nums text-zinc-600">{formatShowTime(addClipTimeMs)}</span>
+                  </div>
+                  <PatternCombobox
+                    ariaLabel="Pattern for new Clip"
+                    value={addClipPattern ? `${addClipPattern.ref.kind}:${addClipPattern.ref.id}` : null}
+                    options={patternOptions.map((option) => ({
+                      value: `${option.ref.kind}:${option.ref.id}`,
+                      label: option.label,
+                      group: option.group,
+                    }))}
+                    compact
+                    onChange={setAddClipPatternKey}
+                  />
+                  {addClipPlan && !addClipPlan.enabled && (
+                    <p className="mt-1.5 text-[9px] leading-3 text-amber-200/75">{addClipPlan.reason}</p>
+                  )}
+                  <div className="mt-2 flex justify-end gap-1">
+                    <Button size="xs" variant="ghost" onClick={() => setAddClipOpen(false)}>Cancel</Button>
+                    <Button
+                      size="xs"
+                      aria-label="Add Clip"
+                      disabled={!addClipPattern || !addClipPlan?.enabled}
+                      onClick={() => {
+                        if (!addClipPattern || !addClipZoneId || !addClipPlan?.enabled) return
+                        void onAddClipAtPlayhead({
+                          zoneId: addClipZoneId,
+                          globalTimeMs: addClipTimeMs,
+                          pattern: addClipPattern.ref,
+                          patternName: addClipPattern.label,
+                        }).then((placementId) => {
+                          if (!placementId) return
+                          setAddClipOpen(false)
+                          onSelect({ kind: 'clip', clipId: placementId })
+                        })
+                      }}
+                    >
+                      Add Clip
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
           <ShowTimelineCommands
             show={show}
             readOnly={readOnly}
@@ -2586,7 +2802,10 @@ function SceneStrip({
             })}
           </div>
         )}
-        {strip.rows.map((row, rowIndex) => (
+        {strip.rows.map((row, rowIndex) => {
+          const unifiedZone = unifiedCompositionTimeline?.zones.find((zone) => zone.id === row.zoneId)
+          const clipLayerCount = unifiedZone?.layers.length ?? 1
+          return (
           <div key={row.zoneId} className="contents">
             {(!unifiedTimelineWorkspace || show.zones.length > 1) && <button
               type="button"
@@ -2604,7 +2823,12 @@ function SceneStrip({
                   ? 'border-live/25 bg-live/10 text-zinc-100'
                   : 'text-zinc-300 hover:border-zinc-800 hover:bg-zinc-900/65 hover:text-zinc-100',
               ].join(' ')}
-              style={{ gridColumn: 1, gridRow: rowStart(rowIndex) + contentStartRow + routingLaneRows }}
+              style={{
+                gridColumn: 1,
+                gridRow: clipLayerCount > 1
+                  ? `${rowStart(rowIndex) + contentStartRow + routingLaneRows} / span ${clipLayerCount}`
+                  : rowStart(rowIndex) + contentStartRow + routingLaneRows,
+              }}
             >
               <span
                 aria-hidden
@@ -2622,7 +2846,62 @@ function SceneStrip({
                 </span>
               </span>
             </button>}
-            {row.cells.map((cell, cellIndex) => {
+            {unifiedZone ? unifiedZone.layers.map((layer, layerIndex) => (
+              <div
+                key={layer.id}
+                className="relative min-w-0 border-b border-zinc-900/80 bg-[#08080a]"
+                style={{
+                  gridColumn: `2 / ${columns.length + 1}`,
+                  gridRow: rowStart(rowIndex) + contentStartRow + routingLaneRows + layerIndex,
+                }}
+                data-show-layer-kind={layer.kind}
+              >
+                {layer.clips.map((clip) => {
+                  const totalMs = Math.max(1, unifiedCompositionTimeline?.durationMs ?? timeline.durationMs)
+                  const left = clip.startMs / totalMs * 100
+                  const width = clip.durationMs / totalMs * 100
+                  return (
+                    <button
+                      key={clip.id}
+                      type="button"
+                      aria-label={`Select ${clip.patternName}`}
+                      data-show-timeline-focus
+                      data-show-selection-key={`clip:${clip.id}`}
+                      data-show-composition-clip="true"
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        onSelect({ kind: 'clip', clipId: clip.id }, event.currentTarget)
+                      }}
+                      className={[
+                        clipBase,
+                        'absolute inset-y-0 min-h-0 py-0.5',
+                        selection.kind === 'clip' && selection.clipId === clip.id
+                          ? 'text-zinc-100 shadow-[0_0_0_1.5px_var(--color-live),0_8px_18px_-10px_rgba(0,0,0,0.9)]'
+                          : 'text-zinc-300 hover:text-zinc-100',
+                      ].join(' ')}
+                      style={{
+                        '--zone-color': row.color ?? '#38bdf8',
+                        left: `${left}%`,
+                        width: `${width}%`,
+                        minWidth: 2,
+                        borderLeftColor: row.color ?? '#38bdf8',
+                        background: `linear-gradient(color-mix(in srgb, ${row.color ?? '#38bdf8'} 9%, #101013), color-mix(in srgb, ${row.color ?? '#38bdf8'} 6%, #0c0c0e))`,
+                      } as CSSProperties}
+                    >
+                      <span className="flex min-w-0 items-center gap-1.5">
+                        <Grid2X2 size={11} aria-hidden className="show-clip-pattern-icon shrink-0 text-zinc-500" />
+                        <span className="show-clip-pattern-name truncate text-[12px] font-normal text-zinc-100 [text-shadow:0_1px_2px_rgba(0,0,0,0.95)]">{clip.patternName}</span>
+                      </span>
+                      {clip.effectKinds.length > 0 && (
+                        <span className="truncate text-[9px] text-amber-200/75 [text-shadow:0_1px_2px_rgba(0,0,0,0.95)]">
+                          FX {clip.effectKinds.length}
+                        </span>
+                      )}
+                    </button>
+                  )
+                })}
+              </div>
+            )) : row.cells.map((cell, cellIndex) => {
               const patternControls = patternControlsByCellId[cell.id] ?? []
               const summary = projectGlobalShowClipSummary(
                 show,
@@ -2703,7 +2982,7 @@ function SceneStrip({
               </button>
               )
             })}
-            {show.scenes.map((scene, sceneIndex) => (
+            {!unifiedZone && show.scenes.map((scene, sceneIndex) => (
               showCellAtSlot(show, row.zoneId, scene.id) ? null : (
                 <button
                   key={`empty-${row.zoneId}-${scene.id}`}
@@ -2754,7 +3033,7 @@ function SceneStrip({
               )
             ))}
             {(propertyLanesByZone.get(row.zoneId) ?? []).map((lane, laneIndex) => {
-              const laneRow = rowStart(rowIndex) + contentStartRow + routingLaneRows + laneIndex + 1
+              const laneRow = rowStart(rowIndex) + contentStartRow + routingLaneRows + laneIndex + clipLayerCount
               const selectedBeat = selection.kind === 'transition'
                 ? lane.projection.beats.find((beat) => beat.ownerId === selection.transitionId)?.id ?? null
                 : null
@@ -2789,7 +3068,8 @@ function SceneStrip({
               )
             })}
           </div>
-        ))}
+          )
+        })}
         {!readOnly && (!unifiedTimelineWorkspace || show.zones.length > 1) && <button
           type="button"
           aria-label="Add zone"
@@ -3532,11 +3812,14 @@ function InspectorPanel({
 
 function ContextualInspector({
   show,
+  compositionShow,
   selection,
   selectedClip,
+  selectedCompositionClipOwner,
   transformEnabled,
   patternOptions,
   patternControlsByCellId,
+  patternControlsByInstanceId,
   compiledCost,
   compiledOutputEffects,
   controllerProfiles,
@@ -3556,6 +3839,8 @@ function ContextualInspector({
   onUpdateAdaptations,
   onUpdateClipInspector,
   onOpenEffects,
+  onOpenCompositionEffects,
+  onRemoveCompositionClip,
   onUpdateControlTarget,
   onUpdateRestartOnEntry,
   onExtend,
@@ -3573,11 +3858,14 @@ function ContextualInspector({
   onUpdateRoutingSwitch,
 }: {
   show: ShowRecord
+  compositionShow: ShowRecord
   selection: ShowSelection
   selectedClip: ShowCell | null
+  selectedCompositionClipOwner: ShowClipInspectorOwner | null
   transformEnabled: boolean
   patternOptions: ShowPatternOption[]
   patternControlsByCellId: Record<string, AutomatablePatternControl[]>
+  patternControlsByInstanceId: Record<string, AutomatablePatternControl[]>
   compiledCost?: import('@/engine/showVisualToolkit').ShowCompiledCostMetadata
   compiledOutputEffects?: import('@/engine/showCompiler').ShowCompileSummary['outputEffects']
   controllerProfiles: ControllerProfile[]
@@ -3597,6 +3885,8 @@ function ContextualInspector({
   onUpdateAdaptations: (cell: ShowCell, changes: Partial<ShowCell['adaptations']>) => void
   onUpdateClipInspector: (owner: ShowClipInspectorOwner, patch: ShowClipInspectorPatch) => void
   onOpenEffects: (cell: ShowCell) => void
+  onOpenCompositionEffects: (owner: ShowClipInspectorOwner) => void
+  onRemoveCompositionClip: (owner: ShowClipInspectorOwner) => void
   onUpdateControlTarget: (cell: ShowCell, exportName: string, value: number | undefined) => void
   onUpdateRestartOnEntry: (cell: ShowCell, restartOnEntry: boolean) => void
   onExtend: (cell: ShowCell, sceneSpan: number) => void
@@ -3645,6 +3935,25 @@ function ContextualInspector({
           onUpdate={(changes) => onUpdateScene(scene, changes)}
           onDuplicate={() => onDuplicateScene(scene)}
           onRemove={() => onRequestRemoveScene(scene)}
+        />
+      )
+    }
+  }
+
+  if (selection.kind === 'clip' && selectedCompositionClipOwner) {
+    const value = projectShowClipInspector(compositionShow, selectedCompositionClipOwner)
+    if (value) {
+      return (
+        <CompositionClipInspector
+          value={value}
+          patternOptions={patternOptions}
+          patternControls={value.instanceId ? patternControlsByInstanceId[value.instanceId] ?? [] : []}
+          transformEnabled={transformEnabled}
+          compiledCost={compiledCost}
+          onPatch={(patch) => onUpdateClipInspector(selectedCompositionClipOwner, patch)}
+          onPatternCommit={onPatternCommit}
+          onOpenEffects={() => onOpenCompositionEffects(selectedCompositionClipOwner)}
+          onRemove={() => onRemoveCompositionClip(selectedCompositionClipOwner)}
         />
       )
     }
@@ -3971,6 +4280,68 @@ function SceneDurationEditor({
 
 function formatSceneDurationSeconds(milliseconds: number): string {
   return Number((milliseconds / 1000).toFixed(3)).toString()
+}
+
+function CompositionClipInspector({
+  value,
+  patternOptions,
+  patternControls,
+  transformEnabled,
+  compiledCost,
+  onPatch,
+  onPatternCommit,
+  onOpenEffects,
+  onRemove,
+}: {
+  value: NonNullable<ReturnType<typeof projectShowClipInspector>>
+  patternOptions: ShowPatternOption[]
+  patternControls: AutomatablePatternControl[]
+  transformEnabled: boolean
+  compiledCost?: import('@/engine/showVisualToolkit').ShowCompiledCostMetadata
+  onPatch: (patch: ShowClipInspectorPatch) => void
+  onPatternCommit: () => void
+  onOpenEffects: () => void
+  onRemove: () => void
+}) {
+  return (
+    <InspectorPanel
+      family="Clip"
+      heading={value.patternName}
+      headingMeta={value.scope === 'scene-overlay' ? 'Overlay Layer' : 'Main Layer'}
+      title="Pattern Clip"
+      icon={<Grid2X2 size={13} aria-hidden />}
+      actions={(
+        <Button
+          size="icon-xs"
+          variant="ghost"
+          aria-label={`Delete clip ${value.patternName}`}
+          title={`Delete ${value.patternName}`}
+          className="text-zinc-500 hover:bg-red-950/30 hover:text-red-300"
+          onClick={onRemove}
+        >
+          <Trash2 size={12} aria-hidden />
+        </Button>
+      )}
+    >
+      <ShowClipEntityDetail
+        value={value}
+        title={value.patternName}
+        readOnly={false}
+        patternOptions={patternOptions.map((option) => ({
+          value: `${option.ref.kind}:${option.ref.id}`,
+          label: option.label,
+          group: option.group,
+        }))}
+        patternControls={patternControls}
+        transformEnabled={transformEnabled}
+        compiledCost={compiledCost}
+        embedded
+        onPatch={onPatch}
+        onPatternCommit={onPatternCommit}
+        onOpenEffects={onOpenEffects}
+      />
+    </InspectorPanel>
+  )
 }
 
 function ClipInspector({
