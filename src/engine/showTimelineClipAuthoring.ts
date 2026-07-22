@@ -271,3 +271,45 @@ export function duplicateShowClipAfter(
   if (validateShowComposition(show, draft).length > 0) return composition
   return normalizeShowComposition(show, draft)
 }
+
+export function resizeShowClipAtGlobalTime(
+  show: ShowRecord,
+  composition: ShowCompositionV1,
+  input: {
+    owner: ShowTimelineClipOwner
+    globalStartMs: number
+    durationMs: number
+  },
+): ShowCompositionV1 {
+  if (!Number.isFinite(input.globalStartMs) || !Number.isFinite(input.durationMs)) return composition
+  const range = projectShowTimeline(show).scenes.find((scene) => scene.sceneId === input.owner.sceneId)
+  if (!range) return composition
+  const startMs = Math.round(input.globalStartMs - range.startMs)
+  const durationMs = Math.round(input.durationMs)
+  const draft = structuredClone(composition)
+  const scene = draft.scenes.find((candidate) => candidate.sceneId === input.owner.sceneId)
+  const zone = scene?.zones.find((candidate) => candidate.zoneId === input.owner.zoneId)
+  if (!scene || !zone) return composition
+  let placements: Array<ShowMainPlacement | ShowOverlayPlacement> | undefined
+  if (input.owner.kind === 'main') {
+    placements = zone.main
+  } else {
+    const layerId = input.owner.layerId
+    placements = zone.overlays.find((layer) => layer.id === layerId)?.placements
+  }
+  const placement = placements?.find((candidate) => candidate.id === input.owner.placementId)
+  if (!placement) return composition
+  const offsetMs = startMs - placement.startMs
+  placement.startMs = startMs
+  placement.durationMs = durationMs
+  if (offsetMs !== 0) {
+    for (const track of scene.propertyTracks ?? []) {
+      if (!('placementId' in track.target) || track.target.placementId !== input.owner.placementId) continue
+      track.keyframes.forEach((keyframe) => {
+        keyframe.timeMs += offsetMs
+      })
+    }
+  }
+  if (validateShowComposition(show, draft).length > 0) return composition
+  return normalizeShowComposition(show, draft)
+}

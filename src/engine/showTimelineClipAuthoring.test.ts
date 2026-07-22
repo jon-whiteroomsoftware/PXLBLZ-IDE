@@ -6,6 +6,7 @@ import {
   duplicateShowClipAfter,
   moveShowClipAtGlobalTime,
   planShowMainClipAtGlobalTime,
+  resizeShowClipAtGlobalTime,
   splitShowClipAtGlobalTime,
 } from './showTimelineClipAuthoring'
 import type { ShowCompositionV1, ShowPatternInstance } from './personalContentRecords'
@@ -421,5 +422,48 @@ describe('global timeline Clip authoring (#580)', () => {
       target: { placementId: 'placement-copy' },
       keyframes: [{ timeMs: 5_000 }, { timeMs: 8_000 }],
     })
+  })
+
+  it('resizes either Clip edge while keeping local animation aligned to the left edge', () => {
+    const show = createDefaultShow('show-resize-clip', 'Resize clip', 1000)
+    const composition = emptyComposition(show)
+    composition.patternInstances.push(instance)
+    composition.scenes[0].zones[0].main.push({
+      id: 'placement-resize',
+      instanceId: instance.id,
+      startMs: 2_000,
+      durationMs: 5_000,
+      view: { mirror: false, phase: 0, brightness: 1 },
+    })
+    composition.scenes[0].propertyTracks = [{
+      id: 'track-resize',
+      target: { kind: 'placement-view', placementId: 'placement-resize', property: 'brightness' },
+      keyframes: [
+        { id: 'key-resize-a', timeMs: 2_500, value: 0, easing: { curve: 'linear' } },
+        { id: 'key-resize-b', timeMs: 6_000, value: 1, easing: { curve: 'linear' } },
+      ],
+    }]
+    const owner = {
+      kind: 'main' as const,
+      sceneId: show.scenes[0].id,
+      zoneId: show.zones[0].id,
+      placementId: 'placement-resize',
+    }
+
+    const fromLeft = resizeShowClipAtGlobalTime(show, composition, {
+      owner,
+      globalStartMs: 3_000,
+      durationMs: 4_000,
+    })
+    expect(fromLeft.scenes[0].zones[0].main[0]).toMatchObject({ startMs: 3_000, durationMs: 4_000 })
+    expect(fromLeft.scenes[0].propertyTracks?.[0].keyframes.map((keyframe) => keyframe.timeMs)).toEqual([3_500, 7_000])
+
+    const fromRight = resizeShowClipAtGlobalTime(show, fromLeft, {
+      owner,
+      globalStartMs: 3_000,
+      durationMs: 6_000,
+    })
+    expect(fromRight.scenes[0].zones[0].main[0]).toMatchObject({ startMs: 3_000, durationMs: 6_000 })
+    expect(fromRight.scenes[0].propertyTracks?.[0].keyframes.map((keyframe) => keyframe.timeMs)).toEqual([3_500, 7_000])
   })
 })

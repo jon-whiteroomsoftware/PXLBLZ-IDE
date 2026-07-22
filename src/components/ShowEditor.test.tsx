@@ -202,7 +202,7 @@ describe('ShowEditor (#318)', () => {
     await user.click(clip)
     expect(screen.queryByRole('dialog', { name: 'Entity Detail Panel' })).not.toBeInTheDocument()
     await user.click(clip)
-    expect(screen.getByRole('dialog', { name: 'Entity Detail Panel' })).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByRole('dialog', { name: 'Entity Detail Panel' })).toBeInTheDocument())
     fireEvent.pointerDown(screen.getByRole('region', { name: 'Show timeline' }))
     expect(screen.queryByRole('dialog', { name: 'Entity Detail Panel' })).not.toBeInTheDocument()
   })
@@ -270,6 +270,97 @@ describe('ShowEditor (#318)', () => {
       expect(saved?.composition?.scenes[0].zones[0].main[0].startMs).not.toBe(2_000)
     })
     expect(screen.getByRole('dialog', { name: 'Entity Detail Panel' })).toBeInTheDocument()
+  })
+
+  it('resizes a composition Clip edge and restores its attached Detail (#580)', async () => {
+    const user = userEvent.setup()
+    const show = createDefaultShow('show-resize-composition', 'Resize composition', 1000)
+    const zoneId = show.zones[0].id
+    show.composition = {
+      version: 1,
+      patternInstances: [{
+        id: 'instance-resize-ui',
+        pattern: { ...show.cells[0].pattern },
+        patternName: 'Resizable Rings',
+        time: { timeScale: 1, timeOffsetMs: 0 },
+      }],
+      scenes: show.scenes.map((scene, index) => ({
+        sceneId: scene.id,
+        zones: [{
+          zoneId,
+          main: index === 0 ? [{
+            id: 'placement-resize-ui',
+            instanceId: 'instance-resize-ui',
+            startMs: 2_000,
+            durationMs: 4_000,
+            view: { mirror: false, phase: 0, brightness: 1 },
+          }] : [],
+          overlays: [],
+        }],
+      })),
+    }
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} unifiedTimeline />)
+    const clip = screen.getByRole('button', { name: 'Select Resizable Rings' })
+    const layer = document.querySelector<HTMLElement>('[data-show-layer-kind="main"]')!
+    Object.defineProperty(layer, 'getBoundingClientRect', {
+      value: () => ({ left: 0, right: 620, top: 0, bottom: 40, width: 620, height: 40, x: 0, y: 0, toJSON: () => ({}) }),
+    })
+    await user.click(clip)
+    const handle = screen.getByRole('separator', { name: 'Resize Resizable Rings end' })
+    fireEvent.pointerDown(handle, { clientX: 60, pointerId: 1, altKey: true })
+    expect(screen.queryByRole('dialog', { name: 'Entity Detail Panel' })).not.toBeInTheDocument()
+    fireEvent.pointerMove(window, { clientX: 100, pointerId: 1, altKey: true })
+    fireEvent.pointerUp(window, { clientX: 100, pointerId: 1, altKey: true })
+
+    await waitFor(() => {
+      const saved = useShowStore.getState().shows.find((candidate) => candidate.id === show.id)
+      expect(saved?.composition?.scenes[0].zones[0].main[0].durationMs).toBe(8_000)
+    })
+    await waitFor(() => expect(screen.getByRole('dialog', { name: 'Entity Detail Panel' })).toBeInTheDocument())
+  })
+
+  it('deletes a selected composition Clip from the keyboard (#580)', async () => {
+    const user = userEvent.setup()
+    const show = createDefaultShow('show-delete-composition', 'Delete composition', 1000)
+    const zoneId = show.zones[0].id
+    show.composition = {
+      version: 1,
+      patternInstances: [{
+        id: 'instance-delete-ui',
+        pattern: { ...show.cells[0].pattern },
+        patternName: 'Disposable Rings',
+        time: { timeScale: 1, timeOffsetMs: 0 },
+      }],
+      scenes: show.scenes.map((scene, index) => ({
+        sceneId: scene.id,
+        zones: [{
+          zoneId,
+          main: index === 0 ? [{
+            id: 'placement-delete-ui',
+            instanceId: 'instance-delete-ui',
+            startMs: 2_000,
+            durationMs: 4_000,
+            view: { mirror: false, phase: 0, brightness: 1 },
+          }] : [],
+          overlays: [],
+        }],
+      })),
+    }
+    setPersonalContentProvider(memoryProvider([show]))
+    useShowStore.setState({ shows: [show], activeShowId: show.id, showsLoaded: true })
+
+    render(<ShowEditor showId={show.id} unifiedTimeline />)
+    await user.click(screen.getByRole('button', { name: 'Select Disposable Rings' }))
+    fireEvent.keyDown(document, { key: 'Delete' })
+
+    await waitFor(() => {
+      const saved = useShowStore.getState().shows.find((candidate) => candidate.id === show.id)
+      expect(saved?.composition?.scenes[0].zones[0].main).toEqual([])
+    })
+    expect(screen.queryByRole('button', { name: 'Select Disposable Rings' })).not.toBeInTheDocument()
   })
 
   it('adds an explicit Layer to the selected Zone across the unified timeline (#580)', async () => {

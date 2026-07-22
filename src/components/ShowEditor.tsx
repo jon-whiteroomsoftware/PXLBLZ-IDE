@@ -111,13 +111,17 @@ import {
   zoomShowTimelineViewport,
   type ShowTimelineViewport,
 } from '@/engine/showTimelineViewport'
-import { projectShowUnifiedTimeline } from '@/engine/showUnifiedTimelineProjection'
+import {
+  projectShowUnifiedTimeline,
+  type ShowUnifiedTimelineClipProjection,
+} from '@/engine/showUnifiedTimelineProjection'
 import {
   addShowOverlayLayerAcrossTimeline,
   addShowMainClipAtGlobalTime,
   duplicateShowClipAfter,
   moveShowClipAtGlobalTime,
   planShowMainClipAtGlobalTime,
+  resizeShowClipAtGlobalTime,
   splitShowClipAtGlobalTime,
   type ShowTimelineClipMoveTarget,
   type ShowTimelineClipOwner,
@@ -667,6 +671,16 @@ export function ShowEditor({
       return true
     }
     if (targetSelection.kind === 'clip') {
+      const compositionOwner = findTimelineClipOwner(activeShow.composition, targetSelection.clipId)
+      if (compositionOwner && activeShow.composition) {
+        const composition = compositionOwner.kind === 'main'
+          ? deleteShowMainPlacement(activeShow.composition, compositionOwner)
+          : deleteShowOverlayPlacement(activeShow.composition, compositionOwner)
+        if (composition === activeShow.composition) return false
+        closeDetailPanel()
+        void updateShow(activeShow.id, { ...activeShow, composition, updatedAt: Date.now() })
+        return true
+      }
       if (!activeShow.cells.some((cell) => cell.id === targetSelection.clipId)) return false
       closeDetailPanel()
       void removeClip(activeShow.id, targetSelection.clipId)
@@ -679,7 +693,7 @@ export function ShowEditor({
       return true
     }
     return false
-  }, [activeShow, closeDetailPanel, readOnly, removeBoundaryTransition, removeClip, removeZone])
+  }, [activeShow, closeDetailPanel, readOnly, removeBoundaryTransition, removeClip, removeZone, updateShow])
 
   useEffect(() => {
     const handleDelete = (event: KeyboardEvent) => {
@@ -1312,6 +1326,21 @@ export function ShowEditor({
                     updatedAt: Date.now(),
                   })
                   return placementId
+                }}
+                onResizeCompositionClip={async (owner, globalStartMs, durationMs) => {
+                  if (!timelineComposition) return false
+                  const nextComposition = resizeShowClipAtGlobalTime(activeShow, timelineComposition, {
+                    owner,
+                    globalStartMs,
+                    durationMs,
+                  })
+                  if (nextComposition === timelineComposition) return false
+                  await updateShow(activeShow.id, {
+                    ...activeShow,
+                    composition: nextComposition,
+                    updatedAt: Date.now(),
+                  })
+                  return true
                 }}
                 onOpenScene={(sceneId) => {
                   const scope = resolveShowSceneEditorScope(activeShow, {
@@ -2259,6 +2288,7 @@ function SceneStrip({
   onAddCompositionLayer,
   onSplitCompositionClip,
   onDuplicateCompositionClip,
+  onResizeCompositionClip,
   onOpenScene,
   onAddScene,
   onAddZone,
@@ -2290,6 +2320,11 @@ function SceneStrip({
   onAddCompositionLayer: (zoneId: string) => Promise<boolean>
   onSplitCompositionClip: (owner: ShowTimelineClipOwner, globalTimeMs: number) => Promise<string | null>
   onDuplicateCompositionClip: (owner: ShowTimelineClipOwner) => Promise<string | null>
+  onResizeCompositionClip: (
+    owner: ShowTimelineClipOwner,
+    globalStartMs: number,
+    durationMs: number,
+  ) => Promise<boolean>
   onOpenScene: (sceneId: string) => void
   onAddScene: () => void
   onAddZone: () => void
@@ -2312,12 +2347,21 @@ function SceneStrip({
   const snapEnabled = useShowEditorSessionStore((state) => state.snapEnabled)
   const setSnapEnabled = useShowEditorSessionStore((state) => state.setSnapEnabled)
   const [draggingCellId, setDraggingCellId] = useState<string | null>(null)
+  const onSelectRef = useRef(onSelect)
+  useEffect(() => {
+    onSelectRef.current = onSelect
+  }, [onSelect])
   const [draggingCompositionClip, setDraggingCompositionClip] = useState<{
     clipId: string
     owner: ShowTimelineClipOwner
     grabOffsetMs: number
   } | null>(null)
   const draggingCompositionClipRef = useRef(draggingCompositionClip)
+  const [resizePreview, setResizePreview] = useState<{
+    clipId: string
+    startMs: number
+    durationMs: number
+  } | null>(null)
   const [dropTargetKey, setDropTargetKey] = useState<string | null>(null)
   const [superDetailOwner, setSuperDetailOwner] = useState<{ sceneId: string; anchor: HTMLElement } | null>(null)
   const [addClipOpen, setAddClipOpen] = useState(false)
@@ -2596,6 +2640,78 @@ function SceneStrip({
     element.addEventListener('wheel', handleWheel, { passive: false })
     return () => element.removeEventListener('wheel', handleWheel)
   }, [zoomAroundPlayhead])
+  const beginCompositionResize = (
+    clip: ShowUnifiedTimelineClipProjection,
+    edge: 'start' | 'end',
+    event: ReactPointerEvent<HTMLSpanElement>,
+  ) => {
+    if (readOnly) return
+    event.preventDefault()
+    event.stopPropagation()
+    const lane = event.currentTarget.closest<HTMLElement>('[data-show-layer-kind]')
+    if (!lane) return
+    const rect = lane.getBoundingClientRect()
+    const startClientX = event.clientX
+    const totalMs = Math.max(1, unifiedCompositionTimeline?.durationMs ?? timeline.durationMs)
+    const owner: ShowTimelineClipOwner = clip.kind === 'main'
+      ? {
+          kind: 'main',
+          sceneId: clip.sceneId,
+          zoneId: clip.zoneId,
+          placementId: clip.id,
+        }
+      : {
+          kind: 'overlay',
+          sceneId: clip.sceneId,
+          zoneId: clip.zoneId,
+          layerId: clip.layerId!,
+          placementId: clip.id,
+        }
+    const resolve = (pointer: PointerEvent) => {
+      const deltaMs = (pointer.clientX - startClientX) / Math.max(1, rect.width) * totalMs
+      const rawBoundaryMs = edge === 'start' ? clip.startMs + deltaMs : clip.endMs + deltaMs
+      const minTimeMs = edge === 'start' ? 0 : clip.startMs + 1
+      const maxTimeMs = edge === 'start' ? clip.endMs - 1 : totalMs
+      const boundaryMs = snapEnabled !== pointer.altKey
+        ? snapShowTimelineTime(rawBoundaryMs, {
+            visibleDurationMs: viewport.durationMs,
+            visibleWidthPx: Math.max(1, scrollRef.current?.clientWidth ?? rect.width),
+            structuralTimesMs,
+            minTimeMs,
+            maxTimeMs,
+          }).timeMs
+        : Math.max(minTimeMs, Math.min(maxTimeMs, rawBoundaryMs))
+      const startMs = edge === 'start' ? boundaryMs : clip.startMs
+      const durationMs = edge === 'start' ? clip.endMs - boundaryMs : boundaryMs - clip.startMs
+      return { startMs: Math.round(startMs), durationMs: Math.max(1, Math.round(durationMs)) }
+    }
+    const move = (pointer: PointerEvent) => {
+      const next = resolve(pointer)
+      setResizePreview({ clipId: clip.id, ...next })
+    }
+    const finish = (pointer: PointerEvent) => {
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', finish)
+      window.removeEventListener('pointercancel', cancel)
+      const next = resolve(pointer)
+      setResizePreview(null)
+      void onResizeCompositionClip(owner, next.startMs, next.durationMs).finally(() => {
+        window.setTimeout(() => onSelectRef.current({ kind: 'clip', clipId: clip.id }), 0)
+      })
+    }
+    const cancel = () => {
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', finish)
+      window.removeEventListener('pointercancel', cancel)
+      setResizePreview(null)
+      window.setTimeout(() => onSelectRef.current({ kind: 'clip', clipId: clip.id }), 0)
+    }
+    setResizePreview({ clipId: clip.id, startMs: clip.startMs, durationMs: clip.durationMs })
+    onDismiss()
+    window.addEventListener('pointermove', move)
+    window.addEventListener('pointerup', finish)
+    window.addEventListener('pointercancel', cancel)
+  }
   return (
     <div
       className="select-none border-b border-seam bg-[#060608] px-2 py-2.5 shadow-[inset_0_6px_14px_-8px_rgba(0,0,0,0.9),inset_0_-6px_14px_-10px_rgba(0,0,0,0.9)] [&_input]:select-text [&_textarea]:select-text"
@@ -3089,8 +3205,9 @@ function SceneStrip({
               >
                 {layer.clips.map((clip) => {
                   const totalMs = Math.max(1, unifiedCompositionTimeline?.durationMs ?? timeline.durationMs)
-                  const left = clip.startMs / totalMs * 100
-                  const width = clip.durationMs / totalMs * 100
+                  const preview = resizePreview?.clipId === clip.id ? resizePreview : clip
+                  const left = preview.startMs / totalMs * 100
+                  const width = preview.durationMs / totalMs * 100
                   return (
                     <button
                       key={clip.id}
@@ -3134,7 +3251,7 @@ function SceneStrip({
                         draggingCompositionClipRef.current = null
                         setDraggingCompositionClip(null)
                         setDropTargetKey(null)
-                        onSelect({ kind: 'clip', clipId: clip.id }, event.currentTarget)
+                        onSelectRef.current({ kind: 'clip', clipId: clip.id }, event.currentTarget)
                       }}
                       onClick={(event) => {
                         event.stopPropagation()
@@ -3142,7 +3259,7 @@ function SceneStrip({
                       }}
                       className={[
                         clipBase,
-                        'absolute inset-y-0 min-h-0 py-0.5',
+                        'group absolute inset-y-0 min-h-0 py-0.5',
                         draggingCompositionClip?.clipId === clip.id
                           ? 'opacity-45'
                           : selection.kind === 'clip' && selection.clipId === clip.id
@@ -3166,6 +3283,32 @@ function SceneStrip({
                         <span className="truncate text-[9px] text-amber-200/75 [text-shadow:0_1px_2px_rgba(0,0,0,0.95)]">
                           FX {clip.effectKinds.length}
                         </span>
+                      )}
+                      {!readOnly && (
+                        <>
+                          <span
+                            role="separator"
+                            aria-orientation="vertical"
+                            aria-label={`Resize ${clip.patternName} start`}
+                            className={[
+                              'absolute inset-y-0 left-0 z-20 w-1 cursor-ew-resize bg-live/70 transition-opacity',
+                              selection.kind === 'clip' && selection.clipId === clip.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-70',
+                            ].join(' ')}
+                            onClick={(event) => event.stopPropagation()}
+                            onPointerDown={(event) => beginCompositionResize(clip, 'start', event)}
+                          />
+                          <span
+                            role="separator"
+                            aria-orientation="vertical"
+                            aria-label={`Resize ${clip.patternName} end`}
+                            className={[
+                              'absolute inset-y-0 right-0 z-20 w-1 cursor-ew-resize bg-live/70 transition-opacity',
+                              selection.kind === 'clip' && selection.clipId === clip.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-70',
+                            ].join(' ')}
+                            onClick={(event) => event.stopPropagation()}
+                            onPointerDown={(event) => beginCompositionResize(clip, 'end', event)}
+                          />
+                        </>
                       )}
                     </button>
                   )
